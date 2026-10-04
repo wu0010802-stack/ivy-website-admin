@@ -5,7 +5,8 @@
 //   崇德校同年成立的「ESL 美語部」先不寫（美語補習班要不要露出還沒定案）。
 // - 02 全人教育：舊站「全人教育理念」，六大領域與六大核心素養源自幼兒園教保活動課程大綱。
 // - 03 我們的期許：舊站首頁「Our Goals」與「幼兒園是孩童第一所學校也是孩童第二個家」。
-// 內容寫在元件裡，不進後台。不綁 30 週年（週年版尚未拍板）。校名、照片跟著後台發布的分校資料；年份是固定的沿革。
+// 2026-10 起文字與照片改讀後台「關於常春藤頁」（about_page，預設＝fixture 的 aboutPage，一字不差）；六大領域、卡紙位置與顏色仍寫在這裡。
+// 不綁 30 週年（週年版尚未拍板）。沿革的校名、照片跟著後台發布的分校資料；沿革五站固定，年份與說明在後台可改。
 // 2026-09-29 改成「立體書」（使用者選定 J：design/about-style-directions-20260929/j-popup.*）：每段是一個跨頁，
 // 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來的五校、全人教育六圈聚合、期許是折起來的紙房子。
 // 使用者要求不特別強調 2005 → 2020 相隔十五年：五站等距（紀念章每站捲動距離一樣）。頁面內容不放預約參觀（同常春藤環境、特色教學；
@@ -18,26 +19,23 @@
 // 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
 // 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。手機章名和卡紙不在同一個畫面，
 // 紀念章改到右頁上緣接縫。義華創校年份 1997（業主 2026-10-03 裁定）。
-import type { Campus, CampusTestimonial } from '~/types/site-content'
-import { pickImage } from '~/utils/media-image'
-import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, responsiveImage } from '~/utils/responsive-image'
+import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
+import { aboutHeroAttrs, pickImage } from '~/utils/media-image'
+import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
 import { youtubeEmbed } from '~/utils/filmCarousel'
 import type { AboutPopup } from '~/utils/about-popup'
 
-const props = defineProps<{ campuses: Campus[] }>()
+const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
 
-const MILESTONES = [
-  { key: 'yihua', year: 1997, roc: 86, text: '第一間常春藤，在三民區義華路成立。' },
-  { key: 'minghua', year: 2001, roc: 90, text: '走進左營區，有了第二所校園。' },
-  { key: 'chongde', year: 2005, roc: 94, text: '左營區的第二所校園。' },
-  { key: 'international', year: 2020, roc: 109, text: '在鳥松區球場路成立。' },
-  { key: 'renwu', year: 2021, roc: 110, text: '第五所校園，在仁武區成立。' }
-]
-
-// 分校停用或下架時，那一年仍留在沿革裡，只是不放照片與連結。
-const milestones = computed(() => MILESTONES.map((item) => ({ ...item, campus: props.campuses.find((c) => c.key === item.key) })))
+// 沿革五站來自後台（年份可改，民國年＝西元 − 1911）；分校停用或下架時，那一年仍留在沿革裡，只是不放照片與連結。
+const milestones = computed(() => props.page.milestones.map((item) => ({ ...item, roc: rocYear(item.year), campus: props.campuses.find((c) => c.key === item.key) })))
 // 紀念章背面：校名／年份（沒有 JS 時第二面先印第一所）
 const medalStops = computed(() => milestones.value.map((item) => ({ name: item.campus?.name ?? '', year: item.year })))
+
+// 內建照片的說明（不開放編輯；後台換了照片就用後台的說明，沒填用素材庫的說明）
+const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'
+const HERO_BACK_ALT = '孩子在教室裡開心地指向自己的發現'
+const HOPE_ALT = '孩子們笑著圍在戴眼鏡的長輩身邊，大家開心地擠在一起'
 
 // 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色，左頁沿革同一列用同色小方塊
 // 五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
@@ -92,14 +90,18 @@ const voiceTitle = computed(() => {
   return cut > 0 && cut < quote.length - 1 ? [quote.slice(0, cut + 1), quote.slice(cut + 1)] : [quote]
 })
 
-// 章節：目次、章名、頁碼、章色、頁緣厚度（--n 第幾個跨頁，首屏是 0）都從這裡算
+// 章節：目次、章名、頁碼、章色、頁緣厚度（--n 第幾個跨頁，首屏是 0）都從這裡算；章名在後台
 const NUMERALS = ['一', '二', '三', '四']
-const chapters = computed(() => [
-  { id: 'story', name: '一路走來', color: 'var(--yellow)' },
-  { id: 'whole-child', name: '全人教育', color: 'var(--studio-blue)' },
-  { id: 'hope', name: '我們的期許', color: 'var(--studio-orange)' },
-  ...(voices.value.length ? [{ id: 'voices', name: '家長怎麼說', color: 'var(--trail)' }] : [])
-].map((item, i) => ({ ...item, label: `第${NUMERALS[i]}章`, page: 3 + i * 2, style: { '--n': i + 1, '--chap': item.color } })))
+const CHAPTER_LOOKS = [
+  { id: 'story', color: 'var(--yellow)' },
+  { id: 'whole-child', color: 'var(--studio-blue)' },
+  { id: 'hope', color: 'var(--studio-orange)' },
+  { id: 'voices', color: 'var(--trail)' }
+]
+const chapters = computed(() => CHAPTER_LOOKS
+  .map((look, i) => ({ ...look, name: props.page.chapterNames[i]! }))
+  .filter((item) => item.id !== 'voices' || voices.value.length > 0)
+  .map((item, i) => ({ ...item, label: `第${NUMERALS[i]}章`, page: 3 + i * 2, style: { '--n': i + 1, '--chap': item.color } })))
 const chapterOf = (id: string) => chapters.value.find((item) => item.id === id)!
 
 const root = ref<HTMLElement | null>(null)
@@ -152,19 +154,19 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <section class="abk-spread abk-hero" data-spread="static" style="--n:0" aria-labelledby="about-page-title">
       <div class="abk-hero-text">
         <span class="abk-ribbon" aria-hidden="true" />
-        <h1 id="about-page-title">從一間幼兒園，<br>長成五所校園。</h1>
-        <p class="abk-lede">1997 年，第一間常春藤在高雄義華路成立。近三十年來，我們守著同一份教育理念與專業保育，陪孩子過一段獨一無二的童年。</p>
+        <h1 id="about-page-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
+        <p class="abk-lede">{{ page.heroLede }}</p>
       </div>
       <div class="abk-hero-art">
         <div class="abk-stage">
           <figure class="abk-pop is-back" :style="{ '--x': '0%', '--y': '44%', '--w': '36%', '--c': 'var(--studio-blue)', '--r': '-4deg', '--z': 1 }">
-            <div class="abk-card"><img v-bind="responsiveImage('about-curious', '(max-width: 900px) 34vw, 200px')" alt="孩子在教室裡開心地指向自己的發現" loading="lazy"></div>
+            <div class="abk-card"><img v-bind="withPhotoStyle(pagePhotoAttrs('about-curious', page.heroBackPhoto, '(max-width: 900px) 34vw, 200px'), page.heroBackPhoto)" :alt="pagePhotoAlt(HERO_BACK_ALT, page.heroBackPhoto, page.heroBackPhotoAlt)" loading="lazy"></div>
             <span class="abk-fold" aria-hidden="true" />
           </figure>
           <figure class="abk-pop is-hero" :style="{ '--x': '20%', '--y': '12%', '--w': '80%', '--c': 'var(--yellow)', '--r': '1.2deg', '--z': 2 }">
             <div class="abk-card">
-              <img v-bind="responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)" alt="孩子們笑著圍在創辦人身邊，大家擠在一起" loading="eager" fetchpriority="high">
-              <figcaption>把每個孩子，放在心上。</figcaption>
+              <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+              <figcaption>{{ page.heroCaption }}</figcaption>
             </div>
             <span class="abk-fold" aria-hidden="true" />
           </figure>
@@ -174,7 +176,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <h2 id="about-toc-title">目次</h2>
         <ol>
           <li v-for="item in chapters" :key="item.id"><a :href="`#${item.id}`" :style="{ '--c': item.color }"><span>{{ item.name }}</span><i aria-hidden="true" /><b lang="en">{{ item.page }}</b></a></li>
-          <li><a href="#campuses" style="--c:var(--leaf)"><span>五所校園</span><i aria-hidden="true" /><b>書籤</b></a></li>
+          <li><a href="#campuses" style="--c:var(--leaf)"><span>{{ page.outroTitle }}</span><i aria-hidden="true" /><b>書籤</b></a></li>
         </ol>
       </nav>
       <span class="abk-edge is-l" aria-hidden="true" /><span class="abk-edge is-r" aria-hidden="true" />
@@ -187,9 +189,9 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <section id="story" class="abk-spread abk-story" data-spread :style="chapterOf('story').style" aria-labelledby="story-title">
       <div class="abk-page is-left">
         <p class="abk-chap">{{ chapterOf('story').label }}<span>{{ chapterOf('story').name }}</span></p>
-        <h2 id="story-title" class="abk-title">近三十年，<br>長出五所校園。</h2>
+        <h2 id="story-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.storyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
         <AboutMedal class="is-title" :stops="medalStops" />
-        <p class="abk-text">我們秉持不變的教育理念，堅持專業的保育，也不斷精進、嘗試新的教學方式，努力為孩子營造安心的環境，讓每個孩子都擁有獨一無二的童年。</p>
+        <p class="abk-text">{{ page.storyText }}</p>
         <ol class="abk-list">
           <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color }">
             <p class="abk-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
@@ -230,8 +232,8 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <section id="whole-child" class="abk-spread" data-spread :style="chapterOf('whole-child').style" aria-labelledby="whole-title">
       <div class="abk-page is-left">
         <p class="abk-chap">{{ chapterOf('whole-child').label }}<span>{{ chapterOf('whole-child').name }}</span></p>
-        <h2 id="whole-title" class="abk-title">六大領域，<br>陪孩子完整長大。</h2>
-        <p class="abk-text">秉持全人教育的精神，從「幼兒的發展」與「社會文化的期待」出發，以螺旋式的方式加深、加廣課程。</p>
+        <h2 id="whole-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.wholeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+        <p class="abk-text">{{ page.wholeText }}</p>
         <div class="abk-lists">
           <div>
             <h3>學習的面向 · 六大領域</h3>
@@ -244,7 +246,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
             <ol class="abk-literacies"><li v-for="name in LITERACIES" :key="name">{{ name }}</li></ol>
           </div>
         </div>
-        <p class="abk-fine">六大領域彼此關聯、環環相扣，課程在跨領域的統整下同時進行，讓孩子在參與生活與活動的過程中全面發展。<small>源自幼兒園教保活動課程大綱</small></p>
+        <p class="abk-fine">{{ page.wholeFine }}<small v-if="page.wholeFineSource">{{ page.wholeFineSource }}</small></p>
         <NuxtLink class="abk-link" to="/curriculum">看特色教學怎麼安排<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
         <span class="abk-cast" aria-hidden="true" />
         <span class="abk-edge" aria-hidden="true" />
@@ -265,10 +267,9 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <section id="hope" class="abk-spread abk-hope" data-spread :style="chapterOf('hope').style" aria-labelledby="hope-title">
       <div class="abk-page is-left">
         <p class="abk-chap">{{ chapterOf('hope').label }}<span>{{ chapterOf('hope').name }}</span></p>
-        <h2 id="hope-title" class="abk-title">孩子的第一所學校，<br>也是第二個家。</h2>
+        <h2 id="hope-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.hopeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
         <blockquote class="abk-quote">
-          <p>常春藤的孩子，沒有美艷的花朵，沒有引人的清香，卻擁有優美高雅的氣質。</p>
-          <p>我們期許，常春藤的孩子，未來在名為全世界的舞台，展現自我、發光發熱。</p>
+          <p v-for="(quote, i) in page.hopeQuotes" :key="i">{{ quote }}</p>
         </blockquote>
         <span class="abk-cast" aria-hidden="true" />
         <span class="abk-edge" aria-hidden="true" />
@@ -288,7 +289,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
               <div class="abk-card">
                 <div class="abk-roof" aria-hidden="true"><span class="abk-chimney" /></div>
                 <div class="abk-wall">
-                  <span class="abk-window"><img v-bind="responsiveImage('about-together', '(max-width: 900px) 40vw, 200px')" alt="孩子們笑著圍在戴眼鏡的長輩身邊，大家開心地擠在一起" loading="lazy"></span>
+                  <span class="abk-window"><img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 200px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy"></span>
                   <span class="abk-door" aria-hidden="true" />
                 </div>
                 <svg class="abk-ivy" viewBox="0 0 80 220" aria-hidden="true">
@@ -360,8 +361,8 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <!-- 結尾：五條緞帶書籤從書底垂下來，一條是一所校園 -->
     <section id="campuses" class="abk-outro" aria-labelledby="about-campuses-title">
       <div class="abk-outro-copy">
-        <h2 id="about-campuses-title">五所校園</h2>
-        <p>三民、左營、鳥松、仁武，五所校園各有自己的樣子。拉一條書籤，看看那所校園。</p>
+        <h2 id="about-campuses-title">{{ page.outroTitle }}</h2>
+        <p>{{ page.outroText }}</p>
       </div>
       <ul class="abk-ribbons">
         <template v-for="(item, i) in milestones" :key="item.key">

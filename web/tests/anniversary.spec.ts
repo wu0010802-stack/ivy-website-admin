@@ -5,6 +5,8 @@ import { ANNI_MILESTONES, ANNI_YEARS, anniversaryYearIndex, campusCountAt, crayo
 import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
+import fixture from '../server/data/site-fixture.json'
+import type { SiteContent } from '../app/types/site-content'
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8')
 const page = read('app/pages/anniversary.vue')
@@ -20,9 +22,10 @@ describe('30 週年分頁：只用真實年份與已上線的文字', () => {
     for (const m of ANNI_MILESTONES) expect(m.roc).toBe(m.year - 1911)
   })
 
-  it('沿革文字和 /about 第一章一字不差', () => {
-    const about = read('app/components/AboutContent.vue')
-    for (const m of ANNI_MILESTONES) expect(about).toContain(m.history)
+  // 2026-10 起 /about 的沿革文字改讀後台（預設＝fixture 的 aboutPage）
+  it('沿革文字和 /about 第一章的內建內容一字不差', () => {
+    const about = (fixture as unknown as SiteContent).aboutPage.milestones
+    for (const m of ANNI_MILESTONES) expect(about.find((item) => item.key === m.key)?.text).toBe(m.history)
   })
 
   it('作品與替代文字沿用特色教學頁，沒放的照樣不放', () => {
