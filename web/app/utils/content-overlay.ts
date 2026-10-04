@@ -448,7 +448,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       const fallback = slotImage(hero.fallback_image, media)
       if (fallback) next.home.hero.heroFallbackMedia = { ...fallback, alt: fallback.alt || next.home.hero.heroImageAlt }
       const desktop = slotVideoSrc(hero.video_desktop, media, 'desktop')
-      const mobile = slotVideoSrc(hero.video_mobile)
+      const mobile = slotVideoSrc(hero.video_mobile, media, 'mobile')
       if (desktop && hero.video_desktop) {
         next.home.hero.heroVideoSrc = desktop
         next.home.hero.heroVideoPosition = slotPosition(hero.video_desktop, media[hero.video_desktop.media_id])
@@ -577,7 +577,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         })
       }
       const desktop = slotVideoSrc(day.film_desktop, media, 'desktop')
-      const mobile = slotVideoSrc(day.film_mobile)
+      const mobile = slotVideoSrc(day.film_mobile, media, 'mobile')
       if (desktop && day.film_desktop) {
         next.dayExperience.filmSrc = desktop
         next.dayExperience.filmPosition = slotPosition(day.film_desktop, media[day.film_desktop.media_id])

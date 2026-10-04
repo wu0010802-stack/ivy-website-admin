@@ -124,16 +124,23 @@ export function slotImage(slot: LiveMediaSlot | null | undefined, media: MediaIn
 
 /**
  * 影片版位 → 檔案網址。素材有背景轉好的版本（後端 app/media/jobs.py）就用對應的
- * 那一版（手機版同解析度、CRF 較高，見 media-policy.ts），還沒轉好或舊素材用原檔。
+ * 那一版（手機版同解析度、CRF 較高，見 media-policy.ts）；沒有版本（舊素材，或原檔
+ * 本來就能直接播、後端判定沿用原檔）用原檔。
+ *
+ * 素材不在 media 裡就回 undefined，呼叫端沿用官網內建影片：公開 API 與草稿預覽
+ * （draft-preview.ts 的 previewMedia）只列處理好的素材，轉檔中的影片原檔公開路由拿
+ * 不到，給網址只會放一支播不出來的影片。
  */
 export function slotVideoSrc(
   slot: LiveMediaSlot | null | undefined,
-  media?: MediaInfoMap,
+  media: MediaInfoMap | undefined,
   edition: 'desktop' | 'mobile' = 'desktop'
 ): string | undefined {
   if (!slot || !isMediaId(slot.media_id)) return undefined
+  const info = media?.[slot.media_id]
+  if (!info) return undefined
   const kind = edition === 'mobile' ? 'video_mobile' : 'video_desktop'
-  const variant = media?.[slot.media_id]?.variants.find((v) => v.kind === kind)
+  const variant = info.variants.find((v) => v.kind === kind)
   return variant ? mediaVariantUrl(slot.media_id, kind, variant.version) : mediaFileUrl(slot.media_id)
 }
 

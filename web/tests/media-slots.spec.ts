@@ -263,7 +263,37 @@ describe('影片轉檔版本與中圖', () => {
     expect(slotVideoSrc({ media_id: VIDEO }, withEditions, 'desktop')).toBe(`/api/website/v1/public/media/${VIDEO}/variants/video_desktop?v=d1`)
     expect(slotVideoSrc({ media_id: VIDEO }, withEditions, 'mobile')).toBe(`/api/website/v1/public/media/${VIDEO}/variants/video_mobile?v=m1`)
     expect(slotVideoSrc({ media_id: VIDEO }, media, 'mobile')).toBe(`/api/website/v1/public/media/${VIDEO}/file`)
-    expect(slotVideoSrc({ media_id: VIDEO })).toBe(`/api/website/v1/public/media/${VIDEO}/file`)
+  })
+
+  it('素材不在素材資訊裡（草稿預覽裡轉檔中的影片）：不給網址，沿用官網內建影片', () => {
+    expect(slotVideoSrc({ media_id: VIDEO }, undefined)).toBeUndefined()
+    expect(slotVideoSrc({ media_id: VIDEO }, {}, 'mobile')).toBeUndefined()
+    // 草稿預覽的素材資訊只放處理好的素材。
+    const preview = previewMedia([
+      { id: VIDEO, kind: 'video', status: 'processing', content_type: 'video/mp4', width: null, height: null, alt_text: null, crop_focus_x: null, crop_focus_y: null, variants: [] },
+      { id: VIDEO_M, kind: 'video', status: 'ready', content_type: 'video/mp4', width: 1920, height: 1080, alt_text: null, crop_focus_x: null, crop_focus_y: null, variants: [] }
+    ])
+    const hero = applyContentOverlay(site, {
+      home_hero: { eyebrow: '', copy_lines: ['一'], video_desktop: { media_id: VIDEO } }
+    }, preview).home.hero
+    expect(hero.heroVideoSrc).toBe(site.home.hero.heroVideoSrc)
+    expect(hero.heroVideoSrcMobile).toBe(site.home.hero.heroVideoSrcMobile)
+    expect(hero.heroVideoPosition).toBe(site.home.hero.heroVideoPosition)
+    // 手機選了處理好的另一支：手機用它，桌機仍是內建。
+    const mixed = applyContentOverlay(site, {
+      home_hero: { eyebrow: '', copy_lines: ['一'], video_desktop: { media_id: VIDEO }, video_mobile: { media_id: VIDEO_M } }
+    }, preview).home.hero
+    expect(mixed.heroVideoSrc).toBe(site.home.hero.heroVideoSrc)
+    expect(mixed.heroVideoSrcMobile).toBe(`/api/website/v1/public/media/${VIDEO_M}/file`)
+    const day = applyContentOverlay(site, {
+      day_experience: {
+        eyebrow: '', eyebrow_en: '', note: '', source_note: '', film_desktop: { media_id: VIDEO }, moments: []
+      }
+    } as unknown as ContentOverlay, preview).dayExperience
+    expect(day.filmSrc).toBe(site.dayExperience.filmSrc)
+    expect(day.filmSrcMobile).toBe(site.dayExperience.filmSrcMobile)
+    // 活動影片：轉檔中的那支不放進輪播。
+    expect(homeFilms([{ id: 'run', title: '一起跑', source: 'file', video: { media_id: VIDEO }, start: 0, end: null }], preview)).toEqual([])
   })
 
   it('首屏與孩子的一天：手機沒另外選影片時，用桌機那支的手機版', () => {
