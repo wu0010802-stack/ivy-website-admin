@@ -464,6 +464,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.import_site_assets': '匯入官網內建素材',
   'media.regenerate_variants': '重新產生素材縮圖、中圖與大圖',
   'media.strip_metadata': '去除素材原檔的拍攝資訊',
+  'media.transcode_backfill': '既有影片補轉檔',
   // 招生入學（2026-10）
   'recruitment_visit.create': '新增招生訪視',
   'recruitment_visit.update': '修改招生訪視',
@@ -1294,6 +1295,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   all: (v) => (v ? '全部素材都重做' : null),
   // 部署後批次去除舊素材原檔的拍攝資訊（media.strip_metadata）。
   stripped: (v) => `去除拍攝資訊 ${countOf(v)} 個`,
+  // 既有影片補轉檔（media.transcode_backfill）。
+  queued: (v) => `排入 ${countOf(v)} 支`,
   // 通知重寄
   previous_attempts: (v) => `先前嘗試 ${countOf(v)} 次`,
   previous_error_code: (v) => `上次失敗原因：${outboxErrorLabel(String(v))}`,

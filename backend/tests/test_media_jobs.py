@@ -652,3 +652,39 @@ async def test_retry_is_only_for_videos(admin_client):
     )
     response = await admin_client.post(f"/api/website/v1/admin/media/{image.json()['id']}/retry")
     assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_transcode_media_videos_cli(app, db_session, monkeypatch, capsys):
+    from app import cli
+
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, job = await _stored_video(app, db_session, status=MediaStatus.READY, kind=MediaJobKind.BACKFILL)
+    await db_session.execute(update(MediaJob).where(MediaJob.id == job.id).values(status="done"))
+    await db_session.commit()
+
+    async def factory():
+        return app.state.session_factory
+
+    monkeypatch.setattr(cli, "_session_factory", factory)
+
+    background = app.state.settings.model_copy(update={"media_video_processing": "background"})
+    monkeypatch.setattr(cli, "get_settings", lambda: background)
+    await cli.transcode_media_videos(apply=False)
+    out = capsys.readouterr().out
+    assert "clip.mp4" in out and "dry-run" in out
+    assert (await jobs.backfill_candidates(db_session))[0].asset_id == asset.id
+
+    await cli.transcode_media_videos(apply=True)
+    assert "已排入 1 支" in capsys.readouterr().out
+    queued = (await db_session.execute(select(MediaJob).where(MediaJob.status == "pending"))).scalars().all()
+    assert [j.kind for j in queued] == ["backfill"]
+
+    await db_session.execute(update(MediaJob).where(MediaJob.status == "pending").values(status="done"))
+    await db_session.commit()
+    inline = app.state.settings.model_copy(update={"media_video_processing": "inline"})
+    monkeypatch.setattr(cli, "get_settings", lambda: inline)
+    await cli.transcode_media_videos(apply=True)
+    done = await _reload(db_session, asset.id)
+    assert {VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE} <= {v.kind for v in done.variants}
+    assert done.status == MediaStatus.READY

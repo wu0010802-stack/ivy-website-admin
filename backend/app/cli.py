@@ -540,6 +540,59 @@ async def strip_media_metadata(*, apply: bool) -> None:
         raise SystemExit(1)
 
 
+async def transcode_media_videos(*, apply: bool) -> None:
+    """既有影片補桌機／手機轉檔版本（app/media/jobs.py）。預設只列出會處理哪些；
+    --apply 才排入。正式站（背景模式）只排進佇列，由 API 的背景迴圈一支一支轉，
+    素材狀態不動、官網照常播原檔，轉好之後才改播轉檔版本；本機（inline）就地轉完。"""
+    from app.media import jobs as media_jobs
+    from app.media import service as media_service
+    from app.media.models import MediaAsset, MediaJob
+    from app.operations import audit_service
+
+    settings = get_settings()
+    factory = await _session_factory()
+    async with factory() as db:
+        candidates = await media_jobs.backfill_candidates(db)
+        await db.rollback()
+    for c in candidates:
+        where = CAMPUS_NAMES.get(c.campus_key, c.campus_key) if c.campus_key else "共用"
+        seconds = f"{c.duration:g} 秒" if c.duration else "長度不明"
+        print(f"  {c.asset_id}・{where}：{c.filename}（{seconds}，缺 {'、'.join(c.missing)}）")
+    if not apply:
+        print(f"dry-run：共 {len(candidates)} 支影片需要補轉檔（未排入）。加 --apply 才會執行。")
+        return
+
+    async with factory() as db:
+        queued = await media_jobs.enqueue_backfill(db, [c.asset_id for c in candidates])
+        await audit_service.log_action(
+            db,
+            actor_user_id=None,
+            action="media.transcode_backfill",
+            target_type="media_asset",
+            target_id="videos",
+            metadata={"queued": [str(job.media_id) for job in queued]},
+        )
+        await db.commit()
+        job_ids = [job.id for job in queued]
+
+    if settings.media_video_processing_mode == "background":
+        print(f"已排入 {len(job_ids)} 支，API 會一支一支轉；進度看素材庫或 /api/website/v1/health 的 media_jobs。")
+        return
+    storage = media_service.get_storage(settings)
+    failed = 0
+    for job_id in job_ids:
+        async with factory() as db:
+            job = await db.get(MediaJob, job_id)
+            asset = await db.get(MediaAsset, job.media_id)
+            outcome = await media_jobs.process_now(db, storage, asset, job)
+            await db.commit()
+            failed += outcome == "failed"
+            print(f"  [{'完成' if outcome == 'done' else '失敗'}] {asset.original_filename}" + (f"（{job.error}）" if job.error else ""))
+    print(f"共 {len(job_ids)} 支：完成 {len(job_ids) - failed}、失敗 {failed}。")
+    if failed:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -548,7 +601,7 @@ def main() -> None:
             "initialize-content <fixture> [--dry-run]|process-notifications|"
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
-            "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]>",
+            "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -610,6 +663,11 @@ def main() -> None:
         if args - {"--apply", "--dry-run"} or {"--apply", "--dry-run"} <= args:
             raise SystemExit("用法：python -m app.cli strip-media-metadata [--apply]")
         asyncio.run(strip_media_metadata(apply="--apply" in args))
+    elif command == "transcode-media-videos":
+        args = set(sys.argv[2:])
+        if args - {"--apply", "--dry-run"} or {"--apply", "--dry-run"} <= args:
+            raise SystemExit("用法：python -m app.cli transcode-media-videos [--apply]")
+        asyncio.run(transcode_media_videos(apply="--apply" in args))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)
