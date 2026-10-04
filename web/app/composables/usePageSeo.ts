@@ -1,5 +1,5 @@
 import type { NewsArticle, SiteContent } from '~/types/site-content'
-import { aboutSeo, admissionSeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
+import { aboutSeo, admissionSeo, anniversarySeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
@@ -19,6 +19,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (page === 'environment') return environmentSeo(site.value, origin)
     if (page === 'curriculum') return curriculumSeo(site.value, origin)
     if (page === 'about') return aboutSeo(site.value, origin)
+    if (page === 'anniversary') return anniversarySeo(site.value, origin)
     if (page === 'news' && article?.value) {
       const cover = responsiveTourImage(article.value.image, '', true, article.value.imageMedia).src
       return newsArticleSeo(site.value, origin, article.value, sampleArticle.value, cover)
@@ -34,7 +35,8 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)
     if (page === 'about') return responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)
     // 消息頁沒有滿版 hero，不預載。
-    if (page === 'news' || page === 'privacy') return undefined
+    // 30 週年首屏先播開場影片，海報圖已設 fetchpriority=high，不另外預載。
+    if (page === 'news' || page === 'privacy' || page === 'anniversary') return undefined
     return heroImageAttrs(site.value.home.hero)
   })
   useSeoMeta({

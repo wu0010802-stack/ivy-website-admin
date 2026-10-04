@@ -37,12 +37,12 @@ async def test_page_views_accumulate_into_one_daily_row(public_client, db_sessio
 @pytest.mark.asyncio
 async def test_content_pages_are_stored_without_campus(public_client, db_session):
     # 2026-09-30：公開內頁也回報瀏覽與 CWV，消息內文頁在前端就歸成 news
-    for page in ("about", "curriculum", "environment", "admission", "news"):
+    for page in ("about", "curriculum", "environment", "admission", "news", "anniversary"):
         assert (await public_client.post(URL, json=_view(page=page, campus=None))).status_code == 204
     assert (await public_client.post(URL, json=_vital("INP", 180, page="environment", device="mobile"))).status_code == 204
     rows = (await db_session.execute(select(PageViewDaily).order_by(PageViewDaily.page))).scalars().all()
     assert [(r.page, r.campus_key, r.views) for r in rows] == [
-        ("about", "", 1), ("admission", "", 1), ("curriculum", "", 1), ("environment", "", 1), ("news", "", 1)]
+        ("about", "", 1), ("admission", "", 1), ("anniversary", "", 1), ("curriculum", "", 1), ("environment", "", 1), ("news", "", 1)]
     vitals = (await db_session.execute(select(WebVitalSample))).scalars().all()
     assert [(v.page, v.campus_key, v.metric) for v in vitals] == [("environment", "", "INP")]
 

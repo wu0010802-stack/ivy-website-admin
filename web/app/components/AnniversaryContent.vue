@@ -115,7 +115,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
 </script>
 
 <template>
-  <main id="main" ref="root" class="anni" :style="{ '--anni-paper-tile': `url(${ANNI_MEDIA.paper})` }">
+  <main id="main" ref="root" tabindex="-1" class="anni" data-cta-entry="anniversary" :style="{ '--anni-paper-tile': `url(${ANNI_MEDIA.paper})` }">
     <AnniversaryIntro ref="intro" :target="() => printImg" @done="introDone" />
 
     <!-- 首屏：開場影片最後一格變成右邊這張海報 -->

@@ -1301,3 +1301,5 @@ html.menu-locked {overflow:hidden}
 
 /* 2026-09-24 選單加「入學資訊」成五項：901–1000px 的間距 20→14px，否則 901–915px 預約鈕被推出視窗 11px。 */
 @media(min-width:901px) and (max-width:1000px){.nav-inner{gap:14px}}
+/* 2026-10-04 主選單加「30 週年」變五項：1101–1126px 預約鈕會超出視窗 4–25px，這段把選單間距從 32 收到 20 */
+@media(min-width:1101px) and (max-width:1180px){.nav-inner{gap:20px}}

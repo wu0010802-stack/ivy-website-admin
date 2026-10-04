@@ -16,6 +16,7 @@ export const DEFAULT_PRIMARY_NAV: NavLinkPayload[] = [
   { label: '特色教學', label_en: 'Curriculum', href: '/curriculum' },
   { label: '常春藤環境', label_en: 'Environment', href: '/environment' },
   { label: '入學資訊', label_en: 'Admission', href: '/admission' },
+  { label: '30 週年', label_en: 'Anniversary', href: '/anniversary' },
 ]
 
 export const DEFAULT_FOOTER_LINKS: SiteLinkPayload[] = [
@@ -27,6 +28,7 @@ export const DEFAULT_FOOTER_LINKS: SiteLinkPayload[] = [
   { label: '入學資訊', href: '/admission' },
   { label: '常春藤環境', href: '/environment' },
   { label: '特色教學', href: '/curriculum' },
+  { label: '30 週年', href: '/anniversary' },
 ]
 
 const SITE_PATH = /^\/(?!\/)[A-Za-z0-9\-._~/#?=&%]*$/
