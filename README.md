@@ -11,7 +11,7 @@
   - stack e2e（這個容器沒有 Google Chrome，用預裝 Chromium 以本機設定覆寫 `channel`，不進 repo）：`admissions-flow`、`admissions-follow-up`、`a11y`（含待追蹤分頁兩個網址）、`keyboard`、`roles` 共 44 項全過；截圖 `output/playwright/admissions-followups-*.png`、`admissions-contact-dialog-1440.png`。
   - 未驗證：stack e2e 全套、web（本次沒動）、Safari／iOS 實機、正式庫 migration。
 
-## 2026-10-04 官網預約成功只通知園方一則（`fix/booking-notify-once-20261004`）
+## 2026-10-04 官網預約成功只通知園方一則（`fix/booking-notify-once-20261004`，10-04 已部署 main `bdab2ec`）
 
 使用者回報：官網預約成功後，校區 LINE 群組同時收到「新的參觀需求」與「參觀預約已確認」兩則。原因是自選場次（09-30）把送單改成一律預約成立時，沿用了舊「自動確認模式」的寫法：`submit_visit_request` 先排 `visit_request_created`、再排 `visit_request_confirmed`，原本只有自動確認的校才會排第二則，改版後條件被拿掉，每筆都排兩則（LINE、站內通知、園方 Email 都是兩份）。這是 10-01 起列為待裁定的「送單兩則通知」，使用者 10-04 裁定合併。
 

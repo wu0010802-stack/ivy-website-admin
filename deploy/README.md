@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 官網預約成功只通知園方一則（main CI 部署）
+
+使用者回報預約成功後校區 LINE 群組收到「新的參觀需求」與「參觀預約已確認」兩則，要求修正後 commit 並推上 main。`fix/booking-notify-once-20261004` 先 rebase 到 `59a06d8`（main 期間前進 3 個只動 web／文件的提交，只有 README 頂部衝突），再快轉推成 `bdab2ec`。這是 10-01 起待裁定的「送單兩則通知」，規則見 DESIGN.md 後台第七輪 UX 的待裁定項。
+
+- **內容**：送單只排 `visit_request_created`，標題改「新的參觀預約」（後端 `_KIND_LABELS`、後台 `NOTIFICATION_KIND_LABELS`）；`visit_request_confirmed` 只留給園方確認補登。沒有 migration，API 只改一行 schema 說明。
+- **CI**：main run 37200341757（`bdab2ec`）E2E、Backend／PostgreSQL／contracts、Frontend web／admin、Deploy Railway production 全部 success（2026-10-04 11:55–12:17 UTC）。
+- **正式 `release.json`**：base commit `bdab2ec`，created `2026-10-04T12:13:52Z`。之後別的 session 合併 #31（`bd22112`，已含本提交）又觸發一次部署。
+- **線上唯讀檢查**：正式後台 `/admin/assets/labels-*.js` 已是「新的參觀預約」。
+- **未做**：正式站真實預約一筆看 LINE 群組實收（會發真實通知、寄家長信，留給使用者自己送測試預約確認）。
+
 ## 2026-10-04 預約頁背景大字不再被選校區蓋掉（main CI 部署）
 
 使用者回報 `/visit` 背景大字「參觀」被切掉，要求修正後 commit 並推上 main。`fix/visit-ghost-fit-20261004` 先 rebase 到別的 session 剛推的部署紀錄 `8195372`（只有 README 頂部衝突，那筆只動文件），再快轉推成 `503ec36`。規則見 DESIGN.md「預約頁 UI／UX 優化（2026-10-02）」的迎賓區收短。
