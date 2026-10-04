@@ -60,14 +60,20 @@ describe('特色教學頁的段落（2026-09-28 水彩版）', () => {
   it('使用者要求拿掉預約參觀：頁面主體沒有預約連結與按鈕（頁首的預約鈕是全站共用，不在這裡）', () => {
     expect(template).not.toContain('/visit')
     expect(template).not.toContain('預約')
+    expect(JSON.stringify(site.curriculumPage)).not.toContain('預約')
+    expect(JSON.stringify(site.curriculumPage)).not.toContain('/visit')
   })
   it('搬來的內容都標出處，義華校的內容不冒充全體', () => {
-    expect(template).toContain('照片與介紹取自義華校')
-    expect(template).toContain('取自義華校教學理念')
-    expect(template).toContain('常春藤兒童美術館')
+    expect(site.curriculumPage.dailySource).toBe('照片與介紹取自義華校。')
+    expect(site.curriculumPage.beliefSource).toBe('取自義華校教學理念。')
+    expect(site.curriculumPage.gallerySource).toContain('常春藤兒童美術館')
   })
   it('過期或只屬於義華的說法不搬：二十七年口碑、歐式城堡建築、高雄獨家、大推', () => {
-    for (const phrase of ['二十七年', '歐式城堡', '獨家', '大推']) expect(template).not.toContain(phrase)
+    const copy = JSON.stringify(site.curriculumPage)
+    for (const phrase of ['二十七年', '歐式城堡', '獨家', '大推']) {
+      expect(template).not.toContain(phrase)
+      expect(copy).not.toContain(phrase)
+    }
   })
 })
 
@@ -99,8 +105,19 @@ describe('特色教學頁圖片', () => {
     expect([...used].sort()).toEqual(names.filter((n) => n !== CURRICULUM_HERO_IMAGE).sort())
   })
   it('美術館作品每張都有描述作品本身的替代文字', () => {
-    const alts = [...component.matchAll(/\{ image: 'cur-gallery-[a-z-]+', label: '[^']+', alt: '([^']+)'/g)].map((m) => m[1])
+    const alts = [...component.matchAll(/\{ image: 'cur-gallery-[a-z-]+', alt: '([^']+)'/g)].map((m) => m[1])
     expect(alts).toHaveLength(gallery.length)
     for (const alt of alts) expect(alt!.length).toBeGreaterThan(6)
+  })
+})
+
+describe('特色教學頁的文字來自後台內容（2026-10）', () => {
+  it('元件不再寫死段落文字，章節與項目數和內容一致', () => {
+    for (const phrase of ['每一種學習', '五件事，', '老師好愛我', '六歲定八十', '重視愛與關懷']) expect(template).not.toContain(phrase)
+    expect(site.curriculumPage.chapters).toHaveLength(4)
+    expect(site.curriculumPage.directions.map((d) => d.key)).toEqual(['cognitive', 'integrated', 'multicultural', 'quote', 'autonomy', 'activities', 'art'])
+    expect(site.curriculumPage.gallery).toHaveLength(8)
+    expect(site.curriculumPage.daily).toHaveLength(5)
+    expect(site.curriculumPage.beliefs).toHaveLength(5)
   })
 })

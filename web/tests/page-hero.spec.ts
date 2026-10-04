@@ -47,8 +47,8 @@ describe('內頁 hero 的 sizes', () => {
 
   // 2026-09-28 水彩版：特色教學 hero 不再是滿版照片帶，改成右欄的撕紙框（object-fit: cover）。
   it('特色教學 hero 的 <img> 與預載共用 CURRICULUM_HERO_SIZES，照框的實際顯示寬度寫', () => {
-    expect(read('../app/composables/usePageSeo.ts')).toContain('responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)')
-    expect(read('../app/components/CurriculumContent.vue')).toContain('v-bind="responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)"')
+    expect(read('../app/composables/usePageSeo.ts')).toContain('curriculumHeroAttrs(site.value.curriculumPage)')
+    expect(read('../app/components/CurriculumContent.vue')).toContain('curriculumHeroAttrs(page)')
     // 橫幅照片（2000×803）被裁成直一點的框，需要的寬度是「框高 × 寬高比」，不是框寬
     expect(CURRICULUM_HERO_SIZES).toMatch(/^\(max-width: 900px\) (\d+vw|calc\(\(100vw - \d+px\) \* [\d.]+\)), \d+px$/)
   })
