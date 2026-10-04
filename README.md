@@ -1,4 +1,4 @@
-## 2026-10-04 30 週年改成正式分頁：進主選單、頁尾、sitemap（`feature/anniversary-nav-20261004`）
+## 2026-10-04 30 週年改成正式分頁：進主選單、頁尾、sitemap（`feature/anniversary-nav-20261004`，10-04 已部署 main `f935801`）
 
 使用者看完不公開上線的 `/anniversary` 後說「幫我做成一個分頁沒關係」。規則見 DESIGN.md「30 週年分頁」。
 

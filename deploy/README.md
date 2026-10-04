@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 30 週年改成正式分頁：主選單、頁尾、sitemap（main CI 部署）
+
+使用者說「幫我做成一個分頁沒關係」、看過 PR #30 後要求合併到 main。PR #30（`feature/anniversary-nav-20261004`）以 rebase 合併成 `f935801`（main 沒有前進、沒有其他部署在跑）。規則見 DESIGN.md「30 週年分頁」。
+
+- **內容**：fixture 主選單第五項「30 週年 / Anniversary」與頁尾連結（後台 `DEFAULT_PRIMARY_NAV`／`DEFAULT_FOOTER_LINKS` 同步）；`anniversarySeo`、sitemap、llms.txt，頁面改走 `usePageSeo`；telemetry `page` 與 `CTA_ENTRIES` 加 `anniversary`（後端、web、後台標籤，重產契約）；`studio.css` 1101–1180px 選單間距 32→20px。
+- **沒有 migration**：telemetry 的 page、CTA entry 都是字串欄位。正式站後台沒存過主選單與頁尾連結（公開 API 的 `site_meta`、`site_footer` 都沒有這兩欄），官網讀 fixture，不必到後台改。
+- **CI**：PR 全綠；main run 37197924853（`f935801`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 11:12–11:28 UTC）。
+- **正式 `release.json`**：base commit `f935801`，created `2026-10-04T11:24:31Z`。
+- **線上唯讀檢查**（Playwright，擋 `POST /api/telemetry`）：`/`、`/about`、`/anniversary` 頁首都是五項、第五項「30 週年→/anniversary」（在 /anniversary 有 `aria-current`）、頁尾有「30 週年」；`/anniversary` canonical 正確、robots 照全站設定為 noindex（`NUXT_PUBLIC_INDEXING_ENABLED=false`，sitemap 仍是空的，開放收錄後才會列）；頁首 1440／1280／1180／1126／1110／1101／1100／1000／901 都一列、預約鈕不超出、沒有橫向捲動；390 手機選單面板第 05 項「30 週年」；沒有 pageerror。
+- **未做**：iOS Safari／Android 實機；後台成效頁要等有人瀏覽後才看得到「30 週年」這列。
+
 ## 2026-10-04 30 週年分頁 `/anniversary`（main CI 部署，不公開）
 
 使用者轉達業主同意：先以不公開方式上線（noindex、不進主選單與 sitemap），30 週年校徽可以用在這頁。PR #29（`feature/anniversary-page-20261004`）rebase 到 main `d559cae`（重設密碼連結，另一個 session）之後以 rebase 方式合併成 `9068de8`；等 `d559cae` 那次部署跑完才合併，兩次部署沒有疊在一起。規則見 DESIGN.md「30 週年分頁」。
