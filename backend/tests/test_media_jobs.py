@@ -1,7 +1,10 @@
 """素材背景處理（app/media/jobs.py）：認領、租約、完成、失敗與重試、回補。"""
 from __future__ import annotations
 
+import functools
 import shutil
+import subprocess
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -25,18 +28,43 @@ requires_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="需
 # 樣本影片由 conftest 的 _ensure_media_fixtures 用 ffmpeg 產生；沒有 ffmpeg 就整檔跳過
 # （CI 有裝，website.yml:97-98）。
 pytestmark = requires_ffmpeg
+# conftest 產生的樣本：160x120、25fps 的 H.264，已經能直接在瀏覽器播（轉檔版本不會
+# 比它小，處理後沿用原檔）。
 FIXTURE_MP4 = Path("/tmp/media-fixtures/test.mp4")
 
 
-async def _stored_video(app, db, source: Path = FIXTURE_MP4, *, status=MediaStatus.PROCESSING,
-                        kind=MediaJobKind.PROCESS) -> tuple[MediaAsset, MediaJob]:
-    """模擬上傳請求做完的狀態：乾淨原檔已在儲存體、素材 processing、排了一筆工作。"""
+def _mp4(name: str, *args: str) -> Path:
+    path = Path(tempfile.mkdtemp(prefix="media-jobs-")) / name
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", *args, "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)],
+        check=True, capture_output=True, timeout=60,
+    )
+    return path
+
+
+@functools.lru_cache(maxsize=None)
+def _needs_transcode_mp4() -> Path:
+    """1 秒 60fps：超過轉檔上限 30fps，不是「瀏覽器可直接播」，轉檔版本一律採用。"""
+    return _mp4("60fps.mp4", "-f", "lavfi", "-i", "testsrc=s=160x120:d=1:r=60")
+
+
+@functools.lru_cache(maxsize=None)
+def _web_ready_low_bitrate_mp4() -> Path:
+    """1 秒 30fps H.264、位元率壓得很低：轉檔版本只會更大，應該沿用原檔。"""
+    return _mp4("web-ready.mp4", "-f", "lavfi", "-i", "testsrc=s=320x240:d=1:r=30", "-crf", "45")
+
+
+async def _stored_video(app, db, source: Path | None = None, *, status=MediaStatus.PROCESSING,
+                        kind=MediaJobKind.PROCESS, campus_key: str | None = "yihua") -> tuple[MediaAsset, MediaJob]:
+    """模擬上傳請求做完的狀態：乾淨原檔已在儲存體、素材 processing、排了一筆工作。
+    預設用一定要轉檔的 60fps 樣本，處理完會有桌機／手機兩個版本。"""
+    source = source or _needs_transcode_mp4()
     storage = service.get_storage(app.state.settings)
     key = storage.generate_key(".mp4")
     storage.write_file(key, source)
     probe = processing.probe_video(source)
     asset = MediaAsset(
-        id=uuid.uuid4(), campus_key="yihua", kind=MediaKind.VIDEO, status=status, storage_key=key,
+        id=uuid.uuid4(), campus_key=campus_key, kind=MediaKind.VIDEO, status=status, storage_key=key,
         original_filename="clip.mp4", content_type="video/mp4", size_bytes=source.stat().st_size,
         width=probe.width, height=probe.height, duration_seconds=probe.duration_seconds,
         created_at=datetime.now(timezone.utc),
@@ -87,8 +115,11 @@ async def test_process_next_makes_video_ready_with_poster_and_two_editions(app, 
 
 @requires_ffmpeg
 @pytest.mark.asyncio
-async def test_editions_drop_location_tags_and_follow_rotation(app, db_session, tmp_path):
+async def test_editions_drop_location_tags_and_follow_rotation(app, db_session, tmp_path, monkeypatch):
     tagged, rotated = _make_tagged_video(tmp_path)
+    assert rotated  # 本機 8.x、CI 6.1 都支援 -display_rotation
+    # 樣本本身就能直接播、轉檔版本也不會更小；這支測試要驗版本的內容，一律採用。
+    monkeypatch.setattr(processing, "should_keep_original", lambda *args: False)
     storage = service.get_storage(app.state.settings)
     clean = tmp_path / "clean.mp4"
     from app.media import metadata
@@ -97,19 +128,18 @@ async def test_editions_drop_location_tags_and_follow_rotation(app, db_session, 
     asset, _ = await _stored_video(app, db_session, clean)
     assert await jobs.process_next(app.state.session_factory, storage, worker_id="w1") == "done"
     done = await _reload(db_session, asset.id)
-    for variant in done.variants:
-        if variant.kind not in (VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE):
-            continue
+    editions = [v for v in done.variants if v.kind in (VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE)]
+    assert len(editions) == 2
+    for variant in editions:
         out = tmp_path / f"{variant.kind.value}.mp4"
         storage.download_file(variant.storage_key, out)
         assert b"25.0330" not in out.read_bytes()
         info = _ffprobe(out)
         tags = {k.lower() for k in info["format"].get("tags", {})}
         assert not tags & {"location", "location-eng", "title", "creation_time"}
-        if rotated:
-            # 轉正後寫進畫面：沒有旋轉資訊，寬高對調。
-            assert not _rotation(info)
-            assert variant.width < variant.height
+        # 轉正後寫進畫面：沒有旋轉資訊，寬高對調。
+        assert not _rotation(info)
+        assert variant.width < variant.height
 
 
 @pytest.mark.asyncio
@@ -258,11 +288,17 @@ async def test_backfill_candidates_and_enqueue(app, db_session, monkeypatch):
     assert {v.kind for v in done.variants} == {VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE}
     assert await jobs.backfill_candidates(db_session) == []
 
+    # 處理過一次（工作 done）就不再列，即使缺版本（那是判定沿用原檔）。
     await db_session.execute(
         MediaVariant.__table__.delete().where(
             MediaVariant.media_id == asset.id, MediaVariant.kind == VariantKind.VIDEO_MOBILE
         )
     )
+    await db_session.commit()
+    db_session.expire_all()
+    assert await jobs.backfill_candidates(db_session) == []
+    # 沒有處理紀錄的舊影片（這個分支之前上傳的）才列，並列出缺哪個版本。
+    await db_session.execute(MediaJob.__table__.delete().where(MediaJob.media_id == asset.id))
     await db_session.commit()
     db_session.expire_all()
     candidates = await jobs.backfill_candidates(db_session)
@@ -311,7 +347,6 @@ async def test_process_now_keeps_callers_unflushed_changes(app, db_session, monk
     monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
     asset, job = await _stored_video(app, db_session)
     storage = service.get_storage(app.state.settings)
-    fresh = await _reload(db_session, asset.id)
     claimed = await _job(db_session, job.id)  # 會 expire_all，先取
     fresh = await _reload(db_session, asset.id)
     fresh.original_filename = "renamed.mp4"  # 還沒 flush
@@ -424,7 +459,11 @@ async def test_cancel_during_file_write_leaves_no_orphans(app, db_session, monke
 
     before = _files()
     task = asyncio.ensure_future(jobs.run_claimed(app.state.session_factory, storage, claimed.id, worker_id="w1"))
+    deadline = asyncio.get_running_loop().time() + 5
     while not started.is_set():
+        if asyncio.get_running_loop().time() > deadline:
+            task.cancel()
+            pytest.fail("5 秒內沒有開始寫檔")
         await asyncio.sleep(0.01)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -545,7 +584,7 @@ async def test_background_upload_returns_processing_and_queues_one_job(bg_app, b
     response = await bg_admin.post(
         "/api/website/v1/admin/media",
         data={"kind": "video", "campus_key": "yihua"},
-        files={"file": ("test.mp4", FIXTURE_MP4.read_bytes(), "video/mp4")},
+        files={"file": ("test.mp4", _needs_transcode_mp4().read_bytes(), "video/mp4")},
     )
     assert response.status_code == 201, response.text
     body = response.json()
@@ -660,7 +699,8 @@ async def test_transcode_media_videos_cli(app, db_session, monkeypatch, capsys):
 
     monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
     asset, job = await _stored_video(app, db_session, status=MediaStatus.READY, kind=MediaJobKind.BACKFILL)
-    await db_session.execute(update(MediaJob).where(MediaJob.id == job.id).values(status="done"))
+    # 這個分支之前上傳的影片：沒有任何處理紀錄。
+    await db_session.execute(MediaJob.__table__.delete().where(MediaJob.id == job.id))
     await db_session.commit()
 
     async def factory():
@@ -680,7 +720,8 @@ async def test_transcode_media_videos_cli(app, db_session, monkeypatch, capsys):
     queued = (await db_session.execute(select(MediaJob).where(MediaJob.status == "pending"))).scalars().all()
     assert [j.kind for j in queued] == ["backfill"]
 
-    await db_session.execute(update(MediaJob).where(MediaJob.status == "pending").values(status="done"))
+    # 佇列裡那筆清掉（還沒做過），改用本機就地轉完。
+    await db_session.execute(MediaJob.__table__.delete().where(MediaJob.status == "pending"))
     await db_session.commit()
     inline = app.state.settings.model_copy(update={"media_video_processing": "inline"})
     monkeypatch.setattr(cli, "get_settings", lambda: inline)
@@ -688,3 +729,130 @@ async def test_transcode_media_videos_cli(app, db_session, monkeypatch, capsys):
     done = await _reload(db_session, asset.id)
     assert {VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE} <= {v.kind for v in done.variants}
     assert done.status == MediaStatus.READY
+
+
+# ---- 最終審查修正（2026-10-04） ----
+
+
+def _media_files(app) -> set[Path]:
+    return {p for p in Path(app.state.settings.media_root).rglob("*") if p.is_file()}
+
+
+@pytest.mark.asyncio
+async def test_web_ready_video_keeps_original_when_editions_are_not_smaller(app, db_session):
+    """原檔已是瀏覽器能直接播的 H.264、轉出來沒有小於原檔 9 成：不寫版本、官網播原檔，
+    poster 照常產生，素材可用。"""
+    source = _web_ready_low_bitrate_mp4()
+    assert processing.probe_video_stream(source).plays_in_browsers
+    asset, job = await _stored_video(app, db_session, source)
+    storage = service.get_storage(app.state.settings)
+    before = _media_files(app)
+    assert await jobs.process_next(app.state.session_factory, storage, worker_id="w1") == "done"
+    done = await _reload(db_session, asset.id)
+    assert done.status == MediaStatus.READY and done.processing_error is None
+    assert {v.kind for v in done.variants} == {VariantKind.POSTER}
+    # 儲存體只多了 poster：沒採用的轉檔版本沒有寫進去。
+    added = _media_files(app) - before
+    assert len(added) == 1 and next(iter(added)).suffix == ".webp"
+    assert (await _job(db_session, job.id)).status == MediaJobStatus.DONE.value
+
+
+@pytest.mark.asyncio
+async def test_video_that_needs_transcoding_gets_editions_even_if_not_smaller(app, db_session, monkeypatch):
+    """60fps 不是瀏覽器可直接播的規格：轉檔版本一律採用，不看大小（這裡的假轉檔輸出
+    跟原檔一樣大）。"""
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, _ = await _stored_video(app, db_session, _needs_transcode_mp4())
+    storage = service.get_storage(app.state.settings)
+    assert await jobs.process_next(app.state.session_factory, storage, worker_id="w1") == "done"
+    done = await _reload(db_session, asset.id)
+    assert {v.kind for v in done.variants} == {VariantKind.POSTER, VariantKind.VIDEO_DESKTOP, VariantKind.VIDEO_MOBILE}
+
+
+@pytest.mark.asyncio
+async def test_backfill_keeping_original_is_not_listed_again(app, db_session):
+    source = _web_ready_low_bitrate_mp4()
+    asset, job = await _stored_video(app, db_session, source, status=MediaStatus.READY, kind=MediaJobKind.BACKFILL)
+    storage = service.get_storage(app.state.settings)
+    assert await jobs.process_next(app.state.session_factory, storage, worker_id="w1") == "done"
+    done = await _reload(db_session, asset.id)
+    assert done.status == MediaStatus.READY and done.variants == []
+    # 兩個版本都沿用原檔：缺版本但已經處理過，回補不再列它。
+    assert await jobs.backfill_candidates(db_session) == []
+
+
+@pytest.mark.asyncio
+async def test_backfill_skips_videos_over_the_length_limit(app, db_session):
+    asset, job = await _stored_video(app, db_session, status=MediaStatus.READY, kind=MediaJobKind.BACKFILL)
+    await db_session.execute(MediaJob.__table__.delete().where(MediaJob.id == job.id))
+    await db_session.commit()
+    assert [c.asset_id for c in await jobs.backfill_candidates(db_session)] == [asset.id]
+    await db_session.execute(
+        update(MediaAsset).where(MediaAsset.id == asset.id).values(duration_seconds=processing.TRANSCODE_MAX_SECONDS + 1)
+    )
+    await db_session.commit()
+    db_session.expire_all()
+    assert await jobs.backfill_candidates(db_session) == []
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_video_over_ten_minutes(admin_client, db_session, app, monkeypatch):
+    monkeypatch.setattr(
+        service, "probe_video", lambda path: VideoProbe(160, 120, processing.TRANSCODE_MAX_SECONDS + 0.5)
+    )
+    before = _media_files(app)
+    response = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "video", "campus_key": "yihua"},
+        files={"file": ("long.mp4", FIXTURE_MP4.read_bytes(), "video/mp4")},
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "MEDIA_VIDEO_TOO_LONG"
+    assert response.json()["detail"]["message"] == "影片最長 10 分鐘，請剪短後再上傳"
+    assert (await db_session.execute(select(MediaAsset))).scalars().all() == []
+    assert (await db_session.execute(select(MediaJob))).scalars().all() == []
+    assert _media_files(app) == before  # 檔案還沒寫進儲存體就擋下
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("actor", "campus_key", "shared_grant", "expected"),
+    [
+        ("minghua_admin", "yihua", False, 404),  # 跨校：看不到別校的素材
+        ("yihua_admin", "yihua", False, 200),
+        ("yihua_admin", None, False, 403),  # 共用素材要「全站共用內容」授權
+        ("yihua_admin", None, True, 200),
+        ("yihua_editor", None, True, 200),
+    ],
+)
+async def test_retry_permissions(bg_app, bg_admin, db_session, actor, campus_key, shared_grant, expected):
+    from app.auth.models import Role
+    from tests.conftest import _create_user, _logged_in_client
+
+    role, campus = {
+        "minghua_admin": (Role.CAMPUS_ADMIN, "minghua"),
+        "yihua_admin": (Role.CAMPUS_ADMIN, "yihua"),
+        "yihua_editor": (Role.EDITOR, "yihua"),
+    }[actor]
+    email = f"retry-{actor}@ivy.example"
+    user = await _create_user(db_session, email, "retry-actor-password-123", role, [campus])
+    if shared_grant:
+        granted = await bg_admin.patch(
+            f"/api/website/v1/admin/users/{user.id}/capabilities", json={"capabilities": ["content.shared"]}
+        )
+        assert granted.status_code == 200, granted.text
+    client = await _logged_in_client(bg_app, email, "retry-actor-password-123")
+    try:
+        asset, job = await _stored_video(bg_app, db_session, campus_key=campus_key)
+        await db_session.execute(update(MediaJob).where(MediaJob.id == job.id).values(status="failed"))
+        await db_session.execute(
+            update(MediaAsset).where(MediaAsset.id == asset.id).values(status=MediaStatus.FAILED, processing_error="壞掉")
+        )
+        await db_session.commit()
+        response = await client.post(f"/api/website/v1/admin/media/{asset.id}/retry")
+        assert response.status_code == expected, response.text
+        still = await _reload(db_session, asset.id)
+        assert still.status == (MediaStatus.PROCESSING if expected == 200 else MediaStatus.FAILED)
+    finally:
+        await client.aclose()

@@ -211,7 +211,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             # 影片轉檔的背景迴圈：有沒有開、最近一次完成與失敗的時間。
             "media_jobs": {
-                "enabled": media_jobs is not None,
+                # 迴圈真的還活著才算開著（啟動時拿不到儲存體、異常結束都是 False）。
+                "enabled": media_jobs is not None and media_jobs.running,
                 "last_processed_at": _iso(media_jobs.last_processed_at if media_jobs else None),
                 "last_failed_at": _iso(media_jobs.last_failed_at if media_jobs else None),
             },

@@ -30,6 +30,7 @@ from app.media.processing import (
     LARGE_SIDE,
     MEDIUM_SIDE,
     THUMBNAIL_SIZE,
+    TRANSCODE_MAX_SECONDS,
     ProcessingError,
     Rendition,
     make_webp,
@@ -230,6 +231,11 @@ async def create_media_asset(
         if declared_kind == MediaKind.VIDEO:
             probe = await run_media_job(probe_video, clean_path)
             width, height, duration = probe.width, probe.height, probe.duration_seconds
+            # 背景轉檔一定會因為太長失敗：上傳當下就擋，不必等處理失敗才知道。
+            if duration is not None and duration > TRANSCODE_MAX_SECONDS:
+                raise MediaValidationError(
+                    "MEDIA_VIDEO_TOO_LONG", f"影片最長 {TRANSCODE_MAX_SECONDS // 60} 分鐘，請剪短後再上傳"
+                )
         if quota_bytes is not None:
             await _ensure_quota(db, campus_key, size_bytes, quota_bytes)
 

@@ -71,10 +71,15 @@ class ThreadSlots:
 
 async def run_in_thread(func: Callable[..., _T], /, *args) -> _T:
     """在 thread 裡跑完 func。呼叫端被取消時 thread 停不下來：等它真的跑完才把
-    取消往上丟，呼叫端握著的名額才不會提早讓出（上限才算數）。"""
+    取消往上丟，呼叫端握著的名額才不會提早讓出（上限才算數）。要讓 func 提早結束
+    得由 func 自己的機制處理（例如轉檔的 processing.terminate_running_transcodes）。"""
     job = asyncio.ensure_future(asyncio.to_thread(func, *args))
     try:
         return await asyncio.shield(job)
     except asyncio.CancelledError:
         await asyncio.wait({job})
+        # 結果已經沒人要（取消優先）；把例外取走，不然 asyncio 會記一筆
+        # 「Task exception was never retrieved」（停機中止轉檔時每次都會有）。
+        if not job.cancelled():
+            job.exception()
         raise

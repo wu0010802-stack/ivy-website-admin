@@ -49,7 +49,9 @@ async def test_upload_real_video_succeeds_with_poster(admin_client):
     body = response.json()
     assert body["status"] == "ready"
     assert body["content_type"] == "video/mp4"
-    assert {v["kind"] for v in body["variants"]} == {"poster", "video_desktop", "video_mobile"}
+    # 樣本已是瀏覽器能直接播的小 H.264，轉檔版本不比原檔小：沿用原檔，只有 poster
+    # （processing.should_keep_original；要轉檔的影片見 test_media_jobs）。
+    assert {v["kind"] for v in body["variants"]} == {"poster"}
 
 
 @pytest.mark.asyncio

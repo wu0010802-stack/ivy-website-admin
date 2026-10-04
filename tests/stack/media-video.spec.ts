@@ -15,13 +15,17 @@ test.use({ storageState: storageStatePath('super_admin') })
 const FILE_NAME = 'e2e-clip.mp4'
 const PROCESSING = /處理中|轉檔中/
 
-/** ffmpeg 產生 2 秒、320×240 的 H.264 樣本（CI 的 e2e job 有裝 ffmpeg）。 */
+/**
+ * ffmpeg 產生 2 秒、320×240 的 H.264 樣本（CI 的 e2e job 有裝 ffmpeg）。用 60fps：
+ * 原檔已經能直接播、轉出來又沒小多少時後端會沿用原檔、不產生轉檔版本
+ * （app/media/processing.py should_keep_original），超過 30fps 才一定會有兩個版本。
+ */
 function tinyMp4(): Buffer {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'e2e-video-'))
   try {
     const file = path.join(dir, 'clip.mp4')
     execFileSync('ffmpeg', [
-      '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=s=320x240:d=2:r=15',
+      '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=s=320x240:d=2:r=60',
       '-c:v', 'libx264', '-pix_fmt', 'yuv420p', file,
     ])
     return readFileSync(file)

@@ -4,7 +4,9 @@ from __future__ import annotations
 import asyncio
 import os
 import shutil
+import sys
 import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -137,3 +139,82 @@ async def test_health_reports_media_jobs():
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         body = (await client.get("/api/website/v1/health")).json()
     assert body["media_jobs"] == {"enabled": False, "last_processed_at": None, "last_failed_at": None}
+
+
+@pytest.mark.asyncio
+async def test_stop_terminates_running_ffmpeg_and_requeues_job(app, db_session, monkeypatch):
+    """停機時轉檔中的 ffmpeg 要被收掉（不然程序要撐到轉檔跑完），工作放回佇列、不算一次嘗試。
+    轉檔指令換成一個會睡 60 秒的子程序，走真的 Popen／terminate 路徑。"""
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(
+        processing, "transcode_args", lambda *a, **k: [sys.executable, "-c", "import time; time.sleep(60)"]
+    )
+    asset, job = await _stored_video(app, db_session)
+    before = _files(app)
+    loop = MediaJobLoop(app.state.session_factory, app.state.settings, poll_seconds=0.05)
+    loop.start()
+
+    async def ffmpeg_running() -> bool:
+        return bool(processing._running)
+
+    await _wait_for(ffmpeg_running)
+    (proc,) = list(processing._running)
+    clock = asyncio.get_running_loop().time
+    stop_began = clock()
+    await loop.stop(timeout=5)
+    assert clock() - stop_began < 4  # terminate 就結束，不必等 grace 或 60 秒
+    assert proc.poll() is not None and processing._running == {}
+    assert loop._task.done()
+    back = await _job(db_session, job.id)
+    assert (back.status, back.attempts, back.leased_by) == ("pending", 0, None)
+    still = await _reload(db_session, asset.id)
+    assert still.status == MediaStatus.PROCESSING and still.variants == []
+    assert _files(app) == before  # 寫好的 poster 也刪掉
+    assert loop.last_failed_at is None
+
+
+@pytest.mark.asyncio
+async def test_stop_catches_ffmpeg_started_right_after_the_first_terminate(app, db_session, monkeypatch):
+    """停機那一刻轉檔的 thread 還沒開出 ffmpeg（第一次中止撲空）：等迴圈結束的期間要再收一次。"""
+    entered = threading.Event()
+    real_run = processing._run_ffmpeg
+
+    def _late(source, target, edition, color, duration):
+        entered.set()
+        time.sleep(0.3)  # stop 的第一次中止在這段時間撲空
+        real_run([sys.executable, "-c", "import time; time.sleep(60)"], 60)
+        return VideoProbe(160, 120, duration)
+
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _late)
+    _, job = await _stored_video(app, db_session)
+    loop = MediaJobLoop(app.state.session_factory, app.state.settings, poll_seconds=0.05)
+    loop.start()
+    assert await asyncio.to_thread(entered.wait, 5)
+    clock = asyncio.get_running_loop().time
+    stop_began = clock()
+    await loop.stop(timeout=5)
+    assert clock() - stop_began < 4
+    assert loop._task.done() and processing._running == {}
+    back = await _job(db_session, job.id)
+    assert (back.status, back.attempts, back.leased_by) == ("pending", 0, None)
+
+
+@pytest.mark.asyncio
+async def test_health_reports_loop_down_when_storage_fails(monkeypatch):
+    def _broken(settings):
+        raise RuntimeError("S3 設定錯誤")
+
+    monkeypatch.setattr("app.workers.media_loop.get_storage", _broken)
+    settings = _test_settings().model_copy(
+        update={"media_video_processing": "background", "media_jobs_poll_seconds": 1}
+    )
+    background = create_app(settings)
+    async with background.router.lifespan_context(background):
+        loop = background.state.media_jobs
+        await asyncio.wait({loop._task}, timeout=5)
+        assert loop._task.done() and not loop.running
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=background), base_url="http://test") as client:
+            body = (await client.get("/api/website/v1/health")).json()
+        assert body["media_jobs"]["enabled"] is False
+        assert body["media_jobs"]["last_failed_at"] is not None

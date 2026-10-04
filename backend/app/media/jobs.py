@@ -1,5 +1,6 @@
 """素材背景處理（2026-10-03）：影片上傳後的 poster 與桌機／手機兩個 H.264 轉檔
-版本，以及既有影片補轉檔（`python -m app.cli transcode-media-videos`）。
+版本，以及既有影片補轉檔（`python -m app.cli transcode-media-videos`）。原檔已經是
+瀏覽器能直接播的 H.264、轉出來又沒小多少時，那個版本不採用、官網照播原檔。
 
 上傳請求只做驗證、去除拍攝資訊、ffprobe、配額與存檔（media/service.create_media_asset），
 儲存體裡從頭到尾只有去掉拍攝資訊的檔案；這裡讀的是那份乾淨原檔。
@@ -22,7 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import case, select, update
+from sqlalchemy import case, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
@@ -190,8 +191,9 @@ async def _delete_files(storage: MediaStorage, keys: list[str]) -> None:
 
 
 async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKind) -> list[StoredVariant]:
-    """下載乾淨原檔 → poster（新上傳才做）＋缺少的轉檔版本 → 寫進儲存體。任何一步
-    失敗（含被取消）就刪掉這次寫入的檔案再往外丟；DB 記錄由呼叫端寫。"""
+    """下載乾淨原檔 → poster（新上傳才做）＋缺少的轉檔版本 → 寫進儲存體。原檔已經是
+    瀏覽器能直接播的 H.264、轉出來又沒小多少的版本不採用（processing.should_keep_original）。
+    任何一步失敗（含被取消）就刪掉這次寫入的檔案再往外丟；DB 記錄由呼叫端寫。"""
     if snap.kind != MediaKind.VIDEO:
         raise ProcessingError("只有影片會排背景處理")
     written: list[StoredVariant] = []
@@ -208,14 +210,24 @@ async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKin
                 # 先記下再寫：寫到一半被取消也刪得到（thread 會等寫完才讓取消往上丟）。
                 written.append(StoredVariant(VariantKind.POSTER, key, "image/webp", poster.width, poster.height))
                 await run_in_thread(storage.write_bytes, key, poster.data)
-            color = await processing.run_media_job(processing.probe_video_color, source)
+            stream = await processing.run_media_job(processing.probe_video_stream, source)
+            source_bytes = source.stat().st_size
             for edition, variant_kind in _EDITIONS:
                 if variant_kind in snap.existing:
                     continue
                 target = Path(tmp) / f"{edition}.mp4"
                 video = await processing.run_transcode_job(
-                    processing.transcode_video, source, target, edition, color, snap.duration
+                    processing.transcode_video, source, target, edition, stream.color, snap.duration
                 )
+                output_bytes = target.stat().st_size
+                if processing.should_keep_original(stream, source_bytes, output_bytes):
+                    # 原檔本來就能直接播、轉出來也沒小多少：不寫這個版本，官網照播原檔
+                    # （web/app/utils/media-image.ts 的 slotVideoSrc）。產出檔在暫存目錄，跟著清掉。
+                    logger.info(
+                        "背景處理：素材 %s 的%s版 %s bytes，原檔 %s bytes，沿用原檔",
+                        snap.media_id, edition, output_bytes, source_bytes,
+                    )
+                    continue
                 key = storage.generate_key(".mp4")
                 written.append(StoredVariant(variant_kind, key, "video/mp4", video.width, video.height))
                 await run_in_thread(storage.write_file, key, target)
@@ -440,8 +452,16 @@ async def retry(db: AsyncSession, asset: MediaAsset, *, actor_id: uuid.UUID | No
 
 
 async def backfill_candidates(db: AsyncSession) -> list[BackfillCandidate]:
-    """可用、沒有待清理、還缺轉檔版本、也沒有排隊中工作的影片（含已封存：可能被還原）。"""
+    """可用、沒有待清理、還缺轉檔版本、也沒有排隊中工作的影片（含已封存：可能被還原）。
+
+    已經處理完過一次（process 或 backfill 工作 done）的不再列：缺的版本是判定沿用原檔
+    （processing.should_keep_original），重列只會每次白轉一遍。超過長度上限的也不列，
+    轉了一定失敗。"""
     active = select(MediaJob.media_id).where(MediaJob.status.in_(_ACTIVE))
+    handled = select(MediaJob.media_id).where(
+        MediaJob.status == MediaJobStatus.DONE.value,
+        MediaJob.kind.in_((MediaJobKind.PROCESS.value, MediaJobKind.BACKFILL.value)),
+    )
     result = await db.execute(
         select(MediaAsset)
         .options(selectinload(MediaAsset.variants))
@@ -450,6 +470,11 @@ async def backfill_candidates(db: AsyncSession) -> list[BackfillCandidate]:
             MediaAsset.status == MediaStatus.READY,
             MediaAsset.deleted_at.is_(None),
             MediaAsset.id.not_in(active),
+            MediaAsset.id.not_in(handled),
+            or_(
+                MediaAsset.duration_seconds.is_(None),
+                MediaAsset.duration_seconds <= processing.TRANSCODE_MAX_SECONDS,
+            ),
         )
         .order_by(MediaAsset.created_at, MediaAsset.id)
     )
