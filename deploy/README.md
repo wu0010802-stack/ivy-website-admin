@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 預約頁背景大字不再被選校區蓋掉（main CI 部署）
+
+使用者回報 `/visit` 背景大字「參觀」被切掉，要求修正後 commit 並推上 main。`fix/visit-ghost-fit-20261004` 先 rebase 到別的 session 剛推的部署紀錄 `8195372`（只有 README 頂部衝突，那筆只動文件），再快轉推成 `503ec36`。規則見 DESIGN.md「預約頁 UI／UX 優化（2026-10-02）」的迎賓區收短。
+
+- **內容**：`.visit-ghost` 移進 `.visit-welcome`，改成 `container-type:size`，字級取 `min(原尺寸, 100cqh / 2.08)`。只改 CSS 與 DOM 位置，沒有 migration，也沒動 API。
+- **CI**：main run 37199039953（`503ec36`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 11:31–11:46 UTC）。
+- **正式 `release.json`**：base commit `503ec36`，created `2026-10-04T11:44:10Z`。
+- **線上唯讀檢查**（Playwright，擋 telemetry）：在 12 種視窗量「參觀」的行框底與內容區上緣，涵蓋 1920×1080 到 320×568，含 720×450 橫拿手機。部署前正式站有 9 組被蓋 15–241px，部署後 12 組都是 0，也沒有水平溢出；1000×800 截圖兩行完整。
+- **未做**：iOS Safari／Firefox 實機。
+
 ## 2026-10-04 30 週年改成正式分頁：主選單、頁尾、sitemap（main CI 部署）
 
 使用者說「幫我做成一個分頁沒關係」、看過 PR #30 後要求合併到 main。PR #30（`feature/anniversary-nav-20261004`）以 rebase 合併成 `f935801`（main 沒有前進、沒有其他部署在跑）。規則見 DESIGN.md「30 週年分頁」。
