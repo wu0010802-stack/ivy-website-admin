@@ -73,6 +73,25 @@ def test_rules(changes):
         AboutPagePayload.model_validate(_base(**changes))
 
 
+@pytest.mark.parametrize(
+    ("title", "line"),
+    [
+        ("一二三四五六七\n長出五所校園。", 1),  # 第一行 7 字：901 寬壓到右上角的紀念章
+        ("近三十年，\n一二三四五六七八", 2),
+        ("近三十年，\n長出五所校園。\n一二三四五六七八", 3),
+    ],
+)
+def test_story_title_limits_each_line_to_avoid_the_medal(title, line):
+    limit = 6 if line == 1 else 7
+    with pytest.raises(ValidationError, match=f"一路走來的標題第 {line} 行最多 {limit} 個字（避開右上角的紀念章）"):
+        AboutPagePayload.model_validate(_base(story_title=title))
+
+
+def test_story_title_first_line_six_then_seven_passes():
+    title = "一二三四五六\n一二三四五六七\n一二三四五六七"
+    assert AboutPagePayload.model_validate(_base(story_title=title)).story_title == title
+
+
 def _locs(changes) -> list[tuple]:
     with pytest.raises(ValidationError) as exc:
         AboutPagePayload.model_validate(_base(**changes))

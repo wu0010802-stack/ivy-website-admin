@@ -23,17 +23,26 @@ from app.content.schemas import (
 )
 
 
-def page_title(value: str, *, per_line: int, max_lines: int = 3, what: str = "標題") -> str:
+def page_title(
+    value: str, *, per_line: int | tuple[int, ...], max_lines: int = 3, what: str = "標題", why: str = ""
+) -> str:
+    """per_line 是整數＝每行同一個上限；是 tuple＝逐行上限（第 i 行用第 i 個，超出的行用最後一個），
+    錯誤訊息講第幾行，why 是括號裡的理由。"""
     value = value.replace("\r\n", "\n").replace("\r", "\n")
     if not value.strip():
         raise ValueError(f"{what}不可空白")
     lines = value.split("\n")
     if len(lines) > max_lines:
         raise ValueError(f"{what}最多 {max_lines} 行")
-    for line in lines:
+    for index, line in enumerate(lines):
         if not line.strip():
             raise ValueError(f"{what}不能有空白行")
-        if len(line) > per_line:
+        if isinstance(per_line, tuple):
+            limit = per_line[min(index, len(per_line) - 1)]
+            if len(line) > limit:
+                reason = f"（{why}）" if why else ""
+                raise ValueError(f"{what}第 {index + 1} 行最多 {limit} 個字{reason}")
+        elif len(line) > per_line:
             raise ValueError(f"{what}每行最多 {per_line} 字（有一行 {len(line)} 字）")
     return value
 
@@ -319,12 +328,17 @@ def _hope_quote(value: str) -> str:
 AboutChapterName = Annotated[str, AfterValidator(_chapter_name)]
 AboutHopeQuote = Annotated[str, AfterValidator(_hope_quote)]
 
-# 欄位: (每行字數, 欄位名稱)
-_ABOUT_TITLES = {
-    "hero_title": (12, "首屏大標"),
-    "story_title": (7, "一路走來的標題"),
-    "whole_title": (12, "全人教育的標題"),
-    "hope_title": (14, "我們的期許的標題"),
+# 一路走來的標題右上角是紀念章（AboutContent.vue 的 AboutMedal .is-title）。立體書桌機版從 901 寬開始，
+# 第一行離紀念章最近：7 字在 901 寬壓到紀念章 24px、1024 寬 3px，6 字在 901 寬還離 15px；第二行 7 字在 901 寬
+# 離 2px，第三行更遠（scripts/page-copy-stress.cjs 量每一行字和圓形紀念章的距離）。所以第一行 6、其餘 7。
+STORY_TITLE_PER_LINE = (6, 7, 7)
+
+# 欄位: (每行字數或逐行字數, 欄位名稱, 超過時的理由)
+_ABOUT_TITLES: dict[str, tuple[int | tuple[int, ...], str, str]] = {
+    "hero_title": (12, "首屏大標", ""),
+    "story_title": (STORY_TITLE_PER_LINE, "一路走來的標題", "避開右上角的紀念章"),
+    "whole_title": (12, "全人教育的標題", ""),
+    "hope_title": (14, "我們的期許的標題", ""),
 }
 # 欄位: (上限, 欄位名稱, 可留空)
 _ABOUT_TEXTS = {
@@ -370,8 +384,8 @@ class AboutPagePayload(_ContentPayload):
     @field_validator(*_ABOUT_TITLES)
     @classmethod
     def _titles(cls, value: str, info: ValidationInfo) -> str:
-        per_line, what = _ABOUT_TITLES[info.field_name]
-        return page_title(value, per_line=per_line, what=what)
+        per_line, what, why = _ABOUT_TITLES[info.field_name]
+        return page_title(value, per_line=per_line, what=what, why=why)
 
     @field_validator(*_ABOUT_TEXTS)
     @classmethod
