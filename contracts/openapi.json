@@ -4852,7 +4852,7 @@
         "type": "object"
       },
       "NotificationInboxItemOut": {
-        "description": "依校區共用的案件通知（新的參觀需求、已確認、已改期、已取消、逾期提醒…）。",
+        "description": "依校區共用的案件通知（新的參觀預約、已確認、已改期、已取消、逾期提醒…）。",
         "properties": {
           "campus_key": {
             "title": "Campus Key",

@@ -327,10 +327,12 @@ async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
         await public.aclose()
 
     assert result["failed"] == 0
-    # 園方兩則（新需求、已確認）各推一次；家長確認信只走 Email，不推 LINE。
-    assert len(fake_line.pushes) == result["sent"] == 2
+    # 官網送單即預約成立：園方只推一則「新的參觀預約」，不再另推「已確認」；
+    # 家長確認信只走 Email，不推 LINE。
+    assert len(fake_line.pushes) == result["sent"] == 1
     push = fake_line.pushes[0]
     text = push["body"]["messages"][0]["text"]
+    assert text.startswith("[常春藤官網] 新的參觀預約\n")
     assert push["body"]["to"] == GROUP
     assert "義華" in text and receipt_id in text
     assert f"https://ivy.example/admin/visit-requests/{receipt_id}" in text
@@ -349,7 +351,7 @@ async def test_outbox_retries_failed_push_with_same_retry_key(line_app, fake_lin
         await book_slot(admin, public)
         fake_line.push_status = [500]
         first = await _run_outbox(line_app, fake_line)
-        assert first["failed"] == 1  # 第一則推播失敗，第二則（已確認）照送
+        assert first["failed"] == 1  # 園方唯一一則（新的參觀預約）推播失敗
 
         async with line_app.state.session_factory() as db:
             from sqlalchemy import update

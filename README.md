@@ -1,3 +1,13 @@
+## 2026-10-04 官網預約成功只通知園方一則（`fix/booking-notify-once-20261004`）
+
+使用者回報：官網預約成功後，校區 LINE 群組同時收到「新的參觀需求」與「參觀預約已確認」兩則。原因是自選場次（09-30）把送單改成一律預約成立時，沿用了舊「自動確認模式」的寫法：`submit_visit_request` 先排 `visit_request_created`、再排 `visit_request_confirmed`，原本只有自動確認的校才會排第二則，改版後條件被拿掉，每筆都排兩則（LINE、站內通知、園方 Email 都是兩份）。這是 10-01 起列為待裁定的「送單兩則通知」，使用者 10-04 裁定合併。
+
+- **後端**：送單只排 `visit_request_created`，標題由「新的參觀需求」改「新的參觀預約」（案件頁的用語是「排了場次的才叫預約」）。`visit_request_confirmed` 只留給園方確認補登的案件。成效統計的 `request_created`／`visit_confirmed` 兩個事件照記，不受影響。
+- **後台**：`NOTIFICATION_KIND_LABELS` 同步改字；舊的站內通知紀錄（同一個 kind）也會顯示新標題。逾期提醒「新的參觀需求超過 24 小時尚未處理」、總覽「新的參觀需求還沒聯絡」講的是還沒排場次的案件，不改。
+- **契約**：只有通知 schema 說明文字一行，已 `npm run contract:generate`。
+- 沒有 migration。已在 outbox 裡排隊、還沒送出的 `visit_request_confirmed` 會照舊送出（只影響部署當下那幾分鐘的預約）。
+- **驗證**（Node 22）：先把 `test_line_notifications.py::test_outbox_pushes_to_campus_group_once` 改成「只推一則、標題是新的參觀預約」，在未修正版上確認紅燈（推了 2 則）再修；把「兩則」寫死的 6 個測試檔改成一則。後端全套 1363 passed（獨立測試庫 `ivy_website_test_notifyonce`）；admin typecheck、vitest 87 檔 1056 項（`--maxWorkers=2`）；`contract:check` 一致。web 沒有改。未驗證：正式站真實 LINE 群組實收。
+
 ## 2026-10-04 預約頁背景大字不再被選校區蓋掉（`fix/visit-ghost-fit-20261004`，10-04 已部署 main `503ec36`）
 
 使用者回報 `/visit` 背景大字「參觀」被切掉。原因是 10-02 收短迎賓區後，大字仍是固定字級（`clamp(142px,14vw,208px)`、手機 30vw），而且掛在整個 `.visit-page` 上，第二行落到下方 `.visit-content`，被它的底色蓋掉。10-03 `feature/website-admin` 上的 `cb9bc89` 是在收短前的版面把色帶撐高，跟 10-02 的裁定衝突，所以沒有併進 main。規則見 DESIGN.md「預約頁 UI／UX 優化（2026-10-02）」的迎賓區收短。

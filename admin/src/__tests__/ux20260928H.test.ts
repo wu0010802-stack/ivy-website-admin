@@ -38,7 +38,7 @@ describe('操作紀錄細節翻成園方看得懂的中文', () => {
       ['visit_request.add_contact_note', { note_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', follow_up_set: false }, '沒有設定下次聯絡時間'],
       ['retention_policy.update', { before: { cancelled_days: 365, completed_days: 365, open_overdue_days: 180, auto_run_enabled: false }, after: { cancelled_days: 180, completed_days: 365, open_overdue_days: 180, auto_run_enabled: true } }, '修改：已取消、未到場保留：365 天 → 180 天；每天自動清理：關閉 → 開啟'],
       ['content.reject', { kind: 'home_hero', revision_version: 3, note: '標語太長' }, '內容：首頁大圖標語，退回理由：標語太長'],
-      ['notification_outbox.retry', { kind: 'visit_request_created', visit_request_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', previous_attempts: 3, previous_error_code: 'TimeoutError', source: 'admin' }, '通知：新的參觀需求，先前嘗試 3 次，上次失敗原因：連線逾時，在後台手動重寄'],
+      ['notification_outbox.retry', { kind: 'visit_request_created', visit_request_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', previous_attempts: 3, previous_error_code: 'TimeoutError', source: 'admin' }, '通知：新的參觀預約，先前嘗試 3 次，上次失敗原因：連線逾時，在後台手動重寄'],
     ]
     for (const [action, metadata, expected] of cases) {
       const summary = auditMetadataSummary(metadata, action)

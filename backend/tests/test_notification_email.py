@@ -57,7 +57,7 @@ async def test_reception_receives_new_request_mail(
 
     # 園方信不寄給家長；家長確認信另有 Email 通道，這裡只看園方收件人。
     staff_mails = [mail for mail in recording_mail_adapter.sent if mail["to"] != "parent@example.com"]
-    created_mails = [mail for mail in staff_mails if mail["subject"] == "[常春藤官網] 義華校｜新的參觀需求"]
+    created_mails = [mail for mail in staff_mails if mail["subject"] == "[常春藤官網] 義華校｜新的參觀預約"]
     assert sorted(mail["to"] for mail in created_mails) == ["admin@ivy.example", "desk@ivy.example"]
     assert sorted({mail["to"] for mail in staff_mails}) == ["admin@ivy.example", "desk@ivy.example"]
     body = created_mails[0]["body"]
@@ -90,6 +90,7 @@ async def test_slot_request_mail_includes_visit_time(admin_client, public_client
     assert all(expected_when in body for body in bodies)
     assert all("家長：林先生" in body for body in bodies)
     assert all(f"案件編號：{receipt_id}" in body for body in bodies)
+    # 送單即預約成立：園方每人只收一封「新的參觀預約」，不再另寄「已確認」。
+    assert sorted(mail["subject"] for mail in staff_mails) == ["[常春藤官網] 義華校｜新的參觀預約"]
     subjects = {mail["subject"] for mail in staff_mails}
-    assert "[常春藤官網] 義華校｜參觀預約已確認" in subjects
     assert not any("待園方確認" in subject for subject in subjects)

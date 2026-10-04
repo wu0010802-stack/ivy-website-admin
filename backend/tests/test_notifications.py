@@ -22,7 +22,7 @@ async def _book_and_get_id(admin_client, public_client):
 
 
 async def _created_message(db_session) -> OutboxMessage:
-    """園方「新的參觀需求」那一筆（家長信與已確認通知不在此列）。"""
+    """園方「新的參觀預約」那一筆（家長確認信不在此列）。"""
     result = await db_session.execute(
         select(OutboxMessage).where(OutboxMessage.kind == "visit_request_created")
     )
@@ -38,8 +38,8 @@ async def test_mail_failure_does_not_lose_request(
     receipt_id = await _book_and_get_id(admin_client, public_client)
 
     result = await run_outbox_once(failing_mail_adapter)
-    # 園方兩則（新需求、已確認）加家長確認信，寄信全數失敗。
-    assert result["failed"] == 3
+    # 園方一則（新的參觀預約）加家長確認信，寄信全數失敗。
+    assert result["failed"] == 2
 
     request = await db_session.get(VisitRequest, UUID(receipt_id))
     assert request is not None
@@ -53,7 +53,7 @@ async def test_failed_job_is_retried_and_succeeds_later(
     await _book_and_get_id(admin_client, public_client)
 
     first = await run_outbox_once(failing_mail_adapter)
-    assert first["failed"] == 3
+    assert first["failed"] == 2
 
     # 還沒到 next_attempt_at，這時用好的 adapter 重跑也不該被認領到。
     message = await _created_message(db_session)
@@ -80,7 +80,7 @@ async def test_max_attempts_marks_failed_for_manual_retry(
     await _book_and_get_id(admin_client, public_client)
 
     message = await _created_message(db_session)
-    # 預約同時排了其他 outbox（園方確認通知、家長信）。claim_next 只依 next_attempt_at
+    # 預約同時排了家長確認信。claim_next 只依 next_attempt_at
     # 排序，迴圈可能先認領到別筆；先把其他筆標成已寄出，測試只依賴目標這一筆。
     await db_session.execute(
         update(OutboxMessage).where(OutboxMessage.id != message.id).values(status=OutboxStatus.SENT.value)
@@ -129,11 +129,8 @@ async def test_notification_inbox_scoped_by_campus(
     await run_outbox_once(recording_mail_adapter)
 
     yihua_view = await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")
-    # 站內通知只有園方兩則（新需求、已確認）；家長確認信只寄 Email，不進收件匣。
-    assert sorted(item["kind"] for item in yihua_view.json()) == [
-        "visit_request_confirmed",
-        "visit_request_created",
-    ]
+    # 站內通知只有園方一則（新的參觀預約）；家長確認信只寄 Email，不進收件匣。
+    assert [item["kind"] for item in yihua_view.json()] == ["visit_request_created"]
 
     minghua_view = await minghua_client.get("/api/website/v1/admin/notifications?campus_key=minghua")
     assert len(minghua_view.json()) == 0

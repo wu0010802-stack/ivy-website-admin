@@ -29,7 +29,8 @@ from app.notifications.models import LineCampusTarget, LineGroup, NotificationDe
 logger = logging.getLogger("app.notifications")
 
 _KIND_LABELS = {
-    "visit_request_created": "新的參觀需求",
+    # 官網送單即預約成立（排了場次的才叫預約，未排的才叫「參觀需求」，和後台用語一致）。
+    "visit_request_created": "新的參觀預約",
     # 規格 197：人工確認模式下「待園方確認」不是「已確認」，文案必須分開，
     # 否則園方收到的信會誤以為這筆預約已經成立。
     "visit_request_pending_confirmation": "新的時段申請（待園方確認）",
