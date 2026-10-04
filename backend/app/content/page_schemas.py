@@ -1,4 +1,4 @@
-"""整頁內容：特色教學頁（curriculum_page）；關於常春藤頁（about_page）在階段 B 加入。
+"""整頁內容：特色教學頁（curriculum_page）與關於常春藤頁（about_page）。
 
 2026-10-03 使用者裁定「文字與照片都開放」：標題、內文、照片都能在後台改，章節
 數量、順序與版面結構固定（水彩版的錯落排法、立體書的卡紙位置都照項目數排好，
@@ -287,5 +287,118 @@ class CurriculumPagePayload(_ContentPayload):
 
     @model_validator(mode="after")
     def _no_script_scheme(self) -> "CurriculumPagePayload":
+        _reject_unsafe_strings(self.model_dump())
+        return self
+
+
+# 沿革五站的順序就是立體書紙條上的五站與右頁卡紙的位置（AboutContent.vue 的 STAGE）。
+ABOUT_MILESTONE_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
+
+
+class AboutMilestonePayload(_ContentPayload):
+    key: str
+    # 民國年由官網換算（西元 − 1911）。義華創校年份待園方確認（1997／1998），所以開放改。
+    year: int = Field(ge=1950, le=2100)
+    text: str
+
+    @field_validator("text")
+    @classmethod
+    def _text(cls, value: str) -> str:
+        return page_text(value, limit=30, what="沿革說明")
+
+
+def _chapter_name(value: str) -> str:
+    return page_text(value, limit=6, what="章名")
+
+
+def _hope_quote(value: str) -> str:
+    return page_text(value, limit=70, what="期許")
+
+
+# 逐項驗證：422 的 loc 帶索引（例如 ("hope_quotes", 1)），後台才定位得到第幾項。
+AboutChapterName = Annotated[str, AfterValidator(_chapter_name)]
+AboutHopeQuote = Annotated[str, AfterValidator(_hope_quote)]
+
+# 欄位: (每行字數, 欄位名稱)
+_ABOUT_TITLES = {
+    "hero_title": (12, "首屏大標"),
+    "story_title": (12, "一路走來的標題"),
+    "whole_title": (12, "全人教育的標題"),
+    "hope_title": (14, "我們的期許的標題"),
+}
+# 欄位: (上限, 欄位名稱, 可留空)
+_ABOUT_TEXTS = {
+    "hero_lede": (120, "首屏介紹", False),
+    "hero_caption": (20, "首屏照片上的一句話", False),
+    "story_text": (120, "一路走來的說明", False),
+    "whole_text": (100, "全人教育的說明", False),
+    "whole_fine": (100, "全人教育的補充", False),
+    "whole_fine_source": (30, "全人教育的出處", True),
+    # 也是首屏目次的最後一格，和章名一樣短。
+    "outro_title": (6, "五所校園的標題", False),
+    "outro_text": (80, "五所校園的說明", False),
+}
+
+
+class AboutPagePayload(_ContentPayload):
+    """關於常春藤頁（/about，立體書）。六大領域與核心素養、家長怎麼說的內容、
+    卡紙位置與顏色寫在官網 AboutContent.vue；校名與校區照片來自各校的五校介紹。"""
+
+    hero_title: str
+    hero_lede: str
+    hero_caption: str
+    hero_photo: MediaSlotPayload | None = None
+    hero_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    hero_back_photo: MediaSlotPayload | None = None
+    hero_back_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    # 一路走來、全人教育、我們的期許、家長怎麼說（第四章沒有家長分享時整章不出現）。
+    chapter_names: list[AboutChapterName]
+    story_title: str
+    story_text: str
+    milestones: list[AboutMilestonePayload]
+    whole_title: str
+    whole_text: str
+    whole_fine: str
+    whole_fine_source: str
+    hope_title: str
+    hope_quotes: list[AboutHopeQuote]
+    hope_photo: MediaSlotPayload | None = None
+    hope_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    outro_title: str
+    outro_text: str
+
+    @field_validator(*_ABOUT_TITLES)
+    @classmethod
+    def _titles(cls, value: str, info: ValidationInfo) -> str:
+        per_line, what = _ABOUT_TITLES[info.field_name]
+        return page_title(value, per_line=per_line, what=what)
+
+    @field_validator(*_ABOUT_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        limit, what, allow_blank = _ABOUT_TEXTS[info.field_name]
+        return page_text(value, limit=limit, what=what, allow_blank=allow_blank)
+
+    @field_validator("chapter_names")
+    @classmethod
+    def _chapter_names(cls, value: list[str]) -> list[str]:
+        return exactly(value, 4, "章名")
+
+    @field_validator("milestones")
+    @classmethod
+    def _milestones(cls, value: list[AboutMilestonePayload]) -> list[AboutMilestonePayload]:
+        if tuple(item.key for item in value) != ABOUT_MILESTONE_KEYS:
+            raise ValueError("沿革固定五站（義華、明華、崇德、國際、仁武），順序不能改")
+        if any(later.year < earlier.year for earlier, later in zip(value, value[1:])):
+            raise ValueError("沿革年份要由早到晚（可以同年）")
+        return value
+
+    @field_validator("hope_quotes")
+    @classmethod
+    def _hope_quotes(cls, value: list[str]) -> list[str]:
+        return exactly(value, 2, "期許")
+
+    @model_validator(mode="after")
+    def _no_script_scheme(self) -> "AboutPagePayload":
         _reject_unsafe_strings(self.model_dump())
         return self

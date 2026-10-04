@@ -7,7 +7,7 @@ from typing import Callable
 
 from pydantic import BaseModel
 
-from app.content.page_schemas import CurriculumPagePayload
+from app.content.page_schemas import AboutPagePayload, CurriculumPagePayload
 from app.content.schemas import (
     AdmissionContentPayload,
     BookingContentPayload,
@@ -161,6 +161,10 @@ def _list_slot_refs(payload: dict, list_name: str, label_key: str) -> list[Media
         for index, item in enumerate(items)
         if isinstance(item, dict)
     ]
+
+
+def _extract_about_page_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs([_slot_ref(payload, name, "image") for name in ("hero_photo", "hero_back_photo", "hope_photo")])
 
 
 def _extract_curriculum_page_media_refs(payload: dict) -> list[MediaRef]:
@@ -387,6 +391,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     # 特色教學頁（2026-10 開放後台編輯）：文字與照片，章節數量與版面固定（page_schemas.py）。
     "curriculum_page": ContentKindConfig(
         CurriculumPagePayload, shared_only=True, extract_media_refs=_extract_curriculum_page_media_refs
+    ),
+    # 關於常春藤頁（2026-10 開放後台編輯）：立體書的章節與五站固定。
+    "about_page": ContentKindConfig(
+        AboutPagePayload, shared_only=True, extract_media_refs=_extract_about_page_media_refs
     ),
     # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(
