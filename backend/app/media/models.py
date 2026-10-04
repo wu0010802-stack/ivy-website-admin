@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, CheckConstraint, DateTime, Enum, Float, ForeignKey, Index, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -22,11 +22,16 @@ class MediaStatus(str, enum.Enum):
 
 
 class VariantKind(str, enum.Enum):
-    # 圖片：長邊 480 的縮圖（每張都有）與長邊 1600 的大圖（原圖更大時才有）。
-    # 影片：抽一格做成的 poster（長邊 480，後台列表與沒設封面時的預設）。
+    # 圖片：長邊 480 的縮圖（每張都有）、長邊 960 的中圖與長邊 1600 的大圖（原圖
+    # 更大時才有）。影片：抽一格做成的 poster（長邊 480，後台列表與沒設封面時的
+    # 預設），以及背景轉檔的桌機版／手機版 H.264 MP4（同解析度同構圖，手機版 CRF
+    # 較高；2026-10-03，見 app/media/jobs.py）。
     THUMBNAIL = "thumbnail"
     POSTER = "poster"
     LARGE = "large"
+    MEDIUM = "medium"
+    VIDEO_DESKTOP = "video_desktop"
+    VIDEO_MOBILE = "video_mobile"
 
 
 class MediaAsset(Base):
@@ -128,3 +133,52 @@ class MediaUsage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     asset: Mapped[MediaAsset] = relationship(back_populates="usages")
+
+
+class MediaJobKind(str, enum.Enum):
+    # process：新上傳（或重新處理）的影片，做完 poster 與兩個轉檔版本素材才 ready。
+    # backfill：既有 ready 影片補轉檔版本，素材狀態不動、失敗也不動素材。
+    PROCESS = "process"
+    BACKFILL = "backfill"
+
+
+class MediaJobStatus(str, enum.Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class MediaJob(Base):
+    """素材背景處理工作（app/media/jobs.py）。認領方式跟 outbox 一樣：
+    pending 且到了 next_attempt_at，或 running 但租約已過期（worker 消失）。
+    同一個素材同時最多一筆 pending／running（uq_media_jobs_active）。"""
+
+    __tablename__ = "media_jobs"
+    __table_args__ = (
+        CheckConstraint("kind IN ('process', 'backfill')", name="ck_media_jobs_kind"),
+        CheckConstraint("status IN ('pending', 'running', 'done', 'failed')", name="ck_media_jobs_status"),
+        Index(
+            "uq_media_jobs_active", "media_id", unique=True,
+            postgresql_where=text("status IN ('pending', 'running')"),
+        ),
+        Index("ix_media_jobs_due", "status", "next_attempt_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    media_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("media_assets.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default=MediaJobStatus.PENDING.value)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    leased_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    leased_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 最近一次失敗的原因（給後台與指令列看，不含檔名）。
+    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
