@@ -23,11 +23,16 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.admissions.constants import GRADES, NO_DEPOSIT_REASONS, SOURCE_CATEGORIES, WITHDRAWN_FROM
+from app.admissions.constants import CONTACT_CHANNELS, GRADES, NO_DEPOSIT_REASONS, SOURCE_CATEGORIES, WITHDRAWN_FROM
 from app.db import Base
+
+# 參觀後追蹤（2026-10-04 規格 5.1）：已註冊、已退出、已匿名化的訪視一定沒有下次聯絡。
+# 與 migration b8e3f1a6c4d7 的字面值逐字相同。
+FOLLOW_UP_OPEN_CHECK = "follow_up_at IS NULL OR (enrolled = false AND withdrawn_at IS NULL AND anonymized_at IS NULL)"
 
 
 def _sql_in(column: str, values: Iterable[str], *, nullable: bool = True) -> str:
@@ -63,6 +68,13 @@ class RecruitmentVisit(Base):
         Index("ix_recruitment_visits_campus_deposit", "campus_key", "has_deposit"),
         Index("ix_recruitment_visits_campus_grade", "campus_key", "grade"),
         Index("ix_recruitment_visits_withdrawn_at", "withdrawn_at"),
+        CheckConstraint(FOLLOW_UP_OPEN_CHECK, name="ck_recruitment_visits_follow_up_open"),
+        Index(
+            "ix_recruitment_visits_campus_follow_up",
+            "campus_key",
+            "follow_up_at",
+            postgresql_where=text("anonymized_at IS NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -124,6 +136,16 @@ class RecruitmentVisit(Base):
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 參觀後追蹤（官網延伸，2026-10-04 規格 5.1）。三欄都受 version 樂觀鎖保護，只能由
+    # follow_up.py（記錄聯絡、改期）與建檔、狀態轉換、匿名化改變，一般編輯不收。
+    # 下次聯絡；null＝未排定（不自動排，F-Q1）。
+    follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 追蹤負責人；null＝未指派。
+    follow_up_owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    # 最近一次聯絡紀錄的 contacted_at（取最大值，補登較早的紀錄不會往回改）。
+    last_contacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # 刪除訪視時歷程交給資料庫 ON DELETE CASCADE（async 不能 lazy load 再逐筆刪）。
     events: Mapped[list[RecruitmentEventLog]] = relationship(
@@ -131,6 +153,12 @@ class RecruitmentVisit(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="RecruitmentEventLog.created_at",
+    )
+    contact_logs: Mapped[list[RecruitmentContactLog]] = relationship(
+        back_populates="visit",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="RecruitmentContactLog.contacted_at",
     )
 
 
@@ -159,6 +187,33 @@ class RecruitmentEventLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     visit: Mapped[RecruitmentVisit] = relationship(back_populates="events")
+
+
+class RecruitmentContactLog(Base):
+    """參觀後的一次聯絡（官網延伸，2026-10-04 規格 5.2）。比照預約的 visit_contact_notes：
+    只新增，不編輯、不刪除；記錯就補一筆更正。note 是家長回應的自由文字，保存政策
+    匿名化時清掉；其他欄位不含個資。"""
+
+    __tablename__ = "recruitment_contact_logs"
+    __table_args__ = (
+        CheckConstraint(_sql_in("channel", CONTACT_CHANNELS, nullable=False), name="ck_recruitment_contact_logs_channel"),
+        Index("ix_recruitment_contact_logs_visit_time", "recruitment_visit_id", "contacted_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    recruitment_visit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("recruitment_visits.id", ondelete="CASCADE"), nullable=False
+    )
+    contacted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    channel: Mapped[str] = mapped_column(String(16), nullable=False)
+    reached: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 記這筆時排的下次聯絡（快照，只給歷程顯示；現值看訪視的 follow_up_at）。
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    visit: Mapped[RecruitmentVisit] = relationship(back_populates="contact_logs")
 
 
 class GradeIntakeTarget(Base):

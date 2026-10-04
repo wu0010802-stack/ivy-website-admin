@@ -3,7 +3,8 @@
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsCompare, AdmissionsOptions, AdmissionsStats, Arrivals, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
+  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, Arrivals, ContactLog, ContactLogCreate, ContactLogResult, FollowUpList,
+  FollowUpUpdate, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -22,7 +23,12 @@ export type RecordFilters = {
   stage?: string | null
   visit_request_id?: string | null
   q?: string | null
+  // 參觀後追蹤（2026-10-04）：due 已到期、upcoming 7 天內、unscheduled 未排定；負責人 me／none／帳號 id。
+  follow_up?: FollowUpScope | null
+  owner?: string | null
 }
+
+export type FollowUpScope = 'due' | 'upcoming' | 'unscheduled'
 
 type QueryValue = string | number | boolean | null | undefined
 
@@ -137,4 +143,37 @@ export function getNoDepositRecords(params: {
 /** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年學期必填（名額剩餘要對到單一學期）。 */
 export function getCompare(schoolYear: number, semester?: number | null): Promise<AdmissionsCompare> {
   return api.get<AdmissionsCompare>(`/admin/admissions/compare?${toQuery({ school_year: schoolYear, semester })}`)
+}
+
+// ---- 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md 第 9 節）----
+
+/** 待追蹤分頁。不吃入學學年學期；totals 是全校區三種的數量，不受負責人篩選影響。 */
+export function getFollowUps(params: {
+  campus_key: string
+  scope: FollowUpScope
+  owner: string | null
+  page: number
+  page_size: number
+}): Promise<FollowUpList> {
+  return api.get<FollowUpList>(`/admin/admissions/follow-ups?${toQuery(params)}`)
+}
+
+/** 可以當這個校區追蹤負責人的帳號（啟用中、有招生寫入權限、涵蓋該校區）。 */
+export function listAdmissionsStaff(campusKey: string): Promise<AdmissionsStaff[]> {
+  return api.get<AdmissionsStaff[]>(`/admin/admissions/staff?${toQuery({ campus_key: campusKey })}`)
+}
+
+/** 參觀後的聯絡紀錄，新到舊。 */
+export function listContactLogs(id: string): Promise<ContactLog[]> {
+  return api.get<ContactLog[]>(`/admin/admissions/records/${id}/contact-logs`)
+}
+
+/** 記錄一次聯絡；next_follow_up_at 必送（時間或 null＝不用再追）。回傳新紀錄與更新後的訪視。 */
+export function createContactLog(id: string, body: ContactLogCreate): Promise<ContactLogResult> {
+  return api.post<ContactLogResult>(`/admin/admissions/records/${id}/contact-logs`, body)
+}
+
+/** 只改下次聯絡或負責人：沒帶的鍵不動，帶 null＝清除。 */
+export function updateFollowUp(id: string, body: FollowUpUpdate): Promise<RecruitmentVisit> {
+  return api.patch<RecruitmentVisit>(`/admin/admissions/records/${id}/follow-up`, body)
 }

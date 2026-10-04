@@ -4,6 +4,7 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import type { FunnelCard as BoardCard } from '../../api/types'
 import { rocDate, termLabel } from '../../admissions/academic'
 import { MISSING_CHILD_NAME, STAGE_LABELS, WITHDRAWN_FROM_LABELS, type Stage } from '../../admissions/constants'
+import { isDue } from '../../admissions/followUp'
 
 // 看板卡片（園務 FunnelCard.vue:14-37）：姓名＋退出類型、年級、入學學期、官網預約標記。
 // 官網沒有學號、預繳金對帳，那兩種徽章不做。滑鼠點整張卡開歷程；鍵盤走卡片裡真正的
@@ -13,6 +14,15 @@ const props = defineProps<{ card: BoardCard; stage: Stage; draggable: boolean; t
 const emit = defineEmits<{ open: []; move: [to: Stage]; dragstart: []; dragend: [] }>()
 
 const term = computed(() => termLabel(props.card.target_school_year, props.card.target_semester, 'short'))
+// 下次聯絡（2026-10-04 參觀後追蹤規格 7.4）：已到期寫「該聯絡了」；已排定寫日期；沒排不標
+// （不自動排之後，大多數卡片都沒排，標出來只是雜訊）。
+const followUp = computed(() => {
+  const at = props.card.follow_up_at
+  if (!at) return null
+  if (isDue(at)) return { text: '該聯絡了', due: true }
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', month: '2-digit', day: '2-digit' }).format(new Date(at))
+  return { text: `下次聯絡 ${day.replace('-', '/')}`, due: false }
+})
 
 function onDragStart(event: DragEvent) {
   if (!props.draggable) {
@@ -69,6 +79,7 @@ function onDragStart(event: DragEvent) {
       <span class="num">參觀 {{ rocDate(card.visit_date) || '—' }}</span>
       <span v-if="card.provisional_grade">・保留 {{ card.provisional_grade }}</span>
     </p>
+    <p v-if="followUp" class="funnel-card__follow num" :class="{ 'is-due': followUp.due }">{{ followUp.text }}</p>
   </article>
 </template>
 
@@ -144,5 +155,16 @@ function onDragStart(event: DragEvent) {
   .funnel-card__move {
     min-height: 44px;
   }
+}
+
+.funnel-card__follow {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.funnel-card__follow.is-due {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 </style>

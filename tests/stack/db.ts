@@ -33,3 +33,19 @@ export function startVisitSlot(visitRequestId: string): void {
   )
   if (!moved) throw new Error('場次沒有移動：預約沒有場次，或同一場還有別的預約')
 }
+
+/**
+ * 參觀後追蹤（2026-10-04 規格 F19）：把這個孩子的招生訪視的下次聯絡移到一小時前，當成已到期。
+ * 「下次聯絡」只能排在未來（API 會擋），要測到期只能直接改測試庫。只改一筆，對不到就丟錯。
+ */
+export function makeFollowUpDue(childName: string): void {
+  const moved = psql(
+    `UPDATE recruitment_visits
+        SET follow_up_at = now() - interval '1 hour'
+      WHERE child_name = :'child'
+        AND follow_up_at IS NOT NULL
+  RETURNING id;`,
+    { child: childName },
+  )
+  if (moved.split('\n').filter(Boolean).length !== 1) throw new Error(`下次聯絡沒有移動：${childName}`)
+}

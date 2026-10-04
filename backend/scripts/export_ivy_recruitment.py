@@ -10,7 +10,7 @@ rollback。所有校區在同一個 REPEATABLE READ 交易內查詢，訪視、�
 用法（在 backend/ 下，環境變數同 API）：
   uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=3 --out <輸出目錄>
 
-每個校區輸出到 <輸出目錄>/<campus_key>/ 的四個 JSONL。內容含幼生與家長個資：目錄
+每個校區輸出到 <輸出目錄>/<campus_key>/ 的五個 JSONL（export.FILES）。內容含幼生與家長個資：目錄
 0700、檔案 0600，已存在的檔案不覆寫。"""
 from __future__ import annotations
 

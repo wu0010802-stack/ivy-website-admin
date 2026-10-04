@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions import follow_up as admissions_follow_up
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.admissions.constants import SCHOOL_YEAR_MAX, SCHOOL_YEAR_MIN
@@ -186,6 +187,7 @@ async def get_traffic(
 
 @router.get("/admin/dashboard")
 async def get_dashboard(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
@@ -211,6 +213,12 @@ async def get_dashboard(
     ).scalar_one()
     # 總覽「我承辦的案件」（2026-10-03 第八輪）；不算待辦，只是讓承辦人找得到自己的案件。
     summary["my_open_cases"] = await dashboard_service.count_open_cases_assigned_to(db, current_user.id, campus_keys)
+    # 招生待追蹤（2026-10-04 參觀後追蹤規格 7.7）：招生入學開啟且看得到招生的人才有這兩個鍵；
+    # 條件與招生「待追蹤」分頁的已到期相同（admissions/follow_up.py）。
+    if request.app.state.settings.admissions_enabled and has_capability(current_user, "admissions.read"):
+        by_campus = await admissions_follow_up.due_counts(db, campus_keys)
+        summary["admissions_follow_up_due"] = sum(by_campus.values())
+        summary["admissions_follow_up_due_by_campus"] = by_campus
     # 承辦人停用後案件沒人管：只給能重新指派的人（booking.manage）。
     if has_capability(current_user, "booking.manage"):
         summary["inactive_assignee_open_cases"] = await dashboard_service.count_open_cases_with_inactive_assignee(

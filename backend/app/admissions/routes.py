@@ -17,14 +17,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, booking_link, constants, funnel, intake, records
+from app.admissions import academic, booking_link, constants, follow_up, funnel, intake, records
 from app.admissions import stats as stats_service
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsCompareOut,
     AdmissionsOptionsOut,
+    AdmissionsStaffOut,
     AdmissionsStatsOut,
     ArrivalsOut,
+    ContactLogCreate,
+    ContactLogOut,
+    ContactLogResultOut,
+    FollowUpKind,
+    FollowUpListOut,
+    FollowUpUpdate,
     FunnelBoardOut,
     IntakePlanOut,
     IntakeTargetsRequest,
@@ -126,7 +133,7 @@ async def list_recruitment_visits(
     """訪視明細：參觀日期新到舊（同日依建立時間、再依 id，分頁穩定）；回裸 list，
     筆數等於 page_size 代表可能還有下一頁。"""
     _require_campus(current_user, "admissions.read", filters.campus_key)
-    stmt = filters.apply(select(RecruitmentVisit))
+    stmt = filters.apply(select(RecruitmentVisit), current_user_id=current_user.id)
     stmt = stmt.order_by(
         RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc()
     )
@@ -141,11 +148,20 @@ async def create_recruitment_visit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecruitmentVisitOut:
-    """手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。"""
+    """手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。追蹤負責人預設是建立的人，
+    不自動排下次聯絡（2026-10-04 規格 6.1）。"""
     _require_campus(current_user, "admissions.write", campus_key)
+    tracking = await follow_up.initial_fields(
+        db, campus_key=campus_key, booking_follow_up_at=None, owner_candidates=[current_user.id]
+    )
     try:
         visit = await records.create_visit(
-            db, campus_key=campus_key, fields=payload.model_dump(), actor_user_id=current_user.id, origin="manual"
+            db,
+            campus_key=campus_key,
+            fields=payload.model_dump(),
+            actor_user_id=current_user.id,
+            origin="manual",
+            **tracking,
         )
     except records.TourGuideNotFound as exc:
         await db.rollback()
@@ -505,6 +521,178 @@ async def create_from_visit_request(
         campus_key=visit.campus_key,
         metadata={"created": created},
     )
+    await db.commit()
+    return RecruitmentVisitOut.model_validate(visit)
+
+
+# ---- 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md 第 6、9 節）----
+
+
+def _follow_up_error(exc: Exception) -> HTTPException:
+    """follow_up 服務的例外 → 422（訊息給畫面直接顯示）。"""
+    if isinstance(exc, follow_up.FollowUpInPast):
+        code, message = "FOLLOW_UP_IN_PAST", "下次聯絡的時間要晚於現在"
+    elif isinstance(exc, follow_up.FollowUpNotAllowed):
+        code, message = "FOLLOW_UP_NOT_ALLOWED", "已註冊或已退出的訪視不需要排下次聯絡"
+    elif isinstance(exc, follow_up.ContactedAtInFuture):
+        code, message = "CONTACTED_AT_IN_FUTURE", "聯絡時間不能晚於現在"
+    elif isinstance(exc, follow_up.OwnerInvalid):
+        code, message = "FOLLOW_UP_OWNER_INVALID", exc.message
+    else:  # pragma: no cover - 呼叫端只傳上面四種
+        raise exc
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": code, "message": message})
+
+
+_FOLLOW_UP_ERRORS = (
+    follow_up.FollowUpInPast,
+    follow_up.FollowUpNotAllowed,
+    follow_up.ContactedAtInFuture,
+    follow_up.OwnerInvalid,
+)
+
+
+@router.get("/admin/admissions/follow-ups", response_model=FollowUpListOut)
+async def get_follow_ups(
+    campus_key: str,
+    scope: FollowUpKind = Query(default="due", description="due 已到期、upcoming 7 天內、unscheduled 未排定"),
+    owner: str | None = Query(default=None, pattern=constants.OWNER_FILTER_PATTERN, description="me、none 或帳號 id"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=follow_up.FOLLOW_UP_LIST_PAGE_SIZE_MAX),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> FollowUpListOut:
+    """待追蹤分頁（規格 7.1）。不吃入學學年學期：追蹤跟入學學期無關。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    result = await follow_up.follow_up_list(
+        db,
+        campus_key,
+        kind=scope,
+        owner=owner,
+        current_user_id=current_user.id,
+        page=page,
+        page_size=page_size,
+    )
+    return FollowUpListOut.model_validate(result)
+
+
+@router.get("/admin/admissions/staff", response_model=list[AdmissionsStaffOut])
+async def list_admissions_staff(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[AdmissionsStaffOut]:
+    """可以當這個校區追蹤負責人的帳號（規格 6.4、9）：啟用中、有 admissions.write、涵蓋該校區。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    users = await follow_up.eligible_staff(db, campus_key)
+    return [AdmissionsStaffOut(id=user.id, display_name=user.display_name, email=user.email) for user in users]
+
+
+@router.get("/admin/admissions/records/{visit_id}/contact-logs", response_model=list[ContactLogOut])
+async def list_contact_logs(
+    visit_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[ContactLogOut]:
+    """參觀後的聯絡紀錄，新到舊（規格 9）。"""
+    await _visit_for(db, current_user, visit_id, "admissions.read")
+    return [
+        ContactLogOut.model_validate(log).model_copy(update={"created_by_name": name})
+        for log, name in await follow_up.list_contact_logs(db, visit_id)
+    ]
+
+
+@router.post(
+    "/admin/admissions/records/{visit_id}/contact-logs",
+    response_model=ContactLogResultOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_contact_log(
+    visit_id: uuid.UUID,
+    payload: ContactLogCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ContactLogResultOut:
+    """記錄一次聯絡（規格 6.3）。檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→
+    已匿名化（409）→ 版本（409）→ 時間與階段規則（422）。稽核不記內容。"""
+    visit = await _writable_visit_for(db, current_user, visit_id, "admissions.write")
+    try:
+        log = await follow_up.add_contact_log(
+            db,
+            visit,
+            expected_version=payload.expected_version,
+            contacted_at=payload.contacted_at,
+            channel=payload.channel,
+            reached=payload.reached,
+            note=payload.note,
+            next_follow_up_at=payload.next_follow_up_at,
+            update_parent_response=payload.update_parent_response,
+            actor_user_id=current_user.id,
+        )
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    except _FOLLOW_UP_ERRORS as exc:
+        await db.rollback()
+        raise _follow_up_error(exc) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.contact_logged",
+        target_type="recruitment_visit",
+        target_id=str(visit.id),
+        campus_key=visit.campus_key,
+        metadata={
+            "log_id": str(log.id),
+            "channel": log.channel,
+            "reached": log.reached,
+            "follow_up_set": payload.next_follow_up_at is not None,
+            "follow_up_cleared": payload.next_follow_up_at is None,
+            "parent_response_updated": payload.update_parent_response,
+        },
+    )
+    await db.commit()
+    return ContactLogResultOut(
+        log=ContactLogOut.model_validate(log).model_copy(
+            update={"created_by_name": current_user.display_name or current_user.email}
+        ),
+        visit=RecruitmentVisitOut.model_validate(visit),
+    )
+
+
+@router.patch("/admin/admissions/records/{visit_id}/follow-up", response_model=RecruitmentVisitOut)
+async def update_follow_up(
+    visit_id: uuid.UUID,
+    payload: FollowUpUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RecruitmentVisitOut:
+    """只改下次聯絡或負責人，不記聯絡（規格 6.4）。沒送＝不動，送 null＝清除。"""
+    visit = await _writable_visit_for(db, current_user, visit_id, "admissions.write")
+    changes = payload.model_dump(include=payload.model_fields_set - {"expected_version"})
+    try:
+        changed = await follow_up.update_follow_up(
+            db, visit, changes=changes, expected_version=payload.expected_version
+        )
+    except records.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc) from exc
+    except _FOLLOW_UP_ERRORS as exc:
+        await db.rollback()
+        raise _follow_up_error(exc) from exc
+    if changed:
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="recruitment_visit.follow_up_update",
+            target_type="recruitment_visit",
+            target_id=str(visit.id),
+            campus_key=visit.campus_key,
+            metadata={
+                "follow_up_set": "follow_up_at" in changed and visit.follow_up_at is not None,
+                "follow_up_cleared": "follow_up_at" in changed and visit.follow_up_at is None,
+                "owner_changed": "follow_up_owner_id" in changed,
+            },
+        )
     await db.commit()
     return RecruitmentVisitOut.model_validate(visit)
 

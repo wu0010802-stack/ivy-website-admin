@@ -198,3 +198,33 @@ describe('預約明細的招生訪視連結', () => {
     expect(second.wrapper.find('.detail__admissions').exists()).toBe(false)
   })
 })
+
+describe('參觀後追蹤區塊（2026-10-04 參觀後追蹤規格 7.6）', () => {
+  it('已到場且有招生訪視：顯示階段、下次聯絡、負責人，能記錄聯絡；下次聯絡選擇器換成提示', async () => {
+    mockDetail(detail({ status: 'completed' }), [
+      visit({ visit_request_id: VR_ID, has_visit_request: true, follow_up_at: '2020-01-01T02:00:00Z', last_contacted_at: null }),
+    ])
+    const { wrapper } = await mountDetail()
+    const section = wrapper.get('.detail__after')
+    expect(section.text()).toContain('參觀後追蹤')
+    expect(section.text()).toContain('已訪視')
+    expect(section.get('.is-due').text()).toMatch(/^逾 \d+ 天$/)
+    expect(section.text()).toContain('還沒聯絡過')
+    expect(hasButton(section, '記錄聯絡')).toBe(true)
+    expect(hasButton(section, '改期／負責人')).toBe(true)
+    expect(wrapper.find('.notes__follow').exists()).toBe(false)
+    expect(wrapper.get('.notes__untracked').text()).toBe('已到場的案件請在上方「參觀後追蹤」排下次聯絡。')
+  })
+
+  it('還沒到場、或沒有招生權限：不顯示這個區塊', async () => {
+    mockDetail(detail({ status: 'confirmed' }), [visit({ visit_request_id: VR_ID })])
+    const confirmed = await mountDetail()
+    expect(confirmed.wrapper.find('.detail__after').exists()).toBe(false)
+    expect(confirmed.wrapper.find('.notes__follow').exists()).toBe(true)
+    cleanup()
+    const get = mockDetail(detail({ status: 'completed' }), [visit({ visit_request_id: VR_ID })])
+    const desk = await mountDetail(testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['booking.read', 'booking.handle'] }))
+    expect(desk.wrapper.find('.detail__after').exists()).toBe(false)
+    expect(pathsTo(get, '/admin/admissions/records')).toEqual([])
+  })
+})

@@ -32,6 +32,12 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   TRANSITION_NOT_ALLOWED: '這個階段不能直接移過去',
   VISIT_REQUEST_NOT_COMPLETED: '這筆預約不是「已到場」，不能建立招生訪視',
   VISIT_REQUEST_ANONYMIZED: '這筆預約已依保存政策匿名化，不能再建立招生訪視',
+  // 參觀後追蹤（2026-10-04）
+  FOLLOW_UP_IN_PAST: '下次聯絡的時間要晚於現在',
+  FOLLOW_UP_NOT_ALLOWED: '已註冊或已退出的訪視不需要排下次聯絡',
+  FOLLOW_UP_OWNER_INVALID: '這個帳號不能當追蹤負責人',
+  CONTACTED_AT_IN_FUTURE: '聯絡時間不能晚於現在',
+  FOLLOW_UP_NOT_TRACKED: '已到場或已取消的案件不會列入到期待追蹤；參觀後的追蹤請記在招生訪視',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 

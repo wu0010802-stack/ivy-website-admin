@@ -18,8 +18,8 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 ```
 
 - `--campus 校區=租戶編號` 可以給多個；校區對租戶不寫死（明華、崇德、國際的租戶還不存在）。
-- 只讀：連線設成 `default_transaction_read_only`，不改任何資料；所有校區在同一個 REPEATABLE READ 交易內查詢，四份資料是同一個快照。
-- 每個校區一個資料夾，四個 JSONL：`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`、`extensions`。
+- 只讀：連線設成 `default_transaction_read_only`，不改任何資料；所有校區在同一個 REPEATABLE READ 交易內查詢，五份資料是同一個快照。
+- 每個校區一個資料夾，五個 JSONL：`recruitment_visits`、`recruitment_event_log`、`grade_intake_targets`、`extensions`、`recruitment_contact_logs`（2026-10-04 起，參觀後聯絡紀錄）。
 - 內容含幼生姓名、生日、家長電話：資料夾 0700、檔案 0600，已存在的檔案不覆寫。用完刪除，不要放進 repo 或雲端硬碟。
 
 ## 列的格式
@@ -43,7 +43,9 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 - `recruitment_visits.columns.tenant_id` 用命令列給的租戶編號；`mapping.campus_key` 是官網校區。
 - `student_id`、`actor_user_id`、`expected_start_label` 一律 `null`：官網沒有學生檔；官網帳號沒有對應的園務帳號（改記在 `metadata_json.website_actor`，見下）；`expected_start_label` 由園務依備註重算。
 
-`extensions.jsonl` 每筆訪視一列：`{"website_id", "visit_request_id", "enrolled_on", "tour_guide_user_id", "tour_guide_name"}`。
+`extensions.jsonl` 每筆訪視一列：`{"website_id", "visit_request_id", "enrolled_on", "tour_guide_user_id", "tour_guide_name", "follow_up_at", "last_contacted_at", "follow_up_owner_user_id", "follow_up_owner_name"}`。後四個是參觀後追蹤（2026-10-04）：時間是台北時間 naive；負責人名稱只放顯示名稱，沒設時為 `null`，不帶 Email。
+
+`recruitment_contact_logs.jsonl` 每筆參觀後聯絡一列（官網延伸，園務沒有對應的表）：`{"website_id", "recruitment_visit_website_id", "contacted_at", "channel", "reached", "note", "next_follow_up_at", "created_by"}`。`channel` 是 `phone`／`line`／`in_person`／`other`（電話、LINE、當面、其他）；`note` 依保存政策匿名化後為 `null`；`created_by` 是 `{"user_id", "name"}`（同歷程的 `website_actor`，沒有記錄者時為 `null`）。
 
 ## 欄位轉換
 
@@ -63,6 +65,8 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 | `enrolled` | 同名 | 園務以學生檔為準：`enrolled=true` 的依「姓名＋生日」唯一比對學生，設 `students.recruitment_visit_id`；比對不到或多筆的列入人工清單，不自動建學生 |
 | `version`、`anonymized_at`、`created` 事件 | — | 不轉（`created` 是官網延伸，建立時間以 `recruitment_visits.created_at` 為準） |
 | `grade_intake_targets.updated_by` | — | 不匯出：官網延伸（最後修改計畫名額的官網帳號），園務 `grade_intake_targets` 沒有對應欄位 |
+| `follow_up_at`、`follow_up_owner_id`、`last_contacted_at` | — | 官網延伸（參觀後追蹤，2026-10-04），只放在 `extensions`；園務沒有對應欄位，下次聯絡與負責人不轉 |
+| `recruitment_contact_logs` | `notes` 末尾 | 2026-10-04 使用者裁定（追蹤規格 F-Q2）：園務沒有對應表時，匯入端把同一筆訪視的聯絡紀錄依 `contacted_at` 舊到新串成「115.10.05 電話 聯絡到：內容」（沒聯絡到寫「沒聯絡到」；`note` 為 `null` 時只寫前半），一筆一行附加在 `notes` 末尾 |
 
 其餘欄位名稱、型別、長度與園務相同，原樣轉。
 

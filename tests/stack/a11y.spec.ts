@@ -79,6 +79,8 @@ test.describe('後台', () => {
     ['/visit-requests/{visit}', '案件明細'],
     ['/visit-calendar', '參觀場次'],
     ['/admissions', '招生入學'],
+    ['/admissions?tab=followups', '招生入學'],
+    ['/admissions?tab=followups&fu=unscheduled', '招生入學'],
     ['/admissions?tab=records', '招生入學'],
     ['/admissions?tab=intake', '招生入學'],
     ['/admissions?tab=arrivals', '招生入學'],

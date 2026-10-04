@@ -1280,6 +1280,17 @@ async def create_contact_note(
     except workflow_service.VersionConflict as exc:
         await db.rollback()
         raise _version_conflict(exc) from exc
+    # 已到場、已取消的案件不列入「到期待追蹤」（pending_kinds.follow_up_due）：設了下次聯絡
+    # 也永遠不會出現，直接擋下（2026-10-04 參觀後追蹤規格 6.6）。清除與單純記錄照舊。
+    if payload.follow_up_at is not None and visit_request.status in pending_kinds.FOLLOW_UP_UNTRACKED_STATUSES:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": "FOLLOW_UP_NOT_TRACKED",
+                "message": "已到場或已取消的案件不會列入到期待追蹤；參觀後的追蹤請記在招生訪視",
+            },
+        )
     note = await workflow_service.add_contact_note(
         db,
         visit_request,

@@ -231,7 +231,7 @@ function openEvents(card: BoardCard) {
 
     <TransitionDialog v-model="transitionOpen" :target="transitionTarget" @done="onTransitioned" @stale="onTransitioned" />
     <RecordDialog v-model="addOpen" mode="add" :campus-key="campusKey" :options="options" @saved="load({ keep: true })" />
-    <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" />
+    <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" @changed="load({ keep: true })" />
   </section>
 </template>
 

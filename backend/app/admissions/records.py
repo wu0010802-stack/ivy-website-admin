@@ -27,6 +27,7 @@ from app.common.timezones import today_local
 OPTION_LIMIT = 50
 
 _Grade = Literal[constants.GRADES]
+_FollowUpKind = Literal[constants.FOLLOW_UP_KINDS]
 _Stage = Literal[constants.STAGES]
 _NoDepositReason = Literal[constants.NO_DEPOSIT_REASONS]
 _PRIORITY_OF = {reason: level for level, reasons in constants.NO_DEPOSIT_PRIORITY.items() for reason in reasons}
@@ -125,11 +126,17 @@ async def create_visit(
     origin: str,
     visit_request_id: uuid.UUID | None = None,
     today: date | None = None,
+    follow_up_at: datetime | None = None,
+    follow_up_owner_id: uuid.UUID | None = None,
 ) -> RecruitmentVisit:
-    """建立一筆招生訪視並寫 created 事件（metadata {"origin": origin}，origin 是
-    constants.ORIGINS 之一）。fields 的鍵是 RecruitmentVisitCreate 的欄位名；month
+    """建立一筆招生訪視並寫 created 事件（metadata {"origin": origin, "follow_up": ...}，
+    origin 是 constants.ORIGINS 之一）。fields 的鍵是 RecruitmentVisitCreate 的欄位名；month
     由 visit_date 算、seq_no 在同校同月份鎖內配號；入學學年或學期缺值時補
-    today（台北日期，預設今天）所在學期，同園務 records.py:232-237。"""
+    today（台北日期，預設今天）所在學期，同園務 records.py:232-237。
+
+    追蹤欄位由呼叫端用 follow_up.initial_fields 算好傳入（2026-10-04 規格 6.1）：不自動排
+    第一次聯絡，follow_up_at 只會是沿用預約的下次聯絡，所以 metadata 的 follow_up 是
+    booking（有沿用）或 none。"""
     values = dict(fields)
     await _resolve_tour_guide(db, values)
     if values.get("target_school_year") is None or values.get("target_semester") is None:
@@ -157,13 +164,16 @@ async def create_visit(
         version=1,
         created_at=now,
         updated_at=now,
+        follow_up_at=follow_up_at,
+        follow_up_owner_id=follow_up_owner_id,
         **values,
     )
     db.add(visit)
     await db.flush()
     write_event(
         db, visit, event_type="created", from_stage=None, to_stage="visited",
-        actor_user_id=actor_user_id, metadata={"origin": origin},
+        actor_user_id=actor_user_id,
+        metadata={"origin": origin, "follow_up": "booking" if follow_up_at is not None else "none"},
     )
     await db.flush()
     return visit
@@ -237,6 +247,12 @@ class RecruitmentVisitFilters:
         stage: _Stage | None = Query(default=None, description="漏斗階段（由狀態欄位推導）"),
         visit_request_id: uuid.UUID | None = Query(default=None, description="連結的官網預約"),
         q: str | None = Query(default=None, max_length=100, description="幼生姓名、聯絡人、電話、地址、備註、電訪回應"),
+        follow_up: _FollowUpKind | None = Query(
+            default=None, description="追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2）"
+        ),
+        owner: str | None = Query(
+            default=None, pattern=constants.OWNER_FILTER_PATTERN, description="追蹤負責人：me、none 或帳號 id"
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.month = month
@@ -250,8 +266,12 @@ class RecruitmentVisitFilters:
         self.stage = stage
         self.visit_request_id = visit_request_id
         self.q = q.strip() if q and q.strip() else None
+        self.follow_up = follow_up
+        self.owner = owner
 
-    def apply(self, stmt):
+    def apply(self, stmt, *, current_user_id: uuid.UUID | None = None):
+        """current_user_id 給 owner=me 用（路由傳入目前登入的帳號）。"""
+        from app.admissions import follow_up
         from app.admissions.funnel import stage_condition
 
         stmt = stmt.where(RecruitmentVisit.campus_key == self.campus_key)
@@ -275,6 +295,10 @@ class RecruitmentVisitFilters:
             stmt = stmt.where(stage_condition(self.stage))
         if self.visit_request_id is not None:
             stmt = stmt.where(RecruitmentVisit.visit_request_id == self.visit_request_id)
+        if self.follow_up:
+            stmt = stmt.where(follow_up.condition(self.follow_up))
+        if self.owner is not None and (self.owner != "me" or current_user_id is not None):
+            stmt = stmt.where(follow_up.owner_condition(self.owner, current_user_id))
         if self.q:
             # 使用者打的 % 與 _ 是字面值（同 booking 的 VisitRequestFilters）。
             needle = self.q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -321,4 +345,5 @@ async def options(db: AsyncSession, campus_key: str) -> dict:
             {"value": reason, "priority": _PRIORITY_OF.get(reason)} for reason in constants.NO_DEPOSIT_REASONS
         ],
         "source_categories": dict(constants.SOURCE_CATEGORIES),
+        "contact_channels": dict(constants.CONTACT_CHANNELS),
     }

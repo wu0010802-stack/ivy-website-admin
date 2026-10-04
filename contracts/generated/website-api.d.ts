@@ -63,6 +63,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/follow-ups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Follow Ups
+         * @description 待追蹤分頁（規格 7.1）。不吃入學學年學期：追蹤跟入學學期無關。
+         */
+        get: operations["get_follow_ups_api_website_v1_admin_admissions_follow_ups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/from-visit-request/{visit_request_id}": {
         parameters: {
             query?: never;
@@ -174,7 +194,8 @@ export interface paths {
         put?: never;
         /**
          * Create Recruitment Visit
-         * @description 手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。
+         * @description 手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。追蹤負責人預設是建立的人，
+         *     不自動排下次聯絡（2026-10-04 規格 6.1）。
          */
         post: operations["create_recruitment_visit_api_website_v1_admin_admissions_records_post"];
         delete?: never;
@@ -213,6 +234,31 @@ export interface paths {
         patch: operations["update_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/records/{visit_id}/contact-logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Contact Logs
+         * @description 參觀後的聯絡紀錄，新到舊（規格 9）。
+         */
+        get: operations["list_contact_logs_api_website_v1_admin_admissions_records__visit_id__contact_logs_get"];
+        put?: never;
+        /**
+         * Create Contact Log
+         * @description 記錄一次聯絡（規格 6.3）。檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→
+         *     已匿名化（409）→ 版本（409）→ 時間與階段規則（422）。稽核不記內容。
+         */
+        post: operations["create_contact_log_api_website_v1_admin_admissions_records__visit_id__contact_logs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/records/{visit_id}/events": {
         parameters: {
             query?: never;
@@ -232,6 +278,26 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/records/{visit_id}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Follow Up
+         * @description 只改下次聯絡或負責人，不記聯絡（規格 6.4）。沒送＝不動，送 null＝清除。
+         */
+        patch: operations["update_follow_up_api_website_v1_admin_admissions_records__visit_id__follow_up_patch"];
         trace?: never;
     };
     "/api/website/v1/admin/admissions/records/{visit_id}/seat": {
@@ -271,6 +337,26 @@ export interface paths {
          *     已換欄而誤回 403（A 計畫調整第 10 條）。
          */
         post: operations["transition_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__transition_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Admissions Staff
+         * @description 可以當這個校區追蹤負責人的帳號（規格 6.4、9）：啟用中、有 admissions.write、涵蓋該校區。
+         */
+        get: operations["list_admissions_staff_api_website_v1_admin_admissions_staff_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2771,6 +2857,10 @@ export interface components {
          *     以及園務的固定列舉與文案。
          */
         AdmissionsOptionsOut: {
+            /** Contact Channels */
+            contact_channels: {
+                [key: string]: string;
+            };
             /** Grades */
             grades: ("幼幼班" | "小班" | "中班" | "大班")[];
             /** Months */
@@ -2836,6 +2926,21 @@ export interface components {
             visit: number;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
+        };
+        /**
+         * AdmissionsStaffOut
+         * @description 可以當這個校區追蹤負責人的帳號（啟用中、有 admissions.write、涵蓋該校區）。
+         */
+        AdmissionsStaffOut: {
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /** AdmissionsStatsAction */
         AdmissionsStatsAction: {
@@ -3420,6 +3525,79 @@ export interface components {
             /** Unrecorded */
             unrecorded: number;
         };
+        /**
+         * ContactLogCreate
+         * @description 記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的
+         *     時間或「不用再追」，已到期的訪視記完才會離開清單。
+         */
+        ContactLogCreate: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "phone" | "line" | "in_person" | "other";
+            /** Contacted At */
+            contacted_at?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Next Follow Up At */
+            next_follow_up_at: string | null;
+            /** Note */
+            note?: string | null;
+            /** Reached */
+            reached: boolean;
+            /**
+             * Update Parent Response
+             * @default false
+             */
+            update_parent_response: boolean;
+        };
+        /** ContactLogOut */
+        ContactLogOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "phone" | "line" | "in_person" | "other";
+            /**
+             * Contacted At
+             * Format: date-time
+             */
+            contacted_at: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Next Follow Up At */
+            next_follow_up_at: string | null;
+            /** Note */
+            note: string | null;
+            /** Reached */
+            reached: boolean;
+            /**
+             * Recruitment Visit Id
+             * Format: uuid
+             */
+            recruitment_visit_id: string;
+        };
+        /**
+         * ContactLogResultOut
+         * @description 記錄聯絡的回應：新的聯絡紀錄與更新後的訪視（畫面不必再讀一次）。
+         */
+        ContactLogResultOut: {
+            log: components["schemas"]["ContactLogOut"];
+            visit: components["schemas"]["RecruitmentVisitOut"];
+        };
         /** ContentItemOut */
         ContentItemOut: {
             /** Campus Key */
@@ -3600,6 +3778,101 @@ export interface components {
              */
             password_reset_email: boolean;
         };
+        /** FollowUpListOut */
+        FollowUpListOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Rows */
+            rows: components["schemas"]["FollowUpRowOut"][];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "due" | "upcoming" | "unscheduled";
+            /** Total */
+            total: number;
+            totals: components["schemas"]["FollowUpTotalsOut"];
+        };
+        /**
+         * FollowUpRowOut
+         * @description 待追蹤分頁的一列（規格 9）。只回追蹤要用的欄位：要打電話，所以有電話；不含生日、地址。
+         */
+        FollowUpRowOut: {
+            /** Child Name */
+            child_name: string;
+            /** Contact Name */
+            contact_name: string | null;
+            /** Follow Up At */
+            follow_up_at: string | null;
+            /** Follow Up Owner Active */
+            follow_up_owner_active: boolean | null;
+            /** Follow Up Owner Id */
+            follow_up_owner_id: string | null;
+            /** Follow Up Owner Name */
+            follow_up_owner_name: string | null;
+            /** Grade */
+            grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Has Visit Request */
+            has_visit_request: boolean;
+            /** Last Contact Channel */
+            last_contact_channel: ("phone" | "line" | "in_person" | "other") | null;
+            /** Last Contact Reached */
+            last_contact_reached: boolean | null;
+            /** Last Contacted At */
+            last_contacted_at: string | null;
+            /** Phone */
+            phone: string | null;
+            /**
+             * Stage
+             * @enum {string}
+             */
+            stage: "visited" | "deposited" | "enrolled" | "withdrawn";
+            /** Version */
+            version: number;
+            /**
+             * Visit Date
+             * Format: date
+             */
+            visit_date: string;
+            /**
+             * Visit Id
+             * Format: uuid
+             */
+            visit_id: string;
+        };
+        /**
+         * FollowUpTotalsOut
+         * @description 全校區三種追蹤狀態的筆數（不受負責人篩選影響）；upcoming 只算 7 天內。
+         */
+        FollowUpTotalsOut: {
+            /** Due */
+            due: number;
+            /** Unscheduled */
+            unscheduled: number;
+            /** Upcoming */
+            upcoming: number;
+        };
+        /**
+         * FollowUpUpdate
+         * @description 只改下次聯絡或負責人（規格 6.4）：沒送＝不動，送 null＝清除（用 model_fields_set 判斷）。
+         */
+        FollowUpUpdate: {
+            /** Expected Version */
+            expected_version: number;
+            /** Follow Up At */
+            follow_up_at?: string | null;
+            /** Follow Up Owner Id */
+            follow_up_owner_id?: string | null;
+        };
         /** FunnelBoardOut */
         FunnelBoardOut: {
             /**
@@ -3621,6 +3894,8 @@ export interface components {
         FunnelCardOut: {
             /** Child Name */
             child_name: string;
+            /** Follow Up At */
+            follow_up_at?: string | null;
             /** Grade */
             grade: ("幼幼班" | "小班" | "中班" | "大班") | null;
             /** Has Visit Request */
@@ -4916,6 +5191,10 @@ export interface components {
             enrolled: boolean;
             /** Enrolled On */
             enrolled_on: string | null;
+            /** Follow Up At */
+            follow_up_at: string | null;
+            /** Follow Up Owner Id */
+            follow_up_owner_id: string | null;
             /** Geocoding Consent At */
             geocoding_consent_at: string | null;
             /** Grade */
@@ -4929,6 +5208,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Contacted At */
+            last_contacted_at: string | null;
             /** Month */
             month: string;
             /** No Deposit Reason */
@@ -6330,6 +6611,47 @@ export interface operations {
             };
         };
     };
+    get_follow_ups_api_website_v1_admin_admissions_follow_ups_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description due 已到期、upcoming 7 天內、unscheduled 未排定 */
+                scope?: "due" | "upcoming" | "unscheduled";
+                /** @description me、none 或帳號 id */
+                owner?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_from_visit_request_api_website_v1_admin_admissions_from_visit_request__visit_request_id__post: {
         parameters: {
             query?: never;
@@ -6544,6 +6866,10 @@ export interface operations {
                 visit_request_id?: string | null;
                 /** @description 幼生姓名、聯絡人、電話、地址、備註、電訪回應 */
                 q?: string | null;
+                /** @description 追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2） */
+                follow_up?: ("due" | "upcoming" | "unscheduled") | null;
+                /** @description 追蹤負責人：me、none 或帳號 id */
+                owner?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -6723,6 +7049,80 @@ export interface operations {
             };
         };
     };
+    list_contact_logs_api_website_v1_admin_admissions_records__visit_id__contact_logs_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactLogOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_contact_log_api_website_v1_admin_admissions_records__visit_id__contact_logs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactLogCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactLogResultOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_recruitment_events_api_website_v1_admin_admissions_records__visit_id__events_get: {
         parameters: {
             query?: never;
@@ -6745,6 +7145,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentEventOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_follow_up_api_website_v1_admin_admissions_records__visit_id__follow_up_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUpUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecruitmentVisitOut"];
                 };
             };
             /** @description Validation Error */
@@ -6823,6 +7262,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admissions_staff_api_website_v1_admin_admissions_staff_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsStaffOut"][];
                 };
             };
             /** @description Validation Error */

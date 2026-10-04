@@ -10,6 +10,7 @@ import { sessionName } from '../../utils/sessions'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import { useOpenRequestsStore } from '../../stores/openRequests'
+import { notifyWarning } from '../../composables/notify'
 
 // 官網預約（規格 6.1 第 2 點；比照園務「官網報名」分頁的位置）。上半是場次已開始、還沒確認到場的
 // 預約，每列「已到場」「未到場」沿用預約既有的 /complete、/no-show（booking.handle）；確認框文案
@@ -26,6 +27,12 @@ const data = ref<Arrivals | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const pending = ref<{ id: string; action: 'complete' | 'no_show' | 'create' } | null>(null)
+// 批次標記已到場（2026-10-04 參觀後追蹤規格 7.5）：依序呼叫既有的 /complete，每筆各自一個交易，
+// 與單筆相同；不另開批次端點。失敗的逐筆列出原因，清單重讀。
+const selected = ref<ArrivalRow[]>([])
+const batch = ref<{ done: number; total: number } | null>(null)
+const batchFailures = ref<{ id: string; name: string; reason: string }[]>([])
+const busy = computed(() => pending.value !== null || batch.value !== null)
 const requests = useRequestSequence()
 
 async function load(options: { keep?: boolean } = {}) {
@@ -126,6 +133,42 @@ async function markNoShow(row: ArrivalRow) {
   }
 }
 
+function onSelectionChange(rows: ArrivalRow[]) {
+  selected.value = rows
+}
+
+async function markSelectedArrived() {
+  const rows = [...selected.value]
+  if (!rows.length || busy.value) return
+  try {
+    await ElMessageBox.confirm(
+      `會同時建立 ${rows.length} 筆招生訪視，之後在招生入學頁追蹤。沒來的請個別標記未到場。`,
+      `標記 ${rows.length} 筆已到場？`,
+      { confirmButtonText: '標記已到場', cancelButtonText: '先不要', type: 'info' },
+    )
+  } catch {
+    return
+  }
+  batchFailures.value = []
+  batch.value = { done: 0, total: rows.length }
+  let succeeded = 0
+  for (const row of rows) {
+    try {
+      await api.post(`/admin/visit-requests/${row.visit_request_id}/complete`)
+      succeeded += 1
+    } catch (err) {
+      const reason = err instanceof ApiError && err.status === 409 ? '狀態剛被其他人更新，請看最新的清單' : apiErrorMessage(err, '標記失敗')
+      batchFailures.value.push({ id: row.visit_request_id, name: row.parent_name, reason })
+    }
+    batch.value = { done: (batch.value?.done ?? 0) + 1, total: rows.length }
+  }
+  batch.value = null
+  if (succeeded) ElMessage.success(`已標記 ${succeeded} 筆已到場`)
+  if (batchFailures.value.length) notifyWarning(`有 ${batchFailures.value.length} 筆沒有標記成功，原因列在清單上方`)
+  openRequests.refresh(true)
+  await load({ keep: true })
+}
+
 async function createVisit(row: ArrivalRow) {
   pending.value = { id: row.visit_request_id, action: 'create' }
   try {
@@ -161,7 +204,26 @@ async function createVisit(row: ArrivalRow) {
         </div>
         <p v-if="!canHandle" class="hint arrivals__lead">你的帳號只能查看；已到場、未到場由負責處理案件的同事標記。</p>
         <p v-if="data.awaiting_total > data.awaiting.length" class="hint arrivals__lead">只列最近 {{ data.awaiting.length }} 筆，共 {{ data.awaiting_total }} 筆</p>
-        <el-table :data="data.awaiting" class="arrivals-table">
+        <div v-if="canHandle && data.awaiting.length" class="arrivals__batch">
+          <el-button type="primary" :disabled="!selected.length || busy" :loading="batch !== null" @click="markSelectedArrived">
+            {{ batch ? `標記中 ${batch.done}／${batch.total}` : `勾選的 ${selected.length} 筆標記已到場` }}
+          </el-button>
+          <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
+        </div>
+        <el-alert
+          v-if="batchFailures.length"
+          type="warning"
+          show-icon
+          :title="`有 ${batchFailures.length} 筆沒有標記成功`"
+          class="arrivals__failures"
+          @close="batchFailures = []"
+        >
+          <ul class="arrivals__failure-list">
+            <li v-for="item in batchFailures" :key="item.id">{{ item.name }}：{{ item.reason }}</li>
+          </ul>
+        </el-alert>
+        <el-table :data="data.awaiting" class="arrivals-table" @selection-change="onSelectionChange">
+          <el-table-column v-if="canHandle" type="selection" width="44" :selectable="() => !busy" />
           <template #empty>
             <div class="arrivals__empty">
               <strong>目前沒有待確認到場的預約。</strong>
@@ -184,8 +246,8 @@ async function createVisit(row: ArrivalRow) {
             <template #default="{ row }: { row: ArrivalRow }">
               <div class="cell-actions arrivals__actions">
                 <template v-if="canHandle">
-                  <el-button size="small" type="primary" :loading="isPending(row, 'complete')" :disabled="pending !== null" @click="markArrived(row)">已到場</el-button>
-                  <el-button size="small" :loading="isPending(row, 'no_show')" :disabled="pending !== null" @click="markNoShow(row)">未到場</el-button>
+                  <el-button size="small" type="primary" :loading="isPending(row, 'complete')" :disabled="busy" @click="markArrived(row)">已到場</el-button>
+                  <el-button size="small" :loading="isPending(row, 'no_show')" :disabled="busy" @click="markNoShow(row)">未到場</el-button>
                 </template>
                 <router-link :to="`/visit-requests/${row.visit_request_id}`" class="arrivals__link">查看預約</router-link>
               </div>
@@ -211,7 +273,7 @@ async function createVisit(row: ArrivalRow) {
           <el-table-column label="操作" width="240">
             <template #default="{ row }: { row: ArrivalRow }">
               <div class="cell-actions arrivals__actions">
-                <el-button v-if="canCreate" size="small" type="primary" plain :loading="isPending(row, 'create')" :disabled="pending !== null" @click="createVisit(row)">建立招生訪視</el-button>
+                <el-button v-if="canCreate" size="small" type="primary" plain :loading="isPending(row, 'create')" :disabled="busy" @click="createVisit(row)">建立招生訪視</el-button>
                 <router-link :to="`/visit-requests/${row.visit_request_id}`" class="arrivals__link">查看預約</router-link>
               </div>
             </template>
@@ -226,6 +288,24 @@ async function createVisit(row: ArrivalRow) {
 .arrivals__lead {
   margin: 0;
   padding: 12px 24px 0;
+}
+
+.arrivals__batch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 12px 24px 0;
+}
+
+.arrivals__failures {
+  margin: 12px 24px 0;
+  width: auto;
+}
+
+.arrivals__failure-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
 }
 
 .arrivals__empty {
@@ -256,8 +336,13 @@ async function createVisit(row: ArrivalRow) {
 }
 
 @media (max-width: 720px) {
-  .arrivals__lead {
+  .arrivals__lead,
+  .arrivals__batch {
     padding: 12px 16px 0;
+  }
+
+  .arrivals__failures {
+    margin: 12px 16px 0;
   }
 
   .arrivals__link {

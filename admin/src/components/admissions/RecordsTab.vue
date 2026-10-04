@@ -2,14 +2,15 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Plus, Search } from '@element-plus/icons-vue'
-import { deleteRecord, getOptions, listRecords, transition, transitionRequest } from '../../api/admissions'
+import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, transition, transitionRequest, type FollowUpScope } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
-import type { AdmissionsOptions, RecruitmentVisit } from '../../api/types'
+import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
 import { campusLabel, type TagTone } from '../../api/labels'
 import { rocDate, termLabel } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, WITHDRAWN_FROM_LABELS, transitionWarning, type TransitionTarget } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
+import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -46,6 +47,10 @@ const source = ref('')
 const referrer = ref('')
 const hasDeposit = ref('')
 const noDepositReason = ref('')
+// 參觀後追蹤（2026-10-04 規格 7.4）：追蹤狀態與負責人篩選。
+const followUp = ref<FollowUpScope | ''>('')
+const owner = ref('')
+const staff = ref<AdmissionsStaff[]>([])
 const search = ref('')
 const keyword = ref('')
 const page = ref(1)
@@ -61,7 +66,10 @@ const optionRequests = useRequestSequence()
 
 // 分頁內的篩選（不含頁首學年學期）：決定空狀態的說法。
 const filtered = computed(() =>
-  Boolean(props.month || props.visitRequestId || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value || keyword.value),
+  Boolean(
+    props.month || props.visitRequestId || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value
+    || keyword.value || followUp.value || owner.value,
+  ),
 )
 // 「清除篩選」連學年學期一起清（同園務），所以有選學年或學期也算有篩選。
 const hasFilters = computed(() => filtered.value || props.schoolYear !== null || props.semester !== null || Boolean(search.value))
@@ -100,6 +108,8 @@ async function load() {
       no_deposit_reason: noDepositReason.value || null,
       visit_request_id: props.visitRequestId || null,
       q: keyword.value || null,
+      follow_up: followUp.value || null,
+      owner: owner.value || null,
       page: page.value,
       page_size: PAGE_SIZE,
     })
@@ -117,13 +127,12 @@ async function load() {
 async function loadOptions() {
   if (!props.campusKey) return
   const request = optionRequests.begin()
-  try {
-    const result = await getOptions(props.campusKey)
-    if (optionRequests.isCurrent(request)) options.value = result && typeof result === 'object' && !Array.isArray(result) ? result : null
-  } catch {
-    // 選項讀不到只少了下拉建議，列表照常。
-    if (optionRequests.isCurrent(request)) options.value = null
-  }
+  const [result, people] = await Promise.allSettled([getOptions(props.campusKey), listAdmissionsStaff(props.campusKey)])
+  if (!optionRequests.isCurrent(request)) return
+  // 選項、負責人讀不到只少了下拉建議與名字，列表照常。
+  const value = result.status === 'fulfilled' ? result.value : null
+  options.value = value && typeof value === 'object' && !Array.isArray(value) ? value : null
+  staff.value = people.status === 'fulfilled' && Array.isArray(people.value) ? people.value : []
 }
 
 // 換校：來源、介紹者是各校自己的選項，一起清掉。
@@ -131,8 +140,10 @@ watch(() => props.campusKey, () => {
   // 上一校的名單不能留在載入遮罩下（同 FunnelBoard、IntakePlanTab）。
   rows.value = []
   options.value = null
+  staff.value = []
   source.value = ''
   referrer.value = ''
+  owner.value = ''
   void loadOptions()
 }, { immediate: true })
 
@@ -149,7 +160,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 // 條件一變就回第一頁；已經在第一頁就直接重讀（避免同一次變動讀兩次）。
 const filterKey = computed(() => JSON.stringify([
   props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId,
-  grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, keyword.value,
+  grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, keyword.value, followUp.value, owner.value,
 ]))
 watch(filterKey, () => {
   if (page.value !== 1) page.value = 1
@@ -168,6 +179,8 @@ function clearFilters() {
   referrer.value = ''
   hasDeposit.value = ''
   noDepositReason.value = ''
+  followUp.value = ''
+  owner.value = ''
   clearTimeout(searchTimer)
   search.value = ''
   keyword.value = ''
@@ -372,6 +385,20 @@ async function remove(row: RecruitmentVisit) {
           <el-option v-for="item in NO_DEPOSIT_REASONS" :key="item" :label="item" :value="item" />
         </el-select>
       </div>
+      <div class="filter-field">
+        <span>追蹤</span>
+        <el-select v-model="followUp" clearable placeholder="全部" aria-label="追蹤狀態">
+          <el-option v-for="item in FOLLOW_UP_SCOPES" :key="item" :label="FOLLOW_UP_SCOPE_LABELS[item]" :value="item" />
+        </el-select>
+      </div>
+      <div class="filter-field">
+        <span>負責人</span>
+        <el-select v-model="owner" clearable placeholder="全部" aria-label="追蹤負責人">
+          <el-option value="me" label="我負責的" />
+          <el-option value="none" label="未指派" />
+          <el-option v-for="person in staff" :key="person.id" :value="person.id" :label="person.display_name || person.email" />
+        </el-select>
+      </div>
       <div class="filter-field records__search">
         <span>搜尋</span>
         <el-input v-model="search" clearable maxlength="100" :prefix-icon="Search" placeholder="姓名/地址/備註搜尋..." aria-label="搜尋訪視" />
@@ -455,6 +482,15 @@ async function remove(row: RecruitmentVisit) {
         <el-table-column label="電訪回應" min-width="160" show-overflow-tooltip>
           <template #default="{ row }: { row: RecruitmentVisit }">{{ row.parent_response || '—' }}</template>
         </el-table-column>
+        <el-table-column label="下次聯絡" width="128">
+          <template #default="{ row }: { row: RecruitmentVisit }">
+            <span v-if="row.follow_up_at" class="num" :class="{ 'records__due': isDue(row.follow_up_at) }">{{ followUpText(row.follow_up_at) }}</span>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="負責人" width="110" show-overflow-tooltip>
+          <template #default="{ row }: { row: RecruitmentVisit }">{{ ownerLabel(row.follow_up_owner_id, staff) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="230" :fixed="narrow ? false : 'right'">
           <template #default="{ row }: { row: RecruitmentVisit }">
             <div class="cell-actions records__actions">
@@ -496,7 +532,7 @@ async function remove(row: RecruitmentVisit) {
     </div>
 
     <RecordDialog v-model="dialogOpen" :mode="dialogMode" :campus-key="campusKey" :record="editing" :options="options" @saved="onSaved" @stale="load" />
-    <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" />
+    <EventsDrawer v-model="eventsOpen" :visit-id="eventsFor?.id ?? null" :child-name="eventsFor?.child_name ?? ''" @changed="load" />
     <TransitionDialog v-model="transitionOpen" :target="transitionTarget" @done="load" @stale="load" />
     <SeatDialog v-model="seatOpen" :record="seatFor" @saved="load" @stale="load" />
   </section>
@@ -554,6 +590,11 @@ async function remove(row: RecruitmentVisit) {
 /* 有預繳的列淡綠底（園務 deposit-row）。 */
 .records-table :deep(.records-row--deposit) td.el-table__cell {
   background: var(--el-color-success-light-9);
+}
+
+.records__due {
+  color: var(--el-color-danger);
+  font-weight: 600;
 }
 
 .records__empty {

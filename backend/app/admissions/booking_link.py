@@ -17,7 +17,7 @@ from datetime import date, datetime
 from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, constants, records
+from app.admissions import academic, constants, follow_up, records
 from app.admissions.models import RecruitmentVisit
 from app.booking import history, pending_kinds
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
@@ -81,13 +81,23 @@ async def ensure_from_visit_request(
     """這筆預約的招生訪視；沒有就建立（created 事件 origin＝visit_request）。回傳
     (訪視, 是否新建立)。呼叫端已鎖住預約列（mark_completed 的 _lock_status、補建
     端點的 with_for_update），同一筆預約不會同時建兩次；唯一鍵
-    uq_recruitment_visits_visit_request 是最後防線。"""
+    uq_recruitment_visits_visit_request 是最後防線。
+
+    追蹤欄位（2026-10-04 規格 6.1）：不自動排第一次聯絡；預約上還沒到的下次聯絡沿用，
+    負責人依序取預約承辦人、這次操作的人。已有訪視時原樣回傳，不動追蹤欄位。
+    預約本身不動（不清它的下次聯絡、不加版本）。"""
     existing = await db.scalar(select(RecruitmentVisit).where(RecruitmentVisit.visit_request_id == visit_request.id))
     if existing is not None:
         return existing, False
     slot = await history.load_slot(db, visit_request.slot_id)
     today = today_local()
     fields = fields_from_visit_request(visit_request, today=today, slot_date=slot.slot_date if slot else None)
+    tracking = await follow_up.initial_fields(
+        db,
+        campus_key=visit_request.campus_key,
+        booking_follow_up_at=visit_request.follow_up_at,
+        owner_candidates=[visit_request.assigned_staff_id, actor_user_id],
+    )
     visit = await records.create_visit(
         db,
         campus_key=visit_request.campus_key,
@@ -96,6 +106,7 @@ async def ensure_from_visit_request(
         origin="visit_request",
         visit_request_id=visit_request.id,
         today=today,
+        **tracking,
     )
     return visit, True
 
