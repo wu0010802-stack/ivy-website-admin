@@ -370,7 +370,7 @@ npm run e2e:build && npm run test:e2e:stack
 
 - **熱點複核**（A04）：校園探索場景換照片後只有 UI 提醒，沒有強制複核流程。
 - **A06／A16 的 e2e 覆蓋不足**：line/phone/external 三種預約模式沒有專門的瀏覽器 e2e（見上方表格更正）。
-- **背景轉檔佇列**未做：素材上傳仍在同一個請求內處理完，沒有多尺寸圖／影片轉碼工作表。
+- **背景轉檔佇列**已做（2026-10-04 實作，見檔尾「素材背景轉檔」一節）。
 - **錯誤格式 envelope**（規格 L335）維持 `{detail:{code,message}}` 而非整體改格式，這是刻意保留現狀，若要改屬破壞性契約變更，需業主裁定。
 - **LINE 登入未寫稽核**（裁定只要求 Google）；帳密登入本來就沒有登入稽核。
 - **家長端沒有通知管道**：核准／退回改期、園方改期都不會通知家長；家長管理頁看不到退回原因。
@@ -483,3 +483,21 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 驗證（2026-10-04，HEAD `abd244d`）：後端 pytest 全套 1363 passed、admin vitest 1054 passed（另 2 項招生頁 5 秒逾時，單獨重跑通過）、web 753 passed、`contract:check` 一致、stack e2e 全套 69 passed。
 
 未驗證：正式站 SMTP 實寄（要使用者設定 `WEBSITE_SMTP_*`）、iOS Safari／Gmail App／LINE 內建瀏覽器實機。
+
+## 素材背景轉檔（2026-10-04 實作，尚未部署）
+
+| 項目 | 狀態 | 證據 |
+|---|---|---|
+| 影片上傳回 processing、背景轉好變 ready | 通過 | `tests/test_media_jobs.py::test_background_upload_returns_processing_and_queues_one_job`、stack `media-video.spec.ts` |
+| 轉檔版本不帶拍攝資訊、直式轉正 | 通過 | `test_editions_drop_location_tags_and_follow_rotation` |
+| 中斷重試上限、租約接手丟棄結果 | 通過 | `test_expired_lease_reclaim_counts_and_stops_after_max`、`test_lost_lease_discards_results` |
+| 處理中影片可存草稿、不能發布 | 通過 | `test_processing_video_can_be_drafted_but_not_published` |
+| 回補不影響線上 | 通過 | `test_backfill_keeps_asset_ready_even_when_it_fails` |
+| 已是可播 H.264 且不小於原檔 90% 時沿用原檔 | 通過 | `test_media_transcode.py::test_plays_in_browsers_and_keep_original_rule`、`test_media_jobs.py` |
+| 超過 10 分鐘的影片上傳當下擋下 | 通過 | `test_media_jobs.py`（422 `MEDIA_VIDEO_TOO_LONG`）、`test_media_transcode.py::test_too_long_video_is_rejected_before_running_ffmpeg` |
+| 後台：處理中可編輯、失敗只有重新處理、轉好自動更新 | 通過 | admin vitest、stack `media-video.spec.ts`、Playwright 畫面檢查 |
+| HDR tonemap（需 zscale） | 未驗證 | 本機 ffmpeg 沒有 zscale，HLG 整合測試本機 skip；push 後確認 CI 是 pass，正式站依 `deploy/README.md` 查 |
+
+驗證（2026-10-04，HEAD `096be30c`）：後端 pytest 全套 1432 passed、1 skipped（HLG，本機無 zscale）、admin vitest 1065 passed、web 757 passed、`contract:check` 一致、stack e2e 全套 70 passed、alembic 單一 head `e5b9c3a7d214`。
+
+未驗證：正式站 zscale、Railway api 記憶體與 draining 秒數、iOS Safari 實機播放轉檔版本、HDR 實片畫質、正式站回補。
