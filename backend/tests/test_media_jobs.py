@@ -433,6 +433,77 @@ async def test_cancel_during_file_write_leaves_no_orphans(app, db_session, monke
     assert _files() == before
 
 
+async def _finish_cancelled_twice_during_commit(app, db_session, monkeypatch, *, commit_fails: bool):
+    """_finish 正在 commit 時被取消，等 commit 結束的時候又被取消一次（例如停機時
+    連續收到兩次訊號）。commit_fails=False：commit 已經在資料庫生效、只是結果還沒
+    回到呼叫端；True：commit 失敗。"""
+    import asyncio
+
+    monkeypatch.setattr(processing, "extract_video_poster", lambda path: processing.Rendition(b"x", 1, 1))
+    monkeypatch.setattr(processing, "transcode_video", _fake_transcode)
+    asset, job = await _stored_video(app, db_session)
+    storage = service.get_storage(app.state.settings)
+    factory = app.state.session_factory
+    async with factory() as db:
+        claimed = await jobs.claim_next(db, "w1")
+        await db.commit()
+    snap = jobs._Snapshot(asset.id, MediaKind.VIDEO, asset.storage_key, asset.duration_seconds, frozenset())
+    outputs = await jobs._produce(storage, snap, MediaJobKind.PROCESS)
+    entered, gate = asyncio.Event(), asyncio.Event()
+
+    def _gated_factory():
+        session = factory()
+        real_commit = session.commit
+
+        async def _commit():
+            entered.set()
+            if commit_fails:
+                await gate.wait()
+                raise RuntimeError("commit 失敗")
+            await real_commit()
+            await gate.wait()  # 已經提交，但呼叫端還不知道
+
+        session.commit = _commit
+        return session
+
+    task = asyncio.ensure_future(jobs._finish(_gated_factory, storage, claimed.id, "w1", outputs))
+    await asyncio.wait_for(entered.wait(), 5)
+    await asyncio.sleep(0.05)
+    task.cancel()
+    await asyncio.sleep(0.05)  # 第一次取消落地：_finish 改成等 commit 結束
+    task.cancel()
+    await asyncio.sleep(0.05)
+    gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    return asset, job, outputs, storage
+
+
+@pytest.mark.asyncio
+async def test_finish_cancelled_twice_keeps_files_when_commit_landed(app, db_session, monkeypatch):
+    asset, job, outputs, storage = await _finish_cancelled_twice_during_commit(
+        app, db_session, monkeypatch, commit_fails=False
+    )
+    done = await _reload(db_session, asset.id)
+    assert done.status == MediaStatus.READY
+    assert {v.storage_key for v in done.variants} == {o.storage_key for o in outputs}
+    # 資料庫已經指向這些檔案：不能當成沒提交刪掉。
+    assert all(storage.exists(o.storage_key) for o in outputs)
+    assert (await _job(db_session, job.id)).status == "done"
+
+
+@pytest.mark.asyncio
+async def test_finish_cancelled_twice_deletes_files_when_commit_failed(app, db_session, monkeypatch):
+    asset, job, outputs, storage = await _finish_cancelled_twice_during_commit(
+        app, db_session, monkeypatch, commit_fails=True
+    )
+    assert not any(storage.exists(o.storage_key) for o in outputs)
+    still = await _reload(db_session, asset.id)
+    assert still.status == MediaStatus.PROCESSING and still.variants == []
+    back = await _job(db_session, job.id)
+    assert back.status == "running" and back.leased_by == "w1"  # 沒提交：租約到期再由別人接手
+
+
 @pytest_asyncio.fixture
 async def bg_app():
     return create_app(_test_settings().model_copy(update={"media_video_processing": "background"}))

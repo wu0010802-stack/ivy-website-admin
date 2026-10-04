@@ -332,7 +332,13 @@ async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, wor
             try:
                 await asyncio.shield(commit)
             except asyncio.CancelledError:
-                await asyncio.wait({commit})
+                # 等的時候又被取消也照等：不然 committed 還是 False，已提交、資料庫
+                # 指著的檔案會被當成沒提交刪掉。等完再把原本的取消往上丟。
+                while not commit.done():
+                    try:
+                        await asyncio.wait({commit})
+                    except asyncio.CancelledError:
+                        continue
                 committed = not commit.cancelled() and commit.exception() is None
                 raise
             committed = True

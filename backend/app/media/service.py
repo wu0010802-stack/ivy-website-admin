@@ -32,7 +32,6 @@ from app.media.processing import (
     THUMBNAIL_SIZE,
     ProcessingError,
     Rendition,
-    extract_video_poster,
     make_webp,
     needs_large_rendition,
     needs_medium_rendition,
