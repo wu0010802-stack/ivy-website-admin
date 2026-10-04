@@ -2,8 +2,8 @@
  * 素材庫素材在官網上的網址、srcset 與焦點（規格 L108、L139）。
  *
  * 後台的素材版位存 `{ media_id, focus_x, focus_y }`（焦點 0–100，留空＝用素材
- * 本身的焦點）。公開 API 另外給 `media`：每個被引用素材的尺寸、衍生檔（縮圖、
- * 大圖、影片 poster）與素材預設焦點，官網據此組 srcset 與 object-position。
+ * 本身的焦點）。公開 API 另外給 `media`：每個被引用素材的尺寸、衍生檔（縮圖、中圖、
+ * 大圖、影片 poster 與桌機／手機轉檔版本）與素材預設焦點，官網據此組 srcset 與 object-position。
  * 檔案一律走同源 `/api/website/v1/public/media/...`（web/server/routes/api/
  * website/v1/[...].ts 轉給 API，Range 原樣轉送），權限由 API 判斷。
  */
@@ -11,7 +11,7 @@ import type { Campus, HeroContent } from '../types/site-content'
 import { HOME_HERO_SIZES, responsiveImage } from './responsive-image'
 
 export interface PublicMediaVariant {
-  kind: 'thumbnail' | 'poster' | 'large'
+  kind: 'thumbnail' | 'medium' | 'large' | 'poster' | 'video_desktop' | 'video_mobile'
   width: number | null
   height: number | null
   /** 衍生檔版本：重新產生衍生檔時會換，加在網址上避開長快取過的舊檔 */
@@ -92,12 +92,14 @@ export function slotPosition(slot: LiveMediaSlot, info?: PublicMediaInfo): strin
   return null
 }
 
+const IMAGE_VARIANTS = new Set<PublicMediaVariant['kind']>(['thumbnail', 'medium', 'large'])
+
 export function mediaImage(id: string, info?: PublicMediaInfo, position: string | null = null): MediaImage {
   const candidates: { src: string; width: number }[] = []
   for (const variant of info?.variants ?? []) {
-    // poster 是影片的畫面，不是這張圖的縮小版。寬度不明的衍生檔（舊縮圖沒依
+    // 只收圖片的縮小版：poster 與影片轉檔版本不是這張圖。寬度不明的衍生檔（舊縮圖沒依
     // 拍攝方向轉正、去背圖曾經失去透明，等重新產生）不放進 srcset，改用原檔。
-    if (variant.kind === 'poster' || !variant.width) continue
+    if (!IMAGE_VARIANTS.has(variant.kind) || !variant.width) continue
     candidates.push({ src: mediaVariantUrl(id, variant.kind, variant.version), width: variant.width })
   }
   if (info?.width) candidates.push({ src: mediaFileUrl(id), width: info.width })
@@ -120,9 +122,19 @@ export function slotImage(slot: LiveMediaSlot | null | undefined, media: MediaIn
   return mediaImage(slot.media_id, info, slotPosition(slot, info))
 }
 
-/** 影片版位 → 檔案網址。 */
-export function slotVideoSrc(slot: LiveMediaSlot | null | undefined): string | undefined {
-  return slot && isMediaId(slot.media_id) ? mediaFileUrl(slot.media_id) : undefined
+/**
+ * 影片版位 → 檔案網址。素材有背景轉好的版本（後端 app/media/jobs.py）就用對應的
+ * 那一版（手機版同解析度、CRF 較高，見 media-policy.ts），還沒轉好或舊素材用原檔。
+ */
+export function slotVideoSrc(
+  slot: LiveMediaSlot | null | undefined,
+  media?: MediaInfoMap,
+  edition: 'desktop' | 'mobile' = 'desktop'
+): string | undefined {
+  if (!slot || !isMediaId(slot.media_id)) return undefined
+  const kind = edition === 'mobile' ? 'video_mobile' : 'video_desktop'
+  const variant = media?.[slot.media_id]?.variants.find((v) => v.kind === kind)
+  return variant ? mediaVariantUrl(slot.media_id, kind, variant.version) : mediaFileUrl(slot.media_id)
 }
 
 /** 影片自動抽的畫面（沒有就空字串）。 */

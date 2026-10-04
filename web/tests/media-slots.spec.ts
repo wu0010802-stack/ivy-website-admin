@@ -5,7 +5,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, homeFilms, type ContentOverlay } from '../app/utils/content-overlay'
 import { publishedContent } from '../app/utils/published-content'
 import { previewMedia } from '../app/utils/draft-preview'
-import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, videoPosterUrl, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
+import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, slotVideoSrc, videoPosterUrl, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
 import { responsiveTourImage } from '../app/utils/tour-image'
 import { campusShareImagePath, siteShareImage } from '../app/utils/seo'
 
@@ -245,5 +245,41 @@ describe('草稿預覽的素材資訊', () => {
     expect(map[IMAGE]).toMatchObject({ focus_x: 30.5, focus_y: 100, alt_text: 'a' })
     // 衍生檔版本跟公開 API 一樣是記錄 id 的前 12 碼。
     expect(map[IMAGE]!.variants).toEqual([{ kind: 'thumbnail', width: 10, height: 8, version: '0f1e2d3c4b5a' }])
+  })
+})
+
+describe('影片轉檔版本與中圖', () => {
+  const editions: PublicMediaInfo = info(VIDEO, {
+    kind: 'video', content_type: 'video/mp4', width: 1920, height: 1080,
+    variants: [
+      { kind: 'poster', width: 480, height: 270, version: 'p1' },
+      { kind: 'video_desktop', width: 1920, height: 1080, version: 'd1' },
+      { kind: 'video_mobile', width: 1920, height: 1080, version: 'm1' }
+    ]
+  })
+  const withEditions: MediaInfoMap = { ...media, [VIDEO]: editions }
+
+  it('有轉檔版本時桌機、手機各用自己的版本；沒有就用原檔', () => {
+    expect(slotVideoSrc({ media_id: VIDEO }, withEditions, 'desktop')).toBe(`/api/website/v1/public/media/${VIDEO}/variants/video_desktop?v=d1`)
+    expect(slotVideoSrc({ media_id: VIDEO }, withEditions, 'mobile')).toBe(`/api/website/v1/public/media/${VIDEO}/variants/video_mobile?v=m1`)
+    expect(slotVideoSrc({ media_id: VIDEO }, media, 'mobile')).toBe(`/api/website/v1/public/media/${VIDEO}/file`)
+    expect(slotVideoSrc({ media_id: VIDEO })).toBe(`/api/website/v1/public/media/${VIDEO}/file`)
+  })
+
+  it('首屏與孩子的一天：手機沒另外選影片時，用桌機那支的手機版', () => {
+    const hero = applyContentOverlay(site, { home_hero: { eyebrow: '', copy_lines: ['一'], video_desktop: { media_id: VIDEO } } }, withEditions).home.hero
+    expect(hero.heroVideoSrc).toContain('/variants/video_desktop')
+    expect(hero.heroVideoSrcMobile).toContain('/variants/video_mobile')
+    const films = homeFilms([{ id: 'run', title: '一起跑', source: 'file', video: { media_id: VIDEO }, start: 1, end: null }], withEditions)
+    // 活動影片只在手機輪播出現，用手機版。
+    expect(films[0]).toMatchObject({ src: `/api/website/v1/public/media/${VIDEO}/variants/video_mobile?v=m1`, start: 1 })
+  })
+
+  it('srcset 放中圖，不放影片的轉檔版本', () => {
+    const image = mediaImage(IMAGE, info(IMAGE, {
+      variants: [{ kind: 'thumbnail', width: 480, height: 320 }, { kind: 'medium', width: 960, height: 640 }, { kind: 'large', width: 1600, height: 1067 }]
+    }))
+    expect(image.candidates.map((c) => c.width)).toEqual([480, 960, 1600, 2400])
+    expect(mediaImage(VIDEO, editions).candidates.map((c) => c.width)).toEqual([1920])
   })
 })

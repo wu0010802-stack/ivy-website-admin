@@ -318,7 +318,8 @@ export function homeFilms(films: LiveHomeFilm[], media: MediaInfoMap): HomeFilm[
       out.push({ id: film.id, title: film.title, type: 'youtube', youtubeId: id, poster: posterImage?.src ?? youtubeThumb(id) })
       continue
     }
-    const src = slotVideoSrc(film.video)
+    // 活動影片只在手機輪播（HomeFilms.vue），用手機版。
+    const src = slotVideoSrc(film.video, media, 'mobile')
     if (!src || !film.video) continue
     out.push({
       id: film.id,
@@ -446,7 +447,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       }
       const fallback = slotImage(hero.fallback_image, media)
       if (fallback) next.home.hero.heroFallbackMedia = { ...fallback, alt: fallback.alt || next.home.hero.heroImageAlt }
-      const desktop = slotVideoSrc(hero.video_desktop)
+      const desktop = slotVideoSrc(hero.video_desktop, media, 'desktop')
       const mobile = slotVideoSrc(hero.video_mobile)
       if (desktop && hero.video_desktop) {
         next.home.hero.heroVideoSrc = desktop
@@ -455,7 +456,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       // 手機沒設就用桌機那支（規格 L141 允許沿用同一支影片）。
       const mobileSlot = mobile ? hero.video_mobile : desktop ? hero.video_desktop : null
       if (mobileSlot) {
-        next.home.hero.heroVideoSrcMobile = slotVideoSrc(mobileSlot)
+        next.home.hero.heroVideoSrcMobile = slotVideoSrc(mobileSlot, media, 'mobile')
         next.home.hero.heroVideoPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
       }
     }
@@ -575,7 +576,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           }
         })
       }
-      const desktop = slotVideoSrc(day.film_desktop)
+      const desktop = slotVideoSrc(day.film_desktop, media, 'desktop')
       const mobile = slotVideoSrc(day.film_mobile)
       if (desktop && day.film_desktop) {
         next.dayExperience.filmSrc = desktop
@@ -583,7 +584,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       }
       const mobileSlot = mobile ? day.film_mobile : desktop ? day.film_desktop : null
       if (mobileSlot) {
-        next.dayExperience.filmSrcMobile = slotVideoSrc(mobileSlot)!
+        next.dayExperience.filmSrcMobile = slotVideoSrc(mobileSlot, media, 'mobile')!
         next.dayExperience.filmPositionMobile = slotPosition(mobileSlot, media[mobileSlot.media_id])
       }
       const poster = slotImage(day.film_poster, media)
