@@ -26,7 +26,7 @@ describe('共用內容頁的角色限制', () => {
   // 編得動，但按儲存永遠是 403。
   const SHARED = [
     'home-hero', 'home-about', 'home-campus-board', 'day-experience', 'home-news', 'admission-content',
-    'booking-content', 'site-footer', 'site-meta', 'privacy-policy', 'curriculum-page',
+    'booking-content', 'site-footer', 'site-meta', 'privacy-policy', 'curriculum-page', 'about-page',
   ]
 
   it.each(SHARED)('%s 限定 super_admin', name => {

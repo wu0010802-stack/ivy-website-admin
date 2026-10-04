@@ -122,6 +122,30 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     belief_close: '教學理念的結語',
     belief_source: '教學理念的出處',
   },
+  // 關於常春藤頁：欄位名＝編輯頁的表單標籤（錯誤定位靠比對標籤）。
+  about_page: {
+    hero_title: '首屏大標',
+    hero_lede: '首屏介紹',
+    hero_caption: '首屏照片上的一句話',
+    hero_photo: '首屏照片',
+    hero_photo_alt: '首屏照片說明',
+    hero_back_photo: '首屏後排照片',
+    hero_back_photo_alt: '首屏後排照片說明',
+    chapter_names: '章名',
+    story_title: '一路走來的標題',
+    story_text: '一路走來的說明',
+    milestones: '沿革',
+    whole_title: '全人教育的標題',
+    whole_text: '全人教育的說明',
+    whole_fine: '全人教育的補充',
+    whole_fine_source: '全人教育的出處',
+    hope_title: '我們的期許的標題',
+    hope_quotes: '期許',
+    hope_photo: '紙房子窗戶的照片',
+    hope_photo_alt: '紙房子窗戶的照片說明',
+    outro_title: '五所校園的標題',
+    outro_text: '五所校園的說明',
+  },
 }
 
 export function contentFieldLabelFor(kind: string | undefined, key: string): string {
@@ -139,10 +163,12 @@ const LIST_UNITS: Record<string, string> = {
   body: '段',
   copy_lines: '行',
   chapters: '個', years: '個', directions: '個', gallery: '件', daily: '件', beliefs: '項',
+  chapter_names: '個', milestones: '站', hope_quotes: '段',
 }
 
 const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
   chapters: { label: '章節名稱', hint: '小字' },
+  milestones: { year: '年份', text: '說明' },
   years: { motto: '標語', text: '說明' },
   directions: { title: '標題', sub: '副標', text: '說明', photo: '照片', photo_alt: '照片說明' },
   gallery: { label: '作品名稱', photo: '照片', photo_alt: '照片說明' },

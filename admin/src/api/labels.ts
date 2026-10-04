@@ -292,6 +292,8 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   // 整頁內容（特色教學頁；關於常春藤頁也有 hero_photo）：抽屜與替換對話框的標題已經寫了頁名，這裡不再帶。
   'hero_photo.media_id': '首屏照片',
   'years_photo.media_id': '四個年段的照片',
+  'hero_back_photo.media_id': '首屏後排照片',
+  'hope_photo.media_id': '紙房子窗戶的照片',
 }
 
 export function mediaFieldPathLabel(path: string): string {
@@ -743,6 +745,7 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'admission_content') return '/admission'
   if (kind === 'privacy_policy') return '/privacy'
   if (kind === 'curriculum_page') return '/curriculum'
+  if (kind === 'about_page') return '/about'
   return '/'
 }
 
@@ -758,6 +761,7 @@ export function contentPreviewPath(kind: string, _campusKey?: string | null): st
   if (kind === 'booking_content') return '/preview?page=visit'
   if (kind === 'privacy_policy') return '/preview?page=privacy'
   if (kind === 'curriculum_page') return '/preview?page=curriculum'
+  if (kind === 'about_page') return '/preview?page=about'
   return '/preview'
 }
 
@@ -838,6 +842,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   booking_content: '預約文案',
   privacy_policy: '隱私權政策',
   curriculum_page: '特色教學頁',
+  about_page: '關於常春藤頁',
   site_footer: '頁尾文字',
   site_meta: '網站標題與電話',
 }

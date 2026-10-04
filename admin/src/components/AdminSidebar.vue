@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
   Document as DocumentIcon, EditPen, Files, Grid, HomeFilled, Key, List, Location as LocationIcon, Lock,
-  Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
+  Notebook, Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, TrendCharts, User,
 } from '@element-plus/icons-vue'
 import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
@@ -50,7 +50,7 @@ watch(expanded, value => {
 // 用不到的圖示都打包進來。新增側欄項目時要把圖示加進這裡（有測試檢查）。
 const icons: Record<string, Component> = {
   Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
-  EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Lock, Notification: NotificationIcon, Phone, Picture,
+  EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Lock, Notebook, Notification: NotificationIcon, Phone, Picture,
   Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, TrendCharts, User,
 }
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)

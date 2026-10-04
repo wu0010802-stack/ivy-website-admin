@@ -60,6 +60,18 @@ export const LENGTH_HINTS = {
   curBelief: { max: 14, why: '教學理念的一項會換成兩行' },
   curBeliefTitle: { max: 22, why: '結尾大標在手機上會超過三行' },
   curClose: { max: 26, why: '結語會換成兩行' },
+  // 關於常春藤頁（立體書）：左頁空間有限，建議值抓得比較緊。
+  aboutPageTitle: { max: 16, why: '立體書左頁的大標會超過兩行' },
+  aboutPageLede: { max: 70, why: '首屏介紹在手機上會變成很多行' },
+  aboutPageCaption: { max: 12, why: '卡紙上的一句話會換行' },
+  aboutChapter: { max: 5, why: '目次與章節封面放不下' },
+  aboutPageText: { max: 70, why: '左頁的說明會擠到頁緣' },
+  aboutMilestone: { max: 18, why: '沿革一列會換成兩行' },
+  aboutFine: { max: 55, why: '補充說明會擠到頁緣' },
+  aboutSource: { max: 16, why: '出處的小字會換成兩行' },
+  aboutQuote: { max: 40, why: '引言會換成很多行' },
+  aboutOutroTitle: { max: 6, why: '目次最後一格放不下' },
+  aboutOutroText: { max: 45, why: '結尾說明會換成很多行' },
 } as const satisfies Record<string, LengthHintRule>
 
 export type LengthHintKey = keyof typeof LENGTH_HINTS

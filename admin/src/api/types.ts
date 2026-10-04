@@ -170,6 +170,31 @@ export interface CurriculumPagePayload {
   belief_source: string
 }
 
+/** 關於常春藤頁（後端 content/page_schemas.py 的 AboutPagePayload）。標題用 \n 換行；章名 4、沿革 5 站、期許 2 段固定。 */
+export interface AboutPagePayload {
+  hero_title: string
+  hero_lede: string
+  hero_caption: string
+  hero_photo?: MediaSlotPayload | null
+  hero_photo_alt?: string
+  hero_back_photo?: MediaSlotPayload | null
+  hero_back_photo_alt?: string
+  chapter_names: string[]
+  story_title: string
+  story_text: string
+  milestones: { key: string; year: number; text: string }[]
+  whole_title: string
+  whole_text: string
+  whole_fine: string
+  whole_fine_source: string
+  hope_title: string
+  hope_quotes: string[]
+  hope_photo?: MediaSlotPayload | null
+  hope_photo_alt?: string
+  outro_title: string
+  outro_text: string
+}
+
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock）；不收 HTML。 */
 export type NewsBodyBlock =
   | { type: 'paragraph'; text: string }
