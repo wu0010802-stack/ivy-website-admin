@@ -53,15 +53,9 @@ async def send_password_reset_link(
         raise _error(
             status.HTTP_409_CONFLICT, "RESET_EMAIL_DISABLED", "尚未設定寄信，無法寄出重設連結；請改用「直接設定新密碼」"
         )
-    # 鎖住帳號列：兩位總管理者同時寄時排隊，第二封才看得到第一條並作廢它。
-    # 鎖的順序一律「帳號 → 連結」，和設定新密碼那邊一致，兩邊同時發生不會互等。
-    user = (await db.execute(select(User).where(User.id == user_id).with_for_update())).scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個使用者")
-    if not user.is_active:
-        raise _error(status.HTTP_409_CONFLICT, "USER_INACTIVE", "帳號已停用，請先恢復帳號再寄重設連結")
+    # 限流先於上鎖：限流池拿不到連線時最多等 5 秒，不握著帳號列鎖等（比照 booking/access_routes）。
     try:
-        await ratelimit.limiter(request).check(password_reset.SEND_LIMIT, str(user.id))
+        await ratelimit.limiter(request).check(password_reset.SEND_LIMIT, str(user_id))
     except ratelimit.RateLimiterUnavailable as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -77,7 +71,13 @@ async def send_password_reset_link(
             },
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
-
+    # 鎖住帳號列：兩位總管理者同時寄時排隊，第二封才看得到第一條並作廢它。
+    # 鎖的順序一律「帳號 → 連結」，和設定新密碼那邊一致，兩邊同時發生不會互等。
+    user = (await db.execute(select(User).where(User.id == user_id).with_for_update())).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個使用者")
+    if not user.is_active:
+        raise _error(status.HTTP_409_CONFLICT, "USER_INACTIVE", "帳號已停用，請先恢復帳號再寄重設連結")
     issued = await password_reset.issue(db, user, actor_id=current_user.id)
     subject, body = password_reset.build_email(
         user=user,
