@@ -186,7 +186,8 @@ describe('沒有權限的深連結（shell-4）', () => {
 describe('頁面點進去才下載（shell-9／cc-8）', () => {
   it('登入頁與外框直接打包，其餘頁面都是延遲載入', () => {
     expect(routes[0]?.component).toBe(LoginView)
-    // reset-password（public）跟 login 一樣在外框之外、自己延遲載入，所以用元件找外框，不用位置。
+    // reset-password（public）跟 login 一樣在外框之外、靜態打包（網址帶 #token=，不能走 chunk 重載），所以用元件找外框，不用位置。
+    expect(routes.find(route => route.name === 'reset-password')?.component).toBeTypeOf('object')
     const shell = routes.find(route => route.component === AdminLayout)
     expect(shell).toBeDefined()
     const children = shell?.children ?? []

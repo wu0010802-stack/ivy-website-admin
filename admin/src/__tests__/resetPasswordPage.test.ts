@@ -112,6 +112,14 @@ describe('路由與登入頁', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
+  it('重設完成導回登入頁時不去恢復 session，免得直接進了瀏覽器裡別人的帳號', async () => {
+    setActivePinia(createPinia())
+    const get = vi.spyOn(api, 'get')
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    expect(await authGuard(router.resolve('/login?reason=password_reset') as never)).toBe(true)
+    expect(get).not.toHaveBeenCalled()
+  })
+
   it('登入頁說明密碼已更新', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false } as never)
     const pinia = createPinia()
