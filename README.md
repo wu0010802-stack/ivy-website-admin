@@ -4,7 +4,12 @@
 
 - **後端**：migration `b8e3f1a6c4d7`（`recruitment_visits` 加 `follow_up_at`、`follow_up_owner_id`、`last_contacted_at` 與 CHECK；新表 `recruitment_contact_logs`；只新增、不改資料）。新模組 `admissions/follow_up.py`；新 API `/follow-ups`、`/records/{id}/contact-logs`、`/records/{id}/follow-up`、`/staff`；`/records` 加 `follow_up`、`owner` 篩選；到場建檔帶負責人（承辦人 → 標記的人）與預約上還沒到的下次聯絡；註冊、退出清掉下次聯絡；保存政策清聯絡內容；預約聯絡紀錄對已到場、已取消不再收下次聯絡（`FOLLOW_UP_NOT_TRACKED`）；總覽加 `admissions_follow_up_due`。匯出多 `recruitment_contact_logs` 延伸檔與 extensions 追蹤欄位（契約 README 記去向）。
 - **後台**：招生入學「待追蹤」分頁（已到期／7 天內／未排定、負責人，網址 `fu`、`owner`）；記錄聯絡與改期對話框；歷程抽屜合併參觀前紀錄、招生事件、參觀後聯絡；看板卡片與訪視明細的下次聯絡；官網預約勾選多筆一次標記已到場；預約明細「參觀後追蹤」區塊；總覽待辦「參觀後該聯絡的家長」。
-- **驗證**（Node 22.22；本機 PostgreSQL 16，測試庫 `ivy_website_test_followup`）：見下方「驗證結果」。
+- **驗證**（Node 22.22；本機 PostgreSQL 16，測試庫 `ivy_website_test_followup`）：
+  - 後端：新增 `test_admissions_follow_up.py`、`test_admissions_follow_up_schema.py` 共 25 項全過；整套 pytest 第一輪只有 `test_admissions_funnel.py::test_board_groups_cards_by_stage_and_term` 失敗（看板卡片多了 `follow_up_at`，已更新期望，該檔 29 項全過）；migration 升級、降一版、再升級都成功，`alembic heads` 只有一個。
+  - `npm run contract:generate`、`contract:check` 一致；`python3 -m unittest discover -s deploy/tests` 20 項 OK。
+  - admin：typecheck 通過、build 成功；vitest 1078 項通過、1 項失敗（`ux20260928F.test.ts` 午夜換日的日期多一個空格，沒改過的 HEAD 一樣失敗，是這台容器 Node 22.22 的 ICU 格式，不是本次改動）。新增 `admissionsFollowUp.test.ts` 21 項。
+  - stack e2e（這個容器沒有 Google Chrome，用預裝 Chromium 以本機設定覆寫 `channel`，不進 repo）：`admissions-flow`、`admissions-follow-up`、`a11y`（含待追蹤分頁兩個網址）、`keyboard`、`roles` 共 44 項全過；截圖 `output/playwright/admissions-followups-*.png`、`admissions-contact-dialog-1440.png`。
+  - 未驗證：stack e2e 全套、web（本次沒動）、Safari／iOS 實機、正式庫 migration。
 
 ## 2026-10-04 30 週年分頁 `/anniversary`（`feature/anniversary-page-20261004`，10-04 已部署 main `9068de8`，不公開、不進導覽）
 
