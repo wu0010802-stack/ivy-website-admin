@@ -99,7 +99,7 @@ async function submit() {
     v-model="open"
     class="follow-up-dialog"
     :title="title"
-    width="min(480px, calc(100vw - 32px))"
+    width="min(580px, calc(100vw - 32px))"
     append-to-body
     :close-on-click-modal="false"
     :close-on-press-escape="!pending"

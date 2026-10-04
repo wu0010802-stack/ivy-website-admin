@@ -162,7 +162,7 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
       </el-radio-group>
       <div class="filter-field">
         <span>負責人</span>
-        <el-select v-model="owner" aria-label="負責人" class="follow-ups__owner">
+        <el-select v-model="owner" placeholder="全部" aria-label="負責人" class="follow-ups__owner">
           <el-option value="" label="全部" />
           <el-option value="me" label="我負責的" />
           <el-option value="none" label="未指派" />
@@ -189,7 +189,7 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
             <div class="follow-card__top">
               <strong class="follow-card__name">{{ nameOf(row) }}</strong>
               <el-tag v-if="row.child_name === MISSING_CHILD_NAME" size="small" type="warning" effect="light" round>待補</el-tag>
-              <span class="num follow-card__when" :class="{ 'is-due': followUpDue(row) }">{{ followUpLabel(row) }}</span>
+              <span v-if="row.follow_up_at" class="num follow-card__when" :class="{ 'is-due': followUpDue(row) }">{{ followUpLabel(row) }}</span>
             </div>
             <p class="follow-card__meta">{{ stageLabel(row.stage) }}・{{ row.grade || '班別未填' }}・參觀 {{ rocDate(row.visit_date) }}</p>
             <p class="follow-card__meta">{{ row.contact_name || '聯絡人未填' }}　最近：{{ lastText(row) }}</p>

@@ -13,7 +13,7 @@ import uuid
 from datetime import date, datetime, time
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from app.admissions import constants
 from app.admissions.funnel import Stage, derive_stage
@@ -686,13 +686,14 @@ class ContactLogCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_version: int = Field(ge=1)
-    # 沒帶用送出當下；可補登較早的時間，不能晚於現在。
-    contacted_at: datetime | None = None
+    # 沒帶用送出當下；可補登較早的時間，不能晚於現在。時間一律要帶時區（沒帶 422），
+    # 才能和伺服器的現在比較。
+    contacted_at: AwareDatetime | None = None
     channel: ContactChannel
     reached: bool
     # 聯絡到時必填；沒聯絡到時選填（例如「沒接」）。
     note: OptionalText = Field(default=None, max_length=constants.CONTACT_NOTE_MAX)
-    next_follow_up_at: datetime | None
+    next_follow_up_at: AwareDatetime | None
     # 把這次內容寫進電訪回應（取代原內容）；只在聯絡到時可用。
     update_parent_response: bool = False
 
@@ -735,7 +736,7 @@ class FollowUpUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     expected_version: int = Field(ge=1)
-    follow_up_at: datetime | None = None
+    follow_up_at: AwareDatetime | None = None
     follow_up_owner_id: uuid.UUID | None = None
 
 

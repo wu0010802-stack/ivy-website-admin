@@ -288,6 +288,14 @@ async def test_contact_log_rules(admin_client, db_session):
     assert (await _log(admin_client, record, note="   ")).status_code == 422  # 聯絡到要寫內容
     assert (await _log(admin_client, record, reached=False, note=None, update_parent_response=True)).status_code == 422
     assert (await _log(admin_client, record, channel="sms")).status_code == 422
+    # 沒帶時區的時間無法和伺服器的現在比較：一律 422，不是 500。
+    assert (await _log(admin_client, record, next_follow_up_at="2099-01-01T10:00:00")).status_code == 422
+    assert (await _log(admin_client, record, contacted_at="2026-01-01T10:00:00")).status_code == 422
+    naive_patch = await admin_client.patch(
+        f"{ADMISSIONS}/records/{record['id']}/follow-up",
+        json={"expected_version": record["version"], "follow_up_at": "2099-01-01T10:00:00"},
+    )
+    assert naive_patch.status_code == 422
 
     first = await _log(admin_client, record, update_parent_response=True, note="想先看學費")
     assert first.status_code == 201, first.text

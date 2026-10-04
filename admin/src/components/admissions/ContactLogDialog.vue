@@ -141,7 +141,7 @@ async function submit() {
     v-model="open"
     class="contact-log-dialog"
     title="記錄聯絡"
-    width="min(520px, calc(100vw - 32px))"
+    width="min(580px, calc(100vw - 32px))"
     :fullscreen="narrow"
     append-to-body
     :close-on-click-modal="false"
