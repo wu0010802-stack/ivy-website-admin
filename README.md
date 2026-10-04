@@ -2,7 +2,7 @@
 
 影片上傳改成背景轉檔（poster＋桌機／手機 H.264），官網改播轉檔版本；圖片多中圖。規則見 DESIGN.md「素材背景轉檔」。已 merge origin/main `d559cae6`。
 
-- **後端**：新表 `media_jobs`（migration `e5b9c3a7d214`，接在重設密碼的 `d2b7f4c9e1a3` 之後，只新增表與 enum 值）、`app/media/jobs.py`、`app/workers/media_loop.py`、`POST /admin/media/{id}/retry`、指令 `transcode-media-videos [--apply]`；`WEBSITE_MEDIA_VIDEO_PROCESSING`（正式站預設 background）。health 的 `media_jobs.enabled` 看迴圈是否還在跑。
+- **後端**：新表 `media_jobs`（migration `e5b9c3a7d214`，接在參觀後追蹤的 `b8e3f1a6c4d7` 之後，只新增表與 enum 值）、`app/media/jobs.py`、`app/workers/media_loop.py`、`POST /admin/media/{id}/retry`、指令 `transcode-media-videos [--apply]`；`WEBSITE_MEDIA_VIDEO_PROCESSING`（正式站預設 background）。health 的 `media_jobs.enabled` 看迴圈是否還在跑。
 - **後台**：素材庫、選影片、影片版位、上傳清單、替換流程顯示轉檔狀態；處理中可「編輯」，失敗只有「重新處理」。
 - **官網**：`slotVideoSrc` 依桌機／手機選轉檔版本，沒有就用原檔；處理中的影片草稿預覽退回內建影片。
 - **和計畫不同的地方**：已是可直接播的 H.264 且轉檔版本不小於原檔 90% 時沿用原檔、不寫衍生檔；回補候選排除已有 done 工作與超過 10 分鐘的影片，沒有 `--force`，之後改參數要手動清 `media_jobs`；停機時先放回工作、再中止執行中的 ffmpeg，抽 poster 的 ffmpeg／ffprobe 仍不可中止（最多約 30／15 秒）。

@@ -15,7 +15,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 素材背景轉檔上線步驟（2026-10-04，未部署，`feature/media-jobs-20261003`）
 
-migration `e5b9c3a7d214`（接在 `d2b7f4c9e1a3` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
+migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
 
 部署前：
 
