@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import functools
 import io
 import json
 import logging
+import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable
@@ -18,6 +20,8 @@ from app.common.concurrency import ThreadSlots
 # 小版位；大圖給官網手機與一般寬度的版位，原檔只在高解析螢幕的滿版才會被選到。
 THUMBNAIL_SIZE = (480, 480)
 LARGE_SIDE = 1600
+# 中圖：手機 2 倍螢幕滿版約 780px，只有 480 與 1600 時只能拿 1600（2026-10-03）。
+MEDIUM_SIDE = 960
 
 # Pillow 格式與 content_type 的唯一對照；上傳驗證（validation）、去除拍攝資訊
 # （metadata）、重新產生衍生檔（regenerate）都從這裡衍生，新增或拿掉格式只改這裡
@@ -64,7 +68,12 @@ async def run_media_job(func: Callable[..., _T], /, *args) -> _T:
 
 
 class ProcessingError(Exception):
-    pass
+    """素材處理失敗。retryable：逾時、ffmpeg 無法執行這類「晚點再試可能就好」的
+    失敗；影片本身解不開，重試也沒用，背景處理直接標成失敗。"""
+
+    def __init__(self, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.retryable = retryable
 
 
 @dataclass(frozen=True)
@@ -120,6 +129,11 @@ def make_webp(
 
 def make_image_thumbnail_webp(source: bytes | Path) -> bytes:
     return make_webp(source, THUMBNAIL_SIZE[0]).data
+
+
+def needs_medium_rendition(width: int | None, height: int | None) -> bool:
+    """原圖長邊超過 MEDIUM_SIDE 才另存中圖。"""
+    return max(width or 0, height or 0) > MEDIUM_SIDE
 
 
 def needs_large_rendition(width: int | None, height: int | None) -> bool:
@@ -226,9 +240,9 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
-            raise ProcessingError("ffmpeg 抽幀逾時（30 秒）") from exc
+            raise ProcessingError("ffmpeg 抽幀逾時（30 秒）", retryable=True) from exc
         except OSError as exc:
-            raise ProcessingError(f"無法執行 ffmpeg：{exc}") from exc
+            raise ProcessingError(f"無法執行 ffmpeg：{exc}", retryable=True) from exc
 
         if result.returncode != 0 or not frame_path.exists():
             raise ProcessingError(
@@ -245,3 +259,134 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
             raise
         except Exception as exc:  # Pillow 對壞影格可能丟各種例外（含 MemoryError）
             raise ProcessingError(f"影片 poster 轉檔失敗：{exc}") from exc
+
+
+# ---- 影片轉檔（2026-10-03，背景處理用，見 app/media/jobs.py） ----
+# 官網影片版位（首屏、孩子的一天、活動影片）一律靜音播放，轉檔版本不帶聲音。
+# 桌機、手機同解析度同構圖，手機只把 CRF 拉高（web/app/utils/media-policy.ts、
+# DESIGN.md「孩子的一天」影片）。參數改這裡；後台說明與文件寫的數字跟著改。
+TRANSCODE_MAX_SIDE = 1920
+TRANSCODE_MAX_FPS = 30
+TRANSCODE_CRF = {"desktop": 20, "mobile": 26}
+TRANSCODE_PRESET = "medium"
+TRANSCODE_THREADS = 2
+TRANSCODE_MAX_SECONDS = 600
+# 一支影片可能轉好幾分鐘：另開一組名額，不佔上傳驗證、縮圖共用的 MEDIA_JOB_CONCURRENCY。
+TRANSCODE_CONCURRENCY = 1
+_HDR_TRANSFERS = frozenset({"smpte2084", "arib-std-b67"})
+# 長邊縮到上限以內（不放大），寬高取偶數（yuv420p 的要求）。ffmpeg 轉檔預設依
+# 顯示矩陣自動轉正，這裡的 iw／ih 已經是轉正後的寬高。
+_SCALE_FILTER = (
+    f"scale=w='if(gte(iw,ih),min({TRANSCODE_MAX_SIDE},trunc(iw/2)*2),-2)'"
+    f":h='if(gte(iw,ih),-2,min({TRANSCODE_MAX_SIDE},trunc(ih/2)*2))'"
+)
+# HDR（iPhone 預設錄 HLG／Dolby Vision）轉成 SDR，不然 8 位元 H.264 會灰白。要 zscale（libzimg）。
+_TONEMAP_FILTER = (
+    "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,"
+    "tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv"
+)
+# 轉檔讓給 API 請求：降低排程優先權（不用 preexec_fn，它在 thread 裡不安全）。
+_NICE = ("nice", "-n", "10") if shutil.which("nice") else ()
+_transcode_slots = ThreadSlots(TRANSCODE_CONCURRENCY)
+
+
+async def run_transcode_job(func: Callable[..., _T], /, *args) -> _T:
+    return await _transcode_slots.run(func, *args)
+
+
+@dataclass(frozen=True)
+class VideoColor:
+    transfer: str | None = None
+    primaries: str | None = None
+
+    @property
+    def is_hdr(self) -> bool:
+        return self.transfer in _HDR_TRANSFERS
+
+
+def probe_video_color(video_path: Path) -> VideoColor:
+    """第一條影像軌的色彩轉換特性；讀不到就當成一般 SDR。"""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error", *FFMPEG_INPUT_GUARD, "-select_streams", "v:0",
+                "-show_entries", "stream=color_transfer,color_primaries", "-of", "json", str(video_path),
+            ],
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return VideoColor()
+    if result.returncode != 0:
+        return VideoColor()
+    try:
+        streams = json.loads(result.stdout or b"{}").get("streams") or [{}]
+    except ValueError:
+        return VideoColor()
+    stream = streams[0] if isinstance(streams[0], dict) else {}
+    return VideoColor(transfer=stream.get("color_transfer") or None, primaries=stream.get("color_primaries") or None)
+
+
+@functools.lru_cache(maxsize=1)
+def tonemap_available() -> bool:
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-filters"], capture_output=True, stdin=subprocess.DEVNULL, timeout=15
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    listed = result.stdout.decode("utf-8", errors="replace")
+    return " zscale " in listed and " tonemap " in listed
+
+
+def transcode_timeout(duration: float | None) -> int:
+    """一個版本的轉檔上限秒數：影片長度的 6 倍，至少 2 分鐘、最多 30 分鐘；長度不明給上限。"""
+    if not duration:
+        return 1800
+    return int(min(1800, max(120, duration * 6)))
+
+
+def transcode_args(source: Path, target: Path, edition: str, color: VideoColor, *, tonemap: bool) -> list[str]:
+    vf = _SCALE_FILTER
+    if color.is_hdr and tonemap:
+        vf = f"{_TONEMAP_FILTER},{vf}"
+    return [
+        *_NICE,
+        "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error",
+        *FFMPEG_INPUT_GUARD, "-max_pixels", str(MAX_IMAGE_PIXELS), "-i", str(source),
+        "-map", "0:v:0", "-an", "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
+        "-vf", f"{vf},format=yuv420p",
+        "-c:v", "libx264", "-preset", TRANSCODE_PRESET, "-crf", str(TRANSCODE_CRF[edition]),
+        "-profile:v", "high", "-pix_fmt", "yuv420p", "-fpsmax", str(TRANSCODE_MAX_FPS),
+        "-threads", str(TRANSCODE_THREADS), "-movflags", "+faststart",
+        "-f", "mp4", "-y", str(target),
+    ]
+
+
+def transcode_video(source: Path, target: Path, edition: str, color: VideoColor, duration: float | None) -> VideoProbe:
+    """轉成 H.264 MP4 寫到 target，回傳輸出檔的寬高與時長。不裁切、不改時間軸：
+    活動影片的開始／結束秒數是對原片算的。"""
+    if duration is not None and duration > TRANSCODE_MAX_SECONDS:
+        raise ProcessingError(f"影片超過 {TRANSCODE_MAX_SECONDS // 60} 分鐘，請剪短後重新上傳")
+    tonemap = color.is_hdr and tonemap_available()
+    if color.is_hdr and not tonemap:
+        logger.warning("ffmpeg 沒有 zscale，HDR 影片直接轉成 8 位元，顏色可能偏灰")
+    timeout = transcode_timeout(duration)
+    try:
+        result = subprocess.run(
+            transcode_args(source, target, edition, color, tonemap=tonemap),
+            capture_output=True,
+            stdin=subprocess.DEVNULL,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        target.unlink(missing_ok=True)
+        raise ProcessingError(f"影片轉檔逾時（{timeout} 秒）", retryable=True) from exc
+    except OSError as exc:
+        raise ProcessingError(f"無法執行 ffmpeg：{exc}", retryable=True) from exc
+    if result.returncode != 0 or not target.is_file() or target.stat().st_size == 0:
+        target.unlink(missing_ok=True)
+        detail = result.stderr.decode("utf-8", errors="replace")[-300:]
+        raise ProcessingError(f"影片轉檔失敗：{detail}")
+    return probe_video(target)

@@ -81,7 +81,7 @@ def _slot(media_id: str, **focus) -> dict:
 async def test_large_image_gets_thumbnail_and_large_variants_with_sizes(admin_client):
     body = await _upload(admin_client, data=_jpeg(2000, 1500))
     variants = {v["kind"]: v for v in body["variants"]}
-    assert set(variants) == {"thumbnail", "large"}
+    assert set(variants) == {"thumbnail", "medium", "large"}
     assert (variants["thumbnail"]["width"], variants["thumbnail"]["height"]) == (480, 360)
     assert (variants["large"]["width"], variants["large"]["height"]) == (1600, 1200)
 
@@ -296,7 +296,7 @@ async def test_public_site_lists_referenced_media_with_variants_and_focus(admin_
     assert info["kind"] == "image" and (info["width"], info["height"]) == (2000, 1500)
     assert info["alt_text"] == "孩子與長輩"
     assert (info["focus_x"], info["focus_y"]) == (30.0, 60.0)
-    assert [(v["kind"], v["width"]) for v in info["variants"]] == [("thumbnail", 480), ("large", 1600)]
+    assert [(v["kind"], v["width"]) for v in info["variants"]] == [("thumbnail", 480), ("medium", 960), ("large", 1600)]
 
 
 @pytest.mark.asyncio

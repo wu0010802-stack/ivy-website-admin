@@ -461,7 +461,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'media.purge': '清理刪除的素材檔案',
   'media.replace_references': '替換素材並產生草稿',
   'media.import_site_assets': '匯入官網內建素材',
-  'media.regenerate_variants': '重新產生素材縮圖與大圖',
+  'media.regenerate_variants': '重新產生素材縮圖、中圖與大圖',
   'media.strip_metadata': '去除素材原檔的拍攝資訊',
   // 招生入學（2026-10）
   'recruitment_visit.create': '新增招生訪視',

@@ -286,3 +286,19 @@ async def test_campus_tour_referencing_media_blocks_delete_until_reference_remov
     archived = await admin_client.post(f"/api/website/v1/admin/media/{media_id}/archive")
     assert archived.status_code == 200, archived.text
     assert archived.json()["archived_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_large_image_gets_medium_and_large_variants(admin_client, tmp_path):
+    from PIL import Image
+
+    path = tmp_path / "big.jpg"
+    Image.new("RGB", (2000, 1500), (78, 184, 122)).save(path, "JPEG")
+    response = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("big.jpg", path.read_bytes(), "image/jpeg")},
+    )
+    assert response.status_code == 201, response.text
+    sizes = {v["kind"]: (v["width"], v["height"]) for v in response.json()["variants"]}
+    assert sizes == {"thumbnail": (480, 360), "medium": (960, 720), "large": (1600, 1200)}

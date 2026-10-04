@@ -424,6 +424,6 @@ describe('活動影片規則與標籤', () => {
     expect(contentFieldLabel('card_focus')).toBe('首頁卡片焦點')
     expect(contentFieldLabel('films')).toBe('手機版活動影片')
     expect(auditActionLabel('media.import_site_assets')).toBe('匯入官網內建素材')
-    expect(auditActionLabel('media.regenerate_variants')).toBe('重新產生素材縮圖與大圖')
+    expect(auditActionLabel('media.regenerate_variants')).toBe('重新產生素材縮圖、中圖與大圖')
   })
 })

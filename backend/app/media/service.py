@@ -26,12 +26,14 @@ from app.media.schemas import PublicMediaOut, PublicMediaVariantOut
 from app.media.processing import (
     IMAGE_FORMATS,
     LARGE_SIDE,
+    MEDIUM_SIDE,
     THUMBNAIL_SIZE,
     ProcessingError,
     Rendition,
     extract_video_poster,
     make_webp,
     needs_large_rendition,
+    needs_medium_rendition,
     probe_video,
     run_media_job,
 )
@@ -151,6 +153,8 @@ def image_renditions(
     source: bytes | Path, width: int | None, height: int | None, *, formats: tuple[str, ...] = IMAGE_FORMATS
 ) -> list[tuple[VariantKind, Rendition]]:
     out = [(VariantKind.THUMBNAIL, make_webp(source, THUMBNAIL_SIZE[0], formats=formats))]
+    if needs_medium_rendition(width, height):
+        out.append((VariantKind.MEDIUM, make_webp(source, MEDIUM_SIDE, quality=82, formats=formats)))
     if needs_large_rendition(width, height):
         out.append((VariantKind.LARGE, make_webp(source, LARGE_SIDE, quality=82, formats=formats)))
     return out

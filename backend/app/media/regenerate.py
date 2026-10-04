@@ -1,4 +1,4 @@
-"""重新產生圖片素材的縮圖與大圖（`python -m app.cli regenerate-media-variants`）。
+"""重新產生圖片素材的縮圖、中圖與大圖（`python -m app.cli regenerate-media-variants`）。
 
 2026-09-25 的 B10 起官網 srcset 會用到縮圖與大圖，但以下衍生檔不能直接用：
 
@@ -30,6 +30,7 @@ from app.media.processing import (
     CONTENT_TYPE_BY_FORMAT,
     LEGACY_CONTENT_TYPE_BY_FORMAT,
     needs_large_rendition,
+    needs_medium_rendition,
     oriented_size,
     run_media_job,
 )
@@ -37,12 +38,13 @@ from app.media.service import image_renditions
 from app.media.storage import MediaFileMissing, MediaStorage
 from app.media.validation import MAX_IMAGE_PIXELS
 
-_IMAGE_VARIANTS = (VariantKind.THUMBNAIL, VariantKind.LARGE)
+_IMAGE_VARIANTS = (VariantKind.THUMBNAIL, VariantKind.MEDIUM, VariantKind.LARGE)
 
 REASON_LEGACY = "2026-09-25 以前上傳（縮圖沒有依拍攝方向轉正、沒有大圖）"
 REASON_STALE = "衍生檔待重新產生（去背圖的透明處可能變黑）"
 REASON_NO_THUMBNAIL = "沒有縮圖"
 REASON_NO_LARGE = "缺大圖"
+REASON_NO_MEDIUM = "缺中圖"
 REASON_ALL = "指定全部重新產生"
 
 
@@ -68,6 +70,8 @@ def _reasons(asset: MediaAsset, *, include_all: bool) -> list[str]:
         reasons.append(REASON_NO_THUMBNAIL)
     if any(v.width is None or v.height is None for v in variants):
         reasons.append(REASON_STALE)
+    if VariantKind.MEDIUM not in kinds and needs_medium_rendition(asset.width, asset.height):
+        reasons.append(REASON_NO_MEDIUM)
     if VariantKind.LARGE not in kinds and needs_large_rendition(asset.width, asset.height):
         reasons.append(REASON_NO_LARGE)
     if include_all and not reasons:
@@ -122,7 +126,7 @@ class Regenerated:
 
 
 async def regenerate_image_variants(db: AsyncSession, storage: MediaStorage, asset_id: uuid.UUID) -> Regenerated:
-    """重讀原檔，重新產生縮圖（與原圖夠大時的大圖），換掉舊的衍生檔記錄；
+    """重讀原檔，重新產生縮圖（與原圖夠大時的中圖、大圖），換掉舊的衍生檔記錄；
     素材寬高改成轉正後的尺寸，順便補上 sha256。
 
     只改 DB 與寫新檔；舊衍生檔的檔案**由呼叫端在 commit 成功後才刪**（回傳

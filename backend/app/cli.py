@@ -356,8 +356,8 @@ async def import_site_assets(web_root: Path, *, apply: bool, write_drafts: bool)
 
 
 async def regenerate_media_variants(*, apply: bool, include_all: bool) -> None:
-    """重新產生圖片素材的縮圖與大圖（app/media/regenerate.py）：2026-09-25 以前
-    上傳、縮圖沒有依拍攝方向轉正的圖片，去背圖的衍生檔，缺縮圖或大圖的圖片。
+    """重新產生圖片素材的縮圖、中圖與大圖（app/media/regenerate.py）：2026-09-25 以前
+    上傳、縮圖沒有依拍攝方向轉正的圖片，去背圖的衍生檔，缺縮圖、中圖或大圖的圖片。
     預設只列出會處理哪些；--apply 才寫入，每張各自一個交易，失敗的不影響其他張，
     可以重跑（處理完的不會再列出來）。--all 不管需不需要，全部重新產生。"""
     from app.media import regenerate
@@ -375,7 +375,7 @@ async def regenerate_media_variants(*, apply: bool, include_all: bool) -> None:
         for candidate in candidates:
             where = CAMPUS_NAMES.get(candidate.campus_key, candidate.campus_key) if candidate.campus_key else "共用"
             print(f"  {candidate.asset_id}・{where}：{candidate.filename}（{'；'.join(candidate.reasons)}）")
-        print(f"dry-run：共 {len(candidates)} 張圖片需要重新產生縮圖或大圖（未寫入）。加 --apply 才會執行。")
+        print(f"dry-run：共 {len(candidates)} 張圖片需要重新產生縮圖、中圖或大圖（未寫入）。加 --apply 才會執行。")
         return
 
     done: list[str] = []
