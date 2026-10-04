@@ -36,6 +36,9 @@ export WEBSITE_NOTIFICATION_EMAIL_SINK_DIR="$E2E_STATE_DIR/mail"
 export WEBSITE_ADMIN_ORIGIN="${E2E_WEB_ORIGIN:-http://127.0.0.1:3710}"
 # 家長確認信由背景工作寄進 sink；10 秒一輪，測試用 expect.poll 等信。
 export WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS=10
+# 影片上傳走正式站的背景轉檔路徑（app/media/jobs.py）；2 秒看一次佇列。
+export WEBSITE_MEDIA_VIDEO_PROCESSING=background
+export WEBSITE_MEDIA_JOBS_POLL_SECONDS=2
 # 預設每個來源 24 小時最多占 5 個場次名額；整套 e2e 都從同一個本機來源送單，調高避免互相擋住。
 export WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY=1000
 # 招生入學正式站預設關閉；e2e 打開，才測得到後台招生畫面與「標記已到場」建立招生訪視。
