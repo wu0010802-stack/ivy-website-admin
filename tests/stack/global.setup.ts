@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { test as setup } from '@playwright/test'
 import { adminApi, taipeiDate, type AdminApi, type SlotOut } from './api'
-import { AUTH_DIR, SECOND_CAMPUS, SLOTS_CAMPUS, USERS, storageStatePath, type StackRole } from './stack-env'
+import { AUTH_DIR, RESET_TARGET, SECOND_CAMPUS, SLOTS_CAMPUS, USERS, storageStatePath, type StackRole } from './stack-env'
 
 // 每次執行前 start-api.sh 已重建資料庫（migration、五校、initialize-content、總管理者）。
 // 這裡補上：三個分校角色帳號、各角色的登入狀態，以及兩校的預約方式與場次。
@@ -39,6 +39,12 @@ setup('角色帳號、登入狀態與兩校預約設定', async () => {
       campus_keys: USERS[role].campusKeys,
     })
   }
+  await admin.send('POST', '/admin/users', {
+    email: RESET_TARGET.email,
+    password: RESET_TARGET.password,
+    role: 'editor',
+    campus_keys: RESET_TARGET.campusKeys,
+  })
   for (const role of ['super_admin', ...roles] as StackRole[]) {
     const api = role === 'super_admin' ? admin : await adminApi(role)
     await api.context.storageState({ path: storageStatePath(role) })

@@ -186,8 +186,11 @@ describe('沒有權限的深連結（shell-4）', () => {
 describe('頁面點進去才下載（shell-9／cc-8）', () => {
   it('登入頁與外框直接打包，其餘頁面都是延遲載入', () => {
     expect(routes[0]?.component).toBe(LoginView)
-    expect(routes[1]?.component).toBe(AdminLayout)
-    const children = routes[1]?.children ?? []
+    // reset-password（public）跟 login 一樣在外框之外、靜態打包（網址帶 #token=，不能走 chunk 重載），所以用元件找外框，不用位置。
+    expect(routes.find(route => route.name === 'reset-password')?.component).toBeTypeOf('object')
+    const shell = routes.find(route => route.component === AdminLayout)
+    expect(shell).toBeDefined()
+    const children = shell?.children ?? []
     expect(children.length).toBeGreaterThan(25)
     // 純轉址的舊網址（/slots → /visit-calendar）沒有元件，不算頁面。
     expect(children.filter(child => !('redirect' in child)).every(child => typeof child.component === 'function')).toBe(true)
@@ -216,7 +219,7 @@ describe('頁面點進去才下載（shell-9／cc-8）', () => {
     const pinia = createPinia()
     const auth = useAuthStore(pinia)
     auth.user = user('super_admin')
-    auth.features = { admissions: true }  // 招生入學依開關列出；要全部項目都在才能逐一驗圖示
+    auth.features = { admissions: true, password_reset_email: false }  // 招生入學依開關列出；要全部項目都在才能逐一驗圖示
     localStorage.setItem('ivy-admin-nav-expanded', JSON.stringify({ overview: true, visits: true, home: true, campus: true, site: true, system: true }))
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)*', component: { render: () => h('div') } }] })
     await router.push('/media')

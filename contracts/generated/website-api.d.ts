@@ -1602,8 +1602,32 @@ export interface paths {
          *
          *     不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
          *     撿到總管理者 session 的人就能直接把密碼改成自己知道的。
+         *
+         *     也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03）。
          */
         post: operations["reset_user_password_api_website_v1_admin_users__user_id__password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/users/{user_id}/password-reset-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Password Reset Link
+         * @description 總管理者替同事寄重設密碼連結。先提交連結再寄信（信寄到時連結就要能用）；
+         *     寄送失敗就作廢這條連結、回 502 並附錯誤類別，總管理者可以改用直接設定新密碼。
+         *     寄出不影響原本的密碼：對方設好新密碼之前，舊密碼照常可用。
+         */
+        post: operations["send_password_reset_link_api_website_v1_admin_users__user_id__password_reset_link_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2238,6 +2262,51 @@ export interface paths {
          *     CSRF／Origin 檢查（get_current_user）。
          */
         patch: operations["update_me_api_website_v1_auth_me_patch"];
+        trace?: never;
+    };
+    "/api/website/v1/auth/password-reset/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Password Reset
+         * @description 用重設連結設定新密碼：連結標成已用、其他還有效的連結作廢、所有 session 登出、
+         *     解除密碼登入暫停。不自動登入，前端導回登入頁。
+         *
+         *     無效的 token 不跑 bcrypt；有效的先算好雜湊（約 250 ms）再上鎖，鎖住期間不做慢的事。
+         *     鎖的順序跟寄連結一樣「帳號 → 連結」。等鎖期間連結可能被用掉或作廢，上鎖後再判斷一次。
+         */
+        post: operations["complete_password_reset_api_website_v1_auth_password_reset_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/auth/password-reset/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Password Reset Link
+         * @description 打開重設連結時先確認還能不能用，能用就回帳號與期限。只讀不寫：不消耗連結，
+         *     也不寫稽核（送出新密碼時才寫，test_audit_coverage 有列例外）。
+         */
+        post: operations["verify_password_reset_link_api_website_v1_auth_password_reset_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/website/v1/auth/providers": {
@@ -3540,11 +3609,16 @@ export interface components {
         };
         /**
          * FeatureFlags
-         * @description 後台依部署開關決定要不要顯示的功能（目前只有招生入學）。
+         * @description 後台依部署設定決定要不要顯示或啟用的功能。
          */
         FeatureFlags: {
             /** Admissions */
             admissions: boolean;
+            /**
+             * Password Reset Email
+             * @default false
+             */
+            password_reset_email: boolean;
         };
         /** FunnelBoardOut */
         FunnelBoardOut: {
@@ -4431,6 +4505,28 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /** PasswordResetCompleteRequest */
+        PasswordResetCompleteRequest: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
+        };
+        /**
+         * PasswordResetLinkOut
+         * @description 寄出重設密碼連結的結果：寄到哪個 Email、幾點前有效、有沒有讓舊連結失效。
+         */
+        PasswordResetLinkOut: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Replaced Previous */
+            replaced_previous: boolean;
+            /** Sent To */
+            sent_to: string;
+        };
         /**
          * PasswordResetRequest
          * @description 總管理者替別人重設密碼。
@@ -4438,6 +4534,24 @@ export interface components {
         PasswordResetRequest: {
             /** Password */
             password: string;
+        };
+        /**
+         * PasswordResetTokenRequest
+         * @description 打開重設連結時確認連結；token 放本文，不放網址，免得進 access log。
+         */
+        PasswordResetTokenRequest: {
+            /** Token */
+            token: string;
+        };
+        /** PasswordResetVerifyOut */
+        PasswordResetVerifyOut: {
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /**
          * PendingNowOut
@@ -9602,6 +9716,41 @@ export interface operations {
             };
         };
     };
+    send_password_reset_link_api_website_v1_admin_users__user_id__password_reset_link_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_user_role_api_website_v1_admin_users__user_id__role_patch: {
         parameters: {
             query?: never;
@@ -10937,6 +11086,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_password_reset_api_website_v1_auth_password_reset_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_password_reset_link_api_website_v1_auth_password_reset_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetVerifyOut"];
                 };
             };
             /** @description Validation Error */

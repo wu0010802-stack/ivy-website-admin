@@ -103,3 +103,26 @@ class Session(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class PasswordResetToken(Base):
+    """總管理者替同事寄出的重設密碼連結（2026-10-03）。只存 token 的 SHA-256，
+    原始 token 只出現在寄出的那封信裡。30 分鐘內有效、用一次就失效；寄新的、
+    本人改密碼、總管理者直接設新密碼、帳號停用，都會讓還沒用的連結作廢（revoked_at）。"""
+
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    # 哪位總管理者寄的；帳號之後被刪也不影響這筆紀錄（實務上帳號只停用、不刪）。
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_password_reset_tokens_created_by_users"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

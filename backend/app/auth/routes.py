@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import service
+from app.auth import password_reset, service
 from app.auth.deps import (
     CSRF_HEADER_NAME,
     SESSION_COOKIE_NAME,
@@ -120,7 +120,10 @@ def _set_session_cookie(response: Response, settings: Settings, raw_token: str) 
 
 
 def _features(settings: Settings) -> FeatureFlags:
-    return FeatureFlags(admissions=settings.admissions_enabled)
+    return FeatureFlags(
+        admissions=settings.admissions_enabled,
+        password_reset_email=password_reset.email_enabled(settings),
+    )
 
 
 @router.get("/auth/providers", response_model=AuthProviders)
@@ -326,6 +329,9 @@ async def update_user_active(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="不能停權最後一位總管理者"
         ) from exc
+    if not payload.is_active:
+        # 停用前寄出的重設連結不能留著：之後恢復帳號時才不會復活。
+        await password_reset.revoke_outstanding(db, user.id)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -440,6 +446,7 @@ async def update_user_display_name(
 async def reset_user_password(
     user_id: uuid.UUID,
     payload: PasswordResetRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
@@ -447,7 +454,9 @@ async def reset_user_password(
     對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。
 
     不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
-    撿到總管理者 session 的人就能直接把密碼改成自己知道的。"""
+    撿到總管理者 session 的人就能直接把密碼改成自己知道的。
+
+    也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03）。"""
     require_scope(current_user, "users.manage")
     if user_id == current_user.id:
         raise HTTPException(
@@ -457,6 +466,7 @@ async def reset_user_password(
     user = await _load_user(db, user_id)
     user.password_hash = await service.hash_password_async(payload.password)
     revoked = await service.revoke_user_sessions(db, user.id)
+    await password_reset.revoke_outstanding(db, user.id)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -466,6 +476,7 @@ async def reset_user_password(
         metadata={"revoked_sessions": revoked},
     )
     await db.commit()
+    await service.clear_login_lock(ratelimit.limiter(request), user.email)
 
 
 @router.post("/auth/change-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -491,6 +502,7 @@ async def change_own_password(
     user = await db.get(User, current_user.id)
     user.password_hash = await service.hash_password_async(payload.new_password)
     await service.revoke_user_sessions(db, user.id, keep_session_id=session.id)
+    await password_reset.revoke_outstanding(db, user.id)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,

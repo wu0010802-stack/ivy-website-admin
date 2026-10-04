@@ -15,7 +15,7 @@ async function mountSidebar(features?: { admissions: boolean }) {
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['renwu'] })
-  if (features) auth.features = features
+  if (features) auth.features = { password_reset_email: false, ...features }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/')
   await router.isReady()

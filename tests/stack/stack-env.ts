@@ -34,3 +34,6 @@ export function storageStatePath(role: StackRole): string {
 // 測試各用各的校區避免互搶名額。其他三校維持初始化後的 paused。
 export const SLOTS_CAMPUS = 'yihua'
 export const SECOND_CAMPUS = 'minghua'
+// 重設密碼連結 e2e 的對象（2026-10-03）：只給 password-reset.spec 用，別的測試不要登入這個帳號。
+// 在 global.setup 建立，使用者頁的截圖基準才不會因為測試順序多一列或少一列。
+export const RESET_TARGET = { email: 'e2e-reset-target@ivy.example', password: 'e2e-reset-old-password-1', campusKeys: ['yihua'] }

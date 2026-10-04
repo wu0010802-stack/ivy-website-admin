@@ -12,6 +12,8 @@ export type LoginResponse = components['schemas']['LoginResponse']
 export type AuthProviders = components['schemas']['AuthProviders']
 export type LineLinkStart = components['schemas']['LineLinkStart']
 export type CampusOut = components['schemas']['CampusOut']
+export type PasswordResetLinkOut = components['schemas']['PasswordResetLinkOut']
+export type PasswordResetVerifyOut = components['schemas']['PasswordResetVerifyOut']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 
