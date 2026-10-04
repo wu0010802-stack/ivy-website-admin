@@ -1,5 +1,6 @@
-import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, SiteContent, TourScene } from '~/types/site-content'
+import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
+import { assertCounts, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
 import { siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
@@ -176,6 +177,46 @@ export interface LivePrivacyPolicy {
   sections: { heading: string; body: string }[]
 }
 
+export interface LivePagePhoto {
+  photo?: LiveMediaSlot | null
+  photo_alt?: string
+}
+
+/** 後端 content/page_schemas.py 的 CurriculumPagePayload */
+export interface LiveCurriculumPage {
+  hero_eyebrow: string
+  hero_title: string
+  hero_highlight?: string
+  hero_lede: string
+  hero_notice: string
+  hero_photo?: LiveMediaSlot | null
+  hero_photo_alt?: string
+  chapters: { label: string; hint: string }[]
+  years_title: string
+  years_text: string
+  spiral_label: string
+  spiral_text: string
+  years_photo?: LiveMediaSlot | null
+  years_photo_alt?: string
+  years_caption: string
+  years: { motto: string; text: string }[]
+  directions_title: string
+  directions_text: string
+  directions: ({ key: string; title: string; sub: string; text: string } & LivePagePhoto)[]
+  gallery_title: string
+  gallery_text: string
+  gallery_source: string
+  gallery: ({ label: string } & LivePagePhoto)[]
+  daily_title: string
+  daily_text: string
+  daily_source: string
+  daily: ({ title: string; text: string } & LivePagePhoto)[]
+  belief_title: string
+  beliefs: string[]
+  belief_close: string
+  belief_source: string
+}
+
 export interface LiveAdmissionContent {
   notice: string
   intro: string
@@ -258,6 +299,7 @@ export interface ContentOverlay {
   home_news?: LiveHomeNews | null
   admission_content?: LiveAdmissionContent | null
   privacy_policy?: LivePrivacyPolicy | null
+  curriculum_page?: LiveCurriculumPage | null
   shared_faq?: LiveSharedFaq | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
@@ -396,6 +438,51 @@ function guard(kind: string, apply: () => void): void {
     apply()
   } catch (error) {
     console.error(`[content-overlay] ${kind} 的內容格式不符，這一區改用內建內容`, error)
+  }
+}
+
+/** 整頁內容的照片版位 → 官網用的照片與說明；沒選（或 id 無效）就不帶，元件用內建圖。 */
+function pagePhoto(slot: LiveMediaSlot | null | undefined, alt: string | undefined, media: MediaInfoMap): PagePhoto {
+  const photo = slotImage(slot, media)
+  return photo ? { photo, photoAlt: alt || photo.alt } : {}
+}
+
+function curriculumPage(c: LiveCurriculumPage, media: MediaInfoMap): CurriculumPageContent {
+  assertCounts({ chapters: c.chapters, years: c.years, directions: c.directions, gallery: c.gallery, daily: c.daily, beliefs: c.beliefs }, PAGE_COUNTS.curriculum)
+  const hero = pagePhoto(c.hero_photo, c.hero_photo_alt, media)
+  const yearsPhoto = pagePhoto(c.years_photo, c.years_photo_alt, media)
+  return {
+    heroEyebrow: c.hero_eyebrow,
+    heroTitle: c.hero_title,
+    heroHighlight: c.hero_highlight ?? '',
+    heroLede: c.hero_lede,
+    heroNotice: c.hero_notice,
+    heroPhoto: hero.photo,
+    heroPhotoAlt: hero.photoAlt,
+    chapters: c.chapters.map((x) => ({ label: x.label, hint: x.hint })),
+    yearsTitle: c.years_title,
+    yearsText: c.years_text,
+    spiralLabel: c.spiral_label,
+    spiralText: c.spiral_text,
+    yearsPhoto: yearsPhoto.photo,
+    yearsPhotoAlt: yearsPhoto.photoAlt,
+    yearsCaption: c.years_caption,
+    years: c.years.map((x) => ({ motto: x.motto, text: x.text })),
+    directionsTitle: c.directions_title,
+    directionsText: c.directions_text,
+    directions: c.directions.map((x) => ({ key: x.key, title: x.title, sub: x.sub, text: x.text, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    galleryTitle: c.gallery_title,
+    galleryText: c.gallery_text,
+    gallerySource: c.gallery_source,
+    gallery: c.gallery.map((x) => ({ label: x.label, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    dailyTitle: c.daily_title,
+    dailyText: c.daily_text,
+    dailySource: c.daily_source,
+    daily: c.daily.map((x) => ({ title: x.title, text: x.text, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    beliefTitle: c.belief_title,
+    beliefs: [...c.beliefs],
+    beliefClose: c.belief_close,
+    beliefSource: c.belief_source
   }
 }
 
@@ -629,6 +716,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         sections: policy.sections.map((section) => ({ heading: section.heading, body: section.body }))
       }
     }
+  })
+
+  guard('curriculum_page', () => {
+    // 整份取代；項目數不符（舊版或壞資料）時 assertCounts 丟錯，guard 退回內建內容。
+    if (overlay.curriculum_page) next.curriculumPage = curriculumPage(overlay.curriculum_page, media)
   })
 
   guard('campus_profile', () => {
