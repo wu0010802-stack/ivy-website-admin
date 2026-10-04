@@ -115,7 +115,7 @@
 | `directions[].sub` | 14 | `curDirSub` 16 | 30 | 否 |
 | `directions[].text` | 18 | `curDirText` 24 | 50 | 否 |
 | `directions[quote].sub` 品德培養的引言（大字） | 5 | `curQuote` 8 | 10（`QUOTE_SUB_LIMIT`） | 否 |
-| `directions[quote].text` 品德培養的說明 | 10 | `curQuoteText` 16 | 20（`QUOTE_TEXT_LIMIT`） | 否 |
+| `directions[quote].text` 品德培養的說明 | 10 | `curQuoteText` 12 | 20（`QUOTE_TEXT_LIMIT`） | 否 |
 | `gallery_source` | 21 | `curSource` 26 | 50 | 是 |
 | `gallery[].label` | 5 | `curArtLabel` 6 | 10 | 否 |
 | `daily_source` | 11 | `curSource` 26 | 30 | 是 |

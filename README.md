@@ -1,3 +1,21 @@
+## 2026-10-04 特色教學頁開放後台編輯（`feature/page-cms-20261004`，階段 A，未 push）
+
+使用者 2026-10-03 裁定文字與照片都開放；章節數量與版面結構固定。
+
+- **後台**：「全站與素材 → 特色教學頁」可改所有段落文字與首屏、年段、課程方向、兒童美術館作品、五件事的照片；清單項目數固定，不能新增、刪除、排序；不開放英文小字、章節編號、年段名稱與年齡、顏料與版面。內容種類 `curriculum_page`，草稿預覽 `?page=curriculum`。
+- **官網**：`/curriculum` 讀已發布內容，沒發布過就顯示改版前的內建內容，照片留空也用內建圖。
+- **規則**：字數兩層（後端硬上限擋存檔、後台建議值提醒）；品德培養的引言上限 10、說明 20；後台選了照片沒設焦點時官網置中；教學理念超字數時 422 指到第幾項。細節見 `DESIGN.md` 最上方。
+- **驗證**（2026-10-04，HEAD `53d1890a`，已合併 origin/main `d559cae6`）：
+  - 後端全套（獨立測試庫）1397 passed、1 failed：`test_content_publishing_workflow.py::test_seed_from_fixture_refuses_to_overwrite_and_validates` 因初始化多了特色教學頁而 `assert 19 == 18`，`53d1890` 已修，該檔 19 passed。
+  - 官網 `npm --prefix web run typecheck` 通過；`npm run test:website` 76 檔 766 項全過。
+  - 後台 `npm --prefix admin run typecheck` 通過；`npm --prefix admin run test:unit` 89 檔 1078 項全過。
+  - `npm run contract:check` 一致（payload 是 dict，契約沒變）。
+  - 畫面零差異：`scripts/page-ssr-snapshot.cjs` 改版前後 `/curriculum` SSR `<main>` diff 為空；stack 起 API 跑 `initialize-content`（後台已發布路徑）後，`/curriculum` 的 `<main>`（去掉 scoped hash）與內建內容相同。截圖兩次連抓像素就不同（動態、影片幀），只當人工參考。
+  - 版面硬上限：`node scripts/page-copy-stress.cjs /curriculum` 在 390／820／1024／1440 全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_pagecms_e2e_test E2E_API_PORT=8761 E2E_WEB_PORT=3761`）69 passed（2.6 分），visual 基準沒有更新。
+- **未驗證**：實機 iOS／Android、正式站；「後台已發布且換了照片」的頁面上，沒設焦點時置中只有單元測試，沒在瀏覽器實測；`/about`（階段 B）未做。
+- **分支與合併**：已合併 origin/main `d559cae6`（重設密碼連結）。與 `feature/media-jobs-20261003`（背景轉檔）合併時 `web/app/utils/media-image.ts`、`content-overlay.ts`、`admin/src/api/labels.ts` 可自動合併，後合併者重跑 `contract:generate`；`backend/tests/test_content_initialize.py` 的初始化筆數與 `web/tests/fixtures/overlay-baseline-20260925.json` 之後新增初始化 kind 的分支都會撞到。
+
 ## 2026-10-04 後台重設密碼改成寄連結（`feature/admin-password-reset-20261003`，未部署）
 
 使用者 10-03 裁定：只做「總管理者寄重設連結」，登入頁不開放自助忘記密碼。本分支接在後台第八輪 UX 之後開發，期間已把含第一波（UX8＋成效統計）的 origin/main 合入。

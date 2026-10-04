@@ -13,6 +13,10 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 特色教學頁開放後台編輯（`feature/page-cms-20261004`，未部署）
+
+不需要 migration、不需要改環境變數。上線後**不必**跑 `initialize-content`：官網沒發布過這份內容時顯示內建內容，後台打開編輯頁會帶出同一份。若要跑，先加 `--dry-run`，確認清單只有 `curriculum_page` 再跑（指令由使用者用 `! railway ssh …` 執行）；它會連帶補建其他從未建立的項目。
+
 ## 2026-10-04 官網後台成效統計補強＋第八輪 UX（main CI 部署）
 
 使用者要求合併並部署。`feature/admin-analytics-phase1-20261003`（`937502c`）與 `feature/admin-ux8-20261003`（`eb1aeed`）依序合進 `merge/admin-wave1-20261004`；驗證期間 main 前進到 `e3a7600`（關於頁紀念章，另一個 session），再合 origin/main 成 `b4bb570`，快轉推上 main。
