@@ -217,8 +217,8 @@ async def test_login_and_me_carry_admissions_feature_flag(app, db_session):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             login = await client.post("/api/website/v1/auth/login", json=creds)
             assert login.status_code == 200, login.text
-            assert login.json()["features"] == {"admissions": enabled}
+            assert login.json()["features"] == {"admissions": enabled, "password_reset_email": False}
             me = await client.get("/api/website/v1/auth/me")
             assert me.status_code == 200
-            assert me.json()["features"] == {"admissions": enabled}
+            assert me.json()["features"] == {"admissions": enabled, "password_reset_email": False}
             assert "features" not in me.json()["user"]

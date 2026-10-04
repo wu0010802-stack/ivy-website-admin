@@ -129,7 +129,7 @@ describe('重設與新增後密碼留在畫面上', () => {
     await flushPromises()
     expect(openDialog(wrapper).props('closeOnPressEscape')).toBe(true)
     await button(wrapper, '產生密碼').trigger('click')
-    const password = (openDialog(wrapper).find('input').element as HTMLInputElement).value
+    const password = (openDialog(wrapper).find('input[aria-label="新密碼"]').element as HTMLInputElement).value
     expect(password).toHaveLength(16)
     await openDialog(wrapper).findAll('button').find(item => item.text() === '重設密碼')!.trigger('click')
     await flushPromises()

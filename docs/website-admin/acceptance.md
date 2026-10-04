@@ -464,3 +464,22 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | 登入逾時接續、12 小時前提醒 | 通過（單元測試；兩分頁換帳號實機未驗證） | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py` |
 
 未驗證：Safari／iOS 實機；正式站（未部署）。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
+
+## 總管理者寄重設密碼連結（2026-10-04 實作，尚未部署）
+
+使用者 10-03 裁定只做總管理者寄連結。計畫：`docs/superpowers/plans/2026-10-03-admin-password-reset-link.md`。
+
+| # | 驗收項目 | 狀態 | 證據 |
+|---|---|---|---|
+| PR1 | 只有總管理者能寄；不能寄給自己、停用帳號、不存在的帳號 | 通過 | `backend/tests/test_password_reset_routes.py` |
+| PR2 | 連結 30 分鐘、單次；寄新的作廢舊的；DB 只存雜湊；同時寄只留一條 | 通過 | `test_password_reset_service.py`、`test_password_reset_routes.py` |
+| PR3 | 沒有寄信管道時不能寄、後台說明原因；寄送失敗作廢連結並寫稽核 | 通過 | `test_password_reset_routes.py`、`admin/src/__tests__/passwordResetLink.test.ts` |
+| PR4 | 設定新密碼後登出所有裝置、舊密碼失效、解除密碼登入暫停；新密碼不合規則時連結不被用掉 | 通過 | `test_password_reset_routes.py` |
+| PR5 | 停用、本人改密碼、直接設新密碼都作廢連結；直接設新密碼也解鎖 | 通過 | `test_password_reset_interactions.py` |
+| PR6 | 公開端點限流、Origin 檢查；打開連結不寫稽核、送出才寫 | 通過 | `test_password_reset_routes.py`、`test_audit_coverage.py` |
+| PR7 | 設定新密碼頁不用登入、清掉網址代碼、各種失效都有說明 | 通過 | `admin/src/__tests__/resetPasswordPage.test.ts` |
+| PR8 | 端到端：寄出 → 讀信 → 設定 → 用新密碼登入 → 連結不能再用 | 通過 | `tests/stack/password-reset.spec.ts` |
+
+驗證（2026-10-04，HEAD `abd244d`）：後端 pytest 全套 1363 passed、admin vitest 1054 passed（另 2 項招生頁 5 秒逾時，單獨重跑通過）、web 753 passed、`contract:check` 一致、stack e2e 全套 69 passed。
+
+未驗證：正式站 SMTP 實寄（要使用者設定 `WEBSITE_SMTP_*`）、iOS Safari／Gmail App／LINE 內建瀏覽器實機。

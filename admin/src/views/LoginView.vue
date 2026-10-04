@@ -48,6 +48,7 @@ const REASON_NOTICES: Record<string, ReasonNotice> = {
   'session-changed': { type: 'info', text: '這台電腦的登入狀態已經改變（多半是換了別的帳號登入），請重新登入。' },
   signin: { type: 'info', text: '請先登入；登入後會直接開啟剛才的連結。' },
   offline: { type: 'warning', text: '連不上伺服器，請確認網路後重新整理這一頁；如果先前已經登入，重新整理後會回到剛才的頁面。', reload: true },
+  password_reset: { type: 'info', text: '密碼已更新，請用新密碼登入。原本登入中的裝置都已登出。' },
 }
 const reasonNotice = computed(() => {
   const reason = route.query.reason

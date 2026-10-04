@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/auth'
 // 不必讓櫃台在手機上先下載一整包用不到的內容編輯頁。
 import AdminLayout from '../layouts/AdminLayout.vue'
 import LoginView from '../views/LoginView.vue'
+import ResetPasswordView from '../views/ResetPasswordView.vue'
 import { canSeeNavItem, landingPath, navItem, safeRedirectPath } from './nav'
 
 declare module 'vue-router' {
@@ -21,6 +22,8 @@ declare module 'vue-router' {
     roles?: string[]
     /** 共用內容頁，有「全站共用內容」授權也可進入 */
     shared?: boolean
+    /** 不用登入就能開（重設密碼連結）；不恢復 session、不導去登入頁 */
+    public?: boolean
   }
 }
 
@@ -33,6 +36,9 @@ function page(path: string, name: string, component: RouteRecordSingleView['comp
 
 export const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登入' } },
+  // 總管理者寄的重設密碼連結（2026-10-03）。不用登入，也不在側欄；靜態打包：網址帶 #token=，
+  // 延遲載入失敗時 onError 會把整個網址（含代碼）寫進 sessionStorage，而且同網址重載不會生效。
+  { path: '/reset-password', name: 'reset-password', component: ResetPasswordView, meta: { title: '設定新密碼', public: true } },
   {
     path: '/',
     component: AdminLayout,
@@ -88,6 +94,8 @@ export const routes: RouteRecordRaw[] = [
  * offline＝連不上伺服器（session 可能還有效）、expired＝用到一半逾時（router/unauthorized.ts）。
  */
 export async function authGuard(to: RouteLocationNormalized): Promise<boolean | RouteLocationRaw> {
+  // 不用登入的頁面：不恢復 session、不導去登入頁（重設連結常從信箱 App 的內建瀏覽器開）。
+  if (to.meta.public) return true
   const authStore = useAuthStore()
 
   if (to.name === 'login') {
@@ -97,6 +105,9 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
       await authStore.logout()
       return true
     }
+    // 重設完成後導回來：瀏覽器裡的 cookie 可能是別人（例如總管理者）的 session，
+    // 恢復它會直接進別人的帳號、看不到「密碼已更新」。
+    if (to.query.reason === 'password_reset') return true
     // 從書籤直接開登入頁、或在別的分頁重新登入後重新整理這一頁時，cookie 裡的
     // session 可能還有效：先試著恢復，不要讓人再登入一次（每次都會多建一個
     // session）。/auth/me 回 401 時 router/unauthorized.ts 的處理看到沒有登入者就不動作，不會繞圈。

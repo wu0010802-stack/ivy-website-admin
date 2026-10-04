@@ -3044,10 +3044,15 @@
         "type": "object"
       },
       "FeatureFlags": {
-        "description": "後台依部署開關決定要不要顯示的功能（目前只有招生入學）。",
+        "description": "後台依部署設定決定要不要顯示或啟用的功能。",
         "properties": {
           "admissions": {
             "title": "Admissions",
+            "type": "boolean"
+          },
+          "password_reset_email": {
+            "default": false,
+            "title": "Password Reset Email",
             "type": "boolean"
           }
         },
@@ -5617,6 +5622,53 @@
         "title": "PasswordChangeRequest",
         "type": "object"
       },
+      "PasswordResetCompleteRequest": {
+        "properties": {
+          "new_password": {
+            "maxLength": 128,
+            "minLength": 12,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "PasswordResetCompleteRequest",
+        "type": "object"
+      },
+      "PasswordResetLinkOut": {
+        "description": "寄出重設密碼連結的結果：寄到哪個 Email、幾點前有效、有沒有讓舊連結失效。",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "replaced_previous": {
+            "title": "Replaced Previous",
+            "type": "boolean"
+          },
+          "sent_to": {
+            "title": "Sent To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sent_to",
+          "expires_at",
+          "replaced_previous"
+        ],
+        "title": "PasswordResetLinkOut",
+        "type": "object"
+      },
       "PasswordResetRequest": {
         "description": "總管理者替別人重設密碼。",
         "properties": {
@@ -5631,6 +5683,41 @@
           "password"
         ],
         "title": "PasswordResetRequest",
+        "type": "object"
+      },
+      "PasswordResetTokenRequest": {
+        "description": "打開重設連結時確認連結；token 放本文，不放網址，免得進 access log。",
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "PasswordResetTokenRequest",
+        "type": "object"
+      },
+      "PasswordResetVerifyOut": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "expires_at"
+        ],
+        "title": "PasswordResetVerifyOut",
         "type": "object"
       },
       "PendingNowOut": {
@@ -19014,7 +19101,7 @@
     },
     "/api/website/v1/admin/users/{user_id}/password": {
       "post": {
-        "description": "總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，\n對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。\n\n不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，\n撿到總管理者 session 的人就能直接把密碼改成自己知道的。",
+        "description": "總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，\n對方所有已登入的裝置立即登出。不寄信、不在紀錄裡留密碼。\n\n不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，\n撿到總管理者 session 的人就能直接把密碼改成自己知道的。\n\n也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03）。",
         "operationId": "reset_user_password_api_website_v1_admin_users__user_id__password_post",
         "parameters": [
           {
@@ -19086,6 +19173,82 @@
           }
         },
         "summary": "Reset User Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/admin/users/{user_id}/password-reset-link": {
+      "post": {
+        "description": "總管理者替同事寄重設密碼連結。先提交連結再寄信（信寄到時連結就要能用）；\n寄送失敗就作廢這條連結、回 502 並附錯誤類別，總管理者可以改用直接設定新密碼。\n寄出不影響原本的密碼：對方設好新密碼之前，舊密碼照常可用。",
+        "operationId": "send_password_reset_link_api_website_v1_admin_users__user_id__password_reset_link_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetLinkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Password Reset Link",
         "tags": [
           "auth"
         ]
@@ -22312,6 +22475,83 @@
           }
         },
         "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/password-reset/complete": {
+      "post": {
+        "description": "用重設連結設定新密碼：連結標成已用、其他還有效的連結作廢、所有 session 登出、\n解除密碼登入暫停。不自動登入，前端導回登入頁。\n\n無效的 token 不跑 bcrypt；有效的先算好雜湊（約 250 ms）再上鎖，鎖住期間不做慢的事。\n鎖的順序跟寄連結一樣「帳號 → 連結」。等鎖期間連結可能被用掉或作廢，上鎖後再判斷一次。",
+        "operationId": "complete_password_reset_api_website_v1_auth_password_reset_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Complete Password Reset",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/password-reset/verify": {
+      "post": {
+        "description": "打開重設連結時先確認還能不能用，能用就回帳號與期限。只讀不寫：不消耗連結，\n也不寫稽核（送出新密碼時才寫，test_audit_coverage 有列例外）。",
+        "operationId": "verify_password_reset_link_api_website_v1_auth_password_reset_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetVerifyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify Password Reset Link",
         "tags": [
           "auth"
         ]
