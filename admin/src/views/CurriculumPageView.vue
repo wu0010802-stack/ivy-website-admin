@@ -71,11 +71,11 @@ onMounted(editor.load)
 
       <h3 id="section-cur-chapters" class="sub-title" data-section-anchor tabindex="-1">章節索引</h3>
       <div data-list="chapters">
-<div v-for="(chapter, i) in form.chapters" :key="i" class="page-copy__item" :data-list-item="i">
-        <p class="page-copy__item-title">{{ CHAPTER_NUMBERS[i] }}</p>
-        <PageCopyField v-model="chapter.label" label="章節名稱" hint="curChapterLabel" />
-        <PageCopyField v-model="chapter.hint" label="小字" hint="curChapterHint" />
-      </div>
+        <div v-for="(chapter, i) in form.chapters" :key="i" class="page-copy__item" :data-list-item="i">
+          <p class="page-copy__item-title">{{ CHAPTER_NUMBERS[i] }}</p>
+          <PageCopyField v-model="chapter.label" label="章節名稱" hint="curChapterLabel" />
+          <PageCopyField v-model="chapter.hint" label="小字" hint="curChapterHint" />
+        </div>
       </div>
 
       <h3 id="section-cur-years" class="sub-title" data-section-anchor tabindex="-1">01 四個年段</h3>
@@ -95,36 +95,36 @@ onMounted(editor.load)
       />
       <PageCopyField v-model="form.years_caption" label="照片下方文字" hint="curCaption" help="清空就不顯示。" />
       <div data-list="years">
-<div v-for="(year, i) in form.years" :key="i" class="page-copy__item" :data-list-item="i">
-        <p class="page-copy__item-title">{{ CURRICULUM_YEAR_NAMES[i] }}</p>
-        <PageCopyField v-model="year.motto" label="標語" hint="curMotto" help="官網會加上「」。" />
-        <PageCopyField v-model="year.text" label="說明" hint="curYearText" multiline />
-      </div>
+        <div v-for="(year, i) in form.years" :key="i" class="page-copy__item" :data-list-item="i">
+          <p class="page-copy__item-title">{{ CURRICULUM_YEAR_NAMES[i] }}</p>
+          <PageCopyField v-model="year.motto" label="標語" hint="curMotto" help="官網會加上「」。" />
+          <PageCopyField v-model="year.text" label="說明" hint="curYearText" multiline />
+        </div>
       </div>
 
       <h3 id="section-cur-directions" class="sub-title" data-section-anchor tabindex="-1">02 課程方向</h3>
       <PageCopyField v-model="form.directions_title" label="課程方向的標題" hint="curSectionTitle" title />
       <PageCopyField v-model="form.directions_text" label="課程方向的說明" hint="curSectionText" multiline />
       <div data-list="directions">
-<div v-for="(direction, i) in form.directions" :key="direction.key" class="page-copy__item" :data-list-item="i">
-        <p class="page-copy__item-title">
-          第 {{ i + 1 }} 個方向<span v-if="direction.key === 'quote'" class="page-copy__item-note">印在顏料上的引言，沒有照片</span>
-        </p>
-        <PageCopyField v-model="direction.title" label="標題" hint="curDirTitle" />
-        <PageCopyField v-model="direction.sub" label="副標" hint="curDirSub" />
-        <PageCopyField v-model="direction.text" label="說明" hint="curDirText" multiline />
-        <PagePhotoField
-          v-if="direction.key !== 'quote'"
-          v-model:photo="direction.photo"
-          v-model:alt="direction.photo_alt"
-          label="照片"
-          builtin="官網內建的課程照"
-          :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.directions[i]!)"
-          ratio="4:3"
-          help=""
-          :disabled="editor.readOnly.value"
-        />
-      </div>
+        <div v-for="(direction, i) in form.directions" :key="direction.key" class="page-copy__item" :data-list-item="i">
+          <p class="page-copy__item-title">
+            第 {{ i + 1 }} 個方向<span v-if="direction.key === 'quote'" class="page-copy__item-note">印在顏料上的引言，沒有照片</span>
+          </p>
+          <PageCopyField v-model="direction.title" label="標題" hint="curDirTitle" />
+          <PageCopyField v-model="direction.sub" label="副標" hint="curDirSub" />
+          <PageCopyField v-model="direction.text" label="說明" hint="curDirText" multiline />
+          <PagePhotoField
+            v-if="direction.key !== 'quote'"
+            v-model:photo="direction.photo"
+            v-model:alt="direction.photo_alt"
+            label="照片"
+            builtin="官網內建的課程照"
+            :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.directions[i]!)"
+            ratio="4:3"
+            help=""
+            :disabled="editor.readOnly.value"
+          />
+        </div>
       </div>
 
       <h3 id="section-cur-gallery" class="sub-title" data-section-anchor tabindex="-1">03 兒童美術館</h3>
@@ -132,20 +132,20 @@ onMounted(editor.load)
       <PageCopyField v-model="form.gallery_text" label="兒童美術館的說明" hint="curSectionText" multiline />
       <PageCopyField v-model="form.gallery_source" label="作品照片出處" hint="curSource" help="換成自己學校的照片時記得改；清空就不顯示。" />
       <div data-list="gallery">
-<div v-for="(art, i) in form.gallery" :key="i" class="page-copy__item" :data-list-item="i">
-        <p class="page-copy__item-title">第 {{ i + 1 }} 件作品</p>
-        <PageCopyField v-model="art.label" label="作品名稱" hint="curArtLabel" />
-        <PagePhotoField
-          v-model:photo="art.photo"
-          v-model:alt="art.photo_alt"
-          label="照片"
-          builtin="官網內建的作品照"
-          :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.gallery[i]!)"
-          no-focus
-          help="作品照保留原本比例，不裁切；拍到孩子姓名的作品不要放。"
-          :disabled="editor.readOnly.value"
-        />
-      </div>
+        <div v-for="(art, i) in form.gallery" :key="i" class="page-copy__item" :data-list-item="i">
+          <p class="page-copy__item-title">第 {{ i + 1 }} 件作品</p>
+          <PageCopyField v-model="art.label" label="作品名稱" hint="curArtLabel" />
+          <PagePhotoField
+            v-model:photo="art.photo"
+            v-model:alt="art.photo_alt"
+            label="照片"
+            builtin="官網內建的作品照"
+            :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.gallery[i]!)"
+            no-focus
+            help="作品照保留原本比例，不裁切；拍到孩子姓名的作品不要放。"
+            :disabled="editor.readOnly.value"
+          />
+        </div>
       </div>
 
       <h3 id="section-cur-daily" class="sub-title" data-section-anchor tabindex="-1">04 五件事</h3>
@@ -153,21 +153,21 @@ onMounted(editor.load)
       <PageCopyField v-model="form.daily_text" label="五件事的說明" hint="curSectionText" multiline />
       <PageCopyField v-model="form.daily_source" label="五件事的出處" hint="curSource" help="清空就不顯示。" />
       <div data-list="daily">
-<div v-for="(thing, i) in form.daily" :key="i" class="page-copy__item" :data-list-item="i">
-        <p class="page-copy__item-title">第 {{ i + 1 }} 件事</p>
-        <PageCopyField v-model="thing.title" label="名稱" hint="curDailyTitle" />
-        <PageCopyField v-model="thing.text" label="介紹" hint="curDailyText" multiline />
-        <PagePhotoField
-          v-model:photo="thing.photo"
-          v-model:alt="thing.photo_alt"
-          label="照片"
-          builtin="官網內建的義華校照片"
-          :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.daily[i]!)"
-          ratio="4:3"
-          help=""
-          :disabled="editor.readOnly.value"
-        />
-      </div>
+        <div v-for="(thing, i) in form.daily" :key="i" class="page-copy__item" :data-list-item="i">
+          <p class="page-copy__item-title">第 {{ i + 1 }} 件事</p>
+          <PageCopyField v-model="thing.title" label="名稱" hint="curDailyTitle" />
+          <PageCopyField v-model="thing.text" label="介紹" hint="curDailyText" multiline />
+          <PagePhotoField
+            v-model:photo="thing.photo"
+            v-model:alt="thing.photo_alt"
+            label="照片"
+            builtin="官網內建的義華校照片"
+            :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.daily[i]!)"
+            ratio="4:3"
+            help=""
+            :disabled="editor.readOnly.value"
+          />
+        </div>
       </div>
 
       <h3 id="section-cur-beliefs" class="sub-title" data-section-anchor tabindex="-1">結尾：教學理念</h3>
@@ -225,4 +225,3 @@ onMounted(editor.load)
   color: var(--el-text-color-secondary);
 }
 </style>
-```
