@@ -35,6 +35,17 @@ describe('關於常春藤頁 SEO', () => {
     expect(seo.canonical).toBeUndefined()
     expect(seo.graph).toEqual([])
   })
+  it('創校年份跟著後台沿革第一站；內建內容的標題描述與改版前一字不差', () => {
+    const brand = site.siteMeta.brandName
+    const seo = aboutSeo(site, 'https://ivy.example')
+    expect(seo.title).toBe(`關於常春藤｜1997 年創立、五所校園與全人教育｜${brand}`)
+    expect(seo.description).toBe('常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。')
+    const edited = { ...site, aboutPage: { ...site.aboutPage, milestones: site.aboutPage.milestones.map((m, i) => (i ? m : { ...m, year: 1998 })) } }
+    const changed = aboutSeo(edited, 'https://ivy.example')
+    expect(changed.title).toBe(`關於常春藤｜1998 年創立、五所校園與全人教育｜${brand}`)
+    expect(changed.description).toContain('常春藤幼兒園 1998 年在高雄三民區義華路創立')
+    expect(changed.graph[0]!.name).toBe(changed.title)
+  })
 })
 
 describe('五校沿革', () => {

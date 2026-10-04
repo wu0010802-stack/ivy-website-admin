@@ -153,6 +153,26 @@ describe('關於常春藤頁的後台內容', () => {
     expect(next.hopePhotoAlt).toBe('素材庫說明')
     expect(next.heroPhoto).toBeUndefined()
   })
+  it('後端實際送來的形狀（照片 null、照片說明空字串）：不退回內建、文字照後台、照片走內建', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const live = {
+      ...livePayload<LiveAboutPage>(site.aboutPage),
+      hero_photo: null,
+      hero_photo_alt: '',
+      hero_back_photo: null,
+      hero_back_photo_alt: '',
+      hope_photo: null,
+      hope_photo_alt: '',
+      story_text: '後台改過的說明。'
+    } as LiveAboutPage
+    const next = applyContentOverlay(site, { about_page: live }).aboutPage
+    expect(error).not.toHaveBeenCalled()
+    expect(next.storyText).toBe('後台改過的說明。')
+    expect(next.heroTitle).toBe(site.aboutPage.heroTitle)
+    expect([next.heroPhoto, next.heroPhotoAlt, next.heroBackPhoto, next.heroBackPhotoAlt, next.hopePhoto, next.hopePhotoAlt]).toEqual([undefined, undefined, undefined, undefined, undefined, undefined])
+    expect(aboutHeroAttrs(next)).toEqual(responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES))
+    error.mockRestore()
+  })
   it('沿革不是五站的舊版內容退回內建', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const live = livePayload<LiveAboutPage>(site.aboutPage)

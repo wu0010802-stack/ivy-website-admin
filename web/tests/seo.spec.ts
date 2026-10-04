@@ -29,6 +29,11 @@ describe('公開搜尋資料', () => {
     expect(org.foundingDate).toBe('1997')
     expect(org.sameAs).toEqual(site.siteMeta.socialLinks!.map((link) => link.url))
   })
+  it('創立年份跟著關於常春藤頁沿革第一站（後台改成 1998 就是 1998）', () => {
+    const edited = { ...site, aboutPage: { ...site.aboutPage, milestones: site.aboutPage.milestones.map((m, i) => (i ? m : { ...m, year: 1998 })) } }
+    const org = pageSeo(edited, 'https://ivy.example').graph.find((item) => item['@type'] === 'EducationalOrganization')!
+    expect(org.foundingDate).toBe('1998')
+  })
   it('CMS 文字不能關閉 JSON-LD script；解析後保留原文', () => {
     const value = { name: '</script><script>alert(1)</script>&' }
     const encoded = serializeJsonLd(value)
