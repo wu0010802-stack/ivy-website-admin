@@ -7,8 +7,8 @@
  * 檔案一律走同源 `/api/website/v1/public/media/...`（web/server/routes/api/
  * website/v1/[...].ts 轉給 API，Range 原樣轉送），權限由 API 判斷。
  */
-import type { Campus, CurriculumPageContent, HeroContent } from '../types/site-content'
-import { CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, HOME_HERO_SIZES, responsiveImage } from './responsive-image'
+import type { AboutPageContent, Campus, CurriculumPageContent, HeroContent } from '../types/site-content'
+import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, HOME_HERO_SIZES, responsiveImage } from './responsive-image'
 
 export interface PublicMediaVariant {
   kind: 'thumbnail' | 'poster' | 'large'
@@ -168,4 +168,9 @@ export function campusHeroAttrs(campus: Pick<Campus, 'image' | 'imageMedia'>) {
 /** 特色教學頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用，才不會多下載一張。 */
 export function curriculumHeroAttrs(page: Pick<CurriculumPageContent, 'heroPhoto'>) {
   return pickImage(CURRICULUM_HERO_IMAGE, page.heroPhoto, CURRICULUM_HERO_SIZES)
+}
+
+/** 關於常春藤頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用。 */
+export function aboutHeroAttrs(page: Pick<AboutPageContent, 'heroPhoto'>) {
+  return pickImage(ABOUT_HERO_IMAGE, page.heroPhoto, ABOUT_HERO_SIZES)
 }

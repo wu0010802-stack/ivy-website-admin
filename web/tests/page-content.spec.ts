@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
-import { applyContentOverlay, type LiveCurriculumPage } from '../app/utils/content-overlay'
-import { curriculumHeroAttrs, type MediaInfoMap } from '../app/utils/media-image'
-import { CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, responsiveImage } from '../app/utils/responsive-image'
+import { applyContentOverlay, type LiveAboutPage, type LiveCurriculumPage } from '../app/utils/content-overlay'
+import { aboutHeroAttrs, curriculumHeroAttrs, type MediaInfoMap } from '../app/utils/media-image'
+import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, responsiveImage } from '../app/utils/responsive-image'
 import { pageMarkedLines, pagePhotoAlt, pagePhotoStyle, pageTitleLines, rocYear, withPhotoStyle } from '../app/utils/page-content'
 
 const site = fixture as unknown as SiteContent
@@ -132,6 +132,58 @@ describe('特色教學頁的後台內容', () => {
       mutate(live)
       expect(() => applyContentOverlay(site, { curriculum_page: live })).not.toThrow()
       expect(applyContentOverlay(site, { curriculum_page: live }).curriculumPage).toEqual(site.curriculumPage)
+    }
+    expect(error).toHaveBeenCalledTimes(mutations.length * 2)
+    error.mockRestore()
+  })
+})
+
+describe('關於常春藤頁的後台內容', () => {
+  it('發布的內容和內建一字不差時，官網內容完全不變', () => {
+    const next = applyContentOverlay(site, { about_page: livePayload<LiveAboutPage>(site.aboutPage) })
+    expect(next.aboutPage).toEqual(site.aboutPage)
+  })
+  it('沿革年份可以改；三張照片都能換', () => {
+    const live = livePayload<LiveAboutPage>(site.aboutPage)
+    live.milestones[0] = { ...live.milestones[0]!, year: 1998 }
+    live.hope_photo = { media_id: MEDIA }
+    const next = applyContentOverlay(site, { about_page: live }, media).aboutPage
+    expect(next.milestones[0]!.year).toBe(1998)
+    expect(next.hopePhoto?.src).toBe(`/api/website/v1/public/media/${MEDIA}/file`)
+    expect(next.hopePhotoAlt).toBe('素材庫說明')
+    expect(next.heroPhoto).toBeUndefined()
+  })
+  it('沿革不是五站的舊版內容退回內建', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const live = livePayload<LiveAboutPage>(site.aboutPage)
+    live.milestones = live.milestones.slice(0, 4)
+    expect(applyContentOverlay(site, { about_page: live }).aboutPage).toEqual(site.aboutPage)
+    error.mockRestore()
+  })
+  it('首屏照片：沒換照片時和現在的 preload 完全相同', () => {
+    expect(aboutHeroAttrs(site.aboutPage)).toEqual(responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES))
+  })
+  it('格式壞掉的已發布內容整份退回內建內容且不丟錯', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const mutations: ((live: any) => void)[] = [
+      (live) => { delete live.hero_title },
+      (live) => { live.outro_text = 5 },
+      (live) => { live.hope_quotes = 'ab' },
+      (live) => { live.hope_quotes[0] = 7 },
+      (live) => { live.chapter_names[2] = null },
+      (live) => { live.chapter_names = live.chapter_names.slice(0, 3) },
+      (live) => { live.milestones[1] = null },
+      (live) => { delete live.milestones[0].key },
+      (live) => { live.milestones[2].text = 1 },
+      (live) => { live.milestones[0].year = '1997' },
+      (live) => { live.milestones[0].year = 1997.5 },
+      (live) => { live.milestones[0].year = null }
+    ]
+    for (const mutate of mutations) {
+      const live = livePayload<LiveAboutPage>(site.aboutPage)
+      mutate(live)
+      expect(() => applyContentOverlay(site, { about_page: live })).not.toThrow()
+      expect(applyContentOverlay(site, { about_page: live }).aboutPage).toEqual(site.aboutPage)
     }
     expect(error).toHaveBeenCalledTimes(mutations.length * 2)
     error.mockRestore()

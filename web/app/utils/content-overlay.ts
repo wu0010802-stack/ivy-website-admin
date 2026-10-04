@@ -1,4 +1,4 @@
-import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
+import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
@@ -217,6 +217,31 @@ export interface LiveCurriculumPage {
   belief_source: string
 }
 
+/** 後端 content/page_schemas.py 的 AboutPagePayload */
+export interface LiveAboutPage {
+  hero_title: string
+  hero_lede: string
+  hero_caption: string
+  hero_photo?: LiveMediaSlot | null
+  hero_photo_alt?: string
+  hero_back_photo?: LiveMediaSlot | null
+  hero_back_photo_alt?: string
+  chapter_names: string[]
+  story_title: string
+  story_text: string
+  milestones: { key: string; year: number; text: string }[]
+  whole_title: string
+  whole_text: string
+  whole_fine: string
+  whole_fine_source: string
+  hope_title: string
+  hope_quotes: string[]
+  hope_photo?: LiveMediaSlot | null
+  hope_photo_alt?: string
+  outro_title: string
+  outro_text: string
+}
+
 export interface LiveAdmissionContent {
   notice: string
   intro: string
@@ -300,6 +325,7 @@ export interface ContentOverlay {
   admission_content?: LiveAdmissionContent | null
   privacy_policy?: LivePrivacyPolicy | null
   curriculum_page?: LiveCurriculumPage | null
+  about_page?: LiveAboutPage | null
   shared_faq?: LiveSharedFaq | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
@@ -490,6 +516,41 @@ function curriculumPage(c: LiveCurriculumPage, media: MediaInfoMap): CurriculumP
     beliefs: [...c.beliefs],
     beliefClose: c.belief_close,
     beliefSource: c.belief_source
+  }
+}
+
+function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
+  assertCounts({ chapterNames: a.chapter_names, milestones: a.milestones, hopeQuotes: a.hope_quotes }, PAGE_COUNTS.about)
+  assertStrings(a, ['hero_title', 'hero_lede', 'hero_caption', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'outro_title', 'outro_text'], 'about_page')
+  assertItems(a.milestones, ['key', 'text'], 'milestones')
+  a.milestones.forEach((m, i) => { if (!Number.isInteger(m.year)) throw new Error(`milestones[${i}].year 應為整數`) })
+  a.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
+  a.hope_quotes.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`hope_quotes[${i}] 應為字串`) })
+  const hero = pagePhoto(a.hero_photo, a.hero_photo_alt, media)
+  const back = pagePhoto(a.hero_back_photo, a.hero_back_photo_alt, media)
+  const hope = pagePhoto(a.hope_photo, a.hope_photo_alt, media)
+  return {
+    heroTitle: a.hero_title,
+    heroLede: a.hero_lede,
+    heroCaption: a.hero_caption,
+    heroPhoto: hero.photo,
+    heroPhotoAlt: hero.photoAlt,
+    heroBackPhoto: back.photo,
+    heroBackPhotoAlt: back.photoAlt,
+    chapterNames: [...a.chapter_names],
+    storyTitle: a.story_title,
+    storyText: a.story_text,
+    milestones: a.milestones.map((m) => ({ key: m.key, year: m.year, text: m.text })),
+    wholeTitle: a.whole_title,
+    wholeText: a.whole_text,
+    wholeFine: a.whole_fine,
+    wholeFineSource: a.whole_fine_source,
+    hopeTitle: a.hope_title,
+    hopeQuotes: [...a.hope_quotes],
+    hopePhoto: hope.photo,
+    hopePhotoAlt: hope.photoAlt,
+    outroTitle: a.outro_title,
+    outroText: a.outro_text
   }
 }
 
@@ -728,6 +789,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   guard('curriculum_page', () => {
     // 整份取代；項目數不符（舊版或壞資料）時 assertCounts 丟錯，guard 退回內建內容。
     if (overlay.curriculum_page) next.curriculumPage = curriculumPage(overlay.curriculum_page, media)
+  })
+
+  guard('about_page', () => {
+    // 整份取代；項目數或格式不符時丟錯，guard 退回內建內容。
+    if (overlay.about_page) next.aboutPage = aboutPage(overlay.about_page, media)
   })
 
   guard('campus_profile', () => {

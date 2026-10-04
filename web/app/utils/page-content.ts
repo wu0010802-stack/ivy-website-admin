@@ -5,7 +5,8 @@ import { pickImage, type MediaImage } from './media-image'
 
 /** 各清單固定的項目數（同後端 content/page_schemas.py）；已發布內容不符時官網退回內建內容。 */
 export const PAGE_COUNTS = {
-  curriculum: { chapters: 4, years: 4, directions: 7, gallery: 8, daily: 5, beliefs: 5 }
+  curriculum: { chapters: 4, years: 4, directions: 7, gallery: 8, daily: 5, beliefs: 5 },
+  about: { chapterNames: 4, milestones: 5, hopeQuotes: 2 }
 } as const
 
 export function assertCounts(lists: Record<string, unknown>, expected: Record<string, number>): void {
