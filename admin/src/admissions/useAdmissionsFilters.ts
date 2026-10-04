@@ -2,8 +2,10 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { useCampusScope } from '../composables/useCampusScope'
 import { currentTerm } from './academic'
+import { isFollowUpScope, type FollowUpScope } from './followUp'
 
-export const ADMISSIONS_TABS = ['funnel', 'records', 'intake', 'arrivals', 'stats'] as const
+// followups（待追蹤，2026-10-04 參觀後追蹤規格 7.1）放在漏斗看板之後。
+export const ADMISSIONS_TABS = ['funnel', 'followups', 'records', 'intake', 'arrivals', 'stats'] as const
 export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 統計分析的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
@@ -11,6 +13,10 @@ export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'nodeposit', 
 export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// 待追蹤的負責人篩選：me、none 或帳號 id（後端 OWNER_FILTER_PATTERN）。
+export function isFollowUpOwner(value: unknown): value is string {
+  return typeof value === 'string' && (value === 'me' || value === 'none' || UUID.test(value))
+}
 // 民國月份「115.09」：三位數年份，同後端 academic.py 的 ROC_MONTH。
 const ROC_MONTH = /^\d{3}\.(0[1-9]|1[0-2])$/
 const text = (value: unknown): string => (typeof value === 'string' ? value : '')
@@ -40,6 +46,8 @@ function queryKey(query: LocationQuery | Record<string, string>): string {
  * - month：訪視明細的參觀月份（民國 115.09）；統計分頁的「查看本月明細」帶這個切過來。
  * - sub：統計分頁的子分頁，只在 tab=stats 時有意義，總覽不寫進網址；切子分頁用 replace，
  *   「查看」明細用 push，所以上一頁回到離開時的子分頁。
+ * - fu、owner：待追蹤分頁的範圍（due 是預設，不寫）與負責人（me／none／帳號 id；不帶＝全部），
+ *   只在 tab=followups 時有意義。
  * 畫面改條件用 replace 寫回網址，不堆瀏覽紀錄；網址被改（上一頁、連結）時讀回畫面。
  */
 export function useAdmissionsFilters() {
@@ -56,6 +64,8 @@ export function useAdmissionsFilters() {
   const visitRequestId = ref('')
   const month = ref('')
   const sub = ref<StatsSub>('overview')
+  const followUpScope = ref<FollowUpScope>('due')
+  const followUpOwner = ref('')
 
   function pickCampus(wanted: string): string {
     const keys = visibleCampusKeys.value
@@ -76,6 +86,8 @@ export function useAdmissionsFilters() {
     const roc = text(query.month)
     month.value = ROC_MONTH.test(roc) ? roc : ''
     sub.value = tab.value === 'stats' && isStatsSub(query.sub) ? query.sub : 'overview'
+    followUpScope.value = tab.value === 'followups' && isFollowUpScope(query.fu) ? query.fu : 'due'
+    followUpOwner.value = tab.value === 'followups' && isFollowUpOwner(query.owner) ? query.owner : ''
   }
 
   function stateQuery(): Record<string, string> {
@@ -88,6 +100,8 @@ export function useAdmissionsFilters() {
     if (visitRequestId.value) query.vr = visitRequestId.value
     if (month.value) query.month = month.value
     if (tab.value === 'stats' && sub.value !== 'overview') query.sub = sub.value
+    if (tab.value === 'followups' && followUpScope.value !== 'due') query.fu = followUpScope.value
+    if (tab.value === 'followups' && followUpOwner.value) query.owner = followUpOwner.value
     return query
   }
 
@@ -105,8 +119,14 @@ export function useAdmissionsFilters() {
 
   apply(route.query)
   // 離開統計分頁就把子分頁收回總覽，下次進來從總覽開始。
-  watch(tab, (value) => { if (value !== 'stats') sub.value = 'overview' })
-  watch([campus, schoolYear, semester, tab, visitRequestId, month, sub], syncUrl, { immediate: true })
+  watch(tab, (value) => {
+    if (value !== 'stats') sub.value = 'overview'
+    if (value !== 'followups') {
+      followUpScope.value = 'due'
+      followUpOwner.value = ''
+    }
+  })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month, sub, followUpScope, followUpOwner], syncUrl, { immediate: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -122,5 +142,7 @@ export function useAdmissionsFilters() {
     semester.value = null
   }
 
-  return { campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm }
+  return {
+    campus, schoolYear, semester, tab, visitRequestId, month, sub, followUpScope, followUpOwner, visibleCampusKeys, defaultYear, clearTerm,
+  }
 }

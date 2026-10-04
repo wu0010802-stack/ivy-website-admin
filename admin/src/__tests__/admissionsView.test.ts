@@ -107,13 +107,13 @@ describe('官網預約分頁標籤與權限', () => {
   it('標籤顯示待確認筆數；沒有 booking.read 的人看不到這個分頁，網址帶 tab=arrivals 退回看板', async () => {
     mockGet({ ...noArrivals, '/admin/admissions/arrivals': arrivals([arrivalRow(), arrivalRow({ visit_request_id: VR_ID_2 })]) })
     const { wrapper } = await mountWith(AdmissionsView)
-    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '訪視明細', '名額規劃', '官網預約2', '統計分析'])
+    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '名額規劃', '官網預約2', '統計分析'])
     cleanup()
 
     const get = mockGet({ '/admin/admissions/options': options() })
     const noBooking = testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['admissions.read'] })
     const second = await mountWith(AdmissionsView, { path: '/admissions?tab=arrivals', user: noBooking })
-    expect(tabTexts(second.wrapper)).toEqual(['漏斗看板', '訪視明細', '名額規劃', '統計分析'])
+    expect(tabTexts(second.wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '名額規劃', '統計分析'])
     expect(second.router.currentRoute.value.query.tab).toBeUndefined()
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])
   })

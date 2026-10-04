@@ -24,6 +24,9 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { createFromVisitRequest, listRecords } from '../api/admissions'
 import { stageLabel } from '../admissions/constants'
+import { followUpText, isDue, isOpenStage, lastContactText } from '../admissions/followUp'
+import ContactLogDialog, { type ContactTarget } from '../components/admissions/ContactLogDialog.vue'
+import FollowUpDialog, { type FollowUpTarget } from '../components/admissions/FollowUpDialog.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -719,14 +722,60 @@ async function createAdmissionsVisit() {
   }
 }
 
+// ---- 參觀後追蹤（2026-10-04 規格 7.6）----
+// 已到場、有招生訪視時，在聯絡紀錄上方顯示招生的追蹤狀態，記錄聯絡、排下次聯絡都直接記在
+// 招生訪視（預約到場後不再列入「到期待追蹤」）。負責人名字用承辦人清單對照（同一群人）。
+const followUpVisit = computed(() => (detail.value?.status === 'completed' ? admissionsVisit.value : null))
+const followUpEditable = computed(() => Boolean(followUpVisit.value && !followUpVisit.value.anonymized_at && canCreateAdmissions.value))
+const followUpOwnerName = computed(() => staffLabelById(followUpVisit.value?.follow_up_owner_id, staff.value))
+const contactLogOpen = ref(false)
+const contactLogTarget = ref<ContactTarget | null>(null)
+const followUpDialogOpen = ref(false)
+const followUpDialogTarget = ref<FollowUpTarget | null>(null)
+
+function openContactLog() {
+  const visit = followUpVisit.value
+  if (!visit) return
+  contactLogTarget.value = { id: visit.id, version: visit.version, child_name: visit.child_name, stage: visit.stage }
+  contactLogOpen.value = true
+}
+
+function openFollowUpDialog() {
+  const visit = followUpVisit.value
+  if (!visit) return
+  followUpDialogTarget.value = {
+    id: visit.id,
+    version: visit.version,
+    child_name: visit.child_name,
+    stage: visit.stage,
+    follow_up_at: visit.follow_up_at ?? null,
+    follow_up_owner_id: visit.follow_up_owner_id ?? null,
+  }
+  followUpDialogOpen.value = true
+}
+
+function onFollowUpSaved(visit: RecruitmentVisit) {
+  admissionsVisit.value = visit
+}
+
+// 對話框遇到 409：重讀招生訪視，並把新版本交回還開著的記錄聯絡對話框（內容保留）。
+async function onFollowUpStale() {
+  await loadAdmissionsVisit()
+  const visit = admissionsVisit.value
+  if (contactLogOpen.value && visit && contactLogTarget.value) {
+    contactLogTarget.value = { ...contactLogTarget.value, version: visit.version, stage: visit.stage }
+  }
+}
+
 async function addNote() {
   // 畫面上的案件（detail）才是要寫的那一筆；還在載入下一筆時不送。
   if (!newNote.value.trim() || !detail.value || detail.value.id !== id.value || busy.value) return
   const gen = generation
   const current = detail.value
   const nextFollowUp = followUpAt.value || null
-  // 改或清下次聯絡時間會蓋掉案件上的值，要帶版本；沒動就只記一筆紀錄。
-  const followUpChanged = !sameInstant(nextFollowUp, current.follow_up_at)
+  // 改或清下次聯絡時間會蓋掉案件上的值，要帶版本；沒動就只記一筆紀錄。已到場、已取消的案件
+  // 不列入到期待追蹤，選擇器也不顯示，不送下次聯絡（後端 FOLLOW_UP_NOT_TRACKED）。
+  const followUpChanged = followUpTracked.value && !sameInstant(nextFollowUp, current.follow_up_at)
   pendingAction.value = 'note'
   try {
     await api.post(`/admin/visit-requests/${current.id}/contact-notes`, {
@@ -872,7 +921,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             重新預約自 <router-link :to="`/visit-requests/${detail.related_request_id}`">先前的案件</router-link>
           </p>
           <p v-if="detail.slot" class="detail__when">參觀時間 {{ formatSlotWhen(detail.slot) }}</p>
-          <p v-if="detail.follow_up_at" class="detail__follow" :class="{ 'is-due': followUpDue }">
+          <p v-if="detail.follow_up_at && followUpTracked" class="detail__follow" :class="{ 'is-due': followUpDue }">
             {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
           </p>
         </div>
@@ -911,6 +960,29 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             </el-descriptions>
           </div>
 
+          <!-- 參觀後追蹤（2026-10-04）：已到場、有招生訪視時，追蹤記在招生訪視。 -->
+          <section v-if="followUpVisit" class="section detail__after">
+            <div class="section__title">
+              <h2>參觀後追蹤</h2>
+              <router-link :to="admissionsLink" class="detail__after-link">到招生入學</router-link>
+            </div>
+            <dl class="detail__after-summary">
+              <div><dt>招生階段</dt><dd>{{ stageLabel(followUpVisit.stage) }}</dd></div>
+              <div>
+                <dt>下次聯絡</dt>
+                <dd class="num" :class="{ 'is-due': isDue(followUpVisit.follow_up_at) }">{{ followUpText(followUpVisit.follow_up_at) }}</dd>
+              </div>
+              <div><dt>負責人</dt><dd>{{ followUpOwnerName }}</dd></div>
+              <div><dt>最近聯絡</dt><dd class="num">{{ lastContactText(followUpVisit.last_contacted_at) }}</dd></div>
+            </dl>
+            <div v-if="followUpEditable" class="detail__after-actions">
+              <el-button type="primary" :disabled="busy" @click="openContactLog">記錄聯絡</el-button>
+              <el-button v-if="isOpenStage(followUpVisit.stage)" :disabled="busy" @click="openFollowUpDialog">
+                {{ followUpVisit.follow_up_at ? '改期／負責人' : '排下次聯絡' }}
+              </el-button>
+            </div>
+          </section>
+
           <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面。 -->
           <section class="section">
             <div class="section__title"><h2>聯絡紀錄</h2></div>
@@ -936,7 +1008,10 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 @keydown.ctrl.enter="addNote"
               />
               <div class="notes__row">
-                <label class="notes__follow">
+                <span v-if="!followUpTracked" class="hint notes__untracked">
+                  {{ followUpVisit ? '已到場的案件請在上方「參觀後追蹤」排下次聯絡。' : '已到場或已取消的案件不會列入到期待追蹤。' }}
+                </span>
+                <label v-else class="notes__follow">
                   <span>下次聯絡</span>
                   <el-date-picker
                     v-model="followUpAt"
@@ -1121,6 +1196,14 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
         </aside>
       </div>
       <ManualVisitDialog v-model="rebookOpen" :campus-keys="visibleCampusKeys" :related-from="detail" @created="onRebooked" />
+      <ContactLogDialog v-model="contactLogOpen" :target="contactLogTarget" @saved="onFollowUpSaved" @stale="onFollowUpStale" />
+      <FollowUpDialog
+        v-model="followUpDialogOpen"
+        :target="followUpDialogTarget"
+        :campus-key="detail.campus_key"
+        @saved="onFollowUpSaved"
+        @stale="loadAdmissionsVisit"
+      />
     </template>
   </div>
 </template>
@@ -1166,6 +1249,48 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+
+.detail__after-link {
+  margin-left: auto;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.detail__after-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 12px;
+}
+
+.detail__after-summary dt {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.detail__after-summary dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.detail__after-summary dd.is-due {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.detail__after-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail__after-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.notes__untracked {
+  flex: 1 1 200px;
 }
 
 .notes__follow {

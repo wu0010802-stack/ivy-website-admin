@@ -6,9 +6,10 @@ import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
 import IntakePlanTab from '../components/admissions/IntakePlanTab.vue'
 import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
+import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getArrivals, getOptions } from '../api/admissions'
+import { getArrivals, getFollowUps, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
 import { usePermissions } from '../composables/usePermissions'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -16,9 +17,12 @@ import { schoolYearOptions } from '../admissions/academic'
 import { SEMESTER_LABELS } from '../admissions/constants'
 import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissions/useAdmissionsFilters'
 
-// 招生入學（規格第 10 節）：頁首放校區與入學學年學期，五個分頁順序比照園務。
+// 招生入學（規格第 10 節）：頁首放校區與入學學年學期，分頁順序比照園務；漏斗看板之後
+// 另有官網延伸的「待追蹤」（2026-10-04 參觀後追蹤規格 7.1）。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
-const { campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm } = useAdmissionsFilters()
+const {
+  campus, schoolYear, semester, tab, visitRequestId, month, sub, followUpScope, followUpOwner, visibleCampusKeys, defaultYear, clearTerm,
+} = useAdmissionsFilters()
 const { can } = usePermissions()
 const route = useRoute()
 const router = useRouter()
@@ -64,11 +68,27 @@ async function loadArrivalsCount() {
     // 數字只是提醒；讀不到就不顯示，分頁裡會再顯示錯誤。
   }
 }
+// 「待追蹤」分頁標籤上的已到期筆數（totals.due，不受負責人篩選影響）。
+const followUpDue = ref<number | null>(null)
+const followUpRequests = useRequestSequence()
+async function loadFollowUpCount() {
+  followUpDue.value = null
+  if (!campus.value) return
+  const request = followUpRequests.begin()
+  try {
+    const result = await getFollowUps({ campus_key: campus.value, scope: 'due', owner: null, page: 1, page_size: 1 })
+    if (followUpRequests.isCurrent(request)) followUpDue.value = result.totals.due
+  } catch {
+    // 數字只是提醒；讀不到就不顯示，分頁裡會再顯示錯誤。
+  }
+}
 watch(campus, async (key) => {
   arrivalsCount.value = null
+  followUpDue.value = null
   arrivalsRequests.begin()
+  followUpRequests.begin()
   await checkAvailability()
-  if (campus.value === key && availability.value === 'on') await loadArrivalsCount()
+  if (campus.value === key && availability.value === 'on') await Promise.all([loadArrivalsCount(), loadFollowUpCount()])
 }, { immediate: true })
 
 // 沒有 booking.read 的人從網址帶 tab=arrivals 進來：退回漏斗看板。
@@ -99,6 +119,9 @@ function showUnscoped() {
 // 官網預約分頁讀完清單會回報待確認筆數；標記到場後標籤上的數字跟著變。
 function onArrivalsCount(count: number) {
   arrivalsCount.value = count
+}
+function onFollowUpCount(count: number) {
+  followUpDue.value = count
 }
 </script>
 
@@ -133,6 +156,9 @@ function onArrivalsCount(count: number) {
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
         <el-tab-pane label="漏斗看板" name="funnel" />
+        <el-tab-pane name="followups">
+          <template #label>待追蹤<span v-if="followUpDue" class="admissions__count admissions__count--due num">{{ followUpDue }}</span></template>
+        </el-tab-pane>
         <el-tab-pane label="訪視明細" name="records" />
         <el-tab-pane label="名額規劃" name="intake" />
         <el-tab-pane v-if="canSeeArrivals" name="arrivals">
@@ -142,6 +168,13 @@ function onArrivalsCount(count: number) {
       </el-tabs>
 
       <div class="admissions__body">
+        <FollowUpsTab
+          v-if="tab === 'followups'"
+          v-model:scope="followUpScope"
+          v-model:owner="followUpOwner"
+          :campus-key="campus"
+          @count="onFollowUpCount"
+        />
         <FunnelBoard v-if="tab === 'funnel'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @show-unscoped="showUnscoped" />
         <RecordsTab
           v-if="tab === 'records'"
@@ -195,6 +228,11 @@ function onArrivalsCount(count: number) {
   color: var(--brand-gold-ink);
   font-size: 12px;
   font-weight: 600;
+}
+
+.admissions__count--due {
+  background: var(--el-color-danger-light-8);
+  color: var(--el-color-danger);
 }
 
 .admissions__off {

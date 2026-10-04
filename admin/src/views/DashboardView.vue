@@ -57,6 +57,9 @@ interface DashboardSummary {
   my_unread_notifications?: number
   needs_attention?: number
   pending_follow_up: number
+  // 招生待追蹤（2026-10-04 參觀後追蹤規格 7.7）：招生入學開啟且有 admissions.read 才有這兩個鍵。
+  admissions_follow_up_due?: number
+  admissions_follow_up_due_by_campus?: Record<string, number>
   pending_publish: number
   pending_publish_kinds?: string[]
   pending_publish_items?: PendingPublishItem[]
@@ -267,6 +270,15 @@ const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
 // 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
 const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 const followUpDue = computed(() => summary.value?.pending_follow_up ?? 0)
+// 招生待追蹤：連到第一個有到期的校區的「待追蹤」分頁；多校時列出各校筆數（只列大於 0 的）。
+const admissionsDue = computed(() => summary.value?.admissions_follow_up_due ?? 0)
+const admissionsDueCampuses = computed(() =>
+  Object.entries(summary.value?.admissions_follow_up_due_by_campus ?? {}).filter(([, count]) => count > 0),
+)
+const admissionsDuePath = computed(() => {
+  const first = admissionsDueCampuses.value[0]?.[0]
+  return first ? `/admissions?tab=followups&campus=${first}` : '/admissions?tab=followups'
+})
 const awaitingAttendance = computed(() => summary.value?.awaiting_attendance ?? 0)
 // 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
 // 再來是場次關了家長還要來、改期申請、新需求、到期追蹤。按鈕上的字講的是
@@ -364,6 +376,7 @@ const hasTodo = computed(() => {
     (myNotices.value > 0 && canOpen('/releases')) ||
     needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
+    admissionsDue.value > 0 ||
     awaitingAttendance.value > 0 ||
     pendingPublishCount.value > 0 ||
     visibleReviews.value.length > 0 ||
@@ -452,6 +465,17 @@ const hasTodo = computed(() => {
             <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
               <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
               <div><h3 id="task-due-t">案件已到追蹤時間</h3><p id="task-due-d">之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span id="task-due-a" class="task__action">查看到期案件 <span aria-hidden="true">→</span></span></div>
+            </router-link>
+            <router-link v-if="admissionsDue > 0" class="task" :to="admissionsDuePath" v-bind="taskAria('admissions-due')">
+              <span id="task-admissions-due-n" class="task__number">{{ admissionsDue }}</span>
+              <div>
+                <h3 id="task-admissions-due-t">參觀後該聯絡的家長</h3>
+                <p id="task-admissions-due-d">
+                  招生訪視排的下次聯絡到了。聯絡後按「記錄聯絡」，再決定下次什麼時候聯絡或不用再追。
+                  <template v-if="admissionsDueCampuses.length > 1">{{ admissionsDueCampuses.map(([key, count]) => `${campusLabel(key)} ${count}`).join('、') }}。</template>
+                </p>
+                <span id="task-admissions-due-a" class="task__action">到招生入學的待追蹤 <span aria-hidden="true">→</span></span>
+              </div>
             </router-link>
             <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
               <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>

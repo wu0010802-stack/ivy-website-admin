@@ -291,7 +291,11 @@ describe('下次聯絡', () => {
       const { wrapper } = await mountDetail()
       expect(wrapper.find('textarea').exists()).toBe(true)
       expect(wrapper.find('.notes__past').exists()).toBe(false)
-      expect(wrapper.find('.detail__follow').classes()).not.toContain('is-due')
+      // 2026-10-04 參觀後追蹤規格 6.6、7.6：不列入到期待追蹤的案件，頁首不再顯示殘留的「預定聯絡」，
+      // 聯絡紀錄框也不給設下次聯絡（設了永遠不會出現在任何待辦）。
+      expect(wrapper.find('.detail__follow').exists()).toBe(false)
+      expect(wrapper.find('.notes__follow').exists()).toBe(false)
+      expect(wrapper.find('.notes__untracked').text()).toContain('不會列入到期待追蹤')
       wrapper.unmount()
       wrappers.splice(wrappers.indexOf(wrapper), 1)
       vi.restoreAllMocks()

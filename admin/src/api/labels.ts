@@ -475,6 +475,17 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.seat': '保留或釋放座位',
   'grade_intake_target.update': '設定計畫名額',
   'recruitment_visit.create_from_booking': '由官網預約建立招生訪視',
+  // 參觀後追蹤（2026-10-04）
+  'recruitment_visit.contact_logged': '記錄參觀後聯絡',
+  'recruitment_visit.follow_up_update': '改下次聯絡或追蹤負責人',
+}
+
+// 參觀後聯絡的方式（後端 admissions/constants.py CONTACT_CHANNELS；admissionsFollowUp.test.ts 比對）。
+export const CONTACT_CHANNEL_LABELS: Record<string, string> = {
+  phone: '電話',
+  line: 'LINE',
+  in_person: '當面',
+  other: '其他',
 }
 
 export function auditActionLabel(action: string): string {
@@ -1133,6 +1144,7 @@ export function auditChangeSummary(metadata: Record<string, unknown> | null | un
 /** 刻意不顯示的鍵：UUID、內部版本號與舊 API 才有的欄位，對園方沒有意義。 */
 export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'note_id',
+  'log_id',
   'run_id',
   'job_id',
   'revision_version',
@@ -1337,6 +1349,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   school_year: (v) => `入學學年：${String(v)} 學年`,
   semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
   grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
+  // 參觀後追蹤（不記聯絡內容，只記方式與結果）
+  channel: (v) => `聯絡方式：${CONTACT_CHANNEL_LABELS[String(v)] ?? String(v)}`,
+  reached: (v) => (v ? '聯絡到了' : '沒聯絡到'),
+  parent_response_updated: (v) => (v ? '同時更新電訪回應' : null),
+  owner_changed: (v) => (v ? '換了追蹤負責人' : null),
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。
