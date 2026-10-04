@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-04 30 週年分頁 `/anniversary`（main CI 部署，不公開）
+
+使用者轉達業主同意：先以不公開方式上線（noindex、不進主選單與 sitemap），30 週年校徽可以用在這頁。PR #29（`feature/anniversary-page-20261004`）rebase 到 main `d559cae`（重設密碼連結，另一個 session）之後以 rebase 方式合併成 `9068de8`；等 `d559cae` 那次部署跑完才合併，兩次部署沒有疊在一起。規則見 DESIGN.md「30 週年分頁」。
+
+- **內容**：`pages/anniversary.vue`、`AnniversaryContent.vue`、`AnniversaryIntro.vue`、`utils/anniversary/*`、`assets/css/anniversary.css`；頁首 `PILL_PAGES` 加 `/anniversary`；素材 `web/public/assets/anniversary/*`（影片桌機 11.6MB、手機 6.0MB，其餘約 0.6MB，`scripts/build-anniversary-media.py` 產生）。
+- **沒有 migration**：只動 `web/`、`scripts/` 與文件。
+- **CI**：PR run 37168723849／37168721696（`16dd36a`）全綠；main run 37169637468（`9068de8`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-04 01:59–02:13 UTC）。
+- **正式 `release.json`**：base commit `9068de8`，created `2026-10-04T02:10:22Z`。
+- **線上唯讀檢查**（Playwright，擋 `POST /api/telemetry`）：1440×900 與 390×844 都是 200、標題「常春藤 30 週年｜1997—2027｜常春藤教育機構」、`robots: noindex, nofollow`；開場自動播放（桌機 `film-desktop`、手機 `film-mobile`），略過後飛進首屏海報；時間軸五張卡片都立起、終點校徽、拼圖、畫板可用；兩種寬度都沒有橫向捲動、沒有 pageerror 與失敗請求。影片 Range 206 `video/mp4`。預約按鈕顯示各校實際設定（義華「選擇參觀日期與場次」、崇德「線上預約即將開放」）。
+- **未做**：iOS Safari／Android 實機；真人聽開場配樂。
+
 ## 2026-10-04 官網後台總管理者寄重設密碼連結（main CI 部署）
 
 使用者要求合進本機 main 後自行 push。本機 main 先快轉到 origin/main `fb3757c`，再 `--no-ff` 合入 `feature/admin-password-reset-20261003`（`fe88466`）成 `d559cae`，推送 `fb3757c4..d559cae6`（快轉）。規則見 DESIGN.md「官網後台重設密碼連結」。
