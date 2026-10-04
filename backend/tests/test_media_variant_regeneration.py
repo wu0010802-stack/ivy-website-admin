@@ -13,7 +13,7 @@ from PIL import Image
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
-from app.media import regenerate
+from app.media import regenerate, service
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
 from app.media.processing import make_webp
 from app.media.storage import LocalMediaStorage
@@ -91,7 +91,7 @@ def test_make_webp_keeps_alpha_and_drops_it_when_fully_opaque():
 @pytest.mark.asyncio
 async def test_transparent_png_thumbnail_and_large_keep_alpha(admin_client):
     body = await _upload(admin_client, _png_with_hole(2000, 1000), "line.png", "image/png")
-    assert _variants(body) == {"thumbnail": (480, 240), "large": (1600, 800)}
+    assert _variants(body) == {"thumbnail": (480, 240), "medium": (960, 480), "large": (1600, 800)}
     for kind in ("thumbnail", "large"):
         response = await admin_client.get(f"{MEDIA}/{body['id']}/variants/{kind}")
         img = Image.open(io.BytesIO(response.content))
@@ -109,7 +109,7 @@ async def test_exif_rotated_photo_records_oriented_size(admin_client):
     body = await _upload(admin_client, _rotated_jpeg(2000, 1000), "phone.jpg", "image/jpeg")
     # 原始像素 2000×1000，瀏覽器依 EXIF 顯示成 1000×2000；素材與衍生檔都記直的。
     assert (body["width"], body["height"]) == (1000, 2000)
-    assert _variants(body) == {"thumbnail": (240, 480), "large": (800, 1600)}
+    assert _variants(body) == {"thumbnail": (240, 480), "medium": (480, 960), "large": (800, 1600)}
     thumb = await admin_client.get(f"{MEDIA}/{body['id']}/variants/thumbnail")
     assert Image.open(io.BytesIO(thumb.content)).size == (240, 480)
 
@@ -165,11 +165,11 @@ async def test_migration_clears_legacy_and_alpha_capable_variants_and_swaps_rota
     def sizes(name: str) -> dict[str, tuple[int | None, int | None]]:
         return {v.kind.value: (v.width, v.height) for v in by_id[ids[name]].variants}
 
-    assert sizes("legacy") == {"thumbnail": (None, None), "large": (None, None)}
+    assert sizes("legacy") == {"thumbnail": (None, None), "medium": (960, 720), "large": (None, None)}
     assert sizes("png") == {"thumbnail": (None, None)}
-    assert sizes("photo") == {"thumbnail": (480, 360), "large": (1600, 1200)}
+    assert sizes("photo") == {"thumbnail": (480, 360), "medium": (960, 720), "large": (1600, 1200)}
     assert (by_id[ids["rotated"]].width, by_id[ids["rotated"]].height) == (1000, 2000)
-    assert sizes("rotated") == {"thumbnail": (240, 480), "large": (800, 1600)}
+    assert sizes("rotated") == {"thumbnail": (240, 480), "medium": (480, 960), "large": (800, 1600)}
     assert (by_id[ids["photo"]].width, by_id[ids["photo"]].height) == (2000, 1500)
 
 
@@ -222,7 +222,7 @@ async def test_regenerate_rebuilds_legacy_and_transparent_variants(app, admin_cl
     )
     assert published.status_code == 200, published.text
     before = (await public_client.get(f"{API}/public/site")).json()["media"][str(legacy_id)]["variants"]
-    assert [(v["kind"], v["width"]) for v in before] == [("thumbnail", None)]
+    assert [(v["kind"], v["width"]) for v in before] == [("medium", None), ("thumbnail", None)]
 
     candidates = {c.asset_id: c for c in await regenerate.find_candidates(db_session)}
     await db_session.rollback()
@@ -248,14 +248,15 @@ async def test_regenerate_rebuilds_legacy_and_transparent_variants(app, admin_cl
     ).scalar_one()
     assert (asset.width, asset.height) == (1000, 2000)
     assert asset.sha256 is not None and len(asset.sha256) == 64
-    assert {v.kind.value: (v.width, v.height) for v in asset.variants} == {"thumbnail": (240, 480), "large": (800, 1600)}
+    assert {v.kind.value: (v.width, v.height) for v in asset.variants} == {"thumbnail": (240, 480), "medium": (480, 960), "large": (800, 1600)}
     thumb = await admin_client.get(f"{MEDIA}/{legacy_id}/variants/thumbnail")
     assert Image.open(io.BytesIO(thumb.content)).size == (240, 480)
 
     after = (await public_client.get(f"{API}/public/site")).json()["media"][str(legacy_id)]["variants"]
-    assert [(v["kind"], v["width"]) for v in after] == [("thumbnail", 240), ("large", 800)]
+    assert [(v["kind"], v["width"]) for v in after] == [("thumbnail", 240), ("medium", 480), ("large", 800)]
     # 新的衍生檔是新記錄：網址上的版本換掉，瀏覽器不會拿快取過的躺著的縮圖。
-    assert after[0]["version"] != before[0]["version"]
+    before_thumb = next(v for v in before if v["kind"] == "thumbnail")
+    assert after[0]["version"] != before_thumb["version"]
     await db_session.rollback()
 
 
@@ -362,3 +363,24 @@ async def test_film_clip_must_fit_video_duration(admin_client, db_session):
         f"{API}/admin/content-items/home_news/revisions", json={"expected_version": 2, "payload": _news(unknown, 30, 60)}
     )
     assert response.status_code == 201, response.text
+
+
+@pytest.mark.asyncio
+async def test_missing_medium_is_a_candidate_and_gets_regenerated(app, admin_client, db_session):
+    from sqlalchemy import delete
+
+    body = await _upload(admin_client, _jpeg(1200, 900), "mid.jpg", "image/jpeg")
+    assert _variants(body) == {"thumbnail": (480, 360), "medium": (960, 720)}
+    media_id = uuid.UUID(body["id"])
+    # 模擬中圖上線前上傳的圖：只有縮圖。
+    await db_session.execute(
+        delete(MediaVariant).where(MediaVariant.media_id == media_id, MediaVariant.kind == VariantKind.MEDIUM)
+    )
+    await db_session.commit()
+    reasons = {c.asset_id: c.reasons for c in await regenerate.find_candidates(db_session)}
+    assert reasons[media_id] == [regenerate.REASON_NO_MEDIUM]
+    storage = service.get_storage(app.state.settings)
+    await regenerate.regenerate_image_variants(db_session, storage, media_id)
+    await db_session.commit()
+    after = (await admin_client.get(f"{MEDIA}/{media_id}")).json()
+    assert _variants(after) == {"thumbnail": (480, 360), "medium": (960, 720)}

@@ -13,6 +13,29 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 素材背景轉檔上線步驟（2026-10-04，未部署，`feature/media-jobs-20261003`）
+
+migration `e5b9c3a7d214`（接在 `d2b7f4c9e1a3` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
+
+部署前：
+
+- 照慣例先備份正式 DB 與媒體 volume（或 S3 bucket），做法見下方「部署後（必做）」第 1 點，由使用者本人執行。
+- 確認 `alembic heads` 仍只有一個；push 後確認 CI 的 HLG 整合測試是 pass 而不是 skip（本機 ffmpeg 沒有 zscale，只有 CI 會跑）。
+- 轉檔與 API 在同一個容器。本機實測（Apple 8 核，轉檔限 2 執行緒）：25 秒 720p 影片桌機版 10.1 秒、峰值記憶體約 235 MB；合成 4K60 6 秒來源約 524 MB。HDR（zscale）本機量不到。正式站 api 容器的記憶體與 CPU 上限要本人在 Railway 看；2 vCPU 的話轉檔期間 API 只分到很少 CPU（已 nice 10）。不夠就升級方案或另開 worker 服務，後者是付費服務，需本人同意。
+
+部署後（auto 模式會擋 `railway ssh`，以下請自己在終端機跑）：
+
+1. `curl -s https://<正式網域>/api/website/v1/health | python3 -m json.tool`：`media_jobs.enabled` 為 `true`。
+2. 查 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`（SIGTERM 到 SIGKILL 的寬限秒數）：Railway api 服務 Variables，或 `railway variables --service api --environment production | grep DRAINING`。為 0 或很短時，部署碰上轉檔都算一次嘗試（最多 3 次）；抽 poster 的 ffmpeg 最多 30 秒不可中止，建議寬限不要低於 35 秒。
+3. 查正式映像有沒有 HDR 需要的 `zscale`：`! railway ssh --service api --environment production -- sh -c 'ffmpeg -hide_banner -filters | grep -E " (zscale|tonemap) "'`。沒有 zscale 時 HDR 影片帶 tonemap 的轉檔會失敗並退回不轉色調，顏色偏灰，要另外決定是否換 ffmpeg 來源。
+4. 後台上傳一支短影片：卡片先顯示「轉檔中」，幾十秒內變可用；同時在 Railway metrics 看 api 記憶體與 CPU 峰值，對照上面的本機數字。再用一支手機直拍影片確認方向，並用 iOS Safari 播放轉檔版本。
+5. 既有影片補轉檔（**先備份媒體 volume 或 S3 bucket，並看 volume 剩餘空間**；每支影片多兩個衍生檔）：
+   - `! railway ssh --service api --environment production -- python -m app.cli transcode-media-videos`（dry-run，確認清單）
+   - `! railway ssh --service api --environment production -- python -m app.cli transcode-media-videos --apply`（排入，API 逐支轉；進度看素材庫或 health 的 `media_jobs`）
+   - 已是可直接播的 H.264 且轉完不小於原檔 90% 的影片，會沿用原檔、不寫衍生檔。沒有 `--force`；之後改轉檔參數，要手動清 `media_jobs` 對應的 done 工作才會重列。
+6. 既有圖片補中圖：`! railway ssh --service api --environment production -- python -m app.cli regenerate-media-variants`（dry-run）→ 加 `--apply`。因「缺中圖」會把每張圖的縮圖／中圖／大圖全部重產，**全站圖片網址會換一次，瀏覽器與 CDN 快取失效一次**，建議挑離峰時間；有 Cloudflare 之類的 CDN 可順便 purge `/api/website/v1/public/media/*`。
+7. 部署紀錄補在下方：health 結果、draining 秒數、zscale 有無、記憶體峰值、回補的各項數量。
+
 ## 特色教學頁、關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，未部署）
 
 不需要 migration、不需要改環境變數。上線後**不必**跑 `initialize-content`：官網沒發布過這兩份內容（`curriculum_page`、`about_page`）時顯示內建內容，後台打開編輯頁會帶出同一份。若要跑，先加 `--dry-run`，確認清單只有 `curriculum_page`、`about_page` 再跑（指令由使用者用 `! railway ssh …` 執行）；它會連帶補建其他從未建立的項目。

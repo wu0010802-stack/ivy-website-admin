@@ -12,6 +12,7 @@ import { canEditSharedContent } from '../router/nav'
 import { usePermissions } from '../composables/usePermissions'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { canRetryProcessing, processingNote, useProcessingPoll } from '../composables/mediaProcessing'
 import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { CAMPUS_KEYS } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
@@ -97,6 +98,23 @@ async function load() {
 }
 
 watch(listState, load)
+
+function replaceListed(fresh: MediaAssetOut) {
+  const index = assets.value.findIndex((a) => a.id === fresh.id)
+  if (index >= 0) assets.value.splice(index, 1, fresh)
+}
+
+// 影片轉檔中的卡片自己更新，不必重新整理頁面。
+useProcessingPoll(() => assets.value, replaceListed)
+
+async function retryProcessing(asset: MediaAssetOut) {
+  try {
+    replaceListed(await api.post<MediaAssetOut>(`/admin/media/${asset.id}/retry`))
+    ElMessage.success('已重新排入轉檔')
+  } catch (err) {
+    notifyError(apiErrorMessage(err, '重新處理失敗，請稍後再試'))
+  }
+}
 
 /** 「首頁最新消息、校園探索（義華）」；沒有草稿在用時回空字串。 */
 function usedInText(asset: MediaAssetOut): string {
@@ -449,6 +467,7 @@ onMounted(async () => {
           <span v-if="usedInText(asset)" class="media__sub media__used">用在：{{ usedInText(asset) }}</span>
           <span v-if="asset.deleted_at" class="media__warn">{{ formatDateTime(asset.purge_after) }} 後永久刪除</span>
           <span v-else-if="!asset.alt_text" class="media__warn">{{ asset.kind === 'image' ? '未填圖片說明' : '未填影片說明' }}</span>
+          <span v-if="asset.status !== 'ready' && !asset.deleted_at" class="media__warn">{{ processingNote(asset) }}</span>
           <span v-if="asset.tags?.length" class="media__tags">
             <button v-for="t in asset.tags" :key="t" type="button" class="media__tag" :title="`只看標籤「${t}」的素材`" @click="tagFilter = t"><span>{{ t }}</span></button>
           </span>
@@ -461,7 +480,9 @@ onMounted(async () => {
           <template v-else>
             <template v-if="canManageAsset(asset)">
               <el-button v-if="asset.archived_at" size="small" text @click="setArchived(asset, false)">取消封存</el-button>
-              <el-button v-else-if="asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
+              <!-- 轉檔中也能補說明（選影片上傳後的提示叫人來按「編輯」）；處理失敗的改放重新處理。 -->
+              <el-button v-else-if="asset.status !== 'failed'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
+              <el-button v-else-if="canRetryProcessing(asset)" size="small" text type="primary" @click="retryProcessing(asset)">重新處理</el-button>
             </template>
             <el-button size="small" text @click="openUsages(asset)">用在哪裡</el-button>
             <el-dropdown
@@ -477,10 +498,10 @@ onMounted(async () => {
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item v-if="asset.archived_at && asset.status === 'ready'" command="edit">編輯</el-dropdown-item>
+                  <el-dropdown-item v-if="asset.archived_at && asset.status !== 'failed'" command="edit">編輯</el-dropdown-item>
                   <el-dropdown-item v-if="!asset.archived_at && asset.status === 'ready'" command="replace">替換</el-dropdown-item>
                   <el-dropdown-item v-if="!asset.archived_at" command="archive">封存</el-dropdown-item>
-                  <el-dropdown-item command="delete" :divided="asset.status === 'ready' || !asset.archived_at" class="media-more__danger">刪除</el-dropdown-item>
+                  <el-dropdown-item command="delete" :divided="asset.status !== 'failed' || !asset.archived_at" class="media-more__danger">刪除</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>

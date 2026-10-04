@@ -171,11 +171,23 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 - 設好新密碼後對方所有裝置登出，密碼錯太多次的登入暫停也一併解除。
 - 本機開發要在 API 設 `WEBSITE_ADMIN_ORIGIN` 與 `WEBSITE_NOTIFICATION_EMAIL_SINK_DIR`，「寄重設連結」才能選（沒設時該選項停用並附說明）；信寫在 sink 資料夾。
 
+## 影片轉檔（2026-10-04）
+
+- 開關：`WEBSITE_MEDIA_VIDEO_PROCESSING=background|inline`（正式站預設 background；本機開發、測試與 `import-site-assets` 是 inline）、`WEBSITE_MEDIA_JOBS_POLL_SECONDS`（預設 5）。
+- 健康檢查 `/api/website/v1/health` 的 `media_jobs`：`enabled` 看背景迴圈是否還在跑（儲存體設定錯時迴圈會結束，變 `false`），`last_processed_at`／`last_failed_at` 看最近一次結果。
+- 卡住時：`media_jobs` 表看 `status='running'` 的 `leased_until`；程序重啟後最多 120 秒會被接手，中斷 3 次標失敗。
+- 轉檔限 2 執行緒（nice 10），一次只轉一支。影片上限 10 分鐘，超過的上傳當下就擋。已是可直接播的 H.264 且轉檔結果不小於原檔 90% 的，不寫衍生檔，官網照播原檔。
+- 停機：先把執行中的工作放回佇列，再中止 ffmpeg；抽 poster 的 ffmpeg／ffprobe 不可中止，最多約 30／15 秒。Railway 的 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` 若是 0，每次部署碰上轉檔都算一次嘗試（最多 3 次）。
+- 既有影片補轉檔：`python -m app.cli transcode-media-videos`（dry-run）→ `--apply`（排入背景）。排除已有 done 工作與超過 10 分鐘的影片；沒有 `--force`，之後改轉檔參數要手動清 `media_jobs` 才會重列。
+- 既有圖片補中圖：`python -m app.cli regenerate-media-variants`（dry-run）→ `--apply`。會把每張圖的縮圖／中圖／大圖全部重產，全站圖片網址換一次。
+- inline 模式在呼叫端交易內等 ffmpeg，長影片可能撞 idle_in_transaction 300 秒；正式站全新匯入長影片（`import-site-assets`）要先改設 background。
+
 ## 已知限制（誠實列出，2026-09-25／26 更新）
 
 - `web/` 已改用完整 LINE Seed TW（見 `web/public/assets/fonts/README.md`），CMS 開放編輯標題不再受子集缺字限制。**品牌名稱與 Logo 仍在後台鎖定不可改**，但理由已不是字型子集，而是 2026-09-19 的業主品牌核可（「網站標題與電話」頁有說明）。
 - 時段規則現在會自動往後延展：定期工作每天依每週規則把時段補到「最遠開放天數」，跳過休假日與已開始的場次，冪等、不動已存在或手動調整過的時段；改規則或最遠開放天數後約一分鐘內就會補；要整天停開請設休假日。園方仍可在「時段與容量」手動「依規則產生時段」補特定範圍。
 - 稽核紀錄已涵蓋幾乎所有管理操作（見上「稽核紀錄」），並有靜態測試擋漏寫。
+- 影片上傳後在背景轉檔（`app/media/jobs.py`，見上「影片轉檔」）：處理失敗的影片保留原檔，**不計入校區素材空間**（使用者接受），重新處理也不檢查配額；刪除後照一般刪除流程清理。ffmpeg 與 API 同一個容器、同一個程序，轉檔期間 API 會分到較少 CPU；容器資源是否足夠待上線後看 Railway metrics。
 - 規格 190 的 `age`／`preferred_time` 已改存固定代碼（2026-09-24，migration `a9c4e2f7d316` 轉換既有資料）。API 仍接受舊版官網送的中文標籤並換成代碼；冪等 hash 用中文標籤計算，跨版本重送不會誤判成 409。
 - 公開端點限流的來源桶依賴 web 代理帶上的 `x-website-client-ip`（`web/server/routes/api/website/v1/[...].ts` 已設定並顯式覆寫）。若日後把 api 直接暴露到公網，必須先拿掉 `WEBSITE_TRUSTED_CLIENT_IP_HEADER`，否則這個 header 可被偽造。
 - 共用內容（首頁、頁尾、網站設定、共用素材）預設只有總管理者能改；總管理者可以對分校管理者或內容編輯授予「全站共用內容」（`content.shared`）。內容編輯有授權也只能送審；有授權的分校管理者可以發布與審核共用內容。**個資匯出已改為逐人授權**（見上「權限」一節），不再是依角色自動給。

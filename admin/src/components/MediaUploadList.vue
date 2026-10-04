@@ -14,8 +14,10 @@ const TONES: Record<UploadStatus, StatusMeta['tone']> = {
   failed: 'danger',
 }
 
-function meta(status: UploadStatus): StatusMeta {
-  return { label: UPLOAD_STATUS_LABELS[status], tone: TONES[status] }
+function meta(item: UploadItem): StatusMeta {
+  // 影片上傳完還要在背景轉檔（後端 app/media/jobs.py）。
+  if (item.status === 'done' && item.asset?.status === 'processing') return { label: '已上傳，轉檔中', tone: 'warning' }
+  return { label: UPLOAD_STATUS_LABELS[item.status], tone: TONES[item.status] }
 }
 </script>
 
@@ -24,7 +26,7 @@ function meta(status: UploadStatus): StatusMeta {
     <li v-for="item in items" :key="item.id" class="uploads__row" :data-status="item.status">
       <span class="uploads__name" :title="item.file.name">{{ item.file.name }}</span>
       <span class="uploads__size">{{ formatFileSize(item.file.size) }}</span>
-      <StatusTag :meta="meta(item.status)" size="small" />
+      <StatusTag :meta="meta(item)" size="small" />
       <el-button
         v-if="item.status === 'queued' || item.status === 'failed'"
         size="small"

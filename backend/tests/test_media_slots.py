@@ -81,7 +81,7 @@ def _slot(media_id: str, **focus) -> dict:
 async def test_large_image_gets_thumbnail_and_large_variants_with_sizes(admin_client):
     body = await _upload(admin_client, data=_jpeg(2000, 1500))
     variants = {v["kind"]: v for v in body["variants"]}
-    assert set(variants) == {"thumbnail", "large"}
+    assert set(variants) == {"thumbnail", "medium", "large"}
     assert (variants["thumbnail"]["width"], variants["thumbnail"]["height"]) == (480, 360)
     assert (variants["large"]["width"], variants["large"]["height"]) == (1600, 1200)
 
@@ -120,7 +120,9 @@ async def test_admin_variant_route_serves_thumbnail_and_404s_missing_kind(admin_
 @pytest.mark.asyncio
 async def test_video_poster_variant_route(admin_client):
     body = await _upload(admin_client, kind="video", name="a.mp4")
-    [poster] = body["variants"]
+    # 樣本已能直接播、轉檔版本不比原檔小：沿用原檔，只有 poster。
+    assert {v["kind"] for v in body["variants"]} == {"poster"}
+    poster = next(v for v in body["variants"] if v["kind"] == "poster")
     assert poster["kind"] == "poster" and poster["width"] == 160 and poster["height"] == 120
     response = await admin_client.get(f"{MEDIA}/{body['id']}/variants/poster")
     assert response.status_code == 200 and response.headers["content-type"] == "image/webp"
@@ -296,7 +298,7 @@ async def test_public_site_lists_referenced_media_with_variants_and_focus(admin_
     assert info["kind"] == "image" and (info["width"], info["height"]) == (2000, 1500)
     assert info["alt_text"] == "孩子與長輩"
     assert (info["focus_x"], info["focus_y"]) == (30.0, 60.0)
-    assert [(v["kind"], v["width"]) for v in info["variants"]] == [("thumbnail", 480), ("large", 1600)]
+    assert [(v["kind"], v["width"]) for v in info["variants"]] == [("thumbnail", 480), ("medium", 960), ("large", 1600)]
 
 
 @pytest.mark.asyncio

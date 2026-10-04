@@ -27,6 +27,7 @@ from app.auth.permissions import (
 )
 from app.auth.service import get_session_by_token
 from app.config import Settings
+from app.media import jobs as media_jobs
 from app.media import references as media_references
 from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
@@ -173,7 +174,7 @@ async def _file_response(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個素材") from exc
 
 
-VariantName = Literal["thumbnail", "poster", "large"]
+VariantName = Literal["thumbnail", "poster", "large", "medium", "video_desktop", "video_mobile"]
 
 
 def _variant(asset: MediaAsset, name: VariantName) -> MediaVariant:
@@ -183,7 +184,7 @@ def _variant(asset: MediaAsset, name: VariantName) -> MediaVariant:
     for variant in asset.variants:
         if variant.kind == wanted:
             return variant
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這個素材沒有這種縮圖")
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="這個素材沒有這種衍生檔")
 
 
 router = APIRouter(prefix="/api/website/v1/admin/media", tags=["media"])
@@ -445,6 +446,7 @@ async def upload_media(
             alt_text=alt_text,
             source_attribution=source_attribution,
             quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
+            video_processing=request.app.state.settings.media_video_processing_mode,
         )
     except service.MediaQuotaExceeded as exc:
         await db.rollback()
@@ -629,6 +631,44 @@ async def delete_media(
     await db.commit()
 
 
+@router.post("/{media_id}/retry", response_model=MediaAssetOut)
+async def retry_media_processing(
+    media_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> MediaAssetOut:
+    """處理失敗的影片重新排入背景轉檔（原檔還在，不必重傳）。"""
+    asset = await _get_owned_asset(db, current_user, media_id)
+    _require_media_manage(current_user, asset.campus_key)
+    if asset.kind != MediaKind.VIDEO or asset.status != MediaStatus.FAILED or asset.deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "MEDIA_NOT_RETRYABLE", "message": "只有處理失敗的影片可以重新處理"},
+        )
+    try:
+        job = await media_jobs.retry(db, asset, actor_id=current_user.id)
+    except media_jobs.JobAlreadyActive as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "MEDIA_ALREADY_PROCESSING", "message": "這支影片已經在處理了"},
+        ) from exc
+    if request.app.state.settings.media_video_processing_mode == "inline":
+        await media_jobs.process_now(db, service.get_storage(request.app.state.settings), asset, job)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="media.retry",
+        target_type="media_asset",
+        target_id=str(asset.id),
+        campus_key=asset.campus_key,
+        metadata=_media_audit(asset),
+    )
+    await db.commit()
+    await db.refresh(asset, attribute_names=["variants", "usages"])
+    return await _asset_out(db, request, asset)
+
+
 @router.post("/{media_id}/replace", response_model=MediaAssetOut, status_code=status.HTTP_201_CREATED)
 async def replace_media(
     media_id: uuid.UUID,
@@ -657,6 +697,7 @@ async def replace_media(
             original_filename=file.filename or "unnamed",
             created_by=current_user.id,
             quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
+            video_processing=request.app.state.settings.media_video_processing_mode,
         )
     except service.MediaQuotaExceeded as exc:
         await db.rollback()

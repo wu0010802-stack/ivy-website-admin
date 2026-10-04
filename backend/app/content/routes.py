@@ -944,8 +944,9 @@ async def replace_media_references(
         raise _replace_invalid("請選另一個素材來替換")
     if replacement.kind != old.kind:
         raise _replace_invalid("圖片只能換成圖片、影片只能換成影片")
-    if replacement.status != MediaStatus.READY or replacement.deleted_at is not None:
-        raise _replace_invalid("替換用的素材還沒處理完成或已刪除")
+    # 處理中的影片可以先換進草稿（發布時 check_publishable 會擋到轉好為止）。
+    if replacement.status == MediaStatus.FAILED or replacement.deleted_at is not None:
+        raise _replace_invalid("替換用的素材處理失敗或已刪除")
 
     results: list[MediaReplacedItemOut] = []
     seen: set[uuid.UUID] = set()

@@ -1,3 +1,17 @@
+## 2026-10-04 素材背景轉檔（`feature/media-jobs-20261003`，未部署）
+
+影片上傳改成背景轉檔（poster＋桌機／手機 H.264），官網改播轉檔版本；圖片多中圖。規則見 DESIGN.md「素材背景轉檔」。已 merge origin/main `d559cae6`。
+
+- **後端**：新表 `media_jobs`（migration `e5b9c3a7d214`，接在重設密碼的 `d2b7f4c9e1a3` 之後，只新增表與 enum 值）、`app/media/jobs.py`、`app/workers/media_loop.py`、`POST /admin/media/{id}/retry`、指令 `transcode-media-videos [--apply]`；`WEBSITE_MEDIA_VIDEO_PROCESSING`（正式站預設 background）。health 的 `media_jobs.enabled` 看迴圈是否還在跑。
+- **後台**：素材庫、選影片、影片版位、上傳清單、替換流程顯示轉檔狀態；處理中可「編輯」，失敗只有「重新處理」。
+- **官網**：`slotVideoSrc` 依桌機／手機選轉檔版本，沒有就用原檔；處理中的影片草稿預覽退回內建影片。
+- **和計畫不同的地方**：已是可直接播的 H.264 且轉檔版本不小於原檔 90% 時沿用原檔、不寫衍生檔；回補候選排除已有 done 工作與超過 10 分鐘的影片，沒有 `--force`，之後改參數要手動清 `media_jobs`；停機時先放回工作、再中止執行中的 ffmpeg，抽 poster 的 ffmpeg／ffprobe 仍不可中止（最多約 30／15 秒）。
+- **已知限制**：inline 模式（本機開發、測試、`import-site-assets`）在呼叫端交易內等 ffmpeg，長影片可能撞 idle_in_transaction 300 秒，正式站全新匯入長影片要先改設 background；`regenerate-media-variants --apply` 因「缺中圖」會把每張圖的縮圖／中圖／大圖全部重產，全站圖片網址會換一次（瀏覽器與 CDN 快取失效一次）；桌機五欄網格的失敗卡片，動作列排成兩行。
+- **驗證**（2026-10-04，HEAD `096be30c`）：alembic merge 後只有一個 head `e5b9c3a7d214`，downgrade -1／upgrade 成功；後端 pytest 全套（獨立測試庫）1432 passed、1 skipped（HLG 整合測試，本機 ffmpeg 沒有 zscale）、484 秒；`npm --prefix web run typecheck` 通過、`npm run test:website` 75 檔 757 項全過；`npm --prefix admin run typecheck` 通過、`npm --prefix admin run test:unit` 88 檔 1065 項全過；`npm run contract:check` 一致；stack e2e（`E2E_DB_NAME=ivy_website_mediajobs_e2e_test E2E_API_PORT=8751 E2E_WEB_PORT=3751`）70 passed（2.8 分），含新的 `media-video.spec.ts`。畫面檢查（Playwright 1440×900、390×844）：上傳→處理中→約 4.5 秒自動變可用；首屏影片版位選處理中影片→說明→自動更新；失敗→「重新處理」→轉好；兩種寬度沒有橫向溢出。
+- **轉檔成本**（本機 Apple 8 核，轉檔限 2 執行緒，`/usr/bin/time -l`）：孩子的一天桌機母帶（25 秒、1280×720、24fps）→ 桌機版 10.1 秒、峰值記憶體約 235 MB、CPU 約 1.8 核、輸出 7.8 MB；手機版 8.3 秒、約 237 MB、4.8 MB；合成 4K60 6 秒來源 → 桌機版 3.0 秒、約 524 MB。Railway api 容器若只有 2 vCPU，轉檔期間 API 只分到很少 CPU（已 nice 10）；記憶體要拿正式站方案上限來判斷。
+- **未驗證**：正式站 ffmpeg 有沒有 zscale（HLG 整合測試本機 skip，push 後要確認 CI 是 pass 不是 skip）、Railway api 記憶體與 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`、iOS Safari 實機播放轉檔版本、HDR 實片轉色調畫質、正式站回補。
+- **需要使用者決定**：(1) 轉檔參數（預設 CRF 20／26、長邊 1920、30fps、不帶聲音、上限 10 分鐘）；(2) Railway api 容器記憶體與 CPU 夠不夠，不夠就升級方案或另開 worker 服務（付費，需本人同意）；(3) 失敗影片不計配額（預設接受）；(4) 正式站回補何時跑，指令見 `deploy/README.md`「素材背景轉檔上線步驟」，由本人執行。
+
 ## 2026-10-04 關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，階段 B，未 push）
 
 接在階段 A（特色教學頁）之後，同一個分支。

@@ -9519,7 +9519,10 @@
         "enum": [
           "thumbnail",
           "poster",
-          "large"
+          "large",
+          "medium",
+          "video_desktop",
+          "video_mobile"
         ],
         "title": "VariantKind",
         "type": "string"
@@ -17600,6 +17603,82 @@
         ]
       }
     },
+    "/api/website/v1/admin/media/{media_id}/retry": {
+      "post": {
+        "description": "處理失敗的影片重新排入背景轉檔（原檔還在，不必重傳）。",
+        "operationId": "retry_media_processing_api_website_v1_admin_media__media_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "media_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Media Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Media Processing",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/website/v1/admin/media/{media_id}/unarchive": {
       "post": {
         "operationId": "unarchive_media_api_website_v1_admin_media__media_id__unarchive_post",
@@ -17774,7 +17853,10 @@
               "enum": [
                 "thumbnail",
                 "poster",
-                "large"
+                "large",
+                "medium",
+                "video_desktop",
+                "video_mobile"
               ],
               "title": "Variant",
               "type": "string"
@@ -23842,7 +23924,10 @@
               "enum": [
                 "thumbnail",
                 "poster",
-                "large"
+                "large",
+                "medium",
+                "video_desktop",
+                "video_mobile"
               ],
               "title": "Variant",
               "type": "string"

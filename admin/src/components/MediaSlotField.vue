@@ -4,6 +4,7 @@ import { api, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { FocusPointPayload, MediaAssetOut, MediaSlotPayload } from '../api/types'
 import { formatDuration } from '../api/labels'
 import type { MediaFieldState } from '../composables/mediaThumbs'
+import { useProcessingPoll } from '../composables/mediaProcessing'
 import MediaFieldCard from './MediaFieldCard.vue'
 import MediaPickerDialog from './MediaPickerDialog.vue'
 import FocusPicker from './FocusPicker.vue'
@@ -73,6 +74,16 @@ watch(
 
 watch(asset, (value) => emit('asset', value))
 
+// 剛選的影片還在轉檔：這裡自己更新，轉好就看得到封面。
+useProcessingPoll(
+  () => (asset.value ? [asset.value] : []),
+  (fresh) => {
+    if (asset.value?.id !== fresh.id) return
+    asset.value = fresh
+    cache.set(fresh.id, Promise.resolve(fresh))
+  },
+)
+
 const previewUrl = computed(() => (asset.value ? mediaPreviewUrl(asset.value) : ''))
 const cardState = computed<MediaFieldState>(() => (!props.modelValue ? 'builtin' : missing.value ? 'missing' : 'media'))
 const cardSrc = computed(() => (props.modelValue ? previewUrl.value : props.builtinSrc))
@@ -129,7 +140,12 @@ function setFocus(point: FocusPointPayload | null) {
       :disabled="disabled"
       @pick="pickerVisible = true"
       @clear="clearSlot"
-    />
+    >
+      <template #hint>
+        <span v-if="asset?.status === 'processing'" class="field-help">影片轉檔中，轉好才能預覽與發布（這裡會自動更新）</span>
+        <span v-else-if="asset?.status === 'failed'" class="slot__warn">影片處理失敗：{{ asset.processing_error ?? '原因不明' }}。請到素材庫按「重新處理」，或換一支影片</span>
+      </template>
+    </MediaFieldCard>
     <FocusPicker
       v-if="showFocus && modelValue && focusUrl"
       :src="focusUrl"
@@ -147,4 +163,5 @@ function setFocus(point: FocusPointPayload | null) {
 
 <style scoped>
 .slot { display: grid; gap: 10px; width: 100%; min-width: 0; }
+.slot__warn { color: var(--el-color-danger); font-size: 12px; }
 </style>

@@ -11,8 +11,9 @@ import StatusTag from './StatusTag.vue'
  * （從素材庫選／更換、清除）。不自己讀素材、不開選圖器：MediaSlotField（存
  * {media_id, focus}）與 MediaRefField（存素材 id 字串）決定 state、縮圖與狀態再交給這裡。
  *
- * status 是素材處理狀態（media_assets.status）。選圖器只列 ready 的素材，但已經用進
- * 內容的素材之後可能被重新處理（背景轉檔），不是 ready 時在這裡標出來。
+ * status 是素材處理狀態（media_assets.status）。選圖器會列轉檔中的影片（可以先選進
+ * 草稿，發布時後端擋到轉好），已經用進內容的影片也可能處理失敗後重新處理；不是 ready
+ * 時在這裡標出來。
  */
 const props = withDefaults(defineProps<{
   state: MediaFieldState

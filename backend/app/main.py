@@ -37,6 +37,7 @@ from app.config import Settings, get_settings
 from app.logging_config import configure_logging
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
 from app.workers.maintenance import MaintenanceLoop
+from app.workers.media_loop import MediaJobLoop
 
 logger = logging.getLogger("app")
 
@@ -133,9 +134,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, interval_seconds=interval
             )
             app.state.maintenance.start()
+        # 影片 poster 與轉檔（app/media/jobs.py）；inline 模式在上傳請求裡做完，不必起迴圈。
+        if settings.media_video_processing_mode == "background":
+            app.state.media_jobs = MediaJobLoop(
+                app.state.session_factory, settings, poll_seconds=settings.media_jobs_poll_seconds
+            )
+            app.state.media_jobs.start()
         try:
             yield
         finally:
+            # 先停轉檔迴圈：做到一半的影片放回佇列，下一個程序馬上接手（不算一次嘗試）。
+            if app.state.media_jobs is not None:
+                await app.state.media_jobs.stop()
             if app.state.maintenance is not None:
                 await app.state.maintenance.stop()
             await app.state.rate_limit_engine.dispose()
@@ -154,6 +164,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if docs else None,
     )
     app.state.maintenance = None
+    app.state.media_jobs = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
@@ -184,6 +195,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/website/v1/health")
     async def health() -> dict:
         maintenance: MaintenanceLoop | None = app.state.maintenance
+        media_jobs: MediaJobLoop | None = app.state.media_jobs
         return {
             "status": "ok",
             "environment": settings.environment,
@@ -196,6 +208,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 # 但一直失敗」時，last_completed_at 仍會更新，要看這兩個欄位。
                 "last_clean_at": _iso(maintenance.last_clean_at if maintenance else None),
                 "last_failed_steps": list(maintenance.last_failed_steps) if maintenance else [],
+            },
+            # 影片轉檔的背景迴圈：有沒有開、最近一次完成與失敗的時間。
+            "media_jobs": {
+                # 迴圈真的還活著才算開著（啟動時拿不到儲存體、異常結束都是 False）。
+                "enabled": media_jobs is not None and media_jobs.running,
+                "last_processed_at": _iso(media_jobs.last_processed_at if media_jobs else None),
+                "last_failed_at": _iso(media_jobs.last_failed_at if media_jobs else None),
             },
         }
 
