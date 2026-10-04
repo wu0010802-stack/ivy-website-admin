@@ -11,7 +11,9 @@
 """
 from __future__ import annotations
 
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from typing import Annotated
+
+from pydantic import AfterValidator, Field, ValidationInfo, field_validator, model_validator
 
 from app.content.schemas import (
     MEDIA_ALT_MAX_LENGTH,
@@ -39,7 +41,10 @@ def page_title(value: str, *, per_line: int, max_lines: int = 3, what: str = "�
 def page_text(value: str, *, limit: int, what: str, allow_blank: bool = False) -> str:
     if "\n" in value or "\r" in value:
         raise ValueError(f"{what}不能換行")
-    if not allow_blank and not value.strip():
+    if not value.strip():
+        # 可留空的欄位只打空白＝留空（官網判斷有字才顯示，存成空白會畫出一個空的提醒）。
+        if allow_blank:
+            return ""
         raise ValueError(f"{what}不可空白")
     if len(value) > limit:
         raise ValueError(f"{what}最多 {limit} 字")
@@ -94,6 +99,14 @@ class CurriculumYearPayload(_ContentPayload):
         return page_text(value, limit=100, what="年段說明")
 
 
+# 品德培養（quote）整張印在一團顏料上，上限另訂（scripts/page-copy-stress.cjs 在 390／820／1024／1440 實測）：
+# sub 是大字引言（curriculum.css 的 .cur-dir--quote .cur-dir-sub，clamp(2.5rem, 4.2vw, 3.75rem)），手機與桌機
+# 一行只放得下 5 個字，10 字＝兩行還在顏料上、三行就頂出去；text 是引言下面的一行說明，桌機超過約 21 字
+# 換成兩行時會把引言往上推出顏料。
+QUOTE_SUB_LIMIT = 10
+QUOTE_TEXT_LIMIT = 20
+
+
 class CurriculumDirectionPayload(PagePhotoFields):
     key: str
     title: str
@@ -107,12 +120,16 @@ class CurriculumDirectionPayload(PagePhotoFields):
 
     @field_validator("sub")
     @classmethod
-    def _sub(cls, value: str) -> str:
+    def _sub(cls, value: str, info: ValidationInfo) -> str:
+        if info.data.get("key") == "quote":
+            return page_text(value, limit=QUOTE_SUB_LIMIT, what="品德培養的引言")
         return page_text(value, limit=30, what="課程方向的副標")
 
     @field_validator("text")
     @classmethod
-    def _text(cls, value: str) -> str:
+    def _text(cls, value: str, info: ValidationInfo) -> str:
+        if info.data.get("key") == "quote":
+            return page_text(value, limit=QUOTE_TEXT_LIMIT, what="品德培養的說明")
         return page_text(value, limit=50, what="課程方向的說明")
 
 
@@ -139,6 +156,13 @@ class CurriculumDailyPayload(PagePhotoFields):
     def _text(cls, value: str) -> str:
         return page_text(value, limit=160, what="五件事的介紹")
 
+
+def _belief(value: str) -> str:
+    return page_text(value, limit=24, what="教學理念")
+
+
+# 逐項驗證：超過字數時 422 的 loc 是 ("beliefs", 4)，後台才定位得到第 5 項。
+CurriculumBelief = Annotated[str, AfterValidator(_belief)]
 
 # 欄位: (每行字數, 欄位名稱)
 _CURRICULUM_TITLES = {
@@ -202,7 +226,7 @@ class CurriculumPagePayload(_ContentPayload):
     daily_source: str
     daily: list[CurriculumDailyPayload]
     belief_title: str
-    beliefs: list[str]
+    beliefs: list[CurriculumBelief]
     belief_close: str
     belief_source: str
 
@@ -259,7 +283,7 @@ class CurriculumPagePayload(_ContentPayload):
     @field_validator("beliefs")
     @classmethod
     def _beliefs(cls, value: list[str]) -> list[str]:
-        return [page_text(item, limit=24, what="教學理念") for item in exactly(value, 5, "教學理念")]
+        return exactly(value, 5, "教學理念")
 
     @model_validator(mode="after")
     def _no_script_scheme(self) -> "CurriculumPagePayload":

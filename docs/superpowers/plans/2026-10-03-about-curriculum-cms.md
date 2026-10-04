@@ -114,6 +114,8 @@
 | `directions[].title` | 6 | `curDirTitle` 6 | 10 | 否 |
 | `directions[].sub` | 14 | `curDirSub` 16 | 30 | 否 |
 | `directions[].text` | 18 | `curDirText` 24 | 50 | 否 |
+| `directions[quote].sub` 品德培養的引言（大字） | 5 | `curQuote` 8 | 10（`QUOTE_SUB_LIMIT`） | 否 |
+| `directions[quote].text` 品德培養的說明 | 10 | `curQuoteText` 16 | 20（`QUOTE_TEXT_LIMIT`） | 否 |
 | `gallery_source` | 21 | `curSource` 26 | 50 | 是 |
 | `gallery[].label` | 5 | `curArtLabel` 6 | 10 | 否 |
 | `daily_source` | 11 | `curSource` 26 | 30 | 是 |
@@ -126,6 +128,8 @@
 | `*_photo_alt` | — | — | 200（`MEDIA_ALT_MAX_LENGTH`） | 是 |
 
 固定項目：`chapters` 4、`years` 4、`directions` 7（`cognitive, integrated, multicultural, quote, autonomy, activities, art`，`quote` 不能有照片）、`gallery` 8、`daily` 5、`beliefs` 5。
+
+品德培養（`quote`）整張印在一團顏料上，引言與說明另訂較短的上限（2026-10-04 最終審查 I3）：引言是 `clamp(2.5rem, 4.2vw, 3.75rem)` 的大字，手機與桌機一行只放得下 5 個字；`scripts/page-copy-stress.cjs` 量引言每一行的四個角都落在顏料的實心橢圓內（容許 1.1），10 字（兩行）通過、11 字（三行）在 1440 寬 1.34 不通過；說明超過一行（1440 寬約 21 字）會把兩行的引言推到 1.18，所以說明上限 20。硬上限實測寬度：390／820／1024／1440（`curriculum.css` 的 760／900／1100 斷點各一段）。
 
 ### 關於常春藤頁 `about_page`
 
@@ -2849,7 +2853,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - 後台「全站與素材 → 特色教學頁」：所有段落文字、首屏與各項目的照片。清單項目數固定（章節 4、年段 4、課程方向 7、作品 8、五件事 5、教學理念 5），不能新增、刪除、排序；品德培養沒有照片。
 - 不開放：英文小字、章節編號、年段名稱與年齡、連結文字、顏料與版面。
 - 標題按 Enter 換行（存 `\n`），最多三行；其他欄位不能換行。首屏大標的橘色顏料是獨立欄位「大標裡畫顏料的字」，必須是大標同一行裡的字。
-- 字數兩層：後端 `content/page_schemas.py` 硬上限擋存檔（`scripts/page-copy-stress.cjs` 在 390／1440 實測通過的值）、後台 `contentHints.ts` 建議值只提醒。硬上限（字；標題為每行字數、最多 3 行）：
+- 字數兩層：後端 `content/page_schemas.py` 硬上限擋存檔（`scripts/page-copy-stress.cjs` 在 390／820／1024／1440 實測通過的值）、後台 `contentHints.ts` 建議值只提醒。硬上限（字；標題為每行字數、最多 3 行）：
 
   | 欄位 | 上限 | 欄位 | 上限 |
   |---|---|---|---|
@@ -2860,6 +2864,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   | 首屏提醒 | 60 | 照片下方文字 | 30 |
   | 章節名稱／小字 | 10／14 | 年段標語／說明 | 10／100 |
   | 課程方向標題／副標／說明 | 10／30／50 | 作品名稱 | 10 |
+  | 品德培養的引言（大字）／說明 | 10／20 | | |
   | 五件事名稱／介紹 | 8／160 | 教學理念一項 | 24 |
   | 作品照片出處／五件事出處／教學理念出處 | 50／30／30 | 教學理念結語 | 50 |
 

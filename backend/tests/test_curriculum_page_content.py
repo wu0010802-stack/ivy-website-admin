@@ -2,20 +2,23 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import uuid
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from pydantic import ValidationError
 
 from app.content.initialize import _copy_fields, initial_payloads
-from app.content.page_schemas import CURRICULUM_DIRECTION_KEYS, CurriculumPagePayload
+from app.content.page_schemas import CURRICULUM_DIRECTION_KEYS, QUOTE_SUB_LIMIT, QUOTE_TEXT_LIMIT, CurriculumPagePayload
 from app.content.registry import CONTENT_KIND_REGISTRY, set_at_path
 from tests.conftest import publish_booking_consent
 
 API = "/api/website/v1"
 ITEM = f"{API}/admin/content-items/curriculum_page"
+MEDIA = f"{API}/admin/media"
 FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
 WEB_FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 
@@ -97,6 +100,44 @@ def test_text_rules(changes):
 def test_optional_texts_may_be_blank():
     parsed = CurriculumPagePayload.model_validate(_base(hero_notice="", gallery_source="", years_caption="", hero_highlight=""))
     assert parsed.hero_notice == "" and parsed.hero_highlight == ""
+
+
+def test_optional_texts_with_only_spaces_are_saved_blank():
+    # 官網判斷有字才顯示：存成空白會畫出一個孤立的金點（首屏提醒）或空的出處。
+    parsed = CurriculumPagePayload.model_validate(
+        _base(hero_notice="   ", gallery_source="\u3000", years_caption=" ", hero_highlight="  ", belief_source=" \t")
+    )
+    assert (parsed.hero_notice, parsed.gallery_source, parsed.years_caption, parsed.hero_highlight, parsed.belief_source) == ("", "", "", "", "")
+
+
+def test_belief_too_long_points_at_the_item():
+    beliefs = ["重視愛與關懷"] * 4 + ["字" * 25]
+    with pytest.raises(ValidationError) as exc:
+        CurriculumPagePayload.model_validate(_base(beliefs=beliefs))
+    [error] = exc.value.errors()
+    assert error["loc"] == ("beliefs", 4)
+    assert "最多 24 字" in error["msg"]
+    assert CurriculumPagePayload.model_validate(_base(beliefs=["重視愛與關懷"] * 4 + ["字" * 24])).beliefs[4] == "字" * 24
+
+
+@pytest.mark.parametrize(
+    "field,limit,message",
+    [("sub", QUOTE_SUB_LIMIT, "品德培養的引言"), ("text", QUOTE_TEXT_LIMIT, "品德培養的說明")],
+)
+def test_quote_has_its_own_shorter_limits(field, limit, message):
+    # 品德培養整張印在顏料上（大字引言＋一行說明），其他方向照舊 30／50 字。
+    assert (QUOTE_SUB_LIMIT, QUOTE_TEXT_LIMIT) == (10, 20)
+    data = _base()
+    data["directions"][3][field] = "字" * limit
+    data["directions"][0]["sub"] = "字" * 30
+    data["directions"][0]["text"] = "字" * 50
+    CurriculumPagePayload.model_validate(data)
+    data["directions"][3][field] = "字" * (limit + 1)
+    with pytest.raises(ValidationError) as exc:
+        CurriculumPagePayload.model_validate(data)
+    [error] = exc.value.errors()
+    assert error["loc"] == ("directions", 3, field)
+    assert f"{message}最多 {limit} 字" in error["msg"]
 
 
 @pytest.mark.parametrize("field,count", [("chapters", 3), ("years", 5), ("gallery", 7), ("daily", 6), ("beliefs", 4)])
@@ -190,6 +231,60 @@ async def test_unknown_media_in_a_list_photo_is_rejected(admin_client):
     saved = await _save(admin_client, payload)
     assert saved.status_code == 422
     assert saved.json()["detail"]["code"] == "MEDIA_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_belief_too_long_returns_422_with_item_index(admin_client):
+    payload = _fixture_payload()
+    payload["beliefs"][4] = "字" * 25
+    saved = await _save(admin_client, payload)
+    assert saved.status_code == 422
+    assert [error["loc"] for error in saved.json()["detail"]] == [["beliefs", 4]]
+
+
+def _jpeg(width: int = 160, height: int = 120) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), (78, 184, 122)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+async def _upload(client) -> dict:
+    # 特色教學頁是全站共用內容，用共用素材（不帶 campus_key）。
+    response = await client.post(MEDIA, data={"kind": "image"}, files={"file": ("art.jpg", _jpeg(), "image/jpeg")})
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+@pytest.mark.asyncio
+async def test_gallery_photo_is_tracked_protected_and_batch_replaced(admin_client):
+    old = await _upload(admin_client)
+    payload = _fixture_payload()
+    payload["gallery"][7]["photo"] = {"media_id": old["id"], "focus_x": None, "focus_y": None}
+    saved = await _save(admin_client, payload)
+    assert saved.status_code == 201, saved.text
+    item = saved.json()
+
+    usages = (await admin_client.get(f"{MEDIA}/{old['id']}/usages")).json()
+    [ref] = usages["references"]
+    assert (ref["kind"], ref["field_path"], ref["version"]) == ("curriculum_page", "gallery[7].photo.media_id", 1)
+    assert ref["states"] == ["draft"]
+    assert usages["can_delete"] is False
+
+    blocked = await admin_client.delete(f"{MEDIA}/{old['id']}")
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["code"] == "MEDIA_IN_USE"
+
+    new = await _upload(admin_client)
+    replaced = await admin_client.post(
+        f"{MEDIA}/{old['id']}/replace-references",
+        json={"replacement_id": new["id"], "items": [{"content_item_id": item["id"], "expected_version": 1}]},
+    )
+    assert replaced.status_code == 200, replaced.text
+    assert replaced.json()["items"][0]["field_paths"] == ["gallery[7].photo.media_id"]
+    latest = (await admin_client.get(ITEM)).json()["latest_revision"]["payload"]
+    assert latest["gallery"][7]["photo"]["media_id"] == new["id"]
+    assert all(art["photo"] is None for art in latest["gallery"][:7])
+    assert (await admin_client.get(f"{MEDIA}/{old['id']}/usages")).json()["references"] == []
 
 
 @pytest.mark.asyncio

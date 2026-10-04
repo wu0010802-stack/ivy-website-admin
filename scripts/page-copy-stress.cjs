@@ -1,5 +1,6 @@
 // 整頁內容的字數硬上限實測：把每個欄位換成「上限字數」的文字（標題換成上限行數 × 每行上限），
-// 檢查 390 與 1440 寬沒有橫向捲動、文字沒有超出所在卡片或被裁掉。改了 page_schemas.py 的上限就重跑。
+// 檢查 390／820／1024／1440 寬（手機、760–900、900–1100、桌機四段版面）沒有橫向捲動、文字沒有超出
+// 所在卡片或被裁掉。改了 page_schemas.py 的上限就重跑。
 // 用法（fixture 模式 dev server，計畫 Task 1 Step 2）：node scripts/page-copy-stress.cjs /curriculum
 // 截圖存在 output/page-cms/stress/，失敗時結束碼 1。
 const fs = require('node:fs')
@@ -7,11 +8,21 @@ const path = require('node:path')
 const { chromium } = require('playwright')
 
 const BASE = process.env.PAGE_CMS_BASE ?? 'http://127.0.0.1:3141'
+// curriculum.css 的斷點是 1100／900／760：四個寬度各落在一段
+const VIEWPORTS = [
+  ['390', { width: 390, height: 844 }],
+  ['820', { width: 820, height: 1180 }],
+  ['1024', { width: 1024, height: 768 }],
+  ['1440', { width: 1440, height: 900 }]
+]
 const SAMPLE = [...'常春藤的孩子，在這裡快樂學習、慢慢長大。']
 const fill = (n) => Array.from({ length: n }, (_, i) => SAMPLE[i % SAMPLE.length]).join('')
 
 // sel：要換字的元素（全部符合的都換）；chars：一般欄位上限；lines＋perLine：標題；
-// textNode：只換元素自己的第一個文字節點（元素裡還有 <b>／<small> 等子元素時用）；box：不能超出的外框
+// textNode：只換元素自己的第一個文字節點（元素裡還有 <b>／<small> 等子元素時用）；box：不能超出的外框；
+// paint：印在顏料上的字，每一行的四個角都要落在 box 裡這團顏料的實心範圍內：utils/watercolor.ts blotCanvas
+// 的基底橢圓（半徑為顏料框的 0.34 × 0.31），頂點本身有 ±17.5% 的起伏，所以容許到 (x/rx)²+(y/ry)² ≤ 1.1
+// （2026-10-04 截圖校準：1440 寬兩行 1.03 仍壓在顏料上，三行 1.34 頂到顏料邊外）
 const RULES = {
   '/curriculum': [
     { sel: '.cur-eyebrow', chars: 24 },
@@ -28,8 +39,12 @@ const RULES = {
     { sel: '.cur-year h3', chars: 12, box: '.cur-year' },
     { sel: '.cur-year > p:not(.cur-year-name)', chars: 100, box: '.cur-year' },
     { sel: '.cur-dir h3', chars: 10, box: '.cur-dir' },
-    { sel: '.cur-dir-sub', chars: 30, box: '.cur-dir' },
-    { sel: '.cur-dir-copy > p:last-child', chars: 50, box: '.cur-dir' },
+    { sel: '.cur-dir:not(.cur-dir--quote) .cur-dir-sub', chars: 30, box: '.cur-dir' },
+    { sel: '.cur-dir:not(.cur-dir--quote) .cur-dir-copy > p:last-child', chars: 50, box: '.cur-dir' },
+    // 品德培養印在顏料上：引言是大字、下面一行說明（page_schemas.py 的 QUOTE_SUB_LIMIT、QUOTE_TEXT_LIMIT）。
+    // 說明超過一行（1440 寬約 21 字）會把引言往上推出顏料，所以兩個上限一起量。
+    { sel: '.cur-dir--quote .cur-dir-sub', chars: 10, box: '.cur-dir--quote', paint: '.cur-blot' },
+    { sel: '.cur-dir--quote .cur-dir-copy > p:last-child', chars: 20, box: '.cur-dir--quote' },
     { sel: '.cur-split-head .cur-text', chars: 80, textNode: true },
     { sel: '#gallery .cur-source', chars: 50 },
     { sel: '#daily .cur-source', chars: 30 },
@@ -55,7 +70,7 @@ const RULES = {
   const browser = await chromium.launch({ channel: 'chrome' })
   let failed = 0
   try {
-    for (const [device, viewport] of [['mobile', { width: 390, height: 844 }], ['desktop', { width: 1440, height: 900 }]]) {
+    for (const [device, viewport] of VIEWPORTS) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce' })
       const page = await context.newPage()
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
@@ -96,6 +111,21 @@ const RULES = {
           if (box) {
             const b = box.getBoundingClientRect()
             if (rect.right > b.right + 1 || rect.bottom > b.bottom + 1) out.push(`${rule.sel} 超出 ${rule.box}`)
+          }
+          const paint = box && rule.paint ? box.querySelector(`:scope > ${rule.paint}`) : null
+          if (rule.paint && !paint) out.push(`找不到 ${rule.box} 裡的 ${rule.paint}`)
+          if (paint) {
+            // 顏料還沒上色時是 scale(.5)：用 offset* 量版面上的框（不受 transform 影響）
+            const b = box.getBoundingClientRect()
+            const cx = b.left + box.clientLeft + paint.offsetLeft + paint.offsetWidth / 2
+            const cy = b.top + box.clientTop + paint.offsetTop + paint.offsetHeight / 2
+            const rx = paint.offsetWidth * 0.34, ry = paint.offsetHeight * 0.31
+            const range = document.createRange()
+            range.selectNodeContents(el)
+            const lines = [...range.getClientRects()].filter((r) => r.width > 0)
+            const worst = Math.max(...lines.flatMap((r) => [[r.left, r.top], [r.right, r.top], [r.left, r.bottom], [r.right, r.bottom]]
+              .map(([x, y]) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2)))
+            if (worst > 1.1) out.push(`${rule.sel} 超出顏料（${lines.length} 行，最遠的角在橢圓 ${worst.toFixed(2)} 倍處）`)
           }
           for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
             const style = getComputedStyle(a)
