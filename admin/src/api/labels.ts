@@ -289,6 +289,8 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'cover.media_id': '封面照片',
   'line_art.media_id': '建築線稿',
   'line_art_colour.media_id': '建築線稿（上色）',
+  'hero_photo.media_id': '特色教學頁的首屏照片',
+  'years_photo.media_id': '特色教學頁四個年段的照片',
 }
 
 export function mediaFieldPathLabel(path: string): string {
@@ -296,6 +298,12 @@ export function mediaFieldPathLabel(path: string): string {
   if (MEDIA_SLOT_PATH_LABELS[path]) return MEDIA_SLOT_PATH_LABELS[path]
   let slot = /^moments\[(\d+)\]\.photo\.media_id$/.exec(path)
   if (slot) return `孩子的一天第 ${Number(slot[1]) + 1} 張卡片的照片`
+  slot = /^(directions|gallery|daily)\[(\d+)\]\.photo\.media_id$/.exec(path)
+  if (slot) {
+    const unit = { directions: '課程方向第', gallery: '兒童美術館的作品第', daily: '五件事第' }[slot[1]!]!
+    const tail = { directions: '個的照片', gallery: '件的照片', daily: '件的照片' }[slot[1]!]!
+    return `${unit} ${Number(slot[2]) + 1} ${tail}`
+  }
   slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
   if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
   let m = /^scenes\[(\d+)\]\.image$/.exec(path)
@@ -724,6 +732,7 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   if (kind === 'privacy_policy') return '/privacy'
+  if (kind === 'curriculum_page') return '/curriculum'
   return '/'
 }
 
@@ -738,6 +747,7 @@ export function contentPreviewPath(kind: string, _campusKey?: string | null): st
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
   if (kind === 'privacy_policy') return '/preview?page=privacy'
+  if (kind === 'curriculum_page') return '/preview?page=curriculum'
   return '/preview'
 }
 
@@ -817,6 +827,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   campus_tour: '校園探索',
   booking_content: '預約文案',
   privacy_policy: '隱私權政策',
+  curriculum_page: '特色教學頁',
   site_footer: '頁尾文字',
   site_meta: '網站標題與電話',
 }

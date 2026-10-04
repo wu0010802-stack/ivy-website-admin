@@ -49,6 +49,7 @@ export const routes: RouteRecordRaw[] = [
       page('content/day-experience', 'day-experience', () => import('../views/DayExperienceView.vue')),
       page('content/home-news', 'home-news', () => import('../views/HomeNewsView.vue')),
       page('content/admission', 'admission-content', () => import('../views/AdmissionContentView.vue')),
+      page('content/curriculum-page', 'curriculum-page', () => import('../views/CurriculumPageView.vue')),
       page('content/campus-profile', 'campus-profile', () => import('../views/CampusProfileView.vue')),
       // 官網已沒有顯示常見問題的頁面；舊書籤與待審項目的連結改到五校介紹。
       { path: 'content/campus-faq', redirect: to => ({ path: '/content/campus-profile', query: to.query }) },

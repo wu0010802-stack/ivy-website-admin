@@ -127,6 +127,47 @@ export interface PrivacyPolicyPayload {
   sections: PrivacyPolicySectionPayload[]
 }
 
+/** 整頁內容清單項目的照片版位（後端 content/page_schemas.py 的 PagePhotoFields）；留空＝官網內建照片 */
+export interface PagePhotoPayload {
+  photo?: MediaSlotPayload | null
+  photo_alt?: string
+}
+
+/** 特色教學頁（後端 content/page_schemas.py 的 CurriculumPagePayload）。標題用 \n 換行；清單項目數固定。 */
+export interface CurriculumPagePayload {
+  hero_eyebrow: string
+  hero_title: string
+  hero_highlight: string
+  hero_lede: string
+  hero_notice: string
+  hero_photo?: MediaSlotPayload | null
+  hero_photo_alt?: string
+  chapters: { label: string; hint: string }[]
+  years_title: string
+  years_text: string
+  spiral_label: string
+  spiral_text: string
+  years_photo?: MediaSlotPayload | null
+  years_photo_alt?: string
+  years_caption: string
+  years: { motto: string; text: string }[]
+  directions_title: string
+  directions_text: string
+  directions: ({ key: string; title: string; sub: string; text: string } & PagePhotoPayload)[]
+  gallery_title: string
+  gallery_text: string
+  gallery_source: string
+  gallery: ({ label: string } & PagePhotoPayload)[]
+  daily_title: string
+  daily_text: string
+  daily_source: string
+  daily: ({ title: string; text: string } & PagePhotoPayload)[]
+  belief_title: string
+  beliefs: string[]
+  belief_close: string
+  belief_source: string
+}
+
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock）；不收 HTML。 */
 export type NewsBodyBlock =
   | { type: 'paragraph'; text: string }

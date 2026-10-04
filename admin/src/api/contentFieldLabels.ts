@@ -88,6 +88,40 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     allowance_note: '育兒津貼附註',
     refunds: '退費規定',
   },
+  // 特色教學頁：欄位名＝編輯頁的表單標籤（錯誤定位靠比對標籤）。
+  curriculum_page: {
+    hero_eyebrow: '首屏小標',
+    hero_title: '首屏大標',
+    hero_highlight: '大標裡畫顏料的字',
+    hero_lede: '首屏介紹',
+    hero_notice: '首屏提醒',
+    hero_photo: '首屏照片',
+    hero_photo_alt: '首屏照片說明',
+    chapters: '章節索引',
+    years_title: '四個年段的標題',
+    years_text: '四個年段的說明',
+    spiral_label: '螺旋式課程的標題',
+    spiral_text: '螺旋式課程的說明',
+    years_photo: '四個年段的照片',
+    years_photo_alt: '四個年段的照片說明',
+    years_caption: '照片下方文字',
+    years: '四個年段',
+    directions_title: '課程方向的標題',
+    directions_text: '課程方向的說明',
+    directions: '課程方向',
+    gallery_title: '兒童美術館的標題',
+    gallery_text: '兒童美術館的說明',
+    gallery_source: '作品照片出處',
+    gallery: '兒童美術館的作品',
+    daily_title: '五件事的標題',
+    daily_text: '五件事的說明',
+    daily_source: '五件事的出處',
+    daily: '五件事',
+    belief_title: '教學理念的標題',
+    beliefs: '教學理念',
+    belief_close: '教學理念的結語',
+    belief_source: '教學理念的出處',
+  },
 }
 
 export function contentFieldLabelFor(kind: string | undefined, key: string): string {
@@ -104,9 +138,15 @@ const LIST_UNITS: Record<string, string> = {
   items: '題',
   body: '段',
   copy_lines: '行',
+  chapters: '個', years: '個', directions: '個', gallery: '件', daily: '件', beliefs: '項',
 }
 
 const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
+  chapters: { label: '章節名稱', hint: '小字' },
+  years: { motto: '標語', text: '說明' },
+  directions: { title: '標題', sub: '副標', text: '說明', photo: '照片', photo_alt: '照片說明' },
+  gallery: { label: '作品名稱', photo: '照片', photo_alt: '照片說明' },
+  daily: { title: '名稱', text: '介紹', photo: '照片', photo_alt: '照片說明' },
   articles: {
     date: '日期',
     category: '分類',

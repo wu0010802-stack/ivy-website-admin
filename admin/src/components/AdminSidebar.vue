@@ -2,7 +2,7 @@
 import { computed, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowDown, Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
+  ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
   Document as DocumentIcon, EditPen, Files, Grid, HomeFilled, Key, List, Location as LocationIcon, Lock,
   Notification as NotificationIcon, Phone, Picture, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, TrendCharts, User,
@@ -49,7 +49,7 @@ watch(expanded, value => {
 // nav.ts 用名稱指定圖示。逐一 import 而不是整包 import *：整包會把兩百多個
 // 用不到的圖示都打包進來。新增側欄項目時要把圖示加進這裡（有測試檢查）。
 const icons: Record<string, Component> = {
-  Avatar, Bell, Bottom, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
+  Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
   EditPen, Files, Grid, HomeFilled, List, Location: LocationIcon, Lock, Notification: NotificationIcon, Phone, Picture,
   Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, TrendCharts, User,
 }
