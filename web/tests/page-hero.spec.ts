@@ -27,8 +27,8 @@ describe('內頁 hero 的 sizes', () => {
 
   // 2026-09-29 立體書版：關於常春藤 hero 不再是滿版照片帶，改成首屏右頁的 4:3 卡紙（object-fit: cover）。
   it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
-    expect(read('../app/composables/usePageSeo.ts')).toContain('responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)')
-    expect(read('../app/components/AboutContent.vue')).toContain('v-bind="responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)"')
+    expect(read('../app/composables/usePageSeo.ts')).toContain('aboutHeroAttrs(site.value.aboutPage)')
+    expect(read('../app/components/AboutContent.vue')).toContain('aboutHeroAttrs(page)')
     // 2000×803 的橫幅裁成 4:3 卡紙，需要的寬度是框寬 × 1.87 左右，不是框寬
     expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(\(100vw - \d+px\) \* [\d.]+\), \d+px$/)
   })
@@ -47,8 +47,8 @@ describe('內頁 hero 的 sizes', () => {
 
   // 2026-09-28 水彩版：特色教學 hero 不再是滿版照片帶，改成右欄的撕紙框（object-fit: cover）。
   it('特色教學 hero 的 <img> 與預載共用 CURRICULUM_HERO_SIZES，照框的實際顯示寬度寫', () => {
-    expect(read('../app/composables/usePageSeo.ts')).toContain('responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)')
-    expect(read('../app/components/CurriculumContent.vue')).toContain('v-bind="responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)"')
+    expect(read('../app/composables/usePageSeo.ts')).toContain('curriculumHeroAttrs(site.value.curriculumPage)')
+    expect(read('../app/components/CurriculumContent.vue')).toContain('curriculumHeroAttrs(page)')
     // 橫幅照片（2000×803）被裁成直一點的框，需要的寬度是「框高 × 寬高比」，不是框寬
     expect(CURRICULUM_HERO_SIZES).toMatch(/^\(max-width: 900px\) (\d+vw|calc\(\(100vw - \d+px\) \* [\d.]+\)), \d+px$/)
   })

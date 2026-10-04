@@ -341,6 +341,85 @@ export interface PrivacyPolicyContent {
   sections: PrivacyPolicySection[]
 }
 
+/** 整頁內容的照片版位：後台換過照片才有 photo（photoAlt 是說明）；沒有＝元件用內建圖與內建說明 */
+export interface PagePhoto {
+  photo?: MediaImage
+  photoAlt?: string
+}
+
+/**
+ * 特色教學頁（/curriculum）在後台改得到的文字與照片（後端 content/page_schemas.py 的
+ * CurriculumPagePayload）。章節數量、英文小字、年段名稱、顏料與版面寫在 CurriculumContent.vue，
+ * 清單照索引對應。標題用 \n 換行。
+ */
+export interface CurriculumPageContent {
+  heroEyebrow: string
+  heroTitle: string
+  /** 大標裡畫顏料的字；空字串＝不畫 */
+  heroHighlight: string
+  heroLede: string
+  /** 空字串＝不顯示 */
+  heroNotice: string
+  heroPhoto?: MediaImage
+  heroPhotoAlt?: string
+  chapters: { label: string; hint: string }[]
+  yearsTitle: string
+  yearsText: string
+  spiralLabel: string
+  spiralText: string
+  yearsPhoto?: MediaImage
+  yearsPhotoAlt?: string
+  /** 空字串＝不顯示 */
+  yearsCaption: string
+  years: { motto: string; text: string }[]
+  directionsTitle: string
+  directionsText: string
+  directions: ({ key: string; title: string; sub: string; text: string } & PagePhoto)[]
+  galleryTitle: string
+  galleryText: string
+  gallerySource: string
+  gallery: ({ label: string } & PagePhoto)[]
+  dailyTitle: string
+  dailyText: string
+  dailySource: string
+  daily: ({ title: string; text: string } & PagePhoto)[]
+  beliefTitle: string
+  beliefs: string[]
+  beliefClose: string
+  beliefSource: string
+}
+
+/**
+ * 關於常春藤頁（/about，立體書）在後台改得到的文字與照片（後端 AboutPagePayload）。
+ * 六大領域與核心素養、家長怎麼說、卡紙位置與顏色寫在 AboutContent.vue；沿革五站照索引對應。
+ */
+export interface AboutPageContent {
+  heroTitle: string
+  heroLede: string
+  heroCaption: string
+  heroPhoto?: MediaImage
+  heroPhotoAlt?: string
+  heroBackPhoto?: MediaImage
+  heroBackPhotoAlt?: string
+  /** 一路走來、全人教育、我們的期許、家長怎麼說 */
+  chapterNames: string[]
+  storyTitle: string
+  storyText: string
+  milestones: { key: string; year: number; text: string }[]
+  wholeTitle: string
+  wholeText: string
+  wholeFine: string
+  /** 空字串＝不顯示 */
+  wholeFineSource: string
+  hopeTitle: string
+  hopeQuotes: string[]
+  hopePhoto?: MediaImage
+  hopePhotoAlt?: string
+  /** 也是首屏目次的最後一格 */
+  outroTitle: string
+  outroText: string
+}
+
 export interface SiteContent {
   schemaVersion: string
   isDemo: boolean
@@ -353,6 +432,8 @@ export interface SiteContent {
   footer: FooterContent
   siteMeta: SiteMetaContent
   privacyPolicy?: PrivacyPolicyContent | null
+  curriculumPage: CurriculumPageContent
+  aboutPage: AboutPageContent
 }
 
 export function isGeneratedTourScenes(

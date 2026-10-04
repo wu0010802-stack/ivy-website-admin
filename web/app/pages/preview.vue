@@ -21,7 +21,7 @@ useHead({
 })
 
 // ?page=admission 入學資訊頁、?page=privacy 隱私權政策、?page=visit
-// 預約頁的同意說明，其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
+// 預約頁的同意說明、?page=curriculum 特色教學頁、?page=about 關於常春藤頁，其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
 // 判斷消息上下架的日期（參數規則在 utils/draft-preview.ts）。
 const route = useRoute()
 const router = useRouter()
@@ -102,6 +102,8 @@ onMounted(async () => {
       <template v-else>
         <SiteHeader :content="draft" />
         <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" />
+        <CurriculumContent v-else-if="page === 'curriculum'" :page="draft.curriculumPage" />
+        <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" />
         <PrivacyPolicyContent v-else-if="page === 'privacy' && draft.privacyPolicy" :policy="draft.privacyPolicy" />
         <main v-else-if="page === 'privacy'" id="main" tabindex="-1">
           <div class="container breadcrumb">還沒有儲存過隱私權政策的草稿，請先在後台儲存。</div>

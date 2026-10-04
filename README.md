@@ -1,3 +1,38 @@
+## 2026-10-04 關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，階段 B，未 push）
+
+接在階段 A（特色教學頁）之後，同一個分支。
+
+- **後台**：「全站與素材 → 關於常春藤頁」可改首屏、四個章名、一路走來（含沿革五站的年份與說明）、全人教育、我們的期許、結尾，以及三張照片；不開放六大領域與核心素養、家長怎麼說、卡紙位置與顏色、目次標題、紀念章樣式。內容種類 `about_page`，草稿預覽 `?page=about`。
+- **官網**：`/about` 讀已發布內容，沒發布過就顯示改版前的內建內容。沿革年份可改，民國年自動換算；`/about` 的搜尋標題、描述與首頁 JSON-LD 的創立年份讀沿革第一站，預設 1997 時輸出不變。30 週年頁與 `llms.txt` 的 1997 仍寫死。
+- **規則**：字數兩層（後端硬上限、後台建議值）；一路走來標題逐行上限第一行 6、第二三行 7（避開紀念章）；沿革年份要由早到晚，後台即時紅字提醒；細節見 `DESIGN.md` 最上方「關於常春藤頁」。
+- **驗證**（2026-10-04，HEAD `70eb1991`，已合併 origin/main `eab7df4f`）：
+  - 後端全套（獨立測試庫）1425 passed（機器負載高，16 分）。
+  - 官網 `npm --prefix web run typecheck` 通過；`npm run test:website` 78 檔 792 項全過（`web/vitest.config.ts` 加了 plugin-vue 與 `~` 別名，給 AboutContent 的 SSR 渲染測試用；plugin-vue 是 Nuxt 的間接依賴，沒寫進 package.json）。
+  - 後台 `npm --prefix admin run typecheck` 通過；`npm --prefix admin run test:unit` 在另一個 session 跑 ivy-backend 全套、load average 15–40 時，每次有 10–23 項 5 秒逾時，失敗的檔每次不同，單獨重跑通過；加 `--testTimeout=20000` 全套 90 檔 1100 項全過；中等負載下新測試最慢約 1.9 秒（既有 cmsUx 約 2.0 秒）。
+  - `npm run contract:check` 一致。
+  - 畫面零差異：`/about` 與 `/curriculum` 的 SSR `<main>` 和改版前比對為空；stack 起 API 跑 `initialize-content`（後台已發布路徑）後，兩頁的 `<main>`（去掉 scoped hash）與內建內容相同。
+  - 版面硬上限：`node scripts/page-copy-stress.cjs /about` 在 390／820／901／1024／1440 通過，含「一路走來標題 vs 紀念章」重疊檢查。
+  - stack e2e（`E2E_DB_NAME=ivy_website_pagecms_e2e_test E2E_API_PORT=8761 E2E_WEB_PORT=3761`）71 passed（3.3 分），hydration 與 axe 檢查新加入 `/about`，都通過；visual 基準沒有更新。
+- **未驗證**：實機 iOS／Android、正式站；後台草稿預覽 `/preview?page=about` 只有單元測試，沒在瀏覽器登入後打開看過；後台換照片後在已發布頁面的實際裁切只有單元測試。
+
+## 2026-10-04 特色教學頁開放後台編輯（`feature/page-cms-20261004`，階段 A，未 push）
+
+使用者 2026-10-03 裁定文字與照片都開放；章節數量與版面結構固定。
+
+- **後台**：「全站與素材 → 特色教學頁」可改所有段落文字與首屏、年段、課程方向、兒童美術館作品、五件事的照片；清單項目數固定，不能新增、刪除、排序；不開放英文小字、章節編號、年段名稱與年齡、顏料與版面。內容種類 `curriculum_page`，草稿預覽 `?page=curriculum`。
+- **官網**：`/curriculum` 讀已發布內容，沒發布過就顯示改版前的內建內容，照片留空也用內建圖。
+- **規則**：字數兩層（後端硬上限擋存檔、後台建議值提醒）；品德培養的引言上限 10、說明 20；後台選了照片沒設焦點時官網置中；教學理念超字數時 422 指到第幾項。細節見 `DESIGN.md` 最上方。
+- **驗證**（2026-10-04，HEAD `53d1890a`，已合併 origin/main `d559cae6`）：
+  - 後端全套（獨立測試庫）1397 passed、1 failed：`test_content_publishing_workflow.py::test_seed_from_fixture_refuses_to_overwrite_and_validates` 因初始化多了特色教學頁而 `assert 19 == 18`，`53d1890` 已修，該檔 19 passed。
+  - 官網 `npm --prefix web run typecheck` 通過；`npm run test:website` 76 檔 766 項全過。
+  - 後台 `npm --prefix admin run typecheck` 通過；`npm --prefix admin run test:unit` 89 檔 1078 項全過。
+  - `npm run contract:check` 一致（payload 是 dict，契約沒變）。
+  - 畫面零差異：`scripts/page-ssr-snapshot.cjs` 改版前後 `/curriculum` SSR `<main>` diff 為空；stack 起 API 跑 `initialize-content`（後台已發布路徑）後，`/curriculum` 的 `<main>`（去掉 scoped hash）與內建內容相同。截圖兩次連抓像素就不同（動態、影片幀），只當人工參考。
+  - 版面硬上限：`node scripts/page-copy-stress.cjs /curriculum` 在 390／820／1024／1440 全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_pagecms_e2e_test E2E_API_PORT=8761 E2E_WEB_PORT=3761`）69 passed（2.6 分），visual 基準沒有更新。
+- **未驗證**：實機 iOS／Android、正式站；「後台已發布且換了照片」的頁面上，沒設焦點時置中只有單元測試，沒在瀏覽器實測；`/about` 見上方階段 B 段落。
+- **分支與合併**：已合併 origin/main `d559cae6`（重設密碼連結）。與 `feature/media-jobs-20261003`（背景轉檔）合併時 `web/app/utils/media-image.ts`、`content-overlay.ts`、`admin/src/api/labels.ts` 可自動合併，後合併者重跑 `contract:generate`；`backend/tests/test_content_initialize.py` 的初始化筆數與 `web/tests/fixtures/overlay-baseline-20260925.json` 之後新增初始化 kind 的分支都會撞到。
+
 ## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（`feature/admissions-follow-up-20261004`，未部署）
 
 使用者要「家長完成參觀後可以有後續追蹤，參觀完成後案件自動導入招生入學，形成一整個流程」。規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 使用者回「不一定會聯絡」→ 不自動排第一次聯絡；附錄 A 是招生規格 Q1 的隱私權政策與保存天數擬稿）；規則見 DESIGN.md「招生入學」的「參觀後追蹤」。

@@ -13,6 +13,12 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 特色教學頁、關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，未部署）
+
+不需要 migration、不需要改環境變數。上線後**不必**跑 `initialize-content`：官網沒發布過這兩份內容（`curriculum_page`、`about_page`）時顯示內建內容，後台打開編輯頁會帶出同一份。若要跑，先加 `--dry-run`，確認清單只有 `curriculum_page`、`about_page` 再跑（指令由使用者用 `! railway ssh …` 執行）；它會連帶補建其他從未建立的項目。
+
+若園方確認義華創校年份是 1998：在後台「關於常春藤頁」改沿革第一站的年份，並檢查首屏介紹與其他段落文字裡的「1997」一起改；`/about` 的搜尋標題、描述與首頁 JSON-LD 會跟著沿革年份。30 週年頁（`web/app/utils/anniversary/timeline.ts` 等）與 `llms.txt`（`web/app/utils/seo.ts` 約 :266）的 1997 不會跟著改，要另外請工程師改。
+
 ## 2026-10-04 官網預約成功只通知園方一則（main CI 部署）
 
 使用者回報預約成功後校區 LINE 群組收到「新的參觀需求」與「參觀預約已確認」兩則，要求修正後 commit 並推上 main。`fix/booking-notify-once-20261004` 先 rebase 到 `59a06d8`（main 期間前進 3 個只動 web／文件的提交，只有 README 頂部衝突），再快轉推成 `bdab2ec`。這是 10-01 起待裁定的「送單兩則通知」，規則見 DESIGN.md 後台第七輪 UX 的待裁定項。

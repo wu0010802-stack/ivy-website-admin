@@ -140,11 +140,20 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+/**
+ * 創校年份：關於常春藤頁沿革的第一站（義華；內建 1997，後台「關於常春藤頁」可改）。
+ * /about 的標題描述與首頁機構節點的 foundingDate 跟著它；30 週年頁與 llms.txt 是活動主題，固定寫 1997。
+ */
+export function foundingYear(site: Pick<SiteContent, 'aboutPage'>): number {
+  return site.aboutPage?.milestones?.[0]?.year ?? 1997
+}
+
+/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，標題描述固定（創校年份跟著沿革）、分享圖沿用首頁，麵包屑兩層。 */
 export function aboutSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `關於常春藤｜1997 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。'
+  const year = foundingYear(site)
+  const title = `關於常春藤｜${year} 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`
+  const description = `常春藤幼兒園 ${year} 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。`
   const canonical = origin ? `${origin}${ABOUT_PATH}` : undefined
   const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
@@ -225,11 +234,11 @@ export function pageSeo(site: SiteContent, siteOrigin: string) {
   if (origin) {
     const organization = `${origin}/#organization`
     const orgSameAs = organizationSameAs(site)
-    // 創立年份同關於常春藤頁（aboutSeo）的公開文字。
+    // 創立年份同關於常春藤頁（aboutSeo）：沿革第一站的年份。
     graph.push({ '@type': 'EducationalOrganization', '@id': organization, name: site.siteMeta.brandName, url: `${origin}/`,
       ...(site.siteMeta.brandNameEn ? { alternateName: site.siteMeta.brandNameEn } : {}),
       ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}),
-      foundingDate: '1997', ...(orgSameAs.length ? { sameAs: orgSameAs } : {}) })
+      foundingDate: String(foundingYear(site)), ...(orgSameAs.length ? { sameAs: orgSameAs } : {}) })
     graph.push({ '@type': 'WebSite', '@id': `${origin}/#website`, name: site.siteMeta.brandName, url: canonical, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } })
   }
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }

@@ -289,6 +289,11 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'cover.media_id': '封面照片',
   'line_art.media_id': '建築線稿',
   'line_art_colour.media_id': '建築線稿（上色）',
+  // 整頁內容（特色教學頁；關於常春藤頁也有 hero_photo）：抽屜與替換對話框的標題已經寫了頁名，這裡不再帶。
+  'hero_photo.media_id': '首屏照片',
+  'years_photo.media_id': '四個年段的照片',
+  'hero_back_photo.media_id': '首屏後排照片',
+  'hope_photo.media_id': '紙房子窗戶的照片',
 }
 
 export function mediaFieldPathLabel(path: string): string {
@@ -296,6 +301,13 @@ export function mediaFieldPathLabel(path: string): string {
   if (MEDIA_SLOT_PATH_LABELS[path]) return MEDIA_SLOT_PATH_LABELS[path]
   let slot = /^moments\[(\d+)\]\.photo\.media_id$/.exec(path)
   if (slot) return `孩子的一天第 ${Number(slot[1]) + 1} 張卡片的照片`
+  slot = /^(directions|gallery|daily)\[(\d+)\]\.photo\.media_id$/.exec(path)
+  if (slot) {
+    const n = Number(slot[2]) + 1
+    if (slot[1] === 'directions') return `課程方向第 ${n} 項的照片`
+    if (slot[1] === 'gallery') return `兒童美術館第 ${n} 件作品的照片`
+    return `五件事第 ${n} 件的照片`
+  }
   slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
   if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
   let m = /^scenes\[(\d+)\]\.image$/.exec(path)
@@ -743,11 +755,13 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   if (kind === 'privacy_policy') return '/privacy'
+  if (kind === 'curriculum_page') return '/curriculum'
+  if (kind === 'about_page') return '/about'
   return '/'
 }
 
-// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、
-// 入學資訊與預約頁（預約文案：同意文字、個資說明、頁首按鈕）。
+// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
+// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策、特色教學頁與關於常春藤頁。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。
@@ -757,6 +771,8 @@ export function contentPreviewPath(kind: string, _campusKey?: string | null): st
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
   if (kind === 'privacy_policy') return '/preview?page=privacy'
+  if (kind === 'curriculum_page') return '/preview?page=curriculum'
+  if (kind === 'about_page') return '/preview?page=about'
   return '/preview'
 }
 
@@ -836,6 +852,8 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   campus_tour: '校園探索',
   booking_content: '預約文案',
   privacy_policy: '隱私權政策',
+  curriculum_page: '特色教學頁',
+  about_page: '關於常春藤頁',
   site_footer: '頁尾文字',
   site_meta: '網站標題與電話',
 }

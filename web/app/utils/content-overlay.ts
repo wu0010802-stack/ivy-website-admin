@@ -1,5 +1,6 @@
-import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, SiteContent, TourScene } from '~/types/site-content'
+import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
+import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
 import { siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
@@ -176,6 +177,71 @@ export interface LivePrivacyPolicy {
   sections: { heading: string; body: string }[]
 }
 
+export interface LivePagePhoto {
+  photo?: LiveMediaSlot | null
+  photo_alt?: string
+}
+
+/** 後端 content/page_schemas.py 的 CurriculumPagePayload */
+export interface LiveCurriculumPage {
+  hero_eyebrow: string
+  hero_title: string
+  hero_highlight?: string
+  hero_lede: string
+  hero_notice: string
+  hero_photo?: LiveMediaSlot | null
+  hero_photo_alt?: string
+  chapters: { label: string; hint: string }[]
+  years_title: string
+  years_text: string
+  spiral_label: string
+  spiral_text: string
+  years_photo?: LiveMediaSlot | null
+  years_photo_alt?: string
+  years_caption: string
+  years: { motto: string; text: string }[]
+  directions_title: string
+  directions_text: string
+  directions: ({ key: string; title: string; sub: string; text: string } & LivePagePhoto)[]
+  gallery_title: string
+  gallery_text: string
+  gallery_source: string
+  gallery: ({ label: string } & LivePagePhoto)[]
+  daily_title: string
+  daily_text: string
+  daily_source: string
+  daily: ({ title: string; text: string } & LivePagePhoto)[]
+  belief_title: string
+  beliefs: string[]
+  belief_close: string
+  belief_source: string
+}
+
+/** 後端 content/page_schemas.py 的 AboutPagePayload */
+export interface LiveAboutPage {
+  hero_title: string
+  hero_lede: string
+  hero_caption: string
+  hero_photo?: LiveMediaSlot | null
+  hero_photo_alt?: string
+  hero_back_photo?: LiveMediaSlot | null
+  hero_back_photo_alt?: string
+  chapter_names: string[]
+  story_title: string
+  story_text: string
+  milestones: { key: string; year: number; text: string }[]
+  whole_title: string
+  whole_text: string
+  whole_fine: string
+  whole_fine_source: string
+  hope_title: string
+  hope_quotes: string[]
+  hope_photo?: LiveMediaSlot | null
+  hope_photo_alt?: string
+  outro_title: string
+  outro_text: string
+}
+
 export interface LiveAdmissionContent {
   notice: string
   intro: string
@@ -258,6 +324,8 @@ export interface ContentOverlay {
   home_news?: LiveHomeNews | null
   admission_content?: LiveAdmissionContent | null
   privacy_policy?: LivePrivacyPolicy | null
+  curriculum_page?: LiveCurriculumPage | null
+  about_page?: LiveAboutPage | null
   shared_faq?: LiveSharedFaq | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
@@ -396,6 +464,93 @@ function guard(kind: string, apply: () => void): void {
     apply()
   } catch (error) {
     console.error(`[content-overlay] ${kind} 的內容格式不符，這一區改用內建內容`, error)
+  }
+}
+
+/** 整頁內容的照片版位 → 官網用的照片與說明；沒選（或 id 無效）就不帶，元件用內建圖。 */
+function pagePhoto(slot: LiveMediaSlot | null | undefined, alt: string | undefined, media: MediaInfoMap): PagePhoto {
+  const photo = slotImage(slot, media)
+  return photo ? { photo, photoAlt: alt || photo.alt } : {}
+}
+
+function curriculumPage(c: LiveCurriculumPage, media: MediaInfoMap): CurriculumPageContent {
+  assertCounts({ chapters: c.chapters, years: c.years, directions: c.directions, gallery: c.gallery, daily: c.daily, beliefs: c.beliefs }, PAGE_COUNTS.curriculum)
+  assertStrings(c, ['hero_eyebrow', 'hero_title', 'hero_lede', 'hero_notice', 'years_title', 'years_text', 'spiral_label', 'spiral_text', 'years_caption', 'directions_title', 'directions_text', 'gallery_title', 'gallery_text', 'gallery_source', 'daily_title', 'daily_text', 'daily_source', 'belief_title', 'belief_close', 'belief_source'], 'curriculum_page')
+  assertItems(c.chapters, ['label', 'hint'], 'chapters')
+  assertItems(c.years, ['motto', 'text'], 'years')
+  assertItems(c.directions, ['key', 'title', 'sub', 'text'], 'directions')
+  assertItems(c.gallery, ['label'], 'gallery')
+  assertItems(c.daily, ['title', 'text'], 'daily')
+  c.beliefs.forEach((b, i) => { if (typeof b !== 'string') throw new Error(`beliefs[${i}] 應為字串`) })
+  const hero = pagePhoto(c.hero_photo, c.hero_photo_alt, media)
+  const yearsPhoto = pagePhoto(c.years_photo, c.years_photo_alt, media)
+  return {
+    heroEyebrow: c.hero_eyebrow,
+    heroTitle: c.hero_title,
+    heroHighlight: c.hero_highlight ?? '',
+    heroLede: c.hero_lede,
+    heroNotice: c.hero_notice,
+    heroPhoto: hero.photo,
+    heroPhotoAlt: hero.photoAlt,
+    chapters: c.chapters.map((x) => ({ label: x.label, hint: x.hint })),
+    yearsTitle: c.years_title,
+    yearsText: c.years_text,
+    spiralLabel: c.spiral_label,
+    spiralText: c.spiral_text,
+    yearsPhoto: yearsPhoto.photo,
+    yearsPhotoAlt: yearsPhoto.photoAlt,
+    yearsCaption: c.years_caption,
+    years: c.years.map((x) => ({ motto: x.motto, text: x.text })),
+    directionsTitle: c.directions_title,
+    directionsText: c.directions_text,
+    directions: c.directions.map((x) => ({ key: x.key, title: x.title, sub: x.sub, text: x.text, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    galleryTitle: c.gallery_title,
+    galleryText: c.gallery_text,
+    gallerySource: c.gallery_source,
+    gallery: c.gallery.map((x) => ({ label: x.label, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    dailyTitle: c.daily_title,
+    dailyText: c.daily_text,
+    dailySource: c.daily_source,
+    daily: c.daily.map((x) => ({ title: x.title, text: x.text, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    beliefTitle: c.belief_title,
+    beliefs: [...c.beliefs],
+    beliefClose: c.belief_close,
+    beliefSource: c.belief_source
+  }
+}
+
+function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
+  assertCounts({ chapterNames: a.chapter_names, milestones: a.milestones, hopeQuotes: a.hope_quotes }, PAGE_COUNTS.about)
+  assertStrings(a, ['hero_title', 'hero_lede', 'hero_caption', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'outro_title', 'outro_text'], 'about_page')
+  assertItems(a.milestones, ['key', 'text'], 'milestones')
+  a.milestones.forEach((m, i) => { if (!Number.isInteger(m.year)) throw new Error(`milestones[${i}].year 應為整數`) })
+  a.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
+  a.hope_quotes.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`hope_quotes[${i}] 應為字串`) })
+  const hero = pagePhoto(a.hero_photo, a.hero_photo_alt, media)
+  const back = pagePhoto(a.hero_back_photo, a.hero_back_photo_alt, media)
+  const hope = pagePhoto(a.hope_photo, a.hope_photo_alt, media)
+  return {
+    heroTitle: a.hero_title,
+    heroLede: a.hero_lede,
+    heroCaption: a.hero_caption,
+    heroPhoto: hero.photo,
+    heroPhotoAlt: hero.photoAlt,
+    heroBackPhoto: back.photo,
+    heroBackPhotoAlt: back.photoAlt,
+    chapterNames: [...a.chapter_names],
+    storyTitle: a.story_title,
+    storyText: a.story_text,
+    milestones: a.milestones.map((m) => ({ key: m.key, year: m.year, text: m.text })),
+    wholeTitle: a.whole_title,
+    wholeText: a.whole_text,
+    wholeFine: a.whole_fine,
+    wholeFineSource: a.whole_fine_source,
+    hopeTitle: a.hope_title,
+    hopeQuotes: [...a.hope_quotes],
+    hopePhoto: hope.photo,
+    hopePhotoAlt: hope.photoAlt,
+    outroTitle: a.outro_title,
+    outroText: a.outro_text
   }
 }
 
@@ -629,6 +784,16 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         sections: policy.sections.map((section) => ({ heading: section.heading, body: section.body }))
       }
     }
+  })
+
+  guard('curriculum_page', () => {
+    // 整份取代；項目數不符（舊版或壞資料）時 assertCounts 丟錯，guard 退回內建內容。
+    if (overlay.curriculum_page) next.curriculumPage = curriculumPage(overlay.curriculum_page, media)
+  })
+
+  guard('about_page', () => {
+    // 整份取代；項目數或格式不符時丟錯，guard 退回內建內容。
+    if (overlay.about_page) next.aboutPage = aboutPage(overlay.about_page, media)
   })
 
   guard('campus_profile', () => {

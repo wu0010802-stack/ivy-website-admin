@@ -5,6 +5,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
+import { rocYear } from '../app/utils/page-content'
 import manifest from '../app/generated/image-manifest.json'
 import { MEDAL_YAW, medalFaces, medalPinTop, medalSequence, medalShown, medalTurn, turnState } from '../app/utils/about-popup'
 
@@ -34,10 +35,21 @@ describe('關於常春藤頁 SEO', () => {
     expect(seo.canonical).toBeUndefined()
     expect(seo.graph).toEqual([])
   })
+  it('創校年份跟著後台沿革第一站；內建內容的標題描述與改版前一字不差', () => {
+    const brand = site.siteMeta.brandName
+    const seo = aboutSeo(site, 'https://ivy.example')
+    expect(seo.title).toBe(`關於常春藤｜1997 年創立、五所校園與全人教育｜${brand}`)
+    expect(seo.description).toBe('常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。')
+    const edited = { ...site, aboutPage: { ...site.aboutPage, milestones: site.aboutPage.milestones.map((m, i) => (i ? m : { ...m, year: 1998 })) } }
+    const changed = aboutSeo(edited, 'https://ivy.example')
+    expect(changed.title).toBe(`關於常春藤｜1998 年創立、五所校園與全人教育｜${brand}`)
+    expect(changed.description).toContain('常春藤幼兒園 1998 年在高雄三民區義華路創立')
+    expect(changed.graph[0]!.name).toBe(changed.title)
+  })
 })
 
 describe('五校沿革', () => {
-  const milestones = [...component.matchAll(/\{ key: '([a-z]+)', year: (\d+), roc: (\d+)/g)].map((m) => ({ key: m[1], year: Number(m[2]), roc: Number(m[3]) }))
+  const milestones = site.aboutPage.milestones.map((m) => ({ key: m.key, year: m.year, roc: rocYear(m.year) }))
   it('依創校先後排列，民國年與西元年一致（民國 = 西元 − 1911）', () => {
     expect(milestones.map((m) => m.key)).toEqual(['yihua', 'minghua', 'chongde', 'international', 'renwu'])
     expect(milestones.map((m) => m.roc)).toEqual([86, 90, 94, 109, 110])
@@ -49,6 +61,15 @@ describe('五校沿革', () => {
   })
   it('畫面上不寫「三十多年」、週年，也不提美語補習班（未定案）', () => {
     expect(template).not.toMatch(/三十多|週年|美語部|補習班/)
+    expect(JSON.stringify(site.aboutPage)).not.toMatch(/三十多|週年|美語部|補習班/)
+  })
+})
+
+describe('關於常春藤頁的文字來自後台內容（2026-10）', () => {
+  it('元件不再寫死段落文字與沿革', () => {
+    for (const phrase of ['從一間幼兒園', '近三十年，', '孩子的第一所學校', '第一間常春藤，在三民區', '把每個孩子，放在心上']) expect(component).not.toContain(phrase)
+    expect(site.aboutPage.chapterNames).toEqual(['一路走來', '全人教育', '我們的期許', '家長怎麼說'])
+    expect(site.aboutPage.hopeQuotes).toHaveLength(2)
   })
 })
 
@@ -168,7 +189,9 @@ describe('立體書精修：章節與目次', () => {
     expect(template).toContain('id="campuses"')
   })
   it('首屏照片裡的長輩是創辦人（使用者確認，不寫姓名）', () => {
-    expect(template).toContain('alt="孩子們笑著圍在創辦人身邊，大家擠在一起"')
+    // 內建照片的說明留在元件常數、不開放編輯；後台換了照片才用後台的說明
+    expect(component).toContain("const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'")
+    expect(template).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
   })
   it('引言不用左側色條（側條），改用括號', () => {
     expect(css).not.toMatch(/\.abk-quote\{[^}]*border-left/)

@@ -10,6 +10,7 @@ import { SLOTS_CAMPUS } from './stack-env'
 const PAGES = [
   '/',
   '/curriculum',
+  '/about',
   '/environment',
   '/admission',
   '/visit',

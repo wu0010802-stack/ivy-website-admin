@@ -462,8 +462,8 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
     # initialize-content 的 dry-run 只列出還沒有版本的項目，不建立任何列。
     pending = await pending_initialization(db_session, data)
     assert ("home_about", None) not in pending and ("campus_profile", "yihua") in pending
-    # 20 筆（含 2026-09-25 起的全站共用常見問題）扣掉已有版本的 3 筆。
-    assert len(pending) == 18
+    # 23 筆（含 2026-09-25 起的全站共用常見問題、2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。
+    assert len(pending) == 20
     assert len((await db_session.execute(select(ContentItem))).scalars().all()) == 3
 
 

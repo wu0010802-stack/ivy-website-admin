@@ -1,7 +1,7 @@
 import type { NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, anniversarySeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, admissionHeroImage, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
-import { heroImageAttrs } from '~/utils/media-image'
+import { admissionHeroImage, environmentHeroImage } from '~/utils/responsive-image'
+import { aboutHeroAttrs, curriculumHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 
@@ -32,8 +32,8 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (!site.value) return undefined
     if (page === 'admission') return admissionHeroImage()
     if (page === 'environment') return environmentHeroImage()
-    if (page === 'curriculum') return responsiveImage(CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES)
-    if (page === 'about') return responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES)
+    if (page === 'curriculum') return curriculumHeroAttrs(site.value.curriculumPage)
+    if (page === 'about') return aboutHeroAttrs(site.value.aboutPage)
     // 消息頁沒有滿版 hero，不預載。
     // 30 週年首屏先播開場影片，海報圖已設 fetchpriority=high，不另外預載。
     if (page === 'news' || page === 'privacy' || page === 'anniversary') return undefined

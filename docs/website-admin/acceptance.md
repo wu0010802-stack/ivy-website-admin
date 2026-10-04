@@ -511,3 +511,41 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 驗證（2026-10-04，HEAD `abd244d`）：後端 pytest 全套 1363 passed、admin vitest 1054 passed（另 2 項招生頁 5 秒逾時，單獨重跑通過）、web 753 passed、`contract:check` 一致、stack e2e 全套 69 passed。
 
 未驗證：正式站 SMTP 實寄（要使用者設定 `WEBSITE_SMTP_*`）、iOS Safari／Gmail App／LINE 內建瀏覽器實機。
+
+## 整頁內容進後台：特色教學頁（2026-10-04）
+
+內容種類 `curriculum_page`，後台「全站與素材 → 特色教學頁」，官網 `/curriculum`。階段 A；`/about` 見本節後面「關於常春藤頁」。
+
+| 編號 | 項目 | 結果 | 證據 |
+|---|---|---|---|
+| CP1 | 權限：super_admin 與 shared 授權可編輯 | 通過 | 後端 `test_curriculum_page_content.py`、admin 單元測試 |
+| CP2 | 預設內容零差異：改版前後 SSR `<main>` 相同 | 通過 | `scripts/page-ssr-snapshot.cjs` diff 為空 |
+| CP3 | 後台已發布路徑（stack 跑 `initialize-content`）與內建內容相同 | 通過 | `/curriculum` `<main>` 去掉 scoped hash 後相同 |
+| CP4 | 版面硬上限在 390／820／1024／1440 不跑版 | 通過 | `node scripts/page-copy-stress.cjs /curriculum` |
+| CP5 | 草稿預覽 `?page=curriculum` | 通過 | `web/tests/draft-preview.spec.ts` |
+| CP6 | 超過字數時 422 指到欄位與第幾項 | 通過 | `test_curriculum_page_content.py`、`curriculumPage.test.ts` |
+| CP7 | 契約與型別一致 | 通過 | `npm run contract:check` |
+
+驗證（2026-10-04，HEAD `53d1890a`）：後端 pytest 全套 1397 passed、1 failed（初始化筆數 19 vs 18，`53d1890` 已修，該檔 19 passed）；web 76 檔 766 項、admin 89 檔 1078 項全過；stack e2e 69 passed。
+
+未驗證：實機 iOS／Android、正式站；後台已發布且換了照片時，沒設焦點置中只有單元測試。
+
+### 關於常春藤頁（階段 B，2026-10-04）
+
+內容種類 `about_page`，後台「全站與素材 → 關於常春藤頁」，官網 `/about`。
+
+| 編號 | 項目 | 結果 | 證據 |
+|---|---|---|---|
+| AB1 | 預設內容零差異：改版前後 SSR `<main>` 相同 | 通過 | `scripts/page-ssr-snapshot.cjs` diff 為空（`/about`、`/curriculum`） |
+| AB2 | 後台已發布路徑（stack 跑 `initialize-content`）與內建內容相同 | 通過 | `/about`、`/curriculum` `<main>` 去掉 scoped hash 後相同 |
+| AB3 | 版面硬上限在 390／820／901／1024／1440 不跑版，含一路走來標題不被紀念章蓋住 | 通過 | `node scripts/page-copy-stress.cjs /about` |
+| AB4 | 沿革年份由早到晚；後台比上一站早時紅字提醒（不擋存檔）、後端擋存檔 | 通過 | 後端與 admin 單元測試 |
+| AB5 | 超過字數時 422 指到沿革第幾站、第幾段引言 | 通過 | 後端與 admin 單元測試 |
+| AB6 | 搜尋標題、描述與首頁 JSON-LD 創立年份讀沿革第一站，預設輸出不變 | 通過 | web 單元測試（`seo`） |
+| AB7 | 草稿預覽 `?page=about` | 單元測試通過 | 沒在瀏覽器登入後打開看過 |
+| AB8 | hydration 與 axe 檢查含 `/about` | 通過 | stack e2e |
+| AB9 | 契約與型別一致 | 通過 | `npm run contract:check` |
+
+驗證（2026-10-04，HEAD `70eb1991`，已合併 origin/main `eab7df4f`）：後端全套 1425 passed；web typecheck 通過、78 檔 792 項全過；admin typecheck 通過，90 檔 1100 項在 `--testTimeout=20000` 下全過（預設 5 秒逾時在另一個 session 把機器負載推到 load average 15–40 時，每次有 10–23 項逾時、失敗的檔每次不同，單獨重跑通過）；stack e2e 71 passed。
+
+未驗證：實機 iOS／Android、正式站；後台草稿預覽沒在瀏覽器實測；後台換照片後在已發布頁面的實際裁切只有單元測試。30 週年頁與 `llms.txt` 的 1997 寫死、不跟沿革年份。

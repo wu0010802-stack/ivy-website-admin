@@ -7,6 +7,7 @@ from typing import Callable
 
 from pydantic import BaseModel
 
+from app.content.page_schemas import AboutPagePayload, CurriculumPagePayload
 from app.content.schemas import (
     AdmissionContentPayload,
     BookingContentPayload,
@@ -148,6 +149,34 @@ def _extract_home_news_media_refs(payload: dict) -> list[MediaRef]:
             refs.append(video)
             refs.append(_slot_ref(film, "poster", "image", prefix, film.get("title")))
     return _refs(refs)
+
+
+def _list_slot_refs(payload: dict, list_name: str, label_key: str) -> list[MediaRef | None]:
+    """清單每一項的 photo 版位（整頁內容用），路徑像 `directions[2].photo.media_id`。"""
+    items = payload.get(list_name)
+    if not isinstance(items, list):
+        return []
+    return [
+        _slot_ref(item, "photo", "image", prefix=f"{list_name}[{index}].", label=item.get(label_key))
+        for index, item in enumerate(items)
+        if isinstance(item, dict)
+    ]
+
+
+def _extract_about_page_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs([_slot_ref(payload, name, "image") for name in ("hero_photo", "hero_back_photo", "hope_photo")])
+
+
+def _extract_curriculum_page_media_refs(payload: dict) -> list[MediaRef]:
+    return _refs(
+        [
+            _slot_ref(payload, "hero_photo", "image"),
+            _slot_ref(payload, "years_photo", "image"),
+            *_list_slot_refs(payload, "directions", "title"),
+            *_list_slot_refs(payload, "gallery", "label"),
+            *_list_slot_refs(payload, "daily", "title"),
+        ]
+    )
 
 
 _PATH_TOKEN = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)|\[(\d+)\]")
@@ -359,6 +388,14 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     # 全站共用常見問題；各校在 campus_faq 決定要不要顯示、放在哪裡。
     "shared_faq": ContentKindConfig(SharedFaqPayload, shared_only=True, public_view=_public_shared_faq),
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
+    # 特色教學頁（2026-10 開放後台編輯）：文字與照片，章節數量與版面固定（page_schemas.py）。
+    "curriculum_page": ContentKindConfig(
+        CurriculumPagePayload, shared_only=True, extract_media_refs=_extract_curriculum_page_media_refs
+    ),
+    # 關於常春藤頁（2026-10 開放後台編輯）：立體書的章節與五站固定。
+    "about_page": ContentKindConfig(
+        AboutPagePayload, shared_only=True, extract_media_refs=_extract_about_page_media_refs
+    ),
     # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(
         CampusProfilePayload,
