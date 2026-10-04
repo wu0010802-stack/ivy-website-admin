@@ -42,6 +42,18 @@ migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只�
 
 若園方確認義華創校年份是 1998：在後台「關於常春藤頁」改沿革第一站的年份，並檢查首屏介紹與其他段落文字裡的「1997」一起改；`/about` 的搜尋標題、描述與首頁 JSON-LD 會跟著沿革年份。30 週年頁（`web/app/utils/anniversary/timeline.ts` 等）與 `llms.txt`（`web/app/utils/seo.ts` 約 :266）的 1997 不會跟著改，要另外請工程師改。
 
+## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（main CI 部署）
+
+使用者看過 PR #31 後要求合併進 main。`feature/admissions-follow-up-20261004` 合併前已同步 main 到 `bdab2ec`（`33fa709`，只有 README 頂部衝突），以 merge commit 併成 `bd22112`。規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`，規則見 DESIGN.md「參觀後追蹤」，驗收 F01–F19 見 `docs/website-admin/acceptance.md`。
+
+- **內容**：招生入學「待追蹤」分頁、記錄聯絡（新表 `recruitment_contact_logs`）、改期與追蹤負責人、歷程抽屜合併參觀前後紀錄、批次標記到場、預約明細「參觀後追蹤」、總覽待辦「參觀後該聯絡的家長」；轉移契約多一個延伸匯出檔（`contracts/ivy-recruitment/README.md`）。
+- **migration `b8e3f1a6c4d7`**（接 `d2b7f4c9e1a3`）：`recruitment_visits` 加三個可空欄位與 CHECK `ck_recruitment_visits_follow_up_open`、新表與索引，只新增、不改寫資料，照 `deploy/CICD.md` 不需事先備份。這次 Actions log 看不到 api 容器輸出；`deploy/api-start.py` 是 `alembic upgrade head`（`check=True`）→ `check-schema.py` 比對 DB revision 必須等於映像的 head，不符就不啟動，api 部署 SUCCESS 且 smoke 打到 live API，等同正式庫已在 `b8e3f1a6c4d7`。
+- **CI**：main run 37201630298（`bd22112`）E2E／Playwright、Backend／PostgreSQL／contracts、Frontend web／admin、Deploy Railway production 全部 success（2026-10-04 12:18–12:39 UTC；部署 12:36–12:39，api 12:37:27、web 12:39:25 SUCCESS，public smoke passed）。
+- **正式 `release.json`**：base commit `bd22112`，created `2026-10-04T12:36:10Z`。
+- **線上唯讀檢查**（12:5x UTC，未登入）：`/api/website/v1/health` 200；`/admin/admissions/options`、`/admin/admissions/follow-ups` **401**，對照 `/admin/admissions/nope-xyz`、`/admin/definitely-not-a-route-xyz` 404。招生路由只在 `WEBSITE_ADMISSIONS_ENABLED=true` 時掛上（`backend/app/main.py:217`），401＝路由已掛，**正式站開關實測是開的**；10-02 部署時同一端點是 404。repo 與 `deploy/`、`.github/` 都沒有設這個變數，是在 Railway 直接設的，本 repo 沒有開啟紀錄。
+- **與上線前提不符**：`/privacy` 仍 404（隱私權政策尚未發布），追蹤規格附錄 A.5 的 ①（發布含招生用途與 730 天保存的政策）還沒做；保存政策「招生訪視」天數無法在未登入下確認。是否維持開啟、或先關掉補完 ①–③，由使用者決定；本次沒有改任何正式站設定。
+- **未做**：正式站沒有登入看「待追蹤」分頁與總覽待辦；Safari／iOS 實機。
+
 ## 2026-10-04 官網預約成功只通知園方一則（main CI 部署）
 
 使用者回報預約成功後校區 LINE 群組收到「新的參觀需求」與「參觀預約已確認」兩則，要求修正後 commit 並推上 main。`fix/booking-notify-once-20261004` 先 rebase 到 `59a06d8`（main 期間前進 3 個只動 web／文件的提交，只有 README 頂部衝突），再快轉推成 `bdab2ec`。這是 10-01 起待裁定的「送單兩則通知」，規則見 DESIGN.md 後台第七輪 UX 的待裁定項。
@@ -283,7 +295,7 @@ migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只�
 - **之後的部署**：部署完成前，另一個 session 已把招生入學併入 main（`71820a4`），並同步了本次修正（`2eafc1b`）。那次 CI（run 36999602663）會再部署一次，招生入學的說明見下節；本次改動的檔案在 `2eafc1b` 與 `f520031` 相同。
 - **未驗證**：iPhone Safari 實機的方塊底，本機只有 Chromium。
 
-## 招生入學（2026-10-02 已部署 `2eafc1b`，後續修正隨 `a2ed829` 上線，功能開關關閉）
+## 招生入學（2026-10-02 已部署 `2eafc1b`，後續修正隨 `a2ed829` 上線；原規劃開關關閉，10-04 實測正式站已開，見頂部紀錄）
 
 `feature/admissions-20261001`：後台「招生入學」，階段 A（後端與轉移契約）、B（後台畫面）、C（統計、五校比較、stack e2e）。2026-10-02 使用者要求併入 main 並部署（合併提交 `71820a4`，同步 main 後 `2eafc1b`）；正式站**開關仍關閉**。規格 `docs/specs/2026-09-30-website-admissions-design.md`。
 
@@ -291,7 +303,7 @@ migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只�
 - **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天。同意文字建議跟家長自選場次改版的同意文字同一次改。
 - **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數（預設空白＝不自動清理，業主裁定天數後由總管理者設定），再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。
   - 2026-10-04 起官網預約已不勾選同意，Q1 改由隱私權政策告知。擬稿與順序見 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A：① 後台「隱私權政策」換上附錄 A.2 的三處、補完其他【待確認】後發布；② （選做）預約文案的個資使用說明加一段；③ 保存政策「招生訪視」設 730 天（建議值）；④ 才打開開關。
-- **參觀後追蹤（`feature/admissions-follow-up-20261004`，未併 main）**：migration `b8e3f1a6c4d7`（接 `d2b7f4c9e1a3`）只在 `recruitment_visits` 加三個可空欄位與一個 CHECK、新增 `recruitment_contact_logs`，不改寫既有資料，可隨程式上線；開關關著時一樣不會有資料。開啟後已到場的新案件只帶負責人，不自動排聯絡。
+- **參觀後追蹤（`feature/admissions-follow-up-20261004`，10-04 隨 main `bd22112` 部署，見頂部紀錄）**：migration `b8e3f1a6c4d7`（接 `d2b7f4c9e1a3`）只在 `recruitment_visits` 加三個可空欄位與一個 CHECK、新增 `recruitment_contact_logs`，不改寫既有資料，可隨程式上線；開關關著時一樣不會有資料。開啟後已到場的新案件只帶負責人，不自動排聯絡。
 - **舊的已到場預約不會自動補建**：開啟後，關閉期間（或本功能上線前）已到場的預約會列在後台「招生入學 → 官網預約」下方「已到場但沒有招生訪視」，逐筆按「建立招生訪視」。
 - **權限不用改帳號**：新增 `admissions.read／write／convert`，預設總管理者、分校管理者全有，接待人員有 read／write（規格 Q2 未回覆照預設）；內容編輯、唯讀沒有。
 - **Migration `4a7e2c9d1b63`**（`backend/migrations/versions/4a7e2c9d1b63_admissions.py`，接在 `c7d2e9f4a1b8`〔家長自選場次〕之後）：新建 `recruitment_visits`、`recruitment_event_log`、`grade_intake_targets` 三張表，`retention_policies` 加可為 NULL 的 `admissions_days` 與 CHECK；不改寫既有資料，可以安全隨程式上線（API 啟動時自動 upgrade），開關關著時三張表維持空的。和家長自選場次一起上線時，那一支改寫資料的 migration 仍要先備份。合併前 rebase 到 main、重跑 `npm run contract:generate`，並用 `alembic heads` 確認只有一個 head。

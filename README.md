@@ -47,7 +47,7 @@
 - **未驗證**：實機 iOS／Android、正式站；「後台已發布且換了照片」的頁面上，沒設焦點時置中只有單元測試，沒在瀏覽器實測；`/about` 見上方階段 B 段落。
 - **分支與合併**：已合併 origin/main `d559cae6`（重設密碼連結）。與 `feature/media-jobs-20261003`（背景轉檔）合併時 `web/app/utils/media-image.ts`、`content-overlay.ts`、`admin/src/api/labels.ts` 可自動合併，後合併者重跑 `contract:generate`；`backend/tests/test_content_initialize.py` 的初始化筆數與 `web/tests/fixtures/overlay-baseline-20260925.json` 之後新增初始化 kind 的分支都會撞到。
 
-## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（`feature/admissions-follow-up-20261004`，未部署）
+## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（`feature/admissions-follow-up-20261004`，10-04 已部署 main `bd22112`）
 
 使用者要「家長完成參觀後可以有後續追蹤，參觀完成後案件自動導入招生入學，形成一整個流程」。規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 使用者回「不一定會聯絡」→ 不自動排第一次聯絡；附錄 A 是招生規格 Q1 的隱私權政策與保存天數擬稿）；規則見 DESIGN.md「招生入學」的「參觀後追蹤」。
 
