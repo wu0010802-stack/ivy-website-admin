@@ -47,7 +47,11 @@
 }
 
 /* 迎賓區 ------------------------------------------------------------------ */
-.visit-ghost {position:absolute;inset:0 0 auto;z-index:-1;display:flex;flex-direction:column;max-height:100%;overflow:clip;padding:clamp(28px,4vw,56px) 0 0 max(28px,calc((100% - 1440px) / 2 + 40px));font:700 clamp(142px,14vw,208px)/1.04 var(--font-head);letter-spacing:-.075em;color:var(--visit-ghost-ink);opacity:.5;white-space:nowrap;pointer-events:none;user-select:none}
+/* 2026-10-04：大字放進迎賓區、以色帶為 size container，字級取原尺寸與「兩行放得進色帶」的較小值。
+   10-02 色帶收短後，原本固定字級的第二行落到選校區、被內容區底色蓋掉半截（1000～1440 寬、手機都有）。
+   外層的 font 是不支援 cqh 時的退路（照舊字級）；em 字距寫在 span，縮字後字距才會跟著縮。 */
+.visit-ghost {position:absolute;inset:0;z-index:-1;container-type:size;--visit-ghost-size:clamp(142px,14vw,208px);display:flex;flex-direction:column;overflow:clip;padding:clamp(28px,4vw,56px) 0 0 max(28px,calc((100% - 1440px) / 2 + 40px));font:700 var(--visit-ghost-size)/1.04 var(--font-head);color:var(--visit-ghost-ink);opacity:.5;white-space:nowrap;pointer-events:none;user-select:none}
+.visit-ghost span {font-size:min(var(--visit-ghost-size),100cqh / 2.08);letter-spacing:-.075em}
 .visit-ghost span:last-child {padding-left:.9em}
 .visit-welcome {position:relative;color:var(--visit-ink)}
 /* 2026-10-02 收短（原 clamp(72px,9vw,132px)／clamp(56px,7vw,96px)、照片 3:2）：桌機 1440×900 原本整個第一屏都是迎賓區，選校步驟在折線下；
@@ -276,7 +280,7 @@
   .visit-campus-aside {grid-template-columns:minmax(0,1fr)}
   .visit-aside-info {display:flex;flex-wrap:wrap;align-items:center;gap:0 18px}
   .visit-aside-info p {flex-basis:100%;min-height:0;font-size:var(--fs-xs)}
-  .visit-ghost {font-size:30vw;opacity:.4}
+  .visit-ghost {--visit-ghost-size:30vw;opacity:.4}
   /* 手機第一屏要看得到選校（2026-09-27）：迎賓區收短、照片拿掉，選校卡本身就是照片。 */
   .visit-page[data-step='1'] .visit-welcome {padding:28px 0 4px}
   .visit-welcome-photo {display:none}

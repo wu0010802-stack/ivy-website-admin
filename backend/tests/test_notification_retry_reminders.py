@@ -53,7 +53,7 @@ async def _fail_until_given_up(db_session, message_id, adapter, line) -> OutboxM
 
 
 async def _book_created_only(admin_client, public_client, db_session, **fields) -> uuid.UUID:
-    """book_slot 後只留園方「新的參觀需求」那一筆待處理：已確認通知與家長確認信
+    """book_slot 後只留園方「新的參觀預約」那一筆待處理：家長確認信
     標成已寄出，讓失敗、重送的計數只看這一筆。回傳它的 outbox id。"""
     await book_slot(admin_client, public_client, **fields)
     await db_session.execute(
@@ -201,7 +201,7 @@ async def test_outbox_list_reports_total_beyond_limit(admin_client, public_clien
         await book_slot(
             admin_client, public_client, days_ahead=3 + index, capacity=2, phone=f"091234567{index}"
         )
-    # 每筆預約有三則通知；只把園方「新的參觀需求」三則標成失敗。
+    # 每筆預約有兩則通知（園方、家長）；只把園方「新的參觀預約」三則標成失敗。
     await db_session.execute(
         update(OutboxMessage)
         .where(OutboxMessage.kind == "visit_request_created")

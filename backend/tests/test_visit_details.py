@@ -188,10 +188,10 @@ async def test_new_details_roundtrip_stays_private_and_within_campus(
     }
 
     messages = (await db_session.execute(select(OutboxMessage))).scalars().all()
-    # 送單（園方通知、成立、家長成立信）加上後台重發修改連結的家長信；不管哪一種，
+    # 送單（園方新預約通知、家長成立信）加上後台重發修改連結的家長信；不管哪一種，
     # payload 都只有校區與案件 id，不帶任何個資。
     assert sorted(message.kind for message in messages) == [
-        "parent_visit_booked", "parent_visit_changed", "visit_request_confirmed", "visit_request_created",
+        "parent_visit_booked", "parent_visit_changed", "visit_request_created",
     ]
     assert all(message.payload == {"campus_key": "yihua", "receipt_id": receipt_id} for message in messages)
 

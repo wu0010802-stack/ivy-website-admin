@@ -216,8 +216,8 @@ async def test_reception_sees_notifications_but_only_managers_mark_them_handled(
     await book_slot(admin_client, public_client, idempotency_key="desk-notif-01")
     await run_outbox_once(recording_mail_adapter)
     items = (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json()
-    # 自選場次送單即確認：園方收到「新需求」與「已確認」兩則站內通知。
-    assert sorted(item["kind"] for item in items) == ["visit_request_confirmed", "visit_request_created"]
+    # 自選場次送單即確認：園方只收到一則「新的參觀預約」站內通知。
+    assert [item["kind"] for item in items] == ["visit_request_created"]
     denied = await desk.post(f"{BASE}/notifications/{items[0]['id']}/read")
     assert denied.status_code == 403, denied.text
     assert all(item["read_at"] is None for item in (await desk.get(f"{BASE}/notifications?campus_key=yihua")).json())

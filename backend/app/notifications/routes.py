@@ -68,7 +68,7 @@ class NotificationSlotOut(BaseModel):
 
 
 class NotificationInboxItemOut(BaseModel):
-    """依校區共用的案件通知（新的參觀需求、已確認、已改期、已取消、逾期提醒…）。"""
+    """依校區共用的案件通知（新的參觀預約、已確認、已改期、已取消、逾期提醒…）。"""
 
     id: uuid.UUID
     campus_key: str

@@ -14,7 +14,7 @@
 同樣的數字，admin 的 labelCoverage.test.ts 會解析這裡的常數比對，改了會提醒）：
 - 即將參觀：已確認的參觀在開始前 `UPCOMING_VISIT_LEAD`（24 小時）內提醒一次。
   確認或改期到這個時段時就已經在這個範圍內的（例如當天才確認、改到明天上午）
-  不另外提醒——「已確認」「已改期」那則通知就是提醒。改期不會更新
+  不另外提醒——「新的參觀預約」「已確認」「已改期」那則通知就是提醒。改期不會更新
   confirmed_at，換到這個時段的時間看最後一筆 `rescheduled` 歷程。
 - 逾期未處理，兩種情形共用一個 kind，payload.reason 區分：
   - `new_unhandled`：官網送來的新需求超過 `NEW_REQUEST_OVERDUE_AFTER`（24

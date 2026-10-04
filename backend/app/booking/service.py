@@ -414,6 +414,9 @@ async def submit_visit_request(
     )
     await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    # 送出即預約成立，園方只發一則「新的參觀預約」。不再另排 visit_request_confirmed：
+    # 那是舊的自動確認模式留下的，會讓 LINE 群組、站內通知、Email 每筆都收兩則
+    # （2026-10-04 使用者裁定合併）。visit_request_confirmed 只留給園方確認補登的案件。
     enqueue_outbox(
         db,
         visit_request.id,
@@ -422,12 +425,6 @@ async def submit_visit_request(
     )
     await analytics_service.record_internal_event(
         db, event_type=AnalyticsEventType.REQUEST_CREATED, campus_key=campus_key, visit_request=visit_request
-    )
-    enqueue_outbox(
-        db,
-        visit_request.id,
-        "visit_request_confirmed",
-        {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
     )
     await analytics_service.record_internal_event(
         db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key, visit_request=visit_request
