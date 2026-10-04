@@ -411,7 +411,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。
 
-## 參觀後追蹤（2026-10-04 實作，`feature/admissions-follow-up-20261004`，尚未部署）
+## 參觀後追蹤（2026-10-04 實作，`feature/admissions-follow-up-20261004`，10-04 隨 main `bd22112` 部署）
 
 規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 改為不自動排第一次聯絡）。後端用真 PostgreSQL（隔離測試庫 `ivy_website_test_followup`）；stack e2e 在這個容器用預裝 Chromium（沒有 Google Chrome，另以本機設定覆寫 `channel`，不進 repo）。
 
