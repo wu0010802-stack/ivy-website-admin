@@ -1,7 +1,7 @@
 """素材背景處理：media_jobs 表，衍生檔加中圖與桌機／手機影片版本
 
 Revision ID: e5b9c3a7d214
-Revises: 4a7e2c9d1b63
+Revises: d2b7f4c9e1a3
 Create Date: 2026-10-03
 
 1. `media_jobs`：影片 poster 與轉檔的背景工作（app/media/jobs.py）。同一個素材
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "e5b9c3a7d214"
-down_revision = "4a7e2c9d1b63"
+down_revision = "d2b7f4c9e1a3"
 branch_labels = None
 depends_on = None
 
