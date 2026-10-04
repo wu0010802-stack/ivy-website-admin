@@ -116,7 +116,8 @@ class TelemetryIn(BaseModel):
 
     event: Literal["page_view", "visit_click", "LCP", "INP", "CLS"]
     # 2026-09-30 起公開內頁（關於、特色教學、環境、入學、最新消息）也回報；消息內文頁一律記成 news。
-    page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news"]
+    # 2026-10-04 加 30 週年分頁（anniversary）。
+    page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news", "anniversary"]
     campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
     device: Literal["mobile", "desktop"]
     value: float | None = None

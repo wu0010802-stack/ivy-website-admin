@@ -5,6 +5,9 @@ import { ANNI_MILESTONES, ANNI_YEARS, anniversaryYearIndex, campusCountAt, crayo
 import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
+import { anniversarySeo, llmsTxt, sitemapXml } from '../app/utils/seo'
+import siteFixture from '../server/data/site-fixture.json'
+import type { SiteContent } from '../app/types/site-content'
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', p), 'utf8')
 const page = read('app/pages/anniversary.vue')
@@ -99,10 +102,23 @@ describe('30 週年分頁：作品拼成的 30', () => {
 })
 
 describe('30 週年分頁：開場影片與素材', () => {
-  it('週年版未拍板：不給搜尋引擎收錄、標題照全站格式', () => {
-    expect(page).toContain("robots: 'noindex, nofollow'")
-    expect(page).toMatch(/常春藤 30 週年｜1997—2027｜/)
+  it('2026-10-04 起是正式分頁：走全站 SEO、進主選單、頁尾、sitemap 與 llms.txt', () => {
+    const site = siteFixture as unknown as SiteContent
+    expect(page).toContain("usePageSeo(computed(() => data.value?.content), 'anniversary')")
+    expect(page).not.toContain('noindex')
+    const seo = anniversarySeo(site, 'https://ivy.example')
+    expect(seo.title).toBe(`常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`)
+    expect(seo.canonical).toBe('https://ivy.example/anniversary')
+    expect(sitemapXml('https://ivy.example')).toContain('<loc>https://ivy.example/anniversary</loc>')
+    expect(llmsTxt('https://ivy.example', site)).toContain('[常春藤 30 週年](https://ivy.example/anniversary)')
+    expect(site.siteMeta.primaryNav.at(-1)).toEqual({ label: '30 週年', labelEn: 'Anniversary', href: '/anniversary' })
+    expect(site.footer.links.some((l) => l.href === '/anniversary')).toBe(true)
     expect(read('app/components/SiteHeader.vue')).toMatch(/PILL_PAGES = \[[^\]]*'\/anniversary'/)
+  })
+
+  it('瀏覽與預約按鈕的點擊會記在 30 週年頁', () => {
+    expect(read('shared/telemetry.ts')).toContain("'/anniversary': 'anniversary'")
+    expect(content).toContain('data-cta-entry="anniversary"')
   })
 
   it('開場只在第一次、沒有偏好減少動態、網址沒有錨點時自動播放，而且一律先靜音', () => {

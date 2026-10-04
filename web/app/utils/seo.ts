@@ -39,13 +39,14 @@ export function campusShareImagePath(campus: Campus): string {
   return campus.imageMedia ? campus.imageMedia.src : ogImagePath(campus.image)
 }
 
-/** 公開的單頁（非分校頁）：最新消息列表、關於常春藤、入學資訊、常春藤環境、特色教學。 */
-export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum' | 'privacy'
+/** 公開的單頁（非分校頁）：最新消息列表、關於常春藤、入學資訊、常春藤環境、特色教學、30 週年。 */
+export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum' | 'privacy' | 'anniversary'
 export const ADMISSION_PATH = '/admission'
 export const ENVIRONMENT_PATH = '/environment'
 export const CURRICULUM_PATH = '/curriculum'
 export const ABOUT_PATH = '/about'
 export const PRIVACY_PATH = '/privacy'
+export const ANNIVERSARY_PATH = '/anniversary'
 
 /** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
@@ -98,6 +99,24 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '常春藤環境', item: canonical }
+    ] }
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
+}
+
+/** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+export function anniversarySeo(site: SiteContent, siteOrigin: string) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const title = `常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`
+  const description = '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。'
+  const canonical = origin ? `${origin}${ANNIVERSARY_PATH}` : undefined
+  const share = siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '常春藤 30 週年', item: canonical }
     ] }
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
@@ -246,7 +265,7 @@ export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xm
 /** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。 */
 export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ANNIVERSARY_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
     ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
@@ -267,6 +286,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'>): st
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
+  out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')
   out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上選擇日期與場次，送出後即預約成功，可從連結改場次、修改資料或取消。`, '')
   return out.join('\n')

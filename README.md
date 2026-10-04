@@ -11,6 +11,16 @@
   - stack e2e（這個容器沒有 Google Chrome，用預裝 Chromium 以本機設定覆寫 `channel`，不進 repo）：`admissions-flow`、`admissions-follow-up`、`a11y`（含待追蹤分頁兩個網址）、`keyboard`、`roles` 共 44 項全過；截圖 `output/playwright/admissions-followups-*.png`、`admissions-contact-dialog-1440.png`。
   - 未驗證：stack e2e 全套、web（本次沒動）、Safari／iOS 實機、正式庫 migration。
 
+## 2026-10-04 30 週年改成正式分頁：進主選單、頁尾、sitemap（`feature/anniversary-nav-20261004`）
+
+使用者看完不公開上線的 `/anniversary` 後說「幫我做成一個分頁沒關係」。規則見 DESIGN.md「30 週年分頁」。
+
+- **入口**：fixture 主選單第五項「30 週年 / Anniversary」、頁尾連結（`web/server/data/site-fixture.json`；後台 `DEFAULT_PRIMARY_NAV`／`DEFAULT_FOOTER_LINKS` 同步）。正式站後台沒存過這兩個欄位，部署後直接生效。
+- **SEO**：`anniversarySeo`（canonical、麵包屑、分享圖沿用首頁）、`sitemapXml`、`llmsTxt`；頁面改走 `usePageSeo`，拿掉頁面自己的 noindex（收錄照全站設定）。
+- **統計**：`contentPages`、後端 telemetry `page` 列舉、`CTA_ENTRIES`（後端、web、後台標籤）加 `anniversary`；`<main data-cta-entry="anniversary">`；`npm run contract:generate` 重產契約。都是字串欄位，不需要 migration。
+- **頁首**：五項在 1101–1126px 預約鈕超出視窗，1101–1180px 選單間距 32→20px。
+- **驗證**（Node 22）：web `test:website` 76 檔 769 項（`media-slots` 基準快照加兩筆、`environment.spec` 選單斷言、`anniversary.spec` 改測正式分頁）、web typecheck；admin typecheck、vitest 87 檔 1056 項（`--maxWorkers=2`；同時開 dev server 跑時，案件／篩選類有 1–6 項計時偶發，還原成 main 也會發生）；後端 `test_traffic`／`test_analytics_funnel`／`test_site_structure_content` 79 項（獨立測試庫 `ivy_website_test_anninav`，跑完刪除）；`contract:check` 一致。dev server（fixture）＋Playwright：頁首 1920／1440／1366／1280／1200／1101–1180 每幾 px／1100／1024／1000／960／920／901 都一列、不重疊、沒有橫向捲動；桌機膠囊與手機選單面板第 05 項「30 週年」、頁尾有連結。
+
 ## 2026-10-04 30 週年分頁 `/anniversary`（`feature/anniversary-page-20261004`，10-04 已部署 main `9068de8`，不公開、不進導覽）
 
 使用者要「依對我的了解自己找主題，做一個 30 週年分頁，盡量展示前端能力，並用《手牽手，走到 30》那支 30 秒影片當進入分頁的開場」。主題定為「孩子畫出的 30」：延續影片的米白水彩紙、綠色蠟筆與立體書卡片。規則見 DESIGN.md「30 週年分頁」。

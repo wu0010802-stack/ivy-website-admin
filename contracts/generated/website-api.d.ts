@@ -3105,7 +3105,7 @@ export interface components {
             /** Campus Key */
             campus_key?: string | null;
             /** Entry */
-            entry?: ("header" | "menu" | "footer" | "home_campus_board" | "campus_hero" | "campus_info" | "campus_contact" | "campus_banner" | "campus_tour" | "admission" | "environment" | "curriculum" | "about" | "news" | "visit_page" | "visit_manage" | "other") | null;
+            entry?: ("header" | "menu" | "footer" | "home_campus_board" | "campus_hero" | "campus_info" | "campus_contact" | "campus_banner" | "campus_tour" | "admission" | "environment" | "curriculum" | "about" | "news" | "anniversary" | "visit_page" | "visit_manage" | "other") | null;
             /**
              * Event Id
              * Format: uuid
@@ -5663,7 +5663,7 @@ export interface components {
              * Page
              * @enum {string}
              */
-            page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news";
+            page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
             /** Value */
             value?: number | null;
         };
