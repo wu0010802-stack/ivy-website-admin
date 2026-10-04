@@ -16,6 +16,7 @@ const site = fixture as unknown as SiteContent
 describe('草稿預覽的網址參數', () => {
   it('頁面只認首頁、入學、預約頁，寬度只有桌機與手機', () => {
     expect(previewPage({ page: 'visit' })).toBe('visit')
+    expect(previewPage({ page: 'curriculum' })).toBe('curriculum')
     expect(previewPage({ page: 'campus' })).toBe('home')
     expect(previewPage({ page: 'unknown' })).toBe('home')
     expect(previewViewport({ viewport: 'mobile' })).toBe('mobile')
