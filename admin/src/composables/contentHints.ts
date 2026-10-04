@@ -50,6 +50,9 @@ export const LENGTH_HINTS = {
   curDirTitle: { max: 6, why: '課程方向的標題會換行' },
   curDirSub: { max: 16, why: '副標會換成兩行' },
   curDirText: { max: 24, why: '說明會換成很多行' },
+  // 品德培養印在顏料上：引言是大字（手機與桌機一行約 5 個字），硬上限 10；說明硬上限 20。
+  curQuote: { max: 8, why: '大字引言一行只放得下約 5 個字，字越多越擠到顏料邊緣' },
+  curQuoteText: { max: 12, why: '手機上會換成兩行，把引言往上推' },
   curSource: { max: 26, why: '出處的小字會換成兩行' },
   curArtLabel: { max: 6, why: '作品名稱會換行' },
   curDailyTitle: { max: 5, why: '五件事的名稱會換行' },

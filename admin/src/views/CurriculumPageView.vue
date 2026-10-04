@@ -10,6 +10,7 @@ import { vReadonlyValues } from '../composables/readonlyValues'
 import {
   builtinPhotoSrc,
   CURRICULUM_BUILTIN_PHOTOS,
+  CURRICULUM_PHOTO_PREVIEWS,
   CURRICULUM_YEAR_NAMES,
   curriculumPageDraft,
   highlightMissing,
@@ -53,7 +54,13 @@ onMounted(editor.load)
 
       <h3 id="section-cur-hero" class="sub-title" data-section-anchor tabindex="-1">首屏</h3>
       <PageCopyField v-model="form.hero_eyebrow" label="首屏小標" hint="curEyebrow" />
-      <PageCopyField v-model="form.hero_title" label="首屏大標" hint="curHeroTitle" title />
+      <PageCopyField
+        v-model="form.hero_title"
+        label="首屏大標"
+        hint="curHeroTitle"
+        title
+        help="桌機上大標每行大約放得下 9 個字，一行超過的話官網會再自動折一行；想在哪裡斷，就在那裡按 Enter。"
+      />
       <PageCopyField v-model="form.hero_highlight" label="大標裡畫顏料的字" hint="curHighlight" help="要和大標同一行裡的字一模一樣；留空就不畫顏料。" />
       <p v-if="highlightProblem" class="page-copy__warn" role="status">大標裡找不到「{{ form.hero_highlight }}」（或跨了行），這樣存檔會被擋下。</p>
       <PageCopyField v-model="form.hero_lede" label="首屏介紹" hint="curLede" multiline />
@@ -64,8 +71,8 @@ onMounted(editor.load)
         label="首屏照片"
         builtin="官網內建的孩子靜心照片"
         :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.hero)"
-        ratio="4:3"
-        help="桌機放在右欄的撕紙框、手機裁成 4:3；請用寬 2000 以上的橫式照片。"
+        :previews="CURRICULUM_PHOTO_PREVIEWS.hero"
+        help="桌機放在右欄的撕紙框，大約是正方形（依螢幕高度略寬或略窄）；手機裁成 4:3。請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 
@@ -89,8 +96,8 @@ onMounted(editor.load)
         label="四個年段的照片"
         builtin="官網內建的老師與孩子合照"
         :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.years)"
-        ratio="4:3"
-        help="桌機放在標題右邊的撕紙框。"
+        :previews="CURRICULUM_PHOTO_PREVIEWS.years"
+        help="桌機放在標題右邊的撕紙框，各種螢幕都裁成 3:2。"
         :disabled="editor.readOnly.value"
       />
       <PageCopyField v-model="form.years_caption" label="照片下方文字" hint="curCaption" help="清空就不顯示。" />
@@ -111,8 +118,22 @@ onMounted(editor.load)
             第 {{ i + 1 }} 個方向<span v-if="direction.key === 'quote'" class="page-copy__item-note">印在顏料上的引言，沒有照片</span>
           </p>
           <PageCopyField v-model="direction.title" label="標題" hint="curDirTitle" />
-          <PageCopyField v-model="direction.sub" label="副標" hint="curDirSub" />
-          <PageCopyField v-model="direction.text" label="說明" hint="curDirText" multiline />
+          <!-- 品德培養的 sub 在官網是印在顏料上的大字引言（後端上限 10 字），標籤同 contentFieldLabels.ts 的 directions[3].sub -->
+          <PageCopyField
+            v-if="direction.key === 'quote'"
+            v-model="direction.sub"
+            label="引言（大字）"
+            hint="curQuote"
+            help="官網用很大的字印在顏料上，一行只放得下約 5 個字，最多 10 字。"
+          />
+          <PageCopyField v-else v-model="direction.sub" label="副標" hint="curDirSub" />
+          <PageCopyField
+            v-model="direction.text"
+            label="說明"
+            :hint="direction.key === 'quote' ? 'curQuoteText' : 'curDirText'"
+            :help="direction.key === 'quote' ? '印在引言下面的一行字，最多 20 字。' : ''"
+            multiline
+          />
           <PagePhotoField
             v-if="direction.key !== 'quote'"
             v-model:photo="direction.photo"
@@ -120,8 +141,7 @@ onMounted(editor.load)
             label="照片"
             builtin="官網內建的課程照"
             :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.directions[i]!)"
-            ratio="4:3"
-            help=""
+            :previews="CURRICULUM_PHOTO_PREVIEWS.directions[i]"
             :disabled="editor.readOnly.value"
           />
         </div>
@@ -163,8 +183,7 @@ onMounted(editor.load)
             label="照片"
             builtin="官網內建的義華校照片"
             :builtin-src="builtinPhotoSrc(CURRICULUM_BUILTIN_PHOTOS.daily[i]!)"
-            ratio="4:3"
-            help=""
+            :previews="CURRICULUM_PHOTO_PREVIEWS.daily"
             :disabled="editor.readOnly.value"
           />
         </div>

@@ -89,7 +89,8 @@ describe('PageCopyField', () => {
 
 describe('PagePhotoField', () => {
   const asset = (id: string, alt: string) => ({ id, alt_text: alt }) as MediaAssetOut
-  const base = { label: '首屏照片', builtin: '官網內建照片', builtinSrc: '/assets/cur-hero.webp', ratio: '4:3', help: '換照片後記得確認焦點' }
+  const previews = [{ label: '桌機（4:5）', ratio: '4 / 5' }, { label: '手機與平板（4:3）', ratio: '4 / 3' }]
+  const base = { label: '首屏照片', builtin: '官網內建照片', builtinSrc: '/assets/cur-hero.webp', previews, help: '換照片後記得確認焦點' }
 
   it('選了照片才出現說明欄，說明帶入素材庫的說明；改回內建時清空', async () => {
     const photo = ref<MediaSlotPayload | null | undefined>(undefined)
@@ -118,9 +119,9 @@ describe('PagePhotoField', () => {
     expect(alt.value).toBe('')
   })
 
-  it('預設帶比例的焦點預覽；no-focus 時不給焦點', () => {
+  it('焦點預覽照傳入的各版位比例（桌機、手機分開）；no-focus 時不給焦點', () => {
     const withFocus = photoField(ref(undefined), ref(undefined), base)
-    expect(withFocus.findComponent(MediaSlotField).props('focusPreviews')).toEqual([{ label: '官網裁切（4:3）', ratio: '4 / 3' }])
+    expect(withFocus.findComponent(MediaSlotField).props('focusPreviews')).toEqual(previews)
     const noFocus = photoField(ref(undefined), ref(undefined), { ...base, noFocus: true })
     expect(noFocus.findComponent(MediaSlotField).props('focus')).toBe(false)
     expect(noFocus.findComponent(MediaSlotField).props('focusPreviews')).toEqual([])

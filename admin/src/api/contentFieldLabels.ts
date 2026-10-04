@@ -189,6 +189,18 @@ const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
   body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', alt: '圖片說明', caption: '圖說' },
 }
 
+// 清單裡某一項的欄位叫法和同清單其他項不同時，依內容種類寫「清單[索引].欄位」。特色教學頁
+// 課程方向第 4 個是品德培養（後端 CURRICULUM_DIRECTION_KEYS 順序固定），它的 sub 在編輯頁叫
+// 「引言（大字）」，不是其他方向的「副標」；422 定位靠標籤，兩邊要一致。
+const LIST_ITEM_FIELD_LABELS: Record<string, Record<string, string>> = {
+  curriculum_page: { 'directions[3].sub': '引言（大字）' },
+}
+
+function listFieldLabel(kind: string | undefined, list: string, index: unknown, field: string): string | undefined {
+  const override = kind && typeof index === 'number' ? LIST_ITEM_FIELD_LABELS[kind]?.[`${list}[${index}].${field}`] : undefined
+  return override ?? LIST_FIELD_LABELS[list]?.[field]
+}
+
 /**
  * 422 的 loc（已去掉 body／payload 前綴）寫成中文位置，數字索引 +1：
  * ["articles", 3, "title"] →「最新消息第 4 則・標題」；["facebook"] →「Facebook 粉絲專頁網址」。
@@ -204,7 +216,7 @@ export function contentPathLabel(kind: string | undefined, path: readonly (strin
       parts[parts.length - 1] = `${parts[parts.length - 1] ?? ''}第 ${segment + 1} ${unit}`
       continue
     }
-    const label = (parentList && LIST_FIELD_LABELS[parentList]?.[segment]) || (parts.length ? contentFieldLabel(segment) : contentFieldLabelFor(kind, segment))
+    const label = (parentList && listFieldLabel(kind, parentList, path[i - 1], segment)) || (parts.length ? contentFieldLabel(segment) : contentFieldLabelFor(kind, segment))
     parts.push(label)
     if (typeof path[i + 1] === 'number') parentList = segment
   }
@@ -217,12 +229,14 @@ export function contentPathFieldLabel(kind: string | undefined, path: readonly (
   if (typeof last !== 'string') return ''
   // 最靠近這一欄的清單名：後面接著數字索引的那一段。
   let list: string | undefined
+  let index: unknown
   for (let i = path.length - 3; i >= 0; i--) {
     const segment = path[i]
     if (typeof segment === 'string' && typeof path[i + 1] === 'number') {
       list = segment
+      index = path[i + 1]
       break
     }
   }
-  return (list && LIST_FIELD_LABELS[list]?.[last]) || (path.length === 1 ? contentFieldLabelFor(kind, last) : contentFieldLabel(last))
+  return (list && listFieldLabel(kind, list, index, last)) || (path.length === 1 ? contentFieldLabelFor(kind, last) : contentFieldLabel(last))
 }

@@ -289,8 +289,9 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'cover.media_id': '封面照片',
   'line_art.media_id': '建築線稿',
   'line_art_colour.media_id': '建築線稿（上色）',
-  'hero_photo.media_id': '特色教學頁的首屏照片',
-  'years_photo.media_id': '特色教學頁四個年段的照片',
+  // 整頁內容（特色教學頁；關於常春藤頁也有 hero_photo）：抽屜與替換對話框的標題已經寫了頁名，這裡不再帶。
+  'hero_photo.media_id': '首屏照片',
+  'years_photo.media_id': '四個年段的照片',
 }
 
 export function mediaFieldPathLabel(path: string): string {
@@ -300,9 +301,10 @@ export function mediaFieldPathLabel(path: string): string {
   if (slot) return `孩子的一天第 ${Number(slot[1]) + 1} 張卡片的照片`
   slot = /^(directions|gallery|daily)\[(\d+)\]\.photo\.media_id$/.exec(path)
   if (slot) {
-    const unit = { directions: '課程方向第', gallery: '兒童美術館的作品第', daily: '五件事第' }[slot[1]!]!
-    const tail = { directions: '個的照片', gallery: '件的照片', daily: '件的照片' }[slot[1]!]!
-    return `${unit} ${Number(slot[2]) + 1} ${tail}`
+    const n = Number(slot[2]) + 1
+    if (slot[1] === 'directions') return `課程方向第 ${n} 項的照片`
+    if (slot[1] === 'gallery') return `兒童美術館第 ${n} 件作品的照片`
+    return `五件事第 ${n} 件的照片`
   }
   slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
   if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
@@ -736,8 +738,8 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   return '/'
 }
 
-// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、
-// 入學資訊與預約頁（預約文案：同意文字、個資說明、頁首按鈕）。
+// 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
+// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策與特色教學頁。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
     // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。
