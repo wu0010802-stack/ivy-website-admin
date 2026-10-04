@@ -480,7 +480,8 @@ onMounted(async () => {
           <template v-else>
             <template v-if="canManageAsset(asset)">
               <el-button v-if="asset.archived_at" size="small" text @click="setArchived(asset, false)">取消封存</el-button>
-              <el-button v-else-if="asset.status === 'ready'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
+              <!-- 轉檔中也能補說明（選影片上傳後的提示叫人來按「編輯」）；處理失敗的改放重新處理。 -->
+              <el-button v-else-if="asset.status !== 'failed'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
               <el-button v-else-if="canRetryProcessing(asset)" size="small" text type="primary" @click="retryProcessing(asset)">重新處理</el-button>
             </template>
             <el-button size="small" text @click="openUsages(asset)">用在哪裡</el-button>
@@ -497,10 +498,10 @@ onMounted(async () => {
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item v-if="asset.archived_at && asset.status === 'ready'" command="edit">編輯</el-dropdown-item>
+                  <el-dropdown-item v-if="asset.archived_at && asset.status !== 'failed'" command="edit">編輯</el-dropdown-item>
                   <el-dropdown-item v-if="!asset.archived_at && asset.status === 'ready'" command="replace">替換</el-dropdown-item>
                   <el-dropdown-item v-if="!asset.archived_at" command="archive">封存</el-dropdown-item>
-                  <el-dropdown-item command="delete" :divided="asset.status === 'ready' || !asset.archived_at" class="media-more__danger">刪除</el-dropdown-item>
+                  <el-dropdown-item command="delete" :divided="asset.status !== 'failed' || !asset.archived_at" class="media-more__danger">刪除</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>

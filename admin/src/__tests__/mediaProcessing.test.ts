@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
+import { apiErrorMessage } from '../api/errors'
 import type { MediaAssetOut } from '../api/types'
 import { canRetryProcessing, POLL_MS, processingNote, useProcessingPoll } from '../composables/mediaProcessing'
 
@@ -26,6 +27,12 @@ describe('狀態文案與重新處理', () => {
     expect(canRetryProcessing({ ...base, status: 'failed', kind: 'image' })).toBe(false)
     expect(canRetryProcessing({ ...base, status: 'failed', deleted_at: '2026-10-03T00:00:00Z' })).toBe(false)
     expect(canRetryProcessing({ ...base, status: 'processing' })).toBe(false)
+  })
+})
+
+describe('上傳錯誤', () => {
+  it('影片超過 10 分鐘：後端沒給訊息時也有直白的中文', () => {
+    expect(apiErrorMessage(new ApiError(422, { code: 'MEDIA_VIDEO_TOO_LONG' }), '上傳失敗')).toBe('影片最長 10 分鐘，請剪短後再上傳')
   })
 })
 

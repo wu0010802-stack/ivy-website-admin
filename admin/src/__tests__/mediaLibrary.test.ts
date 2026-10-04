@@ -560,6 +560,12 @@ describe('素材庫頁', () => {
       const card = (id: string) => wrapper.find(`[data-media-id="${id}"]`)
       expect(card('vp').text()).toContain('轉檔中，轉好才能預覽與發布')
       expect(card('vf').text()).toContain('處理失敗：影片轉檔逾時（120 秒）')
+      // 轉檔中也能按「編輯」補說明（選影片上傳後的提示叫人來按）；失敗的只放重新處理。
+      const actions = (id: string) => card(id).find('.media__actions').findAll('button').map((b) => b.text())
+      expect(actions('vp')).toContain('編輯')
+      expect(actions('vp')).not.toContain('重新處理')
+      expect(actions('vf')).toContain('重新處理')
+      expect(actions('vf')).not.toContain('編輯')
 
       await vi.advanceTimersByTimeAsync(5000)
       await flushPromises()
@@ -573,6 +579,15 @@ describe('素材庫頁', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('轉檔中的影片按「編輯」打開影片說明', async () => {
+    const processing = asset({ id: 'vp', kind: 'video', status: 'processing', original_filename: 'run.mp4', content_type: 'video/mp4', duration_seconds: 8, alt_text: null })
+    mockGet([processing])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    await wrapper.find('[data-media-id="vp"]').findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('編輯影片說明')
   })
 })
 
