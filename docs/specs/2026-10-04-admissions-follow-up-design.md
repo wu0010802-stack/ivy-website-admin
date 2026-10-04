@@ -302,7 +302,7 @@
 
 ### 7.7 總覽
 
-- 新增一格「招生待追蹤」（說明「參觀後該聯絡的家長」），放在「到期待追蹤」旁邊；只在回應有 `admissions_follow_up_due` 時顯示（開關開啟且有 `admissions.read`）。
+- 待辦清單新增一項「參觀後該聯絡的家長」（實作回寫：頁首摘要列是固定四格，第五格會破版，所以放進待辦清單，和「案件已到追蹤時間」並列）；只在回應有 `admissions_follow_up_due` 且大於 0 時顯示（開關開啟且有 `admissions.read`）。
 - 連結到 `/admissions?tab=followups&campus=<第一個有到期的校區>`；全部是 0 時連到使用者的預設校區。多校帳號在數字下方列各校筆數（只列大於 0 的）。
 
 ## 8. 權限
@@ -489,3 +489,14 @@ F-Q1–F-Q4 已在 2026-10-04 回覆，記在第 2 節。剩下：
 2. （選做）預約文案的個資使用說明加 A.3 那段。
 3. 後台「個資與搜尋設定 → 個資保存政策」把「招生訪視」設成 730 天。要讓它每天自動清，還要打開後台的「自動清理」，並在 Railway api 服務設 `WEBSITE_RETENTION_ALLOW_REAL_RUN=true`（`docs/website-admin/operations.md:91`）。
 4. 以上都完成後，才在 Railway api 服務設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（`deploy/README.md:232`）。開啟前已到場的預約，到「招生入學 → 官網預約」下方逐筆補建。
+
+## 附錄 B：實作回寫（2026-10-04）
+
+| 項目 | 調整 | 位置 |
+|---|---|---|
+| 總覽 | 「招生待追蹤」放進待辦清單，不加第五格摘要 | 第 7.7 節；`admin/src/views/DashboardView.vue` |
+| 測試編號 | F-Q1 改為不自動排後，F01–F06 合併成 F01–F04，其後順延（共 F01–F19） | 第 12 節；`docs/website-admin/acceptance.md` |
+| 聯絡時間 | 送來的聯絡時間比伺服器時間晚 2 分鐘以內當成時鐘誤差、改用現在；再晚才回 `CONTACTED_AT_IN_FUTURE` | 第 6.3 節；`backend/app/admissions/follow_up.py` `CONTACTED_AT_TOLERANCE` |
+| 預約端防呆 | `lock_editable` 一併重讀 `status`，鎖住後才判斷已到場、已取消 | 第 6.6 節；`backend/app/booking/workflow_service.py` |
+| 對話框寬度 | 記錄聯絡、改期對話框 580px，下次聯絡的六個選項桌機一列放得下；手機記錄聯絡全螢幕 | 第 7.2 節 |
+| 看板 | 未排定的卡片不標 | 第 7.4 節（F-Q1 之後已寫入） |

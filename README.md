@@ -1,3 +1,11 @@
+## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（`feature/admissions-follow-up-20261004`，未部署）
+
+使用者要「家長完成參觀後可以有後續追蹤，參觀完成後案件自動導入招生入學，形成一整個流程」。規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 使用者回「不一定會聯絡」→ 不自動排第一次聯絡；附錄 A 是招生規格 Q1 的隱私權政策與保存天數擬稿）；規則見 DESIGN.md「招生入學」的「參觀後追蹤」。
+
+- **後端**：migration `b8e3f1a6c4d7`（`recruitment_visits` 加 `follow_up_at`、`follow_up_owner_id`、`last_contacted_at` 與 CHECK；新表 `recruitment_contact_logs`；只新增、不改資料）。新模組 `admissions/follow_up.py`；新 API `/follow-ups`、`/records/{id}/contact-logs`、`/records/{id}/follow-up`、`/staff`；`/records` 加 `follow_up`、`owner` 篩選；到場建檔帶負責人（承辦人 → 標記的人）與預約上還沒到的下次聯絡；註冊、退出清掉下次聯絡；保存政策清聯絡內容；預約聯絡紀錄對已到場、已取消不再收下次聯絡（`FOLLOW_UP_NOT_TRACKED`）；總覽加 `admissions_follow_up_due`。匯出多 `recruitment_contact_logs` 延伸檔與 extensions 追蹤欄位（契約 README 記去向）。
+- **後台**：招生入學「待追蹤」分頁（已到期／7 天內／未排定、負責人，網址 `fu`、`owner`）；記錄聯絡與改期對話框；歷程抽屜合併參觀前紀錄、招生事件、參觀後聯絡；看板卡片與訪視明細的下次聯絡；官網預約勾選多筆一次標記已到場；預約明細「參觀後追蹤」區塊；總覽待辦「參觀後該聯絡的家長」。
+- **驗證**（Node 22.22；本機 PostgreSQL 16，測試庫 `ivy_website_test_followup`）：見下方「驗證結果」。
+
 ## 2026-10-04 30 週年分頁 `/anniversary`（`feature/anniversary-page-20261004`，10-04 已部署 main `9068de8`，不公開、不進導覽）
 
 使用者要「依對我的了解自己找主題，做一個 30 週年分頁，盡量展示前端能力，並用《手牽手，走到 30》那支 30 秒影片當進入分頁的開場」。主題定為「孩子畫出的 30」：延續影片的米白水彩紙、綠色蠟筆與立體書卡片。規則見 DESIGN.md「30 週年分頁」。

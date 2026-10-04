@@ -411,6 +411,34 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。
 
+## 參觀後追蹤（2026-10-04 實作，`feature/admissions-follow-up-20261004`，尚未部署）
+
+規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 改為不自動排第一次聯絡）。後端用真 PostgreSQL（隔離測試庫 `ivy_website_test_followup`）；stack e2e 在這個容器用預裝 Chromium（沒有 Google Chrome，另以本機設定覆寫 `channel`，不進 repo）。
+
+| 編號 | 案例 | 狀態 | 證據 |
+|---|---|---|---|
+| F01 | 標記已到場：不自動排、負責人＝承辦人、created metadata `follow_up=none` | 通過 | `backend/tests/test_admissions_follow_up.py::test_completion_sets_owner_from_assignee_without_scheduling` |
+| F02 | 承辦人停用、沒有該校區、沒有承辦人 → 標記的人；都不符合 → null | 通過 | `test_owner_falls_back_to_the_person_marking_arrival`、`test_initial_fields_skips_ineligible_candidates` |
+| F03 | 預約上還沒到的下次聯絡沿用；已過的不沿用；預約本身不動 | 通過 | `test_booking_follow_up_is_carried_only_when_still_ahead` |
+| F04 | 補建、手動新增；重複標記或補建不動追蹤欄位 | 通過 | `test_manual_and_rebuild_paths` |
+| F05 | 三種追蹤狀態邊界、他校與已結束不列、負責人篩選、totals 不受篩選影響 | 通過 | `test_follow_up_kinds_boundaries_scope_and_owner_filter`、`test_follow_ups_endpoint_and_record_filters` |
+| F06 | 記錄聯絡的規則（必填下次聯絡、過去時間、未來聯絡時間、時鐘誤差、電訪回應、最近聯絡取最大值、稽核不記內容） | 通過 | `test_contact_log_rules` |
+| F07 | 已註冊、已退出只能不用再追 | 通過 | `test_closed_stages_can_log_but_not_schedule` |
+| F08 | 註冊、退出清掉下次聯絡；往回轉不恢復；負責人保留 | 通過 | `test_transitions_clear_follow_up_and_keep_owner` |
+| F09 | 並行記錄聯絡或改期 → 409、不寫入 | 通過 | `test_stale_version_is_rejected_without_writing` |
+| F10 | 負責人驗證與 `/staff`；刪帳號後 null | 通過 | `test_owner_validation_and_staff_list` |
+| F11 | 權限：reception 可寫；editor／readonly 403；他校 404 | 通過 | `test_follow_up_permissions` |
+| F12 | 開關關閉：新端點 404、總覽沒有招生鍵 | 通過 | `test_disabled_flag_hides_follow_up_endpoints_and_dashboard_keys` |
+| F13 | 保存政策清聯絡內容與下次聯絡，保留方式與結果；匿名化後記錄聯絡 409 | 通過 | `test_anonymization_clears_contact_notes_and_follow_up` |
+| F14 | 匯出：extensions 追蹤欄位、`recruitment_contact_logs` 延伸檔、不帶 Email；園務三張表不變 | 通過 | `test_export_adds_follow_up_extensions_and_contact_log_file`、既有 `test_admissions_contract.py` |
+| F15 | 預約聯絡紀錄：已到場、已取消設下次聯絡 422 `FOLLOW_UP_NOT_TRACKED`；清除、單純記錄、未到場照舊 | 通過 | `test_booking_follow_up_rejected_on_completed_or_cancelled` |
+| F16 | 總覽計數與待追蹤 totals 一致；分校只算自己 | 通過 | `test_dashboard_counts_match_follow_up_list` |
+| F17 | 後台單元：時間文字與快捷、待追蹤分頁與網址、對話框預設與 409、抽屜合併、卡片標示、批次標記、預約明細區塊、總覽待辦 | 通過 | `admin/src/__tests__/admissionsFollowUp.test.ts`（21 項）、`admissionsVisitDetail.test.ts`（新增 2 項）、`ux20260928B2.test.ts`（已到場、已取消不顯示下次聯絡） |
+| F18 | 1440／390 截圖、不橫向溢出 | 通過 | `tests/stack/admissions-follow-up.spec.ts`（`output/playwright/admissions-followups-due-1440.png`、`admissions-contact-dialog-1440.png`、`admissions-followups-390.png`） |
+| F19 | stack e2e：兩位家長 → 勾兩筆標記到場 → 未排定 → 排明天 → 到期 → 總覽 → 記錄聯絡 → 預繳仍追 → 註冊結束 | 通過 | `tests/stack/admissions-follow-up.spec.ts`（與 `admissions-flow.spec.ts` 一起跑 5 passed） |
+
+未驗證：stack e2e 全套（只跑了招生兩支）、Safari／iOS 實機、正式庫 migration。上線前提同招生入學：規格 Q1（擬稿見追蹤規格附錄 A）。
+
 ## 隱私權政策頁（2026-10-03 實作，尚未部署）
 
 規格 `docs/specs/2026-10-03-privacy-policy-page-design.md`，計畫 `docs/superpowers/plans/2026-10-03-privacy-policy-page.md`。

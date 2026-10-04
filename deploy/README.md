@@ -230,6 +230,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **開關** `WEBSITE_ADMISSIONS_ENABLED`（api，預設 `false`）。關閉時：後台側欄與側欄搜尋不列「招生入學」（`/auth/me` 的 `features.admissions`）；`/api/website/v1/admin/admissions/*`（含 `stats`、`compare`、`no-deposit-records`）不掛路由、一律 404，後台「招生入學」頁顯示「招生入學尚未啟用」；預約「標記已到場」照常，但不建招生訪視；保存政策的招生類別照常顯示（沒資料就是 0 筆）。
 - **規格 §15 Q1 裁定前不可在正式站開啟**：預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存幾天。同意文字建議跟家長自選場次改版的同意文字同一次改。
 - **開啟方式**：Q1 裁定、同意文字改版發布後，先在保存政策設好招生訪視天數（預設空白＝不自動清理，業主裁定天數後由總管理者設定），再到 Railway api 服務 Variables 設 `WEBSITE_ADMISSIONS_ENABLED=true` 並重新部署 api（設定在啟動時讀、路由在建立 app 時決定，只改變數不重啟不會生效）。
+  - 2026-10-04 起官網預約已不勾選同意，Q1 改由隱私權政策告知。擬稿與順序見 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A：① 後台「隱私權政策」換上附錄 A.2 的三處、補完其他【待確認】後發布；② （選做）預約文案的個資使用說明加一段；③ 保存政策「招生訪視」設 730 天（建議值）；④ 才打開開關。
+- **參觀後追蹤（`feature/admissions-follow-up-20261004`，未併 main）**：migration `b8e3f1a6c4d7`（接 `d2b7f4c9e1a3`）只在 `recruitment_visits` 加三個可空欄位與一個 CHECK、新增 `recruitment_contact_logs`，不改寫既有資料，可隨程式上線；開關關著時一樣不會有資料。開啟後已到場的新案件只帶負責人，不自動排聯絡。
 - **舊的已到場預約不會自動補建**：開啟後，關閉期間（或本功能上線前）已到場的預約會列在後台「招生入學 → 官網預約」下方「已到場但沒有招生訪視」，逐筆按「建立招生訪視」。
 - **權限不用改帳號**：新增 `admissions.read／write／convert`，預設總管理者、分校管理者全有，接待人員有 read／write（規格 Q2 未回覆照預設）；內容編輯、唯讀沒有。
 - **Migration `4a7e2c9d1b63`**（`backend/migrations/versions/4a7e2c9d1b63_admissions.py`，接在 `c7d2e9f4a1b8`〔家長自選場次〕之後）：新建 `recruitment_visits`、`recruitment_event_log`、`grade_intake_targets` 三張表，`retention_policies` 加可為 NULL 的 `admissions_days` 與 CHECK；不改寫既有資料，可以安全隨程式上線（API 啟動時自動 upgrade），開關關著時三張表維持空的。和家長自選場次一起上線時，那一支改寫資料的 migration 仍要先備份。合併前 rebase 到 main、重跑 `npm run contract:generate`，並用 `alembic heads` 確認只有一個 head。
