@@ -159,7 +159,7 @@ async def test_completion_creates_exactly_one_visit_and_rebuild_returns_it(admin
         await db_session.execute(select(RecruitmentEventLog).where(RecruitmentEventLog.recruitment_visit_id == visit.id))
     ).scalars().all()
     assert [(e.event_type, e.from_stage, e.to_stage, e.metadata_json) for e in events] == [
-        ("created", None, "visited", {"origin": "visit_request"}),
+        ("created", None, "visited", {"origin": "visit_request", "follow_up": "none"}),
     ]
     assert events[0].actor_user_id is not None  # 按下「標記已到場」的人
 

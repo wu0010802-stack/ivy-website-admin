@@ -221,7 +221,7 @@ async def test_export_script_is_read_only(app, admin_client, tmp_path, monkeypat
     assert json.loads(line)["columns"]["tenant_id"] == 1
     engine = script.readonly_engine(app.state.settings)
     try:
-        # F9：所有校區在同一個 REPEATABLE READ 交易內查，四份資料是同一個快照。
+        # F9：所有校區在同一個 REPEATABLE READ 交易內查，每份資料是同一個快照。
         async with engine.connect() as conn:
             assert await conn.scalar(text("SHOW transaction_isolation")) == "repeatable read"
         async with engine.connect() as conn:

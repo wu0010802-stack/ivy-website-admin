@@ -62,7 +62,8 @@ async def test_create_computes_month_seq_and_writes_created_event(admin_client, 
 
     events = (await admin_client.get(f"{RECORDS}/{first['id']}/events")).json()
     assert [(e["event_type"], e["from_stage"], e["to_stage"]) for e in events] == [("created", None, "visited")]
-    assert events[0]["metadata_json"] == {"origin": "manual"}
+    # 參觀後追蹤（2026-10-04 規格 6.1）：手動新增不自動排下次聯絡。
+    assert events[0]["metadata_json"] == {"origin": "manual", "follow_up": "none"}
     assert events[0]["actor_name"] == "admin@ivy.example"
 
     entries = await _audit(db_session, "recruitment_visit.create")

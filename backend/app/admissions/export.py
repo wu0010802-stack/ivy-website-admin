@@ -20,11 +20,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants
-from app.admissions.models import GradeIntakeTarget, RecruitmentEventLog, RecruitmentVisit
+from app.admissions.models import GradeIntakeTarget, RecruitmentContactLog, RecruitmentEventLog, RecruitmentVisit
 from app.auth.models import User
 from app.common.timezones import OPERATING_TZ
 
-FILES: tuple[str, ...] = ("recruitment_visits", "recruitment_event_log", "grade_intake_targets", "extensions")
+FILES: tuple[str, ...] = (
+    "recruitment_visits",
+    "recruitment_event_log",
+    "grade_intake_targets",
+    "extensions",
+    # 參觀後追蹤的聯絡紀錄（官網延伸，2026-10-04 規格 11）。
+    "recruitment_contact_logs",
+)
 
 
 def _taipei_naive(value: datetime | None) -> str | None:
@@ -123,19 +130,40 @@ def ivy_target_row(target: GradeIntakeTarget) -> dict:
     }
 
 
-def extension_row(visit: RecruitmentVisit) -> dict:
-    """規格 12.3 的延伸欄位（version、anonymized_at 不轉）。"""
+def extension_row(visit: RecruitmentVisit, *, follow_up_owner_name: str | None = None) -> dict:
+    """規格 12.3 的延伸欄位（version、anonymized_at 不轉）。參觀後追蹤（2026-10-04 規格 11）
+    另有下次聯絡、最近聯絡（台北 naive）與追蹤負責人；負責人名稱只放顯示名稱，不放 Email。"""
     return {
         "website_id": str(visit.id),
         "visit_request_id": str(visit.visit_request_id) if visit.visit_request_id else None,
         "enrolled_on": visit.enrolled_on.isoformat() if visit.enrolled_on else None,
         "tour_guide_user_id": str(visit.tour_guide_user_id) if visit.tour_guide_user_id else None,
         "tour_guide_name": visit.tour_guide_name,
+        "follow_up_at": _taipei_naive(visit.follow_up_at),
+        "last_contacted_at": _taipei_naive(visit.last_contacted_at),
+        "follow_up_owner_user_id": str(visit.follow_up_owner_id) if visit.follow_up_owner_id else None,
+        "follow_up_owner_name": follow_up_owner_name if visit.follow_up_owner_id else None,
+    }
+
+
+def contact_log_row(log: RecruitmentContactLog, *, created_by_name: str | None = None) -> dict:
+    """聯絡紀錄延伸檔的一列（2026-10-04 規格 11）。園務沒有對應的表：併入時匯入端依時間
+    串成文字附加在 notes 末尾（F-Q2，contracts/ivy-recruitment/README.md）。記錄者同歷程的
+    website_actor：只放顯示名稱，沒設就是 None，絕不放 Email。"""
+    return {
+        "website_id": str(log.id),
+        "recruitment_visit_website_id": str(log.recruitment_visit_id),
+        "contacted_at": _taipei_naive(log.contacted_at),
+        "channel": log.channel,
+        "reached": log.reached,
+        "note": log.note,
+        "next_follow_up_at": _taipei_naive(log.next_follow_up_at),
+        "created_by": {"user_id": str(log.created_by), "name": created_by_name} if log.created_by else None,
     }
 
 
 async def export_campus(db: AsyncSession, campus_key: str, *, tenant_id: int | None = None) -> dict[str, list[dict]]:
-    """一個校區的四份資料（鍵與順序同 FILES）。訪視依建立時間、歷程依時間排序；
+    """一個校區的五份資料（鍵與順序同 FILES）。訪視依建立時間、歷程依時間排序；
     歷程用 join 依校區取，不把全部訪視 id 塞進 IN。三次查詢要是同一個快照，呼叫端
     須在 REPEATABLE READ 交易內呼叫（scripts/export_ivy_recruitment.py 的連線預設如此）。"""
     visits = list(
@@ -163,11 +191,29 @@ async def export_campus(db: AsyncSession, campus_key: str, *, tenant_id: int | N
         .where(GradeIntakeTarget.campus_key == campus_key)
         .order_by(GradeIntakeTarget.school_year, GradeIntakeTarget.semester, GradeIntakeTarget.grade)
     )
+    owner_ids = list({visit.follow_up_owner_id for visit in visits if visit.follow_up_owner_id})
+    owner_names = (
+        dict((await db.execute(select(User.id, User.display_name).where(User.id.in_(owner_ids)))).all())
+        if owner_ids
+        else {}
+    )
+    contact_logs = await db.execute(
+        select(RecruitmentContactLog, User.display_name)
+        .join(RecruitmentVisit, RecruitmentVisit.id == RecruitmentContactLog.recruitment_visit_id)
+        .outerjoin(User, User.id == RecruitmentContactLog.created_by)
+        .where(RecruitmentVisit.campus_key == campus_key)
+        .order_by(RecruitmentContactLog.contacted_at, RecruitmentContactLog.id)
+    )
     return {
         "recruitment_visits": [ivy_visit_row(visit, tenant_id=tenant_id) for visit in visits],
         "recruitment_event_log": [ivy_event_row(event, actor_name=display_name) for event, display_name in events.all()],
         "grade_intake_targets": [ivy_target_row(target) for target in targets.scalars()],
-        "extensions": [extension_row(visit) for visit in visits],
+        "extensions": [
+            extension_row(visit, follow_up_owner_name=owner_names.get(visit.follow_up_owner_id)) for visit in visits
+        ],
+        "recruitment_contact_logs": [
+            contact_log_row(log, created_by_name=display_name) for log, display_name in contact_logs.all()
+        ],
     }
 
 

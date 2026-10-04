@@ -95,3 +95,24 @@ TEXT_MAX = 2000
 # 民國學年的合理範圍（API 驗證用）：100＝西元 2011，200＝西元 2111。
 SCHOOL_YEAR_MIN = 100
 SCHOOL_YEAR_MAX = 200
+
+# ---- 參觀後追蹤（2026-10-04 規格 docs/specs/2026-10-04-admissions-follow-up-design.md）----
+# 官網延伸，園務沒有對應；匯出放在 extensions 與 recruitment_contact_logs 延伸檔。
+
+# 聯絡方式代碼 → 後台文案（recruitment_contact_logs.channel）。
+CONTACT_CHANNELS: dict[str, str] = {
+    "phone": "電話",
+    "line": "LINE",
+    "in_person": "當面",
+    "other": "其他",
+}
+LEN_CHANNEL = 16
+# 一筆聯絡紀錄內容的上限（同預約聯絡紀錄 visit_contact_notes.note）。
+CONTACT_NOTE_MAX = 1000
+
+# 追蹤狀態（規格 6.2）：只看未匿名化、已訪視或已預繳的訪視。只有 due 算待辦。
+FOLLOW_UP_KINDS: tuple[str, ...] = ("due", "upcoming", "unscheduled")
+# 待追蹤分頁「7 天內」的範圍；upcoming 一律只算這個範圍內的。
+UPCOMING_WINDOW_DAYS = 7
+# 待追蹤與訪視明細的負責人篩選：me＝自己、none＝未指派，或帳號 id。
+OWNER_FILTER_PATTERN = r"^(me|none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"

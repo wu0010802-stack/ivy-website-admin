@@ -2,7 +2,9 @@
 
 - 符合條件：還沒匿名化，且最後更新（updated_at）早於 now − admissions_days。
 - 清除：幼生姓名（欄位 NOT NULL，換成「（已依保存政策匿名化）」）、生日、電話、
-  聯絡人、地址、備註、電訪回應、未預繳原因說明、退出原因，以及歷程裡人員寫的原因。
+  聯絡人、地址、備註、電訪回應、未預繳原因說明、退出原因，以及歷程裡人員寫的原因；
+  參觀後追蹤（2026-10-04 規格 10）另清下次聯絡（DB CHECK 要求）與聯絡紀錄的內容，
+  聯絡紀錄的時間、方式、有沒有聯絡到保留。
 - 保留：統計欄位（月份、參觀日期、年級、來源、介紹者、預繳、註冊、轉學期、未預繳
   原因、保留座位、入學學年學期、退出時間與來源）、updated_at 與 anonymized_at。
   version 加一：開著舊畫面的人存檔會收到 409，不會把個資寫回去。
@@ -20,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.admissions.constants import ANONYMIZED_TEXT
-from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
+from app.admissions.models import RecruitmentContactLog, RecruitmentEventLog, RecruitmentVisit
 from app.common.timezones import now_utc
 
 
@@ -37,8 +39,13 @@ async def eligible_count(db: AsyncSession, days: int | None, *, now: datetime | 
     return int(count or 0)
 
 
-def anonymize_visit(visit: RecruitmentVisit, events: list[RecruitmentEventLog]) -> None:
-    """清掉一筆訪視的個資欄位與歷程原因（events 是這筆訪視的歷程）。"""
+def anonymize_visit(
+    visit: RecruitmentVisit,
+    events: list[RecruitmentEventLog],
+    contact_logs: list[RecruitmentContactLog] = (),
+) -> None:
+    """清掉一筆訪視的個資欄位、歷程原因與聯絡紀錄內容（events、contact_logs 是這筆
+    訪視的歷程與聯絡紀錄）。"""
     visit.child_name = ANONYMIZED_TEXT
     visit.birthday = None
     visit.phone = None
@@ -50,6 +57,9 @@ def anonymize_visit(visit: RecruitmentVisit, events: list[RecruitmentEventLog]) 
     visit.withdraw_reason = None
     for event in events:
         event.reason = None
+    for log in contact_logs:
+        log.note = None
+    visit.follow_up_at = None
     visit.anonymized_at = datetime.now(timezone.utc)
     visit.version += 1
 
@@ -61,12 +71,12 @@ async def anonymize_due(db: AsyncSession, days: int | None, *, now: datetime | N
     result = await db.execute(
         select(RecruitmentVisit)
         .where(*_due(days, now))
-        .options(selectinload(RecruitmentVisit.events))
+        .options(selectinload(RecruitmentVisit.events), selectinload(RecruitmentVisit.contact_logs))
         .order_by(RecruitmentVisit.created_at)
         .with_for_update(of=RecruitmentVisit)
     )
     visits = list(result.scalars())
     for visit in visits:
-        anonymize_visit(visit, list(visit.events))
+        anonymize_visit(visit, list(visit.events), list(visit.contact_logs))
     await db.flush()
     return len(visits)

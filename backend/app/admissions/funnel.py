@@ -125,7 +125,9 @@ async def transition(
       寫進 provisional_grade 與 target_*（註冊的年級為準，同園務以班級年級為準）。
       註冊日期沒給用台北今天。
     - 取消註冊、退註冊不動 provisional_grade：之後取消退出回已預繳，保留座位還在
-      （Review Focus 4）。"""
+      （Review Focus 4）。
+    - 標記註冊、退出時清掉下次聯絡（2026-10-04 規格 6.5）；往回轉不會自動恢復，落在
+      「未排定」。負責人與最近聯絡時間保留。"""
     if visit.version != expected_version:
         raise records.VersionConflict(visit.version)
     from_stage = derive_stage(visit)
@@ -162,6 +164,8 @@ async def transition(
     elif (from_stage, to_stage) == ("deposited", "enrolled"):
         visit.enrolled = True
         visit.enrolled_on = enrolled_on or today_local()
+        # 參觀後追蹤到此結束（2026-10-04 規格 6.5；DB CHECK 也要求）。
+        visit.follow_up_at = None
         visit.provisional_grade = seat_grade
         visit.target_school_year = school_year
         visit.target_semester = semester
@@ -181,6 +185,7 @@ async def transition(
         visit.enrolled = False
         visit.enrolled_on = None
         visit.has_deposit = False
+        visit.follow_up_at = None
         visit.withdrawn_at = now
         visit.withdrawn_from = from_stage
         visit.withdraw_reason = reason
@@ -209,6 +214,7 @@ def _card(visit: RecruitmentVisit) -> dict:
         "visit_date": visit.visit_date,
         "has_visit_request": visit.visit_request_id is not None,
         "withdrawn_from": visit.withdrawn_from,
+        "follow_up_at": visit.follow_up_at,
         "version": visit.version,
     }
 

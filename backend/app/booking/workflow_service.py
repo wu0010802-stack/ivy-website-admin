@@ -440,7 +440,7 @@ async def lock_editable(db: AsyncSession, visit_request: VisitRequest, expected_
     表示這次操作不會蓋掉任何欄位（例如只新增一筆聯絡紀錄），只鎖不比對。"""
     await db.refresh(
         visit_request,
-        attribute_names=["version", "assigned_staff_id", "follow_up_at"],
+        attribute_names=["version", "assigned_staff_id", "follow_up_at", "status"],
         with_for_update=True,
     )
     if expected_version is not None and visit_request.version != expected_version:

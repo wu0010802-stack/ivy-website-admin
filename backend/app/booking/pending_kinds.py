@@ -21,6 +21,9 @@ from app.booking.models import VisitRequest, VisitRequestStatus
 from app.common.timezones import now_utc
 
 PENDING_KINDS = ("legacy_pending", "awaiting_attendance", "follow_up_due")
+# 不算「到期待追蹤」的狀態：設了下次聯絡也不會出現，聯絡紀錄 API 不讓設（參觀後的追蹤
+# 在招生訪視，2026-10-04 規格 6.6）。
+FOLLOW_UP_UNTRACKED_STATUSES = (VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value)
 
 
 def condition(kind: str, now: datetime | None = None):
@@ -36,6 +39,6 @@ def condition(kind: str, now: datetime | None = None):
         return and_(
             VisitRequest.follow_up_at.is_not(None),
             VisitRequest.follow_up_at <= current,
-            VisitRequest.status.not_in([VisitRequestStatus.CANCELLED.value, VisitRequestStatus.COMPLETED.value]),
+            VisitRequest.status.not_in(FOLLOW_UP_UNTRACKED_STATUSES),
         )
     raise ValueError(f"未知的待處理種類：{kind}")

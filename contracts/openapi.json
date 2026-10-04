@@ -674,6 +674,13 @@
       "AdmissionsOptionsOut": {
         "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，\n以及園務的固定列舉與文案。",
         "properties": {
+          "contact_channels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Contact Channels",
+            "type": "object"
+          },
           "grades": {
             "items": {
               "enum": [
@@ -729,7 +736,8 @@
           "referrers",
           "grades",
           "no_deposit_reasons",
-          "source_categories"
+          "source_categories",
+          "contact_channels"
         ],
         "title": "AdmissionsOptionsOut",
         "type": "object"
@@ -908,6 +916,38 @@
           "visit_to_deposit_rate"
         ],
         "title": "AdmissionsSourceRow",
+        "type": "object"
+      },
+      "AdmissionsStaffOut": {
+        "description": "可以當這個校區追蹤負責人的帳號（啟用中、有 admissions.write、涵蓋該校區）。",
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name",
+          "email"
+        ],
+        "title": "AdmissionsStaffOut",
         "type": "object"
       },
       "AdmissionsStatsAction": {
@@ -2660,6 +2700,194 @@
         "title": "ClassDistributionOut",
         "type": "object"
       },
+      "ContactLogCreate": {
+        "additionalProperties": false,
+        "description": "記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的\n時間或「不用再追」，已到期的訪視記完才會離開清單。",
+        "properties": {
+          "channel": {
+            "enum": [
+              "phone",
+              "line",
+              "in_person",
+              "other"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "contacted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contacted At"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "next_follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Follow Up At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reached": {
+            "title": "Reached",
+            "type": "boolean"
+          },
+          "update_parent_response": {
+            "default": false,
+            "title": "Update Parent Response",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expected_version",
+          "channel",
+          "reached",
+          "next_follow_up_at"
+        ],
+        "title": "ContactLogCreate",
+        "type": "object"
+      },
+      "ContactLogOut": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "phone",
+              "line",
+              "in_person",
+              "other"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "contacted_at": {
+            "format": "date-time",
+            "title": "Contacted At",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "next_follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Follow Up At"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reached": {
+            "title": "Reached",
+            "type": "boolean"
+          },
+          "recruitment_visit_id": {
+            "format": "uuid",
+            "title": "Recruitment Visit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recruitment_visit_id",
+          "contacted_at",
+          "channel",
+          "reached",
+          "note",
+          "next_follow_up_at",
+          "created_by",
+          "created_at"
+        ],
+        "title": "ContactLogOut",
+        "type": "object"
+      },
+      "ContactLogResultOut": {
+        "description": "記錄聯絡的回應：新的聯絡紀錄與更新後的訪視（畫面不必再讀一次）。",
+        "properties": {
+          "log": {
+            "$ref": "#/components/schemas/ContactLogOut"
+          },
+          "visit": {
+            "$ref": "#/components/schemas/RecruitmentVisitOut"
+          }
+        },
+        "required": [
+          "log",
+          "visit"
+        ],
+        "title": "ContactLogResultOut",
+        "type": "object"
+      },
       "ContentItemOut": {
         "properties": {
           "campus_key": {
@@ -3062,6 +3290,308 @@
         "title": "FeatureFlags",
         "type": "object"
       },
+      "FollowUpListOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/FollowUpRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "due",
+              "upcoming",
+              "unscheduled"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/FollowUpTotalsOut"
+          }
+        },
+        "required": [
+          "as_of",
+          "campus_key",
+          "scope",
+          "totals",
+          "total",
+          "page",
+          "page_size",
+          "rows"
+        ],
+        "title": "FollowUpListOut",
+        "type": "object"
+      },
+      "FollowUpRowOut": {
+        "description": "待追蹤分頁的一列（規格 9）。只回追蹤要用的欄位：要打電話，所以有電話；不含生日、地址。",
+        "properties": {
+          "child_name": {
+            "title": "Child Name",
+            "type": "string"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "follow_up_owner_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Owner Active"
+          },
+          "follow_up_owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Owner Id"
+          },
+          "follow_up_owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Owner Name"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "has_visit_request": {
+            "title": "Has Visit Request",
+            "type": "boolean"
+          },
+          "last_contact_channel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "phone",
+                  "line",
+                  "in_person",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contact Channel"
+          },
+          "last_contact_reached": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contact Reached"
+          },
+          "last_contacted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contacted At"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "stage": {
+            "enum": [
+              "visited",
+              "deposited",
+              "enrolled",
+              "withdrawn"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visit_date": {
+            "format": "date",
+            "title": "Visit Date",
+            "type": "string"
+          },
+          "visit_id": {
+            "format": "uuid",
+            "title": "Visit Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visit_id",
+          "child_name",
+          "grade",
+          "stage",
+          "visit_date",
+          "contact_name",
+          "phone",
+          "follow_up_at",
+          "follow_up_owner_id",
+          "follow_up_owner_name",
+          "follow_up_owner_active",
+          "last_contacted_at",
+          "last_contact_channel",
+          "last_contact_reached",
+          "has_visit_request",
+          "version"
+        ],
+        "title": "FollowUpRowOut",
+        "type": "object"
+      },
+      "FollowUpTotalsOut": {
+        "description": "全校區三種追蹤狀態的筆數（不受負責人篩選影響）；upcoming 只算 7 天內。",
+        "properties": {
+          "due": {
+            "title": "Due",
+            "type": "integer"
+          },
+          "unscheduled": {
+            "title": "Unscheduled",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "due",
+          "upcoming",
+          "unscheduled"
+        ],
+        "title": "FollowUpTotalsOut",
+        "type": "object"
+      },
+      "FollowUpUpdate": {
+        "additionalProperties": false,
+        "description": "只改下次聯絡或負責人（規格 6.4）：沒送＝不動，送 null＝清除（用 model_fields_set 判斷）。",
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "follow_up_owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Owner Id"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "FollowUpUpdate",
+        "type": "object"
+      },
       "FunnelBoardOut": {
         "properties": {
           "as_of": {
@@ -3112,6 +3642,18 @@
           "child_name": {
             "title": "Child Name",
             "type": "string"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
           },
           "grade": {
             "anyOf": [
@@ -6868,6 +7410,30 @@
             ],
             "title": "Enrolled On"
           },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "follow_up_owner_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up Owner Id"
+          },
           "geocoding_consent_at": {
             "anyOf": [
               {
@@ -6910,6 +7476,18 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_contacted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Contacted At"
           },
           "month": {
             "title": "Month",
@@ -7221,6 +7799,9 @@
           "version",
           "created_at",
           "updated_at",
+          "follow_up_at",
+          "follow_up_owner_id",
+          "last_contacted_at",
           "stage",
           "has_visit_request"
         ],
@@ -11238,6 +11819,140 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/follow-ups": {
+      "get": {
+        "description": "待追蹤分頁（規格 7.1）。不吃入學學年學期：追蹤跟入學學期無關。",
+        "operationId": "get_follow_ups_api_website_v1_admin_admissions_follow_ups_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "due 已到期、upcoming 7 天內、unscheduled 未排定",
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "due",
+              "description": "due 已到期、upcoming 7 天內、unscheduled 未排定",
+              "enum": [
+                "due",
+                "upcoming",
+                "unscheduled"
+              ],
+              "title": "Scope",
+              "type": "string"
+            }
+          },
+          {
+            "description": "me、none 或帳號 id",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(me|none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "me、none 或帳號 id",
+              "title": "Owner"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Follow Ups",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/from-visit-request/{visit_request_id}": {
       "post": {
         "description": "補建：已到場但沒有招生訪視的預約建立一筆；已有就回傳那一筆，可以重複呼叫\n（規格 6.1 第 2 點、6.6）。只接受已到場且未匿名化的預約（A 計畫調整第 13 條）。",
@@ -12052,6 +12767,48 @@
             }
           },
           {
+            "description": "追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2）",
+            "in": "query",
+            "name": "follow_up",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "due",
+                    "upcoming",
+                    "unscheduled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2）",
+              "title": "Follow Up"
+            }
+          },
+          {
+            "description": "追蹤負責人：me、none 或帳號 id",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(me|none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "追蹤負責人：me、none 或帳號 id",
+              "title": "Owner"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -12116,7 +12873,7 @@
         ]
       },
       "post": {
-        "description": "手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。",
+        "description": "手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。追蹤負責人預設是建立的人，\n不自動排下次聯絡（2026-10-04 規格 6.1）。",
         "operationId": "create_recruitment_visit_api_website_v1_admin_admissions_records_post",
         "parameters": [
           {
@@ -12435,6 +13192,170 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/records/{visit_id}/contact-logs": {
+      "get": {
+        "description": "參觀後的聯絡紀錄，新到舊（規格 9）。",
+        "operationId": "list_contact_logs_api_website_v1_admin_admissions_records__visit_id__contact_logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ContactLogOut"
+                  },
+                  "title": "Response List Contact Logs Api Website V1 Admin Admissions Records  Visit Id  Contact Logs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Contact Logs",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "post": {
+        "description": "記錄一次聯絡（規格 6.3）。檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→\n已匿名化（409）→ 版本（409）→ 時間與階段規則（422）。稽核不記內容。",
+        "operationId": "create_contact_log_api_website_v1_admin_admissions_records__visit_id__contact_logs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactLogCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactLogResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Contact Log",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/records/{visit_id}/events": {
       "get": {
         "description": "招生歷程，舊到新（園務 timeline 同順序）。操作者名稱讀取時才 join，帳號改名\n後跟著更新，歷程裡不存姓名。",
@@ -12510,6 +13431,92 @@
           }
         },
         "summary": "List Recruitment Events",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/records/{visit_id}/follow-up": {
+      "patch": {
+        "description": "只改下次聯絡或負責人，不記聯絡（規格 6.4）。沒送＝不動，送 null＝清除。",
+        "operationId": "update_follow_up_api_website_v1_admin_admissions_records__visit_id__follow_up_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowUpUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruitmentVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Follow Up",
         "tags": [
           "admissions"
         ]
@@ -12682,6 +13689,85 @@
           }
         },
         "summary": "Transition Recruitment Visit",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/staff": {
+      "get": {
+        "description": "可以當這個校區追蹤負責人的帳號（規格 6.4、9）：啟用中、有 admissions.write、涵蓋該校區。",
+        "operationId": "list_admissions_staff_api_website_v1_admin_admissions_staff_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdmissionsStaffOut"
+                  },
+                  "title": "Response List Admissions Staff Api Website V1 Admin Admissions Staff Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Admissions Staff",
         "tags": [
           "admissions"
         ]

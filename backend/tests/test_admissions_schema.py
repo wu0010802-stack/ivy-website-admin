@@ -52,10 +52,15 @@ def test_migration_follows_parent_self_booking_without_branching():
     assert "op.execute" not in source and "UPDATE " not in source
 
 
+# 參觀後追蹤（2026-10-04）另一個 migration 加的約束，在 test_admissions_follow_up_schema.py 檢查。
+FOLLOW_UP_CHECKS = {"ck_recruitment_visits_follow_up_open"}
+
+
 def test_check_conditions_are_identical_in_model_and_migration():
     source = MIGRATION.read_text(encoding="utf-8")
+    visit_checks = {name: sql for name, sql in _checks(RecruitmentVisit).items() if name not in FOLLOW_UP_CHECKS}
     conditions = {
-        **_checks(RecruitmentVisit),
+        **visit_checks,
         **_checks(GradeIntakeTarget),
         "ck_retention_policies_admissions_days": _checks(RetentionPolicy)["ck_retention_policies_admissions_days"],
     }
