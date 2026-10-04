@@ -2,13 +2,26 @@
 from __future__ import annotations
 
 import copy
+import json
 import uuid
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+from app.content.initialize import _copy_fields, initial_payloads
 from app.content.page_schemas import CURRICULUM_DIRECTION_KEYS, CurriculumPagePayload
 from app.content.registry import CONTENT_KIND_REGISTRY, set_at_path
+from tests.conftest import publish_booking_consent
+
+API = "/api/website/v1"
+ITEM = f"{API}/admin/content-items/curriculum_page"
+FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
+WEB_FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
+
+
+def _fixture_payload() -> dict:
+    return _copy_fields(json.loads(FIXTURE.read_text())["curriculumPage"], "curriculum_page")
 
 
 def _base(**changes) -> dict:
@@ -130,3 +143,57 @@ def test_media_refs_cover_every_photo_slot():
     replacement = str(uuid.uuid4())
     set_at_path(data, refs[2].path, replacement)
     assert data["directions"][2]["photo"]["media_id"] == replacement
+
+
+def test_both_fixtures_carry_the_same_curriculum_copy():
+    # 後端初始化讀 content/，官網讀 web/server/data/；不同步時 CMS 發布前後畫面會跳。
+    assert json.loads(FIXTURE.read_text())["curriculumPage"] == json.loads(WEB_FIXTURE.read_text())["curriculumPage"]
+
+
+def test_fixture_copy_passes_the_rules_and_keeps_the_sources():
+    payload = CurriculumPagePayload.model_validate(_fixture_payload())
+    assert payload.hero_highlight == "動手做"
+    assert [d.key for d in payload.directions] == list(CURRICULUM_DIRECTION_KEYS)
+    assert "常春藤兒童美術館" in payload.gallery_source
+    assert payload.daily_source == "照片與介紹取自義華校。"
+    assert payload.belief_source == "取自義華校教學理念。"
+
+
+def test_initialize_includes_curriculum_page_without_photos():
+    entries = {kind: payload for kind, _campus, payload in initial_payloads(json.loads(FIXTURE.read_text()))}
+    assert entries["curriculum_page"]["hero_photo"] is None
+    assert all(item["photo"] is None for item in entries["curriculum_page"]["gallery"])
+
+
+async def _save(client, payload: dict) -> dict:
+    item = (await client.get(ITEM)).json()
+    return await client.post(f"{ITEM}/revisions", json={"expected_version": item["latest_version"], "payload": payload})
+
+
+@pytest.mark.asyncio
+async def test_public_site_has_page_only_after_publish(admin_client, public_client, db_session):
+    await publish_booking_consent(db_session)  # 先有一個 release，/public/site 才有內容可讀
+    assert "curriculum_page" not in (await public_client.get(f"{API}/public/site")).json()["content"]
+    saved = await _save(admin_client, _fixture_payload())
+    assert saved.status_code == 201, saved.text
+    revision = saved.json()["latest_revision"]
+    published = await admin_client.post(f"{ITEM}/publish", json={"revision_id": revision["id"]})
+    assert published.status_code == 200, published.text
+    live = (await public_client.get(f"{API}/public/site")).json()["content"]["curriculum_page"]
+    assert live == CurriculumPagePayload.model_validate(_fixture_payload()).model_dump()
+
+
+@pytest.mark.asyncio
+async def test_unknown_media_in_a_list_photo_is_rejected(admin_client):
+    payload = _fixture_payload()
+    payload["gallery"][2]["photo"] = {"media_id": str(uuid.uuid4())}
+    saved = await _save(admin_client, payload)
+    assert saved.status_code == 422
+    assert saved.json()["detail"]["code"] == "MEDIA_NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_editor_can_read_but_not_edit(editor_client):
+    assert (await editor_client.get(ITEM)).status_code == 200
+    denied = await _save(editor_client, _fixture_payload())
+    assert denied.status_code == 403

@@ -96,6 +96,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("home_news", None, _copy_fields(data["news"], "home_news")),
         # 入學資訊頁：舊官網「常春藤入學」四個分頁移植來的內容（2026-09-24）。
         ("admission_content", None, _copy_fields(data["admission"], "admission_content")),
+        # 特色教學頁（2026-10 開放後台編輯）：照片版位不帶（留空＝官網內建照片）。
+        ("curriculum_page", None, _copy_fields(data["curriculumPage"], "curriculum_page")),
     ]
     # 五校共用的常見問題（2026-09-25）；各校只留自己的題目，預設顯示共用題。
     shared_faq = shared_faq_source(data)
