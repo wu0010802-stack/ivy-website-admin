@@ -32,6 +32,7 @@ describe('官網瀏覽與速度', () => {
     expect(trafficPageLabel({ page: 'environment', campus_key: null })).toBe('常春藤環境')
     expect(trafficPageLabel({ page: 'admission', campus_key: null })).toBe('入學資訊')
     expect(trafficPageLabel({ page: 'news', campus_key: null })).toBe('最新消息')
+    expect(trafficPageLabel({ page: 'anniversary', campus_key: null })).toBe('30 週年')
   })
 
   it('指標單位：LCP 秒、INP 毫秒、CLS 無單位', () => {

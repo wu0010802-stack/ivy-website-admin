@@ -1462,6 +1462,7 @@ export const CTA_ENTRY_LABELS: Record<string, string> = {
   curriculum: '特色教學頁',
   about: '關於常春藤頁',
   news: '最新消息頁',
+  anniversary: '30 週年頁',
   visit_page: '預約頁',
   visit_manage: '查詢／取消預約頁',
   other: '其他位置',

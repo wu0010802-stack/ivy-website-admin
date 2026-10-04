@@ -1354,6 +1354,10 @@
    {
     "label": "特色教學",
     "href": "/curriculum"
+   },
+   {
+    "label": "30 週年",
+    "href": "/anniversary"
    }
   ],
   "campusListLabel": "我們的大家庭",
@@ -1396,6 +1400,11 @@
     "label": "入學資訊",
     "labelEn": "Admission",
     "href": "/admission"
+   },
+   {
+    "label": "30 週年",
+    "labelEn": "Anniversary",
+    "href": "/anniversary"
    }
   ],
   "headerPhone": {

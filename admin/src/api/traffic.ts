@@ -1,13 +1,14 @@
 // 後台「數據」頁的官網瀏覽量與 Core Web Vitals（GET /admin/analytics/traffic）。
 import { campusLabel } from './labels'
 
-// 2026-09-30 起公開內頁也回報瀏覽與速度（名稱同官網頁首；最新消息含內文頁）
+// 2026-09-30 起公開內頁也回報瀏覽與速度（名稱同官網頁首；最新消息含內文頁）；2026-10-04 加 30 週年
 const CONTENT_PAGE_LABELS = {
   about: '關於常春藤',
   curriculum: '特色教學',
   environment: '常春藤環境',
   admission: '入學資訊',
   news: '最新消息',
+  anniversary: '30 週年',
 } as const
 
 export interface TrafficPage {

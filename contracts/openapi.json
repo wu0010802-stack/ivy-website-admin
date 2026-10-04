@@ -1441,6 +1441,7 @@
                   "curriculum",
                   "about",
                   "news",
+                  "anniversary",
                   "visit_page",
                   "visit_manage",
                   "other"
@@ -8415,7 +8416,8 @@
               "curriculum",
               "environment",
               "admission",
-              "news"
+              "news",
+              "anniversary"
             ],
             "title": "Page",
             "type": "string"

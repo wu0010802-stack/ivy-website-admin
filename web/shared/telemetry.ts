@@ -1,7 +1,7 @@
 export const campusKeys = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 // 2026-09-30 起公開內頁也回報瀏覽與 CWV（手機效能掃描：直接進入這些頁時沒有任何真實使用者量測）。
 // 最新消息列表與內文頁都歸 news，不帶文章代號（page 欄位固定幾種值，後端 String(16)）。
-export const contentPages = { '/about': 'about', '/curriculum': 'curriculum', '/environment': 'environment', '/admission': 'admission', '/news': 'news' } as const
+export const contentPages = { '/about': 'about', '/curriculum': 'curriculum', '/environment': 'environment', '/admission': 'admission', '/news': 'news', '/anniversary': 'anniversary' } as const
 type ContentPage = (typeof contentPages)[keyof typeof contentPages]
 const pageKeys: readonly string[] = ['home', 'campus', 'visit', ...Object.values(contentPages)]
 export type PublicPage = { page: 'home' | 'campus' | 'visit' | ContentPage; campus: string | null }
