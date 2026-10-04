@@ -543,6 +543,37 @@ describe('素材庫頁', () => {
     await flushPromises()
     expect((upload.mock.calls[0]![1] as FormData).get('campus_key')).toBe('minghua')
   })
+
+  it('處理中的影片顯示轉檔中，輪詢到可用就換掉；失敗的可以重新處理', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const processing = asset({ id: 'vp', kind: 'video', status: 'processing', original_filename: 'run.mp4', content_type: 'video/mp4', duration_seconds: 8 })
+      const failed = asset({ id: 'vf', kind: 'video', status: 'failed', original_filename: 'bad.mp4', content_type: 'video/mp4', processing_error: '影片轉檔逾時（120 秒）' })
+      const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+        if (path === '/admin/media/upload-limits') return LIMITS as never
+        if (path === '/admin/media/vp') return { ...processing, status: 'ready' } as never
+        if (path.startsWith('/admin/media')) return [processing, failed] as never
+        return [] as never
+      })
+      const post = vi.spyOn(api, 'post').mockResolvedValue({ ...failed, status: 'processing', processing_error: null } as never)
+      const wrapper = await mountAs(MediaLibraryView, admin())
+      const card = (id: string) => wrapper.find(`[data-media-id="${id}"]`)
+      expect(card('vp').text()).toContain('轉檔中，轉好才能預覽與發布')
+      expect(card('vf').text()).toContain('處理失敗：影片轉檔逾時（120 秒）')
+
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushPromises()
+      expect(get).toHaveBeenCalledWith('/admin/media/vp')
+      expect(card('vp').text()).not.toContain('轉檔中')
+
+      await card('vf').findAll('button').find((b) => b.text() === '重新處理')!.trigger('click')
+      await flushPromises()
+      expect(post).toHaveBeenCalledWith('/admin/media/vf/retry')
+      expect(card('vf').text()).toContain('轉檔中')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('替換素材', () => {
@@ -743,6 +774,22 @@ describe('用在哪裡的連結', () => {
 })
 
 describe('選圖器', () => {
+  it('選影片：處理中的可以選並標示轉檔中，失敗的不列', async () => {
+    // 選圖器沒帶校區時只列跨校共用（campus_key: null）。
+    mockGet([
+      asset({ id: 'ok', kind: 'video', campus_key: null, original_filename: 'ok.mp4' }),
+      asset({ id: 'vp', kind: 'video', campus_key: null, status: 'processing', original_filename: 'run.mp4' }),
+      asset({ id: 'vf', kind: 'video', campus_key: null, status: 'failed', original_filename: 'bad.mp4' }),
+    ])
+    const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, kind: 'video' })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    const text = wrapper.findAll('.picker__item').map((item) => item.text()).join('\n')
+    expect(text).toContain('run.mp4')
+    expect(text).toContain('轉檔中，轉好才能發布')
+    expect(text).not.toContain('bad.mp4')
+  })
+
   it('可一次上傳多張、顯示照片用在哪裡；只傳一張時照舊直接選用', async () => {
     mockGet([asset({ used_in: [{ kind: 'home_news', campus_key: null }], usage_count: 1 })])
     const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, campusKey: 'yihua' })

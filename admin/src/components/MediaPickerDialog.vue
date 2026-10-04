@@ -38,11 +38,12 @@ const limits = ref<MediaUploadLimitsOut | null>(null)
 // 選圖器裡上傳的照片一律標記為目前這一校（沒有校區時為共用），可一次選多張。
 const queue = useMediaUploadQueue({ campusKey: () => props.campusKey ?? null, allowed: props.kind })
 
+// 轉檔中的影片可以先選進草稿（發布時後端會擋到轉好）；處理失敗的不列。
 const visibleAssets = computed(() =>
   assets.value.filter(
     (a) =>
       a.kind === props.kind &&
-      a.status === 'ready' &&
+      a.status !== 'failed' &&
       (a.campus_key === null || a.campus_key === props.campusKey) &&
       (!query.value || a.original_filename.toLowerCase().includes(query.value.toLowerCase()) || (a.alt_text ?? '').includes(query.value) || (a.caption ?? '').includes(query.value) || (a.tags ?? []).some((t) => t.includes(query.value))),
   ),
@@ -100,10 +101,11 @@ async function onUploadChange(event: Event) {
   // 只傳一張而且成功：跟以前一樣直接選用。多張時留在選圖器，讓人自己挑。
   if (files.length === 1 && uploaded.length === 1) {
     const [picked] = uploaded
+    const pending = picked!.status === 'processing' ? `，${noun.value}轉檔中，轉好才能發布` : ''
     if (picked!.alt_text) {
-      ElMessage.success('已上傳並選用')
+      ElMessage.success(`已上傳並選用${pending}`)
     } else {
-      notifyWarning(`已上傳並選用。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`)
+      notifyWarning(`已上傳並選用${pending}。這${unit.value}${noun.value}還沒有${altNoun.value}，沒補上的話官網會沒有${altNoun.value}，可以到素材庫按「編輯」補上。`)
     }
     choose(picked!)
     return
@@ -144,6 +146,7 @@ async function onUploadChange(event: Event) {
         <span v-else class="picker__placeholder">影片</span>
         <span class="picker__name">{{ asset.original_filename }}</span>
         <span class="picker__campus">{{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}</span>
+        <span v-if="asset.status === 'processing'" class="picker__warn">轉檔中，轉好才能發布</span>
         <span v-if="!asset.alt_text" class="picker__warn">未填{{ altNoun }}</span>
         <span v-if="usedInText(asset)" class="picker__usage" :title="`用在：${usedInText(asset)}`">用在：{{ usedInText(asset) }}</span>
       </button>

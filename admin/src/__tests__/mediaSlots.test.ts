@@ -427,3 +427,29 @@ describe('活動影片規則與標籤', () => {
     expect(auditActionLabel('media.regenerate_variants')).toBe('重新產生素材縮圖、中圖與大圖')
   })
 })
+
+describe('影片版位的轉檔狀態', () => {
+  it('處理中顯示說明並自動更新；失敗說怎麼處理', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const processing = { ...VIDEO, status: 'processing' as const, variants: [] }
+      const get = vi.spyOn(api, 'get')
+        .mockResolvedValueOnce(processing as never)
+        .mockResolvedValueOnce({ ...VIDEO } as never)
+      const wrapper = mountPlain(() => h(MediaSlotField, { modelValue: { media_id: 'vid', focus_x: null, focus_y: null }, kind: 'video', builtin: '內建影片' }))
+      await flushPromises()
+      expect(wrapper.text()).toContain('影片轉檔中，轉好才能預覽與發布（這裡會自動更新）')
+      await vi.advanceTimersByTimeAsync(5000)
+      await flushPromises()
+      expect(get).toHaveBeenCalledTimes(2)
+      expect(wrapper.text()).not.toContain('轉檔中')
+    } finally {
+      vi.useRealTimers()
+    }
+
+    vi.spyOn(api, 'get').mockResolvedValue({ ...VIDEO, id: 'bad', status: 'failed', processing_error: '影片轉檔失敗：壞掉' } as never)
+    const failed = mountPlain(() => h(MediaSlotField, { modelValue: { media_id: 'bad', focus_x: null, focus_y: null }, kind: 'video', builtin: '內建影片' }))
+    await flushPromises()
+    expect(failed.text()).toContain('影片處理失敗：影片轉檔失敗：壞掉。請到素材庫按「重新處理」，或換一支影片')
+  })
+})

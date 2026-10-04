@@ -187,7 +187,7 @@ async function uploadReplacement() {
     const created = await api.upload<MediaAssetOut>(`/admin/media/${props.asset.id}/replace`, formData)
     emit('done')
     if (!isCurrent(token)) return
-    if (created.status !== 'ready') {
+    if (created.status === 'failed') {
       error.value = created.processing_error ?? '新檔案處理失敗，請換一個檔案'
       return
     }
@@ -263,6 +263,7 @@ async function applyReplacement() {
       </div>
 
       <div v-else-if="step === 'impact'" v-loading="usagesLoading" class="replace__body" :aria-busy="usagesLoading">
+        <p v-if="replacement?.status === 'processing'" class="hint">新影片轉檔中：可以先換進草稿，轉好之後才能發布。</p>
         <el-alert v-if="usagesError" :title="usagesError" type="error" show-icon :closable="false">
           <el-button size="small" :loading="usagesLoading" @click="loadUsages">重新載入影響範圍</el-button>
         </el-alert>

@@ -142,7 +142,7 @@ export function mediaFileUrl(id: string): string {
   return `${BASE_URL}/admin/media/${id}/file`
 }
 
-export type MediaVariantKind = 'thumbnail' | 'poster' | 'large'
+export type MediaVariantKind = 'thumbnail' | 'medium' | 'large' | 'poster' | 'video_desktop' | 'video_mobile'
 
 /** version 是衍生檔記錄 id：重新產生衍生檔會換成新記錄，網址跟著換，瀏覽器不會沿用快取的舊縮圖。 */
 export function mediaVariantUrl(id: string, kind: MediaVariantKind, version?: string): string {

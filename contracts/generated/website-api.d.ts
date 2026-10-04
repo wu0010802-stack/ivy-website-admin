@@ -992,6 +992,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/media/{media_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Media Processing
+         * @description 處理失敗的影片重新排入背景轉檔（原檔還在，不必重傳）。
+         */
+        post: operations["retry_media_processing_api_website_v1_admin_media__media_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/media/{media_id}/unarchive": {
         parameters: {
             query?: never;
@@ -5424,7 +5444,7 @@ export interface components {
          * VariantKind
          * @enum {string}
          */
-        VariantKind: "thumbnail" | "poster" | "large";
+        VariantKind: "thumbnail" | "poster" | "large" | "medium" | "video_desktop" | "video_mobile";
         /** VisitContactNoteCreateRequest */
         VisitContactNoteCreateRequest: {
             /** Expected Version */
@@ -8323,6 +8343,41 @@ export interface operations {
             };
         };
     };
+    retry_media_processing_api_website_v1_admin_media__media_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                media_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     unarchive_media_api_website_v1_admin_media__media_id__unarchive_post: {
         parameters: {
             query?: never;
@@ -8401,7 +8456,7 @@ export interface operations {
             };
             path: {
                 media_id: string;
-                variant: "thumbnail" | "poster" | "large";
+                variant: "thumbnail" | "poster" | "large" | "medium" | "video_desktop" | "video_mobile";
             };
             cookie?: {
                 ivy_admin_session?: string | null;
@@ -11038,7 +11093,7 @@ export interface operations {
             header?: never;
             path: {
                 media_id: string;
-                variant: "thumbnail" | "poster" | "large";
+                variant: "thumbnail" | "poster" | "large" | "medium" | "video_desktop" | "video_mobile";
             };
             cookie?: {
                 ivy_admin_session?: string | null;

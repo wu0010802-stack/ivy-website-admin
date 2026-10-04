@@ -346,7 +346,7 @@ export interface CampusTourPayload {
 
 export type MediaKind = 'image' | 'video'
 export type MediaStatus = 'processing' | 'ready' | 'failed'
-export type VariantKind = 'thumbnail' | 'poster'
+export type VariantKind = components['schemas']['VariantKind']
 
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
