@@ -57,15 +57,15 @@ const RULES = {
     { sel: '.cur-belief-close .cur-source', chars: 30 }
   ],
   '/about': [
-    { sel: '.abk-hero-text h1', lines: 3, perLine: 7 },
+    { sel: '.abk-hero-text h1', lines: 3, perLine: 12 },
     { sel: '.abk-lede', chars: 120 },
     { sel: '.abk-pop.is-hero figcaption', chars: 20, box: '.abk-pop.is-hero' },
     { sel: '.abk-toc li span', chars: 6, box: '.abk-toc li' },
     { sel: '.abk-chap > span', chars: 6 },
     { sel: '.abk-cover b', chars: 6, box: '.abk-cover' },
     { sel: '#story-title', lines: 3, perLine: 7, box: '.abk-page' },
-    { sel: '#whole-title', lines: 3, perLine: 9, box: '.abk-page' },
-    { sel: '#hope-title', lines: 3, perLine: 9, box: '.abk-page' },
+    { sel: '#whole-title', lines: 3, perLine: 12, box: '.abk-page' },
+    { sel: '#hope-title', lines: 3, perLine: 14, box: '.abk-page' },
     { sel: '#story .abk-text', chars: 120, box: '.abk-page' },
     { sel: '.abk-list li div > p', chars: 30, box: '.abk-list li' },
     { sel: '#whole-child .abk-text', chars: 100, box: '.abk-page' },

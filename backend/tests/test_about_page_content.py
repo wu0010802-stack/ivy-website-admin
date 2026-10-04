@@ -58,7 +58,7 @@ def test_registered_as_shared_only_and_valid_base():
 @pytest.mark.parametrize(
     "changes",
     [
-        {"hero_title": "一" * 8},
+        {"hero_title": "一" * 13},
         {"hope_title": "一\n二\n三\n四"},
         {"chapter_names": ["一路走來", "全人教育", "我們的期許"]},
         {"chapter_names": ["一路走來走來走", "全人教育", "我們的期許", "家長怎麼說"]},

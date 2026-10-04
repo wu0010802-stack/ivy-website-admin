@@ -321,10 +321,10 @@ AboutHopeQuote = Annotated[str, AfterValidator(_hope_quote)]
 
 # 欄位: (每行字數, 欄位名稱)
 _ABOUT_TITLES = {
-    "hero_title": (7, "首屏大標"),
+    "hero_title": (12, "首屏大標"),
     "story_title": (7, "一路走來的標題"),
-    "whole_title": (9, "全人教育的標題"),
-    "hope_title": (9, "我們的期許的標題"),
+    "whole_title": (12, "全人教育的標題"),
+    "hope_title": (14, "我們的期許的標題"),
 }
 # 欄位: (上限, 欄位名稱, 可留空)
 _ABOUT_TEXTS = {

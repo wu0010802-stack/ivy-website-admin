@@ -45,7 +45,7 @@ onMounted(editor.load)
       />
 
       <h3 id="section-about-hero" class="sub-title" data-section-anchor tabindex="-1">首屏</h3>
-      <PageCopyField v-model="form.hero_title" label="首屏大標" hint="aboutPageTitle" title />
+      <PageCopyField v-model="form.hero_title" label="首屏大標" hint="aboutPageTitle" title help="桌機每行超過約 7–10 字，官網會再自動折行，建議每行短一點。" />
       <PageCopyField v-model="form.hero_lede" label="首屏介紹" hint="aboutPageLede" multiline help="介紹裡寫了創校年份；改下面沿革的年份時記得一起改。" />
       <PageCopyField v-model="form.hero_caption" label="首屏照片上的一句話" hint="aboutPageCaption" />
       <PagePhotoField
@@ -83,7 +83,7 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-about-story" class="sub-title" data-section-anchor tabindex="-1">第一章：一路走來</h3>
-      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutPageTitle" title />
+      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutPageTitle" title help="每行最多 7 字，避開右上角的紀念章。" />
       <PageCopyField v-model="form.story_text" label="一路走來的說明" hint="aboutPageText" multiline />
       <div data-list="milestones">
         <div v-for="(milestone, i) in form.milestones" :key="milestone.key" class="page-copy__item" :data-list-item="i">
@@ -97,13 +97,13 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-about-whole" class="sub-title" data-section-anchor tabindex="-1">第二章：全人教育</h3>
-      <PageCopyField v-model="form.whole_title" label="全人教育的標題" hint="aboutPageTitle" title />
+      <PageCopyField v-model="form.whole_title" label="全人教育的標題" hint="aboutPageTitle" title help="桌機每行超過約 7–10 字，官網會再自動折行，建議每行短一點。" />
       <PageCopyField v-model="form.whole_text" label="全人教育的說明" hint="aboutPageText" multiline />
       <PageCopyField v-model="form.whole_fine" label="全人教育的補充" hint="aboutFine" multiline />
       <PageCopyField v-model="form.whole_fine_source" label="全人教育的出處" hint="aboutSource" help="清空就不顯示。六大領域與核心素養是課綱名詞，不在這裡改。" />
 
       <h3 id="section-about-hope" class="sub-title" data-section-anchor tabindex="-1">第三章：我們的期許</h3>
-      <PageCopyField v-model="form.hope_title" label="我們的期許的標題" hint="aboutPageTitle" title />
+      <PageCopyField v-model="form.hope_title" label="我們的期許的標題" hint="aboutPageTitle" title help="桌機每行超過約 7–10 字，官網會再自動折行，建議每行短一點。" />
       <div data-list="hope_quotes">
         <div v-for="(quote, i) in form.hope_quotes" :key="i" :data-list-item="i">
           <PageCopyField
