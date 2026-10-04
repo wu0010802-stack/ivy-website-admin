@@ -126,16 +126,17 @@ async def find_token(db: AsyncSession, raw: str) -> PasswordResetToken | None:
 
 
 def rejection(token: PasswordResetToken, user: User | None, now: datetime) -> str | None:
-    """連結不能用的原因；能用回 None。順序：用過 → 作廢 → 過期 → 帳號停用，
-    越前面的越能說明「下一步該怎麼做」。"""
+    """連結不能用的原因；能用回 None。順序：帳號停用 → 用過 → 作廢 → 過期。
+    停用放最前面：停用帳號時連結一定被作廢，但對方下一步是聯絡總管理者，
+    不是去找「最新一封信」；其餘越前面的越能說明下一步該怎麼做。"""
+    if user is None or not user.is_active:
+        return REJECT_INACTIVE
     if token.used_at is not None:
         return REJECT_USED
     if token.revoked_at is not None:
         return REJECT_REVOKED
     if token.expires_at <= now:
         return REJECT_EXPIRED
-    if user is None or not user.is_active:
-        return REJECT_INACTIVE
     return None
 
 

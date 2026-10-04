@@ -113,7 +113,7 @@ async def test_find_token_ignores_empty_and_oversized_input(db_session):
     assert await password_reset.find_token(db_session, "x" * 200) is None
 
 
-def test_rejection_order_used_then_revoked_then_expired_then_inactive():
+def test_rejection_order_inactive_then_used_then_revoked_then_expired():
     now = datetime(2026, 10, 3, 6, 0, tzinfo=timezone.utc)
     active = User(email=STAFF, is_active=True)
     inactive = User(email=STAFF, is_active=False)
@@ -123,9 +123,13 @@ def test_rejection_order_used_then_revoked_then_expired_then_inactive():
         return PasswordResetToken(**{**base, **fields})
 
     past = now - timedelta(minutes=1)
-    assert password_reset.rejection(token(used_at=past, revoked_at=past, expires_at=past), inactive, now) == "link_used"
-    assert password_reset.rejection(token(revoked_at=past, expires_at=past), inactive, now) == "link_revoked"
-    assert password_reset.rejection(token(expires_at=now), inactive, now) == "link_expired"
+    # 帳號停用最優先：下一步一律是聯絡總管理者，不是去找最新一封信。
+    assert password_reset.rejection(token(used_at=past, revoked_at=past, expires_at=past), inactive, now) == "inactive"
+    assert password_reset.rejection(token(revoked_at=past), inactive, now) == "inactive"
+    assert password_reset.rejection(token(expires_at=now), inactive, now) == "inactive"
     assert password_reset.rejection(token(), inactive, now) == "inactive"
     assert password_reset.rejection(token(), None, now) == "inactive"
+    assert password_reset.rejection(token(used_at=past, revoked_at=past, expires_at=past), active, now) == "link_used"
+    assert password_reset.rejection(token(revoked_at=past, expires_at=past), active, now) == "link_revoked"
+    assert password_reset.rejection(token(expires_at=now), active, now) == "link_expired"
     assert password_reset.rejection(token(), active, now) is None

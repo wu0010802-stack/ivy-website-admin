@@ -6,9 +6,11 @@ import re
 
 import httpx
 import pytest
+from sqlalchemy import select
 
 from app.auth import password_reset
 from app.auth.models import Role
+from app.operations.models import AuditLogEntry
 from tests.conftest import _create_user, _logged_in_client, freeze_rate_limit_clock
 
 API = "/api/website/v1"
@@ -48,6 +50,27 @@ async def test_deactivating_account_revokes_links(app, admin_client, db_session,
     response = await _complete(app, token)
     assert response.status_code == 410
     assert response.json()["detail"]["reason"] == "link_revoked"
+
+
+async def test_deactivated_account_link_says_inactive(app, admin_client, db_session, mailer):
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    target_id = target.id  # 稽核查詢會 expire_all，之後不能再讀 target 的屬性
+    token = await _send(admin_client, target_id, mailer)
+    assert (await admin_client.patch(f"{API}/admin/users/{target_id}/active", json={"is_active": False})).status_code == 200
+    # 停用會作廢連結，但對方要的是「帳號已停用、請聯絡總管理者」，不是「請用最新的信」。
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as anon:
+        verify = await anon.post(f"{API}/auth/password-reset/verify", json={"token": token})
+        complete = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})
+    for response in (verify, complete):
+        assert response.status_code == 410
+        assert response.json()["detail"]["reason"] == "inactive"
+    db_session.expire_all()
+    rows = (
+        await db_session.execute(
+            select(AuditLogEntry).where(AuditLogEntry.action == "user.password_reset_link_rejected")
+        )
+    ).scalars().all()
+    assert [row.metadata_json for row in rows] == [{"reason": "inactive"}]
 
 
 async def test_changing_own_password_revokes_links(app, admin_client, db_session, mailer):
