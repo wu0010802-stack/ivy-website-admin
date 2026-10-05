@@ -28,11 +28,16 @@ it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文�
   const result = publicCopy(site)
   const json = JSON.stringify(result)
   expect(json).not.toContain('這份 prototype 僅示範流程')
+  // 原型預約表單的示範說明、步驟與欄位清單（2026-10-05）。
+  expect(json).not.toContain('這是官網互動提案')
+  expect(json).not.toContain('示範完成，尚未送出預約')
+  expect(json).not.toContain('demo-consent')
   expect(json).not.toContain('我了解這是操作示範')
   expect(result.home.hero).not.toHaveProperty('eyebrow')
   expect(result.home.campusBoard).not.toHaveProperty('note')
   expect(result.dayExperience).not.toHaveProperty('sourceNote')
-  for (const key of ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel']) expect(result.booking).not.toHaveProperty(key)
+  for (const key of ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel', 'isDemo', 'demoNote', 'steps', 'fields']) expect(result.booking).not.toHaveProperty(key)
+  expect(Object.keys(result.booking).sort()).toEqual(['ctaLabel', 'ctaLabelEn'])
   for (const campus of result.campuses) {
     for (const key of ['intro', 'description', 'fbNote', 'heroPhotoPos', 'faq']) expect(campus).not.toHaveProperty(key)
     if (Array.isArray(campus.tourScenes)) for (const scene of campus.tourScenes) expect(scene).not.toHaveProperty('spots')

@@ -4,8 +4,11 @@ export type { MediaImage }
 
 // 2026-10-04 拿掉官網不再顯示的欄位（首屏小標、五校區塊說明、孩子的一天出處說明、
 // 分校頁的簡介／詳細介紹／首屏焦點／臉書備註／常見問題、預約同意文字與分校頁橫幅、
-// 校園探索熱點）。fixture（server/data/site-fixture.json）仍留著這些值：後端初始化
-// 內容（app/content/initialize.py、app/media/site_import.py）要讀，官網不讀。
+// 校園探索熱點）；2026-10-05 再拿掉原型預約表單的示範說明、步驟與欄位清單
+// （booking 的 isDemo／demoNote／steps／fields）。fixture（server/data/site-fixture.json）
+// 仍留著這些值：前一批是後端初始化內容（app/content/initialize.py、
+// app/media/site_import.py）要讀；預約示範資料兩邊都不讀，只是原型抽取時原樣留下。
+// 公開輸出前由 utils/public-copy.ts 拿掉。
 
 export interface HeroContent {
   titleParts: {
@@ -222,19 +225,6 @@ export interface NewsContent {
   films?: HomeFilm[]
 }
 
-export interface BookingField {
-  name: string
-  label: string
-  type: string
-  required: boolean
-  maxlength?: number
-  pattern?: string
-  hint?: string
-  placeholder?: string
-  options?: string[]
-  optionsFrom?: string
-}
-
 /** 隱私／個資使用說明（後台「預約文案」維護）。段落是純文字。 */
 export interface PrivacyNotice {
   title: string
@@ -242,14 +232,10 @@ export interface PrivacyNotice {
 }
 
 export interface BookingContent {
-  isDemo: boolean
-  demoNote: string
   /** 已發布的隱私說明；沒有正式說明時為 null，頁尾與表單不顯示入口 */
   privacyNotice?: PrivacyNotice | null
   ctaLabel: string
   ctaLabelEn: string
-  steps: { step: number; id: string; title: string; description?: string }[]
-  fields: BookingField[]
 }
 
 export interface FooterContent {
