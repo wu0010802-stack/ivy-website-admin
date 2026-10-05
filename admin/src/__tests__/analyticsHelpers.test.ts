@@ -20,11 +20,10 @@ describe('成效統計的比率、樣本與連結', () => {
     expect(isSmallSample({ value: null, numerator: 0, denominator: 0 })).toBe(false)
   })
 
-  it('待處理三種連到案件列表，參數和總覽一樣；順序是待標記到場、到期追蹤、舊資料', () => {
-    expect(PENDING_KINDS).toEqual(['awaiting_attendance', 'follow_up_due', 'legacy_pending'])
+  it('待處理兩種連到案件列表，參數和總覽一樣；順序是待標記到場、到期追蹤，沒有舊資料待處理', () => {
+    expect(PENDING_KINDS).toEqual(['awaiting_attendance', 'follow_up_due'])
     expect(pendingLink('awaiting_attendance', 'yihua')).toBe('/visit-requests?campus=yihua&group=past&status=confirmed')
     expect(pendingLink('follow_up_due', 'yihua')).toBe('/visit-requests?campus=yihua&due=1')
-    expect(pendingLink('legacy_pending', 'minghua')).toBe('/visit-requests?campus=minghua&group=pending')
   })
 
   it('rangeKey 把同一段期間算成同一個鍵，開站至今是 all', () => {

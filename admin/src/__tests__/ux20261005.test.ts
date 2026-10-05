@@ -290,15 +290,15 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
     expect(wrapper.get('.more-filters').text()).not.toMatch(/\d/)
   })
 
-  it('分頁數字是件數不是待辦：只有舊需求「待處理」用暖黃', async () => {
-    const { wrapper } = await mountList('/visit-requests', [], { counts: { pending: 1, upcoming: 4, past: 2, cancelled: 3 } })
+  it('分頁數字是件數不是待辦：沒有「待處理」頁籤，也沒有暖黃計數樣式', async () => {
+    const { wrapper } = await mountList('/visit-requests', [], { counts: { upcoming: 4, past: 2, cancelled: 3 } })
     const groups = wrapper.findAll('.status-tab').map(tab => tab.attributes('data-group'))
-    expect(groups).toEqual(['all', 'pending', 'upcoming', 'past', 'cancelled'])
-    // 頁籤的基本樣式（中性灰計數）在 style.css，案件列表與站內通知共用；暖黃只在案件列表。
+    expect(groups).toEqual(['all', 'upcoming', 'past', 'cancelled'])
+    // 頁籤的基本樣式（中性灰計數）在 style.css，案件列表與站內通知共用；案件列表不再有暖黃計數。
     const shared = readFileSync(join(SRC, 'style.css'), 'utf8')
     expect(shared).toMatch(/\.status-tab__count \{[^}]*background: var\(--surface-3\)/)
     const source = readFileSync(join(SRC, 'views/VisitRequestsView.vue'), 'utf8')
-    expect(source).toMatch(/\.status-tab\[data-group='pending'\] \.status-tab__count \{ background: var\(--brand-gold\)/)
+    expect(source).not.toContain("data-group='pending'")
   })
 
   it('面板標題寫目前看的是哪一組，不重複頁名', async () => {
@@ -313,7 +313,7 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
 
 const summary = (changes = {}) => ({
   today_visits: 0, today_visit_list: [], pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [],
-  failed_notifications: 0, new_requests: 0, awaiting_confirmation: 0, next_hold_expires_at: null, ...changes,
+  failed_notifications: 0, ...changes,
 })
 
 async function mountDashboard(data: object) {
@@ -327,12 +327,12 @@ async function mountDashboard(data: object) {
   return wrapper
 }
 
-describe('總覽：舊案的兩格有數字才出現', () => {
+describe('總覽：營運摘要固定兩格（舊案兩格已拿掉）', () => {
   it('自選場次之後恆為 0：只剩今日參觀與到期待追蹤兩格', async () => {
     const wrapper = await mountDashboard(summary())
     const cells = wrapper.findAll('.dash__summary > div').map(div => div.get('dt').text())
     expect(cells).toEqual(['今日參觀', '到期待追蹤'])
-    expect(wrapper.get('.dash__summary').attributes('style')).toContain('--summary-cols: 2')
+    expect(wrapper.get('.dash__summary').attributes('style') ?? '').not.toContain('--summary-cols')
   })
 
   it('今天的名單：場次開始後才有「到了／沒來」，按了先確認、送出後重讀彙總', async () => {
@@ -359,12 +359,11 @@ describe('總覽：舊案的兩格有數字才出現', () => {
     expect(get.mock.calls.filter(([path]) => path === '/admin/dashboard').length).toBeGreaterThan(before)
   })
 
-  it('有舊需求或待確認時自動回來，用暖色提醒', async () => {
+  it('即使舊版 API 還帶舊案數字，也不會多出「新需求待聯絡」「待園方確認」兩格或暖色提醒', async () => {
     const wrapper = await mountDashboard(summary({ new_requests: 2, awaiting_confirmation: 1 }))
     const cells = wrapper.findAll('.dash__summary > div')
-    expect(cells.map(div => div.get('dt').text())).toEqual(['新需求待聯絡', '待園方確認', '今日參觀', '到期待追蹤'])
-    expect(cells[0]!.classes()).toContain('is-attention')
-    expect(wrapper.get('.dash__summary').attributes('style')).toContain('--summary-cols: 4')
+    expect(cells.map(div => div.get('dt').text())).toEqual(['今日參觀', '到期待追蹤'])
+    expect(wrapper.find('.dash__summary .is-attention').exists()).toBe(false)
   })
 })
 

@@ -13,7 +13,7 @@ from tests.conftest import set_booking_mode
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 URL = "/api/website/v1/admin/analytics/booking-outcomes"
-OUTCOME_KEYS = ("pending", "upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
+OUTCOME_KEYS = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
 
 
 def _row(body: dict, campus_key: str = "yihua") -> dict:
@@ -37,14 +37,13 @@ async def test_each_case_lands_in_exactly_one_outcome_with_rates(admin_client, d
     await add_case(db_session, status="confirmed", slot_id=future, source="phone")
     await add_case(db_session, status="cancelled", slot_id=future, cancel_reason="parent")
     await add_case(db_session, status="cancelled", slot_id=future, cancel_reason=None)
-    await add_case(db_session, status="new")
     await db_session.commit()
 
     row = _row(await _get(admin_client))
-    assert row["cases"] == 8
-    assert row["web_cases"] == 7
+    assert row["cases"] == 7
+    assert row["web_cases"] == 6
     assert {key: row[key] for key in OUTCOME_KEYS} == {
-        "pending": 1, "upcoming": 1, "awaiting_attendance": 1, "completed": 2,
+        "upcoming": 1, "awaiting_attendance": 1, "completed": 2,
         "no_show": 1, "cancelled": 2, "unscheduled": 0,
     }
     assert sum(row[key] for key in OUTCOME_KEYS) == row["cases"]
@@ -52,7 +51,7 @@ async def test_each_case_lands_in_exactly_one_outcome_with_rates(admin_client, d
     # 參觀時間過了、還沒標記的那 1 筆不算進分母，也不當成到場。
     assert row["attendance_rate"] == {"value": 66.7, "numerator": 2, "denominator": 3}
     assert row["no_show_rate"] == {"value": 33.3, "numerator": 1, "denominator": 3}
-    assert row["cancel_rate"] == {"value": 25.0, "numerator": 2, "denominator": 8}
+    assert row["cancel_rate"] == {"value": 28.6, "numerator": 2, "denominator": 7}
 
 
 @pytest.mark.asyncio
@@ -87,7 +86,7 @@ async def test_only_campuses_in_scope_are_listed(admin_client, minghua_client, d
     minghua = await _get(minghua_client)
     assert [row["campus_key"] for row in minghua["campuses"]] == ["minghua"]
     assert minghua["totals"]["cases"] == 1
-    assert minghua["open_now_totals"]["legacy_pending"] == 1
+    assert minghua["open_now_totals"] == {"awaiting_attendance": 0, "follow_up_due": 0}
     # 這支 API 沒有校區參數；自己加上別校也不會擴大範圍。
     tampered = await _get(minghua_client, "?campus_key=yihua")
     assert [row["campus_key"] for row in tampered["campuses"]] == ["minghua"]
@@ -111,7 +110,6 @@ async def test_open_now_matches_dashboard_and_ignores_period(admin_client, db_se
     past = await add_slot(db_session, days_from_today=-1)
     future = await add_slot(db_session, days_from_today=2)
     await add_case(db_session, status="confirmed", slot_id=past, created_at=old)
-    await add_case(db_session, status="new", created_at=old)
     await add_case(db_session, status="confirmed", slot_id=future, follow_up_at=due, created_at=old)
     await add_case(db_session, status="cancelled", follow_up_at=due, cancel_reason="staff", created_at=old)
     await db_session.commit()
@@ -120,7 +118,6 @@ async def test_open_now_matches_dashboard_and_ignores_period(admin_client, db_se
     row = _row(await _get(admin_client, "?from=2026-10-02&to=2026-10-02"))
     assert row["cases"] == 0  # 都是 09-01 送出的，不在期間內
     assert row["open_now"] == {
-        "legacy_pending": 1,
         "awaiting_attendance": dashboard["awaiting_attendance"],
         "follow_up_due": dashboard["pending_follow_up"],
     }

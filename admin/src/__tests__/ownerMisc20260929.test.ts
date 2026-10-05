@@ -1,4 +1,4 @@
-// 2026-09-29 業主裁定（後台雜項）：側欄只有參觀案件掛數字；官網刻意不顯示的三個欄位
+// 2026-09-29 業主裁定（後台雜項）：側欄不掛數字（10-05 拿掉待處理後參觀案件也不掛）；官網刻意不顯示的三個欄位
 // 不再列出、但存檔照原樣送回；「全站設定」改名「個資與搜尋設定」。（預約橫幅的標題
 // 預覽隨官網分校頁拿掉，2026-10-04 連規則函式一起刪除。）
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,12 +73,11 @@ async function savedPayload(wrapper: VueWrapper, kind: string): Promise<Record<s
 
 const labels = (wrapper: VueWrapper) => wrapper.findAll('.el-form-item__label').map((label) => label.text())
 
-describe('側欄只有參觀案件掛數字', () => {
-  it('導覽結構裡只有參觀案件帶待辦數字，站內通知與發布紀錄不帶', () => {
-    const withBadge = NAV_GROUPS.flatMap((group) => group.items).filter((item) => item.badge)
-    expect(withBadge.map((item) => item.name)).toEqual(['visit-requests'])
-    expect(navItem('notifications')!.badge).toBeUndefined()
-    expect(navItem('releases')!.badge).toBeUndefined()
+describe('側欄不掛數字', () => {
+  it('導覽結構裡沒有任何項目帶待辦數字（badge 欄位已拿掉），參觀案件、站內通知與發布紀錄都不帶', () => {
+    const items = NAV_GROUPS.flatMap((group) => group.items)
+    expect(items.filter((item) => 'badge' in item).map((item) => item.name)).toEqual([])
+    for (const name of ['visit-requests', 'notifications', 'releases'] as const) expect('badge' in navItem(name)!).toBe(false)
   })
 })
 

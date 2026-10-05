@@ -1,24 +1,20 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { api } from '../api/client'
 
-// 側欄「參觀案件」旁的數字：新需求＋待園方確認。側欄只有這一項掛數字（DESIGN 第五輪，
-// 2026-09-29 業主再確認）；待核准改期與給自己的內容通知未讀數放在頁首連結與總覽待辦
-// （DESIGN 第六輪）。與總覽同一個來源（/admin/dashboard），不另開計數 API。換頁時才重抓，而且 30 秒內不重複打；案件狀態變了強制重抓。
-// 總覽要的是完整彙總，透過 loadSummary 和側欄共用同一個進行中的請求：
+// 頁首與總覽待辦的數字：待核准改期與給自己的內容通知未讀數（DESIGN 第六輪）。側欄「參觀案件」
+// 原本掛新需求＋待園方確認，2026-10-05 拿掉「待處理」後不再有數字。與總覽同一個來源
+// （/admin/dashboard），不另開計數 API。換頁時才重抓，而且 30 秒內不重複打；案件狀態變了強制重抓。
+// 總覽要的是完整彙總，透過 loadSummary 和外殼共用同一個進行中的請求：
 // 進總覽時外殼的換頁刷新與總覽自己的讀取只打一次。
 export const STALE_MS = 30_000
 
 export interface OpenRequestCounts {
-  new_requests?: number
-  awaiting_confirmation?: number
   pending_reschedule_requests?: number
   my_unread_notifications?: number
 }
 
 export const useOpenRequestsStore = defineStore('openRequests', () => {
-  const newRequests = ref(0)
-  const awaiting = ref(0)
   const reschedules = ref(0)
   const myNotices = ref(0)
   let fetchedAt = 0
@@ -26,11 +22,7 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   // 登出（reset）後才回來的舊請求不能算數：數字與總覽彙總（含家長姓名）屬於上一位使用者。
   let session = 0
 
-  const total = computed(() => newRequests.value + awaiting.value)
-
   function apply(counts: OpenRequestCounts): void {
-    newRequests.value = counts.new_requests ?? 0
-    awaiting.value = counts.awaiting_confirmation ?? 0
     reschedules.value = counts.pending_reschedule_requests ?? 0
     myNotices.value = counts.my_unread_notifications ?? 0
     fetchedAt = Date.now()
@@ -59,8 +51,6 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   }
 
   function reset(): void {
-    newRequests.value = 0
-    awaiting.value = 0
     reschedules.value = 0
     myNotices.value = 0
     fetchedAt = 0
@@ -69,5 +59,5 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
     inflight = null
   }
 
-  return { newRequests, awaiting, reschedules, myNotices, total, apply, loadSummary, refresh, reset }
+  return { reschedules, myNotices, apply, loadSummary, refresh, reset }
 })

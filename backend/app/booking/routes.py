@@ -876,13 +876,13 @@ class VisitRequestFilters:
         ),
         group: str | None = Query(
             default=None,
-            pattern="^(pending|upcoming|past|cancelled)$",
-            description="案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            pattern="^(upcoming|past|cancelled)$",
+            description="案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
         ),
         open_only: bool = Query(
             default=False,
             alias="open",
-            description="只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+            description="只列還沒結案的：預約正常（含時間已過還沒標記到場）",
         ),
     ) -> None:
         self.campus_key = campus_key

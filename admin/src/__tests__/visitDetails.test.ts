@@ -25,9 +25,10 @@ async function setup(data: Record<string, unknown> = details(), user: UserOut = 
   wrappers.push(wrapper); await flushPromises(); return wrapper
 }
 describe('參觀資料與已選場次', () => {
-  it('明細可閱讀孩子、生日、Email、得知管道與待確認狀態', async () => {
+  it('明細可閱讀孩子、生日、Email、得知管道與場次狀態（舊案不再顯示「待確認」）', async () => {
     const wrapper = await setup()
-    for (const text of ['測試孩子', '2022-06-18', 'parent@example.org', 'Facebook、親友介紹', '待確認', '10:00–10:30']) expect(wrapper.text()).toContain(text)
+    for (const text of ['測試孩子', '2022-06-18', 'parent@example.org', 'Facebook、親友介紹', '10:00–10:30']) expect(wrapper.text()).toContain(text)
+    expect(wrapper.text()).not.toContain('待確認')
     expect(wrapper.find('a[href="mailto:parent@example.org"]').exists()).toBe(true)
   })
   it('人工確認使用家長已選的場次，不需再次選擇或新增預約', async () => {

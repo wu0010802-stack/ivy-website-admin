@@ -1,3 +1,18 @@
+## 2026-10-05 參觀案件拿掉「待處理」，舊案刪除（`feature/visit-no-pending-20261005`）
+
+使用者指著正式站 `/admin/visit-requests?group=pending` 說「把這個狀態拿掉，現在都是有預約時間的參觀」，舊案裁定直接刪除。規則見 DESIGN.md「拿掉「待處理」」。
+
+- **後台**：案件列表分組剩預約正常／時間已過／已取消（`?group=pending` 與舊 `?status=new|contacting|pending_confirmation` 落到全部），列表不再顯示確認期限；側欄「參觀案件」不再掛數字（`NavItem.badge` 拿掉）；總覽摘要固定兩格、拿掉「場次預約等園方確認」「新的參觀需求還沒聯絡」兩個待辦；成效統計拿掉「舊資料的待處理」。
+- **後端**：`status_groups` 拿掉 `pending`，還沒結案的依場次分組、沒有場次算預約正常（每筆剛好一組）；`group` 參數不收 `pending`；`pending_kinds` 剩兩種；成效統計拿掉 `pending`／`legacy_pending`；`/admin/dashboard` 拿掉 `new_requests`、`awaiting_confirmation`、`next_hold_expires_at`；`contracts/` 重新產生。
+- **資料**：migration `1e5612e187ff` 刪掉 new／contacting／pending_confirmation 的案件（連帶 CASCADE 的聯絡紀錄、歷程、outbox、家長連結、改期申請）與指向它們的站內通知；downgrade 不還原。正式站義華只有 1 筆（09-24 測試案），其他四校以 migration 實際刪除數為準；使用者確認正式庫的預約資料都是測試資料、可以刪，這次部署不另外備份。
+- **沒動**：資料庫七種狀態、後端舊狀態流程與提醒、案件明細的舊狀態分支、各校預約方式的影響數字、官網家長管理頁文案。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1532 passed、1 skipped（8 分 57 秒，獨立測試庫 `ivy_website_test_nopending`）；新增 `test_delete_legacy_pending_migration.py`（只刪三種舊狀態、CASCADE、related_request_id 變 NULL、只刪指到舊案的站內通知）、`group=pending` 回 422；拿掉總覽舊計數的測試。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 94 檔 1203 項全過（另一次整套有 2 項 `admissionsRecords` 逾時，當時負載 91，單獨重跑 33 項全過）。15 個測試檔改成驗證「已經沒有了」：頁籤只有四個、舊網址落到全部、側欄沒有數字、總覽固定兩格、成效統計沒有舊資料。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_nopending1005_e2e_test`、埠 8791／3791，跑完已刪庫）：整套 74 項＋臨時截圖 spec 2 項全過；`visual.spec` 拿掉已不存在的 `.sidebar__badge` 遮罩。臨時 spec 拍 1440／390：`?group=pending` 落到全部、四個頁籤、側欄無數字、總覽兩格、手機不橫向溢出（截圖在 `output/playwright/no-pending/`，spec 已刪）。
+  - 未驗證：正式庫 migration 實際刪除筆數（其他四校）、登入正式後台實際點一次。
+
 ## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`，10-05 已部署 main `51332515`）
 
 使用者指著正式站 `/admin/admissions?campus=yihua&tab=arrivals` 問用途，評估後覺得和案件列表重複，裁定「拿掉分頁，批次標記搬到案件列表」「後端 API 一起刪」。規則見 DESIGN.md「拿掉官網預約分頁」。

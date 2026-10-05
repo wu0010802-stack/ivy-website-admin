@@ -5,7 +5,7 @@ import { api } from '../api/client'
 import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
-import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
+import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
 import type { VisitRequestDetailOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
@@ -54,9 +54,6 @@ interface DashboardSummary {
   today_visit_list?: TodayVisit[]
   // 已確認、場次時間已過、還沒標記到場（和案件列表「時間已過」裡的「尚未確認到場」同一批）。
   awaiting_attendance?: number
-  new_requests?: number
-  awaiting_confirmation?: number
-  next_hold_expires_at?: string | null
   pending_reschedule_requests?: number
   my_unread_notifications?: number
   needs_attention?: number
@@ -276,7 +273,6 @@ function showTodayList() {
   heading.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
   heading.focus({ preventScroll: true })
 }
-const holdRemaining = computed(() => formatHoldRemaining(summary.value?.next_hold_expires_at, clockNow.value))
 
 // 草稿、排程這類清單只要知道哪一天幾點，不寫年份：「09/28 21:45」。
 function shortDateTime(value: string | null | undefined): string {
@@ -285,10 +281,6 @@ function shortDateTime(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? '' : shortDateTimeFormatter.format(date).replace(/\s+/g, ' ')
 }
 
-const newRequests = computed(() => summary.value?.new_requests ?? 0)
-const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
-// 摘要格數：今日參觀、到期待追蹤固定兩格，舊案的兩格有數字才加進來。
-const summaryCols = computed(() => 2 + (newRequests.value > 0 ? 1 : 0) + (awaiting.value > 0 ? 1 : 0))
 const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
 // 給自己的內容通知（送審、核准或退回、排程沒有發布）還沒讀的則數：側欄不掛數字，改在總覽與頁首提醒。
 const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
@@ -305,21 +297,16 @@ const admissionsDuePath = computed(() => {
   return first ? `/admissions?tab=followups&campus=${first}` : '/admissions?tab=followups'
 })
 const awaitingAttendance = computed(() => summary.value?.awaiting_attendance ?? 0)
-// 主按鈕帶去最急的一批：有占位待確認就先處理（逾期會自動釋出名額），
-// 再來是場次關了家長還要來、改期申請、新需求、到期追蹤。按鈕上的字講的是
+// 主按鈕帶去最急的一批：場次關了家長還要來，再來是改期申請、到期追蹤。按鈕上的字講的是
 // 點進去那一批，數字也只算那一批，不把幾批加總之後只帶去其中一批。
-// 最早送出的先處理，占位也是最早到期的在前面。
 const primary = computed(() => {
-  if (awaiting.value > 0) return { to: '/visit-requests?status=pending_confirmation&order=oldest', label: '確認場次預約', count: awaiting.value }
   // 待辦清單最上面那項：不聯絡的話家長會照原時間到園。
   if (needsAttention.value > 0) return { to: attentionListPath(), label: '聯絡要改期的家長', count: needsAttention.value }
-  // 家長在等園方回覆能不能改期，原時段也可能快到了，排在新需求前面。
+  // 家長在等園方回覆能不能改期，原時段也可能快到了。
   if (reschedules.value > 0) return { to: '/notifications', label: '核准改期申請', count: reschedules.value }
-  if (newRequests.value > 0) return { to: '/visit-requests?status=new&order=oldest', label: '聯絡新需求', count: newRequests.value }
   if (followUpDue.value > 0) return { to: '/visit-requests?due=1', label: '追蹤到期案件', count: followUpDue.value }
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
-const openCount = computed(() => newRequests.value + awaiting.value)
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
 const campusesWithoutBooking = computed(() => summary.value?.campuses_without_active_booking ?? [])
 const openableContent = <T extends { kind: string; campus_key: string | null }>(rows: T[] | undefined): T[] =>
@@ -395,7 +382,6 @@ const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
-    openCount.value > 0 ||
     inactiveAssigneeCases.value > 0 ||
     reschedules.value > 0 ||
     (myNotices.value > 0 && canOpen('/releases')) ||
@@ -426,11 +412,7 @@ const hasTodo = computed(() => {
     </el-alert>
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
-      <!-- 家長自選場次後，「新需求待聯絡」「待園方確認」只剩改版前的舊案會有數字（2026-10-05 起
-           有數字才出現）：恆為 0 的兩格不再占掉手機首屏一半；有舊案或日後改回人工確認時自動回來。 -->
-      <dl class="dash__summary" aria-label="營運摘要" :style="{ '--summary-cols': summaryCols }">
-        <div v-if="newRequests > 0" class="is-attention"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></dd></div>
-        <div v-if="awaiting > 0" class="is-attention"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ holdRemaining ? `最早一筆${holdRemaining}` : '查看待確認案件' }}</router-link></dd></div>
+      <dl class="dash__summary" aria-label="營運摘要">
         <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><dd class="dash__more"><a v-if="summary.today_visit_list?.length" href="#today-title" @click.prevent="showTodayList">看今天的名單</a><router-link v-else to="/visit-requests?group=upcoming&order=oldest">查看預約正常的案件</router-link></dd></div>
         <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?due=1">查看到期案件</router-link></dd></div>
       </dl>
@@ -482,17 +464,9 @@ const hasTodo = computed(() => {
               <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
               <div><h3 id="task-attention-t">場次已關閉或分校停用，家長還要來</h3><p id="task-attention-d">這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園；那一場其實照常接待的話，重新開放場次並把名額調成已占用的組數。</p><span id="task-attention-a" class="task__action">查看待人工處理的案件 <span aria-hidden="true">→</span></span></div>
             </router-link>
-            <router-link v-if="awaiting > 0" class="task task--urgent" to="/visit-requests?status=pending_confirmation&order=oldest" v-bind="taskAria('awaiting')">
-              <span id="task-awaiting-n" class="task__number">{{ awaiting }}</span>
-              <div><h3 id="task-awaiting-t">場次預約等園方確認</h3><p id="task-awaiting-d">家長已選好場次，名額先保留著；逾期沒確認會自動釋出。<template v-if="summary.next_hold_expires_at">最早一筆要在 <strong class="num">{{ formatDateTime(summary.next_hold_expires_at) }}</strong> 前確認。</template></p><span id="task-awaiting-a" class="task__action">從最早送出的開始確認 <span aria-hidden="true">→</span></span></div>
-            </router-link>
             <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications" v-bind="taskAria('reschedule')">
               <span id="task-reschedule-n" class="task__number">{{ reschedules }}</span>
               <div><h3 id="task-reschedule-t">家長申請改期，等你核准</h3><p id="task-reschedule-d">家長用管理連結申請換場次；核准前原場次仍有效。核准或退回後請告知家長。</p><span id="task-reschedule-a" class="task__action">查看改期申請 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="newRequests > 0" class="task" to="/visit-requests?status=new&order=oldest" v-bind="taskAria('new')">
-              <span id="task-new-n" class="task__number">{{ newRequests }}</span>
-              <div><h3 id="task-new-t">新的參觀需求還沒聯絡</h3><p id="task-new-d">家長送出後在等園方回電。聯絡後記一筆紀錄，談好時間就排入場次。</p><span id="task-new-a" class="task__action">從最早送出的開始聯絡 <span aria-hidden="true">→</span></span></div>
             </router-link>
             <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
               <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
@@ -627,13 +601,12 @@ const hasTodo = computed(() => {
 .dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
 .dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: var(--text-sm); font-weight: 600; line-height: 22px; text-align: center; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
-.dash__summary { display: grid; grid-template-columns: repeat(var(--summary-cols, 4), minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.dash__summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
 .dash__summary > div { min-width: 0; padding: 20px; }
 .dash__summary > div + div { border-left: 1px solid var(--line); }
 .dash__summary dt { font-size: var(--text-base); color: var(--ink-2); }
 .dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: var(--text-5xl); font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .dash__summary dd span { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); }
-.dash__summary > .is-attention dd { color: var(--brand-gold-ink); }
 /* 連結也包在 dd 裡：<dl> 的每組只能有 dt、dd（axe definition-list）。 */
 .dash__summary dd.dash__more { display: block; margin: 0; font-size: var(--text-sm); font-weight: 400; line-height: inherit; }
 .dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-sm); }

@@ -6,7 +6,7 @@ import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatHoldRemaining, formatShortDateTime, formatShortSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
+import { campusLabel, formatShortDateTime, formatShortSlotWhen, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useVisitStaff } from '../composables/useVisitStaff'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
@@ -42,7 +42,7 @@ const groupFilter = ref('')
 const dueOnly = ref(false)
 // 承辦人：''＝全部、me＝我承辦的、none＝尚未指派、inactive＝承辦人已停用。
 const assigneeFilter = ref('')
-// 只看還沒結案的（待處理、待園方確認、預約正常），總覽「我承辦的案件」帶 ?open=1 進來。
+// 只看還沒結案的（預約正常，含時間已過還沒標記到場），總覽「我承辦的案件」帶 ?open=1 進來。
 const openOnly = ref(false)
 const sourceFilter = ref('')
 // 送出日期區間（台灣日期，含頭尾）。櫃台會在手機上篩：窄螢幕的日期面板只顯示
@@ -76,7 +76,7 @@ function applyQuery(query: LocationQuery) {
   const campus = queryText(query.campus)
   campusFilter.value = multiCampus.value && visibleCampusKeys.value.includes(campus) ? campus : ''
   const group = queryText(query.group)
-  // 舊書籤的 ?status= 轉成分組（資料庫狀態仍是七個，只有列表歸成四組）。
+  // 舊書籤的 ?status= 轉成分組（資料庫狀態仍是七個，只有列表歸成三組）。
   groupFilter.value = (VISIT_GROUPS as readonly string[]).includes(group) ? group : legacyStatusGroup(queryText(query.status))
   attendanceOnly.value = group === 'past' && query.status === 'confirmed'
   search.value = queryText(query.q)
@@ -153,12 +153,11 @@ function clearFilters() {
 }
 
 // 分組是最常切的條件，攤成一排頁籤一鍵切換。數字來自 group-counts，
-// 套用目前其他條件（校區、搜尋…），所以和清單對得上；有舊案（待處理）才出現那一頁籤。
+// 套用目前其他條件（校區、搜尋…），所以和清單對得上。
 const groupCounts = ref<Record<string, number>>({})
 const statusTabs = computed(() => [
   { value: '', label: '全部', count: 0 },
   ...VISIT_GROUPS
-    .filter(value => value !== 'pending' || (groupCounts.value.pending ?? 0) > 0 || groupFilter.value === 'pending')
     .map(value => ({ value: value as string, label: VISIT_GROUP_LABELS[value], count: groupCounts.value[value] ?? 0 })),
 ])
 // 篩選欄位攤開有十幾個控制項，把案件清單推到很下面（2026-10-05 第九輪起桌機也收）：
@@ -327,7 +326,7 @@ watch(() => route.query, query => {
 })
 
 // 櫃台常整個早上開著列表：切回這個分頁或視窗時，距上次讀取超過 60 秒就靜靜重抓
-// 一次，側欄的待處理數字一起更新。不做定時輪詢。
+// 一次，頁首的通知數字一起更新。不做定時輪詢。
 const STALE_MS = 60_000
 function refreshIfStale() {
   if (document.visibilityState === 'hidden' || loading.value || Date.now() - loadedAt < STALE_MS) return
@@ -342,11 +341,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', refreshIfStale)
   window.removeEventListener('focus', refreshIfStale)
 })
-
-// 只有待園方確認的占位有期限；其他狀態不顯示倒數。
-function holdLabel(row: VisitRequestDetailOut): string {
-  return row.status === 'pending_confirmation' ? formatHoldRemaining(row.hold_expires_at) : ''
-}
 
 // 送出時間、預定聯絡與參觀時間：今年的省略年份（labels.ts formatShortDateTime／
 // formatShortSlotWhen），表格欄位才放得下；跨年的照寫年份。
@@ -620,7 +614,6 @@ onMounted(() => {
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span v-if="row.slot" class="num">{{ formatShortSlotWhen(row.slot) }}</span>
             <span v-else class="muted">尚未排定</span>
-            <span v-if="holdLabel(row)" class="cell-sub num hold" :class="{ 'is-due': holdIsUrgent(row.hold_expires_at) }">確認期限{{ holdLabel(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="電話" width="116">
@@ -654,7 +647,6 @@ onMounted(() => {
               <el-button :disabled="attendanceLocked" :aria-label="`標記 ${request.parent_name} 未到場`" @click="markAttendance(request, 'no_show')">沒來</el-button>
             </div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatShortSlotWhen(request.slot) }}</p>
-            <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
             <p><template v-if="multiCampus">{{ campusLabel(request.campus_key) }}校 · </template>{{ request.child_name || '孩子姓名未填寫' }} · 承辦：{{ staffLabelById(request.assigned_staff_id, staff) }}<template v-if="manualSource(request)"> · {{ manualSource(request) }}</template></p>
             <div class="request-list__contact">
@@ -694,9 +686,7 @@ onMounted(() => {
 /* 尚未確認到場是接待要處理的事：副行跟著暖黃、加粗，和已到場、未到場的灰字分開。 */
 .visit-state__sub[data-tone='warning'] { color: var(--el-color-warning-dark-2); font-weight: 600; }
 .toolbar { align-items: flex-end; }
-/* 狀態頁籤的基本樣式在 style.css（站內通知共用）。分頁數字只是件數，一律中性灰；只有舊需求「待處理」
-   真的要人處理，才用暖黃（同側欄的案件數），選中時照共用樣式。 */
-.status-tab[data-group='pending'] .status-tab__count { background: var(--brand-gold); color: var(--ink); }
+/* 狀態頁籤的基本樣式在 style.css（站內通知共用）。分頁數字只是件數，一律中性灰，選中時照共用樣式。 */
 .status-tab.is-active .status-tab__count { background: var(--surface); color: var(--admin-accent-hover); }
 .requests-filters__more { display: none; flex-basis: 100%; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding-top: 4px; }
 .requests-filters.is-open .requests-filters__more { display: flex; }
@@ -738,7 +728,6 @@ onMounted(() => {
 .date-cell { word-break: keep-all; }
 .cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
 .request-list__follow { font-size: var(--text-sm); }
-.hold { color: var(--ink-2); }
 .source { color: var(--ink-2); }
 .requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
 .requests-empty strong { font-size: var(--text-lg); color: var(--ink); }

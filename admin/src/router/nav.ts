@@ -32,10 +32,6 @@ export interface NavItem {
   roles?: string[]
   /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
   shared?: boolean
-  /** 側欄項目旁的待辦數字。只有參觀案件掛（新需求＋待園方確認）：其他項目不加數字，
-   * 側欄才不會變成通知中心（DESIGN 第五輪，2026-09-29 業主再確認；站內通知、發布紀錄
-   * 的未讀與待核准看各自頁面和總覽）。 */
-  badge?: 'open-requests'
   /** 部署開關：後端 /auth/me 的 features 為關閉時，側欄與側欄搜尋不列出這項。
    * 只管「列不列出」，路由守衛不擋——直接開網址仍到該頁（招生頁顯示「尚未啟用」）。 */
   feature?: 'admissions'
@@ -63,7 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
       { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
       { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },

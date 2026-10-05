@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 
 import pytest
 
@@ -478,39 +478,6 @@ async def test_contact_note_can_clear_follow_up(admin_client, db_session):
 
     bad = await admin_client.get("/api/website/v1/admin/visit-requests?order=random")
     assert bad.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_dashboard_counts_open_requests_with_hold_deadline(admin_client, minghua_client, db_session):
-    """總覽要看得到兩種還沒處理的舊案：新需求與待園方確認。後者占名額、
-    到期會被釋出，要附最早到期時間；數字定義與案件列表的 status 篩選相同。"""
-    await _submit_inquiry(
-        db_session, campus_key="yihua", parent_name="新需求家長", phone="0911000333"
-    )
-    slot = await _create_slot(admin_client, capacity=2)
-    held_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=20),
-        parent_name="占位家長",
-    )
-
-    summary = (await admin_client.get("/api/website/v1/admin/dashboard")).json()
-    assert summary["new_requests"] == 1
-    assert summary["awaiting_confirmation"] == 1
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{held_id}")
-    assert summary["next_hold_expires_at"] is not None
-    assert summary["next_hold_expires_at"][:16] == detail.json()["hold_expires_at"][:16]
-
-    for status_value, key in (("new", "new_requests"), ("pending_confirmation", "awaiting_confirmation")):
-        listed = await admin_client.get(f"/api/website/v1/admin/visit-requests?status={status_value}")
-        assert len(listed.json()) == summary[key]
-
-    other_campus = (await minghua_client.get("/api/website/v1/admin/dashboard")).json()
-    assert other_campus["new_requests"] == 0
-    assert other_campus["awaiting_confirmation"] == 0
-    assert other_campus["next_hold_expires_at"] is None
 
 
 @pytest.mark.asyncio
