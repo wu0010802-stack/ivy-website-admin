@@ -2,11 +2,9 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, type VueWrapper } from '@vue/test-utils'
-import { ElMessageBox } from 'element-plus'
+import { flushPromises } from '@vue/test-utils'
 import AdmissionsView from '../views/AdmissionsView.vue'
 import DashboardView from '../views/DashboardView.vue'
-import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
 import ContactLogDialog from '../components/admissions/ContactLogDialog.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
@@ -17,7 +15,7 @@ import {
   daysLaterAtTen, FOLLOW_UP_SHORTCUTS, followUpText, lastContactText, ownerLabel, resolveNextFollowUp,
 } from '../admissions/followUp'
 import {
-  admissionsViewer, arrivalRow, arrivals, bodyOf, button, card, cleanup, mockGet, mockPatch, mockPost, mountWith, pathsTo, queryOf, visit, VR_ID, VR_ID_2,
+  admissionsViewer, bodyOf, button, card, cleanup, mockGet, mockPatch, mockPost, mountWith, pathsTo, queryOf, visit, VR_ID,
 } from './admissionsTestKit'
 
 afterEach(cleanup)
@@ -296,44 +294,6 @@ describe('看板卡片的下次聯絡（7.4）', () => {
     expect(later.get('.funnel-card__follow').text()).toBe('下次聯絡 10/08')
     const none = (await mountCard({ follow_up_at: null })).wrapper
     expect(none.find('.funnel-card__follow').exists()).toBe(false)
-  })
-})
-
-describe('官網預約批次標記已到場（7.5）', () => {
-  const rows = [arrivalRow(), arrivalRow({ visit_request_id: VR_ID_2, parent_name: '林爸爸' })]
-
-  // 勾選由 Element Plus 的表格處理；這裡直接送出它的 selection-change，測的是勾選之後的流程。
-  async function selectAll(wrapper: VueWrapper) {
-    const table = wrapper.findAllComponents({ name: 'ElTable' }).find((t) => t.classes().includes('arrivals-table'))!
-    table.vm.$emit('selection-change', rows)
-    await flushPromises()
-  }
-
-  it('勾選後一次確認、逐筆呼叫既有的 /complete；部分失敗逐筆列出原因', async () => {
-    mockGet({ '/admin/admissions/arrivals': arrivals(rows) })
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
-    const post = mockPost({
-      [`/admin/visit-requests/${VR_ID}/complete`]: {},
-      [`/admin/visit-requests/${VR_ID_2}/complete`]: () => { throw new ApiError(409, { code: 'INVALID_TRANSITION' }) },
-    })
-    const { wrapper } = await mountWith(ArrivalsTab, { props: { campusKey: 'yihua' } })
-    expect(button(wrapper, '勾選後一次標記已到場')?.attributes('disabled')).toBeDefined()
-    await selectAll(wrapper)
-    await button(wrapper, '2 位標記已到場')!.trigger('click')
-    await flushPromises()
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('會同時建立 2 筆招生訪視'), '2 位標記已到場？', expect.anything())
-    expect(pathsTo(post, '/admin/visit-requests/')).toEqual([
-      `/admin/visit-requests/${VR_ID}/complete`, `/admin/visit-requests/${VR_ID_2}/complete`,
-    ])
-    expect(wrapper.find('.arrivals__failures').text()).toContain('林爸爸：狀態剛被其他人更新')
-  })
-
-  it('沒有 booking.handle 不出現勾選與批次按鈕', async () => {
-    mockGet({ '/admin/admissions/arrivals': arrivals(rows) })
-    const user = { ...admissionsViewer(), effective_capabilities: ['admissions.read', 'booking.read'] }
-    const { wrapper } = await mountWith(ArrivalsTab, { props: { campusKey: 'yihua' }, user: user as never })
-    expect(wrapper.find('.arrivals__batch').exists()).toBe(false)
-    expect(wrapper.find('.arrivals-table .el-table__header .el-checkbox').exists()).toBe(false)
   })
 })
 

@@ -1,3 +1,17 @@
+## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`）
+
+使用者指著正式站 `/admin/admissions?campus=yihua&tab=arrivals` 問用途，評估後覺得和案件列表重複，裁定「拿掉分頁，批次標記搬到案件列表」「後端 API 一起刪」。規則見 DESIGN.md「拿掉官網預約分頁」。
+
+- **後台**：招生入學拿掉「官網預約」分頁與 `ArrivalsTab.vue`、`getArrivals`；舊連結 `tab=arrivals` 退回漏斗看板。案件列表勾「只看尚未確認到場」時（要 `booking.handle`）多出勾選欄（桌機表格、手機卡片）與「N 位標記已到場」，逐筆呼叫 `/complete`、失敗逐筆列原因；邏輯放在 `composables/visitAttendance.ts`。漏斗看板全空時，查案件列表有沒有尚未確認到場的，有才提示，「去標記到場」連到這個篩選（不寫人數）。訪視明細、統計的空狀態文案改指向參觀案件。
+- **後端**：刪 `GET /admin/admissions/arrivals`、`booking_link.arrivals()`、`ArrivalsOut`／`ArrivalRowOut`，`contracts/` 重新產生；補建端點 `POST /admin/admissions/from-visit-request/{id}`（預約明細的「建立招生訪視」）保留。沒有 migration，部署前不用備份。
+- **部署前**：「已到場但沒有招生訪視」的清單跟著分頁一起沒了。正式站這個分頁如果還有下半部，先補建完再部署；之後漏掉的從預約明細單筆補。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1531 passed、1 skipped（8 分 43 秒，獨立測試庫 `ivy_website_noarrivals1005_test`）；arrivals 的兩項測試刪除，權限測試改為只測補建，開關關閉測試改為開啟後從補建端點補。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 94 檔 1203 項全過。新增 `visitRequestsBatch.test.ts` 6 項（只有篩選時才有勾選、批次確認與部分失敗、招生關閉不提訪視、手機卡片勾選、點勾選格不開案件、唯讀帳號沒有）；看板提示改測連結與查詢條件、沒有 `booking.read` 不查。
+  - stack e2e（`E2E_DB_NAME=ivy_website_noarrivals1005_e2e_test`、埠 8783／3783）：整套 74 項全過。`admissions-flow` 改為看板提示「去標記到場」→ 案件列表按「到了」；`admissions-follow-up` 的批次標記改在案件列表；a11y 改掃案件列表的 `group=past&status=confirmed`；截圖改漏斗看板、待追蹤、訪視明細、統計分析四頁加五校比較。
+  - 另用臨時 spec 拍 1440／390：案件列表勾兩筆後批次鈕、勾選欄、手機卡片勾選框不橫向溢出；看板提示與連結（截圖在 `output/playwright/no-arrivals/`，臨時 spec 已刪）。
+  - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
+
 ## 2026-10-05 後台招生入學拿掉「名額規劃」（`feature/admissions-no-intake-20261005`）
 
 使用者指著正式站 `/admin/admissions?campus=yihua&tab=intake` 說「這個功能幫我拿掉」，範圍裁定為「分頁＋相關畫面，後端不動」。規則見 DESIGN.md「拿掉名額規劃」。

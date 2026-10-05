@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, AwareDatetime, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
@@ -379,30 +379,6 @@ class IntakeTargetsRequest(BaseModel):
     school_year: SchoolYear
     semester: Semester
     targets: dict[Grade, Annotated[int, Field(ge=0, le=999)] | None]
-
-
-class ArrivalRowOut(BaseModel):
-    """「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。"""
-
-    visit_request_id: uuid.UUID
-    slot_date: date | None
-    start_time: time | None
-    parent_name: str
-    child_name: str | None
-    party_size: int | None
-    status: str
-
-
-class ArrivalsOut(BaseModel):
-    """兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。"""
-
-    # confirmed 且場次已開始、還沒確認到場；依場次日期與開始時間新到舊。
-    awaiting: list[ArrivalRowOut]
-    # 待確認的總筆數（分頁標籤上的數字）。
-    awaiting_total: int
-    # 已到場但沒有招生訪視，可以補建；依場次日期（沒有場次用建立時間）新到舊。
-    missing: list[ArrivalRowOut]
-    missing_total: int
 
 
 # ── 統計（C1）：欄位照園務 api/recruitment/stats.py::_query_stats，比率分母 0 為 None ──

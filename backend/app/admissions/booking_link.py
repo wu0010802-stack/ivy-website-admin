@@ -4,7 +4,6 @@
   不丟例外，也不碰 visit_request.slot（async 下 lazy load 會丟 MissingGreenlet）。
 - ensure_from_visit_request：在「標記已到場」的同一個交易內建立招生訪視，已有
   就回傳那一筆；workflow_service.mark_completed 與補建端點共用。
-- arrivals：「官網預約」分頁的待確認清單與「已到場但沒有招生訪視」。
 
 整條建立路徑沒有會丟例外的資料檢查，也不用 try/except 吞例外：真的是資料庫
 錯誤就讓整個「標記已到場」回滾，不會留下「已到場卻沒有招生訪視」的半套狀態。"""
@@ -12,16 +11,16 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants, follow_up, records
 from app.admissions.models import RecruitmentVisit
-from app.booking import history, pending_kinds
-from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
-from app.common.timezones import OPERATING_TZ, today_local
+from app.booking import history
+from app.booking.models import VisitRequest
+from app.common.timezones import today_local
 
 # 「從哪裡知道我們」的後台顯示文案（與 admin labels.ts 的 REFERRAL_SOURCE_LABELS
 # 同一組字，tests/test_admissions_booking_link.py 比對）。
@@ -36,8 +35,6 @@ REFERRAL_SOURCE_TEXT: dict[str, str] = {
     "parent_community": "媽媽社團",
 }
 NOTES_PREFIX = "家長想了解："
-# 「官網預約」分頁兩份清單各最多回幾筆（另回截斷前的總數）。
-ARRIVALS_LIMIT = 200
 
 
 def _cut(value: str | None, limit: int) -> str | None:
@@ -110,67 +107,3 @@ async def ensure_from_visit_request(
     )
     return visit, True
 
-
-def _row(visit_request: VisitRequest, slot: VisitSlot | None) -> dict:
-    return {
-        "visit_request_id": visit_request.id,
-        "slot_date": slot.slot_date if slot else None,
-        "start_time": slot.start_time if slot else None,
-        "parent_name": visit_request.parent_name,
-        "child_name": visit_request.child_name,
-        "party_size": visit_request.party_size,
-        "status": visit_request.status,
-    }
-
-
-async def _capped(db: AsyncSession, query, *order_by) -> tuple[list[dict], int]:
-    """依 order_by 取前 ARRIVALS_LIMIT 筆，另回截斷前的總數。"""
-    total = await db.scalar(select(func.count()).select_from(query.subquery()))
-    result = await db.execute(query.order_by(*order_by).limit(ARRIVALS_LIMIT))
-    return [_row(visit_request, slot) for visit_request, slot in result.all()], int(total or 0)
-
-
-async def arrivals(db: AsyncSession, campus_key: str, *, now: datetime | None = None) -> dict:
-    """規格 6.1 第 2 點。兩份清單各最多 ARRIVALS_LIMIT 筆、新到舊，另回總數
-    （awaiting_total、missing_total）。
-
-    - awaiting：confirmed 且場次已開始、還沒確認到場。直接用
-      pending_kinds.condition("awaiting_attendance")（總覽、案件列表、成效統計共用的
-      「時間已過、還沒標記到場」），不另寫「已開始」的判斷；已停止申請的場次照列，
-      沒有場次的 confirmed 不在 past，也不列。依場次日期與開始時間新到舊。
-    - missing：已到場、還沒匿名化、沒有招生訪視（本模組上線前就已到場、開關關閉時
-      到場，或招生訪視被刪掉）。依場次日期與開始時間新到舊；沒有場次的舊案用建立
-      時間（台北時間）一起排。"""
-    awaiting, awaiting_total = await _capped(
-        db,
-        select(VisitRequest, VisitSlot)
-        .join(VisitSlot, VisitSlot.id == VisitRequest.slot_id)
-        .where(
-            VisitRequest.campus_key == campus_key,
-            pending_kinds.condition("awaiting_attendance", now),
-        ),
-        VisitSlot.slot_date.desc(),
-        VisitSlot.start_time.desc(),
-        VisitRequest.created_at.desc(),
-        VisitRequest.id.desc(),
-    )
-    linked = exists().where(RecruitmentVisit.visit_request_id == VisitRequest.id)
-    # 場次的台北牆上時間；沒有場次用建立時間換成台北時間，兩者都是不帶時區的 timestamp。
-    happened_at = func.coalesce(
-        VisitSlot.slot_date + VisitSlot.start_time, func.timezone(OPERATING_TZ.key, VisitRequest.created_at)
-    )
-    missing, missing_total = await _capped(
-        db,
-        select(VisitRequest, VisitSlot)
-        .outerjoin(VisitSlot, VisitSlot.id == VisitRequest.slot_id)
-        .where(
-            VisitRequest.campus_key == campus_key,
-            VisitRequest.status == VisitRequestStatus.COMPLETED.value,
-            VisitRequest.anonymized_at.is_(None),
-            ~linked,
-        ),
-        happened_at.desc(),
-        VisitRequest.created_at.desc(),
-        VisitRequest.id.desc(),
-    )
-    return {"awaiting": awaiting, "awaiting_total": awaiting_total, "missing": missing, "missing_total": missing_total}

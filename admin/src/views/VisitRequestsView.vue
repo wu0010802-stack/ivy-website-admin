@@ -4,7 +4,7 @@ import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
-import { apiErrorCode, apiErrorMessage } from '../api/errors'
+import { apiErrorMessage } from '../api/errors'
 import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatHoldRemaining, formatShortDateTime, formatShortSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -13,8 +13,10 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { useAuthStore } from '../stores/auth'
-import { notifyError } from '../composables/notify'
-import { attendanceDue, confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
+import { notifyError, notifyWarning } from '../composables/notify'
+import {
+  attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, markArrivedInOrder, submitAttendance, type AttendanceKind, type BatchFailure,
+} from '../composables/visitAttendance'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
@@ -369,19 +371,54 @@ const showAttendance = (row: VisitRequestDetailOut) => canHandle.value && attend
 async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) {
   // 招生入學開著時，標記已到場會同時建立招生訪視（後端看部署開關，不看個人權限）。
   const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
-  if (attendanceBusy.value || !(await confirmAttendance(kind, row, withAdmissions))) return
+  if (attendanceLocked.value || !(await confirmAttendance(kind, row, withAdmissions))) return
   attendanceBusy.value = row.id
   try {
     await submitAttendance(row.id, kind)
     ElMessage.success(kind === 'no_show' ? `已標記 ${row.parent_name} 未到場` : `已標記 ${row.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
   } catch (err) {
     // 同事剛處理過同一筆（兩人都開著列表）：後端拒絕轉換，重讀後列表就是現在的狀態。
-    notifyError(apiErrorCode(err) === 'INVALID_TRANSITION' ? `${row.parent_name} 這筆剛被其他人處理過，列表已更新` : apiErrorMessage(err, '操作失敗'))
+    notifyError(attendanceChanged(err) ? `${row.parent_name} 這筆剛被其他人處理過，列表已更新` : apiErrorMessage(err, '操作失敗'))
   } finally {
     attendanceBusy.value = null
     void openRequests.refresh(true)
     await load({ quiet: true })
   }
+}
+
+// ── 批次標記已到場（2026-10-05 從招生入學「官網預約」分頁搬來）──
+// 只在「只看尚未確認到場」時出現勾選欄：一天的場次結束後，把來了的家長一次勾起來。
+// 只勾這一頁；依序呼叫 /complete，失敗的逐筆列在清單上方，清單重讀。
+const batchMode = computed(() => canHandle.value && attendanceOnly.value)
+const selected = ref<VisitRequestDetailOut[]>([])
+const batch = ref<{ done: number; total: number } | null>(null)
+const batchFailures = ref<BatchFailure[]>([])
+const attendanceLocked = computed(() => Boolean(attendanceBusy.value) || batch.value !== null)
+const canSelect = (row: VisitRequestDetailOut) => !attendanceLocked.value && showAttendance(row)
+const isSelected = (row: VisitRequestDetailOut) => selected.value.some(item => item.id === row.id)
+// 桌機由表格的勾選欄回報；手機卡片自己管勾選。
+function onSelectionChange(rows: VisitRequestDetailOut[]) {
+  selected.value = rows
+}
+function toggleSelected(row: VisitRequestDetailOut, on: boolean) {
+  selected.value = on ? [...selected.value, row] : selected.value.filter(item => item.id !== row.id)
+}
+watch(requests, () => { selected.value = [] })
+watch(attendanceOnly, () => { batchFailures.value = [] })
+
+async function markSelectedArrived() {
+  const rows = [...selected.value]
+  const withAdmissions = Boolean(authStore.features.admissions)
+  if (!rows.length || attendanceLocked.value || !(await confirmBatchArrival(rows.length, withAdmissions))) return
+  batchFailures.value = []
+  batch.value = { done: 0, total: rows.length }
+  const { succeeded, failures } = await markArrivedInOrder(rows, (done) => { batch.value = { done, total: rows.length } })
+  batch.value = null
+  batchFailures.value = failures
+  if (succeeded) ElMessage.success(`已標記 ${succeeded} 位已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+  if (failures.length) notifyWarning(`有 ${failures.length} 筆沒有標記成功，原因列在清單上方`)
+  void openRequests.refresh(true)
+  await load({ quiet: true })
 }
 
 // 匯出不分頁：符合目前篩選的全部案件。按鈕旁講清楚範圍，避免以為只匯出這一頁，
@@ -407,7 +444,9 @@ function detailTo(id: string) {
   return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
 }
 
-function openDetail(row: VisitRequestDetailOut) {
+function openDetail(row: VisitRequestDetailOut, column?: { type?: string }) {
+  // 勾選欄的格子點歪了（沒點到方框）不算點進案件。
+  if (column?.type === 'selection') return
   router.push(detailTo(row.id))
 }
 
@@ -523,25 +562,45 @@ onMounted(() => {
     <div v-if="!error" class="panel" :aria-busy="loading">
       <!-- 頁首已經是「參觀案件」，面板標題改寫目前看的是哪一組，不重複頁名。 -->
       <div class="panel__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
+      <div v-if="batchMode && requests.length" class="requests-batch">
+        <el-button type="primary" :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
+          {{ batch ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
+        </el-button>
+        <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
+      </div>
+      <el-alert
+        v-if="batchFailures.length"
+        type="warning"
+        show-icon
+        :title="`有 ${batchFailures.length} 筆沒有標記成功`"
+        class="requests-batch__failures"
+        @close="batchFailures = []"
+      >
+        <ul class="requests-batch__failure-list">
+          <li v-for="item in batchFailures" :key="item.id">{{ item.name }}：{{ item.reason }}</li>
+        </ul>
+      </el-alert>
       <el-table
         :data="requests"
         v-loading="loading"
         class="el-table--clickable requests-table"
         :empty-text="loading ? '' : emptyText"
         @row-click="openDetail"
+        @selection-change="onSelectionChange"
       >
         <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
         <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：多校帳號固定欄合計 774px，
              家長欄最少 180px（2026-10-05 實測原本合計 992px、會橫捲 30px：狀態收 10、承辦人收 28，名字長的有提示框）。
              參觀時間今年的省略年份（約 180px）。狀態欄放得下「到了／沒來」兩顆小按鈕。 -->
+        <el-table-column v-if="batchMode" type="selection" width="44" :selectable="canSelect" />
         <el-table-column label="狀態" width="140">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span class="visit-state" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).label }}</span>
             <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).sub }}</span>
             <span v-if="showAttendance(row)" class="attendance-actions" role="group" :aria-label="`${row.parent_name} 到了嗎？`" @click.stop>
-              <el-button size="small" type="primary" plain :loading="attendanceBusy === row.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${row.parent_name} 已到場`" @click="markAttendance(row, 'complete')">到了</el-button>
-              <el-button size="small" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${row.parent_name} 未到場`" @click="markAttendance(row, 'no_show')">沒來</el-button>
+              <el-button size="small" type="primary" plain :loading="attendanceBusy === row.id" :disabled="attendanceLocked" :aria-label="`標記 ${row.parent_name} 已到場`" @click="markAttendance(row, 'complete')">到了</el-button>
+              <el-button size="small" :disabled="attendanceLocked" :aria-label="`標記 ${row.parent_name} 未到場`" @click="markAttendance(row, 'no_show')">沒來</el-button>
             </span>
           </template>
         </el-table-column>
@@ -583,11 +642,16 @@ onMounted(() => {
         <el-skeleton v-if="loading" animated :rows="4" class="panel__body" />
         <ul v-else-if="requests.length" class="request-list">
           <li v-for="request in requests" :key="request.id">
-            <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span></div>
+            <div class="request-list__head">
+              <label v-if="batchMode && showAttendance(request)" class="request-list__check">
+                <input type="checkbox" :checked="isSelected(request)" :disabled="attendanceLocked" :aria-label="`勾選 ${request.parent_name}`" @change="toggleSelected(request, ($event.target as HTMLInputElement).checked)" />
+              </label>
+              <router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span>
+            </div>
             <p v-if="visitDisplay(request).sub" class="hint visit-state__sub" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).sub }}</p>
             <div v-if="showAttendance(request)" class="attendance-actions attendance-actions--card" role="group" :aria-label="`${request.parent_name} 到了嗎？`">
-              <el-button type="primary" plain :loading="attendanceBusy === request.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${request.parent_name} 已到場`" @click="markAttendance(request, 'complete')">到了</el-button>
-              <el-button :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${request.parent_name} 未到場`" @click="markAttendance(request, 'no_show')">沒來</el-button>
+              <el-button type="primary" plain :loading="attendanceBusy === request.id" :disabled="attendanceLocked" :aria-label="`標記 ${request.parent_name} 已到場`" @click="markAttendance(request, 'complete')">到了</el-button>
+              <el-button :disabled="attendanceLocked" :aria-label="`標記 ${request.parent_name} 未到場`" @click="markAttendance(request, 'no_show')">沒來</el-button>
             </div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatShortSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
@@ -651,6 +715,11 @@ onMounted(() => {
 .attendance-actions .el-button + .el-button { margin-left: 0; }
 .attendance-actions--card { margin: 4px 0 10px; }
 .attendance-actions--card .el-button { flex: 1 1 0; min-height: 44px; }
+.requests-batch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
+.requests-batch__failures { margin: 12px 24px 0; width: auto; }
+.requests-batch__failure-list { margin: 4px 0 0; padding-left: 18px; }
+.request-list__check { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0 -8px 0 -12px; cursor: pointer; }
+.request-list__check input { width: 20px; height: 20px; accent-color: var(--el-color-primary); }
 .order-select { width: 150px; }
 .created-range :deep(.el-date-editor) { width: 260px; }
 /* 寬度跟著按鈕列走，不把整個動作區撐寬去擠左邊的說明文字。 */
@@ -679,7 +748,7 @@ onMounted(() => {
 .request-list li { padding: 20px 16px; }
 .request-list li + li { border-top: 1px solid var(--line); }
 .request-list__head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 4px; }
-.request-list__head a { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-xl); font-weight: 600; }
+.request-list__head a { display: inline-flex; align-items: center; min-height: 44px; margin-right: auto; font-size: var(--text-xl); font-weight: 600; }
 .request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
 .request-list__when { color: var(--el-color-primary); font-weight: 500; }
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
@@ -714,5 +783,8 @@ onMounted(() => {
   .requests-filters__more .el-select, .created-range :deep(.el-date-editor) { width: 100%; }
   .requests-filters__more .created-range { flex-basis: 100%; }
   .export-scope { text-align: left; }
+  .requests-batch { padding: 12px 16px; }
+  .requests-batch__button { min-height: 44px; }
+  .requests-batch__failures { margin: 12px 16px 0; }
 }
 </style>

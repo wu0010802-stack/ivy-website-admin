@@ -97,7 +97,7 @@ const scopeLabel = computed(() => {
 // 規格 10：沒有資料時寫原因，不顯示假的 0。
 const emptyText = computed(
   () =>
-    `${campusLabel(props.campusKey)}在${props.schoolYear === null ? '' : ' '}${scopeLabel.value}還沒有招生訪視。新增訪視，或在「官網預約」確認到場後，這裡就會有統計。`,
+    `${campusLabel(props.campusKey)}在${props.schoolYear === null ? '' : ' '}${scopeLabel.value}還沒有招生訪視。新增訪視，或在參觀案件標記家長已到場後，這裡就會有統計。`,
 )
 
 function navigate(target: { tab: StatsTarget; filter: Record<string, string | number> }) {

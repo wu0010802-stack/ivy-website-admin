@@ -1,5 +1,6 @@
 import { ElMessageBox } from 'element-plus'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
+import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import { formatShortSlotWhen, slotStarted } from '../api/labels'
 
 export type AttendanceKind = 'complete' | 'no_show'
@@ -34,4 +35,57 @@ export async function confirmAttendance(kind: AttendanceKind, row: AttendanceRow
 
 export function submitAttendance(id: string, kind: AttendanceKind): Promise<unknown> {
   return api.post(`/admin/visit-requests/${id}/${kind === 'complete' ? 'complete' : 'no-show'}`)
+}
+
+// 同事剛處理過同一筆：後端拒絕轉換（409 INVALID_TRANSITION），重讀後清單就是現在的狀態。
+export function attendanceChanged(err: unknown): boolean {
+  return (err instanceof ApiError && err.status === 409) || apiErrorCode(err) === 'INVALID_TRANSITION'
+}
+
+// ── 批次標記已到場（2026-10-04 參觀後追蹤規格 7.5；2026-10-05 從招生入學「官網預約」分頁搬到案件列表）──
+// 一天的場次結束後，把來了的家長一次勾起來。只批次「已到場」：沒來的個別按「沒來」。
+export async function confirmBatchArrival(count: number, withAdmissions: boolean): Promise<boolean> {
+  const message = withAdmissions
+    ? `會同時建立 ${count} 筆招生訪視，之後在招生入學頁追蹤。沒來的請個別按「沒來」。`
+    : '沒來的請個別按「沒來」。'
+  try {
+    await ElMessageBox.confirm(message, `${count} 位標記已到場？`, { confirmButtonText: '標記已到場', cancelButtonText: '先不要', type: 'info' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export interface BatchFailure { id: string; name: string; reason: string }
+
+// 依序呼叫既有的 /complete，每筆各自一個交易（與單筆相同），不另開批次端點；失敗的逐筆記下原因。
+export async function markArrivedInOrder(
+  rows: { id: string; parent_name: string }[],
+  onProgress: (done: number) => void,
+): Promise<{ succeeded: number; failures: BatchFailure[] }> {
+  let succeeded = 0
+  const failures: BatchFailure[] = []
+  for (const [index, row] of rows.entries()) {
+    try {
+      await submitAttendance(row.id, 'complete')
+      succeeded += 1
+    } catch (err) {
+      const reason = attendanceChanged(err) ? '狀態剛被其他人更新，請看最新的清單' : apiErrorMessage(err, '標記失敗')
+      failures.push({ id: row.id, name: row.parent_name, reason })
+    }
+    onProgress(index + 1)
+  }
+  return { succeeded, failures }
+}
+
+// 「場次已過、還沒標記到場」＝案件列表的 ?group=past&status=confirmed（後端 pending_kinds
+// 的 awaiting_attendance，總覽卡片、成效統計同一個條件）。招生入學看板全空時用來提示。
+export function awaitingAttendanceLink(campusKey: string) {
+  return { path: '/visit-requests', query: { campus: campusKey, group: 'past', status: 'confirmed' } }
+}
+
+export async function hasAwaitingAttendance(campusKey: string): Promise<boolean> {
+  const params = new URLSearchParams({ campus_key: campusKey, group: 'past', status: 'confirmed', page_size: '1' })
+  const rows = await api.get<unknown[]>(`/admin/visit-requests?${params}`)
+  return Array.isArray(rows) && rows.length > 0
 }

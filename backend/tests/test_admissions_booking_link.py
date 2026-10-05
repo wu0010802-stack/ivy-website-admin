@@ -1,5 +1,5 @@
-"""官網預約「已到場」自動建立招生訪視、補建與待確認清單（規格 6.1；R01、R01a；
-Review Focus 1、2）。"""
+"""官網預約「已到場」自動建立招生訪視與補建（規格 6.1；R01；Review Focus 1、2）。
+2026-10-05 拿掉「官網預約」分頁與 /admin/admissions/arrivals，補建只剩預約明細。"""
 
 from __future__ import annotations
 
@@ -10,20 +10,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import insert, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from app.admissions import academic, booking_link, constants, records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
-from app.booking import status_groups
-from app.booking.models import VisitRequest, VisitSlot
-from app.common.timezones import OPERATING_TZ, today_local
+from app.booking.models import VisitRequest
+from app.common.timezones import today_local
 from app.operations.models import AuditLogEntry
 from tests.admissions_helpers import (  # noqa: F401
     ADMISSIONS,
     API,
     complete,
-    move_slot,
     reception_yihua_client,
     started_booking,
 )
@@ -33,7 +31,6 @@ from tests.conftest import _logged_in_client, _test_settings, legacy_request
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 LABELS_TS = Path(__file__).resolve().parents[2] / "admin" / "src" / "api" / "labels.ts"
-ARRIVALS = f"{ADMISSIONS}/arrivals?campus_key=yihua"
 
 
 async def _visits_for(db_session, visit_request_id) -> list[RecruitmentVisit]:
@@ -267,78 +264,11 @@ async def test_month_follows_slot_date_not_created_at(admin_client, public_clien
 
 
 @pytest.mark.asyncio
-async def test_arrivals_lists_started_confirmed_and_completed_without_visit(admin_client, public_client, db_session):
-    """R01a：只列 confirmed 且場次已開始（含剛好開始、含停止申請的場次）；結果與
-    status_groups.group_condition("past") 去掉已到場、未到場一致。"""
-    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-    local = now.astimezone(OPERATING_TZ)
-    later = local + timedelta(minutes=1)
-
-    async def booking(**kwargs) -> dict:
-        return await started_booking(admin_client, public_client, db_session, **kwargs)
-
-    yesterday = await booking(child_name="昨天")
-    on_time = await booking(slot_date=local.date(), starts_at=local.time().replace(tzinfo=None), child_name="剛好開始")
-    not_yet = await booking(slot_date=later.date(), starts_at=later.time().replace(tzinfo=None), child_name="還沒開始")
-    stopped = await booking(child_name="停止申請")
-    await move_slot(db_session, stopped["slot_id"], slot_date=today_local() - timedelta(days=1), closed=True)
-    arrived = await booking(child_name="已到場")
-    assert (await complete(admin_client, arrived["id"])).status_code == 200
-    absent = await booking(child_name="未到場")
-    assert (await admin_client.post(f"{API}/admin/visit-requests/{absent['id']}/no-show")).status_code == 200
-    cancelled = await booking(child_name="已取消")
-    assert (await admin_client.post(f"{API}/admin/visit-requests/{cancelled['id']}/cancel")).status_code == 200
-    other_campus = await started_booking(admin_client, public_client, db_session, campus_key="minghua")
-    no_slot = await legacy_request(db_session, status="confirmed")
-    legacy_done = await legacy_request(db_session, status="completed", parent_name="上線前到場的家長")
-    legacy_gone = await legacy_request(db_session, status="completed")
-    await db_session.execute(
-        update(VisitRequest).where(VisitRequest.id == uuid.UUID(legacy_gone)).values(anonymized_at=datetime.now(timezone.utc))
-    )
-    await db_session.commit()
-
-    result = await booking_link.arrivals(db_session, "yihua", now=now)
-    awaiting = {str(row["visit_request_id"]) for row in result["awaiting"]}
-    assert awaiting == {yesterday["id"], on_time["id"], stopped["id"]}
-    for excluded in (not_yet, arrived, absent, cancelled, other_campus):
-        assert excluded["id"] not in awaiting
-    assert no_slot not in awaiting
-    expected = (
-        await db_session.execute(
-            select(VisitRequest.id).where(
-                VisitRequest.campus_key == "yihua",
-                status_groups.group_condition("past", now),
-                VisitRequest.status.not_in(["completed", "no_show"]),
-            )
-        )
-    ).scalars()
-    assert awaiting == {str(value) for value in expected}
-    assert [str(row["visit_request_id"]) for row in result["missing"]] == [legacy_done]
-    assert result["missing"][0]["parent_name"] == "上線前到場的家長"
-    row = next(row for row in result["awaiting"] if str(row["visit_request_id"]) == yesterday["id"])
-    assert (row["child_name"], row["parent_name"], row["party_size"], row["status"]) == ("昨天", "陳媽媽", None, "confirmed")
-    assert row["slot_date"] == today_local() - timedelta(days=1)
-
-    # API 用現在時間：上面確定已開始的幾筆一定在。
-    response = await admin_client.get(ARRIVALS)
-    assert response.status_code == 200, response.text
-    api_awaiting = {row["visit_request_id"] for row in response.json()["awaiting"]}
-    assert {yesterday["id"], on_time["id"], stopped["id"]} <= api_awaiting
-    assert [row["visit_request_id"] for row in response.json()["missing"]] == [legacy_done]
-    # 補建之後就不在「沒有招生訪視」清單。
-    assert (await admin_client.post(f"{ADMISSIONS}/from-visit-request/{legacy_done}")).status_code == 200
-    assert (await booking_link.arrivals(db_session, "yihua", now=now))["missing"] == []
-
-
-@pytest.mark.asyncio
-async def test_arrivals_and_rebuild_permissions(admin_client, reception_yihua_client, editor_client, minghua_client, db_session):
-    """arrivals 要 booking.read；補建要 booking.read＋admissions.write；他校 404（R07）。"""
+async def test_rebuild_permissions(admin_client, reception_yihua_client, editor_client, minghua_client, db_session):
+    """補建要 booking.read＋admissions.write；他校 404（R07）。"""
     request_id = await legacy_request(db_session, status="completed")
-    assert (await editor_client.get(ARRIVALS)).status_code == 403
     assert (await editor_client.post(f"{ADMISSIONS}/from-visit-request/{request_id}")).status_code == 403
-    assert (await minghua_client.get(ARRIVALS)).status_code == 404
     assert (await minghua_client.post(f"{ADMISSIONS}/from-visit-request/{request_id}")).status_code == 404
-    assert (await reception_yihua_client.get(ARRIVALS)).status_code == 200
     created = await reception_yihua_client.post(f"{ADMISSIONS}/from-visit-request/{request_id}")
     assert created.status_code == 200, created.text
     assert created.json()["visit_request_id"] == request_id
@@ -366,7 +296,6 @@ async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client,
             ("GET", f"{ADMISSIONS}/stats?campus_key=yihua"),
             ("GET", f"{ADMISSIONS}/compare?school_year=115&semester=1"),
             ("GET", f"{ADMISSIONS}/no-deposit-records?campus_key=yihua"),
-            ("GET", ARRIVALS),
             ("POST", f"{ADMISSIONS}/from-visit-request/{request_id}"),
         ):
             response = await client.request(method, path, json={} if method == "POST" else None)
@@ -375,59 +304,7 @@ async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client,
         await client.aclose()
         await disabled.state.engine.dispose()
         await disabled.state.rate_limit_engine.dispose()
-    # 之後開啟：關閉期間已到場的預約出現在「已到場但沒有招生訪視」，可以補建。
-    missing = (await booking_link.arrivals(db_session, "yihua"))["missing"]
-    assert booking["id"] in {str(row["visit_request_id"]) for row in missing}
-
-
-@pytest.mark.asyncio
-async def test_arrivals_caps_each_list_newest_first_with_totals(admin_client, db_session):
-    """F3：兩份清單各最多 ARRIVALS_LIMIT 筆。待確認依場次日期與開始時間新到舊；
-    已到場沒有招生訪視依場次日期（沒有場次用建立時間）新到舊；total 是截斷前的總數。"""
-    now = datetime.now(timezone.utc)
-    today = today_local()
-    slots = {}
-    for key, days_ago, start in (("oldest", 3, time(9, 0)), ("morning", 1, time(9, 0)), ("afternoon", 1, time(14, 0))):
-        slots[key] = uuid.uuid4()
-        db_session.add(
-            VisitSlot(
-                id=slots[key], campus_key="yihua", slot_date=today - timedelta(days=days_ago), start_time=start,
-                end_time=time(start.hour + 1, 0), capacity=10, created_at=now,
-            )
-        )
-    await db_session.flush()
-
-    def requests(count: int, parent_name: str, *, status: str, slot: str | None = None, created_at=now) -> list[dict]:
-        return [
-            {
-                "id": uuid.uuid4(), "campus_key": "yihua", "idempotency_key": f"cap-{uuid.uuid4().hex}",
-                "payload_hash": "0" * 64, "config_version": 0, "parent_name": parent_name, "phone": "0911000111",
-                "referral_sources": [], "party_size": 2, "consent_given": True, "status": status, "source": "web",
-                "slot_id": slots[slot] if slot else None, "created_at": created_at,
-            }
-            for _ in range(count)
-        ]
-
-    await db_session.execute(
-        insert(VisitRequest),
-        [
-            *requests(5, "三天前", status="confirmed", slot="oldest"),
-            *requests(100, "昨天上午", status="confirmed", slot="morning"),
-            *requests(100, "昨天下午", status="confirmed", slot="afternoon"),
-            *requests(1, "今天建立沒有場次", status="completed"),
-            *requests(200, "昨天上午到場", status="completed", slot="morning"),
-            *requests(2, "一個月前建立沒有場次", status="completed", created_at=now - timedelta(days=30)),
-        ],
-    )
-    await db_session.commit()
-
-    assert booking_link.ARRIVALS_LIMIT == 200
-    result = await booking_link.arrivals(db_session, "yihua", now=now)
-    assert (result["awaiting_total"], result["missing_total"]) == (205, 203)
-    assert [row["parent_name"] for row in result["awaiting"]] == ["昨天下午"] * 100 + ["昨天上午"] * 100
-    assert [row["parent_name"] for row in result["missing"]] == ["今天建立沒有場次"] + ["昨天上午到場"] * 199
-
-    response = await admin_client.get(ARRIVALS)
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert (len(body["awaiting"]), body["awaiting_total"], len(body["missing"]), body["missing_total"]) == (200, 205, 200, 203)
+    # 之後開啟：關閉期間已到場的預約可以從預約明細補建。
+    rebuilt = await admin_client.post(f"{ADMISSIONS}/from-visit-request/{booking['id']}")
+    assert rebuilt.status_code == 200, rebuilt.text
+    assert len(await _visits_for(db_session, booking["id"])) == 1

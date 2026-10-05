@@ -3,7 +3,7 @@
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, Arrivals, ContactLog, ContactLogCreate, ContactLogResult, FollowUpList,
+  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, ContactLog, ContactLogCreate, ContactLogResult, FollowUpList,
   FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
@@ -92,10 +92,6 @@ export function setSeat(id: string, body: SeatRequest): Promise<SeatResult> {
 
 export function getBoard(campusKey: string, schoolYear: number, semester: number | null): Promise<FunnelBoard> {
   return api.get<FunnelBoard>(`/admin/admissions/board?${toQuery({ campus_key: campusKey, school_year: schoolYear, semester })}`)
-}
-
-export function getArrivals(campusKey: string): Promise<Arrivals> {
-  return api.get<Arrivals>(`/admin/admissions/arrivals?${toQuery({ campus_key: campusKey })}`)
 }
 
 export function createFromVisitRequest(visitRequestId: string): Promise<RecruitmentVisit> {

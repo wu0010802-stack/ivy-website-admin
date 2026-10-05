@@ -512,7 +512,7 @@ async function remove(row: RecruitmentVisit) {
           <div v-if="!loading && !rows.length" class="records__empty">
             <strong>{{ emptyText }}</strong>
             <el-button v-if="page > 1" @click="page = 1">回到第 1 頁</el-button>
-            <span v-else-if="!filtered" class="hint">手動新增，或在「官網預約」標記家長已到場後，訪視會出現在這裡。</span>
+            <span v-else-if="!filtered" class="hint">手動新增，或在參觀案件標記家長已到場後，訪視會出現在這裡。</span>
           </div>
           <ul v-else class="records-cards">
             <li v-for="row in rows" :key="row.id" class="record-card" :class="{ 'record-card--deposit': row.has_deposit }">
@@ -582,7 +582,7 @@ async function remove(row: RecruitmentVisit) {
             <div v-if="!loading" class="records__empty">
               <strong>{{ emptyText }}</strong>
               <el-button v-if="page > 1" @click="page = 1">回到第 1 頁</el-button>
-              <span v-else-if="!filtered" class="hint">手動新增，或在「官網預約」標記家長已到場後，訪視會出現在這裡。</span>
+              <span v-else-if="!filtered" class="hint">手動新增，或在參觀案件標記家長已到場後，訪視會出現在這裡。</span>
             </div>
           </template>
           <!-- 欄寬以 1280 寬桌機（表格約 962px）不橫捲為準；地址、介紹者、備註等收進展開列。 -->

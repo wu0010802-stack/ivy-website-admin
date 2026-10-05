@@ -25,16 +25,14 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     expect(remove).toHaveBeenCalledWith('/admin/admissions/records/v-1?expected_version=3')
   })
 
-  it('看板不選學期時不帶 semester；預約、選項都帶校區', async () => {
+  it('看板不選學期時不帶 semester；選項帶校區', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
     await admissions.getBoard('yihua', 115, null)
-    await admissions.getArrivals('yihua')
     await admissions.getOptions('yihua')
     await admissions.getRecord('v-1')
     await admissions.listEvents('v-1')
     expect(get.mock.calls.map((call) => call[0])).toEqual([
       '/admin/admissions/board?campus_key=yihua&school_year=115',
-      '/admin/admissions/arrivals?campus_key=yihua',
       '/admin/admissions/options?campus_key=yihua',
       '/admin/admissions/records/v-1',
       '/admin/admissions/records/v-1/events',

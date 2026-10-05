@@ -25,7 +25,6 @@ from app.admissions.schemas import (
     AdmissionsOptionsOut,
     AdmissionsStaffOut,
     AdmissionsStatsOut,
-    ArrivalsOut,
     ContactLogCreate,
     ContactLogOut,
     ContactLogResultOut,
@@ -228,7 +227,7 @@ async def delete_recruitment_visit(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
-    訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。
+    訪視被刪掉後，可以從預約明細再補建（A6）。已匿名化的也可以刪。
 
     檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、
     或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，
@@ -466,18 +465,6 @@ async def save_intake_targets(
     plan = await intake.intake_plan(db, campus_key, payload.school_year, payload.semester)
     await db.commit()
     return IntakePlanOut.model_validate(plan)
-
-
-@router.get("/admin/admissions/arrivals", response_model=ArrivalsOut)
-async def get_arrivals(
-    campus_key: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> ArrivalsOut:
-    """「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read
-    （規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。"""
-    _require_campus(current_user, "booking.read", campus_key)
-    return ArrivalsOut.model_validate(await booking_link.arrivals(db, campus_key))
 
 
 @router.post("/admin/admissions/from-visit-request/{visit_request_id}", response_model=RecruitmentVisitOut)

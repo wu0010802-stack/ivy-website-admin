@@ -12,8 +12,9 @@ import funnelCardSource from '../components/admissions/FunnelCard.vue?raw'
 import { ApiError } from '../api/client'
 import {
   admissionsViewer, board, bodyOf, button, card, cleanup, deferred, hasButton, mockGet, mockPost, mountWith, pathsTo,
-  queryOf, reception, visit,
+  queryOf, reception, visit, VR_ID,
 } from './admissionsTestKit'
+import { testUser } from './fixtures'
 
 afterEach(cleanup)
 
@@ -254,7 +255,6 @@ describe('看板權限與提示', () => {
 
   it('「另有 N 筆沒有填入學學期」：按「到訪視明細處理」切到明細並清掉入學學年學期', async () => {
     mockGet({
-      '/admin/admissions/arrivals': { awaiting: [], missing: [] },
       '/admin/admissions/board': board({}, { unscoped_count: 3 }),
       '/admin/admissions/records': [],
     })
@@ -408,32 +408,41 @@ describe('看板找幼生姓名（2026-10-05 招生入學評析）', () => {
   })
 })
 
-describe('看板全空時導去確認到場（2026-10-05 招生入學評析）', () => {
-  async function mountEmpty(changes: Record<string, unknown>, columns: Parameters<typeof board>[0] = {}) {
+describe('看板全空時導去標記到場（2026-10-05 招生入學評析；同日拿掉官網預約分頁，改連案件列表）', () => {
+  async function mountEmpty(
+    changes: Record<string, unknown>,
+    columns: Parameters<typeof board>[0] = {},
+    extra: { awaiting?: unknown[]; user?: ReturnType<typeof reception> } = {},
+  ) {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00')) // 115 上學期
-    mockGet({ '/admin/admissions/board': board(columns) })
-    return (await mountWith(FunnelBoard, { props: boardProps(changes) })).wrapper
+    const get = mockGet({ '/admin/admissions/board': board(columns), '/admin/visit-requests': extra.awaiting ?? [{ id: VR_ID }] })
+    const { wrapper } = await mountWith(FunnelBoard, { props: boardProps(changes), user: extra.user })
+    return { wrapper, get }
   }
-  const HINT = '官網預約有 3 位家長等你確認到場，確認後會自動出現在「已訪視」。'
+  const HINT = '還有場次已過、還沒標記到場的參觀預約。標記已到場後，家長會自動出現在「已訪視」。'
 
-  it('四欄全空、官網預約有人等確認：提示並可以切去確認；欄內仍是園務原文', async () => {
-    const wrapper = await mountEmpty({ pendingArrivals: 3 })
+  it('四欄全空、還有沒標記到場的預約：提示並連到案件列表的「只看尚未確認到場」；欄內仍是園務原文', async () => {
+    const { wrapper, get } = await mountEmpty({})
     expect(wrapper.text()).toContain(HINT)
-    await button(wrapper, '去確認到場')!.trigger('click')
-    expect(wrapper.emitted('open-arrivals')).toHaveLength(1)
+    const [path, ...rest] = pathsTo(get, '/admin/visit-requests')
+    expect(rest).toEqual([])
+    expect(Object.fromEntries(queryOf(path!))).toEqual({ campus_key: 'yihua', group: 'past', status: 'confirmed', page_size: '1' })
+    expect(wrapper.get('.funnel__notice a').attributes('href')).toBe('/visit-requests?campus=yihua&group=past&status=confirmed')
+    expect(wrapper.get('.funnel__notice a').text()).toBe('去標記到場')
     expect(column(wrapper, 'visited').text()).toContain('還沒有訪視紀錄，用右上角的「新增訪視」建立第一筆。')
   })
 
   it.each([
-    ['看板有卡片', { pendingArrivals: 3 }, { withdrawn: [card()] }],
-    ['沒有等確認的', { pendingArrivals: 0 }, {}],
-    ['還不知道筆數', { pendingArrivals: null }, {}],
-    ['看的是別的學年（確認到場建的訪視落在當天學期）', { pendingArrivals: 3, schoolYear: 116 }, {}],
-    ['看的是別的學期', { pendingArrivals: 3, semester: 2 }, {}],
-  ])('%s：不提示', async (_label, changes, columns) => {
-    const wrapper = await mountEmpty(changes, columns)
-    expect(wrapper.text()).not.toContain('等你確認到場')
+    ['看板有卡片', {}, { withdrawn: [card()] }, {}],
+    ['沒有還沒標記到場的', {}, {}, { awaiting: [] }],
+    ['看的是別的學年（標記到場建的訪視落在當天學期）', { schoolYear: 116 }, {}, {}],
+    ['看的是別的學期', { semester: 2 }, {}, {}],
+    ['沒有 booking.read', {}, {}, { user: testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['admissions.read'] }) }],
+  ])('%s：不提示', async (_label, changes, columns, extra) => {
+    const { wrapper, get } = await mountEmpty(changes, columns, extra)
+    expect(wrapper.text()).not.toContain('還沒標記到場')
+    if (!('awaiting' in extra)) expect(pathsTo(get, '/admin/visit-requests')).toEqual([])
   })
 })
 

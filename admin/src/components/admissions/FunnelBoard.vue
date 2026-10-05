@@ -10,6 +10,7 @@ import {
 } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { notifyWarning } from '../../composables/notify'
+import { awaitingAttendanceLink, hasAwaitingAttendance } from '../../composables/visitAttendance'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import FunnelCard from './FunnelCard.vue'
@@ -21,9 +22,8 @@ import EventsDrawer from './EventsDrawer.vue'
 // 學年必填（API 需要），頁首選「不限學年」時用目前學年並說明（本檔調整第 18 條）；學期不選＝整學年。
 // 換欄一律先跳確認框（園務 needsDialog 等於所有合法轉換），所以不做樂觀移動：
 // 409 時重讀看板，卡片就停在伺服器的欄（Review Focus 3）。
-// pendingArrivals：官網預約等確認到場的筆數（頁面讀好傳進來），看板全空時導去確認到場。
-const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: Semester | null; pendingArrivals?: number | null }>()
-const emit = defineEmits<{ 'show-unscoped': []; 'open-arrivals': [] }>()
+const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: Semester | null }>()
+const emit = defineEmits<{ 'show-unscoped': [] }>()
 
 const { can } = usePermissions()
 const canWrite = computed(() => can('admissions.write'))
@@ -93,16 +93,30 @@ const summaryRates = computed(() => [
   rate('退費率', count('withdrawn'), count('enrolled'), '退預繳／退註冊 ÷ 已註冊（各欄目前張數，同園務）'),
 ])
 
-// 看板全空、官網預約還有人等確認到場：多半是還沒確認，不是沒有人來參觀。確認到場建立的訪視
+// 看板全空、還有場次已過卻沒標記到場的預約：多半是還沒標記，不是沒有人來參觀。標記已到場建立的訪視
 // 入學學期是當天的學期（booking_link.fields_from_visit_request），只在看板涵蓋目前學期時提示。
-const showArrivalsHint = computed(
+// 2026-10-05 拿掉「官網預約」分頁後連到案件列表的「只看尚未確認到場」；有沒有這種預約要 booking.read。
+const emptyCurrentTerm = computed(
   () =>
     Boolean(board.value) &&
-    (props.pendingArrivals ?? 0) > 0 &&
     STAGES.every((stage) => count(stage) === 0) &&
     boardYear.value === term.schoolYear &&
     (props.semester === null || props.semester === term.semester),
 )
+const awaitingAttendance = ref(false)
+const awaitingRequests = useRequestSequence()
+watch([emptyCurrentTerm, () => props.campusKey], async ([empty]) => {
+  const request = awaitingRequests.begin()
+  awaitingAttendance.value = false
+  if (!empty || !can('booking.read')) return
+  try {
+    const found = await hasAwaitingAttendance(props.campusKey)
+    if (awaitingRequests.isCurrent(request)) awaitingAttendance.value = found
+  } catch {
+    // 只是提醒；讀不到就不顯示。
+  }
+}, { immediate: true })
+const showAttendanceHint = computed(() => emptyCurrentTerm.value && awaitingAttendance.value)
 
 function stageStyle(stage: Stage): Record<string, string> {
   return { '--stage-color': `var(${STAGE_TOKENS[stage]})` }
@@ -209,14 +223,14 @@ function openEvents(card: BoardCard) {
     </div>
 
     <el-alert
-      v-if="showArrivalsHint"
+      v-if="showAttendanceHint"
       type="info"
       :closable="false"
       show-icon
       class="funnel__notice"
-      :title="`官網預約有 ${pendingArrivals} 位家長等你確認到場，確認後會自動出現在「已訪視」。`"
+      title="還有場次已過、還沒標記到場的參觀預約。標記已到場後，家長會自動出現在「已訪視」。"
     >
-      <el-button link type="primary" @click="emit('open-arrivals')">去確認到場</el-button>
+      <router-link :to="awaitingAttendanceLink(campusKey)">去標記到場</router-link>
     </el-alert>
 
     <!-- 園務 FunnelBoard.vue:36-47：沒有入學學期的訪視不在任何看板，空看板不能謊稱「還沒有訪視紀錄」。 -->

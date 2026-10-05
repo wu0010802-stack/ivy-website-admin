@@ -8,7 +8,7 @@ import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import TransitionDialog from '../components/admissions/TransitionDialog.vue'
 import { ApiError } from '../api/client'
 import {
-  admissionsViewer, arrivals, button, cleanup, deferred, hasButton, mockDelete, mockGet, mountWith,
+  admissionsViewer, button, cleanup, deferred, hasButton, mockDelete, mockGet, mountWith,
   pathsTo, queryOf, reception, visit, VR_ID,
 } from './admissionsTestKit'
 
@@ -526,7 +526,6 @@ describe('手機（390）：卡片清單', () => {
 
 describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔調整第 15 條）', () => {
   const pageRoutes = () => ({
-    '/admin/admissions/arrivals': arrivals(),
     '/admin/admissions/records': [visit()],
     '/admin/admissions/stats': () => {
       throw new Error('統計不在這支測試的範圍')

@@ -7,7 +7,8 @@ import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs } from 
 import { ROOT, SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
 
 // 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md F19）：兩位家長預約 →
-// 場次時間過了 → 官網預約勾兩筆一次標記已到場 → 待追蹤「未排定」有兩筆 → 其中一筆排明天 →
+// 場次時間過了 → 案件列表「只看尚未確認到場」勾兩筆一次標記已到場（2026-10-05 從招生入學的
+// 「官網預約」分頁搬來）→ 待追蹤「未排定」有兩筆 → 其中一筆排明天 →
 // 移到「7 天內」→ 把它改成已到期 → 「已到期」與總覽都看得到 → 記錄聯絡（沒聯絡到、明天）→
 // 離開已到期 → 預繳後仍在追 → 註冊後下次聯絡被清掉。
 // 「時間已過」「已到期」都用 psql 改本測試自己的資料（db.ts），不改系統時間。
@@ -74,14 +75,15 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
   const staff = await openAs(browser, 'campus_admin')
   const { page } = staff
 
-  await test.step('官網預約勾兩筆，一次標記已到場', async () => {
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=arrivals`, '招生入學')
+  await test.step('案件列表「只看尚未確認到場」勾兩筆，一次標記已到場', async () => {
+    await gotoAdmin(page, `/visit-requests?campus=${SLOTS_CAMPUS}&group=past&status=confirmed`, '參觀案件')
     for (const family of FAMILIES) {
-      await page.locator('.arrivals-table tr', { hasText: family.parent }).locator('.el-checkbox').click()
+      await page.locator('.requests-table tr', { hasText: family.parent }).locator('.el-checkbox').click()
     }
     await page.getByRole('button', { name: '2 位標記已到場' }).click()
     await answerMessageBox(page, '2 位標記已到場？', '標記已到場')
-    for (const family of FAMILIES) await expect(page.locator('.arrivals-table tr', { hasText: family.parent })).toHaveCount(0)
+    for (const family of FAMILIES) await expect(page.locator('.requests-table tr', { hasText: family.parent })).toHaveCount(0)
+    await expect(page).toHaveURL(/\/visit-requests\?/)
   })
   for (const family of FAMILIES) expect((await findVisit(api, family.parent)).status).toBe('completed')
 

@@ -6,25 +6,23 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
-import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
 import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getArrivals, getFollowUps, getOptions } from '../api/admissions'
+import { getFollowUps, getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
-import { usePermissions } from '../composables/usePermissions'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { schoolYearOptions } from '../admissions/academic'
 import { SEMESTER_LABELS } from '../admissions/constants'
 import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissions/useAdmissionsFilters'
 
 // 招生入學（規格第 10 節）：頁首放校區與入學學年學期，分頁順序比照園務；漏斗看板之後
-// 另有官網延伸的「待追蹤」（2026-10-04 參觀後追蹤規格 7.1）。
+// 另有官網延伸的「待追蹤」（2026-10-04 參觀後追蹤規格 7.1）。2026-10-05 拿掉名額規劃與
+// 官網預約兩個分頁（和園務分歧）：確認到場改在案件列表的「只看尚未確認到場」。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
 const {
   campus, schoolYear, semester, tab, visitRequestId, month, sub, followUpScope, followUpOwner, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
-const { can } = usePermissions()
 const route = useRoute()
 const router = useRouter()
 
@@ -33,8 +31,6 @@ const router = useRouter()
 function openRecords(filter: { month: string }) {
   void router.push({ query: { ...route.query, tab: 'records', month: filter.month } })
 }
-// 官網預約分頁讀 /admin/admissions/arrivals，需要 booking.read。
-const canSeeArrivals = computed(() => can('booking.read'))
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
 // 學年選項取新增／編輯表單（+3…−1）與原本頁首（+1…−2）的聯集：入學學年填到後年、大後年的訪視也選得到。
 const yearOptions = computed(() => schoolYearOptions(defaultYear, [3, 2, 1, 0, -1, -2]))
@@ -55,20 +51,6 @@ async function checkAvailability() {
   }
 }
 
-// 「官網預約」分頁標籤上的待確認筆數（awaiting_total，清單最多 200 筆）；切校時只採用最後一次的結果。
-const arrivalsCount = ref<number | null>(null)
-const arrivalsRequests = useRequestSequence()
-async function loadArrivalsCount() {
-  arrivalsCount.value = null
-  if (!campus.value || !canSeeArrivals.value) return
-  const request = arrivalsRequests.begin()
-  try {
-    const result = await getArrivals(campus.value)
-    if (arrivalsRequests.isCurrent(request)) arrivalsCount.value = result.awaiting_total
-  } catch {
-    // 數字只是提醒；讀不到就不顯示，分頁裡會再顯示錯誤。
-  }
-}
 // 「待追蹤」分頁標籤上的已到期筆數（totals.due，不受負責人篩選影響）。
 const followUpDue = ref<number | null>(null)
 const followUpRequests = useRequestSequence()
@@ -84,21 +66,14 @@ async function loadFollowUpCount() {
   }
 }
 watch(campus, async (key) => {
-  arrivalsCount.value = null
   followUpDue.value = null
-  arrivalsRequests.begin()
   followUpRequests.begin()
   await checkAvailability()
-  if (campus.value === key && availability.value === 'on') await Promise.all([loadArrivalsCount(), loadFollowUpCount()])
+  if (campus.value === key && availability.value === 'on') await loadFollowUpCount()
 }, { immediate: true })
 
-// 沒有 booking.read 的人從網址帶 tab=arrivals 進來：退回漏斗看板。
-watch([tab, canSeeArrivals], () => {
-  if (tab.value === 'arrivals' && !canSeeArrivals.value) tab.value = 'funnel'
-}, { immediate: true })
-
-// 待追蹤與官網預約不分入學學年學期：兩個下拉停用（值保留，切回其他分頁還在）。
-const termless = computed(() => tab.value === 'followups' || tab.value === 'arrivals')
+// 待追蹤不分入學學年學期：兩個下拉停用（值保留，切回其他分頁還在）。
+const termless = computed(() => tab.value === 'followups')
 // 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
 const narrow = useNarrowScreen()
 const filtersOpen = ref(false)
@@ -130,10 +105,6 @@ function showUnscoped() {
   clearTerm()
   tab.value = 'records'
 }
-// 官網預約分頁讀完清單會回報待確認筆數；標記到場後標籤上的數字跟著變。
-function onArrivalsCount(count: number) {
-  arrivalsCount.value = count
-}
 function onFollowUpCount(count: number) {
   followUpDue.value = count
 }
@@ -145,7 +116,7 @@ function onFollowUpCount(count: number) {
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細、官網預約與統計分析。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細與統計分析。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
       <button
@@ -186,9 +157,6 @@ function onFollowUpCount(count: number) {
           <template #label>待追蹤<span v-if="followUpDue" class="admissions__count admissions__count--due num">{{ followUpDue }}</span></template>
         </el-tab-pane>
         <el-tab-pane label="訪視明細" name="records" />
-        <el-tab-pane v-if="canSeeArrivals" name="arrivals">
-          <template #label>官網預約<span v-if="arrivalsCount" class="admissions__count num">{{ arrivalsCount }}</span></template>
-        </el-tab-pane>
         <el-tab-pane label="統計分析" name="stats" />
       </el-tabs>
 
@@ -205,9 +173,7 @@ function onFollowUpCount(count: number) {
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"
-          :pending-arrivals="arrivalsCount"
           @show-unscoped="showUnscoped"
-          @open-arrivals="setTab('arrivals')"
         />
         <RecordsTab
           v-if="tab === 'records'"
@@ -218,7 +184,6 @@ function onFollowUpCount(count: number) {
           :semester="semester"
           @clear-term="clearTerm"
         />
-        <ArrivalsTab v-if="tab === 'arrivals' && canSeeArrivals" :campus-key="campus" @count="onArrivalsCount" />
         <StatsTab
           v-if="tab === 'stats'"
           v-model:sub="sub"

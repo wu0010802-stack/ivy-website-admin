@@ -1610,116 +1610,6 @@
         "title": "AnalyticsFunnelOut",
         "type": "object"
       },
-      "ArrivalRowOut": {
-        "description": "「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。",
-        "properties": {
-          "child_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Child Name"
-          },
-          "parent_name": {
-            "title": "Parent Name",
-            "type": "string"
-          },
-          "party_size": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Party Size"
-          },
-          "slot_date": {
-            "anyOf": [
-              {
-                "format": "date",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Slot Date"
-          },
-          "start_time": {
-            "anyOf": [
-              {
-                "format": "time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Time"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "visit_request_id": {
-            "format": "uuid",
-            "title": "Visit Request Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "visit_request_id",
-          "slot_date",
-          "start_time",
-          "parent_name",
-          "child_name",
-          "party_size",
-          "status"
-        ],
-        "title": "ArrivalRowOut",
-        "type": "object"
-      },
-      "ArrivalsOut": {
-        "description": "兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。",
-        "properties": {
-          "awaiting": {
-            "items": {
-              "$ref": "#/components/schemas/ArrivalRowOut"
-            },
-            "title": "Awaiting",
-            "type": "array"
-          },
-          "awaiting_total": {
-            "title": "Awaiting Total",
-            "type": "integer"
-          },
-          "missing": {
-            "items": {
-              "$ref": "#/components/schemas/ArrivalRowOut"
-            },
-            "title": "Missing",
-            "type": "array"
-          },
-          "missing_total": {
-            "title": "Missing Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "awaiting",
-          "awaiting_total",
-          "missing",
-          "missing_total"
-        ],
-        "title": "ArrivalsOut",
-        "type": "object"
-      },
       "AuditLogEntryOut": {
         "description": "操作紀錄一筆。actor_*、target_label 是讀取當下 join users 查出來的，\n不存在稽核表裡（metadata 不放同事的 email 或名字）。",
         "properties": {
@@ -11562,81 +11452,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/api/website/v1/admin/admissions/arrivals": {
-      "get": {
-        "description": "「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read\n（規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。",
-        "operationId": "get_arrivals_api_website_v1_admin_admissions_arrivals_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "campus_key",
-            "required": true,
-            "schema": {
-              "title": "Campus Key",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ArrivalsOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Arrivals",
-        "tags": [
-          "admissions"
-        ]
-      }
-    },
     "/api/website/v1/admin/admissions/board": {
       "get": {
         "operationId": "get_funnel_board_api_website_v1_admin_admissions_board_get",
@@ -12985,7 +12800,7 @@
     },
     "/api/website/v1/admin/admissions/records/{visit_id}": {
       "delete": {
-        "description": "刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的\n訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。\n\n檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、\n或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，\n與取消註冊、退註冊同一個權限。",
+        "description": "刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的\n訪視被刪掉後，可以從預約明細再補建（A6）。已匿名化的也可以刪。\n\n檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、\n或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，\n與取消註冊、退註冊同一個權限。",
         "operationId": "delete_recruitment_visit_api_website_v1_admin_admissions_records__visit_id__delete",
         "parameters": [
           {

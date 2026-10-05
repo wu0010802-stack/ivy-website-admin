@@ -127,14 +127,4 @@ export const board = (columns: Partial<Record<StageKey, unknown[]>> = {}, extra:
   unscoped_count: 0, school_year: 115, semester: null, campus_key: 'yihua', as_of: '2026-10-01T02:00:00Z', ...extra,
 })
 
-export const arrivalRow = (changes: Record<string, unknown> = {}) => ({
-  visit_request_id: VR_ID, slot_date: '2026-09-26', start_time: '10:00:00', parent_name: '陳媽媽', child_name: '陳小寶',
-  party_size: 2, status: 'confirmed', ...changes,
-})
-
-/** 官網預約清單；total 預設等於清單長度（後端清單最多 200 筆，total 可更大）。 */
-export const arrivals = (awaiting: unknown[] = [], missing: unknown[] = [], totals: { awaiting_total?: number; missing_total?: number } = {}) => ({
-  awaiting, missing, awaiting_total: totals.awaiting_total ?? awaiting.length, missing_total: totals.missing_total ?? missing.length,
-})
-
 export const options = () => ({ months: ['115.09', '115.08'], sources: ['親友介紹', 'Facebook'], referrers: ['林老師'] })

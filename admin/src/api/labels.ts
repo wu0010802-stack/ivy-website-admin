@@ -927,7 +927,7 @@ export function formatWeekday(value: string | null | undefined): string {
 // 案件上的「參觀時間」：09/26（週六）10:00–11:00。明細、列表與確認對話框
 // 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有排時段
 // （inquiry 待處理）回破折號。
-// end_time 選填：只有開始時間的來源（例如官網預約清單）只寫開始時間。
+// end_time 選填：只有開始時間的來源只寫開始時間。
 export function formatSlotWhen(
   slot: { slot_date: string; start_time: string; end_time?: string | null } | null | undefined,
 ): string {

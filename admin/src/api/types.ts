@@ -484,8 +484,6 @@ export type SeatResult = components['schemas']['SeatOut']
 export type FunnelBoard = components['schemas']['FunnelBoardOut']
 export type FunnelColumns = components['schemas']['FunnelColumnsOut']
 export type FunnelCard = components['schemas']['FunnelCardOut']
-export type Arrivals = components['schemas']['ArrivalsOut']
-export type ArrivalRow = components['schemas']['ArrivalRowOut']
 export type AdmissionsOptions = components['schemas']['AdmissionsOptionsOut']
 // 參觀後追蹤（2026-10-04 規格 9）。
 export type ContactLog = components['schemas']['ContactLogOut']

@@ -409,6 +409,8 @@ npm run e2e:build && npm run test:e2e:stack
 
 2026-10-05 拿掉後台「名額規劃」分頁（後端名額 API 與資料不動，見 DESIGN.md「拿掉名額規劃」）：R16 改為四個分頁加五校比較、兩種寬度截圖 10 張，a11y 不再掃 `tab=intake`；R17 拿掉「名額規劃的已註冊」那一步（註冊仍由看板與統計核對）；R09 的名額計算仍由後端 `test_admissions_intake.py` 涵蓋。
 
+2026-10-05 同日拿掉「官網預約」分頁與 `GET /admin/admissions/arrivals`（見 DESIGN.md「拿掉官網預約分頁」）：R01a 的待確認清單不再存在，「場次已過、還沒標記到場」的條件由案件列表與總覽共用的 `pending_kinds.awaiting_attendance` 涵蓋（`test_admissions_booking_link.py::test_arrivals_lists_started_confirmed_and_completed_without_visit`、`test_arrivals_caps_each_list_newest_first_with_totals` 刪除）；R07 改為 `test_rebuild_permissions`（只剩補建端點）；R16 改為漏斗看板、待追蹤、訪視明細、統計分析四個分頁加五校比較，a11y 改掃案件列表的 `group=past&status=confirmed`；R17 改為看板全空時「去標記到場」連到案件列表、在案件列表按「到了」；批次標記（參觀後追蹤 7.5）改在案件列表，`admissions-follow-up.spec.ts` 跟著改。
+
 Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台北日期與學期邊界、3 兩人同時拖同一張卡（後端）、4 退出後取消退出，都在上表的測試裡；5 空資料統計屬階段 C。
 
 上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。

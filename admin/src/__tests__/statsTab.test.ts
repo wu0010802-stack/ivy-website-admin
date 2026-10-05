@@ -298,7 +298,7 @@ describe('統計分頁：狀態', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
     const overview = wrapper.get('#pane-stats-overview')
-    expect(overview.get('.stats-empty').text()).toBe('義華在 115 上學期還沒有招生訪視。新增訪視，或在「官網預約」確認到場後，這裡就會有統計。')
+    expect(overview.get('.stats-empty').text()).toBe('義華在 115 上學期還沒有招生訪視。新增訪視，或在參觀案件標記家長已到場後，這裡就會有統計。')
     expect(overview.find('.decision').exists()).toBe(false)
     expect(overview.text()).not.toContain('0.0%')
     expect((await openSubTab(wrapper, '班別分析')).text()).toContain('此區間尚無班別資料')

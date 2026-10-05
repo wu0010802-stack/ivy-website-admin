@@ -7,8 +7,9 @@ import { startVisitSlot } from './db'
 import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs, pickVisitDay } from './pages'
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
-// 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了出現在「官網預約」待確認 →
-// 園方按已到場 → 漏斗看板「已訪視」→ 預繳 → 註冊 → 統計看得到。
+// 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了，漏斗看板全空時提示去標記到場 →
+// 案件列表「只看尚未確認到場」按已到場 → 漏斗看板「已訪視」→ 預繳 → 註冊 → 統計看得到。
+// 2026-10-05 拿掉招生入學的「官網預約」分頁，確認到場改在案件列表。
 // 「時間已過」用 psql 把本測試自己建的場次移到昨天（db.ts），不改系統時間、不動其他測試的場次。
 // 每一步都在畫面上操作；API 只用來建場次與核對結果。後兩項是 R16：四個分頁在 1440／390 的
 // 截圖（output/playwright/，給人看，不比對像素）與「頁面不橫向溢出」。
@@ -18,7 +19,7 @@ const CHILD = '招生流程寶貝'
 const PHONE = '0912000771'
 const EMAIL = 'admissions-flow@example.com'
 const SHOTS = path.join(ROOT, 'output/playwright')
-const TABS = ['funnel', 'records', 'arrivals', 'stats'] as const
+const TABS = ['funnel', 'followups', 'records', 'stats'] as const
 
 // B 階段畫面的文案（Step 1 核對過）。B 改文案時只改這裡。
 const UI = {
@@ -52,7 +53,7 @@ async function moveCard(page: Page, to: string, title: string, confirm: string):
   await expect(dialog).toBeHidden()
 }
 
-test('家長自選場次 → 時間過了出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 統計', async ({ browser }) => {
+test('家長自選場次 → 時間過了看板提示去標記到場 → 案件列表已到場 → 看板 → 預繳 → 註冊 → 統計', async ({ browser }) => {
   test.setTimeout(120_000)
   expect(gradeForBirthday(BIRTHDAY, TERM.schoolYear)).toBe(GRADE)
   const api = await adminApi('super_admin')
@@ -89,15 +90,23 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
   const staff = await openAs(browser, 'campus_admin')
   const { page } = staff
 
-  await test.step('官網預約分頁列出時間已過、還沒確認到場的預約；按到了', async () => {
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=arrivals`, '招生入學')
-    const row = page.locator('tr', { hasText: PARENT })
+  await test.step('漏斗看板全空時提示還有沒標記到場的預約，點了到案件列表的「只看尚未確認到場」', async () => {
+    // 本 spec 是第一個建招生訪視的（見下方統計的說明），這時看板四欄全空。
+    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=funnel`, '招生入學')
+    await page.getByRole('link', { name: '去標記到場' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: '參觀案件' })).toBeVisible()
+    await expect(page).toHaveURL(/group=past/)
+    await expect(page).toHaveURL(/status=confirmed/)
+  })
+
+  await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了', async () => {
+    const row = page.locator('.requests-table tr', { hasText: PARENT })
     await expect(row).toContainText(CHILD)
     // 按鈕文字是「到了」，無障礙名稱帶家長（「標記 X 已到場」）。
     await row.getByRole('button', { name: `標記 ${PARENT} 已到場` }).click()
-    // B5 的已到場有確認框（ArrivalsTab.vue：標題「標記已到場？」、按鈕「標記已到場」）。
+    // 已到場有確認框（composables/visitAttendance.ts：標題「標記已到場？」、按鈕「標記已到場」）。
     await answerMessageBox(page, '標記已到場？', '標記已到場')
-    await expect(page.locator('tr', { hasText: PARENT })).toHaveCount(0)
+    await expect(page.locator('.requests-table tr', { hasText: PARENT })).toHaveCount(0)
   })
   expect((await findVisit(api, PARENT)).status).toBe('completed')
 

@@ -4,27 +4,6 @@
  */
 
 export interface paths {
-    "/api/website/v1/admin/admissions/arrivals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Arrivals
-         * @description 「官網預約」分頁（規格 6.1 第 2 點）。看的是預約資料，所以要 booking.read
-         *     （規格 13）。「已到場」「未到場」沿用預約既有的 /complete、/no-show。
-         */
-        get: operations["get_arrivals_api_website_v1_admin_admissions_arrivals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/website/v1/admin/admissions/board": {
         parameters: {
             query?: never;
@@ -218,7 +197,7 @@ export interface paths {
         /**
          * Delete Recruitment Visit
          * @description 刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的
-         *     訪視被刪掉後，可以從預約或「官網預約」分頁再補建（A6）。已匿名化的也可以刪。
+         *     訪視被刪掉後，可以從預約明細再補建（A6）。已匿名化的也可以刪。
          *
          *     檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、
          *     或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，
@@ -3165,43 +3144,6 @@ export interface components {
             unassigned_clicks?: {
                 [key: string]: number;
             } | null;
-        };
-        /**
-         * ArrivalRowOut
-         * @description 「官網預約」分頁一列（規格 10）：場次、家長稱呼、孩子姓名、參觀人數。
-         */
-        ArrivalRowOut: {
-            /** Child Name */
-            child_name: string | null;
-            /** Parent Name */
-            parent_name: string;
-            /** Party Size */
-            party_size: number | null;
-            /** Slot Date */
-            slot_date: string | null;
-            /** Start Time */
-            start_time: string | null;
-            /** Status */
-            status: string;
-            /**
-             * Visit Request Id
-             * Format: uuid
-             */
-            visit_request_id: string;
-        };
-        /**
-         * ArrivalsOut
-         * @description 兩份清單各最多 200 筆、新到舊；筆數以 *_total 為準（截斷前的總數）。
-         */
-        ArrivalsOut: {
-            /** Awaiting */
-            awaiting: components["schemas"]["ArrivalRowOut"][];
-            /** Awaiting Total */
-            awaiting_total: number;
-            /** Missing */
-            missing: components["schemas"]["ArrivalRowOut"][];
-            /** Missing Total */
-            missing_total: number;
         };
         /**
          * AuditLogEntryOut
@@ -6525,41 +6467,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    get_arrivals_api_website_v1_admin_admissions_arrivals_get: {
-        parameters: {
-            query: {
-                campus_key: string;
-            };
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ArrivalsOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_funnel_board_api_website_v1_admin_admissions_board_get: {
         parameters: {
             query: {
