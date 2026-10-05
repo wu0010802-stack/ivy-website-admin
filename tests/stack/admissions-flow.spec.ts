@@ -22,9 +22,7 @@ const TABS = ['funnel', 'records', 'intake', 'arrivals', 'stats'] as const
 
 // B 階段畫面的文案（Step 1 核對過）。B 改文案時只改這裡。
 const UI = {
-  arrived: '已到場',
   moveMenu: /移到/,
-  confirm: '確認',
 }
 
 // 入學學期＝確認到場當天的台北學期（規格 6.1）；生日挑在該學年剛好滿 3 歲 → 小班（規格 6.4）。
@@ -42,13 +40,15 @@ async function boardStage(api: AdminApi): Promise<string | undefined> {
 
 const card = (page: Page) => page.locator('[draggable="true"]', { hasText: CHILD })
 
-/** 卡片選單「移到…」→ 選目的欄 → 確認框（標題「起 → 迄」）按確認。鍵盤可完成的那條路（R15）。 */
-async function moveCard(page: Page, to: string, title: string): Promise<void> {
+/** 卡片選單「移到…」→ 選目的欄 → 確認框（標題「起 → 迄」）按寫出動作的確認鍵。鍵盤可完成的那條路（R15）。
+ *  滑鼠裝置的「移到…」平常收起，指到卡片才出現（FunnelCard.vue）。 */
+async function moveCard(page: Page, to: string, title: string, confirm: string): Promise<void> {
+  await card(page).hover()
   await card(page).getByRole('button', { name: UI.moveMenu }).click()
   await page.getByRole('menuitem', { name: to, exact: true }).click()
   const dialog = page.getByRole('dialog', { name: title })
   await expect(dialog).toContainText(CHILD)
-  await dialog.getByRole('button', { name: UI.confirm, exact: true }).click()
+  await dialog.getByRole('button', { name: confirm, exact: true }).click()
   await expect(dialog).toBeHidden()
 }
 
@@ -89,11 +89,12 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
   const staff = await openAs(browser, 'campus_admin')
   const { page } = staff
 
-  await test.step('官網預約分頁列出時間已過、還沒確認到場的預約；按已到場', async () => {
+  await test.step('官網預約分頁列出時間已過、還沒確認到場的預約；按到了', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=arrivals`, '招生入學')
     const row = page.locator('tr', { hasText: PARENT })
     await expect(row).toContainText(CHILD)
-    await row.getByRole('button', { name: UI.arrived, exact: true }).click()
+    // 按鈕文字是「到了」，無障礙名稱帶家長（「標記 X 已到場」）。
+    await row.getByRole('button', { name: `標記 ${PARENT} 已到場` }).click()
     // B5 的已到場有確認框（ArrivalsTab.vue：標題「標記已到場？」、按鈕「標記已到場」）。
     await answerMessageBox(page, '標記已到場？', '標記已到場')
     await expect(page.locator('tr', { hasText: PARENT })).toHaveCount(0)
@@ -107,12 +108,12 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
   })
 
   await test.step('「移到…」已預繳（確認框「已訪視 → 已預繳」）', async () => {
-    await moveCard(page, '已預繳', '已訪視 → 已預繳')
+    await moveCard(page, '已預繳', '已訪視 → 已預繳', '移到已預繳')
     await expect.poll(() => boardStage(api)).toBe('deposited')
   })
 
   await test.step('「移到…」已註冊（確認框帶好註冊日期、年級、入學學期，直接確認）', async () => {
-    await moveCard(page, '已註冊', '已預繳 → 已註冊')
+    await moveCard(page, '已註冊', '已預繳 → 已註冊', '標記註冊')
     await expect.poll(() => boardStage(api)).toBe('enrolled')
   })
 

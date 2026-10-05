@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { campusLabel } from '../api/labels'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
@@ -96,6 +98,19 @@ watch([tab, canSeeArrivals], () => {
   if (tab.value === 'arrivals' && !canSeeArrivals.value) tab.value = 'funnel'
 }, { immediate: true })
 
+// 待追蹤與官網預約不分入學學年學期：兩個下拉停用（值保留，切回其他分頁還在）。
+const termless = computed(() => tab.value === 'followups' || tab.value === 'arrivals')
+// 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
+const narrow = useNarrowScreen()
+const filtersOpen = ref(false)
+const filterSummary = computed(() => {
+  const parts: string[] = []
+  if (multiCampus.value) parts.push(campusLabel(campus.value))
+  if (termless.value) parts.push('不分學年學期')
+  else parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
+  return parts.join('・')
+})
+
 function setTab(name: string | number) {
   if (isAdmissionsTab(name)) tab.value = name
 }
@@ -131,27 +146,39 @@ function onFollowUpCount(count: number) {
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、訪視明細、名額規劃與官網預約。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細、名額規劃、官網預約與統計分析。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
-      <div class="toolbar admissions__filters">
+      <button
+        v-if="narrow"
+        type="button"
+        class="admissions__summary"
+        :aria-expanded="filtersOpen"
+        aria-controls="admissions-filters"
+        @click="filtersOpen = !filtersOpen"
+      >
+        <span class="admissions__summary-text">{{ filterSummary }}</span>
+        <span class="admissions__summary-action">{{ filtersOpen ? '收起' : '更改條件' }}</span>
+      </button>
+      <div v-if="!narrow || filtersOpen" id="admissions-filters" class="toolbar admissions__filters">
         <div class="filter-field">
           <span v-if="multiCampus">校區</span>
           <CampusSelect :model-value="campus" :keys="visibleCampusKeys" @update:model-value="setCampus" />
         </div>
         <div class="filter-field">
           <span>入學學年</span>
-          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" @update:model-value="setYear">
+          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" :disabled="termless" @update:model-value="setYear">
             <el-option v-for="year in yearOptions" :key="year" :label="`${year} 學年`" :value="year" />
           </el-select>
         </div>
         <div class="filter-field">
           <span>入學學期</span>
-          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" @update:model-value="setSemester">
+          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" :disabled="termless" @update:model-value="setSemester">
             <el-option :value="1" :label="SEMESTER_LABELS[1]" />
             <el-option :value="2" :label="SEMESTER_LABELS[2]" />
           </el-select>
         </div>
+        <p v-if="termless" class="admissions__scope-note hint">這個分頁不分入學學年學期</p>
       </div>
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
@@ -175,7 +202,15 @@ function onFollowUpCount(count: number) {
           :campus-key="campus"
           @count="onFollowUpCount"
         />
-        <FunnelBoard v-if="tab === 'funnel'" :campus-key="campus" :school-year="schoolYear" :semester="semester" @show-unscoped="showUnscoped" />
+        <FunnelBoard
+          v-if="tab === 'funnel'"
+          :campus-key="campus"
+          :school-year="schoolYear"
+          :semester="semester"
+          :pending-arrivals="arrivalsCount"
+          @show-unscoped="showUnscoped"
+          @open-arrivals="setTab('arrivals')"
+        />
         <RecordsTab
           v-if="tab === 'records'"
           v-model:month="month"
@@ -204,6 +239,43 @@ function onFollowUpCount(count: number) {
 <style scoped>
 .admissions__filters .el-select {
   width: 140px;
+}
+
+.admissions__scope-note {
+  align-self: flex-end;
+  margin: 0;
+  padding-bottom: 6px;
+}
+
+.admissions__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  margin-bottom: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.admissions__summary-text {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.admissions__summary-action {
+  flex: none;
+  color: var(--el-color-primary);
+  font-size: var(--text-sm);
 }
 
 .admissions__tabs {

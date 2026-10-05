@@ -654,6 +654,9 @@ a.stat:hover {
   --el-button-hover-border-color: var(--admin-accent-hover);
 }
 .el-button--primary.is-link { --el-button-hover-link-text-color: var(--admin-accent-hover); }
+/* 列表用的淺色主色鈕（第九輪起「到了」「記錄聯絡」「標記預繳」）：預設主色字在淡藍底上約 4.45:1，
+   字改用深一階的主色（約 5.4:1）；hover 照 Element Plus 換成實心底白字。 */
+.el-button--primary.is-plain { --el-button-text-color: var(--admin-accent-hover); }
 .el-form-item { margin-bottom: 24px; }
 .el-table .el-table__cell { padding-block: 12px; }
 .el-table__empty-block { min-height: 180px; }

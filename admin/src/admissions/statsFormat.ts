@@ -24,10 +24,10 @@ export function ratio(num: number, den: number): number | null {
   return den ? Math.round((num / den) * 1000) / 10 : null
 }
 
-/** 月比的百分點（園務「+3.2pt」寫法）。 */
+/** 月比的百分點，寫「個百分點」和後端警示一致（園務寫「pt」，白話化不影響數值）。 */
 export function formatPoints(value: number | null | undefined): string {
   if (value === null || value === undefined) return NO_VALUE
-  return `${value > 0 ? '+' : ''}${value.toFixed(1)}pt`
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)} 個百分點`
 }
 
 export type Trend = 'up' | 'down' | 'flat' | 'none'

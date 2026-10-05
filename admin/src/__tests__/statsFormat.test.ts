@@ -19,9 +19,9 @@ describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—�
   })
 
   it('月比百分點與方向', () => {
-    expect(formatPoints(-80)).toBe('-80.0pt')
-    expect(formatPoints(3.25)).toBe('+3.3pt')
-    expect(formatPoints(0)).toBe('0.0pt')
+    expect(formatPoints(-80)).toBe('-80.0 個百分點')
+    expect(formatPoints(3.25)).toBe('+3.3 個百分點')
+    expect(formatPoints(0)).toBe('0.0 個百分點')
     expect(formatPoints(null)).toBe('—')
     expect([trendOf(2), trendOf(-0.1), trendOf(0), trendOf(null)]).toEqual(['up', 'down', 'flat', 'none'])
     expect(TREND_MARK.up + TREND_MARK.down + TREND_MARK.flat).toBe('▲▼–')

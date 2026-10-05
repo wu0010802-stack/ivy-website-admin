@@ -1,21 +1,31 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { createContactLog } from '../../api/admissions'
+import { createContactLog, listContactLogs } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import { CONTACT_CHANNEL_LABELS } from '../../api/labels'
 import type { ContactLog, RecruitmentVisit } from '../../api/types'
 import { ANONYMIZED_CONFLICT_TEXT } from '../../admissions/constants'
-import { followUpText, isOpenStage, resolveNextFollowUp, type NextFollowUpChoice } from '../../admissions/followUp'
+import { followUpText, isOpenStage, lastContactText, resolveNextFollowUp, type NextFollowUpChoice } from '../../admissions/followUp'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
+import { useRequestSequence } from '../../composables/useRequestSequence'
 import NextFollowUpPicker from './NextFollowUpPicker.vue'
 
 // 記錄參觀後的一次聯絡（docs/specs/2026-10-04-admissions-follow-up-design.md 6.3、7.2）。
 // 待追蹤分頁、歷程抽屜、預約明細共用。一定要決定下次聯絡（時間或不用再追），已到期的
 // 訪視記完才會離開清單。409 時不關對話框、內容保留，請父層重讀後讓使用者再送一次。
-export type ContactTarget = { id: string; version: number; child_name: string; stage: string }
+// grade、contact_name、phone 選填：有傳才在抬頭顯示（待追蹤分頁會帶；歷程抽屜與預約明細沒有就不顯示）。
+export type ContactTarget = {
+  id: string
+  version: number
+  child_name: string
+  stage: string
+  grade?: string | null
+  contact_name?: string | null
+  phone?: string | null
+}
 
 const props = defineProps<{ target: ContactTarget | null }>()
 const open = defineModel<boolean>({ required: true })
@@ -47,10 +57,41 @@ const canSubmit = computed(
     (!noteRequired.value || note.value.trim().length > 0) &&
     nextValue.value !== undefined,
 )
+// 還缺什麼：停用「記下來」時在 footer 說明，不讓人猜。
+const missing = computed(() => {
+  const items: string[] = []
+  if (reached.value === null) items.push('選結果')
+  if (noteRequired.value && !note.value.trim()) items.push('填內容')
+  if (nextValue.value === undefined) items.push('選下次聯絡')
+  return items
+})
 const dirty = computed(() => reached.value !== null || note.value.trim().length > 0 || nextChoice.value !== '')
+
+// 上一次聯絡：開啟後才背景讀取，失敗或沒有紀錄就不顯示，不擋對話框也不跳錯誤。
+const lastLog = ref<ContactLog | null>(null)
+const lastLogRequests = useRequestSequence()
+const lastLogText = computed(() => {
+  const log = lastLog.value
+  return log ? `上次：${lastContactText(log.contacted_at, log.channel, log.reached).replace('・', ' ')}` : ''
+})
+const lastLogNote = computed(() => lastLog.value?.note?.trim() ?? '')
+
+async function loadLastLog(id: string) {
+  const request = lastLogRequests.begin()
+  lastLog.value = null
+  try {
+    const logs = await listContactLogs(id)
+    if (!lastLogRequests.isCurrent(request) || !Array.isArray(logs) || !logs.length) return
+    lastLog.value = logs.reduce((latest, log) => (new Date(log.contacted_at).getTime() > new Date(latest.contacted_at).getTime() ? log : latest))
+  } catch {
+    // 讀不到就不顯示這一行
+  }
+}
 
 watch(open, (value) => {
   if (!value) return
+  if (props.target) void loadLastLog(props.target.id)
+  else lastLog.value = null
   contactedAt.value = null
   channel.value = 'phone'
   reached.value = null
@@ -147,7 +188,15 @@ async function submit() {
     :close-on-click-modal="false"
     :before-close="beforeClose"
   >
-    <p class="contact-log__child">幼生：{{ target?.child_name }}</p>
+    <div class="contact-log__who">
+      <span class="contact-log__child">幼生：{{ target?.child_name }}<template v-if="target?.grade">（{{ target.grade }}）</template></span>
+      <span v-if="target?.contact_name">家長：{{ target.contact_name }}</span>
+      <a v-if="target?.phone" :href="`tel:${target.phone}`" class="num contact-log__phone" :aria-label="`撥打 ${target.phone}`">{{ target.phone }}</a>
+    </div>
+    <p v-if="lastLogText" class="contact-log__last">
+      {{ lastLogText }}
+      <span v-if="lastLogNote" class="contact-log__last-note" :title="lastLogNote">{{ lastLogNote }}</span>
+    </p>
     <el-alert v-if="staleNotice" type="info" :closable="false" show-icon title="你的紀錄還沒送出：這筆剛被其他人修改，已重新載入。確認內容後再按一次「記下來」。" class="contact-log__stale" />
     <el-form label-position="top" :disabled="pending" @submit.prevent>
       <div class="contact-log__row">
@@ -201,16 +250,73 @@ async function submit() {
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button :disabled="pending" @click="open = false">取消</el-button>
-      <el-button type="primary" :loading="pending" :disabled="!canSubmit" @click="submit">記下來</el-button>
+      <div class="contact-log__footer">
+        <p class="contact-log__missing" aria-live="polite">{{ missing.length ? `還不能記下：還沒${missing.join('、')}` : '' }}</p>
+        <div class="contact-log__buttons">
+          <el-button :disabled="pending" @click="open = false">取消</el-button>
+          <el-button type="primary" :loading="pending" :disabled="!canSubmit" @click="submit">記下來</el-button>
+        </div>
+      </div>
     </template>
   </el-dialog>
 </template>
 
 <style scoped>
-.contact-log__child {
+.contact-log__who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
   margin: 0 0 12px;
+}
+
+.contact-log__child {
   font-weight: 600;
+}
+
+.contact-log__phone {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.contact-log__last {
+  margin: -4px 0 12px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.contact-log__last-note {
+  display: -webkit-box;
+  margin-top: 2px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.contact-log__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+}
+
+.contact-log__missing {
+  flex: 1 1 200px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  text-align: left;
+}
+
+.contact-log__buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .contact-log__stale {
@@ -238,6 +344,10 @@ async function submit() {
 @media (max-width: 720px) {
   .contact-log__when {
     width: 100%;
+  }
+
+  .contact-log__phone {
+    min-height: 44px;
   }
 }
 </style>

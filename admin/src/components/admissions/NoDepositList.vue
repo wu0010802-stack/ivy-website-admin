@@ -19,6 +19,8 @@ const props = defineProps<{
   semester: number | null
   /** 警示或行動入口指到「未預繳原因」時的 target_filter（priority、overdue_days），同園務 applyNoDepositFilter。 */
   preset?: Preset | null
+  /** 這個範圍的未預繳總筆數（統計的 no_deposit_total），用來對照篩選後的筆數。 */
+  overallTotal?: number
 }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
 
@@ -213,23 +215,9 @@ function openRecords(row: NoDepositRecord) {
         >
           <el-option v-for="item in GRADES" :key="item" :label="item" :value="item" />
         </el-select>
-        <el-switch
-          :model-value="overdueDays !== null"
-          inline-prompt
-          active-text="逾 14 天"
-          inactive-text="不限"
-          aria-label="只看逾 14 天待追"
-          @update:model-value="setOverdue"
-        />
-        <el-switch
-          :model-value="coldOnly"
-          inline-prompt
-          active-text="冷名單"
-          inactive-text="不限"
-          aria-label="只看冷名單"
-          @update:model-value="setColdOnly"
-        />
-        <span class="nd-count">顯示 {{ records.length }} / {{ total }} 筆未預繳</span>
+        <el-checkbox :model-value="overdueDays !== null" @update:model-value="setOverdue">只看逾 14 天待追</el-checkbox>
+        <el-checkbox :model-value="coldOnly" @update:model-value="setColdOnly">只看冷名單</el-checkbox>
+        <span class="nd-count">符合條件 {{ total }} 筆<template v-if="overallTotal !== undefined">，未預繳共 {{ overallTotal }} 筆</template></span>
       </div>
     </div>
     <p class="hint nd-caption">「查看」會切到訪視明細，並篩這筆的月份。</p>

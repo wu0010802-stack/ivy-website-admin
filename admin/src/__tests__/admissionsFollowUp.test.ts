@@ -95,7 +95,11 @@ describe('待追蹤分頁（7.1）', () => {
     expect(wrapper.emitted('count')).toEqual([[1]])
     const query = queryOf(pathsTo(get, '/admin/admissions/follow-ups')[0]!)
     expect(Object.fromEntries(query)).toEqual({ campus_key: 'yihua', scope: 'due', page: '1', page_size: '50' })
-    expect(wrapper.text()).toContain('待追蹤不分入學學期')
+    expect(wrapper.text()).not.toContain('待追蹤不分入學學期')
+    // 記錄聯絡是淺色鈕（列表一律 plain），操作欄單行不折。
+    const record = wrapper.findAll('.follow-ups-table button').find((b) => b.text() === '記錄聯絡')!
+    expect(record.classes()).toContain('is-plain')
+    expect(wrapper.find('.follow-ups-table').text()).toContain('下次聯絡')
   })
 
   it('換範圍與負責人重讀；未排定另有說明、空狀態說明原因', async () => {
@@ -107,6 +111,8 @@ describe('待追蹤分頁（7.1）', () => {
     const last = queryOf(pathsTo(get, '/admin/admissions/follow-ups').at(-1)!)
     expect([last.get('scope'), last.get('owner')]).toEqual(['unscheduled', 'me'])
     expect(wrapper.text()).toContain('不是每位都要聯絡，這裡不算待辦')
+    // 未排定：每列的下次聯絡都一樣，整欄不列。
+    expect(wrapper.find('.follow-ups-table .el-table__header').text()).not.toContain('下次聯絡')
   })
 
   it('沒有寫入權限只能看，不出現記錄聯絡', async () => {
@@ -128,9 +134,9 @@ describe('待追蹤分頁（7.1）', () => {
   })
 })
 
-const target = { id: 'v-1', version: 3, child_name: '王小安', stage: 'visited' }
+const target: Record<string, unknown> & { id: string; version: number; child_name: string; stage: string } = { id: 'v-1', version: 3, child_name: '王小安', stage: 'visited' }
 
-async function openDialog(changes: Partial<typeof target> = {}) {
+async function openDialog(changes: Record<string, unknown> = {}) {
   const mounted = await mountWith(ContactLogDialog, { props: { modelValue: false, target: { ...target, ...changes } } })
   await mounted.wrapper.setProps({ modelValue: true })
   await flushPromises()
@@ -186,6 +192,49 @@ describe('記錄聯絡對話框（7.2）', () => {
     expect(wrapper.emitted('stale')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     expect(document.body.textContent).toContain('你的紀錄還沒送出')
+  })
+
+  it('抬頭寫幼生、年級、家長與電話連結；沒傳的項目不顯示', async () => {
+    await openDialog({ grade: '小班', contact_name: '王媽媽', phone: '0912345678' })
+    const who = document.body.querySelector('.contact-log__who')!.textContent
+    expect(who).toContain('幼生：王小安（小班）')
+    expect(who).toContain('家長：王媽媽')
+    expect(document.body.querySelector('a[href="tel:0912345678"]')).not.toBeNull()
+    await cleanup()
+    await openDialog()
+    expect(document.body.querySelector('.contact-log__who')!.textContent).not.toContain('家長：')
+    expect(document.body.querySelector('a[href^="tel:"]')).toBeNull()
+  })
+
+  it('抬頭下一行寫上次聯絡與內容；讀不到或沒有紀錄就不顯示', async () => {
+    mockGet({
+      '/admin/admissions/records/v-1/contact-logs': [
+        { id: 'l0', contacted_at: '2026-09-20T02:00:00Z', channel: 'line', reached: false, note: '舊的', next_follow_up_at: null },
+        { id: 'l1', contacted_at: '2026-09-23T02:00:00Z', channel: 'phone', reached: true, note: '想先看學費', next_follow_up_at: null },
+      ],
+    })
+    await openDialog()
+    const last = document.body.querySelector('.contact-log__last')!
+    expect(last.textContent).toContain('上次：09/23 電話・聯絡到了')
+    expect(last.querySelector('.contact-log__last-note')!.getAttribute('title')).toBe('想先看學費')
+    await cleanup()
+    mockGet({ '/admin/admissions/records/v-1/contact-logs': [] })
+    await openDialog()
+    expect(document.body.querySelector('.contact-log__last')).toBeNull()
+    await cleanup()
+    mockGet({ '/admin/admissions/records/v-1/contact-logs': () => { throw new Error('offline') } })
+    await openDialog()
+    expect(document.body.querySelector('.contact-log__last')).toBeNull()
+  })
+
+  it('記下來停用時，footer 寫還缺什麼', async () => {
+    await openDialog()
+    const missing = () => document.body.querySelector('.contact-log__missing')!.textContent
+    expect(missing()).toBe('還不能記下：還沒選結果、選下次聯絡')
+    await clickRadio('聯絡到了')
+    expect(missing()).toBe('還不能記下：還沒填內容、選下次聯絡')
+    await clickRadio('不用再追')
+    expect(missing()).toBe('還不能記下：還沒填內容')
   })
 
   it('已註冊、已退出只能選不用再追', async () => {
@@ -268,11 +317,11 @@ describe('官網預約批次標記已到場（7.5）', () => {
       [`/admin/visit-requests/${VR_ID_2}/complete`]: () => { throw new ApiError(409, { code: 'INVALID_TRANSITION' }) },
     })
     const { wrapper } = await mountWith(ArrivalsTab, { props: { campusKey: 'yihua' } })
-    expect(button(wrapper, '勾選的 0 筆標記已到場')?.attributes('disabled')).toBeDefined()
+    expect(button(wrapper, '勾選後一次標記已到場')?.attributes('disabled')).toBeDefined()
     await selectAll(wrapper)
-    await button(wrapper, '勾選的 2 筆標記已到場')!.trigger('click')
+    await button(wrapper, '2 位標記已到場')!.trigger('click')
     await flushPromises()
-    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('會同時建立 2 筆招生訪視'), '標記 2 筆已到場？', expect.anything())
+    expect(ElMessageBox.confirm).toHaveBeenCalledWith(expect.stringContaining('會同時建立 2 筆招生訪視'), '2 位標記已到場？', expect.anything())
     expect(pathsTo(post, '/admin/visit-requests/')).toEqual([
       `/admin/visit-requests/${VR_ID}/complete`, `/admin/visit-requests/${VR_ID_2}/complete`,
     ])

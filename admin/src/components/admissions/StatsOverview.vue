@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { rocMonth, taipeiToday } from '../../admissions/academic'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import type { AdmissionsStats } from '../../api/types'
 import {
@@ -25,6 +26,8 @@ const cards = computed<{ key: string; title: string; snapshot: Snapshot }[]>(() 
   { key: 'ytd', title: '年度累計', snapshot: props.stats.decision_summary.ytd },
 ])
 
+// 參考月份就是目前這個月：本月還在進行中，數字之後還會增加。
+const monthInProgress = computed(() => props.stats.reference_month === rocMonth(taipeiToday()))
 const mom = computed(() => props.stats.month_over_month)
 const funnel = computed(() => props.stats.funnel_snapshot)
 // 漏斗快照的比率與「本月」卡同源，讀後端已算好的值，避免前端五入與後端差 0.1。
@@ -88,9 +91,13 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
         </div>
         <span class="decision__badge" :class="`decision__badge--${badgeTrend}`">{{ badgeTrend === 'none' ? '' : `${TREND_MARK[badgeTrend]} ` }}月比預繳率 {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</span>
       </div>
+      <slot name="reference-month" />
       <div class="decision__cards">
         <article v-for="card in cards" :key="card.key" class="decision__card">
-          <h4>{{ card.title }}</h4>
+          <h4>
+            {{ card.title }}
+            <el-tag v-if="card.key === 'current_month' && monthInProgress" size="small" type="info" effect="plain" disable-transitions>進行中</el-tag>
+          </h4>
           <p class="decision__visit"><strong class="num">{{ card.snapshot.visit }}</strong> 人次</p>
           <dl class="decision__rates">
             <div>
@@ -105,6 +112,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           <p class="decision__foot">預繳 {{ card.snapshot.deposit }} · 註冊 {{ card.snapshot.enrolled }}</p>
         </article>
       </div>
+      <p class="hint decision__basis">本月依參觀月份；近 30／90 天依建檔時間；年度累計是參考月份所在民國年，從 1 月累計到該月。</p>
     </section>
 
     <div class="overview__pair">
@@ -256,7 +264,6 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .decision__badge--up {
@@ -267,6 +274,10 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 .decision__badge--down {
   background: var(--el-color-danger-light-9);
   color: var(--el-color-danger);
+}
+
+.decision__basis {
+  margin: 12px 0 0;
 }
 
 .decision__cards {
@@ -284,6 +295,10 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 }
 
 .decision__card h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: 600;

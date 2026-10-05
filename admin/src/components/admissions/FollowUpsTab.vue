@@ -109,7 +109,15 @@ const eventsOpen = ref(false)
 const eventsRow = ref<FollowUpRow | null>(null)
 
 function openContact(row: FollowUpRow) {
-  contactTarget.value = { id: row.visit_id, version: row.version, child_name: row.child_name, stage: row.stage }
+  contactTarget.value = {
+    id: row.visit_id,
+    version: row.version,
+    child_name: row.child_name,
+    stage: row.stage,
+    grade: row.grade,
+    contact_name: row.contact_name,
+    phone: row.phone,
+  }
   contactOpen.value = true
 }
 
@@ -170,7 +178,7 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
         </el-select>
       </div>
     </div>
-    <p class="hint follow-ups__lead">待追蹤不分入學學期。<template v-if="scope === 'unscheduled'">{{ UNSCHEDULED_HINT }}</template></p>
+    <p v-if="scope === 'unscheduled'" class="hint follow-ups__lead">{{ UNSCHEDULED_HINT }}</p>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="follow-ups__notice">
       <el-button size="small" @click="load()">重新載入</el-button>
@@ -196,7 +204,7 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
             <p class="follow-card__meta">負責人：{{ ownerText(row) }}</p>
             <div class="follow-card__actions">
               <el-button v-if="row.phone" tag="a" :href="`tel:${row.phone}`" :icon="Phone" plain>{{ row.phone }}</el-button>
-              <el-button v-if="canWrite" type="primary" @click="openContact(row)">記錄聯絡</el-button>
+              <el-button v-if="canWrite" type="primary" plain @click="openContact(row)">記錄聯絡</el-button>
               <el-button v-if="canWrite && isOpenStage(row.stage)" @click="openFollowUp(row)">{{ scheduleLabel(row) }}</el-button>
               <el-button text @click="openEvents(row)">歷程</el-button>
             </div>
@@ -205,40 +213,40 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
       </template>
 
       <el-table v-else v-loading="loading" :data="rows" class="follow-ups-table" :empty-text="loading ? '' : FOLLOW_UP_EMPTY_TEXT[scope]">
-        <el-table-column label="下次聯絡" width="132">
+        <el-table-column v-if="scope !== 'unscheduled'" label="下次聯絡" width="104">
           <template #default="{ row }: { row: FollowUpRow }">
             <span class="num follow-ups__when" :class="{ 'is-due': followUpDue(row) }">{{ followUpLabel(row) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="幼生" min-width="140">
+        <el-table-column label="幼生" min-width="100">
           <template #default="{ row }: { row: FollowUpRow }">
             <span class="follow-ups__name">{{ nameOf(row) }}</span>
             <el-tag v-if="row.child_name === MISSING_CHILD_NAME" size="small" type="warning" effect="light" round>待補</el-tag>
             <span class="hint follow-ups__grade">{{ row.grade || '' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="階段" width="96">
+        <el-table-column label="階段" width="68">
           <template #default="{ row }: { row: FollowUpRow }">{{ stageLabel(row.stage) }}</template>
         </el-table-column>
         <el-table-column label="參觀日期" width="100">
-          <template #default="{ row }: { row: FollowUpRow }"><span class="num">{{ rocDate(row.visit_date) }}</span></template>
+          <template #default="{ row }: { row: FollowUpRow }"><span class="num follow-ups__nowrap">{{ rocDate(row.visit_date) }}</span></template>
         </el-table-column>
-        <el-table-column label="聯絡人與電話" min-width="160">
+        <el-table-column label="聯絡人與電話" min-width="130">
           <template #default="{ row }: { row: FollowUpRow }">
             <span>{{ row.contact_name || '—' }}</span>
             <a v-if="row.phone" :href="`tel:${row.phone}`" class="num follow-ups__phone">{{ row.phone }}</a>
           </template>
         </el-table-column>
-        <el-table-column label="最近聯絡" min-width="160">
+        <el-table-column label="最近聯絡" min-width="120">
           <template #default="{ row }: { row: FollowUpRow }">{{ lastText(row) }}</template>
         </el-table-column>
-        <el-table-column label="負責人" min-width="120" show-overflow-tooltip>
+        <el-table-column label="負責人" min-width="80" show-overflow-tooltip>
           <template #default="{ row }: { row: FollowUpRow }">{{ ownerText(row) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="230" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }: { row: FollowUpRow }">
             <div class="cell-actions follow-ups__actions">
-              <el-button v-if="canWrite" size="small" type="primary" @click="openContact(row)">記錄聯絡</el-button>
+              <el-button v-if="canWrite" size="small" type="primary" plain @click="openContact(row)">記錄聯絡</el-button>
               <el-button v-if="canWrite && isOpenStage(row.stage)" size="small" text type="primary" @click="openFollowUp(row)">{{ scheduleLabel(row) }}</el-button>
               <el-button size="small" text @click="openEvents(row)">歷程</el-button>
             </div>
@@ -291,19 +299,29 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
   overflow-wrap: anywhere;
 }
 
+.follow-ups__when {
+  white-space: nowrap;
+}
+
+.follow-ups__nowrap {
+  white-space: nowrap;
+}
+
 .follow-ups__grade {
-  margin-left: 4px;
+  display: block;
 }
 
 .follow-ups__phone {
   display: block;
+  white-space: nowrap;
   margin-top: 2px;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .follow-ups__actions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .follow-ups__actions .el-button + .el-button {

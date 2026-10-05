@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowDown } from '@element-plus/icons-vue'
 import type { FunnelCard as BoardCard } from '../../api/types'
 import { rocDate, termLabel } from '../../admissions/academic'
@@ -9,7 +9,8 @@ import { isDue } from '../../admissions/followUp'
 // 看板卡片（園務 FunnelCard.vue:14-37）：姓名＋退出類型、年級、入學學期、官網預約標記。
 // 官網沒有學號、預繳金對帳，那兩種徽章不做。滑鼠點整張卡開歷程；鍵盤走卡片裡真正的
 // <button>（姓名），外層不設 role=button，否則裡面的「移到…」會被報讀器當成裝飾。
-// 「移到…」是拖曳的鍵盤替代（規格第 10 節），只列允許且有權限的目的欄。
+// 「移到…」是拖曳的鍵盤替代（規格第 10 節），只列允許且有權限的目的欄。滑鼠裝置平常收起、
+// 指到卡片或鍵盤移進卡片才出現（Tab 仍走得到）；觸控裝置沒有 hover，一直顯示。
 const props = defineProps<{ card: BoardCard; stage: Stage; draggable: boolean; targets: readonly Stage[] }>()
 const emit = defineEmits<{ open: []; move: [to: Stage]; dragstart: []; dragend: [] }>()
 
@@ -24,11 +25,15 @@ const followUp = computed(() => {
   return { text: `下次聯絡 ${day.replace('-', '/')}`, due: false }
 })
 
+const menuOpen = ref(false)
+const dragging = ref(false)
+
 function onDragStart(event: DragEvent) {
   if (!props.draggable) {
     event.preventDefault()
     return
   }
+  dragging.value = true
   // Firefox 沒有 setData 不會開始拖曳；看板自己記住拖的是哪張卡，不從 dataTransfer 讀。
   event.dataTransfer?.setData('text/plain', props.card.id)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
@@ -39,12 +44,12 @@ function onDragStart(event: DragEvent) {
 <template>
   <article
     class="funnel-card"
-    :class="{ 'is-locked': !draggable }"
+    :class="{ 'is-locked': !draggable, 'is-menu-open': menuOpen, 'is-dragging': dragging }"
     :data-id="card.id"
     :draggable="draggable ? 'true' : 'false'"
     @click="emit('open')"
     @dragstart="onDragStart"
-    @dragend="emit('dragend')"
+    @dragend="dragging = false; emit('dragend')"
   >
     <div class="funnel-card__head">
       <button type="button" class="funnel-card__open" :aria-label="`${card.child_name}（${STAGE_LABELS[stage]}），開啟歷程`">
@@ -58,6 +63,7 @@ function onDragStart(event: DragEvent) {
         :persistent="false"
         :popper-class="`funnel-move-menu funnel-move-menu--${card.id}`"
         @command="(to: Stage) => emit('move', to)"
+        @visible-change="(visible: boolean) => (menuOpen = visible)"
       >
         <el-button size="small" text class="funnel-card__move" :data-move="card.id" :aria-label="`把 ${card.child_name} 移到其他階段`" @click.stop>
           移到…<el-icon class="el-icon--right"><ArrowDown /></el-icon>
@@ -72,7 +78,8 @@ function onDragStart(event: DragEvent) {
     <div class="funnel-card__tags">
       <el-tag v-if="card.withdrawn_from" type="danger" size="small" effect="light">{{ WITHDRAWN_FROM_LABELS[card.withdrawn_from] ?? card.withdrawn_from }}</el-tag>
       <el-tag v-if="card.grade" type="info" size="small" effect="light">{{ card.grade }}</el-tag>
-      <el-tag v-if="term" type="warning" size="small" effect="light">{{ term }}</el-tag>
+      <!-- 入學學期用中性色：每張卡都有，用黃色會和「已預繳」欄色撞。 -->
+      <el-tag v-if="term" type="info" size="small" effect="light">{{ term }}</el-tag>
       <el-tag v-if="card.has_visit_request" type="primary" size="small" effect="plain">官網預約</el-tag>
     </div>
     <p class="funnel-card__meta">
@@ -93,11 +100,20 @@ function onDragStart(event: DragEvent) {
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-  cursor: grab;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-out), box-shadow 0.15s var(--ease-out);
 }
 
-.funnel-card.is-locked {
-  cursor: pointer;
+/* 點得到的樣子：外框加深＋淡陰影，只換顏色與陰影，不動尺寸。 */
+.funnel-card:hover,
+.funnel-card.is-menu-open {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.funnel-card:not(.is-locked):active,
+.funnel-card.is-dragging {
+  cursor: grabbing;
 }
 
 /* 看起來還是卡片裡的姓名；去掉預設按鈕外觀，focus 有可見外框。 */
@@ -122,6 +138,19 @@ function onDragStart(event: DragEvent) {
   border-radius: var(--radius);
 }
 
+/* 支援 :has 的瀏覽器把焦點框畫在整張卡上，鍵盤使用者看得出現在在哪一張。 */
+@supports selector(:has(*)) {
+  .funnel-card:has(.funnel-card__open:focus-visible) {
+    border-color: var(--line-strong);
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+  }
+
+  .funnel-card__open:focus-visible {
+    outline: none;
+  }
+}
+
 .funnel-card__head {
   display: flex;
   align-items: center;
@@ -137,6 +166,29 @@ function onDragStart(event: DragEvent) {
 
 .funnel-card__move {
   flex: none;
+}
+
+/* 滑鼠裝置：「移到…」平常收起（保留位置、Tab 仍聚焦得到），指到卡片、焦點在卡片裡或選單開著才出現。 */
+@media (hover: hover) and (pointer: fine) {
+  .funnel-card__move {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s var(--ease-out);
+  }
+
+  .funnel-card:hover .funnel-card__move,
+  .funnel-card:focus-within .funnel-card__move,
+  .funnel-card.is-menu-open .funnel-card__move {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .funnel-card,
+  .funnel-card__move {
+    transition: none;
+  }
 }
 
 .funnel-card__tags {

@@ -1,22 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { getRecord, listAdmissionsStaff, listContactLogs, listEvents } from '../../api/admissions'
 import { api } from '../../api/client'
 import type { AdmissionsStaff, ContactLog, RecruitmentEvent, RecruitmentVisit, VisitContactNoteOut } from '../../api/types'
 import { formatDateTime } from '../../api/labels'
 import { termLabel } from '../../admissions/academic'
-import { eventLabel, stageLabel } from '../../admissions/constants'
+import { STAGE_LABELS, eventLabel, isStage, moveTargets, stageLabel, type Stage, type TransitionTarget } from '../../admissions/constants'
 import { channelLabel, followUpText, isDue, isOpenStage, ownerLabel } from '../../admissions/followUp'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import ContactLogDialog, { type ContactTarget } from './ContactLogDialog.vue'
 import FollowUpDialog, { type FollowUpTarget } from './FollowUpDialog.vue'
+import TransitionDialog from './TransitionDialog.vue'
 
 // 參觀→入學歷程（園務 JourneyTimeline／RecruitmentTimelineList）。明細的「歷程」、看板點卡片、
 // 待追蹤分頁共用。園務的坑不照抄：座位事件的起訖階段相同（已預繳 → 已預繳），改寫年級與學期；
 // 建立訪視沒有起始階段，不寫「— → 已訪視」。
 // 參觀後追蹤（2026-10-04 規格 7.3）：時間線另合併參觀後的聯絡紀錄，以及參觀前在預約記的
 // 聯絡紀錄（有 booking.read 才讀，唯讀、標「參觀前」）；頂部可記錄聯絡、排下次聯絡。
+// 摘要列出聯絡人與電話（打電話不用再回明細找），也可以直接「移到…」換階段，同看板的確認框。
 const props = defineProps<{ visitId: string | null; childName?: string }>()
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ changed: [visit: RecruitmentVisit] }>()
@@ -128,6 +131,8 @@ const bookingNoteAuthor = (note: VisitContactNoteOut) => note.created_by_display
 // ---- 摘要與動作 ----
 const editable = computed(() => Boolean(record.value && !record.value.anonymized_at && canWrite.value))
 const ownerText = computed(() => ownerLabel(record.value?.follow_up_owner_id, staff.value))
+// 已匿名化的電話不是真的號碼，不給撥號。
+const phone = computed(() => (record.value && !record.value.anonymized_at ? record.value.phone : null))
 const contactOpen = ref(false)
 const contactTarget = ref<ContactTarget | null>(null)
 const followUpOpen = ref(false)
@@ -136,7 +141,15 @@ const followUpTarget = ref<FollowUpTarget | null>(null)
 function openContact() {
   const visit = record.value
   if (!visit) return
-  contactTarget.value = { id: visit.id, version: visit.version, child_name: visit.child_name, stage: visit.stage }
+  contactTarget.value = {
+    id: visit.id,
+    version: visit.version,
+    child_name: visit.child_name,
+    stage: visit.stage,
+    grade: visit.grade,
+    contact_name: visit.contact_name,
+    phone: visit.phone,
+  }
   contactOpen.value = true
 }
 
@@ -152,6 +165,27 @@ function openFollowUp() {
     follow_up_owner_id: visit.follow_up_owner_id ?? null,
   }
   followUpOpen.value = true
+}
+
+// 換階段：選項同看板卡片的「移到…」（允許而且有權限的目的欄），已匿名化不給。
+const transitionOpen = ref(false)
+const transitionTarget = ref<TransitionTarget | null>(null)
+const moveOptions = computed<Stage[]>(() => {
+  const visit = record.value
+  return visit && !visit.anonymized_at && isStage(visit.stage) ? moveTargets(visit.stage, can) : []
+})
+
+function openTransition(to: Stage) {
+  const visit = record.value
+  if (!visit || !isStage(visit.stage)) return
+  transitionTarget.value = { card: visit, from: visit.stage, to }
+  transitionOpen.value = true
+}
+
+// 別人剛改過或刪掉（確認框已提示並關閉）：重讀抽屜，也讓父層重讀。
+async function onTransitionStale() {
+  await load()
+  if (record.value) emit('changed', record.value)
 }
 
 async function onSaved(visit: RecruitmentVisit) {
@@ -178,18 +212,40 @@ async function onStale() {
     <el-skeleton v-else-if="loading && !record" :rows="4" animated />
     <template v-else>
       <dl v-if="record" class="events__summary">
+        <div v-if="record.contact_name"><dt>聯絡人</dt><dd>{{ record.contact_name }}</dd></div>
+        <div v-if="phone">
+          <dt>電話</dt>
+          <dd><a :href="`tel:${phone}`" class="num events__tel" :aria-label="`撥打 ${phone}`">{{ phone }}</a></dd>
+        </div>
         <div><dt>階段</dt><dd>{{ stageLabel(record.stage) }}</dd></div>
         <div>
           <dt>下次聯絡</dt>
           <dd class="num" :class="{ 'is-due': isDue(record.follow_up_at) }">{{ followUpText(record.follow_up_at) }}</dd>
         </div>
-        <div><dt>負責人</dt><dd>{{ ownerText }}</dd></div>
+        <div class="events__owner"><dt>負責人</dt><dd :title="ownerText">{{ ownerText }}</dd></div>
       </dl>
-      <div v-if="editable" class="events__actions">
-        <el-button type="primary" size="small" @click="openContact">記錄聯絡</el-button>
-        <el-button v-if="record && isOpenStage(record.stage)" size="small" @click="openFollowUp">
+      <div v-if="record && (editable || moveOptions.length)" class="events__actions">
+        <el-button v-if="editable" type="primary" size="small" @click="openContact">記錄聯絡</el-button>
+        <el-button v-if="editable && isOpenStage(record.stage)" size="small" @click="openFollowUp">
           {{ record.follow_up_at ? '改期／負責人' : '排下次聯絡' }}
         </el-button>
+        <el-dropdown
+          v-if="moveOptions.length"
+          trigger="click"
+          placement="bottom-start"
+          :persistent="false"
+          popper-class="events-move-menu"
+          @command="openTransition"
+        >
+          <el-button size="small" class="events__move" aria-label="移到其他階段">
+            移到…<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item v-for="to in moveOptions" :key="to" :command="to">{{ STAGE_LABELS[to] }}</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <p v-if="bookingNotesError" class="hint events__notice">參觀前的紀錄讀不到。</p>
       <p v-if="timeline.length === 0" class="hint">尚無歷程事件</p>
@@ -235,6 +291,7 @@ async function onStale() {
       @saved="onSaved"
       @stale="load"
     />
+    <TransitionDialog v-model="transitionOpen" :target="transitionTarget" @done="onSaved" @stale="onTransitionStale" />
   </el-drawer>
 </template>
 
@@ -245,8 +302,8 @@ async function onStale() {
 
 .events__summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
   margin: 0 0 12px;
 }
 
@@ -258,6 +315,22 @@ async function onStale() {
 .events__summary dd {
   margin: 2px 0 0;
   overflow-wrap: anywhere;
+}
+
+/* 負責人常是 email：自己一整列、不從中間斷開，真的放不下才截斷（滑鼠指上去看全文）。 */
+.events__owner {
+  grid-column: 1 / -1;
+}
+
+.events__owner dd {
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.events__tel {
+  color: var(--el-color-primary);
 }
 
 .events__summary dd.is-due {
@@ -274,6 +347,19 @@ async function onStale() {
 
 .events__actions .el-button + .el-button {
   margin-left: 0;
+}
+
+@media (pointer: coarse) {
+  .events__actions .el-button {
+    min-height: 44px;
+  }
+
+  /* 撥號點擊範圍上下各多 12px 到 44px 左右，負邊距抵掉，號碼仍和旁邊的聯絡人對齊。 */
+  .events__tel {
+    display: inline-block;
+    padding-block: 12px;
+    margin-block: -12px;
+  }
 }
 
 .events__notice {

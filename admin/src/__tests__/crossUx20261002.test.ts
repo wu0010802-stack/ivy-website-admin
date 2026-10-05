@@ -33,13 +33,10 @@ describe('錯誤與警告提示留 8 秒、可以自己關', () => {
     expect(error).not.toHaveBeenCalled()
   })
 
-  // 招生入學的檔案另一組正在改，先列為例外；他們改完再從清單拿掉。
-  const ADMISSIONS_EXCEPTIONS = [/^components\/admissions\//, /^views\/Admission(s|Content)View\.vue$/]
-
   it('除了 notify.ts，沒有直接呼叫 ElMessage.error／warning（預設 3 秒、沒有關閉鈕）', () => {
     const offenders = sourceFiles().flatMap((file) => {
       const rel = relative(SRC, file).split('\\').join('/')
-      if (rel === 'composables/notify.ts' || ADMISSIONS_EXCEPTIONS.some(re => re.test(rel))) return []
+      if (rel === 'composables/notify.ts') return []
       const text = readFileSync(file, 'utf8')
       const hits = text.match(/ElMessage\.(error|warning)\s*\(|ElMessage\(\s*\{\s*type:\s*'(error|warning)'/g) ?? []
       return hits.map(hit => `${rel}: ${hit}`)
