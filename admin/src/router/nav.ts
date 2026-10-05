@@ -67,10 +67,11 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
-  // （app/content/routes.py 的 _require_shared_or_scope），所以這九項
+  // （app/content/routes.py 的 _require_shared_or_scope），所以這些項目
   // 一律標 roles: ['super_admin']——否則分校管理者看得到、改得動，
-  // 但按儲存永遠是 403。分校自有內容（五校介紹／常見問題／校園探索）
-  // 不限制。
+  // 但按儲存永遠是 403。校園探索雖然各校各一份，2026-10-05 起也由總部管理
+  // （後端 registry 的 hq_managed），同樣標 shared。分校自有內容（五校介紹／
+  // 各校消息）不限制。
   // 官網內容原本是一個 11 項的大組，「首頁五校區塊／五校介紹／校園探索」
   // 三個名字都帶校區，攤在一起很難認。拆成三個各 3～4 項的子組，共用
   // 「官網內容」區段標題。
@@ -94,7 +95,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
       { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
-      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: CONTENT, keywords: ['環境照片', '環境頁', '導覽'] },
     ],
   },
   {
@@ -105,6 +105,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
       { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', roles: ['super_admin'], shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
       { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', roles: ['super_admin'], shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
+      // 常春藤環境頁「五所校園」：五校各一份，由總部統一管理。
+      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: ['super_admin'], shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
       { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
       { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', roles: ['super_admin'], shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },

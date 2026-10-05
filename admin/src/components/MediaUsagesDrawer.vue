@@ -6,6 +6,7 @@ import {
   contentEditorPath,
   contentItemLabel,
   formatDateTime,
+  HQ_MANAGED_KINDS,
   mediaFieldPathLabel,
   mediaReferenceState,
 } from '../api/labels'
@@ -47,6 +48,8 @@ interface ItemGroup {
 function groupLink(kind: string, campusKey: string | null, canEdit: boolean): ItemGroup['link'] {
   const to = contentEditorPath(kind, campusKey)
   if (canEdit) return { to, label: '前往編輯' }
+  // 校園探索各校各一份，但只有總部改得了（2026-10-05）。
+  if (HQ_MANAGED_KINDS.has(kind)) return { to: null, label: '由總部管理' }
   const inScope = campusKey === null || visibleCampusKeys.value.includes(campusKey)
   if (inScope && canOpenPath(to, authStore.user)) return { to, label: '前往查看' }
   return { to: null, label: inScope ? '沒有編輯權限' : '由其他校區管理' }

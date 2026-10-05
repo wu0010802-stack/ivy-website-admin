@@ -369,7 +369,8 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
     expect(links).toContain('/booking')
     expect(text).toContain('設定參觀場次')
     expect(links).toContain('/content/campus-faq?campus=yihua')
-    expect(links).toContain('/content/campus-tour?campus=yihua')
+    // 校園探索由總部管理（2026-10-05）：本校的也不給連結。
+    expect(links).not.toContain('/content/campus-tour?campus=yihua')
     expect(links).toContain('/content/campus-profile?campus=yihua')
     expect(links).not.toContain('/content/home-about')
     expect(links).not.toContain('/content/home-hero')
@@ -388,6 +389,7 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
     const links = hrefs(wrapper)
     expect(links).toContain('/content/home-about')
     expect(links).toContain('/content/home-hero')
+    expect(links).toContain('/content/campus-tour?campus=yihua')
     expect(wrapper.text()).toContain('排程發布沒有執行')
     const draftTask = wrapper.findAll('.task').find(task => task.text().includes('草稿尚未公開'))!
     expect(draftTask.find('.task__number').text()).toBe('2')
