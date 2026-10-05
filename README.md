@@ -1,3 +1,34 @@
+## 2026-10-05 效能第四輪：官網字型與圖片、後台按需引入、後端熱路徑、CI 平行（`feature/perf-20261005`）
+
+使用者問「專案在效能上有哪裡可以優化」，看完盤點後說「都幫我處理」。規則見 DESIGN.md「效能第四輪」；量測腳本與數字在 `output/playwright/perf-audit-20261005/`（擋非 GET，不寫正式站統計）。
+
+- **官網字型**：LINE Seed 分片改依各頁用字分組（`scripts/page-font-chars.cjs` 從正式站收集 → `scripts/subset-critical-fonts.py` 的 `cluster()`）。每頁 LINE Seed 下載量（同一份用字）：首頁 184→50 KB、/about 387→48、/curriculum 417→59、/admission 336→60、/anniversary 525→72、/news 254→39、/visit 171→36。
+- **官網圖片**：響應式圖片預設補 1600w（30 張，`--only` 更新）；預約頁校區卡在 DPR ≥ 2.5 手機挑 800w；30 週年時間軸貼圖改成線頭快走到才逐張載（桌機前 6 秒圖片 2680→1528 KB）；刪 9 支沒被引用的舊雜湊影片（約 28 MB），影片產生器之後自己清。
+- **後台**：Element Plus 元件 JS 改按需引入（`unplugin-vue-components`，只解析 Element Plus、不產生 d.ts，型別狀態與原本相同）。入口 JS 849→159 KB（brotli 218→約 49 KB）。**樣式維持整包、在 `style.css` 之前載入**：先試過連樣式一起按需（CSS brotli 42→8.6 KB），元件 CSS 跟著各頁 chunk 晚到、同權重蓋掉 `style.css` 的覆寫，stack 視覺基準三頁差 2–4%（表格列高、輸入框邊框），改回後 CSS 檔與正式站同一個雜湊。
+- **後端**：`/public/site` 程序內快取（讀取時用 release／停用分校／台北日期＋素材指紋判斷，命中只付兩個輕量查詢，本文與 ETag 逐位元組相同）；telemetry 與公開點擊的限流檢查合成一個交易（原本 4 個）；`GET /public/booking-config/{campus}` 改唯讀；預約 CSV 匯出改串流（REPEATABLE READ 快照，稽核筆數＝輸出筆數）；migration `4373bcc82d9d` 補預約案件、時段、稽核紀錄的索引（只建索引、不改資料）。
+- **CI**：後端 pytest 用 pytest-split 依 `backend/.test_durations` 分 3 組平行；uv 改 `astral-sh/setup-uv`（v10.2.0，以 `backend/uv.lock` 快取）。
+- **刻意沒改**：根層 `/assets/*` 維持一天快取（9 月有 5 批同檔名換圖）；站內換頁不會重抓 `/api/published-site`（線上實測，盤點時誤判）。
+- **本機 A/B**（origin/main 與本分支各一份 production build，都讀正式站已發布內容；手機 1.6 Mbps／150 ms／CPU 4×、DPR3）：
+
+  | 頁面 | LCP（前→後） | 總傳輸（前→後） |
+  |---|---|---|
+  | / | 1.70→1.60 s | 761→627 KB |
+  | /about | 3.58→2.64 s | 1168→796 KB |
+  | /curriculum | 2.67→2.48 s | 844→486 KB |
+  | /environment | 3.73→2.57 s | 1388→1130 KB |
+  | /admission | 2.36→2.17 s | 838→562 KB |
+  | /visit | 5.42→3.40 s | 1203→670 KB |
+  | /anniversary | 3.59→3.43 s | 1229→779 KB |
+  | /news | 0.72→0.69 s | 684→468 KB |
+
+  CLS 都是 0；本機沒有 edge 往返，LCP 絕對值比線上低，看相對差。
+- **驗證**（Node 22.23.2）：
+  - web：`nuxt typecheck` 通過；vitest 80 檔 829 項通過（`title-fonts.spec.ts` 新增每頁分片在 inline、每頁 100 KB 預算）。新舊兩版 8 頁 × 桌機／手機截圖逐像素比對，只有每次隨機的水彩暈染不同。30 週年頁桌機（WebGL）從頭捲到結尾：五張卡立起、校徽印進 0，與 origin/main 相同。
+  - admin：`vue-tsc -b` 與 `vite build` 通過；vitest 92 檔 1131 項通過。
+  - backend（獨立測試庫）：全套 1531 passed、1 skipped（本機沒有 zscale 的 HLG 測試），9 分鐘；`--store-durations` 產生 `.test_durations` 後第 2、3 組單獨跑也全過（各約 2.8 分鐘，沒有順序相依）。migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 通過；`npm run contract:check` 一致。
+  - stack e2e（`E2E_DB_NAME=ivy_website_perf1005_e2e_test`、埠 8795／3795）：74 過 1 敗，敗的是既有間歇的 `media.spec`（讀後台 API 的 `payload.photo` 時存檔還沒完成，在檢查官網之前），單獨連跑 3 次都過（含發布後官網出現新圖）。`visual.spec` 與 origin/main 對照組同條件都 6 項全過。
+  - 未驗證：Safari／iOS 實機、正式站、CI 上三組平行實際耗時（本機估各約 3 分鐘）。
+
 ## 2026-10-05 官網公開輸出再拿掉原型預約示範資料（`feature/booking-demo-fields-20261005`，10-05 已部署 main `7d132eb`）
 
 使用者看完 10-04 的回報後說「booking.fields 也幫我清掉」。盤點 `booking` 時發現同一個物件裡另外三個欄位官網也沒讀，而且是原型的示範文字，一併拿掉：
