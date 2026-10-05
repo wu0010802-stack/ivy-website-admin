@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 效能第四輪：字型依頁面分組、圖片 1600w、後台按需引入、後端熱路徑、CI 分三組（main CI 部署）
+
+- **合併**：`feature/perf-20261005` 七個提交接在 `126093f` 後，使用者快轉推 main `126093f..bcf6005`。內容與驗證見 README 頂部同日段落、DESIGN.md「效能第四輪」。
+- **migration**：`e5b9c3a7d214 → 4373bcc82d9d`，只建索引（預約案件建立時間／同校同手機、時段校＋日期、稽核紀錄時間排序）、不改資料，依 `deploy/CICD.md` 規則部署前沒有另外備份。
+- **CI**：main run 37273689299（`bcf6005`）全綠。後端第一次分三組平行（pytest-split）：三組 job 9.0／7.6／7.3 分鐘、其中 pytest 7.4／6.2／6.3 分鐘（之前單一 job 12–20 分鐘），推送到開始部署約 9 分鐘；Frontend web／admin、E2E／Playwright、Deploy 都過。
+- **正式 `release.json`**：base commit `bcf6005`，created `2026-10-05T06:50:50Z`。
+- **線上唯讀檢查**（未登入、擋非 GET）：`/api/website/v1/health` `status: ok`；`/api/website/v1/public/site` 200 帶 ETag，同 ETag 重送回 304；`/public/booking-config/yihua` 200；後台入口 `index-*.js` brotli 48.7 KB（原 218 KB），CSS 仍是 `index-BId_xDU5.css`；`/about` 的 inline 字型宣告是新分片。
+- **線上手機實測**（`output/playwright/perf-audit-20261005/lab.cjs`，1.6 Mbps／150 ms／CPU 4×、DPR3，與早上同條件）：LCP `/visit` 6.1→3.5 s、`/about` 6.5→4.8 s、`/environment` 7.2→5.3 s、`/admission` 3.8→2.6 s、`/curriculum` 3.9→2.9 s、`/` 2.7→2.3 s；各頁總傳輸少 23–42%（`/about` 1168→798 KB、`/visit` 1204→671 KB），LINE Seed 每頁 185–529 KB → 37–77 KB。單次量測，有波動。
+- **未做**：沒登入後台實際操作（按需引入只靠單元測試、stack e2e 與視覺基準）；Safari／iOS 實機。
+
 ## 2026-10-05 素材背景轉檔＋特色教學頁、關於常春藤頁開放後台編輯（main CI 部署）
 
 - **合併**：`merge/wave3-20261004` 整合 `feature/page-cms-20261004`（`1381a82`）與 `feature/media-jobs-20261003`（`799d884`），期間 main 前進三次都再合進來（README／DESIGN／deploy 文件衝突兩邊都留；`contentHints.ts`、`useDraftPreview.ts`、`content-overlay.ts`、`media-slots.spec.ts` 的程式衝突保留 main 拿掉的舊欄位、留下新的兩個內容種類與轉檔版本），使用者 push main `ba32b9b..11ccc8e`。
