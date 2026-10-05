@@ -30,7 +30,7 @@
   - 畫板：畫三筆→⌘Z／Ctrl+Z 各復原一筆→重播→存圖與分享按鈕。
   - 未驗證：真人對手機麥克風吹氣（iOS Safari／Android Chrome）、實機 Safari 的 `<use>` 與 container query、聲音實際聽感、stack e2e。
 
-## 2026-10-04 資安掃描複核：15 項中 13 項 main 已修，補 3 處（`fix/security-scan-20261004`，未部署）
+## 2026-10-04 資安掃描複核：15 項中 13 項 main 已修，補 3 處（`fix/security-scan-20261004`，10-05 隨 main `ba32b9b` 部署）
 
 使用者交來 Codex Security 掃描報告（15 項：中 7、低 8）。報告掃的是 `feature/website-admin` 的 `d11d7e79`，落後 `origin/main` 655 個 commit；逐條對 main `15001574` 複核：
 

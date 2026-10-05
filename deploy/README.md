@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 資安掃描複核補三處殘留（main CI 部署）
+
+使用者交來 Codex Security 掃描報告（15 項）。報告掃的是落後 main 655 個 commit 的 `feature/website-admin`（`d11d7e79`），逐條對 main 複核後 13 項已修，補其餘 3 處；細節見 README 2026-10-04「資安掃描複核」。`fix/security-scan-20261004` 的 `f29dddb` 兩度合併 main（只有 README 頂部衝突），由使用者推成 `135b03f`。
+
+- **內容**：資料庫錯誤堆疊遮掉 PostgreSQL DETAIL 與參數編碼錯誤裡的值（`backend/app/logging_config.py`，掛在 root 與 uvicorn handler）；已匿名化案件新增聯絡紀錄回 409 `VISIT_REQUEST_ANONYMIZED`；`design/entrance-curtain-a-velvet-20260922/render-posters.cjs` 本機伺服器改用 `path.relative` 判斷路徑。沒有 migration、API 契約不變。
+- **CI**：`135b03f` 的 run 37246594548 排隊時被下一個 push（`ba32b9b`，30 週年分頁）取代而 cancelled（main 的 concurrency 只保留最新一個 pending）；`ba32b9b` 包含本次提交，它的 run 37246768321 E2E／Playwright、Backend／PostgreSQL／contracts、Frontend web／admin、Deploy Railway production 全部 success（2026-10-05 00:27–00:44 UTC，部署 00:40–00:44）。
+- **正式 `release.json`**：base commit `ba32b9b`，created `2026-10-05T00:40:57Z`。
+- **線上唯讀檢查**（00:5x UTC，未登入）：`/api/website/v1/health` 200；未登入 POST 聯絡紀錄 401。
+- **未做**：正式站沒有登入驗證 409（要有已匿名化的案件）；沒有在正式站觸發資料庫錯誤看日誌（遮罩以本機 uvicorn `LOGGING_CONFIG` 實測）。
+
 ## 2026-10-05 後台拿掉首屏小標與校園探索熱點、官網公開輸出去舊欄位（main CI 部署）
 
 使用者確認範圍（後台＋後端規則＋官網死碼）後要求 commit 併入 main。`feature/admin-legacy-fields-20261004` 的 4 個提交 rebase 到 `1069193`（只有 README 頂部衝突），由使用者執行 `git push origin HEAD:main` 快轉成 `5f6a0e8`。內容與本機驗證見 README 同日段落，規則見 DESIGN.md「後台欄位要對得上官網」。
