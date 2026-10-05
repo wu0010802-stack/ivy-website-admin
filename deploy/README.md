@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 官網公開輸出再拿掉原型預約示範資料（main CI 部署）
+
+使用者要求「booking.fields 也幫我清掉」。盤點時同一個 `booking` 物件另有 `demoNote`（「這是官網互動提案…」）、`steps`（含「示範完成，尚未送出預約」）、`isDemo` 也沒被讀，一併在公開輸出拿掉（`web/app/utils/public-copy.ts`），型別只留 `privacyNotice`、`ctaLabel`、`ctaLabelEn`。只動 web；fixture、後端、後台、契約、DB 都不動，沒有 migration。`feature/booking-demo-fields-20261005` 兩個提交接在 `4423e29` 後，等 wave3（`11ccc8e`，run 37247647686）開始跑之後才推（避免在 main 的 concurrency 群組把它的 pending run 取代掉），由使用者快轉推成 `7d132eb`。
+
+- **CI**：main run 37248705351（`7d132eb`）E2E／Playwright、Backend／PostgreSQL／contracts、Frontend web／admin、Deploy Railway production 全部 success（2026-10-05 01:05–01:28 UTC）。
+- **正式 `release.json`**：base commit `7d132eb`，created `2026-10-05T01:25:42Z`；`/api/website/v1/health` 200。
+- **線上唯讀檢查**（未登入）：`/`、`/environment`、`/visit`、`/visit/yihua`、`/about`、`/curriculum`、`/admission`、`/news`、`/anniversary` 都 200，HTML 沒有「這是官網互動提案」「示範完成」「demo-consent」「consentText」「demoNote」；`ctaLabel` 照常（頁首預約按鈕）。
+- **未做**：Safari／iOS 實機。
+
 ## 2026-10-05 30 週年分頁 v2：高雄蠟筆地圖、結尾畫成 30、吹蠟燭（main CI 部署）
 
 使用者看過預覽、要求拿掉頁面上的開發輔助用字後說「commit 和推上線」。`feature/anniversary-v2-20261004` 一個提交，rebase 到 main `135b03fe`（中途 main 前進兩次：分校頁殘留清理、資安掃描補修，都沒動到 web 的這幾個檔）後由使用者自推成 `ba32b9ba`。規則見 DESIGN.md「30 週年分頁 v2」。
