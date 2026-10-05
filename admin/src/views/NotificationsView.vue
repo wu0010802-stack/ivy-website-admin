@@ -269,10 +269,21 @@ function listMatches(campus: string): boolean {
 }
 
 // 標記成功後寫回目前畫面上的那一則：背景更新可能已經換過一份清單。
-function setReadLocally(n: NotificationOut, readAt: string) {
+function setReadLocally(n: NotificationOut, readAt: string | null) {
   n.read_at = readAt
   const current = notifications.value.find((row) => row.id === n.id)
   if (current) current.read_at = readAt
+}
+
+// 點通知打開案件就算看過，順手標成已讀（2026-10-05 業主裁定）。標記權限照舊只有
+// booking.manage；在背景送出、不擋換頁，送不成功就變回未讀。中鍵開新分頁也算。
+function markReadOnOpen(n: NotificationOut, event?: MouseEvent) {
+  if (event?.type === 'auxclick' && event.button !== 1) return
+  if (!canMarkRead.value || n.read_at) return
+  setReadLocally(n, new Date().toISOString())
+  api.post(`/admin/notifications/${n.id}/read`).catch(() => {
+    if (alive) setReadLocally(n, null)
+  })
 }
 
 async function markRead(n: NotificationOut) {
@@ -416,7 +427,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長預約、改期、取消與到期提醒。" more="家長送出預約、改期、取消，以及即將參觀、逾期未處理的提醒都在這裡，點一則就打開那筆案件。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。「已讀」是同校共用的狀態：有人標記後，同校同事也會看到已讀，只有校區管理者以上可以標記。" />
+    <PageHeader lead="家長預約、改期、取消與到期提醒。" more="家長送出預約、改期、取消，以及即將參觀、逾期未處理的提醒都在這裡，點一則就打開那筆案件。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。「已讀」是同校共用的狀態：校區管理者以上點開一則或按標記，同校同事也會看到已讀；櫃台點開不會改變已讀。" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可查看的校區" />
 
@@ -487,6 +498,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <el-table-column label="通知" min-width="200">
             <template #default="{ row }: { row: NotificationOutboxOut }">
               <router-link :to="`/visit-requests/${row.visit_request_id}`" class="case-link">{{ notificationLabel(row.kind, { reason: row.reason }) }}</router-link>
+              <span v-if="row.parent_name" class="slot-note">{{ row.parent_name }}</span>
             </template>
           </el-table-column>
           <el-table-column v-if="multiCampus" label="校區" width="80">
@@ -515,6 +527,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <li v-for="row in failedOutbox" :key="row.id" class="mobile-record">
             <div class="record-heading"><router-link :to="`/visit-requests/${row.visit_request_id}`" class="case-link">{{ notificationLabel(row.kind, { reason: row.reason }) }}</router-link></div>
             <dl class="record-meta">
+              <template v-if="row.parent_name"><dt>家長</dt><dd>{{ row.parent_name }}</dd></template>
               <template v-if="multiCampus"><dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd></template>
               <dt>失敗原因</dt><dd>{{ outboxErrorLabel(row.error_code) }}（已試 {{ row.attempts }} 次）</dd>
               <dt>已送到</dt><dd>{{ deliveredText(row) }}</dd>
@@ -567,8 +580,17 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
               <li v-for="row in group.items" :key="row.id" class="notice" :class="{ 'is-unread': !row.read_at }" :data-tone="kindMeta(row.kind).tone">
                 <span class="notice__dot"><span v-if="!row.read_at" class="dot" role="img" aria-label="未讀" /></span>
                 <span class="notice__icon" aria-hidden="true"><el-icon><component :is="kindMeta(row.kind).icon" /></el-icon></span>
-                <component :is="visitRequestId(row) ? RouterLink : 'div'" :to="visitRequestId(row) ? `/visit-requests/${visitRequestId(row)}` : undefined" class="notice__main">
-                  <span class="notice__title">{{ notificationLabel(row.kind, row.payload) }}</span>
+                <component
+                  :is="visitRequestId(row) ? RouterLink : 'div'"
+                  :to="visitRequestId(row) ? `/visit-requests/${visitRequestId(row)}` : undefined"
+                  class="notice__main"
+                  @click="visitRequestId(row) && markReadOnOpen(row, $event)"
+                  @auxclick="visitRequestId(row) && markReadOnOpen(row, $event)"
+                >
+                  <span class="notice__head">
+                    <span class="notice__title">{{ notificationLabel(row.kind, row.payload) }}</span>
+                    <span v-if="row.parent_name" class="notice__who">{{ row.parent_name }}</span>
+                  </span>
                   <span v-if="summary(row)" class="notice__meta num">{{ summary(row) }}</span>
                 </component>
                 <time class="notice__time num" :datetime="row.created_at" :title="formatDateTime(row.created_at)">{{ clockOf(row.created_at) }}</time>
@@ -734,7 +756,21 @@ a.notice__main:focus-visible {
   border-radius: 4px;
 }
 
+/* 標題與家長稱呼同一行，放不下就換行。 */
+.notice__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  min-width: 0;
+}
+
 .notice__title {
+  overflow-wrap: anywhere;
+}
+
+.notice__who {
+  color: var(--ink-2);
   overflow-wrap: anywhere;
 }
 

@@ -22,10 +22,15 @@ from app.workers import lease_service
 LIST_LIMIT = 200
 
 
+def _parent_name(visit_request_name: str | None, anonymized_at: datetime | None) -> str | None:
+    # 通知顯示家長稱呼（2026-10-05 業主裁定）；匿名化後不再顯示。
+    return None if anonymized_at is not None else visit_request_name
+
+
 def _failed_stmt(campus_keys: set[str] | None):
     # outbox 本身沒有校區欄位，要經案件取得，跟總覽的失敗數同一個算法。
     stmt = (
-        select(OutboxMessage, VisitRequest.campus_key)
+        select(OutboxMessage, VisitRequest.campus_key, VisitRequest.parent_name, VisitRequest.anonymized_at)
         .join(VisitRequest, OutboxMessage.visit_request_id == VisitRequest.id)
         .where(OutboxMessage.status == OutboxStatus.FAILED.value)
     )
@@ -51,7 +56,7 @@ async def _delivery_summary(db: AsyncSession, ids: list[uuid.UUID]) -> dict[uuid
     return summary
 
 
-def _out(message: OutboxMessage, campus_key: str, delivered: dict) -> dict:
+def _out(message: OutboxMessage, campus_key: str, delivered: dict, parent_name: str | None = None) -> dict:
     payload = message.payload or {}
     return {
         "id": message.id,
@@ -66,6 +71,7 @@ def _out(message: OutboxMessage, campus_key: str, delivered: dict) -> dict:
         "next_attempt_at": message.next_attempt_at,
         "requeued_at": message.requeued_at,
         "delivered": delivered,
+        "parent_name": parent_name,
     }
 
 
@@ -76,8 +82,11 @@ async def list_failed(
     rows = (
         await db.execute(_failed_stmt(campus_keys).order_by(OutboxMessage.created_at.desc()).limit(limit))
     ).all()
-    delivered = await _delivery_summary(db, [message.id for message, _ in rows])
-    return [_out(message, campus_key, delivered[message.id]) for message, campus_key in rows]
+    delivered = await _delivery_summary(db, [message.id for message, *_ in rows])
+    return [
+        _out(message, campus_key, delivered[message.id], _parent_name(name, anonymized_at))
+        for message, campus_key, name, anonymized_at in rows
+    ]
 
 
 async def count_failed(db: AsyncSession, campus_keys: set[str] | None) -> int:
@@ -87,7 +96,9 @@ async def count_failed(db: AsyncSession, campus_keys: set[str] | None) -> int:
 
 
 async def describe(db: AsyncSession, message: OutboxMessage, campus_key: str) -> dict:
-    return _out(message, campus_key, (await _delivery_summary(db, [message.id]))[message.id])
+    visit_request = await db.get(VisitRequest, message.visit_request_id)
+    name = _parent_name(visit_request.parent_name, visit_request.anonymized_at) if visit_request else None
+    return _out(message, campus_key, (await _delivery_summary(db, [message.id]))[message.id], name)
 
 
 async def load_for_update(db: AsyncSession, message_id: uuid.UUID) -> tuple[OutboxMessage, str] | None:
@@ -142,6 +153,6 @@ async def requeue_all_failed(
         )
     ).all()
     now = now_utc()
-    for message, campus_key in rows:
+    for message, campus_key, *_ in rows:
         await requeue_with_audit(db, message, campus_key, actor_user_id=actor_user_id, source=source, now=now)
     return len(rows)

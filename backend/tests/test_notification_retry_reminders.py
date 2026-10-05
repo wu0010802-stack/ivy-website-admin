@@ -98,6 +98,7 @@ async def test_failed_notification_listed_and_retry_only_resends_missing_channel
         assert item["attempts"] == lease_service.MAX_ATTEMPTS
         assert item["error_code"] == "RuntimeError"
         assert item["delivered"] == {"inbox": True, "line": True, "email": 0}
+        assert item["parent_name"] == "陳媽媽"
 
         # 別校帳號看不到、也重送不了（404，不洩漏存在）。
         assert (await minghua_client.get(OUTBOX)).json() == {"items": [], "total": 0}

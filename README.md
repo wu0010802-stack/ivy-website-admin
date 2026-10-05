@@ -1,3 +1,17 @@
+## 2026-10-05 通知顯示家長稱呼、點開就算已讀（`feature/admin-notify-names-20261005`，未 commit）
+
+站內通知頁上線後，使用者對兩個待裁定項目回覆：「點進案件時要不要自動標記已讀：要」「通知要不要顯示家長姓名：要，LINE 的通知也要出現」。規則見 DESIGN.md「通知顯示家長稱呼、點開就算已讀」。
+
+- **後端**：`GET /admin/notifications` 與 `GET /admin/notification-outbox` 多回 `parent_name`（讀取時 join 案件，匿名化後為 null，不寫進 payload）；LINE 推播文字在校區後面加「家長：○○」（推播當下讀案件）。寄給園方的 Email 不變（照舊姓氏＋稱謂）。`contracts/` 重新產生。
+- **後台**：通知標題後面接家長稱呼，寄送失敗清單也列出家長；點通知列打開案件時在背景標成已讀（權限照舊 booking.manage，櫃台點開不改），送不成功變回未讀。
+- **待園方**：隱私權政策第 6 段要補 LINE（家長稱呼會推到 LINE 群組）。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1533 passed、1 skipped（9 分 40 秒，獨立測試庫）；通知相關新增／改寫 5 項（站內通知與寄送失敗清單回 `parent_name`、匿名化後為 null 且不在 payload；LINE 推播有「家長：陳媽媽」不帶電話；案件匿名化後推播不帶家長；`line_text` 空白稱呼不出那一行）。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 93 檔 1168 項全過。新增 3 項（家長稱呼、點開標記已讀與失敗復原、櫃台點開不標記），換回 main 版通知頁時前兩項會失敗。
+  - 拋棄式測試庫 Playwright：校區管理者點開一則未讀，回到清單重新讀取後未讀 3→2；櫃台點開沒有送出標記、未讀不變；桌機與手機家長稱呼接在標題同一行。
+  - stack e2e：75 項 74 過，失敗的是已知間歇的 `media.spec`（`home_about` 的 `payload.photo` 讀回 undefined），單獨重跑 3 項全過。API 準備階段同樣用暫時本機設定把等待放寬到 10 分鐘（沒有進版控）。
+  - 未驗證：真的 LINE 群組推播（測試用假 LINE 伺服器）、Safari／iOS 實機。
+
 ## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`，10-05 已部署 main `75caffa`）
 
 使用者要「優化 /admin/notifications 的 UI/UX」。用拋棄式測試庫灌三校的預約、改期、取消、提醒、寄送失敗與一筆舊的改期申請，桌機 1440／1280、手機 390 各以總管理者、單校管理者、櫃台三種帳號看過。規則見 DESIGN.md「官網後台站內通知頁」。

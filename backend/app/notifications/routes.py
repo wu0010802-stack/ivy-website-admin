@@ -42,6 +42,8 @@ class NotificationOutboxOut(BaseModel):
     next_attempt_at: datetime
     requeued_at: datetime | None
     delivered: OutboxDeliveredOut
+    # 案件的家長稱呼（讀取時查，2026-10-05 業主裁定通知顯示家長姓名）；匿名化後為 null。
+    parent_name: str | None = None
 
 
 class NotificationOutboxPageOut(BaseModel):
@@ -76,8 +78,11 @@ class NotificationInboxItemOut(BaseModel):
     # outbox 排入時的內容：receipt_id（案件編號）與少數摘要欄位，不放家長個資。
     payload: dict
     # 案件目前的參觀場次，讀取時依 payload.receipt_id 查，不寫進 payload；
-    # 只有日期時段、不含家長個資。案件還沒排場次、已匿名化或已刪除時為 null。
+    # 只有日期時段。案件還沒排場次、已匿名化或已刪除時為 null。
     slot: NotificationSlotOut | None = None
+    # 案件的家長稱呼，同樣讀取時查、不寫進 payload（2026-10-05 業主裁定通知顯示
+    # 家長姓名；電話、Email、孩子資料照舊不放）。已匿名化或已刪除時為 null。
+    parent_name: str | None = None
     created_at: datetime
     read_at: datetime | None
 
@@ -90,20 +95,27 @@ def _receipt_uuid(payload: dict | None) -> uuid.UUID | None:
         return None
 
 
-async def _visit_slots(db: AsyncSession, items: list[NotificationInboxItem]) -> dict[uuid.UUID, NotificationSlotOut]:
-    """一次 IN 查詢把整頁通知對應的案件場次查出來，不逐筆查。"""
+async def _visit_details(
+    db: AsyncSession, items: list[NotificationInboxItem]
+) -> dict[uuid.UUID, tuple[NotificationSlotOut | None, str]]:
+    """一次 IN 查詢把整頁通知對應案件的場次與家長稱呼查出來，不逐筆查。"""
     ids = {visit_id for item in items if (visit_id := _receipt_uuid(item.payload)) is not None}
     if not ids:
         return {}
     result = await db.execute(
-        select(VisitRequest.id, VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.end_time)
-        .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
-        # 匿名化後的案件不再對應到任何一天的參觀。
+        select(VisitRequest.id, VisitRequest.parent_name, VisitSlot.slot_date, VisitSlot.start_time, VisitSlot.end_time)
+        .outerjoin(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        # 匿名化後的案件不再對應到任何一天的參觀，也不再有家長稱呼。
         .where(VisitRequest.id.in_(ids), VisitRequest.anonymized_at.is_(None))
     )
     return {
-        visit_id: NotificationSlotOut(slot_date=slot_date, start_time=start_time, end_time=end_time)
-        for visit_id, slot_date, start_time, end_time in result.all()
+        visit_id: (
+            NotificationSlotOut(slot_date=slot_date, start_time=start_time, end_time=end_time)
+            if slot_date is not None
+            else None,
+            parent_name,
+        )
+        for visit_id, parent_name, slot_date, start_time, end_time in result.all()
     }
 
 
@@ -122,19 +134,24 @@ async def list_notifications(
         stmt = stmt.where(NotificationInboxItem.campus_key.in_(scope))
     stmt = stmt.order_by(NotificationInboxItem.created_at.desc()).limit(100)
     items = list((await db.execute(stmt)).scalars())
-    slots = await _visit_slots(db, items)
-    return [
-        NotificationInboxItemOut(
-            id=item.id,
-            campus_key=item.campus_key,
-            kind=item.kind,
-            payload=item.payload or {},
-            slot=slots.get(visit_id) if (visit_id := _receipt_uuid(item.payload)) else None,
-            created_at=item.created_at,
-            read_at=item.read_at,
+    details = await _visit_details(db, items)
+    out: list[NotificationInboxItemOut] = []
+    for item in items:
+        visit_id = _receipt_uuid(item.payload)
+        slot, parent_name = details.get(visit_id, (None, None)) if visit_id else (None, None)
+        out.append(
+            NotificationInboxItemOut(
+                id=item.id,
+                campus_key=item.campus_key,
+                kind=item.kind,
+                payload=item.payload or {},
+                slot=slot,
+                parent_name=parent_name,
+                created_at=item.created_at,
+                read_at=item.read_at,
+            )
         )
-        for item in items
-    ]
+    return out
 
 
 @router.post("/admin/notifications/{notification_id}/read")

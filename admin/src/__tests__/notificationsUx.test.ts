@@ -334,3 +334,57 @@ describe('站內通知的版面（2026-10-05）', () => {
     expect(reads()).toBe(2)
   })
 })
+
+describe('點開通知與家長稱呼（2026-10-05 業主裁定）', () => {
+  function mockRows(rows: unknown[], failed: unknown[] = []) {
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: failed, total: failed.length } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+  }
+
+  it('通知列與寄送失敗都寫出家長稱呼，沒有（已匿名化）就不寫', async () => {
+    mockRows(
+      [{ ...notification('n1'), parent_name: '林小姐' }, { ...notification('n2'), parent_name: null }],
+      [failedItem('f1', { parent_name: '陳媽媽' })],
+    )
+    const wrapper = await setup()
+    await flushPromises()
+    const rows = wrapper.findAll('.notice')
+    expect(rows[0]!.get('.notice__who').text()).toBe('林小姐')
+    expect(rows[0]!.get('a.notice__main').text()).toContain('新的參觀預約林小姐')
+    expect(rows[1]!.find('.notice__who').exists()).toBe(false)
+    expect(wrapper.get('.failed .data-table').text()).toContain('陳媽媽')
+    expect(wrapper.get('.failed .mobile-record').text()).toContain('家長陳媽媽')
+  })
+
+  it('校區管理者點開一則就標成已讀，送不成功變回未讀', async () => {
+    mockRows([{ ...notification('n1'), parent_name: '林小姐' }, { ...notification('n2'), parent_name: '王先生' }])
+    const post = vi.spyOn(api, 'post').mockResolvedValueOnce({} as never).mockRejectedValueOnce(new Error('offline'))
+    const { wrapper, router } = await setupWithRouter(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
+    await flushPromises()
+    await wrapper.findAll('a.notice__main')[0]!.trigger('click')
+    expect(post).toHaveBeenCalledWith('/admin/notifications/n1/read')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/visit-requests/case-n1')
+    expect(wrapper.findAll('.notice')[0]!.classes('is-unread')).toBe(false)
+
+    // 已讀的再點不會重送。
+    await wrapper.findAll('a.notice__main')[0]!.trigger('click')
+    expect(post).toHaveBeenCalledTimes(1)
+
+    // 中鍵開新分頁也算看過；這次送不成功，變回未讀。
+    await wrapper.findAll('a.notice__main')[1]!.trigger('auxclick', { button: 1 })
+    expect(post).toHaveBeenLastCalledWith('/admin/notifications/n2/read')
+    await flushPromises()
+    expect(wrapper.findAll('.notice')[1]!.classes('is-unread')).toBe(true)
+  })
+
+  it('櫃台點開不會改變已讀（標記仍限校區管理者以上）', async () => {
+    mockRows([{ ...notification('n1'), parent_name: '林小姐' }])
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const desk = testUser('reception', { id: 'desk', email: 'desk@example.invalid', campus_keys: ['yihua'] })
+    const wrapper = await setup(desk)
+    await flushPromises()
+    await wrapper.get('a.notice__main').trigger('click')
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+  })
+})

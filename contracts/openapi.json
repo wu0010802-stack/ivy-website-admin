@@ -5414,6 +5414,17 @@
             "title": "Kind",
             "type": "string"
           },
+          "parent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Name"
+          },
           "payload": {
             "additionalProperties": true,
             "title": "Payload",
@@ -5495,6 +5506,17 @@
             "format": "date-time",
             "title": "Next Attempt At",
             "type": "string"
+          },
+          "parent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Name"
           },
           "reason": {
             "anyOf": [

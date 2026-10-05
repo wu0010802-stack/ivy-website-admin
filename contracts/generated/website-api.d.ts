@@ -4482,6 +4482,8 @@ export interface components {
             id: string;
             /** Kind */
             kind: string;
+            /** Parent Name */
+            parent_name?: string | null;
             /** Payload */
             payload: {
                 [key: string]: unknown;
@@ -4516,6 +4518,8 @@ export interface components {
              * Format: date-time
              */
             next_attempt_at: string;
+            /** Parent Name */
+            parent_name?: string | null;
             /** Reason */
             reason: string | null;
             /** Requeued At */

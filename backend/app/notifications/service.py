@@ -136,10 +136,19 @@ def admin_visit_url(admin_origin: str | None, receipt_id: str | None) -> str | N
     return f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}"
 
 
-def line_text(label: str, campus_name: str, receipt_id: str | None, admin_origin: str | None) -> str:
-    """群組裡可能有非管理員：只放類型、校區、案件編號，不放家長或孩子資料；
+def line_text(
+    label: str,
+    campus_name: str,
+    receipt_id: str | None,
+    admin_origin: str | None,
+    parent_name: str | None = None,
+) -> str:
+    """類型、校區、家長稱呼、案件編號與後台連結。家長稱呼是 2026-10-05 業主裁定
+    加上的（原本群組推播不帶任何家長資料）；電話、Email、孩子資料照舊不放，
     明細要點連結登入後台看。"""
     lines = [f"[常春藤官網] {label}", f"校區：{campus_name}"]
+    if parent_name and parent_name.strip():
+        lines.append(f"家長：{parent_name.strip()}")
     if receipt_id:
         lines.append(f"案件編號：{receipt_id}")
         if url := admin_visit_url(admin_origin, receipt_id):
@@ -368,10 +377,17 @@ async def dispatch_outbox_message(
         target = await campus_line_target(db, campus_key)
         if target and not await _already_delivered(db, outbox_message_id, "line", target):
             receipt_id = payload.get("receipt_id")
+            # 推播當下讀案件：家長改過稱呼就用新的，已匿名化的不帶。
+            visit_request = await _load_visit_request(db, receipt_id)
+            parent_name = (
+                visit_request.parent_name
+                if visit_request is not None and visit_request.anonymized_at is None
+                else None
+            )
             try:
                 await line.push_text(
                     target,
-                    line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin),
+                    line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin, parent_name),
                     key=line_api.retry_key(outbox_message_id, target),
                 )
             except (line_api.LinePushError, httpx.HTTPError) as exc:

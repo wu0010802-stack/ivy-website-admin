@@ -166,7 +166,7 @@ async def test_inactive_user_excluded_from_recipients(
 
 
 @pytest.mark.asyncio
-async def test_notification_list_shows_visit_slot_without_personal_data(
+async def test_notification_list_shows_visit_slot_and_parent_name_only(
     admin_client, public_client, db_session, run_outbox_once, recording_mail_adapter
 ):
     receipt_id = await _book_and_get_id(admin_client, public_client)
@@ -184,13 +184,16 @@ async def test_notification_list_shows_visit_slot_without_personal_data(
             "start_time": slot.start_time.isoformat(),
             "end_time": slot.end_time.isoformat(),
         }
-        assert stored.parent_name not in str(item)
+        # 2026-10-05 業主裁定通知顯示家長稱呼：讀取時查，不寫進 payload；電話照舊不放。
+        assert item["parent_name"] == stored.parent_name
+        assert stored.parent_name not in str(item["payload"])
         assert stored.phone not in str(item)
 
-    # 匿名化之後不再對應到參觀日期。
+    # 匿名化之後不再對應到參觀日期，也不再有家長稱呼。
     await db_session.execute(
         update(VisitRequest).where(VisitRequest.id == stored.id).values(anonymized_at=datetime.now(timezone.utc))
     )
     await db_session.commit()
     items = (await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")).json()
     assert all(item["slot"] is None for item in items)
+    assert all(item["parent_name"] is None for item in items)

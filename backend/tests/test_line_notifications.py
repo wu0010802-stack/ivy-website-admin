@@ -12,10 +12,14 @@ import uuid
 
 import httpx
 import pytest
-from sqlalchemy import select
+from datetime import datetime, timezone
 
+from sqlalchemy import select, update
+
+from app.booking.models import VisitRequest
 from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
+from app.notifications.service import line_text
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
 from tests.conftest import (
@@ -336,13 +340,43 @@ async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
     assert push["body"]["to"] == GROUP
     assert "義華" in text and receipt_id in text
     assert f"https://ivy.example/admin/visit-requests/{receipt_id}" in text
-    assert "陳媽媽" not in text and "0912345678" not in text, "群組推播不能帶家長個資"
+    # 2026-10-05 業主裁定群組推播帶家長稱呼；電話照舊不帶。
+    assert "\n家長：陳媽媽\n" in text
+    assert "0912345678" not in text, "群組推播不能帶家長電話"
     assert push["retry_key"]
 
     # 再跑一次不會重送。
     before = len(fake_line.pushes)
     await _run_outbox(line_app, fake_line)
     assert len(fake_line.pushes) == before
+
+
+def test_line_text_has_parent_line_only_when_known():
+    text = line_text("新的參觀預約", "義華", "abc", "https://ivy.example", "  林小姐 ")
+    assert text.splitlines()[:3] == ["[常春藤官網] 新的參觀預約", "校區：義華", "家長：林小姐"]
+    for missing in (None, "", "   "):
+        assert "家長" not in line_text("新的參觀預約", "義華", "abc", None, missing)
+
+
+async def test_outbox_push_skips_parent_name_once_case_is_anonymized(line_app, fake_line):
+    admin, public = await _setup_case(line_app)
+    try:
+        receipt_id = (await book_slot(admin, public))["receipt_id"]
+    finally:
+        await admin.aclose()
+        await public.aclose()
+    # 推播前案件已匿名化（保存期限到了）：群組只收到類型與校區，不帶家長稱呼。
+    async with line_app.state.session_factory() as db:
+        await db.execute(
+            update(VisitRequest)
+            .where(VisitRequest.id == uuid.UUID(receipt_id))
+            .values(anonymized_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+    await _run_outbox(line_app, fake_line)
+    [push] = fake_line.pushes
+    text = push["body"]["messages"][0]["text"]
+    assert "家長" not in text and "陳媽媽" not in text
 
 
 async def test_outbox_retries_failed_push_with_same_retry_key(line_app, fake_line):
