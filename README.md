@@ -1,4 +1,4 @@
-## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`）
+## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`，10-05 已部署 main `75caffa`）
 
 使用者要「優化 /admin/notifications 的 UI/UX」。用拋棄式測試庫灌三校的預約、改期、取消、提醒、寄送失敗與一筆舊的改期申請，桌機 1440／1280、手機 390 各以總管理者、單校管理者、櫃台三種帳號看過。規則見 DESIGN.md「官網後台站內通知頁」。
 
