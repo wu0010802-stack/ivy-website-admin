@@ -1,6 +1,6 @@
 // 招生入學的文案與規則（比照園務 constants/recruitmentFunnel.ts、recruitment.ts）。
 // 列舉值以後端 backend/app/admissions/constants.py 為準，admissionsConstants.test.ts 逐字比對。
-import { RECRUITMENT_STAGE_LABELS } from '../api/labels'
+import { RECRUITMENT_STAGE_LABELS, type StatusMeta, type TagTone } from '../api/labels'
 
 export const GRADES = ['幼幼班', '小班', '中班', '大班'] as const
 export type Grade = (typeof GRADES)[number]
@@ -48,6 +48,18 @@ export const ANONYMIZED_CONFLICT_TEXT = '這筆招生訪視已依保存政策匿
 export const MISSING_CHILD_NAME = '（未填姓名）'
 
 export const WITHDRAWN_FROM_LABELS: Record<string, string> = { deposited: '退預繳', enrolled: '退註冊' }
+
+// 招生階段的標籤（訪視明細「階段」欄、預約明細家庭版面頁首共用）：色系同看板欄（灰 → 橙 → 綠），
+// 退出後 has_deposit 已清成 false，寫清楚從哪一段退的（園務總覽第 6 點）。
+const STAGE_TONES: Record<Stage, TagTone> = { visited: 'info', deposited: 'warning', enrolled: 'success', withdrawn: 'danger' }
+
+export function stageMeta(visit: { stage: string; withdrawn_at?: string | null; withdrawn_from?: string | null }): StatusMeta {
+  if (visit.withdrawn_at || visit.stage === 'withdrawn') {
+    return { label: `已${WITHDRAWN_FROM_LABELS[visit.withdrawn_from ?? 'deposited'] ?? '退預繳'}`, tone: 'danger' }
+  }
+  return { label: stageLabel(visit.stage), tone: isStage(visit.stage) ? STAGE_TONES[visit.stage] : 'info' }
+}
+
 
 export const SEMESTER_LABELS: Record<1 | 2, string> = { 1: '上學期', 2: '下學期' }
 

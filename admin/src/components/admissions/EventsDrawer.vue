@@ -5,8 +5,8 @@ import { getRecord, listAdmissionsStaff, listContactLogs, listEvents } from '../
 import { api } from '../../api/client'
 import type { AdmissionsStaff, ContactLog, RecruitmentEvent, RecruitmentVisit, VisitContactNoteOut } from '../../api/types'
 import { formatDateTime } from '../../api/labels'
-import { termLabel } from '../../admissions/academic'
 import { STAGE_LABELS, eventLabel, isStage, moveTargets, stageLabel, type Stage, type TransitionTarget } from '../../admissions/constants'
+import { recruitmentEventChanges } from '../../admissions/family'
 import { channelLabel, followUpText, isDue, isOpenStage, ownerLabel } from '../../admissions/followUp'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -100,25 +100,6 @@ const timeline = computed<TimelineItem[]>(() => {
   const rank = { before: 0, event: 1, contact: 2 }
   return items.sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || rank[a.kind] - rank[b.kind])
 })
-
-function metadataOf(event: RecruitmentEvent): Record<string, unknown> {
-  const metadata = event.metadata_json as unknown
-  return metadata && typeof metadata === 'object' ? (metadata as Record<string, unknown>) : {}
-}
-
-function stageChange(event: RecruitmentEvent): string {
-  if (!event.from_stage || !event.to_stage || event.from_stage === event.to_stage) return ''
-  return `${stageLabel(event.from_stage)} → ${stageLabel(event.to_stage)}`
-}
-
-function seatDetail(event: RecruitmentEvent): string {
-  if (event.event_type !== 'seat_reserved' && event.event_type !== 'seat_released') return ''
-  const metadata = metadataOf(event)
-  const grade = typeof metadata.grade === 'string' ? metadata.grade : ''
-  const year = typeof metadata.school_year === 'number' ? metadata.school_year : null
-  const semester = typeof metadata.semester === 'number' ? metadata.semester : null
-  return [grade, year ? termLabel(year, semester) : ''].filter(Boolean).join('・')
-}
 
 // A 階段若在歷程帶了操作者名字（actor_name）才顯示；園務不顯示操作者。
 function actorOf(event: RecruitmentEvent): string {
@@ -257,8 +238,7 @@ async function onStale() {
               <span v-if="actorOf(item.event)">・{{ actorOf(item.event) }}</span>
             </p>
             <p class="events__title">{{ eventLabel(item.event.event_type, item.event.metadata_json) }}</p>
-            <p v-if="stageChange(item.event)" class="events__detail">{{ stageChange(item.event) }}</p>
-            <p v-if="seatDetail(item.event)" class="events__detail">{{ seatDetail(item.event) }}</p>
+            <p v-for="line in recruitmentEventChanges(item.event)" :key="line" class="events__detail">{{ line }}</p>
             <p v-if="item.event.reason" class="events__reason">{{ item.event.reason }}</p>
           </template>
           <template v-else-if="item.kind === 'contact'">

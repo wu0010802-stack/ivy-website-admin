@@ -7,9 +7,9 @@ import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, type Follow
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
-import { campusLabel, type TagTone } from '../../api/labels'
+import { campusLabel } from '../../api/labels'
 import { rocDate, termLabel } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, WITHDRAWN_FROM_LABELS, stageLabel, type Stage, type TransitionTarget } from '../../admissions/constants'
+import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Stage, type TransitionTarget } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
 import { notifyError, notifyWarning } from '../../composables/notify'
@@ -217,14 +217,6 @@ const showChips = computed(() => !moreFiltersOpen.value && hiddenFilters.value.l
 
 // ---- 列的呈現 ----
 // 「階段」欄取代原本的「預繳」「已註冊」兩欄：預繳欄連已註冊的也寫「是」，看不出走到哪一步。
-// 色系同看板欄（灰 → 橙 → 綠）；退出後 has_deposit 已清成 false，寫清楚從哪一段退的（園務總覽第 6 點）。
-const STAGE_TONES: Record<Stage, TagTone> = { visited: 'info', deposited: 'warning', enrolled: 'success', withdrawn: 'danger' }
-
-function stageMeta(row: RecruitmentVisit): { label: string; tone: TagTone } {
-  if (row.withdrawn_at || row.stage === 'withdrawn') return { label: `已${WITHDRAWN_FROM_LABELS[row.withdrawn_from ?? 'deposited'] ?? '退預繳'}`, tone: 'danger' }
-  return { label: stageLabel(row.stage), tone: STAGE_TONES[row.stage] ?? 'info' }
-}
-
 function rowClass({ row }: { row: RecruitmentVisit }): string {
   return row.has_deposit ? 'records-row--deposit' : ''
 }
