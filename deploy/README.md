@@ -23,6 +23,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空（API 起得來代表 migration 已到 head）；`/admin/login` 200；`/visit/yihua` SSR 有「哥哥姊姊讀過或正在讀」「傳單／DM」；`AdmissionsView` lazy chunk 有「來源備註」「帶參觀老師」「父親職業」「搭娃娃車」，`labels` chunk 有「再參觀」。
 - **未做**：沒登入正式後台實際新增一筆訪視、記錄一次再參觀；正式站招生開關開或關沒確認（關閉時後台看不到招生入學，官網兩個新選項不受影響）；Safari／iOS 實機。
 
+## 2026-10-05 參觀案件拿掉「待處理」、刪除舊案（main CI 部署）
+
+- **合併**：`feature/visit-no-pending-20261005` rebase 到 main `e0819f3a`（README 兩邊都留），使用者推 main `e0819f3a..8b0efde2`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉「待處理」」。
+- **migration**：`1e5612e187ff`（down `4373bcc82d9d`），刪除 new／contacting／pending_confirmation 的案件與指向它們的站內通知，downgrade 不還原。使用者確認正式庫預約資料都是測試資料、可以刪，**部署前沒有備份**。
+- **推前本機**：後端整套 pytest 1532 passed、1 skipped；admin vitest 94 檔 1203 項、`vue-tsc -b`、`contract:check`；web typecheck、`test:website` 829 項；stack e2e 整套 74 項全過。
+- **CI**：main run 37326517800（`8b0efde2`）測試全綠：Frontend admin 3.5／web 1.3 分鐘，Backend 三組 5.8／6.6／7.0 分鐘，E2E／Playwright 4.6 分鐘。**第一次 Deploy 失敗**：Railway api deployment `e50ed018` 停在 INITIALIZING 約 15 分鐘（同名額規劃那次），`railway_ci.py` 等待逾時，正式站維持 `51332515`；main 沒有更新的 run，`gh run rerun --failed` 重跑 Deploy 成功（20.7 分鐘，attempt 2）。
+- **正式 `release.json`**：base commit `8b0efde2`，created `2026-10-05T15:07:47Z`。
+- **線上檢查**（登入總管理者，瀏覽器唯讀）：`?group=pending` 導回全部，頁籤「全部／預約正常 5 件／時間已過／已取消 1 件」；側欄沒有 `.sidebar__badge`；`group=pending` API 回 422；`/admin/dashboard` 沒有 `new_requests`／`awaiting_confirmation`／`next_hold_expires_at`；09-24 舊案（義華 `e048dc79`）回 404。五校剩 5 筆預約正常、1 筆崇德已取消（10-01），沒有任何舊狀態案件；部署前五校原有幾筆舊案沒有查（總管理者部署前沒看，校區管理者只看得到義華 1 筆）。
+- **未做**：Safari／iOS 實機。
+
 ## 2026-10-05 招生入學拿掉名額規劃、官網預約兩個分頁（main CI 部署）
 
 - **合併**：`feature/admissions-no-arrivals-20261005` 的 `51332515` 疊在 main `55c9d68f`（拿掉名額規劃）上，使用者快轉推 main `55c9d68f..51332515`。內容與驗證見 README 頂部同日兩段、DESIGN.md「拿掉官網預約分頁」「拿掉名額規劃」。

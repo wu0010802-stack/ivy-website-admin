@@ -34,7 +34,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_hqtour_e2e_test`、埠 8796／3796，跑完已刪庫）：rebase 前後各跑一次整套，都是 74 項全過。另用臨時 spec 在真後端點過：總管理者側欄「全站與素材」有校園探索、切到明華可編輯、桌機 1440 與手機 390 不橫向溢出；義華分校管理者側欄沒有、直接開網址回總覽；`/preview?page=environment` 五校分頁、場景照片載入（截圖在 `output/playwright/hq-tour/`，臨時 spec 已刪）。
   - 未驗證：登入正式後台實際點一次、有授權但非總管理者的真帳號。
 
-## 2026-10-05 參觀案件拿掉「待處理」，舊案刪除（`feature/visit-no-pending-20261005`）
+## 2026-10-05 參觀案件拿掉「待處理」，舊案刪除（`feature/visit-no-pending-20261005`，10-05 已部署 main `8b0efde2`）
 
 使用者指著正式站 `/admin/visit-requests?group=pending` 說「把這個狀態拿掉，現在都是有預約時間的參觀」，舊案裁定直接刪除。規則見 DESIGN.md「拿掉「待處理」」。
 
