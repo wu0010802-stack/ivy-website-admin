@@ -13,6 +13,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 素材背景轉檔＋特色教學頁、關於常春藤頁開放後台編輯（main CI 部署）
+
+- **合併**：`merge/wave3-20261004` 整合 `feature/page-cms-20261004`（`1381a82`）與 `feature/media-jobs-20261003`（`799d884`），期間 main 前進三次都再合進來（README／DESIGN／deploy 文件衝突兩邊都留；`contentHints.ts`、`useDraftPreview.ts`、`content-overlay.ts`、`media-slots.spec.ts` 的程式衝突保留 main 拿掉的舊欄位、留下新的兩個內容種類與轉檔版本），使用者 push main `ba32b9b..11ccc8e`。
+- **migration**：`d2b7f4c9e1a3 → b8e3f1a6c4d7（參觀後追蹤）→ e5b9c3a7d214（素材背景轉檔）`，單一 head；只新增 `media_jobs` 表與 `media_variant_kind` 三個 enum 值、不改既有資料，依 `deploy/CICD.md` 規則部署前沒有另外備份。
+- **CI**：main run 37247647686（`11ccc8e`）Frontend web／admin、Backend／PostgreSQL／contracts（1527 passed、0 skipped——HLG 轉色調整合測試在 CI 的 ffmpeg 有 zscale，實跑通過）、E2E／Playwright（含新的影片轉檔 spec 與 `/about` hydration／axe）、Deploy 全綠。緊接著別的 session 推 `7d132eb`（含 `11ccc8e`），run 37248705351 也全綠並再部署一次。
+- **正式 `release.json`**：base commit `7d132eb`（含本次），created `2026-10-05T01:25:42Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`media_jobs.enabled: true`（`last_processed_at` 為 null，還沒有轉過影片）；`/curriculum`、`/about`、`/` 都 200（約 0.33–0.36 秒），內建文字在；後台 bundle 有 `AboutPageView`、`CurriculumPageView` chunk，素材庫 chunk 有「轉檔中」「重新處理」，關於頁 chunk 有沿革順序提醒與紀念章說明。
+- **待使用者（auto 模式擋 `railway ssh`）**：
+  1. 查 api 服務 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`（建議 ≥ 35）：`! railway variables --service api --environment production | grep DRAINING`
+  2. 查正式映像有沒有 zscale（CI 有不代表 Debian 映像有）：`! railway ssh --service api --environment production -- sh -c 'ffmpeg -hide_banner -filters | grep -E " (zscale|tonemap) "'`
+  3. 後台上傳一支短影片，看卡片「轉檔中」→可用，並在 Railway metrics 看 api 記憶體與 CPU 峰值。
+  4. 既有影片回補、既有圖片補中圖（先備份媒體 volume、看剩餘空間，見上方「素材背景轉檔上線步驟」第 5、6 點）。
+  5. 園方確認義華創校年份（1997／1998），要改就在後台「關於常春藤頁」改沿革第一站與首屏介紹；30 週年頁與 llms.txt 要另外改程式。
+- **未做**：沒登入看兩個新編輯頁與素材庫；沒上傳影片實測轉檔與記憶體；iOS Safari 實機。
+
 ## 2026-10-05 官網公開輸出再拿掉原型預約示範資料（main CI 部署）
 
 使用者要求「booking.fields 也幫我清掉」。盤點時同一個 `booking` 物件另有 `demoNote`（「這是官網互動提案…」）、`steps`（含「示範完成，尚未送出預約」）、`isDemo` 也沒被讀，一併在公開輸出拿掉（`web/app/utils/public-copy.ts`），型別只留 `privacyNotice`、`ctaLabel`、`ctaLabelEn`。只動 web；fixture、後端、後台、契約、DB 都不動，沒有 migration。`feature/booking-demo-fields-20261005` 兩個提交接在 `4423e29` 後，等 wave3（`11ccc8e`，run 37247647686）開始跑之後才推（避免在 main 的 concurrency 群組把它的 pending run 取代掉），由使用者快轉推成 `7d132eb`。
@@ -57,7 +72,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **之後**：wave3（`merge/wave3-20261004`，page-cms＋media-jobs）在 `11ccc8e` 合進 main 時已含本批，查過 `content-overlay.ts`／`public-copy.ts`／`site-content.ts`／後台兩頁沒有把拿掉的欄位加回去。
 - **未做**：正式站登入後台實際操作校園探索與首屏標語；Safari／iOS 實機。
 
-## 素材背景轉檔上線步驟（2026-10-04，未部署，`feature/media-jobs-20261003`）
+## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 
 migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
 
@@ -80,7 +95,7 @@ migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只�
 6. 既有圖片補中圖：`! railway ssh --service api --environment production -- python -m app.cli regenerate-media-variants`（dry-run）→ 加 `--apply`。因「缺中圖」會把每張圖的縮圖／中圖／大圖全部重產，**全站圖片網址會換一次，瀏覽器與 CDN 快取失效一次**，建議挑離峰時間；有 Cloudflare 之類的 CDN 可順便 purge `/api/website/v1/public/media/*`。
 7. 部署紀錄補在下方：health 結果、draining 秒數、zscale 有無、記憶體峰值、回補的各項數量。
 
-## 特色教學頁、關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，未部署）
+## 特色教學頁、關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，10-05 已部署 main `11ccc8e`）
 
 不需要 migration、不需要改環境變數。上線後**不必**跑 `initialize-content`：官網沒發布過這兩份內容（`curriculum_page`、`about_page`）時顯示內建內容，後台打開編輯頁會帶出同一份。若要跑，先加 `--dry-run`，確認清單只有 `curriculum_page`、`about_page` 再跑（指令由使用者用 `! railway ssh …` 執行）；它會連帶補建其他從未建立的項目。
 

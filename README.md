@@ -68,7 +68,7 @@
 
 **合併注意**：未合併的 `feature/page-cms-20261004`（`content-overlay.ts` 的 `ContentOverlay` 介面與 campus_profile 附近、`overlay-baseline` JSON、`labels.ts`）與 `feature/media-jobs-20261003`（`content-overlay.ts` 首屏與孩子的一天段落、`MediaSlotField`）改到相鄰段落，後合併的一方會有小衝突。
 
-## 2026-10-04 素材背景轉檔（`feature/media-jobs-20261003`，未部署）
+## 2026-10-04 素材背景轉檔（`feature/media-jobs-20261003`，10-05 已部署 main `11ccc8e`）
 
 影片上傳改成背景轉檔（poster＋桌機／手機 H.264），官網改播轉檔版本；圖片多中圖。規則見 DESIGN.md「素材背景轉檔」。已 merge origin/main `d559cae6`。
 
@@ -82,7 +82,7 @@
 - **未驗證**：正式站 ffmpeg 有沒有 zscale（HLG 整合測試本機 skip，push 後要確認 CI 是 pass 不是 skip）、Railway api 記憶體與 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS`、iOS Safari 實機播放轉檔版本、HDR 實片轉色調畫質、正式站回補。
 - **需要使用者決定**：(1) 轉檔參數（預設 CRF 20／26、長邊 1920、30fps、不帶聲音、上限 10 分鐘）；(2) Railway api 容器記憶體與 CPU 夠不夠，不夠就升級方案或另開 worker 服務（付費，需本人同意）；(3) 失敗影片不計配額（預設接受）；(4) 正式站回補何時跑，指令見 `deploy/README.md`「素材背景轉檔上線步驟」，由本人執行。
 
-## 2026-10-04 關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，階段 B，未 push）
+## 2026-10-04 關於常春藤頁開放後台編輯（`feature/page-cms-20261004`，階段 B，10-05 已部署 main `11ccc8e`）
 
 接在階段 A（特色教學頁）之後，同一個分支。
 
@@ -99,7 +99,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_pagecms_e2e_test E2E_API_PORT=8761 E2E_WEB_PORT=3761`）71 passed（3.3 分），hydration 與 axe 檢查新加入 `/about`，都通過；visual 基準沒有更新。
 - **未驗證**：實機 iOS／Android、正式站；後台草稿預覽 `/preview?page=about` 只有單元測試，沒在瀏覽器登入後打開看過；後台換照片後在已發布頁面的實際裁切只有單元測試。
 
-## 2026-10-04 特色教學頁開放後台編輯（`feature/page-cms-20261004`，階段 A，未 push）
+## 2026-10-04 特色教學頁開放後台編輯（`feature/page-cms-20261004`，階段 A，10-05 已部署 main `11ccc8e`）
 
 使用者 2026-10-03 裁定文字與照片都開放；章節數量與版面結構固定。
 
