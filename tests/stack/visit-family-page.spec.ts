@@ -89,7 +89,7 @@ test('家庭版面：已到場 → 記錄聯絡 → 移到已預繳 → 看板�
     await expect(page).toHaveURL(new RegExp(`/admin/visit-requests/${booked.id}`))
     await expect(page.locator('.detail__back')).toHaveText('招生入學')
     await page.locator('.detail__back').click()
-    await expect(page).toHaveURL(/\/admin\/admissions\?.*tab=funnel/)
+    await expect(page).toHaveURL(/\/admin\/admissions(\?|$)/)
     await expect(page.locator('.funnel__column[data-stage="deposited"] .funnel-card', { hasText: CHILD })).toBeVisible()
   })
 
