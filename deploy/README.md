@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 後台拿掉首屏小標與校園探索熱點、官網公開輸出去舊欄位（main CI 部署）
+
+使用者確認範圍（後台＋後端規則＋官網死碼）後要求 commit 併入 main。`feature/admin-legacy-fields-20261004` 的 4 個提交 rebase 到 `1069193`（只有 README 頂部衝突），由使用者執行 `git push origin HEAD:main` 快轉成 `5f6a0e8`。內容與本機驗證見 README 同日段落，規則見 DESIGN.md「後台欄位要對得上官網」。
+
+- **內容**：後台拿掉首頁大圖標語的小標欄位、校園探索的整套熱點編輯與「熱點待複核」；後端小標與熱點改選填、拿掉換照片的熱點複核發布擋；官網刪除 `CampusTour`／`CampusFaq`／`CampusTestimonials` 與死 CSS，公開輸出（`public-copy.ts`）不帶已退場欄位。**沒有 migration**、不改寫已存資料，照 `deploy/CICD.md` 不需事先備份。
+- **CI**：main run 37246311312（`5f6a0e8`）Backend／PostgreSQL／contracts、Frontend web／admin、Deploy Railway production success（2026-10-05 00:08–00:27 UTC）。E2E／Playwright 在 `uv sync` 從 PyPI 下載 `websockets==17.1` 連續 3 次失敗（測試未開始，與程式無關）；重跑（attempt 2）在 main 的 concurrency 群組排隊時被較新的 pending run 取代而取消。之後包含本批提交的 main run 37246768321（`ba32b9b`）E2E／Playwright success（00:27–00:32 UTC）。
+- **正式 `release.json`**：base commit `5f6a0e8`，created `2026-10-05T00:23:24Z`；`/api/website/v1/health` 200。
+- **線上唯讀檢查**（未登入）：後台 `assets/CampusTourView-*.js`、`HomeHeroView-*.js`、`MediaLibraryView-*.js`（含素材替換對話框）都沒有「熱點」「待複核」「標語上方的小標」，CampusTourView 有新的「原比例」說明。官網 `/`、`/environment`、`/visit`、`/about`、`/curriculum`、`/admission` 200，HTML 沒有 `faq`、`fbNote`、`heroPhotoPos`、原型的「僅示範流程」「我了解這是操作示範」；`/environment` 校園場景照常渲染。剩下的 `consentText` 字樣來自 fixture 的 `booking.fields`（舊原型表單欄位清單，官網沒有讀，不在本次範圍），`/admission` 的 `spots` 是 SVG 濾鏡名稱。
+- **之後**：wave3（`merge/wave3-20261004`，page-cms＋media-jobs）在 `11ccc8e` 合進 main 時已含本批，查過 `content-overlay.ts`／`public-copy.ts`／`site-content.ts`／後台兩頁沒有把拿掉的欄位加回去。
+- **未做**：正式站登入後台實際操作校園探索與首屏標語；Safari／iOS 實機。
+
 ## 素材背景轉檔上線步驟（2026-10-04，未部署，`feature/media-jobs-20261003`）
 
 migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
