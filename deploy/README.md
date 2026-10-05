@@ -13,6 +13,28 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 預約明細當家庭頁（main CI 部署）
+
+- **合併**：`feature/visit-family-page-20261005`。分支先疊在紙本補欄位 `5c6c1424` 上，再兩次合 origin/main（`4f9de0b6`、`4140145d`；README 兩段都留），HEAD `9299bd7f`，使用者推 main `4140145d..9299bd7f`。內容見 README 頂部同日段落、DESIGN.md「預約明細當家庭頁」，規格 `docs/specs/2026-10-05-visit-family-page-design.md`。
+- **migration**：無。後端只在看板卡片（`FunnelCardOut`）與待追蹤列（`FollowUpRowOut`）多回 `visit_request_id`，屬於加欄位；轉移契約 `contracts/ivy-recruitment` 不變。部署前沒有備份。
+- **推前本機**：
+  - 後端整套 pytest 1544 passed、1 skipped（`ivy_website_familypage_test`）。
+  - admin vitest 101 檔 1282 項、`vue-tsc -b`、`contract:check` 一致。
+  - 整套 stack e2e 75 項全過（埠 8797／3797，`ivy_website_e2e_familypage_test`，跑完已刪庫）。刻意在台北 01:01 之後跑：`admissions-follow-up` 的「甲到期」斷言「今天」，在台北 00:00–01:00 會跨日變成「逾 1 天」，是 main 既有的時間相依問題。
+- **CI**：main run 37385758336（`9299bd7f`）全綠，建立到完成 12 分 33 秒。各 job：
+  - Frontend：admin 4.1、web 1.1 分鐘。
+  - Backend 三組：7.3／5.5／6.7 分鐘。
+  - E2E／Playwright 6.0 分鐘。
+  - Deploy 5.0 分鐘。
+- **正式 `release.json`**：base commit `9299bd7f`，created `2026-10-05T23:06:40Z`。
+- **線上唯讀檢查**（未登入）：
+  - `/api/website/v1/health` `status: ok`；`/admin/login` 200。
+  - `VisitDetailView` lazy chunk 有「家長預約時填寫的資料」「參觀前記在預約」「招生資料讀不到」。
+- **未做**：
+  - 沒登入正式後台實際點一次家庭版面（正式站義華目前沒有已到場的預約，需要有一筆到場才看得到）。
+  - Safari／iOS 實機。
+  - axe 掃描補家庭頁、唯讀帳號與開關關閉的截圖。
+
 ## 2026-10-05 招生訪視照紙本補欄位、官網得知管道加兩項（main CI 部署）
 
 - **合併**：`feature/admissions-paper-fields-20261005` 的 `a4ffeafc` 合 origin/main 兩次（`8b0efde2` 參觀案件拿掉待處理、`4f9de0b6` 校園探索改由總部控制；DESIGN／README 各段都留）成 `9ab739ae`，使用者要求後推 main `4f9de0b6..9ab739ae`。內容與驗證見 README 頂部同日段落、DESIGN.md「招生訪視照紙本補欄位」。
