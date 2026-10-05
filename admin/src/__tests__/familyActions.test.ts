@@ -47,6 +47,11 @@ describe('摘要', () => {
     expect(wrapper.find('.family-actions__owner label').exists()).toBe(false)
     expect(wrapper.find('.family-actions__owner-label').text()).toBe('負責人')
   })
+  it('可寫帳號、名單還沒讀到：負責人下拉的停用選項不寫已停用', async () => {
+    const { wrapper } = await mountWith(FamilyActions, { props: { visit: visit({ stage: 'visited', follow_up_owner_id: 'desk' }), staff: [], latest: null, rebookable: true } })
+    expect(wrapper.get('.family-actions__owner').text()).not.toContain('已停用')
+    expect(wrapper.get('.family-actions__owner .el-select').text()).toContain('—')
+  })
   it('沒有參觀後聯絡寫「還沒聯絡過」；已註冊的下次聯絡寫破折號', async () => {
     const { wrapper } = await mountActions(visit({ stage: 'enrolled', enrolled: true }), undefined as never, null)
     expect(wrapper.get('.family-actions__facts').text()).toContain('還沒聯絡過')

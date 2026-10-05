@@ -64,9 +64,10 @@ function mockFamily(options: {
   })
 }
 
-async function mountDetail(user: UserOut = superAdmin(), back?: string) {
+async function mountDetail(user: UserOut = superAdmin(), back?: string, featureOn = true) {
   const pinia = createPinia()
   useAuthStore(pinia).user = user
+  useAuthStore(pinia).features = { admissions: featureOn, password_reset_email: false }
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -270,6 +271,7 @@ describe('載入招生查詢時不閃改版前的畫面（F2）', () => {
     expect(wrapper.find('.notes__form').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('這筆案件已結案')
     expect(wrapper.find('.detail__status').exists()).toBe(false)
+    expect(wrapper.find('.detail__call').exists()).toBe(false)
     expect(wrapper.find('.detail__assignee').exists()).toBe(false)
     slow.resolve([linked()])
     await flushPromises()
@@ -334,5 +336,20 @@ describe('其他修正', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('撥號與開關（第二輪）', () => {
+  it('招生電話是空的：退回預約電話', async () => {
+    mockFamily({ records: [linked({ phone: null })] })
+    const { wrapper } = await mountDetail()
+    expect(wrapper.get('.detail__call').attributes('href')).toBe('tel:0911000111')
+  })
+
+  it('招生開關關閉：已到場的預約一掛載就沒有骨架', async () => {
+    const slow = deferred<unknown[]>()
+    mockFamily({ records: () => slow.promise })
+    const { wrapper } = await mountDetail(superAdmin(), undefined, false)
+    expect(wrapper.find('.detail__family-pending').exists()).toBe(false)
   })
 })

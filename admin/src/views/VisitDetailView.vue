@@ -102,7 +102,7 @@ const assigning = ref(false)
 // 家庭版面沒有文字框：看不到的草稿不擋離開（家庭頁規格 Review Focus 1）。
 // 已到場、還在等招生查詢的空檔：先不畫改版前的版面，免得查完整頁跳成家庭版面（也看不到的草稿同樣不擋離開）。
 const familyPending = computed(() =>
-  detail.value?.status === 'completed' && canReadAdmissions.value && admissionsAvailable.value === 'unknown' && !lookupFailed.value,
+  detail.value?.status === 'completed' && Boolean(authStore.features.admissions) && canReadAdmissions.value && admissionsAvailable.value === 'unknown' && !lookupFailed.value,
 )
 const noteDirty = computed(() => canHandle.value && !familyVisit.value && !familyPending.value && newNote.value.trim() !== '')
 const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
@@ -685,12 +685,13 @@ async function markCompleted() {
 // ---- 家庭版面（2026-10-05 家庭頁規格第 5 節）----
 const familyNoteList = computed(() => familyNotes(notes.value, familyLogs.value, arrivedAt(detail.value?.history ?? [])))
 const latestFamilyContact = computed(() => latestContact(familyLogs.value))
-// 撥號：園方改過以招生那筆為準；匿名化的不撥（Review Focus 3）。
-// 匿名化後預約電話也會被寫成假號碼，退回撥它沒有意義：整顆不顯示。
+// 撥號：園方改過以招生那筆為準，招生電話空的退回預約電話（規格 5.2）。
+// 匿名化後預約電話也會被寫成假號碼，退回撥它沒有意義：整顆不顯示（Review Focus 3）。
 const callPhone = computed(() => {
   const v = familyVisit.value
   if (!v) return detail.value?.phone ?? ''
-  return v.phone && !v.anonymized_at ? v.phone : ''
+  if (v.anonymized_at) return ''
+  return v.phone || detail.value?.phone || ''
 })
 const bookingDataTitle = computed(() => {
   if (familyVisit.value) return isWebCase.value ? '家長預約時填寫的資料' : '補登時的案件資料'
@@ -870,7 +871,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
         </div>
       </div>
       <!-- 手機處理面板排在最前面，電話會被擠到下面；打電話是處理案件的第一步，頁首直接給一顆撥號鈕。 -->
-      <el-button v-if="callPhone" tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
+      <el-button v-if="callPhone && !familyPending" tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
         撥電話給家長 {{ callPhone }}
       </el-button>
 

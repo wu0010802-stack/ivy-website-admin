@@ -122,7 +122,7 @@ async function setOwner(ownerId: string | null) {
         style="width: 100%"
         @change="(value: string) => setOwner(value || null)"
       >
-        <el-option v-if="ownerMissing" :value="visit.follow_up_owner_id!" :label="ownerLabel(visit.follow_up_owner_id, staffList)" disabled />
+        <el-option v-if="ownerMissing" :value="visit.follow_up_owner_id!" :label="ownerUnresolved ? '—' : ownerLabel(visit.follow_up_owner_id, staffList)" disabled />
         <el-option v-for="person in staff" :key="person.id" :value="person.id" :label="person.display_name || person.email" />
       </el-select>
       <span v-else>{{ ownerUnresolved ? '—' : ownerLabel(visit.follow_up_owner_id, staffList) }}</span>
