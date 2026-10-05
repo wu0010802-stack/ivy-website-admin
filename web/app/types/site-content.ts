@@ -2,8 +2,12 @@ import type { MediaImage } from '../utils/media-image'
 
 export type { MediaImage }
 
+// 2026-10-04 拿掉官網不再顯示的欄位（首屏小標、五校區塊說明、孩子的一天出處說明、
+// 分校頁的簡介／詳細介紹／首屏焦點／臉書備註／常見問題、預約同意文字與分校頁橫幅、
+// 校園探索熱點）。fixture（server/data/site-fixture.json）仍留著這些值：後端初始化
+// 內容（app/content/initialize.py、app/media/site_import.py）要讀，官網不讀。
+
 export interface HeroContent {
-  eyebrow: string
   titleParts: {
     before: string
     punctAfterBefore: string
@@ -42,7 +46,6 @@ export interface AboutContent {
 export interface CampusBoardContent {
   sectionTitle: string
   eyebrow: string
-  note: string
   defaultCampus: string
   campusOrder: string[]
 }
@@ -83,16 +86,7 @@ export interface DayExperienceContent {
   filmPosition?: string | null
   filmPositionMobile?: string | null
   note: string
-  sourceNote: string
   moments: DayMoment[]
-}
-
-export interface TourSpot {
-  name: string
-  x: number
-  y: number
-  text: string
-  question: string
 }
 
 export interface TourScene {
@@ -100,7 +94,6 @@ export interface TourScene {
   name: string
   image: string
   intro: string
-  spots: TourSpot[]
   imageMedia?: MediaImage
 }
 
@@ -122,11 +115,6 @@ export interface GeneratedTourScenes {
   }
 }
 
-export interface FaqItem {
-  q: string
-  a: string
-}
-
 export interface Campus {
   key: string
   name: string
@@ -134,26 +122,21 @@ export interface Campus {
   address: string
   phone: string
   image: string
-  /** 後台選的封面；panoramaPos／heroPhotoPos 會一起換成後台的焦點 */
+  /** 後台選的封面；panoramaPos 會一起換成後台的焦點 */
   imageMedia?: MediaImage
   lineArtMedia?: MediaImage
   lineArtColourMedia?: MediaImage
   photoPos: string | null
   panoramaPos: string | null
-  heroPhotoPos: string | null
-  intro: string
-  description: string
   instagram?: string | null
   youtube?: string | null
   line: string | null
   facebook: string
-  fbNote: string
   _todo?: string | null
   mapQueryAddress: string
   /** 後台「分校介紹」填的 Google 地圖網址；沒有時用地址組成搜尋連結（utils/site-links.ts） */
   mapUrl?: string
   tourScenes: TourScene[] | GeneratedTourScenes
-  faq: { template: string; items: FaqItem[] }
   /** 家長分享影片（2026-09-26，目前只有義華）；寫在 fixture，後台沒有這個欄位 */
   testimonials?: CampusTestimonial[]
 }
@@ -261,14 +244,10 @@ export interface PrivacyNotice {
 export interface BookingContent {
   isDemo: boolean
   demoNote: string
-  consentText: string
   /** 已發布的隱私說明；沒有正式說明時為 null，頁尾與表單不顯示入口 */
   privacyNotice?: PrivacyNotice | null
   ctaLabel: string
   ctaLabelEn: string
-  bannerTitleTemplate: string
-  bannerBody: string
-  bannerButtonLabel: string
   steps: { step: number; id: string; title: string; description?: string }[]
   fields: BookingField[]
 }

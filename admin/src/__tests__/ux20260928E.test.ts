@@ -82,16 +82,15 @@ function contentItem(kind: string, payload: unknown, campusKey: string | null = 
   }
 }
 
-describe('校園探索畫布與官網同比例', () => {
-  it('後台舞台是 8:5、照片整張拉滿，跟官網 .tour-canvas／.tour-image 一樣', () => {
-    const web = readCss('../../../web/app/assets/css/styles.css')
-    expect(web).toMatch(/\.tour-canvas\{[^}]*aspect-ratio:8\/5/)
-    expect(web).toMatch(/\.tour-image\{[^}]*object-fit:fill/)
+describe('校園探索預覽與官網同比例', () => {
+  // 2026-10-04：熱點隨分校頁拿掉，預覽改對官網環境頁的場景照片（原比例整張、不裁切）。
+  it('後台預覽照原比例整張顯示，跟官網環境頁 .renv-snap>img 一樣不裁切', () => {
+    const web = readCss('../../../web/app/assets/css/environment.css')
+    expect(web).toMatch(/\.renv-snap>img\{[^}]*height:auto/)
     const tour = adminSource('CampusTourView.vue')
-    const stage = /\.tour__stage \{[^}]*\}/.exec(tour)![0]
-    expect(stage).toContain('aspect-ratio: 8 / 5')
     const img = /\.tour__stage img \{[^}]*\}/.exec(tour)![0]
-    expect(img).toContain('object-fit: fill')
+    expect(img).toContain('height: auto')
+    expect(img).not.toContain('object-fit')
     expect(tour).not.toContain('官網內建素材 <code')
   })
 })

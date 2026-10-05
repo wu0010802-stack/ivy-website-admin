@@ -1,3 +1,23 @@
+## 2026-10-04 後台拿掉官網已不顯示的舊欄位：首屏小標、校園探索熱點（`feature/admin-legacy-fields-20261004`，未部署）
+
+使用者：「後台現在有舊的設計的欄位，可以幫我處理掉嗎」。10-03 的 `83ed17db` 已拿掉常見問題兩頁、分校頁預約橫幅與五校介紹的簡介／詳細介紹／首屏焦點；正式後台只剩兩處「官網不顯示、後台還能編」：首頁大圖標語的「標語上方的小標」（09-30 首屏改版拿掉）與校園探索的熱點（分校頁 10-03 拿掉，環境頁只用場景照片、名稱、說明）。範圍經使用者選定：後台＋後端規則＋官網死碼，後端 schema 舊欄位與已存資料不動。
+
+- **後台**：「首頁大圖標語」拿掉小標欄位；「校園探索」拿掉圖釘、點照片加熱點、拖曳／方向鍵／座標、熱點名稱／說明／提問、上下移與「熱點待複核」，只留場景名稱、照片、說明與場景排序，預覽改成跟環境頁一樣原比例整張顯示（不再是 8:5 拉滿）。舊值（小標、舊場景的熱點）照原樣存回。素材庫替換對話框拿掉「熱點要重新複核」警告；刪掉沒人用的字數提示（小標、熱點說明、分校頁介紹、FAQ、預約橫幅）與 `bannerTitlePreview`／`BANNER_DEFAULTS`、沒人用的 `--on-photo-border`／`--on-photo-shadow`。順手修：「新增場景」按鈕原本夾在 `role="tablist"` 裡（axe critical `aria-required-children`，main 就有），移到 tablist 外。
+- **後端**：`HomeHeroPayload.eyebrow` 改選填（預設空字串）；`TourScenePayload.spots` 改選填（0–8 個，舊熱點照原規則驗證）；拿掉 `_mark_tour_spots_for_review`（換照片自動標待複核）與 `_tour_publish_blocker`，上線前存下、標成待複核的草稿也能直接發布。`spots_reviewed` 欄位保留只為舊版本可讀。沒有 migration、不改已存資料；契約只有一行說明文字（已 `contract:generate`）。
+- **官網**：刪掉沒人引用的 `CampusTour.vue`、`CampusFaq.vue`、`CampusTestimonials.vue` 與它們的全站 CSS（`styles.css`／`performance.css` 約 8.8KB）；`content-overlay.ts` 拿掉常見問題合併（`mergeCampusFaq`）與沒人讀的欄位轉換（小標、五校區塊說明、出處說明、分校簡介／詳細介紹／臉書備註／首屏焦點、同意文字、預約橫幅、熱點），草稿預覽不再抓 `campus_faq`／`shared_faq`。公開輸出（`public-copy.ts` 的 `withoutRetiredFields`）拿掉這些舊欄位，頁面資料不再帶原型的示範同意文字與常見問題；整份內容 JSON 少約 15.6KB（39.5%，未壓縮）。`site-fixture.json` 不動（後端初始化內容要讀）。
+- **DESIGN.md**：「後台欄位要對得上官網」補 10-04；「校園探索後台畫布 8:5」「校園探索照片一定要 8:5」標作廢。
+
+**驗證**（Node 22.23.2；本機 PostgreSQL，獨立測試庫 `ivy_website_legacyfields_test`）：
+- 後端：先改 `test_content_rules.py`（沒有熱點的場景可存可發、換照片不擋發布、待複核舊草稿可發、首屏不帶小標可存），在未修正版確認 4 項紅燈再修；整套 pytest 1391 passed。
+- admin：vue-tsc 通過；vitest 88 檔 1078 項通過（tablist 修正後再跑校園探索相關 7 檔 150 項通過）。
+- web：`nuxt typecheck` 通過；vitest 77 檔 767 項通過（基準比對 `overlay-baseline-20260925.json` 改成先拿掉舊欄位再比，檔案本身沒動）。
+- `npm run contract:check` 一致。
+- 實機（`tests/stack/start-api.sh` 起拋棄式 API＋admin vite＋nuxt dev live 模式，Playwright 桌機 1440×900、手機 390×844）：兩頁都沒有熱點與小標；把義華舊場景標成待複核、再新增一個場景後發布回 200，新場景 `spots: []`、舊場景 3 個熱點照原樣保留；小標存檔後原值保留。axe：兩頁剩 moderate `heading-order`（後台共通），沒有 serious／critical。`/`、`/environment`、`/visit`、`/about` SSR 200，新場景有渲染，HTML 裡沒有 `spots`、`faq`、`fbNote`、`heroPhotoPos`、原型示範文字。
+- stack e2e（`npm run e2e:build` 後整套，`E2E_DB_NAME=ivy_website_legacyfields_e2e_test`、埠 8781／3781）：72 項 71 過；`media.spec.ts`「素材庫上傳照片…發布到官網」失敗（`home_about` 的 `payload.photo` 讀回不符），單獨重跑一次仍失敗、第二次通過，是 main 既有的間歇問題（這次沒動 home_about 與素材選取）。
+- 未驗證：Safari／iOS 實機、正式站。
+
+**合併注意**：未合併的 `feature/page-cms-20261004`（`content-overlay.ts` 的 `ContentOverlay` 介面與 campus_profile 附近、`overlay-baseline` JSON、`labels.ts`）與 `feature/media-jobs-20261003`（`content-overlay.ts` 首屏與孩子的一天段落、`MediaSlotField`）改到相鄰段落，後合併的一方會有小衝突。
+
 ## 2026-10-04 素材背景轉檔（`feature/media-jobs-20261003`，未部署）
 
 影片上傳改成背景轉檔（poster＋桌機／手機 H.264），官網改播轉檔版本；圖片多中圖。規則見 DESIGN.md「素材背景轉檔」。已 merge origin/main `d559cae6`。

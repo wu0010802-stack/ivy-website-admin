@@ -15633,7 +15633,7 @@
     },
     "/api/website/v1/admin/content-items/{kind}/revisions/{revision_id}/restore": {
       "post": {
-        "description": "把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動\n其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的\n還原內容，別人尚未發布的草稿不會被帶上去。規格：內容還原不回復預約\n設定、時段、案件或通知，這裡只動內容。\n\n直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿\n再送審），也要通過發布前檢查（例如校園探索熱點待複核）。",
+        "description": "把舊版內容複製成一個新版本（版本號繼續往上），不改寫歷史，也不動\n其他內容項目。選 publish 時在同一個交易裡發布，官網只會切到這一項的\n還原內容，別人尚未發布的草稿不會被帶上去。規格：內容還原不回復預約\n設定、時段、案件或通知，這裡只動內容。\n\n直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿\n再送審），也要通過發布前檢查（例如預約文案的隱私說明還是示意文字）。",
         "operationId": "restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post",
         "parameters": [
           {

@@ -145,7 +145,7 @@ describe('孩子的一天：卡片以後台為準', () => {
 describe('首屏按鈕文字（2026-09-23 拿掉首屏按鈕）', () => {
   it('舊版本的 cta_label 不再疊到官網內容', () => {
     const result = applyContentOverlay(site, { home_hero: { eyebrow: '小標', copy_lines: ['一'], cta_label: '舊按鈕' } })
-    expect(result.home.hero.eyebrow).toBe('小標')
+    expect(result.home.hero.copyLines).toEqual(['一'])
     expect(result.home.hero.ctaLabel).toBe(site.home.hero.ctaLabel)
   })
 })

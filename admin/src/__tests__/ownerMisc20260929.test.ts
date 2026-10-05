@@ -1,6 +1,6 @@
 // 2026-09-29 業主裁定（後台雜項）：側欄只有參觀案件掛數字；官網刻意不顯示的三個欄位
-// 不再列出、但存檔照原樣送回；預約橫幅接上官網後的標題預覽與「插入校名」；
-// 「全站設定」改名「個資與搜尋設定」。
+// 不再列出、但存檔照原樣送回；「全站設定」改名「個資與搜尋設定」。（預約橫幅的標題
+// 預覽隨官網分校頁拿掉，2026-10-04 連規則函式一起刪除。）
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -9,7 +9,6 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import type { UserOut } from '../api/types'
-import { bannerTitlePreview, BANNER_DEFAULTS, LENGTH_HINTS } from '../composables/contentHints'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { NAV_GROUPS, navItem } from '../router/nav'
 import AdminSidebar from '../components/AdminSidebar.vue'
@@ -148,16 +147,5 @@ describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () =
     const payload = await savedPayload(wrapper, 'campus_profile')
     expect(payload.phone).toBe('07-392-8366')
     expect(payload.fb_note).toBe('義華校粉絲專頁')
-  })
-})
-
-describe('預約橫幅的字數與預覽規則（官網分校頁已移除，只剩規則函式）', () => {
-  it('預覽規則：兩種校名記號都換、校名裡的特殊字元照原樣；字數建議有上限', () => {
-    expect(bannerTitlePreview('歡迎預約參觀{campus}', '明華校')).toBe('歡迎預約參觀明華校')
-    expect(bannerTitlePreview('{campusNameOrIvy}・{campusNameOrIvy}', '$&校')).toBe('$&校・$&校')
-    expect(bannerTitlePreview('   ', '國際校')).toBe('親自走一趟，感受國際校的日常。')
-    expect(LENGTH_HINTS.bannerTitle.max).toBeGreaterThanOrEqual(Array.from('親自走一趟，感受義華校的日常。').length)
-    expect(LENGTH_HINTS.bannerBody.max).toBeGreaterThanOrEqual(Array.from(BANNER_DEFAULTS.body).length)
-    expect(LENGTH_HINTS.bannerButton.max).toBeGreaterThanOrEqual(Array.from(BANNER_DEFAULTS.button).length)
   })
 })

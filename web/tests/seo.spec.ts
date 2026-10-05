@@ -59,11 +59,11 @@ describe('公開搜尋資料', () => {
     const c = site.campuses[4]!
     const result = publishedContent(site, {
       schema_version: '1', release_id: 'release-1', content: {
-        campus_profile: { renwu: { name: c.name, district: c.district, address: c.address, phone: c.phone, intro: c.intro, description: '已發布的仁武介紹', facebook: c.facebook, fb_note: c.fbNote, line: '' } }
+        campus_profile: { renwu: { name: c.name, district: c.district, address: '已發布的仁武地址', phone: c.phone, facebook: c.facebook, line: '' } }
       }
     })
     expect(result.content.campuses.map((campus) => campus.key)).toEqual(['renwu'])
-    expect(result.content.campuses[0]!.description).toBe('已發布的仁武介紹')
+    expect(result.content.campuses[0]!.address).toBe('已發布的仁武地址')
     expect(site.campuses).toHaveLength(5)
     expect(() => publishedContent(site, { schema_version: '1', release_id: null, content: {} })).toThrow()
   })

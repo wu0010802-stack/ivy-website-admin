@@ -5,7 +5,7 @@ import { WEBSITE_ASSET_BASE } from '../config'
 // 退回系統字，整行看起來不一致。每種字型的字表都是官網公開的
 // /assets/fonts/chars-*.txt（重切字型時跟著更新），後台讀它提示缺字。
 //
-// - bd：LINE Seed TW Bold，一般 h2／h3 標題（關於標題、消息與活動標題、拍立得標題、熱點名稱…）。
+// - bd：LINE Seed TW Bold，一般 h2／h3 標題（關於標題、消息與活動標題、拍立得標題…）。
 //   2026-09-25 起是官方完整字型（scripts/subset-critical-fonts.py 切片），只缺罕見字與 emoji。
 // - eb：LINE Seed TW ExtraBold，首頁 h1；完整字型，字表與 bd 相同
 // - serif：Noto Serif TC 明體子集，校名與首頁五校區塊標題（三個明體子集的聯集）

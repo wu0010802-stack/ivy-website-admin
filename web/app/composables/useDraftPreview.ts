@@ -35,7 +35,7 @@ export interface DraftPreviewResult {
   render: ((date: string) => DraftPreviewRender) | null
 }
 
-type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content' | 'shared_faq' | 'privacy_policy' | 'curriculum_page' | 'about_page'
+type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content' | 'privacy_policy' | 'curriculum_page' | 'about_page'
 const SHARED_KINDS: SharedKind[] = [
   'home_about',
   'home_hero',
@@ -46,13 +46,12 @@ const SHARED_KINDS: SharedKind[] = [
   'day_experience',
   'home_news',
   'admission_content',
-  'shared_faq',
   'privacy_policy',
   'curriculum_page',
   'about_page'
 ]
-type CampusKind = 'campus_profile' | 'campus_faq' | 'campus_tour' | 'campus_news'
-const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour', 'campus_news']
+type CampusKind = 'campus_profile' | 'campus_tour' | 'campus_news'
+const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_tour', 'campus_news']
 
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
@@ -63,7 +62,7 @@ const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_faq', 'campus_tour
  * 疊資料用跟 `usePublishedSite` 同一支 `applyContentOverlay`：那邊疊的
  * 是「已發布」內容，這裡疊的是「最新未發布」內容，形狀完全一樣。
  *
- * `campus_profile`／`campus_faq` 是每校各一份，`/admin/content-items`
+ * `campus_profile`／`campus_tour`／`campus_news` 是每校各一份，`/admin/content-items`
  * 沒有一次拿全部校區的端點，所以逐校打（校區清單直接讀 fixture 現有的
  * `campuses`，不在這裡另外寫死一份清單，避免兩份清單以後漂移）。
  */

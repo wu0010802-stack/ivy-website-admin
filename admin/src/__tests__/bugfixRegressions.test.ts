@@ -121,7 +121,8 @@ describe('校園探索場景預設值', () => {
     return wrapper
   }
 
-  it('新場景預設帶一個熱點，不會一存檔就撞後端 1～8 個的下界', async () => {
+  // 2026-10-04 熱點隨分校頁拿掉：後端改成選填，新場景不再帶預設熱點（存檔內容見 siteStructure）。
+  it('新增場景後畫面上沒有熱點', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({
       id: 'c1', kind: 'campus_tour', campus_key: 'yihua', latest_version: 0,
       current_published_revision_id: null, latest_revision: null,
@@ -131,6 +132,7 @@ describe('校園探索場景預設值', () => {
     expect(addButton).toBeDefined()
     await addButton!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('1 個熱點')
+    expect(wrapper.text()).toContain('場景 2 / 2')
+    expect(wrapper.text()).not.toContain('熱點')
   })
 })

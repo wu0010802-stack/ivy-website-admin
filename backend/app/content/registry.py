@@ -195,27 +195,6 @@ def set_at_path(payload: dict, path: str, value: object) -> None:
     target[tokens[-1]] = value  # type: ignore[index]
 
 
-def _mark_tour_spots_for_review(payload: dict, previous: dict | None) -> dict:
-    """照片換了的場景，熱點一律標成待複核；照片沒變則沿用前端送來的值
-    （園方按「熱點已複核」就是送 True）。全新的場景視為在新照片上放點，
-    不需要複核。"""
-    old_images = {
-        scene.get("key"): scene.get("image") for scene in (previous or {}).get("scenes", [])
-    }
-    for scene in payload.get("scenes", []):
-        key = scene.get("key")
-        if key in old_images and old_images[key] != scene.get("image"):
-            scene["spots_reviewed"] = False
-    return payload
-
-
-def _tour_publish_blocker(payload: dict) -> str | None:
-    pending = [s.get("name") or s.get("key") for s in payload.get("scenes", []) if s.get("spots_reviewed") is False]
-    if pending:
-        return f"場景「{'、'.join(pending)}」換了照片，熱點還沒複核，確認位置後才能發布"
-    return None
-
-
 def _booking_publish_blocker(payload: dict) -> str | None:
     """隱私說明還留著後台帶入的示意文字時不能發布（正式條款由園方提供）。
 
@@ -420,8 +399,6 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         CampusTourPayload,
         shared_only=False,
         extract_media_refs=_extract_campus_tour_media_refs,
-        before_save=_mark_tour_spots_for_review,
-        publish_blocker=_tour_publish_blocker,
     ),
 }
 

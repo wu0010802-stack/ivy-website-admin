@@ -7,7 +7,6 @@ function makeFixture(): SiteContent {
     schemaVersion: 'fixture-test',
     home: {
       hero: {
-        eyebrow: 'fixture eyebrow',
         titleParts: {
           before: '',
           punctAfterBefore: '',
@@ -73,10 +72,9 @@ function makeFixture(): SiteContent {
       {
         key: 'yihua',
         name: 'fixture 義華',
-        faq: { items: [{ q: 'fixture q', a: 'fixture a' }] },
         tourScenes: { _generated: true, note: 'fixture generated placeholder' }
       } as SiteContent['campuses'][number],
-      { key: 'minghua', name: 'fixture 明華', faq: { items: [] } } as SiteContent['campuses'][number]
+      { key: 'minghua', name: 'fixture 明華' } as SiteContent['campuses'][number]
     ]
   } as unknown as SiteContent
 }
@@ -86,7 +84,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {})
     expect(result.home.about.title).toBe('fixture title')
-    expect(result.home.hero.eyebrow).toBe('fixture eyebrow')
+    expect(result.home.hero.copyLines).toEqual(['fixture line 1'])
     expect(result.footer.tagline).toBe('fixture tagline')
   })
 
@@ -103,7 +101,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     expect(result.home.about.title).toBe('已發布標題')
     expect(result.home.about.sinceLabel).toBe('已發布 since')
     // 沒給 home_hero／site_footer，維持 fixture 原文
-    expect(result.home.hero.eyebrow).toBe('fixture eyebrow')
+    expect(result.home.hero.copyLines).toEqual(['fixture line 1'])
     expect(result.footer.tagline).toBe('fixture tagline')
   })
 
@@ -120,7 +118,8 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
       site_footer: { tagline: 'I', copyright: 'J', bottom_note: 'K', campus_list_label: 'L' }
     })
     expect(result.home.about.title).toBe('A')
-    expect(result.home.hero.eyebrow).toBe('E')
+    // 小標 2026-09-30 起官網不顯示，舊版本帶來的值不再疊上（2026-10-04）。
+    expect(result.home.hero).not.toHaveProperty('eyebrow')
     expect(result.home.hero.copyLines).toEqual(['F', 'G'])
     expect(result.footer.tagline).toBe('I')
   })
@@ -129,7 +128,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, { home_about: null, home_hero: null, site_footer: null })
     expect(result.home.about.title).toBe('fixture title')
-    expect(result.home.hero.eyebrow).toBe('fixture eyebrow')
+    expect(result.home.hero.copyLines).toEqual(['fixture line 1'])
     expect(result.footer.tagline).toBe('fixture tagline')
   })
 
@@ -201,7 +200,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     ])
   })
 
-  it('campus_profile／campus_faq 依 campus_key 分別套用到對應校區，不影響其他校', () => {
+  it('campus_profile 依 campus_key 分別套用到對應校區，不影響其他校；分校頁才用的欄位不再疊上', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {
       campus_profile: {
@@ -217,15 +216,16 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
           line: 'https://line.me/test'
         }
       },
+      // 常見問題隨分校頁拿掉（2026-10-04 起官網不讀）。
       campus_faq: {
         yihua: { items: [{ q: '新問題', a: '新回答' }] }
       }
-    })
+    } as never)
     const yihua = result.campuses.find((c) => c.key === 'yihua')!
     const minghua = result.campuses.find((c) => c.key === 'minghua')!
     expect(yihua.name).toBe('義華新名稱')
     expect(yihua.line).toBe('https://line.me/test')
-    expect(yihua.faq.items).toEqual([{ q: '新問題', a: '新回答' }])
+    for (const retired of ['intro', 'description', 'fbNote', 'faq']) expect(yihua).not.toHaveProperty(retired)
     // 沒給 minghua 的 overlay，維持 fixture 原文
     expect(minghua.name).toBe('fixture 明華')
   })
@@ -276,7 +276,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     })
   })
 
-  it('campus_tour 整組取代 tourScenes，含把 GeneratedTourScenes 佔位樣板換成真正場景', () => {
+  it('campus_tour 整組取代 tourScenes，含把 GeneratedTourScenes 佔位樣板換成真正場景；舊熱點不帶', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {
       campus_tour: {
@@ -287,12 +287,13 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
               name: '新場景',
               image: 'campus',
               intro: 'intro',
-              spots: [{ name: '熱點', x: 30, y: 40, text: 't', question: 'q' }]
+              spots: [{ name: '熱點', x: 30, y: 40, text: 't', question: 'q' }],
+              spots_reviewed: false
             }
           ]
         }
       }
-    })
+    } as never)
     const yihua = result.campuses.find((c) => c.key === 'yihua')!
     const minghua = result.campuses.find((c) => c.key === 'minghua')!
     expect(yihua.tourScenes).toEqual([
@@ -300,8 +301,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
         key: 's1',
         name: '新場景',
         image: 'campus',
-        intro: 'intro',
-        spots: [{ name: '熱點', x: 30, y: 40, text: 't', question: 'q' }]
+        intro: 'intro'
       }
     ])
     // 沒給 minghua 的 overlay，維持 fixture 原文（undefined，因為測試 fixture 本來就沒設）

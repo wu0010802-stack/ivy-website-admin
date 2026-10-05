@@ -42,9 +42,10 @@ export interface HomeAboutPayload {
   photo_alt?: string
 }
 
-/** 首屏小標與標語。按鈕文字（cta_label）2026-09-23 隨首屏按鈕拿掉，後端忽略舊值。 */
+/** 首屏標語與影片。按鈕文字（cta_label）2026-09-23 隨首屏按鈕拿掉，後端忽略舊值。 */
 export interface HomeHeroPayload {
-  eyebrow: string
+  /** 標語上方的小標：2026-09-30 起官網不顯示，2026-10-04 起後台不編；舊版本的值原樣保留 */
+  eyebrow?: string
   copy_lines: string[]
   video_desktop?: MediaSlotPayload | null
   video_mobile?: MediaSlotPayload | null
@@ -390,6 +391,7 @@ export interface SharedFaqPayload {
   items: SharedFaqItemPayload[]
 }
 
+/** 已拿掉的分校頁校園探索熱點：官網不顯示、後台不編，只為舊版本保留 */
 export interface TourSpotPayload {
   name: string
   x: number
@@ -403,8 +405,9 @@ export interface TourScenePayload {
   name: string
   image: string
   intro: string
-  spots: TourSpotPayload[]
-  /** 換照片後伺服器改成 false；園方確認熱點位置後改回 true 才能發布 */
+  /** 舊資料的熱點（2026-10-04 起新場景不帶） */
+  spots?: TourSpotPayload[]
+  /** 舊的「熱點待複核」旗標，2026-10-04 起不再更動也不擋發布 */
   spots_reviewed?: boolean
 }
 
