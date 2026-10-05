@@ -8,6 +8,7 @@ import NotificationsView from '../views/NotificationsView.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { formatShortSlotWhen } from '../api/labels'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
@@ -15,15 +16,18 @@ afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.lengt
 function notification(id: string, campus_key = 'yihua', slot_date = '2026-10-24') {
   return { id, campus_key, kind: 'visit_request_created', payload: { receipt_id: `case-${id}` }, slot: { slot_date, start_time: '14:00:00', end_time: '15:00:00' }, created_at: '2026-09-22T00:00:00Z', read_at: null }
 }
-async function setup(user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua', 'renwu'] })) {
+async function setupWithRouter(user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: ['yihua', 'renwu'] }), path = '/notifications') {
   const pinia = createPinia()
   useAuthStore(pinia).user = user
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/notifications')
+  await router.push(path)
   await router.isReady()
   const wrapper = mount(NotificationsView, { global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } } })
   wrappers.push(wrapper)
-  return wrapper
+  return { wrapper, router }
+}
+async function setup(user?: Parameters<typeof setupWithRouter>[0]) {
+  return (await setupWithRouter(user)).wrapper
 }
 
 describe('通知操作與回應競態', () => {
@@ -41,11 +45,11 @@ describe('通知操作與回應競態', () => {
     expect(wrapper.text()).not.toContain('還沒有通知')
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
-    expect(wrapper.text()).toContain('2026/10/24')
+    expect(wrapper.text()).toContain('10/24（週六）')
     resolveOld([notification('過時通知', 'yihua', '2026-10-31')])
     await flushPromises()
-    expect(wrapper.text()).not.toContain('2026/10/31')
-    expect(wrapper.text()).toContain('2026/10/24')
+    expect(wrapper.text()).not.toContain('10/31（')
+    expect(wrapper.text()).toContain('10/24（週六）')
   })
 
   it('批次期間鎖住重複操作與校區切換，部分失敗保持未讀', async () => {
@@ -78,15 +82,19 @@ describe('站內通知的校區範圍', () => {
     return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
   }
 
-  it('管多校的人預設看全部校區，摘要寫明範圍與各校未讀數', async () => {
+  it('管多校的人預設看全部校區，頁籤寫則數、未讀寫出在哪幾校', async () => {
     const get = mockList([notification('義華家長'), notification('仁武家長', 'renwu'), { ...notification('已讀'), read_at: '2026-09-23T00:00:00Z' }])
     const wrapper = await setup()
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/notifications')
     expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('')
     expect(wrapper.getComponent(CampusSelect).props('allLabel')).toBe('全部校區')
-    expect(wrapper.get('.list-summary').text()).toContain('全部校區 · 3 則通知，2 則未讀（義華 1 則、仁武 1 則）')
-    expect(wrapper.text()).toContain('通知清單（全部校區）')
+    expect(wrapper.findAll('.status-tab').map(tab => tab.text())).toEqual(['全部3 則', '未讀2 則'])
+    expect(wrapper.get('.notices__breakdown').text()).toBe('未讀：義華 1 則、仁武 1 則')
+    // 螢幕報讀器讀得到整份清單的摘要。
+    expect(wrapper.get('[aria-live="polite"]').text()).toBe('全部校區 · 3 則通知，2 則未讀（義華 1 則、仁武 1 則）')
+    // 全部校區時每則前面帶校名。
+    expect(wrapper.findAll('.notice__meta').map(meta => meta.text())).toEqual(expect.arrayContaining([expect.stringMatching(/^仁武・參觀 /)]))
     expect(wrapper.text()).not.toContain('只列出最新的 100 則')
   })
 
@@ -107,12 +115,14 @@ describe('站內通知的校區範圍', () => {
     expect(wrapper.text()).toContain('已將全部校區 2 則通知標記為已讀（義華 1 則、仁武 1 則）')
   })
 
-  it('只管一校的人直接看那一校；清單滿 100 則時說明只列出最新的', async () => {
+  it('只管一校的人直接看那一校、不出現校區選單與校名；清單滿 100 則時說明只列出最新的', async () => {
     const rows = Array.from({ length: 100 }, (_, index) => notification(`n${index}`))
     const get = mockList(rows)
     const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/notifications?campus_key=yihua')
+    expect(wrapper.findComponent(CampusSelect).exists()).toBe(false)
+    expect(wrapper.find('.notice__meta').text()).toMatch(/^參觀 /)
     expect(wrapper.text()).toContain('只列出最新的 100 則通知')
   })
 })
@@ -217,16 +227,110 @@ describe('寄送失敗的通知（第 2 條）', () => {
 })
 
 describe('站內通知的參觀場次', () => {
-  it('每列寫出參觀日期時段（後端讀取時查的），沒有場次就不寫', async () => {
+  it('每列寫出參觀日期時段（後端讀取時查的），沒有場次就不寫；整列連到案件', async () => {
     vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : [
       notification('n1', 'yihua', '2026-10-24'),
       { ...notification('n2'), slot: null },
     ]) as Promise<never>)
     const wrapper = await setup()
     await flushPromises()
-    const rows = wrapper.findAll('.mobile-records .mobile-record')
-    expect(rows[0]!.text()).toContain('參觀 2026/10/24（週六）14:00–15:00')
-    expect(rows[1]!.text()).not.toContain('參觀 2026')
-    expect(rows[0]!.find('a').attributes('href')).toContain('/visit-requests/case-n1')
+    const rows = wrapper.findAll('.notice')
+    expect(rows[0]!.get('.notice__meta').text()).toBe(`義華・參觀 ${formatShortSlotWhen({ slot_date: '2026-10-24', start_time: '14:00:00', end_time: '15:00:00' })}`)
+    expect(rows[1]!.text()).not.toContain('參觀 ')
+    expect(rows[0]!.get('a.notice__main').attributes('href')).toContain('/visit-requests/case-n1')
+    expect(rows[0]!.get('a.notice__main').text()).toContain('新的參觀預約')
+  })
+})
+
+describe('站內通知的版面（2026-10-05）', () => {
+  function at(minutesAgo: number): string {
+    return new Date(Date.now() - minutesAgo * 60_000).toISOString()
+  }
+  function mockRows(rows: unknown[]) {
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+  }
+
+  it('依台北日期分成今天、昨天與更早，列上只寫幾點幾分', async () => {
+    const now = new Date()
+    const taipei = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(d)
+    const clock = (iso: string) => new Intl.DateTimeFormat('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei' }).format(new Date(iso))
+    const today = { ...notification('today'), created_at: now.toISOString() }
+    const yesterday = { ...notification('yesterday'), created_at: new Date(`${taipei(new Date(now.getTime() - 86_400_000))}T12:00:00+08:00`).toISOString() }
+    const older = { ...notification('older'), created_at: '2025-03-04T04:00:00Z' }
+    mockRows([today, yesterday, older])
+    const wrapper = await setup()
+    await flushPromises()
+    expect(wrapper.findAll('.notice-day__label').map(label => label.text())).toEqual(['今天', '昨天', '2025/03/04（週二）'])
+    expect(wrapper.find('.notice__time').text()).toBe(clock(today.created_at))
+    expect(wrapper.find('.notice__time').attributes('title')).toMatch(/^\d{4}\/\d{2}\/\d{2} /)
+  })
+
+  it('通知種類用圖示色調區分，已讀未讀看點與標題', async () => {
+    mockRows([
+      { ...notification('new'), created_at: at(1) },
+      { ...notification('cancel'), kind: 'visit_request_cancelled', created_at: at(2), read_at: at(1) },
+      { ...notification('soon'), kind: 'visit_upcoming', created_at: at(3) },
+      { ...notification('late'), kind: 'visit_request_overdue', payload: { receipt_id: 'c', reason: 'new_unhandled' }, created_at: at(4) },
+      { ...notification('odd'), kind: 'something_new', created_at: at(5) },
+    ])
+    const wrapper = await setup()
+    await flushPromises()
+    const rows = wrapper.findAll('.notice')
+    expect(rows.map(row => row.attributes('data-tone'))).toEqual(['success', 'info', 'warning', 'danger', 'info'])
+    expect(rows.map(row => row.classes('is-unread'))).toEqual([true, false, true, true, true])
+    expect(rows[1]!.find('[aria-label="未讀"]').exists()).toBe(false)
+    expect(rows[0]!.find('[aria-label="未讀"]').exists()).toBe(true)
+  })
+
+  it('「未讀」頁籤與校區寫進網址，返回時回到同一份清單', async () => {
+    mockRows([{ ...notification('unread'), created_at: at(1) }, { ...notification('read', 'renwu'), created_at: at(2), read_at: at(1) }])
+    const { wrapper, router } = await setupWithRouter(undefined, '/notifications?unread=1&campus=yihua')
+    await flushPromises()
+    expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('yihua')
+    expect(wrapper.findAll('.notice')).toHaveLength(1)
+    expect(wrapper.findAll('.status-tab')[1]!.attributes('aria-pressed')).toBe('true')
+
+    await wrapper.findAll('.status-tab')[0]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
+    wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', '')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({})
+  })
+
+  it('單校帳號的寄送失敗與改期申請不列校區欄', async () => {
+    vi.spyOn(api, 'get').mockImplementation(url => {
+      const path = String(url)
+      if (path.includes('notification-outbox')) return Promise.resolve({ items: [failedItem('a', { campus_key: 'yihua' })], total: 1 }) as Promise<never>
+      return Promise.resolve([]) as Promise<never>
+    })
+    const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
+    await flushPromises()
+    const headers = wrapper.findAll('.failed th').map(th => th.text())
+    expect(headers).not.toContain('校區')
+    expect(wrapper.get('.failed .mobile-record').text()).not.toContain('校區')
+  })
+
+  it('切回分頁超過 60 秒才在背景重讀，清單留在畫面上', async () => {
+    const start = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(start)
+    const get = mockRows([{ ...notification('n1'), created_at: new Date(start).toISOString() }])
+    const wrapper = await setup()
+    await flushPromises()
+    const reads = () => get.mock.calls.filter(([url]) => String(url).startsWith('/admin/notifications')).length
+    expect(reads()).toBe(1)
+
+    now.mockReturnValue(start + 30_000)
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(reads()).toBe(1)
+
+    now.mockReturnValue(start + 61_000)
+    window.dispatchEvent(new Event('focus'))
+    // 背景重讀時不清空、不出現骨架。
+    expect(wrapper.find('.notices__skeleton').exists()).toBe(false)
+    expect(wrapper.findAll('.notice')).toHaveLength(1)
+    await flushPromises()
+    expect(reads()).toBe(2)
   })
 })
