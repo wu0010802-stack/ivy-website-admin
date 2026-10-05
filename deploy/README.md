@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 招生訪視照紙本補欄位、官網得知管道加兩項（main CI 部署）
+
+- **合併**：`feature/admissions-paper-fields-20261005` 的 `a4ffeafc` 合 origin/main 兩次（`8b0efde2` 參觀案件拿掉待處理、`4f9de0b6` 校園探索改由總部控制；DESIGN／README 各段都留）成 `9ab739ae`，使用者要求後推 main `4f9de0b6..9ab739ae`。內容與驗證見 README 頂部同日段落、DESIGN.md「招生訪視照紙本補欄位」。
+- **migration**：`3fe1cfb2dbf7`，原本接 `4373bcc82d9d`，合併時改接 `8b0efde2` 的 `1e5612e187ff`（維持單一 head）。只在 `recruitment_visits` 加三個可空欄位、重建 `ck_recruitment_contact_logs_channel` 放行 `revisit`，不改既有資料，部署前沒有另外備份（同一批的 `1e5612e187ff` 刪舊案，已隨 `8b0efde2` 那次部署）。
+- **推前本機**（第二次合併後）：後端整套 pytest 1537 passed、1 skipped；admin vitest 94 檔 1207 項、`vue-tsc -b`；web typecheck、`test:website` 829 項；`contract:check` 一致；stack e2e 整套 74 項全過。第三次合併（`4f9de0b6`，沒有 migration、不碰招生）後重跑 admin vitest 95 檔 1213 項、web 829 項、`contract:check`，以及校園探索、素材庫、招生、得知管道、總覽相關的後端 270 項，全過；整套 pytest 與 stack 沒再重跑，交給 CI。
+- **CI**：main run 37334783908（`9ab739ae`）全綠，建立到完成 25 分 36 秒（含排在 `4f9de0b6` 那次後面）：Frontend admin 3.5／web 1.4 分鐘，Backend 三組 8.0／5.8／7.3 分鐘，E2E／Playwright 5.8 分鐘，Deploy 8.0 分鐘。
+- **正式 `release.json`**：base commit `9ab739ae`，created `2026-10-05T15:58:51Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空（API 起得來代表 migration 已到 head）；`/admin/login` 200；`/visit/yihua` SSR 有「哥哥姊姊讀過或正在讀」「傳單／DM」；`AdmissionsView` lazy chunk 有「來源備註」「帶參觀老師」「父親職業」「搭娃娃車」，`labels` chunk 有「再參觀」。
+- **未做**：沒登入正式後台實際新增一筆訪視、記錄一次再參觀；正式站招生開關開或關沒確認（關閉時後台看不到招生入學，官網兩個新選項不受影響）；Safari／iOS 實機。
+
 ## 2026-10-05 招生入學拿掉名額規劃、官網預約兩個分頁（main CI 部署）
 
 - **合併**：`feature/admissions-no-arrivals-20261005` 的 `51332515` 疊在 main `55c9d68f`（拿掉名額規劃）上，使用者快轉推 main `55c9d68f..51332515`。內容與驗證見 README 頂部同日兩段、DESIGN.md「拿掉官網預約分頁」「拿掉名額規劃」。
