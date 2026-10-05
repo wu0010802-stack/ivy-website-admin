@@ -15,7 +15,7 @@ import TransitionDialog from '../admissions/TransitionDialog.vue'
 
 // 預約明細家庭版面的處理區（2026-10-05 家庭頁規格 5.6）：招生階段、下次聯絡、最近聯絡；
 // 記錄聯絡／排下次聯絡／移到…（同看板與歷程抽屜的對話框與權限）；招生負責人；重新預約。
-const props = defineProps<{ visit: RecruitmentVisit; staff: readonly AdmissionsStaff[]; latest: ContactLog | null }>()
+const props = defineProps<{ visit: RecruitmentVisit; staff: readonly AdmissionsStaff[]; latest: ContactLog | null; rebookable: boolean }>()
 const emit = defineEmits<{ changed: [visit: RecruitmentVisit]; stale: []; rebook: [] }>()
 
 const { can } = usePermissions()
@@ -124,7 +124,7 @@ async function setOwner(ownerId: string | null) {
       </el-select>
       <span v-else>{{ ownerLabel(visit.follow_up_owner_id, staffList) }}</span>
     </div>
-    <div class="family-actions__rebook">
+    <div v-if="rebookable" class="family-actions__rebook">
       <span class="hint">家長想再約別的時間？</span>
       <el-button link type="primary" @click="emit('rebook')">重新預約（另建新案）</el-button>
     </div>

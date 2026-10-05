@@ -23,10 +23,11 @@ import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { useFamilyAdmissions } from '../composables/useFamilyAdmissions'
-import { stageLabel } from '../admissions/constants'
-import { followUpText, isDue, isOpenStage, lastContactText } from '../admissions/followUp'
-import ContactLogDialog, { type ContactTarget } from '../components/admissions/ContactLogDialog.vue'
-import FollowUpDialog, { type FollowUpTarget } from '../components/admissions/FollowUpDialog.vue'
+import { stageMeta } from '../admissions/constants'
+import { arrivedAt, arrivedLabel, familyLastHandled, familyNotes, latestContact } from '../admissions/family'
+import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
+import FamilyActions from '../components/visit/FamilyActions.vue'
+import FamilyContactNotes from '../components/visit/FamilyContactNotes.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -38,10 +39,21 @@ const detail = ref<VisitRequestFullOut | null>(null)
 // 招生部分（招生規格第 10 節、2026-10-05 家庭頁規格 5.10）：composables/useFamilyAdmissions.ts。
 const family = useFamilyAdmissions(detail, { reloadDetail: () => load({ quiet: true }) })
 const { canRead: canReadAdmissions, canWrite: canCreateAdmissions, visit: admissionsVisit, available: admissionsAvailable, creating: creatingAdmissions } = family
-const loadAdmissionsVisit = family.lookup
 const createAdmissionsVisit = family.create
-// 頁首「最後處理」：同事最近一次動這筆案件（api/visitHistory.ts）。
-const handled = computed(() => (detail.value ? lastHandled(detail.value.history ?? [], authStore.user?.id ?? null) : null))
+const { isFamily, events: familyEvents, contactLogs: familyLogs, staff: familyStaff, options: familyOptions, extrasFailed, lookupFailed } = family
+// 家庭版面時的招生訪視；不是家庭版面就是 null（模板用它切換版面）。
+const familyVisit = computed(() => (isFamily.value ? admissionsVisit.value : null))
+// 家長預約時填的資料在家庭版面收合（家庭頁規格 5.3）；換案件時收回去。
+const bookingDataOpen = ref(false)
+// 頁首「最後處理」：同事最近一次動這筆案件（api/visitHistory.ts）；家庭版面再併入招生事件與參觀後聯絡。
+const handled = computed(() => {
+  const current = detail.value
+  if (!current) return null
+  const selfId = authStore.user?.id ?? null
+  return familyVisit.value
+    ? familyLastHandled(current.history ?? [], familyEvents.value, familyLogs.value, selfId)
+    : lastHandled(current.history ?? [], selfId)
+})
 const notes = ref<VisitContactNoteOut[]>([])
 const availableSlots = ref<VisitSlotOut[]>([])
 const selectedSlotId = ref('')
@@ -87,7 +99,8 @@ const assigning = ref(false)
 
 // 打好還沒按「新增紀錄」的聯絡紀錄：返回、下一筆、側欄換頁前都先問，
 // 不然同事接手時看不到這段聯絡過程。處理中（例如正在新增紀錄）先請使用者稍候。
-const noteDirty = computed(() => canHandle.value && newNote.value.trim() !== '')
+// 家庭版面沒有文字框：看不到的草稿不擋離開（家庭頁規格 Review Focus 1）。
+const noteDirty = computed(() => canHandle.value && !familyVisit.value && newNote.value.trim() !== '')
 const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
 // 「下一筆」只換 :id，不會觸發離頁守衛，要另外攔。
 onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? confirmLeave() : true))
@@ -663,55 +676,22 @@ async function markCompleted() {
   }
 }
 
-// 帶 sy=all：到場當下寫入的入學學期不一定是招生頁預設的學年（本檔調整第 22 條）。
-const admissionsLink = computed(() => ({
-  path: '/admissions',
-  query: { campus: detail.value?.campus_key ?? '', tab: 'records', vr: detail.value?.id ?? '', sy: 'all' },
-}))
+// ---- 家庭版面（2026-10-05 家庭頁規格第 5 節）----
+const familyNoteList = computed(() => familyNotes(notes.value, familyLogs.value, arrivedAt(detail.value?.history ?? [])))
+const latestFamilyContact = computed(() => latestContact(familyLogs.value))
+// 撥號：園方改過以招生那筆為準；匿名化的不撥（Review Focus 3）。
+const callPhone = computed(() => {
+  const v = familyVisit.value
+  return v?.phone && !v.anonymized_at ? v.phone : (detail.value?.phone ?? '')
+})
+const bookingDataTitle = computed(() => {
+  if (familyVisit.value) return isWebCase.value ? '家長預約時填寫的資料' : '補登時的案件資料'
+  return isWebCase.value ? '家長填寫的資料' : '案件資料'
+})
 
-// ---- 參觀後追蹤（2026-10-04 規格 7.6）----
-// 已到場、有招生訪視時，在聯絡紀錄上方顯示招生的追蹤狀態，記錄聯絡、排下次聯絡都直接記在
-// 招生訪視（預約到場後不再列入「到期待追蹤」）。負責人名字用承辦人清單對照（同一群人）。
-const followUpVisit = computed(() => (detail.value?.status === 'completed' ? admissionsVisit.value : null))
-const followUpEditable = computed(() => Boolean(followUpVisit.value && !followUpVisit.value.anonymized_at && canCreateAdmissions.value))
-const followUpOwnerName = computed(() => staffLabelById(followUpVisit.value?.follow_up_owner_id, staff.value))
-const contactLogOpen = ref(false)
-const contactLogTarget = ref<ContactTarget | null>(null)
-const followUpDialogOpen = ref(false)
-const followUpDialogTarget = ref<FollowUpTarget | null>(null)
-
-function openContactLog() {
-  const visit = followUpVisit.value
-  if (!visit) return
-  contactLogTarget.value = { id: visit.id, version: visit.version, child_name: visit.child_name, stage: visit.stage }
-  contactLogOpen.value = true
-}
-
-function openFollowUpDialog() {
-  const visit = followUpVisit.value
-  if (!visit) return
-  followUpDialogTarget.value = {
-    id: visit.id,
-    version: visit.version,
-    child_name: visit.child_name,
-    stage: visit.stage,
-    follow_up_at: visit.follow_up_at ?? null,
-    follow_up_owner_id: visit.follow_up_owner_id ?? null,
-  }
-  followUpDialogOpen.value = true
-}
-
-function onFollowUpSaved(visit: RecruitmentVisit) {
-  admissionsVisit.value = visit
-}
-
-// 對話框遇到 409：重讀招生訪視，並把新版本交回還開著的記錄聯絡對話框（內容保留）。
-async function onFollowUpStale() {
-  await loadAdmissionsVisit()
-  const visit = admissionsVisit.value
-  if (contactLogOpen.value && visit && contactLogTarget.value) {
-    contactLogTarget.value = { ...contactLogTarget.value, version: visit.version, stage: visit.stage }
-  }
+function onFamilyChanged(next: RecruitmentVisit) {
+  family.replaceVisit(next)
+  void family.loadExtras()
 }
 
 async function addNote() {
@@ -826,6 +806,7 @@ watch(id, () => {
   notes.value = []
   nextQueue.value = null
   newNote.value = readVisitNoteDraft(id.value)
+  bookingDataOpen.value = false
   followUpAt.value = null
   selectedSlotId.value = ''
   rescheduleSlotId.value = ''
@@ -861,7 +842,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
           <h2 class="detail__title">{{ detail.parent_name }}</h2>
           <p class="hint">
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
-            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>
+            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template><template v-if="familyVisit && detail.assigned_staff_id">・預約承辦 {{ staffLabelById(detail.assigned_staff_id, staff) }}</template>
           </p>
           <p v-if="handled" class="hint detail__handled">最後處理：{{ handled.who }}・{{ formatDateTime(handled.at) }}・{{ handled.what }}</p>
           <p v-if="detail.related_request_id" class="hint">
@@ -872,21 +853,43 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
           </p>
         </div>
-        <div v-if="statusDisplay" class="detail__status">
+        <div v-if="familyVisit" class="detail__status">
+          <StatusTag :meta="stageMeta(familyVisit)" size="large" />
+          <span class="detail__status-sub num">{{ arrivedLabel(familyVisit.visit_date) }}</span>
+        </div>
+        <div v-else-if="statusDisplay" class="detail__status">
           <StatusTag :meta="statusDisplay" size="large" />
           <span v-if="statusDisplay.sub" class="detail__status-sub" :data-tone="statusDisplay.tone">{{ statusDisplay.sub }}</span>
         </div>
       </div>
       <!-- 手機處理面板排在最前面，電話會被擠到下面；打電話是處理案件的第一步，頁首直接給一顆撥號鈕。 -->
-      <el-button tag="a" :href="`tel:${detail.phone}`" type="primary" plain :icon="Phone" class="detail__call">
-        撥電話給家長 {{ detail.phone }}
+      <el-button tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
+        撥電話給家長 {{ callPhone }}
       </el-button>
 
       <div class="detail__grid">
         <div class="detail__main">
+          <FamilyAdmissionsData
+            v-if="familyVisit"
+            :visit="familyVisit"
+            :options="familyOptions"
+            :editable="canCreateAdmissions"
+            @saved="family.replaceVisit"
+            @stale="family.lookup"
+          />
           <div class="panel detail__data">
-            <div class="panel__head"><h2>{{ isWebCase ? '家長填寫的資料' : '案件資料' }}</h2></div>
-            <el-descriptions :column="1" border label-width="128" class="detail__desc">
+            <div class="panel__head">
+              <h2>{{ bookingDataTitle }}</h2>
+              <el-button
+                v-if="familyVisit"
+                link
+                type="primary"
+                :aria-expanded="bookingDataOpen ? 'true' : 'false'"
+                aria-controls="visit-booking-data"
+                @click="bookingDataOpen = !bookingDataOpen"
+              >{{ bookingDataOpen ? '收起' : '展開' }}</el-button>
+            </div>
+            <el-descriptions v-show="!familyVisit || bookingDataOpen" id="visit-booking-data" :column="1" border label-width="128" class="detail__desc">
               <el-descriptions-item label="電話">
                 <a :href="`tel:${detail.phone}`" class="num detail__link">{{ detail.phone }}</a>
               </el-descriptions-item>
@@ -910,30 +913,8 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
           </div>
 
           <!-- 參觀後追蹤（2026-10-04）：已到場、有招生訪視時，追蹤記在招生訪視。 -->
-          <section v-if="followUpVisit" class="section detail__after">
-            <div class="section__title">
-              <h2>參觀後追蹤</h2>
-              <router-link :to="admissionsLink" class="detail__after-link">到招生入學</router-link>
-            </div>
-            <dl class="detail__after-summary">
-              <div><dt>招生階段</dt><dd>{{ stageLabel(followUpVisit.stage) }}</dd></div>
-              <div>
-                <dt>下次聯絡</dt>
-                <dd class="num" :class="{ 'is-due': isDue(followUpVisit.follow_up_at) }">{{ followUpText(followUpVisit.follow_up_at) }}</dd>
-              </div>
-              <div><dt>負責人</dt><dd>{{ followUpOwnerName }}</dd></div>
-              <div><dt>最近聯絡</dt><dd class="num">{{ lastContactText(followUpVisit.last_contacted_at) }}</dd></div>
-            </dl>
-            <div v-if="followUpEditable" class="detail__after-actions">
-              <el-button type="primary" :disabled="busy" @click="openContactLog">記錄聯絡</el-button>
-              <el-button v-if="isOpenStage(followUpVisit.stage)" :disabled="busy" @click="openFollowUpDialog">
-                {{ followUpVisit.follow_up_at ? '改期／負責人' : '排下次聯絡' }}
-              </el-button>
-            </div>
-          </section>
-
           <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
-          <section class="section detail__notes">
+          <section v-if="!familyVisit" class="section detail__notes">
             <div class="section__title"><h2>聯絡紀錄</h2></div>
             <ol class="notes" v-if="notes.length > 0">
               <li v-for="n in notes" :key="n.id" class="notes__item">
@@ -958,7 +939,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               />
               <div class="notes__row">
                 <span v-if="!followUpTracked" class="hint notes__untracked">
-                  {{ followUpVisit ? '已到場的案件請在上方「參觀後追蹤」排下次聯絡。' : '已到場或已取消的案件不會列入到期待追蹤。' }}
+                  已到場或已取消的案件不會列入到期待追蹤。
                 </span>
                 <label v-else class="notes__follow">
                   <span>下次聯絡</span>
@@ -987,6 +968,13 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               </div>
             </div>
           </section>
+          <FamilyContactNotes
+            v-else
+            class="section detail__notes"
+            :notes="familyNoteList"
+            :logs-failed="extrasFailed.logs"
+            @reload="family.loadExtras"
+          />
 
           <ParentAccessLinkPanel
             v-if="linkApplicable"
@@ -1002,7 +990,10 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
           <section class="section">
             <div class="section__title"><h2>案件歷程</h2><span class="hint">誰在什麼時候改了什麼</span></div>
-            <VisitHistoryTimeline :events="detail.history ?? []" :staff="staff" />
+            <VisitHistoryTimeline :events="detail.history ?? []" :staff="staff" :recruitment-events="familyVisit ? familyEvents : undefined" />
+            <p v-if="familyVisit && extrasFailed.events" class="hint">
+              招生的歷程讀不到。<el-button link type="primary" @click="family.loadExtras">重新載入</el-button>
+            </p>
           </section>
         </div>
 
@@ -1010,7 +1001,17 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
           <div class="panel">
             <div class="panel__head"><h2>處理</h2></div>
             <div class="panel__body detail__actions">
-              <p v-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
+              <FamilyActions
+                v-if="familyVisit"
+                :visit="familyVisit"
+                :staff="familyStaff"
+                :latest="latestFamilyContact"
+                :rebookable="canHandle"
+                @changed="onFamilyChanged"
+                @stale="family.lookup"
+                @rebook="rebookOpen = true"
+              />
+              <p v-else-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
               <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
                 <p class="hint">這是改版前的舊需求。選一個場次排入就成立，有 Email 會寄確認信給家長。</p>
                 <el-select v-model="selectedSlotId" placeholder="選擇參觀場次" filterable :disabled="openSlots.length === 0" aria-label="參觀場次" style="width: 100%">
@@ -1094,16 +1095,22 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 <el-button :disabled="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
               </template>
             </div>
-            <div v-if="canReadAdmissions && admissionsAvailable === 'yes' && (admissionsVisit || detail.status === 'completed')" class="detail__admissions">
+            <div
+              v-if="canReadAdmissions && !familyVisit && detail.status === 'completed' && (admissionsAvailable === 'yes' || lookupFailed)"
+              class="detail__admissions"
+            >
               <span class="detail__admissions-label">招生訪視</span>
-              <router-link v-if="admissionsVisit" :to="admissionsLink">{{ stageLabel(admissionsVisit.stage) }}・在招生入學查看</router-link>
+              <template v-if="lookupFailed">
+                <span class="hint">招生資料讀不到。</span>
+                <el-button size="small" :disabled="busy" @click="family.lookup">重新載入</el-button>
+              </template>
               <template v-else-if="canCreateAdmissions">
                 <span class="hint">已到場，但還沒有招生訪視。</span>
                 <el-button size="small" :loading="creatingAdmissions" :disabled="busy" @click="createAdmissionsVisit">建立招生訪視</el-button>
               </template>
               <span v-else class="hint">已到場，但還沒有招生訪視；請有招生權限的同事建立。</span>
             </div>
-            <div class="detail__assignee">
+            <div v-if="!familyVisit" class="detail__assignee">
               <label for="visit-assignee">承辦人</label>
               <!-- 選項寫名字，下面一行小字是完整 Email：同名或同 Email 前綴的同事才分得出來。 -->
               <el-select
@@ -1145,14 +1152,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
         </aside>
       </div>
       <ManualVisitDialog v-model="rebookOpen" :campus-keys="visibleCampusKeys" :related-from="detail" @created="onRebooked" />
-      <ContactLogDialog v-model="contactLogOpen" :target="contactLogTarget" @saved="onFollowUpSaved" @stale="onFollowUpStale" />
-      <FollowUpDialog
-        v-model="followUpDialogOpen"
-        :target="followUpDialogTarget"
-        :campus-key="detail.campus_key"
-        @saved="onFollowUpSaved"
-        @stale="loadAdmissionsVisit"
-      />
     </template>
   </div>
 </template>
@@ -1200,42 +1199,10 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   gap: 12px;
 }
 
-.detail__after-link {
-  margin-left: auto;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.detail__after-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px 16px;
-  margin: 0 0 12px;
-}
-
-.detail__after-summary dt {
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-}
-
-.detail__after-summary dd {
-  margin: 2px 0 0;
-  overflow-wrap: anywhere;
-}
-
-.detail__after-summary dd.is-due {
-  color: var(--el-color-danger);
-  font-weight: 600;
-}
-
-.detail__after-actions {
+.detail__data .panel__head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.detail__after-actions .el-button + .el-button {
-  margin-left: 0;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .notes__untracked {
@@ -1526,10 +1493,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
   .detail__main > * {
     margin-top: 0;
-  }
-
-  .detail__after {
-    order: -2;
   }
 
   .detail__notes {

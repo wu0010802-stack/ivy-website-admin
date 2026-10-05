@@ -32,6 +32,9 @@ function mockDetail(data: Record<string, unknown>, records: unknown[] | (() => u
     '/admin/visit-staff': [],
     '/admin/booking-config': {},
     '/admin/dashboard': {},
+    '/admin/admissions/records/v-1/events': [],
+    '/admin/admissions/records/v-1/contact-logs': [],
+    '/admin/admissions/staff': [],
     '/admin/admissions/records': () => (typeof records === 'function' ? records() : records),
   })
 }
@@ -102,10 +105,11 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     expect(success).toHaveBeenCalledWith('已標記已到場')
   })
 
-  it('F6c：已到場但查招生回 500：不顯示招生訪視區塊', async () => {
+  it('F6c：已到場但查招生回 500：提示招生資料讀不到、可以重新載入（家庭頁規格 5.9）', async () => {
     mockDetail(detail({ status: 'completed' }), () => { throw new ApiError(500, { code: 'INTERNAL_ERROR' }) })
     const { wrapper } = await mountDetail()
-    expect(wrapper.find('.detail__admissions').exists()).toBe(false)
+    expect(wrapper.get('.detail__admissions').text()).toContain('招生資料讀不到')
+    expect(hasButton(wrapper, '重新載入')).toBe(true)
   })
 
   it('F3：招生查詢還沒回來就按「標記已到場」：等查完，有確認框、成功文案寫招生訪視已建立', async () => {
@@ -141,17 +145,14 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
 })
 
 describe('預約明細的招生訪視連結', () => {
-  it('有連結的招生訪視：顯示階段與連結，帶校區、vr 與不限學年', async () => {
+  it('有招生訪視：查一次招生 API（帶校區與預約 id），換成家庭版面', async () => {
     const get = mockDetail(detail({ status: 'completed' }), [visit({ visit_request_id: VR_ID, has_visit_request: true, has_deposit: true, stage: 'deposited' })])
     const { wrapper } = await mountDetail()
     const lookup = pathsTo(get, '/admin/admissions/records?')
     expect(lookup).toHaveLength(1)
     expect(Object.fromEntries(queryOf(lookup[0]!))).toEqual({ campus_key: 'yihua', visit_request_id: VR_ID, page: '1', page_size: '1' })
-    const link = wrapper.get('.detail__admissions a')
-    expect(link.text()).toBe('已預繳・在招生入學查看')
-    const href = new URL(link.attributes('href')!, 'http://admin.invalid')
-    expect(href.pathname).toBe('/admissions')
-    expect(Object.fromEntries(href.searchParams)).toEqual({ campus: 'yihua', tab: 'records', vr: VR_ID, sy: 'all' })
+    expect(wrapper.get('.detail__status').text()).toContain('已預繳')
+    expect(wrapper.find('.detail__admissions').exists()).toBe(false)
   })
 
   it('已到場但沒有招生訪視：可以建立，建立後換成連結', async () => {
@@ -164,7 +165,8 @@ describe('預約明細的招生訪視連結', () => {
     await flushPromises()
     expect(post).toHaveBeenCalledWith(`/admin/admissions/from-visit-request/${VR_ID}`)
     expect(success).toHaveBeenCalledWith('已建立招生訪視')
-    expect(wrapper.get('.detail__admissions a').text()).toBe('已訪視・在招生入學查看')
+    expect(wrapper.find('.detail__admissions').exists()).toBe(false)
+    expect(wrapper.get('.detail__status').text()).toContain('已訪視')
   })
 
   it('補建被拒（例如已匿名化）顯示原因', async () => {
@@ -196,35 +198,5 @@ describe('預約明細的招生訪視連結', () => {
     const second = await mountDetail(bookingOnly)
     expect(pathsTo(get, '/admin/admissions')).toEqual([])
     expect(second.wrapper.find('.detail__admissions').exists()).toBe(false)
-  })
-})
-
-describe('參觀後追蹤區塊（2026-10-04 參觀後追蹤規格 7.6）', () => {
-  it('已到場且有招生訪視：顯示階段、下次聯絡、負責人，能記錄聯絡；下次聯絡選擇器換成提示', async () => {
-    mockDetail(detail({ status: 'completed' }), [
-      visit({ visit_request_id: VR_ID, has_visit_request: true, follow_up_at: '2020-01-01T02:00:00Z', last_contacted_at: null }),
-    ])
-    const { wrapper } = await mountDetail()
-    const section = wrapper.get('.detail__after')
-    expect(section.text()).toContain('參觀後追蹤')
-    expect(section.text()).toContain('已訪視')
-    expect(section.get('.is-due').text()).toMatch(/^逾 \d+ 天$/)
-    expect(section.text()).toContain('還沒聯絡過')
-    expect(hasButton(section, '記錄聯絡')).toBe(true)
-    expect(hasButton(section, '改期／負責人')).toBe(true)
-    expect(wrapper.find('.notes__follow').exists()).toBe(false)
-    expect(wrapper.get('.notes__untracked').text()).toBe('已到場的案件請在上方「參觀後追蹤」排下次聯絡。')
-  })
-
-  it('還沒到場、或沒有招生權限：不顯示這個區塊', async () => {
-    mockDetail(detail({ status: 'confirmed' }), [visit({ visit_request_id: VR_ID })])
-    const confirmed = await mountDetail()
-    expect(confirmed.wrapper.find('.detail__after').exists()).toBe(false)
-    expect(confirmed.wrapper.find('.notes__follow').exists()).toBe(true)
-    cleanup()
-    const get = mockDetail(detail({ status: 'completed' }), [visit({ visit_request_id: VR_ID })])
-    const desk = await mountDetail(testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['booking.read', 'booking.handle'] }))
-    expect(desk.wrapper.find('.detail__after').exists()).toBe(false)
-    expect(pathsTo(get, '/admin/admissions/records')).toEqual([])
   })
 })

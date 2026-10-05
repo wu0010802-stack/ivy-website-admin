@@ -172,10 +172,10 @@ describe('案件明細：改期一律先收成連結', () => {
     expect(wrapper.text()).not.toContain('在同一步釋出')
   })
 
-  it('手機版：聯絡紀錄（已到場的是參觀後追蹤）排在家長資料前面', () => {
+  it('手機版：聯絡紀錄排在家長資料前面（家庭版面的聯絡紀錄沿用同一個 class）', () => {
     const mobile = detailSource.slice(detailSource.indexOf('@media (max-width: 900px)'))
     expect(mobile).toMatch(/\.detail__main \{\s*display: flex;\s*flex-direction: column;/)
-    expect(mobile).toMatch(/\.detail__after \{\s*order: -2;/)
+    expect(mobile).not.toContain('.detail__after')
     expect(mobile).toMatch(/\.detail__notes \{\s*order: -1;/)
     expect(detailSource).toContain('class="section detail__notes"')
   })

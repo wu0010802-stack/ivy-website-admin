@@ -20,7 +20,7 @@ const latest = {
   next_follow_up_at: null, created_by: 'desk', created_by_name: '櫃台小美', created_at: '2026-10-08T08:21:00Z',
 }
 const mountActions = (record = visit(), user = undefined as never, last: unknown = latest) =>
-  mountWith(FamilyActions, { props: { visit: record, staff, latest: last }, user })
+  mountWith(FamilyActions, { props: { visit: record, staff, latest: last, rebookable: true }, user })
 
 async function menuItems() {
   document.body.querySelector<HTMLButtonElement>('.family-actions__move')!.click()
@@ -96,6 +96,11 @@ describe('按鈕與權限', () => {
     const { wrapper } = await mountActions()
     await button(wrapper, '重新預約（另建新案）')!.trigger('click')
     expect(wrapper.emitted('rebook')).toHaveLength(1)
+  })
+
+  it('不能處理預約（rebookable=false）時沒有重新預約', async () => {
+    const { wrapper } = await mountWith(FamilyActions, { props: { visit: visit(), staff, latest, rebookable: false } })
+    expect(hasButton(wrapper, '重新預約（另建新案）')).toBe(false)
   })
 })
 

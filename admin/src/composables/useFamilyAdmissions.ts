@@ -1,9 +1,9 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { createFromVisitRequest, listRecords } from '../api/admissions'
+import { createFromVisitRequest, getOptions, listAdmissionsStaff, listContactLogs, listEvents, listRecords } from '../api/admissions'
 import { ApiError } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
-import type { RecruitmentVisit, VisitRequestFullOut } from '../api/types'
+import type { AdmissionsOptions, AdmissionsStaff, ContactLog, RecruitmentEvent, RecruitmentVisit, VisitRequestFullOut } from '../api/types'
 import { notifyError } from './notify'
 import { usePermissions } from './usePermissions'
 import { useRequestSequence } from './useRequestSequence'
@@ -22,6 +22,15 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
   const available = ref<AdmissionsAvailability>('unknown')
   const creating = ref(false)
   const requests = useRequestSequence()
+  // 家庭版面（2026-10-05 家庭頁規格 5.1）：已到場、招生可用、查得到招生訪視、有 admissions.read。
+  const isFamily = computed(() => detail.value?.status === 'completed' && available.value === 'yes' && visit.value !== null && canRead.value)
+  const lookupFailed = ref(false)
+  const events = ref<RecruitmentEvent[]>([])
+  const contactLogs = ref<ContactLog[]>([])
+  const staff = ref<AdmissionsStaff[]>([])
+  const options = ref<AdmissionsOptions | null>(null)
+  const extrasFailed = ref({ events: false, logs: false })
+  const extraRequests = useRequestSequence()
   // 進行中的查詢：標記已到場要等它（只在查完仍是 unknown 才沿用舊行為）。
   let pending: Promise<void> | null = null
 
@@ -30,6 +39,7 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
     const request = requests.begin()
     visit.value = null
     available.value = 'unknown'
+    lookupFailed.value = false
     if (!current || !canRead.value) return
     try {
       const rows = await listRecords({ campus_key: current.campus_key, visit_request_id: current.id, page: 1, page_size: 1 })
@@ -38,8 +48,9 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
       available.value = 'yes'
     } catch (err) {
       if (!requests.isCurrent(request) || detail.value?.id !== current.id) return
-      // 404：招生入學未啟用，整區不顯示；其他錯誤讀不到也不影響處理案件。
+      // 404：招生入學未啟用，整區不顯示；其他錯誤在已到場的案件上提示讀不到、可以重讀（家庭頁規格 5.9）。
       if (err instanceof ApiError && err.status === 404) available.value = 'no'
+      else lookupFailed.value = true
     }
   }
 
@@ -53,6 +64,42 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
 
   /** 標記已到場前要等的查詢；沒有在查就是 null。 */
   const settled = (): Promise<void> | null => pending
+
+  /** 家庭版面要的招生事件、參觀後聯絡、負責人名單、選項（家庭頁規格 5.4–5.6）。各自失敗互不影響。 */
+  async function loadExtras() {
+    const current = visit.value
+    const request = extraRequests.begin()
+    if (!current) return
+    const [eventRows, logRows, staffRows, optionRows] = await Promise.allSettled([
+      listEvents(current.id),
+      listContactLogs(current.id),
+      listAdmissionsStaff(current.campus_key),
+      getOptions(current.campus_key),
+    ])
+    if (!extraRequests.isCurrent(request) || visit.value?.id !== current.id) return
+    events.value = eventRows.status === 'fulfilled' && Array.isArray(eventRows.value) ? eventRows.value : []
+    contactLogs.value = logRows.status === 'fulfilled' && Array.isArray(logRows.value) ? logRows.value : []
+    staff.value = staffRows.status === 'fulfilled' && Array.isArray(staffRows.value) ? staffRows.value : []
+    options.value = optionRows.status === 'fulfilled' ? optionRows.value : null
+    extrasFailed.value = { events: eventRows.status === 'rejected', logs: logRows.status === 'rejected' }
+  }
+
+  /** 對話框存檔回傳的新版本；換了一筆（例如下一筆）就不套用。 */
+  function replaceVisit(next: RecruitmentVisit) {
+    if (visit.value?.id === next.id) visit.value = next
+  }
+
+  // 進入家庭版面、或換了一筆招生訪視才讀；離開家庭版面就清掉，下一筆不會看到上一筆的紀錄。
+  watch(() => (isFamily.value ? (visit.value?.id ?? '') : ''), (visitId) => {
+    if (visitId) {
+      void loadExtras()
+      return
+    }
+    extraRequests.begin()
+    events.value = []
+    contactLogs.value = []
+    extrasFailed.value = { events: false, logs: false }
+  })
 
   async function create() {
     const current = detail.value
@@ -74,5 +121,8 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
 
   watch(() => `${detail.value?.id ?? ''}|${detail.value?.status ?? ''}`, () => void lookup())
 
-  return { canRead, canWrite, visit, available, creating, lookup, settled, create }
+  return {
+    canRead, canWrite, visit, available, creating, lookup, settled, create,
+    isFamily, lookupFailed, events, contactLogs, staff, options, extrasFailed, loadExtras, replaceVisit,
+  }
 }
