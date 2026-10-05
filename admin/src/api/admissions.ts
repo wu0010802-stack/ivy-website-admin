@@ -4,7 +4,7 @@
 import { api } from './client'
 import type {
   AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, Arrivals, ContactLog, ContactLogCreate, ContactLogResult, FollowUpList,
-  FollowUpUpdate, FunnelBoard, IntakePlan, IntakeTargetsRequest, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
+  FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -94,14 +94,6 @@ export function getBoard(campusKey: string, schoolYear: number, semester: number
   return api.get<FunnelBoard>(`/admin/admissions/board?${toQuery({ campus_key: campusKey, school_year: schoolYear, semester })}`)
 }
 
-export function getIntakePlan(campusKey: string, schoolYear: number, semester: number): Promise<IntakePlan> {
-  return api.get<IntakePlan>(`/admin/admissions/intake-plan?${toQuery({ campus_key: campusKey, school_year: schoolYear, semester })}`)
-}
-
-export function saveIntakeTargets(campusKey: string, body: IntakeTargetsRequest): Promise<IntakePlan> {
-  return api.put<IntakePlan>(`/admin/admissions/intake-targets?${toQuery({ campus_key: campusKey })}`, body)
-}
-
 export function getArrivals(campusKey: string): Promise<Arrivals> {
   return api.get<Arrivals>(`/admin/admissions/arrivals?${toQuery({ campus_key: campusKey })}`)
 }
@@ -140,7 +132,7 @@ export function getNoDepositRecords(params: {
   return api.get<NoDepositRecords>(`/admin/admissions/no-deposit-records?${toQuery(params)}`)
 }
 
-/** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年學期必填（名額剩餘要對到單一學期）。 */
+/** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年必填，學期不帶＝整學年。 */
 export function getCompare(schoolYear: number, semester?: number | null): Promise<AdmissionsCompare> {
   return api.get<AdmissionsCompare>(`/admin/admissions/compare?${toQuery({ school_year: schoolYear, semester })}`)
 }

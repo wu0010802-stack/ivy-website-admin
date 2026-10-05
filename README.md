@@ -1,3 +1,15 @@
+## 2026-10-05 後台招生入學拿掉「名額規劃」（`feature/admissions-no-intake-20261005`）
+
+使用者指著正式站 `/admin/admissions?campus=yihua&tab=intake` 說「這個功能幫我拿掉」，範圍裁定為「分頁＋相關畫面，後端不動」。規則見 DESIGN.md「拿掉名額規劃」。
+
+- **後台**：拿掉「名額規劃」分頁與 `IntakePlanTab.vue`、`getIntakePlan`／`saveIntakeTargets`；舊連結 `tab=intake` 退回漏斗看板。五校比較不列計畫名額、名額剩餘；保留座位不再跳「超過計畫名額」、對話框與標記註冊、刪除確認不再提名額規劃。
+- **不動**：後端名額 API、`grade_intake_targets` 表、`/compare` 回應欄位、轉移契約；沒有 migration，部署前不用備份。和園務分歧（園務有名額規劃），併入時再決定。
+- **驗證**（Node 22.23.2）：
+  - 後台：`vue-tsc -b` 通過；vitest 94 檔 1217 項全過（`admissionsIntake.test.ts` 改名 `admissionsSeat.test.ts`，只留保留座位；新增舊連結 `tab=intake` 退回看板、`capacity_warning` 不再提示兩項）。
+  - `contract:check` 一致（API 沒動）。
+  - stack e2e（`E2E_DB_NAME=ivy_website_nointake1005_e2e_test`、埠 8761／3761，跑完已刪庫）：碰到招生頁的四支 `admissions-flow`、`a11y`、`keyboard`、`admissions-follow-up` 共 41 項全過；招生流程拿掉「名額規劃已註冊」那一步，截圖改四個分頁加五校比較。看過 1440 截圖：分頁列沒有名額規劃，五校比較沒有名額兩欄。
+  - 未驗證：整套 stack（沒碰招生以外的畫面）、登入正式後台實際點一次。
+
 ## 2026-10-05 通知顯示家長稱呼、點開就算已讀（`feature/admin-notify-names-20261005`）
 
 站內通知頁上線後，使用者對兩個待裁定項目回覆：「點進案件時要不要自動標記已讀：要」「通知要不要顯示家長姓名：要，LINE 的通知也要出現」。規則見 DESIGN.md「通知顯示家長稱呼、點開就算已讀」。

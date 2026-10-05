@@ -83,7 +83,6 @@ test.describe('後台', () => {
     ['/admissions?tab=followups', '招生入學'],
     ['/admissions?tab=followups&fu=unscheduled', '招生入學'],
     ['/admissions?tab=records', '招生入學'],
-    ['/admissions?tab=intake', '招生入學'],
     ['/admissions?tab=arrivals', '招生入學'],
     ['/admissions?tab=stats', '招生入學'],
     ['/booking', '各校預約方式'],

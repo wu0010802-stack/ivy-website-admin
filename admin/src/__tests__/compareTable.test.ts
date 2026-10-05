@@ -85,7 +85,7 @@ async function openCompare(wrapper: VueWrapper): Promise<Dom> {
 }
 
 describe('五校比較表（規格 9.3）', () => {
-  it('每校一列：招生案件數、比率寫分子分母、名額只加總有設定的年級、沒設定寫「未設定」', async () => {
+  it('每校一列：招生案件數、比率寫分子分母；不顯示計畫名額與名額剩餘（名額規劃已拿掉）', async () => {
     const { wrapper } = await mountWith(CompareTable, { props: { rows: [YIHUA, MINGHUA, CHONGDE, RENWU], schoolYear: 115, semester: 1 } })
 
     expect(wrapper.get('.stats-block__title').text()).toBe('五校比較（115 上學期）')
@@ -93,14 +93,15 @@ describe('五校比較表（規格 9.3）', () => {
     expect(wrapper.text()).toContain('不是跨校去重後的孩子數')
     expect(headers(wrapper)).toEqual([
       '校區', '參觀', '預繳', '註冊', '有效預繳', '預繳未註冊',
-      '參觀→預繳率', '參觀→註冊率', '預繳→註冊率', '排除轉期→註冊率', '計畫名額', '名額剩餘',
+      '參觀→預繳率', '參觀→註冊率', '預繳→註冊率', '排除轉期→註冊率',
     ])
     expect(bodyRows(wrapper)).toEqual([
-      ['義華', '4', '3', '1', '3', '2', '75.0%（3/4）', '25.0%（1/4）', '33.3%（1/3）', '33.3%（1/3）', '10（2 個年級）', '8'],
-      ['明華', '1', '0', '0', '0', '0', '0.0%（0/1）', '0.0%（0/1）', '—（0/0）', '—（0/0）', '未設定', '未設定'],
-      ['崇德', '3', '3', '0', '3', '3', '100.0%（3/3）', '0.0%（0/3）', '0.0%（0/3）', '0.0%（0/3）', '2（1 個年級）', '-1（超額）'],
-      ['仁武', '0', '0', '0', '0', '0', '—（0/0）', '—（0/0）', '—（0/0）', '—（0/0）', '未設定', '未設定'],
+      ['義華', '4', '3', '1', '3', '2', '75.0%（3/4）', '25.0%（1/4）', '33.3%（1/3）', '33.3%（1/3）'],
+      ['明華', '1', '0', '0', '0', '0', '0.0%（0/1）', '0.0%（0/1）', '—（0/0）', '—（0/0）'],
+      ['崇德', '3', '3', '0', '3', '3', '100.0%（3/3）', '0.0%（0/3）', '0.0%（0/3）', '0.0%（0/3）'],
+      ['仁武', '0', '0', '0', '0', '0', '—（0/0）', '—（0/0）', '—（0/0）', '—（0/0）'],
     ])
+    expect(wrapper.text()).not.toContain('名額')
   })
 })
 
@@ -122,26 +123,27 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual(['/admin/admissions/compare?school_year=115&semester=1'])
     expect(bodyRows(pane).map((tr) => tr[0])).toEqual(['義華', '明華', '崇德', '仁武'])
-    expect(pane.get('.compare-note').text()).toBe('件數與名額剩餘都是 115 上學期。')
+    // 選了學年：學年學期寫在標題，不另加說明。
+    expect(pane.find('.compare-note').exists()).toBe(false)
   })
 
-  it('頁首整學年：請求不帶 semester，件數寫整學年、名額剩餘寫上學期（同名額規劃）', async () => {
+  it('頁首整學年：請求不帶 semester，標題寫整學年', async () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
 
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
     expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 學年）')
-    expect(pane.get('.compare-note').text()).toBe('件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。')
+    expect(pane.find('.compare-note').exists()).toBe(false)
   })
 
-  it('頁首選下學期：請求帶 semester=2，件數與名額剩餘都是下學期', async () => {
+  it('頁首選下學期：請求帶 semester=2，標題寫下學期', async () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, 2) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: 2 }) })
 
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115&semester=2')
-    expect(pane.get('.compare-note').text()).toBe('件數與名額剩餘都是 115 下學期。')
+    expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 下學期）')
   })
 
   it('頁首沒選學年學期：沒選學年用目前學年（台北日期）並寫明、沒選學期件數算整學年', async () => {
@@ -152,9 +154,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
 
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
-    expect(pane.get('.compare-note').text()).toBe(
-      '頁首沒選學年，用目前的 115 學年。件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。',
-    )
+    expect(pane.get('.compare-note').text()).toBe('頁首沒選學年，用目前的 115 學年。')
 
     await wrapper.setProps({ schoolYear: 116 })
     await flushPromises()
@@ -169,7 +169,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
 
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare').at(-1)).toBe('/admin/admissions/compare?school_year=115')
-    expect(pane.get('.compare-note').text()).toBe('件數為 115 學年整學年；名額剩餘為 115 上學期（同名額規劃）。')
+    expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 學年）')
   })
 
   it('在五校比較時換學期：重讀，舊學期的回應晚到也不會蓋掉', async () => {

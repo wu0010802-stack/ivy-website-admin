@@ -25,17 +25,15 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     expect(remove).toHaveBeenCalledWith('/admin/admissions/records/v-1?expected_version=3')
   })
 
-  it('看板不選學期時不帶 semester；名額、預約、選項都帶校區', async () => {
+  it('看板不選學期時不帶 semester；預約、選項都帶校區', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
     await admissions.getBoard('yihua', 115, null)
-    await admissions.getIntakePlan('yihua', 115, 2)
     await admissions.getArrivals('yihua')
     await admissions.getOptions('yihua')
     await admissions.getRecord('v-1')
     await admissions.listEvents('v-1')
     expect(get.mock.calls.map((call) => call[0])).toEqual([
       '/admin/admissions/board?campus_key=yihua&school_year=115',
-      '/admin/admissions/intake-plan?campus_key=yihua&school_year=115&semester=2',
       '/admin/admissions/arrivals?campus_key=yihua',
       '/admin/admissions/options?campus_key=yihua',
       '/admin/admissions/records/v-1',
@@ -43,9 +41,8 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     ])
   })
 
-  it('狀態轉換送齊所有欄位（沒用到的是 null）；座位、補建、名額、編輯的路徑', async () => {
+  it('狀態轉換送齊所有欄位（沒用到的是 null）；座位、補建、編輯的路徑', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    const put = vi.spyOn(api, 'put').mockResolvedValue({} as never)
     const patch = vi.spyOn(api, 'patch').mockResolvedValue({} as never)
     await admissions.transition('v-1', admissions.transitionRequest('deposited', 2, { deposit_collector: '林老師' }))
     expect(post).toHaveBeenLastCalledWith('/admin/admissions/records/v-1/transition', {
@@ -56,8 +53,6 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     expect(post).toHaveBeenLastCalledWith('/admin/admissions/records/v-1/seat', expect.objectContaining({ grade: '小班' }))
     await admissions.createFromVisitRequest('vr-9')
     expect(post).toHaveBeenLastCalledWith('/admin/admissions/from-visit-request/vr-9')
-    await admissions.saveIntakeTargets('yihua', { school_year: 115, semester: 1, targets: { 小班: 20 } } as never)
-    expect(put).toHaveBeenCalledWith('/admin/admissions/intake-targets?campus_key=yihua', { school_year: 115, semester: 1, targets: { 小班: 20 } })
     await admissions.updateRecord('v-1', { notes: '再聯絡', expected_version: 2 } as never)
     expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { notes: '再聯絡', expected_version: 2 })
   })

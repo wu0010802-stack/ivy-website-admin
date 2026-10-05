@@ -428,7 +428,7 @@ describe('刪除', () => {
     expect(listPaths(get)).toHaveLength(2)
   })
 
-  it('已註冊的列講明名額規劃也不算；沒填姓名的寫「這筆」', async () => {
+  it('已註冊的列講明統計不再算；沒填姓名的寫「這筆」', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
     mockGet({
       '/admin/admissions/records': [
@@ -439,7 +439,8 @@ describe('刪除', () => {
     mockDelete()
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await chooseMore(wrapper, 'v-e', '刪除')
-    expect(String(confirm.mock.calls[0]![0])).toContain('統計與名額規劃也不再算這一筆')
+    expect(String(confirm.mock.calls[0]![0])).toContain('統計也不再算這一筆')
+    expect(String(confirm.mock.calls[0]![0])).not.toContain('名額')
     await chooseMore(wrapper, 'v-x', '刪除')
     expect(confirm.mock.calls[1]![1]).toBe('刪除這筆招生訪視？')
   })

@@ -95,6 +95,15 @@ describe('招生入學頁：篩選與分頁跟網址雙向同步（規格第 10 
     expect(router.currentRoute.value.query).toEqual({ campus: 'renwu' })
     expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('漏斗看板')
   })
+
+  it('名額規劃已拿掉：舊連結 tab=intake 退回漏斗看板，網址拿掉 tab，不讀名額', async () => {
+    const get = mockGet(noArrivals)
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=intake' })
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
+    expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('漏斗看板')
+    expect(wrapper.text()).not.toContain('名額規劃')
+    expect(pathsTo(get, '/admin/admissions/intake')).toEqual([])
+  })
 })
 
 describe('官網預約分頁標籤與權限', () => {
@@ -107,13 +116,13 @@ describe('官網預約分頁標籤與權限', () => {
   it('標籤顯示待確認筆數；沒有 booking.read 的人看不到這個分頁，網址帶 tab=arrivals 退回看板', async () => {
     mockGet({ ...noArrivals, '/admin/admissions/arrivals': arrivals([arrivalRow(), arrivalRow({ visit_request_id: VR_ID_2 })]) })
     const { wrapper } = await mountWith(AdmissionsView)
-    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '名額規劃', '官網預約2', '統計分析'])
+    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '官網預約2', '統計分析'])
     cleanup()
 
     const get = mockGet({ '/admin/admissions/options': options() })
     const noBooking = testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['admissions.read'] })
     const second = await mountWith(AdmissionsView, { path: '/admissions?tab=arrivals', user: noBooking })
-    expect(tabTexts(second.wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '名額規劃', '統計分析'])
+    expect(tabTexts(second.wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '統計分析'])
     expect(second.router.currentRoute.value.query.tab).toBeUndefined()
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])
   })
@@ -149,7 +158,7 @@ describe('招生開關關閉（R1）', () => {
     })
     const { wrapper } = await mountWith(AdmissionsView)
     expect(wrapper.text()).toContain('招生入學尚未啟用')
-    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、待追蹤、訪視明細、名額規劃、官網預約與統計分析。')
+    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、待追蹤、訪視明細、官網預約與統計分析。')
     expect(wrapper.findAll('.el-tabs__item')).toHaveLength(0)
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])
     expect(document.body.querySelector('.el-message')).toBeNull()

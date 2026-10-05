@@ -111,8 +111,7 @@ function navigate(target: { tab: StatsTarget; filter: Record<string, string | nu
 }
 
 // 五校比較（規格 9.3，官網延伸）：看得到兩校以上才有，切到這個子分頁才讀。學年跟頁首（沒選用目前學年）；
-// 學期跟頁首：沒選就不帶，件數算整學年，和總覽對得起來。名額規劃是逐學期設定，名額剩餘沒帶學期時
-// 後端用上學期（同 IntakePlanTab），實際用的學期由回應的 seat_semester 告知，寫在表格上方。
+// 學期跟頁首：沒選就不帶，件數算整學年，和總覽對得起來。
 const showCompare = computed(() => props.campusKeys.length > 1)
 const compareTerm = computed(() => ({
   schoolYear: props.schoolYear ?? currentTerm().schoolYear,
@@ -122,16 +121,11 @@ const compareResult = ref<AdmissionsCompare | null>(null)
 const compareFailed = ref(false)
 const compareRequests = useRequestSequence()
 
-// 說明句用回應的學年、學期、名額學期組，不用請求前推算的值。
+// 頁首沒選學年時說明用了哪一學年（用回應的學年，不用請求前推算的值）；學年學期本身寫在表格標題。
 const compareNote = computed(() => {
   const result = compareResult.value
-  if (!result) return ''
-  const yearNote = props.schoolYear === null ? `頁首沒選學年，用目前的 ${result.school_year} 學年。` : ''
-  const seats = termLabel(result.school_year, result.seat_semester)
-  if (result.semester === null) {
-    return `${yearNote}件數為 ${result.school_year} 學年整學年；名額剩餘為 ${seats}（同名額規劃）。`
-  }
-  return `${yearNote}件數與名額剩餘都是 ${termLabel(result.school_year, result.semester)}。`
+  if (!result || props.schoolYear !== null) return ''
+  return `頁首沒選學年，用目前的 ${result.school_year} 學年。`
 })
 
 async function loadCompare() {

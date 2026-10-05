@@ -4,8 +4,9 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { currentTerm } from './academic'
 import { isFollowUpScope, type FollowUpScope } from './followUp'
 
-// followups（待追蹤，2026-10-04 參觀後追蹤規格 7.1）放在漏斗看板之後。
-export const ADMISSIONS_TABS = ['funnel', 'followups', 'records', 'intake', 'arrivals', 'stats'] as const
+// followups（待追蹤，2026-10-04 參觀後追蹤規格 7.1）放在漏斗看板之後。名額規劃（intake）2026-10-05 拿掉，
+// 舊連結的 tab=intake 退回漏斗看板。
+export const ADMISSIONS_TABS = ['funnel', 'followups', 'records', 'arrivals', 'stats'] as const
 export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 統計分析的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。

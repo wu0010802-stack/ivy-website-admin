@@ -407,6 +407,8 @@ npm run e2e:build && npm run test:e2e:stack
 | R16 | 1440px 桌機、390px 手機 | 通過（階段 B、C） | stack `tests/stack/admissions-flow.spec.ts`（五個分頁與五校比較兩種寬度截圖 12 張，存 `output/playwright/admissions-*-{1440,390}.png`，逐頁檢查不橫向溢出）、`a11y.spec.ts`（招生頁五個分頁沒有 serious／critical）、`keyboard.spec.ts`。已知小瑕疵：390px 名額規劃「計畫名額」欄的輸入框被欄寬截出省略號（`IntakePlanTab.vue`，B4；頁面不溢出，未修） |
 | R17 | stack e2e：預約 → 待確認 → 已到場 → 看板 → 預繳 → 註冊 → 名額 | 通過（階段 C） | `tests/stack/admissions-flow.spec.ts`（家長自選場次 → 時間過後出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 名額已註冊 → 統計；場次時間已過用 psql 移本測試自建的場次，`tests/stack/db.ts`）；stack 全套 68 passed（第一次整套 64 passed／2 failed：roles 429、visual 各校預約方式，C5 修正後重跑全過） |
 
+2026-10-05 拿掉後台「名額規劃」分頁（後端名額 API 與資料不動，見 DESIGN.md「拿掉名額規劃」）：R16 改為四個分頁加五校比較、兩種寬度截圖 10 張，a11y 不再掃 `tab=intake`；R17 拿掉「名額規劃的已註冊」那一步（註冊仍由看板與統計核對）；R09 的名額計算仍由後端 `test_admissions_intake.py` 涵蓋。
+
 Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台北日期與學期邊界、3 兩人同時拖同一張卡（後端）、4 退出後取消退出，都在上表的測試裡；5 空資料統計屬階段 C。
 
 上線前必須裁定（規格 15）：官網預約同意書是否涵蓋參觀後的招生聯繫與紀錄、招生訪視保存天數（`retention_policies.admissions_days` 預設 NULL＝不自動清理）。在此之前只在本機與測試環境使用。

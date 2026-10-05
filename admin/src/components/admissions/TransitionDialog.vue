@@ -71,7 +71,7 @@ watch(open, (value) => {
   collector.value = ''
   reason.value = ''
   enrolledOn.value = taipeiToday()
-  // 註冊年級預設保留座位的年級，沒有就用適讀班級（名額規劃的已註冊以 COALESCE(provisional_grade, grade) 歸列）。
+  // 註冊年級預設保留座位的年級，沒有就用適讀班級。
   grade.value = ((card.provisional_grade ?? card.grade) as Grade | null | undefined) ?? null
   year.value = card.target_school_year ?? defaultYear
   semester.value = card.target_semester === 2 ? 2 : 1
@@ -187,7 +187,7 @@ async function submit() {
               <el-radio-button :value="2">{{ SEMESTER_LABELS[2] }}</el-radio-button>
             </el-radio-group>
           </div>
-          <span class="field-help">標記後會算進這個學期名額規劃的「已註冊」。學號與編班照園內原本的方式處理。</span>
+          <span class="field-help">學號與編班照園內原本的方式處理。</span>
         </el-form-item>
       </template>
       <el-form-item v-else-if="mode === 'destructive'" label="原因（必填）">

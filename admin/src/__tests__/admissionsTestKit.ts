@@ -127,14 +127,6 @@ export const board = (columns: Partial<Record<StageKey, unknown[]>> = {}, extra:
   unscoped_count: 0, school_year: 115, semester: null, campus_key: 'yihua', as_of: '2026-10-01T02:00:00Z', ...extra,
 })
 
-export const intakeRow = (grade: string, changes: Record<string, unknown> = {}) => ({
-  grade, target_seats: null, reserved: 0, enrolled: 0, remaining: null, over_capacity: false, ...changes,
-})
-export const intakePlan = (rows: unknown[] = ['幼幼班', '小班', '中班', '大班'].map((grade) => intakeRow(grade)), totals: Record<string, unknown> = {}) => ({
-  school_year: 115, semester: 1, campus_key: 'yihua', as_of: '2026-10-01T02:00:00Z', rows,
-  totals: { target_seats: null, reserved: 0, enrolled: 0, remaining: null, ...totals },
-})
-
 export const arrivalRow = (changes: Record<string, unknown> = {}) => ({
   visit_request_id: VR_ID, slot_date: '2026-09-26', start_time: '10:00:00', parent_name: '陳媽媽', child_name: '陳小寶',
   party_size: 2, status: 'confirmed', ...changes,

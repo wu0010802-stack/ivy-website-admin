@@ -137,7 +137,7 @@ async function loadOptions() {
 
 // 換校：來源、介紹者是各校自己的選項，一起清掉。
 watch(() => props.campusKey, () => {
-  // 上一校的名單不能留在載入遮罩下（同 FunnelBoard、IntakePlanTab）。
+  // 上一校的名單不能留在載入遮罩下（同 FunnelBoard）。
   rows.value = []
   options.value = null
   staff.value = []
@@ -361,8 +361,7 @@ function reportError(err: unknown, fallback: string) {
 
 // 刪除確認寫出對象與後果；危險色、不預設聚焦、取消鍵「先不要」（第七、九輪）。
 function deleteMessage(row: RecruitmentVisit): string {
-  const counted = row.stage === 'enrolled' || (row.stage === 'deposited' && row.provisional_grade)
-  const parts = [`歷程與參觀後的聯絡紀錄會一起刪除，${counted ? '統計與名額規劃' : '統計'}也不再算這一筆。刪除後無法復原。`]
+  const parts = ['歷程與參觀後的聯絡紀錄會一起刪除，統計也不再算這一筆。刪除後無法復原。']
   if (row.visit_request_id) parts.push('官網預約的案件不受影響。')
   return parts.join('')
 }

@@ -8,9 +8,9 @@ import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs, pickVi
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了出現在「官網預約」待確認 →
-// 園方按已到場 → 漏斗看板「已訪視」→ 預繳 → 註冊 → 名額規劃的「已註冊」→ 統計看得到。
+// 園方按已到場 → 漏斗看板「已訪視」→ 預繳 → 註冊 → 統計看得到。
 // 「時間已過」用 psql 把本測試自己建的場次移到昨天（db.ts），不改系統時間、不動其他測試的場次。
-// 每一步都在畫面上操作；API 只用來建場次與核對結果。後兩項是 R16：五個分頁在 1440／390 的
+// 每一步都在畫面上操作；API 只用來建場次與核對結果。後兩項是 R16：四個分頁在 1440／390 的
 // 截圖（output/playwright/，給人看，不比對像素）與「頁面不橫向溢出」。
 
 const PARENT = '招生流程家長'
@@ -18,7 +18,7 @@ const CHILD = '招生流程寶貝'
 const PHONE = '0912000771'
 const EMAIL = 'admissions-flow@example.com'
 const SHOTS = path.join(ROOT, 'output/playwright')
-const TABS = ['funnel', 'records', 'intake', 'arrivals', 'stats'] as const
+const TABS = ['funnel', 'records', 'arrivals', 'stats'] as const
 
 // B 階段畫面的文案（Step 1 核對過）。B 改文案時只改這裡。
 const UI = {
@@ -52,7 +52,7 @@ async function moveCard(page: Page, to: string, title: string, confirm: string):
   await expect(dialog).toBeHidden()
 }
 
-test('家長自選場次 → 時間過了出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 名額已註冊 → 統計', async ({ browser }) => {
+test('家長自選場次 → 時間過了出現在官網預約 → 已到場 → 看板 → 預繳 → 註冊 → 統計', async ({ browser }) => {
   test.setTimeout(120_000)
   expect(gradeForBirthday(BIRTHDAY, TERM.schoolYear)).toBe(GRADE)
   const api = await adminApi('super_admin')
@@ -117,19 +117,8 @@ test('家長自選場次 → 時間過了出現在官網預約 → 已到場 →
     await expect.poll(() => boardStage(api)).toBe('enrolled')
   })
 
-  // 下面名額與統計的絕對值斷言：stack 每次重建資料庫（start-api.sh dropdb／createdb），且只有本 spec
+  // 下面統計的絕對值斷言：stack 每次重建資料庫（start-api.sh dropdb／createdb），且只有本 spec
   // 建招生訪視；之後若有別的 spec 建招生訪視，改成比對差值。
-  await test.step('名額規劃：小班「已註冊」是 1', async () => {
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=${TERM.schoolYear}&sem=${TERM.semester}&tab=intake`, '招生入學')
-    const plan = page.locator('.el-table').filter({ hasText: '已註冊' }).first()
-    const gradeRow = plan.locator('tbody tr').filter({ hasText: GRADE })
-    await expect(gradeRow).toBeVisible()
-    const headers = (await plan.locator('thead th').allInnerTexts()).map((text) => text.trim())
-    const enrolledColumn = headers.indexOf('已註冊')
-    expect(enrolledColumn, `名額規劃表頭：${headers.join('、')}`).toBeGreaterThanOrEqual(0)
-    await expect(gradeRow.locator('td').nth(enrolledColumn)).toHaveText('1')
-  })
-
   await test.step('統計分析：本月 1 人次、預繳 1・註冊 1', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=stats`, '招生入學')
     await expect(page.locator('.decision__visit').first()).toHaveText('1 人次')
@@ -145,7 +134,7 @@ const VIEWPORTS = [
 ]
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：招生入學五個分頁與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
+  test(`${name}px：招生入學四個分頁與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
     mkdirSync(SHOTS, { recursive: true })
     const { context, page } = await openAs(browser, 'super_admin', device)
     for (const tab of TABS) {

@@ -6,7 +6,6 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
-import IntakePlanTab from '../components/admissions/IntakePlanTab.vue'
 import ArrivalsTab from '../components/admissions/ArrivalsTab.vue'
 import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
@@ -146,7 +145,7 @@ function onFollowUpCount(count: number) {
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細、名額規劃、官網預約與統計分析。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細、官網預約與統計分析。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
       <button
@@ -187,7 +186,6 @@ function onFollowUpCount(count: number) {
           <template #label>待追蹤<span v-if="followUpDue" class="admissions__count admissions__count--due num">{{ followUpDue }}</span></template>
         </el-tab-pane>
         <el-tab-pane label="訪視明細" name="records" />
-        <el-tab-pane label="名額規劃" name="intake" />
         <el-tab-pane v-if="canSeeArrivals" name="arrivals">
           <template #label>官網預約<span v-if="arrivalsCount" class="admissions__count num">{{ arrivalsCount }}</span></template>
         </el-tab-pane>
@@ -220,7 +218,6 @@ function onFollowUpCount(count: number) {
           :semester="semester"
           @clear-term="clearTerm"
         />
-        <IntakePlanTab v-if="tab === 'intake'" :campus-key="campus" :school-year="schoolYear" :semester="semester" />
         <ArrivalsTab v-if="tab === 'arrivals' && canSeeArrivals" :campus-key="campus" @count="onArrivalsCount" />
         <StatsTab
           v-if="tab === 'stats'"
