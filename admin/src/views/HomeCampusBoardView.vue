@@ -85,7 +85,7 @@ onMounted(editor.load)
 </template>
 
 <style scoped>
-.board-section { margin: 24px 0 8px; font-size: 15px; }
+.board-section { margin: 24px 0 8px; font-size: var(--text-md); }
 .board-order { list-style: none; margin: 8px 0 20px; padding: 0; max-width: 420px; }
 .board-order__item {
   display: flex;
@@ -103,7 +103,7 @@ onMounted(editor.load)
   height: 24px;
   border-radius: 50%;
   background: var(--surface-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .board-order__actions { display: flex; gap: 4px; }
 </style>

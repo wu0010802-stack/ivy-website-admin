@@ -162,7 +162,7 @@ defineExpose({ load })
 
 .usages__heading {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -182,7 +182,7 @@ defineExpose({ load })
 
 .usages__link {
   color: var(--el-color-primary);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .usages__refs {
@@ -198,7 +198,7 @@ defineExpose({ load })
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .usages__meta {
@@ -207,6 +207,6 @@ defineExpose({ load })
   align-items: center;
   gap: 4px;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 </style>

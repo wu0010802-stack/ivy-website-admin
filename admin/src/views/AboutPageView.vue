@@ -150,7 +150,7 @@ onMounted(editor.load)
 <style scoped>
 .sub-title {
   margin: 24px 0 12px;
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
@@ -172,7 +172,7 @@ onMounted(editor.load)
 
 .page-copy__item-note {
   margin-left: 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--el-text-color-secondary);
 }

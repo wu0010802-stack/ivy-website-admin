@@ -57,7 +57,8 @@ describe('總覽的營運摘要', () => {
     } as never)
     const wrapper = await mountAt('/', DashboardView as never)
     const groups = wrapper.findAll('.dash__summary > div')
-    expect(groups).toHaveLength(4)
+    // 2026-10-05 第九輪：「待園方確認」為 0 時不出現，這裡剩三組。
+    expect(groups).toHaveLength(3)
     for (const group of groups) {
       expect(group.element.children.length).toBeGreaterThan(0)
       for (const child of Array.from(group.element.children)) expect(['DT', 'DD']).toContain(child.tagName)

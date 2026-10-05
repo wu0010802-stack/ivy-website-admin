@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
+import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, formatHoldRemaining, formatShortDateTime, formatShortSlotWhen, holdIsUrgent, staffEmailById, staffLabelById, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -10,6 +12,9 @@ import { useVisitStaff } from '../composables/useVisitStaff'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
+import { useAuthStore } from '../stores/auth'
+import { notifyError } from '../composables/notify'
+import { attendanceDue, confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
@@ -154,10 +159,28 @@ const statusTabs = computed(() => [
     .filter(value => value !== 'pending' || (groupCounts.value.pending ?? 0) > 0 || groupFilter.value === 'pending')
     .map(value => ({ value: value as string, label: VISIT_GROUP_LABELS[value], count: groupCounts.value[value] ?? 0 })),
 ])
-// 手機上篩選欄位疊起來會把第一筆案件推到半個螢幕以下；搜尋與狀態常駐，
-// 其餘收進「更多篩選」，有套用時按鈕上顯示件數。
+// 篩選欄位攤開有十幾個控制項，把案件清單推到很下面（2026-10-05 第九輪起桌機也收）：
+// 搜尋、狀態頁籤常駐，多校帳號的校區在桌機也常駐；其餘收進「更多篩選」，有套用時
+// 按鈕上顯示件數，收起時另列成可以逐一拿掉的條件，從總覽點進來也看得到套了什麼。
 const moreFiltersOpen = ref(false)
-const moreFilterCount = computed(() => [campusFilter.value, dueOnly.value, order.value !== 'newest', assigneeFilter.value, sourceFilter.value, createdRange.value, attentionOnly.value, openOnly.value].filter(Boolean).length)
+// 手機版的校區也收進更多篩選（寬度只夠搜尋＋按鈕）。
+const campusInMore = computed(() => narrow.value || !multiCampus.value)
+interface ActiveFilter { key: string; label: string; clear: () => void }
+const hiddenFilters = computed<ActiveFilter[]>(() => {
+  const list: ActiveFilter[] = []
+  if (campusInMore.value && campusFilter.value) list.push({ key: 'campus', label: `${campusLabel(campusFilter.value)}校`, clear: () => { campusFilter.value = '' } })
+  if (attendanceOnly.value) list.push({ key: 'attendance', label: '尚未確認到場', clear: () => { attendanceOnly.value = false } })
+  if (dueOnly.value) list.push({ key: 'due', label: '到期待追蹤', clear: () => { dueOnly.value = false } })
+  if (attentionOnly.value) list.push({ key: 'attention', label: '待人工處理', clear: () => { attentionOnly.value = false } })
+  if (openOnly.value) list.push({ key: 'open', label: '未結案', clear: () => { openOnly.value = false } })
+  if (assigneeFilter.value) list.push({ key: 'assignee', label: ASSIGNEE_LABELS[assigneeFilter.value] ?? assigneeFilter.value, clear: () => { assigneeFilter.value = '' } })
+  if (sourceFilter.value) list.push({ key: 'source', label: `來源：${VISIT_SOURCE_LABELS[sourceFilter.value] ?? sourceFilter.value}`, clear: () => { sourceFilter.value = '' } })
+  if (createdRange.value) list.push({ key: 'created', label: `送出 ${createdRange.value[0].slice(5).replace('-', '/')}–${createdRange.value[1].slice(5).replace('-', '/')}`, clear: () => { createdRange.value = null } })
+  if (order.value !== 'newest') list.push({ key: 'order', label: '最早送出在前', clear: () => { order.value = 'newest' } })
+  return list
+})
+const moreFilterCount = computed(() => hiddenFilters.value.length)
+const ASSIGNEE_LABELS: Record<string, string> = { me: '我承辦的', none: '尚未指派', inactive: '承辦人已停用' }
 
 const hasNext = computed(() => requests.value.length === pageSize)
 
@@ -311,6 +334,7 @@ function refreshIfStale() {
 }
 onBeforeUnmount(() => {
   unmounted = true
+  window.clearInterval(clock)
   clearTimeout(searchTimer)
   loadVersion++
   document.removeEventListener('visibilitychange', refreshIfStale)
@@ -332,6 +356,32 @@ function followUpDue(row: VisitRequestDetailOut): boolean {
   if (!row.follow_up_at) return false
   if (row.status === 'cancelled' || row.status === 'completed') return false
   return new Date(row.follow_up_at).getTime() <= Date.now()
+}
+
+// ── 列表上直接標記到場（2026-10-05 第九輪）──
+// 參觀當天幾組家長陸續到，不必一筆筆點進明細。時鐘每 30 秒更新，場次一開始按鈕就出現（同明細）。
+const authStore = useAuthStore()
+const clockNow = ref(Date.now())
+const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
+const attendanceBusy = ref<string | null>(null)
+const showAttendance = (row: VisitRequestDetailOut) => canHandle.value && attendanceDue(row, clockNow.value)
+
+async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) {
+  // 招生入學開著時，標記已到場會同時建立招生訪視（後端看部署開關，不看個人權限）。
+  const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
+  if (attendanceBusy.value || !(await confirmAttendance(kind, row, withAdmissions))) return
+  attendanceBusy.value = row.id
+  try {
+    await submitAttendance(row.id, kind)
+    ElMessage.success(kind === 'no_show' ? `已標記 ${row.parent_name} 未到場` : `已標記 ${row.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+  } catch (err) {
+    // 同事剛處理過同一筆（兩人都開著列表）：後端拒絕轉換，重讀後列表就是現在的狀態。
+    notifyError(apiErrorCode(err) === 'INVALID_TRANSITION' ? `${row.parent_name} 這筆剛被其他人處理過，列表已更新` : apiErrorMessage(err, '操作失敗'))
+  } finally {
+    attendanceBusy.value = null
+    void openRequests.refresh(true)
+    await load({ quiet: true })
+  }
 }
 
 // 匯出不分頁：符合目前篩選的全部案件。按鈕旁講清楚範圍，避免以為只匯出這一頁，
@@ -365,6 +415,13 @@ function onManualCreated(created: VisitRequestDetailOut) {
   router.push(`/visit-requests/${created.id}`)
 }
 
+const listTitle = computed(() => {
+  if (attendanceOnly.value) return '尚未確認到場'
+  if (dueOnly.value) return '到期待追蹤'
+  if (attentionOnly.value) return '待人工處理'
+  return groupFilter.value ? (VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? '案件' : '全部案件'
+})
+
 const emptyText = computed(() => {
   if (page.value > 1) return '後面沒有更多案件了'
   if (search.value.trim()) return `找不到符合「${search.value.trim()}」的案件`
@@ -388,7 +445,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長在官網選好場次送出，就是預約成功。這裡看每一筆預約，需要時改場次或取消。">
+    <PageHeader lead="每一筆參觀預約；需要時改場次、標記到場或取消。" more="家長在官網選好場次送出，就是預約成功，不用再確認。電話、LINE 或現場約的，用「補登案件」記下來。">
       <template #actions>
         <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
         <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>
@@ -397,7 +454,7 @@ onMounted(() => {
     </PageHeader>
 
     <div class="status-tabs" role="group" aria-label="案件狀態">
-      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': groupFilter === tab.value }"
+      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': groupFilter === tab.value }" :data-group="tab.value || 'all'"
         :aria-pressed="groupFilter === tab.value" @click="groupFilter = tab.value">
         {{ tab.label }}<span v-if="tab.count" class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 件</span></span>
       </button>
@@ -407,13 +464,17 @@ onMounted(() => {
       <div class="filter-field filter-field--search"><span>搜尋</span>
       <el-input v-model="search" placeholder="姓名、電話或 Email" clearable :prefix-icon="Search" aria-label="搜尋家長／孩子姓名、電話或 Email" />
       </div>
+      <!-- 多校帳號在桌機常駐校區；手機與單校帳號收進更多篩選（單校時 CampusSelect 自己帶「校區」字樣）。 -->
+      <div v-if="multiCampus" class="filter-field filter-field--campus"><span>校區</span>
+      <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" />
+      </div>
       <button type="button" class="more-filters" :aria-expanded="moreFiltersOpen" aria-controls="requests-more-filters" @click="moreFiltersOpen = !moreFiltersOpen">
-        <el-icon aria-hidden="true"><Filter /></el-icon>更多篩選<span v-if="moreFilterCount" class="status-tab__count num">{{ moreFilterCount }}</span>
+        <el-icon aria-hidden="true"><Filter /></el-icon>更多篩選<span v-if="moreFilterCount" class="filter-count num">{{ moreFilterCount }}</span>
       </button>
+      <el-button v-if="hasFilters" text class="clear-filters" @click="clearFilters">清除篩選</el-button>
       <div id="requests-more-filters" class="requests-filters__more">
-        <!-- 單校時 CampusSelect 自己帶「校區」字樣，外面不再重複一次。 -->
-        <div class="filter-field"><span v-if="multiCampus">校區</span>
-        <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="multiCampus ? '全部校區' : undefined" />
+        <div v-if="!multiCampus" class="filter-field">
+        <CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" />
         </div>
         <div class="filter-field"><span>排序</span>
         <el-select v-model="order" aria-label="排序" class="order-select">
@@ -442,8 +503,14 @@ onMounted(() => {
         <el-checkbox v-model="attentionOnly" class="filter-due">只看待人工處理</el-checkbox>
         <el-checkbox v-model="openOnly" class="filter-due">只看未結案</el-checkbox>
       </div>
-      <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
+    <ul v-if="!moreFiltersOpen && hiddenFilters.length" class="filter-chips" aria-label="已套用的篩選">
+      <li v-for="chip in hiddenFilters" :key="chip.key">
+        <button type="button" class="filter-chip" @click="chip.clear()">{{ chip.label }}<span aria-hidden="true" class="filter-chip__x">×</span><span class="visually-hidden">，拿掉這個條件</span></button>
+      </li>
+      <!-- 手機的清除篩選放在這一列：放在搜尋那一列會把搜尋框擠到只剩幾個字。 -->
+      <li class="filter-chips__clear"><el-button text @click="clearFilters">清除篩選</el-button></li>
+    </ul>
 
     <el-alert v-if="attentionOnly" class="attention-note" type="warning" :closable="false" show-icon title="待人工處理的案件">
       <p>排入的場次已關閉（含休假日）但家長還要來，或分校已停用、案件還沒結案。請聯絡家長改期到其他場次，或取消預約；處理完就會從這裡消失。那一場其實照常接待的話，到參觀場次頁恢復開放，並把名額調成已占用的組數（不再收新預約）。</p>
@@ -454,7 +521,8 @@ onMounted(() => {
     </el-alert>
 
     <div v-if="!error" class="panel" :aria-busy="loading">
-      <div class="panel__head"><h2>參觀案件</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
+      <!-- 頁首已經是「參觀案件」，面板標題改寫目前看的是哪一組，不重複頁名。 -->
+      <div class="panel__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
       <el-table
         :data="requests"
         v-loading="loading"
@@ -464,12 +532,17 @@ onMounted(() => {
       >
         <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
         <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
-        <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：固定欄合計約 760px，
-             其餘給家長欄。參觀時間今年的省略年份（約 180px），欄寬 210；省下的寬度給承辦人。 -->
-        <el-table-column label="狀態" width="150">
+        <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：多校帳號固定欄合計 774px，
+             家長欄最少 180px（2026-10-05 實測原本合計 992px、會橫捲 30px：狀態收 10、承辦人收 28，名字長的有提示框）。
+             參觀時間今年的省略年份（約 180px）。狀態欄放得下「到了／沒來」兩顆小按鈕。 -->
+        <el-table-column label="狀態" width="140">
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span class="visit-state" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).label }}</span>
             <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).sub }}</span>
+            <span v-if="showAttendance(row)" class="attendance-actions" role="group" :aria-label="`${row.parent_name} 到了嗎？`" @click.stop>
+              <el-button size="small" type="primary" plain :loading="attendanceBusy === row.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${row.parent_name} 已到場`" @click="markAttendance(row, 'complete')">到了</el-button>
+              <el-button size="small" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${row.parent_name} 未到場`" @click="markAttendance(row, 'no_show')">沒來</el-button>
+            </span>
           </template>
         </el-table-column>
         <el-table-column v-if="multiCampus" label="校區" width="68">
@@ -494,7 +567,7 @@ onMounted(() => {
         <el-table-column label="電話" width="116">
           <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
         </el-table-column>
-        <el-table-column label="承辦人" width="156" show-overflow-tooltip>
+        <el-table-column label="承辦人" width="128" show-overflow-tooltip>
           <template #default="{ row }: { row: VisitRequestDetailOut }">
             <span :class="{ muted: !row.assigned_staff_id }" :title="staffEmailById(row.assigned_staff_id, staff) || undefined">{{ staffLabelById(row.assigned_staff_id, staff) }}</span>
           </template>
@@ -512,6 +585,10 @@ onMounted(() => {
           <li v-for="request in requests" :key="request.id">
             <div class="request-list__head"><router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span></div>
             <p v-if="visitDisplay(request).sub" class="hint visit-state__sub" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).sub }}</p>
+            <div v-if="showAttendance(request)" class="attendance-actions attendance-actions--card" role="group" :aria-label="`${request.parent_name} 到了嗎？`">
+              <el-button type="primary" plain :loading="attendanceBusy === request.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${request.parent_name} 已到場`" @click="markAttendance(request, 'complete')">到了</el-button>
+              <el-button :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${request.parent_name} 未到場`" @click="markAttendance(request, 'no_show')">沒來</el-button>
+            </div>
             <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatShortSlotWhen(request.slot) }}</p>
             <p v-if="holdLabel(request)" class="request-list__follow hold" :class="{ 'is-due': holdIsUrgent(request.hold_expires_at) }">確認期限{{ holdLabel(request) }}</p>
             <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
@@ -555,49 +632,67 @@ onMounted(() => {
 .toolbar { align-items: flex-end; }
 /* 頁籤放不下就換行，不藏在看不見的橫向捲動裡（手機上後四個狀態會被忽略）。 */
 .status-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+.status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: var(--text-base); white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
 .status-tab:hover { background: var(--surface-2); color: var(--ink); }
 /* 淺藍底上的字用深一階的操作色：--el-color-primary 在 light-9 底只有 4.4:1。 */
 .status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; }
-.status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-gold); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
-.requests-filters__more { display: contents; }
-.more-filters { display: none; }
+.status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
+/* 分頁數字只是件數，不是待辦：一律中性灰。只有舊需求「待處理」真的要人處理，才用暖黃（同側欄的案件數）。 */
+.status-tab[data-group='pending'] .status-tab__count { background: var(--brand-gold); color: var(--ink); }
+.status-tab.is-active .status-tab__count { background: var(--surface); color: var(--admin-accent-hover); }
+.requests-filters__more { display: none; flex-basis: 100%; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding-top: 4px; }
+.requests-filters.is-open .requests-filters__more { display: flex; }
+.more-filters { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink-2); font: inherit; font-size: var(--text-base); cursor: pointer; }
+.more-filters:hover { border-color: var(--el-color-primary-light-5); color: var(--ink); }
+.requests-filters.is-open .more-filters { border-color: var(--el-color-primary); color: var(--admin-accent-strong); }
+.filter-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
+/* 和輸入框底線對齊：篩選欄位上方有標籤，置中會比輸入框高半格。 */
+.clear-filters { align-self: flex-end; height: var(--control-h); }
+.filter-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; padding: 0; list-style: none; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px 0 12px; border: 1px solid var(--el-color-primary-light-7); border-radius: 999px; background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.filter-chip:hover { border-color: var(--el-color-primary); }
+.filter-chip__x { font-size: var(--text-lg); line-height: 1; }
+.filter-chips__clear { display: none; }
+.attendance-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.attendance-actions .el-button + .el-button { margin-left: 0; }
+.attendance-actions--card { margin: 4px 0 10px; }
+.attendance-actions--card .el-button { flex: 1 1 0; min-height: 44px; }
 .order-select { width: 150px; }
 .created-range :deep(.el-date-editor) { width: 260px; }
 /* 寬度跟著按鈕列走，不把整個動作區撐寬去擠左邊的說明文字。 */
-.export-scope { flex-basis: 100%; width: 0; min-width: 100%; font-size: 12px; text-align: right; }
+.export-scope { flex-basis: 100%; width: 0; min-width: 100%; font-size: var(--text-xs); text-align: right; }
 .attention-note { margin-bottom: 16px; }
 .attention-note p { margin: 0; }
-.filter-field { display: grid; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.filter-field { display: grid; gap: 6px; font-size: var(--text-sm); color: var(--ink-2); }
 .filter-due { align-self: center; padding-bottom: 6px; }
 /* 單校的唯讀校區標籤跟旁邊的下拉一樣高，底線對齊。 */
 .requests-filters :deep(.campus-single) { min-height: var(--control-h); }
-.cell-sub { display: block; font-size: 12px; line-height: 1.4; }
+.cell-sub { display: block; font-size: var(--text-xs); line-height: 1.4; }
 /* 「到期待追蹤 09/27 15:00」在家長欄最窄時也是一行；跨年多了年份放不下時只在空白處換行，
    不在日期中間折斷，也不截掉時間。 */
 .cell-sub--line { word-break: keep-all; }
 /* 跨年的送出時間在空白處換行（日期／時間各一行），不在數字中間斷開。 */
 .date-cell { word-break: keep-all; }
 .cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
-.request-list__follow { font-size: 13px; }
+.request-list__follow { font-size: var(--text-sm); }
 .hold { color: var(--ink-2); }
 .source { color: var(--ink-2); }
 .requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
-.requests-empty strong { font-size: 16px; color: var(--ink); }
+.requests-empty strong { font-size: var(--text-lg); color: var(--ink); }
 .requests-empty p { margin: 8px auto 16px; max-width: 50ch; }
 .requests-mobile { display: none; }
 .request-list { list-style: none; margin: 0; padding: 0; }
 .request-list li { padding: 20px 16px; }
 .request-list li + li { border-top: 1px solid var(--line); }
 .request-list__head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 4px; }
-.request-list__head a { display: inline-flex; align-items: center; min-height: 44px; font-size: 17px; font-weight: 600; }
+.request-list__head a { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-xl); font-weight: 600; }
 .request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
 .request-list__when { color: var(--el-color-primary); font-weight: 500; }
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
 .request-list > li > .hint { display: block; }
 .request-list__contact { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-bottom: 2px; }
 .request-list__phone { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; font-variant-numeric: tabular-nums; }
-.request-list__time { color: var(--ink-2); font-size: 14px; }
+.request-list__time { color: var(--ink-2); font-size: var(--text-base); }
 .pager {
   display: flex;
   align-items: center;
@@ -609,14 +704,18 @@ onMounted(() => {
 @media (max-width: 720px) {
   .requests-table { display: none; }
   .requests-mobile { display: block; }
-  .filter-field { flex: 1 1 130px; min-width: 0; font-size: 14px; }
+  .filter-field { flex: 1 1 130px; min-width: 0; font-size: var(--text-base); }
   /* 搜尋是手機上最常用的入口，給整行才放得下提示文字 */
   .filter-field--search { flex: 1 1 0; max-width: none; }
   /* 八個頁籤在 360–390px 排成兩列、各列撐滿，全部一眼看得到。 */
   .status-tab { flex: 1 1 auto; justify-content: center; min-height: 44px; padding: 0 8px; }
-  .more-filters { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 14px; cursor: pointer; }
-  .requests-filters__more { display: none; }
-  .requests-filters.is-open .requests-filters__more { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; width: 100%; }
+  .filter-field--campus { display: none; }
+  .requests-filters.is-open .filter-field--campus { display: grid; order: 2; flex-basis: 100%; }
+  .requests-filters__more { order: 3; }
+  .filter-chip { min-height: 44px; }
+  .requests-filters:not(.is-open) .clear-filters { display: none; }
+  .filter-chips__clear { display: block; }
+  .filter-chips__clear .el-button { min-height: 44px; }
   .requests-filters__more .filter-field { flex: 1 1 140px; }
   .requests-filters__more .el-select, .created-range :deep(.el-date-editor) { width: 100%; }
   .requests-filters__more .created-range { flex-basis: 100%; }

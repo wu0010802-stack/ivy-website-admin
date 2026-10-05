@@ -25,6 +25,12 @@ async function setup() {
   await flushPromises()
   return wrapper
 }
+// 「解除綁定並登出」在每列的「更多」選單裡（2026-10-05 起）：選單預先渲染、teleport 到 body，
+// 從 document 找（卸載時會一起移除，不會留到下一個測試）。
+function clearLoginItems(_wrapper: VueWrapper) {
+  return [...document.body.querySelectorAll('[data-test="clear-external-logins"]')]
+}
+
 function button(wrapper: VueWrapper, text: string) {
   return wrapper.findAll('button').find(item => item.text() === text)!
 }
@@ -61,20 +67,20 @@ describe('解除別人的 Google／LINE 綁定並登出（2026-09-29）', () => 
     vi.spyOn(api, 'get').mockResolvedValue([me, other, plain])
     const post = vi.spyOn(api, 'post').mockResolvedValue({ ...other, line_linked: false, google_linked: false })
     const wrapper = await setup()
-    // 桌機表格與手機清單各一份。
-    expect(wrapper.findAll('[data-test="clear-external-logins"]')).toHaveLength(2)
+    // 桌機表格與手機清單各一份；2026-10-05 起收在每列的「更多」選單裡。
+    expect(clearLoginItems(wrapper)).toHaveLength(2)
     const actions = wrapper.findAllComponents(UserActions).find(item => item.props('user').id === 'other')!
     actions.vm.$emit('clearLogins', other)
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/users/other/clear-external-logins')
-    expect(wrapper.findAll('[data-test="clear-external-logins"]')).toHaveLength(0)
+    expect(clearLoginItems(wrapper)).toHaveLength(0)
   })
 
   it('自己的列不提供（要到「我的帳號」操作）', async () => {
     const me = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', line_linked: true, google_linked: true })
     vi.spyOn(api, 'get').mockResolvedValue([me])
     const wrapper = await setup()
-    expect(wrapper.find('[data-test="clear-external-logins"]').exists()).toBe(false)
+    expect(clearLoginItems(wrapper)).toHaveLength(0)
     expect(button(wrapper, '重設密碼')).toBeUndefined()
   })
 })
@@ -304,6 +310,7 @@ describe('自己的那一列', () => {
     expect(mine.text()).toContain('自己的帳號請到我的帳號管理')
     expect(mine.find('a[href="/account"]').exists()).toBe(true)
     const theirs = rows.find(row => row.text().includes('ca@ivy.example'))!
-    expect(theirs.findAll('button').map(item => item.text())).toEqual(['角色與校區', '重設密碼', '停用'])
+    // 2026-10-05 第九輪：停用收進「更多」選單，不再每列一顆紅色鈕。
+    expect(theirs.findAll('button').map(item => item.text())).toEqual(['角色與校區', '重設密碼', '更多'])
   })
 })

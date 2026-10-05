@@ -145,7 +145,7 @@ async function submit() {
 
 .reset__card h1 {
   margin-bottom: 16px;
-  font-size: 24px;
+  font-size: var(--text-4xl);
   text-align: center;
 }
 
@@ -176,7 +176,7 @@ async function submit() {
 .reset__foot {
   margin-top: 16px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 </style>

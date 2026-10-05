@@ -158,8 +158,11 @@ async function openBooking() {
         </template>
         <div v-else-if="schedule" class="sessions-card__empty">
           <p>還沒有固定場次。常用的是上午場 10:00、下午場 14:30，週一到週五，每場 1 組。</p>
-          <el-button v-if="canManage" type="primary" @click="startEdit(COMMON_SESSIONS)">套用常用場次</el-button>
-          <el-button v-if="canManage" @click="startEdit([])">自己設定</el-button>
+          <!-- 兩顆並排在同一列：直排時 Element Plus 相鄰按鈕的左外距會讓第二顆往右縮一格。 -->
+          <div v-if="canManage" class="sessions-card__empty-actions">
+            <el-button type="primary" @click="startEdit(COMMON_SESSIONS)">套用常用場次</el-button>
+            <el-button @click="startEdit([])">自己設定</el-button>
+          </div>
           <p v-else class="hint">場次由校區管理者設定。</p>
         </div>
         <el-alert v-if="keptBooked" type="warning" :closable="false" show-icon :title="`${keptBooked} 場已有家長排入、但不在新規則內，仍會收新預約`">
@@ -223,6 +226,8 @@ async function openBooking() {
 .sessions-card { margin-bottom: 16px; }
 .sessions-card__summary { margin: 0 0 8px; padding-left: 1.2em; }
 .sessions-card__empty { display: grid; gap: 8px; justify-items: start; }
+.sessions-card__empty-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.sessions-card__empty-actions .el-button + .el-button { margin-left: 0; }
 .session-row { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .session-row__field { display: grid; gap: 4px; }
 .session-row__time { width: 110px; }

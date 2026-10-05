@@ -307,7 +307,7 @@ refreshAll()
 
 <template>
   <div class="page publishing">
-    <PageHeader lead="官網每次換內容都會留下一筆紀錄：誰在什麼時候發布了哪些內容。排好時間的發布也列在這裡，可以取消。">
+    <PageHeader lead="官網每次換內容的紀錄與排好時間的發布。" more="每一筆寫出誰在什麼時候發布了哪些內容；排好時間的發布也列在這裡，可以取消。">
       <template #actions>
         <el-button :disabled="releasesLoading || jobsLoading" @click="refreshAll">重新整理</el-button>
       </template>
@@ -373,7 +373,8 @@ refreshAll()
           </ul>
           <p v-else class="hint">內容和前一次相同（重新發布同一版）。</p>
           <div v-if="canRestore && !release.is_current" class="release__actions">
-            <el-button size="small" :loading="restoringId === release.id" :disabled="restoringId !== null" @click="restoreRelease(release)">整站還原到這次</el-button>
+            <!-- 每一筆都有、又很少用：做成靠右的灰色文字鈕（2026-10-05 第九輪），不和發布內容搶眼；按下去照舊先列出會換回哪些內容再確認。 -->
+            <el-button link size="small" class="release__restore" :loading="restoringId === release.id" :disabled="restoringId !== null" @click="restoreRelease(release)">整站還原到這次</el-button>
           </div>
         </li>
       </ol>
@@ -427,7 +428,7 @@ refreshAll()
 .publishing__more { display: flex; justify-content: center; margin-top: 16px; }
 
 .notices { margin-bottom: 20px; }
-.notices__count { margin-left: 4px; font-size: 14px; font-weight: 400; color: var(--ink-2); }
+.notices__count { margin-left: 4px; font-size: var(--text-base); font-weight: 400; color: var(--ink-2); }
 .notices__list { list-style: none; margin: 0; padding: 0; }
 .notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px 24px; }
 .notice + .notice { border-top: 1px solid var(--line); }
@@ -436,24 +437,26 @@ refreshAll()
 .notice.is-read .notice__body { padding-left: 18px; }
 .notice__body { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .notice__body strong { overflow-wrap: anywhere; }
-.notice__link { font-size: 14px; }
-.notice__meta { font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
-.notice__reason { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.notice__link { font-size: var(--text-base); }
+.notice__meta { font-size: var(--text-sm); color: var(--ink-3); overflow-wrap: anywhere; }
+.notice__reason { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
 .notice__side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-.notice__time { font-size: 13px; color: var(--ink-3); }
+.notice__time { font-size: var(--text-sm); color: var(--ink-3); }
 
 .releases { list-style: none; margin: 0; padding: 0; }
 .release { padding: 16px 24px; }
 .release + .release { border-top: 1px solid var(--line); }
 .release__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .release__when { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.release__by { font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
+.release__by { font-size: var(--text-sm); color: var(--ink-3); overflow-wrap: anywhere; }
 .release__tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.release__restored { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+.release__restored { margin: 6px 0 0; font-size: var(--text-sm); color: var(--ink-2); }
 .release__changes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
-.release__changes li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 14px; }
-.release__version { font-size: 13px; color: var(--ink-3); }
-.release__actions { margin-top: 12px; }
+.release__changes li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: var(--text-base); }
+.release__version { font-size: var(--text-sm); color: var(--ink-3); }
+.release__actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.release__restore { color: var(--ink-3); text-decoration: underline; text-underline-offset: 2px; }
+.release__restore:not(.is-disabled):hover { color: var(--el-color-danger); }
 
 .jobs { margin-bottom: 20px; }
 .jobs__empty { margin: 0; padding: 16px 24px; color: var(--ink-3); }
@@ -462,8 +465,8 @@ refreshAll()
 .job + .job { border-top: 1px solid var(--line); }
 .job__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .job__title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.job__meta { font-size: 13px; color: var(--ink-3); overflow-wrap: anywhere; }
-.job__error { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.job__meta { font-size: var(--text-sm); color: var(--ink-3); overflow-wrap: anywhere; }
+.job__error { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
 .job__error.is-failed { color: var(--el-color-danger); }
 
 @media (max-width: 720px) {
@@ -474,7 +477,7 @@ refreshAll()
   .job .el-button { min-height: 44px; }
   .release__head { flex-direction: column; }
   .release__tags { justify-content: flex-start; }
-  /* 整站還原很少用：手機上維持一般寬度的次要鈕，不做成滿寬、比發布內容還搶眼。 */
+  /* 整站還原很少用：手機上維持文字鈕，只把點擊高度放到 44px。 */
   .release__actions .el-button { min-height: 44px; }
 }
 </style>

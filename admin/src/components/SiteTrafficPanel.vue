@@ -154,7 +154,7 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
 }
 
 .traffic__section-title {
-  font-size: 16px;
+  font-size: var(--text-lg);
 }
 
 .traffic__alert {
@@ -180,7 +180,7 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
 
 .traffic__title {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .traffic__pages {
@@ -217,7 +217,6 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   height: 100%;
   border-radius: 999px;
   background: var(--el-color-primary);
-  transition: width 300ms var(--ease-out);
 }
 
 .traffic__value {
@@ -229,7 +228,7 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .traffic__vitals th,

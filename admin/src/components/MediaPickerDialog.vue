@@ -191,7 +191,7 @@ async function onUploadChange(event: Event) {
 .picker__alt-note {
   margin: -6px 0 12px;
   color: var(--brand-gold-ink);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 
@@ -238,12 +238,12 @@ async function onUploadChange(event: Event) {
   aspect-ratio: 4 / 3;
   background: var(--surface-2, var(--line));
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .picker__name {
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -252,21 +252,21 @@ async function onUploadChange(event: Event) {
 
 .picker__campus {
   padding: 0 8px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
 .picker__warn {
   padding: 0 8px;
   color: var(--brand-gold-ink);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .picker__usage {
   padding: 0 8px;
   overflow: hidden;
   color: var(--ink-3);
-  font-size: 11px;
+  font-size: var(--text-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -277,7 +277,7 @@ async function onUploadChange(event: Event) {
 
 @media (max-width: 720px) {
   .picker__alt-note {
-    font-size: 14px;
+    font-size: var(--text-base);
   }
 }
 </style>

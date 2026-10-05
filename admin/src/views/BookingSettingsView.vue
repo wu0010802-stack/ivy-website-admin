@@ -396,21 +396,21 @@ async function save() {
 }
 
 .modes__help {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
   line-height: 1.4;
 }
 
 .modes__current {
   margin-left: 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 400;
   /* 選中的淺藍底上用深一階的操作色，--el-color-primary 只有 4.4:1。 */
   color: var(--admin-accent-hover);
 }
 
 .modes__blocked {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--el-color-warning-dark-2);
 }
@@ -421,7 +421,7 @@ async function save() {
   border: 1px solid var(--el-color-warning-light-5);
   border-radius: 8px;
   background: var(--el-color-warning-light-9);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-2);
 }
@@ -454,10 +454,10 @@ async function save() {
 
 .campus-zone__title {
   margin-bottom: 12px;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 @media(max-width:720px) {
   .modes__item { min-height:60px; padding:12px; }
-  .modes__help { font-size:14px; line-height:1.6; }
+  .modes__help { font-size:var(--text-base); line-height:1.6; }
 }
 </style>

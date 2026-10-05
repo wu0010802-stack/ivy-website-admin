@@ -60,13 +60,13 @@ function go(section: EditorSection) {
 .section-nav { margin: -8px 0 16px; min-width: 0; }
 .section-nav__title { display: none; }
 .section-nav ol { display: flex; gap: 8px; margin: 0; padding: 0 0 4px; list-style: none; overflow-x: auto; scrollbar-width: none; }
-.section-nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 14px; white-space: nowrap; text-decoration: none; }
+.section-nav a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: var(--text-base); white-space: nowrap; text-decoration: none; }
 .section-nav a[aria-current] { border-color: var(--admin-accent); color: var(--admin-accent-hover); font-weight: 600; }
-.section-nav__note { color: var(--ink-3); font-size: 12px; font-weight: 400; }
+.section-nav__note { color: var(--ink-3); font-size: var(--text-xs); font-weight: 400; }
 
 @media (min-width: 1280px) {
   .section-nav { position: sticky; top: 88px; margin: 0; }
-  .section-nav__title { display: block; margin: 0 0 6px; font-size: 12px; color: var(--ink-3); }
+  .section-nav__title { display: block; margin: 0 0 6px; font-size: var(--text-xs); color: var(--ink-3); }
   .section-nav ol { flex-direction: column; gap: 2px; overflow: visible; padding: 0; }
   .section-nav a { display: flex; min-height: 36px; padding: 6px 10px; border: 0; border-left: 2px solid var(--line); border-radius: 0; background: none; white-space: normal; }
   .section-nav a[aria-current] { border-left-color: var(--admin-accent); }

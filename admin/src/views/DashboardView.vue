@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { api } from '../api/client'
+import { apiErrorCode, apiErrorMessage } from '../api/errors'
+import { notifyError } from '../composables/notify'
+import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatDateTime, formatHoldRemaining, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
 import type { VisitRequestDetailOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
@@ -243,6 +247,25 @@ function visitPhase(visit: TodayVisit): 'ended' | 'ongoing' | '' {
   return ''
 }
 const VISIT_PHASE_LABELS = { ended: '已結束・待標記到場', ongoing: '進行中' } as const
+// 今天的名單直接標記到場（2026-10-05 第九輪）：場次開始後（進行中、已結束）才出現，同案件列表；
+// 先確認一次，寫出家長與場次。標完就離開名單（後端只列還沒標記的），重讀彙總。
+const canHandleVisits = computed(() => can('booking.handle'))
+const attendanceBusy = ref<string | null>(null)
+async function markTodayAttendance(visit: TodayVisit, kind: AttendanceKind) {
+  const row = { status: 'confirmed', parent_name: visit.parent_name, slot: { slot_date: taipeiDay(clockNow.value), start_time: visit.start_time, end_time: visit.end_time } }
+  const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
+  if (attendanceBusy.value || !(await confirmAttendance(kind, row, withAdmissions))) return
+  attendanceBusy.value = visit.id
+  try {
+    await submitAttendance(visit.id, kind)
+    ElMessage.success(kind === 'no_show' ? `已標記 ${visit.parent_name} 未到場` : `已標記 ${visit.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+  } catch (err) {
+    notifyError(apiErrorCode(err) === 'INVALID_TRANSITION' ? `${visit.parent_name} 這筆剛被其他人處理過，名單已更新` : apiErrorMessage(err, '操作失敗'))
+  } finally {
+    attendanceBusy.value = null
+    await load({ quiet: true })
+  }
+}
 // 「今日參觀」的入口：有名單就捲到同頁「今天的參觀」，跟數字同一批人（第四輪：數字的入口要同定義）。
 // router 沒有 scrollBehavior，帶 hash 的 router-link 不會捲，自己捲；焦點移到標題，鍵盤使用者接著往下讀。
 const todayHeading = ref<HTMLElement | null>(null)
@@ -264,6 +287,8 @@ function shortDateTime(value: string | null | undefined): string {
 
 const newRequests = computed(() => summary.value?.new_requests ?? 0)
 const awaiting = computed(() => summary.value?.awaiting_confirmation ?? 0)
+// 摘要格數：今日參觀、到期待追蹤固定兩格，舊案的兩格有數字才加進來。
+const summaryCols = computed(() => 2 + (newRequests.value > 0 ? 1 : 0) + (awaiting.value > 0 ? 1 : 0))
 const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
 // 給自己的內容通知（送審、核准或退回、排程沒有發布）還沒讀的則數：側欄不掛數字，改在總覽與頁首提醒。
 const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
@@ -401,9 +426,11 @@ const hasTodo = computed(() => {
     </el-alert>
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
-      <dl class="dash__summary" aria-label="營運摘要">
-        <div :class="{ 'is-attention': newRequests > 0 }"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></dd></div>
-        <div :class="{ 'is-attention': awaiting > 0 }"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ holdRemaining ? `最早一筆${holdRemaining}` : '查看待確認案件' }}</router-link></dd></div>
+      <!-- 家長自選場次後，「新需求待聯絡」「待園方確認」只剩改版前的舊案會有數字（2026-10-05 起
+           有數字才出現）：恆為 0 的兩格不再占掉手機首屏一半；有舊案或日後改回人工確認時自動回來。 -->
+      <dl class="dash__summary" aria-label="營運摘要" :style="{ '--summary-cols': summaryCols }">
+        <div v-if="newRequests > 0" class="is-attention"><dt>新需求待聯絡</dt><dd>{{ newRequests }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=new&order=oldest">查看新需求</router-link></dd></div>
+        <div v-if="awaiting > 0" class="is-attention"><dt>待園方確認</dt><dd>{{ awaiting }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?status=pending_confirmation&order=oldest">{{ holdRemaining ? `最早一筆${holdRemaining}` : '查看待確認案件' }}</router-link></dd></div>
         <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><dd class="dash__more"><a v-if="summary.today_visit_list?.length" href="#today-title" @click.prevent="showTodayList">看今天的名單</a><router-link v-else to="/visit-requests?group=upcoming&order=oldest">查看預約正常的案件</router-link></dd></div>
         <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?due=1">查看到期案件</router-link></dd></div>
       </dl>
@@ -417,6 +444,11 @@ const hasTodo = computed(() => {
               <span class="today__campus">{{ campusLabel(visit.campus_key) }}<template v-if="visitPhase(visit)"><span aria-hidden="true">・</span><span class="today__phase">{{ VISIT_PHASE_LABELS[visitPhase(visit) as 'ended' | 'ongoing'] }}</span></template></span>
               <span class="today__go" aria-hidden="true">→</span>
             </router-link>
+            <!-- 按鈕不能包在連結裡：和連結並排在同一列。 -->
+            <span v-if="canHandleVisits && visitPhase(visit)" class="today__attendance" role="group" :aria-label="`${visit.parent_name} 到了嗎？`">
+              <el-button size="small" type="primary" plain :loading="attendanceBusy === visit.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 已到場`" @click="markTodayAttendance(visit, 'complete')">到了</el-button>
+              <el-button size="small" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 未到場`" @click="markTodayAttendance(visit, 'no_show')">沒來</el-button>
+            </span>
           </li>
         </ol>
       </section>
@@ -589,56 +621,60 @@ const hasTodo = computed(() => {
 
 <style scoped>
 .dash__intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
-.dash__date { color: var(--ink-3); font-size: 13px; margin-bottom: 8px; }
-.dash__intro h2 { font-size: 18px; }
+.dash__date { color: var(--ink-3); font-size: var(--text-sm); margin-bottom: 8px; }
+.dash__intro h2 { font-size: var(--text-xl); }
 .dash__lead { margin-top: 8px; color: var(--ink-2); }
 .dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
-.dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: 13px; font-weight: 600; line-height: 22px; text-align: center; }
+.dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: var(--text-sm); font-weight: 600; line-height: 22px; text-align: center; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
-.dash__summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
+.dash__summary { display: grid; grid-template-columns: repeat(var(--summary-cols, 4), minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
 .dash__summary > div { min-width: 0; padding: 20px; }
 .dash__summary > div + div { border-left: 1px solid var(--line); }
-.dash__summary dt { font-size: 14px; color: var(--ink-2); }
-.dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: 28px; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.dash__summary dd span { font-size: 13px; font-weight: 400; color: var(--ink-3); }
+.dash__summary dt { font-size: var(--text-base); color: var(--ink-2); }
+.dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: var(--text-5xl); font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.dash__summary dd span { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); }
 .dash__summary > .is-attention dd { color: var(--brand-gold-ink); }
 /* 連結也包在 dd 裡：<dl> 的每組只能有 dt、dd（axe definition-list）。 */
-.dash__summary dd.dash__more { display: block; margin: 0; font-size: 13px; font-weight: 400; line-height: inherit; }
-.dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
+.dash__summary dd.dash__more { display: block; margin: 0; font-size: var(--text-sm); font-weight: 400; line-height: inherit; }
+.dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-sm); }
 .dash__today { margin-bottom: 28px; }
 .dash__mine { margin-bottom: 28px; }
-.dash__mine-all { font-size: 13px; text-decoration: underline; }
+.dash__mine-all { font-size: var(--text-sm); text-decoration: underline; }
 .mine a { grid-template-columns: minmax(0, 1fr) auto auto; }
 /* 從「看今天的名單」捲過來時，標題不要被頂欄蓋住。 */
 .dash__today h2 { scroll-margin-top: calc(var(--top-h) + 16px); outline: none; }
 .today { list-style: none; margin: 0; padding: 0; }
 .today li + li { border-top: 1px solid var(--line); }
+.today li { display: flex; align-items: center; }
+.today li > a { flex: 1; min-width: 0; }
+.today__attendance { display: flex; flex-shrink: 0; gap: 6px; padding-right: 20px; }
+.today__attendance .el-button + .el-button { margin-left: 0; }
 .today a { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; padding: 14px 20px; color: var(--ink); }
 .today a:hover { text-decoration: none; background: var(--surface-2); }
-.today__time { font-size: 14px; font-weight: 500; color: var(--el-color-primary); }
-.today__name { font-size: 15px; font-weight: 500; }
-.today__campus { color: var(--ink-3); font-size: 13px; }
+.today__time { font-size: var(--text-base); font-weight: 500; color: var(--el-color-primary); }
+.today__name { font-size: var(--text-md); font-weight: 500; }
+.today__campus { color: var(--ink-3); font-size: var(--text-sm); }
 .today__go { color: var(--ink-3); }
 /* 結束了還沒標記的灰掉；狀態另外寫成字，不只靠顏色。 */
 .today .is-ended .today__time, .today .is-ended .today__name { color: var(--ink-3); }
 .today .is-ended .today__phase { color: var(--brand-gold-ink); }
 .today .is-ongoing .today__phase { color: var(--el-color-primary); font-weight: 500; }
 .task__kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
-.task__kinds a { color: var(--el-color-primary); font-weight: 500; font-size: 14px; }
+.task__kinds a { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-base); }
 .task__rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
-.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-size: 14px; }
+.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-size: var(--text-base); }
 .task__rows a { color: var(--el-color-primary); font-weight: 500; }
-.task__rows li > span { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.task__rows li > span { color: var(--ink-3); font-size: var(--text-sm); overflow-wrap: anywhere; min-width: 0; }
 .task__rows li > span.is-live { color: var(--el-color-danger); }
 .dash__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
-.section__title h2 { font-size: 17px; }
+.section__title h2 { font-size: var(--text-xl); }
 .task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }
 .task + .task { border-top: 1px solid var(--line); }
 a.task:hover { text-decoration: none; background: var(--surface-2); }
 .task--urgent .task__number { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
 .task p strong { color: var(--ink); font-weight: 600; }
-.task__number { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; font-size: 17px; }
-.task h3 { font-size: 16px; }
+.task__number { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; font-size: var(--text-xl); }
+.task h3 { font-size: var(--text-lg); }
 .task p { margin-top: 6px; color: var(--ink-2); max-width: 60ch; line-height: 1.7; }
 .task__action { display: inline-flex; gap: 4px; margin-top: 12px; color: var(--el-color-primary); font-weight: 500; }
 .task__retry { margin-top: 12px; }
@@ -651,8 +687,8 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
 .dash__links a { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
 .dash__links a:first-child { padding-top: 0; }
 .dash__links a:hover { text-decoration: none; color: var(--el-color-primary); }
-.dash__links strong { font-size: 14px; font-weight: 500; }
-.dash__links small { display: block; margin-top: 4px; color: var(--ink-3); font-size: 13px; }
+.dash__links strong { font-size: var(--text-base); font-weight: 500; }
+.dash__links small { display: block; margin-top: 4px; color: var(--ink-3); font-size: var(--text-sm); }
 .dash__clear { padding: 28px 24px; }
 .dash__clear p { color: var(--ink-3); margin-top: 8px; }
 .dash__checking { padding: 28px 24px; color: var(--ink-3); }
@@ -665,7 +701,7 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .dash__summary > div:nth-child(odd) { border-left: 0; }
   .dash__summary > div:nth-child(n+3) { border-top: 1px solid var(--line); }
   .dash__summary a { min-height: 44px; }
-  .dash__summary a, .dash__links small, .dash__date { font-size: 14px; }
+  .dash__summary a, .dash__links small, .dash__date { font-size: var(--text-base); }
   .task { padding: 20px 16px; gap: 12px; }
   /* 草稿、素材、待審裡的內容連結與「查看全站排程」這類連結，手機點擊範圍至少 44px。 */
   .task__rows a, .task__kinds a, a.task__action { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
@@ -681,5 +717,10 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .today__name { grid-column: 2; grid-row: 1; }
   .today__campus { grid-column: 1 / 3; grid-row: 2; }
   .today__go { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  /* 手機：按鈕換到名字下面一整列，各占一半、44px 高。 */
+  .today li { flex-wrap: wrap; }
+  .today li > a { flex-basis: 100%; }
+  .today__attendance { flex-basis: 100%; padding: 0 16px 14px; }
+  .today__attendance .el-button { flex: 1 1 0; min-height: 44px; }
 }
 </style>

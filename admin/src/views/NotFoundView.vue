@@ -30,7 +30,7 @@ const homePath = computed(() => landingPath(auth.user?.role))
 }
 
 .not-found h2 {
-  font-size: 17px;
+  font-size: var(--text-xl);
 }
 
 .not-found p {

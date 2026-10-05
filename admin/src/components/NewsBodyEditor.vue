@@ -152,7 +152,7 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
 }
 
 .news-body__type {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink-2);
 }
@@ -177,7 +177,7 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
 }
 
 .news-body__field > span:first-child {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 

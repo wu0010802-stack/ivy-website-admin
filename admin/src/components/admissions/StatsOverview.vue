@@ -233,7 +233,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 
 .stats-card h3 {
   margin-bottom: 12px;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 
 .decision__head {
@@ -254,7 +254,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -285,19 +285,19 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 
 .decision__card h4 {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 
 .decision__visit {
   margin: 6px 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .decision__visit strong {
   color: var(--ink);
-  font-size: 22px;
+  font-size: var(--text-3xl);
 }
 
 .decision__rates,
@@ -348,7 +348,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 .decision__foot {
   margin-top: 8px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .overview__pair {
@@ -393,12 +393,12 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 .alert-item__message {
   grid-column: 2;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .action-item span {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .alert-item:hover,
@@ -423,7 +423,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 }
 
 .snapshot__step strong {
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 
 .snapshot__rate {
@@ -432,7 +432,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
   gap: 8px;
   padding-left: 16px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 /* 箭頭只是裝飾，用 CSS 畫，不進文字內容。 */
@@ -459,7 +459,7 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 
 .kpi dt {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .kpi dd {
@@ -468,12 +468,12 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 }
 
 .kpi dd strong {
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 
 .kpi__sub {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 @media (max-width: 720px) {

@@ -80,24 +80,24 @@ const rows = computed(() =>
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .timeline__actor {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .timeline__time {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .timeline__change,
 .timeline__reason {
   margin: 2px 0 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 
@@ -108,6 +108,6 @@ const rows = computed(() =>
 .timeline__link {
   display: inline-block;
   margin-top: 2px;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 </style>

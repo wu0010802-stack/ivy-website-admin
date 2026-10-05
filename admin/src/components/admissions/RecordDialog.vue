@@ -441,7 +441,7 @@ function suggest(list: readonly string[] | undefined) {
 }
 
 .record-dialog__title {
-  font-size: 17px;
+  font-size: var(--text-xl);
 }
 
 .record-dialog__seq {
@@ -450,7 +450,7 @@ function suggest(list: readonly string[] | undefined) {
   border-radius: 999px;
   background: var(--surface-2);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .record-dialog__lead {
@@ -493,7 +493,7 @@ function suggest(list: readonly string[] | undefined) {
 .record-dialog__summary {
   margin-left: 8px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -524,7 +524,7 @@ function suggest(list: readonly string[] | undefined) {
   flex: 1 1 200px;
   margin: 0;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: left;
 }
 
@@ -549,7 +549,7 @@ function suggest(list: readonly string[] | undefined) {
   }
 
   .record-dialog__missing {
-    font-size: 14px;
+    font-size: var(--text-base);
   }
 }
 </style>

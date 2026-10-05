@@ -120,10 +120,10 @@ function setAxis(axis: 'x' | 'y', value: number | undefined) {
 }
 .focus-picker__pin.is-default { opacity: 0.55; }
 .focus-picker__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-.focus-picker__num { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.focus-picker__num { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-2); }
 .focus-picker__num .el-input-number { width: 96px; }
 .focus-picker__previews { display: flex; flex-wrap: wrap; gap: 10px; }
 .focus-picker__previews figure { margin: 0; display: grid; gap: 4px; }
 .focus-picker__previews img { display: block; height: 64px; width: auto; object-fit: cover; border-radius: 4px; border: 1px solid var(--line); }
-.focus-picker__previews figcaption { font-size: 11px; color: var(--ink-3); }
+.focus-picker__previews figcaption { font-size: var(--text-xs); color: var(--ink-3); }
 </style>

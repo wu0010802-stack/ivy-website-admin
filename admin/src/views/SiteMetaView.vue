@@ -124,10 +124,10 @@ onMounted(editor.load)
 /* 原型原文提示：官網顯示的和這裡不同，改了之後才會照這裡顯示。 */
 .legacy-hint {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--el-color-warning-dark-2);
 }
 
-.meta-section { margin: 24px 0 8px; font-size: 15px; }
+.meta-section { margin: 24px 0 8px; font-size: var(--text-md); }
 </style>

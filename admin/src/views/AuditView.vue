@@ -178,7 +178,7 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <PageHeader lead="誰在什麼時候改了什麼：預約設定與案件處理、內容發布、素材、帳號與授權、個資清理等。紀錄裡不含家長個資。" />
+    <PageHeader lead="誰在什麼時候改了什麼。" more="包含預約設定與案件處理、內容發布、素材、帳號與授權、個資清理等。紀錄裡不含家長個資。" />
 
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
@@ -278,13 +278,13 @@ onMounted(() => {
   margin: 0;
   padding: 8px 0;
   background: var(--surface-2);
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
 .audit-day__count {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -329,18 +329,18 @@ onMounted(() => {
 
 .audit-record__meta {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .audit-record .audit-detail {
   margin: 4px 0 0;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .audit-others {
   margin-top: 4px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .audit-others summary {

@@ -58,7 +58,7 @@ const inlineLabel = inject(campusSelectLabelKey, '')
 }
 
 .campus-single__label {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 </style>

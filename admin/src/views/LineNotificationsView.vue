@@ -300,7 +300,7 @@ onMounted(() => load())
 
 .tech-details {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
@@ -432,7 +432,7 @@ onMounted(() => load())
 
 .group-list__meta {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .group-list__tags {
@@ -461,7 +461,7 @@ onMounted(() => load())
 }
 
 .verify__code code {
-  font-size: 20px;
+  font-size: var(--text-2xl);
   font-weight: 600;
   letter-spacing: 0.08em;
   overflow-wrap: anywhere;

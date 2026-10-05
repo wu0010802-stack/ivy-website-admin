@@ -286,7 +286,7 @@ onMounted(editor.load)
 
 .sub-title {
   margin: 24px 0 12px;
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
@@ -312,7 +312,7 @@ onMounted(editor.load)
 
 .glyph-hint {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--el-color-warning-dark-2);
 }

@@ -319,7 +319,7 @@ function openRecords(row: NoDepositRecord) {
 
 .stats-block__title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 
 .nd-filters {
@@ -343,7 +343,7 @@ function openRecords(row: NoDepositRecord) {
 
 .nd-count {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -377,7 +377,7 @@ function openRecords(row: NoDepositRecord) {
 .nd-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .nd-table th,
@@ -392,7 +392,7 @@ function openRecords(row: NoDepositRecord) {
 .nd-table thead th {
   background: var(--surface-2);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 

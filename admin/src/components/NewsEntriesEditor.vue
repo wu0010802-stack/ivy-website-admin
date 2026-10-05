@@ -367,7 +367,7 @@ function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
 
 .glyph-hint {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.6;
   color: var(--el-color-warning-dark-2);
 }

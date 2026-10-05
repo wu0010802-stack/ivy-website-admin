@@ -528,9 +528,10 @@ const statusDisplay = computed(() => {
   const current = detail.value
   return current ? visitDisplay({ ...current, display_status: visitDisplayStatus(current.status, current.slot, clockNow.value) }) : null
 })
-// 手動改期表單：家長申請改期時該先核准或退回；參觀已經開始時該先標記到場。
-// 這兩種情況先收成一個連結，要用再展開。
-const manualRescheduleShown = computed(() => (!detail.value?.pending_reschedule && !visitStarted.value) || manualRescheduleOpen.value)
+// 手動改期表單一律先收成一個連結，要用再展開（2026-10-05 第九輪）：改期不是每筆都要做的事，
+// 整個表單攤在處理面板最上面，手機上會把聯絡紀錄推到很下面。家長申請改期時先核准或退回，
+// 參觀開始後先標記到場，也都是先看到那些按鈕。
+const manualRescheduleShown = computed(() => manualRescheduleOpen.value)
 // 確認時間和送出時間同一分鐘（官網自選場次送出即成立）時不重複列；舊流程與補登才會不同。
 const confirmedAtShown = computed(() => {
   const current = detail.value
@@ -937,7 +938,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
       <div class="detail__grid">
         <div class="detail__main">
-          <div class="panel">
+          <div class="panel detail__data">
             <div class="panel__head"><h2>{{ isWebCase ? '家長填寫的資料' : '案件資料' }}</h2></div>
             <el-descriptions :column="1" border label-width="128" class="detail__desc">
               <el-descriptions-item label="電話">
@@ -946,15 +947,17 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
               <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`" class="detail__link">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
-              <el-descriptions-item label="參觀人數">{{ detail.party_size ? partySizeLabel(detail.party_size) : '未填寫' }}</el-descriptions-item>
+              <!-- 官網 10-03 起不問參觀人數與想了解的事、10-02 起不用勾同意：只有舊案件與補登有值才列，
+                   新案件不再固定出現「未填寫」「不需勾選同意」（官網沒有的欄位後台不列）。 -->
+              <el-descriptions-item v-if="detail.party_size" label="參觀人數">{{ partySizeLabel(detail.party_size) }}</el-descriptions-item>
               <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ ageLabel(detail.age) }}</el-descriptions-item>
               <!-- 家長自選場次之後不再問方便接電話時段，只有舊資料才有值。 -->
               <el-descriptions-item v-if="detail.preferred_time" label="方便接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
-              <el-descriptions-item label="想了解的事">
-                <span class="detail__pre">{{ detail.questions || '未填寫' }}</span>
+              <el-descriptions-item v-if="detail.questions" label="想了解的事">
+                <span class="detail__pre">{{ detail.questions }}</span>
               </el-descriptions-item>
-              <el-descriptions-item label="同意紀錄">{{ consentRecordLabel(detail) }}</el-descriptions-item>
+              <el-descriptions-item v-if="detail.consent_given" label="同意紀錄">{{ consentRecordLabel(detail) }}</el-descriptions-item>
               <el-descriptions-item v-if="confirmedAtShown" label="確認時間">{{ formatDateTime(detail.confirmed_at) }}</el-descriptions-item>
               <el-descriptions-item v-if="detail.cancelled_at" label="取消時間">{{ formatDateTime(detail.cancelled_at) }}</el-descriptions-item>
             </el-descriptions>
@@ -983,8 +986,8 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             </div>
           </section>
 
-          <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面。 -->
-          <section class="section">
+          <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
+          <section class="section detail__notes">
             <div class="section__title"><h2>聯絡紀錄</h2></div>
             <ol class="notes" v-if="notes.length > 0">
               <li v-for="n in notes" :key="n.id" class="notes__item">
@@ -1132,7 +1135,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                   </p>
                   <el-input v-model="rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
                   <el-button :loading="pendingAction === 'reschedule'" :disabled="!rescheduleSlotId || busy" style="width: 100%; margin-left: 0" @click="reschedule">改到這一場</el-button>
-                  <p class="hint">案件編號與紀錄不變，原場次名額在同一步釋出；新場次滿了會整筆不改。</p>
+                  <p class="hint">改好後原場次的名額會空出來；新場次剛好額滿的話不會改。</p>
                 </div>
                 <div v-else class="reschedule reschedule--collapsed">
                   <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">{{ detail.pending_reschedule ? '不照申請，改到其他場次…' : '改到其他場次…' }}</el-button>
@@ -1209,7 +1212,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 </template>
 
 <style scoped>
-.hold-deadline { margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); color: var(--ink-2); font-size: 13px; line-height: 1.6; }
+.hold-deadline { margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); color: var(--ink-2); font-size: var(--text-sm); line-height: 1.6; }
 .hold-deadline strong { color: var(--ink); font-weight: 600; }
 .hold-deadline.is-urgent { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
 .detail__nav {
@@ -1230,7 +1233,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .detail__follow {
   margin-top: 4px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
@@ -1266,7 +1269,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .detail__after-summary dt {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .detail__after-summary dd {
@@ -1297,12 +1300,12 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
 .notes__hint {
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .notes__past {
@@ -1324,7 +1327,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   gap: 6px;
   padding: 16px 24px;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
@@ -1336,7 +1339,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   gap: 6px 12px;
   padding: 16px 24px;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
@@ -1370,12 +1373,12 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 }
 
 .detail__title {
-  font-size: 22px;
+  font-size: var(--text-3xl);
 }
 
 .detail__when {
   margin-top: 6px;
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 500;
   color: var(--el-color-primary);
 }
@@ -1412,7 +1415,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   flex-wrap: wrap;
   gap: 4px 10px;
   margin-bottom: 2px;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .notes__time {
@@ -1457,7 +1460,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .detail__attendance-title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--ink);
 }
@@ -1470,7 +1473,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 }
 
 .detail__status-sub {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-2);
 }
 
@@ -1489,7 +1492,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 .reschedule__title,
 .reschedule-request__title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
 }
@@ -1501,7 +1504,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .reschedule-request__slots {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--ink-2);
 }
@@ -1567,6 +1570,26 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
     order: -1;
   }
 
+  /* 手機上打完電話接著就是記一筆：撥號鈕、處理面板之後先放聯絡紀錄（已到場的是參觀後追蹤），
+     家長資料表排在後面。改成 flex 直排，兄弟間距統一用 gap，不靠 .panel + .section 的外距。 */
+  .detail__main {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .detail__main > * {
+    margin-top: 0;
+  }
+
+  .detail__after {
+    order: -2;
+  }
+
+  .detail__notes {
+    order: -1;
+  }
+
   .detail__call {
     display: inline-flex;
     width: 100%;
@@ -1621,7 +1644,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
 .assignee-option__email {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 400;
 }
 

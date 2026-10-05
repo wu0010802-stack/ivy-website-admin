@@ -208,8 +208,8 @@ async function restore(publish: boolean) {
 .history__item:hover, .history__item.is-selected { background: var(--surface-3); }
 .history__item:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: -2px; }
 .history__when { font-weight: 600; color: var(--ink); }
-.history__meta { font-size: 13px; color: var(--ink-3); }
-.history__note { font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere; }
+.history__meta { font-size: var(--text-sm); color: var(--ink-3); }
+.history__note { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
 .history__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .history__preview { padding: 4px 8px 16px; }
 .history__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

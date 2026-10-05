@@ -303,7 +303,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
 <template>
   <div class="page">
-    <PageHeader lead="家長送出需求、申請改期、案件確認與取消，以及即將參觀、逾期未處理的提醒。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。" />
+    <PageHeader lead="家長預約、改期、取消與到期提醒。" more="家長送出需求、申請改期、案件確認與取消，以及即將參觀、逾期未處理的提醒都在這裡。Email 與 LINE 寄送另外處理，這裡一定看得到紀錄；寄送失敗的可以在這裡重新寄送。" />
 
     <div class="filter-bar">
       <label class="filter-field"><span>通知校區</span><CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" :all-label="multiCampus ? '全部校區' : undefined" :disabled="operationBusy" @update:model-value="changeCampus" /></label>
@@ -504,7 +504,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 .section-lead {
   margin: 0;
   padding: 12px 24px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-3);
 }
 
@@ -532,12 +532,12 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
 
 .open-link {
   margin-left: 10px;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .slot-note {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 

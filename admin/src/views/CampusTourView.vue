@@ -265,12 +265,12 @@ function onPickMedia(asset: MediaAssetOut) {
   place-items: center;
   border: 1px solid var(--el-color-danger);
   color: var(--el-color-danger);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .tour__scene-missing {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--el-color-danger);
 }
@@ -324,7 +324,7 @@ function onPickMedia(asset: MediaAssetOut) {
   place-items: center;
   height: 100%;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .tour__stage-hint {

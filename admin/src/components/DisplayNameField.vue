@@ -46,7 +46,7 @@ defineExpose({ focus: () => input.value?.focus() })
   margin: 0;
   padding-top: 4px;
   color: var(--el-color-danger);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 

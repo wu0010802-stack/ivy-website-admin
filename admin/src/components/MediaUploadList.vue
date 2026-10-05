@@ -61,7 +61,7 @@ function meta(item: UploadItem): StatusMeta {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .uploads__name {
@@ -74,12 +74,12 @@ function meta(item: UploadItem): StatusMeta {
 
 .uploads__size {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .uploads__error {
   flex-basis: 100%;
   color: var(--el-color-danger);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 </style>

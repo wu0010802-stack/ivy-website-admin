@@ -360,7 +360,7 @@ const scheduleLabel = (row: FollowUpRow) => (row.follow_up_at ? '改期／負責
 .follow-card__meta {
   margin: 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 

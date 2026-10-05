@@ -80,10 +80,11 @@ describe('案件明細：參觀已開始', () => {
     expect(wrapper.text()).not.toContain('方便接電話時段')
   })
 
-  it('還沒開始的場次維持改期表單，頁首寫預約正常', async () => {
+  // 2026-10-05 第九輪：還沒開始的場次也先收成連結（見 ux20261005.test.ts）。
+  it('還沒開始的場次沒有到場按鈕，改期收成連結，頁首寫預約正常', async () => {
     const wrapper = await mountDetail(confirmedCase({ slot: future, slot_id: future.id, display_status: 'upcoming' }))
     expect(wrapper.find('.detail__attendance').exists()).toBe(false)
-    expect(wrapper.find('.reschedule__title').text()).toBe('改期（換場次）')
+    expect(wrapper.find('.reschedule--collapsed').text()).toBe('改到其他場次…')
     expect(wrapper.find('.detail__status').text()).toBe('預約正常')
     expect(wrapper.find('.detail__danger').text()).toContain('家長不來了？')
   })

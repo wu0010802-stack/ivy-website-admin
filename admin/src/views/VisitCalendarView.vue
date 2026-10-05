@@ -178,7 +178,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 
 <template>
   <div class="page">
-    <PageHeader lead="設定每週固定的參觀場次；月曆上點一天，可以停止或恢復某一場、設休假、加開，也看得到誰要來。" />
+    <PageHeader lead="月曆上點一天，看誰要來、調整那天的場次。" more="上方設定每週固定的參觀場次；點月曆上的某一天，可以停止或恢復某一場、設休假、加開，也看得到那天有誰要來。" />
 
     <div class="toolbar calendar__toolbar">
       <div class="calendar__nav">
@@ -245,21 +245,21 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 
 <style scoped>
 .calendar__toolbar { justify-content: space-between; align-items: center; }
-.calendar__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: -4px 0 12px; padding: 0; list-style: none; color: var(--ink-2); font-size: 13px; }
+.calendar__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: -4px 0 12px; padding: 0; list-style: none; color: var(--ink-2); font-size: var(--text-sm); }
 .calendar__legend li { display: inline-flex; align-items: center; gap: 6px; }
 /* 桌機看格內色塊，手機只剩數字點：兩邊各列自己看得到的那幾種。 */
 .calendar__legend li.calendar__legend-mobile { display: none; }
 .calendar__swatch { flex-shrink: 0; width: 20px; height: 14px; border-radius: 3px; }
-.calendar__legend-date { font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.calendar__legend-date { font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .calendar__nav { display: flex; align-items: center; gap: 8px; }
 .calendar__nav .el-button + .el-button { margin-left: 0; }
-.calendar__month { min-width: 8em; text-align: center; font-size: 16px; }
+.calendar__month { min-width: 8em; text-align: center; font-size: var(--text-lg); }
 .calendar { overflow: hidden; }
 .calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .calendar__row { display: contents; }
 .calendar__weekday {
   padding: 8px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
   text-align: center;
   border-bottom: 1px solid var(--line);
@@ -286,7 +286,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 .calendar__day:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: -2px; }
 .calendar__day.is-other { background: var(--surface-2); color: var(--ink-3); }
 .calendar__day.is-selected { box-shadow: inset 0 0 0 2px var(--el-color-primary); }
-.calendar__date { font-size: 13px; font-weight: 600; }
+.calendar__date { font-size: var(--text-sm); font-weight: 600; }
 .calendar__day.is-today .calendar__date {
   display: inline-grid;
   place-items: center;
@@ -298,24 +298,25 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 }
 .calendar__chip {
   overflow: hidden;
-  padding: 2px 6px 2px 8px;
+  padding: 1px 6px;
   border-radius: 4px;
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.5;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-/* 色塊：有預約沿用已確認的淡綠＋左側實色；停止申請用紅底；還可預約只有邊框。圖例共用。 */
-.calendar__chip, .calendar__swatch { background: var(--el-color-success-light-9); box-shadow: inset 3px 0 0 var(--el-color-success); }
-.calendar__chip[data-kind='stopped'], .calendar__swatch[data-kind='stopped'] { background: var(--el-color-danger); box-shadow: none; color: var(--surface); }
-.calendar__chip[data-kind='open'], .calendar__swatch[data-kind='open'] { background: transparent; box-shadow: none; border: 1px solid var(--line); color: var(--ink-3); }
-.calendar__chip[data-status='completed'], .calendar__chip[data-status='no_show'] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--line-strong); color: var(--ink-3); }
+/* 色塊：有預約是淡綠底＋綠色細框（2026-10-05 起不再用左側粗色條）；停止申請用紅底；
+   還可預約只有灰框。四種都用同樣 1px 框，大小一致。圖例共用。 */
+.calendar__chip, .calendar__swatch { border: 1px solid var(--el-color-success-light-5); background: var(--el-color-success-light-9); }
+.calendar__chip[data-kind='stopped'], .calendar__swatch[data-kind='stopped'] { border-color: var(--el-color-danger); background: var(--el-color-danger); color: var(--surface); }
+.calendar__chip[data-kind='open'], .calendar__swatch[data-kind='open'] { border-color: var(--line); background: transparent; color: var(--ink-3); }
+.calendar__chip[data-status='completed'], .calendar__chip[data-status='no_show'] { border-color: var(--line-strong); background: var(--surface-3); color: var(--ink-3); }
 /* 已結束的色塊不調淡：12px 小字一淡化就不到 4.5:1（DESIGN.md 規則）；已到場、未到場本來就是灰底。 */
-.calendar__swatch.is-holiday { background: var(--surface-3); box-shadow: none; border: 1px solid var(--line-strong); }
+.calendar__swatch.is-holiday { background: var(--surface-3); border: 1px solid var(--line-strong); }
 .calendar__day.is-holiday { background: var(--surface-3); }
-.calendar__holiday { font-size: 12px; color: var(--ink-3); }
-.calendar__more { font-size: 12px; color: var(--ink-3); }
+.calendar__holiday { font-size: var(--text-xs); color: var(--ink-3); }
+.calendar__more { font-size: var(--text-xs); color: var(--ink-3); }
 .calendar__dot { display: none; }
 .calendar__detail { margin-top: 24px; }
 @media (max-width: 720px) {
@@ -334,7 +335,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
     border-radius: 10px;
     background: var(--el-color-success);
     color: var(--el-color-white);
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
 }
 </style>

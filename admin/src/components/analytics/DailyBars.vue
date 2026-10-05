@@ -83,7 +83,7 @@ const newestFirst = computed(() => [...props.points].reverse())
 
 .daily-bars__title {
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 500;
 }
 
@@ -145,7 +145,7 @@ const newestFirst = computed(() => [...props.points].reverse())
 
 .daily-bars__table {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .daily-bars__table table {

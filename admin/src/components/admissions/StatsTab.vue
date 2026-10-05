@@ -455,7 +455,7 @@ const noDepositKpis = computed(() => {
 
 .nodeposit-kpi strong {
   color: var(--ink-3);
-  font-size: 22px;
+  font-size: var(--text-3xl);
 }
 
 .nodeposit-kpi--on strong {

@@ -100,12 +100,12 @@ const placeholder = computed(() => {
 .media-field__thumb.is-builtin { border-style: dashed; }
 .media-field__thumb.is-broken { border-color: var(--el-color-danger-light-5); }
 .media-field__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.media-field__placeholder { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: 12px; }
+.media-field__placeholder { display: grid; place-items: center; height: 100%; color: var(--ink-3); font-size: var(--text-xs); }
 .media-field__info { display: grid; gap: 4px; flex: 1 1 180px; min-width: 0; }
 .media-field--stack .media-field__info { flex: none; }
-.media-field__name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-field__name { font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-field .field-help.is-error { color: var(--el-color-danger); }
-.media-field__warn { color: var(--el-color-danger); font-size: 12px; }
+.media-field__warn { color: var(--el-color-danger); font-size: var(--text-xs); }
 .media-field__status { justify-self: start; }
 .media-field__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .media-field__actions .el-button + .el-button { margin-left: 0; }

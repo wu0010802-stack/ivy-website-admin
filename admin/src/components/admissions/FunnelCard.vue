@@ -88,8 +88,8 @@ function onDragStart(event: DragEvent) {
   display: grid;
   gap: 6px;
   padding: 10px 12px;
+  /* 卡片在哪一欄就是哪個階段，欄標題已有階段色點，卡片不再加左側色條。 */
   border: 1px solid var(--line);
-  border-left: 3px solid var(--stage-color, var(--line-strong));
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
@@ -148,7 +148,7 @@ function onDragStart(event: DragEvent) {
 .funnel-card__meta {
   margin: 0;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 @media (pointer: coarse) {
@@ -160,7 +160,7 @@ function onDragStart(event: DragEvent) {
 .funnel-card__follow {
   margin: 0;
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .funnel-card__follow.is-due {

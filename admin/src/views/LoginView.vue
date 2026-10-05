@@ -296,7 +296,7 @@ async function handleSubmit() {
 
 .login__card h1 {
   margin-bottom: 24px;
-  font-size: 24px;
+  font-size: var(--text-4xl);
   text-align: center;
 }
 
@@ -314,7 +314,7 @@ async function handleSubmit() {
 
 .login__form :deep(.el-form-item__label) {
   color: var(--ink);
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
@@ -324,12 +324,12 @@ async function handleSubmit() {
 }
 
 .login__form :deep(.el-input__inner) {
-  font-size: 16px;
+  font-size: var(--text-lg);
 }
 
 .login__form :deep(.el-input__prefix) {
   color: var(--ink-3);
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 
 /* 錯誤字自己畫：Element Plus 的是絕對定位的 12px（長提示會壓到下一欄標籤），
@@ -339,7 +339,7 @@ async function handleSubmit() {
   margin: 0;
   padding-top: 6px;
   color: var(--el-color-danger);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -347,7 +347,7 @@ async function handleSubmit() {
   width: 100%;
   min-height: 52px;
   margin-top: 4px;
-  font-size: 16px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -357,7 +357,7 @@ async function handleSubmit() {
   gap: 12px;
   margin: 24px 0 20px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .login__divider::before,
@@ -375,7 +375,7 @@ async function handleSubmit() {
 
 .login__oauth p {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: center;
 }
 
@@ -391,7 +391,7 @@ async function handleSubmit() {
   border-radius: var(--radius);
   background: var(--google-button-fill);
   color: var(--google-button-text);
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 500;
   text-decoration: none;
 }
@@ -417,7 +417,7 @@ async function handleSubmit() {
   border-radius: var(--radius);
   background: linear-gradient(var(--line-button-overlay), var(--line-button-overlay)), var(--line-button-fill);
   color: var(--line-button-ink);
-  font-size: 15px;
+  font-size: var(--text-md);
   font-weight: 500;
   text-decoration: none;
 }
@@ -454,7 +454,7 @@ async function handleSubmit() {
 .login__foot {
   margin-top: 20px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: center;
 }
 
@@ -464,7 +464,7 @@ async function handleSubmit() {
   margin-top: clamp(40px, 6vw, 64px);
   padding-top: 20px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   text-align: center;
 }
@@ -508,7 +508,7 @@ async function handleSubmit() {
 
   .login__card h1 {
     margin-bottom: 20px;
-    font-size: 22px;
+    font-size: var(--text-3xl);
   }
 }
 </style>

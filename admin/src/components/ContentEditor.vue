@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, provide, ref, useId, useTemplateRef, watch, type VNode } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime, staffLabel, staffOf } from '../api/labels'
 import { contentPathFieldLabel } from '../api/contentFieldLabels'
@@ -396,6 +396,30 @@ const statusLabelId = useId()
 // 狀態列的工具：有未發布的草稿給預覽（表單有修改時講明預覽的是上次儲存的內容），
 // 官網就是這一版時給「查看官網此頁」。
 const showPreview = computed(() => Boolean(previewUrl.value && latestRevisionAt.value && !isPublished.value))
+// 有修改時一鍵「存草稿並預覽」（2026-10-05 第九輪）：原本要先按儲存草稿，狀態列才出現預覽連結；
+// 已上線的內容一改，狀態列只剩「查看官網此頁」，看不到改完的樣子。有修改時改給這一顆，
+// 不再並列「預覽已存草稿」（那是改之前的內容，容易看錯）。
+const showSavePreview = computed(() => Boolean(previewUrl.value && isDirty.value && !readOnly.value))
+const savingPreview = ref(false)
+async function saveAndPreview() {
+  // 分頁要在點擊當下開：等存檔回來（await 之後）才開，會被瀏覽器當成彈出視窗擋掉。
+  // 先開空白分頁、斷開 opener，存好再換成預覽頁；存不成功（欄位錯誤、版本衝突）就關掉，
+  // 錯誤照一般存檔的方式顯示在這一頁。
+  const tab = window.open('', '_blank')
+  if (tab) tab.opener = null
+  savingPreview.value = true
+  try {
+    if (!(await props.editor.save({ silent: true }))) {
+      tab?.close()
+      return
+    }
+  } finally {
+    savingPreview.value = false
+  }
+  ElMessage.success('已儲存草稿，預覽在新分頁；官網尚未更新')
+  if (tab) tab.location.href = previewUrl.value
+  else window.open(previewUrl.value, '_blank', 'noopener')
+}
 const showLive = computed(() => Boolean(publicUrl.value && isPublished.value))
 const showHistory = computed(() => Boolean(props.editor.history && latestRevisionAt.value))
 
@@ -501,15 +525,23 @@ defineExpose({ confirmLeave })
           <strong :id="statusLabelId">{{ status.label }}</strong>
           <span>{{ status.detail }}</span>
         </div>
-        <div v-if="showPreview || showLive || showHistory" class="editor__tools">
-          <template v-if="showPreview">
+        <div v-if="showPreview || showLive || showHistory || showSavePreview" class="editor__tools">
+          <el-button
+            v-if="showSavePreview"
+            text
+            size="small"
+            class="editor__history editor__save-preview"
+            :loading="savingPreview"
+            :disabled="actionsBlocked"
+            @click="saveAndPreview"
+          >存草稿並預覽 ↗</el-button>
+          <template v-if="showPreview && !showSavePreview">
             <a
               :href="previewUrl"
               target="_blank"
               rel="noopener"
               class="editor__tool"
-              :title="isDirty ? '預覽顯示上次儲存的內容，還沒儲存的修改看不到' : undefined"
-            >{{ isDirty ? '預覽已存草稿 ↗' : '預覽草稿 ↗' }}</a>
+            >預覽草稿 ↗</a>
             <a
               :href="mobilePreviewUrl"
               target="_blank"
@@ -704,13 +736,13 @@ defineExpose({ confirmLeave })
 </template>
 
 <style scoped>
-.editor__schedules { margin: -12px 0 20px; font-size: 13px; color: var(--ink-2); }
-.editor__readonly { margin: -8px 0 16px; font-size: 13px; color: var(--ink-2); }
+.editor__schedules { margin: -12px 0 20px; font-size: var(--text-sm); color: var(--ink-2); }
+.editor__readonly { margin: -8px 0 16px; font-size: var(--text-sm); color: var(--ink-2); }
 .editor__schedules p { margin: 0; }
 .editor__schedules .is-failed { color: var(--el-color-danger); }
 .editor__schedules .is-skipped { color: var(--ink-2); }
-.editor__schedules-all { display: inline-flex; align-items: center; min-height: 28px; font-size: 13px; }
-.editor__schedule-error { margin: 8px 0 0; font-size: 13px; color: var(--el-color-danger); }
+.editor__schedules-all { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-sm); }
+.editor__schedule-error { margin: 8px 0 0; font-size: var(--text-sm); color: var(--el-color-danger); }
 /* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
 .editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .editor {
@@ -760,7 +792,7 @@ defineExpose({ confirmLeave })
   border: 1px solid var(--el-color-danger-light-5);
   border-radius: var(--radius);
   background: var(--el-color-danger-light-9);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--el-color-danger);
 }
 
@@ -795,7 +827,7 @@ defineExpose({ confirmLeave })
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -816,8 +848,13 @@ defineExpose({ confirmLeave })
 }
 
 .editor__tool {
-  font-size: 13px;
+  font-size: var(--text-sm);
   /* 狀態列是 surface-3 底：一般操作色只有 4.2:1（axe 抓到），連結用深一階。 */
+  color: var(--admin-accent-hover);
+}
+
+/* 「存草稿並預覽」是有修改時最有用的一步：和預覽連結同樣的深藍，不用「版本紀錄」的灰。 */
+.editor__tools .el-button.editor__save-preview {
   color: var(--admin-accent-hover);
 }
 
@@ -876,7 +913,7 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: 13px; color: var(--ink-3); }
+.editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .editor__actions-text { margin: 0; }
 .editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
 /* 有修改時說明那句收起來（和手機一樣），「改了 N 個欄位」＋放棄修改＋三顆按鈕在
@@ -899,7 +936,7 @@ defineExpose({ confirmLeave })
     border: 1px solid var(--line);
     border-radius: var(--radius);
     background: var(--surface);
-    font-size: 14px;
+    font-size: var(--text-base);
   }
   .editor__actions {
     flex-direction: column;
@@ -908,7 +945,7 @@ defineExpose({ confirmLeave })
     padding: 12px 0 max(12px, env(safe-area-inset-bottom));
   }
   .editor__actions:not(.is-dirty):not(.is-busy) .editor__actions-state { display: none; }
-  .editor__actions-state { flex-wrap: nowrap; justify-content: space-between; font-size: 14px; }
+  .editor__actions-state { flex-wrap: nowrap; justify-content: space-between; font-size: var(--text-base); }
   .editor__actions-note { display: none; }
   .editor__discard { flex-shrink: 0; min-height: 44px; }
   .editor__buttons { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; margin-left: 0; }

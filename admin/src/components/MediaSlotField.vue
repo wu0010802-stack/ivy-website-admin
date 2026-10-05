@@ -163,5 +163,5 @@ function setFocus(point: FocusPointPayload | null) {
 
 <style scoped>
 .slot { display: grid; gap: 10px; width: 100%; min-width: 0; }
-.slot__warn { color: var(--el-color-danger); font-size: 12px; }
+.slot__warn { color: var(--el-color-danger); font-size: var(--text-xs); }
 </style>

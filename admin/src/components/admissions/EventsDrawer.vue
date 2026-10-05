@@ -252,7 +252,7 @@ async function onStale() {
 
 .events__summary dt {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .events__summary dd {
@@ -313,7 +313,7 @@ async function onStale() {
   align-items: center;
   gap: 4px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .events__title {
@@ -323,7 +323,7 @@ async function onStale() {
 
 .events__detail {
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .events__reason {

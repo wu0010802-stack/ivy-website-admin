@@ -127,7 +127,7 @@ function onFollowUpCount(count: number) {
 
 <template>
   <div class="page admissions">
-    <PageHeader lead="參觀 → 預繳 → 註冊 ｜ 退預繳／退註冊 · 統計分析" />
+    <PageHeader lead="家長參觀之後的預繳、註冊追蹤與統計。" />
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
@@ -226,7 +226,7 @@ function onFollowUpCount(count: number) {
   border-radius: 10px;
   background: var(--el-color-warning-light-8);
   color: var(--brand-gold-ink);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 

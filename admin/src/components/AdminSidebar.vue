@@ -214,44 +214,44 @@ const userLine = computed(() => {
 .sidebar__home { display: flex; flex: 1; align-items: center; gap: 12px; min-width: 0; min-height: 52px; padding: 4px 8px; border-radius: var(--radius); color: var(--sidebar-ink); transition: background-color 150ms var(--ease-out); }
 .sidebar__home img { flex-shrink: 0; width: auto; height: 44px; }
 .sidebar__brand-text { display: grid; gap: 2px; min-width: 0; }
-.sidebar__brand-text strong { font-size: 15px; font-weight: 600; line-height: 1.3; }
-.sidebar__brand-text span { font-size: 12px; color: var(--sidebar-muted); }
+.sidebar__brand-text strong { font-size: var(--text-md); font-weight: 600; line-height: 1.3; }
+.sidebar__brand-text span { font-size: var(--text-xs); color: var(--sidebar-muted); }
 .sidebar__search { padding: 16px 16px 16px; }
 .sidebar__nav { flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 20px; overscroll-behavior: contain; }
 .sidebar__group + .sidebar__group { margin-top: 12px; }
-.sidebar__section { margin: 20px 0 4px; padding: 12px 12px 0; border-top: 1px solid var(--sidebar-line); color: var(--sidebar-muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+.sidebar__section { margin: 20px 0 4px; padding: 12px 12px 0; border-top: 1px solid var(--sidebar-line); color: var(--sidebar-muted); font-size: var(--text-xs); font-weight: 600; letter-spacing: .04em; }
 .sidebar__section + .sidebar__group { margin-top: 0; }
 .sidebar__group.is-nested { margin-top: 0; }
 .sidebar__group.is-nested .sidebar__group-toggle { padding-left: 20px; }
 .sidebar__group.is-nested .sidebar__link { margin-left: 8px; }
-.sidebar__group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 10px 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-muted); font: inherit; font-size: 13px; cursor: pointer; }
+.sidebar__group-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 10px 12px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-muted); font: inherit; font-size: var(--text-sm); cursor: pointer; }
 .sidebar__group-toggle:disabled { cursor: default; }
-.sidebar__chevron { font-size: 12px; transform: rotate(-90deg); }
+.sidebar__chevron { font-size: var(--text-xs); transform: rotate(-90deg); }
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__nav ul { list-style: none; margin: 0; padding: 0; }
 /* position:relative：數字裡的報讀文字（.visually-hidden 是絕對定位）要以連結為準、
    跟著選單一起被捲動區裁切。沒有這行時它以整個側欄為準，下方分組展開後會把短頁面
    撐高約 400px 的空白。 */
-.sidebar__link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: 14px; line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+.sidebar__link { position: relative; display: flex; align-items: center; gap: 12px; min-height: 40px; margin-block: 2px; padding: 8px 12px; border-radius: var(--radius); color: var(--sidebar-ink); font-size: var(--text-base); line-height: 1.5; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
 .sidebar__link.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); font-weight: 600; }
-.sidebar__link .el-icon { font-size: 17px; }
+.sidebar__link .el-icon { font-size: var(--text-xl); }
 /* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
-.sidebar__badge { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand-gold); color: var(--sidebar-bg); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
+.sidebar__badge { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand-gold); color: var(--sidebar-bg); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
 .sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
 .sidebar__user { display: flex; align-items: center; gap: 10px; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
 .sidebar__account { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; margin: -6px; padding: 6px; border-radius: var(--radius); color: var(--sidebar-ink); }
 .sidebar__account.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); }
 .sidebar__avatar { display: grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border: 1px solid var(--sidebar-line); border-radius: 50%; background: var(--sidebar-hover); color: var(--sidebar-active-ink); font-weight: 600; }
 .sidebar__user-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
-.sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
-.sidebar__user-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--sidebar-muted); }
+.sidebar__user-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); font-weight: 500; }
+.sidebar__user-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-xs); color: var(--sidebar-muted); }
 /* 更改密碼、登出只有圖示，14px 的鑰匙看起來像符號，放大到能一眼認出。 */
-.sidebar__user .el-button .el-icon { font-size: 18px; }
+.sidebar__user .el-button .el-icon { font-size: var(--text-xl); }
 /* 手機抽屜：帳號一行、下面兩顆帶字的按鈕各占一半。 */
 .sidebar__user.is-mobile { flex-wrap: wrap; row-gap: 14px; }
 .sidebar__user.is-mobile .sidebar__account { flex-basis: 100%; }
 .sidebar__user-actions { display: flex; gap: 8px; width: 100%; }
-.sidebar__user-actions .el-button { flex: 1; min-height: 44px; margin: 0; border: 1px solid var(--sidebar-line); font-size: 14px; }
+.sidebar__user-actions .el-button { flex: 1; min-height: 44px; margin: 0; border: 1px solid var(--sidebar-line); font-size: var(--text-base); }
 .sidebar__user-actions .el-button .el-icon { margin-right: 6px; }
 .sidebar__close { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-ink); cursor: pointer; }
 /* 滑鼠才有 hover 底色；觸控點開抽屜後手指的位置不會留下一塊亮底。 */
@@ -265,6 +265,6 @@ const userLine = computed(() => {
 }
 @media (max-width: 900px) {
   .sidebar__link, .sidebar__group-toggle { min-height: 44px; }
-  .sidebar__group-toggle, .sidebar__brand-text span, .sidebar__user-text span { font-size: 14px; }
+  .sidebar__group-toggle, .sidebar__brand-text span, .sidebar__user-text span { font-size: var(--text-base); }
 }
 </style>

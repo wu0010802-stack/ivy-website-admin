@@ -497,7 +497,7 @@ onMounted(loadUsers)
     <el-alert v-if="!isSuperAdmin" title="只有總管理者可以管理使用者" type="warning" :closable="false" show-icon />
 
     <template v-else>
-      <PageHeader lead="總管理者管理全部五校；其他角色只看得到被指定的校區。每個角色能做什麼，在新增使用者或調整角色時會一起列出。">
+      <PageHeader lead="同事的帳號、角色與負責校區。" more="總管理者管理全部五校；其他角色只看得到被指定的校區。每個角色能做什麼，在新增使用者或調整角色時會一起列出。">
         <template #actions>
           <el-button type="primary" :icon="Plus" :disabled="operationBusy || loading" @click="openCreateDialog">新增使用者</el-button>
         </template>
@@ -744,7 +744,7 @@ onMounted(loadUsers)
 .role-group { display: grid; gap: 2px; width: 100%; }
 .role-option { padding: 2px 8px 6px; border-radius: var(--radius); }
 .role-option.is-active { background: var(--surface-2); }
-.role-option__desc { margin: 0; padding-left: 22px; color: var(--ink-3); font-size: 12px; line-height: 1.5; }
+.role-option__desc { margin: 0; padding-left: 22px; color: var(--ink-3); font-size: var(--text-xs); line-height: 1.5; }
 .super-admin-alert { margin-top: 8px; line-height: 1.5; }
 
 .campus-field { width: 100%; }
@@ -753,7 +753,7 @@ onMounted(loadUsers)
   margin: 0;
   padding-top: 4px;
   color: var(--el-color-danger);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 
@@ -784,7 +784,7 @@ onMounted(loadUsers)
 @media (max-width: 720px), (pointer: coarse) {
   .user-form :deep(.el-checkbox),
   .user-form :deep(.el-radio) { min-height: 44px; }
-  .role-option__desc { font-size: 13px; }
+  .role-option__desc { font-size: var(--text-sm); }
 }
 
 .self-tag {
@@ -793,7 +793,7 @@ onMounted(loadUsers)
 
 .login-links {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
@@ -809,7 +809,7 @@ onMounted(loadUsers)
 .user-email {
   display: block;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 .users__unnamed { margin: 0 0 12px; }

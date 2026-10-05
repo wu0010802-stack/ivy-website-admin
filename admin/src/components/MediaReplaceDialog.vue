@@ -372,7 +372,7 @@ async function applyReplacement() {
 
 .replace__item-paths {
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .replace__results {

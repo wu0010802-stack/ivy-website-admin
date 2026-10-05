@@ -100,7 +100,9 @@ describe('欄位提示排版與手機輸入', () => {
     const css = adminSource('style.css')
     expect(css).toMatch(/\.el-form-item__content > \.field-help,\s*\.el-form-item__content > \.glyph-hint \{\s*flex-basis: 100%;/)
     const coarse = /@media \(pointer: coarse\) \{[^@]*\}/.exec(css)![0]
-    expect(coarse).toMatch(/\.el-input__inner, \.el-textarea__inner, \.el-select__wrapper \{ font-size: 16px; \}/)
+    // 2026-10-05 起字級走 token；--text-lg 是 16px（iOS 小於 16px 會在聚焦時放大畫面）。
+    expect(coarse).toMatch(/\.el-input__inner, \.el-textarea__inner, \.el-select__wrapper \{ font-size: var\(--text-lg\); \}/)
+    expect(css).toMatch(/--text-lg: 16px;/)
   })
 
   it('電話與網址欄位叫出對應的手機鍵盤', () => {

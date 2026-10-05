@@ -238,7 +238,7 @@ const entryRows = computed(() =>
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="官網瀏覽量與網頁速度，以及各校參觀預約的結果（到場、未到、取消）、每日變化、來源與預約孩子的班別，可以依期間與校區查看。" />
+    <PageHeader lead="官網瀏覽量、網頁速度與各校參觀預約的結果。" more="參觀預約的部分有到場、未到、取消、每日變化、來源與預約孩子的班別，可以依期間與校區查看。" />
 
     <SiteTrafficPanel />
 
@@ -389,7 +389,7 @@ const entryRows = computed(() =>
 }
 
 .analytics__section-title {
-  font-size: 16px;
+  font-size: var(--text-lg);
 }
 
 .analytics__results {
@@ -441,7 +441,7 @@ const entryRows = computed(() =>
 }
 
 .analytics__period {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--ink-3);
 }
 
@@ -456,7 +456,7 @@ const entryRows = computed(() =>
 .analytics__note {
   margin: 0;
   padding: 0 24px 16px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
@@ -515,7 +515,6 @@ const entryRows = computed(() =>
   height: 100%;
   border-radius: 999px;
   background: var(--el-color-primary);
-  transition: width 300ms var(--ease-out);
 }
 
 /* 官網段後面接補登段：接縫不畫圓角。 */
@@ -531,11 +530,11 @@ const entryRows = computed(() =>
 .funnel__value {
   text-align: right;
   font-weight: 600;
-  font-size: 16px;
+  font-size: var(--text-lg);
 }
 
 .funnel__note {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 

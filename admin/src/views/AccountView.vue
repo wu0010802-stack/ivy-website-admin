@@ -451,7 +451,7 @@ async function unlink(body?: ReauthBody) {
   display: block;
   margin-top: 4px;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 

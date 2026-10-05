@@ -21,7 +21,7 @@ const parts = computed(() =>
   flex-wrap: wrap;
   gap: 2px 12px;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 </style>

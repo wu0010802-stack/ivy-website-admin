@@ -222,7 +222,7 @@ const compareRows = computed(() => {
 
 .outcomes__rates dt {
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .outcomes__rates dd {
@@ -230,13 +230,13 @@ const compareRows = computed(() => {
 }
 
 .outcomes__rates dd.num {
-  font-size: 18px;
+  font-size: var(--text-xl);
   font-weight: 600;
 }
 
 .outcomes__title {
   margin: 8px 0 0;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .outcomes__pending {

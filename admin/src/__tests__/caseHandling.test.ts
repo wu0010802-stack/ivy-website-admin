@@ -67,6 +67,9 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase(), [
       listSlot(current), listSlot(later), listSlot(past), listSlot(full, { booked_count: 2 }),
     ])
+    // 2026-10-05 第九輪：改期表單一律先收成連結，點開才出現。
+    await button(wrapper, '改到其他場次…')!.trigger('click')
+    await flushPromises()
     const select = wrapper.findAllComponents({ name: 'ElSelect' })[0]!
     const options = wrapper.findAllComponents({ name: 'ElOption' }).map(o => o.props('value'))
     expect(options).toEqual(['slot-b'])

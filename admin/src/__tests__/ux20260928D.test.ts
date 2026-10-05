@@ -599,14 +599,16 @@ describe('排程說明', () => {
 })
 
 describe('預覽入口與報讀', () => {
-  it('官網就是這一版時給「查看官網此頁」；有修改時講明預覽的是已存草稿', async () => {
+  // 2026-10-05 第九輪：有修改時改給「存草稿並預覽」，不再並列改之前的已存草稿（見 ux20261005.test.ts）。
+  it('官網就是這一版時給「查看官網此頁」；有修改時給「存草稿並預覽」', async () => {
     const { global } = await setup()
     const live = mountShell(global, editorState({ isPublished: ref(true), publicUrl: computed(() => 'https://example.test/campuses/yihua') }))
     expect(live.get('.editor__tools a').text()).toBe('查看官網此頁 ↗')
     expect(live.get('.editor__tools a').attributes('href')).toBe('https://example.test/campuses/yihua')
 
     const dirty = mountShell(global, editorState({ isDirty: computed(() => true), previewUrl: computed(() => 'https://example.test/preview') }))
-    expect(dirty.findAll('.editor__tools a').map((a) => a.text())).toEqual(['預覽已存草稿 ↗', '手機版 ↗'])
+    expect(dirty.findAll('.editor__tools a')).toHaveLength(0)
+    expect(dirty.get('.editor__save-preview').text()).toBe('存草稿並預覽 ↗')
   })
 
   it('狀態列不是即時區；只有隱藏的 status 唸狀態名稱，欄位數不當即時區', async () => {

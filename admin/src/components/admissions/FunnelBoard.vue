@@ -180,9 +180,11 @@ function openEvents(card: BoardCard) {
 
     <template v-else>
       <div class="funnel__summary">
+        <!-- 各欄張數桌機已寫在欄標題，不再另排一列數字卡（2026-10-05 第九輪）；欄位疊起來的窄螢幕
+             看不到每一欄的標題，才在這裡留一行精簡的張數。 -->
         <dl class="funnel__stats">
           <div v-for="stage in STAGES" :key="stage" class="funnel__stat" :style="stageStyle(stage)">
-            <dt>{{ STAGE_LABELS[stage] }}</dt>
+            <dt><span class="funnel__dot" aria-hidden="true" />{{ STAGE_LABELS[stage] }}</dt>
             <dd class="num">{{ count(stage) }}</dd>
           </div>
         </dl>
@@ -258,32 +260,30 @@ function openEvents(card: BoardCard) {
 }
 
 .funnel__stats {
-  display: flex;
+  display: none;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 4px 16px;
   margin: 0;
 }
 
 .funnel__stat {
-  display: grid;
-  gap: 2px;
-  min-width: 96px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--stage-color);
-  border-radius: var(--radius);
-  background: var(--surface);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .funnel__stat dt {
-  color: var(--ink-3);
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
 }
 
 .funnel__stat dd {
   margin: 0;
   color: var(--ink);
-  font-size: 20px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
@@ -309,6 +309,8 @@ function openEvents(card: BoardCard) {
 
 .funnel__column {
   display: grid;
+  /* 欄位被 min-height 撐高時不把多出來的高度分給標題列，各欄標題才會對齊。 */
+  align-content: start;
   gap: 8px;
   min-width: 0;
   min-height: 160px;
@@ -332,7 +334,7 @@ function openEvents(card: BoardCard) {
 .funnel__column-head h3 {
   flex: 1;
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .funnel__dot {
@@ -348,7 +350,7 @@ function openEvents(card: BoardCard) {
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--text-xs);
   text-align: center;
 }
 
@@ -366,6 +368,10 @@ function openEvents(card: BoardCard) {
   .funnel__columns {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .funnel__stats {
+    display: flex;
+  }
 }
 
 @media (max-width: 720px) {
@@ -375,11 +381,6 @@ function openEvents(card: BoardCard) {
 
   .funnel__column {
     min-height: 0;
-  }
-
-  .funnel__stat {
-    flex: 1 1 calc(50% - 8px);
-    min-width: 0;
   }
 }
 </style>

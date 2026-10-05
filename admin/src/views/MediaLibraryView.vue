@@ -396,7 +396,7 @@ onMounted(async () => {
 
 <template>
   <div class="page">
-    <PageHeader lead="官網用的照片與影片。標記了校區的素材只有該校內容能選，跨校共用的每一校都能用。還在用的素材不能刪除；不想再看到可以封存，刪除後也會先保留一段時間可以復原。">
+    <PageHeader lead="官網用的照片與影片。" more="標記了校區的素材只有該校內容能選，跨校共用的每一校都能用。還在用的素材不能刪除；不想再看到可以封存，刪除後也會先保留一段時間可以復原。">
       <template #actions>
         <el-button v-if="canManage" type="primary" :icon="Upload" @click="openUpload">上傳素材</el-button>
       </template>
@@ -618,13 +618,13 @@ onMounted(async () => {
 .media__tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 /* 按鈕本身是點擊範圍，裡面的 span 才是看得到的膠囊；手機把點擊範圍撐到 44px 高。 */
 .media__tag { all: unset; cursor: pointer; display: inline-flex; align-items: center; border-radius: 999px; }
-.media__tag > span { padding: 0 6px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--surface-3); color: var(--ink-2); }
+.media__tag > span { padding: 0 6px; border-radius: 999px; font-size: var(--text-xs); line-height: 18px; background: var(--surface-3); color: var(--ink-2); }
 .media__tag:hover > span { color: var(--ink); }
 .media__tag:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 1px; }
 @media (pointer: coarse), (max-width: 720px) {
   .media__tags { gap: 0 8px; margin-top: 0; }
   .media__tag { min-height: 44px; }
-  .media__tag > span { padding: 3px 12px; font-size: 13px; line-height: 20px; }
+  .media__tag > span { padding: 3px 12px; font-size: var(--text-sm); line-height: 20px; }
 }
 .media-grid {
   display: grid;
@@ -664,7 +664,7 @@ onMounted(async () => {
   place-items: center;
   height: 100%;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 
 .media__status {
@@ -681,7 +681,7 @@ onMounted(async () => {
   border-radius: 999px;
   background: var(--photo-caption-bg);
   color: var(--photo-caption-ink);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .media__meta {
@@ -693,7 +693,7 @@ onMounted(async () => {
 }
 
 .media__name {
-  font-size: 14px;
+  font-size: var(--text-base);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -701,12 +701,12 @@ onMounted(async () => {
 }
 
 .media__sub {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
 .media__warn {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--brand-gold-ink);
 }
 
@@ -738,7 +738,7 @@ onMounted(async () => {
   :global(.media-more-menu .el-dropdown-menu__item) {
     min-height: 44px;
     min-width: 128px;
-    font-size: 15px;
+    font-size: var(--text-md);
   }
 }
 
@@ -808,6 +808,6 @@ onMounted(async () => {
   border-radius: 999px;
   background: var(--surface);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 </style>

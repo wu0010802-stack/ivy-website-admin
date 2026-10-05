@@ -344,7 +344,7 @@ async function submit() {
 .manual__last { margin-bottom: 0; }
 .manual__footer { display: grid; gap: 10px; width: 100%; text-align: left; }
 .manual__submit { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
-.manual__missing { flex: 1 1 200px; margin: 0; color: var(--ink-3); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
+.manual__missing { flex: 1 1 200px; margin: 0; color: var(--ink-3); font-size: var(--text-sm); line-height: 1.5; text-wrap: pretty; }
 /* 沒有要說的時候不占寬度，但仍留在頁面上：報讀區被 display: none 拿掉後再出現，報讀軟體常常不念。 */
 .manual__missing:empty { flex-basis: 0; }
 .manual__buttons { display: flex; gap: 8px; margin-left: auto; }
@@ -359,7 +359,7 @@ async function submit() {
   .manual__sources :deep(.el-radio-button__original-radio:focus-visible + .el-radio-button__inner) { outline: 2px solid var(--el-color-primary); outline-offset: -4px; }
 }
 @media (max-width: 720px) {
-  .manual__missing { font-size: 14px; }
+  .manual__missing { font-size: var(--text-base); }
 }
 </style>
 

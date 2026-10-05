@@ -152,14 +152,14 @@ async function addSlot() {
 
 <style scoped>
 .day-panel__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.day-panel__holiday { margin-left: 8px; font-size: 14px; color: var(--ink-3); }
+.day-panel__holiday { margin-left: 8px; font-size: var(--text-base); color: var(--ink-3); }
 .day-panel__actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .day-panel__capacity { width: 88px; }
 .day-panel__add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 /* 點日期後捲到這裡，標題不要被黏在上方的頁首蓋住。 */
 .day-panel h2 { scroll-margin-top: calc(var(--top-h) + 16px); }
 .calendar__slot { margin-bottom: 12px; }
-.calendar__slot h3 { font-size: 15px; margin: 0; }
+.calendar__slot h3 { font-size: var(--text-md); margin: 0; }
 .calendar__visits { list-style: none; margin: 0; padding: 0; }
 .calendar__visits li {
   display: grid;
@@ -168,7 +168,7 @@ async function addSlot() {
   align-items: center;
   padding: 10px 16px;
   border-top: 1px solid var(--line);
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 .calendar__visit-name { font-weight: 600; }
 .calendar__visits li > .el-tag { justify-self: start; }

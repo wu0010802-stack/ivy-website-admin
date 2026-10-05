@@ -91,7 +91,7 @@ const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kin
 
 .stats-block__title {
   margin-bottom: 8px;
-  font-size: 15px;
+  font-size: var(--text-md);
 }
 
 .stats-block__caption {
@@ -116,7 +116,7 @@ const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kin
 .stats-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--text-base);
 }
 
 .stats-table th,
@@ -130,7 +130,7 @@ const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kin
 .stats-table thead th {
   background: var(--surface-2);
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 

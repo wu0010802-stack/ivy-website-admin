@@ -213,14 +213,15 @@ describe('返回案件列表', () => {
 })
 
 describe('明細的欄位與手機撥號', () => {
-  it('官網案件叫「家長填寫的資料」，補登的叫「案件資料」；空值一律「未填寫」；方便接電話時段只有舊資料有值才列', async () => {
+  // 2026-10-05 第九輪：官網已不問的參觀人數、想了解的事也改成有值才列（同方便接電話時段）。
+  it('官網案件叫「家長填寫的資料」，補登的叫「案件資料」；官網已不問的欄位只有舊資料有值才列', async () => {
     mockApi(request())
     const web = await mountDetail()
     const text = web.wrapper.text()
     expect(text).toContain('家長填寫的資料')
     expect(text).not.toContain('方便接電話時段')
-    expect(text).toContain('想了解的事未填寫')
-    expect(text).toContain('參觀人數未填寫')
+    expect(text).not.toContain('想了解的事')
+    expect(text).not.toContain('參觀人數')
     expect(text).not.toContain('—')
     web.wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
 
