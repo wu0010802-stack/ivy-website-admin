@@ -20,7 +20,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_paperfields1005_e2e_test`、埠 8793／3793，跑完已刪庫）：整套 74 項全過。另用臨時 spec 走過新增訪視填全部新欄位 → API 核對 → 記錄聯絡選再參觀 → 展開列 → 再開編輯帶回原值；官網六個選項順序、勾兄姊＋傳單送出後 `referral_sources == ["sibling", "flyer"]`；1440／390 截圖不橫向溢出（`output/playwright/paper-fields/`，臨時 spec 已刪）。
   - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
 
-## 2026-10-05 校園探索改由總部帳號直接控制（`feature/admin-no-campus-tour-20261005`）
+## 2026-10-05 校園探索改由總部帳號直接控制（`feature/admin-no-campus-tour-20261005`，10-05 已部署 main `4f9de0b6`）
 
 使用者先說正式站 `/admin/content/campus-tour?campus=yihua`「可以先拿掉了」，接著改口：常春藤環境頁「五所校園」的照片「由總部帳號直接控制」，「總部帳號」裁定為總管理者＋有「全站共用內容」授權的人。規則見 DESIGN.md「校園探索改由總部管理」。
 

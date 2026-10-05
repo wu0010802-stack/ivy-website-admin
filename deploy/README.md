@@ -23,6 +23,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空（API 起得來代表 migration 已到 head）；`/admin/login` 200；`/visit/yihua` SSR 有「哥哥姊姊讀過或正在讀」「傳單／DM」；`AdmissionsView` lazy chunk 有「來源備註」「帶參觀老師」「父親職業」「搭娃娃車」，`labels` chunk 有「再參觀」。
 - **未做**：沒登入正式後台實際新增一筆訪視、記錄一次再參觀；正式站招生開關開或關沒確認（關閉時後台看不到招生入學，官網兩個新選項不受影響）；Safari／iOS 實機。
 
+## 2026-10-05 校園探索改由總部帳號直接控制（main CI 部署）
+
+- **合併**：`feature/admin-no-campus-tour-20261005` rebase 到 main `8b0efde2`（衝突只在 README.md 頂部，兩段都保留），使用者快轉推 main `8b0efde2..4f9de0b6`。內容與驗證見 README 頂部同日段落、DESIGN.md「校園探索改由總部管理」。
+- **migration**：無；API 契約不變，已存的校園探索內容與素材不動。
+- **推前本機**（rebase 後）：後端整套 pytest 1538 passed、1 skipped；admin vitest 95 檔 1209 項、`vue-tsc -b`、`contract:check` 通過；stack e2e 整套 74 項全過。
+- **CI**：main run 37332419460（`4f9de0b6`）排在 `8b0efde2` 的 run 37326517800 之後。測試（Frontend admin／web、Backend 三組、E2E／Playwright）第一次就全綠，但 Deploy 第一步 `railway up`（api）6 秒就失敗；Railway 的錯誤訊息在 `--json` 模式下被 `railway_ci.py` 接走，log 只有 `CalledProcessError`，正式站維持 `8b0efde2`。確認 main 沒有更新的 run 後 `gh run rerun 37332419460 --failed`，第 2 次 Deploy 成功。
+- **正式 `release.json`**：base commit `4f9de0b6`，created `2026-10-05T15:38:11Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；後台 entry chunk 的 `campus-tour` 側欄項目為 `roles:['super_admin'], shared:!0`、關鍵字含「五所校園」；`CampusTourView` chunk 有「由總部統一管理」；公開 `/environment` 第四章仍是 5 個校的分頁。
+- **未做**：沒登入正式後台實際操作（總部編輯、分校帳號被擋只在 stack e2e 與拋棄式測試庫驗過）；有授權但非總管理者的真帳號；Safari／iOS 實機。
+
 ## 2026-10-05 參觀案件拿掉「待處理」、刪除舊案（main CI 部署）
 
 - **合併**：`feature/visit-no-pending-20261005` rebase 到 main `e0819f3a`（README 兩邊都留），使用者推 main `e0819f3a..8b0efde2`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉「待處理」」。
