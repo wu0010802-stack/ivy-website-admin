@@ -17,7 +17,7 @@ from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
 from app.content.publish_jobs import unresolved_condition
-from app.content.registry import CONTENT_KIND_REGISTRY
+from app.content.registry import CONTENT_KIND_REGISTRY, HQ_MANAGED_KINDS
 from app.media.models import MediaAsset, MediaStatus
 
 
@@ -222,9 +222,11 @@ async def get_dashboard_summary(
 
 
 def _content_scope_condition(campus_keys: list[str], include_shared: bool):
-    condition = ContentItem.campus_key.in_(campus_keys)
+    # 總部管理的各校內容（校園探索）比照共用內容：分校帳號不算自己校的，
+    # 有「全站共用內容」權限的人五校都算。
+    condition = ContentItem.campus_key.in_(campus_keys) & ContentItem.kind.not_in(HQ_MANAGED_KINDS)
     if include_shared:
-        condition = condition | ContentItem.campus_key.is_(None)
+        condition = condition | ContentItem.campus_key.is_(None) | ContentItem.kind.in_(HQ_MANAGED_KINDS)
     return condition
 
 

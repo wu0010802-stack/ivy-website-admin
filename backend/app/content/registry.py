@@ -311,6 +311,10 @@ class ContentKindConfig:
     # True：跨校共用內容，只有 super_admin 能編，分校不能改共用內容。
     # False：該 kind 需要搭配 campus_key，一般 campus scope 規則套用。
     shared_only: bool
+    # True：雖然各校各一份（要搭配 campus_key），但由總部管理——編輯、發布、
+    # 讀取與通知都比照共用內容（can_edit_shared_content／can_publish_shared_content），
+    # 分校帳號不能改。2026-10-05 起校園探索（官網環境頁「五所校園」）由總部帳號直接控制。
+    hq_managed: bool = False
     # 從 payload dict 抓出引用了哪些素材庫媒體（含欄位路徑），供同步
     # MediaUsage、刪除保護與批次替換（沒有引用媒體庫的 kind 用預設的
     # 「永遠沒有引用」，不必特別處理）。
@@ -398,6 +402,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "campus_tour": ContentKindConfig(
         CampusTourPayload,
         shared_only=False,
+        hq_managed=True,
         extract_media_refs=_extract_campus_tour_media_refs,
     ),
 }
@@ -406,3 +411,11 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
 def schema_version_of(kind: str) -> int:
     config = CONTENT_KIND_REGISTRY.get(kind)
     return config.schema_version if config is not None else 1
+
+
+HQ_MANAGED_KINDS: frozenset[str] = frozenset(kind for kind, config in CONTENT_KIND_REGISTRY.items() if config.hq_managed)
+
+
+def managed_as_shared(kind: str, campus_key: str | None) -> bool:
+    """這項內容的權限比照共用內容：共用內容本身，或總部管理的各校內容（hq_managed）。"""
+    return campus_key is None or kind in HQ_MANAGED_KINDS

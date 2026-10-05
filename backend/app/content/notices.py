@@ -14,6 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.models import User
 from app.auth.permissions import can_publish_shared_content, covers_campus, has_capability, roles_with
 from app.content.models import ContentItem
+from app.content.registry import managed_as_shared
 from app.notifications.models import UserNotification
 
 REVIEW_SUBMITTED = "content_review_submitted"
@@ -28,7 +29,7 @@ KINDS = (REVIEW_SUBMITTED, REVIEW_APPROVED, REVIEW_REJECTED, SCHEDULE_FAILED, SC
 def user_can_publish(user: User | None, item: ContentItem) -> bool:
     if user is None or not user.is_active:
         return False
-    if item.campus_key is None:
+    if managed_as_shared(item.kind, item.campus_key):
         return can_publish_shared_content(user)
     if not has_capability(user, "content.publish"):
         return False

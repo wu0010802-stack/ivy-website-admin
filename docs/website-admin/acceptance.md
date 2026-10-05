@@ -263,6 +263,8 @@ npx playwright test --project=desktop-1440                       # 27 passed
 
 新增 `campus_tour` content kind（campus_key 分校，1~6 個場景、每場景 1~8 個熱點、x/y 限制在 0~100、場景 key 不可重複），走既有 content-items 通用路由與權限模型，沒有另外複製一套機制。
 
+> 2026-10-05 補註：校園探索改由總部管理，權限比照共用內容（`hq_managed`，分校帳號不能改），見 DESIGN.md「校園探索改由總部管理」。
+
 - **admin 視覺化編輯器**（`CampusTourView.vue`）：選校區→選/新增場景→在圖片上點擊新增熱點、拖曳圖釘調整位置、編輯熱點名稱/說明/提問。圖片預覽讀官網現有素材（尚未接媒體庫，新增 `admin/src/config.ts` 的 `WEBSITE_ASSET_BASE` 指向 Nuxt 官網的靜態資產，本機預設 `http://127.0.0.1:3000`，可用 `VITE_WEBSITE_ASSET_BASE` 覆蓋）。
 - **web 端疊資料**：`applyContentOverlay` 新增 `campus_tour`，整組取代該校 `tourScenes`——包含把目前 4 校（明華/崇德/國際/仁武）仍在用的 `GeneratedTourScenes` 通用佔位樣板換成真正逐校撰寫的內容；義華校原本的 3 場景手寫內容也可以被後台覆蓋（一次整組取代，不是逐場景合併）。
 - **驗證**：用 Playwright 對真實 backend+admin+production build 跑過完整流程：在圖片上點擊新增熱點，驗證回存座標與點擊位置吻合；拖曳圖釘重新定位，驗證座標正確更新（例如拖到畫面右上角後回存 x=80.0, y=14.8，跟拖曳終點一致）；儲存草稿→發布→公開頁面（義華校）點擊圖釘，驗證顯示的標題/說明/提問正確對應剛剛編輯的內容。backend 新增 2 項 pytest（`test_campus_tour_scene_and_spot_bounds` 涵蓋場景數量上限、重複 key、熱點數量上限、x/y 超出範圍四種情境；`test_campus_tour_isolated_per_campus` 驗證兩校資料不互相覆蓋），累計 **112 項全過**；web 新增 1 項單元測試，累計 **34 項**；既有 **27 項 e2e 全過**。測試資料驗證後已還原成義華校原本的 3 場景真實內容，測試帳號已刪除。

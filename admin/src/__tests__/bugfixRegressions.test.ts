@@ -27,6 +27,8 @@ describe('共用內容頁的角色限制', () => {
   const SHARED = [
     'home-hero', 'home-about', 'home-campus-board', 'day-experience', 'home-news', 'admission-content',
     'booking-content', 'site-footer', 'site-meta', 'privacy-policy', 'curriculum-page', 'about-page',
+    // 校園探索各校各一份，但 2026-10-05 起由總部管理（後端 hq_managed）。
+    'campus-tour',
   ]
 
   it.each(SHARED)('%s 限定 super_admin', name => {
@@ -34,7 +36,7 @@ describe('共用內容頁的角色限制', () => {
   })
 
   it('分校自有內容不受限制，分校管理者仍要能編', () => {
-    for (const name of ['campus-profile', 'campus-tour']) {
+    for (const name of ['campus-profile', 'campus-news']) {
       // 2026-09-24 起側欄依角色顯示：分校管理者與編輯一定要看得到分校內容，
       // 只處理案件的櫃台不需要。
       expect(navItem(name)?.roles).toEqual(expect.arrayContaining(['super_admin', 'campus_admin', 'editor']))

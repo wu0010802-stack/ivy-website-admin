@@ -747,9 +747,16 @@ export function contentFieldLabel(key: string): string {
   return CONTENT_FIELD_LABELS[key] ?? key
 }
 
+// 各校各一份、但由總部管理的內容種類（後端 registry 的 hq_managed）：編輯、發布、
+// 核准都比照共用內容，要總管理者或有「全站共用內容」授權的人。2026-10-05 起
+// 校園探索（官網環境頁「五所校園」）由總部帳號直接控制。
+export const HQ_MANAGED_KINDS: ReadonlySet<string> = new Set(['campus_tour'])
+
 // 發布成功後「查看官網」要開到那段內容所在的頁面，不是一律開首頁。
 export function contentPublicPath(kind: string, campusKey?: string | null): string {
-  if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
+  // 校園探索只在常春藤環境頁「五所校園」一章顯示。
+  if (kind === 'campus_tour') return '/environment#campuses'
+  if (kind === 'campus_profile' || kind === 'campus_faq') {
     // 分校頁已移除；分校資訊只剩首頁的五校區塊。
     return '/#campuses'
   }
@@ -764,9 +771,11 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
 }
 
 // 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
-// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策、特色教學頁與關於常春藤頁。
+// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策、特色教學頁、關於常春藤頁
+// 與常春藤環境頁（校園探索）。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
-  if (kind === 'campus_profile' || kind === 'campus_faq' || kind === 'campus_tour') {
+  if (kind === 'campus_tour') return '/preview?page=environment'
+  if (kind === 'campus_profile' || kind === 'campus_faq') {
     // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。
     return '/preview'
   }

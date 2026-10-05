@@ -36,8 +36,9 @@ export function useCampusContent(
   campus: Ref<string>,
   shell: Readonly<Ref<EditorShell | null>>,
   onSwitch?: () => void,
+  options: { allCampuses?: boolean } = {},
 ) {
-  const scope = useCampusScope()
+  const scope = useCampusScope({ allCampuses: options.allCampuses })
   const route = useRoute()
   const router = useRouter()
   const inScope = (key: unknown): key is string => typeof key === 'string' && scope.visibleCampusKeys.value.includes(key)

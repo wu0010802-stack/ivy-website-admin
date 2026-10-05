@@ -32,6 +32,7 @@ MEDIA = f"{API}/admin/media"
 TOUR = f"{API}/admin/content-items/campus_tour"
 META = f"{API}/admin/content-items/site_meta"
 NEWS = f"{API}/admin/content-items/home_news"
+CAMPUS_NEWS = f"{API}/admin/content-items/campus_news"
 FIXTURES = Path("/tmp/media-fixtures")
 MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "b3e7d1f9a524_media_usage_paths_archive_purge.py"
 
@@ -62,6 +63,18 @@ async def _save_tour(client, version: int, *scenes: dict) -> dict:
     response = await client.post(
         f"{TOUR}/revisions?campus_key=yihua",
         json={"expected_version": version, "payload": {"scenes": list(scenes)}},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def _save_campus_news(client, version: int, title: str, image: str) -> dict:
+    """義華自己的消息：分校範圍規則的例子（校園探索 2026-10-05 起改由總部管理）。"""
+    article = {"id": "a1", "date": "2026-10-01", "category": "校園日常", "title": title,
+               "description": "說明", "image": image, "alt": "替代文字"}
+    response = await client.post(
+        f"{CAMPUS_NEWS}/revisions?campus_key=yihua",
+        json={"expected_version": version, "payload": {"articles": [article], "events": []}},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -134,9 +147,9 @@ async def test_usages_list_revision_field_path_and_state(admin_client, db_sessio
 
 @pytest.mark.asyncio
 async def test_usages_hide_other_campus_titles_for_shared_media(admin_client, minghua_client):
-    """共用素材被義華的草稿用到：明華的人看得到「用在義華校園探索」，但看不到標題。"""
+    """共用素材被義華的草稿用到：明華的人看得到「用在義華校消息」，但看不到標題。"""
     shared = await _upload(admin_client, campus_key=None)
-    await _save_tour(admin_client, 0, _scene("hall", "還沒公開的新教室", shared["id"]))
+    await _save_campus_news(admin_client, 0, "還沒公開的新消息", shared["id"])
     usages = (await minghua_client.get(f"{MEDIA}/{shared['id']}/usages")).json()
     [ref] = usages["references"]
     assert ref["campus_key"] == "yihua" and ref["label"] is None and ref["can_edit"] is False
@@ -408,8 +421,8 @@ async def test_batch_replace_is_all_or_nothing_on_stale_version(admin_client):
 @pytest.mark.asyncio
 async def test_batch_replace_rejects_bad_replacement_and_other_campus(admin_client, minghua_client):
     old = await _upload(admin_client)
-    await _save_tour(admin_client, 0, _scene("hall", "大廳", old["id"]))
-    item_id = (await admin_client.get(f"{TOUR}?campus_key=yihua")).json()["id"]
+    await _save_campus_news(admin_client, 0, "秋季運動會", old["id"])
+    item_id = (await admin_client.get(f"{CAMPUS_NEWS}?campus_key=yihua")).json()["id"]
     items = [{"content_item_id": item_id, "expected_version": 1}]
 
     same = await admin_client.post(

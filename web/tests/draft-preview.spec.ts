@@ -14,12 +14,13 @@ import {
 const site = fixture as unknown as SiteContent
 
 describe('草稿預覽的網址參數', () => {
-  it('頁面只認首頁、入學資訊、預約、隱私權政策、特色教學頁與關於常春藤頁，寬度只有桌機與手機', () => {
+  it('頁面只認首頁、入學資訊、預約、隱私權政策、特色教學頁、關於常春藤頁與常春藤環境頁，寬度只有桌機與手機', () => {
     expect(previewPage({ page: 'admission' })).toBe('admission')
     expect(previewPage({ page: 'visit' })).toBe('visit')
     expect(previewPage({ page: 'privacy' })).toBe('privacy')
     expect(previewPage({ page: 'curriculum' })).toBe('curriculum')
     expect(previewPage({ page: 'about' })).toBe('about')
+    expect(previewPage({ page: 'environment' })).toBe('environment')
     expect(previewPage({ page: 'campus' })).toBe('home')
     expect(previewPage({ page: 'unknown' })).toBe('home')
     expect(previewViewport({ viewport: 'mobile' })).toBe('mobile')

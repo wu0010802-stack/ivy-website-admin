@@ -27,6 +27,7 @@ from app.auth.permissions import (
 )
 from app.auth.service import get_session_by_token
 from app.config import Settings
+from app.content.registry import managed_as_shared
 from app.media import jobs as media_jobs
 from app.media import references as media_references
 from app.media import service
@@ -265,8 +266,8 @@ async def _asset_out(db: AsyncSession, request: Request, asset: MediaAsset) -> M
     return _out(asset, request.app.state.settings, await _creators(db, [asset]))
 
 
-def _can_edit_content(user: User, campus_key: str | None) -> bool:
-    if campus_key is None:
+def _can_edit_content(user: User, kind: str, campus_key: str | None) -> bool:
+    if managed_as_shared(kind, campus_key):
         return can_edit_shared_content(user)
     return has_capability(user, "content.manage") and covers_campus(user, campus_key)
 
@@ -296,10 +297,10 @@ def usages_out(
                 revision_id=ref.revision_id,
                 version=ref.version,
                 field_path=ref.path,
-                label=ref.label if ref.campus_key is None or covers_campus(user, ref.campus_key) else None,
+                label=ref.label if managed_as_shared(ref.kind, ref.campus_key) or covers_campus(user, ref.campus_key) else None,
                 states=ref.states,
                 publish_at=ref.publish_at,
-                can_edit=_can_edit_content(user, ref.campus_key),
+                can_edit=_can_edit_content(user, ref.kind, ref.campus_key),
             )
             for ref in found.active
         ],
