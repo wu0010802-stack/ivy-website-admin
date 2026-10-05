@@ -89,6 +89,9 @@ LEN_MONTH = 10
 LEN_SEQ_NO = 10
 LEN_STAGE = 20
 LEN_EVENT_TYPE = 40
+# 2026-10-05 照園方紙本「幼兒基本資料」補的官網延伸欄位（園務沒有）。
+LEN_ENGLISH_NAME = 50
+LEN_OCCUPATION = 50
 # notes／parent_response／no_deposit_reason_detail／withdraw_reason／reason 的 API 上限（DB 是 Text）。
 TEXT_MAX = 2000
 
@@ -104,6 +107,8 @@ CONTACT_CHANNELS: dict[str, str] = {
     "phone": "電話",
     "line": "LINE",
     "in_person": "當面",
+    # 2026-10-05 照紙本「再參觀／電訪」補。
+    "revisit": "再參觀",
     "other": "其他",
 }
 LEN_CHANNEL = 16

@@ -114,6 +114,8 @@ async def test_export_rows_match_ivy_snapshot(admin_client, db_session, tmp_path
         deposit_collector="收" * constants.LEN_COLLECTOR, tour_guide_name="師" * constants.LEN_TOUR_GUIDE,
         source_category="self_report", rides_bus=True, transfer_term=True, notes="備註", parent_response="再聯絡",
         no_deposit_reason="費用考量", no_deposit_reason_detail="比較學費",
+        english_name="E" * constants.LEN_ENGLISH_NAME, father_occupation="父" * constants.LEN_OCCUPATION,
+        mother_occupation="母" * constants.LEN_OCCUPATION,
     )
     deposited = await record_at_stage(admin_client, "deposited", child_name="已預繳")
     seat = await admin_client.post(
@@ -198,6 +200,15 @@ async def test_export_rows_match_ivy_snapshot(admin_client, db_session, tmp_path
     assert set(extensions) == visit_ids
     assert extensions[from_booking.json()["id"]]["visit_request_id"] == request_id
     assert extensions[enrolled["id"]]["enrolled_on"] == "2026-09-30"
+    # 2026-10-05 照紙本補的欄位園務沒有，放延伸檔；園務的 columns 不能多出來。
+    paper = {key: extensions[longest["id"]][key] for key in ("english_name", "father_occupation", "mother_occupation")}
+    assert paper == {
+        "english_name": "E" * constants.LEN_ENGLISH_NAME,
+        "father_occupation": "父" * constants.LEN_OCCUPATION,
+        "mother_occupation": "母" * constants.LEN_OCCUPATION,
+    }
+    assert extensions[deposited["id"]]["english_name"] is None
+    assert not {"english_name", "father_occupation", "mother_occupation"} & set(first)
 
     paths = export.write_jsonl(result, tmp_path / "yihua")
     assert [path.name for path in paths] == [f"{name}.jsonl" for name in export.FILES]

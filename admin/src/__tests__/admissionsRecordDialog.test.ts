@@ -19,6 +19,8 @@ const bodyButton = (text: string) =>
   [...document.body.querySelectorAll<HTMLButtonElement>('button')].find((element) => element.textContent?.trim() === text)
 const byPlaceholder = (wrapper: VueWrapper, name: 'ElSelect' | 'ElDatePicker', placeholder: string) =>
   wrapper.findAllComponents({ name }).find((component) => component.props('placeholder') === placeholder)!
+const inFormItem = (wrapper: VueWrapper, label: string, name: 'ElSwitch' | 'ElAutocomplete') =>
+  wrapper.findAllComponents({ name: 'ElFormItem' }).find((item) => item.props('label') === label)!.findComponent({ name })
 
 async function openDialog(props: Record<string, unknown>) {
   const mounted = await mountWith(RecordDialog, { props: { modelValue: false, campusKey: 'renwu', options: options(), ...props } })
@@ -62,8 +64,9 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     expect(body).toMatchObject({
       child_name: '陳小寶', birthday: '2023-03-02', visit_date: '2026-10-01', grade: '中班', target_school_year: 116, target_semester: 1,
       contact_name: null, phone: null, transfer_term: false, rides_bus: false,
+      english_name: null, father_occupation: null, mother_occupation: null, tour_guide_name: null, source_category: null,
     })
-    for (const key of ['has_deposit', 'enrolled', 'enrolled_on', 'withdrawn_at', 'provisional_grade', 'month', 'seq_no', 'source_category', 'tour_guide_user_id', 'geocoding_consent_at']) {
+    for (const key of ['has_deposit', 'enrolled', 'enrolled_on', 'withdrawn_at', 'provisional_grade', 'month', 'seq_no', 'tour_guide_user_id', 'geocoding_consent_at']) {
       expect(body, key).not.toHaveProperty(key)
     }
     expect(success).toHaveBeenCalledWith('已儲存，可繼續新增下一筆')
@@ -72,6 +75,40 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     expect(field<HTMLInputElement>('input[aria-label="幼生姓名"]').value).toBe('')
     expect(year.props('modelValue')).toBe(116)
     expect(grade.props('modelValue')).toBeNull()
+  })
+
+  it('照紙本補的欄位：英文名字、父母職業、帶參觀老師（打字＋建議）、來源分類、搭娃娃車', async () => {
+    const post = mockPost({ '/admin/admissions/records': (_path: string, body?: unknown) => visit({ ...(body as object), id: 'v-new' }) })
+    const { wrapper } = await openDialog({ mode: 'add', record: null })
+    expect(bodyText()).toContain('來源備註')
+    expect(bodyText()).not.toContain('幼生來源')
+
+    typeInto(field('input[aria-label="幼生姓名"]'), '陳小寶')
+    typeInto(field('input[aria-label="英文名字"]'), ' Celeste ')
+    byPlaceholder(wrapper, 'ElDatePicker', '選擇生日').vm.$emit('update:modelValue', '2023-03-02')
+    typeInto(field('input[aria-label="父親職業"]'), '軍')
+    typeInto(field('input[aria-label="母親職業"]'), '教師')
+    typeInto(field('input[aria-label="帶參觀老師"]'), 'Marvyna')
+    const category = byPlaceholder(wrapper, 'ElSelect', '請選擇來源分類')
+    expect(category.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label'))).toEqual(Object.values(options().source_categories))
+    category.vm.$emit('update:modelValue', 'sibling_current')
+    inFormItem(wrapper, '搭娃娃車', 'ElSwitch').vm.$emit('update:modelValue', true)
+    await flushPromises()
+
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(post.mock.calls[0]![1]).toMatchObject({
+      english_name: 'Celeste', father_occupation: '軍', mother_occupation: '教師', tour_guide_name: 'Marvyna',
+      source_category: 'sibling_current', rides_bus: true,
+    })
+  })
+
+  it('帶參觀老師的建議是這校填過的名字', async () => {
+    const { wrapper } = await openDialog({ mode: 'add', record: null })
+    const fetch = inFormItem(wrapper, '帶參觀老師', 'ElAutocomplete').props('fetchSuggestions') as (query: string, callback: (items: { value: string }[]) => void) => void
+    const callback = vi.fn()
+    fetch('', callback)
+    expect(callback).toHaveBeenCalledWith([{ value: 'Marvyna' }, { value: '林老師' }])
   })
 
   it('手動選過的適讀班級，改生日也不覆寫', async () => {
@@ -121,6 +158,20 @@ describe('編輯訪視（規格 6.6）', () => {
     expect(success).toHaveBeenCalledWith('更新成功')
     expect(wrapper.emitted('saved')![0]).toEqual([expect.objectContaining({ version: 5 })])
     expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
+  })
+
+  it('只改來源分類與娃娃車時只送這兩欄', async () => {
+    const record = visit({ version: 2, source_category: 'referral', rides_bus: false, english_name: 'Leo', father_occupation: '軍' })
+    const patch = mockPatch({ '/admin/admissions/records/v-1': visit({ version: 3 }) })
+    const { wrapper } = await openDialog({ mode: 'edit', record })
+    expect(field<HTMLInputElement>('input[aria-label="英文名字"]').value).toBe('Leo')
+    expect(field<HTMLInputElement>('input[aria-label="父親職業"]').value).toBe('軍')
+    byPlaceholder(wrapper, 'ElSelect', '請選擇來源分類').vm.$emit('update:modelValue', 'sibling_graduate')
+    inFormItem(wrapper, '搭娃娃車', 'ElSwitch').vm.$emit('update:modelValue', true)
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { source_category: 'sibling_graduate', rides_bus: true, expected_version: 2 })
   })
 
   it('預繳狀態只顯示、不能在表單改；已預繳才可以填收預繳人員', async () => {

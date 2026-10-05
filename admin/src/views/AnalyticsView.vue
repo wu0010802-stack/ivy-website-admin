@@ -191,7 +191,7 @@ const cancelReasons = computed(() =>
 
 // 依來源的列：已知代碼照固定順序，舊資料（unknown）排最後。
 const SOURCE_ORDER = ['web', 'phone', 'line', 'walk_in', 'external']
-const REFERRAL_ORDER = ['friends_family', 'nearby', 'online', 'other', 'facebook', 'google_reviews', 'parent_community', 'none']
+const REFERRAL_ORDER = ['friends_family', 'sibling', 'nearby', 'flyer', 'online', 'other', 'facebook', 'google_reviews', 'parent_community', 'none']
 function orderOf(order: string[], key: string) {
   const index = order.indexOf(key)
   return index === -1 ? order.length : index

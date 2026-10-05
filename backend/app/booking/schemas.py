@@ -26,11 +26,14 @@ from app.booking.parent_policy import (
 )
 from app.common.timezones import today_local
 
-# 2026-10-03 起官網只問追蹤看不到的管道：friends_family、nearby、online、other。
+# 2026-10-03 起官網只問追蹤看不到的管道：friends_family、nearby、online、other；2026-10-05
+# 照園方紙本加 sibling（哥哥姊姊讀過或正在讀）、flyer（傳單／DM）。順序同官網表單。
 # facebook／google_reviews／parent_community 是舊選項，照收（更新前快取的舊頁面）也照樣顯示舊案件。
-ReferralSource = Literal["friends_family", "nearby", "online", "other", "facebook", "google_reviews", "parent_community"]
+ReferralSource = Literal[
+    "friends_family", "sibling", "nearby", "flyer", "online", "other", "facebook", "google_reviews", "parent_community"
+]
 _REFERRAL_SOURCE_ORDER = (
-    "friends_family", "nearby", "online", "other", "facebook", "google_reviews", "parent_community"
+    "friends_family", "sibling", "nearby", "flyer", "online", "other", "facebook", "google_reviews", "parent_community"
 )
 
 _PHONE_PATTERN = re.compile(r"09[0-9]{8}")

@@ -232,9 +232,16 @@ function rowClass({ row }: { row: RecruitmentVisit }): string {
 // 表格只留追蹤要看的欄；其餘收進展開列（桌機）或卡片的「其他資料」（手機），空值不列。
 interface InfoItem { label: string; value: string; wide?: boolean }
 function extraInfo(row: RecruitmentVisit): InfoItem[] {
+  const category = row.source_category ? (options.value?.source_categories?.[row.source_category] ?? row.source_category) : ''
   const items: InfoItem[] = [
+    { label: '英文名字', value: row.english_name ?? '' },
     { label: '地址', value: row.address || row.district || '' },
+    { label: '父親職業', value: row.father_occupation ?? '' },
+    { label: '母親職業', value: row.mother_occupation ?? '' },
+    { label: '來源分類', value: category },
     { label: '介紹者', value: row.referrer ?? '' },
+    { label: '帶參觀老師', value: row.tour_guide_name ?? '' },
+    { label: '搭娃娃車', value: row.rides_bus ? '要搭' : '' },
     { label: '收預繳人員', value: row.deposit_collector ?? '' },
     { label: '保留座位', value: row.provisional_grade ?? '' },
     { label: '註冊日期', value: rocDate(row.enrolled_on) },

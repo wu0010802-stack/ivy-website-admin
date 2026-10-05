@@ -107,7 +107,8 @@ export const VR_ID_2 = '66666666-7777-4888-9999-000000000000'
 
 export const visit = (changes: Record<string, unknown> = {}) => ({
   id: 'v-1', campus_key: 'yihua', visit_request_id: null, month: '115.09', seq_no: '1', visit_date: '2026-09-08',
-  child_name: '王小安', birthday: '2023-03-02', grade: '小班', phone: '0912345678', contact_name: '王媽媽', address: null,
+  child_name: '王小安', english_name: null, birthday: '2023-03-02', grade: '小班', phone: '0912345678', contact_name: '王媽媽',
+  father_occupation: null, mother_occupation: null, address: null,
   district: null, source: '親友介紹', referrer: null, deposit_collector: null, tour_guide_user_id: null, tour_guide_name: null,
   source_category: null, has_deposit: false, rides_bus: false, notes: null, parent_response: null, geocoding_consent_at: null,
   no_deposit_reason: null, no_deposit_reason_detail: null, enrolled: false, enrolled_on: null, transfer_term: false,
@@ -127,4 +128,7 @@ export const board = (columns: Partial<Record<StageKey, unknown[]>> = {}, extra:
   unscoped_count: 0, school_year: 115, semester: null, campus_key: 'yihua', as_of: '2026-10-01T02:00:00Z', ...extra,
 })
 
-export const options = () => ({ months: ['115.09', '115.08'], sources: ['親友介紹', 'Facebook'], referrers: ['林老師'] })
+export const options = () => ({
+  months: ['115.09', '115.08'], sources: ['親友介紹', 'Facebook'], referrers: ['林老師'], tour_guides: ['Marvyna', '林老師'],
+  source_categories: { sibling_current: '在校生弟妹（兄姊老師）', sibling_graduate: '畢業生弟妹', referral: '有緣名單（家長介紹／社區招生）' },
+})

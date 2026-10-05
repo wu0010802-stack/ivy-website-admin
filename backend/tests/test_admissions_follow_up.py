@@ -268,7 +268,23 @@ async def test_follow_ups_endpoint_and_record_filters(admin_client, db_session):
     cards = {card["id"]: card for card in board["columns"]["visited"]}
     assert cards[record["id"]]["follow_up_at"] is not None and cards[other["id"]]["follow_up_at"] is None
     options = (await admin_client.get(f"{ADMISSIONS}/options?campus_key=yihua")).json()
-    assert options["contact_channels"] == {"phone": "電話", "line": "LINE", "in_person": "當面", "other": "其他"}
+    assert options["contact_channels"] == {
+        "phone": "電話", "line": "LINE", "in_person": "當面", "revisit": "再參觀", "other": "其他",
+    }
+
+
+@pytest.mark.asyncio
+async def test_contact_log_accepts_revisit(admin_client, db_session):
+    """2026-10-05 照紙本「再參觀／電訪」補的方式；資料庫 CHECK 也要放行。"""
+    record = await create_record(admin_client)
+    response = await _log(admin_client, record, channel="revisit", note="帶阿嬤再來看一次")
+    assert response.status_code == 201, response.text
+    [log] = (
+        await db_session.execute(
+            select(RecruitmentContactLog).where(RecruitmentContactLog.recruitment_visit_id == uuid.UUID(record["id"]))
+        )
+    ).scalars().all()
+    assert log.channel == "revisit"
 
 
 # ---- F06–F09：記錄聯絡、改期、轉換連動、並行（規格 6.3–6.5）----

@@ -89,12 +89,17 @@ class RecruitmentVisit(Base):
     seq_no: Mapped[str | None] = mapped_column(String(10), nullable=True)
     visit_date: Mapped[date_] = mapped_column(Date, nullable=False)
     child_name: Mapped[str] = mapped_column(String(50), nullable=False)
+    # 官網延伸（2026-10-05 照紙本補，園務沒有）：英文名字。
+    english_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
     birthday: Mapped[date_ | None] = mapped_column(Date, nullable=True)
     # 適讀班級（四個年級名稱之一）。
     grade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # 主要聯絡人（不一定是家長，園務 rvcontact01）。
     contact_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 官網延伸（2026-10-05 照紙本補，園務沒有）：父親、母親職業。
+    father_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    mother_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 本次不填、不顯示，保留給之後的區域分析。
     district: Mapped[str | None] = mapped_column(String(30), nullable=True)

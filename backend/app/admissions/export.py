@@ -139,6 +139,10 @@ def extension_row(visit: RecruitmentVisit, *, follow_up_owner_name: str | None =
         "enrolled_on": visit.enrolled_on.isoformat() if visit.enrolled_on else None,
         "tour_guide_user_id": str(visit.tour_guide_user_id) if visit.tour_guide_user_id else None,
         "tour_guide_name": visit.tour_guide_name,
+        # 2026-10-05 照紙本補的欄位（園務沒有，併入時再決定放哪）。
+        "english_name": visit.english_name,
+        "father_occupation": visit.father_occupation,
+        "mother_occupation": visit.mother_occupation,
         "follow_up_at": _taipei_naive(visit.follow_up_at),
         "last_contacted_at": _taipei_naive(visit.last_contacted_at),
         "follow_up_owner_user_id": str(visit.follow_up_owner_id) if visit.follow_up_owner_id else None,

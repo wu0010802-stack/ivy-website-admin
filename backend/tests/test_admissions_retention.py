@@ -28,9 +28,10 @@ STAT_COLUMNS = (
     "has_deposit", "enrolled", "enrolled_on", "transfer_term", "no_deposit_reason", "provisional_grade",
     "target_school_year", "target_semester", "withdrawn_at", "withdrawn_from", "created_at", "updated_at",
 )
-# 規格 11 列出要清的欄位（姓名另外換成固定文字）。
+# 規格 11 列出要清的欄位（姓名另外換成固定文字）；英文名、父母職業是 2026-10-05 照紙本補的。
 CLEARED = (
     "birthday", "phone", "contact_name", "address", "notes", "parent_response", "no_deposit_reason_detail", "withdraw_reason",
+    "english_name", "father_occupation", "mother_occupation",
 )
 
 
@@ -102,6 +103,7 @@ async def test_run_clears_only_spec_fields_and_keeps_statistics(app, admin_clien
     old = await record_at_stage(
         admin_client, "withdrawn",
         child_name="王小明", phone="0912345678", contact_name="王媽媽", address="中正路 1 號", grade="小班",
+        english_name="Ming", father_occupation="軍", mother_occupation="教師",
         source="Facebook", referrer="林老師", notes="住附近", parent_response="再想想",
         no_deposit_reason="時程未到／仍在觀望", no_deposit_reason_detail="等搬家",
     )

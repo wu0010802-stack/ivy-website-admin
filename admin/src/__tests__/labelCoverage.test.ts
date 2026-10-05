@@ -231,9 +231,11 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(closedSources.filter((value) => !SLOT_CLOSED_SOURCE_LABELS[value])).toEqual([])
 
     const schemas = source('booking/schemas.py')
-    const referralLine = schemas.slice(schemas.indexOf('ReferralSource = Literal['), schemas.indexOf('\n', schemas.indexOf('ReferralSource = Literal[')))
+    // Literal[...] 可能跨行，取到右方括號為止。
+    const referralStart = schemas.indexOf('ReferralSource = Literal[')
+    const referralLine = schemas.slice(referralStart, schemas.indexOf(']', referralStart))
     const referrals = [...referralLine.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]!)
-    expect(referrals.length).toBe(7)
+    expect(referrals.length).toBe(9)
     expect(referrals.filter((value) => !REFERRAL_SOURCE_LABELS[value])).toEqual([])
   })
 })

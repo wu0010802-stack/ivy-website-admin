@@ -42,7 +42,7 @@ describe('visit contact input', () => {
   })
 
   it('uses stable values for the requested referral channels', () => {
-    expect(REFERRAL_OPTIONS.map(source => source.value)).toEqual(['friends_family', 'nearby', 'online', 'other'])
+    expect(REFERRAL_OPTIONS.map(source => source.value)).toEqual(['friends_family', 'sibling', 'nearby', 'flyer', 'online', 'other'])
   })
 })
 

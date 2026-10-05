@@ -2852,8 +2852,8 @@ export interface components {
         };
         /**
          * AdmissionsOptionsOut
-         * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，
-         *     以及園務的固定列舉與文案。
+         * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、
+         *     帶參觀老師，以及園務的固定列舉與文案。
          */
         AdmissionsOptionsOut: {
             /** Contact Channels */
@@ -2874,6 +2874,8 @@ export interface components {
             };
             /** Sources */
             sources: string[];
+            /** Tour Guides */
+            tour_guides: string[];
         };
         /** AdmissionsRate */
         AdmissionsRate: {
@@ -3497,7 +3499,7 @@ export interface components {
              * Channel
              * @enum {string}
              */
-            channel: "phone" | "line" | "in_person" | "other";
+            channel: "phone" | "line" | "in_person" | "revisit" | "other";
             /** Contacted At */
             contacted_at?: string | null;
             /** Expected Version */
@@ -3520,7 +3522,7 @@ export interface components {
              * Channel
              * @enum {string}
              */
-            channel: "phone" | "line" | "in_person" | "other";
+            channel: "phone" | "line" | "in_person" | "revisit" | "other";
             /**
              * Contacted At
              * Format: date-time
@@ -3786,7 +3788,7 @@ export interface components {
             /** Has Visit Request */
             has_visit_request: boolean;
             /** Last Contact Channel */
-            last_contact_channel: ("phone" | "line" | "in_person" | "other") | null;
+            last_contact_channel: ("phone" | "line" | "in_person" | "revisit" | "other") | null;
             /** Last Contact Reached */
             last_contact_reached: boolean | null;
             /** Last Contacted At */
@@ -5083,8 +5085,14 @@ export interface components {
             contact_name?: string | null;
             /** Deposit Collector */
             deposit_collector?: string | null;
+            /** English Name */
+            english_name?: string | null;
+            /** Father Occupation */
+            father_occupation?: string | null;
             /** Grade */
             grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Mother Occupation */
+            mother_occupation?: string | null;
             /** No Deposit Reason */
             no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
             /** No Deposit Reason Detail */
@@ -5153,10 +5161,14 @@ export interface components {
             deposit_collector: string | null;
             /** District */
             district: string | null;
+            /** English Name */
+            english_name: string | null;
             /** Enrolled */
             enrolled: boolean;
             /** Enrolled On */
             enrolled_on: string | null;
+            /** Father Occupation */
+            father_occupation: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** Follow Up Owner Id */
@@ -5178,6 +5190,8 @@ export interface components {
             last_contacted_at: string | null;
             /** Month */
             month: string;
+            /** Mother Occupation */
+            mother_occupation: string | null;
             /** No Deposit Reason */
             no_deposit_reason: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
             /** No Deposit Reason Detail */
@@ -5252,10 +5266,16 @@ export interface components {
             contact_name?: string | null;
             /** Deposit Collector */
             deposit_collector?: string | null;
+            /** English Name */
+            english_name?: string | null;
             /** Expected Version */
             expected_version: number;
+            /** Father Occupation */
+            father_occupation?: string | null;
             /** Grade */
             grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Mother Occupation */
+            mother_occupation?: string | null;
             /** No Deposit Reason */
             no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
             /** No Deposit Reason Detail */
@@ -5972,7 +5992,7 @@ export interface components {
             /** Questions */
             questions?: string | null;
             /** Referral Sources */
-            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
+            referral_sources?: ("friends_family" | "sibling" | "nearby" | "flyer" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /**
              * Slot Id
              * Format: uuid
@@ -6042,7 +6062,7 @@ export interface components {
             /** Questions */
             questions: string | null;
             /** Referral Sources */
-            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
+            referral_sources?: ("friends_family" | "sibling" | "nearby" | "flyer" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
@@ -6132,7 +6152,7 @@ export interface components {
             /** Questions */
             questions: string | null;
             /** Referral Sources */
-            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
+            referral_sources?: ("friends_family" | "sibling" | "nearby" | "flyer" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
@@ -6185,7 +6205,7 @@ export interface components {
             /** Questions */
             questions?: string | null;
             /** Referral Sources */
-            referral_sources?: ("friends_family" | "nearby" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
+            referral_sources?: ("friends_family" | "sibling" | "nearby" | "flyer" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
             /** Related Request Id */
             related_request_id?: string | null;
             /**

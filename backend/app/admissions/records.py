@@ -306,6 +306,7 @@ class RecruitmentVisitFilters:
             stmt = stmt.where(
                 or_(
                     RecruitmentVisit.child_name.ilike(pattern, escape="\\"),
+                    RecruitmentVisit.english_name.ilike(pattern, escape="\\"),
                     RecruitmentVisit.contact_name.ilike(pattern, escape="\\"),
                     RecruitmentVisit.phone.like(pattern, escape="\\"),
                     RecruitmentVisit.address.ilike(pattern, escape="\\"),
@@ -340,6 +341,7 @@ async def options(db: AsyncSession, campus_key: str) -> dict:
         "months": list(months.scalars()),
         "sources": await _top_values(db, campus_key, RecruitmentVisit.source),
         "referrers": await _top_values(db, campus_key, RecruitmentVisit.referrer),
+        "tour_guides": await _top_values(db, campus_key, RecruitmentVisit.tour_guide_name),
         "grades": list(constants.GRADES),
         "no_deposit_reasons": [
             {"value": reason, "priority": _PRIORITY_OF.get(reason)} for reason in constants.NO_DEPOSIT_REASONS

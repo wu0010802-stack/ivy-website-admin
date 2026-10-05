@@ -135,6 +135,60 @@ async def test_tour_guide_must_exist_and_name_is_snapshotted(admin_client, db_se
 
 
 @pytest.mark.asyncio
+async def test_paper_form_fields_round_trip_and_clear(admin_client):
+    """2026-10-05 照園方紙本補的欄位：英文名、父母職業（官網延伸），以及畫面新放上來的
+    帶參觀老師（只打名字）、來源分類、娃娃車。"""
+    record = await create_record(
+        admin_client, english_name="  Celeste  ", father_occupation="軍", mother_occupation="教師",
+        tour_guide_name="Marvyna", source_category="sibling_current", rides_bus=True,
+    )
+    assert (record["english_name"], record["father_occupation"], record["mother_occupation"]) == ("Celeste", "軍", "教師")
+    assert (record["tour_guide_user_id"], record["tour_guide_name"]) == (None, "Marvyna")
+    assert (record["source_category"], record["rides_bus"]) == ("sibling_current", True)
+
+    url = f"{RECORDS}/{record['id']}"
+    cleared = await admin_client.patch(
+        url,
+        json={
+            "expected_version": 1, "english_name": None, "father_occupation": "", "mother_occupation": None,
+            "tour_guide_name": None, "source_category": None, "rides_bus": False,
+        },
+    )
+    assert cleared.status_code == 200, cleared.text
+    body = cleared.json()
+    assert [body[k] for k in ("english_name", "father_occupation", "mother_occupation", "tour_guide_name", "source_category")] == [None] * 5
+    assert body["rides_bus"] is False
+
+    for field, limit in (
+        ("english_name", constants.LEN_ENGLISH_NAME),
+        ("father_occupation", constants.LEN_OCCUPATION),
+        ("mother_occupation", constants.LEN_OCCUPATION),
+    ):
+        too_long = await admin_client.post(f"{RECORDS}?campus_key=yihua", json=manual_fields(**{field: "長" * (limit + 1)}))
+        assert too_long.status_code == 422, field
+        assert ["body", field] in _locations(too_long)
+
+
+@pytest.mark.asyncio
+async def test_keyword_search_matches_english_name(admin_client):
+    await create_record(admin_client, child_name="甲", english_name="Celeste")
+    await create_record(admin_client, child_name="乙", english_name="Leo")
+    response = await admin_client.get(f"{RECORDS}?campus_key=yihua&q=celeste")
+    assert response.status_code == 200, response.text
+    assert [row["child_name"] for row in response.json()] == ["甲"]
+
+
+@pytest.mark.asyncio
+async def test_options_lists_tour_guides_typed_before(admin_client):
+    await create_record(admin_client, tour_guide_name="Marvyna")
+    await create_record(admin_client, tour_guide_name="Marvyna")
+    await create_record(admin_client, tour_guide_name="林老師")
+    await create_record(admin_client, "minghua", tour_guide_name="明華老師")
+    body = (await admin_client.get(f"{ADMISSIONS}/options?campus_key=yihua")).json()
+    assert body["tour_guides"] == ["Marvyna", "林老師"]  # 次數多的在前、只看本校
+
+
+@pytest.mark.asyncio
 async def test_concurrent_creates_get_distinct_seq_numbers(admin_client):
     """R03：同校同月份並行新增，序號不重複（pg_advisory_xact_lock 排隊後再取最大值）。"""
     responses = await asyncio.gather(

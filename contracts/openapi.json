@@ -672,7 +672,7 @@
         "type": "object"
       },
       "AdmissionsOptionsOut": {
-        "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，\n以及園務的固定列舉與文案。",
+        "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、\n帶參觀老師，以及園務的固定列舉與文案。",
         "properties": {
           "contact_channels": {
             "additionalProperties": {
@@ -728,12 +728,20 @@
             },
             "title": "Sources",
             "type": "array"
+          },
+          "tour_guides": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tour Guides",
+            "type": "array"
           }
         },
         "required": [
           "months",
           "sources",
           "referrers",
+          "tour_guides",
           "grades",
           "no_deposit_reasons",
           "source_categories",
@@ -2600,6 +2608,7 @@
               "phone",
               "line",
               "in_person",
+              "revisit",
               "other"
             ],
             "title": "Channel",
@@ -2672,6 +2681,7 @@
               "phone",
               "line",
               "in_person",
+              "revisit",
               "other"
             ],
             "title": "Channel",
@@ -3329,6 +3339,7 @@
                   "phone",
                   "line",
                   "in_person",
+                  "revisit",
                   "other"
                 ],
                 "type": "string"
@@ -7029,6 +7040,30 @@
             ],
             "title": "Deposit Collector"
           },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "father_occupation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Father Occupation"
+          },
           "grade": {
             "anyOf": [
               {
@@ -7045,6 +7080,18 @@
               }
             ],
             "title": "Grade"
+          },
+          "mother_occupation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mother Occupation"
           },
           "no_deposit_reason": {
             "anyOf": [
@@ -7307,6 +7354,17 @@
             ],
             "title": "District"
           },
+          "english_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
           "enrolled": {
             "title": "Enrolled",
             "type": "boolean"
@@ -7322,6 +7380,17 @@
               }
             ],
             "title": "Enrolled On"
+          },
+          "father_occupation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Father Occupation"
           },
           "follow_up_at": {
             "anyOf": [
@@ -7405,6 +7474,17 @@
           "month": {
             "title": "Month",
             "type": "string"
+          },
+          "mother_occupation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mother Occupation"
           },
           "no_deposit_reason": {
             "anyOf": [
@@ -7680,10 +7760,13 @@
           "seq_no",
           "visit_date",
           "child_name",
+          "english_name",
           "birthday",
           "grade",
           "phone",
           "contact_name",
+          "father_occupation",
+          "mother_occupation",
           "address",
           "district",
           "source",
@@ -7786,10 +7869,34 @@
             ],
             "title": "Deposit Collector"
           },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
           "expected_version": {
             "minimum": 1.0,
             "title": "Expected Version",
             "type": "integer"
+          },
+          "father_occupation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Father Occupation"
           },
           "grade": {
             "anyOf": [
@@ -7807,6 +7914,18 @@
               }
             ],
             "title": "Grade"
+          },
+          "mother_occupation": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mother Occupation"
           },
           "no_deposit_reason": {
             "anyOf": [
@@ -9987,7 +10106,9 @@
             "items": {
               "enum": [
                 "friends_family",
+                "sibling",
                 "nearby",
+                "flyer",
                 "online",
                 "other",
                 "facebook",
@@ -9996,7 +10117,7 @@
               ],
               "type": "string"
             },
-            "maxItems": 7,
+            "maxItems": 9,
             "title": "Referral Sources",
             "type": "array"
           },
@@ -10253,7 +10374,9 @@
             "items": {
               "enum": [
                 "friends_family",
+                "sibling",
                 "nearby",
+                "flyer",
                 "online",
                 "other",
                 "facebook",
@@ -10608,7 +10731,9 @@
             "items": {
               "enum": [
                 "friends_family",
+                "sibling",
                 "nearby",
+                "flyer",
                 "online",
                 "other",
                 "facebook",
@@ -10837,7 +10962,9 @@
             "items": {
               "enum": [
                 "friends_family",
+                "sibling",
                 "nearby",
+                "flyer",
                 "online",
                 "other",
                 "facebook",
@@ -10846,7 +10973,7 @@
               ],
               "type": "string"
             },
-            "maxItems": 7,
+            "maxItems": 9,
             "title": "Referral Sources",
             "type": "array"
           },

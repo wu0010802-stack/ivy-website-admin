@@ -499,6 +499,7 @@ export const CONTACT_CHANNEL_LABELS: Record<string, string> = {
   phone: '電話',
   line: 'LINE',
   in_person: '當面',
+  revisit: '再參觀',
   other: '其他',
 }
 
@@ -615,12 +616,15 @@ export const RECRUITMENT_ORIGIN_LABELS: Record<string, string> = {
 export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   visit_date: '參觀日期',
   child_name: '幼生姓名',
+  english_name: '英文名字',
   birthday: '生日',
   grade: '適讀班級',
   phone: '電話',
   contact_name: '聯絡人',
+  father_occupation: '父親職業',
+  mother_occupation: '母親職業',
   address: '地址',
-  source: '幼生來源',
+  source: '來源備註',
   referrer: '介紹者',
   deposit_collector: '收預繳人員',
   tour_guide_user_id: '帶參觀老師',
@@ -1475,8 +1479,8 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
   return auditMetadataDetails(metadata, action).lines.join('，')
 }
 
-// 2026-10-03 起官網只問前四個；後三個是舊選項，舊案件仍會有。
-export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: '親友介紹', nearby: '住附近／路過看到', online: '網路上看到', other: '其他', facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團' }
+// 官網問前六個（2026-10-03 起四個，2026-10-05 加兄姊、傳單）；後三個是舊選項，舊案件仍會有。
+export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: '親友介紹', sibling: '哥哥姊姊讀過或正在讀', nearby: '住附近／路過看到', flyer: '傳單／DM', online: '網路上看到', other: '其他', facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團' }
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {
   return sources?.length ? sources.map(source => REFERRAL_SOURCE_LABELS[source] || source).join('、') : '未填寫'

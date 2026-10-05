@@ -167,6 +167,23 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     expect(info.text()).toContain('高雄市示範路 1 號')
     expect(info.text()).not.toContain('電訪回應')
   })
+
+  it('照紙本補的欄位也在展開列：英文名字、父母職業、來源分類（中文）、帶參觀老師、搭娃娃車', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({
+          english_name: 'Celeste', father_occupation: '軍', mother_occupation: '教師', source_category: 'sibling_current',
+          referrer: '林老師', tour_guide_name: 'Marvyna', rides_bus: true,
+        }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    await wrapper.get('.records-table .el-table__expand-icon').trigger('click')
+    await flushPromises()
+    const info = wrapper.get('.records__info')
+    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['英文名字', '父親職業', '母親職業', '來源分類', '介紹者', '帶參觀老師', '搭娃娃車'])
+    expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹（兄姊老師）', '林老師', 'Marvyna', '要搭'])
+  })
 })
 
 describe('篩選收合（比照第九輪案件列表）', () => {

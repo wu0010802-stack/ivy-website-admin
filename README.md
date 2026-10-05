@@ -1,3 +1,19 @@
+## 2026-10-05 招生訪視照園方紙本補欄位、官網得知管道加兩項（`feature/admissions-paper-fields-20261005`）
+
+使用者拿帶參觀老師填的紙本「幼兒基本資料＋參觀紀錄」逐欄對照，裁定補三類。規則見 DESIGN.md「招生訪視照紙本補欄位」。
+
+- **後台招生表單**：放回來源分類（園務九類）、帶參觀老師（只打名字，建議清單是本校填過的名字）、搭娃娃車；新增英文名字、父親職業、母親職業。「幼生來源」改叫「來源備註」。基本資料改成兩兩一列。明細表格不加欄，新欄位放進展開列（手機「其他資料」），關鍵字搜得到英文名。
+- **記錄聯絡**：方式加「再參觀」。
+- **官網預約**：「如何知道常春藤」加「哥哥姊姊讀過或正在讀」（`sibling`）、「傳單／DM」（`flyer`）；後端匯出、預約轉招生的來源文字、後台、成效統計排序一起改。
+- **後端**：migration `3fe1cfb2dbf7`（接 `4373bcc82d9d`）在 `recruitment_visits` 加 `english_name`、`father_occupation`、`mother_occupation`（可空、50 字），重建 `ck_recruitment_contact_logs_channel` 放行 `revisit`；只加欄位、放寬約束，不改既有資料，部署前不用備份。`GET /options` 多 `tour_guides`。匿名化清三個新欄位；轉移契約放 `extensions`（`contracts/ivy-recruitment/README.md`）。`contracts/` 重新產生。
+- **不收**：公司（紙本其實是公司電話，使用者裁定先不用）、父母姓名與各自電話、性別、預繳金額、接送雙程單程、健康與家庭狀況。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_paperfields1005_test`）：
+  - 後端：整套 pytest 1534 passed、1 skipped、2 failed——兩項都在 `test_media_jobs.py`（比對 `/tmp/ivy-website-test-media` 的檔案數，同時有別的 session 在跑 pytest、共用該資料夾），等它跑完單獨重跑整檔 38 項全過。新增：紙本欄位新增／清空／長度、英文名搜尋、`tour_guides` 建議、再參觀（含資料庫 CHECK）、匿名化清三欄、契約延伸欄位、migration 接點與升級不改資料；`alembic downgrade -1` 再 `upgrade head` 通過。
+  - 後台：`vue-tsc -b` 通過；vitest 94 檔全過（新增新增／編輯只送改過的欄位、帶參觀老師建議、展開列六欄）。`labelCoverage` 的 `ReferralSource` 解析改成可跨行。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。`contract:check` 一致。
+  - stack e2e（`E2E_DB_NAME=ivy_website_paperfields1005_e2e_test`、埠 8793／3793，跑完已刪庫）：整套 74 項全過。另用臨時 spec 走過新增訪視填全部新欄位 → API 核對 → 記錄聯絡選再參觀 → 展開列 → 再開編輯帶回原值；官網六個選項順序、勾兄姊＋傳單送出後 `referral_sources == ["sibling", "flyer"]`；1440／390 截圖不橫向溢出（`output/playwright/paper-fields/`，臨時 spec 已刪）。
+  - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
+
 ## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`，10-05 已部署 main `51332515`）
 
 使用者指著正式站 `/admin/admissions?campus=yihua&tab=arrivals` 問用途，評估後覺得和案件列表重複，裁定「拿掉分頁，批次標記搬到案件列表」「後端 API 一起刪」。規則見 DESIGN.md「拿掉官網預約分頁」。

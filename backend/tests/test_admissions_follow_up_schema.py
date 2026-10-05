@@ -14,6 +14,8 @@ from app.admissions.models import RecruitmentContactLog, RecruitmentVisit
 
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "versions" / "b8e3f1a6c4d7_admissions_follow_up.py"
+# 2026-10-05 聯絡方式加「再參觀」，CHECK 改由這支重建。
+PAPER_FIELDS_MIGRATION = BACKEND / "migrations" / "versions" / "3fe1cfb2dbf7_admissions_paper_form_fields.py"
 
 
 def _checks(model) -> dict[str, str]:
@@ -35,15 +37,33 @@ def test_migration_follows_password_reset_without_branching():
 
 
 def test_check_conditions_are_identical_in_model_and_migration():
-    source = MIGRATION.read_text(encoding="utf-8")
+    """每個 CHECK 的條件要和最後一支建立它的 migration 逐字相同。"""
     conditions = {
         "ck_recruitment_visits_follow_up_open": _checks(RecruitmentVisit)["ck_recruitment_visits_follow_up_open"],
         **_checks(RecruitmentContactLog),
     }
     assert set(conditions) == {"ck_recruitment_visits_follow_up_open", "ck_recruitment_contact_logs_channel"}
+    latest = {
+        "ck_recruitment_visits_follow_up_open": MIGRATION,
+        "ck_recruitment_contact_logs_channel": PAPER_FIELDS_MIGRATION,
+    }
     for name, condition in conditions.items():
+        source = latest[name].read_text(encoding="utf-8")
         assert f'"{name}"' in source, name
         assert f'"{condition}"' in source, f"{name} 的條件與 migration 不一致：{condition}"
+
+
+def test_paper_fields_migration_follows_hot_path_indexes_and_keeps_data_on_upgrade():
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert script.get_revision("3fe1cfb2dbf7").down_revision == "4373bcc82d9d"
+    upgrade = PAPER_FIELDS_MIGRATION.read_text(encoding="utf-8").split("def downgrade", 1)[0]
+    # 升級只加可空欄位、放寬 CHECK，不改既有資料（deploy/CICD.md）；降級才把 revisit 改回 in_person。
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade
 
 
 @pytest.mark.asyncio

@@ -10,7 +10,8 @@ import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, scho
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageLabel, type Grade } from '../../admissions/constants'
 
 // 訪視表單（園務 RecruitmentRecordDialog，分區同園務：基本資料、聯絡與來源、預繳狀態、備註）。
-// 官網第一版不放來源分類、帶參觀老師、娃娃車、地址分析同意（本檔調整第 10 條）。
+// 官網第一版不放來源分類、帶參觀老師、娃娃車、地址分析同意（本檔調整第 10 條）；2026-10-05 照園方紙本
+// 放回前三個（帶參觀老師只打名字、不選帳號），另加英文名字、父母職業（官網延伸，園務沒有）。
 // 預繳、註冊、退出只能走狀態轉換（園務 stateLocked）；這些欄位一律不送，後端 extra="forbid"。
 // 生日只有新增時必填：預約到場自動建立的訪視可能沒有生日，編輯時不擋（本檔調整第 17 條）。
 const props = defineProps<{
@@ -25,17 +26,24 @@ const emit = defineEmits<{ saved: [visit: RecruitmentVisit]; stale: [] }>()
 type Semester = 1 | 2
 // 年級與未預繳原因用列舉型別：後端 schema 若是 Literal，產生的 TS 型別就是字面值聯集。
 type NoDepositReason = (typeof NO_DEPOSIT_REASONS)[number]
+type SourceCategory = NonNullable<RecruitmentVisit['source_category']>
 
 interface FormState {
   child_name: string
+  english_name: string
   birthday: string | null
   contact_name: string
   phone: string
   visit_date: string | null
+  tour_guide_name: string
   target_school_year: number | null
   target_semester: Semester | null
+  rides_bus: boolean
   grade: Grade | null
   address: string
+  father_occupation: string
+  mother_occupation: string
+  source_category: SourceCategory | null
   source: string
   referrer: string
   deposit_collector: string
@@ -49,12 +57,13 @@ interface FormState {
 function blank(term?: { year: number | null; semester: Semester | null }): FormState {
   const now = currentTerm()
   return {
-    child_name: '', birthday: null, contact_name: '', phone: '',
+    child_name: '', english_name: '', birthday: null, contact_name: '', phone: '',
     // 園務：參觀日期預設今天（九成是當天登記）；入學學期預設當前學期，可改。
-    visit_date: taipeiToday(),
+    visit_date: taipeiToday(), tour_guide_name: '',
     target_school_year: term ? term.year : now.schoolYear,
     target_semester: term ? term.semester : now.semester,
-    grade: null, address: '', source: '', referrer: '', deposit_collector: '', transfer_term: false,
+    rides_bus: false, grade: null, address: '', father_occupation: '', mother_occupation: '', source_category: null,
+    source: '', referrer: '', deposit_collector: '', transfer_term: false,
     no_deposit_reason: null, no_deposit_reason_detail: '', notes: '', parent_response: '',
   }
 }
@@ -62,14 +71,20 @@ function blank(term?: { year: number | null; semester: Semester | null }): FormS
 function fromRecord(record: RecruitmentVisit): FormState {
   return {
     child_name: record.child_name,
+    english_name: record.english_name ?? '',
     birthday: record.birthday ?? null,
     contact_name: record.contact_name ?? '',
     phone: record.phone ?? '',
     visit_date: record.visit_date,
+    tour_guide_name: record.tour_guide_name ?? '',
     target_school_year: record.target_school_year ?? null,
     target_semester: record.target_semester === 1 || record.target_semester === 2 ? record.target_semester : null,
+    rides_bus: record.rides_bus,
     grade: (record.grade as Grade | null | undefined) ?? null,
     address: record.address ?? '',
+    father_occupation: record.father_occupation ?? '',
+    mother_occupation: record.mother_occupation ?? '',
+    source_category: record.source_category ?? null,
     source: record.source ?? '',
     referrer: record.referrer ?? '',
     deposit_collector: record.deposit_collector ?? '',
@@ -144,9 +159,10 @@ const missing = computed(() => [
 
 const filled = (values: unknown[]) => values.filter((value) => typeof value === 'string' && value.trim()).length
 const contactSummary = computed(() => {
-  const count = filled([form.address, form.source, form.referrer])
+  const count = filled([form.address, form.father_occupation, form.mother_occupation, form.source_category, form.source, form.referrer])
   return count ? `已填 ${count} 項` : '未填'
 })
+const sourceCategories = computed(() => Object.entries(props.options?.source_categories ?? {}))
 const notesSummary = computed(() => {
   const count = filled([form.notes, form.parent_response])
   return count ? `已填 ${count} 項` : '未填'
@@ -158,14 +174,20 @@ const text = (value: string) => value.trim() || null
 function payload(state: FormState) {
   return {
     child_name: state.child_name.trim(),
+    english_name: text(state.english_name),
     birthday: state.birthday,
     contact_name: text(state.contact_name),
     phone: text(state.phone),
     visit_date: state.visit_date ?? '',
+    tour_guide_name: text(state.tour_guide_name),
     target_school_year: state.target_school_year,
     target_semester: state.target_semester,
+    rides_bus: state.rides_bus,
     grade: state.grade,
     address: text(state.address),
+    father_occupation: text(state.father_occupation),
+    mother_occupation: text(state.mother_occupation),
+    source_category: state.source_category || null,
     source: text(state.source),
     referrer: text(state.referrer),
     transfer_term: state.transfer_term,
@@ -199,7 +221,7 @@ async function save(next = false) {
     if (props.mode === 'add') {
       // missing 已擋下空值，這裡收窄型別（新增時這三欄必填，schema 可能不接受 null）。
       const body: RecruitmentVisitCreate = {
-        ...payload(form), rides_bus: false, birthday: form.birthday!, target_school_year: form.target_school_year!, target_semester: form.target_semester!,
+        ...payload(form), birthday: form.birthday!, target_school_year: form.target_school_year!, target_semester: form.target_semester!,
       }
       const created = await createRecord(props.campusKey, body)
       emit('saved', created)
@@ -325,8 +347,19 @@ function suggest(list: readonly string[] | undefined) {
         <el-form-item label="幼生姓名" required>
           <el-input v-model="form.child_name" maxlength="50" aria-label="幼生姓名" />
         </el-form-item>
+        <el-form-item label="英文名字">
+          <el-input v-model="form.english_name" maxlength="50" aria-label="英文名字" />
+        </el-form-item>
+      </div>
+      <div class="record-dialog__row">
         <el-form-item label="生日" :required="mode === 'add'">
           <el-date-picker :model-value="form.birthday" type="date" value-format="YYYY-MM-DD" placeholder="選擇生日" :disabled-date="disableFuture" aria-label="生日" style="width: 100%" @update:model-value="setBirthday" />
+        </el-form-item>
+        <el-form-item label="適讀班級">
+          <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" @change="onGradeChange">
+            <el-option v-for="grade in GRADES" :key="grade" :label="grade" :value="grade" />
+          </el-select>
+          <span v-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
         </el-form-item>
       </div>
       <div class="record-dialog__row">
@@ -343,6 +376,11 @@ function suggest(list: readonly string[] | undefined) {
           <el-date-picker v-model="form.visit_date" type="date" value-format="YYYY-MM-DD" placeholder="選擇參觀日期（年月日）" :disabled-date="disableVisitDate" aria-label="參觀日期" style="width: 100%" />
           <span v-if="visitDateHint" class="field-help num">{{ visitDateHint }}</span>
         </el-form-item>
+        <el-form-item label="帶參觀老師">
+          <el-autocomplete v-model="form.tour_guide_name" :fetch-suggestions="suggest(options?.tour_guides)" maxlength="50" aria-label="帶參觀老師" style="width: 100%" />
+        </el-form-item>
+      </div>
+      <div class="record-dialog__row">
         <el-form-item label="入學學期" required>
           <div class="record-dialog__term">
             <el-select :model-value="form.target_school_year ?? undefined" placeholder="學年" aria-label="入學學年" @update:model-value="setYear">
@@ -355,13 +393,10 @@ function suggest(list: readonly string[] | undefined) {
           </div>
           <span class="field-help">小孩預計入學的學期（預設當前學期，可改）。</span>
         </el-form-item>
+        <el-form-item label="搭娃娃車">
+          <el-switch v-model="form.rides_bus" active-text="要搭" inactive-text="不搭" aria-label="搭娃娃車" />
+        </el-form-item>
       </div>
-      <el-form-item label="適讀班級">
-        <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" @change="onGradeChange">
-          <el-option v-for="grade in GRADES" :key="grade" :label="grade" :value="grade" />
-        </el-select>
-        <span v-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
-      </el-form-item>
 
       <el-collapse v-model="sections" class="record-dialog__sections">
         <el-collapse-item name="contact">
@@ -372,9 +407,24 @@ function suggest(list: readonly string[] | undefined) {
             <el-input v-model="form.address" maxlength="200" aria-label="地址" />
           </el-form-item>
           <div class="record-dialog__row">
-            <el-form-item label="幼生來源">
-              <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：親友介紹、Facebook" aria-label="幼生來源" style="width: 100%" />
+            <el-form-item label="父親職業">
+              <el-input v-model="form.father_occupation" maxlength="50" aria-label="父親職業" />
             </el-form-item>
+            <el-form-item label="母親職業">
+              <el-input v-model="form.mother_occupation" maxlength="50" aria-label="母親職業" />
+            </el-form-item>
+          </div>
+          <div class="record-dialog__row">
+            <el-form-item label="來源分類">
+              <el-select v-model="form.source_category" clearable placeholder="請選擇來源分類" aria-label="來源分類" style="width: 100%">
+                <el-option v-for="[value, label] in sourceCategories" :key="value" :label="label" :value="value" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="來源備註">
+              <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：哥哥姓名、朋友姓名、看到傳單" aria-label="來源備註" style="width: 100%" />
+            </el-form-item>
+          </div>
+          <div class="record-dialog__row">
             <el-form-item label="介紹者">
               <el-autocomplete v-model="form.referrer" :fetch-suggestions="suggest(options?.referrers)" maxlength="50" aria-label="介紹者" style="width: 100%" />
               <span class="field-help">統計分析的「接待人員」看的就是這一欄。</span>

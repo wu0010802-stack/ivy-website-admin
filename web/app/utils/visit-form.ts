@@ -12,8 +12,11 @@ export type VisitErrors = Partial<Record<VisitField, string>>
 export const REFERRAL_OPTIONS = [
   // 2026-10-03：只問來源歸因看不到的管道，網路來源合成一項（細節之後由自建歸因補）。
   // 媽媽社團、LINE 群組的口碑算親友介紹；舊代碼 facebook／google_reviews／parent_community 後端仍收。
+  // 2026-10-05 照園方紙本加兄姊（舊生弟妹）與傳單，兩者都是網站追蹤看不到的管道。
   { value: 'friends_family', label: '親友介紹' },
+  { value: 'sibling', label: '哥哥姊姊讀過或正在讀' },
   { value: 'nearby', label: '住附近／路過看到' },
+  { value: 'flyer', label: '傳單／DM' },
   { value: 'online', label: '網路上看到' },
   { value: 'other', label: '其他' }
 ] as const

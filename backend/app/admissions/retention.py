@@ -47,9 +47,12 @@ def anonymize_visit(
     """清掉一筆訪視的個資欄位、歷程原因與聯絡紀錄內容（events、contact_logs 是這筆
     訪視的歷程與聯絡紀錄）。"""
     visit.child_name = ANONYMIZED_TEXT
+    visit.english_name = None
     visit.birthday = None
     visit.phone = None
     visit.contact_name = None
+    visit.father_occupation = None
+    visit.mother_occupation = None
     visit.address = None
     visit.notes = None
     visit.parent_response = None

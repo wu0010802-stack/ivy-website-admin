@@ -37,7 +37,9 @@ SOURCE_LABELS = {
 
 REFERRAL_LABELS = {
     "friends_family": "親友介紹",
+    "sibling": "哥哥姊姊讀過或正在讀",
     "nearby": "住附近／路過看到",
+    "flyer": "傳單／DM",
     "online": "網路上看到",
     "other": "其他",
     # 2026-10-03 以前的選項，舊案件仍會有。

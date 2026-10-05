@@ -75,8 +75,11 @@ class _VisitEditable(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     grade: Grade | None = None
+    english_name: OptionalText = Field(default=None, max_length=constants.LEN_ENGLISH_NAME)
     phone: OptionalText = Field(default=None, max_length=constants.LEN_PHONE)
     contact_name: OptionalText = Field(default=None, max_length=constants.LEN_CONTACT)
+    father_occupation: OptionalText = Field(default=None, max_length=constants.LEN_OCCUPATION)
+    mother_occupation: OptionalText = Field(default=None, max_length=constants.LEN_OCCUPATION)
     address: OptionalText = Field(default=None, max_length=constants.LEN_ADDRESS)
     source: OptionalText = Field(default=None, max_length=constants.LEN_SOURCE)
     referrer: OptionalText = Field(default=None, max_length=constants.LEN_REFERRER)
@@ -166,10 +169,13 @@ class RecruitmentVisitOut(BaseModel):
     seq_no: str | None
     visit_date: date
     child_name: str
+    english_name: str | None
     birthday: date | None
     grade: Grade | None
     phone: str | None
     contact_name: str | None
+    father_occupation: str | None
+    mother_occupation: str | None
     address: str | None
     district: str | None
     source: str | None
@@ -239,14 +245,15 @@ class NoDepositReasonOption(BaseModel):
 
 
 class AdmissionsOptionsOut(BaseModel):
-    """篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者，
-    以及園務的固定列舉與文案。"""
+    """篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、
+    帶參觀老師，以及園務的固定列舉與文案。"""
 
     # 民國月份，新到舊。
     months: list[str]
     # 次數多的在前，各最多 50 個。
     sources: list[str]
     referrers: list[str]
+    tour_guides: list[str]
     grades: list[Grade]
     no_deposit_reasons: list[NoDepositReasonOption]
     # 來源分類代碼 → 園務文案，順序同園務（A 計畫調整第 17 條）。

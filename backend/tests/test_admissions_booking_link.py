@@ -91,7 +91,8 @@ def test_fields_from_visit_request_truncates_and_defaults():
         today=date(2026, 9, 8),
     )
     assert (len(long["child_name"]), len(long["contact_name"])) == (constants.LEN_CHILD_NAME, constants.LEN_CONTACT)
-    assert long["source"] == "親友介紹、住附近／路過看到、網路上看到、其他、Facebook、Google 評論、媽媽社團"
+    every = "親友介紹、哥哥姊姊讀過或正在讀、住附近／路過看到、傳單／DM、網路上看到、其他、Facebook、Google 評論、媽媽社團"
+    assert long["source"] == every[: constants.LEN_SOURCE]
     assert len(long["source"]) <= constants.LEN_SOURCE
     assert long["notes"] == booking_link.NOTES_PREFIX + "問" * 1000
     assert long["visit_date"] == date(2026, 9, 8)  # 沒有場次：確認當天
@@ -218,7 +219,8 @@ async def test_completion_never_fails_on_long_or_missing_fields(admin_client, pu
         assert response.json()["status"] == "completed"
     [long_visit] = await _visits_for(db_session, full["id"])
     assert (long_visit.child_name, long_visit.contact_name) == ("王" * 50, "陳" * 50)
-    assert long_visit.source == "親友介紹、住附近／路過看到、網路上看到、其他、Facebook、Google 評論、媽媽社團"
+    every = "親友介紹、哥哥姊姊讀過或正在讀、住附近／路過看到、傳單／DM、網路上看到、其他、Facebook、Google 評論、媽媽社團"
+    assert long_visit.source == every[: constants.LEN_SOURCE]
     assert long_visit.notes == "家長想了解：" + "問" * 500
     [bare_visit] = await _visits_for(db_session, bare["id"])
     assert (bare_visit.child_name, bare_visit.birthday, bare_visit.grade, bare_visit.source, bare_visit.notes) == (
