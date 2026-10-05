@@ -12,7 +12,7 @@
   - 拋棄式測試庫 Playwright 實按（桌機 1440）：⌘K 聚焦搜尋框、↓ 到營運總覽、再 ↓ 到參觀預約、↑↑ 回搜尋框；搜「素材」標出素材庫、Esc 清空、Enter 到 /media 且搜尋字清掉；更改密碼對話框開著時 ⌘K 焦點不動；收起目前所在的「全站與素材」後標題變選取色。console 無錯誤。
   - 沒動後端與 API 型別，沒跑 pytest 與 `contract:check`；未驗證 Safari／iOS 實機、Windows 的 Ctrl+K、正式站。
 
-## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`）
+## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`，10-05 已部署 main `75caffa`）
 
 使用者要「優化 /admin/notifications 的 UI/UX」。用拋棄式測試庫灌三校的預約、改期、取消、提醒、寄送失敗與一筆舊的改期申請，桌機 1440／1280、手機 390 各以總管理者、單校管理者、櫃台三種帳號看過。規則見 DESIGN.md「官網後台站內通知頁」。
 

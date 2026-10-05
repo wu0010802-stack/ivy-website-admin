@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 官網後台站內通知頁 UI/UX（main CI 部署）
+
+- **合併**：`feature/admin-notifications-20261005` 的 `75caffa1` 直接接在 `23c6aa2e` 後，快轉推 main `23c6aa2e..75caffa1`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台站內通知頁」。
+- **migration**：無（只改後台前端、測試與文件）。
+- **推前本機**：stack e2e 75 項全過（含視覺基準與 a11y）；admin vitest、`vue-tsc -b`、`vite build` 通過。
+- **CI**：main run 37299477016（`75caffa1`）success，總長 13 分 4 秒。
+- **正式 `release.json`**：base commit `75caffa`，created `2026-10-05T11:03:29Z`。
+- **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`；`NotificationsView` lazy chunk 有新文案與結構（「顯示哪些通知」頁籤、「今天／昨天」分組、`notice__main` 整列連結、「未讀：」、`unread` 網址參數）；入口 CSS 有 `.el-button--primary.is-plain{--el-button-text-color:var(--admin-accent-hover)}`。
+- **未做**：沒登入正式後台實際操作（頁籤、點進案件再返回、標記已讀都只在拋棄式測試庫與 stack e2e 驗過）；Safari／iOS 實機。
+
 ## 2026-10-05 官網後台第九輪 UI/UX（main CI 部署）
 
 - **合併**：`feature/admin-ux9-20261005` 的 `e8d7e261` 合 origin/main（只多部署紀錄，README 頂部衝突已解）成 `54048545`，使用者快轉推 main `f83bdd3..54048545`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台第九輪 UX」。
