@@ -4,7 +4,7 @@ import type { FamilyNote } from '../../admissions/family'
 
 // 家庭版面的聯絡紀錄（2026-10-05 家庭頁規格 5.4）：參觀前（預約）與參觀後（招生）合在一起，
 // 順序由父層 familyNotes() 決定。新增一律用處理區的「記錄聯絡」，這裡沒有輸入框。
-defineProps<{ notes: readonly FamilyNote[]; logsFailed: boolean }>()
+defineProps<{ notes: readonly FamilyNote[]; logsFailed: boolean; canRecord: boolean }>()
 const emit = defineEmits<{ reload: [] }>()
 </script>
 
@@ -32,11 +32,20 @@ const emit = defineEmits<{ reload: [] }>()
         <p v-if="item.nextFollowUpAt" class="family-notes__next num">排下次聯絡 {{ formatDateTime(item.nextFollowUpAt) }}</p>
       </li>
     </ol>
-    <p v-else class="hint">還沒有聯絡紀錄。每次致電或傳訊後用「記錄聯絡」記一筆，同事接手時才知道談到哪裡。</p>
+    <p v-else-if="!logsFailed" class="hint">{{ canRecord ? '還沒有聯絡紀錄。每次致電或傳訊後用「記錄聯絡」記一筆，同事接手時才知道談到哪裡。' : '還沒有聯絡紀錄。' }}</p>
   </section>
 </template>
 
 <style scoped>
+/* 全域 .section__title 不換行，右邊說明會把標題擠成「聯絡紀／錄」。 */
+.section__title {
+  flex-wrap: wrap;
+}
+
+.section__title h2 {
+  flex: none;
+}
+
 /* 同預約明細原本聯絡紀錄的排法（VisitDetailView 的 .notes），子元件拿不到父層 scoped 樣式，這裡另寫一份。 */
 .family-notes__error {
   margin: 0 0 8px;

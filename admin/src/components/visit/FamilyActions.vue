@@ -27,6 +27,8 @@ const moveOptions = computed<Stage[]>(() =>
 )
 // ownerLabel 的參數型別是可變陣列，這裡複製一份給它。
 const staffList = computed(() => [...props.staff])
+// 名單還沒讀到（空的）時不能判定負責人已停用。
+const ownerUnresolved = computed(() => Boolean(props.visit.follow_up_owner_id) && props.staff.length === 0)
 const ownerMissing = computed(() => Boolean(props.visit.follow_up_owner_id) && !props.staff.some((person) => person.id === props.visit.follow_up_owner_id))
 
 // ---- 記錄聯絡、排下次聯絡、移到… ----
@@ -91,7 +93,7 @@ async function setOwner(ownerId: string | null) {
       </div>
       <div>
         <dt>最近聯絡</dt>
-        <dd class="num">{{ latest ? lastContactText(latest.contacted_at, latest.channel, latest.reached) : lastContactText(null) }}</dd>
+        <dd class="num">{{ latest ? lastContactText(latest.contacted_at, latest.channel, latest.reached) : lastContactText(visit.last_contacted_at ?? null) }}</dd>
       </div>
     </dl>
     <el-button v-if="editable" type="primary" class="family-actions__record" @click="openContact">記錄聯絡</el-button>
@@ -107,7 +109,8 @@ async function setOwner(ownerId: string | null) {
       </el-dropdown>
     </div>
     <div class="family-actions__owner">
-      <label for="family-owner">負責人</label>
+      <label v-if="ownerEditable" for="family-owner">負責人</label>
+      <span v-else class="family-actions__owner-label">負責人</span>
       <el-select
         v-if="ownerEditable"
         id="family-owner"
@@ -122,7 +125,7 @@ async function setOwner(ownerId: string | null) {
         <el-option v-if="ownerMissing" :value="visit.follow_up_owner_id!" :label="ownerLabel(visit.follow_up_owner_id, staffList)" disabled />
         <el-option v-for="person in staff" :key="person.id" :value="person.id" :label="person.display_name || person.email" />
       </el-select>
-      <span v-else>{{ ownerLabel(visit.follow_up_owner_id, staffList) }}</span>
+      <span v-else>{{ ownerUnresolved ? '—' : ownerLabel(visit.follow_up_owner_id, staffList) }}</span>
     </div>
     <div v-if="rebookable" class="family-actions__rebook">
       <span class="hint">家長想再約別的時間？</span>
@@ -197,7 +200,8 @@ async function setOwner(ownerId: string | null) {
   font-size: var(--text-sm);
 }
 
-.family-actions__owner label {
+.family-actions__owner label,
+.family-actions__owner-label {
   color: var(--ink-2);
 }
 

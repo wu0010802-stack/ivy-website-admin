@@ -1,6 +1,7 @@
 // 家庭版面的聯絡紀錄與合併歷程（docs/specs/2026-10-05-visit-family-page-design.md 5.4、5.5）。
 import { afterEach, describe, expect, it } from 'vitest'
 import FamilyContactNotes from '../components/visit/FamilyContactNotes.vue'
+import notesSource from '../components/visit/FamilyContactNotes.vue?raw'
 import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import type { FamilyNote } from '../admissions/family'
 import { button, cleanup, mountWith } from './admissionsTestKit'
@@ -18,7 +19,7 @@ const before: FamilyNote = {
 
 describe('合併後的聯絡紀錄', () => {
   it('照傳進來的順序列；標參觀前／參觀後；參觀後有管道結果與排下次聯絡', async () => {
-    const { wrapper } = await mountWith(FamilyContactNotes, { props: { notes: [after, before], logsFailed: false } })
+    const { wrapper } = await mountWith(FamilyContactNotes, { props: { notes: [after, before], logsFailed: false, canRecord: true } })
     const items = wrapper.findAll('.family-notes__item')
     expect(items.map((item) => item.attributes('data-phase'))).toEqual(['after', 'before'])
     expect(items[0]!.text()).toContain('參觀後')
@@ -29,9 +30,24 @@ describe('合併後的聯絡紀錄', () => {
     expect(wrapper.text()).toContain('參觀前記在預約、參觀後記在招生，這裡一起列')
   })
 
-  it('沒有紀錄時說明；參觀後讀不到時提示並能重新載入', async () => {
-    const { wrapper } = await mountWith(FamilyContactNotes, { props: { notes: [], logsFailed: true } })
-    expect(wrapper.text()).toContain('還沒有聯絡紀錄')
+  it('沒有紀錄：能記錄的人看到說明，唯讀的人只看到一句', async () => {
+    const writable = await mountWith(FamilyContactNotes, { props: { notes: [], logsFailed: false, canRecord: true } })
+    expect(writable.wrapper.text()).toContain('每次致電或傳訊後用「記錄聯絡」記一筆')
+    cleanup()
+    const readonly = await mountWith(FamilyContactNotes, { props: { notes: [], logsFailed: false, canRecord: false } })
+    expect(readonly.wrapper.text()).toContain('還沒有聯絡紀錄。')
+    expect(readonly.wrapper.text()).not.toContain('記錄聯絡')
+  })
+
+  it('標題在窄螢幕可換行，不被右邊說明擠成「聯絡紀／錄」', () => {
+    const css = notesSource.slice(notesSource.indexOf('<style scoped>'))
+    expect(css).toMatch(/\.section__title\s*{[^}]*flex-wrap: wrap/)
+    expect(css).toMatch(/\.section__title h2\s*{[^}]*flex: none/)
+  })
+
+  it('參觀後讀不到而且沒有任何紀錄：只顯示讀不到，不說還沒有紀錄；能重新載入', async () => {
+    const { wrapper } = await mountWith(FamilyContactNotes, { props: { notes: [], logsFailed: true, canRecord: true } })
+    expect(wrapper.text()).not.toContain('還沒有聯絡紀錄')
     expect(wrapper.text()).toContain('參觀後的聯絡紀錄讀不到')
     await button(wrapper, '重新載入')!.trigger('click')
     expect(wrapper.emitted('reload')).toHaveLength(1)

@@ -36,6 +36,17 @@ describe('摘要', () => {
     expect(facts.get('.is-due').text()).toMatch(/^逾 \d+ 天$/)
     expect(facts.text()).toContain('10/08・電話・聯絡到了')
   })
+  it('讀不到聯絡紀錄但招生訪視有最近聯絡時間：用那個時間，不寫還沒聯絡過', async () => {
+    const { wrapper } = await mountActions(visit({ last_contacted_at: '2026-10-08T08:20:00Z' } as never), undefined as never, null)
+    expect(wrapper.get('.family-actions__facts').text()).toContain('10/08')
+    expect(wrapper.get('.family-actions__facts').text()).not.toContain('還沒聯絡過')
+  })
+  it('名單還沒讀到時負責人寫破折號，不寫已停用；唯讀的標籤不是 label', async () => {
+    const { wrapper } = await mountWith(FamilyActions, { props: { visit: visit({ follow_up_owner_id: 'desk' }), staff: [], latest: null, rebookable: true }, user: admissionsViewer() as never })
+    expect(wrapper.get('.family-actions__owner').text()).toBe('負責人—')
+    expect(wrapper.find('.family-actions__owner label').exists()).toBe(false)
+    expect(wrapper.find('.family-actions__owner-label').text()).toBe('負責人')
+  })
   it('沒有參觀後聯絡寫「還沒聯絡過」；已註冊的下次聯絡寫破折號', async () => {
     const { wrapper } = await mountActions(visit({ stage: 'enrolled', enrolled: true }), undefined as never, null)
     expect(wrapper.get('.family-actions__facts').text()).toContain('還沒聯絡過')

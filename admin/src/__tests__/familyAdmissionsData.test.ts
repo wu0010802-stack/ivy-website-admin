@@ -22,6 +22,16 @@ const valueOf = (wrapper: VueWrapper, label: string) => {
 }
 
 describe('招生資料面板', () => {
+  it('地址沿用訪視明細：地址優先、沒有才用行政區；家長回應叫電訪回應', async () => {
+    const both = await mountWith(FamilyAdmissionsData, { props: { visit: visit({ ...paper, district: '鳳山區', address: '中山路 1 號', parent_response: '想再看看' }), options, editable: true } })
+    expect(valueOf(both.wrapper, '地址')).toBe('中山路 1 號')
+    expect(valueOf(both.wrapper, '電訪回應')).toBe('想再看看')
+    expect(labels(both.wrapper)).not.toContain('家長回應')
+    cleanup()
+    const onlyDistrict = await mountWith(FamilyAdmissionsData, { props: { visit: visit({ ...paper, district: '鳳山區', address: null }), options, editable: true } })
+    expect(valueOf(onlyDistrict.wrapper, '地址')).toBe('鳳山區')
+  })
+
   it('固定列依序列出；有值才列的只列有值的；來源分類用選項文字、電話可撥', async () => {
     const record = visit({ ...paper, english_name: 'Hana', source_category: 'referral', rides_bus: true, tour_guide_name: 'Amy', father_occupation: '工程師' })
     const { wrapper } = await mountWith(FamilyAdmissionsData, { props: { visit: record, options, editable: true } })

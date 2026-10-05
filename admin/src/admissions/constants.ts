@@ -60,7 +60,6 @@ export function stageMeta(visit: { stage: string; withdrawn_at?: string | null; 
   return { label: stageLabel(visit.stage), tone: isStage(visit.stage) ? STAGE_TONES[visit.stage] : 'info' }
 }
 
-
 export const SEMESTER_LABELS: Record<1 | 2, string> = { 1: '上學期', 2: '下學期' }
 
 // 未預繳原因（園務 api/recruitment/shared.py:43-52，順序照抄）。

@@ -155,7 +155,7 @@ describe('預約明細的招生訪視連結', () => {
     expect(wrapper.find('.detail__admissions').exists()).toBe(false)
   })
 
-  it('已到場但沒有招生訪視：可以建立，建立後換成連結', async () => {
+  it('已到場但沒有招生訪視：可以建立，建立後換成家庭版面', async () => {
     const success = vi.spyOn(ElMessage, 'success')
     mockDetail(detail({ status: 'completed' }), [])
     const post = mockPost({ [`/admin/admissions/from-visit-request/${VR_ID}`]: visit({ visit_request_id: VR_ID, stage: 'visited' }) })

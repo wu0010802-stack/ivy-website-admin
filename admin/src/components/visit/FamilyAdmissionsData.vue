@@ -40,11 +40,11 @@ const rows = computed<Row[]>(() => {
     ['收預繳人員', v.has_deposit ? v.deposit_collector : null],
     ['未預繳原因', v.stage === 'visited' ? [v.no_deposit_reason, v.no_deposit_reason_detail].filter(Boolean).join('：') : null],
     ['退出原因', v.stage === 'withdrawn' ? v.withdraw_reason : null],
-    ['地址', [v.district, v.address].filter(Boolean).join(' ')],
+    ['地址', v.address || v.district],
     ['父親職業', v.father_occupation],
     ['母親職業', v.mother_occupation],
     ['備註', v.notes],
-    ['家長回應', v.parent_response],
+    ['電訪回應', v.parent_response],
   ]
   return [...fixed, ...optional.filter(([, value]) => Boolean(value)).map(([label, value]) => ({ label, value: value as string }))]
 })

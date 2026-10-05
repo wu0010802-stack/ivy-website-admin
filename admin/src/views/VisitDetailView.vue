@@ -100,7 +100,11 @@ const assigning = ref(false)
 // 打好還沒按「新增紀錄」的聯絡紀錄：返回、下一筆、側欄換頁前都先問，
 // 不然同事接手時看不到這段聯絡過程。處理中（例如正在新增紀錄）先請使用者稍候。
 // 家庭版面沒有文字框：看不到的草稿不擋離開（家庭頁規格 Review Focus 1）。
-const noteDirty = computed(() => canHandle.value && !familyVisit.value && newNote.value.trim() !== '')
+// 已到場、還在等招生查詢的空檔：先不畫改版前的版面，免得查完整頁跳成家庭版面（也看不到的草稿同樣不擋離開）。
+const familyPending = computed(() =>
+  detail.value?.status === 'completed' && canReadAdmissions.value && admissionsAvailable.value === 'unknown' && !lookupFailed.value,
+)
+const noteDirty = computed(() => canHandle.value && !familyVisit.value && !familyPending.value && newNote.value.trim() !== '')
 const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
 // 「下一筆」只換 :id，不會觸發離頁守衛，要另外攔。
 onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? confirmLeave() : true))
@@ -378,6 +382,8 @@ async function refreshIfStale() {
     const handledBefore = handled.value?.at ?? null
     const gen = generation
     await load({ quiet: true })
+    // 家庭版面的招生訪視、事件與聯絡紀錄不在 load 裡，同事剛在招生端動過的要一起讀回來。
+    if (gen === generation && familyVisit.value) void family.reload()
     if (gen !== generation || !before || activityKey() === before) return
     const latest = handled.value
     // 只有同事有比重讀前更新的動作才點名；變動來自家長或系統就用中性說法。
@@ -680,9 +686,11 @@ async function markCompleted() {
 const familyNoteList = computed(() => familyNotes(notes.value, familyLogs.value, arrivedAt(detail.value?.history ?? [])))
 const latestFamilyContact = computed(() => latestContact(familyLogs.value))
 // 撥號：園方改過以招生那筆為準；匿名化的不撥（Review Focus 3）。
+// 匿名化後預約電話也會被寫成假號碼，退回撥它沒有意義：整顆不顯示。
 const callPhone = computed(() => {
   const v = familyVisit.value
-  return v?.phone && !v.anonymized_at ? v.phone : (detail.value?.phone ?? '')
+  if (!v) return detail.value?.phone ?? ''
+  return v.phone && !v.anonymized_at ? v.phone : ''
 })
 const bookingDataTitle = computed(() => {
   if (familyVisit.value) return isWebCase.value ? '家長預約時填寫的資料' : '補登時的案件資料'
@@ -851,7 +859,8 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
           </p>
         </div>
-        <div v-if="familyVisit" class="detail__status">
+        <div v-if="familyPending" class="detail__status-pending" aria-hidden="true" />
+        <div v-else-if="familyVisit" class="detail__status">
           <StatusTag :meta="stageMeta(familyVisit)" size="large" />
           <span class="detail__status-sub num">{{ arrivedLabel(familyVisit.visit_date) }}</span>
         </div>
@@ -861,12 +870,14 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
         </div>
       </div>
       <!-- 手機處理面板排在最前面，電話會被擠到下面；打電話是處理案件的第一步，頁首直接給一顆撥號鈕。 -->
-      <el-button tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
+      <el-button v-if="callPhone" tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
         撥電話給家長 {{ callPhone }}
       </el-button>
 
       <div class="detail__grid">
         <div class="detail__main">
+          <el-skeleton v-if="familyPending" animated :rows="6" class="detail__family-pending" />
+          <template v-else>
           <FamilyAdmissionsData
             v-if="familyVisit"
             :visit="familyVisit"
@@ -910,7 +921,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             </el-descriptions>
           </div>
 
-          <!-- 參觀後追蹤（2026-10-04）：已到場、有招生訪視時，追蹤記在招生訪視。 -->
+          <!-- 已到場、有招生訪視時是家庭版面（FamilyContactNotes），這裡是其他情況的聯絡紀錄。 -->
           <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
           <section v-if="!familyVisit" class="section detail__notes">
             <div class="section__title"><h2>聯絡紀錄</h2></div>
@@ -971,6 +982,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             class="section detail__notes"
             :notes="familyNoteList"
             :logs-failed="extrasFailed.logs"
+            :can-record="canCreateAdmissions"
             @reload="family.loadExtras"
           />
 
@@ -988,19 +1000,21 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 
           <section class="section">
             <div class="section__title"><h2>案件歷程</h2><span class="hint">誰在什麼時候改了什麼</span></div>
-            <VisitHistoryTimeline :events="detail.history ?? []" :staff="staff" :recruitment-events="familyVisit ? familyEvents : undefined" />
             <p v-if="familyVisit && extrasFailed.events" class="hint">
               招生的歷程讀不到。<el-button link type="primary" @click="family.loadExtras">重新載入</el-button>
             </p>
+            <VisitHistoryTimeline :events="detail.history ?? []" :staff="staff" :recruitment-events="familyVisit ? familyEvents : undefined" />
           </section>
+          </template>
         </div>
 
         <aside class="detail__side">
           <div class="panel">
             <div class="panel__head"><h2>處理</h2></div>
             <div class="panel__body detail__actions">
+              <el-skeleton v-if="familyPending" animated :rows="3" />
               <FamilyActions
-                v-if="familyVisit"
+                v-else-if="familyVisit"
                 :visit="familyVisit"
                 :staff="familyStaff"
                 :latest="latestFamilyContact"
@@ -1094,7 +1108,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               </template>
             </div>
             <div
-              v-if="canReadAdmissions && !familyVisit && detail.status === 'completed' && (admissionsAvailable === 'yes' || lookupFailed)"
+              v-if="canReadAdmissions && !familyVisit && !familyPending && detail.status === 'completed' && (admissionsAvailable === 'yes' || lookupFailed)"
               class="detail__admissions"
             >
               <span class="detail__admissions-label">招生訪視</span>
@@ -1108,7 +1122,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               </template>
               <span v-else class="hint">已到場，但還沒有招生訪視；請有招生權限的同事建立。</span>
             </div>
-            <div v-if="!familyVisit" class="detail__assignee">
+            <div v-if="!familyVisit && !familyPending" class="detail__assignee">
               <label for="visit-assignee">承辦人</label>
               <!-- 選項寫名字，下面一行小字是完整 Email：同名或同 Email 前綴的同事才分得出來。 -->
               <el-select
@@ -1481,7 +1495,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
     order: -1;
   }
 
-  /* 手機上打完電話接著就是記一筆：撥號鈕、處理面板之後先放聯絡紀錄（已到場的是參觀後追蹤），
+  /* 手機上打完電話接著就是記一筆：撥號鈕、處理面板之後先放聯絡紀錄，
      家長資料表排在後面。改成 flex 直排，兄弟間距統一用 gap，不靠 .panel + .section 的外距。 */
   .detail__main {
     display: flex;

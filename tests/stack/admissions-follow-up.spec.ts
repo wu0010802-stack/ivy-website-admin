@@ -129,13 +129,15 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     expect(await followUps(api, 'upcoming')).toContain(A.child)
   })
 
-  await test.step('歷程抽屜：參觀後聯絡在時間線上', async () => {
+  await test.step('待追蹤點有預約的家庭：開預約明細（家庭版面），參觀後聯絡在聯絡紀錄、建立訪視在歷程', async () => {
     await openFollowUps(page, 'upcoming')
     await row(page, A.child).getByRole('button', { name: '歷程' }).click()
-    const drawer = page.locator('.events-drawer')
-    await expect(drawer.locator('.events__item--contact')).toContainText('電話・沒聯絡到')
-    await expect(drawer.locator('.events__item--event')).toContainText('建立訪視')
-    await page.keyboard.press('Escape')
+    await expect(page).toHaveURL(/\/admin\/visit-requests\/[0-9a-f-]+/)
+    await expect(page.locator('.family-notes__item', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
+    await expect(page.locator('.timeline__item', { hasText: '建立訪視' })).toHaveCount(1)
+    await expect(page.locator('.detail__back')).toHaveText('招生入學')
+    await page.locator('.detail__back').click()
+    await expect(page).toHaveURL(/\/admin\/admissions(\?|$)/)
   })
 
   await test.step('預繳後仍在追；註冊後下次聯絡被清掉', async () => {

@@ -222,12 +222,12 @@ describe('Review Focus', () => {
     expect(wrapper.text()).not.toContain('前一筆的獨特聯絡內容')
   })
 
-  it('3：已匿名化的招生訪視：唯讀，撥號退回預約電話', async () => {
+  it('3：已匿名化的招生訪視：唯讀，不顯示撥號鈕（預約電話也已被改成假號碼）', async () => {
     mockFamily({ records: [linked({ anonymized_at: '2026-10-01T00:00:00Z', phone: '0900000000' })] })
     const { wrapper } = await mountDetail()
     expect(hasButton(wrapper, '記錄聯絡')).toBe(false)
     expect(hasButton(wrapper, '編輯')).toBe(false)
-    expect(wrapper.get('.detail__call').attributes('href')).toBe('tel:0911000111')
+    expect(wrapper.find('.detail__call').exists()).toBe(false)
   })
 })
 
@@ -258,5 +258,81 @@ describe('409 重讀不卸載家庭版面（5.9）', () => {
     await flushPromises()
     expect(wrapper.getComponent(FamilyActions).props('visit').version).toBe(2)
     expect(wrapper.find('.family-data').exists()).toBe(true)
+  })
+})
+
+describe('載入招生查詢時不閃改版前的畫面（F2）', () => {
+  it('查詢回來前只有骨架；回來後換成家庭版面', async () => {
+    const slow = deferred<unknown[]>()
+    mockFamily({ records: () => slow.promise })
+    const { wrapper } = await mountDetail()
+    expect(wrapper.findAll('.detail__family-pending').length).toBe(1)
+    expect(wrapper.find('.notes__form').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('這筆案件已結案')
+    expect(wrapper.find('.detail__status').exists()).toBe(false)
+    expect(wrapper.find('.detail__assignee').exists()).toBe(false)
+    slow.resolve([linked()])
+    await flushPromises()
+    expect(wrapper.find('.detail__family-pending').exists()).toBe(false)
+    expect(wrapper.find('.family-data').exists()).toBe(true)
+    expect(wrapper.get('.detail__status').text()).toContain('已訪視')
+  })
+
+  it('查詢 404：回來後是改版前畫面，沒有骨架', async () => {
+    const slow = deferred<unknown[]>()
+    mockFamily({ records: () => slow.promise })
+    const { wrapper } = await mountDetail()
+    expect(wrapper.find('.detail__family-pending').exists()).toBe(true)
+    slow.reject(new ApiError(404, { code: 'NOT_FOUND' }))
+    await flushPromises()
+    expect(wrapper.find('.detail__family-pending').exists()).toBe(false)
+    expect(wrapper.find('.notes__form').exists()).toBe(true)
+  })
+
+  it('預約不是已到場：從頭到尾沒有骨架', async () => {
+    const slow = deferred<unknown[]>()
+    mockFamily({ data: detail({ status: 'confirmed' }), records: () => slow.promise })
+    const { wrapper } = await mountDetail()
+    expect(wrapper.find('.detail__family-pending').exists()).toBe(false)
+    expect(wrapper.find('.notes__form').exists()).toBe(true)
+  })
+
+  it('骨架期間看不到的草稿不擋離開', async () => {
+    writeVisitNoteDraft(VR_ID, '打到一半')
+    const confirm = vi.spyOn(ElMessageBox, 'confirm')
+    const slow = deferred<unknown[]>()
+    mockFamily({ records: () => slow.promise })
+    const { router } = await mountDetail()
+    await router.push('/admissions')
+    await flushPromises()
+    expect(confirm).not.toHaveBeenCalled()
+    writeVisitNoteDraft(VR_ID, '')
+  })
+})
+
+describe('其他修正', () => {
+  it('M7：招生歷程讀不到的提示在時間線前面', async () => {
+    mockFamily({ events: () => { throw new ApiError(500, { code: 'INTERNAL' }) } })
+    const { wrapper } = await mountDetail()
+    const html = wrapper.html()
+    const hint = html.indexOf('招生的歷程讀不到')
+    expect(hint).toBeGreaterThan(-1)
+    expect(hint).toBeLessThan(html.indexOf('timeline'))
+  })
+
+  it('M8：切回分頁重讀預約時，家庭版面的招生訪視也一起重讀', async () => {
+    const get = mockFamily()
+    const { wrapper } = await mountDetail()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Date.now() + 10 * 60 * 1000)
+    try {
+      const before = pathsTo(get, '/admin/admissions/records?').length
+      document.dispatchEvent(new Event('visibilitychange'))
+      await flushPromises()
+      expect(pathsTo(get, '/admin/admissions/records?').length).toBeGreaterThan(before)
+      expect(wrapper.find('.family-data').exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
