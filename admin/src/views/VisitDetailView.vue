@@ -22,7 +22,7 @@ import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
 import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
-import { createFromVisitRequest, listRecords } from '../api/admissions'
+import { useFamilyAdmissions } from '../composables/useFamilyAdmissions'
 import { stageLabel } from '../admissions/constants'
 import { followUpText, isDue, isOpenStage, lastContactText } from '../admissions/followUp'
 import ContactLogDialog, { type ContactTarget } from '../components/admissions/ContactLogDialog.vue'
@@ -35,6 +35,11 @@ const router = useRouter()
 const id = computed(() => route.params.id as string)
 
 const detail = ref<VisitRequestFullOut | null>(null)
+// 招生部分（招生規格第 10 節、2026-10-05 家庭頁規格 5.10）：composables/useFamilyAdmissions.ts。
+const family = useFamilyAdmissions(detail, { reloadDetail: () => load({ quiet: true }) })
+const { canRead: canReadAdmissions, canWrite: canCreateAdmissions, visit: admissionsVisit, available: admissionsAvailable, creating: creatingAdmissions } = family
+const loadAdmissionsVisit = family.lookup
+const createAdmissionsVisit = family.create
 // 頁首「最後處理」：同事最近一次動這筆案件（api/visitHistory.ts）。
 const handled = computed(() => (detail.value ? lastHandled(detail.value.history ?? [], authStore.user?.id ?? null) : null))
 const notes = ref<VisitContactNoteOut[]>([])
@@ -631,7 +636,8 @@ async function onRebooked(created: VisitRequestDetailOut) {
 // 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
 async function markCompleted() {
   // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
-  if (canReadAdmissions.value && admissionsLookup) await admissionsLookup
+  const lookupInFlight = canReadAdmissions.value ? family.settled() : null
+  if (lookupInFlight) await lookupInFlight
   const withAdmissions = admissionsAvailable.value === 'yes'
   if (withAdmissions) {
     try {
@@ -657,71 +663,11 @@ async function markCompleted() {
   }
 }
 
-// ---- 招生訪視（規格第 10 節）----
-// 有 admissions.read 才查；已到場但還沒有招生訪視（上線前的舊預約、或招生訪視被刪掉）時，
-// 有 admissions.write 的人可以補建（後端另要 booking.read，能看到這頁就有）。
-// 查詢成功＝招生可用；404＝招生未啟用；其他錯誤或沒查＝不確定（markCompleted 照舊）。
-const canReadAdmissions = computed(() => can('admissions.read'))
-const canCreateAdmissions = computed(() => can('admissions.write'))
-const admissionsVisit = ref<RecruitmentVisit | null>(null)
-const admissionsAvailable = ref<'yes' | 'no' | 'unknown'>('unknown')
-const creatingAdmissions = ref(false)
-
-// 進行中的查詢：markCompleted 要等它（只在查完仍是 unknown 才沿用舊行為）。
-let admissionsLookup: Promise<void> | null = null
-
-function loadAdmissionsVisit(): Promise<void> {
-  const run = fetchAdmissionsVisit().finally(() => {
-    if (admissionsLookup === run) admissionsLookup = null
-  })
-  admissionsLookup = run
-  return run
-}
-
-async function fetchAdmissionsVisit() {
-  const current = detail.value
-  admissionsVisit.value = null
-  admissionsAvailable.value = 'unknown'
-  if (!current || !canReadAdmissions.value) return
-  const gen = generation
-  try {
-    const rows = await listRecords({ campus_key: current.campus_key, visit_request_id: current.id, page: 1, page_size: 1 })
-    if (gen !== generation || detail.value?.id !== current.id) return
-    admissionsVisit.value = Array.isArray(rows) ? (rows[0] ?? null) : null
-    admissionsAvailable.value = 'yes'
-  } catch (err) {
-    if (gen !== generation || detail.value?.id !== current.id) return
-    // 404：招生入學未啟用，整區不顯示；其他錯誤讀不到也不影響處理案件。
-    if (err instanceof ApiError && err.status === 404) admissionsAvailable.value = 'no'
-  }
-}
-
-// 換案件或狀態變了（例如剛標記已到場）才重查；只是重讀明細不重查。
-watch(() => `${detail.value?.id ?? ''}|${detail.value?.status ?? ''}`, () => void loadAdmissionsVisit())
-
 // 帶 sy=all：到場當下寫入的入學學期不一定是招生頁預設的學年（本檔調整第 22 條）。
 const admissionsLink = computed(() => ({
   path: '/admissions',
   query: { campus: detail.value?.campus_key ?? '', tab: 'records', vr: detail.value?.id ?? '', sy: 'all' },
 }))
-
-async function createAdmissionsVisit() {
-  const current = detail.value
-  if (!current || creatingAdmissions.value) return
-  creatingAdmissions.value = true
-  try {
-    const created = await createFromVisitRequest(current.id)
-    if (detail.value?.id !== current.id) return
-    admissionsVisit.value = created
-    ElMessage.success('已建立招生訪視')
-  } catch (err) {
-    notifyError(apiErrorMessage(err, '建立招生訪視失敗'))
-    // 409：預約已不是已到場或已匿名化，重讀讓畫面跟上。
-    if (err instanceof ApiError && err.status === 409) await load({ quiet: true })
-  } finally {
-    creatingAdmissions.value = false
-  }
-}
 
 // ---- 參觀後追蹤（2026-10-04 規格 7.6）----
 // 已到場、有招生訪視時，在聯絡紀錄上方顯示招生的追蹤狀態，記錄聯絡、排下次聯絡都直接記在
