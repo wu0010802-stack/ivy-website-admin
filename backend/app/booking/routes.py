@@ -1280,6 +1280,14 @@ async def create_contact_note(
     except workflow_service.VersionConflict as exc:
         await db.rollback()
         raise _version_conflict(exc) from exc
+    # 聯絡內容是常含姓名、電話的自由文字：已依保存政策匿名化的案件不再收，否則
+    # 案件標成已匿名化，個資卻又寫回關聯表、要等下一輪清理才補清。
+    if visit_request.anonymized_at is not None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "VISIT_REQUEST_ANONYMIZED", "message": "這筆預約已依保存政策匿名化，不能再新增聯絡紀錄"},
+        )
     # 已到場、已取消的案件不列入「到期待追蹤」（pending_kinds.follow_up_due）：設了下次聯絡
     # 也永遠不會出現，直接擋下（2026-10-04 參觀後追蹤規格 6.6）。清除與單純記錄照舊。
     if payload.follow_up_at is not None and visit_request.status in pending_kinds.FOLLOW_UP_UNTRACKED_STATUSES:

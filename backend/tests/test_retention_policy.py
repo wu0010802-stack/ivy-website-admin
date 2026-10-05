@@ -248,6 +248,25 @@ async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_cli
 
 
 @pytest.mark.asyncio
+async def test_anonymized_case_rejects_new_contact_notes(app, admin_client, db_session):
+    """匿名化之後不能再記聯絡紀錄：聯絡內容是常含姓名、電話的自由文字，寫進已標成
+    匿名化的案件，要等下一輪清理才會補清（2026-10-04 資安掃描 #14）。"""
+    _allow_real_run(app)
+    case_id = await _case(db_session, name="要清掉的媽媽")
+    await admin_client.post(f"{BASE}/visit-requests/{case_id}/cancel")
+    await _age(db_session, case_id, cancelled=400)
+    assert (await admin_client.post(f"{BASE}/retention/run")).json()["total"] == 1
+
+    added = await admin_client.post(
+        f"{BASE}/visit-requests/{case_id}/contact-notes", json={"note": "王小明媽媽 0912345678"}
+    )
+    assert added.status_code == 409, added.text
+    assert added.json()["detail"]["code"] == "VISIT_REQUEST_ANONYMIZED"
+    notes = (await admin_client.get(f"{BASE}/visit-requests/{case_id}/contact-notes")).json()
+    assert all("0912345678" not in note["note"] for note in notes)
+
+
+@pytest.mark.asyncio
 async def test_scheduled_run_needs_policy_and_deployment_flag_once_per_day(app, admin_client, db_session):
     old_cancel = await _case(db_session, name="定期清理的媽媽")
     await admin_client.post(f"{BASE}/visit-requests/{old_cancel}/cancel")

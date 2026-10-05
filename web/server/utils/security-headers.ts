@@ -12,6 +12,9 @@
 // 實機驗證後再收緊（刻意延後，見稽核 shared-origin-no-script-csp）。
 // Permissions-Policy 不關 fullscreen／autoplay／picture-in-picture／
 // encrypted-media：HomeFilms.vue 的 YouTube iframe 需要它們。
+// 麥克風只在 /anniversary 這個文件開給同源（microphone=(self)）：「幫常春藤吹蠟燭」
+// 讓使用者按了按鈕後對著麥克風吹氣（只在瀏覽器裡算頻譜，不錄音、不上傳）；
+// 瀏覽器照樣會先問使用者，iframe 一樣拿不到。其他頁維持 microphone=()。
 // 不送 Cross-Origin-Opener-Policy：後台 Google 登入若走彈出視窗會被它切斷。
 const PUBLIC_CSP = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 
@@ -39,12 +42,15 @@ export const ADMIN_CSP = [
   "form-action 'self'"
 ].join('; ')
 
+const PERMISSIONS = 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()'
+const MIC_PAGE = /^\/anniversary\/?$/
+
 const BASE_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy': PUBLIC_CSP,
   'X-Frame-Options': 'SAMEORIGIN',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()'
+  'Permissions-Policy': PERMISSIONS
 }
 
 const ADMIN_PATH = /^\/admin(?:\/|$)/
@@ -56,6 +62,7 @@ const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/
 export function securityHeadersFor(path: string, websiteEnv: string): Record<string, string> {
   const pathname = path.split('?')[0] ?? '/'
   const headers: Record<string, string> = { ...BASE_HEADERS }
+  if (MIC_PAGE.test(pathname)) headers['Permissions-Policy'] = PERMISSIONS.replace('microphone=()', 'microphone=(self)')
   if (ADMIN_PATH.test(pathname)) {
     headers['Content-Security-Policy'] = ADMIN_CSP
     headers['X-Robots-Tag'] = 'noindex, nofollow'

@@ -26,6 +26,21 @@ const posters = [
 ]
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.woff2': 'font/woff2' }
 
+// Maps a request path to a file under root, or null when it would leave root.
+// Decode first: an encoded %2e%2e%2f only becomes ../ after decoding. Compare with
+// path.relative, not startsWith(root): a sibling such as ivy-website-admin-private
+// shares the prefix. Symlinks are followed on purpose (worktrees often symlink
+// web/node_modules to another checkout).
+function resolveInRoot(urlPath) {
+  let pathname
+  try { pathname = decodeURIComponent(new URL(urlPath, 'http://x').pathname) } catch { return null }
+  if (pathname.includes('\0')) return null
+  const file = path.join(root, pathname)
+  const rel = path.relative(root, file)
+  if (rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null
+  return file
+}
+
 function findPlaywright() {
   if (process.env.PLAYWRIGHT_CORE) return process.env.PLAYWRIGHT_CORE
   const npx = path.join(os.homedir(), '.npm/_npx')
@@ -36,11 +51,11 @@ function findPlaywright() {
   throw new Error('playwright-core not found; set PLAYWRIGHT_CORE')
 }
 
-;(async () => {
+async function main() {
   const { chromium } = require(findPlaywright())
   const server = createServer(async (req, res) => {
-    const file = path.join(root, decodeURIComponent(new URL(req.url, 'http://x').pathname))
-    if (!file.startsWith(root)) { res.writeHead(403).end(); return }
+    const file = resolveInRoot(req.url)
+    if (!file) { res.writeHead(403).end(); return }
     let body
     try { body = await readFile(file) } catch { res.writeHead(404).end(); return }
     res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(body)
@@ -79,4 +94,7 @@ function findPlaywright() {
     await browser.close()
     server.close()
   }
-})().catch(error => { console.error(error); process.exit(1) })
+}
+
+if (require.main === module) main().catch(error => { console.error(error); process.exit(1) })
+module.exports = { resolveInRoot }

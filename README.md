@@ -1,3 +1,39 @@
+## 2026-10-04 30 週年分頁 v2：孩子畫的高雄地圖、畫進 0 的結尾、30 支蠟筆蠟燭（`feature/anniversary-v2-20261004`）
+
+使用者要「依對我的了解自己找主題，優化 /anniversary 除了 30 週年影片的內容，盡量展示前端能力」。規則見 DESIGN.md「30 週年分頁 v2」，規格 `docs/superpowers/specs/2026-10-04-anniversary-v2-design.md`。
+
+- **正式站實測到的問題**：2006–2019、2022–2027 時間軸右側約兩個畫面高只有年份；蠟筆線停在左下角，跟影片結尾「孩子跳進 0 變成校徽」沒接上；2027 顯示「第 31 年」。
+- **新增**：時間軸旁黏住的「孩子畫的高雄地圖」（真實區界、湖、河與五校門牌座標，跟著年份長出校園與路線）；結尾線畫成 30、孩子跳進 0、校徽印在 0 裡；「幫常春藤吹蠟燭」（按住、劃過、麥克風三種吹法，Web Audio 音樂盒生日快樂歌）；畫板復原／重播／分享與蠟筆沙沙聲；拼圖格子彈簧。2027 改寫「滿 30 年」。
+- **資安標頭**：`/anniversary` 文件改 `microphone=(self)`，其他頁不變（`tests/security-headers.spec.ts`）。
+- **拿掉開發輔助用字**（使用者看完預覽後要求）：首屏海報說明、各段操作說明、「畫紙準備中」、蠟燭狀態字與麥克風說明、地圖「位置依門牌估算」；地圖只留授權要求的署名，蠟燭剩幾支只在吹到一半時出現。之後 `test:website` 78 檔 793 項、typecheck 通過，Playwright 1440／390 無 console 錯誤、無橫向捲動。
+- **rebase 到 main `5f6a0e8` 之後重驗**：web typecheck 通過、`test:website` 78 檔 789 項（main 的分校頁清理刪了幾項自己的測試）、`nuxt build` 通過；production server：`/anniversary` 是 `microphone=(self)`、`/` 與 `/about` 仍是 `microphone=()`，1440／390 開場→略過→整頁往下往回捲無 console 錯誤、無橫向捲動，按住吹氣時「還有 N 支」從 28 數到 1。沒跑 stack e2e（沒有任何 e2e 涵蓋這頁或資安標頭，這次也沒動後端、後台、預約）。
+- **地圖資料**：`node scripts/build-anniversary-map.mjs [--fetch]` 產生 `web/app/utils/anniversary/map-data.ts`。
+- **驗證**（Node 22）：
+  - `test:website` 78 檔 792 項全過（新增 `anniversary-v2.spec.ts` 20 項：地圖資料與年份→地圖、結尾路徑與版面、蠟燭風場、吹氣判斷、生日快樂歌音高、禁用字與 tokens；`security-headers.spec.ts` 加麥克風標頭）；web typecheck 通過；`nuxt build` 通過（兩則 postcss Lexical 警告是首頁 hero 既有的）。
+  - production server（fixture）：`/anniversary` 200、`Permissions-Policy` 為 `microphone=(self)`，`/about` 仍是 `microphone=()`；HTML gzip 66.5KB（地圖靜態線條改成掛上後才輸出，原本 72.9KB）。
+  - Playwright：1440×900、1366×650、1280×800、1100×800、768×1024、390×844 往下往回捲、減少動態、第一次進站開場自動播放→略過→飛進海報，都沒有 console 錯誤、沒有橫向捲動；axe（wcag2a/aa、best-practice）桌機與手機 0 項。
+  - 蠟燭：滑鼠劃過、按住按鈕吹熄、再點一次；麥克風用 Chrome 假裝置餵自製 WAV——寬頻氣流聲約 1 秒吹熄 30 支、吹完自動關麥克風，同樣響的純音不會熄；從別頁站內換頁進來時按麥克風會重新載入 `/anniversary#anni-cake` 一次。
+  - 畫板：畫三筆→⌘Z／Ctrl+Z 各復原一筆→重播→存圖與分享按鈕。
+  - 未驗證：真人對手機麥克風吹氣（iOS Safari／Android Chrome）、實機 Safari 的 `<use>` 與 container query、聲音實際聽感、stack e2e。
+
+## 2026-10-04 資安掃描複核：15 項中 13 項 main 已修，補 3 處（`fix/security-scan-20261004`，未部署）
+
+使用者交來 Codex Security 掃描報告（15 項：中 7、低 8）。報告掃的是 `feature/website-admin` 的 `d11d7e79`，落後 `origin/main` 655 個 commit；逐條對 main `15001574` 複核：
+
+- **main 已修（13 項）**：官網代理本文上限與串流上傳（#1 #2 #5，`web/server/routes/api/website/v1/[...].ts` 先驗 Content-Length、chunked 回 411）；訪客 IP 從 X-Forwarded-For 右邊取（#4，`web/shared/request-guard.ts`）；API 解析前限本文、素材上傳先驗 session（#7，`backend/app/common/body_limit.py`）；素材改 FileResponse／串流供檔（#3 #15）；帳號鎖在驗密碼之前（#6）；儀表板通知失敗數依校區（#8）；素材解碼丟 thread 且限 2 件（#10）；到期占位不計名額（#11）；`hide_parameters`（#12 的綁定參數部分）；換發 session 鎖 token 列（#13）；匿名化清聯絡紀錄並回補舊案、年齡與聯絡時段已是選項代碼（#14 的主要部分）。
+- **這次補的 3 處**：
+  - #12 殘留：asyncpg 例外字串帶 PostgreSQL 的 `DETAIL`（違反 NOT NULL／CHECK 時整列內容、唯一鍵衝突的鍵值），`hide_parameters` 管不到。`backend/app/logging_config.py` 新增 `RedactDatabaseErrorDetail`，掛在 root 與 uvicorn 的 handler 上，格式化堆疊時遮掉 DETAIL 與參數編碼錯誤裡的值；例外類別、錯誤本文、約束與資料表名稱照留。
+  - #14 殘留：已匿名化的案件仍可新增聯絡紀錄（要等下一輪清理才補清）。改回 409 `VISIT_REQUEST_ANONYMIZED`；`lock_editable` 在列鎖內重讀 `anonymized_at`，與清理互斥。
+  - #9：`design/entrance-curtain-a-velvet-20260922/render-posters.cjs` 本機靜態伺服器用 `startsWith(root)` 判斷，`%2e%2e%2f` 可讀到同前綴兄弟目錄。改用 `path.relative` 判斷、錯誤編碼回 403；不加 realpath 檢查（本機 worktree 常把 `web/node_modules` symlink 到別處）。
+- 沒有 migration、API 契約不變（`export_openapi.py --check` 一致）、後台與官網前端沒改。
+- 沒處理：`versions/before-seo-performance-20260921-203736` 快照裡的舊代理（#5 附帶，快照不部署、不修改）。
+- **驗證**（本機 PostgreSQL，獨立測試庫 `ivy_website_test_secscan`）：
+  - 先寫測試、在未修正版確認紅燈再修：`test_retention_policy.py::test_anonymized_case_rejects_new_contact_notes`（原本 201）；`test_secfix_platform.py` 新增 3 項（NOT NULL 違規的 `Failing row contains (…)` 原本整段進日誌、參數編碼錯誤、`configure_logging` 掛到 root 與 uvicorn handler）。
+  - 後端全套 1392 passed（機器同時有別的 session 跑測試，耗時 1 小時 41 分）；`export_openapi.py --check` 一致。
+  - 以 uvicorn 的 `LOGGING_CONFIG` 加 `configure_logging()` 實際記一筆，`uvicorn.error` 與 `app.*` 輸出都不含原值。
+  - `render-posters.cjs`：`node --check` 通過；`resolveInRoot` 對 `%2e%2e%2f<同前綴兄弟目錄>`、`..%2f`、`%00`、錯誤編碼都回 null（舊版放行兄弟目錄），`poster.html` 與 `web/node_modules/three` 照常解析。沒有實際重產海報。
+  - 未驗證：web／admin（沒改）、stack e2e、正式站。
+
 ## 2026-10-04 後台拿掉官網已不顯示的舊欄位：首屏小標、校園探索熱點（`feature/admin-legacy-fields-20261004`，未部署）
 
 使用者：「後台現在有舊的設計的欄位，可以幫我處理掉嗎」。10-03 的 `83ed17db` 已拿掉常見問題兩頁、分校頁預約橫幅與五校介紹的簡介／詳細介紹／首屏焦點；正式後台只剩兩處「官網不顯示、後台還能編」：首頁大圖標語的「標語上方的小標」（09-30 首屏改版拿掉）與校園探索的熱點（分校頁 10-03 拿掉，環境頁只用場景照片、名稱、說明）。範圍經使用者選定：後台＋後端規則＋官網死碼，後端 schema 舊欄位與已存資料不動。

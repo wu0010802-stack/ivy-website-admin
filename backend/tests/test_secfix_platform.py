@@ -9,6 +9,7 @@ PR #14（系統設計審查第一批修正）已先上線，這裡的測試改�
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 import subprocess
@@ -28,6 +29,7 @@ from starlette.requests import Request
 from app.common import ratelimit
 from app.common.ratelimit import Limit, RateLimited, RateLimiter
 from app.config import Settings
+from app.logging_config import RedactDatabaseErrorDetail, configure_logging
 from app import db as app_db
 from app.db import create_engine, create_session_factory
 from app.main import create_app
@@ -228,6 +230,67 @@ async def test_db_error_logs_never_include_bound_parameters(app, caplog):
             logged.extend(traceback.format_exception(*record.exc_info))
     assert any("division by zero" in line for line in logged), "應該要有資料層例外的 log"
     assert not any(pii in line for line in logged)
+
+
+async def test_db_error_logs_never_include_row_values(app, caplog):
+    """hide_parameters 只藏綁定參數。PostgreSQL 的 DETAIL（違反 NOT NULL／CHECK 時整列
+    內容、唯一鍵衝突的鍵值）在 asyncpg 例外字串裡，SQLAlchemy 又包進自己的訊息，照樣
+    整段寫進平台日誌（2026-10-04 資安掃描 #12）。錯誤種類與資料表名稱要留著除錯。"""
+    pii = "0912999777-secfix-row"
+
+    @app.get(f"{API}/_secfix_db_detail")
+    async def _db_detail() -> dict:
+        async with app.state.session_factory() as db:
+            await db.execute(text("CREATE TEMP TABLE secfix_rows (phone text, n int NOT NULL)"))
+            await db.execute(text("INSERT INTO secfix_rows VALUES (:phone, NULL)"), {"phone": pii})
+        return {}
+
+    caplog.set_level(logging.INFO)
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get(f"{API}/_secfix_db_detail")
+    assert response.status_code == 500
+    [record] = [r for r in caplog.records if r.exc_info]
+
+    # 用正式站的 handler 設定格式化（configure_logging 掛在每個平台 handler 上的過濾器）。
+    out = io.StringIO()
+    handler = logging.StreamHandler(out)
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    handler.addFilter(RedactDatabaseErrorDetail())
+    handler.handle(record)
+    logged = out.getvalue()
+    assert "violates not-null constraint" in logged and "secfix_rows" in logged
+    assert "NotNullViolationError" in logged
+    assert pii not in logged
+
+
+def test_db_error_redaction_covers_client_side_argument_errors():
+    """asyncpg 在送出前編碼參數失敗時，訊息直接帶參數值（不經 DETAIL）。"""
+    import asyncpg
+
+    pii = "0912999666-secfix-arg"
+    try:
+        try:
+            raise asyncpg.exceptions.DataError(f"invalid input for query argument $2: {pii!r} (expected int)")
+        except asyncpg.exceptions.DataError as exc:
+            raise RuntimeError("wrapped") from exc
+    except RuntimeError:
+        record = logging.LogRecord("app", logging.ERROR, __file__, 0, "boom", None, sys.exc_info())
+    RedactDatabaseErrorDetail().filter(record)
+    assert "query argument $2" in record.exc_text
+    assert pii not in record.exc_text
+
+
+def test_configure_logging_installs_redaction_on_platform_handlers(monkeypatch):
+    """root 的 handler 與 uvicorn 自己的 handler（ASGI 未處理例外由 uvicorn.error 記）都要掛。"""
+    root_handler = logging.StreamHandler(io.StringIO())
+    uvicorn_handler = logging.StreamHandler(io.StringIO())
+    monkeypatch.setattr(logging.getLogger(), "handlers", [root_handler])
+    monkeypatch.setattr(logging.getLogger("uvicorn"), "handlers", [uvicorn_handler])
+    configure_logging()
+    configure_logging()
+    for handler in (root_handler, uvicorn_handler):
+        assert [type(f) for f in handler.filters].count(RedactDatabaseErrorDetail) == 1
 
 
 # ------------------------------------------------------------------ IPv6 限流鍵

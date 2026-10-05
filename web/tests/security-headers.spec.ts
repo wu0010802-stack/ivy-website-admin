@@ -34,6 +34,15 @@ describe('資安標頭', () => {
     expect(securityHeadersFor('/admin/assets/index-abc.js', 'production')['Cache-Control']).toBeUndefined()
   })
 
+  it('麥克風只在 /anniversary 開給同源（吹蠟燭），其他頁與 iframe 一律關閉', () => {
+    for (const path of ['/anniversary', '/anniversary/', '/anniversary?x=1']) {
+      expect(securityHeadersFor(path, 'production')['Permissions-Policy']).toBe('camera=(), microphone=(self), geolocation=(), payment=(), usb=(), browsing-topics=()')
+    }
+    for (const path of ['/', '/about', '/visit', '/anniversary-x', '/anniversary/x', '/admin/']) {
+      expect(securityHeadersFor(path, 'production')['Permissions-Policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()')
+    }
+  })
+
   it('/administrator 之類的路徑不算後台；HSTS 只在正式環境送', () => {
     expect(securityHeadersFor('/administrator', 'production')['Content-Security-Policy']).not.toBe(ADMIN_CSP)
     expect(securityHeadersFor('/', 'development')['Strict-Transport-Security']).toBeUndefined()
