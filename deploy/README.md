@@ -16,7 +16,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 ## 2026-10-05 招生入學拿掉名額規劃、官網預約兩個分頁（main CI 部署）
 
 - **合併**：`feature/admissions-no-arrivals-20261005` 的 `51332515` 疊在 main `55c9d68f`（拿掉名額規劃）上，使用者快轉推 main `55c9d68f..51332515`。內容與驗證見 README 頂部同日兩段、DESIGN.md「拿掉官網預約分頁」「拿掉名額規劃」。
-- **名額規劃那次的 run 37315727803 顯示 cancelled**：被這次的 run 取代（同一個 concurrency group），不是失敗；`55c9d68f` 隨這次部署一起上線。
+- **名額規劃那次的 run 37315727803**：測試全綠，但第一次 Deploy 失敗——Railway api deployment `46b5a802` 停在 INITIALIZING 15 分鐘、沒有 build（`railway logs --build` 回「Deployment does not have an associated build」），`railway_ci.py` 等待逾時；Railway 狀態頁無事件，正式站維持 `982af30d`。重跑 Deploy 時這次的 `51332515` 已在跑，重跑排在它後面會用較舊的 snapshot 把它回退，所以手動取消重跑（因此顯示 cancelled）；`55c9d68f` 隨這次部署一起上線。`46b5a802` 在這次部署後變成 REMOVED，沒有手動處理。再遇到 INITIALIZING 卡住：先看 main 有沒有更新的 run，有的話別重跑舊的。
 - **migration**：無。後端刪掉 `GET /admin/admissions/arrivals`（只有後台在用），補建端點 `POST /admin/admissions/from-visit-request/{id}` 保留；名額 API 與資料不動。
 - **推前本機**：後端整套 pytest 1531 passed、1 skipped；admin vitest 94 檔 1203 項、`vue-tsc -b`、`contract:check` 通過；stack e2e 整套 74 項全過。
 - **CI**：main run 37319156480（`51332515`）全綠，建立到完成 25 分 42 秒（含等前一個 run 被取代）：Frontend admin 2.9／web 1.4 分鐘，Backend 三組 8.9／6.1／6.7 分鐘，E2E／Playwright 5.8 分鐘，Deploy 5.3 分鐘。

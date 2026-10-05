@@ -12,7 +12,7 @@
   - 另用臨時 spec 拍 1440／390：案件列表勾兩筆後批次鈕、勾選欄、手機卡片勾選框不橫向溢出；看板提示與連結（截圖在 `output/playwright/no-arrivals/`，臨時 spec 已刪）。
   - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
 
-## 2026-10-05 後台招生入學拿掉「名額規劃」（`feature/admissions-no-intake-20261005`）
+## 2026-10-05 後台招生入學拿掉「名額規劃」（`feature/admissions-no-intake-20261005`，10-05 隨 main `51332515` 部署）
 
 使用者指著正式站 `/admin/admissions?campus=yihua&tab=intake` 說「這個功能幫我拿掉」，範圍裁定為「分頁＋相關畫面，後端不動」。規則見 DESIGN.md「拿掉名額規劃」。
 
