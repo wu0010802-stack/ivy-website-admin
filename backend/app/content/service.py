@@ -321,15 +321,23 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
     if state is None or state.current_release_id is None:
         return None, {}
     inactive = await inactive_campus_keys(db)
+    content = await build_public_content(db, state.current_release_id, inactive, today_local().isoformat())
+    return str(state.current_release_id), content
 
+
+async def build_public_content(
+    db: AsyncSession, release_id: uuid.UUID, inactive: set[str] | frozenset[str], today: str
+) -> dict:
+    """某次 release 在「停用分校 inactive、台北日期 today」下的公開內容。
+    輸出只取決於這三個輸入（release 的 entries 與 revision.payload 建立後不再
+    修改），所以 /public/site 的程序內快取可以拿它們當鍵。"""
     result = await db.execute(
         select(SiteReleaseEntry, ContentRevision, ContentItem)
         .join(ContentRevision, SiteReleaseEntry.revision_id == ContentRevision.id)
         .join(ContentItem, SiteReleaseEntry.content_item_id == ContentItem.id)
-        .where(SiteReleaseEntry.release_id == state.current_release_id)
+        .where(SiteReleaseEntry.release_id == release_id)
     )
     content: dict = {}
-    today = today_local().isoformat()
     for _entry, revision, item in result.all():
         if item.campus_key is not None and item.campus_key in inactive:
             continue
@@ -351,7 +359,7 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
             campus_key: drop_unshared_faq_markers(campus_key, payload, content.get("shared_faq"))
             for campus_key, payload in content["campus_faq"].items()
         }
-    return str(state.current_release_id), content
+    return content
 
 
 def public_media_ids(content: dict) -> set[uuid.UUID]:

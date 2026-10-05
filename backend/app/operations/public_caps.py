@@ -82,15 +82,22 @@ def _log_first_drop(limit: ratelimit.Limit, key: str) -> None:
     )
 
 
-async def admit(limiter: ratelimit.RateLimiter, caps: Iterable[Cap]) -> bool:
+async def admit(limiter: ratelimit.RateLimiter, caps: Iterable[Cap], *, gate: Cap | None = None) -> bool:
     """依序檢查（全站每分鐘 → 每來源每日 → 全站每日），有一個滿了就回 False，
-    呼叫端不寫入。被前面擋下的不會佔用後面的額度。"""
-    for limit, key in caps:
-        try:
-            await limiter.check(limit, key)
-        except ratelimit.RateLimiterUnavailable:
-            return False
-        except ratelimit.RateLimited:
-            _log_first_drop(limit, key)
-            return False
-    return True
+    呼叫端不寫入。被前面擋下的不會佔用後面的額度。全部在同一個限流交易內
+    完成（ratelimit.check_chain）。
+
+    gate：要排在最前面、被擋時由呼叫端轉成 429 的檢查（telemetry 的單一來源
+    每分鐘上限）。gate 被擋、或限流池拿不到連線時丟 RateLimited；沒有 gate 時
+    拿不到連線照舊安靜丟棄（回 False，不記 warning）。"""
+    checks = ([gate] if gate is not None else []) + list(caps)
+    blocked = await limiter.check_chain(checks)
+    if blocked is None:
+        return True
+    index, exc = blocked
+    if gate is not None and index == 0:
+        raise exc
+    if not isinstance(exc, ratelimit.RateLimiterUnavailable):
+        limit, key = checks[index]
+        _log_first_drop(limit, key)
+    return False

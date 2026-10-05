@@ -6,7 +6,7 @@ import ipaddress
 import logging
 import math
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -124,31 +124,64 @@ class RateLimiter:
         by_window = dict(rows.all())
         return by_window.get(window_start - limit.window_seconds, 0), by_window.get(window_start, 0)
 
-    async def check(self, limit: Limit, key: str) -> None:
-        """未超過上限就記一次命中；超過則丟 RateLimited（被擋下的那次不計）。"""
+    async def _hit(self, conn: AsyncConnection, limit: Limit, key: str) -> int | None:
+        """在 conn 上做一次「檢查＋累加」；放行回 None，超過上限回 Retry-After
+        秒數（那次不計）。check 與 check_chain 共用，SQL 與語意只有這一份。"""
         key_hash = self._key_hash(limit, key)
         window_start, elapsed = self._window(limit)
         table = RateLimitCounter.__table__
+        previous, _ = await self._counts(conn, limit, key_hash, window_start)
+        carried = previous * self._previous_weight(limit, elapsed)
+        if carried >= limit.max_per_window:
+            return self._retry_after(limit, elapsed)
+        stmt = (
+            self._increment(limit, key_hash, window_start)
+            .on_conflict_do_update(
+                index_elements=[table.c.bucket, table.c.key_hash, table.c.window_start],
+                set_={"hits": table.c.hits + 1},
+                where=(table.c.hits + literal(carried)) < limit.max_per_window,
+            )
+            .returning(table.c.hits)
+        )
+        if (await conn.execute(stmt)).first() is None:
+            return self._retry_after(limit, elapsed)
+        return None
+
+    async def check(self, limit: Limit, key: str) -> None:
+        """未超過上限就記一次命中；超過則丟 RateLimited（被擋下的那次不計）。"""
         try:
             async with self._engine.begin() as conn:
-                previous, _ = await self._counts(conn, limit, key_hash, window_start)
-                carried = previous * self._previous_weight(limit, elapsed)
-                if carried >= limit.max_per_window:
-                    raise RateLimited(self._retry_after(limit, elapsed))
-                stmt = (
-                    self._increment(limit, key_hash, window_start)
-                    .on_conflict_do_update(
-                        index_elements=[table.c.bucket, table.c.key_hash, table.c.window_start],
-                        set_={"hits": table.c.hits + 1},
-                        where=(table.c.hits + literal(carried)) < limit.max_per_window,
-                    )
-                    .returning(table.c.hits)
-                )
-                if (await conn.execute(stmt)).first() is None:
-                    raise RateLimited(self._retry_after(limit, elapsed))
+                retry_after = await self._hit(conn, limit, key)
         except PoolTimeout as exc:
             logger.warning("限流連線池已滿，這次檢查當作超限：bucket=%s", limit.bucket)
             raise RateLimiterUnavailable(UNAVAILABLE_RETRY_AFTER_SECONDS) from exc
+        if retry_after is not None:
+            raise RateLimited(retry_after)
+
+    async def check_chain(self, checks: Sequence[tuple[Limit, str]]) -> tuple[int, RateLimited] | None:
+        """依序做多次 check，全部放在同一個交易、同一條連線（一次取連線、一次
+        commit），取代逐個呼叫 check 的 N 個交易。全部放行回 None；第一個被擋
+        的回 (序號, RateLimited)，之後的不再檢查。語意與逐個 check 相同：被擋
+        之前已放行的照常計數並 commit（所以被擋時不 rollback）、被擋的與其後
+        的都不計。拿不到連線時沒有任何一項被檢查，回 (0, RateLimiterUnavailable)。
+
+        鎖：每次累加會鎖住該列到 commit，所以呼叫端要以固定順序傳入（公開事件
+        一律是 gate → 全站每分鐘 → 每來源每日 → 全站每日），不同呼叫端的 bucket
+        互不重疊，不會形成互等。"""
+        if not checks:
+            return None
+        blocked: tuple[int, RateLimited] | None = None
+        try:
+            async with self._engine.begin() as conn:
+                for index, (limit, key) in enumerate(checks):
+                    retry_after = await self._hit(conn, limit, key)
+                    if retry_after is not None:
+                        blocked = (index, RateLimited(retry_after))
+                        break
+        except PoolTimeout:
+            logger.warning("限流連線池已滿，這次檢查當作超限：bucket=%s", checks[0][0].bucket)
+            return 0, RateLimiterUnavailable(UNAVAILABLE_RETRY_AFTER_SECONDS)
+        return blocked
 
     async def is_limited(self, limit: Limit, key: str) -> bool:
         """只看不記：判斷目前是否已達上限（例如登入失敗後決定要不要開始帳號鎖）。"""

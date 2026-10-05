@@ -302,6 +302,56 @@ async def test_public_site_lists_referenced_media_with_variants_and_focus(admin_
 
 
 @pytest.mark.asyncio
+async def test_public_site_cache_hits_and_invalidates_on_any_change(admin_client, public_client, db_session, monkeypatch):
+    """程序內快取：沒變時不重組內容、ETag 與本文一致；素材說明、刪除、分校停用
+    之後下一次請求立刻拿到新內容。"""
+    from datetime import datetime, timezone
+
+    from app.campuses.models import Campus
+    from app.content import service as content_service
+
+    builds = 0
+    real_build = content_service.build_public_content
+
+    async def counting_build(*args, **kwargs):
+        nonlocal builds
+        builds += 1
+        return await real_build(*args, **kwargs)
+
+    monkeypatch.setattr(content_service, "build_public_content", counting_build)
+    image = await _upload(admin_client)
+    saved = (await _save(admin_client, "home_about", _about(photo=_slot(image["id"]), photo_alt=""))).json()
+    await _publish(admin_client, "home_about", saved)
+
+    first = await public_client.get(f"{API}/public/site")
+    second = await public_client.get(f"{API}/public/site")
+    assert builds == 1
+    assert first.content == second.content and first.headers["etag"] == second.headers["etag"]
+    not_modified = await public_client.get(f"{API}/public/site", headers={"If-None-Match": first.headers["etag"]})
+    assert not_modified.status_code == 304 and builds == 1
+
+    # 素材 metadata 變動：本文要立刻換。
+    await admin_client.patch(f"{MEDIA}/{image['id']}", json={"expected_version": 1, "alt_text": "新的說明"})
+    changed = await public_client.get(f"{API}/public/site")
+    assert changed.json()["media"][image["id"]]["alt_text"] == "新的說明"
+    assert changed.headers["etag"] != first.headers["etag"]
+
+    # 分校停用：換內容鍵，重組。
+    before = builds
+    await db_session.execute(Campus.__table__.update().where(Campus.key == "yihua").values(active=False))
+    await db_session.commit()
+    await public_client.get(f"{API}/public/site")
+    assert builds == before + 1
+
+    # 素材被標記刪除：公開輸出立刻不再列它。
+    asset = await db_session.get(MediaAsset, uuid.UUID(image["id"]))
+    asset.deleted_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    gone = await public_client.get(f"{API}/public/site")
+    assert image["id"] not in gone.json()["media"]
+
+
+@pytest.mark.asyncio
 async def test_replace_references_rewrites_slot_media_id(admin_client):
     old = await _upload(admin_client)
     new = await _upload(admin_client, data=_jpeg(120, 90))

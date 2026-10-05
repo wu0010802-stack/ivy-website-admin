@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -143,6 +143,13 @@ class AuditLogEntry(Base):
     修改前後的完整值。"""
 
     __tablename__ = "audit_log_entries"
+    __table_args__ = (
+        # 稽核頁 keyset 分頁：ORDER BY created_at DESC, id DESC（有分校篩選時前面多一欄）。
+        Index("ix_audit_log_entries_created_at_id", text("created_at DESC"), text("id DESC")),
+        Index(
+            "ix_audit_log_entries_campus_created_at_id", "campus_key", text("created_at DESC"), text("id DESC")
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(

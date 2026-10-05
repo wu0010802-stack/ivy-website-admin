@@ -8,6 +8,8 @@ import uuid
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
+from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -239,10 +241,18 @@ async def get_public_booking_config(
     if campus is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
 
-    config = await service.get_or_create_config(db, campus_key)
+    # 公開讀取不寫庫：還沒有設定列的校區回「剛建立的預設設定」（暫停、版本 0），
+    # 設定列由後台第一次讀／存、排時段與補登案件時建立（get_or_create_config）。
+    # 送單端點沒有設定列時回「目前不開放預約」，與預設的暫停設定結果相同。
+    config = await service.get_config(db, campus_key)
     privacy = await consent.published_privacy_notice(db)
-    await db.commit()
-    out = PublicBookingConfigOut.model_validate(config)
+    if config is None:
+        out = PublicBookingConfigOut(
+            campus_key=campus_key, mode=BookingMode.PAUSED, version=0,
+            line_url=None, phone=None, external_url=None, message=None,
+        )
+    else:
+        out = PublicBookingConfigOut.model_validate(config)
     settings = request.app.state.settings
     out = out.model_copy(update={"parent_email_enabled": bool(settings.smtp_host)})
     if settings.turnstile_enabled:
@@ -996,81 +1006,119 @@ async def visit_request_group_counts(
 _SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
 
 
+def _safe_cell(value: str | None) -> str:
+    """CSV 公式注入防護：儲存格開頭若是 = + - @ 這些會被試算表當成
+    公式執行的字元，前面補一個單引號讓它變成純文字。"""
+    text = "" if value is None else str(value)
+    # 試算表會略過開頭的空白與控制字元（TAB、CR、LF…）再判斷是不是
+    # 公式，所以要看去掉這些字元後的第一個字，不能只看 text[0]。
+    # 控制字元本身開頭也一併視為危險，一律補單引號。
+    if text and (
+        text[0].isspace()
+        or not text[0].isprintable()
+        or text.lstrip()[:1] in ("=", "+", "-", "@")
+    ):
+        return "'" + text
+    return text
+
+
+def _export_row(r: VisitRequest) -> list[str]:
+    return [
+        _safe_cell(export_labels.campus_label(r.campus_key)),
+        _safe_cell(export_labels.status_label(r.status)),
+        _safe_cell(export_labels.source_label(r.source)),
+        _safe_cell(r.parent_name),
+        _safe_cell(export_labels.format_phone(r.phone)),
+        r.created_at.astimezone(OPERATING_TZ).strftime("%Y/%m/%d %H:%M"),
+        _safe_cell(r.child_name),
+        r.child_birthdate.strftime("%Y/%m/%d") if r.child_birthdate else "",
+        _safe_cell(r.email),
+        _safe_cell(export_labels.referral_label(r.referral_sources)),
+        # 舊案件沒有人數，留空。
+        str(r.party_size) if r.party_size is not None else "",
+        r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
+        r.slot.start_time.strftime("%H:%M") if r.slot else "",
+        r.slot.end_time.strftime("%H:%M") if r.slot else "",
+    ]
+
+
+# 匯出一批從資料庫取幾筆、輸出一個 chunk 幾筆。
+_EXPORT_BATCH = 500
+
+
+async def _stream_export_csv(snapshot: AsyncSession, stmt):
+    """邊讀邊產生 CSV。snapshot 是匯出專用的獨立 session，讀完或中斷（客戶端
+    斷線）都在這裡關閉；串流還沒開始就斷線時由回應的 background 關。
+
+    給園方用 Excel 直接開：中文欄名與代碼對照、台北時間；開頭加 BOM，Excel 才
+    認得是 UTF-8，不然中文整份亂碼。每個欄位只出現一次（同名欄位在樞紐分析或
+    匯入其他系統時會混淆）。"""
+    try:
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(export_labels.EXPORT_HEADERS)
+        rows = await snapshot.stream_scalars(stmt.execution_options(yield_per=_EXPORT_BATCH))
+        pending = 0
+        first = True
+        async for r in rows:
+            writer.writerow(_export_row(r))
+            pending += 1
+            if pending >= _EXPORT_BATCH:
+                yield (("\ufeff" if first else "") + buffer.getvalue()).encode("utf-8")
+                first = False
+                buffer.seek(0)
+                buffer.truncate()
+                pending = 0
+        yield (("\ufeff" if first else "") + buffer.getvalue()).encode("utf-8")
+    finally:
+        await snapshot.close()
+
+
 @router.get("/admin/visit-requests/export")
 async def export_visit_requests(
+    request: Request,
     filters: VisitRequestFilters = Depends(),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """依畫面上目前的篩選條件匯出（不分頁）。"""
+    # 串流輸出，不一次把全部案件載進記憶體。筆數與內容取自同一個
+    # REPEATABLE READ 快照（匯出專用的獨立 session，交易生命週期跟回應一樣長，
+    # 不能用請求注入的 session——它可能在串流完成前就關了），稽核紀錄在送出
+    # 第一個位元組之前寫好並 commit，筆數就是快照內實際會輸出的筆數。
     require_scope(current_user, "booking.export")
-    stmt = filters.apply(select(VisitRequest).options(selectinload(VisitRequest.slot)), current_user, "booking.export")
-    stmt = stmt.order_by(VisitRequest.created_at.desc())
-    result = await db.execute(stmt)
+    base = filters.apply(select(VisitRequest), current_user, "booking.export")
+    stmt = base.options(selectinload(VisitRequest.slot)).order_by(VisitRequest.created_at.desc())
 
-    def _safe_cell(value: str | None) -> str:
-        """CSV 公式注入防護：儲存格開頭若是 = + - @ 這些會被試算表當成
-        公式執行的字元，前面補一個單引號讓它變成純文字。"""
-        text = "" if value is None else str(value)
-        # 試算表會略過開頭的空白與控制字元（TAB、CR、LF…）再判斷是不是
-        # 公式，所以要看去掉這些字元後的第一個字，不能只看 text[0]。
-        # 控制字元本身開頭也一併視為危險，一律補單引號。
-        if text and (
-            text[0].isspace()
-            or not text[0].isprintable()
-            or text.lstrip()[:1] in ("=", "+", "-", "@")
-        ):
-            return "'" + text
-        return text
+    snapshot = request.app.state.session_factory()
+    try:
+        await snapshot.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+        exported = (await snapshot.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
-    # 給園方用 Excel 直接開：中文欄名與代碼對照、台北時間；開頭加 BOM，
-    # Excel 才認得是 UTF-8，不然中文整份亂碼。每個欄位只出現一次（同名欄位
-    # 在樞紐分析或匯入其他系統時會混淆）。
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow(export_labels.EXPORT_HEADERS)
-    exported = 0
-    for r in result.scalars():
-        writer.writerow(
-            [
-                _safe_cell(export_labels.campus_label(r.campus_key)),
-                _safe_cell(export_labels.status_label(r.status)),
-                _safe_cell(export_labels.source_label(r.source)),
-                _safe_cell(r.parent_name),
-                _safe_cell(export_labels.format_phone(r.phone)),
-                r.created_at.astimezone(OPERATING_TZ).strftime("%Y/%m/%d %H:%M"),
-                _safe_cell(r.child_name),
-                r.child_birthdate.strftime("%Y/%m/%d") if r.child_birthdate else "",
-                _safe_cell(r.email),
-                _safe_cell(export_labels.referral_label(r.referral_sources)),
-                # 舊案件沒有人數，留空。
-                str(r.party_size) if r.party_size is not None else "",
-                r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
-                r.slot.start_time.strftime("%H:%M") if r.slot else "",
-                r.slot.end_time.strftime("%H:%M") if r.slot else "",
-            ]
+        # 個資批次外流一定要留痕：誰、什麼時候、用什麼條件匯出了哪個校區的幾筆。
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="visit_request.export",
+            target_type="visit_request",
+            target_id=filters.campus_key or "all",
+            campus_key=filters.campus_key,
+            metadata={"row_count": exported, **filters.audit_metadata()},
         )
-        exported += 1
-
-    # 個資批次外流一定要留痕：誰、什麼時候、用什麼條件匯出了哪個校區的幾筆。
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="visit_request.export",
-        target_type="visit_request",
-        target_id=filters.campus_key or "all",
-        campus_key=filters.campus_key,
-        metadata={"row_count": exported, **filters.audit_metadata()},
-    )
-    await db.commit()
+        await db.commit()
+    except BaseException:
+        await snapshot.close()
+        raise
     # 一律當附件下載，且不進瀏覽器快取：共用櫃台電腦上，含全校家長姓名與
     # 手機的 CSV 不能留在磁碟快取或上一頁紀錄裡（稽核 admin-booking-api-no-store-missing）。
     # 檔名只放安全字元，篩選值不直接進 header。
     campus_part = filters.campus_key if filters.campus_key and _SAFE_FILENAME_PART.fullmatch(filters.campus_key) else "all"
     filename = f"visit-requests-{campus_part}-{today_local():%Y%m%d}.csv"
-    return Response(
-        content="\ufeff" + buffer.getvalue(),
+    return StreamingResponse(
+        _stream_export_csv(snapshot, stmt),
         media_type="text/csv; charset=utf-8",
+        # close 可重複呼叫：產生器跑完已關的話這裡什麼都不做
+        background=BackgroundTask(snapshot.close),
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
             "Cache-Control": "private, no-store",

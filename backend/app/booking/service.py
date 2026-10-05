@@ -71,6 +71,12 @@ def config_snapshot(config: BookingConfig) -> dict:
     return snapshot
 
 
+async def get_config(db: AsyncSession, campus_key: str) -> BookingConfig | None:
+    """唯讀取設定列；沒有就回 None，不建立（公開端點用）。"""
+    result = await db.execute(select(BookingConfig).where(BookingConfig.campus_key == campus_key))
+    return result.scalar_one_or_none()
+
+
 async def get_or_create_config(
     db: AsyncSession, campus_key: str, *, for_update: bool = False
 ) -> BookingConfig:

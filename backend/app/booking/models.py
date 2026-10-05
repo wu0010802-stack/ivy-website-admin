@@ -110,6 +110,10 @@ class VisitRequest(Base):
             "cancel_reason IS NULL OR cancel_reason IN ('parent', 'staff', 'hold_expired')",
             name="ck_visit_requests_cancel_reason",
         ),
+        # 後台列表、CSV 匯出依 created_at 由新到舊排序。
+        Index("ix_visit_requests_created_at", "created_at"),
+        # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。
+        Index("ix_visit_requests_campus_phone_created_at", "campus_key", "phone", "created_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -217,6 +221,8 @@ class VisitSlot(Base):
             "closed_source IS NULL OR closed_source IN ('manual', 'exception', 'rule')",
             name="ck_visit_slots_closed_source",
         ),
+        # 公開時段查詢、可預約數與後台時段頁都是「某校＋日期範圍」。
+        Index("ix_visit_slots_campus_slot_date", "campus_key", "slot_date"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

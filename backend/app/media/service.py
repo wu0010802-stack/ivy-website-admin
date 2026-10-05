@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import ARRAY, Uuid, bindparam, delete, func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -370,6 +370,30 @@ async def current_release_media_ids(db: AsyncSession) -> frozenset[uuid.UUID]:
 
 def _percent(value: float | None) -> float | None:
     return None if value is None else round(value * 100, 2)
+
+
+_PUBLIC_MEDIA_FINGERPRINT_SQL = text(
+    """
+    SELECT md5(coalesce(string_agg(t.row_json, ';' ORDER BY t.id), '')) FROM (
+        SELECT a.id, jsonb_build_array(
+            a.id, a.status, a.kind, a.content_type, a.width, a.height, a.alt_text,
+            a.crop_focus_x, a.crop_focus_y, a.deleted_at,
+            (SELECT jsonb_agg(jsonb_build_array(v.id, v.kind, v.width, v.height) ORDER BY v.id)
+               FROM media_variants v WHERE v.media_id = a.id)
+        )::text AS row_json
+        FROM media_assets a WHERE a.id = ANY(:ids)
+    ) t
+    """
+).bindparams(bindparam("ids", type_=ARRAY(Uuid)))
+
+
+async def public_media_fingerprint(db: AsyncSession, media_ids: set[uuid.UUID] | frozenset[uuid.UUID]) -> str:
+    """public_media 輸出會用到的欄位（狀態、刪除、尺寸、說明、焦點、衍生檔）的
+    雜湊，一個查詢、不載入衍生檔以外的資料。任何一個欄位變動雜湊就不同，
+    /public/site 的快取靠它判斷素材有沒有變（素材表沒有 updated_at）。"""
+    if not media_ids:
+        return ""
+    return (await db.execute(_PUBLIC_MEDIA_FINGERPRINT_SQL, {"ids": sorted(media_ids)})).scalar_one()
 
 
 async def public_media(db: AsyncSession, media_ids: set[uuid.UUID]) -> dict[str, PublicMediaOut]:

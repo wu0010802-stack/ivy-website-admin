@@ -168,3 +168,39 @@ async def test_concurrent_requests_do_not_deadlock_the_connection_pool(app, publ
 
     responses = await asyncio.wait_for(asyncio.gather(*(click(i) for i in range(total))), timeout=20)
     assert [r.status_code for r in responses] == [204] * total
+
+
+async def test_check_chain_counts_passed_checks_and_stops_at_first_blocked(limiter, db_session):
+    """被擋時前面放行的仍然計數並 commit，被擋的與其後的都不計——跟逐個 check 相同。"""
+    first = Limit("chain_first", window_seconds=60, max_per_window=5)
+    tight = Limit("chain_tight", window_seconds=60, max_per_window=1)
+    last = Limit("chain_last", window_seconds=60, max_per_window=5)
+    checks = [(first, "k"), (tight, "k"), (last, "k")]
+
+    assert await limiter.check_chain(checks) is None
+    blocked = await limiter.check_chain(checks)
+    assert blocked is not None
+    index, exc = blocked
+    assert index == 1 and isinstance(exc, RateLimited) and 1 <= exc.retry_after_seconds <= 60
+
+    rows = dict((await db_session.execute(select(RateLimitCounter.bucket, RateLimitCounter.hits))).all())
+    assert rows == {"chain_first": 2, "chain_tight": 1, "chain_last": 1}
+
+
+async def test_check_chain_runs_in_a_single_transaction(app, limiter):
+    """N 次檢查只開一次交易（一次取連線），這是合併的目的。"""
+    from sqlalchemy import event
+
+    begins = 0
+
+    def on_begin(conn):
+        nonlocal begins
+        begins += 1
+
+    sync_engine = app.state.engine.sync_engine
+    event.listen(sync_engine, "begin", on_begin)
+    try:
+        await limiter.check_chain([(Limit(f"chain_{n}", 60, 5), "k") for n in range(4)])
+    finally:
+        event.remove(sync_engine, "begin", on_begin)
+    assert begins == 1

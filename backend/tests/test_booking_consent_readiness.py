@@ -752,3 +752,21 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
     assert str(item.current_published_revision_id) == carried_id
     published = await db_session.get(ContentRevision, item.current_published_revision_id)
     assert published.payload["consent_text"] == FORMAL_CONSENT_TEXT
+
+
+@pytest.mark.asyncio
+async def test_public_booking_config_is_read_only_and_matches_fresh_default(public_client, admin_client, db_session):
+    """公開讀取不建設定列；沒有設定列時的回應與後台第一次讀時建立的預設設定逐欄相同。"""
+    from app.booking.models import BookingConfig
+
+    first = await public_client.get(f"{API}/public/booking-config/chongde")
+    assert first.status_code == 200
+    count = (await db_session.execute(select(func.count()).select_from(BookingConfig))).scalar_one()
+    assert count == 0
+
+    admin_view = await admin_client.get(f"{API}/admin/booking-config/chongde")
+    assert admin_view.status_code == 200
+    created = (await db_session.execute(select(func.count()).select_from(BookingConfig))).scalar_one()
+    assert created == 1
+    assert (await public_client.get(f"{API}/public/booking-config/chongde")).json() == first.json()
+    assert first.json()["mode"] == "paused" and first.json()["version"] == 0

@@ -192,3 +192,25 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
     }
     assert by_query[-1] == {"row_count": 1, "needs_attention": True}
     assert all(a.campus_key == "yihua" for a in audits)
+
+
+@pytest.mark.asyncio
+async def test_export_streams_in_batches_and_audit_count_matches_output(admin_client, db_session, monkeypatch):
+    """跨多個批次：BOM 只在開頭一次、列數與排序（新到舊）正確，稽核筆數等於實際輸出筆數。"""
+    from app.booking import routes as booking_routes
+
+    monkeypatch.setattr(booking_routes, "_EXPORT_BATCH", 2)
+    slot_id = await create_slot(admin_client, capacity=10)
+    for n in range(5):
+        await _manual(admin_client, slot_id=slot_id, parent_name=f"家長{n}", phone=f"09123456{n:02d}")
+
+    resp = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["cache-control"] == "private, no-store"
+    assert resp.headers["content-disposition"].startswith('attachment; filename="visit-requests-yihua-')
+    text = resp.content.decode("utf-8")
+    assert text.startswith("﻿") and text.count("﻿") == 1
+    rows = list(csv.DictReader(io.StringIO(text.lstrip("﻿"))))
+    assert [r["家長"] for r in rows] == [f"家長{n}" for n in (4, 3, 2, 1, 0)]
+    entry = (await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "visit_request.export"))).scalar_one()
+    assert entry.metadata_json["row_count"] == len(rows) == 5

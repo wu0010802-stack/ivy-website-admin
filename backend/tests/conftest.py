@@ -160,10 +160,12 @@ def _reset_process_caches():
     只重置仍留在 process 記憶體內、會跨測試累積的節流與快取。"""
     from app.operations import public_caps, traffic_service
     from app.media import service as media_service
+    from app.content import routes as content_routes
 
     traffic_service._last_purge = None
     media_service._release_media_cache = None
     public_caps._last_logged.clear()
+    content_routes._public_site_cache.reset()
     yield
 
 

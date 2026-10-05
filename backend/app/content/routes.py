@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 import hashlib
 import uuid
@@ -23,7 +24,17 @@ from app.auth.permissions import (
 )
 from app.content import notices, service
 from app.content import publish_jobs
-from app.content.models import ContentItem, ContentRevision, PublishJob, ReleaseSource, SiteRelease, SiteReleaseEntry
+from app.campuses.models import Campus
+from app.common.timezones import today_local
+from app.content.models import (
+    ContentItem,
+    ContentRevision,
+    PublishJob,
+    ReleaseSource,
+    SiteRelease,
+    SiteReleaseEntry,
+    SiteState,
+)
 from app.media.models import MediaAsset, MediaStatus
 from app.media.schemas import (
     MediaReplaceReferencesOut,
@@ -539,6 +550,88 @@ def _etag_matches(header: str | None, etag: str) -> bool:
     return False
 
 
+class _PublicSiteCache:
+    """/public/site 的程序內快取：序列化後的本文與 ETag。分兩層——
+    content：鍵是 (release id, 停用分校, 台北日期)，這三個決定公開內容（release 的
+      entries 與 revision.payload 建立後不再修改；活動過期靠日期、分校停用靠
+      campuses.active），連同內容引用的素材 id；
+    body：content 鍵加上素材指紋（media.service.public_media_fingerprint，涵蓋輸出
+      用到的所有素材欄位與衍生檔）。
+    命中時一次請求只付「release／停用分校」與「素材指紋」兩個輕量查詢；任何發布、
+    還原、排程生效（換 release）、分校啟停、素材改動、跨日，鍵或指紋就不同，下一
+    次請求立刻重算，不靠寫入端失效，所以多個 worker 之間也一致。只留最新一份。"""
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        self.content_key: tuple | None = None
+        self.content: dict = {}
+        self.media_ids: frozenset[uuid.UUID] = frozenset()
+        self.body_key: tuple | None = None
+        self.body: bytes = b""
+        self.etag: str = ""
+        # single-flight：同時多個請求都沒命中時只有一個去重算，其他等它做完再看快取。
+        self.lock: asyncio.Lock | None = None
+
+
+_public_site_cache = _PublicSiteCache()
+
+
+def _public_site_hit(key: tuple, fingerprint: str) -> tuple[bytes, str] | None:
+    cache = _public_site_cache
+    if cache.body_key == (key, fingerprint):
+        return cache.body, cache.etag
+    return None
+
+
+async def _public_site_body(db: AsyncSession) -> tuple[bytes, str] | None:
+    """(本文, ETag)；官網還沒發布過回 None。輸出與逐次重算完全相同。"""
+    cache = _public_site_cache
+    row = (
+        await db.execute(
+            select(
+                SiteState.current_release_id,
+                select(func.array_agg(Campus.key)).where(Campus.active.is_(False)).scalar_subquery(),
+            ).select_from(SiteState).where(SiteState.id == 1)
+        )
+    ).first()
+    if row is None or row[0] is None:
+        return None
+    release_id = row[0]
+    key = (release_id, frozenset(row[1] or ()), today_local().isoformat())
+    if cache.content_key == key:
+        fingerprint = await media_service.public_media_fingerprint(db, cache.media_ids)
+        hit = _public_site_hit(key, fingerprint)
+        if hit is not None:
+            return hit
+    if cache.lock is None:
+        cache.lock = asyncio.Lock()
+    async with cache.lock:
+        if cache.content_key != key:
+            content = await service.build_public_content(db, release_id, key[1], key[2])
+            cache.media_ids = frozenset(service.public_media_ids(content))
+            cache.content = content
+            cache.content_key = key
+            cache.body_key = None
+        fingerprint = await media_service.public_media_fingerprint(db, cache.media_ids)
+        hit = _public_site_hit(key, fingerprint)
+        if hit is not None:
+            return hit
+        media = await media_service.public_media(db, set(cache.media_ids))
+        body = PublicSiteOut(
+            schema_version=PUBLIC_SCHEMA_VERSION, release_id=str(release_id), content=cache.content, media=media
+        ).model_dump_json().encode()
+        etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
+        # 讀素材的期間若又被改了就不存：存了會把較新的本文掛在舊指紋底下，
+        # 之後素材改回原樣時就會誤命中。
+        if await media_service.public_media_fingerprint(db, cache.media_ids) == fingerprint:
+            cache.body_key = (key, fingerprint)
+            cache.body = body
+            cache.etag = etag
+        return body, etag
+
+
 @router.get(
     "/public/site",
     response_model=PublicSiteOut,
@@ -554,18 +647,15 @@ async def get_public_site(
     """規格 L311：帶 ETag。內容除了發布紀錄，還會隨日期（活動過期）、分校
     停用與素材狀態改變，所以 ETag 直接取輸出本文的雜湊，不另外推算版本。
     官網與瀏覽器帶 If-None-Match 重新驗證時，沒變就回 304、不再傳整份內容。"""
-    release_id, content = await service.get_public_content(db)
-    if release_id is None:
+    # 本文與 ETag 有程序內快取（見 _PublicSiteCache），內容或素材一變就重算。
+    cached = await _public_site_body(db)
+    if cached is None:
         # 帶代碼讓後台分得出「還沒發布過」與服務暫時無法使用（兩者都是 503）。
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={"code": "NO_PUBLISHED_CONTENT", "message": "尚無可用內容"},
         )
-    media = await media_service.public_media(db, service.public_media_ids(content))
-    body = PublicSiteOut(
-        schema_version=PUBLIC_SCHEMA_VERSION, release_id=release_id, content=content, media=media
-    ).model_dump_json().encode()
-    etag = f'"{hashlib.sha256(body).hexdigest()[:32]}"'
+    body, etag = cached
     headers = {"Cache-Control": "no-cache, max-age=0", "ETag": etag}
     if _etag_matches(request.headers.get("if-none-match"), etag):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)

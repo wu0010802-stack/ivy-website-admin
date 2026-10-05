@@ -148,19 +148,22 @@ async def record_telemetry(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
+    # 單一來源上限（被擋回 429）與全站／每來源每日上限（被擋安靜丟棄回 204）在
+    # 同一個限流交易內依序檢查。visit_click 只留在 web 的日誌；預約轉換看「預約
+    # 流程」的漏斗。不寫資料庫，也不佔全站上限。
+    caps = () if payload.event == "visit_click" else public_caps.telemetry_limits(
+        request.app.state.settings, _trusted_source(request)
+    )
     try:
-        await ratelimit.limiter(request).check(TELEMETRY_LIMIT, ratelimit.client_key(request))
+        admitted = await public_caps.admit(
+            ratelimit.limiter(request), caps, gate=(TELEMETRY_LIMIT, ratelimit.client_key(request))
+        )
     except ratelimit.RateLimited as exc:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
-    if payload.event == "visit_click":
-        # visit_click 只留在 web 的日誌；預約轉換看「預約流程」的漏斗。不寫
-        # 資料庫，也不佔全站上限。
-        return
-    caps = public_caps.telemetry_limits(request.app.state.settings, _trusted_source(request))
-    if not await public_caps.admit(ratelimit.limiter(request), caps):
+    if not admitted or payload.event == "visit_click":
         return
     if payload.event == "page_view":
         await traffic_service.record_page_view(db, page=payload.page, campus_key=payload.campus, device=payload.device)
