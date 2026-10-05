@@ -1,3 +1,21 @@
+## 2026-10-04 資安掃描複核：15 項中 13 項 main 已修，補 3 處（`fix/security-scan-20261004`，未部署）
+
+使用者交來 Codex Security 掃描報告（15 項：中 7、低 8）。報告掃的是 `feature/website-admin` 的 `d11d7e79`，落後 `origin/main` 655 個 commit；逐條對 main `15001574` 複核：
+
+- **main 已修（13 項）**：官網代理本文上限與串流上傳（#1 #2 #5，`web/server/routes/api/website/v1/[...].ts` 先驗 Content-Length、chunked 回 411）；訪客 IP 從 X-Forwarded-For 右邊取（#4，`web/shared/request-guard.ts`）；API 解析前限本文、素材上傳先驗 session（#7，`backend/app/common/body_limit.py`）；素材改 FileResponse／串流供檔（#3 #15）；帳號鎖在驗密碼之前（#6）；儀表板通知失敗數依校區（#8）；素材解碼丟 thread 且限 2 件（#10）；到期占位不計名額（#11）；`hide_parameters`（#12 的綁定參數部分）；換發 session 鎖 token 列（#13）；匿名化清聯絡紀錄並回補舊案、年齡與聯絡時段已是選項代碼（#14 的主要部分）。
+- **這次補的 3 處**：
+  - #12 殘留：asyncpg 例外字串帶 PostgreSQL 的 `DETAIL`（違反 NOT NULL／CHECK 時整列內容、唯一鍵衝突的鍵值），`hide_parameters` 管不到。`backend/app/logging_config.py` 新增 `RedactDatabaseErrorDetail`，掛在 root 與 uvicorn 的 handler 上，格式化堆疊時遮掉 DETAIL 與參數編碼錯誤裡的值；例外類別、錯誤本文、約束與資料表名稱照留。
+  - #14 殘留：已匿名化的案件仍可新增聯絡紀錄（要等下一輪清理才補清）。改回 409 `VISIT_REQUEST_ANONYMIZED`；`lock_editable` 在列鎖內重讀 `anonymized_at`，與清理互斥。
+  - #9：`design/entrance-curtain-a-velvet-20260922/render-posters.cjs` 本機靜態伺服器用 `startsWith(root)` 判斷，`%2e%2e%2f` 可讀到同前綴兄弟目錄。改用 `path.relative` 判斷、錯誤編碼回 403；不加 realpath 檢查（本機 worktree 常把 `web/node_modules` symlink 到別處）。
+- 沒有 migration、API 契約不變（`export_openapi.py --check` 一致）、後台與官網前端沒改。
+- 沒處理：`versions/before-seo-performance-20260921-203736` 快照裡的舊代理（#5 附帶，快照不部署、不修改）。
+- **驗證**（本機 PostgreSQL，獨立測試庫 `ivy_website_test_secscan`）：
+  - 先寫測試、在未修正版確認紅燈再修：`test_retention_policy.py::test_anonymized_case_rejects_new_contact_notes`（原本 201）；`test_secfix_platform.py` 新增 3 項（NOT NULL 違規的 `Failing row contains (…)` 原本整段進日誌、參數編碼錯誤、`configure_logging` 掛到 root 與 uvicorn handler）。
+  - 後端全套 1392 passed（機器同時有別的 session 跑測試，耗時 1 小時 41 分）；`export_openapi.py --check` 一致。
+  - 以 uvicorn 的 `LOGGING_CONFIG` 加 `configure_logging()` 實際記一筆，`uvicorn.error` 與 `app.*` 輸出都不含原值。
+  - `render-posters.cjs`：`node --check` 通過；`resolveInRoot` 對 `%2e%2e%2f<同前綴兄弟目錄>`、`..%2f`、`%00`、錯誤編碼都回 null（舊版放行兄弟目錄），`poster.html` 與 `web/node_modules/three` 照常解析。沒有實際重產海報。
+  - 未驗證：web／admin（沒改）、stack e2e、正式站。
+
 ## 2026-10-04 參觀後追蹤：參觀案件與招生入學接成一條流程（`feature/admissions-follow-up-20261004`，未部署）
 
 使用者要「家長完成參觀後可以有後續追蹤，參觀完成後案件自動導入招生入學，形成一整個流程」。規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`（F-Q1 使用者回「不一定會聯絡」→ 不自動排第一次聯絡；附錄 A 是招生規格 Q1 的隱私權政策與保存天數擬稿）；規則見 DESIGN.md「招生入學」的「參觀後追蹤」。

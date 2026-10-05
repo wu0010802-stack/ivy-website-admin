@@ -437,10 +437,12 @@ class VersionConflict(Exception):
 
 async def lock_editable(db: AsyncSession, visit_request: VisitRequest, expected_version: int | None) -> None:
     """鎖住案件列、重讀可編輯欄位後比對 version；expected_version 為 None
-    表示這次操作不會蓋掉任何欄位（例如只新增一筆聯絡紀錄），只鎖不比對。"""
+    表示這次操作不會蓋掉任何欄位（例如只新增一筆聯絡紀錄），只鎖不比對。
+    anonymized_at 一起在鎖內重讀：保存政策清理與寫入同列互斥，呼叫端據此判斷
+    案件是否已匿名化，不會看到鎖外讀到的舊值。"""
     await db.refresh(
         visit_request,
-        attribute_names=["version", "assigned_staff_id", "follow_up_at", "status"],
+        attribute_names=["version", "assigned_staff_id", "follow_up_at", "status", "anonymized_at"],
         with_for_update=True,
     )
     if expected_version is not None and visit_request.version != expected_version:
