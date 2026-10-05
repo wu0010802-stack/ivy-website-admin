@@ -9,28 +9,18 @@ export interface LengthHintRule {
 }
 
 export const LENGTH_HINTS = {
-  heroEyebrow: { max: 20, why: '手機上會換成兩行' },
   aboutTitle: { max: 16, why: '標題在手機上會超過兩行' },
   aboutBody: { max: 300, why: '段落太長，家長不容易讀完' },
   aboutCaption: { max: 30, why: '照片下方文字會換成多行' },
   footerTagline: { max: 30, why: '頁尾標語會換成多行' },
   boardTitle: { max: 12, why: '標題在手機上會換行' },
-  campusDescription: { max: 200, why: '分校頁開頭的介紹太長' },
-  faqQuestion: { max: 30, why: '問題在手機上會超過兩行' },
-  faqAnswer: { max: 200, why: '回答太長，建議拆成兩題' },
   newsTitle: { max: 24, why: '卡片標題會被截斷' },
   newsDescription: { max: 120, why: '卡片摘要會被截斷，完整內文只在展開後看得到' },
   eventTitle: { max: 20, why: '活動名稱在手機上會換行' },
   momentTitle: { max: 14, why: '拍立得標題會換成兩行' },
   momentStory: { max: 120, why: '翻面後的卡片放不下，要捲動才看得完' },
   tourIntro: { max: 80, why: '場景說明會蓋住照片' },
-  tourSpotText: { max: 80, why: '熱點說明框會超出照片' },
   bookingCta: { max: 6, why: '頁首按鈕放不下' },
-  // 分校頁底部的預約橫幅：手機標題 24px、一行約 14 字；內文 14px、一行約 25 字。
-  // 標題以換成校名之後的字數計（見 bannerTitlePreview）。
-  bannerTitle: { max: 24, why: '標題在手機上會超過兩行' },
-  bannerBody: { max: 50, why: '內文在手機上會超過兩行' },
-  bannerButton: { max: 10, why: '按鈕太寬，桌機上旁邊的標題會被擠窄' },
 } as const satisfies Record<string, LengthHintRule>
 
 export type LengthHintKey = keyof typeof LENGTH_HINTS
@@ -47,29 +37,11 @@ export function lengthHintText(value: string | null | undefined, rule: LengthHin
   return { text: `${count} 字，超過建議的 ${rule.max} 字：${rule.why}`, over: true }
 }
 
-// 分校頁底部的預約橫幅（預約文案）：標題裡的 {campusNameOrIvy} 是校名的位置，官網每個
-// 分校頁換成自己的校名（園方手打的 {campus} 也算）；欄位留空時官網沿用原本的三句話。
-// 規則跟官網分校頁的橫幅一致，後台用來預覽，不讓園方自己打大括號。
-export const BANNER_CAMPUS_TOKEN = '{campusNameOrIvy}'
-const BANNER_CAMPUS_PATTERN = /\{(?:campusNameOrIvy|campus)\}/g
-export const BANNER_DEFAULTS = {
-  title: `親自走一趟，感受${BANNER_CAMPUS_TOKEN}的日常。`,
-  body: '帶著孩子，也帶著你想了解的事。我們期待與你相遇。',
-  button: '預約校園參觀',
-} as const
-
-/** 某一校的分校頁實際顯示的橫幅標題；留空時是原本的標題。 */
-export function bannerTitlePreview(template: string | null | undefined, campusName: string): string {
-  const text = template?.trim() || BANNER_DEFAULTS.title
-  // 用函式替換：校名裡若有 `$&` 之類的字，字串替換會當成特殊樣式。
-  return text.replace(BANNER_CAMPUS_PATTERN, () => campusName)
-}
-
 // 官網實際裁切的比例（web 的 CSS aspect-ratio）；照片都以 object-fit: cover
 // 裁切，重點位置在素材庫設定。
 export const IMAGE_HINTS = {
   news: '建議橫式、寬 1200px 以上。官網桌機裁成約 7:4、手機與首頁卡片裁成約 4:3，重要的人物放在中間，或到素材庫設定重點位置。',
-  tour: '建議橫式 16:10（例如 1600×1000）。照片會整張放進 16:10 的框裡，熱點位置以整張照片計算，換照片後要重新確認熱點。',
+  tour: '建議橫式、寬 1600px 以上（例如 1600×1000）。官網照原比例整張顯示，不裁切。',
 } as const
 
 // 孩子的一天的時刻卡時間：官網用開頭的「時:分」決定背景影片的光線（web

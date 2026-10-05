@@ -200,18 +200,18 @@ describe('四種舊寫法改用 MediaRefField', () => {
     expect(field.text()).not.toContain('移除照片')
   })
 
-  it('校園探索：換了照片，這個場景的熱點標成要重新確認', async () => {
+  it('校園探索：換了照片不再要求複核熱點（熱點 2026-10-04 隨分校頁拿掉）', async () => {
     mockLibrary(contentItem('campus_tour', {
       scenes: [{ key: 'gate', name: '大門', image: ID, intro: '', spots_reviewed: true, spots: [{ name: '警衛室', x: 10, y: 10, text: '', question: '' }] }],
     }, 'yihua'), [mediaAsset({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', original_filename: 'new.jpg', campus_key: 'yihua' })])
     const wrapper = await mountView(CampusTourView, '/content/campus-tour?campus=yihua')
-    expect(wrapper.text()).not.toContain('熱點位置都確認過了')
+    expect(wrapper.text()).not.toContain('熱點')
     const field = wrapper.get('.tour__side .media-field')
     expect(field.find('.media-field__thumb').exists()).toBe(false)
     await field.findAll('.media-field__actions button')[0]!.trigger('click')
     await flushPromises()
     Array.from(document.body.querySelectorAll<HTMLButtonElement>('.picker__item')).find((b) => b.textContent?.includes('new.jpg'))!.click()
     await flushPromises()
-    expect(wrapper.text()).toContain('熱點位置都確認過了')
+    expect(wrapper.text()).not.toContain('熱點')
   })
 })

@@ -1,20 +1,46 @@
 import { expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
-import { publicCopy } from '../app/utils/public-copy'
+import { publicCopy, withoutRetiredFields } from '../app/utils/public-copy'
 
 it('修正已知原型說明，保留示意新聞與 CMS 自訂內容，不杜撰招生條件', () => {
   const site = fixture as unknown as SiteContent
   const result = publicCopy(site)
   expect(result.siteMeta.description).not.toContain('提案')
-  expect(result.campuses[0]!.faq.items[0]!.a).not.toContain('prototype')
-  expect(result.campuses[4]!.faq.items.some((item) => item.a.includes(site.campuses[4]!.address))).toBe(true)
   expect(result.news.sampleNote).toBe(site.news.sampleNote)
-  // 同意文字原樣保留：家長看到的就是已發布版本的文字，案件記錄的也是那一版。
-  expect(result.booking.consentText).toBe(site.booking.consentText)
-  expect(publicCopy({ ...site, booking: { ...site.booking, consentText: 'CMS 正式同意文字' } }).booking.consentText).toBe('CMS 正式同意文字')
   expect(result.footer.bottomNote).toBe('')
   expect(publicCopy({ ...site, footer: { ...site.footer, bottomNote: 'CMS 自訂備註' } }).footer.bottomNote).toBe('CMS 自訂備註')
   expect(publicCopy({ ...site, siteMeta: { ...site.siteMeta, description: 'CMS 正式自訂內容' } }).siteMeta.description).toBe('CMS 正式自訂內容')
   expect(site.siteMeta.description).toContain('提案')
+})
+
+it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文字、常見問題、熱點等），fixture 本身不動', () => {
+  const site = fixture as unknown as SiteContent
+  const raw = fixture as unknown as {
+    home: { hero: Record<string, unknown>; campusBoard: Record<string, unknown> }
+    dayExperience: Record<string, unknown>
+    booking: Record<string, unknown>
+    campuses: (Record<string, unknown> & { tourScenes: unknown })[]
+  }
+  // fixture 留著這些值：後端初始化內容要讀。
+  expect(raw.booking).toHaveProperty('consentText')
+  expect(raw.campuses[0]).toHaveProperty('faq')
+  const result = publicCopy(site)
+  const json = JSON.stringify(result)
+  expect(json).not.toContain('這份 prototype 僅示範流程')
+  expect(json).not.toContain('我了解這是操作示範')
+  expect(result.home.hero).not.toHaveProperty('eyebrow')
+  expect(result.home.campusBoard).not.toHaveProperty('note')
+  expect(result.dayExperience).not.toHaveProperty('sourceNote')
+  for (const key of ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel']) expect(result.booking).not.toHaveProperty(key)
+  for (const campus of result.campuses) {
+    for (const key of ['intro', 'description', 'fbNote', 'heroPhotoPos', 'faq']) expect(campus).not.toHaveProperty(key)
+    if (Array.isArray(campus.tourScenes)) for (const scene of campus.tourScenes) expect(scene).not.toHaveProperty('spots')
+  }
+  // 頁面用得到的欄位照舊。
+  expect(result.campuses.map((c) => c.key)).toEqual(site.campuses.map((c) => c.key))
+  expect(result.campuses[0]!.address).toBe(site.campuses[0]!.address)
+  expect(result.booking.ctaLabel).toBe(site.booking.ctaLabel)
+  expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
+  expect(raw.booking).toHaveProperty('consentText')
 })

@@ -576,7 +576,6 @@ describe('替換素材', () => {
     expect(wrapper.text()).toContain('不會直接上線')
     expect(wrapper.text()).toContain('預設不改任何位置')
     expect(wrapper.text()).toContain('你沒有編輯這項內容的權限')
-    expect(wrapper.text()).not.toContain('熱點位置要重新複核')
     const boxes = positionBoxes(wrapper)
     expect(boxes.map((box) => (box.element as HTMLInputElement).checked)).toEqual([false, false])
     expect((boxes[1]!.element as HTMLInputElement).disabled).toBe(true)
@@ -585,7 +584,8 @@ describe('替換素材', () => {
     expect(submit().attributes('disabled')).toBeDefined()
 
     await boxes[0]!.setValue(true)
-    expect(wrapper.text()).toContain('熱點位置要重新複核')
+    // 校園探索換照片不再要求複核熱點（熱點 2026-10-04 隨分校頁拿掉）。
+    expect(wrapper.text()).not.toContain('熱點')
     await submit().trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/media/m1/replace-references', {

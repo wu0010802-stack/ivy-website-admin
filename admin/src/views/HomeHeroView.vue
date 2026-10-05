@@ -4,16 +4,16 @@ import { useContentItem } from '../composables/useContentItem'
 import type { HomeHeroPayload, MediaAssetOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
-import LengthHint from '../components/LengthHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import { altAfterPick, BUILTIN_PHOTO } from '../composables/mediaThumbs'
 
 // 首屏按鈕 2026-09-23 已拿掉（按鈕文字不再編輯）；舊版本的 cta_label 載入時丟掉，
 // 不會出現在「變更了哪些欄位」，存檔也不再送出（後端同樣忽略）。
+// 標語上方的小標 2026-09-30 隨首屏改版從官網拿掉，2026-10-04 這頁也不再編；
+// 舊版本存著的值原樣跟著存回去（後端選填），不顯示。
 const editor = useContentItem<HomeHeroPayload>(
   'home_hero',
   {
-    eyebrow: '',
     copy_lines: ['', ''],
     video_desktop: null,
     video_mobile: null,
@@ -51,13 +51,6 @@ onMounted(editor.load)
     <template #lead>首頁大圖（影片）旁的標語。標語每行最多 24 字，建議控制在 14 字內，手機上更容易閱讀。大標題由官網設計固定，不在這裡修改。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
-      <!-- 小標在官網用系統字（web typography.css 的字體分工），不是標題子集，所以不放缺字提示；
-           之後若改回標題字型再加 GlyphHint。 -->
-      <el-form-item label="標語上方的小標">
-        <el-input v-model="editor.form.value.eyebrow" placeholder="例如：高雄五校・1997 創校" />
-        <LengthHint :value="editor.form.value.eyebrow" rule="heroEyebrow" />
-        <p class="field-help">2026-09-30 首屏改版後官網首頁不顯示小標，這欄先保留，填了也不會出現。</p>
-      </el-form-item>
       <el-form-item v-for="(_, i) in editor.form.value.copy_lines" :key="i" :label="`標語第 ${i + 1} 行`">
         <el-input v-model="editor.form.value.copy_lines[i]" maxlength="24" show-word-limit />
       </el-form-item>

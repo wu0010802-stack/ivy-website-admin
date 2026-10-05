@@ -2,7 +2,7 @@
 // 這支測試讀原始碼檔案（node:fs／__dirname）。vitest 2 的型別會順帶引入 Node 型別，
 // vitest 4 不會；app 的 tsconfig 只開 vite/client，所以在這裡明確引用。
 // 官網結構類內容的後台編輯（2026-09-25 缺口 B08）：主選單與頁尾連結、首頁五校
-// 順序、分校地圖網址、標題缺字提示、校園探索排序與座標、孩子的一天、首屏按鈕。
+// 順序、分校地圖網址、標題缺字提示、校園探索排序、孩子的一天、首屏按鈕。
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -171,16 +171,18 @@ describe('首頁五校順序與預設校區', () => {
 })
 
 describe('首屏按鈕文字已拿掉', () => {
-  it('沒有按鈕文字欄位；舊版本的 cta_label 不算修改、也不再送出', async () => {
+  it('沒有按鈕文字與小標欄位；舊版本的 cta_label 不算修改、也不再送出，小標原樣送回', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_hero', { eyebrow: '小標', copy_lines: ['一', '二'], cta_label: '看看孩子的一天' }) as never)
     const wrapper = await mountAs(HomeHeroView, superAdmin(), '/content/home-hero')
     expect(wrapper.text()).not.toContain('按鈕文字')
+    // 2026-10-04：小標 2026-09-30 起官網不顯示，這頁不再列出。
+    expect(wrapper.text()).not.toContain('小標')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
-    await wrapper.findAll('input')[0]!.setValue('新小標')
+    await wrapper.findAll('input')[0]!.setValue('新標語')
     const payload = await savedPayload(wrapper, 'home_hero')
     // 素材版位沒選：送 null（＝官網沿用內建影片與照片）。
     expect(payload).toEqual({
-      eyebrow: '新小標', copy_lines: ['一', '二'],
+      eyebrow: '小標', copy_lines: ['新標語', '二'],
       video_desktop: null, video_mobile: null, poster: null, poster_alt: '', fallback_image: null,
     })
   })
@@ -285,13 +287,14 @@ describe('孩子的一天', () => {
   })
 })
 
-describe('校園探索排序與座標', () => {
+describe('校園探索排序', () => {
   const scene = (key: string, name: string, spots: { name: string; x: number; y: number }[]) => ({
     key, name, image: 'campus', intro: '', spots_reviewed: true,
     spots: spots.map((spot) => ({ ...spot, text: '', question: '' })),
   })
 
-  it('場景與熱點可以上移下移，熱點座標可以直接輸入 0–100', async () => {
+  // 2026-10-04 熱點隨分校頁拿掉：舊場景存著的熱點不顯示、原樣送回，新場景不帶。
+  it('場景可以上移下移；舊場景的熱點不顯示、存檔原樣送回，新場景不帶熱點', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_tour', {
       scenes: [
         scene('gate', '大門', [{ name: '警衛室', x: 10, y: 10 }, { name: '花圃', x: 20, y: 20 }]),
@@ -306,29 +309,14 @@ describe('校園探索排序與座標', () => {
     await button(wrapper, '下移')[0]!.trigger('click')
     expect(sceneNames()).toEqual(['大廳', '大門'])
     expect(wrapper.get('.tour__scene-tab.is-active').text()).toContain('大門')
+    expect(wrapper.find('.tour__pin').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('熱點')
 
-    // 熱點：點第 2 個圖釘（花圃），上移成第 1 個。
-    await wrapper.findAll('.tour__pin')[1]!.trigger('click')
-    expect(wrapper.text()).toContain('熱點 2 / 2')
-    const spotUp = wrapper.findAll('.tour__side-title--spot button').find((b) => b.text() === '上移')!
-    await spotUp.trigger('click')
-    expect(wrapper.text()).toContain('熱點 1 / 2')
-    expect(wrapper.findAll('.tour__pin')[0]!.attributes('aria-label')).toContain('花圃')
-
-    // 座標數字輸入，超過範圍夾回 0–100。
-    const coords = wrapper.findAll('.tour__coords input')
-    await coords[0]!.setValue('37.26')
-    await coords[0]!.trigger('change')
-    await coords[1]!.setValue('140')
-    await coords[1]!.trigger('change')
-    await flushPromises()
-    const pin = wrapper.findAll('.tour__pin')[0]!
-    expect(pin.attributes('style')).toContain('left: 37.3%')
-    expect(pin.attributes('style')).toContain('top: 100%')
-
+    await wrapper.findAll('button').find((b) => b.text().includes('新增場景'))!.trigger('click')
     const payload = await savedPayload(wrapper, 'campus_tour')
-    const scenes = payload.scenes as { key: string; spots: { name: string; x: number; y: number }[] }[]
-    expect(scenes.map((s) => s.key)).toEqual(['hall', 'gate'])
-    expect(scenes[1]!.spots.map((s) => [s.name, s.x, s.y])).toEqual([['花圃', 37.3, 100], ['警衛室', 10, 10]])
+    const scenes = payload.scenes as { key: string; spots?: { name: string; x: number; y: number }[] }[]
+    expect(scenes.slice(0, 2).map((s) => s.key)).toEqual(['hall', 'gate'])
+    expect(scenes[1]!.spots!.map((s) => [s.name, s.x, s.y])).toEqual([['警衛室', 10, 10], ['花圃', 20, 20]])
+    expect(scenes[2]).not.toHaveProperty('spots')
   })
 })

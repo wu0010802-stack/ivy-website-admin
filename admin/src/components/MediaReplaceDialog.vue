@@ -103,11 +103,6 @@ const liveOnly = computed<MediaReferenceOut[]>(() =>
 const scheduled = computed<MediaReferenceOut[]>(() =>
   (usages.value?.references ?? []).filter((ref) => ref.states.includes('scheduled')),
 )
-const touchesTour = computed(() =>
-  draftGroups.value.some(
-    (group) => group.kind === 'campus_tour' && selectedItems.value.some((item) => item.content_item_id === group.id),
-  ),
-)
 
 const accept = computed(() => (props.asset?.kind === 'video' ? 'video/mp4' : 'image/jpeg,image/png,image/webp'))
 
@@ -289,7 +284,6 @@ async function applyReplacement() {
             </el-checkbox-group>
           </template>
           <p v-else class="hint">目前沒有內容的最新版本用到舊素材，新素材已加入素材庫。</p>
-          <el-alert v-if="touchesTour" type="warning" :closable="false" show-icon title="校園探索換了照片，熱點位置要重新複核才能發布。" />
           <p v-if="liveOnly.length" class="hint">官網上還有 {{ liveOnly.length }} 處是舊素材，但最新草稿已經換掉了，發布最新版後就會更新。</p>
           <p v-if="scheduled.length" class="hint">有 {{ scheduled.length }} 處在已排程的版本裡，排程不會跟著換；要換的話請取消後重新排程。</p>
         </template>
