@@ -500,7 +500,7 @@ class VisitRequestDetailOut(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def display_status(self) -> str:
-        """pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。"""
+        """upcoming／past／cancelled，後台列表與明細用這個分組顯示。"""
         slot = self.slot
         return status_groups.display_status(
             self.status, slot.slot_date if slot else None, slot.start_time if slot else None
@@ -508,7 +508,6 @@ class VisitRequestDetailOut(BaseModel):
 
 
 class VisitGroupCountsOut(BaseModel):
-    pending: int
     upcoming: int
     past: int
     cancelled: int

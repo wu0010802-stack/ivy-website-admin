@@ -67,7 +67,6 @@ const stats = computed(() => {
     { label: '參觀時間過了，還沒標記（這批）', value: current.awaiting_attendance, note: '' },
     { label: '預約正常（還沒到參觀日）', value: current.upcoming, note: '' },
     { label: '已取消', value: current.cancelled, note: reasonText(current.cancelled_by_reason) },
-    ...(current.pending ? [{ label: '舊資料的待處理', value: current.pending, note: '' }] : []),
     ...(current.unscheduled ? [{ label: '已確認、沒有場次（舊資料）', value: current.unscheduled, note: '' }] : []),
   ]
 })
@@ -94,7 +93,6 @@ const COLUMNS: StatsColumn[] = [
   { key: 'cancel', label: '取消率' },
   { key: 'awaiting_now', label: '待標記到場（現在）', kind: 'count' },
   { key: 'follow_up_now', label: '到期待追蹤（現在）', kind: 'count' },
-  { key: 'legacy_now', label: '舊資料待處理（現在）', kind: 'count' },
 ]
 
 const rateCell = (rate: Parameters<typeof rateText>[0]) => `${rateText(rate)}${isSmallSample(rate) ? '・樣本較少' : ''}`
@@ -114,14 +112,13 @@ const compareRows = computed(() => {
     cancel: rateCell(item.cancel_rate),
     awaiting_now: item.open_now.awaiting_attendance,
     follow_up_now: item.open_now.follow_up_due,
-    legacy_now: item.open_now.legacy_pending,
   }))
   const totals = data.value.totals
   const open = data.value.open_now_totals
   rows.push({
     key: 'total', campus: '合計', mode: '', cases: totals.cases, completed: totals.completed, no_show: totals.no_show,
     attendance: rateCell(totals.attendance_rate), cancelled: totals.cancelled, reasons: reasonText(totals.cancelled_by_reason),
-    cancel: rateCell(totals.cancel_rate), awaiting_now: open.awaiting_attendance, follow_up_now: open.follow_up_due, legacy_now: open.legacy_pending,
+    cancel: rateCell(totals.cancel_rate), awaiting_now: open.awaiting_attendance, follow_up_now: open.follow_up_due,
   })
   return rows
 })
@@ -136,7 +133,7 @@ const compareRows = computed(() => {
       :columns="COLUMNS"
       row-key="key"
       empty-text="沒有可比較的校區"
-      caption="數字是預約案件數，同一個孩子預約兩校算兩筆；比率括號內是分子／分母。「現在」三欄是此刻的待處理，不受期間影響。不受上方「查看校區」影響。"
+      caption="數字是預約案件數，同一個孩子預約兩校算兩筆；比率括號內是分子／分母。「現在」兩欄是此刻的待處理，不受期間影響。不受上方「查看校區」影響。"
     />
 
     <section class="panel" aria-labelledby="outcomes-title">

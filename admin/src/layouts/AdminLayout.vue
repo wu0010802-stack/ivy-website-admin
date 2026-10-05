@@ -52,7 +52,7 @@ function updateViewport(event: MediaQueryListEvent) {
 }
 onMounted(() => mobileQuery.addEventListener('change', updateViewport))
 onBeforeUnmount(() => mobileQuery.removeEventListener('change', updateViewport))
-// 換頁順便更新側欄的待處理數字（store 內 30 秒內不重抓）。
+// 換頁順便更新頁首的待辦數字（store 內 30 秒內不重抓）。
 watch(() => route.path, () => { openRequests.refresh() }, { immediate: true })
 watch(() => route.path, async () => {
   drawerOpen.value = false

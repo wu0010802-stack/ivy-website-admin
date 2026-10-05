@@ -53,14 +53,15 @@ def test_check_conditions_are_identical_in_model_and_migration():
         assert f'"{condition}"' in source, f"{name} 的條件與 migration 不一致：{condition}"
 
 
-def test_paper_fields_migration_follows_hot_path_indexes_and_keeps_data_on_upgrade():
+def test_paper_fields_migration_follows_legacy_pending_cleanup_and_keeps_data_on_upgrade():
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
     config = Config(str(BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_revision("3fe1cfb2dbf7").down_revision == "4373bcc82d9d"
+    assert script.get_revision("3fe1cfb2dbf7").down_revision == "1e5612e187ff"
+    assert script.get_heads() == ["3fe1cfb2dbf7"]
     upgrade = PAPER_FIELDS_MIGRATION.read_text(encoding="utf-8").split("def downgrade", 1)[0]
     # 升級只加可空欄位、放寬 CHECK，不改既有資料（deploy/CICD.md）；降級才把 revisit 改回 in_person。
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade

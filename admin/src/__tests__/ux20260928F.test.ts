@@ -15,10 +15,9 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks(); vi.useRealTimers() })
 
-const hour = 3600 * 1000
 const summary = (changes = {}) => ({
   today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
-  new_requests: 0, awaiting_confirmation: 0, next_hold_expires_at: null, ...changes,
+  ...changes,
 })
 
 async function mountDashboard(user: UserOut = testUser('super_admin')) {
@@ -37,13 +36,13 @@ async function mountDashboard(user: UserOut = testUser('super_admin')) {
 const dashboardCalls = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.filter(call => call[0] === '/admin/dashboard').length
 
 describe('總覽開著也跟著時間走', () => {
-  it('倒數每 30 秒重算；切回分頁超過 30 秒才在背景重讀，保留舊資料、不閃骨架', async () => {
+  it('切回分頁超過 30 秒才在背景重讀，保留舊資料、不閃骨架；總覽沒有確認期限倒數', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date('2026-09-29T02:00:00Z'))
-    const expires = new Date(Date.now() + 5 * hour + 60000).toISOString()
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ awaiting_confirmation: 1, next_hold_expires_at: expires }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 1 }) as never)
     const wrapper = await mountDashboard()
-    expect(wrapper.text()).toContain('最早一筆還剩 5 小時')
+    expect(wrapper.text()).toContain('家長申請改期，等你核准')
+    expect(wrapper.text()).not.toContain('最早一筆還剩')
     expect(wrapper.text()).toContain('更新於 10:00')
     expect(dashboardCalls(get)).toBe(1)
 
@@ -53,10 +52,10 @@ describe('總覽開著也跟著時間走', () => {
     await flushPromises()
     expect(dashboardCalls(get)).toBe(1)
 
-    // 開著一個半小時：倒數跟著時鐘走，不必重新整理。
+    // 開著一個半小時：同一天內不自動重讀（不是輪詢），也沒有倒數字樣。
     vi.advanceTimersByTime(90 * 60_000)
     await flushPromises()
-    expect(wrapper.text()).toContain('最早一筆還剩 3 小時')
+    expect(wrapper.text()).not.toContain('最早一筆還剩')
 
     // 切回分頁：背景重讀，讀的期間畫面保留舊資料。
     let resolve!: (value: unknown) => void
@@ -65,10 +64,10 @@ describe('總覽開著也跟著時間走', () => {
     await flushPromises()
     expect(dashboardCalls(get)).toBe(2)
     expect(wrapper.find('.el-skeleton').exists()).toBe(false)
-    expect(wrapper.text()).toContain('場次預約等園方確認')
-    resolve(summary({ awaiting_confirmation: 2, next_hold_expires_at: expires }))
+    expect(wrapper.text()).toContain('家長申請改期，等你核准')
+    resolve(summary({ pending_reschedule_requests: 2 }))
     await flushPromises()
-    expect(wrapper.find('.dash__primary').text()).toContain('確認場次預約2')
+    expect(wrapper.find('.dash__primary').text()).toContain('核准改期申請2')
     expect(wrapper.text()).toContain('更新於 11:30')
   })
 
@@ -104,7 +103,7 @@ describe('總覽開著也跟著時間走', () => {
   it('換日後重讀失敗：寫出是哪天幾點的資料，也不每 30 秒重試', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date('2026-09-29T15:59:10Z')) // 台北 23:59
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 1 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 1 }) as never)
     const wrapper = await mountDashboard()
     expect(wrapper.text()).toContain('更新於 23:59')
     get.mockRejectedValue(new Error('offline'))
@@ -112,7 +111,7 @@ describe('總覽開著也跟著時間走', () => {
     await flushPromises()
     expect(dashboardCalls(get)).toBe(2)
     expect(wrapper.text()).toContain('沒有更新成功，仍是 09/29 23:59 的資料')
-    expect(wrapper.text()).toContain('新的參觀需求還沒聯絡')
+    expect(wrapper.text()).toContain('家長申請改期，等你核准')
     vi.advanceTimersByTime(10 * 60_000)
     await flushPromises()
     expect(dashboardCalls(get)).toBe(2)
@@ -121,13 +120,13 @@ describe('總覽開著也跟著時間走', () => {
   it('按「重新整理」讀不到時留著原本的資料，並說明是幾點的資料', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     vi.setSystemTime(new Date('2026-09-29T06:05:00Z'))
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 3 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 3 }) as never)
     const wrapper = await mountDashboard()
     get.mockRejectedValueOnce(new Error('offline'))
     await wrapper.findAll('button').find(button => button.text() === '重新整理')!.trigger('click')
     await flushPromises()
     expect(wrapper.find('.el-alert').exists()).toBe(false)
-    expect(wrapper.text()).toContain('新的參觀需求還沒聯絡')
+    expect(wrapper.text()).toContain('家長申請改期，等你核准')
     expect(wrapper.text()).toContain('沒有更新成功，仍是 14:05 的資料')
   })
 })
@@ -191,15 +190,15 @@ describe('待審清單讀不到時看得出來', () => {
 describe('待辦連結的可及名稱', () => {
   it('整列連結用標題、數字與去處命名，說明段落放描述，箭頭不唸', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary({
-      new_requests: 2,
+      pending_reschedule_requests: 2,
       pending_publish: 1,
       pending_publish_items: [{ kind: 'home_about', campus_key: null, latest_version: 2, published_version: 1, updated_at: '2026-09-28T13:45:00Z' }],
     }) as never)
     const wrapper = await mountDashboard()
-    const task = wrapper.findAll('a.task').find(link => link.text().includes('新的參觀需求還沒聯絡'))!
+    const task = wrapper.findAll('a.task').find(link => link.text().includes('家長申請改期，等你核准'))!
     const names = task.attributes('aria-labelledby')!.split(' ').map(id => wrapper.find(`#${id}`).text())
-    expect(names).toEqual(['2', '新的參觀需求還沒聯絡', '從最早送出的開始聯絡 →'])
-    expect(wrapper.find(`#${task.attributes('aria-describedby')}`).text()).toContain('家長送出後在等園方回電')
+    expect(names).toEqual(['2', '家長申請改期，等你核准', '查看改期申請 →'])
+    expect(wrapper.find(`#${task.attributes('aria-describedby')}`).text()).toContain('家長用管理連結申請換場次')
     // 所有箭頭都包在 aria-hidden 裡。
     for (const link of wrapper.findAll('a')) {
       const arrows = link.findAll('[aria-hidden="true"]').filter(el => el.text() === '→').length

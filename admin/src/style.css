@@ -792,7 +792,7 @@ a.stat:hover {
   .publish-diff__detail { grid-column: 1; }
 }
 
-/* 只給螢幕報讀器讀的文字，例如側欄數字後面的「件待處理」。 */
+/* 只給螢幕報讀器讀的文字。 */
 .visually-hidden {
   position: absolute;
   width: 1px;

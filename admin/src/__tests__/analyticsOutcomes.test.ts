@@ -18,7 +18,7 @@ const rate = (numerator: number, denominator: number) =>
 
 function counts(over: Partial<OutcomeCountsOut> = {}): OutcomeCountsOut {
   const base = {
-    cases: 8, web_cases: 7, pending: 1, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2, unscheduled: 0,
+    cases: 8, web_cases: 7, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2, unscheduled: 0,
     cancelled_by_reason: { parent: 1, staff: 0, hold_expired: 0, unknown: 1 },
     ...over,
   }
@@ -26,16 +26,16 @@ function counts(over: Partial<OutcomeCountsOut> = {}): OutcomeCountsOut {
   return { ...base, attendance_rate: rate(base.completed, marked), no_show_rate: rate(base.no_show, marked), cancel_rate: rate(base.cancelled, base.cases) }
 }
 
-const EMPTY = { cases: 0, web_cases: 0, pending: 0, upcoming: 0, awaiting_attendance: 0, completed: 0, no_show: 0, cancelled: 0,
+const EMPTY = { cases: 0, web_cases: 0, upcoming: 0, awaiting_attendance: 0, completed: 0, no_show: 0, cancelled: 0,
   cancelled_by_reason: { parent: 0, staff: 0, hold_expired: 0, unknown: 0 } }
 
 function row(campusKey: string, over: Partial<OutcomeCountsOut> = {}, mode: string | null = 'slots'): CampusOutcomeOut {
-  return { ...counts(over), campus_key: campusKey, active: true, booking_mode: mode, open_now: { legacy_pending: 1, awaiting_attendance: 2, follow_up_due: 3 } }
+  return { ...counts(over), campus_key: campusKey, active: true, booking_mode: mode, open_now: { awaiting_attendance: 2, follow_up_due: 3 } }
 }
 
 function outcomes(rows: CampusOutcomeOut[] = [row('yihua'), row('minghua', EMPTY, 'phone')], asOf = '2026-10-03T06:05:00Z'): BookingOutcomesOut {
   return { as_of: asOf, date_from: null, date_to: null, unit: 'visit_request', campuses: rows, totals: counts(),
-    open_now_totals: { legacy_pending: 2, awaiting_attendance: 4, follow_up_due: 6 } }
+    open_now_totals: { awaiting_attendance: 4, follow_up_due: 6 } }
 }
 
 async function mountSection(role: Role, props: Record<string, unknown> = {}, data: BookingOutcomesOut = outcomes()) {
@@ -77,8 +77,10 @@ describe('預約結果', () => {
     expect(caseLinks(wrapper)).toEqual([
       '/visit-requests?campus=yihua&group=past&status=confirmed',
       '/visit-requests?campus=yihua&due=1',
-      '/visit-requests?campus=yihua&group=pending',
     ])
+    // 2026-10-05：舊資料的待處理已拿掉，統計與連結都不再出現。
+    expect(wrapper.text()).not.toContain('舊資料')
+    expect(wrapper.html()).not.toContain('group=pending')
   })
 
   it('只有統計權限的人只看數字，沒有連到案件的連結', async () => {

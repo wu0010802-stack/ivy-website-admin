@@ -2405,10 +2405,6 @@
           "open_now": {
             "$ref": "#/components/schemas/PendingNowOut"
           },
-          "pending": {
-            "title": "Pending",
-            "type": "integer"
-          },
           "unscheduled": {
             "title": "Unscheduled",
             "type": "integer"
@@ -2425,7 +2421,6 @@
         "required": [
           "cases",
           "web_cases",
-          "pending",
           "upcoming",
           "awaiting_attendance",
           "completed",
@@ -5616,10 +5611,6 @@
           "no_show_rate": {
             "$ref": "#/components/schemas/AdmissionsRate"
           },
-          "pending": {
-            "title": "Pending",
-            "type": "integer"
-          },
           "unscheduled": {
             "title": "Unscheduled",
             "type": "integer"
@@ -5636,7 +5627,6 @@
         "required": [
           "cases",
           "web_cases",
-          "pending",
           "upcoming",
           "awaiting_attendance",
           "completed",
@@ -6187,7 +6177,7 @@
         "type": "object"
       },
       "PendingNowOut": {
-        "description": "現在的待處理三種（booking/pending_kinds.py），不受期間影響。",
+        "description": "現在的待處理兩種（booking/pending_kinds.py），不受期間影響。",
         "properties": {
           "awaiting_attendance": {
             "title": "Awaiting Attendance",
@@ -6196,14 +6186,9 @@
           "follow_up_due": {
             "title": "Follow Up Due",
             "type": "integer"
-          },
-          "legacy_pending": {
-            "title": "Legacy Pending",
-            "type": "integer"
           }
         },
         "required": [
-          "legacy_pending",
           "awaiting_attendance",
           "follow_up_due"
         ],
@@ -9784,17 +9769,12 @@
             "title": "Past",
             "type": "integer"
           },
-          "pending": {
-            "title": "Pending",
-            "type": "integer"
-          },
           "upcoming": {
             "title": "Upcoming",
             "type": "integer"
           }
         },
         "required": [
-          "pending",
           "upcoming",
           "past",
           "cancelled"
@@ -10284,7 +10264,7 @@
             "title": "Created By"
           },
           "display_status": {
-            "description": "pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
+            "description": "upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -10620,7 +10600,7 @@
             "title": "Created By"
           },
           "display_status": {
-            "description": "pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
+            "description": "upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
             "readOnly": true,
             "title": "Display Status",
             "type": "string"
@@ -20854,32 +20834,32 @@
             }
           },
           {
-            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
             "in": "query",
             "name": "group",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "pattern": "^(upcoming|past|cancelled)$",
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
               "title": "Group"
             }
           },
           {
-            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }
@@ -21189,32 +21169,32 @@
             }
           },
           {
-            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
             "in": "query",
             "name": "group",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "pattern": "^(upcoming|past|cancelled)$",
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
               "title": "Group"
             }
           },
           {
-            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }
@@ -21433,32 +21413,32 @@
             }
           },
           {
-            "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
             "in": "query",
             "name": "group",
             "required": false,
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^(pending|upcoming|past|cancelled)$",
+                  "pattern": "^(upcoming|past|cancelled)$",
                   "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
               "title": "Group"
             }
           },
           {
-            "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+            "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
             "in": "query",
             "name": "open",
             "required": false,
             "schema": {
               "default": false,
-              "description": "只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場）",
+              "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
             }

@@ -3426,8 +3426,6 @@ export interface components {
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
             open_now: components["schemas"]["PendingNowOut"];
-            /** Pending */
-            pending: number;
             /** Unscheduled */
             unscheduled: number;
             /** Upcoming */
@@ -4549,8 +4547,6 @@ export interface components {
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
-            /** Pending */
-            pending: number;
             /** Unscheduled */
             unscheduled: number;
             /** Upcoming */
@@ -4778,15 +4774,13 @@ export interface components {
         };
         /**
          * PendingNowOut
-         * @description 現在的待處理三種（booking/pending_kinds.py），不受期間影響。
+         * @description 現在的待處理兩種（booking/pending_kinds.py），不受期間影響。
          */
         PendingNowOut: {
             /** Awaiting Attendance */
             awaiting_attendance: number;
             /** Follow Up Due */
             follow_up_due: number;
-            /** Legacy Pending */
-            legacy_pending: number;
         };
         /** PendingReviewOut */
         PendingReviewOut: {
@@ -5893,8 +5887,6 @@ export interface components {
             cancelled: number;
             /** Past */
             past: number;
-            /** Pending */
-            pending: number;
             /** Upcoming */
             upcoming: number;
         };
@@ -6037,7 +6029,7 @@ export interface components {
             created_by?: string | null;
             /**
              * Display Status
-             * @description pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。
+             * @description upcoming／past／cancelled，後台列表與明細用這個分組顯示。
              */
             readonly display_status: string;
             /** Email */
@@ -6122,7 +6114,7 @@ export interface components {
             created_by?: string | null;
             /**
              * Display Status
-             * @description pending／upcoming／past／cancelled，後台列表與明細用這個分組顯示。
+             * @description upcoming／past／cancelled，後台列表與明細用這個分組顯示。
              */
             readonly display_status: string;
             /** Email */
@@ -10294,9 +10286,9 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
                 needs_attention?: boolean;
-                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                /** @description 案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {
@@ -10386,9 +10378,9 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
                 needs_attention?: boolean;
-                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                /** @description 案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {
@@ -10440,9 +10432,9 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
                 needs_attention?: boolean;
-                /** @description 案件分組：pending 待處理／upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                /** @description 案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消 */
                 group?: string | null;
-                /** @description 只列還沒結案的：待處理、聯絡中、待園方確認、預約正常（含時間已過還沒標記到場） */
+                /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
             };
             header?: {

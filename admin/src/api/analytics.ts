@@ -52,13 +52,12 @@ export function isSmallSample(rate: AdmissionsRate): boolean {
   return rate.denominator > 0 && rate.denominator < SMALL_SAMPLE
 }
 
-// 待處理三種（backend/app/booking/pending_kinds.py）。順序同總覽「下一筆」：待標記到場 → 到期追蹤 → 舊資料。
-export type PendingKind = 'legacy_pending' | 'awaiting_attendance' | 'follow_up_due'
-export const PENDING_KINDS: readonly PendingKind[] = ['awaiting_attendance', 'follow_up_due', 'legacy_pending']
+// 待處理兩種（backend/app/booking/pending_kinds.py）。順序同總覽「下一筆」：待標記到場 → 到期追蹤。
+export type PendingKind = 'awaiting_attendance' | 'follow_up_due'
+export const PENDING_KINDS: readonly PendingKind[] = ['awaiting_attendance', 'follow_up_due']
 export const PENDING_KIND_LABELS: Record<PendingKind, string> = {
   awaiting_attendance: '參觀時間過了，還沒標記到場',
   follow_up_due: '到期待追蹤',
-  legacy_pending: '舊資料的待處理',
 }
 
 /** 點進案件列表、已套好篩選；參數和總覽（DashboardView）同一組，列表會保留子篩選。 */
@@ -67,10 +66,8 @@ export function pendingLink(kind: PendingKind, campusKey: string): string {
   if (kind === 'awaiting_attendance') {
     query.set('group', 'past')
     query.set('status', 'confirmed')
-  } else if (kind === 'follow_up_due') {
-    query.set('due', '1')
   } else {
-    query.set('group', 'pending')
+    query.set('due', '1')
   }
   return `/visit-requests?${query}`
 }

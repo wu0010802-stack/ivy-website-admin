@@ -313,8 +313,6 @@ class OutcomeCountsOut(BaseModel):
     cases: int
     # 官網表單送出的；其餘是後台補登（電話、LINE、親自到園、外部網站）。
     web_cases: int
-    # 上線前的舊流程狀態（new／contacting／pending_confirmation）。
-    pending: int
     # 已確認、場次還沒開始。
     upcoming: int
     # 已確認、場次已開始，還沒標記到場或未到場。
@@ -334,9 +332,8 @@ class OutcomeCountsOut(BaseModel):
 
 
 class PendingNowOut(BaseModel):
-    """現在的待處理三種（booking/pending_kinds.py），不受期間影響。"""
+    """現在的待處理兩種（booking/pending_kinds.py），不受期間影響。"""
 
-    legacy_pending: int
     awaiting_attendance: int
     follow_up_due: int
 

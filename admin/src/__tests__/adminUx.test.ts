@@ -173,15 +173,15 @@ describe('後台導覽與編輯操作', () => {
     const oldRequest = new Promise<unknown[]>(resolve => { resolveOld = resolve })
     let listCall = 0
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
-      if (path.startsWith('/admin/visit-requests/group-counts')) return { pending: 1, upcoming: 0, past: 0, cancelled: 0 } as never
+      if (path.startsWith('/admin/visit-requests/group-counts')) return { upcoming: 0, past: 0, cancelled: 1 } as never
       return (listCall++ === 0 ? oldRequest : []) as never
     })
     const wrapper = mount(VisitRequestsView, { global })
     wrappers.push(wrapper)
     await flushPromises()
-    await wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('待處理'))!.trigger('click')
+    await wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('已取消'))!.trigger('click')
     await flushPromises()
-    expect(wrapper.text()).toContain('沒有「待處理」的案件')
+    expect(wrapper.text()).toContain('沒有「已取消」的案件')
     resolveOld([{ id: 'old-result', parent_name: '過時的篩選結果', status: 'confirmed', campus_key: 'renwu', phone: '000', created_at: '2026-09-21T00:00:00Z' }])
     await flushPromises()
     expect(wrapper.text()).not.toContain('過時的篩選結果')

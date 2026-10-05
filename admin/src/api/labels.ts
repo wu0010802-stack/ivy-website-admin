@@ -68,12 +68,13 @@ export const VISIT_STATUS: Record<string, StatusMeta> = {
 export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
 // 列表分組（2026-09-30 業主裁定，參考義華舊後台）：資料庫狀態不變，只在顯示上歸組。
-export const VISIT_GROUPS = ['pending', 'upcoming', 'past', 'cancelled'] as const
+// 原本的「待處理」只剩自選場次上線前的舊案，2026-10-05 拿掉分組、舊案已刪除。
+export const VISIT_GROUPS = ['upcoming', 'past', 'cancelled'] as const
 export type VisitGroup = typeof VISIT_GROUPS[number]
-export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { pending: '待處理', upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
+export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
 
+// 舊書籤的 ?status=；舊流程的 new／contacting／pending_confirmation 回到「全部」。
 const LEGACY_STATUS_GROUP: Record<string, VisitGroup> = {
-  new: 'pending', contacting: 'pending', pending_confirmation: 'pending',
   confirmed: 'upcoming', completed: 'past', no_show: 'past', cancelled: 'cancelled',
 }
 export function legacyStatusGroup(status: string): VisitGroup | '' {
@@ -81,7 +82,6 @@ export function legacyStatusGroup(status: string): VisitGroup | '' {
 }
 
 const CANCELLED_BY_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
-const PENDING_SUB: Record<string, string> = { contacting: '聯絡中', pending_confirmation: '待確認' }
 // confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
 const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
 
@@ -95,8 +95,6 @@ export function maskEmail(email: string): string {
 // 時間已過但還沒標記到場的是接待要處理的事，用暖黃和已到場、未到場（灰）分開。
 export function visitDisplay(row: { status: string; display_status: string; cancel_reason?: string | null; cancelled_at?: string | null }): { label: string; tone: TagTone; sub: string } {
   switch (row.display_status) {
-    case 'upcoming':
-      return { label: '預約正常', tone: 'success', sub: '' }
     case 'past':
       return { label: '預約時間已過', tone: row.status === 'confirmed' ? 'warning' : 'info', sub: PAST_SUB[row.status] ?? '' }
     case 'cancelled': {
@@ -104,7 +102,7 @@ export function visitDisplay(row: { status: string; display_status: string; canc
       return { label: '預約已取消', tone: 'danger', sub: row.cancelled_at ? `${who}：${formatShortDateTime(row.cancelled_at)}` : '' }
     }
     default:
-      return { label: '待處理', tone: 'warning', sub: PENDING_SUB[row.status] ?? '' }
+      return { label: '預約正常', tone: 'success', sub: '' }
   }
 }
 
@@ -116,10 +114,9 @@ export function visitStatus(status: string): StatusMeta {
 // 算「時間已過」。參觀場次的當天清單沒有 display_status；案件明細開著等家長來時，
 // 也要跟著時鐘從「預約正常」換成「預約時間已過」。
 export function visitDisplayStatus(status: string, slot: { slot_date: string; start_time: string } | null | undefined, now: number = Date.now()): string {
-  if (status === 'new' || status === 'contacting' || status === 'pending_confirmation') return 'pending'
   if (status === 'cancelled') return 'cancelled'
   if (status === 'completed' || status === 'no_show') return 'past'
-  if (!slot) return 'pending'
+  if (!slot) return 'upcoming'
   return slotStarted(slot, now) ? 'past' : 'upcoming'
 }
 

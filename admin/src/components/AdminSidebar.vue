@@ -9,7 +9,6 @@ import {
 } from '@element-plus/icons-vue'
 import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
-import { useOpenRequestsStore } from '../stores/openRequests'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import crestMarkUrl from '../assets/brand/ivy-crest-mark.webp'
@@ -17,7 +16,6 @@ import crestMarkUrl from '../assets/brand/ivy-crest-mark.webp'
 const props = defineProps<{ mobile?: boolean }>()
 const emit = defineEmits<{ close: []; logout: [] }>()
 const auth = useAuthStore()
-const openRequests = useOpenRequestsStore()
 const route = useRoute()
 const router = useRouter()
 const query = ref('')
@@ -210,10 +208,6 @@ const userLine = computed(() => {
               :aria-current="activePath === item.path ? 'page' : undefined">
               <el-icon v-if="item.icon && icons[item.icon]" aria-hidden="true"><component :is="icons[item.icon]" /></el-icon>
               <span class="sidebar__label">{{ item.title }}</span>
-              <span v-if="item.badge === 'open-requests' && openRequests.total > 0" class="sidebar__badge num"
-                :title="`新需求 ${openRequests.newRequests} 件、待園方確認 ${openRequests.awaiting} 件`">
-                {{ openRequests.total > 99 ? '99+' : openRequests.total }}<span class="visually-hidden"> 件待處理</span>
-              </span>
             </router-link>
           </li>
         </ul>
@@ -334,7 +328,6 @@ const userLine = computed(() => {
 .sidebar__link .el-icon { flex-shrink: 0; font-size: var(--nav-icon); }
 .sidebar__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 暖黃＝待注意（見 style.css 開頭）；深色側欄上用實心小膠囊才看得到。 */
-.sidebar__badge { flex-shrink: 0; min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--brand-gold); color: var(--sidebar-bg); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
 /* 搜尋時 Enter 會開的那一筆：先墊上 hover 底色，有滑鼠鍵盤的裝置再標 ↵。 */
 .sidebar__link.is-first:not(.is-active) { background: var(--sidebar-hover); }
 @media (hover: hover) and (pointer: fine) {

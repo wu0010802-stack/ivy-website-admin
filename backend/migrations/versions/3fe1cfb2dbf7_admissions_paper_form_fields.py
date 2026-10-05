@@ -8,7 +8,7 @@ CHANNEL_CHECK 與 app/admissions/models.py 逐字相同（tests/test_admissions_
 降級把 revisit 改回最接近的「當面」（in_person）才能恢復舊的 CHECK；新欄位直接刪掉。
 
 Revision ID: 3fe1cfb2dbf7
-Revises: 4373bcc82d9d
+Revises: 1e5612e187ff
 Create Date: 2026-10-05
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "3fe1cfb2dbf7"
-down_revision = "4373bcc82d9d"
+down_revision = "1e5612e187ff"
 branch_labels = None
 depends_on = None
 

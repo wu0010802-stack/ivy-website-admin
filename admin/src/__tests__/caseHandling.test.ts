@@ -346,25 +346,24 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     expect(wrapper.find('section.reschedule').text()).toContain('陳媽媽')
   })
 
-  it('待核准改期列在總覽待辦；側欄的站內通知不掛數字（只有參觀案件掛）', async () => {
+  it('待核准改期列在總覽待辦；側欄任何項目都不掛數字', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: DashboardView }, { path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
     await router.push('/'); await router.isReady()
     vi.spyOn(api, 'get').mockResolvedValue({
       today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
-      new_requests: 0, awaiting_confirmation: 0, next_hold_expires_at: null, pending_reschedule_requests: 3,
+      pending_reschedule_requests: 3,
     } as never)
     const dashboard = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(dashboard); await flushPromises()
     expect(dashboard.text()).toContain('家長申請改期，等你核准')
     expect(dashboard.find('a.dash__primary').text()).toContain('核准改期申請')
 
-    useOpenRequestsStore(pinia).apply({ new_requests: 1, awaiting_confirmation: 0, pending_reschedule_requests: 3 } as never)
+    useOpenRequestsStore(pinia).apply({ pending_reschedule_requests: 3, my_unread_notifications: 2 } as never)
     const sidebar = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(sidebar); await flushPromises()
-    const badgeLinks = sidebar.findAll('.sidebar__badge').map(b => b.element.closest('a')!.getAttribute('href'))
-    expect(badgeLinks).toEqual(['/visit-requests'])
+    expect(sidebar.findAll('.sidebar__badge')).toHaveLength(0)
     const notifications = sidebar.findAll('a').find(a => a.attributes('href') === '/notifications')!
     expect(notifications.text()).toBe('站內通知')
   })

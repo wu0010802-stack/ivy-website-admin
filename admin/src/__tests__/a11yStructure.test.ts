@@ -53,12 +53,11 @@ describe('總覽的營運摘要', () => {
   it('<dl> 每組只有 dt、dd，查看連結包在 dd 裡', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({
       today_visits: 1, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
-      new_requests: 2, awaiting_confirmation: 0, next_hold_expires_at: null,
     } as never)
     const wrapper = await mountAt('/', DashboardView as never)
     const groups = wrapper.findAll('.dash__summary > div')
-    // 2026-10-05 第九輪：「待園方確認」為 0 時不出現，這裡剩三組。
-    expect(groups).toHaveLength(3)
+    // 2026-10-05：舊案兩格已拿掉，固定只有今日參觀與到期待追蹤兩組。
+    expect(groups).toHaveLength(2)
     for (const group of groups) {
       expect(group.element.children.length).toBeGreaterThan(0)
       for (const child of Array.from(group.element.children)) expect(['DT', 'DD']).toContain(child.tagName)

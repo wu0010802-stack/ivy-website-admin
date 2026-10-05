@@ -89,29 +89,6 @@ async def get_dashboard_summary(
     )
     pending_follow_up = (await db.execute(pending_follow_up_stmt)).scalar_one()
 
-    # 參觀案件的兩個待辦：新需求（園方還沒聯絡）與待園方確認（slots 人工確認
-    # 模式，占住名額、hold_expires_at 一到就被釋出）。後者有期限，總覽要給
-    # 最早到期的時間，櫃台才知道先處理哪一筆。定義與案件列表的 status 篩選相同。
-    status_counts_stmt = (
-        select(VisitRequest.status, func.count(), func.min(VisitRequest.hold_expires_at))
-        .where(
-            VisitRequest.status.in_(
-                [VisitRequestStatus.NEW.value, VisitRequestStatus.PENDING_CONFIRMATION.value]
-            )
-        )
-        .group_by(VisitRequest.status)
-    )
-    status_counts_stmt = _scope(status_counts_stmt, VisitRequest.campus_key)
-    new_requests = 0
-    awaiting_confirmation = 0
-    next_hold_expires_at = None
-    for status_value, count, earliest_hold in (await db.execute(status_counts_stmt)).all():
-        if status_value == VisitRequestStatus.NEW.value:
-            new_requests = count
-        else:
-            awaiting_confirmation = count
-            next_hold_expires_at = earliest_hold
-
     # 家長線上申請改期、等園方核准的件數（規格 L239）。案件已結案的申請會
     # 被標成 closed，這裡另外只算案件仍是已確認的，跟待核准清單同一個定義。
     pending_reschedules_stmt = _scope(
@@ -229,9 +206,6 @@ async def get_dashboard_summary(
         "today_visits": today_visits,
         "today_visit_list": today_visit_list,
         "awaiting_attendance": awaiting_attendance,
-        "new_requests": new_requests,
-        "awaiting_confirmation": awaiting_confirmation,
-        "next_hold_expires_at": next_hold_expires_at.isoformat() if next_hold_expires_at else None,
         "pending_reschedule_requests": pending_reschedule_requests,
         "needs_attention": needs_attention,
         "pending_follow_up": pending_follow_up,

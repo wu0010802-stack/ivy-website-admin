@@ -5,7 +5,7 @@
 - **後台招生表單**：放回來源分類（園務九類）、帶參觀老師（只打名字，建議清單是本校填過的名字）、搭娃娃車；新增英文名字、父親職業、母親職業。「幼生來源」改叫「來源備註」。基本資料改成兩兩一列。明細表格不加欄，新欄位放進展開列（手機「其他資料」），關鍵字搜得到英文名。
 - **記錄聯絡**：方式加「再參觀」。
 - **官網預約**：「如何知道常春藤」加「哥哥姊姊讀過或正在讀」（`sibling`）、「傳單／DM」（`flyer`）；後端匯出、預約轉招生的來源文字、後台、成效統計排序一起改。
-- **後端**：migration `3fe1cfb2dbf7`（接 `4373bcc82d9d`）在 `recruitment_visits` 加 `english_name`、`father_occupation`、`mother_occupation`（可空、50 字），重建 `ck_recruitment_contact_logs_channel` 放行 `revisit`；只加欄位、放寬約束，不改既有資料，部署前不用備份。`GET /options` 多 `tour_guides`。匿名化清三個新欄位；轉移契約放 `extensions`（`contracts/ivy-recruitment/README.md`）。`contracts/` 重新產生。
+- **後端**：migration `3fe1cfb2dbf7`（接 `1e5612e187ff`，合併 main 時從 `4373bcc82d9d` 改接）在 `recruitment_visits` 加 `english_name`、`father_occupation`、`mother_occupation`（可空、50 字），重建 `ck_recruitment_contact_logs_channel` 放行 `revisit`；只加欄位、放寬約束，不改既有資料，部署前不用備份。`GET /options` 多 `tour_guides`。匿名化清三個新欄位；轉移契約放 `extensions`（`contracts/ivy-recruitment/README.md`）。`contracts/` 重新產生。
 - **不收**：公司（紙本其實是公司電話，使用者裁定先不用）、父母姓名與各自電話、性別、預繳金額、接送雙程單程、健康與家庭狀況。
 - **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_paperfields1005_test`）：
   - 後端：整套 pytest 1534 passed、1 skipped、2 failed——兩項都在 `test_media_jobs.py`（比對 `/tmp/ivy-website-test-media` 的檔案數，同時有別的 session 在跑 pytest、共用該資料夾），等它跑完單獨重跑整檔 38 項全過。新增：紙本欄位新增／清空／長度、英文名搜尋、`tour_guides` 建議、再參觀（含資料庫 CHECK）、匿名化清三欄、契約延伸欄位、migration 接點與升級不改資料；`alembic downgrade -1` 再 `upgrade head` 通過。
@@ -13,6 +13,21 @@
   - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。`contract:check` 一致。
   - stack e2e（`E2E_DB_NAME=ivy_website_paperfields1005_e2e_test`、埠 8793／3793，跑完已刪庫）：整套 74 項全過。另用臨時 spec 走過新增訪視填全部新欄位 → API 核對 → 記錄聯絡選再參觀 → 展開列 → 再開編輯帶回原值；官網六個選項順序、勾兄姊＋傳單送出後 `referral_sources == ["sibling", "flyer"]`；1440／390 截圖不橫向溢出（`output/playwright/paper-fields/`，臨時 spec 已刪）。
   - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
+
+## 2026-10-05 參觀案件拿掉「待處理」，舊案刪除（`feature/visit-no-pending-20261005`）
+
+使用者指著正式站 `/admin/visit-requests?group=pending` 說「把這個狀態拿掉，現在都是有預約時間的參觀」，舊案裁定直接刪除。規則見 DESIGN.md「拿掉「待處理」」。
+
+- **後台**：案件列表分組剩預約正常／時間已過／已取消（`?group=pending` 與舊 `?status=new|contacting|pending_confirmation` 落到全部），列表不再顯示確認期限；側欄「參觀案件」不再掛數字（`NavItem.badge` 拿掉）；總覽摘要固定兩格、拿掉「場次預約等園方確認」「新的參觀需求還沒聯絡」兩個待辦；成效統計拿掉「舊資料的待處理」。
+- **後端**：`status_groups` 拿掉 `pending`，還沒結案的依場次分組、沒有場次算預約正常（每筆剛好一組）；`group` 參數不收 `pending`；`pending_kinds` 剩兩種；成效統計拿掉 `pending`／`legacy_pending`；`/admin/dashboard` 拿掉 `new_requests`、`awaiting_confirmation`、`next_hold_expires_at`；`contracts/` 重新產生。
+- **資料**：migration `1e5612e187ff` 刪掉 new／contacting／pending_confirmation 的案件（連帶 CASCADE 的聯絡紀錄、歷程、outbox、家長連結、改期申請）與指向它們的站內通知；downgrade 不還原。正式站義華只有 1 筆（09-24 測試案），其他四校以 migration 實際刪除數為準；使用者確認正式庫的預約資料都是測試資料、可以刪，這次部署不另外備份。
+- **沒動**：資料庫七種狀態、後端舊狀態流程與提醒、案件明細的舊狀態分支、各校預約方式的影響數字、官網家長管理頁文案。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1532 passed、1 skipped（8 分 57 秒，獨立測試庫 `ivy_website_test_nopending`）；新增 `test_delete_legacy_pending_migration.py`（只刪三種舊狀態、CASCADE、related_request_id 變 NULL、只刪指到舊案的站內通知）、`group=pending` 回 422；拿掉總覽舊計數的測試。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 94 檔 1203 項全過（另一次整套有 2 項 `admissionsRecords` 逾時，當時負載 91，單獨重跑 33 項全過）。15 個測試檔改成驗證「已經沒有了」：頁籤只有四個、舊網址落到全部、側欄沒有數字、總覽固定兩格、成效統計沒有舊資料。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_nopending1005_e2e_test`、埠 8791／3791，跑完已刪庫）：整套 74 項＋臨時截圖 spec 2 項全過；`visual.spec` 拿掉已不存在的 `.sidebar__badge` 遮罩。臨時 spec 拍 1440／390：`?group=pending` 落到全部、四個頁籤、側欄無數字、總覽兩格、手機不橫向溢出（截圖在 `output/playwright/no-pending/`，spec 已刪）。
+  - 未驗證：正式庫 migration 實際刪除筆數（其他四校）、登入正式後台實際點一次。
 
 ## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`，10-05 已部署 main `51332515`）
 

@@ -41,7 +41,12 @@ describe('案件狀態顯示（參考義華舊後台）', () => {
     expect(visitDisplay({ status: 'completed', display_status: 'past' })).toMatchObject({ label: '預約時間已過', sub: '已到場' })
     expect(visitDisplay({ status: 'no_show', display_status: 'past' }).sub).toBe('未到場')
     expect(visitDisplay({ status: 'confirmed', display_status: 'past' }).sub).toBe('尚未確認到場')
-    expect(visitDisplay({ status: 'contacting', display_status: 'pending' })).toMatchObject({ label: '待處理', sub: '聯絡中' })
+    // 2026-10-05：沒有「待處理」；舊狀態的案件也只依場次顯示成預約正常。
+    for (const legacy of ['new', 'contacting', 'pending_confirmation']) {
+      const shown = visitDisplay({ status: legacy, display_status: 'upcoming' })
+      expect(shown).toMatchObject({ label: '預約正常', tone: 'success', sub: '' })
+      expect(shown.label).not.toBe('待處理')
+    }
   })
 
   it('取消寫出是誰、什麼時候', () => {
@@ -54,7 +59,8 @@ describe('案件狀態顯示（參考義華舊後台）', () => {
   })
 
   it('舊的 ?status= 書籤轉成分組', () => {
-    expect(legacyStatusGroup('contacting')).toBe('pending')
+    // 舊流程的 new／contacting／pending_confirmation 不再有對應分組，落到「全部」。
+    for (const legacy of ['new', 'contacting', 'pending_confirmation']) expect(legacyStatusGroup(legacy)).toBe('')
     expect(legacyStatusGroup('confirmed')).toBe('upcoming')
     expect(legacyStatusGroup('no_show')).toBe('past')
     expect(legacyStatusGroup('cancelled')).toBe('cancelled')
@@ -63,14 +69,17 @@ describe('案件狀態顯示（參考義華舊後台）', () => {
 })
 
 describe('案件列表分頁', () => {
-  it('分頁數字來自 group-counts；有舊案才出現待處理', async () => {
+  it('分頁數字來自 group-counts，只有全部＋三組；舊的 ?status=contacting 落到全部、不帶 group', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-      (path.startsWith('/admin/visit-requests/group-counts') ? { pending: 2, upcoming: 5, past: 9, cancelled: 1 } : []) as never)
+      (path.startsWith('/admin/visit-requests/group-counts') ? { upcoming: 5, past: 9, cancelled: 1 } : []) as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=contacting')
 
     const tabs = wrapper.findAll('.status-tab').map(tab => tab.text().replace(/\s+/g, ''))
-    expect(tabs).toEqual(['全部', '待處理2件', '預約正常5件', '時間已過9件', '已取消1件'])
-    expect(router.currentRoute.value.query.group).toBe('pending')
-    expect(get.mock.calls.some(([path]) => String(path).includes('group=pending'))).toBe(true)
+    expect(tabs).toEqual(['全部', '預約正常5件', '時間已過9件', '已取消1件'])
+    expect(wrapper.findAll('.status-tab')[0]!.attributes('aria-pressed')).toBe('true')
+    expect(router.currentRoute.value.query.group).toBeUndefined()
+    const lists = get.mock.calls.map(([path]) => String(path)).filter(path => path.startsWith('/admin/visit-requests?'))
+    expect(lists.length).toBeGreaterThan(0)
+    expect(lists.some(path => path.includes('group='))).toBe(false)
   })
 })

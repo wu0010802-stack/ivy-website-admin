@@ -5,7 +5,7 @@
   漏斗（analytics_service.get_campus_funnel）依事件發生日期計數，兩邊不能互相相除（3.2）。
 - 到場率＝已到場 ÷（已到場＋未到場）。參觀時間已過但還沒標記的另列
   awaiting_attendance，不算進分母，也不當成到場（3.2：不能用預定日期已過判定已到場）。
-- 待處理三種（open_now）是現在的狀態，不受期間影響，條件在 booking/pending_kinds.py，
+- 待處理兩種（open_now）是現在的狀態，不受期間影響，條件在 booking/pending_kinds.py，
   和總覽、案件列表同一份。
 - 不回傳任何個資；只有 analytics.read 的角色也能看。"""
 
@@ -26,8 +26,8 @@ from app.common.timezones import now_utc
 from app.operations.analytics_service import UNKNOWN, FunnelRange
 from app.operations.models import CANCEL_REASONS
 
-# 每筆案件剛好落在其中一種，加總＝cases。unscheduled：已確認卻沒有場次的舊流程資料。
-OUTCOMES = ("pending", "upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
+# 每筆案件剛好落在其中一種，加總＝cases。unscheduled：還沒結案卻沒有場次的舊流程資料。
+OUTCOMES = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
 CANCEL_REASON_KEYS = (*CANCEL_REASONS, UNKNOWN)
 
 
@@ -38,7 +38,6 @@ def _rate(numerator: int, denominator: int) -> dict:
 def _outcome(now: datetime):
     status = VisitRequest.status
     return case(
-        (pending_kinds.condition("legacy_pending", now), literal("pending")),
         (status == VisitRequestStatus.CANCELLED.value, literal("cancelled")),
         (status == VisitRequestStatus.COMPLETED.value, literal("completed")),
         (status == VisitRequestStatus.NO_SHOW.value, literal("no_show")),

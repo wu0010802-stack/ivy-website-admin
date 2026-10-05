@@ -183,7 +183,13 @@ describe('狀態用詞與列表', () => {
     expect(visitDisplayStatus('confirmed', slot, new Date('2026-10-02T09:59:00+08:00').getTime())).toBe('upcoming')
     expect(visitDisplayStatus('confirmed', slot, new Date('2026-10-02T10:00:00+08:00').getTime())).toBe('past')
     expect(visitDisplayStatus('no_show', slot)).toBe('past')
-    expect(visitDisplayStatus('pending_confirmation', slot)).toBe('pending')
+    // 2026-10-05：沒有 pending；舊狀態（new／contacting／pending_confirmation）也只依場次是否開始判斷。
+    for (const legacy of ['new', 'contacting', 'pending_confirmation']) {
+      expect(visitDisplayStatus(legacy, slot, new Date('2026-10-02T09:59:00+08:00').getTime())).toBe('upcoming')
+      expect(visitDisplayStatus(legacy, slot, new Date('2026-10-02T10:00:00+08:00').getTime())).toBe('past')
+      expect(visitDisplayStatus(legacy, null)).toBe('upcoming')
+    }
+    expect(visitDisplayStatus('cancelled', slot)).toBe('cancelled')
   })
 
   it('列表的參觀時間今年省略年份，跨年照寫', () => {

@@ -11,9 +11,9 @@ import { SECOND_CAMPUS, storageStatePath } from './stack-env'
 
 const PARENT = '畫面基準家長'
 
-/** 每張圖都要遮的：側欄待辦數字（其他測試會改變）、所有時間。 */
+/** 每張圖都要遮的：數字（其他測試會改變）、所有時間。 */
 function dynamicParts(page: Page): Locator[] {
-  return [page.locator('.sidebar__badge'), page.locator('time'), page.locator('.num')]
+  return [page.locator('time'), page.locator('.num')]
 }
 
 async function settle(page: Page): Promise<void> {
@@ -51,7 +51,7 @@ test.describe('後台畫面基準', () => {
     // 「有或沒有」的差異，所以截圖時隱藏（visibility 不改版面），也不遮罩它裡面的 .num。
     // 這裡的 style 會取代 config 的 style，所以 config 原本那條要一併帶上。
     await expect(page).toHaveScreenshot('booking-settings.png', {
-      mask: [page.locator('.sidebar__badge'), page.locator('time'), page.locator('.num:not(.top__alert-count)')],
+      mask: [page.locator('time'), page.locator('.num:not(.top__alert-count)')],
       style: '.top__alerts { visibility: hidden !important; } .top__alert, .top__alert * { visibility: hidden !important; }',
     })
   })
