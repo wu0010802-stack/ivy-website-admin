@@ -573,3 +573,15 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 驗證（2026-10-04，HEAD `096be30c`）：後端 pytest 全套 1432 passed、1 skipped（HLG，本機無 zscale）、admin vitest 1065 passed、web 757 passed、`contract:check` 一致、stack e2e 全套 70 passed、alembic 單一 head `e5b9c3a7d214`。
 
 未驗證：正式站 zscale、Railway api 記憶體與 draining 秒數、iOS Safari 實機播放轉檔版本、HDR 實片畫質、正式站回補。
+
+## 預約明細當家庭頁（2026-10-05）
+
+規格：`docs/specs/2026-10-05-visit-family-page-design.md` 10.4。
+
+| # | 驗收 | 驗證 |
+|---|---|---|
+| F1 | 有預約、已到場的家庭，預約明細能看到招生資料、合併聯絡紀錄、合併歷程，並能記錄聯絡、排下次聯絡、編輯、移到… | `visitFamilyPage.test.ts`、`familyActions.test.ts`、stack `visit-family-page.spec.ts` |
+| F2 | 招生看板、訪視明細、待追蹤點有預約的列開預約明細；手動新增的開抽屜 | `familyEntryPoints.test.ts`、stack `visit-family-page.spec.ts` |
+| F3 | 從招生點進來，返回回到原分頁與篩選，看板反映剛才的變更 | `familyEntryPoints.test.ts`、stack `visit-family-page.spec.ts` |
+| F4 | 開關關閉、沒有招生權限、已到場但沒有訪視三種情況，畫面與改版前相同 | `visitFamilyPage.test.ts`「不是家庭版面的情況維持原樣」、`admissionsVisitDetail.test.ts` |
+| F5 | 後端新欄位、契約一致；沒有 migration | `test_admissions_family_page_fields.py`、`npm run contract:check` |
