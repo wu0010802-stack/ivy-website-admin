@@ -11,10 +11,24 @@
 - **全站**：列表淺色主色鈕字色加深（約 4.45→5.4:1）；招生入學檔案的錯誤提示全改走 `notify.ts`，守門測試拿掉招生例外。
 - **刻意沒改（會和園務分歧）**：比率改名或拿掉、「退費率」、預設分頁改待追蹤、退出欄改色、統計總覽合併重複區塊、月初不上紅。
 - **驗證**（Node 22.23.2）：
-  - admin：vitest 93 檔 1211 項通過、`vue-tsc -b` 通過、`vite build` 通過（e2e build）；合併 main（站內通知頁）後重跑 vitest 1216 項、typecheck、stack 75 項都過。
+  - admin：vitest 93 檔 1211 項通過、`vue-tsc -b` 通過、`vite build` 通過（e2e build）；合併 main（站內通知頁、側欄）後重跑 vitest、typecheck、stack 全套。
   - stack e2e（`E2E_DB_NAME=ivy_website_admux1005_e2e_test`、埠 8797／3797）：整套 75 項全過，含招生六個分頁的 axe、鍵盤、招生流程、參觀後追蹤、視覺基準。
   - 拋棄式測試庫畫面（Playwright，寫入請求全攔截）：明細與待追蹤表格 1280 寬 962/962、1440 寬 1122/1122 不橫捲；手機觸控裝置「移到…」顯示；記錄聯絡抬頭與上次內容、抽屜移到…、名額學期切換、統計參考月份位置逐張看過。
   - 沒動後端與 API 型別，沒跑 pytest、`contract:check`、`test:website`；未驗證 Safari／iOS 實機、正式站。
+
+## 2026-10-05 官網後台側欄：標題分兩層、列高收緊、捲動提示、⌘K 搜尋（`feature/admin-sidebar-20261005`，commit `bf00586`，已合 main 待推）
+
+使用者附正式站側欄截圖要「優化側欄的 UI/UX」。從 origin/main `23c6aa2` 開 worktree，拋棄式測試庫（`ivy_website_sidebar1005_test`，API 8761、admin 5311）拍桌機 1440／1280、手機 390 前後對照。規則見 DESIGN.md「官網後台側欄：層級、尺寸與鍵盤」。
+
+- **層級**：第一層（參觀預約／官網內容／系統）統一成小字灰色標題、只用間距分開；第二層子組（首頁／各校／全站與素材）改成像一列選單，箭頭占圖示欄、子項目縮排並有一條細線，三種標題不再長得一樣，左緣對齊。
+- **尺寸與捲動**：桌機列高 40→36px（手機維持 44），總管理者全展開 1482→1311px；選單上下緣加捲動陰影（純 CSS），看得出上面／下面還有項目。
+- **圖示**：實心的 HomeFilled／Grid／TrendCharts／List 換成線條的 House／Film／PieChart／Memo；更改密碼鑰匙改鎖頭。
+- **搜尋與鍵盤**：⌘K／Ctrl+K 跳到搜尋框（框內有提示）；搜尋時先標出 Enter 會開的那一筆；Esc 清除搜尋字；↓↑ 在搜尋框與選單間移動。收起但目前頁面在裡面的分組，標題用選取色。焦點框改往內縮，不再被捲動區裁掉。
+- **驗證**（Node 22.23.2）：
+  - admin：`vue-tsc -b` 與 `vite build` 通過；vitest 全套 93 檔 1158 過、4 項逾時（招生紀錄、案件列表，load average 33 時 5 秒逾時，單獨重跑兩檔 42 項全過，與側欄無關）；新增 `sidebarNav20261005.test.ts` 9 項（換回 main 的元件跑是 7 紅 2 綠，綠的兩項是「對話框開著／手機抽屜不搶 ⌘K」的反向檢查）；改完後掛到側欄或 nav.ts 的 22 檔 305 項再跑全過。`npx impeccable detect` 側欄 0 筆。
+  - stack e2e（`E2E_DB_NAME=ivy_website_sidebar_e2e_test`、埠 8763／3763）：visual、keyboard、roles、a11y 共 46 項全過。視覺基準重拍 4 張後台頁（`--update-snapshots=all`；預設模式只會重寫超過 1% 的五校介紹，其他三張差異在門檻內但圖上仍是舊側欄），登入頁沒變；重拍後再跑 visual 6/6 過。
+  - 拋棄式測試庫 Playwright 實按（桌機 1440）：⌘K 聚焦搜尋框、↓ 到營運總覽、再 ↓ 到參觀預約、↑↑ 回搜尋框；搜「素材」標出素材庫、Esc 清空、Enter 到 /media 且搜尋字清掉；更改密碼對話框開著時 ⌘K 焦點不動；收起目前所在的「全站與素材」後標題變選取色。console 無錯誤。
+  - 沒動後端與 API 型別，沒跑 pytest 與 `contract:check`；未驗證 Safari／iOS 實機、Windows 的 Ctrl+K、正式站。
 
 ## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`，10-05 已部署 main `75caffa`）
 
