@@ -11,12 +11,12 @@
 - **全站**：列表淺色主色鈕字色加深（約 4.45→5.4:1）；招生入學檔案的錯誤提示全改走 `notify.ts`，守門測試拿掉招生例外。
 - **刻意沒改（會和園務分歧）**：比率改名或拿掉、「退費率」、預設分頁改待追蹤、退出欄改色、統計總覽合併重複區塊、月初不上紅。
 - **驗證**（Node 22.23.2）：
-  - admin：vitest 93 檔 1211 項通過、`vue-tsc -b` 通過、`vite build` 通過（e2e build）。
+  - admin：vitest 93 檔 1211 項通過、`vue-tsc -b` 通過、`vite build` 通過（e2e build）；合併 main（站內通知頁）後重跑 vitest 1216 項、typecheck、stack 75 項都過。
   - stack e2e（`E2E_DB_NAME=ivy_website_admux1005_e2e_test`、埠 8797／3797）：整套 75 項全過，含招生六個分頁的 axe、鍵盤、招生流程、參觀後追蹤、視覺基準。
   - 拋棄式測試庫畫面（Playwright，寫入請求全攔截）：明細與待追蹤表格 1280 寬 962/962、1440 寬 1122/1122 不橫捲；手機觸控裝置「移到…」顯示；記錄聯絡抬頭與上次內容、抽屜移到…、名額學期切換、統計參考月份位置逐張看過。
   - 沒動後端與 API 型別，沒跑 pytest、`contract:check`、`test:website`；未驗證 Safari／iOS 實機、正式站。
 
-## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`）
+## 2026-10-05 官網後台站內通知頁 UI/UX（`feature/admin-notifications-20261005`，10-05 已部署 main `75caffa`）
 
 使用者要「優化 /admin/notifications 的 UI/UX」。用拋棄式測試庫灌三校的預約、改期、取消、提醒、寄送失敗與一筆舊的改期申請，桌機 1440／1280、手機 390 各以總管理者、單校管理者、櫃台三種帳號看過。規則見 DESIGN.md「官網後台站內通知頁」。
 
