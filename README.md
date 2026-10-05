@@ -4,21 +4,7 @@
 - 招生入學的看板、訪視明細、待追蹤點有預約的家庭會開預約明細；手動新增的仍開歷程抽屜。
 - 後端看板卡片與待追蹤列多回 `visit_request_id`；沒有 migration。規格 `docs/specs/2026-10-05-visit-family-page-design.md`。
 
-## 2026-10-05 校園探索改由總部帳號直接控制（`feature/admin-no-campus-tour-20261005`）
-
-使用者先說正式站 `/admin/content/campus-tour?campus=yihua`「可以先拿掉了」，接著改口：常春藤環境頁「五所校園」的照片「由總部帳號直接控制」，「總部帳號」裁定為總管理者＋有「全站共用內容」授權的人。規則見 DESIGN.md「校園探索改由總部管理」。
-
-- **後端**：`ContentKindConfig.hq_managed`（`campus_tour`）＋`managed_as_shared()`；編輯／發布／核准／送審通知、讀取、發布紀錄、素材「用在哪裡」、總覽的待發布・缺素材・排程失敗・待審核都比照共用內容。沒有 migration，API 形狀不變。
-- **後台**：側欄「校園探索」從「各校」移到「全站與素材」並限總部（路由守衛跟著擋）；編輯頁五校都能切換，別校素材只挑跨校共用；素材用途對沒權限的人寫「由總部管理」；發布後「查看官網」改開 `/environment#campuses`、預覽改開 `/preview?page=environment`。
-- **官網**：環境頁第四章不變；草稿預覽新增 `?page=environment`。
-- **驗證**（Node 22.23.2）：
-  - 後端：rebase 到 main `8b0efde2` 後整套 pytest 1538 passed、1 skipped（9 分 46 秒，獨立測試庫 `ivy_website_hqtour_test`，跑完已刪庫）。新增 `test_campus_tour_hq.py` 6 項（分校帳號連本校都不能改但讀得到、總管理者五校都能發布、有授權的分校管理者能改別校並在發布紀錄看到、授權的內容編輯送審後只有共用發布者能審、總覽提醒、素材用途標題與 can_edit），把 `hq_managed` 關掉時 5 項全紅；`test_media_library.py` 兩項原本拿校園探索當分校內容的例子，改用各校消息。`contract:check` 一致。
-  - 後台：`vue-tsc -b` 通過；vitest 95 檔 1209 項全過（新增 `campusTourHq.test.ts`；側欄限總部、總覽與素材用途的連結跟著改）。
-  - 官網：`nuxt typecheck` 通過、web 單元測試 80 檔 829 項全過（預覽頁接受 `page=environment`）。
-  - stack e2e（`E2E_DB_NAME=ivy_website_hqtour_e2e_test`、埠 8796／3796，跑完已刪庫）：rebase 前後各跑一次整套，都是 74 項全過。另用臨時 spec 在真後端點過：總管理者側欄「全站與素材」有校園探索、切到明華可編輯、桌機 1440 與手機 390 不橫向溢出；義華分校管理者側欄沒有、直接開網址回總覽；`/preview?page=environment` 五校分頁、場景照片載入（截圖在 `output/playwright/hq-tour/`，臨時 spec 已刪）。
-  - 未驗證：登入正式後台實際點一次、有授權但非總管理者的真帳號。
-
-## 2026-10-05 招生訪視照園方紙本補欄位、官網得知管道加兩項（`feature/admissions-paper-fields-20261005`）
+## 2026-10-05 招生訪視照園方紙本補欄位、官網得知管道加兩項（`feature/admissions-paper-fields-20261005`，10-05 已部署 main `9ab739ae`）
 
 使用者拿帶參觀老師填的紙本「幼兒基本資料＋參觀紀錄」逐欄對照，裁定補三類。規則見 DESIGN.md「招生訪視照紙本補欄位」。
 
@@ -33,6 +19,20 @@
   - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。`contract:check` 一致。
   - stack e2e（`E2E_DB_NAME=ivy_website_paperfields1005_e2e_test`、埠 8793／3793，跑完已刪庫）：整套 74 項全過。另用臨時 spec 走過新增訪視填全部新欄位 → API 核對 → 記錄聯絡選再參觀 → 展開列 → 再開編輯帶回原值；官網六個選項順序、勾兄姊＋傳單送出後 `referral_sources == ["sibling", "flyer"]`；1440／390 截圖不橫向溢出（`output/playwright/paper-fields/`，臨時 spec 已刪）。
   - 未驗證：登入正式後台實際點一次、Safari／iOS 實機。
+
+## 2026-10-05 校園探索改由總部帳號直接控制（`feature/admin-no-campus-tour-20261005`）
+
+使用者先說正式站 `/admin/content/campus-tour?campus=yihua`「可以先拿掉了」，接著改口：常春藤環境頁「五所校園」的照片「由總部帳號直接控制」，「總部帳號」裁定為總管理者＋有「全站共用內容」授權的人。規則見 DESIGN.md「校園探索改由總部管理」。
+
+- **後端**：`ContentKindConfig.hq_managed`（`campus_tour`）＋`managed_as_shared()`；編輯／發布／核准／送審通知、讀取、發布紀錄、素材「用在哪裡」、總覽的待發布・缺素材・排程失敗・待審核都比照共用內容。沒有 migration，API 形狀不變。
+- **後台**：側欄「校園探索」從「各校」移到「全站與素材」並限總部（路由守衛跟著擋）；編輯頁五校都能切換，別校素材只挑跨校共用；素材用途對沒權限的人寫「由總部管理」；發布後「查看官網」改開 `/environment#campuses`、預覽改開 `/preview?page=environment`。
+- **官網**：環境頁第四章不變；草稿預覽新增 `?page=environment`。
+- **驗證**（Node 22.23.2）：
+  - 後端：rebase 到 main `8b0efde2` 後整套 pytest 1538 passed、1 skipped（9 分 46 秒，獨立測試庫 `ivy_website_hqtour_test`，跑完已刪庫）。新增 `test_campus_tour_hq.py` 6 項（分校帳號連本校都不能改但讀得到、總管理者五校都能發布、有授權的分校管理者能改別校並在發布紀錄看到、授權的內容編輯送審後只有共用發布者能審、總覽提醒、素材用途標題與 can_edit），把 `hq_managed` 關掉時 5 項全紅；`test_media_library.py` 兩項原本拿校園探索當分校內容的例子，改用各校消息。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 95 檔 1209 項全過（新增 `campusTourHq.test.ts`；側欄限總部、總覽與素材用途的連結跟著改）。
+  - 官網：`nuxt typecheck` 通過、web 單元測試 80 檔 829 項全過（預覽頁接受 `page=environment`）。
+  - stack e2e（`E2E_DB_NAME=ivy_website_hqtour_e2e_test`、埠 8796／3796，跑完已刪庫）：rebase 前後各跑一次整套，都是 74 項全過。另用臨時 spec 在真後端點過：總管理者側欄「全站與素材」有校園探索、切到明華可編輯、桌機 1440 與手機 390 不橫向溢出；義華分校管理者側欄沒有、直接開網址回總覽；`/preview?page=environment` 五校分頁、場景照片載入（截圖在 `output/playwright/hq-tour/`，臨時 spec 已刪）。
+  - 未驗證：登入正式後台實際點一次、有授權但非總管理者的真帳號。
 
 ## 2026-10-05 參觀案件拿掉「待處理」，舊案刪除（`feature/visit-no-pending-20261005`）
 
