@@ -520,10 +520,13 @@ async function onSubmit() {
               <p id="visit-campus-error" ref="campusErrorRef" class="visit-field-error" role="alert">{{ campusError }}</p>
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
                 <legend class="sr-only">想參觀的校區</legend>
+                <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
+                     DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
+                     400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。 -->
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-mode" :class="{ 'is-online': campusModes[campus.key] === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>

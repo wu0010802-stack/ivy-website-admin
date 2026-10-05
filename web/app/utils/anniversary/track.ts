@@ -72,18 +72,41 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
   // ── 素材 ──
   const [body, border] = await Promise.all([loadImage(ANNI_MEDIA.kidsBody), loadImage(ANNI_MEDIA.kidsBorder)])
   const puppet: Puppet = createPuppet(body, border, crayon, paperCss)
-  if (gl) {
-    try {
-      await gl.loadPaper(ANNI_MEDIA.paper)
-      await Promise.all(cards.map(async (c) => {
-        c.tex = await gl.loadCard(`/assets/campus-line-art-${c.key}.webp`, `/assets/campus-line-art-${c.key}-colour.webp`, ANNI_MEDIA.fields[c.key as keyof typeof ANNI_MEDIA.fields])
-      }))
-      crest = await gl.loadCrest('/assets/ivy-30th-anniversary-projection.webp', ANNI_MEDIA.crestFields)
-    } catch (e) { console.error(e) }
+  // 卡片與校徽的貼圖（五校線稿＋上色＋田野、校徽投影，桌機合計約 3 MB）等線頭快走到才載：
+  // 軌道一進到視窗附近就會掛載，一次全抓會跟頁面上其他圖片搶頻寬（2026-10-05 效能盤點）。
+  // 載不到（或沒有 WebGL）的卡片與校徽改用靜態圖。
+  let disposed = false
+  const cardFallback = (c: CardState) => c.el.querySelector('.anni-card')!.classList.add('is-fallback')
+  const paperReady = gl ? gl.loadPaper(ANNI_MEDIA.paper).then(() => true, (e) => { console.error(e); return false }) : Promise.resolve(false)
+  const cardLoads = new Map<CardState, Promise<void>>()
+  const loadCard = (c: CardState) => {
+    let pending = cardLoads.get(c)
+    if (!pending) {
+      pending = paperReady.then(async (ok) => {
+        if (!ok || !gl) throw new Error('紙張貼圖沒有載入')
+        const tex = await gl.loadCard(`/assets/campus-line-art-${c.key}.webp`, `/assets/campus-line-art-${c.key}-colour.webp`, ANNI_MEDIA.fields[c.key as keyof typeof ANNI_MEDIA.fields])
+        if (disposed) return
+        c.tex = tex
+        // 捲太快、卡片已經立起來才載到：線稿從頭畫
+        if (c.started >= 0) c.started = performance.now()
+        kick()
+      }).catch((e) => { console.error(e); cardFallback(c) })
+      cardLoads.set(c, pending)
+    }
+    return pending
   }
-  // 沒有 WebGL：卡片與校徽改用靜態圖
-  for (const c of cards) if (!c.tex) c.el.querySelector('.anni-card')!.classList.add('is-fallback')
-  if (!crest) finale.classList.add('is-fallback')
+  let crestLoad: Promise<void> | null = null, crestFailed = false
+  const loadCrest = () => crestLoad ??= paperReady.then(async (ok) => {
+    if (!ok || !gl) throw new Error('紙張貼圖沒有載入')
+    const tex = await gl.loadCrest('/assets/ivy-30th-anniversary-projection.webp', ANNI_MEDIA.crestFields)
+    if (disposed) return
+    crest = tex
+    kick()
+  }).catch((e) => { console.error(e); crestFailed = true; finale.classList.add('is-fallback') })
+  if (!gl) {
+    for (const c of cards) cardFallback(c)
+    finale.classList.add('is-fallback')
+  }
   // 結尾舞台：會動的時候釘住，捲動距離拿來畫 30；減少動態就直接是畫好的樣子
   finale.classList.add('is-live', opts.reduce ? 'is-still' : 'is-pinned')
 
@@ -271,7 +294,8 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
         puppet.draw(fKids, { phase: fPhase, stride: hopping ? 0 : stride })
       }
     }
-    if (fz.print && crestStart < 0) crestStart = now
+    // 校徽貼圖還在載就先不印，載到時 loadCrest 會 kick() 回來
+    if (fz.print && crestStart < 0 && (crest || crestFailed || !gl)) crestStart = now
     if (crestStart >= 0 && !crestDone) {
       const t = (now - crestStart) / 2200
       if (crest && gl) gl.drawCrest(crest, crestCanvas, Math.min(1.1, t * 1.1))
@@ -281,10 +305,18 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     if ((visible || finaleVisible) && (busy || dy !== 0)) raf = requestAnimationFrame(frame)
   }
   const kick = () => { if (!raf && (visible || finaleVisible)) { lastT = performance.now(); raf = requestAnimationFrame(frame) } }
+  // 線頭距卡片 1.5 個視窗高就開始載那張卡；結尾舞台的頂端進到視窗下方 2.5 個視窗高內才載校徽
+  const prefetch = () => {
+    if (!gl) return
+    const head = headAt()
+    for (const c of cards) if (head + innerHeight * 1.5 >= c.triggerY) void loadCard(c)
+    if (scrollY + innerHeight * 3.5 >= finaleTop) void loadCrest()
+  }
 
   measure()
   if (opts.reduce) {
-    // 減少動態：直接是畫完的樣子
+    // 減少動態：直接是畫完的樣子，貼圖全部載完再畫
+    if (gl) await Promise.all([...cards.map(loadCard), loadCrest()])
     const still = () => {
       maxHead = trackH
       drawInk(trackH)
@@ -309,7 +341,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     addEventListener('scroll', onScrollStill, { passive: true })
     const ro = new ResizeObserver(() => { measure(); still(); onScrollStill() })
     ro.observe(track); ro.observe(finale)
-    return () => { ro.disconnect(); removeEventListener('scroll', onScrollStill); gl?.destroy() }
+    return () => { disposed = true; ro.disconnect(); removeEventListener('scroll', onScrollStill); gl?.destroy() }
   }
 
   const io = new IntersectionObserver((es) => {
@@ -317,21 +349,23 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     kick()
   }, { rootMargin: '200px 0px' })
   io.observe(track); io.observe(finale)
-  const onScroll = () => kick()
+  const onScroll = () => { prefetch(); kick() }
   addEventListener('scroll', onScroll, { passive: true })
   let rz = 0
   const ro = new ResizeObserver(() => {
     cancelAnimationFrame(rz)
     rz = requestAnimationFrame(() => {
-      measure(); drawInk(maxHead); drawFinale(fMax)
+      measure(); drawInk(maxHead); drawFinale(fMax); prefetch()
       for (const c of cards) if (c.started >= 0) { c.done = false; renderCard(c, performance.now()) }
       if (crestStart >= 0) crestDone = false
       kick()
     })
   })
   ro.observe(track); ro.observe(finale)
+  prefetch()
   kick()
   return () => {
+    disposed = true
     io.disconnect(); ro.disconnect()
     removeEventListener('scroll', onScroll)
     cancelAnimationFrame(raf); cancelAnimationFrame(rz)

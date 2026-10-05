@@ -3,7 +3,7 @@
 執行：python3 scripts/optimize-site-images.py（需 Pillow）；
 只更新部分素材：加 `--only day-hello day-discover …`，保留 manifest 其他項目。
 
-- 預設 q84／[480, 800, 1200]；`OVERRIDES` 針對 Lighthouse 判定壓縮不足的照片
+- 預設 q84／[480, 800, 1200, 1600]；`OVERRIDES` 針對 Lighthouse 判定壓縮不足的照片
   個別降品質或加尺寸，參數進雜湊，改參數就換檔名。
 - 每張另輸出一份「原尺寸重新編碼」候選檔：母檔多半是 q90+ 的匯出，桌機選到
   原圖時（例如 1440 的 day-poster）白白多下載 60–70 KB。省下 20% 以上才採用，
@@ -27,16 +27,19 @@ OUTPUT.mkdir(exist_ok=True)
 OG_OUTPUT.mkdir(exist_ok=True)
 
 DEFAULT_QUALITY = 84
-DEFAULT_WIDTHS = [480, 800, 1200]
+DEFAULT_WIDTHS = [480, 800, 1200, 1600]
 # 2026-09-22：day-poster 是背景影片底下的海報（上面還壓一層 shade），
 # classroom／learning 是關於區塊的小照片，降品質肉眼看不出差異。
 # hero-campus-still 是 LCP，補 640w 給 DPR 1.5–1.75 的手機。
 # 2026-09-29：首頁五校分頁線稿在手機只有 48–60px 寬（DPR3 約需 180px），補 240w，不必下載 480w。
 # 2026-09-30：義華外觀 v2 母檔 2820px，首頁五校卡在桌機 DPR2 要 2000–2900px，補中間幾級，免得 1200 以上直接跳母檔。
+# 2026-10-05：預設補 1600w。內頁首圖多是 object-fit:cover 裁成比原圖寬的框，DPR3 手機要 1180–1570px，
+# 原本 1200 以上直接跳 2000 級母檔（about-hero 138 KB 對 1200w 75 KB）。只改品質的三張固定原本三級，
+# 雜湊鹽值不變、不必重產。
 OVERRIDES = {
-    'day-poster': {'quality': 68},
-    'classroom': {'quality': 72},
-    'learning': {'quality': 72},
+    'day-poster': {'quality': 68, 'widths': [480, 800, 1200]},
+    'classroom': {'quality': 72, 'widths': [480, 800, 1200]},
+    'learning': {'quality': 72, 'widths': [480, 800, 1200]},
     'hero-campus-still': {'widths': [480, 640, 800]},
     'campus-line-art-yihua': {'widths': [240, 480, 800, 1200]},
     'campus-line-art-minghua': {'widths': [240, 480, 800, 1200]},
