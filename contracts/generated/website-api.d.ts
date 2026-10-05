@@ -696,7 +696,7 @@ export interface paths {
          *     設定、時段、案件或通知，這裡只動內容。
          *
          *     直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿
-         *     再送審），也要通過發布前檢查（例如校園探索熱點待複核）。
+         *     再送審），也要通過發布前檢查（例如預約文案的隱私說明還是示意文字）。
          */
         post: operations["restore_content_revision_api_website_v1_admin_content_items__kind__revisions__revision_id__restore_post"];
         delete?: never;

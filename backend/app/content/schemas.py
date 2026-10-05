@@ -142,9 +142,12 @@ class HomeHeroPayload(_ContentPayload):
     2026-09-25 起首屏影片與照片也可以從素材庫換（規格 L90）：桌機與手機影片
     是不同版位（手機沒設就用桌機那支）、poster 是影片載入前與不自動播放時
     看到的照片、替代圖是影片載入失敗時換上的照片（沒設就用 poster）。都留空
-    時官網沿用內建的影片與照片。"""
+    時官網沿用內建的影片與照片。
 
-    eyebrow: str
+    2026-09-30 首屏拿掉小標，2026-10-04 後台也拿掉小標欄位：eyebrow 改成
+    選填、官網不顯示，舊版本裡的值原樣保留。"""
+
+    eyebrow: str = ""
     copy_lines: list[str]
     video_desktop: MediaSlotPayload | None = None
     video_mobile: MediaSlotPayload | None = None
@@ -1294,10 +1297,12 @@ class TourScenePayload(_ContentPayload):
     name: str
     image: str
     intro: str
-    spots: list[TourSpotPayload]
-    # 規格 3.3：換了場景照片，原本的熱點座標可能對不上新照片。伺服器在
-    # 照片變更時一律把它改回 False（不信任前端），園方在後台逐點確認後
-    # 按「熱點已複核」才會是 True；有未複核的場景不能發布。
+    # 熱點是已拿掉的分校頁校園探索用的；官網環境頁只用場景照片、名稱、說明，
+    # 2026-10-04 後台也拿掉熱點編輯。改成選填、新場景不帶，舊版本裡的熱點
+    # 原樣保留（仍照原規則驗證，最多 8 個）。
+    spots: list[TourSpotPayload] = Field(default_factory=list)
+    # 舊的「換照片後熱點待複核」旗標（規格 3.3）。2026-10-04 起伺服器不再
+    # 更動它、也不再擋發布；留著是為了讓舊版本照樣能讀。
     spots_reviewed: bool = True
 
     @field_validator("key", "name", "intro")
@@ -1313,8 +1318,8 @@ class TourScenePayload(_ContentPayload):
     @field_validator("spots")
     @classmethod
     def _spots_bounded(cls, value: list[TourSpotPayload]) -> list[TourSpotPayload]:
-        if not (1 <= len(value) <= 8):
-            raise ValueError("每個場景的熱點需為 1 到 8 個")
+        if len(value) > 8:
+            raise ValueError("每個場景的熱點最多 8 個")
         return value
 
 

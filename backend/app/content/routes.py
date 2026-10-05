@@ -409,7 +409,7 @@ async def restore_content_revision(
     設定、時段、案件或通知，這裡只動內容。
 
     直接發布與一般發布同一套規則：要有發布權限（內容編輯只能還原成草稿
-    再送審），也要通過發布前檢查（例如校園探索熱點待複核）。"""
+    再送審），也要通過發布前檢查（例如預約文案的隱私說明還是示意文字）。"""
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
 
