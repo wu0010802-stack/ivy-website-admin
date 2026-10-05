@@ -1,3 +1,17 @@
+## 2026-10-05 官網公開輸出再拿掉原型預約示範資料（`feature/booking-demo-fields-20261005`，未部署）
+
+使用者看完 10-04 的回報後說「booking.fields 也幫我清掉」。盤點 `booking` 時發現同一個物件裡另外三個欄位官網也沒讀，而且是原型的示範文字，一併拿掉：
+
+- **拿掉**（`web/app/utils/public-copy.ts` 的 `RETIRED.booking`）：`fields`（原型表單欄位清單，含已拿掉的「想先了解的事」與 `demo-consent` 同意勾選）、`demoNote`（「這是官網互動提案，請使用測試資料。資料不會送出或儲存…」）、`steps`（含「示範完成，尚未送出預約。」）、`isDemo`。這四個在正式站每一頁的 HTML 都看得到。
+- **型別**：`BookingContent` 只剩 `privacyNotice`、`ctaLabel`、`ctaLabelEn`，刪除 `BookingField`。`VisitForm` 雖然收 `booking` prop 但沒讀任何欄位（家長看到的隱私說明走後端 `/booking` API），不動。
+- **不動**：兩份 fixture（後端也不讀這四個欄位，只是原型抽取時原樣留下）、後端、後台、API 契約。
+
+**驗證**（Node 22.23.2）：
+- 先在 `web/tests/public-copy.spec.ts` 加斷言（公開輸出不含「這是官網互動提案」「示範完成，尚未送出預約」「demo-consent」，`booking` 只剩 `ctaLabel`、`ctaLabelEn`），在未修改版確認紅燈再改。
+- web：`nuxt typecheck` 通過（沒有 WARN）；vitest 80 檔 817 項通過。
+- stack e2e（`npm run e2e:build` 後整套，`E2E_DB_NAME=ivy_website_bookingdemo_e2e_test`、埠 8782／3782）：75 項全過。
+- 未驗證：Safari／iOS 實機、正式站。
+
 ## 2026-10-04 30 週年分頁 v2：孩子畫的高雄地圖、畫進 0 的結尾、30 支蠟筆蠟燭（`feature/anniversary-v2-20261004`）
 
 使用者要「依對我的了解自己找主題，優化 /anniversary 除了 30 週年影片的內容，盡量展示前端能力」。規則見 DESIGN.md「30 週年分頁 v2」，規格 `docs/superpowers/specs/2026-10-04-anniversary-v2-design.md`。
