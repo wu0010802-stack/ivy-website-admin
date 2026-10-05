@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 30 週年分頁 v2：高雄蠟筆地圖、結尾畫成 30、吹蠟燭（main CI 部署）
+
+使用者看過預覽、要求拿掉頁面上的開發輔助用字後說「commit 和推上線」。`feature/anniversary-v2-20261004` 一個提交，rebase 到 main `135b03fe`（中途 main 前進兩次：分校頁殘留清理、資安掃描補修，都沒動到 web 的這幾個檔）後由使用者自推成 `ba32b9ba`。規則見 DESIGN.md「30 週年分頁 v2」。
+
+- **內容**：時間軸旁黏住的孩子畫的高雄地圖（內政部區界＋OSM 湖河地標＋門牌座標，跟著年份長出校園與路線）、結尾線畫成 30 與校徽印在 0 裡、「幫常春藤吹蠟燭」（按住／劃過／麥克風）、畫板復原重播分享、2027「滿 30 年」、拿掉頁面上的操作說明與狀態字。
+- **資安標頭**：只有 `/anniversary` 文件是 `microphone=(self)`，其他頁維持 `microphone=()`（使用者推送即同意）。
+- **沒有 migration**，只動 web。
+- **CI**：main run 37246768321（`ba32b9ba`）Frontend web／admin、E2E、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-05 00:27–00:44 UTC，排在另一個 session 的 run 之後）；同時排隊的資安掃描 run 37246594548 被這次取代（cancelled），它的提交在 `ba32b9ba` 的歷史裡，一起部署。
+- **正式 `release.json`**：base commit `ba32b9ba`，created `2026-10-05T00:40:57Z`。
+- **線上唯讀檢查**（Playwright，擋 `POST /api/telemetry`）：`/anniversary` 標頭 `microphone=(self)`、`/` 與 `/about` 仍是 `microphone=()`；HTML 有地圖卡、結尾舞台、蠟燭段落與地圖署名，沒有已拿掉的說明字；1440×900、390×844 第一次進站開場自動播放→略過→整頁往下往回捲，沒有 pageerror、沒有橫向捲動（console 只有被我擋下的兩個 telemetry 請求）；按住吹氣 3.5 秒 30 支全熄、出現「再點一次蠟燭」。
+- **之後**：main 接著有 wave3 合併（背景轉檔＋頁面 CMS）等提交，都包含 `ba32b9ba`、沒動到 30 週年的檔案。
+- **未做**：iOS Safari／Android 實機與真人對麥克風吹氣、聲音實際聽感。
+
 ## 2026-10-05 資安掃描複核補三處殘留（main CI 部署）
 
 使用者交來 Codex Security 掃描報告（15 項）。報告掃的是落後 main 655 個 commit 的 `feature/website-admin`（`d11d7e79`），逐條對 main 複核後 13 項已修，補其餘 3 處；細節見 README 2026-10-04「資安掃描複核」。`fix/security-scan-20261004` 的 `f29dddb` 兩度合併 main（只有 README 頂部衝突），由使用者推成 `135b03f`。
@@ -22,6 +35,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `ba32b9b`，created `2026-10-05T00:40:57Z`。
 - **線上唯讀檢查**（00:5x UTC，未登入）：`/api/website/v1/health` 200；未登入 POST 聯絡紀錄 401。
 - **未做**：正式站沒有登入驗證 409（要有已匿名化的案件）；沒有在正式站觸發資料庫錯誤看日誌（遮罩以本機 uvicorn `LOGGING_CONFIG` 實測）。
+
 
 ## 2026-10-05 後台拿掉首屏小標與校園探索熱點、官網公開輸出去舊欄位（main CI 部署）
 
