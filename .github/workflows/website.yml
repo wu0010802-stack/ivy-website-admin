@@ -57,13 +57,21 @@ jobs:
           VITE_WEBSITE_ASSET_BASE: ''
 
   backend:
-    name: Backend / PostgreSQL / contracts
+    name: Backend / PostgreSQL / contracts (${{ matrix.group }}/3)
     runs-on: ubuntu-24.04
     # 2026-09-30 全套 pytest 約 1040 項，平常整個 job 17–19 分鐘；慢的 runner 光 pytest 就要 21 分鐘，
     # 20 分鐘上限曾在 83%、零失敗時被取消，連帶略過部署。
     # 2026-10-03 起測試的 bcrypt 降到 rounds 4（見 tests/conftest.py），本機全套少一半以上；
     # 上限先不動，等 CI 實測穩定後再調。
+    # 2026-10-05 起全套由 pytest-split 依 backend/.test_durations 分成 3 組平行跑（每組各自一個
+    # postgres service，TRUNCATE 不互相干擾）：10-05 前三次 main 的 pytest 是 10.6–18.7 分鐘，
+    # 是整條部署的關鍵路徑。只需要跑一次的檢查（套件漏洞、schema guard、契約、部署腳本）放在第 1 組。
+    # 新增很多測試後用 `pytest --store-durations` 重產 .test_durations，分組才會平均；沒更新也能跑。
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3]
     services:
       postgres:
         # 以 digest 釘版（2026-09-29 讀自 Docker Hub 的 multi-arch index）；tag 留給人看。
@@ -87,13 +95,19 @@ jobs:
         with:
           python-version: '3.12'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: matrix.group == 1
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Install uv and media test dependency
+      # uv 本身與下載的套件都走 Actions 快取（以 backend/uv.lock 為鍵）
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install media test dependency
         run: |
-          python -m pip install "uv==$UV_VERSION"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
       - run: uv sync --frozen
@@ -102,6 +116,7 @@ jobs:
       # 的後續）：Pillow 這類原生解碼器一有新公告就在這裡擋下部署。確定不影響、又還沒有
       # 修正版時，才加 --ignore-vuln <ID> 並在這裡註明原因。開發用套件（pytest 等）不檢查。
       - name: Audit runtime Python dependencies
+        if: matrix.group == 1
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt -o "$RUNNER_TEMP/requirements.txt"
           uvx pip-audit@2.10.1 --disable-pip -r "$RUNNER_TEMP/requirements.txt"
@@ -115,9 +130,10 @@ jobs:
           WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
           WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
       # 測試自己建立 Settings，不能注入 WEBSITE_* 來掩蓋缺少設定的情境。
-      - run: uv run --frozen pytest -q
+      - run: uv run --frozen pytest -q --splits 3 --group ${{ matrix.group }}
         working-directory: backend
       - name: Check production schema guard against migrated CI database
+        if: matrix.group == 1
         run: uv run --frozen python ../deploy/check_schema.py
         working-directory: backend
         env:
@@ -126,8 +142,11 @@ jobs:
           WEBSITE_TEST_DATABASE_URL: postgresql+asyncpg://localhost/ivy_website_test
           WEBSITE_SESSION_SECRET: ci-only-session-secret-not-for-production
       - run: npm ci
+        if: matrix.group == 1
       - run: npm run contract:check
+        if: matrix.group == 1
       - name: Test deployment failure handling and snapshot boundaries
+        if: matrix.group == 1
         run: python -m unittest discover -s deploy/tests -v
 
   # 端到端（tests/stack）：真 API＋拋棄式 PostgreSQL＋官網 production build＋後台 build，
@@ -169,8 +188,11 @@ jobs:
             package-lock.json
             web/package-lock.json
             admin/package-lock.json
-      - name: Install uv
-        run: python -m pip install "uv==$UV_VERSION"
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
       # 影片上傳要 ffprobe、背景轉檔要 ffmpeg（tests/stack/media-video.spec.ts 也用它產生樣本）。
       - name: Install ffmpeg
         run: |
