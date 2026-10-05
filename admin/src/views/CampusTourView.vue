@@ -3,6 +3,7 @@ import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
+import { useCampusScope } from '../composables/useCampusScope'
 import type { CampusTourPayload, MediaAssetOut, TourScenePayload } from '../api/types'
 import { websiteAssetUrl } from '../config'
 import { mediaFileUrl } from '../api/client'
@@ -43,10 +44,16 @@ const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newSc
 
 const sceneIndex = ref(0)
 
+// 2026-10-05 起五校的校園探索由總部帳號直接控制（後端 registry 的 hq_managed）：
+// 這一頁只有總管理者與有「全站共用內容」授權的人進得來，五校都能切換。
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell, () => {
   sceneIndex.value = 0
-})
+}, { allCampuses: true })
+// 素材挑選與上傳：自己範圍內的校用那一校的素材；有授權但不負責那一校的人，
+// 只能挑、傳跨校共用素材（後端不讓他動別校的素材）。
+const ownCampusKeys = useCampusScope({ autoSelect: false }).visibleCampusKeys
+const mediaCampusKey = computed(() => (ownCampusKeys.value.includes(campus.value) ? campus.value : undefined))
 
 const scenes = computed(() => editor.form.value.scenes)
 const currentScene = computed(() => scenes.value[sceneIndex.value] ?? null)
@@ -97,10 +104,9 @@ function onPickMedia(asset: MediaAssetOut) {
     ref="shell"
     :editor="editor"
     width="wide"
-    :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
     <template #lead>
-      官網「常春藤環境」頁「五所校園」一章的照片與說明。每校最多 {{ MAX_SCENES }} 個場景，每個場景一張照片、一個名稱和一段說明；排第一的場景在官網放大顯示（剛好兩個場景時並排）。
+      官網「常春藤環境」頁「五所校園」一章的照片與說明，由總部統一管理。每校最多 {{ MAX_SCENES }} 個場景，每個場景一張照片、一個名稱和一段說明；排第一的場景在官網放大顯示（剛好兩個場景時並排）。
       發布後會整組取代該校原本的內容。
     </template>
     <template #toolbar>
@@ -175,7 +181,7 @@ function onPickMedia(asset: MediaAssetOut) {
               <el-form-item label="照片">
                 <MediaRefField
                   v-model="currentScene.image"
-                  :campus-key="campus"
+                  :campus-key="mediaCampusKey"
                   :thumb="false"
                   :clearable="false"
                   :disabled="editor.readOnly.value"

@@ -16,6 +16,7 @@ from app.auth.models import User
 from app.auth.permissions import campus_scope, require_scope
 from app.content import notices, publish_jobs, service
 from app.content.models import ContentItem, ContentRevision, PublishJob, SiteRelease, SiteReleaseEntry, SiteState
+from app.content.registry import HQ_MANAGED_KINDS, managed_as_shared
 from app.content.schemas import (
     PublishJobListOut,
     ReleaseChangeOut,
@@ -33,16 +34,21 @@ FINISHED_JOBS_LIMIT = 50
 
 
 def _visible_condition(user: User):
-    """共用內容所有能讀內容的人都看得到；分校內容只看自己校區範圍內的。"""
+    """共用內容與總部管理的各校內容所有能讀內容的人都看得到；其餘分校內容
+    只看自己校區範圍內的。"""
     scope = campus_scope(user)
     if scope is None:
         return None
-    return ContentItem.campus_key.is_(None) | ContentItem.campus_key.in_(scope)
+    return (
+        ContentItem.campus_key.is_(None)
+        | ContentItem.kind.in_(HQ_MANAGED_KINDS)
+        | ContentItem.campus_key.in_(scope)
+    )
 
 
-def _visible(user: User, campus_key: str | None) -> bool:
+def _visible(user: User, kind: str, campus_key: str | None) -> bool:
     scope = campus_scope(user)
-    return scope is None or campus_key is None or campus_key in scope
+    return scope is None or managed_as_shared(kind, campus_key) or campus_key in scope
 
 
 @router.get("/admin/publish-jobs", response_model=list[PublishJobListOut])
@@ -139,7 +145,7 @@ async def _release_page(
                 previous_revision_version=previous[item_id][1] if item_id in previous else None,
             )
             for item_id, (revision_id, version, kind, campus_key) in entries[release.id].items()
-            if (previous.get(item_id) or (None,))[0] != revision_id and _visible(user, campus_key)
+            if (previous.get(item_id) or (None,))[0] != revision_id and _visible(user, kind, campus_key)
         ]
         # 分校帳號只看得到跟自己有關的發布；別校的發布整筆不列。
         if scoped and not changes:

@@ -779,6 +779,14 @@ describe('用在哪裡的連結', () => {
     expect(shared).toEqual({ text: expect.stringContaining('沒有編輯權限'), link: null })
   })
 
+  it('校園探索由總部管理：分校管理者連自己校的也只寫「由總部管理」（2026-10-05）', async () => {
+    const wrapper = await openDrawer(
+      testUser('campus_admin', { campus_keys: ['minghua'] }),
+      refs([{ content_item_id: 'tour', kind: 'campus_tour', campus_key: 'minghua', field_path: 'scenes[0].image' }]),
+    )
+    expect(heads(wrapper)).toEqual([{ text: expect.stringContaining('由總部管理'), link: null }])
+  })
+
   it('唯讀帳號看自己校的內容是「前往查看」', async () => {
     const wrapper = await openDrawer(testUser('readonly', { campus_keys: ['yihua'] }), refs([{ campus_key: 'yihua' }]))
     const [own] = heads(wrapper)

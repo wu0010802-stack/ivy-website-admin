@@ -41,7 +41,7 @@ from app.media.schemas import (
     MediaReplaceReferencesRequest,
     MediaReplacedItemOut,
 )
-from app.content.registry import CONTENT_KIND_REGISTRY, MediaRef, set_at_path
+from app.content.registry import CONTENT_KIND_REGISTRY, MediaRef, managed_as_shared, set_at_path
 from app.media import service as media_service
 from app.operations import audit_service
 from app.content.schemas import (
@@ -88,20 +88,22 @@ def _campus_key_for(config, campus_key: str | None) -> str | None:
     return campus_key
 
 
-def _require_read_scope(user: User, campus_key: str | None) -> None:
-    """讀取閘門。共用內容（campus_key is None）所有登入角色都看得到；
-    校區內容一定要有該校 scope，否則分校管理者可以讀別校的內容與尚未
-    發布的草稿。不沿用 `_require_shared_or_scope`——那支要求 manage 權限，
-    套在 GET 會誤擋 readonly／reception。"""
+def _require_read_scope(user: User, kind: str, campus_key: str | None) -> None:
+    """讀取閘門。共用內容（campus_key is None）與總部管理的各校內容
+    （hq_managed）所有登入角色都看得到；其餘校區內容一定要有該校 scope，
+    否則分校管理者可以讀別校的內容與尚未發布的草稿。不沿用
+    `_require_shared_or_scope`——那支要求 manage 權限，套在 GET 會誤擋
+    readonly／reception。"""
     require_scope(user, "content.read")
-    if campus_key is not None:
+    if campus_key is not None and not managed_as_shared(kind, campus_key):
         require_scope(user, "content.read", campus_keys=[campus_key])
 
 
 def _require_shared_or_scope(user: User, item: ContentItem) -> None:
-    """共用內容（campus_key is None）只有 super_admin 能編，
-    分校不能改共用內容；校區自有內容才走一般 campus scope 檢查。"""
-    if item.campus_key is None:
+    """共用內容（campus_key is None）與總部管理的各校內容（hq_managed）只有
+    super_admin 或有「全站共用內容」授權的人能編，分校不能改；校區自有
+    內容才走一般 campus scope 檢查。"""
+    if managed_as_shared(item.kind, item.campus_key):
         if not can_edit_shared_content(user):
             raise CapabilityDenied()
         return
@@ -111,7 +113,7 @@ def _require_shared_or_scope(user: User, item: ContentItem) -> None:
 def _require_publish(user: User, item: ContentItem) -> None:
     """發布（立即、核准送審、排程）要 content.publish：內容編輯只能送審。"""
     _require_shared_or_scope(user, item)
-    if item.campus_key is None:
+    if managed_as_shared(item.kind, item.campus_key):
         if not can_publish_shared_content(user):
             raise CapabilityDenied()
     else:
@@ -248,7 +250,7 @@ async def get_content_item(
 ) -> ContentItemOut:
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
-    _require_read_scope(current_user, campus_key)
+    _require_read_scope(current_user, kind, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
@@ -335,7 +337,7 @@ async def list_content_revisions(
     """版本歷史：每次存檔都是一版，標出目前線上的是哪一版、哪些曾經上線。"""
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
-    _require_read_scope(current_user, campus_key)
+    _require_read_scope(current_user, kind, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
     limit = max(1, min(limit, 200))
@@ -387,7 +389,7 @@ async def get_content_revision(
 ) -> ContentRevisionOut:
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
-    _require_read_scope(current_user, campus_key)
+    _require_read_scope(current_user, kind, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
     result = await db.execute(
@@ -843,7 +845,7 @@ async def list_schedules(
 ) -> list[PublishJobOut]:
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
-    _require_read_scope(current_user, campus_key)
+    _require_read_scope(current_user, kind, campus_key)
     item = await service.get_or_create_content_item(db, kind, campus_key)
     await db.commit()
     result = await db.execute(

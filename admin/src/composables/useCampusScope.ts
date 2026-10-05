@@ -4,15 +4,16 @@ import { useAuthStore } from '../stores/auth'
 
 // 目前登入者看得到的校區：總管理者五校全開，校區管理者只有自己的範圍。
 // 九個頁面原本各自複製這段，集中在這裡；`selected` 會自動帶入第一個
-// 可見校區，頁面只要 watch 它就好。
-export function useCampusScope(options: { autoSelect?: boolean } = {}) {
-  const { autoSelect = true } = options
+// 可見校區，頁面只要 watch 它就好。allCampuses：總部管理的各校內容（校園探索），
+// 進得了那一頁的人（總管理者或有「全站共用內容」授權）五校都能切換。
+export function useCampusScope(options: { autoSelect?: boolean; allCampuses?: boolean } = {}) {
+  const { autoSelect = true, allCampuses = false } = options
   const authStore = useAuthStore()
 
   const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
 
   const visibleCampusKeys = computed<string[]>(() => {
-    if (isSuperAdmin.value) return [...CAMPUS_KEYS]
+    if (isSuperAdmin.value || allCampuses) return [...CAMPUS_KEYS]
     return authStore.user?.campus_keys ?? []
   })
 

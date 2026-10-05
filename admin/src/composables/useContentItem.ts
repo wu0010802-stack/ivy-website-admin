@@ -3,7 +3,7 @@ import { ElMessage } from 'element-plus'
 import { notifyError } from './notify'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
-import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath } from '../api/labels'
+import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath, HQ_MANAGED_KINDS } from '../api/labels'
 import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
@@ -326,14 +326,16 @@ export function useContentItem<TPayload extends object>(
   })
   const apiPath = computed(() => `/admin/content-items/${kind}${query()}`)
   const contextLabel = computed(() => contentItemLabel(kind, unref(campusKey)))
-  // 共用內容（沒有 campusKey）要總管理者或被授權的人核准，分校內容是校區管理者。
-  const approver = campusKey === undefined ? '總管理者' : '校區管理者'
-  // 唯讀：分校內容看 content.manage；共用內容（沒有 campusKey）要有「全站
-  // 共用內容」權限（總管理者或被授權的人，後端 can_edit_shared_content）。
+  // 共用內容（沒有 campusKey）與總部管理的各校內容（校園探索）權限比照共用內容。
+  const sharedRules = campusKey === undefined || HQ_MANAGED_KINDS.has(kind)
+  // 共用內容要總管理者或被授權的人核准，分校內容是校區管理者。
+  const approver = sharedRules ? '總管理者' : '校區管理者'
+  // 唯讀：分校內容看 content.manage；共用內容要有「全站共用內容」權限
+  // （總管理者或被授權的人，後端 can_edit_shared_content）。
   // store 在 computed 裡才取，單獨測這個 composable 時不需要 Pinia。
   const readOnly = computed(() => {
     const user = useAuthStore().user
-    return !hasCapability(user, campusKey === undefined ? 'content.shared' : 'content.manage')
+    return !hasCapability(user, sharedRules ? 'content.shared' : 'content.manage')
   })
   const reviewStatus = computed(() => item.value?.latest_revision?.review_status ?? 'draft')
   const reviewNote = computed(() => item.value?.latest_revision?.review_note ?? null)
