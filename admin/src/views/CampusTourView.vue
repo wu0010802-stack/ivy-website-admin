@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
@@ -13,32 +13,28 @@ import LengthHint from '../components/LengthHint.vue'
 import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
 import MediaRefField from '../components/MediaRefField.vue'
-import GlyphHint from '../components/GlyphHint.vue'
 import { moveItem } from '../composables/newsContent'
 
 const MAX_SCENES = 6
-const MAX_SPOTS = 8
 
 // `image` 同時相容兩種值：素材庫上傳的媒體 UUID（新的、推薦用這個），
 // 跟舊 fixture 素材代號字串（例如 "campus"，還沒被取代的既有內容繼續
 // 用這個顯示，見 backend CampusTourPayload 與 web content-overlay 的
-// 對應相容邏輯）。舞台要對準熱點，載原檔；場景分頁的小圖載縮圖。
+// 對應相容邏輯）。預覽載原檔；場景分頁的小圖載縮圖。
 function previewUrl(image: string): string {
   return isMediaId(image) ? mediaFileUrl(image) : websiteAssetUrl(image)
 }
 
 const thumbs = useMediaThumbs()
 
+// 熱點是已拿掉的分校頁用的，官網環境頁只用場景名稱、照片、說明（2026-10-04
+// 拿掉熱點編輯）。新場景不帶熱點；舊場景存著的熱點原樣跟著存回去，不顯示。
 function newScene(): TourScenePayload {
-  // 後端要求每個場景 1～8 個熱點（content/schemas.py 的 _spots_bounded），
-  // 空陣列會讓儲存永遠 422。新場景直接給一個置中的熱點，使用者拖到對的
-  // 位置就好，不會先撞一次看不懂的錯誤。
   return {
     key: `scene-${Date.now()}`,
     name: '新場景',
     image: '',
     intro: '',
-    spots: [{ name: '地點 1', x: 50, y: 50, text: '', question: '' }],
   }
 }
 
@@ -46,19 +42,14 @@ const campus = ref('')
 const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus)
 
 const sceneIndex = ref(0)
-const spotIndex = ref<number | null>(null)
 
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys } = useCampusContent(editor, campus, shell, () => {
   sceneIndex.value = 0
-  spotIndex.value = null
 })
 
 const scenes = computed(() => editor.form.value.scenes)
 const currentScene = computed(() => scenes.value[sceneIndex.value] ?? null)
-const currentSpot = computed(() =>
-  spotIndex.value !== null ? (currentScene.value?.spots[spotIndex.value] ?? null) : null,
-)
 const imageBroken = ref(false)
 
 const sceneName = useTemplateRef<HTMLElement>('sceneName')
@@ -67,7 +58,6 @@ const sceneName = useTemplateRef<HTMLElement>('sceneName')
 async function addScene() {
   scenes.value.push(newScene())
   sceneIndex.value = scenes.value.length - 1
-  spotIndex.value = null
   imageBroken.value = false
   await nextTick()
   sceneName.value?.querySelector('input')?.focus()
@@ -77,11 +67,10 @@ async function addScene() {
 function removeScene(i: number) {
   scenes.value.splice(i, 1)
   sceneIndex.value = Math.max(0, Math.min(i, scenes.value.length - 1))
-  spotIndex.value = null
   imageBroken.value = false
 }
 
-// 順序就是陣列順序（官網場景分頁與熱點的 Tab 順序都照它）。移動後選取跟著
+// 順序就是陣列順序（官網環境頁照這個順序排，第一個放大）。移動後選取跟著
 // 那一項走，按鈕固定在側欄同一個位置，鍵盤可以連按。
 function moveScene(delta: number) {
   const from = sceneIndex.value
@@ -91,128 +80,15 @@ function moveScene(delta: number) {
   sceneIndex.value = to
 }
 
-function moveSpot(delta: number) {
-  const spots = currentScene.value?.spots
-  const from = spotIndex.value
-  if (!spots || from === null) return
-  const to = from + delta
-  if (to < 0 || to >= spots.length) return
-  moveItem(spots, from, delta)
-  spotIndex.value = to
-}
-
-// 座標數字輸入：0–100、一位小數（同拖曳與方向鍵的精度）。
-function setCoordinate(axis: 'x' | 'y', value: number | null | undefined) {
-  const spot = currentSpot.value
-  if (!spot || value === null || value === undefined || Number.isNaN(value)) return
-  spot[axis] = Math.min(100, Math.max(0, Math.round(value * 10) / 10))
-}
-
 function selectScene(i: number) {
   sceneIndex.value = i
-  spotIndex.value = null
   imageBroken.value = false
 }
 
-const stageRef = ref<HTMLDivElement | null>(null)
-
-// 換了照片，原本的熱點座標可能對不上：伺服器存檔時也會這樣標，這裡先標，畫面上
-// 立刻看得到要複核。值本身由 MediaRefField 的 v-model 換好了。
-function onPickMedia(asset: MediaAssetOut, previousId: string | null) {
-  const scene = currentScene.value
-  if (scene && previousId && previousId !== asset.id) scene.spots_reviewed = false
+// 值本身由 MediaRefField 的 v-model 換好了；這裡只換掉舊的縮圖與讀圖失敗狀態。
+function onPickMedia(asset: MediaAssetOut) {
   thumbs.forget(asset.id)
   imageBroken.value = false
-}
-
-function markSpotsReviewed() {
-  if (currentScene.value) currentScene.value.spots_reviewed = true
-}
-
-function relativePosition(event: MouseEvent): { x: number; y: number } | null {
-  const stage = stageRef.value
-  if (!stage) return null
-  const rect = stage.getBoundingClientRect()
-  if (!rect.width || !rect.height) return null
-  const x = ((event.clientX - rect.left) / rect.width) * 100
-  const y = ((event.clientY - rect.top) / rect.height) * 100
-  return { x: Math.min(100, Math.max(0, x)), y: Math.min(100, Math.max(0, y)) }
-}
-
-function onStageClick(event: MouseEvent) {
-  if (!currentScene.value || editor.readOnly.value) return
-  if (currentScene.value.spots.length >= MAX_SPOTS) return
-  const pos = relativePosition(event)
-  if (!pos) return
-  currentScene.value.spots.push({
-    name: `地點 ${currentScene.value.spots.length + 1}`,
-    x: Math.round(pos.x * 10) / 10,
-    y: Math.round(pos.y * 10) / 10,
-    text: '',
-    question: '',
-  })
-  spotIndex.value = currentScene.value.spots.length - 1
-}
-
-function removeSpot(i: number) {
-  // 至少要留一個：後端下界是 1，刪光之後這個場景就再也存不起來。
-  if (!currentScene.value || currentScene.value.spots.length <= 1) return
-  currentScene.value.spots.splice(i, 1)
-  spotIndex.value = null
-}
-
-let dragging: { pointerId: number; target: HTMLElement; spot: TourScenePayload['spots'][number] } | null = null
-
-function startDrag(i: number, event: PointerEvent) {
-  if (!event.isPrimary || event.button !== 0 || (editor.saving.value || editor.publishing.value) || editor.readOnly.value) return
-  const spot = currentScene.value?.spots[i]
-  if (!spot) return
-  stopDrag()
-  event.stopPropagation()
-  const target = event.currentTarget as HTMLElement
-  dragging = { pointerId: event.pointerId, target, spot }
-  target.setPointerCapture(event.pointerId)
-  spotIndex.value = i
-  window.addEventListener('pointermove', onDragMove)
-  window.addEventListener('pointerup', stopDrag)
-  window.addEventListener('pointercancel', stopDrag)
-}
-
-function onDragMove(event: PointerEvent) {
-  if (!dragging || event.pointerId !== dragging.pointerId) return
-  const pos = relativePosition(event)
-  if (!pos) return
-  dragging.spot.x = Math.round(pos.x * 10) / 10
-  dragging.spot.y = Math.round(pos.y * 10) / 10
-}
-
-function stopDrag() {
-  if (dragging?.target.hasPointerCapture(dragging.pointerId)) dragging.target.releasePointerCapture(dragging.pointerId)
-  dragging = null
-  window.removeEventListener('pointermove', onDragMove)
-  window.removeEventListener('pointerup', stopDrag)
-  window.removeEventListener('pointercancel', stopDrag)
-}
-
-watch(currentScene, stopDrag)
-onBeforeUnmount(stopDrag)
-
-// 鍵盤微調：焦點在圖釘上時用方向鍵移動 1%，Shift 為 5%
-function nudge(i: number, event: KeyboardEvent) {
-  const spot = currentScene.value?.spots[i]
-  if (!spot || editor.readOnly.value) return
-  const step = event.shiftKey ? 5 : 1
-  const map: Record<string, [number, number]> = {
-    ArrowLeft: [-step, 0],
-    ArrowRight: [step, 0],
-    ArrowUp: [0, -step],
-    ArrowDown: [0, step],
-  }
-  const delta = map[event.key]
-  if (!delta) return
-  event.preventDefault()
-  spot.x = Math.min(100, Math.max(0, Math.round((spot.x + delta[0]) * 10) / 10))
-  spot.y = Math.min(100, Math.max(0, Math.round((spot.y + delta[1]) * 10) / 10))
 }
 </script>
 
@@ -224,33 +100,34 @@ function nudge(i: number, event: KeyboardEvent) {
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
     <template #lead>
-      官網「常春藤環境」頁的校園探索互動圖。每個場景一張照片、最多 {{ MAX_SPOTS }} 個熱點；在照片上點一下新增熱點、拖曳圖釘調整位置。
-      發布後會整組取代該校原本的探索內容。
+      官網「常春藤環境」頁「五所校園」一章的照片與說明。每校最多 {{ MAX_SCENES }} 個場景，每個場景一張照片、一個名稱和一段說明；排第一的場景在官網放大顯示（剛好兩個場景時並排）。
+      發布後會整組取代該校原本的內容。
     </template>
     <template #toolbar>
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
     </template>
 
     <div class="tour">
-      <div class="tour__scenes" role="tablist" aria-label="場景">
-        <button
-          v-for="(scene, i) in scenes"
-          :key="scene.key"
-          type="button"
-          role="tab"
-          class="tour__scene-tab"
-          :class="{ 'is-active': i === sceneIndex }"
-          :aria-selected="i === sceneIndex"
-          @click="selectScene(i)"
-        >
-          <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-empty tour__scene-broken" aria-hidden="true">!</span>
-          <img v-else-if="scene.image" :src="thumbs.src(scene.image)" alt="" loading="lazy" @error="thumbs.onError(scene.image)" />
-          <span v-else class="tour__scene-empty" aria-hidden="true" />
-          <span class="tour__scene-name">{{ scene.name || `場景 ${i + 1}` }}</span>
-          <span class="tour__scene-count">{{ scene.spots.length }} 個熱點</span>
-          <span v-if="scene.spots_reviewed === false" class="tour__scene-review">熱點待複核</span>
-          <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-review tour__scene-missing">照片讀不到</span>
-        </button>
+      <!-- 「新增場景」不是分頁，放在 tablist 外面（tablist 只能有 tab，axe aria-required-children）。 -->
+      <div class="tour__scenes">
+        <div class="tour__scene-tabs" role="tablist" aria-label="場景">
+          <button
+            v-for="(scene, i) in scenes"
+            :key="scene.key"
+            type="button"
+            role="tab"
+            class="tour__scene-tab"
+            :class="{ 'is-active': i === sceneIndex }"
+            :aria-selected="i === sceneIndex"
+            @click="selectScene(i)"
+          >
+            <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-empty tour__scene-broken" aria-hidden="true">!</span>
+            <img v-else-if="scene.image" :src="thumbs.src(scene.image)" alt="" loading="lazy" @error="thumbs.onError(scene.image)" />
+            <span v-else class="tour__scene-empty" aria-hidden="true" />
+            <span class="tour__scene-name">{{ scene.name || `場景 ${i + 1}` }}</span>
+            <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-missing">照片讀不到</span>
+          </button>
+        </div>
         <button
           v-if="!editor.readOnly.value"
           type="button"
@@ -266,12 +143,7 @@ function nudge(i: number, event: KeyboardEvent) {
       <template v-if="currentScene">
         <div class="tour__grid">
           <div class="tour__stage-col">
-            <div
-              ref="stageRef"
-              class="tour__stage"
-              :class="{ 'is-full': currentScene.spots.length >= MAX_SPOTS }"
-              @click="onStageClick"
-            >
+            <div class="tour__stage" :class="{ 'is-empty': !currentScene.image || imageBroken }">
               <img
                 v-if="currentScene.image && !imageBroken"
                 :src="previewUrl(currentScene.image)"
@@ -282,42 +154,11 @@ function nudge(i: number, event: KeyboardEvent) {
                 <span v-if="!currentScene.image">尚未選擇照片</span>
                 <span v-else>無法載入這張圖片，請重新選擇</span>
               </div>
-              <button
-                v-for="(spot, i) in currentScene.spots"
-                :key="i"
-                type="button"
-                class="tour__pin"
-                :class="{ 'is-active': i === spotIndex }"
-                :style="{ left: `${spot.x}%`, top: `${spot.y}%` }"
-                :aria-label="`熱點 ${i + 1}：${spot.name || '未命名'}，方向鍵可微調位置`"
-                :aria-pressed="i === spotIndex"
-                @pointerdown="startDrag(i, $event)"
-                @lostpointercapture="stopDrag"
-                @click.stop="spotIndex = i"
-                @keydown="nudge(i, $event)"
-              >
-                {{ i + 1 }}
-              </button>
             </div>
-            <p class="hint tour__stage-hint">
-              <span v-if="editor.readOnly.value">點圖釘查看每個熱點的說明。</span>
-              <span v-else-if="currentScene.spots.length >= MAX_SPOTS">已達 {{ MAX_SPOTS }} 個熱點上限，刪除後才能再新增。</span>
-              <span v-else>點照片空白處新增熱點（{{ currentScene.spots.length }} / {{ MAX_SPOTS }}），拖曳、方向鍵或右側的座標欄位調整位置。</span><span>這個畫面的比例（8:5）和官網相同，照片整張放進框裡，熱點在這裡的位置就是官網上的位置。</span>
-            </p>
+            <p class="hint tour__stage-hint">官網照這張照片的原比例整張顯示，不裁切。</p>
           </div>
 
           <div class="tour__side">
-            <el-alert
-              v-if="currentScene.spots_reviewed === false"
-              type="warning"
-              :closable="false"
-              show-icon
-              title="換了照片，熱點位置要重新確認"
-              class="tour__review"
-            >
-              <p>逐一點開圖釘，確認每個熱點還落在對的位置。確認完按下面按鈕再儲存，這個場景才能發布。</p>
-              <el-button v-if="!editor.readOnly.value" size="small" type="primary" @click="markSpotsReviewed">熱點位置都確認過了</el-button>
-            </el-alert>
             <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
               <h3 class="tour__side-title">
                 場景 {{ sceneIndex + 1 }} / {{ scenes.length }}
@@ -347,65 +188,14 @@ function nudge(i: number, event: KeyboardEvent) {
                 <el-input v-model="currentScene.intro" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
                 <LengthHint :value="currentScene.intro" rule="tourIntro" />
               </el-form-item>
-
-              <template v-if="currentSpot">
-                <h3 class="tour__side-title tour__side-title--spot">
-                  熱點 {{ (spotIndex ?? 0) + 1 }} / {{ currentScene.spots.length }}
-                  <span v-if="!editor.readOnly.value" class="tour__order">
-                    <el-button text size="small" :disabled="spotIndex === 0" :aria-label="`熱點「${currentSpot.name || (spotIndex ?? 0) + 1}」上移`" @click="moveSpot(-1)">上移</el-button>
-                    <el-button text size="small" :disabled="spotIndex === currentScene.spots.length - 1" :aria-label="`熱點「${currentSpot.name || (spotIndex ?? 0) + 1}」下移`" @click="moveSpot(1)">下移</el-button>
-                    <el-button text size="small" type="danger" :icon="Delete" :disabled="currentScene.spots.length <= 1" @click="removeSpot(spotIndex!)">移除</el-button>
-                  </span>
-                </h3>
-                <p class="hint tour__order-hint">官網依編號順序排列熱點，鍵盤 Tab 也照這個順序。</p>
-                <el-form-item label="名稱">
-                  <el-input v-model="currentSpot.name" />
-                  <GlyphHint :value="currentSpot.name" />
-                </el-form-item>
-                <div class="field-row tour__coords">
-                  <el-form-item label="水平位置 X（%，0 最左）">
-                    <el-input-number
-                      :model-value="currentSpot.x"
-                      :min="0"
-                      :max="100"
-                      :step="1"
-                      :precision="1"
-                      controls-position="right"
-                      aria-label="水平位置 X，0 到 100"
-                      @update:model-value="setCoordinate('x', $event)"
-                    />
-                  </el-form-item>
-                  <el-form-item label="垂直位置 Y（%，0 最上）">
-                    <el-input-number
-                      :model-value="currentSpot.y"
-                      :min="0"
-                      :max="100"
-                      :step="1"
-                      :precision="1"
-                      controls-position="right"
-                      aria-label="垂直位置 Y，0 到 100"
-                      @update:model-value="setCoordinate('y', $event)"
-                    />
-                  </el-form-item>
-                </div>
-                <el-form-item label="說明文字">
-                  <el-input v-model="currentSpot.text" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" />
-                  <LengthHint :value="currentSpot.text" rule="tourSpotText" />
-                </el-form-item>
-                <el-form-item label="到園時可以聊聊">
-                  <el-input v-model="currentSpot.question" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
-                  <span class="field-help">給家長的開放式提問，會顯示在熱點說明下方。</span>
-                </el-form-item>
-              </template>
-              <p v-else class="hint tour__side-empty">{{ editor.readOnly.value ? '點選照片上的圖釘查看熱點內容。' : '點選照片上的圖釘，或在空白處新增一個熱點來編輯內容。' }}</p>
             </el-form>
           </div>
         </div>
 
         <div class="tour__scene-actions" v-if="scenes.length > 1 && !editor.readOnly.value">
-          <!-- 場景裡有照片和熱點，重做很費工：刪除前先問一次（按鈕「先不要／刪除」）。 -->
+          <!-- 場景裡有照片和說明，重做很費工：刪除前先問一次（按鈕「先不要／刪除」）。 -->
           <el-popconfirm
-            :title="`刪除「${currentScene.name || `場景 ${sceneIndex + 1}`}」？照片和 ${currentScene.spots.length} 個熱點會一起拿掉。`"
+            :title="`刪除「${currentScene.name || `場景 ${sceneIndex + 1}`}」？照片和說明會一起拿掉。`"
             confirm-button-text="刪除"
             cancel-button-text="先不要"
             confirm-button-type="danger"
@@ -424,10 +214,14 @@ function nudge(i: number, event: KeyboardEvent) {
 </template>
 
 <style scoped>
-.tour__scenes {
+.tour__scenes,
+.tour__scene-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.tour__scenes {
   margin-bottom: 20px;
 }
 
@@ -476,6 +270,8 @@ function nudge(i: number, event: KeyboardEvent) {
 }
 
 .tour__scene-missing {
+  font-size: 12px;
+  font-weight: 600;
   color: var(--el-color-danger);
 }
 
@@ -485,11 +281,6 @@ function nudge(i: number, event: KeyboardEvent) {
 
 .tour__scene-name {
   font-weight: 500;
-}
-
-.tour__scene-count {
-  font-size: 12px;
-  color: var(--ink-3);
 }
 
 .tour__scene-tab--add {
@@ -509,28 +300,22 @@ function nudge(i: number, event: KeyboardEvent) {
   gap: 24px;
 }
 
-/* 跟官網 .tour-canvas 一樣是 8:5、照片整張拉滿不裁切（web styles.css 的
-   .tour-canvas／.tour-image），熱點的 % 座標才會和官網一一對應。 */
+/* 官網環境頁的場景照片是原比例整張顯示（web environment.css 的 .renv-snap>img），
+   這裡一樣不裁切；沒照片時給一個 8:5 的空框。 */
 .tour__stage {
-  position: relative;
-  aspect-ratio: 8 / 5;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface-3);
-  cursor: crosshair;
-  user-select: none;
 }
 
-.tour__stage.is-full {
-  cursor: default;
+.tour__stage.is-empty {
+  aspect-ratio: 8 / 5;
 }
 
 .tour__stage img {
   width: 100%;
-  height: 100%;
-  object-fit: fill;
-  pointer-events: none;
+  height: auto;
   display: block;
 }
 
@@ -540,38 +325,6 @@ function nudge(i: number, event: KeyboardEvent) {
   height: 100%;
   color: var(--ink-3);
   font-size: 13px;
-}
-
-.tour__pin {
-  touch-action: none;
-  position: absolute;
-  width: 28px;
-  height: 28px;
-  transform: translate(-50%, -50%);
-  border: 2px solid var(--on-photo-border);
-  border-radius: 50%;
-  background: var(--el-color-primary);
-  color: var(--on-photo);
-  font: 600 12px/1 var(--el-font-family);
-  cursor: grab;
-  box-shadow: 0 1px 4px var(--on-photo-shadow);
-  transition: transform 120ms var(--ease-out);
-}
-
-.tour__pin:active {
-  cursor: grabbing;
-}
-
-.tour__pin.is-active {
-  background: var(--brand-gold);
-  color: var(--ink);
-  border-color: var(--on-photo);
-  transform: translate(-50%, -50%) scale(1.15);
-}
-
-.tour__pin:focus-visible {
-  outline: 2px solid var(--brand-gold);
-  outline-offset: 2px;
 }
 
 .tour__stage-hint {
@@ -592,40 +345,6 @@ function nudge(i: number, event: KeyboardEvent) {
   gap: 2px;
 }
 
-.tour__order-hint {
-  margin: -4px 0 12px;
-}
-
-.tour__coords :deep(.el-input-number) {
-  width: 100%;
-}
-
-.tour__side-title--spot {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.tour__scene-review {
-  font-size: 12px;
-  color: var(--brand-gold-ink);
-  font-weight: 600;
-}
-
-.tour__review {
-  margin-bottom: 12px;
-}
-
-.tour__review p {
-  margin: 4px 0 8px;
-}
-
-.tour__side-empty {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
 .tour__scene-actions {
   margin-top: 16px;
   padding-top: 12px;
@@ -636,8 +355,5 @@ function nudge(i: number, event: KeyboardEvent) {
   .tour__grid {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-@media (pointer: coarse) {
-  .tour__pin { width:44px; height:44px; font-size:14px; }
 }
 </style>

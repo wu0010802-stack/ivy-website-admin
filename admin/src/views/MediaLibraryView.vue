@@ -552,7 +552,7 @@ onMounted(async () => {
           <FocusPicker v-model="editFocus" :src="mediaFocusUrl(editingAsset)" label="預設裁切焦點" reset-label="清除（置中）" />
           <span class="field-help">
             點照片上最重要的位置（也可以用方向鍵）。首屏、關於、孩子的一天、分校封面與消息封面把照片裁成不同比例時，
-            沒有另外設定焦點的版位以這一點為中心；各版位可以在內容頁自己調整，不受這裡影響。校園探索的場景照片不裁切（熱點要對齊整張照片），不套用。
+            沒有另外設定焦點的版位以這一點為中心；各版位可以在內容頁自己調整，不受這裡影響。校園探索的場景照片在官網照原比例整張顯示、不裁切，不套用。
           </span>
         </el-form-item>
         <p v-else class="field-help">
