@@ -630,14 +630,8 @@ onMounted(() => {
 /* 尚未確認到場是接待要處理的事：副行跟著暖黃、加粗，和已到場、未到場的灰字分開。 */
 .visit-state__sub[data-tone='warning'] { color: var(--el-color-warning-dark-2); font-weight: 600; }
 .toolbar { align-items: flex-end; }
-/* 頁籤放不下就換行，不藏在看不見的橫向捲動裡（手機上後四個狀態會被忽略）。 */
-.status-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: var(--text-base); white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
-.status-tab:hover { background: var(--surface-2); color: var(--ink); }
-/* 淺藍底上的字用深一階的操作色：--el-color-primary 在 light-9 底只有 4.4:1。 */
-.status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; }
-.status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
-/* 分頁數字只是件數，不是待辦：一律中性灰。只有舊需求「待處理」真的要人處理，才用暖黃（同側欄的案件數）。 */
+/* 狀態頁籤的基本樣式在 style.css（站內通知共用）。分頁數字只是件數，一律中性灰；只有舊需求「待處理」
+   真的要人處理，才用暖黃（同側欄的案件數），選中時照共用樣式。 */
 .status-tab[data-group='pending'] .status-tab__count { background: var(--brand-gold); color: var(--ink); }
 .status-tab.is-active .status-tab__count { background: var(--surface); color: var(--admin-accent-hover); }
 .requests-filters__more { display: none; flex-basis: 100%; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding-top: 4px; }
