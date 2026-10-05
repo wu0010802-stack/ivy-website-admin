@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 官網後台第九輪 UI/UX（main CI 部署）
+
+- **合併**：`feature/admin-ux9-20261005` 的 `e8d7e261` 合 origin/main（只多部署紀錄，README 頂部衝突已解）成 `54048545`，使用者快轉推 main `f83bdd3..54048545`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台第九輪 UX」。
+- **migration**：無（只改後台前端、文件與兩張 stack 視覺基準）。
+- **CI**：main run 37278508988（`54048545`）全綠：Frontend admin 3.7／web 1.2 分鐘，Backend 三組 7.9／6.3／6.7 分鐘，E2E／Playwright 6.0 分鐘，Deploy 4.4 分鐘。
+- **正式 `release.json`**：base commit `5404854`，created `2026-10-05T07:43:01Z`。
+- **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`；後台 lazy chunk 有新文案與樣式——`VisitRequestsView`（「到了」、「拿掉這個條件」）、`DashboardView`（`summary-cols`、`today__attendance`）、`PageHeader`（「收起說明」）、`UsersView`（「停用帳號」）、`VisitDetailView`（「新場次剛好額滿」）、內容編輯共用 chunk（「存草稿並預覽」）；入口 CSS 有 `--text-base:14px` 等字級 token。
+- **未做**：沒登入正式後台實際操作（接待「到了／沒來」、篩選標籤、存草稿並預覽都只在拋棄式測試庫與 stack e2e 驗過）；Safari／iOS 實機。
+
 ## 2026-10-05 效能第四輪：字型依頁面分組、圖片 1600w、後台按需引入、後端熱路徑、CI 分三組（main CI 部署）
 
 - **合併**：`feature/perf-20261005` 七個提交接在 `126093f` 後，使用者快轉推 main `126093f..bcf6005`。內容與驗證見 README 頂部同日段落、DESIGN.md「效能第四輪」。
