@@ -59,3 +59,8 @@ for name, source, width, crf in [
     print(f'{name}: {original.stat().st_size:,} → {target.stat().st_size:,} bytes', flush=True)
 target = ROOT / 'web/app/generated/video-manifest.json'
 target.write_text(json.dumps(manifest, indent=2) + '\n')
+# 換參數或母帶後舊雜湊檔不會再被引用，留著只會撐大映像（2026-10-05 清掉 9 支、約 28 MB）
+for stale in OUT.glob('*.mp4'):
+    if f'/assets/optimized/{stale.name}' not in manifest.values():
+        stale.unlink()
+        print(f'刪除未引用的舊檔 {stale.name}', flush=True)
