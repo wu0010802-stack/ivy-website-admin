@@ -7,12 +7,13 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus, { ElMessageBox } from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import FamilyActions from '../components/visit/FamilyActions.vue'
+import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
 import { ApiError } from '../api/client'
 import type { UserOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { testUser } from './fixtures'
-import { button, cleanup, deferred, hasButton, mockGet, mockPost, pathsTo, superAdmin, visit, VR_ID, VR_ID_2, wrappers } from './admissionsTestKit'
+import { button, cleanup, deferred, hasButton, mockGet, mockPost, pathsTo, queryOf, superAdmin, visit, VR_ID, VR_ID_2, wrappers } from './admissionsTestKit'
 
 afterEach(cleanup)
 
@@ -36,7 +37,7 @@ const visitStaff = [{ id: 'desk', email: 'desk@example.invalid', display_name: '
 
 function mockFamily(options: {
   data?: Record<string, unknown>
-  records?: unknown[] | (() => unknown)
+  records?: unknown[] | ((path: string) => unknown)
   events?: unknown
   logs?: unknown
   notes?: unknown[]
@@ -196,22 +197,29 @@ describe('Review Focus', () => {
     writeVisitNoteDraft(VR_ID, '')
   })
 
-  it('2：切到下一筆後，前一筆較晚回來的招生事件不會出現', async () => {
-    const slow = deferred<unknown[]>()
+  it('2：切到下一筆後，前一筆較晚回來的招生事件與聯絡紀錄不會出現', async () => {
+    const slowEvents = deferred<unknown[]>()
+    const slowLogs = deferred<unknown[]>()
     mockFamily({
-      events: () => slow.promise,
+      events: () => slowEvents.promise,
+      logs: () => slowLogs.promise,
+      records: (path: string) => (queryOf(path).get('visit_request_id') === VR_ID_2 ? [linked({ id: 'v-2', visit_request_id: VR_ID_2 })] : [linked()]),
       extra: {
         [`/admin/visit-requests/${VR_ID_2}/contact-notes`]: [],
-        [`/admin/visit-requests/${VR_ID_2}`]: () => detail({ id: VR_ID_2, status: 'confirmed', history: [] }),
+        [`/admin/visit-requests/${VR_ID_2}`]: () => detail({ id: VR_ID_2, history: [] }),
+        '/admin/admissions/records/v-2/events': [],
+        '/admin/admissions/records/v-2/contact-logs': [],
       },
     })
     const { wrapper, router } = await mountDetail()
     await router.push(`/visit-requests/${VR_ID_2}`)
     await flushPromises()
-    slow.resolve([{ id: 'late', event_type: 'deposit_added', from_stage: 'visited', to_stage: 'deposited', reason: null, metadata_json: null, actor_user_id: 'desk', actor_name: '櫃台小美', created_at: '2026-10-14T01:30:00Z' }])
+    expect(wrapper.find('.family-data').exists()).toBe(true)
+    slowEvents.resolve([{ id: 'late', event_type: 'deposit_added', from_stage: 'visited', to_stage: 'deposited', reason: null, metadata_json: null, actor_user_id: 'desk', actor_name: '櫃台小美', created_at: '2026-10-14T01:30:00Z' }])
+    slowLogs.resolve([{ id: 'late-log', recruitment_visit_id: 'v-1', contacted_at: '2026-10-14T08:20:00Z', channel: 'phone', reached: true, note: '前一筆的獨特聯絡內容', next_follow_up_at: null, created_by: 'desk', created_by_name: '櫃台小美', created_at: '2026-10-14T08:21:00Z' }])
     await flushPromises()
     expect(wrapper.text()).not.toContain('加上預繳')
-    expect(wrapper.find('.family-data').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('前一筆的獨特聯絡內容')
   })
 
   it('3：已匿名化的招生訪視：唯讀，撥號退回預約電話', async () => {
@@ -232,5 +240,23 @@ describe('唯讀招生權限（5.9）', () => {
     expect(hasButton(wrapper, '記錄聯絡')).toBe(false)
     expect(hasButton(wrapper, '重新預約（另建新案）')).toBe(false)
     expect(wrapper.text()).not.toContain('你的帳號只能查看案件')
+  })
+})
+
+describe('409 重讀不卸載家庭版面（5.9）', () => {
+  it('FamilyActions、FamilyAdmissionsData 的 stale：版面留著，回來後換成新版本', async () => {
+    const slow = deferred<unknown[]>()
+    let calls = 0
+    mockFamily({ records: () => (++calls === 1 ? [linked()] : slow.promise) })
+    const { wrapper } = await mountDetail()
+    wrapper.getComponent(FamilyActions).vm.$emit('stale')
+    wrapper.getComponent(FamilyAdmissionsData).vm.$emit('stale')
+    await flushPromises()
+    expect(wrapper.find('.family-actions').exists()).toBe(true)
+    expect(wrapper.find('.family-data').exists()).toBe(true)
+    slow.resolve([linked({ version: 2 })])
+    await flushPromises()
+    expect(wrapper.getComponent(FamilyActions).props('visit').version).toBe(2)
+    expect(wrapper.find('.family-data').exists()).toBe(true)
   })
 })

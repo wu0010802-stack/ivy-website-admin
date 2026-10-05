@@ -875,7 +875,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             :options="familyOptions"
             :editable="canCreateAdmissions"
             @saved="family.replaceVisit"
-            @stale="family.lookup"
+            @stale="family.reload"
           />
           <div class="panel detail__data">
             <div class="panel__head">
@@ -1008,7 +1008,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 :latest="latestFamilyContact"
                 :rebookable="canHandle"
                 @changed="onFamilyChanged"
-                @stale="family.lookup"
+                @stale="family.reload"
                 @rebook="rebookOpen = true"
               />
               <p v-else-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>

@@ -54,6 +54,24 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
     }
   }
 
+  /**
+   * 家庭版面上遇到 409 時重讀招生訪視：不先清空畫面，回來才換掉（開著的對話框與打到一半的內容才不會被卸載）。
+   * 失敗就保留現況；跟 lookup 共用請求序號，彼此較晚的才算數。
+   */
+  async function reload() {
+    const current = detail.value
+    if (!current || !canRead.value) return
+    const request = requests.begin()
+    try {
+      const rows = await listRecords({ campus_key: current.campus_key, visit_request_id: current.id, page: 1, page_size: 1 })
+      if (!requests.isCurrent(request) || detail.value?.id !== current.id) return
+      visit.value = Array.isArray(rows) ? (rows[0] ?? null) : null
+      if (isFamily.value) await loadExtras()
+    } catch {
+      // 保留現況；使用者可以再操作一次。
+    }
+  }
+
   function lookup(): Promise<void> {
     const run = fetchVisit().finally(() => {
       if (pending === run) pending = null
@@ -123,6 +141,6 @@ export function useFamilyAdmissions(detail: Ref<VisitRequestFullOut | null>, hoo
 
   return {
     canRead, canWrite, visit, available, creating, lookup, settled, create,
-    isFamily, lookupFailed, events, contactLogs, staff, options, extrasFailed, loadExtras, replaceVisit,
+    reload, isFamily, lookupFailed, events, contactLogs, staff, options, extrasFailed, loadExtras, replaceVisit,
   }
 }
