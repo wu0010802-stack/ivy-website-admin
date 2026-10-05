@@ -15,6 +15,10 @@ const inlineCss = readText('../app/assets/css/font-subsets.css')
 const extendedCss = publicFile(fontManifest.stylesheet.src).toString('utf8')
 const codepointsOf = (text: string) => [...text].map((char) => char.codePointAt(0)!)
 const siteChars = new Set(codepointsOf(readText('../../scripts/data/lineseed-site-chars.txt').replace(/\s/g, '')))
+const pageChars = (JSON.parse(readText('../app/generated/page-font-chars.json')) as { pages: Record<string, { bold: string, extraBold: string }> }).pages
+// 依頁面分組後每頁最多要下載的 LINE Seed（Bold＋ExtraBold）：2026-10-05 重切時最多的是 /anniversary 72 KB；
+// 依字頻切的舊版 /anniversary 要 525 KB、/about 387 KB
+const PAGE_FONT_BUDGET = 100 * 1024
 // 改版前預載的量：Bold critical 13,820 bytes＋ExtraBold 整包 14,040 bytes。
 const PRELOAD_BUDGET = 13_820 + 14_040
 const SLICE_LIMIT = 60_000
@@ -77,6 +81,17 @@ describe('LINE Seed TW 完整字型分片', () => {
     const inline = new Set(inlineFaces.flatMap((face) => face.codepoints))
     for (const cp of siteChars) expect(inline.has(cp)).toBe(true)
     expect(extendedFaces.length).toBeGreaterThan(inlineFaces.length)
+  })
+
+  it.each(Object.keys(pageChars))('%s 用到的 Bold 字都在 inline，整頁要下載的分片不超過預算', (page) => {
+    const fontChars = new Set(codepointsOf(readText('../public/assets/fonts/chars-bd.txt')))
+    const inline = new Set(inlineFaces.flatMap((face) => face.codepoints))
+    const bold = codepointsOf(pageChars[page]!.bold).filter((cp) => fontChars.has(cp))
+    for (const cp of bold) expect(inline.has(cp), String.fromCodePoint(cp)).toBe(true)
+    const needed = [[700, bold], [800, codepointsOf(pageChars[page]!.extraBold)]] as const
+    const bytes = needed.flatMap(([weight, cps]) => allFaces.filter((face) => face.weight === weight && face.codepoints.some((cp) => cps.includes(cp))))
+      .reduce((sum, face) => sum + publicFile(face.src).length, 0)
+    expect(bytes).toBeLessThanOrEqual(PAGE_FONT_BUDGET)
   })
 
   it('LINE Seed TW 只由產生的兩支 CSS 宣告', () => {

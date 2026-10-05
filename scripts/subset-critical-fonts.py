@@ -12,13 +12,19 @@ sha256 釘在 ZIP_SHA256。預設讀 output/fonts-src/LINE_Seed_TW.zip（output/
    scripts/first-screen-chars.cjs 再跑這裡。只有首屏用得到的字重會預載它（nuxt.config.ts 讀
    font-manifest.json 的 preload）；2026-09-25 沒有任何首屏文字是 ExtraBold（studio.css 的
    .studio-hero h1 最後被 font-weight:700 蓋過），所以只預載 Bold。
-2. site：scripts/data/lineseed-site-chars.txt（2026-09-24 為止官網用到的 737 字）扣掉 critical，依字頻
-   切成數片。英數與標點固定在第一片，halt 的「」（）和原本的 remaining 一樣留在同一個字型裡。
-3. 其餘：完整字型剩下的字先依 scripts/data/noto-sans-tc-frequency-tiers.json（Google Fonts 繁中切片的
+2. page：web/app/generated/page-font-chars.json（scripts/page-font-chars.cjs 從正式站收集的各頁用字）
+   扣掉 critical，依「哪幾頁的哪個字重用到」分組（cluster()）：同一批頁面一起用到的字切在同一片，
+   內頁只抓自己用到的幾片。2026-10-05 以前依字頻切，每頁都要抓 4 片共約 160 KB 的 site 分片、
+   內頁再加 5–10 片 common，/about 一頁約 390 KB；改後每頁 3–8 片、33–72 KB。英數與標點固定在第一片，
+   halt 的「」（）和原本的 remaining 一樣留在同一個字型裡。改頁面文案或後台內容大改後重跑
+   page-font-chars.cjs 再跑這裡；沒重跑也不會缺字，新字落在依字頻切的 common 分片。
+3. site：scripts/data/lineseed-site-chars.txt（2026-09-24 為止官網用到的 737 字）扣掉 critical 與 page，
+   依字頻切成數片，仍和 page 一樣在 inline（後台常改回舊文案）。英數與標點固定在第一片。
+4. 其餘：完整字型剩下的字先依 scripts/data/noto-sans-tc-frequency-tiers.json（Google Fonts 繁中切片的
    字頻層級）由常用到罕用排，Google 沒列的罕用字依碼位接在最後；其餘標點全部排在最前面（進同一片）。
    每片目標約 40 KB、上限 60 KB。
 
-首屏用得到的字重（Bold）的 critical 與 site 宣告在 web/app/assets/css/font-subsets.css（併進 inline CSS，
+首屏用得到的字重（Bold）的 critical、page 與 site 宣告在 web/app/assets/css/font-subsets.css（併進 inline CSS，
 和原本 critical／remaining 是同一批字，既有頁面的行為不變）；其餘分片與 ExtraBold 全部寫進帶雜湊的
 subsets/lineseed-extended-*.css，由 web/app/plugins/title-font-slices.client.ts 在執行時掛上：不阻塞渲染，
 也不讓每頁 HTML 多幾十 KB 的 unicode-range。這兩支產出是 LINE Seed TW 唯一的 @font-face 來源，
@@ -60,6 +66,12 @@ INLINE_CSS = ROOT / 'web/app/assets/css/font-subsets.css'
 MANIFEST = ROOT / 'web/app/generated/font-manifest.json'
 FIRST_SCREEN = ROOT / 'web/app/generated/first-screen-chars.json'
 SITE_CHARS = ROOT / 'scripts/data/lineseed-site-chars.txt'
+PAGE_CHARS = ROOT / 'web/app/generated/page-font-chars.json'
+# 分頁面時每頁的權重（約略的瀏覽量比例）：首頁與預約頁最常被打開，錯誤頁、管理預約、隱私權很少
+PAGE_WEIGHTS = {
+    '/': 3, '/visit': 2, '/about': 1, '/curriculum': 1, '/environment': 1, '/admission': 1, '/anniversary': 1,
+    '/news': 1, '/news/[id]': 1, '/visit/[key]': 1, '/visit/manage': 0.3, '/privacy': 0.3, '/__missing__': 0.2,
+}
 FREQUENCY = ROOT / 'scripts/data/noto-sans-tc-frequency-tiers.json'
 FIXTURE = ROOT / 'web/server/data/site-fixture.json'
 
@@ -78,6 +90,9 @@ WEIGHTS = [
 BASELINES = {700: ROOT / 'assets/fonts/lineseed-bd.woff', 800: ROOT / 'assets/fonts/lineseed-eb.woff'}
 TARGET_BYTES = 40_000
 LIMIT_BYTES = 60_000
+# 頁面分組時每多一個請求的成本（換算成位元組）：檔頭只有約 0.8 KB，但每片多一次請求、多一次換字重排，
+# 不加這項會切出一堆 1–3 KB 的小片
+REQUEST_BYTES = 3_000
 
 
 def options() -> subset.Options:
@@ -225,6 +240,40 @@ def pack(chars: list[int], cost: dict[int, int], budget: float) -> list[list[int
     return groups
 
 
+def cluster(chars: set[int], consumers: dict[int, set[tuple[str, int]]], size: dict[int, float], overhead: float, limit: float) -> list[list[int]]:
+    """依「哪幾頁的哪個字重用到」把頁面用字分組，讓每頁要下載的位元組（含每片固定開銷）加權總和最小。
+
+    英數、標點與符號便宜又到處用，固定合成第一組（和原本 site 第一片一樣，halt 標點留在同一個字型）。
+    漢字先依用到它的頁面集合分組，再反覆合併「合併後加權總量降最多」的兩組：只用到其中一組的頁面
+    要多抓另一組的字，兩組都用到的頁面少付一次固定開銷。合併後超過 limit 的不合，交給 pack 切。
+    """
+    def weight(sig: frozenset[tuple[str, int]]) -> float:
+        return sum(PAGE_WEIGHTS[page] for page, _ in sig)
+
+    marks = [cp for cp in chars if not is_ideograph(cp)]
+    by_sig: dict[frozenset[tuple[str, int]], list[int]] = {}
+    for cp in chars - set(marks):
+        by_sig.setdefault(frozenset(consumers[cp]), []).append(cp)
+    groups = [[sig, members, sum(size[cp] for cp in members)] for sig, members in by_sig.items()]
+    while True:
+        best = None
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                (sa, _, za), (sb, _, zb) = groups[i], groups[j]
+                if za + zb > limit:
+                    continue
+                delta = weight(sa | sb) * (za + zb + overhead) - weight(sa) * (za + overhead) - weight(sb) * (zb + overhead)
+                if best is None or delta < best[0]:
+                    best = (delta, i, j)
+        if best is None or best[0] >= 0:
+            break
+        _, i, j = best
+        sb, mb, zb = groups.pop(j)
+        groups[i] = [groups[i][0] | sb, groups[i][1] + mb, groups[i][2] + zb]
+    groups.sort(key=lambda group: (-weight(group[0]), -group[2]))
+    return ([sorted(marks)] if marks else []) + [sorted(members) for _, members, _ in groups]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--zip', type=Path, help=f'官方 LINE_Seed_TW.zip（預設 {ZIP_CACHE.relative_to(ROOT)}，沒有就下載）')
@@ -249,6 +298,19 @@ def main() -> None:
     site = visible(SITE_CHARS.read_text(encoding='utf-8'))
     assert site <= characters, f'官網既有用字不在 LINE Seed TW 裡：{"".join(map(chr, sorted(site - characters)))}'
     site -= critical
+    # 每頁實際用字（scripts/page-font-chars.cjs）：誰用到這個字＝哪幾頁的哪個字重
+    pages = json.loads(PAGE_CHARS.read_text(encoding='utf-8'))['pages']
+    consumers: dict[int, set[tuple[str, int]]] = {}
+    for page, used in pages.items():
+        assert page in PAGE_WEIGHTS, f'{page} 沒有在 PAGE_WEIGHTS 給權重'
+        for weight, *_ in WEIGHTS:
+            for cp in visible(used['bold' if weight == 700 else 'extraBold']):
+                consumers.setdefault(cp, set()).add((page, weight))
+    outside = sorted(cp for cp in consumers if cp not in characters)
+    if outside:
+        print(f'頁面用字不在 LINE Seed TW 裡（退回後備字型）：{"".join(map(chr, outside))}')
+    page_chars = {cp for cp in consumers if cp in characters} - critical
+    site -= page_chars
 
     tiers = json.loads(FREQUENCY.read_text(encoding='utf-8'))['tiers']
     tier_of: dict[int, int] = {}
@@ -260,7 +322,7 @@ def main() -> None:
         return tier_of.get(cp, len(tiers)), cp
 
     # 其餘的標點（含直排標點）集中在第一片 common：halt 的『』〈〉《》【】〔〕等留在同一個字型裡
-    rest = characters - critical - site
+    rest = characters - critical - page_chars - site
     marks = sorted(cp for cp in rest if unicodedata.category(chr(cp)).startswith('P'))
     rest -= set(marks)
     common = marks + sorted((cp for cp in rest if cp in tier_of), key=rank)
@@ -272,9 +334,15 @@ def main() -> None:
     probe = set(common[len(common) // 2:len(common) // 2 + 150])
     ratio = max(len(source.build(probe)) for source in sources) / sum(cost[cp] for cp in probe)
     budget = TARGET_BYTES / ratio
+    # 每片固定的額外位元組（WOFF2 表頭、name、GPOS 等）：實切一個字減掉它的估算量
+    one = common[len(common) // 2]
+    overhead = max(len(source.build({one})) for source in sources) - cost[one] * ratio + REQUEST_BYTES
+    page_groups = cluster(page_chars, consumers, {cp: cost[cp] * ratio for cp in page_chars}, overhead, TARGET_BYTES)
+    page_groups = [piece for group in page_groups for piece in pack(sorted(group, key=rank), cost, budget)]
+    assert all(is_ideograph(cp) for group in page_groups[1:] for cp in group), '頁面用到的英數標點要全在第一片 page'
     site_groups = pack(sorted(site, key=lambda cp: (is_ideograph(cp), rank(cp))), cost, budget)
     assert all(is_ideograph(cp) for group in site_groups[1:] for cp in group), '英數標點要全在第一片 site'
-    plan = [('critical', sorted(critical))] + [('site', group) for group in site_groups]
+    plan = [('critical', sorted(critical))] + [('page', group) for group in page_groups] + [('site', group) for group in site_groups]
     plan += [('common', group) for group in pack(common, cost, budget)]
     plan += [('rare', group) for group in pack(rare, cost, budget)]
 
@@ -294,6 +362,12 @@ def main() -> None:
         assert not covered & codepoints, '分片的 unicode-range 重疊'
         covered |= codepoints
     assert covered == characters, '分片聯集與完整字型不同'
+    for page, used in pages.items():
+        needed = []
+        for position, (weight, *_) in enumerate(WEIGHTS):
+            text = visible(used['bold' if weight == 700 else 'extraBold'])
+            needed += [datas[position] for _, codepoints, datas in built if codepoints & text]
+        print(f'{page}：{len(needed)} 片、{sum(map(len, needed)) / 1024:.1f} KB')
     for source in sources:
         baseline = TTFont(BASELINES[source.weight])
         base_cmap = baseline.getBestCmap()
@@ -322,7 +396,7 @@ def main() -> None:
             url = f'{PUBLIC_URL}/{filename}'
             ranges = unicode_range(codepoints | ({0x20} if kind == 'critical' else set()))
             rule = f"@font-face{{font-family:'{FAMILY}';font-weight:{source.weight};font-display:swap;src:url({url}) format('woff2');unicode-range:{ranges}}}"
-            inline = on_first_screen and kind in ('critical', 'site')
+            inline = on_first_screen and kind in ('critical', 'page', 'site')
             (inline_rules if inline else extended_rules).append(rule)
             summary['bytes'] += len(data)
             summary['largest'] = max(summary['largest'], len(data))

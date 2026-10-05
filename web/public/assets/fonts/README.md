@@ -20,23 +20,28 @@ zip 為 `LINE_Seed_TW.zip`（ver02，Version 1.400），sha256 記在 `web/app/g
 - `chars-serif.txt`：跟 LINE Seed 無關，是明體（Noto Serif TC）子集聯集，31 字，見下方「分校區塊明體」。
 - 內文維持系統字（PingFang TC / 微軟正黑體 / Noto Sans CJK），引言不用標題字型。
 
-## 100 片切法與首屏預載（`scripts/subset-critical-fonts.py`）
+## 分片切法與首屏預載（`scripts/subset-critical-fonts.py`）
 
-兩個字重各切成 100 片互斥 `unicode-range` 分片，聯集＝完整字型 cmap（不含空白字元，見下）：
+兩個字重各切成 109 片互斥 `unicode-range` 分片，聯集＝完整字型 cmap（不含空白字元，見下）：
 
 1. **critical**：首屏用字（fixture 首頁主標＋五校名保底 ∪ `web/app/generated/first-screen-chars.json`
    實際量到的首屏用字），只有首屏真的用到的字重才預載——2026-09-25 現況是 h1 最終被壓成 700
    （`studio.css` 的 `.studio-hero h1` 被後續規則蓋成 `font-weight:700`），所以**只預載 Bold critical
    （13,852 bytes）**，ExtraBold 不預載。
-2. **site**：`scripts/data/lineseed-site-chars.txt`（以 `854e410` 為準的 737 字舊子集用字）扣掉
-   critical，依字頻切片，inline 進 `web/app/assets/css/font-subsets.css`。
-3. **其餘**：完整字型剩下的字依 Google Fonts 繁中字頻層級（`scripts/data/noto-sans-tc-frequency-tiers.json`，
+2. **page**（2026-10-05 起）：`web/app/generated/page-font-chars.json`（`scripts/page-font-chars.cjs`
+   從正式站各頁收集的 LINE Seed 用字）扣掉 critical，依「哪幾頁的哪個字重用到」分組：同一批頁面
+   一起用到的字切在同一片，英數標點固定一片。inline 進 `font-subsets.css`。原本依字頻切，每頁都要抓
+   4 片共約 160 KB 的 site 分片、內頁再加 5–10 片 common（/about 約 387 KB、/anniversary 約 525 KB）；
+   改後每頁 3–8 片、33–72 KB（`web/tests/title-fonts.spec.ts` 擋每頁 100 KB）。
+3. **site**：`scripts/data/lineseed-site-chars.txt`（以 `854e410` 為準的 737 字舊子集用字）扣掉
+   critical 與 page，依字頻切片，同樣 inline（後台常改回舊文案）。
+4. **其餘**：完整字型剩下的字依 Google Fonts 繁中字頻層級（`scripts/data/noto-sans-tc-frequency-tiers.json`，
    常用到罕用）排序切片，每片目標約 40 KB、上限 60 KB，寫進帶內容雜湊的
    `subsets/lineseed-extended-<hash>.css`，由 `web/app/plugins/title-font-slices.client.ts`
    在瀏覽器執行時掛上（不阻塞渲染，也不讓每頁 HTML 多幾十 KB 的 unicode-range）。
 
 **LINE Seed 的 `@font-face` 只有這兩個來源**：`web/app/assets/css/font-subsets.css`（inline，700
-critical＋site 4 片）與 `web/public/assets/fonts/subsets/lineseed-extended-<hash>.css`（其餘 700 全部
+critical＋page＋site）與 `web/public/assets/fonts/subsets/lineseed-extended-<hash>.css`（其餘 700 全部
 與全部 800，共約 195 個 `@font-face`）。`styles.css`／任何其他檔案不能再另外宣告 LINE Seed 的
 `@font-face`（`web/tests/title-fonts.spec.ts` 會擋；兩份都留瀏覽器會重複下載同一批字）。
 `web/app/generated/font-manifest.json` 記錄來源、`preload[]`（目前只有 Bold critical）與各字重的片數／
@@ -46,8 +51,11 @@ critical＋site 4 片）與 `web/public/assets/fonts/subsets/lineseed-extended-<
 gitignore，沒有就下載，也可用 `--zip` 指定已下載的檔案）：
 
 ```sh
+node scripts/page-font-chars.cjs   # 先收集各頁用字（預設讀正式站，只送 GET），改頁面文案或後台內容大改後重跑
 uv run --no-project --with 'fonttools[woff]==4.63.0' python scripts/subset-critical-fonts.py [--zip PATH]
 ```
+
+沒重跑 `page-font-chars.cjs` 不會缺字：新出現的字落在依字頻切的 common 分片，只是那一頁會多抓幾片。
 
 重跑會核對每片 cmap、每字字寬與 halt 值跟官方 OTF 一致，並拿凍結原型的 `assets/fonts/lineseed-bd.woff`／
 `lineseed-eb.woff`（737 字子集，`app.js`／`index.html` 專用，未受這次影響）逐字比對；完成後刪掉

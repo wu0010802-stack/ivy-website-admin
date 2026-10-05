@@ -46,7 +46,7 @@
 ## 字型子集
 
 - **只有根目錄凍結原型**（`assets/fonts/lineseed-bd.woff` 全站用字、`lineseed-eb.woff` h1 用字）還是子集（737 字，以 `854e410` 為準），且原型已凍結不再修改，這個子集也不會再補字。
-- **`web/` 已改用完整 LINE Seed TW**（Bold／ExtraBold 各 13,915 字，2026-09-25 起）：官方 zip 取得後由 `scripts/subset-critical-fonts.py` 切成 100 片 unicode-range，只預載首屏用到的 Bold critical，其餘依需要在瀏覽器端載入；細節與重切指令見 `web/public/assets/fonts/README.md`。後台缺字提示（`useTitleFontCoverage` 讀 `chars-bd.txt`／`chars-eb.txt`）因此只剩罕見字（Ext-B 區）與 emoji 會被提示，一般中文字不會再缺。寫新的 h1／h2／h3 文案不必再擔心子集缺字；只有明體（`chars-serif.txt`，五校名等）仍是子集，擴充明體用字才需要走 fontTools。
+- **`web/` 已改用完整 LINE Seed TW**（Bold／ExtraBold 各 13,915 字，2026-09-25 起）：官方 zip 取得後由 `scripts/subset-critical-fonts.py` 切成約 110 片 unicode-range（2026-10-05 起各頁用字依頁面共現分組，先跑 `scripts/page-font-chars.cjs` 收集），只預載首屏用到的 Bold critical，其餘依需要在瀏覽器端載入；細節與重切指令見 `web/public/assets/fonts/README.md`。後台缺字提示（`useTitleFontCoverage` 讀 `chars-bd.txt`／`chars-eb.txt`）因此只剩罕見字（Ext-B 區）與 emoji 會被提示，一般中文字不會再缺。寫新的 h1／h2／h3 文案不必再擔心子集缺字；只有明體（`chars-serif.txt`，五校名等）仍是子集，擴充明體用字才需要走 fontTools。
 - 頁首品牌字分三個 woff：`noto-sans-tc-600-brand.woff`（中文品牌名）、`source-sans-3-400-brand.woff`（英文）、`noto-sans-tc-600-anni.woff`（只有「週年」，用 `unicode-range` 分流）。要補字走 Google Fonts 可變字型 → instancer 定 wght → pyftsubset，**另切新檔、不動既有 brand 子集**。指令在 `assets/fonts/README.md`。
 - `halt`／`palt` 對子集無效，標點收緊只能用負邊距。
 
