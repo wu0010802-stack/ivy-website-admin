@@ -39,7 +39,6 @@ describe('隱私／個資使用說明', () => {
   it('已發布的預約文案帶隱私說明；舊版本沒有欄位時不顯示入口', () => {
     const site = fixture as unknown as SiteContent
     const legacy = applyContentOverlay(site, { booking_content: booking })
-    expect(legacy.booking.consentText).toBe(booking.consent_text)
     expect(legacy.booking.privacyNotice).toBeNull()
 
     const withNotice = applyContentOverlay(site, {

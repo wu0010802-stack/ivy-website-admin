@@ -5,6 +5,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, homeFilms, type ContentOverlay } from '../app/utils/content-overlay'
 import { publishedContent } from '../app/utils/published-content'
 import { previewMedia } from '../app/utils/draft-preview'
+import { withoutRetiredFields } from '../app/utils/public-copy'
 import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, videoPosterUrl, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
 import { responsiveTourImage } from '../app/utils/tour-image'
 import { campusShareImagePath, siteShareImage } from '../app/utils/seo'
@@ -15,7 +16,8 @@ const read = (name: string) => JSON.parse(readFileSync(new URL(`./fixtures/${nam
 const initialOverlay = read('overlay-initial-content.json') as ContentOverlay
 // 同一份內容用 2026-09-25 這批改動之前的 content-overlay.ts／published-content.ts 疊出來的結果
 // （2026-09-26 起消息與活動逐則多一個 sample 示意旗標，其餘不變）。
-const baseline = read('overlay-baseline-20260925.json') as SiteContent
+// 2026-10-04 起公開輸出拿掉官網已不顯示的舊欄位（public-copy.ts），比對前同樣拿掉。
+const baseline = withoutRetiredFields(read('overlay-baseline-20260925.json') as SiteContent)
 
 const IMAGE = '11111111-1111-4111-8111-111111111111'
 const VIDEO = '22222222-2222-4222-8222-222222222222'
@@ -180,15 +182,15 @@ describe('素材版位疊到官網內容', () => {
     expect(fresh).toMatchObject({ photo: '', alt: '' })
   })
 
-  it('分校：封面、兩個版位各自的焦點與線稿', () => {
+  // 分校頁首屏焦點（hero_focus）隨分校頁拿掉，2026-10-04 起官網不讀。
+  it('分校：封面、首頁卡片焦點與線稿', () => {
     const base = { name: '義華校', district: '', address: '', phone: '', intro: '', description: '', facebook: '', fb_note: '', line: '' }
     const yihua = site.campuses.find((c) => c.key === 'yihua')!
     const onlyFocus = applyContentOverlay(site, { campus_profile: { yihua: { ...base, card_focus: { x: 20, y: 70 } } } }, media)
       .campuses.find((c) => c.key === 'yihua')!
-    // 只調焦點、沒換封面：照片仍是內建，分校頁首屏維持內建位置。
+    // 只調焦點、沒換封面：照片仍是內建。
     expect(onlyFocus.image).toBe(yihua.image)
     expect(onlyFocus.panoramaPos).toBe('20% 70%')
-    expect(onlyFocus.heroPhotoPos).toBe(yihua.heroPhotoPos)
     expect(onlyFocus.imageMedia).toBeUndefined()
 
     const replaced = applyContentOverlay(site, {
@@ -197,7 +199,6 @@ describe('素材版位疊到官網內容', () => {
     expect(replaced.imageMedia!.src).toContain(COVER)
     // 換了封面：內建的 CSS 位置不再套用（是別張照片），沒設的版位交給元件預設。
     expect(replaced.panoramaPos).toBeNull()
-    expect(replaced.heroPhotoPos).toBe('85% 8%')
     expect(replaced.lineArtMedia!.src).toContain(IMAGE)
     // 沒換上色版：用新線稿，不疊舊建築的顏色。
     expect(replaced.lineArtColourMedia).toEqual(replaced.lineArtMedia)

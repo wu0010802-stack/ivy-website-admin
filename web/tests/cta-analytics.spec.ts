@@ -30,11 +30,12 @@ describe('預約鈕與聯絡連結點擊（B11 #63）', () => {
 
   it('官網標的入口都在白名單裡，點擊時取最近的區塊，不在白名單記 other', () => {
     const files = [
-      'SiteHeader.vue', 'SiteFooter.vue', 'CampusBoard.vue', 'CampusTour.vue', 'AdmissionContent.vue', 'EnvironmentContent.vue', 'CurriculumContent.vue', 'AboutContent.vue', 'NewsIndexContent.vue', 'NewsArticleContent.vue', 'VisitForm.vue'
+      'SiteHeader.vue', 'SiteFooter.vue', 'CampusBoard.vue', 'AdmissionContent.vue', 'EnvironmentContent.vue', 'CurriculumContent.vue', 'AboutContent.vue', 'NewsIndexContent.vue', 'NewsArticleContent.vue', 'VisitForm.vue'
     ].map((name) => read(`../app/components/${name}`)).concat(read('../app/pages/visit/manage.vue'))
     const used = new Set(files.flatMap((text) => [...text.matchAll(/data-cta-entry="([a-z_]+)"/g)].map((m) => m[1]!)))
     expect([...used].filter((entry) => !(CTA_ENTRIES as readonly string[]).includes(entry))).toEqual([])
-    expect(used.size).toBeGreaterThanOrEqual(12)
+    // campus_tour 入口隨分校頁的校園探索元件刪除（2026-10-04）；白名單留著，舊的點擊紀錄照樣有名稱。
+    expect(used.size).toBeGreaterThanOrEqual(11)
 
     document.body.innerHTML = `
       <header data-cta-entry="header"><div data-cta-entry="menu"><a id="menu" href="/visit">預約</a></div><a id="book" href="/visit">預約</a></header>

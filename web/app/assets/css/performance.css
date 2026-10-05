@@ -1,7 +1,6 @@
-.tour-image-deferred, .day-poster-deferred { display: none; }
-[data-ivy-motion] .tour-image-deferred, [data-ivy-motion] .day-poster-deferred { display: block; }
-.tour-image-deferred:not([src]), .day-poster-deferred:not([src]), .tour-scene img:not([src]) { visibility: hidden; }
-.tour-scene img { height: auto; }
+.day-poster-deferred { display: none; }
+[data-ivy-motion] .day-poster-deferred { display: block; }
+.day-poster-deferred:not([src]) { visibility: hidden; }
 
 /* 桌機在首次繪製前預留與既有首屏轉場相同的幾何。
    手機加高影片後自然捲動；沒有 JS 或減少動態時也維持靜態閱讀。 */

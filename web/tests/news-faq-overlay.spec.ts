@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { NewsArticle, SiteContent } from '../app/types/site-content'
-import { applyContentOverlay, mergeCampusFaq, type LiveHomeNews } from '../app/utils/content-overlay'
+import { applyContentOverlay, type LiveHomeNews } from '../app/utils/content-overlay'
 import { previewOverlay } from '../app/utils/draft-preview'
 import { eventTimeDetail, eventTimeText, homeArticles, isSampleNews, safeWebUrl, sampleCoverage } from '../app/utils/news-content'
 
@@ -180,54 +180,6 @@ describe('消息疊資料：全站消息的適用範圍＋各校消息', () => {
 function profile(key: string) {
   const c = site.campuses.find((x) => x.key === key)!
   return {
-    name: c.name, district: c.district, address: c.address, phone: c.phone, intro: c.intro,
-    description: c.description, facebook: c.facebook, fb_note: c.fbNote, line: c.line ?? ''
+    name: c.name, district: c.district, address: c.address, phone: c.phone, facebook: c.facebook, line: c.line ?? ''
   }
 }
-
-describe('常見問題：全站共用＋各校', () => {
-  const shared = {
-    items: [
-      { id: 's1', q: '共用一', a: '共用答一' },
-      { id: 's2', q: '共用二', a: '共用答二', enabled: false },
-      { id: 's3', q: '只給仁武', a: '仁武答', scope: 'campus' as const, campus_keys: ['renwu'] },
-      { id: 's4', q: '可以改嗎？', a: '共用的回答' }
-    ]
-  }
-
-  it('共用題目預設放在本校題目之前，停用的共用題目不出現', () => {
-    const items = mergeCampusFaq('yihua', { items: [{ q: '本校題', a: '本校答' }] }, shared)
-    expect(items.map((i) => i.q)).toEqual(['共用一', '可以改嗎？', '本校題'])
-  })
-
-  it('可以放在之後，或完全不顯示共用題目；指定校區的共用題只在那一校', () => {
-    const after = mergeCampusFaq('renwu', { items: [{ q: '本校題', a: '本校答' }], shared_position: 'after' }, shared)
-    expect(after.map((i) => i.q)).toEqual(['本校題', '共用一', '只給仁武', '可以改嗎？'])
-    const off = mergeCampusFaq('renwu', { items: [{ q: '本校題', a: '本校答' }], include_shared: false }, shared)
-    expect(off.map((i) => i.q)).toEqual(['本校題'])
-  })
-
-  it('問題或回答空白的本校題目不顯示，同一題的共用題目也照樣藏起來', () => {
-    const items = mergeCampusFaq('yihua', {
-      items: [{ q: '共用一', a: '', enabled: true }, { q: '本校題', a: '  ' }, { q: ' ', a: '沒有問題' }, { q: '本校題二', a: '答' }]
-    }, shared)
-    expect(items).toEqual([{ q: '可以改嗎？', a: '共用的回答' }, { q: '本校題二', a: '答' }])
-  })
-
-  it('本校有同一題時顯示本校版本，停用就是本校不顯示那一題；其他校不受影響', () => {
-    const own = mergeCampusFaq('yihua', { items: [{ q: '可以改嗎？', a: '義華的回答' }, { q: '共用一', a: '', enabled: false }] }, shared)
-    expect(own).toEqual([{ q: '可以改嗎？', a: '義華的回答' }])
-    const other = mergeCampusFaq('minghua', { items: [] }, shared)
-    expect(other).toEqual([{ q: '共用一', a: '共用答一' }, { q: '可以改嗎？', a: '共用的回答' }])
-  })
-
-  it('合併後的題目（共用＋各校）；沒有各校設定的校區維持原文', () => {
-    const next = applyContentOverlay(site, {
-      shared_faq: shared,
-      campus_faq: { renwu: { items: [{ q: '仁武自己的', a: '答' }], shared_position: 'after' } }
-    })
-    const renwu = next.campuses.find((c) => c.key === 'renwu')!
-    expect(renwu.faq.items.map((i) => i.q)).toEqual(['仁武自己的', '共用一', '只給仁武', '可以改嗎？'])
-    expect(next.campuses.find((c) => c.key === 'yihua')!.faq.items).toEqual(site.campuses[0]!.faq.items)
-  })
-})

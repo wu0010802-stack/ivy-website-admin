@@ -1,4 +1,4 @@
-import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, FaqItem, HomeFilm, NewsArticle, NewsBlock, NewsEvent, SiteContent, TourScene } from '~/types/site-content'
+import type { AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, HomeFilm, NewsArticle, NewsBlock, NewsEvent, SiteContent, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { privacyNotice } from './privacy-notice'
 import { siteLink } from './site-links'
@@ -20,7 +20,6 @@ export interface LiveHomeAbout {
 }
 
 export interface LiveHomeHero {
-  eyebrow: string
   copy_lines: string[]
   /** 2026-09-23 拿掉首屏按鈕：舊版本才有，官網不讀 */
   cta_label?: string
@@ -67,7 +66,6 @@ export interface LiveSiteMeta {
 export interface LiveHomeCampusBoard {
   section_title: string
   eyebrow: string
-  note: string
   /** 2026-09-25 新增：首頁五校順序與預設顯示的校區 */
   campus_order?: string[]
   default_campus?: string
@@ -76,10 +74,6 @@ export interface LiveHomeCampusBoard {
 export interface LiveBookingContent {
   cta_label: string
   cta_label_en: string
-  consent_text: string
-  banner_title_template: string
-  banner_body: string
-  banner_button_label: string
   // 2026-09-25 新增，舊的已發布版本沒有這兩個欄位。
   privacy_title?: string
   privacy_sections?: { heading: string; body: string }[]
@@ -103,7 +97,6 @@ export interface LiveDayExperience {
   eyebrow: string
   eyebrow_en: string
   note: string
-  source_note: string
   moments: LiveDayMoment[]
   film_desktop?: LiveMediaSlot | null
   film_mobile?: LiveMediaSlot | null
@@ -198,18 +191,13 @@ export interface LiveCampusProfile {
   district: string
   address: string
   phone: string
-  intro: string
-  description: string
   facebook: string
-  fb_note: string
   line: string
   /** 2026-09-25 新增：Google 地圖網址，空字串＝用地址搜尋 */
   map_url?: string
   cover?: LiveMediaSlot | null
   /** 首頁五校卡片與預約頁的校區照片 */
   card_focus?: LiveFocusPoint | null
-  /** 分校頁首屏 */
-  hero_focus?: LiveFocusPoint | null
   line_art?: LiveMediaSlot | null
   line_art_colour?: LiveMediaSlot | null
   /** 2026-09-25 新增；之前存的版本沒有這兩欄。 */
@@ -217,30 +205,11 @@ export interface LiveCampusProfile {
   youtube?: string
 }
 
-export interface LiveCampusFaq {
-  items: { q: string; a: string; enabled?: boolean }[]
-  include_shared?: boolean
-  shared_position?: 'before' | 'after'
-}
-
-export interface LiveSharedFaq {
-  items: ({ id: string; q: string; a: string; enabled?: boolean } & LiveNewsScope)[]
-}
-
-export interface LiveTourSpot {
-  name: string
-  x: number
-  y: number
-  text: string
-  question: string
-}
-
 export interface LiveTourScene {
   key: string
   name: string
   image: string
   intro: string
-  spots: LiveTourSpot[]
 }
 
 export interface LiveCampusTour {
@@ -258,11 +227,9 @@ export interface ContentOverlay {
   home_news?: LiveHomeNews | null
   admission_content?: LiveAdmissionContent | null
   privacy_policy?: LivePrivacyPolicy | null
-  shared_faq?: LiveSharedFaq | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
-  campus_faq?: Record<string, LiveCampusFaq> | null
   campus_tour?: Record<string, LiveCampusTour> | null
   campus_news?: Record<string, LiveCampusNews> | null
 }
@@ -351,30 +318,6 @@ function newsEvent(e: LiveNewsEvent, where: { campus: string; campusKeys: string
 }
 
 /**
- * 分校頁的常見問題 = 本校題目＋全站共用題目（規格 3.2）。共用題目依各校設定
- * 放在本校題目之前或之後、或不顯示；只適用某幾校的共用題目只在那幾校出現。
- * 本校有一題和共用題目問題相同時，顯示本校的版本，停用就是這校不顯示那一題；
- * 其他校照樣顯示共用的答案。問題或回答空白的本校題目不顯示（後端 2026-09-26
- * 起擋下，這裡顧及之前發布的「本校不顯示」題被切回顯示的情形），同一題的共用
- * 題目也照樣藏起來，跟停用一樣。
- */
-export function mergeCampusFaq(campusKey: string, faq: LiveCampusFaq, shared: LiveSharedFaq | null | undefined): FaqItem[] {
-  const own = faq.items
-  const ownQuestions = new Set(own.map((item) => item.q.trim()))
-  const sharedItems = faq.include_shared === false
-    ? []
-    : (shared?.items ?? [])
-      .filter((item) => item.enabled !== false)
-      .filter((item) => item.scope !== 'campus' || (item.campus_keys ?? []).includes(campusKey))
-      .filter((item) => !ownQuestions.has(item.q.trim()))
-      .map((item) => ({ q: item.q, a: item.a }))
-  const ownItems = own
-    .filter((item) => item.enabled !== false && item.q.trim() && item.a.trim())
-    .map((item) => ({ q: item.q, a: item.a }))
-  return faq.shared_position === 'after' ? [...ownItems, ...sharedItems] : [...sharedItems, ...ownItems]
-}
-
-/**
  * 把後端已接上 CMS 的欄位疊到 fixture 內容上，兩邊都不修改傳入的物件
  * （回傳新物件），也不假設 overlay 一定齊全——缺哪個 kind、或某校缺某
  * 個 kind，就保留 fixture 原文，不讓公開頁面因為某項還沒發布過就壞掉。
@@ -407,7 +350,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     siteMeta: { ...content.siteMeta },
     booking: { ...content.booking },
     dayExperience: { ...content.dayExperience },
-    campuses: content.campuses.map((c) => ({ ...c, faq: { ...c.faq } }))
+    campuses: content.campuses.map((c) => ({ ...c }))
   }
 
   guard('home_about', () => {
@@ -436,7 +379,6 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       const hero = overlay.home_hero
       next.home.hero = {
         ...next.home.hero,
-        eyebrow: hero.eyebrow,
         copyLines: hero.copy_lines
       }
       const poster = slotImage(hero.poster, media)
@@ -509,8 +451,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       next.home.campusBoard = {
         ...next.home.campusBoard,
         sectionTitle: board.section_title,
-        eyebrow: board.eyebrow,
-        note: board.note
+        eyebrow: board.eyebrow
       }
       // 順序要剛好是現有校區的排列（後端已驗證五校不重複不缺漏）；對不上就沿用內建順序。
       const order = board.campus_order ?? []
@@ -531,10 +472,6 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         ...next.booking,
         ctaLabel: booking.cta_label,
         ctaLabelEn: booking.cta_label_en,
-        consentText: booking.consent_text,
-        bannerTitleTemplate: booking.banner_title_template,
-        bannerBody: booking.banner_body,
-        bannerButtonLabel: booking.banner_button_label,
         privacyNotice: privacyNotice(booking.privacy_title, booking.privacy_sections)
       }
     }
@@ -554,7 +491,6 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         eyebrow: day.eyebrow,
         eyebrowEn: day.eyebrow_en,
         note: day.note,
-        sourceNote: day.source_note,
         moments: day.moments.map((m, i) => {
           const original = byKey.get(m.key)
           const builtinMedia = original
@@ -643,10 +579,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           district: profile.district,
           address: profile.address,
           phone: profile.phone,
-          intro: profile.intro,
-          description: profile.description,
           facebook: profile.facebook,
-          fbNote: profile.fb_note,
           line: profile.line || null,
           mapUrl: profile.map_url || undefined,
           // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
@@ -654,17 +587,6 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
           ...campusMedia(c, profile, media)
         }
-      })
-    }
-  })
-
-  guard('campus_faq', () => {
-    if (overlay.campus_faq) {
-      const faqs = overlay.campus_faq
-      next.campuses = next.campuses.map((c) => {
-        const faq = faqs[c.key]
-        if (!faq) return c
-        return { ...c, faq: { ...c.faq, items: mergeCampusFaq(c.key, faq, overlay.shared_faq) } }
       })
     }
   })
@@ -725,13 +647,15 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   return next
 }
 
+// 只帶官網環境頁用得到的欄位：舊版本存著的熱點（spots、spots_reviewed）不進頁面資料。
 function tourScene(scene: LiveTourScene, media: MediaInfoMap): TourScene {
-  const imageMedia = legacyImage(scene.image, media)
-  return imageMedia ? { ...scene, imageMedia } : scene
+  const { key, name, image, intro } = scene
+  const imageMedia = legacyImage(image, media)
+  return imageMedia ? { key, name, image, intro, imageMedia } : { key, name, image, intro }
 }
 
 /**
- * 分校封面、各版位焦點與線稿。版位焦點（card_focus／hero_focus）優先；沒有時
+ * 分校封面、各版位焦點與線稿。版位焦點（card_focus）優先；沒有時
  * 換了封面就用封面版位或素材的焦點，沒換封面就維持內建的 CSS 位置。
  */
 function campusMedia(c: SiteContent['campuses'][number], profile: LiveCampusProfile, media: MediaInfoMap) {
@@ -744,7 +668,6 @@ function campusMedia(c: SiteContent['campuses'][number], profile: LiveCampusProf
   const lineArtColour = slotImage(profile.line_art_colour, media) ?? lineArt
   return {
     panoramaPos: pick(profile.card_focus, c.panoramaPos),
-    heroPhotoPos: pick(profile.hero_focus, c.heroPhotoPos),
     photoPos: fallback !== undefined ? fallback : c.photoPos,
     ...(cover ? { imageMedia: cover } : {}),
     ...(lineArt ? { lineArtMedia: lineArt } : {}),
