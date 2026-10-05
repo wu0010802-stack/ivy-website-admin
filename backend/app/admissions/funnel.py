@@ -213,6 +213,7 @@ def _card(visit: RecruitmentVisit) -> dict:
         "target_semester": visit.target_semester,
         "visit_date": visit.visit_date,
         "has_visit_request": visit.visit_request_id is not None,
+        "visit_request_id": visit.visit_request_id,
         "withdrawn_from": visit.withdrawn_from,
         "follow_up_at": visit.follow_up_at,
         "version": visit.version,

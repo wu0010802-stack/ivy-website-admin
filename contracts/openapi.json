@@ -3402,6 +3402,18 @@
             "format": "uuid",
             "title": "Visit Id",
             "type": "string"
+          },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
           }
         },
         "required": [
@@ -3420,6 +3432,7 @@
           "last_contact_channel",
           "last_contact_reached",
           "has_visit_request",
+          "visit_request_id",
           "version"
         ],
         "title": "FollowUpRowOut",
@@ -3626,6 +3639,18 @@
             "title": "Visit Date",
             "type": "string"
           },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
+          },
           "withdrawn_from": {
             "anyOf": [
               {
@@ -3651,6 +3676,7 @@
           "target_semester",
           "visit_date",
           "has_visit_request",
+          "visit_request_id",
           "withdrawn_from",
           "version"
         ],

@@ -250,8 +250,9 @@ async def test_board_groups_cards_by_stage_and_term(admin_client, minghua_client
     card = body["columns"]["withdrawn"][0]
     assert set(card) == {
         "id", "child_name", "grade", "provisional_grade", "target_school_year", "target_semester",
-        "visit_date", "has_visit_request", "withdrawn_from", "follow_up_at", "version",
+        "visit_date", "has_visit_request", "visit_request_id", "withdrawn_from", "follow_up_at", "version",
     }
+    assert card["visit_request_id"] is None
     assert (card["withdrawn_from"], card["has_visit_request"], card["version"]) == ("deposited", False, withdrawn["version"])
 
     whole_year = (await admin_client.get(f"{ADMISSIONS}/board?campus_key=yihua&school_year=115")).json()

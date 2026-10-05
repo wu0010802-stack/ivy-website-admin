@@ -3810,6 +3810,8 @@ export interface components {
              * Format: uuid
              */
             visit_id: string;
+            /** Visit Request Id */
+            visit_request_id: string | null;
         };
         /**
          * FollowUpTotalsOut
@@ -3880,6 +3882,8 @@ export interface components {
              * Format: date
              */
             visit_date: string;
+            /** Visit Request Id */
+            visit_request_id: string | null;
             /** Withdrawn From */
             withdrawn_from: ("deposited" | "enrolled") | null;
         };

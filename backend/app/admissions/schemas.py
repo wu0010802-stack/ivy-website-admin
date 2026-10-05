@@ -298,6 +298,8 @@ class FunnelCardOut(BaseModel):
     visit_date: date
     # 由官網預約建立（卡片上的標記）。
     has_visit_request: bool
+    # 由哪一筆官網預約建立；招生入學點卡片時開那筆預約明細（2026-10-05 家庭頁規格 6.1）。
+    visit_request_id: uuid.UUID | None
     # 在退出欄時是退預繳（deposited）還是退註冊（enrolled）。
     withdrawn_from: WithdrawnFrom | None
     # 下次聯絡（2026-10-04 規格 7.4）：卡片標「下次聯絡 10/08」或「該聯絡了」；null 不標。
@@ -743,6 +745,8 @@ class FollowUpRowOut(BaseModel):
     last_contact_channel: ContactChannel | None
     last_contact_reached: bool | None
     has_visit_request: bool
+    # 由哪一筆官網預約建立；招生入學點卡片時開那筆預約明細（2026-10-05 家庭頁規格 6.1）。
+    visit_request_id: uuid.UUID | None
     version: int
 
 

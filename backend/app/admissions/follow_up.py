@@ -325,6 +325,7 @@ async def follow_up_list(
                 "last_contact_channel": latest[visit.id].channel if visit.id in latest else None,
                 "last_contact_reached": latest[visit.id].reached if visit.id in latest else None,
                 "has_visit_request": visit.visit_request_id is not None,
+                "visit_request_id": visit.visit_request_id,
                 "version": visit.version,
             }
             for visit, display_name, email, is_active in rows
