@@ -1,4 +1,4 @@
-## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`）
+## 2026-10-05 後台招生入學拿掉「官網預約」分頁，批次標記到場搬到案件列表（`feature/admissions-no-arrivals-20261005`，10-05 已部署 main `51332515`）
 
 使用者指著正式站 `/admin/admissions?campus=yihua&tab=arrivals` 問用途，評估後覺得和案件列表重複，裁定「拿掉分頁，批次標記搬到案件列表」「後端 API 一起刪」。規則見 DESIGN.md「拿掉官網預約分頁」。
 

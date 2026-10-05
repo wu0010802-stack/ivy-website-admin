@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-05 招生入學拿掉名額規劃、官網預約兩個分頁（main CI 部署）
+
+- **合併**：`feature/admissions-no-arrivals-20261005` 的 `51332515` 疊在 main `55c9d68f`（拿掉名額規劃）上，使用者快轉推 main `55c9d68f..51332515`。內容與驗證見 README 頂部同日兩段、DESIGN.md「拿掉官網預約分頁」「拿掉名額規劃」。
+- **名額規劃那次的 run 37315727803 顯示 cancelled**：被這次的 run 取代（同一個 concurrency group），不是失敗；`55c9d68f` 隨這次部署一起上線。
+- **migration**：無。後端刪掉 `GET /admin/admissions/arrivals`（只有後台在用），補建端點 `POST /admin/admissions/from-visit-request/{id}` 保留；名額 API 與資料不動。
+- **推前本機**：後端整套 pytest 1531 passed、1 skipped；admin vitest 94 檔 1203 項、`vue-tsc -b`、`contract:check` 通過；stack e2e 整套 74 項全過。
+- **CI**：main run 37319156480（`51332515`）全綠，建立到完成 25 分 42 秒（含等前一個 run 被取代）：Frontend admin 2.9／web 1.4 分鐘，Backend 三組 8.9／6.1／6.7 分鐘，E2E／Playwright 5.8 分鐘，Deploy 5.3 分鐘。
+- **正式 `release.json`**：base commit `51332515`，created `2026-10-05T14:05:25Z`。
+- **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/login` 200；`AdmissionsView` lazy chunk 有「去標記到場」，沒有「官網預約有」與 `admissions/arrivals`；`VisitRequestsView` chunk 有「勾選後一次標記已到場」「位標記已到場」。
+- **未做**：沒登入正式後台操作（案件列表批次標記、看板提示只在 stack e2e 與拋棄式測試庫驗過）；部署前請使用者先在舊分頁補建「已到場但沒有招生訪視」，有沒有補、補了幾筆未確認；Safari／iOS 實機。
+
 ## 2026-10-05 招生入學 UI/UX（main CI 部署）
 
 - **合併**：`feature/admissions-ux-20261005` 的 `288e9dc7` 合 origin/main 三次（站內通知頁、它的部署紀錄、側欄改版；`style.css` 的淺色主色鈕規則兩邊一字不差、採 main 註解，DESIGN／README 各段都留）成 `6e0fdf8c`，使用者快轉推 main `0f68dd15..6e0fdf8c`（第一次推時側欄剛進 main 被拒，再合一次）。內容與驗證見 README 頂部同日段落、DESIGN.md「招生入學 UI/UX」。
