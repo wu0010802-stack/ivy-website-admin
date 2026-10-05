@@ -31,7 +31,7 @@
   - 拋棄式測試庫畫面（Playwright，寫入請求全攔截）：明細與待追蹤表格 1280 寬 962/962、1440 寬 1122/1122 不橫捲；手機觸控裝置「移到…」顯示；記錄聯絡抬頭與上次內容、抽屜移到…、名額學期切換、統計參考月份位置逐張看過。
   - 沒動後端與 API 型別，沒跑 pytest、`contract:check`、`test:website`；未驗證 Safari／iOS 實機、正式站。
 
-## 2026-10-05 官網後台側欄：標題分兩層、列高收緊、捲動提示、⌘K 搜尋（`feature/admin-sidebar-20261005`，commit `bf00586`，已合 main 待推）
+## 2026-10-05 官網後台側欄：標題分兩層、列高收緊、捲動提示、⌘K 搜尋（`feature/admin-sidebar-20261005`，10-05 已部署 main `0f68dd1`）
 
 使用者附正式站側欄截圖要「優化側欄的 UI/UX」。從 origin/main `23c6aa2` 開 worktree，拋棄式測試庫（`ivy_website_sidebar1005_test`，API 8761、admin 5311）拍桌機 1440／1280、手機 390 前後對照。規則見 DESIGN.md「官網後台側欄：層級、尺寸與鍵盤」。
 

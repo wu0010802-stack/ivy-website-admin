@@ -23,6 +23,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`；`AdmissionsView` lazy chunk 有「這個分頁不分入學學年學期」「找幼生姓名」「標記預繳」「勾選後一次標記已到場」「依各欄目前張數相除」「更多篩選」「去確認到場」「移到已預繳」「進行中」「超額」；共用 chunk 有「還不能記下」「上次：」（記錄聯絡）與「個百分點」（統計）；入口 CSS 有 `.el-button--primary.is-plain{--el-button-text-color:var(--admin-accent-hover)}`。
 - **未做**：沒確認正式站招生入學功能開關（`WEBSITE_ADMISSIONS_ENABLED`）現在開或關（未登入時 API 先回 401；10-02 上線時是關閉），畫面只在拋棄式測試庫與 stack e2e 驗過；沒登入正式後台操作；Safari／iOS 實機。
 
+## 2026-10-05 官網後台側欄 UI/UX（main CI 部署）
+
+- **合併**：`feature/admin-sidebar-20261005` 的 `bf00586e` 合 origin/main 兩次（站內通知頁 `75caffa1`、它的部署紀錄 `6721b29d`；README／DESIGN 頂部衝突皆兩段並存）成 `0f68dd15`，使用者快轉推 main `6721b29d..0f68dd15`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台側欄：層級、尺寸與鍵盤」。
+- **migration**：無（只改後台前端、測試、視覺基準與文件）。
+- **推前本機**（合併後）：stack e2e 75 項全過（含重拍的 4 張後台視覺基準與 a11y）；admin vitest 94 檔 1174 項、`vue-tsc -b`、`vite build` 通過。
+- **CI**：main run 37303528997（`0f68dd15`）success，總長 11 分 36 秒。
+- **正式 `release.json`**：base commit `0f68dd1`，created `2026-10-05T11:40:02Z`。
+- **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`；入口 JS 有 `aria-keyshortcuts` 的 `Meta+K Control+K`、`sidebar__kbd`、`has-current`，側欄圖示是 `House`／`PieChart`／`Film`／`Memo`（沒有 `HomeFilled`／`TrendCharts`／`Grid`／`List`）；入口 CSS 有 `--sidebar-scroll-shadow`、`--nav-row:36px`／`44px`、`content:"↵" / ""`。
+- **未做**：沒登入正式後台實際操作（⌘K、↓↑、Esc、捲動陰影只在拋棄式測試庫與 stack e2e 驗過）；Safari／iOS 實機、Windows 的 Ctrl+K。
+
 ## 2026-10-05 官網後台站內通知頁 UI/UX（main CI 部署）
 
 - **合併**：`feature/admin-notifications-20261005` 的 `75caffa1` 直接接在 `23c6aa2e` 後，快轉推 main `23c6aa2e..75caffa1`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台站內通知頁」。
