@@ -15,6 +15,8 @@ import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLab
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
+import { useRouter } from 'vue-router'
+import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
@@ -36,9 +38,9 @@ const PAGE_SIZE = 50
 const CONFLICT_TEXT = '這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作'
 
 const { can } = usePermissions()
+const router = useRouter()
 const canWrite = computed(() => can('admissions.write'))
 const canConvert = computed(() => can('admissions.convert'))
-const canSeeBooking = computed(() => can('booking.read'))
 // 手機（2026-10-05）改成卡片清單，不再整張表橫捲；篩選只常駐搜尋。
 const narrow = useNarrowScreen()
 
@@ -272,8 +274,13 @@ function openEdit(row: RecruitmentVisit) {
   dialogOpen.value = true
 }
 
-// 桌機點姓名、手機按「歷程」（同看板點卡片）。
+// 桌機點姓名、手機按「歷程」（同看板點卡片）：有預約、看得到預約的開預約明細（家庭頁規格 6.1）。
 function openEvents(row: RecruitmentVisit) {
+  const path = visitRequestPath(row.visit_request_id, can)
+  if (path) {
+    void router.push(path)
+    return
+  }
   eventsFor.value = row
   eventsOpen.value = true
 }
@@ -520,7 +527,6 @@ async function remove(row: RecruitmentVisit) {
                 <el-tag v-if="row.child_name === MISSING_CHILD_NAME" size="small" type="warning" effect="light" round>待補</el-tag>
                 <el-tag v-if="row.anonymized_at" size="small" type="info" effect="plain" round>已匿名化</el-tag>
                 <el-tag v-if="row.has_visit_request" size="small" type="primary" effect="plain" round>官網預約</el-tag>
-                <router-link v-if="row.visit_request_id && canSeeBooking" :to="`/visit-requests/${row.visit_request_id}`" class="record-card__link">查看預約</router-link>
                 <el-tag class="record-card__stage" :type="stageMeta(row).tone" size="small" effect="light" round>{{ stageMeta(row).label }}</el-tag>
               </div>
               <p class="record-card__meta">
@@ -602,7 +608,6 @@ async function remove(row: RecruitmentVisit) {
               <el-tag v-if="row.child_name === MISSING_CHILD_NAME" size="small" type="warning" effect="light" round>待補</el-tag>
               <el-tag v-if="row.anonymized_at" size="small" type="info" effect="plain" round>已匿名化</el-tag>
               <el-tag v-if="row.has_visit_request" size="small" type="primary" effect="plain" round>官網預約</el-tag>
-              <router-link v-if="row.visit_request_id && canSeeBooking" :to="`/visit-requests/${row.visit_request_id}`" class="records__link">查看預約</router-link>
             </template>
           </el-table-column>
           <el-table-column label="階段" width="88">
@@ -816,18 +821,6 @@ async function remove(row: RecruitmentVisit) {
   margin-right: 4px;
 }
 
-.records__link,
-.record-card__link {
-  color: var(--admin-accent-hover);
-}
-
-.records__link {
-  display: block;
-  margin-top: 2px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 /* 操作欄固定一行，列高不再忽高忽低；靠右排，沒有主要動作的列「更多」也和上下列對齊。 */
 .records__actions {
   display: flex;
@@ -942,14 +935,6 @@ async function remove(row: RecruitmentVisit) {
 .record-card__name {
   font-size: var(--text-lg);
   overflow-wrap: anywhere;
-}
-
-.record-card__link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .record-card__stage {

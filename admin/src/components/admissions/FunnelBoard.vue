@@ -12,6 +12,8 @@ import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { notifyWarning } from '../../composables/notify'
 import { awaitingAttendanceLink, hasAwaitingAttendance } from '../../composables/visitAttendance'
 import { usePermissions } from '../../composables/usePermissions'
+import { useRouter } from 'vue-router'
+import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import FunnelCard from './FunnelCard.vue'
 import TransitionDialog from './TransitionDialog.vue'
@@ -26,6 +28,7 @@ const props = defineProps<{ campusKey: string; schoolYear: number | null; semest
 const emit = defineEmits<{ 'show-unscoped': [] }>()
 
 const { can } = usePermissions()
+const router = useRouter()
 const canWrite = computed(() => can('admissions.write'))
 const term = currentTerm()
 const defaultYear = term.schoolYear
@@ -193,7 +196,13 @@ watch(() => props.campusKey, () => {
 
 const eventsOpen = ref(false)
 const eventsFor = ref<BoardCard | null>(null)
+// 有預約、看得到預約的開預約明細（家庭頁）；手動新增或沒有 booking.read 的照舊開歷程抽屜（家庭頁規格 6.1）。
 function openEvents(card: BoardCard) {
+  const path = visitRequestPath(card.visit_request_id, can)
+  if (path) {
+    void router.push(path)
+    return
+  }
   eventsFor.value = card
   eventsOpen.value = true
 }

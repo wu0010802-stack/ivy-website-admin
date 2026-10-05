@@ -24,7 +24,7 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { useFamilyAdmissions } from '../composables/useFamilyAdmissions'
 import { stageMeta } from '../admissions/constants'
-import { arrivedAt, arrivedLabel, familyLastHandled, familyNotes, latestContact } from '../admissions/family'
+import { arrivedAt, arrivedLabel, detailOrigin, familyLastHandled, familyNotes, latestContact } from '../admissions/family'
 import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
 import FamilyActions from '../components/visit/FamilyActions.vue'
 import FamilyContactNotes from '../components/visit/FamilyContactNotes.vue'
@@ -724,18 +724,15 @@ async function addNote() {
   }
 }
 
-// 上一頁是案件列表（保留篩選與捲動位置）才用瀏覽器返回；從通知連結、登入頁
-// 或別的頁面進來時，返回會回到不相干的地方，改成直接開案件列表。
-function cameFromVisitList(): boolean {
-  const back = (router.options.history.state as { back?: unknown } | null)?.back
-  if (typeof back !== 'string') return false
-  const path = back.split(/[?#]/)[0]!.replace(/\/+$/, '')
-  return path === '/visit-requests'
-}
+// 上一頁是哪裡（2026-10-05 家庭頁規格 6.2）：從招生入學或案件列表來的用瀏覽器返回（保留分頁、篩選與
+// 捲動位置）；從通知連結、登入頁或別的頁面進來時，返回會回到不相干的地方，改成直接開案件列表。
+const readOrigin = () => detailOrigin((router.options.history.state as { back?: unknown } | null)?.back)
+const origin = ref(readOrigin())
+const backLabel = computed(() => (origin.value === 'admissions' ? '招生入學' : '參觀案件'))
 
 function goBack() {
-  if (cameFromVisitList()) router.back()
-  else router.push('/visit-requests')
+  if (origin.value === 'other') void router.push('/visit-requests')
+  else router.back()
 }
 
 // 用 replace：一筆接一筆處理完，按返回直接回列表，不必一筆筆倒退。
@@ -802,6 +799,7 @@ onBeforeUnmount(() => {
 // 「下一筆」是同一個元件換 id，router 不會重新掛載。
 watch(id, () => {
   generation += 1
+  origin.value = readOrigin()
   detail.value = null
   notes.value = []
   nextQueue.value = null
@@ -827,7 +825,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 <template>
   <div class="page detail">
     <div class="detail__nav">
-      <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">參觀案件</el-button>
+      <el-button text :icon="ArrowLeft" class="detail__back" @click="goBack">{{ backLabel }}</el-button>
       <el-button v-if="nextQueue" text class="detail__next" :title="nextTitle" @click="goNext">
         {{ nextLabel }}<el-icon><ArrowRight /></el-icon>
       </el-button>

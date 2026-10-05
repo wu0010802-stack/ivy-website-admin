@@ -119,7 +119,7 @@ export const visit = (changes: Record<string, unknown> = {}) => ({
 
 export const card = (changes: Record<string, unknown> = {}) => ({
   id: 'v-1', child_name: '王小安', grade: '小班', provisional_grade: null, target_school_year: 115, target_semester: 1,
-  visit_date: '2026-09-08', has_visit_request: false, withdrawn_from: null, version: 1, ...changes,
+  visit_date: '2026-09-08', has_visit_request: false, visit_request_id: null, withdrawn_from: null, version: 1, ...changes,
 })
 
 type StageKey = 'visited' | 'deposited' | 'enrolled' | 'withdrawn'

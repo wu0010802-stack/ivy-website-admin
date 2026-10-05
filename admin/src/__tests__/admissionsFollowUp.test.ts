@@ -71,7 +71,7 @@ const followRow = (changes: Record<string, unknown> = {}) => ({
   visit_id: 'v-1', child_name: '王小安', grade: '小班', stage: 'visited', visit_date: '2026-10-01', contact_name: '王媽媽',
   phone: '0912345678', follow_up_at: '2020-01-01T02:00:00Z', follow_up_owner_id: 'desk', follow_up_owner_name: 'desk@example.invalid',
   follow_up_owner_active: true, last_contacted_at: null, last_contact_channel: null, last_contact_reached: null,
-  has_visit_request: true, version: 3, ...changes,
+  has_visit_request: true, visit_request_id: null, version: 3, ...changes,
 })
 const followList = (rows: unknown[] = [followRow()], totals = { due: 1, upcoming: 2, unscheduled: 5 }, extra = {}) => ({
   as_of: '2026-10-05T02:00:00Z', campus_key: 'yihua', scope: 'due', totals, total: rows.length, page: 1, page_size: 50, rows, ...extra,

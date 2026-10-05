@@ -65,8 +65,8 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
     expect(rows[1]).toContain('已預繳')
     expect(rows[2]).toContain('已退預繳')
     expect(rows[3]).toContain('待補')
-    // 有 booking.read 才看得到預約明細的連結。
-    expect(wrapper.find(`a[href="/visit-requests/${VR_ID}"]`).text()).toBe('查看預約')
+    // 2026-10-05 家庭頁：點姓名就開預約明細，不再另放「查看預約」連結。
+    expect(wrapper.text()).not.toContain('查看預約')
   })
 
   it('沒有資料時說明原因；有篩選時改說篩選下沒有', async () => {

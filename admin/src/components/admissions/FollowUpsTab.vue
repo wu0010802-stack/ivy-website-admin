@@ -18,6 +18,8 @@ import {
   type FollowUpScope,
 } from '../../admissions/followUp'
 import { usePermissions } from '../../composables/usePermissions'
+import { useRouter } from 'vue-router'
+import { visitRequestPath } from '../../admissions/family'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import ContactLogDialog, { type ContactTarget } from './ContactLogDialog.vue'
@@ -33,6 +35,7 @@ const emit = defineEmits<{ count: [due: number] }>()
 
 const PAGE_SIZE = 50
 const { can } = usePermissions()
+const router = useRouter()
 const canWrite = computed(() => can('admissions.write'))
 const narrow = useNarrowScreen()
 
@@ -133,7 +136,13 @@ function openFollowUp(row: FollowUpRow) {
   followUpOpen.value = true
 }
 
+// 有預約、看得到預約的開預約明細（家庭頁規格 6.1）；其他照舊開歷程抽屜。
 function openEvents(row: FollowUpRow) {
+  const path = visitRequestPath(row.visit_request_id, can)
+  if (path) {
+    void router.push(path)
+    return
+  }
   eventsRow.value = row
   eventsOpen.value = true
 }
