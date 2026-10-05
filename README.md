@@ -1,3 +1,21 @@
+## 2026-10-04 30 週年分頁 v2：孩子畫的高雄地圖、畫進 0 的結尾、30 支蠟筆蠟燭（`feature/anniversary-v2-20261004`）
+
+使用者要「依對我的了解自己找主題，優化 /anniversary 除了 30 週年影片的內容，盡量展示前端能力」。規則見 DESIGN.md「30 週年分頁 v2」，規格 `docs/superpowers/specs/2026-10-04-anniversary-v2-design.md`。
+
+- **正式站實測到的問題**：2006–2019、2022–2027 時間軸右側約兩個畫面高只有年份；蠟筆線停在左下角，跟影片結尾「孩子跳進 0 變成校徽」沒接上；2027 顯示「第 31 年」。
+- **新增**：時間軸旁黏住的「孩子畫的高雄地圖」（真實區界、湖、河與五校門牌座標，跟著年份長出校園與路線）；結尾線畫成 30、孩子跳進 0、校徽印在 0 裡；「幫常春藤吹蠟燭」（按住、劃過、麥克風三種吹法，Web Audio 音樂盒生日快樂歌）；畫板復原／重播／分享與蠟筆沙沙聲；拼圖格子彈簧。2027 改寫「滿 30 年」。
+- **資安標頭**：`/anniversary` 文件改 `microphone=(self)`，其他頁不變（`tests/security-headers.spec.ts`）。
+- **拿掉開發輔助用字**（使用者看完預覽後要求）：首屏海報說明、各段操作說明、「畫紙準備中」、蠟燭狀態字與麥克風說明、地圖「位置依門牌估算」；地圖只留授權要求的署名，蠟燭剩幾支只在吹到一半時出現。之後 `test:website` 78 檔 793 項、typecheck 通過，Playwright 1440／390 無 console 錯誤、無橫向捲動。
+- **rebase 到 main `5f6a0e8` 之後重驗**：web typecheck 通過、`test:website` 78 檔 789 項（main 的分校頁清理刪了幾項自己的測試）、`nuxt build` 通過；production server：`/anniversary` 是 `microphone=(self)`、`/` 與 `/about` 仍是 `microphone=()`，1440／390 開場→略過→整頁往下往回捲無 console 錯誤、無橫向捲動，按住吹氣時「還有 N 支」從 28 數到 1。沒跑 stack e2e（沒有任何 e2e 涵蓋這頁或資安標頭，這次也沒動後端、後台、預約）。
+- **地圖資料**：`node scripts/build-anniversary-map.mjs [--fetch]` 產生 `web/app/utils/anniversary/map-data.ts`。
+- **驗證**（Node 22）：
+  - `test:website` 78 檔 792 項全過（新增 `anniversary-v2.spec.ts` 20 項：地圖資料與年份→地圖、結尾路徑與版面、蠟燭風場、吹氣判斷、生日快樂歌音高、禁用字與 tokens；`security-headers.spec.ts` 加麥克風標頭）；web typecheck 通過；`nuxt build` 通過（兩則 postcss Lexical 警告是首頁 hero 既有的）。
+  - production server（fixture）：`/anniversary` 200、`Permissions-Policy` 為 `microphone=(self)`，`/about` 仍是 `microphone=()`；HTML gzip 66.5KB（地圖靜態線條改成掛上後才輸出，原本 72.9KB）。
+  - Playwright：1440×900、1366×650、1280×800、1100×800、768×1024、390×844 往下往回捲、減少動態、第一次進站開場自動播放→略過→飛進海報，都沒有 console 錯誤、沒有橫向捲動；axe（wcag2a/aa、best-practice）桌機與手機 0 項。
+  - 蠟燭：滑鼠劃過、按住按鈕吹熄、再點一次；麥克風用 Chrome 假裝置餵自製 WAV——寬頻氣流聲約 1 秒吹熄 30 支、吹完自動關麥克風，同樣響的純音不會熄；從別頁站內換頁進來時按麥克風會重新載入 `/anniversary#anni-cake` 一次。
+  - 畫板：畫三筆→⌘Z／Ctrl+Z 各復原一筆→重播→存圖與分享按鈕。
+  - 未驗證：真人對手機麥克風吹氣（iOS Safari／Android Chrome）、實機 Safari 的 `<use>` 與 container query、聲音實際聽感、stack e2e。
+
 ## 2026-10-04 資安掃描複核：15 項中 13 項 main 已修，補 3 處（`fix/security-scan-20261004`，未部署）
 
 使用者交來 Codex Security 掃描報告（15 項：中 7、低 8）。報告掃的是 `feature/website-admin` 的 `d11d7e79`，落後 `origin/main` 655 個 commit；逐條對 main `15001574` 複核：

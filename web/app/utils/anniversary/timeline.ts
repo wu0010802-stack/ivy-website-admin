@@ -37,6 +37,11 @@ export function anniversaryYearIndex(year: number): number {
   return Math.floor(year) - ANNI_YEAR0 + 1
 }
 
+/** 計數器上的「第 N 年」：2027 年起寫「滿 30 年」，不寫「第 31 年」（結尾就是「2027 年，滿 30 年」） */
+export function anniversaryYearMeta(year: number): { prefix: '第' | '滿'; n: number } {
+  return Math.floor(year) >= ANNI_YEAR1 ? { prefix: '滿', n: ANNI_YEAR1 - ANNI_YEAR0 } : { prefix: '第', n: anniversaryYearIndex(year) }
+}
+
 export interface YearMark {
   year: number
   /** 這一年的刻度在時間軸上的位置（px，相對時間軸頂端） */

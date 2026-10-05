@@ -1,6 +1,7 @@
 // 30 週年分頁「孩子的作品拼成的 30」：用品牌標題字把「30」畫進離屏 canvas 當遮罩，
 // 切成方格，每一格放 8 件作品之一的局部。進到畫面時一格一格飛回來拼好；
 // 滑過下方的作品縮圖，30 裡屬於那件作品的格子會亮起來。
+// 拼好之後，滑鼠或手指經過時格子會被輕輕推開、再彈回原位（有阻尼的彈簧；減少動態時不動）。
 import { ANNI_ARTWORKS, mosaicCells, type MosaicCell } from './gallery'
 import { responsiveImage } from '~/utils/responsive-image'
 import { loadImage } from './paperGL'
@@ -31,6 +32,10 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
   const imgs = await Promise.all(ANNI_ARTWORKS.map((a) => loadImage(pickSrc(a.image, 480)).catch(() => null)))
 
   let cells: MosaicCell[] = []
+  // 每一格被推開的位移與速度（CSS px）
+  let ox = new Float32Array(0), oy = new Float32Array(0), vx = new Float32Array(0), vy = new Float32Array(0)
+  let pp: { x: number; y: number } | null = null
+  let lastNow = 0
   let W = 0, H = 0, dpr = 1, cols = 0, rows = 0
   const layout = () => {
     dpr = Math.min(devicePixelRatio || 1, 2)
@@ -53,6 +58,26 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
     cols = W < 420 ? 18 : 24
     rows = Math.round(cols * H / W)
     cells = mosaicCells(mask, cols, rows)
+    ox = new Float32Array(cells.length); oy = new Float32Array(cells.length); vx = new Float32Array(cells.length); vy = new Float32Array(cells.length)
+  }
+  /** 推開格子：指標半徑 R 內的格子往外推（越近推越遠），彈簧拉回原位；回傳還有沒有在動 */
+  const physics = (dt: number) => {
+    const cw = W / cols, ch = H / rows, R = cw * 3.2
+    let moving = false
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i]!
+      let tx = 0, ty = 0
+      if (pp) {
+        const dx = (c.x * W + cw / 2) - pp.x, dy = (c.y * H + ch / 2) - pp.y, d = Math.hypot(dx, dy)
+        if (d < R && d > 0.01) { const f = (1 - d / R) ** 2 * cw * 0.9; tx = dx / d * f; ty = dy / d * f }
+      }
+      const nvx = vx[i]! + ((tx - ox[i]!) * 220 - vx[i]! * 16) * dt
+      const nvy = vy[i]! + ((ty - oy[i]!) * 220 - vy[i]! * 16) * dt
+      vx[i] = nvx; vy[i] = nvy
+      ox[i] = ox[i]! + nvx * dt; oy[i] = oy[i]! + nvy * dt
+      if (Math.abs(vx[i]!) + Math.abs(vy[i]!) > 0.5 || Math.abs(ox[i]! - tx) + Math.abs(oy[i]! - ty) > 0.2) moving = true
+    }
+    return moving
   }
 
   let start = -1, raf = 0, hover = -1, lastActive = -2, visible = false
@@ -64,8 +89,11 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
     const cw = W / cols, ch = H / rows, gap = Math.max(1.5, cw * 0.07)
     const active = opts.active()
     const t = start < 0 ? 0 : (now - start) / 1000
-    let animating = false
-    for (const c of cells) {
+    const dt = Math.min(0.05, lastNow ? (now - lastNow) / 1000 : 0.016)
+    lastNow = now
+    let animating = !opts.reduce && physics(dt)
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i]!
       const img = imgs[c.art]
       const local = opts.reduce ? 1 : Math.min(1, Math.max(0, (t - c.order * 1.3) / 0.7))
       if (local < 1) animating = true
@@ -73,8 +101,8 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
       const e = easeOutBack(local)
       const fly = 1 - e
       const sx = (c.x - 0.5) * 0.6 + (c.cx - 0.5) * 2, sy = 0.7 + (c.cy - 0.5)
-      const x = (c.x + sx * fly) * W, y = (c.y + sy * fly) * H
-      const rot = (c.cx - 0.5) * 1.6 * fly
+      const x = (c.x + sx * fly) * W + ox[i]!, y = (c.y + sy * fly) * H + oy[i]!
+      const rot = (c.cx - 0.5) * 1.6 * fly + ox[i]! * 0.012
       g.save()
       g.globalAlpha = Math.min(1, local * 2.5) * (active >= 0 && active !== c.art ? 0.28 : 1)
       g.translate(x + cw / 2, y + ch / 2)
@@ -89,6 +117,7 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
     }
     lastActive = active
     if (visible && (animating || opts.active() !== lastActive)) raf = requestAnimationFrame(draw)
+    else lastNow = 0
   }
   const kick = () => { if (!raf) raf = requestAnimationFrame(draw) }
 
@@ -99,11 +128,14 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
     return cells.find((c) => Math.abs(c.x * cols - i) < 0.5 && Math.abs(c.y * rows - j) < 0.5)
   }
   const onMove = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect()
+    pp = { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }
+    if (!opts.reduce) kick()
     const c = cellAt(e)
     const art = c ? c.art : -1
     if (art !== hover) { hover = art; opts.onHover(art); canvas.style.cursor = art >= 0 ? 'pointer' : ''; kick() }
   }
-  const onLeave = () => { if (hover !== -1) { hover = -1; opts.onHover(-1); kick() } }
+  const onLeave = () => { pp = null; kick(); if (hover !== -1) { hover = -1; opts.onHover(-1) } }
   const onClick = (e: PointerEvent) => { const c = cellAt(e); if (c) opts.onPick(c.art) }
 
   layout()

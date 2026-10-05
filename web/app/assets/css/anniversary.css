@@ -2,8 +2,8 @@
    視覺延續開場影片：米白水彩紙＋綠色蠟筆＋立體書卡片。顏色一律引用 tokens.css。 */
 .anni {
   --anni-crayon: var(--leaf);
-  --anni-rail: 168px;
-  --anni-aside: 210px;
+  --anni-rail: 150px;
+  --anni-aside: clamp(340px, 31vw, 460px);
   --anni-print-tilt: -1.4deg;
   background: var(--paper) var(--anni-paper-tile) repeat;
   background-size: 512px;
@@ -23,10 +23,9 @@
 .anni-hero-dash { display: block; width: 72px; height: 6px; border-radius: 3px; background: var(--anni-crayon); mask: var(--anni-paper-tile) 0 0 / 160px luminance; }
 .anni-hero-lead { font-size: var(--fs-lg); line-height: 1.9; max-width: 34em; }
 .anni-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
-.anni-print { position: relative; margin: 0; padding: 12px 12px 14px; background: var(--white); transform: rotate(var(--anni-print-tilt));
+.anni-print { position: relative; margin: 0; padding: 12px 12px 30px; background: var(--white); transform: rotate(var(--anni-print-tilt));
   box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .08), 0 22px 44px -18px rgb(var(--ink) / .45); }
 .anni-print img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
-.anni-print figcaption { margin-top: 10px; font-size: var(--fs-sm); color: var(--muted); }
 .anni-tape { position: absolute; left: 50%; top: -14px; width: 132px; height: 30px; transform: translateX(-50%) rotate(2deg);
   background: rgb(var(--ivy-paint-sun-rgb) / .55); mask: var(--anni-paper-tile) 0 0 / 120px luminance; box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / .08); }
 
@@ -34,7 +33,7 @@
 .anni-line { padding-block: clamp(48px, 6vw, 96px) 0; }
 .anni-line-head { display: grid; gap: 14px; margin-bottom: clamp(40px, 5vw, 72px); }
 .anni-line-head p { font-size: var(--fs-lg); }
-.anni-track { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr) var(--anni-aside); padding-bottom: 40px; }
+.anni-track { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr) var(--anni-aside); column-gap: 28px; padding-bottom: 40px; }
 .anni-rail { position: absolute; left: 0; top: 0; bottom: 0; width: var(--anni-rail); pointer-events: none; }
 /* 沒有 JS 時：一條靜態的蠟筆線 */
 .anni-rail::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--anni-crayon); opacity: .7;
@@ -44,11 +43,15 @@
 .anni-ink { width: 100%; height: 100%; mask: var(--anni-paper-tile) 0 0 / 150px luminance; }
 .anni-kids { width: 132px; height: auto; will-change: transform; filter: drop-shadow(0 6px 6px rgb(var(--ink) / .2)); }
 .anni-years { grid-column: 1 / 3; grid-row: 1; margin: 0; padding: 0; list-style: none; }
+/* 年份放在蠟筆線最左的擺幅（crayonLineX ≥ 0.23）再往左，線怎麼擺都不會壓到字；必要時伸進頁面左邊距 */
 .anni-years > li { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr); min-height: 58px; }
-.anni-year { grid-column: 1; align-self: start; justify-self: end; padding: 2px 18px 0 0; margin-right: calc(var(--anni-rail) / 2 + 16px); font: 700 var(--fs-md)/1.4 var(--font-head); color: var(--muted); font-variant-numeric: tabular-nums; opacity: .62; }
+.anni-year { grid-column: 1; align-self: start; justify-self: end; padding: 2px 18px 0 0; margin-right: calc(var(--anni-rail) * .77 + 6px); font: 700 var(--fs-md)/1.4 var(--font-head); color: var(--muted); font-variant-numeric: tabular-nums; opacity: .62; }
 .anni-years > li.is-campus { padding-block: 34px 70px; }
 .anni-years > li.is-campus > .anni-year { font-size: var(--fs-2xl); color: var(--green); opacity: 1; }
-.anni-campus { grid-column: 2; display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 8fr); gap: clamp(24px, 3vw, 44px); align-items: end; }
+.anni-campus { grid-column: 2; container-type: inline-size; scroll-margin-top: 120px; }
+.anni-campus-in { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 8fr); gap: clamp(24px, 3vw, 40px); align-items: end; }
+/* 地圖卡佔掉右欄後，中欄不到 640px（1101–1300px、平板直式）校舍圖改疊在文字上面 */
+@container (max-width: 640px) { .anni-campus-in { grid-template-columns: 1fr; gap: 22px; } }
 
 /* 立體書卡片：平躺→立起（rotateX），可以翻面看校舍照片（rotateY） */
 .anni-card { position: relative; perspective: 1100px; perspective-origin: 50% 20%; }
@@ -84,30 +87,53 @@
 .anni-campus-info dt { color: var(--muted); }
 .anni-campus-info dd { margin: 0; }
 .anni-campus-info a { color: var(--green); border-bottom: 1px solid rgb(var(--ink) / .2); }
+.anni-campus-info .anni-maplink { margin-left: 8px; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
 .anni-campus-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 8px; }
 .anni-campus-actions .text-link { border: 0; border-bottom: 1px solid currentColor; padding: 0; background: none; color: var(--green); }
 :deep(.anni-book) { min-height: 46px; padding: 10px 22px; }
 
-/* 計數器：翻牌的年份 */
-.anni-counter { grid-column: 3; grid-row: 1; align-self: start; position: sticky; top: 42vh; display: grid; gap: 10px; justify-items: end; padding-top: 6px; z-index: 2; }
+/* 地圖卡：翻牌的年份＋孩子畫的高雄地圖，黏在右欄；像一張用紙膠帶貼在牆上的圖畫紙 */
+.anni-mapcard { grid-column: 3; grid-row: 1; align-self: start; position: sticky; top: 92px; z-index: 2; display: grid; gap: 12px;
+  padding: 16px 16px 12px; background: var(--white); transform: rotate(.7deg);
+  box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .07), 0 22px 40px -22px rgb(var(--ink) / .45); }
+.anni-mapcard::before { content: ""; position: absolute; left: 50%; top: -12px; width: 108px; height: 26px; transform: translateX(-50%) rotate(-2deg);
+  background: rgb(var(--ivy-paint-mint-rgb) / .55); mask: var(--anni-paper-tile) 0 0 / 120px luminance; }
+.anni-counter { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .anni-flap { display: flex; gap: 4px; }
-.anni-flap-digit { display: grid; place-items: center; width: 40px; height: 56px; border-radius: 6px; background: var(--deep); color: var(--paper);
-  font: 800 var(--fs-4xl)/1 var(--font-head); font-variant-numeric: tabular-nums; position: relative; overflow: hidden;
+.anni-flap-digit { display: grid; place-items: center; width: 34px; height: 48px; border-radius: 6px; background: var(--deep); color: var(--paper);
+  font: 800 var(--fs-3xl)/1 var(--font-head); font-variant-numeric: tabular-nums; position: relative; overflow: hidden;
   box-shadow: inset 0 -2px 0 rgb(var(--shadow-rgb) / .25); animation: anni-flap .38s cubic-bezier(.3, .7, .3, 1); }
 .anni-flap-digit::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: rgb(var(--shadow-rgb) / .35); }
+/* 矮螢幕：地圖跟著視窗高度縮，整張卡片放得進黏住的範圍 */
+.anni-mapcard > .anni-map { width: min(100%, calc((100vh - 290px) * 1.124)); justify-self: center; }
 @keyframes anni-flap { 0% { transform: perspective(200px) rotateX(-80deg); filter: brightness(.6); } 100% { transform: none; filter: none; } }
 .anni-counter-meta { display: grid; justify-items: end; gap: 2px; margin: 0; font-size: var(--fs-sm); color: var(--muted); }
 .anni-counter-meta b { font: 700 var(--fs-xl)/1 var(--font-head); color: var(--green); }
+/* 窄螢幕的總覽地圖（≥1101px 由地圖卡負責） */
+.anni-overview { display: none; }
 
-/* 終點：校徽 */
-.anni-crest { grid-column: 1 / 3; display: grid; justify-items: center; gap: 18px; padding-top: 30px; padding-left: calc(var(--anni-rail) - 60px); }
+/* ── 結尾：線畫成 30，孩子跳進 0，校徽印上去 ─────────────── */
+/* 沒有 JS：校徽置中＋文字（跟改版前一樣） */
+.anni-finale-box { position: relative; display: grid; justify-items: center; gap: 18px; padding-block: 30px 72px; }
+.anni-finale-ink, .anni-finale-kids { display: none; }
 .anni-crest-art { position: relative; width: min(440px, 80vw); aspect-ratio: 1; }
 .anni-crest-art img, .anni-crest-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .anni-crest-art img { mix-blend-mode: multiply; }
-.anni.is-live .anni-crest-art img { opacity: 0; }
-.anni.is-live .anni-crest.is-fallback .anni-crest-art img { opacity: 1; }
-.anni-crest-caption { display: grid; gap: 6px; justify-items: center; text-align: center; font-size: var(--fs-lg); }
+.anni-crest-caption { display: grid; gap: 6px; justify-items: center; text-align: center; font-size: var(--fs-lg); max-width: none; }
 .anni-crest-caption b { font: 800 var(--fs-3xl)/1.3 var(--font-head); color: var(--green); }
+/* 掛上之後：舞台一個畫面高，字形、校徽、文字的位置由 track.ts 量好寫進 CSS 變數；會動時外層撐高、舞台釘住 */
+.anni-finale.is-live .anni-finale-stage { height: 100vh; height: 100svh; min-height: 560px; }
+.anni-finale.is-pinned { height: 250vh; height: 250svh; }
+.anni-finale.is-pinned .anni-finale-stage { position: sticky; top: 0; overflow: clip; }
+.anni-finale.is-live .anni-finale-box { display: block; height: 100%; padding: 0; }
+.anni-finale.is-live .anni-finale-ink { display: block; position: absolute; inset: 0; width: 100%; height: 100%; mask: var(--anni-paper-tile) 0 0 / 150px luminance; }
+.anni-finale.is-live .anni-finale-kids { display: block; position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 6px 6px rgb(var(--ink) / .2)); visibility: hidden; }
+.anni-finale.is-live .anni-crest-art { position: absolute; left: var(--crest-x, 50%); top: var(--crest-y, 40%); width: var(--crest-d, 300px); translate: -50% -50%; }
+.anni-finale.is-live .anni-crest-art img { opacity: 0; }
+.anni-finale.is-live.is-fallback .anni-crest-art img { opacity: 1; transition: opacity .6s; }
+.anni-finale.is-live.is-fallback:not(.is-done) .anni-crest-art img { opacity: 0; }
+.anni-finale.is-live .anni-crest-caption { position: absolute; left: 0; right: 0; top: var(--cap-y, 80%); opacity: 0; transform: translateY(14px); transition: opacity .6s, transform .6s cubic-bezier(.3, .7, .3, 1); }
+.anni-finale.is-done .anni-crest-caption { opacity: 1; transform: none; }
 
 /* ── 作品拼成的 30 ───────────────────────────────────── */
 .anni-art { padding-block: clamp(96px, 10vw, 160px) clamp(64px, 8vw, 120px); }
@@ -145,13 +171,14 @@
 .anni-crayon[aria-checked="true"]::after { content: ""; position: absolute; left: 50%; bottom: -14px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--green); }
 .anni-crayon:focus-visible { outline: 3px solid var(--leaf); outline-offset: 4px; border-radius: 6px; }
 .anni-draw-tools { display: flex; flex-wrap: wrap; gap: 10px; }
-.anni-draw-tools .button { min-height: 46px; padding: 10px 20px; }
+.anni-draw-tools .button { min-height: 46px; padding: 10px 18px; gap: 6px; }
 .anni-draw-tools .button[aria-pressed="true"] { background: var(--mint); border-color: var(--mint); }
 .anni-draw-note { min-height: 1.8em; font-size: var(--fs-sm); }
-.anni-draw-note a { color: var(--green); border-bottom: 1px solid currentColor; }
+.anni-draw-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
+.anni-draw-note a, .anni-draw-share { color: var(--green); border: 0; border-bottom: 1px solid currentColor; padding: 0; background: none; font: inherit; font-weight: 600; min-height: 32px; }
+.anni-draw-tools .icon { width: 18px; height: 18px; }
 .anni-pad { position: relative; aspect-ratio: 16 / 10; background: var(--white); box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .06), 0 28px 50px -26px rgb(var(--ink) / .5); }
 .anni-pad-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
-.anni-pad-wait { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: var(--fs-sm); }
 
 /* ── 預約 ──────────────────────────────────────────── */
 .anni-visit { padding-block: clamp(64px, 7vw, 112px); }
@@ -161,10 +188,27 @@
 /* ── 窄螢幕 ─────────────────────────────────────────── */
 @media (max-width: 1100px) {
   .anni { --anni-rail: 120px; --anni-aside: 0px; }
-  .anni-counter { grid-column: 2; position: sticky; top: 78px; justify-self: end; justify-items: end; padding: 8px 10px; border-radius: 10px; background: rgb(var(--on-dark) / .86);
-    box-shadow: 0 6px 16px -10px rgb(var(--ink) / .4); backdrop-filter: blur(6px); }
+  .anni-track { grid-template-columns: var(--anni-rail) minmax(0, 1fr); column-gap: 0; }
+  /* 地圖卡縮成頁首下方的一條：翻牌年份、第幾年、右邊一張小地圖 */
+  .anni-mapcard { grid-column: 1 / -1; top: 72px; display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-inline: -8px; padding: 6px 8px 6px 12px;
+    border-radius: 10px; transform: none; background: rgb(var(--on-dark) / .9); backdrop-filter: blur(6px); box-shadow: 0 6px 16px -10px rgb(var(--ink) / .4); }
+  .anni-mapcard::before { content: none; }
+  .anni-counter { flex: 1; justify-content: space-between; align-items: center; }
+  .anni-counter-meta { display: flex; gap: 14px; }
+  .anni-mapcard .anni-map { width: 72px; flex: none; }
+  .anni-mapcard :deep(.anni-map-labels), .anni-mapcard :deep(.anni-map-campuses), .anni-mapcard :deep(.anni-map-source) { display: none; }
+  .anni-mapcard :deep(.anni-map-route path) { stroke-width: 26; }
+  .anni-mapcard :deep(.anni-map-border) { stroke-width: 6; }
+  .anni-mapcard :deep(.anni-map-house) { scale: 2.2; }
+  .anni-mapcard :deep(.anni-map-landmarks), .anni-mapcard :deep(.anni-map-tip) { display: none; }
+  .anni-years { padding-top: 96px; }
+  /* 左邊距不夠放年份：年份改到線最右的擺幅（0.77）再往右，校園卡片自成一列 */
+  .anni-year { margin-right: 0; padding: 0 0 0 calc(var(--anni-rail) * .77 + 14px); justify-self: start; grid-column: 1 / 3; }
+  .anni-campus { grid-row: 2; }
+  .anni-overview { display: block; margin-bottom: 40px; }
+  .anni-overview :deep(.anni-map) { position: relative; max-width: 560px; padding: 14px 14px 10px; background: var(--white); transform: rotate(-.6deg);
+    box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .07), 0 22px 40px -22px rgb(var(--ink) / .45); }
   .anni-flap-digit { width: 30px; height: 42px; font-size: var(--fs-2xl); }
-  .anni-campus { grid-template-columns: 1fr; }
 }
 @media (max-width: 900px) {
   .anni-hero-grid, .anni-art-grid, .anni-draw-grid { grid-template-columns: 1fr; }
@@ -173,23 +217,21 @@
 }
 @media (max-width: 760px) {
   .anni { --anni-rail: 64px; }
-  .anni-year { margin-right: 0; padding: 0 0 0 calc(var(--anni-rail) / 2 + 22px); justify-self: start; grid-column: 1 / 3; font-size: var(--fs-sm); }
+  .anni-year { font-size: var(--fs-sm); }
   .anni-years > li { grid-template-columns: var(--anni-rail) minmax(0, 1fr); min-height: 44px; }
   .anni-years > li.is-campus { padding-block: 22px 52px; }
   .anni-years > li.is-campus > .anni-year { font-size: var(--fs-lg); }
-  .anni-campus { grid-row: 2; }
   .anni-kids { width: 62px; }
   .anni-campus-year { font-size: var(--fs-4xl); }
-  .anni-crest { padding-left: 0; }
   .anni-art-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
   .anni-pad { aspect-ratio: 4 / 5; }
-  /* 手機：計數器改成頁首下方一條橫向黏頂列，不蓋住卡片 */
-  .anni-counter { grid-column: 1 / -1; justify-self: stretch; top: 68px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    margin-inline: -8px; padding: 6px 12px; border-radius: 10px; }
+  /* 手機：計數列貼在頁首下方 */
+  .anni-mapcard { top: 68px; }
+  .anni-mapcard .anni-map { width: 60px; }
   .anni-flap-digit { width: 22px; height: 30px; font-size: var(--fs-lg); border-radius: 4px; }
   .anni-counter-meta { display: flex; gap: 14px; }
   .anni-counter-meta b { font-size: var(--fs-md); }
-  .anni-years { padding-top: 56px; }
+  .anni-years { padding-top: 80px; }
 }
 @media (max-aspect-ratio: 4/5) {
   .anni-print { width: min(78vw, 360px); }

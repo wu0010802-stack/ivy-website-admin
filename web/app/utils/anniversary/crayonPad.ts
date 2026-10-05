@@ -2,8 +2,11 @@
 // 一筆畫的覆蓋率先用 MAX 混合畫進「這一筆」圖層（接點不會疊出一顆顆的點），
 // 放開時才依紙紋把蠟「沉積」到顏料圖層：紙紋凸處上色、凹處留白，跟真的蠟筆一樣。
 // 虛線導引是開場影片裡那個「30」的同一組幾何（3 是兩段圓弧加中間小迴轉，0 是橢圓）。
+// 每一筆都記下來（座標以畫紙寬高正規化）：可以復原上一筆、重播整張圖是怎麼畫出來的；開聲音時有蠟筆的沙沙聲。
 import { ANNI_MEDIA } from './media'
 import { cssColorRGB, loadImage } from './paperGL'
+import { thirtyStrokes } from './thirty'
+import { scratch, stopScratch } from './sound'
 
 const QUAD_VS = `#version 300 es
 in vec2 aP; void main(){ gl_Position = vec4(aP * 2.0 - 1.0, 0.0, 1.0); }`
@@ -57,29 +60,26 @@ void main(){
 
 interface Target { fbo: WebGLFramebuffer; tex: WebGLTexture }
 
-/** 開場影片的「30」：取樣成折線，座標在 x∈[-49.7,56]、y∈[-41.5,33.5]（y 往上） */
-export function thirtyStrokes(): Array<Array<[number, number]>> {
-  const pts3: Array<[number, number]> = []
-  const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n: number) => {
-    for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts3.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]) }
-  }
-  arc(-37, 17, 16.5, 135, -90, 80)
-  arc(-37, -2.5, 3, 90, 270, 16)
-  arc(-37, -23.5, 18, 90, -135, 90)
-  const pts0: Array<[number, number]> = []
-  for (let i = 0; i <= 120; i++) { const a = -Math.PI / 2 + Math.PI * 2 * i / 120; pts0.push([29 + Math.cos(a) * 27, -4 + Math.sin(a) * 37.5]) }
-  return [pts3, pts0]
-}
+export { thirtyStrokes }
 
 export interface CrayonPad {
   setColor(css: string): void
   setGuide(on: boolean): void
   clear(): void
+  /** 擦掉最後一筆；沒有可以擦的回傳 false */
+  undo(): boolean
+  /** 從空白畫紙開始，把每一筆照順序重畫一次（2–6 秒） */
+  replay(): Promise<void>
   save(): Promise<string>
+  /** 存成 PNG 檔（給系統分享用） */
+  saveBlob(): Promise<Blob | null>
   destroy(): void
 }
 
-export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: string; guide: boolean }): Promise<CrayonPad | null> {
+/** 一筆：顏色＋線段（每段 5 個數：起點 x/W、y/H，終點 x/W、y/H，半徑 / min(W,H)） */
+interface Stroke { color: [number, number, number]; segs: number[] }
+
+export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: string; guide: boolean; onStrokes?: (n: number) => void }): Promise<CrayonPad | null> {
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true, premultipliedAlpha: true })
   if (!gl) return null
   const box = canvas.parentElement!
@@ -187,17 +187,35 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
 
   // ── 筆畫 ──
   let drawing = false, last: [number, number, number] | null = null, pending: number[] = [], raf = 0
+  let replaying = false, cur: Stroke | null = null, lastMove = 0
+  const log: Stroke[] = []
   const baseR = () => Math.max(3, Math.min(W, H) * 0.0105)
+  /** 一段膠囊（像素座標）排進待畫的頂點 */
+  const pushSeg = (ax: number, ay: number, bx: number, by: number, r: number) => {
+    const minx = Math.min(ax, bx) - r, maxx = Math.max(ax, bx) + r, miny = Math.min(ay, by) - r, maxy = Math.max(ay, by) + r
+    const v = (x: number, y: number) => pending.push(x, y, ax, ay, bx, by, r)
+    v(minx, miny); v(maxx, miny); v(minx, maxy); v(minx, maxy); v(maxx, miny); v(maxx, maxy)
+  }
   const addSeg = (a: [number, number, number], b: [number, number, number]) => {
     const r = baseR() * (0.7 + 0.6 * (a[2] + b[2]) / 2)
-    const minx = Math.min(a[0], b[0]) - r, maxx = Math.max(a[0], b[0]) + r, miny = Math.min(a[1], b[1]) - r, maxy = Math.max(a[1], b[1]) + r
-    const v = (x: number, y: number) => pending.push(x, y, a[0], a[1], b[0], b[1], r)
-    v(minx, miny); v(maxx, miny); v(minx, maxy); v(minx, maxy); v(maxx, miny); v(maxx, maxy)
+    pushSeg(a[0], a[1], b[0], b[1], r)
+    const m = Math.min(W, H)
+    cur?.segs.push(a[0] / W, a[1] / H, b[0] / W, b[1] / H, r / m)
     if (!raf) raf = requestAnimationFrame(flush)
   }
+  /** 記錄裡的第 from 到 to 段（正規化座標）換算成現在的畫紙尺寸 */
+  const pushLogged = (segs: number[], from: number, to: number) => {
+    const m = Math.min(W, H)
+    for (let i = from; i < to; i++) { const k = i * 5; pushSeg(segs[k]! * W, segs[k + 1]! * H, segs[k + 2]! * W, segs[k + 3]! * H, segs[k + 4]! * m) }
+  }
+  const clearTarget = (t: Target | null) => { if (!t) return; gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT) }
   const flush = () => {
     raf = 0
-    if (!pending.length || !stroke) return
+    if (rasterize()) show(true)
+  }
+  /** 待畫的線段用 MAX 混合畫進「這一筆」圖層 */
+  const rasterize = () => {
+    if (!pending.length || !stroke) return false
     gl.bindFramebuffer(gl.FRAMEBUFFER, stroke.fbo)
     gl.viewport(0, 0, W, H)
     gl.useProgram(segP.p)
@@ -210,7 +228,7 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
     gl.blendEquation(gl.FUNC_ADD); gl.disable(gl.BLEND)
     gl.bindVertexArray(null)
     pending = []
-    show(true)
+    return true
   }
   const pt = (e: PointerEvent, v = 0): [number, number, number] => {
     const r = canvas.getBoundingClientRect()
@@ -218,9 +236,11 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
     return [(e.clientX - r.left) * W / r.width, (r.bottom - e.clientY) * H / r.height, p]
   }
   const down = (e: PointerEvent) => {
-    if (e.button > 0) return
+    if (e.button > 0 || replaying) return
     canvas.setPointerCapture(e.pointerId)
     drawing = true
+    cur = { color: [...color] as [number, number, number], segs: [] }
+    lastMove = e.timeStamp
     last = pt(e)
     addSeg(last, [last[0] + 0.01, last[1], last[2]])
     e.preventDefault()
@@ -228,22 +248,46 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
   const move = (e: PointerEvent) => {
     if (!drawing || !last) return
     const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [e]
+    let dist = 0
     for (const ev of evs.length ? evs : [e]) {
       const r = canvas.getBoundingClientRect()
       const v = Math.hypot(ev.clientX - (last[0] * r.width / W + r.left), ev.clientY - (r.bottom - last[1] * r.height / H))
+      dist += v
       const p = pt(ev, v)
       p[2] = last[2] * 0.6 + p[2] * 0.4
       addSeg(last, p)
       last = p
     }
+    // 沙沙聲：音量與音色跟著速度（CSS px/ms，1.6 算很快）
+    const dt = Math.max(4, e.timeStamp - lastMove)
+    lastMove = e.timeStamp
+    scratch(Math.min(1, dist / dt / 1.6))
   }
   const up = () => {
     if (!drawing) return
     flush()
     drawing = false
     last = null
+    stopScratch()
     deposit(paint!.fbo)
-    gl.bindFramebuffer(gl.FRAMEBUFFER, stroke!.fbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT)
+    clearTarget(stroke)
+    show(false)
+    if (cur?.segs.length) { log.push(cur); opts.onStrokes?.(log.length) }
+    cur = null
+  }
+  /** 依記錄從空白重畫（復原用）：每一筆照原本的顏色沉積到顏料層 */
+  const rebuild = () => {
+    clearTarget(paint)
+    const keep = color
+    for (const st of log) {
+      clearTarget(stroke)
+      pushLogged(st.segs, 0, st.segs.length / 5)
+      rasterize()
+      color = st.color
+      deposit(paint!.fbo)
+    }
+    color = keep
+    clearTarget(stroke)
     show(false)
   }
   canvas.addEventListener('pointerdown', down)
@@ -271,32 +315,75 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
   ro.observe(box)
   resize()
 
+  /** 存成 PNG：底下加一條紙邊印上「常春藤 30 週年」 */
+  const saveBlob = (): Promise<Blob | null> => {
+    up()
+    show(false)
+    const foot = Math.round(H * 0.12)
+    const out = document.createElement('canvas')
+    out.width = W; out.height = H + foot
+    const g = out.getContext('2d')!
+    g.fillStyle = css.getPropertyValue('--white').trim() || '#fff'
+    g.fillRect(0, 0, out.width, out.height)
+    g.drawImage(canvas, 0, 0)
+    g.fillStyle = css.getPropertyValue('--green').trim() || '#000'
+    const font = getComputedStyle(document.body).getPropertyValue('--font-head').trim() || 'sans-serif'
+    g.font = `700 ${Math.round(foot * 0.36)}px ${font}`
+    g.textBaseline = 'middle'
+    g.fillText('常春藤 30 週年　1997—2027', Math.round(W * 0.04), H + foot / 2)
+    return new Promise<Blob | null>((res) => out.toBlob(res, 'image/png'))
+  }
+
   let lastUrl = ''
   return {
     setColor(c) { up(); color = cssColorRGB(c) },
     setGuide,
     clear() {
       up()
-      gl.bindFramebuffer(gl.FRAMEBUFFER, paint!.fbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT)
+      clearTarget(paint)
       show(false)
+      log.length = 0
+      opts.onStrokes?.(0)
     },
-    async save() {
+    undo() {
       up()
-      show(false)
-      // 底下加一條紙邊印上「常春藤 30 週年」
-      const foot = Math.round(H * 0.12)
-      const out = document.createElement('canvas')
-      out.width = W; out.height = H + foot
-      const g = out.getContext('2d')!
-      g.fillStyle = css.getPropertyValue('--white').trim() || '#fff'
-      g.fillRect(0, 0, out.width, out.height)
-      g.drawImage(canvas, 0, 0)
-      g.fillStyle = css.getPropertyValue('--green').trim() || '#000'
-      const font = getComputedStyle(document.body).getPropertyValue('--font-head').trim() || 'sans-serif'
-      g.font = `700 ${Math.round(foot * 0.36)}px ${font}`
-      g.textBaseline = 'middle'
-      g.fillText('常春藤 30 週年　1997—2027', Math.round(W * 0.04), H + foot / 2)
-      const blob = await new Promise<Blob | null>((res) => out.toBlob(res, 'image/png'))
+      if (replaying || !log.length) return false
+      log.pop()
+      rebuild()
+      opts.onStrokes?.(log.length)
+      return true
+    },
+    replay() {
+      up()
+      if (replaying || !log.length) return Promise.resolve()
+      replaying = true
+      const total = log.reduce((n, st) => n + st.segs.length / 5, 0)
+      const duration = Math.min(6000, Math.max(2000, total * 7))
+      clearTarget(paint); clearTarget(stroke); show(false)
+      const keep = color
+      let si = 0, ki = 0, t0 = performance.now(), done = 0
+      return new Promise<void>((resolve) => {
+        const step = (now: number) => {
+          const target = Math.min(total, Math.ceil(total * (now - t0) / duration))
+          while (done < target && si < log.length) {
+            const st = log[si]!, n = st.segs.length / 5
+            const take = Math.min(n - ki, target - done)
+            pushLogged(st.segs, ki, ki + take)
+            rasterize()
+            color = st.color
+            ki += take; done += take
+            if (ki >= n) { deposit(paint!.fbo); clearTarget(stroke); si++; ki = 0 }
+          }
+          show(si < log.length && ki > 0)
+          if (si < log.length) requestAnimationFrame(step)
+          else { color = keep; replaying = false; show(false); resolve() }
+        }
+        requestAnimationFrame(step)
+      })
+    },
+    saveBlob,
+    async save() {
+      const blob = await saveBlob()
       if (!blob) return ''
       if (lastUrl) URL.revokeObjectURL(lastUrl)
       lastUrl = URL.createObjectURL(blob)
@@ -309,6 +396,7 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
       canvas.removeEventListener('pointerup', up)
       canvas.removeEventListener('pointercancel', up)
       cancelAnimationFrame(raf)
+      stopScratch()
       svg.remove()
       if (lastUrl) URL.revokeObjectURL(lastUrl)
       gl.getExtension('WEBGL_lose_context')?.loseContext()
