@@ -291,6 +291,16 @@ a:hover {
 .record-caption { margin-top:6px; color:var(--ink-3); font-size:var(--text-sm); overflow-wrap:anywhere; }
 .list-skeleton { padding:24px; }
 
+/* 狀態頁籤（案件列表、站內通知共用）：放不下就換行，不藏在看不見的橫向捲動裡。 */
+.status-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.status-tab { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; min-height: 34px; padding: 0 14px; border: 0; border-radius: calc(var(--radius) - 2px); background: transparent; color: var(--ink-2); font: inherit; font-size: var(--text-base); white-space: nowrap; cursor: pointer; transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out); }
+.status-tab:hover { background: var(--surface-2); color: var(--ink); }
+/* 淺藍底上的字用深一階的操作色：--el-color-primary 在 light-9 底只有 4.4:1。 */
+.status-tab.is-active { background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; }
+/* 分頁數字只是件數，不是待辦：一律中性灰。 */
+.status-tab__count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-3); color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
+.status-tab.is-active .status-tab__count { background: var(--surface); color: var(--admin-accent-hover); }
+
 .toolbar .el-select {
   width: 160px;
 }
@@ -654,6 +664,9 @@ a.stat:hover {
   --el-button-hover-border-color: var(--admin-accent-hover);
 }
 .el-button--primary.is-link { --el-button-hover-link-text-color: var(--admin-accent-hover); }
+/* 淺色主色鈕（列表的「到了」、核准、重新寄送…）：--el-color-primary 在 light-9 底只有 4.4:1，
+   字改用深一階的操作色（同狀態頁籤）。hover 反白成實心時照 Element Plus 的白字。 */
+.el-button--primary.is-plain { --el-button-text-color: var(--admin-accent-hover); }
 .el-form-item { margin-bottom: 24px; }
 .el-table .el-table__cell { padding-block: 12px; }
 .el-table__empty-block { min-height: 180px; }

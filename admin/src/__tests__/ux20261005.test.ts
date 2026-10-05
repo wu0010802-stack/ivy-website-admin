@@ -294,8 +294,10 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
     const { wrapper } = await mountList('/visit-requests', [], { counts: { pending: 1, upcoming: 4, past: 2, cancelled: 3 } })
     const groups = wrapper.findAll('.status-tab').map(tab => tab.attributes('data-group'))
     expect(groups).toEqual(['all', 'pending', 'upcoming', 'past', 'cancelled'])
+    // 頁籤的基本樣式（中性灰計數）在 style.css，案件列表與站內通知共用；暖黃只在案件列表。
+    const shared = readFileSync(join(SRC, 'style.css'), 'utf8')
+    expect(shared).toMatch(/\.status-tab__count \{[^}]*background: var\(--surface-3\)/)
     const source = readFileSync(join(SRC, 'views/VisitRequestsView.vue'), 'utf8')
-    expect(source).toMatch(/\.status-tab__count \{[^}]*background: var\(--surface-3\)/)
     expect(source).toMatch(/\.status-tab\[data-group='pending'\] \.status-tab__count \{ background: var\(--brand-gold\)/)
   })
 

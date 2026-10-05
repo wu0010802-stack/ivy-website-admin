@@ -166,7 +166,8 @@ describe('站內通知', () => {
     mockApi()
     const viewer = testUser('readonly', { campus_keys: ['yihua'], effective_capabilities: ['booking.read'] })
     const { wrapper } = await mountAs(NotificationsView, viewer, '/notifications')
-    expect(wrapper.text()).toContain('查看案件')
+    // 只看的帳號照樣點得進案件（改期申請的家長姓名就是連結）。
+    expect(wrapper.get('.reschedule a.case-link').attributes('href')).toContain('/visit-requests/v1')
     for (const label of ['全部標記已讀', '標記已讀', '核准', '退回']) expect(buttonTexts(wrapper)).not.toContain(label)
   })
 })
