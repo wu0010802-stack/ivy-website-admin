@@ -29,7 +29,7 @@ describe('側欄與路由', () => {
     const visits = NAV_GROUPS.find((group) => group.key === 'visits')!.items.map((item) => item.name)
     expect(visits.indexOf('admissions')).toBe(visits.indexOf('visit-calendar') + 1)
     const item = navItem('admissions')!
-    expect(item).toMatchObject({ path: '/admissions', title: '招生入學', icon: 'TrendCharts' })
+    expect(item).toMatchObject({ path: '/admissions', title: '招生入學', icon: 'PieChart' })
     for (const role of ['super_admin', 'campus_admin', 'reception']) expect(canSeeNavItem(item, { role })).toBe(true)
     for (const role of ['editor', 'readonly']) expect(canSeeNavItem(item, { role })).toBe(false)
     const children = routes.find((route) => route.path === '/')!.children!
@@ -149,7 +149,7 @@ describe('招生開關關閉（R1）', () => {
     })
     const { wrapper } = await mountWith(AdmissionsView)
     expect(wrapper.text()).toContain('招生入學尚未啟用')
-    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、訪視明細、名額規劃與官網預約。')
+    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、待追蹤、訪視明細、名額規劃、官網預約與統計分析。')
     expect(wrapper.findAll('.el-tabs__item')).toHaveLength(0)
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])
     expect(document.body.querySelector('.el-message')).toBeNull()
@@ -252,5 +252,41 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     const compare = await mountWith(AdmissionsView, { path: '/admissions?campus=renwu&tab=stats&sub=compare', user: single })
     expect(compare.wrapper.findComponent(StatsTab).props('sub')).toBe('overview')
     expect(compare.router.currentRoute.value.query).toEqual({ campus: 'renwu', tab: 'stats' })
+  })
+})
+
+describe('頁首篩選的作用範圍與手機摘要', () => {
+  it('待追蹤、官網預約不分入學學年學期：兩個下拉停用並說明，切回其他分頁恢復', async () => {
+    mockGet({ ...noArrivals, '/admin/admissions/followups': { items: [], totals: { due: 0, all: 0 }, total: 0 } })
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?tab=arrivals' })
+    const [, year, semester] = wrapper.findAllComponents({ name: 'ElSelect' })
+    expect([year!.props('disabled'), semester!.props('disabled')]).toEqual([true, true])
+    expect(wrapper.text()).toContain('這個分頁不分入學學年學期')
+    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'records')
+    await flushPromises()
+    const [, year2] = wrapper.findAllComponents({ name: 'ElSelect' })
+    expect(year2!.props('disabled')).toBe(false)
+    expect(wrapper.text()).not.toContain('這個分頁不分入學學年學期')
+  })
+
+  it('手機：篩選收成一顆摘要鈕，點開才出現下拉；待追蹤只寫校區與「不分學年學期」', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    freezeToday()
+    mockGet({ ...noArrivals, '/admin/admissions/followups': { items: [], totals: { due: 0, all: 0 }, total: 0 } })
+    try {
+      const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&sy=115' })
+      const summary = wrapper.get('.admissions__summary')
+      expect(summary.text()).toContain('義華・115 學年・整學年')
+      expect(summary.attributes('aria-expanded')).toBe('false')
+      expect(wrapper.find('#admissions-filters').exists()).toBe(false)
+      await summary.trigger('click')
+      expect(summary.attributes('aria-expanded')).toBe('true')
+      expect(wrapper.find('#admissions-filters').exists()).toBe(true)
+      wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'followups')
+      await flushPromises()
+      expect(wrapper.get('.admissions__summary').text()).toContain('義華・不分學年學期')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

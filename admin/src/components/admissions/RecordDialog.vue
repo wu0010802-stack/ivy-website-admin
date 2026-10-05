@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyWarning } from '../../composables/notify'
 import { createRecord, getRecord, updateRecord } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
@@ -228,16 +229,16 @@ async function save(next = false) {
   } catch (err) {
     if (props.mode === 'edit' && apiErrorCode(err) === 'RECRUITMENT_VISIT_ANONYMIZED') {
       // 已依保存政策匿名化：不能再改。關閉表單並通知列表重讀。
-      ElMessage.warning(ANONYMIZED_CONFLICT_TEXT)
+      notifyWarning(ANONYMIZED_CONFLICT_TEXT)
       emit('stale')
       open.value = false
     } else if (props.mode === 'edit' && err instanceof ApiError && err.status === 404) {
       // 別人剛把這筆刪掉：不顯示錯誤，關閉表單並通知列表重讀。
-      ElMessage.warning('這筆招生訪視已被刪除，已重新載入')
+      notifyWarning('這筆招生訪視已被刪除，已重新載入')
       emit('stale')
       open.value = false
     } else if (isVersionConflict(err) && current.value) {
-      ElMessage.warning('這筆招生訪視剛被其他人修改，已載入最新的內容；你的修改沒有儲存，請確認後再改')
+      notifyWarning('這筆招生訪視剛被其他人修改，已載入最新的內容；你的修改沒有儲存，請確認後再改')
       emit('stale')
       try {
         current.value = await getRecord(current.value.id)
@@ -312,7 +313,7 @@ function suggest(list: readonly string[] | undefined) {
       <div class="record-dialog__head">
         <h2 class="record-dialog__title">{{ mode === 'add' ? '新增訪視紀錄' : '編輯訪視紀錄' }}</h2>
         <!-- 序號由後端依同校同月份配號，不是輸入欄（園務同樣只顯示）。 -->
-        <span class="record-dialog__seq">序號 {{ mode === 'add' ? '自動產生' : current?.seq_no || '—' }}</span>
+        <span class="record-dialog__seq">{{ mode === 'add' ? '存檔後自動編號' : `序號 ${current?.seq_no || '—'}` }}</span>
       </div>
     </template>
 
@@ -384,7 +385,7 @@ function suggest(list: readonly string[] | undefined) {
         <el-collapse-item name="deposit">
           <template #title><span class="record-dialog__section">預繳狀態</span></template>
           <p class="record-dialog__stage">目前階段：{{ stageLabel(current?.stage ?? 'visited') }}</p>
-          <p class="field-help record-dialog__locked">預繳、註冊與退出請在漏斗看板拖曳卡片，或用明細列的按鈕，才會留下紀錄與原因。</p>
+          <p class="field-help record-dialog__locked">預繳、註冊與退出請用明細列的「標記預繳」「標記註冊」或「更多」，或在漏斗看板拖曳卡片，才會留下紀錄與原因。</p>
           <div class="record-dialog__row">
             <el-form-item v-if="hasDeposit" label="收預繳人員">
               <el-input v-model="form.deposit_collector" maxlength="50" placeholder="預繳時填寫" aria-label="收預繳人員" />

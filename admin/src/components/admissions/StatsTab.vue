@@ -78,7 +78,7 @@ watch(
   { immediate: true },
 )
 
-// 換參考月份只影響本月、月比、年度累計與警示；保留畫面、蓋一層讀取中。
+// 參考月份只影響總覽（本月、月比、年度累計、漏斗快照、警示與行動入口），其他子分頁的數字不變，所以選單放在總覽裡；保留畫面、蓋一層讀取中。
 function setReferenceMonth(value: string | null | undefined) {
   referenceMonth.value = value || null
   void load()
@@ -267,26 +267,29 @@ const noDepositKpis = computed(() => {
           統計範圍：{{ campusLabel(campusKey) }}・{{ scopeLabel }}（依入學學年學期）・資料時間
           <time class="num">{{ formatDateTime(stats.as_of) }}</time>
         </p>
-        <div v-if="hasData" class="filter-field">
-          <span>參考月份</span>
-          <!-- 不 teleport：選單留在元件裡，單元測試才找得到選項；外層沒有 overflow:hidden。 -->
-          <el-select
-            :model-value="referenceMonth ?? undefined"
-            clearable
-            :placeholder="`最新（${stats.reference_month ?? NO_VALUE}）`"
-            aria-label="參考月份"
-            class="stats-month"
-            :teleported="false"
-            @update:model-value="setReferenceMonth"
-          >
-            <el-option v-for="month in monthOptions" :key="month" :label="month" :value="month" />
-          </el-select>
-        </div>
       </div>
 
       <el-tabs v-loading="loading" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
         <el-tab-pane label="總覽" name="stats-overview">
-          <StatsOverview v-if="hasData" :stats="stats" @navigate="navigate" />
+          <StatsOverview v-if="hasData" :stats="stats" @navigate="navigate">
+            <template #reference-month>
+              <div class="filter-field stats-month-field">
+                <span>參考月份</span>
+                <!-- 不 teleport：選單留在元件裡，單元測試才找得到選項；外層沒有 overflow:hidden。 -->
+                <el-select
+                  :model-value="referenceMonth ?? undefined"
+                  clearable
+                  :placeholder="`最新（${stats.reference_month ?? NO_VALUE}）`"
+                  aria-label="參考月份"
+                  class="stats-month"
+                  :teleported="false"
+                  @update:model-value="setReferenceMonth"
+                >
+                  <el-option v-for="month in monthOptions" :key="month" :label="month" :value="month" />
+                </el-select>
+              </div>
+            </template>
+          </StatsOverview>
           <p v-else class="stats-empty">{{ emptyText }}</p>
         </el-tab-pane>
 
@@ -312,7 +315,7 @@ const noDepositKpis = computed(() => {
               row-key="source"
               numbered
               empty-text="此區間尚無來源資料"
-              caption="依家長填的來源原文分組（園務會合併義華的同義字詞，官網不合併）。"
+              caption="依家長填的來源原文分組，寫法不同會分開算（例如「FB」和「臉書」）。"
             />
           </div>
         </el-tab-pane>
@@ -379,6 +382,7 @@ const noDepositKpis = computed(() => {
               :school-year="schoolYear"
               :semester="semester"
               :preset="noDepositPreset"
+              :overall-total="stats.no_deposit_total"
               @open-records="emit('open-records', $event)"
             />
           </div>

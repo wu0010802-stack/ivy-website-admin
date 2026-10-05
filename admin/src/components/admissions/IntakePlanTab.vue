@@ -9,9 +9,10 @@ import { GRADES } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { notifyError, notifyWarning } from '../../composables/notify'
 
 // 名額規劃（園務 IntakePlanPanel；規格第 8 節）。條件是校區 × 學年 × 學期，取頁首的篩選；
-// 頁首「不限學年」用目前學年、沒選學期用上學期（園務父層未指定時也是上學期），並說明（本檔調整第 18 條）。
+// 頁首「不限學年」用目前學年並說明（本檔調整第 18 條）；學期預設取頁首、沒選時上學期，面板標題旁可自己切（不寫網址）。
 // 沒有計畫列＝「未設定」，與 0 分開；剩餘在未設定時是「—」。超額園務只有紅底，官網另加文字（本檔調整第 24 條）。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: Semester | null }>()
 
@@ -19,7 +20,9 @@ const { can } = usePermissions()
 const canWrite = computed(() => can('admissions.write'))
 const defaultYear = currentTerm().schoolYear
 const planYear = computed(() => props.schoolYear ?? defaultYear)
-const planSemester = computed<Semester>(() => props.semester ?? 1)
+// 學期切換是元件內部狀態：預設＝頁首學期（沒選時上學期），頁首改了就跟著同步。
+const planSemester = ref<Semester>(props.semester ?? 1)
+watch(() => props.semester, (value) => { planSemester.value = value ?? 1 })
 const term = computed(() => termLabel(planYear.value, planSemester.value))
 
 const plan = ref<IntakePlan | null>(null)
@@ -66,6 +69,16 @@ async function load(options: { keep?: boolean } = {}) {
 
 watch(() => [props.campusKey, planYear.value, planSemester.value], () => void load(), { immediate: true })
 
+// 有沒儲存的修改時不切學期（切了草稿會被新學期的資料蓋掉）。
+function pickSemester(value: string | number | boolean | undefined) {
+  if (value !== 1 && value !== 2) return
+  if (dirty.value) {
+    notifyWarning('有修改還沒儲存，請先儲存再切換學期。')
+    return
+  }
+  planSemester.value = value
+}
+
 async function save() {
   if (!dirty.value || saving.value) return
   saving.value = true
@@ -81,13 +94,23 @@ async function save() {
     }
     ElMessage.success('已儲存計畫名額')
   } catch (err) {
-    ElMessage.error(apiErrorMessage(err, '儲存招生名額計畫失敗'))
+    notifyError(apiErrorMessage(err, '儲存招生名額計畫失敗'))
   } finally {
     saving.value = false
   }
 }
 
 const seats = (value: number | null | undefined) => (value === null || value === undefined ? '未設定' : String(value))
+// 合計的剩餘是各年級相加，超額年級的負數會抵掉別班的空位；把超額的年級列在後面。
+const overCapacityNote = computed(() => {
+  const over = rows.value
+    .filter((row) => row.over_capacity)
+    .map((row) => {
+      const amount = row.remaining !== null && row.remaining !== undefined && row.remaining < 0 ? -row.remaining : row.reserved + row.enrolled - (row.target_seats ?? 0)
+      return `${row.grade}超額 ${amount}`
+    })
+  return over.length ? `（${over.join('、')}）` : ''
+})
 const remainingText = (value: number | null | undefined) => (value === null || value === undefined ? '—' : String(value))
 
 function rowClass({ row }: { row: IntakePlanRow }): string {
@@ -97,9 +120,8 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
 
 <template>
   <section class="intake">
-    <div v-if="schoolYear === null || semester === null" class="intake__notes">
+    <div v-if="schoolYear === null" class="intake__notes">
       <p v-if="schoolYear === null" class="hint">名額規劃一次看一個學期：頁首選了「不限學年」，先顯示 {{ defaultYear }} 學年。</p>
-      <p v-if="semester === null" class="hint">頁首沒選入學學期，先顯示上學期；要看下學期請在上方選「下學期」。</p>
     </div>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
@@ -109,7 +131,13 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
 
     <div v-else class="panel" :aria-busy="loading">
       <div class="panel__head">
-        <h2>{{ term }}的計畫名額</h2>
+        <div class="intake__title">
+          <h2>{{ term }}的計畫名額</h2>
+          <el-radio-group :model-value="planSemester" size="small" aria-label="切換學期" @update:model-value="pickSemester">
+            <el-radio-button :value="1">上學期</el-radio-button>
+            <el-radio-button :value="2">下學期</el-radio-button>
+          </el-radio-group>
+        </div>
         <div v-if="canWrite" class="intake__actions">
           <span v-if="dirty" class="dirty-note">有修改還沒儲存，剩餘會在儲存後重算</span>
           <el-button type="primary" :loading="saving" :disabled="!dirty" @click="save">儲存計畫名額</el-button>
@@ -157,7 +185,7 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
         <span>計畫 <b class="num">{{ seats(plan.totals?.target_seats) }}</b></span>
         <span>保留 <b class="num">{{ plan.totals?.reserved ?? 0 }}</b></span>
         <span>註冊 <b class="num">{{ plan.totals?.enrolled ?? 0 }}</b></span>
-        <span>剩餘 <b class="num" :class="{ 'intake__negative': (plan.totals?.remaining ?? 0) < 0 }">{{ remainingText(plan.totals?.remaining) }}</b></span>
+        <span>剩餘 <b class="num" :class="{ 'intake__negative': (plan.totals?.remaining ?? 0) < 0 }">{{ remainingText(plan.totals?.remaining) }}</b><span v-if="overCapacityNote" class="intake__negative">{{ overCapacityNote }}</span></span>
       </p>
     </div>
   </section>
@@ -170,6 +198,14 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
 
 .intake__notes p {
   margin: 0 0 4px;
+}
+
+.intake__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
 }
 
 .intake__actions {
@@ -219,6 +255,12 @@ function rowClass({ row }: { row: IntakePlanRow }): string {
 }
 
 @media (max-width: 720px) {
+  .intake__title :deep(.el-radio-button__inner) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
   .intake__empty,
   .intake__totals {
     padding-left: 16px;

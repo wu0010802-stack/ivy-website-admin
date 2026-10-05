@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, type DOMWrapper } from '@vue/test-utils'
-import { ElPagination, ElSelect, ElSwitch } from 'element-plus'
+import { ElPagination, ElSelect, ElCheckbox } from 'element-plus'
 import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { NoDepositRecord, NoDepositRecords } from '../api/types'
 import { GRADES, NO_DEPOSIT_REASONS } from '../admissions/constants'
@@ -57,7 +57,7 @@ describe('未預繳明細：表格（園務 RecruitmentNoDepositTab 的「未預
     expect(cells(rows[2]!).slice(4, 6)).toEqual(['低', '冷'])
     expect(rows[0]!.get('.el-tag').classes()).toContain('el-tag--danger')
     expect(rows[2]!.findAll('.el-tag').map((tag) => tag.classes().includes('el-tag--info'))).toEqual([true, true])
-    expect(wrapper.get('.nd-count').text()).toBe('顯示 3 / 3 筆未預繳')
+    expect(wrapper.get('.nd-count').text()).toBe('符合條件 3 筆')
     expect(wrapper.find('.el-pagination').exists()).toBe(false)
   })
 
@@ -107,28 +107,33 @@ describe('未預繳明細：篩選（園務 ndFilter）', () => {
     const get = mockGet({ [PATH]: result([LIN]) })
     const { wrapper } = await mountWith(NoDepositList, { props: props() })
     const [prioritySelect] = wrapper.findAllComponents(ElSelect)
-    const [overdueSwitch, coldSwitch] = wrapper.findAllComponents(ElSwitch)
+    const [overdueBox, coldBox] = wrapper.findAllComponents(ElCheckbox)
 
-    expect([overdueSwitch!.props('activeText'), overdueSwitch!.props('inactiveText')]).toEqual(['逾 14 天', '不限'])
-    expect([coldSwitch!.props('activeText'), coldSwitch!.props('inactiveText')]).toEqual(['冷名單', '不限'])
+    expect(wrapper.findAllComponents(ElCheckbox).map((item) => item.text())).toEqual(['只看逾 14 天待追', '只看冷名單'])
 
     prioritySelect!.vm.$emit('update:modelValue', 'all')
     await flushPromises()
     expect(lastQuery(get).has('priority')).toBe(false)
 
-    overdueSwitch!.vm.$emit('update:modelValue', true)
+    overdueBox!.vm.$emit('update:modelValue', true)
     await flushPromises()
     expect(lastQuery(get).get('overdue_days')).toBe('14')
-    coldSwitch!.vm.$emit('update:modelValue', true)
+    coldBox!.vm.$emit('update:modelValue', true)
     await flushPromises()
     expect(lastQuery(get).get('cold_only')).toBe('true')
-    expect(wrapper.findAllComponents(ElSwitch).map((item) => item.props('modelValue'))).toEqual([true, true])
+    expect(wrapper.findAllComponents(ElCheckbox).map((item) => item.props('modelValue'))).toEqual([true, true])
 
-    overdueSwitch!.vm.$emit('update:modelValue', false)
-    coldSwitch!.vm.$emit('update:modelValue', false)
+    overdueBox!.vm.$emit('update:modelValue', false)
+    coldBox!.vm.$emit('update:modelValue', false)
     await flushPromises()
     expect(lastQuery(get).has('overdue_days')).toBe(false)
     expect(lastQuery(get).has('cold_only')).toBe(false)
+  })
+
+  it('帶 overallTotal 時寫「符合條件 N 筆，未預繳共 M 筆」', async () => {
+    mockGet({ [PATH]: result([LIN], 3) })
+    const { wrapper } = await mountWith(NoDepositList, { props: props({ overallTotal: 7 }) })
+    expect(wrapper.get('.nd-count').text()).toBe('符合條件 3 筆，未預繳共 7 筆')
   })
 
   it('警示或行動入口帶的篩選（preset）：套上 priority 與 overdue_days，其餘回預設、回第 1 頁', async () => {
@@ -139,9 +144,9 @@ describe('未預繳明細：篩選（園務 ndFilter）', () => {
     expect(Object.fromEntries(lastQuery(get))).toEqual({
       campus_key: 'yihua', school_year: '115', semester: '1', priority: 'high', overdue_days: '14', page: '1', page_size: '50',
     })
-    expect(wrapper.findAllComponents(ElSwitch)[0]!.props('modelValue')).toBe(true)
+    expect(wrapper.findAllComponents(ElCheckbox)[0]!.props('modelValue')).toBe(true)
 
-    wrapper.findAllComponents(ElSwitch)[1]!.vm.$emit('update:modelValue', true)
+    wrapper.findAllComponents(ElCheckbox)[1]!.vm.$emit('update:modelValue', true)
     wrapper.findComponent(ElPagination).vm.$emit('current-change', 2)
     await flushPromises()
     await wrapper.setProps({ preset: { priority: 'low' } })

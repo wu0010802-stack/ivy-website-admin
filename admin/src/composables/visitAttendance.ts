@@ -7,7 +7,7 @@ export type AttendanceKind = 'complete' | 'no_show'
 interface AttendanceRow {
   status: string
   parent_name: string
-  slot?: { slot_date: string; start_time: string; end_time: string } | null
+  slot?: { slot_date: string; start_time: string; end_time?: string | null } | null
 }
 
 // 列表上直接標記到場（2026-10-05 第九輪）：參觀當天幾組家長陸續到，櫃台不必一筆筆點進明細。

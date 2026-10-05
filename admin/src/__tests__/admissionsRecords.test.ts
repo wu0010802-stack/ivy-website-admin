@@ -4,21 +4,28 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AdmissionsView from '../views/AdmissionsView.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
+import EventsDrawer from '../components/admissions/EventsDrawer.vue'
+import TransitionDialog from '../components/admissions/TransitionDialog.vue'
 import { ApiError } from '../api/client'
 import {
-  admissionsViewer, arrivals, bodyOf, button, cleanup, deferred, hasButton, mockDelete, mockGet, mockPost, mountWith, 
+  admissionsViewer, arrivals, button, cleanup, deferred, hasButton, mockDelete, mockGet, mountWith,
   pathsTo, queryOf, reception, visit, VR_ID,
 } from './admissionsTestKit'
 
-afterEach(cleanup)
+afterEach(() => {
+  vi.unstubAllGlobals()
+  cleanup()
+})
 
 type Spy = Parameters<typeof pathsTo>[0]
 const props = (changes: Record<string, unknown> = {}) => ({ campusKey: 'yihua', schoolYear: 115, semester: null, month: '', visitRequestId: '', ...changes })
 const listPaths = (get: Spy) => pathsTo(get, '/admin/admissions/records?')
 const lastQuery = (get: Spy) => queryOf(listPaths(get).at(-1)!)
-const rowTexts = (wrapper: VueWrapper) => wrapper.findAll('.records-table .el-table__body tr').map((row) => row.text())
+const rowTexts = (wrapper: VueWrapper) => wrapper.findAll('.records-table .el-table__body tr.el-table__row').map((row) => row.text())
 const selectByPlaceholder = (wrapper: VueWrapper, placeholder: string) =>
   wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('placeholder') === placeholder)!
+const stageTags = (wrapper: VueWrapper) =>
+  wrapper.findAll('.records-table .el-table__body tr.el-table__row').map((row) => row.findAll('td')[3]!.text())
 
 // 列的「更多」選單掛在 body 底下，每一列有自己的 popper-class，打開後從 document 找選項。
 async function moreItems(wrapper: VueWrapper, id: string): Promise<HTMLElement[]> {
@@ -34,8 +41,12 @@ async function chooseMore(wrapper: VueWrapper, id: string, label: string) {
   await flushPromises()
 }
 
+function stubNarrow() {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+}
+
 describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () => {
-  it('以校區、入學學年學期、月份查詢，每頁 50 筆；列出民國參觀日期、入學學期、預繳與官網預約', async () => {
+  it('以校區、入學學年學期、月份查詢，每頁 50 筆；列出民國參觀日期、入學學期、階段與官網預約', async () => {
     const get = mockGet({
       '/admin/admissions/records': [
         visit({ visit_request_id: VR_ID, has_visit_request: true }),
@@ -49,9 +60,9 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
       campus_key: 'yihua', month: '115.09', target_school_year: '115', target_semester: '1', page: '1', page_size: '50',
     })
     const rows = rowTexts(wrapper)
-    for (const text of ['115.09.08', '王小安', '小班', '115 上學期', '官網預約', '否']) expect(rows[0]).toContain(text)
+    for (const text of ['115.09.08', '王小安', '小班', '115 上學期', '官網預約', '已訪視']) expect(rows[0]).toContain(text)
     expect(rows[1]).toContain('115 下學期')
-    expect(rows[1]).toContain('是')
+    expect(rows[1]).toContain('已預繳')
     expect(rows[2]).toContain('已退預繳')
     expect(rows[3]).toContain('待補')
     // 有 booking.read 才看得到預約明細的連結。
@@ -99,6 +110,111 @@ describe('訪視明細：載入、空資料、錯誤（規格第 10 節）', () 
     const rows = rowTexts(wrapper)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toContain('林小美')
+  })
+})
+
+describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
+  it('預設欄位只留追蹤要看的；「階段」取代預繳與已註冊兩欄，退出寫從哪一段退', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ id: 'v-v' }),
+        visit({ id: 'v-d', has_deposit: true, stage: 'deposited' }),
+        visit({ id: 'v-e', has_deposit: true, enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
+        visit({ id: 'v-wd', stage: 'withdrawn', withdrawn_at: '2026-09-20T02:00:00Z', withdrawn_from: 'deposited' }),
+        visit({ id: 'v-we', stage: 'withdrawn', withdrawn_at: '2026-09-20T02:00:00Z', withdrawn_from: 'enrolled' }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const headers = wrapper.findAll('.records-table .el-table__header th').map((th) => th.text())
+    expect(headers).toEqual(['', '參觀日期', '姓名', '階段', '班別', '入學學期', '下次聯絡', '負責人', '來源', '操作'])
+    expect(stageTags(wrapper)).toEqual(['已訪視', '已預繳', '已註冊', '已退預繳', '已退註冊'])
+  })
+
+  it('下次聯絡：到期用危險色，沒排寫「—」；負責人寫名字或「未指派」', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ id: 'v-a', follow_up_at: '2020-01-01T02:00:00Z', follow_up_owner_id: 'desk' }),
+        visit({ id: 'v-b' }),
+      ],
+      '/admin/admissions/staff': [{ id: 'desk', display_name: '櫃台小美', email: 'desk@example.invalid' }],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const [first, second] = wrapper.findAll('.records-table .el-table__body tr.el-table__row')
+    const due = first!.get('.records__due')
+    expect(due.text()).toMatch(/^逾 \d+ 天$/)
+    expect(first!.text()).toContain('櫃台小美')
+    expect(second!.findAll('td')[6]!.text()).toBe('—')
+    expect(second!.find('.records__due').exists()).toBe(false)
+    expect(second!.text()).toContain('未指派')
+  })
+
+  it('地址、介紹者、備註等收進展開列（兩欄、空值不列）；沒有其他資料的列不能展開', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ address: '高雄市示範路 1 號', referrer: '林老師', notes: '外婆接送', no_deposit_reason: '費用考量', parent_response: null }),
+        visit({ id: 'v-2', child_name: '李小樂' }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    expect(wrapper.find('.records-table .el-table__body').text()).not.toContain('高雄市示範路')
+    const [expandable, empty] = wrapper.findAll('.records-table .el-table__expand-icon')
+    expect(expandable!.attributes('aria-label')).toBe('展開其他資料')
+    expect(empty!.attributes('disabled')).toBeDefined()
+    await expandable!.trigger('click')
+    await flushPromises()
+    const info = wrapper.get('.records__info')
+    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['地址', '介紹者', '未預繳原因', '備註'])
+    expect(info.text()).toContain('高雄市示範路 1 號')
+    expect(info.text()).not.toContain('電訪回應')
+  })
+})
+
+describe('篩選收合（比照第九輪案件列表）', () => {
+  it('常駐搜尋、月份、預繳、追蹤；其餘收進「更多篩選」，按了才展開', async () => {
+    mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const toggle = wrapper.get('button.more-filters')
+    expect(toggle.text()).toBe('更多篩選')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
+    expect(fieldLabels('#records-more-filters')).toEqual(['班別', '來源', '介紹者', '未預繳原因', '負責人'])
+    expect(fieldLabels('.records-filters')).toEqual(['搜尋', '月份', '預繳', '追蹤', '班別', '來源', '介紹者', '未預繳原因', '負責人'])
+    expect(wrapper.get('.records-filters').classes()).not.toContain('is-open')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.records-filters').classes()).toContain('is-open')
+  })
+
+  it('收起時把收進去的條件列成標籤（按鈕帶數字），可以逐一拿掉；清除篩選在標籤列最後；展開時不重複列', async () => {
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    selectByPlaceholder(wrapper, '全部班別').vm.$emit('update:modelValue', '小班')
+    selectByPlaceholder(wrapper, '全部原因').vm.$emit('update:modelValue', '費用考量')
+    await flushPromises()
+    expect(wrapper.get('button.more-filters .filter-count').text()).toContain('2')
+    const chips = () => wrapper.findAll('.filter-chips li')
+    expect(chips().map((chip) => chip.text())).toEqual(['班別：小班×，拿掉這個條件', '未預繳原因：費用考量×，拿掉這個條件', '清除篩選'])
+    // 清除篩選只出現在標籤列，不在工具列重複。
+    expect(wrapper.findAll('button').filter((b) => b.text() === '清除篩選')).toHaveLength(1)
+
+    await chips()[0]!.get('button').trigger('click')
+    await flushPromises()
+    expect(lastQuery(get).has('grade')).toBe(false)
+    expect(lastQuery(get).get('no_deposit_reason')).toBe('費用考量')
+
+    await wrapper.get('button.more-filters').trigger('click')
+    expect(wrapper.find('.filter-chips').exists()).toBe(false)
+    expect(wrapper.findAll('button').filter((b) => b.text() === '清除篩選')).toHaveLength(1)
+  })
+
+  it('負責人標籤寫名字；月份、預繳、追蹤在桌機常駐，不列成標籤', async () => {
+    mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ month: '115.09' }) })
+    selectByPlaceholder(wrapper, '不限').vm.$emit('update:modelValue', 'yes')
+    const owner = wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('ariaLabel') === '追蹤負責人')!
+    owner.vm.$emit('update:modelValue', 'me')
+    await flushPromises()
+    expect(wrapper.findAll('.filter-chip').map((chip) => chip.text())).toEqual(['負責人：我負責的×，拿掉這個條件'])
   })
 })
 
@@ -180,16 +296,17 @@ describe('篩選、分頁與權限', () => {
     expect(wrapper.get('input[aria-label="搜尋訪視"]').attributes('maxlength')).toBe('100')
   })
 
-  it('只能看招生的帳號：沒有新增、編輯、更多，仍可看歷程', async () => {
+  it('只能看招生的帳號：沒有新增、標記與更多；點姓名仍可看歷程', async () => {
     mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
     const { wrapper } = await mountWith(RecordsTab, { props: props(), user: admissionsViewer() })
     expect(hasButton(wrapper, '新增訪視')).toBe(false)
-    expect(hasButton(wrapper, '編輯')).toBe(false)
-    expect(hasButton(wrapper, '更多')).toBe(false)
-    expect(hasButton(wrapper, '歷程')).toBe(true)
+    expect(hasButton(wrapper, '標記註冊')).toBe(false)
+    expect(wrapper.find('[data-more]').exists()).toBe(false)
+    await wrapper.get('button.records__name').trigger('click')
+    expect(wrapper.getComponent(EventsDrawer).props()).toMatchObject({ modelValue: true, visitId: 'v-1', childName: '王小安' })
   })
 
-  it('櫃台（沒有 admissions.convert）：已註冊的列不能退註冊，已預繳的列可以退預繳', async () => {
+  it('櫃台（沒有 admissions.convert）：已註冊的列只能編輯，不能退註冊或刪除；已預繳的列可以退預繳、沒有標記註冊', async () => {
     mockGet({
       '/admin/admissions/records': [
         visit({ id: 'v-e', has_deposit: false, enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
@@ -197,9 +314,10 @@ describe('篩選、分頁與權限', () => {
       ],
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props(), user: reception() })
-    // 沒有可做的動作（退註冊、刪除都要 convert），整列不出現「更多」。
-    expect(wrapper.find('[data-more="v-e"]').exists()).toBe(false)
-    expect(labelsOf(await moreItems(wrapper, 'v-d'))).toContain('退預繳')
+    // 退註冊、刪除都要 convert。
+    expect(labelsOf(await moreItems(wrapper, 'v-e'))).toEqual(['編輯'])
+    expect(labelsOf(await moreItems(wrapper, 'v-d'))).toEqual(['編輯', '保留座位', '退預繳', '刪除'])
+    expect(hasButton(wrapper, '標記註冊')).toBe(false)
   })
 
   it('櫃台看「從已註冊退出」的列沒有刪除；總管理者看已註冊的列有刪除（admissions.convert）', async () => {
@@ -209,48 +327,30 @@ describe('篩選、分頁與權限', () => {
     ]
     mockGet({ '/admin/admissions/records': rows })
     const desk = await mountWith(RecordsTab, { props: props(), user: reception() })
-    expect(desk.wrapper.find('[data-more="v-w"]').exists()).toBe(false)
+    expect(labelsOf(await moreItems(desk.wrapper, 'v-w'))).not.toContain('刪除')
     cleanup()
     mockGet({ '/admin/admissions/records': rows })
     const admin = await mountWith(RecordsTab, { props: props() })
-    expect(labelsOf(await moreItems(admin.wrapper, 'v-e'))).toContain('刪除')
+    expect(labelsOf(await moreItems(admin.wrapper, 'v-e'))).toEqual(['編輯', '退註冊', '刪除'])
   })
 
-  it('已匿名化的列：有標籤、沒有編輯與退出，點列不開表單；歷程與刪除照常', async () => {
+  it('已匿名化的列：有標籤、沒有編輯、標記與退出，點列不開表單；歷程與刪除照常', async () => {
     mockGet({
       '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', anonymized_at: '2026-09-25T02:00:00Z' })],
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     expect(rowTexts(wrapper)[0]).toContain('已匿名化')
-    expect(hasButton(wrapper, '編輯')).toBe(false)
-    expect(hasButton(wrapper, '歷程')).toBe(true)
+    expect(hasButton(wrapper, '標記註冊')).toBe(false)
     await wrapper.get('.records-table .el-table__body tr').trigger('click')
     await flushPromises()
     expect(wrapper.getComponent(RecordDialog).props('modelValue')).toBe(false)
     expect(document.body.querySelector('.el-dialog')).toBeNull()
-    const labels = labelsOf(await moreItems(wrapper, 'v-1'))
-    expect(labels).toContain('刪除')
-    expect(labels).not.toContain('退預繳')
+    expect(labelsOf(await moreItems(wrapper, 'v-1'))).toEqual(['刪除'])
+    await wrapper.get('button.records__name').trigger('click')
+    expect(wrapper.getComponent(EventsDrawer).props('modelValue')).toBe(true)
   })
 
-  it('退出收到已匿名化的 409：提示並重新整理，不顯示錯誤', async () => {
-    vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '家長搬家', action: 'confirm' } as never)
-    const warning = vi.spyOn(ElMessage, 'warning')
-    const error = vi.spyOn(ElMessage, 'error')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
-    mockPost({
-      '/admin/admissions/records/v-1/transition': () => {
-        throw new ApiError(409, { code: 'RECRUITMENT_VISIT_ANONYMIZED' })
-      },
-    })
-    const { wrapper } = await mountWith(RecordsTab, { props: props() })
-    await chooseMore(wrapper, 'v-1', '退預繳')
-    expect(warning).toHaveBeenCalledWith('這筆招生訪視已依保存政策匿名化，不能再變更')
-    expect(error).not.toHaveBeenCalled()
-    expect(listPaths(get)).toHaveLength(2)
-  })
-
-  it('新增、編輯都開同一個表單；編輯帶入那一列', async () => {
+  it('新增、編輯都開同一個表單；編輯在「更多」裡，帶入那一列', async () => {
     mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     const dialog = wrapper.getComponent(RecordDialog)
@@ -258,51 +358,60 @@ describe('篩選、分頁與權限', () => {
     expect(dialog.props()).toMatchObject({ modelValue: true, mode: 'add', campusKey: 'yihua' })
     dialog.vm.$emit('update:modelValue', false)
     await flushPromises()
-    await button(wrapper, '編輯')!.trigger('click')
+    await chooseMore(wrapper, 'v-1', '編輯')
     expect(dialog.props('mode')).toBe('edit')
     expect(dialog.props('record')).toMatchObject({ id: 'v-1', child_name: '王小安' })
   })
 })
 
-describe('退出與刪除', () => {
-  it('已預繳的列「更多 → 退預繳」要填原因，送狀態轉換並重新整理', async () => {
-    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '  家長搬家  ', action: 'confirm' } as never)
-    const success = vi.spyOn(ElMessage, 'success')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited', version: 3 })] })
-    const post = mockPost({ '/admin/admissions/records/v-1/transition': visit({ stage: 'withdrawn' }) })
-    const { wrapper } = await mountWith(RecordsTab, { props: props() })
-    await chooseMore(wrapper, 'v-1', '退預繳')
-    expect(prompt.mock.calls[0]![1]).toBe('退預繳')
-    expect(String(prompt.mock.calls[0]![0])).toBe('將標記退預繳。若已實際收款，退款要另外處理。')
-    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toEqual({
-      to_stage: 'withdrawn', expected_version: 3, reason: '家長搬家', deposit_collector: null,
-      enrolled_on: null, grade: null, target_school_year: null, target_semester: null,
-    })
-    expect(success).toHaveBeenCalledWith('已退預繳')
-    expect(listPaths(get)).toHaveLength(2)
-  })
-
-  it('退出時別人剛改過狀態：照園務提示並重新整理，不顯示錯誤', async () => {
-    vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '家長搬家', action: 'confirm' } as never)
-    const info = vi.spyOn(ElMessage, 'info')
-    const error = vi.spyOn(ElMessage, 'error')
-    const get = mockGet({ '/admin/admissions/records': [visit({ has_deposit: true, stage: 'deposited' })] })
-    mockPost({
-      '/admin/admissions/records/v-1/transition': () => {
-        throw new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 2 })
-      },
+describe('標記預繳、標記註冊與退出（都走看板同一個確認框）', () => {
+  it('已訪視的列「標記預繳」、已預繳的列「標記註冊」：開確認框並帶起訖階段，完成後重新整理', async () => {
+    const get = mockGet({
+      '/admin/admissions/records': [visit({ version: 4 }), visit({ id: 'v-2', child_name: '李小樂', has_deposit: true, stage: 'deposited' })],
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
-    await chooseMore(wrapper, 'v-1', '退預繳')
-    expect(info).toHaveBeenCalledWith('狀態已被其他人變更，已自動重新載入')
-    expect(error).not.toHaveBeenCalled()
+    const transitionDialog = wrapper.getComponent(TransitionDialog)
+    await button(wrapper, '標記預繳')!.trigger('click')
+    expect(transitionDialog.props('modelValue')).toBe(true)
+    expect(transitionDialog.props('target')).toMatchObject({ card: { id: 'v-1', version: 4 }, from: 'visited', to: 'deposited' })
+    transitionDialog.vm.$emit('done', visit({ stage: 'deposited' }))
+    await flushPromises()
     expect(listPaths(get)).toHaveLength(2)
+
+    await button(wrapper, '標記註冊')!.trigger('click')
+    expect(transitionDialog.props('target')).toMatchObject({ card: { id: 'v-2' }, from: 'deposited', to: 'enrolled' })
+    // 別人剛改過（確認框收到 409）：一樣重新整理。
+    transitionDialog.vm.$emit('stale')
+    await flushPromises()
+    expect(listPaths(get)).toHaveLength(3)
   })
 
-  it('刪除先確認、帶版本；別人剛改過就提示並重新整理', async () => {
+  it('「更多 → 退預繳／退註冊」改用同一個確認框（不再跳 prompt），起點依階段', async () => {
+    const prompt = vi.spyOn(ElMessageBox, 'prompt')
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ has_deposit: true, stage: 'deposited', version: 3 }),
+        visit({ id: 'v-e', child_name: '李小樂', enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const transitionDialog = wrapper.getComponent(TransitionDialog)
+    await chooseMore(wrapper, 'v-1', '退預繳')
+    expect(transitionDialog.props('target')).toMatchObject({ card: { id: 'v-1', version: 3 }, from: 'deposited', to: 'withdrawn' })
+    expect(transitionDialog.props('modelValue')).toBe(true)
+    transitionDialog.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    await chooseMore(wrapper, 'v-e', '退註冊')
+    expect(transitionDialog.props('target')).toMatchObject({ card: { id: 'v-e' }, from: 'enrolled', to: 'withdrawn' })
+    expect(prompt).not.toHaveBeenCalled()
+  })
+})
+
+describe('刪除', () => {
+  it('確認框寫出對象與後果、危險色、不預設聚焦、取消鍵「先不要」；帶版本，別人剛改過就提示並重新整理', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const info = vi.spyOn(ElMessage, 'info')
-    const get = mockGet({ '/admin/admissions/records': [visit({ version: 2 })] })
+    const get = mockGet({ '/admin/admissions/records': [visit({ version: 2, visit_request_id: VR_ID, has_visit_request: true })] })
     const remove = mockDelete({
       '/admin/admissions/records/v-1': () => {
         throw new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 3 })
@@ -310,13 +419,32 @@ describe('退出與刪除', () => {
     })
     const { wrapper } = await mountWith(RecordsTab, { props: props() })
     await chooseMore(wrapper, 'v-1', '刪除')
-    expect(String(confirm.mock.calls[0]![0])).toContain('確定刪除此筆記錄？')
+    const [message, title, options] = confirm.mock.calls[0]!
+    expect(title).toBe('刪除 王小安 的招生訪視？')
+    expect(String(message)).toBe('歷程與參觀後的聯絡紀錄會一起刪除，統計也不再算這一筆。刪除後無法復原。官網預約的案件不受影響。')
+    expect(options).toMatchObject({ confirmButtonText: '刪除', cancelButtonText: '先不要', confirmButtonClass: 'el-button--danger', autofocus: false })
     expect(remove).toHaveBeenCalledWith('/admin/admissions/records/v-1?expected_version=2')
     expect(info).toHaveBeenCalledWith('這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作')
     expect(listPaths(get)).toHaveLength(2)
   })
 
-  it('刪除成功提示並重新整理；按取消不送出', async () => {
+  it('已註冊的列講明名額規劃也不算；沒填姓名的寫「這筆」', async () => {
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ id: 'v-e', enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
+        visit({ id: 'v-x', child_name: '（未填姓名）' }),
+      ],
+    })
+    mockDelete()
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    await chooseMore(wrapper, 'v-e', '刪除')
+    expect(String(confirm.mock.calls[0]![0])).toContain('統計與名額規劃也不再算這一筆')
+    await chooseMore(wrapper, 'v-x', '刪除')
+    expect(confirm.mock.calls[1]![1]).toBe('刪除這筆招生訪視？')
+  })
+
+  it('刪除成功提示並重新整理；按先不要不送出', async () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel' as never)
     const success = vi.spyOn(ElMessage, 'success')
     mockGet({ '/admin/admissions/records': [visit()] })
@@ -328,6 +456,70 @@ describe('退出與刪除', () => {
     await chooseMore(wrapper, 'v-1', '刪除')
     expect(remove).toHaveBeenCalledOnce()
     expect(success).toHaveBeenCalledWith('刪除成功')
+  })
+
+  it('刪除收到已匿名化的 409：用可關閉的警告提示並重新整理，不顯示錯誤', async () => {
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const error = vi.spyOn(ElMessage, 'error')
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
+    mockDelete({
+      '/admin/admissions/records/v-1': () => {
+        throw new ApiError(409, { code: 'RECRUITMENT_VISIT_ANONYMIZED' })
+      },
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    await chooseMore(wrapper, 'v-1', '刪除')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆招生訪視已依保存政策匿名化，不能再變更', showClose: true }))
+    expect(error).not.toHaveBeenCalled()
+    expect(listPaths(get)).toHaveLength(2)
+  })
+})
+
+describe('手機（390）：卡片清單', () => {
+  it('不出表格；卡片第一行姓名＋階段，接著班別・入學學期・參觀日期、下次聯絡與負責人；按鈕列有歷程、主要動作、更多', async () => {
+    stubNarrow()
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ follow_up_at: '2020-01-01T02:00:00Z', notes: '外婆接送' }),
+        visit({ id: 'v-e', child_name: '李小樂', enrolled: true, enrolled_on: '2026-09-20', stage: 'enrolled' }),
+        visit({ id: 'v-3', child_name: '張小晴' }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    expect(wrapper.find('.records-table').exists()).toBe(false)
+    const [first, second, third] = wrapper.findAll('.record-card')
+    expect(first!.get('.record-card__top').text()).toContain('王小安')
+    expect(first!.get('.record-card__stage').text()).toBe('已訪視')
+    const meta = first!.findAll('.record-card__meta').map((line) => line.text())
+    expect(meta[0]).toBe('小班・115 上學期・參觀 115.09.08')
+    expect(meta[1]).toMatch(/^下次聯絡 逾 \d+ 天・負責人：未指派$/)
+    expect(first!.find('.records__due').exists()).toBe(true)
+    expect(first!.get('details.record-card__info').text()).toContain('外婆接送')
+    expect(first!.findAll('.record-card__actions button').map((b) => b.text())).toEqual(['歷程', '標記預繳', '更多'])
+    // 已註冊沒有下一步可標記，只有歷程與更多；註冊日期收在其他資料。沒有其他資料就不出「其他資料」。
+    expect(second!.findAll('.record-card__actions button').map((b) => b.text())).toEqual(['歷程', '更多'])
+    expect(second!.get('details').text()).toContain('註冊日期115.09.20')
+    expect(third!.find('details').exists()).toBe(false)
+
+    await first!.findAll('.record-card__actions button')[0]!.trigger('click')
+    expect(wrapper.getComponent(EventsDrawer).props()).toMatchObject({ modelValue: true, visitId: 'v-1' })
+    expect(labelsOf(await moreItems(wrapper, 'v-1'))).toEqual(['編輯', '刪除'])
+  })
+
+  it('篩選只常駐搜尋＋「篩選」鈕；月份、預繳、追蹤也收進去，收起時列成標籤', async () => {
+    stubNarrow()
+    mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ month: '115.09' }) })
+    const toggle = wrapper.get('button.more-filters')
+    expect(toggle.text()).toContain('篩選')
+    expect(toggle.text()).not.toContain('更多篩選')
+    const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
+    expect(fieldLabels('#records-more-filters')).toEqual(['月份', '預繳', '追蹤', '班別', '來源', '介紹者', '未預繳原因', '負責人'])
+    expect(fieldLabels('.records-filters')[0]).toBe('搜尋')
+    expect(wrapper.findAll('.filter-chip').map((chip) => chip.text())).toEqual(['月份：115.09×，拿掉這個條件'])
+    await wrapper.get('.filter-chip').trigger('click')
+    expect(wrapper.emitted('update:month')).toEqual([['']])
   })
 })
 

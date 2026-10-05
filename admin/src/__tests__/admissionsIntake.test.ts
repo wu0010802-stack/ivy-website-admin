@@ -93,14 +93,15 @@ describe('名額規劃（規格第 8 節）', () => {
     expect(hasButton(wrapper, '儲存計畫名額')).toBe(false)
   })
 
-  it('頁首沒選學期或選了不限學年：用目前學年、上學期，並說明', async () => {
+  it('頁首沒選學期或選了不限學年：用目前學年、上學期；不限學年有說明，學期改用面板上的切換', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
     const get = mockGet({ '/admin/admissions/intake-plan': intakePlan() })
     const { wrapper } = await mountWith(IntakePlanTab, { props: planProps({ schoolYear: null, semester: null }) })
     expect(pathsTo(get, '/admin/admissions/intake-plan')).toEqual(['/admin/admissions/intake-plan?campus_key=yihua&school_year=115&semester=1'])
     expect(wrapper.text()).toContain('頁首選了「不限學年」，先顯示 115 學年')
-    expect(wrapper.text()).toContain('頁首沒選入學學期，先顯示上學期')
+    expect(wrapper.text()).not.toContain('頁首沒選入學學期')
+    expect(wrapper.findComponent({ name: 'ElRadioGroup' }).props('modelValue')).toBe(1)
   })
 
   it('讀取失敗顯示錯誤，可以重新載入；儲存失敗顯示後端原因', async () => {
@@ -122,7 +123,7 @@ describe('名額規劃（規格第 8 節）', () => {
     await flushPromises()
     await button(wrapper, '儲存計畫名額')!.trigger('click')
     await flushPromises()
-    expect(error).toHaveBeenCalledWith('計畫名額不能小於 0')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '計畫名額不能小於 0' }))
   })
 
   it('快速切換校區只顯示最後一次的名額', async () => {
@@ -257,7 +258,7 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     await chooseMore(wrapper, 'v-1', '保留座位')
     bodyButton('確認保留')!.click()
     await flushPromises()
-    expect(error).toHaveBeenCalledWith('未預繳的訪視不可保留座位')
+    expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: '未預繳的訪視不可保留座位' }))
     conflict = true
     bodyButton('確認保留')!.click()
     await flushPromises()
@@ -274,9 +275,9 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     }
     mockGet(routes)
     const desk = await mountWith(RecordsTab, { props: recordsProps, user: reception() })
-    // 櫃台沒有 admissions.convert：已註冊、從已註冊退出的列沒有任何可做的動作，不出現「更多」。
-    expect(desk.wrapper.find('[data-more="v-e"]').exists()).toBe(false)
-    expect(desk.wrapper.find('[data-more="v-w"]').exists()).toBe(false)
+    // 櫃台沒有 admissions.convert：已註冊、從已註冊退出的列只剩編輯（10-05 編輯收進「更多」），沒有刪除。
+    expect(await moreLabels(desk.wrapper, 'v-e')).toEqual(['編輯'])
+    expect(await moreLabels(desk.wrapper, 'v-w')).toEqual(['編輯'])
     cleanup()
     mockGet(routes)
     const boss = await mountWith(RecordsTab, { props: recordsProps })
@@ -301,7 +302,7 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     await chooseMore(wrapper, 'v-1', '保留座位')
     bodyButton('確認保留')!.click()
     await flushPromises()
-    expect(warning).toHaveBeenCalledWith('這筆招生訪視已依保存政策匿名化，不能再變更')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆招生訪視已依保存政策匿名化，不能再變更' }))
     expect(info).not.toHaveBeenCalled()
     expect(pathsTo(get, '/admin/admissions/records?')).toHaveLength(2)
   })
@@ -317,8 +318,45 @@ describe('保留座位（規格 6.5，明細「更多」）', () => {
     await chooseMore(wrapper, 'v-1', '保留座位')
     bodyButton('確認保留')!.click()
     await flushPromises()
-    expect(warning).toHaveBeenCalledWith('這筆招生訪視已被刪除，已重新載入')
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆招生訪視已被刪除，已重新載入' }))
     expect(error).not.toHaveBeenCalled()
     expect(pathsTo(get, '/admin/admissions/records?')).toHaveLength(2)
+  })
+})
+
+describe('名額規劃：學期切換與超額說明', () => {
+  const group = (wrapper: VueWrapper) => wrapper.findComponent({ name: 'ElRadioGroup' })
+
+  it('切換學期重讀該學期；頁首學期改變時跟著同步', async () => {
+    const get = mockGet({ '/admin/admissions/intake-plan': intakePlan() })
+    const { wrapper } = await mountWith(IntakePlanTab, { props: planProps({ semester: null }) })
+    group(wrapper).vm.$emit('update:modelValue', 2)
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/intake-plan').at(-1)).toContain('semester=2')
+    expect(wrapper.text()).toContain('下學期的計畫名額')
+    await wrapper.setProps({ semester: 1 })
+    await flushPromises()
+    expect(group(wrapper).props('modelValue')).toBe(1)
+    expect(pathsTo(get, '/admin/admissions/intake-plan').at(-1)).toContain('semester=1')
+  })
+
+  it('有沒儲存的修改時擋下切換並提醒', async () => {
+    const warning = vi.spyOn(ElMessage, 'warning')
+    const get = mockGet({ '/admin/admissions/intake-plan': mixedPlan() })
+    const { wrapper } = await mountWith(IntakePlanTab, { props: planProps() })
+    wrapper.findAllComponents({ name: 'ElInputNumber' })[0]!.vm.$emit('update:modelValue', 7)
+    await flushPromises()
+    const before = pathsTo(get, '/admin/admissions/intake-plan').length
+    group(wrapper).vm.$emit('update:modelValue', 2)
+    await flushPromises()
+    expect(warning).toHaveBeenCalled()
+    expect(pathsTo(get, '/admin/admissions/intake-plan')).toHaveLength(before)
+    expect(group(wrapper).props('modelValue')).toBe(1)
+  })
+
+  it('合計剩餘後面列出超額的年級', async () => {
+    mockGet({ '/admin/admissions/intake-plan': mixedPlan() })
+    const { wrapper } = await mountWith(IntakePlanTab, { props: planProps() })
+    expect(wrapper.get('.intake__totals').text()).toContain('（小班超額 1）')
   })
 })

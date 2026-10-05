@@ -927,16 +927,18 @@ export function formatWeekday(value: string | null | undefined): string {
 // 案件上的「參觀時間」：09/26（週六）10:00–11:00。明細、列表與確認對話框
 // 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有排時段
 // （inquiry 待處理）回破折號。
+// end_time 選填：只有開始時間的來源（例如官網預約清單）只寫開始時間。
 export function formatSlotWhen(
-  slot: { slot_date: string; start_time: string; end_time: string } | null | undefined,
+  slot: { slot_date: string; start_time: string; end_time?: string | null } | null | undefined,
 ): string {
   if (!slot) return '—'
-  return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${formatTime(slot.start_time)}–${formatTime(slot.end_time)}`
+  const range = slot.end_time ? `${formatTime(slot.start_time)}–${formatTime(slot.end_time)}` : formatTime(slot.start_time)
+  return `${formatDate(slot.slot_date)}（${formatWeekday(slot.slot_date)}）${range}`
 }
 
 // 列表欄位用的短寫法：今年的場次省略年份（10/22（週四）09:30–10:30）。明細、確認框
 // 與歷程照用 formatSlotWhen，跨年的案件才看得出是哪一年。
-export function formatShortSlotWhen(slot: { slot_date: string; start_time: string; end_time: string } | null | undefined): string {
+export function formatShortSlotWhen(slot: { slot_date: string; start_time: string; end_time?: string | null } | null | undefined): string {
   const text = formatSlotWhen(slot)
   return text.startsWith(`${thisYear}/`) ? text.slice(thisYear.length + 1) : text
 }

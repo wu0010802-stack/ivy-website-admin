@@ -1,5 +1,6 @@
 // 側欄導覽結構。路由的 meta.title 也從這裡取，兩邊不會漂移。
-// 圖示名稱對應 @element-plus/icons-vue 的匯出名。
+// 圖示名稱對應 @element-plus/icons-vue 的匯出名，只用線條圖示（不要 *Filled、Grid、List、
+// TrendCharts 這類實心的）。Film 取它九宮格外框的樣子，不是影片的意思。
 
 // 角色可見範圍（規格 7 權限表）。後端才是真正的權限檢查，這裡只是不讓人
 // 點進一定會被拒絕的頁面。
@@ -56,7 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'overview',
     label: '總覽',
-    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'HomeFilled', roles: VISITS, keywords: ['總覽', '待辦', '今日參觀', '摘要'] }],
+    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'House', roles: VISITS, keywords: ['總覽', '待辦', '今日參觀', '摘要'] }],
   },
   {
     key: 'visits',
@@ -64,7 +65,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', badge: 'open-requests', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
       { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
-      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'TrendCharts', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
+      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
@@ -84,7 +85,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', roles: ['super_admin'], shared: true, keywords: ['橫幅', '主視覺', '大標'] },
       { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'], shared: true, keywords: ['理念', '介紹'] },
-      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Grid', roles: ['super_admin'], shared: true, keywords: ['五校', '校區卡片'] },
+      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Film', roles: ['super_admin'], shared: true, keywords: ['五校', '校區卡片'] },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'], shared: true, keywords: ['作息', '拍立得'] },
       { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'], shared: true, keywords: ['消息', '活動', '公告'] },
     ],
@@ -123,7 +124,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '系統',
     items: [
       { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽'] },
-      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'List', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
+      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'Memo', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
       // 2026-09-29 由「全站設定」改名（內容主要是個資保存，另列官網搜尋與分享的設定）；
       // 舊名留在關鍵字，習慣搜「全站設定」的人還找得到。

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Search } from '@element-plus/icons-vue'
 import { getBoard, getOptions } from '../../api/admissions'
 import type { AdmissionsOptions, FunnelBoard as BoardData, FunnelCard as BoardCard } from '../../api/types'
 import { currentTerm } from '../../admissions/academic'
@@ -10,6 +9,7 @@ import {
   type Stage, type TransitionTarget,
 } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
+import { notifyWarning } from '../../composables/notify'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import FunnelCard from './FunnelCard.vue'
@@ -21,12 +21,14 @@ import EventsDrawer from './EventsDrawer.vue'
 // 學年必填（API 需要），頁首選「不限學年」時用目前學年並說明（本檔調整第 18 條）；學期不選＝整學年。
 // 換欄一律先跳確認框（園務 needsDialog 等於所有合法轉換），所以不做樂觀移動：
 // 409 時重讀看板，卡片就停在伺服器的欄（Review Focus 3）。
-const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: Semester | null }>()
-const emit = defineEmits<{ 'show-unscoped': [] }>()
+// pendingArrivals：官網預約等確認到場的筆數（頁面讀好傳進來），看板全空時導去確認到場。
+const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: Semester | null; pendingArrivals?: number | null }>()
+const emit = defineEmits<{ 'show-unscoped': []; 'open-arrivals': [] }>()
 
 const { can } = usePermissions()
 const canWrite = computed(() => can('admissions.write'))
-const defaultYear = currentTerm().schoolYear
+const term = currentTerm()
+const defaultYear = term.schoolYear
 const boardYear = computed(() => props.schoolYear ?? defaultYear)
 
 const board = ref<BoardData | null>(null)
@@ -61,15 +63,46 @@ function cardsOf(stage: Stage): BoardCard[] {
 }
 const count = (stage: Stage) => cardsOf(stage).length
 
-// 摘要列三個比率：園務用「各欄目前張數」相除（不是累積漏斗）；分母 0 顯示「—」，不顯示 0（本檔調整第 20 條）。
-function rate(numerator: number, denominator: number): string {
-  return denominator ? `${((numerator / denominator) * 100).toFixed(1)}%` : '—'
+// 找幼生姓名：只在前端過濾已讀到的卡片（trim、不分大小寫）。比率一律用沒過濾的張數。
+const query = ref('')
+const keyword = computed(() => query.value.trim())
+const filtering = computed(() => keyword.value !== '')
+function visibleCards(stage: Stage): BoardCard[] {
+  if (!filtering.value) return cardsOf(stage)
+  const needle = keyword.value.toLowerCase()
+  return cardsOf(stage).filter((card) => card.child_name.toLowerCase().includes(needle))
+}
+// 過濾中寫「符合數/總數」，欄位疊起來時的張數列也一樣。
+const countText = (stage: Stage) => (filtering.value ? `${visibleCards(stage).length}/${count(stage)}` : String(count(stage)))
+const columnLabel = (stage: Stage) =>
+  filtering.value
+    ? `${STAGE_LABELS[stage]}，符合「${keyword.value}」的 ${visibleCards(stage).length} 張，共 ${count(stage)} 張`
+    : `${STAGE_LABELS[stage]}，${count(stage)} 張`
+const searchStatus = computed(() =>
+  filtering.value && board.value ? `符合「${keyword.value}」的卡片共 ${STAGES.reduce((sum, stage) => sum + visibleCards(stage).length, 0)} 張` : '',
+)
+
+// 三個比率：園務用「各欄目前張數」相除（不是累積漏斗）；名稱在前、附分子分母，分母 0 寫「—」不寫 0（本檔調整第 20 條）。
+function rate(label: string, numerator: number, denominator: number, title: string) {
+  if (!denominator) return { label, value: '—', fraction: '', title }
+  return { label, value: `${((numerator / denominator) * 100).toFixed(1)}%`, fraction: `（${numerator}/${denominator}）`, title }
 }
 const summaryRates = computed(() => [
-  { label: '預繳率', value: rate(count('deposited'), count('visited')), title: '已預繳 ÷ 已訪視（各欄目前張數）' },
-  { label: '註冊率', value: rate(count('enrolled'), count('deposited')), title: '已註冊 ÷ 已預繳（各欄目前張數）' },
-  { label: '退費率', value: rate(count('withdrawn'), count('enrolled')), title: '退預繳／退註冊 ÷ 已註冊（各欄目前張數，同園務）' },
+  rate('預繳率', count('deposited'), count('visited'), '已預繳 ÷ 已訪視（各欄目前張數）'),
+  rate('註冊率', count('enrolled'), count('deposited'), '已註冊 ÷ 已預繳（各欄目前張數）'),
+  rate('退費率', count('withdrawn'), count('enrolled'), '退預繳／退註冊 ÷ 已註冊（各欄目前張數，同園務）'),
 ])
+
+// 看板全空、官網預約還有人等確認到場：多半是還沒確認，不是沒有人來參觀。確認到場建立的訪視
+// 入學學期是當天的學期（booking_link.fields_from_visit_request），只在看板涵蓋目前學期時提示。
+const showArrivalsHint = computed(
+  () =>
+    Boolean(board.value) &&
+    (props.pendingArrivals ?? 0) > 0 &&
+    STAGES.every((stage) => count(stage) === 0) &&
+    boardYear.value === term.schoolYear &&
+    (props.semester === null || props.semester === term.semester),
+)
 
 function stageStyle(stage: Stage): Record<string, string> {
   return { '--stage-color': `var(${STAGE_TOKENS[stage]})` }
@@ -111,11 +144,11 @@ function requestMove(card: BoardCard, from: Stage, to: Stage) {
   if (from === to) return
   const capability = transitionCapability(from, to)
   if (!capability) {
-    ElMessage.warning(transitionBlockedText(from, to))
+    notifyWarning(transitionBlockedText(from, to))
     return
   }
   if (!can(capability)) {
-    ElMessage.warning('無權限執行此操作')
+    notifyWarning('無權限執行此操作')
     return
   }
   transitionTarget.value = { card, from, to }
@@ -154,12 +187,37 @@ function openEvents(card: BoardCard) {
 
 <template>
   <section class="funnel">
+    <!-- 一列：左邊比率（名稱在前、附分子分母）與說明，右邊找姓名、重新整理、新增訪視。窄螢幕自然換行。 -->
     <div class="toolbar funnel__toolbar">
-      <p v-if="schoolYear === null" class="hint funnel__note">看板一次看一個學年：頁首選了「不限學年」，這裡先顯示 {{ defaultYear }} 學年。</p>
-      <span class="toolbar__spacer" />
-      <el-button :loading="loading" @click="load({ keep: true })">重新整理</el-button>
-      <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openAdd">新增訪視</el-button>
+      <div class="funnel__overview">
+        <template v-if="board">
+          <p class="funnel__rates">
+            <span v-for="item in summaryRates" :key="item.label" class="funnel__rate" :title="item.title">
+              {{ item.label }} <strong class="num">{{ item.value }}</strong><span v-if="item.fraction" class="num">{{ item.fraction }}</span>
+            </span>
+          </p>
+          <p class="hint funnel__note">依各欄目前張數相除，和「統計分析」的轉換率算法不同。</p>
+        </template>
+        <p v-if="schoolYear === null" class="hint funnel__note">看板一次看一個學年：頁首選了「不限學年」，這裡先顯示 {{ defaultYear }} 學年。</p>
+      </div>
+      <div class="funnel__actions">
+        <el-input v-model="query" class="funnel__search" clearable placeholder="找幼生姓名" aria-label="找幼生姓名" :prefix-icon="Search" />
+        <el-button :loading="loading" @click="load({ keep: true })">重新整理</el-button>
+        <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openAdd">新增訪視</el-button>
+      </div>
+      <p class="visually-hidden" aria-live="polite">{{ searchStatus }}</p>
     </div>
+
+    <el-alert
+      v-if="showArrivalsHint"
+      type="info"
+      :closable="false"
+      show-icon
+      class="funnel__notice"
+      :title="`官網預約有 ${pendingArrivals} 位家長等你確認到場，確認後會自動出現在「已訪視」。`"
+    >
+      <el-button link type="primary" @click="emit('open-arrivals')">去確認到場</el-button>
+    </el-alert>
 
     <!-- 園務 FunnelBoard.vue:36-47：沒有入學學期的訪視不在任何看板，空看板不能謊稱「還沒有訪視紀錄」。 -->
     <el-alert
@@ -179,19 +237,14 @@ function openEvents(card: BoardCard) {
     <el-skeleton v-else-if="!board" :rows="6" animated />
 
     <template v-else>
-      <div class="funnel__summary">
-        <!-- 各欄張數桌機已寫在欄標題，不再另排一列數字卡（2026-10-05 第九輪）；欄位疊起來的窄螢幕
-             看不到每一欄的標題，才在這裡留一行精簡的張數。 -->
-        <dl class="funnel__stats">
-          <div v-for="stage in STAGES" :key="stage" class="funnel__stat" :style="stageStyle(stage)">
-            <dt><span class="funnel__dot" aria-hidden="true" />{{ STAGE_LABELS[stage] }}</dt>
-            <dd class="num">{{ count(stage) }}</dd>
-          </div>
-        </dl>
-        <p class="funnel__rates">
-          <span v-for="item in summaryRates" :key="item.label" :title="item.title"><strong class="num">{{ item.value }}</strong> {{ item.label }}</span>
-        </p>
-      </div>
+      <!-- 各欄張數桌機已寫在欄標題，不再另排一列數字卡（2026-10-05 第九輪）；欄位疊起來的窄螢幕
+           看不到每一欄的標題，才在這裡留一行精簡的張數。 -->
+      <dl class="funnel__stats">
+        <div v-for="stage in STAGES" :key="stage" class="funnel__stat" :style="stageStyle(stage)">
+          <dt><span class="funnel__dot" aria-hidden="true" />{{ STAGE_LABELS[stage] }}</dt>
+          <dd class="num">{{ countText(stage) }}</dd>
+        </div>
+      </dl>
 
       <div class="funnel__columns" :aria-busy="loading">
         <section
@@ -201,7 +254,7 @@ function openEvents(card: BoardCard) {
           :class="{ 'is-drop-target': dropTarget === stage }"
           :data-stage="stage"
           :style="stageStyle(stage)"
-          :aria-label="`${STAGE_LABELS[stage]}，${count(stage)} 張`"
+          :aria-label="columnLabel(stage)"
           @dragover="onDragOver(stage, $event)"
           @dragleave="onDragLeave(stage)"
           @drop.prevent="onDrop(stage)"
@@ -209,12 +262,14 @@ function openEvents(card: BoardCard) {
           <header class="funnel__column-head">
             <span class="funnel__dot" aria-hidden="true" />
             <h3>{{ STAGE_LABELS[stage] }}</h3>
-            <span class="funnel__count num">{{ count(stage) }}</span>
+            <span class="funnel__count num">{{ countText(stage) }}</span>
           </header>
-          <p v-if="!count(stage)" class="hint funnel__empty">{{ STAGE_EMPTY_TEXT[stage] }}</p>
+          <!-- 找姓名時沒有符合的欄不寫園務的空狀態，免得像是這一欄本來就空。 -->
+          <p v-if="filtering && !visibleCards(stage).length" class="hint funnel__empty">沒有符合「{{ keyword }}」的卡片</p>
+          <p v-else-if="!count(stage)" class="hint funnel__empty">{{ STAGE_EMPTY_TEXT[stage] }}</p>
           <div v-else class="funnel__cards">
             <FunnelCard
-              v-for="card in cardsOf(stage)"
+              v-for="card in visibleCards(stage)"
               :key="card.id"
               :card="card"
               :stage="stage"
@@ -239,23 +294,37 @@ function openEvents(card: BoardCard) {
 
 <style scoped>
 .funnel__toolbar {
-  justify-content: flex-end;
+  align-items: flex-start;
+}
+
+.funnel__overview {
+  display: grid;
+  flex: 1 1 320px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .funnel__note {
   margin: 0;
 }
 
-.funnel__notice {
-  margin-bottom: 16px;
-}
-
-.funnel__summary {
+.funnel__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px 24px;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.funnel__actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.funnel__search {
+  width: 200px;
+}
+
+.funnel__notice {
   margin-bottom: 16px;
 }
 
@@ -263,7 +332,7 @@ function openEvents(card: BoardCard) {
   display: none;
   flex-wrap: wrap;
   gap: 4px 16px;
-  margin: 0;
+  margin: 0 0 16px;
 }
 
 .funnel__stat {
@@ -290,7 +359,7 @@ function openEvents(card: BoardCard) {
 .funnel__rates {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
+  gap: 4px 20px;
   margin: 0;
   color: var(--ink-2);
 }
@@ -375,6 +444,15 @@ function openEvents(card: BoardCard) {
 }
 
 @media (max-width: 720px) {
+  .funnel__actions {
+    width: 100%;
+  }
+
+  .funnel__search {
+    flex: 1 1 140px;
+    width: auto;
+  }
+
   .funnel__columns {
     grid-template-columns: minmax(0, 1fr);
   }

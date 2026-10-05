@@ -79,8 +79,8 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     for (const family of FAMILIES) {
       await page.locator('.arrivals-table tr', { hasText: family.parent }).locator('.el-checkbox').click()
     }
-    await page.getByRole('button', { name: '勾選的 2 筆標記已到場' }).click()
-    await answerMessageBox(page, '標記 2 筆已到場？', '標記已到場')
+    await page.getByRole('button', { name: '2 位標記已到場' }).click()
+    await answerMessageBox(page, '2 位標記已到場？', '標記已到場')
     for (const family of FAMILIES) await expect(page.locator('.arrivals-table tr', { hasText: family.parent })).toHaveCount(0)
   })
   for (const family of FAMILIES) expect((await findVisit(api, family.parent)).status).toBe('completed')

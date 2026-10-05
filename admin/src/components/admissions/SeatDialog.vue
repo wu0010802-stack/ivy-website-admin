@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError, notifyWarning } from '../../composables/notify'
 import { setSeat } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
@@ -38,7 +39,7 @@ watch(open, (value) => {
 function handleError(err: unknown, fallback: string) {
   // 已依保存政策匿名化的訪視也是 409，原因不同，另外說明（R4）；排在版本衝突前面。
   if (apiErrorCode(err) === 'RECRUITMENT_VISIT_ANONYMIZED') {
-    ElMessage.warning(ANONYMIZED_CONFLICT_TEXT)
+    notifyWarning(ANONYMIZED_CONFLICT_TEXT)
     open.value = false
     emit('stale')
     return
@@ -51,13 +52,13 @@ function handleError(err: unknown, fallback: string) {
   }
   // 別人剛把這筆刪掉：不顯示錯誤，關閉並請父層重讀。
   if (err instanceof ApiError && err.status === 404) {
-    ElMessage.warning('這筆招生訪視已被刪除，已重新載入')
+    notifyWarning('這筆招生訪視已被刪除，已重新載入')
     open.value = false
     emit('stale')
     return
   }
   // 後端的拒絕原因（例如「未預繳的訪視不可保留座位」）直接顯示。
-  ElMessage.error(apiErrorMessage(err, fallback))
+  notifyError(apiErrorMessage(err, fallback))
 }
 
 async function reserve() {

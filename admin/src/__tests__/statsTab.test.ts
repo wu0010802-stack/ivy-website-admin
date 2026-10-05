@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import { ElSelect } from 'element-plus'
 import StatsTab from '../components/admissions/StatsTab.vue'
@@ -140,7 +140,7 @@ describe('統計分頁：總覽', () => {
     const overview = wrapper.get('#pane-stats-overview')
     expect(overview.get('.decision h3').text()).toBe('主管決策摘要')
     expect(overview.get('.decision .hint').text()).toBe('參考月份：115.09')
-    expect(overview.get('.decision__badge').text()).toBe('▼ 月比預繳率 -80.0pt')
+    expect(overview.get('.decision__badge').text()).toBe('▼ 月比預繳率 -80.0 個百分點')
     expect(overview.findAll('.decision__card h4').map((n) => n.text())).toEqual(['本月', '近 30 天', '近 90 天', '年度累計'])
     expect(overview.findAll('.decision__visit').map((n) => n.text())).toEqual(['5 人次', '6 人次', '7 人次', '8 人次'])
     expect(overview.findAll('.decision__card')[2]!.text()).toContain('預繳率42.9%')
@@ -189,7 +189,7 @@ describe('統計分頁：總覽', () => {
     const [noValue, withValue] = wrapper.findAll('.mom__list dd').map((n) => n.text())
     expect(noValue).not.toContain('–')
     expect(noValue).toContain('—')
-    expect(withValue).toBe('▼ -33.3pt')
+    expect(withValue).toBe('▼ -33.3 個百分點')
   })
 
   it('本月漏斗快照的轉換率與「本月」卡同一個值（讀後端，不自己五入）', async () => {
@@ -329,7 +329,7 @@ describe('統計分頁：狀態', () => {
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/stats')).toHaveLength(2)
     expect(wrapper.find('.el-alert').exists()).toBe(false)
-    expect(wrapper.get('.decision__badge').text()).toBe('▼ 月比預繳率 -80.0pt')
+    expect(wrapper.get('.decision__badge').text()).toBe('▼ 月比預繳率 -80.0 個百分點')
   })
 
   it('快速切換校區只顯示最後一次（明華先回、義華晚回也不會蓋掉）', async () => {
@@ -346,6 +346,19 @@ describe('統計分頁：狀態', () => {
     await flushPromises()
 
     expect(wrapper.get('.decision .hint').text()).toBe('參考月份：115.08')
+  })
+
+  it('參考月份選單在總覽裡（只影響總覽）；總覽有口徑說明；參考月份是目前這個月時「本月」卡標「進行中」', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-20T09:00:00+08:00'))
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const overview = wrapper.get('#pane-stats-overview')
+    expect(overview.find('[aria-label="參考月份"]').exists()).toBe(true)
+    expect(wrapper.get('.stats-toolbar').find('[aria-label="參考月份"]').exists()).toBe(false)
+    expect(overview.get('.decision__basis').text()).toContain('本月依參觀月份；近 30／90 天依建檔時間')
+    expect(overview.findAll('.decision__card h4')[0]!.text()).toContain('進行中')
+    expect(overview.findAll('.decision__card h4')[1]!.text()).not.toContain('進行中')
   })
 
   it('參考月份：選項是有資料的月份（新到舊），選了就帶 reference_month；換校區回到最新月份', async () => {
@@ -384,7 +397,7 @@ describe('統計分頁：未預繳明細（C3b）', () => {
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
 
     const pane = await openSubTab(wrapper, '未預繳原因')
-    expect(wrapper.findComponent(NoDepositList).props()).toEqual({ campusKey: 'yihua', schoolYear: 115, semester: 1, preset: null })
+    expect(wrapper.findComponent(NoDepositList).props()).toEqual({ campusKey: 'yihua', schoolYear: 115, semester: 1, preset: null, overallTotal: 3 })
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(1)
     expect(pane.text()).toContain('林小安')
     expect(pane.text()).not.toContain('名單請到「訪視明細」')

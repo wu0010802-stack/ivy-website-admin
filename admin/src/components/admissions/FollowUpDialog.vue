@@ -70,7 +70,7 @@ async function submit() {
   try {
     const visit = await updateFollowUp(target.id, body)
     if (followUpChanged.value) {
-      ElMessage.success(visit.follow_up_at ? `已排下次聯絡 ${followUpText(visit.follow_up_at)}` : '已清除下次聯絡，不再列入待追蹤')
+      ElMessage.success(visit.follow_up_at ? `已排下次聯絡 ${followUpText(visit.follow_up_at)}` : '已改成不用再追，不再列入待追蹤')
     } else {
       ElMessage.success('已換追蹤負責人')
     }
@@ -112,10 +112,10 @@ async function submit() {
           v-model="nextChoice"
           v-model:custom="nextCustom"
           :closed="closed"
-          :none-label="target?.follow_up_at ? '清除（不用再追）' : '不排'"
+          :none-label="target?.follow_up_at ? '不用再追' : '不排'"
         />
         <p class="field-help follow-up__current">
-          {{ target?.follow_up_at ? `不選＝維持目前的 ${followUpText(target.follow_up_at)}` : '目前沒有排下次聯絡' }}
+          {{ target?.follow_up_at ? `沒選就維持原本的時間（${followUpText(target.follow_up_at)}）` : '目前沒有排下次聯絡' }}
         </p>
       </el-form-item>
       <el-form-item label="追蹤負責人">

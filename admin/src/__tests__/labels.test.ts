@@ -37,6 +37,8 @@ describe('labels', () => {
     expect(formatSlotWhen({ slot_date: '2026-09-26', start_time: '10:00:00', end_time: '11:00:00' })).toBe(
       '2026/09/26（週六）10:00–11:00',
     )
+    // 沒有結束時間（官網預約清單）只寫開始時間。
+    expect(formatSlotWhen({ slot_date: '2026-09-26', start_time: '10:00:00' })).toBe('2026/09/26（週六）10:00')
     expect(formatSlotWhen(null)).toBe('—')
     expect(formatSlotWhen(undefined)).toBe('—')
   })
