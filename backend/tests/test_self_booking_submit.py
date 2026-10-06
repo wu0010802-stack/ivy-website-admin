@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import text
 
-from app.booking import service
 from app.booking.models import BookingMode
 from app.booking import workflow_service
 from tests.conftest import book_slot, create_slot, set_booking_mode
@@ -64,24 +64,17 @@ async def test_submission_needs_a_slot_and_an_email(admin_client, public_client)
 
 
 @pytest.mark.asyncio
-async def test_inquiry_mode_can_no_longer_be_selected(admin_client):
+async def test_inquiry_mode_no_longer_exists(admin_client, public_client, db_session):
+    # 2026-10-06 拿掉 inquiry（c4e8a2f61b97）：API 不認得這個值，資料庫型別也沒有。
     response = await set_booking_mode(admin_client, "yihua", mode="inquiry")
-
-    assert response.status_code == 400
-    assert response.json()["detail"]["code"] == "BOOKING_MODE_RETIRED"
-
-
-@pytest.mark.asyncio
-async def test_leftover_inquiry_config_is_shown_as_paused(admin_client, public_client, db_session):
-    config = await service.get_or_create_config(db_session, "yihua")
-    config.mode = BookingMode.INQUIRY
-    config.message = None
-    await db_session.commit()
+    assert response.status_code == 422
+    assert "inquiry" not in {mode.value for mode in BookingMode}
+    labels = (
+        await db_session.execute(text("SELECT unnest(enum_range(NULL::booking_mode))::text"))
+    ).scalars().all()
+    assert labels == ["SLOTS", "LINE", "PHONE", "EXTERNAL", "PAUSED"]
 
     public = (await public_client.get(f"{API}/public/booking-config/yihua")).json()
-
-    assert public["mode"] == "paused"
-    assert public["message"] == "線上預約即將開放，歡迎來電洽詢。"
     assert "slots_auto_confirm" not in public
 
 

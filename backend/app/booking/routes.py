@@ -137,14 +137,6 @@ async def update_booking_config(
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
     await _campus_or_404(db, campus_key)
-    if payload.mode == BookingMode.INQUIRY:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "code": "BOOKING_MODE_RETIRED",
-                "message": "「填表後由園方聯絡」已停用，請改用自選場次，或暫停線上預約",
-            },
-        )
     config = await service.get_or_create_config(db, campus_key, for_update=True)
     before = service.config_snapshot(config)
 
@@ -261,12 +253,6 @@ async def get_public_booking_config(
     if privacy is not None:
         out = out.model_copy(update={
             "privacy_notice": PrivacyNoticeOut.model_validate({"title": privacy.title, "sections": privacy.sections}),
-        })
-    # 上線前的舊設定：填表待聯絡已退場，官網一律當成暫停。
-    if out.mode == BookingMode.INQUIRY:
-        out = out.model_copy(update={
-            "mode": BookingMode.PAUSED,
-            "message": out.message or "線上預約即將開放，歡迎來電洽詢。",
         })
     if not campus.active:
         # 規格 3.2：停用分校同時停止公開預約。對官網講「暫停」而不是 404，

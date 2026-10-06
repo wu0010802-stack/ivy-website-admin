@@ -326,11 +326,12 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 export const BOOKING_MODE_LABELS: Record<string, string> = {
   slots: '自選場次（家長線上預約）',
-  inquiry: '線上表單（已停用）',
   line: 'LINE 官方帳號',
   phone: '電話洽詢',
   external: '外部預約網站',
   paused: '暫停預約',
+  // 2026-10-06 拿掉的預約方式，只剩操作紀錄的修改前後值會出現。
+  inquiry: '線上表單（已停用）',
 }
 
 // 與後端 notifications/service.py 的 _KIND_LABELS 同一組（labels.test.ts 會比對）。
@@ -934,8 +935,8 @@ export function formatWeekday(value: string | null | undefined): string {
 }
 
 // 案件上的「參觀時間」：09/26（週六）10:00–11:00。明細、列表與確認對話框
-// 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有排時段
-// （inquiry 待處理）回破折號。
+// 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有場次
+// （舊流程沒排時段就取消的案件）回破折號。
 // end_time 選填：只有開始時間的來源只寫開始時間。
 export function formatSlotWhen(
   slot: { slot_date: string; start_time: string; end_time?: string | null } | null | undefined,

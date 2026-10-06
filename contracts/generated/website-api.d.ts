@@ -3255,9 +3255,10 @@ export interface components {
         };
         /**
          * BookingMode
+         * @description 2026-10-06 拿掉 inquiry（填表後由園方聯絡），資料庫型別同步移除（c4e8a2f61b97）。
          * @enum {string}
          */
-        BookingMode: "inquiry" | "slots" | "line" | "phone" | "external" | "paused";
+        BookingMode: "slots" | "line" | "phone" | "external" | "paused";
         /** BookingOutcomesOut */
         BookingOutcomesOut: {
             /**

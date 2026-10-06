@@ -11,8 +11,8 @@ from app.db import Base
 
 
 class BookingMode(str, enum.Enum):
-    # 已停用：後台設不進去（BOOKING_MODE_RETIRED），官網把殘留的設定當成暫停。
-    INQUIRY = "inquiry"
+    """2026-10-06 拿掉 inquiry（填表後由園方聯絡），資料庫型別同步移除（c4e8a2f61b97）。"""
+
     SLOTS = "slots"
     LINE = "line"
     PHONE = "phone"

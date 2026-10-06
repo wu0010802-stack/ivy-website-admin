@@ -65,9 +65,11 @@ def test_paper_fields_migration_follows_legacy_pending_cleanup_and_keeps_data_on
     # 加狀態約束），仍只有一個 head。
     assert script.get_revision("d65fa082ff87").down_revision == "3fe1cfb2dbf7"
     assert script.get_revision("e870893fac95").down_revision == "d65fa082ff87"
-    # 再接 a3c7e9d1f5b2（操作紀錄加 IP 與 User-Agent），仍只有一個 head。
+    # 再接 a3c7e9d1f5b2（操作紀錄加 IP 與 User-Agent）與 c4e8a2f61b97（預約方式拿掉 inquiry），
+    # 仍只有一個 head。
     assert script.get_revision("a3c7e9d1f5b2").down_revision == "e870893fac95"
-    assert script.get_heads() == ["a3c7e9d1f5b2"]
+    assert script.get_revision("c4e8a2f61b97").down_revision == "a3c7e9d1f5b2"
+    assert script.get_heads() == ["c4e8a2f61b97"]
     upgrade = PAPER_FIELDS_MIGRATION.read_text(encoding="utf-8").split("def downgrade", 1)[0]
     # 升級只加可空欄位、放寬 CHECK，不改既有資料（deploy/CICD.md）；降級才把 revisit 改回 in_person。
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade

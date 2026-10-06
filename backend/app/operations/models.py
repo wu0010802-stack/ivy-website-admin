@@ -140,7 +140,7 @@ class WebVitalSample(Base):
 
 class AuditLogEntry(Base):
     """管理操作稽核；`metadata_json` 只放不含家長個資的摘要（例如「mode 從
-    inquiry 改成 paused」）。分校公開設定（預約方式、學校電話、連結）可以記
+    slots 改成 paused」）。分校公開設定（預約方式、學校電話、連結）可以記
     修改前後的完整值。"""
 
     __tablename__ = "audit_log_entries"

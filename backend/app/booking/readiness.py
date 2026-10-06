@@ -99,7 +99,6 @@ async def data_blockers(
     if not await _slots_available(db, campus_key, config, current):
         slots.append(NO_SLOTS_OR_RULES)
     return {
-        BookingMode.INQUIRY: [],
         BookingMode.SLOTS: slots,
         BookingMode.LINE: [],
         BookingMode.PHONE: [],

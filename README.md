@@ -1,3 +1,16 @@
+## 2026-10-06 預約方式拿掉 inquiry（`feature/no-inquiry-20261006`）
+
+接「拿掉舊狀態程式」：使用者問 inquiry 是什麼，聽完說明後裁定拿掉。規則見 DESIGN.md「拿掉舊狀態程式」。
+
+- **後端**：刪 `BookingMode.INQUIRY`、`PATCH /admin/booking-config` 的 `BOOKING_MODE_RETIRED`（送 inquiry 改由 schema 回 422）、公開預約設定「inquiry 改顯示暫停」、readiness 的 inquiry 鍵；`contracts/` 重新產生（`BookingMode` 少一個值）。
+- **migration `c4e8a2f61b97`**（down `a3c7e9d1f5b2`：同日另一個 session 的操作紀錄 IP 與裝置先進 main，改接在它後面）：殘留的 INQUIRY 列切成 PAUSED（沒有暫停說明時補「線上預約即將開放，歡迎來電洽詢。」、version 加一），再改名舊型別、建新 `booking_mode`、欄位轉過去、刪舊型別。downgrade 把 INQUIRY 加回原位置，切掉的列不還原。正式站五校 10-01 起都不是 inquiry。
+- **後台**：「線上表單（已停用）」標籤保留給操作紀錄；測試改用其他預約方式。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1581 passed、1 skipped（9 分 20 秒，獨立測試庫 `ivy_website_test_noinquiry`，跑完已刪）；`test_inquiry_mode_no_longer_exists`（PATCH 422、資料庫型別只剩五個值）；本機測試庫 downgrade／upgrade 各一次，降級後塞一筆 INQUIRY 再升級會變成 PAUSED、補暫停說明、version 加一。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 105 檔 1327 項全過。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_noinquiry1006_e2e_test`、埠 8794／3794，跑完已刪庫）：整套 75 項全過。
+
 ## 2026-10-06 操作紀錄多記 IP 與裝置（`feature/audit-ip-device-20261006`）
 
 使用者：「操作紀錄可以多更多資訊嗎，像是 IP、裝置」。裁定（見 DESIGN.md「操作紀錄記 IP 與裝置」）：裝置看得到操作紀錄的人都看得到，IP 只給總部；跟著紀錄永久保存。

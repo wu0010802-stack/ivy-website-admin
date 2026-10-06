@@ -60,7 +60,7 @@ function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadine
     campus_key: 'yihua',
     current_mode: 'paused',
     blockers: {
-      inquiry: [], slots: [{ code: 'NO_SLOTS_OR_RULES', message: '目前沒有官網可預約的場次，也沒有每週開放規則' }],
+      slots: [{ code: 'NO_SLOTS_OR_RULES', message: '目前沒有官網可預約的場次，也沒有每週開放規則' }],
       line: [], phone: [], external: [], paused: [],
     },
     impact,
@@ -98,13 +98,12 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(fieldReasons('line', blank)).toEqual(['請填寫 LINE 官方帳號連結'])
     expect(fieldReasons('paused', { ...blank, message: '  ' })[0]).toContain('暫停說明')
     expect(fieldReasons('paused', { ...blank, message: '暑假暫停' })).toEqual([])
-    expect(fieldReasons('inquiry', blank)).toEqual([])
     const ready = readiness()
-    expect(modeReasons('slots', blank, 'inquiry', ready).map((r) => r.code)).toEqual(['NO_SLOTS_OR_RULES'])
+    expect(modeReasons('slots', blank, 'paused', ready).map((r) => r.code)).toEqual(['NO_SLOTS_OR_RULES'])
     // 已經在用 slots 的校區改其他設定不被擋（和後端一致）。
     expect(modeReasons('slots', blank, 'slots', ready)).toEqual([])
     // 讀不到 readiness 時只剩欄位類條件，存檔時後端仍會擋。
-    expect(modeReasons('slots', blank, 'inquiry', null)).toEqual([])
+    expect(modeReasons('slots', blank, 'paused', null)).toEqual([])
   })
 
   it('影響範圍列出進行中的案件與場次', () => {
