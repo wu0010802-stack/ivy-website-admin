@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 後台 bug 稽核修正（main CI 部署）
+
+- **合併**：`fix/admin-bug-audit-20261006`（`a781413e` 修正、`20933258` media.spec 時序）合進 main 兩次（舊狀態程式第二版 `5fb9edbb`、其部署紀錄 `a11e840b`；衝突在 README、`VisitDetailView.vue`、`workflow_service.py`），使用者推 main `a11e840b..1c9d3e19`。內容與驗證見 README 頂部同日段落、DESIGN.md「後台 bug 稽核修正」。
+- **migration**：沒有新的；正式庫已在 `e870893fac95`，不用備份。
+- **推前本機**（合併 main 後）：後端整套 pytest 1582 passed、1 skipped；admin vitest 105 檔 1327 項、`vue-tsc -b`；官網 829 項與 typecheck；`contract:check`；stack e2e 74 過＋`media.spec` 修正後單獨重跑通過。
+- **CI**：main run 37423023653（`1c9d3e19`）全綠，建立到完成 11 分 30 秒：Frontend admin 4.1／web 1.0 分鐘，Backend 三組 5.3／6.7／7.0 分鐘，E2E／Playwright 6.0 分鐘，Deploy 4.3 分鐘。
+- **正式 `release.json`**：base commit `1c9d3e19`，created `2026-10-06T06:26:14Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；後台 lazy chunk 有新文案（`UsersView` 的「確認是你本人」、內容編輯的「這一版已被退回，請修改後重新儲存。」）。
+- **未做**：沒登入正式後台實際操作（帳號頁重新驗證、招生鎖學期、加開重複場次）。
+
 ## 2026-10-06 拿掉參觀預約的舊狀態程式，第二版（main CI 部署）
 
 - **合併**：`feature/visit-legacy-drop-20261006` 的 `5fb9edbb` 疊在第一版 `0c534043` 上（main 期間沒有其他提交），使用者推 main `0c534043..5fb9edbb`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉舊狀態程式」。

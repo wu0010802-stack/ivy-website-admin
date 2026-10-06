@@ -12,7 +12,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_auditip_e2e_test`、埠 8793／3793，跑完已刪庫）：新增 `audit-client-info.spec.ts`（iPhone LINE UA＋`X-Forwarded-For` 經官網代理登入，桌機與手機版都顯示「iPhone・LINE・203.0.113.50」）與 `roles.spec.ts` 全過；整套 stack 沒跑。桌機 1440、手機 390 截圖目視確認。
   - 未驗證：正式站 Railway edge 實際帶進來的 IP（要部署後登入看一筆）。
 
-## 2026-10-06 後台 bug 稽核修正（`fix/admin-bug-audit-20261006`）
+## 2026-10-06 後台 bug 稽核修正（`fix/admin-bug-audit-20261006`，10-06 已部署 main `1c9d3e19`）
 
 使用者要求「看看後台有沒有 bugs」，對 origin/main `d70bce03` 的 `admin/`、`backend/` 分六塊審查、逐條讀碼或用測試確認，裁定全部修正。沒有高嚴重度（名額超賣、重複建案、越權讀他校、登入繞過都沒找到）。規則見 DESIGN.md「後台 bug 稽核修正」。舊預約流程（new／contacting／pending_confirmation）的問題不在內，同日另一個 session 在刪那些程式。
 
