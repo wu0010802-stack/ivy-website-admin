@@ -19,7 +19,7 @@
 - **後端**（`dashboard_service.py`）：`today_visit_list` 改列今天已確認、已到場、未到場的案件，每筆多 `child_name`、`phone`、`status`（沒有案件讀取權的角色照舊拿空名單）；`today_visits` 跟著算整天。新增 `week_campuses`：今天起七天各校 `booked`（占名額的案件，和月曆已排數一致）、`open`（只有自選場次的校有數字）、`mode`。回傳仍是 dict，OpenAPI 不變。
 - **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_mockup1006_unit_test`）：後端新增 `test_dashboard_today_board.py`，碰到總覽 API 的 14 個測試檔 194 passed；`ruff check` 過；`contract:check` 一致。後台新增 `dashboardBoard20261006.test.ts`（摘要句、分組、已到場列、本週表與入口、舊版 API 退回、要處理一列一件、空狀態），更新 6 個舊測試檔對兩格大數字、捲動連結、引導語、待辦可及名稱的斷言；整套 vitest 109 檔 1378 項、`vue-tsc -b` 通過。本機 stack（`ivy_website_board1006_test`、埠 8781／5381，已關、已刪）灌今天已結束／已到場／進行中／稍後四組，總管理者與櫃台在 1440／1280／390 截圖，axe（WCAG 2.1 A／AA）四組 0 項。
 - 沒做：B–E 方向（案件列表行程清單、明細時間線、編輯三欄預覽、統計頁籤）等使用者再挑；「第二次來看」標記（mock 有、資料沒有）。
-## 2026-10-06 參觀案件拿掉承辦人（`feature/remove-assignee-20261006`）
+## 2026-10-06 參觀案件拿掉承辦人（`feature/remove-assignee-20261006`，10-06 已部署 main `7706a7a6`）
 
 使用者指著預約明細右側的「承辦人：未指派」說「可以幫我把承辦人這個邏輯拿掉嗎」。規則見 DESIGN.md「參觀案件拿掉承辦人」。
 
@@ -29,7 +29,8 @@
   - 後端：改寫 `test_visit_manual_and_assign`（新增「承辦人已拿掉」回歸測試）、`test_edit_versions`（版本鎖改用下次聯絡）、`test_admissions_follow_up`（負責人＝標記的人，舊承辦人不看）、`test_reception_handling`，刪 `test_dashboard_my_cases.py`；全套 1591 過、1 略過。
   - 後台：`uxRound8Cases` 改成拿掉後的回歸測試（舊書籤不送 assignee、總覽沒有兩區、停用帳號不查件數），其餘 fixture 拿掉欄位；vitest 108 檔 1367 項全過、`vue-tsc -b` 通過；`contract:check` 通過；官網 829 項通過。
   - stack e2e（`E2E_DB_NAME=ivy_website_e2e_noassignee_test`、埠 8752／3752，跑完已刪庫）：整套 76 項全過。`visit-detail` 基準圖差異低於 1% 門檻原本會照舊通過，改用 `--update-snapshots=all` 重拍成沒有承辦人的版本。1440／390 截圖在 `output/playwright/remove-assignee-20261006/`。
-  - 未驗證：正式站。
+  - 未驗證：正式站登入後實際操作。
+- **補修**（`169dac9e`）：案件頁「下一筆」沿用列表條件的 `LIST_KEYS` 漏了 `assignee`，清掉並在 `adminBugAudit20261006.test.ts` 補一項（先紅後綠）。
 
 ## 2026-10-06 招生來源分類收斂成六項（`feature/source-category-choices-20261006`，10-06 已部署 main `0909491c`）
 

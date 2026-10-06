@@ -22,6 +22,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`；`/admin/` 的 `DashboardView-*.js` 已有「今天的參觀」「本週五校」「要處理」與 `week_campuses`。
 - **未做**：沒有登入正式後台實際看今天的名單與本週五校的數字。
 
+## 2026-10-06 參觀案件拿掉承辦人（main CI 部署）
+
+- **合併**：`feature/remove-assignee-20261006` 從 `7a8d19e4` 開；期間 main 先上了訪視紀錄表單（`ee086b4d`＋紀錄 `b7675b2a`）與來源分類（`0909491c`＋紀錄 `01b1a8d9`），rebase 三次都只有 README 頂部衝突。rebase 後重跑 `vue-tsc -b`、後台 vitest 109 檔 1378 項、招生與案件相關後端 323 項、stack e2e 相關 21 項（招生流程、家庭版面、預約流程、角色、畫面基準）都過；契約重產與合併結果一致。推 main `01b1a8d9..7706a7a6`。內容與驗證見 README 頂部同日段落、DESIGN.md「參觀案件拿掉承辦人」。
+- **migration**：無（`visit_requests.assigned_staff_id` 欄位與舊值保留，程式不再讀寫）。沒有備份。
+- **CI**：main run 37441120295（`7706a7a6`）全綠，建立到完成 13 分 33 秒：Frontend admin 4.0／web 1.4 分鐘，Backend 三組 9.0／7.2／7.4 分鐘，E2E／Playwright 5.9 分鐘，Deploy 4.3 分鐘。
+- **正式 `release.json`**：base commit `7706a7a6`，created `2026-10-06T09:19:51Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`GET /admin/visit-requests/<id>/assignee` 回 404（路由已刪），`/admin/visit-staff` 未登入回 401（仍在）；`/admin/` 的 `VisitDetailView`、`VisitRequestsView`、`DashboardView`、`VisitCalendarView`、`UsersView` chunk 都沒有「承辦」「visit-assignee」「我承辦的案件」，月曆 chunk 用的是 `calendar__visit-source`。
+- **之後**：另一個 session 把總覽「今天的行程板」（`87937429`）合入成 `8bac33d4`（run 37441837401），已確認合併後沒有加回承辦人。線上 chunk 發現 `VisitDetailView`「下一筆」沿用列表條件的 `LIST_KEYS` 還留著 `assignee`（後端已忽略，結果不受影響），以 `169dac9e` 清掉並補測試，和這筆紀錄一起推。
+- **未做**：沒有登入正式後台實際操作；資料表欄位之後要不要刪待使用者決定（要刪先備份）。
+
 ## 2026-10-06 招生來源分類收斂成六項（main CI 部署）
 
 - **合併**：`feature/source-category-choices-20261006` 的 `b99e9f43` 從 `7a8d19e4` 開，期間 main 先上了訪視紀錄表單四區展開（`ee086b4d`＋紀錄 `b7675b2a`），合入成 `0909491c`（RecordDialog、admissionsRecords 測試、README 三處衝突，以 main 版面為底套上來源分類那一行），推 main `b7675b2a..0909491c`。內容與驗證見 README 頂部同日段落、DESIGN.md「來源分類收斂」。
