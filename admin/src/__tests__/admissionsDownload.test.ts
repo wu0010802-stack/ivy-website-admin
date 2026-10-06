@@ -166,9 +166,22 @@ describe('未預繳名單匯出 CSV', () => {
     expect(vi.mocked(notifyError).mock.calls.at(-1)![0]).toBe('符合條件的資料超過 10,000 筆，請縮小篩選範圍再匯出。')
   })
 
-  it('沒有匯出個資授權的櫃台看不到按鈕', async () => {
+  it('匯出鈕旁寫明範圍是目前篩選的全部結果（不只本頁），並用 aria-describedby 接給按鈕', async () => {
+    mockGet({ [NO_DEPOSIT]: noDeposit })
+    const { wrapper } = await mountWith(NoDepositList, { props: noDepositProps })
+    const exportButton = wrapper.get('button.el-button--small[aria-describedby]')
+    expect(exportButton.text()).toBe('匯出 CSV')
+    const hint = wrapper.get(`#${exportButton.attributes('aria-describedby')}`)
+    expect(hint.text()).toBe('匯出範圍：目前篩選的全部結果（不只本頁）')
+    // id 來自 useId()，不和同畫面其他元件（例如訪視明細的說明、這張表的標題）撞。
+    expect(wrapper.findAll(`#${hint.attributes('id')}`)).toHaveLength(1)
+    expect(hint.attributes('id')).not.toBe(wrapper.get('h3').attributes('id'))
+  })
+
+  it('沒有匯出個資授權的櫃台看不到按鈕，也沒有範圍說明', async () => {
     mockGet({ [NO_DEPOSIT]: noDeposit })
     const { wrapper } = await mountWith(NoDepositList, { props: noDepositProps, user: reception() })
     expect(hasButton(wrapper, '匯出 CSV')).toBe(false)
+    expect(wrapper.text()).not.toContain('匯出範圍')
   })
 })

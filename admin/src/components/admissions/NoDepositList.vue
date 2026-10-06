@@ -45,6 +45,7 @@ const PRIORITY_OPTIONS: readonly { label: string; value: PriorityFilter }[] = [
 const PRIORITY_TAG_TYPES: Record<'high' | 'medium' | 'low', 'danger' | 'warning' | 'info'> = { high: 'danger', medium: 'warning', low: 'info' }
 
 const headingId = useId()
+const exportScopeId = useId()
 const priority = ref<PriorityFilter>('high')
 const reason = ref('')
 const grade = ref('')
@@ -247,7 +248,11 @@ function openRecords(row: NoDepositRecord) {
         <el-checkbox :model-value="overdueDays !== null" @update:model-value="setOverdue">只看逾 14 天待追</el-checkbox>
         <el-checkbox :model-value="coldOnly" @update:model-value="setColdOnly">只看冷名單</el-checkbox>
         <span class="nd-count">符合條件 {{ total }} 筆<template v-if="overallTotal !== undefined">，未預繳共 {{ overallTotal }} 筆</template></span>
-        <el-button v-if="canExport" size="small" :icon="Download" :loading="exporting" @click="exportCsv">匯出 CSV</el-button>
+        <!-- 名單有分頁，使用者容易以為只匯出看到的這一頁：寫明是目前篩選的全部結果，並接給按鈕讀屏。 -->
+        <div v-if="canExport" class="nd-export">
+          <el-button size="small" :icon="Download" :loading="exporting" :aria-describedby="exportScopeId" @click="exportCsv">匯出 CSV</el-button>
+          <span :id="exportScopeId" class="hint nd-export__scope">匯出範圍：目前篩選的全部結果（不只本頁）</span>
+        </div>
       </div>
     </div>
     <p class="hint nd-caption">「查看」會切到訪視明細，並篩這筆的月份。</p>
@@ -363,6 +368,13 @@ function openRecords(row: NoDepositRecord) {
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+.nd-export {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 
 .nd-caption {
