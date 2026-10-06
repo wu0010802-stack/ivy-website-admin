@@ -11,7 +11,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_e2e_googlelink1006_test`、埠 8726／3726，跑完已刪庫）：整套 76 項全過。另用臨時設定（假 Google client 打開 Google 登入）在 1440／390 截「我的帳號」的「綁定 Google」與登入頁未綁定提示，在 `output/playwright/google-self-link-20261006/`，臨時檔已刪。
   - 未驗證：真的 Google 往返（正式站 Google 登入沒開，也還沒有 Google Cloud 的正式 client）。
 
-## 2026-10-06 標記已到場後接著填招生資料（`feature/arrival-admissions-form-20261006`）
+## 2026-10-06 標記已到場後接著填招生資料（`feature/arrival-admissions-form-20261006`，10-06 已部署 main `d4d8a08c`）
 
 使用者：「家長已到場後會需要填招生資料，這邊的表單可以幫我跳出來嗎」。規則見 DESIGN.md「標記已到場後接著填招生資料」。
 

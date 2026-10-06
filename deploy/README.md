@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 標記已到場後接著填招生資料（main CI 部署）
+
+- **合併**：`feature/arrival-admissions-form-20261006`（`d4d8a08c`）從 `0c521a95` 開，commit 前 main 前進到 `39f48c9e`（拿掉 inquiry `da749b97`＋其部署紀錄），rebase 只有 README 衝突（兩段都留）。推 main `39f48c9e..d4d8a08c`。內容與驗證見 README 頂部同日段落、DESIGN.md「標記已到場後接著填招生資料」。沒有 migration，沒有備份。
+- **推前發現正式 api 部署卡住**：`da749b97` 的 main run 37425274473 測試全綠，但 Deploy 的 api 狀態 `FAILED`（14:49 起連 3 次）。`railway logs -d` 看到啟動時 `alembic upgrade head` 讀設定失敗：「Google OAuth 必須同時設定 CLIENT_ID、CLIENT_SECRET 與 REDIRECT_URI」；api 服務的變數名拼成 `WEBSITE_GOOGLE_CLIENT_SECERT`。使用者在 Railway 改名後，api 15:07 的重新部署成功；這段期間線上一直是 14:40 那版。
+- **推前本機**（rebase 到 `39f48c9e` 後）：admin `vue-tsc -b` 通過；vitest 整套在負載 59–85 下有 14 檔 5 秒逾時，`--testTimeout=30000` 重跑那 14 檔 222 項全過（rebase 前整套 107 檔 1356 項全過）。stack e2e 只跑受影響的 `admissions-flow`、`admissions-follow-up`、`visit-family-page`（6 項全過）。
+- **CI**：main run 37428220783（`d4d8a08c`）全綠，建立到完成 13 分 31 秒：Frontend admin 3.2／web 1.0 分鐘，Backend 三組 8.6／7.0／7.8 分鐘，E2E／Playwright 5.2 分鐘，Deploy 4.8 分鐘。`da749b97`（拿掉 inquiry，migration `c4e8a2f61b97`）隨這次一起經 CI 部署。
+- **正式 `release.json`**：base commit `d4d8a08c`，created `2026-10-06T07:21:25Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`；`/admin/` 的 `useArrivalAdmissionsForm-*.js` 有「之後再填」「招生資料可以現在填」「招生資料表單打不開」，`RecordDialog-*.js` 有「接著打開招生資料表單」。
+- **之後**：別的 session 緊接著推了 `4437174d`（Google 登入改自行綁定），由它自己的 run 部署。
+- **未做**：沒登入正式後台實際按一次「到了」。
+
 ## 2026-10-06 操作紀錄多記 IP 與裝置（main CI 部署）
 
 - **合併**：`feature/audit-ip-device-20261006` 從 `0c534043` 開，期間 main 前進兩次：先 rebase 到 `5fb9edbb`（拿掉舊狀態程式第二版），migration 由接 `d65fa082ff87` 改接 `e870893fac95`；再 rebase 到 `1c9d3e19`（後台 bug 稽核修正，只有 README 衝突）。等 `1c9d3e19` 部署完，使用者推 main `1c9d3e19..bb10a5b4`。內容與驗證見 README 頂部同日段落、DESIGN.md「操作紀錄記 IP 與裝置」。
