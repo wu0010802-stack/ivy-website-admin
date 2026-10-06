@@ -6,14 +6,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 
 from app.booking import workflow_service
-from app.booking.models import VisitRequest, VisitRequestStatus
+from app.booking.models import VisitRequestStatus
 from app.common.timezones import OPERATING_TZ, today_local
 from tests.conftest import legacy_request, legacy_reschedule_request, set_booking_mode
 
@@ -370,23 +370,15 @@ async def test_slots_submission_is_confirmed_without_hold(admin_client, public_c
     )
     assert detail.json()["status"] == VisitRequestStatus.CONFIRMED.value
     assert detail.json()["confirmed_at"] is not None
-    assert detail.json()["hold_expires_at"] is None
+    assert "hold_expires_at" not in detail.json()
 
 
 @pytest.mark.asyncio
-async def test_pending_confirmation_occupies_capacity(admin_client, public_client, db_session):
-    """規格 221：pending_confirmation 也占名額，否則同一個名額會先賣給
-    多個家長，等園方逐一確認時才發現超收。本案上線前留下的舊案仍是這個狀態，
-    新送單不能搶走它占著的名額。"""
+async def test_confirmed_case_occupies_capacity(admin_client, public_client, db_session):
+    """規格 221：已確認的案件占名額，新送單不能搶走（占位用的 pending_confirmation 已退場）。"""
     version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
-    await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=12),
-        phone="0912345678",
-    )
+    await legacy_request(db_session, status="confirmed", slot_id=slot["id"], phone="0912345678")
 
     second = await public_client.post(
         "/api/website/v1/public/visit-requests",
@@ -398,33 +390,22 @@ async def test_pending_confirmation_occupies_capacity(admin_client, public_clien
 
 
 @pytest.mark.asyncio
-async def test_expired_hold_is_cancelled_and_releases_capacity(
+async def test_cancelling_releases_capacity_and_hold_expiry_is_gone(
     admin_client, public_client, second_public_client, db_session
 ):
-    """規格 222：占位到期轉 cancelled、記 hold_expired、釋放名額。
-    原本完全沒有這條路徑（也沒有任何案件會是 pending）。新流程不再建出待確認案件，
-    但上線前留下的舊案要能正常到期釋放。"""
+    """規格 222：取消釋放名額。占位到期自動取消（expire_holds）已隨占位流程刪除。"""
     version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client, capacity=1)
-
-    # 占位期限已過（模擬 24 小時已過）的舊案。
     receipt_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-        phone="0912345678",
+        db_session, status="confirmed", slot_id=slot["id"], phone="0912345678"
     )
+    assert not hasattr(workflow_service, "expire_holds")
 
-    processed = await workflow_service.expire_holds(db_session)
-    await db_session.commit()
-    assert processed == 1
-
-    # 重跑是冪等的，不會重複處理。
-    assert await workflow_service.expire_holds(db_session) == 0
-
+    cancelled = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
     detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
     assert detail.json()["status"] == VisitRequestStatus.CANCELLED.value
+    assert detail.json()["cancel_reason"] == "staff"
 
     # 名額已釋放，別人訂得到。
     retry = await second_public_client.post(

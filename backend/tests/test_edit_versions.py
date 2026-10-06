@@ -35,8 +35,8 @@ async def _slot(client, days_ahead=3) -> dict:
 
 
 async def _case(db_session) -> dict:
-    """上線前留下的「已收到需求」舊案（new，version 1）。"""
-    return {"id": await legacy_request(db_session, status="new", parent_name="王媽媽"), "version": 1}
+    """已確認、有場次的進行中案件（version 1）。"""
+    return {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽"), "version": 1}
 
 
 @pytest.mark.asyncio
@@ -116,9 +116,9 @@ async def test_assignee_and_follow_up_use_case_version(admin_client, db_session)
 
     # 狀態轉換不動版本：家長或同事改了狀態，開著的畫面仍可以改承辦人。
     slot = await _slot(admin_client)
-    confirmed = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/confirm", json={"slot_id": slot["id"]})
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["version"] == 3
+    moved = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/reschedule", json={"new_slot_id": slot["id"]})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["version"] == 3
     again = await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": 3}
     )

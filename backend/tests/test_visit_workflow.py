@@ -133,21 +133,21 @@ async def test_reduce_capacity_below_booked_rejected(admin_client, public_client
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "CAPACITY_BELOW_BOOKED"
+    # 占名額的只有已確認、已完成與未到場（占位狀態已退場）。
+    assert "含已確認、已完成與未到場" in resp.json()["detail"]["message"]
 
 
 @pytest.mark.asyncio
-async def test_manual_confirm_inquiry_into_slot(admin_client, db_session):
-    # 上線前留下的「已收到需求」舊案（new），園方仍可手動排進場次確認。
-    receipt_id = await legacy_request(db_session, status="new", parent_name="陳媽媽", phone="0912345678")
-
+async def test_manual_confirm_endpoint_is_gone(admin_client, db_session):
+    """人工確認（把「已收到需求」排進場次）已退場：端點不存在，補登是選場次即確認。"""
+    receipt_id = await legacy_request(db_session, status="confirmed", parent_name="陳媽媽", phone="0912345678")
     slot = await _create_slot(admin_client)
 
     confirm = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
     )
-    assert confirm.status_code == 200, confirm.text
-    assert confirm.json()["status"] == "confirmed"
-    assert confirm.json()["slot_id"] == slot["id"]
+
+    assert confirm.status_code in (404, 405)
 
 
 @pytest.mark.asyncio
@@ -256,8 +256,8 @@ async def test_reschedule_success_moves_slot(admin_client, public_client):
 
 @pytest.mark.asyncio
 async def test_no_show_requires_confirmed_status(admin_client, db_session):
-    # 舊案（狀態是 new，不是 confirmed）
-    receipt_id = await legacy_request(db_session, status="new", parent_name="陳媽媽", phone="0912345678")
+    # 已取消的案件（狀態不是 confirmed）
+    receipt_id = await legacy_request(db_session, status="cancelled", parent_name="陳媽媽", phone="0912345678")
 
     resp = await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/no-show")
     assert resp.status_code == 409
@@ -319,23 +319,20 @@ async def test_csv_export_escapes_formula_injection(admin_client, public_client)
 @pytest.mark.asyncio
 async def test_confirmed_request_exposes_slot_time(admin_client, db_session):
     """已確認的案件要看得到「約在哪一天幾點」。櫃台接到家長來電時，
-    明細、列表、確認當下的回應三處都要有，不能只給一個 slot_id。"""
-    receipt_id = await legacy_request(db_session, status="new", parent_name="林爸爸", phone="0912345678")
-
-    # 還沒排時段前是「已收到需求」，沒有參觀時間可顯示。
-    before = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert before.status_code == 200, before.text
-    assert before.json()["slot"] is None
-
+    明細、列表、補登當下的回應三處都要有，不能只給一個 slot_id。"""
     slot = await _create_slot(admin_client)
-    confirm = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
+    created = await admin_client.post(
+        "/api/website/v1/admin/visit-requests",
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "林爸爸", "phone": "0912345678",
+              "consent_given": True, "slot_id": slot["id"]},
+        headers={"Idempotency-Key": "slot-time-manual"},
     )
-    assert confirm.status_code == 200, confirm.text
-    assert confirm.json()["slot"]["id"] == slot["id"]
-    assert confirm.json()["slot"]["slot_date"] == slot["slot_date"]
-    assert confirm.json()["slot"]["start_time"] == slot["start_time"]
-    assert confirm.json()["slot"]["end_time"] == slot["end_time"]
+    assert created.status_code == 201, created.text
+    receipt_id = created.json()["id"]
+    assert created.json()["slot"]["id"] == slot["id"]
+    assert created.json()["slot"]["slot_date"] == slot["slot_date"]
+    assert created.json()["slot"]["start_time"] == slot["start_time"]
+    assert created.json()["slot"]["end_time"] == slot["end_time"]
 
     detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
     assert detail.json()["slot"]["slot_date"] == slot["slot_date"]
@@ -348,18 +345,20 @@ async def test_confirmed_request_exposes_slot_time(admin_client, db_session):
     assert row["slot"]["end_time"] == slot["end_time"]
 
 
-async def _submit_inquiry(db_session, *, campus_key, parent_name, phone):
-    """上線前留下的「已收到需求」舊案（new）；新流程建不出這個狀態。"""
-    return await legacy_request(db_session, campus_key=campus_key, status="new", parent_name=parent_name, phone=phone)
+async def _open_case(db_session, *, campus_key, parent_name, phone):
+    """直接寫庫建一筆進行中（已確認、有場次）的案件，供搜尋、篩選用。"""
+    return await legacy_request(
+        db_session, campus_key=campus_key, status="confirmed", parent_name=parent_name, phone=phone
+    )
 
 
 @pytest.mark.asyncio
 async def test_visit_request_search_by_name_and_phone(admin_client, db_session):
     """櫃台接到電話時是拿姓名或號碼找人，不是一頁一頁翻。"""
-    chen = await _submit_inquiry(
+    chen = await _open_case(
         db_session, campus_key="yihua", parent_name="陳小姐", phone="0933111222"
     )
-    lin = await _submit_inquiry(
+    lin = await _open_case(
         db_session, campus_key="yihua", parent_name="林爸爸", phone="0987654321"
     )
 
@@ -381,7 +380,7 @@ async def test_visit_request_search_by_name_and_phone(admin_client, db_session):
 @pytest.mark.asyncio
 async def test_visit_request_search_treats_wildcards_as_text(admin_client, db_session):
     """`%` 和 `_` 是使用者打的字，不是萬用字元，不能因此撈出全部案件。"""
-    await _submit_inquiry(
+    await _open_case(
         db_session, campus_key="yihua", parent_name="王媽媽", phone="0912345678"
     )
 
@@ -398,7 +397,7 @@ async def test_visit_request_search_stays_inside_campus_scope(
     admin_client, minghua_client, db_session
 ):
     """搜尋不能變成跨校查人的後門。"""
-    await _submit_inquiry(
+    await _open_case(
         db_session, campus_key="yihua", parent_name="義華的家長", phone="0911222333"
     )
 
@@ -410,10 +409,10 @@ async def test_visit_request_search_stays_inside_campus_scope(
 @pytest.mark.asyncio
 async def test_visit_request_follow_up_due_filter_and_order(admin_client, db_session):
     """總覽的「到期待追蹤」點進列表要看到同一批案件；櫃台要能改成最舊的先處理。"""
-    older = await _submit_inquiry(
+    older = await _open_case(
         db_session, campus_key="yihua", parent_name="到期家長", phone="0911000111"
     )
-    newer = await _submit_inquiry(
+    newer = await _open_case(
         db_session, campus_key="yihua", parent_name="未到期家長", phone="0911000222"
     )
     past = await admin_client.post(
@@ -444,7 +443,7 @@ async def test_visit_request_follow_up_due_filter_and_order(admin_client, db_ses
 async def test_contact_note_can_clear_follow_up(admin_client, db_session):
     """「不用再追」：送 null 並帶版本會清掉追蹤時間，到期待追蹤不再列出；沒帶
     版本的 null（舊版前端）只記一筆紀錄、不動追蹤時間。"""
-    request_id = await _submit_inquiry(
+    request_id = await _open_case(
         db_session, campus_key="yihua", parent_name="不用追家長", phone="0911000333"
     )
     notes_url = f"/api/website/v1/admin/visit-requests/{request_id}/contact-notes"
@@ -489,13 +488,13 @@ async def test_invalid_transition_message_names_status_in_chinese(admin_client, 
     assert resp.json()["detail"]["code"] == "INVALID_TRANSITION"
     assert resp.json()["detail"]["message"] == "這筆案件現在是「已到場」，不能取消"
 
+    # 人工確認端點已退場：已取消的案件也不會有「排入場次」的說法。
     cancelled = await legacy_request(db_session, status="cancelled", parent_name="林媽媽", phone="0912000802")
     slot = await _create_slot(admin_client)
     resp = await admin_client.post(
         f"/api/website/v1/admin/visit-requests/{cancelled}/confirm", json={"slot_id": slot["id"]}
     )
-    assert resp.status_code == 409
-    assert resp.json()["detail"]["message"] == "這筆案件現在是「已取消」，不能排入場次"
+    assert resp.status_code in (404, 405)
 
 
 @pytest.mark.asyncio

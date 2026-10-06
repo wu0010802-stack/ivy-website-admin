@@ -19,7 +19,6 @@ from tests.conftest import (
     _create_user,
     _logged_in_client,
     book_slot,
-    legacy_request,
     set_booking_mode,
     start_visit_slot,
 )
@@ -63,45 +62,17 @@ def _payload(campus_key, version, slot_id, *, parent_name="陳媽媽", phone="09
     }
 
 
-# --- #1 逾期占位 -------------------------------------------------------------
+# --- 定期工作沒設寄信也照寫站內通知 ---------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_expired_hold_does_not_occupy_capacity_before_cleanup(
-    admin_client, public_client, second_public_client, db_session
-):
-    version = await _enable_slots(admin_client)
-    slot = await _create_slot(admin_client, capacity=1)
-    # 上線前留下的待確認舊案，占位已到期但清理排程還沒跑。
-    await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-    )
-
-    # 清理排程沒跑，名額也不能被到期占位卡住。
-    second = await second_public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"], phone="0987654321"),
-        headers={"Idempotency-Key": "expired-hold-b"},
-    )
-    assert second.status_code == 201, second.text
-
-
-@pytest.mark.asyncio
-async def test_process_notifications_releases_holds_without_email_sink(
-    app, admin_client, db_session, monkeypatch
+async def test_process_notifications_writes_inbox_without_email_sink_and_no_hold_sweep(
+    app, admin_client, public_client, db_session, monkeypatch
 ):
     from app import cli
+    from app.notifications.models import NotificationInboxItem
 
-    slot = await _create_slot(admin_client, capacity=1)
-    receipt_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-    )
+    await book_slot(admin_client, public_client)
 
     settings = app.state.settings.model_copy(update={"notification_email_sink_dir": None})
     monkeypatch.setattr(cli, "get_settings", lambda: settings)
@@ -112,8 +83,10 @@ async def test_process_notifications_releases_holds_without_email_sink(
     monkeypatch.setattr(cli, "_session_factory", factory)
     await cli.process_notifications_once()
 
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert detail.json()["status"] == VisitRequestStatus.CANCELLED.value
+    # 沒設寄信管道，站內通知照樣寫出；逾期占位的釋放步驟已不存在。
+    kinds = set((await db_session.execute(select(NotificationInboxItem.kind))).scalars())
+    assert "visit_request_created" in kinds
+    assert not hasattr(cli, "expire_holds")
 
 
 # --- #8 CSV 前導控制字元 -----------------------------------------------------

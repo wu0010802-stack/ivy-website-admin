@@ -93,14 +93,12 @@ async def test_reception_handles_a_case_end_to_end(admin_client, public_client, 
     slot_a = await _slot(admin_client)
     slot_b = await _slot(admin_client, start="14:00:00", end="15:00:00")
 
-    # 上線前留下的「已收到需求」舊案：櫃台寫聯絡紀錄、確認排入時段。
-    case_id = await legacy_request(db_session, status="new", parent_name="王媽媽")
+    # 已確認的案件：櫃台寫聯絡紀錄、改期。人工確認的 confirm 端點已退場。
+    case_id = await legacy_request(db_session, status="confirmed", slot_id=slot_a["id"], parent_name="王媽媽")
     note = await desk.post(f"{BASE}/visit-requests/{case_id}/contact-notes", json={"note": "已回電，約週六"})
     assert note.status_code == 201, note.text
-
-    confirmed = await desk.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_a["id"]})
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["status"] == "confirmed"
+    retired = await desk.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_a["id"]})
+    assert retired.status_code in (404, 405)
 
     moved = await desk.post(f"{BASE}/visit-requests/{case_id}/reschedule", json={"new_slot_id": slot_b["id"]})
     assert moved.status_code == 200, moved.text

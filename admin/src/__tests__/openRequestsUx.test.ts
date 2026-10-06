@@ -3,7 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import DashboardView from '../views/DashboardView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
@@ -12,7 +12,7 @@ import AdminSidebar from '../components/AdminSidebar.vue'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { api } from '../api/client'
-import { formatHoldRemaining, holdIsUrgent } from '../api/labels'
+import * as labels from '../api/labels'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
@@ -26,7 +26,7 @@ const summary = (changes: Record<string, unknown> = {}) => ({
 const request = (changes = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '測試家長', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, ...changes,
+  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', follow_up_at: null, ...changes,
 })
 
 async function mountAt(path: string) {
@@ -46,15 +46,11 @@ async function mountAt(path: string) {
   return { wrapper, router }
 }
 
-describe('待確認占位的倒數', () => {
-  it('無條件捨去到小時或分鐘，過期講「已逾期」', () => {
-    const now = Date.parse('2026-09-24T00:00:00Z')
-    expect(formatHoldRemaining('2026-09-24T23:59:00Z', now)).toBe('還剩 23 小時')
-    expect(formatHoldRemaining('2026-09-24T00:40:30Z', now)).toBe('還剩 40 分鐘')
-    expect(formatHoldRemaining('2026-09-23T23:00:00Z', now)).toBe('已逾期')
-    expect(formatHoldRemaining(null, now)).toBe('')
-    expect(holdIsUrgent('2026-09-24T05:00:00Z', now)).toBe(true)
-    expect(holdIsUrgent('2026-09-24T07:00:00Z', now)).toBe(false)
+describe('待確認占位的倒數已拿掉', () => {
+  it('labels 不再有確認期限倒數的函式與舊狀態排序', () => {
+    expect('formatHoldRemaining' in labels).toBe(false)
+    expect('holdIsUrgent' in labels).toBe(false)
+    expect('VISIT_STATUS_ORDER' in labels).toBe(false)
   })
 })
 
@@ -112,7 +108,7 @@ describe('案件列表接住總覽帶來的條件', () => {
 
   it('?order=oldest 傳給後端，舊書籤 ?status=confirmed 轉成分組；列表不顯示確認期限，沒填的方便時段不佔一行', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([
-      request({ status: 'confirmed', slot_id: 'slot-1', slot: { id: 'slot-1', slot_date: '2026-09-30', start_time: '10:00:00', end_time: '11:00:00' }, hold_expires_at: new Date(Date.now() + 2 * hour + 60000).toISOString() }),
+      request({ status: 'confirmed', slot_id: 'slot-1', slot: { id: 'slot-1', slot_date: '2026-09-30', start_time: '10:00:00', end_time: '11:00:00' } }),
     ] as never)
     const { wrapper } = await mountAt('/visit-requests?status=confirmed&order=oldest')
     const listCall = listCallOf(get)
@@ -228,11 +224,11 @@ describe('openRequests store（改期與未讀通知數字）', () => {
   })
 })
 
-describe('案件明細的確認期限', () => {
-  const held = (hoursLeft: number) => request({
+describe('案件明細沒有確認期限與確認場次', () => {
+  // 以前的待確認案件（舊資料）：已有場次，但後台不再有確認占位的操作。
+  const held = () => request({
     status: 'pending_confirmation', slot_id: 'slot-1',
     slot: { id: 'slot-1', slot_date: '2026-09-30', start_time: '10:00:00', end_time: '11:00:00' },
-    hold_expires_at: new Date(Date.now() + hoursLeft * hour + 60000).toISOString(),
   })
 
   async function mountDetail(data: ReturnType<typeof request>) {
@@ -251,21 +247,14 @@ describe('案件明細的確認期限', () => {
     return { wrapper, get }
   }
 
-  it('顯示剩多久，剩不到 6 小時改用暖色', async () => {
-    const soon = await mountDetail(held(3))
-    expect(soon.wrapper.find('.hold-deadline').text()).toContain('還剩 3 小時')
-    expect(soon.wrapper.find('.hold-deadline').classes()).toContain('is-urgent')
-    soon.wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
-    const later = await mountDetail(held(20))
-    expect(later.wrapper.find('.hold-deadline').classes()).not.toContain('is-urgent')
-  })
-
-  it('確認之後強制更新側欄數字', async () => {
-    vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
-    vi.spyOn(api, 'post').mockResolvedValue({})
-    const { wrapper, get } = await mountDetail(held(10))
-    await wrapper.findAll('button').find(button => button.text() === '確認這個場次')!.trigger('click')
-    await flushPromises()
-    expect(get.mock.calls.some(call => call[0] === '/admin/dashboard')).toBe(true)
+  it('舊的待確認案件：沒有確認期限倒數、沒有「確認這個場次」，也不會打確認 API', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({})
+    const { wrapper } = await mountDetail(held())
+    expect(wrapper.find('.hold-deadline').exists()).toBe(false)
+    expect(wrapper.find('.hold-status').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('確認期限')
+    expect(wrapper.text()).not.toContain('還剩')
+    expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(false)
+    expect(post).not.toHaveBeenCalled()
   })
 })

@@ -178,12 +178,12 @@ async def test_retention_real_run_disabled_by_default(admin_client, public_clien
 
 @pytest.mark.asyncio
 async def test_retention_does_not_touch_active_requests(admin_client, public_client, db_session):
-    """未結案（new/confirmed）的案件即使很舊也不會被匿名化，不破壞還在
+    """未結案（confirmed）的案件即使很舊也不會被匿名化，不破壞還在
     進行中的接待工作；只算進「超過天數未結案」的提醒。"""
     from uuid import UUID
 
     booked_id = await _book_visit(admin_client, public_client)
-    legacy_id = await legacy_request(db_session, status="new")
+    legacy_id = await legacy_request(db_session, status="confirmed")
     for receipt_id in (booked_id, legacy_id):
         request = await db_session.get(VisitRequest, UUID(receipt_id))
         request.created_at = datetime.now(timezone.utc) - timedelta(days=400)
@@ -387,7 +387,7 @@ async def test_audit_log_says_whether_case_still_exists(admin_client, db_session
     from sqlalchemy import delete
 
     await db_session.execute(delete(AuditLogEntry))
-    kept = await legacy_request(db_session, status="new")
+    kept = await legacy_request(db_session, status="confirmed")
     now = datetime.now(timezone.utc)
     await _audit(db_session, action="visit_request.assign", created_at=now, target_type="visit_request", target_id=kept)
     await _audit(

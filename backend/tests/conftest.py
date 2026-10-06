@@ -7,6 +7,7 @@ import subprocess
 import time
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from datetime import time as clock_time
 from pathlib import Path
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
@@ -472,18 +473,36 @@ async def legacy_request(
     db: AsyncSession,
     *,
     campus_key: str = "yihua",
-    status: str = "new",
+    status: str,
     slot_id=None,
-    hold_expires_at: datetime | None = None,
     email: str | None = None,
     parent_name: str = "舊案家長",
     phone: str = "0911000111",
     source: str = "web",
     party_size: int | None = 2,
 ) -> str:
-    """本案上線前才會產生的案件（new／contacting／pending_confirmation 等）。
-    新流程沒有 API 能建出這些狀態，直接寫 DB；不產生 outbox、analytics、歷程。"""
-    from app.booking.models import VisitRequest
+    """直接寫 DB 建一筆任意狀態的案件，不產生 outbox、analytics、歷程。
+
+    status 必須明確傳入（沒有預設值）。資料庫只收四種狀態，已確認一定有場次：
+    status="confirmed" 沒帶 slot_id 時會自動開一個場次。"""
+    from app.booking.models import VisitRequest, VisitSlot
+
+    if status == "confirmed" and slot_id is None:
+        # 已確認的案件一定有場次：沒指定就替它在該校開一個未來場次。固定在一般測試
+        # 不會用到的清晨時段、容量給足，結果不隨執行次數變動。
+        slot = VisitSlot(
+            id=uuid.uuid4(),
+            campus_key=campus_key,
+            slot_date=today_local() + timedelta(days=30),
+            start_time=clock_time(7, 0),
+            end_time=clock_time(7, 30),
+            capacity=99,
+            closed=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(slot)
+        await db.flush()
+        slot_id = slot.id
 
     visit_request = VisitRequest(
         id=uuid.uuid4(),
@@ -500,7 +519,7 @@ async def legacy_request(
         status=status,
         source=source,
         slot_id=uuid.UUID(str(slot_id)) if slot_id else None,
-        hold_expires_at=hold_expires_at,
+        confirmed_at=datetime.now(timezone.utc) if status == "confirmed" else None,
         created_at=datetime.now(timezone.utc),
     )
     db.add(visit_request)

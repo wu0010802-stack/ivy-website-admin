@@ -1,7 +1,6 @@
 """成效統計測試用：直接寫庫建場次與任意狀態、任意送出時間的案件。
 
-自選場次上線後，API 建不出舊流程狀態（new／contacting／pending_confirmation），也不能
-指定送出時間；這裡繞過 API，不產生 outbox、歷程或統計事件。只 flush，呼叫端自己 commit。"""
+API 建不出已結案、也不能指定送出時間的案件；這裡繞過 API，不產生 outbox、歷程或統計事件。只 flush，呼叫端自己 commit。"""
 
 from __future__ import annotations
 
@@ -55,6 +54,9 @@ async def add_case(
     child_birthdate: date | None = None,
     anonymized: bool = False,
 ) -> uuid.UUID:
+    if status == "confirmed" and slot_id is None:
+        # 資料庫要求已確認一定有場次（ck_visit_requests_confirmed_slot）：沒指定就開一個未來場次。
+        slot_id = await add_slot(db, campus_key=campus_key, days_from_today=30, start=time(7, 0), capacity=99)
     case = VisitRequest(
         id=uuid.uuid4(),
         campus_key=campus_key,

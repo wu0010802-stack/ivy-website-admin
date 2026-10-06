@@ -48,9 +48,9 @@ async function mountRouted(component: unknown, path: string, routePath = '/:path
 }
 
 const visitCase = (changes: Record<string, unknown> = {}) => ({
-  id: 'case-a', campus_key: 'yihua', status: 'contacting', parent_name: '王媽媽', phone: '0912345678', child_name: null,
+  id: 'case-a', campus_key: 'yihua', status: 'confirmed', parent_name: '王媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, source: 'web',
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, assigned_staff_id: null,
+  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', assigned_staff_id: null,
   follow_up_at: '2099-01-01T02:00:00Z', version: 4, history: [], ...changes,
 })
 

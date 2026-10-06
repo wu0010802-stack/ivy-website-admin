@@ -72,9 +72,6 @@ export function impactLines(impact: BookingImpactOut | null | undefined, to: Boo
   const lines: string[] = []
   if (impact.open_requests > 0) {
     const parts = [
-      impact.new_requests ? `待處理 ${impact.new_requests}` : '',
-      impact.contacting ? `聯絡中 ${impact.contacting}` : '',
-      impact.pending_confirmation ? `待園方確認 ${impact.pending_confirmation}` : '',
       impact.upcoming_confirmed ? `已確認、還沒參觀 ${impact.upcoming_confirmed}` : '',
       // 參觀時間已過、還沒改成完成或未到場；舊版 API 沒有這個欄位。
       impact.past_confirmed ? `已過參觀時間、尚未結案 ${impact.past_confirmed}` : '',
@@ -87,9 +84,6 @@ export function impactLines(impact: BookingImpactOut | null | undefined, to: Boo
     lines.push(`官網目前可預約的場次 ${impact.bookable_slots} 個${impact.weekly_rules ? `，每週開放規則 ${impact.weekly_rules} 條` : ''}。`)
   } else if (impact.bookable_slots > 0) {
     lines.push(`官網目前可預約的場次 ${impact.bookable_slots} 個：切換後家長不能再從官網選場次，已排定的參觀不受影響。`)
-  }
-  if (impact.pending_confirmation > 0 && to !== 'slots') {
-    lines.push(`待園方確認的 ${impact.pending_confirmation} 件仍占著名額，請記得確認或取消。`)
   }
   return lines
 }

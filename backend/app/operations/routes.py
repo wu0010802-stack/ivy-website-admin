@@ -320,8 +320,6 @@ class OutcomeCountsOut(BaseModel):
     completed: int
     no_show: int
     cancelled: int
-    # 已確認卻沒有場次（舊流程資料，通常是 0）。
-    unscheduled: int
     # parent／staff／hold_expired／unknown（舊案沒記原因）。
     cancelled_by_reason: dict[str, int]
     # 已到場 ÷（已到場＋未到場）；還沒標記的不算進分母。

@@ -118,7 +118,7 @@ async def test_unexpected_errors_report_request_id(app, caplog):
 
 @pytest.mark.asyncio
 async def test_closed_slot_is_reported_as_closed_not_full(admin_client, public_client):
-    response = await set_booking_mode(admin_client, "yihua", mode="slots", slots_auto_confirm=True)
+    response = await set_booking_mode(admin_client, "yihua", mode="slots")
     version = response.json()["version"]
     slot = await _slot(admin_client)
     await _close(admin_client, slot)
@@ -148,20 +148,23 @@ async def test_closed_slot_is_reported_as_closed_not_full(admin_client, public_c
 
 
 @pytest.mark.asyncio
-async def test_admin_confirm_and_reschedule_into_closed_slot(admin_client, db_session):
+async def test_admin_manual_entry_and_reschedule_into_closed_slot(admin_client, db_session):
     open_slot = await _slot(admin_client)
     closed_slot = await _slot(admin_client, days_ahead=4)
     await _close(admin_client, closed_slot)
-    # 上線前留下的「已收到需求」舊案，園方確認時選了已關閉的時段。
-    case_id = await legacy_request(db_session, status="new", parent_name="王媽媽", phone="0912345678")
+    # 補登選了已關閉的時段：不建立案件。
+    manual = await admin_client.post(
+        f"{BASE}/visit-requests",
+        json={"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345678",
+              "consent_given": True, "slot_id": closed_slot["id"]},
+        headers={"Idempotency-Key": "closed-slot-manual"},
+    )
+    assert manual.status_code == 409
+    assert manual.json()["detail"]["code"] == "SLOT_CLOSED"
+    assert "案件尚未建立" in manual.json()["detail"]["message"]
 
-    refused = await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": closed_slot["id"]})
-    assert refused.status_code == 409
-    assert refused.json()["detail"]["code"] == "SLOT_CLOSED"
-
-    assert (
-        await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": open_slot["id"]})
-    ).status_code == 200
+    # 已確認的案件改期到已關閉的時段。
+    case_id = await legacy_request(db_session, status="confirmed", slot_id=open_slot["id"], parent_name="王媽媽")
     moved = await admin_client.post(
         f"{BASE}/visit-requests/{case_id}/reschedule", json={"new_slot_id": closed_slot["id"]}
     )

@@ -1,6 +1,6 @@
 """案件流程補完（main 的 test_visit_manual_and_assign.py 已涵蓋補登、指派、
-承辦人清單、接待月曆與完成）：這裡只測舊的聯絡中案件確認後完成、重新預約
-關聯舊案、送出日期篩選。"""
+承辦人清單、接待月曆與完成）：這裡只測補登案件完成參觀（以及人工確認端點
+已退場）、重新預約關聯舊案、送出日期篩選。"""
 from __future__ import annotations
 
 import uuid
@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from tests.conftest import create_slot, legacy_request, start_visit_slot
+from tests.conftest import create_slot, start_visit_slot
 from tests.test_visit_workflow import _create_slot
 
 
@@ -42,15 +42,11 @@ async def _create(client, *, slot_id, **overrides):
 
 
 @pytest.mark.asyncio
-async def test_contacting_then_confirm_then_complete(admin_client, db_session):
-    # 上線前留下的「聯絡中」舊案：仍可確認排入時段、完成參觀。
-    rid = await legacy_request(db_session, status="contacting", parent_name="林爸爸")
-    assert (await admin_client.post(f"{API}/admin/visit-requests/{rid}/complete")).status_code == 409
-
+async def test_manual_case_is_completed_after_the_slot_starts(admin_client, db_session):
     slot = await _create_slot(admin_client, capacity=1)
-    confirmed = await admin_client.post(f"{API}/admin/visit-requests/{rid}/confirm", json={"slot_id": slot["id"]})
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["status"] == "confirmed"
+    created = await _create(admin_client, slot_id=slot["id"])
+    rid = created["id"]
+    assert created["status"] == "confirmed"
 
     # 場次還沒開始不能標完成（會提早占住名額）；開始後才可以。
     early = await admin_client.post(f"{API}/admin/visit-requests/{rid}/complete")
@@ -59,8 +55,17 @@ async def test_contacting_then_confirm_then_complete(admin_client, db_session):
     await start_visit_slot(db_session, rid)
     done = await admin_client.post(f"{API}/admin/visit-requests/{rid}/complete")
     assert done.json()["status"] == "completed"
-    # 「轉聯絡中」已退場，不管案件狀態一律 410。
-    assert (await admin_client.post(f"{API}/admin/visit-requests/{rid}/contacting")).status_code == 410
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["contacting", "confirm"])
+async def test_manual_confirmation_endpoints_are_gone(admin_client, action):
+    """「轉聯絡中」與人工確認都已退場：端點不存在，不管案件狀態。"""
+    created = await _create(admin_client, slot_id=await create_slot(admin_client))
+
+    response = await admin_client.post(f"{API}/admin/visit-requests/{created['id']}/{action}", json={})
+
+    assert response.status_code in (404, 405)
 
 
 @pytest.mark.asyncio

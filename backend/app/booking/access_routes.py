@@ -363,9 +363,8 @@ async def create_parent_access_link(
     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token
     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
 
-    有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；
-    沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出
-    （另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。"""
+    有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在
+    真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。"""
     result = await db.execute(
         select(VisitRequest)
         .options(selectinload(VisitRequest.slot))
@@ -389,7 +388,7 @@ async def create_parent_access_link(
     raw_token, expires_at = await access_service.issue_access_token(
         db, visit_request_id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
     )
-    mail_parent = bool(visit_request.email) and visit_request.slot_id is not None
+    mail_parent = bool(visit_request.email)
     if mail_parent:
         # 沒設 SMTP 也照排：之後設好，24 小時內仍會寄出。
         await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)

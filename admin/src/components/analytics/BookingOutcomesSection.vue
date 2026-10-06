@@ -67,7 +67,6 @@ const stats = computed(() => {
     { label: '參觀時間過了，還沒標記（這批）', value: current.awaiting_attendance, note: '' },
     { label: '預約正常（還沒到參觀日）', value: current.upcoming, note: '' },
     { label: '已取消', value: current.cancelled, note: reasonText(current.cancelled_by_reason) },
-    ...(current.unscheduled ? [{ label: '已確認、沒有場次（舊資料）', value: current.unscheduled, note: '' }] : []),
   ]
 })
 

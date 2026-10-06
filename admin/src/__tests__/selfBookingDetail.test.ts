@@ -14,8 +14,8 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 const slot = { id: 'held-slot', slot_date: '2026-09-26', start_time: '10:00:00', end_time: '10:30:00' }
-// 確認期限用遠在未來的時間：過了期限畫面會停用確認（後端也會拒絕）。
-const details = (changes: Record<string, unknown> = {}) => ({ ...({ id: 'local-case', campus_key: 'yihua', status: 'pending_confirmation', parent_name: '測試家長', phone: '0912345678', child_name: '測試孩子', child_birthdate: '2022-06-18', email: 'parent@example.org', referral_sources: ['facebook', 'friends_family'], age: null, preferred_time: null, questions: null, slot_id: slot.id, slot, created_at: '2026-09-22T00:00:00Z', hold_expires_at: '2099-09-23T00:00:00Z' }), display_status: 'pending', cancel_reason: null, access_link: { created_at: '2026-09-30T00:00:00Z', expires_at: '2026-10-20T00:00:00Z' }, ...changes })
+// 預設是已確認的案件（官網送單與後台補登都是當場排進場次）。
+const details = (changes: Record<string, unknown> = {}) => ({ ...({ id: 'local-case', campus_key: 'yihua', status: 'confirmed', parent_name: '測試家長', phone: '0912345678', child_name: '測試孩子', child_birthdate: '2022-06-18', email: 'parent@example.org', referral_sources: ['facebook', 'friends_family'], age: null, preferred_time: null, questions: null, slot_id: slot.id, slot, created_at: '2026-09-22T00:00:00Z' }), display_status: 'upcoming', cancel_reason: null, access_link: { created_at: '2026-09-30T00:00:00Z', expires_at: '2026-10-20T00:00:00Z' }, ...changes })
 // bookingConfig：undefined＝沿用 data（舊行為）、null＝讀不到（模擬沒有權限）、物件＝該校預約設定。
 async function mountDetail(data: Record<string, unknown> = details(), user: UserOut = testUser('super_admin'), bookingConfig?: Record<string, unknown> | null) {
   vi.spyOn(api, 'get').mockImplementation(async path => {
@@ -32,22 +32,23 @@ async function mountDetail(data: Record<string, unknown> = details(), user: User
 
 
 describe('自選場次後的案件明細', () => {
-  it('舊的新需求只剩「排入場次」與取消，沒有聯絡中', async () => {
-    const wrapper = await mountDetail(details({ status: 'new', display_status: 'pending', slot: null, slot_id: null, hold_expires_at: null }))
+  it('舊的新需求（改版前留下的）沒有「排入場次」也沒有聯絡中，取消區也不顯示', async () => {
+    const wrapper = await mountDetail(details({ status: 'new', display_status: 'pending', slot: null, slot_id: null }))
     expect(wrapper.text()).not.toContain('聯絡中')
-    expect(wrapper.findAll('button').some(b => b.text() === '排入場次')).toBe(true)
+    expect(wrapper.findAll('button').some(b => b.text() === '排入場次')).toBe(false)
+    expect(wrapper.findAll('button').some(b => b.text().includes('取消'))).toBe(false)
   })
 
   it('已確認的案件：取消前說明會寄信給家長', async () => {
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
-    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null }), testUser('super_admin'), { parent_email_enabled: true })
+    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com' }), testUser('super_admin'), { parent_email_enabled: true })
     await wrapper.findAll('button').find(b => b.text() === '取消預約')!.trigger('click')
     expect(String(prompt.mock.calls[0]?.[0])).toContain('會寄信通知家長（w***@example.com）')
   })
 
   it('家長連結區可以重寄確認信', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({ queued: true } as never)
-    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null }))
+    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com' }))
     await wrapper.findAll('button').find(b => b.text() === '重寄確認信')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/resend-confirmation')
@@ -76,7 +77,7 @@ describe('階段 A 帶過來的後台顯示', () => {
   })
 
   it('重新產生連結沒寄信（emailed=false）時提示園方自行轉交，不說已寄出', async () => {
-    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: null, hold_expires_at: null, access_link: null }))
+    const wrapper = await mountDetail(details({ status: 'confirmed', display_status: 'upcoming', email: null, access_link: null }))
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     vi.spyOn(api, 'post').mockResolvedValue({ manage_url: 'https://x/visit/manage#token=abc', manage_url_fragment: '/visit/manage#token=abc', expires_at: '2026-10-20T00:00:00Z', replaced_previous: false, emailed: false } as never)
     await wrapper.findAll('button').find(b => b.text() === '產生連結')!.trigger('click')
@@ -87,7 +88,7 @@ describe('階段 A 帶過來的後台顯示', () => {
 })
 
 describe('審查修正：寄信說明與下一筆', () => {
-  const confirmedCase = (changes: Record<string, unknown> = {}) => details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', hold_expires_at: null, ...changes })
+  const confirmedCase = (changes: Record<string, unknown> = {}) => details({ status: 'confirmed', display_status: 'upcoming', email: 'wang@example.com', ...changes })
   const cancelMessage = async (config: Record<string, unknown> | null, data: Record<string, unknown>) => {
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
     const wrapper = await mountDetail(data, testUser('super_admin'), config)
@@ -101,8 +102,8 @@ describe('審查修正：寄信說明與下一筆', () => {
     expect(message).not.toContain('會寄信通知家長')
   })
 
-  it('寄信啟用：說會寄信；待確認但已有場次的舊案也一樣', async () => {
-    const message = await cancelMessage({ mode: 'slots', parent_email_enabled: true }, details({ status: 'pending_confirmation', display_status: 'pending' }))
+  it('寄信啟用：說會寄信', async () => {
+    const message = await cancelMessage({ mode: 'slots', parent_email_enabled: true }, confirmedCase({ email: 'parent@example.org' }))
     expect(message).toContain('會寄信通知家長（p***@example.org）')
   })
 
@@ -112,20 +113,18 @@ describe('審查修正：寄信說明與下一筆', () => {
     expect(message).toContain('請確認是否需要另外通知家長')
   })
 
-  it('待確認的舊案重新產生連結：不說已寄出，提示自行轉交', async () => {
+  it('舊的待確認案件沒有家長管理連結區與取消區（只有已確認才有）', async () => {
     const wrapper = await mountDetail(details({ status: 'pending_confirmation', display_status: 'pending', email: 'wang@example.com' }))
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
-    vi.spyOn(api, 'post').mockResolvedValue({ manage_url: 'https://x/m#token=a', manage_url_fragment: '/m#token=a', expires_at: '2026-10-20T00:00:00Z', replaced_previous: true, emailed: true } as never)
-    await wrapper.findAll('button').find(b => b.text().startsWith('重新產生連結'))!.trigger('click')
-    await flushPromises()
-    expect(wrapper.text()).toContain('這次沒有寄信，請把連結直接交給家長')
+    expect(wrapper.findAll('button').some(b => b.text().startsWith('重新產生連結') || b.text() === '產生連結')).toBe(false)
+    expect(wrapper.findAll('button').some(b => b.text().includes('取消'))).toBe(false)
+    expect(wrapper.findAll('button').some(b => b.text() === '確認這個場次')).toBe(false)
   })
 
   it('案件頁照列表的分組查「下一筆」，不把 group 丟掉', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path.startsWith('/admin/visit-requests?')) return [] as never
       if (path.endsWith('/contact-notes') || path.startsWith('/admin/slots') || path.startsWith('/admin/visit-staff') || path.startsWith('/admin/booking-config')) return [] as never
-      return details({ status: 'confirmed', display_status: 'upcoming', hold_expires_at: null }) as never
+      return details({ status: 'confirmed', display_status: 'upcoming' }) as never
     })
     const router = (await import('vue-router')).createRouter({ history: (await import('vue-router')).createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: { template: '<div />' } }] })
     await router.push('/visit-requests/local-case?list=' + encodeURIComponent('group=upcoming&order=oldest')); await router.isReady()

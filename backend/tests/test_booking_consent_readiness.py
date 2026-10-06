@@ -331,9 +331,9 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     assert "consent" not in body
     assert [r["code"] for r in body["blockers"]["slots"]] == ["NO_SLOTS_OR_RULES"]
     assert body["blockers"]["line"] == [] and body["blockers"]["paused"] == []
+    # 舊流程的 new_requests／contacting／pending_confirmation 欄位已拿掉。
     assert body["impact"] == {
-        "open_requests": 0, "new_requests": 0, "contacting": 0, "pending_confirmation": 0,
-        "upcoming_confirmed": 0, "past_confirmed": 0, "bookable_slots": 0, "weekly_rules": 0,
+        "open_requests": 0, "upcoming_confirmed": 0, "past_confirmed": 0, "bookable_slots": 0, "weekly_rules": 0,
     }
 
     slot = await _slot(admin_client, capacity=3)
@@ -341,16 +341,14 @@ async def test_readiness_lists_blockers_and_impact(admin_client, public_client, 
     version = (await set_booking_mode(admin_client, mode="slots")).json()["version"]
     confirmed = await _submit(public_client, version, "impact-confirmed", slot["id"])
     assert confirmed.status_code == 201, confirmed.text
-    # 本案上線前留下的舊案（新需求、聯絡中）仍要算進切換前的影響範圍。
-    await legacy_request(db_session, status="new")
-    await legacy_request(db_session, status="contacting")
+    # 已結案的案件不算進行中，也不影響切換。
+    await legacy_request(db_session, status="completed")
 
     body = (await admin_client.get(f"{API}/admin/booking-config/yihua/readiness")).json()
     assert body["current_mode"] == "slots"
     assert body["blockers"]["slots"] == []
     assert body["impact"] == {
-        "open_requests": 3, "new_requests": 1, "contacting": 1, "pending_confirmation": 0,
-        "upcoming_confirmed": 1, "past_confirmed": 0, "bookable_slots": 2, "weekly_rules": 0,
+        "open_requests": 1, "upcoming_confirmed": 1, "past_confirmed": 0, "bookable_slots": 2, "weekly_rules": 0,
     }
 
     # 其他校的人看不到。
@@ -383,7 +381,7 @@ async def test_impact_counts_confirmed_visits_already_past_separately(admin_clie
     assert impact["open_requests"] == 3
     assert impact["upcoming_confirmed"] == 1
     assert impact["past_confirmed"] == 2
-    parts = ("new_requests", "contacting", "pending_confirmation", "upcoming_confirmed", "past_confirmed")
+    parts = ("upcoming_confirmed", "past_confirmed")
     assert sum(impact[part] for part in parts) == impact["open_requests"]
 
 
@@ -513,7 +511,7 @@ async def test_party_size_is_optional_validated_and_exported(admin_client, publi
 @pytest.mark.asyncio
 async def test_legacy_case_without_party_size_exports_blank(admin_client, db_session):
     # 參觀人數是後來才加的欄位；舊案沒有值，匯出留空。
-    await legacy_request(db_session, status="new", party_size=None)
+    await legacy_request(db_session, status="completed", party_size=None)
     export = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua")
     assert [row["人數"] for row in csv.DictReader(io.StringIO(export.content.decode("utf-8-sig")))] == [""]
 

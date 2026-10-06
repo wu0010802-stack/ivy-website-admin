@@ -126,7 +126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        # 排程發布、逾期占位、通知與限流清理原本只有 CLI，沒有任何排程在
+        # 排程發布、補時段、通知與限流清理原本只有 CLI，沒有任何排程在
         # 呼叫——改由 API 自己定期跑，見 app/workers/maintenance.py。
         interval = settings.background_jobs_interval
         if interval:

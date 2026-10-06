@@ -13,7 +13,7 @@ from tests.conftest import set_booking_mode
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 URL = "/api/website/v1/admin/analytics/booking-outcomes"
-OUTCOME_KEYS = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
+OUTCOME_KEYS = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled")
 
 
 def _row(body: dict, campus_key: str = "yihua") -> dict:
@@ -44,7 +44,7 @@ async def test_each_case_lands_in_exactly_one_outcome_with_rates(admin_client, d
     assert row["web_cases"] == 6
     assert {key: row[key] for key in OUTCOME_KEYS} == {
         "upcoming": 1, "awaiting_attendance": 1, "completed": 2,
-        "no_show": 1, "cancelled": 2, "unscheduled": 0,
+        "no_show": 1, "cancelled": 2,
     }
     assert sum(row[key] for key in OUTCOME_KEYS) == row["cases"]
     assert row["cancelled_by_reason"] == {"parent": 1, "staff": 0, "hold_expired": 0, "unknown": 1}
@@ -65,8 +65,8 @@ async def test_rates_are_null_when_nothing_to_divide(admin_client):
 @pytest.mark.asyncio
 async def test_period_uses_taipei_days_of_created_at(admin_client, db_session):
     # 兩筆在 UTC 都是 09-30，台北分屬 09-30 與 10-01。
-    await add_case(db_session, status="new", created_at=taipei(date(2026, 9, 30), 23, 59))
-    await add_case(db_session, status="new", created_at=taipei(date(2026, 10, 1), 0, 0))
+    await add_case(db_session, status="confirmed", created_at=taipei(date(2026, 9, 30), 23, 59))
+    await add_case(db_session, status="confirmed", created_at=taipei(date(2026, 10, 1), 0, 0))
     await db_session.commit()
     assert _row(await _get(admin_client, "?from=2026-09-30&to=2026-09-30"))["cases"] == 1
     assert _row(await _get(admin_client, "?from=2026-10-01&to=2026-10-01"))["cases"] == 1
@@ -75,8 +75,8 @@ async def test_period_uses_taipei_days_of_created_at(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_only_campuses_in_scope_are_listed(admin_client, minghua_client, db_session):
-    await add_case(db_session, campus_key="yihua", status="new")
-    await add_case(db_session, campus_key="minghua", status="new")
+    await add_case(db_session, campus_key="yihua", status="confirmed")
+    await add_case(db_session, campus_key="minghua", status="confirmed")
     await db_session.commit()
 
     everyone = await _get(admin_client)
@@ -94,7 +94,7 @@ async def test_only_campuses_in_scope_are_listed(admin_client, minghua_client, d
 
 @pytest.mark.asyncio
 async def test_analytics_only_role_sees_counts_without_personal_data(editor_client, db_session):
-    await add_case(db_session, status="new")
+    await add_case(db_session, status="confirmed")
     await db_session.commit()
     body = await _get(editor_client)
     assert [row["campus_key"] for row in body["campuses"]] == ["yihua"]

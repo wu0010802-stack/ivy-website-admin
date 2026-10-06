@@ -22,7 +22,7 @@ async def test_my_open_cases_and_inactive_assignee(app, admin_client, minghua_cl
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
     await db_session.commit()
-    open_case = await legacy_request(db_session, status="new", parent_name="王媽媽", phone="0912000901")
+    open_case = await legacy_request(db_session, status="confirmed", parent_name="王媽媽", phone="0912000901")
     closed_case = await legacy_request(db_session, status="cancelled", parent_name="李媽媽", phone="0912000902")
     await db_session.execute(
         update(VisitRequest)
@@ -75,7 +75,7 @@ async def test_open_filter_reaches_export_audit_metadata(admin_client, db_sessio
 
     from app.operations.models import AuditLogEntry
 
-    open_case = await legacy_request(db_session, status="new", parent_name="王媽媽", phone="0912000911")
+    open_case = await legacy_request(db_session, status="confirmed", parent_name="王媽媽", phone="0912000911")
     await legacy_request(db_session, status="cancelled", parent_name="李媽媽", phone="0912000912")
     resp = await admin_client.get(f"{BASE}/visit-requests/export?campus_key=yihua&open=true")
     assert resp.status_code == 200

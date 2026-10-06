@@ -114,7 +114,7 @@ async def original_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *,
 async def ensure_access_token(
     db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None, actor: Actor
 ) -> None:
-    """確保案件有一條系統重算得出來的修改連結（排入場次、補登、重寄確認信用）。
+    """確保案件有一條系統重算得出來的修改連結（補登、重寄確認信用）。
 
     - 已有可重算的連結：沿用，有場次時依場次延長效期（不縮短）。
     - 有效連結是 2026-09-30 以前隨機產生、或密鑰更換前發的（重算不出來，信裡放不進去）：

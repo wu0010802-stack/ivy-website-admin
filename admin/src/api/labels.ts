@@ -50,22 +50,20 @@ export interface StatusMeta {
   tone: TagTone
 }
 
-// 參觀案件狀態（資料庫的七種）。歷程與操作紀錄寫「A → B」時用；列表、明細與
-// 參觀場次的狀態標籤用下方 visitDisplay 的分組說法。兩邊用同一組詞：confirmed
-// 叫「預約正常」、completed 叫「已到場」（2026-09-30 自選場次裁定、明細按鈕「標記已到場」）。
-// new 只是舊流程「已收到需求」，文字不能寫成「已預約」。
+// 參觀案件狀態。歷程與操作紀錄寫「A → B」時用；列表、明細與參觀場次的狀態標籤
+// 用下方 visitDisplay 的分組說法。兩邊用同一組詞：confirmed 叫「預約正常」、
+// completed 叫「已到場」（2026-09-30 自選場次裁定、明細按鈕「標記已到場」）。
 export const VISIT_STATUS: Record<string, StatusMeta> = {
-  pending_confirmation: { label: '待園方確認', tone: 'warning' },
-  // 新需求用操作色、待園方確認用暖黃（有期限），和總覽待辦的兩種數字底色一致。
-  new: { label: '待處理', tone: 'primary' },
-  contacting: { label: '聯絡中', tone: 'primary' },
   confirmed: { label: '預約正常', tone: 'success' },
   completed: { label: '已到場', tone: 'info' },
   cancelled: { label: '已取消', tone: 'info' },
   no_show: { label: '未到場', tone: 'danger' },
+  // 舊流程的狀態（2026-10-06 拿掉）只出現在以前的歷程與操作紀錄，例如補登先建 new
+  // 再排入場次、舊案聯絡中後取消。new 只是「已收到需求」，文字不能寫成「已預約」。
+  new: { label: '待處理', tone: 'primary' },
+  contacting: { label: '聯絡中', tone: 'primary' },
+  pending_confirmation: { label: '待園方確認', tone: 'warning' },
 }
-
-export const VISIT_STATUS_ORDER = ['new', 'contacting', 'pending_confirmation', 'confirmed', 'completed', 'no_show', 'cancelled'] as const
 
 // 列表分組（2026-09-30 業主裁定，參考義華舊後台）：資料庫狀態不變，只在顯示上歸組。
 // 原本的「待處理」只剩自選場次上線前的舊案，2026-10-05 拿掉分組、舊案已刪除。
@@ -338,21 +336,22 @@ export const BOOKING_MODE_LABELS: Record<string, string> = {
 // 與後端 notifications/service.py 的 _KIND_LABELS 同一組（labels.test.ts 會比對）。
 export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   visit_request_created: '新的參觀預約',
-  visit_request_pending_confirmation: '新的時段申請（待園方確認）',
   visit_request_confirmed: '參觀預約已確認',
   visit_request_cancelled: '參觀預約已取消',
   visit_request_rescheduled: '參觀預約已改期',
-  visit_request_hold_expired: '時段占位已逾期，名額已釋放',
   parent_visit_booked: '家長確認信（預約成功）',
   parent_visit_changed: '家長確認信（預約已變更）',
   parent_visit_cancelled: '家長確認信（預約已取消）',
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
   visit_upcoming: '即將參觀（24 小時內）',
+  // 舊流程（2026-10-06 拿掉）留下的通知，站內通知與寄送失敗清單仍要有標題。
+  visit_request_hold_expired: '時段占位已逾期，名額已釋放',
   visit_request_overdue: '案件逾期未處理',
 }
 
-// 逾期未處理提醒的細分原因（payload.reason），與後端 reminders.REASON_LABELS 同一組。
+// 舊流程逾期未處理提醒的細分原因（payload.reason）。後端 2026-10-06 已不再產生，
+// 只剩以前的通知會帶這個欄位。
 export const NOTIFICATION_REASON_LABELS: Record<string, string> = {
   new_unhandled: '新的參觀需求超過 24 小時尚未處理',
   hold_expiring: '待確認的時段申請 6 小時內到期，逾期會自動釋出名額',
@@ -954,19 +953,7 @@ export function formatShortSlotWhen(slot: { slot_date: string; start_time: strin
 }
 
 
-// 待園方確認的占位還剩多久會被釋出：「還剩 5 小時」「還剩 40 分鐘」。
-// 無條件捨去，寧可講少不講多；過了期限 worker 還沒跑到時顯示「已逾期」。
-export function formatHoldRemaining(value: string | null | undefined, now: number = Date.now()): string {
-  if (!value) return ''
-  const expires = new Date(value).getTime()
-  if (Number.isNaN(expires)) return ''
-  const minutes = Math.floor((expires - now) / 60000)
-  if (minutes <= 0) return '已逾期'
-  if (minutes < 60) return `還剩 ${minutes} 分鐘`
-  return `還剩 ${Math.floor(minutes / 60)} 小時`
-}
-
-// 時段已經開始（或結束）：後台排入與改期都不能再選，後端也會拒絕。
+// 時段已經開始（或結束）：後台補登與改期都不能再選，後端也會拒絕。
 // 日期與時間是台灣時間。
 export function slotStarted(
   slot: { slot_date: string; start_time: string },
@@ -974,13 +961,6 @@ export function slotStarted(
 ): boolean {
   const starts = new Date(`${slot.slot_date}T${slot.start_time.slice(0, 8)}+08:00`).getTime()
   return !Number.isNaN(starts) && starts <= now
-}
-
-// 剩不到 6 小時就該先處理，列表與總覽用暖色提醒。
-export function holdIsUrgent(value: string | null | undefined, now: number = Date.now()): boolean {
-  if (!value) return false
-  const expires = new Date(value).getTime()
-  return !Number.isNaN(expires) && expires - now < 6 * 3600 * 1000
 }
 
 // 家長線上取消／改期的截止（各校設定，預設參觀前 24 小時）。整天數且超過一天

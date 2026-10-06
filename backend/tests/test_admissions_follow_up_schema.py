@@ -61,7 +61,11 @@ def test_paper_fields_migration_follows_legacy_pending_cleanup_and_keeps_data_on
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision("3fe1cfb2dbf7").down_revision == "1e5612e187ff"
-    assert script.get_heads() == ["3fe1cfb2dbf7"]
+    # 2026-10-06 之後接了 d65fa082ff87（收掉舊預約流程殘留資料）與 e870893fac95（拿掉舊欄位、
+    # 加狀態約束），仍只有一個 head。
+    assert script.get_revision("d65fa082ff87").down_revision == "3fe1cfb2dbf7"
+    assert script.get_revision("e870893fac95").down_revision == "d65fa082ff87"
+    assert script.get_heads() == ["e870893fac95"]
     upgrade = PAPER_FIELDS_MIGRATION.read_text(encoding="utf-8").split("def downgrade", 1)[0]
     # 升級只加可空欄位、放寬 CHECK，不改既有資料（deploy/CICD.md）；降級才把 revisit 改回 in_person。
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade

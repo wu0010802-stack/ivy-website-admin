@@ -329,7 +329,7 @@ const visibleReviews = computed(() => openableContent(reviews.value))
 // 引導語只提自己做得到的事：櫃台沒有內容權限，不提官網更新。
 const lead = computed(() => {
   if (canEditContent.value) return '先確認參觀安排，再處理家長需求與官網更新。'
-  if (can('booking.handle')) return '先確認今天的參觀，再聯絡新需求與待確認的家長。'
+  if (can('booking.handle')) return '先確認今天的參觀，再處理要追蹤或改期的家長。'
   return '查看今天的參觀安排與還沒處理的案件。'
 })
 

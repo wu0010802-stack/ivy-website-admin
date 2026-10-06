@@ -13,6 +13,35 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_e2e_audit1006_test`、埠 8716／3716，跑完已刪庫）：既有 75 項全過。另用臨時 spec 在 1440／390 走過登入超過 10 分鐘建帳號要輸入密碼（打錯留在對話框、打對建立成功）、已註冊訪視編輯表單鎖住學年學期、被退回的內容停用發布與排程，截圖在 `output/playwright/admin-bug-audit-20261006/`，臨時 spec 已刪。
   - 未驗證：正式站實際點一次、Safari／iOS 實機；兩個人真的同時操作的競態只在測試裡用延遲重現。
 
+## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`）
+
+第一版已上線（`0c534043`）後才推。規則見 DESIGN.md「拿掉舊狀態程式」。
+
+- **migration `e870893fac95`**（down `d65fa082ff87`）：drop `visit_requests.hold_expires_at`（含索引）、`booking_configs.slots_auto_confirm`；加 CHECK `ck_visit_requests_status`、`ck_visit_requests_confirmed_slot`。downgrade 加回欄位（空值／false）、拿掉約束，資料不還原。本機測試庫降級再升級各跑一次通過。
+- **成效統計**：拿掉 `unscheduled`（已確認、沒有場次），API 與後台一起，`contracts/` 重新產生。
+- **測試**：新增 `test_visit_status_constraints.py`（舊狀態、已確認無場次被擋；已取消可以沒場次；兩個欄位不在了）；刪兩支要寫入舊狀態的歷史 migration 測試與 `c7d2e9f4a1b8` 切換預約方式的兩條；`analytics_fixtures.add_case` 的已確認案件自動帶場次。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1544 passed、1 skipped，另有 1 failed、2 errors（`test_media_jobs` 租約、`test_session_schedule` 補場次、`test_security_hardening` 素材鍵；當時另一個 session 的 vitest 把負載拉到 31），這三檔負載降下後重跑 63 項全過；成效統計與招生追蹤 63 項全過。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；`analyticsOutcomes.test.ts` 12 項通過（全套沒重跑：另一個 session 正在跑 vitest，這次後台只拿掉一行統計）。
+  - stack e2e（`E2E_DB_NAME=ivy_website_legacydrop1006_e2e_test`、埠 8793／3793，從零跑到 `e870893fac95`，跑完已刪庫）：整套 75 項全過。
+  - 未驗證：正式庫上 CHECK 建立（第一版已清過資料，理應沒有違反的列）。
+
+## 2026-10-06 拿掉舊狀態程式，第一版（`feature/visit-legacy-cleanup-20261006`，10-06 已部署 main `0c534043`）
+
+使用者：「把剩下的舊狀態程式也一起清掉」。規則見 DESIGN.md「拿掉舊狀態程式」；依 CICD.md 先停用、再移除，欄位與狀態約束在第二版。
+
+- **後端**：`VisitRequestStatus` 只剩 confirmed／completed／no_show／cancelled；補登先 `slot_service.lock_for_staff_booking` 再直接建 confirmed（歷程只有一筆 created 帶場次）；刪 `confirm_with_slot`、`expire_holds`、`/confirm` 與 `/contacting` 端點、占位名額規則、定期工作的釋放占位、「新需求未處理」「占位快到期」提醒；`OPEN_STATUSES` 只剩 confirmed（列表、停用分校、保存政策共用）；`BookingImpactOut`、明細與家長端拿掉舊欄位；ORM 不再對應 `hold_expires_at`、`slots_auto_confirm`。`contracts/` 重新產生。
+- **後台**：明細拿掉排入場次、確認占位與確認期限；「下一筆」只剩待標記到場與到期追蹤；取消一律「取消預約」；停用分校、切換預約方式不再列舊狀態件數；通知種類拿掉「待園方確認」。歷程、操作紀錄、舊通知需要的舊標籤保留。
+- **官網**：家長管理頁只剩四種狀態文案。
+- **資料**：migration `d65fa082ff87` 再刪一次舊狀態與「已確認卻沒有場次」的案件、舊流程通知未寄或失敗的標 skipped；downgrade 不還原。
+- **沒做**：`inquiry` 預約方式（改公開預約設定端點被 auto 模式擋下，待使用者決定）；欄位 drop 與 CHECK 在第二版。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1549 passed、1 skipped（8 分 39 秒，獨立測試庫 `ivy_website_test_legacy`）；新增 `test_retire_legacy_visit_flow_migration.py`、補登直接成立與 409 不建案；被拿掉的流程（`/confirm`、`/contacting`、`expire_holds`、逾期提醒、impact 舊欄位）改成斷言已不存在；`legacy_request` 不再預設 new，confirmed 自動帶固定時段的場次（改固定後用到它的 17 檔 206 項重跑全過）。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 101 檔 1279 項全過。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_legacy1006_e2e_test`、埠 8792／3792，跑完已刪庫）：整套 75 項全過。
+  - 未驗證：正式庫 migration 實際刪除與標 skipped 的筆數、登入正式後台實際點一次。
+
 ## 2026-10-05 預約明細當家庭頁
 
 - 已到場、有招生訪視的預約明細改成家庭版面：招生資料、參觀前後合併的聯絡紀錄與歷程、記錄聯絡／排下次聯絡／移到…／招生負責人都在同一頁。

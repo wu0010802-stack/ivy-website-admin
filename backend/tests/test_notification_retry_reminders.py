@@ -346,7 +346,7 @@ async def test_rescheduled_inside_lead_is_not_reminded_again(admin_client, publi
     assert await reminders.enqueue_due_reminders(db_session, now=starts - timedelta(hours=1)) == 1
 
 
-# --- 逾期未處理 -------------------------------------------------------------
+# --- 逾期未處理、占位到期提醒已刪除 -----------------------------------------------
 
 
 async def _set_created_at(db_session, receipt_id: str, when: datetime) -> None:
@@ -356,122 +356,60 @@ async def _set_created_at(db_session, receipt_id: str, when: datetime) -> None:
     await db_session.commit()
 
 
-async def test_new_request_overdue_reminded_once_and_skipped_once_handled(
-    admin_client, db_session, recording_mail_adapter
-):
-    receipt_id = await legacy_request(db_session, status="new")
-    old_receipt = await legacy_request(db_session, status="new")
-    now = datetime.now(timezone.utc)
-    await _set_created_at(db_session, receipt_id, now - timedelta(hours=25))
-    # 早就過期的舊案（超過補發範圍）不在功能上線時一次推出去。
-    await _set_created_at(db_session, old_receipt, now - timedelta(days=10))
+def test_only_the_upcoming_visit_reminder_remains():
+    """「新案逾期未處理」「占位快到期」都隨舊流程刪除，提醒只剩即將參觀。"""
+    assert reminders.REMINDER_KINDS == {reminders.UPCOMING_VISIT_KIND}
+    for name in ("OVERDUE_KIND", "REASON_NEW_UNHANDLED", "REASON_HOLD_EXPIRING", "REASON_LABELS", "HOLD_EXPIRING_WITHIN"):
+        assert not hasattr(reminders, name), name
 
-    assert await reminders.enqueue_due_reminders(db_session) == 1
+
+async def test_old_unhandled_cases_are_no_longer_reported_overdue(admin_client, db_session):
+    # 送出超過 24 小時、沒人聯絡的案件：不再有「逾期未處理」提醒（已確認的案件由即將參觀提醒負責）。
+    confirmed = await legacy_request(db_session, status="confirmed")
+    await _set_created_at(db_session, confirmed, datetime.now(timezone.utc) - timedelta(hours=30))
+
     assert await reminders.enqueue_due_reminders(db_session) == 0
     await db_session.commit()
-    [reminder] = await _reminders(db_session, reminders.OVERDUE_KIND)
-    assert reminder.payload["receipt_id"] == receipt_id
-    assert reminder.payload["reason"] == reminders.REASON_NEW_UNHANDLED
-
-    # 寄出前有人開始聯絡了：提醒不再成立。
-    contacted = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/contact-notes", json={"note": "已致電家長"}
-    )
-    assert contacted.status_code == 201, contacted.text
-    result = await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
-    assert result["skipped"] == 1
-    await db_session.refresh(reminder)
-    assert reminder.status == OutboxStatus.SKIPPED.value
-
-
-async def test_manual_request_is_not_reported_overdue(admin_client, db_session):
-    receipt_id = await legacy_request(db_session, status="new", source="phone", parent_name="林爸爸")
-    await _set_created_at(db_session, receipt_id, datetime.now(timezone.utc) - timedelta(hours=25))
-    # 人工補登的案件登錄的人就是承辦人，建立時也不發新案通知，不算「沒人處理」。
-    assert await reminders.enqueue_due_reminders(db_session) == 0
-
-
-async def test_new_request_with_contact_note_is_not_reported_overdue(
-    admin_client, db_session, recording_mail_adapter
-):
-    noted = await legacy_request(db_session, status="new")
-    pending = await legacy_request(db_session, status="new")
-    now = datetime.now(timezone.utc)
-    await _set_created_at(db_session, noted, now - timedelta(hours=25))
-    await _set_created_at(db_session, pending, now - timedelta(hours=25))
-
-    # 已經打過電話、約好下次聯絡時間，只是狀態還停在待處理。
-    note = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{noted}/contact-notes",
-        json={"note": "已致電，家長週末再回覆", "follow_up_at": (now + timedelta(days=2)).isoformat(), "expected_version": 1},
-    )
-    assert note.status_code == 201, note.text
-    assert await reminders.enqueue_due_reminders(db_session) == 1
-    await db_session.commit()
-    [reminder] = await _reminders(db_session, reminders.OVERDUE_KIND)
-    assert reminder.payload["receipt_id"] == pending
-
-    # 提醒寫進 outbox 之後、寄出之前才記聯絡紀錄：寄送當下重新判斷，不再送。
-    later = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{pending}/contact-notes", json={"note": "已留言給家長"}
-    )
-    assert later.status_code == 201, later.text
-    result = await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
-    assert result["skipped"] == 1
-    await db_session.refresh(reminder)
-    assert reminder.status == OutboxStatus.SKIPPED.value
-
-
-async def test_hold_expiring_reminder(admin_client, db_session, recording_mail_adapter):
-    slot_id = await create_slot(admin_client, capacity=2)
-    hold = datetime.now(timezone.utc) + timedelta(hours=24)
-    await legacy_request(db_session, status="pending_confirmation", slot_id=slot_id, hold_expires_at=hold)
-
-    assert await reminders.enqueue_due_reminders(db_session, now=hold - timedelta(hours=7)) == 0
-    assert await reminders.enqueue_due_reminders(db_session, now=hold - timedelta(hours=5)) == 1
-    assert await reminders.enqueue_due_reminders(db_session, now=hold - timedelta(hours=4)) == 0
-    await db_session.commit()
-    [reminder] = await _reminders(db_session, reminders.OVERDUE_KIND)
-    assert reminder.payload["reason"] == reminders.REASON_HOLD_EXPIRING
-
-    await process_outbox_batch(db_session, recording_mail_adapter, limit=20)
-    subjects = [mail["subject"] for mail in recording_mail_adapter.sent]
-    assert any("案件逾期未處理：待確認的時段申請 6 小時內到期" in subject for subject in subjects)
-
-
-async def test_short_hold_is_not_reminded(admin_client, db_session):
-    slot_id = await create_slot(admin_client, capacity=2)
-    receipt_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot_id,
-        hold_expires_at=datetime.now(timezone.utc) + timedelta(hours=3),
-    )
-    visit = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-    # 占位本來就只有 3 小時（場次很近）：送出時那則通知已經夠急，不另外提醒。
-    await _set_created_at(db_session, receipt_id, visit.hold_expires_at - timedelta(hours=3))
-    assert await reminders.enqueue_due_reminders(db_session, now=visit.hold_expires_at - timedelta(hours=2)) == 0
+    assert (await db_session.execute(select(func.count()).select_from(OutboxMessage))).scalar_one() == 0
 
 
 async def test_maintenance_cycle_enqueues_and_sends_reminders(app, admin_client, db_session):
-    receipt_id = await legacy_request(db_session, status="new")
-    await _set_created_at(db_session, receipt_id, datetime.now(timezone.utc) - timedelta(hours=30))
+    from datetime import time
+
+    from app.common.timezones import OPERATING_TZ
+
+    slot_id = await create_slot(admin_client, capacity=2)
+    receipt_id = await legacy_request(db_session, status="confirmed", slot_id=slot_id)
+    # 早就確認的案件（確認時還沒進提醒範圍，到點才需要提醒）。
+    await db_session.execute(
+        update(VisitRequest)
+        .where(VisitRequest.id == uuid.UUID(receipt_id))
+        .values(confirmed_at=datetime.now(timezone.utc) - timedelta(days=5))
+    )
+    # 把場次挪到 23 小時後開始：落在「24 小時內」的提醒範圍。
+    starts = (datetime.now(timezone.utc) + timedelta(hours=23)).astimezone(OPERATING_TZ)
+    await db_session.execute(
+        update(VisitSlot)
+        .where(VisitSlot.id == uuid.UUID(slot_id))
+        .values(slot_date=starts.date(), start_time=time(starts.hour, starts.minute), end_time=time(23, 59))
+    )
+    await db_session.commit()
 
     settings = app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
     result = await run_cycle(app.state.session_factory, settings, worker_id="test")
     assert result.failed_steps == []
     assert result.reminders_enqueued == 1
     kinds = set((await db_session.execute(select(NotificationInboxItem.kind))).scalars())
-    assert reminders.OVERDUE_KIND in kinds
+    assert reminders.UPCOMING_VISIT_KIND in kinds
 
     again = await run_cycle(app.state.session_factory, settings, worker_id="test")
     assert again.reminders_enqueued == 0
 
 
-def test_notification_labels_cover_reminder_reasons():
+def test_notification_labels_cover_reminder_kinds():
     assert notification_label("visit_upcoming") == "即將參觀（24 小時內）"
-    assert notification_label("visit_request_overdue", {"reason": "new_unhandled"}) == (
-        "案件逾期未處理：新的參觀需求超過 24 小時尚未處理"
-    )
+    # 逾期、占位到期通知已不會再產生，只留標題給資料庫裡的舊通知；不再依 reason 加細項。
+    assert notification_label("visit_request_overdue", {"reason": "new_unhandled"}) == "案件逾期未處理"
     assert notification_label("visit_request_overdue", {"reason": "weird"}) == "案件逾期未處理"
+    assert notification_label("visit_request_hold_expired") == notification_label("visit_request_hold_expired", {})
     assert notification_label("unknown_kind") == "unknown_kind"

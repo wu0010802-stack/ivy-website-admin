@@ -1,7 +1,6 @@
 """後台列表的三組顯示狀態（2026-09-30 業主裁定，參考義華舊後台）：
-預約正常／時間已過／已取消。資料庫的 7 種狀態不變，只在這裡歸組；場次開始的
-那一刻起算「時間已過」。原本的「待處理」只剩自選場次上線前的舊案，2026-10-05
-拿掉分組、舊案由 migration 1e5612e187ff 刪除。"""
+預約正常／時間已過／已取消，由案件狀態與場次時間決定；場次開始的那一刻起算
+「時間已過」。舊流程的「待處理」分組 2026-10-05 拿掉，舊狀態 2026-10-06 拿掉。"""
 
 from __future__ import annotations
 
@@ -15,15 +14,9 @@ from app.common.timezones import OPERATING_TZ, now_utc, slot_start_utc
 GROUPS = ("upcoming", "past", "cancelled")
 _DONE_STATUSES = (VisitRequestStatus.COMPLETED.value, VisitRequestStatus.NO_SHOW.value)
 
-# 還沒結案：預約正常（含時間已過還沒標記到場）。舊流程的 new／contacting／
-# pending_confirmation 已不會產生，仍算還沒結案，免得萬一出現時從清單消失。
-# 總覽「我承辦的案件」「承辦人已停用」與清單的 open=true 用同一個定義。
-OPEN_STATUSES = (
-    VisitRequestStatus.NEW.value,
-    VisitRequestStatus.CONTACTING.value,
-    VisitRequestStatus.PENDING_CONFIRMATION.value,
-    VisitRequestStatus.CONFIRMED.value,
-)
+# 還沒結案：預約正常（含時間已過還沒標記到場）。總覽「我承辦的案件」「承辦人已停用」、
+# 清單的 open=true、停用分校的進行中件數與個資保存政策用同一個定義。
+OPEN_STATUSES = (VisitRequestStatus.CONFIRMED.value,)
 
 
 def open_condition():
@@ -35,7 +28,7 @@ def display_status(status: str, slot_date: date | None, start_time: time | None,
         return "cancelled"
     if status in _DONE_STATUSES:
         return "past"
-    # 沒有場次的只剩舊流程資料（成效統計的 unscheduled），還沒結案就當預約正常。
+    # 已確認一定有場次；讀不到場次時不猜「時間已過」。
     if slot_date is None or start_time is None:
         return "upcoming"
     return "upcoming" if slot_start_utc(slot_date, start_time) > (now or now_utc()) else "past"
@@ -55,10 +48,10 @@ def group_condition(group: str, now: datetime | None = None):
     current = now or now_utc()
     if group == "cancelled":
         return VisitRequest.status == VisitRequestStatus.CANCELLED.value
-    # 和 display_status 同一個判準，每筆剛好落在一組：還沒結案的依場次分，沒有場次的算預約正常。
+    # 和 display_status 同一個判準，每筆剛好落在一組：還沒結案的依場次分。
     started = _started_slot_ids(current)
     if group == "upcoming":
-        return and_(open_condition(), or_(VisitRequest.slot_id.is_(None), VisitRequest.slot_id.not_in(started)))
+        return and_(open_condition(), VisitRequest.slot_id.not_in(started))
     if group == "past":
         return or_(and_(open_condition(), VisitRequest.slot_id.in_(started)), VisitRequest.status.in_(_DONE_STATUSES))
     raise ValueError(group)

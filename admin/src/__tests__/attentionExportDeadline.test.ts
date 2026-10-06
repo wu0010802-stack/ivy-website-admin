@@ -178,7 +178,7 @@ describe('待人工處理的入口', () => {
   })
 
   it('停用確認框按下當下讀進行中件數：有件數、0 件、讀不到各自說清楚', async () => {
-    const impact = { open_requests: 9, new_requests: 1, contacting: 0, pending_confirmation: 1, upcoming_confirmed: 7, past_confirmed: 0, bookable_slots: 3, weekly_rules: 0 }
+    const impact = { open_requests: 9, upcoming_confirmed: 9, past_confirmed: 0, bookable_slots: 3, weekly_rules: 0 }
     let readiness: unknown = { blockers: {}, impact }
     const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (String(path).endsWith('/readiness')) {
@@ -194,11 +194,13 @@ describe('待人工處理的入口', () => {
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/booking-config/yihua/readiness')
     const first = String(prompt.mock.calls[0]![0])
-    expect(first).toContain('進行中的案件 9 件（已確認、還沒參觀 7、待園方確認 1、待處理／聯絡中 1）')
+    expect(first).toContain('進行中的案件 9 件（已確認、還沒參觀 9）')
+    expect(first).not.toContain('待園方確認')
+    expect(first).not.toContain('聯絡中')
     expect(first).toContain('停用後官網不會通知這些家長，要另外逐一聯絡')
     expect(prompt.mock.calls[0]![2]).toMatchObject({ confirmButtonText: '停用分校', cancelButtonText: '先不要' })
 
-    readiness = { blockers: {}, impact: { ...impact, open_requests: 0, new_requests: 0, pending_confirmation: 0, upcoming_confirmed: 0 } }
+    readiness = { blockers: {}, impact: { ...impact, open_requests: 0, upcoming_confirmed: 0 } }
     await stop().trigger('click')
     await flushPromises()
     expect(String(prompt.mock.calls[1]![0])).toContain('目前沒有進行中的案件。')

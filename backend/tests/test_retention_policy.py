@@ -27,8 +27,8 @@ def _ago(days: int) -> datetime:
 
 
 async def _case(db_session, name: str = "王媽媽") -> str:
-    """上線前留下的待處理舊案（新流程沒有 API 能建出 new 狀態）。"""
-    return await legacy_request(db_session, status="new", parent_name=name, phone="0912345678", source="phone")
+    """直接寫庫建一筆已確認、有場次的案件（可再被取消、完成、未到場）。"""
+    return await legacy_request(db_session, status="confirmed", parent_name=name, phone="0912345678", source="phone")
 
 
 async def _slot(client) -> str:
@@ -126,8 +126,6 @@ async def test_policy_is_super_admin_only(minghua_client):
 
 @pytest.mark.asyncio
 async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin_client, db_session):
-    slot_id = await _slot(admin_client)
-
     # 很早建立、最近才取消：看 cancelled_at，還不到期。
     recent_cancel = await _case(db_session)
     await admin_client.post(f"{BASE}/visit-requests/{recent_cancel}/cancel")
@@ -139,8 +137,6 @@ async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin
     # 完成：看歷程裡 completed 那一筆。很早建立、最近才完成的不到期。
     completed_recent, completed_old = await _case(db_session), await _case(db_session)
     for case_id in (completed_recent, completed_old):
-        confirmed = await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": slot_id})
-        assert confirmed.status_code == 200, confirmed.text
         await _complete(db_session, case_id)
     await _age(db_session, completed_recent, created=900, events=900)
     await _age(db_session, completed_recent, events=10, event_types=("completed",))
@@ -157,13 +153,12 @@ async def test_closing_time_decides_expiry_and_open_cases_are_only_counted(admin
     await db_session.commit()
     await _age(db_session, legacy, created=400)
     # 還沒結案的：不論多舊都不清，只算進提醒。
-    stale_new = await _case(db_session)
-    await _age(db_session, stale_new, created=400, events=400)
-    stale_confirmed = await _case(db_session)
-    await admin_client.post(f"{BASE}/visit-requests/{stale_confirmed}/confirm", json={"slot_id": slot_id})
-    await _age(db_session, stale_confirmed, created=900, events=900)
-    fresh_new = await _case(db_session)
-    assert fresh_new
+    stale_open = await _case(db_session)
+    await _age(db_session, stale_open, created=400, events=400)
+    stale_older = await _case(db_session)
+    await _age(db_session, stale_older, created=900, events=900)
+    fresh_open = await _case(db_session)
+    assert fresh_open
 
     report = (await admin_client.post(f"{BASE}/retention/dry-run")).json()
     assert report["counts"] == {"cancelled": 1, "no_show": 2, "completed": 1, "admissions": 0}
@@ -223,7 +218,7 @@ async def test_manual_run_anonymizes_closed_cases_and_is_recorded(app, admin_cli
     # 未結案的不清、不改狀態。
     untouched = (await admin_client.get(f"{BASE}/visit-requests/{stale}")).json()
     assert untouched["parent_name"] == "很久沒聯絡的爸爸"
-    assert untouched["status"] == "new"
+    assert untouched["status"] == "confirmed"
 
     runs = (await admin_client.get(f"{BASE}/retention-runs")).json()
     assert len(runs) == 1

@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import importlib.util
 import uuid
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
 
-from app.booking import schedule_service, service
-from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestEvent, VisitSlot
-from app.operations.models import AuditLogEntry
-from app.common.timezones import today_local
+from app.booking.models import VisitRequest, VisitRequestEvent
 from tests.conftest import legacy_request
 
 _MIGRATION = (
@@ -34,95 +30,8 @@ async def _run(db_session, fn):
     return result
 
 
-async def _config(db_session, campus_key: str, *, mode: BookingMode, message: str | None = None) -> BookingConfig:
-    config = await service.get_or_create_config(db_session, campus_key)
-    config.mode = mode
-    config.message = message
-    config.slots_auto_confirm = False
-    await db_session.commit()
-    return config
-
-
-@pytest.mark.asyncio
-async def test_inquiry_campuses_switch_to_slots_or_paused(db_session):
-    await _config(db_session, "yihua", mode=BookingMode.INQUIRY)
-    await _config(db_session, "minghua", mode=BookingMode.INQUIRY)
-    await _config(db_session, "chongde", mode=BookingMode.INQUIRY, message="暑假暫停參觀")
-    await _config(db_session, "renwu", mode=BookingMode.LINE)
-    await schedule_service.replace_rules(
-        db_session,
-        "yihua",
-        [{"weekday": 0, "start_time": time(10, 0), "end_time": time(11, 0), "slot_minutes": 60, "capacity": 1}],
-        None,
-    )
-    await db_session.commit()
-    versions = {
-        key: (await db_session.get(BookingConfig, key)).version for key in ("yihua", "minghua", "chongde", "renwu")
-    }
-
-    changes = await _run(db_session, _migration().migrate_booking_modes)
-
-    assert sorted((c["campus_key"], c["mode"]) for c in changes) == [
-        ("chongde", "paused"),
-        ("minghua", "paused"),
-        ("yihua", "slots"),
-    ]
-    db_session.expire_all()
-    yihua = await db_session.get(BookingConfig, "yihua")
-    minghua = await db_session.get(BookingConfig, "minghua")
-    chongde = await db_session.get(BookingConfig, "chongde")
-    renwu = await db_session.get(BookingConfig, "renwu")
-    assert yihua.mode == BookingMode.SLOTS
-    assert minghua.mode == BookingMode.PAUSED
-    assert minghua.message == "線上預約即將開放，歡迎來電洽詢。"
-    assert chongde.message == "暑假暫停參觀"
-    assert renwu.mode == BookingMode.LINE
-    assert all(c.slots_auto_confirm for c in (yihua, minghua, chongde, renwu))
-    assert yihua.version > versions["yihua"]
-    assert renwu.version > versions["renwu"]  # 自動確認改了也要讓舊表單重新讀設定
-    audits = (
-        await db_session.execute(
-            select(AuditLogEntry).where(AuditLogEntry.action == "booking_config.migrate_self_booking")
-        )
-    ).scalars().all()
-    assert sorted(a.campus_key for a in audits) == ["chongde", "minghua", "yihua"]
-    assert all(a.metadata_json["before"] == {"mode": "inquiry"} for a in audits)
-
-
-def _slot(campus_key: str, *, days_ahead: int, closed: bool = False) -> VisitSlot:
-    return VisitSlot(
-        id=uuid.uuid4(),
-        campus_key=campus_key,
-        slot_date=today_local() + timedelta(days=days_ahead),
-        start_time=time(10, 0),
-        end_time=time(11, 0),
-        capacity=2,
-        closed=closed,
-        closed_source="manual" if closed else None,
-        created_at=datetime.now(timezone.utc),
-    )
-
-
-@pytest.mark.asyncio
-async def test_only_open_future_slots_without_rules_count_as_a_schedule(db_session):
-    """沒有每週規則時看場次：有一個未來、未關閉的場次 → slots；只有已關閉或過去的場次 → paused。"""
-    await _config(db_session, "minghua", mode=BookingMode.INQUIRY)
-    await _config(db_session, "chongde", mode=BookingMode.INQUIRY)
-    db_session.add_all(
-        [
-            _slot("minghua", days_ahead=5),
-            _slot("chongde", days_ahead=5, closed=True),
-            _slot("chongde", days_ahead=-1),
-        ]
-    )
-    await db_session.commit()
-
-    changes = await _run(db_session, _migration().migrate_booking_modes)
-
-    assert sorted((c["campus_key"], c["mode"]) for c in changes) == [("chongde", "paused"), ("minghua", "slots")]
-    db_session.expire_all()
-    assert (await db_session.get(BookingConfig, "minghua")).mode == BookingMode.SLOTS
-    assert (await db_session.get(BookingConfig, "chongde")).mode == BookingMode.PAUSED
+# migrate_booking_modes 會寫 booking_configs.slots_auto_confirm；這個欄位 2026-10-06 的
+# e870893fac95 拿掉了，那兩支切換預約方式的測試跟著退場（migration 本身已在正式庫跑過）。
 
 
 @pytest.mark.asyncio

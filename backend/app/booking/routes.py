@@ -62,7 +62,6 @@ from app.booking.schemas import (
     VisitContactNoteOut,
     VisitRequestAssignRequest,
     VisitRequestCancelRequest,
-    VisitRequestConfirmRequest,
     VisitRequestCreate,
     VisitRequestDetailOut,
     VisitRequestFullOut,
@@ -98,11 +97,11 @@ PUBLIC_SLOTS_LIMIT = ratelimit.Limit("public_slots_client", window_seconds=60, m
 
 # 公開送單的濫用上限（稽核 slot-hoarding-no-bot-protection）。上限值來自設定
 # （WEBSITE_BOOKING_*），bucket 固定：
-# - 每個來源 24 小時內最多占幾個時段名額（slots 模式；inquiry 不占名額不算）。
-# - 每校每小時最多收幾筆官網送單（全部模式），灌單時的斷路器。觸發時整校
+# - 每個來源 24 小時內最多占幾個時段名額。
+# - 每校每小時最多收幾筆官網送單，灌單時的斷路器。觸發時整校
 #   的家長都會被擋（429 BOOKING_LIMIT），所以前面再加一道：
-# - 同一來源對同一校每小時最多幾筆（全部模式）。沒有這道時，一個匿名 IP 在
-#   inquiry 模式換手機號碼就能用光每校額度、讓整校停收（稽核
+# - 同一來源對同一校每小時最多幾筆。沒有這道時，一個匿名 IP
+#   換手機號碼就能用光每校額度、讓整校停收（稽核
 #   campus-cap-single-source-dos）；現在單一來源最多用掉預設每校額度（30）的 1/6。
 SLOT_HOLD_BUCKET = "visit_slot_hold_source"
 CAMPUS_SUBMIT_BUCKET = "visit_submit_campus"
@@ -715,7 +714,6 @@ async def update_admin_slot(
 # 月曆上顯示的案件：有排時段、還沒取消的都列（含已結案的完成／未到場，
 # 回頭查某天來了誰也要看得到）。
 _CALENDAR_STATUSES = (
-    VisitRequestStatus.PENDING_CONFIRMATION.value,
     VisitRequestStatus.CONFIRMED.value,
     VisitRequestStatus.COMPLETED.value,
     VisitRequestStatus.NO_SHOW.value,
@@ -857,9 +855,8 @@ async def _get_owned_visit_request(db: AsyncSession, user: User, visit_request_i
 async def _lock_for_transition(db: AsyncSession, user: User, visit_request_id: uuid.UUID) -> VisitRequest:
     """狀態轉換用：確認可處理案件後鎖住案件列，重讀狀態與時段。
 
-    稽核的「轉換前」狀態／時段要在鎖內讀。取消、開始聯絡、改期是冪等的：
-    家長剛好自行取消、逾期占位被定期工作取消，或另一位同事剛把案件改到
-    同一個時段時，這次什麼都沒改；拿鎖列之前讀到的舊值比對，會把別人做
+    稽核的「轉換前」狀態／時段要在鎖內讀。取消、改期是冪等的：家長剛好
+    自行取消，或另一位同事剛把案件改到同一個時段時，這次什麼都沒改；拿鎖列之前讀到的舊值比對，會把別人做
     的事記在這位同事名下。workflow_service 內會再鎖一次，同一個交易重複
     鎖同一列不會等待。"""
     visit_request = await _get_owned_visit_request(db, user, visit_request_id)
@@ -1162,8 +1159,8 @@ async def create_manual_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestDetailOut:
-    """人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡
-    紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
+    """人工補登。一律當場排入場次（建立即是已確認），可再寫第一筆聯絡
+    紀錄；在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
     人員改完再送一次即可。"""
     require_scope(current_user, "booking.handle", campus_keys=[payload.campus_key])
     result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
@@ -1190,6 +1187,7 @@ async def create_manual_visit_request(
             source=VisitRequestSource(payload.source),
             created_by=current_user.id,
             hash_key=service.payload_hash_key(request.app.state.settings.session_secret),
+            slot_id=payload.slot_id,
         )
     except service.IdempotencyConflict as exc:
         await db.rollback()
@@ -1197,6 +1195,12 @@ async def create_manual_visit_request(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "IDEMPOTENCY_CONFLICT", "message": "這張表單已經送出過不同的內容，請重新開啟補登"},
         ) from exc
+    except workflow_service.SlotFull as exc:
+        await db.rollback()
+        raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
+    except slot_service.SlotNotBookable as exc:
+        await db.rollback()
+        raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
 
     if is_new:
         if related is not None:
@@ -1211,16 +1215,6 @@ async def create_manual_visit_request(
                 db, related.id, "rebooked_as_new", actor=actor,
                 after={"related_request_id": str(visit_request.id)},
             )
-        try:
-            await workflow_service.confirm_with_slot(
-                db, visit_request, payload.slot_id, current_user.id
-            )
-        except workflow_service.SlotFull as exc:
-            await db.rollback()
-            raise slot_unavailable(exc, suffix="，案件尚未建立") from exc
-        except slot_service.SlotNotBookable as exc:
-            await db.rollback()
-            raise _slot_not_bookable(exc, suffix="，案件尚未建立") from exc
         await access_service.ensure_access_token(
             db,
             visit_request.id,
@@ -1452,52 +1446,6 @@ async def assign_visit_request(
     return VisitRequestDetailOut.model_validate(visit_request)
 
 
-@router.post("/admin/visit-requests/{visit_request_id}/confirm", response_model=VisitRequestDetailOut)
-async def confirm_visit_request(
-    visit_request_id: uuid.UUID,
-    payload: VisitRequestConfirmRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
-    visit_request = await _lock_for_transition(db, current_user, visit_request_id)
-    before_status = visit_request.status
-    try:
-        await workflow_service.confirm_with_slot(
-            db, visit_request, payload.slot_id, current_user.id
-        )
-    except workflow_service.SlotFull as exc:
-        await db.rollback()
-        raise slot_unavailable(exc) from exc
-    except slot_service.SlotNotBookable as exc:
-        await db.rollback()
-        raise _slot_not_bookable(exc) from exc
-    except workflow_service.InvalidTransition as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "INVALID_TRANSITION", "message": exc.message},
-        ) from exc
-    await access_service.ensure_access_token(
-        db,
-        visit_request.id,
-        secret=request.app.state.settings.session_secret,
-        slot=visit_request.slot,
-        actor=Actor.staff(current_user.id),
-    )
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="visit_request.confirm",
-        target_type="visit_request",
-        target_id=str(visit_request.id),
-        campus_key=visit_request.campus_key,
-        metadata={"from_status": before_status, "slot": _slot_audit(visit_request.slot)},
-    )
-    await db.commit()
-    return VisitRequestDetailOut.model_validate(visit_request)
-
-
 @router.post("/admin/visit-requests/{visit_request_id}/cancel", response_model=VisitRequestDetailOut)
 async def cancel_visit_request(
     visit_request_id: uuid.UUID,
@@ -1669,10 +1617,3 @@ def _invalid_transition(exc: workflow_service.InvalidTransition) -> HTTPExceptio
         detail={"code": "INVALID_TRANSITION", "message": exc.message},
     )
 
-
-@router.post("/admin/visit-requests/{visit_request_id}/contacting", include_in_schema=False)
-async def mark_contacting_retired(visit_request_id: uuid.UUID) -> None:
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail={"code": "ENDPOINT_RETIRED", "message": "「聯絡中」已停用，請直接排入場次或取消"},
-    )

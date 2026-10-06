@@ -18,9 +18,6 @@ EXPORT_HEADERS = (
 )
 
 STATUS_LABELS = {
-    VisitRequestStatus.NEW.value: "待處理",
-    VisitRequestStatus.CONTACTING.value: "聯絡中",
-    VisitRequestStatus.PENDING_CONFIRMATION.value: "待園方確認",
     VisitRequestStatus.CONFIRMED.value: "預約正常",
     VisitRequestStatus.COMPLETED.value: "已到場",
     VisitRequestStatus.NO_SHOW.value: "未到場",

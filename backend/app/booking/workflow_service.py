@@ -15,15 +15,13 @@ from app.booking.export_labels import status_label
 from app.booking.history import PARENT, SYSTEM, Actor
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.booking.outbox import (
-    PARENT_VISIT_BOOKED,
     PARENT_VISIT_CANCELLED,
     PARENT_VISIT_CHANGED,
     enqueue_outbox,
     enqueue_parent_email,
 )
-from app.common.timezones import now_utc
 from app.operations import analytics_service
-from app.operations.models import CANCEL_REASON_HOLD_EXPIRED, AnalyticsEventType
+from app.operations.models import AnalyticsEventType
 
 __all__ = ["PARENT", "SYSTEM", "Actor", "InvalidTransition", "SlotClosed", "SlotFull", "SlotNotFound"]
 
@@ -48,94 +46,12 @@ def _resolver_id(actor: Actor | None) -> uuid.UUID | None:
     return actor.user_id if actor is not None else None
 
 
-async def confirm_with_slot(
-    db: AsyncSession, visit_request: VisitRequest, slot_id: uuid.UUID, staff_id: uuid.UUID
-) -> VisitRequest:
-    """人工把一筆 inquiry 案件確認進某個時段；confirmed 必須有 slot，
-    這裡是唯一能把狀態變成 confirmed 的路徑（slots 模式直接送出時，
-    submit_visit_request 走的是同一份容量檢查邏輯）。
-
-    後台排入不受公開的最短提前時間限制（電話裡約明天也行），但不能排進
-    已經開始的場次（規格 225：不對歷史時段重新出售）。"""
-    # 與 expire_holds 鎖同一列後重讀：不能用請求最初讀到的 pending
-    # 狀態，覆蓋等待期間已被 worker 取消的案件。
-    await db.refresh(
-        visit_request,
-        attribute_names=["status", "slot_id", "hold_expires_at"],
-        with_for_update=True,
-    )
-    if visit_request.status not in (
-        VisitRequestStatus.NEW.value,
-        VisitRequestStatus.CONTACTING.value,
-        VisitRequestStatus.PENDING_CONFIRMATION.value,
-    ):
-        raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能排入場次")
-    before = await history.state_of(db, visit_request)
-
-    slot = await slot_service.get_slot_for_update(db, slot_id)
-    if slot is None or slot.campus_key != visit_request.campus_key:
-        raise SlotNotFound()
-    if slot.closed:
-        raise SlotClosed()
-    now = now_utc()
-    is_pending = visit_request.status == VisitRequestStatus.PENDING_CONFIRMATION.value
-    if is_pending and visit_request.hold_expires_at is not None and visit_request.hold_expires_at <= now:
-        # 排程清理尚未執行也不能把到期占位確認成立；在取得時段鎖後判斷，
-        # 避免等待鎖的時間跨過到期點。
-        raise InvalidTransition("此時段保留已到期，請重新安排參觀")
-    if slot_service.has_started(slot, now):
-        raise slot_service.SlotNotBookable(slot_service.SLOT_STARTED_MESSAGE)
-    booked = await slot_service.count_booked(db, slot.id)
-    if is_pending and visit_request.slot_id == slot.id:
-        # pending 原本已占用自己的名額，轉 confirmed 不會多占一位；
-        # 改到另一個時段則仍須按該時段完整的 booked 數檢查容量。
-        booked -= 1
-    if booked >= slot.capacity:
-        raise SlotFull()
-
-    # 指派 relationship 而不是只寫 FK：回應要立刻序列化出參觀時間，
-    # 已載入的物件才不會在 async 下觸發 lazy load。
-    visit_request.slot = slot
-    visit_request.status = VisitRequestStatus.CONFIRMED.value
-    # 已經指派過承辦人就保留，確認的人不一定是負責後續聯絡的人。
-    if visit_request.assigned_staff_id is None:
-        visit_request.assigned_staff_id = staff_id
-        visit_request.version += 1
-    visit_request.confirmed_at = now
-    # 確認之後就不再是「占位」，清掉到期時間，免得背景工作稍後又把
-    # 一筆已確認的案件當成過期占位取消掉。
-    visit_request.hold_expires_at = None
-    history.record_event(
-        db,
-        visit_request.id,
-        "confirmed",
-        actor=Actor.staff(staff_id),
-        before=before,
-        after={"status": visit_request.status, "slot": history.slot_brief(slot)},
-    )
-    enqueue_outbox(
-        db,
-        visit_request.id,
-        "visit_request_confirmed",
-        {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
-    )
-    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
-    await analytics_service.record_internal_event(
-        db,
-        event_type=AnalyticsEventType.VISIT_CONFIRMED,
-        campus_key=visit_request.campus_key,
-        visit_request=visit_request,
-    )
-    await db.flush()
-    return visit_request
-
-
 async def _lock_status(db: AsyncSession, visit_request: VisitRequest) -> None:
     """鎖住案件列後重讀狀態。家長取消與園方結案可能同時發生；只用請求
     最初讀到的狀態判斷，較晚提交的一方會覆寫另一方已寫入的終態。"""
     await db.refresh(
         visit_request,
-        attribute_names=["status", "slot_id", "hold_expires_at"],
+        attribute_names=["status", "slot_id"],
         with_for_update=True,
     )
 
@@ -182,7 +98,6 @@ async def cancel(
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.CANCELLED.value
     visit_request.cancelled_at = datetime.now(timezone.utc)
-    visit_request.hold_expires_at = None
     reason_code = analytics_service.cancel_reason(actor)
     visit_request.cancel_reason = reason_code
     await _close(db, visit_request, "cancelled", before=before, actor=actor, reason=reason)
@@ -341,53 +256,6 @@ async def reschedule(
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return visit_request
-
-
-async def expire_holds(db: AsyncSession, *, limit: int = 100) -> int:
-    """規格 222：人工待確認的占位到期後轉 cancelled、記 hold_expired、
-    釋放名額並通知園方。回傳實際處理的筆數。
-
-    冪等：以 `status = pending_confirmation AND hold_expires_at <= now`
-    為條件並鎖住列，已經被別的 worker 處理過的不會再被選到，所以重跑
-    不會重複釋放名額或重複發通知。名額本來就是依狀態即時算出來的，
-    轉成 cancelled 就等於釋放，不需要額外扣減。"""
-    now = now_utc()
-    result = await db.execute(
-        select(VisitRequest)
-        .where(
-            VisitRequest.status == VisitRequestStatus.PENDING_CONFIRMATION.value,
-            VisitRequest.hold_expires_at.is_not(None),
-            VisitRequest.hold_expires_at <= now,
-        )
-        .order_by(VisitRequest.hold_expires_at)
-        .limit(limit)
-        .with_for_update(skip_locked=True)
-    )
-    expired = list(result.scalars())
-    for visit_request in expired:
-        before = await history.state_of(db, visit_request)
-        visit_request.status = VisitRequestStatus.CANCELLED.value
-        visit_request.cancelled_at = now
-        visit_request.cancel_reason = CANCEL_REASON_HOLD_EXPIRED
-        visit_request.hold_expires_at = None
-        await access_service.revoke_access_for_visit_request(db, visit_request.id)
-        history.record_event(
-            db,
-            visit_request.id,
-            "hold_expired",
-            actor=SYSTEM,
-            before=before,
-            after={"status": visit_request.status},
-        )
-        enqueue_outbox(
-            db,
-            visit_request.id,
-            "visit_request_hold_expired",
-            {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
-        )
-        await analytics_service.record_cancelled(db, visit_request, reason=CANCEL_REASON_HOLD_EXPIRED)
-    await db.flush()
-    return len(expired)
 
 
 async def add_contact_note(

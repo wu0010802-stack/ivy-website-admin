@@ -35,7 +35,6 @@ const calendarCampus = computed(() => {
   return { name: visitCampus.value.name, phone: visitCampus.value.phone, address: published?.address ?? null }
 })
 const statusLabels: Record<string, string> = {
-  new: '已收到需求', contacting: '園所聯繫中', pending_confirmation: '待園方確認',
   confirmed: '預約成功', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
 }
 const statusLabel = computed(() => statusLabels[visit.value?.status || ''] || '請聯絡園所確認')
@@ -50,7 +49,7 @@ const deadlineRule = computed(() => changeDeadlineRule(visit.value?.change_deadl
 const cancelOpen = computed(() => showCancel.value && Boolean(visit.value?.can_cancel))
 const rescheduleOpen = computed(() => showReschedule.value && Boolean(visit.value?.can_reschedule))
 const editOpen = computed(() => showEdit.value && Boolean(visit.value?.can_edit))
-const changeClosed = computed(() => visit.value && !visit.value.can_cancel && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(visit.value.status))
+const changeClosed = computed(() => visit.value && !visit.value.can_cancel && visit.value.status === 'confirmed')
 const slotLabel = slotWhen
 const campusPhone = computed(() => visitCampus.value?.phone || visit.value?.campus_phone || '')
 
@@ -207,7 +206,6 @@ async function submitEdit() {
             <p v-if="visitCampus?.paused" class="parent-visit-notice">
               {{ visitCampus.name || '這所分校' }}目前暫停開放，暫不受理線上預約與改期。<template v-if="visitCampus.phone">如需協助，請來電 <a :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">{{ visitCampus.phone }}</a>。</template><template v-else>如需協助，請直接聯絡園所。</template>
             </p>
-            <p v-if="['new', 'contacting', 'pending_confirmation'].includes(visit.status)" class="parent-visit-muted">這筆需求還沒排定場次，園所會與你聯繫；也可以取消後重新選擇場次。</p>
             <VisitCalendarActions v-if="calendarCampus && visit.slot" :campus="calendarCampus" :slot="visit.slot" :uid="`visit-${visit.id}@ivy-website`" />
             <p v-if="visit.can_edit && !visit.can_reschedule" class="parent-visit-muted">目前不開放線上改場次，要改時間請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>；資料修改與取消仍可在這裡進行。</p>
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上修改時間{{ deadlineRule ? `（${deadlineRule}截止）` : '' }}。要更改請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>。</p>

@@ -223,11 +223,13 @@ async def test_staff_cannot_confirm_into_a_slot_that_already_started(admin_clien
     assert created.json()["detail"]["code"] == "SLOT_NOT_BOOKABLE"
     assert "案件尚未建立" in created.json()["detail"]["message"]
 
-    # 上線前留下的「已收到需求」舊案，園方確認時選了已開始的時段。
-    case_id = await legacy_request(db_session, status="new", parent_name="王媽媽")
+    # 補登失敗不會留下半成品案件。
+    assert (await db_session.execute(select(func.count()).select_from(VisitRequest))).scalar_one() == 0
+
+    # 人工確認（先收需求、之後再確認排入）的端點已退場。
+    case_id = await legacy_request(db_session, status="confirmed", parent_name="王媽媽")
     confirm = await admin_client.post(f"{BASE}/visit-requests/{case_id}/confirm", json={"slot_id": past["id"]})
-    assert confirm.status_code == 409
-    assert confirm.json()["detail"]["code"] == "SLOT_NOT_BOOKABLE"
+    assert confirm.status_code in (404, 405)
 
 
 @pytest.mark.asyncio
@@ -266,7 +268,7 @@ async def test_access_link_uses_public_origin_and_regenerating_revokes_the_old_o
     receipt_id = await _book(public_client, version, slot["id"], "b02-link-01")
 
     # 沒有連結的舊案：第一次產生不算取代舊連結。
-    legacy_id = await legacy_request(db_session, status="new", parent_name="舊案家長")
+    legacy_id = await legacy_request(db_session, status="confirmed", parent_name="舊案家長")
     fresh = await admin_client.post(f"{BASE}/visit-requests/{legacy_id}/access-link")
     assert fresh.status_code == 200, fresh.text
     assert fresh.json()["replaced_previous"] is False
@@ -405,11 +407,15 @@ async def test_history_records_actor_source_changes_and_reasons(app, admin_clien
         version = await _set_mode(admin_client, mode="slots")
         slot = await _slot(admin_client, capacity=2)
         booked_id = await _book(public_client, version, slot["id"], "b02-history-01")
-        # 上線前留下的舊案：園方確認、記聯絡、取消，整條歷程都要有人與來源。
-        receipt_id = await legacy_request(db_session, status="new", parent_name="陳媽媽", phone="0912345678")
-
-        confirmed = await desk.post(f"{BASE}/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]})
-        assert confirmed.status_code == 200, confirmed.text
+        # 櫃台補登（選場次即確認）、記聯絡、取消，整條歷程都要有人與來源。
+        confirmed = await desk.post(
+            f"{BASE}/visit-requests",
+            json={"campus_key": "yihua", "source": "phone", "parent_name": "陳媽媽", "phone": "0912345678",
+                  "consent_given": True, "slot_id": slot["id"]},
+            headers={"Idempotency-Key": "b02-history-desk"},
+        )
+        assert confirmed.status_code == 201, confirmed.text
+        receipt_id = confirmed.json()["id"]
         note = await desk.post(f"{BASE}/visit-requests/{receipt_id}/contact-notes", json={"note": "已致電告知"})
         assert note.json()["created_by_email"] == "desk@ivy.example"
         cancelled = await admin_client.post(
@@ -428,10 +434,12 @@ async def test_history_records_actor_source_changes_and_reasons(app, admin_clien
 
     history = await _history(admin_client, receipt_id)
     by_type = {e["event_type"]: e for e in history}
-    assert [e["event_type"] for e in history] == ["confirmed", "contact_logged", "cancelled"]
-    assert by_type["confirmed"]["actor_email"] == "desk@ivy.example"
-    assert by_type["confirmed"]["before"]["status"] == "new"
-    assert by_type["confirmed"]["after"]["status"] == "confirmed"
+    # 補登直接建立成 confirmed：歷程只有一筆 created，沒有另外的 confirmed 事件。
+    assert [e["event_type"] for e in history] == ["created", "contact_logged", "cancelled"]
+    assert by_type["created"]["actor_email"] == "desk@ivy.example"
+    assert by_type["created"]["source"] == "staff"
+    assert by_type["created"]["after"]["status"] == "confirmed"
+    assert by_type["created"]["after"]["slot"]["id"] == slot["id"]
     assert by_type["cancelled"]["actor_email"] == "admin@ivy.example"
     assert by_type["cancelled"]["before"] == {"status": "confirmed", "slot": {
         "id": slot["id"], "slot_date": slot["slot_date"], "start_time": "10:00:00", "end_time": "11:00:00",
@@ -449,7 +457,6 @@ async def test_history_records_actor_source_changes_and_reasons(app, admin_clien
 @pytest.mark.asyncio
 async def test_parent_and_system_actions_are_attributed(app, admin_client, public_client, db_session):
     from app.booking import workflow_service
-    from app.common import timezones
 
     version = await _set_mode(admin_client, mode="slots")
     slot = await _slot(admin_client, capacity=2)
@@ -462,19 +469,9 @@ async def test_parent_and_system_actions_are_attributed(app, admin_client, publi
     assert cancelled["source"] == "parent"
     assert cancelled["actor_user_id"] is None
 
-    # 上線前留下的待園方確認舊案，占位已過期。
-    held = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot["id"],
-        hold_expires_at=timezones.now_utc() - timedelta(minutes=1),
-    )
-    assert await workflow_service.expire_holds(db_session) == 1
-    await db_session.commit()
-    expired = next(e for e in await _history(admin_client, held) if e["event_type"] == "hold_expired")
-    assert expired["source"] == "system"
-    assert expired["before"]["status"] == "pending_confirmation"
-    assert expired["after"] == {"status": "cancelled"}
+    # 占位逾期自動取消的流程已刪除：沒有這個函式，歷程也不會再出現 hold_expired。
+    assert not hasattr(workflow_service, "expire_holds")
+    assert all(e["event_type"] != "hold_expired" for e in await _history(admin_client, receipt_id))
 
 
 @pytest.mark.asyncio

@@ -153,31 +153,9 @@ async def _link_events(db_session, visit_id: str) -> list[VisitRequestEvent]:
 
 
 @pytest.mark.asyncio
-async def test_confirming_an_old_case_to_a_far_visit_extends_its_existing_link(admin_client, public_client, db_session):
-    """舊案先產生連結（沒有場次，效期 14 天），再確認到 40 天後的場次：沿用同一條、效期延到參觀後 7 天。"""
-    visit_id = await legacy_request(db_session, email="legacy@example.com")
-    link = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/access-link")
-    assert link.status_code == 200, link.text
-    short = datetime.fromisoformat(link.json()["expires_at"])
-    assert short - datetime.now(timezone.utc) < timedelta(days=15)
-    far = await create_slot(admin_client, days_ahead=40)
-
-    confirmed = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/confirm", json={"slot_id": far})
-
-    assert confirmed.status_code == 200, confirmed.text
-    db_session.expire_all()
-    [token] = (await db_session.execute(select(ParentAccessToken))).scalars().all()
-    assert token.revoked_at is None
-    expected = await _slot_start(admin_client, visit_id) + timedelta(days=7)
-    assert abs((token.expires_at - expected).total_seconds()) < 5
-    # 沒有換連結：先前交給家長的那條仍然能用。
-    await open_manage(public_client, link.json()["manage_url_fragment"])
-
-
-@pytest.mark.asyncio
-async def test_replacing_a_link_that_cannot_be_recomputed_is_recorded(app, admin_client, db_session):
-    """2026-09-30 以前隨機產生的連結重算不出來：確認時撤換成新的，歷程記下是誰換的（不含 token）。"""
-    visit_id = await legacy_request(db_session, email="legacy@example.com")
+async def test_resend_replaces_a_link_that_cannot_be_recomputed_and_records_it(app, admin_client, db_session):
+    """2026-09-30 以前隨機產生的連結重算不出來：重寄確認信時撤換成新的，歷程記下是誰換的（不含 token）。"""
+    visit_id = await legacy_request(db_session, status="confirmed", email="legacy@example.com")
     now = datetime.now(timezone.utc)
     old_id = uuid.uuid4()
     old = ParentAccessToken(
@@ -189,11 +167,12 @@ async def test_replacing_a_link_that_cannot_be_recomputed_is_recorded(app, admin
     )
     db_session.add(old)
     await db_session.commit()
-    slot = await create_slot(admin_client, days_ahead=5)
+    app.state.settings.smtp_host = "smtp.example.invalid"
+    app.state.settings.smtp_from = "noreply@ivy.example"
 
-    confirmed = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/confirm", json={"slot_id": slot})
+    resent = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/resend-confirmation")
 
-    assert confirmed.status_code == 200, confirmed.text
+    assert resent.status_code == 202, resent.text
     db_session.expire_all()
     assert (await db_session.get(ParentAccessToken, old_id)).revoked_at is not None
     path = await access_service.current_manage_path(
@@ -209,11 +188,12 @@ async def test_replacing_a_link_that_cannot_be_recomputed_is_recorded(app, admin
 
 
 @pytest.mark.asyncio
-async def test_confirm_with_a_recomputable_link_records_no_replacement(admin_client, db_session):
-    visit_id = await legacy_request(db_session, email="legacy@example.com")
-    slot = await create_slot(admin_client, days_ahead=5)
+async def test_resend_with_a_recomputable_link_records_no_replacement(app, admin_client, public_client, db_session):
+    booked = await book_slot(admin_client, public_client, days_ahead=3)
+    app.state.settings.smtp_host = "smtp.example.invalid"
+    app.state.settings.smtp_from = "noreply@ivy.example"
 
-    confirmed = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/confirm", json={"slot_id": slot})
+    resent = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/resend-confirmation")
 
-    assert confirmed.status_code == 200, confirmed.text
-    assert await _link_events(db_session, visit_id) == []
+    assert resent.status_code == 202, resent.text
+    assert await _link_events(db_session, booked["receipt_id"]) == []

@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { AlarmClock, Bell, Check, CircleCheck, CircleClose, CirclePlus, Clock, RefreshRight, Switch, Timer, Warning } from '@element-plus/icons-vue'
+import { AlarmClock, Bell, Check, CircleCheck, CircleClose, CirclePlus, RefreshRight, Switch, Timer, Warning } from '@element-plus/icons-vue'
 import { notifyError } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import {
@@ -212,7 +212,6 @@ const KIND_META: Record<string, { tone: Tone; icon: Component }> = {
   visit_request_overdue: { tone: 'danger', icon: Warning },
   visit_request_cancelled: { tone: 'info', icon: CircleClose },
   // 人工確認時期的舊種類：舊資料仍會出現。
-  visit_request_pending_confirmation: { tone: 'warning', icon: Clock },
   visit_reschedule_requested: { tone: 'warning', icon: Switch },
   visit_request_hold_expired: { tone: 'info', icon: Timer },
 }

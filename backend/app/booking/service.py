@@ -99,7 +99,6 @@ async def get_or_create_config(
                 campus_key=campus_key,
                 mode=BookingMode.PAUSED,
                 version=0,
-                slots_auto_confirm=False,
                 updated_at=datetime.now(timezone.utc),
             )
             .on_conflict_do_nothing(index_elements=[BookingConfig.campus_key])
@@ -136,8 +135,6 @@ async def update_config(
     config.phone = phone
     config.external_url = external_url
     config.message = message
-    # 官網只剩自選場次、送出即成立；欄位保留（不刪），固定為 True。
-    config.slots_auto_confirm = True
     if parent_change_deadline_hours is not None:
         config.parent_change_deadline_hours = parent_change_deadline_hours
     config.version += 1
@@ -357,9 +354,6 @@ async def submit_visit_request(
 
     # 2026-09-30 業主裁定：只有自選場次，送出即預約成立（不再有人工確認與占位）。
     status = VisitRequestStatus.CONFIRMED.value
-    confirmed_at = now
-    hold_expires_at = None
-    slot_id = str(slot.id)
 
     payload_hash = _payload_hash(payload, hash_key)
     visit_request = VisitRequest(
@@ -388,9 +382,8 @@ async def submit_visit_request(
         consent_revision_id=None,
         consent_accepted_at=now if payload["consent_given"] else None,
         status=status,
-        slot_id=uuid.UUID(slot_id),
-        confirmed_at=confirmed_at,
-        hold_expires_at=hold_expires_at,
+        slot_id=slot.id,
+        confirmed_at=now,
         created_at=now,
     )
     db.add(visit_request)
@@ -409,8 +402,7 @@ async def submit_visit_request(
             raise IdempotencyConflict() from None
         return existing, False
 
-    # 家長從官網送出：沒有帳號，歷程記來源為家長。slots 模式送出當下就占位
-    # （或自動確認），after 帶時段。
+    # 家長從官網送出：沒有帳號，歷程記來源為家長。送出當下就排進場次，after 帶時段。
     history.record_event(
         db,
         visit_request.id,
@@ -455,11 +447,12 @@ async def create_manual_visit_request(
     source: VisitRequestSource,
     created_by: uuid.UUID,
     hash_key: bytes,
+    slot_id: uuid.UUID,
 ) -> tuple[VisitRequest, bool]:
-    """人員補登一筆案件，狀態一律從 new 開始（要排時段由呼叫端接著走
-    confirm_with_slot，容量規則與一般確認完全相同）。不看預約模式、不寫
-    「新需求」通知（登錄的人自己就是承辦人），也不計入官網成效統計——
-    成效看的是官網帶來的需求，混進電話補登會讓轉換率失真。
+    """人員補登一筆案件，當場排進場次、建立即是 confirmed。場次的檢查見
+    slot_service.lock_for_staff_booking（不受公開的最短提前時間限制）；額滿、
+    已關閉或已開始丟例外，案件不建立。不看預約模式、不寫「新的參觀預約」
+    通知（登錄的人自己就是承辦人），只排「已確認」通知與家長確認信。
 
     回傳 (visit_request, is_new)；同一個 key 重送回原案件，不重複建立。"""
     key = f"{MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}"
@@ -471,6 +464,7 @@ async def create_manual_visit_request(
 
     config = await get_or_create_config(db, campus_key)
     now = now_utc()
+    slot = await slot_service.lock_for_staff_booking(db, campus_key, slot_id, now)
     visit_request = VisitRequest(
         id=uuid.uuid4(),
         campus_key=campus_key,
@@ -494,7 +488,11 @@ async def create_manual_visit_request(
         # 2026-10-02 起補登不用勾選同意；舊版後台送 True 時照實記下時間。沒有官網同意說明版本。
         consent_given=payload["consent_given"],
         consent_accepted_at=now if payload["consent_given"] else None,
-        status=VisitRequestStatus.NEW.value,
+        status=VisitRequestStatus.CONFIRMED.value,
+        # 指派 relationship 而不是只寫 FK：回應要立刻序列化出參觀時間，
+        # 已載入的物件才不會在 async 下觸發 lazy load。
+        slot=slot,
+        confirmed_at=now,
         source=source.value,
         created_by=created_by,
         # 誰接的電話誰先承辦，之後可以在案件頁改派。
@@ -519,7 +517,17 @@ async def create_manual_visit_request(
         visit_request.id,
         "created",
         actor=history.Actor.staff(created_by),
-        after={"status": visit_request.status, "source": source.value},
+        after={"status": visit_request.status, "source": source.value, "slot": history.slot_brief(slot)},
+    )
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        "visit_request_confirmed",
+        {"campus_key": campus_key, "receipt_id": str(visit_request.id)},
+    )
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED)
+    await analytics_service.record_internal_event(
+        db, event_type=AnalyticsEventType.VISIT_CONFIRMED, campus_key=campus_key, visit_request=visit_request
     )
     await db.flush()
     return visit_request, True

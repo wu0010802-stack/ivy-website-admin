@@ -2,15 +2,14 @@
 
 | 方式 | 啟用條件 |
 |---|---|
-| inquiry | 已發布的同意文字 |
-| slots | 已發布的同意文字，且有官網可預約的場次或至少一條每週開放規則 |
+| slots | 有官網可預約的場次或至少一條每週開放規則 |
 | line／phone／external | 該校的 LINE 連結／電話／外部網址 |
 | paused | 暫停說明 |
 
 規格的「接待窗口」「表單設定」目前沒有對應的設定欄位，不列入條件。
 
-欄位類條件（連結、電話、暫停說明）每次存檔都驗；要讀其他資料的條件（同意
-文字、場次）只在「切換成」該方式時驗——已經是 slots 的校區場次暫時用完時，
+欄位類條件（連結、電話、暫停說明）每次存檔都驗；要讀其他資料的條件（場次）
+只在「切換成」該方式時驗——已經是 slots 的校區場次暫時用完時，
 改其他設定不該被擋，這種情況改列在總覽待辦。
 """
 from __future__ import annotations
@@ -129,24 +128,10 @@ async def check_update(
 async def impact(db: AsyncSession, campus_key: str, config: BookingConfig | None, *, now: datetime | None = None) -> dict:
     """切換前的影響範圍。切換不修改既有案件（規格 L181、L185）。"""
     current = now or now_utc()
-    counts = dict(
-        (
-            await db.execute(
-                select(VisitRequest.status, func.count())
-                .where(
-                    VisitRequest.campus_key == campus_key,
-                    VisitRequest.status.in_(
-                        [
-                            VisitRequestStatus.NEW.value,
-                            VisitRequestStatus.CONTACTING.value,
-                            VisitRequestStatus.PENDING_CONFIRMATION.value,
-                            VisitRequestStatus.CONFIRMED.value,
-                        ]
-                    ),
-                )
-                .group_by(VisitRequest.status)
-            )
-        ).all()
+    confirmed = await db.scalar(
+        select(func.count())
+        .select_from(VisitRequest)
+        .where(VisitRequest.campus_key == campus_key, VisitRequest.status == VisitRequestStatus.CONFIRMED.value)
     )
     # 一列一個案件（同一場可能有好幾組家長），不能 select 時段實體後去重。
     confirmed_starts = (
@@ -165,12 +150,9 @@ async def impact(db: AsyncSession, campus_key: str, config: BookingConfig | None
     # 已確認的案件一定排了時段；時段已開始、還沒改成完成或未到場的另外列，
     # 細項加總才等於進行中的件數。
     return {
-        "open_requests": sum(counts.values()),
-        "new_requests": counts.get(VisitRequestStatus.NEW.value, 0),
-        "contacting": counts.get(VisitRequestStatus.CONTACTING.value, 0),
-        "pending_confirmation": counts.get(VisitRequestStatus.PENDING_CONFIRMATION.value, 0),
+        "open_requests": confirmed,
         "upcoming_confirmed": upcoming,
-        "past_confirmed": counts.get(VisitRequestStatus.CONFIRMED.value, 0) - upcoming,
+        "past_confirmed": confirmed - upcoming,
         "bookable_slots": await slot_service.count_bookable_slots(db, campus_key, config, current),
         "weekly_rules": rules or 0,
     }

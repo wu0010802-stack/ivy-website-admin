@@ -136,17 +136,13 @@ describe('取消需求與取消預約', () => {
     return vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel')
   }
 
-  it('還只是需求：叫「取消這筆需求」，確認鈕是 danger，說明不會通知家長', async () => {
+  it('舊的需求（聯絡中）沒有取消區：不再有「取消這筆需求」', async () => {
     const prompt = promptSpy()
     const { wrapper } = await mountDetail(kase({ status: 'contacting' }))
-    const button = wrapper.findAll('button').find((b) => b.text() === '取消這筆需求')!
-    await button.trigger('click')
-    await flushPromises()
-    const [message, title, options] = prompt.mock.calls[0]!
-    expect(title).toBe('取消這筆參觀需求？')
-    expect(String(message)).toContain('不會通知家長')
-    expect(String(message)).toContain('重新預約')
-    expect(options).toMatchObject({ confirmButtonText: '取消需求', confirmButtonClass: 'el-button--danger', cancelButtonText: '先不要' })
+    const labels = wrapper.findAll('button').map((b) => b.text())
+    expect(labels).not.toContain('取消這筆需求')
+    expect(labels).not.toContain('取消預約')
+    expect(prompt).not.toHaveBeenCalled()
   })
 
   it('已確認：叫「取消預約」，說明名額會釋出、沒有 Email 時請電話通知', async () => {

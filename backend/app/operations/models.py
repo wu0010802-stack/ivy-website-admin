@@ -57,8 +57,9 @@ CTA_ENTRIES = (
     "other",
 )
 
-# visit_cancelled 的取消原因：家長用管理連結取消、園方在後台取消、
-# 人工待確認的占位逾期由定期工作取消。
+# visit_cancelled 的取消原因：家長用管理連結取消、園方在後台取消。hold_expired
+# （人工待確認的占位逾期）的流程 2026-10-06 已拿掉，只剩舊的已取消案件與事件，
+# 統計與後台照常顯示。
 CANCEL_REASON_PARENT = "parent"
 CANCEL_REASON_STAFF = "staff"
 CANCEL_REASON_HOLD_EXPIRED = "hold_expired"

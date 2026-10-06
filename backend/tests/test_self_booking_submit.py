@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 import pytest
 
 from app.booking import service
 from app.booking.models import BookingMode
-from app.booking.workflow_service import expire_holds
-from tests.conftest import book_slot, create_slot, legacy_request, set_booking_mode
+from app.booking import workflow_service
+from tests.conftest import book_slot, create_slot, set_booking_mode
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 API = "/api/website/v1"
@@ -32,11 +30,8 @@ def _body(version: int, **extra) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_submission_is_confirmed_even_if_old_config_said_manual(admin_client, public_client, db_session):
+async def test_submission_is_confirmed_without_hold(admin_client, public_client):
     slot_id, version = await _slots_mode(admin_client)
-    config = await service.get_or_create_config(db_session, "yihua")
-    config.slots_auto_confirm = False  # 上線前的舊設定列
-    await db_session.commit()
 
     response = await public_client.post(
         f"{API}/public/visit-requests", json=_body(version, slot_id=slot_id), headers={"Idempotency-Key": "self-01"}
@@ -45,7 +40,7 @@ async def test_submission_is_confirmed_even_if_old_config_said_manual(admin_clie
     assert response.status_code == 201, response.text
     assert response.json()["status"] == "confirmed"
     detail = (await admin_client.get(f"{API}/admin/visit-requests/{response.json()['receipt_id']}")).json()
-    assert detail["hold_expires_at"] is None
+    assert "hold_expires_at" not in detail
     assert detail["confirmed_at"] is not None
 
 
@@ -91,13 +86,13 @@ async def test_leftover_inquiry_config_is_shown_as_paused(admin_client, public_c
 
 
 @pytest.mark.asyncio
-async def test_contacting_endpoint_is_retired(admin_client, db_session):
-    case_id = await legacy_request(db_session, status="new")
+@pytest.mark.parametrize("action", ["contacting", "confirm"])
+async def test_retired_case_actions_no_longer_exist(admin_client, public_client, action):
+    booked = await book_slot(admin_client, public_client)
 
-    response = await admin_client.post(f"{API}/admin/visit-requests/{case_id}/contacting")
+    response = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/{action}", json={})
 
-    assert response.status_code == 410
-    assert response.json()["detail"]["code"] == "ENDPOINT_RETIRED"
+    assert response.status_code in (404, 405)
 
 
 @pytest.mark.asyncio
@@ -120,22 +115,16 @@ async def test_manual_entry_requires_a_slot_and_is_confirmed(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_cancel_records_who_cancelled(admin_client, public_client, db_session):
+async def test_cancel_records_who_cancelled(admin_client, public_client):
     booked = await book_slot(admin_client, public_client)
     cancelled = await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/cancel", json={})
     assert cancelled.status_code == 200, cancelled.text
 
-    slot_id = await create_slot(admin_client, days_ahead=5, start_time="14:00:00", end_time="15:00:00")
-    expired_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot_id,
-        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-    )
-    await expire_holds(db_session)
-    await db_session.commit()
-
     staff = (await admin_client.get(f"{API}/admin/visit-requests/{booked['receipt_id']}")).json()
-    system = (await admin_client.get(f"{API}/admin/visit-requests/{expired_id}")).json()
     assert staff["cancel_reason"] == "staff"
-    assert system["cancel_reason"] == "hold_expired"
+
+
+def test_hold_expiry_flow_is_gone():
+    """占位逾期取消的流程已整個刪除，不會再有人把案件標成 hold_expired。"""
+    assert not hasattr(workflow_service, "expire_holds")
+    assert not hasattr(workflow_service, "confirm_with_slot")

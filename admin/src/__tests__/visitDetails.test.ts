@@ -13,8 +13,8 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
 const slot = { id: 'held-slot', slot_date: '2026-09-26', start_time: '10:00:00', end_time: '10:30:00' }
-// 確認期限用遠在未來的時間：過了期限畫面會停用確認（後端也會拒絕）。
-const details = () => ({ id: 'local-case', campus_key: 'yihua', status: 'pending_confirmation', parent_name: '測試家長', phone: '0912345678', child_name: '測試孩子', child_birthdate: '2022-06-18', email: 'parent@example.org', referral_sources: ['facebook', 'friends_family'], age: null, preferred_time: null, questions: null, slot_id: slot.id, slot, created_at: '2026-09-22T00:00:00Z', hold_expires_at: '2099-09-23T00:00:00Z' })
+// 預設是已確認的案件（官網送單與後台補登都是當場排進場次）。
+const details = () => ({ id: 'local-case', campus_key: 'yihua', status: 'confirmed', parent_name: '測試家長', phone: '0912345678', child_name: '測試孩子', child_birthdate: '2022-06-18', email: 'parent@example.org', referral_sources: ['facebook', 'friends_family'], age: null, preferred_time: null, questions: null, slot_id: slot.id, slot, created_at: '2026-09-22T00:00:00Z' })
 async function setup(data: Record<string, unknown> = details(), user: UserOut = testUser('super_admin')) {
   vi.spyOn(api, 'get').mockImplementation(async path => (path.endsWith('/contact-notes') || path.startsWith('/admin/slots') || path.startsWith('/admin/visit-staff') || path.startsWith('/admin/visit-requests?')) ? [] : data as never)
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/visit-requests/:id', component: defineComponent({ template: '<div />' }) }] })
@@ -31,14 +31,11 @@ describe('參觀資料與已選場次', () => {
     expect(wrapper.text()).not.toContain('待確認')
     expect(wrapper.find('a[href="mailto:parent@example.org"]').exists()).toBe(true)
   })
-  it('人工確認使用家長已選的場次，不需再次選擇或新增預約', async () => {
-    vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(Promise.resolve({ value: '', action: 'confirm' }) as unknown as ReturnType<typeof ElMessageBox.confirm>)
+  it('舊的待確認案件沒有「確認這個場次」，也不會打確認 API', async () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
-    const wrapper = await setup()
-    await wrapper.findAll('button').find(button => button.text() === '確認這個場次')!.trigger('click')
-    await flushPromises()
-    expect(post).toHaveBeenCalledOnce()
-    expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/confirm', { slot_id: slot.id })
+    const wrapper = await setup({ ...details(), status: 'pending_confirmation' })
+    expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(false)
+    expect(post).not.toHaveBeenCalled()
   })
 })
 
@@ -49,7 +46,7 @@ describe('案件流程補完', () => {
     const post = vi.spyOn(api, 'post').mockResolvedValue({})
     // 參觀時段開始後才能標完成或未到場（後端也會拒絕），所以用已過的場次。
     const past = { ...slot, slot_date: '2026-01-05' }
-    const wrapper = await setup({ ...details(), status: 'confirmed', hold_expires_at: null, slot: past })
+    const wrapper = await setup({ ...details(), slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())
     expect(labels).toContain('標記未到場')
     await wrapper.findAll('button').find(button => button.text() === '標記已到場')!.trigger('click')
@@ -71,11 +68,11 @@ describe('案件流程補完', () => {
     expect(readOnly.text()).not.toContain('取消預約')
   })
 
-  it('櫃台可以處理案件（確認、記聯絡紀錄、取消），但不能改承辦人', async () => {
+  it('櫃台可以處理案件（記聯絡紀錄、取消），但不能改承辦人', async () => {
     const desk = testUser('reception', { id: 'desk', email: 'desk@example.invalid', campus_keys: ['yihua'] })
     const wrapper = await setup(details(), desk)
     expect(wrapper.text()).not.toContain('只能查看案件')
-    expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(true)
+    expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(false)
     expect(wrapper.find('textarea[aria-label="新增聯絡紀錄"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('取消預約')
     // 指派承辦人限校區管理者以上：櫃台只看到文字，沒有下拉選單。
