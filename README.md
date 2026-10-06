@@ -1,4 +1,4 @@
-## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`）
+## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`，10-06 已部署 main `5fb9edbb`）
 
 第一版已上線（`0c534043`）後才推。規則見 DESIGN.md「拿掉舊狀態程式」。
 

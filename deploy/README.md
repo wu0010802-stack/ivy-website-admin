@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 拿掉參觀預約的舊狀態程式，第二版（main CI 部署）
+
+- **合併**：`feature/visit-legacy-drop-20261006` 的 `5fb9edbb` 疊在第一版 `0c534043` 上（main 期間沒有其他提交），使用者推 main `0c534043..5fb9edbb`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉舊狀態程式」。
+- **migration**：`e870893fac95`（down `d65fa082ff87`），drop `visit_requests.hold_expires_at`（含索引）、`booking_configs.slots_auto_confirm`，加 CHECK `ck_visit_requests_status`、`ck_visit_requests_confirmed_slot`。使用者確認正式庫預約資料都是測試資料，部署前沒有備份；兩個欄位在第一版之後沒有有意義的值。API 起得來＝migration 已到 head（約束建立沒有違反的列）。
+- **推前本機**：後端整套 pytest 1544 passed、1 skipped（另 3 項在負載 31 時逾時，負載降下後重跑 63 項全過）；admin `vue-tsc -b`、`analyticsOutcomes` 12 項；`contract:check`；stack e2e 從零跑到 `e870893fac95` 整套 75 項全過；本機測試庫 downgrade／upgrade 各一次。
+- **CI**：main run 37421150198（`5fb9edbb`）全綠，建立到完成 14 分 16 秒：Frontend admin 2.4／web 1.1 分鐘，Backend 三組 8.0／6.4／6.9 分鐘，E2E／Playwright 6.1 分鐘，Deploy 5.6 分鐘。
+- **正式 `release.json`**：base commit `5fb9edbb`，created `2026-10-06T06:06:34Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；義華公開預約設定 `slots`、明華 `paused`；義華未來 30 天公開場次 38 個、剩餘名額正常（讀案件表算名額）。
+- **未做**：沒登入正式後台實際補登、取消；`inquiry` 預約方式仍在（改公開設定端點被 auto 模式擋下，待使用者決定）。
+
 ## 2026-10-06 拿掉參觀預約的舊狀態程式，第一版（main CI 部署）
 
 - **合併**：`feature/visit-legacy-cleanup-20261006` rebase 到 main `d70bce03`（只多兩個文件提交，沒有衝突），使用者推 main `d70bce03..0c534043`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉舊狀態程式」。
