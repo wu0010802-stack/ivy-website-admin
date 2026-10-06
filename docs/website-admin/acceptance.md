@@ -610,9 +610,12 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | X14 | 版面：手機（390）訪視明細標題不直排、匯出鈕與說明在視窗內、操作紀錄期間選擇器不超出自己的欄位與篩選卡片；1440 單行；901～1030px（側欄還在）訪視明細標題一行；未預繳範圍說明在視窗內；統計表標題列（`.stats-block__head`）在 390／1440 不直排、匯出鈕不超出 | 通過（量外框斷言＋截圖目視） | `exports.spec.ts` 版面測試（修之前實測 390 寬標題 28px 寬 81px 高、期間選擇器右緣 379 超出卡片右緣 374，修後斷言標題高度小於 40px）；截圖 `output/playwright/exports-{admissions-records,audit-filter,nodeposit}-{1440,390}.png`（已 gitignore）。修正波：新增 960／905／1030px 的標題單行斷言（標題高度小於 30px；拿掉修正的 CSS 重建後實測轉紅，960px 標題高度 40.5px，也就是兩行）、未預繳範圍說明在 1440 與 390 的外框斷言、統計分析「班別分析」「接待分析」各表標題列在 1440 與 390 的外框斷言，截圖 `exports-admissions-records-{960,905,1030}.png`、`exports-nodeposit-{1440,390}.png`、`exports-stats-head-{class,staff}-{1440,390}.png` 已目視：960px 標題一行、動作群組掉到下一行；390px 統計表標題與按鈕同一行、未預繳說明在按鈕下方 |
 | X15 | 契約與型別一致、`vue-tsc` 無錯誤 | 通過（各 Task 完成時） | `npm run contract:check`（Task 4、5、7 後都重產並一致，新增兩個匯出端點與操作紀錄三個參數）；`npm run typecheck` 0 錯誤（Task 3–9、12） |
 
+### 已驗證（全套閘門）
+
+- **全套閘門（2026-10-07）**：後端 pytest 全套 1672 passed、1 skipped（9 分 30 秒；測試庫 `ivy_website_exports1006_test`）；後台 vitest 全套 117 個測試檔 1470 項全過、`npm run typecheck` 無錯誤；`npm run contract:check` 契約型別與 openapi.json 一致；web 全套 80 個測試檔 829 項全過；stack e2e 全套 81 項全過（2.8 分鐘；`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741）。已知會假失敗的是台北週五 `test_booking_consent_readiness` 的場次同步（main 既有、日期相依）。
+
 ### 未驗證
 
-- **全套閘門結果待填（Task 11）**：後端全套 pytest、admin 全套 vitest、web typecheck 與 `npm run test:website`、stack e2e 全套、合併 origin/main 後的重跑，都等 Task 11 由 controller 跑完回填；回填前上表只代表單檔結果。已知會假失敗的是台北週五 `test_booking_consent_readiness` 的場次同步（main 既有、日期相依）。
 - **Safari／iOS 實機下載**、Excel 與 Numbers 實機開檔（BOM、「115年09月」、單引號開頭的格子）：只有 headless Chrome 的下載與位元組檢查。
 - **正式資料量**：接近 10,000 筆時訪視明細與未預繳名單的匯出時間與記憶體（後端一次把最多 10,001 筆讀進記憶體；`stats.no_deposit_records` 先全讀再切頁，是既有設計）；操作紀錄 5,000 筆逐頁讀的耗時。
 - **成效統計各按鈕的版面**（含各頁瀏覽）只有單元測試，沒有在桌機與手機目視（`依來源` 標題列在 1400px 以下窄欄時按鈕是否換行尚不明）；每日數字的按鈕要先展開 `<details>` 才看得到。
