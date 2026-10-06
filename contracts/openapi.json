@@ -12897,6 +12897,342 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/records/export": {
+      "get": {
+        "description": "訪視明細 CSV（2026-10-03）：條件與排序同明細列表（含追蹤狀態與負責人篩選），不分頁。\n含孩子姓名、電話與地址，除了 admissions.read 還要「匯出個資」授權（booking.export，與\n參觀案件匯出同一項）。超過上限回 422，不默默截斷。必須排在 /records/{visit_id} 之前，\n否則 \"export\" 會被當成 visit_id、回 422。",
+        "operationId": "export_recruitment_visits_api_website_v1_admin_admissions_records_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "民國月份，例：115.09",
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(\\d{3})\\.(0[1-9]|1[0-2])$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "民國月份，例：115.09",
+              "title": "Month"
+            }
+          },
+          {
+            "description": "適讀班級",
+            "in": "query",
+            "name": "grade",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "幼幼班",
+                    "小班",
+                    "中班",
+                    "大班"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "適讀班級",
+              "title": "Grade"
+            }
+          },
+          {
+            "description": "入學學年（民國）",
+            "in": "query",
+            "name": "target_school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年（民國）",
+              "title": "Target School Year"
+            }
+          },
+          {
+            "description": "入學學期：1 上、2 下",
+            "in": "query",
+            "name": "target_semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學期：1 上、2 下",
+              "title": "Target Semester"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "referrer",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Referrer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_deposit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Deposit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_deposit_reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "時程未到／仍在觀望",
+                    "已有其他就學選項／比較他校",
+                    "未註明／待追蹤",
+                    "距離／地點因素",
+                    "家庭照顧安排考量",
+                    "特殊需求／名額限制",
+                    "課程／環境仍在評估",
+                    "費用考量"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "No Deposit Reason"
+            }
+          },
+          {
+            "description": "漏斗階段（由狀態欄位推導）",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "visited",
+                    "deposited",
+                    "enrolled",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "漏斗階段（由狀態欄位推導）",
+              "title": "Stage"
+            }
+          },
+          {
+            "description": "連結的官網預約",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "連結的官網預約",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "description": "幼生姓名、聯絡人、電話、地址、備註、電訪回應",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "幼生姓名、聯絡人、電話、地址、備註、電訪回應",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2）",
+            "in": "query",
+            "name": "follow_up",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "due",
+                    "upcoming",
+                    "unscheduled"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2）",
+              "title": "Follow Up"
+            }
+          },
+          {
+            "description": "追蹤負責人：me、none 或帳號 id",
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(me|none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "追蹤負責人：me、none 或帳號 id",
+              "title": "Owner"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Recruitment Visits",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/records/{visit_id}": {
       "delete": {
         "description": "刪除訪視與歷程（規格 6.6）。稽核只記階段，不記姓名電話。由預約建立的\n訪視被刪掉後，可以從預約明細再補建（A6）。已匿名化的也可以刪。\n\n檢查順序同狀態轉換：鎖列並確認讀得到這筆（404／403）→ 版本（409）→ 已註冊、\n或從已註冊退出的訪視另要 admissions.convert（403）：刪掉等於撤銷註冊紀錄，\n與取消註冊、退註冊同一個權限。",

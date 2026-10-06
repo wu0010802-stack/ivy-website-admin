@@ -298,6 +298,8 @@ async def test_admissions_disabled_skips_visit_and_hides_endpoints(admin_client,
             ("GET", f"{ADMISSIONS}/stats?campus_key=yihua"),
             ("GET", f"{ADMISSIONS}/compare?school_year=115&semester=1"),
             ("GET", f"{ADMISSIONS}/no-deposit-records?campus_key=yihua"),
+            ("GET", f"{ADMISSIONS}/records/export?campus_key=yihua"),
+            ("GET", f"{ADMISSIONS}/no-deposit-records/export?campus_key=yihua"),
             ("POST", f"{ADMISSIONS}/from-visit-request/{request_id}"),
         ):
             response = await client.request(method, path, json={} if method == "POST" else None)

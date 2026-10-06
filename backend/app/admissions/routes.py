@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, booking_link, constants, follow_up, funnel, intake, records
+from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import stats as stats_service
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
@@ -44,10 +44,11 @@ from app.admissions.schemas import (
     TransitionRequest,
 )
 from app.auth.deps import get_current_user, get_db_session
-from app.auth.models import User
+from app.auth.models import BOOKING_EXPORT, User
 from app.auth.permissions import ScopeDenied, covers_campus, require_scope
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
+from app.common import csv_export
 from app.common.timezones import today_local
 from app.operations import audit_service
 
@@ -138,6 +139,42 @@ async def list_recruitment_visits(
     )
     result = await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))
     return [RecruitmentVisitOut.model_validate(visit) for visit in result.scalars()]
+
+
+@router.get("/admin/admissions/records/export")
+async def export_recruitment_visits(
+    filters: records.RecruitmentVisitFilters = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """訪視明細 CSV（2026-10-03）：條件與排序同明細列表（含追蹤狀態與負責人篩選），不分頁。
+    含孩子姓名、電話與地址，除了 admissions.read 還要「匯出個資」授權（booking.export，與
+    參觀案件匯出同一項）。超過上限回 422，不默默截斷。必須排在 /records/{visit_id} 之前，
+    否則 "export" 會被當成 visit_id、回 422。"""
+    _require_campus(current_user, "admissions.read", filters.campus_key)
+    require_scope(current_user, BOOKING_EXPORT, campus_keys=[filters.campus_key])
+    # owner=me 要靠 current_user_id：漏傳會靜默多匯出別人負責的案件。
+    stmt = filters.apply(select(RecruitmentVisit), current_user_id=current_user.id).order_by(
+        RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc()
+    )
+    visits = list((await db.execute(stmt.limit(csv_export.EXPORT_ROW_LIMIT + 1))).scalars())
+    if len(visits) > csv_export.EXPORT_ROW_LIMIT:
+        raise csv_export.too_many_rows()
+    names = await download.owner_names(db, visits)
+    # 先組好檔案內容再寫稽核：轉換出錯時不會留下「匯出過」的紀錄。
+    rows = [download.record_row(visit, names) for visit in visits]
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.export",
+        target_type="recruitment_visit",
+        target_id=filters.campus_key,
+        campus_key=filters.campus_key,
+        metadata={"row_count": len(visits), **download.records_audit_metadata(filters)},
+    )
+    await db.commit()
+    filename = f"admissions-records-{csv_export.filename_part(filters.campus_key)}-{today_local():%Y%m%d}.csv"
+    return csv_export.csv_attachment(download.RECORD_HEADERS, rows, filename)
 
 
 @router.post("/admin/admissions/records", response_model=RecruitmentVisitOut, status_code=status.HTTP_201_CREATED)

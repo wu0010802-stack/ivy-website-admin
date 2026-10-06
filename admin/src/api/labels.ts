@@ -490,6 +490,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // 參觀後追蹤（2026-10-04）
   'recruitment_visit.contact_logged': '記錄參觀後聯絡',
   'recruitment_visit.follow_up_update': '改下次聯絡或追蹤負責人',
+  // 招生名單匯出（2026-10-03）
+  'recruitment_visit.export': '匯出招生訪視明細',
+  'recruitment_visit.export_no_deposit': '匯出未預繳名單',
 }
 
 // 參觀後聯絡的方式（後端 admissions/constants.py CONTACT_CHANNELS；admissionsFollowUp.test.ts 比對）。
@@ -1368,6 +1371,20 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   school_year: (v) => `入學學年：${String(v)} 學年`,
   semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
   grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
+  // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。來源、介紹者、搜尋字只記有沒有篩，負責人只記類別。
+  month: (v) => `篩選月份：${String(v)}`,
+  grade: (v) => `篩選班別：${String(v)}`,
+  has_source: (v) => (v ? '有篩選來源' : null),
+  has_referrer: (v) => (v ? '有篩選家長介紹' : null),
+  has_deposit: (v) => `篩選預繳：${v ? '是' : '否'}`,
+  no_deposit_reason: (v) => `篩選未預繳原因：${String(v)}`,
+  funnel_stage: (v) => `篩選階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
+  has_visit_request: (v) => (v ? '只匯出由官網預約建立的訪視' : null),
+  follow_up: (v) => `篩選追蹤狀態：${({ due: '已到期', upcoming: '7 天內', unscheduled: '未排定' } as Record<string, string>)[String(v)] ?? String(v)}`,
+  owner: (v) => `篩選追蹤負責人：${({ me: '匯出的人自己', none: '未指派', staff: '指定某位同事' } as Record<string, string>)[String(v)] ?? String(v)}`,
+  priority: (v) => `篩選轉換潛力：${({ high: '高', medium: '中', low: '低' } as Record<string, string>)[String(v)] ?? String(v)}`,
+  overdue_days: (v) => `只匯出參觀滿 ${countOf(v)} 天仍未預繳`,
+  cold_only: (v) => (v ? '只匯出冷名單' : null),
   // 參觀後追蹤（不記聯絡內容，只記方式與結果）
   channel: (v) => `聯絡方式：${CONTACT_CHANNEL_LABELS[String(v)] ?? String(v)}`,
   reached: (v) => (v ? '聯絡到了' : '沒聯絡到'),

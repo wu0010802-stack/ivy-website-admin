@@ -183,6 +183,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/records/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Recruitment Visits
+         * @description 訪視明細 CSV（2026-10-03）：條件與排序同明細列表（含追蹤狀態與負責人篩選），不分頁。
+         *     含孩子姓名、電話與地址，除了 admissions.read 還要「匯出個資」授權（booking.export，與
+         *     參觀案件匯出同一項）。超過上限回 422，不默默截斷。必須排在 /records/{visit_id} 之前，
+         *     否則 "export" 會被當成 visit_id、回 422。
+         */
+        get: operations["export_recruitment_visits_api_website_v1_admin_admissions_records_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/records/{visit_id}": {
         parameters: {
             query?: never;
@@ -6832,6 +6855,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_recruitment_visits_api_website_v1_admin_admissions_records_export_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 民國月份，例：115.09 */
+                month?: string | null;
+                /** @description 適讀班級 */
+                grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+                /** @description 入學學年（民國） */
+                target_school_year?: number | null;
+                /** @description 入學學期：1 上、2 下 */
+                target_semester?: number | null;
+                source?: string | null;
+                referrer?: string | null;
+                has_deposit?: boolean | null;
+                no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+                /** @description 漏斗階段（由狀態欄位推導） */
+                stage?: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
+                /** @description 連結的官網預約 */
+                visit_request_id?: string | null;
+                /** @description 幼生姓名、聯絡人、電話、地址、備註、電訪回應 */
+                q?: string | null;
+                /** @description 追蹤狀態：due 已到期、upcoming 7 天內、unscheduled 未排定（2026-10-04 規格 6.2） */
+                follow_up?: ("due" | "upcoming" | "unscheduled") | null;
+                /** @description 追蹤負責人：me、none 或帳號 id */
+                owner?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
