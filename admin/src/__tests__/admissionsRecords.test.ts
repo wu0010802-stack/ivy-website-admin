@@ -182,7 +182,7 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     await flushPromises()
     const info = wrapper.get('.records__info')
     expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['英文名字', '父親職業', '母親職業', '來源分類', '介紹者', '帶參觀老師', '搭娃娃車'])
-    expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹（兄姊老師）', '林老師', 'Marvyna', '要搭'])
+    expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹', '林老師', 'Marvyna', '要搭'])
   })
 })
 

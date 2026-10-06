@@ -8,6 +8,7 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/erro
 import type { AdmissionsOptions, RecruitmentVisit, RecruitmentVisitCreate, RecruitmentVisitUpdate } from '../../api/types'
 import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageLabel, type Grade } from '../../admissions/constants'
+import { sourceCategoryOptions } from '../../admissions/sourceCategories'
 
 // 訪視表單（園務 RecruitmentRecordDialog，分區同園務：基本資料、聯絡與來源、預繳狀態、備註）。
 // 官網第一版不放來源分類、帶參觀老師、娃娃車、地址分析同意（本檔調整第 10 條）；2026-10-05 照園方紙本
@@ -179,7 +180,7 @@ const contactSummary = computed(() => {
   const count = filled([form.address, form.father_occupation, form.mother_occupation, form.source_category, form.source, form.referrer])
   return count ? `已填 ${count} 項` : '未填'
 })
-const sourceCategories = computed(() => Object.entries(props.options?.source_categories ?? {}))
+const sourceCategories = computed(() => sourceCategoryOptions([current.value?.source_category, form.source_category], props.options?.source_categories))
 const notesSummary = computed(() => {
   const count = filled([form.notes, form.parent_response])
   return count ? `已填 ${count} 項` : '未填'

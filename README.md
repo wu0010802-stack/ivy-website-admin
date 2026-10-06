@@ -1,3 +1,11 @@
+## 2026-10-06 招生來源分類收斂成六項（`feature/source-category-choices-20261006`）
+
+使用者：「訪視紀錄的來源分類幫我收斂選項」，選「六項、只改畫面」。規則見 DESIGN.md「來源分類收斂」。
+
+- **後台**：新增 `admin/src/admissions/sourceCategories.ts`。訪視表單的來源分類下拉只列六項短標籤（在校生弟妹、畢業生弟妹、家長介紹／社區招生、自報生（廣告、鄰居、網路、活動）、邀約來園、舊生復學）；在校兄姊二人均分、邀約來園——原本招生人、到家中收預繳不再列出，舊資料選過的照樣顯示園務原文，編輯時附在下拉最後。明細展開列與預約明細家庭頁改用同一份文字。沒有後端、契約、migration 變動，資料仍是園務九類代碼。
+- **驗證**（Node 22.23.2）：新增 `admissionsSourceCategories.test.ts` 6 項（先紅後綠：代碼對後端 `constants.py`、文字、下拉附加不列的代碼、表單新增／編輯、家庭頁顯示）；`admissionsRecordDialog`、`admissionsRecords`、`familyAdmissionsData` 各改一行預期文字。vitest 全套 109 檔 1374 項全過（另一個 session 同時跑 pytest，用 2 worker、逾時 20 秒）、`vue-tsc -b`、`vite build` 通過。
+- **未驗證**：沒在 dev server 上用瀏覽器實際點下拉（單元測試掛的是真的 Element Plus 元件）。
+
 ## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`，10-06 已部署 main `4437174d`）
 
 使用者針對稽核修正「刻意沒改」的「Google 登入時用 Email 自動綁定既有帳號」說「幫我做這個」。規則見 DESIGN.md「Google 登入改成在『我的帳號』綁定」；設定見 `deploy/google-oauth.md`。正式站這時 Google 登入沒開（`/auth/providers` 回 `google:false`），沒有人受影響。

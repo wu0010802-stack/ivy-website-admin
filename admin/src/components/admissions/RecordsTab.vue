@@ -12,6 +12,7 @@ import { rocDate, termLabel } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Stage, type TransitionTarget } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
+import { sourceCategoryLabel } from '../../admissions/sourceCategories'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
@@ -226,7 +227,7 @@ function rowClass({ row }: { row: RecruitmentVisit }): string {
 // 表格只留追蹤要看的欄；其餘收進展開列（桌機）或卡片的「其他資料」（手機），空值不列。
 interface InfoItem { label: string; value: string; wide?: boolean }
 function extraInfo(row: RecruitmentVisit): InfoItem[] {
-  const category = row.source_category ? (options.value?.source_categories?.[row.source_category] ?? row.source_category) : ''
+  const category = row.source_category ? sourceCategoryLabel(row.source_category, options.value?.source_categories) : ''
   const items: InfoItem[] = [
     { label: '英文名字', value: row.english_name ?? '' },
     { label: '地址', value: row.address || row.district || '' },

@@ -90,7 +90,7 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     typeInto(field('input[aria-label="母親職業"]'), '教師')
     typeInto(field('input[aria-label="帶參觀老師"]'), 'Marvyna')
     const category = byPlaceholder(wrapper, 'ElSelect', '請選擇來源分類')
-    expect(category.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label'))).toEqual(Object.values(options().source_categories))
+    expect(category.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label'))).toEqual(['在校生弟妹', '畢業生弟妹', '家長介紹／社區招生', '自報生（廣告、鄰居、網路、活動）', '邀約來園', '舊生復學'])
     category.vm.$emit('update:modelValue', 'sibling_current')
     inFormItem(wrapper, '搭娃娃車', 'ElSwitch').vm.$emit('update:modelValue', true)
     await flushPromises()
