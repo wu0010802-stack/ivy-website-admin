@@ -1,3 +1,18 @@
+## 2026-10-06 後台匯出擴充（`feature/admin-exports-20261006`，未部署）
+
+使用者要求：後台除了參觀案件，招生明細、統計、操作紀錄、成效統計也要能匯出。**使用者 10-06 裁定**：招生訪視明細與未預繳名單開放含個資匯出（取代招生規格 3.2「任何含個資的匯出」不做）、沿用「匯出個資」授權 `booking.export`、操作紀錄匯出不另寫稽核。規則見 DESIGN.md「後台匯出擴充（2026-10-06）」。
+
+- **招生訪視明細**（後端產生）：「匯出 CSV」照目前畫面的全部篩選（含追蹤、負責人，不只本頁）；37 欄，欄位同現在的畫面（含來源分類、帶參觀老師、娃娃車、負責人；地址分析同意不進）。**含孩子姓名、電話、地址等個資**：要 `admissions.read`＋校區範圍＋「匯出個資」授權，**每次寫一筆稽核**（`recruitment_visit.export`，只記套用了哪些篩選），上限 1 萬筆（超過回「請縮小篩選範圍」，不截斷）。
+- **未預繳名單**（後端產生）：統計分析「未預繳原因」下方名單的「匯出 CSV」，13 欄；授權、稽核（`recruitment_visit.export_no_deposit`）、上限同訪視明細。
+- **招生統計表**（前端組、去識別）：統計分頁每張表（含五校比較、月度明細）有「匯出 CSV」；比率沒有值寫空白、計數缺值寫 0；沒有資料的表不顯示按鈕。
+- **操作紀錄**：新增「期間」篩選（台北日期、含頭尾、不能選未來日期）；「匯出 CSV」照目前校區、期間、搜尋與「不列登入登出」逐頁讀完（每次 500 筆），超過 5,000 筆不產生檔案、提示縮短期間。人人有「裝置」欄，**只有總部多一欄「IP」**。匯出本身不另寫稽核（紀錄不含家長個資）。
+- **成效統計**：五校比較、依來源、預約鈕點擊、預約孩子的班別、每日數字（每日變化與每日瀏覽各一）、網頁速度各有「匯出 CSV」，比率沒有分母寫空白。預約流程、預約結果統計格不是表格，不匯出；「各頁瀏覽」排行清單已裁定補匯出（欄名「頁面」「瀏覽次數」），寫這段時尚未做。
+- **民國月份寫成「115年09月」**：Excel 開 CSV 會把「115.10」當數字轉成 115.1，月份就錯了；畫面仍是 115.09。適用統計表與兩份名單的「月份」欄。
+- **共用**：`backend/app/common/csv_export.py`（`safe_cell`、`filename_part`、`csv_attachment`、`roc_month_csv`、`BOM`；參觀案件匯出也改用，輸出不變、仍是串流）與 `admin/src/utils/csv.ts`（`buildCsv`、`downloadCsv`、`downloadServerCsv`、`rocMonthCsv`）；兩邊的公式注入防護同一條規則。新增兩個稽核動作與 13 個 metadata 鍵的中文，`labelCoverage.test.ts` 會讀後端原始碼比對；契約新增兩個匯出端點與操作紀錄的 `created_from`／`created_to`／`limit`。
+- **手機版面**：390px 下訪視明細標題列不再被匯出鈕擠成直排、操作紀錄的期間選擇器不超出篩選卡片（≤720px 的 CSS，stack 測試量外框鎖住）。
+- **驗證**（Node 22；以下都是各 Task 完成時的單檔結果，後端測試庫 `ivy_website_exports1006_test`，不是全套）：後端 `test_csv_export` 33、`test_admissions_download` 28、`test_admissions_booking_link` 14、`test_admissions_stats` 34、`test_operations` 20、`test_audit_client_info` 11、`test_visit_attention_export` 6、`test_security_hardening` 20 passed；admin vitest `csvUtil`＋`statsDimensionCsv`＋`statsTab`＋`compareTable` 67、`admissionsDownload` 10、`auditExport` 18、`analyticsExport` 17（連同 9 個既有相關檔共 10 檔 97）、`labelCoverage`＋`admissionsDownloadLabels` 17 passed，`vue-tsc` 0 錯誤，`contract:check` 一致；stack `exports.spec.ts`（`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741）7 passed，真瀏覽器下載、檢查 BOM、CRLF、欄數、公式注入、權限與 1440／390 版面。明細在 `docs/website-admin/acceptance.md` 的「後台匯出擴充」。
+- **未驗證／未做**：後端、admin、web 全套與 stack 全套（Task 11 閘門，結果回填前不算通過）；Safari／iOS 實機下載與 Excel 實機開檔；正式資料量（接近 1 萬筆）的匯出時間與記憶體；成效統計各按鈕的版面只有單元測試、沒目視；「各頁瀏覽」排行清單匯出；操作紀錄 5,000 筆上限數的是 API 回傳筆數、不是搜尋後的筆數。不做 Excel（.xlsx）。
+
 ## 2026-10-06 成效統計 UI/UX：三個頁籤、五校表置頂、說明收合（`feature/analytics-ux-20261006`，10-06 已部署 main `3d50e0a1`）
 
 使用者指著正式站 `/admin/analytics` 說「幫我優化這塊的 ui/ux」。沿用 10-06 結構層比稿的 E 方向（`design/admin-ux-directions-20261006/e-analytics.html`）實作，規則見 DESIGN.md「成效統計：三個頁籤與兩欄格線」。

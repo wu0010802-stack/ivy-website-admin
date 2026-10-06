@@ -585,3 +585,45 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | F3 | 從招生點進來，返回回到原分頁與篩選，看板反映剛才的變更 | `familyEntryPoints.test.ts`、stack `visit-family-page.spec.ts` |
 | F4 | 開關關閉、沒有招生權限、已到場但沒有訪視三種情況，畫面與改版前相同 | `visitFamilyPage.test.ts`「不是家庭版面的情況維持原樣」、`admissionsVisitDetail.test.ts` |
 | F5 | 後端新欄位、契約一致；沒有 migration | `test_admissions_family_page_fields.py`、`npm run contract:check` |
+
+## 後台匯出擴充（2026-10-06 實作，`feature/admin-exports-20261006`，尚未部署）
+
+計畫 `docs/superpowers/plans/2026-10-03-admin-exports.md`（10-06 對 main 修訂）；規則見 DESIGN.md「後台匯出擴充（2026-10-06）」。使用者 10-06 裁定：招生明細與未預繳名單開放含個資匯出（取代招生規格 3.2）、沿用 `booking.export`、操作紀錄匯出不另寫稽核。編號用 X 開頭，避免和「招生分析階段 1」的 E01–E27 撞號（計畫原本寫的 E11「成效統計匯出」在這份文件裡不存在，改成 X12）。
+
+後端測試都用獨立測試庫 `ivy_website_exports1006_test`，每個 Task 在自己的 commit 後以單檔、前景執行；「證據」欄的數字是當時的結果，不是全套。全套閘門見本節最後。
+
+| 編號 | 案例 | 狀態 | 證據 |
+|---|---|---|---|
+| X01 | 後端共用 CSV：BOM（原始碼只用跳脫寫法）、CRLF、引號、公式注入、檔名清理、上限訊息、民國月份「115年09月」 | 通過（單檔） | `backend/tests/test_csv_export.py` 33 passed（含原始碼位元組不含實體 BOM 的守門測試，變異驗證會轉紅） |
+| X02 | 參觀案件匯出改用共用模組，輸出不變、仍是串流與快照 | 通過（單檔） | `test_visit_attention_export.py` 6 passed（含 `test_export_streams_in_batches_and_audit_count_matches_output`）、`test_security_hardening.py::test_csv_export_neutralises_formula_after_leading_control_chars`（該檔 20 passed）、`test_export_grant.py` 8 passed |
+| X03 | 前端共用 CSV 工具：BOM、公式注入、引號與換行、檔名、`rocMonthCsv`、伺服器匯出錯誤原樣拋出 | 通過（單檔） | `admin/src/__tests__/csvUtil.test.ts`（Task 2 時 17 項，Task 3 補 `rocMonthCsv`；與統計三檔合跑 67 passed） |
+| X04 | 招生統計每張表可匯出：欄名同畫面、比率空白、五校比較零分母空白、月份「115年09月」、無資料不顯示按鈕、檔名 | 通過（單檔） | `statsDimensionCsv.test.ts`、`statsTab.test.ts`「統計表匯出 CSV」、`compareTable.test.ts`；四檔（含 `csvUtil`）67 passed，另 `noDepositList`、`analyticsClasses`、`analyticsOutcomes`、`analyticsFunnel`、`admissionsView` 64 passed |
+| X05 | 訪視明細匯出：37 欄順序、篩選與排序同列表（含追蹤、負責人）、每欄值、台北日界、公式注入、一列一筆、授權與越權、上限、稽核 | 通過（單檔） | `backend/tests/test_admissions_download.py` 28 passed（`test_headers_are_the_37_screen_columns_in_order`、`test_records_export_follows_list_filters`、`test_records_export_applies_follow_up_and_owner_filters`、`test_records_export_needs_export_grant_and_campus_scope`、`test_records_export_refuses_more_than_the_limit` 等）；變異驗證：拿掉路由的 `current_user_id=` 後 owner 篩選測試轉紅 |
+| X06 | 未預繳名單匯出：篩選同畫面、冷名單依參觀日（相對日期，不寫死）、原因分類「未分類」、0 筆只有表頭、授權、上限 | 通過（單檔） | 同檔 `test_no_deposit_export_*`（`follows_screen_filters_and_audits_them`、`cold_flag_flips_on_the_visit_date_not_a_fixed_date`、`needs_export_grant_and_campus_scope`、`refuses_more_than_the_limit`） |
+| X07 | 招生開關關閉時兩個匯出端點 404 | 通過（單檔） | `test_admissions_booking_link.py::test_admissions_disabled_skips_visit_and_hides_endpoints`（該檔 14 passed，清單含 `records/export`、`no-deposit-records/export`） |
+| X08 | 稽核 metadata：只記套用了哪些篩選；搜尋字、介紹者、來源只記「有篩選」；`owner` 只記 me／none／staff、不記帳號 id；未預繳的原因與班別只記已知選項、其餘 `other`；新動作與鍵有中文 | 通過（單檔） | `test_records_export_audits_filters_without_search_text`、`test_records_export_audits_follow_up_and_owner_category_never_an_id`、`test_audit_metadata_*`、`test_no_deposit_export_audit_never_records_free_text_filters`；後台 `labelCoverage.test.ts`＋`admissionsDownloadLabels.test.ts` 17 passed |
+| X09 | 後台名單匯出鈕只給有授權的人、送出和畫面完全相同的篩選、422／403／連線失敗各有中文提示、進行中不重複送出 | 通過（單檔） | `admissionsDownload.test.ts` 10 passed（含追蹤與負責人篩選的防漂移測試）；與掛載 `RecordsTab`／`NoDepositList`／`AdmissionsView` 的既有測試共 11 檔 205 passed |
+| X10 | 操作紀錄 API：台北日期含頭尾、23:59／00:00 邊界、`limit` 1–500、起日晚於迄日 422 | 通過（單檔） | `test_operations.py::test_audit_log_filters_by_taipei_dates_and_limit`（該檔 20 passed）；`test_audit_client_info.py` 11 passed（IP 只給總部、裝置給全部，不變）；游標與日期同時出現的後端合併測試**尚未補**（見下） |
+| X11 | 操作紀錄匯出：逐頁讀完、期間與校區與搜尋、搜尋含裝置與 IP、超過 5,000 筆不出檔（剛好 5,000 可出）、匯出途中改篩選不影響、IP 欄只有總部 | 通過（單檔） | `auditExport.test.ts` 18 passed；`auditClientInfo.test.ts`「可以用 IP 或裝置搜尋」維持綠燈；8 檔（含 `auditUx`、`labelCoverage`、`displayNames`）共 125 passed；變異驗證四項各轉紅 |
+| X12 | 成效統計各表可匯出：五校比較、依來源（兩種維度）、預約鈕點擊、班別、每日數字（兩處）、網頁速度；比率分母 0 寫空白；無資料不顯示按鈕；檔名用畫面上那批資料的校區與期間 | 部分：七種表通過（單檔），「各頁瀏覽」排行清單未做 | `analyticsExport.test.ts` 17 passed；連同 `analyticsFunnel`、`analyticsOutcomes`、`analyticsClasses`、`analyticsTrend`、`analyticsCharts`、`analyticsHelpers`、`traffic`、`statsDimensionCsv`、`compareTable` 共 10 檔 97 passed；`crossUx20261002.test.ts` 13 passed |
+| X13 | 瀏覽器真的下載到檔案：BOM 只有一個、結尾 CRLF、欄數與表頭一致、無公式開頭的格子、民國月份、操作紀錄含稽核紀錄與裝置與 IP、分校管理者沒有名單鈕且操作紀錄無 IP 欄 | 通過 | stack `tests/stack/exports.spec.ts` 7 passed（setup＋6 項，`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741，修版面後重跑 18.9 秒） |
+| X14 | 手機（390）版面：訪視明細標題不直排、匯出鈕與說明在視窗內、操作紀錄期間選擇器不超出自己的欄位與篩選卡片；1440 單行 | 通過（量外框斷言＋截圖目視） | `exports.spec.ts` 版面測試（修之前實測 390 寬標題 28px 寬 81px 高、期間選擇器右緣 379 超出卡片右緣 374，修後斷言標題高度小於 40px）；截圖 `output/playwright/exports-{admissions-records,audit-filter,nodeposit}-{1440,390}.png`（已 gitignore） |
+| X15 | 契約與型別一致、`vue-tsc` 無錯誤 | 通過（各 Task 完成時） | `npm run contract:check`（Task 4、5、7 後都重產並一致，新增兩個匯出端點與操作紀錄三個參數）；`npm run typecheck` 0 錯誤（Task 3–9、12） |
+
+### 未驗證
+
+- **全套閘門（Task 11）尚未跑**：後端全套 pytest、admin 全套 vitest、web typecheck 與 `npm run test:website`、stack e2e 全套、合併 origin/main 後的重跑，都等 Task 11 回填；回填前上表只代表單檔結果。已知會假失敗的是台北週五 `test_booking_consent_readiness` 的場次同步（main 既有、日期相依）。
+- **Safari／iOS 實機下載**、Excel 與 Numbers 實機開檔（BOM、「115年09月」、單引號開頭的格子）：只有 headless Chrome 的下載與位元組檢查。
+- **正式資料量**：接近 10,000 筆時訪視明細與未預繳名單的匯出時間與記憶體（後端一次把最多 10,001 筆讀進記憶體；`stats.no_deposit_records` 先全讀再切頁，是既有設計）；操作紀錄 5,000 筆逐頁讀的耗時。
+- **成效統計各按鈕的版面**只有單元測試，沒有在桌機與手機目視（`依來源` 標題列在 1400px 以下窄欄時按鈕是否換行尚不明）；每日數字的按鈕要先展開 `<details>` 才看得到。
+- 招生入學統計匯出的 390px 標題列（`.stats-block__head`）擠壓，審查時列為留待截圖確認，stack 截圖只涵蓋訪視明細、未預繳名單與操作紀錄。
+- 對真後端的前端下載只由 `exports.spec.ts` 涵蓋；單元測試都 mock `downloadServerCsv`。
+- 未部署、正式站未驗證；招生開關在正式站仍關閉。
+
+### 已知待補（寫本節時尚未進 commit，預計在 Task 11 前的最終修正波）
+
+- 成效統計「各頁瀏覽」排行清單補匯出（欄名「頁面」「瀏覽次數」）。
+- 後端補「游標＋日期＋limit」同時出現的合併測試（X10）。
+- 前端 `admin/src/utils/csv.ts` 與 `statsDimensionCsv.test.ts` 的 BOM 仍是原始碼中的實體 U+FEFF，改成跳脫寫法並擴大守門測試；後端 `test_visit_attention_export.py`、`test_display_names.py` 既有的同類字元也在範圍內。
+- stack 測試的小項：`exports.spec.ts` 斷言綁新 class、寫死 e2e 總部帳號 Email、公式開頭檢查規則不完整、操作紀錄測試跨午夜、serial 相依；721–1000px 之間訪視明細標題列仍可能擠（`flex-wrap` 可搬出 media query）。
+- 成效統計每日數字第二欄表頭「次」語意靠檔名、操作紀錄搜尋欄標籤「搜尋已載入的紀錄」與匯出範圍（含未載入的）不一致。
