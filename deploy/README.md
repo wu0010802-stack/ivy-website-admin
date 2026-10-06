@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 成效統計改三個頁籤、五校表置頂、說明收合（main CI 部署）
+
+- **合併**：`feature/analytics-ux-20261006` 的 `dd9da598` 從 `0ae1f089` 開，合入 `1cefe5cd`（招生 nodeposit 部署紀錄；README 一個標題衝突）成 `3d50e0a1`，推 main `1cefe5cd..3d50e0a1`。內容與驗證見 README 頂部同日段落、DESIGN.md「成效統計：三個頁籤與兩欄格線」。
+- **migration**：無（只改後台畫面與測試）。沒有備份。
+- **CI**：main run 37473874441（`3d50e0a1`）全綠，建立到完成 13.4 分鐘：Frontend admin 4.2／web 1.8 分鐘，Backend 三組 8.2／6.9／8.5 分鐘，E2E／Playwright 5.8 分鐘，Deploy 4.8 分鐘。
+- **正式 `release.json`**：base commit `3d50e0a1`，created `2026-10-06T13:58:39Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/` 的 `AnalyticsView-C3d0lBwg.js` 有「官網瀏覽與速度」「預約孩子的班別」「這些數字怎麼算」。
+- **未做**：沒有登入正式後台實際切三個頁籤、看五校表與「現在」兩欄的連結。
+
 ## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（main CI 部署，第一次 Deploy 卡在 waiting）
 
 - **合併**：`feature/admissions-nodeposit-20261006` 的 `fc24889c` 從 `7a8d19e4` 開；期間 main 先上了訪視紀錄表單四區展開＋來源分類六項、參觀案件拿掉承辦人、總覽今天的行程板，合入三次成 `72f8a574`（README、DESIGN.md 兩段並存；`DashboardView` 取行程板新版面，再拿掉它重新加回的「參觀後該聯絡的家長」卡），推 main `8bac33d4..72f8a574`。內容與驗證見 README 頂部同日段落、DESIGN.md「招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁」。

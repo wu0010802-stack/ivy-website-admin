@@ -74,7 +74,12 @@ describe('預約結果', () => {
 
   it('有案件權限的人點得進已套好篩選的案件列表', async () => {
     const { wrapper } = await mountSection('reception')
+    // 五校比較表「現在」兩欄的數字也連到該校的案件列表（2026-10-06），再來是選定校區的現在待處理。
     expect(caseLinks(wrapper)).toEqual([
+      '/visit-requests?campus=yihua&group=past&status=confirmed',
+      '/visit-requests?campus=yihua&due=1',
+      '/visit-requests?campus=minghua&group=past&status=confirmed',
+      '/visit-requests?campus=minghua&due=1',
       '/visit-requests?campus=yihua&group=past&status=confirmed',
       '/visit-requests?campus=yihua&due=1',
     ])
@@ -228,9 +233,11 @@ describe('預約結果', () => {
     ])
     await wrapper.setProps({ range: { from: '2026-09-01', to: '2026-09-30' }, periodLabel: '2026/09/01–2026/09/30' })
     await flushPromises()
-    expect(wrapper.text()).toContain('五校比較（開站至今）')
+    expect(wrapper.get('#compare-title').text()).toBe('五校比較開站至今')
     expect(wrapper.text()).not.toContain('2026/09/01')
-    expect(wrapper.find('.outcomes-section').classes()).toContain('is-updating')
-    expect(wrapper.find('.outcomes-section').attributes('aria-busy')).toBe('true')
+    for (const selector of ['.compare', '.outcomes']) {
+      expect(wrapper.find(selector).classes()).toContain('is-updating')
+      expect(wrapper.find(selector).attributes('aria-busy')).toBe('true')
+    }
   })
 })

@@ -1,3 +1,14 @@
+## 2026-10-06 成效統計 UI/UX：三個頁籤、五校表置頂、說明收合（`feature/analytics-ux-20261006`，10-06 已部署 main `3d50e0a1`）
+
+使用者指著正式站 `/admin/analytics` 說「幫我優化這塊的 ui/ux」。沿用 10-06 結構層比稿的 E 方向（`design/admin-ux-directions-20261006/e-analytics.html`）實作，規則見 DESIGN.md「成效統計：三個頁籤與兩欄格線」。
+
+- **頁面**（`AnalyticsView.vue`）：寬度從 720px 放到 1200px；分成「各校預約／官網瀏覽與速度／預約孩子的班別」三個頁籤（`?tab=` 進網址，左右鍵可切）。校區、期間、重新整理只選一次放在頁籤右邊，瀏覽頁籤因後端只接受 7～90 天仍自己選期間。預約頁籤是 3:2 格線：五校比較橫跨整列，左欄預約結果、每日變化，右欄預約流程、依來源、預約鈕點擊；1400px 以下左右等寬，1100px 以下一欄。
+- **五校比較**（`BookingOutcomesSection.vue`）改成自己的表：拿掉「預約方式」「取消原因」兩欄（方式寫在校名下面的小字，取消原因看選定校區），到場率畫小條、「樣本較少」改成比率下方小字、「現在」兩欄表頭兩行；有案件權限時這兩欄的數字直接連到該校的案件列表。預約結果 6 格縮成 4 格，「還沒到參觀日」「參觀時間過了還沒標記」併成一句。
+- **說明收合**：新元件 `AnalyticsExplainer.vue`（`<details>`「這些數字怎麼算」），五段算法說明與排除規則都收進去；`AnalyticsMeta` 的期間／單位／更新一行保留。瀏覽頁籤拆成瀏覽次數（加「平均每天」）、各頁瀏覽與網頁速度三張面板並排。
+- **驗證**（Node 22.23.2）：admin vitest 110 檔 1377 項全過（改 `analyticsFunnel`、`analyticsOutcomes`、`traffic` 三個測試檔對新 DOM 的斷言）、`vue-tsc -b`、`vite build` 通過。本機 stack（測試庫 `ivy_website_analyticsux_test`、API 8751、vite 5351，已關、已刪）用 `output/analytics-ux/seed.cjs` 灌兩校 18 筆案件、點擊與瀏覽，在 390／1280／1440 三個頁籤：橫向溢出 0、axe（WCAG 2.1 A／AA）serious／critical 0、鍵盤右鍵切頁籤焦點跟著走。截圖在 `design/admin-ux-directions-20261006/shots/after-e/`。
+- **沒做**：匯出 CSV（mock 有、目前沒有匯出 API）；班別頁籤只換說明收合與寬度上限。未驗證：正式站。
+
+## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（`feature/admissions-nodeposit-20261006`，未部署）
 ## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（`feature/admissions-nodeposit-20261006`，10-06 已部署 main `0ae1f089`）
 
 使用者問招生入學的「尚未預繳」在什麼情況下會出現。說明後，使用者要求處理兩個落差（訪視明細「預繳：否」和統計對不上、逾期從建檔時間起算），並指著 `/admin/admissions?tab=followups` 說「待追蹤 幫我拿掉」（範圍確認為只拿這個分頁）。規則見 DESIGN.md「招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁」。
