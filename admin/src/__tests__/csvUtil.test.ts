@@ -1,7 +1,7 @@
 // 後台前端組的 CSV（2026-10-03 匯出擴充）：規則和後端 app/common/csv_export.py 相同。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError } from '../api/client'
-import { CSV_BOM, buildCsv, csvFilename, downloadCsv, downloadServerCsv, safeCell, withBom } from '../utils/csv'
+import { CSV_BOM, buildCsv, csvFilename, downloadCsv, downloadServerCsv, rocMonthCsv, safeCell, withBom } from '../utils/csv'
 
 const originalCreate = URL.createObjectURL
 const originalRevoke = URL.revokeObjectURL
@@ -10,6 +10,29 @@ afterEach(() => {
   URL.revokeObjectURL = originalRevoke
   vi.restoreAllMocks()
   vi.useRealTimers()
+})
+
+describe('rocMonthCsv：民國月份寫成「115年09月」，Excel 不會把 115.10 轉成數字 115.1', () => {
+  it.each([
+    ['115.09', '115年09月'],
+    ['115.10', '115年10月'],
+    ['114.12', '114年12月'],
+    ['99.01', '99年01月'],
+    ['115.9', '115年09月'],
+  ])('%j → %j', (input, expected) => {
+    expect(rocMonthCsv(input)).toBe(expected)
+  })
+
+  it('不是「年.月」格式的原樣不動（未填寫、空白、null）', () => {
+    expect(rocMonthCsv('未填寫')).toBe('未填寫')
+    expect(rocMonthCsv('')).toBe('')
+    expect(rocMonthCsv(null)).toBe('')
+    expect(rocMonthCsv(undefined)).toBe('')
+  })
+
+  it('組進 CSV 後原樣輸出，不被補單引號', () => {
+    expect(buildCsv(['月份'], [[rocMonthCsv('115.10')]])).toBe(`${CSV_BOM}月份\r\n115年10月\r\n`)
+  })
 })
 
 describe('safeCell：和後端 safe_cell 同一條規則', () => {

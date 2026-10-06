@@ -13,6 +13,8 @@ export interface StatsColumn {
   kind?: 'text' | 'count' | 'rate' | 'bar'
   /** 手機橫捲時固定在左側的欄。 */
   sticky?: boolean
+  /** 匯出 CSV 時的寫法：roc-month 把「115.09」寫成「115年09月」（Excel 會把 115.10 轉成數字）；畫面不變。 */
+  csv?: 'roc-month'
 }
 
 export function formatRate(value: number | null | undefined): string {

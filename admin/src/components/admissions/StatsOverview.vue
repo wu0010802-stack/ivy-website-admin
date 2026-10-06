@@ -56,7 +56,7 @@ function go(item: Target) {
 
 // 表頭照園務原文（月度明細表沒有「預繳→註冊率」，年度統計沒有「有效預繳」）。
 const MONTHLY_COLUMNS: StatsColumn[] = [
-  { key: 'month', label: '月份', sticky: true },
+  { key: 'month', label: '月份', sticky: true, csv: 'roc-month' },
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'enrolled', label: '註冊人數', kind: 'count' },

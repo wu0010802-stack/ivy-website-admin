@@ -483,10 +483,23 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
     await section.get('[data-test="stats-csv"]').trigger('click')
     expect(lastDownload()[1].split('\r\n')).toEqual([
       `\uFEFF${headers(section).join(',')}`,
-      '115.09,0,0,0,0,0,0,,,',
-      '115.10,4,2,1,0,2,1,50.0%,25.0%,50.0%',
+      '115年09月,0,0,0,0,0,0,,,',
+      '115年10月,4,2,1,0,2,1,50.0%,25.0%,50.0%',
       '',
     ])
+    // 畫面維持 115.09，只有匯出改寫（Excel 會把 115.10 轉成數字 115.1）。
+    expect(bodyRows(section).map((row) => row[0])).toEqual(['115.09', '115.10'])
+  })
+
+  it('月份 × 班別分布的月份欄也寫「115年09月」，班別欄照寫計數', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const section = block(await openSubTab(wrapper, '班別分析'), '月份 × 班別分布')
+    await section.get('[data-test="stats-csv"]').trigger('click')
+    const lines = lastDownload()[1].split('\r\n')
+    expect(lines[0]).toBe(`\uFEFF${headers(section).join(',')}`)
+    expect(lines.slice(1).map((line) => line.split(',')[0])).toEqual(['114年12月', '115年08月', '115年09月', ''])
+    expect(bodyRows(section).map((row) => row[0])).toEqual(['114.12', '115.08', '115.09'])
   })
 
   it('沒選學年：檔名寫「全部學年」', async () => {

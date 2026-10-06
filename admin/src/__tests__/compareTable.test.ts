@@ -200,7 +200,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
   it('匯出 CSV：檔名用比較結果的學年學期與台北日期，欄名同畫面、比率寫分子分母', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T23:30:00+08:00'))
-    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, RENWU], 115, null) })
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, RENWU], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
     const pane = await openCompare(wrapper)
 
@@ -210,7 +210,12 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const lines = csv.split('\r\n')
     expect(lines[0]).toBe(`\uFEFF${headers(pane).join(',')}`)
     expect(lines[1]).toBe('義華,4,3,1,3,2,75.0%（3/4）,25.0%（1/4）,33.3%（1/3）,33.3%（1/3）')
-    expect(lines).toHaveLength(4)
+    // 比率沒有值（分母 0）寫空白，不把畫面的「—（0/0）」寫進 CSV；有值的仍帶分子分母。
+    expect(lines[2]).toBe('明華,1,0,0,0,0,0.0%（0/1）,0.0%（0/1）,,')
+    expect(lines[3]).toBe('仁武,0,0,0,0,0,,,,')
+    expect(lines.join('')).not.toContain('—')
+    expect(pane.text()).toContain('—（0/0）')
+    expect(lines).toHaveLength(5)
   })
 
   it('讀取失敗：顯示錯誤，按重新載入再讀一次', async () => {

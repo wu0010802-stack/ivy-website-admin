@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRate, type StatsColumn } from '../../admissions/statsFormat'
-import { buildCsv, downloadCsv, type CsvCell } from '../../utils/csv'
+import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
 
 // 統計的共用表格：標題＋表格，bar 欄在數字旁畫 CSS 長條（規格 10：不新增圖表套件，
 // 長條只是輔助，數字一定寫出來）。手機寬度表格在框內橫捲，sticky 欄固定在左側，
@@ -17,6 +17,8 @@ const props = withDefaults(
     caption?: string
     /** 有值且有資料才顯示「匯出 CSV」；檔名由呼叫端決定（校區、學期、日期）。 */
     exportFilename?: string
+    /** 匯出專用的格值：回傳值優先於畫面值（含 ''＝寫空白），回 undefined 就照欄位規則。 */
+    csvCell?: (row: Record<string, unknown>, column: StatsColumn) => CsvCell | undefined
   }>(),
   { numbered: false, caption: '', exportFilename: '' },
 )
@@ -47,9 +49,13 @@ function display(row: Record<string, unknown>, column: StatsColumn): string {
 const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar'
 
 // 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
-// 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字。
+// 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
+// 月份欄（csv: 'roc-month'）寫「115年09月」；呼叫端要特別處理的格子走 csvCell。
 function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
+  const override = props.csvCell?.(row, column)
+  if (override !== undefined) return override
   const value = row[column.key]
+  if (column.csv === 'roc-month') return rocMonthCsv(typeof value === 'string' ? value : null)
   if (column.kind === 'rate') return typeof value === 'number' ? formatRate(value) : ''
   if (column.kind === 'count' || column.kind === 'bar') return toNumber(value)
   if (value === null || value === undefined || value === '' || value === NO_VALUE) return ''

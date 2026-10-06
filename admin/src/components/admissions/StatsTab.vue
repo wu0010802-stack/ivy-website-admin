@@ -185,7 +185,7 @@ const monthGradeLabels = computed(() =>
   gradeColumns(Object.values(stats.value?.month_grade ?? {}).flatMap((cells) => Object.keys(cells))),
 )
 const monthGradeColumns = computed<StatsColumn[]>(() => [
-  { key: 'month', label: '月份', sticky: true },
+  { key: 'month', label: '月份', sticky: true, csv: 'roc-month' },
   ...monthGradeLabels.value.map((grade): StatsColumn => ({ key: `g:${grade}`, label: grade, kind: 'count' })),
   { key: 'total', label: '合計', kind: 'count' },
 ])

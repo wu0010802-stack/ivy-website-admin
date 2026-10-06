@@ -37,6 +37,16 @@ export function withBom(text: string): string {
   return text.startsWith(CSV_BOM) ? text : `${CSV_BOM}${text}`
 }
 
+const ROC_MONTH = /^(\d{1,3})\.(\d{1,2})$/
+
+/** 園務的民國月份「115.09」在 CSV 寫成「115年09月」：Excel 會把 115.10 當數字轉成 115.1，月份就錯了。
+ *  只改匯出，畫面仍是「115.09」；不是「年.月」格式的（例如「未填寫」）原樣不動。 */
+export function rocMonthCsv(value: string | null | undefined): string {
+  const text = value ?? ''
+  const match = ROC_MONTH.exec(text)
+  return match ? `${match[1]}年${match[2]!.padStart(2, '0')}月` : text
+}
+
 const UNSAFE_FILENAME_CHARS = /[\\/:*?"<>|\p{Cc}]+/gu
 
 export function csvFilename(...parts: (string | null | undefined)[]): string {

@@ -63,6 +63,51 @@ describe('StatsDimensionTable 匯出 CSV', () => {
     wrapper.unmount()
   })
 
+  it('月份欄標 csv: roc-month：匯出寫「115年09月」，畫面仍是 115.09；其他文字欄不受影響', async () => {
+    const wrapper = mount(StatsDimensionTable, {
+      props: {
+        title: '月度明細表',
+        rows: [{ month: '115.09', visit: 5 }, { month: '115.10', visit: 2 }, { month: '未填寫', visit: 1 }],
+        columns: [
+          { key: 'month', label: '月份', sticky: true, csv: 'roc-month' as const },
+          { key: 'visit', label: '參觀人數', kind: 'bar' as const },
+        ],
+        rowKey: 'month',
+        emptyText: '尚無資料',
+        exportFilename: 'x.csv',
+      },
+      global: { plugins: [ElementPlus] },
+    })
+    expect(wrapper.findAll('tbody th').map((th) => th.text())).toEqual(['115.09', '115.10', '未填寫'])
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(csv.split('\r\n')).toEqual(['\uFEFF月份,參觀人數', '115年09月,5', '115年10月,2', '未填寫,1', ''])
+    wrapper.unmount()
+  })
+
+  it('csvCell：匯出專用的值優先於畫面值，回 undefined 就用畫面值；畫面不受影響', async () => {
+    const wrapper = mount(StatsDimensionTable, {
+      props: {
+        title: '五校比較',
+        rows: [{ campus: '義華', text: '75.0%（3/4）' }, { campus: '仁武', text: '—（0/0）' }],
+        columns: [
+          { key: 'campus', label: '校區', sticky: true },
+          { key: 'text', label: '預繳率' },
+        ],
+        rowKey: 'campus',
+        emptyText: '尚無資料',
+        exportFilename: 'x.csv',
+        csvCell: (row: Record<string, unknown>, column: { key: string }) => (column.key === 'text' && row.campus === '仁武' ? '' : undefined),
+      },
+      global: { plugins: [ElementPlus] },
+    })
+    expect(wrapper.text()).toContain('—（0/0）')
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(csv.split('\r\n')).toEqual(['\uFEFF校區,預繳率', '義華,75.0%（3/4）', '仁武,', ''])
+    wrapper.unmount()
+  })
+
   it('按鈕不影響表格本身：標題還在、按鈕寫明是哪張表', () => {
     const wrapper = mount(StatsDimensionTable, { props: { ...base, exportFilename: 'x.csv' }, global: { plugins: [ElementPlus] } })
     expect(wrapper.get('.stats-block__title').text()).toBe('來源排名明細')
