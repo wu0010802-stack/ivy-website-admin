@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（main CI 部署，第一次 Deploy 卡在 waiting）
+
+- **合併**：`feature/admissions-nodeposit-20261006` 的 `fc24889c` 從 `7a8d19e4` 開；期間 main 先上了訪視紀錄表單四區展開＋來源分類六項、參觀案件拿掉承辦人、總覽今天的行程板，合入三次成 `72f8a574`（README、DESIGN.md 兩段並存；`DashboardView` 取行程板新版面，再拿掉它重新加回的「參觀後該聯絡的家長」卡），推 main `8bac33d4..72f8a574`。內容與驗證見 README 頂部同日段落、DESIGN.md「招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁」。
+- **migration**：無。沒有備份。
+- **CI**：`72f8a574` 的 run 37446846614 測試全綠，但 Deploy job 停在 GitHub environment 的 `waiting` 超過 12 分鐘（平常 1–3 秒就排進去；production 環境只有 main 分支規則、沒有審核人與等待時間，設定 09-22 後沒改過，GitHub 狀態頁全部正常）。使用者同意後取消這個 run。排在後面的 run 37447384176（`0ae1f089`，含 `72f8a574` 與另一個 session 的 `169dac9e`、兩筆部署紀錄）接著跑、全綠，建立到完成 29 分鐘（前面約 16 分鐘在排隊）：Frontend admin 3.3／web 1.5 分鐘，Backend 三組 8.4／7.0／6.4 分鐘，E2E／Playwright 5.6 分鐘，Deploy 3.9 分鐘。之後再遇到 Deploy 卡 `waiting`，先查 `pending_deployments` 與環境規則，沒有閘門就取消讓下一個 run 接手（或重跑）。
+- **正式 `release.json`**：base commit `0ae1f089`，created `2026-10-06T10:30:36Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/` 的 `AdmissionsView-*.js` 有「開啟後這裡會出現漏斗看板、訪視明細與統計分析。」與「逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳」，沒有 `followups`、`follow-ups`；`DashboardView-*.js` 沒有「參觀後該聯絡的家長」與 `admissions_follow_up_due`；未登入 `GET /admin/admissions/records?has_deposit=false` 回 401。
+- **未做**：沒有登入正式後台看明細「預繳：否」、統計的逾期與冷名單數字、舊連結 `tab=followups` 退回看板。
+
 ## 2026-10-06 總覽改成「今天的行程板」（main CI 部署）
 
 - **合併**：`design/admin-mockup-20261006` 的 `87937429` 從 `b7675b2a` 開，期間 main 先上了拿掉承辦人（`7706a7a6`）與來源分類收斂（`0909491c`），合入成 `8bac33d4`（DashboardView、README 衝突：以行程板版面為底，拿掉名單的承辦人欄與 API 的 `assignee_*` 欄位），推 main `7706a7a6..8bac33d4`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台總覽：今天的行程板」。
