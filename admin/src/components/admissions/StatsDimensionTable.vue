@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRate, type StatsColumn } from '../../admissions/statsFormat'
+import { notifyError } from '../../composables/notify'
 import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
 
 // 統計的共用表格：標題＋表格，bar 欄在數字旁畫 CSS 長條（規格 10：不新增圖表套件，
@@ -69,7 +70,11 @@ function exportCsv() {
     ...(props.numbered ? [index + 1] : []),
     ...props.columns.map((column) => csvValue(row, column)),
   ])
-  downloadCsv(props.exportFilename, buildCsv(header, rows))
+  try {
+    downloadCsv(props.exportFilename, buildCsv(header, rows))
+  } catch {
+    notifyError('匯出失敗，請再試一次。')
+  }
 }
 </script>
 

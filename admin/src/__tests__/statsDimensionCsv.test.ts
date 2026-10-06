@@ -6,8 +6,13 @@ import StatsDimensionTable from '../components/admissions/StatsDimensionTable.vu
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
+vi.mock('../composables/notify', () => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
+import { notifyError } from '../composables/notify'
 
-afterEach(() => vi.mocked(downloadCsv).mockClear())
+afterEach(() => {
+  vi.mocked(downloadCsv).mockClear()
+  vi.mocked(notifyError).mockClear()
+})
 
 const base = {
   title: '來源排名明細',
@@ -105,6 +110,14 @@ describe('StatsDimensionTable 匯出 CSV', () => {
     await wrapper.get('[data-test="stats-csv"]').trigger('click')
     const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(csv.split('\r\n')).toEqual(['\uFEFF校區,預繳率', '義華,75.0%（3/4）', '仁武,', ''])
+    wrapper.unmount()
+  })
+
+  it('下載失敗用 notifyError 提示（同成效統計與操作紀錄的匯出），不讓錯誤飛出去', async () => {
+    const wrapper = mount(StatsDimensionTable, { props: { ...base, exportFilename: 'x.csv' }, global: { plugins: [ElementPlus] } })
+    vi.mocked(downloadCsv).mockImplementationOnce(() => { throw new Error('blocked') })
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    expect(notifyError).toHaveBeenCalledWith('匯出失敗，請再試一次。')
     wrapper.unmount()
   })
 
