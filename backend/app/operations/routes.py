@@ -24,7 +24,7 @@ from app.auth.permissions import (
 )
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
-from app.common.timezones import now_utc, today_local
+from app.common.timezones import local_day_bounds_utc, now_utc, today_local
 from app.notifications.models import UserNotification
 from app.operations import (
     analytics_service,
@@ -477,10 +477,13 @@ async def get_audit_log(
     before: datetime | None = Query(None, description="上一頁最後一筆的 created_at；和 before_id 一起傳，讀更早的紀錄"),
     before_id: uuid.UUID | None = Query(None, description="上一頁最後一筆的 id"),
     exclude_login: bool = Query(False, description="不列例行的登入登出（登入失敗、帳號鎖定照列）"),
+    created_from: date | None = Query(None, description="紀錄日期起（含），台灣日期"),
+    created_to: date | None = Query(None, description="紀錄日期迄（含），台灣日期"),
+    limit: int = Query(100, ge=1, le=500, description="一次幾筆；後台匯出時用 500 減少來回"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[AuditLogEntryOut]:
-    """新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。"""
+    """新的在前，一次最多 limit 筆；要更早的就帶上一頁最後一筆的 before／before_id。"""
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
     else:
@@ -490,11 +493,19 @@ async def get_audit_log(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "INVALID_CURSOR", "message": "before 與 before_id 要一起傳"},
         )
+    if created_from and created_to and created_from > created_to:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
+        )
     rows = await audit_service.list_recent(
         db,
         campus_key,
+        limit=limit,
         before=(_as_utc(before), before_id) if before is not None and before_id is not None else None,
         exclude_login=exclude_login,
+        since=local_day_bounds_utc(created_from)[0] if created_from else None,
+        until=local_day_bounds_utc(created_to)[1] if created_to else None,
     )
     show_ip = has_capability(current_user, "audit.read_all")
     return [

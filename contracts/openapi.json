@@ -14914,7 +14914,7 @@
     },
     "/api/website/v1/admin/audit-log": {
       "get": {
-        "description": "新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。",
+        "description": "新的在前，一次最多 limit 筆；要更早的就帶上一頁最後一筆的 before／before_id。",
         "operationId": "get_audit_log_api_website_v1_admin_audit_log_get",
         "parameters": [
           {
@@ -14981,6 +14981,58 @@
               "description": "不列例行的登入登出（登入失敗、帳號鎖定照列）",
               "title": "Exclude Login",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "紀錄日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "紀錄日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "紀錄日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "紀錄日期迄（含），台灣日期",
+              "title": "Created To"
+            }
+          },
+          {
+            "description": "一次幾筆；後台匯出時用 500 減少來回",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "一次幾筆；後台匯出時用 500 減少來回",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           },
           {

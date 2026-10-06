@@ -382,6 +382,41 @@ async def test_audit_log_can_hide_routine_logins(admin_client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_audit_log_filters_by_taipei_dates_and_limit(admin_client, db_session):
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    # 台北 10/1 是 UTC 9/30 16:00 到 10/1 16:00（不含）。
+    for when in (
+        datetime(2026, 9, 30, 15, 59, tzinfo=timezone.utc),
+        datetime(2026, 9, 30, 16, 0, tzinfo=timezone.utc),
+        datetime(2026, 10, 1, 15, 59, tzinfo=timezone.utc),
+        datetime(2026, 10, 1, 16, 0, tzinfo=timezone.utc),
+    ):
+        await _audit(db_session, action="site_settings.update", created_at=when, campus_key=None)
+    await db_session.commit()
+
+    def parsed(resp) -> list[datetime]:
+        assert resp.status_code == 200, resp.text
+        return [datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")) for e in resp.json()]
+
+    url = "/api/website/v1/admin/audit-log"
+    oct1 = parsed(await admin_client.get(url, params={"created_from": "2026-10-01", "created_to": "2026-10-01"}))
+    assert oct1 == [datetime(2026, 10, 1, 15, 59, tzinfo=timezone.utc), datetime(2026, 9, 30, 16, 0, tzinfo=timezone.utc)]
+    assert len(parsed(await admin_client.get(url, params={"created_from": "2026-10-01"}))) == 3
+    assert len(parsed(await admin_client.get(url, params={"created_to": "2026-09-30"}))) == 1
+    assert len(parsed(await admin_client.get(url, params={"limit": 1}))) == 1
+    assert len(parsed(await admin_client.get(url, params={"limit": 500}))) == 4
+
+    assert (await admin_client.get(url, params={"limit": 501})).status_code == 422
+    assert (await admin_client.get(url, params={"limit": 0})).status_code == 422
+    backwards = await admin_client.get(url, params={"created_from": "2026-10-02", "created_to": "2026-10-01"})
+    assert backwards.status_code == 422
+    assert backwards.json()["detail"]["code"] == "INVALID_DATE_RANGE"
+
+
+@pytest.mark.asyncio
 async def test_audit_log_says_whether_case_still_exists(admin_client, db_session):
     from app.operations.models import AuditLogEntry
     from sqlalchemy import delete

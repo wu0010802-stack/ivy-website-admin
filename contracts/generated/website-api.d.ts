@@ -504,7 +504,7 @@ export interface paths {
         };
         /**
          * Get Audit Log
-         * @description 新的在前，一次最多 100 筆；要更早的就帶上一頁最後一筆的 before／before_id。
+         * @description 新的在前，一次最多 limit 筆；要更早的就帶上一頁最後一筆的 before／before_id。
          */
         get: operations["get_audit_log_api_website_v1_admin_audit_log_get"];
         put?: never;
@@ -7603,6 +7603,12 @@ export interface operations {
                 before_id?: string | null;
                 /** @description 不列例行的登入登出（登入失敗、帳號鎖定照列） */
                 exclude_login?: boolean;
+                /** @description 紀錄日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 紀錄日期迄（含），台灣日期 */
+                created_to?: string | null;
+                /** @description 一次幾筆；後台匯出時用 500 減少來回 */
+                limit?: number;
             };
             header?: {
                 "x-csrf-token"?: string | null;

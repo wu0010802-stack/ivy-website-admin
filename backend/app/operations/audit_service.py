@@ -97,9 +97,12 @@ async def list_recent(
     *,
     before: tuple[datetime, uuid.UUID] | None = None,
     exclude_login: bool = False,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ) -> list[AuditRow]:
     """新的在前，一次 limit 筆。before 是上一頁最後一筆的 (created_at, id)，
-    傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。"""
+    傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。
+    since（含）、until（不含）是 UTC，路由先把台北日期換好。"""
     actor = aliased(User)
     stmt = (
         select(AuditLogEntry, actor.email, actor.display_name)
@@ -113,6 +116,10 @@ async def list_recent(
         stmt = stmt.where(tuple_(AuditLogEntry.created_at, AuditLogEntry.id) < tuple_(*before))
     if exclude_login:
         stmt = stmt.where(AuditLogEntry.action.not_in(ROUTINE_LOGIN_ACTIONS))
+    if since is not None:
+        stmt = stmt.where(AuditLogEntry.created_at >= since)
+    if until is not None:
+        stmt = stmt.where(AuditLogEntry.created_at < until)
     rows = (await db.execute(stmt)).all()
 
     target_ids = {
