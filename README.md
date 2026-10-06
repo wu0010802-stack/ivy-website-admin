@@ -14,7 +14,7 @@
   - 合併 main（舊狀態程式第一、二版，migration 到 `e870893fac95`）後重跑：pytest 1582 passed、1 skipped；後台 vitest 105 檔 1327 項、`vue-tsc -b`；官網 829 項與 typecheck；`contract:check` 一致；stack 74 過、`media.spec` 失敗——單獨跑也失敗，查出是 spec 時序：「發布到官網」在儲存處理中就停用，斷言提早通過、API 讀到舊版（輪詢 18 ms 後就有照片）。改成輪詢 API 直到新版寫入，單獨重跑通過；這也是 09-27 起「media 整套間歇失敗」的原因。
   - 未驗證：正式站實際點一次、Safari／iOS 實機；兩個人真的同時操作的競態只在測試裡用延遲重現。
 
-## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`）
+## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`，10-06 已部署 main `5fb9edbb`）
 
 第一版已上線（`0c534043`）後才推。規則見 DESIGN.md「拿掉舊狀態程式」。
 
