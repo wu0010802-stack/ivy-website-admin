@@ -3155,6 +3155,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Ip Address */
+            ip_address?: string | null;
             /** Metadata */
             metadata: {
                 [key: string]: unknown;
@@ -3167,6 +3169,8 @@ export interface components {
             target_label: string | null;
             /** Target Type */
             target_type: string;
+            /** User Agent */
+            user_agent?: string | null;
         };
         /** AuthProviders */
         AuthProviders: {

@@ -162,6 +162,11 @@ class AuditLogEntry(Base):
     campus_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
     metadata_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 操作當下的來源（2026-10-06 起，之前的紀錄是 NULL）：官網代理帶進來的 IP
+    # 與 User-Agent，見 app/common/client_info.py。背景工作、CLI 都是 NULL。
+    # 只記後台同事的操作與登入，家長端的動作不寫稽核表。
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
 class SiteSettings(Base):

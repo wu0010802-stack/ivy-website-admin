@@ -1,3 +1,17 @@
+## 2026-10-06 操作紀錄多記 IP 與裝置（`feature/audit-ip-device-20261006`）
+
+使用者：「操作紀錄可以多更多資訊嗎，像是 IP、裝置」。裁定（見 DESIGN.md「操作紀錄記 IP 與裝置」）：裝置看得到操作紀錄的人都看得到，IP 只給總部；跟著紀錄永久保存。
+
+- **後端**：新增 `app/common/client_info.py`（ASGI middleware＋contextvar，寫法同 request_id）：IP 只採信官網代理帶的 `x-website-client-ip`（沒有或不是 IP 記 NULL，不退回代理內網位址；IPv6 是代理聚合的 /64），User-Agent 去控制字元、截 512 字。`audit_service.log_action` 自動帶入，88 處呼叫都沒改；背景工作、CLI 兩欄 NULL。`GET /admin/audit-log` 多回 `ip_address`（非 `audit.read_all` 一律 null）、`user_agent`。`contracts/` 重新產生。
+- **資料**：migration `a3c7e9d1f5b2`（接 `e870893fac95`；原本接 `d65fa082ff87`，第二版拿掉舊欄位先上 main 後改接）在 `audit_log_entries` 加 `ip_address` String(64)、`user_agent` String(512)，可為 NULL、不回填；只改目錄、不重寫資料表，部署前不用備份。
+- **後台**：操作紀錄「操作者」下面多一行「iPhone・LINE・203.0.113.9」（手機版接在時間・操作者後面），完整 UA 放 title；搜尋也找得到 IP 與裝置。UA 解析在 `admin/src/utils/userAgent.ts`，不加套件；iPadOS Safari 會被認成 Mac。改版前的紀錄不多那一行。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_auditip_test`）：
+  - 後端：新增 `test_audit_client_info.py` 11 項（代理 IP／IPv6／逗號／非 IP／沒帶 header、前一個請求不外漏、UA 截斷與控制字元、背景工作、只有總部看得到 IP）；`test_admissions_follow_up_schema.py` 的 head 改成 `a3c7e9d1f5b2`。整套 pytest 1554 passed、1 skipped，另有 1 failed（寫死舊 head，開跑後才改）與 4 個 setup error（同時有另外兩個 session 在跑整套 pytest）；這 5 項與相關 7 檔（75 項）重跑全過。alembic upgrade → downgrade → upgrade 通過。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；vitest 102 檔 1300 項全過（新增 `auditClientInfo.test.ts`）。
+  - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_auditip_e2e_test`、埠 8793／3793，跑完已刪庫）：新增 `audit-client-info.spec.ts`（iPhone LINE UA＋`X-Forwarded-For` 經官網代理登入，桌機與手機版都顯示「iPhone・LINE・203.0.113.50」）與 `roles.spec.ts` 全過；整套 stack 沒跑。桌機 1440、手機 390 截圖目視確認。
+  - 未驗證：正式站 Railway edge 實際帶進來的 IP（要部署後登入看一筆）。
+
 ## 2026-10-06 後台 bug 稽核修正（`fix/admin-bug-audit-20261006`）
 
 使用者要求「看看後台有沒有 bugs」，對 origin/main `d70bce03` 的 `admin/`、`backend/` 分六塊審查、逐條讀碼或用測試確認，裁定全部修正。沒有高嚴重度（名額超賣、重複建案、越權讀他校、登入繞過都沒找到）。規則見 DESIGN.md「後台 bug 稽核修正」。舊預約流程（new／contacting／pending_confirmation）的問題不在內，同日另一個 session 在刪那些程式。

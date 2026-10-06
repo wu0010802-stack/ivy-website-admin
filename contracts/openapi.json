@@ -1680,6 +1680,17 @@
             "title": "Id",
             "type": "string"
           },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
@@ -1714,6 +1725,17 @@
           "target_type": {
             "title": "Target Type",
             "type": "string"
+          },
+          "user_agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Agent"
           }
         },
         "required": [

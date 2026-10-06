@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 
 from app.auth.models import User
 from app.booking.models import VisitRequest
+from app.common.client_info import current_client_info
 from app.operations.models import AuditLogEntry
 
 # 這些欄位絕不能出現在 metadata_json 裡（就算呼叫端不小心傳進來也擋掉），
@@ -35,6 +36,7 @@ async def log_action(
     campus_key: str | None = None,
     metadata: dict | None = None,
 ) -> AuditLogEntry:
+    client = current_client_info()
     entry = AuditLogEntry(
         id=uuid.uuid4(),
         actor_user_id=actor_user_id,
@@ -44,6 +46,8 @@ async def log_action(
         campus_key=campus_key,
         metadata_json=_mask_metadata(metadata or {}),
         created_at=datetime.now(timezone.utc),
+        ip_address=client.ip_address,
+        user_agent=client.user_agent,
     )
     db.add(entry)
     await db.flush()

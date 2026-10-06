@@ -7,6 +7,7 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import { describeUserAgent } from '../utils/userAgent'
 
 type AuditEntry = AuditLogEntryOut
 
@@ -49,6 +50,12 @@ function actorEmail(entry: AuditEntry): string {
   return staffEmail(staffOf(entry, 'actor'))
 }
 
+// 從哪裡做的：裝置（由 User-Agent 解析）與 IP。IP 只有總部拿得到，其他人
+// 後端回 null；改版前的紀錄與系統動作兩個都沒有，就不多寫一行。
+function sourceText(entry: AuditEntry): string {
+  return [describeUserAgent(entry.user_agent), entry.ip_address].filter(Boolean).join('・')
+}
+
 // 對哪個帳號（新增帳號、重設密碼、改角色……）：後端給對方的顯示名稱，沒有時
 // 給 Email；Email 和其他地方一樣只寫 @ 前面那段，完整的放在 title。
 const EMAIL_LIKE = /^[^\s@]+@[^\s@]+$/
@@ -81,7 +88,7 @@ const visibleEntries = computed(() => {
   return entries.value.filter(entry => {
     const { lines, others } = details(entry)
     const who = [actorText(entry), actorEmail(entry), targetText(entry), staffEmail(targetPerson(entry))]
-    return [auditActionLabel(entry.action), auditTargetLabel(entry.target_type), ...who, ...lines, ...others, campusText(entry)].join(' ').toLocaleLowerCase().includes(keyword)
+    return [auditActionLabel(entry.action), auditTargetLabel(entry.target_type), ...who, sourceText(entry), ...lines, ...others, campusText(entry)].join(' ').toLocaleLowerCase().includes(keyword)
   })
 })
 
@@ -203,9 +210,10 @@ onMounted(() => {
             <el-table-column label="時間" width="90">
               <template #default="{ row }: { row: AuditEntry }"><span class="num">{{ entryTime(row) }}</span></template>
             </el-table-column>
-            <el-table-column label="操作者" min-width="110">
+            <el-table-column label="操作者" min-width="140">
               <template #default="{ row }: { row: AuditEntry }">
                 <span class="audit-actor" :class="{ muted: !row.actor_user_id }" :title="actorEmail(row) || undefined" data-test="audit-actor">{{ actorText(row) }}</span>
+                <span v-if="sourceText(row)" class="audit-source" :title="row.user_agent || undefined" data-test="audit-source">{{ sourceText(row) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="操作" min-width="200">
@@ -240,7 +248,7 @@ onMounted(() => {
                 <el-tag type="info">{{ campusText(entry) }}</el-tag>
               </div>
               <p class="audit-record__meta">
-                <span class="num">{{ entryTime(entry) }}</span> · <span :class="{ muted: !entry.actor_user_id }" :title="actorEmail(entry) || undefined" data-test="audit-actor-mobile">{{ actorText(entry) }}</span>
+                <span class="num">{{ entryTime(entry) }}</span> · <span :class="{ muted: !entry.actor_user_id }" :title="actorEmail(entry) || undefined" data-test="audit-actor-mobile">{{ actorText(entry) }}</span><template v-if="sourceText(entry)"> · <span :title="entry.user_agent || undefined" data-test="audit-source-mobile">{{ sourceText(entry) }}</span></template>
                 <router-link v-if="caseLink(entry)" :to="caseLink(entry)!" class="audit-link">查看案件</router-link>
                 <span v-else-if="caseRemoved(entry)" class="audit-link muted">案件已清除</span>
                 <router-link v-else-if="contentLink(entry)" :to="contentLink(entry)!" class="audit-link">開啟內容</router-link>
@@ -296,6 +304,13 @@ onMounted(() => {
 
 .audit-actor.muted {
   color: var(--ink-3);
+}
+
+.audit-source {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
 }
 
 .audit-link {

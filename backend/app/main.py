@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from app.auth.routes import router as auth_router
 from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware
+from app.common.client_info import ClientInfoMiddleware
 from app.common.request_id import REQUEST_ID_HEADER, RequestIdMiddleware, request_id_of
 from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
@@ -175,6 +176,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.rate_limiter = RateLimiter(app.state.rate_limit_engine, settings.session_secret)
     _register_exception_handlers(app)
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(ClientInfoMiddleware, ip_header=settings.trusted_client_ip_header)
     # 最後加的在最外層：本文太大被擋下的 413 也帶得到 request id。
     app.add_middleware(RequestIdMiddleware)
     configure_google_oauth(app)

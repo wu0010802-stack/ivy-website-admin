@@ -6,7 +6,7 @@ import { WEB_ORIGIN, storageStatePath, type StackRole } from './stack-env'
 export async function openAs(
   browser: Browser,
   role: StackRole | null,
-  device: Pick<BrowserContextOptions, 'viewport' | 'isMobile' | 'hasTouch' | 'extraHTTPHeaders'> = {},
+  device: Pick<BrowserContextOptions, 'viewport' | 'isMobile' | 'hasTouch' | 'extraHTTPHeaders' | 'userAgent'> = {},
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({
     baseURL: WEB_ORIGIN,

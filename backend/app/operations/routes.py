@@ -467,6 +467,10 @@ class AuditLogEntryOut(BaseModel):
     campus_key: str | None
     metadata: dict
     created_at: datetime
+    # 操作當下的來源；2026-10-06 之前的紀錄、背景工作都是 null。IP 只給總部
+    # （audit.read_all）看，其他人一律 null；User-Agent 都給，後台解析成裝置。
+    ip_address: str | None = None
+    user_agent: str | None = None
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -499,6 +503,7 @@ async def get_audit_log(
         before=(_as_utc(before), before_id) if before is not None and before_id is not None else None,
         exclude_login=exclude_login,
     )
+    show_ip = has_capability(current_user, "audit.read_all")
     return [
         AuditLogEntryOut(
             id=row.entry.id,
@@ -513,6 +518,8 @@ async def get_audit_log(
             campus_key=row.entry.campus_key,
             metadata=row.entry.metadata_json or {},
             created_at=row.entry.created_at,
+            ip_address=row.entry.ip_address if show_ip else None,
+            user_agent=row.entry.user_agent,
         )
         for row in rows
     ]
