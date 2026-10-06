@@ -1,4 +1,4 @@
-## 2026-10-07 公開資料不再帶出維護備註 `_todo`、更正兩處分校頁過時文件（`fix/public-todo-strip-20261007`，未部署）
+## 2026-10-07 公開資料不再帶出維護備註 `_todo`、更正兩處分校頁過時文件（`fix/public-todo-strip-20261007`，10-07 已部署 main `471966fc`）
 
 審查舊分支 `feature/website-admin`（落後 main 814 個 commit，三個程式 commit 都是 main 上 `26eb29d7`／`fb74e5ce`／`503ec361` 的舊版）時，查到 main 本身有三處殘留。
 
