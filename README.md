@@ -11,7 +11,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_nodeposit1006_e2e_test`、埠 8796／3796，跑完已刪庫）：`admissions-follow-up.spec.ts` 改成在預約明細排下次聯絡、記錄聯絡，到期後在訪視明細用「追蹤：已到期」找到那一筆；`admissions-flow`（三個分頁截圖）、`a11y`（拿掉兩個待追蹤網址）、`visit-family-page` 一起跑，共 31 項，第一次有 1 項失敗（下拉的佔位文字擋住點擊，改成點外框），重跑通過。整套 stack 沒跑。
   - 未驗證：正式站實際操作。
 
-## 2026-10-06 總覽改成「今天的行程板」（`design/admin-mockup-20261006`）
+## 2026-10-06 總覽改成「今天的行程板」（`design/admin-mockup-20261006`，10-06 已部署 main `8bac33d4`）
 
 使用者看完後台結構層比稿（`design/admin-ux-directions-20261006/`，A–E 五方向）選了 A。規則見 DESIGN.md「官網後台總覽：今天的行程板」。
 

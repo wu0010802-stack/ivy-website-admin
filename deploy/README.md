@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 總覽改成「今天的行程板」（main CI 部署）
+
+- **合併**：`design/admin-mockup-20261006` 的 `87937429` 從 `b7675b2a` 開，期間 main 先上了拿掉承辦人（`7706a7a6`）與來源分類收斂（`0909491c`），合入成 `8bac33d4`（DashboardView、README 衝突：以行程板版面為底，拿掉名單的承辦人欄與 API 的 `assignee_*` 欄位），推 main `7706a7a6..8bac33d4`。內容與驗證見 README 頂部同日段落、DESIGN.md「官網後台總覽：今天的行程板」。
+- **migration**：無（只多回傳欄位與 `week_campuses` 彙總）。沒有備份。
+- **CI**：main run 37441837401（`8bac33d4`）全綠，建立到完成 19 分鐘（排在拿掉承辦人的 run 之後）：Frontend admin 4.4／web 1.4 分鐘，Backend 三組 8.0／5.7／7.4 分鐘，E2E／Playwright 6.4 分鐘，Deploy 3.7 分鐘。
+- **正式 `release.json`**：base commit `8bac33d4`，created `2026-10-06T09:32:21Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`；`/admin/` 的 `DashboardView-*.js` 已有「今天的參觀」「本週五校」「要處理」與 `week_campuses`。
+- **未做**：沒有登入正式後台實際看今天的名單與本週五校的數字。
+
 ## 2026-10-06 招生來源分類收斂成六項（main CI 部署）
 
 - **合併**：`feature/source-category-choices-20261006` 的 `b99e9f43` 從 `7a8d19e4` 開，期間 main 先上了訪視紀錄表單四區展開（`ee086b4d`＋紀錄 `b7675b2a`），合入成 `0909491c`（RecordDialog、admissionsRecords 測試、README 三處衝突，以 main 版面為底套上來源分類那一行），推 main `b7675b2a..0909491c`。內容與驗證見 README 頂部同日段落、DESIGN.md「來源分類收斂」。
