@@ -140,6 +140,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/no-deposit-records/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Admissions No Deposit Records
+         * @description 未預繳名單 CSV（2026-10-03）：篩選與排序同 /no-deposit-records，不分頁。含孩子姓名與電訪回應，
+         *     除了 admissions.read 還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
+         *     不默默截斷。
+         */
+        get: operations["export_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/options": {
         parameters: {
             query?: never;
@@ -6722,6 +6744,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NoDepositRecordsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_export_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year?: number | null;
+                semester?: number | null;
+                reason?: string | null;
+                grade?: string | null;
+                priority?: ("high" | "medium" | "low") | null;
+                overdue_days?: number | null;
+                cold_only?: boolean | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

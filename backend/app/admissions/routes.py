@@ -797,3 +797,63 @@ async def get_admissions_no_deposit_records(
         page_size=page_size,
     )
     return NoDepositRecordsOut.model_validate(result)
+
+
+@router.get("/admin/admissions/no-deposit-records/export")
+async def export_admissions_no_deposit_records(
+    campus_key: str,
+    school_year: int | None = Query(default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    reason: str | None = Query(default=None, max_length=60),
+    grade: str | None = Query(default=None, max_length=20),
+    priority: Literal["high", "medium", "low"] | None = Query(default=None),
+    overdue_days: int | None = Query(default=None, ge=1, le=365),
+    cold_only: bool | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    """未預繳名單 CSV（2026-10-03）：篩選與排序同 /no-deposit-records，不分頁。含孩子姓名與電訪回應，
+    除了 admissions.read 還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
+    不默默截斷。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    require_scope(current_user, BOOKING_EXPORT, campus_keys=[campus_key])
+    result = await stats_service.no_deposit_records(
+        db,
+        campus_key,
+        school_year=school_year,
+        semester=semester,
+        reason=reason,
+        grade=grade,
+        priority=priority,
+        overdue_days=overdue_days,
+        cold_only=cold_only,
+        page=1,
+        page_size=csv_export.EXPORT_ROW_LIMIT,
+    )
+    if result["total"] > csv_export.EXPORT_ROW_LIMIT:
+        raise csv_export.too_many_rows()
+    # 先組好檔案內容再寫稽核：轉換出錯時不會留下「匯出過」的紀錄。
+    rows = [download.no_deposit_row(campus_key, record) for record in result["records"]]
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="recruitment_visit.export_no_deposit",
+        target_type="recruitment_visit",
+        target_id=campus_key,
+        campus_key=campus_key,
+        metadata={
+            "row_count": len(rows),
+            **download.no_deposit_audit_metadata(
+                school_year=school_year,
+                semester=semester,
+                reason=reason,
+                grade=grade,
+                priority=priority,
+                overdue_days=overdue_days,
+                cold_only=cold_only,
+            ),
+        },
+    )
+    await db.commit()
+    filename = f"admissions-no-deposit-{csv_export.filename_part(campus_key)}-{today_local():%Y%m%d}.csv"
+    return csv_export.csv_attachment(download.NO_DEPOSIT_HEADERS, rows, filename)

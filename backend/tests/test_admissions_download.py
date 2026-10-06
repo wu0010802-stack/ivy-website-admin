@@ -502,7 +502,7 @@ async def test_records_export_refuses_more_than_the_limit(admin_client, db_sessi
     assert [entry.metadata_json["row_count"] for entry in entries] == [1]
 
 
-# ---- 未預繳名單的欄名與每列轉換（端點在 Task 5；這裡先鎖欄位與對照）----
+# ---- 未預繳名單：欄名、每列轉換、稽核 metadata ----
 
 NO_DEPOSIT_EXPECTED_HEADERS = [
     "校區", "月份", "序號", "姓名", "班別", "原因分類", "轉換潛力", "冷名單", "說明", "來源", "家長介紹",
@@ -552,3 +552,177 @@ def test_audit_metadata_only_records_which_filters_were_applied():
         "school_year": 115, "semester": 2, "no_deposit_reason": "費用考量", "grade": "小班", "priority": "low",
         "overdue_days": 30, "cold_only": True,
     }
+
+
+def test_audit_metadata_records_reason_and_grade_verbatim_only_when_they_are_known_choices():
+    def metadata(**overrides):
+        values = dict(school_year=None, semester=None, reason=None, grade=None, priority=None, overdue_days=None,
+                      cold_only=None)
+        return download.no_deposit_audit_metadata(**{**values, **overrides})
+
+    # 端點的 reason／grade 收任意字串（最長 60／20）：不在選項內的可能是人名，不能原文寫進稽核紀錄。
+    for reason in constants.NO_DEPOSIT_REASONS:
+        assert metadata(reason=reason) == {"no_deposit_reason": reason}
+    for grade in constants.GRADES:
+        assert metadata(grade=grade) == {"grade": grade}
+    assert metadata(reason="王小明的媽媽說的", grade="王小明") == {"no_deposit_reason": "other", "grade": "other"}
+    assert metadata(reason="未分類") == {"no_deposit_reason": "other"}  # 篩選器沒有「未分類」這個值，不特別放行
+    assert metadata(reason="", grade="") == {}  # 空字串等於沒篩選（端點對空字串不篩）
+
+
+NO_DEPOSIT_EXPORT = f"{ADMISSIONS}/no-deposit-records/export"
+
+
+def _days_ago(days: int) -> str:
+    """相對今天的參觀日期：冷名單看參觀日 90 天，固定日期會隨時間翻轉，所以一律用相對日期。"""
+    return (today_local() - timedelta(days=days)).isoformat()
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_follows_screen_filters_and_audits_them(
+    admin_client, campus_admin_yihua_client, db_session  # noqa: F811
+):
+    fresh, cold = _days_ago(20), _days_ago(100)
+    await create_record(
+        admin_client, child_name="林小安", visit_date=fresh, no_deposit_reason="費用考量", parent_response="下週再聯絡"
+    )
+    await create_record(admin_client, child_name="周小樂", visit_date=fresh, no_deposit_reason="時程未到／仍在觀望")
+    await create_record(admin_client, child_name="陳冷淡", visit_date=cold, no_deposit_reason="時程未到／仍在觀望")
+    await create_record(admin_client, child_name="黃未填", visit_date=fresh)
+    await record_at_stage(admin_client, "deposited", child_name="已預繳不列", visit_date=fresh)
+    await record_at_stage(admin_client, "withdrawn", child_name="已退出不列", visit_date=fresh)
+
+    resp = await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua")
+    header, rows = _csv(resp)
+    assert header == NO_DEPOSIT_EXPECTED_HEADERS
+    assert all(len(row) == 13 for row in csv.reader(io.StringIO(resp.content.decode("utf-8-sig"))))
+    assert f'filename="admissions-no-deposit-yihua-{today_local():%Y%m%d}.csv"' in resp.headers["content-disposition"]
+    by_name = {row["姓名"]: row for row in rows}
+    assert set(by_name) == {"林小安", "周小樂", "陳冷淡", "黃未填"}
+    fresh_month = f"{int(fresh[:4]) - 1911}年{fresh[5:7]}月"
+    assert by_name["林小安"]["月份"] == fresh_month
+    assert (by_name["林小安"]["轉換潛力"], by_name["林小安"]["冷名單"], by_name["林小安"]["電訪回應"]) == (
+        "中", "否", "下週再聯絡",
+    )
+    assert (by_name["周小樂"]["轉換潛力"], by_name["周小樂"]["冷名單"]) == ("高", "否")
+    assert (by_name["陳冷淡"]["轉換潛力"], by_name["陳冷淡"]["冷名單"]) == ("高", "是")
+    # 原因分類沒填寫「未分類」（同畫面）；沒有潛力分組就空白。
+    assert (by_name["黃未填"]["原因分類"], by_name["黃未填"]["轉換潛力"]) == ("未分類", "")
+
+    # 和 /no-deposit-records 同一組篩選、同一批人、同一個順序：畫面上篩好什麼，匯出的就是那一批。
+    for query in ("", "&priority=high", "&priority=high&cold_only=true", "&reason=費用考量", "&grade=大班",
+                  "&overdue_days=30", "&school_year=115&semester=1", "&school_year=114"):
+        listing = await admin_client.get(f"{ADMISSIONS}/no-deposit-records?campus_key=yihua&page_size=100{query}")
+        _, exported = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua{query}"))
+        assert [row["姓名"] for row in exported] == [r["child_name"] for r in listing.json()["records"]], query
+    _, high = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&priority=high"))
+    assert sorted(row["姓名"] for row in high) == ["周小樂", "陳冷淡"]
+    _, cold_high = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&priority=high&cold_only=true"))
+    assert [row["姓名"] for row in cold_high] == ["陳冷淡"]
+    # 0 筆是只有表頭的檔案，不是錯誤。
+    header_only, none = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&grade=大班"))
+    assert header_only == NO_DEPOSIT_EXPECTED_HEADERS
+    assert none == []
+
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry)
+            .where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")
+            .order_by(AuditLogEntry.created_at)
+        )
+    ).scalars().all()
+    assert all((e.target_type, e.target_id, e.campus_key) == ("recruitment_visit", "yihua", "yihua") for e in entries)
+    # 前 1 次是沒帶篩選的完整匯出，最後 1 次是 grade=大班 的 0 筆；中間各次逐一比對篩選記錄。
+    metadata = [entry.metadata_json for entry in entries]
+    assert metadata[0] == {"row_count": 4}
+    assert {"row_count": 2, "priority": "high"} in metadata
+    assert {"row_count": 1, "priority": "high", "cold_only": True} in metadata
+    assert {"row_count": 1, "no_deposit_reason": "費用考量"} in metadata
+    assert metadata[-1] == {"row_count": 0, "grade": "大班"}
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_cold_flag_flips_on_the_visit_date_not_a_fixed_date(admin_client):
+    for days in (89, 90, 91):
+        await create_record(admin_client, child_name=f"第{days}天", visit_date=_days_ago(days), no_deposit_reason="費用考量")
+    _, rows = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua"))
+    assert {row["姓名"]: row["冷名單"] for row in rows} == {"第89天": "否", "第90天": "是", "第91天": "是"}
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_audit_never_records_free_text_filters(admin_client, db_session):
+    await create_record(admin_client, child_name="稽核寶貝", visit_date=_days_ago(5), no_deposit_reason="費用考量")
+    # 端點的 reason／grade 收任意字串：王小明這種人名不能寫進稽核紀錄。
+    for query in ("reason=王小明", "grade=王小明", "reason=費用考量&grade=小班"):
+        _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&{query}"))
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry)
+            .where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")
+            .order_by(AuditLogEntry.created_at)
+        )
+    ).scalars().all()
+    assert [entry.metadata_json for entry in entries] == [
+        {"row_count": 0, "no_deposit_reason": "other"},
+        {"row_count": 0, "grade": "other"},
+        {"row_count": 0, "no_deposit_reason": "費用考量", "grade": "小班"},
+    ]
+    assert "王小明" not in str([entry.metadata_json for entry in entries])
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_neutralises_formulas_and_keeps_one_row_per_record(admin_client):
+    await create_record(
+        admin_client, child_name='引號"寶貝"', visit_date=_days_ago(5), no_deposit_reason="費用考量",
+        no_deposit_reason_detail="=1+1", parent_response='a,b\r\n"c"\nd', source="@來源", referrer="+林",
+    )
+    await create_record(admin_client, child_name="第二筆", visit_date=_days_ago(5))
+    resp = await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua")
+    parsed = list(csv.reader(io.StringIO(resp.content.decode("utf-8-sig"))))
+    assert len(parsed) == 3 and all(len(row) == 13 for row in parsed)
+    _, rows = _csv(resp)
+    first = next(row for row in rows if row["姓名"].startswith("引號"))
+    assert (first["說明"], first["來源"], first["家長介紹"]) == ("'=1+1", "'@來源", "'+林")
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_needs_export_grant_and_campus_scope(
+    admin_client, campus_admin_yihua_client, reception_yihua_client  # noqa: F811
+):
+    await create_record(admin_client, child_name="授權測試寶貝", visit_date=_days_ago(5), no_deposit_reason="費用考量")
+    url = f"{NO_DEPOSIT_EXPORT}?campus_key=yihua"
+    # 名單有孩子姓名與電訪回應：看得到名單不等於可以批次匯出，要總管理者另外授權。
+    assert (await campus_admin_yihua_client.get(url)).status_code == 403
+    assert (await reception_yihua_client.get(url)).status_code == 403
+
+    me = (await reception_yihua_client.get(f"{API}/auth/me")).json()["user"]
+    granted = await admin_client.patch(
+        f"{API}/admin/users/{me['id']}/capabilities", json={"capabilities": ["booking.export"]}
+    )
+    assert granted.status_code == 200, granted.text
+    _, rows = _csv(await reception_yihua_client.get(url))
+    assert [row["姓名"] for row in rows] == ["授權測試寶貝"]
+    # 授權不擴大校區範圍；不存在的校區一樣 404。
+    assert (await reception_yihua_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=minghua")).status_code == 404
+    assert (await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=nowhere")).status_code == 404
+    # 篩選參數不合法（轉換潛力只有高／中／低）和列表端點一樣 422。
+    assert (await admin_client.get(f"{url}&priority=urgent")).status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_refuses_more_than_the_limit(admin_client, db_session, monkeypatch):
+    await create_record(admin_client, child_name="未預繳一", visit_date=_days_ago(5), no_deposit_reason="費用考量")
+    await create_record(admin_client, child_name="未預繳二", visit_date=_days_ago(5), no_deposit_reason="距離／地點因素")
+    monkeypatch.setattr(csv_export, "EXPORT_ROW_LIMIT", 1)
+    resp = await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua")
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["code"] == "EXPORT_TOO_LARGE"
+    # 剛好等於上限可以匯出；被拒絕的不寫稽核（沒有檔案外流）。
+    _, rows = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&reason=費用考量"))
+    assert [row["姓名"] for row in rows] == ["未預繳一"]
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")
+        )
+    ).scalars().all()
+    assert [entry.metadata_json["row_count"] for entry in entries] == [1]

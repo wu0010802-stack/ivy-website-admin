@@ -1228,6 +1228,9 @@ const OUTBOX_RETRY_SOURCE_LABELS: Record<string, string> = { admin: '在後台�
 // 帳號被改了哪些欄位（user.update_display_name 的 changed）。
 const USER_FIELD_LABELS: Record<string, string> = { display_name: '顯示名稱' }
 
+// 稽核紀錄裡「篩選值不在選項內」的固定寫法（後端 admissions/download.py 的 OTHER_FILTER_VALUE）。
+const OTHER_FILTER_LABEL = '其他（不在選項內）'
+
 type AuditFormatter = (value: unknown, action: string, metadata: Record<string, unknown>) => string | null
 
 // 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
@@ -1373,11 +1376,12 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
   // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。來源、介紹者、搜尋字只記有沒有篩，負責人只記類別。
   month: (v) => `篩選月份：${String(v)}`,
-  grade: (v) => `篩選班別：${String(v)}`,
+  // 未預繳名單的原因、班別篩選收任意字串；不在選項內的後端只記 other，不把輸入原文寫進紀錄。
+  grade: (v) => `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`,
   has_source: (v) => (v ? '有篩選來源' : null),
   has_referrer: (v) => (v ? '有篩選家長介紹' : null),
   has_deposit: (v) => `篩選預繳：${v ? '是' : '否'}`,
-  no_deposit_reason: (v) => `篩選未預繳原因：${String(v)}`,
+  no_deposit_reason: (v) => `篩選未預繳原因：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`,
   funnel_stage: (v) => `篩選階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
   has_visit_request: (v) => (v ? '只匯出由官網預約建立的訪視' : null),
   follow_up: (v) => `篩選追蹤狀態：${({ due: '已到期', upcoming: '7 天內', unscheduled: '未排定' } as Record<string, string>)[String(v)] ?? String(v)}`,

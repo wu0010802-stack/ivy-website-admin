@@ -10,7 +10,7 @@ WITHDRAWN_FROM_LABELS）、來源分類六項短文字（admin/src/admissions/so
 SOURCE_CATEGORY_CHOICES），由 admin/src/__tests__/admissionsDownloadLabels.test.ts 讀這個檔的原始碼比對。
 
 稽核 metadata 只記套用了哪些篩選；搜尋字、介紹者、來源原文可能是人名，只記「有篩選」；
-負責人只記類別（me、none、staff），不記帳號 id。鍵要在 admin/src/api/labels.ts 有中文
+負責人只記類別（me、none、staff），不記帳號 id；未預繳名單的原因、班別不在選項內時記 other。鍵要在 admin/src/api/labels.ts 有中文
 （labelCoverage.test.ts 會解析下面兩個函式的 applied）。"""
 
 from __future__ import annotations
@@ -194,6 +194,18 @@ def records_audit_metadata(filters: RecruitmentVisitFilters) -> dict:
     return {key: value for key, value in applied.items() if value is not None}
 
 
+# 稽核紀錄裡「篩選值不在選項內」的固定寫法（admin labels.ts 寫成「其他（不在選項內）」）。
+OTHER_FILTER_VALUE = "other"
+
+
+def _known_choice(value: str | None, choices: Sequence[str]) -> str | None:
+    """未預繳名單端點的 reason、grade 收任意字串（最長 60、20）：不在選項內的可能是人名，
+    不能原文寫進稽核紀錄，改記固定值；空字串同沒篩選（端點對空字串不篩）。"""
+    if not value:
+        return None
+    return value if value in choices else OTHER_FILTER_VALUE
+
+
 def no_deposit_audit_metadata(
     *,
     school_year: int | None,
@@ -207,8 +219,8 @@ def no_deposit_audit_metadata(
     applied = {
         "school_year": school_year,
         "semester": semester,
-        "no_deposit_reason": reason,
-        "grade": grade,
+        "no_deposit_reason": _known_choice(reason, constants.NO_DEPOSIT_REASONS),
+        "grade": _known_choice(grade, constants.GRADES),
         "priority": priority,
         "overdue_days": overdue_days,
         "cold_only": True if cold_only else None,

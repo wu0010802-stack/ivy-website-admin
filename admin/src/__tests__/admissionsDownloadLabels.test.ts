@@ -3,6 +3,7 @@
 // 這裡直接讀後端原始碼比對，不靠人記得同步（做法同 labelCoverage.test.ts）。
 import { describe, expect, it } from 'vitest'
 import { WITHDRAWN_FROM_LABELS, stageMeta } from '../admissions/constants'
+import { auditMetadataSummary } from '../api/labels'
 import { SOURCE_CATEGORY_CHOICES, sourceCategoryLabel } from '../admissions/sourceCategories'
 
 const sources = import.meta.glob('../../../backend/app/admissions/download.py', {
@@ -44,5 +45,21 @@ describe('CSV 的階段文字和後台 stageMeta 一致', () => {
   it('沒有 withdrawn_from 的退出當成從預繳退', () => {
     const python = Object.fromEntries(pyDict('WITHDRAWN_FROM_LABELS'))
     expect(stageMeta({ stage: 'withdrawn', withdrawn_at: '2026-09-09T00:00:00Z', withdrawn_from: null }).label).toBe(`已${python.deposited}`)
+  })
+})
+
+describe('稽核紀錄裡「不在選項內」的篩選值', () => {
+  // 未預繳名單匯出的 reason、grade 收任意字串，後端不在選項內時只記固定值，操作紀錄要翻成白話。
+  it('後端的固定值 other 在操作紀錄翻成「其他（不在選項內）」，選項內的原文照寫', () => {
+    const fixed = downloadPy!.match(/OTHER_FILTER_VALUE = "([^"]+)"/)?.[1]
+    expect(fixed).toBe('other')
+    const action = 'recruitment_visit.export_no_deposit'
+    expect(auditMetadataSummary({ row_count: 0, no_deposit_reason: fixed, grade: fixed }, action)).toContain(
+      '篩選未預繳原因：其他（不在選項內）',
+    )
+    expect(auditMetadataSummary({ row_count: 0, grade: fixed }, action)).toContain('篩選班別：其他（不在選項內）')
+    expect(auditMetadataSummary({ no_deposit_reason: '費用考量', grade: '小班' }, action)).toBe(
+      '篩選未預繳原因：費用考量，篩選班別：小班',
+    )
   })
 })

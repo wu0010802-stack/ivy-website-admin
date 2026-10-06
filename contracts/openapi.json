@@ -12375,6 +12375,204 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/no-deposit-records/export": {
+      "get": {
+        "description": "未預繳名單 CSV（2026-10-03）：篩選與排序同 /no-deposit-records，不分頁。含孩子姓名與電訪回應，\n除了 admissions.read 還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，\n不默默截斷。",
+        "operationId": "export_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_export_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "School Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 60,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reason"
+            }
+          },
+          {
+            "in": "query",
+            "name": "grade",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 20,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Grade"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Priority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overdue_days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 365,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Overdue Days"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cold_only",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cold Only"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Admissions No Deposit Records",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/options": {
       "get": {
         "operationId": "get_admissions_options_api_website_v1_admin_admissions_options_get",
