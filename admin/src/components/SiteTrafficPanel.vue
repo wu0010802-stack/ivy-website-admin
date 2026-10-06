@@ -3,10 +3,11 @@ import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
 import { MIN_VITAL_SAMPLES, RATING_LABELS, TRAFFIC_COVERAGE_EXPANDED_ON, formatVital, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 
-// 後端只接受 7～90 天（速度資料只留 90 天），所以和下方各校預約的期間分開選；
+// 後端只接受 7～90 天（速度資料只留 90 天），所以和各校預約的期間分開選；
 // 28 天對齊 Google 量測網頁速度的區間。
 const DAY_OPTIONS = [
   { value: 7, label: '近 7 天' },
@@ -43,6 +44,11 @@ const today = computed(() => summary.value?.daily.at(-1)?.views ?? 0)
 const dailyPoints = computed(() => (summary.value?.daily ?? []).map((item) => ({ day: item.day, value: item.views })))
 const TRAFFIC_MARKERS = [{ day: TRAFFIC_COVERAGE_EXPANDED_ON, label: '內頁也開始計入瀏覽，這天前後的次數不能直接比較' }]
 const rangeText = computed(() => (summary.value ? `${summary.value.since.replaceAll('-', '/')}–${summary.value.until.replaceAll('-', '/')}` : ''))
+const shortRange = computed(() => (summary.value ? `${summary.value.since.slice(5).replace('-', '/')}–${summary.value.until.slice(5).replace('-', '/')}` : ''))
+const dailyAverage = computed(() => {
+  const list = summary.value?.daily ?? []
+  return list.length ? Math.round((summary.value?.total_views ?? 0) / list.length) : 0
+})
 const mobileShare = computed(() => {
   const total = summary.value?.total_views ?? 0
   return total ? Math.round(((summary.value?.devices.mobile ?? 0) / total) * 100) : 0
@@ -62,15 +68,15 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   <section class="traffic" aria-labelledby="traffic-title" :aria-busy="loading">
     <div class="traffic__head">
       <h2 id="traffic-title" class="traffic__section-title">官網瀏覽與速度（{{ periodLabel }}）</h2>
-      <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
-    </div>
-    <div class="filter-bar">
-      <label class="filter-field">
-        <span>期間</span>
-        <el-select v-model="days" aria-label="官網瀏覽的期間">
-          <el-option v-for="option in DAY_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
-        </el-select>
-      </label>
+      <div class="traffic__controls">
+        <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
+        <label class="filter-field">
+          <span>期間</span>
+          <el-select v-model="days" aria-label="官網瀏覽的期間">
+            <el-option v-for="option in DAY_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
+          </el-select>
+        </label>
+      </div>
     </div>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="traffic__alert">
@@ -80,66 +86,79 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
       <el-skeleton animated :rows="4" class="panel__body" aria-label="正在讀取瀏覽統計" />
     </div>
 
-    <div v-else-if="summary" class="panel traffic__panel" :class="{ 'is-updating': updating }">
-      <div class="panel__body traffic__body">
-        <p class="hint">
-          全站五校合計，不分校區權限，和下方各校的預約數字不能直接相比。計算首頁、五校介紹頁、預約參觀頁，
-          2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息；期間跨過這天時，前後的瀏覽次數不能直接比較。不記錄 IP、cookie 或個人資料；
-          訪客開啟「不要追蹤」時不計入。
-        </p>
+    <div v-else-if="summary" class="traffic__grid" :class="{ 'is-updating': updating }">
+      <section class="panel traffic__overview" aria-labelledby="traffic-views-title">
+        <div class="panel__head"><h2 id="traffic-views-title">瀏覽次數<span class="traffic__sub num">{{ shortRange }}</span></h2></div>
+        <div class="panel__body traffic__body">
+          <div class="stat-list traffic__stats">
+            <div class="stat">
+              <span class="stat__label">這段期間</span>
+              <span class="stat__value">{{ summary.total_views }}</span>
+              <span class="stat__hint">平均每天 {{ dailyAverage }} 次</span>
+            </div>
+            <div class="stat">
+              <span class="stat__label">今天</span>
+              <span class="stat__value">{{ today }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat__label">手機瀏覽比例</span>
+              <span class="stat__value">{{ summary.total_views ? `${mobileShare}%` : '—' }}</span>
+            </div>
+          </div>
 
-        <div class="stat-list">
-          <div class="stat">
-            <span class="stat__label">瀏覽次數（{{ summary.since.slice(5).replace('-', '/') }}–{{ summary.until.slice(5).replace('-', '/') }}）</span>
-            <span class="stat__value">{{ summary.total_views }}</span>
-          </div>
-          <div class="stat">
-            <span class="stat__label">今天</span>
-            <span class="stat__value">{{ today }}</span>
-          </div>
-          <div class="stat">
-            <span class="stat__label">手機瀏覽比例</span>
-            <span class="stat__value">{{ summary.total_views ? `${mobileShare}%` : '—' }}</span>
-          </div>
+          <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" />
+          <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
+          <AnalyticsExplainer>
+            <p>全站五校合計，不分校區權限，和各校預約的數字不能直接相比。</p>
+            <p>計算首頁、五校介紹頁、預約參觀頁，2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息；期間跨過這天時，前後的瀏覽次數不能直接比較。</p>
+            <p>不記錄 IP、cookie 或個人資料；訪客開啟「不要追蹤」時不計入。</p>
+          </AnalyticsExplainer>
         </div>
+      </section>
 
-        <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" />
-        <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
+      <section class="panel" aria-labelledby="traffic-pages-title">
+        <div class="panel__head"><h2 id="traffic-pages-title">各頁瀏覽</h2></div>
+        <div class="panel__body traffic__body">
+          <p v-if="!pages.length" class="hint">這段期間還沒有瀏覽紀錄。</p>
+          <ol v-else class="traffic__pages">
+            <li v-for="p in pages" :key="`${p.page}-${p.campus_key}`" class="traffic__row">
+              <span class="traffic__label">{{ p.label }}</span>
+              <span class="traffic__track" aria-hidden="true"><span class="traffic__bar" :style="{ width: `${p.ratio * 100}%` }" /></span>
+              <span class="traffic__value num">{{ p.views }}</span>
+            </li>
+          </ol>
+        </div>
+      </section>
 
-        <h3 class="traffic__title">各頁瀏覽</h3>
-        <p v-if="!pages.length" class="hint">這段期間還沒有瀏覽紀錄。</p>
-        <ol v-else class="traffic__pages">
-          <li v-for="p in pages" :key="`${p.page}-${p.campus_key}`" class="traffic__row">
-            <span class="traffic__label">{{ p.label }}</span>
-            <span class="traffic__track" aria-hidden="true"><span class="traffic__bar" :style="{ width: `${p.ratio * 100}%` }" /></span>
-            <span class="traffic__value num">{{ p.views }}</span>
-          </li>
-        </ol>
-
-        <h3 class="traffic__title">網頁速度（多數訪客的體驗）</h3>
-        <p v-if="!vitals.length" class="hint">這段期間還沒有速度資料。</p>
-        <template v-else>
-          <p class="hint">每 4 位訪客中有 3 位的體驗不比這個數字差。量測不到 {{ MIN_VITAL_SAMPLES }} 次時資料太少，先不評等。</p>
-          <table class="traffic__vitals">
-            <thead>
-              <tr><th scope="col">項目</th><th v-for="device in DEVICES" :key="device.key" scope="col">{{ device.label }}</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in vitals" :key="row.metric">
-                <th scope="row" :title="row.abbr"><span class="traffic__vital-name">{{ row.name }}</span><span class="hint">{{ row.hint }}</span></th>
-                <td v-for="device in DEVICES" :key="device.key">
-                  <div v-if="row[device.key]" class="traffic__vital">
-                    <span class="num traffic__vital-value">{{ formatVital(row.metric, row[device.key]!.p75) }}</span>
-                    <el-tag size="small" :type="RATING_TAG[ratingOf(row[device.key]!)]">{{ RATING_LABELS[ratingOf(row[device.key]!)] }}</el-tag>
-                    <span class="hint num">量測 {{ row[device.key]!.samples }} 次</span>
-                  </div>
-                  <span v-else class="hint">沒有資料</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </template>
-      </div>
+      <section class="panel" aria-labelledby="traffic-vitals-title">
+        <div class="panel__head"><h2 id="traffic-vitals-title">網頁速度<span class="traffic__sub">多數訪客的體驗</span></h2></div>
+        <div class="panel__body traffic__body">
+          <p v-if="!vitals.length" class="hint">這段期間還沒有速度資料。</p>
+          <template v-else>
+            <table class="traffic__vitals">
+              <thead>
+                <tr><th scope="col">項目</th><th v-for="device in DEVICES" :key="device.key" scope="col">{{ device.label }}</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in vitals" :key="row.metric">
+                  <th scope="row" :title="row.abbr"><span class="traffic__vital-name">{{ row.name }}</span><span class="hint">{{ row.hint }}</span></th>
+                  <td v-for="device in DEVICES" :key="device.key">
+                    <div v-if="row[device.key]" class="traffic__vital">
+                      <span class="num traffic__vital-value">{{ formatVital(row.metric, row[device.key]!.p75) }}</span>
+                      <el-tag size="small" :type="RATING_TAG[ratingOf(row[device.key]!)]">{{ RATING_LABELS[ratingOf(row[device.key]!)] }}</el-tag>
+                      <span class="hint num">量測 {{ row[device.key]!.samples }} 次</span>
+                    </div>
+                    <span v-else class="hint">沒有資料</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <AnalyticsExplainer>
+              <p>每 4 位訪客中有 3 位的體驗不比這個數字差。量測不到 {{ MIN_VITAL_SAMPLES }} 次時資料太少，先不評等。</p>
+            </AnalyticsExplainer>
+          </template>
+        </div>
+      </section>
     </div>
   </section>
 </template>
@@ -148,8 +167,9 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
 .traffic__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px 12px;
   margin-bottom: 12px;
 }
 
@@ -157,16 +177,50 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   font-size: var(--text-lg);
 }
 
+.traffic__controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.traffic__controls .filter-field {
+  font-size: var(--text-xs);
+}
+
+.traffic__controls .filter-field :deep(.el-select) {
+  width: 140px;
+}
+
 .traffic__alert {
   margin-bottom: 16px;
 }
 
-.traffic__panel {
+/* 瀏覽次數橫跨整列，各頁瀏覽與網頁速度並排；1100px 以下退回一欄。 */
+.traffic__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
   transition: opacity 180ms var(--ease-out);
 }
 
-.traffic__panel.is-updating {
+.traffic__grid.is-updating {
   opacity: 0.6;
+}
+
+.traffic__grid .panel + .panel {
+  margin-top: 0;
+}
+
+.traffic__overview {
+  grid-column: 1 / -1;
+}
+
+.traffic__sub {
+  margin-left: 10px;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink-3);
 }
 
 .traffic__body {
@@ -178,9 +232,8 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   margin: 0;
 }
 
-.traffic__title {
-  margin: 8px 0 0;
-  font-size: var(--text-base);
+.traffic__stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .traffic__pages {
@@ -194,7 +247,7 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
   grid-template-columns: 140px minmax(0, 1fr) 56px;
   align-items: center;
   gap: 12px;
-  padding: 8px 0;
+  padding: 7px 0;
 }
 
 .traffic__row + .traffic__row {
@@ -267,6 +320,31 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
 
 .traffic__vital .hint {
   flex-basis: 100%;
+}
+
+@media (max-width: 1100px) {
+  .traffic__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .traffic__controls {
+    width: 100%;
+  }
+
+  .traffic__controls .filter-field {
+    flex: 1;
+    font-size: var(--text-base);
+  }
+
+  .traffic__controls .filter-field :deep(.el-select) {
+    width: 100%;
+  }
+
+  .traffic__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 600px) {

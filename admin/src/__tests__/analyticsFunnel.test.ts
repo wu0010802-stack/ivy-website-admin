@@ -182,7 +182,8 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(confirmedRow()).not.toContain('官網需求的')
     expect(confirmedRow()).toContain('另有後台補登 1 筆')
     expect(confirmedRow()).toContain('另有未記錄來源 2 筆')
-    const periodNote = wrapper.findAll('.analytics__note').find((note) => note.text().startsWith('依事件發生的日期'))!
+    // 口徑說明收在「這些數字怎麼算」裡（2026-10-06）。
+    const periodNote = wrapper.findAll('.explainer').find((note) => note.text().includes('依事件發生的日期'))!
     expect(periodNote.text()).toContain('2026/10/01 起家長自選場次')
     // 取消率照算。
     expect(wrapper.findAll('.funnel__row')[3]!.text()).toContain('官網需求取消率 13%')
@@ -202,7 +203,7 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     await flushPromises()
     expect(wrapper.find('.el-skeleton').exists()).toBe(false)
     expect(wrapper.findAll('.funnel__row')).toHaveLength(4)
-    expect(wrapper.find('.analytics__results').classes()).toContain('is-updating')
+    expect(wrapper.find('.funnel-panel').classes()).toContain('is-updating')
     expect(wrapper.text()).toContain('更新中…')
     resolve(funnel)
     await flushPromises()

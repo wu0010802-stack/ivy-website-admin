@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import type { AnalyticsFunnelOut } from '../api/types'
 import { SELF_BOOKING_SINCE } from '../api/analytics'
@@ -11,6 +12,7 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import AnalyticsExplainer from '../components/analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from '../components/analytics/AnalyticsMeta.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
 import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
@@ -18,6 +20,14 @@ import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
 type Dimension = 'source' | 'referral'
+// 三個頁籤（2026-10-06 成效統計 UI/UX）：預約是天天看的主體；官網瀏覽是全站合計、期間另算；
+// 班別一年看幾次。頁籤寫進網址的 ?tab=，重新整理或分享連結會停在同一頁。
+type Tab = 'booking' | 'traffic' | 'classes'
+const TABS: { value: Tab; label: string }[] = [
+  { value: 'booking', label: '各校預約' },
+  { value: 'traffic', label: '官網瀏覽與速度' },
+  { value: 'classes', label: '預約孩子的班別' },
+]
 
 const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: 'all', label: '開站至今' },
@@ -26,6 +36,25 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: 'year', label: '今年' },
   { value: 'custom', label: '自訂區間' },
 ]
+
+const route = useRoute()
+const router = useRouter()
+const isTab = (value: unknown): value is Tab => TABS.some((tab) => tab.value === value)
+const tab = computed<Tab>(() => (isTab(route.query.tab) ? route.query.tab : 'booking'))
+function selectTab(next: Tab) {
+  if (next === tab.value) return
+  void router.replace({ query: { ...route.query, tab: next === 'booking' ? undefined : next } })
+}
+// 左右鍵在頁籤間移動（WAI-ARIA tabs）；焦點跟著移到新的頁籤。
+function onTabKey(event: KeyboardEvent, index: number) {
+  const delta = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+  if (!delta) return
+  event.preventDefault()
+  const next = TABS[(index + delta + TABS.length) % TABS.length]!
+  selectTab(next.value)
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="tab"]')
+  buttons?.[(index + delta + TABS.length) % TABS.length]?.focus()
+}
 
 const { visibleCampusKeys, selected: campusKey } = useCampusScope()
 const period = ref<Period>('all')
@@ -76,13 +105,20 @@ const rangeReady = computed(() => period.value !== 'custom' || (customRange.valu
 const panelsReady = computed(() => visibleCampusKeys.value.length > 0 && !!campusKey.value && rangeReady.value)
 // 預約流程與依來源、預約鈕點擊三塊要等 funnel 回來才有東西顯示；錯誤時整塊收起。
 const showFunnel = computed(() => visibleCampusKeys.value.length > 0 && !error.value && funnel.value !== null)
+// 自訂區間沒選完或太長時，整個預約頁籤只留一句提示。
+const rangeMessage = computed(() => {
+  if (period.value !== 'custom') return ''
+  if (!customRange.value) return '請選擇開始與結束日期。'
+  if (rangeTooLong.value) return `自訂區間最長 ${MAX_RANGE_DAYS} 天，請把開始或結束日期調近一點。`
+  return ''
+})
 
 function refresh() {
   refreshToken.value += 1
   void load()
 }
 
-// 重新整理或換條件時保留上一次的數字、淡一點並寫「更新中…」（和上方瀏覽統計一致），
+// 重新整理或換條件時保留上一次的數字、淡一點並寫「更新中…」（和瀏覽統計一致），
 // 只有第一次載入用骨架，整區不會消失再出現。
 async function load() {
   const request = requests.begin()
@@ -237,167 +273,259 @@ const entryRows = computed(() =>
 </script>
 
 <template>
-  <div class="page page--narrow">
-    <PageHeader lead="官網瀏覽量、網頁速度與各校參觀預約的結果。" more="參觀預約的部分有到場、未到、取消、每日變化、來源與預約孩子的班別，可以依期間與校區查看。" />
+  <div class="page analytics">
+    <PageHeader lead="官網瀏覽量、網頁速度與各校參觀預約的結果。" more="各校預約有五校比較、到場與取消、每日變化、來源與預約鈕點擊，可以依期間與校區查看；官網瀏覽是全站合計；班別依孩子生日換算。" />
 
-    <SiteTrafficPanel />
+    <div class="analytics__bar">
+      <div class="status-tabs analytics__tabs" role="tablist" aria-label="統計分頁">
+        <button
+          v-for="(item, index) in TABS"
+          :key="item.value"
+          :id="`analytics-tab-${item.value}`"
+          type="button"
+          role="tab"
+          class="status-tab"
+          :class="{ 'is-active': tab === item.value }"
+          :aria-selected="tab === item.value"
+          :aria-controls="`analytics-panel-${item.value}`"
+          :tabindex="tab === item.value ? 0 : -1"
+          @click="selectTab(item.value)"
+          @keydown="onTabKey($event, index)"
+        >{{ item.label }}</button>
+      </div>
 
-    <div class="analytics__section-head">
+      <div v-if="tab !== 'traffic'" class="analytics__controls">
+        <label class="filter-field"><span>查看校區</span><CampusSelect v-model="campusKey" :keys="visibleCampusKeys" /></label>
+        <label class="filter-field">
+          <span>期間</span>
+          <el-select v-model="period" aria-label="期間">
+            <el-option v-for="option in PERIOD_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
+        </label>
+        <label v-if="period === 'custom'" class="filter-field analytics__range">
+          <span>自訂區間</span>
+          <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
+            :disabled-date="isFutureDate" :clearable="false" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="統計日期區間" />
+        </label>
+        <el-button class="analytics__refresh" :loading="loading" :disabled="!campusKey" @click="refresh">重新整理</el-button>
+        <span class="hint analytics__status" role="status">{{ updating ? '更新中…' : '' }}</span>
+      </div>
+    </div>
+
+    <!-- 各校預約 -->
+    <div v-show="tab === 'booking'" id="analytics-panel-booking" role="tabpanel" aria-labelledby="analytics-tab-booking" tabindex="-1">
       <h2 class="analytics__section-title">各校預約（{{ periodTitle }}）</h2>
-      <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
-    </div>
+      <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
+      <p v-else-if="rangeMessage" class="field-help">{{ rangeMessage }}</p>
+      <div v-else-if="panelsReady" class="booking-grid">
+        <BookingOutcomesSection
+          :range="range"
+          :campus-key="campusKey"
+          :period-label="periodLabel"
+          :refresh-token="refreshToken"
+          :show-compare="visibleCampusKeys.length > 1"
+        />
 
-    <div class="filter-bar">
-      <label class="filter-field"><span>查看校區</span><CampusSelect v-model="campusKey" :keys="visibleCampusKeys" /></label>
-      <label class="filter-field">
-        <span>期間</span>
-        <el-select v-model="period" aria-label="期間">
-          <el-option v-for="option in PERIOD_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
-        </el-select>
-      </label>
-      <label v-if="period === 'custom'" class="filter-field analytics__range">
-        <span>自訂區間</span>
-        <el-date-picker v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
-          :disabled-date="isFutureDate" :clearable="false" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="統計日期區間" />
-      </label>
-      <el-button :loading="loading" :disabled="!campusKey" @click="refresh">重新整理</el-button>
-    </div>
-
-    <BookingOutcomesSection
-      v-if="panelsReady"
-      :range="range"
-      :campus-key="campusKey"
-      :period-label="periodLabel"
-      :refresh-token="refreshToken"
-      :show-compare="visibleCampusKeys.length > 1"
-    />
-
-    <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
-    <el-alert v-else-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
-    <el-skeleton v-else-if="loading && !funnel" animated :rows="5" aria-label="正在讀取統計" />
-    <p v-else-if="period === 'custom' && !customRange" class="field-help">請選擇開始與結束日期。</p>
-    <p v-else-if="rangeTooLong" class="field-help">自訂區間最長 {{ MAX_RANGE_DAYS }} 天，請把開始或結束日期調近一點。</p>
-
-    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
-      <section class="panel">
-        <div class="panel__head"><h2>預約流程</h2><span class="analytics__period num">{{ periodLabel }}</span></div>
-        <ol class="funnel">
-          <li v-for="s in stages" :key="s.key" class="funnel__row" :class="{ 'funnel__row--cancelled': s.key === 'cancelled' }">
-            <span class="funnel__label">{{ s.label }}</span>
-            <span class="funnel__track" aria-hidden="true">
-              <span class="funnel__bar" :class="{ 'has-manual': s.manualRatio > 0 }" :style="{ width: `${(s.ratio - s.manualRatio) * 100}%` }" />
-              <span v-if="s.manualRatio > 0" class="funnel__bar funnel__bar--manual" :style="{ width: `${s.manualRatio * 100}%` }" />
-            </span>
-            <span class="funnel__value num">{{ s.value }}</span>
-            <span class="funnel__note">{{ s.note }}</span>
-          </li>
-        </ol>
-        <p v-if="hasManualBars" class="analytics__note">條上淡色的一段是後台補登，深色是官網表單。</p>
-        <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
-        <p class="analytics__note">依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
-        <div class="analytics__meta"><AnalyticsMeta :period="periodLabel" unit="事件次數（依發生日期）" :as-of="funnel.as_of" /></div>
-      </section>
-
-    </div>
-
-    <EventTrendPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
-
-    <div v-if="showFunnel && funnel" class="analytics__results" :class="{ 'is-updating': updating }" :aria-busy="loading">
-      <section class="panel">
-        <div class="panel__head analytics__dims-head">
-          <h2>依來源</h2>
-          <el-radio-group v-model="dimension" size="small" aria-label="來源維度">
-            <el-radio-button value="source">案件來源</el-radio-button>
-            <el-radio-button value="referral">從哪裡知道我們</el-radio-button>
-          </el-radio-group>
-        </div>
-        <div class="panel__body">
-          <p v-if="!dimensionRows.length" class="field-help">這段期間沒有預約紀錄。</p>
-          <template v-else>
-            <el-table :data="dimensionRows" row-key="key" size="small" class="analytics__table data-table">
-              <el-table-column prop="label" :label="dimension === 'source' ? '來源' : '從哪裡知道'" min-width="120" />
-              <el-table-column prop="created" label="送出需求" align="right" min-width="80" />
-              <el-table-column prop="confirmed" label="確認" align="right" min-width="64" />
-              <el-table-column prop="completed" label="完成" align="right" min-width="64" />
-              <el-table-column prop="cancelled" label="取消" align="right" min-width="64" />
-              <el-table-column prop="cancelRate" label="取消率" align="right" min-width="72" />
-            </el-table>
-            <!-- 手機上每一列一張小卡，不必左右捲也看得到取消與取消率。 -->
-            <ul class="mobile-records analytics__records">
-              <li v-for="row in dimensionRows" :key="row.key" class="analytics__record">
-                <strong>{{ row.label }}</strong>
-                <dl>
-                  <div><dt>送出需求</dt><dd class="num">{{ row.created }}</dd></div>
-                  <div><dt>確認</dt><dd class="num">{{ row.confirmed }}</dd></div>
-                  <div><dt>完成</dt><dd class="num">{{ row.completed }}</dd></div>
-                  <div><dt>取消</dt><dd class="num">{{ row.cancelled }}<template v-if="row.cancelRate !== '—'">（取消率 {{ row.cancelRate }}）</template></dd></div>
-                </dl>
-              </li>
-            </ul>
-          </template>
-          <p v-if="hasCappedRate" class="analytics__note">取消數比同期送出的需求多（含更早送出的需求）時，不計取消率。</p>
-          <p v-if="dimension === 'referral' && dimensionRows.length" class="analytics__note">家長可以複選，各列加總可能大於總數。</p>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel__head"><h2>預約鈕點擊</h2></div>
-        <div class="panel__body">
-          <div class="stat-list analytics__clicks">
-            <div v-for="c in clicks" :key="c.label" class="stat">
-              <span class="stat__label">{{ c.label }}</span>
-              <span class="stat__value">{{ c.value }}</span>
-            </div>
+        <section class="panel booking-grid__side funnel-panel" :class="{ 'is-updating': updating }" :aria-busy="loading" aria-labelledby="funnel-title">
+          <div class="panel__head"><h2 id="funnel-title">預約流程<span class="analytics__period num">{{ periodLabel }}</span></h2></div>
+          <div class="panel__body funnel__body">
+            <el-alert v-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
+            <el-skeleton v-else-if="loading && !funnel" animated :rows="4" aria-label="正在讀取統計" />
+            <template v-else-if="showFunnel && funnel">
+              <ol class="funnel">
+                <li v-for="s in stages" :key="s.key" class="funnel__row" :class="{ 'funnel__row--cancelled': s.key === 'cancelled' }">
+                  <span class="funnel__label">{{ s.label }}</span>
+                  <span class="funnel__value num">{{ s.value }}</span>
+                  <span class="funnel__track" aria-hidden="true">
+                    <span class="funnel__bar" :class="{ 'has-manual': s.manualRatio > 0 }" :style="{ width: `${(s.ratio - s.manualRatio) * 100}%` }" />
+                    <span v-if="s.manualRatio > 0" class="funnel__bar funnel__bar--manual" :style="{ width: `${s.manualRatio * 100}%` }" />
+                  </span>
+                  <span class="funnel__note">{{ s.note }}</span>
+                </li>
+              </ol>
+              <p v-if="hasManualBars" class="analytics__note">條上淡色的一段是後台補登，深色是官網表單。</p>
+              <p v-if="cancelReasons" class="analytics__note">取消原因：{{ cancelReasons }}</p>
+              <AnalyticsMeta :period="periodLabel" unit="事件次數（依發生日期）" :as-of="funnel.as_of" />
+              <AnalyticsExplainer>
+                <p>依事件發生的日期（台北時間）計算，所以這段期間的確認、完成或取消，可能是更早送出的需求。</p>
+                <p>「送出需求」只算家長從官網送出的；確認率與取消率只拿官網表單的需求來算，後台補登（電話、LINE、親自到園等）與沒有記錄來源的舊資料，件數另外寫。</p>
+                <p>2026/10/01 起家長自選場次、送出即預約成功，期間的結束日在這天以後就不計確認率。</p>
+              </AnalyticsExplainer>
+            </template>
           </div>
-          <template v-if="entryRows.length">
-            <el-table :data="entryRows" row-key="key" size="small" class="analytics__table data-table">
-              <el-table-column prop="label" label="按鈕位置" min-width="140" />
-              <el-table-column prop="form" label="預約表單" align="right" min-width="80" />
-              <el-table-column prop="line" label="LINE" align="right" min-width="64" />
-              <el-table-column prop="phone" label="電話" align="right" min-width="64" />
-              <el-table-column prop="external" label="外部網站" align="right" min-width="80" />
-            </el-table>
-            <ul class="mobile-records analytics__records">
-              <li v-for="row in entryRows" :key="row.key" class="analytics__record">
-                <strong>{{ row.label }}</strong>
-                <dl>
-                  <div><dt>預約表單</dt><dd class="num">{{ row.form }}</dd></div>
-                  <div><dt>LINE</dt><dd class="num">{{ row.line }}</dd></div>
-                  <div><dt>電話</dt><dd class="num">{{ row.phone }}</dd></div>
-                  <div><dt>外部網站</dt><dd class="num">{{ row.external }}</dd></div>
-                </dl>
-              </li>
-            </ul>
-          </template>
-          <p v-if="unassignedClicks" class="analytics__note">另有 {{ unassignedClicks }} 次點擊沒有指定校區（例如首頁頁首的預約鈕），不算在各校裡。</p>
-          <p class="analytics__note">點擊次數不等於預約數；LINE、電話與外部網站的點擊之後有沒有真的預約，官網無法得知。</p>
+        </section>
+
+        <EventTrendPanel class="booking-grid__main" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+
+        <div v-if="showFunnel && funnel" class="booking-grid__side analytics__stack" :class="{ 'is-updating': updating }" :aria-busy="loading">
+          <section class="panel">
+            <div class="panel__head analytics__dims-head">
+              <h2>依來源</h2>
+              <el-radio-group v-model="dimension" size="small" aria-label="來源維度">
+                <el-radio-button value="source">案件來源</el-radio-button>
+                <el-radio-button value="referral">從哪裡知道我們</el-radio-button>
+              </el-radio-group>
+            </div>
+            <div class="panel__body">
+              <p v-if="!dimensionRows.length" class="field-help">這段期間沒有預約紀錄。</p>
+              <template v-else>
+                <el-table :data="dimensionRows" row-key="key" size="small" class="analytics__table data-table">
+                  <el-table-column prop="label" :label="dimension === 'source' ? '來源' : '從哪裡知道'" min-width="110" />
+                  <el-table-column prop="created" label="送出" align="right" min-width="56" />
+                  <el-table-column prop="confirmed" label="確認" align="right" min-width="56" />
+                  <el-table-column prop="completed" label="完成" align="right" min-width="56" />
+                  <el-table-column prop="cancelled" label="取消" align="right" min-width="56" />
+                  <el-table-column prop="cancelRate" label="取消率" align="right" min-width="64" />
+                </el-table>
+                <!-- 手機上每一列一張小卡，不必左右捲也看得到取消與取消率。 -->
+                <ul class="mobile-records analytics__records">
+                  <li v-for="row in dimensionRows" :key="row.key" class="analytics__record">
+                    <strong>{{ row.label }}</strong>
+                    <dl>
+                      <div><dt>送出需求</dt><dd class="num">{{ row.created }}</dd></div>
+                      <div><dt>確認</dt><dd class="num">{{ row.confirmed }}</dd></div>
+                      <div><dt>完成</dt><dd class="num">{{ row.completed }}</dd></div>
+                      <div><dt>取消</dt><dd class="num">{{ row.cancelled }}<template v-if="row.cancelRate !== '—'">（取消率 {{ row.cancelRate }}）</template></dd></div>
+                    </dl>
+                  </li>
+                </ul>
+              </template>
+              <p v-if="hasCappedRate" class="analytics__note">取消數比同期送出的需求多（含更早送出的需求）時，不計取消率。</p>
+              <p v-if="dimension === 'referral' && dimensionRows.length" class="analytics__note">家長可以複選，各列加總可能大於總數。</p>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel__head"><h2>預約鈕點擊</h2></div>
+            <div class="panel__body">
+              <div class="stat-list analytics__clicks">
+                <div v-for="c in clicks" :key="c.label" class="stat">
+                  <span class="stat__label">{{ c.label }}</span>
+                  <span class="stat__value">{{ c.value }}</span>
+                </div>
+              </div>
+              <template v-if="entryRows.length">
+                <el-table :data="entryRows" row-key="key" size="small" class="analytics__table data-table">
+                  <el-table-column prop="label" label="按鈕位置" min-width="110" />
+                  <el-table-column prop="form" label="預約表單" align="right" min-width="72" />
+                  <el-table-column prop="line" label="LINE" align="right" min-width="56" />
+                  <el-table-column prop="phone" label="電話" align="right" min-width="56" />
+                  <el-table-column prop="external" label="外部網站" align="right" min-width="72" />
+                </el-table>
+                <ul class="mobile-records analytics__records">
+                  <li v-for="row in entryRows" :key="row.key" class="analytics__record">
+                    <strong>{{ row.label }}</strong>
+                    <dl>
+                      <div><dt>預約表單</dt><dd class="num">{{ row.form }}</dd></div>
+                      <div><dt>LINE</dt><dd class="num">{{ row.line }}</dd></div>
+                      <div><dt>電話</dt><dd class="num">{{ row.phone }}</dd></div>
+                      <div><dt>外部網站</dt><dd class="num">{{ row.external }}</dd></div>
+                    </dl>
+                  </li>
+                </ul>
+              </template>
+              <p v-if="unassignedClicks" class="analytics__note">另有 {{ unassignedClicks }} 次點擊沒有指定校區（例如首頁頁首的預約鈕），不算在各校裡。</p>
+              <AnalyticsExplainer>
+                <p>點擊次數不等於預約數；LINE、電話與外部網站的點擊之後有沒有真的預約，官網無法得知。</p>
+              </AnalyticsExplainer>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </div>
 
-    <ClassDistributionPanel v-if="panelsReady" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+    <!-- 官網瀏覽與速度 -->
+    <div v-show="tab === 'traffic'" id="analytics-panel-traffic" role="tabpanel" aria-labelledby="analytics-tab-traffic" tabindex="-1">
+      <SiteTrafficPanel />
+    </div>
+
+    <!-- 預約孩子的班別 -->
+    <div v-show="tab === 'classes'" id="analytics-panel-classes" role="tabpanel" aria-labelledby="analytics-tab-classes" tabindex="-1">
+      <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
+      <p v-else-if="rangeMessage" class="field-help">{{ rangeMessage }}</p>
+      <ClassDistributionPanel v-else-if="panelsReady" class="analytics__classes" :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.analytics__section-head {
+/* 頁籤列與條件列同一行：左邊頁籤、右邊校區與期間。窄視口各自換行。 */
+.analytics__bar {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin: 28px 0 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 16px;
 }
 
+.analytics__tabs {
+  margin-bottom: 0;
+}
+
+.analytics__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.analytics__controls .filter-field {
+  font-size: var(--text-xs);
+}
+
+.analytics__controls .filter-field :deep(.el-select) {
+  width: 140px;
+}
+
+.analytics__status {
+  min-width: 4em;
+  align-self: center;
+}
+
+/* 視覺上不必再看到大標，但讀屏與測試仍有一個對應的 h2。 */
 .analytics__section-title {
-  font-size: var(--text-lg);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
-.analytics__results {
+/* 預約頁籤的格線：五校比較橫跨整列；左欄 3、右欄 2，每一列左邊是主體（預約結果、每日變化），
+   右邊是對照（預約流程、來源與點擊）。1100px 以下退回一欄，照 DOM 順序往下排。 */
+.booking-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.booking-grid__side {
+  grid-column: 2;
+}
+
+.booking-grid__main {
+  grid-column: 1;
+}
+
+.analytics__stack {
+  display: grid;
+  gap: 20px;
+}
+
+.booking-grid :deep(.panel + .panel) {
+  margin-top: 0;
+}
+
+.is-updating {
+  opacity: 0.6;
   transition: opacity 180ms var(--ease-out);
 }
 
-.analytics__results.is-updating {
-  opacity: 0.6;
+.analytics__classes {
+  max-width: 760px;
 }
 
 .analytics__records {
@@ -441,7 +569,9 @@ const entryRows = computed(() =>
 }
 
 .analytics__period {
+  margin-left: 10px;
   font-size: var(--text-sm);
+  font-weight: 400;
   color: var(--ink-3);
 }
 
@@ -455,13 +585,8 @@ const entryRows = computed(() =>
 
 .analytics__note {
   margin: 0;
-  padding: 0 24px 16px;
   font-size: var(--text-xs);
   color: var(--ink-3);
-}
-
-.analytics__meta {
-  padding: 0 24px 16px;
 }
 
 .panel__body .analytics__note {
@@ -470,6 +595,11 @@ const entryRows = computed(() =>
 
 .analytics__table {
   margin-top: 12px;
+}
+
+.funnel__body {
+  display: grid;
+  gap: 10px;
 }
 
 .funnel__row--cancelled .funnel__bar {
@@ -483,14 +613,19 @@ const entryRows = computed(() =>
 .funnel {
   list-style: none;
   margin: 0;
-  padding: 8px 24px 16px;
+  padding: 0;
 }
 
+/* 一列兩行：第一行名稱＋數字，第二行長條，第三行說明；右欄 2/5 寬放得下。 */
 .funnel__row {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr) 56px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track'
+    'note note';
+  align-items: baseline;
+  gap: 4px 12px;
   padding: 10px 0;
 }
 
@@ -499,12 +634,14 @@ const entryRows = computed(() =>
 }
 
 .funnel__label {
+  grid-area: label;
   color: var(--ink-2);
 }
 
 .funnel__track {
+  grid-area: track;
   display: flex;
-  height: 10px;
+  height: 8px;
   border-radius: 999px;
   background: var(--surface-3);
   overflow: hidden;
@@ -528,34 +665,101 @@ const entryRows = computed(() =>
 }
 
 .funnel__value {
+  grid-area: value;
   text-align: right;
   font-weight: 600;
   font-size: var(--text-lg);
 }
 
 .funnel__note {
+  grid-area: note;
   font-size: var(--text-xs);
   color: var(--ink-3);
 }
 
-/* 四種點擊排成一列；手機沿用共用的兩欄。 */
-@media (min-width: 721px) {
+.funnel__note:empty {
+  display: none;
+}
+
+/* 四種點擊兩兩一列（右欄不寬）；手機沿用共用的兩欄。 */
+.analytics__clicks {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* 1400px 以下右欄放不下六欄的來源表（會變成表內橫捲），改成左右等寬。 */
+@media (max-width: 1400px) {
+  .booking-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .booking-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .booking-grid__side,
+  .booking-grid__main {
+    grid-column: auto;
+  }
+
   .analytics__clicks {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 600px) {
-  .analytics__range :deep(.el-date-editor) {
+@media (max-width: 720px) {
+  .analytics__bar {
+    align-items: stretch;
+  }
+
+  .analytics__tabs {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .analytics__tabs .status-tab {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .analytics__controls {
+    flex: 1 1 100%;
+  }
+
+  .analytics__controls .filter-field {
+    flex: 1 1 calc(50% - 6px);
+    font-size: var(--text-base);
+  }
+
+  .analytics__controls .filter-field :deep(.el-select) {
     width: 100%;
   }
 
-  .funnel__row {
-    grid-template-columns: 90px minmax(0, 1fr) 48px;
+  .analytics__refresh {
+    flex: 1 1 100%;
   }
 
-  .funnel__note {
-    grid-column: 2 / -1;
+  .analytics__status {
+    display: none;
+  }
+
+  .analytics__clicks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .analytics__range {
+    flex-basis: 100%;
+  }
+
+  .analytics__range :deep(.el-date-editor) {
+    width: 100%;
   }
 }
 </style>

@@ -96,7 +96,7 @@ describe('瀏覽統計面板', () => {
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/traffic?days=7')
     expect(wrapper.find('.el-skeleton').exists()).toBe(false)
-    expect(wrapper.find('.traffic__panel').classes()).toContain('is-updating')
+    expect(wrapper.find('.traffic__grid').classes()).toContain('is-updating')
     expect(wrapper.text()).toContain('更新中…')
     resolve(traffic(7))
     await flushPromises()

@@ -4,6 +4,7 @@ import type { EventTrendOut } from '../../api/types'
 import { campusLabel } from '../../api/labels'
 import { SELF_BOOKING_SINCE, getEventTrend, rangeKey, type DateRange } from '../../api/analytics'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
 import DailyBars from './DailyBars.vue'
 
@@ -70,7 +71,9 @@ const actualPeriod = computed(() => (trend.value ? `${slash(trend.value.date_fro
         <DailyBars :title="`每日${seriesLabel}`" :points="points" unit="次" :markers="MARKERS" />
         <AnalyticsMeta :period="actualPeriod" unit="事件次數（依發生日期）" :as-of="trend.as_of" />
         <p v-if="trend.truncated" class="hint">期間超過 400 天，只畫最近 400 天。</p>
-        <p class="hint">已到場、已取消可能是更早送出的預約；未到場沒有每日紀錄，請看上方「預約結果」。</p>
+        <AnalyticsExplainer>
+          <p>依事件發生的台北日期計數。已到場、已取消可能是更早送出的預約；未到場沒有每日紀錄，請看「預約結果」。</p>
+        </AnalyticsExplainer>
       </template>
     </div>
   </section>

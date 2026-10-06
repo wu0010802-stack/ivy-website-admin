@@ -7,6 +7,7 @@ import { currentTerm, schoolYearOptions } from '../../admissions/academic'
 import type { StatsColumn } from '../../admissions/statsFormat'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import StatsDimensionTable from '../admissions/StatsDimensionTable.vue'
+import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
 
 // 預約孩子的生日換算成某學年度的班別（GET /admin/analytics/class-distribution）。換算在後端
@@ -82,10 +83,10 @@ const rows = computed(() =>
         <p v-if="data.total === 0" class="field-help">這段期間沒有預約案件。</p>
         <StatsDimensionTable v-else :title="`${data.school_year} 學年度的班別`" :rows="rows" :columns="COLUMNS" row-key="key" empty-text="沒有資料" />
         <AnalyticsMeta :period="loadedPeriod" unit="預約案件數（含已取消）" :as-of="data.as_of" />
-        <p class="hint">
-          依孩子生日換算：民國 Y/9/2～Y+1/9/1 出生為同一屆，8/1 起算新學年。這是年齡對照，不代表已報名或入學。
-          「沒有生日資料」是舊案只填了年齡、補登時沒問生日，或已依保存政策匿名化。
-        </p>
+        <AnalyticsExplainer>
+          <p>依孩子生日換算：民國 Y/9/2～Y+1/9/1 出生為同一屆，8/1 起算新學年。這是年齡對照，不代表已報名或入學。</p>
+          <p>「沒有生日資料」是舊案只填了年齡、補登時沒問生日，或已依保存政策匿名化。</p>
+        </AnalyticsExplainer>
       </template>
     </div>
   </section>
