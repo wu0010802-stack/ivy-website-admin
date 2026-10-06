@@ -67,7 +67,7 @@ describe('API 錯誤解析', () => {
 
 describe('場次：帶版本送出，別人先改過就重新讀取', () => {
   const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-06', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, booked_count: 0, closed: false, closed_source: null, version: 4, visits: [] }
-  const panelProps = { day: '2099-01-06', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true, staff: [] }
+  const panelProps = { day: '2099-01-06', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true }
 
   it('停止申請帶 expected_version；409 版本衝突時提示並請父層重讀', async () => {
     const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', '這個時段剛被其他人修改（或因休假日關閉），請重新載入後再調整'))

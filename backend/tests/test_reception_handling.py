@@ -2,7 +2,7 @@
 
 櫃台可以記聯絡紀錄、確認排入時段（舊案）、人工補登（選場次即確認）、取消、標記未到場、
 完成參觀、後台改期、核准／退回家長改期、產生／撤銷家長管理連結；時段、
-每週規則、休假日、預約設定與指派承辦人仍限 booking.manage。站內通知標為
+每週規則、休假日與預約設定仍限 booking.manage。站內通知標為
 已處理不在裁定的清單裡，業主確認前也限 booking.manage。"""
 
 from __future__ import annotations
@@ -16,7 +16,6 @@ from app.auth.models import Role, User
 from app.auth.permissions import effective_capabilities, has_capability, roles_with
 from app.operations.models import AuditLogEntry
 from tests.conftest import (
-    case_version,
     _create_user,
     _logged_in_client,
     book_slot,
@@ -138,11 +137,9 @@ async def test_reception_handles_a_case_end_to_end(admin_client, public_client, 
 
 
 @pytest.mark.asyncio
-async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_client, reception):
+async def test_reception_cannot_touch_schedule_settings(admin_client, reception):
     _, desk = reception
     slot = await _slot(admin_client)
-    case = await _manual_case(admin_client, "desk-admin-1", slot_id=slot["id"])
-    me = (await desk.get(f"{API}/auth/me")).json()["user"]
 
     assert (await desk.post(
         f"{BASE}/slots?campus_key=yihua",
@@ -162,9 +159,6 @@ async def test_reception_cannot_touch_schedule_settings_or_assignments(admin_cli
     )).status_code == 403
     assert (await desk.patch(
         f"{BASE}/booking-config/yihua", json={"expected_version": 0, "mode": "phone", "phone": "07-000-0000"}
-    )).status_code == 403
-    assert (await desk.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": me["id"], "expected_version": await case_version(desk, case["id"])}
     )).status_code == 403
     # 匯出要總管理者另外授權，接待角色本身沒有。
     assert (await desk.get(f"{BASE}/visit-requests/export")).status_code == 403
@@ -224,8 +218,9 @@ async def test_reception_sees_notifications_but_only_managers_mark_them_handled(
 
 
 @pytest.mark.asyncio
-async def test_reception_is_an_assignable_handler(admin_client, minghua_client, reception, db_session):
-    desk_user, desk = reception
+async def test_visit_staff_lists_handlers(admin_client, minghua_client, reception, db_session):
+    """同事名單（把登錄的人、聯絡紀錄與歷程裡的 id 翻成名字）列出能處理案件的人，含櫃台。"""
+    desk_user, _ = reception
     other_desk = await _create_user(db_session, "desk-mh@ivy.example", "desk-password-5678", Role.RECEPTION, ["minghua"])
     readonly = await _create_user(db_session, "ro@ivy.example", "readonly-password-1", Role.READONLY, ["yihua"])
 
@@ -235,23 +230,3 @@ async def test_reception_is_an_assignable_handler(admin_client, minghua_client, 
     assert str(readonly.id) not in ids
     # 分校管理者只看得到跟自己有共同校區的人。
     assert str(desk_user.id) not in {s["id"] for s in (await minghua_client.get(f"{BASE}/visit-staff")).json()}
-
-    case_slot = await _slot(admin_client)
-    case = await _manual_case(admin_client, "desk-assign-1", slot_id=case_slot["id"])
-    assigned = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(desk_user.id), "expected_version": await case_version(admin_client, case["id"])}
-    )
-    assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["assigned_staff_id"] == str(desk_user.id)
-
-    wrong_campus = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(other_desk.id), "expected_version": await case_version(admin_client, case["id"])}
-    )
-    assert wrong_campus.status_code == 422
-    not_handler = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(readonly.id), "expected_version": await case_version(admin_client, case["id"])}
-    )
-    assert not_handler.status_code == 422
-
-    mine = (await desk.get(f"{BASE}/visit-requests?assignee=me")).json()
-    assert [r["id"] for r in mine] == [case["id"]]

@@ -296,7 +296,7 @@ def _soon() -> str:
 
 @pytest.mark.asyncio
 async def test_parent_edit_does_not_conflict_with_staff_follow_up(admin_client, public_client, booking_consent):
-    """家長改資料與園方的承辦人／下次聯絡是兩組不同的欄位，不能共用一個樂觀鎖。"""
+    """家長改資料與園方的下次聯絡是兩組不同的欄位，不能共用一個樂觀鎖。"""
     booked = await _booked_and_open(admin_client, public_client)
     staff_version = await case_version(admin_client, booked["receipt_id"])
     me = (await public_client.get(f"{MANAGE}/me")).json()
@@ -479,7 +479,7 @@ async def test_unknown_campus_is_404_not_500(admin_client):
 
 @pytest.mark.asyncio
 async def test_control_characters_are_422_not_500(admin_client):
-    for params in ("q=%00", "status=%00", "source=a%00", "assignee=me&campus_key=yi%00hua"):
+    for params in ("q=%00", "status=%00", "source=a%00", "campus_key=yi%00hua"):
         listed = await admin_client.get(f"{CASES}?{params}")
         assert listed.status_code == 422, (params, listed.text)
     holiday = await admin_client.post(

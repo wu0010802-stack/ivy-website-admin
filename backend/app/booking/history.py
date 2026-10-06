@@ -4,7 +4,7 @@
 after）、原因（reason）。workflow_service、access_service 與建案流程都經過
 這裡寫，不直接 new VisitRequestEvent，欄位格式才會一致。
 
-before／after 只放狀態、時段、承辦人這類非個資欄位，不放家長姓名或電話；
+before／after 只放狀態、時段、下次聯絡這類非個資欄位，不放家長姓名或電話；
 reason 是人員填的自由文字，匿名化時會清掉。"""
 from __future__ import annotations
 

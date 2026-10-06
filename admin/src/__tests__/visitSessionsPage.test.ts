@@ -26,7 +26,7 @@ const slot = (changes: Record<string, unknown> = {}) => ({
   capacity: 2, closed: false, closed_source: null, version: 1, booked_count: 0, visits: [], ...changes,
 })
 const visit = (id: string, parent_name: string, status = 'confirmed') =>
-  ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })
+  ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web' })
 
 function mockGets({ calendar }: { calendar: unknown[] }) {
   return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {

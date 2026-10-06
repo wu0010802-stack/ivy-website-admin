@@ -91,37 +91,19 @@ async def _log(client, record: dict, **overrides):
 
 
 @pytest.mark.asyncio
-async def test_completion_sets_owner_from_assignee_without_scheduling(
+async def test_completion_sets_owner_to_the_person_marking_arrival(
     admin_client, public_client, reception_yihua_client, db_session
 ):
-    """F01：標記已到場不自動排第一次聯絡；負責人＝預約承辦人。"""
+    """F01：標記已到場不自動排第一次聯絡；負責人＝標記到場的人。2026-10-06 預約拿掉
+    承辦人：資料表裡留著的舊承辦人不再當負責人。"""
+    admin_id = await _user_id(db_session, "admin@ivy.example")
     reception_id = await _user_id(db_session, RECEPTION_EMAIL)
     booking = await started_booking(admin_client, public_client, db_session)
     await _set_booking(db_session, booking["id"], assigned_staff_id=reception_id)
     assert (await complete(admin_client, booking["id"])).status_code == 200
     visit = await _visit_for_request(db_session, booking["id"])
-    assert (visit.follow_up_at, visit.follow_up_owner_id, visit.last_contacted_at) == (None, reception_id, None)
+    assert (visit.follow_up_at, visit.follow_up_owner_id, visit.last_contacted_at) == (None, admin_id, None)
     assert await _created_metadata(db_session, visit.id) == {"origin": "visit_request", "follow_up": "none"}
-
-
-@pytest.mark.asyncio
-async def test_owner_falls_back_to_the_person_marking_arrival(
-    admin_client, public_client, minghua_client, db_session
-):
-    """F02：承辦人停用、沒有該校區、沒有承辦人時，負責人是標記到場的人。"""
-    admin_id = await _user_id(db_session, "admin@ivy.example")
-    other_campus_id = await _user_id(db_session, "minghua-admin@ivy.example")
-    inactive_id = (
-        await _create_user(db_session, "inactive-desk@ivy.example", "inactive-desk-password-1", Role.RECEPTION, ["yihua"])
-    ).id
-    await db_session.execute(update(User).where(User.id == inactive_id).values(is_active=False))
-    await db_session.commit()
-    for assignee in (inactive_id, other_campus_id, None):
-        booking = await started_booking(admin_client, public_client, db_session)
-        await _set_booking(db_session, booking["id"], assigned_staff_id=assignee)
-        assert (await complete(admin_client, booking["id"])).status_code == 200
-        visit = await _visit_for_request(db_session, booking["id"])
-        assert visit.follow_up_owner_id == admin_id, assignee
 
 
 @pytest.mark.asyncio

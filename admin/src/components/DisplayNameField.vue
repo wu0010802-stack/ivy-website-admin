@@ -16,7 +16,7 @@ const model = defineModel<string>({ required: true })
 const input = ref<{ focus: () => void } | null>(null)
 const length = computed(() => displayNameLength(model.value))
 const error = computed(() => displayNameError(model.value) || props.serverError || '')
-const helpText = computed(() => props.help ?? '同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字。留空就用 Email @ 前面那段。')
+const helpText = computed(() => props.help ?? '同事在聯絡紀錄、發布紀錄與操作紀錄看到的名字。留空就用 Email @ 前面那段。')
 
 defineExpose({ focus: () => input.value?.focus() })
 </script>

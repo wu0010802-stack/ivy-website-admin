@@ -46,17 +46,17 @@ const lastListQuery = (get: GetSpy) => new URLSearchParams(listCalls(get).at(-1)
 const request = (changes: Record<string, unknown> = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '王媽媽', phone: '0912345678', child_name: '小安',
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, source: 'web',
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, assigned_staff_id: null, ...changes,
+  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, ...changes,
 })
 
 describe('案件列表：篩選與頁數跟網址雙向同步', () => {
   it('網址上的條件（含搜尋、來源、送出日期與頁數）掛載時全部讀回來', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([request()] as never)
     const { wrapper } = await mountAt(VisitRequestsView,
-      '/visit-requests?group=upcoming&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&assignee=me&order=oldest&page=3&campus=renwu')
+      '/visit-requests?group=upcoming&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&order=oldest&page=3&campus=renwu')
     expect(listCalls(get)).toHaveLength(1)
     expect(Object.fromEntries(lastListQuery(get))).toEqual({
-      group: 'upcoming', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07', assignee: 'me',
+      group: 'upcoming', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07',
       campus_key: 'renwu', order: 'oldest', page: '3', page_size: '20',
     })
     expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('預約正常'))!.attributes('aria-pressed')).toBe('true')
@@ -195,7 +195,7 @@ describe('案件列表：電話搜尋與欄位', () => {
     ] as never)
     const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests')
     const headers = wrapper.findAll('.requests-table th').map(th => th.text())
-    expect(headers).toEqual(['狀態', '校區', '家長／孩子', '參觀時間', '電話', '承辦人', '送出時間'])
+    expect(headers).toEqual(['狀態', '校區', '家長／孩子', '參觀時間', '電話', '送出時間'])
     const rows = wrapper.findAll('.requests-table .el-table__row')
     expect(rows[0]!.text()).toContain('方便接電話時段：平日上午')
     expect(rows[0]!.text()).toContain('小安 · 電話補登')
@@ -204,7 +204,7 @@ describe('案件列表：電話搜尋與欄位', () => {
     expect(rows[1]!.find('.date-cell').text()).toBe('2025/12/31 10:00')
     expect(rows[1]!.text()).not.toContain('方便接電話')
     const cards = wrapper.findAll('.request-list li')
-    expect(cards[0]!.text()).toContain('義華校 · 小安 · 承辦：未指派 · 電話補登')
+    expect(cards[0]!.text()).toContain('義華校 · 小安 · 電話補登')
     expect(cards[0]!.text()).toContain('方便接電話時段：平日上午')
     expect(cards[0]!.text()).toContain('09/28 21:41 送出')
     expect(cards[1]!.text()).not.toContain('方便接電話')
@@ -283,7 +283,7 @@ describe('參觀場次月曆', () => {
   const slot = (changes: Record<string, unknown> = {}) => ({
     id: 's1', campus_key: 'yihua', slot_date: '2026-09-24', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, closed_source: null, version: 1, booked_count: 0, visits: [], ...changes,
   })
-  const visit = (id: string, status: string, parent_name: string) => ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })
+  const visit = (id: string, status: string, parent_name: string) => ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web' })
   // 月曆、每週規則、預約方式三支 API 各回自己的資料。
   const mockApis = (calendar: unknown[]) => vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.startsWith('/admin/visit-calendar')) return calendar as never

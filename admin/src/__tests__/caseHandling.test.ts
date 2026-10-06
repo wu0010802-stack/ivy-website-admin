@@ -34,7 +34,7 @@ const confirmedCase = (extra = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: current.id, slot: current, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
-  assigned_staff_id: null, confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web',
+  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web',
   history: [], pending_reschedule: null, access_link: null, ...extra,
 })
 const confirmOk = () => vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)

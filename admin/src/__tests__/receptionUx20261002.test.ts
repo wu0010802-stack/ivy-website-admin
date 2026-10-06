@@ -26,7 +26,7 @@ const confirmedCase = (extra = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', parent_name: '黃志明', phone: '0912345678', child_name: null,
   child_birthdate: null, email: 'p@example.org', referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: started.id, slot: started, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
-  assigned_staff_id: null, confirmed_at: '2026-09-22T00:00:00.123Z', cancelled_at: null, source: 'web', display_status: 'past',
+  confirmed_at: '2026-09-22T00:00:00.123Z', cancelled_at: null, source: 'web', display_status: 'past',
   history: [], pending_reschedule: null, access_link: null, ...extra,
 })
 
@@ -149,14 +149,14 @@ describe('補登對話框', () => {
 })
 
 describe('參觀場次當天清單', () => {
-  it('場次開始後寫「尚未確認到場」，電話、孩子、承辦掛上手機版面用的 class', () => {
+  it('場次開始後寫「尚未確認到場」，電話、孩子、來源掛上手機版面用的 class', () => {
     const slot = { id: 's1', campus_key: 'yihua', slot_date: '2020-01-01', start_time: '10:00:00', end_time: '11:00:00', capacity: 2, closed: false, version: 1, booked_count: 2,
       visits: [
-        { id: 'v1', status: 'confirmed', parent_name: '黃志明', child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null },
-        { id: 'v2', status: 'completed', parent_name: '王怡君', child_name: null, phone: '0911222444', source: 'web', assigned_staff_id: null },
+        { id: 'v1', status: 'confirmed', parent_name: '黃志明', child_name: null, phone: '0911222333', source: 'web' },
+        { id: 'v2', status: 'completed', parent_name: '王怡君', child_name: null, phone: '0911222444', source: 'web' },
       ] }
     const wrapper = mount(DayPanel, {
-      props: { day: '2020-01-01', campusKey: 'yihua', slots: [slot], holiday: null, canManage: false, staff: [] },
+      props: { day: '2020-01-01', campusKey: 'yihua', slots: [slot], holiday: null, canManage: false },
       global: { plugins: [ElementPlus], stubs: { RouterLink: { template: '<a><slot /></a>' } } },
     })
     wrappers.push(wrapper)
@@ -165,7 +165,9 @@ describe('參觀場次當天清單', () => {
     expect(rows[1]!.find('.el-tag').text()).toBe('已到場')
     expect(rows[0]!.find('a[href^="tel:"]').classes()).toContain('calendar__visit-phone')
     expect(rows[0]!.find('.calendar__visit-child').exists()).toBe(true)
-    expect(rows[0]!.find('.calendar__visit-staff').exists()).toBe(true)
+    // 官網送出的來源欄留空、仍占著位置；不再寫承辦人（2026-10-06 拿掉）。
+    expect(rows[0]!.find('.calendar__visit-source').text()).toBe('')
+    expect(wrapper.text()).not.toContain('承辦')
     expect(wrapper.find('.calendar__slot .hint').text()).toContain('已結束')
   })
 })

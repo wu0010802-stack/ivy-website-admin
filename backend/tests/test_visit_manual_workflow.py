@@ -1,5 +1,5 @@
-"""案件流程補完（main 的 test_visit_manual_and_assign.py 已涵蓋補登、指派、
-承辦人清單、接待月曆與完成）：這裡只測補登案件完成參觀（以及人工確認端點
+"""案件流程補完（main 的 test_visit_manual_and_assign.py 已涵蓋補登、
+同事名單、接待月曆與完成）：這裡只測補登案件完成參觀（以及人工確認端點
 已退場）、重新預約關聯舊案、送出日期篩選。"""
 from __future__ import annotations
 

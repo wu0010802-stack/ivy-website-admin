@@ -33,7 +33,7 @@ async function mountAt(component: unknown, path: string, props: Record<string, u
   return { wrapper, router }
 }
 
-// 案件清單的最後一次查詢（同頁還會讀承辦人清單）。
+// 案件清單的最後一次查詢（同頁還有分組件數等其他查詢）。
 function lastListQuery(get: { mock: { calls: unknown[][] } }): URLSearchParams {
   const calls = get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests?'))
   return new URLSearchParams(calls.at(-1)!.split('?')[1])
@@ -119,8 +119,8 @@ describe('待人工處理的入口', () => {
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '研習', action: 'confirm' } as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({ id: 'e1' } as never)
     const slot = { id: 's1', campus_key: 'yihua', slot_date: '2099-01-07', start_time: '10:00:00', end_time: '11:00:00', capacity: 3, closed: false, closed_source: null, version: 1, booked_count: 2,
-      visits: [1, 2].map(n => ({ id: `v${n}`, status: 'confirmed', parent_name: `家長${n}`, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })) }
-    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true, staff: [] })
+      visits: [1, 2].map(n => ({ id: `v${n}`, status: 'confirmed', parent_name: `家長${n}`, child_name: null, phone: '0911222333', source: 'web' })) }
+    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [slot], holiday: null, canManage: true })
     await wrapper.findAll('button').find(button => button.text() === '整天休假')!.trigger('click')
     await flushPromises()
     expect(String(prompt.mock.calls[0]![0])).toContain('這天還有 2 組家長預約，設為休假後不會自動取消')
@@ -132,7 +132,7 @@ describe('待人工處理的入口', () => {
     const del = vi.spyOn(api, 'delete').mockResolvedValue({} as never)
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
     const success = vi.spyOn(ElMessage, 'success')
-    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [], holiday: { id: 'e1', reason: '研習' }, canManage: true, staff: [] })
+    const { wrapper } = await mountAt(DayPanel, '/', { day: '2099-01-07', campusKey: 'yihua', slots: [], holiday: { id: 'e1', reason: '研習' }, canManage: true })
     expect(wrapper.text()).toContain('休假：研習')
     const cancelHoliday = () => wrapper.findAll('button').find(button => button.text() === '取消休假')!
     await cancelHoliday().trigger('click')

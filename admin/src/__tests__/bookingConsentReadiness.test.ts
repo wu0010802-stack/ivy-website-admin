@@ -382,7 +382,7 @@ describe('總覽、案件明細、補登、個資與搜尋設定', () => {
 
   // 2026-10-05 第九輪：參觀人數、同意紀錄只有有值的舊資料才列，不再寫「未填」「不需勾選同意」。
   it('案件明細顯示有值的參觀人數與同意紀錄；沒有值的不列', async () => {
-    const base = { id: 'case', campus_key: 'yihua', status: 'new', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null, child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, slot_id: null, slot: null, assigned_staff_id: null, confirmed_at: null, cancelled_at: null, follow_up_at: null, hold_expires_at: null, created_at: '2026-09-25T02:00:00Z', history: [], pending_reschedule: null, access_link: null, parent_change_deadline_hours: 24 }
+    const base = { id: 'case', campus_key: 'yihua', status: 'new', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null, child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, slot_id: null, slot: null, confirmed_at: null, cancelled_at: null, follow_up_at: null, hold_expires_at: null, created_at: '2026-09-25T02:00:00Z', history: [], pending_reschedule: null, access_link: null, parent_change_deadline_hours: 24 }
     const detail = { ...base, party_size: 4, consent_given: true, consent_revision_id: 'rev', consent_revision_version: 7, consent_accepted_at: '2026-09-25T02:00:00Z' }
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => (path.startsWith('/admin/visit-requests/case') && !path.endsWith('/contact-notes') ? detail : []) as never)
     let wrapper = await mountAt(VisitDetailView, '/visit-requests/case', '/visit-requests/:id')
