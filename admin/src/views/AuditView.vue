@@ -1,13 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, type AuditDetails, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
+import { auditActionLabel, auditMetadataDetails, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, type AuditDetails, staffEmail } from '../api/labels'
+import { apiErrorMessage } from '../api/errors'
 import type { AuditLogEntryOut } from '../api/types'
+import { taipeiToday } from '../admissions/academic'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { notifyError, notifyWarning } from '../composables/notify'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
-import { describeUserAgent } from '../utils/userAgent'
+import { Download } from '@element-plus/icons-vue'
+import {
+  auditActorEmail as actorEmail, auditActorText as actorText, auditCampusText as campusText, auditCsvHeader, auditCsvRow,
+  auditSearchText, auditSourceText as sourceText, auditTargetPerson as targetPerson, auditTargetText as targetText,
+} from '../utils/auditFormat'
+import { buildCsv, csvFilename, downloadCsv } from '../utils/csv'
 
 type AuditEntry = AuditLogEntryOut
 
@@ -22,6 +30,12 @@ const error = ref<string | null>(null)
 const search = ref('')
 // 每人每天都有的登入登出，勾了就不列（登入失敗、帳號鎖定照列）。預設照舊全部列出。
 const hideLogins = ref(false)
+// 期間（台灣日期，含頭含尾）：清單與匯出用同一組條件。
+const period = ref<[string, string] | null>(null)
+function isFutureDate(date: Date): boolean {
+  const local = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  return local > taipeiToday()
+}
 const hasMore = ref(false)
 const loadingMore = ref(false)
 const moreError = ref<string | null>(null)
@@ -37,37 +51,7 @@ function details(entry: AuditEntry): AuditDetails {
 function detailText(entry: AuditEntry): string {
   return details(entry).lines.join('，')
 }
-function campusText(entry: AuditEntry): string {
-  return entry.campus_key ? campusLabel(entry.campus_key) : '全站'
-}
-
-// 誰做的：讀取時由後端 join 帳號查出來（紀錄本身不存名字與 Email）。沒有操作者
-// 是排程發布、每天清理這類系統自己做的事；有 id 卻查不到是帳號已刪除。
-function actorText(entry: AuditEntry): string {
-  return staffLabel(staffOf(entry, 'actor'), entry.actor_user_id ? '已移除的帳號' : '系統')
-}
-function actorEmail(entry: AuditEntry): string {
-  return staffEmail(staffOf(entry, 'actor'))
-}
-
-// 從哪裡做的：裝置（由 User-Agent 解析）與 IP。IP 只有總部拿得到，其他人
-// 後端回 null；改版前的紀錄與系統動作兩個都沒有，就不多寫一行。
-function sourceText(entry: AuditEntry): string {
-  return [describeUserAgent(entry.user_agent), entry.ip_address].filter(Boolean).join('・')
-}
-
-// 對哪個帳號（新增帳號、重設密碼、改角色……）：後端給對方的顯示名稱，沒有時
-// 給 Email；Email 和其他地方一樣只寫 @ 前面那段，完整的放在 title。
-const EMAIL_LIKE = /^[^\s@]+@[^\s@]+$/
-function targetPerson(entry: AuditEntry): StaffPerson | null {
-  const label = entry.target_label?.trim()
-  if (!label) return null
-  return EMAIL_LIKE.test(label) ? { email: label } : { display_name: label }
-}
-function targetText(entry: AuditEntry): string {
-  const person = targetPerson(entry)
-  return person ? staffLabel(person) : ''
-}
+// 一筆的文字（操作者、裝置與 IP、對象、搜尋用整段）抽在 utils/auditFormat.ts，畫面與匯出共用。
 
 // 「查看案件」：只連到後端確認還在的案件（target_exists 是讀取時查的，個資
 // 清理刪掉的為 false）。不顯示家長姓名或案件編號，紀錄裡不含家長個資。
@@ -85,11 +69,7 @@ function contentLink(entry: AuditEntry): string | null {
 
 const visibleEntries = computed(() => {
   const keyword = search.value.trim().toLocaleLowerCase()
-  return entries.value.filter(entry => {
-    const { lines, others } = details(entry)
-    const who = [actorText(entry), actorEmail(entry), targetText(entry), staffEmail(targetPerson(entry))]
-    return [auditActionLabel(entry.action), auditTargetLabel(entry.target_type), ...who, sourceText(entry), ...lines, ...others, campusText(entry)].join(' ').toLocaleLowerCase().includes(keyword)
-  })
+  return entries.value.filter(entry => auditSearchText(entry, details(entry)).includes(keyword))
 })
 
 // 依台灣日期分段，日期標題捲動時固定在頁首下方；同一天裡的時間只寫時分。
@@ -118,10 +98,21 @@ const groups = computed(() => {
   return result
 })
 
-function auditPath(before?: AuditEntry): string {
+// 清單與匯出共用的條件。匯出逐頁讀，途中使用者改了篩選也不能讓後面幾頁換條件，所以按下去時先存一份。
+interface AuditFilters { campus: string; hideLogins: boolean; period: [string, string] | null }
+function currentFilters(): AuditFilters {
+  return { campus: campusFilter.value, hideLogins: hideLogins.value, period: period.value }
+}
+
+function auditPath(filters: AuditFilters, before?: AuditEntry, limit?: number): string {
   const params = new URLSearchParams()
-  if (campusFilter.value) params.set('campus_key', campusFilter.value)
-  if (hideLogins.value) params.set('exclude_login', 'true')
+  if (filters.campus) params.set('campus_key', filters.campus)
+  if (filters.hideLogins) params.set('exclude_login', 'true')
+  if (filters.period) {
+    params.set('created_from', filters.period[0])
+    params.set('created_to', filters.period[1])
+  }
+  if (limit) params.set('limit', String(limit))
   if (before) {
     params.set('before', before.created_at)
     params.set('before_id', before.id)
@@ -140,7 +131,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const result = await api.get<AuditEntry[]>(auditPath())
+    const result = await api.get<AuditEntry[]>(auditPath(currentFilters()))
     if (requests.isCurrent(request)) {
       entries.value = result
       hasMore.value = result.length >= AUDIT_LIMIT
@@ -160,7 +151,7 @@ async function loadMore() {
   loadingMore.value = true
   moreError.value = null
   try {
-    const result = await api.get<AuditEntry[]>(auditPath(last))
+    const result = await api.get<AuditEntry[]>(auditPath(currentFilters(), last))
     if (requests.isCurrent(request)) {
       entries.value = [...entries.value, ...result]
       hasMore.value = result.length >= AUDIT_LIMIT
@@ -172,7 +163,46 @@ async function loadMore() {
   }
 }
 
-watch([campusFilter, hideLogins], load)
+// 匯出：照目前校區、期間與搜尋，從最新的往前逐頁讀完（每次 500 筆），不只已載入的。超過
+// EXPORT_MAX 筆就停下、不產生半份檔案（半份的名單會被當成完整的）。紀錄不含家長個資，匯出本身不另寫稽核。
+// 裝置欄人人有；IP 欄只有總部（後端只給總部 IP），其他人的檔案沒有這一欄。
+const EXPORT_PAGE = 500
+const EXPORT_MAX = 5000
+const exporting = ref(false)
+async function exportCsv() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const filters = currentFilters()
+    const keyword = search.value.trim().toLocaleLowerCase()
+    const withIp = isSuperAdmin.value
+    const all: AuditEntry[] = []
+    let before: AuditEntry | undefined
+    for (;;) {
+      const page = await api.get<AuditEntry[]>(auditPath(filters, before, EXPORT_PAGE))
+      all.push(...page)
+      if (all.length > EXPORT_MAX) {
+        notifyWarning(`符合的紀錄超過 ${EXPORT_MAX.toLocaleString('zh-TW')} 筆，請縮短期間或選定校區再匯出。`)
+        return
+      }
+      if (page.length < EXPORT_PAGE) break
+      before = page[page.length - 1]
+    }
+    const rows = all
+      .map(entry => ({ entry, details: auditMetadataDetails(entry.metadata, entry.action) }))
+      .filter(({ entry, details: d }) => auditSearchText(entry, d).includes(keyword))
+      .map(({ entry, details: d }) => auditCsvRow(entry, d, withIp))
+    const campus = filters.campus ? campusLabel(filters.campus) : '全部校區'
+    const range = filters.period ? `${filters.period[0]}至${filters.period[1]}` : '全部期間'
+    downloadCsv(csvFilename('操作紀錄', campus, range, taipeiToday()), buildCsv(auditCsvHeader(withIp), rows))
+  } catch (err) {
+    notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
+  } finally {
+    exporting.value = false
+  }
+}
+
+watch([campusFilter, hideLogins, period], load)
 
 onMounted(() => {
   if (!isSuperAdmin.value && visibleCampusKeys.value.length > 0) {
@@ -190,11 +220,16 @@ onMounted(() => {
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
       <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
+      <label class="filter-field"><span>期間</span><el-date-picker v-model="period" type="daterange" value-format="YYYY-MM-DD" :disabled-date="isFutureDate" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="期間" data-test="audit-period" /></label>
       <el-checkbox v-model="hideLogins" class="filter-check" data-test="audit-hide-logins">不列登入登出</el-checkbox>
     </div>
     <div class="list-summary" role="status">
       <span>{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : search ? `符合 ${visibleEntries.length} 筆・已載入 ${entries.length} 筆` : `已載入 ${entries.length} 筆` }}</span>
-      <el-button :loading="loading" @click="load">重新整理</el-button>
+      <span class="audit-actions">
+        <el-button :loading="loading" @click="load">重新整理</el-button>
+        <el-button v-if="isSuperAdmin || campusFilter" :icon="Download" :loading="exporting" aria-describedby="audit-export-scope" data-test="audit-export" @click="exportCsv">匯出 CSV</el-button>
+      </span>
+      <span v-if="isSuperAdmin || campusFilter" id="audit-export-scope" class="hint audit-export-scope">匯出範圍：目前校區、期間與搜尋的全部紀錄（不只已載入的）</span>
     </div>
     <el-empty v-if="!isSuperAdmin && !visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
     <el-alert v-else-if="error" class="inline-error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
@@ -320,6 +355,18 @@ onMounted(() => {
 
 .audit-link.muted {
   color: var(--ink-3);
+}
+
+/* 重新整理與匯出併成一組靠右，匯出範圍的說明另起一行。 */
+.audit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.audit-export-scope {
+  flex-basis: 100%;
+  margin-top: -4px;
 }
 
 /* 和旁邊的輸入框一樣高，底線對齊。 */
