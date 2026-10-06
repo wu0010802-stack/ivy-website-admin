@@ -1,7 +1,19 @@
 import { expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
+import initialOverlay from './fixtures/overlay-initial-content.json'
 import type { SiteContent } from '../app/types/site-content'
+import type { ContentOverlay } from '../app/utils/content-overlay'
 import { publicCopy, withoutRetiredFields } from '../app/utils/public-copy'
+import { publishedContent } from '../app/utils/published-content'
+
+// 找出整棵資料樹裡所有名為 _todo 的鍵（含陣列內的物件），回傳路徑。
+function todoPaths(value: unknown, path = '$'): string[] {
+  if (Array.isArray(value)) return value.flatMap((item, i) => todoPaths(item, `${path}[${i}]`))
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([key, child]) => (key === '_todo' ? [`${path}._todo`] : []).concat(todoPaths(child, `${path}.${key}`)))
+  }
+  return []
+}
 
 it('修正已知原型說明，保留示意新聞與 CMS 自訂內容，不杜撰招生條件', () => {
   const site = fixture as unknown as SiteContent
@@ -48,4 +60,22 @@ it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文�
   expect(result.booking.ctaLabel).toBe(site.booking.ctaLabel)
   expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
   expect(raw.booking).toHaveProperty('consentText')
+})
+
+it('fixture 的 _todo 維護備註不進公開資料：任何層級都沒有，內部路徑與待辦字句也不外洩', () => {
+  const site = fixture as unknown as SiteContent
+  // fixture 留著 _todo：後端初始化內容與維護者要看。
+  expect(todoPaths(site).length).toBeGreaterThan(0)
+  // 正式站的路徑：後台內容疊在 fixture 上，再經 publicCopy。
+  const live = publishedContent(site, { schema_version: '1', release_id: 'r1', content: initialOverlay as unknown as ContentOverlay }).content
+  for (const result of [publicCopy(site), withoutRetiredFields(site), live]) {
+    expect(todoPaths(result)).toEqual([])
+    const json = JSON.stringify(result)
+    expect(json).not.toContain('design/hero-video-restoration')
+    expect(json).not.toContain('非明華校自有粉專')
+  }
+  // 頁面用得到的欄位照舊（headerPhone 與 hero 只少了 _todo）。
+  expect(live.siteMeta.headerPhone.number).toBe(site.siteMeta.headerPhone.number)
+  expect(live.home.hero.heroImage).toBeTruthy()
+  expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
 })

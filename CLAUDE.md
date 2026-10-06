@@ -65,9 +65,9 @@
 ## 現況容易搞錯的事（2026-09-24）
 
 - 「孩子的一天」是背景影片（760px 分界切桌／手機檔）＋六張可翻面拍立得，不是舊分頁；`dayMoments` 欄位 `key,time,label,tint,photo,alt,caption,title,story,question,answer`。
-- 首頁五校是 e3 墨綠底板卡，首頁沒有嵌入地圖；分校內頁才有，且只載當前校。
+- 首頁五校是 e3 墨綠底板卡，網站內沒有嵌入地圖（地址連到 Google 地圖另開分頁）；各校分校頁已於 2026-10-03 拿掉，`/campuses` 與 `/campuses/**` 301 回首頁。
 - 頁首預約鈕全站只有一種：金色滿高色塊（d9），手機退回膠囊。
-- 首頁捲過 40px 頁首收成靠右的深綠膠囊；分校頁與預約頁在 900px 以下也收，桌機內頁不收。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
+- 首頁捲過 40px 頁首收成靠右的深綠膠囊；預約頁在 900px 以下也收，桌機內頁不收。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
 - 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。

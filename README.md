@@ -1,3 +1,12 @@
+## 2026-10-07 公開資料不再帶出維護備註 `_todo`、更正兩處分校頁過時文件（`fix/public-todo-strip-20261007`，未部署）
+
+審查舊分支 `feature/website-admin`（落後 main 814 個 commit，三個程式 commit 都是 main 上 `26eb29d7`／`fb74e5ce`／`503ec361` 的舊版）時，查到 main 本身有三處殘留。
+
+- **`_todo` 外洩**：fixture 的 `_todo`（維護者的待辦與來源備註，含 repo 內部路徑 `design/hero-video-restoration-20260922/build.py`）原本會經 `publicCopy` 進 `/api/published-site` 與每頁 SSR payload，共 8 處（`home.hero`、`dayExperience.moments[3]`、五校、`siteMeta.headerPhone`）。`withoutRetiredFields`（`web/app/utils/public-copy.ts`）現在遞迴拿掉任何層級的 `_todo`；fixture 本身不動，後端初始化內容仍讀得到。測試 `web/tests/public-copy.spec.ts` 走正式路徑 `publishedContent`，先確認紅燈再轉綠。
+- **`CLAUDE.md`**：「分校內頁才有地圖」「分校頁與預約頁在 900px 以下也收」改成現況（分校頁已拿掉、`/campuses/**` 301 回首頁）。
+- **`docs/website-admin/seo-performance.md`**：Google 商家網站連結不再指示設成 `/campuses/<key>`，改先指首頁；`/visit/<key>` 是 noindex，要不要改指預約頁由園方決定。
+- 未處理：`docs/website-admin/acceptance.md` A21／A22 的通過證據仍引用已刪除的分校頁測試，要不要補註留給負責驗收紀錄的人。
+
 ## 2026-10-06 成效統計 UI/UX：三個頁籤、五校表置頂、說明收合（`feature/analytics-ux-20261006`，10-06 已部署 main `3d50e0a1`）
 
 使用者指著正式站 `/admin/analytics` 說「幫我優化這塊的 ui/ux」。沿用 10-06 結構層比稿的 E 方向（`design/admin-ux-directions-20261006/e-analytics.html`）實作，規則見 DESIGN.md「成效統計：三個頁籤與兩欄格線」。
