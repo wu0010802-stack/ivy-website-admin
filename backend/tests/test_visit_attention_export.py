@@ -158,7 +158,6 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
     assert [r["家長"] for r in await export("status=confirmed")] == ["王媽媽"]
     assert [r["家長"] for r in await export("source=line")] == ["李爸爸"]
     assert [r["家長"] for r in await export("q=0922000333")] == ["張媽媽"]
-    assert [r["家長"] for r in await export("assignee=me&status=confirmed")] == ["王媽媽"]
     today = today_local()
     assert len(await export(f"created_from={today - timedelta(days=1)}&created_to={today}")) == 3
     assert await export(f"created_from={today + timedelta(days=1)}") == []
@@ -185,7 +184,7 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
     searched = by_query[3]
     assert searched == {"row_count": 1, "has_search": True}
     assert "0922000333" not in str(searched)
-    assert by_query[5] == {
+    assert by_query[4] == {
         "row_count": 3,
         "created_from": (today - timedelta(days=1)).isoformat(),
         "created_to": today.isoformat(),

@@ -144,7 +144,7 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
         campus_phone=str(profile.get("phone") or "").strip() or None,
         slots_open=config is not None and config.mode == BookingMode.SLOTS,
     )
-    # 家長改資料用自己的版本（不是園方承辦人／下次聯絡的 version）。
+    # 家長改資料用自己的版本（不是園方下次聯絡的 version）。
     output.version = await workflow_service.details_version(db, visit_request.id)
     if visit_request.status == "confirmed":
         pending_id = await db.scalar(select(RescheduleRequest.id).where(

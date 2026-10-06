@@ -1,5 +1,5 @@
 // 案件歷程一筆要顯示的字：動作、誰做的、異動前後與原因。後端的 before／after
-// 只放狀態、時段、承辦人、下次聯絡時間與連結期限，這裡逐一翻成園方看得懂的句子。
+// 只放狀態、時段、下次聯絡時間與連結期限（舊紀錄還有承辦人），這裡逐一翻成園方看得懂的句子。
 import type { VisitHistoryOut } from './types'
 import {
   formatDateTime,
@@ -95,6 +95,7 @@ export function visitEventChanges(
   const requested = slotOf(after, 'requested_slot')
   if (requested) lines.push(`申請的時段 ${formatSlotWhen(requested)}`)
 
+  // 承辦人 2026-10-06 拿掉，只剩舊歷程有這組前後值。
   if (after && 'assigned_staff_id' in after) {
     lines.push(`${staffLabelById(text(before, 'assigned_staff_id'), staff)} → ${staffLabelById(text(after, 'assigned_staff_id'), staff)}`)
   }

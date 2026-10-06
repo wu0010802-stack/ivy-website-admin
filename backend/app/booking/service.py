@@ -452,7 +452,7 @@ async def create_manual_visit_request(
     """人員補登一筆案件，當場排進場次、建立即是 confirmed。場次的檢查見
     slot_service.lock_for_staff_booking（不受公開的最短提前時間限制）；額滿、
     已關閉或已開始丟例外，案件不建立。不看預約模式、不寫「新的參觀預約」
-    通知（登錄的人自己就是承辦人），只排「已確認」通知與家長確認信。
+    通知（登錄的人自己就知道這筆），只排「已確認」通知與家長確認信。
 
     回傳 (visit_request, is_new)；同一個 key 重送回原案件，不重複建立。"""
     key = f"{MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}"
@@ -495,8 +495,6 @@ async def create_manual_visit_request(
         confirmed_at=now,
         source=source.value,
         created_by=created_by,
-        # 誰接的電話誰先承辦，之後可以在案件頁改派。
-        assigned_staff_id=created_by,
         created_at=now,
     )
     db.add(visit_request)

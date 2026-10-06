@@ -1,18 +1,18 @@
-"""後台人工補登案件與指派承辦人。"""
+"""後台人工補登案件；承辦人（指派、篩選、總覽計數）2026-10-06 拿掉。"""
 
 from __future__ import annotations
 
+import uuid
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.auth.models import Role
-from app.booking.models import OutboxMessage
+from app.booking.models import OutboxMessage, VisitRequest
 from app.operations.models import AnalyticsEvent, AuditLogEntry
 from tests.conftest import (
     book_slot,
-    case_version,
     _create_user,
     _logged_in_client,
     legacy_request,
@@ -75,7 +75,7 @@ async def test_manual_intake_creates_confirmed_case_even_when_online_booking_pau
     assert body["phone"] == "0912345678"
     me = await _me(admin_client)
     assert body["created_by"] == me
-    assert body["assigned_staff_id"] == me
+    assert "assigned_staff_id" not in body
 
     notes = await admin_client.get(f"{BASE}/visit-requests/{body['id']}/contact-notes")
     assert [n["note"] for n in notes.json()] == ["家長來電，想週六參觀"]
@@ -258,75 +258,36 @@ async def test_campus_admin_cannot_manually_create_for_other_campus(admin_client
 
 
 @pytest.mark.asyncio
-async def test_assign_and_filter_by_assignee(app, admin_client, db_session):
+async def test_assignee_logic_is_gone(app, admin_client, db_session):
+    """2026-10-06 拿掉承辦人：沒有指派端點、清單不再依承辦人篩選、明細與月曆不回傳、
+    總覽沒有「我承辦的案件」「承辦人已停用」。資料表欄位與舊值先留著。"""
     colleague = await _create_user(
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
-    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
-
-    assigned = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
+    case_id = await legacy_request(db_session, status="confirmed", parent_name="王媽媽")
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == uuid.UUID(case_id)).values(assigned_staff_id=colleague.id)
     )
-    assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["assigned_staff_id"] == str(colleague.id)
+    await db_session.commit()
+
+    gone = await admin_client.patch(
+        f"{BASE}/visit-requests/{case_id}/assignee", json={"assigned_staff_id": None, "expected_version": 1}
+    )
+    assert gone.status_code in (404, 405)
+
+    # 舊書籤的 ?assignee=me 當作沒有這個條件：舊承辦人是同事，總管理者照樣看得到這筆。
+    listed = await admin_client.get(f"{BASE}/visit-requests?assignee=me")
+    assert [r["id"] for r in listed.json()] == [case_id]
+    assert "assigned_staff_id" not in listed.json()[0]
+    assert "assigned_staff_id" not in (await admin_client.get(f"{BASE}/visit-requests/{case_id}")).json()
 
     colleague_client = await _logged_in_client(app, "yihua-staff@ivy.example", "yihua-staff-password-123")
     try:
-        mine = await colleague_client.get(f"{BASE}/visit-requests?assignee=me")
-        assert [r["id"] for r in mine.json()] == [case["id"]]
+        dashboard = (await colleague_client.get(f"{BASE}/dashboard")).json()
     finally:
         await colleague_client.aclose()
-    assert (await admin_client.get(f"{BASE}/visit-requests?assignee=me")).json() == []
-
-    cleared = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": await case_version(admin_client, case["id"])}
-    )
-    assert cleared.json()["assigned_staff_id"] is None
-    unassigned = await admin_client.get(f"{BASE}/visit-requests?assignee=none")
-    assert [r["id"] for r in unassigned.json()] == [case["id"]]
-
-    actions = (await db_session.execute(select(AuditLogEntry.action))).scalars().all()
-    assert actions.count("visit_request.assign") == 2
-
-
-@pytest.mark.asyncio
-async def test_cannot_assign_to_staff_without_campus_scope_or_inactive(admin_client, db_session):
-    other_campus = await _create_user(
-        db_session, "renwu-staff@ivy.example", "renwu-staff-password-123", Role.CAMPUS_ADMIN, ["renwu"]
-    )
-    editor = await _create_user(
-        db_session, "editor2@ivy.example", "editor2-password-12345", Role.EDITOR, ["yihua"]
-    )
-    inactive = await _create_user(
-        db_session, "gone@ivy.example", "gone-password-1234567", Role.CAMPUS_ADMIN, ["yihua"]
-    )
-    inactive.is_active = False
-    await db_session.commit()
-
-    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
-    for user in (other_campus, editor, inactive):
-        response = await admin_client.patch(
-            f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(user.id), "expected_version": await case_version(admin_client, case["id"])}
-        )
-        assert response.status_code == 422, user.email
-        assert response.json()["detail"]["code"] == "ASSIGNEE_INVALID"
-
-
-@pytest.mark.asyncio
-async def test_reschedule_keeps_existing_assignee(admin_client, db_session):
-    colleague = await _create_user(
-        db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
-    )
-    slot = await _create_slot(admin_client)
-    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
-    await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
-    )
-    moved = await admin_client.post(
-        f"{BASE}/visit-requests/{case['id']}/reschedule", json={"new_slot_id": slot["id"]}
-    )
-    assert moved.status_code == 200, moved.text
-    assert moved.json()["assigned_staff_id"] == str(colleague.id)
+    assert "my_open_cases" not in dashboard
+    assert "inactive_assignee_open_cases" not in dashboard
 
 
 @pytest.mark.asyncio

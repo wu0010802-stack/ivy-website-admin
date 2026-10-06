@@ -1,3 +1,15 @@
+## 2026-10-06 參觀案件拿掉承辦人（`feature/remove-assignee-20261006`）
+
+使用者指著預約明細右側的「承辦人：未指派」說「可以幫我把承辦人這個邏輯拿掉嗎」。規則見 DESIGN.md「參觀案件拿掉承辦人」。
+
+- **後台**：預約明細的承辦人選單與家庭版面「預約承辦」小字、案件列表的承辦人欄／篩選／手機卡片「承辦：」、接待月曆的「承辦：」（只留「電話補登」這類來源）、總覽「我承辦的案件」與「承辦人已停用」待辦、停用帳號的未結案件數提醒都拿掉；`useVisitStaff` 拿掉 `assignableFor`。舊歷程與操作紀錄的承辦人標籤保留。
+- **後端**：刪 `PATCH /admin/visit-requests/{id}/assignee`、清單／匯出的 `assignee` 篩選、總覽 `my_open_cases`／`inactive_assignee_open_cases`；明細與月曆不再回 `assigned_staff_id`；補登不再自動指派；招生負責人改成標記到場的人。**資料表欄位保留、沒有 migration**。契約已重新產生。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_test_noassignee`）：
+  - 後端：改寫 `test_visit_manual_and_assign`（新增「承辦人已拿掉」回歸測試）、`test_edit_versions`（版本鎖改用下次聯絡）、`test_admissions_follow_up`（負責人＝標記的人，舊承辦人不看）、`test_reception_handling`，刪 `test_dashboard_my_cases.py`；全套 1591 過、1 略過。
+  - 後台：`uxRound8Cases` 改成拿掉後的回歸測試（舊書籤不送 assignee、總覽沒有兩區、停用帳號不查件數），其餘 fixture 拿掉欄位；vitest 108 檔 1367 項全過、`vue-tsc -b` 通過；`contract:check` 通過；官網 829 項通過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_e2e_noassignee_test`、埠 8752／3752，跑完已刪庫）：整套 76 項全過。`visit-detail` 基準圖差異低於 1% 門檻原本會照舊通過，改用 `--update-snapshots=all` 重拍成沒有承辦人的版本。1440／390 截圖在 `output/playwright/remove-assignee-20261006/`。
+  - 未驗證：正式站。
+
 ## 2026-10-06 招生來源分類收斂成六項（`feature/source-category-choices-20261006`，10-06 已部署 main `0909491c`）
 
 使用者：「訪視紀錄的來源分類幫我收斂選項」，選「六項、只改畫面」。規則見 DESIGN.md「來源分類收斂」。

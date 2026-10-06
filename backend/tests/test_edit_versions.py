@@ -1,4 +1,4 @@
-"""2026-09-25 缺口 69：時段、案件（承辦人、下次聯絡時間）、每週規則、素材
+"""2026-09-25 缺口 69：時段、案件（下次聯絡時間）、每週規則、素材
 metadata 都有 version，PATCH／PUT 帶 expected_version，不符回 409，不再後寫
 蓋前寫。每週規則與全站設定的衝突測試在 test_visit_schedule.py、
 test_operations.py。"""
@@ -10,8 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import _create_user, legacy_request
-from app.auth.models import Role
+from tests.conftest import legacy_request
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -72,57 +71,42 @@ async def test_holiday_closing_bumps_slot_version(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_assignee_and_follow_up_use_case_version(admin_client, db_session):
-    colleague = await _create_user(db_session, "desk-v@ivy.example", "desk-password-123456", Role.RECEPTION, ["yihua"])
+async def test_follow_up_uses_case_version(admin_client, db_session):
     case = await _case(db_session)
     assert case["version"] == 1
 
-    assigned = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee",
-        json={"assigned_staff_id": str(colleague.id), "expected_version": 1},
-    )
-    assert assigned.status_code == 200, assigned.text
-    assert assigned.json()["version"] == 2
-
-    stale = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": 1}
-    )
-    assert stale.status_code == 409
-    assert stale.json()["detail"]["code"] == "VISIT_REQUEST_VERSION_CONFLICT"
-    assert stale.json()["detail"]["current_version"] == 2
-
-    # 改下次聯絡時間也要帶版本；只記一筆聯絡紀錄不用。
+    # 改下次聯絡時間要帶版本；只記一筆聯絡紀錄不用。
     needs_version = await admin_client.post(
         f"{BASE}/visit-requests/{case['id']}/contact-notes",
         json={"note": "再聯絡", "follow_up_at": "2999-01-01T09:00:00Z"},
     )
     assert needs_version.status_code == 422
-    stale_note = await admin_client.post(
+    first = await admin_client.post(
         f"{BASE}/visit-requests/{case['id']}/contact-notes",
         json={"note": "再聯絡", "follow_up_at": "2999-01-01T09:00:00Z", "expected_version": 1},
     )
+    assert first.status_code == 201, first.text
+    stale_note = await admin_client.post(
+        f"{BASE}/visit-requests/{case['id']}/contact-notes",
+        json={"note": "改時間", "follow_up_at": "2999-01-02T09:00:00Z", "expected_version": 1},
+    )
     assert stale_note.status_code == 409
     assert stale_note.json()["detail"]["code"] == "VISIT_REQUEST_VERSION_CONFLICT"
+    assert stale_note.json()["detail"]["current_version"] == 2
     plain = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/contact-notes", json={"note": "打過電話"})
     assert plain.status_code == 201, plain.text
-    ok = await admin_client.post(
-        f"{BASE}/visit-requests/{case['id']}/contact-notes",
-        json={"note": "再聯絡", "follow_up_at": "2999-01-01T09:00:00Z", "expected_version": 2},
-    )
-    assert ok.status_code == 201, ok.text
-    detail = (await admin_client.get(f"{BASE}/visit-requests/{case['id']}")).json()
-    assert detail["version"] == 3
-    assert detail["assigned_staff_id"] == str(colleague.id)
+    assert (await admin_client.get(f"{BASE}/visit-requests/{case['id']}")).json()["version"] == 2
 
-    # 狀態轉換不動版本：家長或同事改了狀態，開著的畫面仍可以改承辦人。
+    # 狀態轉換不動版本：家長或同事改了狀態，開著的畫面仍可以改下次聯絡。
     slot = await _slot(admin_client)
     moved = await admin_client.post(f"{BASE}/visit-requests/{case['id']}/reschedule", json={"new_slot_id": slot["id"]})
     assert moved.status_code == 200, moved.text
-    assert moved.json()["version"] == 3
-    again = await admin_client.patch(
-        f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": None, "expected_version": 3}
+    assert moved.json()["version"] == 2
+    again = await admin_client.post(
+        f"{BASE}/visit-requests/{case['id']}/contact-notes",
+        json={"note": "改時間", "follow_up_at": None, "expected_version": 2},
     )
-    assert again.status_code == 200, again.text
+    assert again.status_code == 201, again.text
 
 
 @pytest.mark.asyncio

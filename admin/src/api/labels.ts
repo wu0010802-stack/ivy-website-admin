@@ -31,7 +31,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 // 接待人員可以處理案件）。要跟 backend/app/auth/permissions.py 一致。
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   super_admin: '管理全部校區、使用者、全站內容與設定。',
-  campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件，並指派承辦人。匯出家長個資要另外授權。',
+  campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件。匯出家長個資要另外授權。',
   editor: '編輯指定校區的內容與素材；不能發布，改好送審，由校區管理者發布。看不到家長個資。',
   reception: '處理指定校區的參觀案件：記聯絡紀錄、排入既有時段、補登、改期、取消與完成。不能新增時段、改預約設定或官網內容。',
   readonly: '查看指定校區的內容與去識別的成效統計；看不到家長個資。',
@@ -162,7 +162,7 @@ export function visitSourceLabel(source: string | null | undefined): string {
 }
 
 // ---- 同事的名字（2026-09-28 業主裁定加「顯示名稱」）----
-// 承辦人、聯絡紀錄、歷程、操作紀錄、發布與排程、素材上傳者……凡是畫面上
+// 登錄的人、聯絡紀錄、歷程、操作紀錄、發布與排程、素材上傳者……凡是畫面上
 // 寫「誰」的地方都走這裡：有顯示名稱用顯示名稱，沒填就用 Email @ 前面那段
 // （表格放得下）。完整 Email 只放在 title，滑過去看得到，同前綴的同事靠它分辨。
 
@@ -206,7 +206,7 @@ export function staffOf<P extends StaffFieldPrefix>(row: StaffFields<P>, prefix:
   return { display_name: fields[`${prefix}_display_name`], email: fields[`${prefix}_email`] }
 }
 
-/** 只存 id 的欄位（承辦人、登錄的人、歷程裡的承辦人異動）：從同事名單找名字。 */
+/** 只存 id 的欄位（登錄的人、舊歷程裡的承辦人異動）：從同事名單找名字。 */
 export function staffLabelById(
   staffId: string | null | undefined,
   staff: readonly (StaffPerson & { id: string })[],
@@ -428,6 +428,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'user.update_display_name': '變更顯示名稱',
   'visit_request.export': '匯出家長個資',
   'visit_request.manual_create': '人工補登參觀案件',
+  // 承辦人 2026-10-06 拿掉，只剩舊紀錄。
   'visit_request.assign': '指派承辦人',
   'visit_request.create_access_link': '產生家長管理連結',
   'visit_request.resend_confirmation': '重寄家長確認信',
@@ -551,6 +552,7 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   completed: '標記已到場',
   hold_expired: '占位逾期，名額釋出',
   contact_logged: '新增聯絡紀錄',
+  // 承辦人 2026-10-06 拿掉，只剩舊歷程。
   assigned: '指派承辦人',
   unassigned: '取消指派',
   linked_from_previous: '由先前的案件重新預約',
@@ -1274,6 +1276,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
   group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
+  // 承辦人篩選 2026-10-06 拿掉，只剩舊的匯出紀錄。
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : v === 'inactive' ? '承辦人已停用' : '指定的同事'}`,
   open: (v) => (v ? '只匯出還沒結案的案件' : null),
   follow_up_due: (v) => (v ? '只匯出到期待追蹤的案件' : null),
@@ -1397,7 +1400,7 @@ function pairedLines(m: Record<string, unknown>): string[] {
     lines.push(`篩選送出日期：${m.created_from ? auditWhen(m.created_from) : '不限'} – ${m.created_to ? auditWhen(m.created_to) : '不限'}`)
   }
   if (m.date_from || m.date_to) lines.push(`日期：${auditWhen(m.date_from)} – ${auditWhen(m.date_to)}`)
-  // 指派承辦人：from／to 是使用者 id，不顯示 id，只講是指派、更換還是取消。
+  // 指派承辦人（2026-10-06 拿掉，只剩舊紀錄）：from／to 是使用者 id，不顯示 id，只講是指派、更換還是取消。
   if (has('from') || has('to')) lines.push(!m.to ? '取消指派' : m.from ? '更換承辦人' : '指派給同事')
   return lines
 }

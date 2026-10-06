@@ -1,7 +1,7 @@
 import { formatDate } from '../api/labels'
 import { sessionName } from './sessions'
 
-export interface CalendarVisit { id: string; status: string; parent_name: string; child_name: string | null; phone: string; source: string; assigned_staff_id: string | null; party_size?: number | null }
+export interface CalendarVisit { id: string; status: string; parent_name: string; child_name: string | null; phone: string; source: string; party_size?: number | null }
 export interface CalendarSlot { id: string; campus_key: string; slot_date: string; start_time: string; end_time: string; capacity: number; closed: boolean; closed_source?: string | null; version: number; booked_count: number; visits: CalendarVisit[] }
 export type ChipKind = 'visit' | 'stopped' | 'open'
 export interface Chip { key: string; kind: ChipKind; text: string; ended: boolean; status?: string }

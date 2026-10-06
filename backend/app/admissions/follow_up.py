@@ -3,7 +3,7 @@
 - condition：追蹤三種狀態（due／upcoming／unscheduled，規格 6.2）。待追蹤清單、訪視明細
   篩選、總覽計數都從這裡取條件，數字點進清單才會是同一批（比照 booking/pending_kinds.py）。
 - initial_fields：建檔時帶入的追蹤欄位（規格 6.1）。不自動排第一次聯絡（F-Q1）：只沿用
-  預約上還沒到的下次聯絡，負責人依序取預約承辦人、這次操作的人。
+  預約上還沒到的下次聯絡，負責人取這次操作的人。
 - add_contact_log：記錄聯絡（規格 6.3）；update_follow_up：只改下次聯絡或負責人（規格 6.4）。
 - follow_up_list、due_counts、eligible_staff：待追蹤分頁、總覽與負責人選單。
 
@@ -96,7 +96,7 @@ def is_open(visit: RecruitmentVisit) -> bool:
 
 def owner_problem(user: User | None, campus_key: str) -> str | None:
     """不能當這個校區負責人的原因；可以就回 None。user 要已載入 campus_scopes。
-    文案比照預約指派承辦人（booking/workflow_service.assign）。"""
+    文案比照後台其他指派（停用、沒權限、沒有這個校區）。"""
     if user is None:
         return "找不到這個帳號"
     if not user.is_active:

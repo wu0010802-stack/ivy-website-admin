@@ -169,6 +169,8 @@ class VisitRequest(Base):
     slot_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("visit_slots.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    # 承辦人：2026-10-06 業主要求拿掉整套邏輯，程式不再讀寫；欄位與舊值先留在資料表，
+    # 要刪欄位另寫 migration（改寫正式資料前先備份）。
     assigned_staff_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -179,7 +181,7 @@ class VisitRequest(Base):
     # 舊取消案件為 NULL。
     cancel_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # 可編輯欄位（承辦人、下次聯絡時間）的樂觀鎖。狀態轉換靠列鎖與狀態機，
+    # 可編輯欄位（下次聯絡時間）的樂觀鎖。狀態轉換靠列鎖與狀態機，
     # 不動這個欄位——否則家長取消一次，園方開著的頁面每個按鈕都要重新整理。
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -327,7 +329,7 @@ class VisitEventSource(str, enum.Enum):
 
 class VisitRequestEvent(Base):
     """案件歷程（規格 L299 VisitHistory）：做了什麼、誰做的、異動前後與原因。
-    before／after 只放狀態、時段、承辦人這類非個資欄位；reason 是人員填的
+    before／after 只放狀態、時段、下次聯絡這類非個資欄位；reason 是人員填的
     自由文字，匿名化時會清掉。2026-09-25 以前的舊歷程沒有操作人與前後值。"""
 
     __tablename__ = "visit_request_events"

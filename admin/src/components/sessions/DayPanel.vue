@@ -4,13 +4,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { api } from '../../api/client'
 import { isVersionConflict, apiErrorMessage } from '../../api/errors'
-import { formatDate, formatTime, formatWeekday, staffEmailById, staffLabelById, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
-import type { VisitStaffOut } from '../../api/types'
+import { formatDate, formatTime, formatWeekday, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
 import StatusTag from '../StatusTag.vue'
 import { slotEnded, type CalendarSlot } from '../../utils/calendarChips'
 import { sessionName } from '../../utils/sessions'
 
-const props = defineProps<{ day: string; campusKey: string; slots: CalendarSlot[]; holiday: { id: string; reason: string | null } | null; canManage: boolean; staff: VisitStaffOut[] }>()
+const props = defineProps<{ day: string; campusKey: string; slots: CalendarSlot[]; holiday: { id: string; reason: string | null } | null; canManage: boolean }>()
 const emit = defineEmits<{ changed: [] }>()
 
 const busyId = ref('')
@@ -139,7 +138,8 @@ async function addSlot() {
           <router-link :to="`/visit-requests/${v.id}`" class="calendar__visit-name">{{ v.parent_name }}</router-link>
           <span class="muted calendar__visit-child">{{ v.child_name || '孩子姓名未填寫' }}<template v-if="v.party_size"> · {{ v.party_size }} 人參觀</template></span>
           <a class="num calendar__visit-phone" :href="`tel:${v.phone}`">{{ v.phone }}</a>
-          <span class="muted calendar__visit-staff" :title="staffEmailById(v.assigned_staff_id, staff) || undefined">承辦：{{ staffLabelById(v.assigned_staff_id, staff) }}<template v-if="v.source !== 'web'"> · {{ visitSourceLabel(v.source) }}補登</template></span>
+          <!-- 官網送出的留空，欄位照樣占著，狀態標籤才會對齊。 -->
+          <span class="muted calendar__visit-source">{{ v.source !== 'web' ? `${visitSourceLabel(v.source)}補登` : '' }}</span>
           <StatusTag :meta="visitMeta(slot, v.status)" size="small" />
         </li>
       </ul>
@@ -169,7 +169,7 @@ async function addSlot() {
 .calendar__visits { list-style: none; margin: 0; padding: 0; }
 .calendar__visits li {
   display: grid;
-  grid-template-columns: minmax(6em, 1fr) minmax(6em, 1fr) auto minmax(8em, 1.5fr) auto;
+  grid-template-columns: minmax(6em, 1fr) minmax(6em, 1fr) auto minmax(6em, 1fr) auto;
   gap: 4px 16px;
   align-items: center;
   padding: 10px 16px;
@@ -183,13 +183,13 @@ async function addSlot() {
 /* 已結束的場次不整塊調淡（小字會掉到 4.5:1 以下，DESIGN.md 規則），只在標題旁寫「已結束」。 */
 
 @media (max-width: 720px) {
-  /* 每筆：家長＋狀態、可撥號的電話、灰字的孩子與承辦。 */
-  .calendar__visits li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name status' 'phone phone' 'child child' 'staff staff'; gap: 0 12px; }
+  /* 每筆：家長＋狀態、可撥號的電話、灰字的孩子與來源。 */
+  .calendar__visits li { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'name status' 'phone phone' 'child child' 'source source'; gap: 0 12px; }
   /* 點家長進案件是這裡最主要的動作，觸控範圍跟電話一樣 44px。 */
   .calendar__visit-name { grid-area: name; display: inline-flex; align-items: center; min-height: 44px; justify-self: start; }
   .calendar__visits li > .el-tag { grid-area: status; justify-self: end; }
   .calendar__visit-phone { grid-area: phone; display: inline-flex; align-items: center; min-height: 44px; justify-self: start; }
   .calendar__visit-child { grid-area: child; }
-  .calendar__visit-staff { grid-area: staff; }
+  .calendar__visit-source { grid-area: source; }
 }
 </style>

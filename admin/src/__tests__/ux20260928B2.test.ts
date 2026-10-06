@@ -33,7 +33,7 @@ const request = (extra: Record<string, unknown> = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, party_size: null,
   slot_id: future.id, slot: future, created_at: '2026-09-22T00:00:00Z', follow_up_at: null, version: 1,
-  assigned_staff_id: null, confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, history: [], pending_reschedule: null, access_link: null,
+  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, history: [], pending_reschedule: null, access_link: null,
   ...extra,
 })
 

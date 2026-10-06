@@ -2238,18 +2238,6 @@
       "CalendarVisitOut": {
         "description": "月曆格子裡的一位家長：只放接待當天需要的欄位，完整資料點進案件看。",
         "properties": {
-          "assigned_staff_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned Staff Id"
-          },
           "child_name": {
             "anyOf": [
               {
@@ -2300,8 +2288,7 @@
           "parent_name",
           "child_name",
           "phone",
-          "source",
-          "assigned_staff_id"
+          "source"
         ],
         "title": "CalendarVisitOut",
         "type": "object"
@@ -5882,7 +5869,7 @@
         "type": "object"
       },
       "ParentVisitRequestOut": {
-        "description": "家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，\n含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、\n孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——\n修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。",
+        "description": "家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，\n含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、\n孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——\n修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。",
         "properties": {
           "campus_active": {
             "title": "Campus Active",
@@ -9879,7 +9866,7 @@
         "type": "object"
       },
       "VisitHistoryOut": {
-        "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人\n或下次聯絡時間，不含家長個資。",
+        "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）或下次聯絡\n時間（2026-10-06 以前的舊紀錄可能還有已拿掉的承辦人），不含家長個資。",
         "properties": {
           "actor_display_name": {
             "anyOf": [
@@ -9988,33 +9975,6 @@
           "created_at"
         ],
         "title": "VisitHistoryOut",
-        "type": "object"
-      },
-      "VisitRequestAssignRequest": {
-        "properties": {
-          "assigned_staff_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned Staff Id"
-          },
-          "expected_version": {
-            "minimum": 1.0,
-            "title": "Expected Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "assigned_staff_id",
-          "expected_version"
-        ],
-        "title": "VisitRequestAssignRequest",
         "type": "object"
       },
       "VisitRequestCancelRequest": {
@@ -10224,18 +10184,6 @@
               }
             ],
             "title": "Age"
-          },
-          "assigned_staff_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned Staff Id"
           },
           "campus_key": {
             "title": "Campus Key",
@@ -10503,7 +10451,6 @@
           "preferred_time",
           "questions",
           "slot_id",
-          "assigned_staff_id",
           "confirmed_at",
           "cancelled_at",
           "follow_up_at",
@@ -10537,18 +10484,6 @@
               }
             ],
             "title": "Age"
-          },
-          "assigned_staff_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned Staff Id"
           },
           "campus_key": {
             "title": "Campus Key",
@@ -10848,7 +10783,6 @@
           "preferred_time",
           "questions",
           "slot_id",
-          "assigned_staff_id",
           "confirmed_at",
           "cancelled_at",
           "follow_up_at",
@@ -11561,7 +11495,7 @@
         "type": "object"
       },
       "VisitStaffOut": {
-        "description": "可以承辦案件的後台人員：有 booking.handle 的總管理者、分校管理者與\n櫃台。campus_keys 為空代表總管理者，可承辦任何校區。",
+        "description": "處理參觀案件的後台人員：有 booking.handle 的總管理者、分校管理者與\n櫃台。campus_keys 為空代表總管理者，可處理任何校區。",
         "properties": {
           "campus_keys": {
             "items": {
@@ -20806,24 +20740,6 @@
             }
           },
           {
-            "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-            "in": "query",
-            "name": "assignee",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-              "title": "Assignee"
-            }
-          },
-          {
             "description": "案件來源：web／phone／line／walk_in／external",
             "in": "query",
             "name": "source",
@@ -21141,24 +21057,6 @@
             }
           },
           {
-            "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-            "in": "query",
-            "name": "assignee",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-              "title": "Assignee"
-            }
-          },
-          {
             "description": "案件來源：web／phone／line／walk_in／external",
             "in": "query",
             "name": "source",
@@ -21382,24 +21280,6 @@
               "description": "只列已到預定聯絡時間、尚未結案的案件",
               "title": "Follow Up Due",
               "type": "boolean"
-            }
-          },
-          {
-            "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-            "in": "query",
-            "name": "assignee",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id",
-              "title": "Assignee"
             }
           },
           {
@@ -21711,91 +21591,6 @@
         "summary": "Create Parent Access Link",
         "tags": [
           "parent-access"
-        ]
-      }
-    },
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/assignee": {
-      "patch": {
-        "operationId": "assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "visit_request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Visit Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VisitRequestAssignRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Assign Visit Request",
-        "tags": [
-          "booking"
         ]
       }
     },
@@ -22847,7 +22642,7 @@
     },
     "/api/website/v1/admin/visit-staff": {
       "get": {
-        "description": "可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。\n非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出\n其他校的人員配置。",
+        "description": "處理參觀案件的同事（booking.handle：總管理者、分校管理者、接待人員），\n畫面用來把登錄的人、聯絡紀錄與歷程裡的 id 翻成名字。\n非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出\n其他校的人員配置。",
         "operationId": "list_visit_staff_api_website_v1_admin_visit_staff_get",
         "parameters": [
           {

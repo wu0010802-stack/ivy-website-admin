@@ -22,7 +22,7 @@ const detail = (changes: Record<string, unknown> = {}) => ({
   id: VR_ID, campus_key: 'yihua', status: 'completed', parent_name: '陳媽媽', phone: '0911000111', child_name: '陳小寶',
   child_birthdate: '2023-03-02', email: 'chen@example.org', referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: started.id, slot: started, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
-  assigned_staff_id: 'desk', confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web', pending_reschedule: null,
+  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web', pending_reschedule: null,
   access_link: null, version: 1,
   history: [
     { id: 'h1', event_type: 'created', source: 'parent', actor_user_id: null, actor_email: null, actor_display_name: null, before: null, after: null, reason: null, created_at: '2026-09-22T00:00:00Z' },
@@ -87,12 +87,12 @@ async function mountDetail(user: UserOut = superAdmin(), back?: string, featureO
 }
 
 describe('家庭版面（5.1–5.7）', () => {
-  it('頁首是招生階段與到場日、承辦人小字；撥號用招生電話', async () => {
+  it('頁首是招生階段與到場日（承辦人 2026-10-06 拿掉）；撥號用招生電話', async () => {
     mockFamily()
     const { wrapper } = await mountDetail()
     expect(wrapper.get('.detail__status').text()).toContain('已訪視')
     expect(wrapper.get('.detail__status').text()).toContain('10/06 到場')
-    expect(wrapper.get('.detail__head').text()).toContain('・預約承辦 櫃台小美')
+    expect(wrapper.get('.detail__head').text()).not.toContain('承辦')
     expect(wrapper.get('.detail__call').attributes('href')).toBe('tel:0912345678')
   })
 
@@ -117,14 +117,13 @@ describe('家庭版面（5.1–5.7）', () => {
     expect(titles).toEqual(['建立訪視（官網預約到場）', '標記已到場', '家長從官網送出'])
   })
 
-  it('處理區換成招生動作；舊的參觀後追蹤、招生入學連結、承辦人下拉都不在了', async () => {
+  it('處理區換成招生動作；舊的參觀後追蹤、招生入學連結都不在了', async () => {
     mockFamily()
     const { wrapper } = await mountDetail()
     expect(wrapper.findComponent(FamilyActions).exists()).toBe(true)
     expect(hasButton(wrapper, '記錄聯絡')).toBe(true)
     expect(wrapper.find('.detail__after').exists()).toBe(false)
     expect(wrapper.find('.detail__admissions').exists()).toBe(false)
-    expect(wrapper.find('#visit-assignee').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('在招生入學查看')
   })
 
@@ -272,7 +271,6 @@ describe('載入招生查詢時不閃改版前的畫面（F2）', () => {
     expect(wrapper.text()).not.toContain('這筆案件已結案')
     expect(wrapper.find('.detail__status').exists()).toBe(false)
     expect(wrapper.find('.detail__call').exists()).toBe(false)
-    expect(wrapper.find('.detail__assignee').exists()).toBe(false)
     slow.resolve([linked()])
     await flushPromises()
     expect(wrapper.find('.detail__family-pending').exists()).toBe(false)

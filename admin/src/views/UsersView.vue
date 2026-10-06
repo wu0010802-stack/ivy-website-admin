@@ -308,25 +308,10 @@ async function toggleActive(target: UserOut) {
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     ElMessage.success(updated.is_active ? `已恢復 ${staffWithEmail(updated)} 的登入` : `已停用 ${staffWithEmail(updated)}`)
-    if (!updated.is_active) void warnOpenCases(updated)
   } catch (err) {
     if (!(err instanceof ReauthCancelled)) notifyError(apiErrorMessage(err, '更新啟用狀態失敗'))
   } finally {
     togglingId.value = null
-  }
-}
-
-// 停用不會自動改指派（2026-10-03 第八輪 D10）：對方還有沒結案的案件就提醒件數，請人到
-// 列表用「承辦人已停用」篩出來重新指派。查不到件數時不另外跳錯，停用本身已經成功。
-async function warnOpenCases(target: UserOut) {
-  try {
-    const counts = await api.get<Record<string, number>>(`/admin/visit-requests/group-counts?assignee=${target.id}&open=true`)
-    const total = Object.values(counts ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0)
-    if (total > 0) {
-      notifyWarning(`${staffLabel(target)}還有 ${total} 件沒結案的參觀案件：到「參觀案件」的承辦人篩選選「承辦人已停用」，重新指派給其他同事。`)
-    }
-  } catch {
-    /* 停用已成功；件數查不到就不提醒 */
   }
 }
 
@@ -549,7 +534,7 @@ onMounted(loadUsers)
         <el-empty v-if="!visibleUsers.length" :description="search || status ? '找不到符合條件的使用者' : '尚未建立任何使用者'"><el-button v-if="search || status" @click="search = ''; status = ''">清除篩選</el-button></el-empty>
         <template v-else>
         <el-table class="data-table" :data="visibleUsers">
-          <!-- 名稱在上、Email 小字在下：同事在承辦人、操作紀錄看到的是名稱，這裡對得起來。 -->
+          <!-- 名稱在上、Email 小字在下：同事在聯絡紀錄、操作紀錄看到的是名稱，這裡對得起來。 -->
           <el-table-column label="名稱與 Email" min-width="220">
             <template #default="{ row }: { row: UserOut }">
               <span class="user-name" :class="{ 'is-inactive': !row.is_active }">
@@ -687,7 +672,7 @@ onMounted(loadUsers)
             v-model="scopeName"
             input-id="scope-user-display-name"
             :server-error="scopeNameServerError"
-            help="同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字；本人也可以在「我的帳號」自己改。留空就用 Email @ 前面那段。"
+            help="同事在聯絡紀錄、發布紀錄與操作紀錄看到的名字；本人也可以在「我的帳號」自己改。留空就用 Email @ 前面那段。"
           />
           <el-form-item label="角色">
             <el-radio-group v-model="scopeRole" class="role-group" aria-label="角色">
