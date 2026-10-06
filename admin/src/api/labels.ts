@@ -623,7 +623,7 @@ export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   mother_occupation: '母親職業',
   address: '地址',
   source: '來源備註',
-  referrer: '介紹者',
+  referrer: '家長介紹',
   deposit_collector: '收預繳人員',
   tour_guide_user_id: '帶參觀老師',
   tour_guide_name: '帶參觀老師',

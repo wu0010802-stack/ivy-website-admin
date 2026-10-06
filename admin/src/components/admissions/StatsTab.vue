@@ -163,8 +163,9 @@ const SOURCE_COLUMNS: StatsColumn[] = [
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
 ]
+// 接待人員＝帶參觀老師（2026-10-06 起，原本看介紹者欄；和園務分歧）。一筆有多位老師時每位各算一次。
 const STAFF_COLUMNS: StatsColumn[] = [
-  { key: 'referrer', label: '接待人員', sticky: true },
+  { key: 'tour_guide', label: '接待人員', sticky: true },
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
@@ -190,15 +191,15 @@ const monthGradeRows = computed(() =>
   }),
 )
 
-const staffGradeLabels = computed(() => gradeColumns((stats.value?.by_referrer ?? []).flatMap((row) => Object.keys(row.by_grade))))
+const staffGradeLabels = computed(() => gradeColumns((stats.value?.by_tour_guide ?? []).flatMap((row) => Object.keys(row.by_grade))))
 const staffGradeColumns = computed<StatsColumn[]>(() => [
-  { key: 'referrer', label: '接待人員', sticky: true },
+  { key: 'tour_guide', label: '接待人員', sticky: true },
   ...staffGradeLabels.value.map((grade): StatsColumn => ({ key: `g:${grade}`, label: grade })),
 ])
 // 園務 StaffTab：格內「{參觀}人 / {預繳率}」，沒有資料寫「—」。
 const staffGradeRows = computed(() =>
-  (stats.value?.by_referrer ?? []).map((row) => ({
-    referrer: row.referrer,
+  (stats.value?.by_tour_guide ?? []).map((row) => ({
+    tour_guide: row.tour_guide,
     ...Object.fromEntries(
       staffGradeLabels.value.map((grade) => {
         const cell = row.by_grade[grade]
@@ -209,13 +210,13 @@ const staffGradeRows = computed(() =>
 )
 
 const crossColumns = computed<StatsColumn[]>(() => [
-  { key: 'referrer', label: '介紹者', sticky: true },
-  ...(stats.value?.referrer_source_cross.sources ?? []).map((source): StatsColumn => ({ key: `s:${source}`, label: source, kind: 'count' })),
+  { key: 'tour_guide', label: '接待人員', sticky: true },
+  ...(stats.value?.tour_guide_source_cross.sources ?? []).map((source): StatsColumn => ({ key: `s:${source}`, label: source, kind: 'count' })),
   { key: 'total', label: '合計', kind: 'count' },
 ])
 const crossRows = computed(() =>
-  (stats.value?.referrer_source_cross.referrers ?? []).map((row) => ({
-    referrer: row.referrer,
+  (stats.value?.tour_guide_source_cross.tour_guides ?? []).map((row) => ({
+    tour_guide: row.tour_guide,
     total: row.total,
     ...Object.fromEntries(Object.entries(row.sources).map(([source, count]) => [`s:${source}`, count])),
   })),
@@ -318,26 +319,26 @@ const noDepositKpis = computed(() => {
           <div class="stats-pane">
             <StatsDimensionTable
               title="接待人員統計"
-              :rows="stats.by_referrer"
+              :rows="stats.by_tour_guide"
               :columns="STAFF_COLUMNS"
-              row-key="referrer"
+              row-key="tour_guide"
               empty-text="此區間尚無接待資料"
-              caption="接待人員＝訪視表單的「介紹者」欄。"
+              caption="依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。"
             />
             <StatsDimensionTable
               title="接待人員 × 各年級預繳率"
               :rows="staffGradeRows"
               :columns="staffGradeColumns"
-              row-key="referrer"
+              row-key="tour_guide"
               empty-text="此區間尚無接待資料"
               caption="格內寫「參觀人數 / 預繳率」。"
             />
             <StatsDimensionTable
               v-if="crossRows.length"
-              title="介紹者 × 來源 交叉分析"
+              title="接待人員 × 來源 交叉分析"
               :rows="crossRows"
               :columns="crossColumns"
-              row-key="referrer"
+              row-key="tour_guide"
               empty-text="此區間尚無接待資料"
               caption="欄位是參觀人數前 10 名的來源；合計含其他來源。"
             />

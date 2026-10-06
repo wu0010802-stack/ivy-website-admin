@@ -7,6 +7,7 @@ import pytest
 
 from app.admissions import retention, stats
 from app.admissions.academic import roc_month
+from app.admissions.constants import split_tour_guides
 from app.admissions.models import GradeIntakeTarget, RecruitmentVisit
 from tests.admissions_helpers import reception_yihua_client, readonly_yihua_client  # noqa: F401
 
@@ -34,13 +35,14 @@ EMPTY = snap(0, 0, 0, 0, 0, 0, None, None, None, None)
 
 
 def add_visit(db, *, campus_key="yihua", visit_date=date(2026, 9, 1), child_name="測試幼生", birthday=None,
-              grade=None, source=None, referrer=None, has_deposit=False, enrolled=False, transfer_term=False,
+              grade=None, source=None, referrer=None, tour_guide_name=None, has_deposit=False, enrolled=False, transfer_term=False,
               no_deposit_reason=None, withdrawn_at=None, provisional_grade=None, target_school_year=115,
               target_semester=1, created_at=NOW) -> RecruitmentVisit:
     """直接寫一筆招生訪視（統計只讀資料，不經 API，才能控制 created_at）。month 用 A1 的 roc_month 由參觀日期換算。"""
     visit = RecruitmentVisit(
         id=uuid.uuid4(), campus_key=campus_key, month=roc_month(visit_date), seq_no=None, visit_date=visit_date,
         child_name=child_name, birthday=birthday, grade=grade, source=source, referrer=referrer,
+        tour_guide_name=tour_guide_name,
         has_deposit=has_deposit, rides_bus=False, enrolled=enrolled,
         enrolled_on=visit_date + timedelta(days=10) if enrolled else None,
         transfer_term=transfer_term, no_deposit_reason=no_deposit_reason,
@@ -56,7 +58,7 @@ def add_visit(db, *, campus_key="yihua", visit_date=date(2026, 9, 1), child_name
 async def seed_r10(db) -> None:
     """R10 合成資料：義華 115 學年上學期 9 筆（V1–V9），另有 4 筆不該被算進來（X1–X4）。
 
-    | 筆 | 參觀日 → 月份 | 姓名｜生日 | 年級 | 來源 | 介紹者 | 預繳 | 註冊 | 轉學期 | 未預繳原因 | 退出 | 建立 |
+    | 筆 | 參觀日 → 月份 | 姓名｜生日 | 年級 | 來源 | 家長介紹＝帶參觀老師（同值） | 預繳 | 註冊 | 轉學期 | 未預繳原因 | 退出 | 建立 |
     | V1 | 08-10 → 115.08 | 王小明｜2022-03-01 | 小班 | Facebook | 林老師 | 是 | 是 | | | | 50 天前 |
     | V2 | 08-12 → 115.08 | 陳小華｜2022-05-02 | 小班 | Facebook | 林老師 | 是 | | | | | 95 天前 |
     | V3 | 08-15 → 115.08 | 李小美｜2021-04-03 | 中班 | 親友介紹 | 張老師 | 是 | | 是 | | | 29 天前 |
@@ -69,23 +71,23 @@ async def seed_r10(db) -> None:
     """
     y = 2026
     add_visit(db, visit_date=date(y, 8, 10), child_name="王小明", birthday=date(2022, 3, 1), grade="小班", source="Facebook",
-              referrer="林老師", has_deposit=True, enrolled=True, provisional_grade="小班", created_at=days_ago(50))
+              referrer="林老師", tour_guide_name="林老師", has_deposit=True, enrolled=True, provisional_grade="小班", created_at=days_ago(50))
     add_visit(db, visit_date=date(y, 8, 12), child_name="陳小華", birthday=date(2022, 5, 2), grade="小班", source="Facebook",
-              referrer="林老師", has_deposit=True, created_at=days_ago(95))
+              referrer="林老師", tour_guide_name="林老師", has_deposit=True, created_at=days_ago(95))
     add_visit(db, visit_date=date(y, 8, 15), child_name="李小美", birthday=date(2021, 4, 3), grade="中班", source="親友介紹",
-              referrer="張老師", has_deposit=True, transfer_term=True, created_at=days_ago(29))
+              referrer="張老師", tour_guide_name="張老師", has_deposit=True, transfer_term=True, created_at=days_ago(29))
     add_visit(db, visit_date=date(y, 9, 3), child_name="林小安", birthday=date(2022, 6, 4), grade="小班", source="Facebook",
-              referrer="林老師", no_deposit_reason=HIGH, created_at=days_ago(28))
+              referrer="林老師", tour_guide_name="林老師", no_deposit_reason=HIGH, created_at=days_ago(28))
     add_visit(db, visit_date=date(y, 9, 5), child_name="黃小雨", birthday=date(2023, 1, 5), grade="幼幼班", source="Google 評論",
-              referrer="張老師", created_at=days_ago(26))
+              referrer="張老師", tour_guide_name="張老師", created_at=days_ago(26))
     add_visit(db, visit_date=date(y, 9, 10), child_name="吳小晴", birthday=date(2021, 2, 6), no_deposit_reason=HIGH,
               created_at=days_ago(21))
     add_visit(db, visit_date=date(y, 9, 20), child_name="王小明", birthday=date(2022, 3, 1), grade="小班", source="Facebook",
-              referrer="林老師", has_deposit=True, created_at=days_ago(11))
+              referrer="林老師", tour_guide_name="林老師", has_deposit=True, created_at=days_ago(11))
     add_visit(db, visit_date=date(y, 9, 25), child_name="周小宇", birthday=date(2022, 7, 7), grade="小班", source="親友介紹",
-              referrer="林老師", no_deposit_reason=HIGH, withdrawn_at=days_ago(2), created_at=days_ago(6))
+              referrer="林老師", tour_guide_name="林老師", no_deposit_reason=HIGH, withdrawn_at=days_ago(2), created_at=days_ago(6))
     add_visit(db, visit_date=date(2025, 12, 15), child_name="鄭小芸", birthday=date(2021, 11, 8), grade="中班", source="Facebook",
-              referrer="張老師", has_deposit=True, enrolled=True, provisional_grade="中班", created_at=days_ago(290))
+              referrer="張老師", tour_guide_name="張老師", has_deposit=True, enrolled=True, provisional_grade="中班", created_at=days_ago(290))
     # X1 下學期、X2 114 學年、X3 沒填入學學期、X4 明華：篩選後都不在母體內。
     add_visit(db, visit_date=date(y, 9, 12), child_name="何小森", grade="大班", source="Facebook", has_deposit=True,
               target_semester=2, created_at=days_ago(15))
@@ -185,22 +187,22 @@ async def test_stats_matches_ivy_semantics(db_session):
     assert result["top_source_names"] == ["Facebook", "親友介紹", "Google 評論", "未填寫"]
 
     # 接待人員：林老師 V1 V2 V4 V7 V8＝5（預繳 3）→ 60.0，全是小班；
-    # 張老師 V3 V5 V9＝3（預繳 V3 V9）→ 66.7，中班 2／2、幼幼班 1／0；V6 介紹者與年級都是 NULL。
-    assert result["by_referrer"] == [
-        {"referrer": "林老師", "visit": 5, "deposit": 3, "visit_to_deposit_rate": 60.0,
+    # 張老師 V3 V5 V9＝3（預繳 V3 V9）→ 66.7，中班 2／2、幼幼班 1／0；V6 帶參觀老師與年級都是 NULL。
+    assert result["by_tour_guide"] == [
+        {"tour_guide": "林老師", "visit": 5, "deposit": 3, "visit_to_deposit_rate": 60.0,
          "by_grade": {"小班": {"visit": 5, "deposit": 3}}},
-        {"referrer": "張老師", "visit": 3, "deposit": 2, "visit_to_deposit_rate": 66.7,
+        {"tour_guide": "張老師", "visit": 3, "deposit": 2, "visit_to_deposit_rate": 66.7,
          "by_grade": {"中班": {"visit": 2, "deposit": 2}, "幼幼班": {"visit": 1, "deposit": 0}}},
-        {"referrer": "未填寫", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+        {"tour_guide": "未填寫", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
          "by_grade": {"未填寫": {"visit": 1, "deposit": 0}}},
     ]
     # 介紹者 × 來源：欄是前 10 名來源，缺的補 0；total＝該介紹者全部來源合計。
-    assert result["referrer_source_cross"] == {
+    assert result["tour_guide_source_cross"] == {
         "sources": ["Facebook", "親友介紹", "Google 評論", "未填寫"],
-        "referrers": [
-            {"referrer": "林老師", "sources": {"Facebook": 4, "親友介紹": 1, "Google 評論": 0, "未填寫": 0}, "total": 5},
-            {"referrer": "張老師", "sources": {"Facebook": 1, "親友介紹": 1, "Google 評論": 1, "未填寫": 0}, "total": 3},
-            {"referrer": "未填寫", "sources": {"Facebook": 0, "親友介紹": 0, "Google 評論": 0, "未填寫": 1}, "total": 1},
+        "tour_guides": [
+            {"tour_guide": "林老師", "sources": {"Facebook": 4, "親友介紹": 1, "Google 評論": 0, "未填寫": 0}, "total": 5},
+            {"tour_guide": "張老師", "sources": {"Facebook": 1, "親友介紹": 1, "Google 評論": 1, "未填寫": 0}, "total": 3},
+            {"tour_guide": "未填寫", "sources": {"Facebook": 0, "親友介紹": 0, "Google 評論": 0, "未填寫": 1}, "total": 1},
         ],
     }
 
@@ -257,18 +259,62 @@ async def test_stats_endpoint_serializes_service_result(admin_client, db_session
 
 
 async def test_cross_total_counts_sources_outside_top_ten(db_session):
-    # 11 個來源各 1 筆、都同一位介紹者：前 10 名依來源升序是 來源01–來源10，來源11 不在欄上，
+    # 11 個來源各 1 筆、都同一位帶參觀老師：前 10 名依來源升序是 來源01–來源10，來源11 不在欄上，
     # 但 total 仍是 11（園務 referrer_source_cross 的 total 含前 10 以外）。
     for n in range(1, 12):
-        add_visit(db_session, campus_key="international", source=f"來源{n:02d}", referrer="林老師")
+        add_visit(db_session, campus_key="international", source=f"來源{n:02d}", tour_guide_name="林老師")
     await db_session.commit()
 
     result = await stats.query_stats(db_session, "international", school_year=None, semester=None, reference_month=None, now=NOW)
 
     assert result["top_source_names"] == [f"來源{n:02d}" for n in range(1, 11)]
-    [row] = result["referrer_source_cross"]["referrers"]
+    [row] = result["tour_guide_source_cross"]["tour_guides"]
     assert sum(row["sources"].values()) == 10
     assert row["total"] == 11
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, []),
+        ("", []),
+        ("  ", []),
+        ("林老師", ["林老師"]),
+        ("林老師、王老師", ["林老師", "王老師"]),
+        ("林老師，王老師,陳老師", ["林老師", "王老師", "陳老師"]),
+        ("林老師／王老師/陳老師", ["林老師", "王老師", "陳老師"]),
+        (" 林老師 、、 王老師 、", ["林老師", "王老師"]),
+        ("林老師、王老師、林老師", ["林老師", "王老師"]),
+        ("Amy Lin、Bob", ["Amy Lin", "Bob"]),
+    ],
+)
+def test_split_tour_guides(value, expected):
+    assert split_tour_guides(value) == expected
+
+
+async def test_multi_tour_guides_each_counted_once(db_session):
+    add_visit(db_session, campus_key="international", grade="小班", source="Facebook",
+              tour_guide_name="林老師、王老師", has_deposit=True)
+    add_visit(db_session, campus_key="international", grade="小班", source="Google 評論", tour_guide_name="林老師")
+    add_visit(db_session, campus_key="international", grade="中班", source="Facebook", tour_guide_name="林老師，林老師")
+    add_visit(db_session, campus_key="international", grade="中班", source="Facebook", tour_guide_name=None)
+    await db_session.commit()
+
+    result = await stats.query_stats(db_session, "international", school_year=None, semester=None, reference_month=None, now=NOW)
+
+    rows = {row["tour_guide"]: row for row in result["by_tour_guide"]}
+    assert rows["林老師"]["visit"] == 3 and rows["林老師"]["deposit"] == 1
+    assert rows["林老師"]["by_grade"] == {"小班": {"visit": 2, "deposit": 1}, "中班": {"visit": 1, "deposit": 0}}
+    assert rows["王老師"]["visit"] == 1 and rows["王老師"]["deposit"] == 1
+    assert rows["未填寫"]["visit"] == 1
+    assert "林老師、王老師" not in rows
+    assert [row["tour_guide"] for row in result["by_tour_guide"]] == ["林老師", "未填寫", "王老師"]
+
+    cross = {row["tour_guide"]: row for row in result["tour_guide_source_cross"]["tour_guides"]}
+    assert cross["林老師"]["total"] == 3
+    assert cross["林老師"]["sources"]["Facebook"] == 2 and cross["林老師"]["sources"]["Google 評論"] == 1
+    assert cross["王老師"]["total"] == 1
+    assert cross["未填寫"]["total"] == 1
 
 
 async def test_alert_thresholds_and_source_imbalance(db_session):
@@ -421,11 +467,11 @@ async def test_stats_empty_campus(admin_client, db_session):
     assert (mom["current_month"], mom["previous_month"]) == (None, None)
     assert mom["visit"] == {"current": 0, "previous": 0, "delta": 0}
     assert mom["visit_to_deposit_rate"] == {"current": None, "previous": None, "delta": None}
-    for key in ("monthly", "by_year", "by_grade", "by_source", "top_source_names", "by_referrer",
+    for key in ("monthly", "by_year", "by_grade", "by_source", "top_source_names", "by_tour_guide",
                 "no_deposit_reasons", "alerts", "top_action_queue"):
         assert result[key] == [], key
     assert result["month_grade"] == {}
-    assert result["referrer_source_cross"] == {"referrers": [], "sources": []}
+    assert result["tour_guide_source_cross"] == {"tour_guides": [], "sources": []}
     assert result["no_deposit_total"] == 0
     assert result["no_deposit_priority"] == {"high": 0, "medium": 0, "low": 0, "other": 0}
     assert result["no_deposit_summary"] == dict.fromkeys(

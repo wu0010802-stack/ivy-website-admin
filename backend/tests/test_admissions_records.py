@@ -189,6 +189,17 @@ async def test_options_lists_tour_guides_typed_before(admin_client):
 
 
 @pytest.mark.asyncio
+async def test_options_split_multiple_tour_guides(admin_client):
+    await create_record(admin_client, tour_guide_name="林老師、王老師")
+    await create_record(admin_client, tour_guide_name="林老師")
+    await create_record(admin_client, tour_guide_name="王老師／陳老師")
+    await create_record(admin_client, "minghua", tour_guide_name="明華老師、林老師")
+    body = (await admin_client.get(f"{ADMISSIONS}/options?campus_key=yihua")).json()
+    # 林 2、王 2、陳 1；同次數依字碼排（林 U+6797 在王 U+738B 前）；不出現組合字串，也不含他校。
+    assert body["tour_guides"] == ["林老師", "王老師", "陳老師"]
+
+
+@pytest.mark.asyncio
 async def test_concurrent_creates_get_distinct_seq_numbers(admin_client):
     """R03：同校同月份並行新增，序號不重複（pg_advisory_xact_lock 排隊後再取最大值）。"""
     responses = await asyncio.gather(

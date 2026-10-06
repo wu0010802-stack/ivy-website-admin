@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
-from app.admissions.constants import NO_DEPOSIT_PRIORITY
+from app.admissions.constants import NO_DEPOSIT_PRIORITY, split_tour_guides
 from app.admissions.models import RecruitmentVisit
 from app.common.timezones import now_utc, today_local
 
@@ -277,33 +277,39 @@ def _by_source(rows: list[Any]) -> list[dict[str, Any]]:
     return sorted(result, key=lambda item: (-item["visit"], -item["deposit"], item["source"]))
 
 
-def _by_referrer(rows: list[Any]) -> list[dict[str, Any]]:
-    referrers: dict[str, dict[str, Any]] = {}
+def _tour_guide_names(value: str | None) -> list[str]:
+    """一筆有多位老師時每位各算一次；沒填歸未填寫。"""
+    return split_tour_guides(value) or [UNFILLED]
+
+
+def _by_tour_guide(rows: list[Any]) -> list[dict[str, Any]]:
+    guides: dict[str, dict[str, Any]] = {}
     for row in rows:
-        name = _label(row.referrer, UNFILLED)
-        bucket = referrers.setdefault(name, {"referrer": name, "visit": 0, "deposit": 0, "by_grade": {}})
         counts = _counts(row)
-        bucket["visit"] += counts["visit"]
-        bucket["deposit"] += counts["deposit"]
-        cell = bucket["by_grade"].setdefault(_label(row.grade, UNFILLED), {"visit": 0, "deposit": 0})
-        cell["visit"] += counts["visit"]
-        cell["deposit"] += counts["deposit"]
-    result = [{**bucket, "visit_to_deposit_rate": pct(bucket["deposit"], bucket["visit"])} for bucket in referrers.values()]
-    return sorted(result, key=lambda item: (-item["visit"], item["referrer"]))
+        for name in _tour_guide_names(row.tour_guide_name):
+            bucket = guides.setdefault(name, {"tour_guide": name, "visit": 0, "deposit": 0, "by_grade": {}})
+            bucket["visit"] += counts["visit"]
+            bucket["deposit"] += counts["deposit"]
+            cell = bucket["by_grade"].setdefault(_label(row.grade, UNFILLED), {"visit": 0, "deposit": 0})
+            cell["visit"] += counts["visit"]
+            cell["deposit"] += counts["deposit"]
+    result = [{**bucket, "visit_to_deposit_rate": pct(bucket["deposit"], bucket["visit"])} for bucket in guides.values()]
+    return sorted(result, key=lambda item: (-item["visit"], item["tour_guide"]))
 
 
-def _referrer_source_cross(rows: list[Any], top_source_names: list[str]) -> dict[str, Any]:
+def _tour_guide_source_cross(rows: list[Any], top_source_names: list[str]) -> dict[str, Any]:
     raw: dict[str, dict[str, int]] = {}
     for row in rows:
-        sources = raw.setdefault(_label(row.referrer, UNFILLED), {})
         source = _label(row.source, UNFILLED)
-        sources[source] = sources.get(source, 0) + row.visit
-    referrers = [
-        {"referrer": name, "sources": {s: counts.get(s, 0) for s in top_source_names}, "total": sum(counts.values())}
+        for name in _tour_guide_names(row.tour_guide_name):
+            sources = raw.setdefault(name, {})
+            sources[source] = sources.get(source, 0) + row.visit
+    guides = [
+        {"tour_guide": name, "sources": {s: counts.get(s, 0) for s in top_source_names}, "total": sum(counts.values())}
         for name, counts in raw.items()
     ]
-    referrers.sort(key=lambda item: (-item["total"], item["referrer"]))
-    return {"referrers": referrers, "sources": list(top_source_names)}
+    guides.sort(key=lambda item: (-item["total"], item["tour_guide"]))
+    return {"tour_guides": guides, "sources": list(top_source_names)}
 
 
 def _no_deposit_reasons(rows: list[Any]) -> list[dict[str, Any]]:
@@ -548,8 +554,10 @@ async def query_stats(
         "month_grade": _month_grade(await _grouped(db, filters, v.month, v.grade)),
         "by_source": by_source,
         "top_source_names": top_source_names,
-        "by_referrer": _by_referrer(await _grouped(db, filters, v.referrer, v.grade)),
-        "referrer_source_cross": _referrer_source_cross(await _grouped(db, filters, v.referrer, v.source), top_source_names),
+        "by_tour_guide": _by_tour_guide(await _grouped(db, filters, v.tour_guide_name, v.grade)),
+        "tour_guide_source_cross": _tour_guide_source_cross(
+            await _grouped(db, filters, v.tour_guide_name, v.source), top_source_names
+        ),
         "no_deposit_reasons": no_deposit_reasons,
         "no_deposit_total": sum(row["count"] for row in no_deposit_reasons),
         "no_deposit_priority": _priority_totals(no_deposit_reasons),

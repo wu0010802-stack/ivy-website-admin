@@ -182,7 +182,7 @@ const addOpen = ref(false)
 const options = ref<AdmissionsOptions | null>(null)
 async function openAdd() {
   addOpen.value = true
-  // 來源、介紹者的建議清單（園務 FunnelAddVisit 先 fetchOptions）；讀不到不影響新增。
+  // 來源、家長介紹、帶參觀老師的建議清單（園務 FunnelAddVisit 先 fetchOptions）；讀不到不影響新增。
   if (options.value) return
   try {
     const result = await getOptions(props.campusKey)

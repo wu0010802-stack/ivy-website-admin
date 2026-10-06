@@ -243,7 +243,7 @@ function openRecords(row: NoDepositRecord) {
             <th scope="col">冷名單</th>
             <th scope="col">說明</th>
             <th scope="col">來源</th>
-            <th scope="col">介紹者</th>
+            <th scope="col">家長介紹</th>
             <th scope="col">電訪回應</th>
             <th scope="col">明細</th>
           </tr>

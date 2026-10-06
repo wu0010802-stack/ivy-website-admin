@@ -245,7 +245,7 @@ class NoDepositReasonOption(BaseModel):
 
 
 class AdmissionsOptionsOut(BaseModel):
-    """篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、
+    """篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、家長介紹、
     帶參觀老師，以及園務的固定列舉與文案。"""
 
     # 民國月份，新到舊。
@@ -506,23 +506,23 @@ class AdmissionsGradeCount(BaseModel):
     deposit: int
 
 
-class AdmissionsReferrerRow(BaseModel):
-    referrer: str
+class AdmissionsTourGuideRow(BaseModel):
+    tour_guide: str
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
     by_grade: dict[str, AdmissionsGradeCount]
 
 
-class AdmissionsCrossRow(BaseModel):
-    referrer: str
+class AdmissionsTourGuideCrossRow(BaseModel):
+    tour_guide: str
     sources: dict[str, int]
-    # 該介紹者全部來源的合計（含前 10 名以外），不一定等於 sources 加總。
+    # 該位帶參觀老師全部來源的合計（含前 10 名以外），不一定等於 sources 加總。
     total: int
 
 
-class AdmissionsReferrerSourceCross(BaseModel):
-    referrers: list[AdmissionsCrossRow]
+class AdmissionsTourGuideSourceCross(BaseModel):
+    tour_guides: list[AdmissionsTourGuideCrossRow]
     sources: list[str]
 
 
@@ -572,8 +572,8 @@ class AdmissionsStatsOut(BaseModel):
     month_grade: dict[str, dict[str, int]]
     by_source: list[AdmissionsSourceRow]
     top_source_names: list[str]
-    by_referrer: list[AdmissionsReferrerRow]
-    referrer_source_cross: AdmissionsReferrerSourceCross
+    by_tour_guide: list[AdmissionsTourGuideRow]
+    tour_guide_source_cross: AdmissionsTourGuideSourceCross
     no_deposit_reasons: list[AdmissionsNoDepositReason]
     no_deposit_total: int
     no_deposit_priority: AdmissionsNoDepositPriority

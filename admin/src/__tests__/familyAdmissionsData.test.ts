@@ -36,12 +36,12 @@ describe('招生資料面板', () => {
     const record = visit({ ...paper, english_name: 'Hana', source_category: 'referral', rides_bus: true, tour_guide_name: 'Amy', father_occupation: '工程師' })
     const { wrapper } = await mountWith(FamilyAdmissionsData, { props: { visit: record, options, editable: true } })
     expect(labels(wrapper)).toEqual([
-      '幼生姓名', '英文名字', '生日', '適讀班級', '聯絡人', '電話', '入學學期', '搭娃娃車', '帶參觀老師', '來源分類', '來源備註', '介紹者', '父親職業',
+      '幼生姓名', '英文名字', '生日', '適讀班級', '聯絡人', '電話', '入學學期', '搭娃娃車', '帶參觀老師', '來源分類', '來源備註', '家長介紹', '父親職業',
     ])
-    expect(valueOf(wrapper, '來源分類')).toBe('有緣名單（家長介紹／社區招生）')
+    expect(valueOf(wrapper, '來源分類')).toBe('家長介紹／社區招生')
     expect(valueOf(wrapper, '入學學期')).toBe('115 上學期')
     expect(valueOf(wrapper, '搭娃娃車')).toBe('要搭')
-    expect(valueOf(wrapper, '介紹者')).toBe('—')
+    expect(valueOf(wrapper, '家長介紹')).toBe('—')
     expect(wrapper.get('a[href="tel:0912345678"]').text()).toBe('0912345678')
   })
 

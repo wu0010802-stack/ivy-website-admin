@@ -148,7 +148,7 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     expect(second!.text()).toContain('未指派')
   })
 
-  it('地址、介紹者、備註等收進展開列（兩欄、空值不列）；沒有其他資料的列不能展開', async () => {
+  it('地址、家長介紹、備註等收進展開列（兩欄、空值不列）；沒有其他資料的列不能展開', async () => {
     mockGet({
       '/admin/admissions/records': [
         visit({ address: '高雄市示範路 1 號', referrer: '林老師', notes: '外婆接送', no_deposit_reason: '費用考量', parent_response: null }),
@@ -163,7 +163,7 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     await expandable!.trigger('click')
     await flushPromises()
     const info = wrapper.get('.records__info')
-    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['地址', '介紹者', '未預繳原因', '備註'])
+    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['地址', '家長介紹', '未預繳原因', '備註'])
     expect(info.text()).toContain('高雄市示範路 1 號')
     expect(info.text()).not.toContain('電訪回應')
   })
@@ -181,8 +181,8 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     await wrapper.get('.records-table .el-table__expand-icon').trigger('click')
     await flushPromises()
     const info = wrapper.get('.records__info')
-    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['英文名字', '父親職業', '母親職業', '來源分類', '介紹者', '帶參觀老師', '搭娃娃車'])
-    expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹（兄姊老師）', '林老師', 'Marvyna', '要搭'])
+    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['英文名字', '父親職業', '母親職業', '來源分類', '家長介紹', '帶參觀老師', '搭娃娃車'])
+    expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹', '林老師', 'Marvyna', '要搭'])
   })
 })
 
@@ -194,8 +194,8 @@ describe('篩選收合（比照第九輪案件列表）', () => {
     expect(toggle.text()).toBe('更多篩選')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
-    expect(fieldLabels('#records-more-filters')).toEqual(['班別', '來源', '介紹者', '未預繳原因', '負責人'])
-    expect(fieldLabels('.records-filters')).toEqual(['搜尋', '月份', '預繳', '追蹤', '班別', '來源', '介紹者', '未預繳原因', '負責人'])
+    expect(fieldLabels('#records-more-filters')).toEqual(['班別', '來源', '家長介紹', '未預繳原因', '負責人'])
+    expect(fieldLabels('.records-filters')).toEqual(['搜尋', '月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '負責人'])
     expect(wrapper.get('.records-filters').classes()).not.toContain('is-open')
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
@@ -533,7 +533,7 @@ describe('手機（390）：卡片清單', () => {
     expect(toggle.text()).toContain('篩選')
     expect(toggle.text()).not.toContain('更多篩選')
     const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
-    expect(fieldLabels('#records-more-filters')).toEqual(['月份', '預繳', '追蹤', '班別', '來源', '介紹者', '未預繳原因', '負責人'])
+    expect(fieldLabels('#records-more-filters')).toEqual(['月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '負責人'])
     expect(fieldLabels('.records-filters')[0]).toBe('搜尋')
     expect(wrapper.findAll('.filter-chip').map((chip) => chip.text())).toEqual(['月份：115.09×，拿掉這個條件'])
     await wrapper.get('.filter-chip').trigger('click')

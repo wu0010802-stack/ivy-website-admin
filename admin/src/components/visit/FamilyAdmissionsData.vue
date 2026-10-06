@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { AdmissionsOptions, RecruitmentVisit } from '../../api/types'
 import { termLabel } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME } from '../../admissions/constants'
+import { sourceCategoryLabel } from '../../admissions/sourceCategories'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import RecordDialog from '../admissions/RecordDialog.vue'
 
@@ -21,7 +22,7 @@ interface Row { label: string; value: string; href?: string }
 const rows = computed<Row[]>(() => {
   const v = props.visit
   const dash = (value: string | null | undefined) => value || '—'
-  const category = v.source_category ? (props.options?.source_categories?.[v.source_category] ?? v.source_category) : '未選'
+  const category = v.source_category ? sourceCategoryLabel(v.source_category, props.options?.source_categories) : '未選'
   const fixed: Row[] = [
     { label: '幼生姓名', value: missingName.value ? '' : v.child_name },
     { label: '英文名字', value: dash(v.english_name) },
@@ -34,7 +35,7 @@ const rows = computed<Row[]>(() => {
     { label: '帶參觀老師', value: dash(v.tour_guide_name) },
     { label: '來源分類', value: category },
     { label: '來源備註', value: dash(v.source) },
-    { label: '介紹者', value: dash(v.referrer) },
+    { label: '家長介紹', value: dash(v.referrer) },
   ]
   const optional: [string, string | null | undefined][] = [
     ['收預繳人員', v.has_deposit ? v.deposit_collector : null],

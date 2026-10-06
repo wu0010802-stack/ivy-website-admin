@@ -113,7 +113,7 @@ describe('10. 已註冊／保留座位的訪視在編輯表單鎖住入學學期
     const wrapper = await openEdit(visit())
     expect(select(wrapper, '學年').props('disabled')).toBeFalsy()
     expect(semester(wrapper).props('disabled')).toBeFalsy()
-    expect(bodyText()).toContain('小孩預計入學的學期')
+    expect(bodyText()).toContain('預設當前學期，可改。')
   })
 })
 
