@@ -11,6 +11,7 @@ from app.db import Base
 
 
 class BookingMode(str, enum.Enum):
+    # 已停用：後台設不進去（BOOKING_MODE_RETIRED），官網把殘留的設定當成暫停。
     INQUIRY = "inquiry"
     SLOTS = "slots"
     LINE = "line"
@@ -20,12 +21,9 @@ class BookingMode(str, enum.Enum):
 
 
 class VisitRequestStatus(str, enum.Enum):
-    NEW = "new"
-    # 規格 6.2：園方已開始聯絡但還沒排定時段。不占名額。
-    CONTACTING = "contacting"
-    # 規格 221：slots 模式的人工待確認狀態。占名額（避免超收），但還不是
-    # 「預約成立」，家長頁與通知文案都必須講「待園方確認」。
-    PENDING_CONFIRMATION = "pending_confirmation"
+    """官網送單與後台補登都在同一個交易排進場次，案件一建立就是 confirmed。
+    舊流程的 new／contacting／pending_confirmation 已在 2026-10-05、10-06 刪除。"""
+
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
     NO_SHOW = "no_show"
@@ -66,10 +64,6 @@ class BookingConfig(Base):
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
     external_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     message: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # 規格 197：slots 模式預設人工確認；園方要「送出即成立」才打開。
-    slots_auto_confirm: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
-    )
     # 規格 225：公開可選時段的時間窗。改這兩個值不動 version——它們不影響
     # 預約方式，只影響哪些時段現在列給家長看；送單時仍依當下的值重判。
     min_lead_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
@@ -150,7 +144,7 @@ class VisitRequest(Base):
     # 規格 L194、L221：參觀人數（含家長與孩子）1–10。名額仍以家庭組數計，
     # 人數另存給接待準備用。舊案件與沒問到人數的補登為 NULL。
     party_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(String(32), nullable=False, default="new")
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
     # 規格 6.2：結案後重新預約（含換校）另建新案，指回舊案。
     related_request_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("visit_requests.id", ondelete="SET NULL"), nullable=True
@@ -173,14 +167,10 @@ class VisitRequest(Base):
     )
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # 誰取消的（值同 app.operations.models.CANCEL_REASONS）；後台列表寫「家長取消／園方取消／逾期未確認」。
-    # 2026-09-30 以前、歷程沒有記來源的舊取消案件為 NULL。
+    # 誰取消的（值同 app.operations.models.CANCEL_REASONS）；後台列表寫「家長取消／園方取消」。
+    # hold_expired（占位逾期）只剩舊流程留下的已取消案件。2026-09-30 以前、歷程沒有記來源的
+    # 舊取消案件為 NULL。
     cancel_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    # 規格 222：人工待確認的 slot 案件占位期限。到期轉 cancelled、記
-    # hold_expired、釋放名額。只有 pending_confirmation 會有值。
-    hold_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True, index=True
-    )
     follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # 可編輯欄位（承辦人、下次聯絡時間）的樂觀鎖。狀態轉換靠列鎖與狀態機，
     # 不動這個欄位——否則家長取消一次，園方開著的頁面每個按鈕都要重新整理。
@@ -212,7 +202,7 @@ class SlotClosedSource(str, enum.Enum):
 
 class VisitSlot(Base):
     """單次時段。可由分校管理者手動建立，或依每週規則產生。容量以占用
-    名額的案件數即時計算（slot_service.occupying_condition：待確認、已確認、
+    名額的案件數即時計算（slot_service.occupying_condition：已確認、
     已完成、未到場），不用可變計數器，天然避免取消重試重複釋放名額的問題。"""
 
     __tablename__ = "visit_slots"

@@ -1,6 +1,7 @@
 // 2026-09-28 案件明細與補登對話框 UX（B2）：未送出的聯絡紀錄、下一筆的範圍與順序、
-// 返回、欄位用詞、手機撥號、取消需求／預約的用詞、確認期限倒數、補登對話框的
-// 送出條件與關閉保護。
+// 返回、欄位用詞、手機撥號、取消預約的用詞、補登對話框的送出條件與關閉保護。
+// 2026-10-06 舊流程（new／contacting／pending_confirmation 的排入場次、確認占位與倒數）
+// 已拿掉：案件預設是已確認，舊狀態只剩「確實沒有操作」的斷言。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
@@ -29,14 +30,14 @@ afterEach(() => {
 
 const future = { id: 'slot-f', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' }
 const request = (extra: Record<string, unknown> = {}) => ({
-  id: 'case-a', campus_key: 'yihua', status: 'new', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
+  id: 'case-a', campus_key: 'yihua', status: 'confirmed', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, party_size: null,
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, version: 1,
-  assigned_staff_id: null, confirmed_at: null, cancelled_at: null, history: [], pending_reschedule: null, access_link: null,
+  slot_id: future.id, slot: future, created_at: '2026-09-22T00:00:00Z', follow_up_at: null, version: 1,
+  assigned_staff_id: null, confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, history: [], pending_reschedule: null, access_link: null,
   ...extra,
 })
 
-type Lists = { attendance?: unknown[]; due?: unknown[]; held?: unknown[]; fresh?: unknown[] }
+type Lists = { attendance?: unknown[]; due?: unknown[] }
 
 function mockApi(data: Record<string, unknown> | ((path: string) => unknown), lists: Lists = {}, slots: unknown[] = []) {
   return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
@@ -44,8 +45,6 @@ function mockApi(data: Record<string, unknown> | ((path: string) => unknown), li
     if (path.startsWith('/admin/slots')) return slots as never
     if (path.startsWith('/admin/visit-requests?group=past&status=confirmed')) return (lists.attendance ?? []) as never
     if (path.startsWith('/admin/visit-requests?follow_up_due=true')) return (lists.due ?? []) as never
-    if (path.startsWith('/admin/visit-requests?status=pending_confirmation')) return (lists.held ?? []) as never
-    if (path.startsWith('/admin/visit-requests?status=new')) return (lists.fresh ?? []) as never
     if (path.startsWith('/admin/visit-requests?') || path.startsWith('/admin/visit-staff')) return [] as never
     if (path === '/admin/dashboard') return {} as never
     return (typeof data === 'function' ? data(path) : data) as never
@@ -84,7 +83,7 @@ const button = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').
 
 describe('未送出的聯絡紀錄', () => {
   it('打了紀錄沒新增就按下一筆：先問，留在這頁就不換案件', async () => {
-    mockApi((path) => request({ id: path.split('/').pop() }), { fresh: [request({ id: 'case-b' })] })
+    mockApi((path) => request({ id: path.split('/').pop() }), { due: [request({ id: 'case-b' })] })
     const { wrapper, router } = await mountDetail()
     await wrapper.find('textarea').setValue('已致電，家長下週回覆')
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
@@ -138,7 +137,7 @@ describe('未送出的聯絡紀錄', () => {
   })
 })
 
-describe('下一筆：沒有來源列表時，先待標記到場、再到期追蹤、最後舊需求', () => {
+describe('下一筆：沒有來源列表時，先待標記到場、再到期追蹤（沒有舊需求）', () => {
   const at = (date: string, time: string) => ({ id: `slot-${date}-${time}`, slot_date: date, start_time: `${time}:00`, end_time: '23:00:00' })
   it('待標記到場依參觀時間由早到晚，到期追蹤重複的只算一次，按鈕寫出各幾件，換筆用 replace', async () => {
     const get = mockApi((path) => request({ id: path.split('/').pop() }), {
@@ -157,6 +156,9 @@ describe('下一筆：沒有來源列表時，先待標記到場、再到期追�
     expect(next.text()).toBe('下一筆（待標記到場 2・到期追蹤 1）')
     expect(next.attributes('title')).toContain('義華還有參觀時間已過、尚未確認到場 2 件，到期待追蹤 1 件')
     expect(next.text()).not.toContain('待確認')
+    expect(next.text()).not.toContain('舊需求')
+    // 舊流程的待確認、新需求兩份清單已不再抓。
+    expect(listCalls.some((path) => path.includes('status=pending_confirmation') || path.includes('status=new'))).toBe(false)
     const replace = vi.spyOn(router, 'replace')
     const push = vi.spyOn(router, 'push')
     await next.trigger('click')
@@ -166,23 +168,8 @@ describe('下一筆：沒有來源列表時，先待標記到場、再到期追�
     expect(router.currentRoute.value.fullPath).toBe('/visit-requests/early')
   })
 
-  it('舊需求排最後；確認期限已過、系統還沒取消的待確認不排進下一筆', async () => {
-    mockApi((path) => request({ id: path.split('/').pop() }), {
-      held: [
-        request({ id: 'held-expired', status: 'pending_confirmation', hold_expires_at: '2020-01-01T00:00:00Z' }),
-        request({ id: 'held-ok', status: 'pending_confirmation', hold_expires_at: '2099-01-01T00:00:00Z' }),
-      ],
-    })
-    const { wrapper, router } = await mountDetail()
-    const next = wrapper.find('.detail__next')
-    expect(next.text()).toBe('下一筆（舊需求 1）')
-    await next.trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.fullPath).toBe('/visit-requests/held-ok')
-  })
-
   it('同校沒有其他要處理的案件就不顯示', async () => {
-    mockApi(request(), { fresh: [request({ id: 'case-a' })] })
+    mockApi(request(), { due: [request({ id: 'case-a' })] })
     const { wrapper } = await mountDetail()
     expect(wrapper.find('.detail__next').exists()).toBe(false)
   })
@@ -249,8 +236,11 @@ describe('明細的欄位與手機撥號', () => {
   })
 
   it('時段選單的名額用「組」', async () => {
-    mockApi(request(), {}, [{ ...future, campus_key: 'yihua', capacity: 3, booked_count: 1, closed: false }])
+    // 改期的新場次選單（已確認案件才會抓同校場次）。
+    mockApi(request(), {}, [{ ...future, id: 'slot-other', campus_key: 'yihua', capacity: 3, booked_count: 1, closed: false }])
     const { wrapper } = await mountDetail()
+    await button(wrapper, '改到其他場次…')!.trigger('click')
+    await flushPromises()
     const labels = wrapper.findAllComponents({ name: 'ElOption' }).map((o) => o.props('label'))
     expect(labels).toEqual(['2099/10/01（週四）10:00–11:00，剩 2 組'])
   })
@@ -348,18 +338,14 @@ describe('家長申請改期時的手動改期', () => {
 })
 
 describe('取消需求與取消預約', () => {
-  it('還沒排時段的需求叫「取消這筆需求」，說明改成可以另建新案', async () => {
-    mockApi(request({ status: 'contacting' }))
-    const { wrapper } = await mountDetail()
-    const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel' as never)
-    await button(wrapper, '取消這筆需求')!.trigger('click')
-    await flushPromises()
-    const [message, title, options] = prompt.mock.calls[0]!
-    expect(title).toBe('取消這筆參觀需求？')
-    expect(options).toMatchObject({ confirmButtonText: '取消需求', cancelButtonText: '先不要' })
-    expect(String(message)).toContain('重新預約（另建新案）')
-    expect(String(message)).not.toContain('重新送出需求')
-    expect(button(wrapper, '取消預約')).toBeUndefined()
+  it('舊的新需求／聯絡中案件沒有取消區（不再有「取消這筆需求」）', async () => {
+    for (const status of ['new', 'contacting', 'pending_confirmation']) {
+      mockApi(request({ status, slot_id: null, slot: null, confirmed_at: null }))
+      const { wrapper } = await mountDetail()
+      expect(button(wrapper, '取消這筆需求'), status).toBeUndefined()
+      expect(button(wrapper, '取消預約'), status).toBeUndefined()
+      wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
+    }
   })
 
   it('已確認的案件仍是「取消預約」，說明名額會釋出', async () => {
@@ -372,6 +358,8 @@ describe('取消需求與取消預約', () => {
     expect(title).toBe('取消這筆預約？')
     expect(options).toMatchObject({ confirmButtonText: '取消預約' })
     expect(String(message)).toContain('名額會釋出')
+    expect(String(message)).not.toContain('還沒排場次')
+    expect(String(message)).not.toContain('不會通知家長')
   })
 
   it('歷程依取消前的狀態寫「取消需求」或「取消預約」', () => {
@@ -414,36 +402,17 @@ describe('讀取與處理中的狀態', () => {
     expect(wrapper.text()).toContain('找不到這筆案件')
   })
 
-  it('確認期限的倒數跟著時間更新，過了期限停用確認', async () => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
-    vi.setSystemTime(new Date('2099-01-01T00:00:00Z'))
-    mockApi(request({ status: 'pending_confirmation', slot_id: future.id, slot: future, hold_expires_at: '2099-01-01T01:30:00Z' }))
-    const { wrapper } = await mountDetail()
-    expect(wrapper.find('.hold-deadline').text()).toContain('還剩 1 小時')
-    expect(button(wrapper, '確認這個場次')!.attributes('disabled')).toBeUndefined()
-    vi.advanceTimersByTime(31 * 60_000)
-    await flushPromises()
-    expect(wrapper.find('.hold-deadline').text()).toContain('還剩 59 分鐘')
-    expect(wrapper.find('.hold-deadline').classes()).toContain('is-urgent')
-    vi.advanceTimersByTime(60 * 60_000)
-    await flushPromises()
-    expect(wrapper.find('.hold-deadline').text()).toContain('已過，不能再確認')
-    // 過期說明出現在一開始就在的報讀區裡，報讀軟體才會念出來。
-    expect(wrapper.find('.hold-status[role="status"] .hold-deadline').text()).toContain('已過，不能再確認')
-    expect(button(wrapper, '確認這個場次')!.attributes('disabled')).toBeDefined()
-  })
-
   it('只有按下去的那顆按鈕轉圈，其他按鈕停用', async () => {
-    mockApi(request({ status: 'pending_confirmation', slot_id: future.id, slot: future, hold_expires_at: '2099-01-01T00:00:00Z' }))
+    mockApi(request())
     const { wrapper } = await mountDetail()
     vi.spyOn(api, 'post').mockReturnValue(new Promise(() => {}) as never)
     await wrapper.find('textarea').setValue('已致電')
     await button(wrapper, '新增紀錄')!.trigger('click')
     await nextTick()
     expect(button(wrapper, '新增紀錄')!.classes()).toContain('is-loading')
-    const confirmButton = button(wrapper, '確認這個場次')!
-    expect(confirmButton.classes()).not.toContain('is-loading')
-    expect(confirmButton.attributes('disabled')).toBeDefined()
+    const cancelButton = button(wrapper, '取消預約')!
+    expect(cancelButton.classes()).not.toContain('is-loading')
+    expect(cancelButton.attributes('disabled')).toBeDefined()
   })
 })
 

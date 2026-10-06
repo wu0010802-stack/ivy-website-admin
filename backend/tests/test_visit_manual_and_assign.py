@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.auth.models import Role
 from app.booking.models import OutboxMessage
@@ -152,6 +152,66 @@ async def test_manual_intake_with_slot_confirms_and_respects_capacity(admin_clie
 
 
 @pytest.mark.asyncio
+async def test_manual_intake_history_is_a_single_created_event_with_the_slot(admin_client):
+    """補登直接建立成 confirmed：歷程只有一筆 created（after 帶場次），沒有另外的 confirmed 事件。"""
+    slot = await _create_slot(admin_client, capacity=2)
+    created = await admin_client.post(
+        f"{BASE}/visit-requests",
+        json=_manual(slot_id=slot["id"]),
+        headers={"Idempotency-Key": "history-1"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["status"] == "confirmed"
+    assert created.json()["slot_id"] == slot["id"]
+
+    detail = (await admin_client.get(f"{BASE}/visit-requests/{created.json()['id']}")).json()
+    assert detail["status"] == "confirmed"
+    assert detail["confirmed_at"] is not None
+    assert [event["event_type"] for event in detail["history"]] == ["created"]
+    after = detail["history"][0]["after"]
+    assert after["status"] == "confirmed"
+    assert after["source"] == "phone"
+    assert after["slot"]["id"] == slot["id"]
+    assert "before" not in detail["history"][0] or not detail["history"][0]["before"]
+
+
+@pytest.mark.asyncio
+async def test_manual_intake_rejects_full_closed_and_started_slots_without_creating_a_case(admin_client, db_session):
+    from app.booking.models import VisitRequest
+
+    full_slot = await _create_slot(admin_client, capacity=1, days_ahead=3)
+    closed_slot = await _create_slot(admin_client, capacity=2, days_ahead=4)
+    started_slot = await _create_slot(admin_client, capacity=2, days_ahead=-1)
+    first = await admin_client.post(
+        f"{BASE}/visit-requests", json=_manual(slot_id=full_slot["id"]), headers={"Idempotency-Key": "reject-0"}
+    )
+    assert first.status_code == 201, first.text
+    closed = await admin_client.patch(
+        f"{BASE}/slots/{closed_slot['id']}", json={"closed": True, "expected_version": closed_slot["version"]}
+    )
+    assert closed.status_code == 200, closed.text
+    created_before = (await db_session.execute(select(func.count()).select_from(VisitRequest))).scalar_one()
+
+    for key, slot, code in (
+        ("reject-1", full_slot, "SLOT_FULL"),
+        ("reject-2", closed_slot, "SLOT_CLOSED"),
+        ("reject-3", started_slot, "SLOT_NOT_BOOKABLE"),
+    ):
+        response = await admin_client.post(
+            f"{BASE}/visit-requests",
+            json=_manual(parent_name="被擋下的家長", phone="0933000111", slot_id=slot["id"]),
+            headers={"Idempotency-Key": key},
+        )
+        assert response.status_code == 409, (code, response.text)
+        assert response.json()["detail"]["code"] == code
+        assert "案件尚未建立" in response.json()["detail"]["message"]
+
+    db_session.expire_all()
+    assert (await db_session.execute(select(func.count()).select_from(VisitRequest))).scalar_one() == created_before
+    assert (await admin_client.get(f"{BASE}/visit-requests?q=被擋下的家長")).json() == []
+
+
+@pytest.mark.asyncio
 async def test_manual_intake_validates_input(admin_client):
     slot = await _create_slot(admin_client, capacity=5)
     bad_phone = await admin_client.post(
@@ -202,7 +262,7 @@ async def test_assign_and_filter_by_assignee(app, admin_client, db_session):
     colleague = await _create_user(
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
-    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
+    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
 
     assigned = await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
@@ -243,7 +303,7 @@ async def test_cannot_assign_to_staff_without_campus_scope_or_inactive(admin_cli
     inactive.is_active = False
     await db_session.commit()
 
-    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
+    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
     for user in (other_campus, editor, inactive):
         response = await admin_client.patch(
             f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(user.id), "expected_version": await case_version(admin_client, case["id"])}
@@ -253,20 +313,20 @@ async def test_cannot_assign_to_staff_without_campus_scope_or_inactive(admin_cli
 
 
 @pytest.mark.asyncio
-async def test_confirm_keeps_existing_assignee(admin_client, db_session):
+async def test_reschedule_keeps_existing_assignee(admin_client, db_session):
     colleague = await _create_user(
         db_session, "yihua-staff@ivy.example", "yihua-staff-password-123", Role.CAMPUS_ADMIN, ["yihua"]
     )
     slot = await _create_slot(admin_client)
-    case = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
+    case = {"id": await legacy_request(db_session, status="confirmed", parent_name="王媽媽")}
     await admin_client.patch(
         f"{BASE}/visit-requests/{case['id']}/assignee", json={"assigned_staff_id": str(colleague.id), "expected_version": await case_version(admin_client, case["id"])}
     )
-    confirmed = await admin_client.post(
-        f"{BASE}/visit-requests/{case['id']}/confirm", json={"slot_id": slot["id"]}
+    moved = await admin_client.post(
+        f"{BASE}/visit-requests/{case['id']}/reschedule", json={"new_slot_id": slot["id"]}
     )
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["assigned_staff_id"] == str(colleague.id)
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["assigned_staff_id"] == str(colleague.id)
 
 
 @pytest.mark.asyncio
@@ -353,8 +413,8 @@ async def test_calendar_is_scoped_and_range_limited(admin_client, minghua_client
 @pytest.mark.asyncio
 async def test_complete_only_from_confirmed(admin_client, db_session):
     slot = await _create_slot(admin_client)
-    pending = {"id": await legacy_request(db_session, status="new", parent_name="王媽媽")}
-    early = await admin_client.post(f"{BASE}/visit-requests/{pending['id']}/complete")
+    cancelled = {"id": await legacy_request(db_session, status="cancelled", parent_name="王媽媽")}
+    early = await admin_client.post(f"{BASE}/visit-requests/{cancelled['id']}/complete")
     assert early.status_code == 409
 
     confirmed = (

@@ -4,7 +4,7 @@ import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import DashboardView from '../views/DashboardView.vue'
@@ -144,27 +144,27 @@ describe('到期待追蹤有來源也有入口', () => {
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-b/contact-notes', { note: '已致電' })
   })
 
-  it('排入場次後不再預填「已致電家長」（確認信由系統寄出），並提供下一筆（舊需求）', async () => {
+  it('舊的「新需求」案件沒有排入場次的操作，下一筆不再抓 status=new，也不預填「已致電家長」', async () => {
     const data = { ...base(), follow_up_at: null }
-    vi.spyOn(api, 'get').mockImplementation(async path => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => {
       if (path.endsWith('/contact-notes')) return [] as never
       if (path.startsWith('/admin/slots')) return [{ ...slot, capacity: 3, booked_count: 0, closed: false }] as never
-      if (path.startsWith('/admin/visit-requests?status=new')) return [{ ...base(), id: 'case-b' }, { ...base(), id: 'case-a' }] as never
       if (path.startsWith('/admin/visit-requests?')) return [] as never
       return data as never
     })
-    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
-    vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
     const router = makeRouter()
     await router.push('/visit-requests/case-a'); await router.isReady()
     const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.text()).toContain('下一筆（舊需求 1）')
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', slot.id)
-    await flushPromises()
-    await wrapper.findAll('button').find(b => b.text() === '排入場次')!.trigger('click')
-    await flushPromises()
+    expect(wrapper.findAll('button').some(b => b.text() === '排入場次')).toBe(false)
+    expect(wrapper.text()).not.toContain('舊需求')
+    const calls = get.mock.calls.map(c => String(c[0]))
+    expect(calls.some(p => p.includes('status=new') || p.includes('status=pending_confirmation'))).toBe(false)
+    // 不是 confirmed 就不抓場次（只有改期才要）。
+    expect(calls.some(p => p.startsWith('/admin/slots'))).toBe(false)
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
+    expect(post).not.toHaveBeenCalled()
   })
 })
 

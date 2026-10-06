@@ -268,60 +268,46 @@ async def test_retention_clears_new_details_and_audit_rejects_personal_fields(
     assert entry.metadata_json == {"row_count": 1}
 
 
-async def _pending_last_slot(
-    admin_client, db_session, *, hold_expires_at=None
-):
-    """本案上線前留下的「待園方確認」舊案：占著只有一組名額的場次、有占位期限。
-    新流程建不出這種案件，直接寫進資料庫。"""
+async def _confirmed_last_slot(admin_client, db_session):
+    """已確認案件占著只有一組名額的場次（直接寫進資料庫，不經過公開送單）。"""
     slot_id = await create_slot(admin_client, "yihua", days_ahead=3, capacity=1)
     config = await set_booking_mode(admin_client, "yihua", mode="slots")
     assert config.status_code == 200, config.text
     slot = {"id": slot_id, "slot_date": (today_local() + timedelta(days=3)).isoformat()}
-    receipt_id = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot_id,
-        hold_expires_at=hold_expires_at or datetime.now(timezone.utc) + timedelta(hours=12),
-    )
+    receipt_id = await legacy_request(db_session, status="confirmed", slot_id=slot_id)
     body = _payload(config.json()["version"], slot_id=slot_id)
     return receipt_id, slot, body
 
 
 @pytest.mark.asyncio
-async def test_pending_can_confirm_own_last_slot_without_opening_capacity(admin_client, public_client, db_session):
-    receipt_id, slot, body = await _pending_last_slot(admin_client, db_session)
-    # 等待人工確認期間，其他家庭仍不能取得同一個最後名額。
+async def test_confirmed_case_holds_the_last_slot_and_manual_confirm_is_gone(admin_client, public_client, db_session):
+    receipt_id, slot, body = await _confirmed_last_slot(admin_client, db_session)
     other_body = {**body, "parent_name": "林爸爸", "phone": "0922345678"}
-    before = await public_client.post(
-        "/api/website/v1/public/visit-requests", json=other_body,
-        headers={"Idempotency-Key": "pending-last-other"},
-    )
-    assert before.status_code == 409
-    assert before.json()["detail"]["code"] == "SLOT_FULL"
 
-    confirmed = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
-    )
-    assert confirmed.status_code == 200, confirmed.text
-    assert confirmed.json()["status"] == "confirmed"
-    assert confirmed.json()["slot_id"] == slot["id"]
-    assert confirmed.json()["hold_expires_at"] is None
-
-    after = await public_client.post(
+    full = await public_client.post(
         "/api/website/v1/public/visit-requests", json=other_body,
         headers={"Idempotency-Key": "confirmed-last-other"},
     )
-    assert after.status_code == 409
-    assert after.json()["detail"]["code"] == "SLOT_FULL"
+    assert full.status_code == 409
+    assert full.json()["detail"]["code"] == "SLOT_FULL"
     slots = await admin_client.get("/api/website/v1/admin/slots", params={
         "campus_key": "yihua", "date_from": slot["slot_date"], "date_to": slot["slot_date"],
     })
     assert slots.json()[0]["booked_count"] == 1
 
+    # 人工確認端點已退場；案件明細也沒有占位期限欄位。
+    retired = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
+    )
+    assert retired.status_code in (404, 405)
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
+    assert detail.json()["status"] == "confirmed"
+    assert "hold_expires_at" not in detail.json()
+
 
 @pytest.mark.asyncio
-async def test_pending_cannot_confirm_into_another_familys_full_slot(admin_client, public_client, db_session):
-    receipt_id, own_slot, body = await _pending_last_slot(admin_client, db_session)
+async def test_reschedule_into_another_familys_full_slot_is_rejected(admin_client, public_client, db_session):
+    receipt_id, own_slot, body = await _confirmed_last_slot(admin_client, db_session)
     other_slot = await admin_client.post(
         "/api/website/v1/admin/slots?campus_key=yihua",
         json={"slot_date": own_slot["slot_date"], "start_time": "14:00:00", "end_time": "15:00:00", "capacity": 1},
@@ -334,48 +320,22 @@ async def test_pending_cannot_confirm_into_another_familys_full_slot(admin_clien
     )
     assert other.status_code == 201, other.text
     assert other.json()["status"] == "confirmed"
+
     changed = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm",
-        json={"slot_id": other_slot.json()["id"]},
+        f"/api/website/v1/admin/visit-requests/{receipt_id}/reschedule",
+        json={"new_slot_id": other_slot.json()["id"]},
     )
+
     assert changed.status_code == 409
     assert changed.json()["detail"]["code"] == "SLOT_FULL"
     detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert detail.json()["status"] == "pending_confirmation"
+    assert detail.json()["status"] == "confirmed"
     assert detail.json()["slot_id"] == own_slot["id"]
 
 
-@pytest.mark.asyncio
-async def test_expired_pending_hold_cannot_be_confirmed_before_or_after_sweep(
-    admin_client, public_client, db_session
-):
+def test_hold_expiry_sweep_is_gone():
+    """占位逾期掃描已整個刪除；確認時段的名額不會因為時間到而被釋放。"""
     from app.booking import workflow_service
 
-    receipt_id, slot, _ = await _pending_last_slot(
-        admin_client, db_session, hold_expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)
-    )
-    stored = await db_session.get(VisitRequest, uuid.UUID(receipt_id))
-
-    before_sweep = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
-    )
-    assert before_sweep.status_code == 409
-    assert before_sweep.json()["detail"]["code"] == "INVALID_TRANSITION"
-    await db_session.refresh(stored)
-    assert stored.status == "pending_confirmation"
-    assert stored.confirmed_at is None
-
-    assert await workflow_service.expire_holds(db_session) == 1
-    await db_session.commit()
-    after_sweep = await admin_client.post(
-        f"/api/website/v1/admin/visit-requests/{receipt_id}/confirm", json={"slot_id": slot["id"]}
-    )
-    assert after_sweep.status_code == 409
-    assert after_sweep.json()["detail"]["code"] == "INVALID_TRANSITION"
-    await db_session.refresh(stored)
-    assert stored.status == "cancelled"
-    assert stored.confirmed_at is None
-    messages = (await db_session.execute(
-        select(OutboxMessage).where(OutboxMessage.visit_request_id == uuid.UUID(receipt_id))
-    )).scalars().all()
-    assert not any(message.kind == "visit_request_confirmed" for message in messages)
+    assert not hasattr(workflow_service, "expire_holds")
+    assert not hasattr(workflow_service, "confirm_with_slot")

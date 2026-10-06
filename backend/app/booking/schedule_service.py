@@ -118,7 +118,7 @@ async def sync_rule_slots(
     的規則（rule_window_map），用來判斷名額是不是園方調過的。
 
     不動：已開始的場次、園方在時段頁手動新增的、園方手動關閉的（含分不出來源
-    的舊資料），以及有家長占名額（待確認、已確認）或有待核准改期申請的。
+    的舊資料），以及有家長占名額（已確認）或有待核准改期申請的。
 
     其餘時段：
     - 不符合新規則（星期幾或起訖時間對不上）：沒有任何案件或改期申請指著就
@@ -160,7 +160,7 @@ async def sync_rule_slots(
         (
             await db.execute(
                 select(VisitRequest.slot_id).where(
-                    VisitRequest.slot_id.in_(ids), slot_service.occupying_condition(current)
+                    VisitRequest.slot_id.in_(ids), slot_service.occupying_condition()
                 )
             )
         ).scalars()

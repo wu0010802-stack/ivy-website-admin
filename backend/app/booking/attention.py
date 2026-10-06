@@ -10,26 +10,21 @@ from datetime import datetime
 
 from sqlalchemy import and_, or_, select
 
-from app.booking import slot_service
-from app.booking.models import SlotClosedSource, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking import slot_service, status_groups
+from app.booking.models import SlotClosedSource, VisitRequest, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import now_utc, today_local
 
 # 尚未結案的案件。停用分校時回傳的「進行中件數」也是這個定義。
-OPEN_STATUSES = (
-    VisitRequestStatus.NEW.value,
-    VisitRequestStatus.CONTACTING.value,
-    VisitRequestStatus.PENDING_CONFIRMATION.value,
-    VisitRequestStatus.CONFIRMED.value,
-)
+OPEN_STATUSES = status_groups.OPEN_STATUSES
 
 
 def needs_attention_condition(now: datetime | None = None):
     """符合任一項就算：
 
-    - 排入的時段因休假日被關閉，參觀日還沒過，而且家長還要來（已確認，或
-      待確認且占位未到期）。參觀日已過的交給完成／未到場流程，不再列為要聯絡。
-    - 分校已停用，案件還沒結案（含尚未排時段的新需求與聯絡中）。"""
+    - 排入的時段因休假日被關閉，參觀日還沒過，而且家長還要來（已確認）。
+      參觀日已過的交給完成／未到場流程，不再列為要聯絡。
+    - 分校已停用，案件還沒結案（已確認）。"""
     current = now or now_utc()
     # 2026-09-30 起「停止申請」（園方手動關閉）只是不收新預約，已約的家長照常參觀；
     # 只有休假日整天關閉，已排入的家長才需要人工聯絡。
@@ -42,7 +37,7 @@ def needs_attention_condition(now: datetime | None = None):
     return or_(
         and_(
             VisitRequest.slot_id.in_(closed_upcoming_slots),
-            slot_service.awaiting_visit_condition(current),
+            slot_service.awaiting_visit_condition(),
         ),
         and_(
             VisitRequest.campus_key.in_(inactive_campuses),

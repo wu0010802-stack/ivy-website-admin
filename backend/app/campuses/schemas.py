@@ -21,6 +21,6 @@ class CampusStatusUpdate(BaseModel):
 
 
 class CampusStatusOut(CampusOut):
-    # 停用時仍在進行中的案件數（新需求、聯絡中、待確認、已確認）。這些不
+    # 停用時仍在進行中的案件數（已確認）。這些不
     # 會被自動取消，列給園方人工處理。
     open_requests: int = 0

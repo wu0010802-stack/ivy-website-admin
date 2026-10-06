@@ -63,7 +63,7 @@ async def test_needs_attention_lists_closed_slots_holidays_and_inactive_campuses
     on_holiday = await _manual(admin_client, slot_id=holiday_slot["id"], parent_name="休假日")
     on_holiday_b = await _manual(admin_client, slot_id=holiday_slot["id"], parent_name="休假日乙", phone="0912345680")
     untouched = await _manual(admin_client, slot_id=open_slot["id"], parent_name="照常")
-    minghua_new = await legacy_request(db_session, campus_key="minghua", status="new", parent_name="明華新需求")
+    minghua_case = await legacy_request(db_session, campus_key="minghua", status="confirmed", parent_name="明華已確認")
 
     assert await _ids(admin_client, "needs_attention=true") == set()
 
@@ -77,12 +77,12 @@ async def test_needs_attention_lists_closed_slots_holidays_and_inactive_campuses
     assert off.json()["open_requests"] == 1
     try:
         # 已取消的、時段照常的都不列；手動停止申請的場次只是不收新預約，已約的家長照常來，
-        # 也不列；休假日整天關閉要聯絡；停用分校連還沒排時段的新需求也要聯絡。
-        assert await _ids(admin_client, "needs_attention=true") == {on_holiday, on_holiday_b, minghua_new}
+        # 也不列；休假日整天關閉要聯絡；停用分校所有進行中的案件都要聯絡。
+        assert await _ids(admin_client, "needs_attention=true") == {on_holiday, on_holiday_b, minghua_case}
         assert on_closed not in await _ids(admin_client, "needs_attention=true")
         assert await _ids(admin_client, "needs_attention=true&campus_key=yihua") == {on_holiday, on_holiday_b}
         # 分校帳號只看得到自己校。
-        assert await _ids(minghua_client, "needs_attention=true") == {minghua_new}
+        assert await _ids(minghua_client, "needs_attention=true") == {minghua_case}
 
         dashboard = (await admin_client.get(f"{API}/admin/dashboard")).json()
         assert dashboard["needs_attention"] == 3
@@ -144,9 +144,9 @@ def test_export_phone_format_keeps_unknown_shapes():
 async def test_export_applies_screen_filters_and_audits_them(admin_client, db_session):
     slot = await _create_slot(admin_client, capacity=3)
     confirmed = await _manual(admin_client, slot_id=slot["id"], parent_name="王媽媽", phone="0922000111")
-    # 上線前留下的「已收到需求」舊案。
-    await legacy_request(db_session, status="new", parent_name="李爸爸", phone="0922000222", source="line")
-    await legacy_request(db_session, status="new", parent_name="張媽媽", phone="0922000333", source="walk_in")
+    # 已結案的案件（完成、未到場）：不是進行中，status 篩選與需要處理清單都不該撈到。
+    await legacy_request(db_session, status="completed", parent_name="李爸爸", phone="0922000222", source="line")
+    await legacy_request(db_session, status="no_show", parent_name="張媽媽", phone="0922000333", source="walk_in")
 
     async def export(query: str) -> list[dict]:
         resp = await admin_client.get(f"{API}/admin/visit-requests/export?campus_key=yihua&{query}")

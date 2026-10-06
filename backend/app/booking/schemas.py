@@ -175,15 +175,11 @@ class BookingImpactOut(BaseModel):
     """切換預約方式前給園方看的影響範圍。切換不會修改既有案件，這些案件
     照常在「參觀案件」處理；數字只是讓人知道還有多少要繼續跟進。"""
 
-    # 還沒結案的案件（待處理、聯絡中、待園方確認、已確認）。
+    # 還沒結案的案件（已確認）＝ 下面兩種的合計。
     open_requests: int
-    new_requests: int
-    contacting: int
-    pending_confirmation: int
     # 已確認、時段還沒開始：家長會照原時間來。
     upcoming_confirmed: int
     # 已確認、參觀時間已過，還沒改成完成或未到場（2026-09-26 起）。
-    # open_requests ＝ 待處理＋聯絡中＋待園方確認＋兩種已確認。
     past_confirmed: int
     # 官網目前可以預約的場次（與公開查詢同一個判斷：開放中、在開放區間、還有名額）。
     bookable_slots: int
@@ -478,7 +474,7 @@ class VisitRequestDetailOut(BaseModel):
     consent_revision_id: uuid.UUID | None = None
     consent_accepted_at: datetime | None = None
     slot_id: uuid.UUID | None
-    # 未排時段（inquiry 待處理）時為 None。序列化會讀 VisitRequest.slot
+    # 已取消的舊案可能沒有場次（None）。序列化會讀 VisitRequest.slot
     # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
     # 下會踩到 lazy load。
     slot: VisitSlotBriefOut | None = None
@@ -487,7 +483,6 @@ class VisitRequestDetailOut(BaseModel):
     cancelled_at: datetime | None
     cancel_reason: str | None = None
     follow_up_at: datetime | None
-    hold_expires_at: datetime | None = None
     source: VisitSource = "web"
     created_by: uuid.UUID | None = None
     related_request_id: uuid.UUID | None = None
@@ -600,7 +595,6 @@ class ParentVisitRequestOut(BaseModel):
     slot: VisitSlotBriefOut | None = None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
-    hold_expires_at: datetime | None
     created_at: datetime
     change_deadline: datetime | None
     # 該校設定的「參觀前幾小時截止」，家長頁的說明文字用。
@@ -650,11 +644,10 @@ class ParentVisitRequestOut(BaseModel):
             ),
             confirmed_at=visit_request.confirmed_at,
             cancelled_at=visit_request.cancelled_at,
-            hold_expires_at=visit_request.hold_expires_at,
             created_at=visit_request.created_at,
             change_deadline=parent_change_deadline(visit_request, deadline_hours),
             change_deadline_hours=deadline_hours,
-            can_cancel=visit_request.status in {"new", "contacting", "pending_confirmation", "confirmed"} and change_open,
+            can_cancel=visit_request.status == "confirmed" and change_open,
             # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
             # 預約方式不是自選場次（暫停、LINE、電話…）時官網沒有場次可選，也不給改期。
             can_reschedule=visit_request.status == "confirmed" and change_open and campus_active and slots_open,
@@ -672,10 +665,6 @@ class VisitContactNoteOut(BaseModel):
     created_by_display_name: str | None = None
 
     model_config = {"from_attributes": True}
-
-
-class VisitRequestConfirmRequest(BaseModel):
-    slot_id: uuid.UUID
 
 
 # 人員填的原因（選填），記在案件歷程；匿名化時清掉。

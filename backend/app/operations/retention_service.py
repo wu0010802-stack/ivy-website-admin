@@ -4,7 +4,7 @@
 - 已完成參觀：結案後超過 completed_days 匿名化。
 - 結案時間：取消看 cancelled_at；完成與未到場看歷程裡 completed／no_show 那筆
   的時間；都沒有（歷程上線前的舊案）才退回 created_at。
-- 還沒結案的案件（新案、聯絡中、待確認、已確認）一律不清；送出超過
+- 還沒結案的案件（已確認）一律不清；送出超過
   open_overdue_days 仍沒結案的只回報件數（open_overdue_count），提醒園方先結案。
 
 試算不改資料、不留紀錄；真的匿名化一定要部署設定
@@ -27,6 +27,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import retention as admissions_retention
+from app.booking import status_groups
 from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.common.timezones import now_utc
@@ -48,12 +49,6 @@ _DAYS_FIELD = {CANCELLED: "cancelled_days", NO_SHOW: "cancelled_days", COMPLETED
 # 招生訪視的類別代碼（天數用 admissions_days，條件與清除欄位見 app/admissions/retention.py）。
 ADMISSIONS = "admissions"
 
-_OPEN_STATUSES = (
-    VisitRequestStatus.NEW.value,
-    VisitRequestStatus.CONTACTING.value,
-    VisitRequestStatus.PENDING_CONFIRMATION.value,
-    VisitRequestStatus.CONFIRMED.value,
-)
 # 歷程裡代表「完成」與「未到場」的事件（workflow_service._close 寫入）。
 _CLOSING_EVENTS = ("completed", "no_show")
 
@@ -136,7 +131,7 @@ async def count_open_overdue(db: AsyncSession, days: dict[str, int], *, now: dat
             select(func.count())
             .select_from(VisitRequest)
             .where(
-                VisitRequest.status.in_(_OPEN_STATUSES),
+                status_groups.open_condition(),
                 VisitRequest.anonymized_at.is_(None),
                 VisitRequest.created_at < cutoff,
             )

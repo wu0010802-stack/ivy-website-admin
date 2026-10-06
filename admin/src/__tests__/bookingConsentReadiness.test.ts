@@ -53,7 +53,7 @@ async function mountAt(
   return wrapper
 }
 
-const impact = { open_requests: 3, new_requests: 1, contacting: 0, pending_confirmation: 1, upcoming_confirmed: 1, past_confirmed: 0, bookable_slots: 4, weekly_rules: 0 }
+const impact = { open_requests: 3, upcoming_confirmed: 3, past_confirmed: 0, bookable_slots: 4, weekly_rules: 0 }
 
 function readiness(overrides: Partial<BookingReadinessOut> = {}): BookingReadinessOut {
   return {
@@ -109,16 +109,17 @@ describe('啟用條件與影響範圍（純函式）', () => {
 
   it('影響範圍列出進行中的案件與場次', () => {
     const lines = impactLines(impact, 'paused')
-    expect(lines[0]).toBe('進行中的案件 3 件（待處理 1、待園方確認 1、已確認、還沒參觀 1）：不會被修改，照常在「參觀案件」處理。')
+    expect(lines[0]).toBe('進行中的案件 3 件（已確認、還沒參觀 3）：不會被修改，照常在「參觀案件」處理。')
     expect(lines.join('')).toContain('官網目前可預約的場次 4 個')
-    expect(lines.join('')).toContain('待園方確認的 1 件仍占著名額')
-    expect(impactLines({ ...impact, open_requests: 0, new_requests: 0, pending_confirmation: 0, upcoming_confirmed: 0, bookable_slots: 0 }, 'phone')).toEqual(['目前沒有進行中的案件。'])
+    // 舊流程的待處理／聯絡中／待園方確認已拿掉，不再出現在影響說明。
+    for (const gone of ['待處理', '聯絡中', '待園方確認', '仍占著名額']) expect(lines.join(''), gone).not.toContain(gone)
+    expect(impactLines({ ...impact, open_requests: 0, upcoming_confirmed: 0, bookable_slots: 0 }, 'phone')).toEqual(['目前沒有進行中的案件。'])
     expect(impactLines(null, 'phone')[0]).toContain('無法讀取')
   })
 
   it('已過參觀時間、還沒結案的已確認案件另外列，細項加總等於進行中件數（B04-R4）', () => {
-    const lines = impactLines({ ...impact, open_requests: 5, past_confirmed: 2 }, 'phone')
-    expect(lines[0]).toBe('進行中的案件 5 件（待處理 1、待園方確認 1、已確認、還沒參觀 1、已過參觀時間、尚未結案 2）：不會被修改，照常在「參觀案件」處理。')
+    const lines = impactLines({ ...impact, open_requests: 5, upcoming_confirmed: 3, past_confirmed: 2 }, 'phone')
+    expect(lines[0]).toBe('進行中的案件 5 件（已確認、還沒參觀 3、已過參觀時間、尚未結案 2）：不會被修改，照常在「參觀案件」處理。')
     // 舊版 API 沒有這個欄位時照舊顯示。
     const { past_confirmed: _omitted, ...legacy } = impact
     expect(impactLines(legacy as typeof impact, 'phone')[0]).not.toContain('尚未結案')

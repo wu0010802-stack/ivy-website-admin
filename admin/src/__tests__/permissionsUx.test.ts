@@ -129,7 +129,7 @@ describe('參觀案件列表', () => {
 })
 
 describe('站內通知', () => {
-  const notification = { id: 'n1', campus_key: 'yihua', kind: 'visit_request_pending_confirmation', payload: {}, created_at: '2026-09-22T00:00:00Z', read_at: null }
+  const notification = { id: 'n1', campus_key: 'yihua', kind: 'visit_request_created', payload: {}, created_at: '2026-09-22T00:00:00Z', read_at: null }
   const reschedule = {
     id: 'r1', visit_request_id: 'v1', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
     current_slot: { id: 's1', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' },
@@ -144,7 +144,7 @@ describe('站內通知', () => {
     mockApi()
     const post = vi.spyOn(api, 'post')
     const { wrapper } = await mountAs(NotificationsView, desk(), '/notifications')
-    expect(wrapper.text()).toContain('新的時段申請（待園方確認）')
+    expect(wrapper.text()).toContain('新的參觀預約')
     expect(buttonTexts(wrapper)).toContain('核准')
     expect(buttonTexts(wrapper)).toContain('退回')
     expect(buttonTexts(wrapper)).not.toContain('全部標記已讀')

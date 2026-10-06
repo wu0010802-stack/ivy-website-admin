@@ -1766,8 +1766,8 @@ export interface paths {
         put?: never;
         /**
          * Create Manual Visit Request
-         * @description 人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡
-         *     紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
+         * @description 人工補登。一律當場排入場次（建立即是已確認），可再寫第一筆聯絡
+         *     紀錄；在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，
          *     人員改完再送一次即可。
          */
         post: operations["create_manual_visit_request_api_website_v1_admin_visit_requests_post"];
@@ -1855,9 +1855,8 @@ export interface paths {
          *     完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token
          *     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
          *
-         *     有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；
-         *     沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出
-         *     （另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。
+         *     有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在
+         *     真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。
          */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
@@ -1919,23 +1918,6 @@ export interface paths {
          *     同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。
          */
         post: operations["mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Confirm Visit Request */
-        post: operations["confirm_visit_request_api_website_v1_admin_visit_requests__visit_request_id__confirm_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3258,16 +3240,10 @@ export interface components {
         BookingImpactOut: {
             /** Bookable Slots */
             bookable_slots: number;
-            /** Contacting */
-            contacting: number;
-            /** New Requests */
-            new_requests: number;
             /** Open Requests */
             open_requests: number;
             /** Past Confirmed */
             past_confirmed: number;
-            /** Pending Confirmation */
-            pending_confirmation: number;
             /** Upcoming Confirmed */
             upcoming_confirmed: number;
             /** Weekly Rules */
@@ -4692,8 +4668,6 @@ export interface components {
             created_at: string;
             /** Email */
             email?: string | null;
-            /** Hold Expires At */
-            hold_expires_at: string | null;
             /**
              * Id
              * Format: uuid
@@ -5945,14 +5919,6 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
-        /** VisitRequestConfirmRequest */
-        VisitRequestConfirmRequest: {
-            /**
-             * Slot Id
-             * Format: uuid
-             */
-            slot_id: string;
-        };
         /** VisitRequestCreate */
         VisitRequestCreate: {
             /** Age */
@@ -6040,8 +6006,6 @@ export interface components {
             email?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
-            /** Hold Expires At */
-            hold_expires_at?: string | null;
             /**
              * Id
              * Format: uuid
@@ -6127,8 +6091,6 @@ export interface components {
             follow_up_at: string | null;
             /** History */
             history: components["schemas"]["VisitHistoryOut"][];
-            /** Hold Expires At */
-            hold_expires_at?: string | null;
             /**
              * Id
              * Format: uuid
@@ -10633,45 +10595,6 @@ export interface operations {
             };
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    confirm_visit_request_api_website_v1_admin_visit_requests__visit_request_id__confirm_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                visit_request_id: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VisitRequestConfirmRequest"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -6,7 +6,7 @@ from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.booking import schedule_service, service
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestEvent, VisitSlot
@@ -38,7 +38,11 @@ async def _config(db_session, campus_key: str, *, mode: BookingMode, message: st
     config = await service.get_or_create_config(db_session, campus_key)
     config.mode = mode
     config.message = message
-    config.slots_auto_confirm = False
+    await db_session.commit()
+    # ORM 已不認得 slots_auto_confirm（欄位還在 DB，下一版才 drop）：舊設定列用原生 SQL 寫成 false。
+    await db_session.execute(
+        text("UPDATE booking_configs SET slots_auto_confirm = false WHERE campus_key = :key"), {"key": campus_key}
+    )
     await db_session.commit()
     return config
 
@@ -77,7 +81,10 @@ async def test_inquiry_campuses_switch_to_slots_or_paused(db_session):
     assert minghua.message == "線上預約即將開放，歡迎來電洽詢。"
     assert chongde.message == "暑假暫停參觀"
     assert renwu.mode == BookingMode.LINE
-    assert all(c.slots_auto_confirm for c in (yihua, minghua, chongde, renwu))
+    auto_confirm = (
+        await db_session.execute(text("SELECT slots_auto_confirm FROM booking_configs WHERE campus_key IS NOT NULL"))
+    ).scalars().all()
+    assert auto_confirm and all(auto_confirm)
     assert yihua.version > versions["yihua"]
     assert renwu.version > versions["renwu"]  # 自動確認改了也要讓舊表單重新讀設定
     audits = (

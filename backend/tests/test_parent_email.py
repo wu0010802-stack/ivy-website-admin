@@ -250,9 +250,9 @@ async def test_without_smtp_staff_is_told_the_parent_gets_no_mail(admin_client, 
 
 
 @pytest.mark.asyncio
-async def test_regenerating_a_link_without_a_slot_does_not_mail_the_parent(app, admin_client, db_session):
-    """沒有場次的舊案件：信裡沒有日期只會讓家長困惑，不排變更信，emailed 為 False。"""
-    visit_id = await legacy_request(db_session, email="legacy@example.com")
+async def test_regenerating_a_link_without_an_email_does_not_mail_the_parent(app, admin_client, db_session):
+    """沒有 Email 的案件：沒有地方可寄，不排變更信，emailed 為 False；連結仍要能交給家長。"""
+    visit_id = await legacy_request(db_session, status="confirmed", email=None)
     _enable_smtp(app)
 
     regenerate = await admin_client.post(f"{API}/admin/visit-requests/{visit_id}/access-link")

@@ -31,13 +31,10 @@ logger = logging.getLogger("app.notifications")
 _KIND_LABELS = {
     # 官網送單即預約成立（排了場次的才叫預約，未排的才叫「參觀需求」，和後台用語一致）。
     "visit_request_created": "新的參觀預約",
-    # 規格 197：人工確認模式下「待園方確認」不是「已確認」，文案必須分開，
-    # 否則園方收到的信會誤以為這筆預約已經成立。
-    "visit_request_pending_confirmation": "新的時段申請（待園方確認）",
+    # 後台補登排入場次。
     "visit_request_confirmed": "參觀預約已確認",
     "visit_request_cancelled": "參觀預約已取消",
     "visit_request_rescheduled": "參觀預約已改期",
-    "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
     "parent_visit_booked": "家長確認信（預約成功）",
     "parent_visit_changed": "家長確認信（預約已變更）",
     "parent_visit_cancelled": "家長確認信（預約已取消）",
@@ -45,17 +42,15 @@ _KIND_LABELS = {
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
     # 規格 L268：定期工作產生的提醒（notifications/reminders.py）。
     reminders.UPCOMING_VISIT_KIND: f"即將參觀（{reminders.whole_hours(reminders.UPCOMING_VISIT_LEAD)} 小時內）",
-    reminders.OVERDUE_KIND: "案件逾期未處理",
+    # 舊流程（2026-10-06 拿掉）留下的通知，寄送失敗清單重寄時仍要有標題。
+    "visit_request_hold_expired": "時段占位已逾期，名額已釋放",
+    "visit_request_overdue": "案件逾期未處理",
 }
 
 
 def notification_label(kind: str, payload: dict | None = None) -> str:
-    """通知的中文標題。逾期未處理另外帶出是哪一種（新需求放太久、占位快到期）。"""
-    label = _KIND_LABELS.get(kind, kind)
-    reason = (payload or {}).get("reason")
-    if kind == reminders.OVERDUE_KIND and reason in reminders.REASON_LABELS:
-        return f"{label}：{reminders.REASON_LABELS[reason]}"
-    return label
+    """通知的中文標題。"""
+    return _KIND_LABELS.get(kind, kind)
 
 _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
 

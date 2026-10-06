@@ -127,10 +127,10 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     const kindByConstant = Object.fromEntries(
       [...reminders.matchAll(/^([A-Z_]+_KIND) = "([a-z_]+)"/gm)].map((m) => [m[1]!, m[2]!]),
     )
-    expect(Object.values(kindByConstant)).toEqual(['visit_upcoming', 'visit_request_overdue'])
+    expect(Object.values(kindByConstant)).toEqual(['visit_upcoming'])
     const hours = reminderHours(reminders)
     const reminderLabels = [...block.matchAll(/^\s+reminders\.([A-Z_]+_KIND):\s*f?"([^"]+)"/gm)]
-    expect(reminderLabels.map((m) => kindByConstant[m[1]!])).toEqual(['visit_upcoming', 'visit_request_overdue'])
+    expect(reminderLabels.map((m) => kindByConstant[m[1]!])).toEqual(['visit_upcoming'])
     for (const [, constant, template] of reminderLabels) {
       const kind = kindByConstant[constant!]!
       expect(NOTIFICATION_KIND_LABELS[kind], kind).toBe(renderReminderText(template!, hours))
@@ -142,26 +142,21 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     for (const text of Object.values(backendSources)) {
       for (const m of text.matchAll(/enqueue_outbox\(\s*[^,]+,\s*[^,]+,\s*"([a-z_]+)"/g)) enqueued.add(m[1]!)
     }
-    expect(enqueued.size).toBeGreaterThan(4)
+    expect(enqueued.size).toBeGreaterThan(3)
     expect([...enqueued].filter((kind) => !NOTIFICATION_KIND_LABELS[kind])).toEqual([])
   })
 
-  it('逾期未處理的原因有中文、文字和後端一致，並帶進通知標題', () => {
+  it('舊流程的通知種類與逾期原因只供以前的通知顯示：後端已不再產生，前端仍保留中文', () => {
+    // 後端 2026-10-06 拿掉 REASON_LABELS 與逾期提醒常數，不再有可比對的來源。
     const reminders = source('notifications/reminders.py')
-    const reasonByConstant = Object.fromEntries(
-      [...reminders.matchAll(/^(REASON_[A-Z_]+) = "([a-z_]+)"/gm)].map((m) => [m[1]!, m[2]!]),
-    )
-    expect(Object.values(reasonByConstant)).toEqual(['new_unhandled', 'hold_expiring'])
-    const hours = reminderHours(reminders)
-    const block = reminders.slice(reminders.indexOf('REASON_LABELS = {'), reminders.indexOf('\n}\n', reminders.indexOf('REASON_LABELS = {')))
-    const backendReasons = [...block.matchAll(/^\s+(REASON_[A-Z_]+):\s*f?"([^"]+)"/gm)]
-    expect(backendReasons.length).toBe(2)
-    for (const [, constant, template] of backendReasons) {
-      const reason = reasonByConstant[constant!]!
-      expect(NOTIFICATION_REASON_LABELS[reason], reason).toBe(renderReminderText(template!, hours))
-    }
-    expect(NOTIFICATION_REASON_LABELS.new_unhandled).toContain(`${hours.NEW_REQUEST_OVERDUE_AFTER} 小時`)
-    expect(NOTIFICATION_REASON_LABELS.hold_expiring).toContain(`${hours.HOLD_EXPIRING_WITHIN} 小時`)
+    expect(reminders).not.toContain('REASON_LABELS')
+    expect(reminders).not.toContain('OVERDUE_KIND')
+    // 待確認通知種類已拿掉；舊的 hold_expired、overdue 仍有標題（後端以字面字串保留）。
+    expect(NOTIFICATION_KIND_LABELS.visit_request_pending_confirmation).toBeUndefined()
+    expect(NOTIFICATION_KIND_LABELS.visit_request_hold_expired).toBeTruthy()
+    expect(NOTIFICATION_KIND_LABELS.visit_request_overdue).toBeTruthy()
+    expect(NOTIFICATION_REASON_LABELS.new_unhandled).toBeTruthy()
+    expect(NOTIFICATION_REASON_LABELS.hold_expiring).toBeTruthy()
 
     expect(notificationLabel('visit_request_overdue', { reason: 'new_unhandled' })).toBe(
       `案件逾期未處理：${NOTIFICATION_REASON_LABELS.new_unhandled}`,
@@ -171,10 +166,10 @@ describe('中文標籤涵蓋後端所有代碼', () => {
   })
 
   it('解析得出提醒門檻，後端文案改成別的寫法時直接報錯', () => {
-    const hours = reminderHours('UPCOMING_VISIT_LEAD = timedelta(hours=24)\nHOLD_EXPIRING_WITHIN = timedelta(days=1)\n')
-    expect(hours).toEqual({ UPCOMING_VISIT_LEAD: 24, HOLD_EXPIRING_WITHIN: 24 })
+    const hours = reminderHours('UPCOMING_VISIT_LEAD = timedelta(hours=24)\nSOME_WINDOW = timedelta(days=1)\n')
+    expect(hours).toEqual({ UPCOMING_VISIT_LEAD: 24, SOME_WINDOW: 24 })
     expect(renderReminderText('即將參觀（{reminders.whole_hours(reminders.UPCOMING_VISIT_LEAD)} 小時內）', hours)).toBe('即將參觀（24 小時內）')
-    expect(() => renderReminderText('{whole_hours(NEW_REQUEST_OVERDUE_AFTER)}', hours)).toThrow('NEW_REQUEST_OVERDUE_AFTER')
+    expect(() => renderReminderText('{whole_hours(UNKNOWN_WINDOW)}', hours)).toThrow('UNKNOWN_WINDOW')
   })
 
   it('個資保存政策的案件分類都有中文', () => {

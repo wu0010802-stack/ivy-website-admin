@@ -1981,24 +1981,12 @@
             "title": "Bookable Slots",
             "type": "integer"
           },
-          "contacting": {
-            "title": "Contacting",
-            "type": "integer"
-          },
-          "new_requests": {
-            "title": "New Requests",
-            "type": "integer"
-          },
           "open_requests": {
             "title": "Open Requests",
             "type": "integer"
           },
           "past_confirmed": {
             "title": "Past Confirmed",
-            "type": "integer"
-          },
-          "pending_confirmation": {
-            "title": "Pending Confirmation",
             "type": "integer"
           },
           "upcoming_confirmed": {
@@ -2012,9 +2000,6 @@
         },
         "required": [
           "open_requests",
-          "new_requests",
-          "contacting",
-          "pending_confirmation",
           "upcoming_confirmed",
           "past_confirmed",
           "bookable_slots",
@@ -5989,18 +5974,6 @@
             ],
             "title": "Email"
           },
-          "hold_expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hold Expires At"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -6069,7 +6042,6 @@
           "version",
           "confirmed_at",
           "cancelled_at",
-          "hold_expires_at",
           "created_at",
           "change_deadline",
           "change_deadline_hours",
@@ -9965,20 +9937,6 @@
         "title": "VisitRequestCancelRequest",
         "type": "object"
       },
-      "VisitRequestConfirmRequest": {
-        "properties": {
-          "slot_id": {
-            "format": "uuid",
-            "title": "Slot Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "slot_id"
-        ],
-        "title": "VisitRequestConfirmRequest",
-        "type": "object"
-      },
       "VisitRequestCreate": {
         "properties": {
           "age": {
@@ -10318,18 +10276,6 @@
             ],
             "title": "Follow Up At"
           },
-          "hold_expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hold Expires At"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -10660,18 +10606,6 @@
             },
             "title": "History",
             "type": "array"
-          },
-          "hold_expires_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hold Expires At"
           },
           "id": {
             "format": "uuid",
@@ -20955,7 +20889,7 @@
         ]
       },
       "post": {
-        "description": "人工補登。一律當場排入場次（等同建立後立刻確認），可再寫第一筆聯絡\n紀錄；三件事在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，\n人員改完再送一次即可。",
+        "description": "人工補登。一律當場排入場次（建立即是已確認），可再寫第一筆聯絡\n紀錄；在同一個交易，任何一步失敗（例如時段剛好額滿）整筆不建立，\n人員改完再送一次即可。",
         "operationId": "create_manual_visit_request_api_website_v1_admin_visit_requests_post",
         "parameters": [
           {
@@ -21608,7 +21542,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/access-link": {
       "post": {
-        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email、而且案件有場次時排一封「預約已變更」給家長（信在寄件當下重算連結）；\n沒有場次的舊案件不寄，信裡沒有日期只會讓家長困惑。emailed 只有在真的會寄出\n（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。",
+        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在\n真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。",
         "operationId": "create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post",
         "parameters": [
           {
@@ -21931,91 +21865,6 @@
           }
         },
         "summary": "Mark Completed",
-        "tags": [
-          "booking"
-        ]
-      }
-    },
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/confirm": {
-      "post": {
-        "operationId": "confirm_visit_request_api_website_v1_admin_visit_requests__visit_request_id__confirm_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "visit_request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Visit Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VisitRequestConfirmRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Confirm Visit Request",
         "tags": [
           "booking"
         ]

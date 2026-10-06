@@ -36,9 +36,6 @@ _EXEMPT = {
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),
-    ("POST", "/api/website/v1/admin/visit-requests/{visit_request_id}/contacting"): (
-        "2026-09-30 自選場次上線後退場，固定回 410，不改任何資料"
-    ),
 }
 
 
@@ -123,10 +120,10 @@ def test_exemptions_are_still_needed():
 
 @pytest.mark.parametrize(
     "func_path",
-    ["app.booking.routes.confirm_visit_request", "app.media.routes.archive_media"],
+    ["app.booking.routes.cancel_visit_request", "app.media.routes.archive_media"],
 )
 def test_checker_follows_direct_and_nested_calls(func_path):
-    """自我檢查：直接呼叫（confirm）與經過 service 層（封存）的都認得出來。"""
+    """自我檢查：直接呼叫（取消案件）與經過 service 層（封存）的都認得出來。"""
     module_name, _, name = func_path.rpartition(".")
     module = __import__(module_name, fromlist=[name])
     assert _writes_audit(getattr(module, name))

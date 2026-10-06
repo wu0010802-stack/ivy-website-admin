@@ -9,7 +9,7 @@ const visit = {
   parent_name: '王媽媽', phone: '0999000001', email: 'wang@example.com', child_name: '小安', child_birthdate: '2022-05-01', party_size: 2, questions: null, version: 3, can_edit: true,
   campus_name: '明華校', campus_active: true, campus_phone: '07-3000000',
   slot: { id: 'slot-1', slot_date: '2026-10-10', start_time: '10:00:00', end_time: '11:00:00' },
-  confirmed_at: null, cancelled_at: null, hold_expires_at: null, created_at: '2026-09-23T00:00:00Z',
+  confirmed_at: null, cancelled_at: null, created_at: '2026-09-23T00:00:00Z',
   change_deadline: '2026-10-09T02:00:00Z', change_deadline_hours: 24, can_cancel: true, can_reschedule: true
 }
 const failure = (status: number, code = '') => ({ response: { status }, data: { detail: { code } } })

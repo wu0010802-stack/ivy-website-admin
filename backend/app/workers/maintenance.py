@@ -1,5 +1,5 @@
-"""API 內建的定期工作：排程發布、釋放逾期占位、依每週規則補時段、產生提醒
-（即將參觀、逾期未處理）、處理通知 outbox、清過期限流計數、清理刪除超過
+"""API 內建的定期工作：排程發布、依每週規則補時段、產生提醒
+（即將參觀）、處理通知 outbox、清過期限流計數、清理刪除超過
 保留天數的素材、依個資保存政策每天清理一次。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
@@ -9,7 +9,7 @@ production 預設 60 秒）；CLI 保留，呼叫的是同一個 `run_cycle`。
 
 同一時間全域只會有一輪在跑：以 PostgreSQL advisory lock 互斥，多個 worker／
 副本、或有人同時手動執行 CLI，後到者直接跳過這一輪。各步驟本身也都冪等
-（outbox 租約、排程 SKIP LOCKED、占位依狀態鎖列），這把鎖只是避免重複白工。
+（outbox 租約、排程 SKIP LOCKED），這把鎖只是避免重複白工。
 用交易層級的鎖：交易結束（含例外）就自動釋放，不會卡在連線池裡的連線上。"""
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.booking import schedule_service
-from app.booking.workflow_service import expire_holds
 from app.common.ratelimit import purge_expired_counters
 from app.common.timezones import today_local
 from app.config import Settings
@@ -49,7 +48,6 @@ class CycleResult:
     publish_failed: int = 0
     # 到期時官網已經是較新版本、所以沒有蓋回去的排程。
     publish_skipped: int = 0
-    expired_holds: int = 0
     slots_generated: int = 0
     reminders_enqueued: int = 0
     email_configured: bool = False
@@ -71,7 +69,6 @@ class CycleResult:
                 self.published,
                 self.publish_failed,
                 self.publish_skipped,
-                self.expired_holds,
                 self.slots_generated,
                 self.reminders_enqueued,
                 self.notifications_sent,
@@ -137,16 +134,6 @@ async def _run_steps(
     except Exception:  # noqa: BLE001 - 一步失敗不擋後面的步驟
         logger.exception("定期工作：排程發布失敗")
         result.failed_steps.append("publish_jobs")
-
-    # 先釋放逾期占位再處理 outbox：它會寫進 outbox，這一輪就能一起通知。
-    # 釋放占位與寄信設定無關，一定要跑。
-    try:
-        async with session_factory() as db:
-            result.expired_holds = await expire_holds(db)
-            await db.commit()
-    except Exception:  # noqa: BLE001
-        logger.exception("定期工作：釋放逾期占位失敗")
-        result.failed_steps.append("expire_holds")
 
     # 依每週規則把時段補到最遠開放天數（規格 L221-223），每校一天一次。每校
     # 自己一個交易：某校失敗不影響其他校，下一輪會再試。

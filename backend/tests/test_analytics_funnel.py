@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import JSON, func, select
@@ -15,7 +15,7 @@ from app.booking.models import VisitRequest
 from app.common import timezones
 from app.operations import analytics_service
 from app.operations.models import CTA_ENTRIES, AnalyticsEvent, AnalyticsEventType
-from tests.conftest import book_slot, create_slot, legacy_request, open_manage
+from tests.conftest import book_slot, create_slot, open_manage
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -103,28 +103,18 @@ async def test_cancellations_are_recorded_with_reason(admin_client, public_clien
     cancelled = await public_client.post(f"{API}/public/visit-manage/cancel", json={"visit_request_id": parent})
     assert cancelled.status_code == 200
 
-    # 上線前留下的待確認舊案，占位逾期後由系統釋放。
-    hold_slot = await create_slot(admin_client, days_ahead=5)
-    held = await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=hold_slot,
-        hold_expires_at=timezones.now_utc() - timedelta(minutes=1),
-        phone="0922333444",
-    )
-    assert await workflow_service.expire_holds(db_session) == 1
-    await db_session.commit()
-
     # 取消原因同時記在案件上，之後不必靠統計事件回推。
     reasons = {
         str(row.id): row.cancel_reason
         for row in (await db_session.execute(select(VisitRequest))).scalars()
     }
-    assert reasons == {staff: "staff", parent: "parent", held: "hold_expired"}
+    assert reasons == {staff: "staff", parent: "parent"}
 
     funnel = await _funnel(admin_client)
-    assert funnel["counts"]["visit_cancelled"] == 3
-    assert funnel["cancelled_by_reason"] == {"staff": 1, "parent": 1, "hold_expired": 1}
+    assert funnel["counts"]["visit_cancelled"] == 2
+    assert funnel["cancelled_by_reason"] == {"staff": 1, "parent": 1}
+    # 占位逾期取消的流程已刪除，不會再有系統取消。
+    assert not hasattr(workflow_service, "expire_holds")
     # 事件只留去識別的快照，不帶姓名、電話或案件 id。
     events = (await db_session.execute(
         select(AnalyticsEvent).where(AnalyticsEvent.event_type == AnalyticsEventType.VISIT_CANCELLED)

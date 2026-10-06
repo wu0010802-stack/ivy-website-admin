@@ -71,15 +71,13 @@ async function load(retry = false) {
 watch(() => props.campusKey, () => load(), { immediate: true })
 
 // 停用確認框裡的進行中件數。readiness 的 open_requests 與停用 API 回傳的件數
-// 用同一組狀態（待處理、聯絡中、待園方確認、已確認），確認框和停用後的提示對得上。
+// 用同一組狀態（已確認），確認框和停用後的提示對得上。
 function deactivateImpactLine(impact: BookingImpactOut | null | undefined): string {
   if (!impact) return '目前無法讀取進行中的案件數，停用後請到「待人工處理」確認。'
   if (impact.open_requests <= 0) return '目前沒有進行中的案件。'
   const parts = [
     impact.upcoming_confirmed ? `已確認、還沒參觀 ${impact.upcoming_confirmed}` : '',
     impact.past_confirmed ? `已過參觀時間、尚未結案 ${impact.past_confirmed}` : '',
-    impact.pending_confirmation ? `待園方確認 ${impact.pending_confirmation}` : '',
-    impact.new_requests || impact.contacting ? `待處理／聯絡中 ${impact.new_requests + impact.contacting}` : '',
   ].filter(Boolean)
   return `進行中的案件 ${impact.open_requests} 件${parts.length ? `（${parts.join('、')}）` : ''}。停用後官網不會通知這些家長，要另外逐一聯絡。`
 }

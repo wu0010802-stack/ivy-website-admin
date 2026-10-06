@@ -9,7 +9,7 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import { lastHandled } from '../api/visitHistory'
 import { useAuthStore } from '../stores/auth'
 import type { RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatHoldRemaining, formatSlotWhen, holdIsUrgent, maskEmail, partySizeLabel, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitDisplay, visitDisplayStatus, visitSourceLabel, visitStatus } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatSlotWhen, maskEmail, partySizeLabel, referralSourceLabels, slotStarted, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitDisplay, visitDisplayStatus, visitSourceLabel, visitStatus } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { usePermissions } from '../composables/usePermissions'
@@ -56,7 +56,6 @@ const handled = computed(() => {
 })
 const notes = ref<VisitContactNoteOut[]>([])
 const availableSlots = ref<VisitSlotOut[]>([])
-const selectedSlotId = ref('')
 // 已確認案件改期：選新場次、原因選填（記在案件歷程）。
 const rescheduleSlotId = ref('')
 const rescheduleReason = ref('')
@@ -71,14 +70,13 @@ watch(newNote, (text) => writeVisitNoteDraft(id.value, text))
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
 // 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
-const noteInput = ref<{ focus: () => void } | null>(null)
 // 同校還沒處理完的其他案件，讓櫃台能一筆接一筆處理，不必每次回列表。
 // 從列表點進來時跟著那份列表的條件與順序（list）；沒有來源時照下方 loadNextCases 的處理優先序。
 interface NextCount { count: number; more: boolean }
-const nextQueue = ref<{ id: string; attendance: NextCount; due: NextCount; legacy: NextCount; list?: { count: number; label: string } } | null>(null)
+const nextQueue = ref<{ id: string; attendance: NextCount; due: NextCount; list?: { count: number } } | null>(null)
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
-type DetailAction = 'confirm' | 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note' | RescheduleAction
+type DetailAction = 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note' | RescheduleAction
 const pendingAction = ref<DetailAction | null>(null)
 const busy = computed(() => pendingAction.value !== null)
 const rebookOpen = ref(false)
@@ -168,9 +166,9 @@ async function load(options: { quiet?: boolean } = {}) {
     notes.value = notesResult.value
     if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
     void loadNextCases(loaded.campus_key)
-    // 排入場次（新需求、聯絡中）與改期（已確認）都從同校未來 60 天的場次挑。
+    // 改期（已確認）從同校未來 60 天的場次挑。
     let slots: VisitSlotOut[] = []
-    if (['new', 'contacting', 'confirmed'].includes(loaded.status)) {
+    if (loaded.status === 'confirmed') {
       const today = new Date().toISOString().slice(0, 10)
       const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
       slots = await api.get<VisitSlotOut[]>(
@@ -212,7 +210,6 @@ function timeOf(value: string | null | undefined): number {
   const at = value ? Date.parse(value) : Number.NaN
   return Number.isNaN(at) ? Number.POSITIVE_INFINITY : at
 }
-const holdTime = (request: VisitRequestDetailOut) => timeOf(request.hold_expires_at)
 const visitTime = (request: VisitRequestDetailOut) =>
   timeOf(request.slot ? `${request.slot.slot_date}T${request.slot.start_time.slice(0, 8)}+08:00` : null)
 const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDetailOut, b: VisitRequestDetailOut) => {
@@ -238,7 +235,6 @@ function sourceListParams(): URLSearchParams | null {
 }
 
 const NONE: NextCount = { count: 0, more: false }
-const NEXT_LABELS: Record<string, string> = { pending_confirmation: '下一筆待確認', new: '下一筆待處理' }
 // 目前這筆在來源列表的第幾位；處理完離開列表（例如狀態變了）後，
 // 接手它位置的那一筆就是下一筆。
 let queuePosition = 0
@@ -253,13 +249,12 @@ async function loadListNext(source: URLSearchParams, gen: number) {
   if (index >= 0) queuePosition = index
   const next = index >= 0 ? (rows[index + 1] ?? others[0]) : others[Math.min(queuePosition, others.length - 1)]
   nextQueue.value = next
-    ? { id: next.id, attendance: NONE, due: NONE, legacy: NONE, list: { count: others.length, label: NEXT_LABELS[next.status] ?? '下一筆' } }
+    ? { id: next.id, attendance: NONE, due: NONE, list: { count: others.length } }
     : null
 }
 
 // 下一筆的順序（2026-09-30 家長自選場次之後）：先是參觀時間已過、還沒標記到場的預約，
-// 參觀時間早的先；再來是到期待追蹤，預定聯絡時間早的先；最後才是上線前留下的
-// 舊需求（待園方確認期限早的先、待處理最早送出的先）。後端列表只能依送出時間排序，
+// 參觀時間早的先；再來是到期待追蹤，預定聯絡時間早的先。後端列表只能依送出時間排序，
 // 這裡自己排；同一筆同時符合兩段時只算在前一段。
 async function loadNextCases(campusKey: string) {
   const gen = generation
@@ -277,11 +272,9 @@ async function loadNextCases(campusKey: string) {
       `/admin/visit-requests?${new URLSearchParams({ ...params, campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
     )
   try {
-    const [attendance, due, held, fresh] = await Promise.all([
+    const [attendance, due] = await Promise.all([
       fetchList({ group: 'past', status: 'confirmed' }),
       fetchList({ follow_up_due: 'true' }),
-      fetchList({ status: 'pending_confirmation' }),
-      fetchList({ status: 'new' }),
     ])
     if (gen !== generation) return
     const rows = (list: unknown) => (Array.isArray(list) ? (list as VisitRequestDetailOut[]) : [])
@@ -289,17 +282,13 @@ async function loadNextCases(campusKey: string) {
     const take = (list: VisitRequestDetailOut[]) => list.filter((r) => !seen.has(r.id) && seen.add(r.id))
     const attendanceOthers = take(rows(attendance).sort(byTime(visitTime)))
     const dueOthers = take(rows(due).sort(byTime((r) => timeOf(r.follow_up_at))))
-    // 期限已過、系統還沒來得及取消的待確認（排程約一分鐘跑一次）已經不能確認，不排進下一筆。
-    const now = Date.now()
-    const legacyOthers = take([...rows(held).filter((r) => holdTime(r) > now).sort(byTime(holdTime)), ...rows(fresh)])
-    const first = attendanceOthers[0] ?? dueOthers[0] ?? legacyOthers[0]
+    const first = attendanceOthers[0] ?? dueOthers[0]
     const full = (list: unknown) => rows(list).length >= NEXT_LIMIT
     nextQueue.value = first
       ? {
           id: first.id,
           attendance: { count: attendanceOthers.length, more: full(attendance) },
           due: { count: dueOthers.length, more: full(due) },
-          legacy: { count: legacyOthers.length, more: full(held) || full(fresh) },
         }
       : null
   } catch {
@@ -307,16 +296,15 @@ async function loadNextCases(campusKey: string) {
   }
 }
 
-// 按鈕上寫清楚算的是什麼：同校待標記到場幾件、到期追蹤幾件（不含這一筆）；舊需求有才寫。
+// 按鈕上寫清楚算的是什麼：同校待標記到場幾件、到期追蹤幾件（不含這一筆）。
 const nextCount = (c: NextCount) => `${c.count}${c.more ? '+' : ''}`
 const nextLabel = computed(() => {
   const q = nextQueue.value
   if (!q) return ''
-  if (q.list) return `${q.list.label}（這份列表還有 ${q.list.count} 件）`
+  if (q.list) return `下一筆（這份列表還有 ${q.list.count} 件）`
   const parts = [
     q.attendance.count ? `待標記到場 ${nextCount(q.attendance)}` : '',
     q.due.count ? `到期追蹤 ${nextCount(q.due)}` : '',
-    q.legacy.count ? `舊需求 ${nextCount(q.legacy)}` : '',
   ].filter(Boolean)
   return `下一筆（${parts.join('・')}）`
 })
@@ -432,58 +420,16 @@ const parentMailNote = computed(() => {
   if (emailEnabled.value === false) return '尚未設定寄信，請電話通知家長。'
   return `有 Email（${maskEmail(email)}），但無法確認系統是否會寄信，請確認是否需要另外通知家長。`
 })
-// 取消與改期的信只在案件有場次時才會寄（後端依有沒有場次與 Email 決定）。
-const mailNoteIfConfirmed = computed(() => (detail.value?.slot ? parentMailNote.value : '這筆還沒排場次，不會通知家長。'))
-
-async function confirm() {
-  if (!selectedSlotId.value && detail.value?.status !== 'pending_confirmation') {
-    notifyWarning('請先選擇一個場次')
-    return
-  }
-  const slot = detail.value?.status === 'pending_confirmation' ? detail.value.slot : openSlots.value.find((s) => s.id === selectedSlotId.value)
-  if (!slot) {
-    notifyWarning('這個場次已經不能選了，請重新選擇')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `將把 ${detail.value?.parent_name} 排入 ${formatSlotWhen(slot)}，案件變成「預約正常」。${parentMailNote.value}`,
-      '排入這個場次？',
-      { confirmButtonText: '排入場次', cancelButtonText: '先不要', type: 'info' },
-    )
-  } catch {
-    return
-  }
-  pendingAction.value = 'confirm'
-  try {
-    await api.post(`/admin/visit-requests/${id.value}/confirm`, { slot_id: slot.id })
-    ElMessage.success(`已排入 ${formatSlotWhen(slot)}`)
-    openRequests.refresh(true)
-    await load({ quiet: true })
-    await focusNoteOrShowTop()
-  } catch (err) {
-    reportError(err, '確認失敗')
-  } finally {
-    pendingAction.value = null
-  }
-}
-
-// 還沒排時段（待處理、聯絡中）只是「參觀需求」，不叫預約；只有排了場次的才是
-// 「取消預約」。案件狀態、按鈕、對話框與歷程用同一組詞。
-const cancelsRequest = computed(() => detail.value?.status === 'new' || detail.value?.status === 'contacting')
-
 async function cancel() {
-  const request = cancelsRequest.value
-  const released = detail.value?.status === 'pending_confirmation' ? '家長選的場次名額會釋出。' : detail.value?.status === 'confirmed' ? '原場次的名額會釋出。' : ''
   // 參觀時間已過：家長沒來要標記未到場，取消會被算成園方取消、名額也會釋出。
   const noShowNote = attendanceDue.value ? '家長沒來請改用上方的「標記未到場」。' : ''
   let reason: string | null = null
   try {
     const result = await ElMessageBox.prompt(
-      `${noShowNote}${released}案件會結案。${mailNoteIfConfirmed.value}家長之後想再約，可以在這一頁用「重新預約（另建新案）」接續，不必請家長重新送出。`,
-      request ? '取消這筆參觀需求？' : '取消這筆預約？',
+      `${noShowNote}原場次的名額會釋出。案件會結案。${parentMailNote.value}家長之後想再約，可以在這一頁用「重新預約（另建新案）」接續，不必請家長重新送出。`,
+      '取消這筆預約？',
       {
-        confirmButtonText: request ? '取消需求' : '取消預約',
+        confirmButtonText: '取消預約',
         confirmButtonClass: 'el-button--danger',
         cancelButtonText: '先不要',
         inputPlaceholder: '取消原因（選填，會記在案件歷程）',
@@ -536,7 +482,7 @@ async function markNoShow() {
 // 參觀場次開始後才出現「標記已到場」與「標記未到場」（後端也會拒絕）：兩者都會
 // 保留這一場的名額，提早按下去未來那一場就永遠排不進人；家長事先說不來要取消。
 // 櫃台常開著案件頁等家長來，時間每 30 秒重算一次，場次一開始按鈕就出現；
-// 待確認的「還剩多久」、下次聯絡是否已過也跟著這個時鐘更新。
+// 下次聯絡是否已過也跟著這個時鐘更新。
 const clockNow = ref(Date.now())
 const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
 onBeforeUnmount(() => window.clearInterval(clock))
@@ -560,22 +506,6 @@ const manualRescheduleShown = computed(() => manualRescheduleOpen.value)
 const confirmedAtShown = computed(() => {
   const current = detail.value
   return Boolean(current?.confirmed_at) && formatDateTime(current!.confirmed_at) !== formatDateTime(current!.created_at)
-})
-
-// 桌機游標直接進紀錄框；觸控裝置聚焦會彈出鍵盤，還把頁面捲到紀錄框、
-// 狀態標籤跑出畫面，所以只把頁面捲回頂端，狀態與「處理」面板都看得到。
-async function focusNoteOrShowTop() {
-  await nextTick()
-  if (window.matchMedia?.('(pointer: coarse)').matches) window.scrollTo({ top: 0 })
-  else noteInput.value?.focus()
-}
-
-// 待確認的占位過了期限：後端不會再接受確認，系統排程會自動取消並釋出名額。
-const holdExpired = computed(() => {
-  const at = detail.value?.status === 'pending_confirmation' ? detail.value.hold_expires_at : null
-  if (!at) return false
-  const expires = Date.parse(at)
-  return !Number.isNaN(expires) && expires <= clockNow.value
 })
 
 // 展開手動改期時，按下的連結會被表單換掉；把焦點移進表單（能選時段就放在
@@ -815,7 +745,6 @@ watch(id, () => {
   newNote.value = readVisitNoteDraft(id.value)
   bookingDataOpen.value = false
   followUpAt.value = null
-  selectedSlotId.value = ''
   rescheduleSlotId.value = ''
   rescheduleReason.value = ''
   manualRescheduleOpen.value = false
@@ -823,9 +752,7 @@ watch(id, () => {
 })
 
 // 還在流程中的案件才需要家長連結；結案時後端已經撤銷。
-const linkApplicable = computed(() =>
-  ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.value?.status ?? ''),
-)
+const linkApplicable = computed(() => detail.value?.status === 'confirmed')
 
 // 官網送出的才是家長自己填的；園方補登的是櫃台代填。
 const isWebCase = computed(() => !detail.value?.source || detail.value.source === 'web')
@@ -938,7 +865,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
             <p v-else class="hint">{{ canHandle ? '還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。' : '還沒有聯絡紀錄。' }}</p>
             <div v-if="canHandle" class="notes__form">
               <el-input
-                ref="noteInput"
                 v-model="newNote"
                 type="textarea"
                 :autosize="{ minRows: 2, maxRows: 6 }"
@@ -1025,40 +951,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
                 @rebook="rebookOpen = true"
               />
               <p v-else-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
-              <template v-else-if="detail.status === 'new' || detail.status === 'contacting'">
-                <p class="hint">這是改版前的舊需求。選一個場次排入就成立，有 Email 會寄確認信給家長。</p>
-                <el-select v-model="selectedSlotId" placeholder="選擇參觀場次" filterable :disabled="openSlots.length === 0" aria-label="參觀場次" style="width: 100%">
-                  <el-option-group v-for="group in groupSlotsByDay(openSlots)" :key="group.day" :label="group.label">
-                    <el-option v-for="slot in group.slots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id">{{ slotChoiceTime(slot) }}</el-option>
-                  </el-option-group>
-                </el-select>
-                <p v-if="chosenSlotText(openSlots, selectedSlotId)" class="hint slot-chosen">已選：{{ chosenSlotText(openSlots, selectedSlotId) }}</p>
-                <p v-if="openSlots.length === 0" class="hint">
-                  <template v-if="canManage">未來 60 天沒有可用場次。先到 <router-link to="/visit-calendar">參觀場次</router-link> 新增。</template>
-                  <template v-else>未來 60 天沒有可用場次，請校區管理者到「參觀場次」新增。</template>
-                </p>
-                <el-button type="primary" :loading="pendingAction === 'confirm'" :disabled="!selectedSlotId || busy" style="width: 100%" @click="confirm">
-                  排入場次
-                </el-button>
-              </template>
-
-              <template v-else-if="detail.status === 'pending_confirmation'">
-                <p class="hint">家長已選擇場次，名額暫時保留。確認後預約才會成立。</p>
-                <template v-if="detail.hold_expires_at">
-                  <!-- 期限在頁面開著時過了要念出來：報讀區先留在頁面上，只放過期說明，每分鐘變的倒數不放進來。 -->
-                  <div class="hold-status" role="status">
-                    <p v-if="holdExpired" class="hold-deadline is-urgent">
-                      確認期限 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 已過，不能再確認，系統會自動取消這筆並釋出名額。請重新讀取看最新狀態。
-                    </p>
-                  </div>
-                  <p v-if="!holdExpired" class="hold-deadline" :class="{ 'is-urgent': holdIsUrgent(detail.hold_expires_at, clockNow) }">
-                    請於 <strong class="num">{{ formatDateTime(detail.hold_expires_at) }}</strong> 前確認（{{ formatHoldRemaining(detail.hold_expires_at, clockNow) }}），逾期名額會自動釋出。
-                  </p>
-                </template>
-                <el-button v-if="holdExpired" :disabled="busy" style="width: 100%" @click="load({ quiet: true })">重新讀取案件</el-button>
-                <el-button type="primary" :loading="pendingAction === 'confirm'" :disabled="!detail.slot || holdExpired || busy" style="width: 100%; margin-left: 0" @click="confirm">確認這個場次</el-button>
-              </template>
-
               <template v-else-if="detail.status === 'confirmed'">
                 <div v-if="detail.pending_reschedule" class="reschedule-request" role="group" aria-label="家長的改期申請">
                   <p class="reschedule-request__title">家長申請改期<span class="num">（{{ formatDateTime(detail.pending_reschedule.created_at) }}）</span></p>
@@ -1155,11 +1047,11 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               <span v-else :title="staffEmailById(detail.assigned_staff_id, staff) || undefined">{{ staffLabelById(detail.assigned_staff_id, staff) }}</span>
             </div>
             <div
-              v-if="canHandle && ['new', 'contacting', 'pending_confirmation', 'confirmed'].includes(detail.status)"
+              v-if="canHandle && detail.status === 'confirmed'"
               class="detail__danger"
             >
               <span class="hint">{{ attendanceDue ? '家長沒來請用上方的標記未到場' : '家長不來了？' }}</span>
-              <el-button text type="danger" :loading="pendingAction === 'cancel'" :disabled="busy" class="detail__cancel" @click="cancel">{{ cancelsRequest ? '取消這筆需求' : '取消預約' }}</el-button>
+              <el-button text type="danger" :loading="pendingAction === 'cancel'" :disabled="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
             </div>
           </div>
         </aside>
@@ -1170,9 +1062,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 </template>
 
 <style scoped>
-.hold-deadline { margin: 0; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); color: var(--ink-2); font-size: var(--text-sm); line-height: 1.6; }
-.hold-deadline strong { color: var(--ink); font-weight: 600; }
-.hold-deadline.is-urgent { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
 .detail__nav {
   display: flex;
   justify-content: space-between;
@@ -1241,10 +1130,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 /* 報讀區沒有內容時不占位置：抵掉外層 flex 的間距（不能用 display: none，否則報讀軟體看不到它）。 */
 .notes__status:empty {
   margin-top: -8px;
-}
-
-.hold-status:empty {
-  margin-top: -12px;
 }
 
 /* 承辦人、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */

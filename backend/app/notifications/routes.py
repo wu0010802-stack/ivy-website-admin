@@ -32,7 +32,7 @@ class NotificationOutboxOut(BaseModel):
     campus_key: str
     visit_request_id: uuid.UUID
     kind: str
-    # 逾期未處理提醒的細分原因（new_unhandled／hold_expiring），其他通知為 null。
+    # 舊流程逾期未處理提醒（visit_request_overdue）的細分原因，其他通知為 null。
     reason: str | None
     status: str
     attempts: int

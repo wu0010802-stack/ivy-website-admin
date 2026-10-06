@@ -395,8 +395,7 @@ async function onSubmit() {
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
-    // 用 server 回的實際狀態決定文案，不要從 mode 推斷。slots 可以是
-    // 「待園方確認」（規格預設）也可以是自動確認，只有 confirmed 才能
+    // 用 server 回的實際狀態決定文案，不要從 mode 推斷：只有 confirmed 才能
     // 說「預約成立」——規格 197。
     submittedSlot.value = selectedSlot.value ? { ...selectedSlot.value } : null
     resultStatus.value = created?.status ?? null

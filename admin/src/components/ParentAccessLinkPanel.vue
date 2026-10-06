@@ -25,7 +25,7 @@ const emit = defineEmits<{ changed: [] }>()
 
 const created = ref<ParentAccessLinkCreatedOut | null>(null)
 const busy = ref(false)
-// 後端回 emailed=true 但待確認的舊案實際不會寄（寄件時略過非已確認的案件）：只有已確認才說已寄出。
+// 寄件時略過非已確認的案件：只有已確認才說已寄出。
 const sentByMail = computed(() => Boolean(created.value?.emailed) && props.status === 'confirmed')
 // 確定沒設定寄信：不提寄信，請櫃台自己把連結交給家長。
 const mailOff = computed(() => props.emailEnabled === false)

@@ -1,6 +1,6 @@
 """API 內建定期工作（app/workers/maintenance.py）。
 
-原本排程發布、逾期占位、通知都只能靠外部 cron 呼叫 CLI，但沒有任何排程在
+原本排程發布、通知都只能靠外部 cron 呼叫 CLI，但沒有任何排程在
 呼叫——正式站上這些事情從來沒發生過。"""
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import httpx
 import pytest
 from sqlalchemy import func, select, text
 
-from app.booking.models import OutboxMessage, OutboxStatus, VisitRequestStatus
+from app.booking.models import OutboxMessage, OutboxStatus
 from app.common.models import RateLimitCounter
 from app.config import Settings
 from app.db import create_engine, create_session_factory
@@ -21,46 +21,42 @@ from app.main import create_app
 from app.notifications.models import NotificationInboxItem
 from app.workers import maintenance
 from app.workers.maintenance import MaintenanceLoop, run_cycle
-from tests.conftest import create_slot, legacy_request
+from tests.conftest import book_slot
 
 
 # 預約表單要有已發布的同意文字（切 slots、官網送單）。
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 
-async def _expired_hold(admin_client, db_session) -> str:
-    """上線前留下的待確認舊案（占位已到期）；新流程不會再產生這種案件。"""
-    slot_id = await create_slot(admin_client, capacity=1)
-    return await legacy_request(
-        db_session,
-        status="pending_confirmation",
-        slot_id=slot_id,
-        hold_expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
-    )
+async def _booking(admin_client, public_client) -> str:
+    """官網家長自選場次預約；送出即 confirmed，並排入「新的參觀預約」通知。"""
+    return (await book_slot(admin_client, public_client))["receipt_id"]
 
 
 def _without_email(app) -> Settings:
     return app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
 
 
-async def test_cycle_releases_holds_and_writes_inbox_even_without_email(app, admin_client, db_session):
-    receipt_id = await _expired_hold(admin_client, db_session)
+async def test_cycle_writes_inbox_even_without_email(app, admin_client, public_client, db_session):
+    await _booking(admin_client, public_client)
 
     result = await run_cycle(app.state.session_factory, _without_email(app), worker_id="test")
 
     assert result.ran
-    assert result.expired_holds == 1
     assert not result.email_configured
     assert result.failed_steps == []
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert detail.json()["status"] == VisitRequestStatus.CANCELLED.value
+    # 逾期占位的步驟已隨舊流程刪除：結果與步驟清單都不再有它。
+    assert not hasattr(result, "expired_holds")
+    assert not hasattr(maintenance, "expire_holds")
 
     # 寄信沒設定，站內通知還是要到：原本整批 outbox 停著，後台一則都看不到。
     kinds = set((await db_session.execute(select(NotificationInboxItem.kind))).scalars())
-    assert "visit_request_hold_expired" in kinds
+    assert "visit_request_created" in kinds
     pending = (
         await db_session.execute(
-            select(func.count()).select_from(OutboxMessage).where(OutboxMessage.status != OutboxStatus.SENT.value)
+            select(func.count())
+            .select_from(OutboxMessage)
+            .where(OutboxMessage.kind == "visit_request_created", OutboxMessage.status != OutboxStatus.SENT.value)
         )
     ).scalar_one()
     assert pending == 0
@@ -128,8 +124,8 @@ async def test_cycle_purges_expired_rate_limit_rows(app, db_session):
     assert (await db_session.execute(select(func.count()).select_from(RateLimitCounter))).scalar_one() == 0
 
 
-async def test_a_failing_step_does_not_block_the_others(app, admin_client, db_session, monkeypatch):
-    receipt_id = await _expired_hold(admin_client, db_session)
+async def test_a_failing_step_does_not_block_the_others(app, admin_client, public_client, db_session, monkeypatch):
+    await _booking(admin_client, public_client)
 
     async def broken(db, **kwargs):
         raise RuntimeError("排程發布壞掉")
@@ -138,24 +134,19 @@ async def test_a_failing_step_does_not_block_the_others(app, admin_client, db_se
     result = await run_cycle(app.state.session_factory, _without_email(app), worker_id="test")
 
     assert result.failed_steps == ["publish_jobs"]
-    assert result.expired_holds == 1
-    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt_id}")
-    assert detail.json()["status"] == VisitRequestStatus.CANCELLED.value
+    # 後面的步驟照常跑：outbox 發出了站內通知。
+    kinds = set((await db_session.execute(select(NotificationInboxItem.kind))).scalars())
+    assert "visit_request_created" in kinds
 
 
-async def test_slow_smtp_does_not_block_the_event_loop(admin_client, db_session, run_outbox_once):
+async def test_slow_smtp_does_not_block_the_event_loop(admin_client, public_client, run_outbox_once):
     """定期工作跑在 API 的 event loop 上；SMTP 若直接同步呼叫，寄信期間
     所有請求都會卡住。"""
-    await _expired_hold(admin_client, db_session)
+    await _booking(admin_client, public_client)
 
     class SlowAdapter:
         def send(self, *, to: str, subject: str, body: str) -> None:
             time.sleep(0.3)
-
-    from app.booking.workflow_service import expire_holds
-
-    await expire_holds(db_session)
-    await db_session.commit()
 
     ticks = 0
 
@@ -170,7 +161,7 @@ async def test_slow_smtp_does_not_block_the_event_loop(admin_client, db_session,
         result = await run_outbox_once(SlowAdapter())
     finally:
         task.cancel()
-    assert result["sent"] == 1
+    assert result["sent"] >= 1
     assert ticks >= 5, "寄信期間 event loop 被卡住了"
 
 
@@ -190,12 +181,11 @@ async def test_loop_runs_cycles_and_stops_cleanly(app):
 
 async def test_loop_reports_failed_steps_instead_of_looking_healthy(app, monkeypatch):
     """每一步都失敗時 last_completed_at 照樣更新；健康狀態要能看出來。"""
-    from app.workers import maintenance
 
-    async def broken(db):
+    async def broken(db, **kwargs):
         raise RuntimeError("模擬 DB 失敗")
 
-    monkeypatch.setattr(maintenance, "expire_holds", broken)
+    monkeypatch.setattr("app.content.publish_jobs.run_due_jobs", broken)
     loop = MaintenanceLoop(app.state.session_factory, _without_email(app), interval_seconds=0.05, worker_id="loop")
     loop.start()
     try:
@@ -206,7 +196,7 @@ async def test_loop_reports_failed_steps_instead_of_looking_healthy(app, monkeyp
     finally:
         await loop.stop(timeout=5)
     assert loop.last_completed_at is not None
-    assert "expire_holds" in loop.last_failed_steps
+    assert "publish_jobs" in loop.last_failed_steps
     assert loop.last_clean_at is None
 
 
@@ -264,17 +254,12 @@ async def test_health_reports_disabled_when_loop_is_off(public_client):
 
 
 async def test_stale_backlog_writes_inbox_but_does_not_email(
-    admin_client, db_session, run_outbox_once, recording_mail_adapter
+    admin_client, public_client, db_session, run_outbox_once, recording_mail_adapter
 ):
     """定期工作第一次上線時，積壓好幾天的 outbox 不該一口氣寄給所有人。"""
     from sqlalchemy import update
 
-    await _expired_hold(admin_client, db_session)
-    # 舊案本身不產生 outbox，先跑一次逾期釋放才有「占位逾期」那則通知。
-    from app.booking.workflow_service import expire_holds
-
-    await expire_holds(db_session)
-    await db_session.commit()
+    await _booking(admin_client, public_client)
     await db_session.execute(
         update(OutboxMessage).values(created_at=datetime.now(timezone.utc) - timedelta(days=3))
     )

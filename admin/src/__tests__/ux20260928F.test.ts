@@ -212,7 +212,7 @@ describe('總覽依角色說明今天的工作', () => {
   it('櫃台不提官網更新，常用工作有參觀案件（補登從那裡進去）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary() as never)
     const wrapper = await mountDashboard(testUser('reception', { id: 'desk', campus_keys: ['yihua'] }))
-    expect(wrapper.find('.dash__lead').text()).toBe('先確認今天的參觀，再聯絡新需求與待確認的家長。')
+    expect(wrapper.find('.dash__lead').text()).toBe('先確認今天的參觀，再處理要追蹤或改期的家長。')
     const shortcut = wrapper.findAll('.dash__links a').find(link => link.text().includes('查看參觀案件'))!
     expect(shortcut.attributes('href')).toBe('/visit-requests')
     expect(shortcut.text()).toContain('補登案件')

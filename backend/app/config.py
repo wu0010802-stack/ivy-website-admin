@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     # 招生聯繫、招生訪視保存幾天）裁定前，正式站不可開啟。關閉時「標記已到場」
     # 不建招生訪視，/admin/admissions/* 不掛路由（404）；保存政策的招生類別照常。
     admissions_enabled: bool = False
-    # API 內建定期工作（排程發布、逾期占位、通知、清限流計數）的間隔秒數。
+    # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
     # 公開端點限流要綁訪客而非代理。Nuxt server route 會把訪客 IP 放進

@@ -36,8 +36,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
     # 去識別的成效統計（漏斗數字），唯讀角色依規格可以看。
     "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
-    # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、轉聯絡中、
-    # 確認排入時段、人工補登、取消、標記未到場、完成參觀、後台改期、核准／
+    # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、
+    # 人工補登、取消、標記未到場、完成參觀、後台改期、核准／
     # 退回家長改期申請、產生／撤銷家長管理連結。
     # 也是「可以承辦案件」與「收新案通知信」的定義。
     "booking.handle": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
