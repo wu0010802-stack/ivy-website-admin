@@ -49,20 +49,20 @@ describe('接待月曆的 grid 結構', () => {
   })
 })
 
-describe('總覽的營運摘要', () => {
-  it('<dl> 每組只有 dt、dd，查看連結包在 dd 裡', async () => {
+describe('總覽的本週五校', () => {
+  // 2026-10-06 行程板：兩格大數字換成本週五校小表，欄標題與列標題都是 th（報讀器唸得出「義華 已預約 5」）。
+  it('表頭 th 有 scope=col，每列校名是 scope=row', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({
       today_visits: 1, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
+      week_campuses: [{ campus_key: 'yihua', mode: 'slots', booked: 5, open: 7 }, { campus_key: 'minghua', mode: 'paused', booked: 0, open: null }],
     } as never)
     const wrapper = await mountAt('/', DashboardView as never)
-    const groups = wrapper.findAll('.dash__summary > div')
-    // 2026-10-05：舊案兩格已拿掉，固定只有今日參觀與到期待追蹤兩組。
-    expect(groups).toHaveLength(2)
-    for (const group of groups) {
-      expect(group.element.children.length).toBeGreaterThan(0)
-      for (const child of Array.from(group.element.children)) expect(['DT', 'DD']).toContain(child.tagName)
-      expect(group.find('dd a').exists()).toBe(true)
-    }
+    expect(wrapper.find('.dash__summary').exists()).toBe(false)
+    const table = wrapper.get('.dash__week table')
+    for (const th of table.findAll('thead th')) expect(th.attributes('scope')).toBe('col')
+    const rows = table.findAll('tbody tr')
+    expect(rows).toHaveLength(2)
+    for (const row of rows) expect(row.get('th').attributes('scope')).toBe('row')
   })
 })
 

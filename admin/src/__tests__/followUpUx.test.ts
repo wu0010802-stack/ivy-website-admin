@@ -51,7 +51,7 @@ describe('到期待追蹤有來源也有入口', () => {
     await router.push('/'); await router.isReady()
     const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    const link = wrapper.findAll('a').find(a => a.text().includes('查看到期案件'))!
+    const link = wrapper.findAll('a.task').find(a => a.text().includes('到期待追蹤'))!
     expect(link.attributes('href')).toBe('/visit-requests?due=1')
     await router.push('/visit-requests?due=1'); await flushPromises()
     const listCall = get.mock.calls.map(c => String(c[0])).find(p => p.startsWith('/admin/visit-requests?'))!

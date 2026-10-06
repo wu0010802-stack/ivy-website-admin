@@ -68,11 +68,12 @@ describe('總覽的主按鈕與待辦（2026-10-05 拿掉待處理狀態後）',
     expect(wrapper.find('.dash__primary').attributes('href')).toBe('/visit-requests')
   })
 
-  it('營運摘要固定兩格：今日參觀、到期待追蹤，沒有 .is-attention 格', async () => {
+  it('沒有兩格大數字（2026-10-06 行程板），摘要句也不提舊案', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 3, awaiting_confirmation: 2 }) as never)
     const { wrapper } = await mountAt('/')
-    expect(wrapper.findAll('.dash__summary dt').map(dt => dt.text())).toEqual(['今日參觀', '到期待追蹤'])
-    expect(wrapper.find('.dash__summary .is-attention').exists()).toBe(false)
+    expect(wrapper.find('.dash__summary').exists()).toBe(false)
+    expect(wrapper.get('.dash__sum').text()).toBe('今天沒有參觀。')
+    expect(wrapper.find('.is-attention').exists()).toBe(false)
   })
 
   it('主按鈕依序：家長還要來 → 改期申請 → 到期追蹤 → 查看參觀案件，字講的是點進去那一批', async () => {

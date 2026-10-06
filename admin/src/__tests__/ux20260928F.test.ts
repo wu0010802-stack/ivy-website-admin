@@ -76,9 +76,9 @@ describe('總覽開著也跟著時間走', () => {
     vi.setSystemTime(new Date('2026-09-29T15:59:10Z')) // 台北 23:59
     const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ today_visits: 3 }) as never)
     const wrapper = await mountDashboard()
-    const todayVisits = () => wrapper.findAll('.dash__summary > div').find(cell => cell.text().includes('今日參觀'))!.find('dd').text()
+    const todayVisits = () => wrapper.get('.dash__sum').text()
     expect(wrapper.find('.dash__date').text()).toBe('9月29日星期二')
-    expect(todayVisits()).toBe('3組')
+    expect(todayVisits()).toBe('3 組')
 
     // 30 秒後還是同一天：只有時鐘走，不重讀。
     vi.advanceTimersByTime(30_000)
@@ -91,7 +91,7 @@ describe('總覽開著也跟著時間走', () => {
     await flushPromises()
     expect(dashboardCalls(get)).toBe(2)
     expect(wrapper.find('.dash__date').text()).toBe('9月30日星期三')
-    expect(todayVisits()).toBe('1組')
+    expect(todayVisits()).toBe('1 組')
     expect(wrapper.text()).toContain('更新於 00:00')
 
     // 同一天之內不再自動重讀（不是輪詢）。
@@ -161,7 +161,7 @@ describe('待審清單讀不到時看得出來', () => {
     })
     const wrapper = await mountDashboard()
     // 彙總已經回來（參觀數字先出現），待審清單還在路上。
-    expect(wrapper.find('.dash__summary').exists()).toBe(true)
+    expect(wrapper.find('.dash__sum').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
     expect(wrapper.text()).toContain('正在讀取送審清單')
     resolveReviews([{ kind: 'home_hero', campus_key: null, revision_id: 'rv1', submitted_by_email: null }])
@@ -197,8 +197,8 @@ describe('待辦連結的可及名稱', () => {
     const wrapper = await mountDashboard()
     const task = wrapper.findAll('a.task').find(link => link.text().includes('家長申請改期，等你核准'))!
     const names = task.attributes('aria-labelledby')!.split(' ').map(id => wrapper.find(`#${id}`).text())
-    expect(names).toEqual(['2', '家長申請改期，等你核准', '查看改期申請 →'])
-    expect(wrapper.find(`#${task.attributes('aria-describedby')}`).text()).toContain('家長用管理連結申請換場次')
+    expect(names).toEqual(['2', '家長申請改期，等你核准', '查看'])
+    expect(wrapper.find(`#${task.attributes('aria-describedby')}`).text()).toContain('核准前原場次仍有效')
     // 所有箭頭都包在 aria-hidden 裡。
     for (const link of wrapper.findAll('a')) {
       const arrows = link.findAll('[aria-hidden="true"]').filter(el => el.text() === '→').length
@@ -208,20 +208,19 @@ describe('待辦連結的可及名稱', () => {
   })
 })
 
-describe('總覽依角色說明今天的工作', () => {
-  it('櫃台不提官網更新，常用工作有參觀案件（補登從那裡進去）', async () => {
+describe('總覽的常用連結依角色（2026-10-06 行程板：一列文字連結，沒有引導語）', () => {
+  it('櫃台有補登案件（從案件列表進去）與查看參觀場次，沒有內容入口', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary() as never)
     const wrapper = await mountDashboard(testUser('reception', { id: 'desk', campus_keys: ['yihua'] }))
-    expect(wrapper.find('.dash__lead').text()).toBe('先確認今天的參觀，再處理要追蹤或改期的家長。')
-    const shortcut = wrapper.findAll('.dash__links a').find(link => link.text().includes('查看參觀案件'))!
-    expect(shortcut.attributes('href')).toBe('/visit-requests')
-    expect(shortcut.text()).toContain('補登案件')
+    expect(wrapper.find('.dash__lead').exists()).toBe(false)
+    const links = wrapper.findAll('.dash__links a').map(link => [link.text(), link.attributes('href')])
+    expect(links).toEqual([['補登案件', '/visit-requests'], ['查看參觀場次', '/visit-calendar']])
   })
 
-  it('能編內容的人維持原本的引導語，不多一個參觀案件捷徑', async () => {
+  it('總管理者多了設定場次與內容入口', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(summary() as never)
     const wrapper = await mountDashboard()
-    expect(wrapper.find('.dash__lead').text()).toBe('先確認參觀安排，再處理家長需求與官網更新。')
-    expect(wrapper.findAll('.dash__links a').some(link => link.text().includes('查看參觀案件'))).toBe(false)
+    const titles = wrapper.findAll('.dash__links a').map(link => link.text())
+    expect(titles).toEqual(['補登案件', '設定參觀場次', '更新首頁文字', '修改各校資料', '上傳素材', '管理使用者'])
   })
 })
