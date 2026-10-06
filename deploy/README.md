@@ -24,6 +24,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **之後**：別的 session 緊接著推了 `4437174d`（Google 登入改自行綁定），由它自己的 run 部署。
 - **未做**：沒登入正式後台實際按一次「到了」。
 
+## 2026-10-06 預約方式拿掉 inquiry（main CI 部署，含 14:49–15:07 API 停擺）
+
+- **合併**：`feature/no-inquiry-20261006` rebase 到 main（操作紀錄 IP 與裝置 `bb10a5b4` 先進，migration `c4e8a2f61b97` 改接它的 `a3c7e9d1f5b2`），使用者推 main `0c521a95..da749b97`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉舊狀態程式」。
+- **migration**：`c4e8a2f61b97`（down `a3c7e9d1f5b2`），殘留 INQUIRY 切 PAUSED 後重建 `booking_mode` 型別；正式站五校 10-01 起都不是 inquiry。
+- **API 停擺（不是這次程式造成）**：14:49 有人在 Railway api 新增 Google OAuth 變數，把 `WEBSITE_GOOGLE_CLIENT_SECRET` 打成 `WEBSITE_GOOGLE_CLIENT_SECERT`；改變數觸發 Railway 自動重部署（deployment `6ba5946e`），`api-start.py` 跑 alembic 前 Settings 驗證「Google OAuth 必須同時設定 CLIENT_ID、CLIENT_SECRET 與 REDIRECT_URI」失敗，舊容器已停，API 回 502。這次 main run 37425274473（`da749b97`）測試全綠，Deploy 的 api deployment `7cf68e0f` 同一個原因 FAILED。查法：`railway logs -s api -d <deployment id>` 看 traceback，`railway variables --json` 只列名稱比對（不印值）。使用者 15:03 前後改正變數名稱，Railway 重部署 `96b4fca5` 成功（用的是 `da749b97` 的映像，log：`Running upgrade a3c7e9d1f5b2 -> c4e8a2f61b97`、`Database schema ready: c4e8a2f61b97`），15:07 起 API 恢復。
+- **web 補上**：main 已有更新的 run 37428220783（`d4d8a08c`，另一個 session，包含 `da749b97`），所以沒重跑失敗的 Deploy（舊 snapshot 會蓋掉新版）；該 run 全綠並部署 api＋web。
+- **正式 `release.json`**：base commit `d4d8a08c`，created `2026-10-06T07:21:25Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；五校公開預約設定為 yihua `slots`、minghua／chongde／international／renwu `paused`；`/api/website/v1/auth/google/login` 302 到 accounts.google.com（OAuth 變數修正後生效）。
+- **未做**：沒登入正式後台送一次 inquiry 驗 422（測試涵蓋）；Google 登入沒有實際往返。
+
 ## 2026-10-06 操作紀錄多記 IP 與裝置（main CI 部署）
 
 - **合併**：`feature/audit-ip-device-20261006` 從 `0c534043` 開，期間 main 前進兩次：先 rebase 到 `5fb9edbb`（拿掉舊狀態程式第二版），migration 由接 `d65fa082ff87` 改接 `e870893fac95`；再 rebase 到 `1c9d3e19`（後台 bug 稽核修正，只有 README 衝突）。等 `1c9d3e19` 部署完，使用者推 main `1c9d3e19..bb10a5b4`。內容與驗證見 README 頂部同日段落、DESIGN.md「操作紀錄記 IP 與裝置」。

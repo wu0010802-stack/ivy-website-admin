@@ -21,7 +21,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_arrivalform1006_e2e_test`、埠 8794／3794，跑完已刪庫）：`admissions-flow.spec.ts` 改成按到了之後在表單填帶參觀老師並存檔、再用 API 核對；它和 `admissions-follow-up`、`visit-family-page` 共 6 項全過，整套 stack 沒跑。另用臨時 spec 在 1440／390（櫃台帳號）與明細頁截圖目視確認，截圖在 `output/playwright/arrival-form/`，臨時 spec 已刪。
   - 未驗證：正式站實際點一次。
 
-## 2026-10-06 預約方式拿掉 inquiry（`feature/no-inquiry-20261006`）
+## 2026-10-06 預約方式拿掉 inquiry（`feature/no-inquiry-20261006`，10-06 已部署，隨 main `d4d8a08c` 上線）
 
 接「拿掉舊狀態程式」：使用者問 inquiry 是什麼，聽完說明後裁定拿掉。規則見 DESIGN.md「拿掉舊狀態程式」。
 
