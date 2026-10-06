@@ -327,12 +327,12 @@ async function mountDashboard(data: object) {
   return wrapper
 }
 
-describe('總覽：營運摘要固定兩格（舊案兩格已拿掉）', () => {
-  it('自選場次之後恆為 0：只剩今日參觀與到期待追蹤兩格', async () => {
+describe('總覽：舊案兩格已拿掉（2026-10-06 起連兩格大數字都沒有，改成今天的參觀當主體）', () => {
+  it('自選場次之後恆為 0：沒有營運摘要格', async () => {
     const wrapper = await mountDashboard(summary())
-    const cells = wrapper.findAll('.dash__summary > div').map(div => div.get('dt').text())
-    expect(cells).toEqual(['今日參觀', '到期待追蹤'])
-    expect(wrapper.get('.dash__summary').attributes('style') ?? '').not.toContain('--summary-cols')
+    expect(wrapper.find('.dash__summary').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('新需求待聯絡')
+    expect(wrapper.text()).not.toContain('待園方確認')
   })
 
   it('今天的名單：場次開始後才有「到了／沒來」，按了先確認、送出後重讀彙總', async () => {
@@ -343,7 +343,7 @@ describe('總覽：營運摘要固定兩格（舊案兩格已拿掉）', () => {
       { id: 'v-later', parent_name: '林爸爸', campus_key: 'yihua', start_time: '15:00:00', end_time: '16:00:00' },
     ]
     const wrapper = await mountDashboard(summary({ today_visits: 2, today_visit_list: list }))
-    const rows = wrapper.findAll('.today li')
+    const rows = wrapper.findAll('.today li.today__row')
     expect(rows[0]!.find('.today__attendance').exists()).toBe(true)
     expect(rows[1]!.find('.today__attendance').exists()).toBe(false)
     // 按鈕不在連結裡面（互動元素不能巢狀）。
@@ -361,9 +361,10 @@ describe('總覽：營運摘要固定兩格（舊案兩格已拿掉）', () => {
 
   it('即使舊版 API 還帶舊案數字，也不會多出「新需求待聯絡」「待園方確認」兩格或暖色提醒', async () => {
     const wrapper = await mountDashboard(summary({ new_requests: 2, awaiting_confirmation: 1 }))
-    const cells = wrapper.findAll('.dash__summary > div')
-    expect(cells.map(div => div.get('dt').text())).toEqual(['今日參觀', '到期待追蹤'])
-    expect(wrapper.find('.dash__summary .is-attention').exists()).toBe(false)
+    expect(wrapper.find('.dash__summary').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('新需求待聯絡')
+    expect(wrapper.text()).not.toContain('待園方確認')
+    expect(wrapper.find('.is-attention').exists()).toBe(false)
   })
 })
 

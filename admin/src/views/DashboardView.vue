@@ -7,7 +7,7 @@ import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
-import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
+import { BOOKING_MODE_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatShortSlotWhen, formatTime, staffLabel, visitDisplay } from '../api/labels'
 import type { VisitRequestDetailOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
@@ -20,6 +20,20 @@ interface TodayVisit {
   campus_key: string
   start_time: string
   end_time: string
+  // 2026-10-06 行程板：孩子、電話、狀態（已到場、未到場也留在名單）與承辦人；舊版 API 沒有。
+  child_name?: string | null
+  phone?: string | null
+  status?: string
+  assignee_display_name?: string | null
+  assignee_email?: string | null
+}
+
+// 本週五校（今天起七天）：已預約幾組、還可約幾組（只有自選場次的校有數字）。
+interface WeekCampus {
+  campus_key: string
+  mode: string
+  booked: number
+  open: number | null
 }
 
 // 最新一版還沒上官網的內容項（從未發布，或發布後又存了新草稿）。
@@ -72,6 +86,7 @@ interface DashboardSummary {
   campuses_without_active_booking: string[]
   // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
   campuses_slots_without_openings?: string[]
+  week_campuses?: WeekCampus[]
   // 開放線上表單，但「預約文案」沒有發布中的同意文字：官網對家長顯示暫停（2026-09-26 起）。
   failed_notifications: number
   // 指派給我、還沒結案的件數（2026-10-03 第八輪，和列表 ?assignee=me&open=1 同一批）。
@@ -236,16 +251,45 @@ const updatedLabel = computed(() => {
     ? clockFormatter.format(loaded)
     : shortDateTimeFormatter.format(loaded).replace(/\s+/g, ' ')
 })
-// 今天的參觀依現在時間標示：場次時間是台北的「HH:MM:SS」，跟台北現在的「HH:MM」比字串即可。
-// 清單只有已確認、還沒標記到場的案件（標完就離開清單），所以結束了的一定還沒標記。
+// 今天的參觀依狀態與現在時間標示：已到場、未到場直接看狀態（整天留在名單上）；還沒標記的
+// 看場次時間——場次時間是台北的「HH:MM:SS」，跟台北現在的「HH:MM」比字串即可。
 const nowClock = computed(() => clockFormatter.format(new Date(clockNow.value)))
-function visitPhase(visit: TodayVisit): 'ended' | 'ongoing' | '' {
+type VisitPhase = 'done' | 'no_show' | 'ended' | 'ongoing' | ''
+function visitPhase(visit: TodayVisit): VisitPhase {
+  if (visit.status === 'completed') return 'done'
+  if (visit.status === 'no_show') return 'no_show'
   const now = nowClock.value
   if (formatTime(visit.end_time) <= now) return 'ended'
   if (formatTime(visit.start_time) <= now) return 'ongoing'
   return ''
 }
-const VISIT_PHASE_LABELS = { ended: '已結束・待標記到場', ongoing: '進行中' } as const
+const VISIT_PHASE_LABELS: Record<Exclude<VisitPhase, ''>, string> = { done: '已到場', no_show: '未到場', ended: '還沒標記', ongoing: '進行中' }
+// 還沒標記到場的，場次開始後才給「到了／沒來」（同案件列表）。
+const attendanceDue = (visit: TodayVisit) => visitPhase(visit) === 'ended' || visitPhase(visit) === 'ongoing'
+// 上午／下午分組：12:00 以前算上午。
+const todayGroups = computed(() => {
+  const list = summary.value?.today_visit_list ?? []
+  const groups = [
+    { key: 'am', label: '上午', rows: list.filter((visit) => formatTime(visit.start_time) < '12:00') },
+    { key: 'pm', label: '下午', rows: list.filter((visit) => formatTime(visit.start_time) >= '12:00') },
+  ]
+  return groups.filter((group) => group.rows.length > 0)
+})
+// 摘要句：「義華 2 組、明華 1 組，1 組結束了還沒標記」。沒有名單（沒有案件讀取權）只寫總數。
+const todaySummary = computed(() => {
+  const s = summary.value
+  if (!s) return ''
+  const list = s.today_visit_list ?? []
+  if (list.length === 0) return s.today_visits > 0 ? `${s.today_visits} 組` : '今天沒有參觀。'
+  const byCampus = new Map<string, number>()
+  for (const visit of list) byCampus.set(visit.campus_key, (byCampus.get(visit.campus_key) ?? 0) + 1)
+  const parts = [...byCampus].map(([key, count]) => `${campusLabel(key)} ${count} 組`).join('、')
+  const unmarked = list.filter((visit) => visitPhase(visit) === 'ended').length
+  return unmarked > 0 ? `${parts}，${unmarked} 組結束了還沒標記` : parts
+})
+const assigneeLabel = (visit: TodayVisit) =>
+  visit.assignee_display_name || visit.assignee_email ? staffLabel({ display_name: visit.assignee_display_name, email: visit.assignee_email }) : '未指派'
+
 // 今天的名單直接標記到場（2026-10-05 第九輪）：場次開始後（進行中、已結束）才出現，同案件列表；
 // 先確認一次，寫出家長與場次。標完就離開名單（後端只列還沒標記的），重讀彙總。
 const canHandleVisits = computed(() => can('booking.handle'))
@@ -269,16 +313,6 @@ async function markTodayAttendance(visit: TodayVisit, kind: AttendanceKind) {
     attendanceBusy.value = null
     await load({ quiet: true })
   }
-}
-// 「今日參觀」的入口：有名單就捲到同頁「今天的參觀」，跟數字同一批人（第四輪：數字的入口要同定義）。
-// router 沒有 scrollBehavior，帶 hash 的 router-link 不會捲，自己捲；焦點移到標題，鍵盤使用者接著往下讀。
-const todayHeading = ref<HTMLElement | null>(null)
-function showTodayList() {
-  const heading = todayHeading.value
-  if (!heading) return
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  heading.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' })
-  heading.focus({ preventScroll: true })
 }
 
 // 草稿、排程這類清單只要知道哪一天幾點，不寫年份：「09/28 21:45」。
@@ -315,7 +349,13 @@ const primary = computed(() => {
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
-const campusesWithoutBooking = computed(() => summary.value?.campuses_without_active_booking ?? [])
+// 本週五校（2026-10-06）：有這張表就不再放「校區尚未開放預約」提醒卡，未開放的校在表裡給開放入口。
+const weekCampuses = computed(() => summary.value?.week_campuses ?? [])
+const campusesWithoutBooking = computed(() => (weekCampuses.value.length ? [] : summary.value?.campuses_without_active_booking ?? []))
+function weekModeText(row: WeekCampus): string {
+  if (row.mode === 'paused') return '未開放'
+  return BOOKING_MODE_LABELS[row.mode]?.replace(/（.*）$/, '').replace(/官方帳號|洽詢|預約網站/, '') || row.mode
+}
 const openableContent = <T extends { kind: string; campus_key: string | null }>(rows: T[] | undefined): T[] =>
   canEditContent.value ? (rows ?? []).filter((row) => canOpen(contentEditorPath(row.kind, row.campus_key))) : []
 const pendingPublishItems = computed(() => openableContent(summary.value?.pending_publish_items))
@@ -333,28 +373,16 @@ const mediaIssues = computed(() => openableContent(summary.value?.content_media_
 const failedJobs = computed(() => openableContent(summary.value?.failed_publish_jobs))
 const visibleReviews = computed(() => openableContent(reviews.value))
 
-// 引導語只提自己做得到的事：櫃台沒有內容權限，不提官網更新。
-const lead = computed(() => {
-  if (canEditContent.value) return '先確認參觀安排，再處理家長需求與官網更新。'
-  if (can('booking.handle')) return '先確認今天的參觀，再處理要追蹤或改期的家長。'
-  return '查看今天的參觀安排與還沒處理的案件。'
-})
-
-// 常用工作：一樣只列點得進去的。櫃台看得到時段但不能新增，改成「查看」；
-// 櫃台常接電話或現場預約，補登從案件列表的「補登案件」進去。
+// 常用：一列文字連結（2026-10-06 行程板），只列點得進去的。櫃台常接電話或現場預約，
+// 補登從案件列表的「補登案件」進去；參觀場次一頁同時是場次設定與接待月曆，只放一個入口。
 const shortcuts = computed(() =>
   [
-    ...(can('booking.handle') && !canEditContent.value
-      ? [{ to: '/visit-requests', title: '查看參觀案件', hint: '電話或現場預約用「補登案件」記下來' }]
-      : []),
-    // 參觀場次一頁同時是場次設定與接待月曆（2026-09-30 合併），只放一個入口。
-    canManageBooking.value
-      ? { to: '/visit-calendar', title: '設定參觀場次', hint: '固定場次、名額與每天誰要來' }
-      : { to: '/visit-calendar', title: '查看參觀場次', hint: '各場名額與每天誰要來' },
-    { to: '/content/home-hero', title: '更新首頁文字', hint: '調整家長進站看到的標語' },
-    { to: '/content/campus-profile', title: '修改各校資料', hint: '校園介紹與聯絡方式' },
-    { to: '/media', title: '整理照片與影片', hint: '上傳素材、補上圖片說明' },
-    { to: '/users', title: '管理使用者', hint: '帳號與校區權限' },
+    ...(can('booking.handle') ? [{ to: '/visit-requests', title: '補登案件' }] : []),
+    { to: '/visit-calendar', title: canManageBooking.value ? '設定參觀場次' : '查看參觀場次' },
+    { to: '/content/home-hero', title: '更新首頁文字' },
+    { to: '/content/campus-profile', title: '修改各校資料' },
+    { to: '/media', title: '上傳素材' },
+    { to: '/users', title: '管理使用者' },
   ].filter((link) => canOpen(link.to)),
 )
 
@@ -411,7 +439,10 @@ const hasTodo = computed(() => {
 <template>
   <div class="page dashboard" :aria-busy="loading">
     <div class="dash__intro">
-      <div><p class="dash__date">{{ todayLabel }}</p><h2>今天的工作</h2><p class="dash__lead">{{ lead }}</p></div>
+      <div>
+        <div class="dash__head"><h2 id="today-title" ref="todayHeading" class="dash__title" tabindex="-1">今天的參觀</h2><span class="dash__date">{{ todayLabel }}</span></div>
+        <p v-if="summary" class="dash__sum">{{ todaySummary }}</p>
+      </div>
       <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span v-if="primary.count" class="dash__primary-count num">{{ primary.count }}<span class="visually-hidden"> 件</span></span> <span aria-hidden="true">→</span></router-link>
     </div>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
@@ -419,183 +450,205 @@ const hasTodo = computed(() => {
     </el-alert>
     <el-skeleton v-else-if="loading" animated :rows="6" />
     <template v-else-if="summary">
-      <dl class="dash__summary" aria-label="營運摘要">
-        <div><dt>今日參觀</dt><dd>{{ summary.today_visits }}<span>組</span></dd><dd class="dash__more"><a v-if="summary.today_visit_list?.length" href="#today-title" @click.prevent="showTodayList">看今天的名單</a><router-link v-else to="/visit-requests?group=upcoming&order=oldest">查看預約正常的案件</router-link></dd></div>
-        <div><dt>到期待追蹤</dt><dd>{{ summary.pending_follow_up }}<span>件</span></dd><dd class="dash__more"><router-link to="/visit-requests?due=1">查看到期案件</router-link></dd></div>
-      </dl>
-      <section v-if="summary.today_visit_list?.length" class="dash__today" aria-labelledby="today-title">
-        <div class="section__title"><h2 id="today-title" ref="todayHeading" tabindex="-1">今天的參觀</h2><span class="hint">點一筆查看聯絡紀錄與電話</span></div>
-        <ol class="panel today">
-          <li v-for="visit in summary.today_visit_list" :key="visit.id" :class="visitPhase(visit) && `is-${visitPhase(visit)}`">
-            <router-link :to="`/visit-requests/${visit.id}`">
-              <time class="today__time num">{{ formatTime(visit.start_time) }}–{{ formatTime(visit.end_time) }}</time>
-              <strong class="today__name">{{ visit.parent_name }}</strong>
-              <span class="today__campus">{{ campusLabel(visit.campus_key) }}<template v-if="visitPhase(visit)"><span aria-hidden="true">・</span><span class="today__phase">{{ VISIT_PHASE_LABELS[visitPhase(visit) as 'ended' | 'ongoing'] }}</span></template></span>
-              <span class="today__go" aria-hidden="true">→</span>
-            </router-link>
-            <!-- 按鈕不能包在連結裡：和連結並排在同一列。 -->
-            <span v-if="canHandleVisits && visitPhase(visit)" class="today__attendance" role="group" :aria-label="`${visit.parent_name} 到了嗎？`">
-              <el-button size="small" type="primary" plain :loading="attendanceBusy === visit.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 已到場`" @click="markTodayAttendance(visit, 'complete')">到了</el-button>
-              <el-button size="small" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 未到場`" @click="markTodayAttendance(visit, 'no_show')">沒來</el-button>
-            </span>
-          </li>
-        </ol>
-      </section>
-      <section v-if="mine.length" class="dash__mine" aria-labelledby="mine-title">
-        <div class="section__title">
-          <h2 id="mine-title">我承辦的案件</h2>
-          <router-link class="dash__mine-all" :to="MINE_LIST_PATH">查看全部 {{ myOpenCases }} 件 <span aria-hidden="true">→</span></router-link>
+      <div class="dash__board">
+        <div class="dash__main">
+          <section class="dash__today" aria-labelledby="today-title">
+            <ol v-if="summary.today_visit_list?.length" class="panel today">
+              <template v-for="group in todayGroups" :key="group.key">
+                <li class="today__group" aria-hidden="true">{{ group.label }}</li>
+                <li v-for="visit in group.rows" :key="visit.id" class="today__row" :class="visitPhase(visit) && `is-${visitPhase(visit)}`">
+                  <div class="today__time">
+                    <time class="num">{{ formatTime(visit.start_time) }}</time>
+                    <span v-if="visitPhase(visit)" class="today__phase">{{ VISIT_PHASE_LABELS[visitPhase(visit) as Exclude<VisitPhase, ''>] }}</span>
+                  </div>
+                  <div class="today__who">
+                    <router-link class="today__name" :to="`/visit-requests/${visit.id}`">{{ visit.parent_name }}<template v-if="visit.child_name"><span aria-hidden="true">・</span><span class="today__child">{{ visit.child_name }}</span></template></router-link>
+                    <div class="today__meta">
+                      <span>{{ campusLabel(visit.campus_key) }}</span>
+                      <a v-if="visit.phone" class="num" :href="`tel:${visit.phone}`">{{ visit.phone }}</a>
+                      <span v-if="visit.status !== undefined">承辦：{{ assigneeLabel(visit) }}</span>
+                    </div>
+                  </div>
+                  <!-- 按鈕不能包在連結裡：和連結並排在同一列。 -->
+                  <span v-if="canHandleVisits && attendanceDue(visit)" class="today__attendance" role="group" :aria-label="`${visit.parent_name} 到了嗎？`">
+                    <el-button size="small" type="primary" plain :loading="attendanceBusy === visit.id" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 已到場`" @click="markTodayAttendance(visit, 'complete')">到了</el-button>
+                    <el-button size="small" :disabled="Boolean(attendanceBusy)" :aria-label="`標記 ${visit.parent_name} 未到場`" @click="markTodayAttendance(visit, 'no_show')">沒來</el-button>
+                  </span>
+                </li>
+              </template>
+            </ol>
+            <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看案件</router-link></p>
+            <p v-else class="panel today__empty">今天沒有參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看接下來的案件</router-link></p>
+          </section>
+          <section v-if="mine.length" class="dash__mine" aria-labelledby="mine-title">
+            <div class="section__title">
+              <h2 id="mine-title">我承辦的案件</h2>
+              <router-link class="dash__mine-all" :to="MINE_LIST_PATH">查看全部 {{ myOpenCases }} 件 <span aria-hidden="true">→</span></router-link>
+            </div>
+            <ol class="panel today mine">
+              <li v-for="row in mine" :key="row.id">
+                <router-link :to="`/visit-requests/${row.id}`">
+                  <strong class="today__name">{{ row.parent_name }}</strong>
+                  <span class="today__campus">{{ visitDisplay(row).label }}<template v-if="row.slot"><span aria-hidden="true">・</span>{{ formatShortSlotWhen(row.slot) }}</template></span>
+                  <span class="today__go" aria-hidden="true">→</span>
+                </router-link>
+              </li>
+            </ol>
+          </section>
         </div>
-        <ol class="panel today mine">
-          <li v-for="row in mine" :key="row.id">
-            <router-link :to="`/visit-requests/${row.id}`">
-              <strong class="today__name">{{ row.parent_name }}</strong>
-              <span class="today__campus">{{ visitDisplay(row).label }}<template v-if="row.slot"><span aria-hidden="true">・</span>{{ formatShortSlotWhen(row.slot) }}</template></span>
-              <span class="today__go" aria-hidden="true">→</span>
-            </router-link>
-          </li>
-        </ol>
-      </section>
-      <div class="dash__workspace">
-        <section class="dash__tasks" aria-labelledby="tasks-title">
-          <div class="section__title">
-            <h2 id="tasks-title">待辦與提醒</h2>
-            <div class="dash__updated">
-              <span class="hint" :class="{ 'is-failed': refreshFailed }">{{ refreshFailed ? `沒有更新成功，仍是 ${updatedLabel} 的資料` : `更新於 ${updatedLabel}` }}</span>
-              <el-button text :loading="refreshing" @click="load({ quiet: true })">重新整理</el-button>
-            </div>
-          </div>
-          <!-- 背景重讀（切回分頁也會發生）只把待辦區標成忙碌，不讓整頁暫時不唸。 -->
-          <div class="panel dash__task-list" :class="{ 'is-refreshing': refreshing }" :aria-busy="refreshing">
-            <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()" v-bind="taskAria('attention')">
-              <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
-              <div><h3 id="task-attention-t">場次已關閉或分校停用，家長還要來</h3><p id="task-attention-d">這些案件的場次已關閉（含休假日），或分校已停用但還沒結案。請聯絡家長改期到其他場次或取消，避免家長照原時間到園；那一場其實照常接待的話，重新開放場次並把名額調成已占用的組數。</p><span id="task-attention-a" class="task__action">查看待人工處理的案件 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications" v-bind="taskAria('reschedule')">
-              <span id="task-reschedule-n" class="task__number">{{ reschedules }}</span>
-              <div><h3 id="task-reschedule-t">家長申請改期，等你核准</h3><p id="task-reschedule-d">家長用管理連結申請換場次；核准前原場次仍有效。核准或退回後請告知家長。</p><span id="task-reschedule-a" class="task__action">查看改期申請 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
-              <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
-              <div><h3 id="task-due-t">案件已到追蹤時間</h3><p id="task-due-d">之前記下「下次聯絡」的案件到期了。聯絡後在案件裡新增紀錄，需要再追就填新的日期。</p><span id="task-due-a" class="task__action">查看到期案件 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="admissionsDue > 0" class="task" :to="admissionsDuePath" v-bind="taskAria('admissions-due')">
-              <span id="task-admissions-due-n" class="task__number">{{ admissionsDue }}</span>
-              <div>
-                <h3 id="task-admissions-due-t">參觀後該聯絡的家長</h3>
-                <p id="task-admissions-due-d">
-                  招生訪視排的下次聯絡到了。聯絡後按「記錄聯絡」，再決定下次什麼時候聯絡或不用再追。
-                  <template v-if="admissionsDueCampuses.length > 1">{{ admissionsDueCampuses.map(([key, count]) => `${campusLabel(key)} ${count}`).join('、') }}。</template>
-                </p>
-                <span id="task-admissions-due-a" class="task__action">到招生入學的待追蹤 <span aria-hidden="true">→</span></span>
-              </div>
-            </router-link>
-            <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
-              <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
-              <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><p id="task-arrival-d">家長來了就標記「已到場」，沒來就標記「未到場」；沒標記的話，成效統計的到場數字會偏低。</p><span id="task-arrival-a" class="task__action">查看待標記的案件 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="inactiveAssigneeCases > 0" class="task" to="/visit-requests?assignee=inactive&open=1" v-bind="taskAria('orphaned')">
-              <span id="task-orphaned-n" class="task__number">{{ inactiveAssigneeCases }}</span>
-              <div><h3 id="task-orphaned-t">承辦人已停用，案件還沒結案</h3><p id="task-orphaned-d">這些案件的承辦人帳號已經停用，沒有人會收到提醒。請點進去重新指派給其他同事。</p><span id="task-orphaned-a" class="task__action">查看要重新指派的案件 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
-              <span id="task-notices-n" class="task__number">{{ myNotices }}</span>
-              <div><h3 id="task-notices-t">有內容通知還沒看</h3><p id="task-notices-d">送審、核准或退回，以及排程沒有發布的通知。退回的會寫明原因。</p><span id="task-notices-a" class="task__action">查看內容通知 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="campusesWithoutBooking.length && canOpen('/booking')" class="task" to="/booking" v-bind="taskAria('booking')">
-              <span id="task-booking-n" class="task__number">{{ campusesWithoutBooking.length }}</span>
-              <div><h3 id="task-booking-t">校區尚未開放預約</h3><p id="task-booking-d">{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span id="task-booking-a" class="task__action">檢查各校預約方式 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <div v-else-if="campusesWithoutBooking.length" class="task">
-              <span class="task__number">{{ campusesWithoutBooking.length }}</span>
-              <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法從官網送出需求。預約方式由校區管理者設定。</p></div>
-            </div>
-            <router-link v-if="slotsWithoutOpenings.length" class="task" to="/visit-calendar" v-bind="taskAria('slots')">
-              <span id="task-slots-n" class="task__number">{{ slotsWithoutOpenings.length }}</span>
-              <div v-if="canManageBooking"><h3 id="task-slots-t">開放選場次，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出預約。請新增場次或每週開放規則，或改用其他預約方式。</p><span id="task-slots-a" class="task__action">設定參觀場次 <span aria-hidden="true">→</span></span></div>
-              <div v-else><h3 id="task-slots-t">開放選場次，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出預約。新增場次或每週開放規則由校區管理者處理。</p><span id="task-slots-a" class="task__action">查看參觀場次 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications" v-bind="taskAria('notify')">
-              <span id="task-notify-n" class="task__number">{{ summary.failed_notifications }}</span>
-              <div><h3 id="task-notify-t">通知寄送失敗</h3><p id="task-notify-d">自動重試後仍沒送出的 Email 或 LINE 通知。查看失敗原因，修好設定後重新寄送。</p><span id="task-notify-a" class="task__action">查看並重新寄送 <span aria-hidden="true">→</span></span></div>
-            </router-link>
-            <div v-if="failedJobs.length > 0" class="task task--urgent">
-              <span class="task__number">{{ failedJobs.length }}</span>
-              <div>
-                <h3>排程發布沒有執行</h3>
-                <p>時間到了但檢查沒通過，官網還是舊內容。看過原因、修好後直接發布或重新排程；決定不發布就在編輯頁按「知道了」。</p>
-                <ul class="task__rows">
-                  <li v-for="job in failedJobs" :key="job.id">
-                    <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} <span aria-hidden="true">→</span></router-link>
-                    <span>{{ failedJobText(job) }}</span>
-                  </li>
-                </ul>
-                <router-link v-if="canOpen('/releases')" class="task__action" to="/releases?tab=schedules">查看全站排程 <span aria-hidden="true">→</span></router-link>
+
+        <aside class="dash__rail">
+          <section v-if="weekCampuses.length" class="panel dash__week" aria-labelledby="week-title">
+            <div class="panel__head"><h2 id="week-title">本週五校</h2><span class="hint">今天起 7 天</span></div>
+            <table>
+              <thead><tr><th scope="col">校區</th><th scope="col">已預約</th><th scope="col">還可約</th><th scope="col"><span class="visually-hidden">前往</span></th></tr></thead>
+              <tbody>
+                <tr v-for="row in weekCampuses" :key="row.campus_key" :class="{ 'is-off': row.mode !== 'slots' }">
+                  <th scope="row">{{ campusLabel(row.campus_key) }}</th>
+                  <td class="num">{{ row.mode === 'slots' || row.booked ? row.booked : '—' }}</td>
+                  <td :class="{ num: row.open !== null }">{{ row.open !== null ? row.open : weekModeText(row) }}</td>
+                  <td>
+                    <router-link v-if="row.mode === 'slots'" :to="`/visit-calendar?campus=${row.campus_key}`">場次</router-link>
+                    <router-link v-else-if="canOpen('/booking')" to="/booking">開放</router-link>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section class="dash__tasks" aria-labelledby="tasks-title">
+            <div class="panel__head">
+              <h2 id="tasks-title">要處理</h2>
+              <div class="dash__updated">
+                <span class="hint" :class="{ 'is-failed': refreshFailed }">{{ refreshFailed ? `沒有更新成功，仍是 ${updatedLabel} 的資料` : `更新於 ${updatedLabel}` }}</span>
+                <el-button text size="small" :loading="refreshing" @click="load({ quiet: true })">重新整理</el-button>
               </div>
             </div>
-            <div v-if="reviewsFailed" class="task">
-              <span class="task__number">{{ summary.pending_review }}</span>
-              <div>
-                <h3>送審清單讀取失敗</h3>
-                <p>有內容送上來等審核（件數可能包含你無法開啟的內容），但清單沒有讀到，這裡暫時列不出是哪幾項。</p>
-                <el-button class="task__retry" :loading="reviewsLoading" @click="loadReviews()">重新載入送審清單</el-button>
+            <!-- 背景重讀（切回分頁也會發生）只把待辦區標成忙碌，不讓整頁暫時不唸。 -->
+            <div class="panel dash__task-list" :class="{ 'is-refreshing': refreshing }" :aria-busy="refreshing">
+              <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()" v-bind="taskAria('attention')">
+                <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
+                <div><h3 id="task-attention-t">場次已關閉或分校停用，家長還要來</h3><p id="task-attention-d">請聯絡家長改期或取消，避免家長照原時間到園。</p><span id="task-attention-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications" v-bind="taskAria('reschedule')">
+                <span id="task-reschedule-n" class="task__number">{{ reschedules }}</span>
+                <div><h3 id="task-reschedule-t">家長申請改期，等你核准</h3><span id="task-reschedule-d" class="visually-hidden">核准前原場次仍有效</span><span id="task-reschedule-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
+                <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
+                <div><h3 id="task-due-t">到期待追蹤</h3><span id="task-due-d" class="visually-hidden">之前記下「下次聯絡」的案件到期了</span><span id="task-due-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="admissionsDue > 0" class="task" :to="admissionsDuePath" v-bind="taskAria('admissions-due')">
+                <span id="task-admissions-due-n" class="task__number">{{ admissionsDue }}</span>
+                <div>
+                  <h3 id="task-admissions-due-t">參觀後該聯絡的家長</h3>
+                  <span id="task-admissions-due-d" class="task__sub"><template v-if="admissionsDueCampuses.length > 1">{{ admissionsDueCampuses.map(([key, count]) => `${campusLabel(key)} ${count}`).join('、') }}</template><span v-else class="visually-hidden">招生訪視排的下次聯絡到了</span></span>
+                  <span id="task-admissions-due-a" class="task__action">查看</span>
+                </div>
+              </router-link>
+              <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
+                <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
+                <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><span id="task-arrival-d" class="visually-hidden">沒標記的話，成效統計的到場數字會偏低</span><span id="task-arrival-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="inactiveAssigneeCases > 0" class="task" to="/visit-requests?assignee=inactive&open=1" v-bind="taskAria('orphaned')">
+                <span id="task-orphaned-n" class="task__number">{{ inactiveAssigneeCases }}</span>
+                <div><h3 id="task-orphaned-t">承辦人已停用，案件還沒結案</h3><span id="task-orphaned-d" class="visually-hidden">請重新指派給其他同事</span><span id="task-orphaned-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
+                <span id="task-notices-n" class="task__number">{{ myNotices }}</span>
+                <div><h3 id="task-notices-t">有內容通知還沒看</h3><span id="task-notices-d" class="visually-hidden">送審、核准或退回，以及排程沒有發布的通知</span><span id="task-notices-a" class="task__action">查看</span></div>
+              </router-link>
+              <router-link v-if="campusesWithoutBooking.length && canOpen('/booking')" class="task" to="/booking" v-bind="taskAria('booking')">
+                <span id="task-booking-n" class="task__number">{{ campusesWithoutBooking.length }}</span>
+                <div><h3 id="task-booking-t">校區尚未開放預約</h3><p id="task-booking-d">{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法送出需求。</p><span id="task-booking-a" class="task__action">檢查各校預約方式</span></div>
+              </router-link>
+              <div v-else-if="campusesWithoutBooking.length" class="task">
+                <span class="task__number">{{ campusesWithoutBooking.length }}</span>
+                <div><h3>校區尚未開放預約</h3><p>{{ campusLabels(campusesWithoutBooking) }}目前暫停或尚未設定預約方式，家長無法從官網送出需求。預約方式由校區管理者設定。</p></div>
               </div>
-            </div>
-            <div v-if="visibleReviews.length > 0" class="task">
-              <span class="task__number">{{ visibleReviews.length }}</span>
-              <div>
-                <h3>內容等你審核</h3>
-                <p>內容編輯送上來的修改，核准後才會出現在官網；需要修改就退回並寫原因。</p>
-                <span class="task__kinds">
-                  <router-link v-for="r in visibleReviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
-                    {{ contentItemLabel(r.kind, r.campus_key) }} <span aria-hidden="true">→</span>
-                  </router-link>
-                </span>
+              <router-link v-if="slotsWithoutOpenings.length" class="task" to="/visit-calendar" v-bind="taskAria('slots')">
+                <span id="task-slots-n" class="task__number">{{ slotsWithoutOpenings.length }}</span>
+                <div v-if="canManageBooking"><h3 id="task-slots-t">開放選場次，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出預約。請新增場次或每週開放規則。</p><span id="task-slots-a" class="task__action">設定參觀場次</span></div>
+                <div v-else><h3 id="task-slots-t">開放選場次，但沒有可預約的場次</h3><p id="task-slots-d">{{ campusLabels(slotsWithoutOpenings) }}官網顯示「目前沒有開放的參觀場次」，家長送不出預約。新增場次或每週開放規則由校區管理者處理。</p><span id="task-slots-a" class="task__action">查看參觀場次</span></div>
+              </router-link>
+              <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications" v-bind="taskAria('notify')">
+                <span id="task-notify-n" class="task__number">{{ summary.failed_notifications }}</span>
+                <div><h3 id="task-notify-t">通知寄送失敗</h3><span id="task-notify-d" class="visually-hidden">自動重試後仍沒送出的 Email 或 LINE 通知</span><span id="task-notify-a" class="task__action">重新寄送</span></div>
+              </router-link>
+              <div v-if="failedJobs.length > 0" class="task task--urgent">
+                <span class="task__number">{{ failedJobs.length }}</span>
+                <div>
+                  <h3>排程發布沒有執行</h3>
+                  <p>時間到了但檢查沒通過，官網還是舊內容。修好後直接發布或重新排程；不發布就在編輯頁按「知道了」。</p>
+                  <ul class="task__rows">
+                    <li v-for="job in failedJobs" :key="job.id">
+                      <router-link :to="contentEditorPath(job.kind, job.campus_key)">{{ contentItemLabel(job.kind, job.campus_key) }} <span aria-hidden="true">→</span></router-link>
+                      <span>{{ failedJobText(job) }}</span>
+                    </li>
+                  </ul>
+                  <router-link v-if="canOpen('/releases')" class="task__action" to="/releases?tab=schedules">查看全站排程 <span aria-hidden="true">→</span></router-link>
+                </div>
               </div>
-            </div>
-            <div v-if="mediaIssues.length > 0" class="task">
-              <span class="task__number">{{ mediaIssues.length }}</span>
-              <div>
-                <h3>內容缺少素材或素材還沒處理好</h3>
-                <p>引用的照片或影片已從素材庫刪除，或還在處理、處理失敗。官網上的版本有問題時家長會看到備用圖；草稿有問題則發布不了。請換一張素材。</p>
-                <ul class="task__rows">
-                  <li v-for="issue in mediaIssues" :key="`${issue.kind}-${issue.campus_key ?? ''}`">
-                    <router-link :to="contentEditorPath(issue.kind, issue.campus_key)">{{ contentItemLabel(issue.kind, issue.campus_key) }} <span aria-hidden="true">→</span></router-link>
-                    <span :class="{ 'is-live': issue.live }">{{ mediaIssueText(issue) }}</span>
-                  </li>
-                </ul>
-                <router-link v-if="canOpen('/media')" class="task__action" to="/media">查看素材庫 <span aria-hidden="true">→</span></router-link>
+              <div v-if="reviewsFailed" class="task">
+                <span class="task__number">{{ summary.pending_review }}</span>
+                <div>
+                  <h3>送審清單讀取失敗</h3>
+                  <p>有內容送上來等審核，但清單沒有讀到，暫時列不出是哪幾項。</p>
+                  <el-button class="task__retry" :loading="reviewsLoading" @click="loadReviews()">重新載入送審清單</el-button>
+                </div>
               </div>
-            </div>
-            <div v-if="pendingPublishCount > 0" class="task">
-              <span class="task__number">{{ pendingPublishCount }}</span>
-              <div>
-                <h3>草稿尚未公開</h3>
-                <p>這些內容存過草稿，官網顯示的還是舊版或預設文字。檢查後再發布。</p>
-                <ul v-if="pendingPublishItems.length" class="task__rows">
-                  <li v-for="item in pendingPublishItems" :key="`${item.kind}-${item.campus_key ?? ''}`">
-                    <router-link :to="contentEditorPath(item.kind, item.campus_key)">{{ contentItemLabel(item.kind, item.campus_key) }} <span aria-hidden="true">→</span></router-link>
-                    <span>{{ pendingPublishText(item) }}</span>
-                  </li>
-                </ul>
-                <span v-else class="task__kinds">
-                  <router-link v-for="kind in pendingPublishKinds" :key="kind" :to="contentEditorPath(kind)">
-                    {{ contentItemLabel(kind) }} <span aria-hidden="true">→</span>
-                  </router-link>
-                </span>
+              <div v-if="visibleReviews.length > 0" class="task">
+                <span class="task__number">{{ visibleReviews.length }}</span>
+                <div>
+                  <h3>內容等你審核</h3>
+                  <span class="task__kinds">
+                    <router-link v-for="r in visibleReviews" :key="r.revision_id" :to="contentEditorPath(r.kind, r.campus_key)">
+                      {{ contentItemLabel(r.kind, r.campus_key) }} <span aria-hidden="true">→</span>
+                    </router-link>
+                  </span>
+                </div>
               </div>
+              <div v-if="mediaIssues.length > 0" class="task">
+                <span class="task__number">{{ mediaIssues.length }}</span>
+                <div>
+                  <h3>內容缺少素材或素材還沒處理好</h3>
+                  <ul class="task__rows">
+                    <li v-for="issue in mediaIssues" :key="`${issue.kind}-${issue.campus_key ?? ''}`">
+                      <router-link :to="contentEditorPath(issue.kind, issue.campus_key)">{{ contentItemLabel(issue.kind, issue.campus_key) }} <span aria-hidden="true">→</span></router-link>
+                      <span :class="{ 'is-live': issue.live }">{{ mediaIssueText(issue) }}</span>
+                    </li>
+                  </ul>
+                  <router-link v-if="canOpen('/media')" class="task__action" to="/media">查看素材庫 <span aria-hidden="true">→</span></router-link>
+                </div>
+              </div>
+              <div v-if="pendingPublishCount > 0" class="task">
+                <span class="task__number">{{ pendingPublishCount }}</span>
+                <div>
+                  <h3>草稿尚未公開</h3>
+                  <ul v-if="pendingPublishItems.length" class="task__rows">
+                    <li v-for="item in pendingPublishItems" :key="`${item.kind}-${item.campus_key ?? ''}`">
+                      <router-link :to="contentEditorPath(item.kind, item.campus_key)">{{ contentItemLabel(item.kind, item.campus_key) }} <span aria-hidden="true">→</span></router-link>
+                      <span>{{ pendingPublishText(item) }}</span>
+                    </li>
+                  </ul>
+                  <span v-else class="task__kinds">
+                    <router-link v-for="kind in pendingPublishKinds" :key="kind" :to="contentEditorPath(kind)">
+                      {{ contentItemLabel(kind) }} <span aria-hidden="true">→</span>
+                    </router-link>
+                  </span>
+                </div>
+              </div>
+              <p v-if="!hasTodo && reviewsUnknown" class="dash__checking">正在讀取送審清單…</p>
+              <div v-else-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3></div>
             </div>
-            <p v-if="!hasTodo && reviewsUnknown" class="dash__checking">正在讀取送審清單…</p>
-            <div v-else-if="!hasTodo" class="dash__clear"><h3>目前沒有待處理事項</h3><p>{{ canEditContent ? '可以查看參觀安排，或利用下方入口整理官網內容。' : '可以查看參觀案件與參觀場次。' }}</p></div>
-          </div>
-        </section>
-        <section class="dash__shortcuts" aria-labelledby="shortcuts-title">
-          <div class="section__title"><h2 id="shortcuts-title">常用工作</h2></div>
-          <div class="dash__links">
-            <router-link v-for="link in shortcuts" :key="link.title" :to="link.to"><span><strong>{{ link.title }}</strong><small>{{ link.hint }}</small></span><span aria-hidden="true">→</span></router-link>
-          </div>
-        </section>
+          </section>
+        </aside>
       </div>
+
+      <nav class="dash__links" aria-label="常用">
+        <span class="hint">常用</span>
+        <router-link v-for="link in shortcuts" :key="link.title" :to="link.to">{{ link.title }}</router-link>
+      </nav>
     </template>
     <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
     <RecordDialog
@@ -612,106 +665,106 @@ const hasTodo = computed(() => {
 </template>
 
 <style scoped>
-.dash__intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 28px; }
-.dash__date { color: var(--ink-3); font-size: var(--text-sm); margin-bottom: 8px; }
-.dash__intro h2 { font-size: var(--text-xl); }
-.dash__lead { margin-top: 8px; color: var(--ink-2); }
+.dash__intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.dash__head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.dash__title { font-size: var(--text-3xl); outline: none; scroll-margin-top: calc(var(--top-h) + 16px); }
+.dash__date { color: var(--ink-3); font-size: var(--text-base); }
+.dash__sum { margin-top: 6px; color: var(--ink-2); }
 .dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
 .dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: var(--text-sm); font-weight: 600; line-height: 22px; text-align: center; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
-.dash__summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0 0 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-sm); }
-.dash__summary > div { min-width: 0; padding: 20px; }
-.dash__summary > div + div { border-left: 1px solid var(--line); }
-.dash__summary dt { font-size: var(--text-base); color: var(--ink-2); }
-.dash__summary dd { display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px; font-size: var(--text-5xl); font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
-.dash__summary dd span { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); }
-/* 連結也包在 dd 裡：<dl> 的每組只能有 dt、dd（axe definition-list）。 */
-.dash__summary dd.dash__more { display: block; margin: 0; font-size: var(--text-sm); font-weight: 400; line-height: inherit; }
-.dash__summary a { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-sm); }
-.dash__today { margin-bottom: 28px; }
-.dash__mine { margin-bottom: 28px; }
-.dash__mine-all { font-size: var(--text-sm); text-decoration: underline; }
-.mine a { grid-template-columns: minmax(0, 1fr) auto auto; }
-/* 從「看今天的名單」捲過來時，標題不要被頂欄蓋住。 */
-.dash__today h2 { scroll-margin-top: calc(var(--top-h) + 16px); outline: none; }
+
+.dash__board { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
+.dash__main { display: grid; gap: 28px; min-width: 0; }
+.dash__rail { display: grid; gap: 20px; min-width: 0; }
+.panel__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+.panel__head h2 { font-size: var(--text-lg); }
+.dash__tasks .panel__head { padding: 0 0 10px; border-bottom: 0; }
+
+/* 今天的參觀：上午／下午分組，一列一組家庭，時間在左、到了／沒來在右。 */
 .today { list-style: none; margin: 0; padding: 0; }
-.today li + li { border-top: 1px solid var(--line); }
-.today li { display: flex; align-items: center; }
-.today li > a { flex: 1; min-width: 0; }
-.today__attendance { display: flex; flex-shrink: 0; gap: 6px; padding-right: 20px; }
+.today__group { padding: 8px 20px; font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); background: var(--surface-2); border-top: 1px solid var(--line); }
+.today__group:first-child { border-top: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.today__row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line); }
+.today__time time { display: block; font-size: var(--text-lg); font-weight: 600; }
+.today__phase { display: block; font-size: var(--text-xs); color: var(--ink-3); }
+.today__name { font-size: var(--text-md); font-weight: 600; color: var(--ink); }
+.today__child { font-weight: 400; color: var(--ink-2); }
+.today__meta { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 2px; font-size: var(--text-sm); color: var(--ink-2); }
+.today__attendance { display: flex; flex-shrink: 0; gap: 6px; }
 .today__attendance .el-button + .el-button { margin-left: 0; }
-.today a { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 16px; padding: 14px 20px; color: var(--ink); }
-.today a:hover { text-decoration: none; background: var(--surface-2); }
-.today__time { font-size: var(--text-base); font-weight: 500; color: var(--el-color-primary); }
-.today__name { font-size: var(--text-md); font-weight: 500; }
+.today .is-ongoing { background: var(--el-color-success-light-9); }
+.today .is-ongoing .today__phase { color: var(--status-live-ink); font-weight: 500; }
+.today .is-ended .today__time time, .today .is-ended .today__phase { color: var(--brand-gold-ink); }
+.today .is-done .today__phase { color: var(--status-live-ink); }
+.today .is-done .today__time time, .today .is-no_show .today__time time, .today .is-done .today__name, .today .is-no_show .today__name { color: var(--ink-3); }
+.today__empty { margin: 0; padding: 20px; color: var(--ink-2); }
+.today__empty a { margin-left: 8px; }
+
+.dash__mine-all { font-size: var(--text-sm); text-decoration: underline; }
+.mine li + li { border-top: 1px solid var(--line); }
+.mine a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 20px; color: var(--ink); }
+.mine a:hover { text-decoration: none; background: var(--surface-2); }
 .today__campus { color: var(--ink-3); font-size: var(--text-sm); }
 .today__go { color: var(--ink-3); }
-/* 結束了還沒標記的灰掉；狀態另外寫成字，不只靠顏色。 */
-.today .is-ended .today__time, .today .is-ended .today__name { color: var(--ink-3); }
-.today .is-ended .today__phase { color: var(--brand-gold-ink); }
-.today .is-ongoing .today__phase { color: var(--el-color-primary); font-weight: 500; }
-.task__kinds { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 12px; }
-.task__kinds a { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-base); }
-.task__rows { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
-.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; font-size: var(--text-base); }
-.task__rows a { color: var(--el-color-primary); font-weight: 500; }
-.task__rows li > span { color: var(--ink-3); font-size: var(--text-sm); overflow-wrap: anywhere; min-width: 0; }
-.task__rows li > span.is-live { color: var(--el-color-danger); }
-.dash__workspace { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
-.section__title h2 { font-size: var(--text-xl); }
-.task { display: flex; gap: 16px; padding: 24px; color: var(--ink); }
+
+/* 本週五校：小表，數字靠右。 */
+.dash__week table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.dash__week th, .dash__week td { padding: 9px 20px; text-align: right; border-top: 1px solid var(--line); }
+.dash__week thead th { border-top: 0; padding-top: 10px; padding-bottom: 6px; font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); }
+.dash__week th[scope="row"], .dash__week th:first-child { text-align: left; font-weight: 600; }
+.dash__week th + th, .dash__week td + td { padding-left: 8px; }
+.dash__week .is-off td { color: var(--ink-3); }
+
+/* 要處理：一列一件，數字、標題、查看。 */
+.task { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; color: var(--ink); }
 .task + .task { border-top: 1px solid var(--line); }
+.task > div { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
 a.task:hover { text-decoration: none; background: var(--surface-2); }
 .task--urgent .task__number { background: var(--el-color-warning-light-9); color: var(--brand-gold-ink); }
-.task p strong { color: var(--ink); font-weight: 600; }
-.task__number { flex-shrink: 0; display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; font-size: var(--text-xl); }
-.task h3 { font-size: var(--text-lg); }
-.task p { margin-top: 6px; color: var(--ink-2); max-width: 60ch; line-height: 1.7; }
-.task__action { display: inline-flex; gap: 4px; margin-top: 12px; color: var(--el-color-primary); font-weight: 500; }
-.task__retry { margin-top: 12px; }
-.dash__tasks .section__title { align-items: center; }
+.task__number { flex-shrink: 0; display: grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: var(--radius); background: var(--el-color-primary-light-9); color: var(--admin-accent-hover); font-weight: 600; font-size: var(--text-sm); }
+.task h3 { font-size: var(--text-base); font-weight: 500; flex: 1 1 auto; }
+.task p { flex-basis: 100%; order: 1; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.6; max-width: 60ch; }
+.task__sub { color: var(--ink-3); font-size: var(--text-sm); }
+.task__action { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-sm); }
+.task__kinds, .task__rows { flex-basis: 100%; order: 2; }
+.task__kinds { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; }
+.task__kinds a, .task__rows a { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-sm); }
+.task__rows { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.task__rows li > span { color: var(--ink-3); font-size: var(--text-sm); overflow-wrap: anywhere; min-width: 0; }
+.task__rows li > span.is-live { color: var(--el-color-danger); }
+.task__retry { margin-top: 8px; order: 3; }
 .dash__updated { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 4px; }
 .dash__updated .hint.is-failed { color: var(--el-color-warning-dark-2); }
 /* 背景重讀時保留舊資料，只淡一點表示正在更新。 */
 .dash__task-list { transition: opacity 180ms var(--ease-out); }
 .dash__task-list.is-refreshing { opacity: .6; }
-.dash__links a { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
-.dash__links a:first-child { padding-top: 0; }
-.dash__links a:hover { text-decoration: none; color: var(--el-color-primary); }
-.dash__links strong { font-size: var(--text-base); font-weight: 500; }
-.dash__links small { display: block; margin-top: 4px; color: var(--ink-3); font-size: var(--text-sm); }
-.dash__clear { padding: 28px 24px; }
-.dash__clear p { color: var(--ink-3); margin-top: 8px; }
-.dash__checking { padding: 28px 24px; color: var(--ink-3); }
-@media (max-width: 1100px) { .dash__workspace { grid-template-columns: minmax(0, 1fr); gap: 28px; } }
+.dash__clear { padding: 16px; color: var(--ink-3); }
+.dash__clear h3 { font-size: var(--text-base); font-weight: 500; }
+.dash__checking { padding: 16px; color: var(--ink-3); }
+
+/* 常用：一列文字連結。 */
+.dash__links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 28px; }
+.dash__links .hint { flex-basis: 100%; }
+.dash__links a { font-weight: 500; }
+
+@media (max-width: 1100px) { .dash__board { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 720px) {
-  .dash__intro { align-items: flex-start; flex-direction: column; gap: 16px; }
+  .dash__intro { flex-direction: column; gap: 14px; }
   .dash__primary { width: 100%; }
-  .dash__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dash__summary > div { padding: 16px 12px; }
-  .dash__summary > div:nth-child(odd) { border-left: 0; }
-  .dash__summary > div:nth-child(n+3) { border-top: 1px solid var(--line); }
-  .dash__summary a { min-height: 44px; }
-  .dash__summary a, .dash__links small, .dash__date { font-size: var(--text-base); }
-  .task { padding: 20px 16px; gap: 12px; }
-  /* 草稿、素材、待審裡的內容連結與「查看全站排程」這類連結，手機點擊範圍至少 44px。 */
-  .task__rows a, .task__kinds a, a.task__action { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
-  .task__rows { gap: 4px; }
-  .task__rows li { flex-direction: column; align-items: flex-start; gap: 0; }
-  /* 灰字往上靠，和連結的 44px 點擊範圍重疊 8px；連結疊在上面，重疊那段點下去仍是連結。 */
-  .task__rows li > span { margin-top: -8px; }
-  .task__rows a { position: relative; z-index: 1; }
-  .task__kinds { gap: 0 20px; margin-top: 4px; }
-  a.task__action { margin-top: 4px; }
-  .today a { grid-template-columns: auto 1fr auto; gap: 4px 12px; padding: 14px 16px; }
-  .today__time { grid-column: 1; grid-row: 1; }
-  .today__name { grid-column: 2; grid-row: 1; }
-  .today__campus { grid-column: 1 / 3; grid-row: 2; }
-  .today__go { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  .dash__title { font-size: var(--text-2xl); }
+  .today__row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px 12px; padding: 14px 16px; }
+  .today__meta a { display: inline-flex; align-items: center; min-height: 44px; }
   /* 手機：按鈕換到名字下面一整列，各占一半、44px 高。 */
-  .today li { flex-wrap: wrap; }
-  .today li > a { flex-basis: 100%; }
-  .today__attendance { flex-basis: 100%; padding: 0 16px 14px; }
+  .today__attendance { grid-column: 1 / -1; }
   .today__attendance .el-button { flex: 1 1 0; min-height: 44px; }
+  /* 我承辦的案件：名字一行、狀態與場次在下一行，箭頭靠右跨兩行。 */
+  .mine a { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 14px 16px; }
+  .mine .today__campus { grid-column: 1; grid-row: 2; }
+  .mine .today__go { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+  .task { padding: 12px 14px; }
+  .task__kinds a, .task__rows a, a.task__action { display: inline-flex; align-items: center; min-height: 44px; }
+  .dash__links a { display: inline-flex; align-items: center; min-height: 44px; }
 }
 </style>

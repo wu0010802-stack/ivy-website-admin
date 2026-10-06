@@ -91,35 +91,31 @@ describe('總覽的今日參觀（dashboard-1、dashboard-4）', () => {
     { id: 'c', parent_name: '黃志明', campus_key: 'yihua', start_time: '16:00:00', end_time: '17:00:00' },
   ]
 
-  it('有名單時「今日參觀」捲到同頁的今天的參觀，不帶去另一份列表', async () => {
+  // 2026-10-06 行程板：今天的參觀就是頁面主體，沒有「今日參觀」格與捲動連結。
+  it('有名單時名單直接就是頁面主體，標題帶 today-title', async () => {
     const wrapper = await mountDashboard(summary({ today_visits: 3, today_visit_list: list }))
-    const cell = wrapper.findAll('.dash__summary > div').find(div => div.text().includes('今日參觀'))!
-    const link = cell.get('.dash__more a')
-    expect(link.text()).toBe('看今天的名單')
-    expect(link.attributes('href')).toBe('#today-title')
-    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
-    await link.trigger('click')
-    expect(scroll).toHaveBeenCalled()
-    expect(document.activeElement?.id).toBe('today-title')
+    expect(wrapper.find('.dash__summary').exists()).toBe(false)
+    expect(wrapper.get('#today-title').text()).toBe('今天的參觀')
+    expect(wrapper.findAll('.today li.today__row')).toHaveLength(3)
   })
 
   it('今天沒有參觀時連到預約正常的案件', async () => {
     const wrapper = await mountDashboard(summary())
-    const cell = wrapper.findAll('.dash__summary > div').find(div => div.text().includes('今日參觀'))!
-    expect(cell.get('.dash__more a').attributes('href')).toBe('/visit-requests?group=upcoming&order=oldest')
-    expect(cell.text()).toContain('查看預約正常的案件')
+    const empty = wrapper.get('.today__empty')
+    expect(empty.text()).toContain('今天沒有參觀')
+    expect(empty.get('a').attributes('href')).toBe('/visit-requests?group=upcoming&order=oldest')
   })
 
-  it('依台北現在時間標示已結束與進行中，狀態寫在連結文字裡', async () => {
+  it('依台北現在時間標示已結束與進行中，狀態寫在時間旁', async () => {
     // 台北 12:00
     vi.useFakeTimers({ now: new Date('2026-10-02T04:00:00Z'), toFake: ['Date'] })
     const wrapper = await mountDashboard(summary({ today_visits: 3, today_visit_list: list }))
-    const rows = wrapper.findAll('.today li')
+    const rows = wrapper.findAll('.today li.today__row')
     expect(rows[0]!.classes()).toContain('is-ended')
-    expect(rows[0]!.get('a').text()).toContain('已結束・待標記到場')
+    expect(rows[0]!.get('.today__phase').text()).toBe('還沒標記')
     expect(rows[1]!.classes()).toContain('is-ongoing')
-    expect(rows[1]!.get('a').text()).toContain('進行中')
-    expect(rows[2]!.classes()).toEqual([])
+    expect(rows[1]!.get('.today__phase').text()).toBe('進行中')
+    expect(rows[2]!.classes()).toEqual(['today__row'])
     expect(rows[2]!.text()).not.toMatch(/已結束|進行中/)
   })
 })

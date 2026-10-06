@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,13 @@ from app.content.models import ContentItem, ContentRevision, PublishJob
 from app.content.publish_jobs import unresolved_condition
 from app.content.registry import CONTENT_KIND_REGISTRY, HQ_MANAGED_KINDS
 from app.media.models import MediaAsset, MediaStatus
+
+# 今天的名單列哪些狀態：已確認、已到場、未到場；已取消不列。
+_TODAY_STATUSES = (
+    VisitRequestStatus.CONFIRMED.value,
+    VisitRequestStatus.COMPLETED.value,
+    VisitRequestStatus.NO_SHOW.value,
+)
 
 
 async def get_dashboard_summary(
@@ -44,19 +51,27 @@ async def get_dashboard_summary(
             return stmt.where(column.in_(campus_keys))
         return stmt
 
-    # 今日參觀：時段落在今天且狀態是 confirmed。回清單而不是只回數字——
-    # 櫃台要的是「今天誰幾點來」，一個數字沒辦法讓人打電話或準備接待。
+    # 今日參觀：場次落在今天的案件。回清單而不是只回數字——櫃台要的是「今天誰幾點來」，
+    # 一個數字沒辦法讓人打電話或準備接待。2026-10-06 起整天都列：已到場、未到場的也留在
+    # 名單上（帶 status），總覽才是「今天的行程板」而不是待辦；已取消的不列。
+    assignee = aliased(User)
     today_rows_stmt = (
         select(
             VisitRequest.id,
             VisitRequest.parent_name,
+            VisitRequest.child_name,
+            VisitRequest.phone,
+            VisitRequest.status,
             VisitRequest.campus_key,
             VisitSlot.start_time,
             VisitSlot.end_time,
+            assignee.display_name,
+            assignee.email,
         )
         .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        .outerjoin(assignee, VisitRequest.assigned_staff_id == assignee.id)
         .where(
-            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
+            VisitRequest.status.in_(_TODAY_STATUSES),
             # slot_date 是 naive 的日期欄位，直接跟營運時區的今天比對。
             VisitSlot.slot_date == today,
         )
@@ -67,9 +82,14 @@ async def get_dashboard_summary(
         {
             "id": str(row.id),
             "parent_name": row.parent_name,
+            "child_name": row.child_name,
+            "phone": row.phone,
+            "status": row.status,
             "campus_key": row.campus_key,
             "start_time": row.start_time.isoformat(),
             "end_time": row.end_time.isoformat(),
+            "assignee_display_name": row.display_name,
+            "assignee_email": row.email,
         }
         for row in (await db.execute(today_rows_stmt)).all()
     ]
@@ -192,6 +212,11 @@ async def get_dashboard_summary(
         elif config.mode == BookingMode.SLOTS and await slot_service.count_bookable_slots(db, key, config, now) == 0:
             slots_without_openings.append(key)
 
+    # 本週五校（2026-10-06 總覽行程板）：今天起七天內各校已預約幾組、還可約幾組。
+    # 「已預約」算占名額的案件（已確認、已到場、未到場），和月曆的已排數一致；
+    # 「還可約」只有自選場次的校才有，暫停或其他方式回 None（畫面寫「未開放」或方式）。
+    week_campuses = await _week_campuses(db, all_campus_keys, configs_by_campus, today)
+
     # outbox 本身沒有校區欄位，要經案件取得校區，否則分校帳號會看到全站數字。
     failed_notifications_stmt = _scope(
         select(func.count())
@@ -217,8 +242,48 @@ async def get_dashboard_summary(
         "pending_review": pending_review,
         "campuses_without_active_booking": missing_config,
         "campuses_slots_without_openings": slots_without_openings,
+        "week_campuses": week_campuses,
         "failed_notifications": failed_notifications,
     }
+
+
+async def _week_campuses(db: AsyncSession, campus_keys: list[str], configs_by_campus: dict, today) -> list[dict]:
+    week_end = today + timedelta(days=6)
+    booked_sub = (
+        select(func.count())
+        .select_from(VisitRequest)
+        .where(VisitRequest.slot_id == VisitSlot.id, slot_service.occupying_condition())
+        .correlate(VisitSlot)
+        .scalar_subquery()
+    )
+    rows = (
+        await db.execute(
+            select(VisitSlot.campus_key, VisitSlot.closed, VisitSlot.capacity, booked_sub).where(
+                VisitSlot.campus_key.in_(campus_keys),
+                VisitSlot.slot_date >= today,
+                VisitSlot.slot_date <= week_end,
+            )
+        )
+    ).all()
+    booked: dict[str, int] = {key: 0 for key in campus_keys}
+    open_seats: dict[str, int] = {key: 0 for key in campus_keys}
+    for campus_key, closed, capacity, booked_count in rows:
+        booked[campus_key] += booked_count
+        if not closed:
+            open_seats[campus_key] += max(capacity - booked_count, 0)
+    result = []
+    for key in campus_keys:
+        config = configs_by_campus.get(key)
+        mode = BookingMode.PAUSED.value if config is None else config.mode.value
+        result.append(
+            {
+                "campus_key": key,
+                "mode": mode,
+                "booked": booked[key],
+                "open": open_seats[key] if mode == BookingMode.SLOTS.value else None,
+            }
+        )
+    return result
 
 
 def _content_scope_condition(campus_keys: list[str], include_shared: bool):
