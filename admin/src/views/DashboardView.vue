@@ -5,6 +5,8 @@ import { api } from '../api/client'
 import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
+import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
+import RecordDialog from '../components/admissions/RecordDialog.vue'
 import { attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatShortSlotWhen, formatTime, visitDisplay } from '../api/labels'
 import type { VisitRequestDetailOut } from '../api/types'
 import { usePermissions } from '../composables/usePermissions'
@@ -248,14 +250,19 @@ const VISIT_PHASE_LABELS = { ended: '已結束・待標記到場', ongoing: '進
 // 先確認一次，寫出家長與場次。標完就離開名單（後端只列還沒標記的），重讀彙總。
 const canHandleVisits = computed(() => can('booking.handle'))
 const attendanceBusy = ref<string | null>(null)
+// 標記已到場後接著打開招生資料表單（2026-10-06，同案件列表）：表單上方寫出已到場，不另跳成功訊息。
+const arrival = useArrivalAdmissionsForm()
+const { open: arrivalOpen, record: arrivalRecord, options: arrivalOptions, lead: arrivalLead } = arrival
 async function markTodayAttendance(visit: TodayVisit, kind: AttendanceKind) {
   const row = { status: 'confirmed', parent_name: visit.parent_name, slot: { slot_date: taipeiDay(clockNow.value), start_time: visit.start_time, end_time: visit.end_time } }
   const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
-  if (attendanceBusy.value || !(await confirmAttendance(kind, row, withAdmissions))) return
+  const opensForm = withAdmissions && arrival.opensForm.value
+  if (attendanceBusy.value || !(await confirmAttendance(kind, row, withAdmissions, opensForm))) return
   attendanceBusy.value = visit.id
   try {
     await submitAttendance(visit.id, kind)
-    ElMessage.success(kind === 'no_show' ? `已標記 ${visit.parent_name} 未到場` : `已標記 ${visit.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+    if (opensForm) void arrival.openFor(visit)
+    else ElMessage.success(kind === 'no_show' ? `已標記 ${visit.parent_name} 未到場` : `已標記 ${visit.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
   } catch (err) {
     notifyError(apiErrorCode(err) === 'INVALID_TRANSITION' ? `${visit.parent_name} 這筆剛被其他人處理過，名單已更新` : apiErrorMessage(err, '操作失敗'))
   } finally {
@@ -590,6 +597,17 @@ const hasTodo = computed(() => {
         </section>
       </div>
     </template>
+    <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
+    <RecordDialog
+      v-if="canHandleVisits"
+      v-model="arrivalOpen"
+      mode="edit"
+      :campus-key="arrivalRecord?.campus_key ?? ''"
+      :record="arrivalRecord"
+      :options="arrivalOptions"
+      :lead="arrivalLead"
+      :cancel-text="ARRIVAL_FORM_CANCEL_TEXT"
+    />
   </div>
 </template>
 

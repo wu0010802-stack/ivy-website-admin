@@ -17,13 +17,19 @@ export function attendanceDue(row: AttendanceRow, now: number = Date.now()): boo
   return row.status === 'confirmed' && Boolean(row.slot) && slotStarted(row.slot!, now)
 }
 
+// 標記已到場的確認文字（招生入學開著時）：能改招生資料的人標記後接著打開招生資料表單
+// （useArrivalAdmissionsForm），其他人之後在招生入學頁追蹤。明細頁同一組字。
+export function arrivalAdmissionsNote(opensForm: boolean): string {
+  return opensForm ? '會同時建立一筆招生訪視，接著打開招生資料表單。' : '會同時建立一筆招生訪視，之後在招生入學頁追蹤。'
+}
+
 // 列表一列一列很密，兩種都先確認一次，寫出家長與場次，免得點到隔壁那列。
 // 招生入學開著時，標記已到場會在同一個交易裡建立招生訪視（同明細的說法）。
-export async function confirmAttendance(kind: AttendanceKind, row: AttendanceRow, withAdmissions: boolean): Promise<boolean> {
+export async function confirmAttendance(kind: AttendanceKind, row: AttendanceRow, withAdmissions: boolean, opensForm = false): Promise<boolean> {
   const who = `${row.parent_name}（${formatShortSlotWhen(row.slot)}）`
   const [title, message, confirmButtonText, type] =
     kind === 'complete'
-      ? ['標記已到場？', `${who}標記為已到場。${withAdmissions ? '會同時建立一筆招生訪視，之後在招生入學頁追蹤。' : ''}`, '標記已到場', 'info' as const]
+      ? ['標記已到場？', `${who}標記為已到場。${withAdmissions ? arrivalAdmissionsNote(opensForm) : ''}`, '標記已到場', 'info' as const]
       : ['標記為未到場？', `${who}標記為未到場後，這筆案件會結案。這一場的名額仍算已使用，不會再開放給別人。`, '標記未到場', 'warning' as const]
   try {
     await ElMessageBox.confirm(message, title, { confirmButtonText, cancelButtonText: '先不要', type })

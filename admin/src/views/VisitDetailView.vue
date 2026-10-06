@@ -23,6 +23,9 @@ import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import { useCampusScope } from '../composables/useCampusScope'
 import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { useFamilyAdmissions } from '../composables/useFamilyAdmissions'
+import { ARRIVAL_FORM_CANCEL_TEXT, arrivalFormLead } from '../composables/useArrivalAdmissionsForm'
+import { arrivalAdmissionsNote } from '../composables/visitAttendance'
+import RecordDialog from '../components/admissions/RecordDialog.vue'
 import { stageMeta } from '../admissions/constants'
 import { arrivedAt, arrivedLabel, detailOrigin, familyLastHandled, familyNotes, latestContact } from '../admissions/family'
 import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
@@ -600,14 +603,16 @@ async function onRebooked(created: VisitRequestDetailOut) {
 
 // 招生入學可用時，標記已到場會在同一個交易裡建立招生訪視（規格 6.1），所以先確認（規格第 10 節原文）。
 // 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
+// 能改招生資料的人標記後接著打開招生資料表單（2026-10-06，同案件列表的 useArrivalAdmissionsForm）。
 async function markCompleted() {
   // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
   const lookupInFlight = canReadAdmissions.value ? family.settled() : null
   if (lookupInFlight) await lookupInFlight
   const withAdmissions = admissionsAvailable.value === 'yes'
+  const opensForm = withAdmissions && canCreateAdmissions.value
   if (withAdmissions) {
     try {
-      await ElMessageBox.confirm('會同時建立一筆招生訪視，之後在招生入學頁追蹤。', '標記已到場？', {
+      await ElMessageBox.confirm(arrivalAdmissionsNote(opensForm), '標記已到場？', {
         confirmButtonText: '標記已到場',
         cancelButtonText: '先不要',
         type: 'info',
@@ -619,9 +624,10 @@ async function markCompleted() {
   pendingAction.value = 'complete'
   try {
     await api.post(`/admin/visit-requests/${id.value}/complete`)
-    ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
+    if (!opensForm) ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
     openRequests.refresh(true)
     await load({ quiet: true })
+    if (opensForm) await openArrivalForm()
   } catch (err) {
     reportError(err, '操作失敗')
   } finally {
@@ -644,6 +650,23 @@ const bookingDataTitle = computed(() => {
   if (familyVisit.value) return isWebCase.value ? '家長預約時填寫的資料' : '補登時的案件資料'
   return isWebCase.value ? '家長填寫的資料' : '案件資料'
 })
+
+// 標記已到場後的招生資料表單：狀態變成已到場會重查招生訪視（useFamilyAdmissions），等查完、
+// 查得到就打開（後面同時換成家庭版面）；表單上方寫出已到場，所以不另跳成功訊息。
+const arrivalOpen = ref(false)
+const arrivalLead = ref('')
+async function openArrivalForm() {
+  await nextTick()
+  const lookup = family.settled()
+  if (lookup) await lookup
+  const current = detail.value
+  if (current?.status === 'completed' && admissionsVisit.value) {
+    arrivalLead.value = arrivalFormLead(current.parent_name)
+    arrivalOpen.value = true
+  } else {
+    ElMessage.success('已標記已到場，招生訪視已建立')
+  }
+}
 
 function onFamilyChanged(next: RecruitmentVisit) {
   family.replaceVisit(next)
@@ -1078,6 +1101,19 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
         </aside>
       </div>
       <ManualVisitDialog v-model="rebookOpen" :campus-keys="visibleCampusKeys" :related-from="detail" @created="onRebooked" />
+      <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
+      <RecordDialog
+        v-if="canCreateAdmissions"
+        v-model="arrivalOpen"
+        mode="edit"
+        :campus-key="detail.campus_key"
+        :record="admissionsVisit"
+        :options="familyOptions"
+        :lead="arrivalLead"
+        :cancel-text="ARRIVAL_FORM_CANCEL_TEXT"
+        @saved="family.replaceVisit"
+        @stale="family.reload"
+      />
     </template>
   </div>
 </template>

@@ -66,12 +66,14 @@ describe('標記已到場的確認框（規格第 10 節）', () => {
     const { wrapper } = await mountDetail()
     await button(wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
-    expect(confirm.mock.calls[0]!.slice(0, 2)).toEqual(['會同時建立一筆招生訪視，之後在招生入學頁追蹤。', '標記已到場？'])
+    // 能改招生資料：標記後接著打開招生資料表單（2026-10-06，arrivalAdmissionsForm.test.ts）。
+    expect(confirm.mock.calls[0]!.slice(0, 2)).toEqual(['會同時建立一筆招生訪視，接著打開招生資料表單。', '標記已到場？'])
     expect(post).not.toHaveBeenCalled()
     confirm.mockResolvedValueOnce('confirm' as never)
     await button(wrapper, '標記已到場')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VR_ID}/complete`)
+    // 這裡招生訪視查回空的，表單打不開，退回成功訊息。
     expect(success).toHaveBeenCalledWith('已標記已到場，招生訪視已建立')
   })
   // R1：招生開關關閉時（招生 API 404）與查不到時，維持改版前的行為。

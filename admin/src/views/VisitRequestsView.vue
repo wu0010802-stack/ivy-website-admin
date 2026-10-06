@@ -17,9 +17,11 @@ import { notifyError, notifyWarning } from '../composables/notify'
 import {
   attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, markArrivedInOrder, submitAttendance, type AttendanceKind, type BatchFailure,
 } from '../composables/visitAttendance'
+import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
+import RecordDialog from '../components/admissions/RecordDialog.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -361,15 +363,20 @@ const clockNow = ref(Date.now())
 const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
 const attendanceBusy = ref<string | null>(null)
 const showAttendance = (row: VisitRequestDetailOut) => canHandle.value && attendanceDue(row, clockNow.value)
+// 標記已到場後接著打開招生資料表單（2026-10-06）：表單上方寫出已到場，所以不另跳成功訊息。
+const arrival = useArrivalAdmissionsForm()
+const { open: arrivalOpen, record: arrivalRecord, options: arrivalOptions, lead: arrivalLead } = arrival
 
 async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) {
   // 招生入學開著時，標記已到場會同時建立招生訪視（後端看部署開關，不看個人權限）。
   const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
-  if (attendanceLocked.value || !(await confirmAttendance(kind, row, withAdmissions))) return
+  const opensForm = withAdmissions && arrival.opensForm.value
+  if (attendanceLocked.value || !(await confirmAttendance(kind, row, withAdmissions, opensForm))) return
   attendanceBusy.value = row.id
   try {
     await submitAttendance(row.id, kind)
-    ElMessage.success(kind === 'no_show' ? `已標記 ${row.parent_name} 未到場` : `已標記 ${row.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+    if (opensForm) void arrival.openFor(row)
+    else ElMessage.success(kind === 'no_show' ? `已標記 ${row.parent_name} 未到場` : `已標記 ${row.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
   } catch (err) {
     // 同事剛處理過同一筆（兩人都開著列表）：後端拒絕轉換，重讀後列表就是現在的狀態。
     notifyError(attendanceChanged(err) ? `${row.parent_name} 這筆剛被其他人處理過，列表已更新` : apiErrorMessage(err, '操作失敗'))
@@ -672,6 +679,17 @@ onMounted(() => {
       :campus-keys="visibleCampusKeys"
       :default-campus="campusFilter"
       @created="onManualCreated"
+    />
+    <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
+    <RecordDialog
+      v-if="canHandle"
+      v-model="arrivalOpen"
+      mode="edit"
+      :campus-key="arrivalRecord?.campus_key ?? ''"
+      :record="arrivalRecord"
+      :options="arrivalOptions"
+      :lead="arrivalLead"
+      :cancel-text="ARRIVAL_FORM_CANCEL_TEXT"
     />
   </div>
 </template>

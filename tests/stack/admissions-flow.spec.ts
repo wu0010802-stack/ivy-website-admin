@@ -8,7 +8,8 @@ import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs, pickVi
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了，漏斗看板全空時提示去標記到場 →
-// 案件列表「只看尚未確認到場」按已到場 → 漏斗看板「已訪視」→ 預繳 → 註冊 → 統計看得到。
+// 案件列表「只看尚未確認到場」按已到場、接著在招生資料表單補帶參觀老師 → 漏斗看板「已訪視」→ 預繳 →
+// 註冊 → 統計看得到。
 // 2026-10-05 拿掉招生入學的「官網預約」分頁，確認到場改在案件列表。
 // 「時間已過」用 psql 把本測試自己建的場次移到昨天（db.ts），不改系統時間、不動其他測試的場次。
 // 每一步都在畫面上操作；API 只用來建場次與核對結果。後兩項是 R16：四個分頁在 1440／390 的
@@ -18,6 +19,7 @@ const PARENT = '招生流程家長'
 const CHILD = '招生流程寶貝'
 const PHONE = '0912000771'
 const EMAIL = 'admissions-flow@example.com'
+const GUIDE = '招生流程老師'
 const SHOTS = path.join(ROOT, 'output/playwright')
 const TABS = ['funnel', 'followups', 'records', 'stats'] as const
 
@@ -99,16 +101,28 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     await expect(page).toHaveURL(/status=confirmed/)
   })
 
-  await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了', async () => {
+  await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了，接著在招生資料表單補帶參觀老師', async () => {
     const row = page.locator('.requests-table tr', { hasText: PARENT })
     await expect(row).toContainText(CHILD)
     // 按鈕文字是「到了」，無障礙名稱帶家長（「標記 X 已到場」）。
     await row.getByRole('button', { name: `標記 ${PARENT} 已到場` }).click()
     // 已到場有確認框（composables/visitAttendance.ts：標題「標記已到場？」、按鈕「標記已到場」）。
     await answerMessageBox(page, '標記已到場？', '標記已到場')
+    // 標記後接著打開招生資料表單（2026-10-06，composables/useArrivalAdmissionsForm.ts），預約資料已帶入。
+    const form = page.getByRole('dialog', { name: '編輯訪視紀錄' })
+    await expect(form).toContainText(`已標記 ${PARENT} 已到場`)
+    await expect(form.getByRole('textbox', { name: '幼生姓名' })).toHaveValue(CHILD)
+    await form.getByRole('textbox', { name: '帶參觀老師' }).fill(GUIDE)
+    await form.getByRole('button', { name: '儲存', exact: true }).click()
+    await expect(form).toBeHidden()
     await expect(page.locator('.requests-table tr', { hasText: PARENT })).toHaveCount(0)
   })
-  expect((await findVisit(api, PARENT)).status).toBe('completed')
+  const arrived = await findVisit(api, PARENT)
+  expect(arrived.status).toBe('completed')
+  const [record] = await api.get<{ tour_guide_name: string | null }[]>(
+    `/admin/admissions/records?campus_key=${SLOTS_CAMPUS}&visit_request_id=${arrived.id}&page=1&page_size=1`,
+  )
+  expect(record?.tour_guide_name).toBe(GUIDE)
 
   await test.step('漏斗看板：卡片在「已訪視」，年級依生日換算成小班', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=funnel`, '招生入學')

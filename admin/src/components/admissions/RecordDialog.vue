@@ -14,12 +14,15 @@ import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, 
 // 放回前三個（帶參觀老師只打名字、不選帳號），另加英文名字、父母職業（官網延伸，園務沒有）。
 // 預繳、註冊、退出只能走狀態轉換（園務 stateLocked）；這些欄位一律不送，後端 extra="forbid"。
 // 生日只有新增時必填：預約到場自動建立的訪視可能沒有生日，編輯時不擋（本檔調整第 17 條）。
-const props = defineProps<{
+// 標記已到場後接著打開時（2026-10-06，useArrivalAdmissionsForm）：lead 在表單上方寫出已到場，取消鈕改成「之後再填」。
+const props = withDefaults(defineProps<{
   mode: 'add' | 'edit'
   campusKey: string
   record?: RecruitmentVisit | null
   options?: AdmissionsOptions | null
-}>()
+  lead?: string
+  cancelText?: string
+}>(), { record: null, options: null, lead: '', cancelText: '取消' })
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ saved: [visit: RecruitmentVisit]; stale: [] }>()
 
@@ -345,14 +348,16 @@ function suggest(list: readonly string[] | undefined) {
     :show-close="!submitting"
     :before-close="beforeClose"
   >
-    <template #header>
+    <!-- 標題接上 el-dialog 的 titleId：對話框的 aria-labelledby 指向它，才有無障礙名稱。 -->
+    <template #header="{ titleId }">
       <div class="record-dialog__head">
-        <h2 class="record-dialog__title">{{ mode === 'add' ? '新增訪視紀錄' : '編輯訪視紀錄' }}</h2>
+        <h2 :id="titleId" class="record-dialog__title">{{ mode === 'add' ? '新增訪視紀錄' : '編輯訪視紀錄' }}</h2>
         <!-- 序號由後端依同校同月份配號，不是輸入欄（園務同樣只顯示）。 -->
         <span class="record-dialog__seq">{{ mode === 'add' ? '存檔後自動編號' : `序號 ${current?.seq_no || '—'}` }}</span>
       </div>
     </template>
 
+    <p v-if="lead" class="record-dialog__context">{{ lead }}</p>
     <p class="hint record-dialog__lead">* 為必填，其餘可日後補。</p>
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="record-dialog__alert" />
 
@@ -489,7 +494,7 @@ function suggest(list: readonly string[] | undefined) {
       <div class="record-dialog__footer">
         <p class="record-dialog__missing" aria-live="polite">{{ missing.length ? `還不能儲存：還沒填${missing.join('、')}` : '' }}</p>
         <div class="record-dialog__buttons">
-          <el-button :disabled="submitting" @click="requestClose">取消</el-button>
+          <el-button :disabled="submitting" @click="requestClose">{{ cancelText }}</el-button>
           <el-button v-if="mode === 'add'" :disabled="missing.length > 0 || submitting" @click="save(true)">儲存並新增下一筆</el-button>
           <el-button type="primary" :loading="submitting" :disabled="missing.length > 0" @click="save()">儲存</el-button>
         </div>
@@ -517,6 +522,11 @@ function suggest(list: readonly string[] | undefined) {
   background: var(--surface-2);
   color: var(--ink-2);
   font-size: var(--text-sm);
+}
+
+.record-dialog__context {
+  margin: 0 0 6px;
+  color: var(--ink);
 }
 
 .record-dialog__lead {

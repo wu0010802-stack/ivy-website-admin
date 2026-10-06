@@ -1,3 +1,13 @@
+## 2026-10-06 標記已到場後接著填招生資料（`feature/arrival-admissions-form-20261006`）
+
+使用者：「家長已到場後會需要填招生資料，這邊的表單可以幫我跳出來嗎」。規則見 DESIGN.md「標記已到場後接著填招生資料」。
+
+- **後台**：案件列表與總覽的「到了」、預約明細的「標記已到場」，確認後接著打開招生入學的訪視表單（`RecordDialog` 編輯模式，預約資料已帶入），上方寫「已標記 ○○ 已到場」，取消鈕叫「之後再填」。只在招生入學開著、帳號有 `admissions.write` 時跳；批次標記不跳。新增 `composables/useArrivalAdmissionsForm.ts`；`RecordDialog` 多 `lead`、`cancelText` 兩個選填 props，標題接上 `titleId`（對話框原本沒有無障礙名稱）。沒有後端、契約、migration 變動。
+- **驗證**（Node 22.23.2）：
+  - 後台：新增 `arrivalAdmissionsForm.test.ts` 8 項（先紅後綠：列表打開表單與帶入、存檔只送改過的欄位、之後再填、查不到訪視的警告、沒權限或招生沒開不跳、總覽、明細存檔更新家庭版面、明細沒權限不跳）；`admissionsVisitDetail.test.ts` 確認文字跟著改。vitest 107 檔全過、`vue-tsc -b` 通過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_arrivalform1006_e2e_test`、埠 8794／3794，跑完已刪庫）：`admissions-flow.spec.ts` 改成按到了之後在表單填帶參觀老師並存檔、再用 API 核對；它和 `admissions-follow-up`、`visit-family-page` 共 6 項全過，整套 stack 沒跑。另用臨時 spec 在 1440／390（櫃台帳號）與明細頁截圖目視確認，截圖在 `output/playwright/arrival-form/`，臨時 spec 已刪。
+  - 未驗證：正式站實際點一次。
+
 ## 2026-10-06 預約方式拿掉 inquiry（`feature/no-inquiry-20261006`）
 
 接「拿掉舊狀態程式」：使用者問 inquiry 是什麼，聽完說明後裁定拿掉。規則見 DESIGN.md「拿掉舊狀態程式」。
