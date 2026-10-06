@@ -70,6 +70,14 @@ const dailyCsvName = computed(() => analyticsCsvName('每日瀏覽', '官網全�
 function vitalCell(metric: TrafficVital['metric'], vital: TrafficVital | null): string {
   return vital ? `${formatVital(metric, vital.p75)} ${RATING_LABELS[ratingOf(vital)]} 量測 ${vital.samples} 次` : ''
 }
+function exportPages() {
+  // 順序同畫面（瀏覽次數由多到少），頁面名稱同畫面上的白話名稱。
+  saveAnalyticsCsv(
+    analyticsCsvName('各頁瀏覽', '官網全站', rangeText.value),
+    ['頁面', '瀏覽次數'],
+    pages.value.map((page) => [page.label, page.views]),
+  )
+}
 function exportVitals() {
   saveAnalyticsCsv(
     analyticsCsvName('網頁速度', '官網全站', rangeText.value),
@@ -132,7 +140,10 @@ function exportVitals() {
       </section>
 
       <section class="panel" aria-labelledby="traffic-pages-title">
-        <div class="panel__head"><h2 id="traffic-pages-title">各頁瀏覽</h2></div>
+        <div class="panel__head">
+          <h2 id="traffic-pages-title">各頁瀏覽</h2>
+          <el-button v-if="pages.length" size="small" text data-test="analytics-csv-pages" aria-label="把「各頁瀏覽」匯出 CSV" @click="exportPages">匯出 CSV</el-button>
+        </div>
         <div class="panel__body traffic__body">
           <p v-if="!pages.length" class="hint">這段期間還沒有瀏覽紀錄。</p>
           <ol v-else class="traffic__pages">

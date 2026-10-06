@@ -344,6 +344,29 @@ describe('成效統計匯出：官網瀏覽與速度', () => {
     expect(lines).toEqual([`${CSV_BOM}日期,次`, '2026/09/29,7', '2026/09/28,4', ''])
   })
 
+  it('各頁瀏覽：頁面（畫面上的白話名稱）與瀏覽次數，順序同畫面；全站合計所以檔名寫「官網全站」', async () => {
+    const pages: TrafficSummary['pages'] = [
+      { page: 'home', campus_key: null, views: 80 },
+      { page: 'campus', campus_key: 'yihua', views: 25 },
+      { page: 'visit', campus_key: 'yihua', views: 9 },
+      { page: 'visit', campus_key: null, views: 3 },
+    ]
+    const wrapper = await mountTraffic(traffic({ pages }))
+    await click(wrapper, 'analytics-csv-pages')
+    const { filename, lines } = lastDownload()
+    expect(filename).toBe(`成效統計-各頁瀏覽-官網全站-2026-09-02–2026-09-29-${today}.csv`)
+    expect(lines).toEqual([`${CSV_BOM}頁面,瀏覽次數`, '首頁,80', '義華校介紹頁,25', '義華校預約頁,9', '預約參觀（選校）,3', ''])
+    // 檔案每一列和畫面上排行榜的每一列一一對應。
+    expect(wrapper.findAll('.traffic__row').map((row) => row.get('.traffic__label').text())).toEqual(lines.slice(1, -1).map((line) => line.split(',')[0]))
+  })
+
+  it('各頁瀏覽匯出失敗用 notifyError 提示，不讓錯誤飛出去', async () => {
+    const wrapper = await mountTraffic(traffic())
+    vi.mocked(downloadCsv).mockImplementationOnce(() => { throw new Error('blocked') })
+    await click(wrapper, 'analytics-csv-pages')
+    expect(notifyError).toHaveBeenCalledWith('匯出失敗，請再試一次。')
+  })
+
   it('網頁速度：欄名同畫面，每格寫畫面上的數值、評等與量測次數；沒有資料的格子空白', async () => {
     const wrapper = await mountTraffic(traffic())
     await click(wrapper, 'analytics-csv-vitals')
@@ -357,9 +380,10 @@ describe('成效統計匯出：官網瀏覽與速度', () => {
     ])
   })
 
-  it('沒有速度資料與每日資料時不顯示匯出鈕', async () => {
+  it('沒有各頁、速度與每日資料時不顯示匯出鈕', async () => {
     const wrapper = await mountTraffic(traffic({ daily: [], vitals: [], pages: [] }))
     expect(wrapper.find('[data-test="daily-bars-csv"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="analytics-csv-vitals"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="analytics-csv-pages"]').exists()).toBe(false)
   })
 })
