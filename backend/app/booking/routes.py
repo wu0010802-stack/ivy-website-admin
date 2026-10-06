@@ -60,7 +60,6 @@ from app.booking.schemas import (
     PublicVisitSlotOut,
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
-    VisitRequestAssignRequest,
     VisitRequestCancelRequest,
     VisitRequestCreate,
     VisitRequestDetailOut,
@@ -867,9 +866,6 @@ class VisitRequestFilters:
         status_filter: str | None = Query(default=None, alias="status"),
         q: str | None = Query(default=None, max_length=100, description="家長或寶貝姓名、電話或 Email 片段"),
         follow_up_due: bool = Query(default=False, description="只列已到預定聯絡時間、尚未結案的案件"),
-        assignee: str | None = Query(
-            default=None, description="承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id"
-        ),
         source: str | None = Query(default=None, description="案件來源：web／phone／line／walk_in／external"),
         created_from: date | None = Query(default=None, description="送出日期起（含），台灣日期"),
         created_to: date | None = Query(default=None, description="送出日期迄（含），台灣日期"),
@@ -892,7 +888,6 @@ class VisitRequestFilters:
         self.status = status_filter
         self.q = q.strip() if q and q.strip() else None
         self.follow_up_due = follow_up_due
-        self.assignee = assignee
         self.source = source
         self.created_from = created_from
         self.created_to = created_to
@@ -900,7 +895,7 @@ class VisitRequestFilters:
         self.group = group
         self.open_only = open_only
         # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422。
-        if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, assignee, source)):
+        if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, source)):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
 
     def apply(self, stmt, user: User, capability: str):
@@ -921,21 +916,6 @@ class VisitRequestFilters:
             stmt = stmt.where(status_groups.group_condition(self.group))
         if self.open_only:
             stmt = stmt.where(status_groups.open_condition())
-        if self.assignee == "me":
-            stmt = stmt.where(VisitRequest.assigned_staff_id == user.id)
-        elif self.assignee == "none":
-            stmt = stmt.where(VisitRequest.assigned_staff_id.is_(None))
-        elif self.assignee == "inactive":
-            # 承辦人帳號已停用、案件還掛在他名下：要有人重新指派。
-            stmt = stmt.where(VisitRequest.assigned_staff_id.in_(select(User.id).where(User.is_active.is_(False))))
-        elif self.assignee:
-            try:
-                assignee_id = uuid.UUID(self.assignee)
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="承辦人篩選格式錯誤"
-                ) from exc
-            stmt = stmt.where(VisitRequest.assigned_staff_id == assignee_id)
         if self.source:
             stmt = stmt.where(VisitRequest.source == self.source)
         if self.created_from is not None:
@@ -965,7 +945,6 @@ class VisitRequestFilters:
             "group": self.group,
             "open": True if self.open_only else None,
             "source": self.source,
-            "assignee": self.assignee,
             "created_from": self.created_from.isoformat() if self.created_from else None,
             "created_to": self.created_to.isoformat() if self.created_to else None,
             "follow_up_due": self.follow_up_due or None,
@@ -1245,7 +1224,8 @@ async def list_visit_staff(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitStaffOut]:
-    """可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。
+    """處理參觀案件的同事（booking.handle：總管理者、分校管理者、接待人員），
+    畫面用來把登錄的人、聯絡紀錄與歷程裡的 id 翻成名字。
     非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出
     其他校的人員配置。"""
     require_scope(current_user, "booking.read")
@@ -1377,59 +1357,6 @@ async def create_contact_note(
     return VisitContactNoteOut.model_validate(note).model_copy(
         update={"created_by_email": current_user.email, "created_by_display_name": current_user.display_name}
     )
-
-
-@router.patch("/admin/visit-requests/{visit_request_id}/assignee", response_model=VisitRequestDetailOut)
-async def assign_visit_request(
-    visit_request_id: uuid.UUID,
-    payload: VisitRequestAssignRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
-    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
-    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
-    assignee = None
-    if payload.assigned_staff_id is not None:
-        result = await db.execute(
-            select(User)
-            .options(selectinload(User.campus_scopes))
-            .where(User.id == payload.assigned_staff_id)
-        )
-        assignee = result.scalar_one_or_none()
-        if assignee is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail={"code": "ASSIGNEE_INVALID", "message": "找不到這個人員"},
-            )
-    try:
-        await workflow_service.lock_editable(db, visit_request, payload.expected_version)
-    except workflow_service.VersionConflict as exc:
-        await db.rollback()
-        raise _version_conflict(exc) from exc
-    previous = visit_request.assigned_staff_id
-    try:
-        await workflow_service.assign(db, visit_request, assignee, actor=Actor.staff(current_user.id))
-    except workflow_service.AssigneeInvalid as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "ASSIGNEE_INVALID", "message": exc.message},
-        ) from exc
-    if previous != visit_request.assigned_staff_id:
-        await audit_service.log_action(
-            db,
-            actor_user_id=current_user.id,
-            action="visit_request.assign",
-            target_type="visit_request",
-            target_id=str(visit_request.id),
-            campus_key=visit_request.campus_key,
-            metadata={
-                "from": str(previous) if previous else None,
-                "to": str(visit_request.assigned_staff_id) if visit_request.assigned_staff_id else None,
-            },
-        )
-    await db.commit()
-    return VisitRequestDetailOut.model_validate(visit_request)
 
 
 @router.post("/admin/visit-requests/{visit_request_id}/cancel", response_model=VisitRequestDetailOut)
@@ -1565,7 +1492,7 @@ def _version_conflict(exc: workflow_service.VersionConflict) -> HTTPException:
         status_code=status.HTTP_409_CONFLICT,
         detail={
             "code": "VISIT_REQUEST_VERSION_CONFLICT",
-            "message": "這筆案件的承辦人或下次聯絡時間剛被其他人修改，請重新載入後再操作",
+            "message": "這筆案件的下次聯絡時間剛被其他人修改，請重新載入後再操作",
             "current_version": exc.current_version,
         },
     )

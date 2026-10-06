@@ -50,7 +50,7 @@ async function mountRouted(component: unknown, path: string, routePath = '/:path
 const visitCase = (changes: Record<string, unknown> = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', parent_name: '王媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, source: 'web',
-  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', assigned_staff_id: null,
+  slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z',
   follow_up_at: '2099-01-01T02:00:00Z', version: 4, history: [], ...changes,
 })
 
@@ -108,7 +108,7 @@ describe('1. 案件頁「下次聯絡」背景重讀後同步', () => {
     const { server, post, picker, comeBack, addNote } = await setup()
     picker().vm.$emit('update:modelValue', '2099-03-01T10:00:00+08:00')
     await flushPromises()
-    server.current = visitCase({ assigned_staff_id: 'someone', version: 5 })
+    server.current = visitCase({ version: 5 })
     await comeBack()
     await addNote('改到三月')
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/case-a/contact-notes', {
@@ -172,7 +172,7 @@ describe('3. 「加開一場」防重複送出', () => {
     const pending = deferred<unknown>()
     const post = vi.spyOn(api, 'post').mockReturnValue(pending.promise as never)
     const wrapper = mount(DayPanel, {
-      props: { day: '2099-01-05', campusKey: 'yihua', slots: [], holiday: null, canManage: true, staff: [] },
+      props: { day: '2099-01-05', campusKey: 'yihua', slots: [], holiday: null, canManage: true },
       global: { plugins: [ElementPlus], stubs: { RouterLink: { template: '<a><slot /></a>' } } },
       attachTo: document.body,
     })

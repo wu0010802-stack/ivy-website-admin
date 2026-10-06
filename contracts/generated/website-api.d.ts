@@ -1865,23 +1865,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/website/v1/admin/visit-requests/{visit_request_id}/assignee": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Assign Visit Request */
-        patch: operations["assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch"];
-        trace?: never;
-    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/cancel": {
         parameters: {
             query?: never;
@@ -2103,7 +2086,8 @@ export interface paths {
         };
         /**
          * List Visit Staff
-         * @description 可以承辦案件的人（booking.handle：總管理者、分校管理者、接待人員）。
+         * @description 處理參觀案件的同事（booking.handle：總管理者、分校管理者、接待人員），
+         *     畫面用來把登錄的人、聯絡紀錄與歷程裡的 id 翻成名字。
          *     非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出
          *     其他校的人員配置。
          */
@@ -3352,8 +3336,6 @@ export interface components {
          * @description 月曆格子裡的一位家長：只放接待當天需要的欄位，完整資料點進案件看。
          */
         CalendarVisitOut: {
-            /** Assigned Staff Id */
-            assigned_staff_id: string | null;
             /** Child Name */
             child_name: string | null;
             /**
@@ -4637,7 +4619,7 @@ export interface components {
         /**
          * ParentVisitRequestOut
          * @description 家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
-         *     含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+         *     含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
          *     孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
          *     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。
          */
@@ -5897,8 +5879,8 @@ export interface components {
          * VisitHistoryOut
          * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
          *     家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
-         *     before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
-         *     或下次聯絡時間，不含家長個資。
+         *     before／after 只含狀態、時段（slot_date、start_time、end_time）或下次聯絡
+         *     時間（2026-10-06 以前的舊紀錄可能還有已拿掉的承辦人），不含家長個資。
          */
         VisitHistoryOut: {
             /** Actor Display Name */
@@ -5931,13 +5913,6 @@ export interface components {
             reason: string | null;
             /** Source */
             source: string | null;
-        };
-        /** VisitRequestAssignRequest */
-        VisitRequestAssignRequest: {
-            /** Assigned Staff Id */
-            assigned_staff_id: string | null;
-            /** Expected Version */
-            expected_version: number;
         };
         /** VisitRequestCancelRequest */
         VisitRequestCancelRequest: {
@@ -5992,8 +5967,6 @@ export interface components {
         VisitRequestDetailOut: {
             /** Age */
             age: string | null;
-            /** Assigned Staff Id */
-            assigned_staff_id: string | null;
             /** Campus Key */
             campus_key: string;
             /** Cancel Reason */
@@ -6073,8 +6046,6 @@ export interface components {
             access_link: components["schemas"]["ParentAccessLinkOut"] | null;
             /** Age */
             age: string | null;
-            /** Assigned Staff Id */
-            assigned_staff_id: string | null;
             /** Campus Key */
             campus_key: string;
             /** Cancel Reason */
@@ -6441,8 +6412,8 @@ export interface components {
         };
         /**
          * VisitStaffOut
-         * @description 可以承辦案件的後台人員：有 booking.handle 的總管理者、分校管理者與
-         *     櫃台。campus_keys 為空代表總管理者，可承辦任何校區。
+         * @description 處理參觀案件的後台人員：有 booking.handle 的總管理者、分校管理者與
+         *     櫃台。campus_keys 為空代表總管理者，可處理任何校區。
          */
         VisitStaffOut: {
             /** Campus Keys */
@@ -10267,8 +10238,6 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
-                assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
                 /** @description 送出日期起（含），台灣日期 */
@@ -10359,8 +10328,6 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
-                assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
                 /** @description 送出日期起（含），台灣日期 */
@@ -10413,8 +10380,6 @@ export interface operations {
                 q?: string | null;
                 /** @description 只列已到預定聯絡時間、尚未結案的案件 */
                 follow_up_due?: boolean;
-                /** @description 承辦人：me＝我承辦的、none＝尚未指派、inactive＝承辦人帳號已停用，或承辦人的使用者 id */
-                assignee?: string | null;
                 /** @description 案件來源：web／phone／line／walk_in／external */
                 source?: string | null;
                 /** @description 送出日期起（含），台灣日期 */
@@ -10515,45 +10480,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ParentAccessLinkCreatedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    assign_visit_request_api_website_v1_admin_visit_requests__visit_request_id__assignee_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                visit_request_id: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VisitRequestAssignRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
                 };
             };
             /** @description Validation Error */

@@ -51,7 +51,7 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    # 顯示名稱（2026-09-28 業主裁定）：承辦人、聯絡紀錄、歷程、操作紀錄等處給
+    # 顯示名稱（2026-09-28 業主裁定）：登錄的人、聯絡紀錄、歷程、操作紀錄等處給
     # 同事看的名字；沒填時畫面用 Email。寫入一律經 schemas.normalize_display_name。
     display_name: Mapped[str | None] = mapped_column(String(DISPLAY_NAME_MAX_LENGTH), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)

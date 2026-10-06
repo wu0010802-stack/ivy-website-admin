@@ -9,6 +9,7 @@ import type { AdmissionsOptions, RecruitmentVisit, RecruitmentVisitCreate, Recru
 import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Grade } from '../../admissions/constants'
 import { joinTourGuides, splitTourGuides, TOUR_GUIDE_MAX_LENGTH, TOUR_GUIDE_SEPARATOR } from '../../admissions/tourGuides'
+import { sourceCategoryOptions } from '../../admissions/sourceCategories'
 
 // 訪視表單（園務 RecruitmentRecordDialog，分區同園務：基本資料、聯絡與來源、預繳狀態、備註）。
 // 官網第一版不放來源分類、帶參觀老師、娃娃車、地址分析同意（本檔調整第 10 條）；2026-10-05 照園方紙本
@@ -198,7 +199,7 @@ const blockers = computed(() => [
   tourGuidesTooLong.value ? `帶參觀老師合計超過 ${TOUR_GUIDE_MAX_LENGTH} 字` : '',
 ].filter(Boolean))
 
-const sourceCategories = computed(() => Object.entries(props.options?.source_categories ?? {}))
+const sourceCategories = computed(() => sourceCategoryOptions([current.value?.source_category, form.source_category], props.options?.source_categories))
 // 原因說明跟著未預繳原因出現；以前填過說明的照常顯示，才不會藏住舊資料。
 const showReasonDetail = computed(() => Boolean(form.no_deposit_reason || form.no_deposit_reason_detail.trim()))
 const stage = computed(() => stageMeta(current.value ?? { stage: 'visited' }))

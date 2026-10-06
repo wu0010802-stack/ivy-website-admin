@@ -7,12 +7,10 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.auth.models import User
 from app.booking import pending_kinds, slot_service
 from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.status_groups import open_condition
 from app.campuses.models import Campus
 from app.common.timezones import today_local
 from app.content.models import ContentItem, ContentRevision, PublishJob
@@ -53,8 +51,7 @@ async def get_dashboard_summary(
 
     # 今日參觀：場次落在今天的案件。回清單而不是只回數字——櫃台要的是「今天誰幾點來」，
     # 一個數字沒辦法讓人打電話或準備接待。2026-10-06 起整天都列：已到場、未到場的也留在
-    # 名單上（帶 status），總覽才是「今天的行程板」而不是待辦；已取消的不列。
-    assignee = aliased(User)
+    # 名單上（帶 status），總覽才是「今天的行程板」而不是待辦；已取消的不列。承辦人同日拿掉，不回。
     today_rows_stmt = (
         select(
             VisitRequest.id,
@@ -65,11 +62,8 @@ async def get_dashboard_summary(
             VisitRequest.campus_key,
             VisitSlot.start_time,
             VisitSlot.end_time,
-            assignee.display_name,
-            assignee.email,
         )
         .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
-        .outerjoin(assignee, VisitRequest.assigned_staff_id == assignee.id)
         .where(
             VisitRequest.status.in_(_TODAY_STATUSES),
             # slot_date 是 naive 的日期欄位，直接跟營運時區的今天比對。
@@ -88,8 +82,6 @@ async def get_dashboard_summary(
             "campus_key": row.campus_key,
             "start_time": row.start_time.isoformat(),
             "end_time": row.end_time.isoformat(),
-            "assignee_display_name": row.display_name,
-            "assignee_email": row.email,
         }
         for row in (await db.execute(today_rows_stmt)).all()
     ]
@@ -351,21 +343,3 @@ async def _media_issues(
         row["not_ready"] = max(row["not_ready"], not_ready)
         row["live"] = row["live"] or is_live
     return sorted(issues.values(), key=lambda row: (not row["live"], row["kind"], row["campus_key"] or ""))
-
-
-def _scoped_count(campus_keys: list[str] | None, *conditions):
-    stmt = select(func.count()).select_from(VisitRequest).where(open_condition(), *conditions)
-    if campus_keys is not None:
-        stmt = stmt.where(VisitRequest.campus_key.in_(campus_keys))
-    return stmt
-
-
-async def count_open_cases_assigned_to(db: AsyncSession, user_id: uuid.UUID, campus_keys: list[str] | None) -> int:
-    """總覽「我承辦的案件」：指派給這個人、還沒結案的件數。和清單 ?assignee=me&open=true 同一批。"""
-    return (await db.execute(_scoped_count(campus_keys, VisitRequest.assigned_staff_id == user_id))).scalar_one()
-
-
-async def count_open_cases_with_inactive_assignee(db: AsyncSession, campus_keys: list[str] | None) -> int:
-    """承辦人帳號已停用、還沒結案的件數。和清單 ?assignee=inactive&open=true 同一批。"""
-    inactive = select(User.id).where(User.is_active.is_(False))
-    return (await db.execute(_scoped_count(campus_keys, VisitRequest.assigned_staff_id.in_(inactive)))).scalar_one()

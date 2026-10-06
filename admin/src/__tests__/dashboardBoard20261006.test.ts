@@ -1,4 +1,4 @@
-// 2026-10-06 總覽改成「今天的行程板」：今天的參觀當主體（上午／下午、孩子、電話、承辦、
+// 2026-10-06 總覽改成「今天的行程板」：今天的參觀當主體（上午／下午、孩子、電話、
 // 已到場也列）、本週五校小表取代「校區尚未開放」提醒卡、待辦只列有數字的、常用工作縮成一列。
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -21,7 +21,7 @@ const base = () => ({
 })
 const visit = (changes: Record<string, unknown>) => ({
   id: 'v1', parent_name: '林小姐', child_name: '小安', phone: '0912000001', status: 'confirmed', campus_key: 'yihua',
-  start_time: '10:00:00', end_time: '11:00:00', assignee_display_name: null, assignee_email: null, ...changes,
+  start_time: '10:00:00', end_time: '11:00:00', ...changes,
 })
 const week = () => [
   { campus_key: 'yihua', mode: 'slots', booked: 5, open: 7 },
@@ -48,7 +48,7 @@ describe('總覽＝今天的行程板', () => {
     const list = [
       visit({ id: 'ended', start_time: '10:00:00', end_time: '11:00:00' }),
       visit({ id: 'done', parent_name: '王先生', child_name: '小芸', status: 'completed', start_time: '10:00:00', end_time: '11:00:00' }),
-      visit({ id: 'now', parent_name: '黃媽媽', campus_key: 'minghua', start_time: '12:00:00', end_time: '13:00:00', assignee_display_name: '怡君', assignee_email: 'desk@ivy.example' }),
+      visit({ id: 'now', parent_name: '黃媽媽', campus_key: 'minghua', start_time: '12:00:00', end_time: '13:00:00' }),
       visit({ id: 'later', parent_name: '陳媽媽', start_time: '16:00:00', end_time: '17:00:00' }),
     ]
     const wrapper = await mountDashboard({ ...base(), today_visits: 4, today_visit_list: list, week_campuses: week() })
@@ -60,7 +60,7 @@ describe('總覽＝今天的行程板', () => {
     expect(sum).toContain('1 組結束了還沒標記')
     expect(wrapper.find('.dash__summary').exists()).toBe(false)
 
-    // 上午／下午分組，列內有孩子、電話連結、承辦人。
+    // 上午／下午分組，列內有孩子、電話連結。
     expect(wrapper.findAll('.today__group').map(g => g.text())).toEqual(['上午', '下午'])
     const rows = wrapper.findAll('.today li.today__row')
     expect(rows).toHaveLength(4)
@@ -72,8 +72,7 @@ describe('總覽＝今天的行程板', () => {
     expect(rows[1]!.text()).toContain('已到場')
     expect(rows[1]!.find('.today__attendance').exists()).toBe(false)
     expect(rows[2]!.text()).toContain('進行中')
-    expect(rows[2]!.text()).toContain('承辦：怡君')
-    expect(rows[3]!.text()).toContain('承辦：未指派')
+    expect(wrapper.text()).not.toContain('承辦')
     expect(rows[3]!.find('.today__attendance').exists()).toBe(false)
   })
 

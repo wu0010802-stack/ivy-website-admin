@@ -90,17 +90,11 @@ const rebookOpen = ref(false)
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 const loading = ref(true)
 const { can } = usePermissions()
-// 處理案件（聯絡紀錄、確認、取消、改期…）含櫃台；指派承辦人與新增時段
-// 仍是校區管理者以上（booking.manage）。
+// 處理案件（聯絡紀錄、確認、取消、改期…）含櫃台；新增時段仍是校區管理者以上
+// （booking.manage）。
 const canHandle = computed(() => can('booking.handle'))
 const canManage = computed(() => can('booking.manage'))
 const { staff, load: loadStaff } = useVisitStaff()
-const assignable = computed(() =>
-  staff.value.filter(
-    (s) => s.is_active && (s.role === 'super_admin' || (detail.value ? s.campus_keys.includes(detail.value.campus_key) : false)),
-  ),
-)
-const assigning = ref(false)
 
 // 打好還沒按「新增紀錄」的聯絡紀錄：返回、下一筆、側欄換頁前都先問，
 // 不然同事接手時看不到這段聯絡過程。處理中（例如正在新增紀錄）先請使用者稍候。
@@ -114,22 +108,6 @@ const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
 // 「下一筆」只換 :id，不會觸發離頁守衛，要另外攔。
 onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? confirmLeave() : true))
 
-async function assign(staffId: string | null) {
-  if (!detail.value) return
-  assigning.value = true
-  try {
-    await api.patch<VisitRequestDetailOut>(`/admin/visit-requests/${id.value}/assignee`, {
-      assigned_staff_id: staffId || null,
-      expected_version: detail.value.version,
-    })
-    await refreshDetail()
-    ElMessage.success(staffId ? `已指派給 ${staffLabelById(staffId, staff.value)}` : '已取消指派')
-  } catch (err) {
-    reportError(err, '指派失敗')
-  } finally {
-    assigning.value = false
-  }
-}
 const error = ref<string | null>(null)
 
 // 「下一筆」換 id 時元件不重新掛載：換案件就加一，舊案件較晚回來的
@@ -338,9 +316,9 @@ const nextTitle = computed(() => {
 
 function reportError(err: unknown, fallback: string) {
   if (isVersionConflict(err)) {
-    // 別人剛改過承辦人或下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
+    // 別人剛改過下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
     // 已經自動重讀，所以不接後端「請重新載入後再操作」的訊息。
-    notifyWarning('這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
+    notifyWarning('這筆案件的下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
     void refreshDetail('rebase')
     return
   }
@@ -377,7 +355,7 @@ async function reloadAfterTransitionConflict(err: unknown, fallback: string) {
 // 「下次聯絡」的選擇），同事剛處理過就提示一句。
 function activityKey(): string {
   const d = detail.value
-  return d ? `${d.status}|${d.slot_id ?? ''}|${d.assigned_staff_id ?? ''}|${d.history?.length ?? 0}` : ''
+  return d ? `${d.status}|${d.slot_id ?? ''}|${d.history?.length ?? 0}` : ''
 }
 // 切回時 focus 與 visibilitychange 通常連續觸發：重讀進行中就略過，只讀一次、只提示一次。
 let refreshing = false
@@ -820,7 +798,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
           <h2 class="detail__title">{{ detail.parent_name }}</h2>
           <p class="hint">
             {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
-            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template><template v-if="familyVisit && detail.assigned_staff_id">・預約承辦 {{ staffLabelById(detail.assigned_staff_id, staff) }}</template>
+            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>
           </p>
           <p v-if="handled" class="hint detail__handled">最後處理：{{ handled.who }}・{{ formatDateTime(handled.at) }}・{{ handled.what }}</p>
           <p v-if="detail.related_request_id" class="hint">
@@ -1059,37 +1037,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
               </template>
               <span v-else class="hint">已到場，但還沒有招生訪視；請有招生權限的同事建立。</span>
             </div>
-            <div v-if="!familyVisit && !familyPending" class="detail__assignee">
-              <label for="visit-assignee">承辦人</label>
-              <!-- 選項寫名字，下面一行小字是完整 Email：同名或同 Email 前綴的同事才分得出來。 -->
-              <el-select
-                v-if="canManage"
-                id="visit-assignee"
-                :model-value="detail.assigned_staff_id ?? ''"
-                :loading="assigning"
-                :disabled="assigning"
-                :title="staffEmailById(detail.assigned_staff_id, staff) || undefined"
-                placeholder="未指派"
-                clearable
-                popper-class="assignee-popper"
-                style="width: 100%"
-                @change="(value: string) => assign(value || null)"
-              >
-                <el-option
-                  v-if="detail.assigned_staff_id && !assignable.some((s) => s.id === detail!.assigned_staff_id)"
-                  :value="detail.assigned_staff_id"
-                  :label="staffLabelById(detail.assigned_staff_id, staff)"
-                  disabled
-                />
-                <el-option v-for="s in assignable" :key="s.id" :value="s.id" :label="staffLabel(s)">
-                  <span class="assignee-option" data-test="assignee-option">
-                    <span class="assignee-option__name">{{ staffLabel(s) }}</span>
-                    <span class="assignee-option__email">{{ s.email }}</span>
-                  </span>
-                </el-option>
-              </el-select>
-              <span v-else :title="staffEmailById(detail.assigned_staff_id, staff) || undefined">{{ staffLabelById(detail.assigned_staff_id, staff) }}</span>
-            </div>
             <div
               v-if="canHandle && detail.status === 'confirmed'"
               class="detail__danger"
@@ -1189,17 +1136,7 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
   margin-top: -8px;
 }
 
-/* 承辦人、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */
-.detail__assignee {
-  display: grid;
-  gap: 6px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-/* 招生訪視：與承辦人同一種分隔與留白。 */
+/* 招生訪視、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */
 .detail__admissions {
   display: flex;
   flex-wrap: wrap;
@@ -1471,7 +1408,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 }
 
 @media (max-width: 720px) {
-  .detail__assignee,
   .detail__admissions {
     padding: 12px 16px;
   }
@@ -1483,35 +1419,6 @@ const isWebCase = computed(() => !detail.value?.source || detail.value.source ==
 </style>
 
 <style>
-/* 承辦人選單：名字一行、完整 Email 一行小字。Element Plus 的選項預設固定一行高，
-   這裡改成自動高度；選單掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
-.assignee-popper .el-select-dropdown__item {
-  height: auto;
-  min-height: 44px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  line-height: 1.4;
-}
-
-.assignee-option {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.assignee-option__name,
-.assignee-option__email {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.assignee-option__email {
-  color: var(--ink-3);
-  font-size: var(--text-xs);
-  font-weight: 400;
-}
-
 /* 下次聯絡的快捷選項預設排在日曆左側，面板會比手機畫面寬；窄螢幕改排在日曆上方一列。
    選擇面板掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
 /* 觸控裝置（含平板）的快捷選項放大到 44px 高，手指點得到。 */

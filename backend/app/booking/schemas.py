@@ -333,17 +333,9 @@ class VisitRequestManualCreate(_VisitRequestFields):
         return _reject_control_chars(value)
 
 
-class VisitRequestAssignRequest(BaseModel):
-    # None 代表取消指派。
-    assigned_staff_id: uuid.UUID | None
-    # 畫面載入時案件的 version；別人先改了承辦人或下次聯絡時間就回 409
-    # VISIT_REQUEST_VERSION_CONFLICT。
-    expected_version: int = Field(ge=1)
-
-
 class VisitStaffOut(BaseModel):
-    """可以承辦案件的後台人員：有 booking.handle 的總管理者、分校管理者與
-    櫃台。campus_keys 為空代表總管理者，可承辦任何校區。"""
+    """處理參觀案件的後台人員：有 booking.handle 的總管理者、分校管理者與
+    櫃台。campus_keys 為空代表總管理者，可處理任何校區。"""
 
     id: uuid.UUID
     email: str
@@ -363,7 +355,6 @@ class CalendarVisitOut(BaseModel):
     child_name: str | None
     phone: str
     source: str
-    assigned_staff_id: uuid.UUID | None
     party_size: int | None = None
 
 
@@ -478,7 +469,6 @@ class VisitRequestDetailOut(BaseModel):
     # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
     # 下會踩到 lazy load。
     slot: VisitSlotBriefOut | None = None
-    assigned_staff_id: uuid.UUID | None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
     cancel_reason: str | None = None
@@ -487,7 +477,7 @@ class VisitRequestDetailOut(BaseModel):
     created_by: uuid.UUID | None = None
     related_request_id: uuid.UUID | None = None
     created_at: datetime
-    # 可編輯欄位（承辦人、下次聯絡時間）的樂觀鎖版本。
+    # 可編輯欄位（下次聯絡時間）的樂觀鎖版本。
     version: int
 
     model_config = {"from_attributes": True}
@@ -576,7 +566,7 @@ class ParentDetailsUpdate(BaseModel):
 
 class ParentVisitRequestOut(BaseModel):
     """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
-    含承辦人、聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
+    含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
     孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。"""
 
@@ -591,7 +581,7 @@ class ParentVisitRequestOut(BaseModel):
     party_size: int | None = None
     questions: str | None = None
     # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。是 details_version，
-    # 不是案件的 version（那是園方承辦人／下次聯絡時間的鎖）。
+    # 不是案件的 version（那是園方下次聯絡時間的鎖）。
     version: int
     slot: VisitSlotBriefOut | None = None
     confirmed_at: datetime | None
@@ -690,8 +680,8 @@ class RescheduleDecisionRequest(BaseModel):
 class VisitHistoryOut(BaseModel):
     """案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
     家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
-    before／after 只含狀態、時段（slot_date、start_time、end_time）、承辦人
-    或下次聯絡時間，不含家長個資。"""
+    before／after 只含狀態、時段（slot_date、start_time、end_time）或下次聯絡
+    時間（2026-10-06 以前的舊紀錄可能還有已拿掉的承辦人），不含家長個資。"""
 
     id: uuid.UUID
     event_type: str
@@ -767,7 +757,7 @@ class VisitContactNoteCreateRequest(BaseModel):
     # 帶時間＝改下次聯絡時間；帶 null 且有 expected_version＝「不用再追」，清掉
     # 案件上的追蹤時間；不帶（或舊版前端只送 null、沒帶版本）＝不動。
     follow_up_at: datetime | None = None
-    # 有改下次聯絡時間時必填（會蓋掉案件上的值，要跟改承辦人一樣檢查版本）；
+    # 有改下次聯絡時間時必填（會蓋掉案件上的值，要檢查版本）；
     # 只記一筆聯絡紀錄是新增，不會蓋掉別人的東西，可以省略。
     expected_version: int | None = Field(default=None, ge=1)
 

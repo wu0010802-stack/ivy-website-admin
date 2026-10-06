@@ -38,7 +38,7 @@ describe('招生資料面板', () => {
     expect(labels(wrapper)).toEqual([
       '幼生姓名', '英文名字', '生日', '適讀班級', '聯絡人', '電話', '入學學期', '搭娃娃車', '帶參觀老師', '來源分類', '來源備註', '家長介紹', '父親職業',
     ])
-    expect(valueOf(wrapper, '來源分類')).toBe('有緣名單（家長介紹／社區招生）')
+    expect(valueOf(wrapper, '來源分類')).toBe('家長介紹／社區招生')
     expect(valueOf(wrapper, '入學學期')).toBe('115 上學期')
     expect(valueOf(wrapper, '搭娃娃車')).toBe('要搭')
     expect(valueOf(wrapper, '家長介紹')).toBe('—')

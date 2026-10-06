@@ -440,7 +440,7 @@ describe('操作紀錄的「操作者」', () => {
 })
 
 // ---------------------------------------------------------------- 案件明細
-describe('案件明細的承辦人與聯絡紀錄寫名字', () => {
+describe('案件明細的聯絡紀錄寫名字', () => {
   const staff = [
     { id: 'u1', email: 'amy@ivy.example', display_name: '王小美', role: 'campus_admin', is_active: true, campus_keys: ['yihua'] },
     { id: 'u2', email: 'amy@other.example', display_name: null, role: 'reception', is_active: true, campus_keys: ['yihua'] },
@@ -449,12 +449,12 @@ describe('案件明細的承辦人與聯絡紀錄寫名字', () => {
     id: 'case-a', campus_key: 'yihua', status: 'contacting', source: 'phone', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
     child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, party_size: null,
     slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, version: 1,
-    assigned_staff_id: 'u1', created_by: 'u2', confirmed_at: null, cancelled_at: null, pending_reschedule: null, access_link: null,
+    created_by: 'u2', confirmed_at: null, cancelled_at: null, pending_reschedule: null, access_link: null,
     history: [{ id: 'e1', event_type: 'contacting', source: 'staff', actor_user_id: 'u1', actor_email: 'amy@ivy.example', actor_display_name: '王小美', before: null, after: null, reason: null, created_at: '2026-09-22T01:00:00Z' }],
   }
   const notes = [{ id: 'n1', note: '已致電', created_at: '2026-09-22T02:00:00Z', created_by: 'u1', created_by_email: 'amy@ivy.example', created_by_display_name: '王小美' }]
 
-  it('承辦人選單每一項是名字＋小字完整 Email（同前綴的同事分得出來）；聯絡紀錄、登錄的人、歷程都寫名字', async () => {
+  it('聯絡紀錄、登錄的人、歷程都寫名字；沒有承辦人（2026-10-06 拿掉）', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path.endsWith('/contact-notes')) return notes as never
       if (path.startsWith('/admin/visit-staff')) return staff as never
@@ -477,15 +477,8 @@ describe('案件明細的承辦人與聯絡紀錄寫名字', () => {
     wrappers.push(wrapper)
     await flushPromises()
 
-    const options = [...document.body.querySelectorAll('[data-test="assignee-option"]')]
-    expect(options.map((o) => [o.querySelector('.assignee-option__name')?.textContent, o.querySelector('.assignee-option__email')?.textContent])).toEqual([
-      ['王小美', 'amy@ivy.example'],
-      ['amy', 'amy@other.example'],
-    ])
-    // 選好的承辦人寫名字，不是 Email。
-    const assignee = wrapper.get('.detail__assignee')
-    expect(assignee.text()).toContain('王小美')
-    expect(assignee.text()).not.toContain('amy@ivy.example')
+    expect(wrapper.find('#visit-assignee').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('承辦')
 
     const author = wrapper.get('.notes__author')
     expect(author.text()).toBe('王小美')

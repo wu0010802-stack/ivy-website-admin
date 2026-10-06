@@ -68,30 +68,30 @@ describe('案件流程補完', () => {
     expect(readOnly.text()).not.toContain('取消預約')
   })
 
-  it('櫃台可以處理案件（記聯絡紀錄、取消），但不能改承辦人', async () => {
+  it('櫃台可以處理案件（記聯絡紀錄、取消）；沒有承辦人（2026-10-06 拿掉）', async () => {
     const desk = testUser('reception', { id: 'desk', email: 'desk@example.invalid', campus_keys: ['yihua'] })
     const wrapper = await setup(details(), desk)
     expect(wrapper.text()).not.toContain('只能查看案件')
     expect(wrapper.findAll('button').some(button => button.text() === '確認這個場次')).toBe(false)
     expect(wrapper.find('textarea[aria-label="新增聯絡紀錄"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('取消預約')
-    // 指派承辦人限校區管理者以上：櫃台只看到文字，沒有下拉選單。
     expect(wrapper.find('#visit-assignee').exists()).toBe(false)
-    expect(wrapper.text()).toContain('承辦人未指派')
+    expect(wrapper.text()).not.toContain('承辦')
   })
 
-  it('改承辦人遇到版本衝突：自動重讀案件，提示不再叫使用者重新載入', async () => {
-    const patch = vi.spyOn(api, 'patch').mockRejectedValue(
-      new ApiError(409, { code: 'VISIT_REQUEST_VERSION_CONFLICT', message: '這筆案件的承辦人或下次聯絡時間剛被其他人修改，請重新載入後再操作', current_version: 3 }),
+  it('新增紀錄遇到版本衝突：自動重讀案件，提示不再叫使用者重新載入', async () => {
+    const post = vi.spyOn(api, 'post').mockRejectedValue(
+      new ApiError(409, { code: 'VISIT_REQUEST_VERSION_CONFLICT', message: '這筆案件的下次聯絡時間剛被其他人修改，請重新載入後再操作', current_version: 3 }),
     )
     const warning = vi.spyOn(ElMessage, 'warning')
     const wrapper = await setup({ ...details(), version: 2 })
     const detailCalls = () => vi.mocked(api.get).mock.calls.filter(([path]) => path === '/admin/visit-requests/local-case').length
     const before = detailCalls()
-    wrapper.findAllComponents({ name: 'ElSelect' }).find(select => select.props('id') === 'visit-assignee')!.vm.$emit('change', 'staff-b')
+    await wrapper.get('textarea[aria-label="新增聯絡紀錄"]').setValue('已致電')
+    await wrapper.findAll('button').find(button => button.text() === '新增紀錄')!.trigger('click')
     await flushPromises()
-    expect(patch).toHaveBeenCalledWith('/admin/visit-requests/local-case/assignee', { assigned_staff_id: 'staff-b', expected_version: 2 })
-    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作' }))
+    expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/contact-notes', expect.objectContaining({ note: '已致電' }))
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '這筆案件的下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作' }))
     expect(String((warning.mock.calls[0]![0] as { message: string }).message)).not.toContain('請重新載入')
     expect(detailCalls()).toBe(before + 1)
   })

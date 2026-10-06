@@ -87,7 +87,7 @@ describe('預約明細的返回鍵（6.2）', () => {
       [`/admin/visit-requests/${VR_ID}`]: () => ({
         id: VR_ID, campus_key: 'yihua', status: 'confirmed', parent_name: '陳媽媽', phone: '0912345678', child_name: '陳小寶',
         child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, slot_id: null, slot: null,
-        created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, assigned_staff_id: null, confirmed_at: null,
+        created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, confirmed_at: null,
         cancelled_at: null, source: 'web', history: [], pending_reschedule: null, access_link: null, version: 1,
       }),
     })

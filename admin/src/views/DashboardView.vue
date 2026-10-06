@@ -7,8 +7,7 @@ import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
-import { BOOKING_MODE_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatShortSlotWhen, formatTime, staffLabel, visitDisplay } from '../api/labels'
-import type { VisitRequestDetailOut } from '../api/types'
+import { BOOKING_MODE_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatTime } from '../api/labels'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
@@ -20,12 +19,10 @@ interface TodayVisit {
   campus_key: string
   start_time: string
   end_time: string
-  // 2026-10-06 行程板：孩子、電話、狀態（已到場、未到場也留在名單）與承辦人；舊版 API 沒有。
+  // 2026-10-06 行程板：孩子、電話、狀態（已到場、未到場也留在名單）；舊版 API 沒有。
   child_name?: string | null
   phone?: string | null
   status?: string
-  assignee_display_name?: string | null
-  assignee_email?: string | null
 }
 
 // 本週五校（今天起七天）：已預約幾組、還可約幾組（只有自選場次的校有數字）。
@@ -89,10 +86,6 @@ interface DashboardSummary {
   week_campuses?: WeekCampus[]
   // 開放線上表單，但「預約文案」沒有發布中的同意文字：官網對家長顯示暫停（2026-09-26 起）。
   failed_notifications: number
-  // 指派給我、還沒結案的件數（2026-10-03 第八輪，和列表 ?assignee=me&open=1 同一批）。
-  my_open_cases?: number
-  // 承辦人帳號已停用、還沒結案的件數；只有能重新指派的人（booking.manage）才有。
-  inactive_assignee_open_cases?: number
 }
 
 interface PendingReview { kind: string; campus_key: string | null; revision_id: string; submitted_by_email: string | null }
@@ -108,24 +101,6 @@ const authStore = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const { can } = usePermissions()
 const summary = ref<DashboardSummary | null>(null)
-// 我承辦的案件：最多列 5 筆（最早送出的在前），其餘點「查看全部」。不算待辦。
-const MINE_LIMIT = 5
-const MINE_LIST_PATH = '/visit-requests?assignee=me&open=1&order=oldest'
-const mine = ref<VisitRequestDetailOut[]>([])
-const myOpenCases = computed(() => summary.value?.my_open_cases ?? 0)
-const inactiveAssigneeCases = computed(() => summary.value?.inactive_assignee_open_cases ?? 0)
-async function loadMine() {
-  if (!(myOpenCases.value > 0 && can('booking.read'))) {
-    mine.value = []
-    return
-  }
-  try {
-    mine.value = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?assignee=me&open=true&order=oldest&page_size=${MINE_LIMIT}`)
-  } catch {
-    // 讀不到名單時這一區不顯示；總覽其他部分照常。
-    mine.value = []
-  }
-}
 const loading = ref(true)
 const error = ref<string | null>(null)
 // 背景重讀（切回這個分頁、按「重新整理」）：畫面保留舊資料，不閃骨架。
@@ -162,7 +137,6 @@ async function load(options: { quiet?: boolean } = {}) {
     refreshFailed.value = false
     // 待審清單在背景補上，最急的參觀數字不用等它。
     void loadReviews()
-    void loadMine()
   } catch {
     if (quiet) refreshFailed.value = true
     else error.value = '無法讀取總覽資料'
@@ -287,8 +261,6 @@ const todaySummary = computed(() => {
   const unmarked = list.filter((visit) => visitPhase(visit) === 'ended').length
   return unmarked > 0 ? `${parts}，${unmarked} 組結束了還沒標記` : parts
 })
-const assigneeLabel = (visit: TodayVisit) =>
-  visit.assignee_display_name || visit.assignee_email ? staffLabel({ display_name: visit.assignee_display_name, email: visit.assignee_email }) : '未指派'
 
 // 今天的名單直接標記到場（2026-10-05 第九輪）：場次開始後（進行中、已結束）才出現，同案件列表；
 // 先確認一次，寫出家長與場次。標完就離開名單（後端只列還沒標記的），重讀彙總。
@@ -417,7 +389,6 @@ const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
-    inactiveAssigneeCases.value > 0 ||
     reschedules.value > 0 ||
     (myNotices.value > 0 && canOpen('/releases')) ||
     needsAttention.value > 0 ||
@@ -466,7 +437,6 @@ const hasTodo = computed(() => {
                     <div class="today__meta">
                       <span>{{ campusLabel(visit.campus_key) }}</span>
                       <a v-if="visit.phone" class="num" :href="`tel:${visit.phone}`">{{ visit.phone }}</a>
-                      <span v-if="visit.status !== undefined">承辦：{{ assigneeLabel(visit) }}</span>
                     </div>
                   </div>
                   <!-- 按鈕不能包在連結裡：和連結並排在同一列。 -->
@@ -479,21 +449,6 @@ const hasTodo = computed(() => {
             </ol>
             <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看案件</router-link></p>
             <p v-else class="panel today__empty">今天沒有參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看接下來的案件</router-link></p>
-          </section>
-          <section v-if="mine.length" class="dash__mine" aria-labelledby="mine-title">
-            <div class="section__title">
-              <h2 id="mine-title">我承辦的案件</h2>
-              <router-link class="dash__mine-all" :to="MINE_LIST_PATH">查看全部 {{ myOpenCases }} 件 <span aria-hidden="true">→</span></router-link>
-            </div>
-            <ol class="panel today mine">
-              <li v-for="row in mine" :key="row.id">
-                <router-link :to="`/visit-requests/${row.id}`">
-                  <strong class="today__name">{{ row.parent_name }}</strong>
-                  <span class="today__campus">{{ visitDisplay(row).label }}<template v-if="row.slot"><span aria-hidden="true">・</span>{{ formatShortSlotWhen(row.slot) }}</template></span>
-                  <span class="today__go" aria-hidden="true">→</span>
-                </router-link>
-              </li>
-            </ol>
           </section>
         </div>
 
@@ -549,10 +504,6 @@ const hasTodo = computed(() => {
               <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
                 <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
                 <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><span id="task-arrival-d" class="visually-hidden">沒標記的話，成效統計的到場數字會偏低</span><span id="task-arrival-a" class="task__action">查看</span></div>
-              </router-link>
-              <router-link v-if="inactiveAssigneeCases > 0" class="task" to="/visit-requests?assignee=inactive&open=1" v-bind="taskAria('orphaned')">
-                <span id="task-orphaned-n" class="task__number">{{ inactiveAssigneeCases }}</span>
-                <div><h3 id="task-orphaned-t">承辦人已停用，案件還沒結案</h3><span id="task-orphaned-d" class="visually-hidden">請重新指派給其他同事</span><span id="task-orphaned-a" class="task__action">查看</span></div>
               </router-link>
               <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
                 <span id="task-notices-n" class="task__number">{{ myNotices }}</span>
@@ -701,12 +652,6 @@ const hasTodo = computed(() => {
 .today__empty { margin: 0; padding: 20px; color: var(--ink-2); }
 .today__empty a { margin-left: 8px; }
 
-.dash__mine-all { font-size: var(--text-sm); text-decoration: underline; }
-.mine li + li { border-top: 1px solid var(--line); }
-.mine a { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 14px 20px; color: var(--ink); }
-.mine a:hover { text-decoration: none; background: var(--surface-2); }
-.today__campus { color: var(--ink-3); font-size: var(--text-sm); }
-.today__go { color: var(--ink-3); }
 
 /* 本週五校：小表，數字靠右。 */
 .dash__week table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
@@ -759,10 +704,6 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   /* 手機：按鈕換到名字下面一整列，各占一半、44px 高。 */
   .today__attendance { grid-column: 1 / -1; }
   .today__attendance .el-button { flex: 1 1 0; min-height: 44px; }
-  /* 我承辦的案件：名字一行、狀態與場次在下一行，箭頭靠右跨兩行。 */
-  .mine a { grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 14px 16px; }
-  .mine .today__campus { grid-column: 1; grid-row: 2; }
-  .mine .today__go { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
   .task { padding: 12px 14px; }
   .task__kinds a, .task__rows a, a.task__action { display: inline-flex; align-items: center; min-height: 44px; }
   .dash__links a { display: inline-flex; align-items: center; min-height: 44px; }

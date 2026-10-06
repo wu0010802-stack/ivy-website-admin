@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 招生來源分類收斂成六項（main CI 部署）
+
+- **合併**：`feature/source-category-choices-20261006` 的 `b99e9f43` 從 `7a8d19e4` 開，期間 main 先上了訪視紀錄表單四區展開（`ee086b4d`＋紀錄 `b7675b2a`），合入成 `0909491c`（RecordDialog、admissionsRecords 測試、README 三處衝突，以 main 版面為底套上來源分類那一行），推 main `b7675b2a..0909491c`。內容與驗證見 README 頂部同日段落、DESIGN.md「來源分類收斂」。
+- **migration**：無（資料仍是園務九類代碼，只改後台下拉與顯示）。沒有備份。
+- **CI**：main run 37438706672（`0909491c`）全綠，建立到完成 11 分 57 秒：Frontend admin 2.7／web 1.6 分鐘，Backend 三組 6.0／7.0／7.2 分鐘，E2E／Playwright 6.2 分鐘，Deploy 4.6 分鐘。
+- **正式 `release.json`**：base commit `0909491c`，created `2026-10-06T08:57:15Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/` 的 `RecordDialog-*.js` 有六項清單（在校生弟妹、畢業生弟妹、家長介紹／社區招生、自報生（廣告、鄰居、網路、活動）、邀約來園、舊生復學），`AdmissionsView-*.js`、`VisitDetailView-*.js` 都從它匯入；未登入 `GET /admin/admissions/options` 回 401。
+- **未做**：沒有登入正式後台實際打開下拉、看選過不列類別的舊資料。
+
 ## 2026-10-06 訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹（main CI 部署）
 
 - **合併**：`feature/record-dialog-20261006` 的 `ee086b4d` 從 `7a8d19e4` 開、期間 main 沒前進，直接快轉，推 main `7a8d19e4..ee086b4d`。內容與驗證見 README 頂部同日段落、DESIGN.md「訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹」。

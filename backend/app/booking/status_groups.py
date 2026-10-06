@@ -14,8 +14,8 @@ from app.common.timezones import OPERATING_TZ, now_utc, slot_start_utc
 GROUPS = ("upcoming", "past", "cancelled")
 _DONE_STATUSES = (VisitRequestStatus.COMPLETED.value, VisitRequestStatus.NO_SHOW.value)
 
-# 還沒結案：預約正常（含時間已過還沒標記到場）。總覽「我承辦的案件」「承辦人已停用」、
-# 清單的 open=true、停用分校的進行中件數與個資保存政策用同一個定義。
+# 還沒結案：預約正常（含時間已過還沒標記到場）。清單的 open=true、停用分校的進行中件數
+# 與個資保存政策用同一個定義。
 OPEN_STATUSES = (VisitRequestStatus.CONFIRMED.value,)
 
 

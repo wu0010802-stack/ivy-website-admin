@@ -7,7 +7,6 @@ import { useAuthStore } from '../stores/auth'
 import { usePermissions } from '../composables/usePermissions'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
-import { useVisitStaff } from '../composables/useVisitStaff'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import WeeklySessionsCard from '../components/sessions/WeeklySessionsCard.vue'
@@ -24,7 +23,6 @@ const route = useRoute()
 const router = useRouter()
 const CALENDAR_PATH = route.path
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
-const { staff, load: loadStaff } = useVisitStaff()
 const { can } = usePermissions()
 const canManage = computed(() => can('booking.manage'))
 const auth = useAuthStore()
@@ -137,7 +135,6 @@ async function switchCampus(campus: string) {
 }
 onMounted(() => {
   load()
-  void loadStaff()
 })
 
 const slotsByDay = computed(() => {
@@ -246,7 +243,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
       </div>
     </div>
 
-    <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" :staff="staff" @changed="load" />
+    <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" @changed="load" />
   </div>
 </template>
 

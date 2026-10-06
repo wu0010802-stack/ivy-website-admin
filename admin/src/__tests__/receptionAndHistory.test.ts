@@ -175,7 +175,7 @@ describe('接待月曆', () => {
           {
             id: 's1', campus_key: 'yihua', slot_date: today, start_time: '10:00:00', end_time: '10:30:00',
             capacity: 3, closed: false, booked_count: 1,
-            visits: [{ id: 'v1', status: 'confirmed', parent_name: '林爸爸', child_name: null, phone: '0911222333', source: 'phone', assigned_staff_id: null }],
+            visits: [{ id: 'v1', status: 'confirmed', parent_name: '林爸爸', child_name: null, phone: '0911222333', source: 'phone' }],
           },
         ] as never
       }

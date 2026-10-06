@@ -135,7 +135,7 @@ const notice = ref<Notice | null>(
   linkNotice(LINK_RESULTS, route.query.line_link) ?? linkNotice(GOOGLE_LINK_RESULTS, route.query.google_link),
 )
 
-// ---- 顯示名稱：同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字 ----
+// ---- 顯示名稱：同事在聯絡紀錄、發布紀錄與操作紀錄看到的名字 ----
 // 本人隨時可以改（PATCH /auth/me），留空＝不設定，畫面改用 Email @ 前面那段。
 const nameDraft = ref(auth.user?.display_name ?? '')
 const nameSaving = ref(false)
@@ -321,7 +321,7 @@ async function unlink(body?: ReauthBody) {
               v-model="nameDraft"
               input-id="account-display-name"
               :server-error="nameServerError"
-              help="同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字，建議用園裡平常叫的稱呼。留空就用 Email @ 前面那段。"
+              help="同事在聯絡紀錄、發布紀錄與操作紀錄看到的名字，建議用園裡平常叫的稱呼。留空就用 Email @ 前面那段。"
             />
             <el-button type="primary" :loading="nameSaving" :disabled="!nameDirty" data-test="save-display-name" @click="saveName">儲存名稱</el-button>
           </el-form>

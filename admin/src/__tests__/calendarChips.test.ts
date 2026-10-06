@@ -7,7 +7,7 @@ const slot = (changes: Partial<CalendarSlot> = {}): CalendarSlot => ({
   capacity: 2, closed: false, closed_source: null, version: 1, booked_count: 0, visits: [], ...changes,
 })
 const visit = (id: string, parent_name: string, status = 'confirmed') =>
-  ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web', assigned_staff_id: null })
+  ({ id, status, parent_name, child_name: null, phone: '0911222333', source: 'web' })
 
 describe('月曆格子的色塊（參考義華行事曆）', () => {
   it('有預約：每位一塊，寫場次名稱與家長', () => {

@@ -83,7 +83,7 @@ async def ensure_from_visit_request(
     uq_recruitment_visits_visit_request 是最後防線。
 
     追蹤欄位（2026-10-04 規格 6.1）：不自動排第一次聯絡；預約上還沒到的下次聯絡沿用，
-    負責人依序取預約承辦人、這次操作的人。已有訪視時原樣回傳，不動追蹤欄位。
+    負責人是這次操作的人（2026-10-06 預約拿掉承辦人）。已有訪視時原樣回傳，不動追蹤欄位。
     預約本身不動（不清它的下次聯絡、不加版本）。"""
     existing = await db.scalar(select(RecruitmentVisit).where(RecruitmentVisit.visit_request_id == visit_request.id))
     if existing is not None:
@@ -95,7 +95,7 @@ async def ensure_from_visit_request(
         db,
         campus_key=visit_request.campus_key,
         booking_follow_up_at=visit_request.follow_up_at,
-        owner_candidates=[visit_request.assigned_staff_id, actor_user_id],
+        owner_candidates=[actor_user_id],
     )
     visit = await records.create_visit(
         db,

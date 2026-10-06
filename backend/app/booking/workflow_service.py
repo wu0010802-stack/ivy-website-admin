@@ -7,8 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy import func, select
 
-from app.auth.models import User
-from app.auth.permissions import covers_campus, has_capability
 from app.booking import access_service, history, slot_service
 from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
 from app.booking.export_labels import status_label
@@ -297,7 +295,7 @@ async def add_contact_note(
 
 
 class VersionConflict(Exception):
-    """案件的可編輯欄位（承辦人、下次聯絡時間）已被別人改過。"""
+    """案件的可編輯欄位（下次聯絡時間）已被別人改過。"""
 
     def __init__(self, current_version: int) -> None:
         self.current_version = current_version
@@ -311,48 +309,11 @@ async def lock_editable(db: AsyncSession, visit_request: VisitRequest, expected_
     案件是否已匿名化，不會看到鎖外讀到的舊值。"""
     await db.refresh(
         visit_request,
-        attribute_names=["version", "assigned_staff_id", "follow_up_at", "status", "anonymized_at"],
+        attribute_names=["version", "follow_up_at", "status", "anonymized_at"],
         with_for_update=True,
     )
     if expected_version is not None and visit_request.version != expected_version:
         raise VersionConflict(visit_request.version)
-
-
-class AssigneeInvalid(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(message)
-
-
-async def assign(
-    db: AsyncSession, visit_request: VisitRequest, assignee: User | None, *, actor: Actor | None = None
-) -> VisitRequest:
-    """改承辦人。assignee 是已載入 campus_scopes 的 User 或 None（取消
-    指派）；只能指派給仍啟用、而且能處理這個校區案件的人（booking.handle，
-    含接待人員），否則這筆案件會落到一個根本看不到它的人名下。"""
-    if assignee is not None:
-        if not assignee.is_active:
-            raise AssigneeInvalid("這個帳號已停用，不能指派")
-        if not has_capability(assignee, "booking.handle"):
-            raise AssigneeInvalid("這個帳號沒有處理參觀案件的權限")
-        if not covers_campus(assignee, visit_request.campus_key):
-            raise AssigneeInvalid("這個帳號沒有這個校區的權限")
-    new_id = assignee.id if assignee is not None else None
-    if visit_request.assigned_staff_id == new_id:
-        return visit_request
-    previous = visit_request.assigned_staff_id
-    visit_request.assigned_staff_id = new_id
-    visit_request.version += 1
-    history.record_event(
-        db,
-        visit_request.id,
-        "assigned" if new_id else "unassigned",
-        actor=actor,
-        before={"assigned_staff_id": str(previous) if previous else None},
-        after={"assigned_staff_id": str(new_id) if new_id else None},
-    )
-    await db.flush()
-    return visit_request
 
 
 EDITABLE_BY_PARENT = ("parent_name", "phone", "email", "child_name", "child_birthdate", "party_size", "questions")
@@ -361,9 +322,9 @@ EDITABLE_BY_PARENT = ("parent_name", "phone", "email", "child_name", "child_birt
 async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
     """家長資料的樂觀鎖版本：1 加上家長改過幾次資料（歷程 details_updated）。
 
-    不用 visit_requests.version：那是園方承辦人／下次聯絡時間的鎖（見 models），
-    共用的話家長改一次 Email，園方開著的案件頁存下次聯絡就 409，反過來園方指派
-    承辦人也會讓家長存檔 409（2026-10-06 稽核）。只有家長會改這組欄位。"""
+    不用 visit_requests.version：那是園方下次聯絡時間的鎖（見 models），共用的話
+    家長改一次 Email，園方開著的案件頁存下次聯絡就 409，反過來也一樣（2026-10-06
+    稽核）。只有家長會改這組欄位。"""
     count = await db.scalar(
         select(func.count())
         .select_from(VisitRequestEvent)

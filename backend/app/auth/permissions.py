@@ -39,10 +39,10 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、
     # 人工補登、取消、標記未到場、完成參觀、後台改期、核准／
     # 退回家長改期申請、產生／撤銷家長管理連結。
-    # 也是「可以承辦案件」與「收新案通知信」的定義。
+    # 也是「收新案通知信」的定義。
     "booking.handle": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
-    # 管理預約的設定面：時段新增／容量／關閉、每週規則、休假日、預約方式，
-    # 以及指派承辦人。仍限總管理者與分校管理者。站內通知標為已處理（全校
+    # 管理預約的設定面：時段新增／容量／關閉、每週規則、休假日、預約方式。
+    # 仍限總管理者與分校管理者。站內通知標為已處理（全校
     # 共用的狀態）裁定沒有開放給櫃台，業主確認前也用這一項。
     "booking.manage": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 招生入學（2026-10 規格 7；對應園務 RECRUITMENT_READ／WRITE／CONVERT）。訪視含
@@ -79,7 +79,7 @@ _GRANT_REQUIRED = {BOOKING_EXPORT}
 
 
 def roles_with(capability: str) -> set[Role]:
-    """擁有這個 capability 的角色，給 SQL 篩選用（例如列出可承辦案件的人）。"""
+    """擁有這個 capability 的角色，給 SQL 篩選用（例如列出處理參觀案件的同事）。"""
     allowed_roles = _CAPABILITY_ROLES.get(capability)
     if allowed_roles is None:
         raise ValueError(f"未知的 capability：{capability}")
