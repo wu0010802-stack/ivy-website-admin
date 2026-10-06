@@ -217,7 +217,7 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'status', 'open', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
