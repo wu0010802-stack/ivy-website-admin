@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 操作紀錄多記 IP 與裝置（main CI 部署）
+
+- **合併**：`feature/audit-ip-device-20261006` 從 `0c534043` 開，期間 main 前進兩次：先 rebase 到 `5fb9edbb`（拿掉舊狀態程式第二版），migration 由接 `d65fa082ff87` 改接 `e870893fac95`；再 rebase 到 `1c9d3e19`（後台 bug 稽核修正，只有 README 衝突）。等 `1c9d3e19` 部署完，使用者推 main `1c9d3e19..bb10a5b4`。內容與驗證見 README 頂部同日段落、DESIGN.md「操作紀錄記 IP 與裝置」。
+- **migration**：`a3c7e9d1f5b2`（down `e870893fac95`），`audit_log_entries` 加 `ip_address` String(64)、`user_agent` String(512)，可為 NULL、不回填；只改目錄、不重寫資料，部署前沒有備份。之後 `da749b97` 的 `c4e8a2f61b97` 接在它後面。
+- **推前本機**（rebase 到 `5fb9edbb` 後）：後端整套 pytest 1558 passed、1 skipped；admin `vue-tsc -b`、vitest 102 檔 1298 過、2 項逾時（負載 22，`admissionsRecords.test.ts` 單獨重跑 34 項全過）；web typecheck、`test:website` 829 項；`contract:check`；stack e2e 整套 76 項全過；測試庫從零升到 head、downgrade／upgrade 各一次。rebase 到 `1c9d3e19` 後：稽核與 bug 稽核相關後端 90 項、admin 73 項、`vue-tsc -b`、`contract:check`、stack e2e 整套 76 項全過。
+- **CI**：main run 37424272105（`bb10a5b4`）全綠，建立到完成 12 分 41 秒：Frontend admin 3.9／web 1.3 分鐘，Backend 三組 8.0／6.9／7.2 分鐘，E2E／Playwright 6.5 分鐘，Deploy 4.6 分鐘。
+- **正式 `release.json`**：base commit `bb10a5b4`，created `2026-10-06T06:40:35Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`（API 啟動會 `alembic upgrade head` 並核對 revision，起得來＝migration 已套用）；`/admin/` 的 `AuditView-*.js` 已有 `audit-source` 與 UA 解析；未登入 `GET /admin/audit-log` 仍 401。
+- **未做**：沒登入正式後台看一筆新紀錄，正式站經 Railway edge 帶進來的 IP 是否為真實位址待使用者確認。
+
 ## 2026-10-06 後台 bug 稽核修正（main CI 部署）
 
 - **合併**：`fix/admin-bug-audit-20261006`（`a781413e` 修正、`20933258` media.spec 時序）合進 main 兩次（舊狀態程式第二版 `5fb9edbb`、其部署紀錄 `a11e840b`；衝突在 README、`VisitDetailView.vue`、`workflow_service.py`），使用者推 main `a11e840b..1c9d3e19`。內容與驗證見 README 頂部同日段落、DESIGN.md「後台 bug 稽核修正」。
