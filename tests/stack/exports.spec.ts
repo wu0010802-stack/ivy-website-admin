@@ -307,7 +307,7 @@ test('版面：訪視明細標題列在 901～1030px（側欄還在、面板只�
       await expectNoHorizontalOverflow(page)
 
       const title = await box(page.locator('.records__head h2'))
-      expect(title.height, `${width}px：「訪視明細」被擠成兩行以上`).toBeLessThan(40)
+      expect(title.height, `${width}px：「訪視明細」被擠成兩行以上（單行約 20px、兩行約 40px）`).toBeLessThan(30)
       for (const name of ['匯出 CSV', '新增訪視']) {
         const target = await box(page.locator('.records__head-actions').getByRole('button', { name }))
         expect(target.right, `${width}px：「${name}」超出視窗`).toBeLessThanOrEqual(width)
