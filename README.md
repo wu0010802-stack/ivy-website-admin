@@ -1,4 +1,4 @@
-## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`）
+## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`，10-06 已部署 main `4437174d`）
 
 使用者針對稽核修正「刻意沒改」的「Google 登入時用 Email 自動綁定既有帳號」說「幫我做這個」。規則見 DESIGN.md「Google 登入改成在『我的帳號』綁定」；設定見 `deploy/google-oauth.md`。正式站這時 Google 登入沒開（`/auth/providers` 回 `google:false`），沒有人受影響。
 
@@ -34,7 +34,7 @@
   - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。
   - stack e2e（`E2E_DB_NAME=ivy_website_noinquiry1006_e2e_test`、埠 8794／3794，跑完已刪庫）：整套 75 項全過。
 
-## 2026-10-06 操作紀錄多記 IP 與裝置（`feature/audit-ip-device-20261006`）
+## 2026-10-06 操作紀錄多記 IP 與裝置（`feature/audit-ip-device-20261006`，10-06 已部署 main `bb10a5b4`）
 
 使用者：「操作紀錄可以多更多資訊嗎，像是 IP、裝置」。裁定（見 DESIGN.md「操作紀錄記 IP 與裝置」）：裝置看得到操作紀錄的人都看得到，IP 只給總部；跟著紀錄永久保存。
 
@@ -93,7 +93,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_legacy1006_e2e_test`、埠 8792／3792，跑完已刪庫）：整套 75 項全過。
   - 未驗證：正式庫 migration 實際刪除與標 skipped 的筆數、登入正式後台實際點一次。
 
-## 2026-10-05 預約明細當家庭頁
+## 2026-10-05 預約明細當家庭頁（`feature/visit-family-page-20261005`，10-06 已部署 main `9299bd7f`）
 
 - 已到場、有招生訪視的預約明細改成家庭版面：招生資料、參觀前後合併的聯絡紀錄與歷程、記錄聯絡／排下次聯絡／移到…／招生負責人都在同一頁。
 - 招生入學的看板、訪視明細、待追蹤點有預約的家庭會開預約明細；手動新增的仍開歷程抽屜。
@@ -170,7 +170,7 @@
   - stack e2e（`E2E_DB_NAME=ivy_website_nointake1005_e2e_test`、埠 8761／3761，跑完已刪庫）：碰到招生頁的四支 `admissions-flow`、`a11y`、`keyboard`、`admissions-follow-up` 共 41 項全過；招生流程拿掉「名額規劃已註冊」那一步，截圖改四個分頁加五校比較。看過 1440 截圖：分頁列沒有名額規劃，五校比較沒有名額兩欄。
   - 未驗證：整套 stack（沒碰招生以外的畫面）、登入正式後台實際點一次。
 
-## 2026-10-05 通知顯示家長稱呼、點開就算已讀（`feature/admin-notify-names-20261005`）
+## 2026-10-05 通知顯示家長稱呼、點開就算已讀（`feature/admin-notify-names-20261005`，10-05 已部署 main `982af30d`）
 
 站內通知頁上線後，使用者對兩個待裁定項目回覆：「點進案件時要不要自動標記已讀：要」「通知要不要顯示家長姓名：要，LINE 的通知也要出現」。規則見 DESIGN.md「通知顯示家長稱呼、點開就算已讀」。
 

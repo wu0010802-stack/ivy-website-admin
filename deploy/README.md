@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 Google 登入改成在「我的帳號」綁定（main CI 部署）
+
+- **合併**：`fix/google-self-link-20261006` 的 `4437174d` 直接疊在 `d4d8a08c` 上，推 main `d4d8a08c..4437174d`。內容與驗證見 README 頂部同日段落、DESIGN.md「Google 登入改成在『我的帳號』綁定」。
+- **migration**：無。
+- **CI**：main run 37429465171（`4437174d`）全綠，建立到完成 15 分 17 秒：Frontend admin 4.3／web 1.3 分鐘，Backend 三組 5.4／7.1／8.2 分鐘，E2E／Playwright 5.8 分鐘，Deploy 5.0 分鐘。
+- **正式 `release.json`**：base commit `4437174d`，created `2026-10-06T07:35:09Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/auth/providers` 回 `google:true`、`line:true`；`/auth/google/login` 302 到 accounts.google.com，`scope=openid`（舊版會多要 email）、`code_challenge_method=S256`；未登入 `POST /auth/google/link` 回 401；`/admin/` 的 `AccountView-*.js` 有「綁定 Google」與 `google_link`。
+- **注意**：README 那段寫「正式站 Google 登入沒開」是實作當時；使用者 15:09 已在 Railway 開了 Google 登入，所以 15:09 到這次部署（約 15:39）之間線上跑的是舊版 Email 自動綁定，這段期間若有人用 Google 登入，綁定會留著。部署後沒綁定的後台帳號要先到「我的帳號」按「綁定 Google」才能用 Google 登入。
+- **未做**：沒有本人真實 Google 往返（綁定→登出→Google 登入、未綁定帳號被拒、取消授權、手機）；沒查正式庫這段期間有沒有自動綁定。
+
 ## 2026-10-06 標記已到場後接著填招生資料（main CI 部署）
 
 - **合併**：`feature/arrival-admissions-form-20261006`（`d4d8a08c`）從 `0c521a95` 開，commit 前 main 前進到 `39f48c9e`（拿掉 inquiry `da749b97`＋其部署紀錄），rebase 只有 README 衝突（兩段都留）。推 main `39f48c9e..d4d8a08c`。內容與驗證見 README 頂部同日段落、DESIGN.md「標記已到場後接著填招生資料」。沒有 migration，沒有備份。
@@ -136,6 +146,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `51332515`，created `2026-10-05T14:05:25Z`。
 - **線上唯讀檢查**（未登入，只抓後台靜態檔）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/login` 200；`AdmissionsView` lazy chunk 有「去標記到場」，沒有「官網預約有」與 `admissions/arrivals`；`VisitRequestsView` chunk 有「勾選後一次標記已到場」「位標記已到場」。
 - **未做**：沒登入正式後台操作（案件列表批次標記、看板提示只在 stack e2e 與拋棄式測試庫驗過）；部署前請使用者先在舊分頁補建「已到場但沒有招生訪視」，有沒有補、補了幾筆未確認；Safari／iOS 實機。
+
+## 2026-10-05 通知顯示家長稱呼、點開就算已讀（main CI 部署）
+
+- **合併**：`feature/admin-notify-names-20261005` 的 `ebdb4b46` 合 origin/main 兩次（招生入學＋側欄的程式、側欄部署紀錄；README／DESIGN 頂部衝突兩段並存）成 `982af30d`，推 main `f0b9a2e4..982af30d`。內容與驗證見 README 頂部同日段落、DESIGN.md「通知顯示家長稱呼、點開就算已讀」。
+- **migration**：無（`parent_name` 讀取時 join 案件，不寫進 payload）。
+- **推前本機**（合併後）：`vue-tsc -b`、`contract:check` 通過；vitest 8 項在 load 90 時 5 秒逾時，單獨重跑全過；stack e2e 75 項全過。
+- **CI**：main run 37310178152（`982af30d`）success，總長 11 分 43 秒：Frontend admin 2.6／web 1.2 分鐘，Backend 三組 6.0／5.1／7.0 分鐘，E2E／Playwright 5.2 分鐘，Deploy 4.4 分鐘。
+- **正式 `release.json`**：當時沒讀；之後名額規劃那次第一次 Deploy 失敗期間，線上維持 `982af30d`（見上一段）。
+- **線上唯讀檢查**（10-06 補，未登入）：`/admin/` 的 `NotificationsView-*.js` 有 `parent_name`。
+- **紀錄補寫**：當晚部署後沒補紀錄，10-06 與 inquiry 部署紀錄一起推。
+- **未做**：沒登入正式後台點一次通知看已讀；真的 LINE 群組推播沒看；園方隱私權政策第 6 段待補 LINE。
 
 ## 2026-10-05 招生入學 UI/UX（main CI 部署）
 
