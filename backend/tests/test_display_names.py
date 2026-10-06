@@ -105,7 +105,7 @@ def test_length_counts_characters_not_bytes():
 
 @pytest.mark.parametrize(
     "value",
-    ["王\n園長", "王\t園長", "王\r園長", "王\x00", "王​園長", "‮長園王", "王 園長", "王﻿"],
+    ["王\n園長", "王\t園長", "王\r園長", "王\x00", "王​園長", "‮長園王", "王 園長", "王\ufeff"],
 )
 def test_rejects_newlines_and_hidden_characters(value):
     with pytest.raises(ValueError, match="換行或看不見的特殊字元"):

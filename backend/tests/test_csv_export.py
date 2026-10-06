@@ -110,12 +110,10 @@ def test_roc_month_csv_matches_the_admin_helper(value, expected):
 
 def test_sources_never_contain_a_literal_bom_character():
     # 實體 U+FEFF 是看不見的字元：直接比對原始碼位元組，防止又被貼回來（要寫就用跳脫）。
+    # 用 glob 掃整個 backend/app 與 backend/tests，新檔也自動納入，不維護固定檔名清單。
     bom_bytes = b"\xef\xbb\xbf"
     backend = Path(__file__).resolve().parents[1]
-    for relative in (
-        "app/common/csv_export.py",
-        "tests/test_csv_export.py",
-        "app/admissions/download.py",
-        "tests/test_admissions_download.py",
-    ):
-        assert bom_bytes not in (backend / relative).read_bytes(), relative
+    sources = [*backend.glob("app/**/*.py"), *backend.glob("tests/**/*.py")]
+    assert len(sources) > 100, "glob 沒掃到預期的檔案數，守門形同虛設"
+    offenders = [str(path.relative_to(backend)) for path in sources if bom_bytes in path.read_bytes()]
+    assert offenders == []

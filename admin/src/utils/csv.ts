@@ -4,7 +4,7 @@
 // 這裡自己組的只有畫面上已經有的去識別資料與操作紀錄。
 import { api } from '../api/client'
 
-export const CSV_BOM = '﻿'
+export const CSV_BOM = '\uFEFF'
 
 export type CsvCell = string | number | boolean | null | undefined
 

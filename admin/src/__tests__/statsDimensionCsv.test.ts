@@ -27,7 +27,7 @@ describe('StatsDimensionTable 匯出 CSV', () => {
     await wrapper.get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-來源排名明細.csv')
-    expect(csv.split('\r\n')).toEqual(['﻿#,來源,參觀,預繳率', "1,'=親友,3,", '2,網路,0,40.0%', ''])
+    expect(csv.split('\r\n')).toEqual(['\uFEFF#,來源,參觀,預繳率', "1,'=親友,3,", '2,網路,0,40.0%', ''])
     wrapper.unmount()
   })
 
@@ -59,7 +59,7 @@ describe('StatsDimensionTable 匯出 CSV', () => {
     expect(wrapper.text()).toContain('—')
     await wrapper.get('[data-test="stats-csv"]').trigger('click')
     const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
-    expect(csv.split('\r\n')).toEqual(['﻿接待人員,小班,中班', '林老師,5人 / 60.0%,', '張老師,,2人 / 100.0%', ''])
+    expect(csv.split('\r\n')).toEqual(['\uFEFF接待人員,小班,中班', '林老師,5人 / 60.0%,', '張老師,,2人 / 100.0%', ''])
     wrapper.unmount()
   })
 

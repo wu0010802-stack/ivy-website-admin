@@ -208,8 +208,8 @@ async def test_export_streams_in_batches_and_audit_count_matches_output(admin_cl
     assert resp.headers["cache-control"] == "private, no-store"
     assert resp.headers["content-disposition"].startswith('attachment; filename="visit-requests-yihua-')
     text = resp.content.decode("utf-8")
-    assert text.startswith("﻿") and text.count("﻿") == 1
-    rows = list(csv.DictReader(io.StringIO(text.lstrip("﻿"))))
+    assert text.startswith("\ufeff") and text.count("\ufeff") == 1
+    rows = list(csv.DictReader(io.StringIO(text.lstrip("\ufeff"))))
     assert [r["家長"] for r in rows] == [f"家長{n}" for n in (4, 3, 2, 1, 0)]
     entry = (await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "visit_request.export"))).scalar_one()
     assert entry.metadata_json["row_count"] == len(rows) == 5
