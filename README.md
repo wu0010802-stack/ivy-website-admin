@@ -1,4 +1,4 @@
-## 2026-10-06 招生來源分類收斂成六項（`feature/source-category-choices-20261006`）
+## 2026-10-06 招生來源分類收斂成六項（`feature/source-category-choices-20261006`，10-06 已部署 main `0909491c`）
 
 使用者：「訪視紀錄的來源分類幫我收斂選項」，選「六項、只改畫面」。規則見 DESIGN.md「來源分類收斂」。
 
