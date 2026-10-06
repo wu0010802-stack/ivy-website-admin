@@ -9,7 +9,7 @@ import { formatRate, type StatsColumn } from '../../admissions/statsFormat'
 // 五校比較（官網延伸，規格 9.3）。數字是「招生案件數」：同一個孩子在兩校各參觀一次算兩筆，
 // 不是跨校去重後的孩子數。比率同時寫分子分母。計畫名額與名額剩餘兩欄隨名額規劃 2026-10-05 拿掉，
 // 後端仍回 target_seats／remaining_seats（併入園務時用得到），這裡不顯示。
-const props = defineProps<{ rows: readonly AdmissionsCompareRow[]; schoolYear: number; semester: number | null }>()
+const props = defineProps<{ rows: readonly AdmissionsCompareRow[]; schoolYear: number; semester: number | null; exportFilename?: string }>()
 
 const COLUMNS: StatsColumn[] = [
   { key: 'campus', label: '校區', sticky: true },
@@ -53,6 +53,7 @@ const title = computed(() => `五校比較（${termLabel(props.schoolYear, props
     :columns="COLUMNS"
     row-key="campus_key"
     empty-text="沒有可比較的校區"
+    :export-filename="exportFilename"
     caption="數字是招生案件數：同一個孩子在兩校各參觀一次算兩筆，不是跨校去重後的孩子數。比率括號內是分子／分母。"
   />
 </template>

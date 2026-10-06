@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRate, type StatsColumn } from '../../admissions/statsFormat'
+import { buildCsv, downloadCsv, type CsvCell } from '../../utils/csv'
 
 // 統計的共用表格：標題＋表格，bar 欄在數字旁畫 CSS 長條（規格 10：不新增圖表套件，
 // 長條只是輔助，數字一定寫出來）。手機寬度表格在框內橫捲，sticky 欄固定在左側，
@@ -14,8 +15,10 @@ const props = withDefaults(
     emptyText: string
     numbered?: boolean
     caption?: string
+    /** 有值且有資料才顯示「匯出 CSV」；檔名由呼叫端決定（校區、學期、日期）。 */
+    exportFilename?: string
   }>(),
-  { numbered: false, caption: '' },
+  { numbered: false, caption: '', exportFilename: '' },
 )
 
 const headingId = useId()
@@ -42,11 +45,43 @@ function display(row: Record<string, unknown>, column: StatsColumn): string {
 }
 
 const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar'
+
+// 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
+// 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字。
+function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
+  const value = row[column.key]
+  if (column.kind === 'rate') return typeof value === 'number' ? formatRate(value) : ''
+  if (column.kind === 'count' || column.kind === 'bar') return toNumber(value)
+  if (value === null || value === undefined || value === '' || value === NO_VALUE) return ''
+  return String(value)
+}
+
+function exportCsv() {
+  if (!props.exportFilename) return
+  const header = [...(props.numbered ? ['#'] : []), ...props.columns.map((column) => column.label)]
+  const rows = props.rows.map((row, index) => [
+    ...(props.numbered ? [index + 1] : []),
+    ...props.columns.map((column) => csvValue(row, column)),
+  ])
+  downloadCsv(props.exportFilename, buildCsv(header, rows))
+}
 </script>
 
 <template>
   <section class="stats-block" :aria-labelledby="headingId">
-    <h3 :id="headingId" class="stats-block__title">{{ title }}</h3>
+    <div class="stats-block__head">
+      <h3 :id="headingId" class="stats-block__title">{{ title }}</h3>
+      <el-button
+        v-if="exportFilename && rows.length"
+        size="small"
+        text
+        data-test="stats-csv"
+        :aria-label="`把「${title}」匯出 CSV`"
+        @click="exportCsv"
+      >
+        匯出 CSV
+      </el-button>
+    </div>
     <p v-if="caption" class="hint stats-block__caption">{{ caption }}</p>
     <p v-if="!rows.length" class="stats-block__empty">{{ emptyText }}</p>
     <div v-else class="stats-block__scroll" role="region" tabindex="0" :aria-label="`${title}（可左右捲動）`">
@@ -87,6 +122,13 @@ const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kin
 <style scoped>
 .stats-block {
   min-width: 0;
+}
+
+.stats-block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .stats-block__title {

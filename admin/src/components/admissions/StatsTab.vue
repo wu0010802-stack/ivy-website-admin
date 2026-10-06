@@ -7,11 +7,12 @@ import StatsOverview from './StatsOverview.vue'
 import { getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
-import { currentTerm, termLabel } from '../../admissions/academic'
+import { currentTerm, taipeiToday, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS } from '../../admissions/constants'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { csvFilename } from '../../utils/csv'
 
 // 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
 // 子分頁與讀取。換校區或學期時先清空畫面再讀，只採用最後一次的回應（R15：不殘留別校的數字）。
@@ -20,6 +21,14 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 // 「未預繳原因」另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
+
+// 統計表的匯出檔名：招生統計-表名-校區-學期-日期（沒選學年寫「全部學年」，只選學期就接上學期，
+// 檔名才不會把只有上學期的數字寫成全部）。
+const csvTerm = () => {
+  if (props.schoolYear) return termLabel(props.schoolYear, props.semester)
+  return props.semester === null ? '全部學年' : `全部學年${SEMESTER_LABELS[props.semester === 2 ? 2 : 1]}`
+}
+const csvName = (title: string) => csvFilename('招生統計', title, campusLabel(props.campusKey), csvTerm(), taipeiToday())
 
 // 子分頁由頁面放在網址（sub，見 useAdmissionsFilters）；單獨掛載（測試）時沒有父層就用元件自己的值。
 const sub = defineModel<StatsSub>('sub', { default: 'overview' })
@@ -266,7 +275,7 @@ const noDepositKpis = computed(() => {
 
       <el-tabs v-loading="loading" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
         <el-tab-pane label="總覽" name="stats-overview">
-          <StatsOverview v-if="hasData" :stats="stats" @navigate="navigate">
+          <StatsOverview v-if="hasData" :stats="stats" :csv-name="csvName" @navigate="navigate">
             <template #reference-month>
               <div class="filter-field stats-month-field">
                 <span>參考月份</span>
@@ -290,9 +299,17 @@ const noDepositKpis = computed(() => {
 
         <el-tab-pane label="班別分析" name="stats-class">
           <div class="stats-pane">
-            <StatsDimensionTable title="班別統計" :rows="stats.by_grade" :columns="GRADE_COLUMNS" row-key="grade" empty-text="此區間尚無班別資料" />
+            <StatsDimensionTable
+              title="班別統計"
+              :rows="stats.by_grade"
+              :columns="GRADE_COLUMNS"
+              row-key="grade"
+              empty-text="此區間尚無班別資料"
+              :export-filename="csvName('班別統計')"
+            />
             <StatsDimensionTable
               title="月份 × 班別分布"
+              :export-filename="csvName('月份 × 班別分布')"
               :rows="monthGradeRows"
               :columns="monthGradeColumns"
               row-key="month"
@@ -305,6 +322,7 @@ const noDepositKpis = computed(() => {
           <div class="stats-pane">
             <StatsDimensionTable
               title="來源排名明細"
+              :export-filename="csvName('來源排名明細')"
               :rows="stats.by_source"
               :columns="SOURCE_COLUMNS"
               row-key="source"
@@ -319,6 +337,7 @@ const noDepositKpis = computed(() => {
           <div class="stats-pane">
             <StatsDimensionTable
               title="接待人員統計"
+              :export-filename="csvName('接待人員統計')"
               :rows="stats.by_tour_guide"
               :columns="STAFF_COLUMNS"
               row-key="tour_guide"
@@ -327,6 +346,7 @@ const noDepositKpis = computed(() => {
             />
             <StatsDimensionTable
               title="接待人員 × 各年級預繳率"
+              :export-filename="csvName('接待人員 × 各年級預繳率')"
               :rows="staffGradeRows"
               :columns="staffGradeColumns"
               row-key="tour_guide"
@@ -336,6 +356,7 @@ const noDepositKpis = computed(() => {
             <StatsDimensionTable
               v-if="crossRows.length"
               title="接待人員 × 來源 交叉分析"
+              :export-filename="csvName('接待人員 × 來源 交叉分析')"
               :rows="crossRows"
               :columns="crossColumns"
               row-key="tour_guide"
@@ -365,6 +386,7 @@ const noDepositKpis = computed(() => {
             </template>
             <StatsDimensionTable
               title="未預繳原因分佈"
+              :export-filename="csvName('未預繳原因分佈')"
               :rows="noDepositRows"
               :columns="noDepositColumns"
               row-key="reason"
@@ -390,7 +412,13 @@ const noDepositKpis = computed(() => {
               <el-button size="small" @click="loadCompare()">重新載入</el-button>
             </el-alert>
             <el-skeleton v-else-if="!compareResult" :rows="4" animated />
-            <CompareTable v-else :rows="compareResult.rows" :school-year="compareResult.school_year" :semester="compareResult.semester" />
+            <CompareTable
+              v-else
+              :rows="compareResult.rows"
+              :school-year="compareResult.school_year"
+              :semester="compareResult.semester"
+              :export-filename="csvFilename('招生統計', '五校比較', termLabel(compareResult.school_year, compareResult.semester), taipeiToday())"
+            />
           </div>
         </el-tab-pane>
       </el-tabs>

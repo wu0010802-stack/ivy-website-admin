@@ -5,6 +5,9 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import type { AdmissionsCompare, AdmissionsCompareRow, AdmissionsStats } from '../api/types'
 import { button, cleanup, deferred, mockGet, mountWith, pathsTo } from './admissionsTestKit'
 
+vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
+import { downloadCsv } from '../utils/csv'
+
 afterEach(cleanup)
 
 // get() 回傳的型別不含 exists，沿用 statsTab.test.ts 的別名。
@@ -192,6 +195,22 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const pane = wrapper.get('#pane-stats-compare')
     expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 下學期）')
     expect(bodyRows(pane)[0]![1]).toBe('7')
+  })
+
+  it('匯出 CSV：檔名用比較結果的學年學期與台北日期，欄名同畫面、比率寫分子分母', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-01T23:30:00+08:00'))
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, RENWU], 115, null) })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
+    const pane = await openCompare(wrapper)
+
+    await pane.get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-五校比較-115 學年-2026-10-01.csv')
+    const lines = csv.split('\r\n')
+    expect(lines[0]).toBe(`\uFEFF${headers(pane).join(',')}`)
+    expect(lines[1]).toBe('義華,4,3,1,3,2,75.0%（3/4）,25.0%（1/4）,33.3%（1/3）,33.3%（1/3）')
+    expect(lines).toHaveLength(4)
   })
 
   it('讀取失敗：顯示錯誤，按重新載入再讀一次', async () => {

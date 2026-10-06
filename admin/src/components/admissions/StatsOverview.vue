@@ -13,7 +13,7 @@ import {
 // （月度量體、轉換率走勢）由月度明細表的長條取代；「全管道彙整」是園務自家官網報名，不做；
 // 「本範圍合計」是官網加的，一次列出規格 9.2 的六個計數、唯一幼生與四個比率。
 // 比率 null（分母 0）一律寫「—」。
-const props = defineProps<{ stats: AdmissionsStats }>()
+const props = defineProps<{ stats: AdmissionsStats; csvName?: (title: string) => string }>()
 const emit = defineEmits<{ navigate: [target: { tab: StatsTarget; filter: Record<string, string | number> }] }>()
 
 type Snapshot = AdmissionsStats['decision_summary']['current_month']
@@ -209,13 +209,21 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
       </dl>
     </section>
 
-    <StatsDimensionTable title="月度明細表" :rows="stats.monthly" :columns="MONTHLY_COLUMNS" row-key="month" empty-text="此區間尚無資料" />
+    <StatsDimensionTable
+      title="月度明細表"
+      :rows="stats.monthly"
+      :columns="MONTHLY_COLUMNS"
+      row-key="month"
+      empty-text="此區間尚無資料"
+      :export-filename="csvName?.('月度明細表')"
+    />
     <StatsDimensionTable
       title="年度統計"
       :rows="yearlyRows"
       :columns="YEARLY_COLUMNS"
       row-key="year"
       empty-text="此區間尚無資料"
+      :export-filename="csvName?.('年度統計')"
       caption="依參觀月份的民國年加總，不是入學學年。"
     />
     <p class="hint">

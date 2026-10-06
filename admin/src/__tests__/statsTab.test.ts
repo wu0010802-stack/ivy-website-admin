@@ -4,7 +4,11 @@ import { ElSelect } from 'element-plus'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { AdmissionsStats } from '../api/types'
+import { taipeiToday } from '../admissions/academic'
 import { button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
+
+vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
+import { downloadCsv } from '../utils/csv'
 
 afterEach(cleanup)
 
@@ -427,5 +431,82 @@ describe('統計分頁：未預繳明細（C3b）', () => {
     expect(pane.text()).toContain('此區間尚無未預繳資料')
     expect(wrapper.findComponent(NoDepositList).exists()).toBe(false)
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
+  })
+})
+
+describe('統計表匯出 CSV（2026-10-03）', () => {
+  const tables = (root: VueWrapper | Dom) => root.findAll('.stats-block').filter((section) => section.find('table').exists())
+  const lastDownload = () => vi.mocked(downloadCsv).mock.calls.at(-1)!
+
+  afterEach(() => vi.mocked(downloadCsv).mockClear())
+
+  it('總覽與班別、來源、接待分析的每張表都能匯出，檔名含校區、學期與日期', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const overview = wrapper.get('#pane-stats-overview')
+    expect(tables(overview).length).toBeGreaterThan(0)
+    expect(tables(overview).every((section) => section.find('[data-test="stats-csv"]').exists())).toBe(true)
+    for (const label of ['班別分析', '來源分析', '接待分析']) {
+      const pane = await openSubTab(wrapper, label)
+      expect(tables(pane).every((section) => section.find('[data-test="stats-csv"]').exists()), label).toBe(true)
+    }
+    await block(wrapper.get('#pane-stats-overview'), '月度明細表').get('[data-test="stats-csv"]').trigger('click')
+    expect(lastDownload()[0]).toMatch(/^招生統計-月度明細表-義華-115 上學期-\d{4}-\d{2}-\d{2}\.csv$/)
+  })
+
+  it('九張統計表（總覽 2、班別 2、來源 1、接待 3、未預繳原因 1）各用自己的表名當檔名', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const today = taipeiToday()
+    const panes: [string, string[]][] = [
+      ['總覽', ['月度明細表', '年度統計']],
+      ['班別分析', ['班別統計', '月份 × 班別分布']],
+      ['來源分析', ['來源排名明細']],
+      ['接待分析', ['接待人員統計', '接待人員 × 各年級預繳率', '接待人員 × 來源 交叉分析']],
+      ['未預繳原因', ['未預繳原因分佈']],
+    ]
+    for (const [label, titles] of panes) {
+      const pane = await openSubTab(wrapper, label)
+      for (const title of titles) {
+        vi.mocked(downloadCsv).mockClear()
+        await block(pane, title).get('[data-test="stats-csv"]').trigger('click')
+        expect(lastDownload()[0], title).toBe(`招生統計-${title}-義華-115 上學期-${today}.csv`)
+      }
+    }
+  })
+
+  it('匯出內容同畫面：月度明細表的欄名一致，分母 0 的比率寫空白、不寫「—」，計數照寫', async () => {
+    mockGet({ '/admin/admissions/stats': stats({ monthly: [{ month: '115.09', ...snap(0, 0, 0, 0, 0, 0, null, null, null, null) }, { month: '115.10', ...snap(4, 2, 1, 0, 1, 2, 50, 25, 50, 50) }] }) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const section = block(wrapper.get('#pane-stats-overview'), '月度明細表')
+    expect(section.text()).toContain('—')
+    await section.get('[data-test="stats-csv"]').trigger('click')
+    expect(lastDownload()[1].split('\r\n')).toEqual([
+      `\uFEFF${headers(section).join(',')}`,
+      '115.09,0,0,0,0,0,0,,,',
+      '115.10,4,2,1,0,2,1,50.0%,25.0%,50.0%',
+      '',
+    ])
+  })
+
+  it('沒選學年：檔名寫「全部學年」', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ schoolYear: null, semester: null }) })
+    await block(wrapper.get('#pane-stats-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
+    expect(lastDownload()[0]).toBe(`招生統計-年度統計-義華-全部學年-${taipeiToday()}.csv`)
+  })
+
+  it('沒選學年但選了下學期：檔名寫「全部學年下學期」，不把只有下學期的數字寫成全部', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ schoolYear: null, semester: 2 }) })
+    await block(wrapper.get('#pane-stats-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
+    expect(lastDownload()[0]).toBe(`招生統計-年度統計-義華-全部學年下學期-${taipeiToday()}.csv`)
+  })
+
+  it('沒有資料的表不顯示匯出鈕', async () => {
+    mockGet({ '/admin/admissions/stats': stats({ by_source: [] }) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '來源分析')
+    expect(block(pane, '來源排名明細').find('[data-test="stats-csv"]').exists()).toBe(false)
   })
 })
