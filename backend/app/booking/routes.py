@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import io
 import logging
-import re
 import uuid
 from datetime import date, timedelta
 
@@ -34,7 +33,7 @@ from app.booking import (
 )
 from app.booking.exceptions import slot_unavailable
 from app.booking.history import Actor
-from app.common import ratelimit
+from app.common import csv_export, ratelimit
 from app.common.timezones import OPERATING_TZ, local_day_bounds_utc, today_local
 from app.operations import audit_service, retention_service
 from app.booking.models import (
@@ -988,37 +987,18 @@ async def visit_request_group_counts(
     return VisitGroupCountsOut(**counts)
 
 
-_SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
-
-
-def _safe_cell(value: str | None) -> str:
-    """CSV 公式注入防護：儲存格開頭若是 = + - @ 這些會被試算表當成
-    公式執行的字元，前面補一個單引號讓它變成純文字。"""
-    text = "" if value is None else str(value)
-    # 試算表會略過開頭的空白與控制字元（TAB、CR、LF…）再判斷是不是
-    # 公式，所以要看去掉這些字元後的第一個字，不能只看 text[0]。
-    # 控制字元本身開頭也一併視為危險，一律補單引號。
-    if text and (
-        text[0].isspace()
-        or not text[0].isprintable()
-        or text.lstrip()[:1] in ("=", "+", "-", "@")
-    ):
-        return "'" + text
-    return text
-
-
 def _export_row(r: VisitRequest) -> list[str]:
     return [
-        _safe_cell(export_labels.campus_label(r.campus_key)),
-        _safe_cell(export_labels.status_label(r.status)),
-        _safe_cell(export_labels.source_label(r.source)),
-        _safe_cell(r.parent_name),
-        _safe_cell(export_labels.format_phone(r.phone)),
+        csv_export.safe_cell(export_labels.campus_label(r.campus_key)),
+        csv_export.safe_cell(export_labels.status_label(r.status)),
+        csv_export.safe_cell(export_labels.source_label(r.source)),
+        csv_export.safe_cell(r.parent_name),
+        csv_export.safe_cell(export_labels.format_phone(r.phone)),
         r.created_at.astimezone(OPERATING_TZ).strftime("%Y/%m/%d %H:%M"),
-        _safe_cell(r.child_name),
+        csv_export.safe_cell(r.child_name),
         r.child_birthdate.strftime("%Y/%m/%d") if r.child_birthdate else "",
-        _safe_cell(r.email),
-        _safe_cell(export_labels.referral_label(r.referral_sources)),
+        csv_export.safe_cell(r.email),
+        csv_export.safe_cell(export_labels.referral_label(r.referral_sources)),
         # 舊案件沒有人數，留空。
         str(r.party_size) if r.party_size is not None else "",
         r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
@@ -1097,8 +1077,7 @@ async def export_visit_requests(
     # 一律當附件下載，且不進瀏覽器快取：共用櫃台電腦上，含全校家長姓名與
     # 手機的 CSV 不能留在磁碟快取或上一頁紀錄裡（稽核 admin-booking-api-no-store-missing）。
     # 檔名只放安全字元，篩選值不直接進 header。
-    campus_part = filters.campus_key if filters.campus_key and _SAFE_FILENAME_PART.fullmatch(filters.campus_key) else "all"
-    filename = f"visit-requests-{campus_part}-{today_local():%Y%m%d}.csv"
+    filename = f"visit-requests-{csv_export.filename_part(filters.campus_key)}-{today_local():%Y%m%d}.csv"
     return StreamingResponse(
         _stream_export_csv(snapshot, stmt),
         media_type="text/csv; charset=utf-8",
