@@ -606,7 +606,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | X10 | 操作紀錄 API：台北日期含頭尾、23:59／00:00 邊界、`limit` 1–500、起日晚於迄日 422 | 通過（單檔） | `test_operations.py::test_audit_log_filters_by_taipei_dates_and_limit`（該檔 20 passed）；`test_audit_client_info.py` 11 passed（IP 只給總部、裝置給全部，不變）；游標與日期同時出現的後端合併測試**尚未補**（見下） |
 | X11 | 操作紀錄匯出：逐頁讀完、期間與校區與搜尋、搜尋含裝置與 IP、超過 5,000 筆不出檔（剛好 5,000 可出）、匯出途中改篩選不影響、IP 欄只有總部 | 通過（單檔） | `auditExport.test.ts` 18 passed；`auditClientInfo.test.ts`「可以用 IP 或裝置搜尋」維持綠燈；8 檔（含 `auditUx`、`labelCoverage`、`displayNames`）共 125 passed；變異驗證四項各轉紅 |
 | X12 | 成效統計各表可匯出：五校比較、依來源（兩種維度）、預約鈕點擊、班別、每日數字（兩處）、網頁速度；比率分母 0 寫空白；無資料不顯示按鈕；檔名用畫面上那批資料的校區與期間 | 部分：七種表通過（單檔），「各頁瀏覽」排行清單未做 | `analyticsExport.test.ts` 17 passed；連同 `analyticsFunnel`、`analyticsOutcomes`、`analyticsClasses`、`analyticsTrend`、`analyticsCharts`、`analyticsHelpers`、`traffic`、`statsDimensionCsv`、`compareTable` 共 10 檔 97 passed；`crossUx20261002.test.ts` 13 passed |
-| X13 | 瀏覽器真的下載到檔案：BOM 只有一個、結尾 CRLF、欄數與表頭一致、無公式開頭的格子、民國月份、操作紀錄含稽核紀錄與裝置與 IP、分校管理者沒有名單鈕且操作紀錄無 IP 欄 | 通過 | stack `tests/stack/exports.spec.ts` 7 passed（setup＋6 項，`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741，修版面後重跑 18.9 秒） |
+| X13 | 瀏覽器真的下載到檔案：BOM 只有一個、結尾 CRLF、欄數與表頭一致、無公式開頭的格子、民國月份、操作紀錄含稽核紀錄與裝置與 IP、沒被授權匯出個資的分校管理者沒有名單鈕且操作紀錄無 IP 欄 | 通過 | stack `tests/stack/exports.spec.ts` 7 passed（setup＋6 項，`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741，修版面後重跑 18.9 秒） |
 | X14 | 手機（390）版面：訪視明細標題不直排、匯出鈕與說明在視窗內、操作紀錄期間選擇器不超出自己的欄位與篩選卡片；1440 單行 | 通過（量外框斷言＋截圖目視） | `exports.spec.ts` 版面測試（修之前實測 390 寬標題 28px 寬 81px 高、期間選擇器右緣 379 超出卡片右緣 374，修後斷言標題高度小於 40px）；截圖 `output/playwright/exports-{admissions-records,audit-filter,nodeposit}-{1440,390}.png`（已 gitignore） |
 | X15 | 契約與型別一致、`vue-tsc` 無錯誤 | 通過（各 Task 完成時） | `npm run contract:check`（Task 4、5、7 後都重產並一致，新增兩個匯出端點與操作紀錄三個參數）；`npm run typecheck` 0 錯誤（Task 3–9、12） |
 
@@ -623,6 +623,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 ### 已知待補（寫本節時尚未進 commit，預計在 Task 11 前的最終修正波）
 
 - 成效統計「各頁瀏覽」排行清單補匯出（欄名「頁面」「瀏覽次數」）。
+- 未預繳名單的「匯出 CSV」旁補範圍說明（同訪視明細寫法，`aria-describedby` 連到按鈕）。
 - 後端補「游標＋日期＋limit」同時出現的合併測試（X10）。
 - 前端 `admin/src/utils/csv.ts` 與 `statsDimensionCsv.test.ts` 的 BOM 仍是原始碼中的實體 U+FEFF，改成跳脫寫法並擴大守門測試；後端 `test_visit_attention_export.py`、`test_display_names.py` 既有的同類字元也在範圍內。
 - stack 測試的小項：`exports.spec.ts` 斷言綁新 class、寫死 e2e 總部帳號 Email、公式開頭檢查規則不完整、操作紀錄測試跨午夜、serial 相依；721–1000px 之間訪視明細標題列仍可能擠（`flex-wrap` 可搬出 media query）。
