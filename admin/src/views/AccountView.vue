@@ -8,7 +8,7 @@ import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import DisplayNameField from '../components/DisplayNameField.vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, apiFieldError, loginLimitedMessage } from '../api/errors'
-import { reauthRequiredMessage, startLineLink, type ReauthBody } from '../api/oauth'
+import { reauthRequiredMessage, startGoogleLink, startLineLink, type ReauthBody } from '../api/oauth'
 import { campusLabels, displayNameError, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel, staffLabel } from '../api/labels'
 import type { AuthProviders, DisplayNameUpdateRequest, UserOut } from '../api/types'
 import { renameVisitStaff } from '../composables/useVisitStaff'
@@ -25,6 +25,15 @@ const LINK_RESULTS: Record<string, Notice> = {
   failed: { type: 'error', text: 'LINE 綁定未完成或已逾時，請重新操作。' },
   unavailable: { type: 'error', text: 'LINE 登入尚未啟用，暫時無法綁定。' },
 }
+// Google 綁定 callback（?google_link=）的結果碼。2026-10-06 起 Google 跟 LINE 一樣只能在這裡綁定。
+const GOOGLE_LINK_RESULTS: Record<string, Notice> = {
+  linked: { type: 'success', text: '已綁定 Google，下次可以在登入頁直接用 Google 登入。' },
+  cancelled: { type: 'info', text: '已取消綁定，帳號沒有任何變更。' },
+  in_use: { type: 'error', text: '這個 Google 帳號已經綁定另一個後台帳號。請先從那個帳號解除綁定，或改用其他 Google 帳號。' },
+  already: { type: 'warning', text: '這個帳號已經綁定其他 Google 帳號，請先解除綁定再重新綁定。' },
+  failed: { type: 'error', text: 'Google 綁定未完成或已逾時，請重新操作。' },
+  unavailable: { type: 'error', text: 'Google 登入尚未啟用，暫時無法綁定。' },
+}
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -34,6 +43,7 @@ const googleEnabled = ref(false)
 const providersLoaded = ref(false)
 const linking = ref(false)
 const unlinking = ref(false)
+const googleLinking = ref(false)
 const googleUnlinking = ref(false)
 // 本人更改密碼（與側欄鑰匙鈕同一個對話框）。後端對「重設自己的密碼」回
 // 409 USE_CHANGE_PASSWORD 時，訊息會請人到這一頁來改。
@@ -49,10 +59,10 @@ const grants = computed(() => (auth.user?.capabilities ?? [])
   .filter(code => Object.hasOwn(GRANT_LABELS, code))
   .map(code => GRANT_LABELS[code]))
 
-// 變更自己的登入方式（綁定／解除 LINE、解除 Google）前的重新驗證：登入超過
+// 變更自己的登入方式（綁定／解除 LINE、Google）前的重新驗證：登入超過
 // 10 分鐘時後端回 403 REAUTH_REQUIRED，這裡請本人輸入目前的密碼再送一次。
 // 只用 Google／LINE 登入、不知道密碼的人，重新登入後 10 分鐘內再操作即可。
-type ReauthAction = 'link' | 'unlink-line' | 'unlink-google'
+type ReauthAction = 'link' | 'unlink-line' | 'link-google' | 'unlink-google'
 const REAUTH_LOCKED_ALTERNATIVE = '也可以登出後用 Google／LINE 重新登入，10 分鐘內再回來操作'
 const reauth = reactive({
   open: false,
@@ -111,15 +121,18 @@ async function submitReauth() {
   try {
     if (reauth.action === 'link') await link(body)
     else if (reauth.action === 'unlink-line') await unlink(body)
+    else if (reauth.action === 'link-google') await linkGoogle(body)
     else await unlinkGoogle(body)
   } finally {
     reauth.submitting = false
   }
 }
 
-const result = route.query.line_link
+function linkNotice(results: Record<string, Notice>, value: unknown): Notice | null {
+  return typeof value === 'string' && Object.hasOwn(results, value) ? results[value] ?? null : null
+}
 const notice = ref<Notice | null>(
-  typeof result === 'string' && Object.hasOwn(LINK_RESULTS, result) ? LINK_RESULTS[result] ?? null : null,
+  linkNotice(LINK_RESULTS, route.query.line_link) ?? linkNotice(GOOGLE_LINK_RESULTS, route.query.google_link),
 )
 
 // ---- 顯示名稱：同事在承辦人、聯絡紀錄、發布紀錄與操作紀錄看到的名字 ----
@@ -172,9 +185,9 @@ function setGoogleLinked(linked: boolean) {
 }
 
 onMounted(async () => {
-  if (route.query.line_link !== undefined) {
+  if (route.query.line_link !== undefined || route.query.google_link !== undefined) {
     // 重新整理不要再跳一次結果提示。
-    const { line_link: _, ...rest } = route.query
+    const { line_link: _line, google_link: _google, ...rest } = route.query
     void router.replace({ query: rest })
   }
   try {
@@ -213,6 +226,30 @@ async function link(body?: ReauthBody) {
   }
 }
 
+async function linkGoogle(body?: ReauthBody) {
+  if (googleLinking.value) return
+  googleLinking.value = true
+  notice.value = null
+  try {
+    // 成功會整頁前往 Google，按鈕維持 loading 直到離開。
+    await startGoogleLink(body)
+    closeReauth()
+  } catch (err) {
+    googleLinking.value = false
+    if (handleReauthError('link-google', err, body !== undefined)) return
+    closeReauth()
+    if (err instanceof ApiError && err.status === 409) {
+      setGoogleLinked(true)
+      notice.value = { type: 'warning', text: '這個帳號已經綁定 Google（可能是在其他分頁完成的）。要換成其他 Google 帳號請先解除綁定。' }
+    } else if (err instanceof ApiError && err.status === 404) {
+      googleEnabled.value = false
+      notice.value = GOOGLE_LINK_RESULTS.unavailable ?? null
+    } else {
+      notice.value = { type: 'error', text: '無法開始綁定，請稍後再試。' }
+    }
+  }
+}
+
 async function unlinkGoogle(body?: ReauthBody) {
   if (googleUnlinking.value) return
   googleUnlinking.value = true
@@ -221,7 +258,7 @@ async function unlinkGoogle(body?: ReauthBody) {
     await (body ? api.delete('/auth/google/link', body) : api.delete('/auth/google/link'))
     closeReauth()
     setGoogleLinked(false)
-    notice.value = { type: 'success', text: '已解除 Google 綁定。之後用同一個 Email 的 Google 帳號登入時，會重新綁定。' }
+    notice.value = { type: 'success', text: '已解除 Google 綁定。要再用 Google 登入，請在這裡重新綁定。' }
   } catch (err) {
     if (!handleReauthError('unlink-google', err, body !== undefined)) {
       closeReauth()
@@ -317,7 +354,7 @@ async function unlink(body?: ReauthBody) {
             <p v-else-if="googleEnabled">可以在登入頁用 Google 直接登入，Email 與密碼仍然可以用。</p>
             <p v-else data-test="google-disabled-linked">Google 登入目前未開放，綁定仍保留，可以解除。</p>
             <el-popconfirm
-              title="解除後這個帳號不再記得目前的 Google 帳號；之後用同一個 Email 的 Google 帳號登入會重新綁定。"
+              title="解除後就不能再用這個 Google 帳號登入，Email 與密碼不受影響。"
               confirm-button-text="解除綁定"
               cancel-button-text="先不要"
               confirm-button-type="danger"
@@ -328,12 +365,14 @@ async function unlink(body?: ReauthBody) {
                 <el-button type="danger" plain data-test="google-unlink" :loading="googleUnlinking">解除綁定</el-button>
               </template>
             </el-popconfirm>
-            <p v-if="googleEnabled" class="field-help">Google 帳號重建過、登入時顯示「沒有權限」時，先解除綁定，登出後再用 Google 登入一次即可。</p>
+            <p v-if="googleEnabled" class="field-help">要換成其他 Google 帳號（例如 Google 帳號重建過），先解除綁定，再按「綁定 Google」。</p>
           </template>
           <el-skeleton v-else-if="!providersLoaded" animated :rows="1" />
-          <!-- 登入中開登入頁會直接回到後台（router 恢復 session），所以要先登出。 -->
-          <p v-else-if="googleEnabled">登出後在登入頁按「使用 Google 登入」，用和這個帳號相同 Email 的 Gmail 或 Google Workspace 帳號登入，就會自動綁定。其他 Email 的 Google 帳號無法綁定。</p>
-          <p v-else>Google 登入尚未啟用。</p>
+          <template v-else-if="googleEnabled">
+            <p>綁定後可以在登入頁用 Google 直接登入，Email 與密碼仍然可以用。按下後會前往 Google 選擇帳號，完成後回到這一頁。</p>
+            <el-button type="primary" data-test="google-link" :loading="googleLinking" @click="linkGoogle()">綁定 Google</el-button>
+          </template>
+          <p v-else>Google 登入尚未啟用，啟用後這裡會出現綁定按鈕。</p>
         </div>
       </section>
 

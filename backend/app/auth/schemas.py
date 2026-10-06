@@ -121,6 +121,10 @@ class LineLinkStart(BaseModel):
     authorize_url: str
 
 
+class GoogleLinkStart(BaseModel):
+    authorize_url: str
+
+
 class ReauthRequest(BaseModel):
     """變更自己的登入方式（綁定／解除 LINE、解除 Google）前的重新驗證。
     session 建立 10 分鐘內可以不帶；超過就要帶目前的密碼。"""

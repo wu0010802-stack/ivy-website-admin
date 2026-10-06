@@ -81,7 +81,7 @@ describe('依 effective_capabilities 判斷權限', () => {
     expect(auditMetadataSummary({ verification_code_id: 'x', source_type: 'room' }, 'line.group.verify')).toBe('類型：多人聊天室')
     expect(auditMetadataSummary({ expires_at: '2026-09-29T04:10:00Z' }, 'line.verification_code.create')).toMatch(/^驗證碼到期：/)
     expect(auditMetadataSummary({ stripped: ['a', 'b'], failed: [] }, 'media.strip_metadata')).toBe('去除拍攝資訊 2 個')
-    expect(auditReasonLabel('not_linked')).toBe('沒有綁定這個 LINE 的後台帳號')
+    expect(auditReasonLabel('not_linked')).toBe('沒有綁定這個 Google／LINE 帳號的後台帳號')
   })
 })
 
@@ -305,7 +305,9 @@ describe('我的帳號：Google 綁定', () => {
   it('未綁定時說明怎麼綁；Google 未啟用時直接講', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: true, line: false })
     const { wrapper } = await mountAs(AccountView, testUser('campus_admin', { campus_keys: ['yihua'] }), '/account')
-    expect(wrapper.text()).toContain('相同 Email 的 Gmail 或 Google Workspace 帳號登入')
+    // 2026-10-06 起 Google 跟 LINE 一樣在這裡綁定，不再用 Email 自動綁定。
+    expect(wrapper.find('[data-test="google-link"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('相同 Email')
     wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
 
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })

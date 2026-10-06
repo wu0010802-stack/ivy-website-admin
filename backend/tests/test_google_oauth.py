@@ -13,15 +13,26 @@ import pytest_asyncio
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 from itsdangerous import TimestampSigner
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.auth import service
 from app.auth.models import Role, User
+from app.auth.models import Session as AuthSession
 from app.main import create_app
 from tests.conftest import _create_user
 
 ROOT = "/api/website/v1/auth"
 CALLBACK = f"http://test{ROOT}/google/callback"
+SUB = "google-person-123"
+ACCOUNT = "/admin/account?google_link="
+
+
+async def _linked(db_session, email="staff@gmail.com", role=Role.SUPER_ADMIN, campus_keys=None, sub=SUB) -> User:
+    """2026-10-06 起 Google 不再用 Email 自動綁定：要登入的帳號先在測試裡綁好 sub。"""
+    user = await _create_user(db_session, email, "test-password-123", role, campus_keys)
+    user.google_sub = sub
+    await db_session.commit()
+    return user
 
 
 async def test_google_disabled_by_default(public_client):
@@ -99,7 +110,8 @@ async def start(client, provider, redirect="/visit-requests?status=pending"):
     assert response.status_code == 302
     assert response.headers["cache-control"] == "no-store"
     query = parse_qs(urlsplit(response.headers["location"]).query)
-    assert query["scope"] == ["openid email"]
+    # 只要 openid：以 Google sub 識別，不拿 Email 比對帳號（2026-10-06）。
+    assert query["scope"] == ["openid"]
     assert query["code_challenge_method"] == ["S256"]
     assert query["redirect_uri"] == [CALLBACK]
     assert "httponly" in response.headers["set-cookie"].lower()
@@ -112,8 +124,41 @@ async def finish(client, state, **params):
     return await client.get(f"{ROOT}/google/callback", params={"state": state, "code": "test-code", **params})
 
 
+async def password_login(client, email="staff@gmail.com", password="test-password-123"):
+    response = await client.post(f"{ROOT}/login", json={"email": email, "password": password})
+    assert response.status_code == 200, response.text
+    client.headers["x-csrf-token"] = response.json()["csrf_token"]
+
+
+async def start_link(client, provider, **body):
+    """「我的帳號」按「綁定 Google」：後端回授權網址並寫握手 cookie。"""
+    response = await client.post(f"{ROOT}/google/link", json=body or None)
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "no-store"
+    url = response.json()["authorize_url"]
+    assert url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+    query = parse_qs(urlsplit(url).query)
+    assert query["scope"] == ["openid"]
+    assert query["code_challenge_method"] == ["S256"]
+    assert query["redirect_uri"] == [CALLBACK]
+    provider["nonce"] = query["nonce"][0]
+    provider["challenge"] = query["code_challenge"][0]
+    return query["state"][0]
+
+
+async def _age_sessions(db_session, user_id, minutes: int = 20) -> None:
+    from datetime import datetime, timedelta, timezone
+
+    await db_session.execute(
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id)
+        .values(created_at=datetime.now(timezone.utc) - timedelta(minutes=minutes))
+    )
+    await db_session.commit()
+
+
 async def test_google_login_preserves_scope_csrf_and_logout(google_client, google_provider, db_session):
-    user = await _create_user(db_session, "Staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user = await _linked(db_session, "Staff@gmail.com", Role.CAMPUS_ADMIN, ["minghua"])
     state = await start(google_client, google_provider)
     response = await finish(google_client, state)
     assert response.status_code == 303
@@ -124,8 +169,6 @@ async def test_google_login_preserves_scope_csrf_and_logout(google_client, googl
     assert me.status_code == 200
     assert me.json()["user"]["campus_keys"] == ["minghua"]
     assert me.json()["user"]["role"] == "campus_admin"
-    await db_session.refresh(user)
-    assert user.google_sub == "google-person-123"
     # Session is restored through the same /me endpoint, with the same CSRF and campus guards.
     assert (await google_client.patch("/api/website/v1/admin/users/" + str(user.id) + "/active", json={"is_active": False})).status_code == 403
     assert (await google_client.get("/api/website/v1/admin/campuses/yihua")).status_code == 404
@@ -135,8 +178,7 @@ async def test_google_login_preserves_scope_csrf_and_logout(google_client, googl
 
 
 @pytest.mark.parametrize("overrides", [
-    {"email_verified": False}, {"email_verified": "true"}, {"email": "unknown@gmail.com"},
-    {"email": "staff@example.org"}, {"sub": ""},
+    {"sub": ""}, {"sub": "x" * 256},
     {"iss": "https://evil.example"}, {"aud": "another-client"},
     {"nonce": "wrong-nonce"}, {"exp": 1},
     {"nonce": "wrong-nonce", "nonce_supported": False},
@@ -146,8 +188,7 @@ async def test_google_login_preserves_scope_csrf_and_logout(google_client, googl
     {"aud": [], "azp": "oauth-test-client"},
 ])
 async def test_google_rejects_untrusted_identity(google_client, google_provider, db_session, overrides):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
-    await _create_user(db_session, "staff@example.org", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     google_provider["overrides"] = overrides
     state = await start(google_client, google_provider)
     response = await finish(google_client, state)
@@ -155,12 +196,11 @@ async def test_google_rejects_untrusted_identity(google_client, google_provider,
     assert response.headers["location"].startswith("/admin/login?oauth_error=")
     assert google_client.cookies.get("ivy_admin_session") is None
     assert google_client.cookies.get("ivy_google_oauth") is None
-    users = (await db_session.execute(select(User))).scalars().all()
-    assert all(user.google_sub is None for user in users)
+    assert (await google_client.get(f"{ROOT}/me")).status_code == 401
 
 
 async def test_google_accepts_client_in_multiple_audiences(google_client, google_provider, db_session):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     google_provider["overrides"] = {
         "aud": ["oauth-test-client", "another-client"], "azp": "oauth-test-client",
     }
@@ -172,7 +212,7 @@ async def test_google_accepts_client_in_multiple_audiences(google_client, google
 
 
 async def test_google_rejects_bad_signature(google_client, google_provider, db_session):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     google_provider["key"] = RSAKey.generate_key(2048, parameters={"kid": "oauth-test-key"})
     state = await start(google_client, google_provider)
     response = await finish(google_client, state)
@@ -180,15 +220,25 @@ async def test_google_rejects_bad_signature(google_client, google_provider, db_s
     assert google_client.cookies.get("ivy_admin_session") is None
 
 
-async def test_google_workspace_email_can_bind(google_client, google_provider, db_session):
-    await _create_user(db_session, "staff@example.org", "test-password-123", Role.SUPER_ADMIN)
-    google_provider["overrides"] = {"email": "staff@example.org", "hd": "example.org"}
+@pytest.mark.parametrize("overrides", [{}, {"hd": "example.org", "email": "staff@example.org"}])
+async def test_google_login_never_binds_by_email(google_client, google_provider, db_session, overrides):
+    """2026-10-06 業主裁定：Google 跟 LINE 一樣，只能登入後在「我的帳號」自己綁定。後台帳號
+    的 Email 從沒驗證過是本人的，同 Email 的 Gmail／Workspace 帳號也不能直接拿到權限。"""
+    gmail = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    workspace = await _create_user(db_session, "staff@example.org", "test-password-123", Role.SUPER_ADMIN)
+    google_provider["overrides"] = overrides
     state = await start(google_client, google_provider)
-    assert (await finish(google_client, state)).headers["location"].startswith("/admin/visit-requests")
+    assert "oauth_error=not_allowed" in (await finish(google_client, state)).headers["location"]
+    for user in (gmail, workspace):
+        await db_session.refresh(user)
+        assert user.google_sub is None
+    [entry] = await _audit_rows(db_session, "user.login_google_failed")
+    assert entry.metadata_json == {"reason": "not_linked"} and entry.target_id == "unknown"
+    assert await _audit_rows(db_session, "user.link_google") == []
 
 
 async def test_google_inactive_and_different_subject_rejected(google_client, google_provider, db_session):
-    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    user = await _linked(db_session)
     user.is_active = False
     await db_session.commit()
     state = await start(google_client, google_provider)
@@ -236,13 +286,13 @@ async def test_google_callback_errors_are_safe(google_client, google_provider, s
 
 @pytest.mark.parametrize("redirect", ["//evil.example", "https://evil.example", "/../outside", "/%2e%2e/outside", "/\\evil.example", "/login"])
 async def test_google_redirect_cannot_escape_admin(google_client, google_provider, db_session, redirect):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     state = await start(google_client, google_provider, redirect)
     assert (await finish(google_client, state)).headers["location"] == "/admin/"
 
 
 async def test_google_callback_cannot_replay_after_completion(google_client, google_provider, db_session):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     state = await start(google_client, google_provider)
     await finish(google_client, state)
     token_requests = sum(req.url.path == "/token" for req in google_provider["requests"])
@@ -269,7 +319,7 @@ async def test_google_rejects_tampered_and_expired_handshake(google_client, goog
 
 
 async def test_google_rotates_previous_session(google_client, google_provider, db_session):
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     await google_client.post(f"{ROOT}/login", json={"email": "staff@gmail.com", "password": "test-password-123"})
     previous = google_client.cookies.get("ivy_admin_session")
     state = await start(google_client, google_provider)
@@ -308,28 +358,26 @@ async def _audit_rows(db_session, action):
 
 
 async def test_google_login_success_is_audited_and_shown_as_linked(google_client, google_provider, db_session):
-    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user = await _linked(db_session, role=Role.CAMPUS_ADMIN, campus_keys=["minghua"])
     user_id = user.id
     state = await start(google_client, google_provider)
     assert (await finish(google_client, state)).headers["location"].startswith("/admin/visit-requests")
     [entry] = await _audit_rows(db_session, "user.login_google")
     assert entry.actor_user_id == user_id and entry.target_id == str(user_id)
-    assert len(await _audit_rows(db_session, "user.link_google")) == 1
+    # 登入不會綁定任何東西（綁定只在「我的帳號」）。
+    assert await _audit_rows(db_session, "user.link_google") == []
     me = (await google_client.get(f"{ROOT}/me")).json()["user"]
     assert me["google_linked"] is True
 
 
 @pytest.mark.parametrize(("overrides", "active", "reason", "known_user"), [
-    ({"email": "staff@example.org"}, True, "unsupported_account", False),
-    ({"email": "unknown@gmail.com"}, True, "no_matching_account", False),
-    ({"email_verified": False}, True, "unverified_email", False),
+    ({"sub": "nobody-linked-this"}, True, "not_linked", False),
     ({}, False, "inactive", True),
 ])
 async def test_google_login_failures_are_audited_without_identity_details(
     google_client, google_provider, db_session, overrides, active, reason, known_user
 ):
-    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
-    await _create_user(db_session, "staff@example.org", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user = await _linked(db_session, role=Role.CAMPUS_ADMIN, campus_keys=["minghua"])
     user_id = user.id
     user.is_active = active
     await db_session.commit()
@@ -339,7 +387,7 @@ async def test_google_login_failures_are_audited_without_identity_details(
     [entry] = await _audit_rows(db_session, "user.login_google_failed")
     assert entry.metadata_json == {"reason": reason}
     assert entry.target_id == (str(user_id) if known_user else "unknown")
-    assert "google-person-123" not in str(entry.metadata_json)
+    assert "google-person-123" not in str(entry.metadata_json) and "nobody-linked-this" not in str(entry.metadata_json)
     assert await _audit_rows(db_session, "user.login_google") == []
 
 
@@ -368,7 +416,7 @@ async def test_google_callback_counts_toward_login_rate_limit(google_client, mon
 
 
 async def test_google_unlink_clears_binding_and_is_audited(google_client, google_provider, db_session):
-    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user = await _linked(db_session, role=Role.CAMPUS_ADMIN, campus_keys=["minghua"])
     user_id = user.id
     state = await start(google_client, google_provider)
     await finish(google_client, state)
@@ -404,7 +452,7 @@ async def test_google_unlink_works_when_google_login_is_disabled(admin_client, d
 
 async def test_google_login_is_not_blocked_by_the_password_lock(google_client, google_provider, db_session):
     """業主裁定：帳號鎖只鎖密碼登入，Google 登入照常；後台 session cookie 不帶 max-age。"""
-    await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _linked(db_session)
     for _ in range(10):
         await google_client.post(f"{ROOT}/login", json={"email": "staff@gmail.com", "password": "wrong-password-xx"})
     locked = await google_client.post(f"{ROOT}/login", json={"email": "staff@gmail.com", "password": "test-password-123"})
@@ -415,3 +463,99 @@ async def test_google_login_is_not_blocked_by_the_password_lock(google_client, g
     [cookie] = [c for c in response.headers.get_list("set-cookie") if c.startswith("ivy_admin_session=")]
     assert "max-age" not in cookie.lower() and "expires" not in cookie.lower()
     assert (await google_client.get(f"{ROOT}/me")).status_code == 200
+
+
+# ---------------------------------------------------------------- 2026-10-06 在「我的帳號」綁定 Google
+
+
+async def test_google_link_from_account_then_login(google_client, google_provider, db_session):
+    """後台帳號的 Email 跟 Google 帳號不同也能綁：綁定靠的是本人已登入，不是 Email。"""
+    user = await _create_user(db_session, "staff@example.org", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user_id = user.id
+    await password_login(google_client, "staff@example.org")
+    state = await start_link(google_client, google_provider)
+    response = await finish(google_client, state)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"{ACCOUNT}linked"
+    assert response.headers["cache-control"] == "no-store"
+    assert google_client.cookies.get("ivy_google_oauth") is None
+    await db_session.refresh(user)
+    assert user.google_sub == SUB
+    [entry] = await _audit_rows(db_session, "user.link_google")
+    assert entry.actor_user_id == user_id
+    assert await _audit_rows(db_session, "user.login_google_failed") == []
+    me = await google_client.get(f"{ROOT}/me")
+    assert me.status_code == 200 and me.json()["user"]["google_linked"] is True
+
+    await google_client.post(f"{ROOT}/logout")
+    google_client.headers.pop("x-csrf-token")
+    state = await start(google_client, google_provider)
+    assert (await finish(google_client, state)).headers["location"] == "/admin/visit-requests?status=pending"
+    assert (await google_client.get(f"{ROOT}/me")).json()["user"]["id"] == str(user_id)
+
+
+async def test_google_link_start_needs_login_csrf_and_recent_auth(google_client, google_provider, db_session):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    assert (await google_client.post(f"{ROOT}/google/link")).status_code == 401
+    await password_login(google_client)
+    csrf = google_client.headers.pop("x-csrf-token")
+    assert (await google_client.post(f"{ROOT}/google/link")).status_code == 403
+    google_client.headers["x-csrf-token"] = csrf
+
+    await _age_sessions(db_session, user.id)
+    denied = await google_client.post(f"{ROOT}/google/link")
+    assert denied.status_code == 403 and denied.json()["detail"]["code"] == "REAUTH_REQUIRED"
+    state = await start_link(google_client, google_provider, current_password="test-password-123")
+    assert (await finish(google_client, state)).headers["location"] == f"{ACCOUNT}linked"
+
+
+async def test_google_link_start_rejects_already_linked_and_disabled(google_client, admin_client, db_session):
+    await _linked(db_session)
+    await password_login(google_client)
+    already = await google_client.post(f"{ROOT}/google/link")
+    assert already.status_code == 409
+    # 預設 app 沒有設定 Google：沒有綁定入口。
+    assert (await admin_client.post(f"{ROOT}/google/link")).status_code == 404
+
+
+@pytest.mark.parametrize("case", ["in_use", "cancelled", "signed_out", "other_user", "network"])
+async def test_google_link_failures_return_to_account(google_client, google_provider, db_session, case):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await _create_user(db_session, "other@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await password_login(google_client)
+    state = await start_link(google_client, google_provider)
+    params = {}
+    if case == "in_use":
+        await _linked(db_session, "taken@gmail.com")
+    elif case == "cancelled":
+        params = {"error": "access_denied", "error_description": "secret-do-not-echo"}
+    elif case == "signed_out":
+        await google_client.post(f"{ROOT}/logout")
+    elif case == "other_user":
+        # 綁定中途換成別人登入：要落在發起綁定的同一位身上，不然就不綁。
+        await password_login(google_client, "other@gmail.com")
+    elif case == "network":
+        google_provider["network_error"] = True
+    response = await finish(google_client, state, **params)
+    expected = {"in_use": "in_use", "cancelled": "cancelled"}.get(case, "failed")
+    assert response.status_code == 303
+    assert response.headers["location"] == f"{ACCOUNT}{expected}"
+    assert "secret-do-not-echo" not in str(response.headers)
+    assert google_client.cookies.get("ivy_google_oauth") is None
+    await db_session.refresh(user)
+    assert user.google_sub is None
+    # 綁定的失敗不是登入失敗，不寫登入失敗稽核。
+    assert await _audit_rows(db_session, "user.login_google_failed") == []
+    assert await _audit_rows(db_session, "user.link_google") == []
+
+
+async def test_google_link_handshake_cannot_be_replayed(google_client, google_provider, db_session):
+    user = await _create_user(db_session, "staff@gmail.com", "test-password-123", Role.SUPER_ADMIN)
+    await password_login(google_client)
+    state = await start_link(google_client, google_provider)
+    assert (await finish(google_client, state)).headers["location"] == f"{ACCOUNT}linked"
+    token_requests = sum(req.url.path == "/token" for req in google_provider["requests"])
+    assert (await finish(google_client, state)).headers["location"] == "/admin/login?oauth_error=failed"
+    assert sum(req.url.path == "/token" for req in google_provider["requests"]) == token_requests
+    await db_session.refresh(user)
+    assert user.google_sub == SUB

@@ -26,7 +26,7 @@ watch(() => form.password, () => { fieldErrors.password = '' })
 const year = new Date().getFullYear()
 const oauthErrors: Record<string, string> = {
   cancelled: '已取消 Google 登入，可重新選擇帳號或使用 Email 與密碼。',
-  not_allowed: '這個 Google 帳號尚未取得後台權限或無法綁定，請改用帳密登入或聯絡總管理者。',
+  not_allowed: '這個 Google 帳號尚未綁定後台帳號，或綁定的帳號已停用。請先用 Email 與密碼登入，到「我的帳號」綁定 Google。',
   failed: 'Google 登入未完成或已逾時，請重新登入。',
   unavailable: 'Google 登入尚未啟用，請使用 Email 與密碼。',
   rate_limited: '嘗試次數過多，請 5 分鐘後再試。',
@@ -65,12 +65,10 @@ const returnTo = computed(() => safeRedirectPath(route.query.redirect) ?? '/')
 const redirectQuery = computed(() => new URLSearchParams({ redirect: returnTo.value }).toString())
 const googleLoginUrl = computed(() => `${BASE_URL}/auth/google/login?${redirectQuery.value}`)
 const lineLoginUrl = computed(() => `${BASE_URL}/auth/line/login?${redirectQuery.value}`)
-// LINE 沒有可信的 email，第一次一定要先在後台內綁定，入口旁要講清楚。
+// Google 與 LINE 第一次都要先在後台內綁定（2026-10-06 起 Google 不再用 Email 自動綁定），入口旁要講清楚。
 const oauthHints = computed(() => {
-  if (googleEnabled.value && lineEnabled.value) {
-    return ['Google：使用已開通後台權限的帳號', 'LINE：先用帳密登入，到「我的帳號」綁定']
-  }
-  return [googleEnabled.value ? '請使用已開通後台權限的 Google 帳號' : 'LINE 要先用帳密登入，在「我的帳號」綁定後才能使用']
+  if (googleEnabled.value && lineEnabled.value) return ['Google、LINE 要先用帳密登入，到「我的帳號」綁定後才能使用']
+  return [`${googleEnabled.value ? 'Google' : 'LINE'} 要先用帳密登入，在「我的帳號」綁定後才能使用`]
 })
 
 // 密碼最多 128 字（後端 schemas 的 max_length），超過回 422：多半是貼錯內容。

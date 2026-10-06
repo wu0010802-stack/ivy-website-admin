@@ -2,11 +2,11 @@
 
 此功能用於本 repo 的五校官網後台，與園務系統帳號／租戶無關。Google 登入只接受已在後台建立且啟用的管理員，沿用角色與分校範圍，不開放註冊、不依網域自動授權；帳密登入繼續可用。
 
-LINE 登入的綁定方式不同（登入後在「我的帳號」自行綁定），見 [LINE 登入設定說明](line-oauth.md)。
+2026-10-06 起綁定方式與 LINE 相同：管理員先用帳密登入，到「我的帳號」按「綁定 Google」自行綁定，首次 Google 登入**不會**用 Email 自動綁定（見 [LINE 登入設定說明](line-oauth.md)）。
 
 ## Google Cloud 設定
 
-1. 在 Google Cloud 的 Google Auth Platform 設定 Branding、Audience 和支援聯絡資訊；只需 `openid`、`email`，不要求 Gmail／Drive API 權限。
+1. 在 Google Cloud 的 Google Auth Platform 設定 Branding、Audience 和支援聯絡資訊；只需 `openid`（2026-10-06 起不再要求 `email`），不要求 Gmail／Drive API 權限。
 2. 建立 OAuth Client，Application type 選 **Web application**。
 3. Authorized redirect URIs 加入實際公開官網網址加上 `/api/website/v1/auth/google/callback`，例如 `https://官網網域/api/website/v1/auth/google/callback`。必須完全相同，且使用公開 Nuxt 入口，不使用 Railway API 私有網址。
 4. 若處於 Testing，將預定使用的 Google 帳號加入 Test users；若選 Internal，只有該 Google Workspace 組織能通過 Google 驗證。這不會取代後台管理員權限檢查。
@@ -47,9 +47,10 @@ uv run --frozen alembic upgrade head
 
 ## 管理員與綁定
 
-- 先由總管理者在「使用者」建立管理員，Email 使用本人 Google 帳號的信箱並給予正確分校範圍。仍依既有規則設定密碼，可作備援。
-- 首次 Google 登入只有 **已驗證的 Gmail** 或 **帶 `hd` 的已驗證 Google Workspace** 信箱能自動綁定；不忽略 Gmail 的句點或 `+suffix`。其他第三方信箱型 Google 帳號請使用帳密登入，尚未提供手動綁定 UI。
-- 首次綁定後以 Google `sub` 識別帳號，Google 信箱日後改名不會把權限移交給另一個 Google 帳號。綁定不更新後台 Email、角色或分校。
+- 先由總管理者在「使用者」建立管理員並設定密碼與分校範圍。後台 Email 不必是 Google 帳號的信箱。
+- 管理員用帳密登入後，在「我的帳號」按「綁定 Google」，選擇要用的 Google 帳號，完成後回到「我的帳號」；之後就能在登入頁用 Google 登入。綁定前要重新驗證（登入 10 分鐘內，或輸入目前的密碼），同 LINE。
+- 2026-10-06 業主裁定拿掉「首次 Google 登入用相同 Email 自動綁定」：後台帳號的 Email 是總管理者輸入的，從沒驗證過屬於本人，打錯或共用信箱時，那個 Google 帳號的主人就會直接拿到權限。沒有綁定的 Google 帳號登入會被拒絕（稽核原因 `not_linked`），登入頁說明到「我的帳號」綁定。
+- 以 Google `sub` 識別帳號，Google 信箱日後改名不會把權限移交給另一個 Google 帳號。綁定不更新後台 Email、角色或分校。同一個 Google 帳號只能綁一個後台帳號。
 - 停權立即撤銷既有 session，後續 Google 登入也會被拒絕；登出使用原有後台登出功能，不會登出 Google。
 - Google access／refresh／ID token 不存資料庫、不傳給 SPA、不放進登入結果 URL。成功後由既有 `/auth/me` 恢復 session 與 CSRF token。
 

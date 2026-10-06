@@ -1,3 +1,16 @@
+## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`）
+
+使用者針對稽核修正「刻意沒改」的「Google 登入時用 Email 自動綁定既有帳號」說「幫我做這個」。規則見 DESIGN.md「Google 登入改成在『我的帳號』綁定」；設定見 `deploy/google-oauth.md`。正式站這時 Google 登入沒開（`/auth/providers` 回 `google:false`），沒有人受影響。
+
+- **後端**：Google 登入只認已綁定的 `sub`，沒綁定一律拒絕（稽核原因 `not_linked`），不再用 Email 比對或自動綁定；授權範圍只剩 `openid`。新增 `POST /auth/google/link`（要登入、CSRF、重新驗證；已綁定 409、沒開 404），callback 依握手的 `mode` 分登入與綁定，綁定結果回 `/admin/account?google_link=…`；綁定要落在發起的同一位、仍啟用的 session 上，同一個 Google 帳號只能綁一個後台帳號。綁定失敗不寫登入失敗稽核。`contracts/` 重新產生（多 `GoogleLinkStart`）。沒有 migration。
+- **後台**：「我的帳號」Google 卡片加「綁定 Google」（比照 LINE，含重新驗證與結果提示），解除綁定的說明改成要再綁定才能用；登入頁未綁定時說明到「我的帳號」綁定，入口旁提示改成 Google、LINE 都要先綁定；稽核原因 `not_linked` 改成 Google／LINE 共用說法，舊原因代碼保留標籤。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_googlelink1006_test`）：
+  - 後端：`test_google_oauth.py` 改成先綁好再登入、拿掉 Email 相關案例，新增「同 Email 的 Gmail／Workspace 都不會自動綁定」、從「我的帳號」綁定後登入（後台 Email 與 Google 不同也能綁）、綁定要登入＋CSRF＋重新驗證、已綁定 409／沒開 404、綁定失敗回帳號頁（已被別人綁、取消、登出、換人、網路）、綁定握手不能重放，共 51 項（先紅後綠）。整套 pytest 1598 passed、1 skipped。`contract:check` 一致。
+  - 後台：新增 `googleSelfLink.test.ts` 12 項（先紅後綠），更新 `googleLogin`、`permissionsUx` 的舊文案斷言；`vue-tsc -b` 通過。整套 vitest 第一次在負載 41（別的 session 在跑瀏覽器）時 76 項 5 秒逾時，單獨重跑那幾檔全過；改單一 fork、逾時 20 秒重跑整套 107 檔 1360 項全過。
+  - 官網：829 項與 typecheck 通過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_e2e_googlelink1006_test`、埠 8726／3726，跑完已刪庫）：整套 76 項全過。另用臨時設定（假 Google client 打開 Google 登入）在 1440／390 截「我的帳號」的「綁定 Google」與登入頁未綁定提示，在 `output/playwright/google-self-link-20261006/`，臨時檔已刪。
+  - 未驗證：真的 Google 往返（正式站 Google 登入沒開，也還沒有 Google Cloud 的正式 client）。
+
 ## 2026-10-06 標記已到場後接著填招生資料（`feature/arrival-admissions-form-20261006`）
 
 使用者：「家長已到場後會需要填招生資料，這邊的表單可以幫我跳出來嗎」。規則見 DESIGN.md「標記已到場後接著填招生資料」。

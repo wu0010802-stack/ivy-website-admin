@@ -1,7 +1,8 @@
 import { api, ApiError } from './client'
-import type { LineLinkStart } from './types'
+import type { GoogleLinkStart, LineLinkStart } from './types'
 
 const LINE_AUTHORIZE = 'https://access.line.me/oauth2/v2.1/authorize?'
+const GOOGLE_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth?'
 
 /** 整頁跳轉包成物件，測試才能替換（jsdom 不允許 spy window.location）。 */
 export const browser = {
@@ -22,6 +23,17 @@ export async function startLineLink(body?: ReauthBody): Promise<void> {
   const { authorize_url: url } = await (body ? api.post<LineLinkStart>(path, body) : api.post<LineLinkStart>(path))
   if (typeof url !== 'string' || !url.startsWith(LINE_AUTHORIZE)) {
     throw new Error('unexpected LINE authorize url')
+  }
+  browser.assign(url)
+}
+
+/** 綁定 Google（2026-10-06 起跟 LINE 一樣只能在「我的帳號」綁定）：後端寫握手 cookie、回授權網址，
+ * 只接受 Google 官方授權端點才離開後台。登入超過 10 分鐘時要帶目前的密碼重送。 */
+export async function startGoogleLink(body?: ReauthBody): Promise<void> {
+  const path = '/auth/google/link'
+  const { authorize_url: url } = await (body ? api.post<GoogleLinkStart>(path, body) : api.post<GoogleLinkStart>(path))
+  if (typeof url !== 'string' || !url.startsWith(GOOGLE_AUTHORIZE)) {
+    throw new Error('unexpected Google authorize url')
   }
   browser.assign(url)
 }

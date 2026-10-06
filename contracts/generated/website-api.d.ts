@@ -2163,12 +2163,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Google Link Start
+         * @description 開始綁定：寫握手 cookie、回 Google 授權網址，真正綁定在 callback（記 user.link_google）。
+         *     變更自己的登入方式要重新驗證（見 app/auth/reauth.py）。
+         */
+        post: operations["google_link_start_api_website_v1_auth_google_link_post"];
         /**
          * Google Unlink
-         * @description 本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會
-         *     重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。
-         *     解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
+         * @description 本人解除 Google 綁定（例如 Google 帳號重建過、要改綁另一個）；之後要用 Google
+         *     登入得再到「我的帳號」綁定一次。解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。
          *     變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。
          */
         delete: operations["google_unlink_api_website_v1_auth_google_link_delete"];
@@ -3906,6 +3910,11 @@ export interface components {
             };
             /** Source */
             source: string;
+        };
+        /** GoogleLinkStart */
+        GoogleLinkStart: {
+            /** Authorize Url */
+            authorize_url: string;
         };
         /** GradeCountOut */
         GradeCountOut: {
@@ -11119,6 +11128,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    google_link_start_api_website_v1_auth_google_link_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoogleLinkStart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

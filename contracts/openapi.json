@@ -3789,6 +3789,19 @@
         "title": "FunnelSourceOut",
         "type": "object"
       },
+      "GoogleLinkStart": {
+        "properties": {
+          "authorize_url": {
+            "title": "Authorize Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorize_url"
+        ],
+        "title": "GoogleLinkStart",
+        "type": "object"
+      },
       "GradeCountOut": {
         "properties": {
           "count": {
@@ -22987,7 +23000,7 @@
     },
     "/api/website/v1/auth/google/link": {
       "delete": {
-        "description": "本人解除 Google 綁定。之後用同 Email 的 Gmail／Workspace 帳號登入會\n重新綁定——這支主要給「Google 帳號重建過、舊綁定擋住新帳號」時用。\n解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。\n變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。",
+        "description": "本人解除 Google 綁定（例如 Google 帳號重建過、要改綁另一個）；之後要用 Google\n登入得再到「我的帳號」綁定一次。解除綁定不看 Google 登入是否啟用：關掉設定後仍要能清掉舊綁定。\n變更自己的登入方式要重新驗證（見 app/auth/reauth.py）；沒東西可解除時不用。",
         "operationId": "google_unlink_api_website_v1_auth_google_link_delete",
         "parameters": [
           {
@@ -23056,6 +23069,87 @@
           }
         },
         "summary": "Google Unlink",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "開始綁定：寫握手 cookie、回 Google 授權網址，真正綁定在 callback（記 user.link_google）。\n變更自己的登入方式要重新驗證（見 app/auth/reauth.py）。",
+        "operationId": "google_link_start_api_website_v1_auth_google_link_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleLinkStart"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Link Start",
         "tags": [
           "auth"
         ]

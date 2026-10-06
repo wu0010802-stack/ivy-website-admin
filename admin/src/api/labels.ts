@@ -509,8 +509,9 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
   cancelled: '使用者取消',
   provider_error: '登入服務（Google／LINE）回傳錯誤',
   wrong_password: '密碼錯誤',
-  not_linked: '沒有綁定這個 LINE 的後台帳號',
+  not_linked: '沒有綁定這個 Google／LINE 帳號的後台帳號',
   failed: '驗證未完成或逾時',
+  // 以下三個是 2026-10-06 以前 Google 用 Email 自動綁定時的原因，舊紀錄還會出現。
   unverified_email: 'Google 帳號 Email 未驗證',
   unsupported_account: '不是 Gmail 或 Google Workspace 帳號',
   no_matching_account: '沒有相同 Email 的後台帳號',

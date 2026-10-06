@@ -57,7 +57,7 @@ describe('Google 登入入口', () => {
 
   it.each([
     ['cancelled', '已取消 Google 登入'],
-    ['not_allowed', '尚未取得後台權限'],
+    ['not_allowed', '到「我的帳號」綁定 Google'],
     ['failed', 'Google 登入未完成'],
   ])('顯示 %s 的可操作提示', async (code, message) => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: true })
