@@ -527,14 +527,14 @@ async function remove(row: RecruitmentVisit) {
     </el-alert>
 
     <div v-else class="panel" :aria-busy="loading">
-      <div class="panel__head">
+      <div class="panel__head records__head">
         <h2>訪視明細</h2>
         <div class="records__head-actions">
           <!-- 沒資料時不寫「本頁 0 筆」：空狀態已經說明原因，不顯示假的 0。 -->
           <span v-if="loading || rows.length" class="hint num">{{ loading ? '載入中…' : `本頁 ${rows.length} 筆` }}</span>
           <template v-if="canExport">
             <el-button :icon="Download" :loading="exporting" aria-describedby="records-export-scope" @click="exportCsv">匯出 CSV</el-button>
-            <span id="records-export-scope" class="hint">匯出範圍：目前篩選的全部結果（不只本頁）</span>
+            <span id="records-export-scope" class="hint records__export-scope">匯出範圍：目前篩選的全部結果（不只本頁）</span>
           </template>
           <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openAdd">新增訪視</el-button>
         </div>
@@ -1023,6 +1023,20 @@ async function remove(row: RecruitmentVisit) {
 }
 
 @media (max-width: 720px) {
+  /* 標題獨占一行，本頁筆數與按鈕排在下一行，匯出範圍說明在按鈕下方；不讓標題被擠成直排。 */
+  .records__head {
+    flex-wrap: wrap;
+  }
+
+  .records__head-actions {
+    flex: 1 1 100%;
+  }
+
+  .records__export-scope {
+    order: 1;
+    flex-basis: 100%;
+  }
+
   .records-filters__search {
     flex: 1 1 0;
   }

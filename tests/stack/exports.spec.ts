@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { expect, test, type Download, type Page } from '@playwright/test'
+import { expect, test, type Download, type Locator, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
@@ -290,27 +290,84 @@ test('權限：分校管理者沒有名單匯出鈕，操作紀錄匯出沒有 I
   }
 })
 
-test('版面：訪視明細標題列與操作紀錄篩選列在 1440 與 390 都看得到按鈕、頁面不橫向溢出', async ({ browser }) => {
+/** 元素在視窗座標的外框；看不到（沒有外框）就是測試失敗。 */
+async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number; right: number; bottom: number }> {
+  const rect = await locator.boundingBox()
+  expect(rect, '找不到元素的外框').not.toBeNull()
+  return { ...rect!, right: rect!.x + rect!.width, bottom: rect!.y + rect!.height }
+}
+
+test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列在 1440 與 390 都不錯亂、頁面不橫向溢出', async ({ browser }) => {
   for (const device of [
-    { name: '1440', options: {} },
-    { name: '390', options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
+    { name: '1440', width: 1440, narrow: false, options: {} },
+    { name: '390', width: 390, narrow: true, options: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ] as const) {
     const { context, page } = await openAs(browser, 'super_admin', device.options)
     try {
-      await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=records`, '招生入學')
-      await expect(page.getByText(CHILD).first()).toBeVisible()
-      const head = page.locator('.records__head-actions')
-      await expect(head.getByRole('button', { name: '匯出 CSV' })).toBeVisible()
-      await expect(head.getByRole('button', { name: '新增訪視' })).toBeVisible()
-      await expectNoHorizontalOverflow(page)
-      await page.screenshot({ path: path.join(SHOTS, `exports-admissions-records-${device.name}.png`) })
+      await test.step(`訪視明細標題列 ${device.name}`, async () => {
+        await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=records`, '招生入學')
+        await expect(page.getByText(CHILD).first()).toBeVisible()
+        const actions = page.locator('.records__head-actions')
+        const exportButton = actions.getByRole('button', { name: '匯出 CSV' })
+        const addButton = actions.getByRole('button', { name: '新增訪視' })
+        await expect(exportButton).toBeVisible()
+        await expect(addButton).toBeVisible()
+        await expectNoHorizontalOverflow(page)
 
-      await gotoAdmin(page, '/audit', '操作紀錄')
-      await expect(page.getByRole('status').filter({ hasText: /已載入 \d+ 筆/ })).toBeVisible()
-      await expect(page.locator('[data-test="audit-export"]')).toBeVisible()
-      await expect(page.getByRole('combobox', { name: '期間' }).first()).toBeVisible()
-      await expectNoHorizontalOverflow(page)
-      await page.screenshot({ path: path.join(SHOTS, `exports-audit-filter-${device.name}.png`) })
+        const title = await box(page.locator('.records__head h2'))
+        const group = await box(actions)
+        const exportBox = await box(exportButton)
+        const addBox = await box(addButton)
+        const scope = await box(page.locator('#records-export-scope'))
+        // 標題一行（直排時四個字各佔一行，高度 80 以上）。
+        expect(title.height, '「訪視明細」被擠成直排').toBeLessThan(40)
+        expect(Math.max(exportBox.right, addBox.right, scope.right), '按鈕與說明不超出視窗').toBeLessThanOrEqual(device.width)
+        if (device.narrow) {
+          // 手機：標題獨占一行，按鈕與筆數在下一行，匯出範圍說明在按鈕下方。
+          expect(group.y, '手機的動作列要換到標題下面').toBeGreaterThanOrEqual(title.bottom)
+          expect(scope.y, '匯出範圍說明在按鈕下方').toBeGreaterThanOrEqual(Math.max(exportBox.bottom, addBox.bottom) - 1)
+        } else {
+          // 桌機：標題與動作列同一行（標題列高度只有一行的量）。
+          expect(group.y, '桌機標題與動作列同一行').toBeLessThan(title.bottom)
+          const headBox = await box(page.locator('.records__head'))
+          expect(headBox.height).toBeLessThan(80)
+        }
+        await page.screenshot({ path: path.join(SHOTS, `exports-admissions-records-${device.name}.png`) })
+      })
+
+      await test.step(`未預繳名單匯出鈕列 ${device.name}`, async () => {
+        await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=nodeposit`, '招生入學')
+        const list = page.locator('section.nd')
+        await expect(list.getByText(CHILD)).toBeVisible()
+        const button = list.getByRole('button', { name: '匯出 CSV' })
+        await button.scrollIntoViewIfNeeded()
+        const buttonBox = await box(button)
+        expect(buttonBox.x, '匯出鈕在視窗內').toBeGreaterThanOrEqual(0)
+        expect(buttonBox.right, '匯出鈕在視窗內').toBeLessThanOrEqual(device.width)
+        const title = await box(list.getByRole('heading', { name: '未預繳明細' }))
+        expect(title.height, '「未預繳明細」被擠成直排').toBeLessThan(40)
+        await expectNoHorizontalOverflow(page)
+        await list.screenshot({ path: path.join(SHOTS, `exports-nodeposit-${device.name}.png`) })
+      })
+
+      await test.step(`操作紀錄篩選列 ${device.name}`, async () => {
+        await gotoAdmin(page, '/audit', '操作紀錄')
+        await expect(page.getByRole('status').filter({ hasText: /已載入 \d+ 筆/ })).toBeVisible()
+        await expect(page.locator('[data-test="audit-export"]')).toBeVisible()
+        await expect(page.getByRole('combobox', { name: '期間' }).first()).toBeVisible()
+        await expectNoHorizontalOverflow(page)
+
+        const bar = await box(page.locator('.filter-bar'))
+        const editor = await box(page.locator('.filter-bar .el-date-editor'))
+        const field = await box(page.locator('.filter-bar .audit-period'))
+        // 日期範圍選擇器不超出自己的欄位，也就不超出篩選卡片。
+        expect(editor.right, '期間選擇器超出自己的欄位').toBeLessThanOrEqual(field.right + 0.5)
+        expect(editor.right, '期間選擇器超出篩選卡片').toBeLessThanOrEqual(bar.right)
+        expect(editor.x).toBeGreaterThanOrEqual(bar.x)
+        // 桌機：校區、搜尋、期間、不列登入登出排成一行；手機是上下疊（每個欄位各佔一行）。
+        if (!device.narrow) expect(bar.height, '桌機篩選列要單行').toBeLessThan(120)
+        await page.screenshot({ path: path.join(SHOTS, `exports-audit-filter-${device.name}.png`) })
+      })
     } finally {
       await context.close()
     }

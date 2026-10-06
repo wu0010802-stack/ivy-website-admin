@@ -220,7 +220,7 @@ onMounted(() => {
     <div class="filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
       <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
-      <label class="filter-field"><span>期間</span><el-date-picker v-model="period" type="daterange" value-format="YYYY-MM-DD" :disabled-date="isFutureDate" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="期間" data-test="audit-period" /></label>
+      <label class="filter-field audit-period"><span>期間</span><el-date-picker v-model="period" type="daterange" value-format="YYYY-MM-DD" :disabled-date="isFutureDate" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="期間" data-test="audit-period" /></label>
       <el-checkbox v-model="hideLogins" class="filter-check" data-test="audit-hide-logins">不列登入登出</el-checkbox>
     </div>
     <div class="list-summary" role="status">
@@ -421,6 +421,11 @@ onMounted(() => {
 }
 
 @media (max-width: 720px) {
+  /* 日期範圍選擇器預設固定 350px，比手機的篩選卡片寬：跟著自己的欄位寬。 */
+  .audit-period :deep(.el-date-editor) {
+    width: 100%;
+  }
+
   .audit-others summary {
     min-height: 44px;
   }
