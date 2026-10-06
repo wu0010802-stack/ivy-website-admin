@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.common import csv_export
@@ -76,8 +78,8 @@ def test_too_many_rows_reads_the_limit_at_call_time(monkeypatch):
 
 
 def test_bom_is_the_utf8_byte_order_mark():
-    # 原始碼裡寫 ﻿ 跳脫而不是實體字元：看不見的字元在 diff 與編輯器裡容易被吃掉。
-    assert csv_export.BOM == "﻿"
+    # 原始碼裡用跳脫寫法表示 BOM，不放實體字元：看不見的字元在 diff 與編輯器裡容易被吃掉。
+    assert csv_export.BOM == "\ufeff"
     assert csv_export.BOM.encode("utf-8") == b"\xef\xbb\xbf"
     assert csv_export.csv_attachment(("a",), [], "x.csv").body.startswith(csv_export.BOM.encode("utf-8"))
 
@@ -104,3 +106,16 @@ def test_bom_is_the_utf8_byte_order_mark():
 def test_roc_month_csv_matches_the_admin_helper(value, expected):
     # 和 admin/src/utils/csv.ts 的 rocMonthCsv 同一條規則：Excel 會把 115.10 轉成數字 115.1。
     assert csv_export.roc_month_csv(value) == expected
+
+
+def test_sources_never_contain_a_literal_bom_character():
+    # 實體 U+FEFF 是看不見的字元：直接比對原始碼位元組，防止又被貼回來（要寫就用跳脫）。
+    bom_bytes = b"\xef\xbb\xbf"
+    backend = Path(__file__).resolve().parents[1]
+    for relative in (
+        "app/common/csv_export.py",
+        "tests/test_csv_export.py",
+        "app/admissions/download.py",
+        "tests/test_admissions_download.py",
+    ):
+        assert bom_bytes not in (backend / relative).read_bytes(), relative

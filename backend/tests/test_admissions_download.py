@@ -46,7 +46,7 @@ EXPECTED_HEADERS = [
 
 def _csv(resp) -> tuple[list[str], list[dict]]:
     assert resp.status_code == 200, resp.text
-    assert resp.content.startswith("﻿".encode())
+    assert resp.content.startswith(csv_export.BOM.encode())
     assert resp.headers["content-type"] == "text/csv; charset=utf-8"
     assert resp.headers["cache-control"] == "private, no-store"
     text = resp.content.decode("utf-8-sig")
