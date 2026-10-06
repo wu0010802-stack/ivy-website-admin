@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.auth.models import User
 from app.auth.permissions import covers_campus, has_capability
@@ -13,7 +13,7 @@ from app.booking import access_service, history, slot_service
 from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
 from app.booking.export_labels import status_label
 from app.booking.history import PARENT, SYSTEM, Actor
-from app.booking.models import VisitContactNote, VisitRequest, VisitRequestStatus
+from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.booking.outbox import (
     PARENT_VISIT_BOOKED,
     PARENT_VISIT_CANCELLED,
@@ -490,24 +490,36 @@ async def assign(
 EDITABLE_BY_PARENT = ("parent_name", "phone", "email", "child_name", "child_birthdate", "party_size", "questions")
 
 
+async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
+    """家長資料的樂觀鎖版本：1 加上家長改過幾次資料（歷程 details_updated）。
+
+    不用 visit_requests.version：那是園方承辦人／下次聯絡時間的鎖（見 models），
+    共用的話家長改一次 Email，園方開著的案件頁存下次聯絡就 409，反過來園方指派
+    承辦人也會讓家長存檔 409（2026-10-06 稽核）。只有家長會改這組欄位。"""
+    count = await db.scalar(
+        select(func.count())
+        .select_from(VisitRequestEvent)
+        .where(VisitRequestEvent.visit_request_id == visit_request_id, VisitRequestEvent.event_type == "details_updated")
+    )
+    return 1 + int(count or 0)
+
+
 async def update_details_by_parent(
     db: AsyncSession, visit_request: VisitRequest, changes: dict, *, expected_version: int
 ) -> list[str]:
     """家長從修改連結改資料。歷程只記改了哪些欄位，不記內容（歷程不放個資）。
-    回傳實際改變的欄位；沒有變化就什麼都不寫。"""
-    await db.refresh(
-        visit_request, attribute_names=["status", "version", *EDITABLE_BY_PARENT], with_for_update=True
-    )
+    回傳實際改變的欄位；沒有變化就什麼都不寫。expected_version 是 details_version。"""
+    await db.refresh(visit_request, attribute_names=["status", *EDITABLE_BY_PARENT], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能修改資料")
-    if visit_request.version != expected_version:
-        raise VersionConflict(visit_request.version)
+    current = await details_version(db, visit_request.id)
+    if current != expected_version:
+        raise VersionConflict(current)
     changed = [f for f in EDITABLE_BY_PARENT if f in changes and getattr(visit_request, f) != changes[f]]
     if not changed:
         return []
     for field in changed:
         setattr(visit_request, field, changes[field])
-    visit_request.version += 1
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()

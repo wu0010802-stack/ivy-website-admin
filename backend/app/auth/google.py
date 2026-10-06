@@ -236,6 +236,8 @@ async def google_unlink(
         )
         current_user.google_sub = None
         await db.flush()
+        # 用那個 Google 帳號登入的其他裝置一併登出；目前這個分頁保留。
+        await service.revoke_user_sessions(db, current_user.id, keep_session_id=session.id)
         await audit_service.log_action(
             db, actor_user_id=current_user.id, action="user.unlink_google",
             target_type="user", target_id=str(current_user.id),

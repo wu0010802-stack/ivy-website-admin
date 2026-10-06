@@ -44,7 +44,9 @@ PARENT_SESSION_COOKIE = "ivy_parent_session"
 PARENT_REQUEST_LIMIT = ratelimit.Limit("parent_request", window_seconds=60, max_per_window=30)
 # 每案每日上限：每次改期、改資料都會寄信給家長並通知園方，持有連結的人不能無限重送。
 # 只有成功（commit 後）才記一次，失敗的嘗試不吃額度。
-PARENT_RESCHEDULE_PER_CASE = ratelimit.Limit("parent_reschedule_case", window_seconds=86400, max_per_window=5)
+PARENT_RESCHEDULE_PER_CASE = ratelimit.Limit(
+    "parent_reschedule_case", window_seconds=86400, max_per_window=access_service.PARENT_RESCHEDULES_PER_DAY
+)
 PARENT_EDIT_PER_CASE = ratelimit.Limit("parent_edit_case", window_seconds=86400, max_per_window=10)
 
 
@@ -142,6 +144,8 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
         campus_phone=str(profile.get("phone") or "").strip() or None,
         slots_open=config is not None and config.mode == BookingMode.SLOTS,
     )
+    # 家長改資料用自己的版本（不是園方承辦人／下次聯絡的 version）。
+    output.version = await workflow_service.details_version(db, visit_request.id)
     if visit_request.status == "confirmed":
         pending_id = await db.scalar(select(RescheduleRequest.id).where(
             RescheduleRequest.visit_request_id == visit_request.id,
@@ -259,6 +263,12 @@ async def parent_reschedule(
         if exc.code == "SLOT_NOT_FOUND":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail={"code": exc.code, "message": exc.message}
+            ) from exc
+        if exc.code == "RATE_LIMITED":
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={"code": exc.code, "message": exc.message},
+                headers={"Retry-After": str(PARENT_RESCHEDULE_PER_CASE.window_seconds)},
             ) from exc
         raise _conflict(exc.code, exc.message) from exc
     except workflow_service.SlotNotFound as exc:

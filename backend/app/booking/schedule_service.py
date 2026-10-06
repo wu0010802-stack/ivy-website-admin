@@ -306,6 +306,8 @@ async def add_exception(
     slots = await db.execute(
         select(VisitSlot)
         .where(VisitSlot.campus_key == campus_key, VisitSlot.slot_date == exception_date)
+        # 依 id 排序鎖，與改期（新舊兩場依 id 排序）、規則同步同一個順序，不會互鎖成死結。
+        .order_by(VisitSlot.id)
         .with_for_update()
     )
     closed = 0
@@ -360,6 +362,7 @@ async def remove_exception(
             VisitSlot.closed.is_(True),
             VisitSlot.closed_source == SlotClosedSource.EXCEPTION.value,
         )
+        .order_by(VisitSlot.id)
         .with_for_update()
     )
     reopened = 0

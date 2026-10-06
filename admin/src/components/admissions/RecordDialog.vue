@@ -127,8 +127,22 @@ const yearChoices = computed(() => {
   return own && !years.includes(own) ? [...years, own].sort((a, b) => b - a) : years
 })
 
+// 已註冊、保留座位的入學學期不能在表單裡改（2026-10-06 後端回 409 RECRUITMENT_ENROLLED_TERM_LOCKED／
+// RECRUITMENT_SEAT_TERM_LOCKED）：要改得走取消註冊或保留座位調整，才會留下紀錄、座位也對得上。
+// 已註冊又沒有保留年級時，適讀班級就是註冊的年級，一起鎖。
+const termLock = computed<'enrolled' | 'seat' | null>(() => {
+  const record = current.value
+  if (props.mode !== 'edit' || !record) return null
+  if (record.stage === 'enrolled') return 'enrolled'
+  return record.provisional_grade ? 'seat' : null
+})
+const gradeLocked = computed(() => termLock.value === 'enrolled' && !current.value?.provisional_grade)
+const TERM_LOCK_HELP = { enrolled: '已註冊，要改入學學期請先取消註冊。', seat: '已保留座位，要改學期請用保留座位調整。' } as const
+
 // 生日 × 入學學年自動判定適讀班級：只在班級空著、或上次是自動帶入時覆寫（園務 :405-422）。
+// 班級鎖住時不動它（送出會被後端擋下）。
 function autoFillGrade() {
+  if (gradeLocked.value) return
   const grade = gradeForBirthday(form.birthday, form.target_school_year)
   if (!grade) return
   if (!form.grade || autoGrade.value) {
@@ -356,10 +370,11 @@ function suggest(list: readonly string[] | undefined) {
           <el-date-picker :model-value="form.birthday" type="date" value-format="YYYY-MM-DD" placeholder="選擇生日" :disabled-date="disableFuture" aria-label="生日" style="width: 100%" @update:model-value="setBirthday" />
         </el-form-item>
         <el-form-item label="適讀班級">
-          <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" @change="onGradeChange">
+          <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" :disabled="gradeLocked" @change="onGradeChange">
             <el-option v-for="grade in GRADES" :key="grade" :label="grade" :value="grade" />
           </el-select>
-          <span v-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
+          <span v-if="gradeLocked" class="field-help">已註冊，班級要先取消註冊才能改。</span>
+          <span v-else-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
         </el-form-item>
       </div>
       <div class="record-dialog__row">
@@ -383,15 +398,15 @@ function suggest(list: readonly string[] | undefined) {
       <div class="record-dialog__row">
         <el-form-item label="入學學期" required>
           <div class="record-dialog__term">
-            <el-select :model-value="form.target_school_year ?? undefined" placeholder="學年" aria-label="入學學年" @update:model-value="setYear">
+            <el-select :model-value="form.target_school_year ?? undefined" placeholder="學年" aria-label="入學學年" :disabled="termLock !== null" @update:model-value="setYear">
               <el-option v-for="year in yearChoices" :key="year" :label="`${year} 學年`" :value="year" />
             </el-select>
-            <el-radio-group v-model="form.target_semester" aria-label="入學學期">
+            <el-radio-group v-model="form.target_semester" aria-label="入學學期" :disabled="termLock !== null">
               <el-radio-button :value="1">{{ SEMESTER_LABELS[1] }}</el-radio-button>
               <el-radio-button :value="2">{{ SEMESTER_LABELS[2] }}</el-radio-button>
             </el-radio-group>
           </div>
-          <span class="field-help">小孩預計入學的學期（預設當前學期，可改）。</span>
+          <span class="field-help">{{ termLock ? TERM_LOCK_HELP[termLock] : '小孩預計入學的學期（預設當前學期，可改）。' }}</span>
         </el-form-item>
         <el-form-item label="搭娃娃車">
           <el-switch v-model="form.rides_bus" active-text="要搭" inactive-text="不搭" aria-label="搭娃娃車" />
@@ -421,7 +436,7 @@ function suggest(list: readonly string[] | undefined) {
               </el-select>
             </el-form-item>
             <el-form-item label="來源備註">
-              <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：哥哥姓名、朋友姓名、看到傳單" aria-label="來源備註" style="width: 100%" />
+              <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：哥哥在本園就讀、朋友介紹、看到傳單" aria-label="來源備註" style="width: 100%" />
             </el-form-item>
           </div>
           <div class="record-dialog__row">

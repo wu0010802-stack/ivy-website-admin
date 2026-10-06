@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { ArrowDown, Upload } from '@element-plus/icons-vue'
@@ -14,7 +14,6 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { canRetryProcessing, processingNote, useProcessingPoll } from '../composables/mediaProcessing'
 import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
-import { CAMPUS_KEYS } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 import MediaUploadList from '../components/MediaUploadList.vue'
@@ -65,7 +64,9 @@ const allTags = computed(() => {
   return [...counts.entries()].sort((x, y) => y[1] - x[1]).map(([t]) => t)
 })
 
-const filterKeys = computed(() => ['__shared', ...CAMPUS_KEYS])
+// 只列這個帳號看得到的校區（加跨校共用）：列出別校，篩了也是空的，上傳時還會被預選成
+// 沒有權限的校區、送出才被後端擋下。
+const filterKeys = computed(() => ['__shared', ...visibleCampusKeys.value])
 function filterLabel(key: string): string {
   return key === '__shared' ? '跨校共用' : campusLabel(key)
 }
@@ -107,13 +108,28 @@ function replaceListed(fresh: MediaAssetOut) {
 // 影片轉檔中的卡片自己更新，不必重新整理頁面。
 useProcessingPoll(() => assets.value, replaceListed)
 
-async function retryProcessing(asset: MediaAssetOut) {
+// 卡片上的復原、取消封存（封存）、重新處理：請求還沒回來時停用這張卡的按鈕，
+// 連按不會送出兩次（第二次常是 409，或重複排入轉檔）。
+const pendingIds = reactive(new Set<string>())
+async function withPending(asset: MediaAssetOut, action: () => Promise<void>) {
+  if (pendingIds.has(asset.id)) return
+  pendingIds.add(asset.id)
   try {
-    replaceListed(await api.post<MediaAssetOut>(`/admin/media/${asset.id}/retry`))
-    ElMessage.success('已重新排入轉檔')
-  } catch (err) {
-    notifyError(apiErrorMessage(err, '重新處理失敗，請稍後再試'))
+    await action()
+  } finally {
+    pendingIds.delete(asset.id)
   }
+}
+
+function retryProcessing(asset: MediaAssetOut) {
+  return withPending(asset, async () => {
+    try {
+      replaceListed(await api.post<MediaAssetOut>(`/admin/media/${asset.id}/retry`))
+      ElMessage.success('已重新排入轉檔')
+    } catch (err) {
+      notifyError(apiErrorMessage(err, '重新處理失敗，請稍後再試'))
+    }
+  })
 }
 
 /** 「首頁最新消息、校園探索（義華）」；沒有草稿在用時回空字串。 */
@@ -154,7 +170,8 @@ function openUpload() {
   }
   queue.reset()
   uploadAlt.value = ''
-  uploadCampusKey.value = campusFilter.value && campusFilter.value !== '__shared' ? campusFilter.value : ''
+  // 照目前的校區篩選預選，但只預選可以上傳的校區。
+  uploadCampusKey.value = uploadCampusOptions.value.includes(campusFilter.value) ? campusFilter.value : ''
   if (!uploadCampusKey.value && !canUploadShared.value) uploadCampusKey.value = uploadCampusOptions.value[0] ?? ''
   uploadDialogVisible.value = true
 }
@@ -332,15 +349,17 @@ function onMoreCommand(asset: MediaAssetOut, command: MoreCommand) {
 
 async function setArchived(asset: MediaAssetOut, archived: boolean) {
   if (archived && blockedByDraftUsage(asset, '封存')) return
-  try {
-    await api.post(`/admin/media/${asset.id}/${archived ? 'archive' : 'unarchive'}`)
-    ElMessage.success(archived ? '已封存，可以在「已封存」找回來' : '已取消封存')
-    await load()
-  } catch (err) {
-    const detail = errorDetail(err)
-    notifyError(detail.message ?? (archived ? '封存失敗' : '取消封存失敗'))
-    if (detail.code === 'MEDIA_IN_USE') openUsages(asset)
-  }
+  await withPending(asset, async () => {
+    try {
+      await api.post(`/admin/media/${asset.id}/${archived ? 'archive' : 'unarchive'}`)
+      ElMessage.success(archived ? '已封存，可以在「已封存」找回來' : '已取消封存')
+      await load()
+    } catch (err) {
+      const detail = errorDetail(err)
+      notifyError(detail.message ?? (archived ? '封存失敗' : '取消封存失敗'))
+      if (detail.code === 'MEDIA_IN_USE') openUsages(asset)
+    }
+  })
 }
 
 async function removeAsset(asset: MediaAssetOut) {
@@ -379,13 +398,15 @@ async function removeAsset(asset: MediaAssetOut) {
 }
 
 async function restoreAsset(asset: MediaAssetOut) {
-  try {
-    await api.post(`/admin/media/${asset.id}/restore`)
-    ElMessage.success('已復原')
-    await load()
-  } catch (err) {
-    notifyError(errorDetail(err).message ?? '復原失敗')
-  }
+  await withPending(asset, async () => {
+    try {
+      await api.post(`/admin/media/${asset.id}/restore`)
+      ElMessage.success('已復原')
+      await load()
+    } catch (err) {
+      notifyError(errorDetail(err).message ?? '復原失敗')
+    }
+  })
 }
 
 onMounted(async () => {
@@ -475,14 +496,14 @@ onMounted(async () => {
         <!-- 常用的編輯、用在哪裡直接放；替換、封存、刪除收進「更多」，刪除放最後、和封存隔開。 -->
         <div class="media__actions">
           <template v-if="asset.deleted_at">
-            <el-button v-if="canManageAsset(asset)" size="small" text type="primary" @click="restoreAsset(asset)">復原</el-button>
+            <el-button v-if="canManageAsset(asset)" size="small" text type="primary" :loading="pendingIds.has(asset.id)" :disabled="pendingIds.has(asset.id)" @click="restoreAsset(asset)">復原</el-button>
           </template>
           <template v-else>
             <template v-if="canManageAsset(asset)">
-              <el-button v-if="asset.archived_at" size="small" text @click="setArchived(asset, false)">取消封存</el-button>
+              <el-button v-if="asset.archived_at" size="small" text :loading="pendingIds.has(asset.id)" :disabled="pendingIds.has(asset.id)" @click="setArchived(asset, false)">取消封存</el-button>
               <!-- 轉檔中也能補說明（選影片上傳後的提示叫人來按「編輯」）；處理失敗的改放重新處理。 -->
               <el-button v-else-if="asset.status !== 'failed'" size="small" text @click="openEditDialog(asset)">編輯</el-button>
-              <el-button v-else-if="canRetryProcessing(asset)" size="small" text type="primary" @click="retryProcessing(asset)">重新處理</el-button>
+              <el-button v-else-if="canRetryProcessing(asset)" size="small" text type="primary" :loading="pendingIds.has(asset.id)" :disabled="pendingIds.has(asset.id)" @click="retryProcessing(asset)">重新處理</el-button>
             </template>
             <el-button size="small" text @click="openUsages(asset)">用在哪裡</el-button>
             <el-dropdown
@@ -493,7 +514,7 @@ onMounted(async () => {
               popper-class="media-more-menu"
               @command="(command: MoreCommand) => onMoreCommand(asset, command)"
             >
-              <el-button size="small" text class="media__more" :aria-label="`「${asset.original_filename}」的更多動作`">
+              <el-button size="small" text class="media__more" :disabled="pendingIds.has(asset.id)" :aria-label="`「${asset.original_filename}」的更多動作`">
                 更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>

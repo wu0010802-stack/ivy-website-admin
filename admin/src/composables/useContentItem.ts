@@ -264,6 +264,11 @@ export interface ContentEditorState {
 export interface ContentItemOptions<TPayload> {
   /** 舊版內容的巢狀欄位補預設值或換算（例如消息的舊校區文字），在拍快照之前做 */
   normalize?: (payload: TPayload) => TPayload
+  /**
+   * 從沒存過任何版本時帶入的初稿（例如隱私權政策）。載入、重新載入、放棄修改都一樣帶入；
+   * 快照仍是空白表單，所以畫面是「有未儲存的修改」，按儲存才變成第一個版本。
+   */
+  seed?: () => TPayload
 }
 
 export function useContentItem<TPayload extends object>(
@@ -300,6 +305,12 @@ export function useContentItem<TPayload extends object>(
     return key ? `?campus_key=${encodeURIComponent(key)}` : ''
   }
 
+  // 寫入動作（存檔、發布、送審、審核、排程、還原）送出當下的校區：回應回來時已經換了校，
+  // 那是舊校的結果，不能寫進新校的畫面（下一次存檔會帶錯版本、表單會變成舊校的內容）。
+  // 校區選單在處理中會停用（useCampusContent），這裡是最後一道防線。
+  const scopeNow = () => unref(campusKey) ?? ''
+  const sameScope = (scope: string) => scopeNow() === scope
+
   // 舊版內容缺少後來新增的欄位時補上預設值（在拍快照之前補，才不會一
   // 打開就顯示「有未儲存的修改」）。
   function withDefaults(payload: unknown): TPayload {
@@ -310,6 +321,11 @@ export function useContentItem<TPayload extends object>(
 
   function takeSnapshot() {
     snapshot.value = JSON.stringify(form.value)
+  }
+
+  // 從沒存過任何版本時換上初稿（options.seed）；在拍快照之後換，畫面才是「有未儲存的修改」。
+  function applySeed() {
+    if (options.seed && item.value && !item.value.latest_revision) form.value = options.seed()
   }
 
   const isDirty = computed(() => JSON.stringify(form.value) !== snapshot.value)
@@ -390,6 +406,7 @@ export function useContentItem<TPayload extends object>(
           item.value.current_published_revision_id === item.value.latest_revision.id,
       )
       takeSnapshot()
+      applySeed()
     } catch (err) {
       if (requests.isCurrent(request)) loadError.value = errorMessage(err, '讀取內容失敗')
     } finally {
@@ -426,12 +443,15 @@ export function useContentItem<TPayload extends object>(
 
   async function save(options: SaveOptions = {}): Promise<boolean> {
     if (!item.value) return false
+    const scope = scopeNow()
     saving.value = true
     try {
-      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/revisions${query()}`, {
+      const saved = await api.post<ContentItemOut>(`/admin/content-items/${kind}/revisions${query()}`, {
         expected_version: item.value.latest_version,
         payload: form.value,
       })
+      if (!sameScope(scope)) return false
+      item.value = saved
       isPublished.value = false
       takeSnapshot()
       fieldErrors.value = []
@@ -440,6 +460,7 @@ export function useContentItem<TPayload extends object>(
       if (!options.silent) ElMessage.success('已儲存草稿，官網尚未更新')
       return true
     } catch (err) {
+      if (!sameScope(scope)) return false
       fieldErrors.value = contentFieldErrors(err, kind)
       if (!markConflict(err)) showError(errorMessage(err, '儲存失敗'))
       return false
@@ -454,14 +475,17 @@ export function useContentItem<TPayload extends object>(
   }
 
   async function publishRevision(revisionId: string, savedFirst = false): Promise<boolean> {
+    const scope = scopeNow()
     publishing.value = true
     try {
-      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
+      const published = await api.post<ContentItemOut>(`/admin/content-items/${kind}/publish${query()}`, {
         revision_id: revisionId,
         // 樂觀鎖：畫面載入時官網的版本。別人之後發布過就回 409，請使用者重新載入，
         // 擱置的分頁不會把較新的官網內容靜默換回舊版。
         expected_published_revision_id: item.value?.current_published_revision_id ?? null,
       })
+      if (!sameScope(scope)) return false
+      item.value = published
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       // 官網換了版本，之前沒有發布的排程就算處理過了，提示跟著更新。
       void loadSchedules()
@@ -477,6 +501,7 @@ export function useContentItem<TPayload extends object>(
       })
       return true
     } catch (err) {
+      if (!sameScope(scope)) return false
       if (!markConflict(err) || savedFirst) showError(afterSaveError(savedFirst, err, '發布'))
       return false
     } finally {
@@ -496,14 +521,18 @@ export function useContentItem<TPayload extends object>(
     const savedFirst = isDirty.value
     if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
+    const scope = scopeNow()
     publishing.value = true
     try {
-      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/submit${query()}`, {
+      const submitted = await api.post<ContentItemOut>(`/admin/content-items/${kind}/submit${query()}`, {
         revision_id: item.value.latest_revision.id,
       })
+      if (!sameScope(scope)) return false
+      item.value = submitted
       ElMessage.success(`已送審，${approver}核准後才會出現在官網`)
       return true
     } catch (err) {
+      if (!sameScope(scope)) return false
       if (!markConflict(err) || savedFirst) showError(afterSaveError(savedFirst, err, '送審'))
       return false
     } finally {
@@ -513,18 +542,22 @@ export function useContentItem<TPayload extends object>(
 
   async function review(decision: 'approve' | 'reject', note?: string): Promise<boolean> {
     if (!item.value?.latest_revision) return false
+    const scope = scopeNow()
     publishing.value = true
     try {
-      item.value = await api.post<ContentItemOut>(`/admin/content-items/${kind}/review${query()}`, {
+      const reviewed = await api.post<ContentItemOut>(`/admin/content-items/${kind}/review${query()}`, {
         revision_id: item.value.latest_revision.id,
         decision,
         note: note ?? null,
       })
+      if (!sameScope(scope)) return false
+      item.value = reviewed
       isPublished.value = item.value.current_published_revision_id === item.value.latest_revision?.id
       if (decision === 'approve') void loadSchedules()
       ElMessage.success(decision === 'approve' ? '已核准並發布到官網' : '已退回，內容編輯會看到你寫的原因')
       return true
     } catch (err) {
+      if (!sameScope(scope)) return false
       if (!markConflict(err)) showError(errorMessage(err, decision === 'approve' ? '核准失敗' : '退回失敗'))
       return false
     } finally {
@@ -532,11 +565,17 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
+  // 排程清單只採用最後一次讀取：換校、存檔、發布後都會重讀，先送出、較晚回來的舊校清單不能蓋掉。
+  const scheduleRequests = useRequestSequence()
+
   async function loadSchedules(): Promise<void> {
+    const request = scheduleRequests.begin()
     try {
       const list = await api.get<PublishJob[]>(`/admin/content-items/${kind}/schedules${query()}`)
+      if (!scheduleRequests.isCurrent(request)) return
       schedules.value = Array.isArray(list) ? list : []
     } catch {
+      if (!scheduleRequests.isCurrent(request)) return
       schedules.value = []
     }
     // 不擋住排程、取消排程後的提示；讀到版號後排程列自己會更新。
@@ -563,16 +602,19 @@ export function useContentItem<TPayload extends object>(
     const savedFirst = isDirty.value
     if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
+    const scope = scopeNow()
     publishing.value = true
     try {
       await api.post<PublishJob>(`/admin/content-items/${kind}/schedules${query()}`, {
         revision_id: item.value.latest_revision.id,
         publish_at: publishAt,
       })
+      if (!sameScope(scope)) return false
       await loadSchedules()
       ElMessage.success('已排程，時間到會自動發布')
       return true
     } catch (err) {
+      if (!sameScope(scope)) return false
       showError(afterSaveError(savedFirst, err, '排程'))
       return false
     } finally {
@@ -621,20 +663,28 @@ export function useContentItem<TPayload extends object>(
     savedPayload: () => (item.value?.latest_revision?.payload as Record<string, unknown> | undefined) ?? {},
     async restore(revisionId, publishNow) {
       if (!item.value) return false
+      const scope = scopeNow()
       const busyFlag = publishNow ? publishing : saving
       busyFlag.value = true
       try {
-        item.value = await api.post<ContentItemOut>(
+        const restored = await api.post<ContentItemOut>(
           `/admin/content-items/${kind}/revisions/${revisionId}/restore${query()}`,
           { expected_version: item.value.latest_version, publish: publishNow },
         )
+        if (!sameScope(scope)) return false
+        item.value = restored
         form.value = withDefaults(item.value.latest_revision!.payload)
         isPublished.value = publishNow
         takeSnapshot()
+        // 還原成一個新的最新版：之前存檔或發布遇到的衝突、欄位錯誤、記著的修改都對不上這一版了。
+        conflict.value = false
+        fieldErrors.value = []
+        stash.value = null
         if (publishNow) void loadSchedules()
         ElMessage.success(publishNow ? '已還原並發布到官網' : '已還原成草稿，官網尚未更新')
         return true
       } catch (err) {
+        if (!sameScope(scope)) return false
         notifyError(errorMessage(err, '還原失敗'))
         return false
       } finally {
@@ -678,6 +728,8 @@ export function useContentItem<TPayload extends object>(
   function reset() {
     if (!snapshot.value) return
     form.value = JSON.parse(snapshot.value) as TPayload
+    // 還沒有任何版本時，放棄修改回到初稿（跟載入時一樣），不是空白表單。
+    applySeed()
   }
 
   async function inspectConflict(): Promise<FieldChange[] | null> {
@@ -691,15 +743,17 @@ export function useContentItem<TPayload extends object>(
     }
   }
 
-  // 載入最新內容；畫面上的修改先記著，載完由使用者決定要不要套回。
+  // 載入最新內容；畫面上的修改先記著，載完由使用者決定要不要套回。讀取失敗也記著
+  // （畫面只剩讀取錯誤，離頁保護看 stashedChanges 照樣攔），之後按「重新載入」（也走這裡）
+  // 讀到了再提供套回。表單在讀取失敗時沒有被換掉，再算一次還是同一份修改。
   async function reloadLatest(): Promise<boolean> {
     const saved = snapshot.value
       ? { base: JSON.parse(snapshot.value) as Record<string, unknown>, mine: clone(form.value) as Record<string, unknown> }
       : null
     await load()
-    if (loadError.value) return false
-    if (saved && JSON.stringify(saved.base) !== JSON.stringify(saved.mine)) stash.value = saved
-    return true
+    const changed = saved && JSON.stringify(saved.base) !== JSON.stringify(saved.mine) ? saved : null
+    if (changed) stash.value = changed
+    return !loadError.value
   }
 
   const stashedChanges = computed<FieldChange[]>(() => (stash.value ? diffPayload(stash.value.base, stash.value.mine, kind) : []))

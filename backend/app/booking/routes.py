@@ -120,6 +120,7 @@ async def get_booking_config(
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    await _campus_or_404(db, campus_key)
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
     return BookingConfigOut.model_validate(config).model_copy(
@@ -136,6 +137,7 @@ async def update_booking_config(
     db: AsyncSession = Depends(get_db_session),
 ) -> BookingConfigOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+    await _campus_or_404(db, campus_key)
     if payload.mode == BookingMode.INQUIRY:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -335,8 +337,15 @@ def _trusted_client_ip_header(request: Request) -> str | None:
     return ratelimit.trusted_client_ip(request)
 
 
-async def _manage_path(db: AsyncSession, request: Request, visit_request_id: uuid.UUID) -> str | None:
-    return await access_service.current_manage_path(
+async def _campus_or_404(db: AsyncSession, campus_key: str) -> None:
+    """總管理者的 require_scope 對任何校區代號都放行；不存在的校區要回 404，不能
+    一路寫到外鍵才變 500。"""
+    if await db.get(Campus, campus_key) is None:
+        raise ScopeDenied()
+
+
+async def _submit_manage_path(db: AsyncSession, request: Request, visit_request_id: uuid.UUID) -> str | None:
+    return await access_service.original_manage_path(
         db, visit_request_id, secret=request.app.state.settings.session_secret
     )
 
@@ -413,7 +422,7 @@ async def create_visit_request(
             receipt_id=replay.id,
             status=replay.status,
             created_at=replay.created_at,
-            manage_path=await _manage_path(db, request, replay.id),
+            manage_path=await _submit_manage_path(db, request, replay.id),
         )
         await db.rollback()
         if out is not None:
@@ -430,7 +439,7 @@ async def create_visit_request(
                 receipt_id=replay.id,
                 status=replay.status,
                 created_at=replay.created_at,
-                manage_path=await _manage_path(db, request, replay.id),
+                manage_path=await _submit_manage_path(db, request, replay.id),
             )
         holds_slot = await service.precheck_submission(
             db,
@@ -551,7 +560,8 @@ async def create_visit_request(
         receipt_id=receipt_id,
         status=receipt_status,
         created_at=created_at,
-        manage_path=await _manage_path(db, request, receipt_id),
+        # 新建時只有剛發的這一條；併發重播落到這裡時也一樣只回原始那條。
+        manage_path=await _submit_manage_path(db, request, receipt_id),
     )
 
 
@@ -618,6 +628,16 @@ async def create_admin_slot(
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitSlotOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+    await _campus_or_404(db, campus_key)
+    # 同校同一天同一個開始時間只能有一場（連點「加開」曾建出兩場一樣的，官網名額
+    # 變兩倍）。鎖住預約設定列再查，兩個同時送出的請求只有一個會建立。
+    await service.get_or_create_config(db, campus_key, for_update=True)
+    if await slot_service.slot_exists(db, campus_key, payload.slot_date, payload.start_time):
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "SLOT_DUPLICATE", "message": "這個時間已經有一場了；停止申請中的場次請按「恢復開放」"},
+        )
     slot = await slot_service.create_slot(
         db,
         campus_key=campus_key,
@@ -896,6 +916,9 @@ class VisitRequestFilters:
         self.needs_attention = needs_attention
         self.group = group
         self.open_only = open_only
+        # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422。
+        if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, assignee, source)):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
 
     def apply(self, stmt, user: User, capability: str):
         if self.follow_up_due:

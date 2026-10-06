@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content.models import (
@@ -14,8 +15,10 @@ from app.content.models import (
     SiteReleaseEntry,
     SiteState,
 )
+from app.auth.models import User
 from app.campuses.models import CAMPUS_NAMES, Campus
 from app.common.timezones import today_local
+from app.content import notices
 from app.content.registry import CONTENT_KIND_REGISTRY, drop_unshared_faq_markers, schema_version_of
 
 
@@ -95,11 +98,13 @@ async def _get_or_create_site_state(db: AsyncSession) -> SiteState:
     result = await db.execute(select(SiteState).where(SiteState.id == 1).with_for_update())
     state = result.scalar_one_or_none()
     if state is None:
-        state = SiteState(id=1, current_release_id=None)
-        db.add(state)
-        await db.flush()
-        # 重新以 FOR UPDATE 鎖住剛建立的列，確保與其他併發發布交易序列化。
-        result = await db.execute(select(SiteState).where(SiteState.id == 1).with_for_update())
+        # 第一次發布：兩個同時建立的交易都會走到這裡，用 ON CONFLICT 讓後到的等前一個
+        # 提交後沿用同一列（直接 INSERT 會撞主鍵回 500）；再以 FOR UPDATE 鎖住，與
+        # 其他併發發布交易序列化。
+        await db.execute(pg_insert(SiteState).values(id=1, current_release_id=None).on_conflict_do_nothing())
+        result = await db.execute(
+            select(SiteState).where(SiteState.id == 1).with_for_update().execution_options(populate_existing=True)
+        )
         state = result.scalar_one()
     return state
 
@@ -151,7 +156,8 @@ async def _mark_live(
     db: AsyncSession, content_item: ContentItem, revision: ContentRevision, published_by: uuid.UUID | None
 ) -> None:
     """官網換成這一版之後的共同收尾：記上線時間，較舊的待審版標成已被取代；
-    直接發布了正在待審的那一版，就等於核准了它，不會留在待審清單裡。"""
+    直接發布（含排程到期）了正在待審的那一版，就等於核准了它，不會留在待審清單裡，
+    送審的人也跟審核核准一樣收到通知（規格 L152）。"""
     now = datetime.now(timezone.utc)
     if content_item.current_published_revision_id != revision.id:
         content_item.published_at = now
@@ -161,6 +167,16 @@ async def _mark_live(
         revision.review_status = "approved"
         revision.reviewed_by = published_by
         revision.reviewed_at = now
+        publisher = await db.get(User, published_by) if published_by is not None else None
+        await notices.notify(
+            db,
+            [revision.submitted_by],
+            notices.REVIEW_APPROVED,
+            content_item,
+            exclude=published_by,
+            revision_version=revision.version,
+            actor_email=publisher.email if publisher is not None else None,
+        )
 
 
 async def publish_revision(

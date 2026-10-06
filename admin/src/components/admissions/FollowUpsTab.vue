@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Phone } from '@element-plus/icons-vue'
-import { getFollowUps, listAdmissionsStaff } from '../../api/admissions'
+import { getFollowUps, getRecord, listAdmissionsStaff } from '../../api/admissions'
 import type { AdmissionsStaff, FollowUpList, FollowUpRow, RecruitmentVisit } from '../../api/types'
 import { rocDate } from '../../admissions/academic'
 import { MISSING_CHILD_NAME, stageLabel } from '../../admissions/constants'
@@ -147,13 +147,18 @@ function openEvents(row: FollowUpRow) {
   eventsOpen.value = true
 }
 
-// 記完、改完：重讀清單（這一列可能換範圍）。對話框還開著遇到 409 時，把新版本交回對話框。
+// 記完、改完：重讀清單（這一列可能換範圍）。對話框還開著遇到 409 時，把新版本交回對話框：
+// 直接讀這一筆，不靠清單——同事剛改過下次聯絡，這一列常常已經換到別的範圍或別頁，
+// 清單裡找不到就一直帶舊版本、一直 409。
 async function refreshAfterStale() {
-  await load({ keep: true })
-  const current = contactTarget.value
-  if (contactOpen.value && current) {
-    const row = rows.value.find((item) => item.visit_id === current.id)
-    if (row) contactTarget.value = { ...current, version: row.version, stage: row.stage }
+  const current = contactOpen.value ? contactTarget.value : null
+  const [, latest] = await Promise.all([
+    load({ keep: true }),
+    current ? getRecord(current.id).catch(() => null) : null,
+  ])
+  const target = contactTarget.value
+  if (latest && contactOpen.value && target?.id === latest.id) {
+    contactTarget.value = { ...target, version: latest.version, stage: latest.stage }
   }
 }
 

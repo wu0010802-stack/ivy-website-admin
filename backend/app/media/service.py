@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
-from sqlalchemy import ARRAY, Uuid, bindparam, delete, func, select, text
+from sqlalchemy import ARRAY, Uuid, bindparam, delete, func, or_, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -106,9 +106,11 @@ async def _ensure_quota(
                 raise MediaBusy() from exc
             raise
     scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
+    # 處理失敗的圖片當下就刪檔，不算；背景轉檔失敗的影片原檔還留著（重新處理要用），
+    # 要算——否則失敗的影片不佔配額，再按「重新處理」就能超過配額（2026-10-06 稽核）。
     used = await db.execute(
         select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(
-            scope, MediaAsset.status != MediaStatus.FAILED
+            scope, or_(MediaAsset.status != MediaStatus.FAILED, MediaAsset.kind == MediaKind.VIDEO)
         )
     )
     if used.scalar_one() + incoming_bytes > quota_bytes:
@@ -263,50 +265,69 @@ async def create_media_asset(
             created_at=datetime.now(timezone.utc),
         )
         db.add(asset)
-        try:
-            await db.flush()
-        except Exception:
-            await asyncio.to_thread(storage.delete, storage_key)
-            raise
-
-        if declared_kind == MediaKind.VIDEO:
-            job = await media_jobs.enqueue(db, asset, MediaJobKind.PROCESS, created_by=created_by)
-            if video_processing == "inline":
-                await media_jobs.process_now(db, storage, asset, job)
-            await db.flush()
-            return asset
-
         written: list[str] = []
         try:
-            renditions = await run_media_job(image_renditions, clean_path, width, height)
-            for variant_kind, rendition in renditions:
-                variant_key = storage.generate_key(".webp")
-                await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
-                written.append(variant_key)
-                db.add(
-                    MediaVariant(
-                        id=uuid.uuid4(),
-                        media_id=asset.id,
-                        kind=variant_kind,
-                        storage_key=variant_key,
-                        content_type="image/webp",
-                        width=rendition.width,
-                        height=rendition.height,
-                    )
-                )
-            asset.status = MediaStatus.READY
-        except ProcessingError as exc:
-            asset.status = MediaStatus.FAILED
-            asset.processing_error = str(exc)[:500]
-            # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
-            # 讓使用者看到失敗原因，但刪掉檔案（配額也不計 FAILED）。
-            for key in [storage_key, *written]:
-                await asyncio.to_thread(storage.delete, key)
-
+            await db.flush()
+            if declared_kind == MediaKind.VIDEO:
+                job = await media_jobs.enqueue(db, asset, MediaJobKind.PROCESS, created_by=created_by)
+                if video_processing == "inline":
+                    await media_jobs.process_now(db, storage, asset, job)
+                await db.flush()
+                return asset
+            await _write_image_variants(db, storage, asset, clean_path, written)
+        except BaseException:
+            # ProcessingError 以外的錯誤（儲存空間寫入失敗、連線中斷、請求被取消）：交易會
+            # 回滾，已寫進儲存空間的原檔與衍生檔也要刪，不留沒有紀錄指向的孤兒檔。
+            await delete_stored_files(storage, [storage_key, *written])
+            raise
         await db.flush()
         return asset
     finally:
         clean_path.unlink(missing_ok=True)
+
+
+async def delete_stored_files(storage: MediaStorage, keys: list[str]) -> None:
+    """刪掉沒有提交成功的上傳留下的檔案；清理失敗只記 log，不蓋掉原本的錯誤。"""
+    for key in keys:
+        try:
+            await asyncio.to_thread(storage.delete, key)
+        except Exception:  # noqa: BLE001 — 清理失敗不能蓋掉原本的錯誤
+            logger.warning("清理上傳失敗留下的素材檔失敗：%s", key, exc_info=True)
+
+
+async def _write_image_variants(
+    db: AsyncSession, storage: MediaStorage, asset: MediaAsset, clean_path: Path, written: list[str]
+) -> None:
+    """產生並寫入圖片衍生檔。處理失敗（ProcessingError）標成 FAILED、刪掉檔案但保留
+    紀錄；寫入的 key 記在 written，呼叫端遇到其他錯誤時一起清掉。"""
+    storage_key = asset.storage_key
+    width, height = asset.width, asset.height
+    try:
+        renditions = await run_media_job(image_renditions, clean_path, width, height)
+        for variant_kind, rendition in renditions:
+            variant_key = storage.generate_key(".webp")
+            await asyncio.to_thread(storage.write_bytes, variant_key, rendition.data)
+            written.append(variant_key)
+            db.add(
+                MediaVariant(
+                    id=uuid.uuid4(),
+                    media_id=asset.id,
+                    kind=variant_kind,
+                    storage_key=variant_key,
+                    content_type="image/webp",
+                    width=rendition.width,
+                    height=rendition.height,
+                )
+            )
+        asset.status = MediaStatus.READY
+    except ProcessingError as exc:
+        asset.status = MediaStatus.FAILED
+        asset.processing_error = str(exc)[:500]
+        # 處理失敗的原檔永遠不會被公開，留著只會佔儲存空間；保留紀錄
+        # 讓使用者看到失敗原因，但刪掉檔案（配額也不計失敗的圖片）。
+        for key in [storage_key, *written]:
+            await asyncio.to_thread(storage.delete, key)
+        written.clear()
 
 
 async def find_by_sha256(db: AsyncSession, sha256: str, campus_key: str | None) -> MediaAsset | None:

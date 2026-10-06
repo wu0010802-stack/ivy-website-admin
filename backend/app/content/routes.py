@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import ValidationError
 from datetime import datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -120,16 +120,28 @@ def _require_publish(user: User, item: ContentItem) -> None:
         require_scope(user, "content.publish", campus_keys=[item.campus_key])
 
 
-async def _revision_of(db: AsyncSession, item: ContentItem, revision_id: uuid.UUID) -> ContentRevision:
-    result = await db.execute(
-        select(ContentRevision).where(
-            ContentRevision.id == revision_id, ContentRevision.content_item_id == item.id
-        )
+async def _revision_of(
+    db: AsyncSession, item: ContentItem, revision_id: uuid.UUID, *, for_update: bool = False
+) -> ContentRevision:
+    stmt = select(ContentRevision).where(
+        ContentRevision.id == revision_id, ContentRevision.content_item_id == item.id
     )
+    if for_update:
+        # FOR NO KEY UPDATE：擋住同時審核，但不擋別的發布寫 release entries 時的外鍵檢查。
+        stmt = stmt.with_for_update(key_share=True).execution_options(populate_existing=True)
+    result = await db.execute(stmt)
     revision = result.scalar_one_or_none()
     if revision is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個版本")
     return revision
+
+
+def _rejected_revision() -> HTTPException:
+    """已退回的版本不能發布，也不能排程（排程到期時 publish_jobs 也會再擋一次）。"""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={"code": "CONTENT_REVISION_REJECTED", "message": "這一版已被退回，請修改後重新儲存再發布"},
+    )
 
 
 def _not_ready(exc: publish_jobs.NotPublishable) -> HTTPException:
@@ -503,7 +515,10 @@ async def publish_content_item(
     _require_publish(current_user, item)
     revision = await _revision_of(db, item, payload.revision_id)
     if "expected_published_revision_id" in payload.model_fields_set:
-        # 鎖住內容項再比對，兩個同時按發布的人只有一個會通過。
+        # 鎖住內容項再比對，兩個同時按發布的人只有一個會通過。先拿站台鎖（與
+        # publish_revision 的其他呼叫端同順序）：先鎖內容項的話，另一個已拿到站台鎖、
+        # 正在寫 release entries（外鍵要 FOR KEY SHARE 這個內容項）的發布會和這裡互等成死結。
+        await service.lock_site_state(db)
         await db.refresh(item, with_for_update=True)
         if item.current_published_revision_id != payload.expected_published_revision_id:
             raise HTTPException(
@@ -514,13 +529,7 @@ async def publish_content_item(
                 },
             )
     if revision.review_status == "rejected":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "CONTENT_REVISION_REJECTED",
-                "message": "這一版已被退回，請修改後重新儲存再發布",
-            },
-        )
+        raise _rejected_revision()
     try:
         await publish_jobs.check_publishable(db, item, revision)
     except publish_jobs.NotPublishable as exc:
@@ -737,7 +746,10 @@ async def review_submission(
     """核准＝立即發布這一版；退回要附原因。"""
     _, item = await _item_for(db, kind, campus_key)
     _require_publish(current_user, item)
-    revision = await _revision_of(db, item, payload.revision_id)
+    # 兩位審核者同時按核准／退回：鎖住這一版再看狀態，後到的會看到前一位的決定（409）。
+    # 先拿站台鎖再鎖版本，與直接發布（站台 → 內容項 → _mark_live 改這一版）同順序。
+    await service.lock_site_state(db)
+    revision = await _revision_of(db, item, payload.revision_id, for_update=True)
     if revision.review_status != "pending_review":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -755,6 +767,12 @@ async def review_submission(
     else:
         revision.review_status = "rejected"
         revision.review_note = (payload.note or "").strip()
+        # 已排好的這一版跟著取消：退回的內容不能在排程到期時上線。
+        await db.execute(
+            update(PublishJob)
+            .where(PublishJob.revision_id == revision.id, PublishJob.status == "scheduled")
+            .values(status="cancelled", finished_at=now)
+        )
     revision.reviewed_by = current_user.id
     revision.reviewed_at = now
     # 送審的人要知道結果；退回原因一起帶過去（規格 L152）。
@@ -872,6 +890,8 @@ async def create_schedule(
     _, item = await _item_for(db, kind, campus_key)
     _require_publish(current_user, item)
     revision = await _revision_of(db, item, payload.revision_id)
+    if revision.review_status == "rejected":
+        raise _rejected_revision()
     now = datetime.now(timezone.utc)
     if payload.publish_at <= now:
         raise HTTPException(status_code=422, detail="排程時間要在未來；要馬上上線請直接發布")

@@ -461,17 +461,27 @@ async def upload_media(
     finally:
         source_path.unlink(missing_ok=True)
 
-    # 不記原始檔名：家長或孩子的名字常常直接寫在檔名裡。
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="media.upload",
-        target_type="media_asset",
-        target_id=str(asset.id),
-        campus_key=asset.campus_key,
-        metadata=_media_audit(asset),
-    )
-    await db.commit()
+    # 檔案已經寫進儲存空間：稽核或提交失敗時交易回滾，檔案也要刪掉，不留孤兒檔。
+    stored_keys = [
+        asset.storage_key,
+        *(await db.scalars(select(MediaVariant.storage_key).where(MediaVariant.media_id == asset.id))),
+    ]
+    try:
+        # 不記原始檔名：家長或孩子的名字常常直接寫在檔名裡。
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="media.upload",
+            target_type="media_asset",
+            target_id=str(asset.id),
+            campus_key=asset.campus_key,
+            metadata=_media_audit(asset),
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        await service.delete_stored_files(storage, stored_keys)
+        raise
     await db.refresh(asset, attribute_names=["variants", "usages"])
     return await _asset_out(db, request, asset)
 

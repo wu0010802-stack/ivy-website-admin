@@ -461,6 +461,15 @@ async def set_user_active(db: AsyncSession, user: User, active: bool) -> dict[st
     return unlinked
 
 
+async def still_valid_for_login(db: AsyncSession, user: User) -> bool:
+    """密碼登入建 session 前：鎖住帳號列，確認密碼雜湊沒換、帳號仍啟用。user 是
+    authenticate 回傳的（已移出 session 的）物件，帶著驗密碼當下的雜湊。"""
+    row = (
+        await db.execute(select(User.password_hash, User.is_active).where(User.id == user.id).with_for_update())
+    ).one_or_none()
+    return row is not None and row.is_active and row.password_hash == user.password_hash
+
+
 async def revoke_user_sessions(db: AsyncSession, user_id, *, keep_session_id: str | None = None) -> int:
     """撤銷某人的所有 session（改密碼、重設密碼後舊裝置一律登出）。
     keep_session_id 用在本人改密碼：目前這個分頁不要被登出。"""

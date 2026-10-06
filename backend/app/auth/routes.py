@@ -22,7 +22,7 @@ from app.auth.models import Session as AuthSession
 from app.auth.models import BOOKING_EXPORT, CREATABLE_ROLES, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
 from app.auth.permissions import effective_capabilities, require_scope
 from app.auth.oauth_common import private
-from app.auth.reauth import login_rate_limited
+from app.auth.reauth import login_rate_limited, require_recent_auth
 from app.auth.schemas import (
     AuthProviders,
     DisplayNameUpdateRequest,
@@ -154,6 +154,13 @@ async def login(
     except (service.InvalidCredentials, service.AccountInactive) as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="帳號或密碼錯誤") from exc
 
+    # 驗密碼（約 250 ms，期間不握連線）到建 session 之間，總管理者可能剛重設密碼或停權並
+    # 撤銷所有 session：鎖住帳號列再確認還是同一組密碼、仍啟用，之後才建 session。重設
+    # 那邊要等這裡提交，撤銷時就看得到這次的 session（2026-10-06 稽核）。
+    if not await service.still_valid_for_login(db, user):
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="帳號或密碼錯誤")
+
     # 跟 Google／LINE 登入一樣：這個瀏覽器原本帶的 session 一併撤銷，不留孤兒。
     previous = request.cookies.get(SESSION_COOKIE_NAME)
     if previous:
@@ -255,13 +262,24 @@ async def list_users(
     return [_user_out(u) for u in result.scalars()]
 
 
+async def _require_recent_auth(
+    request: Request, db: AsyncSession, current_user: User, session: AuthSession, current_password: str | None
+) -> None:
+    """總管理者管理帳號（建帳號、改角色／校區／授權、替人設密碼、重新啟用）前的重新
+    驗證，見 app/auth/reauth.py。要在讀任何目標帳號之前呼叫：密碼打錯會寫稽核。"""
+    await require_recent_auth(request, db, current_user, session, current_password, purpose="管理帳號")
+
+
 @router.post("/admin/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_user(
     payload: UserCreateRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     require_scope(current_user, "users.manage")
+    await _require_recent_auth(request, db, current_user, session, payload.current_password)
     if payload.role not in CREATABLE_ROLES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不支援的角色")
     _require_scope_for_role(payload.role, payload.campus_keys)
@@ -312,10 +330,15 @@ async def create_user(
 async def update_user_active(
     user_id: uuid.UUID,
     payload: UserUpdateActiveRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     require_scope(current_user, "users.manage")
+    if payload.is_active:
+        # 停用是止血動作，不擋；重新啟用一個帳號（可能是被停掉的後門）要重新驗證。
+        await _require_recent_auth(request, db, current_user, session, payload.current_password)
     result = await db.execute(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)
     )
@@ -348,10 +371,13 @@ async def update_user_active(
 async def update_user_scope(
     user_id: uuid.UUID,
     payload: UserUpdateScopeRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     require_scope(current_user, "users.manage")
+    await _require_recent_auth(request, db, current_user, session, payload.current_password)
     result = await db.execute(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)
     )
@@ -393,10 +419,13 @@ async def _load_user(db: AsyncSession, user_id: uuid.UUID) -> User:
 async def update_user_role(
     user_id: uuid.UUID,
     payload: UserUpdateRoleRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     require_scope(current_user, "users.manage")
+    await _require_recent_auth(request, db, current_user, session, payload.current_password)
     user = await _load_user(db, user_id)
     _require_scope_for_role(payload.role, payload.campus_keys)
     before = {"role": user.role.value, "campus_keys": sorted(s.campus_key for s in user.campus_scopes)}
@@ -448,6 +477,7 @@ async def reset_user_password(
     payload: PasswordResetRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """總管理者替同事重設密碼（忘記密碼時）。新密碼由總管理者另行告知，
@@ -463,6 +493,7 @@ async def reset_user_password(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "USE_CHANGE_PASSWORD", "message": "要改自己的密碼，請到「我的帳號」輸入目前的密碼後變更"},
         )
+    await _require_recent_auth(request, db, current_user, session, payload.current_password)
     user = await _load_user(db, user_id)
     user.password_hash = await service.hash_password_async(payload.password)
     revoked = await service.revoke_user_sessions(db, user.id)
@@ -549,11 +580,14 @@ async def clear_user_external_logins(
 async def update_user_capabilities(
     user_id: uuid.UUID,
     payload: UserCapabilitiesRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
+    session: AuthSession = Depends(get_current_session),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     """規格 7：全站內容編輯與個資匯出是明確授權，只有總管理者可以授予或收回。"""
     require_scope(current_user, "users.manage")
+    await _require_recent_auth(request, db, current_user, session, payload.current_password)
     user = await _load_user(db, user_id)
     before = list(user.capabilities or [])
     user.capabilities = _clean_capabilities(user.role, payload.capabilities)

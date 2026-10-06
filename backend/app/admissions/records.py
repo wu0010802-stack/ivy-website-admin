@@ -190,6 +190,32 @@ async def get_visit_for_update(db: AsyncSession, visit_id: uuid.UUID) -> Recruit
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+class TermLocked(Exception):
+    """已註冊或保留座位的訪視不能從編輯表單改入學學年學期（路由回 409）。"""
+
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
+_TERM_FIELDS = ("target_school_year", "target_semester")
+
+
+def _check_term_editable(visit: RecruitmentVisit, values: dict) -> None:
+    """入學學年學期決定看板、統計與名額算在哪一學期。已註冊的要先取消註冊（同保留座位
+    的規則），保留座位的要走 /seat（寫歷程、重算超額），不能從編輯表單直接搬。註冊時
+    一定寫 provisional_grade；舊資料沒有時，年級也決定算在哪一班，一併鎖住。"""
+    moved = [key for key in _TERM_FIELDS if key in values and values[key] != getattr(visit, key)]
+    if visit.enrolled and visit.withdrawn_at is None:
+        if visit.provisional_grade is None and "grade" in values and values["grade"] != visit.grade:
+            moved.append("grade")
+        if moved:
+            raise TermLocked("RECRUITMENT_ENROLLED_TERM_LOCKED", "已註冊的訪視不能改入學學期或年級，要改請先取消註冊")
+    elif moved and visit.provisional_grade is not None:
+        raise TermLocked("RECRUITMENT_SEAT_TERM_LOCKED", "保留座位的訪視要改學期，請用「變更座位」調整")
+
+
 async def update_visit(
     db: AsyncSession, visit: RecruitmentVisit, *, changes: dict, expected_version: int
 ) -> list[str]:
@@ -199,6 +225,7 @@ async def update_visit(
     if visit.version != expected_version:
         raise VersionConflict(visit.version)
     values = dict(changes)
+    _check_term_editable(visit, values)
     if values.get("tour_guide_user_id") is not None and values["tour_guide_user_id"] != visit.tour_guide_user_id:
         await _resolve_tour_guide(db, values)
     changed = [key for key, value in values.items() if getattr(visit, key) != value]

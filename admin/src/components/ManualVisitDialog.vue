@@ -7,6 +7,7 @@ import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } fr
 import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, formatSlotWhen, slotStarted } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import CampusSelect from './CampusSelect.vue'
+import { useRequestSequence } from '../composables/useRequestSequence'
 
 // 人工補登：家長打電話、傳 LINE、直接到園或從外部網站來的參觀需求。
 // 一定要選場次（2026-09-30 家長自選場次裁定），送出即「預約正常」。
@@ -111,7 +112,13 @@ const slotOptionLabel = (slot: VisitSlotOut) => `${formatSlotWhen(slot)}，剩 $
 // 內容一改就換 key：改過的表單是新的一次送出，不能被當成重播而撞 409。
 watch(form, () => { if (!submitting.value) idempotencyKey = newKey() }, { deep: true })
 
+// 快速切校時只採用最後一次讀取：先切走的那一校較晚回來，不能把別校的場次列進選單
+// （選了會把家長排進別校的場次）。換校當下先清空，讀到之前選單沒有舊校的場次可選。
+const slotRequests = useRequestSequence()
+
 async function loadSlots() {
+  const request = slotRequests.begin()
+  slots.value = []
   if (!form.campus_key) return
   slotsLoading.value = true
   slotsError.value = false
@@ -119,12 +126,14 @@ async function loadSlots() {
     const today = new Date().toISOString().slice(0, 10)
     const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const params = new URLSearchParams({ campus_key: form.campus_key, date_from: today, date_to: future })
-    slots.value = await api.get<VisitSlotOut[]>(`/admin/slots?${params}`)
+    const loaded = await api.get<VisitSlotOut[]>(`/admin/slots?${params}`)
+    if (slotRequests.isCurrent(request)) slots.value = loaded
   } catch {
+    if (!slotRequests.isCurrent(request)) return
     slots.value = []
     slotsError.value = true
   } finally {
-    slotsLoading.value = false
+    if (slotRequests.isCurrent(request)) slotsLoading.value = false
   }
 }
 
@@ -184,7 +193,8 @@ function disableFuture(date: Date): boolean {
 function messageOf(err: unknown): string {
   if (err instanceof ApiError) {
     const d = err.detail
-    if (typeof d === 'string') return d
+    // 代理回的 HTML／英文原文（err.json 為 false）不直接顯示。
+    if (typeof d === 'string' && d && err.json) return d
     if (Array.isArray(d)) {
       const msgs = d
         .map((e) => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))

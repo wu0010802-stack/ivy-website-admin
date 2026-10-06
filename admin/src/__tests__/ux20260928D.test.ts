@@ -368,7 +368,8 @@ describe('分校內容的校區留在網址並記住', () => {
     const load = vi.fn(async () => {})
     const Probe = defineComponent({
       setup() {
-        const state = { load, isDirty: computed(() => dirty) } as unknown as ContentEditorState
+        // saving／publishing：處理中不換校（2026-10-06）會讀這兩個。
+        const state = { load, isDirty: computed(() => dirty), saving: ref(false), publishing: ref(false) } as unknown as ContentEditorState
         const shell = ref({ confirmLeave }) as unknown as Parameters<typeof useCampusContent>[2]
         useCampusContent(state, campus, shell)
         return () => null

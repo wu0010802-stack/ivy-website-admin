@@ -125,8 +125,9 @@ function stageStyle(stage: Stage): Record<string, string> {
   return { '--stage-color': `var(${STAGE_TOKENS[stage]})` }
 }
 
-const canDrag = (stage: Stage) => canDragFrom(stage, can)
-const targetsFor = (stage: Stage) => moveTargets(stage, can)
+// 退出欄的卡片要看是從哪一欄退出的：從已註冊退出的取消退出要 admissions.convert。
+const canDrag = (card: BoardCard, stage: Stage) => canDragFrom(stage, can, card.withdrawn_from)
+const targetsFor = (card: BoardCard, stage: Stage) => moveTargets(stage, can, card.withdrawn_from)
 
 // ---- 拖曳（原生 HTML5 drag and drop）----
 const dragging = ref<{ card: BoardCard; from: Stage } | null>(null)
@@ -159,7 +160,7 @@ const transitionTarget = ref<TransitionTarget | null>(null)
 
 function requestMove(card: BoardCard, from: Stage, to: Stage) {
   if (from === to) return
-  const capability = transitionCapability(from, to)
+  const capability = transitionCapability(from, to, card.withdrawn_from)
   if (!capability) {
     notifyWarning(transitionBlockedText(from, to))
     return
@@ -296,8 +297,8 @@ function openEvents(card: BoardCard) {
               :key="card.id"
               :card="card"
               :stage="stage"
-              :draggable="canDrag(stage)"
-              :targets="targetsFor(stage)"
+              :draggable="canDrag(card, stage)"
+              :targets="targetsFor(card, stage)"
               :style="stageStyle(stage)"
               @open="openEvents(card)"
               @move="(to: Stage) => requestMove(card, stage, to)"

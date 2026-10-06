@@ -15,7 +15,11 @@ import type { PrivacyPolicyPayload } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 
-const editor = useContentItem<PrivacyPolicyPayload>('privacy_policy', { title: '隱私權政策', updated_on: null, sections: [] })
+// 從未存過任何版本時帶入初稿：載入、讀取錯誤後的「重新載入」、「放棄修改」都由 useContentItem
+// 一致套用（seed）；快照仍是空白表單，所以畫面是「有未儲存的修改」，儲存鈕可以按。
+const editor = useContentItem<PrivacyPolicyPayload>('privacy_policy', { title: '隱私權政策', updated_on: null, sections: [] }, undefined, {
+  seed: privacyPolicyDraft,
+})
 const form = editor.form
 const sections = computed(() => form.value.sections)
 // 段落目錄：每一段一項，小標空白時寫「第 N 段」（和清單標題同一個寫法）。
@@ -27,13 +31,6 @@ const pending = computed(() => privacyPolicyPendingCount(form.value))
 const isUnsavedDraft = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)
 
 const sectionsList = useTemplateRef<HTMLElement>('sectionsList')
-
-async function loadWithDraft() {
-  await editor.load()
-  if (editor.loadError.value || editor.item.value?.latest_revision) return
-  // 快照仍是空白表單，所以載入初稿後畫面是「有未儲存的修改」，儲存鈕可以按。
-  form.value = privacyPolicyDraft()
-}
 
 function addSection() {
   form.value.sections.push({ heading: '', body: '' })
@@ -53,7 +50,7 @@ function jumpToPending() {
   if (index >= 0) void revealListItem(sectionsList.value, `[data-list-item="${index}"]`)
 }
 
-onMounted(loadWithDraft)
+onMounted(editor.load)
 </script>
 
 <template>

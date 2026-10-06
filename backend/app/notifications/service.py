@@ -19,6 +19,7 @@ from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED
 from app.booking.parent_policy import change_deadline_hours, parent_change_deadline
 from app.campuses.models import Campus
+from app.common.timezones import slot_start_utc
 from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import reminders
@@ -136,6 +137,18 @@ def admin_visit_url(admin_origin: str | None, receipt_id: str | None) -> str | N
     return f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}"
 
 
+# 家長稱呼是公開表單的自由文字（最長 64 字）。LINE 會把網址變成可點的連結，緊貼在真正
+# 的後台連結旁邊推到各校員工群組（2026-10-06 稽核：可以拿來釣魚），所以推播前拿掉
+# 網址與網域樣式的字串、只留前 20 字。
+_URLISH_RE = re.compile(r"(?i)(?:[a-z][a-z0-9+.-]*://|www\.)\S*|[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}(?:/\S*)?")
+LINE_PARENT_NAME_MAX = 20
+
+
+def line_parent_name(parent_name: str | None) -> str:
+    cleaned = " ".join(_URLISH_RE.sub(" ", parent_name or "").split())
+    return cleaned[:LINE_PARENT_NAME_MAX].strip()
+
+
 def line_text(
     label: str,
     campus_name: str,
@@ -147,8 +160,8 @@ def line_text(
     加上的（原本群組推播不帶任何家長資料）；電話、Email、孩子資料照舊不放，
     明細要點連結登入後台看。"""
     lines = [f"[常春藤官網] {label}", f"校區：{campus_name}"]
-    if parent_name and parent_name.strip():
-        lines.append(f"家長：{parent_name.strip()}")
+    if shown := line_parent_name(parent_name):
+        lines.append(f"家長：{shown}")
     if receipt_id:
         lines.append(f"案件編號：{receipt_id}")
         if url := admin_visit_url(admin_origin, receipt_id):
@@ -272,6 +285,11 @@ async def _dispatch_parent_email(
     # 家長只該收到「已取消」。
     if kind != PARENT_VISIT_CANCELLED and visit_request.status != VisitRequestStatus.CONFIRMED.value:
         return False
+    # 寄送失敗後補寄（requeue）時場次可能早就過了：不寄一封說「預約成功／已變更」的過期信。
+    slot = visit_request.slot
+    started = slot is not None and slot_start_utc(slot.slot_date, slot.start_time) <= datetime.now(timezone.utc)
+    if kind != PARENT_VISIT_CANCELLED and started:
+        return False
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):
         return True
@@ -281,7 +299,6 @@ async def _dispatch_parent_email(
         path = await access_service.current_manage_path(db, visit_request.id, secret=access_secret)
         manage_url = f"{origin}{path}" if path else None
     profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
-    slot = visit_request.slot
     subject, body = build_parent_email(
         ParentEmail(
             kind=kind,

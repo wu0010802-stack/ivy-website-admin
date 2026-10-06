@@ -41,6 +41,11 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   FOLLOW_UP_OWNER_INVALID: '這個帳號不能當追蹤負責人',
   CONTACTED_AT_IN_FUTURE: '聯絡時間不能晚於現在',
   FOLLOW_UP_NOT_TRACKED: '已到場或已取消的案件不會列入到期待追蹤；參觀後的追蹤請記在招生訪視',
+  // 2026-10-06 稽核修正（後端同步加的代碼；訊息以後端為準，這裡只在沒給 message 時用）
+  SLOT_DUPLICATE: '這個時間已經有一場了',
+  RECRUITMENT_ENROLLED_TERM_LOCKED: '已註冊的訪視不能直接改入學學期，要改請先取消註冊',
+  RECRUITMENT_SEAT_TERM_LOCKED: '已保留座位的訪視要改學期，請用保留座位調整',
+  CONTENT_REVISION_REJECTED: '這一版已被退回，請修改後重新儲存',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 
@@ -68,7 +73,8 @@ export function isVersionConflict(err: unknown): boolean {
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (!(err instanceof ApiError)) return fallback
   const d = err.detail
-  if (typeof d === 'string' && d) return d
+  // 字串 detail 只有後端 JSON 回的才是寫給人看的中文；代理回的 HTML／英文原文改用 fallback。
+  if (typeof d === 'string' && d) return err.json ? d : fallback
   // FastAPI 的 422 驗證錯誤是陣列（每筆有 loc/msg/type）。
   if (Array.isArray(d)) {
     const messages = d

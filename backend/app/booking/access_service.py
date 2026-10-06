@@ -7,14 +7,14 @@ import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.booking import history, slot_service
 from app.booking.access_models import ParentAccessToken, ParentSession, RescheduleRequest
 from app.booking.history import Actor
-from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestEvent, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc
 
@@ -97,6 +97,18 @@ async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, 
     if not hmac.compare_digest(_hash(raw_token), token.token_hash):
         return None
     return manage_path(raw_token)
+
+
+async def original_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
+    """送單重播（同一個 Idempotency-Key 再送一次）要回的修改連結：只有送單時發的那條
+    還是唯一一條時才回。園方因為連結外流而「重新產生」之後，手上有原始請求的人重送
+    不能拿到新連結（2026-10-06 稽核）。"""
+    issued = await db.scalar(
+        select(func.count()).select_from(ParentAccessToken).where(ParentAccessToken.visit_request_id == visit_request_id)
+    )
+    if issued != 1:
+        return None
+    return await current_manage_path(db, visit_request_id, secret=secret)
 
 
 async def ensure_access_token(
@@ -242,6 +254,10 @@ async def get_visit_request_for_session(db: AsyncSession, raw_session_token: str
     return result.scalar_one_or_none()
 
 
+# 家長每案每日直接改期的上限（路由的限流器與案件列鎖內的計數共用）。
+PARENT_RESCHEDULES_PER_DAY = 5
+
+
 class RescheduleNotAllowed(Exception):
     def __init__(self, code: str, message: str) -> None:
         self.code = code
@@ -273,6 +289,21 @@ async def validate_parent_reschedule(
         raise RescheduleNotAllowed("SLOT_NOT_BOOKABLE", "這個時段目前無法預約")
     if slot.id == visit_request.slot_id:
         raise RescheduleNotAllowed("SAME_SLOT", "這就是目前的參觀時段")
+    # 每案每日上限在案件列鎖內再數一次：路由上的限流器是「先看、成功後才記」，同時
+    # 送出的改期都會先通過那一關（2026-10-06 稽核），每次改期又會通知園方。
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    done_today = await db.scalar(
+        select(func.count())
+        .select_from(VisitRequestEvent)
+        .where(
+            VisitRequestEvent.visit_request_id == visit_request.id,
+            VisitRequestEvent.event_type == "rescheduled",
+            VisitRequestEvent.source == history.PARENT.source,
+            VisitRequestEvent.created_at > since,
+        )
+    )
+    if (done_today or 0) >= PARENT_RESCHEDULES_PER_DAY:
+        raise RescheduleNotAllowed("RATE_LIMITED", "這筆預約今天已經修改很多次了，請明天再試，或直接聯絡園所")
     return slot
 
 

@@ -15,6 +15,8 @@ const emit = defineEmits<{ changed: [] }>()
 
 const busyId = ref('')
 const adding = ref(false)
+// 加開送出中：連按或按 Enter 兩次不能建出兩場一樣的場次（後端另有重複場次的 409 SLOT_DUPLICATE）。
+const addingBusy = ref(false)
 const newSlot = ref({ start: '10:00', minutes: 60, capacity: 1 })
 const TIME_OPTIONS = Array.from({ length: 23 }, (_, i) => { const t = 7 * 60 + i * 30; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` })
 const sorted = computed(() => [...props.slots].sort((a, b) => a.start_time.localeCompare(b.start_time)))
@@ -90,6 +92,8 @@ async function cancelHoliday() {
 }
 
 async function addSlot() {
+  if (addingBusy.value) return
+  addingBusy.value = true
   try {
     await api.post(`/admin/slots?campus_key=${encodeURIComponent(props.campusKey)}`, {
       slot_date: props.day,
@@ -102,6 +106,8 @@ async function addSlot() {
     emit('changed')
   } catch (err) {
     notifyError(apiErrorMessage(err, '加開失敗'))
+  } finally {
+    addingBusy.value = false
   }
 }
 </script>
@@ -141,10 +147,10 @@ async function addSlot() {
     <template v-if="canManage && !dayPast && !holiday">
       <el-button v-if="!adding" text @click="adding = true">＋加開一場</el-button>
       <form v-else class="day-panel__add" @submit.prevent="addSlot">
-        <el-select v-model="newSlot.start" aria-label="加開場次時間"><el-option v-for="t in TIME_OPTIONS" :key="t" :label="t" :value="t" /></el-select>
-        <el-select v-model="newSlot.capacity" aria-label="加開場次組數"><el-option v-for="n in 10" :key="n" :label="`${n} 組`" :value="n" /></el-select>
-        <el-button type="primary" native-type="submit">加開</el-button>
-        <el-button @click="adding = false">取消</el-button>
+        <el-select v-model="newSlot.start" aria-label="加開場次時間" :disabled="addingBusy"><el-option v-for="t in TIME_OPTIONS" :key="t" :label="t" :value="t" /></el-select>
+        <el-select v-model="newSlot.capacity" aria-label="加開場次組數" :disabled="addingBusy"><el-option v-for="n in 10" :key="n" :label="`${n} 組`" :value="n" /></el-select>
+        <el-button type="primary" native-type="submit" :loading="addingBusy" :disabled="addingBusy">加開</el-button>
+        <el-button :disabled="addingBusy" @click="adding = false">取消</el-button>
       </form>
     </template>
   </section>

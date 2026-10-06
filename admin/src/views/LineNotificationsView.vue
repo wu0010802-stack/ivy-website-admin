@@ -101,16 +101,30 @@ async function load(options: { announce?: boolean } = {}) {
   }
 }
 
+// 兩校幾乎同時改群組：各自的 PUT 回應都是整份設定，先送出、較晚回來的那份可能不含
+// 另一校剛生效的修改，直接套用會讓畫面顯示舊的群組。同時只有一個在處理才直接用回應；
+// 有重疊（或失敗）就等全部回來後重讀一次。
+let assignsInFlight = 0
+let reloadAfterAssigns = false
+
 async function assign(campusKey: string, campusName: string, targetId: string | null) {
   if (saving.value[campusKey]) return
   saving.value = { ...saving.value, [campusKey]: true }
+  assignsInFlight += 1
+  if (assignsInFlight > 1) reloadAfterAssigns = true
   try {
-    data.value = await api.put<LineSettingsOut>(`/admin/line/campus-targets/${campusKey}`, { target_id: targetId })
+    const result = await api.put<LineSettingsOut>(`/admin/line/campus-targets/${campusKey}`, { target_id: targetId })
+    if (!reloadAfterAssigns) data.value = result
     ElMessage.success(targetId ? `已設定${campusName}的通知群組，請按「送測試訊息」確認群組收得到` : `${campusName}已停止 LINE 通知`)
   } catch (err) {
     notifyError(errorMessage(err, '更新失敗'))
-    await load()
+    reloadAfterAssigns = true
   } finally {
+    assignsInFlight -= 1
+    if (assignsInFlight === 0 && reloadAfterAssigns) {
+      reloadAfterAssigns = false
+      await load()
+    }
     saving.value = { ...saving.value, [campusKey]: false }
   }
 }

@@ -26,7 +26,8 @@ export function triggerUnauthorized(reason: UnauthorizedReason = 'expired'): voi
 // 後端對「CSRF token 對不上」回 403 與固定字串（backend/app/auth/deps.py 的
 // check_csrf_and_origin），沒有機器可讀的 code，所以只能比對字串。同一台電腦在別的
 // 分頁換了帳號後，舊分頁的 token 就屬於這種：視同登入失效，不能只印「CSRF token 無效」。
-const CSRF_INVALID_DETAIL = 'CSRF token 無效'
+// 登出（stores/auth.ts 的 logout）也要認得這一種。
+export const CSRF_INVALID_DETAIL = 'CSRF token 無效'
 
 function handleAuthFailure(path: string, status: number, detail: unknown): void {
   if (status === 401) handleUnauthorized(path)
@@ -46,11 +47,27 @@ function handleUnauthorized(path: string, reason?: UnauthorizedReason): void {
 export class ApiError extends Error {
   status: number
   detail: unknown
+  /**
+   * 錯誤本文是不是 JSON。部署或重啟時代理（Nuxt／Railway）回的 502／503 是 HTML 或英文純文字，
+   * 這時 detail 就是那段原文，不能直接顯示給員工（api/errors.ts 的 apiErrorMessage 改用 fallback）。
+   */
+  json: boolean
 
-  constructor(status: number, detail: unknown) {
+  constructor(status: number, detail: unknown, json = true) {
     super(typeof detail === 'string' ? detail : `HTTP ${status}`)
     this.status = status
     this.detail = detail
+    this.json = json
+  }
+}
+
+// 讀錯誤或成功的本文：能解析成 JSON 就用 JSON，不行就保留原文並記下不是 JSON。
+function parseBody(text: string): { payload: unknown; json: boolean } {
+  if (!text) return { payload: null, json: true }
+  try {
+    return { payload: JSON.parse(text), json: true }
+  } catch {
+    return { payload: text, json: false }
   }
 }
 
@@ -72,15 +89,7 @@ async function request<T>(
 
   if (response.status === 204) return undefined as T
 
-  let payload: unknown = null
-  const text = await response.text()
-  if (text) {
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      payload = text
-    }
-  }
+  const { payload, json } = parseBody(await response.text())
 
   if (!response.ok) {
     const detail =
@@ -88,7 +97,7 @@ async function request<T>(
         ? (payload as { detail: unknown }).detail
         : payload
     handleAuthFailure(path, response.status, detail)
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, detail, json)
   }
 
   return payload as T
@@ -105,15 +114,7 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
     body: formData,
   })
 
-  const text = await response.text()
-  let payload: unknown = null
-  if (text) {
-    try {
-      payload = JSON.parse(text)
-    } catch {
-      payload = text
-    }
-  }
+  const { payload, json } = parseBody(await response.text())
 
   if (!response.ok) {
     const detail =
@@ -121,7 +122,7 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
         ? (payload as { detail: unknown }).detail
         : payload
     handleAuthFailure(path, response.status, detail)
-    throw new ApiError(response.status, detail)
+    throw new ApiError(response.status, detail, json)
   }
 
   return payload as T

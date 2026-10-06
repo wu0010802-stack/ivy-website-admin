@@ -85,7 +85,7 @@ const cardFallback = computed(() =>
 const fallbackLabel = computed(() => (editor.form.value.cover ? '預設位置（封面或素材的焦點）' : '官網原本的位置'))
 
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
-const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
+const { visibleCampusKeys, campusLocked } = useCampusContent(editor, campus, shell)
 // 「開啟看看」：填了地圖網址就開它，沒填開官網會用的地址搜尋。
 const mapPreviewUrl = computed(() => {
   const form = editor.form.value
@@ -109,7 +109,7 @@ function blankError(value: string | null | undefined): string {
   >
     <template #lead>各校在首頁五校區塊、選單與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
     <template #toolbar>
-      <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+      <CampusSelect v-model="campus" :keys="visibleCampusKeys" :disabled="campusLocked" />
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>

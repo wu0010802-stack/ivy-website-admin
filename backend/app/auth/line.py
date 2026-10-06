@@ -227,6 +227,9 @@ async def line_unlink(
         )
         current_user.line_sub = None
         await db.flush()
+        # 發現不認得的 LINE 綁在自己帳號上而解除時，用那個 LINE 登入的其他裝置也要登出
+        # （同總管理者的「解除綁定並登出」）；目前這個分頁保留。
+        await service.revoke_user_sessions(db, current_user.id, keep_session_id=session.id)
         await audit_service.log_action(
             db, actor_user_id=current_user.id, action="user.unlink_line",
             target_type="user", target_id=str(current_user.id),
@@ -298,7 +301,9 @@ async def _complete(request: Request, db: AsyncSession, handshake: dict | None) 
 
 
 async def _finish_login(request: Request, db: AsyncSession, handshake: dict, sub: str) -> Response:
-    user = (await db.execute(select(User).where(User.line_sub == sub))).scalar_one_or_none()
+    # 鎖住帳號列再建 session（同 Google 登入）：總管理者同時「解除綁定並登出」時，
+    # 要嘛這裡讀到已解除，要嘛那邊等這裡提交後撤銷得到這次的 session。
+    user = (await db.execute(select(User).where(User.line_sub == sub).with_for_update())).scalar_one_or_none()
     if user is None or not user.is_active:
         # LINE 已證明這個人就是綁定的那位，所以停權時 actor 記本人（同 Google）。
         await _audit_login_failure(db, "not_linked" if user is None else "inactive", user.id if user else None)

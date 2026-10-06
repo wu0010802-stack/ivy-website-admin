@@ -104,9 +104,13 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
     if (authStore.user && authStore.logoutPending) {
       // 按了登出、目前頁面的未儲存攔截也答應了才會走到這裡。登出失敗會丟錯：
       // 換頁中止、留在原頁，由 AdminLayout 提示再按一次。
-      await authStore.logout()
+      const outcome = await authStore.logout()
+      // 別的分頁重新登入過（CSRF 對不上）：登入頁說明登入狀態已改變。
+      if (outcome === 'session-changed') return { name: 'login', query: { reason: 'session-changed' }, replace: true }
       return true
     }
+    // 上面那次轉址：本人按的是登出，cookie 裡是別的分頁新登入的 session，不能用它把這個分頁登回去。
+    if (authStore.logoutPending && to.query.reason === 'session-changed') return true
     // 重設完成後導回來：瀏覽器裡的 cookie 可能是別人（例如總管理者）的 session，
     // 恢復它會直接進別人的帳號、看不到「密碼已更新」。
     if (to.query.reason === 'password_reset') return true

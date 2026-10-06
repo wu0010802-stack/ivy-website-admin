@@ -237,6 +237,9 @@ async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
             raise NotPublishable("內容或版本已不存在", "CONTENT_NOT_FOUND")
         if not user_can_publish(creator, item):
             raise NotPublishable("排程的人已沒有發布權限", "PUBLISHER_NOT_ALLOWED")
+        if revision.review_status == "rejected":
+            # 退回時會取消這一版的排程；這裡是最後一道（例如退回前就排好的舊資料）。
+            raise NotPublishable("這一版已被退回，不會發布", "CONTENT_REVISION_REJECTED")
         await check_publishable(db, item, revision)
         await service.publish_revision(db, item, revision, job.created_by, source=ReleaseSource.SCHEDULED)
         job.status = "done"

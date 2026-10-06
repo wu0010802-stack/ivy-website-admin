@@ -79,14 +79,17 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const requests = useRequestSequence()
 
-const holidays = ref<Map<string, { id: string; reason: string | null }>>(new Map())
-async function loadHolidays() {
-  if (!campusFilter.value) return
+type Holidays = Map<string, { id: string; reason: string | null }>
+const holidays = ref<Holidays>(new Map())
+// 只讀不寫：由 load 確認還是最後一次請求才寫入，換校時先選的那一校較晚回來不會蓋掉。
+// 「全部校區」沒有單一校的休假，回空的。
+async function loadHolidays(campus: string): Promise<Holidays> {
+  if (!campus) return new Map()
   try {
-    const schedule = await api.get<{ exceptions: { id: string; exception_date: string; reason: string | null }[] }>(`/admin/visit-schedule/${campusFilter.value}`)
-    holidays.value = new Map(schedule.exceptions.map(e => [e.exception_date, { id: e.id, reason: e.reason }]))
+    const schedule = await api.get<{ exceptions: { id: string; exception_date: string; reason: string | null }[] }>(`/admin/visit-schedule/${campus}`)
+    return new Map(schedule.exceptions.map(e => [e.exception_date, { id: e.id, reason: e.reason }]))
   } catch {
-    holidays.value = new Map()
+    return new Map()
   }
 }
 
@@ -98,11 +101,15 @@ async function load() {
     const days = gridDays.value
     const params = new URLSearchParams({ date_from: days[0]!, date_to: days[days.length - 1]! })
     if (campusFilter.value) params.set('campus_key', campusFilter.value)
-    const [result] = await Promise.all([api.get<CalendarSlot[]>(`/admin/visit-calendar?${params}`), loadHolidays()])
-    if (requests.isCurrent(request)) slots.value = result
+    const [result, loadedHolidays] = await Promise.all([api.get<CalendarSlot[]>(`/admin/visit-calendar?${params}`), loadHolidays(campusFilter.value)])
+    if (requests.isCurrent(request)) {
+      slots.value = result
+      holidays.value = loadedHolidays
+    }
   } catch (err) {
     if (requests.isCurrent(request)) {
       slots.value = []
+      holidays.value = new Map()
       error.value = err instanceof ApiError && err.status === 404 ? '你沒有這個校區的權限。' : '無法讀取接待月曆，請重新載入。'
     }
   } finally {

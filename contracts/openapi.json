@@ -6154,6 +6154,18 @@
       "PasswordResetRequest": {
         "description": "總管理者替別人重設密碼。",
         "properties": {
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
+          },
           "password": {
             "maxLength": 128,
             "minLength": 12,
@@ -9194,6 +9206,18 @@
             "maxItems": 5,
             "title": "Capabilities",
             "type": "array"
+          },
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
           }
         },
         "title": "UserCapabilitiesRequest",
@@ -9214,6 +9238,18 @@
             },
             "title": "Capabilities",
             "type": "array"
+          },
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
           },
           "display_name": {
             "anyOf": [
@@ -9470,7 +9506,20 @@
         "type": "object"
       },
       "UserUpdateActiveRequest": {
+        "description": "停用不用重新驗證（止血動作）；重新啟用要。",
         "properties": {
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
+          },
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
@@ -9491,6 +9540,18 @@
             "title": "Campus Keys",
             "type": "array"
           },
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
+          },
           "role": {
             "$ref": "#/components/schemas/Role"
           }
@@ -9509,6 +9570,18 @@
             },
             "title": "Campus Keys",
             "type": "array"
+          },
+          "current_password": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Password"
           }
         },
         "required": [

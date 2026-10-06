@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { ApiError, api, setCsrfToken } from '../api/client'
+import { ApiError, CSRF_INVALID_DETAIL, api, setCsrfToken } from '../api/client'
 import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/types'
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
@@ -55,16 +55,22 @@ export const useAuthStore = defineStore('auth', () => {
    * 看起來已登出（登出鈕也消失），但 HttpOnly cookie 與伺服器 session 都
    * 還有效，共用電腦的下一個人重新整理就回到後台。失敗時丟出錯誤讓畫面
    * 提示重試；401 代表 session 本來就失效了，當作已登出。
+   * 403「CSRF token 無效」是別的分頁重新登入過、cookie 已經換成新的 session：這個分頁原本的
+   * session 早就不在了，再按幾次都是 403。也當作已登出，回 'session-changed' 讓 router 帶
+   * reason 導到登入頁（api/client.ts 對其他請求遇到這種 403 也是同一個說法）。
    */
-  async function logout(): Promise<void> {
+  async function logout(): Promise<'signed-out' | 'session-changed'> {
+    let outcome: 'signed-out' | 'session-changed' = 'signed-out'
     try {
       await api.post('/auth/logout')
     } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) throw error
+      if (error instanceof ApiError && error.status === 403 && error.detail === CSRF_INVALID_DETAIL) outcome = 'session-changed'
+      else if (!(error instanceof ApiError && error.status === 401)) throw error
     }
     clearSession()
     // 主動登出才清案件草稿；逾時被導回登入（只走 clearSession）要留著讓人接著寫。
     clearVisitNoteDrafts()
+    return outcome
   }
 
   /**

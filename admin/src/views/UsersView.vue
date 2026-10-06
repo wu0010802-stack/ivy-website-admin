@@ -14,9 +14,22 @@ import DisplayNameField from '../components/DisplayNameField.vue'
 import { passwordHint, passwordOk, PASSWORD_MIN_LENGTH } from '../composables/passwordRules'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { renameVisitStaff } from '../composables/useVisitStaff'
+import { ReauthCancelled, useRememberedReauth } from '../composables/useRememberedReauth'
 
 const authStore = useAuthStore()
 const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
+
+// 建帳號、改角色與授權、替人設密碼、恢復停用的帳號：後端要求近期驗證過（require_recent_auth），
+// 登入超過 10 分鐘就請本人輸入目前的密碼。驗證過的密碼在這一頁記住 10 分鐘（卸載即清）。
+// 請求本文的 current_password 是後端新增的選填欄位；這裡的本文不經產生的型別檢查（api.* 收 unknown），
+// 不必等 contracts 重新產生。
+const { reauth, run: withReauth, submit: submitReauth, cancel: cancelReauth } = useRememberedReauth()
+const reauthInput = ref<{ focus: () => void } | null>(null)
+watch(() => reauth.open, async (open) => {
+  if (!open) return
+  await nextTick()
+  reauthInput.value?.focus()
+})
 
 const users = ref<UserOut[]>([])
 const loading = ref(false)
@@ -253,20 +266,23 @@ async function submitCreate() {
   if (form.role === 'super_admin' && !(await confirmSuperAdmin(staffWithEmail({ display_name: displayName, email })))) return
   creating.value = true
   try {
-    const created = await api.post<UserOut>('/admin/users', {
+    const body = {
       email,
       display_name: displayName,
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
       capabilities: grantsFor(form.role, form.shared_content, form.export_data),
-    })
+    }
+    const created = await withReauth((fields) => api.post<UserOut>('/admin/users', { ...body, ...fields }))
     users.value.push(created)
     createdWho.value = staffWithEmail(created)
     createdPassword.value = form.password
   } catch (err) {
     const nameError = apiFieldError(err, 'display_name')
-    if (emailRejected(err)) {
+    if (err instanceof ReauthCancelled) {
+      // 取消了驗證：表單留著，再按一次建立帳號即可。
+    } else if (emailRejected(err)) {
       createErrors.email = FULL_EMAIL_HINT
       await focusFirstCreateError()
     } else if (nameError) {
@@ -283,16 +299,18 @@ async function submitCreate() {
 async function toggleActive(target: UserOut) {
   if (operationBusy.value || isSelf(target)) return
   togglingId.value = target.id
+  const path = `/admin/users/${target.id}/active`
   try {
-    const updated = await api.patch<UserOut>(`/admin/users/${target.id}/active`, {
-      is_active: !target.is_active,
-    })
+    // 只有恢復登入要重新驗證；停用（例如帳號疑似外洩要立刻擋下）不必，本文也不帶密碼。
+    const updated = target.is_active
+      ? await api.patch<UserOut>(path, { is_active: false })
+      : await withReauth((fields) => api.patch<UserOut>(path, { is_active: true, ...fields }))
     const idx = users.value.findIndex((u) => u.id === updated.id)
     if (idx !== -1) users.value[idx] = updated
     ElMessage.success(updated.is_active ? `已恢復 ${staffWithEmail(updated)} 的登入` : `已停用 ${staffWithEmail(updated)}`)
     if (!updated.is_active) void warnOpenCases(updated)
   } catch (err) {
-    notifyError(apiErrorMessage(err, '更新啟用狀態失敗'))
+    if (!(err instanceof ReauthCancelled)) notifyError(apiErrorMessage(err, '更新啟用狀態失敗'))
   } finally {
     togglingId.value = null
   }
@@ -312,8 +330,13 @@ async function warnOpenCases(target: UserOut) {
   }
 }
 
+// 這次打開對話框後已經存好的角色與校區（對象、角色、校區）：後面改授權時要重新驗證而取消，
+// 或授權失敗，再按儲存只補送還沒成功的步驟，不重送角色（後端每收到一次角色就記一筆紀錄）。
+let scopeRoleSaved: string | null = null
+
 function openScopeDialog(target: UserOut) {
   if (operationBusy.value) return
+  scopeRoleSaved = null
   scopeTarget.value = target
   scopeName.value = target.display_name ?? ''
   scopeNameServerError.value = ''
@@ -377,22 +400,28 @@ async function submitScope() {
       ElMessage.success('已更新顯示名稱')
       return
     }
-    let updated = await api.patch<UserOut>(`/admin/users/${target.id}/role`, {
-      role: scopeRole.value,
-      campus_keys: campusKeys,
-    })
+    // 角色與授權要重新驗證：各步驟各自 withReauth，中途要輸入密碼時從那一步接著送。
+    const role = scopeRole.value
+    const roleKey = JSON.stringify([target.id, role, campusKeys])
+    let updated = scopeTarget.value ?? target
+    if (scopeRoleSaved !== roleKey) {
+      updated = await withReauth((fields) => api.patch<UserOut>(`/admin/users/${target.id}/role`, { role, campus_keys: campusKeys, ...fields }))
+      replaceUser(updated)
+      scopeTarget.value = updated
+      scopeRoleSaved = roleKey
+    }
     // 改角色時後端會先清掉新角色不適用的授權；剩下的跟畫面上勾的不同才送。
     if (!sameGrants(wanted, updated.capabilities ?? [])) {
-      updated = await api.patch<UserOut>(`/admin/users/${target.id}/capabilities`, {
-        capabilities: wanted,
-      })
+      updated = await withReauth((fields) => api.patch<UserOut>(`/admin/users/${target.id}/capabilities`, { capabilities: wanted, ...fields }))
     }
     replaceUser(updated)
     scopeDialogVisible.value = false
     ElMessage.success(nameChanged ? '已更新顯示名稱、角色、校區與權限' : '已更新角色、校區與權限')
   } catch (err) {
     const nameError = apiFieldError(err, 'display_name')
-    if (nameError) {
+    if (err instanceof ReauthCancelled) {
+      // 取消了驗證：對話框與勾選都留著，已經存好的步驟（名稱、角色）不會重送。
+    } else if (nameError) {
       scopeNameServerError.value = nameError
       scopeNameInput.value?.focus()
     } else {
@@ -418,13 +447,15 @@ function generateResetPassword() {
 async function submitReset() {
   if (!resetTarget.value || resetDone.value || !passwordOk(resetPassword.value)) return
   resetting.value = true
+  const path = `/admin/users/${resetTarget.value.id}/password`
+  const password = resetPassword.value
   try {
-    await api.post(`/admin/users/${resetTarget.value.id}/password`, { password: resetPassword.value })
+    await withReauth((fields) => api.post(path, { password, ...fields }))
     resetDone.value = true
   } catch (err) {
     // 自己的那一列沒有「重設密碼」（UserActions 只指到「我的帳號」）；後端對自己重設
     // 回 409 USE_CHANGE_PASSWORD 時，訊息本身就指向「我的帳號」。
-    notifyError(apiErrorMessage(err, '重設密碼失敗'))
+    if (!(err instanceof ReauthCancelled)) notifyError(apiErrorMessage(err, '重設密碼失敗'))
   } finally {
     resetting.value = false
   }
@@ -732,11 +763,50 @@ onMounted(loadUsers)
           </template>
         </template>
       </el-dialog>
+
+      <!-- 帳號管理的敏感操作要確認是本人（同「我的帳號」的重新驗證）；疊在角色與校區、新增使用者對話框上面。 -->
+      <el-dialog
+        v-model="reauth.open"
+        title="確認是你本人"
+        width="min(420px, 100%)"
+        append-to-body
+        :show-close="!reauth.submitting"
+        :close-on-click-modal="false"
+        :close-on-press-escape="!reauth.submitting"
+        :before-close="cancelReauth"
+      >
+        <form class="users__reauth" data-test="reauth-form" @submit.prevent="submitReauth">
+          <p>{{ reauth.message }}</p>
+          <label class="users__reauth-field">
+            <span>目前的密碼</span>
+            <el-input
+              ref="reauthInput"
+              v-model="reauth.password"
+              type="password"
+              show-password
+              autocomplete="current-password"
+              maxlength="128"
+              :disabled="reauth.submitting"
+              data-test="reauth-password"
+            />
+          </label>
+          <p v-if="reauth.error" class="users__reauth-error" role="alert" data-test="reauth-error">{{ reauth.error }}</p>
+          <p class="field-help">驗證後 10 分鐘內在這一頁的其他操作不用再輸入。只用 Google 或 LINE 登入、不知道密碼的話：先登出，再用 Google／LINE 重新登入，10 分鐘內回到這一頁操作。</p>
+        </form>
+        <template #footer>
+          <el-button :disabled="reauth.submitting" data-test="reauth-cancel" @click="cancelReauth">取消</el-button>
+          <el-button type="primary" data-test="reauth-submit" :loading="reauth.submitting" @click="submitReauth">確認</el-button>
+        </template>
+      </el-dialog>
     </template>
   </div>
 </template>
 
 <style scoped>
+.users__reauth { display: grid; gap: 12px; }
+.users__reauth p { margin: 0; }
+.users__reauth-field { display: grid; gap: 6px; }
+.users__reauth-error { color: var(--el-color-danger); }
 .password-row { display: flex; gap: 8px; width: 100%; }
 .password-row .el-input { flex: 1; min-width: 0; }
 

@@ -4755,6 +4755,8 @@ export interface components {
          * @description 總管理者替別人重設密碼。
          */
         PasswordResetRequest: {
+            /** Current Password */
+            current_password?: string | null;
             /** Password */
             password: string;
         };
@@ -5686,6 +5688,8 @@ export interface components {
         UserCapabilitiesRequest: {
             /** Capabilities */
             capabilities?: string[];
+            /** Current Password */
+            current_password?: string | null;
         };
         /** UserCreateRequest */
         UserCreateRequest: {
@@ -5693,6 +5697,8 @@ export interface components {
             campus_keys?: string[];
             /** Capabilities */
             capabilities?: string[];
+            /** Current Password */
+            current_password?: string | null;
             /** Display Name */
             display_name?: string | null;
             /**
@@ -5770,8 +5776,13 @@ export interface components {
             line_linked: boolean;
             role: components["schemas"]["Role"];
         };
-        /** UserUpdateActiveRequest */
+        /**
+         * UserUpdateActiveRequest
+         * @description 停用不用重新驗證（止血動作）；重新啟用要。
+         */
         UserUpdateActiveRequest: {
+            /** Current Password */
+            current_password?: string | null;
             /** Is Active */
             is_active: boolean;
         };
@@ -5779,12 +5790,16 @@ export interface components {
         UserUpdateRoleRequest: {
             /** Campus Keys */
             campus_keys?: string[];
+            /** Current Password */
+            current_password?: string | null;
             role: components["schemas"]["Role"];
         };
         /** UserUpdateScopeRequest */
         UserUpdateScopeRequest: {
             /** Campus Keys */
             campus_keys: string[];
+            /** Current Password */
+            current_password?: string | null;
         };
         /** ValidationError */
         ValidationError: {

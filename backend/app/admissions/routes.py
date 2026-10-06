@@ -205,6 +205,11 @@ async def update_recruitment_visit(
     except records.TourGuideNotFound as exc:
         await db.rollback()
         raise _tour_guide_invalid() from exc
+    except records.TermLocked as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message}
+        ) from exc
     if changed:
         await audit_service.log_action(
             db,
@@ -314,7 +319,7 @@ async def transition_recruitment_visit(
         await db.rollback()
         raise _version_conflict(records.VersionConflict(current))
     from_stage = funnel.derive_stage(visit)
-    capability = funnel.transition_capability(from_stage, payload.to_stage)
+    capability = funnel.visit_transition_capability(visit, payload.to_stage)
     if capability is None:
         await db.rollback()
         raise HTTPException(

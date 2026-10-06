@@ -90,6 +90,17 @@ def transition_capability(from_stage: str, to_stage: str) -> str | None:
     return _CAPABILITY.get((from_stage, to_stage))
 
 
+def visit_transition_capability(visit: RecruitmentVisit, to_stage: str) -> str | None:
+    """這筆訪視做這個轉換要的 capability。表上「取消退出」只要 write，但從已註冊
+    退出的（退註冊要 convert）取消退出等於恢復註冊紀錄，也要 convert（2026-10-06
+    稽核：否則接待能先取消退出、再刪掉曾註冊的訪視，或把退註冊改寫成已預繳）。"""
+    from_stage = derive_stage(visit)
+    capability = transition_capability(from_stage, to_stage)
+    if capability is not None and from_stage == "withdrawn" and visit.withdrawn_from == "enrolled":
+        return "admissions.convert"
+    return capability
+
+
 def not_allowed_reason(from_stage: str, to_stage: str) -> str:
     """不允許的轉換回給畫面的中文說明（visited→withdrawn 用園務原文）。"""
     if from_stage == to_stage:

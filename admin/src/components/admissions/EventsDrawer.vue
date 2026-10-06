@@ -62,6 +62,12 @@ async function load() {
   error.value = null
   events.value = []
   contactLogs.value = []
+  // 開著換另一筆（看板連點兩張卡）：上一筆的摘要與按鈕先拿掉，讀到之前不能對它記錄聯絡或換階段。
+  if (record.value && record.value.id !== props.visitId) {
+    record.value = null
+    bookingNotes.value = []
+    bookingNotesError.value = false
+  }
   try {
     const [visit, eventRows, logRows] = await Promise.all([
       getRecord(props.visitId),
@@ -153,7 +159,7 @@ const transitionOpen = ref(false)
 const transitionTarget = ref<TransitionTarget | null>(null)
 const moveOptions = computed<Stage[]>(() => {
   const visit = record.value
-  return visit && !visit.anonymized_at && isStage(visit.stage) ? moveTargets(visit.stage, can) : []
+  return visit && !visit.anonymized_at && isStage(visit.stage) ? moveTargets(visit.stage, can, visit.withdrawn_from) : []
 })
 
 function openTransition(to: Stage) {

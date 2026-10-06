@@ -22,7 +22,7 @@ function normalize(payload: CampusNewsPayload): CampusNewsPayload {
 const campus = ref('')
 const editor = useContentItem<CampusNewsPayload>('campus_news', { articles: [], events: [] }, campus, { normalize })
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
-const { visibleCampusKeys } = useCampusContent(editor, campus, shell)
+const { visibleCampusKeys, campusLocked } = useCampusContent(editor, campus, shell)
 const navSections = computed<EditorSection[]>(() => [
   { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則` },
   { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場` },
@@ -41,7 +41,7 @@ const navSections = computed<EditorSection[]>(() => [
       要放上首頁輪播的推薦消息、或同時適用好幾校的消息，請總部在「首頁 → 最新消息與活動」發布。
     </template>
     <template #toolbar>
-      <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+      <CampusSelect v-model="campus" :keys="visibleCampusKeys" :disabled="campusLocked" />
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>

@@ -23,7 +23,7 @@ const editable = computed(() => !props.visit.anonymized_at && can('admissions.wr
 const tracking = computed(() => isOpenStage(props.visit.stage))
 const ownerEditable = computed(() => editable.value && tracking.value)
 const moveOptions = computed<Stage[]>(() =>
-  props.visit.anonymized_at || !isStage(props.visit.stage) ? [] : moveTargets(props.visit.stage, can),
+  props.visit.anonymized_at || !isStage(props.visit.stage) ? [] : moveTargets(props.visit.stage, can, props.visit.withdrawn_from),
 )
 // ownerLabel 的參數型別是可變陣列，這裡複製一份給它。
 const staffList = computed(() => [...props.staff])

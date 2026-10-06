@@ -71,6 +71,10 @@ watch(newNote, (text) => writeVisitNoteDraft(id.value, text))
 // 總覽的「到期待追蹤」也才會有來源。預先填案件目前的追蹤時間：不動就沿用，
 // 清空就是「不用再追」。
 const followUpAt = ref<string | null>(null)
+// 選擇器帶入時的伺服器值與案件版本（基準）。切回分頁靜默重讀時，選擇器沒動就跟著換成新值；
+// 動過而同事也改了，就保留自己的選擇、送出時帶基準版本，讓後端回 409 走衝突處理，
+// 不會把同事改好的時間用舊值蓋回去。
+let followUpBase: { picker: string | null; version: number } | null = null
 const noteInput = ref<{ focus: () => void } | null>(null)
 // 同校還沒處理完的其他案件，讓櫃台能一筆接一筆處理，不必每次回列表。
 // 從列表點進來時跟著那份列表的條件與順序（list）；沒有來源時照下方 loadNextCases 的處理優先序。
@@ -145,6 +149,17 @@ function sameInstant(a: string | null | undefined, b: string | null | undefined)
   return new Date(a).getTime() === new Date(b).getTime()
 }
 
+// 讀到案件後同步「下次聯絡」。reset：換案件或剛存好，選擇器直接換成伺服器的值；
+// quiet：背景重讀，選擇器沒動才跟著換，動過就只在伺服器上的值沒變時更新版本；
+// rebase：送出遇到版本衝突、已經提示過，以最新版本為基準（自己動過的選擇照樣保留）。
+function syncFollowUp(loaded: VisitRequestFullOut, mode: 'reset' | 'quiet' | 'rebase') {
+  const server = toPickerValue(loaded.follow_up_at)
+  const base = followUpBase
+  const untouched = !base || sameInstant(followUpAt.value, base.picker)
+  if (mode === 'reset' || untouched) followUpAt.value = server
+  if (mode !== 'quiet' || untouched || sameInstant(server, base?.picker)) followUpBase = { picker: server, version: loaded.version }
+}
+
 // quiet：動作完成後的重讀不切回骨架畫面，頁面上的狀態（例如剛產生、只顯示
 // 一次的家長連結）才不會因為元件重新掛載而消失。
 async function load(options: { quiet?: boolean } = {}) {
@@ -166,7 +181,7 @@ async function load(options: { quiet?: boolean } = {}) {
     detail.value = loaded
     loadedAt = Date.now()
     notes.value = notesResult.value
-    if (!options.quiet) followUpAt.value = toPickerValue(loaded.follow_up_at)
+    syncFollowUp(loaded, options.quiet ? 'quiet' : 'reset')
     void loadNextCases(loaded.campus_key)
     // 排入場次（新需求、聯絡中）與改期（已確認）都從同校未來 60 天的場次挑。
     let slots: VisitSlotOut[] = []
@@ -194,11 +209,13 @@ async function load(options: { quiet?: boolean } = {}) {
 
 // 動作完成後只更新案件本身（含歷程），不切回骨架畫面：家長連結剛產生的
 // 網址還顯示在頁面上，重新掛載就看不到了。
-async function refreshDetail() {
+async function refreshDetail(followUp: 'quiet' | 'rebase' = 'quiet') {
   const gen = generation
   try {
     const loaded = await api.get<VisitRequestFullOut>(`/admin/visit-requests/${id.value}`)
-    if (gen === generation) detail.value = loaded
+    if (gen !== generation) return
+    detail.value = loaded
+    syncFollowUp(loaded, followUp)
   } catch {
     /* 下次重新整理再讀 */
   }
@@ -222,7 +239,7 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'status', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'status', 'open', 'q', 'follow_up_due', 'assignee', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
@@ -333,7 +350,7 @@ function reportError(err: unknown, fallback: string) {
     // 別人剛改過承辦人或下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
     // 已經自動重讀，所以不接後端「請重新載入後再操作」的訊息。
     notifyWarning('這筆案件的承辦人或下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
-    void refreshDetail()
+    void refreshDetail('rebase')
     return
   }
   if (apiErrorCode(err) === 'INVALID_TRANSITION') {
@@ -711,12 +728,15 @@ async function addNote() {
   const nextFollowUp = followUpAt.value || null
   // 改或清下次聯絡時間會蓋掉案件上的值，要帶版本；沒動就只記一筆紀錄。已到場、已取消的案件
   // 不列入到期待追蹤，選擇器也不顯示，不送下次聯絡（後端 FOLLOW_UP_NOT_TRACKED）。
-  const followUpChanged = followUpTracked.value && !sameInstant(nextFollowUp, current.follow_up_at)
+  // 有沒有動、帶哪個版本都跟選擇器帶入時的基準比（followUpBase），不是重讀後的案件：
+  // 同事在這段期間改過的話，後端會回 409，不會把同事的時間蓋掉。
+  const base = followUpBase ?? { picker: toPickerValue(current.follow_up_at), version: current.version }
+  const followUpChanged = followUpTracked.value && !sameInstant(nextFollowUp, base.picker)
   pendingAction.value = 'note'
   try {
     await api.post(`/admin/visit-requests/${current.id}/contact-notes`, {
       note: newNote.value.trim(),
-      ...(followUpChanged ? { follow_up_at: nextFollowUp, expected_version: current.version } : {}),
+      ...(followUpChanged ? { follow_up_at: nextFollowUp, expected_version: base.version } : {}),
     })
     if (gen !== generation) return
     newNote.value = ''
@@ -724,7 +744,7 @@ async function addNote() {
     // 追蹤時間存在案件上、歷程也多一筆；重讀一次頁首與歷程。
     await refreshDetail()
     if (gen !== generation) return
-    followUpAt.value = toPickerValue(detail.value?.follow_up_at)
+    if (detail.value) syncFollowUp(detail.value, 'reset')
     if (followUpChanged) ElMessage.success(nextFollowUp ? '已記下，到時會出現在總覽的「到期待追蹤」' : '已清除下次聯絡時間，不會再出現在「到期待追蹤」')
   } catch (err) {
     reportError(err, '新增紀錄失敗')
@@ -815,6 +835,7 @@ watch(id, () => {
   newNote.value = readVisitNoteDraft(id.value)
   bookingDataOpen.value = false
   followUpAt.value = null
+  followUpBase = null
   selectedSlotId.value = ''
   rescheduleSlotId.value = ''
   rescheduleReason.value = ''

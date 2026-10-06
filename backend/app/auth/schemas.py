@@ -9,6 +9,7 @@ from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
 from pydantic_core import PydanticCustomError
 
 from app.auth.models import DISPLAY_NAME_MAX_LENGTH, Role
+from app.campuses.models import CAMPUS_KEYS
 
 
 def _is_hidden_character(ch: str) -> bool:
@@ -127,12 +128,29 @@ class ReauthRequest(BaseModel):
     current_password: ExistingPassword | None = None
 
 
-class UserCreateRequest(BaseModel):
+def _known_campus_keys(value: list[str]) -> list[str]:
+    """校區代號要存在（打錯原本會撞外鍵變 500），重複的合併、保留順序。"""
+    unknown = [key for key in value if key not in CAMPUS_KEYS]
+    if unknown:
+        raise ValueError(f"沒有這個校區：{'、'.join(unknown)}")
+    return list(dict.fromkeys(value))
+
+
+CampusKeyList = Annotated[list[str], AfterValidator(_known_campus_keys)]
+
+
+class _UserAdminWrite(BaseModel):
+    """總管理者管理帳號的寫入：session 建立超過 10 分鐘要帶目前的密碼（見 app/auth/reauth.py）。"""
+
+    current_password: ExistingPassword | None = None
+
+
+class UserCreateRequest(_UserAdminWrite):
     email: EmailStr
     password: NewPassword
     role: Role
     display_name: DisplayName = None
-    campus_keys: list[str] = Field(default_factory=list)
+    campus_keys: CampusKeyList = Field(default_factory=list)
     capabilities: list[str] = Field(default_factory=list)
 
     @field_validator("email")
@@ -152,21 +170,23 @@ class DisplayNameUpdateRequest(BaseModel):
     display_name: DisplayName
 
 
-class UserUpdateActiveRequest(BaseModel):
+class UserUpdateActiveRequest(_UserAdminWrite):
+    """停用不用重新驗證（止血動作）；重新啟用要。"""
+
     is_active: bool
 
 
-class UserUpdateScopeRequest(BaseModel):
-    campus_keys: list[str]
+class UserUpdateScopeRequest(_UserAdminWrite):
+    campus_keys: CampusKeyList
 
 
-class UserUpdateRoleRequest(BaseModel):
+class UserUpdateRoleRequest(_UserAdminWrite):
     role: Role
     # 總管理者不需要；其他角色至少一校。
-    campus_keys: list[str] = Field(default_factory=list)
+    campus_keys: CampusKeyList = Field(default_factory=list)
 
 
-class PasswordResetRequest(BaseModel):
+class PasswordResetRequest(_UserAdminWrite):
     """總管理者替別人重設密碼。"""
 
     password: NewPassword
@@ -179,7 +199,7 @@ class PasswordChangeRequest(BaseModel):
     new_password: NewPassword
 
 
-class UserCapabilitiesRequest(BaseModel):
+class UserCapabilitiesRequest(_UserAdminWrite):
     capabilities: list[str] = Field(default_factory=list, max_length=5)
 
 

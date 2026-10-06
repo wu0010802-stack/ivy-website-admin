@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { useContentItem } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
@@ -43,12 +43,14 @@ const campus = ref('')
 const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus)
 
 const sceneIndex = ref(0)
+const imageBroken = ref(false)
 
 // 2026-10-05 起五校的校園探索由總部帳號直接控制（後端 registry 的 hq_managed）：
 // 這一頁只有總管理者與有「全站共用內容」授權的人進得來，五校都能切換。
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
-const { visibleCampusKeys } = useCampusContent(editor, campus, shell, () => {
+const { visibleCampusKeys, campusLocked } = useCampusContent(editor, campus, shell, () => {
   sceneIndex.value = 0
+  imageBroken.value = false
 }, { allCampuses: true })
 // 素材挑選與上傳：自己範圍內的校用那一校的素材；有授權但不負責那一校的人，
 // 只能挑、傳跨校共用素材（後端不讓他動別校的素材）。
@@ -57,7 +59,13 @@ const mediaCampusKey = computed(() => (ownCampusKeys.value.includes(campus.value
 
 const scenes = computed(() => editor.form.value.scenes)
 const currentScene = computed(() => scenes.value[sceneIndex.value] ?? null)
-const imageBroken = ref(false)
+// 表單整份換掉（換校、放棄修改、載入最新內容、套回修改、還原版本）：場景可能變少，
+// 選取夾回範圍內，不然右邊整塊空白；讀圖失敗是上一份內容的狀態，跟著清掉。
+// 新增、刪除、移動場景是改同一個陣列，不會觸發這裡（那幾個動作自己調整選取）。
+watch(scenes, (list) => {
+  sceneIndex.value = Math.min(sceneIndex.value, Math.max(0, list.length - 1))
+  imageBroken.value = false
+})
 
 const sceneName = useTemplateRef<HTMLElement>('sceneName')
 
@@ -110,7 +118,7 @@ function onPickMedia(asset: MediaAssetOut) {
       發布後會整組取代該校原本的內容。
     </template>
     <template #toolbar>
-      <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+      <CampusSelect v-model="campus" :keys="visibleCampusKeys" :disabled="campusLocked" />
     </template>
 
     <div class="tour">

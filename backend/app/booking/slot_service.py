@@ -80,6 +80,15 @@ class SlotCapacityBelowBooked(Exception):
         )
 
 
+async def slot_exists(db: AsyncSession, campus_key: str, slot_date: date, start_time: time) -> bool:
+    found = await db.scalar(
+        select(VisitSlot.id)
+        .where(VisitSlot.campus_key == campus_key, VisitSlot.slot_date == slot_date, VisitSlot.start_time == start_time)
+        .limit(1)
+    )
+    return found is not None
+
+
 async def create_slot(
     db: AsyncSession,
     *,

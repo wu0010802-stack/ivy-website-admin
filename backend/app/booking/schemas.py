@@ -149,10 +149,10 @@ class BookingConfigUpdateRequest(BaseModel):
     mode: BookingMode
     # 長度對齊 models.py 的欄位定義：沒有上限的話，後台貼一段稍長的暫停
     # 說明就會在 INSERT 時撞 varchar 長度，變成 500「更新失敗」。
-    line_url: str | None = Field(default=None, max_length=500)
-    phone: str | None = Field(default=None, max_length=32)
-    external_url: str | None = Field(default=None, max_length=500)
-    message: str | None = Field(default=None, max_length=500)
+    line_url: Annotated[str | None, Field(max_length=500), AfterValidator(_reject_control_chars)] = None
+    phone: Annotated[str | None, Field(max_length=32), AfterValidator(_reject_control_chars)] = None
+    external_url: Annotated[str | None, Field(max_length=500), AfterValidator(_reject_control_chars)] = None
+    message: Annotated[str | None, Field(max_length=500), AfterValidator(_reject_control_chars)] = None
     # 省略＝維持原設定（沒有這個欄位的舊版後台存檔時不會把它改回預設）。
     parent_change_deadline_hours: int | None = Field(
         default=None, ge=MIN_CHANGE_DEADLINE_HOURS, le=MAX_CHANGE_DEADLINE_HOURS
@@ -595,7 +595,8 @@ class ParentVisitRequestOut(BaseModel):
     child_birthdate: date | None = None
     party_size: int | None = None
     questions: str | None = None
-    # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。
+    # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。是 details_version，
+    # 不是案件的 version（那是園方承辦人／下次聯絡時間的鎖）。
     version: int
     slot: VisitSlotBriefOut | None = None
     confirmed_at: datetime | None
@@ -831,7 +832,7 @@ class VisitRuleOut(VisitRuleIn):
 
 class VisitExceptionIn(BaseModel):
     exception_date: date
-    reason: str | None = Field(default=None, max_length=200)
+    reason: Annotated[str | None, Field(max_length=200), AfterValidator(_reject_control_chars)] = None
 
 
 class VisitExceptionOut(BaseModel):

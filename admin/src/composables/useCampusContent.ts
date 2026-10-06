@@ -1,6 +1,7 @@
-import { watch, type Ref } from 'vue'
+import { computed, watch, type Ref } from 'vue'
 import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { useCampusScope } from './useCampusScope'
+import { notifyWarning } from './notify'
 import type { ContentEditorState } from './useContentItem'
 import type ContentEditor from '../components/ContentEditor.vue'
 
@@ -58,6 +59,11 @@ export function useCampusContent(
   let reverting = false
   // 從網址換校前已經問過「放棄修改？」並同意：切換時不再問第二次。
   let confirmedSwitch: string | null = null
+  // 存檔、發布、送審、審核、排程、還原還在處理：一律不換校。回應回來時寫進的是「目前的」
+  // 校區，處理中換了校，舊校的結果就會蓋掉新校的狀態。校區選單處理中停用（頁面綁這個），
+  // 從網址或硬換進來的也撥回去並提示。
+  const campusLocked = computed(() => editor.saving.value || editor.publishing.value)
+  const BUSY_SWITCH_TEXT = '正在處理這一校的內容，請等完成後再換校區。'
 
   function syncQuery(key: string) {
     if (!router || !key || !onThisPage() || route.query.campus === key) return
@@ -74,6 +80,12 @@ export function useCampusContent(
         return
       }
       if (!next) return
+      if (prev && campusLocked.value) {
+        notifyWarning(BUSY_SWITCH_TEXT)
+        reverting = true
+        campus.value = prev
+        return
+      }
       // 只認網址真的換到這一校的那次（換頁被其他原因取消就照常再問）。
       const confirmed = confirmedSwitch === next && route?.query.campus === next
       confirmedSwitch = null
@@ -99,7 +111,12 @@ export function useCampusContent(
   if (route) {
     onBeforeRouteUpdate(async (to) => {
       const value = to.query.campus
-      if (to.path !== ownPath || !inScope(value) || value === campus.value || !editor.isDirty.value) return true
+      if (to.path !== ownPath || !inScope(value) || value === campus.value) return true
+      if (campusLocked.value) {
+        notifyWarning(BUSY_SWITCH_TEXT)
+        return false
+      }
+      if (!editor.isDirty.value) return true
       if (!(await shell.value?.confirmLeave())) return false
       confirmedSwitch = value
       return true
@@ -124,5 +141,5 @@ export function useCampusContent(
     if (v && !campus.value) campus.value = v
   })
 
-  return scope
+  return { ...scope, campusLocked }
 }

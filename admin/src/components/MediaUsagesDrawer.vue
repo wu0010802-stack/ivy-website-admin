@@ -12,6 +12,7 @@ import {
 } from '../api/labels'
 import StatusTag from './StatusTag.vue'
 import { useCampusScope } from '../composables/useCampusScope'
+import { useRequestSequence } from '../composables/useRequestSequence'
 import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 
@@ -76,16 +77,22 @@ const groups = computed<ItemGroup[]>(() => {
   }))
 })
 
+// 開著抽屜換看另一個素材（素材庫連點兩張卡的「用在哪裡」）：只採用最後一次讀取，
+// 先送出、較晚回來的上一個素材的清單不能蓋掉畫面。
+const requests = useRequestSequence()
+
 async function load() {
   if (!props.asset) return
+  const request = requests.begin()
   loading.value = true
   error.value = null
   try {
-    usages.value = await api.get<MediaUsagesOut>(`/admin/media/${props.asset.id}/usages`)
+    const loaded = await api.get<MediaUsagesOut>(`/admin/media/${props.asset.id}/usages`)
+    if (requests.isCurrent(request)) usages.value = loaded
   } catch {
-    error.value = '無法讀取引用清單，請重新載入。'
+    if (requests.isCurrent(request)) error.value = '無法讀取引用清單，請重新載入。'
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 

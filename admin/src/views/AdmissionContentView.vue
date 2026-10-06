@@ -49,7 +49,8 @@ function remove<T>(list: T[], index: number) {
   list.splice(index, 1)
 }
 
-// 四份可排序的清單各有自己的外框：上移／下移後焦點只在同一份清單裡找按鈕。
+// 四份可排序的清單各有自己的外框：上移／下移後焦點只在同一份清單裡找按鈕。外框也帶
+// data-list（和後端欄位同名），存檔錯誤清單點「入學流程第 2 步」時才找得到是哪一份清單的第 2 項。
 const stepsList = useTemplateRef<HTMLElement>('stepsList')
 const phasesList = useTemplateRef<HTMLElement>('phasesList')
 const subsidiesList = useTemplateRef<HTMLElement>('subsidiesList')
@@ -106,7 +107,7 @@ onMounted(editor.load)
         <h2 id="section-admission-steps" data-section-anchor tabindex="-1">入學流程</h2>
         <span class="hint">{{ form.steps.length }} / {{ MAX_STEPS }} 步</span>
       </div>
-      <div ref="stepsList">
+      <div ref="stepsList" data-list="steps">
       <div v-for="(step, index) in form.steps" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ step.title || '未命名步驟' }}</span>
@@ -139,7 +140,7 @@ onMounted(editor.load)
         <h2 id="section-admission-phases" data-section-anchor tabindex="-1">新生入園須知</h2>
         <span class="hint">{{ form.phases.length }} / {{ MAX_PHASES }} 個階段</span>
       </div>
-      <div ref="phasesList">
+      <div ref="phasesList" data-list="phases">
       <div v-for="(phase, index) in form.phases" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ phase.title || '未命名階段' }}</span>
@@ -202,7 +203,7 @@ onMounted(editor.load)
       </el-form-item>
 
       <h3 class="sub-title">補助 <span class="hint">{{ form.subsidies.length }} / {{ MAX_SUBSIDIES }}</span></h3>
-      <div ref="subsidiesList">
+      <div ref="subsidiesList" data-list="subsidies">
       <div v-for="(s, index) in form.subsidies" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ s.who || '未命名補助' }}</span>
@@ -238,7 +239,7 @@ onMounted(editor.load)
       <p class="hint">金額單位固定顯示「元／月」。全部刪掉的話官網不顯示這一區。</p>
 
       <h3 class="sub-title">退費規定 <span class="hint">{{ form.refunds.length }} / {{ MAX_REFUNDS }} 種情況</span></h3>
-      <div ref="refundsList">
+      <div ref="refundsList" data-list="refunds">
       <div v-for="(refund, index) in form.refunds" :key="index" class="repeat-item" :data-list-item="index">
         <div class="repeat-item__head">
           <span class="repeat-item__index"><b>{{ index + 1 }}</b>{{ refund.title || '未命名情況' }}</span>

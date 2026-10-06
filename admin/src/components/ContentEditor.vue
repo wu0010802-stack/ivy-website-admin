@@ -423,26 +423,46 @@ async function saveAndPreview() {
 const showLive = computed(() => Boolean(publicUrl.value && isPublished.value))
 const showHistory = computed(() => Boolean(props.editor.history && latestRevisionAt.value))
 
-const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value))
+// 最新一版被退回、又沒有修改：不能直接發布或排程那一版（後端發布與排程都回 409
+// CONTENT_REVISION_REJECTED），要改過、存成新的一版才行。
+const rejectedLatest = computed(() => reviewStatus.value === 'rejected' && !isDirty.value)
+const canPublish = computed(() => isDirty.value || (Boolean(latestRevisionAt.value) && !isPublished.value && !rejectedLatest.value))
+// 已上線而且沒有修改：送審的就是官網上那一版，沒有東西可審。
+const publishedUnchanged = computed(() => isPublished.value && !isDirty.value)
 
 // 動作列的主色給「真正的下一步」：有修改先存草稿；草稿存好了，能發布的人
 // 下一步是發布、內容編輯是送審；已上線又沒修改就沒有主色鈕（按鈕保留、改一般
-// 樣式，版面不跳動）。送審待核准時「核准並發布」本身是綠色實心。
+// 樣式，版面不跳動）。送審待核准時「核准並發布」本身是綠色實心。被退回的版本也沒有主色鈕。
 const primaryAction = computed<'save' | 'publish' | 'submit' | null>(() => {
   if (isDirty.value) return 'save'
   if (!latestRevisionAt.value || isPublished.value || pendingReview.value) return null
+  if (rejectedLatest.value && canPublishRole.value) return null
   return canPublishRole.value ? 'publish' : 'submit'
 })
-const actionNote = computed(() =>
-  canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。',
-)
+const actionNote = computed(() => {
+  if (rejectedLatest.value && canPublishRole.value) return '這一版已被退回，請修改後重新儲存。'
+  return canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。'
+})
 
 // 真的離開這一頁時多一顆「儲存草稿並離開」（存草稿不會動到官網）；唯讀、版本
-// 衝突時存不了，維持兩個選項。
-const { confirmLeave } = useUnsavedChanges(computed(() => !loading.value && !loadError.value && isDirty.value), busy, {
-  saveDraft: () => props.editor.save(),
-  canSaveDraft: computed(() => !readOnly.value && !conflict.value),
-})
+// 衝突時存不了，維持兩個選項。版本衝突後「載入最新內容」讀取失敗、或載入了還沒套回時，
+// 自己的修改只記在這個畫面（stashedChanges），離開一樣要問。
+const { confirmLeave } = useUnsavedChanges(
+  computed(() => !loading.value && ((!loadError.value && isDirty.value) || stashedChanges.value.length > 0)),
+  busy,
+  {
+    saveDraft: () => props.editor.save(),
+    canSaveDraft: computed(() => !readOnly.value && !conflict.value && !loadError.value && isDirty.value),
+  },
+)
+
+// 讀取錯誤時的「重新載入」：有記著的修改（衝突後「載入最新內容」讀取失敗）就再走 reloadLatest，
+// 讀到了再提供套回；直接 load 會把記著的修改清掉。其他讀取失敗（例如剛換校）照常 load，
+// 不能把上一校表單裡的東西當成修改記下來。
+function retryLoad() {
+  if (stashedChanges.value.length && props.editor.reloadLatest) void props.editor.reloadLatest()
+  else void props.editor.load()
+}
 
 // 存檔被擋下的欄位清單：點一條就展開那一則、捲過去並聚焦。
 const bodyEl = useTemplateRef<HTMLElement>('body')
@@ -510,7 +530,7 @@ defineExpose({ confirmLeave })
     <div v-if="$slots.toolbar" class="toolbar"><slot name="toolbar" /></div>
 
     <el-alert v-if="loadError" type="error" :closable="false" show-icon :title="loadError" class="editor__alert">
-      <el-button size="small" @click="editor.load()">重新載入</el-button>
+      <el-button size="small" @click="retryLoad">重新載入</el-button>
     </el-alert>
 
     <el-empty v-else-if="placeholder" :description="placeholder" />
@@ -687,7 +707,7 @@ defineExpose({ confirmLeave })
             <el-button
               :type="primaryAction === 'submit' ? 'primary' : 'default'"
               :loading="publishing"
-              :disabled="busy || conflict || !latestRevisionAt && !isDirty || pendingReview"
+              :disabled="busy || conflict || !latestRevisionAt && !isDirty || pendingReview || publishedUnchanged"
               class="editor__publish"
               @click="editor.submitForReview?.()"
             >

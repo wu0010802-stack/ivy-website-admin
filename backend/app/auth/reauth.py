@@ -1,4 +1,6 @@
-"""變更「自己的登入方式」前的重新驗證。
+"""變更「自己的登入方式」前的重新驗證；總管理者管理帳號（建帳號、改角色／校區／授權、
+替人設密碼、重新啟用）也用同一套（2026-10-06 稽核：拿到總管理者一次 session 的人，
+原本可以建一個自己知道密碼的總管理者帳號當後門，被盜的人改密碼也趕不走）。
 
 拿到別人一次 session（共用電腦沒登出、同源 XSS）的人，原本不用密碼就能把自己
 的 LINE 綁到對方帳號上，之後就算對方重設密碼、撤銷 session 也趕不走（稽核
@@ -43,12 +45,18 @@ def _reauth_required(message: str) -> HTTPException:
 
 
 async def require_recent_auth(
-    request: Request, db: AsyncSession, user: User, session: Session, current_password: str | None
+    request: Request,
+    db: AsyncSession,
+    user: User,
+    session: Session,
+    current_password: str | None,
+    *,
+    purpose: str = "變更登入方式",
 ) -> None:
     if session.created_at > datetime.now(timezone.utc) - REAUTH_WINDOW:
         return
     if not current_password:
-        raise _reauth_required("為了安全，請輸入目前的密碼（或重新登入後 10 分鐘內）再變更登入方式")
+        raise _reauth_required(f"為了安全，請輸入目前的密碼（或重新登入後 10 分鐘內）再{purpose}")
     try:
         await service.verify_current_password(
             db, user, current_password, limiter=limiter(request), context="reauth"

@@ -29,7 +29,8 @@ const valid = computed(() => Boolean(form.current) && passwordOk(form.next) && f
 function failureText(err: unknown): string {
   // 目前的密碼跟登入共用帳號鎖（5 分鐘內錯 10 次，密碼驗證暫停 15 分鐘）。
   if (err instanceof ApiError && err.status === 429) return loginLimitedMessage(err, { verb: '驗證' })
-  if (err instanceof ApiError && typeof err.detail === 'string') return err.detail
+  // 代理回的 HTML／英文原文（err.json 為 false）不直接顯示，交給 apiErrorMessage 用 fallback。
+  if (err instanceof ApiError && typeof err.detail === 'string' && err.json) return err.detail
   // 422 欄位錯誤（例如新密碼超過 72 bytes 的 password_too_long，訊息是中文）。
   return apiErrorMessage(err, '更新失敗，請稍後再試')
 }

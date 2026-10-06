@@ -107,8 +107,14 @@ const TRANSITIONS: Partial<Record<`${Stage}>${Stage}`, TransitionCapability>> = 
   'withdrawn>deposited': 'admissions.write',
 }
 
-export function transitionCapability(from: Stage, to: Stage): TransitionCapability | null {
-  return TRANSITIONS[`${from}>${to}`] ?? null
+/**
+ * withdrawnFrom：卡片從哪一欄退出（訪視的 withdrawn_from）。從已註冊退出的取消退出等於把
+ * 註冊撤回再處理，跟退註冊一樣要 admissions.convert（2026-10-06 後端同步改）；其他照上表。
+ */
+export function transitionCapability(from: Stage, to: Stage, withdrawnFrom?: string | null): TransitionCapability | null {
+  const capability = TRANSITIONS[`${from}>${to}`] ?? null
+  if (capability && from === 'withdrawn' && withdrawnFrom === 'enrolled') return 'admissions.convert'
+  return capability
 }
 
 const BLOCKED_TEXT: Partial<Record<`${Stage}>${Stage}`, string>> = {
@@ -145,17 +151,17 @@ export function transitionWarning(from: Stage, to: Stage): string {
 type Can = (capability: string) => boolean
 
 // 園務 FunnelBoard.vue:136-150：以卡片「原本所在的欄」決定能不能拖。官網沒有學生檔，
-// 從已註冊拖出只要 admissions.convert（園務另要 STUDENTS_WRITE）。
-export function canDragFrom(stage: Stage, can: Can): boolean {
+// 從已註冊拖出只要 admissions.convert（園務另要 STUDENTS_WRITE）；從已註冊退出的卡片同樣要 convert。
+export function canDragFrom(stage: Stage, can: Can, withdrawnFrom?: string | null): boolean {
   if (stage === 'enrolled') return can('admissions.convert')
-  if (stage === 'withdrawn') return can('admissions.write')
+  if (stage === 'withdrawn') return can(withdrawnFrom === 'enrolled' ? 'admissions.convert' : 'admissions.write')
   return can('admissions.write') || can('admissions.convert')
 }
 
 /** 卡片選單「移到…」的選項：允許、而且這個人有權限的目的欄。 */
-export function moveTargets(from: Stage, can: Can): Stage[] {
+export function moveTargets(from: Stage, can: Can, withdrawnFrom?: string | null): Stage[] {
   return STAGES.filter((to) => {
-    const capability = transitionCapability(from, to)
+    const capability = transitionCapability(from, to, withdrawnFrom)
     return capability !== null && can(capability)
   })
 }

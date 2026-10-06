@@ -123,6 +123,15 @@ class Settings(BaseSettings):
             return None
         return value.strip() or None
 
+    @field_validator("admin_origin")
+    @classmethod
+    def _normalize_admin_origin(cls, value: str | None) -> str | None:
+        """瀏覽器送的 Origin 不帶結尾斜線；設定成 https://host/ 時逐字比對會讓後台所有
+        寫入都 403「Origin 不符」，登入卻照常成功，很難查（2026-10-06 稽核）。"""
+        if value is None:
+            return None
+        return value.strip().rstrip("/") or None
+
     @field_validator("background_jobs_interval_seconds")
     @classmethod
     def _sane_background_interval(cls, value: int | None) -> int | None:
