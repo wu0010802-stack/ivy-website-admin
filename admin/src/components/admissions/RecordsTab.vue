@@ -2,13 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
-import { ArrowDown, ArrowRight, Filter, Plus, Search } from '@element-plus/icons-vue'
-import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, type FollowUpScope } from '../../api/admissions'
+import { ArrowDown, ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
+import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExportPath, type FollowUpScope, type RecordFilters } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
 import { campusLabel } from '../../api/labels'
-import { rocDate, termLabel } from '../../admissions/academic'
+import { rocDate, taipeiToday, termLabel } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Stage, type TransitionTarget } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
@@ -19,6 +19,7 @@ import { usePermissions } from '../../composables/usePermissions'
 import { useRouter } from 'vue-router'
 import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { csvFilename, downloadServerCsv } from '../../utils/csv'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
 import TransitionDialog from './TransitionDialog.vue'
@@ -42,6 +43,8 @@ const { can } = usePermissions()
 const router = useRouter()
 const canWrite = computed(() => can('admissions.write'))
 const canConvert = computed(() => can('admissions.convert'))
+// 含孩子姓名、電話、地址的名單：要「匯出個資」授權（後端另外擋，這裡只是不顯示按鈕）。
+const canExport = computed(() => can('booking.export'))
 // 手機（2026-10-05）改成卡片清單，不再整張表橫捲；篩選只常駐搜尋。
 const narrow = useNarrowScreen()
 
@@ -93,29 +96,33 @@ const emptyText = computed(() => {
   return `${campus}還沒有招生訪視。`
 })
 
+// 列表與 CSV 匯出送同一組篩選：畫面上篩好什麼，匯出的就是那一批（同參觀案件）。
+// 新增篩選只改這裡，兩邊才不會各寫一份而漏掉（追蹤、負責人就差點漏）。
+function currentFilters(): RecordFilters {
+  return {
+    campus_key: props.campusKey,
+    month: props.month || null,
+    grade: grade.value || null,
+    target_school_year: props.schoolYear,
+    target_semester: props.semester,
+    source: source.value || null,
+    referrer: referrer.value || null,
+    has_deposit: hasDeposit.value === 'yes' ? true : hasDeposit.value === 'no' ? false : null,
+    no_deposit_reason: noDepositReason.value || null,
+    visit_request_id: props.visitRequestId || null,
+    q: keyword.value || null,
+    follow_up: followUp.value || null,
+    owner: owner.value || null,
+  }
+}
+
 async function load() {
   if (!props.campusKey) return
   const request = requests.begin()
   loading.value = true
   error.value = null
   try {
-    const result = await listRecords({
-      campus_key: props.campusKey,
-      month: props.month || null,
-      grade: grade.value || null,
-      target_school_year: props.schoolYear,
-      target_semester: props.semester,
-      source: source.value || null,
-      referrer: referrer.value || null,
-      has_deposit: hasDeposit.value === 'yes' ? true : hasDeposit.value === 'no' ? false : null,
-      no_deposit_reason: noDepositReason.value || null,
-      visit_request_id: props.visitRequestId || null,
-      q: keyword.value || null,
-      follow_up: followUp.value || null,
-      owner: owner.value || null,
-      page: page.value,
-      page_size: PAGE_SIZE,
-    })
+    const result = await listRecords({ ...currentFilters(), page: page.value, page_size: PAGE_SIZE })
     if (!requests.isCurrent(request)) return
     rows.value = Array.isArray(result) ? result : []
   } catch {
@@ -124,6 +131,21 @@ async function load() {
     error.value = '載入明細失敗'
   } finally {
     if (requests.isCurrent(request)) loading.value = false
+  }
+}
+
+// CSV 由後端產生（含個資、寫稽核、有筆數上限）：筆數太多回 422 中文訊息，沒權限回 403，
+// 都用提示講清楚，不產生檔案。
+const exporting = ref(false)
+async function exportCsv() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    await downloadServerCsv(recordsExportPath(currentFilters()), csvFilename('招生訪視明細', campusLabel(props.campusKey), taipeiToday()))
+  } catch (err) {
+    notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -510,6 +532,10 @@ async function remove(row: RecruitmentVisit) {
         <div class="records__head-actions">
           <!-- 沒資料時不寫「本頁 0 筆」：空狀態已經說明原因，不顯示假的 0。 -->
           <span v-if="loading || rows.length" class="hint num">{{ loading ? '載入中…' : `本頁 ${rows.length} 筆` }}</span>
+          <template v-if="canExport">
+            <el-button :icon="Download" :loading="exporting" aria-describedby="records-export-scope" @click="exportCsv">匯出 CSV</el-button>
+            <span id="records-export-scope" class="hint">匯出範圍：目前篩選的全部結果（不只本頁）</span>
+          </template>
           <el-button v-if="canWrite" type="primary" :icon="Plus" @click="openAdd">新增訪視</el-button>
         </div>
       </div>

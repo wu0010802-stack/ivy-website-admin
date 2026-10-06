@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue'
-import { getNoDepositRecords } from '../../api/admissions'
+import { Download } from '@element-plus/icons-vue'
+import { getNoDepositRecords, noDepositExportPath, type NoDepositFilters } from '../../api/admissions'
+import { apiErrorMessage } from '../../api/errors'
+import { campusLabel } from '../../api/labels'
 import type { NoDepositRecord } from '../../api/types'
+import { taipeiToday } from '../../admissions/academic'
 import { GRADES, NO_DEPOSIT_REASONS } from '../../admissions/constants'
 import { NO_VALUE, priorityLabel } from '../../admissions/statsFormat'
+import { notifyError } from '../../composables/notify'
+import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { csvFilename, downloadServerCsv } from '../../utils/csv'
 
 // 未預繳明細（園務 RecruitmentNoDepositTab 的「未預繳明細」；2026-10-01 使用者裁定統計頁要列名單）。
 // 資料來自 GET /admin/admissions/no-deposit-records（C2b），母體同統計：未預繳且未退出。
@@ -67,6 +74,24 @@ function applyPreset(preset: Preset | null | undefined) {
   page.value = 1
 }
 
+const { can } = usePermissions()
+// 含孩子姓名與電訪回應的名單：要「匯出個資」授權（後端另外擋，這裡只是不顯示按鈕）。
+const canExport = computed(() => can('booking.export'))
+
+// 列表與 CSV 匯出送同一組篩選：畫面上篩好什麼，匯出的就是那一批。
+function currentFilters(): NoDepositFilters {
+  return {
+    campus_key: props.campusKey,
+    school_year: props.schoolYear,
+    semester: props.semester,
+    reason: reason.value || null,
+    grade: grade.value || null,
+    priority: priority.value === 'all' ? null : priority.value,
+    overdue_days: overdueDays.value,
+    cold_only: coldOnly.value || null,
+  }
+}
+
 async function load(options: { reset?: boolean } = {}) {
   const request = requests.begin()
   if (options.reset) {
@@ -80,18 +105,7 @@ async function load(options: { reset?: boolean } = {}) {
   }
   loading.value = true
   try {
-    const result = await getNoDepositRecords({
-      campus_key: props.campusKey,
-      school_year: props.schoolYear,
-      semester: props.semester,
-      reason: reason.value || null,
-      grade: grade.value || null,
-      priority: priority.value === 'all' ? null : priority.value,
-      overdue_days: overdueDays.value,
-      cold_only: coldOnly.value || null,
-      page: page.value,
-      page_size: PAGE_SIZE,
-    })
+    const result = await getNoDepositRecords({ ...currentFilters(), page: page.value, page_size: PAGE_SIZE })
     if (!requests.isCurrent(request)) return
     records.value = result.records
     total.value = result.total
@@ -102,6 +116,21 @@ async function load(options: { reset?: boolean } = {}) {
     failed.value = true
   } finally {
     if (requests.isCurrent(request)) loading.value = false
+  }
+}
+
+// CSV 由後端產生（含個資、寫稽核、有筆數上限）：筆數太多回 422 中文訊息，沒權限回 403，
+// 都用提示講清楚，不產生檔案。
+const exporting = ref(false)
+async function exportCsv() {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    await downloadServerCsv(noDepositExportPath(currentFilters()), csvFilename('未預繳名單', campusLabel(props.campusKey), taipeiToday()))
+  } catch (err) {
+    notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -218,6 +247,7 @@ function openRecords(row: NoDepositRecord) {
         <el-checkbox :model-value="overdueDays !== null" @update:model-value="setOverdue">只看逾 14 天待追</el-checkbox>
         <el-checkbox :model-value="coldOnly" @update:model-value="setColdOnly">只看冷名單</el-checkbox>
         <span class="nd-count">符合條件 {{ total }} 筆<template v-if="overallTotal !== undefined">，未預繳共 {{ overallTotal }} 筆</template></span>
+        <el-button v-if="canExport" size="small" :icon="Download" :loading="exporting" @click="exportCsv">匯出 CSV</el-button>
       </div>
     </div>
     <p class="hint nd-caption">「查看」會切到訪視明細，並篩這筆的月份。</p>

@@ -45,6 +45,11 @@ export function listRecords(params: RecordFilters & { page: number; page_size: n
   return api.get<RecruitmentVisit[]>(`/admin/admissions/records?${toQuery(params)}`)
 }
 
+/** 訪視明細 CSV（2026-10-03）：條件同列表（含追蹤、負責人）、不分頁；要「匯出個資」授權。 */
+export function recordsExportPath(params: RecordFilters): string {
+  return `/admin/admissions/records/export?${toQuery(params)}`
+}
+
 export function createRecord(campusKey: string, body: RecruitmentVisitCreate): Promise<RecruitmentVisit> {
   return api.post<RecruitmentVisit>(`/admin/admissions/records?${toQuery({ campus_key: campusKey })}`, body)
 }
@@ -126,6 +131,13 @@ export function getNoDepositRecords(params: {
   page_size: number
 }): Promise<NoDepositRecords> {
   return api.get<NoDepositRecords>(`/admin/admissions/no-deposit-records?${toQuery(params)}`)
+}
+
+export type NoDepositFilters = Omit<Parameters<typeof getNoDepositRecords>[0], 'page' | 'page_size'>
+
+/** 未預繳名單 CSV（2026-10-03）：篩選同畫面、不分頁；要「匯出個資」授權。 */
+export function noDepositExportPath(params: NoDepositFilters): string {
+  return `/admin/admissions/no-deposit-records/export?${toQuery(params)}`
 }
 
 /** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年必填，學期不帶＝整學年。 */
