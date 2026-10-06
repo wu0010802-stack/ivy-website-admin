@@ -417,6 +417,86 @@ async def test_audit_log_filters_by_taipei_dates_and_limit(admin_client, db_sess
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("limit", [1, 2, 3, 5])
+async def test_audit_log_cursor_paging_stays_inside_the_date_range(admin_client, db_session, limit):
+    """後台操作紀錄的翻頁與匯出：同一組 campus_key／exclude_login／created_from／created_to／limit，
+    逐頁帶上一頁最後一筆的 before／before_id。每一頁都只在日期範圍內，換頁不漏、不重複、
+    不越過範圍邊界（含下界 9/30 16:00 UTC 這一筆、不含上界 10/1 16:00），同一時間的兩筆跨頁也一樣。"""
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    # 台北 10/1 = UTC 9/30 16:00（含）到 10/1 16:00（不含）。
+    rows = [
+        ("out-before", datetime(2026, 9, 30, 15, 59, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-lower-bound", datetime(2026, 9, 30, 16, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-tie-a", datetime(2026, 10, 1, 1, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-tie-b", datetime(2026, 10, 1, 1, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-login", datetime(2026, 10, 1, 2, 0, tzinfo=timezone.utc), "yihua", "user.login_password"),
+        ("in-03", datetime(2026, 10, 1, 3, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-other-campus", datetime(2026, 10, 1, 3, 0, tzinfo=timezone.utc), "minghua", "site_settings.update"),
+        ("in-07", datetime(2026, 10, 1, 7, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("in-upper-edge", datetime(2026, 10, 1, 15, 59, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("out-upper-bound", datetime(2026, 10, 1, 16, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+        ("out-after", datetime(2026, 10, 2, 0, 0, tzinfo=timezone.utc), "yihua", "site_settings.update"),
+    ]
+    for target_id, when, campus_key, action in rows:
+        await _audit(db_session, action=action, created_at=when, campus_key=campus_key, target_id=target_id)
+    await db_session.commit()
+
+    url = "/api/website/v1/admin/audit-log"
+    day = {"created_from": "2026-10-01", "created_to": "2026-10-01"}
+    lower, upper = datetime(2026, 9, 30, 16, 0, tzinfo=timezone.utc), datetime(2026, 10, 1, 16, 0, tzinfo=timezone.utc)
+
+    async def paged(extra: dict) -> list[dict]:
+        collected: list[dict] = []
+        params = {"campus_key": "yihua", **day, **extra, "limit": limit}
+        pages = 0
+        while True:
+            resp = await admin_client.get(url, params=params)
+            assert resp.status_code == 200, resp.text
+            page = resp.json()
+            assert len(page) <= limit
+            collected.extend(page)
+            pages += 1
+            assert pages < 20, "游標沒有往前走"
+            if len(page) < limit:
+                return collected
+            params = {**params, "before": page[-1]["created_at"], "before_id": page[-1]["id"]}
+
+    def within(entries: list[dict]) -> bool:
+        stamps = [datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")) for e in entries]
+        return all(lower <= stamp < upper for stamp in stamps)
+
+    # 一次讀完的基準（limit 上限 500）：翻頁讀到的要和它一樣，順序也一樣。
+    baseline = (await admin_client.get(url, params={"campus_key": "yihua", **day, "limit": 500})).json()
+    assert {e["target_id"] for e in baseline} == {
+        "in-lower-bound", "in-tie-a", "in-tie-b", "in-login", "in-03", "in-07", "in-upper-edge",
+    }
+    assert within(baseline)
+
+    everything = await paged({})
+    assert [e["id"] for e in everything] == [e["id"] for e in baseline]
+    assert len({e["id"] for e in everything}) == len(everything) == 7
+    assert within(everything)
+    # 時間由新到舊，同一時間的兩筆用 id 排出固定順序（和一次讀完一致，跨頁也不換位）。
+    stamps = [e["created_at"] for e in everything]
+    assert stamps == sorted(stamps, reverse=True)
+
+    # 加上「不列登入登出」：同樣的游標與日期範圍，只少了那一筆登入。
+    no_login = await paged({"exclude_login": True})
+    assert [e["id"] for e in no_login] == [e["id"] for e in everything if e["target_id"] != "in-login"]
+    assert len(no_login) == 6 and within(no_login)
+
+    # 游標落在範圍下界那一筆之後，再往前讀是空的：不會越過下界讀到前一天的紀錄。
+    lower_edge = next(e for e in everything if e["target_id"] == "in-lower-bound")
+    after_edge = await admin_client.get(
+        url, params={"campus_key": "yihua", **day, "limit": limit, "before": lower_edge["created_at"], "before_id": lower_edge["id"]}
+    )
+    assert after_edge.status_code == 200 and after_edge.json() == []
+
+
+@pytest.mark.asyncio
 async def test_audit_log_says_whether_case_still_exists(admin_client, db_session):
     from app.operations.models import AuditLogEntry
     from sqlalchemy import delete
