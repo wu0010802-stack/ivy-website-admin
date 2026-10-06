@@ -316,6 +316,10 @@ class RecruitmentVisitFilters:
             stmt = stmt.where(RecruitmentVisit.referrer == self.referrer)
         if self.has_deposit is not None:
             stmt = stmt.where(RecruitmentVisit.has_deposit.is_(self.has_deposit))
+            # 「預繳：否」＝統計的未預繳（stats.py 同口徑，2026-10-06）：退預繳／退註冊會清
+            # has_deposit，不排除的話明細會比統計多出已退出的。
+            if not self.has_deposit:
+                stmt = stmt.where(RecruitmentVisit.withdrawn_at.is_(None))
         if self.no_deposit_reason:
             stmt = stmt.where(RecruitmentVisit.no_deposit_reason == self.no_deposit_reason)
         if self.stage:

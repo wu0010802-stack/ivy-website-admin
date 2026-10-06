@@ -7,10 +7,10 @@ import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs } from 
 import { ROOT, SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
 
 // 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md F19）：兩位家長預約 →
-// 場次時間過了 → 案件列表「只看尚未確認到場」勾兩筆一次標記已到場（2026-10-05 從招生入學的
-// 「官網預約」分頁搬來）→ 待追蹤「未排定」有兩筆 → 其中一筆排明天 →
-// 移到「7 天內」→ 把它改成已到期 → 「已到期」與總覽都看得到 → 記錄聯絡（沒聯絡到、明天）→
-// 離開已到期 → 預繳後仍在追 → 註冊後下次聯絡被清掉。
+// 場次時間過了 → 案件列表「只看尚未確認到場」勾兩筆一次標記已到場 → 兩筆都「未排定」→
+// 甲在預約明細排明天 → 「7 天內」→ 把它改成已到期 → 訪視明細「追蹤：已到期」看得到 →
+// 預約明細記錄聯絡（沒聯絡到、明天）→ 離開已到期 → 預繳後仍在追 → 註冊後下次聯絡被清掉。
+// 招生入學的「待追蹤」分頁 2026-10-06 拿掉：排程與記錄聯絡走預約明細，清單走訪視明細的「追蹤」篩選。
 // 「時間已過」「已到期」都用 psql 改本測試自己的資料（db.ts），不改系統時間。
 // 招生訪視的絕對數字只在 admissions-flow.spec（檔名排在前面、先跑）斷言；本檔只比對自己的孩子。
 
@@ -22,11 +22,10 @@ const FAMILIES = [
 ] as const
 const [A, B] = FAMILIES
 
-type FollowUpList = { totals: { due: number; upcoming: number; unscheduled: number }; rows: { child_name: string; follow_up_at: string | null }[] }
-
+/** 訪視明細「追蹤」篩選的同一個查詢（records?follow_up=）。 */
 async function followUps(api: AdminApi, scope: 'due' | 'upcoming' | 'unscheduled'): Promise<string[]> {
-  const list = await api.get<FollowUpList>(`/admin/admissions/follow-ups?campus_key=${SLOTS_CAMPUS}&scope=${scope}&page_size=100`)
-  return list.rows.map((row) => row.child_name)
+  const rows = await api.get<{ child_name: string }[]>(`/admin/admissions/records?campus_key=${SLOTS_CAMPUS}&follow_up=${scope}&page_size=100`)
+  return rows.map((row) => row.child_name)
 }
 
 /** 以家長身分從公開 API 預約指定場次（送單畫面由 admissions-flow／booking-flow 驗證）。 */
@@ -51,12 +50,9 @@ async function bookSlot(slotId: string, family: (typeof FAMILIES)[number]): Prom
   await context.dispose()
 }
 
-const row = (page: Page, text: string) => page.locator('.follow-ups-table .el-table__body tr', { hasText: text })
-
-async function openFollowUps(page: Page, scope: 'due' | 'upcoming' | 'unscheduled') {
-  const fu = scope === 'due' ? '' : `&fu=${scope}`
-  await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=followups${fu}`, '招生入學')
-  await expect(page.locator('.follow-ups')).toBeVisible()
+async function openFamily(page: Page, api: AdminApi, family: (typeof FAMILIES)[number]) {
+  await gotoAdmin(page, `/visit-requests/${(await findVisit(api, family.parent)).id}`, '案件明細')
+  await expect(page.locator('.family-actions')).toBeVisible()
 }
 
 test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預繳仍追 → 註冊後結束', async ({ browser }) => {
@@ -87,14 +83,15 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
   })
   for (const family of FAMILIES) expect((await findVisit(api, family.parent)).status).toBe('completed')
 
-  await test.step('待追蹤「未排定」有兩筆（不自動排聯絡），「已到期」沒有', async () => {
-    await openFollowUps(page, 'unscheduled')
-    for (const family of FAMILIES) await expect(row(page, family.child)).toBeVisible()
-    expect(await followUps(api, 'due')).not.toEqual(expect.arrayContaining([A.child]))
+  await test.step('兩筆都「未排定」（不自動排聯絡），「已到期」沒有', async () => {
+    const unscheduled = await followUps(api, 'unscheduled')
+    for (const family of FAMILIES) expect(unscheduled).toContain(family.child)
+    expect(await followUps(api, 'due')).not.toContain(A.child)
   })
 
-  await test.step('甲排明天 10:00 → 移到「7 天內」', async () => {
-    await row(page, A.child).getByRole('button', { name: '排下次聯絡' }).click()
+  await test.step('甲在預約明細排明天 10:00 → 移到「7 天內」', async () => {
+    await openFamily(page, api, A)
+    await page.locator('.family-actions').getByRole('button', { name: '排下次聯絡' }).click()
     const dialog = page.getByRole('dialog', { name: '排下次聯絡' })
     await dialog.locator('.el-radio-button', { hasText: '明天 10:00' }).click()
     await dialog.getByRole('button', { name: '儲存' }).click()
@@ -105,19 +102,22 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
 
   makeFollowUpDue(A.child)
 
-  await test.step('甲到期：「已到期」與總覽待辦看得到', async () => {
-    await openFollowUps(page, 'due')
-    await expect(row(page, A.child)).toContainText('今天')
-    await expect(page.locator('.admissions__count--due')).toHaveText(/\d+/)
-    await page.screenshot({ path: path.join(SHOTS, 'admissions-followups-due-1440.png'), fullPage: true })
+  await test.step('甲到期：訪視明細「追蹤：已到期」看得到，招生入學沒有待追蹤分頁', async () => {
+    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=records&sy=all`, '招生入學')
+    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細', '統計分析'])
+    // 點下拉外框：輸入框上疊著佔位文字，直接點 input 會被它擋住。
+    await page.locator('.records-filters .el-select', { has: page.getByLabel('追蹤狀態') }).click()
+    await page.locator('.el-select-dropdown__item:visible', { hasText: '已到期' }).click()
+    const row = page.locator('.records-table .el-table__body tr', { hasText: A.child })
+    await expect(row).toContainText('今天')
+    await expect(page.locator('.records-table .el-table__body tr', { hasText: B.child })).toHaveCount(0)
+    await page.screenshot({ path: path.join(SHOTS, 'admissions-records-follow-up-due-1440.png'), fullPage: true })
     await expectNoHorizontalOverflow(page)
-    await gotoAdmin(page, '/', '營運總覽')
-    await expect(page.locator('a.task', { hasText: '參觀後該聯絡的家長' })).toBeVisible()
   })
 
-  await test.step('記錄聯絡：沒聯絡到 → 預設明天 → 離開已到期', async () => {
-    await openFollowUps(page, 'due')
-    await row(page, A.child).getByRole('button', { name: '記錄聯絡' }).click()
+  await test.step('預約明細記錄聯絡：沒聯絡到 → 預設明天 → 離開已到期；聯絡在聯絡紀錄、建立訪視在歷程', async () => {
+    await openFamily(page, api, A)
+    await page.locator('.family-actions').getByRole('button', { name: '記錄聯絡' }).click()
     const dialog = page.getByRole('dialog', { name: '記錄聯絡' })
     await dialog.locator('.el-radio-button', { hasText: '沒聯絡到' }).click()
     await expect(dialog.locator('.el-radio-button.is-active', { hasText: '明天 10:00' })).toBeVisible()
@@ -125,19 +125,10 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     await page.screenshot({ path: path.join(SHOTS, 'admissions-contact-dialog-1440.png') })
     await dialog.getByRole('button', { name: '記下來' }).click()
     await expect(dialog).toBeHidden()
-    await expect(row(page, A.child)).toHaveCount(0)
+    await expect.poll(() => followUps(api, 'due')).not.toContain(A.child)
     expect(await followUps(api, 'upcoming')).toContain(A.child)
-  })
-
-  await test.step('待追蹤點有預約的家庭：開預約明細（家庭版面），參觀後聯絡在聯絡紀錄、建立訪視在歷程', async () => {
-    await openFollowUps(page, 'upcoming')
-    await row(page, A.child).getByRole('button', { name: '歷程' }).click()
-    await expect(page).toHaveURL(/\/admin\/visit-requests\/[0-9a-f-]+/)
     await expect(page.locator('.family-notes__item', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
     await expect(page.locator('.timeline__item', { hasText: '建立訪視' })).toHaveCount(1)
-    await expect(page.locator('.detail__back')).toHaveText('招生入學')
-    await page.locator('.detail__back').click()
-    await expect(page).toHaveURL(/\/admin\/admissions(\?|$)/)
   })
 
   await test.step('預繳後仍在追；註冊後下次聯絡被清掉', async () => {
@@ -156,16 +147,6 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     )
     expect(enrolled.follow_up_at).toBeNull()
     expect(await followUps(api, 'upcoming')).not.toContain(A.child)
-  })
-
-  await test.step('390 手機：待追蹤是卡片、有撥號鈕，頁面不橫向溢出', async () => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await openFollowUps(page, 'unscheduled')
-    const card = page.locator('.follow-card', { hasText: B.child })
-    await expect(card).toBeVisible()
-    await expect(card.locator(`a[href="tel:${B.phone}"]`)).toBeVisible()
-    await page.screenshot({ path: path.join(SHOTS, 'admissions-followups-390.png'), fullPage: true })
-    await expectNoHorizontalOverflow(page)
   })
 
   await Promise.all([staff.context.close(), api.dispose()])

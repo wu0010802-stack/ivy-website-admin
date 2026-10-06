@@ -491,8 +491,6 @@ export type ContactLog = components['schemas']['ContactLogOut']
 export type ContactLogCreate = components['schemas']['ContactLogCreate']
 export type ContactLogResult = components['schemas']['ContactLogResultOut']
 export type FollowUpUpdate = components['schemas']['FollowUpUpdate']
-export type FollowUpList = components['schemas']['FollowUpListOut']
-export type FollowUpRow = components['schemas']['FollowUpRowOut']
 export type AdmissionsStaff = components['schemas']['AdmissionsStaffOut']
 
 // 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。

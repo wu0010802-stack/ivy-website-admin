@@ -10,6 +10,7 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
 - 來源不做別名合併；不做童年綠地、行政區、預計就讀月份。
 - 同票排序加第二鍵：標籤字串升序。
 - 行動入口「查看區域機會」改為「查看來源結構」（REVIEW_SOURCE），只在來源失衡時出現。
+- 未預繳的逾期、冷名單看參觀日（台北日期），園務看 created_at（2026-10-06，第 16 點）。
 - 參考月份格式錯丟 InvalidReferenceMonth（路由轉 422）；園務是未處理的 ValueError。
 - SQL 只 GROUP BY 原始欄位，「未填寫」「未分類」在 Python 合併：asyncpg 用伺服器端參數，
   GROUP BY coalesce(x, $2) 與 SELECT coalesce(x, $1) 會被判定成不同運算式。
@@ -17,7 +18,7 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Callable, Iterable
 
 from sqlalchemy import String, and_, case, cast, func, select
@@ -27,7 +28,7 @@ from app.admissions import intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
 from app.admissions.constants import NO_DEPOSIT_PRIORITY
 from app.admissions.models import RecruitmentVisit
-from app.common.timezones import now_utc
+from app.common.timezones import now_utc, today_local
 
 # 門檻（園務 shared.py:54、77-82）。
 TOP_SOURCES_COUNT = 10
@@ -325,12 +326,18 @@ def _priority_totals(reasons: list[dict[str, Any]]) -> dict[str, int]:
     return totals
 
 
+def _visit_cutoff(now: datetime, days: int) -> date:
+    """參觀滿 days 天的截止日：參觀日 <= 這天就算（台北日期）。逾期、冷名單看參觀日（2026-10-06 起，
+    和園務看 created_at 分歧）：補登舊訪視、預約隔很多天才按已到場，都不會從建檔那天重新起算。"""
+    return today_local(now) - timedelta(days=days)
+
+
 async def _no_deposit_summary(db: AsyncSession, filters: list[Any], now: datetime) -> dict[str, int]:
     """園務 /no-deposit-analysis 的 summary 與 alerts 的積壓數（/stats 只回數字；名單在 C2b 的 no_deposit_records）。"""
     v = RecruitmentVisit
     high = v.no_deposit_reason.in_(NO_DEPOSIT_PRIORITY["high"])
-    overdue = v.created_at <= now - timedelta(days=DEFAULT_OVERDUE_DAYS)
-    cold = v.created_at <= now - timedelta(days=COLD_LEAD_DAYS)
+    overdue = v.visit_date <= _visit_cutoff(now, DEFAULT_OVERDUE_DAYS)
+    cold = v.visit_date <= _visit_cutoff(now, COLD_LEAD_DAYS)
     row = (
         await db.execute(
             select(
@@ -429,7 +436,7 @@ def _alerts(
             "code": "HIGH_POTENTIAL_BACKLOG",
             "level": "danger",
             "title": "高潛力未預繳名單堆積",
-            "message": f"超過 {DEFAULT_OVERDUE_DAYS} 天仍未預繳的高潛力名單有 {backlog} 筆。",
+            "message": f"參觀超過 {DEFAULT_OVERDUE_DAYS} 天仍未預繳的高潛力名單有 {backlog} 筆。",
             "target_tab": "nodeposit",
             "target_filter": {"priority": "high", "overdue_days": DEFAULT_OVERDUE_DAYS},
         })
@@ -638,15 +645,15 @@ async def no_deposit_records(
         filters.append(v.no_deposit_reason == reason)
     if grade:
         filters.append(v.grade == grade)
-    overdue_cutoff = now - timedelta(days=overdue_days or DEFAULT_OVERDUE_DAYS)
-    cold_cutoff = now - timedelta(days=COLD_LEAD_DAYS)
+    overdue_cutoff = _visit_cutoff(now, overdue_days or DEFAULT_OVERDUE_DAYS)
+    cold_cutoff = _visit_cutoff(now, COLD_LEAD_DAYS)
 
     summary_row = (
         await db.execute(
             select(
                 func.count(v.id).filter(v.no_deposit_reason.in_(NO_DEPOSIT_PRIORITY["high"])).label("high_potential_count"),
-                func.count(v.id).filter(v.created_at <= overdue_cutoff).label("overdue_followup_count"),
-                func.count(v.id).filter(v.created_at <= cold_cutoff).label("cold_count"),
+                func.count(v.id).filter(v.visit_date <= overdue_cutoff).label("overdue_followup_count"),
+                func.count(v.id).filter(v.visit_date <= cold_cutoff).label("cold_count"),
             ).where(*filters)
         )
     ).one()
@@ -656,14 +663,14 @@ async def no_deposit_records(
     if priority:
         list_filters.append(v.no_deposit_reason.in_(NO_DEPOSIT_PRIORITY[priority]))
     if overdue_days is not None:
-        list_filters.append(v.created_at <= overdue_cutoff)
+        list_filters.append(v.visit_date <= overdue_cutoff)
     if cold_only:
-        list_filters.append(v.created_at <= cold_cutoff)
+        list_filters.append(v.visit_date <= cold_cutoff)
     rows = (
         await db.execute(
             select(
                 v.id, v.month, v.seq_no, v.child_name, v.grade, v.no_deposit_reason, v.no_deposit_reason_detail,
-                v.source, v.referrer, v.parent_response, v.created_at,
+                v.source, v.referrer, v.parent_response, v.created_at, v.visit_date,
             ).where(*list_filters)
         )
     ).all()
@@ -686,7 +693,7 @@ async def no_deposit_records(
             "parent_response": row.parent_response,
             "created_at": row.created_at,
             "priority": _REASON_PRIORITY.get(row.no_deposit_reason) if row.no_deposit_reason else None,
-            "cold": row.created_at <= cold_cutoff,
+            "cold": row.visit_date <= cold_cutoff,
         }
         for row in ordered[start : start + page_size]
     ]

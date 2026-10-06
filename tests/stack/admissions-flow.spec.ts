@@ -21,7 +21,7 @@ const PHONE = '0912000771'
 const EMAIL = 'admissions-flow@example.com'
 const GUIDE = '招生流程老師'
 const SHOTS = path.join(ROOT, 'output/playwright')
-const TABS = ['funnel', 'followups', 'records', 'stats'] as const
+const TABS = ['funnel', 'records', 'stats'] as const
 
 // B 階段畫面的文案（Step 1 核對過）。B 改文案時只改這裡。
 const UI = {
@@ -157,7 +157,7 @@ const VIEWPORTS = [
 ]
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：招生入學四個分頁與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
+  test(`${name}px：招生入學三個分頁與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
     mkdirSync(SHOTS, { recursive: true })
     const { context, page } = await openAs(browser, 'super_admin', device)
     for (const tab of TABS) {

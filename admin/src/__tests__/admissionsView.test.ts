@@ -106,10 +106,10 @@ describe('招生入學頁：篩選與分頁跟網址雙向同步（規格第 10 
 })
 
 describe('官網預約分頁已拿掉（2026-10-05）', () => {
-  it('分頁只剩四個；舊連結 tab=arrivals 退回漏斗看板，網址拿掉 tab，不讀官網預約', async () => {
+  it('分頁只剩三個（待追蹤 2026-10-06 也拿掉）；舊連結 tab=arrivals 退回漏斗看板，網址拿掉 tab，不讀官網預約', async () => {
     const get = mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=arrivals' })
-    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '待追蹤', '訪視明細', '統計分析'])
+    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '訪視明細', '統計分析'])
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
     expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('漏斗看板')
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])
@@ -124,16 +124,16 @@ describe('官網預約分頁已拿掉（2026-10-05）', () => {
 })
 
 describe('招生開關關閉（R1）', () => {
-  it('options 回 404：顯示「招生入學尚未啟用」，沒有分頁、不讀待追蹤筆數，也沒有錯誤訊息', async () => {
+  it('options 回 404：顯示「招生入學尚未啟用」，沒有分頁，也沒有錯誤訊息', async () => {
     const { ApiError } = await import('../api/client')
     const get = mockGet({
       '/admin/admissions/options': () => { throw new ApiError(404, { code: 'NOT_FOUND' }) },
     })
     const { wrapper } = await mountWith(AdmissionsView)
     expect(wrapper.text()).toContain('招生入學尚未啟用')
-    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、待追蹤、訪視明細與統計分析。')
+    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、訪視明細與統計分析。')
     expect(wrapper.findAll('.el-tabs__item')).toHaveLength(0)
-    expect(pathsTo(get, '/admin/admissions/followups')).toEqual([])
+    expect(pathsTo(get, '/admin/admissions/follow-ups')).toEqual([])
     expect(document.body.querySelector('.el-message')).toBeNull()
   })
 
@@ -237,23 +237,10 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
 })
 
 describe('頁首篩選的作用範圍與手機摘要', () => {
-  it('待追蹤不分入學學年學期：兩個下拉停用並說明，切回其他分頁恢復', async () => {
-    mockGet({ ...routesOn, '/admin/admissions/followups': { items: [], totals: { due: 0, all: 0 }, total: 0 } })
-    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?tab=followups' })
-    const [, year, semester] = wrapper.findAllComponents({ name: 'ElSelect' })
-    expect([year!.props('disabled'), semester!.props('disabled')]).toEqual([true, true])
-    expect(wrapper.text()).toContain('這個分頁不分入學學年學期')
-    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'records')
-    await flushPromises()
-    const [, year2] = wrapper.findAllComponents({ name: 'ElSelect' })
-    expect(year2!.props('disabled')).toBe(false)
-    expect(wrapper.text()).not.toContain('這個分頁不分入學學年學期')
-  })
-
-  it('手機：篩選收成一顆摘要鈕，點開才出現下拉；待追蹤只寫校區與「不分學年學期」', async () => {
+  it('手機：篩選收成一顆摘要鈕，點開才出現下拉', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
     freezeToday()
-    mockGet({ ...routesOn, '/admin/admissions/followups': { items: [], totals: { due: 0, all: 0 }, total: 0 } })
+    mockGet(routesOn)
     try {
       const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&sy=115' })
       const summary = wrapper.get('.admissions__summary')
@@ -263,9 +250,6 @@ describe('頁首篩選的作用範圍與手機摘要', () => {
       await summary.trigger('click')
       expect(summary.attributes('aria-expanded')).toBe('true')
       expect(wrapper.find('#admissions-filters').exists()).toBe(true)
-      wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'followups')
-      await flushPromises()
-      expect(wrapper.get('.admissions__summary').text()).toContain('義華・不分學年學期')
     } finally {
       vi.unstubAllGlobals()
     }

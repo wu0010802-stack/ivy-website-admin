@@ -212,8 +212,8 @@ async def test_stats_matches_ivy_semantics(db_session):
     ]
     assert result["no_deposit_total"] == 3
     assert result["no_deposit_priority"] == {"high": 2, "medium": 0, "low": 0, "other": 1}
-    # 高潛力 V4 V6＝2；建檔 <= now－14 天：V4(28) V5(26) V6(21)＝3；<= now－90 天：0；
-    # 高潛力且逾 14 天：V4 V6＝2（V8 已退出，不算）。
+    # 高潛力 V4 V6＝2；參觀日 <= 台北今天－14 天（09-17）：V4(09-03) V5(09-05) V6(09-10)＝3；
+    # <= 今天－90 天（07-03）：0；高潛力且逾 14 天：V4 V6＝2（V8 已退出，不算）。
     assert result["no_deposit_summary"] == {
         "high_potential_count": 2, "overdue_followup_count": 3, "cold_count": 0, "high_potential_backlog_count": 2,
     }
@@ -272,15 +272,15 @@ async def test_cross_total_counts_sources_outside_top_ten(db_session):
 
 
 async def test_alert_thresholds_and_source_imbalance(db_session):
-    # 明華：社區傳單 6 筆都是高潛力、未預繳——4 筆 20 天前、1 筆剛好 14 天前（<= 截止，算）、
-    # 1 筆 14 天前再晚 1 秒（不算）；親友介紹 4 筆 10 天前、預繳 3。
+    # 明華：社區傳單 6 筆都是高潛力、未預繳——4 筆 09-10 參觀、1 筆剛好參觀滿 14 天（09-17，<= 截止，算）、
+    # 1 筆 09-18 參觀（不算）。逾期看參觀日不看建檔：6 筆都是 20 天前建檔；親友介紹 4 筆 10 天前、預繳 3。
     for _ in range(4):
         add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 10), source="社區傳單",
                   no_deposit_reason=HIGH, created_at=days_ago(20))
-    add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 10), source="社區傳單",
-              no_deposit_reason=HIGH, created_at=NOW - timedelta(days=14))
-    add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 10), source="社區傳單",
-              no_deposit_reason=HIGH, created_at=NOW - timedelta(days=14) + timedelta(seconds=1))
+    add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 17), source="社區傳單",
+              no_deposit_reason=HIGH, created_at=days_ago(20))
+    add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 18), source="社區傳單",
+              no_deposit_reason=HIGH, created_at=days_ago(20))
     for has_deposit in (True, True, True, False):
         add_visit(db_session, campus_key="minghua", visit_date=date(2026, 9, 12), source="親友介紹",
                   has_deposit=has_deposit, created_at=days_ago(10))
@@ -295,7 +295,7 @@ async def test_alert_thresholds_and_source_imbalance(db_session):
     assert result["alerts"] == [
         {
             "code": "HIGH_POTENTIAL_BACKLOG", "level": "danger", "title": "高潛力未預繳名單堆積",
-            "message": "超過 14 天仍未預繳的高潛力名單有 5 筆。",
+            "message": "參觀超過 14 天仍未預繳的高潛力名單有 5 筆。",
             "target_tab": "nodeposit", "target_filter": {"priority": "high", "overdue_days": 14},
         },
         {
@@ -313,9 +313,9 @@ async def test_alert_thresholds_and_source_imbalance(db_session):
         "target_tab": "source", "target_filter": {"source": "社區傳單"},
     }
 
-    # 早 1 秒算：剛好 14 天前那筆變成「還沒逾期」→ 積壓 4 < 5，不警示；行動入口只要 > 0 就列。
+    # 早一天算（台北 09-30）：09-17 參觀那筆變成「還沒逾期」→ 積壓 4 < 5，不警示；行動入口只要 > 0 就列。
     earlier = await stats.query_stats(
-        db_session, "minghua", school_year=None, semester=None, reference_month=None, now=NOW - timedelta(seconds=1)
+        db_session, "minghua", school_year=None, semester=None, reference_month=None, now=NOW - timedelta(days=1)
     )
     assert [alert["code"] for alert in earlier["alerts"]] == ["SOURCE_IMBALANCE"]
     assert earlier["top_action_queue"][0]["description"] == "目前有 4 筆高潛力名單逾期未追。"
@@ -612,14 +612,17 @@ def add_numbered(db, seq_no: str | None, **kwargs) -> RecruitmentVisit:
 async def seed_no_deposit(db) -> uuid.UUID:
     """未預繳明細的合成資料：義華 115 學年上學期 N1–N7 在母體內，X1–X4 不在。回傳 N1 的 id。
 
-    | 筆 | 參觀日 → 月份 | 序號 | 姓名 | 年級 | 未預繳原因（潛力） | 建檔 |
-    | N1 | 09-03 → 115.09 | 2 | 林小安 | 小班 | 時程未到／仍在觀望（高） | 20 天前 |
-    | N2 | 09-05 → 115.09 | 10 | 黃小雨 | 幼幼班 | 費用考量（中） | 剛好 14 天前 |
-    | N3 | 09-08 → 115.09 | 1 | 陳小魚 | 中班 | 課程／環境仍在評估（高） | 14 天前再晚 1 秒 |
-    | N4 | 08-20 → 115.08 | 5 | 王小樹 | 大班 | （NULL，未分類） | 3 天前 |
-    | N5 | 07-02 → 115.07 | 3 | 周小宇 | 小班 | 已有其他就學選項／比較他校（低） | 剛好 90 天前 |
-    | N6 | 07-03 → 115.07 | 1 | 李小美 | 中班 | 未註明／待追蹤（—） | 90 天前再晚 1 秒 |
-    | N7 | 2025-12-15 → 114.12 | 4 | 鄭小芸 | 大班 | 時程未到／仍在觀望（高） | 290 天前 |
+    逾期、冷名單看參觀日（2026-10-06 起，和園務看建檔時間分歧）：台北今天 10-01，逾 14 天＝參觀日 <= 09-17，
+    冷名單＝參觀日 <= 07-03。建檔時間刻意和參觀日對不上（補登、隔很久才建），證明不看建檔。
+
+    | 筆 | 參觀日 → 月份 | 序號 | 姓名 | 年級 | 未預繳原因（潛力） | 建檔 | 逾 14 天 | 冷名單 |
+    | N1 | 09-03 → 115.09 | 2 | 林小安 | 小班 | 時程未到／仍在觀望（高） | 20 天前 | 是 | |
+    | N2 | 09-17 → 115.09 | 10 | 黃小雨 | 幼幼班 | 費用考量（中） | 3 天前 | 是（剛好 14 天） | |
+    | N3 | 09-18 → 115.09 | 1 | 陳小魚 | 中班 | 課程／環境仍在評估（高） | 30 天前 | （差 1 天） | |
+    | N4 | 08-20 → 115.08 | 5 | 王小樹 | 大班 | （NULL，未分類） | 3 天前（補登） | 是 | |
+    | N5 | 07-03 → 115.07 | 3 | 周小宇 | 小班 | 已有其他就學選項／比較他校（低） | 10 天前（補登） | 是 | 是（剛好 90 天） |
+    | N6 | 07-04 → 115.07 | 1 | 李小美 | 中班 | 未註明／待追蹤（—） | 120 天前 | 是 | （差 1 天） |
+    | N7 | 2025-12-15 → 114.12 | 4 | 鄭小芸 | 大班 | 時程未到／仍在觀望（高） | 290 天前 | 是 | 是 |
 
     X1 已預繳、X2 退預繳（殘留高潛力原因）、X3 下學期、X4 明華。
     """
@@ -631,15 +634,15 @@ async def seed_no_deposit(db) -> uuid.UUID:
     n1.phone = "0912345678"
     n1.address = "高雄市三民區測試路 1 號"
     n1_id = n1.id  # commit 後再讀屬性會觸發 lazy refresh，先記下來
-    add_numbered(db, "10", visit_date=date(y, 9, 5), child_name="黃小雨", grade="幼幼班", no_deposit_reason=COST,
-                 created_at=days_ago(14))
-    add_numbered(db, "1", visit_date=date(y, 9, 8), child_name="陳小魚", grade="中班", no_deposit_reason=EVALUATING,
-                 created_at=days_ago(14) + timedelta(seconds=1))
+    add_numbered(db, "10", visit_date=date(y, 9, 17), child_name="黃小雨", grade="幼幼班", no_deposit_reason=COST,
+                 created_at=days_ago(3))
+    add_numbered(db, "1", visit_date=date(y, 9, 18), child_name="陳小魚", grade="中班", no_deposit_reason=EVALUATING,
+                 created_at=days_ago(30))
     add_numbered(db, "5", visit_date=date(y, 8, 20), child_name="王小樹", grade="大班", created_at=days_ago(3))
-    add_numbered(db, "3", visit_date=date(y, 7, 2), child_name="周小宇", grade="小班", no_deposit_reason=OTHER_SCHOOL,
-                 created_at=days_ago(90))
-    add_numbered(db, "1", visit_date=date(y, 7, 3), child_name="李小美", grade="中班", no_deposit_reason=UNSPECIFIED,
-                 created_at=days_ago(90) + timedelta(seconds=1))
+    add_numbered(db, "3", visit_date=date(y, 7, 3), child_name="周小宇", grade="小班", no_deposit_reason=OTHER_SCHOOL,
+                 created_at=days_ago(10))
+    add_numbered(db, "1", visit_date=date(y, 7, 4), child_name="李小美", grade="中班", no_deposit_reason=UNSPECIFIED,
+                 created_at=days_ago(120))
     add_numbered(db, "4", visit_date=date(2025, 12, 15), child_name="鄭小芸", grade="大班", no_deposit_reason=HIGH,
                  created_at=days_ago(290))
     add_numbered(db, "3", visit_date=date(y, 9, 10), child_name="何小森", grade="小班", has_deposit=True,
@@ -676,8 +679,8 @@ async def test_no_deposit_records_population_order_and_fields(db_session):
     # 115.09 的序號 1、2、10（字串排序會是 1、10、2）→ 115.08 → 115.07 的 1、3 → 114.12（跨民國年照月份降序）。
     assert names(result) == ALL_SEVEN
     assert (result["total"], result["page"], result["page_size"]) == (7, 1, 100)
-    # 高潛力 N1 N3 N7＝3；建檔 <= now－14 天：N1 N2 N5 N6 N7＝5（N3 晚 1 秒不算）；<= now－90 天：N5 N7＝2（N6 晚 1 秒不算）。
-    assert result["summary"] == {"high_potential_count": 3, "overdue_followup_count": 5, "cold_count": 2}
+    # 高潛力 N1 N3 N7＝3；參觀日 <= 09-17：N1 N2 N4 N5 N6 N7＝6（N3 差 1 天不算）；<= 07-03：N5 N7＝2（N6 差 1 天不算）。
+    assert result["summary"] == {"high_potential_count": 3, "overdue_followup_count": 6, "cold_count": 2}
     # 與 /stats 同口徑：統計寫幾筆，名單就是幾筆；三個數字也對得起來。
     overall = await stats.query_stats(db_session, "yihua", school_year=115, semester=1, reference_month=None, now=NOW)
     assert result["total"] == overall["no_deposit_total"]
@@ -690,7 +693,7 @@ async def test_no_deposit_records_population_order_and_fields(db_session):
         "no_deposit_reason": HIGH, "no_deposit_reason_detail": "想等明年再決定", "source": "Facebook",
         "referrer": "林老師", "parent_response": "下週再電訪", "created_at": days_ago(20), "priority": "high", "cold": False,
     }
-    # 潛力：「未註明／待追蹤」與沒填原因（未分類）都是 None；冷名單＝建檔滿 90 天。
+    # 潛力：「未註明／待追蹤」與沒填原因（未分類）都是 None；冷名單＝參觀滿 90 天。
     assert [(row["priority"], row["cold"]) for row in result["records"]] == [
         ("high", False), ("high", False), ("medium", False), (None, False), (None, False), ("low", True), ("high", True),
     ]
@@ -708,11 +711,11 @@ async def test_no_deposit_records_filters_keep_summary(db_session):
 
     # 畫面的「逾 14 天」開關：summary 的逾期本來就用 14 天，所以不變。
     overdue = await no_deposit(db_session, overdue_days=14)
-    assert (names(overdue), overdue["summary"]) == (["林小安", "黃小雨", "李小美", "周小宇", "鄭小芸"], base)
-    # 逾 25 天：名單只剩 N5 N6 N7；summary 只有逾期筆數跟著天數變（園務 effective_overdue_days）。
+    assert (names(overdue), overdue["summary"]) == (["林小安", "黃小雨", "王小樹", "李小美", "周小宇", "鄭小芸"], base)
+    # 逾 25 天（參觀日 <= 09-06）：N2 也掉出去；summary 只有逾期筆數跟著天數變（園務 effective_overdue_days）。
     overdue_25 = await no_deposit(db_session, overdue_days=25)
-    assert names(overdue_25) == ["李小美", "周小宇", "鄭小芸"]
-    assert overdue_25["summary"] == {**base, "overdue_followup_count": 3}
+    assert names(overdue_25) == ["林小安", "王小樹", "李小美", "周小宇", "鄭小芸"]
+    assert overdue_25["summary"] == {**base, "overdue_followup_count": 5}
 
     cold = await no_deposit(db_session, cold_only=True)
     assert (names(cold), cold["total"], cold["summary"]) == (["周小宇", "鄭小芸"], 2, base)
@@ -729,15 +732,36 @@ async def test_no_deposit_records_filters_keep_summary(db_session):
 
 
 async def test_no_deposit_records_cutoff_is_inclusive(db_session):
-    """建檔剛好滿 14／90 天就算逾期／冷名單（<=，同園務）；晚 1 秒就不算。"""
+    """參觀剛好滿 14／90 天就算逾期／冷名單（<=，同園務）；差 1 天就不算。看參觀日，不看建檔時間。"""
     await seed_no_deposit(db_session)
 
     overdue = names(await no_deposit(db_session, overdue_days=14))
-    assert "黃小雨" in overdue      # 剛好 14 天前
-    assert "陳小魚" not in overdue  # 14 天前再晚 1 秒
+    assert "黃小雨" in overdue      # 09-17 參觀，剛好 14 天（3 天前才建檔）
+    assert "陳小魚" not in overdue  # 09-18 參觀（30 天前就建檔）
+    assert "王小樹" in overdue      # 08-20 參觀，3 天前才補登
     cold = {row["child_name"]: row["cold"] for row in (await no_deposit(db_session))["records"]}
-    assert (cold["周小宇"], cold["李小美"]) == (True, False)  # 剛好 90 天前／晚 1 秒
+    assert (cold["周小宇"], cold["李小美"]) == (True, False)  # 07-03 參觀（10 天前補登）／07-04（120 天前建檔）
     assert names(await no_deposit(db_session, cold_only=True)) == ["周小宇", "鄭小芸"]
+
+
+async def test_no_deposit_cutoff_uses_taipei_date(db_session):
+    """「今天」是台北日期：UTC 10-01 16:30＝台北 10-02 00:30，09-18 參觀的那筆就滿 14 天了。"""
+    await seed_no_deposit(db_session)
+    after_midnight = datetime(2026, 10, 1, 16, 30, tzinfo=timezone.utc)
+    before_midnight = datetime(2026, 10, 1, 15, 59, tzinfo=timezone.utc)
+
+    def overdue_at(now):
+        return stats.no_deposit_records(
+            db_session, "yihua", school_year=115, semester=1, reason=None, grade=None, priority=None,
+            overdue_days=14, cold_only=None, page=1, page_size=100, now=now,
+        )
+
+    assert "陳小魚" in names(await overdue_at(after_midnight))
+    assert "陳小魚" not in names(await overdue_at(before_midnight))
+    summary = (await stats.query_stats(
+        db_session, "yihua", school_year=115, semester=1, reference_month=None, now=after_midnight,
+    ))["no_deposit_summary"]
+    assert summary["overdue_followup_count"] == 7
 
 
 async def test_no_deposit_records_pagination(db_session):

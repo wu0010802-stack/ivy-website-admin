@@ -626,9 +626,9 @@ class NoDepositSummaryOut(BaseModel):
     """只受 reason／grade 篩選影響（園務 base_query）；潛力、冷名單篩選不改這三個數字。"""
 
     high_potential_count: int
-    # 建檔滿 overdue_days 天（沒給用 14）仍未預繳。
+    # 參觀滿 overdue_days 天（沒給用 14）仍未預繳；看參觀日、台北日期（2026-10-06 起，園務看建檔時間）。
     overdue_followup_count: int
-    # 建檔滿 90 天仍未預繳。
+    # 參觀滿 90 天仍未預繳。
     cold_count: int
 
 
@@ -646,7 +646,7 @@ class NoDepositRecordOut(BaseModel):
     created_at: datetime
     # 「未註明／待追蹤」與沒填原因是 None（畫面寫「—」）。
     priority: Literal["high", "medium", "low"] | None
-    # 建檔滿 90 天（園務 COLD_LEAD_DAYS）。
+    # 參觀滿 90 天（園務 COLD_LEAD_DAYS；園務看建檔時間）。
     cold: bool
 
 

@@ -6,10 +6,6 @@ import { taipeiToday } from './academic'
 export const FOLLOW_UP_SCOPES = ['due', 'upcoming', 'unscheduled'] as const
 export type FollowUpScope = (typeof FOLLOW_UP_SCOPES)[number]
 
-export function isFollowUpScope(value: unknown): value is FollowUpScope {
-  return typeof value === 'string' && (FOLLOW_UP_SCOPES as readonly string[]).includes(value)
-}
-
 // 後端 constants.UPCOMING_WINDOW_DAYS。
 export const UPCOMING_WINDOW_DAYS = 7
 
@@ -18,15 +14,6 @@ export const FOLLOW_UP_SCOPE_LABELS: Record<FollowUpScope, string> = {
   upcoming: `${UPCOMING_WINDOW_DAYS} 天內`,
   unscheduled: '未排定',
 }
-
-export const FOLLOW_UP_EMPTY_TEXT: Record<FollowUpScope, string> = {
-  due: '沒有到期要聯絡的家長。',
-  upcoming: `接下來 ${UPCOMING_WINDOW_DAYS} 天沒有排定的聯絡。`,
-  unscheduled: '還在追的訪視都排好下次聯絡了。',
-}
-
-// 「未排定」不算待辦（F-Q1：不是每位家長都會聯絡），清單上方寫明。
-export const UNSCHEDULED_HINT = '參觀後還沒排聯絡的家長。不是每位都要聯絡，這裡不算待辦；要追的按「排下次聯絡」。'
 
 // 已註冊、已退出的訪視只能「不用再追」（後端 FOLLOW_UP_NOT_ALLOWED）。
 export const CLOSED_STAGE_HINT = '已註冊或已退出的訪視不需要排下次聯絡'

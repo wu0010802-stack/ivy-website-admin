@@ -7,7 +7,6 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
-import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import { useAuthStore } from '../stores/auth'
@@ -18,13 +17,6 @@ afterEach(cleanup)
 
 // 只有招生權限、沒有 booking.read（Review Focus 4）。
 const admissionsOnly = () => testUser('reception', { id: 'adm', campus_keys: ['yihua'], effective_capabilities: ['admissions.read', 'admissions.write'] })
-const followRow = (changes: Record<string, unknown> = {}) => ({
-  visit_id: 'v-1', child_name: '王小安', grade: '小班', stage: 'visited', visit_date: '2026-10-01', contact_name: '王媽媽',
-  phone: '0912345678', follow_up_at: '2020-01-01T02:00:00Z', follow_up_owner_id: null, follow_up_owner_name: null,
-  follow_up_owner_active: null, last_contacted_at: null, last_contact_channel: null, last_contact_reached: null,
-  has_visit_request: true, visit_request_id: VR_ID, version: 3, ...changes,
-})
-const followList = (rows: unknown[]) => ({ as_of: '2026-10-05T02:00:00Z', campus_key: 'yihua', scope: 'due', totals: { due: 1, upcoming: 0, unscheduled: 0 }, total: rows.length, page: 1, page_size: 50, rows })
 
 describe('漏斗看板點卡片', () => {
   it('有預約：開預約明細，不開抽屜', async () => {
@@ -64,19 +56,6 @@ describe('訪視明細點姓名', () => {
     const { wrapper } = await mountWith(RecordsTab, { props })
     await wrapper.get('button.records__name').trigger('click')
     expect(wrapper.getComponent(EventsDrawer).props('modelValue')).toBe(true)
-  })
-})
-
-describe('待追蹤的「歷程」', () => {
-  it('有預約：開預約明細；沒有預約：開抽屜', async () => {
-    mockGet({ '/admin/admissions/follow-ups': followList([followRow(), followRow({ visit_id: 'v-2', child_name: '手動寶貝', has_visit_request: false, visit_request_id: null })]), '/admin/admissions/staff': [] })
-    const { wrapper, router } = await mountWith(FollowUpsTab, { props: { campusKey: 'yihua', scope: 'due', owner: '' } })
-    const historyButtons = () => wrapper.findAll('.follow-ups-table button').filter((b) => b.text() === '歷程')
-    await historyButtons()[1]!.trigger('click')
-    expect(wrapper.getComponent(EventsDrawer).props()).toMatchObject({ modelValue: true, visitId: 'v-2' })
-    await historyButtons()[0]!.trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.path).toBe(`/visit-requests/${VR_ID}`)
   })
 })
 

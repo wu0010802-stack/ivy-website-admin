@@ -369,7 +369,7 @@ const noDepositKpis = computed(() => {
               row-key="reason"
               empty-text="此區間尚無未預繳資料"
             />
-            <p class="hint">已退預繳、退註冊的不算未預繳；冷名單＝建檔滿 90 天仍未預繳。</p>
+            <p class="hint">已退預繳、退註冊的不算未預繳；逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳。</p>
             <NoDepositList
               v-if="stats.no_deposit_total"
               :campus-key="campusKey"

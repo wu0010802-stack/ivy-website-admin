@@ -14,8 +14,8 @@ import ContactLogDialog, { type ContactTarget } from './ContactLogDialog.vue'
 import FollowUpDialog, { type FollowUpTarget } from './FollowUpDialog.vue'
 import TransitionDialog from './TransitionDialog.vue'
 
-// 參觀→入學歷程（園務 JourneyTimeline／RecruitmentTimelineList）。明細的「歷程」、看板點卡片、
-// 待追蹤分頁共用。園務的坑不照抄：座位事件的起訖階段相同（已預繳 → 已預繳），改寫年級與學期；
+// 參觀→入學歷程（園務 JourneyTimeline／RecruitmentTimelineList）。明細的「歷程」、看板點卡片
+// 共用。園務的坑不照抄：座位事件的起訖階段相同（已預繳 → 已預繳），改寫年級與學期；
 // 建立訪視沒有起始階段，不寫「— → 已訪視」。
 // 參觀後追蹤（2026-10-04 規格 7.3）：時間線另合併參觀後的聯絡紀錄，以及參觀前在預約記的
 // 聯絡紀錄（有 booking.read 才讀，唯讀、標「參觀前」）；頂部可記錄聯絡、排下次聯絡。

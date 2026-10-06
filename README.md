@@ -1,3 +1,16 @@
+## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（`feature/admissions-nodeposit-20261006`，未部署）
+
+使用者問招生入學的「尚未預繳」在什麼情況下會出現。說明後，使用者要求處理兩個落差（訪視明細「預繳：否」和統計對不上、逾期從建檔時間起算），並指著 `/admin/admissions?tab=followups` 說「待追蹤 幫我拿掉」（範圍確認為只拿這個分頁）。規則見 DESIGN.md「招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁」。
+
+- **後端**：訪視明細的 `has_deposit=false` 排除已退出的訪視（`records.py`），和統計的未預繳同一批。未預繳的逾 14 天、冷名單（90 天）從 `created_at` 改看 `visit_date`，用台北日期算（`stats.py` 的 `_visit_cutoff`，統計摘要、積壓警示、未預繳明細共用）。積壓警示文案改「參觀超過 14 天仍未預繳…」。API 形狀沒變，`contracts/` 不用重新產生；`contracts/ivy-recruitment/README.md` 補「和園務不同」第 16、17 點。沒有 migration。
+- **後台**：拿掉招生入學的「待追蹤」分頁（`FollowUpsTab.vue` 刪除）和分頁標籤上的到期數字。舊連結 `tab=followups` 退回漏斗看板，`fu`、`owner` 從網址清掉。頁首學年學期不再因分頁停用。總覽的「參觀後該聯絡的家長」任務卡也拿掉。`getFollowUps` 等死碼一起刪。記錄聯絡、排下次聯絡的成功訊息不再提「待追蹤」。統計「未預繳原因」下方的說明改成「逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳」。後端的 follow-ups API 與總覽鍵保留。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_nodeposit1006_test`，跑完已刪）：
+  - 後端：新增 `test_has_deposit_false_excludes_withdrawn`（用 API 做出退預繳、退註冊）、`test_no_deposit_cutoff_uses_taipei_date`（台北午夜前後）。未預繳的合成資料改成建檔時間和參觀日刻意對不上（補登、很早建檔），逾期與冷名單的邊界改成「剛好滿 N 天／差 1 天」。改程式前 6 項失敗，改完通過。整套 pytest 1599 passed、1 skipped。`contract:check` 一致。
+  - 後台：拿掉待追蹤分頁的測試改成驗「沒有這個分頁、舊連結退回看板」和「總覽不列任務卡」；`vue-tsc -b` 通過。整套 vitest 在負載 40–90（別的 session 在跑）時有 2 項 5 秒逾時，都在 `admissionsRecords.test.ts`，單獨重跑 34 項全過；其餘 107 檔通過。
+  - 官網：829 項與 typecheck 通過（沒有改官網）。
+  - stack e2e（`E2E_DB_NAME=ivy_website_nodeposit1006_e2e_test`、埠 8796／3796，跑完已刪庫）：`admissions-follow-up.spec.ts` 改成在預約明細排下次聯絡、記錄聯絡，到期後在訪視明細用「追蹤：已到期」找到那一筆；`admissions-flow`（三個分頁截圖）、`a11y`（拿掉兩個待追蹤網址）、`visit-family-page` 一起跑，共 31 項，第一次有 1 項失敗（下拉的佔位文字擋住點擊，改成點外框），重跑通過。整套 stack 沒跑。
+  - 未驗證：正式站實際操作。
+
 ## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`，10-06 已部署 main `4437174d`）
 
 使用者針對稽核修正「刻意沒改」的「Google 登入時用 Email 自動綁定既有帳號」說「幫我做這個」。規則見 DESIGN.md「Google 登入改成在『我的帳號』綁定」；設定見 `deploy/google-oauth.md`。正式站這時 Google 登入沒開（`/auth/providers` 回 `google:false`），沒有人受影響。

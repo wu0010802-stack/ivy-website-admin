@@ -1,13 +1,11 @@
 // 2026-10-06 後台 bug 稽核（前端）：招生入學（第 9–13 條）。後端同步改權限與 409，這裡對上。
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import FunnelCard from '../components/admissions/FunnelCard.vue'
 import TransitionDialog from '../components/admissions/TransitionDialog.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
-import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
-import { ApiError, api } from '../api/client'
 import { canDragFrom, moveTargets, transitionCapability } from '../admissions/constants'
 import { board, card, cleanup, deferred, mockGet, mountWith, options, reception, visit } from './admissionsTestKit'
 
@@ -119,46 +117,7 @@ describe('10. 已註冊／保留座位的訪視在編輯表單鎖住入學學期
   })
 })
 
-// ------------------------------------------------------------------ 11
-describe('11. 待追蹤分頁記錄聯絡遇到 409 不會一直卡 409', () => {
-  const followRow = (changes: Record<string, unknown> = {}) => ({
-    visit_id: 'v-1', child_name: '王小安', grade: '小班', stage: 'visited', visit_date: '2026-10-01', contact_name: '王媽媽',
-    phone: '0912345678', follow_up_at: '2020-01-01T02:00:00Z', follow_up_owner_id: null, follow_up_owner_name: null,
-    follow_up_owner_active: true, last_contacted_at: null, last_contact_channel: null, last_contact_reached: null,
-    has_visit_request: false, visit_request_id: null, version: 3, ...changes,
-  })
-  const followList = (rows: unknown[]) => ({
-    as_of: '2026-10-05T02:00:00Z', campus_key: 'yihua', scope: 'due', totals: { due: rows.length, upcoming: 0, unscheduled: 0 },
-    total: rows.length, page: 1, page_size: 50, rows,
-  })
-
-  it('這一列重讀後已經不在清單裡：直接讀這一筆的最新版本，再送一次帶新版本', async () => {
-    let listed = true
-    mockGet({
-      '/admin/admissions/follow-ups': () => followList(listed ? [followRow()] : []),
-      '/admin/admissions/staff': [],
-      '/admin/admissions/records/v-1': visit({ version: 5 }),
-    })
-    const post = vi.spyOn(api, 'post')
-      .mockRejectedValueOnce(new ApiError(409, { code: 'RECRUITMENT_VISIT_VERSION_CONFLICT', current_version: 5 }))
-      .mockResolvedValueOnce({ log: { id: 'l1' }, visit: visit({ version: 6 }) } as never)
-    const { wrapper } = await mountWith(FollowUpsTab, { props: { campusKey: 'yihua', scope: 'due', owner: '' } })
-    await wrapper.findAll('button').find((b) => b.text() === '記錄聯絡')!.trigger('click')
-    await flushPromises()
-    const radio = (text: string) => [...document.body.querySelectorAll('.el-radio-button')].find((el) => el.textContent?.trim() === text) as HTMLElement
-    radio('沒聯絡到').querySelector('input')!.click()
-    await flushPromises()
-    // 同事剛把下次聯絡改到下週：這一列不在「已到期」裡了。
-    listed = false
-    bodyButton('記下來')!.click()
-    await flushPromises()
-    expect(bodyText()).toContain('你的紀錄還沒送出')
-    bodyButton('記下來')!.click()
-    await flushPromises()
-    expect(post).toHaveBeenCalledTimes(2)
-    expect((post.mock.calls[1]![1] as { expected_version: number }).expected_version).toBe(5)
-  })
-})
+// 11.（待追蹤分頁記錄聯絡遇到 409）：分頁 2026-10-06 拿掉，測試一起拿掉。
 
 // ------------------------------------------------------------------ 12
 describe('12. 歷程抽屜換開另一筆時不顯示上一筆、不能對它操作', () => {

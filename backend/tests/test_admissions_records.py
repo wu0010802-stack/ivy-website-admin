@@ -253,6 +253,29 @@ async def test_list_filters_and_paging(admin_client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_has_deposit_false_excludes_withdrawn(admin_client):
+    """「預繳：否」和統計的未預繳同一批：未預繳且未退出（2026-10-06）。退預繳、退註冊會把
+    has_deposit 清成 false，但不算未預繳；「預繳：是」本來就不含它們。"""
+    await record_at_stage(admin_client, "visited", child_name="甲", visit_date="2026-09-03")
+    await record_at_stage(admin_client, "deposited", child_name="乙", visit_date="2026-09-04")
+    await record_at_stage(admin_client, "enrolled", child_name="丙", visit_date="2026-09-05")
+    await record_at_stage(admin_client, "withdrawn", child_name="丁", visit_date="2026-09-06")
+    await record_at_stage(admin_client, "withdrawn", withdrawn_from="enrolled", child_name="戊", visit_date="2026-09-07")
+
+    async def names(query: str) -> list[str]:
+        response = await admin_client.get(f"{RECORDS}?campus_key=yihua&{query}")
+        assert response.status_code == 200, response.text
+        return [row["child_name"] for row in response.json()]
+
+    assert await names("has_deposit=false") == ["甲"]
+    assert await names("has_deposit=false") == await names("stage=visited")
+    assert await names("has_deposit=true") == ["丙", "乙"]
+    assert await names("stage=withdrawn") == ["戊", "丁"]
+    # 搭配階段篩選時照交集：退出的不會因為 has_deposit=false 被撈回來。
+    assert await names("has_deposit=false&stage=withdrawn") == []
+
+
+@pytest.mark.asyncio
 async def test_options_lists_months_sources_and_ivy_enums(admin_client):
     await create_record(admin_client, visit_date="2026-09-08", source="Facebook", referrer="林老師")
     await create_record(admin_client, visit_date="2026-10-02", source="Facebook", referrer="張老師")

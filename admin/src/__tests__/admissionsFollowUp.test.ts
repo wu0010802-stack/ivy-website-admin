@@ -7,7 +7,6 @@ import AdmissionsView from '../views/AdmissionsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import ContactLogDialog from '../components/admissions/ContactLogDialog.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
-import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import FunnelCard from '../components/admissions/FunnelCard.vue'
 import { api, ApiError } from '../api/client'
 import { CONTACT_CHANNEL_LABELS } from '../api/labels'
@@ -15,7 +14,7 @@ import {
   daysLaterAtTen, FOLLOW_UP_SHORTCUTS, followUpText, lastContactText, ownerLabel, resolveNextFollowUp,
 } from '../admissions/followUp'
 import {
-  admissionsViewer, bodyOf, button, card, cleanup, mockGet, mockPatch, mockPost, mountWith, pathsTo, queryOf, visit, VR_ID,
+  admissionsViewer, bodyOf, card, cleanup, mockGet, mockPatch, mockPost, mountWith, pathsTo, visit, VR_ID,
 } from './admissionsTestKit'
 
 afterEach(cleanup)
@@ -67,68 +66,20 @@ describe('followUp 的時間與文字', () => {
   })
 })
 
-const followRow = (changes: Record<string, unknown> = {}) => ({
-  visit_id: 'v-1', child_name: '王小安', grade: '小班', stage: 'visited', visit_date: '2026-10-01', contact_name: '王媽媽',
-  phone: '0912345678', follow_up_at: '2020-01-01T02:00:00Z', follow_up_owner_id: 'desk', follow_up_owner_name: 'desk@example.invalid',
-  follow_up_owner_active: true, last_contacted_at: null, last_contact_channel: null, last_contact_reached: null,
-  has_visit_request: true, visit_request_id: null, version: 3, ...changes,
-})
-const followList = (rows: unknown[] = [followRow()], totals = { due: 1, upcoming: 2, unscheduled: 5 }, extra = {}) => ({
-  as_of: '2026-10-05T02:00:00Z', campus_key: 'yihua', scope: 'due', totals, total: rows.length, page: 1, page_size: 50, rows, ...extra,
-})
 const staffList = [{ id: 'desk', display_name: null, email: 'desk@example.invalid' }]
 
-async function mountTab(props: Record<string, unknown> = {}, user = undefined as never) {
-  return mountWith(FollowUpsTab, { props: { campusKey: 'yihua', scope: 'due', owner: '', ...props }, user })
-}
-
-describe('待追蹤分頁（7.1）', () => {
-  it('列出已到期：逾 N 天、電話連結、最近聯絡、負責人；回報已到期筆數', async () => {
-    const get = mockGet({ '/admin/admissions/follow-ups': followList(), '/admin/admissions/staff': staffList })
-    const { wrapper } = await mountTab()
-    const text = wrapper.find('.follow-ups-table .el-table__body').text()
-    for (const part of ['王小安', '已訪視', '王媽媽', '還沒聯絡過', 'desk@example.invalid']) expect(text).toContain(part)
-    expect(wrapper.find('.follow-ups__when').text()).toMatch(/^逾 \d+ 天$/)
-    expect(wrapper.find('a[href="tel:0912345678"]').exists()).toBe(true)
-    expect(wrapper.emitted('count')).toEqual([[1]])
-    const query = queryOf(pathsTo(get, '/admin/admissions/follow-ups')[0]!)
-    expect(Object.fromEntries(query)).toEqual({ campus_key: 'yihua', scope: 'due', page: '1', page_size: '50' })
-    expect(wrapper.text()).not.toContain('待追蹤不分入學學期')
-    // 記錄聯絡是淺色鈕（列表一律 plain），操作欄單行不折。
-    const record = wrapper.findAll('.follow-ups-table button').find((b) => b.text() === '記錄聯絡')!
-    expect(record.classes()).toContain('is-plain')
-    expect(wrapper.find('.follow-ups-table').text()).toContain('下次聯絡')
-  })
-
-  it('換範圍與負責人重讀；未排定另有說明、空狀態說明原因', async () => {
-    const get = mockGet({ '/admin/admissions/follow-ups': followList([]), '/admin/admissions/staff': staffList })
-    const { wrapper } = await mountTab()
-    expect(wrapper.text()).toContain('沒有到期要聯絡的家長。')
-    await wrapper.setProps({ scope: 'unscheduled', owner: 'me' })
-    await flushPromises()
-    const last = queryOf(pathsTo(get, '/admin/admissions/follow-ups').at(-1)!)
-    expect([last.get('scope'), last.get('owner')]).toEqual(['unscheduled', 'me'])
-    expect(wrapper.text()).toContain('不是每位都要聯絡，這裡不算待辦')
-    // 未排定：每列的下次聯絡都一樣，整欄不列。
-    expect(wrapper.find('.follow-ups-table .el-table__header').text()).not.toContain('下次聯絡')
-  })
-
-  it('沒有寫入權限只能看，不出現記錄聯絡', async () => {
-    mockGet({ '/admin/admissions/follow-ups': followList(), '/admin/admissions/staff': staffList })
-    const { wrapper } = await mountTab({}, admissionsViewer() as never)
-    expect(button(wrapper, '記錄聯絡')).toBeUndefined()
-    expect(button(wrapper, '歷程')).toBeDefined()
-  })
-
-  it('招生頁的分頁標籤顯示已到期筆數；網址記住範圍與負責人', async () => {
-    mockGet({ '/admin/admissions/follow-ups': followList([followRow()], { due: 4, upcoming: 0, unscheduled: 0 }), '/admin/admissions/staff': staffList })
+describe('待追蹤分頁已拿掉（2026-10-06）', () => {
+  it('招生頁沒有待追蹤分頁；舊連結 tab=followups 退回漏斗看板，fu、owner 從網址清掉', async () => {
+    const get = mockGet({})
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?tab=followups&fu=unscheduled&owner=me' })
-    expect(wrapper.get('.admissions__count--due').text()).toBe('4')
-    expect(wrapper.findComponent(FollowUpsTab).props()).toMatchObject({ scope: 'unscheduled', owner: 'me' })
-    expect(router.currentRoute.value.query).toMatchObject({ tab: 'followups', fu: 'unscheduled', owner: 'me' })
-    await router.push('/admissions?tab=records&fu=unscheduled')
-    await flushPromises()
-    expect(router.currentRoute.value.query.fu).toBeUndefined()
+    const tabs = wrapper.findAll('.el-tabs__item').map((item) => item.text())
+    expect(tabs).toEqual(['漏斗看板', '訪視明細', '統計分析'])
+    expect(router.currentRoute.value.query).not.toHaveProperty('tab')
+    expect(router.currentRoute.value.query).not.toHaveProperty('fu')
+    expect(router.currentRoute.value.query).not.toHaveProperty('owner')
+    expect(pathsTo(get, '/admin/admissions/follow-ups')).toEqual([])
+    // 頁首學年學期不再因分頁停用。
+    expect(wrapper.findAll('.admissions__filters .el-select.is-disabled')).toHaveLength(0)
   })
 })
 
@@ -316,26 +267,15 @@ describe('記錄聯絡後同步到看板與明細的版本（PATCH 改期）', (
   })
 })
 
-describe('總覽的招生待追蹤（7.7）', () => {
-  const summary = (changes = {}) => ({
-    today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
-    new_requests: 0, awaiting_confirmation: 0, next_hold_expires_at: null, ...changes,
-  })
-
-  it('有到期才列進待辦，連到第一個有到期的校區；多校時寫各校筆數', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(
-      summary({ admissions_follow_up_due: 3, admissions_follow_up_due_by_campus: { minghua: 1, yihua: 2 } }) as never,
-    )
-    const { wrapper } = await mountWith(DashboardView, { path: '/' })
-    const task = wrapper.findAll('a.task').find((link) => link.text().includes('參觀後該聯絡的家長'))!
-    expect(task.get('.task__number').text()).toBe('3')
-    expect(task.attributes('href')).toBe('/admissions?tab=followups&campus=minghua')
-    expect(task.text()).toContain('明華 1、義華 2')
-  })
-
-  it('沒有這兩個鍵（招生未啟用或沒有權限）就不顯示', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue(summary() as never)
+describe('總覽不再列招生待追蹤（2026-10-06）', () => {
+  it('後端仍回到期筆數也不顯示任務卡、不連到已拿掉的分頁', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
+      new_requests: 0, awaiting_confirmation: 0, next_hold_expires_at: null,
+      admissions_follow_up_due: 3, admissions_follow_up_due_by_campus: { minghua: 1, yihua: 2 },
+    } as never)
     const { wrapper } = await mountWith(DashboardView, { path: '/' })
     expect(wrapper.text()).not.toContain('參觀後該聯絡的家長')
+    expect(wrapper.find('a[href*="tab=followups"]').exists()).toBe(false)
   })
 })

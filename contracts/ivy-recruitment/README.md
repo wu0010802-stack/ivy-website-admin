@@ -99,6 +99,8 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 13. 唯一幼生 `unique_visit`／`unique_deposit` 對已匿名化的列以列 id 計：匿名化後姓名與生日都被清掉，照「姓名｜生日」去重會把不同孩子併成同一個；代價是同一個孩子的一筆訪視匿名化後，唯一幼生由 1 變 2（六個計數與比率不受影響）。
 14. 五校比較（`GET /compare`）是官網延伸，數字是招生案件數（同一個孩子在兩校各參觀一次算兩筆）；回物件 `{as_of, school_year, semester, rows}`，比率附分子分母；併入後對應園務平台層的跨租戶報表。
 15. 同階段轉換（X→X）回 422 `TRANSITION_NOT_ALLOWED`；園務回 409 `STAGE_ALREADY`。
+16. 未預繳的「逾期」（預設 14 天、`overdue_days`）與「冷名單」（90 天）看**參觀日** `visit_date`：參觀日 <= 台北今天－N 天就算（2026-10-06 起）；園務看 `created_at`（建檔時間 <= 現在－N 天），補登舊訪視或預約隔很多天才按已到場時，逾期會從建檔那天重新起算。近 30／90 天、來源失衡的 90 天窗口仍照園務看 `created_at`。
+17. 訪視明細的 `has_deposit=false` 篩選排除已退出（`withdrawn_at` 有值）的列，和統計的未預繳同一批（2026-10-06 起）；園務明細的「未預繳」篩選只看 `has_deposit`。
 
 ## 漂移檢查（手動，不進 CI）
 

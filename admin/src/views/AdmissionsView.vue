@@ -6,22 +6,21 @@ import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
-import FollowUpsTab from '../components/admissions/FollowUpsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getFollowUps, getOptions } from '../api/admissions'
+import { getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { schoolYearOptions } from '../admissions/academic'
 import { SEMESTER_LABELS } from '../admissions/constants'
 import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissions/useAdmissionsFilters'
 
-// 招生入學（規格第 10 節）：頁首放校區與入學學年學期，分頁順序比照園務；漏斗看板之後
-// 另有官網延伸的「待追蹤」（2026-10-04 參觀後追蹤規格 7.1）。2026-10-05 拿掉名額規劃與
-// 官網預約兩個分頁（和園務分歧）：確認到場改在案件列表的「只看尚未確認到場」。
+// 招生入學（規格第 10 節）：頁首放校區與入學學年學期，分頁順序比照園務。2026-10-05 拿掉名額規劃與
+// 官網預約兩個分頁（和園務分歧）：確認到場改在案件列表的「只看尚未確認到場」。2026-10-06 拿掉
+// 官網延伸的「待追蹤」分頁：下次聯絡、負責人改在訪視明細的「追蹤」「負責人」篩選看。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, sub, followUpScope, followUpOwner, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
 const route = useRoute()
 const router = useRouter()
@@ -51,37 +50,15 @@ async function checkAvailability() {
   }
 }
 
-// 「待追蹤」分頁標籤上的已到期筆數（totals.due，不受負責人篩選影響）。
-const followUpDue = ref<number | null>(null)
-const followUpRequests = useRequestSequence()
-async function loadFollowUpCount() {
-  followUpDue.value = null
-  if (!campus.value) return
-  const request = followUpRequests.begin()
-  try {
-    const result = await getFollowUps({ campus_key: campus.value, scope: 'due', owner: null, page: 1, page_size: 1 })
-    if (followUpRequests.isCurrent(request)) followUpDue.value = result.totals.due
-  } catch {
-    // 數字只是提醒；讀不到就不顯示，分頁裡會再顯示錯誤。
-  }
-}
-watch(campus, async (key) => {
-  followUpDue.value = null
-  followUpRequests.begin()
-  await checkAvailability()
-  if (campus.value === key && availability.value === 'on') await loadFollowUpCount()
-}, { immediate: true })
+watch(campus, () => void checkAvailability(), { immediate: true })
 
-// 待追蹤不分入學學年學期：兩個下拉停用（值保留，切回其他分頁還在）。
-const termless = computed(() => tab.value === 'followups')
 // 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
 const narrow = useNarrowScreen()
 const filtersOpen = ref(false)
 const filterSummary = computed(() => {
   const parts: string[] = []
   if (multiCampus.value) parts.push(campusLabel(campus.value))
-  if (termless.value) parts.push('不分學年學期')
-  else parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
+  parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
   return parts.join('・')
 })
 
@@ -105,9 +82,6 @@ function showUnscoped() {
   clearTerm()
   tab.value = 'records'
 }
-function onFollowUpCount(count: number) {
-  followUpDue.value = count
-}
 </script>
 
 <template>
@@ -116,7 +90,7 @@ function onFollowUpCount(count: number) {
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、待追蹤、訪視明細與統計分析。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板、訪視明細與統計分析。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
       <button
@@ -137,37 +111,26 @@ function onFollowUpCount(count: number) {
         </div>
         <div class="filter-field">
           <span>入學學年</span>
-          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" :disabled="termless" @update:model-value="setYear">
+          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" @update:model-value="setYear">
             <el-option v-for="year in yearOptions" :key="year" :label="`${year} 學年`" :value="year" />
           </el-select>
         </div>
         <div class="filter-field">
           <span>入學學期</span>
-          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" :disabled="termless" @update:model-value="setSemester">
+          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" @update:model-value="setSemester">
             <el-option :value="1" :label="SEMESTER_LABELS[1]" />
             <el-option :value="2" :label="SEMESTER_LABELS[2]" />
           </el-select>
         </div>
-        <p v-if="termless" class="admissions__scope-note hint">這個分頁不分入學學年學期</p>
       </div>
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
         <el-tab-pane label="漏斗看板" name="funnel" />
-        <el-tab-pane name="followups">
-          <template #label>待追蹤<span v-if="followUpDue" class="admissions__count admissions__count--due num">{{ followUpDue }}</span></template>
-        </el-tab-pane>
         <el-tab-pane label="訪視明細" name="records" />
         <el-tab-pane label="統計分析" name="stats" />
       </el-tabs>
 
       <div class="admissions__body">
-        <FollowUpsTab
-          v-if="tab === 'followups'"
-          v-model:scope="followUpScope"
-          v-model:owner="followUpOwner"
-          :campus-key="campus"
-          @count="onFollowUpCount"
-        />
         <FunnelBoard
           v-if="tab === 'funnel'"
           :campus-key="campus"
@@ -201,12 +164,6 @@ function onFollowUpCount(count: number) {
 <style scoped>
 .admissions__filters .el-select {
   width: 140px;
-}
-
-.admissions__scope-note {
-  align-self: flex-end;
-  margin: 0;
-  padding-bottom: 6px;
 }
 
 .admissions__summary {
@@ -247,26 +204,6 @@ function onFollowUpCount(count: number) {
 /* 分頁頭只當切換用，內容由下方各分頁元件自己畫。 */
 .admissions__tabs :deep(.el-tabs__content) {
   display: none;
-}
-
-.admissions__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: var(--el-color-warning-light-8);
-  color: var(--brand-gold-ink);
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.admissions__count--due {
-  background: var(--el-color-danger-light-8);
-  color: var(--el-color-danger);
 }
 
 .admissions__off {

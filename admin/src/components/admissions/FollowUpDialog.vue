@@ -70,7 +70,7 @@ async function submit() {
   try {
     const visit = await updateFollowUp(target.id, body)
     if (followUpChanged.value) {
-      ElMessage.success(visit.follow_up_at ? `已排下次聯絡 ${followUpText(visit.follow_up_at)}` : '已改成不用再追，不再列入待追蹤')
+      ElMessage.success(visit.follow_up_at ? `已排下次聯絡 ${followUpText(visit.follow_up_at)}` : '已改成不用再追')
     } else {
       ElMessage.success('已換追蹤負責人')
     }

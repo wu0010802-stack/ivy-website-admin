@@ -3,7 +3,7 @@
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, ContactLog, ContactLogCreate, ContactLogResult, FollowUpList,
+  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, ContactLog, ContactLogCreate, ContactLogResult,
   FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
@@ -134,17 +134,6 @@ export function getCompare(schoolYear: number, semester?: number | null): Promis
 }
 
 // ---- 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md 第 9 節）----
-
-/** 待追蹤分頁。不吃入學學年學期；totals 是全校區三種的數量，不受負責人篩選影響。 */
-export function getFollowUps(params: {
-  campus_key: string
-  scope: FollowUpScope
-  owner: string | null
-  page: number
-  page_size: number
-}): Promise<FollowUpList> {
-  return api.get<FollowUpList>(`/admin/admissions/follow-ups?${toQuery(params)}`)
-}
 
 /** 可以當這個校區追蹤負責人的帳號（啟用中、有招生寫入權限、涵蓋該校區）。 */
 export function listAdmissionsStaff(campusKey: string): Promise<AdmissionsStaff[]> {

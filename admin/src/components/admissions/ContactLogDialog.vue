@@ -14,9 +14,9 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import NextFollowUpPicker from './NextFollowUpPicker.vue'
 
 // 記錄參觀後的一次聯絡（docs/specs/2026-10-04-admissions-follow-up-design.md 6.3、7.2）。
-// 待追蹤分頁、歷程抽屜、預約明細共用。一定要決定下次聯絡（時間或不用再追），已到期的
-// 訪視記完才會離開清單。409 時不關對話框、內容保留，請父層重讀後讓使用者再送一次。
-// grade、contact_name、phone 選填：有傳才在抬頭顯示（待追蹤分頁會帶；歷程抽屜與預約明細沒有就不顯示）。
+// 歷程抽屜、預約明細共用。一定要決定下次聯絡（時間或不用再追），已到期的
+// 訪視記完才會離開明細的「追蹤：已到期」。409 時不關對話框、內容保留，請父層重讀後讓使用者再送一次。
+// grade、contact_name、phone 選填：有傳才在抬頭顯示（歷程抽屜與預約明細沒有就不顯示）。
 export type ContactTarget = {
   id: string
   version: number
@@ -151,7 +151,7 @@ async function submit() {
       next_follow_up_at: next,
       update_parent_response: reached.value && updateParentResponse.value,
     })
-    ElMessage.success(next ? `已記下，下次聯絡 ${followUpText(next)}` : '已記下，不再列入待追蹤')
+    ElMessage.success(next ? `已記下，下次聯絡 ${followUpText(next)}` : '已記下，不用再追')
     open.value = false
     emit('saved', result.visit, result.log)
   } catch (err) {
