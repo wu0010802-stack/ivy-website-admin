@@ -1,4 +1,4 @@
-## 2026-10-06 成效統計 UI/UX：三個頁籤、五校表置頂、說明收合（`feature/analytics-ux-20261006`，未 commit、未部署）
+## 2026-10-06 成效統計 UI/UX：三個頁籤、五校表置頂、說明收合（`feature/analytics-ux-20261006`，10-06 已部署 main `3d50e0a1`）
 
 使用者指著正式站 `/admin/analytics` 說「幫我優化這塊的 ui/ux」。沿用 10-06 結構層比稿的 E 方向（`design/admin-ux-directions-20261006/e-analytics.html`）實作，規則見 DESIGN.md「成效統計：三個頁籤與兩欄格線」。
 
