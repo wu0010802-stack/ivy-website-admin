@@ -4,13 +4,14 @@ import { ApiError } from '../../api/client'
 import type { AdmissionsRate, BookingOutcomesOut, CampusOutcomeOut } from '../../api/types'
 import { BOOKING_MODE_LABELS, campusLabel, cancelReasonLabel } from '../../api/labels'
 import {
-  PENDING_KINDS, PENDING_KIND_LABELS, getBookingOutcomes, isSmallSample, pendingLink, rangeKey, rateText, type DateRange,
+  PENDING_KINDS, PENDING_KIND_LABELS, getBookingOutcomes, isSmallSample, pendingLink, rangeKey, rateCsv, rateText, type DateRange,
 } from '../../api/analytics'
 import { barWidth } from '../../admissions/statsFormat'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
+import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
 
 // 預約結果（GET /admin/analytics/booking-outcomes，招生分析報告階段 1 第 1、4、5 項）：期間內
 // 送出的案件現在各是什麼結果。一次回全部授權校區，換校只換顯示的列、不重抓；換期間才重抓。
@@ -140,6 +141,24 @@ const compareTotal = computed<CompareRow | null>(() => {
 })
 
 const rateBar = (rate: AdmissionsRate) => barWidth(rate.value ?? 0, 100)
+
+// 匯出五校比較（2026-10-06）：欄名同畫面，「現在」標籤併進欄名；校區格畫面上是「校名＋預約方式」兩行，
+// 這裡拆成兩欄；比率沒有分母寫空白（畫面的「—」不進檔案）；最後一列合計。整張表不受查看校區影響，
+// 檔名只寫期間（畫面上這批資料的，不是剛換的選擇）。
+const COMPARE_CSV_HEADER = [
+  '校區', '預約方式', '預約案件', '已到場', '未到場', '到場率', '已取消', '取消率', '待標記到場（現在）', '到期待追蹤（現在）',
+]
+function exportCompare() {
+  const rows = compareTotal.value ? [...compareRows.value, compareTotal.value] : compareRows.value
+  saveAnalyticsCsv(
+    analyticsCsvName('五校比較', '', loadedLabel.value),
+    COMPARE_CSV_HEADER,
+    rows.map((item) => [
+      item.campus, item.modeShort, item.cases, item.completed, item.no_show, rateCsv(item.attendance),
+      item.cancelled, rateCsv(item.cancel), item.awaiting_now, item.follow_up_now,
+    ]),
+  )
+}
 </script>
 
 <template>
@@ -153,7 +172,10 @@ const rateBar = (rate: AdmissionsRate) => barWidth(rate.value ?? 0, 100)
     >
       <div class="panel__head">
         <h2 id="compare-title">五校比較<span class="panel__sub num">{{ loadedLabel }}</span></h2>
-        <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
+        <div class="compare__tools">
+          <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
+          <el-button v-if="compareRows.length" size="small" text data-test="analytics-csv-compare" aria-label="把「五校比較」匯出 CSV" @click="exportCompare">匯出 CSV</el-button>
+        </div>
       </div>
       <div class="compare__scroll" role="region" tabindex="0" aria-label="五校比較（可左右捲動）">
         <table class="stats-table compare__table">
@@ -315,6 +337,12 @@ const rateBar = (rate: AdmissionsRate) => barWidth(rate.value ?? 0, 100)
   font-size: var(--text-sm);
   font-weight: 400;
   color: var(--ink-3);
+}
+
+.compare__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .compare__scroll {

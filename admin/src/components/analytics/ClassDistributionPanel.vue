@@ -9,6 +9,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import StatsDimensionTable from '../admissions/StatsDimensionTable.vue'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
+import { analyticsCsvName } from './csvExport'
 
 // 預約孩子的生日換算成某學年度的班別（GET /admin/analytics/class-distribution）。換算在後端
 // （admissions/academic.grade_for_birthday，和招生入學、官網入學資訊頁共用案例
@@ -81,7 +82,15 @@ const rows = computed(() =>
       <el-skeleton v-else-if="loading && !data" animated :rows="3" aria-label="正在讀取班別分布" />
       <template v-else-if="data">
         <p v-if="data.total === 0" class="field-help">這段期間沒有預約案件。</p>
-        <StatsDimensionTable v-else :title="`${data.school_year} 學年度的班別`" :rows="rows" :columns="COLUMNS" row-key="key" empty-text="沒有資料" />
+        <StatsDimensionTable
+          v-else
+          :title="`${data.school_year} 學年度的班別`"
+          :rows="rows"
+          :columns="COLUMNS"
+          row-key="key"
+          empty-text="沒有資料"
+          :export-filename="analyticsCsvName('預約孩子的班別', `${campusLabel(loadedCampus)}-${data.school_year}學年度`, loadedPeriod)"
+        />
         <AnalyticsMeta :period="loadedPeriod" unit="預約案件數（含已取消）" :as-of="data.as_of" />
         <AnalyticsExplainer>
           <p>依孩子生日換算：民國 Y/9/2～Y+1/9/1 出生為同一屆，8/1 起算新學年。這是年齡對照，不代表已報名或入學。</p>

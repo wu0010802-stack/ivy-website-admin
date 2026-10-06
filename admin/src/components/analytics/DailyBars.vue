@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
+import { saveAnalyticsCsv } from './csvExport'
 
 // 每日直條（DESIGN.md 招生入學統計：表格＋CSS 長條、不裝圖表套件，數字一定寫出來）。
 // 直條只用來看起伏，每天的數字在下方「每日數字」。markers 是口徑改變的日子
 // （例如 09/30 內頁開始計入），只畫期間內的。
+// exportFilename 有值且有資料才在「每日數字」旁顯示「匯出 CSV」（2026-10-06）：欄名與順序同那張表。
 export interface DailyPoint { day: string; value: number }
 export interface DailyMarker { day: string; label: string }
 
 const props = withDefaults(
-  defineProps<{ title: string; points: readonly DailyPoint[]; unit: string; markers?: readonly DailyMarker[] }>(),
-  { markers: () => [] },
+  defineProps<{ title: string; points: readonly DailyPoint[]; unit: string; markers?: readonly DailyMarker[]; exportFilename?: string }>(),
+  { markers: () => [], exportFilename: '' },
 )
 
 const titleId = useId()
@@ -34,6 +36,12 @@ const summary = computed(() =>
     : `${props.title}：沒有資料`,
 )
 const newestFirst = computed(() => [...props.points].reverse())
+
+// 日期寫完整西元年（畫面只有月/日），Excel 認得「2026/09/29」。
+function exportCsv() {
+  if (!props.exportFilename) return
+  saveAnalyticsCsv(props.exportFilename, ['日期', props.unit], newestFirst.value.map((point) => [point.day.replaceAll('-', '/'), point.value]))
+}
 </script>
 
 <template>
@@ -64,6 +72,9 @@ const newestFirst = computed(() => [...props.points].reverse())
       <p v-for="marker in visibleMarkers" :key="marker.day" class="hint daily-bars__marker">{{ short(marker.day) }} 起：{{ marker.label }}</p>
       <details class="daily-bars__table">
         <summary>每日數字</summary>
+        <div v-if="exportFilename" class="daily-bars__tools">
+          <el-button size="small" text data-test="daily-bars-csv" :aria-label="`把「${title}」的每日數字匯出 CSV`" @click="exportCsv">匯出 CSV</el-button>
+        </div>
         <table>
           <thead><tr><th scope="col">日期</th><th scope="col">{{ unit }}</th></tr></thead>
           <tbody>
@@ -146,6 +157,12 @@ const newestFirst = computed(() => [...props.points].reverse())
 .daily-bars__table {
   margin-top: 8px;
   font-size: var(--text-sm);
+}
+
+.daily-bars__tools {
+  max-width: 320px;
+  margin-top: 4px;
+  text-align: right;
 }
 
 .daily-bars__table table {

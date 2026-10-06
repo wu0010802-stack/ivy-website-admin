@@ -7,6 +7,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
 import DailyBars from './DailyBars.vue'
+import { analyticsCsvName } from './csvExport'
 
 // 選定校區的每日事件（GET /admin/analytics/event-trend）。和「預約流程」同一個口徑：依事件發生
 // 的台北日期計數；確認不畫（10/01 起和送出需求同時發生），未到場沒有事件，看「預約結果」。
@@ -54,6 +55,8 @@ const seriesLabel = computed(() => SERIES.find((item) => item.value === series.v
 const points = computed(() => (trend.value?.days ?? []).map((item) => ({ day: item.day, value: item[series.value] })))
 const slash = (day: string) => day.replaceAll('-', '/')
 const actualPeriod = computed(() => (trend.value ? `${slash(trend.value.date_from)}–${slash(trend.value.date_to)}` : props.periodLabel))
+// 匯出的檔名：畫面上這批資料的項目、校區、實際畫出的期間。
+const exportName = computed(() => analyticsCsvName(`每日${seriesLabel.value}`, campusLabel(loadedCampus.value), actualPeriod.value))
 </script>
 
 <template>
@@ -68,7 +71,7 @@ const actualPeriod = computed(() => (trend.value ? `${slash(trend.value.date_fro
       <el-alert v-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
       <el-skeleton v-else-if="loading && !trend" animated :rows="3" aria-label="正在讀取每日變化" />
       <template v-else-if="trend">
-        <DailyBars :title="`每日${seriesLabel}`" :points="points" unit="次" :markers="MARKERS" />
+        <DailyBars :title="`每日${seriesLabel}`" :points="points" unit="次" :markers="MARKERS" :export-filename="exportName" />
         <AnalyticsMeta :period="actualPeriod" unit="事件次數（依發生日期）" :as-of="trend.as_of" />
         <p v-if="trend.truncated" class="hint">期間超過 400 天，只畫最近 400 天。</p>
         <AnalyticsExplainer>

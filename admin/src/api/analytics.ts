@@ -48,6 +48,12 @@ export function rateText(rate: AdmissionsRate): string {
   return rate.denominator ? `${formatRate(rate.value)}（${rate.numerator}/${rate.denominator}）` : NO_VALUE
 }
 
+/** 匯出 CSV 的比率格：「66.7%」；分母 0（畫面寫「—」）寫空白，Excel 才不會把「—」當文字。
+ *  分子分母已經在同一列的件數欄，畫面括號裡的「（2/3）」不重複寫。 */
+export function rateCsv(rate: AdmissionsRate): string {
+  return rate.denominator && rate.value !== null ? formatRate(rate.value) : ''
+}
+
 export function isSmallSample(rate: AdmissionsRate): boolean {
   return rate.denominator > 0 && rate.denominator < SMALL_SAMPLE
 }

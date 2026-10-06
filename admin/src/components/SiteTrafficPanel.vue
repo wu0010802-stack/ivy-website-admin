@@ -6,6 +6,7 @@ import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
+import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
 
 // 後端只接受 7～90 天（速度資料只留 90 天），所以和各校預約的期間分開選；
 // 28 天對齊 Google 量測網頁速度的區間。
@@ -62,6 +63,20 @@ const vitals = computed(() => vitalTable(summary.value?.vitals ?? []))
 const DEVICES = [{ key: 'mobile', label: '手機' }, { key: 'desktop', label: '電腦' }] as const
 const RATING_TAG = { good: 'success', needs_improvement: 'warning', poor: 'danger', too_few: 'info' } as const
 const ratingOf = (vital: TrafficVital) => vitalRating(vital)
+
+// 匯出（2026-10-06）：全站五校合計，檔名寫「官網全站」；期間用畫面上這批資料的實際日期。
+// 網頁速度的格子照畫面寫「數值 評等 量測 N 次」，沒有資料的格子空白；欄名同畫面。
+const dailyCsvName = computed(() => analyticsCsvName('每日瀏覽', '官網全站', rangeText.value))
+function vitalCell(metric: TrafficVital['metric'], vital: TrafficVital | null): string {
+  return vital ? `${formatVital(metric, vital.p75)} ${RATING_LABELS[ratingOf(vital)]} 量測 ${vital.samples} 次` : ''
+}
+function exportVitals() {
+  saveAnalyticsCsv(
+    analyticsCsvName('網頁速度', '官網全站', rangeText.value),
+    ['項目', ...DEVICES.map((device) => device.label)],
+    vitals.value.map((row) => [row.name, ...DEVICES.map((device) => vitalCell(row.metric, row[device.key]))]),
+  )
+}
 </script>
 
 <template>
@@ -106,7 +121,7 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
             </div>
           </div>
 
-          <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" />
+          <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" :export-filename="dailyCsvName" />
           <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
           <AnalyticsExplainer>
             <p>全站五校合計，不分校區權限，和各校預約的數字不能直接相比。</p>
@@ -131,7 +146,10 @@ const ratingOf = (vital: TrafficVital) => vitalRating(vital)
       </section>
 
       <section class="panel" aria-labelledby="traffic-vitals-title">
-        <div class="panel__head"><h2 id="traffic-vitals-title">網頁速度<span class="traffic__sub">多數訪客的體驗</span></h2></div>
+        <div class="panel__head">
+          <h2 id="traffic-vitals-title">網頁速度<span class="traffic__sub">多數訪客的體驗</span></h2>
+          <el-button v-if="vitals.length" size="small" text data-test="analytics-csv-vitals" aria-label="把「網頁速度」匯出 CSV" @click="exportVitals">匯出 CSV</el-button>
+        </div>
         <div class="panel__body traffic__body">
           <p v-if="!vitals.length" class="hint">這段期間還沒有速度資料。</p>
           <template v-else>

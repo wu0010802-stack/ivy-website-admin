@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { api, ApiError } from '../api/client'
 import type { AnalyticsFunnelOut } from '../api/types'
 import { SELF_BOOKING_SINCE } from '../api/analytics'
-import { MANUAL_VISIT_SOURCES, cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabel } from '../api/labels'
+import { MANUAL_VISIT_SOURCES, campusLabel, cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabel } from '../api/labels'
 import { taipeiToday } from '../composables/newsContent'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -17,6 +17,7 @@ import AnalyticsMeta from '../components/analytics/AnalyticsMeta.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
 import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
 import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
+import { analyticsCsvName, saveAnalyticsCsv } from '../components/analytics/csvExport'
 
 type Period = 'all' | '30' | '90' | 'year' | 'custom'
 type Dimension = 'source' | 'referral'
@@ -270,6 +271,33 @@ const entryRows = computed(() =>
     .map((row) => ({ ...row, total: row.form + row.line + row.phone + row.external }))
     .sort((a, b) => b.total - a.total),
 )
+
+// 匯出（2026-10-06）：只匯出畫面上這兩張表，欄名與順序同畫面；取消率畫面寫「—」（沒有送出需求，
+// 或取消比送出多）的格子寫空白，Excel 才不會把「—」當文字。檔名的校區與期間用畫面上這批資料自己的
+// （重抓時舊資料還在畫面上，不能先換成剛選的）。
+const loadedCampus = computed(() => funnel.value?.campus_key ?? campusKey.value)
+const loadedPeriod = computed(() => {
+  const from = funnel.value?.date_from
+  const to = funnel.value?.date_to
+  return from && to ? `${from.replaceAll('-', '/')}–${to.replaceAll('-', '/')}` : '開站至今'
+})
+const dimensionTitle = computed(() => (dimension.value === 'source' ? '案件來源' : '從哪裡知道我們'))
+
+function exportDimension() {
+  saveAnalyticsCsv(
+    analyticsCsvName(dimensionTitle.value, campusLabel(loadedCampus.value), loadedPeriod.value),
+    [dimension.value === 'source' ? '來源' : '從哪裡知道', '送出', '確認', '完成', '取消', '取消率'],
+    dimensionRows.value.map((row) => [row.label, row.created, row.confirmed, row.completed, row.cancelled, row.cancelRate === '—' ? '' : row.cancelRate]),
+  )
+}
+
+function exportEntries() {
+  saveAnalyticsCsv(
+    analyticsCsvName('預約鈕點擊', campusLabel(loadedCampus.value), loadedPeriod.value),
+    ['按鈕位置', '預約表單', 'LINE', '電話', '外部網站'],
+    entryRows.value.map((row) => [row.label, row.form, row.line, row.phone, row.external]),
+  )
+}
 </script>
 
 <template>
@@ -361,10 +389,13 @@ const entryRows = computed(() =>
           <section class="panel">
             <div class="panel__head analytics__dims-head">
               <h2>依來源</h2>
-              <el-radio-group v-model="dimension" size="small" aria-label="來源維度">
-                <el-radio-button value="source">案件來源</el-radio-button>
-                <el-radio-button value="referral">從哪裡知道我們</el-radio-button>
-              </el-radio-group>
+              <div class="analytics__dims-tools">
+                <el-radio-group v-model="dimension" size="small" aria-label="來源維度">
+                  <el-radio-button value="source">案件來源</el-radio-button>
+                  <el-radio-button value="referral">從哪裡知道我們</el-radio-button>
+                </el-radio-group>
+                <el-button v-if="dimensionRows.length" size="small" text data-test="analytics-csv-dimension" :aria-label="`把「${dimensionTitle}」匯出 CSV`" @click="exportDimension">匯出 CSV</el-button>
+              </div>
             </div>
             <div class="panel__body">
               <p v-if="!dimensionRows.length" class="field-help">這段期間沒有預約紀錄。</p>
@@ -396,7 +427,10 @@ const entryRows = computed(() =>
           </section>
 
           <section class="panel">
-            <div class="panel__head"><h2>預約鈕點擊</h2></div>
+            <div class="panel__head">
+              <h2>預約鈕點擊</h2>
+              <el-button v-if="entryRows.length" size="small" text data-test="analytics-csv-entries" aria-label="把「預約鈕點擊」匯出 CSV" @click="exportEntries">匯出 CSV</el-button>
+            </div>
             <div class="panel__body">
               <div class="stat-list analytics__clicks">
                 <div v-for="c in clicks" :key="c.label" class="stat">
@@ -581,6 +615,13 @@ const entryRows = computed(() =>
 
 .analytics__dims-head {
   flex-wrap: wrap;
+}
+
+.analytics__dims-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
 }
 
 .analytics__note {
