@@ -19,7 +19,6 @@ from tests.conftest import (
     _create_user,
     _logged_in_client,
     book_slot,
-    legacy_request,
     set_booking_mode,
     start_visit_slot,
 )
@@ -63,33 +62,7 @@ def _payload(campus_key, version, slot_id, *, parent_name="陳媽媽", phone="09
     }
 
 
-# --- #1 逾期占位（占位流程已刪除，舊狀態列不再占名額）--------------------------
-
-
-@pytest.mark.asyncio
-async def test_retired_pending_rows_do_not_occupy_capacity(
-    admin_client, public_client, second_public_client, db_session
-):
-    version = await _enable_slots(admin_client)
-    slot = await _create_slot(admin_client, capacity=1)
-    # 資料庫裡若還殘留上線前的待確認舊列（migration 會清掉；DB 沒有 CHECK 所以寫得進去），
-    # 它不屬於任何占名額的狀態：名額不能被它卡住。
-    await legacy_request(db_session, status="pending_confirmation", slot_id=slot["id"])
-
-    second = await second_public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"], phone="0987654321"),
-        headers={"Idempotency-Key": "expired-hold-b"},
-    )
-    assert second.status_code == 201, second.text
-    # 這一組才是真的占了名額：第三組被擋下。
-    third = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload("yihua", version, slot["id"], phone="0911222333"),
-        headers={"Idempotency-Key": "expired-hold-c"},
-    )
-    assert third.status_code == 409
-    assert third.json()["detail"]["code"] == "SLOT_FULL"
+# --- 定期工作沒設寄信也照寫站內通知 ---------------------------------------------
 
 
 @pytest.mark.asyncio

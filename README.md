@@ -1,4 +1,17 @@
-## 2026-10-06 拿掉舊狀態程式，第一版（`feature/visit-legacy-cleanup-20261006`）
+## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`）
+
+第一版已上線（`0c534043`）後才推。規則見 DESIGN.md「拿掉舊狀態程式」。
+
+- **migration `e870893fac95`**（down `d65fa082ff87`）：drop `visit_requests.hold_expires_at`（含索引）、`booking_configs.slots_auto_confirm`；加 CHECK `ck_visit_requests_status`、`ck_visit_requests_confirmed_slot`。downgrade 加回欄位（空值／false）、拿掉約束，資料不還原。本機測試庫降級再升級各跑一次通過。
+- **成效統計**：拿掉 `unscheduled`（已確認、沒有場次），API 與後台一起，`contracts/` 重新產生。
+- **測試**：新增 `test_visit_status_constraints.py`（舊狀態、已確認無場次被擋；已取消可以沒場次；兩個欄位不在了）；刪兩支要寫入舊狀態的歷史 migration 測試與 `c7d2e9f4a1b8` 切換預約方式的兩條；`analytics_fixtures.add_case` 的已確認案件自動帶場次。
+- **驗證**（Node 22.23.2）：
+  - 後端：整套 pytest 1544 passed、1 skipped，另有 1 failed、2 errors（`test_media_jobs` 租約、`test_session_schedule` 補場次、`test_security_hardening` 素材鍵；當時另一個 session 的 vitest 把負載拉到 31），這三檔負載降下後重跑 63 項全過；成效統計與招生追蹤 63 項全過。`contract:check` 一致。
+  - 後台：`vue-tsc -b` 通過；`analyticsOutcomes.test.ts` 12 項通過（全套沒重跑：另一個 session 正在跑 vitest，這次後台只拿掉一行統計）。
+  - stack e2e（`E2E_DB_NAME=ivy_website_legacydrop1006_e2e_test`、埠 8793／3793，從零跑到 `e870893fac95`，跑完已刪庫）：整套 75 項全過。
+  - 未驗證：正式庫上 CHECK 建立（第一版已清過資料，理應沒有違反的列）。
+
+## 2026-10-06 拿掉舊狀態程式，第一版（`feature/visit-legacy-cleanup-20261006`，10-06 已部署 main `0c534043`）
 
 使用者：「把剩下的舊狀態程式也一起清掉」。規則見 DESIGN.md「拿掉舊狀態程式」；依 CICD.md 先停用、再移除，欄位與狀態約束在第二版。
 

@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 拿掉參觀預約的舊狀態程式，第一版（main CI 部署）
+
+- **合併**：`feature/visit-legacy-cleanup-20261006` rebase 到 main `d70bce03`（只多兩個文件提交，沒有衝突），使用者推 main `d70bce03..0c534043`。內容與驗證見 README 頂部同日段落、DESIGN.md「拿掉舊狀態程式」。
+- **migration**：`d65fa082ff87`（down `3fe1cfb2dbf7`），只清資料：再刪舊狀態與「已確認卻沒有場次」的案件、舊流程通知未寄或失敗的標 skipped；downgrade 不還原。使用者確認正式庫預約資料都是測試資料，部署前沒有備份。實際刪幾筆、標幾筆沒有查（auto 模式擋 railway ssh 讀正式庫；部署前 10-05 晚以總管理者看過五校沒有舊狀態案件）。
+- **推前本機**：後端整套 pytest 1549 passed、1 skipped；admin vitest 101 檔 1279 項、`vue-tsc -b`；web typecheck、`test:website` 829 項；`contract:check`；stack e2e 整套 75 項全過。
+- **CI**：main run 37399019336（`0c534043`）全綠，建立到完成 10 分 55 秒：Frontend admin 4.4／web 1.4 分鐘，Backend 三組 7.0／4.7／5.2 分鐘，E2E／Playwright 5.4 分鐘，Deploy 3.7 分鐘（這次沒有卡 INITIALIZING）。
+- **正式 `release.json`**：base commit `0c534043`，created `2026-10-06T01:32:19Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空（定期工作已沒有 expire_holds 步驟）；`POST /admin/visit-requests/{id}/confirm` 回 404；義華公開預約設定 `mode: slots`；後台 `VisitDetailView` chunk 沒有「確認這個場次」「排入場次」「取消這筆需求」「舊需求」，有「取消預約」。
+- **未做**：沒登入正式後台實際補登一筆、取消一筆；Safari／iOS 實機。第二版（drop `hold_expires_at`、`slots_auto_confirm`，加 status CHECK）另外推。
+
 ## 2026-10-05 預約明細當家庭頁（main CI 部署）
 
 - **合併**：`feature/visit-family-page-20261005`。分支先疊在紙本補欄位 `5c6c1424` 上，再兩次合 origin/main（`4f9de0b6`、`4140145d`；README 兩段都留），HEAD `9299bd7f`，使用者推 main `4140145d..9299bd7f`。內容見 README 頂部同日段落、DESIGN.md「預約明細當家庭頁」，規格 `docs/specs/2026-10-05-visit-family-page-design.md`。

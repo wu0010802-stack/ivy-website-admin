@@ -54,6 +54,9 @@ async def add_case(
     child_birthdate: date | None = None,
     anonymized: bool = False,
 ) -> uuid.UUID:
+    if status == "confirmed" and slot_id is None:
+        # 資料庫要求已確認一定有場次（ck_visit_requests_confirmed_slot）：沒指定就開一個未來場次。
+        slot_id = await add_slot(db, campus_key=campus_key, days_from_today=30, start=time(7, 0), capacity=99)
     case = VisitRequest(
         id=uuid.uuid4(),
         campus_key=campus_key,

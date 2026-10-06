@@ -26,8 +26,8 @@ from app.common.timezones import now_utc
 from app.operations.analytics_service import UNKNOWN, FunnelRange
 from app.operations.models import CANCEL_REASONS
 
-# 每筆案件剛好落在其中一種，加總＝cases。unscheduled：還沒結案卻沒有場次的舊流程資料。
-OUTCOMES = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
+# 每筆案件剛好落在其中一種，加總＝cases。已確認一定有場次（資料庫約束），所以沒有「沒場次」這一種。
+OUTCOMES = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled")
 CANCEL_REASON_KEYS = (*CANCEL_REASONS, UNKNOWN)
 
 
@@ -41,7 +41,6 @@ def _outcome(now: datetime):
         (status == VisitRequestStatus.CANCELLED.value, literal("cancelled")),
         (status == VisitRequestStatus.COMPLETED.value, literal("completed")),
         (status == VisitRequestStatus.NO_SHOW.value, literal("no_show")),
-        (VisitRequest.slot_id.is_(None), literal("unscheduled")),
         (pending_kinds.condition("awaiting_attendance", now), literal("awaiting_attendance")),
         else_=literal("upcoming"),
     )

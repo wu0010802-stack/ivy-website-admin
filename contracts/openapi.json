@@ -2390,10 +2390,6 @@
           "open_now": {
             "$ref": "#/components/schemas/PendingNowOut"
           },
-          "unscheduled": {
-            "title": "Unscheduled",
-            "type": "integer"
-          },
           "upcoming": {
             "title": "Upcoming",
             "type": "integer"
@@ -2411,7 +2407,6 @@
           "completed",
           "no_show",
           "cancelled",
-          "unscheduled",
           "cancelled_by_reason",
           "attendance_rate",
           "no_show_rate",
@@ -5622,10 +5617,6 @@
           "no_show_rate": {
             "$ref": "#/components/schemas/AdmissionsRate"
           },
-          "unscheduled": {
-            "title": "Unscheduled",
-            "type": "integer"
-          },
           "upcoming": {
             "title": "Upcoming",
             "type": "integer"
@@ -5643,7 +5634,6 @@
           "completed",
           "no_show",
           "cancelled",
-          "unscheduled",
           "cancelled_by_reason",
           "attendance_rate",
           "no_show_rate",

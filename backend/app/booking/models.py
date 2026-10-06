@@ -22,7 +22,8 @@ class BookingMode(str, enum.Enum):
 
 class VisitRequestStatus(str, enum.Enum):
     """官網送單與後台補登都在同一個交易排進場次，案件一建立就是 confirmed。
-    舊流程的 new／contacting／pending_confirmation 已在 2026-10-05、10-06 刪除。"""
+    舊流程的 new／contacting／pending_confirmation 已在 2026-10-05、10-06 刪除，
+    資料庫 CHECK ck_visit_requests_status 也只收這四種。"""
 
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
@@ -104,6 +105,12 @@ class VisitRequest(Base):
             "cancel_reason IS NULL OR cancel_reason IN ('parent', 'staff', 'hold_expired')",
             name="ck_visit_requests_cancel_reason",
         ),
+        # 2026-10-06 拿掉舊流程（e870893fac95）：案件只有四種狀態，已確認一定有場次。
+        CheckConstraint(
+            "status IN ('confirmed', 'completed', 'no_show', 'cancelled')",
+            name="ck_visit_requests_status",
+        ),
+        CheckConstraint("status <> 'confirmed' OR slot_id IS NOT NULL", name="ck_visit_requests_confirmed_slot"),
         # 後台列表、CSV 匯出依 created_at 由新到舊排序。
         Index("ix_visit_requests_created_at", "created_at"),
         # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。

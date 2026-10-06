@@ -18,7 +18,7 @@ const rate = (numerator: number, denominator: number) =>
 
 function counts(over: Partial<OutcomeCountsOut> = {}): OutcomeCountsOut {
   const base = {
-    cases: 8, web_cases: 7, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2, unscheduled: 0,
+    cases: 8, web_cases: 7, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2,
     cancelled_by_reason: { parent: 1, staff: 0, hold_expired: 0, unknown: 1 },
     ...over,
   }

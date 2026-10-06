@@ -367,9 +367,6 @@ async def test_old_unhandled_cases_are_no_longer_reported_overdue(admin_client, 
     # 送出超過 24 小時、沒人聯絡的案件：不再有「逾期未處理」提醒（已確認的案件由即將參觀提醒負責）。
     confirmed = await legacy_request(db_session, status="confirmed")
     await _set_created_at(db_session, confirmed, datetime.now(timezone.utc) - timedelta(hours=30))
-    # 上線前留下的舊狀態案件即使還在資料庫，也不會被拿來產生提醒（migration 會把它們清掉）。
-    leftover = await legacy_request(db_session, status="new")
-    await _set_created_at(db_session, leftover, datetime.now(timezone.utc) - timedelta(hours=30))
 
     assert await reminders.enqueue_due_reminders(db_session) == 0
     await db_session.commit()

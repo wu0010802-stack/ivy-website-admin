@@ -483,9 +483,8 @@ async def legacy_request(
 ) -> str:
     """直接寫 DB 建一筆任意狀態的案件，不產生 outbox、analytics、歷程。
 
-    status 必須明確傳入（沒有預設值，避免不小心產生已退場的舊狀態）。
-    需要「進行中」案件時傳 status="confirmed" 並帶 slot_id（已確認一定有場次）；
-    舊狀態字串（new 等）只給 migration 測試用，ORM 仍可寫入、DB 沒有 CHECK。"""
+    status 必須明確傳入（沒有預設值）。資料庫只收四種狀態，已確認一定有場次：
+    status="confirmed" 沒帶 slot_id 時會自動開一個場次。"""
     from app.booking.models import VisitRequest, VisitSlot
 
     if status == "confirmed" and slot_id is None:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import text
 
 from app.booking import service
 from app.booking.models import BookingMode
@@ -31,11 +30,8 @@ def _body(version: int, **extra) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_submission_is_confirmed_even_if_old_config_said_manual(admin_client, public_client, db_session):
+async def test_submission_is_confirmed_without_hold(admin_client, public_client):
     slot_id, version = await _slots_mode(admin_client)
-    # 上線前的舊設定列（欄位還在 DB，ORM 已不認得，只能用原生 SQL 寫）
-    await db_session.execute(text("UPDATE booking_configs SET slots_auto_confirm = false WHERE campus_key = 'yihua'"))
-    await db_session.commit()
 
     response = await public_client.post(
         f"{API}/public/visit-requests", json=_body(version, slot_id=slot_id), headers={"Idempotency-Key": "self-01"}

@@ -3402,8 +3402,6 @@ export interface components {
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
             open_now: components["schemas"]["PendingNowOut"];
-            /** Unscheduled */
-            unscheduled: number;
             /** Upcoming */
             upcoming: number;
             /** Web Cases */
@@ -4527,8 +4525,6 @@ export interface components {
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
-            /** Unscheduled */
-            unscheduled: number;
             /** Upcoming */
             upcoming: number;
             /** Web Cases */

@@ -13,7 +13,7 @@ from tests.conftest import set_booking_mode
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
 URL = "/api/website/v1/admin/analytics/booking-outcomes"
-OUTCOME_KEYS = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled", "unscheduled")
+OUTCOME_KEYS = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled")
 
 
 def _row(body: dict, campus_key: str = "yihua") -> dict:
@@ -44,7 +44,7 @@ async def test_each_case_lands_in_exactly_one_outcome_with_rates(admin_client, d
     assert row["web_cases"] == 6
     assert {key: row[key] for key in OUTCOME_KEYS} == {
         "upcoming": 1, "awaiting_attendance": 1, "completed": 2,
-        "no_show": 1, "cancelled": 2, "unscheduled": 0,
+        "no_show": 1, "cancelled": 2,
     }
     assert sum(row[key] for key in OUTCOME_KEYS) == row["cases"]
     assert row["cancelled_by_reason"] == {"parent": 1, "staff": 0, "hold_expired": 0, "unknown": 1}

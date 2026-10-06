@@ -972,7 +972,7 @@
   - 後台明細頁拿掉「排入場次」「確認這個場次」與確認期限，「下一筆」只剩待標記到場與到期追蹤（從列表進來寫「下一筆（這份列表還有 N 件）」）。取消一律叫「取消預約」。
   - 官網家長管理頁只剩四種狀態文案。
   - migration `d65fa082ff87` 只清資料：再刪一次舊狀態與「已確認卻沒有場次」的案件；舊流程通知未寄或寄送失敗的標成 skipped。ORM 不再讀寫 `hold_expires_at`、`slots_auto_confirm`，但 DB 欄位留到第二版。
-- **第二版（第一版上線後才推）**：drop `visit_requests.hold_expires_at`（含索引）、`booking_configs.slots_auto_confirm`；加 CHECK：status 只能是四種、已確認一定有場次。之後就產生不出舊狀態。兩支歷史 migration 的測試（`1e5612e187ff`、`d65fa082ff87`）要寫入舊狀態才有意義，隨第二版退場。
+- **第二版（第一版 10-06 上線 `0c534043` 後才推）**：migration `e870893fac95` drop `visit_requests.hold_expires_at`（含索引）、`booking_configs.slots_auto_confirm`；加 CHECK `ck_visit_requests_status`（只能四種）、`ck_visit_requests_confirmed_slot`（已確認一定有場次）。之後就產生不出舊狀態。成效統計「已確認、沒有場次（舊資料）」（`unscheduled`）跟著拿掉。要寫入舊狀態或舊欄位才有意義的歷史 migration 測試（`1e5612e187ff`、`d65fa082ff87`、`c7d2e9f4a1b8` 切換預約方式的兩條）隨第二版退場。
 - **留著，只用在顯示歷史**：歷程與操作紀錄裡的舊狀態名稱（補登以前的「待處理 → 預約正常」、舊案的「聯絡中」「取消需求」）、取消原因「逾期未確認」、通知種類「時段占位已逾期」「案件逾期未處理」與細分原因、稽核欄位 `slots_auto_confirm`、預約方式「線上表單（已停用）」。這些資料已經存在，拿掉標籤會顯示英文代號。
 - **`inquiry` 預約方式沒拿**：要拿得一併改公開預約設定端點（把殘留的 inquiry 設定改顯示成暫停那段），這個修改被 auto 模式擋下，等使用者決定；目前後台仍設不進去（400 `BOOKING_MODE_RETIRED`）、官網照舊顯示暫停。
 
