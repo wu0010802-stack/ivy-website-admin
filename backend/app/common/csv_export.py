@@ -15,12 +15,18 @@ from collections.abc import Iterable, Sequence
 
 from fastapi import HTTPException, Response, status
 
+# UTF-8 BOM：Excel 靠它認得 CSV 是 UTF-8。用跳脫寫，不放實體字元（看不見，diff 與編輯器都容易吃掉）。
+BOM = "\ufeff"
+
 # 一次在記憶體組檔的下載上限：超過就請使用者縮小篩選範圍，不默默截斷
 # （截斷的名單會被當成完整的）。呼叫端一律寫 csv_export.EXPORT_ROW_LIMIT，
 # 執行時才讀模組屬性，測試才能 monkeypatch。
 EXPORT_ROW_LIMIT = 10_000
 
 _SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
+# 民國年月「115.09」：年 1–3 位、月 1–2 位。和 admin/src/utils/csv.ts 的 ROC_MONTH 同一條，
+# 用 [0-9] 與 fullmatch（\d 會吃全形數字，$ 會放過結尾換行，JS 版都不會）。
+_ROC_MONTH = re.compile(r"([0-9]{1,3})\.([0-9]{1,2})")
 
 
 def safe_cell(value: object) -> str:
@@ -44,6 +50,15 @@ def filename_part(value: str | None, fallback: str = "all") -> str:
     return value if value and _SAFE_FILENAME_PART.fullmatch(value) else fallback
 
 
+def roc_month_csv(value: str | None) -> str:
+    """民國月份「115.09」在 CSV 寫成「115年09月」：Excel 開 CSV 會把 115.10 當數字轉成 115.1，
+    月份就錯了。只改匯出，畫面仍是「115.09」；不是「年.月」格式的（例如「未填寫」）原樣不動。
+    和 admin/src/utils/csv.ts 的 rocMonthCsv 同一條規則，改一邊另一邊一起改。"""
+    text = value or ""
+    match = _ROC_MONTH.fullmatch(text)
+    return f"{match[1]}年{match[2].zfill(2)}月" if match else text
+
+
 def too_many_rows() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -63,7 +78,7 @@ def csv_attachment(header: Sequence[object], rows: Iterable[Sequence[object]], f
     for row in rows:
         writer.writerow([safe_cell(cell) for cell in row])
     return Response(
-        content="﻿" + buffer.getvalue(),
+        content=BOM + buffer.getvalue(),
         media_type="text/csv; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',

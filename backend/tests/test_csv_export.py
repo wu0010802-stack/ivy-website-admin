@@ -37,7 +37,7 @@ def test_csv_attachment_writes_bom_crlf_quotes_and_no_store():
         "x-all-20261003.csv",
     )
     assert resp.body.decode("utf-8") == (
-        "﻿姓名,備註\r\n"
+        "\ufeff姓名,備註\r\n"
         '王小明,"第一行\n第二行，有逗號"\r\n'
         "'=1+1,\r\n"
         '"李""小""華","a,b"\r\n'
@@ -49,7 +49,7 @@ def test_csv_attachment_writes_bom_crlf_quotes_and_no_store():
 
 def test_csv_attachment_neutralises_header_cells_too():
     resp = csv_export.csv_attachment(("=欄名",), [], "x.csv")
-    assert resp.body.decode("utf-8") == "﻿'=欄名\r\n"
+    assert resp.body.decode("utf-8") == "\ufeff'=欄名\r\n"
 
 
 def test_filename_part_only_keeps_safe_keys():
@@ -73,3 +73,34 @@ def test_too_many_rows_says_the_limit_in_chinese():
 def test_too_many_rows_reads_the_limit_at_call_time(monkeypatch):
     monkeypatch.setattr(csv_export, "EXPORT_ROW_LIMIT", 3)
     assert "3 筆" in csv_export.too_many_rows().detail["message"]
+
+
+def test_bom_is_the_utf8_byte_order_mark():
+    # 原始碼裡寫 ﻿ 跳脫而不是實體字元：看不見的字元在 diff 與編輯器裡容易被吃掉。
+    assert csv_export.BOM == "﻿"
+    assert csv_export.BOM.encode("utf-8") == b"\xef\xbb\xbf"
+    assert csv_export.csv_attachment(("a",), [], "x.csv").body.startswith(csv_export.BOM.encode("utf-8"))
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("115.09", "115年09月"),
+        ("115.10", "115年10月"),
+        ("114.12", "114年12月"),
+        ("99.01", "99年01月"),
+        ("115.9", "115年09月"),
+        # 不是「年.月」格式的原樣不動（和前端 rocMonthCsv 一致）。
+        ("未填寫", "未填寫"),
+        ("", ""),
+        (None, ""),
+        ("1150.09", "1150.09"),
+        ("115.009", "115.009"),
+        ("115.09.08", "115.09.08"),
+        ("115.09\n", "115.09\n"),
+        ("１１５.０９", "１１５.０９"),
+    ],
+)
+def test_roc_month_csv_matches_the_admin_helper(value, expected):
+    # 和 admin/src/utils/csv.ts 的 rocMonthCsv 同一條規則：Excel 會把 115.10 轉成數字 115.1。
+    assert csv_export.roc_month_csv(value) == expected

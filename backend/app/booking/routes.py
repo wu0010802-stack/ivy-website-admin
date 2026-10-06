@@ -1029,12 +1029,12 @@ async def _stream_export_csv(snapshot: AsyncSession, stmt):
             writer.writerow(_export_row(r))
             pending += 1
             if pending >= _EXPORT_BATCH:
-                yield (("\ufeff" if first else "") + buffer.getvalue()).encode("utf-8")
+                yield ((csv_export.BOM if first else "") + buffer.getvalue()).encode("utf-8")
                 first = False
                 buffer.seek(0)
                 buffer.truncate()
                 pending = 0
-        yield (("\ufeff" if first else "") + buffer.getvalue()).encode("utf-8")
+        yield ((csv_export.BOM if first else "") + buffer.getvalue()).encode("utf-8")
     finally:
         await snapshot.close()
 
