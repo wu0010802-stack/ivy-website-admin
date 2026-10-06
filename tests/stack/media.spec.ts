@@ -47,10 +47,14 @@ test('素材庫上傳照片，在「關於常春藤」選用並發布到官網',
     await expect(page.getByRole('button', { name: '發布到官網' })).toBeDisabled()
   })
 
-  const item = await api.get<{ latest_revision: { payload: { photo: { media_id: string } | null } } }>(
-    '/admin/content-items/home_about',
-  )
-  expect(item.latest_revision.payload.photo?.media_id).toBe(asset?.id)
+  // 「發布到官網」在儲存、發布處理中也是停用的，上面那行可能在存檔還沒完成時就通過；
+  // 讀 API 要等到新版本寫進去（2026-10-06 查到這就是本 spec 間歇讀到 photo 為空的原因）。
+  await expect.poll(async () => {
+    const item = await api.get<{ latest_revision: { payload: { photo: { media_id: string } | null } } }>(
+      '/admin/content-items/home_about',
+    )
+    return item.latest_revision.payload.photo?.media_id
+  }, { timeout: 15_000 }).toBe(asset?.id)
   await api.dispose()
 
   await test.step('官網首頁的關於區塊改用素材庫的照片', async () => {

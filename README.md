@@ -11,6 +11,7 @@
   - 後台：新增四個測試檔 48 項（先紅後綠）；`ux20260928D` 的編輯器替身補 `saving`／`publishing`；vitest 105 檔 1330 項全過，`vue-tsc -b` 通過。
   - 官網：typecheck 通過；`test:website` 80 檔 829 項全過。`contract:check` 一致。
   - stack e2e（`E2E_DB_NAME=ivy_website_e2e_audit1006_test`、埠 8716／3716，跑完已刪庫）：既有 75 項全過。另用臨時 spec 在 1440／390 走過登入超過 10 分鐘建帳號要輸入密碼（打錯留在對話框、打對建立成功）、已註冊訪視編輯表單鎖住學年學期、被退回的內容停用發布與排程，截圖在 `output/playwright/admin-bug-audit-20261006/`，臨時 spec 已刪。
+  - 合併 main（舊狀態程式第一、二版，migration 到 `e870893fac95`）後重跑：pytest 1582 passed、1 skipped；後台 vitest 105 檔 1327 項、`vue-tsc -b`；官網 829 項與 typecheck；`contract:check` 一致；stack 74 過、`media.spec` 失敗——單獨跑也失敗，查出是 spec 時序：「發布到官網」在儲存處理中就停用，斷言提早通過、API 讀到舊版（輪詢 18 ms 後就有照片）。改成輪詢 API 直到新版寫入，單獨重跑通過；這也是 09-27 起「media 整套間歇失敗」的原因。
   - 未驗證：正式站實際點一次、Safari／iOS 實機；兩個人真的同時操作的競態只在測試裡用延遲重現。
 
 ## 2026-10-06 拿掉舊狀態程式，第二版（`feature/visit-legacy-drop-20261006`）
