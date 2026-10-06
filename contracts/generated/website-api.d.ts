@@ -2680,17 +2680,6 @@ export interface components {
             /** Previous */
             previous: number;
         };
-        /** AdmissionsCrossRow */
-        AdmissionsCrossRow: {
-            /** Referrer */
-            referrer: string;
-            /** Sources */
-            sources: {
-                [key: string]: number;
-            };
-            /** Total */
-            total: number;
-        };
         /** AdmissionsDecisionSummary */
         AdmissionsDecisionSummary: {
             current_month: components["schemas"]["AdmissionsMetricSnapshot"];
@@ -2838,7 +2827,7 @@ export interface components {
         };
         /**
          * AdmissionsOptionsOut
-         * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、
+         * @description 篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、家長介紹、
          *     帶參觀老師，以及園務的固定列舉與文案。
          */
         AdmissionsOptionsOut: {
@@ -2880,28 +2869,6 @@ export interface components {
             delta: number | null;
             /** Previous */
             previous: number | null;
-        };
-        /** AdmissionsReferrerRow */
-        AdmissionsReferrerRow: {
-            /** By Grade */
-            by_grade: {
-                [key: string]: components["schemas"]["AdmissionsGradeCount"];
-            };
-            /** Deposit */
-            deposit: number;
-            /** Referrer */
-            referrer: string;
-            /** Visit */
-            visit: number;
-            /** Visit To Deposit Rate */
-            visit_to_deposit_rate: number | null;
-        };
-        /** AdmissionsReferrerSourceCross */
-        AdmissionsReferrerSourceCross: {
-            /** Referrers */
-            referrers: components["schemas"]["AdmissionsCrossRow"][];
-            /** Sources */
-            sources: string[];
         };
         /** AdmissionsSourceRow */
         AdmissionsSourceRow: {
@@ -3025,10 +2992,10 @@ export interface components {
             as_of: string;
             /** By Grade */
             by_grade: components["schemas"]["AdmissionsGradeRow"][];
-            /** By Referrer */
-            by_referrer: components["schemas"]["AdmissionsReferrerRow"][];
             /** By Source */
             by_source: components["schemas"]["AdmissionsSourceRow"][];
+            /** By Tour Guide */
+            by_tour_guide: components["schemas"]["AdmissionsTourGuideRow"][];
             /** By Year */
             by_year: components["schemas"]["AdmissionsYearlyRow"][];
             decision_summary: components["schemas"]["AdmissionsDecisionSummary"];
@@ -3052,11 +3019,44 @@ export interface components {
             no_deposit_total: number;
             /** Reference Month */
             reference_month: string | null;
-            referrer_source_cross: components["schemas"]["AdmissionsReferrerSourceCross"];
             /** Top Action Queue */
             top_action_queue: components["schemas"]["AdmissionsStatsAction"][];
             /** Top Source Names */
             top_source_names: string[];
+            tour_guide_source_cross: components["schemas"]["AdmissionsTourGuideSourceCross"];
+        };
+        /** AdmissionsTourGuideCrossRow */
+        AdmissionsTourGuideCrossRow: {
+            /** Sources */
+            sources: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+            /** Tour Guide */
+            tour_guide: string;
+        };
+        /** AdmissionsTourGuideRow */
+        AdmissionsTourGuideRow: {
+            /** By Grade */
+            by_grade: {
+                [key: string]: components["schemas"]["AdmissionsGradeCount"];
+            };
+            /** Deposit */
+            deposit: number;
+            /** Tour Guide */
+            tour_guide: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AdmissionsTourGuideSourceCross */
+        AdmissionsTourGuideSourceCross: {
+            /** Sources */
+            sources: string[];
+            /** Tour Guides */
+            tour_guides: components["schemas"]["AdmissionsTourGuideCrossRow"][];
         };
         /** AdmissionsYearlyRow */
         AdmissionsYearlyRow: {

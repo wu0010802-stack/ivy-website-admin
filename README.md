@@ -6,6 +6,20 @@
 - **驗證**（Node 22.23.2）：新增 `admissionsSourceCategories.test.ts` 6 項（先紅後綠：代碼對後端 `constants.py`、文字、下拉附加不列的代碼、表單新增／編輯、家庭頁顯示）；`admissionsRecordDialog`、`admissionsRecords`、`familyAdmissionsData` 各改一行預期文字。vitest 全套 109 檔 1374 項全過（另一個 session 同時跑 pytest，用 2 worker、逾時 20 秒）、`vue-tsc -b`、`vite build` 通過。
 - **未驗證**：沒在 dev server 上用瀏覽器實際點下拉（單元測試掛的是真的 Element Plus 元件）。
 
+## 2026-10-06 訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹（`feature/record-dialog-20261006`，10-06 已部署 main `ee086b4d`）
+
+使用者：「聯絡與來源這邊不要折疊、預繳狀態也不要折疊，然後幫我優化 UI/UX」，接著「帶參觀老師可能有多人；介紹者改成家長介紹（這個學童可能是其他家長介紹來的）」，並裁定統計的接待人員改看帶參觀老師。規則見 DESIGN.md「訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹」。
+
+- **後台表單**（`RecordDialog`，看板新增、明細編輯、標記到場後、家庭頁共用）：拿掉摺疊，四區都直接展開（區塊標題＋分隔線，拿掉「已填 N 項」）；入學學期移到生日旁、聯絡人與電話移到「聯絡與來源」、來源分類｜家長介紹同列、來源備註整列；電話範例改成 placeholder；預繳狀態用階段標籤、說明縮成一句、原因說明選了原因才出現；新增時游標停在幼生姓名。帶參觀老師改成標籤式多選（可打新名字、本校填過的老師當建議），存回 `tour_guide_name` 用「、」串起來，超過 50 字不能存。「介紹者」全後台改叫「家長介紹」（明細篩選與展開列、未預繳名單、家庭頁、操作紀錄欄名）。
+- **後端**：`constants.split_tour_guides`（「、」「，」「,」「／」「/」都當分隔、去重複）；選項 `tour_guides` 逐位計數；統計 `by_referrer`／`referrer_source_cross` 改成 `by_tour_guide`／`tour_guide_source_cross`，依帶參觀老師分組、多位時每位各算一次。`contracts/` 重新產生。沒有 migration、不加欄位；匯出回園務不動。
+- **後台統計**：接待人員表、接待人員 × 年級、接待人員 × 來源（原「介紹者 × 來源」）改讀新鍵，表下寫口徑。
+- **驗證**（Node 22.23.2，獨立測試庫 `ivy_website_recdlg1006_test`）：
+  - 後端：新增 `split_tour_guides` 10 組、多位老師統計、選項逐位計數測試；整套 pytest 1609 passed、1 skipped。`contract:check` 一致。
+  - 後台：`admissionsRecordDialog.test.ts` 新增多位老師（拆分、去重、送出串接）、超過 50 字、四區展開與欄位位置、游標、舊分隔符不誤送、原因說明出現時機；更新統計、明細、未預繳、家庭頁、稽核修正的舊文字斷言。整套 vitest 108 檔 1373 項、`vue-tsc -b` 通過。
+  - stack e2e（`E2E_DB_NAME=ivy_website_recdlg1006_e2e_test`、埠 8796／3796，跑完已刪庫）：`admissions-flow.spec.ts` 改成在表單加兩位帶參觀老師並用 API 核對「、」串接。整套第一次 75 過、1 敗：新斷言用 `fill()` 填標籤欄，`fill()` 不會打開選單、第一次 Enter 只打開選單；臨時 spec 在真瀏覽器確認聚焦後打字＋Enter、連加兩位、Esc 只關選單、點欄位再打都正常後，改成逐字輸入並等選項出現再按 Enter，`admissions-flow`／`admissions-follow-up`／`visit-family-page` 6 項全過（沒改程式，其餘 75 項沿用第一次的結果）。
+  - 畫面：臨時 spec 在 1440／390 截新增與編輯表單改版前後（`output/playwright/record-dialog/before|after/`，臨時檔已刪）。
+  - 未驗證：正式站實際操作。
+
 ## 2026-10-06 Google 登入改成在「我的帳號」綁定（`fix/google-self-link-20261006`，10-06 已部署 main `4437174d`）
 
 使用者針對稽核修正「刻意沒改」的「Google 登入時用 Email 自動綁定既有帳號」說「幫我做這個」。規則見 DESIGN.md「Google 登入改成在『我的帳號』綁定」；設定見 `deploy/google-oauth.md`。正式站這時 Google 登入沒開（`/auth/providers` 回 `google:false`），沒有人受影響。

@@ -22,6 +22,10 @@ const byPlaceholder = (wrapper: VueWrapper, name: 'ElSelect' | 'ElDatePicker', p
 const inFormItem = (wrapper: VueWrapper, label: string, name: 'ElSwitch' | 'ElAutocomplete') =>
   wrapper.findAllComponents({ name: 'ElFormItem' }).find((item) => item.props('label') === label)!.findComponent({ name })
 
+const tourGuides = (wrapper: VueWrapper) =>
+  wrapper.findAllComponents({ name: 'ElSelect' }).find((component) => component.props('ariaLabel') === '帶參觀老師')!
+const optionLabels = (select: VueWrapper) => select.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label'))
+
 async function openDialog(props: Record<string, unknown>) {
   const mounted = await mountWith(RecordDialog, { props: { modelValue: false, campusKey: 'renwu', options: options(), ...props } })
   await mounted.wrapper.setProps({ modelValue: true })
@@ -77,7 +81,7 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     expect(grade.props('modelValue')).toBeNull()
   })
 
-  it('照紙本補的欄位：英文名字、父母職業、帶參觀老師（打字＋建議）、來源分類、搭娃娃車', async () => {
+  it('照紙本補的欄位：英文名字、父母職業、帶參觀老師、來源分類、搭娃娃車', async () => {
     const post = mockPost({ '/admin/admissions/records': (_path: string, body?: unknown) => visit({ ...(body as object), id: 'v-new' }) })
     const { wrapper } = await openDialog({ mode: 'add', record: null })
     expect(bodyText()).toContain('來源備註')
@@ -88,7 +92,7 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     byPlaceholder(wrapper, 'ElDatePicker', '選擇生日').vm.$emit('update:modelValue', '2023-03-02')
     typeInto(field('input[aria-label="父親職業"]'), '軍')
     typeInto(field('input[aria-label="母親職業"]'), '教師')
-    typeInto(field('input[aria-label="帶參觀老師"]'), 'Marvyna')
+    tourGuides(wrapper).vm.$emit('update:modelValue', ['Marvyna'])
     const category = byPlaceholder(wrapper, 'ElSelect', '請選擇來源分類')
     expect(category.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label'))).toEqual(['在校生弟妹', '畢業生弟妹', '家長介紹／社區招生', '自報生（廣告、鄰居、網路、活動）', '邀約來園', '舊生復學'])
     category.vm.$emit('update:modelValue', 'sibling_current')
@@ -103,12 +107,70 @@ describe('新增訪視（規格 6.1 第 3 點）', () => {
     })
   })
 
-  it('帶參觀老師的建議是這校填過的名字', async () => {
+  it('帶參觀老師可以多位：建議是這校填過的名字，可打新名字；一次打好幾位也拆開、去重複，送出用「、」串起來', async () => {
+    const post = mockPost({ '/admin/admissions/records': (_path: string, body?: unknown) => visit({ ...(body as object), id: 'v-new' }) })
     const { wrapper } = await openDialog({ mode: 'add', record: null })
-    const fetch = inFormItem(wrapper, '帶參觀老師', 'ElAutocomplete').props('fetchSuggestions') as (query: string, callback: (items: { value: string }[]) => void) => void
-    const callback = vi.fn()
-    fetch('', callback)
-    expect(callback).toHaveBeenCalledWith([{ value: 'Marvyna' }, { value: '林老師' }])
+    const select = tourGuides(wrapper)
+    expect(select.props('multiple')).toBe(true)
+    expect(select.props('allowCreate')).toBe(true)
+    expect(optionLabels(select)).toEqual(['Marvyna', '林老師'])
+
+    select.vm.$emit('update:modelValue', ['林老師', ' 王老師，陳老師 ', '林老師'])
+    await flushPromises()
+    expect(select.props('modelValue')).toEqual(['林老師', '王老師', '陳老師'])
+    // 新打的名字也留在選項裡，標籤才有字。
+    expect(optionLabels(select)).toEqual(['Marvyna', '林老師', '王老師', '陳老師'])
+
+    typeInto(field('input[aria-label="幼生姓名"]'), '陳小寶')
+    byPlaceholder(wrapper, 'ElDatePicker', '選擇生日').vm.$emit('update:modelValue', '2023-03-02')
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(post.mock.calls[0]![1]).toMatchObject({ tour_guide_name: '林老師、王老師、陳老師' })
+  })
+
+  it('帶參觀老師串起來超過 50 字不能儲存，頁尾寫原因', async () => {
+    const { wrapper } = await openDialog({ mode: 'add', record: null })
+    typeInto(field('input[aria-label="幼生姓名"]'), '陳小寶')
+    byPlaceholder(wrapper, 'ElDatePicker', '選擇生日').vm.$emit('update:modelValue', '2023-03-02')
+    tourGuides(wrapper).vm.$emit('update:modelValue', Array.from({ length: 9 }, (_, index) => `第${index + 1}位帶參觀老師`))
+    await flushPromises()
+    expect(bodyText()).toContain('還不能儲存：帶參觀老師合計超過 50 字')
+    expect(bodyButton('儲存')!.disabled).toBe(true)
+    tourGuides(wrapper).vm.$emit('update:modelValue', ['第1位帶參觀老師', '第2位帶參觀老師'])
+    await flushPromises()
+    expect(bodyText()).not.toContain('還不能儲存')
+    expect(bodyButton('儲存')!.disabled).toBe(false)
+  })
+
+  it('四區直接展開：基本資料、聯絡與來源、預繳狀態、備註都看得到，沒有摺疊', async () => {
+    const { wrapper } = await openDialog({ mode: 'add', record: null })
+    const headings = [...document.body.querySelectorAll('.record-dialog h3')].map((element) => element.textContent?.trim())
+    expect(headings).toEqual(['基本資料', '聯絡與來源', '預繳狀態', '備註'])
+    expect(wrapper.findAllComponents({ name: 'ElCollapse' })).toHaveLength(0)
+    expect(bodyText()).not.toMatch(/已填 \d 項|未填/)
+    for (const label of ['聯絡人姓名', '電話', '地址', '父親職業', '來源分類', '家長介紹', '來源備註', '未預繳原因', '轉其他學期', '備註', '電訪回應']) {
+      expect(document.body.querySelector(`[aria-label="${label}"]`), label).not.toBeNull()
+    }
+    // 聯絡人與電話歸在「聯絡與來源」；電話範例寫在輸入框裡。
+    const contact = [...document.body.querySelectorAll('.record-dialog__group')][1]!
+    expect(contact.querySelector('[aria-label="聯絡人姓名"]')).not.toBeNull()
+    expect(field<HTMLInputElement>('input[aria-label="電話"]').placeholder).toBe('例：0912-345-678')
+    expect(field<HTMLInputElement>('input[aria-label="家長介紹"]').placeholder).toBe('哪位家長介紹來的，例如：王小美媽媽')
+    expect(bodyText()).not.toContain('介紹者')
+    expect(bodyText()).not.toContain('接待人員')
+  })
+
+  it('新增時游標停在幼生姓名；編輯時不搶焦點', async () => {
+    const { wrapper } = await openDialog({ mode: 'add', record: null })
+    wrapper.findComponent({ name: 'ElDialog' }).vm.$emit('opened')
+    await flushPromises()
+    expect(document.activeElement).toBe(field('input[aria-label="幼生姓名"]'))
+    cleanup()
+    const edit = await openDialog({ mode: 'edit', record: visit() })
+    edit.wrapper.findComponent({ name: 'ElDialog' }).vm.$emit('opened')
+    await flushPromises()
+    expect(document.activeElement).not.toBe(field('input[aria-label="幼生姓名"]'))
   })
 
   it('手動選過的適讀班級，改生日也不覆寫', async () => {
@@ -174,10 +236,34 @@ describe('編輯訪視（規格 6.6）', () => {
     expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { source_category: 'sibling_graduate', rides_bus: true, expected_version: 2 })
   })
 
+  it('舊資料用逗號或斜線分隔的帶參觀老師拆成標籤；沒動它就不送', async () => {
+    const record = visit({ version: 3, tour_guide_name: '林老師,王老師／陳老師' })
+    const patch = mockPatch({ '/admin/admissions/records/v-1': visit({ version: 4 }) })
+    const { wrapper } = await openDialog({ mode: 'edit', record })
+    expect(tourGuides(wrapper).props('modelValue')).toEqual(['林老師', '王老師', '陳老師'])
+    typeInto(field('textarea[aria-label="備註"]'), '補一句')
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { notes: '補一句', expected_version: 3 })
+  })
+
+  it('原因說明在選了未預繳原因後才出現；以前填過說明的照常顯示', async () => {
+    const { wrapper } = await openDialog({ mode: 'edit', record: visit({ no_deposit_reason: null, no_deposit_reason_detail: null }) })
+    expect(document.body.querySelector('textarea[aria-label="原因說明"]')).toBeNull()
+    byPlaceholder(wrapper, 'ElSelect', '請選擇原因').vm.$emit('update:modelValue', '費用考量')
+    await flushPromises()
+    expect(document.body.querySelector('textarea[aria-label="原因說明"]')).not.toBeNull()
+    cleanup()
+    await openDialog({ mode: 'edit', record: visit({ no_deposit_reason: null, no_deposit_reason_detail: '家長還在比較' }) })
+    expect(field<HTMLTextAreaElement>('textarea[aria-label="原因說明"]').value).toBe('家長還在比較')
+  })
+
   it('預繳狀態只顯示、不能在表單改；已預繳才可以填收預繳人員', async () => {
     await openDialog({ mode: 'edit', record: visit({ has_deposit: true, stage: 'deposited' }) })
-    expect(bodyText()).toContain('目前階段：已預繳')
-    expect(bodyText()).toContain('預繳、註冊與退出請用明細列的「標記預繳」「標記註冊」或「更多」，或在漏斗看板拖曳卡片')
+    expect(bodyText()).toContain('目前階段')
+    expect(document.body.querySelector('.record-dialog__stage .el-tag')!.textContent?.trim()).toBe('已預繳')
+    expect(bodyText()).toContain('預繳、註冊、退出要用明細列的按鈕或看板拖曳，才會留下紀錄。')
     expect(document.body.querySelector('input[aria-label="收預繳人員"]')).not.toBeNull()
     // 已預繳就不問未預繳原因。
     expect(bodyText()).not.toContain('未預繳原因')

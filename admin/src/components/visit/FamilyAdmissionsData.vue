@@ -35,7 +35,7 @@ const rows = computed<Row[]>(() => {
     { label: '帶參觀老師', value: dash(v.tour_guide_name) },
     { label: '來源分類', value: category },
     { label: '來源備註', value: dash(v.source) },
-    { label: '介紹者', value: dash(v.referrer) },
+    { label: '家長介紹', value: dash(v.referrer) },
   ]
   const optional: [string, string | null | undefined][] = [
     ['收預繳人員', v.has_deposit ? v.deposit_collector : null],

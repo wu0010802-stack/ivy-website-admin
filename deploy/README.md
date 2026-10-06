@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-06 訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹（main CI 部署）
+
+- **合併**：`feature/record-dialog-20261006` 的 `ee086b4d` 從 `7a8d19e4` 開、期間 main 沒前進，直接快轉，推 main `7a8d19e4..ee086b4d`。內容與驗證見 README 頂部同日段落、DESIGN.md「訪視紀錄表單：四區展開、帶參觀老師多位、家長介紹」。
+- **migration**：無（多位帶參觀老師仍存 `tour_guide_name` 一欄）。沒有備份。
+- **CI**：main run 37435632035（`ee086b4d`）全綠，建立到完成 15 分 10 秒：Frontend admin 4.1／web 1.3 分鐘，Backend 三組 7.4／7.6／6.8 分鐘，E2E／Playwright 6.2 分鐘，Deploy 7.4 分鐘。
+- **正式 `release.json`**：base commit `ee086b4d`，created `2026-10-06T08:30:12Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/` 的 `RecordDialog-*.js` 有「打名字按 Enter，可加多位」「哪位家長介紹來的」，`AdmissionsView-*.js` 有 `by_tour_guide`、`tour_guide_source_cross` 與接待人員口徑；未登入 `GET /admin/admissions/options` 回 401。
+- **未做**：沒有登入正式後台實際新增一筆、加多位帶參觀老師、看接待分析。
+
 ## 2026-10-06 Google 登入改成在「我的帳號」綁定（main CI 部署）
 
 - **合併**：`fix/google-self-link-20261006` 的 `4437174d` 直接疊在 `d4d8a08c` 上，推 main `d4d8a08c..4437174d`。內容與驗證見 README 頂部同日段落、DESIGN.md「Google 登入改成在『我的帳號』綁定」。

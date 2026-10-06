@@ -104,7 +104,7 @@ class RecruitmentVisit(Base):
     # 本次不填、不顯示，保留給之後的區域分析。
     district: Mapped[str | None] = mapped_column(String(30), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # 園務表單稱「介紹者」、統計稱「接待人員」。
+    # 園務表單稱「介紹者」，官網稱「家長介紹」（哪位家長介紹來的，不再當接待人員統計）。
     referrer: Mapped[str | None] = mapped_column(String(50), nullable=True)
     deposit_collector: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 帶參觀老師：官網後台帳號＋姓名快照（轉移時依姓名對應園務員工）。

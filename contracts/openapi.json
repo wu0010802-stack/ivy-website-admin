@@ -157,32 +157,6 @@
         "title": "AdmissionsCountDiff",
         "type": "object"
       },
-      "AdmissionsCrossRow": {
-        "properties": {
-          "referrer": {
-            "title": "Referrer",
-            "type": "string"
-          },
-          "sources": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Sources",
-            "type": "object"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "referrer",
-          "sources",
-          "total"
-        ],
-        "title": "AdmissionsCrossRow",
-        "type": "object"
-      },
       "AdmissionsDecisionSummary": {
         "properties": {
           "current_month": {
@@ -672,7 +646,7 @@
         "type": "object"
       },
       "AdmissionsOptionsOut": {
-        "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、介紹者、\n帶參觀老師，以及園務的固定列舉與文案。",
+        "description": "篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、家長介紹、\n帶參觀老師，以及園務的固定列舉與文案。",
         "properties": {
           "contact_channels": {
             "additionalProperties": {
@@ -822,73 +796,6 @@
           "delta"
         ],
         "title": "AdmissionsRateDiff",
-        "type": "object"
-      },
-      "AdmissionsReferrerRow": {
-        "properties": {
-          "by_grade": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/AdmissionsGradeCount"
-            },
-            "title": "By Grade",
-            "type": "object"
-          },
-          "deposit": {
-            "title": "Deposit",
-            "type": "integer"
-          },
-          "referrer": {
-            "title": "Referrer",
-            "type": "string"
-          },
-          "visit": {
-            "title": "Visit",
-            "type": "integer"
-          },
-          "visit_to_deposit_rate": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Visit To Deposit Rate"
-          }
-        },
-        "required": [
-          "referrer",
-          "visit",
-          "deposit",
-          "visit_to_deposit_rate",
-          "by_grade"
-        ],
-        "title": "AdmissionsReferrerRow",
-        "type": "object"
-      },
-      "AdmissionsReferrerSourceCross": {
-        "properties": {
-          "referrers": {
-            "items": {
-              "$ref": "#/components/schemas/AdmissionsCrossRow"
-            },
-            "title": "Referrers",
-            "type": "array"
-          },
-          "sources": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Sources",
-            "type": "array"
-          }
-        },
-        "required": [
-          "referrers",
-          "sources"
-        ],
-        "title": "AdmissionsReferrerSourceCross",
         "type": "object"
       },
       "AdmissionsSourceRow": {
@@ -1240,18 +1147,18 @@
             "title": "By Grade",
             "type": "array"
           },
-          "by_referrer": {
-            "items": {
-              "$ref": "#/components/schemas/AdmissionsReferrerRow"
-            },
-            "title": "By Referrer",
-            "type": "array"
-          },
           "by_source": {
             "items": {
               "$ref": "#/components/schemas/AdmissionsSourceRow"
             },
             "title": "By Source",
+            "type": "array"
+          },
+          "by_tour_guide": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsTourGuideRow"
+            },
+            "title": "By Tour Guide",
             "type": "array"
           },
           "by_year": {
@@ -1321,9 +1228,6 @@
             ],
             "title": "Reference Month"
           },
-          "referrer_source_cross": {
-            "$ref": "#/components/schemas/AdmissionsReferrerSourceCross"
-          },
           "top_action_queue": {
             "items": {
               "$ref": "#/components/schemas/AdmissionsStatsAction"
@@ -1337,6 +1241,9 @@
             },
             "title": "Top Source Names",
             "type": "array"
+          },
+          "tour_guide_source_cross": {
+            "$ref": "#/components/schemas/AdmissionsTourGuideSourceCross"
           }
         },
         "required": [
@@ -1355,14 +1262,107 @@
           "month_grade",
           "by_source",
           "top_source_names",
-          "by_referrer",
-          "referrer_source_cross",
+          "by_tour_guide",
+          "tour_guide_source_cross",
           "no_deposit_reasons",
           "no_deposit_total",
           "no_deposit_priority",
           "no_deposit_summary"
         ],
         "title": "AdmissionsStatsOut",
+        "type": "object"
+      },
+      "AdmissionsTourGuideCrossRow": {
+        "properties": {
+          "sources": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "tour_guide": {
+            "title": "Tour Guide",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tour_guide",
+          "sources",
+          "total"
+        ],
+        "title": "AdmissionsTourGuideCrossRow",
+        "type": "object"
+      },
+      "AdmissionsTourGuideRow": {
+        "properties": {
+          "by_grade": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AdmissionsGradeCount"
+            },
+            "title": "By Grade",
+            "type": "object"
+          },
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "tour_guide": {
+            "title": "Tour Guide",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "tour_guide",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate",
+          "by_grade"
+        ],
+        "title": "AdmissionsTourGuideRow",
+        "type": "object"
+      },
+      "AdmissionsTourGuideSourceCross": {
+        "properties": {
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "tour_guides": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsTourGuideCrossRow"
+            },
+            "title": "Tour Guides",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tour_guides",
+          "sources"
+        ],
+        "title": "AdmissionsTourGuideSourceCross",
         "type": "object"
       },
       "AdmissionsYearlyRow": {

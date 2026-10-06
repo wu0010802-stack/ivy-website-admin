@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import re
+
 # 園務 ivy-frontend constants/recruitment.ts GRADES_ORDER；官網分班對照的「小一」不列入。
 GRADES: tuple[str, ...] = ("幼幼班", "小班", "中班", "大班")
 
@@ -121,3 +123,22 @@ FOLLOW_UP_KINDS: tuple[str, ...] = ("due", "upcoming", "unscheduled")
 UPCOMING_WINDOW_DAYS = 7
 # 待追蹤與訪視明細的負責人篩選：me＝自己、none＝未指派，或帳號 id。
 OWNER_FILTER_PATTERN = r"^(me|none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+
+
+# 帶參觀老師（tour_guide_name，String(50)）可填多位，前端以「、」串成同一欄。
+# 全後端只有這一份拆分邏輯：選項與統計都呼叫 split_tour_guides。
+TOUR_GUIDE_SEPARATOR = "、"
+_TOUR_GUIDE_SPLIT_RE = re.compile(r"[、，,／/]")
+
+
+def split_tour_guides(value: str | None) -> list[str]:
+    """把帶參觀老師欄位拆成單一姓名：以「、」「，」「,」「／」「/」分隔，去空白與空段，
+    同一筆內重複的名字只留第一次出現。None 或空字串回 []。"""
+    if not value:
+        return []
+    names: list[str] = []
+    for part in _TOUR_GUIDE_SPLIT_RE.split(value):
+        name = part.strip()
+        if name and name not in names:
+            names.append(name)
+    return names

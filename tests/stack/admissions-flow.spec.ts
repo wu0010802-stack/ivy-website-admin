@@ -8,7 +8,7 @@ import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs, pickVi
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 招生入學（規格 R17）：家長在官網自選場次預約成功 → 場次時間過了，漏斗看板全空時提示去標記到場 →
-// 案件列表「只看尚未確認到場」按已到場、接著在招生資料表單補帶參觀老師 → 漏斗看板「已訪視」→ 預繳 →
+// 案件列表「只看尚未確認到場」按已到場、接著在招生資料表單補兩位帶參觀老師 → 漏斗看板「已訪視」→ 預繳 →
 // 註冊 → 統計看得到。
 // 2026-10-05 拿掉招生入學的「官網預約」分頁，確認到場改在案件列表。
 // 「時間已過」用 psql 把本測試自己建的場次移到昨天（db.ts），不改系統時間、不動其他測試的場次。
@@ -20,6 +20,7 @@ const CHILD = '招生流程寶貝'
 const PHONE = '0912000771'
 const EMAIL = 'admissions-flow@example.com'
 const GUIDE = '招生流程老師'
+const GUIDE_2 = '招生流程助教'
 const SHOTS = path.join(ROOT, 'output/playwright')
 const TABS = ['funnel', 'followups', 'records', 'stats'] as const
 
@@ -101,7 +102,7 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     await expect(page).toHaveURL(/status=confirmed/)
   })
 
-  await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了，接著在招生資料表單補帶參觀老師', async () => {
+  await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了，接著在招生資料表單補兩位帶參觀老師', async () => {
     const row = page.locator('.requests-table tr', { hasText: PARENT })
     await expect(row).toContainText(CHILD)
     // 按鈕文字是「到了」，無障礙名稱帶家長（「標記 X 已到場」）。
@@ -112,7 +113,15 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     const form = page.getByRole('dialog', { name: '編輯訪視紀錄' })
     await expect(form).toContainText(`已標記 ${PARENT} 已到場`)
     await expect(form.getByRole('textbox', { name: '幼生姓名' })).toHaveValue(CHILD)
-    await form.getByRole('textbox', { name: '帶參觀老師' }).fill(GUIDE)
+    // 帶參觀老師是標籤式多選（2026-10-06）：打名字按 Enter 加一位，可以加好幾位。要逐字打：
+    // fill() 只寫入值、不會打開選單，第一次 Enter 只會把選單打開（真人打字不會這樣）。
+    const guides = form.getByRole('combobox', { name: '帶參觀老師' })
+    for (const name of [GUIDE, GUIDE_2]) {
+      await guides.pressSequentially(name)
+      await expect(page.getByRole('listbox', { name: '帶參觀老師' }).getByRole('option', { name, exact: true })).toBeVisible()
+      await guides.press('Enter')
+    }
+    await expect(form.locator('.el-select__tags-text')).toHaveText([GUIDE, GUIDE_2])
     await form.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(form).toBeHidden()
     await expect(page.locator('.requests-table tr', { hasText: PARENT })).toHaveCount(0)
@@ -122,7 +131,7 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
   const [record] = await api.get<{ tour_guide_name: string | null }[]>(
     `/admin/admissions/records?campus_key=${SLOTS_CAMPUS}&visit_request_id=${arrived.id}&page=1&page_size=1`,
   )
-  expect(record?.tour_guide_name).toBe(GUIDE)
+  expect(record?.tour_guide_name).toBe(`${GUIDE}、${GUIDE_2}`)
 
   await test.step('漏斗看板：卡片在「已訪視」，年級依生日換算成小班', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=funnel`, '招生入學')
