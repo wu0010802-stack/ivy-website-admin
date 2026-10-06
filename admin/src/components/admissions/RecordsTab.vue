@@ -818,6 +818,17 @@ async function remove(row: RecruitmentVisit) {
   margin-bottom: 16px;
 }
 
+/* 標題列在任何寬度都可以換行：側欄 260px 還在的 901～1030px，面板內寬放不下標題加整組動作（本頁筆數、
+   匯出與說明、新增訪視），動作群組掉到下一行，標題不被壓成兩行。 */
+.records__head {
+  flex-wrap: wrap;
+}
+
+.records__head h2 {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .records__head-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1023,11 +1034,7 @@ async function remove(row: RecruitmentVisit) {
 }
 
 @media (max-width: 720px) {
-  /* 標題獨占一行，本頁筆數與按鈕排在下一行，匯出範圍說明在按鈕下方；不讓標題被擠成直排。 */
-  .records__head {
-    flex-wrap: wrap;
-  }
-
+  /* 標題獨占一行，本頁筆數與按鈕排在下一行，匯出範圍說明在按鈕下方。 */
   .records__head-actions {
     flex: 1 1 100%;
   }

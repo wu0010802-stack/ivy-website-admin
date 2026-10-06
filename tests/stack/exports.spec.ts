@@ -297,6 +297,31 @@ async function box(locator: Locator): Promise<{ x: number; y: number; width: num
   return { ...rect!, right: rect!.x + rect!.width, bottom: rect!.y + rect!.height }
 }
 
+test('版面：訪視明細標題列在 901～1030px（側欄還在、面板只剩約 600px）也不把「訪視明細」擠成兩行', async ({ browser }) => {
+  for (const width of [960, 905, 1030]) {
+    const { context, page } = await openAs(browser, 'super_admin', { viewport: { width, height: 900 } })
+    try {
+      await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=records`, '招生入學')
+      await expect(page.getByText(CHILD).first()).toBeVisible()
+      await expect(page.locator('.records__head-actions').getByRole('button', { name: '匯出 CSV' })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+
+      const title = await box(page.locator('.records__head h2'))
+      expect(title.height, `${width}px：「訪視明細」被擠成兩行以上`).toBeLessThan(40)
+      for (const name of ['匯出 CSV', '新增訪視']) {
+        const target = await box(page.locator('.records__head-actions').getByRole('button', { name }))
+        expect(target.right, `${width}px：「${name}」超出視窗`).toBeLessThanOrEqual(width)
+      }
+      const scope = await box(page.locator('#records-export-scope'))
+      expect(scope.right, `${width}px：匯出範圍說明超出視窗`).toBeLessThanOrEqual(width)
+      await page.locator('.records__head').scrollIntoViewIfNeeded()
+      await page.screenshot({ path: path.join(SHOTS, `exports-admissions-records-${width}.png`) })
+    } finally {
+      await context.close()
+    }
+  }
+})
+
 test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列在 1440 與 390 都不錯亂、頁面不橫向溢出', async ({ browser }) => {
   for (const device of [
     { name: '1440', width: 1440, narrow: false, options: {} },
@@ -346,8 +371,38 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
         expect(buttonBox.right, '匯出鈕在視窗內').toBeLessThanOrEqual(device.width)
         const title = await box(list.getByRole('heading', { name: '未預繳明細' }))
         expect(title.height, '「未預繳明細」被擠成直排').toBeLessThan(40)
+        // 名單有分頁：匯出鈕旁寫明範圍是目前篩選的全部結果，並用 aria-describedby 接給按鈕。
+        const describedBy = await button.getAttribute('aria-describedby')
+        expect(describedBy, '匯出鈕要有 aria-describedby').toBeTruthy()
+        const scopeHint = page.locator(`[id="${describedBy}"]`)
+        await expect(scopeHint).toHaveText('匯出範圍：目前篩選的全部結果（不只本頁）')
+        const hintBox = await box(scopeHint)
+        expect(hintBox.x, '範圍說明在視窗內').toBeGreaterThanOrEqual(0)
+        expect(hintBox.right, '範圍說明在視窗內').toBeLessThanOrEqual(device.width)
+        expect(hintBox.height, '範圍說明不被擠成直排').toBeLessThan(40)
         await expectNoHorizontalOverflow(page)
         await list.screenshot({ path: path.join(SHOTS, `exports-nodeposit-${device.name}.png`) })
+      })
+
+      await test.step(`統計表標題列 ${device.name}`, async () => {
+        // 每張統計表標題右邊都有「匯出 CSV」：標題不被擠成直排、按鈕不超出視窗。
+        for (const sub of ['class', 'staff']) {
+          await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=${sub}`, '招生入學')
+          const heads = page.locator('.stats-block__head:visible')
+          await expect(heads.first()).toBeVisible()
+          for (let index = 0; index < (await heads.count()); index += 1) {
+            const head = heads.nth(index)
+            const headBox = await box(head)
+            const titleBox = await box(head.locator('.stats-block__title'))
+            const buttonBox = await box(head.getByRole('button', { name: /匯出 CSV/ }))
+            expect(titleBox.height, `第 ${index + 1} 張統計表標題被擠成直排`).toBeLessThan(60)
+            expect(buttonBox.right, `第 ${index + 1} 張統計表的匯出鈕超出視窗`).toBeLessThanOrEqual(device.width)
+            expect(headBox.right).toBeLessThanOrEqual(device.width)
+          }
+          await expectNoHorizontalOverflow(page)
+          await heads.first().scrollIntoViewIfNeeded()
+          await page.screenshot({ path: path.join(SHOTS, `exports-stats-head-${sub}-${device.name}.png`) })
+        }
       })
 
       await test.step(`操作紀錄篩選列 ${device.name}`, async () => {
