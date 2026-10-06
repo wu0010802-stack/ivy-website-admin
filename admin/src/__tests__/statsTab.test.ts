@@ -72,18 +72,18 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
       { source: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
     ],
     top_source_names: ['Facebook', '親友介紹', 'Google 評論', '未填寫'],
-    by_referrer: [
-      { referrer: '林老師', visit: 5, deposit: 3, visit_to_deposit_rate: 60, by_grade: { 小班: { visit: 5, deposit: 3 } } },
-      { referrer: '張老師', visit: 3, deposit: 2, visit_to_deposit_rate: 66.7,
+    by_tour_guide: [
+      { tour_guide: '林老師', visit: 5, deposit: 3, visit_to_deposit_rate: 60, by_grade: { 小班: { visit: 5, deposit: 3 } } },
+      { tour_guide: '張老師', visit: 3, deposit: 2, visit_to_deposit_rate: 66.7,
         by_grade: { 中班: { visit: 2, deposit: 2 }, 幼幼班: { visit: 1, deposit: 0 } } },
-      { referrer: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, by_grade: { 未填寫: { visit: 1, deposit: 0 } } },
+      { tour_guide: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, by_grade: { 未填寫: { visit: 1, deposit: 0 } } },
     ],
-    referrer_source_cross: {
+    tour_guide_source_cross: {
       sources: ['Facebook', '親友介紹', 'Google 評論', '未填寫'],
-      referrers: [
-        { referrer: '林老師', sources: { Facebook: 4, 親友介紹: 1, 'Google 評論': 0, 未填寫: 0 }, total: 5 },
-        { referrer: '張老師', sources: { Facebook: 1, 親友介紹: 1, 'Google 評論': 1, 未填寫: 0 }, total: 3 },
-        { referrer: '未填寫', sources: { Facebook: 0, 親友介紹: 0, 'Google 評論': 0, 未填寫: 1 }, total: 1 },
+      tour_guides: [
+        { tour_guide: '林老師', sources: { Facebook: 4, 親友介紹: 1, 'Google 評論': 0, 未填寫: 0 }, total: 5 },
+        { tour_guide: '張老師', sources: { Facebook: 1, 親友介紹: 1, 'Google 評論': 1, 未填寫: 0 }, total: 3 },
+        { tour_guide: '未填寫', sources: { Facebook: 0, 親友介紹: 0, 'Google 評論': 0, 未填寫: 1 }, total: 1 },
       ],
     },
     no_deposit_reasons: [
@@ -110,7 +110,7 @@ function emptyStats(): AdmissionsStats {
       deposit_to_enrolled_rate: rateDiff(null, null, null), effective_to_enrolled_rate: rateDiff(null, null, null),
     },
     alerts: [], top_action_queue: [], monthly: [], by_year: [], by_grade: [], month_grade: {}, by_source: [],
-    top_source_names: [], by_referrer: [], referrer_source_cross: { referrers: [], sources: [] }, no_deposit_reasons: [],
+    top_source_names: [], by_tour_guide: [], tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [],
     no_deposit_total: 0, no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
   })
@@ -264,16 +264,17 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     expect(pane.get('.stats-bar__fill').attributes('style')).toContain('width: 100%')
   })
 
-  it('接待分析：接待人員統計、× 各年級、介紹者 × 來源', async () => {
+  it('接待分析：接待人員（帶參觀老師）統計、× 各年級、× 來源', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '接待分析')
 
     expect(bodyRows(block(pane, '接待人員統計'))[1]).toEqual(['張老師', '3', '2', '66.7%'])
+    expect(pane.text()).toContain('依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。')
     expect(headers(block(pane, '接待人員 × 各年級預繳率'))).toEqual(['接待人員', '幼幼班', '小班', '中班', '大班', '未填寫'])
     expect(bodyRows(block(pane, '接待人員 × 各年級預繳率'))[1]).toEqual(['張老師', '1人 / 0.0%', '—', '2人 / 100.0%', '—', '—'])
-    expect(headers(block(pane, '介紹者 × 來源 交叉分析'))).toEqual(['介紹者', 'Facebook', '親友介紹', 'Google 評論', '未填寫', '合計'])
-    expect(bodyRows(block(pane, '介紹者 × 來源 交叉分析'))[0]).toEqual(['林老師', '4', '1', '0', '0', '5'])
+    expect(headers(block(pane, '接待人員 × 來源 交叉分析'))).toEqual(['接待人員', 'Facebook', '親友介紹', 'Google 評論', '未填寫', '合計'])
+    expect(bodyRows(block(pane, '接待人員 × 來源 交叉分析'))[0]).toEqual(['林老師', '4', '1', '0', '0', '5'])
   })
 
   it('未預繳原因：三張數字卡、優先度分組、原因 × 年級（名單不在 StatsTab 本身，由 C3b 的 NoDepositList 負責）', async () => {

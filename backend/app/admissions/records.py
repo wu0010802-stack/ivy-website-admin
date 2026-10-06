@@ -23,7 +23,7 @@ from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.auth.models import User
 from app.common.timezones import today_local
 
-# 篩選選項（來源、介紹者）各列幾個。
+# 篩選選項（來源、家長介紹、帶參觀老師）各列幾個。
 OPTION_LIMIT = 50
 
 _Grade = Literal[constants.GRADES]
@@ -356,6 +356,22 @@ async def _top_values(db: AsyncSession, campus_key: str, column) -> list[str]:
     return list(result.scalars())
 
 
+async def _top_tour_guides(db: AsyncSession, campus_key: str) -> list[str]:
+    """該校帶參觀老師逐位統計（一筆可有多位），次數多的在前，同次數依字排。"""
+    column = RecruitmentVisit.tour_guide_name
+    result = await db.execute(
+        select(column, func.count())
+        .where(RecruitmentVisit.campus_key == campus_key, column.is_not(None))
+        .group_by(column)
+    )
+    counts: dict[str, int] = {}
+    for value, count in result.all():
+        for name in constants.split_tour_guides(value):
+            counts[name] = counts.get(name, 0) + count
+    ordered = sorted(counts, key=lambda name: (-counts[name], name))
+    return ordered[:OPTION_LIMIT]
+
+
 async def options(db: AsyncSession, campus_key: str) -> dict:
     """GET /admin/admissions/options 的內容（AdmissionsOptionsOut）。"""
     months = await db.execute(
@@ -368,7 +384,7 @@ async def options(db: AsyncSession, campus_key: str) -> dict:
         "months": list(months.scalars()),
         "sources": await _top_values(db, campus_key, RecruitmentVisit.source),
         "referrers": await _top_values(db, campus_key, RecruitmentVisit.referrer),
-        "tour_guides": await _top_values(db, campus_key, RecruitmentVisit.tour_guide_name),
+        "tour_guides": await _top_tour_guides(db, campus_key),
         "grades": list(constants.GRADES),
         "no_deposit_reasons": [
             {"value": reason, "priority": _PRIORITY_OF.get(reason)} for reason in constants.NO_DEPOSIT_REASONS

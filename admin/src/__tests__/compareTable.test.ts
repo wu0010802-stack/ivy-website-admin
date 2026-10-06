@@ -70,8 +70,8 @@ function quietStats(): AdmissionsStats {
       deposit_to_enrolled_rate: rateDiff, effective_to_enrolled_rate: rateDiff,
     },
     alerts: [], top_action_queue: [], monthly: [{ month: '115.09', ...snap }], by_year: [{ year: '115', ...snap }],
-    by_grade: [], month_grade: {}, by_source: [], top_source_names: [], by_referrer: [],
-    referrer_source_cross: { referrers: [], sources: [] }, no_deposit_reasons: [], no_deposit_total: 0,
+    by_grade: [], month_grade: {}, by_source: [], top_source_names: [], by_tour_guide: [],
+    tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [], no_deposit_total: 0,
     no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
   }

@@ -137,7 +137,7 @@ async function loadOptions() {
   staff.value = people.status === 'fulfilled' && Array.isArray(people.value) ? people.value : []
 }
 
-// 換校：來源、介紹者是各校自己的選項，一起清掉。
+// 換校：來源、家長介紹是各校自己的選項，一起清掉。
 watch(() => props.campusKey, () => {
   // 上一校的名單不能留在載入遮罩下（同 FunnelBoard）。
   rows.value = []
@@ -207,7 +207,7 @@ const hiddenFilters = computed<ActiveFilter[]>(() => {
   }
   if (grade.value) list.push({ key: 'grade', label: `班別：${grade.value}`, clear: () => { grade.value = '' } })
   if (source.value) list.push({ key: 'source', label: `來源：${source.value}`, clear: () => { source.value = '' } })
-  if (referrer.value) list.push({ key: 'referrer', label: `介紹者：${referrer.value}`, clear: () => { referrer.value = '' } })
+  if (referrer.value) list.push({ key: 'referrer', label: `家長介紹：${referrer.value}`, clear: () => { referrer.value = '' } })
   if (noDepositReason.value) list.push({ key: 'reason', label: `未預繳原因：${noDepositReason.value}`, clear: () => { noDepositReason.value = '' } })
   if (owner.value) {
     const name = OWNER_FILTER_LABELS[owner.value] ?? ownerLabel(owner.value, staff.value)
@@ -233,7 +233,7 @@ function extraInfo(row: RecruitmentVisit): InfoItem[] {
     { label: '父親職業', value: row.father_occupation ?? '' },
     { label: '母親職業', value: row.mother_occupation ?? '' },
     { label: '來源分類', value: category },
-    { label: '介紹者', value: row.referrer ?? '' },
+    { label: '家長介紹', value: row.referrer ?? '' },
     { label: '帶參觀老師', value: row.tour_guide_name ?? '' },
     { label: '搭娃娃車', value: row.rides_bus ? '要搭' : '' },
     { label: '收預繳人員', value: row.deposit_collector ?? '' },
@@ -310,7 +310,7 @@ function runStageAction(row: RecruitmentVisit) {
 
 function onSaved() {
   void load()
-  // 新的月份、來源、介紹者要出現在篩選選項裡。
+  // 新的月份、來源、家長介紹要出現在篩選選項裡。
   void loadOptions()
 }
 
@@ -466,8 +466,8 @@ async function remove(row: RecruitmentVisit) {
           </el-select>
         </div>
         <div class="filter-field">
-          <span>介紹者</span>
-          <el-select v-model="referrer" clearable filterable placeholder="全部介紹者" aria-label="介紹者">
+          <span>家長介紹</span>
+          <el-select v-model="referrer" clearable filterable placeholder="全部" aria-label="家長介紹">
             <el-option v-for="item in options?.referrers ?? []" :key="item" :label="item" :value="item" />
           </el-select>
         </div>
@@ -590,7 +590,7 @@ async function remove(row: RecruitmentVisit) {
               <span v-else-if="!filtered" class="hint">手動新增，或在參觀案件標記家長已到場後，訪視會出現在這裡。</span>
             </div>
           </template>
-          <!-- 欄寬以 1280 寬桌機（表格約 962px）不橫捲為準；地址、介紹者、備註等收進展開列。 -->
+          <!-- 欄寬以 1280 寬桌機（表格約 962px）不橫捲為準；地址、家長介紹、備註等收進展開列。 -->
           <el-table-column type="expand" width="36">
             <template #default="{ row }: { row: RecruitmentVisit }">
               <dl class="records__info records__info--table">

@@ -47,7 +47,7 @@ describe('未預繳明細：表格（園務 RecruitmentNoDepositTab 的「未預
 
     expect(wrapper.get('.stats-block__title').text()).toBe('未預繳明細')
     expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual([
-      '月份', '姓名', '班別', '原因分類', '轉換潛力', '冷名單', '說明', '來源', '介紹者', '電訪回應', '明細',
+      '月份', '姓名', '班別', '原因分類', '轉換潛力', '冷名單', '說明', '來源', '家長介紹', '電訪回應', '明細',
     ])
     const rows = wrapper.findAll('tbody tr')
     expect(cells(rows[0]!)).toEqual([

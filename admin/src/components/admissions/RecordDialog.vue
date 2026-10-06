@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { ElMessage, ElMessageBox, type InputInstance } from 'element-plus'
 import { notifyWarning } from '../../composables/notify'
 import { createRecord, getRecord, updateRecord } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, RecruitmentVisit, RecruitmentVisitCreate, RecruitmentVisitUpdate } from '../../api/types'
 import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageLabel, type Grade } from '../../admissions/constants'
+import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Grade } from '../../admissions/constants'
+import { joinTourGuides, splitTourGuides, TOUR_GUIDE_MAX_LENGTH, TOUR_GUIDE_SEPARATOR } from '../../admissions/tourGuides'
 
 // 訪視表單（園務 RecruitmentRecordDialog，分區同園務：基本資料、聯絡與來源、預繳狀態、備註）。
 // 官網第一版不放來源分類、帶參觀老師、娃娃車、地址分析同意（本檔調整第 10 條）；2026-10-05 照園方紙本
@@ -15,6 +16,8 @@ import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, 
 // 預繳、註冊、退出只能走狀態轉換（園務 stateLocked）；這些欄位一律不送，後端 extra="forbid"。
 // 生日只有新增時必填：預約到場自動建立的訪視可能沒有生日，編輯時不擋（本檔調整第 17 條）。
 // 標記已到場後接著打開時（2026-10-06，useArrivalAdmissionsForm）：lead 在表單上方寫出已到場，取消鈕改成「之後再填」。
+// 2026-10-06 使用者裁定（和園務分歧）：四區一律展開、不摺疊；入學學期排在生日旁（適讀班級由兩者算出），
+// 聯絡人與電話歸到「聯絡與來源」；帶參觀老師可以多位（tourGuides.ts）；介紹者改叫「家長介紹」。
 const props = withDefaults(defineProps<{
   mode: 'add' | 'edit'
   campusKey: string
@@ -38,7 +41,7 @@ interface FormState {
   contact_name: string
   phone: string
   visit_date: string | null
-  tour_guide_name: string
+  tour_guides: string[]
   target_school_year: number | null
   target_semester: Semester | null
   rides_bus: boolean
@@ -62,7 +65,7 @@ function blank(term?: { year: number | null; semester: Semester | null }): FormS
   return {
     child_name: '', english_name: '', birthday: null, contact_name: '', phone: '',
     // 園務：參觀日期預設今天（九成是當天登記）；入學學期預設當前學期，可改。
-    visit_date: taipeiToday(), tour_guide_name: '',
+    visit_date: taipeiToday(), tour_guides: [],
     target_school_year: term ? term.year : now.schoolYear,
     target_semester: term ? term.semester : now.semester,
     rides_bus: false, grade: null, address: '', father_occupation: '', mother_occupation: '', source_category: null,
@@ -79,7 +82,7 @@ function fromRecord(record: RecruitmentVisit): FormState {
     contact_name: record.contact_name ?? '',
     phone: record.phone ?? '',
     visit_date: record.visit_date,
-    tour_guide_name: record.tour_guide_name ?? '',
+    tour_guides: splitTourGuides(record.tour_guide_name),
     target_school_year: record.target_school_year ?? null,
     target_semester: record.target_semester === 1 || record.target_semester === 2 ? record.target_semester : null,
     rides_bus: record.rides_bus,
@@ -105,7 +108,7 @@ const initial = ref('')
 const autoGrade = ref(false)
 const submitting = ref(false)
 const error = ref<string | null>(null)
-const sections = ref<string[]>([])
+const childInput = ref<InputInstance>()
 
 function reset(state: FormState) {
   Object.assign(form, state)
@@ -118,8 +121,12 @@ watch(open, (value) => {
   if (!value) return
   current.value = props.mode === 'edit' ? (props.record ?? null) : null
   reset(current.value ? fromRecord(current.value) : blank())
-  sections.value = []
 })
+
+// 新增時游標直接停在幼生姓名（多半邊講電話邊填）；編輯時不搶焦點。
+function focusChild() {
+  if (props.mode === 'add') void nextTick(() => childInput.value?.focus())
+}
 
 const hasDeposit = computed(() => Boolean(current.value?.has_deposit))
 const defaultYear = currentTerm().schoolYear
@@ -174,16 +181,27 @@ const missing = computed(() => [
   form.target_school_year && form.target_semester ? '' : '入學學期',
 ].filter(Boolean))
 
-const filled = (values: unknown[]) => values.filter((value) => typeof value === 'string' && value.trim()).length
-const contactSummary = computed(() => {
-  const count = filled([form.address, form.father_occupation, form.mother_occupation, form.source_category, form.source, form.referrer])
-  return count ? `已填 ${count} 項` : '未填'
-})
+// 帶參觀老師：標籤式多選，可直接打新名字；一次打好幾位（用「、」或逗號隔開）也拆成各自的標籤。
+// 建議清單是本校填過的老師（後端已逐位拆開），再補上這筆已有、但不在清單裡的名字。
+function setTourGuides(value: string[] | undefined) {
+  form.tour_guides = splitTourGuides((value ?? []).join(TOUR_GUIDE_SEPARATOR))
+}
+const tourGuideChoices = computed(() => [
+  ...(props.options?.tour_guides ?? []),
+  ...form.tour_guides.filter((name) => !props.options?.tour_guides.includes(name)),
+])
+const tourGuidesTooLong = computed(() => (joinTourGuides(form.tour_guides)?.length ?? 0) > TOUR_GUIDE_MAX_LENGTH)
+
+// 頁尾「還不能儲存」：缺必填，或帶參觀老師串起來超過欄位上限。
+const blockers = computed(() => [
+  missing.value.length ? `還沒填${missing.value.join('、')}` : '',
+  tourGuidesTooLong.value ? `帶參觀老師合計超過 ${TOUR_GUIDE_MAX_LENGTH} 字` : '',
+].filter(Boolean))
+
 const sourceCategories = computed(() => Object.entries(props.options?.source_categories ?? {}))
-const notesSummary = computed(() => {
-  const count = filled([form.notes, form.parent_response])
-  return count ? `已填 ${count} 項` : '未填'
-})
+// 原因說明跟著未預繳原因出現；以前填過說明的照常顯示，才不會藏住舊資料。
+const showReasonDetail = computed(() => Boolean(form.no_deposit_reason || form.no_deposit_reason_detail.trim()))
+const stage = computed(() => stageMeta(current.value ?? { stage: 'visited' }))
 
 const text = (value: string) => value.trim() || null
 
@@ -196,7 +214,7 @@ function payload(state: FormState) {
     contact_name: text(state.contact_name),
     phone: text(state.phone),
     visit_date: state.visit_date ?? '',
-    tour_guide_name: text(state.tour_guide_name),
+    tour_guide_name: joinTourGuides(state.tour_guides),
     target_school_year: state.target_school_year,
     target_semester: state.target_semester,
     rides_bus: state.rides_bus,
@@ -231,7 +249,7 @@ function changes(record: RecruitmentVisit): Record<string, unknown> {
 }
 
 async function save(next = false) {
-  if (missing.value.length || submitting.value) return
+  if (blockers.value.length || submitting.value) return
   submitting.value = true
   error.value = null
   try {
@@ -246,6 +264,7 @@ async function save(next = false) {
         // 儲存並新增下一筆：不關窗，換空白表單，沿用上一筆的入學學年學期（園務 FunnelAddVisit）。
         ElMessage.success('已儲存，可繼續新增下一筆')
         reset(blank({ year: form.target_school_year, semester: form.target_semester }))
+        focusChild()
       } else {
         ElMessage.success('新增成功')
         open.value = false
@@ -347,6 +366,7 @@ function suggest(list: readonly string[] | undefined) {
     :close-on-press-escape="!submitting"
     :show-close="!submitting"
     :before-close="beforeClose"
+    @opened="focusChild"
   >
     <!-- 標題接上 el-dialog 的 titleId：對話框的 aria-labelledby 指向它，才有無障礙名稱。 -->
     <template #header="{ titleId }">
@@ -362,141 +382,151 @@ function suggest(list: readonly string[] | undefined) {
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="record-dialog__alert" />
 
     <el-form label-position="top" :disabled="submitting" @submit.prevent>
-      <div class="record-dialog__row">
-        <el-form-item label="幼生姓名" required>
-          <el-input v-model="form.child_name" maxlength="50" aria-label="幼生姓名" />
-        </el-form-item>
-        <el-form-item label="英文名字">
-          <el-input v-model="form.english_name" maxlength="50" aria-label="英文名字" />
-        </el-form-item>
-      </div>
-      <div class="record-dialog__row">
-        <el-form-item label="生日" :required="mode === 'add'">
-          <el-date-picker :model-value="form.birthday" type="date" value-format="YYYY-MM-DD" placeholder="選擇生日" :disabled-date="disableFuture" aria-label="生日" style="width: 100%" @update:model-value="setBirthday" />
-        </el-form-item>
-        <el-form-item label="適讀班級">
-          <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" :disabled="gradeLocked" @change="onGradeChange">
-            <el-option v-for="grade in GRADES" :key="grade" :label="grade" :value="grade" />
-          </el-select>
-          <span v-if="gradeLocked" class="field-help">已註冊，班級要先取消註冊才能改。</span>
-          <span v-else-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
-        </el-form-item>
-      </div>
-      <div class="record-dialog__row">
-        <el-form-item label="聯絡人姓名">
-          <el-input v-model="form.contact_name" maxlength="50" placeholder="家長或主要照顧者" aria-label="聯絡人姓名" />
-        </el-form-item>
-        <el-form-item label="電話">
-          <el-input v-model="form.phone" maxlength="100" inputmode="tel" aria-label="電話" />
-          <span class="field-help">例：0912-345-678</span>
-        </el-form-item>
-      </div>
-      <div class="record-dialog__row">
-        <el-form-item label="參觀日期" required>
-          <el-date-picker v-model="form.visit_date" type="date" value-format="YYYY-MM-DD" placeholder="選擇參觀日期（年月日）" :disabled-date="disableVisitDate" aria-label="參觀日期" style="width: 100%" />
-          <span v-if="visitDateHint" class="field-help num">{{ visitDateHint }}</span>
-        </el-form-item>
-        <el-form-item label="帶參觀老師">
-          <el-autocomplete v-model="form.tour_guide_name" :fetch-suggestions="suggest(options?.tour_guides)" maxlength="50" aria-label="帶參觀老師" style="width: 100%" />
-        </el-form-item>
-      </div>
-      <div class="record-dialog__row">
-        <el-form-item label="入學學期" required>
-          <div class="record-dialog__term">
-            <el-select :model-value="form.target_school_year ?? undefined" placeholder="學年" aria-label="入學學年" :disabled="termLock !== null" @update:model-value="setYear">
-              <el-option v-for="year in yearChoices" :key="year" :label="`${year} 學年`" :value="year" />
+      <!-- 四區一律展開（2026-10-06）：區塊標題＋分隔線，不再摺疊、不寫「已填 N 項」。 -->
+      <section class="record-dialog__group">
+        <h3 class="record-dialog__heading">基本資料</h3>
+        <div class="record-dialog__row">
+          <el-form-item label="幼生姓名" required>
+            <el-input ref="childInput" v-model="form.child_name" maxlength="50" aria-label="幼生姓名" />
+          </el-form-item>
+          <el-form-item label="英文名字">
+            <el-input v-model="form.english_name" maxlength="50" aria-label="英文名字" />
+          </el-form-item>
+        </div>
+        <!-- 適讀班級由生日 × 入學學年算出：入學學期排在生日旁，依據和結果在一起。 -->
+        <div class="record-dialog__row">
+          <el-form-item label="生日" :required="mode === 'add'">
+            <el-date-picker :model-value="form.birthday" type="date" value-format="YYYY-MM-DD" placeholder="選擇生日" :disabled-date="disableFuture" aria-label="生日" style="width: 100%" @update:model-value="setBirthday" />
+          </el-form-item>
+          <el-form-item label="入學學期" required>
+            <div class="record-dialog__term">
+              <el-select :model-value="form.target_school_year ?? undefined" placeholder="學年" aria-label="入學學年" :disabled="termLock !== null" @update:model-value="setYear">
+                <el-option v-for="year in yearChoices" :key="year" :label="`${year} 學年`" :value="year" />
+              </el-select>
+              <el-radio-group v-model="form.target_semester" aria-label="入學學期" :disabled="termLock !== null">
+                <el-radio-button :value="1">{{ SEMESTER_LABELS[1] }}</el-radio-button>
+                <el-radio-button :value="2">{{ SEMESTER_LABELS[2] }}</el-radio-button>
+              </el-radio-group>
+            </div>
+            <span class="field-help">{{ termLock ? TERM_LOCK_HELP[termLock] : '預設當前學期，可改。' }}</span>
+          </el-form-item>
+        </div>
+        <div class="record-dialog__row">
+          <el-form-item label="適讀班級">
+            <el-select v-model="form.grade" clearable placeholder="請選擇班別" aria-label="適讀班級" :disabled="gradeLocked" @change="onGradeChange">
+              <el-option v-for="grade in GRADES" :key="grade" :label="grade" :value="grade" />
             </el-select>
-            <el-radio-group v-model="form.target_semester" aria-label="入學學期" :disabled="termLock !== null">
-              <el-radio-button :value="1">{{ SEMESTER_LABELS[1] }}</el-radio-button>
-              <el-radio-button :value="2">{{ SEMESTER_LABELS[2] }}</el-radio-button>
-            </el-radio-group>
-          </div>
-          <span class="field-help">{{ termLock ? TERM_LOCK_HELP[termLock] : '小孩預計入學的學期（預設當前學期，可改）。' }}</span>
+            <span v-if="gradeLocked" class="field-help">已註冊，班級要先取消註冊才能改。</span>
+            <span v-else-if="autoGrade" class="field-help record-dialog__auto">✓ 已依生日 × {{ form.target_school_year }} 學年自動判定，可手動修改</span>
+          </el-form-item>
+          <el-form-item label="搭娃娃車">
+            <el-switch v-model="form.rides_bus" active-text="要搭" inactive-text="不搭" aria-label="搭娃娃車" />
+          </el-form-item>
+        </div>
+        <div class="record-dialog__row">
+          <el-form-item label="參觀日期" required>
+            <el-date-picker v-model="form.visit_date" type="date" value-format="YYYY-MM-DD" placeholder="選擇參觀日期（年月日）" :disabled-date="disableVisitDate" aria-label="參觀日期" style="width: 100%" />
+            <span v-if="visitDateHint" class="field-help num">{{ visitDateHint }}</span>
+          </el-form-item>
+          <el-form-item label="帶參觀老師">
+            <el-select
+              :model-value="form.tour_guides"
+              multiple
+              filterable
+              allow-create
+              default-first-option
+              :reserve-keyword="false"
+              placeholder="打名字按 Enter，可加多位"
+              no-data-text="打名字按 Enter 新增"
+              aria-label="帶參觀老師"
+              style="width: 100%"
+              @update:model-value="setTourGuides"
+            >
+              <el-option v-for="name in tourGuideChoices" :key="name" :label="name" :value="name" />
+            </el-select>
+          </el-form-item>
+        </div>
+      </section>
+
+      <section class="record-dialog__group">
+        <h3 class="record-dialog__heading">聯絡與來源</h3>
+        <div class="record-dialog__row">
+          <el-form-item label="聯絡人姓名">
+            <el-input v-model="form.contact_name" maxlength="50" placeholder="家長或主要照顧者" aria-label="聯絡人姓名" />
+          </el-form-item>
+          <el-form-item label="電話">
+            <el-input v-model="form.phone" maxlength="100" inputmode="tel" placeholder="例：0912-345-678" aria-label="電話" />
+          </el-form-item>
+        </div>
+        <el-form-item label="地址">
+          <el-input v-model="form.address" maxlength="200" aria-label="地址" />
         </el-form-item>
-        <el-form-item label="搭娃娃車">
-          <el-switch v-model="form.rides_bus" active-text="要搭" inactive-text="不搭" aria-label="搭娃娃車" />
+        <div class="record-dialog__row">
+          <el-form-item label="父親職業">
+            <el-input v-model="form.father_occupation" maxlength="50" aria-label="父親職業" />
+          </el-form-item>
+          <el-form-item label="母親職業">
+            <el-input v-model="form.mother_occupation" maxlength="50" aria-label="母親職業" />
+          </el-form-item>
+        </div>
+        <div class="record-dialog__row">
+          <el-form-item label="來源分類">
+            <el-select v-model="form.source_category" clearable placeholder="請選擇來源分類" aria-label="來源分類" style="width: 100%">
+              <el-option v-for="[value, label] in sourceCategories" :key="value" :label="label" :value="value" />
+            </el-select>
+          </el-form-item>
+          <!-- 家長介紹（欄位仍是 referrer）：哪位家長介紹來的。2026-10-06 起統計的「接待人員」改看帶參觀老師，不看這欄。 -->
+          <el-form-item label="家長介紹">
+            <el-autocomplete v-model="form.referrer" :fetch-suggestions="suggest(options?.referrers)" maxlength="50" placeholder="哪位家長介紹來的，例如：王小美媽媽" aria-label="家長介紹" style="width: 100%" />
+          </el-form-item>
+        </div>
+        <el-form-item label="來源備註">
+          <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：哥哥在本園就讀、朋友介紹、看到傳單" aria-label="來源備註" style="width: 100%" />
         </el-form-item>
-      </div>
+      </section>
 
-      <el-collapse v-model="sections" class="record-dialog__sections">
-        <el-collapse-item name="contact">
-          <template #title>
-            <span class="record-dialog__section">聯絡與來源</span><span class="record-dialog__summary">{{ contactSummary }}</span>
-          </template>
-          <el-form-item label="地址">
-            <el-input v-model="form.address" maxlength="200" aria-label="地址" />
+      <section class="record-dialog__group">
+        <h3 class="record-dialog__heading">預繳狀態</h3>
+        <p class="record-dialog__stage">
+          目前階段<el-tag :type="stage.tone" size="small" effect="light" round>{{ stage.label }}</el-tag>
+        </p>
+        <p class="field-help record-dialog__locked">預繳、註冊、退出要用明細列的按鈕或看板拖曳，才會留下紀錄。</p>
+        <div class="record-dialog__row">
+          <el-form-item v-if="hasDeposit" label="收預繳人員">
+            <el-input v-model="form.deposit_collector" maxlength="50" placeholder="預繳時填寫" aria-label="收預繳人員" />
           </el-form-item>
-          <div class="record-dialog__row">
-            <el-form-item label="父親職業">
-              <el-input v-model="form.father_occupation" maxlength="50" aria-label="父親職業" />
-            </el-form-item>
-            <el-form-item label="母親職業">
-              <el-input v-model="form.mother_occupation" maxlength="50" aria-label="母親職業" />
-            </el-form-item>
-          </div>
-          <div class="record-dialog__row">
-            <el-form-item label="來源分類">
-              <el-select v-model="form.source_category" clearable placeholder="請選擇來源分類" aria-label="來源分類" style="width: 100%">
-                <el-option v-for="[value, label] in sourceCategories" :key="value" :label="label" :value="value" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="來源備註">
-              <el-autocomplete v-model="form.source" :fetch-suggestions="suggest(options?.sources)" maxlength="50" placeholder="例如：哥哥在本園就讀、朋友介紹、看到傳單" aria-label="來源備註" style="width: 100%" />
-            </el-form-item>
-          </div>
-          <div class="record-dialog__row">
-            <el-form-item label="介紹者">
-              <el-autocomplete v-model="form.referrer" :fetch-suggestions="suggest(options?.referrers)" maxlength="50" aria-label="介紹者" style="width: 100%" />
-              <span class="field-help">統計分析的「接待人員」看的就是這一欄。</span>
-            </el-form-item>
-          </div>
-        </el-collapse-item>
+          <el-form-item v-else label="未預繳原因">
+            <el-select v-model="form.no_deposit_reason" clearable placeholder="請選擇原因" aria-label="未預繳原因" style="width: 100%">
+              <el-option v-for="reason in NO_DEPOSIT_REASONS" :key="reason" :label="reason" :value="reason" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="轉其他學期">
+            <el-switch v-model="form.transfer_term" active-text="是" inactive-text="否" aria-label="轉其他學期" />
+          </el-form-item>
+        </div>
+        <el-form-item v-if="!hasDeposit && showReasonDetail" label="原因說明">
+          <el-input v-model="form.no_deposit_reason_detail" type="textarea" :rows="2" maxlength="2000" placeholder="詳細說明（選填）" aria-label="原因說明" />
+        </el-form-item>
+      </section>
 
-        <el-collapse-item name="deposit">
-          <template #title><span class="record-dialog__section">預繳狀態</span></template>
-          <p class="record-dialog__stage">目前階段：{{ stageLabel(current?.stage ?? 'visited') }}</p>
-          <p class="field-help record-dialog__locked">預繳、註冊與退出請用明細列的「標記預繳」「標記註冊」或「更多」，或在漏斗看板拖曳卡片，才會留下紀錄與原因。</p>
-          <div class="record-dialog__row">
-            <el-form-item v-if="hasDeposit" label="收預繳人員">
-              <el-input v-model="form.deposit_collector" maxlength="50" placeholder="預繳時填寫" aria-label="收預繳人員" />
-            </el-form-item>
-            <el-form-item label="轉其他學期">
-              <el-switch v-model="form.transfer_term" active-text="是" inactive-text="否" aria-label="轉其他學期" />
-            </el-form-item>
-          </div>
-          <template v-if="!hasDeposit">
-            <el-form-item label="未預繳原因">
-              <el-select v-model="form.no_deposit_reason" clearable placeholder="請選擇原因" aria-label="未預繳原因" style="width: 100%">
-                <el-option v-for="reason in NO_DEPOSIT_REASONS" :key="reason" :label="reason" :value="reason" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="原因說明">
-              <el-input v-model="form.no_deposit_reason_detail" type="textarea" :rows="2" maxlength="2000" placeholder="詳細說明（選填）" aria-label="原因說明" />
-            </el-form-item>
-          </template>
-        </el-collapse-item>
-
-        <el-collapse-item name="notes">
-          <template #title>
-            <span class="record-dialog__section">備註</span><span class="record-dialog__summary">{{ notesSummary }}</span>
-          </template>
-          <el-form-item label="備註">
-            <el-input v-model="form.notes" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" aria-label="備註" />
-          </el-form-item>
-          <el-form-item label="電訪回應" class="record-dialog__last">
-            <el-input v-model="form.parent_response" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" aria-label="電訪回應" />
-          </el-form-item>
-        </el-collapse-item>
-      </el-collapse>
+      <section class="record-dialog__group">
+        <h3 class="record-dialog__heading">備註</h3>
+        <el-form-item label="備註">
+          <el-input v-model="form.notes" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" aria-label="備註" />
+        </el-form-item>
+        <el-form-item label="電訪回應" class="record-dialog__last">
+          <el-input v-model="form.parent_response" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }" maxlength="2000" aria-label="電訪回應" />
+        </el-form-item>
+      </section>
     </el-form>
 
     <template #footer>
       <div class="record-dialog__footer">
-        <p class="record-dialog__missing" aria-live="polite">{{ missing.length ? `還不能儲存：還沒填${missing.join('、')}` : '' }}</p>
+        <p class="record-dialog__missing" aria-live="polite">{{ blockers.length ? `還不能儲存：${blockers.join('；')}` : '' }}</p>
         <div class="record-dialog__buttons">
           <el-button :disabled="submitting" @click="requestClose">{{ cancelText }}</el-button>
-          <el-button v-if="mode === 'add'" :disabled="missing.length > 0 || submitting" @click="save(true)">儲存並新增下一筆</el-button>
-          <el-button type="primary" :loading="submitting" :disabled="missing.length > 0" @click="save()">儲存</el-button>
+          <el-button v-if="mode === 'add'" :disabled="blockers.length > 0 || submitting" @click="save(true)">儲存並新增下一筆</el-button>
+          <el-button type="primary" :loading="submitting" :disabled="blockers.length > 0" @click="save()">儲存</el-button>
         </div>
       </div>
     </template>
@@ -558,29 +588,30 @@ function suggest(list: readonly string[] | undefined) {
   color: var(--el-color-success);
 }
 
-.record-dialog__sections {
-  margin-top: 8px;
+/* 四區一律展開：區塊之間一條分隔線，標題比欄位標籤重一階。 */
+.record-dialog__group + .record-dialog__group {
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 
-.record-dialog__section {
+.record-dialog__heading {
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
-.record-dialog__summary {
-  margin-left: 8px;
-  color: var(--ink-3);
-  font-size: var(--text-sm);
-  font-weight: 400;
-}
-
 .record-dialog__stage {
-  margin: 0;
-  color: var(--ink);
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  color: var(--ink-2);
 }
 
 .record-dialog__locked {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
 }
 
 .record-dialog__last {
