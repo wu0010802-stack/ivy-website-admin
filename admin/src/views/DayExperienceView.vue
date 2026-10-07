@@ -107,8 +107,12 @@ const momentsList = useTemplateRef<HTMLElement>('momentsList')
 const collapse = useCollapsibleItems()
 const uid = useId()
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-day-film', label: '背景影片' },
-  { id: 'section-day-moments', label: '時刻卡', note: `${editor.form.value.moments.length} 張` },
+  {
+    id: 'section-day-film',
+    label: '背景影片',
+    fields: ['eyebrow', 'eyebrow_en', 'note', 'source_note', 'film_desktop', 'film_mobile', 'film_poster', 'film_caption_zh', 'film_caption_en'],
+  },
+  { id: 'section-day-moments', label: '時刻卡', note: `${editor.form.value.moments.length} 張`, fields: ['moments'] },
 ])
 const allMomentsOpen = computed(() => editor.form.value.moments.every((m) => collapse.isOpen(m.key)))
 

@@ -3,6 +3,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay } from '../app/utils/content-overlay'
 import {
+  isLivePreview,
   previewDate,
   previewFrameSrc,
   previewPage,
@@ -39,6 +40,13 @@ describe('草稿預覽的網址參數', () => {
     const params = new URL(src, 'https://example.test').searchParams
     expect(src.startsWith('/preview?')).toBe(true)
     expect(Object.fromEntries(params)).toEqual({ page: 'visit', campus: 'yihua', date: '2026-10-01', embed: '1' })
+  })
+
+  it('即時預覽要同時有 embed=1 與 live=1（後台內容編輯右側的 iframe）', () => {
+    expect(isLivePreview({ embed: '1', live: '1' })).toBe(true)
+    expect(isLivePreview({ live: '1' })).toBe(false)
+    expect(isLivePreview({ embed: '1' })).toBe(false)
+    expect(isLivePreview({ embed: '1', live: ['1'] })).toBe(false)
   })
 })
 

@@ -24,8 +24,8 @@ const editor = useContentItem<CampusNewsPayload>('campus_news', { articles: [], 
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
 const { visibleCampusKeys, campusLocked } = useCampusContent(editor, campus, shell)
 const navSections = computed<EditorSection[]>(() => [
-  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則` },
-  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場` },
+  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則`, fields: ['articles'] },
+  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場`, fields: ['events'] },
 ])
 </script>
 

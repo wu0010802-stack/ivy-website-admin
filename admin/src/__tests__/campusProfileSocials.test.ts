@@ -44,7 +44,7 @@ describe('五校介紹：IG／YouTube 欄位', () => {
     expect(yt.element.value).toBe('')
     await ig.setValue('https://www.instagram.com/ivy.kids.school.ig/')
     await yt.setValue('https://www.youtube.com/@IvyKidsVideos')
-    expect(wrapper.text()).toContain('改了 2 個欄位')
+    expect(wrapper.text()).toContain('草稿有 2 處修改：Instagram 網址、YouTube 頻道網址')
 
     await wrapper.findAll('button').find(b => b.text() === '儲存草稿')!.trigger('click')
     await flushPromises()

@@ -30,9 +30,9 @@ const editor = useContentItem<AdmissionContentPayload>('admission_content', EMPT
 const missingGlyphs = useTitleFontCoverage()
 const form = editor.form
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-admission-steps', label: '入學流程', note: `${form.value.steps.length} 步` },
-  { id: 'section-admission-phases', label: '新生入園須知', note: `${form.value.phases.length} 個階段` },
-  { id: 'section-admission-fees', label: '收退費辦法' },
+  { id: 'section-admission-steps', label: '入學流程', note: `${form.value.steps.length} 步`, fields: ['notice', 'intro', 'steps'] },
+  { id: 'section-admission-phases', label: '新生入園須知', note: `${form.value.phases.length} 個階段`, fields: ['phases', 'uniform_note', 'uniform_week', 'pickup_notes', 'registration_notes'] },
+  { id: 'section-admission-fees', label: '收退費辦法', fields: ['fee_intro', 'subsidies', 'allowance_title', 'allowance_note', 'allowance', 'refunds'] },
 ])
 // 草稿預覽讀的是最新「已儲存」的版本，未儲存的修改看不到。
 const draftPreviewUrl = `${WEBSITE_ASSET_BASE}/preview?page=admission`

@@ -27,6 +27,13 @@ describe('資安標頭', () => {
     expect(ADMIN_CSP).toContain("frame-ancestors 'self'")
   })
 
+  it('後台可以用 iframe 嵌同源的 /preview（內容編輯右側預覽），/preview 只給同源嵌', () => {
+    expect(ADMIN_CSP).toContain("frame-src 'self'")
+    const preview = securityHeadersFor('/preview?embed=1&live=1', 'production')
+    expect(preview['Content-Security-Policy']).toBe("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+    expect(preview['X-Frame-Options']).toBe('SAMEORIGIN')
+  })
+
   it('後台入口不快取；有雜湊的後台資源照常快取', () => {
     for (const path of ['/admin', '/admin/', '/admin/index.html']) {
       expect(securityHeadersFor(path, 'production')['Cache-Control']).toBe('private, no-store')

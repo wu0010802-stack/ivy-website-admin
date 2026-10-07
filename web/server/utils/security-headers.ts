@@ -28,6 +28,8 @@ const PUBLIC_CSP = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 // 載入 /admin/ 操作，這條 CSP 管不到。那一項仍未關閉（部分緩解、延後）：真正
 // 的修法是後台與 API cookie 移到獨立 origin（admin 子網域、__Host- cookie），
 // 或公開站導入 nonce 型 script-src，併入上面延後的 CSP 收緊工作。
+// frame-src 'self'：內容編輯右側嵌同源的 /preview 即時預覽（2026-10-06 方向 D）；原本靠
+// default-src 退回，改成明寫，不允許嵌其他網站。
 export const ADMIN_CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -35,6 +37,7 @@ export const ADMIN_CSP = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self'",
+  "frame-src 'self'",
   "media-src 'self' blob:",
   "frame-ancestors 'self'",
   "base-uri 'self'",

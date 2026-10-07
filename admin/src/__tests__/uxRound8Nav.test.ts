@@ -58,14 +58,16 @@ describe('段落目錄', () => {
     expect(jumpToSection('no-such-section')).toBe(false)
   })
 
-  it('ContentEditor：至少兩段才放目錄；桌機 1280 以上表單右側一欄，窄螢幕在表單上方', () => {
+  it('ContentEditor：至少兩段才放目錄；桌機 1280 以上在左側一欄（2026-10-06 方向 D），窄螢幕在表單上方', () => {
     const editor = readSource('../components/ContentEditor.vue')
     expect(editor).toContain("import EditorSectionNav from './EditorSectionNav.vue'")
     expect(editor).toMatch(/hasNav = computed\(\(\) => navSections\.value\.length >= MIN_NAV_SECTIONS\)/)
-    expect(editor).toMatch(/<EditorSectionNav v-if="hasNav" :sections="navSections" class="editor__nav" \/>/)
-    const desktop = /@media \(min-width: 1280px\) \{[^@]*\}/.exec(editor)![0]
-    expect(desktop).toContain('grid-template-columns: minmax(0, 1fr) 184px')
-    expect(desktop).toContain('.editor--with-nav:not(.editor--wide) { max-width: 928px; }')
+    expect(editor).toMatch(/<EditorSectionNav v-if="hasNav" :sections="navSections" :dirty-ids="dirtySections" class="editor__nav" \/>/)
+    // 從 1280 的 @media 切到下一個行首 `}`，不會一路吃到後面的 @media。
+    const start = editor.indexOf('@media (min-width: 1280px) {')
+    const desktop = editor.slice(start, editor.indexOf('\n}', start) + 2)
+    expect(desktop).toContain("grid-template-areas: 'nav top' 'nav body'")
+    expect(desktop).toContain('.editor--with-nav:not(.editor--wide):not(.editor--preview) { max-width: 928px; }')
     const nav = readSource('../components/EditorSectionNav.vue')
     // 窄螢幕膠囊列自己橫捲，不撐寬頁面；觸控 44px。
     expect(nav).toMatch(/\.section-nav ol \{[^}]*overflow-x: auto;/)

@@ -1,6 +1,7 @@
 import type { SiteContent } from '~/types/site-content'
 import type { ContentOverlay } from '~/utils/content-overlay'
 import { previewMedia, previewOverlay, type AdminMediaAsset, type HiddenNewsEntry } from '~/utils/draft-preview'
+import { applyLiveDraft, type LiveOverride } from '~/utils/preview-live'
 
 interface MeResponse {
   csrf_token: string
@@ -31,8 +32,13 @@ export interface DraftPreviewRender {
 
 export interface DraftPreviewResult {
   authorized: boolean
-  /** 用某一天（台北日期 YYYY-MM-DD）判斷消息上下架，組出預覽內容；只抓一次資料，換日期不用重抓 */
-  render: ((date: string) => DraftPreviewRender) | null
+  /** fixture 的五校代號（驗證即時預覽訊息的校區）；沒授權時是空陣列 */
+  campusKeys: string[]
+  /**
+   * 用某一天（台北日期 YYYY-MM-DD）判斷消息上下架，組出預覽內容；只抓一次資料，換日期不用重抓。
+   * live：後台還沒存的那一項內容（即時預覽），只蓋掉那一項，不會被記住。
+   */
+  render: ((date: string, live?: LiveOverride | null) => DraftPreviewRender) | null
 }
 
 type SharedKind = 'home_about' | 'home_hero' | 'site_footer' | 'site_meta' | 'home_campus_board' | 'booking_content' | 'day_experience' | 'home_news' | 'admission_content' | 'privacy_policy' | 'curriculum_page' | 'about_page'
@@ -71,10 +77,10 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   try {
     me = await $fetch<MeResponse>('/api/website/v1/auth/me')
   } catch {
-    return { authorized: false, render: null }
+    return { authorized: false, campusKeys: [], render: null }
   }
   if (!me?.user?.is_active) {
-    return { authorized: false, render: null }
+    return { authorized: false, campusKeys: [], render: null }
   }
 
   // fixture 端點也要後台 session（含未發布校區），確認登入後才讀。
@@ -119,10 +125,11 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
 
   return {
     authorized: true,
-    render(date: string) {
+    campusKeys,
+    render(date: string, live?: LiveOverride | null) {
       // 消息的上下架日期：官網公開 API 會先過濾，草稿 API 給的是原始內容，
       // 這裡照同一條規則過濾（全站與各校消息都要），預覽看到的才會和上線後一樣。
-      return previewOverlay(content, overlay, date, media)
+      return previewOverlay(content, live ? applyLiveDraft(overlay, live) : overlay, date, media)
     }
   }
 }

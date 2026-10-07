@@ -23,13 +23,13 @@ const form = editor.form
 const neverSaved = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)
 const highlightProblem = computed(() => highlightMissing(form.value.hero_title, form.value.hero_highlight))
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-cur-hero', label: '首屏' },
-  { id: 'section-cur-chapters', label: '章節索引' },
-  { id: 'section-cur-years', label: '01 四個年段' },
-  { id: 'section-cur-directions', label: '02 課程方向' },
-  { id: 'section-cur-gallery', label: '03 兒童美術館' },
-  { id: 'section-cur-daily', label: '04 五件事' },
-  { id: 'section-cur-beliefs', label: '結尾：教學理念' },
+  { id: 'section-cur-hero', label: '首屏', fields: ['hero_eyebrow', 'hero_title', 'hero_highlight', 'hero_lede', 'hero_notice', 'hero_photo', 'hero_photo_alt'] },
+  { id: 'section-cur-chapters', label: '章節索引', fields: ['chapters'] },
+  { id: 'section-cur-years', label: '01 四個年段', fields: ['years_title', 'years_text', 'spiral_label', 'spiral_text', 'years_photo', 'years_photo_alt', 'years_caption', 'years'] },
+  { id: 'section-cur-directions', label: '02 課程方向', fields: ['directions_title', 'directions_text', 'directions'] },
+  { id: 'section-cur-gallery', label: '03 兒童美術館', fields: ['gallery_title', 'gallery_text', 'gallery_source', 'gallery'] },
+  { id: 'section-cur-daily', label: '04 五件事', fields: ['daily_title', 'daily_text', 'daily_source', 'daily'] },
+  { id: 'section-cur-beliefs', label: '結尾：教學理念', fields: ['belief_title', 'beliefs', 'belief_close', 'belief_source'] },
 ])
 const CHAPTER_NUMBERS = ['01', '02', '03', '04']
 

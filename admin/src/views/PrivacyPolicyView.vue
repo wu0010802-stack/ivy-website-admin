@@ -23,8 +23,14 @@ const editor = useContentItem<PrivacyPolicyPayload>('privacy_policy', { title: '
 const form = editor.form
 const sections = computed(() => form.value.sections)
 // 段落目錄：每一段一項，小標空白時寫「第 N 段」（和清單標題同一個寫法）。
+// 第一段也管文件標題與更新日期（它們在表單最上面、第一個段落標題之前）；每段的欄位是 sections.<序號>，
+// 只比那一段本身，其他段改了不算這一段。
 const navSections = computed<EditorSection[]>(() =>
-  sections.value.map((section, index) => ({ id: `policy-section-${index}`, label: section.heading.trim() || `第 ${index + 1} 段` })),
+  sections.value.map((section, index) => ({
+    id: `policy-section-${index}`,
+    label: section.heading.trim() || `第 ${index + 1} 段`,
+    fields: index === 0 ? ['title', 'updated_on', `sections.${index}`] : [`sections.${index}`],
+  })),
 )
 const pending = computed(() => privacyPolicyPendingCount(form.value))
 // 從未存過任何版本：畫面上的是初稿（還沒存），按儲存才會變成第一個版本。

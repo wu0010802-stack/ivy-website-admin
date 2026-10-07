@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, provide, ref, useId, useTemplateRef, watch, type VNode } from 'vue'
+import { computed, h, provide, ref, shallowRef, useId, useTemplateRef, watch, type VNode } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime, staffLabel, staffOf } from '../api/labels'
@@ -7,11 +7,24 @@ import { contentPathFieldLabel } from '../api/contentFieldLabels'
 import type { ContentFieldError } from '../api/errors'
 import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { draftSummary } from '../composables/draftSummary'
 import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
-import { MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
+import { dirtySectionIds, MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
 import EditorSectionNav from './EditorSectionNav.vue'
+import LivePreviewPane from './LivePreviewPane.vue'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
+import { useLivePreview } from '../composables/useLivePreview'
+import {
+  livePreviewOrigin,
+  previewFrameUrl,
+  previewTargetsFor,
+  readPreviewViewport,
+  rememberPreviewViewport,
+  type PreviewPage,
+  type PreviewViewport,
+} from '../composables/previewTargets'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -40,6 +53,78 @@ const busy = computed(() => saving.value || publishing.value)
 // 段落目錄：頁面傳進來的段落（標題元素的 id 與字）。至少兩段才顯示。
 const navSections = computed(() => props.sections ?? [])
 const hasNav = computed(() => navSections.value.length >= MIN_NAV_SECTIONS)
+
+// 右側官網預覽（2026-10-06 方向 D）：1280 以上、後台與官網同源、這種內容有對應預覽頁時才放。
+// 斷點用 not all and (min-width: 1280px)：和下面 CSS 的 min-width: 1280px 剛好互補，1279.5 這種小數寬不會兩邊都不成立。
+// 1280 以下維持原本版面，用狀態列的「存草稿並預覽」開新分頁。
+const previewTargets = computed(() => previewTargetsFor(props.editor.kind))
+const belowPreviewWidth = useNarrowScreen('not all and (min-width: 1280px)')
+const previewOrigin = livePreviewOrigin()
+const showPreviewPane = computed(() => Boolean(previewOrigin) && previewTargets.value.length > 0 && !belowPreviewWidth.value && !props.placeholder)
+const previewTargetId = ref('')
+watch(
+  previewTargets,
+  (targets) => {
+    if (!targets.some((t) => t.id === previewTargetId.value)) previewTargetId.value = targets[0]?.id ?? ''
+  },
+  { immediate: true },
+)
+const currentTarget = computed(() => previewTargets.value.find((t) => t.id === previewTargetId.value) ?? previewTargets.value[0] ?? null)
+const previewViewport = ref<PreviewViewport>(readPreviewViewport())
+watch(previewViewport, rememberPreviewViewport)
+// 即時預覽：把還沒存的表單送進 iframe（useLivePreview；預覽欄沒顯示時它什麼都不掛）。iframe 只在換校、
+// 重新載入時重建，換預覽分頁用訊息切、不重新載入。預覽頁沒接上（舊版官網、太慢、沒登入）時，
+// 切分頁照舊換網址，存成新的一版也重新載入，至少看得到剛存的草稿。
+// 校區以「表單是哪一校載入的」為準（loadedCampusKey），不是校區選單：有未存修改時換校會先問
+// 「放棄修改？」，這段時間選單已是下一校、表單還是上一校，預覽不能因此換 iframe 或把上一校標成下一校。
+// 沒給 loadedCampusKey 的 editor（舊的假物件）退回用校區選單的值。
+const previewCampusKey = computed(() => (props.editor.loadedCampusKey ? props.editor.loadedCampusKey.value : (props.editor.campusKey?.value ?? null)))
+const previewFrame = shallowRef<HTMLIFrameElement | null>(null)
+const livePreview = useLivePreview({
+  frame: previewFrame,
+  origin: previewOrigin ?? '',
+  kind: props.editor.kind ?? '',
+  campusKey: previewCampusKey,
+  form: props.editor.form ?? ref(null),
+  target: currentTarget,
+  enabled: showPreviewPane,
+})
+const previewState = livePreview.state
+// 從沒存過任何版本：預覽看到的是官網目前的內容，說明不能寫「上次儲存的草稿」。
+const previewNeverSaved = computed(() => Boolean(props.editor.latestRevisionId) && latestRevisionId.value === null)
+const previewReload = ref(0)
+const previewFrameKey = computed(() => `${previewCampusKey.value ?? ''}|${previewReload.value}`)
+const previewSrc = ref('')
+// iframe 網址上載的是哪一頁。預覽接上（live）後切分頁只送訊息、網址不動，所以它可能和目前分頁不同。
+let framePage: PreviewPage | null = null
+function loadPreviewPage() {
+  framePage = currentTarget.value?.page ?? null
+  previewSrc.value = previewOrigin && framePage ? previewFrameUrl(previewOrigin, framePage, { live: true }) : ''
+}
+watch(previewFrameKey, loadPreviewPage, { immediate: true })
+// 預覽欄收起再出現（寬度跨 1280）會建新的 iframe：網址要換成目前分頁那一頁。
+watch(showPreviewPane, (shown) => {
+  if (shown) loadPreviewPage()
+})
+watch(currentTarget, () => {
+  if (previewState.value !== 'live') loadPreviewPage()
+})
+// 讀取中、讀取失敗時整個版面（含預覽欄）換成骨架／提示，讀好之後預覽欄重掛、建新的 iframe：同校區重新載入
+// （重新載入鈕、版本衝突「載入最新」）時 previewFrameKey 沒變，網址要自己重算成目前分頁那一頁；不然 live 時
+// 切過分頁的話，新的 iframe 載入的是切分頁之前的頁，沒接上的狀態（saved／denied）就一直看到舊分頁。
+watch(
+  () => !loadError.value && !loading.value,
+  (shown) => {
+    if (shown) loadPreviewPage()
+  },
+)
+// 離開 live（草稿太大退回 saved、預覽頁拒絕）之後，iframe 該顯示目前分頁那一頁：和網址上的不同就重新載入。
+watch(previewState, (now, before) => {
+  if (before === 'live' && (now === 'saved' || now === 'denied') && currentTarget.value && currentTarget.value.page !== framePage) previewReload.value += 1
+})
+watch(latestRevisionId, () => {
+  if (previewState.value === 'saved') previewReload.value += 1
+})
 // 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
 // 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
 const conflict = computed(() => props.editor.conflict?.value ?? false)
@@ -47,6 +132,18 @@ const fieldErrors = computed(() => props.editor.fieldErrors?.value ?? [])
 const stashedChanges = computed(() => props.editor.stashedChanges?.value ?? [])
 const stashOverlap = computed(() => props.editor.stashOverlap?.value ?? [])
 const changes = computed(() => props.editor.changes?.value ?? [])
+// 動作列與目錄打點的清單：和官網那一版比（useContentItem.draftChanges）；舊的假 editor 沒給時用和上次儲存比。
+const draftChangeList = computed(() => props.editor.draftChanges?.value ?? changes.value)
+const baselineSource = computed(() => props.editor.draftBaseline?.value.source ?? 'saved')
+// 正在讀官網那一版：基準還是 saved，動作列先不寫和官網比的結果（見 ContentEditorState.liveReading）。
+const liveReading = computed(() => props.editor.liveReading?.value ?? false)
+// 目錄打點：和動作列同一個基準（官網那一版；讀不到時和上次儲存比）。
+const dirtySections = computed(() => {
+  const keys = new Set(draftChangeList.value.map((c) => c.key))
+  const base = props.editor.draftBaseline?.value.payload ?? null
+  const current = (props.editor.form?.value ?? {}) as Record<string, unknown>
+  return dirtySectionIds(navSections.value, keys, base, current)
+})
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
@@ -279,9 +376,20 @@ async function approve() {
   await props.editor.review('approve')
 }
 
+// 2026-10-06 方向 D：動作列已經寫出和官網不同的欄位，發布確認框只寫欄位名，不再列改前→改後
+//（核准照舊列，核准的人不是改的人）。讀不到官網版（saved）時回 null，退回舊的差異框。
+function quickSummary(verb: string): ConfirmSummary | null {
+  if (baselineSource.value === 'first') return { intro: `這是第一次上線：官網目前顯示預設文字，${verb}後家長就會看到這份內容。`, list: [] }
+  if (baselineSource.value !== 'live') return null
+  const list = draftChangeList.value
+  return list.length
+    ? { intro: `和官網目前的內容相比，會更新 ${list.length} 個欄位：${list.map((c) => c.label).join('、')}。${verb}後家長立刻看到。`, list: [] }
+    : { intro: `內容和官網目前的一樣，${verb}後家長看到的不會改變。`, list: [] }
+}
+
 async function publishWithConfirm() {
   if (preparing.value) return
-  const summary = await prepareSummary('發布')
+  const summary = quickSummary('發布') ?? (await prepareSummary('發布'))
   const message = confirmBody(summary, [scheduleSkipNote(), '發布後若要改回，可以從「版本紀錄」還原上一版。'])
   try {
     await ElMessageBox.confirm(message, `發布${named.value}到官網？`, {
@@ -443,6 +551,13 @@ const actionNote = computed(() => {
   if (rejectedLatest.value && canPublishRole.value) return '這一版已被退回，請修改後重新儲存。'
   return canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。'
 })
+// 動作列那一句。被退回又沒有修改時要講「請修改後重新儲存」，不寫摘要；官網版還在讀時
+// 不寫和官網比的結果（避免「沒有修改」→「N 處修改」閃一下），有未儲存的修改只說有未儲存的修改。
+const actionSummary = computed(() => {
+  if (rejectedLatest.value && canPublishRole.value && !isDirty.value) return null
+  if (liveReading.value) return draftSummary('saved', [], isDirty.value)
+  return draftSummary(baselineSource.value, draftChangeList.value, isDirty.value, canPublishRole.value)
+})
 
 // 真的離開這一頁時多一顆「儲存草稿並離開」（存草稿不會動到官網）；唯讀、版本
 // 衝突時存不了，維持兩個選項。版本衝突後「載入最新內容」讀取失敗、或載入了還沒套回時，
@@ -524,7 +639,7 @@ defineExpose({ confirmLeave })
 </script>
 
 <template>
-  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav }">
+  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav, 'editor--preview': showPreviewPane }">
     <div v-if="$slots.lead" class="page-lead"><slot name="lead" /></div>
 
     <div v-if="$slots.toolbar" class="toolbar"><slot name="toolbar" /></div>
@@ -538,6 +653,8 @@ defineExpose({ confirmLeave })
     <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
 
     <template v-else>
+      <div class="editor__layout" :class="{ 'has-nav': hasNav, 'has-preview': showPreviewPane }">
+      <div class="editor__top">
       <!-- 狀態列不是即時區（裡面有預覽、版本紀錄等工具）；狀態變了才由下面隱藏的 status 唸一次。 -->
       <div class="editor__status" :data-tone="status.tone" role="group" :aria-labelledby="statusLabelId">
         <span class="editor__dot" aria-hidden="true" />
@@ -669,10 +786,10 @@ defineExpose({ confirmLeave })
       />
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
+      </div>
 
-      <div class="editor__layout" :class="{ 'has-nav': hasNav }">
         <!-- 目錄在表單外面：處理中表單 inert 時目錄仍可用來捲動。 -->
-        <EditorSectionNav v-if="hasNav" :sections="navSections" class="editor__nav" />
+        <EditorSectionNav v-if="hasNav" :sections="navSections" :dirty-ids="dirtySections" class="editor__nav" />
         <div ref="body" class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
           <div class="panel__body">
             <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
@@ -680,17 +797,31 @@ defineExpose({ confirmLeave })
             <slot />
           </div>
         </div>
+        <LivePreviewPane
+          v-if="showPreviewPane && currentTarget"
+          v-model:target="previewTargetId"
+          v-model:viewport="previewViewport"
+          class="editor__preview"
+          :targets="previewTargets"
+          :src="previewSrc"
+          :state="previewState"
+          :notice="livePreview.notice.value"
+          :never-saved="previewNeverSaved"
+          :frame-key="previewFrameKey"
+          @frame="previewFrame = $event"
+          @retry="previewReload += 1"
+        />
       </div>
 
-      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy }">
+      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy, 'has-changes': Boolean(actionSummary) }">
         <!-- 「放棄修改」放在說明這一側，離儲存、發布遠一點（破壞性動作不與主動作相鄰）。 -->
         <div class="editor__actions-state">
-          <p class="editor__actions-text" :title="isDirty ? actionNote : undefined">
+          <p class="editor__actions-text" :title="actionSummary?.title || (isDirty ? actionNote : undefined)">
             <template v-if="busy">正在處理，請稍候…</template>
-            <template v-else>
-              <span v-if="isDirty" class="editor__actions-count">{{ changes.length ? `改了 ${changes.length} 個欄位。` : '有未儲存的修改。' }}</span>
-              <span class="editor__actions-note">{{ actionNote }}</span>
+            <template v-else-if="actionSummary">
+              <span class="editor__actions-count">{{ actionSummary.lead }}</span><span v-if="actionSummary.fields" class="editor__actions-fields">{{ actionSummary.fields }}</span>
             </template>
+            <span v-else class="editor__actions-note">{{ actionNote }}</span>
           </p>
           <el-button v-if="isDirty" text class="editor__discard" :disabled="locked" @click="discardEdits">放棄修改</el-button>
         </div>
@@ -765,20 +896,40 @@ defineExpose({ confirmLeave })
 .editor__schedule-error { margin: 8px 0 0; font-size: var(--text-sm); color: var(--el-color-danger); }
 /* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
 .editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+/* --editor-actions-h：黏底動作列佔的高度，右側預覽欄的高度要扣掉它（LivePreviewPane）。
+   動作列＝上框 1＋上下內距 16＋16＋按鈕（--control-h：滑鼠 38、觸控 44）；再加它和表單之間的 16 間距，
+   預覽欄底端才不會貼著動作列。滑鼠 87、觸控 93。 */
 .editor {
   max-width: 720px;
+  --editor-actions-h: calc(var(--control-h) + 49px);
 }
 
 .editor--wide {
   max-width: 1200px;
 }
 
-/* 段落目錄：1280 以上放在表單右側（表單仍是 720 寬），較窄時目錄在表單上方。 */
+/* 段落目錄（2026-10-06 方向 D）：1280 以上一律在左側一欄，狀態列與表單在右（表單仍是 720 寬）；
+   較窄時目錄在狀態列與表單之間，是一排可以橫捲的膠囊。 */
 @media (min-width: 1280px) {
-  .editor--with-nav:not(.editor--wide) { max-width: 928px; }
-  .editor__layout.has-nav { display: grid; grid-template-columns: minmax(0, 1fr) 184px; gap: 24px; align-items: start; }
-  .editor__layout.has-nav .editor__nav { grid-column: 2; grid-row: 1; }
-  .editor__layout.has-nav .editor__body { grid-column: 1; grid-row: 1; min-width: 0; }
+  .editor--with-nav:not(.editor--wide):not(.editor--preview) { max-width: 928px; }
+  .editor__layout.has-nav { display: grid; grid-template-columns: 184px minmax(0, 1fr); grid-template-areas: 'nav top' 'nav body'; column-gap: 24px; align-items: start; }
+  .editor__layout.has-nav > .editor__top { grid-area: top; min-width: 0; }
+  .editor__layout.has-nav > .editor__nav { grid-area: nav; }
+  .editor__layout.has-nav > .editor__body { grid-area: body; min-width: 0; }
+
+  /* 右側官網預覽（方向 D）：表單與預覽並排，主欄不再限 720。寬度：1280 時主欄 964＝152＋20＋452＋20＋320，
+     1440 時 1124＝152＋20＋560＋20＋372；沒有目錄時表單 440–640、預覽至少 320。 */
+  .editor--preview { max-width: none; }
+  .editor--preview > .page-lead,
+  .editor--preview > .toolbar,
+  .editor--preview > .editor__alert,
+  .editor--preview > .editor__skeleton { max-width: 720px; }
+  .editor__layout.has-preview { display: grid; grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr); grid-template-areas: 'top preview' 'body preview'; grid-template-rows: auto 1fr; column-gap: 20px; align-items: start; }
+  .editor__layout.has-nav.has-preview { grid-template-columns: 152px minmax(420px, 560px) minmax(320px, 1fr); grid-template-areas: 'nav top preview' 'nav body preview'; }
+  .editor__layout.has-preview > .editor__top { grid-area: top; min-width: 0; }
+  .editor__layout.has-preview > .editor__nav { grid-area: nav; }
+  .editor__layout.has-preview > .editor__body { grid-area: body; min-width: 0; }
+  .editor__layout.has-preview > .editor__preview { grid-area: preview; }
 }
 
 .editor__alert {
@@ -933,12 +1084,12 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
-.editor__actions-text { margin: 0; }
-.editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
-/* 有修改時說明那句收起來（和手機一樣），「改了 N 個欄位」＋放棄修改＋三顆按鈕在
-   720px 內排得下一行，黏底列不會變兩行多蓋住表單。 */
-.editor__actions.is-dirty .editor__actions-note { display: none; }
+/* flex-basis 要是 0%：用 auto 的話單行長文字的內容寬度會把 .editor__buttons 擠到第二列，省略號也不會生效。 */
+.editor__actions-state { display: flex; align-items: center; flex: 1 1 0%; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
+.editor__actions-text { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor__actions-count { font-weight: 600; }
+.editor__actions.is-dirty .editor__actions-state,
+.editor__actions.has-changes .editor__actions-state { color: var(--brand-gold-ink); }
 .editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
 /* 手機：狀態文字佔滿一行，預覽與版本紀錄換到下一行、做成 44px 的次要按鈕；
@@ -964,7 +1115,7 @@ defineExpose({ confirmLeave })
     gap: 8px;
     padding: 12px 0 max(12px, env(safe-area-inset-bottom));
   }
-  .editor__actions:not(.is-dirty):not(.is-busy) .editor__actions-state { display: none; }
+  .editor__actions:not(.is-dirty):not(.is-busy):not(.has-changes) .editor__actions-state { display: none; }
   .editor__actions-state { flex-wrap: nowrap; justify-content: space-between; font-size: var(--text-base); }
   .editor__actions-note { display: none; }
   .editor__discard { flex-shrink: 0; min-height: 44px; }

@@ -31,9 +31,9 @@ const editor = useContentItem<HomeNewsPayload>(
 
 const isSample = computed(() => editor.form.value.sample_note.trim() !== '')
 const navSections = computed<EditorSection[]>(() => [
-  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則` },
-  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場` },
-  { id: 'section-news-films', label: '手機版活動影片' },
+  { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則`, fields: ['sample_note', 'home_display_count', 'articles'] },
+  { id: NEWS_SECTION_IDS.events, label: '近期活動', note: `${editor.form.value.events.length} 場`, fields: ['events'] },
+  { id: 'section-news-films', label: '手機版活動影片', fields: ['films'] },
 ])
 
 function clearSampleNote() {

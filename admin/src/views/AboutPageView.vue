@@ -17,12 +17,12 @@ const editor = useContentItem<AboutPagePayload>('about_page', aboutPageDraft())
 const form = editor.form
 const neverSaved = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-about-hero', label: '首屏' },
-  { id: 'section-about-chapters', label: '章名' },
-  { id: 'section-about-story', label: '第一章：一路走來' },
-  { id: 'section-about-whole', label: '第二章：全人教育' },
-  { id: 'section-about-hope', label: '第三章：我們的期許' },
-  { id: 'section-about-outro', label: '結尾：五所校園' },
+  { id: 'section-about-hero', label: '首屏', fields: ['hero_title', 'hero_lede', 'hero_caption', 'hero_photo', 'hero_photo_alt', 'hero_back_photo', 'hero_back_photo_alt'] },
+  { id: 'section-about-chapters', label: '章名', fields: ['chapter_names'] },
+  { id: 'section-about-story', label: '第一章：一路走來', fields: ['story_title', 'story_text', 'milestones'] },
+  { id: 'section-about-whole', label: '第二章：全人教育', fields: ['whole_title', 'whole_text', 'whole_fine', 'whole_fine_source'] },
+  { id: 'section-about-hope', label: '第三章：我們的期許', fields: ['hope_title', 'hope_quotes', 'hope_photo', 'hope_photo_alt'] },
+  { id: 'section-about-outro', label: '結尾：五所校園', fields: ['outro_title', 'outro_text'] },
 ])
 
 // 民國年＝西元 − 1911（同官網 utils/page-content.ts 的 rocYear）；年份清空時（null）不顯示。

@@ -14,6 +14,7 @@ import PublishHistoryView from '../views/PublishHistoryView.vue'
 import editorSource from '../components/ContentEditor.vue?raw'
 import publishHistorySource from '../views/PublishHistoryView.vue?raw'
 import { api, ApiError } from '../api/client'
+import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { releaseSourceLabel } from '../api/labels'
 import { useContentItem, type ContentEditorState, type FieldChange, type PublishJob, type RevisionHistoryHandle } from '../composables/useContentItem'
 import { useCampusContent } from '../composables/useCampusContent'
@@ -155,18 +156,18 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     const confirm = confirmYes()
     const { wrapper } = mountPage(global)
     await flushPromises()
-    // 載入時不多讀官網版，開確認框前才讀。
-    expect(get.mock.calls.some(([path]) => String(path).includes('/revisions/r1'))).toBe(false)
+    // 2026-10-06 方向 D：載入時就讀官網版（動作列要列出和官網不同的欄位），開確認框不再重讀。
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
 
     await button(wrapper, '發布到官網').trigger('click')
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
+    expect(get.mock.calls.filter(([path]) => String(path).includes('/revisions/r1'))).toHaveLength(1)
     const [message, title] = confirm.mock.calls[0]!
     expect(title).toBe('發布「各校常見問題（義華）」到官網？')
     const text = messageText(message)
-    expect(text).toContain('和官網目前的內容相比，會更新 1 個欄位')
-    expect(text).toContain('舊標題')
-    expect(text).toContain('新標題')
+    // 2026-10-06 方向 D：動作列已列出欄位，確認框只寫欄位名，不再列改前→改後。
+    expect(text).toContain(`和官網目前的內容相比，會更新 1 個欄位：${contentFieldLabelFor('campus_faq', 'title')}。`)
+    expect(text).not.toContain('舊標題')
     // 舊版缺的 note 先補預設值才比，不會多出「（空白）→（空白）」。
     expect(text).not.toContain('（空白）')
     // 發布帶上載入時官網的版本（樂觀鎖，main 的 PR #14）。
@@ -188,8 +189,8 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     await flushPromises()
     editor().form.value.note = '補充說明'
     await flushPromises()
-    // 和上次儲存相比只改了 1 個欄位，但官網會換掉 2 個。
-    expect(wrapper.text()).toContain('改了 1 個欄位')
+    // 動作列和官網比：已存與未存的修改都算，共 2 處（2026-10-06 方向 D）。
+    expect(wrapper.text()).toContain('草稿有 2 處修改：')
 
     await button(wrapper, '儲存並發布到官網').trigger('click')
     await flushPromises()

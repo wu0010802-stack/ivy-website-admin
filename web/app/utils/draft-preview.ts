@@ -9,6 +9,7 @@ import type { MediaInfoMap, PublicMediaInfo } from './media-image'
 // - viewport=mobile：在頁面中間放一個手機寬度的 iframe 載入同一個預覽
 //   （iframe 內帶 embed=1，不再顯示工具列），看得到真正的手機斷行與裁切
 // - date=YYYY-MM-DD：用哪一天判斷消息與活動的上架／下架日期，預設台北今天
+// - live=1（搭配 embed=1）：後台內容編輯頁右側的即時預覽，見 utils/preview-live.ts
 
 export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment'
 export type PreviewViewport = 'desktop' | 'mobile'
@@ -34,6 +35,11 @@ export function previewViewport(query: Query): PreviewViewport {
 
 export function isPreviewEmbed(query: Query): boolean {
   return text(query.embed) === '1'
+}
+
+/** 後台內容編輯頁右側的即時預覽（iframe 帶 embed=1&live=1）：等後台用 postMessage 送還沒存的表單。 */
+export function isLivePreview(query: Query): boolean {
+  return isPreviewEmbed(query) && text(query.live) === '1'
 }
 
 /** 合法的 YYYY-MM-DD 才採用，其餘退回今天。 */
