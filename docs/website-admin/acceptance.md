@@ -585,3 +585,35 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | F3 | 從招生點進來，返回回到原分頁與篩選，看板反映剛才的變更 | `familyEntryPoints.test.ts`、stack `visit-family-page.spec.ts` |
 | F4 | 開關關閉、沒有招生權限、已到場但沒有訪視三種情況，畫面與改版前相同 | `visitFamilyPage.test.ts`「不是家庭版面的情況維持原樣」、`admissionsVisitDetail.test.ts` |
 | F5 | 後端新欄位、契約一致；沒有 migration | `test_admissions_family_page_fields.py`、`npm run contract:check` |
+
+## 案件明細時間線（C）與案件列表行程清單（B）（2026-10-06，`feature/admin-visit-ux-20261006`，未部署）
+
+計畫：`docs/superpowers/plans/2026-10-06-admin-visit-ux.md`；規則見 DESIGN.md「案件明細：一條時間線＋一個主動作」「參觀案件：照參觀日排的行程清單」。下表的「通過（逐檔）」是各 task 在拋棄式測試庫上逐檔前景跑 vitest／pytest 的結果（數字是該檔當時的測試數），「通過（stack）」是 Task 10 修正輪在拋棄式庫跑 `playwright test -c playwright.stack.config.ts` 整套 81 passed 的結果；全套閘門另列在表後。
+
+| # | 驗收 | 狀態 | 證據 |
+|---|---|---|---|
+| V1 | 明細頁首依階段只有一顆實心主鈕（家長到了／核准改期／填招生資料／建立招生訪視或重新載入／重新預約）、還沒開始沒有主鈕、唯讀只寫提示；確認框文字不變 | 通過（逐檔） | Task 3：`visitPrimaryAction.test.ts` 22（13 個 `caseStage` 表格＋9 個元件）、`caseHandling` 18、`admissionsVisitDetail` 11、`arrivalAdmissionsForm` 8；`opensForm` 規則單一定義（審查修正後 `visitCase` 3） |
+| V2 | 頁首寫「家長・孩子」與「還有 N 天／結束了多久」（台北日期，午夜與跨時區邊界）、撥號桌機也有 | 通過（逐檔） | Task 2：`visitSchedule.test.ts`、`visitCaseHero.test.ts`（後續 40／4）；Task 8 補午夜邊界三組與瀏覽器時區 `America/Los_Angeles` 下的分組（`visitScheduleList.test.ts`） |
+| V3 | 聯絡紀錄與歷程合成一條時間線、輸入框在最上；家庭版面併入參觀前後與招生事件、沒有輸入框；預覽只列最新 3 筆、標題 id 每個實例各一個 | 通過（逐檔、stack） | Task 4：`visitTimeline.test.ts` 4、`visitCaseTimeline.test.ts`（後續 8）、`visitFamilyPage` 23；stack `visit-family-page.spec.ts` 2 passed、`admissions-follow-up.spec.ts` 2 passed |
+| V4 | 家長資料表（孩子一行含只有生日的補登）、設定列、取消在最底；兩欄與 1100px 以下一欄的順序 | 通過（逐檔、stack、截圖目視） | Task 5：`visitCaseLayout.test.ts` 10（含孩子一行三種情況）；stack `visit-schedule.spec.ts`（1100px 一欄無橫向溢出）；Task 10 在 1440／1100／390 截圖目視，量到家庭版面順序頁首 → 處理 → 招生資料 → 時間線 → 家長資料；一般案件頁首 → 時間線 → 家長資料 → 設定列 |
+| V5 | 現有功能都在新位置（改期申請核准／退回、人工改期、到場／未到場、取消、家長連結、聯絡紀錄＋下次聯絡、招生資料、下一筆、角色可見性） | 通過（逐檔、stack） | 每個 task 逐檔跑會掛載明細的既有測試（Task 1 的 23 檔不改全綠，之後各 task 約 20–30 檔，既有斷言只改選擇器與按鈕文字）；stack `booking-flow` 8、`admissions-flow` 4、`admissions-follow-up` 2、`visit-family-page` 2 |
+| V6 | 頁籤接下來／時間已過／已到場／已取消／全部；數字只在接下來與時間已過，時間已過的數字與總覽同一個判準（`awaiting_attendance`） | 通過（逐檔） | Task 6：`test_visit_views.py` 8；Task 7：`visitListQuery.test.ts` 26、`listUx` 4、`visitGroups` 11、`openRequestsUx` 13 |
+| V7 | 舊連結落點正確（`?status=`、`group=past&status=confirmed`、`?due=1`、`?attention=1`、無參數＝接下來、有其他參數無 group＝全部）；下一筆帶同一份 `list=` | 通過（逐檔、stack） | Task 7：`visitListQuery.test.ts` 的舊連結案例、`uxRound6` 17、`familyEntryPoints` 7、`attentionExportDeadline` 17；stack `admissions-flow.spec.ts`、`admissions-follow-up.spec.ts` |
+| V8 | 依台北參觀日分組（跨年寫年份、跨頁不合併）、開著過午夜重讀、列內到了／沒來、已到場的列「填招生資料」（不帶「已標記已到場」）、批次勾選、手機批次列不擠掉主連結 | 通過（逐檔、截圖量測） | Task 8：`visitSchedule.test.ts` 40、`visitScheduleList.test.ts` 21、`visitRequestsBatch.test.ts` 7；修正輪用臨時 vite 預覽頁＋Playwright 在 390／360／320（批次與一般）與 1280 量測，每列勾選欄與主連結同一行、無橫向溢出（腳本與截圖在 gitignored 的 `output/playwright/`，不進版控） |
+| V9 | 1280 以上右側預覽：點列開預覽、⌘／Ctrl／中鍵開新分頁、下一筆、草稿保護、處理後遞補；換頁籤／篩選／搜尋／翻頁清選取、處理造成的重讀保留；列上處理預覽那一筆預覽跟著重讀；區塊不被壓扁、捲得到最底的取消預約 | 通過（逐檔、stack） | Task 9：`visitPreviewPanel.test.ts` 19、`visitCase.test.ts` 9（每條變動路徑通知列表、狀態轉換被擋只重讀一次）；Task 10：stack `visit-schedule.spec.ts` 6（含 1280、1440 壓扁守門與捲到最底看得到取消預約）、`a11y.spec.ts` 28（含開著預覽面板的 axe）；修正後在 1280／1440 對三個頁籤開預覽跑 axe 為 0 項違規（臨時腳本，已刪） |
+| V10 | 後端 `view`／`order=visit_asc\|visit_desc`／`view-counts`、匯出與稽核帶 `view`、契約一致、沒有 migration | 通過（逐檔）；alembic heads 待填 | Task 6：`test_visit_views.py` 8、相鄰 13 個後端測試檔逐檔 passed、`ruff check`、`npm run contract:generate`／`contract:check` 一致；`git diff --name-only 378f4dbd..HEAD -- backend contracts` 只有 `backend/app/booking/{routes,schemas,status_groups}.py`、`backend/tests/test_visit_views.py` 與兩個契約檔，沒有 `backend/alembic` 檔案 |
+| V11 | 視覺基準：只有 `visit-detail` 重拍，其餘四張不變 | 通過（stack） | Task 10：`visual.spec.ts` 6 passed；新基準對照 `design/admin-ux-directions-20261006/shots/c-detail-desktop.png`，版面順序一致；遮罩涵蓋相對時間、時間線時間與內文、連結有效期限 |
+| V12 | 承辦人、mock 的「修改資料」「兄姊」「常駐複製家長連結」沒有出現 | 通過（程式審查） | 各 task 審查與自查；承辦人 10-06 已拿掉，其餘三項見 DESIGN 的「不做」 |
+
+**全套閘門結果待填**（HEAD `0e169831`，由 controller 跑完補；最終審查修正波之後的最終版本再跑一次，結果也待填）：
+
+| 項目 | 結果 |
+|---|---|
+| admin vitest 全套 | 待填 |
+| `vue-tsc -b --noEmit`、`vite build` | 待填 |
+| 後端 pytest 全套 | 待填 |
+| `npm run contract:check` | 待填 |
+| alembic heads（預期仍是單一 head，沒有新 migration） | 待填 |
+| stack 全套（含 visual、a11y） | 待填（Task 10 修正輪整套 81 passed） |
+
+未驗證：iOS Safari、Android 實機（觸控、sticky 預覽面板、地址列伸縮）；Chrome 以外的瀏覽器（Playwright 只用 Chrome，`@container` 與 `:has()` 版面沒在 Safari、Firefox 看過）；螢幕閱讀器實際報讀（只有 axe 與測試斷言 `aria-*`）；視覺基準只有 macOS Chrome；正式站與真資料量（跨頁分組、`view-counts` 與依場次排序的 join 查詢在正式資料量下的成本沒量過）；真的開著列表跨過台北午夜（只有 fake timer 測試）。已知限制：列首勾選框 32px 小於手機 44px 觸控規則；1440＋批次勾選＋預覽時長名字換行後第二行以「・」開頭；⌘／Ctrl 點列空白處是同分頁開；家庭階段帳號沒有 `admissions.write` 時頁首主動作區是空的。待使用者確認：第五個頁籤「全部」是否保留（目前保留）。
