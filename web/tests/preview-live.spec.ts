@@ -8,6 +8,7 @@ import {
   isTrustedPreviewEvent,
   MAX_DRAFT_CHARS,
   parseDraftMessage,
+  PREVIEW_HITS,
   PREVIEW_MESSAGE
 } from '../app/utils/preview-live'
 
@@ -206,6 +207,17 @@ describe('createLiveReceiver', () => {
       [{ v: 1, type: PREVIEW_MESSAGE.applied, seq: 3, hit: 'text' }, 'https://ivy.example']
     ])
     expect(parent.postMessage.mock.calls.every(([, target]) => target !== '*')).toBe(true)
+  })
+
+  it('applied 的 hit 有四種：框到文字、框整塊、沒框、這一則畫不出來（failed 和 none 分開）', () => {
+    expect(PREVIEW_HITS).toEqual(['text', 'block', 'none', 'failed'])
+    const { parent, receiver } = setup()
+    receiver.applied(4, 'failed')
+    receiver.applied(5, 'none')
+    expect(parent.postMessage.mock.calls).toEqual([
+      [{ v: 1, type: PREVIEW_MESSAGE.applied, seq: 4, hit: 'failed' }, 'https://ivy.example'],
+      [{ v: 1, type: PREVIEW_MESSAGE.applied, seq: 5, hit: 'none' }, 'https://ivy.example']
+    ])
   })
 
   it('origin 不是能指定的來源（opaque origin 的 "null"、空字串）就不送，絕不退成 "*"', () => {

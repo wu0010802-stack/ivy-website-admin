@@ -12,7 +12,7 @@ import {
   previewViewport,
   type PreviewViewport
 } from '~/utils/draft-preview'
-import { createLiveReceiver, type LiveDraft, type LiveOverride, type LiveReceiver, type PreviewHit } from '~/utils/preview-live'
+import { createLiveReceiver, type HighlightHit, type LiveDraft, type LiveOverride, type LiveReceiver } from '~/utils/preview-live'
 import { activatePreviewBlock, highlightPreview } from '~/utils/preview-highlight'
 
 // 私有草稿預覽殼：整頁 client-only，SSR 完全不輸出任何內容或管理端
@@ -46,7 +46,7 @@ const render = shallowRef<((date: string, live?: LiveOverride | null) => DraftPr
 let stopLive: (() => void) | null = null
 let unmounted = false
 // 這一則即時草稿畫不出來（畫面還停在上一個畫得出來的樣子）。showLiveDraft 開頭歸零，
-// 失敗時回報 hit: 'none'，並且不拿舊畫面去算框選。
+// 失敗時回報 hit: 'failed'，並且不拿舊畫面去算框選。
 let liveRenderFailed = false
 // 已存草稿的區塊畫不出來（還沒有即時草稿時 onErrorCaptured 收到的錯）：錯誤照常往上丟，同時不送 ready。
 let savedRenderFailed = false
@@ -88,18 +88,18 @@ function setDate(event: Event) {
 }
 
 // 套用一則即時草稿：先畫，再（首頁五校）切到那一校、等一幀，然後框出改到的位置並回報後台。
-// 中途又來了新的一則就交給新的那則處理。這一則畫不出來時：回報 hit: 'none'（postMessage v1
-// 沒有「沒套上」這個值，none 是最接近的），畫面停在上一個樣子，不切分頁、不框選（舊畫面上的位置沒有意義）。
+// 中途又來了新的一則就交給新的那則處理。這一則畫不出來時：回報 hit: 'failed'（和「畫好了但找不到位置」
+// 的 none 分開），畫面停在上一個樣子，不切分頁、不框選（舊畫面上的位置沒有意義）。
 async function showLiveDraft(next: LiveDraft, receiver: LiveReceiver) {
   liveRenderFailed = false
   liveDraft.value = next
   await nextTick()
   if (unmounted || liveDraft.value !== next) return
   if (liveRenderFailed) {
-    receiver.applied(next.seq, 'none')
+    receiver.applied(next.seq, 'failed')
     return
   }
-  let hit: PreviewHit = 'none'
+  let hit: HighlightHit = 'none'
   try {
     if (activatePreviewBlock(document, next.focus)) await nextTick()
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
@@ -109,7 +109,7 @@ async function showLiveDraft(next: LiveDraft, receiver: LiveReceiver) {
     // 框不出來就不框：草稿已經畫好，回報照送；錯誤只留在這個 iframe 裡（console），不往外傳。
     console.error('[preview] 框選改到的位置時出錯', error)
   }
-  receiver.applied(next.seq, liveRenderFailed ? 'none' : hit)
+  receiver.applied(next.seq, liveRenderFailed ? 'failed' : hit)
 }
 
 // 即時預覽裡點連結不換頁（預覽只看這一頁；iframe 的 sandbox 也不給換掉後台頁）。

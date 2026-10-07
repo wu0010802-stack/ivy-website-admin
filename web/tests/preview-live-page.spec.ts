@@ -140,7 +140,7 @@ describe('/preview 即時預覽模式', () => {
     expect(footerText()).toBe(site.footer.tagline)
   })
 
-  it('這一則內容畫不出來：停在上一個畫面、console.error 記一筆（只在 iframe 裡）、回報 none；下一則好的照常接上', async () => {
+  it('這一則內容畫不出來：停在上一個畫面、console.error 記一筆（只在 iframe 裡）、回報 failed；下一則好的照常接上', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     mountPreview(fakeResult())
     await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
@@ -148,7 +148,7 @@ describe('/preview 即時預覽模式', () => {
     await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(1))
     deliver(draft(2, { tagline: '壞的', boom: true }))
     await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(2))
-    expect(repliesOf('ivy-preview:applied')[1]).toEqual({ v: 1, type: 'ivy-preview:applied', seq: 2, hit: 'none' })
+    expect(repliesOf('ivy-preview:applied')[1]).toEqual({ v: 1, type: 'ivy-preview:applied', seq: 2, hit: 'failed' })
     expect(footerText()).toBe('第一版')
     expect(logged).toHaveBeenCalled()
     expect(errorHandler).not.toHaveBeenCalled()
@@ -172,13 +172,13 @@ describe('/preview 即時預覽模式', () => {
     expect(repliesOf('ivy-preview:applied')).toHaveLength(0)
   })
 
-  it('某個區塊被這一則內容弄到畫不出來：錯誤停在預覽頁（記 console、不換成整頁錯誤）、回報 none；下一則好的接得上', async () => {
+  it('某個區塊被這一則內容弄到畫不出來：錯誤停在預覽頁（記 console、不換成整頁錯誤）、回報 failed；下一則好的接得上', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     mountPreview(fakeResult())
     await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
     deliver(draft(1, { tagline: 'KABOOM 區塊' }))
     await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(1))
-    expect(repliesOf('ivy-preview:applied')[0]).toEqual({ v: 1, type: 'ivy-preview:applied', seq: 1, hit: 'none' })
+    expect(repliesOf('ivy-preview:applied')[0]).toEqual({ v: 1, type: 'ivy-preview:applied', seq: 1, hit: 'failed' })
     expect(logged).toHaveBeenCalled()
     expect(errorHandler).not.toHaveBeenCalled()
     deliver(draft(2, { tagline: '修好了' }))
@@ -193,6 +193,20 @@ describe('/preview 即時預覽模式', () => {
     await vi.waitFor(() => expect(errorHandler).toHaveBeenCalled())
     await settle()
     expect(repliesOf('ivy-preview:ready')).toHaveLength(0)
+  })
+
+  it('failed 和 none 分開：畫不出來回 failed；畫得出來但找不到位置（或這次改的不在這一塊）回 none', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    mountPreview(fakeResult())
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
+    const lost = { block: 'page-top', campusKey: null, probe: '這段文字不在畫面上', mark: true }
+    deliver(draft(1, { tagline: '找不到位置' }, { focus: lost }))
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(1))
+    deliver(draft(2, { tagline: '改的不在這一塊' }, { focus: { ...lost, mark: false } }))
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(2))
+    deliver(draft(3, { tagline: '壞的', boom: true }, { focus: lost }))
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(3))
+    expect(repliesOf('ivy-preview:applied').map((reply) => [reply.seq, reply.hit])).toEqual([[1, 'none'], [2, 'none'], [3, 'failed']])
   })
 
   it('預覽裡點連結不換頁', async () => {

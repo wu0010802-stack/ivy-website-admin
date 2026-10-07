@@ -1,4 +1,4 @@
-import { PREVIEW_BLOCKS, type LiveFocus, type PreviewHit } from './preview-live'
+import { PREVIEW_BLOCKS, type HighlightHit, type LiveFocus } from './preview-live'
 
 // 即時預覽的「改哪格亮哪格」（2026-10-06 方向 D）：後台送來改到的那段文字（probe），在目前分頁
 // 對應的區塊裡找最深、畫得出來的元素框起來；找不到就框整塊（整頁內容不框）。只捲預覽頁自己的
@@ -69,7 +69,7 @@ export interface HighlightOptions {
   reduceMotion?: boolean
 }
 
-export function highlightPreview(doc: Document, focus: LiveFocus, options: HighlightOptions = {}): PreviewHit {
+export function highlightPreview(doc: Document, focus: LiveFocus, options: HighlightOptions = {}): HighlightHit {
   doc.querySelectorAll(`.${PREVIEW_HIT_CLASS}`).forEach((el) => el.classList.remove(PREVIEW_HIT_CLASS))
   const block = PREVIEW_BLOCKS[focus.block]
   const root = doc.querySelector(block.selector)

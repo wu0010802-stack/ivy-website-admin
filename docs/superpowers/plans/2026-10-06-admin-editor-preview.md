@@ -127,8 +127,10 @@ iframe → 後台（`window.parent.postMessage(msg, location.origin)`）：
 type PreviewReply =
   | { type: 'ivy-preview:ready'; v: 1 }                                  // 已授權、畫好，可以送草稿
   | { type: 'ivy-preview:denied'; v: 1 }                                 // 沒登入或帳號停用
-  | { type: 'ivy-preview:applied'; v: 1; seq: number; hit: 'text' | 'block' | 'none' }
+  | { type: 'ivy-preview:applied'; v: 1; seq: number; hit: 'text' | 'block' | 'none' | 'failed' }
 ```
+
+`hit`：`text`＝框到改到的那段文字、`block`＝只框整塊、`none`＝畫好了但沒框（改到的欄位不在這一塊或找不到位置）、`failed`＝這一則即時草稿畫不出來（預覽停在上一個畫面；10-07 fix round 2 新增，和 `none` 分開，後台要能分辨「沒框」和「沒套上」）。
 
 握手：iframe 載入 → 授權成功 → 掛 listener → 回 `ready` → 後台立刻送一則草稿 → 之後表單改變 debounce 300ms 再送；換預覽分頁立刻送（`page`、`focus` 換掉）。20 秒沒有 `ready` → 後台狀態改 `saved`。
 
@@ -2149,7 +2151,7 @@ EOF
   export interface LiveFocus { block: PreviewBlock; campusKey: string | null; probe: string | null; mark: boolean }
   export interface LiveDraft { seq: number; kind: LiveKind; campusKey: string | null; payload: Record<string, unknown>; page: PreviewPage; focus: LiveFocus }
   export type LiveOverride = Pick<LiveDraft, 'kind' | 'campusKey' | 'payload'>
-  export type PreviewHit = 'text' | 'block' | 'none'
+  export type PreviewHit = 'text' | 'block' | 'none' | 'failed' // failed＝這一則即時草稿畫不出來（和 none 分開）
   export interface PreviewWindow { location: { origin: string }; parent: unknown }
   export function parseDraftMessage(data: unknown, campusKeys: readonly string[]): LiveDraft | null
   export function isTrustedPreviewEvent(event: { origin: string; source: unknown }, self: PreviewWindow): boolean
@@ -2437,7 +2439,8 @@ export interface LiveDraft {
 }
 
 export type LiveOverride = Pick<LiveDraft, 'kind' | 'campusKey' | 'payload'>
-export type PreviewHit = 'text' | 'block' | 'none'
+export const PREVIEW_HITS = ['text', 'block', 'none', 'failed'] as const // failed＝這一則即時草稿畫不出來（和 none 分開）
+export type PreviewHit = (typeof PREVIEW_HITS)[number]
 
 export interface PreviewWindow {
   location: { origin: string }
@@ -3144,7 +3147,7 @@ EOF
   export const PREVIEW_MESSAGE: { draft: 'ivy-preview:draft'; ready: 'ivy-preview:ready'; applied: 'ivy-preview:applied'; denied: 'ivy-preview:denied' }
   export interface PreviewFocus { block: PreviewBlock; campusKey: string | null; probe: string | null; mark: boolean }
   export interface PreviewDraftMessage { type: 'ivy-preview:draft'; v: 1; seq: number; kind: string; campusKey: string | null; payload: Record<string, unknown>; page: PreviewPage; focus: PreviewFocus }
-  export type PreviewHit = 'text' | 'block' | 'none'
+  export type PreviewHit = 'text' | 'block' | 'none' | 'failed' // failed＝這一則即時草稿畫不出來（和 none 分開）
   export type PreviewReply = { type: 'ivy-preview:ready' } | { type: 'ivy-preview:denied' } | { type: 'ivy-preview:applied'; seq: number; hit: PreviewHit }
   export function buildDraftMessage(input: Omit<PreviewDraftMessage, 'type' | 'v'>): PreviewDraftMessage
   export function parsePreviewReply(data: unknown): PreviewReply | null
@@ -3213,6 +3216,7 @@ describe('parsePreviewReply', () => {
     expect(parsePreviewReply({ type: 'ivy-preview:ready', v: 1 })).toEqual({ type: 'ivy-preview:ready' })
     expect(parsePreviewReply({ type: 'ivy-preview:denied', v: 1 })).toEqual({ type: 'ivy-preview:denied' })
     expect(parsePreviewReply({ type: 'ivy-preview:applied', v: 1, seq: 4, hit: 'text' })).toEqual({ type: 'ivy-preview:applied', seq: 4, hit: 'text' })
+    expect(parsePreviewReply({ type: 'ivy-preview:applied', v: 1, seq: 5, hit: 'failed' })).toEqual({ type: 'ivy-preview:applied', seq: 5, hit: 'failed' })
     for (const bad of [
       null, 'ready', { type: 'ivy-preview:ready', v: 2 }, { type: 'ivy-preview:draft', v: 1 },
       { type: 'ivy-preview:applied', v: 1, seq: 'x', hit: 'text' }, { type: 'ivy-preview:applied', v: 1, seq: 1, hit: 'all' },
@@ -3299,7 +3303,8 @@ export interface PreviewDraftMessage {
   focus: PreviewFocus
 }
 
-export type PreviewHit = 'text' | 'block' | 'none'
+export const PREVIEW_HITS = ['text', 'block', 'none', 'failed'] as const // failed＝這一則即時草稿畫不出來（和 none 分開）
+export type PreviewHit = (typeof PREVIEW_HITS)[number]
 export type PreviewReply =
   | { type: typeof PREVIEW_MESSAGE.ready }
   | { type: typeof PREVIEW_MESSAGE.denied }
@@ -3323,8 +3328,8 @@ export function parsePreviewReply(data: unknown): PreviewReply | null {
   if (message.type === PREVIEW_MESSAGE.ready || message.type === PREVIEW_MESSAGE.denied) return { type: message.type }
   if (message.type !== PREVIEW_MESSAGE.applied) return null
   if (typeof message.seq !== 'number' || !Number.isSafeInteger(message.seq)) return null
-  if (message.hit !== 'text' && message.hit !== 'block' && message.hit !== 'none') return null
-  return { type: PREVIEW_MESSAGE.applied, seq: message.seq, hit: message.hit }
+  if (typeof message.hit !== 'string' || !(PREVIEW_HITS as readonly string[]).includes(message.hit)) return null
+  return { type: PREVIEW_MESSAGE.applied, seq: message.seq, hit: message.hit as PreviewHit }
 }
 ```
 

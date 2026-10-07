@@ -89,7 +89,15 @@ export interface LiveDraft {
 }
 
 export type LiveOverride = Pick<LiveDraft, 'kind' | 'campusKey' | 'payload'>
-export type PreviewHit = 'text' | 'block' | 'none'
+/**
+ * applied 回覆的 hit：text＝框到改到的那段文字；block＝只框整塊；none＝畫好了但沒框（改到的欄位不在這一塊、
+ * 或找不到位置）；failed＝這一則即時草稿畫不出來（畫面停在上一個樣子）。failed 和 none 分開，後台才分得出
+ * 「沒框」和「沒套上」。admin/src/composables/previewProtocol.ts 是同一份。
+ */
+export const PREVIEW_HITS = ['text', 'block', 'none', 'failed'] as const
+export type PreviewHit = (typeof PREVIEW_HITS)[number]
+/** highlightPreview 的結果：框選本身不會是 failed。 */
+export type HighlightHit = Exclude<PreviewHit, 'failed'>
 
 export interface PreviewWindow {
   location: { origin: string }
