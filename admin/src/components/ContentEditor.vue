@@ -109,6 +109,15 @@ watch(showPreviewPane, (shown) => {
 watch(currentTarget, () => {
   if (previewState.value !== 'live') loadPreviewPage()
 })
+// 讀取中、讀取失敗時整個版面（含預覽欄）換成骨架／提示，讀好之後預覽欄重掛、建新的 iframe：同校區重新載入
+// （重新載入鈕、版本衝突「載入最新」）時 previewFrameKey 沒變，網址要自己重算成目前分頁那一頁；不然 live 時
+// 切過分頁的話，新的 iframe 載入的是切分頁之前的頁，沒接上的狀態（saved／denied）就一直看到舊分頁。
+watch(
+  () => !loadError.value && !loading.value,
+  (shown) => {
+    if (shown) loadPreviewPage()
+  },
+)
 // 離開 live（草稿太大退回 saved、預覽頁拒絕）之後，iframe 該顯示目前分頁那一頁：和網址上的不同就重新載入。
 watch(previewState, (now, before) => {
   if (before === 'live' && (now === 'saved' || now === 'denied') && currentTarget.value && currentTarget.value.page !== framePage) previewReload.value += 1

@@ -421,6 +421,44 @@ describe('右側官網預覽欄', () => {
     expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
   })
 
+  // 2026-10-07 最終審查 I3：同校區重新載入（重新載入鈕、版本衝突「載入最新」）時整個版面換成骨架，預覽欄卸載再重掛，
+  // 但 iframe 網址沒有重算：live 時切過分頁的話，新的 iframe 還是載入第一次建立時（或上次重算時）的那一頁。
+  it('同校區重新載入（讀取中骨架）：預覽欄重掛，iframe 載入目前分頁那一頁，不是切分頁之前的頁', async () => {
+    const loading = ref(false)
+    const wrapper = await mountEditor(editorState({ kind: 'booking_content', loading }))
+    const first = wrapper.get('iframe').element as HTMLIFrameElement
+    vi.spyOn(first.contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await pickTab(wrapper, 1)
+    // live：切分頁只送訊息，網址還是第一次的那一頁
+    expect(pageOf(wrapper)).toBe('visit')
+    loading.value = true
+    await flushPromises()
+    expect(wrapper.find('.editor__preview').exists()).toBe(false)
+    loading.value = false
+    await flushPromises()
+    expect(wrapper.get('iframe').element).not.toBe(first)
+    expect(pageOf(wrapper)).toBe('home')
+    expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
+  })
+
+  it('讀取失敗後按「重新載入」讀成功：同樣以目前分頁那一頁重建預覽', async () => {
+    const loadError = ref<string | null>(null)
+    const load = vi.fn(async () => { loadError.value = null })
+    const wrapper = await mountEditor(editorState({ kind: 'booking_content', loadError, load }))
+    vi.spyOn((wrapper.get('iframe').element as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await pickTab(wrapper, 1)
+    expect(pageOf(wrapper)).toBe('visit')
+    loadError.value = '讀取失敗'
+    await flushPromises()
+    expect(wrapper.find('.editor__preview').exists()).toBe(false)
+    await wrapper.get('.editor__alert button').trigger('click')
+    await flushPromises()
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(pageOf(wrapper)).toBe('home')
+  })
+
   it('格線：有目錄 152 / 420–560 / 至少 320；沒目錄 440–640 / 至少 320', () => {
     const desktop = desktopBlock(editorSource)
     expect(desktop).toContain('.editor--preview { max-width: none; }')
