@@ -44,7 +44,12 @@ function focus() {
 watch(() => props.hasNext, (has) => {
   if (!has && nextButton.value?.ref && document.activeElement === nextButton.value.ref) focus()
 })
-defineExpose({ confirmLeave, focus })
+// 列表列上處理了這一筆（到了／沒來、批次標記、填招生資料）：重讀案件，家庭版面連招生資料與紀錄一起讀。
+async function reload() {
+  await vc.load({ quiet: true })
+  if (vc.familyVisit) void vc.family.reload()
+}
+defineExpose({ confirmLeave, focus, reload })
 </script>
 
 <template>

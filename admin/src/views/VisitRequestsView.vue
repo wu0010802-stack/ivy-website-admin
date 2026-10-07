@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
-import type { VisitRequestDetailOut } from '../api/types'
+import type { RecruitmentVisit, VisitRequestDetailOut } from '../api/types'
 import { campusLabel, VISIT_SOURCE_LABELS } from '../api/labels'
 import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, groupsByDay, listApiOrder, listApiParams, listStateQuery, parseListQuery, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -132,6 +132,10 @@ function syncUrl() {
 }
 
 applyQuery(route.query)
+// 清單目前是用哪組條件讀的（網址格式）：使用者改條件後預覽那邊不讓換（有打到一半的紀錄、選了留在這頁），條件退回這一組。
+let appliedQuery = stateQuery()
+// 退回條件時，監聽器與排程的重讀都略過（清單沒變，不必再讀）。
+let reverting = false
 
 // 頁籤是導覽、不算篩選；「只看尚未確認到場」會多送 status=confirmed，算篩選。
 const hasFilters = computed(() => Boolean(campusFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value || attendanceOnly.value))
@@ -207,6 +211,7 @@ async function load(options: { quiet?: boolean } = {}) {
   loadedAt = Date.now()
   const byNextButton = pagedForward
   pagedForward = false
+  appliedQuery = stateQuery()
   syncUrl()
   void loadCounts(version)
   if (!options.quiet) {
@@ -226,6 +231,8 @@ async function load(options: { quiet?: boolean } = {}) {
     // 但前面幾頁還有案件。不能說「沒有待處理的案件」，回第一頁重查（頁數監聽會重抓並改網址）。
     if (!result.length && page.value > 1 && !byNextButton) {
       fallingBack = true
+      // 不是使用者換條件：預覽裡正在看的那筆（剛處理完才讓這一頁變空）要留著。
+      keepPreviewOnReload = true
       page.value = 1
       return
     }
@@ -244,13 +251,38 @@ async function load(options: { quiet?: boolean } = {}) {
 // 同一輪裡條件和頁數一起變（改條件會回第一頁）時只送一次查詢。
 let loadQueued = false
 let unmounted = false
+let keepPreviewOnReload = false
 function queueLoad() {
-  if (loadQueued) return
+  if (loadQueued || reverting) return
   loadQueued = true
   void nextTick(() => {
     loadQueued = false
-    if (!unmounted) void load()
+    if (unmounted) return
+    const keep = keepPreviewOnReload
+    keepPreviewOnReload = false
+    if (keep || !selectedId.value) void load()
+    else void releasePreviewThenLoad()
   })
+}
+
+// 使用者換了條件（頁籤、篩選、搜尋、翻頁、網址上一頁）：右側預覽選的那筆不一定還在新清單裡，清掉選取回到「點一筆」。
+// 預覽裡有打了一半的紀錄就先問，選「留在這頁」就把條件退回原來那組，清單不重讀。
+async function releasePreviewThenLoad() {
+  if (await releasePreview()) {
+    if (!unmounted) void load()
+    return
+  }
+  revertConditions()
+}
+
+function revertConditions() {
+  reverting = true
+  pagedForward = false
+  clearTimeout(searchTimer)
+  applyQuery(appliedQuery)
+  syncUrl()
+  // 條件改回去會觸發監聽器，等它們跑完再放行。
+  void nextTick(() => { reverting = false })
 }
 
 watch(activeTab, (tab) => { if (tab !== 'past') attendanceOnly.value = false })
@@ -260,6 +292,7 @@ function toggleAttendance(on: boolean) {
 }
 
 watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly], () => {
+  if (reverting) return
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
   queueLoad()
@@ -267,6 +300,7 @@ watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, atte
 // 邊打字邊查會連發請求，停下來再送；過時的回應由 loadVersion 擋掉。
 let searchTimer: ReturnType<typeof setTimeout> | undefined
 watch(search, () => {
+  if (reverting) return
   clearTimeout(searchTimer)
   if (matchesRoute()) {
     queueLoad()
@@ -335,6 +369,7 @@ async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) 
     attendanceBusy.value = null
     void openRequests.refresh(true)
     await load({ quiet: true })
+    reloadPreviewFor([row.id])
   }
 }
 
@@ -373,6 +408,7 @@ async function markSelectedArrived() {
   if (failures.length) notifyWarning(`有 ${failures.length} 筆沒有標記成功，原因列在清單上方`)
   void openRequests.refresh(true)
   await load({ quiet: true })
+  reloadPreviewFor(rows.map(row => row.id))
 }
 
 // 匯出不分頁：符合目前篩選的全部案件。按鈕旁講清楚範圍，避免以為只匯出這一頁，
@@ -413,11 +449,23 @@ const rowIds = computed(() => requests.value.map(row => row.id))
 const nextId = computed(() => nextInList(rowIds.value, selectedId.value, selectedIndex))
 
 // 預覽裡有打了一半的聯絡紀錄就先問；選「留在這頁」回 false，不換。
+async function confirmPreviewLeave(): Promise<boolean> {
+  return !preview.value || (await preview.value.confirmLeave())
+}
+
 async function select(id: string): Promise<boolean> {
   if (id === selectedId.value) return true
-  if (preview.value && !(await preview.value.confirmLeave())) return false
+  if (!(await confirmPreviewLeave())) return false
   selectedId.value = id
   selectedIndex = Math.max(0, rowIds.value.indexOf(id))
+  return true
+}
+
+// 使用者換條件：清掉選取（同樣先問打到一半的紀錄）。
+async function releasePreview(): Promise<boolean> {
+  if (!selectedId.value) return true
+  if (!(await confirmPreviewLeave())) return false
+  selectedId.value = null
   return true
 }
 
@@ -439,9 +487,15 @@ watch(requests, () => {
 })
 
 // 預覽裡標了到場、改期、取消或記了一筆：清單與頁首的改期申請數一起更新。
+// 動作自己已經強制刷新過改期申請數（useVisitCase），這裡只補還沒刷新的（例如只記了一筆紀錄），不重複強制。
 function onPreviewChanged() {
   void load({ quiet: true })
-  void openRequests.refresh(true)
+  void openRequests.refresh()
+}
+
+// 在列表列上處理了正在預覽的那筆（到了／沒來、批次標記、填招生資料）：預覽重讀，不然它還是舊狀態，再按會撞到狀態轉換被擋。
+function reloadPreviewFor(ids: readonly (string | null | undefined)[]) {
+  if (selectedId.value && ids.includes(selectedId.value)) void preview.value?.reload()
 }
 
 function openDetail(row: VisitRequestDetailOut) {
@@ -595,7 +649,7 @@ onMounted(() => {
                 :day-only="DAY_ONLY.has(group.bucket)"
                 :show-created="!grouped"
                 :multi-campus="multiCampus"
-                :selected="row.id === selectedId"
+                :selected="wide && row.id === selectedId"
                 :previewable="wide"
                 :can-handle="canHandle"
                 :can-fill-admissions="canFillAdmissions"
@@ -653,6 +707,7 @@ onMounted(() => {
       :options="arrivalOptions"
       :lead="arrivalLead"
       :cancel-text="arrivalCancelText"
+      @saved="(saved: RecruitmentVisit) => reloadPreviewFor([saved.visit_request_id])"
     />
   </div>
 </template>
