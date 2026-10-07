@@ -11,7 +11,7 @@ import { draftSummary } from '../composables/draftSummary'
 import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
-import { MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
+import { dirtySectionIds, MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
 import EditorSectionNav from './EditorSectionNav.vue'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
@@ -53,6 +53,13 @@ const draftChangeList = computed(() => props.editor.draftChanges?.value ?? chang
 const baselineSource = computed(() => props.editor.draftBaseline?.value.source ?? 'saved')
 // 正在讀官網那一版：基準還是 saved，動作列先不寫和官網比的結果（見 ContentEditorState.liveReading）。
 const liveReading = computed(() => props.editor.liveReading?.value ?? false)
+// 目錄打點：和動作列同一個基準（官網那一版；讀不到時和上次儲存比）。
+const dirtySections = computed(() => {
+  const keys = new Set(draftChangeList.value.map((c) => c.key))
+  const base = props.editor.draftBaseline?.value.payload ?? null
+  const current = (props.editor.form?.value ?? {}) as Record<string, unknown>
+  return dirtySectionIds(navSections.value, keys, base, current)
+})
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
@@ -562,6 +569,8 @@ defineExpose({ confirmLeave })
     <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
 
     <template v-else>
+      <div class="editor__layout" :class="{ 'has-nav': hasNav }">
+      <div class="editor__top">
       <!-- 狀態列不是即時區（裡面有預覽、版本紀錄等工具）；狀態變了才由下面隱藏的 status 唸一次。 -->
       <div class="editor__status" :data-tone="status.tone" role="group" :aria-labelledby="statusLabelId">
         <span class="editor__dot" aria-hidden="true" />
@@ -693,10 +702,10 @@ defineExpose({ confirmLeave })
       />
 
       <p v-if="readOnly" class="editor__readonly" role="note">唯讀：你的帳號只能查看這份內容，不能修改或送審。</p>
+      </div>
 
-      <div class="editor__layout" :class="{ 'has-nav': hasNav }">
         <!-- 目錄在表單外面：處理中表單 inert 時目錄仍可用來捲動。 -->
-        <EditorSectionNav v-if="hasNav" :sections="navSections" class="editor__nav" />
+        <EditorSectionNav v-if="hasNav" :sections="navSections" :dirty-ids="dirtySections" class="editor__nav" />
         <div ref="body" class="editor__body panel" :inert="locked || undefined" :aria-busy="locked">
           <div class="panel__body">
             <!-- 唯讀時欄位由各頁的 el-form 綁 editor.readOnly 停用；表單外的新增、
@@ -797,12 +806,14 @@ defineExpose({ confirmLeave })
   max-width: 1200px;
 }
 
-/* 段落目錄：1280 以上放在表單右側（表單仍是 720 寬），較窄時目錄在表單上方。 */
+/* 段落目錄（2026-10-06 方向 D）：1280 以上一律在左側一欄，狀態列與表單在右（表單仍是 720 寬）；
+   較窄時目錄在狀態列與表單之間，是一排可以橫捲的膠囊。 */
 @media (min-width: 1280px) {
-  .editor--with-nav:not(.editor--wide) { max-width: 928px; }
-  .editor__layout.has-nav { display: grid; grid-template-columns: minmax(0, 1fr) 184px; gap: 24px; align-items: start; }
-  .editor__layout.has-nav .editor__nav { grid-column: 2; grid-row: 1; }
-  .editor__layout.has-nav .editor__body { grid-column: 1; grid-row: 1; min-width: 0; }
+  .editor--with-nav:not(.editor--wide):not(.editor--preview) { max-width: 928px; }
+  .editor__layout.has-nav { display: grid; grid-template-columns: 184px minmax(0, 1fr); grid-template-areas: 'nav top' 'nav body'; column-gap: 24px; align-items: start; }
+  .editor__layout.has-nav > .editor__top { grid-area: top; min-width: 0; }
+  .editor__layout.has-nav > .editor__nav { grid-area: nav; }
+  .editor__layout.has-nav > .editor__body { grid-area: body; min-width: 0; }
 }
 
 .editor__alert {
