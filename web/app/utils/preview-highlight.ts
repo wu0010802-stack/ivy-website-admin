@@ -9,9 +9,9 @@ export const PREVIEW_HIT_CLASS = 'preview-live-hit'
 const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'])
 /** 預覽頁的頁首會黏在上方；捲過去時留這麼多。 */
 const TOP_OFFSET = 88
-/** 首頁五校的播放鈕與它「正在自動播放」時的報讀名稱（components/CampusBoard.vue）；preview-highlight.spec 守住兩邊對得上。 */
-const CAROUSEL_PLAYBACK_BUTTON = `${PREVIEW_BLOCKS['home-campuses'].selector} .campus-playback`
-const CAROUSEL_PLAYING_LABEL = '暫停分校自動播放'
+/** 首頁五校的播放鈕與它「正在自動播放」時的報讀名稱（components/CampusBoard.vue）；preview-highlight.spec 守住兩邊對得上，測試的假播放鈕也從這兩個常數組出來。 */
+export const CAROUSEL_PLAYBACK_BUTTON = `${PREVIEW_BLOCKS['home-campuses'].selector} .campus-playback`
+export const CAROUSEL_PLAYING_LABEL = '暫停分校自動播放'
 
 function normalize(text: string | null | undefined): string {
   return (text ?? '').replace(/\s+/g, ' ').trim()
@@ -39,6 +39,9 @@ export function findProbeElement(root: Element, probe: string, isRendered: (el: 
  * 即時預覽不讓首頁五校自己轉走：正在自動播放就按一下它的暫停鈕。已經暫停（或減少動態、還沒開始播）
  * 就不動，所以重複呼叫不會又把它按回播放。不暫停的話，框選把五校捲進視窗後約 4 秒，
  * 剛切到的那一校就會被輪播換掉。回 true 表示這次按了暫停。
+ *
+ * 呼叫時機：必須在 Vue 把畫面更新完（await nextTick()）之後。播放鈕的報讀名稱是跟著 Vue 的狀態更新的，
+ * 更新前讀到的是上一輪的名稱：剛按過暫停、畫面還沒更新就再呼叫，會看到「還在播放」又按一次，反而把它按回播放。
  */
 export function pausePreviewCarousel(doc: Document): boolean {
   const button = doc.querySelector<HTMLElement>(CAROUSEL_PLAYBACK_BUTTON)
@@ -71,15 +74,27 @@ export function highlightPreview(doc: Document, focus: LiveFocus, options: Highl
   const block = PREVIEW_BLOCKS[focus.block]
   const root = doc.querySelector(block.selector)
   if (!root || !focus.mark) return 'none'
-  const hit = focus.probe ? findProbeElement(root, focus.probe, options.isRendered) : null
+  const found = focus.probe ? findProbeElement(root, focus.probe, options.isRendered) : null
+  // 整頁區塊（outline: false，例如 page-top 的 #main）：文字只對得到整個區塊本身（跨好幾個元素、沒有哪一個單獨含有）
+  // 就等於沒找到，不能把整個 #main 框起來還回報 text。
+  const hit = found && found === root && !block.outline ? null : found
   const target = hit ?? (block.outline ? root : null)
   if (!target) return 'none'
   target.classList.add(PREVIEW_HIT_CLASS)
-  revealInFrame(doc, target, hit ? 'center' : 'start', options.reduceMotion ?? false)
+  revealInFrame(doc, target, hit ? 'center' : 'start', options.reduceMotion)
   return hit ? 'text' : 'block'
 }
 
-export function revealInFrame(doc: Document, el: Element, align: 'center' | 'start', reduceMotion: boolean): void {
+/**
+ * 只捲這份文件自己的視窗。reduceMotion 沒指定時看這個視窗的系統設定（prefers-reduced-motion），
+ * 開了就直接跳、不用平滑捲動。
+ */
+export function revealInFrame(
+  doc: Document,
+  el: Element,
+  align: 'center' | 'start',
+  reduceMotion: boolean = doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+): void {
   const view = doc.defaultView
   if (!view) return
   const rect = el.getBoundingClientRect()
