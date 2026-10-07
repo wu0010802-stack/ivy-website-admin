@@ -284,6 +284,68 @@ test('首頁五校：即時預覽停在被改的那一校，輪播不會自己�
   await context.close()
 })
 
+// 2026-10-07 最終審查 I1：首頁五校的「預約參觀」在開啟動態的 Chromium 會自己 navigateTo（照片接續換頁），
+// 不經過連結點擊，預覽頁攔連結的 handler 攔不到：iframe 被帶到真的預約頁、預覽的 listener 拆掉、之後的修改全被丟掉，
+// 後台卻還寫「預覽的是還沒存的修改」。e2e 預設是「減少動態」不會走這條路，所以這一則要開動態。
+test('首頁五校：開啟動態時點預覽裡的「預約參觀」不會把預覽帶離 /preview，之後的修改照常送進預覽', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const { context, page } = await openAs(browser, 'super_admin')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await gotoAdmin(page, '/content/campus-profile?campus=minghua', '五校介紹')
+  await expectLive(page)
+  const pane = page.getByRole('complementary', { name: '官網預覽' })
+  await pane.getByRole('radio', { name: '桌機' }).check({ force: true })
+  const frame = page.frameLocator(FRAME)
+  await expect(frame.locator('#campus-tab-minghua')).toHaveAttribute('aria-selected', 'true', { timeout: 10_000 })
+  // 前提：預覽頁真的會走照片接續換頁（有 View Transition、沒開減少動態），否則這一則測不到那條路。
+  const inner = await previewFrame(page)
+  expect(await inner.evaluate(() => typeof (document as unknown as { startViewTransition?: unknown }).startViewTransition === 'function' && !matchMedia('(prefers-reduced-motion: reduce)').matches), '預覽頁的動態沒開，測不到照片接續換頁').toBe(true)
+
+  const booking = frame.locator('#campuses .booking-link')
+  await expect(booking).toBeVisible()
+  await booking.click()
+  // 觀察窗：點了之後整段時間預覽頁都還在 /preview（換頁的 View Transition 約一秒內完成，3 秒夠看出來）。
+  await holdsFor(page, 3_000, '預覽被帶離 /preview（點「預約參觀」之後）', async () => new URL((await previewFrame(page)).url()).pathname === '/preview')
+  await expect(frame.locator('#campuses')).toBeVisible()
+  await expect(pane.getByText(LIVE_TEXT)).toBeVisible()
+
+  // 之後的修改照常送進預覽、框出那一格：預覽的 listener 還在。
+  const marker = `預約鈕之後 ${Date.now()}`
+  await page.getByRole('textbox', { name: '地址' }).fill(marker)
+  await expect(frame.locator('.preview-live-hit')).toContainText(marker, { timeout: 10_000 })
+  expect(new URL((await previewFrame(page)).url()).pathname).toBe('/preview')
+  await page.getByRole('button', { name: '放棄修改' }).click()
+  await answerMessageBox(page, /放棄 \d+ 個欄位的修改？/, '放棄修改')
+  await context.close()
+})
+
+// 2026-10-07 最終審查 I2：框整塊時「露出 1px 就算看得到」。手機預覽（預設）剛連上「關於常春藤」時 .home-belief 只露 21px，
+// 預覽停在首屏。現在要露出 min(區塊高, 頁首底下可用視窗的一半) 才算。
+test('關於常春藤（手機預覽）：剛連上就停在那一塊，不是只露一截的首屏', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const { context, page } = await openAs(browser, 'super_admin')
+  await gotoAdmin(page, '/content/home-about', '關於常春藤')
+  await expectLive(page)
+  const inner = await previewFrame(page)
+  const measure = () =>
+    inner.evaluate(() => {
+      const rect = document.querySelector('.home-belief')!.getBoundingClientRect()
+      const inset = document.querySelector('header.header')!.getBoundingClientRect().bottom
+      const shown = Math.round(Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, inset))
+      const needed = Math.round(Math.min(rect.height, (window.innerHeight - inset) / 2))
+      return { shown, needed, top: Math.round(rect.top), viewport: window.innerHeight, scrollY: Math.round(window.scrollY), width: window.innerWidth }
+    })
+  await expect.poll(async () => {
+    const m = await measure()
+    return m.shown >= m.needed
+  }, { timeout: 15_000, message: '剛連上時「關於常春藤」只露出一小截' }).toBe(true)
+  const m = await measure()
+  console.log('[關於常春藤 剛連上]', JSON.stringify(m))
+  expect(m.width).toBe(390)
+  expect(m.scrollY).toBeGreaterThan(0)
+  await context.close()
+})
+
 test('五校介紹換校：未存修改要確認，確認框開著時預覽不把這一校的修改畫在另一校；放棄換成另一校已存的內容，留在這頁維持原樣', async ({ browser }) => {
   test.setTimeout(120_000)
   const { context, page } = await openAs(browser, 'super_admin')
