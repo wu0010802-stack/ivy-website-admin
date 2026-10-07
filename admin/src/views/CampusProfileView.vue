@@ -12,6 +12,7 @@ import MediaSlotField from '../components/MediaSlotField.vue'
 import FocusPicker from '../components/FocusPicker.vue'
 import { addressSearchUrl, mapUrlError } from '../composables/siteLinks'
 import { webUrlError } from '../composables/newsContent'
+import type { EditorSection } from '../composables/editorSections'
 
 const campus = ref('')
 const editor = useContentItem<CampusProfilePayload>(
@@ -38,6 +39,14 @@ const editor = useContentItem<CampusProfilePayload>(
   },
   campus,
 )
+
+// 段落目錄（2026-10-06 方向 D）：每段列出它編輯的欄位，和官網不同時目錄打點。
+// intro、description 官網已不顯示（分校頁拿掉），fb_note 後台不列，都算在原本所在的那一段。
+const navSections = computed<EditorSection[]>(() => [
+  { id: 'section-profile-basic', label: '基本資料', fields: ['name', 'district', 'address', 'map_url', 'phone', 'intro', 'description'] },
+  { id: 'section-profile-cover', label: '封面照片與建築線稿', fields: ['cover', 'card_focus', 'hero_focus', 'line_art', 'line_art_colour'] },
+  { id: 'section-profile-social', label: '社群', fields: ['facebook', 'fb_note', 'line', 'instagram', 'youtube'] },
+])
 
 // 官網內建的五校封面（沒換封面時也能只調兩個版位的焦點）。
 const BUILTIN_COVERS: Record<string, string> = {
@@ -105,6 +114,7 @@ function blankError(value: string | null | undefined): string {
   <ContentEditor
     ref="shell"
     :editor="editor"
+    :sections="navSections"
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
     <template #lead>各校在首頁五校區塊、選單與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
@@ -113,6 +123,7 @@ function blankError(value: string | null | undefined): string {
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+      <h3 id="section-profile-basic" class="form-section form-section--first" data-section-anchor tabindex="-1">基本資料</h3>
       <div class="field-row">
         <el-form-item label="校名" required :error="blankError(editor.form.value.name)">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
@@ -138,7 +149,7 @@ function blankError(value: string | null | undefined): string {
         <span class="field-help">也會出現在頁首選單、頁尾、預約表單與家長修改頁。</span>
       </el-form-item>
 
-      <h3 class="form-section">封面照片與建築線稿</h3>
+      <h3 id="section-profile-cover" class="form-section" data-section-anchor tabindex="-1">封面照片與建築線稿</h3>
       <p class="field-help">沒選的沿用官網內建。封面在首頁五校卡與預約頁裁成不同比例，可以點選要保留的位置；沒換封面也能只調位置。</p>
       <el-form-item label="封面照片">
         <MediaSlotField
@@ -191,7 +202,7 @@ function blankError(value: string | null | undefined): string {
         </el-form-item>
       </div>
 
-      <h3 class="form-section">社群</h3>
+      <h3 id="section-profile-social" class="form-section" data-section-anchor tabindex="-1">社群</h3>
       <p v-if="!editor.readOnly.value" class="field-help social-lead">
         貼完整網址（https:// 開頭），在瀏覽器打開該校的頁面、從網址列複製最準。只填這一校自己的帳號，不要填其他校或機構的。
       </p>
@@ -228,5 +239,11 @@ function blankError(value: string | null | undefined): string {
   padding-top: 16px;
   border-top: 1px solid var(--line);
   color: var(--ink-2);
+}
+
+.form-section--first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 </style>
