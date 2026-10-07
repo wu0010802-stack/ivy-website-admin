@@ -128,6 +128,16 @@ describe('案件列表：到了 → 招生資料表單', () => {
     expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '已標記 黃志明 已到場，但招生資料表單打不開；請到招生入學補填' }))
   })
 
+  it('剛標記到場卻找不到招生訪視（空清單）：同樣講明已到場、去招生入學補，不用「建立招生訪視」的說法', async () => {
+    const { wrapper } = await mountList({ records: [] })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const warning = vi.spyOn(ElMessage, 'warning')
+    mockPost()
+    await arriveInList(wrapper)
+    expect(dialog()).toBeNull()
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '已標記 黃志明 已到場，但招生資料表單打不開；請到招生入學補填' }))
+  })
+
   it('不能改招生資料、或招生入學沒開：照舊只標記到場，不查招生、不打開表單', async () => {
     for (const options of [{ user: readOnlyAdmissions() }, { admissions: false }]) {
       const { wrapper, get } = await mountList(options)

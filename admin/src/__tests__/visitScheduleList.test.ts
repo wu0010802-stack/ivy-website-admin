@@ -113,6 +113,30 @@ describe('行程清單（2026-10-06 方向 B）', () => {
     expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: `${arrived.parent_name} 的招生資料表單打不開；請到招生入學查看` }))
   })
 
+  it('填招生資料時還沒有招生訪視（開關打開前到場的舊案）：不是死路，打開案件、說明要按「建立招生訪視」', async () => {
+    const arrived = row('2026-01-05', '10:00', { status: 'completed', display_status: 'past' })
+    const { wrapper, router } = await mountList('/visit-requests?group=arrived', [arrived], { admissions: true }, { '/admin/admissions/records': [] })
+    const warning = vi.spyOn(ElMessage, 'warning')
+    await button(wrapper.get('.visit-row'), '填招生資料')!.trigger('click')
+    await flushPromises()
+    // 列表換成明細頁（元件已卸載），表單沒有打開過。
+    expect(document.body.querySelector('.record-dialog')).toBeNull()
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: `${arrived.parent_name} 已到場，但還沒有招生訪視；請在案件裡按「建立招生訪視」` }))
+    expect(router.currentRoute.value.path).toBe(`/visit-requests/${arrived.id}`)
+  })
+
+  it('填招生資料時招生訪視已匿名化：不打開表單、不換頁，說明不能再修改', async () => {
+    const arrived = row('2026-01-05', '10:00', { status: 'completed', display_status: 'past' })
+    const record = admissionsVisit({ visit_request_id: arrived.id, has_visit_request: true, anonymized_at: '2026-09-01T00:00:00Z' })
+    const { wrapper, router } = await mountList('/visit-requests?group=arrived', [arrived], { admissions: true }, { '/admin/admissions/records': [record] })
+    const warning = vi.spyOn(ElMessage, 'warning')
+    await button(wrapper.get('.visit-row'), '填招生資料')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent(RecordDialog).props('modelValue')).toBe(false)
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: `${arrived.parent_name} 的招生資料已依保存政策匿名化，不能再修改` }))
+    expect(router.currentRoute.value.path).toBe('/visit-requests')
+  })
+
   it('招生入學沒開、或不能改招生資料：已到場的列沒有「填招生資料」', async () => {
     const arrived = row('2026-01-05', '10:00', { status: 'completed', display_status: 'past' })
     const off = await mountList('/visit-requests?group=arrived', [arrived], { admissions: false })

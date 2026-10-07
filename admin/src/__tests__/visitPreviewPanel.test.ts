@@ -345,6 +345,23 @@ describe('在列表列上處理正在預覽的那筆：預覽跟著重讀', () =
     expect(button(wrapper.get('.visit-preview'), '家長到了')).toBeUndefined()
   })
 
+  it('列上「填招生資料」遇到還沒有招生訪視：右側預覽打開這一筆，頁首就是「建立招生訪視」，不換頁', async () => {
+    const { wrapper, router } = await mountWide(['r1'], {
+      slot: pastSlot,
+      admissions: true,
+      caseExtra: { status: 'completed', display_status: 'past' },
+      extra: { '/admin/admissions/records': [] },
+    })
+    const warning = vi.spyOn(ElMessage, 'warning')
+    await wrapper.get('button[aria-label="填招生資料：吳先生"]').trigger('click')
+    await flushPromises()
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('還沒有招生訪視') }))
+    const preview = wrapper.get('.visit-preview')
+    expect(preview.get('.detail__admissions').text()).toContain('已到場，但還沒有招生訪視。')
+    expect(button(preview, '建立招生訪視')).toBeDefined()
+    expect(router.currentRoute.value.path).toBe('/visit-requests')
+  })
+
   it('列上「填招生資料」存好之後', async () => {
     const linked = admissionsVisit({ visit_request_id: 'r1', has_visit_request: true })
     const { wrapper } = await mountWide(['r1'], {

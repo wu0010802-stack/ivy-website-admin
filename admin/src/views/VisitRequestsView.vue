@@ -503,6 +503,12 @@ function openDetail(row: VisitRequestDetailOut) {
   else void router.push(detailTo(row.id))
 }
 
+// 已到場的列「填招生資料」：開關打開之前到場的舊案沒有招生訪視，表單打不開也沒有別處可去，
+// 所以把案件打開（預覽或明細），頁首就是「已到場，但還沒有招生訪視」＋「建立招生訪視」（同明細，不在列表偷偷建立）。
+async function fillAdmissions(row: VisitRequestDetailOut) {
+  if ((await arrival.openFor(row, { justArrived: false })) === 'missing') openDetail(row)
+}
+
 function onManualCreated(created: VisitRequestDetailOut) {
   router.push(`/visit-requests/${created.id}`)
 }
@@ -659,7 +665,7 @@ onMounted(() => {
                 :locked="attendanceLocked"
                 @activate="openDetail(row)"
                 @attendance="(kind: AttendanceKind) => markAttendance(row, kind)"
-                @fill="arrival.openFor(row, { justArrived: false })"
+                @fill="fillAdmissions(row)"
                 @toggle="(on: boolean) => toggleSelected(row, on)"
               />
             </ul>
