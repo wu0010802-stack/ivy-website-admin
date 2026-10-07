@@ -119,6 +119,12 @@ defineExpose({ confirmLeave, focus, reload })
   box-shadow: none;
 }
 
+/* 面板自己捲，區塊不能被壓扁：.panel 是 overflow: hidden，在高度受限的 flex 直欄裡 min-height 會算成 0，
+   不寫的話家長資料、時間線與最底的取消預約會被截掉、捲不到。 */
+.visit-preview > :deep(*) {
+  flex-shrink: 0;
+}
+
 .visit-preview__section {
   padding: 14px 20px;
   border-top: 1px solid var(--line);

@@ -127,6 +127,11 @@ function onRowClick(event: MouseEvent) {
   background: var(--el-color-primary-light-9);
 }
 
+/* 選取列的底色是淺主色，預設連結色（accent-strong）在上面對比只有 4.43:1，要 4.5:1。 */
+.visit-row.is-selected .visit-row__phone {
+  color: var(--admin-accent-hover);
+}
+
 .visit-row__check {
   flex: none;
   width: var(--check-w);
@@ -245,6 +250,67 @@ function onRowClick(event: MouseEvent) {
 
   .visit-row__campus-inline {
     display: inline;
+  }
+}
+
+/* 中寬（桌機寬度但右側預覽打開、清單約 540px）：電話不獨佔一欄，掉到家長那一欄的第三行
+   （家長・孩子／校區・來源／電話），家長那一欄吃剩下的寬度，到了／沒來留在右側。
+   手機（720px 以下）有自己的卡片版面，這裡不管。 */
+@media (min-width: 721px) {
+  @container visit-list (max-width: 640px) {
+    .visit-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0 var(--gap-x);
+    }
+
+    .visit-row.has-check {
+      grid-template-columns: var(--check-w) minmax(0, 1fr) auto;
+    }
+
+    .visit-row__check {
+      grid-row: 1 / span 2;
+      grid-column: 1;
+    }
+
+    .visit-row__main {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .visit-row.has-check .visit-row__main {
+      grid-column: 2;
+    }
+
+    /* 縮排對齊家長那一欄：時間欄 120px＋主連結的欄距 12px。justify-self 不讓電話連結撐滿整格（點空白處會撥號）。 */
+    .visit-row__phone {
+      grid-row: 2;
+      grid-column: 1;
+      justify-self: start;
+      width: auto;
+      margin: 2px 0 0 132px;
+    }
+
+    .visit-row.has-check .visit-row__phone {
+      grid-column: 2;
+    }
+
+    .visit-row__acts {
+      grid-row: 1 / span 2;
+      grid-column: 2;
+      min-width: 0;
+    }
+
+    .visit-row.has-check .visit-row__acts {
+      grid-column: 3;
+    }
+  }
+}
+
+/* 桌機寬度、名字欄被擠窄時（預覽打開、勾選框、長名字），孩子名整段一起換行，不從中間斷開（「測／試寶貝」）。 */
+@media (min-width: 721px) {
+  .visit-row__child {
+    display: inline-block;
   }
 }
 
