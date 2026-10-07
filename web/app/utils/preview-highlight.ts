@@ -148,9 +148,13 @@ export function revealInFrame(
   const inset = previewTopInset(doc)
   const rect = el.getBoundingClientRect()
   const height = view.innerHeight
+  // 框整塊（start）：頁首底下露出的高度要 ≥ min(區塊高, 可用視窗高的一半)，只露幾 px 不算看得到——
+  // 手機預覽剛連上「關於常春藤」時 .home-belief 只露 21px，使用者看到的是首屏、不是改的那一塊。
+  // 比視窗高的區塊捲到頂之後露出的高度就是整個可用視窗，仍算看得到，連續打字不會來回跳。
+  const shown = Math.min(rect.bottom, height) - Math.max(rect.top, inset)
   const visible = align === 'center'
     ? rect.top >= inset && rect.bottom <= height
-    : rect.bottom > inset && rect.top < height
+    : shown >= Math.min(rect.height, (height - inset) / 2)
   if (visible) return
   const offset = align === 'center' ? Math.max(inset, (height - rect.height) / 2) : inset
   view.scrollTo({ top: Math.max(0, view.scrollY + rect.top - offset), behavior: reduceMotion ? 'auto' : 'smooth' })

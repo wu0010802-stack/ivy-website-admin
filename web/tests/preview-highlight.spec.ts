@@ -298,13 +298,65 @@ describe('頂端留白用預覽頁頁首的實際高度', () => {
     revealInFrame(document, p, 'start', true)
     expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 1200 - 92, behavior: 'auto' })
     scrollTo.mockClear()
-    // 底緣剛好在 80（頁首 78 底下）：用實際高度 78 算看得到，不捲；寫死 88 的話會被當成看不到。
+    // 整塊（30px）完整在頁首 78 底下：用實際高度 78 算看得到，不捲；寫死 88 的話頂端 80 會被當成被頁首蓋住。
     document.body.innerHTML = '<header class="header"></header><main id="main"><p>內文</p></main>'
     vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
     const q = document.querySelector('p')!
-    vi.spyOn(q, 'getBoundingClientRect').mockReturnValue(rect(40, 84))
+    vi.spyOn(q, 'getBoundingClientRect').mockReturnValue(rect(80, 110))
     revealInFrame(document, q, 'start', true)
     expect(scrollTo).not.toHaveBeenCalled()
+  })
+
+  // 2026-10-07 最終審查 I2：框整塊（start）的「看得到」門檻 = 看得到的高度 ≥ min(區塊高, (視窗高 − 頁首高) ÷ 2)。
+  // 原本只要露 1px 就算看得到，手機預覽打開「關於常春藤」時 .home-belief 只露 21px、停在首屏。
+  describe('框整塊的看得到門檻', () => {
+    const setup = (header = 78) => {
+      document.body.innerHTML = '<header class="header"></header><main id="main"><section class="home-belief"></section></main>'
+      const scrollTo = layout({ header: 'fixed' }, 0, 629)
+      vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, header))
+      return { scrollTo, block: document.querySelector('.home-belief')! }
+    }
+
+    it('只露 21px（手機預覽剛連上「關於常春藤」）：要捲到頁首底下', () => {
+      const { scrollTo, block } = setup()
+      vi.spyOn(block, 'getBoundingClientRect').mockReturnValue(rect(608, 1400))
+      revealInFrame(document, block, 'start', true)
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0 + 608 - 78, behavior: 'auto' })
+    })
+
+    it('露出的高度到可用視窗的一半（(629 − 78) ÷ 2 = 275.5）才算看得到；差 1px 就捲', () => {
+      const { scrollTo, block } = setup()
+      const blockRect = vi.spyOn(block, 'getBoundingClientRect').mockReturnValue(rect(353, 1400))
+      revealInFrame(document, block, 'start', true)
+      expect(scrollTo).not.toHaveBeenCalled()
+      blockRect.mockReturnValue(rect(354, 1400))
+      revealInFrame(document, block, 'start', true)
+      expect(scrollTo).toHaveBeenCalledTimes(1)
+    })
+
+    it('比視窗高的區塊捲到頁首底下之後仍算看得到：連續打字不會來回跳；小區塊整塊在視窗裡也不捲', () => {
+      const { scrollTo, block } = setup()
+      const blockRect = vi.spyOn(block, 'getBoundingClientRect').mockReturnValue(rect(78, 1400))
+      revealInFrame(document, block, 'start', true)
+      // 使用者自己又往下捲了一段（頂端已經在頁首之上）：視窗裡還是整片區塊。
+      blockRect.mockReturnValue(rect(-300, 1100))
+      revealInFrame(document, block, 'start', true)
+      // 區塊比一半可用視窗矮：整塊露出就算。
+      blockRect.mockReturnValue(rect(300, 400))
+      revealInFrame(document, block, 'start', true)
+      expect(scrollTo).not.toHaveBeenCalled()
+    })
+
+    it('區塊在視窗上方或下方完全看不到、或只有底緣在頁首底下一點點：都捲', () => {
+      const { scrollTo, block } = setup()
+      const blockRect = vi.spyOn(block, 'getBoundingClientRect').mockReturnValue(rect(-900, -100))
+      revealInFrame(document, block, 'start', true)
+      blockRect.mockReturnValue(rect(-700, 84))
+      revealInFrame(document, block, 'start', true)
+      blockRect.mockReturnValue(rect(700, 1100))
+      revealInFrame(document, block, 'start', true)
+      expect(scrollTo).toHaveBeenCalledTimes(3)
+    })
   })
 
   it('目標在固定的頁首裡（或本身是 fixed）：不捲，但照樣框起來並回報', () => {
