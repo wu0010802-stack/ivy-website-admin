@@ -127,7 +127,7 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     await expect(dialog).toBeHidden()
     await expect.poll(() => followUps(api, 'due')).not.toContain(A.child)
     expect(await followUps(api, 'upcoming')).toContain(A.child)
-    await expect(page.locator('.family-notes__item', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
+    await expect(page.locator('.timeline__item[data-kind="note"]', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
     await expect(page.locator('.timeline__item', { hasText: '建立訪視' })).toHaveCount(1)
   })
 

@@ -233,7 +233,8 @@ describe('明細的欄位與手機撥號', () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
     const headings = wrapper.findAll('h2').map((h) => h.text())
-    expect(headings.indexOf('聯絡紀錄')).toBeLessThan(headings.indexOf('家長管理連結'))
+    expect(headings.indexOf('聯絡紀錄與案件歷程')).toBeGreaterThanOrEqual(0)
+    expect(headings.indexOf('聯絡紀錄與案件歷程')).toBeLessThan(headings.indexOf('家長管理連結'))
   })
 
   it('時段選單的名額用「組」', async () => {

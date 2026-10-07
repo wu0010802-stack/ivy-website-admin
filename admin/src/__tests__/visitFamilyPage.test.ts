@@ -111,9 +111,9 @@ describe('家庭版面（5.1–5.7）', () => {
   it('聯絡紀錄合併參觀前後；沒有輸入框；歷程合併招生事件', async () => {
     mockFamily()
     const { wrapper } = await mountDetail()
-    expect(wrapper.findAll('.family-notes__item').map((item) => item.attributes('data-phase'))).toEqual(['after', 'before'])
+    expect(wrapper.findAll('.timeline__item[data-kind="note"][data-phase]').map((item) => item.attributes('data-phase'))).toEqual(['after', 'before'])
     expect(wrapper.find('.notes__form').exists()).toBe(false)
-    const titles = wrapper.findAll('.timeline__item strong').map((el) => el.text())
+    const titles = wrapper.findAll('.timeline__item[data-kind="event"] strong').map((el) => el.text())
     expect(titles).toEqual(['建立訪視（官網預約到場）', '標記已到場', '家長從官網送出'])
   })
 
@@ -317,7 +317,7 @@ describe('其他修正', () => {
     const html = wrapper.html()
     const hint = html.indexOf('招生的歷程讀不到')
     expect(hint).toBeGreaterThan(-1)
-    expect(hint).toBeLessThan(html.indexOf('timeline'))
+    expect(hint).toBeLessThan(html.indexOf('case-timeline__list'))
   })
 
   it('M8：切回分頁重讀預約時，家庭版面的招生訪視也一起重讀', async () => {

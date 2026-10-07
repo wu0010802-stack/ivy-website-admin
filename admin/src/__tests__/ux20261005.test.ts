@@ -177,7 +177,7 @@ describe('案件明細：改期一律先收成連結', () => {
     expect(mobile).toMatch(/\.detail__main \{\s*display: flex;\s*flex-direction: column;/)
     expect(mobile).not.toContain('.detail__after')
     expect(mobile).toMatch(/\.detail__notes \{\s*order: -1;/)
-    expect(detailSource).toContain('class="section detail__notes"')
+    expect(detailSource).toContain('<VisitCaseTimeline')
   })
 })
 

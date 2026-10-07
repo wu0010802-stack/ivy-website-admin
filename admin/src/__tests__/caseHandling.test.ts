@@ -280,9 +280,9 @@ describe('案件歷程（第 15 條）', () => {
     const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     expect(get).toHaveBeenCalled()
-    const timeline = wrapper.find('ol[aria-label="案件歷程"]')
+    const timeline = wrapper.find('ol[aria-label="聯絡紀錄與案件歷程"]')
     expect(timeline.exists()).toBe(true)
-    const items = timeline.findAll('li').map(li => li.text())
+    const items = timeline.findAll('li[data-kind="event"]').map(li => li.text())
     // 最新的在上面。
     expect(items[0]).toContain('取消預約')
     expect(items[0]).toContain('amy')

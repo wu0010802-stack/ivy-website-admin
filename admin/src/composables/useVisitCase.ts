@@ -7,7 +7,7 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import { lastHandled } from '../api/visitHistory'
 import type { RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
 import { formatDateTime, formatSlotWhen, maskEmail, slotStarted, visitDisplay, visitDisplayStatus, visitStatus } from '../api/labels'
-import { arrivedAt, familyLastHandled, familyNotes, latestContact } from '../admissions/family'
+import { familyLastHandled, latestContact } from '../admissions/family'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { notifyError, notifyWarning } from './notify'
@@ -479,7 +479,6 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   }
 
   // ---- 家庭版面（2026-10-05 家庭頁規格第 5 節）----
-  const familyNoteList = computed(() => familyNotes(notes.value, family.contactLogs.value, arrivedAt(detail.value?.history ?? [])))
   const latestFamilyContact = computed(() => latestContact(family.contactLogs.value))
   // 撥號：園方改過以招生那筆為準，招生電話空的退回預約電話（規格 5.2）。
   // 匿名化後預約電話也會被寫成假號碼，退回撥它沒有意義：整顆不顯示（Review Focus 3）。
@@ -620,7 +619,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     familyStaff: family.staff, familyOptions: family.options,
     familyVisit, familyPending, handled, noteDirty, openSlots, rescheduleSlots, parentMailNote, visitStarted, attendanceDue,
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
-    familyNoteList, latestFamilyContact, callPhone, bookingDataTitle,
+    latestFamilyContact, callPhone, bookingDataTitle,
     load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, opensForm, reschedule, decideReschedule,
     addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
   })

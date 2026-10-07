@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, partySizeLabel, referralSourceLabels, staffEmail, staffLabel, staffOf } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, partySizeLabel, referralSourceLabels } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -13,20 +13,19 @@ import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
 import { ARRIVAL_FORM_CANCEL_TEXT } from '../composables/useArrivalAdmissionsForm'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
-import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
 import { detailOrigin } from '../admissions/family'
 import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
 import FamilyActions from '../components/visit/FamilyActions.vue'
-import FamilyContactNotes from '../components/visit/FamilyContactNotes.vue'
 import VisitCaseHero from '../components/visit/VisitCaseHero.vue'
+import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 
 // 案件的資料層與動作在 composables/useVisitCase.ts（2026-10-06 抽出，預覽面板共用同一份）；
-// 這一頁只管返回、下一筆、離頁保護、改期表單的焦點與下次聯絡的日期快捷。
+// 這一頁只管返回、下一筆、離頁保護與改期表單的焦點；聯絡紀錄與歷程在 VisitCaseTimeline。
 const vc = useVisitCase(id, {
   onLoaded: (loaded) => void loadNextCases(loaded.campus_key),
   onRebooked: async (created) => {
@@ -37,14 +36,14 @@ const vc = useVisitCase(id, {
 })
 provideVisitCase(vc)
 const {
-  detail, notes, newNote, followUpAt, rescheduleSlotId, rescheduleReason, manualRescheduleOpen, pendingAction, busy,
-  bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, staff, canCreateAdmissions,
-  admissionsVisit, extrasFailed, familyEvents, familyOptions, familyStaff,
+  detail, rescheduleSlotId, rescheduleReason, manualRescheduleOpen, pendingAction, busy,
+  bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, canCreateAdmissions,
+  admissionsVisit, familyOptions, familyStaff,
   familyVisit, familyPending, noteDirty, rescheduleSlots, attendanceDue, confirmedAtShown,
-  followUpTracked, followUpPast, linkApplicable, familyNoteList, latestFamilyContact,
+  linkApplicable, latestFamilyContact,
   bookingDataTitle, loading, error, emailEnabled,
 } = toRefs(vc)
-const { cancel, reschedule, addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
+const { cancel, reschedule, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
 const family = vc.family
 
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
@@ -208,28 +207,6 @@ function goNext() {
   void router.replace(typeof list === 'string' && list ? { path, query: { list } } : path)
 }
 
-// 日期選擇器不給過去的時間：「下次聯絡」記在昨天沒有意義。
-function disablePast(date: Date): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return date.getTime() < today.getTime()
-}
-
-// 家長常說「明天再打」「過幾天」「下週」：一鍵帶入，時間都放上午 10 點。
-function daysLaterAtTen(days: number): Date {
-  const date = new Date()
-  date.setDate(date.getDate() + days)
-  date.setHours(10, 0, 0, 0)
-  return date
-}
-
-const followUpShortcuts = [
-  { text: '明天 10:00', value: () => daysLaterAtTen(1) },
-  { text: '3 天後', value: () => daysLaterAtTen(3) },
-  // 週日按「下週一」是明天；週一按是七天後。
-  { text: '下週一', value: () => daysLaterAtTen((8 - new Date().getDay()) % 7 || 7) },
-]
-
 // 「下一筆」的請求序號：換案件就加一，舊案件較晚回來的清單不能蓋掉（案件本身的序號在 useVisitCase）。
 let nextGeneration = 0
 // 「下一筆」是同一個元件換 id，router 不會重新掛載；案件本身的重設與重讀在 useVisitCase。
@@ -302,69 +279,9 @@ watch(id, () => {
             </el-descriptions>
           </div>
 
-          <!-- 已到場、有招生訪視時是家庭版面（FamilyContactNotes），這裡是其他情況的聯絡紀錄。 -->
-          <!-- 聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
-          <section v-if="!familyVisit" class="section detail__notes">
-            <div class="section__title"><h2>聯絡紀錄</h2></div>
-            <ol class="notes" v-if="notes.length > 0">
-              <li v-for="n in notes" :key="n.id" class="notes__item">
-                <span class="notes__meta">
-                  <time class="notes__time num">{{ formatDateTime(n.created_at) }}</time>
-                  <span v-if="n.created_by" class="notes__author" :title="staffEmail(staffOf(n, 'created_by')) || undefined">{{ staffLabel(staffOf(n, 'created_by')) }}</span>
-                </span>
-                <p class="detail__pre">{{ n.note }}</p>
-              </li>
-            </ol>
-            <p v-else class="hint">{{ canHandle ? '還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。' : '還沒有聯絡紀錄。' }}</p>
-            <div v-if="canHandle" class="notes__form">
-              <el-input
-                v-model="newNote"
-                type="textarea"
-                :autosize="{ minRows: 2, maxRows: 6 }"
-                placeholder="例如：已致電，家長希望週六上午，下週回覆"
-                aria-label="新增聯絡紀錄"
-                @keydown.meta.enter="addNote"
-                @keydown.ctrl.enter="addNote"
-              />
-              <div class="notes__row">
-                <span v-if="!followUpTracked" class="hint notes__untracked">
-                  已到場或已取消的案件不會列入到期待追蹤。
-                </span>
-                <label v-else class="notes__follow">
-                  <span>下次聯絡</span>
-                  <el-date-picker
-                    v-model="followUpAt"
-                    type="datetime"
-                    value-format="YYYY-MM-DDTHH:mm:ss+08:00"
-                    format="MM/DD HH:mm"
-                    placeholder="不用再追"
-                    :disabled-date="disablePast"
-                    :default-time="new Date(2000, 0, 1, 10, 0, 0)"
-                    :shortcuts="followUpShortcuts"
-                    popper-class="notes__follow-popper"
-                    clearable
-                    style="width: 160px"
-                  />
-                </label>
-                <el-button :loading="pendingAction === 'note'" :disabled="!newNote.trim() || busy" @click="addNote">新增紀錄</el-button>
-                <span class="hint notes__hint">按 ⌘／Ctrl＋Enter 也能送出</span>
-              </div>
-              <!-- 報讀區一直留在頁面上，提示出現或消失時報讀軟體才會念出來。 -->
-              <div class="notes__status" role="status">
-                <p v-if="followUpPast" class="field-help notes__past">
-                  下次聯絡的時間已經過了：不改的話，記完這筆紀錄後案件仍會列在「到期待追蹤」。要再追就選新時間，不用再追就清空。
-                </p>
-              </div>
-            </div>
-          </section>
-          <FamilyContactNotes
-            v-else
-            class="section detail__notes"
-            :notes="familyNoteList"
-            :logs-failed="extrasFailed.logs"
-            :can-record="canCreateAdmissions"
-            @reload="family.loadExtras"
-          />
+          <!-- 聯絡紀錄與案件歷程合成一條時間線（輸入框在最上；家庭版面沒有輸入框、再併入參觀後聯絡與招生事件）。
+               聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
+          <VisitCaseTimeline />
 
           <ParentAccessLinkPanel
             v-if="linkApplicable"
@@ -377,14 +294,6 @@ watch(id, () => {
             :deadline-hours="detail.parent_change_deadline_hours"
             @changed="refreshDetail"
           />
-
-          <section class="section">
-            <div class="section__title"><h2>案件歷程</h2><span class="hint">誰在什麼時候改了什麼</span></div>
-            <p v-if="familyVisit && extrasFailed.events" class="hint">
-              招生的歷程讀不到。<el-button link type="primary" @click="family.loadExtras">重新載入</el-button>
-            </p>
-            <VisitHistoryTimeline :events="detail.history ?? []" :staff="staff" :recruitment-events="familyVisit ? familyEvents : undefined" />
-          </section>
           </template>
         </div>
 
@@ -471,42 +380,10 @@ watch(id, () => {
   margin-right: -8px;
 }
 
-.notes__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
 .detail__data .panel__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.notes__untracked {
-  flex: 1 1 200px;
-}
-
-.notes__follow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-.notes__hint {
-  font-size: var(--text-xs);
-}
-
-.notes__past {
-  margin: 0;
-}
-
-/* 報讀區沒有內容時不占位置：抵掉外層 flex 的間距（不能用 display: none，否則報讀軟體看不到它）。 */
-.notes__status:empty {
-  margin-top: -8px;
 }
 
 /* 取消預約與上方的處理區塊隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
@@ -534,38 +411,6 @@ watch(id, () => {
 /* 處理面板沒有內容時（結案、只能查看）整個 aside 不畫，主欄不留一條空的右欄。 */
 .detail__grid:not(:has(> .detail__side)) {
   grid-template-columns: minmax(0, 1fr);
-}
-
-.notes {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 0;
-}
-
-.notes__item {
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
-
-.notes__item:first-child {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.notes__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-bottom: 2px;
-  font-size: var(--text-xs);
-}
-
-.notes__time {
-  color: var(--ink-3);
-}
-
-.notes__author {
-  color: var(--ink-2);
 }
 
 .reschedule {
@@ -596,13 +441,6 @@ watch(id, () => {
   color: var(--ink);
 }
 
-.notes__form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-}
-
 .detail__side {
   position: sticky;
   top: calc(var(--top-h) + 16px);
@@ -618,12 +456,8 @@ watch(id, () => {
   margin-right: -8px;
 }
 
-/* 觸控裝置沒有 ⌘／Ctrl 鍵，不顯示快捷鍵提示；電話、Email 連結放大到 44px 好點。 */
+/* 觸控裝置：電話、Email 連結放大到 44px 好點。 */
 @media (hover: none), (pointer: coarse) {
-  .notes__hint {
-    display: none;
-  }
-
   .detail__link {
     display: inline-flex;
     align-items: center;
@@ -669,43 +503,6 @@ watch(id, () => {
 @media (max-width: 720px) {
   .detail__danger {
     padding: 10px 16px 6px;
-  }
-}
-</style>
-
-<style>
-/* 下次聯絡的快捷選項預設排在日曆左側，面板會比手機畫面寬；窄螢幕改排在日曆上方一列。
-   選擇面板掛在 body 下，scoped 樣式碰不到，用 popper-class 限定。 */
-/* 觸控裝置（含平板）的快捷選項放大到 44px 高，手指點得到。 */
-@media (pointer: coarse) {
-  .notes__follow-popper .el-picker-panel__shortcut {
-    min-height: 44px;
-  }
-}
-
-@media (max-width: 480px) {
-  .notes__follow-popper .el-date-picker.has-sidebar {
-    width: 322px;
-  }
-
-  .notes__follow-popper .el-picker-panel__sidebar {
-    position: static;
-    display: flex;
-    flex-wrap: wrap;
-    width: auto;
-    padding: 4px 8px;
-    border-right: 0;
-    border-bottom: 1px solid var(--el-datepicker-inner-border-color);
-  }
-
-  .notes__follow-popper .el-picker-panel__shortcut {
-    width: auto;
-    min-height: 44px;
-    padding: 0 10px;
-  }
-
-  .notes__follow-popper .el-picker-panel__sidebar + .el-picker-panel__body {
-    margin-left: 0;
   }
 }
 </style>
