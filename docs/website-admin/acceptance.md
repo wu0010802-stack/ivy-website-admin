@@ -601,20 +601,20 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | V7 | 舊連結落點正確（`?status=`、`group=past&status=confirmed`、`?due=1`、`?attention=1`、無參數＝接下來、有其他參數無 group＝全部）；下一筆帶同一份 `list=` | 通過（逐檔、stack） | Task 7：`visitListQuery.test.ts` 的舊連結案例、`uxRound6` 17、`familyEntryPoints` 7、`attentionExportDeadline` 17；stack `admissions-flow.spec.ts`、`admissions-follow-up.spec.ts` |
 | V8 | 依台北參觀日分組（跨年寫年份、跨頁不合併）、開著過午夜重讀、列內到了／沒來、已到場的列「填招生資料」（不帶「已標記已到場」；沒有招生訪視打開案件、已匿名化不開表單）、批次勾選（手機 44×44 觸控範圍）、手機批次列不擠掉主連結 | 通過（逐檔、截圖量測） | Task 8：`visitSchedule.test.ts` 40、`visitScheduleList.test.ts` 21、`visitRequestsBatch.test.ts` 7；修正輪用臨時 vite 預覽頁＋Playwright 在 390／360／320（批次與一般）與 1280 量測，每列勾選欄與主連結同一行、無橫向溢出（腳本與截圖在 gitignored 的 `output/playwright/`，不進版控） |
 | V9 | 1280 以上右側預覽：點列開預覽、⌘／Ctrl／中鍵開新分頁、下一筆、草稿保護、處理後遞補；換頁籤／篩選／搜尋／翻頁清選取、處理造成的重讀保留；列上處理預覽那一筆預覽跟著重讀；區塊不被壓扁、捲得到最底的取消預約 | 通過（逐檔、stack） | Task 9：`visitPreviewPanel.test.ts` 19、`visitCase.test.ts` 9（每條變動路徑通知列表、狀態轉換被擋只重讀一次）；Task 10：stack `visit-schedule.spec.ts` 6（含 1280、1440 壓扁守門與捲到最底看得到取消預約）、`a11y.spec.ts` 28（含開著預覽面板的 axe）；修正後在 1280／1440 對三個頁籤開預覽跑 axe 為 0 項違規（臨時腳本，已刪） |
-| V10 | 後端 `view`／`order=visit_asc\|visit_desc`／`view-counts`（`upcoming`、`past_unmarked`）、匯出與稽核帶 `view`、契約一致、沒有 migration | 通過（逐檔）；alembic heads 待填 | Task 6：`test_visit_views.py` 8（修正波補台北日 vs UTC 日後 9）、相鄰 13 個後端測試檔逐檔 passed、`ruff check`、`npm run contract:generate`／`contract:check` 一致；`git diff --name-only 378f4dbd..HEAD -- backend contracts` 只有 `backend/app/booking/{routes,schemas,status_groups}.py`、`backend/tests/test_visit_views.py` 與兩個契約檔，沒有 `backend/alembic` 檔案 |
+| V10 | 後端 `view`／`order=visit_asc\|visit_desc`／`view-counts`（`upcoming`、`past_unmarked`）、匯出與稽核帶 `view`、契約一致、沒有 migration | 通過（逐檔）；alembic heads 通過（單一 head `c4e8a2f61b97`） | Task 6：`test_visit_views.py` 8（修正波補台北日 vs UTC 日後 9）、相鄰 13 個後端測試檔逐檔 passed、`ruff check`、`npm run contract:generate`／`contract:check` 一致；`git diff --name-only 378f4dbd..HEAD -- backend contracts` 只有 `backend/app/booking/{routes,schemas,status_groups}.py`、`backend/tests/test_visit_views.py` 與兩個契約檔，沒有 `backend/alembic` 檔案；最終版本 `c4e8a2f61b97` 仍為單一 head |
 | V11 | 視覺基準：只有 `visit-detail` 重拍，其餘四張不變 | 通過（stack） | Task 10：`visual.spec.ts` 五張基準 passed（含 setup 共 6 passed）；新基準對照 `design/admin-ux-directions-20261006/shots/c-detail-desktop.png`，版面順序一致；遮罩涵蓋相對時間、時間線時間與內文、連結有效期限 |
 | V12 | 承辦人、mock 的「修改資料」「兄姊」「常駐複製家長連結」沒有出現 | 通過（程式審查） | 各 task 審查與自查；承辦人 10-06 已拿掉，其餘三項見 DESIGN 的「不做」 |
 | V13 | 最終審查修正波（`c4fcace9` 之後）：列表「填招生資料」沒有招生訪視時打開案件、已匿名化不開表單；手機批次勾選框 44×44；個資保存政策頁連結 `/visit-requests?open=1`；後端台北日 vs UTC 日；stack spec 衛生（等動畫、共用溢出檢查、1100 一欄順序、搜尋字比對、132px 改變數） | 通過（逐檔、stack、截圖量測） | vitest 逐檔：arrivalAdmissionsForm 9、visitScheduleList 23、visitPreviewPanel 20、visitListQuery 28、policiesUx 27、visitRequestsBatch 7、visitSchedule 40、visitCase 9、visitPrimaryAction 22、crossUx20261002 13、ux20261005 29 等 14 檔 265 項全過，`vue-tsc -b --noEmit` 無輸出；後端 `test_visit_views.py` 9 passed（新增的台北日測試在把 `view_condition` 改回 UTC 日期時失敗，已還原）、`ruff check` 通過；stack（`ivy_website_visitux1006_e2e_test`、埠 8761／3761，重新 `e2e:build` 後）：`visit-schedule.spec.ts`＋`a11y.spec.ts`＋`visual.spec.ts` 38 passed（含 setup），`booking-flow.spec.ts` 8 passed（用到改過的 `searchVisitList`）；手機勾選框用臨時 vite 預覽頁＋Playwright 在 390／360／320 量：勾選框 44×44、點格子角落會勾、主連結同一行、電話對齊家長欄、無橫向溢出（腳本與截圖在 gitignored 的 `output/playwright/visit-row-checkbox44*`） |
 
-**全套閘門結果待填**（HEAD `0e169831`，由 controller 跑完補；最終審查修正波之後的最終版本再跑一次，結果也待填）：
+**全套閘門結果**（HEAD `0e169831` 及最終版本 HEAD `3a12f82d`）：
 
 | 項目 | 結果 |
 |---|---|
-| admin vitest 全套 | 待填 |
-| `vue-tsc -b --noEmit`、`vite build` | 待填 |
-| 後端 pytest 全套 | 待填 |
-| `npm run contract:check` | 待填 |
-| alembic heads（預期仍是單一 head，沒有新 migration） | 待填 |
-| stack 全套（含 visual、a11y） | 待填（Task 10 修正輪整套 81 passed） |
+| admin vitest 全套 | 119 檔 1546 項全過（0e169831）；119 檔 1552 項全過（3a12f82d） |
+| `vue-tsc -b --noEmit`、`vite build` | 兩版都無輸出；e2e:build 重建成功 |
+| 後端 pytest 全套 | 1614 passed、1 skipped（9 分 20 秒，測試庫 ivy_website_visitux1006_test）；最終版本 1615 passed、1 skipped（10 分 00 秒） |
+| `npm run contract:check` | 一致；最終版本一致 |
+| alembic heads | 單一 head `c4e8a2f61b97`，沒有新 migration；最終版本同 |
+| stack 全套（含 visual、a11y） | Task 10 修正輪 81 passed（2.8 分，E2E_DB_NAME=ivy_website_visitux1006_test、埠 8761／3761）；最終版本 81 passed（3.1 分，E2E_DB_NAME=ivy_website_visitux1006_e2e_test、埠 8761／3761） |
 
 未驗證：iOS Safari、Android 實機（觸控、sticky 預覽面板、地址列伸縮）；Chrome 以外的瀏覽器（Playwright 只用 Chrome，`@container` 與 `:has()` 版面沒在 Safari、Firefox 看過）；螢幕閱讀器實際報讀（只有 axe 與測試斷言 `aria-*`）；視覺基準只有 macOS Chrome；正式站與真資料量（跨頁分組、`view-counts` 與依場次排序的 join 查詢在正式資料量下的成本沒量過）；真的開著列表跨過台北午夜（只有 fake timer 測試）。已知限制：1440＋批次勾選＋預覽時長名字換行後第二行以「・」開頭；⌘／Ctrl 點列空白處是同分頁開；家庭階段帳號沒有 `admissions.write` 時頁首主動作區是空的。待使用者確認：第五個頁籤「全部」是否保留（目前保留）。
