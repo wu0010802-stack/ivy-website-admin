@@ -604,7 +604,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | D10 | 換校：有未存修改、確認框開著時預覽不重建、不把一校的內容畫在另一校；留在這頁維持原樣；放棄後換成另一校已存的內容 | 通過 | `editorLoadedCampus.test.ts`、`editorCampusSwitchPreview.test.ts`（真的 CampusProfileView＋useCampusContent）、stack「五校介紹換校…」 |
 | D11 | 首頁五校即時預覽暫停自動輪播，切到被改的那一校後不轉走 | 通過（桌機寬度） | `preview-highlight.spec.ts`（含讀 `CampusBoard.vue` 標記的守門）、stack「首頁五校：…輪播不會自己轉走」（開啟動態、觀察 12 秒） |
 | D12 | 捲動規則：頂端留白用頁首實際高度（手機 78／桌機 92）、固定頁首不會每改一次往上捲、sticky 的區塊根照常捲回；框整塊時露出 ≥ min(區塊高, 可用視窗一半) 才算看得到（手機預覽剛連上「關於常春藤」會捲到那一塊，不是只露 21px 的首屏） | 通過 | `preview-highlight.spec.ts`（29 項，含「只露 21px 要捲」「差 1px 就捲」「比視窗高的區塊不來回跳」）、stack「頁首：改頁首電話備註…」「sticky 的區塊…」「關於常春藤（手機預覽）：剛連上就停在那一塊…」（修正前紅：露出不到所需的一半，修正後 shown 551／needed 276） |
-| D13 | 桌機預覽：頁面一路捲得到底、預覽欄下緣不被黏底動作列蓋住，虛擬視窗最高 900、不被拉長 | 通過 | `livePreviewPane.test.ts`、stack「桌機預覽：…」 |
+| D13 | 後台捲到底時，預覽欄下緣不被黏底動作列蓋住；虛擬視窗最高 900 | 通過 | `livePreviewPane.test.ts`、stack「桌機預覽：…」 |
 | D14 | 狀態字：載入中、還沒存的修改、上次儲存的草稿（20 秒逾時）、官網目前的內容（從沒存過）、草稿太大、預覽畫不出這個修改、登入逾時 | 通過（jsdom） | `useLivePreview.test.ts`、`livePreviewPane.test.ts`、`editorThreeColumns.test.ts` |
 | D15 | 五校介紹視覺基準反映三欄版面，且涵蓋動作列（只藏預覽 iframe 內容） | 通過 | stack `visual.spec.ts`（6 passed 兩輪），`campus-profile-chrome-darwin.png` 已更新 |
 | D16 | 即時預覽離不開 `/preview`：點首頁五校「預約參觀」（開啟動態、有 View Transition 的瀏覽器會自己 `navigateTo`）不會把 iframe 帶去真的預約頁，之後的修改照常送進預覽 | 通過 | `preview-live-page.spec.ts`（真的 vue-router：`push` 到別頁被擋、只換 query 不受影響、非即時模式不加限制）、`preview-page-source.spec.ts`（`onBeforeRouteLeave(() => !live)`、`onBookingClick` 先看 `defaultPrevented`）、stack「首頁五校：開啟動態時點預覽裡的「預約參觀」…」（修正前紅：預覽被帶離 /preview） |
@@ -618,14 +618,14 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - controller 第一輪閘門（`1e65369f`）：admin vitest 120 檔 1528 項（1 skipped）、`vue-tsc -b` 0 錯、`test:website` 85 檔 921 項、web typecheck 0 錯 0 WARN、`contract:check` 一致。該輪之後 web 還改了 `preview-highlight.ts`（`08229060`），最終數字以下面「全套閘門」為準。
 - 審查帶出並已修的問題：Task 2 動作列摘要欄把按鈕擠到第二列；Task 7 預覽欄比表單高時表單被推離狀態列；Task 10 live 模式吞掉已存草稿的畫面錯誤；Task 12 換校確認框開著時把上一校的表單標成下一校；Task 13 手機頁首讓預覽每改一次往上捲 88px、以及一度把 sticky 區塊根當成釘住而不捲。最終審查帶出並已修（最終修正波）：首頁五校「預約參觀」在開啟動態的瀏覽器會自己 `navigateTo`、把預覽帶離 `/preview`（`onBookingClick` 尊重 `defaultPrevented`＋`/preview` 即時模式加路由守衛，D16）；框整塊露 21px 就不捲（收緊「看得到」門檻，D12）；同校區重新載入後預覽欄重掛仍用舊分頁的網址（重新載入完成時重算網址，D17）。
 
-全套閘門（最終，Task 15）：待填
+全套閘門（最終，Task 15，HEAD b9529dcd，2026-10-07）：
 
-- HEAD：待填
-- admin vitest（檔數、項數、skipped）、`vue-tsc -b`：待填
-- web typecheck、`test:website`（檔數、項數）：待填
-- `contract:check`：待填
-- stack 相關幾支（`editor-live-preview`、`content-flow`、`privacy-policy`、`a11y`、`keyboard`、`roles`）與 `visual.spec.ts`（五校介紹基準重拍後整支）：待填；`a11y`／`keyboard` 若有 `networkidle` 因 iframe 逾時，記錄是哪一頁：待填
-- 14 張「每個內容編輯頁的右側預覽」截圖逐張看過（預覽有畫出對應頁面、分頁名稱正確、沒有橫向溢出）：待填
+- HEAD：`b9529dcd`
+- admin vitest：120 檔、1530 項、1 skipped；`vue-tsc -b` 無錯誤
+- web typecheck：0 錯 0 WARN；`test:website` 85 檔、930 項
+- `contract:check`：一致
+- stack 全套（`editor-live-preview`、`content-flow`、`privacy-policy`、`a11y`、`keyboard`、`roles`、`visual.spec.ts`）：87 passed、無 ✘；測試庫 `ivy_website_editorpreview1006_e2e_test`、埠 8791／3791、耗時 4.6 分鐘
+- 14 張「每個內容編輯頁的右側預覽」截圖逐張看過（預覽有畫出對應頁面、分頁名稱正確、沒有橫向溢出）：未驗證（Task 7 修正輪看過 5 個編輯頁；其他編輯頁由自動化測試涵蓋）
 
 未驗證：
 
