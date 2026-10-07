@@ -107,27 +107,29 @@ describe('總覽的主按鈕與待辦（2026-10-05 拿掉待處理狀態後）',
 describe('案件列表接住總覽帶來的條件', () => {
   const listCallOf = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.map(c => String(c[0])).find(p => p.startsWith('/admin/visit-requests?'))!
 
-  it('?order=oldest 傳給後端，舊書籤 ?status=confirmed 轉成分組；列表不顯示確認期限，沒填的方便時段不佔一行', async () => {
+  it('?order=oldest 傳給後端，舊書籤 ?status=confirmed 落在接下來；列表不顯示確認期限，沒填的方便時段不佔一行', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([
       request({ status: 'confirmed', slot_id: 'slot-1', slot: { id: 'slot-1', slot_date: '2026-09-30', start_time: '10:00:00', end_time: '11:00:00' } }),
     ] as never)
     const { wrapper } = await mountAt('/visit-requests?status=confirmed&order=oldest')
     const listCall = listCallOf(get)
     expect(listCall).toContain('order=oldest')
-    expect(listCall).toContain('group=upcoming') // 舊書籤的 ?status= 轉成分組
+    expect(listCall).toContain('view=upcoming') // 舊書籤的 ?status= 對到頁籤
+    expect(listCall).not.toContain('status=')
     expect(wrapper.text()).not.toContain('確認期限')
     expect(wrapper.find('.hold').exists()).toBe(false)
-    expect(wrapper.find('.request-list').text()).not.toContain('方便時段')
+    expect(wrapper.find('.visit-list').text()).not.toContain('方便時段')
   })
 
-  it('舊的 ?group=pending 與 ?status=new|contacting|pending_confirmation 落到全部，不帶 group 給後端', async () => {
+  it('舊的 ?group=pending 與 ?status=new|contacting|pending_confirmation 落到全部，不帶 view 與 status 給後端', async () => {
     for (const query of ['group=pending', 'status=new', 'status=contacting', 'status=pending_confirmation']) {
       const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
       const { wrapper } = await mountAt(`/visit-requests?${query}&order=oldest`)
       const listCall = listCallOf(get)
+      expect(listCall, query).not.toContain('view=')
       expect(listCall, query).not.toContain('group=')
       expect(listCall, query).not.toContain('status=')
-      expect(wrapper.findAll('.status-tab')[0]!.attributes('aria-pressed'), query).toBe('true')
+      expect(wrapper.find('.status-tab[data-group="all"]').attributes('aria-pressed'), query).toBe('true')
       wrapper.unmount(); wrappers.length = 0; vi.restoreAllMocks()
     }
   })

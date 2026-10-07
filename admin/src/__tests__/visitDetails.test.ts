@@ -27,7 +27,7 @@ async function setup(data: Record<string, unknown> = details(), user: UserOut = 
 describe('參觀資料與已選場次', () => {
   it('明細可閱讀孩子、生日、Email、得知管道與場次狀態（舊案不再顯示「待確認」）', async () => {
     const wrapper = await setup()
-    for (const text of ['測試孩子', '2022-06-18', 'parent@example.org', 'Facebook、親友介紹', '10:00–10:30']) expect(wrapper.text()).toContain(text)
+    for (const text of ['測試孩子', '2022/06/18', 'parent@example.org', 'Facebook、親友介紹', '10:00–10:30']) expect(wrapper.text()).toContain(text)
     expect(wrapper.text()).not.toContain('待確認')
     expect(wrapper.find('a[href="mailto:parent@example.org"]').exists()).toBe(true)
   })
@@ -48,8 +48,8 @@ describe('案件流程補完', () => {
     const past = { ...slot, slot_date: '2026-01-05' }
     const wrapper = await setup({ ...details(), slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())
-    expect(labels).toContain('標記未到場')
-    await wrapper.findAll('button').find(button => button.text() === '標記已到場')!.trigger('click')
+    expect(labels).toContain('沒來')
+    await wrapper.findAll('button').find(button => button.text() === '家長到了')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/complete')
   })

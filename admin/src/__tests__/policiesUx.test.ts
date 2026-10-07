@@ -77,7 +77,8 @@ describe('個資與搜尋設定：保存政策的保護', () => {
     expect(preview).toMatch(/未到場\s*0\s*筆/)
     // 未結案的不清，只提醒件數並連到案件清單。
     expect(preview).toMatch(/另有\s*4\s*筆送出超過 180 天仍未結案，不會被清理/)
-    expect(wrapper.find('.retention__overdue a[href="/visit-requests"]').exists()).toBe(true)
+    // 逾期未結案多半是場次已過、還沒標記的預約：連到「全部」＋只看未結案（預設的「接下來」看不到它們）。
+    expect(wrapper.find('.retention__overdue a[href="/visit-requests?open=1"]').exists()).toBe(true)
     const history = wrapper.get('.retention-runs').text()
     expect(history).toContain('每天自動清理')
     expect(history).not.toContain('定期工作')

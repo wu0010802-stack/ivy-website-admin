@@ -74,11 +74,11 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
   await test.step('案件列表「只看尚未確認到場」勾兩筆，一次標記已到場', async () => {
     await gotoAdmin(page, `/visit-requests?campus=${SLOTS_CAMPUS}&group=past&status=confirmed`, '參觀案件')
     for (const family of FAMILIES) {
-      await page.locator('.requests-table tr', { hasText: family.parent }).locator('.el-checkbox').click()
+      await page.locator('.visit-row', { hasText: family.parent }).locator('.visit-row__check .el-checkbox').click()
     }
     await page.getByRole('button', { name: '2 位標記已到場' }).click()
     await answerMessageBox(page, '2 位標記已到場？', '標記已到場')
-    for (const family of FAMILIES) await expect(page.locator('.requests-table tr', { hasText: family.parent })).toHaveCount(0)
+    for (const family of FAMILIES) await expect(page.locator('.visit-row', { hasText: family.parent })).toHaveCount(0)
     await expect(page).toHaveURL(/\/visit-requests\?/)
   })
   for (const family of FAMILIES) expect((await findVisit(api, family.parent)).status).toBe('completed')
@@ -127,7 +127,7 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
     await expect(dialog).toBeHidden()
     await expect.poll(() => followUps(api, 'due')).not.toContain(A.child)
     expect(await followUps(api, 'upcoming')).toContain(A.child)
-    await expect(page.locator('.family-notes__item', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
+    await expect(page.locator('.timeline__item[data-kind="note"]', { hasText: '電話・沒聯絡到' })).toHaveCount(1)
     await expect(page.locator('.timeline__item', { hasText: '建立訪視' })).toHaveCount(1)
   })
 

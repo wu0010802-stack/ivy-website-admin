@@ -93,6 +93,22 @@ describe('下一筆跟著來源列表', () => {
     expect(router.currentRoute.value.query.list).toBe(list)
   })
 
+  it('從接待頁籤點進來：list 的 view 與參觀時間排序原樣送給後端，下一筆照同一份往下（2026-10-06 預檢 I11）', async () => {
+    const list = 'view=upcoming&order=visit_asc&campus_key=yihua'
+    const rows = [{ id: 'case-a', status: 'confirmed' }, { id: 'c2', status: 'confirmed' }, { id: 'c3', status: 'confirmed' }]
+    const { wrapper, get, router } = await mountDetail(kase({ status: 'confirmed' }), { '': rows }, `/visit-requests/case-a?list=${encodeURIComponent(list)}`)
+    const call = get.mock.calls.map((c) => String(c[0])).find((p) => p.startsWith('/admin/visit-requests?'))!
+    const params = new URLSearchParams(call.split('?')[1])
+    expect(params.get('view')).toBe('upcoming')
+    expect(params.get('order')).toBe('visit_asc')
+    expect(params.get('campus_key')).toBe('yihua')
+    expect(wrapper.find('.detail__next').text()).toContain('下一筆（這份列表還有 2 件）')
+    await wrapper.find('.detail__next').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/visit-requests/c2')
+    expect(router.currentRoute.value.query.list).toBe(list)
+  })
+
   it('從列表第 2 頁點進來：照列表的頁碼與每頁筆數抓同一段，不改用 50 筆一頁', async () => {
     const list = 'status=new&order=oldest&page=2&page_size=20'
     const { get } = await mountDetail(kase(), { new: [{ id: 'case-a', status: 'new' }, { id: 'n2', status: 'new' }] }, `/visit-requests/case-a?list=${encodeURIComponent(list)}`)
@@ -109,9 +125,9 @@ describe('下一筆跟著來源列表', () => {
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     const link = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
-    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=group=upcoming&order=oldest')
+    expect(decodeURIComponent(link.attributes('href')!)).toContain('list=view=upcoming&order=oldest')
 
-    await router.push('/visit-requests'); await flushPromises()
+    await router.push('/visit-requests?group=all'); await flushPromises()
     const plain = wrapper.findAll('a').find((a) => a.attributes('href')?.startsWith('/visit-requests/case-a'))!
     expect(plain.attributes('href')).toBe('/visit-requests/case-a')
   })
@@ -183,13 +199,14 @@ describe('聯絡紀錄草稿', () => {
 })
 
 describe('列表載入中不閃出「沒有案件」', () => {
-  it('讀取中表格的空狀態文字是空的', async () => {
+  it('讀取中顯示骨架，不閃出空狀態', async () => {
     vi.spyOn(api, 'get').mockImplementation(() => new Promise(() => {}) as never)
     const r = makeRouter()
     await r.push('/visit-requests'); await r.isReady()
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), r, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.find('.el-table__empty-text').text()).toBe('')
+    expect(wrapper.find('.visit-list__skeleton').exists()).toBe(true)
+    expect(wrapper.find('.requests-empty').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('還沒有任何參觀需求')
   })
 })

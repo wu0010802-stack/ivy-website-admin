@@ -85,12 +85,12 @@ describe('已確認案件的改期（第 13 條）', () => {
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('標記未到場不再說會釋出名額，結案後重抓側欄的待核准數', async () => {
+  it('按「沒來」（標記未到場）不再說會釋出名額，結案後重抓側欄的待核准數', async () => {
     const confirm = confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
     get.mockClear()
-    await button(wrapper, '標記未到場')!.trigger('click')
+    await button(wrapper, '沒來')!.trigger('click')
     await flushPromises()
     expect(String(confirm.mock.calls[0]![0])).toContain('名額仍算已使用')
     expect(String(confirm.mock.calls[0]![0])).not.toContain('釋出')
@@ -98,36 +98,36 @@ describe('已確認案件的改期（第 13 條）', () => {
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
 
-  it('完成參觀後也重抓側欄的待核准數', async () => {
+  it('按「家長到了」完成參觀後也重抓側欄的待核准數', async () => {
     confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
     get.mockClear()
-    await button(wrapper, '標記已到場')!.trigger('click')
+    await button(wrapper, '家長到了')!.trigger('click')
     await flushPromises()
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
 
-  it('場次還沒開始時不顯示標記已到場與標記未到場，提示改用取消預約', async () => {
+  it('場次還沒開始時不顯示「家長到了」與「沒來」，提示改用取消預約', async () => {
     const { wrapper } = await mountDetail(confirmedCase())
-    expect(button(wrapper, '標記已到場')).toBeUndefined()
-    expect(button(wrapper, '標記未到場')).toBeUndefined()
+    expect(button(wrapper, '家長到了')).toBeUndefined()
+    expect(button(wrapper, '沒來')).toBeUndefined()
     expect(wrapper.text()).toContain('參觀場次開始後可以標記已到場或未到場')
     expect(wrapper.text()).toContain('請用下方的「取消預約」')
     expect(button(wrapper, '取消預約')).toBeDefined()
   })
 
-  it('案件頁開著等到場次開始，標記已到場與標記未到場不必重新整理就出現', async () => {
+  it('案件頁開著等到場次開始，「家長到了」與「沒來」不必重新整理就出現', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
     try {
       // current 是 2099/10/01 10:00（台灣時間）開始，先停在開始前 10 秒。
       vi.setSystemTime(new Date('2099-10-01T01:59:50Z'))
       const { wrapper } = await mountDetail(confirmedCase())
-      expect(button(wrapper, '標記未到場')).toBeUndefined()
+      expect(button(wrapper, '沒來')).toBeUndefined()
       vi.advanceTimersByTime(30_000)
       await flushPromises()
-      expect(button(wrapper, '標記已到場')).toBeDefined()
-      expect(button(wrapper, '標記未到場')).toBeDefined()
+      expect(button(wrapper, '家長到了')).toBeDefined()
+      expect(button(wrapper, '沒來')).toBeDefined()
     } finally {
       vi.useRealTimers()
     }
@@ -280,9 +280,9 @@ describe('案件歷程（第 15 條）', () => {
     const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     expect(get).toHaveBeenCalled()
-    const timeline = wrapper.find('ol[aria-label="案件歷程"]')
+    const timeline = wrapper.find('ol[aria-label="聯絡紀錄與案件歷程"]')
     expect(timeline.exists()).toBe(true)
-    const items = timeline.findAll('li').map(li => li.text())
+    const items = timeline.findAll('li[data-kind="event"]').map(li => li.text())
     // 最新的在上面。
     expect(items[0]).toContain('取消預約')
     expect(items[0]).toContain('amy')

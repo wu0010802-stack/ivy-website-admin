@@ -12,7 +12,7 @@ from starlette.background import BackgroundTask
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
@@ -47,6 +47,7 @@ from app.booking.models import (
 )
 from app.booking.schemas import (
     VisitGroupCountsOut,
+    VisitViewCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
     BookingImpactOut,
@@ -882,6 +883,11 @@ class VisitRequestFilters:
             alias="open",
             description="只列還沒結案的：預約正常（含時間已過還沒標記到場）",
         ),
+        view: str | None = Query(
+            default=None,
+            pattern="^(upcoming|past|arrived|cancelled)$",
+            description="接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -893,6 +899,7 @@ class VisitRequestFilters:
         self.needs_attention = needs_attention
         self.group = group
         self.open_only = open_only
+        self.view = view
         # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422。
         if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, source)):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
@@ -915,6 +922,8 @@ class VisitRequestFilters:
             stmt = stmt.where(status_groups.group_condition(self.group))
         if self.open_only:
             stmt = stmt.where(status_groups.open_condition())
+        if self.view:
+            stmt = stmt.where(status_groups.view_condition(self.view))
         if self.source:
             stmt = stmt.where(VisitRequest.source == self.source)
         if self.created_from is not None:
@@ -942,6 +951,7 @@ class VisitRequestFilters:
         applied = {
             "status": self.status,
             "group": self.group,
+            "view": self.view,
             "open": True if self.open_only else None,
             "source": self.source,
             "created_from": self.created_from.isoformat() if self.created_from else None,
@@ -956,7 +966,11 @@ class VisitRequestFilters:
 @router.get("/admin/visit-requests", response_model=list[VisitRequestDetailOut])
 async def list_visit_requests(
     filters: VisitRequestFilters = Depends(),
-    order: str = Query(default="newest", pattern="^(newest|oldest)$", description="送出時間排序"),
+    order: str = Query(
+        default="newest",
+        pattern="^(newest|oldest|visit_asc|visit_desc)$",
+        description="newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
@@ -964,10 +978,30 @@ async def list_visit_requests(
 ) -> list[VisitRequestDetailOut]:
     require_scope(current_user, "booking.read")
     stmt = filters.apply(select(VisitRequest).options(selectinload(VisitRequest.slot)), current_user, "booking.read")
-    ordering = VisitRequest.created_at.asc() if order == "oldest" else VisitRequest.created_at.desc()
-    stmt = stmt.order_by(ordering).offset((page - 1) * page_size).limit(page_size)
+    stmt = _apply_list_order(stmt, order).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
     return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
+
+
+def _apply_list_order(stmt, order: str):
+    """列表排序。最後都補 id，同一時間的案件在翻頁時不會重複或漏掉。"""
+    if order in ("visit_asc", "visit_desc"):
+        # 行程清單（2026-10-06 方向 B）：依參觀日期與開始時間；沒有場次的舊案排最後。
+        # join 用別名：篩選條件裡 `slot_id IN (SELECT visit_slots.id …)` 的子查詢才不會被自動關聯到這個 join。
+        slot = aliased(VisitSlot)
+        stmt = stmt.outerjoin(slot, slot.id == VisitRequest.slot_id)
+        if order == "visit_asc":
+            return stmt.order_by(
+                slot.slot_date.asc().nulls_last(), slot.start_time.asc().nulls_last(),
+                VisitRequest.created_at.asc(), VisitRequest.id.asc(),
+            )
+        return stmt.order_by(
+            slot.slot_date.desc().nulls_last(), slot.start_time.desc().nulls_last(),
+            VisitRequest.created_at.desc(), VisitRequest.id.desc(),
+        )
+    if order == "oldest":
+        return stmt.order_by(VisitRequest.created_at.asc(), VisitRequest.id.asc())
+    return stmt.order_by(VisitRequest.created_at.desc(), VisitRequest.id.desc())
 
 
 @router.get("/admin/visit-requests/group-counts", response_model=VisitGroupCountsOut)
@@ -980,11 +1014,30 @@ async def visit_request_group_counts(
     require_scope(current_user, "booking.read")
     filters.status = None
     filters.group = None
+    filters.view = None
     base = filters.apply(select(func.count()).select_from(VisitRequest), current_user, "booking.read")
     counts = {}
     for group in status_groups.GROUPS:
         counts[group] = (await db.execute(base.where(status_groups.group_condition(group)))).scalar_one()
     return VisitGroupCountsOut(**counts)
+
+
+@router.get("/admin/visit-requests/view-counts", response_model=VisitViewCountsOut)
+async def visit_request_view_counts(
+    filters: VisitRequestFilters = Depends(),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitViewCountsOut:
+    """接待頁籤上的數字：套用同一組篩選（頁籤、分組、狀態除外）。時間已過只數還沒標記到場的，
+    和總覽、成效統計同一個條件（pending_kinds.awaiting_attendance），數字點進去才是同一批。"""
+    require_scope(current_user, "booking.read")
+    filters.status = None
+    filters.group = None
+    filters.view = None
+    base = filters.apply(select(func.count()).select_from(VisitRequest), current_user, "booking.read")
+    upcoming = (await db.execute(base.where(status_groups.view_condition("upcoming")))).scalar_one()
+    unmarked = (await db.execute(base.where(pending_kinds.condition("awaiting_attendance")))).scalar_one()
+    return VisitViewCountsOut(upcoming=upcoming, past_unmarked=unmarked)
 
 
 def _export_row(r: VisitRequest) -> list[str]:

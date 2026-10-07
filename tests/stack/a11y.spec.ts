@@ -78,6 +78,7 @@ test.describe('後台', () => {
     ['/', '營運總覽'],
     ['/visit-requests', '參觀案件'],
     ['/visit-requests?group=past&status=confirmed', '參觀案件'],
+    ['/visit-requests?group=arrived', '參觀案件'],
     ['/visit-requests/{visit}', '案件明細'],
     ['/visit-calendar', '參觀場次'],
     ['/admissions', '招生入學'],
@@ -99,6 +100,17 @@ test.describe('後台', () => {
       expect(await seriousViolations(page)).toEqual([])
     })
   }
+
+  // 1280 以上點一列在右側開預覽面板（2026-10-06 方向 B）：面板也要過 axe。
+  test('/admin/visit-requests 開著右側預覽面板沒有 serious／critical 的 axe 問題', async ({ page }) => {
+    await page.goto('/admin/visit-requests')
+    await expect(page.getByRole('heading', { level: 1, name: '參觀案件' })).toBeVisible()
+    await page.locator('a.visit-row__main').first().click()
+    // 面板裡有好幾個 h2（案件標題、家長資料、時間線、設定列），等第一個（案件標題）出現就是內容載入了。
+    await expect(page.locator('aside[aria-label="案件預覽"] h2').first()).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    expect(await seriousViolations(page)).toEqual([])
+  })
 })
 
 test('後台登入頁沒有 serious／critical 的 axe 問題', async ({ page }) => {

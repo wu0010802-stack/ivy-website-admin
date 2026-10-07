@@ -103,7 +103,7 @@ describe('總覽的今日參觀（dashboard-1、dashboard-4）', () => {
     const wrapper = await mountDashboard(summary())
     const empty = wrapper.get('.today__empty')
     expect(empty.text()).toContain('今天沒有參觀')
-    expect(empty.get('a').attributes('href')).toBe('/visit-requests?group=upcoming&order=oldest')
+    expect(empty.get('a').attributes('href')).toBe('/visit-requests?group=upcoming')
   })
 
   it('依台北現在時間標示已結束與進行中，狀態寫在時間旁', async () => {

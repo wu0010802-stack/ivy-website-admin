@@ -11542,6 +11542,25 @@
         ],
         "title": "VisitStaffOut",
         "type": "object"
+      },
+      "VisitViewCountsOut": {
+        "description": "接待頁籤的數字（2026-10-06 方向 B）：接下來寫全部件數；時間已過只寫還沒標記到場的\n（＝總覽「參觀時間過了，還沒標記到場」、pending_kinds.awaiting_attendance）。已到場、已取消不寫數字。",
+        "properties": {
+          "past_unmarked": {
+            "title": "Past Unmarked",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming",
+          "past_unmarked"
+        ],
+        "title": "VisitViewCountsOut",
+        "type": "object"
       }
     }
   },
@@ -21227,14 +21246,14 @@
         "operationId": "list_visit_requests_api_website_v1_admin_visit_requests_get",
         "parameters": [
           {
-            "description": "送出時間排序",
+            "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
             "in": "query",
             "name": "order",
             "required": false,
             "schema": {
               "default": "newest",
-              "description": "送出時間排序",
-              "pattern": "^(newest|oldest)$",
+              "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
+              "pattern": "^(newest|oldest|visit_asc|visit_desc)$",
               "title": "Order",
               "type": "string"
             }
@@ -21422,6 +21441,25 @@
               "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
               "title": "Open",
               "type": "boolean"
+            }
+          },
+          {
+            "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(upcoming|past|arrived|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+              "title": "View"
             }
           },
           {
@@ -21742,6 +21780,25 @@
             }
           },
           {
+            "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(upcoming|past|arrived|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+              "title": "View"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -21968,6 +22025,25 @@
             }
           },
           {
+            "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(upcoming|past|arrived|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+              "title": "View"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -22023,6 +22099,253 @@
           }
         },
         "summary": "Visit Request Group Counts",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/view-counts": {
+      "get": {
+        "description": "接待頁籤上的數字：套用同一組篩選（頁籤、分組、狀態除外）。時間已過只數還沒標記到場的，\n和總覽、成效統計同一個條件（pending_kinds.awaiting_attendance），數字點進去才是同一批。",
+        "operationId": "visit_request_view_counts_api_website_v1_admin_visit_requests_view_counts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "description": "家長或寶貝姓名、電話或 Email 片段",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "家長或寶貝姓名、電話或 Email 片段",
+              "title": "Q"
+            }
+          },
+          {
+            "description": "只列已到預定聯絡時間、尚未結案的案件",
+            "in": "query",
+            "name": "follow_up_due",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列已到預定聯絡時間、尚未結案的案件",
+              "title": "Follow Up Due",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "案件來源：web／phone／line／walk_in／external",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件來源：web／phone／line／walk_in／external",
+              "title": "Source"
+            }
+          },
+          {
+            "description": "送出日期起（含），台灣日期",
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（含），台灣日期",
+              "title": "Created From"
+            }
+          },
+          {
+            "description": "送出日期迄（含），台灣日期",
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（含），台灣日期",
+              "title": "Created To"
+            }
+          },
+          {
+            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+            "in": "query",
+            "name": "needs_attention",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
+              "title": "Needs Attention",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
+            "in": "query",
+            "name": "group",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(upcoming|past|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
+              "title": "Group"
+            }
+          },
+          {
+            "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
+            "in": "query",
+            "name": "open",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
+              "title": "Open",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(upcoming|past|arrived|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
+              "title": "View"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitViewCountsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Visit Request View Counts",
         "tags": [
           "booking"
         ]

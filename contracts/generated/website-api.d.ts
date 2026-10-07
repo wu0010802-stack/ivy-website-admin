@@ -1862,6 +1862,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/view-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Visit Request View Counts
+         * @description 接待頁籤上的數字：套用同一組篩選（頁籤、分組、狀態除外）。時間已過只數還沒標記到場的，
+         *     和總覽、成效統計同一個條件（pending_kinds.awaiting_attendance），數字點進去才是同一批。
+         */
+        get: operations["visit_request_view_counts_api_website_v1_admin_visit_requests_view_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}": {
         parameters: {
             query?: never;
@@ -6477,6 +6498,17 @@ export interface components {
             /** Role */
             role: string;
         };
+        /**
+         * VisitViewCountsOut
+         * @description 接待頁籤的數字（2026-10-06 方向 B）：接下來寫全部件數；時間已過只寫還沒標記到場的
+         *     （＝總覽「參觀時間過了，還沒標記到場」、pending_kinds.awaiting_attendance）。已到場、已取消不寫數字。
+         */
+        VisitViewCountsOut: {
+            /** Past Unmarked */
+            past_unmarked: number;
+            /** Upcoming */
+            upcoming: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -10378,7 +10410,7 @@ export interface operations {
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
-                /** @description 送出時間排序 */
+                /** @description newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後） */
                 order?: string;
                 page?: number;
                 page_size?: number;
@@ -10400,6 +10432,8 @@ export interface operations {
                 group?: string | null;
                 /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
+                /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
+                view?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -10490,6 +10524,8 @@ export interface operations {
                 group?: string | null;
                 /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
+                /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
+                view?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -10542,6 +10578,8 @@ export interface operations {
                 group?: string | null;
                 /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
                 open?: boolean;
+                /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
+                view?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -10560,6 +10598,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitGroupCountsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    visit_request_view_counts_api_website_v1_admin_visit_requests_view_counts_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+                status?: string | null;
+                /** @description 家長或寶貝姓名、電話或 Email 片段 */
+                q?: string | null;
+                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
+                follow_up_due?: boolean;
+                /** @description 案件來源：web／phone／line／walk_in／external */
+                source?: string | null;
+                /** @description 送出日期起（含），台灣日期 */
+                created_from?: string | null;
+                /** @description 送出日期迄（含），台灣日期 */
+                created_to?: string | null;
+                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
+                needs_attention?: boolean;
+                /** @description 案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消 */
+                group?: string | null;
+                /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
+                open?: boolean;
+                /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
+                view?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitViewCountsOut"];
                 };
             };
             /** @description Validation Error */

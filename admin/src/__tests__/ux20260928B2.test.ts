@@ -219,20 +219,26 @@ describe('明細的欄位與手機撥號', () => {
     expect(manual.wrapper.text()).toContain('方便接電話時段平日上午')
   })
 
-  it('頁首有撥電話按鈕（手機版面才顯示），資料表的電話也能撥', async () => {
+  it('頁首有撥號按鈕（桌機也有），資料表的電話也能撥', async () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
     const call = wrapper.find('a.detail__call')
     expect(call.attributes('href')).toBe('tel:0912345678')
-    expect(call.text()).toContain('撥電話給家長')
-    expect(wrapper.find('.detail__desc a.detail__link[href="tel:0912345678"]').exists()).toBe(true)
+    expect(call.text()).toBe('撥號')
+    expect(call.attributes('aria-label')).toContain('0912345678')
+    expect(wrapper.find('.case-facts a.detail__link[href="tel:0912345678"]').exists()).toBe(true)
   })
 
-  it('紀錄與家長管理連結的順序：聯絡紀錄在前', async () => {
+  it('版面順序：主欄是時間線，右欄的家長資料在設定列（場次、家長管理連結、取消）之前', async () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
-    const headings = wrapper.findAll('h2').map((h) => h.text())
-    expect(headings.indexOf('聯絡紀錄')).toBeLessThan(headings.indexOf('家長管理連結'))
+    expect(wrapper.get('.detail__main').find('.case-timeline').exists()).toBe(true)
+    const side = Array.from(wrapper.get('.detail__side').element.children)
+    const facts = side.findIndex((el) => el.classList.contains('case-facts'))
+    const settings = side.findIndex((el) => el.classList.contains('case-settings'))
+    expect(facts).toBeGreaterThanOrEqual(0)
+    expect(facts).toBeLessThan(settings)
+    expect(wrapper.get('.case-settings').text()).toContain('家長管理連結')
   })
 
   it('時段選單的名額用「組」', async () => {
@@ -356,7 +362,8 @@ describe('取消需求與取消預約', () => {
     await flushPromises()
     const [message, title, options] = prompt.mock.calls[0]!
     expect(title).toBe('取消這筆預約？')
-    expect(options).toMatchObject({ confirmButtonText: '取消預約' })
+    // 危險確認框：確定鈕危險色、不自動聚焦（第七輪規則，取消預約也適用）。
+    expect(options).toMatchObject({ confirmButtonText: '取消預約', confirmButtonClass: 'el-button--danger', autofocus: false })
     expect(String(message)).toContain('名額會釋出')
     expect(String(message)).not.toContain('還沒排場次')
     expect(String(message)).not.toContain('不會通知家長')

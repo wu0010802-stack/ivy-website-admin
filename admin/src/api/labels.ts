@@ -1,6 +1,7 @@
 // 後台顯示用的中文標籤與格式化。API 回傳的都是代碼（campus key、狀態、
 // 角色），畫面上一律經過這裡轉成園方看得懂的字，不要在各頁面各自硬寫。
 import type { Role } from './types'
+import { formatWeekday, slotStart } from '../utils/visitSchedule'
 
 export const CAMPUS_LABELS: Record<string, string> = {
   yihua: '義華',
@@ -71,12 +72,16 @@ export const VISIT_GROUPS = ['upcoming', 'past', 'cancelled'] as const
 export type VisitGroup = typeof VISIT_GROUPS[number]
 export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
 
-// 舊書籤的 ?status=；舊流程的 new／contacting／pending_confirmation 回到「全部」。
-const LEGACY_STATUS_GROUP: Record<string, VisitGroup> = {
-  confirmed: 'upcoming', completed: 'past', no_show: 'past', cancelled: 'cancelled',
-}
-export function legacyStatusGroup(status: string): VisitGroup | '' {
-  return LEGACY_STATUS_GROUP[status] ?? ''
+// 案件列表的接待頁籤（2026-10-06 方向 B）：後端 status_groups.view_condition。和上面的分組（group）不同，
+// 接下來以台北「今天」為界、今天整天都在，頁籤可以重疊；分組留給總覽、成效統計與舊連結。
+export const VISIT_VIEWS = ['upcoming', 'past', 'arrived', 'cancelled'] as const
+export type VisitView = typeof VISIT_VIEWS[number]
+export const VISIT_VIEW_LABELS: Record<VisitView, string> = { upcoming: '接下來', past: '時間已過', arrived: '已到場', cancelled: '已取消' }
+
+// 舊書籤的 ?status=：對到接待頁籤；舊流程的 new／contacting／pending_confirmation 回空字串（落到「全部」）。
+const LEGACY_STATUS_VIEW: Record<string, VisitView> = { confirmed: 'upcoming', completed: 'arrived', no_show: 'past', cancelled: 'cancelled' }
+export function legacyStatusView(status: string): VisitView | '' {
+  return LEGACY_STATUS_VIEW[status] ?? ''
 }
 
 const CANCELLED_BY_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
@@ -930,15 +935,8 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
 }
 
-// 星期幾，給時段列表用。
-const weekdayFormatter = new Intl.DateTimeFormat('zh-TW', { weekday: 'short', timeZone: 'Asia/Taipei' })
-
-export function formatWeekday(value: string | null | undefined): string {
-  if (!value) return ''
-  const d = new Date(`${value}T00:00:00+08:00`)
-  if (Number.isNaN(d.getTime())) return ''
-  return weekdayFormatter.format(d)
-}
+// 星期幾，給時段列表用。實作在 utils/visitSchedule（行程清單的日期標題也要，且那邊不能反向 import labels）。
+export { formatWeekday }
 
 // 案件上的「參觀時間」：09/26（週六）10:00–11:00。明細、列表與確認對話框
 // 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有場次
@@ -966,7 +964,7 @@ export function slotStarted(
   slot: { slot_date: string; start_time: string },
   now: number = Date.now(),
 ): boolean {
-  const starts = new Date(`${slot.slot_date}T${slot.start_time.slice(0, 8)}+08:00`).getTime()
+  const starts = slotStart(slot)
   return !Number.isNaN(starts) && starts <= now
 }
 
@@ -1282,6 +1280,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
   group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
+  view: (v) => `篩選頁籤：${(VISIT_VIEW_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
   // 承辦人篩選 2026-10-06 拿掉，只剩舊的匯出紀錄。
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : v === 'inactive' ? '承辦人已停用' : '指定的同事'}`,
   open: (v) => (v ? '只匯出還沒結案的案件' : null),

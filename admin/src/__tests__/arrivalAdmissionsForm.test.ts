@@ -42,7 +42,7 @@ const dialogInput = (label: string) => document.body.querySelector<HTMLInputElem
 
 async function mountList(options: { user?: UserOut; admissions?: boolean; records?: unknown } = {}) {
   const get = mockGet({
-    '/admin/visit-requests/group-counts': {},
+    '/admin/visit-requests/view-counts': {},
     '/admin/visit-requests': [booking()],
     '/admin/admissions/records': options.records ?? [created()],
   })
@@ -62,7 +62,7 @@ async function mountList(options: { user?: UserOut; admissions?: boolean; record
 }
 
 async function arriveInList(wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) {
-  await button(wrapper.get('.requests-table .attendance-actions'), '到了')!.trigger('click')
+  await button(wrapper.get('.visit-row .attendance-actions'), '到了')!.trigger('click')
   await flushPromises()
 }
 
@@ -120,6 +120,16 @@ describe('案件列表：到了 → 招生資料表單', () => {
 
   it('查不到招生訪視：講明已到場、表單沒打開，去招生入學補', async () => {
     const { wrapper } = await mountList({ records: () => { throw new ApiError(500, { code: 'INTERNAL_ERROR' }) } })
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const warning = vi.spyOn(ElMessage, 'warning')
+    mockPost()
+    await arriveInList(wrapper)
+    expect(dialog()).toBeNull()
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({ message: '已標記 黃志明 已到場，但招生資料表單打不開；請到招生入學補填' }))
+  })
+
+  it('剛標記到場卻找不到招生訪視（空清單）：同樣講明已到場、去招生入學補，不用「建立招生訪視」的說法', async () => {
+    const { wrapper } = await mountList({ records: [] })
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const warning = vi.spyOn(ElMessage, 'warning')
     mockPost()
@@ -207,7 +217,7 @@ describe('預約明細：標記已到場 → 招生資料表單', () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const success = vi.spyOn(ElMessage, 'success')
     const { wrapper, post } = await mountDetail()
-    await button(wrapper, '標記已到場')!.trigger('click')
+    await button(wrapper, '家長到了')!.trigger('click')
     await flushPromises()
     expect(confirm.mock.calls[0]!.slice(0, 2)).toEqual(['會同時建立一筆招生訪視，接著打開招生資料表單。', '標記已到場？'])
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VR_ID}/complete`)
@@ -228,7 +238,7 @@ describe('預約明細：標記已到場 → 招生資料表單', () => {
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const success = vi.spyOn(ElMessage, 'success')
     const { wrapper } = await mountDetail(readOnlyAdmissions())
-    await button(wrapper, '標記已到場')!.trigger('click')
+    await button(wrapper, '家長到了')!.trigger('click')
     await flushPromises()
     expect(confirm.mock.calls[0]![0]).toBe('會同時建立一筆招生訪視，之後在招生入學頁追蹤。')
     expect(success).toHaveBeenCalledWith('已標記已到場，招生訪視已建立')

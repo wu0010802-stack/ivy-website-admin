@@ -137,7 +137,7 @@ async function mountDetail(data: Record<string, unknown>) {
   return wrapper
 }
 
-const rowLabels = (wrapper: VueWrapper) => wrapper.findAll('.detail__desc .el-descriptions__label').map(cell => cell.text())
+const rowLabels = (wrapper: VueWrapper) => wrapper.findAll('.case-facts dt').map(cell => cell.text())
 
 describe('案件明細：官網已不問的欄位只有舊資料才列', () => {
   it('新案件不列參觀人數、想了解的事、同意紀錄（不再固定出現「未填寫」「不需勾選同意」）', async () => {
@@ -147,7 +147,7 @@ describe('案件明細：官網已不問的欄位只有舊資料才列', () => {
     expect(labels).not.toContain('想了解的事')
     expect(labels).not.toContain('同意紀錄')
     expect(wrapper.text()).not.toContain('官網預約不需勾選同意')
-    expect(labels).toEqual(expect.arrayContaining(['電話', '孩子姓名', '出生年月日', 'Email', '得知管道']))
+    expect(labels).toEqual(expect.arrayContaining(['電話', '孩子', 'Email', '得知管道']))
   })
 
   it('舊案件或補登有填的照樣列出', async () => {
@@ -172,12 +172,12 @@ describe('案件明細：改期一律先收成連結', () => {
     expect(wrapper.text()).not.toContain('在同一步釋出')
   })
 
-  it('手機版：聯絡紀錄排在家長資料前面（家庭版面的聯絡紀錄沿用同一個 class）', () => {
-    const mobile = detailSource.slice(detailSource.indexOf('@media (max-width: 900px)'))
-    expect(mobile).toMatch(/\.detail__main \{\s*display: flex;\s*flex-direction: column;/)
-    expect(mobile).not.toContain('.detail__after')
-    expect(mobile).toMatch(/\.detail__notes \{\s*order: -1;/)
-    expect(detailSource).toContain('class="section detail__notes"')
+  it('1100px 以下一欄：聯絡紀錄排在家長資料前面（家庭版面的聯絡紀錄沿用同一個 class）', () => {
+    const narrow = detailSource.slice(detailSource.indexOf('@media (max-width: 1100px)'))
+    expect(narrow).toMatch(/\.detail__main,\s*\.detail__side \{\s*display: contents;/)
+    expect(narrow).not.toContain('.detail__after')
+    expect(narrow).toMatch(/\.detail__notes \{\s*order: 3;/)
+    expect(detailSource).toContain('<VisitCaseTimeline')
   })
 })
 
@@ -189,7 +189,7 @@ const listRow = (extra: Record<string, unknown> = {}) => visitCase({ id: 'r1', s
 
 async function mountList(path: string, rows: unknown[], options: { user?: UserOut; counts?: Record<string, number>; admissions?: boolean } = {}) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) =>
-    (url.startsWith('/admin/visit-requests/group-counts') ? options.counts ?? {} : url.startsWith('/admin/visit-requests') ? rows : []) as never)
+    (url.startsWith('/admin/visit-requests/view-counts') ? options.counts ?? {} : url.startsWith('/admin/visit-requests') ? rows : []) as never)
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = options.user ?? testUser('super_admin', { id: 'me', campus_keys: [] })
@@ -214,7 +214,7 @@ describe('案件列表：直接標記到場', () => {
 
   it('按「到了」先確認（寫出家長與場次），確定才送出，之後重讀列表', async () => {
     const { wrapper, get } = await mountList('/visit-requests', [listRow(), listRow({ id: 'r2', parent_name: '陳小姐', slot: future, slot_id: future.id, display_status: 'upcoming' })])
-    const groups = wrapper.findAll('.requests-table .attendance-actions')
+    const groups = wrapper.findAll('.visit-row .attendance-actions')
     expect(groups).toHaveLength(1)
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
@@ -232,7 +232,7 @@ describe('案件列表：直接標記到場', () => {
     const { wrapper } = await mountList('/visit-requests', [listRow()], { admissions: true })
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    const buttons = wrapper.get('.requests-table .attendance-actions').findAll('button')
+    const buttons = wrapper.get('.visit-row .attendance-actions').findAll('button')
     await buttons.find(b => b.text() === '到了')!.trigger('click')
     await flushPromises()
     expect(String(confirm.mock.calls[0]![0])).toContain('會同時建立一筆招生訪視')
@@ -246,7 +246,7 @@ describe('案件列表：直接標記到場', () => {
     const { wrapper } = await mountList('/visit-requests', [listRow()])
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel' as never)
     const post = vi.spyOn(api, 'post').mockRejectedValue(new ApiError(409, { code: 'INVALID_TRANSITION', message: '狀態不對' }))
-    const arrive = () => wrapper.get('.requests-table .attendance-actions').findAll('button').find(b => b.text() === '到了')!
+    const arrive = () => wrapper.get('.visit-row .attendance-actions').findAll('button').find(b => b.text() === '到了')!
     await arrive().trigger('click')
     await flushPromises()
     expect(post).not.toHaveBeenCalled()
@@ -291,9 +291,9 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
   })
 
   it('分頁數字是件數不是待辦：沒有「待處理」頁籤，也沒有暖黃計數樣式', async () => {
-    const { wrapper } = await mountList('/visit-requests', [], { counts: { upcoming: 4, past: 2, cancelled: 3 } })
+    const { wrapper } = await mountList('/visit-requests', [], { counts: { upcoming: 4, past_unmarked: 2 } })
     const groups = wrapper.findAll('.status-tab').map(tab => tab.attributes('data-group'))
-    expect(groups).toEqual(['all', 'upcoming', 'past', 'cancelled'])
+    expect(groups).toEqual(['upcoming', 'past', 'arrived', 'cancelled', 'all'])
     // 頁籤的基本樣式（中性灰計數）在 style.css，案件列表與站內通知共用；案件列表不再有暖黃計數。
     const shared = readFileSync(join(SRC, 'style.css'), 'utf8')
     expect(shared).toMatch(/\.status-tab__count \{[^}]*background: var\(--surface-3\)/)
@@ -301,9 +301,9 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
     expect(source).not.toContain("data-group='pending'")
   })
 
-  it('面板標題寫目前看的是哪一組，不重複頁名', async () => {
+  it('清單標題寫目前看的是哪一組，不重複頁名', async () => {
     const { wrapper } = await mountList('/visit-requests?group=cancelled', [])
-    expect(wrapper.get('.panel__head h2').text()).toBe('已取消')
+    expect(wrapper.get('.visit-list__head h2').text()).toBe('已取消')
   })
 })
 

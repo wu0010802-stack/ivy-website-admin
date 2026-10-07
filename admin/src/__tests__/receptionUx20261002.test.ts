@@ -49,26 +49,25 @@ async function mountDetail(data: Record<string, unknown>, bookingConfig: unknown
 }
 
 describe('案件明細：參觀已開始', () => {
-  it('先問家長到了嗎，兩顆實心按鈕排在改期前面；改期收成連結', async () => {
+  it('先問家長到了嗎：頁首「家長到了」實心、「沒來」次之；改期在處理面板收成連結', async () => {
     const wrapper = await mountDetail(confirmedCase())
-    const actions = wrapper.find('.detail__actions')
-    const attendance = actions.find('.detail__attendance')
+    const attendance = wrapper.get('.case-hero__actions .detail__attendance')
     expect(attendance.text()).toContain('家長到了嗎？')
     const buttons = attendance.findAll('button')
-    expect(buttons.map(b => b.text())).toEqual(['標記已到場', '標記未到場'])
+    expect(buttons.map(b => b.text())).toEqual(['家長到了', '沒來'])
     expect(buttons[0]!.classes()).toContain('el-button--primary')
-    expect(buttons.every(b => !b.classes().includes('is-text'))).toBe(true)
-    expect(actions.html().indexOf('detail__attendance')).toBeLessThan(actions.html().indexOf('reschedule'))
+    expect(buttons[0]!.classes()).not.toContain('is-plain')
+    const actions = wrapper.get('.detail__actions')
     expect(actions.find('.reschedule--collapsed').text()).toBe('改到其他場次…')
     expect(actions.text()).not.toContain('改到這一場')
-    expect(wrapper.find('.detail__danger').text()).toContain('家長沒來請用上方的標記未到場')
+    expect(wrapper.find('.detail__danger').text()).toContain('家長沒來請用上方的「沒來」')
   })
 
-  it('取消預約的確認框提醒家長沒來要標記未到場', async () => {
+  it('取消預約的確認框提醒家長沒來要按「沒來」', async () => {
     const wrapper = await mountDetail(confirmedCase())
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel' as never)
     await wrapper.find('.detail__cancel').trigger('click')
-    expect(String(prompt.mock.calls[0]![0])).toContain('家長沒來請改用上方的「標記未到場」')
+    expect(String(prompt.mock.calls[0]![0])).toContain('家長沒來請改用上方的「沒來」')
   })
 
   it('頁首和列表同一種說法：預約時間已過・尚未確認到場；確認時間和送出同一分鐘不重複列', async () => {
@@ -206,7 +205,7 @@ describe('狀態用詞與列表', () => {
       .toEqual([['2099-10-01', ['c']], ['2099-10-02', ['a', 'b']]])
   })
 
-  it('「只看尚未確認到場」送 group=past＆status=confirmed，網址也寫這兩個；分頁數字不受影響', async () => {
+  it('「只看尚未確認到場」送 view=past＆status=confirmed，網址寫 group=past＆status=confirmed；頁籤數字不受影響', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
@@ -217,10 +216,12 @@ describe('狀態用詞與列表', () => {
     await flushPromises()
     const calls = get.mock.calls.map(([p]) => String(p))
     const list = calls.find(p => p.startsWith('/admin/visit-requests?') && p.includes('page='))!
-    expect(list).toContain('group=past')
+    expect(list).toContain('view=past')
     expect(list).toContain('status=confirmed')
-    expect(calls.find(p => p.startsWith('/admin/visit-requests/group-counts'))).not.toContain('status=')
+    expect(calls.find(p => p.startsWith('/admin/visit-requests/view-counts'))).not.toContain('status=')
     expect(router.currentRoute.value.query).toMatchObject({ group: 'past', status: 'confirmed' })
     expect(wrapper.text()).toContain('沒有尚未確認到場的案件')
+    // status=confirmed 會讓匯出變窄，所以算篩選：範圍說明不能只寫頁籤。
+    expect(wrapper.get('#export-scope').text()).toContain('「時間已過」頁籤、目前篩選的全部結果')
   })
 })

@@ -72,6 +72,22 @@ export async function pickVisitDay(page: Page, date: string): Promise<void> {
   await day.check()
 }
 
+/**
+ * 參觀案件列表搜尋：輸入後 300ms 才送出查詢。要等查詢回來再點列——
+ * 太早點開右側預覽的話，稍後才套用的搜尋會把預覽選取清掉（換條件清選取是設計）。
+ */
+export async function searchVisitList(page: Page, text: string): Promise<void> {
+  // 比對 q 的值就是這次的搜尋字：只看網址有沒有 q= 會撿到前一次搜尋（例如剛進頁面時殘留的）的回應。
+  // 用 searchParams 解碼比對（空格寫成 + 或 %20 都算），中文與 encodeURIComponent 的結果相同；電話形的搜尋字畫面會先正規化成純數字，要傳正規化後的。
+  const applied = page.waitForResponse((response) => {
+    if (response.request().method() !== 'GET') return false
+    const url = new URL(response.url())
+    return url.pathname.endsWith('/admin/visit-requests') && url.searchParams.get('q') === text
+  })
+  await page.getByRole('textbox', { name: /搜尋家長/ }).fill(text)
+  await applied
+}
+
 /** 頁面不橫向溢出（R16）：文件寬度不超過視窗。 */
 export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({

@@ -15,7 +15,11 @@ import TransitionDialog from '../admissions/TransitionDialog.vue'
 
 // 預約明細家庭版面的處理區（2026-10-05 家庭頁規格 5.6）：招生階段、下次聯絡、最近聯絡；
 // 記錄聯絡／排下次聯絡／移到…（同看板與歷程抽屜的對話框與權限）；招生負責人；重新預約。
-const props = defineProps<{ visit: RecruitmentVisit; staff: readonly AdmissionsStaff[]; latest: ContactLog | null; rebookable: boolean }>()
+// primary：「記錄聯絡」是不是實心主鈕。明細頁的實心主鈕在頁首（填招生資料），那裡傳 primary=false 改淺色（2026-10-06 方向 C）。
+const props = withDefaults(
+  defineProps<{ visit: RecruitmentVisit; staff: readonly AdmissionsStaff[]; latest: ContactLog | null; rebookable: boolean; primary?: boolean }>(),
+  { primary: true },
+)
 const emit = defineEmits<{ changed: [visit: RecruitmentVisit]; stale: []; rebook: [] }>()
 
 const { can } = usePermissions()
@@ -96,7 +100,7 @@ async function setOwner(ownerId: string | null) {
         <dd class="num">{{ latest ? lastContactText(latest.contacted_at, latest.channel, latest.reached) : lastContactText(visit.last_contacted_at ?? null) }}</dd>
       </div>
     </dl>
-    <el-button v-if="editable" type="primary" class="family-actions__record" @click="openContact">記錄聯絡</el-button>
+    <el-button v-if="editable" type="primary" :plain="!primary" class="family-actions__record" @click="openContact">記錄聯絡</el-button>
     <div v-if="(editable && tracking) || moveOptions.length" class="family-actions__row">
       <el-button v-if="editable && tracking" @click="openFollowUp">{{ visit.follow_up_at ? '改期／負責人' : '排下次聯絡' }}</el-button>
       <el-dropdown v-if="moveOptions.length" trigger="click" :persistent="false" popper-class="family-move-menu" @command="(to: Stage) => openTransition(to)">
