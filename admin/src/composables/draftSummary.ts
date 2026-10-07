@@ -20,9 +20,20 @@ export function fieldList(changes: readonly FieldChange[], max = SUMMARY_MAX_FIE
   return labels.length > max ? `${labels.slice(0, max).join('、')}…` : labels.join('、')
 }
 
-export function draftSummary(source: DraftBaseline['source'], changes: readonly FieldChange[], dirty: boolean): DraftSummary | null {
+/**
+ * canPublish：這個帳號能不能直接發布。內容編輯只能送審，說法跟著 ContentEditor 的 actionNote：
+ * 「發布後」改成「送審核准後」。
+ */
+export function draftSummary(
+  source: DraftBaseline['source'],
+  changes: readonly FieldChange[],
+  dirty: boolean,
+  canPublish = true,
+): DraftSummary | null {
   const title = changes.map((c) => c.label).join('、')
-  if (source === 'first') return { lead: '還沒發布過，發布後家長才會看到這份內容。', fields: '', title: '' }
+  if (source === 'first') {
+    return { lead: `還沒發布過，${canPublish ? '發布' : '送審核准'}後家長才會看到這份內容。`, fields: '', title: '' }
+  }
   if (source === 'live') {
     if (changes.length) return { lead: `草稿有 ${changes.length} 處修改：`, fields: fieldList(changes), title }
     return dirty ? { lead: '內容和官網目前的一樣，還沒儲存。', fields: '', title: '' } : null

@@ -11,6 +11,7 @@ import editorSource from '../components/ContentEditor.vue?raw'
 import { draftSummary, fieldList, SUMMARY_MAX_FIELDS } from '../composables/draftSummary'
 import type { ContentEditorState, DraftBaseline, FieldChange } from '../composables/useContentItem'
 import { useAuthStore } from '../stores/auth'
+import type { Role } from '../api/types'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
@@ -33,9 +34,9 @@ function editorState(overrides: Partial<ContentEditorState> = {}): ContentEditor
   }
 }
 
-async function mountEditor(editor: ContentEditorState) {
+async function mountEditor(editor: ContentEditorState, role: Role = 'super_admin') {
   const pinia = createPinia()
-  useAuthStore(pinia).user = testUser('super_admin')
+  useAuthStore(pinia).user = testUser(role)
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
   await router.push('/')
   await router.isReady()
@@ -75,6 +76,8 @@ describe('draftSummary', () => {
 
   it('從沒發布過、讀不到官網版各有說法', () => {
     expect(draftSummary('first', [], false)!.lead).toBe('還沒發布過，發布後家長才會看到這份內容。')
+    // 沒有發布權的內容編輯只能送審，說法跟著 actionNote。
+    expect(draftSummary('first', [], false, false)!.lead).toBe('還沒發布過，送審核准後家長才會看到這份內容。')
     expect(draftSummary('saved', [change('tagline', '標語')], true)).toEqual({ lead: '改了 1 個欄位：', fields: '標語', title: '標語' })
     expect(draftSummary('saved', [], true)!.lead).toBe('有未儲存的修改。')
     expect(draftSummary('saved', [], false)).toBeNull()
@@ -104,6 +107,19 @@ describe('動作列', () => {
     const mobile = editorSource.slice(editorSource.indexOf('@media (max-width: 720px)'))
     expect(mobile).toContain('.editor__actions:not(.is-dirty):not(.is-busy):not(.has-changes) .editor__actions-state { display: none; }')
     expect(editorSource).toMatch(/\.editor__actions-text \{[^}]*text-overflow: ellipsis;/)
+  })
+
+  it('摘要欄的 flex-basis 是 0%：用 auto 的話長文字會把按鈕擠到第二列、省略號不生效', () => {
+    expect(editorSource).toMatch(/\.editor__actions-state \{[^}]*flex: 1 1 0%;/)
+    expect(editorSource).not.toMatch(/\.editor__actions-state \{[^}]*flex: 1 1 auto;/)
+  })
+
+  it('從沒發布過：能發布的人寫「發布後」，只能送審的內容編輯寫「送審核准後」', async () => {
+    const state = () => editorState({ draftBaseline: baseline('first', null), draftChanges: computed(() => []) })
+    const publisher = await mountEditor(state(), 'campus_admin')
+    expect(publisher.get('.editor__actions-text').text()).toBe('還沒發布過，發布後家長才會看到這份內容。')
+    const editor = await mountEditor(state(), 'editor')
+    expect(editor.get('.editor__actions-text').text()).toBe('還沒發布過，送審核准後家長才會看到這份內容。')
   })
 })
 

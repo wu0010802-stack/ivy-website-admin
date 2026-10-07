@@ -465,7 +465,7 @@ const actionNote = computed(() => {
 const actionSummary = computed(() => {
   if (rejectedLatest.value && canPublishRole.value && !isDirty.value) return null
   if (liveReading.value) return draftSummary('saved', [], isDirty.value)
-  return draftSummary(baselineSource.value, draftChangeList.value, isDirty.value)
+  return draftSummary(baselineSource.value, draftChangeList.value, isDirty.value, canPublishRole.value)
 })
 
 // 真的離開這一頁時多一顆「儲存草稿並離開」（存草稿不會動到官網）；唯讀、版本
@@ -957,7 +957,8 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-state { display: flex; align-items: center; flex: 1 1 auto; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
+/* flex-basis 要是 0%：用 auto 的話單行長文字的內容寬度會把 .editor__buttons 擠到第二列，省略號也不會生效。 */
+.editor__actions-state { display: flex; align-items: center; flex: 1 1 0%; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .editor__actions-text { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor__actions-count { font-weight: 600; }
 .editor__actions.is-dirty .editor__actions-state,
