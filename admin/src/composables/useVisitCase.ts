@@ -184,12 +184,21 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     }
   }
 
+  // 動作失敗後重讀：失敗那一刻案件可能剛被別人動過（狀態、場次或歷程不同），列表上那一列也是舊的，
+  // 有變才通知；沒變就不多打一次列表。
+  async function reloadNotifyingIfChanged() {
+    const before = activityKey()
+    await load({ quiet: true })
+    if (activityKey() !== before) hooks.onChanged?.()
+  }
+
   function reportError(err: unknown, fallback: string) {
     if (isVersionConflict(err)) {
       // 別人剛改過下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
       // 已經自動重讀，所以不接後端「請重新載入後再操作」的訊息。
       notifyWarning('這筆案件的下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
-      void refreshDetail('rebase')
+      // 列表上的「預定聯絡」也是舊的：讀到新值之後通知，列表重讀拿到的才是同事改好的。
+      void refreshDetail('rebase').then(() => hooks.onChanged?.())
       return
     }
     if (apiErrorCode(err) === 'INVALID_TRANSITION') {
@@ -204,7 +213,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   async function reloadAfterTransitionConflict(err: unknown, fallback: string) {
     const before = detail.value?.status
     const handledBefore = handled.value?.at ?? null
-    await load({ quiet: true })
+    await reloadNotifyingIfChanged()
     const current = detail.value
     if (!current || !before || current.status === before) {
       notifyError(apiErrorMessage(err, fallback))
@@ -407,7 +416,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     } catch (err) {
       reportError(err, '改期失敗')
       // 名額或時段可能剛被別人用掉，重讀一次讓選單反映現況。
-      await load({ quiet: true })
+      await reloadNotifyingIfChanged()
     } finally {
       pendingAction.value = null
     }
@@ -427,7 +436,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       hooks.onChanged?.()
     } catch (err) {
       reportError(err, '操作失敗')
-      await load({ quiet: true })
+      await reloadNotifyingIfChanged()
     } finally {
       pendingAction.value = null
     }
@@ -542,7 +551,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
         note: newNote.value.trim(),
         ...(followUpChanged ? { follow_up_at: nextFollowUp, expected_version: base.version } : {}),
       })
-      if (gen !== generation) return
+      // 送出的這段時間使用者已換到別筆：紀錄已經寫進原案件（可能連下次聯絡也改了），列表那一列要更新。
+      if (gen !== generation) {
+        hooks.onChanged?.()
+        return
+      }
       newNote.value = ''
       notes.value = await api.get<VisitContactNoteOut[]>(`/admin/visit-requests/${current.id}/contact-notes`)
       // 追蹤時間存在案件上、歷程也多一筆；重讀一次頁首與歷程。
