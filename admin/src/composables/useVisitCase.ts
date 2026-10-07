@@ -18,6 +18,7 @@ import { arrivalFormLead } from './useArrivalAdmissionsForm'
 import { arrivalAdmissionsNote } from './visitAttendance'
 import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from './rescheduleDecision'
 import { readVisitNoteDraft, writeVisitNoteDraft } from './visitNoteDraft'
+import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked } from '../utils/visitSchedule'
 
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
@@ -558,15 +559,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   }
 
   // 會列進總覽「到期待追蹤」的案件：與後端同一個定義，已取消、已完成的不算
-  // （結案不會清掉下次聯絡時間，所以不能只看時間）。
-  const followUpTracked = computed(() => !!detail.value && !['cancelled', 'completed'].includes(detail.value.status))
+  // （結案不會清掉下次聯絡時間，所以不能只看時間）。規則在 utils/visitSchedule，列表的列共用。
+  const followUpTracked = computed(() => !!detail.value && isFollowUpTracked(detail.value.status))
 
   // 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
-  const followUpDue = computed(() => {
-    const at = detail.value?.follow_up_at
-    if (!at || !followUpTracked.value) return false
-    return new Date(at).getTime() <= Date.now()
-  })
+  const followUpDue = computed(() => !!detail.value && isFollowUpDue(detail.value, Date.now()))
 
   // 紀錄框旁預填的下次聯絡已經過了：不動就沿用（測試規範），但提醒送出後
   // 這筆仍會留在「到期待追蹤」。已確認的案件也可能是刻意設的提醒，只提示不擋；

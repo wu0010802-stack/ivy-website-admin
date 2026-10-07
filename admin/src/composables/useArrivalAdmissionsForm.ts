@@ -33,8 +33,12 @@ export function useArrivalAdmissionsForm() {
   const options = ref<AdmissionsOptions | null>(null)
   const lead = ref('')
 
-  /** 標記已到場成功之後呼叫：用預約 id 找剛建立的招生訪視，找到就打開表單。 */
-  async function openFor(request: ArrivedRequest): Promise<void> {
+  /**
+   * 標記已到場成功之後呼叫：用預約 id 找剛建立的招生訪視，找到就打開表單。
+   * justArrived: false＝不是剛標記（案件列表已到場的列「填招生資料」）：表單上方不寫「已標記…已到場」
+   * （lead 空白，取消鈕維持「取消」），打不開時也不說「已標記已到場」。預設 true，原本的呼叫端不變。
+   */
+  async function openFor(request: ArrivedRequest, { justArrived = true }: { justArrived?: boolean } = {}): Promise<void> {
     try {
       // 選項只用在帶參觀老師建議與來源分類下拉，讀不到也照樣打開表單。
       const [rows, loaded] = await Promise.all([
@@ -45,10 +49,12 @@ export function useArrivalAdmissionsForm() {
       if (!found) throw new Error('招生訪視不存在')
       record.value = found
       options.value = loaded
-      lead.value = arrivalFormLead(request.parent_name)
+      lead.value = justArrived ? arrivalFormLead(request.parent_name) : ''
       open.value = true
     } catch {
-      notifyWarning(`已標記 ${request.parent_name} 已到場，但招生資料表單打不開；請到招生入學補填`)
+      notifyWarning(justArrived
+        ? `已標記 ${request.parent_name} 已到場，但招生資料表單打不開；請到招生入學補填`
+        : `${request.parent_name} 的招生資料表單打不開；請到招生入學查看`)
     }
   }
 

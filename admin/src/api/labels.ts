@@ -1,6 +1,7 @@
 // 後台顯示用的中文標籤與格式化。API 回傳的都是代碼（campus key、狀態、
 // 角色），畫面上一律經過這裡轉成園方看得懂的字，不要在各頁面各自硬寫。
 import type { Role } from './types'
+import { slotStart } from '../utils/visitSchedule'
 
 export const CAMPUS_LABELS: Record<string, string> = {
   yihua: '義華',
@@ -967,7 +968,7 @@ export function slotStarted(
   slot: { slot_date: string; start_time: string },
   now: number = Date.now(),
 ): boolean {
-  const starts = new Date(`${slot.slot_date}T${slot.start_time.slice(0, 8)}+08:00`).getTime()
+  const starts = slotStart(slot)
   return !Number.isNaN(starts) && starts <= now
 }
 
