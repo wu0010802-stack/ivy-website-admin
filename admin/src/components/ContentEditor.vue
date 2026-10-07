@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, h, provide, ref, useId, useTemplateRef, watch, type VNode } from 'vue'
+import { computed, h, provide, ref, shallowRef, useId, useTemplateRef, watch, type VNode } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime, staffLabel, staffOf } from '../api/labels'
@@ -15,6 +15,7 @@ import { dirtySectionIds, MIN_NAV_SECTIONS, type EditorSection } from '../compos
 import EditorSectionNav from './EditorSectionNav.vue'
 import LivePreviewPane from './LivePreviewPane.vue'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
+import { useLivePreview } from '../composables/useLivePreview'
 import {
   livePreviewOrigin,
   previewFrameUrl,
@@ -70,9 +71,35 @@ watch(
 const currentTarget = computed(() => previewTargets.value.find((t) => t.id === previewTargetId.value) ?? previewTargets.value[0] ?? null)
 const previewViewport = ref<PreviewViewport>(readPreviewViewport())
 watch(previewViewport, rememberPreviewViewport)
-// 這一階段預覽看的是上次儲存的草稿：換分頁換網址，存成新的一版（或換校區）就重新載入（之後換成即時預覽）。
-const previewSrc = computed(() => (previewOrigin && currentTarget.value ? previewFrameUrl(previewOrigin, currentTarget.value.page, { live: false }) : ''))
-const previewFrameKey = computed(() => `${props.editor.campusKey?.value ?? ''}|${latestRevisionId.value ?? ''}|${currentTarget.value?.page ?? ''}`)
+// 即時預覽：把還沒存的表單送進 iframe（useLivePreview；預覽欄沒顯示時它什麼都不掛）。iframe 只在換校、
+// 重新載入時重建，換預覽分頁用訊息切、不重新載入。預覽頁沒接上（舊版官網、太慢、沒登入）時，
+// 切分頁照舊換網址，存成新的一版也重新載入，至少看得到剛存的草稿。
+const previewFrame = shallowRef<HTMLIFrameElement | null>(null)
+const livePreview = useLivePreview({
+  frame: previewFrame,
+  origin: previewOrigin ?? '',
+  kind: props.editor.kind ?? '',
+  campusKey: computed(() => props.editor.campusKey?.value ?? null),
+  form: props.editor.form ?? ref(null),
+  target: currentTarget,
+  enabled: showPreviewPane,
+})
+const previewState = livePreview.state
+// 從沒存過任何版本：預覽看到的是官網目前的內容，說明不能寫「上次儲存的草稿」。
+const previewNeverSaved = computed(() => Boolean(props.editor.latestRevisionId) && latestRevisionId.value === null)
+const previewReload = ref(0)
+const previewFrameKey = computed(() => `${props.editor.campusKey?.value ?? ''}|${previewReload.value}`)
+const previewSrc = ref('')
+function loadPreviewPage() {
+  previewSrc.value = previewOrigin && currentTarget.value ? previewFrameUrl(previewOrigin, currentTarget.value.page, { live: true }) : ''
+}
+watch(previewFrameKey, loadPreviewPage, { immediate: true })
+watch(currentTarget, () => {
+  if (previewState.value !== 'live') loadPreviewPage()
+})
+watch(latestRevisionId, () => {
+  if (previewState.value === 'saved') previewReload.value += 1
+})
 // 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
 // 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
 const conflict = computed(() => props.editor.conflict?.value ?? false)
@@ -752,8 +779,12 @@ defineExpose({ confirmLeave })
           class="editor__preview"
           :targets="previewTargets"
           :src="previewSrc"
-          state="saved"
+          :state="previewState"
+          :notice="livePreview.notice.value"
+          :never-saved="previewNeverSaved"
           :frame-key="previewFrameKey"
+          @frame="previewFrame = $event"
+          @retry="previewReload += 1"
         />
       </div>
 

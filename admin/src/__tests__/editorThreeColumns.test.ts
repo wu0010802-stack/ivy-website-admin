@@ -86,8 +86,8 @@ describe('右側官網預覽欄', () => {
     expect(wrapper.get('.editor__layout').classes()).toContain('has-preview')
     const pane = wrapper.get('aside.editor__preview')
     expect(pane.attributes('aria-label')).toBe('官網預覽')
-    expect(pane.get('iframe').attributes('src')).toBe(`${window.location.origin}/preview?embed=1&page=home`)
-    expect(pane.get('.live-preview__meta').text()).toBe('預覽的是上次儲存的草稿')
+    expect(pane.get('iframe').attributes('src')).toBe(`${window.location.origin}/preview?embed=1&live=1&page=home`)
+    expect(pane.get('.live-preview__meta').text()).toBe('正在載入預覽…')
   })
 
   it('1280 以下、校園探索、尚未選校區：不顯示預覽欄', async () => {
@@ -100,7 +100,7 @@ describe('右側官網預覽欄', () => {
     expect(narrow.get('.editor__layout').classes()).not.toContain('has-preview')
   })
 
-  it('兩個預覽分頁：切到另一頁換網址；寬度切換記在這台瀏覽器', async () => {
+  it('還沒接上即時預覽時：切分頁換網址；寬度切換記在這台瀏覽器', async () => {
     const wrapper = await mountEditor(editorState({ kind: 'booking_content' }))
     expect(wrapper.get('iframe').attributes('src')).toContain('page=visit')
     await wrapper.findAll('.editor__preview .el-radio-button input')[1]!.setValue(true)
@@ -111,13 +111,129 @@ describe('右側官網預覽欄', () => {
     expect(localStorage.getItem('ivy-admin-preview-viewport')).toBe('desktop')
   })
 
-  it('存成新的一版後重新載入預覽（這一階段預覽看的是已存草稿）', async () => {
+  // 預覽頁回一則訊息給後台（同源、來源是目前這個 iframe）。
+  function replyFromPreview(wrapper: VueWrapper, data: unknown) {
+    const frame = wrapper.get('iframe').element as HTMLIFrameElement
+    const event = new Event('message')
+    Object.assign(event, { data, origin: window.location.origin, source: frame.contentWindow })
+    window.dispatchEvent(event)
+  }
+
+  it('預覽頁回 ready：改寫成「預覽的是還沒存的修改」，把目前表單送進去', async () => {
+    const form = ref({ tagline: '標語' })
+    const wrapper = await mountEditor(editorState({ form }))
+    const frame = wrapper.get('iframe').element as HTMLIFrameElement
+    const post = vi.spyOn(frame.contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await flushPromises()
+    expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
+    expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: 'ivy-preview:draft', kind: 'site_footer', payload: { tagline: '標語' } }), window.location.origin)
+  })
+
+  it('預覽頁沒接上（saved）時，存成新的一版就重新載入預覽', async () => {
+    // 只假 setTimeout：@vue/test-utils 的 flushPromises 用 setImmediate，一起假掉會卡住。
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const latestRevisionId = ref('r1')
+      const wrapper = await mountEditor(editorState({ latestRevisionId: computed(() => latestRevisionId.value) }))
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是上次儲存的草稿')
+      const first = wrapper.get('iframe').element
+      latestRevisionId.value = 'r2'
+      await flushPromises()
+      expect(wrapper.get('iframe').element).not.toBe(first)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('預覽頁接上（live）後，存成新的一版不重新載入：預覽本來就是現在的表單', async () => {
     const latestRevisionId = ref('r1')
     const wrapper = await mountEditor(editorState({ latestRevisionId: computed(() => latestRevisionId.value) }))
     const first = wrapper.get('iframe').element
+    vi.spyOn((first as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await flushPromises()
     latestRevisionId.value = 'r2'
     await flushPromises()
+    expect(wrapper.get('iframe').element).toBe(first)
+  })
+
+  it('從沒存過的內容，20 秒沒回應也不說「上次儲存的草稿」', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const wrapper = await mountEditor(editorState({ latestRevisionId: computed(() => null) }))
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是官網目前的內容')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('預覽頁拒絕（沒登入）：欄內說明＋重新載入，按了就換一個新的 iframe', async () => {
+    const wrapper = await mountEditor(editorState())
+    const first = wrapper.get('iframe').element
+    replyFromPreview(wrapper, { type: 'ivy-preview:denied', v: 1 })
+    await flushPromises()
+    expect(wrapper.get('.live-preview__failed').text()).toContain('預覽沒有載入，可能是登入逾時。')
+    await wrapper.get('.live-preview__failed button').trigger('click')
+    await flushPromises()
     expect(wrapper.get('iframe').element).not.toBe(first)
+    expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
+    expect(wrapper.find('.live-preview__failed').exists()).toBe(false)
+  })
+
+  it('這一則修改預覽畫不出來：狀態列說明，和沒登入的拒絕畫面是兩回事', async () => {
+    const wrapper = await mountEditor(editorState())
+    vi.spyOn((wrapper.get('iframe').element as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    replyFromPreview(wrapper, { type: 'ivy-preview:applied', v: 1, seq: 1, hit: 'failed' })
+    await flushPromises()
+    expect(wrapper.get('.live-preview__meta').text()).toBe('預覽畫不出這個修改')
+    expect(wrapper.find('.live-preview__failed').exists()).toBe(false)
+  })
+
+  it('草稿太大：不送，預覽欄說明', async () => {
+    const form = ref({ tagline: 'x'.repeat(1_000_001) })
+    const wrapper = await mountEditor(editorState({ form }))
+    const post = vi.spyOn((wrapper.get('iframe').element as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    expect(wrapper.get('.live-preview__meta').text()).toBe('草稿太大，預覽沒有更新')
+  })
+
+  it('不是這個 iframe、別的來源送來的 ready 不理', async () => {
+    const wrapper = await mountEditor(editorState())
+    const post = vi.spyOn((wrapper.get('iframe').element as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    const stranger = new Event('message')
+    Object.assign(stranger, { data: { type: 'ivy-preview:ready', v: 1 }, origin: window.location.origin, source: window })
+    window.dispatchEvent(stranger)
+    const foreign = new Event('message')
+    Object.assign(foreign, { data: { type: 'ivy-preview:ready', v: 1 }, origin: 'https://evil.example', source: (wrapper.get('iframe').element as HTMLIFrameElement).contentWindow })
+    window.dispatchEvent(foreign)
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
+  })
+
+  it('預覽欄沒顯示（1280 以下）：不掛 message listener', async () => {
+    narrowScreen()
+    const add = vi.spyOn(window, 'addEventListener')
+    const wrapper = await mountEditor(editorState())
+    expect(wrapper.find('.editor__preview').exists()).toBe(false)
+    expect(add.mock.calls.filter(([type]) => type === 'message')).toEqual([])
+  })
+
+  it('預覽欄有顯示：掛一個 message listener，卸載時拿掉', async () => {
+    const add = vi.spyOn(window, 'addEventListener')
+    const remove = vi.spyOn(window, 'removeEventListener')
+    const wrapper = await mountEditor(editorState())
+    const added = add.mock.calls.filter(([type]) => type === 'message')
+    expect(added).toHaveLength(1)
+    wrapper.unmount()
+    wrappers.length = 0
+    expect(remove.mock.calls.filter(([type, fn]) => type === 'message' && fn === added[0]![1])).toHaveLength(1)
   })
 
   it('換校區：預覽跟著重新載入（frameKey 含校區）', async () => {

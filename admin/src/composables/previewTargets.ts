@@ -9,8 +9,14 @@ export type PreviewBlock =
   | 'home-hero' | 'home-about' | 'home-day' | 'home-campuses' | 'home-news'
   | 'site-header' | 'site-footer' | 'visit-booking' | 'page-top'
 export type PreviewViewport = 'desktop' | 'mobile'
-/** connecting＝等預覽頁回應；live＝預覽的是還沒存的修改；saved＝只看得到上次儲存的草稿；failed＝預覽頁拒絕（沒登入）。 */
-export type PreviewPaneState = 'connecting' | 'live' | 'saved' | 'failed'
+/**
+ * 預覽欄和預覽頁的連線狀態。connecting＝等預覽頁回應；live＝預覽的是還沒存的修改；
+ * saved＝只看得到上次儲存的草稿（預覽頁沒回應，或草稿太大送不過去）；denied＝預覽頁拒絕（沒登入、帳號停用）。
+ * 「這一則修改預覽畫不出來」不是連線狀態，另外用 PreviewNotice 表示（協定的 applied.hit＝'failed'）。
+ */
+export type PreviewPaneState = 'connecting' | 'live' | 'saved' | 'denied'
+/** 狀態列要多說一句的事：render-failed＝這一則修改預覽畫不出來；too-large＝草稿太大沒送出去。 */
+export type PreviewNotice = 'render-failed' | 'too-large'
 
 export interface PreviewTarget {
   /** 分頁代號，同一種內容裡唯一 */

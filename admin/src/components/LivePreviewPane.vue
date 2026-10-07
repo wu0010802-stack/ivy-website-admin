@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { fitPreviewFrame, type PreviewPaneState, type PreviewTarget, type PreviewViewport } from '../composables/previewTargets'
+import { fitPreviewFrame, type PreviewNotice, type PreviewPaneState, type PreviewTarget, type PreviewViewport } from '../composables/previewTargets'
 
 // 內容編輯頁右側的官網預覽（2026-10-06 方向 D，1280 以上）：上方切預覽哪裡、桌機／手機，
 // 下方是縮放後的 /preview iframe。iframe 的網址與即時更新由 ContentEditor（useLivePreview）決定，
@@ -9,6 +9,10 @@ const props = defineProps<{
   targets: readonly PreviewTarget[]
   src: string
   state: PreviewPaneState
+  /** 狀態列要多說的一句（畫不出這個修改、草稿太大）；有的話蓋過 state 的說明 */
+  notice?: PreviewNotice | null
+  /** 這項內容從沒存過任何版本：預覽看到的是官網目前的內容，不能說「上次儲存的草稿」 */
+  neverSaved?: boolean
   /** 換值就重建 iframe（換校區、重新載入預覽） */
   frameKey: string
 }>()
@@ -33,7 +37,11 @@ onMounted(() => {
     observer.observe(stage.value)
   }
 })
-onBeforeUnmount(() => observer?.disconnect())
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  // 預覽欄收起（寬度縮到 1280 以下、載入中換成骨架）時 iframe 跟著沒了：通知一聲，連線狀態才會歸零。
+  emit('frame', null)
+})
 // 不用 immediate：setup 當下 iframe 還沒掛上（是 null）；掛上、或 frameKey 換掉重建後各通知一次。
 watch(frame, (el) => emit('frame', el ?? null), { flush: 'post' })
 
@@ -44,13 +52,22 @@ const deviceStyle = computed(() => ({
   width: `${Math.round(fit.value.width * fit.value.scale)}px`,
   height: `${Math.round(fit.value.height * fit.value.scale)}px`,
 }))
+// denied 沒有狀態列的字：蓋在預覽上的那一層（下面的 .live-preview__failed）已經說了。
 const META: Record<PreviewPaneState, string> = {
   connecting: '正在載入預覽…',
   live: '預覽的是還沒存的修改',
   saved: '預覽的是上次儲存的草稿',
-  failed: '',
+  denied: '',
 }
-const meta = computed(() => META[props.state])
+const NOTICES: Record<PreviewNotice, string> = {
+  'render-failed': '預覽畫不出這個修改',
+  'too-large': '草稿太大，預覽沒有更新',
+}
+const meta = computed(() => {
+  if (props.state === 'denied') return ''
+  if (props.notice) return NOTICES[props.notice]
+  return props.state === 'saved' && props.neverSaved ? '預覽的是官網目前的內容' : META[props.state]
+})
 </script>
 
 <template>
@@ -64,7 +81,8 @@ const meta = computed(() => META[props.state])
         <el-radio-button value="desktop">桌機</el-radio-button>
         <el-radio-button value="mobile">手機</el-radio-button>
       </el-radio-group>
-      <p v-if="meta" class="live-preview__meta">{{ meta }}</p>
+      <!-- 一直留在畫面上的禮貌即時區：說明換了字才會被唸，不是每次都重建元素。 -->
+      <p class="live-preview__meta" role="status">{{ meta }}</p>
     </div>
     <div ref="stage" class="live-preview__stage">
       <div class="live-preview__device" :class="`is-${viewport}`" :style="deviceStyle">
@@ -80,7 +98,7 @@ const meta = computed(() => META[props.state])
           :style="frameStyle"
         />
       </div>
-      <div v-if="state === 'failed'" class="live-preview__failed" role="status">
+      <div v-if="state === 'denied'" class="live-preview__failed" role="status">
         <p>預覽沒有載入，可能是登入逾時。</p>
         <el-button size="small" @click="emit('retry')">重新載入預覽</el-button>
       </div>
@@ -106,6 +124,7 @@ const meta = computed(() => META[props.state])
 .live-preview__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .live-preview__where { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .live-preview__meta { flex-basis: 100%; margin: 0; font-size: var(--text-xs); color: var(--ink-3); }
+.live-preview__meta:empty { display: none; }
 .live-preview__stage { position: relative; flex: 1; min-height: 0; padding: 12px; background: var(--surface-3); overflow: hidden; }
 /* 桌機頁面虛擬視窗最高 900（fitPreviewFrame），縮小後比欄矮：靠上、左右置中，下方留 surface-3 底。 */
 .live-preview__device { margin: 0 auto; overflow: hidden; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); }

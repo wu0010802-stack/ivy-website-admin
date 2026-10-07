@@ -1,7 +1,7 @@
 // 2026-10-06 方向 D：內容編輯右側官網預覽的分頁對照表、同源判斷、縮放與外觀。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick, ref } from 'vue'
 import ElementPlus from 'element-plus'
 import LivePreviewPane from '../components/LivePreviewPane.vue'
 import {
@@ -180,15 +180,61 @@ describe('LivePreviewPane', () => {
     expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['桌機', '手機'])
   })
 
-  it('各狀態的說明；失敗時蓋一層說明與重新載入，iframe 留著', async () => {
+  it('各狀態的說明；沒登入（denied）時蓋一層說明與重新載入，iframe 留著', async () => {
     expect(mountPane({ state: 'connecting' }).get('.live-preview__meta').text()).toBe('正在載入預覽…')
     expect(mountPane({ state: 'saved' }).get('.live-preview__meta').text()).toBe('預覽的是上次儲存的草稿')
-    const failed = mountPane({ state: 'failed' })
-    expect(failed.find('.live-preview__meta').exists()).toBe(false)
-    expect(failed.get('.live-preview__failed').text()).toContain('預覽沒有載入，可能是登入逾時。')
-    expect(failed.find('iframe').exists()).toBe(true)
-    await failed.get('.live-preview__failed button').trigger('click')
-    expect(failed.emitted('retry')).toHaveLength(1)
+    const denied = mountPane({ state: 'denied' })
+    expect(denied.get('.live-preview__meta').text()).toBe('')
+    expect(denied.get('.live-preview__failed').text()).toContain('預覽沒有載入，可能是登入逾時。')
+    expect(denied.find('iframe').exists()).toBe(true)
+    await denied.get('.live-preview__failed button').trigger('click')
+    expect(denied.emitted('retry')).toHaveLength(1)
+    // 只有 denied 才蓋這一層；畫不出某一則修改（render-failed）是狀態列的字，不是登入問題
+    expect(mountPane({ state: 'live', notice: 'render-failed' }).find('.live-preview__failed').exists()).toBe(false)
+  })
+
+  it('從沒存過的內容不寫「上次儲存的草稿」，寫它實際看到的官網內容', () => {
+    expect(mountPane({ state: 'saved', neverSaved: true }).get('.live-preview__meta').text()).toBe('預覽的是官網目前的內容')
+    expect(mountPane({ state: 'saved', neverSaved: false }).get('.live-preview__meta').text()).toBe('預覽的是上次儲存的草稿')
+    // 其他狀態的字不受影響
+    expect(mountPane({ state: 'live', neverSaved: true }).get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
+    expect(mountPane({ state: 'connecting', neverSaved: true }).get('.live-preview__meta').text()).toBe('正在載入預覽…')
+  })
+
+  it('這一則修改畫不出來、草稿太大，狀態列直接說；不是跳 toast', () => {
+    expect(mountPane({ state: 'live', notice: 'render-failed' }).get('.live-preview__meta').text()).toBe('預覽畫不出這個修改')
+    expect(mountPane({ state: 'saved', notice: 'too-large' }).get('.live-preview__meta').text()).toBe('草稿太大，預覽沒有更新')
+    expect(mountPane({ state: 'saved', neverSaved: true, notice: 'too-large' }).get('.live-preview__meta').text()).toBe('草稿太大，預覽沒有更新')
+    expect(mountPane({ state: 'live', notice: null }).get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
+  })
+
+  it('狀態列是禮貌的即時區：一直在畫面上（內容換了才會被唸），說明走 role=status', async () => {
+    const wrapper = mountPane({ state: 'connecting' })
+    const meta = wrapper.get('.live-preview__meta')
+    expect(meta.attributes('role')).toBe('status')
+    await wrapper.setProps({ state: 'live' })
+    // 同一個元素，只換字
+    expect(wrapper.get('.live-preview__meta').element).toBe(meta.element)
+    expect(meta.text()).toBe('預覽的是還沒存的修改')
+  })
+
+  it('預覽欄收起（元件卸載）時通知 frame 沒了，讓 useLivePreview 回到連線前', async () => {
+    const onFrame = vi.fn()
+    const show = ref(true)
+    const host = mount(
+      defineComponent({
+        setup: () => () => show.value
+          ? h(LivePreviewPane, { targets: previewTargetsFor('site_footer'), src: 'https://ivy.example/preview?embed=1&live=1&page=home', state: 'live', frameKey: 'k', target: 'footer', viewport: 'mobile', onFrame })
+          : h('div'),
+      }),
+      { global: { plugins: [ElementPlus] }, attachTo: document.body },
+    )
+    wrappers.push(host)
+    await nextTick()
+    expect(onFrame).toHaveBeenLastCalledWith(host.get('iframe').element)
+    show.value = false
+    await nextTick()
+    expect(onFrame).toHaveBeenLastCalledWith(null)
   })
 
   it('frameKey 換了就重建 iframe', async () => {
