@@ -33,6 +33,14 @@ describe('案件頁首（2026-10-06 方向 C）', () => {
     expect(cancelled.find('.case-hero__relative').exists()).toBe(false)
   })
 
+  it('送出時間與參觀時間都沒有前綴，參觀時間那行給報讀軟體一個看不見的標籤', async () => {
+    const wrapper = await mountDetail(visitCase())
+    expect(wrapper.get('.case-hero__sub').text()).not.toContain('參觀時間')
+    const label = wrapper.get('.detail__when .visually-hidden')
+    expect(label.text()).toBe('參觀時間：')
+    expect(label.element.nextElementSibling?.classList.contains('num')).toBe(true)
+  })
+
   it('撥號在頁首（桌機也有）；沒有孩子姓名時標題只有家長', async () => {
     const wrapper = await mountDetail(visitCase({ child_name: null }))
     const call = wrapper.get('a.detail__call')

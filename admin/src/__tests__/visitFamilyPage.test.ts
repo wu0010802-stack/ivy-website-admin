@@ -102,9 +102,9 @@ describe('家庭版面（5.1–5.7）', () => {
     expect(wrapper.find('.family-data').exists()).toBe(true)
     const booking = wrapper.get('.detail__data')
     expect(booking.get('h2').text()).toBe('家長預約時填寫的資料')
-    expect(booking.find('.el-descriptions').isVisible()).toBe(false)
+    expect(booking.get('#visit-booking-data').isVisible()).toBe(false)
     await button(booking, '展開')!.trigger('click')
-    expect(booking.find('.el-descriptions').isVisible()).toBe(true)
+    expect(booking.get('#visit-booking-data').isVisible()).toBe(true)
     expect(booking.text()).toContain('chen@example.org')
   })
 

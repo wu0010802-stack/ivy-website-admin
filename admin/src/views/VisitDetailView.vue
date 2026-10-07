@@ -1,31 +1,29 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, toRefs, watch } from 'vue'
+import { computed, ref, toRefs, watch } from 'vue'
 import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, partySizeLabel, referralSourceLabels } from '../api/labels'
-import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
+import { campusLabel } from '../api/labels'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
-import { useCampusScope } from '../composables/useCampusScope'
 import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
-import { ARRIVAL_FORM_CANCEL_TEXT } from '../composables/useArrivalAdmissionsForm'
-import ManualVisitDialog from '../components/ManualVisitDialog.vue'
-import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
-import RecordDialog from '../components/admissions/RecordDialog.vue'
 import { detailOrigin } from '../admissions/family'
 import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
 import FamilyActions from '../components/visit/FamilyActions.vue'
+import VisitCaseDialogs from '../components/visit/VisitCaseDialogs.vue'
+import VisitCaseFacts from '../components/visit/VisitCaseFacts.vue'
 import VisitCaseHero from '../components/visit/VisitCaseHero.vue'
+import VisitCaseSettings from '../components/visit/VisitCaseSettings.vue'
 import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
 
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 
-// 案件的資料層與動作在 composables/useVisitCase.ts（2026-10-06 抽出，預覽面板共用同一份）；
-// 這一頁只管返回、下一筆、離頁保護與改期表單的焦點；聯絡紀錄與歷程在 VisitCaseTimeline。
+// 案件明細（2026-10-06 方向 C）：頁首（VisitCaseHero）、主欄（招生資料、時間線）、右欄（處理區、家長資料、
+// 設定列），兩個對話框在最後。案件的資料層與動作在 composables/useVisitCase.ts，子元件用 inject 取同一份，
+// 列表右側的預覽面板也用它們。這一頁只管組版、返回、下一筆與離頁保護。
 const vc = useVisitCase(id, {
   onLoaded: (loaded) => void loadNextCases(loaded.campus_key),
   onRebooked: async (created) => {
@@ -36,37 +34,16 @@ const vc = useVisitCase(id, {
 })
 provideVisitCase(vc)
 const {
-  detail, rescheduleSlotId, rescheduleReason, manualRescheduleOpen, pendingAction, busy,
-  bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, canCreateAdmissions,
-  admissionsVisit, familyOptions, familyStaff,
-  familyVisit, familyPending, noteDirty, rescheduleSlots, attendanceDue, confirmedAtShown,
-  linkApplicable, latestFamilyContact,
-  bookingDataTitle, loading, error, emailEnabled,
+  detail, rebookOpen, canHandle, canCreateAdmissions, familyOptions, familyStaff, familyVisit, familyPending,
+  noteDirty, busy, latestFamilyContact, loading, error,
 } = toRefs(vc)
-const { cancel, reschedule, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
+const { onFamilyChanged } = vc
 const family = vc.family
 
-const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 // 打好還沒按「新增紀錄」的聯絡紀錄（noteDirty，定義見 useVisitCase）：返回、下一筆、側欄換頁前都先問。
 const { confirmLeave } = useUnsavedChanges(noteDirty, busy)
 // 「下一筆」只換 :id，不會觸發離頁守衛，要另外攔。
 onBeforeRouteUpdate((to, from) => (to.params.id !== from.params.id ? confirmLeave() : true))
-
-const rescheduleSelect = ref<{ focus: () => void } | null>(null)
-const rescheduleTitle = ref<HTMLElement | null>(null)
-// 手動改期表單一律先收成一個連結，要用再展開（2026-10-05 第九輪）：改期不是每筆都要做的事，
-// 整個表單攤在處理面板最上面，手機上會把聯絡紀錄推到很下面。家長申請改期時先核准或退回，
-// 參觀開始後先標記到場，也都是先看到那些按鈕。
-const manualRescheduleShown = computed(() => manualRescheduleOpen.value)
-
-// 展開手動改期時，按下的連結會被表單換掉；把焦點移進表單（能選時段就放在
-// 時段選單，沒有時段可選就放在標題），鍵盤與報讀軟體才知道表單出現在哪裡。
-async function openManualReschedule() {
-  manualRescheduleOpen.value = true
-  await nextTick()
-  if (rescheduleSlots.value.length > 0 && rescheduleSelect.value) rescheduleSelect.value.focus()
-  else rescheduleTitle.value?.focus()
-}
 
 // 同校還沒處理完的其他案件，讓櫃台能一筆接一筆處理，不必每次回列表。
 // 從列表點進來時跟著那份列表的條件與順序（list）；沒有來源時照下方 loadNextCases 的處理優先序。
@@ -236,74 +213,25 @@ watch(id, () => {
         <div class="detail__main">
           <el-skeleton v-if="familyPending" animated :rows="6" class="detail__family-pending" />
           <template v-else>
-          <FamilyAdmissionsData
-            v-if="familyVisit"
-            :visit="familyVisit"
-            :options="familyOptions"
-            :editable="canCreateAdmissions"
-            @saved="family.replaceVisit"
-            @stale="family.reload"
-          />
-          <div class="panel detail__data">
-            <div class="panel__head">
-              <h2>{{ bookingDataTitle }}</h2>
-              <el-button
-                v-if="familyVisit"
-                link
-                type="primary"
-                :aria-expanded="bookingDataOpen ? 'true' : 'false'"
-                aria-controls="visit-booking-data"
-                @click="bookingDataOpen = !bookingDataOpen"
-              >{{ bookingDataOpen ? '收起' : '展開' }}</el-button>
-            </div>
-            <el-descriptions v-show="!familyVisit || bookingDataOpen" id="visit-booking-data" :column="1" border label-width="128" class="detail__desc">
-              <el-descriptions-item label="電話">
-                <a :href="`tel:${detail.phone}`" class="num detail__link">{{ detail.phone }}</a>
-              </el-descriptions-item>
-              <el-descriptions-item label="孩子姓名">{{ detail.child_name || '未填寫' }}</el-descriptions-item>
-              <el-descriptions-item label="出生年月日">{{ detail.child_birthdate || '未填寫' }}</el-descriptions-item>
-              <el-descriptions-item label="Email"><a v-if="detail.email" :href="`mailto:${detail.email}`" class="detail__link">{{ detail.email }}</a><span v-else>未填寫</span></el-descriptions-item>
-              <!-- 官網 10-03 起不問參觀人數與想了解的事、10-02 起不用勾同意：只有舊案件與補登有值才列，
-                   新案件不再固定出現「未填寫」「不需勾選同意」（官網沒有的欄位後台不列）。 -->
-              <el-descriptions-item v-if="detail.party_size" label="參觀人數">{{ partySizeLabel(detail.party_size) }}</el-descriptions-item>
-              <el-descriptions-item label="得知管道">{{ referralSourceLabels(detail.referral_sources) }}</el-descriptions-item>
-              <el-descriptions-item v-if="detail.age" label="家長填的年齡">{{ ageLabel(detail.age) }}</el-descriptions-item>
-              <!-- 家長自選場次之後不再問方便接電話時段，只有舊資料才有值。 -->
-              <el-descriptions-item v-if="detail.preferred_time" label="方便接電話時段">{{ contactTimeLabel(detail.preferred_time) }}</el-descriptions-item>
-              <el-descriptions-item v-if="detail.questions" label="想了解的事">
-                <span class="detail__pre">{{ detail.questions }}</span>
-              </el-descriptions-item>
-              <el-descriptions-item v-if="detail.consent_given" label="同意紀錄">{{ consentRecordLabel(detail) }}</el-descriptions-item>
-              <el-descriptions-item v-if="confirmedAtShown" label="確認時間">{{ formatDateTime(detail.confirmed_at) }}</el-descriptions-item>
-              <el-descriptions-item v-if="detail.cancelled_at" label="取消時間">{{ formatDateTime(detail.cancelled_at) }}</el-descriptions-item>
-            </el-descriptions>
-          </div>
-
-          <!-- 聯絡紀錄與案件歷程合成一條時間線（輸入框在最上；家庭版面沒有輸入框、再併入參觀後聯絡與招生事件）。
-               聯絡紀錄每天都在用，排在很少用的家長管理連結前面；手機上再排到家長資料前面（見樣式）。 -->
-          <VisitCaseTimeline />
-
-          <ParentAccessLinkPanel
-            v-if="linkApplicable"
-            :visit-id="detail.id"
-            :access-link="detail.access_link"
-            :can-handle="canHandle"
-            :status="detail.status"
-            :email="detail.email ?? null"
-            :email-enabled="emailEnabled"
-            :deadline-hours="detail.parent_change_deadline_hours"
-            @changed="refreshDetail"
-          />
+            <FamilyAdmissionsData
+              v-if="familyVisit"
+              class="detail__family-data"
+              :visit="familyVisit"
+              :options="familyOptions"
+              :editable="canCreateAdmissions"
+              @saved="family.replaceVisit"
+              @stale="family.reload"
+            />
+            <!-- 聯絡紀錄與案件歷程合成一條時間線（輸入框在最上；家庭版面沒有輸入框、再併入參觀後聯絡與招生事件）。 -->
+            <VisitCaseTimeline />
           </template>
         </div>
 
-        <aside v-if="familyPending || familyVisit || (detail.status === 'confirmed' && canHandle)" class="detail__side">
-          <div class="panel">
+        <div class="detail__side">
+          <section v-if="familyVisit" class="panel detail__family-actions">
             <div class="panel__head"><h2>處理</h2></div>
-            <div class="panel__body detail__actions">
-              <el-skeleton v-if="familyPending" animated :rows="3" />
+            <div class="panel__body">
               <FamilyActions
-                v-else-if="familyVisit"
                 :visit="familyVisit"
                 :staff="familyStaff"
                 :latest="latestFamilyContact"
@@ -313,52 +241,14 @@ watch(id, () => {
                 @stale="family.reload"
                 @rebook="rebookOpen = true"
               />
-              <template v-else-if="detail.status === 'confirmed' && canHandle">
-                <div v-if="manualRescheduleShown" class="reschedule" role="group" aria-labelledby="visit-reschedule-title">
-                  <p id="visit-reschedule-title" ref="rescheduleTitle" class="reschedule__title" tabindex="-1">改期（換場次）</p>
-                  <el-select ref="rescheduleSelect" v-model="rescheduleSlotId" placeholder="選擇新的參觀場次" filterable :disabled="rescheduleSlots.length === 0" aria-label="改期的新場次" style="width: 100%">
-                    <el-option-group v-for="group in groupSlotsByDay(rescheduleSlots)" :key="group.day" :label="group.label">
-                      <el-option v-for="slot in group.slots" :key="slot.id" :label="slotLabel(slot)" :value="slot.id">{{ slotChoiceTime(slot) }}</el-option>
-                    </el-option-group>
-                  </el-select>
-                  <p v-if="chosenSlotText(rescheduleSlots, rescheduleSlotId)" class="hint slot-chosen">已選：{{ chosenSlotText(rescheduleSlots, rescheduleSlotId) }}</p>
-                  <p v-if="rescheduleSlots.length === 0" class="hint">
-                    <template v-if="canManage">未來 60 天沒有其他可用場次。先到 <router-link to="/visit-calendar">參觀場次</router-link> 新增。</template>
-                    <template v-else>未來 60 天沒有其他可用場次，請校區管理者到「參觀場次」新增。</template>
-                  </p>
-                  <el-input v-model="rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
-                  <el-button :loading="pendingAction === 'reschedule'" :disabled="!rescheduleSlotId || busy" style="width: 100%; margin-left: 0" @click="reschedule">改到這一場</el-button>
-                  <p class="hint">改好後原場次的名額會空出來；新場次剛好額滿的話不會改。</p>
-                </div>
-                <div v-else class="reschedule reschedule--collapsed">
-                  <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">{{ detail.pending_reschedule ? '不照申請，改到其他場次…' : '改到其他場次…' }}</el-button>
-                </div>
-              </template>
             </div>
-            <div
-              v-if="canHandle && detail.status === 'confirmed'"
-              class="detail__danger"
-            >
-              <span class="hint">{{ attendanceDue ? '家長沒來請用上方的「沒來」' : '家長不來了？' }}</span>
-              <el-button text type="danger" :loading="pendingAction === 'cancel'" :disabled="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
-            </div>
-          </div>
-        </aside>
+          </section>
+          <VisitCaseFacts v-if="!familyPending" />
+          <VisitCaseSettings />
+        </div>
       </div>
-      <ManualVisitDialog v-model="rebookOpen" :campus-keys="visibleCampusKeys" :related-from="detail" @created="onRebooked" />
-      <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
-      <RecordDialog
-        v-if="canCreateAdmissions"
-        v-model="arrivalOpen"
-        mode="edit"
-        :campus-key="detail.campus_key"
-        :record="admissionsVisit"
-        :options="familyOptions"
-        :lead="arrivalLead"
-        :cancel-text="arrivalLead ? ARRIVAL_FORM_CANCEL_TEXT : undefined"
-        @saved="family.replaceVisit"
-        @stale="family.reload"
-      />
+
+      <VisitCaseDialogs />
     </template>
   </div>
 </template>
@@ -380,129 +270,69 @@ watch(id, () => {
   margin-right: -8px;
 }
 
-.detail__data .panel__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* 取消預約與上方的處理區塊隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
-.detail__danger {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 10px 24px 6px;
-  border-top: 1px solid var(--line);
-}
-
+/* 兩欄（2026-10-06 方向 C）：主欄是招生資料與時間線，右欄是處理區、家長資料、設定列。
+   右欄不 sticky：設定列比畫面高時，最底的取消預約會被卡住看不到。 */
 .detail__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 24px;
   align-items: start;
 }
 
-.detail__pre {
-  white-space: pre-wrap;
-}
-
-/* 處理面板沒有內容時（結案、只能查看）整個 aside 不畫，主欄不留一條空的右欄。 */
-.detail__grid:not(:has(> .detail__side)) {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.reschedule {
-  display: grid;
-  gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.reschedule--collapsed {
-  justify-items: start;
-}
-
-/* 處理面板第一個區塊上面不畫分隔線，免得標題下先出現一條空線。 */
-.detail__actions > .reschedule:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.slot-chosen {
-  margin: -4px 0 0;
-}
-
-.reschedule__title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink);
-}
-
+.detail__main,
 .detail__side {
-  position: sticky;
-  top: calc(var(--top-h) + 16px);
+  display: grid;
+  gap: 20px;
+  min-width: 0;
 }
 
-.detail__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* 面板之間的間距只由 grid 的 gap 決定，不再疊上 .panel + .panel 的外距。 */
+.detail__main > .panel,
+.detail__side > .panel {
+  margin-top: 0;
 }
 
-.detail__cancel {
-  margin-right: -8px;
-}
+/* 1100px 以下一欄：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列。兩欄的外框拆掉
+   （display: contents），子元素直接排進 grid 才能交錯排序。 */
+@media (max-width: 1100px) {
+  .detail__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
 
-/* 觸控裝置：電話、Email 連結放大到 44px 好點。 */
-@media (hover: none), (pointer: coarse) {
-  .detail__link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
+  .detail__main,
+  .detail__side {
+    display: contents;
+  }
+
+  .detail__family-actions {
+    order: 1;
+  }
+
+  .detail__family-data {
+    order: 2;
+  }
+
+  .detail__notes {
+    order: 3;
+  }
+
+  .case-facts {
+    order: 4;
+  }
+
+  .case-settings {
+    order: 5;
   }
 }
 
 @media (max-width: 900px) {
-  .detail__grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .detail__side {
-    position: static;
-    order: -1;
-  }
-
-  /* 手機上打完電話接著就是記一筆：撥號鈕、處理面板之後先放聯絡紀錄，
-     家長資料表排在後面。改成 flex 直排，兄弟間距統一用 gap，不靠 .panel + .section 的外距。 */
-  .detail__main {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
-
-  .detail__main > * {
-    margin-top: 0;
-  }
-
-  .detail__notes {
-    order: -1;
-  }
-
   /* 下一筆的件數比較長，窄螢幕允許換行，不擠出畫面。 */
   .detail__next {
     min-width: 0;
     height: auto;
     white-space: normal;
     text-align: right;
-  }
-}
-
-@media (max-width: 720px) {
-  .detail__danger {
-    padding: 10px 16px 6px;
   }
 }
 </style>

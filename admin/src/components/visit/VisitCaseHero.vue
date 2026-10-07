@@ -39,6 +39,8 @@ const source = computed(() => {
         重新預約自 <router-link :to="`/visit-requests/${vc.detail.related_request_id}`">先前的案件</router-link>
       </p>
       <p v-if="vc.detail.slot" class="detail__when">
+        <!-- 上一行是送出時間，這一行是參觀時間：兩個日期都沒有前綴，報讀要能分辨。 -->
+        <span class="visually-hidden">參觀時間：</span>
         <span class="num">{{ formatSlotWhen(vc.detail.slot) }}</span>
         <small v-if="relative" class="case-hero__relative" :data-tone="relative.tone">{{ relative.text }}</small>
       </p>

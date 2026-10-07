@@ -226,15 +226,19 @@ describe('明細的欄位與手機撥號', () => {
     expect(call.attributes('href')).toBe('tel:0912345678')
     expect(call.text()).toBe('撥號')
     expect(call.attributes('aria-label')).toContain('0912345678')
-    expect(wrapper.find('.detail__desc a.detail__link[href="tel:0912345678"]').exists()).toBe(true)
+    expect(wrapper.find('.case-facts a.detail__link[href="tel:0912345678"]').exists()).toBe(true)
   })
 
-  it('紀錄與家長管理連結的順序：聯絡紀錄在前', async () => {
+  it('版面順序：主欄是時間線，右欄的家長資料在設定列（場次、家長管理連結、取消）之前', async () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
-    const headings = wrapper.findAll('h2').map((h) => h.text())
-    expect(headings.indexOf('聯絡紀錄與案件歷程')).toBeGreaterThanOrEqual(0)
-    expect(headings.indexOf('聯絡紀錄與案件歷程')).toBeLessThan(headings.indexOf('家長管理連結'))
+    expect(wrapper.get('.detail__main').find('.case-timeline').exists()).toBe(true)
+    const side = Array.from(wrapper.get('.detail__side').element.children)
+    const facts = side.findIndex((el) => el.classList.contains('case-facts'))
+    const settings = side.findIndex((el) => el.classList.contains('case-settings'))
+    expect(facts).toBeGreaterThanOrEqual(0)
+    expect(facts).toBeLessThan(settings)
+    expect(wrapper.get('.case-settings').text()).toContain('家長管理連結')
   })
 
   it('時段選單的名額用「組」', async () => {

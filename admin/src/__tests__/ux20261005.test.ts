@@ -137,7 +137,7 @@ async function mountDetail(data: Record<string, unknown>) {
   return wrapper
 }
 
-const rowLabels = (wrapper: VueWrapper) => wrapper.findAll('.detail__desc .el-descriptions__label').map(cell => cell.text())
+const rowLabels = (wrapper: VueWrapper) => wrapper.findAll('.case-facts dt').map(cell => cell.text())
 
 describe('案件明細：官網已不問的欄位只有舊資料才列', () => {
   it('新案件不列參觀人數、想了解的事、同意紀錄（不再固定出現「未填寫」「不需勾選同意」）', async () => {
@@ -147,7 +147,7 @@ describe('案件明細：官網已不問的欄位只有舊資料才列', () => {
     expect(labels).not.toContain('想了解的事')
     expect(labels).not.toContain('同意紀錄')
     expect(wrapper.text()).not.toContain('官網預約不需勾選同意')
-    expect(labels).toEqual(expect.arrayContaining(['電話', '孩子姓名', '出生年月日', 'Email', '得知管道']))
+    expect(labels).toEqual(expect.arrayContaining(['電話', '孩子', 'Email', '得知管道']))
   })
 
   it('舊案件或補登有填的照樣列出', async () => {
@@ -172,11 +172,11 @@ describe('案件明細：改期一律先收成連結', () => {
     expect(wrapper.text()).not.toContain('在同一步釋出')
   })
 
-  it('手機版：聯絡紀錄排在家長資料前面（家庭版面的聯絡紀錄沿用同一個 class）', () => {
-    const mobile = detailSource.slice(detailSource.indexOf('@media (max-width: 900px)'))
-    expect(mobile).toMatch(/\.detail__main \{\s*display: flex;\s*flex-direction: column;/)
-    expect(mobile).not.toContain('.detail__after')
-    expect(mobile).toMatch(/\.detail__notes \{\s*order: -1;/)
+  it('1100px 以下一欄：聯絡紀錄排在家長資料前面（家庭版面的聯絡紀錄沿用同一個 class）', () => {
+    const narrow = detailSource.slice(detailSource.indexOf('@media (max-width: 1100px)'))
+    expect(narrow).toMatch(/\.detail__main,\s*\.detail__side \{\s*display: contents;/)
+    expect(narrow).not.toContain('.detail__after')
+    expect(narrow).toMatch(/\.detail__notes \{\s*order: 3;/)
     expect(detailSource).toContain('<VisitCaseTimeline')
   })
 })

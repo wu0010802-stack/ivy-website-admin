@@ -9,6 +9,7 @@ import type { ParentAccessLinkCreatedOut } from '../api/types'
 // 家長管理連結（規格 6.4）：家長用它查看預約、改場次、修改資料或取消。完整網址只在
 // 產生當下顯示一次（資料庫只存 hash），所以這裡只知道「有沒有、何時到期」；
 // 遺失就重新產生（有設定寄信時寄到家長信箱），舊連結同時失效。
+// 2026-10-06 方向 C：放在案件明細的設定列，標題改成列標籤（不再是 h2）。
 const props = defineProps<{
   visitId: string
   accessLink: { created_at: string; expires_at: string } | null | undefined
@@ -120,8 +121,8 @@ async function copy() {
 </script>
 
 <template>
-  <section class="section access">
-    <div class="section__title"><h2>家長管理連結</h2></div>
+  <div class="access">
+    <p class="settings-row__label">家長管理連結</p>
     <!-- 補登的案件家長沒有自己送出過，不寫「家長已收到」；寄信沒設定時也不提信箱。 -->
     <p class="hint">家長可以用這條連結改場次、修改資料或取消（{{ deadlineHours ? `${parentDeadlineLabel(deadlineHours)}截止` : '截止時間依本校預約設定' }}）。</p>
     <p v-if="mailOff" class="hint access__mail-off">尚未設定寄信，請產生連結後用簡訊或 LINE 交給家長。</p>
@@ -130,7 +131,7 @@ async function copy() {
       <el-alert type="warning" :closable="false" show-icon title="連結只顯示這一次" description="離開這頁就看不到了；遺失請重新產生，舊連結會同時失效。" />
       <div class="access__copy">
         <el-input :model-value="linkText()" readonly aria-label="家長管理連結" @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()" />
-        <el-button type="primary" @click="copy">複製連結</el-button>
+        <el-button type="primary" plain @click="copy">複製連結</el-button>
       </div>
       <p v-if="!sentByMail" class="field-help">這次沒有寄信，請把連結直接交給家長（簡訊、LINE 或 Email）。</p>
       <p v-if="!created.manage_url" class="field-help">部署設定缺少 WEBSITE_ADMIN_ORIGIN，無法產生完整網址；請在官網網址後面接上這段再給家長。</p>
@@ -146,10 +147,20 @@ async function copy() {
       <el-button :loading="busy" @click="generate">{{ accessLink || created ? (mailsNewLink ? '重新產生連結並寄出' : '重新產生連結') : '產生連結' }}</el-button>
       <el-button v-if="accessLink || created" text type="danger" :disabled="busy" @click="revoke">撤銷連結</el-button>
     </div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
+.access {
+  display: grid;
+  gap: 6px;
+}
+
+.access .hint {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
 .access__created {
   display: grid;
   gap: 8px;
