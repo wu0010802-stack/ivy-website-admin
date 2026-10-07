@@ -9,7 +9,7 @@ import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import type { UserOut } from '../api/types'
 import { testUser } from './fixtures'
-import { legacyStatusGroup, visitDisplay } from '../api/labels'
+import { legacyStatusGroup, legacyStatusView, visitDisplay } from '../api/labels'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -81,5 +81,14 @@ describe('案件列表分頁', () => {
     const lists = get.mock.calls.map(([path]) => String(path)).filter(path => path.startsWith('/admin/visit-requests?'))
     expect(lists.length).toBeGreaterThan(0)
     expect(lists.some(path => path.includes('group='))).toBe(false)
+  })
+})
+
+describe('接待頁籤的舊狀態對照（2026-10-06 方向 B）', () => {
+  it.each([
+    ['confirmed', 'upcoming'], ['completed', 'arrived'], ['no_show', 'past'], ['cancelled', 'cancelled'],
+    ['new', ''], ['contacting', ''], ['pending_confirmation', ''], ['', ''],
+  ])('%s → %s', (status, view) => {
+    expect(legacyStatusView(status)).toBe(view)
   })
 })

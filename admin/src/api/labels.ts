@@ -79,6 +79,18 @@ export function legacyStatusGroup(status: string): VisitGroup | '' {
   return LEGACY_STATUS_GROUP[status] ?? ''
 }
 
+// 案件列表的接待頁籤（2026-10-06 方向 B）：後端 status_groups.view_condition。和上面的分組（group）不同，
+// 接下來以台北「今天」為界、今天整天都在，頁籤可以重疊；分組留給總覽、成效統計與舊連結。
+export const VISIT_VIEWS = ['upcoming', 'past', 'arrived', 'cancelled'] as const
+export type VisitView = typeof VISIT_VIEWS[number]
+export const VISIT_VIEW_LABELS: Record<VisitView, string> = { upcoming: '接下來', past: '時間已過', arrived: '已到場', cancelled: '已取消' }
+
+// 舊書籤的 ?status=：對到接待頁籤；舊流程的 new／contacting／pending_confirmation 回空字串（落到「全部」）。
+const LEGACY_STATUS_VIEW: Record<string, VisitView> = { confirmed: 'upcoming', completed: 'arrived', no_show: 'past', cancelled: 'cancelled' }
+export function legacyStatusView(status: string): VisitView | '' {
+  return LEGACY_STATUS_VIEW[status] ?? ''
+}
+
 const CANCELLED_BY_LABELS: Record<string, string> = { parent: '家長取消', staff: '園方取消', hold_expired: '逾期未確認' }
 // confirmed 且時間已過＝還沒標記到場；之後招生入學靠「標記已到場」建立招生訪視，所以要看得出來。
 const PAST_SUB: Record<string, string> = { completed: '已到場', no_show: '未到場', confirmed: '尚未確認到場' }
@@ -1276,6 +1288,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     return `${action === 'visit_request.export' ? '篩選來源' : '來源'}：${visitSourceLabel(String(v))}`
   },
   group: (v) => `篩選分組：${(VISIT_GROUP_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
+  view: (v) => `篩選頁籤：${(VISIT_VIEW_LABELS as Record<string, string>)[String(v)] ?? String(v)}`,
   // 承辦人篩選 2026-10-06 拿掉，只剩舊的匯出紀錄。
   assignee: (v) => `篩選承辦人：${v === 'me' ? '匯出的人自己承辦的' : v === 'none' ? '尚未指派' : v === 'inactive' ? '承辦人已停用' : '指定的同事'}`,
   open: (v) => (v ? '只匯出還沒結案的案件' : null),

@@ -498,6 +498,14 @@ class VisitGroupCountsOut(BaseModel):
     cancelled: int
 
 
+class VisitViewCountsOut(BaseModel):
+    """接待頁籤的數字（2026-10-06 方向 B）：接下來寫全部件數；時間已過只寫還沒標記到場的
+    （＝總覽「參觀時間過了，還沒標記到場」、pending_kinds.awaiting_attendance）。已到場、已取消不寫數字。"""
+
+    upcoming: int
+    past_unmarked: int
+
+
 class ParentRescheduleRequest(BaseModel):
     visit_request_id: uuid.UUID
     slot_id: uuid.UUID
