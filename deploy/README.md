@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-07 後台匯出擴充、參觀案件明細時間線與列表行程清單（C、B）、內容編輯三欄＋即時預覽（D）（main CI 部署）
+
+- **合併**：整合分支 `merge/admin-bcd-20261007` 從 `feature/admin-exports-20261006`（`bfe9b924`）開，依序合入 origin/main（`2510dcfe`）、`feature/admin-visit-ux-20261006`（`983015a1`）、`feature/admin-editor-preview-20261006`（`f1c22e49`），成 `6408063d`，快轉推 main `2510dcfe..6408063d`。衝突只在 README／DESIGN.md／`docs/website-admin/acceptance.md`（各段都保留）與 `backend/app/booking/routes.py`（保留 C、B 的 `GET /admin/visit-requests/view-counts`，刪掉已搬到 `app/common/csv_export.py` 的舊 `_safe_cell`）；`npm run contract:generate` 後契約無變化。內容與各分支驗證見 README 頂部三個 2026-10-06 段落。
+- **migration**：無（三個分支都沒有 alembic 版本）。沒有備份。
+- **推送前本機閘門**（`6408063d`）：後端 pytest 全套 1681 passed、1 skipped（9 分 54 秒）；admin vitest 136 檔 1798 passed、1 skipped，`npm run typecheck` 無錯；`npm run test:website` 85 檔 931 passed，`npm --prefix web run typecheck` 0 WARN；`npm run contract:check` 一致；`deploy/tests` 通過；`npm run e2e:build` 後 stack 全套 101 passed（4.5 分鐘，`E2E_DB_NAME=ivy_website_mergebcd1007_e2e_test`）。
+- **CI**：main run 37617750110（`6408063d`）全綠，建立到完成 14.4 分鐘：Frontend admin 3.9／web 1.4 分鐘，Backend 三組 7.4／7.5／7.9 分鐘，E2E／Playwright 9.0 分鐘，Deploy 6.3 分鐘。
+- **正式 `release.json`**：base commit `6408063d`，created `2026-10-07T12:07:07Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/`、`/visit`、`/about`、`/admin/login`、`/sitemap.xml`、`/preview` 皆 200；`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；`/admin/` 的 CSP 有 `frame-src 'self'`、`frame-ancestors 'self'`；`/preview?embed=1&live=1` 有 `X-Frame-Options: SAMEORIGIN`、`frame-ancestors 'self'`、`Cache-Control: private, no-store`、`X-Robots-Tag: noindex, nofollow`；`/admin/visit-requests/view-counts`、帶 `created_from`／`limit` 的 `/admin/audit-log` 未登入皆 401。線上後台 chunk 找得到 `records/export`、`no-deposit-records/export`、`created_from`、`view-counts`、`visit_asc`、「接下來」「匯出範圍」「草稿有」「和官網不同」「預覽的是還沒存的修改」、`allow-scripts allow-same-origin`、`visit-preview`。
+- **未做**：沒有登入後台實際操作（匯出下載、行程清單、右側預覽、即時預覽往返都只在本機 stack 驗過）；正式站招生開關沒查（關閉時兩個招生匯出端點 404，屬預期）；Safari／iOS 實機。
+
 ## 2026-10-07 公開資料拿掉維護備註 `_todo`、更正分校頁過時文件（main CI 部署）
 
 - **合併**：`fix/public-todo-strip-20261007` 的 `471966fc` 從 `f82471f0` 開，快轉推 main `f82471f0..471966fc`。內容與驗證見 README 頂部同日段落。

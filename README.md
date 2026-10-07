@@ -7,7 +7,7 @@
 - **`docs/website-admin/seo-performance.md`**：Google 商家網站連結不再指示設成 `/campuses/<key>`，改先指首頁；`/visit/<key>` 是 noindex，要不要改指預約頁由園方決定。
 - 未處理：`docs/website-admin/acceptance.md` A21／A22 的通過證據仍引用已刪除的分校頁測試，要不要補註留給負責驗收紀錄的人。
 
-## 2026-10-06 後台匯出擴充（`feature/admin-exports-20261006`，未部署）
+## 2026-10-06 後台匯出擴充（`feature/admin-exports-20261006`，10-07 已部署 main `6408063d`）
 
 使用者要求：後台除了參觀案件，招生明細、統計、操作紀錄、成效統計也要能匯出。**使用者 10-06 裁定**：招生訪視明細與未預繳名單開放含個資匯出（取代招生規格 3.2「任何含個資的匯出」不做）、沿用「匯出個資」授權 `booking.export`、操作紀錄匯出不另寫稽核。規則見 DESIGN.md「後台匯出擴充（2026-10-06）」。
 
@@ -23,7 +23,7 @@
 - **驗證**（Node 22；單檔結果見下、全套於 2026-10-07 由 controller 跑完回填；後端測試庫 `ivy_website_exports1006_test`）：單檔：後端 `test_csv_export` 33、`test_admissions_download` 28、`test_admissions_booking_link` 14、`test_admissions_stats` 34、`test_operations` 20、`test_audit_client_info` 11、`test_visit_attention_export` 6、`test_security_hardening` 20 passed；admin vitest `csvUtil`＋`statsDimensionCsv`＋`statsTab`＋`compareTable` 67、`admissionsDownload` 10、`auditExport` 18、`analyticsExport` 17（連同 9 個既有相關檔共 10 檔 97）、`labelCoverage`＋`admissionsDownloadLabels` 17 passed，`vue-tsc` 0 錯誤，`contract:check` 一致；stack `exports.spec.ts`（`E2E_DB_NAME=ivy_website_exports1006_e2e_test`、埠 8741／3741）7 passed，真瀏覽器下載、檢查 BOM、CRLF、欄數、公式注入、權限與 1440／390 版面。修正波後的單檔：後端 `test_csv_export`（含 glob 守門）、`test_operations`（含合併翻頁 4 項）、`test_visit_attention_export`、`test_display_names` 共 90 passed；admin vitest `noLiteralBom` 1、`csvUtil` 24、`statsDimensionCsv` 7、`analyticsExport` 19、`admissionsDownload` 11、`auditExport` 18，連同 `traffic`、`noDepositList`、`statsTab`、`compareTable`、`crossUx20261002`、`labelCoverage`、`admissionsDownloadLabels` 共 13 檔 164 passed，`vue-tsc` 0 錯誤；stack `exports.spec.ts` 8 passed（新增 960／905／1030px 版面項）。**全套閘門（2026-10-07）**：後端 pytest 全套 1672 passed、1 skipped（9 分 30 秒）；後台 vitest 全套 117 檔 1470 項全過、`npm run typecheck` 無錯誤；`npm run contract:check` 一致；web 全套 80 檔 829 項全過；stack e2e 全套 81 項全過（2.8 分鐘）。明細在 `docs/website-admin/acceptance.md` 的「後台匯出擴充」。
 - **未驗證／未做**：Safari／iOS 實機下載與 Excel 實機開檔；正式資料量（接近 1 萬筆）的匯出時間與記憶體；成效統計各按鈕（含各頁瀏覽）的版面只有單元測試、沒目視；操作紀錄 5,000 筆上限數的是 API 回傳筆數、不是搜尋後的筆數。不做 Excel（.xlsx）。
 
-## 2026-10-06 參觀案件明細時間線（C）與案件列表行程清單（B）（`feature/admin-visit-ux-20261006`，未部署）
+## 2026-10-06 參觀案件明細時間線（C）與案件列表行程清單（B）（`feature/admin-visit-ux-20261006`，10-07 已部署 main `6408063d`）
 
 使用者看完後台結構層比稿（`design/admin-ux-directions-20261006/`）選 C 與 B，先 C 後 B。規則見 DESIGN.md「案件明細：一條時間線＋一個主動作」「參觀案件：照參觀日排的行程清單」，計畫 `docs/superpowers/plans/2026-10-06-admin-visit-ux.md`，驗收列見 `docs/website-admin/acceptance.md` 同名一節。
 
@@ -36,7 +36,7 @@
 - **全套閘門結果**：HEAD `0e169831` 上 admin vitest 119 檔 1546 項、後端 pytest 1614 passed 1 skipped（9 分 20 秒）、`contract:check` 一致、stack 81 passed；最終版本 HEAD `3a12f82d` 上 admin vitest 119 檔 1552 項、後端 pytest 1615 passed 1 skipped（10 分 00 秒）、`contract:check` 一致、e2e:build 成功、stack 81 passed（3.1 分鐘）、alembic heads 單一 `c4e8a2f61b97` 無新 migration。
 - **沒做／未驗證**：mock 的「修改資料」連結與「兄姊」「（中班）」（後台沒有改家長資料的 API、資料裡也沒有這些欄位）、常駐複製家長連結（網址只在產生當下顯示，資料庫只存 hash）；iOS Safari 與 Android 實機、正式站、真資料量下的跨頁分組（只有單元測試與小量 fixture）、真的開著跨過台北午夜（只有 fake timer 測試）。已知小瑕疵（審查時列為不阻擋）：1440＋批次勾選＋預覽時長名字換行後第二行以「・」開頭；家庭階段帳號沒有 `admissions.write` 時頁首主動作區是空的。待使用者確認：第五個頁籤「全部」。
 
-## 2026-10-06 內容編輯三欄＋即時預覽（方向 D，`feature/admin-editor-preview-20261006`，未 push、未部署）
+## 2026-10-06 內容編輯三欄＋即時預覽（方向 D，`feature/admin-editor-preview-20261006`，10-07 已部署 main `6408063d`）
 
 使用者看完後台結構層比稿（`design/admin-ux-directions-20261006/`，A–E）選了 D（`d-editor.html`），並同意改官網的 `/preview`。計畫 `docs/superpowers/plans/2026-10-06-admin-editor-preview.md`，規則見 DESIGN.md「官網後台內容編輯：三欄＋即時預覽」，驗收見 `docs/website-admin/acceptance.md`「內容編輯三欄＋即時預覽」。
 
@@ -59,7 +59,6 @@
 - **驗證**（Node 22.23.2）：admin vitest 110 檔 1377 項全過（改 `analyticsFunnel`、`analyticsOutcomes`、`traffic` 三個測試檔對新 DOM 的斷言）、`vue-tsc -b`、`vite build` 通過。本機 stack（測試庫 `ivy_website_analyticsux_test`、API 8751、vite 5351，已關、已刪）用 `output/analytics-ux/seed.cjs` 灌兩校 18 筆案件、點擊與瀏覽，在 390／1280／1440 三個頁籤：橫向溢出 0、axe（WCAG 2.1 A／AA）serious／critical 0、鍵盤右鍵切頁籤焦點跟著走。截圖在 `design/admin-ux-directions-20261006/shots/after-e/`。
 - **沒做**：匯出 CSV（mock 有、目前沒有匯出 API）；班別頁籤只換說明收合與寬度上限。未驗證：正式站。
 
-## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（`feature/admissions-nodeposit-20261006`，未部署）
 ## 2026-10-06 招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁（`feature/admissions-nodeposit-20261006`，10-06 已部署 main `0ae1f089`）
 
 使用者問招生入學的「尚未預繳」在什麼情況下會出現。說明後，使用者要求處理兩個落差（訪視明細「預繳：否」和統計對不上、逾期從建檔時間起算），並指著 `/admin/admissions?tab=followups` 說「待追蹤 幫我拿掉」（範圍確認為只拿這個分頁）。規則見 DESIGN.md「招生：未預繳口徑對齊、逾期看參觀日、拿掉待追蹤分頁」。
