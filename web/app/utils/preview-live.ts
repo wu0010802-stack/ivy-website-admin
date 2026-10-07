@@ -19,7 +19,7 @@ export const PREVIEW_MESSAGE = {
 
 /** 一則草稿最多多大（JSON 字元數）；超過就不套用。 */
 export const MAX_DRAFT_CHARS = 1_000_000
-/** 用來找位置的那段文字最多幾個字。 */
+/** 用來找位置的那段文字最多幾個字（以碼點算，emoji 這類代理對算一個）。 */
 export const MAX_PROBE_CHARS = 80
 
 export const SHARED_LIVE_KINDS = [
@@ -96,17 +96,31 @@ export interface PreviewWindow {
   parent: unknown
 }
 
-/** 一般物件：原型是 null 或最上層的 Object.prototype（Map、Date、類別實例都不算）。 */
+/**
+ * 一般物件：原型鏈只有一層，也就是原型是 null，或原型本身沒有原型（Object.prototype，
+ * 別的 realm 的 Object.prototype 也算）。Map、Date、Blob、類別實例的原型鏈都比這長，不算。
+ * 只看最外層：巢狀的值由 parseDraftMessage 用 JSON 轉一次處理。
+ */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
   const proto = Object.getPrototypeOf(value)
   return proto === null || Object.getPrototypeOf(proto) === null
 }
 
+/** 取前 max 個字（以碼點算，不會把代理對切成兩半）。先把長度限在 max 個字最多佔的 UTF-16 單位數，免得為很長的字串配大陣列。 */
+function firstChars(text: string, max: number): string {
+  return Array.from(text.slice(0, max * 2)).slice(0, max).join('')
+}
+
 function isCampusKind(kind: unknown): boolean {
   return (CAMPUS_LIVE_KINDS as readonly unknown[]).includes(kind)
 }
 
+/**
+ * 驗證一則後台送來的草稿；格式不對回 null。回來的 payload 是 JSON 轉出來的新物件（只有字串、數字、
+ * 布林、null、陣列、一般物件，巢狀的 Map、Date、Blob 之類不會混進來），不是 event.data 裡的同一份，
+ * 呼叫端直接用，不必再複製一次。
+ */
 export function parseDraftMessage(data: unknown, campusKeys: readonly string[]): LiveDraft | null {
   if (!isPlainObject(data) || data.type !== PREVIEW_MESSAGE.draft || data.v !== PREVIEW_PROTOCOL_VERSION) return null
   const { seq, kind, campusKey, payload, page, focus } = data
@@ -117,25 +131,29 @@ export function parseDraftMessage(data: unknown, campusKeys: readonly string[]):
   if (shared && campusKey !== null) return null
   if (perCampus && (typeof campusKey !== 'string' || !campusKeys.includes(campusKey))) return null
   if (!isPlainObject(payload)) return null
-  let size: number
+  // 先轉成 JSON 字串量大小，再轉回物件：量的就是之後真的會用的內容，而且收下的只有 JSON 值。
+  // 循環參照、BigInt、超深巢狀（呼叫堆疊爆掉的 RangeError）都轉不出來，一律當格式不對。
+  let plain: unknown
   try {
-    size = JSON.stringify(payload).length
+    const json = JSON.stringify(payload)
+    if (json.length > MAX_DRAFT_CHARS) return null
+    plain = JSON.parse(json)
   } catch {
     return null
   }
-  if (size > MAX_DRAFT_CHARS) return null
+  if (!isPlainObject(plain)) return null
   if (typeof page !== 'string' || !(PAGES as readonly string[]).includes(page)) return null
   if (!isPlainObject(focus) || typeof focus.block !== 'string') return null
   // hasOwnProperty：擋掉 toString、constructor 這類原型上的鍵。
   if (!Object.prototype.hasOwnProperty.call(PREVIEW_BLOCKS, focus.block)) return null
   const focusCampus = focus.campusKey
   if (focusCampus !== null && focusCampus !== undefined && (typeof focusCampus !== 'string' || !campusKeys.includes(focusCampus))) return null
-  const probe = typeof focus.probe === 'string' && focus.probe.trim() ? focus.probe.slice(0, MAX_PROBE_CHARS) : null
+  const probe = typeof focus.probe === 'string' && focus.probe.trim() ? firstChars(focus.probe, MAX_PROBE_CHARS) : null
   return {
     seq,
     kind: kind as LiveKind,
     campusKey: perCampus ? (campusKey as string) : null,
-    payload,
+    payload: plain,
     page: page as PreviewPage,
     focus: { block: focus.block as PreviewBlock, campusKey: (focusCampus as string | null | undefined) ?? null, probe, mark: focus.mark !== false }
   }
@@ -148,8 +166,11 @@ export function isTrustedPreviewEvent(event: { origin: string; source: unknown }
 
 /** 只蓋掉這一項內容；分校內容只換那一校。不改傳進來的 overlay。 */
 export function applyLiveDraft(overlay: ContentOverlay, draft: LiveOverride): ContentOverlay {
+  const perCampus = isCampusKind(draft.kind)
+  // 分校內容沒說是哪一校：不動（照校區換才不會把五校整張換成這一份）。parseDraftMessage 不會放這種進來。
+  if (perCampus && !draft.campusKey) return overlay
   const next = { ...overlay } as Record<string, unknown>
-  if (isCampusKind(draft.kind) && draft.campusKey) {
+  if (perCampus && draft.campusKey) {
     const current = (overlay as Record<string, Record<string, unknown> | null | undefined>)[draft.kind] ?? {}
     next[draft.kind] = { ...current, [draft.campusKey]: draft.payload }
   } else {

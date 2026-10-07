@@ -67,8 +67,44 @@ describe('parseDraftMessage：格式不對就不套用', () => {
     expect(parseDraftMessage(draft({ payload: cyclic }), CAMPUSES)).toBeNull()
   })
 
+  it('payload 超深巢狀（JSON 轉不出來、會爆呼叫堆疊）不收，也不丟錯', () => {
+    let deep: Record<string, unknown> = {}
+    for (let i = 0; i < 200_000; i += 1) deep = { next: deep }
+    expect(() => parseDraftMessage(draft({ payload: deep }), CAMPUSES)).not.toThrow()
+    expect(parseDraftMessage(draft({ payload: deep }), CAMPUSES)).toBeNull()
+  })
+
   it('不是物件也不收', () => {
     for (const data of [null, undefined, 'ivy-preview:draft', 1, []]) expect(parseDraftMessage(data, CAMPUSES)).toBeNull()
+  })
+
+  it('payload 剛好等於上限（JSON 字元數）收，多一個字就不收', () => {
+    const overhead = JSON.stringify({ tagline: '' }).length
+    const exact = { tagline: 'x'.repeat(MAX_DRAFT_CHARS - overhead) }
+    expect(JSON.stringify(exact)).toHaveLength(MAX_DRAFT_CHARS)
+    expect(parseDraftMessage(draft({ payload: exact }), CAMPUSES)?.payload).toEqual(exact)
+    expect(parseDraftMessage(draft({ payload: { tagline: `${exact.tagline}x` } }), CAMPUSES)).toBeNull()
+  })
+
+  it('收下的 payload 是新的純 JSON 物件：巢狀的 Map、Date、ArrayBuffer、Blob 不會混進來，上限也量得準', () => {
+    const when = new Date('2026-10-06T00:00:00Z')
+    const input = {
+      tagline: '標語',
+      when,
+      nested: { map: new Map([['a', 1]]), list: [new Uint8Array([1, 2]).buffer, new Blob(['x']), undefined, Number.NaN] },
+      keep: { n: 1, ok: true, none: null }
+    }
+    const parsed = parseDraftMessage(draft({ payload: input }), CAMPUSES)!
+    expect(parsed.payload).toEqual({
+      tagline: '標語',
+      when: '2026-10-06T00:00:00.000Z',
+      nested: { map: {}, list: [{}, {}, null, null] },
+      keep: { n: 1, ok: true, none: null }
+    })
+    // 收到的是 JSON 轉出來的新物件，不是 event.data 裡的同一份（也不必再複製一次）。
+    expect(parsed.payload).not.toBe(input)
+    expect(parsed.payload.keep).not.toBe(input.keep)
+    expect(parsed.payload.when).not.toBeInstanceOf(Date)
   })
 
   it('probe 截到 80 字、空字串當沒有；mark 沒寫當 true', () => {
@@ -76,6 +112,17 @@ describe('parseDraftMessage：格式不對就不套用', () => {
     expect(long?.focus.probe).toHaveLength(80)
     expect(long?.focus.mark).toBe(true)
     expect(parseDraftMessage(draft({ focus: { block: 'site-footer', campusKey: null, probe: '   ', mark: false } }), CAMPUSES)?.focus).toEqual({ block: 'site-footer', campusKey: null, probe: null, mark: false })
+  })
+
+  it('probe 截斷不會把代理對（emoji 等）切成兩半', () => {
+    const emoji = parseDraftMessage(draft({ focus: { block: 'site-footer', campusKey: null, probe: '😀'.repeat(100) } }), CAMPUSES)?.focus.probe
+    expect(emoji).toBe('😀'.repeat(80))
+    expect(Array.from(emoji!)).toHaveLength(80)
+    // 前面混了一個單位長度 1 的字，第 80 個字（代理對）仍整個留下，後面多的整個丟掉，不留半個。
+    const mixed = parseDraftMessage(draft({ focus: { block: 'site-footer', campusKey: null, probe: `字${'😀'.repeat(79)}😀😀` } }), CAMPUSES)?.focus.probe
+    expect(Array.from(mixed!)).toHaveLength(80)
+    expect(mixed).toBe(`字${'😀'.repeat(79)}`)
+    for (const probe of [emoji!, mixed!]) expect(probe).not.toMatch(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/)
   })
 })
 
@@ -110,6 +157,15 @@ describe('applyLiveDraft：只蓋掉這一項內容', () => {
     const campus = applyLiveDraft(overlay, { kind: 'campus_profile', campusKey: 'yihua', payload: { name: '義華校' } })
     expect((campus as Record<string, Record<string, unknown>>).campus_profile).toEqual({ minghua: { name: '明華校' }, yihua: { name: '義華校' } })
     expect((overlay as Record<string, Record<string, unknown>>).campus_profile).toEqual({ minghua: { name: '明華校' } })
+  })
+
+  it('分校內容沒帶校區：不動 overlay（不會把五校整張換成這一份）', () => {
+    const overlay = { campus_profile: { minghua: { name: '明華校' }, yihua: { name: '義華校' } }, site_footer: footer } as never
+    for (const kind of ['campus_profile', 'campus_tour', 'campus_news'] as const) {
+      const next = applyLiveDraft(overlay, { kind, campusKey: null, payload: { name: '不該蓋上去' } })
+      expect(next).toEqual(overlay)
+      expect((next as Record<string, unknown>)[kind]).toBe((overlay as Record<string, unknown>)[kind])
+    }
   })
 
   it('其他內容種類原封不動，原本的 overlay 不被改', () => {
