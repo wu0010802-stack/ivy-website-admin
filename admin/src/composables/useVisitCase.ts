@@ -438,6 +438,10 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     await hooks.onRebooked?.(created)
   }
 
+  // 標記已到場後會不會接著打開招生資料表單：招生可用（查得到、開關開）而且能改招生資料。頁首主動作的提示與
+  // markCompleted 共用這一條規則。
+  const opensForm = computed(() => family.available.value === 'yes' && family.canWrite.value)
+
   // 招生入學可用時，標記已到場會在同一個交易裡建立招生訪視（規格 6.1），所以先確認（規格第 10 節原文）。
   // 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
   // 能改招生資料的人標記後接著打開招生資料表單（2026-10-06，同案件列表的 useArrivalAdmissionsForm）。
@@ -446,10 +450,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     const lookupInFlight = family.canRead.value ? family.settled() : null
     if (lookupInFlight) await lookupInFlight
     const withAdmissions = family.available.value === 'yes'
-    const opensForm = withAdmissions && family.canWrite.value
+    // 標記後招生會重查，opensForm 可能跟著變，所以這一刻的結果先存起來，確認框與標記之後都用同一個答案。
+    const opensFormNow = opensForm.value
     if (withAdmissions) {
       try {
-        await ElMessageBox.confirm(arrivalAdmissionsNote(opensForm), '標記已到場？', {
+        await ElMessageBox.confirm(arrivalAdmissionsNote(opensFormNow), '標記已到場？', {
           confirmButtonText: '標記已到場',
           cancelButtonText: '先不要',
           type: 'info',
@@ -461,11 +466,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     pendingAction.value = 'complete'
     try {
       await api.post(`/admin/visit-requests/${id.value}/complete`)
-      if (!opensForm) ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
+      if (!opensFormNow) ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
       openRequests.refresh(true)
       await load({ quiet: true })
       hooks.onChanged?.()
-      if (opensForm) await openArrivalForm()
+      if (opensFormNow) await openArrivalForm()
     } catch (err) {
       reportError(err, '操作失敗')
     } finally {
@@ -616,7 +621,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     familyVisit, familyPending, handled, noteDirty, openSlots, rescheduleSlots, parentMailNote, visitStarted, attendanceDue,
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
     familyNoteList, latestFamilyContact, callPhone, bookingDataTitle,
-    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, reschedule, decideReschedule,
+    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, opensForm, reschedule, decideReschedule,
     addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
   })
 }

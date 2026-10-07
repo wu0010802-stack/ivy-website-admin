@@ -29,8 +29,6 @@ const stage = computed(() => {
     lookupFailed: vc.lookupFailed,
   })
 })
-// 標記到場後會不會接著開招生資料表單（同 markCompleted；招生還在查時不寫）。
-const opensForm = computed(() => vc.admissionsAvailable === 'yes' && vc.canCreateAdmissions)
 const request = computed(() => (vc.canHandle && vc.detail?.status === 'confirmed' ? (vc.detail.pending_reschedule ?? null) : null))
 const solid = (primaryHere: boolean) => primaryHere && !props.plain
 const familyEditable = computed(() => vc.canCreateAdmissions && !vc.familyVisit?.anonymized_at)
@@ -46,7 +44,7 @@ const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'adm
         <el-button type="primary" :plain="!solid(true)" :loading="vc.pendingAction === 'complete'" :disabled="vc.busy" @click="vc.markCompleted()">家長到了</el-button>
         <el-button :loading="vc.pendingAction === 'no_show'" :disabled="vc.busy" @click="vc.markNoShow()">沒來</el-button>
       </div>
-      <p v-if="opensForm" class="hint case-hero__note">標記到場會接著開招生資料表單</p>
+      <p v-if="vc.opensForm" class="hint case-hero__note">標記到場會接著開招生資料表單</p>
     </div>
 
     <div v-if="request" class="reschedule-request" role="group" aria-label="家長的改期申請">
