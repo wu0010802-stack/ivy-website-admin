@@ -1,16 +1,16 @@
 import { mkdirSync } from 'node:fs'
 import { expect, test, type Page } from '@playwright/test'
 import { adminApi, submitPublicRequest, type VisitSummary } from './api'
-import { gotoAdmin, searchVisitList } from './pages'
+import { expectNoHorizontalOverflow, gotoAdmin, searchVisitList } from './pages'
 import { SECOND_CAMPUS, storageStatePath } from './stack-env'
 
 // 參觀案件行程清單（方向 B）與案件明細（方向 C）的端對端檢查；截圖存 output/（gitignore）給人看，不比對像素。
 const SHOTS = 'output/admin-visit-ux-20261006'
 const PARENT = '行程清單家長'
 
-async function expectNoHorizontalOverflow(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
-  expect(overflow).toBeLessThanOrEqual(0)
+// 截圖前先讓進場動畫跑完（狀態標籤 .el-tag 是淡入的，沒等會拍到還沒出現的樣子）。
+async function shot(page: Page, name: string) {
+  await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: true, animations: 'disabled' })
 }
 
 test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
@@ -46,12 +46,13 @@ test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
     await expect(preview.getByRole('heading', { level: 2, name: new RegExp(PARENT) })).toBeVisible()
     await expect(page).toHaveURL(/\/admin\/visit-requests(\?[^/]*)?$/)
     await expect(row).toHaveClass(/is-selected/)
-    await page.screenshot({ path: `${SHOTS}/list-preview-1440.png`, fullPage: true })
+    await expect(preview.locator('.el-tag').first()).toBeVisible()
+    await shot(page, 'list-preview-1440')
     await preview.getByRole('link', { name: '打開完整案件頁 →' }).click()
     await expect(page.getByRole('heading', { level: 1, name: '案件明細' })).toBeVisible()
     await expect(page.getByRole('button', { name: '參觀案件（接下來）' })).toBeVisible()
     await expect(page.locator('.case-timeline textarea')).toBeVisible()
-    await page.screenshot({ path: `${SHOTS}/detail-1440.png`, fullPage: true })
+    await shot(page, 'detail-1440')
   })
 
   for (const width of [1280, 1440]) {
@@ -85,16 +86,22 @@ test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
     const preview = page.getByRole('complementary', { name: '案件預覽' })
     await expect(preview).toBeVisible()
     await expectNoHorizontalOverflow(page)
-    await page.screenshot({ path: `${SHOTS}/list-preview-1280.png`, fullPage: true })
+    await expect(preview.locator('.el-tag').first()).toBeVisible()
+    await shot(page, 'list-preview-1280')
     // 先在 1280 打開完整案件頁（1280 以下預覽面板就不在了），再縮到 1100 看一欄。
     await preview.getByRole('link', { name: '打開完整案件頁 →' }).click()
     await expect(page.getByRole('heading', { level: 1, name: '案件明細' })).toBeVisible()
     await page.setViewportSize({ width: 1100, height: 900 })
-    const timelineLeft = await page.locator('.case-timeline').evaluate((el) => el.getBoundingClientRect().left)
-    const factsLeft = await page.locator('.case-facts').evaluate((el) => el.getBoundingClientRect().left)
-    expect(factsLeft).toBe(timelineLeft)
+    // 縮放後版面不是同一個 tick 就換好：用 poll 等一欄（時間線與家長資料左緣相同）。
+    const rect = (selector: string) => page.locator(selector).evaluate((el) => {
+      const { left, top } = el.getBoundingClientRect()
+      return { left, top }
+    })
+    await expect.poll(async () => (await rect('.case-facts')).left === (await rect('.case-timeline')).left).toBe(true)
+    // 一欄的順序：時間線在家長資料上面（R17）。
+    await expect.poll(async () => (await rect('.case-timeline')).top < (await rect('.case-facts')).top).toBe(true)
     await expectNoHorizontalOverflow(page)
-    await page.screenshot({ path: `${SHOTS}/detail-1100.png`, fullPage: true })
+    await shot(page, 'detail-1100')
   })
 
   test('390 手機：清單是卡片、不橫向溢出；點列進明細，主鈕與撥號在頁首', async ({ page }) => {
@@ -102,7 +109,7 @@ test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
     await openList(page)
     const row = page.locator('.visit-row', { hasText: PARENT })
     await expectNoHorizontalOverflow(page)
-    await page.screenshot({ path: `${SHOTS}/list-390.png`, fullPage: true })
+    await shot(page, 'list-390')
     await row.locator('a.visit-row__main').click()
     await expect(page.getByRole('heading', { level: 1, name: '案件明細' })).toBeVisible()
     await expect(page.locator('.detail__call')).toBeVisible()
@@ -112,6 +119,6 @@ test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
     const factsTop = await page.locator('.case-facts').evaluate((el) => el.getBoundingClientRect().top)
     expect(heroBottom).toBeLessThanOrEqual(timelineTop)
     expect(timelineTop).toBeLessThan(factsTop)
-    await page.screenshot({ path: `${SHOTS}/detail-390.png`, fullPage: true })
+    await shot(page, 'detail-390')
   })
 })
