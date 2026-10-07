@@ -54,19 +54,29 @@ test.describe('參觀案件行程清單與案件明細（2026-10-06）', () => {
     await page.screenshot({ path: `${SHOTS}/detail-1440.png`, fullPage: true })
   })
 
-  test('1440：預覽面板的區塊不被壓扁，家長資料、時間線與最底的取消預約都完整', async ({ page }) => {
-    await openList(page)
-    await page.locator('.visit-row', { hasText: PARENT }).locator('a.visit-row__main').click()
-    const preview = page.getByRole('complementary', { name: '案件預覽' })
-    await expect(preview.getByRole('heading', { level: 2, name: new RegExp(PARENT) })).toBeVisible()
-    await expect(preview.getByRole('button', { name: '取消預約' })).toBeAttached()
-    // 面板是高度受限的 flex 直欄、自己捲：區塊（overflow: hidden 的 .panel）被壓扁時內容被截掉也捲不到。
-    const squashed = () => page.locator('.visit-preview').evaluate((root) =>
-      [...root.children]
-        .filter((el) => !el.classList.contains('visually-hidden') && el.scrollHeight > el.clientHeight + 1)
-        .map((el) => `${el.className}（內容 ${el.scrollHeight}px，只剩 ${el.clientHeight}px）`))
-    await expect.poll(squashed).toEqual([])
-  })
+  for (const width of [1280, 1440]) {
+    test(`${width}：預覽面板的區塊不被壓扁，捲到最底看得到完整的取消預約`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await openList(page)
+      await page.locator('.visit-row', { hasText: PARENT }).locator('a.visit-row__main').click()
+      const preview = page.getByRole('complementary', { name: '案件預覽' })
+      await expect(preview.getByRole('heading', { level: 2, name: new RegExp(PARENT) })).toBeVisible()
+      const cancel = preview.getByRole('button', { name: '取消預約' })
+      await expect(cancel).toBeAttached()
+      // 面板是高度受限的 flex 直欄、自己捲：區塊（overflow: hidden 的 .panel）被壓扁時內容被截掉也捲不到。
+      const squashed = () => page.locator('.visit-preview').evaluate((root) =>
+        [...root.children]
+          .filter((el) => !el.classList.contains('visually-hidden') && el.scrollHeight > el.clientHeight + 1)
+          .map((el) => `${el.className}（內容 ${el.scrollHeight}px，只剩 ${el.clientHeight}px）`))
+      await expect.poll(squashed).toEqual([])
+      // 捲到最底：取消預約整顆落在面板的可視範圍內（最底的設定列就是它）。
+      await page.locator('.visit-preview').evaluate((el) => { el.scrollTop = el.scrollHeight })
+      await expect.poll(async () => {
+        const [box, button] = await Promise.all([page.locator('.visit-preview').boundingBox(), cancel.boundingBox()])
+        return Boolean(box && button && button.y >= box.y && button.y + button.height <= box.y + box.height + 1)
+      }).toBe(true)
+    })
+  }
 
   test('1280：預覽面板仍在；明細在 1100 是一欄', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
