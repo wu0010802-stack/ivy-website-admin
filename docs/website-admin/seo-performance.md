@@ -58,13 +58,13 @@ NUXT_PUBLIC_INDEXING_ENABLED=true
 NUXT_PUBLIC_TELEMETRY_ENABLED=true
 ```
 
-4. 用下列唯讀指令驗證正式站；驗證通過後，在本人 Search Console 帳號完成網域驗證、提交 `/sitemap.xml`、抽查首頁與五校 URL 檢查。
+4. 用下列唯讀指令驗證正式站；驗證通過後，在本人 Search Console 帳號完成網域驗證、提交 `/sitemap.xml`、抽查首頁與 sitemap 內主要頁面的 URL 檢查。
 
 ```sh
 node scripts/check-public-seo.mjs https://正式網域
 ```
 
-5. 每校 Google 商家檔案由有權限的帳號核對名稱、地址、電話、時間及照片；網站連結設成 `https://正式網域/campuses/對應key`。不複製義華社群帳號到其他校。
+5. 每校 Google 商家檔案由有權限的帳號核對名稱、地址、電話、時間及照片；網站連結先設成首頁 `https://正式網域/`（各校分校頁已拿掉，`/campuses/*` 301 回首頁；若要改指各校預約頁 `/visit/對應key`，該頁一律 noindex，由園方決定）。不複製義華社群帳號到其他校。
 6. 收錄後固定比較自然搜尋曝光／點擊、商家互動、校區瀏覽／聯絡與後端真實需求筆數。以相同日期範圍比較，不把不同口徑計數拼成精確轉換率。
 
 ## 五校內容待補表

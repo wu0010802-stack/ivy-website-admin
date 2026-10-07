@@ -21,9 +21,21 @@ function omit<T extends object>(value: T, keys: readonly string[]): T {
   return copy as T
 }
 
-/** 拿掉官網已不顯示的舊欄位（不修改傳入的物件）。 */
+// fixture 裡的 _todo 是給維護者看的待辦與來源備註（含 repo 內部路徑），任何層級都不進公開資料。
+// fixture 本身要留著：後端初始化內容讀得到，維護者也靠它追待辦。
+function withoutTodoNotes<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(withoutTodoNotes) as T
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).filter(([key]) => key !== '_todo').map(([key, child]) => [key, withoutTodoNotes(child)])
+    ) as T
+  }
+  return value
+}
+
+/** 拿掉官網已不顯示的舊欄位與維護備註 _todo（不修改傳入的物件）。 */
 export function withoutRetiredFields(site: SiteContent): SiteContent {
-  return {
+  return withoutTodoNotes({
     ...site,
     home: { ...site.home, hero: omit(site.home.hero, RETIRED.hero), campusBoard: omit(site.home.campusBoard, RETIRED.campusBoard) },
     dayExperience: omit(site.dayExperience, RETIRED.dayExperience),
@@ -34,7 +46,7 @@ export function withoutRetiredFields(site: SiteContent): SiteContent {
         ? campus.tourScenes.map((scene) => omit(scene, RETIRED.tourScene))
         : campus.tourScenes
     }))
-  }
+  })
 }
 
 /** 僅替換已知原型原文，不蓋掉園方後來發布的自訂說明；順便拿掉官網已不顯示的舊欄位。 */

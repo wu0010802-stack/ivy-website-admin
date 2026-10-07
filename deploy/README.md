@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-07 公開資料拿掉維護備註 `_todo`、更正分校頁過時文件（main CI 部署）
+
+- **合併**：`fix/public-todo-strip-20261007` 的 `471966fc` 從 `f82471f0` 開，快轉推 main `f82471f0..471966fc`。內容與驗證見 README 頂部同日段落。
+- **migration**：無（只改 `web/app/utils/public-copy.ts`、測試與文件）。沒有備份。
+- **CI**：main run 37547289806（`471966fc`）全綠，建立到完成 10.1 分鐘：Frontend admin 4.2／web 1.5 分鐘，Backend 三組 6.2／6.8／5.2 分鐘，E2E／Playwright 5.9 分鐘，Deploy 3.1 分鐘。
+- **正式 `release.json`**：base commit `471966fc`，created `2026-10-06T23:41:40Z`，`web+api`。
+- **部署前後對照**（未登入，打 `/api/published-site`）：部署前有 7 處 `_todo`（`home.hero`、五校、`siteMeta.headerPhone`），回應還帶著 `design/hero-video-restoration…` 內部路徑；部署後 0 處、不含該路徑，首頁 SSR 內容也沒有。五校 key、頁首電話、hero 圖照舊。
+- **線上唯讀檢查**：`/`、`/visit`、`/about`、`/admin/login`、`/sitemap.xml` 皆 200；`/campuses/yihua` 301 回首頁；`/api/website/v1/health` `status: ok`、`last_failed_steps` 空。
+- **未做**：沒有登入後台看內容；fixture 沒改，`_todo` 仍留在 repo 供後端初始化與維護者使用，只是不再進公開資料。
+
 ## 2026-10-06 成效統計改三個頁籤、五校表置頂、說明收合（main CI 部署）
 
 - **合併**：`feature/analytics-ux-20261006` 的 `dd9da598` 從 `0ae1f089` 開，合入 `1cefe5cd`（招生 nodeposit 部署紀錄；README 一個標題衝突）成 `3d50e0a1`，推 main `1cefe5cd..3d50e0a1`。內容與驗證見 README 頂部同日段落、DESIGN.md「成效統計：三個頁籤與兩欄格線」。
