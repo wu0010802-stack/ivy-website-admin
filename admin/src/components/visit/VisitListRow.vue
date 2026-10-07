@@ -104,9 +104,12 @@ function onRowClick(event: MouseEvent) {
 
 <style scoped>
 .visit-row {
-  /* 勾選欄寬與欄距綁成變數：手機版主連結的 flex-basis、電話的縮排都要算進它們，否則主連結被擠到下一行。 */
+  /* 勾選欄寬與欄距綁成變數：手機版主連結的 flex-basis、電話的縮排都要算進它們，否則主連結被擠到下一行。
+     時間欄寬與主連結內的欄距也是：電話縮排要對齊家長那一欄（＝時間欄＋欄距，再加勾選欄），改欄寬不必另找數字。 */
   --check-w: 28px;
   --gap-x: 16px;
+  --time-w: 120px;
+  --main-gap: 12px;
 
   display: flex;
   align-items: center;
@@ -140,8 +143,8 @@ function onRowClick(event: MouseEvent) {
 .visit-row__main {
   display: grid;
   flex: 1 1 auto;
-  grid-template-columns: 120px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: var(--time-w) minmax(0, 1fr);
+  gap: var(--main-gap);
   min-width: 0;
   color: inherit;
   text-decoration: none;
@@ -282,13 +285,13 @@ function onRowClick(event: MouseEvent) {
       grid-column: 2;
     }
 
-    /* 縮排對齊家長那一欄：時間欄 120px＋主連結的欄距 12px。justify-self 不讓電話連結撐滿整格（點空白處會撥號）。 */
+    /* 縮排對齊家長那一欄：時間欄＋主連結的欄距。justify-self 不讓電話連結撐滿整格（點空白處會撥號）。 */
     .visit-row__phone {
       grid-row: 2;
       grid-column: 1;
       justify-self: start;
       width: auto;
-      margin: 2px 0 0 132px;
+      margin: 2px 0 0 calc(var(--time-w) + var(--main-gap));
     }
 
     .visit-row.has-check .visit-row__phone {
@@ -314,16 +317,31 @@ function onRowClick(event: MouseEvent) {
   }
 }
 
-/* 手機卡片：時間欄 88px 不折行，電話 44px 好點，到了／沒來各占一半。 */
+/* 手機卡片：時間欄 88px 不折行，電話、勾選框 44px 好點（10-05 定案的觸控規則），到了／沒來各占一半。 */
 @media (max-width: 720px) {
   .visit-row {
+    /* 勾選欄 44px：主連結的 flex-basis、電話的縮排都吃這個變數，一列仍在同一行。 */
+    --check-w: 44px;
+    --time-w: 88px;
+
     flex-wrap: wrap;
     padding: 12px 14px;
   }
 
+  /* 整個 44×44 的格子都是勾選框的點擊範圍（el-checkbox 是 label，點哪裡都會勾），點到格子外才算點列。 */
+  .visit-row__check {
+    height: 44px;
+  }
+
+  .visit-row__check :deep(.el-checkbox) {
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    margin-right: 0;
+  }
+
   .visit-row__main {
     flex-basis: calc(100% - var(--check-w) - var(--gap-x));
-    grid-template-columns: 88px minmax(0, 1fr);
   }
 
   .visit-row:not(.has-check) .visit-row__main {
@@ -343,13 +361,13 @@ function onRowClick(event: MouseEvent) {
     align-items: center;
     width: auto;
     min-height: 44px;
-    margin-left: 100px;
+    margin-left: calc(var(--time-w) + var(--main-gap));
     text-decoration: underline;
   }
 
-  /* 勾選欄佔了行首：電話仍要對齊家長那一欄（時間欄 88px＋欄距 12px 之後）。 */
+  /* 勾選欄佔了行首：電話仍要對齊家長那一欄（勾選欄與欄距、時間欄與欄距之後）。 */
   .visit-row.has-check .visit-row__phone {
-    margin-left: calc(100px + var(--check-w) + var(--gap-x));
+    margin-left: calc(var(--time-w) + var(--main-gap) + var(--check-w) + var(--gap-x));
   }
 
   .visit-row__acts {
