@@ -43,15 +43,31 @@ const mobileFrame = computed(() => viewport.value === 'mobile' && !embedded.valu
 
 const status = ref<'checking' | 'denied' | 'ready'>('checking')
 const render = shallowRef<((date: string, live?: LiveOverride | null) => DraftPreviewRender) | null>(null)
+let stopLive: (() => void) | null = null
+let unmounted = false
+// 這一則即時草稿畫不出來（畫面還停在上一個畫得出來的樣子）。showLiveDraft 開頭歸零，
+// 失敗時回報 hit: 'none'，並且不拿舊畫面去算框選。
+let liveRenderFailed = false
+// 已存草稿的區塊畫不出來（還沒有即時草稿時 onErrorCaptured 收到的錯）：錯誤照常往上丟，同時不送 ready。
+let savedRenderFailed = false
+
+// 錯誤只寫在這個 iframe 自己的 console：全站沒有轉送 console 或錯誤的回報，這裡也不外送。
+function reportLiveFailure(error: unknown) {
+  liveRenderFailed = true
+  console.error('[preview] 這份還沒存的內容畫不出來，預覽停在上一個畫面', error)
+}
+
 // 打字打到一半的內容可能讓合併那一步丟錯（這裡是預覽頁自己的 render，onErrorCaptured 管不到）：
-// 即時預覽時停在上一個畫得出來的畫面，不換成整頁錯誤畫面，錯誤也不往外送；一般預覽照舊丟出去。
+// 只有即時草稿造成的才吞，停在上一個畫得出來的畫面，不換成整頁錯誤畫面。已存草稿本身畫不出來
+// （沒有即時草稿、或還沒有可停的畫面）照常丟出去，走原本的錯誤路徑，不能讓預覽欄空白還說自己好了。
 let lastRendered: DraftPreviewRender | null = null
 const rendered = computed(() => {
   if (!render.value) return null
   try {
     lastRendered = render.value(date.value, liveDraft.value)
   } catch (error) {
-    if (!live) throw error
+    if (!live || !liveDraft.value || !lastRendered) throw error
+    reportLiveFailure(error)
   }
   return lastRendered
 })
@@ -72,21 +88,28 @@ function setDate(event: Event) {
 }
 
 // 套用一則即時草稿：先畫，再（首頁五校）切到那一校、等一幀，然後框出改到的位置並回報後台。
-// 中途又來了新的一則就交給新的那則處理。
+// 中途又來了新的一則就交給新的那則處理。這一則畫不出來時：回報 hit: 'none'（postMessage v1
+// 沒有「沒套上」這個值，none 是最接近的），畫面停在上一個樣子，不切分頁、不框選（舊畫面上的位置沒有意義）。
 async function showLiveDraft(next: LiveDraft, receiver: LiveReceiver) {
+  liveRenderFailed = false
   liveDraft.value = next
   await nextTick()
-  if (liveDraft.value !== next) return
+  if (unmounted || liveDraft.value !== next) return
+  if (liveRenderFailed) {
+    receiver.applied(next.seq, 'none')
+    return
+  }
   let hit: PreviewHit = 'none'
   try {
     if (activatePreviewBlock(document, next.focus)) await nextTick()
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-    if (liveDraft.value !== next) return
-    hit = highlightPreview(document, next.focus)
-  } catch {
-    // 框不出來就不框：草稿已經畫好，回報照送；錯誤只留在這個 iframe 裡，不往外傳。
+    if (unmounted || liveDraft.value !== next) return
+    if (!liveRenderFailed) hit = highlightPreview(document, next.focus)
+  } catch (error) {
+    // 框不出來就不框：草稿已經畫好，回報照送；錯誤只留在這個 iframe 裡（console），不往外傳。
+    console.error('[preview] 框選改到的位置時出錯', error)
   }
-  receiver.applied(next.seq, hit)
+  receiver.applied(next.seq, liveRenderFailed ? 'none' : hit)
 }
 
 // 即時預覽裡點連結不換頁（預覽只看這一頁；iframe 的 sandbox 也不給換掉後台頁）。
@@ -94,11 +117,17 @@ function stayOnPreview(event: MouseEvent) {
   if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault()
 }
 
-// 打字打到一半的內容可能讓某個區塊畫不出來：即時預覽時錯誤停在這裡，不換成整頁錯誤畫面。
-onErrorCaptured(() => (live ? false : undefined))
-
-let stopLive: (() => void) | null = null
-let unmounted = false
+// 打字打到一半的內容可能讓某個區塊畫不出來：即時草稿造成的錯誤停在這裡（記在 console），
+// 不換成整頁錯誤畫面；沒有即時草稿時（已存草稿的區塊畫不出來）照舊往上丟。
+onErrorCaptured((error) => {
+  if (!live) return undefined
+  if (!liveDraft.value) {
+    savedRenderFailed = true
+    return undefined
+  }
+  reportLiveFailure(error)
+  return false
+})
 
 onMounted(async () => {
   const result = await useDraftPreview()
@@ -114,6 +143,10 @@ onMounted(async () => {
   render.value = result.render
   status.value = 'ready'
   if (!receiver) return
+  await nextTick()
+  // 已存草稿畫不出來（空白，或取內容時丟錯，錯誤走原本的路徑）就不送 ready、不收訊息：
+  // 後台等不到 ready 會退回「上次儲存的草稿」，不會把空白的預覽說成即時。
+  if (unmounted || savedRenderFailed || !draft.value) return
   // 拿到授權、畫好之後才開始收訊息。
   const onMessage = (event: MessageEvent) => receiver.handle(event)
   window.addEventListener('message', onMessage)
@@ -122,7 +155,6 @@ onMounted(async () => {
     window.removeEventListener('message', onMessage)
     document.removeEventListener('click', stayOnPreview, true)
   }
-  await nextTick()
   receiver.ready()
 })
 
