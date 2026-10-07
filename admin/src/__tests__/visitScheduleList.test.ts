@@ -125,6 +125,18 @@ describe('行程清單（2026-10-06 方向 B）', () => {
     expect(wrapper.get('.visit-row').text()).toContain('送出')
   })
 
+  it('不是今年的場次寫年份（跨年的列看得出是哪一年），今年省略', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-06T02:30:00Z'))
+    const rows = [row('2025-12-31', '10:00'), row('2026-10-07', '10:00'), row('2027-01-01', '10:00')]
+    const { wrapper } = await mountList('/visit-requests?group=all&order=oldest', rows)
+    const times = wrapper.findAll('.visit-row__time').map((t) => t.text())
+    expect(times[0]).toContain('2025/12/31（週三）')
+    expect(times[1]).toContain('10/07（週三）')
+    expect(times[1]).not.toContain('2026/')
+    expect(times[2]).toContain('2027/01/01（週五）')
+  })
+
   it('只看尚未確認到場：每列有勾選框，全選這一頁後一次標記', async () => {
     const rows = [row('2026-01-05', '10:00', { display_status: 'past' }), row('2026-01-05', '14:00', { display_status: 'past' })]
     const { wrapper } = await mountList('/visit-requests?group=past&status=confirmed', rows)

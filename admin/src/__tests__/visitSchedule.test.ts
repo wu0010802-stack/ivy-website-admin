@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { formatWeekday, slotStarted } from '../api/labels'
-import { addDays, dayBucket, daysBetween, followUpDue, followUpTracked, groupVisitsByDay, nextInList, relativeVisitTime, shortDay, taipeiDay, visitPhase, weekStart } from '../utils/visitSchedule'
+import { formatWeekday as labelsFormatWeekday, slotStarted } from '../api/labels'
+import { addDays, dayBucket, daysBetween, followUpDue, followUpTracked, formatWeekday, groupVisitsByDay, nextInList, relativeVisitTime, shortDay, taipeiDay, visitPhase, weekStart } from '../utils/visitSchedule'
 
 // 台北 = UTC+8；寫成 UTC 的時間點，確認不吃瀏覽器時區。
 const taipei = (local: string) => Date.parse(`${local}+08:00`)
@@ -76,11 +76,21 @@ describe('日期分組（台北、週一開始）', () => {
     ])
     expect(groupVisitsByDay([row('2026-10-05'), row('2026-10-01')], tue).map((g) => g.label)).toEqual(['昨天 10/05（週一）', '更早'])
   })
-  it('週名與 labels.formatWeekday 一致（visitSchedule 不能 import labels，會繞成圈）', () => {
-    for (let i = 0; i < 7; i += 1) {
-      const day = addDays('2026-10-05', i)
-      expect(shortDay(day)).toBe(`${day.slice(5).replace('-', '/')}（${formatWeekday(day)}）`)
-    }
+  it('不是台北今年的日子前面寫年份（去年、明年），今年省略', () => {
+    expect(shortDay('2026-10-07', '2026-10-06')).toBe('10/07（週三）')
+    expect(shortDay('2025-12-31', '2026-10-06')).toBe('2025/12/31（週三）')
+    expect(shortDay('2027-01-01', '2026-10-06')).toBe('2027/01/01（週五）')
+  })
+  it('跨年夜：今天 12/31，明天是明年，標題帶年份', () => {
+    const groups = groupVisitsByDay([{ id: 'a', slot: { slot_date: '2026-12-31' } }, { id: 'b', slot: { slot_date: '2027-01-01' } }], '2026-12-31')
+    expect(groups.map((g) => g.label)).toEqual(['今天 12/31（週四）', '明天 2027/01/01（週五）'])
+  })
+  it('formatWeekday：台北日期的週名，labels 轉出同一個函式', () => {
+    expect(formatWeekday('2026-10-05')).toBe('週一')
+    expect(formatWeekday('2026-10-11')).toBe('週日')
+    expect(formatWeekday(null)).toBe('')
+    expect(formatWeekday('壞掉')).toBe('')
+    expect(labelsFormatWeekday).toBe(formatWeekday)
   })
 })
 

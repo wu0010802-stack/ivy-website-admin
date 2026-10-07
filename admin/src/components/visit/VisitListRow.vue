@@ -4,7 +4,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { VisitRequestDetailOut } from '../../api/types'
 import { campusLabel, contactTimeLabel, formatShortDateTime, formatTime, visitDisplay, visitSourceLabel } from '../../api/labels'
 import { attendanceDue, type AttendanceKind } from '../../composables/visitAttendance'
-import { followUpDue, shortDay, VISIT_PHASE_LABELS, visitPhase } from '../../utils/visitSchedule'
+import { followUpDue, shortDay, taipeiDay, VISIT_PHASE_LABELS, visitPhase } from '../../utils/visitSchedule'
 
 // 行程清單的一列（2026-10-06 方向 B）：時間＋接待狀態、家長・孩子、校區、電話、快速動作。
 // 「到了／沒來」「填招生資料」與電話不包在連結裡（第九輪）；點列的空白處等同點家長名字。
@@ -38,7 +38,7 @@ const followDue = computed(() => followUpDue(props.row, props.now))
 const timeMain = computed(() => {
   const slot = props.row.slot
   if (!slot) return '沒有場次'
-  return props.dayOnly ? formatTime(slot.start_time) : shortDay(slot.slot_date)
+  return props.dayOnly ? formatTime(slot.start_time) : shortDay(slot.slot_date, taipeiDay(props.now))
 })
 const timeSub = computed(() => {
   const slot = props.row.slot
@@ -104,9 +104,13 @@ function onRowClick(event: MouseEvent) {
 
 <style scoped>
 .visit-row {
+  /* 勾選欄寬與欄距綁成變數：手機版主連結的 flex-basis、電話的縮排都要算進它們，否則主連結被擠到下一行。 */
+  --check-w: 28px;
+  --gap-x: 16px;
+
   display: flex;
   align-items: center;
-  gap: 12px 16px;
+  gap: 12px var(--gap-x);
   padding: 12px 18px;
   cursor: pointer;
 }
@@ -125,7 +129,7 @@ function onRowClick(event: MouseEvent) {
 
 .visit-row__check {
   flex: none;
-  width: 28px;
+  width: var(--check-w);
 }
 
 .visit-row__main {
@@ -152,6 +156,9 @@ function onRowClick(event: MouseEvent) {
 
 .visit-row__time b {
   font-weight: 700;
+
+  /* 時間欄窄（手機 88px）：「10/01（週四）」「2025/12/31（週三）」只在「（」前換行，不把「週／四」拆成兩行。 */
+  word-break: keep-all;
 }
 
 .visit-row__time small,
@@ -249,7 +256,7 @@ function onRowClick(event: MouseEvent) {
   }
 
   .visit-row__main {
-    flex-basis: calc(100% - 40px);
+    flex-basis: calc(100% - var(--check-w) - var(--gap-x));
     grid-template-columns: 88px minmax(0, 1fr);
   }
 
@@ -272,6 +279,11 @@ function onRowClick(event: MouseEvent) {
     min-height: 44px;
     margin-left: 100px;
     text-decoration: underline;
+  }
+
+  /* 勾選欄佔了行首：電話仍要對齊家長那一欄（時間欄 88px＋欄距 12px 之後）。 */
+  .visit-row.has-check .visit-row__phone {
+    margin-left: calc(100px + var(--check-w) + var(--gap-x));
   }
 
   .visit-row__acts {

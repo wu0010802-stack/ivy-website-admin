@@ -13,6 +13,17 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 }
 
+// 星期幾（週一…週日），給時段列表、日期標題用。這個檔不 import 任何模組：labels.ts 要用這裡的 slotStart
+// 與 formatWeekday，從 labels 反向 import 會繞成圈。
+const weekdayFormatter = new Intl.DateTimeFormat('zh-TW', { weekday: 'short', timeZone: TAIPEI })
+
+export function formatWeekday(value: string | null | undefined): string {
+  if (!value) return ''
+  const d = new Date(`${value}T00:00:00+08:00`)
+  if (Number.isNaN(d.getTime())) return ''
+  return weekdayFormatter.format(d)
+}
+
 export interface SlotTime { slot_date: string; start_time: string; end_time?: string | null }
 
 const at = (date: string, time: string) => Date.parse(`${date}T${time.slice(0, 8)}+08:00`)
@@ -82,10 +93,11 @@ const BUCKET_LABELS: Record<DayBucket, string> = {
 }
 const DATED: ReadonlySet<DayBucket> = new Set(['today', 'tomorrow', 'yesterday'])
 
-// 週名自己查表而不 import labels.formatWeekday：labels.slotStarted 要呼叫這個檔的 slotStart，
-// 兩邊互相 import 會繞成圈（任一邊在最上層用到對方就會在載入順序不同時壞掉）。visitSchedule.test.ts 守著兩邊一致。
-const WEEKDAYS = '日一二三四五六'
-export const shortDay = (day: string): string => `${day.slice(5).replace('-', '/')}（週${WEEKDAYS[new Date(`${day}T00:00:00Z`).getUTCDay()]}）`
+/** 「09/28（週一）」；不是台北今年的日子前面加年份（跨年的場次看不出是哪一年會誤會，同舊表格的 formatShortSlotWhen）。 */
+export function shortDay(day: string, today: string): string {
+  const year = day.slice(0, 4) === today.slice(0, 4) ? '' : `${day.slice(0, 4)}/`
+  return `${year}${day.slice(5).replace('-', '/')}（${formatWeekday(day)}）`
+}
 
 export interface DayGroup<T> { key: string; bucket: DayBucket; label: string; rows: T[] }
 
@@ -100,7 +112,7 @@ export function groupVisitsByDay<T extends { slot?: { slot_date: string } | null
       last.rows.push(row)
       continue
     }
-    const label = DATED.has(bucket) && day ? `${BUCKET_LABELS[bucket]} ${shortDay(day)}` : BUCKET_LABELS[bucket]
+    const label = DATED.has(bucket) && day ? `${BUCKET_LABELS[bucket]} ${shortDay(day, today)}` : BUCKET_LABELS[bucket]
     groups.push({ key: `${bucket}-${groups.length}`, bucket, label, rows: [row] })
   }
   return groups

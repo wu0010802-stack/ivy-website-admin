@@ -1,7 +1,7 @@
 // 後台顯示用的中文標籤與格式化。API 回傳的都是代碼（campus key、狀態、
 // 角色），畫面上一律經過這裡轉成園方看得懂的字，不要在各頁面各自硬寫。
 import type { Role } from './types'
-import { slotStart } from '../utils/visitSchedule'
+import { formatWeekday, slotStart } from '../utils/visitSchedule'
 
 export const CAMPUS_LABELS: Record<string, string> = {
   yihua: '義華',
@@ -932,15 +932,8 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`
 }
 
-// 星期幾，給時段列表用。
-const weekdayFormatter = new Intl.DateTimeFormat('zh-TW', { weekday: 'short', timeZone: 'Asia/Taipei' })
-
-export function formatWeekday(value: string | null | undefined): string {
-  if (!value) return ''
-  const d = new Date(`${value}T00:00:00+08:00`)
-  if (Number.isNaN(d.getTime())) return ''
-  return weekdayFormatter.format(d)
-}
+// 星期幾，給時段列表用。實作在 utils/visitSchedule（行程清單的日期標題也要，且那邊不能反向 import labels）。
+export { formatWeekday }
 
 // 案件上的「參觀時間」：09/26（週六）10:00–11:00。明細、列表與確認對話框
 // 共用同一種寫法，家長在電話裡聽到的跟畫面上看到的才會一致。沒有場次
