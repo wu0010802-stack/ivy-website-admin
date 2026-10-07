@@ -87,9 +87,19 @@ describe('同源才嵌、iframe 網址、縮放', () => {
 
   it('桌機 1280 寬、手機 390 寬，縮到放得進欄內，不放大', () => {
     expect(PREVIEW_FRAME_WIDTH).toEqual({ desktop: 1280, mobile: 390 })
-    expect(fitPreviewFrame({ width: 400, height: 700 }, 'desktop')).toEqual({ width: 1280, height: 2299, scale: 0.294 })
+    expect(fitPreviewFrame({ width: 400, height: 700 }, 'desktop')).toEqual({ width: 1280, height: 900, scale: 0.294 })
     expect(fitPreviewFrame({ width: 400, height: 700 }, 'mobile')).toEqual({ width: 390, height: 701, scale: 0.964 })
     expect(fitPreviewFrame({ width: 900, height: 700 }, 'mobile').scale).toBe(1)
+  })
+
+  it('桌機的虛擬視窗高度最多 900（1440×900），不跟著欄高拉長，否則 100svh 的大圖會被拉成三倍高', () => {
+    // 欄很高：仍是 900。
+    expect(fitPreviewFrame({ width: 400, height: 2000 }, 'desktop').height).toBe(900)
+    expect(fitPreviewFrame({ width: 900, height: 700 }, 'desktop')).toEqual({ width: 1280, height: 900, scale: 0.684 })
+    // 欄很矮：不超出欄高（176 ÷ 0.294）。
+    expect(fitPreviewFrame({ width: 400, height: 200 }, 'desktop').height).toBe(599)
+    // 手機照舊依欄高反算，填滿整欄。
+    expect(fitPreviewFrame({ width: 400, height: 2000 }, 'mobile').height).toBe(Math.round(1976 / 0.964))
   })
 
   it('寬度偏好預設手機、記在這台瀏覽器；讀寫失敗當沒記', () => {
@@ -137,6 +147,8 @@ describe('LivePreviewPane', () => {
     // frame 是 iframe 的 template ref 掛上之後（post flush）才通知，晚 mount 一個 microtask。
     await nextTick()
     expect(wrapper.get('aside').attributes('aria-label')).toBe('官網預覽')
+    // 兩組單選各自有報讀名稱：一組選預覽哪裡、一組選預覽寬度。
+    expect(wrapper.findAll('[role="radiogroup"]').map((g) => g.attributes('aria-label'))).toEqual(['預覽哪裡', '預覽寬度'])
     expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['首頁五校', '頁尾', '桌機', '手機'])
     expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
     const frame = wrapper.get('iframe')

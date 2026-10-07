@@ -84,13 +84,21 @@ export function previewFrameUrl(origin: string, page: PreviewPage, options: { li
 /** 桌機用 1280 寬渲染再縮小；手機 390（同官網 /preview 的手機框）。 */
 export const PREVIEW_FRAME_WIDTH: Readonly<Record<PreviewViewport, number>> = { desktop: 1280, mobile: 390 }
 
-/** iframe 用原寬渲染、整個縮到放得進欄內（不放大）；高度反算成剛好填滿欄高。 */
+/** 桌機預覽的虛擬視窗高度上限：stack 與正式站桌機基準 1440×900 的高。 */
+export const PREVIEW_DESKTOP_MAX_HEIGHT = 900
+
+/**
+ * iframe 用原寬渲染、整個縮到放得進欄內（不放大），靠左上（呼叫端把它放在欄內頂端）。
+ * 手機的虛擬視窗高度反算成剛好填滿欄高；桌機的高度最多 900：欄高 700、縮到三成時反算會得到 2299，
+ * 官網 100svh 的大圖就被拉成三倍高，預覽和真正的桌機畫面差很多。桌機頁面長，靠 iframe 裡自己捲。
+ */
 export function fitPreviewFrame(stage: { width: number; height: number }, viewport: PreviewViewport, padding = 12) {
   const width = PREVIEW_FRAME_WIDTH[viewport]
   const innerWidth = Math.max(1, stage.width - padding * 2)
   const innerHeight = Math.max(1, stage.height - padding * 2)
   const scale = Math.min(1, Math.round((innerWidth / width) * 1000) / 1000)
-  return { width, height: Math.round(innerHeight / scale), scale }
+  const fill = Math.round(innerHeight / scale)
+  return { width, height: viewport === 'desktop' ? Math.min(PREVIEW_DESKTOP_MAX_HEIGHT, fill) : fill, scale }
 }
 
 export const PREVIEW_VIEWPORT_KEY = 'ivy-admin-preview-viewport'
