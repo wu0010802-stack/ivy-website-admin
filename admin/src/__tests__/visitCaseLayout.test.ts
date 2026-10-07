@@ -25,6 +25,18 @@ describe('家長資料表（方向 C）', () => {
     expect(wrapper.get('.case-facts .panel__head').text()).toContain('家長填寫的資料')
   })
 
+  it('孩子一行：只有生日也列出來；姓名與生日都沒有才寫未填寫', async () => {
+    const child = (wrapper: Awaited<ReturnType<typeof mountDetail>>) => wrapper.findAll('.case-facts dt').find((dt) => dt.text() === '孩子')!.element.nextElementSibling!.textContent!.trim()
+    const onlyBirthdate = await mountDetail(visitCase({ child_name: null, child_birthdate: '2022-05-01' }))
+    expect(child(onlyBirthdate)).toBe('2022/05/01')
+    cleanup()
+    const onlyName = await mountDetail(visitCase({ child_birthdate: null }))
+    expect(child(onlyName)).toBe('小安')
+    cleanup()
+    const neither = await mountDetail(visitCase({ child_name: null, child_birthdate: null }))
+    expect(child(neither)).toBe('未填寫')
+  })
+
   it('舊資料才有的欄位有值才列', async () => {
     const wrapper = await mountDetail(visitCase({ party_size: 4, questions: '娃娃車到不到鼎金', preferred_time: 'weekday_morning' }))
     expect(labels(wrapper)).toEqual(expect.arrayContaining(['參觀人數', '方便接電話時段', '想了解的事']))

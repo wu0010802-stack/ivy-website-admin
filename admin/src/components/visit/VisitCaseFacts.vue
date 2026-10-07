@@ -14,7 +14,8 @@ interface Fact { label: string; text: string; href?: string; num?: boolean; pre?
 const facts = computed<Fact[]>(() => {
   const d = vc.detail
   if (!d) return []
-  const child = d.child_name ? [d.child_name, d.child_birthdate ? formatDate(d.child_birthdate) : ''].filter(Boolean).join('，') : '未填寫'
+  // 補登的姓名、生日各自選填：只有生日也要列出來。
+  const child = [d.child_name, d.child_birthdate ? formatDate(d.child_birthdate) : ''].filter(Boolean).join('，') || '未填寫'
   const rows: Fact[] = [
     { label: '電話', text: d.phone, href: `tel:${d.phone}`, num: true },
     { label: '孩子', text: child },
