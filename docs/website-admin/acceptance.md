@@ -590,31 +590,33 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 計畫：`docs/superpowers/plans/2026-10-06-admin-editor-preview.md`。規則見 DESIGN.md「官網後台內容編輯：三欄＋即時預覽」。沒有 API 變更（`backend/`、`contracts/` 沒動）。
 
-| # | 驗收 | 狀態 | 證據 |
+| # | 驗收 | 單項結果（整體閘門見下方「全套閘門」） | 證據 |
 |---|---|---|---|
 | D1 | 1280 以上、同源、有預覽頁：目錄在左、表單在中、預覽在右；1279 以下、不同源、校園探索沒有預覽欄（1280 邊界來回會長出與拆掉） | 通過（jsdom＋真瀏覽器） | `editorThreeColumns.test.ts`、`livePreviewPane.test.ts`、stack `editor-live-preview.spec.ts`（1279／1280 邊界、14 頁有預覽、校園探索沒有）、Task 7 視覺檢查（5 頁×1440／1280／1100／390） |
 | D2 | 和官網不同的段落在目錄打點、報讀「（和官網不同）」；每個有目錄的頁面欄位都分到某一段（含五校介紹新增的三段目錄） | 通過 | `editorSectionDots.test.ts`、`editorSectionFields.test.ts`、`uxRound8Nav.test.ts` |
 | D3 | 動作列寫「草稿有 N 處修改：欄位A、欄位B」（和官網那一版比、最多 4 個）；官網版還在讀不閃字；從沒發布過依角色寫；讀不到退回和上次儲存比 | 通過 | `editorDraftBaseline.test.ts`、`editorActionSummary.test.ts`、stack「頁尾文字：改標語…」 |
 | D4 | 發布確認框只寫欄位名；核准並發布照舊列差異；讀不到官網版退回差異框 | 通過 | `editorActionSummary.test.ts`、`ux20260928D.test.ts`、`publishingWorkflow.test.ts` |
-| D5 | 改欄位不存檔，預覽即時換掉並框出那一格；換分頁不重新載入；焦點與捲動留在後台；不產生存檔請求、公開資料不變 | 通過 | `useLivePreview.test.ts`、`preview-highlight.spec.ts`、`preview-live-page.spec.ts`、stack「頁尾文字：改標語…」（改字後約 343／345 ms 換字） |
+| D5 | 改欄位不存檔，預覽即時換掉並框出那一格；預覽接上（live）後換分頁不重新載入；焦點與捲動留在後台；不產生存檔請求、公開資料不變 | 通過 | `useLivePreview.test.ts`、`preview-highlight.spec.ts`、`preview-live-page.spec.ts`、stack「頁尾文字：改標語…」（改字後約 343／345 ms 換字） |
 | D6 | 預覽頁只收同源、外層後台頁的訊息；格式不對、舊 seq、原型鍵、過大、純 JSON 以外都丟掉；後台只理目前 iframe 的回覆 | 通過 | `preview-live.spec.ts`、`previewProtocol.test.ts`（讀官網原始碼比對兩邊協定）、`useLivePreview.test.ts`、stack「/preview 即時模式…」（頂層、旁邊的 frame 偽造都不套用，且不墊高序號） |
 | D7 | 草稿不外洩：不進預覽網址、storage、cookie、request；`/preview` no-store、noindex、只給同源嵌；後台 CSP `frame-src 'self'`；外站嵌不進去 | 通過 | stack「資安（真瀏覽器）…」、`preview-page-source.spec.ts`、`security-headers.spec.ts`、`use-draft-preview.spec.ts` |
 | D8 | 沒登入時預覽頁照舊拒絕，後台欄內顯示「預覽沒有載入，可能是登入逾時。」與重新載入鈕 | 通過 | stack「/preview 即時模式…」、`livePreviewPane.test.ts`、`editorThreeColumns.test.ts` |
 | D9 | 15 個編輯頁對照：14 頁有預覽、校園探索沒有；多分頁的逐一點過，每個分頁對應的區塊選擇器在預覽裡畫得出來 | 通過 | `livePreviewPane.test.ts`、stack「每個內容編輯頁的右側預覽都接得上」 |
 | D10 | 換校：有未存修改、確認框開著時預覽不重建、不把一校的內容畫在另一校；留在這頁維持原樣；放棄後換成另一校已存的內容 | 通過 | `editorLoadedCampus.test.ts`、`editorCampusSwitchPreview.test.ts`（真的 CampusProfileView＋useCampusContent）、stack「五校介紹換校…」 |
 | D11 | 首頁五校即時預覽暫停自動輪播，切到被改的那一校後不轉走 | 通過（桌機寬度） | `preview-highlight.spec.ts`（含讀 `CampusBoard.vue` 標記的守門）、stack「首頁五校：…輪播不會自己轉走」（開啟動態、觀察 12 秒） |
-| D12 | 捲動規則：頂端留白用頁首實際高度（手機 78／桌機 92）、固定頁首不會每改一次往上捲、sticky 的區塊根照常捲回 | 通過 | `preview-highlight.spec.ts`（25 項）、stack「頁首：改頁首電話備註…」「sticky 的區塊…」 |
-| D13 | 桌機預覽虛擬視窗最多 900 高、不被拉長；黏住的預覽欄與動作列不互蓋到看不到下緣 | 通過 | `livePreviewPane.test.ts`、stack「桌機預覽：…」 |
+| D12 | 捲動規則：頂端留白用頁首實際高度（手機 78／桌機 92）、固定頁首不會每改一次往上捲、sticky 的區塊根照常捲回；框整塊時露出 ≥ min(區塊高, 可用視窗一半) 才算看得到（手機預覽剛連上「關於常春藤」會捲到那一塊，不是只露 21px 的首屏） | 通過 | `preview-highlight.spec.ts`（29 項，含「只露 21px 要捲」「差 1px 就捲」「比視窗高的區塊不來回跳」）、stack「頁首：改頁首電話備註…」「sticky 的區塊…」「關於常春藤（手機預覽）：剛連上就停在那一塊…」（修正前紅：露出不到所需的一半，修正後 shown 551／needed 276） |
+| D13 | 桌機預覽：頁面一路捲得到底、預覽欄下緣不被黏底動作列蓋住，虛擬視窗最高 900、不被拉長 | 通過 | `livePreviewPane.test.ts`、stack「桌機預覽：…」 |
 | D14 | 狀態字：載入中、還沒存的修改、上次儲存的草稿（20 秒逾時）、官網目前的內容（從沒存過）、草稿太大、預覽畫不出這個修改、登入逾時 | 通過（jsdom） | `useLivePreview.test.ts`、`livePreviewPane.test.ts`、`editorThreeColumns.test.ts` |
 | D15 | 五校介紹視覺基準反映三欄版面，且涵蓋動作列（只藏預覽 iframe 內容） | 通過 | stack `visual.spec.ts`（6 passed 兩輪），`campus-profile-chrome-darwin.png` 已更新 |
+| D16 | 即時預覽離不開 `/preview`：點首頁五校「預約參觀」（開啟動態、有 View Transition 的瀏覽器會自己 `navigateTo`）不會把 iframe 帶去真的預約頁，之後的修改照常送進預覽 | 通過 | `preview-live-page.spec.ts`（真的 vue-router：`push` 到別頁被擋、只換 query 不受影響、非即時模式不加限制）、`preview-page-source.spec.ts`（`onBeforeRouteLeave(() => !live)`、`onBookingClick` 先看 `defaultPrevented`）、stack「首頁五校：開啟動態時點預覽裡的「預約參觀」…」（修正前紅：預覽被帶離 /preview） |
+| D17 | 同校區重新載入（讀取失敗後按重新載入、版本衝突載入最新）預覽欄重掛時，iframe 載入目前分頁那一頁，不是切分頁之前的頁 | 通過（jsdom） | `editorThreeColumns.test.ts`「同校區重新載入（讀取中骨架）…」「讀取失敗後按「重新載入」讀成功…」（修正前紅：新 iframe 還是 `page=visit`） |
 
 驗證證據（Node 22.23.2）：
 
-- 單檔結果（各檔最後一次單獨跑；admin 在 `admin/`、web 在 `web/`）：admin `editorDraftBaseline` 11、`ux20260928D` 32、`editorActionSummary` 15、`editorSectionDots` 9、`uxRound8Nav` 6、`editorSectionFields` 15（1 skipped）、`livePreviewPane` 17、`editorThreeColumns` 23、`previewProtocol` 31、`useLivePreview` 24、`editorLoadedCampus` 4、`editorCampusSwitchPreview` 2；web `preview-live` 44、`preview-live-page` 13、`preview-page-source` 6、`preview-highlight` 25、`security-headers` 7、`use-draft-preview` 3、`draft-preview` 7。每個 Task 另跑相關頁面測試與 `vue-tsc -b`／`nuxt typecheck`，無錯誤。
+- 單檔結果（各檔最後一次單獨跑；admin 在 `admin/`、web 在 `web/`）：admin `editorDraftBaseline` 11、`ux20260928D` 32、`editorActionSummary` 15、`editorSectionDots` 9、`uxRound8Nav` 6、`editorSectionFields` 15（1 skipped）、`livePreviewPane` 17、`editorThreeColumns` 25、`previewProtocol` 31、`useLivePreview` 24、`editorLoadedCampus` 4、`editorCampusSwitchPreview` 2；web `preview-live` 44、`preview-live-page` 16、`preview-page-source` 7、`preview-highlight` 29、`security-headers` 7、`use-draft-preview` 3、`draft-preview` 7。每個 Task 另跑相關頁面測試與 `vue-tsc -b`／`nuxt typecheck`，無錯誤。
 - Task 7 版面的視覺檢查：關於常春藤、首頁大圖標語、頁尾文字、網站標題與電話、五校介紹 × 1440×900／1280×800／1100×900／390×844，三欄成立、1100 與 390 沒有預覽欄、沒有橫向捲動。
 - Task 13（`596fe28a`）：`editor-live-preview.spec.ts` 11 則，`--repeat-each=2` 23 passed（含 setup）、無 flaky；`visual.spec.ts` 6 passed；**整個 stack 套件 85 passed、無 ✘**。測試庫 `ivy_website_editorpreview1006_e2e_test`、埠 8791／3791。
 - controller 第一輪閘門（`1e65369f`）：admin vitest 120 檔 1528 項（1 skipped）、`vue-tsc -b` 0 錯、`test:website` 85 檔 921 項、web typecheck 0 錯 0 WARN、`contract:check` 一致。該輪之後 web 還改了 `preview-highlight.ts`（`08229060`），最終數字以下面「全套閘門」為準。
-- 審查帶出並已修的問題：Task 2 動作列摘要欄把按鈕擠到第二列；Task 7 預覽欄比表單高時表單被推離狀態列；Task 10 live 模式吞掉已存草稿的畫面錯誤；Task 12 換校確認框開著時把上一校的表單標成下一校；Task 13 手機頁首讓預覽每改一次往上捲 88px、以及一度把 sticky 區塊根當成釘住而不捲。
+- 審查帶出並已修的問題：Task 2 動作列摘要欄把按鈕擠到第二列；Task 7 預覽欄比表單高時表單被推離狀態列；Task 10 live 模式吞掉已存草稿的畫面錯誤；Task 12 換校確認框開著時把上一校的表單標成下一校；Task 13 手機頁首讓預覽每改一次往上捲 88px、以及一度把 sticky 區塊根當成釘住而不捲。最終審查帶出並已修（最終修正波）：首頁五校「預約參觀」在開啟動態的瀏覽器會自己 `navigateTo`、把預覽帶離 `/preview`（`onBookingClick` 尊重 `defaultPrevented`＋`/preview` 即時模式加路由守衛，D16）；框整塊露 21px 就不捲（收緊「看得到」門檻，D12）；同校區重新載入後預覽欄重掛仍用舊分頁的網址（重新載入完成時重算網址，D17）。
 
 全套閘門（最終，Task 15）：待填
 
@@ -634,6 +636,6 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - 輪播暫停只在桌機寬度驗證（手機寬度輪播本來就不自己播）。
 - 只量過 1440、1280、1100、390 四種視窗寬度；其他瀏覽器與更寬的螢幕（例如 1920）沒有截圖。
 
-已知限制（接受、不擋合併）：預覽欄下緣在沒捲動時被黏底動作列蓋 30–105px、捲到底時頂端被頂欄蓋約 24px；桌機預覽縮到約三成看不清字（預設手機）；剛連上時手機預覽的區塊若只在視窗下緣露出 21px 就不自動捲；官網版讀取失敗不重試；隱私權政策刪中間一段時後面段落都標成不同；本機 `npm run dev`（不同源）看不到預覽欄，要用 `npm run e2e:build` 的同源建置。
+已知限制（接受、不擋合併）：預覽欄下緣在沒捲動時被黏底動作列蓋 30–105px、捲到底時頂端被頂欄蓋約 24px；桌機預覽縮到約三成看不清字（預設手機）；官網版讀取失敗不重試；隱私權政策刪中間一段時後面段落都標成不同；本機 `npm run dev`（不同源）看不到預覽欄，要用 `npm run e2e:build` 的同源建置。
 
 待使用者確認：發布要不要完全不跳確認框（計畫預設保留、只寫改了哪些欄位）。
