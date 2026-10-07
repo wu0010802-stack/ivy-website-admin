@@ -61,7 +61,8 @@ test.describe('後台畫面基準', () => {
     await expect(page.getByRole('textbox', { name: '校名' })).not.toHaveValue('')
     await settle(page)
     await expect(page).toHaveScreenshot('campus-profile.png', {
-      mask: [...dynamicParts(page), page.locator('.editor__status')],
+      // 右側官網預覽是另一個頁面（影片、輪播、WebGL），內容與載入狀態都不固定：整欄遮掉（含上面的狀態字）。
+      mask: [...dynamicParts(page), page.locator('.editor__status'), page.locator('.live-preview')],
     })
   })
 

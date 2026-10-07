@@ -89,6 +89,8 @@ const meta = computed(() => META[props.state])
 </template>
 
 <style scoped>
+/* 高度＝視窗高扣掉頂欄、上方間距與黏底動作列。--editor-actions-h 由 ContentEditor 的 .editor 定義
+   （依 --control-h 算出動作列真實高度）；88px 只是放在別處時的備用值（滑鼠操作時約 87）。 */
 .live-preview {
   position: sticky;
   top: calc(var(--top-h) + 24px);
@@ -105,6 +107,7 @@ const meta = computed(() => META[props.state])
 .live-preview__where { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .live-preview__meta { flex-basis: 100%; margin: 0; font-size: var(--text-xs); color: var(--ink-3); }
 .live-preview__stage { position: relative; flex: 1; min-height: 0; padding: 12px; background: var(--surface-3); overflow: hidden; }
+/* 桌機頁面虛擬視窗最高 900（fitPreviewFrame），縮小後比欄矮：靠上、左右置中，下方留 surface-3 底。 */
 .live-preview__device { margin: 0 auto; overflow: hidden; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); }
 .live-preview__device.is-mobile { border-radius: var(--radius-lg); }
 .live-preview__frame { display: block; border: 0; transform-origin: 0 0; }

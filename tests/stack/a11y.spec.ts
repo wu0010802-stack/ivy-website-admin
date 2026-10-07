@@ -19,7 +19,8 @@ interface Finding {
 
 async function seriousViolations(page: Page): Promise<Finding[]> {
   const path = new URL(page.url()).pathname
-  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).analyze()
+  // 後台內容編輯右側的官網預覽是 iframe 裡的官網頁面，官網頁面自己另有一組 axe 檢查；這裡只掃後台。
+  const results = await new AxeBuilder({ page }).withTags(WCAG_TAGS).exclude('.live-preview__frame').analyze()
   const findings: Finding[] = []
   for (const violation of results.violations) {
     if (violation.impact !== 'serious' && violation.impact !== 'critical') continue

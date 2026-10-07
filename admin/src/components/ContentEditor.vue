@@ -13,6 +13,16 @@ import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 import { dirtySectionIds, MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
 import EditorSectionNav from './EditorSectionNav.vue'
+import LivePreviewPane from './LivePreviewPane.vue'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
+import {
+  livePreviewOrigin,
+  previewFrameUrl,
+  previewTargetsFor,
+  readPreviewViewport,
+  rememberPreviewViewport,
+  type PreviewViewport,
+} from '../composables/previewTargets'
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -41,6 +51,27 @@ const busy = computed(() => saving.value || publishing.value)
 // 段落目錄：頁面傳進來的段落（標題元素的 id 與字）。至少兩段才顯示。
 const navSections = computed(() => props.sections ?? [])
 const hasNav = computed(() => navSections.value.length >= MIN_NAV_SECTIONS)
+
+// 右側官網預覽（2026-10-06 方向 D）：1280 以上、後台與官網同源、這種內容有對應預覽頁時才放。
+// 1280 以下維持原本版面，用狀態列的「存草稿並預覽」開新分頁。
+const previewTargets = computed(() => previewTargetsFor(props.editor.kind))
+const belowPreviewWidth = useNarrowScreen('(max-width: 1279px)')
+const previewOrigin = livePreviewOrigin()
+const showPreviewPane = computed(() => Boolean(previewOrigin) && previewTargets.value.length > 0 && !belowPreviewWidth.value && !props.placeholder)
+const previewTargetId = ref('')
+watch(
+  previewTargets,
+  (targets) => {
+    if (!targets.some((t) => t.id === previewTargetId.value)) previewTargetId.value = targets[0]?.id ?? ''
+  },
+  { immediate: true },
+)
+const currentTarget = computed(() => previewTargets.value.find((t) => t.id === previewTargetId.value) ?? previewTargets.value[0] ?? null)
+const previewViewport = ref<PreviewViewport>(readPreviewViewport())
+watch(previewViewport, rememberPreviewViewport)
+// 這一階段預覽看的是上次儲存的草稿：換分頁換網址，存成新的一版（或換校區）就重新載入（之後換成即時預覽）。
+const previewSrc = computed(() => (previewOrigin && currentTarget.value ? previewFrameUrl(previewOrigin, currentTarget.value.page, { live: false }) : ''))
+const previewFrameKey = computed(() => `${props.editor.campusKey?.value ?? ''}|${latestRevisionId.value ?? ''}|${currentTarget.value?.page ?? ''}`)
 // 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
 // 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
 const conflict = computed(() => props.editor.conflict?.value ?? false)
@@ -555,7 +586,7 @@ defineExpose({ confirmLeave })
 </script>
 
 <template>
-  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav }">
+  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav, 'editor--preview': showPreviewPane }">
     <div v-if="$slots.lead" class="page-lead"><slot name="lead" /></div>
 
     <div v-if="$slots.toolbar" class="toolbar"><slot name="toolbar" /></div>
@@ -569,7 +600,7 @@ defineExpose({ confirmLeave })
     <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
 
     <template v-else>
-      <div class="editor__layout" :class="{ 'has-nav': hasNav }">
+      <div class="editor__layout" :class="{ 'has-nav': hasNav, 'has-preview': showPreviewPane }">
       <div class="editor__top">
       <!-- 狀態列不是即時區（裡面有預覽、版本紀錄等工具）；狀態變了才由下面隱藏的 status 唸一次。 -->
       <div class="editor__status" :data-tone="status.tone" role="group" :aria-labelledby="statusLabelId">
@@ -713,6 +744,16 @@ defineExpose({ confirmLeave })
             <slot />
           </div>
         </div>
+        <LivePreviewPane
+          v-if="showPreviewPane && currentTarget"
+          v-model:target="previewTargetId"
+          v-model:viewport="previewViewport"
+          class="editor__preview"
+          :targets="previewTargets"
+          :src="previewSrc"
+          state="saved"
+          :frame-key="previewFrameKey"
+        />
       </div>
 
       <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy, 'has-changes': Boolean(actionSummary) }">
@@ -798,8 +839,12 @@ defineExpose({ confirmLeave })
 .editor__schedule-error { margin: 8px 0 0; font-size: var(--text-sm); color: var(--el-color-danger); }
 /* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
 .editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+/* --editor-actions-h：黏底動作列佔的高度，右側預覽欄的高度要扣掉它（LivePreviewPane）。
+   動作列＝上框 1＋上下內距 16＋16＋按鈕（--control-h：滑鼠 38、觸控 44）；再加它和表單之間的 16 間距，
+   預覽欄底端才不會貼著動作列。滑鼠 87、觸控 93。 */
 .editor {
   max-width: 720px;
+  --editor-actions-h: calc(var(--control-h) + 49px);
 }
 
 .editor--wide {
@@ -814,6 +859,20 @@ defineExpose({ confirmLeave })
   .editor__layout.has-nav > .editor__top { grid-area: top; min-width: 0; }
   .editor__layout.has-nav > .editor__nav { grid-area: nav; }
   .editor__layout.has-nav > .editor__body { grid-area: body; min-width: 0; }
+
+  /* 右側官網預覽（方向 D）：表單與預覽並排，主欄不再限 720。寬度：1280 時主欄 964＝152＋20＋452＋20＋320，
+     1440 時 1124＝152＋20＋560＋20＋372；沒有目錄時表單 440–640、預覽至少 320。 */
+  .editor--preview { max-width: none; }
+  .editor--preview > .page-lead,
+  .editor--preview > .toolbar,
+  .editor--preview > .editor__alert,
+  .editor--preview > .editor__skeleton { max-width: 720px; }
+  .editor__layout.has-preview { display: grid; grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr); grid-template-areas: 'top preview' 'body preview'; column-gap: 20px; align-items: start; }
+  .editor__layout.has-nav.has-preview { grid-template-columns: 152px minmax(420px, 560px) minmax(320px, 1fr); grid-template-areas: 'nav top preview' 'nav body preview'; }
+  .editor__layout.has-preview > .editor__top { grid-area: top; min-width: 0; }
+  .editor__layout.has-preview > .editor__nav { grid-area: nav; }
+  .editor__layout.has-preview > .editor__body { grid-area: body; min-width: 0; }
+  .editor__layout.has-preview > .editor__preview { grid-area: preview; }
 }
 
 .editor__alert {
