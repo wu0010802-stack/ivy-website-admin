@@ -117,6 +117,11 @@ function stayOnPreview(event: MouseEvent) {
   if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault()
 }
 
+// 第二道防線：官網元件自己呼叫 navigateTo／router.push（例如首頁五校「預約參觀」的照片接續換頁）
+// 不經過連結點擊，攔不到。即時模式下一律不准離開 /preview：離開會卸載這一頁、拆掉訊息 listener，
+// 後台卻收不到任何訊號，而且會落到真的預約表單。同一頁只換 query（setQuery）不算離開，不受影響。
+onBeforeRouteLeave(() => !live)
+
 // 打字打到一半的內容可能讓某個區塊畫不出來：即時草稿造成的錯誤停在這裡（記在 console），
 // 不換成整頁錯誤畫面；沒有即時草稿時（已存草稿的區塊畫不出來）照舊往上丟。
 onErrorCaptured((error) => {

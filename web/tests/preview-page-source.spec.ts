@@ -54,6 +54,13 @@ describe('/preview 即時預覽不外洩草稿', () => {
     expect(page.indexOf('receiver.ready()')).toBeGreaterThan(page.indexOf("window.addEventListener('message'"))
   })
 
+  it('即時模式有路由守衛擋住程式化換頁；首頁五校「預約參觀」尊重前面 handler 的 preventDefault（行為由 preview-live-page.spec 與 stack e2e 驗）', () => {
+    expect(page).toContain('onBeforeRouteLeave(() => !live)')
+    // 沒有早退的話，stayOnPreview 擋掉連結後 onBookingClick 仍會自己 navigateTo 帶著 view transition 離開 /preview。
+    const board = read('../app/components/CampusBoard.vue')
+    expect(board).toMatch(/function onBookingClick\(event: MouseEvent\) \{\s*if \(event\.defaultPrevented \|\| /)
+  })
+
   it('即時預覽模式擋連結換頁、錯誤不換成整頁錯誤畫面；框線用預覽工具列的 token', () => {
     expect(page).toContain("document.addEventListener('click', stayOnPreview, true)")
     expect(page).toContain('onErrorCaptured(')

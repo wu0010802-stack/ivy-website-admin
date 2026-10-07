@@ -315,9 +315,10 @@ function developWhenUncovered() {
 }
 // 「預約參觀Ｘ校」：照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。不支援或減少動態時照常換頁。
 // 掛在 click.capture：RouterLink 自己的 click 會先導覽，要在它之前 preventDefault。
+// 前面的 handler 已經 preventDefault（例如後台即時預覽的 /preview 擋掉所有連結換頁）就不再自己導覽。
 const nuxtApp = useNuxtApp()
 function onBookingClick(event: MouseEvent) {
-  if (!isPlainLeftClick(event) || !canMorphCampusPhoto()) return
+  if (event.defaultPrevented || !isPlainLeftClick(event) || !canMorphCampusPhoto()) return
   const card = root.value?.querySelector<HTMLElement>('.photo-card.is-current')
   if (!card || !current.value) return
   event.preventDefault()

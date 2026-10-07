@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, shallowRef, type App } from 'vue'
+import { createMemoryHistory, createRouter, isNavigationFailure, NavigationFailureType, onBeforeRouteLeave, RouterView } from 'vue-router'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import Preview from '../app/pages/preview.vue'
@@ -20,6 +21,9 @@ vi.stubGlobal('useHead', vi.fn())
 vi.stubGlobal('useRoute', () => ({ query }))
 vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
 for (const [name, fn] of Object.entries({ computed, nextTick, onBeforeUnmount, onErrorCaptured, onMounted, ref, shallowRef })) vi.stubGlobal(name, fn)
+// 一般測試沒有路由，守衛不掛（vue-router 的 onBeforeRouteLeave 找不到路由會警告）；「路由守衛」那組才用真的。
+let realRouter = false
+vi.stubGlobal('onBeforeRouteLeave', (guard: Parameters<typeof onBeforeRouteLeave>[0]) => { if (realRouter) onBeforeRouteLeave(guard) })
 
 const Stub = defineComponent({
   props: ['content', 'hero', 'about', 'day', 'board', 'campuses', 'news', 'admission', 'page', 'policy', 'booking'],
@@ -83,6 +87,7 @@ beforeEach(() => {
   ;(window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL(`${ORIGIN}/preview?embed=1&live=1`)
   Object.defineProperty(window, 'parent', { value: parentWindow, configurable: true })
   parentWindow.postMessage.mockClear()
+  realRouter = false
 })
 afterEach(() => {
   app?.unmount()
@@ -215,6 +220,65 @@ describe('/preview 即時預覽模式', () => {
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     document.getElementById('out')!.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
+  })
+
+  // 2026-10-07 最終審查 I1：官網元件自己呼叫 navigateTo（首頁五校「預約參觀」的照片接續換頁）不經過連結點擊，
+  // stayOnPreview 攔不到。這裡用真的 vue-router 驗路由守衛：即時模式離不開 /preview，只換 query 不受影響。
+  describe('即時模式不准離開 /preview（路由守衛）', () => {
+    async function mountInRouter(result: ReturnType<typeof fakeResult>) {
+      realRouter = true
+      useDraftPreview.mockResolvedValue(result)
+      const history = createMemoryHistory()
+      history.replace('/preview?embed=1&live=1')
+      const router = createRouter({
+        history,
+        routes: [
+          { path: '/preview', component: Preview as never },
+          { path: '/visit/:campus', component: { render: () => h('div', { id: 'visit' }) } }
+        ]
+      })
+      const host = document.createElement('div')
+      document.body.append(host)
+      app = createApp({ render: () => h(RouterView) })
+      errorHandler = vi.fn()
+      app.config.errorHandler = errorHandler
+      app.config.warnHandler = () => {}
+      for (const name of ['SiteHeader', 'AdmissionContent', 'CurriculumContent', 'AboutContent', 'EnvironmentContent', 'PrivacyPolicyContent', 'BookingDraftPreview', 'HeroVideo', 'AboutSection', 'DayExperience', 'CampusBoard', 'NewsDialog', 'NuxtLink']) app.component(name, Stub)
+      app.component('SiteFooter', SiteFooter)
+      app.use(router)
+      app.mount(host)
+      await router.isReady()
+      return router
+    }
+
+    it('navigateTo／router.push 到別頁被擋下，仍留在 /preview；預覽照常收得到草稿', async () => {
+      const router = await mountInRouter(fakeResult())
+      await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
+      const failure = await router.push('/visit/yihua')
+      expect(isNavigationFailure(failure, NavigationFailureType.aborted)).toBe(true)
+      expect(router.currentRoute.value.path).toBe('/preview')
+      expect(document.querySelector('#visit')).toBeNull()
+      deliver(draft(1, { tagline: '擋住之後還收得到' }))
+      await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(1))
+      expect(footerText()).toBe('擋住之後還收得到')
+    })
+
+    it('同一頁只換 query（寬度、日期）不算離開，不受影響', async () => {
+      const router = await mountInRouter(fakeResult())
+      await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
+      const result = await router.replace({ path: '/preview', query: { embed: '1', live: '1', viewport: 'mobile' } })
+      expect(result).toBeUndefined()
+      expect(router.currentRoute.value.query.viewport).toBe('mobile')
+    })
+
+    it('不是即時模式（一般的草稿預覽）不加這道限制', async () => {
+      query = {}
+      const router = await mountInRouter(fakeResult())
+      await settle()
+      const failure = await router.push('/visit/yihua')
+      expect(failure).toBeUndefined()
+      expect(router.currentRoute.value.path).toBe('/visit/yihua')
+    })
   })
 
   it('卸載時拿掉 message listener 與點擊攔截；卸載之後送來的訊息不處理', async () => {
