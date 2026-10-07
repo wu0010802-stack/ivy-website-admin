@@ -7,8 +7,9 @@ import { PREVIEW_BLOCKS, type HighlightHit, type LiveFocus } from './preview-liv
 
 export const PREVIEW_HIT_CLASS = 'preview-live-hit'
 const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'])
-/** 預覽頁的頁首會黏在上方；捲過去時留這麼多。 */
+/** 量不到預覽頁頁首實際高度時，捲過去留在上方的距離（桌機頁首約 92）。 */
 const TOP_OFFSET = 88
+const HEADER_SELECTOR = PREVIEW_BLOCKS['site-header'].selector
 /** 首頁五校的播放鈕與它「正在自動播放」時的報讀名稱（components/CampusBoard.vue）；preview-highlight.spec 守住兩邊對得上，測試的假播放鈕也從這兩個常數組出來。 */
 export const CAROUSEL_PLAYBACK_BUTTON = `${PREVIEW_BLOCKS['home-campuses'].selector} .campus-playback`
 export const CAROUSEL_PLAYING_LABEL = '暫停分校自動播放'
@@ -85,9 +86,52 @@ export function highlightPreview(doc: Document, focus: LiveFocus, options: Highl
   return hit ? 'text' : 'block'
 }
 
+function isPinnedPosition(position: string | undefined): boolean {
+  return position === 'fixed' || position === 'sticky'
+}
+
+function positionOf(view: Window, el: Element): string | undefined {
+  try {
+    return view.getComputedStyle(el).position
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * 目標本身固定／黏在畫面上（或在固定的頁首裡）：捲動不會改變它在畫面上的位置，不必捲。
+ * 手機頁首固定在上方、只有 78px 高，不判斷的話它永遠被當成「看不到」，每改一次就往上捲一格。
+ * 只認目標本身與頁首：往上找所有祖先會誤傷內部有黏住元素的區塊（框到那一塊就永遠不捲了）。
+ */
+export function isPinnedTarget(doc: Document, el: Element): boolean {
+  const view = doc.defaultView
+  if (!view) return false
+  if (isPinnedPosition(positionOf(view, el))) return true
+  const header = el.closest?.(HEADER_SELECTOR)
+  return Boolean(header) && isPinnedPosition(positionOf(view, header!))
+}
+
+/**
+ * 預覽頁固定（或黏）在上方的頁首實際蓋住的高度：手機約 78、桌機約 92，不是同一個數字。
+ * 量不到（找不到頁首、頁首不固定、量出來不合理、脫離的文件）就退回 TOP_OFFSET。
+ */
+export function previewTopInset(doc: Document): number {
+  try {
+    const view = doc.defaultView
+    const header = doc.querySelector(HEADER_SELECTOR)
+    if (!view || !header || !isPinnedPosition(positionOf(view, header))) return TOP_OFFSET
+    const bottom = header.getBoundingClientRect().bottom
+    // 頁首展開的手機選單會蓋滿整個視窗：超過視窗一半就不是「頁首高度」。
+    return Number.isFinite(bottom) && bottom > 0 && bottom <= view.innerHeight / 2 ? Math.round(bottom) : TOP_OFFSET
+  } catch {
+    return TOP_OFFSET
+  }
+}
+
 /**
  * 只捲這份文件自己的視窗。reduceMotion 沒指定時看這個視窗的系統設定（prefers-reduced-motion），
- * 開了就直接跳、不用平滑捲動。
+ * 開了就直接跳、不用平滑捲動。頂端留的距離是預覽頁頁首實際的高度（previewTopInset）；
+ * 目標本身固定／黏住（例如頁首）時不捲。
  */
 export function revealInFrame(
   doc: Document,
@@ -97,12 +141,14 @@ export function revealInFrame(
 ): void {
   const view = doc.defaultView
   if (!view) return
+  if (isPinnedTarget(doc, el)) return
+  const inset = previewTopInset(doc)
   const rect = el.getBoundingClientRect()
   const height = view.innerHeight
   const visible = align === 'center'
-    ? rect.top >= TOP_OFFSET && rect.bottom <= height
-    : rect.bottom > TOP_OFFSET && rect.top < height
+    ? rect.top >= inset && rect.bottom <= height
+    : rect.bottom > inset && rect.top < height
   if (visible) return
-  const offset = align === 'center' ? Math.max(TOP_OFFSET, (height - rect.height) / 2) : TOP_OFFSET
+  const offset = align === 'center' ? Math.max(inset, (height - rect.height) / 2) : inset
   view.scrollTo({ top: Math.max(0, view.scrollY + rect.top - offset), behavior: reduceMotion ? 'auto' : 'smooth' })
 }

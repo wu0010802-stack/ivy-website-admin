@@ -11,6 +11,7 @@ import {
   highlightPreview,
   PREVIEW_HIT_CLASS,
   pausePreviewCarousel,
+  previewTopInset,
   revealInFrame
 } from '../app/utils/preview-highlight'
 import type { LiveFocus } from '../app/utils/preview-live'
@@ -249,5 +250,125 @@ describe('highlightPreview', () => {
     vi.spyOn(p, 'getBoundingClientRect').mockReturnValue({ top: 300, bottom: 330, height: 30, left: 0, right: 0, width: 0, x: 0, y: 300, toJSON: () => ({}) } as DOMRect)
     revealInFrame(document, p, 'center', false)
     expect(scrollTo).not.toHaveBeenCalled()
+  })
+})
+
+// 2026-10-07 fix round：預覽頁頁首固定在上方，高度手機約 78、桌機約 92；頂端留白改用實際量到的頁首高度，
+// 目標本身固定／黏住（或在固定的頁首裡）就不捲。原本寫死 88：手機 78px 的頁首永遠被當成「看不到」，改一次捲一格。
+describe('頂端留白用預覽頁頁首的實際高度', () => {
+  const rect = (top: number, bottom: number) =>
+    ({ top, bottom, height: bottom - top, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+
+  /** 假的版面：happy-dom 量不到，由測試指定每個元素的 position 與 rect。 */
+  function layout(positions: Record<string, string>, scrollY = 100, innerHeight = 800) {
+    const scrollTo = vi.fn()
+    vi.spyOn(window, 'scrollTo').mockImplementation(scrollTo as never)
+    Object.defineProperty(window, 'innerHeight', { value: innerHeight, configurable: true })
+    Object.defineProperty(window, 'scrollY', { value: scrollY, configurable: true })
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(((el: Element) => ({
+      position: positions[el.tagName.toLowerCase()] ?? positions[`.${el.className}`] ?? 'static'
+    })) as never)
+    return scrollTo
+  }
+
+  it('頁首固定、手機高 78：位移用 78（不是 88）', () => {
+    document.body.innerHTML = '<header class="header"></header><main id="main"><p>內文</p></main>'
+    const scrollTo = layout({ header: 'fixed' })
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
+    expect(previewTopInset(document)).toBe(78)
+    const p = document.querySelector('p')!
+    vi.spyOn(p, 'getBoundingClientRect').mockReturnValue(rect(1200, 1230))
+    revealInFrame(document, p, 'start', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 1200 - 78, behavior: 'auto' })
+    // 置中時頂端留白也取實際高度（比垂直置中的位置小時才用得到）：框很高的元素。
+    scrollTo.mockClear()
+    const tall = document.createElement('section')
+    document.querySelector('main')!.appendChild(tall)
+    vi.spyOn(tall, 'getBoundingClientRect').mockReturnValue(rect(1200, 1900))
+    revealInFrame(document, tall, 'center', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 1200 - 78, behavior: 'auto' })
+  })
+
+  it('桌機頁首高 92：位移用 92；已經在頁首底下看得到的不捲', () => {
+    document.body.innerHTML = '<header class="header"></header><main id="main"><p>內文</p></main>'
+    const scrollTo = layout({ header: 'sticky' })
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 92))
+    const p = document.querySelector('p')!
+    vi.spyOn(p, 'getBoundingClientRect').mockReturnValue(rect(1200, 1230))
+    revealInFrame(document, p, 'start', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 1200 - 92, behavior: 'auto' })
+    scrollTo.mockClear()
+    // 底緣剛好在 80（頁首 78 底下）：用實際高度 78 算看得到，不捲；寫死 88 的話會被當成看不到。
+    document.body.innerHTML = '<header class="header"></header><main id="main"><p>內文</p></main>'
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
+    const q = document.querySelector('p')!
+    vi.spyOn(q, 'getBoundingClientRect').mockReturnValue(rect(40, 84))
+    revealInFrame(document, q, 'start', true)
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+
+  it('目標在固定的頁首裡（或本身固定）：不捲，但照樣框起來並回報', () => {
+    document.body.innerHTML = '<header class="header"><a class="phone">07-392-8366</a></header><main id="main"></main>'
+    const scrollTo = layout({ header: 'fixed' })
+    const header = document.querySelector('header')!
+    const phone = document.querySelector('a')!
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
+    vi.spyOn(phone, 'getBoundingClientRect').mockReturnValue(rect(10, 40))
+    revealInFrame(document, phone, 'start', true)
+    revealInFrame(document, phone, 'center', true)
+    revealInFrame(document, header, 'start', true)
+    expect(scrollTo).not.toHaveBeenCalled()
+    // 經過 highlightPreview：整塊與文字都框得到，只是不捲。
+    expect(highlightPreview(document, focus({ block: 'site-header', probe: null }), { isRendered: rendered })).toBe('block')
+    expect(header.classList.contains(PREVIEW_HIT_CLASS)).toBe(true)
+    expect(highlightPreview(document, focus({ block: 'site-header', probe: '07-392-8366' }), { isRendered: rendered })).toBe('text')
+    expect(phone.classList.contains(PREVIEW_HIT_CLASS)).toBe(true)
+    expect(scrollTo).not.toHaveBeenCalled()
+    // 本身固定的元素（頁首以外）也一樣。
+    document.body.innerHTML = '<header class="header"></header><div class="pinned"></div>'
+    const pinnedScroll = layout({ header: 'fixed', '.pinned': 'sticky' })
+    const pinned = document.querySelector('.pinned')!
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
+    vi.spyOn(pinned, 'getBoundingClientRect').mockReturnValue(rect(0, 30))
+    revealInFrame(document, pinned, 'start', true)
+    expect(pinnedScroll).not.toHaveBeenCalled()
+  })
+
+  it('頁首不是固定的、找不到頁首、量出來不合理：退回 88，一般元素照常捲', () => {
+    const p = () => document.querySelector('p')!
+    // 頁首沒有固定：它會跟著捲走，高度不是永久的留白。
+    document.body.innerHTML = '<header class="header"></header><main id="main"><p>內文</p></main>'
+    let scrollTo = layout({ header: 'static' })
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 60))
+    expect(previewTopInset(document)).toBe(88)
+    vi.spyOn(p(), 'getBoundingClientRect').mockReturnValue(rect(1200, 1230))
+    revealInFrame(document, p(), 'start', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 1200 - 88, behavior: 'auto' })
+    // 沒有頁首（例如整頁都沒畫出頁首）。
+    document.body.innerHTML = '<main id="main"><p>內文</p></main>'
+    scrollTo = layout({})
+    expect(previewTopInset(document)).toBe(88)
+    // 手機選單展開時頁首蓋滿視窗（高 > 視窗一半）、或量到 0／NaN：不當成頁首高度。
+    document.body.innerHTML = '<header class="header"></header>'
+    layout({ header: 'fixed' })
+    const header = document.querySelector('header')!
+    const measure = vi.spyOn(header, 'getBoundingClientRect')
+    for (const bottom of [800, 401, 0, -5, Number.NaN]) {
+      measure.mockReturnValue(rect(0, bottom))
+      expect(previewTopInset(document)).toBe(88)
+    }
+    measure.mockReturnValue(rect(0, 400))
+    expect(previewTopInset(document)).toBe(400)
+  })
+
+  it('脫離的文件（沒有 querySelector、getComputedStyle）不丟錯，退回 88', () => {
+    document.body.innerHTML = '<main id="main"><p>內文</p></main>'
+    const own = { innerHeight: 800, scrollY: 0, scrollTo: vi.fn() }
+    const frameDoc = { defaultView: own } as unknown as Document
+    expect(previewTopInset(frameDoc)).toBe(88)
+    const p = document.querySelector('p')!
+    vi.spyOn(p, 'getBoundingClientRect').mockReturnValue(rect(1200, 1230))
+    expect(() => revealInFrame(frameDoc, p, 'start', true)).not.toThrow()
+    expect(own.scrollTo).toHaveBeenCalledWith({ top: 1200 - 88, behavior: 'auto' })
   })
 })
