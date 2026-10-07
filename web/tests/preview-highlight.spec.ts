@@ -307,7 +307,7 @@ describe('頂端留白用預覽頁頁首的實際高度', () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 
-  it('目標在固定的頁首裡（或本身固定）：不捲，但照樣框起來並回報', () => {
+  it('目標在固定的頁首裡（或本身是 fixed）：不捲，但照樣框起來並回報', () => {
     document.body.innerHTML = '<header class="header"><a class="phone">07-392-8366</a></header><main id="main"></main>'
     const scrollTo = layout({ header: 'fixed' })
     const header = document.querySelector('header')!
@@ -324,14 +324,36 @@ describe('頂端留白用預覽頁頁首的實際高度', () => {
     expect(highlightPreview(document, focus({ block: 'site-header', probe: '07-392-8366' }), { isRendered: rendered })).toBe('text')
     expect(phone.classList.contains(PREVIEW_HIT_CLASS)).toBe(true)
     expect(scrollTo).not.toHaveBeenCalled()
-    // 本身固定的元素（頁首以外）也一樣。
+    // 本身是 fixed 的元素（頁首以外）也一樣。
     document.body.innerHTML = '<header class="header"></header><div class="pinned"></div>'
-    const pinnedScroll = layout({ header: 'fixed', '.pinned': 'sticky' })
+    const pinnedScroll = layout({ header: 'fixed', '.pinned': 'fixed' })
     const pinned = document.querySelector('.pinned')!
     vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
     vi.spyOn(pinned, 'getBoundingClientRect').mockReturnValue(rect(0, 30))
     revealInFrame(document, pinned, 'start', true)
     expect(pinnedScroll).not.toHaveBeenCalled()
+  })
+
+  it('sticky 的區塊根（動態開啟時的 .home-belief、.day-experience、.studio-hero）不算釘住：還沒黏住時照常捲過去，黏住且看得到時才不捲', () => {
+    document.body.innerHTML = '<header class="header"></header><main id="main"><section class="day-experience"><p>孩子的一天</p></section></main>'
+    const scrollTo = layout({ header: 'fixed', '.day-experience': 'sticky' })
+    vi.spyOn(document.querySelector('header')!, 'getBoundingClientRect').mockReturnValue(rect(0, 78))
+    const block = document.querySelector('.day-experience')!
+    const text = document.querySelector('p')!
+    // 還沒捲到它的 reveal 容器：sticky 元素在文件流裡的位置離視窗很遠，要捲過去（開頭對齊頁首底下）。
+    const blockRect = vi.spyOn(block, 'getBoundingClientRect').mockReturnValue(rect(2400, 3300))
+    revealInFrame(document, block, 'start', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 2400 - 78, behavior: 'auto' })
+    // 框的是它裡面的文字：一樣照常捲（置中）。
+    scrollTo.mockClear()
+    vi.spyOn(text, 'getBoundingClientRect').mockReturnValue(rect(2600, 2630))
+    revealInFrame(document, text, 'center', true)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 100 + 2600 - 385, behavior: 'auto' })
+    // 黏住（stuck）時 rect 就在視窗裡、頁首底下：看得到，不捲。
+    scrollTo.mockClear()
+    blockRect.mockReturnValue(rect(78, 878))
+    revealInFrame(document, block, 'start', true)
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 
   it('頁首不是固定的、找不到頁首、量出來不合理：退回 88，一般元素照常捲', () => {

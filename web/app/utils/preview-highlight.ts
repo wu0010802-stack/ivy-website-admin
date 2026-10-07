@@ -99,14 +99,17 @@ function positionOf(view: Window, el: Element): string | undefined {
 }
 
 /**
- * 目標本身固定／黏在畫面上（或在固定的頁首裡）：捲動不會改變它在畫面上的位置，不必捲。
+ * 目標本身 `position: fixed`，或在固定／黏住的頁首裡：捲動不會改變它在畫面上的位置，不必捲。
  * 手機頁首固定在上方、只有 78px 高，不判斷的話它永遠被當成「看不到」，每改一次就往上捲一格。
- * 只認目標本身與頁首：往上找所有祖先會誤傷內部有黏住元素的區塊（框到那一塊就永遠不捲了）。
+ * `sticky` 的目標不算：動態開啟時「關於常春藤」「孩子的一天」「首屏」的區塊根元素都是 sticky
+ * （放在一個很高的 reveal 容器裡，只在容器捲過的那一段才黏住），平常它在文件流裡的位置離視窗很遠，
+ * 一樣要捲過去；黏住時 rect 就在視窗裡，走一般「看不看得到」的判斷自然不捲。
+ * 只認目標本身與頁首，不往上找所有祖先：內部有黏住元素的區塊會因此永遠不捲。
  */
 export function isPinnedTarget(doc: Document, el: Element): boolean {
   const view = doc.defaultView
   if (!view) return false
-  if (isPinnedPosition(positionOf(view, el))) return true
+  if (positionOf(view, el) === 'fixed') return true
   const header = el.closest?.(HEADER_SELECTOR)
   return Boolean(header) && isPinnedPosition(positionOf(view, header!))
 }
@@ -131,7 +134,7 @@ export function previewTopInset(doc: Document): number {
 /**
  * 只捲這份文件自己的視窗。reduceMotion 沒指定時看這個視窗的系統設定（prefers-reduced-motion），
  * 開了就直接跳、不用平滑捲動。頂端留的距離是預覽頁頁首實際的高度（previewTopInset）；
- * 目標本身固定／黏住（例如頁首）時不捲。
+ * 目標本身 fixed（或在固定的頁首裡）時不捲；sticky 的區塊根照常捲。
  */
 export function revealInFrame(
   doc: Document,
