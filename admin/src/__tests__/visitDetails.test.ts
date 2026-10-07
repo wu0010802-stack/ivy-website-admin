@@ -48,8 +48,8 @@ describe('案件流程補完', () => {
     const past = { ...slot, slot_date: '2026-01-05' }
     const wrapper = await setup({ ...details(), slot: past })
     const labels = wrapper.findAll('button').map(button => button.text())
-    expect(labels).toContain('標記未到場')
-    await wrapper.findAll('button').find(button => button.text() === '標記已到場')!.trigger('click')
+    expect(labels).toContain('沒來')
+    await wrapper.findAll('button').find(button => button.text() === '家長到了')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/visit-requests/local-case/complete')
   })

@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatSlotWhen, partySizeLabel, referralSourceLabels, staffEmail, staffLabel, staffOf } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, partySizeLabel, referralSourceLabels, staffEmail, staffLabel, staffOf } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -38,15 +38,14 @@ const vc = useVisitCase(id, {
 provideVisitCase(vc)
 const {
   detail, notes, newNote, followUpAt, rescheduleSlotId, rescheduleReason, manualRescheduleOpen, pendingAction, busy,
-  bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, staff, canReadAdmissions, canCreateAdmissions,
-  admissionsVisit, admissionsAvailable, creatingAdmissions, lookupFailed, extrasFailed, familyEvents, familyOptions, familyStaff,
-  familyVisit, familyPending, noteDirty, rescheduleSlots, visitStarted, attendanceDue, confirmedAtShown,
+  bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, staff, canCreateAdmissions,
+  admissionsVisit, extrasFailed, familyEvents, familyOptions, familyStaff,
+  familyVisit, familyPending, noteDirty, rescheduleSlots, attendanceDue, confirmedAtShown,
   followUpTracked, followUpPast, linkApplicable, familyNoteList, latestFamilyContact,
   bookingDataTitle, loading, error, emailEnabled,
 } = toRefs(vc)
-const { cancel, markNoShow, markCompleted, reschedule, decideReschedule, addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
+const { cancel, reschedule, addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
 const family = vc.family
-const createAdmissionsVisit = () => vc.family.create()
 
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
 // 打好還沒按「新增紀錄」的聯絡紀錄（noteDirty，定義見 useVisitCase）：返回、下一筆、側欄換頁前都先問。
@@ -389,7 +388,7 @@ watch(id, () => {
           </template>
         </div>
 
-        <aside class="detail__side">
+        <aside v-if="familyPending || familyVisit || (detail.status === 'confirmed' && canHandle)" class="detail__side">
           <div class="panel">
             <div class="panel__head"><h2>處理</h2></div>
             <div class="panel__body detail__actions">
@@ -400,33 +399,12 @@ watch(id, () => {
                 :staff="familyStaff"
                 :latest="latestFamilyContact"
                 :rebookable="canHandle"
+                :primary="false"
                 @changed="onFamilyChanged"
                 @stale="family.reload"
                 @rebook="rebookOpen = true"
               />
-              <p v-else-if="!canHandle" class="hint">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
-              <template v-else-if="detail.status === 'confirmed'">
-                <div v-if="detail.pending_reschedule" class="reschedule-request" role="group" aria-label="家長的改期申請">
-                  <p class="reschedule-request__title">家長申請改期<span class="num">（{{ formatDateTime(detail.pending_reschedule.created_at) }}）</span></p>
-                  <p class="reschedule-request__slots">
-                    {{ formatSlotWhen(detail.pending_reschedule.current_slot) }}<br />→ <strong>{{ formatSlotWhen(detail.pending_reschedule.requested_slot) }}</strong>
-                  </p>
-                  <p class="hint">
-                    {{ detail.pending_reschedule.requested_slot_available
-                      ? `新場次剩 ${detail.pending_reschedule.requested_slot_remaining} 組。原場次在核准前仍有效。`
-                      : '新場次已額滿、關閉或已開始，無法核准；請退回並聯絡家長另約。' }}
-                  </p>
-                  <div class="reschedule-request__actions">
-                    <el-button type="primary" :loading="pendingAction === 'approve'" :disabled="!detail.pending_reschedule.requested_slot_available || busy" @click="decideReschedule('approve')">核准改期</el-button>
-                    <el-button :loading="pendingAction === 'reject'" :disabled="busy" @click="decideReschedule('reject')">退回申請</el-button>
-                  </div>
-                </div>
-                <!-- 參觀開始後最常做的是標記到場：排在改期前面，兩顆都是實心按鈕。 -->
-                <div v-if="visitStarted" class="detail__attendance" role="group" aria-labelledby="visit-attendance-title">
-                  <p id="visit-attendance-title" class="detail__attendance-title">家長到了嗎？</p>
-                  <el-button type="primary" :loading="pendingAction === 'complete'" :disabled="busy" @click="markCompleted">標記已到場</el-button>
-                  <el-button :loading="pendingAction === 'no_show'" :disabled="busy" @click="markNoShow">標記未到場</el-button>
-                </div>
+              <template v-else-if="detail.status === 'confirmed' && canHandle">
                 <div v-if="manualRescheduleShown" class="reschedule" role="group" aria-labelledby="visit-reschedule-title">
                   <p id="visit-reschedule-title" ref="rescheduleTitle" class="reschedule__title" tabindex="-1">改期（換場次）</p>
                   <el-select ref="rescheduleSelect" v-model="rescheduleSlotId" placeholder="選擇新的參觀場次" filterable :disabled="rescheduleSlots.length === 0" aria-label="改期的新場次" style="width: 100%">
@@ -446,34 +424,13 @@ watch(id, () => {
                 <div v-else class="reschedule reschedule--collapsed">
                   <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">{{ detail.pending_reschedule ? '不照申請，改到其他場次…' : '改到其他場次…' }}</el-button>
                 </div>
-                <p v-if="!visitStarted" class="hint">參觀場次開始後可以標記已到場或未到場；家長事先說不來，請用下方的「取消預約」。</p>
               </template>
-
-              <template v-else>
-                <p class="hint">這筆案件已結案。家長想再約，請另建新案，舊案會保留原紀錄。</p>
-                <el-button :disabled="busy" style="width: 100%" @click="rebookOpen = true">重新預約（另建新案）</el-button>
-              </template>
-            </div>
-            <div
-              v-if="canReadAdmissions && !familyVisit && !familyPending && detail.status === 'completed' && (admissionsAvailable === 'yes' || lookupFailed)"
-              class="detail__admissions"
-            >
-              <span class="detail__admissions-label">招生訪視</span>
-              <template v-if="lookupFailed">
-                <span class="hint">招生資料讀不到。</span>
-                <el-button size="small" :disabled="busy" @click="family.lookup">重新載入</el-button>
-              </template>
-              <template v-else-if="canCreateAdmissions">
-                <span class="hint">已到場，但還沒有招生訪視。</span>
-                <el-button size="small" :loading="creatingAdmissions" :disabled="busy" @click="createAdmissionsVisit">建立招生訪視</el-button>
-              </template>
-              <span v-else class="hint">已到場，但還沒有招生訪視；請有招生權限的同事建立。</span>
             </div>
             <div
               v-if="canHandle && detail.status === 'confirmed'"
               class="detail__danger"
             >
-              <span class="hint">{{ attendanceDue ? '家長沒來請用上方的標記未到場' : '家長不來了？' }}</span>
+              <span class="hint">{{ attendanceDue ? '家長沒來請用上方的「沒來」' : '家長不來了？' }}</span>
               <el-button text type="danger" :loading="pendingAction === 'cancel'" :disabled="busy" class="detail__cancel" @click="cancel">取消預約</el-button>
             </div>
           </div>
@@ -489,7 +446,7 @@ watch(id, () => {
         :record="admissionsVisit"
         :options="familyOptions"
         :lead="arrivalLead"
-        :cancel-text="ARRIVAL_FORM_CANCEL_TEXT"
+        :cancel-text="arrivalLead ? ARRIVAL_FORM_CANCEL_TEXT : undefined"
         @saved="family.replaceVisit"
         @stale="family.reload"
       />
@@ -552,29 +509,7 @@ watch(id, () => {
   margin-top: -8px;
 }
 
-/* 招生訪視、取消與上方處理區塊用同一條左右內距，文字左緣才對齊。 */
-.detail__admissions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--line);
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-.detail__admissions-label {
-  flex-basis: 100%;
-  font-weight: 500;
-}
-
-.detail__admissions a {
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-/* 取消預約與主動作隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
+/* 取消預約與上方的處理區塊隔開一段，並用分隔線宣告它是另一類動作，減少誤觸。 */
 .detail__danger {
   display: flex;
   align-items: center;
@@ -594,6 +529,11 @@ watch(id, () => {
 
 .detail__pre {
   white-space: pre-wrap;
+}
+
+/* 處理面板沒有內容時（結案、只能查看）整個 aside 不畫，主欄不留一條空的右欄。 */
+.detail__grid:not(:has(> .detail__side)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .notes {
@@ -628,8 +568,7 @@ watch(id, () => {
   color: var(--ink-2);
 }
 
-.reschedule,
-.reschedule-request {
+.reschedule {
   display: grid;
   gap: 8px;
   padding-top: 12px;
@@ -650,64 +589,11 @@ watch(id, () => {
   margin: -4px 0 0;
 }
 
-.detail__attendance {
-  display: grid;
-  gap: 8px;
-}
-
-.detail__attendance .el-button {
-  width: 100%;
-  margin-left: 0;
-}
-
-.detail__attendance-title {
-  margin: 0;
-  font-size: var(--text-base);
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.reschedule-request {
-  padding: 12px;
-  border: 1px solid var(--el-color-warning-light-5);
-  border-radius: var(--radius);
-  background: var(--el-color-warning-light-9);
-}
-
-.reschedule__title,
-.reschedule-request__title {
+.reschedule__title {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
-}
-
-.reschedule-request__title .num {
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
-.reschedule-request__slots {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--ink-2);
-}
-
-/* 新時段整段一行，不會把「10:00–」和「11:00」拆到兩行。 */
-.reschedule-request__slots strong {
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.reschedule-request__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.reschedule-request__actions .el-button + .el-button {
-  margin-left: 0;
 }
 
 .notes__form {
@@ -781,10 +667,6 @@ watch(id, () => {
 }
 
 @media (max-width: 720px) {
-  .detail__admissions {
-    padding: 12px 16px;
-  }
-
   .detail__danger {
     padding: 10px 16px 6px;
   }

@@ -288,8 +288,8 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     return `有 Email（${maskEmail(email)}），但無法確認系統是否會寄信，請確認是否需要另外通知家長。`
   })
   async function cancel() {
-    // 參觀時間已過：家長沒來要標記未到場，取消會被算成園方取消、名額也會釋出。
-    const noShowNote = attendanceDue.value ? '家長沒來請改用上方的「標記未到場」。' : ''
+    // 參觀時間已過：家長沒來要按「沒來」（標記未到場），取消會被算成園方取消、名額也會釋出。
+    const noShowNote = attendanceDue.value ? '家長沒來請改用上方的「沒來」。' : ''
     let reason: string | null = null
     try {
       const result = await ElMessageBox.prompt(
@@ -299,6 +299,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
           confirmButtonText: '取消預約',
           confirmButtonClass: 'el-button--danger',
           cancelButtonText: '先不要',
+          autofocus: false,
           inputPlaceholder: '取消原因（選填，會記在案件歷程）',
           inputValidator: (value: string) => !value || value.length <= 500 || '原因最多 500 字',
           type: 'warning',
@@ -505,6 +506,14 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     }
   }
 
+  // 家庭版面頁首的「填招生資料」（2026-10-06 方向 C）：同一個表單，不是剛標記到場，所以不寫「已標記…已到場」、
+  // 取消鈕維持「取消」（VisitCaseDialogs 依 arrivalLead 決定）。
+  function openAdmissionsForm() {
+    if (!family.visit.value) return
+    arrivalLead.value = ''
+    arrivalOpen.value = true
+  }
+
   function onFamilyChanged(next: RecruitmentVisit) {
     family.replaceVisit(next)
     void family.loadExtras()
@@ -607,7 +616,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     familyVisit, familyPending, handled, noteDirty, openSlots, rescheduleSlots, parentMailNote, visitStarted, attendanceDue,
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
     familyNoteList, latestFamilyContact, callPhone, bookingDataTitle,
-    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, reschedule, decideReschedule,
+    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, reschedule, decideReschedule,
     addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
   })
 }

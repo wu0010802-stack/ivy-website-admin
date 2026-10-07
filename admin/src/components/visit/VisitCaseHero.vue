@@ -7,6 +7,7 @@ import { arrivedLabel } from '../../admissions/family'
 import { injectVisitCase } from '../../composables/useVisitCase'
 import { relativeVisitTime } from '../../utils/visitSchedule'
 import StatusTag from '../StatusTag.vue'
+import VisitPrimaryAction from './VisitPrimaryAction.vue'
 
 // 案件頁首（2026-10-06 方向 C）：家長・孩子、來源與最後處理、參觀時間與「結束了多久」、預定聯絡、
 // 狀態；右邊（窄螢幕在下面）是撥號與這個階段的主動作。預覽面板用 compact：標題小一級、按鈕整排在下面。
@@ -55,7 +56,7 @@ const source = computed(() => {
         <StatusTag :meta="vc.statusDisplay" size="large" />
         <span v-if="vc.statusDisplay.sub" class="detail__status-sub" :data-tone="vc.statusDisplay.tone">{{ vc.statusDisplay.sub }}</span>
       </div>
-      <slot name="actions" />
+      <VisitPrimaryAction :plain="compact" />
       <el-button
         v-if="vc.callPhone && !vc.familyPending"
         tag="a"

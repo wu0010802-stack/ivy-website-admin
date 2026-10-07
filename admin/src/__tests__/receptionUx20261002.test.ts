@@ -49,26 +49,25 @@ async function mountDetail(data: Record<string, unknown>, bookingConfig: unknown
 }
 
 describe('案件明細：參觀已開始', () => {
-  it('先問家長到了嗎，兩顆實心按鈕排在改期前面；改期收成連結', async () => {
+  it('先問家長到了嗎：頁首「家長到了」實心、「沒來」次之；改期在處理面板收成連結', async () => {
     const wrapper = await mountDetail(confirmedCase())
-    const actions = wrapper.find('.detail__actions')
-    const attendance = actions.find('.detail__attendance')
+    const attendance = wrapper.get('.case-hero__actions .detail__attendance')
     expect(attendance.text()).toContain('家長到了嗎？')
     const buttons = attendance.findAll('button')
-    expect(buttons.map(b => b.text())).toEqual(['標記已到場', '標記未到場'])
+    expect(buttons.map(b => b.text())).toEqual(['家長到了', '沒來'])
     expect(buttons[0]!.classes()).toContain('el-button--primary')
-    expect(buttons.every(b => !b.classes().includes('is-text'))).toBe(true)
-    expect(actions.html().indexOf('detail__attendance')).toBeLessThan(actions.html().indexOf('reschedule'))
+    expect(buttons[0]!.classes()).not.toContain('is-plain')
+    const actions = wrapper.get('.detail__actions')
     expect(actions.find('.reschedule--collapsed').text()).toBe('改到其他場次…')
     expect(actions.text()).not.toContain('改到這一場')
-    expect(wrapper.find('.detail__danger').text()).toContain('家長沒來請用上方的標記未到場')
+    expect(wrapper.find('.detail__danger').text()).toContain('家長沒來請用上方的「沒來」')
   })
 
-  it('取消預約的確認框提醒家長沒來要標記未到場', async () => {
+  it('取消預約的確認框提醒家長沒來要按「沒來」', async () => {
     const wrapper = await mountDetail(confirmedCase())
     const prompt = vi.spyOn(ElMessageBox, 'prompt').mockRejectedValue('cancel' as never)
     await wrapper.find('.detail__cancel').trigger('click')
-    expect(String(prompt.mock.calls[0]![0])).toContain('家長沒來請改用上方的「標記未到場」')
+    expect(String(prompt.mock.calls[0]![0])).toContain('家長沒來請改用上方的「沒來」')
   })
 
   it('頁首和列表同一種說法：預約時間已過・尚未確認到場；確認時間和送出同一分鐘不重複列', async () => {

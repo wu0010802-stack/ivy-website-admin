@@ -357,7 +357,8 @@ describe('取消需求與取消預約', () => {
     await flushPromises()
     const [message, title, options] = prompt.mock.calls[0]!
     expect(title).toBe('取消這筆預約？')
-    expect(options).toMatchObject({ confirmButtonText: '取消預約' })
+    // 危險確認框：確定鈕危險色、不自動聚焦（第七輪規則，取消預約也適用）。
+    expect(options).toMatchObject({ confirmButtonText: '取消預約', confirmButtonClass: 'el-button--danger', autofocus: false })
     expect(String(message)).toContain('名額會釋出')
     expect(String(message)).not.toContain('還沒排場次')
     expect(String(message)).not.toContain('不會通知家長')
