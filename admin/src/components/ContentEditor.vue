@@ -53,9 +53,10 @@ const navSections = computed(() => props.sections ?? [])
 const hasNav = computed(() => navSections.value.length >= MIN_NAV_SECTIONS)
 
 // 右側官網預覽（2026-10-06 方向 D）：1280 以上、後台與官網同源、這種內容有對應預覽頁時才放。
+// 斷點用 not all and (min-width: 1280px)：和下面 CSS 的 min-width: 1280px 剛好互補，1279.5 這種小數寬不會兩邊都不成立。
 // 1280 以下維持原本版面，用狀態列的「存草稿並預覽」開新分頁。
 const previewTargets = computed(() => previewTargetsFor(props.editor.kind))
-const belowPreviewWidth = useNarrowScreen('(max-width: 1279px)')
+const belowPreviewWidth = useNarrowScreen('not all and (min-width: 1280px)')
 const previewOrigin = livePreviewOrigin()
 const showPreviewPane = computed(() => Boolean(previewOrigin) && previewTargets.value.length > 0 && !belowPreviewWidth.value && !props.placeholder)
 const previewTargetId = ref('')
@@ -867,7 +868,7 @@ defineExpose({ confirmLeave })
   .editor--preview > .toolbar,
   .editor--preview > .editor__alert,
   .editor--preview > .editor__skeleton { max-width: 720px; }
-  .editor__layout.has-preview { display: grid; grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr); grid-template-areas: 'top preview' 'body preview'; column-gap: 20px; align-items: start; }
+  .editor__layout.has-preview { display: grid; grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr); grid-template-areas: 'top preview' 'body preview'; grid-template-rows: auto 1fr; column-gap: 20px; align-items: start; }
   .editor__layout.has-nav.has-preview { grid-template-columns: 152px minmax(420px, 560px) minmax(320px, 1fr); grid-template-areas: 'nav top preview' 'nav body preview'; }
   .editor__layout.has-preview > .editor__top { grid-area: top; min-width: 0; }
   .editor__layout.has-preview > .editor__nav { grid-area: nav; }

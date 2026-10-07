@@ -75,7 +75,7 @@ async function mountEditor(editor: ContentEditorState, props: Record<string, unk
 
 function narrowScreen() {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: query === '(max-width: 1279px)', media: query, addEventListener() {}, removeEventListener() {},
+    matches: query === 'not all and (min-width: 1280px)', media: query, addEventListener() {}, removeEventListener() {},
   })) as never
 }
 
@@ -134,7 +134,15 @@ describe('右側官網預覽欄', () => {
     expect(desktop).toContain('.editor--preview { max-width: none; }')
     expect(desktop).toContain("grid-template-columns: minmax(440px, 640px) minmax(320px, 1fr); grid-template-areas: 'top preview' 'body preview';")
     expect(desktop).toContain("grid-template-columns: 152px minmax(420px, 560px) minmax(320px, 1fr); grid-template-areas: 'nav top preview' 'nav body preview';")
+    // 預覽欄跨兩列、高度固定：沒有明寫列高，短表單時多出來的高度會平均分給兩列，把表單推離狀態列。
+    expect(desktop).toMatch(/\.editor__layout\.has-preview \{[^}]*grid-template-rows: auto 1fr;/)
     for (const area of ['top', 'nav', 'body', 'preview']) expect(desktop).toContain(`.editor__layout.has-preview > .editor__${area} { grid-area: ${area};`)
+  })
+
+  it('JS 與 CSS 斷點是同一條線：1280 以上才放預覽，小數寬（1279.5）兩邊不會都不成立', () => {
+    expect(editorSource).toContain("useNarrowScreen('not all and (min-width: 1280px)')")
+    expect(editorSource).toContain('@media (min-width: 1280px) {')
+    expect(editorSource).not.toContain('max-width: 1279px')
   })
 
   it('預覽欄高度要扣掉黏底動作列：--editor-actions-h 在 .editor 上依控制項高度算出來', () => {
