@@ -6,7 +6,7 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from datetime import datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 import pytest
 from sqlalchemy import select, update
@@ -125,6 +125,31 @@ async def test_today_not_started_is_upcoming_but_not_past(admin_client, db_sessi
 
     assert case in await members("upcoming")
     assert case not in await members("past")
+
+
+@pytest.mark.asyncio
+async def test_upcoming_cut_is_taipei_day_not_utc_day(admin_client, db_session):
+    """台北 00:00:30 時 UTC 還是前一天 16:00:30：以 UTC 日期切會把台北昨天的場次算進接下來。"""
+    yesterday = await _case(admin_client, "台北昨天", days_ahead=3)
+    today = await _case(admin_client, "台北今天", days_ahead=4)
+    await _move(db_session, yesterday, days=-1, start=time(10, 0), end=time(11, 0))
+    await _move(db_session, today, days=0, start=time(10, 0), end=time(11, 0))
+    taipei_midnight = datetime.combine(today_local(), time(0, 0, 30), tzinfo=OPERATING_TZ)
+    utc_midnight = taipei_midnight.astimezone(UTC)
+    assert utc_midnight.date() == today_local() - timedelta(days=1)  # 前提：UTC 日期確實落在台北昨天
+
+    async def members(view: str, now: datetime) -> set[str]:
+        rows = await db_session.execute(select(VisitRequest.id).where(status_groups.view_condition(view, now)))
+        return {str(row) for row in rows.scalars()}
+
+    for now in (taipei_midnight, utc_midnight):  # 同一個時刻，帶台北或 UTC 時區都一樣
+        upcoming = await members("upcoming", now)
+        assert today in upcoming
+        assert yesterday not in upcoming
+        # 台北昨天 10:00 的場次已經開始：在時間已過；今天 10:00 還沒開始。
+        past = await members("past", now)
+        assert yesterday in past
+        assert today not in past
 
 
 @pytest.mark.asyncio
