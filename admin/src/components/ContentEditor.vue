@@ -7,6 +7,7 @@ import { contentPathFieldLabel } from '../api/contentFieldLabels'
 import type { ContentFieldError } from '../api/errors'
 import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
+import { draftSummary } from '../composables/draftSummary'
 import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
 import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
@@ -47,6 +48,11 @@ const fieldErrors = computed(() => props.editor.fieldErrors?.value ?? [])
 const stashedChanges = computed(() => props.editor.stashedChanges?.value ?? [])
 const stashOverlap = computed(() => props.editor.stashOverlap?.value ?? [])
 const changes = computed(() => props.editor.changes?.value ?? [])
+// 動作列與目錄打點的清單：和官網那一版比（useContentItem.draftChanges）；舊的假 editor 沒給時用和上次儲存比。
+const draftChangeList = computed(() => props.editor.draftChanges?.value ?? changes.value)
+const baselineSource = computed(() => props.editor.draftBaseline?.value.source ?? 'saved')
+// 正在讀官網那一版：基準還是 saved，動作列先不寫和官網比的結果（見 ContentEditorState.liveReading）。
+const liveReading = computed(() => props.editor.liveReading?.value ?? false)
 const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
@@ -279,9 +285,20 @@ async function approve() {
   await props.editor.review('approve')
 }
 
+// 2026-10-06 方向 D：動作列已經寫出和官網不同的欄位，發布確認框只寫欄位名，不再列改前→改後
+//（核准照舊列，核准的人不是改的人）。讀不到官網版（saved）時回 null，退回舊的差異框。
+function quickSummary(verb: string): ConfirmSummary | null {
+  if (baselineSource.value === 'first') return { intro: `這是第一次上線：官網目前顯示預設文字，${verb}後家長就會看到這份內容。`, list: [] }
+  if (baselineSource.value !== 'live') return null
+  const list = draftChangeList.value
+  return list.length
+    ? { intro: `和官網目前的內容相比，會更新 ${list.length} 個欄位：${list.map((c) => c.label).join('、')}。${verb}後家長立刻看到。`, list: [] }
+    : { intro: `內容和官網目前的一樣，${verb}後家長看到的不會改變。`, list: [] }
+}
+
 async function publishWithConfirm() {
   if (preparing.value) return
-  const summary = await prepareSummary('發布')
+  const summary = quickSummary('發布') ?? (await prepareSummary('發布'))
   const message = confirmBody(summary, [scheduleSkipNote(), '發布後若要改回，可以從「版本紀錄」還原上一版。'])
   try {
     await ElMessageBox.confirm(message, `發布${named.value}到官網？`, {
@@ -442,6 +459,13 @@ const primaryAction = computed<'save' | 'publish' | 'submit' | null>(() => {
 const actionNote = computed(() => {
   if (rejectedLatest.value && canPublishRole.value) return '這一版已被退回，請修改後重新儲存。'
   return canPublishRole.value ? '儲存草稿不會更動官網，發布後才會公開。' : '儲存草稿不會更動官網，送審核准後才會公開。'
+})
+// 動作列那一句。被退回又沒有修改時要講「請修改後重新儲存」，不寫摘要；官網版還在讀時
+// 不寫和官網比的結果（避免「沒有修改」→「N 處修改」閃一下），有未儲存的修改只說有未儲存的修改。
+const actionSummary = computed(() => {
+  if (rejectedLatest.value && canPublishRole.value && !isDirty.value) return null
+  if (liveReading.value) return draftSummary('saved', [], isDirty.value)
+  return draftSummary(baselineSource.value, draftChangeList.value, isDirty.value)
 })
 
 // 真的離開這一頁時多一顆「儲存草稿並離開」（存草稿不會動到官網）；唯讀、版本
@@ -682,15 +706,15 @@ defineExpose({ confirmLeave })
         </div>
       </div>
 
-      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy }">
+      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy, 'has-changes': Boolean(actionSummary) }">
         <!-- 「放棄修改」放在說明這一側，離儲存、發布遠一點（破壞性動作不與主動作相鄰）。 -->
         <div class="editor__actions-state">
-          <p class="editor__actions-text" :title="isDirty ? actionNote : undefined">
+          <p class="editor__actions-text" :title="actionSummary?.title || (isDirty ? actionNote : undefined)">
             <template v-if="busy">正在處理，請稍候…</template>
-            <template v-else>
-              <span v-if="isDirty" class="editor__actions-count">{{ changes.length ? `改了 ${changes.length} 個欄位。` : '有未儲存的修改。' }}</span>
-              <span class="editor__actions-note">{{ actionNote }}</span>
+            <template v-else-if="actionSummary">
+              <span class="editor__actions-count">{{ actionSummary.lead }}</span><span v-if="actionSummary.fields" class="editor__actions-fields">{{ actionSummary.fields }}</span>
             </template>
+            <span v-else class="editor__actions-note">{{ actionNote }}</span>
           </p>
           <el-button v-if="isDirty" text class="editor__discard" :disabled="locked" @click="discardEdits">放棄修改</el-button>
         </div>
@@ -933,12 +957,11 @@ defineExpose({ confirmLeave })
   margin-left: 0;
 }
 
-.editor__actions-state { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
-.editor__actions-text { margin: 0; }
-.editor__actions.is-dirty .editor__actions-state { color: var(--brand-gold-ink); }
-/* 有修改時說明那句收起來（和手機一樣），「改了 N 個欄位」＋放棄修改＋三顆按鈕在
-   720px 內排得下一行，黏底列不會變兩行多蓋住表單。 */
-.editor__actions.is-dirty .editor__actions-note { display: none; }
+.editor__actions-state { display: flex; align-items: center; flex: 1 1 auto; gap: 4px 12px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
+.editor__actions-text { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor__actions-count { font-weight: 600; }
+.editor__actions.is-dirty .editor__actions-state,
+.editor__actions.has-changes .editor__actions-state { color: var(--brand-gold-ink); }
 .editor__buttons { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
 /* 手機：狀態文字佔滿一行，預覽與版本紀錄換到下一行、做成 44px 的次要按鈕；
@@ -964,7 +987,7 @@ defineExpose({ confirmLeave })
     gap: 8px;
     padding: 12px 0 max(12px, env(safe-area-inset-bottom));
   }
-  .editor__actions:not(.is-dirty):not(.is-busy) .editor__actions-state { display: none; }
+  .editor__actions:not(.is-dirty):not(.is-busy):not(.has-changes) .editor__actions-state { display: none; }
   .editor__actions-state { flex-wrap: nowrap; justify-content: space-between; font-size: var(--text-base); }
   .editor__actions-note { display: none; }
   .editor__discard { flex-shrink: 0; min-height: 44px; }
