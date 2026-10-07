@@ -18,12 +18,13 @@ import {
   attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, markArrivedInOrder, submitAttendance, type AttendanceKind, type BatchFailure,
 } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
-import { groupVisitsByDay, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
+import { groupVisitsByDay, nextInList, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
 import VisitListRow from '../components/visit/VisitListRow.vue'
+import VisitPreviewPanel from '../components/visit/VisitPreviewPanel.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -401,8 +402,51 @@ function detailTo(id: string) {
   return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
 }
 
+// 1280 以上：點一列在右側預覽（2026-10-06 方向 B），⌘／Ctrl／中鍵照常開新分頁（VisitListRow）；較窄時點列照舊進明細。
+// 一開始不自動選第一筆（換頁籤不必多打 API）；選取不寫進網址，返回列表時回到沒選的狀態。
+const wide = useNarrowScreen('(min-width: 1280px)')
+const selectedId = ref<string | null>(null)
+// 選中的那筆在這一頁的位置：它離開清單（剛取消、標未到場）後，「下一筆」由接手這個位置的那筆遞補。
+let selectedIndex = 0
+const preview = ref<InstanceType<typeof VisitPreviewPanel> | null>(null)
+const rowIds = computed(() => requests.value.map(row => row.id))
+const nextId = computed(() => nextInList(rowIds.value, selectedId.value, selectedIndex))
+
+// 預覽裡有打了一半的聯絡紀錄就先問；選「留在這頁」回 false，不換。
+async function select(id: string): Promise<boolean> {
+  if (id === selectedId.value) return true
+  if (preview.value && !(await preview.value.confirmLeave())) return false
+  selectedId.value = id
+  selectedIndex = Math.max(0, rowIds.value.indexOf(id))
+  return true
+}
+
+async function selectNext() {
+  if (nextId.value) await select(nextId.value)
+}
+
+// 點列選取後，焦點移進預覽（鍵盤按 Enter 開的，才知道內容出現在哪裡）；「下一筆」留在按鈕上，不搶焦點。
+async function openPreview(id: string) {
+  if (!(await select(id))) return
+  await nextTick()
+  preview.value?.focus()
+}
+
+// 清單重讀後，選中的那筆還在就記下它的新位置；不在了就留著原位置讓「下一筆」遞補。
+watch(requests, () => {
+  const index = selectedId.value ? rowIds.value.indexOf(selectedId.value) : -1
+  if (index >= 0) selectedIndex = index
+})
+
+// 預覽裡標了到場、改期、取消或記了一筆：清單與頁首的改期申請數一起更新。
+function onPreviewChanged() {
+  void load({ quiet: true })
+  void openRequests.refresh(true)
+}
+
 function openDetail(row: VisitRequestDetailOut) {
-  void router.push(detailTo(row.id))
+  if (wide.value) void openPreview(row.id)
+  else void router.push(detailTo(row.id))
 }
 
 function onManualCreated(created: VisitRequestDetailOut) {
@@ -514,66 +558,82 @@ onMounted(() => {
       <el-button size="small" @click="load()">重新載入</el-button>
     </el-alert>
 
-    <div v-if="!error" class="visit-list" :aria-busy="loading">
-      <!-- 頁首已經是「參觀案件」，這裡寫目前看的是哪個頁籤或子篩選，不重複頁名。 -->
-      <div class="visit-list__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
-      <div v-if="batchMode && requests.length" class="requests-batch">
-        <el-checkbox :model-value="allSelected" :indeterminate="someSelected" :disabled="attendanceLocked || !selectableRows.length" @update:model-value="(on: string | number | boolean) => selectAll(Boolean(on))">全選這一頁</el-checkbox>
-        <el-button type="primary" plain :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
-          {{ batch ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
-        </el-button>
-        <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
-      </div>
-      <el-alert
-        v-if="batchFailures.length"
-        type="warning"
-        show-icon
-        :title="`有 ${batchFailures.length} 筆沒有標記成功`"
-        class="requests-batch__failures"
-        @close="batchFailures = []"
-      >
-        <ul class="requests-batch__failure-list">
-          <li v-for="item in batchFailures" :key="item.id">{{ item.name }}：{{ item.reason }}</li>
-        </ul>
-      </el-alert>
-      <el-skeleton v-if="loading" animated :rows="4" class="visit-list__skeleton" />
-      <template v-else-if="requests.length">
-        <section v-for="group in dayGroups" :key="group.key" class="visit-day" :class="{ 'visit-day--today': group.bucket === 'today' }">
-          <h3 v-if="group.label" class="visit-day__title">{{ group.label }}<span class="visit-day__count">{{ group.rows.length }} 組</span></h3>
-          <ul class="visit-rows">
-            <VisitListRow
-              v-for="row in group.rows"
-              :key="row.id"
-              :row="row"
-              :now="clockNow"
-              :to="detailTo(row.id)"
-              :day-only="DAY_ONLY.has(group.bucket)"
-              :show-created="!grouped"
-              :multi-campus="multiCampus"
-              :selected="false"
-              :previewable="false"
-              :can-handle="canHandle"
-              :can-fill-admissions="canFillAdmissions"
-              :batch="batchMode"
-              :checked="isSelected(row)"
-              :busy="attendanceBusy === row.id"
-              :locked="attendanceLocked"
-              @activate="openDetail(row)"
-              @attendance="(kind: AttendanceKind) => markAttendance(row, kind)"
-              @fill="arrival.openFor(row, { justArrived: false })"
-              @toggle="(on: boolean) => toggleSelected(row, on)"
-            />
+    <div class="visit-split" :class="{ 'has-preview': wide && !error }">
+      <div v-if="!error" class="visit-list" :aria-busy="loading">
+        <!-- 頁首已經是「參觀案件」，這裡寫目前看的是哪個頁籤或子篩選，不重複頁名。 -->
+        <div class="visit-list__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
+        <div v-if="batchMode && requests.length" class="requests-batch">
+          <el-checkbox :model-value="allSelected" :indeterminate="someSelected" :disabled="attendanceLocked || !selectableRows.length" @update:model-value="(on: string | number | boolean) => selectAll(Boolean(on))">全選這一頁</el-checkbox>
+          <el-button type="primary" plain :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
+            {{ batch ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
+          </el-button>
+          <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
+        </div>
+        <el-alert
+          v-if="batchFailures.length"
+          type="warning"
+          show-icon
+          :title="`有 ${batchFailures.length} 筆沒有標記成功`"
+          class="requests-batch__failures"
+          @close="batchFailures = []"
+        >
+          <ul class="requests-batch__failure-list">
+            <li v-for="item in batchFailures" :key="item.id">{{ item.name }}：{{ item.reason }}</li>
           </ul>
-        </section>
-      </template>
-      <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
-      <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
+        </el-alert>
+        <el-skeleton v-if="loading" animated :rows="4" class="visit-list__skeleton" />
+        <template v-else-if="requests.length">
+          <section v-for="group in dayGroups" :key="group.key" class="visit-day" :class="{ 'visit-day--today': group.bucket === 'today' }">
+            <h3 v-if="group.label" class="visit-day__title">{{ group.label }}<span class="visit-day__count">{{ group.rows.length }} 組</span></h3>
+            <ul class="visit-rows">
+              <VisitListRow
+                v-for="row in group.rows"
+                :key="row.id"
+                :row="row"
+                :now="clockNow"
+                :to="detailTo(row.id)"
+                :day-only="DAY_ONLY.has(group.bucket)"
+                :show-created="!grouped"
+                :multi-campus="multiCampus"
+                :selected="row.id === selectedId"
+                :previewable="wide"
+                :can-handle="canHandle"
+                :can-fill-admissions="canFillAdmissions"
+                :batch="batchMode"
+                :checked="isSelected(row)"
+                :busy="attendanceBusy === row.id"
+                :locked="attendanceLocked"
+                @activate="openDetail(row)"
+                @attendance="(kind: AttendanceKind) => markAttendance(row, kind)"
+                @fill="arrival.openFor(row, { justArrived: false })"
+                @toggle="(on: boolean) => toggleSelected(row, on)"
+              />
+            </ul>
+          </section>
+        </template>
+        <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
+        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
 
-      <div class="pager" v-if="page > 1 || hasNext">
-        <el-button size="small" :disabled="page <= 1 || loading" @click="page -= 1">上一頁</el-button>
-        <span class="hint">第 {{ page }} 頁</span>
-        <el-button size="small" :disabled="!hasNext || loading" @click="nextPage">下一頁</el-button>
+        <div class="pager" v-if="page > 1 || hasNext">
+          <el-button size="small" :disabled="page <= 1 || loading" @click="page -= 1">上一頁</el-button>
+          <span class="hint">第 {{ page }} 頁</span>
+          <el-button size="small" :disabled="!hasNext || loading" @click="nextPage">下一頁</el-button>
+        </div>
       </div>
+      <template v-if="wide && !error">
+        <VisitPreviewPanel
+          v-if="selectedId"
+          ref="preview"
+          :id="selectedId"
+          :full-to="detailTo(selectedId)"
+          :has-next="Boolean(nextId)"
+          @next="selectNext"
+          @changed="onPreviewChanged"
+        />
+        <aside v-else class="visit-preview-empty panel" aria-label="案件預覽">
+          <p class="hint">點一筆就會在這裡看到重點、聯絡紀錄與處理按鈕。</p>
+        </aside>
+      </template>
     </div>
 
     <ManualVisitDialog
@@ -633,6 +693,9 @@ onMounted(() => {
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
 /* 行程清單（2026-10-06 方向 B）：依參觀日分組，每組一張白底圓角卡，列在 components/visit/VisitListRow.vue。 */
 .visit-list { container: visit-list / inline-size; }
+/* 1280 以上右側預覽（2026-10-06 方向 B）：清單一欄、預覽 400px 黏在視窗右側。 */
+.visit-split.has-preview { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 20px; align-items: start; }
+.visit-preview-empty { position: sticky; top: calc(var(--top-h) + 16px); margin-top: 32px; padding: 24px 20px; }
 .visit-list__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .visit-list__head h2 { font-size: var(--text-lg); }
 .visit-day { margin-top: 16px; }
