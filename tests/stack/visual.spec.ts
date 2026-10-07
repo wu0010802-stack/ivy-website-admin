@@ -59,10 +59,16 @@ test.describe('後台畫面基準', () => {
   test('五校介紹（崇德，其他測試不會改）', async ({ page }) => {
     await gotoAdmin(page, '/content/campus-profile?campus=chongde', '五校介紹')
     await expect(page.getByRole('textbox', { name: '校名' })).not.toHaveValue('')
+    // 右側官網預覽：先等到連上（狀態字固定成「預覽的是還沒存的修改」），只把 iframe 裡的官網頁面藏起來
+    // （影片、輪播、WebGL，內容與載入時機都不固定）；預覽欄的分頁、桌機／手機切換、狀態字與底下黏住的動作列
+    // 仍然留在基準裡。不用 mask：預覽欄的下緣延伸到動作列後面，整欄遮罩會把「儲存草稿／排程發布／發布到官網」
+    // 也遮掉。visibility 不改版面。這裡用 addStyleTag 而不是 toHaveScreenshot 的 style：實測 style 選項
+    // 對 .live-preview__frame 不生效（iframe 內容照樣畫進截圖），addStyleTag 才藏得掉。
+    await expect(page.getByRole('complementary', { name: '官網預覽' }).getByText('預覽的是還沒存的修改')).toBeVisible({ timeout: 30_000 })
+    await page.addStyleTag({ content: '.live-preview__frame { visibility: hidden !important; }' })
     await settle(page)
     await expect(page).toHaveScreenshot('campus-profile.png', {
-      // 右側官網預覽是另一個頁面（影片、輪播、WebGL），內容與載入狀態都不固定：整欄遮掉（含上面的狀態字）。
-      mask: [...dynamicParts(page), page.locator('.editor__status'), page.locator('.live-preview')],
+      mask: [...dynamicParts(page), page.locator('.editor__status')],
     })
   })
 

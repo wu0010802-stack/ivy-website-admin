@@ -516,46 +516,38 @@ test('桌機預覽：虛擬視窗不超過 900 高、不被拉長；黏住的預
   await context.close()
 })
 
-test('手機版頁首：改頁首電話備註，預覽停在原地，不會每打一個字就往上捲', async ({ browser }) => {
+test('頁首：改頁首電話備註，預覽停在原地，不會每打一個字就往上捲（手機 78px 與桌機 92px 的固定頁首）', async ({ browser }) => {
   test.setTimeout(90_000)
-  // 已知問題（Task 9 提醒、Task 13 在真瀏覽器量到）：手機的頁首固定在上方、高 78（< 預覽頁框選用的 88px 頂端留白），
-  // 框它時被當成「看不到」，每次改動都 scrollTo(scrollY - 88)，打一個字預覽就往上跳一格（600 → 512 → …）。
-  // 桌機頁首高 92（> 88）不受影響。這則照「正確行為」寫，所以現在預期失敗；修好之後 Playwright 會回報「預期失敗卻通過」，
-  // 到時把這行 test.fail 拿掉。修法在 web/app/utils/preview-highlight.ts 的 revealInFrame（固定／黏住的區塊不套 TOP_OFFSET）。
-  test.fail(true, '手機頁首（固定、高 78）每次改動都把預覽往上捲 88px，見 preview-highlight.ts 的 revealInFrame')
   const { context, page } = await openAs(browser, 'super_admin')
   await gotoAdmin(page, '/content/site-meta', '網站標題與電話')
   await expectLive(page)
-  // 預覽欄預設就是手機寬度（390）。
-  const inner = await previewFrame(page)
-  const header = await inner.evaluate(() => {
-    const el = document.querySelector('header.header')!
-    return { height: el.getBoundingClientRect().height, position: getComputedStyle(el).position, innerWidth: window.innerWidth }
-  })
-  console.log('[手機頁首]', JSON.stringify(header))
-  expect(header.innerWidth).toBe(390)
-
-  // 先把預覽頁捲到中段，再連續改頁首電話備註：預覽頁的捲動位置不能被一次次拉回頁首
-  // （手機的頁首固定在上方、高度不到 88，框它時「已經看得到」的判斷不能把它當成不在畫面裡）。
-  await inner.evaluate(() => window.scrollTo(0, 600))
-  await expect.poll(() => inner.evaluate(() => Math.round(window.scrollY))).toBe(600)
   const note = page.getByRole('textbox', { name: '電話備註' })
-  const positions: number[] = []
-  for (const text of ['週一', '週一至', '週一至週五', '週一至週五 9:00']) {
-    await note.fill(text)
-    // 後台 debounce 300ms、預覽頁回覆與捲動都在一秒內：這段觀察窗裡捲動位置不能離開 600。
-    const before = positions.length
-    await holdsFor(page, 1_200, `預覽頁被往上捲走了（改「${text}」之後）`, async () => {
-      const y = await inner.evaluate(() => Math.round(window.scrollY))
-      if (y !== 600) positions.push(y)
-      return y === 600
-    }).catch((error) => {
-      console.log('[手機頁首] 捲動位置離開 600：', JSON.stringify(positions.slice(before)))
-      throw error
+  const inner = await previewFrame(page)
+
+  // 預覽頁的頁首固定在上方：手機高 78、桌機高 92，都要停在原地。2026-10-07 之前寫死 88 的留白，
+  // 78 的手機頁首被當成「看不到」，改一次電話備註預覽就往上捲 88（600 → 512 → …）。
+  // 先把預覽頁捲到中段，再連續改：整段觀察窗裡捲動位置都不能離開 600，頁首照樣被框起來。
+  let typed = 0
+  for (const viewport of ['mobile', 'desktop'] as const) {
+    if (viewport === 'desktop') await page.getByRole('complementary', { name: '官網預覽' }).getByRole('radio', { name: '桌機' }).check({ force: true })
+    // 切到桌機後 iframe 先改寬度、預覽頁才跟著重排：等虛擬視窗寬度到位再量頁首。
+    await expect.poll(() => inner.evaluate(() => window.innerWidth)).toBe(viewport === 'mobile' ? 390 : 1280)
+    const header = await inner.evaluate(() => {
+      const el = document.querySelector('header.header')!
+      return { height: Math.round(el.getBoundingClientRect().height), position: getComputedStyle(el).position, innerWidth: window.innerWidth }
     })
-    positions.push(600)
+    console.log(`[頁首:${viewport}]`, JSON.stringify(header))
+    expect(header.position).toBe('fixed')
+    expect(header.height).toBeLessThan(88 + 8)
+    await inner.evaluate(() => window.scrollTo(0, 600))
+    await expect.poll(() => inner.evaluate(() => Math.round(window.scrollY))).toBe(600)
+    for (const text of ['週一', '週一至', '週一至週五', '週一至週五 9:00']) {
+      await note.fill(`${text}${++typed}`)
+      // 後台 debounce 300ms、預覽頁回覆與捲動都在一秒內。
+      await holdsFor(page, 1_200, `${viewport}：預覽頁被往上捲走了（改「${text}」之後）`, async () => (await inner.evaluate(() => Math.round(window.scrollY))) === 600)
+      await expect(page.frameLocator(FRAME).locator('header.header.preview-live-hit')).toHaveCount(1)
+    }
+    await page.screenshot({ path: `output/playwright/editor-live-header-${viewport}.png` })
   }
-  await expect(page.frameLocator(FRAME).locator('.preview-live-hit')).toHaveCount(1)
-  await page.screenshot({ path: 'output/playwright/editor-live-mobile-header.png' })
   await context.close()
 })
