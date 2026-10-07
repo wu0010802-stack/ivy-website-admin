@@ -185,5 +185,33 @@ describe('useVisitCase（2026-10-06 從案件明細抽出）', () => {
       await flushPromises()
       expect(onChanged).not.toHaveBeenCalled()
     })
+
+    it('改期、核准遇到狀態轉換被擋：只重讀一次、只通知一次（reportError 已經在重讀）', async () => {
+      stubDecisions()
+      const request = { id: 'rr1', parent_name: '林小姐', current_slot: futureSlot, requested_slot: openSlot, created_at: '2026-10-01T09:00:00Z', requested_slot_available: true, requested_slot_remaining: 3 }
+      let current: Record<string, unknown> = visitCase({ pending_reschedule: request })
+      const get = mockGet({ '/admin/visit-requests/case-a': () => current, '/admin/visit-requests/case-a/contact-notes': [], '/admin/slots': [openSlot] })
+      const caseReads = () => get.mock.calls.filter((call) => call[0] === '/admin/visit-requests/case-a').length
+      const cancelledElsewhere = () => { current = { ...current, status: 'cancelled', pending_reschedule: null, version: 2 }; throw transitionConflict() }
+      mockPost({ '/admin/visit-requests/case-a/reschedule': cancelledElsewhere, '/admin/reschedule-requests/rr1/approve': cancelledElsewhere })
+      const onChanged = vi.fn()
+      const { vc } = await mountCase('case-a', { onChanged })
+
+      vc().rescheduleSlotId = openSlot.id
+      const readsBefore = caseReads()
+      await vc().reschedule()
+      await flushPromises()
+      expect(caseReads() - readsBefore).toBe(1)
+      expect(onChanged).toHaveBeenCalledTimes(1)
+
+      onChanged.mockClear()
+      current = visitCase({ pending_reschedule: request })
+      await vc().load({ quiet: true })
+      const approveBefore = caseReads()
+      await vc().decideReschedule('approve')
+      await flushPromises()
+      expect(caseReads() - approveBefore).toBe(1)
+      expect(onChanged).toHaveBeenCalledTimes(1)
+    })
   })
 })

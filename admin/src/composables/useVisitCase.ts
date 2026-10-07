@@ -192,20 +192,20 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     if (activityKey() !== before) hooks.onChanged?.()
   }
 
-  function reportError(err: unknown, fallback: string) {
+  // 回傳值：狀態轉換被擋時 reportError 已經開始重讀（reloadAfterTransitionConflict），回傳那個重讀；
+  // 呼叫端想等它做完（或不想再重讀一次）就接著用，其他情況回 null。
+  function reportError(err: unknown, fallback: string): Promise<void> | null {
     if (isVersionConflict(err)) {
       // 別人剛改過下次聯絡時間：不蓋掉，重讀案件讓畫面顯示最新的。
       // 已經自動重讀，所以不接後端「請重新載入後再操作」的訊息。
       notifyWarning('這筆案件的下次聯絡時間剛被其他人修改，已載入最新的內容，請確認後再操作')
       // 列表上的「預定聯絡」也是舊的：讀到新值之後通知，列表重讀拿到的才是同事改好的。
       void refreshDetail('rebase').then(() => hooks.onChanged?.())
-      return
+      return null
     }
-    if (apiErrorCode(err) === 'INVALID_TRANSITION') {
-      void reloadAfterTransitionConflict(err, fallback)
-      return
-    }
+    if (apiErrorCode(err) === 'INVALID_TRANSITION') return reloadAfterTransitionConflict(err, fallback)
     notifyError(apiErrorMessage(err, fallback))
+    return null
   }
 
   // 狀態轉換被擋：多半是同事剛處理過（兩人同時開著同一筆）。重讀後狀態真的變了就寫
@@ -414,9 +414,8 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       await load({ quiet: true })
       hooks.onChanged?.()
     } catch (err) {
-      reportError(err, '改期失敗')
-      // 名額或時段可能剛被別人用掉，重讀一次讓選單反映現況。
-      await reloadNotifyingIfChanged()
+      // 名額或時段可能剛被別人用掉，重讀一次讓選單反映現況；狀態轉換被擋時 reportError 已經重讀，不再讀第二次。
+      await (reportError(err, '改期失敗') ?? reloadNotifyingIfChanged())
     } finally {
       pendingAction.value = null
     }
@@ -435,8 +434,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       await load({ quiet: true })
       hooks.onChanged?.()
     } catch (err) {
-      reportError(err, '操作失敗')
-      await reloadNotifyingIfChanged()
+      await (reportError(err, '操作失敗') ?? reloadNotifyingIfChanged())
     } finally {
       pendingAction.value = null
     }
