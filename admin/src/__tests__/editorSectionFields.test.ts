@@ -18,6 +18,10 @@ import CampusProfileView from '../views/CampusProfileView.vue'
 import HomeNewsView from '../views/HomeNewsView.vue'
 import CampusNewsView from '../views/CampusNewsView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
+import AboutPageView from '../views/AboutPageView.vue'
+import CurriculumPageView from '../views/CurriculumPageView.vue'
+import AdmissionContentView from '../views/AdmissionContentView.vue'
+import PrivacyPolicyView from '../views/PrivacyPolicyView.vue'
 
 const wrappers: VueWrapper[] = []
 const originalScroll = Element.prototype.scrollIntoView
@@ -45,6 +49,18 @@ const CASES: Case[] = [
   { name: '最新消息與活動', component: HomeNewsView, kind: 'home_news', campusKey: null, payload: {}, edit: { key: 'home_display_count', value: 3, section: '最新消息' } },
   { name: '各校消息與活動', component: CampusNewsView, kind: 'campus_news', campusKey: 'yihua', payload: {} },
   { name: '孩子的一天', component: DayExperienceView, kind: 'day_experience', campusKey: null, payload: {}, edit: { key: 'note', value: '新的說明', section: '背景影片' } },
+  { name: '關於常春藤頁', component: AboutPageView, kind: 'about_page', campusKey: null, payload: {}, edit: { key: 'story_title', value: '新的章名', section: '第一章：一路走來' } },
+  { name: '特色教學頁', component: CurriculumPageView, kind: 'curriculum_page', campusKey: null, payload: {}, edit: { key: 'gallery_title', value: '新的美術館', section: '03 兒童美術館' } },
+  { name: '入學資訊頁', component: AdmissionContentView, kind: 'admission_content', campusKey: null, payload: {}, edit: { key: 'fee_intro', value: '新的說明', section: '收退費辦法' } },
+  {
+    name: '隱私權政策',
+    component: PrivacyPolicyView,
+    kind: 'privacy_policy',
+    campusKey: null,
+    payload: { title: '隱私權政策', updated_on: null, sections: [{ heading: '一、蒐集目的', body: '內文' }, { heading: '二、利用期間', body: '內文' }] },
+    // 只改第二段：只點第二段，第一段（也管 title／updated_on）不點。
+    edit: { key: 'sections', value: [{ heading: '一、蒐集目的', body: '內文' }, { heading: '二、利用期間', body: '改過的內文' }], section: '二、利用期間' },
+  },
 ]
 
 async function mountCase(c: Case) {

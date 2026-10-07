@@ -64,7 +64,7 @@ describe('EditorSectionNav 打點', () => {
     wrappers.push(wrapper)
     const [basic, social] = wrapper.findAll('a')
     expect(basic!.find('.section-nav__dot').exists()).toBe(true)
-    expect(basic!.get('.visually-hidden').text()).toBe('（有修改）')
+    expect(basic!.get('.visually-hidden').text()).toBe('（和官網不同）')
     expect(social!.find('.section-nav__dot').exists()).toBe(false)
     expect(social!.find('.visually-hidden').exists()).toBe(false)
   })
