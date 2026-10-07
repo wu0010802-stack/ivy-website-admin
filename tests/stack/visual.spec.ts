@@ -39,8 +39,15 @@ test.describe('後台畫面基準', () => {
     await expect(page.getByRole('heading', { level: 2, name: PARENT })).toBeVisible()
     await settle(page)
     await expect(page).toHaveScreenshot('visit-detail.png', {
-      // 送出時間與同意時間是伺服器當下時間。
-      mask: [...dynamicParts(page), page.locator('.detail__head p').first(), page.getByRole('cell', { name: /家長勾選同意|不需勾選同意/ })],
+      // 送出時間、「還有 N 天」與同意時間是伺服器當下時間；時間線內文的參觀日期、家長管理連結的有效期限也隨日期變。
+      mask: [
+        ...dynamicParts(page),
+        page.locator('.case-hero__sub'),
+        page.locator('.case-hero__relative'),
+        page.locator('.case-facts dd', { hasText: /家長勾選同意|不需勾選同意/ }),
+        page.locator('.case-timeline .timeline__text, .case-timeline .timeline__change'),
+        page.getByText(/目前連結有效到/),
+      ],
     })
   })
 

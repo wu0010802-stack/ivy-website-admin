@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { adminApi, findVisit, submitPublicRequest, type AdminApi } from './api'
 import { readMail } from './mail'
-import { openAs, pickVisitDate } from './pages'
+import { openAs, pickVisitDate, searchVisitList } from './pages'
 import { SECOND_CAMPUS, SLOTS_CAMPUS } from './stack-env'
 
 // 預約主流程（2026-09-30 家長自選場次）：家長在官網選場次送出即預約成功 → 從結果頁的修改連結
@@ -93,10 +93,19 @@ test.describe('自選場次（義華）', () => {
     const staff = await openAs(browser, 'reception')
     const { page } = staff
     await page.goto('/admin/visit-requests')
-    await page.getByRole('textbox', { name: /搜尋家長/ }).fill('後台對照家長')
-    await expect(page.locator('.visit-state').first()).toHaveText('預約正常')
-    await page.getByRole('link', { name: '後台對照家長' }).first().click()
-    await expect(page.getByRole('heading', { level: 2, name: '後台對照家長' })).toBeVisible()
+    await searchVisitList(page, '後台對照家長')
+    // 預設頁籤是「接下來」（2026-10-06 方向 B），剛送出的預約在這裡。
+    await expect(page.locator('.status-tab.is-active')).toContainText('接下來')
+    const row = page.locator('.visit-row', { hasText: '後台對照家長' })
+    await expect(row).toBeVisible()
+    // 1440 寬：點一列在右側預覽，再打開完整案件頁。
+    await row.locator('a.visit-row__main').click()
+    const preview = page.getByRole('complementary', { name: '案件預覽' })
+    await expect(preview.getByRole('heading', { level: 2, name: /後台對照家長/ })).toBeVisible()
+    // 列上不再寫狀態字（接下來頁籤的列都是預約正常），狀態看預覽面板的頁首。
+    await expect(preview.locator('.detail__status')).toContainText('預約正常')
+    await preview.getByRole('link', { name: '打開完整案件頁 →' }).click()
+    await expect(page.getByRole('heading', { level: 2, name: /後台對照家長/ })).toBeVisible()
     await page.getByRole('button', { name: '取消預約' }).click()
     await page.getByRole('dialog').getByRole('button', { name: '取消預約' }).click()
     await expect(page.getByText('已取消', { exact: true }).first()).toBeVisible()

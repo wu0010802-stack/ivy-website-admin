@@ -103,7 +103,7 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
   })
 
   await test.step('案件列表列出時間已過、還沒確認到場的預約；按到了，接著在招生資料表單補兩位帶參觀老師', async () => {
-    const row = page.locator('.requests-table tr', { hasText: PARENT })
+    const row = page.locator('.visit-row', { hasText: PARENT })
     await expect(row).toContainText(CHILD)
     // 按鈕文字是「到了」，無障礙名稱帶家長（「標記 X 已到場」）。
     await row.getByRole('button', { name: `標記 ${PARENT} 已到場` }).click()
@@ -124,7 +124,7 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     await expect(form.locator('.el-select__tags-text')).toHaveText([GUIDE, GUIDE_2])
     await form.getByRole('button', { name: '儲存', exact: true }).click()
     await expect(form).toBeHidden()
-    await expect(page.locator('.requests-table tr', { hasText: PARENT })).toHaveCount(0)
+    await expect(page.locator('.visit-row', { hasText: PARENT })).toHaveCount(0)
   })
   const arrived = await findVisit(api, PARENT)
   expect(arrived.status).toBe('completed')

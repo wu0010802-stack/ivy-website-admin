@@ -70,9 +70,21 @@ export async function findVisit(api: AdminApi, parentName: string): Promise<Visi
   return items[0]
 }
 
-/** 以家長身分從公開 API 送一筆需求（只用來準備資料；送單畫面由 booking-flow 驗證）。 */
-export async function submitPublicRequest(campus: string, parentName: string, phone: string): Promise<{ manage_path: string | null; receipt_id: string }> {
-  const context = await request.newContext({ baseURL: WEB_ORIGIN, storageState: EMPTY_STATE })
+/**
+ * 以家長身分從公開 API 送一筆需求（只用來準備資料；送單畫面由 booking-flow 驗證）。
+ * 公開送單每來源每校每小時 5 筆：同一校的案件很多時，傳 forwardedFor（文件保留網段 IP）取得獨立額度。
+ */
+export async function submitPublicRequest(
+  campus: string,
+  parentName: string,
+  phone: string,
+  options: { forwardedFor?: string } = {},
+): Promise<{ manage_path: string | null; receipt_id: string }> {
+  const context = await request.newContext({
+    baseURL: WEB_ORIGIN,
+    storageState: EMPTY_STATE,
+    extraHTTPHeaders: options.forwardedFor ? { 'X-Forwarded-For': options.forwardedFor } : undefined,
+  })
   const config = await (await context.get(`${API}/public/booking-config/${campus}`)).json()
   let slotId: string | undefined
   if (config.mode !== 'slots') throw new Error('只支援自選場次')

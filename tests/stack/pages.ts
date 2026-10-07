@@ -72,6 +72,18 @@ export async function pickVisitDay(page: Page, date: string): Promise<void> {
   await day.check()
 }
 
+/**
+ * 參觀案件列表搜尋：輸入後 300ms 才送出查詢。要等查詢回來再點列——
+ * 太早點開右側預覽的話，稍後才套用的搜尋會把預覽選取清掉（換條件清選取是設計）。
+ */
+export async function searchVisitList(page: Page, text: string): Promise<void> {
+  const applied = page.waitForResponse(
+    (response) => response.request().method() === 'GET' && response.url().includes('/admin/visit-requests?') && response.url().includes('q='),
+  )
+  await page.getByRole('textbox', { name: /搜尋家長/ }).fill(text)
+  await applied
+}
+
 /** 頁面不橫向溢出（R16）：文件寬度不超過視窗。 */
 export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({
