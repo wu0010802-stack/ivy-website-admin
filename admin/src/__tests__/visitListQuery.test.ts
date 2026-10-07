@@ -22,6 +22,7 @@ describe('舊連結落在哪個頁籤（2026-10-06 方向 B）', () => {
     ['campus=yihua&due=1', 'all', false, '成效統計到期待追蹤'],
     ['attention=1&campus=yihua', 'all', false, '待人工處理'],
     ['assignee=inactive&open=1', 'all', false, '拿掉承辦人前的舊連結'],
+    ['open=1', 'all', false, '個資保存政策頁「逾期未結案」'],
     ['status=confirmed&order=oldest', 'upcoming', false, '舊書籤 ?status='],
     ['status=completed', 'arrived', false, '舊書籤已到場'],
     ['status=no_show', 'past', false, '舊書籤未到場'],
@@ -34,6 +35,12 @@ describe('舊連結落在哪個頁籤（2026-10-06 方向 B）', () => {
     const parsed = parseListQuery(query(raw), scope)
     expect(parsed.tab).toBe(tab)
     expect(parsed.attendanceOnly).toBe(attendanceOnly)
+  })
+
+  it('?open=1（個資保存政策頁）落在「全部」並打開「只看未結案」', () => {
+    expect(parseListQuery(query('open=1'), scope)).toMatchObject({ tab: 'all', open: true })
+    expect(listApiParams(parseListQuery(query('open=1'), scope)).get('open')).toBe('true')
+    expect(listApiParams(parseListQuery(query('open=1'), scope)).has('view')).toBe(false)
   })
 
   it('tabFromQuery 只看 group／status 與有沒有其他條件', () => {

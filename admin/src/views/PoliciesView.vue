@@ -359,7 +359,7 @@ onMounted(() => {
                   <li v-for="key in reportKeys(preview.counts, policy.admissions_days)" :key="key">{{ RETENTION_CATEGORY_LABELS[key] }} <strong class="num">{{ preview.counts[key] ?? 0 }}</strong> 筆</li>
                 </ul>
                 <p v-if="preview.open_overdue_count > 0" class="retention__overdue">
-                  另有 <strong class="num">{{ preview.open_overdue_count }}</strong> 筆送出超過 {{ policy.open_overdue_days }} 天仍未結案，不會被清理，請先到<router-link to="/visit-requests">參觀案件</router-link>處理。
+                  另有 <strong class="num">{{ preview.open_overdue_count }}</strong> 筆送出超過 {{ policy.open_overdue_days }} 天仍未結案，不會被清理，請先到<router-link to="/visit-requests?open=1">參觀案件</router-link>處理。
                 </p>
               </template>
               <p v-if="policy.last_scheduled_on" class="field-help">上次自動清理：{{ formatDate(policy.last_scheduled_on) }}</p>
