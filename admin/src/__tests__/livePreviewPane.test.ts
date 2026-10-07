@@ -1,4 +1,6 @@
 // 2026-10-06 方向 D：內容編輯右側官網預覽的分頁對照表、同源判斷、縮放與外觀。
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
@@ -29,6 +31,8 @@ if (typeof (globalThis.localStorage as Storage | undefined)?.getItem !== 'functi
   })
 }
 
+// 路徑要走變數：Vite 會把字面的 new URL('…', import.meta.url) 當成素材網址改寫，讀不到檔案。
+const SOURCE_PATH = '../components/LivePreviewPane.vue'
 const wrappers: VueWrapper[] = []
 afterEach(() => {
   wrappers.forEach((w) => w.unmount())
@@ -180,17 +184,18 @@ describe('LivePreviewPane', () => {
     expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['桌機', '手機'])
   })
 
-  it('各狀態的說明；沒登入（denied）時蓋一層說明與重新載入，iframe 留著', async () => {
+  it('各狀態的說明；沒登入（denied）時說明也在狀態列，蓋一層只放重新載入，iframe 留著', async () => {
     expect(mountPane({ state: 'connecting' }).get('.live-preview__meta').text()).toBe('正在載入預覽…')
     expect(mountPane({ state: 'saved' }).get('.live-preview__meta').text()).toBe('預覽的是上次儲存的草稿')
     const denied = mountPane({ state: 'denied' })
-    expect(denied.get('.live-preview__meta').text()).toBe('')
-    expect(denied.get('.live-preview__failed').text()).toContain('預覽沒有載入，可能是登入逾時。')
+    expect(denied.get('.live-preview__meta').text()).toBe('預覽沒有載入，可能是登入逾時。')
+    expect(denied.get('.live-preview__retry').text()).toBe('重新載入預覽')
+    expect(denied.get('.live-preview__retry').text()).not.toContain('登入逾時')
     expect(denied.find('iframe').exists()).toBe(true)
-    await denied.get('.live-preview__failed button').trigger('click')
+    await denied.get('.live-preview__retry button').trigger('click')
     expect(denied.emitted('retry')).toHaveLength(1)
     // 只有 denied 才蓋這一層；畫不出某一則修改（render-failed）是狀態列的字，不是登入問題
-    expect(mountPane({ state: 'live', notice: 'render-failed' }).find('.live-preview__failed').exists()).toBe(false)
+    expect(mountPane({ state: 'live', notice: 'render-failed' }).find('.live-preview__retry').exists()).toBe(false)
   })
 
   it('從沒存過的內容不寫「上次儲存的草稿」，寫它實際看到的官網內容', () => {
@@ -208,14 +213,23 @@ describe('LivePreviewPane', () => {
     expect(mountPane({ state: 'live', notice: null }).get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
   })
 
-  it('狀態列是禮貌的即時區：一直在畫面上（內容換了才會被唸），說明走 role=status', async () => {
+  it('狀態列是禮貌的即時區：每個狀態都有字、一直在畫面上（換了字才會被唸），不用 display:none 藏起來', async () => {
     const wrapper = mountPane({ state: 'connecting' })
     const meta = wrapper.get('.live-preview__meta')
     expect(meta.attributes('role')).toBe('status')
-    await wrapper.setProps({ state: 'live' })
-    // 同一個元素，只換字
-    expect(wrapper.get('.live-preview__meta').element).toBe(meta.element)
-    expect(meta.text()).toBe('預覽的是還沒存的修改')
+    const seen: string[] = []
+    for (const state of ['connecting', 'live', 'saved', 'denied'] as const) {
+      await wrapper.setProps({ state })
+      // 同一個元素，只換字；每個狀態都有字，不會出現沒內容的即時區
+      expect(wrapper.get('.live-preview__meta').element).toBe(meta.element)
+      expect(meta.text()).not.toBe('')
+      seen.push(meta.text())
+    }
+    expect(new Set(seen).size).toBe(4)
+    // 離開無障礙樹的 display:none 會讓之後的變化不被報讀
+    const source = readFileSync(fileURLToPath(new URL(SOURCE_PATH, import.meta.url)), 'utf8')
+    expect(source).not.toMatch(/live-preview__meta[^{]*\{[^}]*display:\s*none/)
+    expect(source).not.toContain('.live-preview__meta:empty')
   })
 
   it('預覽欄收起（元件卸載）時通知 frame 沒了，讓 useLivePreview 回到連線前', async () => {

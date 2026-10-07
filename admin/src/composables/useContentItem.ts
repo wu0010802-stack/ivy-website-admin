@@ -222,8 +222,14 @@ export interface ContentEditorState {
    * 或「和官網一樣」，等讀完（成功或失敗）再寫，避免字樣閃一下。讀不到官網版時是 false。
    */
   liveReading?: Ref<boolean>
-  /** 分校內容的校區（共用內容是 null）；右側預覽換校時重建 */
+  /** 分校內容的校區（共用內容是 null）；校區選單的值，換校確認框開著時就已經是下一校 */
   campusKey?: ComputedRef<string | null>
+  /**
+   * 目前表單內容是哪一校載入的：最後一次載入成功時的校區（載入前、共用內容是 null）。
+   * 換校前問「放棄修改？」的這段時間，campusKey 已是下一校、表單仍是上一校，這個值還是上一校；
+   * 右側即時預覽用它決定重建 iframe 與草稿標成哪一校，才不會把上一校的內容畫在下一校上。
+   */
+  loadedCampusKey?: Ref<string | null>
   /** 要上線的內容（表單）和官網目前的版本相比；讀不到官網版回 null。開確認框前才呼叫 */
   compareWithLive?: () => Promise<LiveComparison | null>
   /** 確認框標題用的內容名稱，分校內容帶校名，例如「各校常見問題（明華）」 */
@@ -308,6 +314,7 @@ export function useContentItem<TPayload extends object>(
   // 最近一次從伺服器載入或儲存成功後的表單快照，用來判斷有沒有未儲存的修改。
   const snapshot = ref('')
   const requests = useRequestSequence()
+  const loadedCampusKey = ref<string | null>(null)
   const fieldErrors = ref<ContentFieldError[]>([])
   const conflict = ref(false)
   // 版本衝突後載入最新內容前的表單：base＝開始編輯時（上次載入或儲存）的內容，
@@ -412,6 +419,8 @@ export function useContentItem<TPayload extends object>(
 
   async function load() {
     const request = requests.begin()
+    // 校區在送出請求當下記下：載入途中校區選單被換掉，回來的仍是這一校的內容。
+    const requestedCampus = unref(campusKey) || null
     loading.value = true
     loadError.value = null
     conflict.value = false
@@ -426,6 +435,7 @@ export function useContentItem<TPayload extends object>(
         item.value.latest_revision &&
           item.value.current_published_revision_id === item.value.latest_revision.id,
       )
+      loadedCampusKey.value = requestedCampus
       takeSnapshot()
       applySeed()
     } catch (err) {
@@ -882,6 +892,7 @@ export function useContentItem<TPayload extends object>(
     draftChanges,
     liveReading,
     campusKey: campusKeyRef,
+    loadedCampusKey,
     compareWithLive,
     contextLabel,
     approver,

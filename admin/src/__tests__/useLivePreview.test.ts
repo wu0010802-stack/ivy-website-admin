@@ -19,6 +19,8 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }) 
 afterEach(() => {
   wrappers.forEach((w) => w.unmount())
   wrappers.length = 0
+  // 還原 vi.spyOn（例如 JSON.stringify），不留給下一則測試
+  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 
@@ -102,6 +104,10 @@ describe('useLivePreview', () => {
     await vi.advanceTimersByTimeAsync(300)
     expect(frameWindow.postMessage).toHaveBeenCalledTimes(2)
     expect(wholeCopies()).toBe(2)
+  })
+
+  it('上一則測試的 spy 已還原：JSON.stringify 還是原本的函式', () => {
+    expect(vi.isMockFunction(JSON.stringify)).toBe(false)
   })
 
   it('別的 origin、不是這個 iframe 送來的回覆一律不理', () => {

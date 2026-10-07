@@ -22,6 +22,7 @@ import {
   previewTargetsFor,
   readPreviewViewport,
   rememberPreviewViewport,
+  type PreviewPage,
   type PreviewViewport,
 } from '../composables/previewTargets'
 
@@ -74,12 +75,16 @@ watch(previewViewport, rememberPreviewViewport)
 // 即時預覽：把還沒存的表單送進 iframe（useLivePreview；預覽欄沒顯示時它什麼都不掛）。iframe 只在換校、
 // 重新載入時重建，換預覽分頁用訊息切、不重新載入。預覽頁沒接上（舊版官網、太慢、沒登入）時，
 // 切分頁照舊換網址，存成新的一版也重新載入，至少看得到剛存的草稿。
+// 校區以「表單是哪一校載入的」為準（loadedCampusKey），不是校區選單：有未存修改時換校會先問
+// 「放棄修改？」，這段時間選單已是下一校、表單還是上一校，預覽不能因此換 iframe 或把上一校標成下一校。
+// 沒給 loadedCampusKey 的 editor（舊的假物件）退回用校區選單的值。
+const previewCampusKey = computed(() => (props.editor.loadedCampusKey ? props.editor.loadedCampusKey.value : (props.editor.campusKey?.value ?? null)))
 const previewFrame = shallowRef<HTMLIFrameElement | null>(null)
 const livePreview = useLivePreview({
   frame: previewFrame,
   origin: previewOrigin ?? '',
   kind: props.editor.kind ?? '',
-  campusKey: computed(() => props.editor.campusKey?.value ?? null),
+  campusKey: previewCampusKey,
   form: props.editor.form ?? ref(null),
   target: currentTarget,
   enabled: showPreviewPane,
@@ -88,14 +93,25 @@ const previewState = livePreview.state
 // 從沒存過任何版本：預覽看到的是官網目前的內容，說明不能寫「上次儲存的草稿」。
 const previewNeverSaved = computed(() => Boolean(props.editor.latestRevisionId) && latestRevisionId.value === null)
 const previewReload = ref(0)
-const previewFrameKey = computed(() => `${props.editor.campusKey?.value ?? ''}|${previewReload.value}`)
+const previewFrameKey = computed(() => `${previewCampusKey.value ?? ''}|${previewReload.value}`)
 const previewSrc = ref('')
+// iframe 網址上載的是哪一頁。預覽接上（live）後切分頁只送訊息、網址不動，所以它可能和目前分頁不同。
+let framePage: PreviewPage | null = null
 function loadPreviewPage() {
-  previewSrc.value = previewOrigin && currentTarget.value ? previewFrameUrl(previewOrigin, currentTarget.value.page, { live: true }) : ''
+  framePage = currentTarget.value?.page ?? null
+  previewSrc.value = previewOrigin && framePage ? previewFrameUrl(previewOrigin, framePage, { live: true }) : ''
 }
 watch(previewFrameKey, loadPreviewPage, { immediate: true })
+// 預覽欄收起再出現（寬度跨 1280）會建新的 iframe：網址要換成目前分頁那一頁。
+watch(showPreviewPane, (shown) => {
+  if (shown) loadPreviewPage()
+})
 watch(currentTarget, () => {
   if (previewState.value !== 'live') loadPreviewPage()
+})
+// 離開 live（草稿太大退回 saved、預覽頁拒絕）之後，iframe 該顯示目前分頁那一頁：和網址上的不同就重新載入。
+watch(previewState, (now, before) => {
+  if (before === 'live' && (now === 'saved' || now === 'denied') && currentTarget.value && currentTarget.value.page !== framePage) previewReload.value += 1
 })
 watch(latestRevisionId, () => {
   if (previewState.value === 'saved') previewReload.value += 1

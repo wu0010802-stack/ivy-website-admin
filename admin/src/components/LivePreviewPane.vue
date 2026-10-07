@@ -52,19 +52,19 @@ const deviceStyle = computed(() => ({
   width: `${Math.round(fit.value.width * fit.value.scale)}px`,
   height: `${Math.round(fit.value.height * fit.value.scale)}px`,
 }))
-// denied 沒有狀態列的字：蓋在預覽上的那一層（下面的 .live-preview__failed）已經說了。
+// 每個狀態都有字：狀態列是常駐的即時區，狀態怎麼變都由它報讀（沒登入的說明也在這裡，蓋在預覽上的只有重試鈕）。
 const META: Record<PreviewPaneState, string> = {
   connecting: '正在載入預覽…',
   live: '預覽的是還沒存的修改',
   saved: '預覽的是上次儲存的草稿',
-  denied: '',
+  denied: '預覽沒有載入，可能是登入逾時。',
 }
 const NOTICES: Record<PreviewNotice, string> = {
   'render-failed': '預覽畫不出這個修改',
   'too-large': '草稿太大，預覽沒有更新',
 }
 const meta = computed(() => {
-  if (props.state === 'denied') return ''
+  if (props.state === 'denied') return META.denied
   if (props.notice) return NOTICES[props.notice]
   return props.state === 'saved' && props.neverSaved ? '預覽的是官網目前的內容' : META[props.state]
 })
@@ -98,8 +98,7 @@ const meta = computed(() => {
           :style="frameStyle"
         />
       </div>
-      <div v-if="state === 'denied'" class="live-preview__failed" role="status">
-        <p>預覽沒有載入，可能是登入逾時。</p>
+      <div v-if="state === 'denied'" class="live-preview__retry">
         <el-button size="small" @click="emit('retry')">重新載入預覽</el-button>
       </div>
     </div>
@@ -124,12 +123,10 @@ const meta = computed(() => {
 .live-preview__bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
 .live-preview__where { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
 .live-preview__meta { flex-basis: 100%; margin: 0; font-size: var(--text-xs); color: var(--ink-3); }
-.live-preview__meta:empty { display: none; }
 .live-preview__stage { position: relative; flex: 1; min-height: 0; padding: 12px; background: var(--surface-3); overflow: hidden; }
 /* 桌機頁面虛擬視窗最高 900（fitPreviewFrame），縮小後比欄矮：靠上、左右置中，下方留 surface-3 底。 */
 .live-preview__device { margin: 0 auto; overflow: hidden; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-md); }
 .live-preview__device.is-mobile { border-radius: var(--radius-lg); }
 .live-preview__frame { display: block; border: 0; transform-origin: 0 0; }
-.live-preview__failed { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; padding: 16px; background: var(--surface-3); text-align: center; font-size: var(--text-sm); color: var(--ink-2); }
-.live-preview__failed p { margin: 0; }
+.live-preview__retry { position: absolute; inset: 0; display: grid; place-content: center; padding: 16px; background: var(--surface-3); }
 </style>

@@ -175,12 +175,12 @@ describe('右側官網預覽欄', () => {
     const first = wrapper.get('iframe').element
     replyFromPreview(wrapper, { type: 'ivy-preview:denied', v: 1 })
     await flushPromises()
-    expect(wrapper.get('.live-preview__failed').text()).toContain('預覽沒有載入，可能是登入逾時。')
-    await wrapper.get('.live-preview__failed button').trigger('click')
+    expect(wrapper.get('.live-preview__meta').text()).toBe('預覽沒有載入，可能是登入逾時。')
+    await wrapper.get('.live-preview__retry button').trigger('click')
     await flushPromises()
     expect(wrapper.get('iframe').element).not.toBe(first)
     expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
-    expect(wrapper.find('.live-preview__failed').exists()).toBe(false)
+    expect(wrapper.find('.live-preview__retry').exists()).toBe(false)
   })
 
   it('這一則修改預覽畫不出來：狀態列說明，和沒登入的拒絕畫面是兩回事', async () => {
@@ -190,7 +190,7 @@ describe('右側官網預覽欄', () => {
     replyFromPreview(wrapper, { type: 'ivy-preview:applied', v: 1, seq: 1, hit: 'failed' })
     await flushPromises()
     expect(wrapper.get('.live-preview__meta').text()).toBe('預覽畫不出這個修改')
-    expect(wrapper.find('.live-preview__failed').exists()).toBe(false)
+    expect(wrapper.find('.live-preview__retry').exists()).toBe(false)
   })
 
   it('草稿太大：不送，預覽欄說明', async () => {
@@ -236,13 +236,189 @@ describe('右側官網預覽欄', () => {
     expect(remove.mock.calls.filter(([type, fn]) => type === 'message' && fn === added[0]![1])).toHaveLength(1)
   })
 
-  it('換校區：預覽跟著重新載入（frameKey 含校區）', async () => {
+  it('舊的假 editor 沒給 loadedCampusKey：退回用校區選單的值重建預覽', async () => {
     const campusKey = ref<string | null>('yihua')
     const wrapper = await mountEditor(editorState({ kind: 'campus_profile', campusKey: computed(() => campusKey.value) }))
     const first = wrapper.get('iframe').element
     campusKey.value = 'minghua'
     await flushPromises()
     expect(wrapper.get('iframe').element).not.toBe(first)
+  })
+
+  // 換校時預覽以「最後一次載入完成的校區」為準（useContentItem.loadedCampusKey），不是校區選單。
+  function campusSwitchSetup() {
+    const campusKey = ref<string | null>('yihua')
+    const loadedCampusKey = ref<string | null>('yihua')
+    const loading = ref(false)
+    const form = ref<Record<string, unknown>>({ name: '義華還沒存的修改' })
+    const editor = editorState({ kind: 'campus_profile', campusKey: computed(() => campusKey.value), loadedCampusKey, loading, form })
+    return { campusKey, loadedCampusKey, loading, form, editor }
+  }
+  const sentTo = (post: { mock: { calls: unknown[][] } }) =>
+    post.mock.calls.map(([message]) => message as { campusKey: string | null; payload: Record<string, unknown> })
+
+  it('表單有改動時換校：確認框開著（選單已是下一校、還沒載入）預覽不換 iframe，只送上一校的內容', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { campusKey, form, editor } = campusSwitchSetup()
+      const wrapper = await mountEditor(editor)
+      const first = wrapper.get('iframe').element as HTMLIFrameElement
+      const post = vi.spyOn(first.contentWindow!, 'postMessage').mockImplementation(() => {})
+      replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+      expect(sentTo(post).map((m) => m.campusKey)).toEqual(['yihua'])
+      post.mockClear()
+      campusKey.value = 'minghua'
+      await flushPromises()
+      expect(wrapper.get('iframe').element).toBe(first)
+      form.value.name = '義華又改了一點'
+      await vi.advanceTimersByTimeAsync(300)
+      expect(sentTo(post)).toHaveLength(1)
+      expect(sentTo(post)[0]).toMatchObject({ campusKey: 'yihua', payload: { name: '義華又改了一點' } })
+      expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('確認換校、載入完成才換 iframe 並送新校的內容；上一個 iframe 晚到的 ready 不理', async () => {
+    const { campusKey, loadedCampusKey, loading, form, editor } = campusSwitchSetup()
+    const wrapper = await mountEditor(editor)
+    const first = wrapper.get('iframe').element as HTMLIFrameElement
+    const firstWindow = first.contentWindow!
+    campusKey.value = 'minghua'
+    await flushPromises()
+    // 確認後開始載入：骨架取代整個表單區（預覽欄跟著收掉）
+    loading.value = true
+    await flushPromises()
+    expect(wrapper.find('iframe').exists()).toBe(false)
+    // 載入完成：表單換成明華、載入的校區換成明華，預覽欄重新出現（新的 iframe）
+    form.value = { name: '明華載入的內容' }
+    loadedCampusKey.value = 'minghua'
+    loading.value = false
+    await flushPromises()
+    const second = wrapper.get('iframe').element as HTMLIFrameElement
+    expect(second).not.toBe(first)
+    const post = vi.spyOn(second.contentWindow!, 'postMessage').mockImplementation(() => {})
+    const stale = new Event('message')
+    Object.assign(stale, { data: { type: 'ivy-preview:ready', v: 1 }, origin: window.location.origin, source: firstWindow })
+    window.dispatchEvent(stale)
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    expect(sentTo(post)).toHaveLength(1)
+    expect(sentTo(post)[0]).toMatchObject({ campusKey: 'minghua', payload: { name: '明華載入的內容' } })
+  })
+
+  it('取消換校（選單撥回原校）：維持原校預覽，不重建、不重新握手，之後照常送原校的內容', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const { campusKey, form, editor } = campusSwitchSetup()
+      const wrapper = await mountEditor(editor)
+      const first = wrapper.get('iframe').element as HTMLIFrameElement
+      const post = vi.spyOn(first.contentWindow!, 'postMessage').mockImplementation(() => {})
+      replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+      post.mockClear()
+      campusKey.value = 'minghua'
+      await flushPromises()
+      campusKey.value = 'yihua'
+      await flushPromises()
+      expect(wrapper.get('iframe').element).toBe(first)
+      expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
+      expect(post).not.toHaveBeenCalled()
+      form.value.name = '取消後繼續改'
+      await vi.advanceTimersByTimeAsync(300)
+      expect(sentTo(post)).toHaveLength(1)
+      expect(sentTo(post)[0]).toMatchObject({ campusKey: 'yihua', payload: { name: '取消後繼續改' } })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // 預覽接上（live）後切分頁只送訊息、iframe 網址不動：網址上的頁面可能和目前分頁不同。
+  function mediaController() {
+    let narrow = false
+    const listeners = new Set<(event: { matches: boolean }) => void>()
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      get matches() { return narrow && query === 'not all and (min-width: 1280px)' },
+      media: query,
+      addEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: (event: { matches: boolean }) => void) => listeners.delete(fn),
+    })) as never
+    return (value: boolean) => {
+      narrow = value
+      listeners.forEach((fn) => fn({ matches: value }))
+    }
+  }
+  const pageOf = (wrapper: VueWrapper) => new URL(wrapper.get('iframe').attributes('src')!).searchParams.get('page')
+  async function pickTab(wrapper: VueWrapper, index: number) {
+    await wrapper.findAll('.editor__preview .el-radio-button input')[index]!.setValue(true)
+    await flushPromises()
+  }
+
+  it('live 時切分頁只送訊息；之後草稿太大離開 live，iframe 重新載入「目前分頁」那一頁', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const form = ref<Record<string, unknown>>({ privacy_title: '個資說明', cta_label: '預約參觀' })
+      const wrapper = await mountEditor(editorState({ kind: 'booking_content', form }))
+      const first = wrapper.get('iframe').element as HTMLIFrameElement
+      const post = vi.spyOn(first.contentWindow!, 'postMessage').mockImplementation(() => {})
+      replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+      await pickTab(wrapper, 1)
+      expect(wrapper.get('iframe').element).toBe(first)
+      expect(pageOf(wrapper)).toBe('visit')
+      expect((post.mock.calls.at(-1)![0] as { page: string }).page).toBe('home')
+      form.value.privacy_title = 'x'.repeat(1_000_001)
+      await vi.advanceTimersByTimeAsync(300)
+      await flushPromises()
+      const second = wrapper.get('iframe').element as HTMLIFrameElement
+      expect(second).not.toBe(first)
+      expect(pageOf(wrapper)).toBe('home')
+      // 新的 iframe 重新握手；這次頁面已經對了，太大只改狀態列，不會再重新載入
+      expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
+      const postAgain = vi.spyOn(second.contentWindow!, 'postMessage').mockImplementation(() => {})
+      replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+      await flushPromises()
+      expect(postAgain).not.toHaveBeenCalled()
+      expect(wrapper.get('.live-preview__meta').text()).toBe('草稿太大，預覽沒有更新')
+      expect(wrapper.get('iframe').element).toBe(second)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('草稿太大但頁面沒變：不重新載入', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const form = ref<Record<string, unknown>>({ tagline: '標語' })
+      const wrapper = await mountEditor(editorState({ form }))
+      const first = wrapper.get('iframe').element as HTMLIFrameElement
+      vi.spyOn(first.contentWindow!, 'postMessage').mockImplementation(() => {})
+      replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+      form.value.tagline = 'x'.repeat(1_000_001)
+      await vi.advanceTimersByTimeAsync(300)
+      await flushPromises()
+      expect(wrapper.get('.live-preview__meta').text()).toBe('草稿太大，預覽沒有更新')
+      expect(wrapper.get('iframe').element).toBe(first)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('預覽欄收起再出現（寬度跨 1280）：iframe 載入目前分頁那一頁，不是第一次建立時的頁', async () => {
+    const setNarrow = mediaController()
+    const wrapper = await mountEditor(editorState({ kind: 'booking_content' }))
+    vi.spyOn((wrapper.get('iframe').element as HTMLIFrameElement).contentWindow!, 'postMessage').mockImplementation(() => {})
+    replyFromPreview(wrapper, { type: 'ivy-preview:ready', v: 1 })
+    await pickTab(wrapper, 1)
+    expect(pageOf(wrapper)).toBe('visit')
+    setNarrow(true)
+    await flushPromises()
+    expect(wrapper.find('.editor__preview').exists()).toBe(false)
+    setNarrow(false)
+    await flushPromises()
+    expect(wrapper.find('.editor__preview').exists()).toBe(true)
+    expect(pageOf(wrapper)).toBe('home')
+    expect(wrapper.get('.live-preview__meta').text()).toBe('正在載入預覽…')
   })
 
   it('格線：有目錄 152 / 420–560 / 至少 320；沒目錄 440–640 / 至少 320', () => {
