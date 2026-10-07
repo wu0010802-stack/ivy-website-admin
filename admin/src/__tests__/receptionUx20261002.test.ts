@@ -205,7 +205,7 @@ describe('狀態用詞與列表', () => {
       .toEqual([['2099-10-01', ['c']], ['2099-10-02', ['a', 'b']]])
   })
 
-  it('「只看尚未確認到場」送 group=past＆status=confirmed，網址也寫這兩個；分頁數字不受影響', async () => {
+  it('「只看尚未確認到場」送 view=past＆status=confirmed，網址寫 group=past＆status=confirmed；頁籤數字不受影響', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
@@ -216,10 +216,12 @@ describe('狀態用詞與列表', () => {
     await flushPromises()
     const calls = get.mock.calls.map(([p]) => String(p))
     const list = calls.find(p => p.startsWith('/admin/visit-requests?') && p.includes('page='))!
-    expect(list).toContain('group=past')
+    expect(list).toContain('view=past')
     expect(list).toContain('status=confirmed')
-    expect(calls.find(p => p.startsWith('/admin/visit-requests/group-counts'))).not.toContain('status=')
+    expect(calls.find(p => p.startsWith('/admin/visit-requests/view-counts'))).not.toContain('status=')
     expect(router.currentRoute.value.query).toMatchObject({ group: 'past', status: 'confirmed' })
     expect(wrapper.text()).toContain('沒有尚未確認到場的案件')
+    // status=confirmed 會讓匯出變窄，所以算篩選：範圍說明不能只寫頁籤。
+    expect(wrapper.get('#export-scope').text()).toContain('「時間已過」頁籤、目前篩選的全部結果')
   })
 })

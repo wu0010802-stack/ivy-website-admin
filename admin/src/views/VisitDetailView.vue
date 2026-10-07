@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel } from '../api/labels'
+import { campusLabel, VISIT_VIEW_LABELS, type VisitView } from '../api/labels'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
 import { detailOrigin } from '../admissions/family'
@@ -67,7 +67,7 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
@@ -168,7 +168,14 @@ const nextTitle = computed(() => {
 // 捲動位置）；從通知連結、登入頁或別的頁面進來時，返回會回到不相干的地方，改成直接開案件列表。
 const readOrigin = () => detailOrigin((router.options.history.state as { back?: unknown } | null)?.back)
 const origin = ref(readOrigin())
-const backLabel = computed(() => (origin.value === 'admissions' ? '招生入學' : '參觀案件'))
+// 從列表來時寫出是哪個頁籤（2026-10-06 方向 B：「‹ 參觀案件（接下來）」）；「全部」頁籤沒有 view，只寫「參觀案件」。
+const listTabLabel = computed(() => {
+  const raw = route.query.list
+  if (origin.value !== 'visit-list' || typeof raw !== 'string') return ''
+  const view = new URLSearchParams(raw).get('view')
+  return view && Object.hasOwn(VISIT_VIEW_LABELS, view) ? VISIT_VIEW_LABELS[view as VisitView] : ''
+})
+const backLabel = computed(() => (origin.value === 'admissions' ? '招生入學' : listTabLabel.value ? `參觀案件（${listTabLabel.value}）` : '參觀案件'))
 
 function goBack() {
   if (origin.value === 'other') void router.push('/visit-requests')

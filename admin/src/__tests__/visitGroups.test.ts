@@ -9,7 +9,7 @@ import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import type { UserOut } from '../api/types'
 import { testUser } from './fixtures'
-import { legacyStatusGroup, legacyStatusView, visitDisplay } from '../api/labels'
+import { legacyStatusView, visitDisplay } from '../api/labels'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -57,30 +57,23 @@ describe('案件狀態顯示（參考義華舊後台）', () => {
     expect(visitDisplay({ status: 'cancelled', display_status: 'cancelled', cancel_reason: 'hold_expired', cancelled_at: '2026-09-28T10:45:00Z' }).sub).toMatch(/^逾期未確認：/)
     expect(visitDisplay({ status: 'cancelled', display_status: 'cancelled', cancel_reason: null, cancelled_at: '2026-09-28T10:45:00Z' }).sub).toMatch(/^取消時間：/)
   })
-
-  it('舊的 ?status= 書籤轉成分組', () => {
-    // 舊流程的 new／contacting／pending_confirmation 不再有對應分組，落到「全部」。
-    for (const legacy of ['new', 'contacting', 'pending_confirmation']) expect(legacyStatusGroup(legacy)).toBe('')
-    expect(legacyStatusGroup('confirmed')).toBe('upcoming')
-    expect(legacyStatusGroup('no_show')).toBe('past')
-    expect(legacyStatusGroup('cancelled')).toBe('cancelled')
-    expect(legacyStatusGroup('bogus')).toBe('')
-  })
 })
 
 describe('案件列表分頁', () => {
-  it('分頁數字來自 group-counts，只有全部＋三組；舊的 ?status=contacting 落到全部、不帶 group', async () => {
+  it('分頁數字來自 view-counts，五個頁籤；舊的 ?status=contacting 落到全部、清單不帶 view 與 status', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-      (path.startsWith('/admin/visit-requests/group-counts') ? { upcoming: 5, past: 9, cancelled: 1 } : []) as never)
+      (path.startsWith('/admin/visit-requests/view-counts') ? { upcoming: 5, past_unmarked: 9 } : []) as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?status=contacting')
 
     const tabs = wrapper.findAll('.status-tab').map(tab => tab.text().replace(/\s+/g, ''))
-    expect(tabs).toEqual(['全部', '預約正常5件', '時間已過9件', '已取消1件'])
-    expect(wrapper.findAll('.status-tab')[0]!.attributes('aria-pressed')).toBe('true')
-    expect(router.currentRoute.value.query.group).toBeUndefined()
+    expect(tabs).toEqual(['接下來5件', '時間已過9件還沒標記到場', '已到場', '已取消', '全部'])
+    expect(wrapper.find('.status-tab[data-group="all"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('.status-tab[data-group="upcoming"]').attributes('aria-pressed')).toBe('false')
+    // 舊連結落在「全部」就寫成 group=all，重新整理不會變回「接下來」。
+    expect(router.currentRoute.value.query.group).toBe('all')
     const lists = get.mock.calls.map(([path]) => String(path)).filter(path => path.startsWith('/admin/visit-requests?'))
     expect(lists.length).toBeGreaterThan(0)
-    expect(lists.some(path => path.includes('group='))).toBe(false)
+    expect(lists.some(path => path.includes('view=') || path.includes('status='))).toBe(false)
   })
 })
 

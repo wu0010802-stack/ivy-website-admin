@@ -71,14 +71,6 @@ export const VISIT_GROUPS = ['upcoming', 'past', 'cancelled'] as const
 export type VisitGroup = typeof VISIT_GROUPS[number]
 export const VISIT_GROUP_LABELS: Record<VisitGroup, string> = { upcoming: '預約正常', past: '時間已過', cancelled: '已取消' }
 
-// 舊書籤的 ?status=；舊流程的 new／contacting／pending_confirmation 回到「全部」。
-const LEGACY_STATUS_GROUP: Record<string, VisitGroup> = {
-  confirmed: 'upcoming', completed: 'past', no_show: 'past', cancelled: 'cancelled',
-}
-export function legacyStatusGroup(status: string): VisitGroup | '' {
-  return LEGACY_STATUS_GROUP[status] ?? ''
-}
-
 // 案件列表的接待頁籤（2026-10-06 方向 B）：後端 status_groups.view_condition。和上面的分組（group）不同，
 // 接下來以台北「今天」為界、今天整天都在，頁籤可以重疊；分組留給總覽、成效統計與舊連結。
 export const VISIT_VIEWS = ['upcoming', 'past', 'arrived', 'cancelled'] as const

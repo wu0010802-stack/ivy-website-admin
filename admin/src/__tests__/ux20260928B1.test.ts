@@ -56,10 +56,10 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
       '/visit-requests?group=upcoming&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&order=oldest&page=3&campus=renwu')
     expect(listCalls(get)).toHaveLength(1)
     expect(Object.fromEntries(lastListQuery(get))).toEqual({
-      group: 'upcoming', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07',
+      view: 'upcoming', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07',
       campus_key: 'renwu', order: 'oldest', page: '3', page_size: '20',
     })
-    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('預約正常'))!.attributes('aria-pressed')).toBe('true')
+    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('接下來'))!.attributes('aria-pressed')).toBe('true')
     expect((wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').element as HTMLInputElement).value).toBe('王')
   })
 
@@ -69,7 +69,7 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const replace = vi.spyOn(router, 'replace')
     const push = vi.spyOn(router, 'push')
 
-    await wrapper.findAll('.status-tab').find(tab => tab.text() === '預約正常')!.trigger('click')
+    await wrapper.findAll('.status-tab').find(tab => tab.text() === '接下來')!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ group: 'upcoming', order: 'oldest' })
     expect(lastListQuery(get).get('page')).toBe('1')
@@ -93,28 +93,30 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?due=1')
     await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('陳')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ due: '1' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'all', due: '1' })
     await new Promise(resolve => setTimeout(resolve, 350))
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ due: '1', q: '陳' })
+    expect(router.currentRoute.value.query).toEqual({ group: 'all', due: '1', q: '陳' })
 
     await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
     await new Promise(resolve => setTimeout(resolve, 350))
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({})
+    // 頁籤不是篩選：清除篩選後仍留在「全部」，網址只剩 group。
+    expect(router.currentRoute.value.query).toEqual({ group: 'all' })
   })
 
-  it('網址記著的那一頁已經空了（處理完最後一件再返回）就回第一頁重查，不說「沒有預約正常的案件」', async () => {
+  it('網址記著的那一頁已經空了（處理完最後一件再返回）就回第一頁重查，不說「接下來沒有參觀」', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (!path.startsWith('/admin/visit-requests?')) return [] as never
       return (new URLSearchParams(path.split('?')[1]).get('page') === '1' ? [request()] : []) as never
     })
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&page=2')
     expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '1'])
-    expect(lastListQuery(get).get('group')).toBe('upcoming')
-    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming' })
+    expect(lastListQuery(get).get('view')).toBe('upcoming')
+    // 「接下來」又沒有其他條件，網址不寫 group。
+    expect(router.currentRoute.value.query).toEqual({})
     expect(wrapper.text()).toContain('王媽媽')
-    expect(wrapper.text()).not.toContain('沒有「預約正常」的案件')
+    expect(wrapper.text()).not.toContain('接下來沒有參觀')
     expect(wrapper.find('.pager').exists()).toBe(false)
   })
 
@@ -122,8 +124,8 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&page=2')
     expect(listCalls(get)).toHaveLength(2)
-    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming' })
-    expect(wrapper.find('.requests-mobile .requests-empty').text()).toContain('沒有「預約正常」的案件')
+    expect(router.currentRoute.value.query).toEqual({})
+    expect(wrapper.find('.requests-mobile .requests-empty').text()).toContain('接下來沒有參觀')
   })
 
   it('按「下一頁」翻到的空頁是真的到底了：講明沒有更多、可回上一頁，不跳回第一頁來回繞', async () => {
@@ -140,12 +142,12 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const empty = wrapper.get('.requests-mobile .requests-empty')
     expect(empty.text()).toContain('後面沒有更多案件了')
     expect(empty.text()).toContain('前面的頁數還有案件')
-    expect(empty.text()).not.toContain('沒有「預約正常」的案件')
+    expect(empty.text()).not.toContain('接下來沒有參觀')
     expect(empty.text()).not.toContain('清除篩選')
 
     await empty.findAll('button').find(button => button.text() === '回上一頁')!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming' })
+    expect(router.currentRoute.value.query).toEqual({})
     expect(wrapper.findAll('.request-list li')).toHaveLength(20)
   })
 
@@ -154,8 +156,8 @@ describe('案件列表：篩選與頁數跟網址雙向同步', () => {
     const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming')
     await router.push('/visit-requests?group=upcoming&order=oldest')
     await flushPromises()
-    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('預約正常'))!.attributes('aria-pressed')).toBe('true')
-    expect(lastListQuery(get).get('group')).toBe('upcoming')
+    expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('接下來'))!.attributes('aria-pressed')).toBe('true')
+    expect(lastListQuery(get).get('view')).toBe('upcoming')
     expect(lastListQuery(get).get('order')).toBe('oldest')
     expect(listCalls(get)).toHaveLength(2)
     expect(router.currentRoute.value.fullPath).toBe('/visit-requests?group=upcoming&order=oldest')
@@ -273,9 +275,9 @@ describe('案件列表：切回分頁時更新', () => {
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
     expect(listCalls(get).map(path => new URLSearchParams(path.split('?')[1]).get('page'))).toEqual(['2', '2', '1'])
-    expect(router.currentRoute.value.query).toEqual({ group: 'upcoming' })
+    expect(router.currentRoute.value.query).toEqual({})
     expect(wrapper.text()).toContain('第一頁的家長')
-    expect(wrapper.text()).not.toContain('沒有「預約正常」的案件')
+    expect(wrapper.text()).not.toContain('接下來沒有參觀')
   })
 })
 

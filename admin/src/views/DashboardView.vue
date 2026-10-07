@@ -434,8 +434,8 @@ const hasTodo = computed(() => {
                 </li>
               </template>
             </ol>
-            <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看案件</router-link></p>
-            <p v-else class="panel today__empty">今天沒有參觀。<router-link to="/visit-requests?group=upcoming&order=oldest">查看接下來的案件</router-link></p>
+            <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming">查看案件</router-link></p>
+            <p v-else class="panel today__empty">今天沒有參觀。<router-link to="/visit-requests?group=upcoming">查看接下來的案件</router-link></p>
           </section>
         </div>
 

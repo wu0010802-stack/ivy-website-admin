@@ -83,6 +83,8 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     vi.spyOn(api, 'get').mockResolvedValue([] as never)
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&attention=1')
+    // 頁籤不算篩選，但匯出送 view=，說明要把頁籤寫進範圍（2026-10-06 預檢 P6）。
+    expect(wrapper.get('#export-scope').text()).toContain('「接下來」頁籤')
     expect(wrapper.get('#export-scope').text()).toContain('目前篩選的全部結果')
     wrapper.findComponent({ name: 'ElDatePicker' }).vm.$emit('update:modelValue', ['2026-09-01', '2026-09-07'])
     await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('王')
@@ -92,12 +94,19 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     expect(url.startsWith('/api/website/v1/admin/visit-requests/export?')).toBe(true)
     const query = new URLSearchParams(url.split('?')[1])
     expect(Object.fromEntries(query)).toEqual({
-      group: 'upcoming', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
+      view: 'upcoming', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
     })
 
     await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
     await flushPromises()
+    // 清掉篩選後頁籤還在，匯出仍只送這個頁籤：範圍說明不能說「全部案件」。
+    expect(wrapper.get('#export-scope').text()).toContain('「接下來」的全部結果')
+    expect(wrapper.get('#export-scope').text()).not.toContain('可見校區的全部案件')
+    await wrapper.get('.status-tab[data-group="all"]').trigger('click')
+    await flushPromises()
     expect(wrapper.get('#export-scope').text()).toContain('可見校區的全部案件')
+    await wrapper.findAll('button').find(button => button.text() === '匯出 CSV')!.trigger('click')
+    expect(new URLSearchParams(String(open.mock.calls.at(-1)![0]).split('?')[1]).has('view')).toBe(false)
   })
 })
 

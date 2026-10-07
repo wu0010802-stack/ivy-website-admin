@@ -189,7 +189,7 @@ const listRow = (extra: Record<string, unknown> = {}) => visitCase({ id: 'r1', s
 
 async function mountList(path: string, rows: unknown[], options: { user?: UserOut; counts?: Record<string, number>; admissions?: boolean } = {}) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) =>
-    (url.startsWith('/admin/visit-requests/group-counts') ? options.counts ?? {} : url.startsWith('/admin/visit-requests') ? rows : []) as never)
+    (url.startsWith('/admin/visit-requests/view-counts') ? options.counts ?? {} : url.startsWith('/admin/visit-requests') ? rows : []) as never)
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = options.user ?? testUser('super_admin', { id: 'me', campus_keys: [] })
@@ -291,9 +291,9 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
   })
 
   it('分頁數字是件數不是待辦：沒有「待處理」頁籤，也沒有暖黃計數樣式', async () => {
-    const { wrapper } = await mountList('/visit-requests', [], { counts: { upcoming: 4, past: 2, cancelled: 3 } })
+    const { wrapper } = await mountList('/visit-requests', [], { counts: { upcoming: 4, past_unmarked: 2 } })
     const groups = wrapper.findAll('.status-tab').map(tab => tab.attributes('data-group'))
-    expect(groups).toEqual(['all', 'upcoming', 'past', 'cancelled'])
+    expect(groups).toEqual(['upcoming', 'past', 'arrived', 'cancelled', 'all'])
     // 頁籤的基本樣式（中性灰計數）在 style.css，案件列表與站內通知共用；案件列表不再有暖黃計數。
     const shared = readFileSync(join(SRC, 'style.css'), 'utf8')
     expect(shared).toMatch(/\.status-tab__count \{[^}]*background: var\(--surface-3\)/)

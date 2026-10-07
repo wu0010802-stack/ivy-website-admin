@@ -60,7 +60,7 @@ describe('訪視明細點姓名', () => {
 })
 
 describe('預約明細的返回鍵（6.2）', () => {
-  async function mountDetailFrom(back: string | undefined) {
+  async function mountDetailFrom(back: string | undefined, search = '') {
     mockGet({
       [`/admin/visit-requests/${VR_ID}/contact-notes`]: [],
       [`/admin/visit-requests/${VR_ID}`]: () => ({
@@ -80,7 +80,7 @@ describe('預約明細的返回鍵（6.2）', () => {
       ],
     })
     if (back) Object.defineProperty(router.options.history, 'state', { configurable: true, get: () => ({ back }) })
-    await router.push(`/visit-requests/${VR_ID}`)
+    await router.push(`/visit-requests/${VR_ID}${search}`)
     await router.isReady()
     const { mount } = await import('@vue/test-utils')
     const wrapper = mount(VisitDetailView, { attachTo: document.body, global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } } } as never)
@@ -107,5 +107,26 @@ describe('預約明細的返回鍵（6.2）', () => {
     await direct.wrapper.get('.detail__back').trigger('click')
     await flushPromises()
     expect(direct.router.currentRoute.value.path).toBe('/visit-requests')
+  })
+  it('從案件列表的頁籤點進來：返回鍵寫出頁籤名；「全部」或沒帶條件就不寫（2026-10-06 方向 B）', async () => {
+    const upcoming = await mountDetailFrom('/visit-requests', `?list=${encodeURIComponent('view=upcoming&order=visit_asc')}`)
+    expect(upcoming.wrapper.get('.detail__back').text()).toBe('參觀案件（接下來）')
+    const back = vi.spyOn(upcoming.router, 'back').mockImplementation(() => undefined)
+    await upcoming.wrapper.get('.detail__back').trigger('click')
+    expect(back).toHaveBeenCalledOnce()
+    cleanup()
+    const arrived = await mountDetailFrom('/visit-requests?group=arrived', '?list=view%3Darrived')
+    expect(arrived.wrapper.get('.detail__back').text()).toBe('參觀案件（已到場）')
+    cleanup()
+    // 「全部」頁籤沒有 view；不認得的 view 也不亂寫。
+    const all = await mountDetailFrom('/visit-requests?group=all', `?list=${encodeURIComponent('due=1')}`)
+    expect(all.wrapper.get('.detail__back').text()).toBe('參觀案件')
+    cleanup()
+    const bogus = await mountDetailFrom('/visit-requests', '?list=view%3Dall')
+    expect(bogus.wrapper.get('.detail__back').text()).toBe('參觀案件')
+    cleanup()
+    // 不是從列表來的（招生入學）仍寫「招生入學」，即使網址還帶著 list。
+    const admissions = await mountDetailFrom('/admissions?tab=funnel', '?list=view%3Dupcoming')
+    expect(admissions.wrapper.get('.detail__back').text()).toBe('招生入學')
   })
 })

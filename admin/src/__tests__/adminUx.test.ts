@@ -149,7 +149,7 @@ describe('後台導覽與編輯操作', () => {
   it('搜尋停止輸入後才查詢，並把關鍵字帶進 q 參數', async () => {
     const { global } = await setup('/visit-requests')
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-      (path.startsWith('/admin/visit-requests/group-counts') ? { pending: 0, upcoming: 0, past: 0, cancelled: 0 } : []) as never)
+      (path.startsWith('/admin/visit-requests/view-counts') ? { upcoming: 0, past_unmarked: 0 } : []) as never)
     const wrapper = mount(VisitRequestsView, { global })
     wrappers.push(wrapper)
     await flushPromises()
@@ -173,7 +173,7 @@ describe('後台導覽與編輯操作', () => {
     const oldRequest = new Promise<unknown[]>(resolve => { resolveOld = resolve })
     let listCall = 0
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
-      if (path.startsWith('/admin/visit-requests/group-counts')) return { upcoming: 0, past: 0, cancelled: 1 } as never
+      if (path.startsWith('/admin/visit-requests/view-counts')) return { upcoming: 0, past_unmarked: 0 } as never
       return (listCall++ === 0 ? oldRequest : []) as never
     })
     const wrapper = mount(VisitRequestsView, { global })

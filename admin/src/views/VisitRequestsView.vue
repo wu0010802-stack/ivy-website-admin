@@ -6,7 +6,8 @@ import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, formatShortDateTime, formatShortSlotWhen, VISIT_SOURCE_LABELS, VISIT_GROUPS, VISIT_GROUP_LABELS, legacyStatusGroup, visitSourceLabel, visitDisplay, contactTimeLabel } from '../api/labels'
+import { campusLabel, contactTimeLabel, formatShortDateTime, formatShortSlotWhen, VISIT_SOURCE_LABELS, visitDisplay, visitSourceLabel } from '../api/labels'
+import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, listApiOrder, listApiParams, listStateQuery, parseListQuery, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
@@ -37,7 +38,8 @@ const openRequests = useOpenRequestsStore()
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
 
 const campusFilter = ref('')
-const groupFilter = ref('')
+// 接待頁籤（網址的 group）：是導覽，不算篩選；沒寫就是「接下來」（api/visitListQuery.ts）。
+const activeTab = ref<ListTab>(DEFAULT_TAB)
 // 總覽「到期待追蹤」點進來帶 ?due=1，只列已到預定聯絡時間的案件。
 const dueOnly = ref(false)
 // 只看還沒結案的（預約正常，含時間已過還沒標記到場）。原本是總覽「我承辦的案件」帶
@@ -50,11 +52,11 @@ const createdRange = ref<[string, string] | null>(null)
 const narrow = useNarrowScreen()
 // 待人工處理：場次已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
 const attentionOnly = ref(false)
-// 「時間已過」裡還沒標記到場的（status=confirmed）。後端 status 與 group 可以疊加，
-// 網址寫成 ?group=past&status=confirmed；切到其他分頁就自動取消。
+// 「時間已過」裡還沒標記到場的（status=confirmed）。後端 status 與 view 可以疊加，
+// 網址寫成 ?group=past&status=confirmed；切到其他頁籤就自動取消。
 const attendanceOnly = ref(false)
-// 櫃台早上要「最舊的先處理」，排序要明講，不能靠猜。總覽的待辦帶 ?order=oldest 進來。
-const order = ref<'newest' | 'oldest'>('newest')
+// 預設依參觀時間（行程清單）；選了送出時間才寫進網址（舊連結的 ?order=oldest 仍有效）。
+const order = ref<ListOrder>('visit')
 const page = ref(1)
 const pageSize = 20
 const requests = ref<VisitRequestDetailOut[]>([])
@@ -63,55 +65,36 @@ const error = ref<string | null>(null)
 let loadVersion = 0
 const search = ref('')
 
+// 目前畫面上的條件，網址、清單、匯出、件數都從這一份算（api/visitListQuery.ts）。
+const listState = computed<ListState>(() => ({
+  tab: activeTab.value, attendanceOnly: attendanceOnly.value, q: search.value, campus: campusFilter.value,
+  open: openOnly.value, source: sourceFilter.value, created: createdRange.value, due: dueOnly.value,
+  attention: attentionOnly.value, order: order.value, page: page.value,
+}))
+
 // ── 篩選與網址雙向同步 ──
 // 所有條件與頁數都寫進網址（router.replace，不堆歷史）：點進案件再返回、重新整理，
 // 列表維持原來的頁籤、搜尋與頁數；側欄、總覽與各種提示（?attention=1&campus=…、
 // ?due=1、?status=…&order=oldest）改網址時再讀回來。兩邊都先比對，一樣就不動。
 const LIST_PATH = route.path
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-const queryText = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 function applyQuery(query: LocationQuery) {
-  const campus = queryText(query.campus)
-  campusFilter.value = multiCampus.value && visibleCampusKeys.value.includes(campus) ? campus : ''
-  const group = queryText(query.group)
-  // 舊書籤的 ?status= 轉成分組（資料庫狀態仍是七個，只有列表歸成三組）。
-  groupFilter.value = (VISIT_GROUPS as readonly string[]).includes(group) ? group : legacyStatusGroup(queryText(query.status))
-  attendanceOnly.value = group === 'past' && query.status === 'confirmed'
-  search.value = queryText(query.q)
-  dueOnly.value = query.due === '1'
-  openOnly.value = query.open === '1'
-  const source = queryText(query.source)
-  sourceFilter.value = VISIT_SOURCE_LABELS[source] ? source : ''
-  const from = queryText(query.created_from)
-  const to = queryText(query.created_to)
-  const range = DATE_RE.test(from) && DATE_RE.test(to) ? [from, to] : null
-  if (range?.join() !== createdRange.value?.join()) createdRange.value = range as [string, string] | null
-  attentionOnly.value = query.attention === '1'
-  order.value = query.order === 'oldest' ? 'oldest' : 'newest'
-  const pageNumber = Number(queryText(query.page))
-  page.value = Number.isInteger(pageNumber) && pageNumber > 1 ? pageNumber : 1
+  const next = parseListQuery(query, { campusKeys: visibleCampusKeys.value, multiCampus: multiCampus.value })
+  activeTab.value = next.tab
+  attendanceOnly.value = next.attendanceOnly
+  search.value = next.q
+  campusFilter.value = next.campus
+  dueOnly.value = next.due
+  openOnly.value = next.open
+  sourceFilter.value = next.source
+  if (next.created?.join() !== createdRange.value?.join()) createdRange.value = next.created
+  attentionOnly.value = next.attention
+  order.value = next.order
+  page.value = next.page
 }
 
 // 目前的條件 → 網址。預設值不寫，網址保持乾淨；搜尋照使用者打的字寫。
-function stateQuery(): Record<string, string> {
-  const query: Record<string, string> = {}
-  if (groupFilter.value) query.group = groupFilter.value
-  if (attendanceOnly.value) query.status = 'confirmed'
-  if (search.value.trim()) query.q = search.value.trim()
-  if (campusFilter.value) query.campus = campusFilter.value
-  if (openOnly.value) query.open = '1'
-  if (sourceFilter.value) query.source = sourceFilter.value
-  if (createdRange.value) {
-    query.created_from = createdRange.value[0]
-    query.created_to = createdRange.value[1]
-  }
-  if (dueOnly.value) query.due = '1'
-  if (attentionOnly.value) query.attention = '1'
-  if (order.value !== 'newest') query.order = order.value
-  if (page.value > 1) query.page = String(page.value)
-  return query
-}
+const stateQuery = (): Record<string, string> => listStateQuery(listState.value)
 
 function queryKey(query: LocationQuery | Record<string, string>): string {
   const entries: [string, string][] = []
@@ -134,10 +117,10 @@ function syncUrl() {
 
 applyQuery(route.query)
 
-const hasFilters = computed(() => Boolean(campusFilter.value || groupFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value))
+// 頁籤是導覽、不算篩選；「只看尚未確認到場」會多送 status=confirmed，算篩選。
+const hasFilters = computed(() => Boolean(campusFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value || attendanceOnly.value))
 function clearFilters() {
   campusFilter.value = ''
-  groupFilter.value = ''
   attendanceOnly.value = false
   search.value = ''
   dueOnly.value = false
@@ -147,14 +130,15 @@ function clearFilters() {
   attentionOnly.value = false
 }
 
-// 分組是最常切的條件，攤成一排頁籤一鍵切換。數字來自 group-counts，
-// 套用目前其他條件（校區、搜尋…），所以和清單對得上。
-const groupCounts = ref<Record<string, number>>({})
-const statusTabs = computed(() => [
-  { value: '', label: '全部', count: 0 },
-  ...VISIT_GROUPS
-    .map(value => ({ value: value as string, label: VISIT_GROUP_LABELS[value], count: groupCounts.value[value] ?? 0 })),
-])
+// 頁籤上的數字（GET view-counts，套用頁籤以外的條件）：接下來寫全部件數；時間已過只寫還沒標記到場的，
+// 和總覽同一個數字；已到場、已取消、全部不寫（只會一直變大）。
+const viewCounts = ref<{ upcoming?: number; past_unmarked?: number }>({})
+const statusTabs = computed(() => LIST_TABS.map(value => ({
+  value,
+  label: LIST_TAB_LABELS[value],
+  count: value === 'upcoming' ? (viewCounts.value.upcoming ?? 0) : value === 'past' ? (viewCounts.value.past_unmarked ?? 0) : 0,
+  countLabel: value === 'past' ? ' 件還沒標記到場' : ' 件',
+})))
 // 篩選欄位攤開有十幾個控制項，把案件清單推到很下面（2026-10-05 第九輪起桌機也收）：
 // 搜尋、狀態頁籤常駐，多校帳號的校區在桌機也常駐；其餘收進「更多篩選」，有套用時
 // 按鈕上顯示件數，收起時另列成可以逐一拿掉的條件，從總覽點進來也看得到套了什麼。
@@ -171,53 +155,22 @@ const hiddenFilters = computed<ActiveFilter[]>(() => {
   if (openOnly.value) list.push({ key: 'open', label: '未結案', clear: () => { openOnly.value = false } })
   if (sourceFilter.value) list.push({ key: 'source', label: `來源：${VISIT_SOURCE_LABELS[sourceFilter.value] ?? sourceFilter.value}`, clear: () => { sourceFilter.value = '' } })
   if (createdRange.value) list.push({ key: 'created', label: `送出 ${createdRange.value[0].slice(5).replace('-', '/')}–${createdRange.value[1].slice(5).replace('-', '/')}`, clear: () => { createdRange.value = null } })
-  if (order.value !== 'newest') list.push({ key: 'order', label: '最早送出在前', clear: () => { order.value = 'newest' } })
+  if (order.value !== 'visit') list.push({ key: 'order', label: order.value === 'oldest' ? '最早送出在前' : '最新送出在前', clear: () => { order.value = 'visit' } })
   return list
 })
 const moreFilterCount = computed(() => hiddenFilters.value.length)
 
 const hasNext = computed(() => requests.value.length === pageSize)
 
-// 家長報的電話常帶空格、連字號或國碼（0912-345-678、+886 912 345 678），資料庫存的是
-// 10 碼純數字；搜尋字看起來像電話就先去掉符號再查，匯出也一樣。
-// 還在打國碼或前幾碼（+886、+88、09-）時照原字查：只剩「0」「88」會查出幾乎每一筆。
-function searchTerm(): string {
-  const text = search.value.trim()
-  if (!/^[\d\s()+-]+$/.test(text)) return text
-  const digits = text.replace(/\D/g, '')
-  // 國碼可能帶「+」或沒帶（886912345678）；沒帶的要夠長才算，免得把號碼片段當國碼。
-  if (text.startsWith('+886') || (digits.startsWith('886') && digits.length >= 11)) {
-    const local = digits.slice(3).replace(/^0/, '')
-    return local.length >= 3 ? `0${local}` : text
-  }
-  return digits.length >= 4 ? digits : text
-}
-
-// 清單與 CSV 匯出送同一組篩選條件：畫面上篩好什麼，匯出的就是那一批。
-function filterParams(options: { withGroup?: boolean } = {}): URLSearchParams {
-  const params = new URLSearchParams()
-  if (campusFilter.value) params.set('campus_key', campusFilter.value)
-  if (groupFilter.value && options.withGroup !== false) params.set('group', groupFilter.value)
-  // 分頁數字（withGroup: false）要算各組全部，不能只算還沒標記到場的。
-  if (attendanceOnly.value && options.withGroup !== false) params.set('status', 'confirmed')
-  if (searchTerm()) params.set('q', searchTerm())
-  if (dueOnly.value) params.set('follow_up_due', 'true')
-  if (openOnly.value) params.set('open', 'true')
-  if (sourceFilter.value) params.set('source', sourceFilter.value)
-  if (createdRange.value) {
-    params.set('created_from', createdRange.value[0])
-    params.set('created_to', createdRange.value[1])
-  }
-  if (attentionOnly.value) params.set('needs_attention', 'true')
-  return params
-}
+// 清單、匯出與件數送同一組篩選（api/visitListQuery.ts）：畫面上篩好什麼，匯出的就是那一批。
+const filterParams = (options: { counts?: boolean } = {}) => listApiParams(listState.value, options)
 
 async function loadCounts(version: number) {
   try {
-    const counts = await api.get<Record<string, number>>(`/admin/visit-requests/group-counts?${filterParams({ withGroup: false })}`)
-    if (version === loadVersion) groupCounts.value = counts
+    const counts = await api.get<{ upcoming: number; past_unmarked: number }>(`/admin/visit-requests/view-counts?${filterParams({ counts: true })}`)
+    if (version === loadVersion) viewCounts.value = counts
   } catch {
-    if (version === loadVersion) groupCounts.value = {}
+    if (version === loadVersion) viewCounts.value = {}
   }
 }
 
@@ -250,7 +203,7 @@ async function load(options: { quiet?: boolean } = {}) {
     const params = filterParams()
     params.set('page', String(page.value))
     params.set('page_size', String(pageSize))
-    if (order.value !== 'newest') params.set('order', order.value)
+    params.set('order', listApiOrder(listState.value))
     const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
     if (version !== loadVersion) return
     // 網址記著頁數：處理完第 2 頁最後一件再返回、或切回分頁時案件已移走，那一頁會是空的，
@@ -284,13 +237,13 @@ function queueLoad() {
   })
 }
 
-watch(groupFilter, (group) => { if (group !== 'past') attendanceOnly.value = false })
+watch(activeTab, (tab) => { if (tab !== 'past') attendanceOnly.value = false })
 function toggleAttendance(on: boolean) {
   attendanceOnly.value = on
-  if (on) groupFilter.value = 'past'
+  if (on) activeTab.value = 'past'
 }
 
-watch([campusFilter, groupFilter, dueOnly, order, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly], () => {
+watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly], () => {
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
   queueLoad()
@@ -413,20 +366,24 @@ async function markSelectedArrived() {
 }
 
 // 匯出不分頁：符合目前篩選的全部案件。按鈕旁講清楚範圍，避免以為只匯出這一頁，
-// 或沒注意到沒篩選時會匯出可見校區的全部案件。
-const exportScope = computed(() => (hasFilters.value ? '匯出範圍：目前篩選的全部結果（不只本頁）' : '匯出範圍：可見校區的全部案件'))
+// 或沒注意到沒篩選時會匯出可見校區的全部案件。頁籤不算篩選、但匯出會送 view=，所以範圍要把頁籤寫進去
+// （「全部」頁籤不送 view，仍是可見校區的全部案件）。
+const exportScope = computed(() => {
+  const tab = activeTab.value === 'all' ? '' : `「${LIST_TAB_LABELS[activeTab.value]}」`
+  if (hasFilters.value) return `匯出範圍：${tab ? `${tab}頁籤、` : ''}目前篩選的全部結果（不只本頁）`
+  return tab ? `匯出範圍：${tab}的全部結果` : '匯出範圍：可見校區的全部案件'
+})
 function exportCsv() {
   window.open(`${BASE_URL}/admin/visit-requests/export?${filterParams()}`, '_blank')
 }
 
-// 點進案件時把目前的篩選條件與排序帶過去，案件頁的「下一筆」才會照這份列表的
-// 順序走。沒有篩狀態、到期或待人工處理時（例如「全部」）不帶：那份列表夾著已結案
-// 的案件，「下一筆」改用固定的處理優先序。
+// 點進案件時把目前的條件與排序帶過去，案件頁的「下一筆」才會照這份清單往下。只有「全部」而且沒有
+// 到期、待人工處理時不帶（那份清單夾著已結案的案件，「下一筆」改用固定的處理優先序）。
 function detailTo(id: string) {
-  const actionable = groupFilter.value || dueOnly.value || attentionOnly.value
-  if (!actionable) return `/visit-requests/${id}`
+  const state = listState.value
+  if (state.tab === 'all' && !state.due && !state.attention) return `/visit-requests/${id}`
   const params = filterParams()
-  if (order.value !== 'newest') params.set('order', order.value)
+  params.set('order', listApiOrder(state))
   // 第 2 頁以後要連每頁筆數一起帶，案件頁才會查到同一段列表（案件頁預設一次抓 50 筆）。
   if (page.value > 1) {
     params.set('page', String(page.value))
@@ -449,7 +406,7 @@ const listTitle = computed(() => {
   if (attendanceOnly.value) return '尚未確認到場'
   if (dueOnly.value) return '到期待追蹤'
   if (attentionOnly.value) return '待人工處理'
-  return groupFilter.value ? (VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? '案件' : '全部案件'
+  return activeTab.value === 'all' ? '全部案件' : LIST_TAB_LABELS[activeTab.value]
 })
 
 const emptyText = computed(() => {
@@ -458,9 +415,19 @@ const emptyText = computed(() => {
   if (attentionOnly.value) return '沒有待人工處理的案件'
   if (attendanceOnly.value) return '沒有尚未確認到場的案件'
   if (dueOnly.value) return '沒有到期待追蹤的案件'
-  if (groupFilter.value) return `沒有「${(VISIT_GROUP_LABELS as Record<string, string>)[groupFilter.value] ?? groupFilter.value}」的案件`
+  if (activeTab.value === 'upcoming') return '接下來沒有參觀'
+  if (activeTab.value !== 'all') return `沒有「${LIST_TAB_LABELS[activeTab.value]}」的案件`
   return '還沒有任何參觀案件'
 })
+
+// 空狀態的第二行。「清除篩選」只清條件、不換頁籤，所以說清楚清完看到的是哪個範圍；
+// 只是這個頁籤沒有案件（沒有任何條件）時，不能說「家長送出需求後會顯示在這裡」。
+const clearScope = computed(() => (activeTab.value === 'all' ? '全部案件' : `「${LIST_TAB_LABELS[activeTab.value]}」的全部案件`))
+function emptyHint(fallback: string): string {
+  if (page.value > 1) return '前面的頁數還有案件。'
+  if (hasFilters.value) return `試試其他條件，或清除篩選查看${clearScope.value}。`
+  return activeTab.value === 'all' ? fallback : '可以切換上方的頁籤，查看其他案件。'
+}
 
 onMounted(() => {
   load()
@@ -480,9 +447,9 @@ onMounted(() => {
     </PageHeader>
 
     <div class="status-tabs" role="group" aria-label="案件狀態">
-      <button v-for="tab in statusTabs" :key="tab.value" type="button" class="status-tab" :class="{ 'is-active': groupFilter === tab.value }" :data-group="tab.value || 'all'"
-        :aria-pressed="groupFilter === tab.value" @click="groupFilter = tab.value">
-        {{ tab.label }}<span v-if="tab.count" class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 件</span></span>
+      <button v-for="item in statusTabs" :key="item.value" type="button" class="status-tab" :class="{ 'is-active': activeTab === item.value }" :data-group="item.value"
+        :aria-pressed="activeTab === item.value" @click="activeTab = item.value">
+        {{ item.label }}<span v-if="item.count" class="status-tab__count num">{{ item.count }}<span class="visually-hidden">{{ item.countLabel }}</span></span>
       </button>
     </div>
 
@@ -504,6 +471,7 @@ onMounted(() => {
         </div>
         <div class="filter-field"><span>排序</span>
         <el-select v-model="order" aria-label="排序" class="order-select">
+          <el-option label="參觀時間" value="visit" />
           <el-option label="最新送出在前" value="newest" />
           <el-option label="最早送出在前" value="oldest" />
         </el-select>
@@ -569,7 +537,7 @@ onMounted(() => {
         @selection-change="onSelectionChange"
       >
         <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
-        <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
+        <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
         <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：多校帳號固定欄合計 646px（2026-10-06 拿掉
              承辦人欄 128px），家長欄最少 180px（2026-10-05 實測原本合計 992px、會橫捲 30px：狀態收 10）。
              參觀時間今年的省略年份（約 180px）。狀態欄放得下「到了／沒來」兩顆小按鈕。 -->
@@ -637,7 +605,7 @@ onMounted(() => {
             <span class="hint">{{ formatShortDateTime(request.created_at) }} 送出</span>
           </li>
         </ul>
-        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ page > 1 ? '前面的頁數還有案件。' : hasFilters ? '試試其他條件，或清除篩選查看全部案件。' : '家長送出需求後，可在這裡聯絡並安排參觀。' }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
+        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後，可在這裡聯絡並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
       </div>
 
       <div class="pager" v-if="page > 1 || hasNext">
