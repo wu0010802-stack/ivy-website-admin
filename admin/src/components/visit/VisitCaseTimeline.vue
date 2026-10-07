@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, useId } from 'vue'
 import { formatDateTime } from '../../api/labels'
 import { buildTimeline } from '../../api/visitTimeline'
 import { arrivedAt } from '../../admissions/family'
@@ -7,9 +7,11 @@ import { injectVisitCase } from '../../composables/useVisitCase'
 
 // 時間線（2026-10-06 方向 C）：聯絡紀錄與案件歷程合成一條，新的在上，輸入框固定在最上面。
 // 家庭版面再併入參觀後聯絡與招生事件，沿用家庭頁規則：沒有輸入框（參觀後用處理區的「記錄聯絡」）。
-// limit：預覽面板只列最新幾筆，其餘請打開完整案件頁（fullPath）。
+// limit：預覽面板只列最新幾筆，其餘請打開完整案件頁（fullPath）；沒給 fullPath 仍寫出還有幾筆沒列，不悄悄少掉紀錄。
 const props = withDefaults(defineProps<{ limit?: number; fullPath?: string }>(), { limit: 0, fullPath: '' })
 const vc = injectVisitCase()
+// 區塊名稱指向自己的標題：id 每個實例各一個，同一頁有兩份時間線也不會互相指。
+const titleId = useId()
 
 const entries = computed(() => {
   const history = vc.detail?.history ?? []
@@ -50,8 +52,8 @@ const followUpShortcuts = [
 </script>
 
 <template>
-  <section class="panel case-timeline detail__notes" aria-labelledby="case-timeline-title">
-    <h2 id="case-timeline-title" class="visually-hidden">聯絡紀錄與案件歷程</h2>
+  <section class="panel case-timeline detail__notes" :aria-labelledby="titleId">
+    <h2 :id="titleId" class="visually-hidden">聯絡紀錄與案件歷程</h2>
     <div v-if="composing" class="notes__form case-timeline__compose">
       <el-input
         v-model="vc.newNote"
@@ -137,8 +139,9 @@ const followUpShortcuts = [
     <p v-else-if="!historyFailed" class="hint case-timeline__note">
       {{ composing ? '還沒有聯絡紀錄。每次致電或傳訊後記一筆，同事接手時才知道談到哪裡。' : '還沒有紀錄。' }}
     </p>
-    <p v-if="hidden > 0 && fullPath" class="case-timeline__more">
-      <router-link :to="fullPath">還有 {{ hidden }} 筆，打開完整案件頁</router-link>
+    <p v-if="hidden > 0" class="case-timeline__more">
+      <router-link v-if="fullPath" :to="fullPath">還有 {{ hidden }} 筆，打開完整案件頁</router-link>
+      <template v-else>還有 {{ hidden }} 筆</template>
     </p>
   </section>
 </template>

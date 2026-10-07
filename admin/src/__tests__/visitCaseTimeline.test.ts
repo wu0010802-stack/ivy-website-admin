@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { defineComponent, h, ref } from 'vue'
 import { flushPromises } from '@vue/test-utils'
 import VisitDetailView from '../views/VisitDetailView.vue'
-import { admissionsViewer, button, cleanup, mockGet, pathsTo, visit as admissionsVisit } from './admissionsTestKit'
+import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
+import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
+import { admissionsViewer, button, cleanup, mockGet, mountWith, pathsTo, visit as admissionsVisit } from './admissionsTestKit'
 import { caseRoutes, mountRoutes, pastSlot, visitCase, VISIT_ID } from './visitCaseKit'
 
 afterEach(() => { cleanup(); window.sessionStorage.clear() })
@@ -83,5 +86,61 @@ describe('VisitCaseTimeline', () => {
     expect(timeline.find('textarea').exists()).toBe(false)
     expect(timeline.text()).toContain('還沒有紀錄。')
     expect(timeline.text()).not.toContain('記錄聯絡')
+  })
+
+  // 預覽面板只列最新幾筆（limit），其餘請打開完整案件頁（fullPath）。
+  describe('limit／fullPath（預覽面板用）', () => {
+    const noteAt = (n: number) => ({ id: `n${n}`, note: `紀錄${n}`, created_at: `2026-10-0${n}T01:00:00Z`, created_by: 'u1', created_by_email: 'amy@ivy.example', created_by_display_name: '怡君' })
+    const notes = [1, 2, 3, 4].map(noteAt)
+
+    // 一個 host 提供同一筆案件，下面放幾個時間線（各自的 props）。
+    async function mountTimelines(props: Record<string, unknown>[], list = notes) {
+      mockGet(caseRoutes(visitCase(), list))
+      const Host = defineComponent({
+        setup() {
+          provideVisitCase(useVisitCase(ref(VISIT_ID)))
+          return () => h('div', props.map((p) => h(VisitCaseTimeline, p)))
+        },
+      })
+      const { wrapper } = await mountWith(Host, { path: '/visit-requests' })
+      return wrapper.findAll('.case-timeline')
+    }
+
+    it('limit 只留最新幾筆（新的在上），有 fullPath 就給連到完整案件頁的連結', async () => {
+      const [timeline] = await mountTimelines([{ limit: 3, fullPath: '/visit-requests/case-a?list=view%3Dupcoming' }])
+      const shown = timeline!.findAll('.timeline__item')
+      expect(shown.map((li) => li.get('.timeline__text').text())).toEqual(['紀錄4', '紀錄3', '紀錄2'])
+      const more = timeline!.get('.case-timeline__more')
+      expect(more.text()).toBe('還有 1 筆，打開完整案件頁')
+      expect(more.get('a').attributes('href')).toBe('/visit-requests/case-a?list=view%3Dupcoming')
+    })
+
+    it('limit 沒給 fullPath：仍寫出還有幾筆沒列（只是沒有連結），不悄悄少掉紀錄', async () => {
+      const [timeline] = await mountTimelines([{ limit: 3 }])
+      expect(timeline!.findAll('.timeline__item')).toHaveLength(3)
+      const more = timeline!.get('.case-timeline__more')
+      expect(more.text()).toBe('還有 1 筆')
+      expect(more.find('a').exists()).toBe(false)
+    })
+
+    it('紀錄不超過 limit、或沒給 limit：全列，沒有「還有 N 筆」', async () => {
+      const [capped, uncapped] = await mountTimelines([{ limit: 4, fullPath: '/visit-requests/case-a' }, {}])
+      expect(capped!.findAll('.timeline__item')).toHaveLength(4)
+      expect(capped!.find('.case-timeline__more').exists()).toBe(false)
+      expect(uncapped!.findAll('.timeline__item')).toHaveLength(4)
+      expect(uncapped!.find('.case-timeline__more').exists()).toBe(false)
+    })
+
+    it('標題的 id 每個實例各一個：兩份時間線同時存在，區塊名稱不會指到別人的標題', async () => {
+      const [first, second] = await mountTimelines([{}, { limit: 3 }])
+      const ids = [first!, second!].map((timeline) => {
+        const labelledby = timeline.attributes('aria-labelledby')!
+        const heading = timeline.get('h2.visually-hidden')
+        expect(heading.attributes('id')).toBe(labelledby)
+        expect(document.getElementById(labelledby)).toBe(heading.element)
+        return labelledby
+      })
+      expect(new Set(ids).size).toBe(2)
+    })
   })
 })
