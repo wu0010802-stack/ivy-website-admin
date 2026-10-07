@@ -217,6 +217,11 @@ export interface ContentEditorState {
   draftBaseline?: ComputedRef<DraftBaseline>
   /** 表單和 draftBaseline 相比不同的欄位（diffPayload，同發布確認框）；first 時是空陣列 */
   draftChanges?: ComputedRef<FieldChange[]>
+  /**
+   * 正在讀官網那一版（要讀才有基準時）：此時 draftBaseline 還是 saved，動作列不能寫「N 處修改」
+   * 或「和官網一樣」，等讀完（成功或失敗）再寫，避免字樣閃一下。讀不到官網版時是 false。
+   */
+  liveReading?: Ref<boolean>
   /** 分校內容的校區（共用內容是 null）；右側預覽換校時重建 */
   campusKey?: ComputedRef<string | null>
   /** 要上線的內容（表單）和官網目前的版本相比；讀不到官網版回 null。開確認框前才呼叫 */
@@ -726,9 +731,13 @@ export function useContentItem<TPayload extends object>(
     if (!liveId) return null
     let payload: unknown = livePayloads.get(liveId)
     if (payload === undefined) {
-      payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await readLiveRevision(liveId)
-      if (!isPlainObject(payload)) return null
-      livePayloads.set(liveId, payload)
+      if (liveId === current.latest_revision?.id) {
+        payload = current.latest_revision.payload
+        if (isPlainObject(payload)) livePayloads.set(liveId, payload)
+      } else {
+        // readLiveRevision 讀到就已經記進 livePayloads
+        payload = await readLiveRevision(liveId)
+      }
     }
     return isPlainObject(payload) ? payload : null
   }
@@ -755,6 +764,9 @@ export function useContentItem<TPayload extends object>(
   // 換校或重新載入後只採用最後一次的結果，且 draftBaseline 只認和目前官網版 id 對得上的那份。
   const liveBase = ref<{ id: string; payload: Record<string, unknown> } | null>(null)
   const liveRequests = useRequestSequence()
+  // 還沒有這一版官網內容、正在讀的那一段（見 ContentEditorState.liveReading）。已經有這一版的基準
+  // （例如存檔後官網版沒換）不算讀取中，動作列不會為了重新確認而閃一下。
+  const liveReading = ref(false)
 
   async function refreshLiveBase(): Promise<void> {
     const request = liveRequests.begin()
@@ -762,8 +774,10 @@ export function useContentItem<TPayload extends object>(
     const liveId = current?.current_published_revision_id
     if (!current || !liveId) {
       liveBase.value = null
+      liveReading.value = false
       return
     }
+    liveReading.value = liveBase.value?.id !== liveId
     try {
       const payload = await livePayloadOf(current)
       if (!liveRequests.isCurrent(request)) return
@@ -771,6 +785,9 @@ export function useContentItem<TPayload extends object>(
     } catch {
       /* 讀不到官網版：draftBaseline 退回和上次儲存比 */
       if (liveRequests.isCurrent(request)) liveBase.value = null
+    } finally {
+      // 被更新的一次取代時由那一次負責收尾，不在這裡關掉
+      if (liveRequests.isCurrent(request)) liveReading.value = false
     }
   }
 
@@ -863,6 +880,7 @@ export function useContentItem<TPayload extends object>(
     changes,
     draftBaseline,
     draftChanges,
+    liveReading,
     campusKey: campusKeyRef,
     compareWithLive,
     contextLabel,
