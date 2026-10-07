@@ -2,6 +2,7 @@
 import type { DraftPreviewRender } from '~/composables/useDraftPreview'
 import { taipeiToday } from '~/utils/news-content'
 import {
+  isLivePreview,
   isPreviewEmbed,
   PREVIEW_MOBILE_HEIGHT,
   PREVIEW_MOBILE_WIDTH,
@@ -11,6 +12,8 @@ import {
   previewViewport,
   type PreviewViewport
 } from '~/utils/draft-preview'
+import { createLiveReceiver, type LiveDraft, type LiveOverride, type LiveReceiver, type PreviewHit } from '~/utils/preview-live'
+import { activatePreviewBlock, highlightPreview } from '~/utils/preview-highlight'
 
 // 私有草稿預覽殼：整頁 client-only，SSR 完全不輸出任何內容或管理端
 // 資料，避免管理 session cookie／草稿內容混進公開快取或搜尋引擎快照。
@@ -23,9 +26,14 @@ useHead({
 // ?page=admission 入學資訊頁、?page=privacy 隱私權政策、?page=visit
 // 預約頁的同意說明、?page=curriculum 特色教學頁、?page=about 關於常春藤頁、?page=environment 常春藤環境頁（校園探索），其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
 // 判斷消息上下架的日期（參數規則在 utils/draft-preview.ts）。
+// ?embed=1&live=1：後台內容編輯頁右側的即時預覽（2026-10-06 方向 D）。後台把還沒存的表單
+// 用 postMessage 傳進來，只放在這一頁的記憶體裡（不進網址、storage 或任何快取），蓋在已存
+// 草稿上重畫；頁面也跟著訊息切換，不重新載入。
 const route = useRoute()
 const router = useRouter()
-const page = computed(() => previewPage(route.query))
+const live = isLivePreview(route.query)
+const liveDraft = shallowRef<LiveDraft | null>(null)
+const page = computed(() => liveDraft.value?.page ?? previewPage(route.query))
 const viewport = computed(() => previewViewport(route.query))
 const embedded = computed(() => isPreviewEmbed(route.query))
 const today = taipeiToday()
@@ -34,8 +42,19 @@ const frameSrc = computed(() => previewFrameSrc(route.query))
 const mobileFrame = computed(() => viewport.value === 'mobile' && !embedded.value)
 
 const status = ref<'checking' | 'denied' | 'ready'>('checking')
-const render = ref<((date: string) => DraftPreviewRender) | null>(null)
-const rendered = computed(() => (render.value ? render.value(date.value) : null))
+const render = shallowRef<((date: string, live?: LiveOverride | null) => DraftPreviewRender) | null>(null)
+// 打字打到一半的內容可能讓合併那一步丟錯（這裡是預覽頁自己的 render，onErrorCaptured 管不到）：
+// 即時預覽時停在上一個畫得出來的畫面，不換成整頁錯誤畫面，錯誤也不往外送；一般預覽照舊丟出去。
+let lastRendered: DraftPreviewRender | null = null
+const rendered = computed(() => {
+  if (!render.value) return null
+  try {
+    lastRendered = render.value(date.value, liveDraft.value)
+  } catch (error) {
+    if (!live) throw error
+  }
+  return lastRendered
+})
 const draft = computed(() => rendered.value?.content ?? null)
 const hiddenNews = computed(() => rendered.value?.hiddenNews ?? [])
 
@@ -52,14 +71,64 @@ function setDate(event: Event) {
   setQuery({ date: value && value !== today ? value : undefined })
 }
 
+// 套用一則即時草稿：先畫，再（首頁五校）切到那一校、等一幀，然後框出改到的位置並回報後台。
+// 中途又來了新的一則就交給新的那則處理。
+async function showLiveDraft(next: LiveDraft, receiver: LiveReceiver) {
+  liveDraft.value = next
+  await nextTick()
+  if (liveDraft.value !== next) return
+  let hit: PreviewHit = 'none'
+  try {
+    if (activatePreviewBlock(document, next.focus)) await nextTick()
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    if (liveDraft.value !== next) return
+    hit = highlightPreview(document, next.focus)
+  } catch {
+    // 框不出來就不框：草稿已經畫好，回報照送；錯誤只留在這個 iframe 裡，不往外傳。
+  }
+  receiver.applied(next.seq, hit)
+}
+
+// 即時預覽裡點連結不換頁（預覽只看這一頁；iframe 的 sandbox 也不給換掉後台頁）。
+function stayOnPreview(event: MouseEvent) {
+  if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault()
+}
+
+// 打字打到一半的內容可能讓某個區塊畫不出來：即時預覽時錯誤停在這裡，不換成整頁錯誤畫面。
+onErrorCaptured(() => (live ? false : undefined))
+
+let stopLive: (() => void) | null = null
+let unmounted = false
+
 onMounted(async () => {
   const result = await useDraftPreview()
+  if (unmounted) return
+  const receiver: LiveReceiver | null = live
+    ? createLiveReceiver({ self: window, campusKeys: result.campusKeys, onDraft: (next) => void showLiveDraft(next, receiver!) })
+    : null
   if (!result.authorized || !result.render) {
     status.value = 'denied'
+    receiver?.denied()
     return
   }
   render.value = result.render
   status.value = 'ready'
+  if (!receiver) return
+  // 拿到授權、畫好之後才開始收訊息。
+  const onMessage = (event: MessageEvent) => receiver.handle(event)
+  window.addEventListener('message', onMessage)
+  document.addEventListener('click', stayOnPreview, true)
+  stopLive = () => {
+    window.removeEventListener('message', onMessage)
+    document.removeEventListener('click', stayOnPreview, true)
+  }
+  await nextTick()
+  receiver.ready()
+})
+
+onBeforeUnmount(() => {
+  unmounted = true
+  stopLive?.()
 })
 </script>
 
@@ -202,5 +271,15 @@ onMounted(async () => {
   border: 1px solid var(--line);
   border-radius: 24px;
   background: var(--paper);
+}
+</style>
+
+<style>
+/* 即時預覽：後台改到的那一格（找得到文字時）或那一塊。黃框＋外圈深色，淺色與深色底都看得到；
+   顏色用預覽工具列同一組 token。 */
+.preview-live-hit {
+  outline: 3px solid var(--ivy-dev-bar-text);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 9px var(--ivy-dev-bar);
 }
 </style>
