@@ -152,6 +152,16 @@ export interface LiveComparison {
   changes: FieldChange[]
 }
 
+/**
+ * 動作列「草稿有 N 處修改」與段落目錄打點的比對基準（2026-10-06 方向 D）：
+ * live＝官網目前那一版（補過預設值，同發布確認框 compareWithLive 的基準）；
+ * first＝從沒發布過，不拿空白比；saved＝官網版還沒讀到或讀不到，退回和上次儲存比。
+ */
+export interface DraftBaseline {
+  source: 'live' | 'first' | 'saved'
+  payload: Record<string, unknown> | null
+}
+
 /** silent：由「儲存並發布／送審／排程」呼叫，只顯示最後結果那一則 toast */
 export interface SaveOptions {
   silent?: boolean
@@ -203,6 +213,12 @@ export interface ContentEditorState {
   latestRevisionAt: ComputedRef<string | null>
   /** 未儲存的修改與上次儲存相比動了哪些欄位；讀不到官網版時發布確認框改列這個 */
   changes?: ComputedRef<FieldChange[]>
+  /** 動作列與段落目錄的比對基準（見 DraftBaseline） */
+  draftBaseline?: ComputedRef<DraftBaseline>
+  /** 表單和 draftBaseline 相比不同的欄位（diffPayload，同發布確認框）；first 時是空陣列 */
+  draftChanges?: ComputedRef<FieldChange[]>
+  /** 分校內容的校區（共用內容是 null）；右側預覽換校時重建 */
+  campusKey?: ComputedRef<string | null>
   /** 要上線的內容（表單）和官網目前的版本相比；讀不到官網版回 null。開確認框前才呼叫 */
   compareWithLive?: () => Promise<LiveComparison | null>
   /** 確認框標題用的內容名稱，分校內容帶校名，例如「各校常見問題（明華）」 */
@@ -703,27 +719,78 @@ export function useContentItem<TPayload extends object>(
     return payload
   }
 
-  // 發布、核准前才讀官網版（不在載入時多打一次 API）。舊版內容缺少後來新增的
+  // 官網那一版的內容：官網就是最新一版時直接用，否則讀一次，讀到的記在 livePayloads。
+  // 讀不到或不是物件時回 null；網路錯誤照丟，由呼叫端決定退路。
+  async function livePayloadOf(current: ContentItemOut): Promise<Record<string, unknown> | null> {
+    const liveId = current.current_published_revision_id
+    if (!liveId) return null
+    let payload: unknown = livePayloads.get(liveId)
+    if (payload === undefined) {
+      payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await readLiveRevision(liveId)
+      if (!isPlainObject(payload)) return null
+      livePayloads.set(liveId, payload)
+    }
+    return isPlainObject(payload) ? payload : null
+  }
+
+  // 發布、核准前和官網那一版比（載入時已經讀過，通常直接用快取）。舊版內容缺少後來新增的
   // 欄位，要先經過 withDefaults／normalize 才跟表單比，否則會多出「（空白）→
   // （空白）」這類假差異。
   async function compareWithLive(): Promise<LiveComparison | null> {
     const current = item.value
     if (!current) return null
-    const liveId = current.current_published_revision_id
-    if (!liveId) return { firstPublish: true, changes: [] }
+    if (!current.current_published_revision_id) return { firstPublish: true, changes: [] }
     try {
-      let payload: unknown = livePayloads.get(liveId)
-      if (payload === undefined) {
-        payload = liveId === current.latest_revision?.id ? current.latest_revision.payload : await readLiveRevision(liveId)
-        if (!isPlainObject(payload)) return null
-        livePayloads.set(liveId, payload)
-      }
+      const payload = await livePayloadOf(current)
+      if (!payload) return null
       const live = withDefaults(payload) as Record<string, unknown>
       return { firstPublish: false, changes: diffPayload(live, form.value as Record<string, unknown>, kind) }
     } catch {
       return null
     }
   }
+
+  // 動作列與段落目錄要一直知道「和官網差在哪」（2026-10-06 方向 D，取代 09-28「開確認框前才讀官網版」）：
+  // 載入、存檔後官網那一版換了才讀（同一版記在 livePayloads 不重讀）。liveBase 記著是哪一版的內容，
+  // 換校或重新載入後只採用最後一次的結果，且 draftBaseline 只認和目前官網版 id 對得上的那份。
+  const liveBase = ref<{ id: string; payload: Record<string, unknown> } | null>(null)
+  const liveRequests = useRequestSequence()
+
+  async function refreshLiveBase(): Promise<void> {
+    const request = liveRequests.begin()
+    const current = item.value
+    const liveId = current?.current_published_revision_id
+    if (!current || !liveId) {
+      liveBase.value = null
+      return
+    }
+    try {
+      const payload = await livePayloadOf(current)
+      if (!liveRequests.isCurrent(request)) return
+      liveBase.value = payload ? { id: liveId, payload: withDefaults(payload) as Record<string, unknown> } : null
+    } catch {
+      /* 讀不到官網版：draftBaseline 退回和上次儲存比 */
+      if (liveRequests.isCurrent(request)) liveBase.value = null
+    }
+  }
+
+  // 只看官網版 id 與最新版 id：換校後重新載入一定換 item，不必等校區 ref 變動就拿舊校的 id 去讀新校。
+  watch(
+    () => `${item.value?.current_published_revision_id ?? ''}|${item.value?.latest_revision?.id ?? ''}`,
+    () => void refreshLiveBase(),
+  )
+
+  const draftBaseline = computed<DraftBaseline>(() => {
+    const liveId = item.value?.current_published_revision_id
+    if (item.value && !liveId) return { source: 'first', payload: null }
+    if (liveId && liveBase.value?.id === liveId) return { source: 'live', payload: liveBase.value.payload }
+    return { source: 'saved', payload: snapshot.value ? (JSON.parse(snapshot.value) as Record<string, unknown>) : null }
+  })
+  const draftChanges = computed<FieldChange[]>(() => {
+    const base = draftBaseline.value.payload
+    return base ? diffPayload(base, form.value as Record<string, unknown>, kind) : []
+  })
+  const campusKeyRef = computed(() => unref(campusKey) || null)
 
   function reset() {
     if (!snapshot.value) return
@@ -794,6 +861,9 @@ export function useContentItem<TPayload extends object>(
     isPublished,
     isDirty,
     changes,
+    draftBaseline,
+    draftChanges,
+    campusKey: campusKeyRef,
     compareWithLive,
     contextLabel,
     approver,

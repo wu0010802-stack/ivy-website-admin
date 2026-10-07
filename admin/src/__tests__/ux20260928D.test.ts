@@ -155,12 +155,12 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     const confirm = confirmYes()
     const { wrapper } = mountPage(global)
     await flushPromises()
-    // 載入時不多讀官網版，開確認框前才讀。
-    expect(get.mock.calls.some(([path]) => String(path).includes('/revisions/r1'))).toBe(false)
+    // 2026-10-06 方向 D：載入時就讀官網版（動作列要列出和官網不同的欄位），開確認框不再重讀。
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
 
     await button(wrapper, '發布到官網').trigger('click')
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
+    expect(get.mock.calls.filter(([path]) => String(path).includes('/revisions/r1'))).toHaveLength(1)
     const [message, title] = confirm.mock.calls[0]!
     expect(title).toBe('發布「各校常見問題（義華）」到官網？')
     const text = messageText(message)
