@@ -219,12 +219,13 @@ describe('明細的欄位與手機撥號', () => {
     expect(manual.wrapper.text()).toContain('方便接電話時段平日上午')
   })
 
-  it('頁首有撥電話按鈕（手機版面才顯示），資料表的電話也能撥', async () => {
+  it('頁首有撥號按鈕（桌機也有），資料表的電話也能撥', async () => {
     mockApi(request())
     const { wrapper } = await mountDetail()
     const call = wrapper.find('a.detail__call')
     expect(call.attributes('href')).toBe('tel:0912345678')
-    expect(call.text()).toContain('撥電話給家長')
+    expect(call.text()).toBe('撥號')
+    expect(call.attributes('aria-label')).toContain('0912345678')
     expect(wrapper.find('.detail__desc a.detail__link[href="tel:0912345678"]').exists()).toBe(true)
   })
 

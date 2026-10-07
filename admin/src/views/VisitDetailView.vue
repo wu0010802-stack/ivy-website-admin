@@ -2,25 +2,24 @@
 import { computed, nextTick, ref, toRefs, watch } from 'vue'
 import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowRight, Phone } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
-import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatSlotWhen, partySizeLabel, referralSourceLabels, staffEmail, staffEmailById, staffLabel, staffLabelById, staffOf, visitSourceLabel } from '../api/labels'
+import { ageLabel, campusLabel, consentRecordLabel, contactTimeLabel, formatDateTime, formatSlotWhen, partySizeLabel, referralSourceLabels, staffEmail, staffLabel, staffOf } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useCampusScope } from '../composables/useCampusScope'
 import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
 import { ARRIVAL_FORM_CANCEL_TEXT } from '../composables/useArrivalAdmissionsForm'
-import StatusTag from '../components/StatusTag.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import ParentAccessLinkPanel from '../components/ParentAccessLinkPanel.vue'
 import VisitHistoryTimeline from '../components/VisitHistoryTimeline.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
-import { stageMeta } from '../admissions/constants'
-import { arrivedLabel, detailOrigin } from '../admissions/family'
+import { detailOrigin } from '../admissions/family'
 import FamilyAdmissionsData from '../components/visit/FamilyAdmissionsData.vue'
 import FamilyActions from '../components/visit/FamilyActions.vue'
 import FamilyContactNotes from '../components/visit/FamilyContactNotes.vue'
+import VisitCaseHero from '../components/visit/VisitCaseHero.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -41,8 +40,8 @@ const {
   detail, notes, newNote, followUpAt, rescheduleSlotId, rescheduleReason, manualRescheduleOpen, pendingAction, busy,
   bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, canHandle, canManage, staff, canReadAdmissions, canCreateAdmissions,
   admissionsVisit, admissionsAvailable, creatingAdmissions, lookupFailed, extrasFailed, familyEvents, familyOptions, familyStaff,
-  familyVisit, familyPending, handled, noteDirty, rescheduleSlots, visitStarted, attendanceDue, statusDisplay, confirmedAtShown,
-  followUpTracked, followUpDue, followUpPast, linkApplicable, familyNoteList, latestFamilyContact, callPhone,
+  familyVisit, familyPending, noteDirty, rescheduleSlots, visitStarted, attendanceDue, confirmedAtShown,
+  followUpTracked, followUpPast, linkApplicable, familyNoteList, latestFamilyContact,
   bookingDataTitle, loading, error, emailEnabled,
 } = toRefs(vc)
 const { cancel, markNoShow, markCompleted, reschedule, decideReschedule, addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText, refreshDetail } = vc
@@ -255,36 +254,7 @@ watch(id, () => {
     <el-skeleton v-else-if="loading" animated :rows="6" />
 
     <template v-else-if="detail">
-      <div class="detail__head">
-        <div>
-          <h2 class="detail__title">{{ detail.parent_name }}</h2>
-          <p class="hint">
-            {{ campusLabel(detail.campus_key) }}・{{ formatDateTime(detail.created_at) }}
-            {{ detail.source && detail.source !== 'web' ? `${visitSourceLabel(detail.source)}補登` : '官網送出' }}<template v-if="detail.created_by">（<span :title="staffEmailById(detail.created_by, staff) || undefined">{{ staffLabelById(detail.created_by, staff) }}</span> 登錄）</template>
-          </p>
-          <p v-if="handled" class="hint detail__handled">最後處理：{{ handled.who }}・{{ formatDateTime(handled.at) }}・{{ handled.what }}</p>
-          <p v-if="detail.related_request_id" class="hint">
-            重新預約自 <router-link :to="`/visit-requests/${detail.related_request_id}`">先前的案件</router-link>
-          </p>
-          <p v-if="detail.slot" class="detail__when">參觀時間 {{ formatSlotWhen(detail.slot) }}</p>
-          <p v-if="detail.follow_up_at && followUpTracked" class="detail__follow" :class="{ 'is-due': followUpDue }">
-            {{ followUpDue ? '已到預定聯絡時間' : '預定聯絡' }} {{ formatDateTime(detail.follow_up_at) }}
-          </p>
-        </div>
-        <div v-if="familyPending" class="detail__status-pending" aria-hidden="true" />
-        <div v-else-if="familyVisit" class="detail__status">
-          <StatusTag :meta="stageMeta(familyVisit)" size="large" />
-          <span class="detail__status-sub num">{{ arrivedLabel(familyVisit.visit_date) }}</span>
-        </div>
-        <div v-else-if="statusDisplay" class="detail__status">
-          <StatusTag :meta="statusDisplay" size="large" />
-          <span v-if="statusDisplay.sub" class="detail__status-sub" :data-tone="statusDisplay.tone">{{ statusDisplay.sub }}</span>
-        </div>
-      </div>
-      <!-- 手機處理面板排在最前面，電話會被擠到下面；打電話是處理案件的第一步，頁首直接給一顆撥號鈕。 -->
-      <el-button v-if="callPhone && !familyPending" tag="a" :href="`tel:${callPhone}`" type="primary" plain :icon="Phone" class="detail__call">
-        撥電話給家長 {{ callPhone }}
-      </el-button>
+      <VisitCaseHero />
 
       <div class="detail__grid">
         <div class="detail__main">
@@ -544,22 +514,6 @@ watch(id, () => {
   margin-right: -8px;
 }
 
-.detail__follow {
-  margin-top: 4px;
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-.detail__follow.is-due {
-  color: var(--brand-gold-ink);
-  font-weight: 600;
-}
-
-/* 桌機的電話在資料表第一列、旁邊就是滑鼠；撥號鈕只在手機版面出現。 */
-.detail__call {
-  display: none;
-}
-
 .notes__row {
   display: flex;
   flex-wrap: wrap;
@@ -629,25 +583,6 @@ watch(id, () => {
   margin-top: 8px;
   padding: 10px 24px 6px;
   border-top: 1px solid var(--line);
-}
-
-.detail__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.detail__title {
-  font-size: var(--text-3xl);
-}
-
-.detail__when {
-  margin-top: 6px;
-  font-size: var(--text-md);
-  font-weight: 500;
-  color: var(--el-color-primary);
 }
 
 .detail__grid {
@@ -730,23 +665,6 @@ watch(id, () => {
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--ink);
-}
-
-.detail__status {
-  display: grid;
-  justify-items: end;
-  gap: 4px;
-  flex: none;
-}
-
-.detail__status-sub {
-  font-size: var(--text-sm);
-  color: var(--ink-2);
-}
-
-.detail__status-sub[data-tone='warning'] {
-  color: var(--el-color-warning-dark-2);
-  font-weight: 600;
 }
 
 .reschedule-request {
@@ -851,13 +769,6 @@ watch(id, () => {
 
   .detail__notes {
     order: -1;
-  }
-
-  .detail__call {
-    display: inline-flex;
-    width: 100%;
-    min-height: 44px;
-    margin: -8px 0 16px;
   }
 
   /* 下一筆的件數比較長，窄螢幕允許換行，不擠出畫面。 */
