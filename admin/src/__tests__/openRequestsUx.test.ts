@@ -118,7 +118,7 @@ describe('案件列表接住總覽帶來的條件', () => {
     expect(listCall).not.toContain('status=')
     expect(wrapper.text()).not.toContain('確認期限')
     expect(wrapper.find('.hold').exists()).toBe(false)
-    expect(wrapper.find('.request-list').text()).not.toContain('方便時段')
+    expect(wrapper.find('.visit-list').text()).not.toContain('方便時段')
   })
 
   it('舊的 ?group=pending 與 ?status=new|contacting|pending_confirmation 落到全部，不帶 view 與 status 給後端', async () => {

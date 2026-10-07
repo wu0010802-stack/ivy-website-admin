@@ -42,7 +42,7 @@ const dialogInput = (label: string) => document.body.querySelector<HTMLInputElem
 
 async function mountList(options: { user?: UserOut; admissions?: boolean; records?: unknown } = {}) {
   const get = mockGet({
-    '/admin/visit-requests/group-counts': {},
+    '/admin/visit-requests/view-counts': {},
     '/admin/visit-requests': [booking()],
     '/admin/admissions/records': options.records ?? [created()],
   })
@@ -62,7 +62,7 @@ async function mountList(options: { user?: UserOut; admissions?: boolean; record
 }
 
 async function arriveInList(wrapper: Awaited<ReturnType<typeof mountList>>['wrapper']) {
-  await button(wrapper.get('.requests-table .attendance-actions'), '到了')!.trigger('click')
+  await button(wrapper.get('.visit-row .attendance-actions'), '到了')!.trigger('click')
   await flushPromises()
 }
 

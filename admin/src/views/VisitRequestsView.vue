@@ -6,8 +6,8 @@ import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
 import { api, BASE_URL } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import type { VisitRequestDetailOut } from '../api/types'
-import { campusLabel, contactTimeLabel, formatShortDateTime, formatShortSlotWhen, VISIT_SOURCE_LABELS, visitDisplay, visitSourceLabel } from '../api/labels'
-import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, listApiOrder, listApiParams, listStateQuery, parseListQuery, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
+import { campusLabel, VISIT_SOURCE_LABELS } from '../api/labels'
+import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, groupsByDay, listApiOrder, listApiParams, listStateQuery, parseListQuery, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
@@ -18,10 +18,12 @@ import {
   attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, markArrivedInOrder, submitAttendance, type AttendanceKind, type BatchFailure,
 } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
+import { groupVisitsByDay, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import RecordDialog from '../components/admissions/RecordDialog.vue'
+import VisitListRow from '../components/visit/VisitListRow.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -71,6 +73,19 @@ const listState = computed<ListState>(() => ({
   open: openOnly.value, source: sourceFilter.value, created: createdRange.value, due: dueOnly.value,
   attention: attentionOnly.value, order: order.value, page: page.value,
 }))
+
+// 時鐘每 30 秒更新：列上的接待狀態（進行中、還沒標記）、「到了／沒來」按鈕與日期分組都跟著它走。
+const clockNow = ref(Date.now())
+const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
+
+// 依參觀時間排序時，這一頁照台北日期切成今天、明天、本週、之後（時間已過等頁籤往回：今天、昨天、本週稍早、更早）；
+// 照送出時間排就是一條不分組的清單。
+const grouped = computed(() => groupsByDay(listState.value))
+const today = computed(() => taipeiDay(clockNow.value))
+const DAY_ONLY: ReadonlySet<DayBucket> = new Set(['today', 'tomorrow', 'yesterday'])
+const dayGroups = computed<DayGroup<VisitRequestDetailOut>[]>(() =>
+  grouped.value ? groupVisitsByDay(requests.value, today.value) : [{ key: 'flat', bucket: 'none', label: '', rows: requests.value }],
+)
 
 // ── 篩選與網址雙向同步 ──
 // 所有條件與頁數都寫進網址（router.replace，不堆歷史）：點進案件再返回、重新整理，
@@ -262,6 +277,8 @@ watch(search, () => {
   }, 300)
 })
 watch(page, queueLoad)
+// 開著過台北午夜：今天／明天換了，「接下來」的內容也換了，重讀一次（同總覽的換日重讀）。
+watch(today, () => { void load({ quiet: true }) })
 watch(() => route.query, query => {
   // 點進案件時網址先換成明細頁，這裡不跟著清掉條件。
   if (route.path !== LIST_PATH) return
@@ -287,28 +304,18 @@ onBeforeUnmount(() => {
   window.removeEventListener('focus', refreshIfStale)
 })
 
-// 送出時間、預定聯絡與參觀時間：今年的省略年份（labels.ts formatShortDateTime／
-// formatShortSlotWhen），表格欄位才放得下；跨年的照寫年份。
-
-// 補登（電話、LINE、現場）才標來源；官網表單是預設，不佔字。
-const manualSource = (row: VisitRequestDetailOut): string => (row.source && row.source !== 'web' ? `${visitSourceLabel(row.source)}補登` : '')
-
-function followUpDue(row: VisitRequestDetailOut): boolean {
-  if (!row.follow_up_at) return false
-  if (row.status === 'cancelled' || row.status === 'completed') return false
-  return new Date(row.follow_up_at).getTime() <= Date.now()
-}
-
 // ── 列表上直接標記到場（2026-10-05 第九輪）──
 // 參觀當天幾組家長陸續到，不必一筆筆點進明細。時鐘每 30 秒更新，場次一開始按鈕就出現（同明細）。
 const authStore = useAuthStore()
-const clockNow = ref(Date.now())
-const clock = window.setInterval(() => { clockNow.value = Date.now() }, 30_000)
 const attendanceBusy = ref<string | null>(null)
 const showAttendance = (row: VisitRequestDetailOut) => canHandle.value && attendanceDue(row, clockNow.value)
 // 標記已到場後接著打開招生資料表單（2026-10-06）：表單上方寫出已到場，所以不另跳成功訊息。
 const arrival = useArrivalAdmissionsForm()
 const { open: arrivalOpen, record: arrivalRecord, options: arrivalOptions, lead: arrivalLead } = arrival
+// 已到場的列「填招生資料」（2026-10-06 R18）：同一份表單，不是剛標記到場，所以不寫「已標記…已到場」、取消鈕維持「取消」。
+const canFillAdmissions = computed(() => arrival.opensForm.value)
+// 剛標記到場才有說明，取消鈕寫「之後再填」；從「填招生資料」打開的維持「取消」（同明細的 VisitCaseDialogs）。
+const arrivalCancelText = computed(() => (arrivalLead.value ? ARRIVAL_FORM_CANCEL_TEXT : undefined))
 
 async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) {
   // 招生入學開著時，標記已到場會同時建立招生訪視（後端看部署開關，不看個人權限）。
@@ -340,9 +347,11 @@ const batchFailures = ref<BatchFailure[]>([])
 const attendanceLocked = computed(() => Boolean(attendanceBusy.value) || batch.value !== null)
 const canSelect = (row: VisitRequestDetailOut) => !attendanceLocked.value && showAttendance(row)
 const isSelected = (row: VisitRequestDetailOut) => selected.value.some(item => item.id === row.id)
-// 桌機由表格的勾選欄回報；手機卡片自己管勾選。
-function onSelectionChange(rows: VisitRequestDetailOut[]) {
-  selected.value = rows
+const selectableRows = computed(() => requests.value.filter(canSelect))
+const allSelected = computed(() => selectableRows.value.length > 0 && selectableRows.value.every(isSelected))
+const someSelected = computed(() => selected.value.length > 0 && !allSelected.value)
+function selectAll(on: boolean) {
+  selected.value = on ? [...selectableRows.value] : []
 }
 function toggleSelected(row: VisitRequestDetailOut, on: boolean) {
   selected.value = on ? [...selected.value, row] : selected.value.filter(item => item.id !== row.id)
@@ -392,10 +401,8 @@ function detailTo(id: string) {
   return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
 }
 
-function openDetail(row: VisitRequestDetailOut, column?: { type?: string }) {
-  // 勾選欄的格子點歪了（沒點到方框）不算點進案件。
-  if (column?.type === 'selection') return
-  router.push(detailTo(row.id))
+function openDetail(row: VisitRequestDetailOut) {
+  void router.push(detailTo(row.id))
 }
 
 function onManualCreated(created: VisitRequestDetailOut) {
@@ -507,11 +514,12 @@ onMounted(() => {
       <el-button size="small" @click="load()">重新載入</el-button>
     </el-alert>
 
-    <div v-if="!error" class="panel" :aria-busy="loading">
-      <!-- 頁首已經是「參觀案件」，面板標題改寫目前看的是哪一組，不重複頁名。 -->
-      <div class="panel__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
+    <div v-if="!error" class="visit-list" :aria-busy="loading">
+      <!-- 頁首已經是「參觀案件」，這裡寫目前看的是哪個頁籤或子篩選，不重複頁名。 -->
+      <div class="visit-list__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
       <div v-if="batchMode && requests.length" class="requests-batch">
-        <el-button type="primary" :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
+        <el-checkbox :model-value="allSelected" :indeterminate="someSelected" :disabled="attendanceLocked || !selectableRows.length" @update:model-value="(on: string | number | boolean) => selectAll(Boolean(on))">全選這一頁</el-checkbox>
+        <el-button type="primary" plain :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
           {{ batch ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
         </el-button>
         <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
@@ -528,85 +536,38 @@ onMounted(() => {
           <li v-for="item in batchFailures" :key="item.id">{{ item.name }}：{{ item.reason }}</li>
         </ul>
       </el-alert>
-      <el-table
-        :data="requests"
-        v-loading="loading"
-        class="el-table--clickable requests-table"
-        :empty-text="loading ? '' : emptyText"
-        @row-click="openDetail"
-        @selection-change="onSelectionChange"
-      >
-        <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
-        <template #empty><div v-if="!loading" class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div></template>
-        <!-- 欄寬以 1280 寬桌機（表格約 960px）放得下為準：多校帳號固定欄合計 646px（2026-10-06 拿掉
-             承辦人欄 128px），家長欄最少 180px（2026-10-05 實測原本合計 992px、會橫捲 30px：狀態收 10）。
-             參觀時間今年的省略年份（約 180px）。狀態欄放得下「到了／沒來」兩顆小按鈕。 -->
-        <el-table-column v-if="batchMode" type="selection" width="44" :selectable="canSelect" />
-        <el-table-column label="狀態" width="140">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <span class="visit-state" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).label }}</span>
-            <span v-if="visitDisplay(row).sub" class="cell-sub visit-state__sub" :data-tone="visitDisplay(row).tone">{{ visitDisplay(row).sub }}</span>
-            <span v-if="showAttendance(row)" class="attendance-actions" role="group" :aria-label="`${row.parent_name} 到了嗎？`" @click.stop>
-              <el-button size="small" type="primary" plain :loading="attendanceBusy === row.id" :disabled="attendanceLocked" :aria-label="`標記 ${row.parent_name} 已到場`" @click="markAttendance(row, 'complete')">到了</el-button>
-              <el-button size="small" :disabled="attendanceLocked" :aria-label="`標記 ${row.parent_name} 未到場`" @click="markAttendance(row, 'no_show')">沒來</el-button>
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="multiCampus" label="校區" width="68">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">{{ campusLabel(row.campus_key) }}</template>
-        </el-table-column>
-        <!-- 方便接電話時段併成家長欄的灰字副行（明細與手機卡片也有），不另佔一欄。 -->
-        <el-table-column label="家長／孩子" min-width="180">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <router-link :to="detailTo(row.id)" @click.stop>{{ row.parent_name }}</router-link>
-            <span class="muted cell-sub">{{ row.child_name || '孩子姓名未填寫' }}<span v-if="manualSource(row)" class="source"> · {{ manualSource(row) }}</span></span>
-            <span v-if="row.follow_up_at" class="cell-sub cell-sub--line num" :class="{ 'is-due': followUpDue(row) }">{{ followUpDue(row) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(row.follow_up_at) }}</span>
-            <span v-if="row.preferred_time" class="muted cell-sub">方便接電話時段：{{ contactTimeLabel(row.preferred_time) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="參觀時間" width="210">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <span v-if="row.slot" class="num">{{ formatShortSlotWhen(row.slot) }}</span>
-            <span v-else class="muted">尚未排定</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="電話" width="116">
-          <template #default="{ row }: { row: VisitRequestDetailOut }"><a class="num" :href="`tel:${row.phone}`" @click.stop>{{ row.phone }}</a></template>
-        </el-table-column>
-        <el-table-column label="送出時間" width="112">
-          <template #default="{ row }: { row: VisitRequestDetailOut }">
-            <span class="num date-cell">{{ formatShortDateTime(row.created_at) }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <div class="requests-mobile">
-        <el-skeleton v-if="loading" animated :rows="4" class="panel__body" />
-        <ul v-else-if="requests.length" class="request-list">
-          <li v-for="request in requests" :key="request.id">
-            <div class="request-list__head">
-              <label v-if="batchMode && showAttendance(request)" class="request-list__check">
-                <input type="checkbox" :checked="isSelected(request)" :disabled="attendanceLocked" :aria-label="`勾選 ${request.parent_name}`" @change="toggleSelected(request, ($event.target as HTMLInputElement).checked)" />
-              </label>
-              <router-link :to="detailTo(request.id)">{{ request.parent_name }}<span aria-hidden="true"> →</span></router-link><span class="visit-state" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).label }}</span>
-            </div>
-            <p v-if="visitDisplay(request).sub" class="hint visit-state__sub" :data-tone="visitDisplay(request).tone">{{ visitDisplay(request).sub }}</p>
-            <div v-if="showAttendance(request)" class="attendance-actions attendance-actions--card" role="group" :aria-label="`${request.parent_name} 到了嗎？`">
-              <el-button type="primary" plain :loading="attendanceBusy === request.id" :disabled="attendanceLocked" :aria-label="`標記 ${request.parent_name} 已到場`" @click="markAttendance(request, 'complete')">到了</el-button>
-              <el-button :disabled="attendanceLocked" :aria-label="`標記 ${request.parent_name} 未到場`" @click="markAttendance(request, 'no_show')">沒來</el-button>
-            </div>
-            <p v-if="request.slot" class="request-list__when">參觀時間 {{ formatShortSlotWhen(request.slot) }}</p>
-            <p v-if="request.follow_up_at" class="request-list__follow" :class="{ 'is-due': followUpDue(request) }">{{ followUpDue(request) ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(request.follow_up_at) }}</p>
-            <p><template v-if="multiCampus">{{ campusLabel(request.campus_key) }}校 · </template>{{ request.child_name || '孩子姓名未填寫' }}<template v-if="manualSource(request)"> · {{ manualSource(request) }}</template></p>
-            <div class="request-list__contact">
-              <a class="request-list__phone" :href="`tel:${request.phone}`">{{ request.phone }}</a>
-              <span v-if="request.preferred_time" class="request-list__time">方便接電話時段：{{ contactTimeLabel(request.preferred_time) }}</span>
-            </div>
-            <span class="hint">{{ formatShortDateTime(request.created_at) }} 送出</span>
-          </li>
-        </ul>
-        <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後，可在這裡聯絡並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
-      </div>
+      <el-skeleton v-if="loading" animated :rows="4" class="visit-list__skeleton" />
+      <template v-else-if="requests.length">
+        <section v-for="group in dayGroups" :key="group.key" class="visit-day" :class="{ 'visit-day--today': group.bucket === 'today' }">
+          <h3 v-if="group.label" class="visit-day__title">{{ group.label }}<span class="visit-day__count">{{ group.rows.length }} 組</span></h3>
+          <ul class="visit-rows">
+            <VisitListRow
+              v-for="row in group.rows"
+              :key="row.id"
+              :row="row"
+              :now="clockNow"
+              :to="detailTo(row.id)"
+              :day-only="DAY_ONLY.has(group.bucket)"
+              :show-created="!grouped"
+              :multi-campus="multiCampus"
+              :selected="false"
+              :previewable="false"
+              :can-handle="canHandle"
+              :can-fill-admissions="canFillAdmissions"
+              :batch="batchMode"
+              :checked="isSelected(row)"
+              :busy="attendanceBusy === row.id"
+              :locked="attendanceLocked"
+              @activate="openDetail(row)"
+              @attendance="(kind: AttendanceKind) => markAttendance(row, kind)"
+              @fill="arrival.openFor(row, { justArrived: false })"
+              @toggle="(on: boolean) => toggleSelected(row, on)"
+            />
+          </ul>
+        </section>
+      </template>
+      <!-- 翻到最後一頁之後（page > 1）是到底了，不是篩不到：引導回上一頁，不叫人清除篩選。 -->
+      <div v-else class="requests-empty"><strong>{{ emptyText }}</strong><p>{{ emptyHint('家長送出需求後會顯示在這裡，可查看聯絡資訊並安排參觀。') }}</p><el-button v-if="page > 1" @click="page -= 1">回上一頁</el-button><el-button v-else-if="hasFilters" @click="clearFilters">清除篩選</el-button></div>
 
       <div class="pager" v-if="page > 1 || hasNext">
         <el-button size="small" :disabled="page <= 1 || loading" @click="page -= 1">上一頁</el-button>
@@ -624,27 +585,19 @@ onMounted(() => {
     />
     <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
     <RecordDialog
-      v-if="canHandle"
+      v-if="canFillAdmissions"
       v-model="arrivalOpen"
       mode="edit"
       :campus-key="arrivalRecord?.campus_key ?? ''"
       :record="arrivalRecord"
       :options="arrivalOptions"
       :lead="arrivalLead"
-      :cancel-text="ARRIVAL_FORM_CANCEL_TEXT"
+      :cancel-text="arrivalCancelText"
     />
   </div>
 </template>
 
 <style scoped>
-.visit-state { font-weight: 600; }
-.visit-state[data-tone='success'] { color: var(--status-live-ink); }
-.visit-state[data-tone='danger'] { color: var(--el-color-danger); }
-.visit-state[data-tone='warning'] { color: var(--el-color-warning-dark-2); }
-.visit-state[data-tone='info'] { color: var(--ink-3); }
-.visit-state__sub { display: block; }
-/* 尚未確認到場是接待要處理的事：副行跟著暖黃、加粗，和已到場、未到場的灰字分開。 */
-.visit-state__sub[data-tone='warning'] { color: var(--el-color-warning-dark-2); font-weight: 600; }
 .toolbar { align-items: flex-end; }
 /* 狀態頁籤的基本樣式在 style.css（站內通知共用）。分頁數字只是件數，一律中性灰，選中時照共用樣式。 */
 .status-tab.is-active .status-tab__count { background: var(--surface); color: var(--admin-accent-hover); }
@@ -661,15 +614,9 @@ onMounted(() => {
 .filter-chip:hover { border-color: var(--el-color-primary); }
 .filter-chip__x { font-size: var(--text-lg); line-height: 1; }
 .filter-chips__clear { display: none; }
-.attendance-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.attendance-actions .el-button + .el-button { margin-left: 0; }
-.attendance-actions--card { margin: 4px 0 10px; }
-.attendance-actions--card .el-button { flex: 1 1 0; min-height: 44px; }
-.requests-batch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
-.requests-batch__failures { margin: 12px 24px 0; width: auto; }
+.requests-batch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.requests-batch__failures { margin: 12px 0 0; width: auto; }
 .requests-batch__failure-list { margin: 4px 0 0; padding-left: 18px; }
-.request-list__check { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0 -8px 0 -12px; cursor: pointer; }
-.request-list__check input { width: 20px; height: 20px; accent-color: var(--el-color-primary); }
 .order-select { width: 150px; }
 .created-range :deep(.el-date-editor) { width: 260px; }
 /* 寬度跟著按鈕列走，不把整個動作區撐寬去擠左邊的說明文字。 */
@@ -680,42 +627,22 @@ onMounted(() => {
 .filter-due { align-self: center; padding-bottom: 6px; }
 /* 單校的唯讀校區標籤跟旁邊的下拉一樣高，底線對齊。 */
 .requests-filters :deep(.campus-single) { min-height: var(--control-h); }
-.cell-sub { display: block; font-size: var(--text-xs); line-height: 1.4; }
-/* 「到期待追蹤 09/27 15:00」在家長欄最窄時也是一行；跨年多了年份放不下時只在空白處換行，
-   不在日期中間折斷，也不截掉時間。 */
-.cell-sub--line { word-break: keep-all; }
-/* 跨年的送出時間在空白處換行（日期／時間各一行），不在數字中間斷開。 */
-.date-cell { word-break: keep-all; }
-.cell-sub.is-due, .request-list__follow.is-due { color: var(--brand-gold-ink); font-weight: 600; }
-.request-list__follow { font-size: var(--text-sm); }
-.source { color: var(--ink-2); }
-.requests-empty { padding: 32px 16px; text-align: center; color: var(--ink-2); }
+.requests-empty { text-align: center; color: var(--ink-2); }
 .requests-empty strong { font-size: var(--text-lg); color: var(--ink); }
 .requests-empty p { margin: 8px auto 16px; max-width: 50ch; }
-.requests-mobile { display: none; }
-.request-list { list-style: none; margin: 0; padding: 0; }
-.request-list li { padding: 20px 16px; }
-.request-list li + li { border-top: 1px solid var(--line); }
-.request-list__head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 4px; }
-.request-list__head a { display: inline-flex; align-items: center; min-height: 44px; margin-right: auto; font-size: var(--text-xl); font-weight: 600; }
-.request-list p { color: var(--ink-2); margin-bottom: 6px; overflow-wrap: anywhere; }
-.request-list__when { color: var(--el-color-primary); font-weight: 500; }
 .filter-field--search { flex: 1 1 240px; max-width: 320px; }
-.request-list > li > .hint { display: block; }
-.request-list__contact { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; margin-bottom: 2px; }
-.request-list__phone { display: inline-flex; min-height: 44px; align-items: center; text-decoration: underline; font-variant-numeric: tabular-nums; }
-.request-list__time { color: var(--ink-2); font-size: var(--text-base); }
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--line);
-}
+/* 行程清單（2026-10-06 方向 B）：依參觀日分組，每組一張白底圓角卡，列在 components/visit/VisitListRow.vue。 */
+.visit-list { container: visit-list / inline-size; }
+.visit-list__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.visit-list__head h2 { font-size: var(--text-lg); }
+.visit-day { margin-top: 16px; }
+.visit-day__title { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; font-size: var(--text-lg); font-weight: 700; }
+.visit-day--today .visit-day__title { color: var(--admin-accent-hover); }
+.visit-day__count { font-size: var(--text-sm); font-weight: 400; color: var(--ink-3); }
+.visit-rows { list-style: none; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.visit-list__skeleton, .requests-empty { margin-top: 12px; padding: 24px 16px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 16px; }
 @media (max-width: 720px) {
-  .requests-table { display: none; }
-  .requests-mobile { display: block; }
   .filter-field { flex: 1 1 130px; min-width: 0; font-size: var(--text-base); }
   /* 搜尋是手機上最常用的入口，給整行才放得下提示文字 */
   .filter-field--search { flex: 1 1 0; max-width: none; }
@@ -732,8 +659,7 @@ onMounted(() => {
   .requests-filters__more .el-select, .created-range :deep(.el-date-editor) { width: 100%; }
   .requests-filters__more .created-range { flex-basis: 100%; }
   .export-scope { text-align: left; }
-  .requests-batch { padding: 12px 16px; }
+  .requests-batch { padding: 12px; }
   .requests-batch__button { min-height: 44px; }
-  .requests-batch__failures { margin: 12px 16px 0; }
 }
 </style>

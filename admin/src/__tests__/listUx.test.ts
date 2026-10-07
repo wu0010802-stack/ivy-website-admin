@@ -77,7 +77,7 @@ describe('案件列表：排序與頁籤的說明文字', () => {
     const hint = async (path: string) => {
       const { wrapper } = await mountView(VisitRequestsView, path)
       await flushPromises()
-      return wrapper.get('.requests-mobile .requests-empty').text()
+      return wrapper.get('.requests-empty').text()
     }
     const inTab = await hint('/visit-requests?group=cancelled&q=zzz')
     expect(inTab).toContain('清除篩選查看「已取消」的全部案件')

@@ -199,13 +199,14 @@ describe('聯絡紀錄草稿', () => {
 })
 
 describe('列表載入中不閃出「沒有案件」', () => {
-  it('讀取中表格的空狀態文字是空的', async () => {
+  it('讀取中顯示骨架，不閃出空狀態', async () => {
     vi.spyOn(api, 'get').mockImplementation(() => new Promise(() => {}) as never)
     const r = makeRouter()
     await r.push('/visit-requests'); await r.isReady()
     const wrapper = mount(VisitRequestsView, { global: { plugins: [makePinia(), r, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
-    expect(wrapper.find('.el-table__empty-text').text()).toBe('')
+    expect(wrapper.find('.visit-list__skeleton').exists()).toBe(true)
+    expect(wrapper.find('.requests-empty').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('還沒有任何參觀需求')
   })
 })

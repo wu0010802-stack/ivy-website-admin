@@ -214,7 +214,7 @@ describe('案件列表：直接標記到場', () => {
 
   it('按「到了」先確認（寫出家長與場次），確定才送出，之後重讀列表', async () => {
     const { wrapper, get } = await mountList('/visit-requests', [listRow(), listRow({ id: 'r2', parent_name: '陳小姐', slot: future, slot_id: future.id, display_status: 'upcoming' })])
-    const groups = wrapper.findAll('.requests-table .attendance-actions')
+    const groups = wrapper.findAll('.visit-row .attendance-actions')
     expect(groups).toHaveLength(1)
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
@@ -232,7 +232,7 @@ describe('案件列表：直接標記到場', () => {
     const { wrapper } = await mountList('/visit-requests', [listRow()], { admissions: true })
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    const buttons = wrapper.get('.requests-table .attendance-actions').findAll('button')
+    const buttons = wrapper.get('.visit-row .attendance-actions').findAll('button')
     await buttons.find(b => b.text() === '到了')!.trigger('click')
     await flushPromises()
     expect(String(confirm.mock.calls[0]![0])).toContain('會同時建立一筆招生訪視')
@@ -246,7 +246,7 @@ describe('案件列表：直接標記到場', () => {
     const { wrapper } = await mountList('/visit-requests', [listRow()])
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel' as never)
     const post = vi.spyOn(api, 'post').mockRejectedValue(new ApiError(409, { code: 'INVALID_TRANSITION', message: '狀態不對' }))
-    const arrive = () => wrapper.get('.requests-table .attendance-actions').findAll('button').find(b => b.text() === '到了')!
+    const arrive = () => wrapper.get('.visit-row .attendance-actions').findAll('button').find(b => b.text() === '到了')!
     await arrive().trigger('click')
     await flushPromises()
     expect(post).not.toHaveBeenCalled()
@@ -301,9 +301,9 @@ describe('案件列表：篩選收合、已套用條件、分頁數字', () => {
     expect(source).not.toContain("data-group='pending'")
   })
 
-  it('面板標題寫目前看的是哪一組，不重複頁名', async () => {
+  it('清單標題寫目前看的是哪一組，不重複頁名', async () => {
     const { wrapper } = await mountList('/visit-requests?group=cancelled', [])
-    expect(wrapper.get('.panel__head h2').text()).toBe('已取消')
+    expect(wrapper.get('.visit-list__head h2').text()).toBe('已取消')
   })
 })
 

@@ -38,7 +38,7 @@ const rows = [row(), row({ id: 'r2', parent_name: '林爸爸' })]
 
 async function mountList(path: string, list: unknown[], options: { user?: UserOut; admissions?: boolean } = {}) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) =>
-    (url.startsWith('/admin/visit-requests/group-counts') ? {} : url.startsWith('/admin/visit-requests') ? list : []) as never)
+    (url.startsWith('/admin/visit-requests/view-counts') ? {} : url.startsWith('/admin/visit-requests') ? list : []) as never)
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = options.user ?? testUser('super_admin', { id: 'me', campus_keys: [] })
@@ -53,11 +53,10 @@ async function mountList(path: string, list: unknown[], options: { user?: UserOu
   return { wrapper, router, get }
 }
 
-const table = (wrapper: VueWrapper) => wrapper.findAllComponents({ name: 'ElTable' }).find(t => t.classes().includes('requests-table'))!
 const button = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').find(b => b.text() === text)
-// 勾選由 Element Plus 的表格處理；這裡直接送出它的 selection-change，測的是勾選之後的流程。
+// 批次列的「全選這一頁」：勾起這一頁每一個還沒標記到場的列。
 async function selectAll(wrapper: VueWrapper) {
-  table(wrapper).vm.$emit('selection-change', rows)
+  await wrapper.get('.requests-batch .el-checkbox input').setValue(true)
   await flushPromises()
 }
 
@@ -65,13 +64,11 @@ describe('案件列表：批次標記已到場', () => {
   it('只有「只看尚未確認到場」才有勾選欄與批次按鈕', async () => {
     const plain = (await mountList('/visit-requests?group=past', rows)).wrapper
     expect(plain.find('.requests-batch').exists()).toBe(false)
-    expect(plain.find('.requests-table .el-table__header .el-checkbox').exists()).toBe(false)
-    expect(plain.find('.request-list__check').exists()).toBe(false)
+    expect(plain.find('.visit-row__check').exists()).toBe(false)
 
     const { wrapper } = await mountList(ATTENDANCE, rows)
-    expect(wrapper.find('.requests-batch').exists()).toBe(true)
-    expect(wrapper.find('.requests-table .el-table__header .el-checkbox').exists()).toBe(true)
-    expect(wrapper.findAll('.request-list__check')).toHaveLength(2)
+    expect(wrapper.find('.requests-batch .el-checkbox').exists()).toBe(true)
+    expect(wrapper.findAll('.visit-row .visit-row__check .el-checkbox')).toHaveLength(2)
     expect(button(wrapper, '勾選後一次標記已到場')?.attributes('disabled')).toBeDefined()
   })
 
@@ -103,10 +100,11 @@ describe('案件列表：批次標記已到場', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('手機卡片自己勾選，按鈕跟著寫勾了幾位', async () => {
+  it('一列一列自己勾選，按鈕跟著寫勾了幾位；全選框變成半選', async () => {
     const { wrapper } = await mountList(ATTENDANCE, rows)
-    await wrapper.get('.request-list__check input[aria-label="勾選 林爸爸"]').setValue(true)
+    await wrapper.get('.visit-row__check .el-checkbox[aria-label="勾選 林爸爸"] input').setValue(true)
     expect(button(wrapper, '1 位標記已到場')).toBeDefined()
+    expect(wrapper.get('.requests-batch .el-checkbox__input').classes()).toContain('is-indeterminate')
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
     await button(wrapper, '1 位標記已到場')!.trigger('click')
@@ -114,20 +112,27 @@ describe('案件列表：批次標記已到場', () => {
     expect(post.mock.calls.map(call => call[0])).toEqual(['/admin/visit-requests/r2/complete'])
   })
 
-  it('點到勾選欄的格子不會打開案件', async () => {
+  it('點到勾選欄的格子不會打開案件；點家長名字才打開', async () => {
     const { wrapper, router } = await mountList(ATTENDANCE, rows)
-    table(wrapper).vm.$emit('row-click', rows[0], { type: 'selection' })
+    await wrapper.get('.visit-row__check').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/visit-requests')
-    table(wrapper).vm.$emit('row-click', rows[0], { type: 'default' })
+    await wrapper.get('a.visit-row__main').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/visit-requests/r1')
+  })
+
+  it('全選之後再按一次全選框，全部取消', async () => {
+    const { wrapper } = await mountList(ATTENDANCE, rows)
+    await selectAll(wrapper)
+    expect(button(wrapper, '2 位標記已到場')).toBeDefined()
+    await wrapper.get('.requests-batch .el-checkbox input').setValue(false)
+    expect(button(wrapper, '勾選後一次標記已到場')).toBeDefined()
   })
 
   it('唯讀帳號沒有勾選與批次按鈕', async () => {
     const { wrapper } = await mountList(ATTENDANCE, rows, { user: testUser('readonly', { campus_keys: ['yihua'] }) })
     expect(wrapper.find('.requests-batch').exists()).toBe(false)
-    expect(wrapper.find('.requests-table .el-table__header .el-checkbox').exists()).toBe(false)
-    expect(wrapper.find('.request-list__check').exists()).toBe(false)
+    expect(wrapper.find('.visit-row__check').exists()).toBe(false)
   })
 })
