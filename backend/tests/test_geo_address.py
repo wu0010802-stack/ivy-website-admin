@@ -70,6 +70,14 @@ CASES = [
     ("高雄市三民區", P("三民區")),
     # 多門牌：取寫著「號」的那個
     ("高雄市楠梓區大學東路115、117號", P("楠梓區", "大學東路", number=117)),
+    # 「號」之後的樓層不被當成之號（樓、F、f、數字都擋）
+    ("高雄市三民區義華路68號之1樓", YIHUA_68),
+    ("高雄市三民區義華路68號之12樓", YIHUA_68),
+    ("高雄市三民區義華路68號之3f", YIHUA_68),
+    # 破折號：U+2212 MINUS SIGN 也算
+    ("高雄市三民區義華路68−1號", YIHUA_68_1),
+    # 里名四個字（北美術館里）
+    ("高雄市鼓山區北美術館里美術東二路100號", P("鼓山區", "美術東二路", number=100)),
     # 解析不出高雄市的區
     ("義華路68號", NO_DISTRICT),
     ("高雄市", NO_DISTRICT),
@@ -85,6 +93,29 @@ def test_parse_address(raw, expected):
 @pytest.mark.parametrize("raw", [None, "", "   ", "　　"])
 def test_blank_address_is_none(raw):
     assert parse_address(raw) is None
+
+
+def test_malformed_chinese_numerals_are_none():
+    assert cn_to_int("二三十") is None
+    assert cn_to_int("十二三") is None
+
+
+def test_malformed_chinese_house_number_does_not_raise():
+    assert parse_address("高雄市三民區義華路二三十號").number is None
+
+
+def test_house_number_bounds():
+    assert parse_address("高雄市三民區義華路99999號").number == 99999
+    assert parse_address("高雄市三民區義華路100000號").number is None
+    assert parse_address("高雄市三民區義華路99999999999999號").number is None
+    absurd_sub = parse_address("高雄市三民區義華路68-999999號")
+    assert absurd_sub.number is None and absurd_sub.number_sub == 0
+
+
+def test_huge_digit_runs_do_not_raise():
+    assert parse_address("高雄市三民區義華路" + "1" * 5000 + "號").number is None
+    assert parse_address("高雄市三民區義華路" + "一" * 5000 + "號").number is None
+    assert parse_address("高雄市三民區義華路" + "9" * 5000 + "巷1號").number == 1
 
 
 def test_chinese_numbers():

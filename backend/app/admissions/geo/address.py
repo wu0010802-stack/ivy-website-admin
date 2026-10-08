@@ -31,14 +31,15 @@ class ParsedAddress:
 _CN_DIGITS = "〇一二三四五六七八九"
 _CN_VALUE = {char: value for value, char in enumerate(_CN_DIGITS)} | {"零": 0, "兩": 2}
 _ROAD = r"(?:大道|路|街)"
-_DASHES = re.compile(r"[‐‑‒–—―ー]")
+_DASHES = re.compile(r"[‐‑‒–—―ー−]")
+_MAX_NUMBER = 99999
 _POSTAL = re.compile(r"^[\[(]?\d{3}(?:\d{2,3})?[\])]?")
 _DISTRICT = re.compile(
     "^(" + "|".join(sorted([*DISTRICTS, *LEGACY_TOWNS], key=len, reverse=True)) + ")"
 )
-_VILLAGE = re.compile(r"^([一-鿿]{1,3}[里村])(\d+鄰)?(.*)$")
+_VILLAGE = re.compile(r"^([一-鿿]{1,4}[里村])(\d+鄰)?(.*)$")
 _STARTS_WITH_ROAD = re.compile(r"^[一-鿿]{2,}?" + _ROAD)
-_NUMBER = re.compile(r"臨?(\d+|[〇一二三四五六七八九十]+)(?:[-之](\d+))?號(?:之(\d+)(?![樓F\d]))?")
+_NUMBER = re.compile(r"臨?(\d+|[〇一二三四五六七八九十]+)(?:[-之](\d+))?號(?:之(\d+)(?![樓Ff\d]))?")
 _BARE_NUMBER = re.compile(r"(\d+)(?:-(\d+))?$")
 _ROAD_ORDINAL = re.compile(r"(?<=[一-鿿])(\d{1,2})(?=" + _ROAD + ")")
 _SECTION_DIGITS = re.compile("(" + _ROAD + r")(\d{1,2})段")
@@ -60,9 +61,10 @@ def cn_to_int(text: str) -> int | None:
     if not text or any(char not in _CN_VALUE and char != "十" for char in text):
         return None
     if "十" not in text:
-        return int("".join(str(_CN_VALUE[char]) for char in text))
+        digits = "".join(str(_CN_VALUE[char]) for char in text)
+        return int(digits) if len(digits) <= 18 else None
     tens, _, ones = text.partition("十")
-    if "十" in ones:
+    if len(tens) > 1 or len(ones) > 1 or "十" in ones:
         return None
     return (_CN_VALUE[tens] if tens else 1) * 10 + (_CN_VALUE[ones] if ones else 0)
 
@@ -78,13 +80,23 @@ def normalize_text(raw: str) -> str:
 def unit_token(token: str) -> str:
     """巷、弄的編號：阿拉伯或純中文數字 → 不帶前導零的數字字串；具名巷照原字。"""
     if token.isdigit():
-        return str(int(token))
+        return token.lstrip("0") or "0"
     value = cn_to_int(token)
     return str(value) if value is not None else token
 
 
 def _number_value(token: str) -> int | None:
+    if len(token) > 5:
+        return None
     return int(token) if token.isdigit() else cn_to_int(token)
+
+
+def _bounded(token: str | None) -> int | None:
+    """門牌號或之號：超過 99999 或無法解析都回 None（欄位是 int4，不能讓超大值進來）。"""
+    if not token:
+        return None
+    value = _number_value(token)
+    return value if value is not None and value <= _MAX_NUMBER else None
 
 
 def parse_address(raw: str | None) -> ParsedAddress | None:
@@ -120,14 +132,19 @@ def parse_address(raw: str | None) -> ParsedAddress | None:
     head = text
     found = _NUMBER.search(text)
     if found:
-        number = _number_value(found.group(1))
-        number_sub = int(found.group(2) or found.group(3) or 0)
+        number = _bounded(found.group(1))
+        sub = found.group(2) or found.group(3)
+        number_sub = _bounded(sub) if sub else 0
+        if number is None or number_sub is None:
+            number, number_sub = None, 0
         head = text[: found.start()]
     else:
         bare = _BARE_NUMBER.search(text)
         if bare and re.search(_ROAD + r"$|巷$|弄$", text[: bare.start()]):
-            number = int(bare.group(1))
-            number_sub = int(bare.group(2) or 0)
+            number = _bounded(bare.group(1))
+            number_sub = _bounded(bare.group(2)) if bare.group(2) else 0
+            if number is None or number_sub is None:
+                number, number_sub = None, 0
             head = text[: bare.start()]
 
     head = _ROAD_ORDINAL.sub(lambda m: cn_number(int(m.group(1))), head)
