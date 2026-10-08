@@ -41,6 +41,22 @@
   --photo-caption-bg: oklch(0.2 0.02 150 / 0.7);
   --photo-caption-ink: oklch(0.98 0 0);
 
+  /* 招生區域分析的地圖（2026-10-08）：里界依參觀人數分 5 級，用操作色由淺到深，0 筆不上色；
+     幼兒園四種類型與本機構只在地圖與圖例用，避開狀態色（綠＝已上線、暖黃＝草稿）。 */
+  --area-level-1: color-mix(in oklch, var(--admin-accent), var(--surface) 82%);
+  --area-level-2: color-mix(in oklch, var(--admin-accent), var(--surface) 62%);
+  --area-level-3: color-mix(in oklch, var(--admin-accent), var(--surface) 40%);
+  --area-level-4: var(--admin-accent);
+  --area-level-5: var(--admin-accent-hover);
+  --area-boundary: var(--line-strong);
+  --area-radius: var(--ink-2);
+  --area-kind-public: oklch(0.5 0.14 300);
+  --area-kind-nonprofit: oklch(0.52 0.1 190);
+  --area-kind-quasi-public: oklch(0.62 0.15 55);
+  --area-kind-private: oklch(0.45 0.03 255);
+  --area-kind-own: var(--brand-gold);
+  --area-kind-own-ink: var(--brand-gold-ink);
+
   --side-w: 260px;
   --top-h: 64px;
   --control-h: 38px;

@@ -114,7 +114,7 @@ export const visit = (changes: Record<string, unknown> = {}) => ({
   no_deposit_reason: null, no_deposit_reason_detail: null, enrolled: false, enrolled_on: null, transfer_term: false,
   provisional_grade: null, target_school_year: 115, target_semester: 1, withdrawn_at: null, withdrawn_from: null,
   withdraw_reason: null, version: 1, created_at: '2026-09-08T02:00:00Z', updated_at: '2026-09-08T02:00:00Z',
-  stage: 'visited', has_visit_request: false, anonymized_at: null, ...changes,
+  stage: 'visited', has_visit_request: false, anonymized_at: null, geo: null, ...changes,
 })
 
 export const card = (changes: Record<string, unknown> = {}) => ({
@@ -131,4 +131,77 @@ export const board = (columns: Partial<Record<StageKey, unknown[]>> = {}, extra:
 export const options = () => ({
   months: ['115.09', '115.08'], sources: ['親友介紹', 'Facebook'], referrers: ['林老師'], tour_guides: ['Marvyna', '林老師'],
   source_categories: { sibling_current: '在校生弟妹（兄姊老師）', sibling_graduate: '畢業生弟妹', referral: '有緣名單（家長介紹／社區招生）' },
+})
+
+// ---- 區域分析（2026-10-08）----
+// 數字彼此對得上（主控裁定 R5 兩條不變式）：參觀 9＝有地址 7＋沒填 2＋匿名化 0；
+// 有地址 7＝到里 5（本揚 3、寶業 1、龍子 1）＋只到區 1（里有歧義）＋未定位 1（查無門牌）＋待比對 0。
+export const areaStats = (changes: Record<string, unknown> = {}) => ({
+  as_of: '2026-10-08T02:00:00Z',
+  filters: { campus_key: 'yihua', school_year: 115, semester: null },
+  data_status: {
+    doorplate_version: '115-10', doorplates_synced_at: '2026-10-06T18:00:00Z',
+    kindergartens_synced_at: '2026-10-07T18:30:00Z', boundary_version: '115-08-17',
+  },
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null },
+  totals: {
+    visit: 9, with_address: 7, village_level: 5, district_level: 1, unlocated: 1, pending: 0, no_address: 2, anonymized: 0,
+    unlocated_reasons: [{ reason: 'ambiguous_village', count: 1 }, { reason: 'no_doorplate', count: 1 }],
+  },
+  districts: [
+    { district: '三民區', visit: 5, deposit: 2, visit_to_deposit_rate: 40 },
+    { district: '鼓山區', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+  ],
+  villages: [
+    { district: '三民區', village: '本揚里', village_code: '64000050015', visit: 3, deposit: 1, visit_to_deposit_rate: 33.3 },
+    { district: '三民區', village: '寶業里', village_code: '64000050025', visit: 1, deposit: 1, visit_to_deposit_rate: 100 },
+    { district: '鼓山區', village: '龍子里', village_code: null, visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+  ],
+  distance_bands: [
+    { band: '0-1', visit: 4, deposit: 2, visit_to_deposit_rate: 50 },
+    { band: '1-3', visit: 0, deposit: 0, visit_to_deposit_rate: null },
+    { band: '3-6', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+    { band: '6+', visit: 0, deposit: 0, visit_to_deposit_rate: null },
+    { band: 'none', visit: 4, deposit: 0, visit_to_deposit_rate: 0 },
+  ],
+  ...changes,
+})
+
+// address 沒有郵遞區號前綴：parse_preschools 存進資料庫前就用 _POSTAL_PREFIX 去掉了「[807]」。
+export const kindergarten = (changes: Record<string, unknown> = {}) => ({
+  source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', pre_public_period: null, address: '義華路12號',
+  lat: 22.6431, lng: 120.3441, distance_m: 420, approved_capacity: 120, monthly_fee_estimate: 9800, has_penalty: false,
+  phone: '(07)3800000', is_own: false, ...changes,
+})
+
+export const areaKindergartens = (items: unknown[] = [
+  kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', distance_m: 0, approved_capacity: 210, monthly_fee_estimate: 15000, is_own: true }),
+  kindergarten({ source_id: 'kg-public', name: '高雄市立大樹幼兒園', kind: 'public', distance_m: 380, approved_capacity: 90, monthly_fee_estimate: 2500, phone: null }),
+  kindergarten({ source_id: 'kg-quasi', name: '高雄市私立小草幼兒園', kind: 'quasi_public', pre_public_period: '114-116', distance_m: 950, has_penalty: true }),
+  kindergarten({ source_id: 'kg-nonprofit', name: '高雄市三民區小芽非營利幼兒園', kind: 'nonprofit', distance_m: 1800, monthly_fee_estimate: null }),
+], changes: Record<string, unknown> = {}) => ({
+  synced_at: '2026-10-07T18:30:00Z',
+  source_note: '資料來源：全國教保資訊網（kiang 整理），月費為估計值',
+  campus: areaStats().campus,
+  radius_km: 3,
+  items,
+  ...changes,
+})
+
+// 里代碼取自後端打包的 kaohsiung-villages.geojson 的真值（本揚里 64000050015、寶業里 64000050025、
+// 鼎金里 64000050001、龍子里 64000020015）。龍子里在 areaStats().villages 的 village_code 刻意是 null，
+// 模擬「里表有這一里、里界檔對不到代碼」；地圖仍用 TOWNNAME＋VILLNAME 對。
+const villageFeature = (town: string, village: string, code: string) => ({
+  type: 'Feature',
+  properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code },
+  geometry: { type: 'Polygon', coordinates: [[[120.34, 22.64], [120.35, 22.64], [120.35, 22.65], [120.34, 22.64]]] },
+})
+export const villageBoundaries = () => ({
+  type: 'FeatureCollection',
+  features: [
+    villageFeature('三民區', '本揚里', '64000050015'),
+    villageFeature('三民區', '寶業里', '64000050025'),
+    villageFeature('三民區', '鼎金里', '64000050001'),
+    villageFeature('鼓山區', '龍子里', '64000020015'),
+  ],
 })
