@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>週年時間閘三態</title>
+<meta name="description" content="30 週年比稿 B：同一批現有頁面在 2026 今天、2027 週年期間（創校月日前與後）、2028 收回各長什麼樣。">
+<script>
+  // 依 ?v= 決定要畫哪一天；沒帶或帶錯就用建議路線的「週年期間」。?diff=1 打開差異標示，?frame=eyebrow 是 320px 實測用的精簡模式。
+  (function () {
+    var q = new URLSearchParams(location.search)
+    var v = q.get('v')
+    var ok = ['before', 'during', 'full', 'after']
+    var root = document.documentElement
+    root.dataset.v = ok.indexOf(v) > -1 ? v : 'during'
+    if (q.get('diff') === '1') root.dataset.diff = 'on'
+    if (q.get('frame') === 'eyebrow') root.dataset.frame = 'eyebrow'
+  })()
+</script>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="shared/site.css">
+<link rel="stylesheet" href="b-weave-facts.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要內容</a>
+<div data-chrome="head"></div>
+
+<main id="main" tabindex="-1">
+
+  <!-- ⓪ 說明帶：比稿說明與日期切換（這一段是說明，不是網站內容） -->
+  <section class="intro" aria-labelledby="page-title">
+    <div class="container intro-grid">
+      <div class="intro-copy">
+        <p class="intro-kicker">比稿 B · 就地事實與時間閘三態</p>
+        <h1 id="page-title"><span class="intro-title">週年，<br>就寫在原本的地方</span><span class="demo-note">示意</span></h1>
+        <p class="intro-lede">同一批現有頁面，在四個日期各長什麼樣。頁首沒有加任何週年記號；下面每個片段都依選到的日期重畫，片段旁的註記寫出來源（後台哪個欄位或哪個程式檔）和排程時間。</p>
+        <ul class="legend" aria-label="圖例">
+          <li><span class="lg-ph">虛線框</span>示意或改寫的字，不是定稿</li>
+          <li><span class="rw">改寫，待裁定</span>每句改寫過的句子都標</li>
+          <li><del class="lg-del">近</del>打開「顯示差異」才出現的刪除線</li>
+          <li><span class="lg-note">註記</span>米色欄是設計說明，不是網站內容</li>
+        </ul>
+      </div>
+      <div class="intro-ctrl">
+        <p class="ctrl-label" id="dates-label">選一個日期</p>
+        <nav class="dates" aria-labelledby="dates-label">
+          <a href="?v=before" data-date="before"><span class="d-label">今天</span><span class="d-date" lang="en">2026-09-28</span><span class="d-hint">現況</span></a>
+          <a href="?v=during" data-date="during"><span class="d-label">期間</span><span class="d-date" lang="en">2027-03-01</span><span class="d-hint">週年期間，建議預設</span></a>
+          <a href="?v=full" data-date="full"><span class="d-label">月日後</span><span class="d-date">2027-○○-○○</span><span class="d-hint">創校月日之後</span></a>
+          <a href="?v=after" data-date="after"><span class="d-label">收回</span><span class="d-date" lang="en">2028-01-02</span><span class="d-hint">只剩常設項</span></a>
+        </nav>
+        <button class="diff-toggle" type="button" aria-pressed="false">
+          <span class="diff-switch" aria-hidden="true"></span>
+          <span><b>顯示差異</b><small>把被拿掉的「近」標成刪除線，換過的字加底色</small></span>
+        </button>
+      </div>
+    </div>
+    <div class="container">
+      <p class="state-line">
+        <b class="state-date" data-only="before">2026-09-28 今天</b><span data-only="before">網站沒有週年字樣，只有開場布幕已經提早投出週年緞帶（要不要先遮掉，見 ⑥）。虛線框是第 0 層現在就能上的常設事實。</span>
+        <b class="state-date" data-only="during">2027-03-01 週年期間</b><span data-only="during">記號（30 週年、1997–2027）在 1/1 由後台排程和時間閘換上；創校月日未到或未知，句子仍寫「近三十年」。</span>
+        <b class="state-date" data-only="full">創校月日之後</b><span data-only="full">日期以「2027-○○-○○」示意。句子拿掉「近」，每句改寫都標「改寫，待裁定」；打開「顯示差異」可以看被拿掉的字。</span>
+        <b class="state-date" data-only="after">2028-01-02 收回</b><span data-only="after">週年記號在 1/1 自動消失或由後台換回，只剩常設項；首屏小標與內文的年數說法，待 2028 再裁定。</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- ① 首頁首屏 -->
+  <section class="tour" aria-labelledby="t1">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">1</span><h2 id="t1">首頁首屏</h2><span class="tour-route">網址 /</span></header>
+      <div class="snip snip-hero">
+        <img class="hero-img" src="../../web/public/assets/hero-campus-restored-v1-still.webp" width="1080" height="800" alt="穿黃色上衣的小女孩在戶外開心大笑、往前跑，後面是穿桃紅上衣的大人">
+        <div class="hero-copy">
+          <p class="hero-eyebrow eb-home">
+            <span data-only="before during">常春藤幼兒園 · 陪高雄孩子近三十年</span>
+            <span data-only="full after" class="ph chg">常春藤幼兒園 · 陪高雄孩子<del class="gone">近</del>三十年</span>
+          </p>
+          <p class="tags" data-only="full after"><span class="rw">改寫，待裁定</span><span class="rw" data-only="after">待 2028 再裁定</span></p>
+          <h3 class="hero-h">在常春藤，<br>每一天都有<span class="grow">新發現<svg viewBox="0 0 180 14" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M3 9Q48 2 92 7T177 6"/></svg></span>。</h3>
+          <p class="hero-sub">一起讀故事、做作品，也到戶外探索。</p>
+        </div>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>後台「首屏」<code>home_hero.eyebrow</code>。h1、副文和影片都不動。</dd></div>
+          <div><dt>排程</dt><dd>創校月日 00:00 由排程發布換成「…陪高雄孩子三十年」；2027-01-01 不動這一行。</dd></div>
+          <div><dt>這一天</dt>
+            <dd data-only="before">維持「近三十年」。正式站後台現在仍是「常春藤幼兒園 · 高雄五校」（deploy/README.md:545），第 0 層先發布這句。</dd>
+            <dd data-only="during">記號已在 1/1 換上，但小標是句子：創校月日未到（或園方給不出月日）就維持「近三十年」。</dd>
+            <dd data-only="full">拿掉「近」。只少一個字，320px 仍是一行（見下方實測）。</dd>
+            <dd data-only="after">2028 起寫「三十年」還是「三十多年」，待 2028 再裁定；排程不自動換回這一行。</dd>
+          </div>
+          <div><dt>規則</dt><dd>手機首屏唯一能放週年訊號的就是這一行；小標不放「30 週年」。</dd></div>
+        </dl>
+      </details>
+      <div class="check320">
+        <p class="check-title">320px 實測：首頁與分校小標是否一行</p>
+        <iframe class="check-frame" src="?v=during&amp;frame=eyebrow" title="320 像素寬的小標實測（本頁精簡模式）" width="320" height="232"></iframe>
+        <p class="check-self">這個視窗本身就不到 362px：上面的首屏片段和下方 ④ 的分校小標，就是這個寬度的實測結果。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 首頁「關於」 -->
+  <section class="tour" aria-labelledby="t2">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">2</span><h2 id="t2">首頁「關於」</h2><span class="tour-route">網址 /#about</span></header>
+      <div class="snip snip-belief">
+        <div class="belief-wm" aria-hidden="true">常春藤</div>
+        <div class="belief-grid">
+          <div class="belief-copy">
+            <p class="since">
+              <span lang="en" data-only="before after">SINCE 1997</span>
+              <span lang="en" data-only="during full" class="ph chg">1997–2027</span>
+            </p>
+            <h3 class="belief-h">把每個孩子，<br>放在心上。</h3>
+            <p class="belief-text">自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。<span data-only="before during">近三十年來</span><span data-only="full after" class="ph chg"><del class="gone">近</del>三十年來</span>，我們始終相信，幼兒園不只是上學的地方，更是孩子第一次離開家、認識世界的起點。</p>
+            <p class="tags" data-only="full after"><span class="rw">改寫，待裁定</span><span class="rw" data-only="after">待 2028 再裁定</span></p>
+          </div>
+          <figure class="belief-photo">
+            <img src="../../web/public/assets/about-together.webp" width="1204" height="803" alt="孩子們笑著圍在戴眼鏡的長輩身邊，大家開心地擠在一起">
+          </figure>
+        </div>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>後台「首頁關於」<code>home_about.since_label</code>、<code>home_about.body_text</code>。標題和照片不換。</dd></div>
+          <div><dt>排程</dt><dd>since：2027-01-01 00:00 改「1997–2027」，2028-01-01 00:00 換回「SINCE 1997」（2027-12-15 建）。內文：創校月日 00:00 改「三十年來」。</dd></div>
+          <div><dt>這一天</dt>
+            <dd data-only="before">現況：SINCE 1997、「近三十年來」。</dd>
+            <dd data-only="during">since 標籤是記號，1/1 就換；內文是句子，仍寫「近三十年來」。</dd>
+            <dd data-only="full">內文第二句拿掉「近」；since 標籤不再變。</dd>
+            <dd data-only="after">since 已由後台換回；內文要不要改成「三十多年來」，待 2028 再裁定。</dd>
+          </div>
+          <div><dt>寫法</dt><dd>年份一律 1997–2027（U+2013、不加空格），since 標籤也一樣。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ③ /about 01 一路走來 -->
+  <section class="tour" aria-labelledby="t3">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">3</span><h2 id="t3">關於常春藤 01</h2><span class="tour-route">網址 /about#story</span></header>
+      <div class="snip snip-story">
+        <div class="story-wm" aria-hidden="true">一路走來</div>
+        <p class="kicker"><span lang="en"><b>01</b>Our story</span></p>
+        <h3 class="story-h">
+          <span data-only="before during">近三十年，</span><span data-only="full after" class="ph chg"><del class="gone">近</del>三十年，</span><br>長出五所校園。
+        </h3>
+        <p class="tags" data-only="full after"><span class="rw">改寫，待裁定</span><span class="rw" data-only="after">待 2028 再裁定</span></p>
+        <ol class="tl">
+          <li><p class="tl-year"><span lang="en">1997</span><small>民國 86 年</small></p><h4>義華校</h4><p class="tl-text">第一間常春藤，在三民區義華路成立。</p></li>
+          <li><p class="tl-year"><span lang="en">2001</span><small>民國 90 年</small></p><h4>明華校</h4><p class="tl-text">走進左營區，有了第二所校園。</p></li>
+          <li><p class="tl-year"><span lang="en">2005</span><small>民國 94 年</small></p><h4>崇德校</h4><p class="tl-text">左營區的第二所校園。</p></li>
+          <li><p class="tl-year"><span lang="en">2020</span><small>民國 109 年</small></p><h4>國際校</h4><p class="tl-text">在鳥松區球場路成立。</p></li>
+          <li><p class="tl-year"><span lang="en">2021</span><small>民國 110 年</small></p><h4>仁武校</h4><p class="tl-text">第五所校園，在仁武區成立。</p></li>
+        </ol>
+        <div class="coda" data-only="during full">
+          <p class="coda-text"><span class="ph">2027，常春藤 30 週年。</span></p>
+          <div class="coda-side">
+            <a class="coda-link ph" href="#">讀一路走來的人和事<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right"/></svg></a>
+            <span class="gate-tag">系列有 ≥3 篇真文章才出現</span>
+          </div>
+        </div>
+        <p class="gate-ghost" data-only="before"><b>註記</b>時間軸後面的深綠結語列，2027-01-01 起才由時間閘渲染；今天不出現。</p>
+        <p class="gate-ghost" data-only="after"><b>註記</b>結語列 2028-01-01 起由時間閘自動收起；時間軸本身常設。</p>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>程式：<code>AboutContent.vue:67</code> 的 h2 和 <code>:46</code> 的導言改讀 <code>yearsPhrase()</code>；結語列由時間閘決定上下架。不進後台。</dd></div>
+          <div><dt>導言</dt><dd>同一規則也套在頁首導言：「1997 年，第一間常春藤在高雄義華路成立。<span data-only="before during">近三十年來</span><span data-only="full after" class="chg"><del class="gone">近</del>三十年來</span>，我們守著同一份教育理念與專業保育，陪孩子過一段獨一無二的童年。」<span class="rw" data-only="full after">改寫，待裁定</span></dd></div>
+          <div><dt>版面</dt><dd>時間軸維持五欄（DESIGN.md:83），不示範第 6 欄；這裡只畫年份、民國年和校名，不放校舍圖。</dd></div>
+          <div><dt>結語列</dt><dd>只在 2027 期間渲染。連結只在系列有 ≥3 篇真文章時出現，連結文字不含「週年」。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ④ 分校頁 -->
+  <section class="tour" aria-labelledby="t4">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">4</span><h2 id="t4">分校頁</h2><span class="tour-route">網址 /campuses/yihua、/campuses/renwu</span></header>
+      <div class="snip snip-campus">
+        <div class="c-heroes">
+          <div class="c-hero">
+            <img src="../../web/public/assets/yihua-exterior.webp" width="590" height="388" alt="白色城堡造型的校舍，有兩座尖塔，前面是草地和溜滑梯">
+            <div class="c-copy">
+              <p class="c-eyebrow eb-campus">
+                <span data-only="before">常春藤幼兒園 · 高雄三民區<span class="ph add"> · 1997 年成立</span></span>
+                <span data-only="during full" class="ph chg">常春藤 30 週年 · 高雄三民區 · 1997 年成立</span>
+                <span data-only="after" class="ph">常春藤幼兒園 · 高雄三民區 · 1997 年成立</span>
+              </p>
+              <h3 class="c-h1">義華校</h3>
+              <a class="c-btn" href="#">預約參觀義華校</a>
+            </div>
+          </div>
+          <div class="c-hero">
+            <img src="../../web/public/assets/tour-renwu-exterior.webp" width="2000" height="1250" alt="紅磚與白色線條的三層校舍圍著綠色操場，中間有圓頂">
+            <div class="c-copy">
+              <p class="c-eyebrow eb-campus">
+                <span data-only="before">常春藤幼兒園 · 高雄仁武區<span class="ph add"> · 2021 年成立</span></span>
+                <span data-only="during full after" class="ph">常春藤幼兒園 · 高雄仁武區 · 2021 年成立</span>
+              </p>
+              <h3 class="c-h1">仁武校</h3>
+              <a class="c-btn" href="#">預約參觀仁武校</a>
+            </div>
+          </div>
+        </div>
+        <div class="c-cards">
+          <div class="c-card">
+            <h4>來認識義華校</h4>
+            <dl>
+              <div class="found"><dt>創立</dt><dd><span class="ph">民國 86 年（1997）</span><span class="keep-tag">常設，不隨週年撤</span></dd></div>
+              <div><dt>所在地</dt><dd>三民區義華路68號</dd></div>
+              <div><dt>參觀專線</dt><dd><a href="#">07-392-8366</a></dd></div>
+              <div><dt>到園參觀</dt><dd>請事先聯絡園所確認接待時間。</dd></div>
+            </dl>
+          </div>
+          <div class="c-card">
+            <h4>來認識仁武校</h4>
+            <dl>
+              <div class="found"><dt>創立</dt><dd><span class="ph">民國 110 年（2021）</span><span class="keep-tag">常設，不隨週年撤</span></dd></div>
+              <div><dt>所在地</dt><dd>仁武區京吉一路102號</dd></div>
+              <div><dt>參觀專線</dt><dd><a href="#">07-375-7081</a></dd></div>
+              <div><dt>到園參觀</dt><dd>請事先聯絡園所確認接待時間。</dd></div>
+            </dl>
+          </div>
+          <div class="compare">
+            <p class="compare-title">分校年資寫法對照</p>
+            <ul>
+              <li class="yes"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg><span><span class="ph">本校 2021 年成立</span>（建議）</span></li>
+              <li class="no"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-x"/></svg><span><s class="ph">本校第 N 年</s>（不採用：起算未定，可能差一年）</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>程式：<code>CampusPageMain.vue:20</code> 的小標模板、<code>:40-44</code> 的聯絡卡；成立年份讀第 0 層的 <code>founding.ts</code>。</dd></div>
+          <div><dt>這一天</dt>
+            <dd data-only="before">今天的小標沒有年份；虛線部分是第 0 層要補的常設事實，2026 就能先上。</dd>
+            <dd data-only="during full">期間內只有義華小標前段換成「常春藤 30 週年」；其他四校維持「常春藤幼兒園 · 高雄{區} · YYYY 年成立」，並加測試擋「30」。</dd>
+            <dd data-only="after">義華小標前段 1/1 由時間閘換回「常春藤幼兒園」；「· YYYY 年成立」和「創立」列常設保留。</dd>
+          </div>
+          <div><dt>320px</dt><dd>手機小標和正式站一樣是 12px、字距 .1em（<code>styles.css</code> 的 <code>.hero .eyebrow</code>），加上「· YYYY 年成立」在 320px 仍是一行（見 ① 的實測）；「高雄{區}」不拿掉，也不必收掉前段。</dd></div>
+          <div><dt>寫法</dt><dd>建議「本校 2021 年成立」這種寫法；不寫「本校第 N 年」這種序數：起算方式沒定，可能差一年。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑤ 頁尾 -->
+  <section class="tour" aria-labelledby="t5">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">5</span><h2 id="t5">頁尾</h2><span class="tour-route">全站</span></header>
+      <div class="snip snip-foot">
+        <div class="site-foot">
+          <div class="foot-in">
+            <div class="site-foot-grid">
+              <div class="site-foot-brand"><b>常春藤教育機構</b><small lang="en">Ivy Educational Institution</small><p>陪伴每一個孩子，長成自己喜歡的樣子。</p></div>
+              <nav class="site-foot-links" aria-label="頁尾連結（片段）"><a href="#">關於常春藤</a><a href="#">五所校園</a><a href="#">孩子的一天</a><a href="#">預約參觀</a><a href="#">最新消息</a><a href="#">入學資訊</a><a href="#">常春藤環境</a><a href="#">特色教學</a></nav>
+              <div class="site-foot-campus"><b>我們的大家庭</b><span><span>義華校</span><span>三民區</span><span>07-392-8366</span></span><span><span>明華校</span><span>左營區</span><span>07-556-6796</span></span><span><span>崇德校</span><span>左營區</span><span>07-341-6286</span></span><span><span>國際校</span><span>鳥松區</span><span>07-370-8001</span></span><span><span>仁武校</span><span>仁武區</span><span>07-375-7081</span></span></div>
+            </div>
+            <p class="foot-omit"><b>註記</b>連結、標語和五校電話都不變，手機片段省略</p>
+            <div class="site-foot-base">
+              <span data-only="before">© 2026 常春藤教育機構</span>
+              <span data-only="during full" class="ph ph-dark chg">© 1997–2027 常春藤教育機構</span>
+              <span data-only="after" class="ph ph-dark chg">© 2028 常春藤教育機構</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>後台「頁尾」<code>site_footer.copyright</code>。標語、連結、五校電話都不動。</dd></div>
+          <div><dt>排程</dt><dd>2027-01-01 00:00 改「© 1997–2027」；2028-01-01 00:00 改「© 2028」（2027-12-15 建）。</dd></div>
+          <div><dt>規則</dt><dd>維持深綠全白，不加金色、不加校徽。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑥ 開場布幕 -->
+  <section class="tour" aria-labelledby="t6">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">6</span><h2 id="t6">開場布幕</h2><span class="tour-route">首頁首次進站</span></header>
+      <div class="snip snip-curtain">
+        <div class="routes">
+          <article class="route" aria-labelledby="r-warm">
+            <h3 id="r-warm">預熱</h3>
+            <div class="curtain" data-only="before during full">
+              <div class="spot"><img src="../../web/public/assets/ivy-30th-anniversary-projection.webp" width="1254" height="1254" alt="投在布幕上的週年校徽：手牽手的兩個孩子、皇冠、星星與月桂，下方有緞帶"></div>
+              <span class="frame-tag">布幕畫面（已授權範圍）</span>
+              <span class="skip-look">略過動畫</span>
+            </div>
+            <div class="curtain is-masked" data-only="after">
+              <div class="spot"><img src="../../web/public/assets/ivy-30th-anniversary-projection.webp" width="1254" height="1254" alt="投在布幕上的校徽，下方緞帶已遮掉"></div>
+              <span class="frame-tag">示意：遮掉緞帶，授權待確認</span>
+              <span class="skip-look">略過動畫</span>
+            </div>
+            <dl class="route-dl">
+              <div><dt>投影內容</dt>
+                <dd data-only="before">校徽＋緞帶（現況，已上線）</dd>
+                <dd data-only="during full">校徽＋緞帶</dd>
+                <dd data-only="after"><span class="ph">待裁定：無緞帶版（另案重產投影圖與五張首屏海報）或停用布幕</span></dd>
+              </div>
+              <div><dt>dialog 名稱</dt>
+                <dd data-only="before during full">常春藤 30 週年開場動畫</dd>
+                <dd data-only="after"><span class="ph">常春藤開場動畫</span></dd>
+              </div>
+              <div><dt>倒數播報</dt>
+                <dd data-only="before during full"><span class="desk-only">30 週年開幕倒數 3（桌機 3、2、1）</span><span class="phone-only">手機沒有倒數</span></dd>
+                <dd data-only="after"><span class="desk-only"><span class="ph">開幕倒數 3</span></span><span class="phone-only">手機沒有倒數</span></dd>
+              </div>
+            </dl>
+          </article>
+          <article class="route" aria-labelledby="r-strict">
+            <h3 id="r-strict">嚴格</h3>
+            <div class="curtain is-masked" data-only="before after">
+              <div class="spot"><img src="../../web/public/assets/ivy-30th-anniversary-projection.webp" width="1254" height="1254" alt="投在布幕上的校徽，下方緞帶已遮掉"></div>
+              <span class="frame-tag">示意：遮掉緞帶，授權待確認</span>
+              <span class="skip-look">略過動畫</span>
+            </div>
+            <div class="curtain" data-only="during full">
+              <div class="spot"><img src="../../web/public/assets/ivy-30th-anniversary-projection.webp" width="1254" height="1254" alt="投在布幕上的週年校徽：手牽手的兩個孩子、皇冠、星星與月桂，下方有緞帶"></div>
+              <span class="frame-tag">布幕畫面（已授權範圍）</span>
+              <span class="skip-look">略過動畫</span>
+            </div>
+            <dl class="route-dl">
+              <div><dt>投影內容</dt>
+                <dd data-only="before">只投校徽，用程式遮掉緞帶</dd>
+                <dd data-only="during full">校徽＋緞帶（2027-01-01 當天揭幕）</dd>
+                <dd data-only="after"><span class="ph">待裁定：無緞帶版（另案重產投影圖與五張首屏海報）或停用布幕</span></dd>
+              </div>
+              <div><dt>dialog 名稱</dt>
+                <dd data-only="before after"><span class="ph">常春藤開場動畫</span></dd>
+                <dd data-only="during full">常春藤 30 週年開場動畫</dd>
+              </div>
+              <div><dt>倒數播報</dt>
+                <dd data-only="before after"><span class="desk-only"><span class="ph">開幕倒數 3</span></span><span class="phone-only">手機沒有倒數</span></dd>
+                <dd data-only="during full"><span class="desk-only">30 週年開幕倒數 3（桌機 3、2、1）</span><span class="phone-only">手機沒有倒數</span></dd>
+              </div>
+            </dl>
+          </article>
+        </div>
+        <p class="phone-note phone-only-block">手機走 3.8 秒短版，沒有倒數；片段用直式布幕海報。</p>
+        <details class="more c-more">
+        <summary>四個日期對照</summary>
+        <table class="c-table">
+          <caption class="sr-only">布幕兩條路線在四個日期的對照</caption>
+          <thead><tr><th scope="col">日期</th><th scope="col">預熱</th><th scope="col">嚴格</th></tr></thead>
+          <tbody>
+            <tr data-row="before"><th scope="row">2026 今天</th><td data-label="預熱">校徽＋緞帶；「常春藤 30 週年開場動畫」</td><td data-label="嚴格">只投校徽；「常春藤開場動畫」</td></tr>
+            <tr data-row="during"><th scope="row">2027 期間</th><td data-label="預熱">校徽＋緞帶，不變</td><td data-label="嚴格">1/1 揭幕：校徽＋緞帶</td></tr>
+            <tr data-row="full"><th scope="row">創校月日後</th><td data-label="預熱">同期間</td><td data-label="嚴格">同期間</td></tr>
+            <tr data-row="after"><th scope="row">2028 收回</th><td data-label="預熱">待裁定</td><td data-label="嚴格">待裁定</td></tr>
+          </tbody>
+        </table>
+        </details>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>來源</dt><dd>程式：<code>EntranceCurtain.vue:121,126</code> 的 aria、<code>entranceCurtain.ts:311-312</code> 的緞帶遮罩；加一個 <code>ribbonOn</code> uniform，讀同一個時間閘。</dd></div>
+          <div><dt>預設</dt><dd>程式維持現況（全程投緞帶）；業主選「嚴格」才改。預熱也可以只把 aria 改成「邁向 30 週年」。</dd></div>
+          <div><dt>前提</dt><dd>嚴格要先確認「用程式遮掉緞帶」仍在 DESIGN.md:447 的授權內；授權不確定就選預熱。</dd></div>
+          <div><dt>手機</dt><dd>手機走 3.8 秒短版，沒有倒數；手機片段改用直式布幕海報。</dd></div>
+          <div><dt>不做</dt><dd>不重產投影圖和海報；校徽只出現在布幕框內。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑦ 看不見的部分 -->
+  <section class="tour" aria-labelledby="t7">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">7</span><h2 id="t7">看不見的部分</h2><span class="tour-route">搜尋、結構化資料、分享圖</span></header>
+      <div class="snip snip-hidden">
+        <div class="serp">
+          <p class="mini-label">搜尋結果（Google 示意）</p>
+          <div class="serp-card">
+            <p class="serp-site"><span class="serp-fav" aria-hidden="true"></span><span>常春藤教育機構<small><span class="ph">正式網域</span> › about</small></span></p>
+            <p class="serp-title"><span class="ph chg">關於常春藤｜高雄 1997 年創立、五所校園與全人教育｜常春藤教育機構</span></p>
+            <p class="serp-desc">常春藤幼兒園 1997 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。</p>
+          </div>
+          <p class="serp-now">現行標題：關於常春藤｜1997 年創立、五所校園與全人教育｜常春藤教育機構</p>
+        </div>
+        <details class="ld more">
+          <summary class="mini-label">JSON-LD（新增欄位示意，只寫到年）</summary>
+<pre class="ld-code"><code>[
+  { "@type": "EducationalOrganization",
+    "name": "常春藤教育機構",
+    <mark>"foundingDate": "1997"</mark> },
+  { "@type": "Preschool", "name": "常春藤教育機構 義華校",
+    <mark>"foundingDate": "1997"</mark> },
+  { "@type": "Preschool", "name": "常春藤教育機構 明華校",
+    <mark>"foundingDate": "2001"</mark> },
+  { "@type": "Preschool", "name": "常春藤教育機構 崇德校",
+    <mark>"foundingDate": "2005"</mark> },
+  { "@type": "Preschool", "name": "常春藤教育機構 國際校",
+    <mark>"foundingDate": "2020"</mark> },
+  { "@type": "Preschool", "name": "常春藤教育機構 仁武校",
+    <mark>"foundingDate": "2021"</mark> }
+]</code></pre>
+        </details>
+        <figure class="og">
+          <p class="mini-label">分享圖 1200×630</p>
+          <div class="og-img">
+            <img src="../../web/public/assets/og/hero-campus-restored-v1-still.jpg" width="1200" height="630" alt="穿黃色上衣的小女孩在戶外大笑往前跑">
+            <p class="og-band" data-only="during full"><span class="ph ph-dark">常春藤 30 週年｜1997–2027｜高雄</span></p>
+          </div>
+          <figcaption>
+            <span data-only="before">現行分享圖（首屏照片），不放校徽</span>
+            <span data-only="during full">2027-01-01 起：真實照片加深綠文字帶，不放校徽</span>
+            <span data-only="after">2028-01-01 起換回現行分享圖</span>
+          </figcaption>
+        </figure>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>標題</dt><dd><code>seo.ts:107</code> 的 /about 標題補「高雄」：搜尋「常春藤幼兒園」會撞名台中同名園所。第 0 層常設。<span class="phone-only">現行標題：關於常春藤｜1997 年創立、五所校園與全人教育｜常春藤教育機構</span></dd></div>
+          <div><dt>結構化</dt><dd><code>seo.ts:177-184</code> 的 EducationalOrganization 補 foundingDate 1997，五校 Preschool 各補自己的成立年份。第 0 層常設。</dd></div>
+          <div><dt>分享圖</dt><dd>後台 <code>site_meta.share_image</code>：2027-01-01 換成真實照片加文字帶，2028-01-01 換回。不放校徽。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑧ 後台操作表（說明） -->
+  <section class="tour" aria-labelledby="t8">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">8</span><h2 id="t8">後台操作表</h2><span class="tour-route">既有欄位＋排程發布</span></header>
+      <div class="board">
+        <p class="ops-hint">手機只列這一天的值；切換底部日期看其他值。</p>
+        <table class="ops">
+          <caption class="sr-only">各後台欄位在四個日期的值與排程時間</caption>
+          <thead>
+            <tr>
+              <th scope="col">欄位</th>
+              <th scope="col" data-col="before">今天<small lang="en">2026-09-28</small></th>
+              <th scope="col" data-col="during">週年期間<small>2027-01-01 起</small></th>
+              <th scope="col" data-col="full">創校月日後<small>2027-○○-○○</small></th>
+              <th scope="col" data-col="after">2028<small>2028-01-01 起</small></th>
+              <th scope="col">排程時間</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><code>home_hero.eyebrow</code><small>首屏小標</small></th>
+              <td data-col="before" data-label="今天"><span class="v">常春藤幼兒園 · 陪高雄孩子近三十年<small>正式站仍是「…高雄五校」，第 0 層先改</small></span></td>
+              <td data-col="during" data-label="週年期間"><span class="v">不變</span></td>
+              <td data-col="full" data-label="創校月日後"><span class="v">…陪高雄孩子三十年<span class="rw">改寫，待裁定</span></span></td>
+              <td data-col="after" data-label="2028"><span class="v">待 2028 再裁定</span></td>
+              <td data-label="排程"><span class="v">創校月日 00:00</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><code>home_about.since_label</code><small>首頁關於的 since 標籤</small></th>
+              <td data-col="before" data-label="今天"><span class="v">SINCE 1997</span></td>
+              <td data-col="during" data-label="週年期間"><span class="v">1997–2027</span></td>
+              <td data-col="full" data-label="創校月日後"><span class="v">1997–2027</span></td>
+              <td data-col="after" data-label="2028"><span class="v">SINCE 1997</span></td>
+              <td data-label="排程"><span class="v">2027-01-01 00:00；換回 2028-01-01（2027-12-15 建）</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><code>home_about.body_text</code><small>首頁關於內文</small></th>
+              <td data-col="before" data-label="今天"><span class="v">近三十年來…</span></td>
+              <td data-col="during" data-label="週年期間"><span class="v">不變</span></td>
+              <td data-col="full" data-label="創校月日後"><span class="v">三十年來…<span class="rw">改寫，待裁定</span></span></td>
+              <td data-col="after" data-label="2028"><span class="v">待 2028 再裁定</span></td>
+              <td data-label="排程"><span class="v">創校月日 00:00</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><code>site_footer.copyright</code><small>頁尾版權行</small></th>
+              <td data-col="before" data-label="今天"><span class="v">© 2026 常春藤教育機構</span></td>
+              <td data-col="during" data-label="週年期間"><span class="v">© 1997–2027 常春藤教育機構</span></td>
+              <td data-col="full" data-label="創校月日後"><span class="v">不變</span></td>
+              <td data-col="after" data-label="2028"><span class="v">© 2028 常春藤教育機構</span></td>
+              <td data-label="排程"><span class="v">2027-01-01 00:00；換回 2028-01-01（2027-12-15 建）</span></td>
+            </tr>
+            <tr>
+              <th scope="row"><code>site_meta.share_image</code><small>全站分享圖</small></th>
+              <td data-col="before" data-label="今天"><span class="v">現行首屏照片</span></td>
+              <td data-col="during" data-label="週年期間"><span class="v">真實照片＋深綠文字帶，不放校徽</span></td>
+              <td data-col="full" data-label="創校月日後"><span class="v">不變</span></td>
+              <td data-col="after" data-label="2028"><span class="v">換回現行</span></td>
+              <td data-label="排程"><span class="v">2027-01-01 00:00；換回 2028-01-01（2027-12-15 建）</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>工作量</dt><dd>每輪後台操作約 1 小時，共 2–3 輪：2026-12 中、創校月日、2027-12 中。</dd></div>
+          <div><dt>清單</dt><dd>寫進 operations.md：2026-12-15 建版；12-15～01-01 凍結相關 kind；2027-12-15 從線上版建換回版；1/1 當天到「查看全站排程」確認沒有 skipped。</dd></div>
+          <div><dt>沒有月日</dt><dd>園方給不出創校月日，就不排第二輪，整年維持「近三十年」，週年只靠記號表達。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- ⑨ 收回清單（說明） -->
+  <section class="tour" aria-labelledby="t9">
+    <div class="container tour-grid">
+      <header class="tour-head"><span class="tour-no" aria-hidden="true">9</span><h2 id="t9">收回清單</h2><span class="tour-route">2028 之後</span></header>
+      <div class="board retire">
+        <details class="retire-col more">
+          <summary><h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-clock"/></svg><span><span class="nw">2028-01-01</span> 自動消失</span></h3></summary>
+          <p class="retire-sub">時間閘，程式判斷</p>
+          <ul>
+            <li>/about 時間軸後的深綠結語列</li>
+            <li>義華分校小標前段「常春藤 30 週年」換回「常春藤幼兒園」</li>
+            <li>布幕緞帶與 aria（依業主選的路線）</li>
+            <li>頁首週年記號（第 2 層有做才有）</li>
+          </ul>
+        </details>
+        <details class="retire-col more">
+          <summary><h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-counter-clockwise"/></svg><span><span class="nw">後台換回</span><wbr><span class="nw">（2027-12-15 建）</span></span></h3></summary>
+          <p class="retire-sub">排程 2028-01-01 00:00 發布</p>
+          <ul>
+            <li><code>home_about.since_label</code> → SINCE 1997</li>
+            <li><code>site_footer.copyright</code> → © 2028 常春藤教育機構</li>
+            <li><code>site_meta.share_image</code> → 現行分享圖</li>
+            <li>首屏小標與內文的年數說法：待 2028 再裁定</li>
+          </ul>
+        </details>
+        <details class="retire-col more">
+          <summary><h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-minus"/></svg><span>清理 PR</span></h3></summary>
+          <p class="retire-sub">2028 年初，工程</p>
+          <ul>
+            <li>拿掉時間閘的 2027 分支與三態測試</li>
+            <li>DESIGN.md:85、941 改寫成 2028 起的用語規則</li>
+            <li>布幕 <code>ribbonOn</code> 的預設值依裁定定下</li>
+          </ul>
+        </details>
+        <details class="retire-col more">
+          <summary><h3><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-check"/></svg><span>常設保留</span></h3></summary>
+          <p class="retire-sub">第 0 層，不隨週年撤</p>
+          <ul>
+            <li>分校聯絡卡「創立」列</li>
+            <li>分校小標「· YYYY 年成立」</li>
+            <li>JSON-LD 的 foundingDate</li>
+            <li>/about 標題補「高雄」</li>
+            <li><code>founding.ts</code> 沿革資料</li>
+          </ul>
+        </details>
+      </div>
+      <details class="notes">
+        <summary>改了什麼</summary>
+        <dl class="note-list">
+          <div><dt>時間閘</dt><dd>上下架都讀同一個閘：<code>web/app/utils/<wbr>anniversary.ts</code>，依台北日期回傳 before／during／after，只在 SSR 算一次。</dd></div>
+          <div><dt>期間</dt><dd>預設 2027-01-01～2027-12-31；<code>FOUNDING_DATE</code> 在園方提供前是 null。</dd></div>
+        </dl>
+      </details>
+    </div>
+  </section>
+
+  <!-- 這一頁要請業主裁定的事（說明） -->
+  <section class="asks" aria-labelledby="asks-title">
+    <div class="container">
+      <h2 id="asks-title">這一頁要請業主裁定的三件事</h2>
+      <ol class="asks-list">
+        <li><details class="more ask"><summary><b>創校確切月日是哪一天？</b></summary><span>建議：記號（30 週年、1997–2027）走 2027 曆年，句子等創校月日才拿掉「近」；給不出月日就整年維持「近三十年」。</span></details></li>
+        <li><details class="more ask"><summary><b>布幕 2027 年前要預熱還是嚴格？</b></summary><span>建議嚴格：2026 年內只投校徽、2027-01-01 揭幕；前提是遮掉緞帶仍在授權內，不確定就選預熱。</span></details></li>
+        <li><details class="more ask"><summary><b>分校頁怎麼寫年資？</b></summary><span>建議「YYYY 年成立」常設；只有義華期間內寫「常春藤 30 週年」；不寫「本校第 N 年」。</span></details></li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<!-- 320px 實測用的精簡畫面（只在 ?frame=eyebrow 顯示） -->
+<div class="frame-view" aria-label="320 像素小標實測">
+  <div class="fv-row fv-home">
+    <p class="fv-label">首頁小標</p>
+    <p class="hero-eyebrow eb-home fv-eb">
+      <span data-only="before during">常春藤幼兒園 · 陪高雄孩子近三十年</span>
+      <span data-only="full after">常春藤幼兒園 · 陪高雄孩子三十年</span>
+    </p>
+    <p class="fv-result" aria-live="polite"></p>
+  </div>
+  <div class="fv-row fv-campus">
+    <p class="fv-label">義華校小標</p>
+    <p class="c-eyebrow eb-campus fv-eb">
+      <span data-only="before after">常春藤幼兒園 · 高雄三民區 · 1997 年成立</span>
+      <span data-only="during full">常春藤 30 週年 · 高雄三民區 · 1997 年成立</span>
+    </p>
+    <p class="fv-result"></p>
+  </div>
+  <div class="fv-row fv-campus">
+    <p class="fv-label">仁武校小標</p>
+    <p class="c-eyebrow eb-campus fv-eb"><span>常春藤幼兒園 · 高雄仁武區 · 2021 年成立</span></p>
+    <p class="fv-result"></p>
+  </div>
+</div>
+
+<p class="mock-flag"><b>方向 weave＋mark</b> · 時間閘三態 · 虛線框＝示意</p>
+<script src="shared/chrome.js"></script>
+<script src="b-weave-facts.js"></script>
+</body>
+</html>
