@@ -1,3 +1,27 @@
+## 2026-10-08 後台工程清理：刪殘留功能與資料表、素材分頁、一次標完已讀、補三種預約方式 e2e（`chore/admin-cleanup-20261008`，未 commit、未部署）
+
+使用者 10-08 看完後台盤點，要求先做「工程清理」這一批（預約表單加「預計入學時間」「目前就托狀況」延後），並**裁定連資料表與 FAQ 資料一起刪**。規則見 DESIGN.md「後台工程清理（2026-10-08）」。
+
+- **全部標記已讀一次標完**：新增 `POST /admin/notifications/read-all`（選填 `campus_key`），一條 UPDATE 標完範圍內資料庫裡全部未讀（不只畫面上的 100 則），通知頁改用它；權限同單筆（`booking.manage`），不寫稽核。原本的 `/admin/my-notifications/read-all` 是另一張表（內容審核通知），沒動。
+- **刪掉沒人呼叫的 API**：`POST /admin/visit-schedule/{campus}/generate`、`GET /admin/visit-requests/group-counts`、`GET /admin/content-kinds`、`GET／PATCH /admin/site-settings`（連同 `site_settings` 表與 `site_settings.manage` 權限；migration `304dd12e96bc`）。
+- **刪掉家長改期申請的殘留**：後台核准／退回 API、通知頁「待核准的改期申請」、總覽待辦與頁首連結、明細的「待核准」階段、`ParentVisitRequestOut.reschedule_pending`、`reschedule_requests` 表（migration `e48a3ccedcd8`）。公開的 `reschedule-request` 仍回 410。
+- **刪掉 FAQ 內容類型**：`shared_faq`、`campus_faq` 的註冊、欄位規則、`initialize-content`（現在建立 17 筆）、fixture；資料 migration `a9e11038c869` 依外鍵順序清掉 FAQ 的內容、版本、發布紀錄列、排程、素材引用與通知（`site_releases` 保留）。原本若只刪程式不刪資料，整站還原與排程發布會丟 `CONTENT_KIND_UNKNOWN`。
+- **預約文案與五校介紹的舊欄位**：預約文案的 `consent_text`、`banner_*` 三欄與五校介紹的 `intro`、`description`、`fb_note` 改成 `Field(default="", exclude=True)`：舊版本照常可讀可還原、新存的版本不帶、公開輸出剔除（已發布的舊版本也是）、後台載入時丟掉；版本紀錄比對兩邊都先 normalize，不再把它們列成「還原後會改回」。沒有 migration。
+- **素材列表在資料庫分頁**：`GET /admin/media` 改回 `{items, total, state_total, page, page_size, tags}`，篩選（校區、種類、標籤、關鍵字、排除失敗）改在資料庫做；中文標籤用 jsonb 比對。素材庫每頁 60 張（頁碼）、選圖器每次 40 張（「載入更多」、關鍵字後端搜尋）；官網草稿預覽逐頁讀完全部素材（某一頁讀不到時保留讀到的頁）。
+- **三種預約方式有瀏覽器 e2e**：`tests/stack/booking-modes.spec.ts` 把國際校依序切成 LINE／電話／外部網站，驗聯絡區、主鈕文字與連結、沒有表單、選校清單標籤，最後還原（原本是 paused 且說明為空，還原時補上官網預設的暫停說明句，因為 API 規定 paused 一定要有說明）。驗收 A06／A16 改通過。
+- **匯出小修**：stack 測試改用語意定位與共用常數、公式開頭規則對齊後端、跨午夜不再紅；每日數字表頭寫明是什麼次數（畫面與 CSV）；操作紀錄搜尋欄標籤與 `role="status"`；比率空白、伺服器匯出、`taipeiToday` 各收成一份；招生兩支匯出先組好 CSV 再寫稽核；三支匯出 OpenAPI 宣告 `text/csv`；授權說明寫明含地址與父母職業。
+- **案件列表與即時預覽的已知限制**：長名字換行時行首不再出現「・」；⌘／Ctrl／中鍵點列空白處開新分頁；家庭階段沒有招生寫入權限時不留空的主動作區；預覽欄高改用實際量到的頂欄、動作列與版面位置（不再被動作列蓋住、捲到底不鑽進頂欄）；讀官網版失敗先等 1.5 秒重試一次；隱私權政策等沒有 id 的段落刪中間一段時，其他段不再被標成不同（依唯一標題對齊）。
+- **文件更正**：`operations.md` 的登入稽核、家長通知、背景轉檔、產生時段；驗收表 A01／A04／A05／A06／A13／A16／A25 與「仍未做」清單；DESIGN.md 的改期申請、`group-counts`、通知頁區塊；`deploy/README.md` 與 `page_schemas.py` 的義華年份（業主 10-03 已裁定 1997）；隱私權政策初稿「申請改期」改「改期」（已存的草稿要在後台自己改）。
+
+**上線前（push main＝正式部署，先問使用者）**：
+1. 三支 migration 會刪表、刪資料，依 `deploy/CICD.md` 第 68 行**部署前先手動備份正式 DB**（PITR 未開；做法同 `deploy/README.md` 先前在 Postgres volume `ivy-website-backups/` 留 custom-format dump 並用 `pg_restore --list` 核對；`railway ssh` 由本人執行）。
+2. 先查正式庫有沒有還沒處理的改期申請，不是 0 筆就先請園方聯絡家長：`SELECT rr.id, vr.campus_key FROM reschedule_requests rr JOIN visit_requests vr ON vr.id = rr.visit_request_id WHERE rr.status = 'pending' AND vr.status = 'confirmed';`
+3. **舊映像不能直接回退**（不認得新 revision、FAQ 資料也回不來）：要回退先用新映像跑 `alembic downgrade c4e8a2f61b97`（重建兩張空表），再切舊映像。
+4. API 先換新、web 還沒換的幾分鐘，開著的舊後台分頁在素材庫與通知頁會出錯，上線後請同仁重新整理後台。
+
+- **驗證**（Node 22；後端測試庫 `ivy_website_cleanup1008_full_test`）：後端全套 pytest 1695 passed、1 skipped、1 failed（`test_admissions_follow_up_schema` 把 head 寫死成 `c4e8a2f61b97`，補上新三支後該檔 8 passed）；之後只動了素材列表 `page` 上限，`test_media_list_paging` 12 passed。`deploy/check_schema.py` 通過、`deploy/tests` 20 項 OK、`contract:check` 一致。admin typecheck、vitest 138 檔 1854 passed／1 skipped、build 通過（之後改版本紀錄 normalize，相關 10 檔 149 passed＋typecheck）。web typecheck、vitest 85 檔 933 passed、build 通過。admin 改完版本紀錄後再跑全套 138 檔 1855 passed／1 skipped。stack e2e 全套 104 項 103 passed（4.9 分），唯一失敗是 `admissions-follow-up.spec.ts`「甲到期」預期「今天」得到「逾 1 天」：跑在台北 00:12，是這支 spec 既有的台北 00–01 點時間相依（這輪沒動它）；台北 01:08 單獨重跑 `admissions-follow-up.spec.ts`：2 passed。
+- **未驗證／未做**：正式站資料（是否有 FAQ 列、未處理的改期申請）；iOS Safari 與實機；預約表單兩題（延後）。已知小限制：最新 100 則都已讀但更早還有未讀時「全部標記已讀」按鈕是停用的；段落對齊在「前面新增一段＋同時改了後面那段的標題」時會配錯（只影響差異摘要）；預覽欄在很矮的視窗仍可能被動作列蓋到一點（`min-height:420px`）。
+
 ## 2026-10-07 公開資料不再帶出維護備註 `_todo`、更正兩處分校頁過時文件（`fix/public-todo-strip-20261007`，10-07 已部署 main `471966fc`）
 
 審查舊分支 `feature/website-admin`（落後 main 814 個 commit，三個程式 commit 都是 main 上 `26eb29d7`／`fb74e5ce`／`503ec361` 的舊版）時，查到 main 本身有三處殘留。
