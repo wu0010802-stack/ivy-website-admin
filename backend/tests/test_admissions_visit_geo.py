@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import delete, event, select, update
 
 from app.admissions import retention
 from app.admissions.geo.address import parse_address
@@ -139,3 +139,90 @@ async def test_moving_address_away_clears_stored_geo_and_district(admin_client, 
         .execution_options(populate_existing=True)
     )
     assert district is None
+
+
+async def _age(db_session, visit_id: str, days: int) -> None:
+    """把訪視的 updated_at 推到 days 天前，讓保存政策判定到期。"""
+    await db_session.execute(
+        update(RecruitmentVisit)
+        .where(RecruitmentVisit.id == uuid.UUID(visit_id))
+        .values(updated_at=datetime.now(timezone.utc) - timedelta(days=days))
+    )
+    await db_session.commit()
+
+
+async def test_anonymize_keeps_district_and_clears_village(admin_client, db_session, geo_samples):
+    """規格 §10：清掉里與距離，行政區保留（同園務、同既有行為）。"""
+    address = SAMPLE_ADDRESSES["yihua_exact"]
+    record = await create_record(admin_client, address=address)
+    await _age(db_session, record["id"], 60)
+    assert await retention.anonymize_due(db_session, 30) == 1
+    await db_session.commit()
+    visit = await db_session.scalar(
+        select(RecruitmentVisit)
+        .where(RecruitmentVisit.id == uuid.UUID(record["id"]))
+        .execution_options(populate_existing=True)
+    )
+    assert visit.address is None
+    assert visit.district == parse_address(address).district
+    geo = await _geo_row(db_session, record["id"])
+    assert (geo.village, geo.distance_m) == (None, None)
+    assert (geo.match_level, geo.unlocated_reason) == ("district", "anonymized")
+
+
+async def test_anonymize_clears_distance_of_nearby_visit(admin_client, db_session, geo_samples):
+    """有校址時比對結果帶距離；匿名化後距離和里都清掉，等級退到 district。"""
+    await publish_campus_address(db_session, "yihua", SAMPLE_ADDRESSES["yihua_exact"])
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_nearby"])
+    stored = await _geo_row(db_session, record["id"])
+    assert (stored.match_level, stored.distance_m) == ("nearby", 0)
+    await _age(db_session, record["id"], 60)
+    assert await retention.anonymize_due(db_session, 30) == 1
+    await db_session.commit()
+    geo = await _geo_row(db_session, record["id"])
+    assert (geo.village, geo.distance_m, geo.match_level, geo.unlocated_reason) == (
+        None, None, "district", "anonymized",
+    )
+
+
+async def test_anonymize_without_district_is_unlocated(admin_client, db_session, geo_samples):
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["outside"])
+    await _age(db_session, record["id"], 60)
+    assert await retention.anonymize_due(db_session, 30) == 1
+    await db_session.commit()
+    geo = await _geo_row(db_session, record["id"])
+    assert (geo.match_level, geo.unlocated_reason, geo.village) == ("unlocated", "anonymized", None)
+
+
+async def test_anonymize_without_geo_row_is_fine(admin_client, db_session, geo_samples):
+    """上線前就存在、從沒比對過的訪視沒有 geo 列：匿名化照常，不補建。"""
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
+    await db_session.execute(delete(RecruitmentVisitGeo).where(RecruitmentVisitGeo.visit_id == uuid.UUID(record["id"])))
+    await db_session.commit()
+    await _age(db_session, record["id"], 60)
+    assert await retention.anonymize_due(db_session, 30) == 1
+    await db_session.commit()
+    assert await _geo_row(db_session, record["id"]) is None
+
+
+async def test_anonymize_updates_visit_row_before_geo_row(admin_client, db_session, geo_samples):
+    """鎖定順序（與 matcher.rematch_visits 相同）：先 UPDATE recruitment_visits，再 UPDATE
+    recruitment_visit_geo，兩個動作都不顛倒。"""
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
+    await _age(db_session, record["id"], 60)
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(" ".join(statement.split()).lower())
+
+    engine = db_session.bind.sync_engine
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        assert await retention.anonymize_due(db_session, 30) == 1
+        await db_session.commit()
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    visit_updates = [i for i, sql in enumerate(statements) if sql.startswith("update recruitment_visits ")]
+    geo_updates = [i for i, sql in enumerate(statements) if sql.startswith("update recruitment_visit_geo ")]
+    assert visit_updates and geo_updates
+    assert max(visit_updates) < min(geo_updates)
