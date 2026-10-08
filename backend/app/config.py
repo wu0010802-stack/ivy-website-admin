@@ -62,6 +62,16 @@ class Settings(BaseSettings):
     # 招生聯繫、招生訪視保存幾天）裁定前，正式站不可開啟。關閉時「標記已到場」
     # 不建招生訪視，/admin/admissions/* 不掛路由（404）；保存政策的招生類別照常。
     admissions_enabled: bool = False
+    # 招生區域分析的公開地理資料（高雄市門牌、幼兒園）自動同步（2026-10-08 規格 §7）。
+    # 所有環境預設關閉：開了會在 API 啟動後下載並匯入約 100MB 的門牌資料，正式站要先確認
+    # 資料庫空間（deploy/README.md）。只在 admissions_enabled 也開時才有作用；CLI
+    # `python -m app.cli geo-sync` 不看這個開關。
+    geo_auto_sync: bool = False
+    # 門牌檔案網址；留空＝自動在高雄市資料開放平台找最新月份。平台改版找不到時的退路。
+    geo_doorplate_url: str | None = None
+    geo_kindergartens_url: str = "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
+    # 背景迴圈多久醒來檢查一次（秒）；真的下載與否由「超過 30 天沒確認過」決定。
+    geo_sync_check_seconds: int = Field(default=86400, ge=300, le=7 * 86400)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -131,6 +141,22 @@ class Settings(BaseSettings):
         if value is None:
             return None
         return value.strip().rstrip("/") or None
+
+    @field_validator("geo_doorplate_url")
+    @classmethod
+    def _geo_doorplate_url(cls, value: str | None) -> str | None:
+        value = (value or "").strip()
+        if value and not value.startswith("https://"):
+            raise ValueError("WEBSITE_GEO_DOORPLATE_URL 必須是 https:// 網址")
+        return value or None
+
+    @field_validator("geo_kindergartens_url")
+    @classmethod
+    def _geo_kindergartens_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value.startswith("https://"):
+            raise ValueError("WEBSITE_GEO_KINDERGARTENS_URL 必須是 https:// 網址")
+        return value
 
     @field_validator("background_jobs_interval_seconds")
     @classmethod
