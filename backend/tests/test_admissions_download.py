@@ -537,7 +537,7 @@ def test_audit_metadata_only_records_which_filters_were_applied():
     filters = SimpleNamespace(
         month=None, grade="中班", target_school_year=115, target_semester=1, source="親友介紹", referrer=None,
         has_deposit=False, no_deposit_reason=None, stage=None, visit_request_id=None, q="王小明",
-        follow_up="due", owner=str(uuid.uuid4()),
+        follow_up="due", owner=str(uuid.uuid4()), district=None, village=None, geo=None,
     )
     assert download.records_audit_metadata(filters) == {
         "grade": "中班", "school_year": 115, "semester": 1, "has_source": True, "has_deposit": False,
@@ -552,6 +552,25 @@ def test_audit_metadata_only_records_which_filters_were_applied():
         "school_year": 115, "semester": 2, "no_deposit_reason": "費用考量", "grade": "小班", "priority": "low",
         "overdue_days": 30, "cold_only": True,
     }
+
+
+def test_audit_metadata_records_only_the_kind_of_area_filter():
+    """區域篩選只記類別（district／village／no_village），不記區名與里名；同時有多個時取最細的。"""
+
+    def area(**overrides):
+        values = dict(
+            month=None, grade=None, target_school_year=None, target_semester=None, source=None, referrer=None,
+            has_deposit=None, no_deposit_reason=None, stage=None, visit_request_id=None, q=None, follow_up=None,
+            owner=None, district=None, village=None, geo=None,
+        )
+        values.update(overrides)
+        return download.records_audit_metadata(SimpleNamespace(**values))
+
+    assert area() == {}
+    assert area(district="三民區") == {"area": "district"}
+    assert area(district="三民區", village="鼎金里") == {"area": "village"}
+    assert area(geo="no_village") == {"area": "no_village"}
+    assert "三民區" not in str(area(district="三民區", village="鼎金里"))
 
 
 def test_audit_metadata_records_reason_and_grade_verbatim_only_when_they_are_known_choices():

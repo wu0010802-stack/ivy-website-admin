@@ -30,6 +30,7 @@ _Grade = Literal[constants.GRADES]
 _FollowUpKind = Literal[constants.FOLLOW_UP_KINDS]
 _Stage = Literal[constants.STAGES]
 _NoDepositReason = Literal[constants.NO_DEPOSIT_REASONS]
+_GeoFilter = Literal["no_village"]
 _PRIORITY_OF = {reason: level for level, reasons in constants.NO_DEPOSIT_PRIORITY.items() for reason in reasons}
 
 
@@ -304,6 +305,12 @@ class RecruitmentVisitFilters:
         owner: str | None = Query(
             default=None, pattern=constants.OWNER_FILTER_PATTERN, description="追蹤負責人：me、none 或帳號 id"
         ),
+        district: str | None = Query(default=None, max_length=30, description="行政區（2026-10-08 區域分析）"),
+        village: str | None = Query(default=None, max_length=16, description="里；只算比對到里的訪視"),
+        geo: _GeoFilter | None = Query(
+            default=None,
+            description="no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.month = month
@@ -319,6 +326,9 @@ class RecruitmentVisitFilters:
         self.q = q.strip() if q and q.strip() else None
         self.follow_up = follow_up
         self.owner = owner
+        self.district = district
+        self.village = village
+        self.geo = geo
 
     def apply(self, stmt, *, current_user_id: uuid.UUID | None = None):
         """current_user_id 給 owner=me 用（路由傳入目前登入的帳號）。"""
@@ -354,6 +364,8 @@ class RecruitmentVisitFilters:
             stmt = stmt.where(follow_up.condition(self.follow_up))
         if self.owner is not None and (self.owner != "me" or current_user_id is not None):
             stmt = stmt.where(follow_up.owner_condition(self.owner, current_user_id))
+        if self.district or self.village or self.geo:
+            stmt = self._apply_area(stmt)
         if self.q:
             # 使用者打的 % 與 _ 是字面值（同 booking 的 VisitRequestFilters）。
             needle = self.q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -368,6 +380,32 @@ class RecruitmentVisitFilters:
                     RecruitmentVisit.notes.ilike(pattern, escape="\\"),
                     RecruitmentVisit.parent_response.ilike(pattern, escape="\\"),
                 )
+            )
+        return stmt
+
+    def _apply_area(self, stmt):
+        """區域篩選（2026-10-08 區域分析規格 §8.4）。層級判斷同 area.py：里要比對到里
+        （exact／nearby／street）且未匿名化才算。no_village 是「有地址卻沒比對到里」：
+        沒填地址的、已匿名化的都不算（沒有地址可以補查），沒有 geo 列的舊訪視算。"""
+        from app.admissions.geo.models import VILLAGE_LEVELS, RecruitmentVisitGeo
+
+        at_village = RecruitmentVisit.geo.has(RecruitmentVisitGeo.match_level.in_(VILLAGE_LEVELS))
+        if self.district:
+            stmt = stmt.where(RecruitmentVisit.district == self.district)
+        if self.village:
+            stmt = stmt.where(
+                RecruitmentVisit.anonymized_at.is_(None),
+                RecruitmentVisit.geo.has(
+                    (RecruitmentVisitGeo.village == self.village)
+                    & RecruitmentVisitGeo.match_level.in_(VILLAGE_LEVELS)
+                ),
+            )
+        if self.geo == "no_village":
+            stmt = stmt.where(
+                RecruitmentVisit.anonymized_at.is_(None),
+                RecruitmentVisit.address.is_not(None),
+                func.btrim(RecruitmentVisit.address) != "",
+                ~at_village,
             )
         return stmt
 

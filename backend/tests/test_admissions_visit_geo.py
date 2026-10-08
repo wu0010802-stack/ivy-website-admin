@@ -14,6 +14,8 @@ from app.admissions import retention
 from app.admissions.geo.address import parse_address
 from app.admissions.geo.models import RecruitmentVisitGeo
 from app.admissions.models import RecruitmentVisit
+from app.operations.models import AuditLogEntry
+from tests.admissions_area_helpers import add_visit, seed_area
 from tests.admissions_helpers import ADMISSIONS, complete, create_record, started_booking
 from tests.geo_helpers import SAMPLE_ADDRESSES, load_geo_samples, publish_campus_address
 
@@ -226,3 +228,91 @@ async def test_anonymize_updates_visit_row_before_geo_row(admin_client, db_sessi
     geo_updates = [i for i, sql in enumerate(statements) if sql.startswith("update recruitment_visit_geo ")]
     assert visit_updates and geo_updates
     assert max(visit_updates) < min(geo_updates)
+
+
+# ---- 訪視明細的區域篩選（規格 §8.4；主控裁定 R2、R4） ----
+
+
+def _ids(rows: list[dict]) -> set[str]:
+    return {row["id"] for row in rows}
+
+
+def _expect(visits: dict, *keys: str) -> set[str]:
+    return {str(visits[key].id) for key in keys}
+
+
+async def _list(client, **params) -> list[dict]:
+    query = "&".join(f"{key}={value}" for key, value in {"campus_key": "yihua", **params}.items())
+    response = await client.get(f"{ADMISSIONS}/records?{query}&page_size=100")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_records_filter_by_district_and_village(admin_client, db_session):
+    """明細列表沒有預設學年篩選，114 學年的 X2 也在結果裡（X1 是明華，被 campus_key 擋掉）。"""
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    assert _ids(await _list(admin_client, district="三民區")) == _expect(visits, "V1", "V2", "V3", "V5", "V10", "X2")
+    assert _ids(await _list(admin_client, district="三民區", village="鼎金里")) == _expect(visits, "V1", "V2", "X2")
+    # 里要比對到里才算：V5（里有歧義）、匿名化的 V10 不算。
+    assert _ids(await _list(admin_client, village="寶業里")) == _expect(visits, "V3")
+    assert _ids(await _list(admin_client, district="左營區")) == _expect(visits, "V4")
+
+
+async def test_records_filter_no_village(admin_client, db_session):
+    """未定位到里＝有地址、但沒比對到里：只到區、境外、待比對、沒有比對結果。
+    沒填地址（V6）與已匿名化（V10、V11）不算；比對到里的（V1–V3、X2）也不算。"""
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    rows = await _list(admin_client, geo="no_village")
+    assert _ids(rows) == _expect(visits, "V4", "V5", "V7", "V8", "V9")
+
+
+async def test_records_filter_no_village_excludes_no_address_and_anonymized(admin_client, db_session):
+    visits = await seed_area(db_session)
+    blank = await add_visit(db_session, address="   ", geo={"level": "unlocated", "reason": "no_address"})
+    await db_session.commit()
+    found = _ids(await _list(admin_client, geo="no_village"))
+    assert str(visits["V6"].id) not in found  # 地址是 NULL
+    assert str(blank.id) not in found  # 地址只有空白
+    assert str(visits["V10"].id) not in found  # 已匿名化、沒有比對結果
+    assert str(visits["V11"].id) not in found  # 已匿名化、unlocated／anonymized
+
+
+async def test_records_filter_no_village_includes_pending_and_unmatched(admin_client, db_session):
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    found = _ids(await _list(admin_client, geo="no_village"))
+    assert str(visits["V8"].id) in found  # pending（有 geo 列）
+    assert str(visits["V9"].id) in found  # 有地址、沒有 geo 列（上線前的舊訪視）
+
+
+async def test_records_list_carries_geo(admin_client, db_session):
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    by_id = {row["id"]: row for row in await _list(admin_client)}
+    assert by_id[str(visits["V1"].id)]["geo"] == {
+        "village": "鼎金里", "match_level": "exact", "unlocated_reason": None, "distance_m": 800,
+    }
+    assert by_id[str(visits["V9"].id)]["geo"] is None
+
+
+async def test_records_filter_rejects_unknown_geo_value(admin_client):
+    response = await admin_client.get(f"{ADMISSIONS}/records?campus_key=yihua&geo=somewhere")
+    assert response.status_code == 422
+
+
+async def test_records_export_audits_area_filter_category(admin_client, db_session):
+    """匯出稽核只記篩了哪一種區域，不記區名（同其他篩選只記類別的做法）。"""
+    await seed_area(db_session)
+    await db_session.commit()
+    response = await admin_client.get(f"{ADMISSIONS}/records/export?campus_key=yihua&district=三民區&village=鼎金里")
+    assert response.status_code == 200, response.text
+    entry = await db_session.scalar(
+        select(AuditLogEntry)
+        .where(AuditLogEntry.action == "recruitment_visit.export")
+        .order_by(AuditLogEntry.created_at.desc())
+    )
+    assert entry.metadata_json["area"] == "village"
+    assert "三民區" not in str(entry.metadata_json)
+    assert "鼎金里" not in str(entry.metadata_json)

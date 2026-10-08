@@ -1388,6 +1388,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   priority: (v) => `篩選轉換潛力：${({ high: '高', medium: '中', low: '低' } as Record<string, string>)[String(v)] ?? String(v)}`,
   overdue_days: (v) => `只匯出參觀滿 ${countOf(v)} 天仍未預繳`,
   cold_only: (v) => (v ? '只匯出冷名單' : null),
+  area: (v) => `篩選區域：${({ district: '指定行政區', village: '指定里', no_village: '未定位到里' } as Record<string, string>)[String(v)] ?? String(v)}`,
   // 參觀後追蹤（不記聯絡內容，只記方式與結果）
   channel: (v) => `聯絡方式：${CONTACT_CHANNEL_LABELS[String(v)] ?? String(v)}`,
   reached: (v) => (v ? '聯絡到了' : '沒聯絡到'),
