@@ -31,7 +31,7 @@ class ParsedAddress:
 _CN_DIGITS = "〇一二三四五六七八九"
 _CN_VALUE = {char: value for value, char in enumerate(_CN_DIGITS)} | {"零": 0, "兩": 2}
 _ROAD = r"(?:大道|路|街)"
-_DASHES = re.compile(r"[‐‑‒–—―ー−]")
+_DASHES = re.compile(r"[‐‑‒–—―ー\N{MINUS SIGN}]")
 _MAX_NUMBER = 99999
 _POSTAL = re.compile(r"^[\[(]?\d{3}(?:\d{2,3})?[\])]?")
 _DISTRICT = re.compile(
