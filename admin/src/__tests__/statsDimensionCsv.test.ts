@@ -129,3 +129,35 @@ describe('StatsDimensionTable 匯出 CSV', () => {
     wrapper.unmount()
   })
 })
+
+describe('StatsDimensionTable「查看明細」欄（2026-10-08 區域分析）', () => {
+  it('給了 actionLabel 才多一欄按鈕；按下回報該列；aria-label 帶第一欄的名稱', async () => {
+    const wrapper = mount(StatsDimensionTable, { props: { ...base, actionLabel: '查看明細' }, global: { plugins: [ElementPlus] } })
+    const buttons = wrapper.findAll('tbody button')
+    expect(buttons.map((item) => item.text())).toEqual(['查看明細', '查看明細'])
+    expect(buttons[1]!.attributes('aria-label')).toBe('查看明細：網路')
+    await buttons[1]!.trigger('click')
+    expect(wrapper.emitted('action')).toEqual([[base.rows[1]]])
+    expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual(['來源', '參觀', '預繳率', '操作'])
+    wrapper.unmount()
+  })
+
+  it('沒給 actionLabel：表頭與原本相同、沒有按鈕', () => {
+    const wrapper = mount(StatsDimensionTable, { props: base, global: { plugins: [ElementPlus] } })
+    expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual(['來源', '參觀', '預繳率'])
+    expect(wrapper.findAll('tbody button')).toHaveLength(0)
+    wrapper.unmount()
+  })
+
+  it('匯出 CSV 不含按鈕欄', async () => {
+    const wrapper = mount(StatsDimensionTable, {
+      props: { ...base, actionLabel: '查看明細', exportFilename: '招生統計-行政區排行.csv' },
+      global: { plugins: [ElementPlus] },
+    })
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(csv.charCodeAt(0)).toBe(0xfeff)
+    expect(csv.slice(1).split('\r\n')[0]).toBe('來源,參觀,預繳率')
+    wrapper.unmount()
+  })
+})

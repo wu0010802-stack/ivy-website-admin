@@ -7,6 +7,7 @@ import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/cs
 // 統計的共用表格：標題＋表格，bar 欄在數字旁畫 CSS 長條（規格 10：不新增圖表套件，
 // 長條只是輔助，數字一定寫出來）。手機寬度表格在框內橫捲，sticky 欄固定在左側，
 // 頁面本身不溢出（R16）。count／bar 欄缺值寫 0（呼叫端已補齊），text 欄缺值寫「—」。
+// 有 actionLabel 時最後多一欄按鈕（區域分析的「查看明細」，2026-10-08）；不做整列可點（列不是按鈕，鍵盤與讀屏不好用）。按鈕欄不匯出。
 const props = withDefaults(
   defineProps<{
     title: string
@@ -18,11 +19,15 @@ const props = withDefaults(
     caption?: string
     /** 有值且有資料才顯示「匯出 CSV」；檔名由呼叫端決定（校區、學期、日期）。 */
     exportFilename?: string
+    /** 有值時每列最後多一顆這個字的按鈕，按下 emit('action', row)。 */
+    actionLabel?: string
     /** 匯出專用的格值：回傳值優先於畫面值（含 ''＝寫空白），回 undefined 就照欄位規則。 */
     csvCell?: (row: Record<string, unknown>, column: StatsColumn) => CsvCell | undefined
   }>(),
-  { numbered: false, caption: '', exportFilename: '' },
+  { numbered: false, caption: '', exportFilename: '', actionLabel: '' },
 )
+
+const emit = defineEmits<{ action: [row: Record<string, unknown>] }>()
 
 const headingId = useId()
 
@@ -48,6 +53,11 @@ function display(row: Record<string, unknown>, column: StatsColumn): string {
 }
 
 const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar'
+
+// 按鈕的 aria-label 帶這一列的名稱（第一個 sticky 欄，沒有就第一欄），讀屏才分得出是哪一列的「查看明細」。
+const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
+const actionAria = (row: Record<string, unknown>) =>
+  nameColumn.value ? `${props.actionLabel}：${display(row, nameColumn.value)}` : props.actionLabel
 
 // 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
 // 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
@@ -108,6 +118,7 @@ function exportCsv() {
             >
               {{ column.label }}
             </th>
+            <th v-if="actionLabel" scope="col" class="stats-table__action"><span class="visually-hidden">操作</span></th>
           </tr>
         </thead>
         <tbody>
@@ -123,6 +134,9 @@ function exportCsv() {
               </td>
               <td v-else :class="{ 'stats-table__number': isNumeric(column), num: isNumeric(column) }">{{ display(row, column) }}</td>
             </template>
+            <td v-if="actionLabel" class="stats-table__action">
+              <el-button size="small" text type="primary" :aria-label="actionAria(row)" @click="emit('action', row)">{{ actionLabel }}</el-button>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -204,6 +218,11 @@ function exportCsv() {
 .stats-table .stats-table__index {
   width: 1%;
   color: var(--ink-3);
+  text-align: right;
+}
+
+.stats-table .stats-table__action {
+  width: 1%;
   text-align: right;
 }
 
