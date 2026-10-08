@@ -53,6 +53,26 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _apply_geo(db: AsyncSession, visit: RecruitmentVisit) -> None:
+    """區域分析（2026-10-08 規格 §6.1）：依地址比對行政區與里，寫 recruitment_visit_geo
+    並設定 district。只查資料庫、不呼叫外部服務、不加 version，也不丟例外（標記已到場
+    的交易也會走到這裡）。matcher 可能用 Core upsert 寫入，identity map 裡已載入的舊
+    比對結果不會自己更新，所以寫完重讀一次（populate_existing）掛回 visit.geo。"""
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    from app.admissions.geo import matcher
+    from app.admissions.geo.models import RecruitmentVisitGeo
+
+    await matcher.apply_visit_geo(db, visit)
+    await db.flush()
+    geo = await db.scalar(
+        select(RecruitmentVisitGeo)
+        .where(RecruitmentVisitGeo.visit_id == visit.id)
+        .execution_options(populate_existing=True)
+    )
+    set_committed_value(visit, "geo", geo)
+
+
 async def _lock_month(db: AsyncSession, campus_key: str, month: str) -> None:
     """同校同月份配號排隊（交易結束自動釋放）。"""
     await db.execute(
@@ -176,6 +196,8 @@ async def create_visit(
         metadata={"origin": origin, "follow_up": "booking" if follow_up_at is not None else "none"},
     )
     await db.flush()
+    # 沒有地址也寫一列（no_address），區域分析的待比對只留給上線前的舊訪視。
+    await _apply_geo(db, visit)
     return visit
 
 
@@ -243,6 +265,8 @@ async def update_visit(
     visit.version += 1
     visit.updated_at = _now()
     await db.flush()
+    if "address" in changed:
+        await _apply_geo(db, visit)
     return changed
 
 

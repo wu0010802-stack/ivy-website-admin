@@ -69,8 +69,9 @@ def _roc_visit_date(value: date | None) -> date | None:
 
 class _VisitEditable(BaseModel):
     """新增與編輯共用、表單可以直接填的欄位。預繳、註冊、退出、保留座位只能
-    走狀態轉換與保留座位（規格 6.1 第 3 點、6.6），不在這裡。district、
-    geocoding_consent_at 本次不填（規格 5.1），也不收。"""
+    走狀態轉換與保留座位（規格 6.1 第 3 點、6.6），不在這裡。district 由伺服器依
+    地址比對填寫（2026-10-08 區域分析規格 §5.5）、geocoding_consent_at 不填（規格 5.1），
+    兩者都不收。"""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -157,6 +158,24 @@ class RecruitmentVisitUpdate(_VisitEditable):
         return _not_future(value)
 
 
+# 區域分析（2026-10-08 規格 §5.4）：比對等級與未定位原因，與 app/admissions/geo/models.py 的
+# MATCH_LEVELS、UNLOCATED_REASONS 相同。
+MatchLevel = Literal["exact", "nearby", "street", "district", "unlocated", "pending"]
+UnlocatedReason = Literal["no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village", "anonymized"]
+
+
+class VisitGeoOut(BaseModel):
+    """一筆訪視的區域比對結果（規格 §8.5）。不含家長座標；distance_m 是到本校的直線距離，
+    取整到 100 公尺，只有比對到門牌（exact／nearby）且本校座標已知時才有。"""
+
+    village: str | None
+    match_level: MatchLevel
+    unlocated_reason: UnlocatedReason | None
+    distance_m: int | None
+
+    model_config = {"from_attributes": True}
+
+
 class RecruitmentVisitOut(BaseModel):
     """規格 5.1 全部欄位，另加推導的 stage 與 has_visit_request。anonymized_at 有值＝
     已依保存政策匿名化：不能再編輯、轉換或保留座位（409 RECRUITMENT_VISIT_ANONYMIZED），
@@ -209,6 +228,8 @@ class RecruitmentVisitOut(BaseModel):
     follow_up_at: datetime | None
     follow_up_owner_id: uuid.UUID | None
     last_contacted_at: datetime | None
+    # 區域分析（2026-10-08 規格 §8.5）：上線前的舊訪視在背景重算前是 None。
+    geo: VisitGeoOut | None = None
 
     model_config = {"from_attributes": True}
 

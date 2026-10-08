@@ -10,6 +10,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from datetime import date as date_, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     JSON,
@@ -29,6 +30,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.admissions.constants import CONTACT_CHANNELS, GRADES, NO_DEPOSIT_REASONS, SOURCE_CATEGORIES, WITHDRAWN_FROM
 from app.db import Base
+
+if TYPE_CHECKING:
+    from app.admissions.geo.models import RecruitmentVisitGeo
 
 # 參觀後追蹤（2026-10-04 規格 5.1）：已註冊、已退出、已匿名化的訪視一定沒有下次聯絡。
 # 與 migration b8e3f1a6c4d7 的字面值逐字相同。
@@ -101,7 +105,7 @@ class RecruitmentVisit(Base):
     father_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     mother_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    # 本次不填、不顯示，保留給之後的區域分析。
+    # 行政區：伺服器依門牌比對填寫（2026-10-08 區域分析規格 §5.5），表單不收；匿名化時保留。
     district: Mapped[str | None] = mapped_column(String(30), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 園務表單稱「介紹者」，官網稱「家長介紹」（哪位家長介紹來的，不再當接待人員統計）。
@@ -164,6 +168,17 @@ class RecruitmentVisit(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="RecruitmentContactLog.contacted_at",
+    )
+    # 區域分析的比對結果（2026-10-08 區域分析規格 §5.4），一對一，沒有比對過是 None。
+    # async 不能 lazy load：查訪視時用 selectin 一起載入（列表多一次 IN 查詢，不會 N+1），
+    # RecruitmentVisitOut.geo 直接讀這個屬性。只讀：寫入一律經 geo.matcher。
+    geo: Mapped[RecruitmentVisitGeo | None] = relationship(
+        "RecruitmentVisitGeo",
+        primaryjoin="RecruitmentVisitGeo.visit_id == RecruitmentVisit.id",
+        foreign_keys="RecruitmentVisitGeo.visit_id",
+        uselist=False,
+        lazy="selectin",
+        viewonly=True,
     )
 
 
@@ -242,3 +257,7 @@ class GradeIntakeTarget(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
+# relationship 目標要在 mapper 設定前註冊；放檔尾，geo.models 就算之後要匯入本檔也不會循環。
+from app.admissions.geo import models as _geo_models  # noqa: E402,F401
