@@ -1152,7 +1152,7 @@ python3 -c "
 from pathlib import Path
 p = Path('tests/fixtures/geo/doorplates-sample.csv')
 text = p.read_text(encoding='utf-8-sig').replace('\r\n', '\n')
-p.write_bytes(('﻿' + text).replace('\n', '\r\n').encode('utf-8'))
+p.write_bytes(('\ufeff' + text).replace('\n', '\r\n').encode('utf-8'))
 "
 head -c 3 tests/fixtures/geo/doorplates-sample.csv | xxd   # 應為 efbb bf
 ```
@@ -1650,6 +1650,7 @@ from app.admissions.geo.doorplates import (
     import_doorplates,
 )
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
+from app.common.csv_export import BOM
 from tests.geo_helpers import FIXTURES, sample_doorplate_rows
 
 HEADER = ",".join(EXPECTED_HEADER)
@@ -1714,7 +1715,7 @@ def test_unknown_town_and_broken_coordinates_are_skipped():
     assert rows == [] and parser.skipped == 2
 
 
-@pytest.mark.parametrize("header", [HEADER, "﻿" + HEADER, HEADER + "\r\n"])
+@pytest.mark.parametrize("header", [HEADER, BOM + HEADER, HEADER + "\r\n"])
 def test_header_with_or_without_bom(header):
     parser = DoorplateParser()
     assert parser.feed(header) is None
@@ -1939,6 +1940,7 @@ from app.admissions.geo.address import normalize_text, unit_token
 from app.admissions.geo.kaohsiung import TOWN_CODES, fix_village_name
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
 from app.admissions.geo.projection import twd97_tm2_to_wgs84
+from app.common.csv_export import BOM
 
 EXPECTED_HEADER = ["省市縣市代碼", "鄉鎮市區代碼", "村里", "鄰", "街路段", "地區", "巷", "弄", "號", "橫座標", "縱座標"]
 DOORPLATE_COLUMNS = (
@@ -1990,7 +1992,7 @@ class DoorplateParser:
             return None
         fields = next(csv.reader([line]))
         if not self._header_checked:
-            if fields and fields[0].startswith("﻿"):
+            if fields and fields[0].startswith(BOM):
                 fields[0] = fields[0][1:]
             if fields != EXPECTED_HEADER:
                 raise DoorplateFormatError("門牌資料的欄位和預期不同")
@@ -2621,9 +2623,10 @@ async def locate(db: AsyncSession, address: str | None, *, version: str | None) 
                 await db.execute(
                     select(GeoDoorplate.village, GeoDoorplate.lat, GeoDoorplate.lng)
                     .where(*base, *same_unit, func.abs(GeoDoorplate.number - parsed.number) <= NEARBY_MAX_GAP)
+                    # 同單雙號（同一側街廓）優先，再看號碼差距：里界常沿街道中線劃分。
                     .order_by(
-                        func.abs(GeoDoorplate.number - parsed.number),
                         func.mod(GeoDoorplate.number + parsed.number, 2),
+                        func.abs(GeoDoorplate.number - parsed.number),
                         GeoDoorplate.number_sub,
                         GeoDoorplate.id,
                     )

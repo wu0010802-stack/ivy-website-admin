@@ -185,7 +185,8 @@ geo_sync_check_seconds: int = 86400
   - `as_of: datetime`、`filters: {campus_key, school_year, semester}`
   - `data_status: AreaDataStatusOut {doorplate_version: str|None, doorplates_synced_at: datetime|None, kindergartens_synced_at: datetime|None, boundary_version: str}`
   - `campus: AreaCampusOut {key, name, lat: float|None, lng: float|None, locate_error: str|None}`
-  - `totals: AreaTotalsOut {visit, with_address, village_level, district_level, unlocated, pending, unlocated_reasons: list[AreaReasonCountOut {reason, count}]}`
+  - `totals: AreaTotalsOut {visit, with_address, village_level, district_level, unlocated, pending, no_address, anonymized, unlocated_reasons: list[AreaReasonCountOut {reason, count}]}`（preflight 裁定 R5：village/district/unlocated/pending 都限有地址，四者相加＝with_address；with_address＋no_address＋anonymized＝visit；unlocated_reasons 只算有地址且未定位到里的原因）
+- `geo=no_village`＝有地址且未定位到里（R4）
   - `districts: list[AreaDistrictRowOut {district, visit, deposit, visit_to_deposit_rate: float|None}]`
   - `villages: list[AreaVillageRowOut {district, village, village_code: str|None, visit, deposit, visit_to_deposit_rate}]`
   - `distance_bands: list[AreaDistanceBandOut {band: "0-1"|"1-3"|"3-6"|"6+"|"none", visit, deposit, visit_to_deposit_rate}]`（固定五列、此順序）

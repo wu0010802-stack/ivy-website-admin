@@ -897,7 +897,18 @@ async def test_area_levels_rows_and_bands(admin_client, db_session):
         {"band": "none", "visit": 9, "deposit": 1, "visit_to_deposit_rate": 11.1},
     ]
     assert body["data_status"]["boundary_version"]
-    assert body["data_status"]["doorplate_version"] == "115-10"  # tests.geo_helpers.SAMPLE_LABEL，不是批次標記
+    assert body["data_status"]["doorplate_version"] is None  # 這個測試沒匯入門牌樣本
+
+
+async def test_area_data_status_reads_doorplate_label(admin_client, db_session):
+    """畫面顯示門牌月份（geo_dataset_status.label），不是內部批次標記 active_version。"""
+    from tests.geo_helpers import SAMPLE_LABEL, load_geo_samples
+
+    await load_geo_samples(db_session)
+    body = (await admin_client.get(f"{AREA}?campus_key=yihua&{TERM}")).json()
+    assert body["data_status"]["doorplate_version"] == SAMPLE_LABEL == "115-10"
+    assert body["data_status"]["doorplates_synced_at"] is not None
+    assert body["data_status"]["kindergartens_synced_at"] is not None
 
 
 async def test_area_counts_match_stats(admin_client, db_session):
