@@ -787,6 +787,48 @@ async def get_admissions_area(
     return AdmissionsAreaOut.model_validate(result)
 
 
+@router.get("/admin/admissions/area/kindergartens", response_model=AreaKindergartensOut)
+async def get_admissions_area_kindergartens(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaKindergartensOut:
+    """本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。
+    radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_RADIUS", "message": "半徑只能是 1、3 或 6 公里"},
+        )
+    result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
+    return AreaKindergartensOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/boundaries",
+    response_class=Response,
+    responses={
+        200: {"content": {"application/geo+json": {}}, "description": "高雄市里界 GeoJSON（規格 §5.6）"},
+        304: {"description": "與 If-None-Match 相同，未變更"},
+    },
+)
+async def get_admissions_area_boundaries(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。
+    檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，
+    main.py 的 no-store 中介層會尊重）。"""
+    require_scope(current_user, "admissions.read")
+    etag = geo_boundaries.boundary_etag()
+    headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    return Response(content=geo_boundaries.boundary_bytes(), media_type="application/geo+json", headers=headers)
+
+
 @router.get("/admin/admissions/no-deposit-records", response_model=NoDepositRecordsOut)
 async def get_admissions_no_deposit_records(
     campus_key: str,

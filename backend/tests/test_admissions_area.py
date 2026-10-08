@@ -6,11 +6,14 @@ from __future__ import annotations
 import pytest
 
 from app.admissions import area
+from app.admissions.geo import kindergartens as geo_kindergartens
 from app.admissions.geo import matcher
+from app.admissions.geo.kindergartens import NearbyKindergarten
 from app.main import create_app
 from tests.admissions_area_helpers import AREA, API, add_visit, seed_area
 from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
 from tests.conftest import _logged_in_client, _test_settings
+from tests.geo_helpers import load_geo_samples, publish_campus_address
 
 TERM = "school_year=115&semester=1"
 # 義華校址在門牌樣本裡的座標（tests/geo_helpers.YIHUA_POINT）。
@@ -215,3 +218,136 @@ async def test_area_hidden_when_admissions_disabled(admin_client):
         await client.aclose()
         await disabled.state.engine.dispose()
         await disabled.state.rate_limit_engine.dispose()
+
+
+def _kindergarten(source_id: str, distance_m: int, lat: float, lng: float) -> NearbyKindergarten:
+    return NearbyKindergarten(
+        source_id=source_id,
+        name=f"高雄市私立{source_id}幼兒園",
+        kind="private",
+        pre_public_period=None,
+        address="高雄市三民區測試路1號",
+        lat=lat,
+        lng=lng,
+        distance_m=distance_m,
+        approved_capacity=60,
+        monthly_fee_estimate=5000,
+        has_penalty=False,
+        phone=None,
+    )
+
+
+async def test_kindergartens_mark_own_and_pass_radius(admin_client, monkeypatch):
+    calls: list[tuple[float, float, int]] = []
+
+    async def located(db, campus_key):
+        return _point(campus_key, 22.65, 120.32)
+
+    async def all_points(db):
+        return {"yihua": _point("yihua", 22.65, 120.32), "minghua": _point("minghua", 22.68, 120.30),
+                "renwu": _point("renwu", None, None, "no_doorplate")}
+
+    async def fake_nearby(db, lat, lng, radius_m):
+        calls.append((lat, lng, radius_m))
+        return [
+            _kindergarten("far", 2500, 22.672, 120.32),
+            _kindergarten("own", 0, 22.65001, 120.32001),
+            _kindergarten("near", 900, 22.658, 120.32),
+            # 明華校址旁 30 公尺左右：也是本機構。
+            _kindergarten("sister", 3300, 22.68025, 120.30),
+        ]
+
+    monkeypatch.setattr(matcher, "campus_point", located)
+    monkeypatch.setattr(matcher, "campus_points", all_points)
+    monkeypatch.setattr(geo_kindergartens, "nearby", fake_nearby)
+    response = await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua&radius_km=6")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert calls == [(22.65, 120.32, 6000)]
+    assert body["radius_km"] == 6
+    assert body["source_note"] == "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
+    assert [(item["source_id"], item["is_own"]) for item in body["items"]] == [
+        ("own", True), ("near", False), ("far", False), ("sister", True),
+    ]
+
+
+async def test_kindergartens_default_radius_is_three(admin_client, monkeypatch):
+    calls: list[int] = []
+
+    async def located(db, campus_key):
+        return _point(campus_key, 22.65, 120.32)
+
+    async def all_points(db):
+        return {"yihua": _point("yihua", 22.65, 120.32)}
+
+    async def fake_nearby(db, lat, lng, radius_m):
+        calls.append(radius_m)
+        return []
+
+    monkeypatch.setattr(matcher, "campus_point", located)
+    monkeypatch.setattr(matcher, "campus_points", all_points)
+    monkeypatch.setattr(geo_kindergartens, "nearby", fake_nearby)
+    body = (await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua")).json()
+    assert calls == [3000]
+    assert body["radius_km"] == 3
+
+
+async def test_kindergartens_reject_other_radius(admin_client):
+    response = await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua&radius_km=2")
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_RADIUS"
+
+
+async def test_kindergartens_when_campus_not_located(admin_client, monkeypatch):
+    """Review Focus 4：校址比對不到時回空清單與原因，不查園所、不 500。"""
+    async def unlocated(db, campus_key):
+        return _point(campus_key, None, None, "no_doorplate")
+
+    async def must_not_query(db, lat, lng, radius_m):
+        raise AssertionError("校區沒有座標時不應查園所")
+
+    monkeypatch.setattr(matcher, "campus_point", unlocated)
+    monkeypatch.setattr(geo_kindergartens, "nearby", must_not_query)
+    body = (await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua")).json()
+    assert body["items"] == []
+    assert body["campus"]["locate_error"] == "no_doorplate"
+
+
+async def test_kindergartens_from_samples_are_sorted(admin_client, db_session):
+    """接上 A 的樣本：校址發布後才有座標，清單非空、照距離排序、帶同步時間。"""
+    await load_geo_samples(db_session)
+    await publish_campus_address(db_session, "yihua", "高雄市三民區義華路68號")
+    body = (await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua&radius_km=6")).json()
+    assert body["synced_at"] is not None
+    assert body["items"], body
+    distances = [item["distance_m"] for item in body["items"]]
+    assert distances == sorted(distances)
+
+
+async def test_kindergartens_permissions(reception_yihua_client, editor_client, minghua_client):
+    path = f"{AREA}/kindergartens?campus_key=yihua"
+    assert (await reception_yihua_client.get(path)).status_code == 200
+    assert (await editor_client.get(path)).status_code == 403
+    assert (await minghua_client.get(path)).status_code == 404
+
+
+async def test_boundaries_etag_and_cache(admin_client):
+    first = await admin_client.get(f"{AREA}/boundaries")
+    assert first.status_code == 200, first.text
+    assert first.headers["content-type"].startswith("application/geo+json")
+    assert first.headers["cache-control"] == "private, max-age=86400"
+    etag = first.headers["etag"]
+    data = first.json()
+    assert data["type"] == "FeatureCollection"
+    assert len(data["features"]) == 893
+    again = await admin_client.get(f"{AREA}/boundaries", headers={"If-None-Match": etag})
+    assert again.status_code == 304
+    assert again.content == b""
+    assert again.headers["etag"] == etag
+
+
+async def test_boundaries_permissions(reception_yihua_client, editor_client, readonly_yihua_client):
+    path = f"{AREA}/boundaries"
+    assert (await reception_yihua_client.get(path)).status_code == 200
+    assert (await editor_client.get(path)).status_code == 403
+    assert (await readonly_yihua_client.get(path)).status_code == 403

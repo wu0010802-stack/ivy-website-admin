@@ -189,3 +189,33 @@ async def query_area(
         ],
         "distance_bands": [_row(bands[band], band=band) for band in DISTANCE_BANDS],
     }
+
+
+async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: int) -> dict[str, Any]:
+    """本校半徑內的幼兒園（規格 §8.2），依距離排序。校區比對不到座標時回空清單，原因在
+    campus.locate_error。is_own：與任一校區座標相距 50 公尺內（本機構，不算競爭園所）。"""
+    campus = await campus_out(db, campus_key)
+    status = await db.get(GeoDatasetStatus, "kindergartens")
+    result: dict[str, Any] = {
+        "synced_at": status.synced_at if status is not None else None,
+        "source_note": KINDERGARTEN_SOURCE_NOTE,
+        "campus": campus,
+        "radius_km": radius_km,
+        "items": [],
+    }
+    if campus["lat"] is None or campus["lng"] is None:
+        return result
+    own_points = [
+        (point.lat, point.lng)
+        for point in (await matcher.campus_points(db)).values()
+        if point.lat is not None and point.lng is not None
+    ]
+    found = await geo_kindergartens.nearby(db, campus["lat"], campus["lng"], radius_km * 1000)
+    result["items"] = [
+        {
+            **asdict(item),
+            "is_own": any(haversine_m(item.lat, item.lng, lat, lng) <= OWN_CAMPUS_RADIUS_M for lat, lng in own_points),
+        }
+        for item in sorted(found, key=lambda kindergarten: (kindergarten.distance_m, kindergarten.name))
+    ]
+    return result
