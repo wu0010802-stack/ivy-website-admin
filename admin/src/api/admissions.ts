@@ -1,13 +1,14 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, ContactLog, ContactLogCreate, ContactLogResult,
-  FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
+  AdmissionsArea, AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaKindergartens, ContactLog, ContactLogCreate,
+  ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
 } from './types'
 import type { Stage } from '../admissions/constants'
+import type { VillageBoundaries } from '../components/admissions/area/areaFormat'
 
 /** 訪視明細的篩選（後端 RecruitmentVisitFilters）。空字串與 null 不送。 */
 export type RecordFilters = {
@@ -26,6 +27,10 @@ export type RecordFilters = {
   // 參觀後追蹤（2026-10-04）：due 已到期、upcoming 7 天內、unscheduled 未排定；負責人 me／none／帳號 id。
   follow_up?: FollowUpScope | null
   owner?: string | null
+  // 區域分析的「查看明細」（2026-10-08 規格 8.4）：行政區＋里，或 geo=no_village（未定位到里）。
+  district?: string | null
+  village?: string | null
+  geo?: 'no_village' | null
 }
 
 export type FollowUpScope = 'due' | 'upcoming' | 'unscheduled'
@@ -143,6 +148,21 @@ export function noDepositExportPath(params: NoDepositFilters): string {
 /** 五校比較（規格 9.3）：後端只回授權範圍內的校區；學年必填，學期不帶＝整學年。 */
 export function getCompare(schoolYear: number, semester?: number | null): Promise<AdmissionsCompare> {
   return api.get<AdmissionsCompare>(`/admin/admissions/compare?${toQuery({ school_year: schoolYear, semester })}`)
+}
+
+/** 區域分析（2026-10-08 規格 8.1）：口徑同 /stats（校區＋入學學年學期，null＝不篩）。 */
+export function getArea(params: { campus_key: string; school_year: number | null; semester: number | null }): Promise<AdmissionsArea> {
+  return api.get<AdmissionsArea>(`/admin/admissions/area?${toQuery(params)}`)
+}
+
+/** 本校半徑內的幼兒園（規格 8.2），後端依距離排序；半徑只有 1、3、6 公里。 */
+export function getAreaKindergartens(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaKindergartens> {
+  return api.get<AreaKindergartens>(`/admin/admissions/area/kindergartens?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
+}
+
+/** 高雄市里界（規格 8.3）。後端帶 ETag 與一天快取，304 由瀏覽器自己處理。 */
+export function getAreaBoundaries(): Promise<VillageBoundaries> {
+  return api.get<VillageBoundaries>('/admin/admissions/area/boundaries')
 }
 
 // ---- 參觀後追蹤（docs/specs/2026-10-04-admissions-follow-up-design.md 第 9 節）----

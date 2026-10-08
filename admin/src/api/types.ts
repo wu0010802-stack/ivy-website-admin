@@ -496,6 +496,15 @@ export type AdmissionsStaff = components['schemas']['AdmissionsStaffOut']
 // 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
 export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']
 
+// 區域分析（2026-10-08 規格 8）。
+export type AdmissionsArea = components['schemas']['AdmissionsAreaOut']
+export type AreaDistrictRow = components['schemas']['AreaDistrictRowOut']
+export type AreaVillageRow = components['schemas']['AreaVillageRowOut']
+export type AreaDistanceBand = components['schemas']['AreaDistanceBandOut']
+export type AreaKindergartens = components['schemas']['AreaKindergartensOut']
+export type AreaKindergarten = components['schemas']['AreaKindergartenOut']
+export type VisitGeo = components['schemas']['VisitGeoOut']
+
 // 五校比較（C4）。後端回 {as_of, school_year, semester, rows}；AdmissionsRate 是 {value, numerator, denominator}，畫面同時寫分子分母。
 export type AdmissionsCompare = components['schemas']['AdmissionsCompareOut']
 export type AdmissionsCompareRow = components['schemas']['AdmissionsCompareRow']

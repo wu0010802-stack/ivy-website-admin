@@ -54,6 +54,25 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     await admissions.updateRecord('v-1', { notes: '再聯絡', expected_version: 2 } as never)
     expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { notes: '再聯絡', expected_version: 2 })
   })
+
+  it('區域分析三支 API：口徑同統計（學年學期沒選不帶）；幼兒園帶半徑；里界不帶參數', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
+    await admissions.getArea({ campus_key: 'yihua', school_year: 115, semester: null })
+    await admissions.getAreaKindergartens('yihua', 6)
+    await admissions.getAreaBoundaries()
+    expect(get.mock.calls.map((call) => call[0])).toEqual([
+      '/admin/admissions/area?campus_key=yihua&school_year=115',
+      '/admin/admissions/area/kindergartens?campus_key=yihua&radius_km=6',
+      '/admin/admissions/area/boundaries',
+    ])
+  })
+
+  it('明細的區域篩選：district／village／geo 有值才帶，列表與匯出同一組', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    await admissions.listRecords({ campus_key: 'yihua', district: '三民區', village: '本揚里', geo: null, page: 1, page_size: 50 })
+    expect(String(get.mock.calls[0]![0])).toBe('/admin/admissions/records?campus_key=yihua&district=%E4%B8%89%E6%B0%91%E5%8D%80&village=%E6%9C%AC%E6%8F%9A%E9%87%8C&page=1&page_size=50')
+    expect(admissions.recordsExportPath({ campus_key: 'yihua', geo: 'no_village' })).toBe('/admin/admissions/records/export?campus_key=yihua&geo=no_village')
+  })
 })
 
 describe('招生錯誤碼', () => {
