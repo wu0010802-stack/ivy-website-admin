@@ -100,6 +100,13 @@ function villagePopup(properties: VillageProperties): HTMLElement {
   return root
 }
 
+// hover 提示：Leaflet 的字串內容走 innerHTML，里名來自匯入的外部資料，所以一律給文字節點。
+function villageTooltip(properties: VillageProperties): HTMLElement {
+  const root = document.createElement('span')
+  root.textContent = `${properties.TOWNNAME}${properties.VILLNAME}`
+  return root
+}
+
 function kindergartenPopup(item: AreaKindergarten): HTMLElement {
   const root = document.createElement('div')
   root.className = 'area-popup'
@@ -124,7 +131,7 @@ function drawVillages() {
     onEachFeature: (feature, layer) => {
       const properties = feature.properties as VillageProperties
       layer.bindPopup(() => villagePopup(properties))
-      if (!props.narrow) layer.bindTooltip(`${properties.TOWNNAME}${properties.VILLNAME}`, { sticky: true, direction: 'top' })
+      if (!props.narrow) layer.bindTooltip(villageTooltip(properties), { sticky: true, direction: 'top' })
     },
   }).addTo(map)
   // 里界壓在最底下：半徑圓與幼兒園點畫在同一個 SVG 裡，要在上面。
@@ -215,10 +222,11 @@ function retryTiles() {
   tiles?.redraw()
 }
 
+// 先把狀態清乾淨再移除地圖：remove() 就算丟錯，重試也不會碰到舊的半成品。
 function destroyMap() {
+  const current = map
   resizeObserver?.disconnect()
   resizeObserver = null
-  map?.remove()
   L = null
   map = null
   tiles = null
@@ -227,6 +235,7 @@ function destroyMap() {
   radiusCircle = null
   kindergartenGroup = null
   kindergartenMarkers.clear()
+  current?.remove()
 }
 
 function buildMap(leaflet: LeafletModule, element: HTMLElement) {
@@ -268,8 +277,14 @@ async function startMap() {
     // 載入期間已經離開（卸載會清掉 ref）：不建地圖。
     if (!container.value) return
     buildMap(leaflet, container.value)
-  } catch {
-    destroyMap()
+  } catch (error) {
+    // 沒有家長資料牽涉在內（載入或建圖階段），可以直接記錄。
+    console.error('[AreaMap] 地圖建立失敗', error)
+    try {
+      destroyMap()
+    } catch (cleanupError) {
+      console.error('[AreaMap] 清除未完成的地圖失敗', cleanupError)
+    }
     failure.value = 'library'
   } finally {
     loading.value = false
@@ -284,7 +299,8 @@ function retry() {
 onMounted(() => void startMap())
 
 watch(() => [props.boundaries, props.villages], drawVillages)
-watch(() => [props.campus.lat, props.campus.lng], () => {
+// 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。
+watch([() => props.campus.lat, () => props.campus.lng], () => {
   drawCampus()
   fitInitialView()
 })
@@ -308,7 +324,7 @@ onBeforeUnmount(destroyMap)
         <span>{{ failure === 'tiles' ? '底圖載入失敗。' : '地圖載入失敗，請重試或重新整理頁面。' }}</span>
         <el-button size="small" @click="retry">重試</el-button>
       </div>
-      <el-button v-if="narrow && !failure && !loading" class="area-map__move" size="small" :type="interactive ? 'primary' : 'default'" @click="setInteractive(!interactive)">
+      <el-button v-if="narrow && !loading && failure !== 'library'" class="area-map__move" size="small" :type="interactive ? 'primary' : 'default'" @click="setInteractive(!interactive)">
         {{ interactive ? '完成' : '移動地圖' }}
       </el-button>
     </div>
