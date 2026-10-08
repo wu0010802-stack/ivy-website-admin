@@ -1,0 +1,143 @@
+"""招生區域分析的公開地理資料與訪視比對結果（docs/specs/2026-10-08-admissions-area-design.md 第 5 節）。
+
+四張表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／
+geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，
+不存家長座標。列舉用 String＋CheckConstraint，條件字串與 migration
+e7a1c4d9b2f6 逐字相同（tests/test_geo_schema.py 檢查）。
+
+這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
+再從 RecruitmentVisit 那邊建立 geo relationship（階段 B）；反過來 import 會循環。
+所以 RecruitmentVisitGeo 只有指向 recruitment_visits.id 的外鍵，沒有 relationship。"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Float,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    String,
+)
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.db import Base
+
+MATCH_LEVELS = ("exact", "nearby", "street", "district", "unlocated", "pending")
+UNLOCATED_REASONS = ("no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village", "anonymized")
+# 有里的比對等級；exact、nearby 另有座標（算得出距離）。
+VILLAGE_LEVELS = ("exact", "nearby", "street")
+KINDERGARTEN_KINDS = ("public", "nonprofit", "quasi_public", "private")
+STREET_KINDS = ("road", "area")
+DATASETS = ("doorplates", "kindergartens", "campuses")
+
+
+def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
+    listed = ", ".join(f"'{value}'" for value in values)
+    condition = f"{column} IN ({listed})"
+    return f"{column} IS NULL OR {condition}" if nullable else condition
+
+
+class GeoDoorplate(Base):
+    """高雄市門牌（去樓層）。dataset_version 是匯入批次標記（「115-10#a1b2c3」）：同一個
+    月份重匯也不會和使用中的批次混在一起，切換完成才刪舊批次。巷、弄沒有時存空字串，
+    查詢一律用等號比對；具名巷（「博愛巷」）存「博愛」。"""
+
+    __tablename__ = "geo_doorplates"
+    __table_args__ = (
+        CheckConstraint(_in("street_kind", STREET_KINDS), name="ck_geo_doorplates_street_kind"),
+        Index(
+            "ix_geo_doorplates_lookup",
+            "dataset_version", "town_code", "street", "lane", "alley", "number", "number_sub",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    dataset_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    town_code: Mapped[str] = mapped_column(String(8), nullable=False)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    village: Mapped[str] = mapped_column(String(16), nullable=False)
+    street: Mapped[str] = mapped_column(String(40), nullable=False)
+    street_kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    lane: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    alley: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    number_sub: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lng: Mapped[float] = mapped_column(Float, nullable=False)
+
+
+class GeoKindergarten(Base):
+    """高雄市營業中的幼兒園（kiang 整理的全國教保資訊網資料）。不存負責人姓名。"""
+
+    __tablename__ = "geo_kindergartens"
+    __table_args__ = (
+        CheckConstraint(_in("kind", KINDERGARTEN_KINDS), name="ck_geo_kindergartens_kind"),
+        Index("ix_geo_kindergartens_lat_lng", "lat", "lng"),
+    )
+
+    source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    reg_no: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    pre_public_period: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    address: Mapped[str] = mapped_column(String(200), nullable=False)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lng: Mapped[float] = mapped_column(Float, nullable=False)
+    approved_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    monthly_fee_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_penalty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoDatasetStatus(Base):
+    """一種資料一列。
+    - doorplates：active_version＝使用中的匯入批次標記（查詢用），label＝畫面上的「115-10」；
+    - kindergartens：active_version、label 都是同步日期；
+    - campuses：active_version＝「各校已發布校址＋使用中門牌批次」的指紋，變了就重算訪視
+      （同步工作內部用，畫面不讀）。
+    last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
+
+    __tablename__ = "geo_dataset_status"
+    __table_args__ = (CheckConstraint(_in("dataset", DATASETS), name="ck_geo_dataset_status_dataset"),)
+
+    dataset: Mapped[str] = mapped_column(String(20), primary_key=True)
+    active_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    label: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+
+
+class RecruitmentVisitGeo(Base):
+    """訪視地址的比對結果（規格 §5.4）。行政區寫回 recruitment_visits.district，這裡放里、
+    比對等級、未定位原因、到本校的直線距離（取整到 100 m）、比對當時的門牌月份。"""
+
+    __tablename__ = "recruitment_visit_geo"
+    __table_args__ = (
+        CheckConstraint(_in("match_level", MATCH_LEVELS), name="ck_recruitment_visit_geo_match_level"),
+        CheckConstraint(
+            _in("unlocated_reason", UNLOCATED_REASONS, nullable=True), name="ck_recruitment_visit_geo_reason"
+        ),
+    )
+
+    visit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("recruitment_visits.id", ondelete="CASCADE"), primary_key=True
+    )
+    village: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    match_level: Mapped[str] = mapped_column(String(16), nullable=False)
+    unlocated_reason: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    distance_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    matched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

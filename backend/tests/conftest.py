@@ -140,6 +140,7 @@ async def _clean_tables(app):
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
                 "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
                 "retention_policies, retention_runs, "
+                "recruitment_visit_geo, geo_doorplates, geo_kindergartens, geo_dataset_status, "
                 "recruitment_contact_logs, recruitment_event_log, recruitment_visits, grade_intake_targets "
                 "RESTART IDENTITY CASCADE"
             )
