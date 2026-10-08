@@ -163,7 +163,8 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     await expandable!.trigger('click')
     await flushPromises()
     const info = wrapper.get('.records__info')
-    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['地址', '家長介紹', '未預繳原因', '備註'])
+    // 有地址但沒有比對紀錄（geo 為 null）：「區域」寫待比對（2026-10-08 區域分析）。
+    expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['地址', '區域', '家長介紹', '未預繳原因', '備註'])
     expect(info.text()).toContain('高雄市示範路 1 號')
     expect(info.text()).not.toContain('電訪回應')
   })
@@ -587,5 +588,71 @@ describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔�
     selectByPlaceholder(wrapper, '全部月份').vm.$emit('update:modelValue', '115.09')
     await flushPromises()
     expect(router.currentRoute.value.query.month).toBe('115.09')
+  })
+})
+
+describe('訪視明細：區域篩選與比對結果（2026-10-08 區域分析）', () => {
+  it('area＝某一里：查詢帶 district、village（不帶 geo）；提示寫出範圍，「顯示全部」清掉', async () => {
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ area: '三民區/本揚里' }) })
+    expect(lastQuery(get).get('district')).toBe('三民區')
+    expect(lastQuery(get).get('village')).toBe('本揚里')
+    expect(lastQuery(get).has('geo')).toBe(false)
+    expect(wrapper.text()).toContain('只顯示三民區本揚里的訪視。')
+    await button(wrapper, '顯示全部')!.trigger('click')
+    expect(wrapper.emitted('update:area')).toEqual([['']])
+  })
+
+  it('area＝no_village：查詢帶 geo=no_village；空結果算「目前篩選條件下」', async () => {
+    const get = mockGet({ '/admin/admissions/records': [] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ area: 'no_village' }) })
+    expect(lastQuery(get).get('geo')).toBe('no_village')
+    expect(lastQuery(get).has('district')).toBe(false)
+    expect(wrapper.text()).toContain('只顯示未定位到里的訪視')
+    expect(wrapper.text()).toContain('目前篩選條件下沒有訪視紀錄。')
+  })
+
+  it('area 換了就重讀；「清除篩選」也清掉區域；手改的 area 不帶參數', async () => {
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ area: '三民區' }) })
+    await wrapper.setProps({ area: '鼓山區' })
+    await flushPromises()
+    expect(lastQuery(get).get('district')).toBe('鼓山區')
+    await button(wrapper, '清除篩選')!.trigger('click')
+    expect(wrapper.emitted('update:area')).toContainEqual([''])
+    await wrapper.setProps({ area: 'hack' })
+    await flushPromises()
+    expect(lastQuery(get).has('district')).toBe(false)
+    expect(wrapper.text()).not.toContain('只顯示')
+  })
+
+  it('展開列：地址下一行「區域」寫比對結果；沒有比對紀錄有地址寫「待比對」，連地址都沒有就不列', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ address: '高雄市三民區義華路61號', district: '三民區', geo: { village: '寶業里', match_level: 'exact', unlocated_reason: null, distance_m: 1200 } }),
+        visit({ id: 'v-2', child_name: '李小樂', address: '高雄市示範路 1 號', geo: null }),
+        visit({ id: 'v-3', child_name: '張小晴', address: '   ', district: '鼓山區', geo: null }),
+        visit({ id: 'v-4', child_name: '陳小宇', address: null, district: '前鎮區', geo: null }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const icons = wrapper.findAll('.records-table .el-table__expand-icon')
+    const expandedInfo = async (index: number) => {
+      await icons[index]!.trigger('click')
+      await flushPromises()
+      const info = wrapper.get('.records__info')
+      const result = { labels: info.findAll('dt').map((dt) => dt.text()), text: info.text() }
+      await icons[index]!.trigger('click')
+      await flushPromises()
+      return result
+    }
+    const first = await expandedInfo(0)
+    expect(first.labels).toEqual(['地址', '區域'])
+    expect(first.text).toContain('三民區寶業里・距本校 1.2 km')
+    const second = await expandedInfo(1)
+    expect(second.labels).toEqual(['地址', '區域'])
+    expect(second.text).toContain('待比對')
+    expect((await expandedInfo(2)).labels).toEqual(['地址'])
+    expect((await expandedInfo(3)).labels).toEqual(['地址'])
   })
 })

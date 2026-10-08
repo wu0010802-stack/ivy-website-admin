@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import AdmissionsView from '../views/AdmissionsView.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
+import RecordsTab from '../components/admissions/RecordsTab.vue'
+import { STATS_SUBS } from '../admissions/useAdmissionsFilters'
 import { routes } from '../router'
 import { canSeeNavItem, NAV_GROUPS, navItem } from '../router/nav'
 import { testUser } from './fixtures'
@@ -233,6 +235,78 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     const compare = await mountWith(AdmissionsView, { path: '/admissions?campus=renwu&tab=stats&sub=compare', user: single })
     expect(compare.wrapper.findComponent(StatsTab).props('sub')).toBe('overview')
     expect(compare.router.currentRoute.value.query).toEqual({ campus: 'renwu', tab: 'stats' })
+  })
+
+  it('(e) sub=area 讀得回來；區域分析「查看明細」push 到訪視明細帶 area、拿掉 month；上一頁回到區域分析', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=area&month=115.09' })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('area')
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { area: '三民區/本揚里' })
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', area: '三民區/本揚里' })
+    expect(wrapper.findComponent(RecordsTab).props('area')).toBe('三民區/本揚里')
+    router.back()
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats', sub: 'area', month: '115.09' })
+  })
+
+  it('(f) 統計「查看本月明細」帶 month 時拿掉 area；手改的 area 不帶進明細、網址改回乾淨的', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&area=%E4%B8%89%E6%B0%91%E5%8D%80' })
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { month: '115.09' })
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', month: '115.09' })
+    cleanup()
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const bad = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=records&area=hack' })
+    expect(bad.wrapper.findComponent(RecordsTab).props('area')).toBe('')
+    expect(bad.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records' })
+  })
+
+  it('(g) 區域分析排在接待之後、未預繳之前；sub=area 跟其他子分頁一樣用 replace 寫進網址，切回總覽不帶 sub', async () => {
+    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare'])
+    mockGet(routesOn)
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats' })
+    const push = vi.spyOn(router, 'push')
+    const replace = vi.spyOn(router, 'replace')
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'area')
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'yihua', tab: 'stats', sub: 'area' } })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('area')
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
+    await flushPromises()
+    expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'yihua', tab: 'stats' } })
+    expect(push).not.toHaveBeenCalled()
+  })
+
+  it('(h) 訪視明細的 area：整區、單一里、未定位都讀得回來並留在網址；寫法不合的值（多一層、里名不對、空段）被清掉', async () => {
+    for (const area of ['三民區', '三民區/本揚里', 'no_village']) {
+      mockGet({ ...routesOn, '/admin/admissions/records': [] })
+      const good = await mountWith(AdmissionsView, { path: `/admissions?campus=yihua&tab=records&area=${encodeURIComponent(area)}` })
+      expect(good.wrapper.findComponent(RecordsTab).props('area')).toBe(area)
+      expect(good.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', area })
+      cleanup()
+    }
+    for (const area of ['a/b/c', '三民區/abc', '三民區/', '/本揚里']) {
+      mockGet({ ...routesOn, '/admin/admissions/records': [] })
+      const bad = await mountWith(AdmissionsView, { path: `/admissions?campus=yihua&tab=records&area=${encodeURIComponent(area)}` })
+      expect(bad.wrapper.findComponent(RecordsTab).props('area')).toBe('')
+      expect(bad.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records' })
+      cleanup()
+    }
+  })
+
+  it('(i) area 只在訪視明細有意義：離開訪視明細就從網址拿掉；其他分頁的網址帶 area 也被清掉', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=records&area=%E4%B8%89%E6%B0%91%E5%8D%80' })
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', area: '三民區' })
+    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'funnel')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
+    cleanup()
+    mockGet(routesOn)
+    const stats = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&area=%E4%B8%89%E6%B0%91%E5%8D%80' })
+    expect(stats.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats' })
   })
 })
 

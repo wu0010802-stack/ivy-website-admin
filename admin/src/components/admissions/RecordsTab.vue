@@ -13,6 +13,7 @@ import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASON
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
+import { areaApiParams, areaNotice, parseAreaQuery } from '../../admissions/areaFilter'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
@@ -20,21 +21,29 @@ import { useRouter } from 'vue-router'
 import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import { csvFilename, downloadServerCsv } from '../../utils/csv'
+import { visitGeoText } from './area/areaFormat'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
 import TransitionDialog from './TransitionDialog.vue'
 import SeatDialog from './SeatDialog.vue'
 
 // 訪視明細（園務 RecruitmentDetailTab＋AdmissionsRecordsPanel）。入學學年學期用頁首的篩選，
-// 這裡不重複（本檔調整第 11 條）；月份與 vr 由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
+// 這裡不重複（本檔調整第 11 條）；月份、vr、區域（area，2026-10-08）由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
 const props = defineProps<{
   campusKey: string
   schoolYear: number | null
   semester: Semester | null
   month: string
   visitRequestId: string
+  /** 區域分析「查看明細」帶來的區域（網址 area）；認不得的寫法當沒篩。 */
+  area?: string
 }>()
-const emit = defineEmits<{ 'update:month': [value: string]; 'update:visitRequestId': [value: string]; 'clear-term': [] }>()
+const emit = defineEmits<{
+  'update:month': [value: string]
+  'update:visitRequestId': [value: string]
+  'update:area': [value: string]
+  'clear-term': []
+}>()
 
 const PAGE_SIZE = 50
 const CONFLICT_TEXT = '這筆招生訪視剛被其他人修改，已重新載入，請確認後再操作'
@@ -66,6 +75,7 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const pendingId = ref<string | null>(null)
 const requests = useRequestSequence()
+const areaFilter = computed(() => parseAreaQuery(props.area))
 
 const options = ref<AdmissionsOptions | null>(null)
 const optionRequests = useRequestSequence()
@@ -73,7 +83,7 @@ const optionRequests = useRequestSequence()
 // 分頁內的篩選（不含頁首學年學期）：決定空狀態的說法。
 const filtered = computed(() =>
   Boolean(
-    props.month || props.visitRequestId || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value
+    props.month || props.visitRequestId || areaFilter.value || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value
     || keyword.value || followUp.value || owner.value,
   ),
 )
@@ -113,6 +123,7 @@ function currentFilters(): RecordFilters {
     q: keyword.value || null,
     follow_up: followUp.value || null,
     owner: owner.value || null,
+    ...areaApiParams(areaFilter.value),
   }
 }
 
@@ -184,7 +195,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 
 // 條件一變就回第一頁；已經在第一頁就直接重讀（避免同一次變動讀兩次）。
 const filterKey = computed(() => JSON.stringify([
-  props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId,
+  props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId, props.area,
   grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, keyword.value, followUp.value, owner.value,
 ]))
 watch(filterKey, () => {
@@ -211,6 +222,7 @@ function clearFilters() {
   keyword.value = ''
   emit('update:month', '')
   emit('update:visitRequestId', '')
+  emit('update:area', '')
   emit('clear-term')
 }
 
@@ -253,6 +265,9 @@ function extraInfo(row: RecruitmentVisit): InfoItem[] {
   const items: InfoItem[] = [
     { label: '英文名字', value: row.english_name ?? '' },
     { label: '地址', value: row.address || row.district || '' },
+    // 門牌比對結果（2026-10-08 區域分析）。沒有比對紀錄（geo 為 null 的舊資料）：有填地址算「待比對」，
+    // 與區域分析的 pending、area=no_village 篩選同口徑；連地址都沒填就不列。
+    { label: '區域', value: row.geo ? visitGeoText(row.geo, row.district) : row.address?.trim() ? '待比對' : '' },
     { label: '父親職業', value: row.father_occupation ?? '' },
     { label: '母親職業', value: row.mother_occupation ?? '' },
     { label: '來源分類', value: category },
@@ -520,6 +535,10 @@ async function remove(row: RecruitmentVisit) {
 
     <el-alert v-if="visitRequestId" type="info" :closable="false" show-icon class="records__notice" title="只顯示這筆官網預約建立的招生訪視。">
       <el-button size="small" @click="emit('update:visitRequestId', '')">顯示全部</el-button>
+    </el-alert>
+
+    <el-alert v-if="areaFilter" type="info" :closable="false" show-icon class="records__notice" :title="areaNotice(areaFilter)">
+      <el-button size="small" @click="emit('update:area', '')">顯示全部</el-button>
     </el-alert>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="records__notice">

@@ -7,7 +7,7 @@ import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import RecordsTab from '../components/admissions/RecordsTab.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -20,15 +20,20 @@ import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissi
 // 官網延伸的「待追蹤」分頁：下次聯絡、負責人改在訪視明細的「追蹤」「負責人」篩選看。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, sub, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, area, sub, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
 const route = useRoute()
 const router = useRouter()
 
-// 統計的警示與行動入口「查看本月明細」：切到訪視明細並帶月份（B2 的明細讀網址的 month）。
-// 用 push 不用 replace：看完明細按上一頁回到統計。
-function openRecords(filter: { month: string }) {
-  void router.push({ query: { ...route.query, tab: 'records', month: filter.month } })
+// 統計的警示與行動入口「查看本月明細」、區域分析的「查看明細」：切到訪視明細並帶月份或區域。
+// 兩者擇一：帶一個就拿掉另一個，免得疊成更窄的範圍。用 push 不用 replace：看完明細按上一頁回到統計。
+function openRecords(filter: { month?: string; area?: string }) {
+  const query: LocationQuery = { ...route.query, tab: 'records' }
+  delete query.month
+  delete query.area
+  if (filter.month) query.month = filter.month
+  if (filter.area) query.area = filter.area
+  void router.push({ query })
 }
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
 // 學年選項取新增／編輯表單（+3…−1）與原本頁首（+1…−2）的聯集：入學學年填到後年、大後年的訪視也選得到。
@@ -142,6 +147,7 @@ function showUnscoped() {
           v-if="tab === 'records'"
           v-model:month="month"
           v-model:visitRequestId="visitRequestId"
+          v-model:area="area"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"
