@@ -1,6 +1,60 @@
 {
   "components": {
     "schemas": {
+      "AdmissionsAreaOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "data_status": {
+            "$ref": "#/components/schemas/AreaDataStatusOut"
+          },
+          "distance_bands": {
+            "items": {
+              "$ref": "#/components/schemas/AreaDistanceBandOut"
+            },
+            "title": "Distance Bands",
+            "type": "array"
+          },
+          "districts": {
+            "items": {
+              "$ref": "#/components/schemas/AreaDistrictRowOut"
+            },
+            "title": "Districts",
+            "type": "array"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AreaFiltersOut"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AreaTotalsOut"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaVillageRowOut"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "filters",
+          "data_status",
+          "campus",
+          "totals",
+          "districts",
+          "villages",
+          "distance_bands"
+        ],
+        "title": "AdmissionsAreaOut",
+        "type": "object"
+      },
       "AdmissionsCompareOut": {
         "properties": {
           "as_of": {
@@ -1616,6 +1670,508 @@
           "clicks_by_entry"
         ],
         "title": "AnalyticsFunnelOut",
+        "type": "object"
+      },
+      "AreaCampusOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "locate_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locate Error"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "lat",
+          "lng",
+          "locate_error"
+        ],
+        "title": "AreaCampusOut",
+        "type": "object"
+      },
+      "AreaDataStatusOut": {
+        "description": "公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本。",
+        "properties": {
+          "boundary_version": {
+            "title": "Boundary Version",
+            "type": "string"
+          },
+          "doorplate_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doorplate Version"
+          },
+          "doorplates_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doorplates Synced At"
+          },
+          "kindergartens_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kindergartens Synced At"
+          }
+        },
+        "required": [
+          "doorplate_version",
+          "doorplates_synced_at",
+          "kindergartens_synced_at",
+          "boundary_version"
+        ],
+        "title": "AreaDataStatusOut",
+        "type": "object"
+      },
+      "AreaDistanceBandOut": {
+        "properties": {
+          "band": {
+            "enum": [
+              "0-1",
+              "1-3",
+              "3-6",
+              "6+",
+              "none"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "band",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate"
+        ],
+        "title": "AreaDistanceBandOut",
+        "type": "object"
+      },
+      "AreaDistrictRowOut": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "district",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate"
+        ],
+        "title": "AreaDistrictRowOut",
+        "type": "object"
+      },
+      "AreaFiltersOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Year"
+          },
+          "semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semester"
+          }
+        },
+        "required": [
+          "campus_key",
+          "school_year",
+          "semester"
+        ],
+        "title": "AreaFiltersOut",
+        "type": "object"
+      },
+      "AreaKindergartenOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "approved_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Capacity"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "has_penalty": {
+            "title": "Has Penalty",
+            "type": "boolean"
+          },
+          "is_own": {
+            "title": "Is Own",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "public",
+              "nonprofit",
+              "quasi_public",
+              "private"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "monthly_fee_estimate": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Fee Estimate"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "pre_public_period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pre Public Period"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "kind",
+          "pre_public_period",
+          "address",
+          "lat",
+          "lng",
+          "distance_m",
+          "approved_capacity",
+          "monthly_fee_estimate",
+          "has_penalty",
+          "phone",
+          "is_own"
+        ],
+        "title": "AreaKindergartenOut",
+        "type": "object"
+      },
+      "AreaKindergartensOut": {
+        "properties": {
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AreaKindergartenOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "source_note": {
+            "title": "Source Note",
+            "type": "string"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "required": [
+          "synced_at",
+          "source_note",
+          "campus",
+          "radius_km",
+          "items"
+        ],
+        "title": "AreaKindergartensOut",
+        "type": "object"
+      },
+      "AreaReasonCountOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "outside_kaohsiung",
+              "no_doorplate",
+              "ambiguous_village"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "count"
+        ],
+        "title": "AreaReasonCountOut",
+        "type": "object"
+      },
+      "AreaTotalsOut": {
+        "description": "以有地址為母數（主控裁定 R5）。\nvisit＝範圍內全部訪視＝with_address＋no_address＋anonymized。\nwith_address＝未匿名化且有填地址（判斷同訪視明細的 geo=no_village 篩選）\n＝village_level＋district_level＋unlocated＋pending。\nno_address＝未匿名化、沒填地址；anonymized＝已匿名化（地址已清掉，不算有地址）。\nunlocated_reasons 只算有地址、卻沒到里的原因（外縣市、查無門牌、里有歧義），\n只列筆數大於 0 的，筆數多的在前、同筆數依固定順序。",
+        "properties": {
+          "anonymized": {
+            "title": "Anonymized",
+            "type": "integer"
+          },
+          "district_level": {
+            "title": "District Level",
+            "type": "integer"
+          },
+          "no_address": {
+            "title": "No Address",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "unlocated": {
+            "title": "Unlocated",
+            "type": "integer"
+          },
+          "unlocated_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/AreaReasonCountOut"
+            },
+            "title": "Unlocated Reasons",
+            "type": "array"
+          },
+          "village_level": {
+            "title": "Village Level",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "with_address": {
+            "title": "With Address",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visit",
+          "with_address",
+          "village_level",
+          "district_level",
+          "unlocated",
+          "pending",
+          "no_address",
+          "anonymized",
+          "unlocated_reasons"
+        ],
+        "title": "AreaTotalsOut",
+        "type": "object"
+      },
+      "AreaVillageRowOut": {
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Code"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "district",
+          "village",
+          "village_code",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate"
+        ],
+        "title": "AreaVillageRowOut",
         "type": "object"
       },
       "AuditLogEntryOut": {
@@ -7423,6 +7979,16 @@
             ],
             "title": "Follow Up Owner Id"
           },
+          "geo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitGeoOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "geocoding_consent_at": {
             "anyOf": [
               {
@@ -9842,6 +10408,71 @@
         "title": "VisitExceptionRemovedOut",
         "type": "object"
       },
+      "VisitGeoOut": {
+        "description": "一筆訪視的區域比對結果（規格 §8.5）。不含家長座標；distance_m 是到本校的直線距離，\n取整到 100 公尺，只有比對到門牌（exact／nearby）且本校座標已知時才有。",
+        "properties": {
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "match_level": {
+            "enum": [
+              "exact",
+              "nearby",
+              "street",
+              "district",
+              "unlocated",
+              "pending"
+            ],
+            "title": "Match Level",
+            "type": "string"
+          },
+          "unlocated_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_address",
+                  "outside_kaohsiung",
+                  "no_doorplate",
+                  "ambiguous_village",
+                  "anonymized"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlocated Reason"
+          },
+          "village": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village"
+          }
+        },
+        "required": [
+          "village",
+          "match_level",
+          "unlocated_reason",
+          "distance_m"
+        ],
+        "title": "VisitGeoOut",
+        "type": "object"
+      },
       "VisitGroupCountsOut": {
         "properties": {
           "cancelled": {
@@ -11570,6 +12201,271 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/area": {
+      "get": {
+        "description": "區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。\n母體同 /stats。只讀，不寫稽核；不含家長個資。",
+        "operationId": "get_admissions_area_api_website_v1_admin_admissions_area_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "入學學年；不帶＝不篩",
+            "in": "query",
+            "name": "school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年；不帶＝不篩",
+              "title": "School Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdmissionsAreaOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/boundaries": {
+      "get": {
+        "description": "里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。\n檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，\nmain.py 的 no-store 中介層會尊重）。",
+        "operationId": "get_admissions_area_boundaries_api_website_v1_admin_admissions_area_boundaries_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/geo+json": {}
+            },
+            "description": "高雄市里界 GeoJSON（規格 §5.6）"
+          },
+          "304": {
+            "description": "與 If-None-Match 相同，未變更"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Boundaries",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/kindergartens": {
+      "get": {
+        "description": "本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。\nradius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。",
+        "operationId": "get_admissions_area_kindergartens_api_website_v1_admin_admissions_area_kindergartens_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaKindergartensOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Kindergartens",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/board": {
       "get": {
         "operationId": "get_funnel_board_api_website_v1_admin_admissions_board_get",
@@ -12967,6 +13863,63 @@
             }
           },
           {
+            "description": "行政區（2026-10-08 區域分析）",
+            "in": "query",
+            "name": "district",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 30,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "行政區（2026-10-08 區域分析）",
+              "title": "District"
+            }
+          },
+          {
+            "description": "里；只算比對到里的訪視",
+            "in": "query",
+            "name": "village",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "里；只算比對到里的訪視",
+              "title": "Village"
+            }
+          },
+          {
+            "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
+            "in": "query",
+            "name": "geo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "no_village",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
+              "title": "Geo"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -13389,6 +14342,63 @@
               ],
               "description": "追蹤負責人：me、none 或帳號 id",
               "title": "Owner"
+            }
+          },
+          {
+            "description": "行政區（2026-10-08 區域分析）",
+            "in": "query",
+            "name": "district",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 30,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "行政區（2026-10-08 區域分析）",
+              "title": "District"
+            }
+          },
+          {
+            "description": "里；只算比對到里的訪視",
+            "in": "query",
+            "name": "village",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 16,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "里；只算比對到里的訪視",
+              "title": "Village"
+            }
+          },
+          {
+            "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
+            "in": "query",
+            "name": "geo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "no_village",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
+              "title": "Geo"
             }
           },
           {

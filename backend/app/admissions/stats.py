@@ -7,7 +7,8 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
 
 刻意與園務不同（contracts/ivy-recruitment/README.md「## 刻意與園務不同的地方」）：
 - 比率分母 0 回 None（園務回 0）；月比任一邊是 None，delta 也是 None。
-- 來源不做別名合併；不做童年綠地、行政區、預計就讀月份。
+- 來源不做別名合併；不做童年綠地、預計就讀月份。行政區與里由區域分析另外算
+  （area.py，2026-10-08 區域分析規格），不進 /stats。
 - 同票排序加第二鍵：標籤字串升序。
 - 行動入口「查看區域機會」改為「查看來源結構」（REVIEW_SOURCE），只在來源失衡時出現。
 - 未預繳的逾期、冷名單看參觀日（台北日期），園務看 created_at（2026-10-06，第 16 點）。
@@ -462,7 +463,8 @@ def _alerts(
 
 
 def _action_queue(current_month: str | None, backlog: int, imbalance: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """園務 shared.py:442-491。官網不做行政區，AREA_OPPORTUNITY 改成 REVIEW_SOURCE。"""
+    """園務 shared.py:442-491。官網不做區域機會判讀（2026-10-08 區域分析也不做），
+    AREA_OPPORTUNITY 改成 REVIEW_SOURCE。"""
     actions: list[dict[str, Any]] = []
     if backlog:
         actions.append({

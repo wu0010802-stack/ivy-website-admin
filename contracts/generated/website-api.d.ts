@@ -4,6 +4,70 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/area": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area
+         * @description 區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。
+         *     母體同 /stats。只讀，不寫稽核；不含家長個資。
+         */
+        get: operations["get_admissions_area_api_website_v1_admin_admissions_area_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/boundaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Boundaries
+         * @description 里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。
+         *     檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，
+         *     main.py 的 no-store 中介層會尊重）。
+         */
+        get: operations["get_admissions_area_boundaries_api_website_v1_admin_admissions_area_boundaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/kindergartens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Kindergartens
+         * @description 本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。
+         *     radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。
+         */
+        get: operations["get_admissions_area_kindergartens_api_website_v1_admin_admissions_area_kindergartens_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/board": {
         parameters: {
             query?: never;
@@ -2675,6 +2739,24 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdmissionsAreaOut */
+        AdmissionsAreaOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            campus: components["schemas"]["AreaCampusOut"];
+            data_status: components["schemas"]["AreaDataStatusOut"];
+            /** Distance Bands */
+            distance_bands: components["schemas"]["AreaDistanceBandOut"][];
+            /** Districts */
+            districts: components["schemas"]["AreaDistrictRowOut"][];
+            filters: components["schemas"]["AreaFiltersOut"];
+            totals: components["schemas"]["AreaTotalsOut"];
+            /** Villages */
+            villages: components["schemas"]["AreaVillageRowOut"][];
+        };
         /** AdmissionsCompareOut */
         AdmissionsCompareOut: {
             /**
@@ -3182,6 +3264,166 @@ export interface components {
             unassigned_clicks?: {
                 [key: string]: number;
             } | null;
+        };
+        /** AreaCampusOut */
+        AreaCampusOut: {
+            /** Key */
+            key: string;
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+            /** Locate Error */
+            locate_error: string | null;
+            /** Name */
+            name: string;
+        };
+        /**
+         * AreaDataStatusOut
+         * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本。
+         */
+        AreaDataStatusOut: {
+            /** Boundary Version */
+            boundary_version: string;
+            /** Doorplate Version */
+            doorplate_version: string | null;
+            /** Doorplates Synced At */
+            doorplates_synced_at: string | null;
+            /** Kindergartens Synced At */
+            kindergartens_synced_at: string | null;
+        };
+        /** AreaDistanceBandOut */
+        AreaDistanceBandOut: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "0-1" | "1-3" | "3-6" | "6+" | "none";
+            /** Deposit */
+            deposit: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AreaDistrictRowOut */
+        AreaDistrictRowOut: {
+            /** Deposit */
+            deposit: number;
+            /** District */
+            district: string;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
+        /** AreaFiltersOut */
+        AreaFiltersOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** School Year */
+            school_year: number | null;
+            /** Semester */
+            semester: number | null;
+        };
+        /** AreaKindergartenOut */
+        AreaKindergartenOut: {
+            /** Address */
+            address: string;
+            /** Approved Capacity */
+            approved_capacity: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Has Penalty */
+            has_penalty: boolean;
+            /** Is Own */
+            is_own: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private";
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Monthly Fee Estimate */
+            monthly_fee_estimate: number | null;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Pre Public Period */
+            pre_public_period: string | null;
+            /** Source Id */
+            source_id: string;
+        };
+        /** AreaKindergartensOut */
+        AreaKindergartensOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            /** Items */
+            items: components["schemas"]["AreaKindergartenOut"][];
+            /** Radius Km */
+            radius_km: number;
+            /** Source Note */
+            source_note: string;
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /** AreaReasonCountOut */
+        AreaReasonCountOut: {
+            /** Count */
+            count: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "outside_kaohsiung" | "no_doorplate" | "ambiguous_village";
+        };
+        /**
+         * AreaTotalsOut
+         * @description 以有地址為母數（主控裁定 R5）。
+         *     visit＝範圍內全部訪視＝with_address＋no_address＋anonymized。
+         *     with_address＝未匿名化且有填地址（判斷同訪視明細的 geo=no_village 篩選）
+         *     ＝village_level＋district_level＋unlocated＋pending。
+         *     no_address＝未匿名化、沒填地址；anonymized＝已匿名化（地址已清掉，不算有地址）。
+         *     unlocated_reasons 只算有地址、卻沒到里的原因（外縣市、查無門牌、里有歧義），
+         *     只列筆數大於 0 的，筆數多的在前、同筆數依固定順序。
+         */
+        AreaTotalsOut: {
+            /** Anonymized */
+            anonymized: number;
+            /** District Level */
+            district_level: number;
+            /** No Address */
+            no_address: number;
+            /** Pending */
+            pending: number;
+            /** Unlocated */
+            unlocated: number;
+            /** Unlocated Reasons */
+            unlocated_reasons: components["schemas"]["AreaReasonCountOut"][];
+            /** Village Level */
+            village_level: number;
+            /** Visit */
+            visit: number;
+            /** With Address */
+            with_address: number;
+        };
+        /** AreaVillageRowOut */
+        AreaVillageRowOut: {
+            /** Deposit */
+            deposit: number;
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string | null;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
         };
         /**
          * AuditLogEntryOut
@@ -5205,6 +5447,7 @@ export interface components {
             follow_up_at: string | null;
             /** Follow Up Owner Id */
             follow_up_owner_id: string | null;
+            geo?: components["schemas"]["VisitGeoOut"] | null;
             /** Geocoding Consent At */
             geocoding_consent_at: string | null;
             /** Grade */
@@ -5932,6 +6175,24 @@ export interface components {
             /** Reopened Slots */
             reopened_slots: number;
         };
+        /**
+         * VisitGeoOut
+         * @description 一筆訪視的區域比對結果（規格 §8.5）。不含家長座標；distance_m 是到本校的直線距離，
+         *     取整到 100 公尺，只有比對到門牌（exact／nearby）且本校座標已知時才有。
+         */
+        VisitGeoOut: {
+            /** Distance M */
+            distance_m: number | null;
+            /**
+             * Match Level
+             * @enum {string}
+             */
+            match_level: "exact" | "nearby" | "street" | "district" | "unlocated" | "pending";
+            /** Unlocated Reason */
+            unlocated_reason: ("no_address" | "outside_kaohsiung" | "no_doorplate" | "ambiguous_village" | "anonymized") | null;
+            /** Village */
+            village: string | null;
+        };
         /** VisitGroupCountsOut */
         VisitGroupCountsOut: {
             /** Cancelled */
@@ -6518,6 +6779,121 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_admissions_area_api_website_v1_admin_admissions_area_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝不篩 */
+                school_year?: number | null;
+                semester?: number | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdmissionsAreaOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_boundaries_api_website_v1_admin_admissions_area_boundaries_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description 高雄市里界 GeoJSON（規格 §5.6） */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/geo+json": unknown;
+                };
+            };
+            /** @description 與 If-None-Match 相同，未變更 */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_kindergartens_api_website_v1_admin_admissions_area_kindergartens_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaKindergartensOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_funnel_board_api_website_v1_admin_admissions_board_get: {
         parameters: {
             query: {
@@ -6894,6 +7270,12 @@ export interface operations {
                 follow_up?: ("due" | "upcoming" | "unscheduled") | null;
                 /** @description 追蹤負責人：me、none 或帳號 id */
                 owner?: string | null;
+                /** @description 行政區（2026-10-08 區域分析） */
+                district?: string | null;
+                /** @description 里；只算比對到里的訪視 */
+                village?: string | null;
+                /** @description no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算） */
+                geo?: "no_village" | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -6990,6 +7372,12 @@ export interface operations {
                 follow_up?: ("due" | "upcoming" | "unscheduled") | null;
                 /** @description 追蹤負責人：me、none 或帳號 id */
                 owner?: string | null;
+                /** @description 行政區（2026-10-08 區域分析） */
+                district?: string | null;
+                /** @description 里；只算比對到里的訪視 */
+                village?: string | null;
+                /** @description no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算） */
+                geo?: "no_village" | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

@@ -830,7 +830,8 @@ class AreaCampusOut(BaseModel):
 
 
 class AreaReasonCountOut(BaseModel):
-    reason: UnlocatedReason
+    # 只有有地址卻沒到里的三種原因；no_address、anonymized 各有自己的層級與筆數（見 AreaTotalsOut）。
+    reason: Literal["outside_kaohsiung", "no_doorplate", "ambiguous_village"]
     count: int
 
 

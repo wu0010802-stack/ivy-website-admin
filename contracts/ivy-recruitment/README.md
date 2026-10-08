@@ -93,7 +93,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 7. 狀態不允許的轉換回 422 `TRANSITION_NOT_ALLOWED`；園務回 400。
 8. 月比（本月對上月）任一邊是 `null`，差值也是 `null`，不判定「本月漏斗轉換下滑」；園務會算成 100.0－0，上月沒資料就誤報。
 9. 同票排序：園務的班別、接待人員、介紹者 × 來源、未預繳原因只有單鍵降序，同票順序看資料庫；官網一律加第二鍵「標籤字串升序（Python 字碼順序）」。來源分析照園務三鍵（參觀降、預繳降、來源升）。來源失衡同占比時取標籤升序的第一個（園務取 SQL 回傳順序）。
-10. 警示與行動入口的 `target_tab`：官網是 `records`（`target_filter.month`）／`nodeposit`／`source`，園務是 `detail`／`nodeposit`／`area`。行動入口「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現：官網不做行政區（`district` 不填），照抄的話園務會寫出「優先檢查 未填寫 的來源分布與通勤熱區。」。
+10. 警示與行動入口的 `target_tab`：官網是 `records`（`target_filter.month`）／`nodeposit`／`source`，園務是 `detail`／`nodeposit`／`area`。行動入口「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現：官網的區域分析（2026-10-08 起，見第 18 點）不做市場機會判讀，警示與行動入口都不指到區域分析。
 11. 未預繳：`/stats` 只回分布與數字（`no_deposit_reasons`、`no_deposit_priority`、`no_deposit_summary`）；名單是 `GET /no-deposit-records`（對應園務 `/no-deposit-analysis`），query 與 `summary` 口徑照抄，另篩入學學年學期，每列只回畫面要的欄位（不含電話、地址、生日）。母體同園務：未預繳且未退出（退預繳後殘留的高潛力原因不算）。排序：園務 `ORDER BY month DESC, seq_no` 是字串排序（同月「10」排在「2」前面，`99.12` 排在 `115.01` 前面），官網改成民國月份排序鍵降序、序號開頭數字升序（沒有數字的排在後面），再以 `created_at`、`id` 收尾。已匿名化的列不另標示（姓名欄已是匿名化文字）。
 12. 統計的參考月份必須是三位數民國年月（`115.09`）；格式錯（含 `99.12`）回 422 `INVALID_REFERENCE_MONTH`（訊息照園務原文），園務是未處理的 `ValueError`（500）。
 13. 唯一幼生 `unique_visit`／`unique_deposit` 對已匿名化的列以列 id 計：匿名化後姓名與生日都被清掉，照「姓名｜生日」去重會把不同孩子併成同一個；代價是同一個孩子的一筆訪視匿名化後，唯一幼生由 1 變 2（六個計數與比率不受影響）。
@@ -101,6 +101,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 15. 同階段轉換（X→X）回 422 `TRANSITION_NOT_ALLOWED`；園務回 409 `STAGE_ALREADY`。
 16. 未預繳的「逾期」（預設 14 天、`overdue_days`）與「冷名單」（90 天）看**參觀日** `visit_date`：參觀日 <= 台北今天－N 天就算（2026-10-06 起）；園務看 `created_at`（建檔時間 <= 現在－N 天），補登舊訪視或預約隔很多天才按已到場時，逾期會從建檔那天重新起算。近 30／90 天、來源失衡的 90 天窗口仍照園務看 `created_at`。
 17. 訪視明細的 `has_deposit=false` 篩選排除已退出（`withdrawn_at` 有值）的列，和統計的未預繳同一批（2026-10-06 起）；園務明細的「未預繳」篩選只看 `has_deposit`。
+18. 區域分析（2026-10-08，`docs/specs/2026-10-08-admissions-area-design.md`）：`district` 由官網伺服器依高雄市門牌坐標開放資料比對填寫（行政區字串，例「三民區」），表單仍不收；園務由後端 regex 從地址切出「○○區」（未寫進欄位時查詢當下解析）。兩邊口徑不同（園務只認「區」、官網另處理舊高雄縣鄉鎮與外縣市），併入時要擇一。官網另有 `recruitment_visit_geo`（里、比對等級、未定位原因、到本校直線距離），以及公開資料表 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`，都不在轉移契約內。官網不做地址分析同意勾選，`geocoding_consent_at` 仍不填；家長地址不送任何外部服務（園務送 Google／TGOS）。匿名化時清掉里與距離、保留 `district`（同園務）。
 
 ## 漂移檢查（手動，不進 CI）
 
