@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-09 後台工程清理：刪改期申請／FAQ／site_settings、素材分頁、一次標完已讀（main CI 部署，含 3 支刪表刪資料 migration）
+
+- **合併**：`chore/admin-cleanup-20261008` 的 `826b78fe`（程式與測試）、`9e89b8ff`（文件）從 `82937a9f` 開，快轉推 main `82937a9f..9e89b8ff`。內容、上線前步驟與驗證見 README 頂部 2026-10-08 段落。
+- **migration**：正式庫 `c4e8a2f61b97` → `304dd12e96bc`（drop `site_settings`）→ `e48a3ccedcd8`（drop `reschedule_requests`）→ `a9e11038c869`（刪 FAQ 內容，downgrade 不還原）。**使用者 10-09 裁定正式庫資料都是測試資料，這次不備份**，也沒有先查正式庫的待核准改期申請與 FAQ 筆數。API 啟動時以 `check=True` 跑 `alembic upgrade head`（`deploy/api-start.py:46`），失敗就不會啟動；部署後 health 正常，表示三支已套用（沒有直接查 `alembic_version`）。
+- **回退**：舊映像不認得新 revision，不能直接切回；要回退先用新映像跑 `alembic downgrade c4e8a2f61b97`（重建兩張空表，FAQ 資料回不來）再切舊映像。
+- **推送前本機閘門**：後端 pytest 全套 1695 passed、1 skipped、1 failed（寫死 head 的測試，修正後該檔 8 passed）；admin vitest 138 檔 1855 passed、1 skipped，typecheck、build；web vitest 85 檔 933 passed，typecheck、build；`contract:check`、`deploy/check_schema.py`、`deploy/tests` 通過；stack 104 項 103 passed，唯一失敗是 `admissions-follow-up.spec.ts` 的台北 00–01 點時間相依，01:08 單獨重跑 passed。台北週五當天先跑過 `test_booking_consent_readiness`、`test_booking_concurrency`（31 passed），沒有擋部署。
+- **CI**：main run 37854413799（`9e89b8ff`）全綠，建立到完成 13.6 分鐘：Frontend admin 3.8／web 1.4 分鐘，Backend 三組 8.2／7.3／6.4 分鐘，E2E／Playwright 7.1 分鐘，Deploy 5.3 分鐘。
+- **正式 `release.json`**：base commit `9e89b8ff`，created `2026-10-08T22:44:00Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/`、`/visit`、`/about`、`/environment`、`/admission`、`/curriculum`、`/anniversary`、`/admin/login`、`/sitemap.xml` 皆 200；`/api/website/v1/health` `status: ok`、`media_jobs.enabled: true`。`POST /admin/notifications/read-all`、`GET /admin/media` 401（端點存在）；`/admin/reschedule-requests`、`/admin/site-settings`、`/admin/content-kinds` 404；`/admin/visit-requests/group-counts` 401（被 `/admin/visit-requests/{id}` 接住、先擋登入，端點已刪）；公開 `reschedule-request` 410。`/public/site` 沒有 `shared_faq`／`campus_faq`，`booking_content` 沒有同意文字與橫幅三欄、`campus_profile` 沒有簡介／詳細介紹／FB 備註。線上後台 `NotificationsView` chunk 有 `notifications/read-all`、沒有 `reschedule-requests`；`MediaLibraryView` 有 `state_total`；`MediaPickerDialog` 有「載入更多」。
+- **未做**：沒有登入後台實際操作（全部標記已讀、素材分頁與選圖器、匯出、即時預覽欄高）；部署期間開著的舊後台分頁要重新整理；Safari／iOS 實機。
+
 ## 2026-10-07 後台匯出擴充、參觀案件明細時間線與列表行程清單（C、B）、內容編輯三欄＋即時預覽（D）（main CI 部署）
 
 - **合併**：整合分支 `merge/admin-bcd-20261007` 從 `feature/admin-exports-20261006`（`bfe9b924`）開，依序合入 origin/main（`2510dcfe`）、`feature/admin-visit-ux-20261006`（`983015a1`）、`feature/admin-editor-preview-20261006`（`f1c22e49`），成 `6408063d`，快轉推 main `2510dcfe..6408063d`。衝突只在 README／DESIGN.md／`docs/website-admin/acceptance.md`（各段都保留）與 `backend/app/booking/routes.py`（保留 C、B 的 `GET /admin/visit-requests/view-counts`，刪掉已搬到 `app/common/csv_export.py` 的舊 `_safe_cell`）；`npm run contract:generate` 後契約無變化。內容與各分支驗證見 README 頂部三個 2026-10-06 段落。
