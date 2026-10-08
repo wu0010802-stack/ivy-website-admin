@@ -15,7 +15,7 @@ from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import Query
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import ColumnElement, and_, func, literal_column, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants
@@ -52,6 +52,13 @@ class TourGuideNotFound(Exception):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def has_address() -> ColumnElement[bool]:
+    """訪視有填地址：address 非 NULL 且 trim 後非空。訪視明細的 geo=no_village 篩選與區域分析
+    頁的筆數共用這一個判斷，畫面上的數字才會和「查看」跳到的清單一致。空字串寫成 SQL 字面值
+    而不是參數：這個運算式也會放進 GROUP BY（asyncpg 的參數在 SELECT 與 GROUP BY 兩處對不上）。"""
+    return and_(RecruitmentVisit.address.is_not(None), func.btrim(RecruitmentVisit.address) != literal_column("''"))
 
 
 async def _apply_geo(db: AsyncSession, visit: RecruitmentVisit) -> None:
@@ -403,8 +410,7 @@ class RecruitmentVisitFilters:
         if self.geo == "no_village":
             stmt = stmt.where(
                 RecruitmentVisit.anonymized_at.is_(None),
-                RecruitmentVisit.address.is_not(None),
-                func.btrim(RecruitmentVisit.address) != "",
+                has_address(),
                 ~at_village,
             )
         return stmt

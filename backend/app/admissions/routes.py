@@ -13,18 +13,22 @@ from __future__ import annotations
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
+from app.admissions import area as area_service
 from app.admissions import stats as stats_service
+from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
+    AdmissionsAreaOut,
     AdmissionsCompareOut,
     AdmissionsOptionsOut,
     AdmissionsStaffOut,
     AdmissionsStatsOut,
+    AreaKindergartensOut,
     ContactLogCreate,
     ContactLogOut,
     ContactLogResultOut,
@@ -764,6 +768,23 @@ async def get_admissions_compare(
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     result = await stats_service.compare(db, campus_keys, school_year=school_year, semester=semester)
     return AdmissionsCompareOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area", response_model=AdmissionsAreaOut)
+async def get_admissions_area(
+    campus_key: str,
+    school_year: int | None = Query(
+        default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX, description="入學學年；不帶＝不篩"
+    ),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdmissionsAreaOut:
+    """區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。
+    母體同 /stats。只讀，不寫稽核；不含家長個資。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    result = await area_service.query_area(db, campus_key, school_year=school_year, semester=semester)
+    return AdmissionsAreaOut.model_validate(result)
 
 
 @router.get("/admin/admissions/no-deposit-records", response_model=NoDepositRecordsOut)

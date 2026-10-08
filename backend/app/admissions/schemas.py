@@ -797,3 +797,122 @@ class AdmissionsStaffOut(BaseModel):
     id: uuid.UUID
     display_name: str | None
     email: str
+
+
+# ---- 區域分析（2026-10-08 區域分析規格 §8）----
+
+DistanceBandKey = Literal["0-1", "1-3", "3-6", "6+", "none"]
+KindergartenKind = Literal["public", "nonprofit", "quasi_public", "private"]
+
+
+class AreaFiltersOut(BaseModel):
+    campus_key: str
+    school_year: int | None
+    semester: int | None
+
+
+class AreaDataStatusOut(BaseModel):
+    """公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本。"""
+
+    doorplate_version: str | None
+    doorplates_synced_at: datetime | None
+    kindergartens_synced_at: datetime | None
+    boundary_version: str
+
+
+class AreaCampusOut(BaseModel):
+    key: str
+    name: str
+    lat: float | None
+    lng: float | None
+    # 校址比對不到門牌的原因（no_address／no_doorplate／pending）；有座標時是 null。
+    locate_error: str | None
+
+
+class AreaReasonCountOut(BaseModel):
+    reason: UnlocatedReason
+    count: int
+
+
+class AreaTotalsOut(BaseModel):
+    """以有地址為母數（主控裁定 R5）。
+    visit＝範圍內全部訪視＝with_address＋no_address＋anonymized。
+    with_address＝未匿名化且有填地址（判斷同訪視明細的 geo=no_village 篩選）
+    ＝village_level＋district_level＋unlocated＋pending。
+    no_address＝未匿名化、沒填地址；anonymized＝已匿名化（地址已清掉，不算有地址）。
+    unlocated_reasons 只算有地址、卻沒到里的原因（外縣市、查無門牌、里有歧義），
+    只列筆數大於 0 的，筆數多的在前、同筆數依固定順序。"""
+
+    visit: int
+    with_address: int
+    village_level: int
+    district_level: int
+    unlocated: int
+    pending: int
+    no_address: int
+    anonymized: int
+    unlocated_reasons: list[AreaReasonCountOut]
+
+
+class AreaDistrictRowOut(BaseModel):
+    district: str
+    visit: int
+    deposit: int
+    visit_to_deposit_rate: float | None
+
+
+class AreaVillageRowOut(BaseModel):
+    district: str
+    village: str
+    # 內政部村里代碼（11 碼），對照里界 GeoJSON 的 VILLCODE；對不到是 null。
+    village_code: str | None
+    visit: int
+    deposit: int
+    visit_to_deposit_rate: float | None
+
+
+class AreaDistanceBandOut(BaseModel):
+    band: DistanceBandKey
+    visit: int
+    deposit: int
+    visit_to_deposit_rate: float | None
+
+
+class AdmissionsAreaOut(BaseModel):
+    as_of: datetime
+    filters: AreaFiltersOut
+    data_status: AreaDataStatusOut
+    campus: AreaCampusOut
+    totals: AreaTotalsOut
+    # 有行政區的訪視依行政區分組（含只到區、已匿名化），參觀人數降冪、區名升冪。
+    districts: list[AreaDistrictRowOut]
+    # 比對到里的訪視依（行政區, 里）分組，參觀人數降冪。
+    villages: list[AreaVillageRowOut]
+    # 固定五列：0-1、1-3、3-6、6+、none。校區沒有座標時全部歸 none。
+    distance_bands: list[AreaDistanceBandOut]
+
+
+class AreaKindergartenOut(BaseModel):
+    source_id: str
+    name: str
+    kind: KindergartenKind
+    pre_public_period: str | None
+    address: str
+    lat: float
+    lng: float
+    distance_m: int
+    approved_capacity: int | None
+    # kiang 依收費明細估算的月費，不是官方欄位。
+    monthly_fee_estimate: int | None
+    has_penalty: bool
+    phone: str | None
+    # 與任一校區座標相距 50 公尺內：畫面標「本機構」，不算競爭園所。
+    is_own: bool
+
+
+class AreaKindergartensOut(BaseModel):
+    synced_at: datetime | None
+    source_note: str
+    campus: AreaCampusOut
+    radius_km: int
+    items: list[AreaKindergartenOut]
