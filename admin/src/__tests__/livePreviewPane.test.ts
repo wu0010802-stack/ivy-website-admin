@@ -58,7 +58,7 @@ describe('預覽分頁對照表', () => {
       expect(new Set(targets.map((t) => t.id)).size).toBe(targets.length)
     }
     expect(previewTargetsFor(undefined)).toEqual([])
-    expect(previewTargetsFor('shared_faq')).toEqual([])
+    expect(previewTargetsFor('no_such_kind')).toEqual([])
   })
 
   it('五校介紹：首頁五校與頁尾；預約文案與網站標題只對看得到的欄位', () => {

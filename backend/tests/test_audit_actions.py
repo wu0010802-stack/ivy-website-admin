@@ -1,4 +1,4 @@
-"""2026-09-25 缺口 67：時段、案件狀態轉換、聯絡紀錄、改期核准／退回、素材
+"""2026-09-25 缺口 67：時段、案件狀態轉換、聯絡紀錄、後台改期、素材
 上傳／更新／替換都要留稽核，而且 metadata 不含家長個資與自由文字。"""
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from app.auth.models import Role
 from app.booking.history import Actor
 from app.booking.models import VisitRequest
 from app.operations.models import AuditLogEntry
-from tests.conftest import _create_user, book_slot, legacy_request, legacy_reschedule_request, start_visit_slot
+from tests.conftest import _create_user, book_slot, legacy_request, start_visit_slot
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -196,34 +196,6 @@ async def test_transition_already_done_by_someone_else_is_not_audited(app, admin
     assert moved.json()["slot_id"] == slot_b["id"]
     assert moved.json()["slot"]["id"] == slot_b["id"]
     assert await _entries(db_session, "visit_request.reschedule") == []
-
-
-@pytest.mark.asyncio
-async def test_reschedule_request_decisions_are_audited(app, admin_client, db_session):
-    slot_a = await _slot(admin_client)
-    slot_b = await _slot(admin_client, days_ahead=4, start="14:00:00", end="15:00:00")
-    case_id = await _legacy_case(db_session, slot_a["id"])
-
-    first = await legacy_reschedule_request(db_session, case_id, slot_b["id"])
-    rejected = await admin_client.post(f"{BASE}/reschedule-requests/{first}/reject", json={"reason": FREE_TEXT})
-    assert rejected.status_code == 200, rejected.text
-    second = await legacy_reschedule_request(db_session, case_id, slot_b["id"])
-    approved = await admin_client.post(f"{BASE}/reschedule-requests/{second}/approve")
-    assert approved.status_code == 200, approved.text
-
-    [reject] = await _entries(db_session, "visit_request.reject_reschedule")
-    assert reject.metadata_json == {
-        "reschedule_request_id": first,
-        "requested_slot_id": slot_b["id"],
-        "has_reason": True,
-    }
-    _assert_no_personal_data(reject)
-    [approve] = await _entries(db_session, "visit_request.approve_reschedule")
-    assert approve.metadata_json == {
-        "reschedule_request_id": second,
-        "from_slot_id": slot_a["id"],
-        "to_slot_id": slot_b["id"],
-    }
 
 
 @pytest.mark.asyncio

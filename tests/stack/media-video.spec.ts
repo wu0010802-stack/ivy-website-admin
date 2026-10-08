@@ -53,7 +53,9 @@ test('素材庫上傳影片：先顯示處理中，背景轉好後自己變成�
   await expect(card.getByText(PROCESSING)).toHaveCount(0)
 
   const api = await adminApi('super_admin')
-  const assets = await api.get<{ original_filename: string; status: string; variants: { kind: string }[] }[]>('/admin/media')
+  const { items: assets } = await api.get<{ items: { original_filename: string; status: string; variants: { kind: string }[] }[] }>(
+    `/admin/media?q=${encodeURIComponent(FILE_NAME)}`,
+  )
   await api.dispose()
   const asset = assets.find((item) => item.original_filename === FILE_NAME)
   expect(asset?.status).toBe('ready')

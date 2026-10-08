@@ -1,6 +1,8 @@
 // 2026-09-29 業主裁定（後台雜項）：側欄不掛數字（10-05 拿掉待處理後參觀案件也不掛）；官網刻意不顯示的三個欄位
-// 不再列出、但存檔照原樣送回；「全站設定」改名「個資與搜尋設定」。（預約橫幅的標題
-// 預覽隨官網分校頁拿掉，2026-10-04 連規則函式一起刪除。）
+// 不再列出、但存檔照原樣送回（五校介紹的 Facebook 備註、簡介、詳細介紹與預約文案的
+// 同意文字、橫幅三欄 2026-10-08 連後端欄位一起拿掉，改成存檔不再送出）；「全站設定」
+// 改名「個資與搜尋設定」。（預約橫幅的標題預覽隨官網分校頁拿掉，2026-10-04 連規則函式
+// 一起刪除。）
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -12,6 +14,7 @@ import type { UserOut } from '../api/types'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { NAV_GROUPS, navItem } from '../router/nav'
 import AdminSidebar from '../components/AdminSidebar.vue'
+import BookingContentView from '../views/BookingContentView.vue'
 import CampusProfileView from '../views/CampusProfileView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
 import HomeCampusBoardView from '../views/HomeCampusBoardView.vue'
@@ -101,7 +104,7 @@ describe('「全站設定」改名「個資與搜尋設定」', () => {
   })
 })
 
-describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () => {
+describe('官網不顯示的欄位：不列出來，存檔照原樣送回或不再送出', () => {
   it('孩子的一天：照片補充字不列，舊卡片的補充字存檔時保留；新卡片存空字串', async () => {
     const moment = (key: string, caption: string) => ({ key, time: '08:05', label: '早安', caption, title: '早安', story: '', question: '', answer: '' })
     mockContent('day_experience', {
@@ -133,9 +136,10 @@ describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () =
     expect(payload.note).toBe('舊的五校說明')
   })
 
-  it('五校介紹：Facebook 備註不列，存檔時保留', async () => {
+  // 2026-10-08：簡介、詳細介紹、Facebook 備註連後端欄位一起拿掉，舊版本帶著也不再存回。
+  it('五校介紹：舊版本的 Facebook 備註、簡介、詳細介紹不列，存檔時不再送出', async () => {
     mockContent('campus_profile', {
-      name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '', description: '',
+      name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '舊簡介', description: '舊介紹',
       facebook: 'https://www.facebook.com/ivy.kids.fb/', fb_note: '義華校粉絲專頁', line: '', map_url: '',
     }, 'yihua')
     const wrapper = await mountView(CampusProfileView, testUser('campus_admin', { campus_keys: ['yihua'] }))
@@ -145,6 +149,22 @@ describe('官網不顯示的欄位：不列出來，存檔照原樣送回', () =
     await wrapper.get('input[inputmode="tel"]').setValue('07-392-8366')
     const payload = await savedPayload(wrapper, 'campus_profile')
     expect(payload.phone).toBe('07-392-8366')
-    expect(payload.fb_note).toBe('義華校粉絲專頁')
+    for (const retired of ['fb_note', 'intro', 'description']) expect(payload).not.toHaveProperty(retired)
+  })
+
+  it('預約文案：舊版本的同意文字與橫幅三欄不列，也不算變更，存檔時不再送出', async () => {
+    mockContent('booking_content', {
+      cta_label: '預約參觀', cta_label_en: 'Book a Visit', consent_text: '我同意', banner_title_template: '歡迎{campusNameOrIvy}',
+      banner_body: '期待相遇', banner_button_label: '預約', privacy_title: '', privacy_sections: [],
+    })
+    const wrapper = await mountView(BookingContentView)
+    expect(wrapper.text()).not.toContain('同意條款')
+    expect(wrapper.text()).not.toContain('橫幅')
+    expect(wrapper.text()).not.toContain('有未儲存的修改')
+
+    await wrapper.get('input[placeholder="預約參觀"]').setValue('預約校園參觀')
+    const payload = await savedPayload(wrapper, 'booking_content')
+    expect(payload.cta_label).toBe('預約校園參觀')
+    for (const retired of ['consent_text', 'banner_title_template', 'banner_body', 'banner_button_label']) expect(payload).not.toHaveProperty(retired)
   })
 })

@@ -17,6 +17,10 @@ def _about(title: str) -> dict:
     return {"title": title, "since_label": "SINCE 1997", "body_text": "內文", "caption": "說明"}
 
 
+def _campus_news(title: str) -> dict:
+    return {"events": [{"id": "e1", "date": "2026-11-01", "title": title, "description": "說明"}]}
+
+
 async def _save(client, kind: str, version: int, payload: dict, campus_key: str | None = None):
     query = f"?campus_key={campus_key}" if campus_key else ""
     response = await client.post(
@@ -135,26 +139,25 @@ async def test_restore_rejects_revision_of_another_item(admin_client):
 
 @pytest.mark.asyncio
 async def test_campus_admin_cannot_read_or_restore_other_campus_history(admin_client, minghua_client):
-    faq = {"items": [{"q": "義華的問題", "a": "答案"}]}
-    yihua = await _save(admin_client, "campus_faq", 0, faq, campus_key="yihua")
+    yihua = await _save(admin_client, "campus_news", 0, _campus_news("義華的活動"), campus_key="yihua")
 
-    listed = await minghua_client.get(f"{BASE}/campus_faq/revisions?campus_key=yihua")
+    listed = await minghua_client.get(f"{BASE}/campus_news/revisions?campus_key=yihua")
     assert listed.status_code == 404
     restored = await minghua_client.post(
-        f"{BASE}/campus_faq/revisions/{yihua['latest_revision']['id']}/restore?campus_key=yihua",
+        f"{BASE}/campus_news/revisions/{yihua['latest_revision']['id']}/restore?campus_key=yihua",
         json={"expected_version": 1},
     )
     assert restored.status_code == 404
 
     # 自己的校區可以正常使用。
-    own = await _save(minghua_client, "campus_faq", 0, {"items": [{"q": "明華", "a": "答"}]}, "minghua")
-    await _save(minghua_client, "campus_faq", 1, {"items": [{"q": "明華改", "a": "答"}]}, "minghua")
+    own = await _save(minghua_client, "campus_news", 0, _campus_news("明華"), "minghua")
+    await _save(minghua_client, "campus_news", 1, _campus_news("明華改"), "minghua")
     ok = await minghua_client.post(
-        f"{BASE}/campus_faq/revisions/{own['latest_revision']['id']}/restore?campus_key=minghua",
+        f"{BASE}/campus_news/revisions/{own['latest_revision']['id']}/restore?campus_key=minghua",
         json={"expected_version": 2},
     )
     assert ok.status_code == 201, ok.text
-    assert ok.json()["latest_revision"]["payload"]["items"][0]["q"] == "明華"
+    assert ok.json()["latest_revision"]["payload"]["events"][0]["title"] == "明華"
 
 
 @pytest.mark.asyncio

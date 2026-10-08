@@ -9,7 +9,7 @@ import UserActions from '../components/UserActions.vue'
 import { ApiError, api } from '../api/client'
 import type { MediaAssetOut, MediaUsagesOut, UserOut } from '../api/types'
 import { resetUploadLimits } from '../composables/mediaUpload'
-import { testUser } from './fixtures'
+import { mediaPage, testUser } from './fixtures'
 import { cleanup, deferred, mountWith } from './admissionsTestKit'
 
 beforeEach(() => resetUploadLimits())
@@ -28,6 +28,7 @@ function asset(overrides: Partial<MediaAssetOut> = {}): MediaAssetOut {
 function mockMedia(assets: MediaAssetOut[]) {
   return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+    if (path.startsWith('/admin/media?')) return mediaPage(assets) as never
     if (path.startsWith('/admin/media')) return assets as never
     return [] as never
   })
@@ -153,7 +154,7 @@ describe('25. 帳號管理的敏感寫入要重新驗證', () => {
     await flushPromises()
   }
   async function tickExport(wrapper: VueWrapper) {
-    await wrapper.findAllComponents({ name: 'ElCheckbox' }).find((box) => box.text().includes('匯出負責校區的家長個資'))!.find('input').setValue(true)
+    await wrapper.findAllComponents({ name: 'ElCheckbox' }).find((box) => box.text().includes('匯出負責校區的參觀案件與招生名單'))!.find('input').setValue(true)
   }
 
   it('改角色：先要求輸入目前的密碼；打錯留在對話框，打對就接著送完角色與授權，之後的操作自動帶上', async () => {

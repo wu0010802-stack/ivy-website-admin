@@ -27,7 +27,7 @@ const confirmedCase = (extra = {}) => ({
   child_birthdate: null, email: 'p@example.org', referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: started.id, slot: started, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
   confirmed_at: '2026-09-22T00:00:00.123Z', cancelled_at: null, source: 'web', display_status: 'past',
-  history: [], pending_reschedule: null, access_link: null, ...extra,
+  history: [], access_link: null, ...extra,
 })
 
 async function mountDetail(data: Record<string, unknown>, bookingConfig: unknown = { parent_email_enabled: false }) {

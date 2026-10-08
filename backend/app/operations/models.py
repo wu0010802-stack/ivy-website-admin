@@ -169,21 +169,6 @@ class AuditLogEntry(Base):
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
-class SiteSettings(Base):
-    """全站設定單例（id=1），比照 SiteState 的單列模式。"""
-
-    __tablename__ = "site_settings"
-
-    id: Mapped[int] = mapped_column(primary_key=True, default=1)
-    title: Mapped[str] = mapped_column(String(200), nullable=False, default="常春藤幼兒園")
-    description: Mapped[str] = mapped_column(String(500), nullable=False, default="")
-    share_image: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    noindex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    privacy_policy_version: Mapped[str] = mapped_column(String(32), nullable=False, default="draft-1")
-    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-
 # 規格 L282：個資保存期限可設定、預設不啟用自動清理。天數下限 30 天，避免
 # 誤設成 0 把剛結案的案件立刻清掉。
 RETENTION_MIN_DAYS = 30

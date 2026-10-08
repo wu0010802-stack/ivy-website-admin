@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { RouteLocationRaw } from 'vue-router'
+import { useRouter, type RouteLocationRaw } from 'vue-router'
 import type { VisitRequestDetailOut } from '../../api/types'
 import { campusLabel, contactTimeLabel, formatShortDateTime, formatTime, visitDisplay, visitSourceLabel } from '../../api/labels'
 import { attendanceDue, type AttendanceKind } from '../../composables/visitAttendance'
@@ -8,7 +8,7 @@ import { followUpDue, shortDay, taipeiDay, VISIT_PHASE_LABELS, visitPhase } from
 
 // 行程清單的一列（2026-10-06 方向 B）：時間＋接待狀態、家長・孩子、校區、電話、快速動作。
 // 「到了／沒來」「填招生資料」與電話不包在連結裡（第九輪）；點列的空白處等同點家長名字。
-// previewable（1280 以上）：沒按修飾鍵的左鍵點擊開右側預覽，⌘／Ctrl／中鍵照常開新分頁。
+// previewable（1280 以上）：沒按修飾鍵的左鍵點擊開右側預覽，⌘／Ctrl／中鍵照常開新分頁（點列空白處也一樣）。
 const props = defineProps<{
   row: VisitRequestDetailOut
   now: number
@@ -29,6 +29,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ activate: []; attendance: [kind: AttendanceKind]; fill: []; toggle: [on: boolean] }>()
 
+const router = useRouter()
 const phase = computed(() => visitPhase(props.row, props.now))
 const stateLabel = computed(() => (phase.value === 'cancelled' ? visitDisplay(props.row).sub || '已取消' : VISIT_PHASE_LABELS[phase.value]))
 const showAttendance = computed(() => props.canHandle && attendanceDue(props.row, props.now))
@@ -55,14 +56,30 @@ function onLinkClick(event: MouseEvent, navigate: (e?: MouseEvent) => unknown) {
 }
 
 // 勾選框所在的格子（.visit-row__check）點歪了不算點進案件（原本表格勾選欄的規則）。
+// 空白處的 ⌘／Ctrl 點擊與中鍵：連結本體由瀏覽器自己開新分頁，空白處沒有連結，要用同一列的網址補開，
+// 不能走 activate（那會在同一個分頁開預覽或換頁）。
+const OWN_TARGETS = 'a, button, input, label, .el-checkbox, .visit-row__check'
+function openInNewTab() {
+  window.open(router.resolve(props.to).href, '_blank', 'noopener')
+}
 function onRowClick(event: MouseEvent) {
-  if ((event.target as HTMLElement).closest('a, button, input, label, .el-checkbox, .visit-row__check')) return
+  if ((event.target as HTMLElement).closest(OWN_TARGETS)) return
+  if (event.metaKey || event.ctrlKey) {
+    openInNewTab()
+    return
+  }
   emit('activate')
+}
+// 中鍵不會觸發 click，只有 auxclick。
+function onRowAuxClick(event: MouseEvent) {
+  if (event.button !== 1 || (event.target as HTMLElement).closest(OWN_TARGETS)) return
+  event.preventDefault()
+  openInNewTab()
 }
 </script>
 
 <template>
-  <li class="visit-row" :class="{ 'is-selected': selected, 'has-check': batch }" :data-phase="phase" @click="onRowClick">
+  <li class="visit-row" :class="{ 'is-selected': selected, 'has-check': batch }" :data-phase="phase" @click="onRowClick" @auxclick="onRowAuxClick">
     <span v-if="batch" class="visit-row__check">
       <el-checkbox
         v-if="showAttendance"
@@ -80,7 +97,8 @@ function onRowClick(event: MouseEvent) {
           <small v-if="stateLabel" class="visit-row__state" :data-phase="phase">{{ stateLabel }}</small>
         </span>
         <span class="visit-row__who">
-          <span class="visit-row__name"><b>{{ row.parent_name }}</b><span class="visit-row__child">・{{ row.child_name || '孩子姓名未填寫' }}</span></span>
+          <!-- 「・」是 aria-hidden 的視覺分隔符，報讀改由隱藏的逗號斷句；桌機寬度換行時落在行首的「・」由 CSS 裁掉（見 .visit-row__name）。 -->
+          <span class="visit-row__name"><span class="visit-row__flow"><b>{{ row.parent_name }}</b><span class="visually-hidden">，</span><span class="visit-row__child"><span class="visit-row__sep" aria-hidden="true">・</span>{{ row.child_name || '孩子姓名未填寫' }}</span></span></span>
           <span v-if="multiCampus || manualSource" class="visit-row__meta">
             <span v-if="multiCampus" class="visit-row__campus-inline">{{ campusLabel(row.campus_key) }}校{{ manualSource ? ' · ' : '' }}</span>{{ manualSource }}
           </span>
@@ -110,6 +128,9 @@ function onRowClick(event: MouseEvent) {
   --gap-x: 16px;
   --time-w: 120px;
   --main-gap: 12px;
+
+  /* 家長・孩子之間的「・」所占的寬：等於孩子名的 1em（孩子名用 --text-sm），裁掉行首分隔符的負邊距也吃它。 */
+  --sep-w: var(--text-sm);
 
   display: flex;
   align-items: center;
@@ -312,8 +333,38 @@ function onRowClick(event: MouseEvent) {
 
 /* 桌機寬度、名字欄被擠窄時（預覽打開、勾選框、長名字），孩子名整段一起換行，不從中間斷開（「測／試寶貝」）。 */
 @media (min-width: 721px) {
-  .visit-row__child {
+  /* 孩子名整段換行後，第二行不以「・」開頭：經典的行內清單分隔符作法。
+     .visit-row__flow 整體往左縮 --sep-w、外層 overflow:hidden 裁掉左邊露出的那一截；每個項目自己留出 --sep-w
+     （家長名與孩子名都用 padding-left，「・」絕對定位在孩子名自己的 padding 裡），所以第一行的家長名與換行後的孩子名
+     都剛好從 0 開始，「・」只在同一行接在家長名後面時才在可見範圍內。家長名、孩子名都是 inline-block，
+     padding 才會套到它們自己折行的每一行（名字長到單獨折行時，第二行不會被裁掉第一個字）。 */
+  .visit-row__name {
+    display: block;
+    overflow: hidden;
+  }
+
+  .visit-row__flow {
+    display: block;
+    margin-left: calc(-1 * var(--sep-w));
+  }
+
+  .visit-row__name b {
     display: inline-block;
+    padding-left: var(--sep-w);
+  }
+
+  .visit-row__child {
+    position: relative;
+    display: inline-block;
+    padding-left: var(--sep-w);
+  }
+
+  .visit-row__sep {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--sep-w);
+    text-align: center;
   }
 }
 

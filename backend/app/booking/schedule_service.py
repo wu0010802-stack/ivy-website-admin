@@ -1,8 +1,9 @@
 """每週開放規則、休假日例外與依規則產生時段（規格 6.3）。
 
-依規則產生時段有兩個入口：園方按「依規則產生時段」手動補一段日期，以及
-定期工作每天依規則補到「最遠開放天數」（extend_from_rules，規格 L221-223）。
-兩者都只新增還不存在的場次：同一天已有時段跟新場次時間重疊（含園方關閉或
+依規則產生時段有兩個入口：定期工作每天依規則補到「最遠開放天數」
+（extend_from_rules，規格 L221-223），以及取消休假日時補那一天
+（remove_exception）。2026-10-08 起沒有「手動指定日期範圍產生」的 API
+（後台早已沒有那顆按鈕）。兩者都只新增還不存在的場次：同一天已有時段跟新場次時間重疊（含園方關閉或
 調過名額的）就不建，所以不會產生重疊的場次，園方關掉的也不會被偷偷重開。
 
 時段是預先補到最遠開放天數的，改規則時要主動把「依規則產生、還沒被使用」
@@ -20,7 +21,6 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking import slot_service
-from app.booking.access_models import RescheduleRequest
 from app.booking.models import (
     BookingConfig,
     SlotClosedSource,
@@ -32,14 +32,6 @@ from app.booking.models import (
 from app.booking.service import get_or_create_config
 from app.campuses.models import Campus
 from app.common.timezones import now_utc, slot_start_utc, today_local
-
-MAX_GENERATE_DAYS = 92
-
-
-class GenerateRangeInvalid(Exception):
-    def __init__(self, message: str) -> None:
-        self.message = message
-        super().__init__(message)
 
 
 def rule_windows(rule: VisitRule) -> list[tuple[time, time]]:
@@ -118,10 +110,10 @@ async def sync_rule_slots(
     的規則（rule_window_map），用來判斷名額是不是園方調過的。
 
     不動：已開始的場次、園方在時段頁手動新增的、園方手動關閉的（含分不出來源
-    的舊資料），以及有家長占名額（已確認）或有待核准改期申請的。
+    的舊資料），以及有家長占名額（已確認）的。
 
     其餘時段：
-    - 不符合新規則（星期幾或起訖時間對不上）：沒有任何案件或改期申請指著就
+    - 不符合新規則（星期幾或起訖時間對不上）：沒有任何案件指著就
       刪除；有歷史紀錄（例如已取消的案件）刪不掉，改成關閉並記 rule。
     - 符合新規則：之前因規則變更停用的重新打開；名額還是舊規則的值（園方沒
       調過）就改成新規則的名額。休假日關閉的維持關閉，取消休假時照常重開。
@@ -165,25 +157,9 @@ async def sync_rule_slots(
             )
         ).scalars()
     )
-    in_use |= set(
-        (
-            await db.execute(
-                select(RescheduleRequest.requested_slot_id).where(
-                    RescheduleRequest.requested_slot_id.in_(ids), RescheduleRequest.status == "pending"
-                )
-            )
-        ).scalars()
-    )
-    # 外鍵是 RESTRICT：已取消的案件、已處理的改期申請也還指著時段，刪不掉。
+    # 外鍵是 RESTRICT：已取消的案件也還指著時段，刪不掉。
     referenced = set(
         (await db.execute(select(VisitRequest.slot_id).where(VisitRequest.slot_id.in_(ids)))).scalars()
-    )
-    referenced |= set(
-        (
-            await db.execute(
-                select(RescheduleRequest.requested_slot_id).where(RescheduleRequest.requested_slot_id.in_(ids))
-            )
-        ).scalars()
     )
 
     to_delete: list[uuid.UUID] = []
@@ -381,23 +357,6 @@ async def remove_exception(
     return {"reopened_slots": reopened, "created_slots": created}
 
 
-async def generate_slots(
-    db: AsyncSession,
-    campus_key: str,
-    date_from: date,
-    date_to: date,
-    created_by: uuid.UUID,
-) -> dict:
-    """依每週規則產生時段。跳過：今天以前、休假日、同一天已有時間重疊的時段
-    （含已關閉的——園方關掉的不要被規則偷偷重開）。可重複執行。"""
-    if date_to < date_from:
-        raise GenerateRangeInvalid("結束日期不能早於開始日期")
-    if (date_to - date_from).days > MAX_GENERATE_DAYS:
-        raise GenerateRangeInvalid(f"一次最多產生 {MAX_GENERATE_DAYS} 天")
-    await get_or_create_config(db, campus_key, for_update=True)
-    return await _create_from_rules(db, campus_key, date_from, date_to, created_by=created_by)
-
-
 async def campuses_due_for_extension(db: AsyncSession, today: date) -> list[str]:
     """有每週規則、分校啟用中、今天還沒自動補過時段的校區。"""
     result = await db.execute(
@@ -422,7 +381,7 @@ async def extend_from_rules(db: AsyncSession, campus_key: str, *, now: datetime 
     today = today_local(current)
     config = await get_or_create_config(db, campus_key, for_update=True)
     if config.rules_extended_on is not None and config.rules_extended_on >= today:
-        return 0  # 同一天另一個副本或手動 CLI 已經補過
+        return 0  # 同一天另一個副本或 CLI 已經補過
     result = await _create_from_rules(
         db,
         campus_key,

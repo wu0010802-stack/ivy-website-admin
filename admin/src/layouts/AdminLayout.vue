@@ -24,14 +24,11 @@ const pageTitle = computed(() => route.meta.title ?? '')
 // href=""，新分頁開的是目前這頁後台，所以一定要接上「/」。
 const websiteHome = `${WEBSITE_ASSET_BASE.replace(/\/+$/, '')}/`
 const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
-// 側欄只留參觀案件的數字；家長的改期申請與給自己的內容通知未讀時，
+// 側欄不掛數字；給自己的內容通知未讀時，
 // 改在頁首出現一個連結，任何頁面都看得到、點了直接進去。
 const unreadLinks = computed(() => {
   const user = auth.user
   const links: { to: string; label: string; short: string; count: number }[] = []
-  if (openRequests.reschedules > 0 && canOpenPath('/notifications', user)) {
-    links.push({ to: '/notifications', label: '改期申請待核准', short: '改期', count: openRequests.reschedules })
-  }
   if (openRequests.myNotices > 0 && canOpenPath('/releases', user)) {
     links.push({ to: '/releases', label: '內容通知未讀', short: '通知', count: openRequests.myNotices })
   }

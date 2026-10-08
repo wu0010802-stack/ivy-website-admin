@@ -803,23 +803,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/website/v1/admin/content-kinds": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Content Kinds */
-        get: operations["list_content_kinds_api_website_v1_admin_content_kinds_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/website/v1/admin/content-reviews": {
         parameters: {
             query?: never;
@@ -939,7 +922,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Media */
+        /**
+         * List Media
+         * @description 素材庫與選圖器的清單：新的在前，同一時間再依 id 排，翻頁時不會重複或漏掉。
+         *     只對這一頁的素材讀衍生檔、引用與上傳者。
+         */
         get: operations["list_media_api_website_v1_admin_media_get"];
         put?: never;
         /** Upload Media */
@@ -1316,6 +1303,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark All Notifications Read
+         * @description 把還沒讀的案件通知一次標成已讀（一條 UPDATE）。
+         *
+         *     標的是資料庫裡範圍內「全部」未讀，不是只有列表端點回的最新 100 則：
+         *     列表有上限，逐筆標會留下列表外更早的未讀，這裡一次標完。沒帶
+         *     `campus_key` 時範圍是你有 booking.manage 的所有校區（總管理者＝全部），
+         *     帶了就只標那一校。權限、全校共用的語意與單筆標記相同（booking.manage，
+         *     櫃台不開放），同樣不寫稽核。回傳實際從未讀變已讀的則數，已讀的不重複計。
+         *     與 /admin/my-notifications/read-all（個人的內容審核通知，另一張表）無關。
+         */
+        post: operations["mark_all_notifications_read_api_website_v1_admin_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/notifications/{notification_id}/read": {
         parameters: {
             query?: never;
@@ -1389,67 +1403,6 @@ export interface paths {
          *     通知；各內容的草稿也不動。
          */
         post: operations["restore_release_api_website_v1_admin_releases__release_id__restore_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/reschedule-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Reschedule Requests
-         * @description 待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
-         *     新時段與新時段剩餘名額，園方不必點進案件就能判斷。
-         *
-         *     沒指定校區時列出你負責的所有校區，與側欄徽章、總覽的待核准數同一個
-         *     範圍：點進站內通知就看得到那幾件，不必一校一校切。
-         */
-        get: operations["list_reschedule_requests_api_website_v1_admin_reschedule_requests_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/reschedule-requests/{request_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve Reschedule Request */
-        post: operations["approve_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/reschedule-requests/{request_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reject Reschedule Request
-         * @description 退回：家長維持原時段。原因選填，記在申請與案件歷程。
-         */
-        post: operations["reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1538,30 +1491,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/site-settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Site Settings
-         * @deprecated
-         */
-        get: operations["get_site_settings_api_website_v1_admin_site_settings_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update Site Settings
-         * @deprecated
-         */
-        patch: operations["update_site_settings_api_website_v1_admin_site_settings_patch"];
         trace?: never;
     };
     "/api/website/v1/admin/slots": {
@@ -1842,26 +1771,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/website/v1/admin/visit-requests/group-counts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Visit Request Group Counts
-         * @description 分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。
-         */
-        get: operations["visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/website/v1/admin/visit-requests/view-counts": {
         parameters: {
             query?: never;
@@ -1892,8 +1801,8 @@ export interface paths {
         };
         /**
          * Get Visit Request
-         * @description 案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長
-         *     改期申請、家長管理連結是否有效（規格 L299）。
+         * @description 案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、家長管理連結
+         *     是否有效（規格 L299）。
          */
         get: operations["get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get"];
         put?: never;
@@ -2121,23 +2030,6 @@ export interface paths {
          * @description 取消休假：重開因休假關閉的時段、依規則補上當天場次；手動關閉的不動。
          */
         delete: operations["remove_visit_exception_api_website_v1_admin_visit_schedule__campus_key__exceptions__exception_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/website/v1/admin/visit-schedule/{campus_key}/generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate Visit Slots */
-        post: operations["generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post"];
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -4192,6 +4084,24 @@ export interface components {
             width: number | null;
         };
         /**
+         * MediaAssetPageOut
+         * @description 素材列表的一頁（新的在前）。
+         */
+        MediaAssetPageOut: {
+            /** Items */
+            items: components["schemas"]["MediaAssetOut"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** State Total */
+            state_total: number;
+            /** Tags */
+            tags: string[];
+            /** Total */
+            total: number;
+        };
+        /**
          * MediaHistoryReferenceOut
          * @description 只剩可還原的舊版本在用：同一內容項合併成一筆。
          */
@@ -4521,6 +4431,11 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** NotificationReadAllOut */
+        NotificationReadAllOut: {
+            /** Updated */
+            updated: number;
+        };
         /** NotificationRetryBatchOut */
         NotificationRetryBatchOut: {
             /** Requeued */
@@ -4739,11 +4654,6 @@ export interface components {
             phone: string;
             /** Questions */
             questions?: string | null;
-            /**
-             * Reschedule Pending
-             * @default false
-             */
-            reschedule_pending: boolean;
             slot?: components["schemas"]["VisitSlotBriefOut"] | null;
             /** Status */
             status: string;
@@ -5412,48 +5322,6 @@ export interface components {
             expected_current_release_id?: string | null;
         };
         /**
-         * RescheduleDecisionRequest
-         * @description 退回家長改期申請時的原因（選填）。
-         */
-        RescheduleDecisionRequest: {
-            /** Reason */
-            reason?: string | null;
-        };
-        /**
-         * RescheduleRequestOut
-         * @description 家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
-         *     以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。
-         */
-        RescheduleRequestOut: {
-            /** Campus Key */
-            campus_key: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            current_slot: components["schemas"]["VisitSlotBriefOut"] | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Parent Name */
-            parent_name: string;
-            requested_slot: components["schemas"]["VisitSlotBriefOut"];
-            /** Requested Slot Available */
-            requested_slot_available: boolean;
-            /** Requested Slot Remaining */
-            requested_slot_remaining: number;
-            /** Status */
-            status: string;
-            /**
-             * Visit Request Id
-             * Format: uuid
-             */
-            visit_request_id: string;
-        };
-        /**
          * ResendConfirmationOut
          * @description 重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。
          */
@@ -5633,21 +5501,6 @@ export interface components {
             target_school_year?: number | null;
             /** Target Semester */
             target_semester?: number | null;
-        };
-        /** SiteSettingsUpdate */
-        SiteSettingsUpdate: {
-            /** Description */
-            description: string;
-            /** Expected Version */
-            expected_version: number;
-            /** Noindex */
-            noindex: boolean;
-            /** Privacy Policy Version */
-            privacy_policy_version: string;
-            /** Share Image */
-            share_image?: string | null;
-            /** Title */
-            title: string;
         };
         /** SubmitReviewRequest */
         SubmitReviewRequest: {
@@ -5932,15 +5785,6 @@ export interface components {
             /** Reopened Slots */
             reopened_slots: number;
         };
-        /** VisitGroupCountsOut */
-        VisitGroupCountsOut: {
-            /** Cancelled */
-            cancelled: number;
-            /** Past */
-            past: number;
-            /** Upcoming */
-            upcoming: number;
-        };
         /**
          * VisitHistoryOut
          * @description 案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
@@ -6105,7 +5949,7 @@ export interface components {
         };
         /**
          * VisitRequestFullOut
-         * @description 案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+         * @description 案件明細頁用：案件本身＋歷程、家長連結狀態。
          *     列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。
          */
         VisitRequestFullOut: {
@@ -6164,7 +6008,6 @@ export interface components {
             parent_name: string;
             /** Party Size */
             party_size?: number | null;
-            pending_reschedule: components["schemas"]["RescheduleRequestOut"] | null;
             /** Phone */
             phone: string;
             /** Preferred Time */
@@ -6409,28 +6252,6 @@ export interface components {
              * Format: time
              */
             start_time: string;
-        };
-        /** VisitSlotGenerateOut */
-        VisitSlotGenerateOut: {
-            /** Created */
-            created: number;
-            /** Skipped Exception Days */
-            skipped_exception_days: number;
-            /** Skipped Existing */
-            skipped_existing: number;
-        };
-        /** VisitSlotGenerateRequest */
-        VisitSlotGenerateRequest: {
-            /**
-             * Date From
-             * Format: date
-             */
-            date_from: string;
-            /**
-             * Date To
-             * Format: date
-             */
-            date_to: string;
         };
         /** VisitSlotOut */
         VisitSlotOut: {
@@ -6811,13 +6632,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/csv": string;
                 };
             };
             /** @description Validation Error */
@@ -7001,13 +6822,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "text/csv": string;
                 };
             };
             /** @description Validation Error */
@@ -8359,39 +8180,6 @@ export interface operations {
             };
         };
     };
-    list_content_kinds_api_website_v1_admin_content_kinds_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": string[];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_pending_reviews_api_website_v1_admin_content_reviews_get: {
         parameters: {
             query?: never;
@@ -8603,10 +8391,20 @@ export interface operations {
             query?: {
                 /** @description 只列有這個標籤的素材 */
                 tag?: string | null;
-                /** @description 檔名、圖片說明、圖說或標籤片段 */
+                /** @description 檔名、圖片說明、內部備註或標籤片段 */
                 q?: string | null;
                 /** @description active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理 */
                 state?: "active" | "archived" | "deleted";
+                /** @description __shared＝只列跨校共用；校區代號＝只列那一校（看不到的校區沒有結果）；不帶＝看得到的全部 */
+                campus?: string | null;
+                /** @description 和 campus=校區代號 一起用：那一校加上跨校共用（選圖器） */
+                include_shared?: boolean;
+                /** @description 只列圖片或影片 */
+                kind?: components["schemas"]["MediaKind"] | null;
+                /** @description 不列處理失敗的素材（選圖器） */
+                exclude_failed?: boolean;
+                page?: number;
+                page_size?: number;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -8624,7 +8422,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MediaAssetOut"][];
+                    "application/json": components["schemas"]["MediaAssetPageOut"];
                 };
             };
             /** @description Validation Error */
@@ -9382,6 +9180,41 @@ export interface operations {
             };
         };
     };
+    mark_all_notifications_read_api_website_v1_admin_notifications_read_all_post: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationReadAllOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mark_notification_read_api_website_v1_admin_notifications__notification_id__read_post: {
         parameters: {
             query?: never;
@@ -9514,117 +9347,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReleaseRestoreOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_reschedule_requests_api_website_v1_admin_reschedule_requests_get: {
-        parameters: {
-            query?: {
-                campus_key?: string | null;
-            };
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RescheduleRequestOut"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                request_id: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitRequestDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                request_id: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RescheduleDecisionRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -9796,80 +9518,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetentionPolicyOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_site_settings_api_website_v1_admin_site_settings_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_site_settings_api_website_v1_admin_site_settings_patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SiteSettingsUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */
@@ -10537,67 +10185,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載 */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get: {
-        parameters: {
-            query?: {
-                campus_key?: string | null;
-                status?: string | null;
-                /** @description 家長或寶貝姓名、電話或 Email 片段 */
-                q?: string | null;
-                /** @description 只列已到預定聯絡時間、尚未結案的案件 */
-                follow_up_due?: boolean;
-                /** @description 案件來源：web／phone／line／walk_in／external */
-                source?: string | null;
-                /** @description 送出日期起（含），台灣日期 */
-                created_from?: string | null;
-                /** @description 送出日期迄（含），台灣日期 */
-                created_to?: string | null;
-                /** @description 只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案 */
-                needs_attention?: boolean;
-                /** @description 案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消 */
-                group?: string | null;
-                /** @description 只列還沒結案的：預約正常（含時間已過還沒標記到場） */
-                open?: boolean;
-                /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
-                view?: string | null;
-            };
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path?: never;
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitGroupCountsOut"];
+                    "text/csv": string;
                 };
             };
             /** @description Validation Error */
@@ -11161,45 +10755,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitExceptionRemovedOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "x-csrf-token"?: string | null;
-            };
-            path: {
-                campus_key: string;
-            };
-            cookie?: {
-                ivy_admin_session?: string | null;
-            };
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["VisitSlotGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["VisitSlotGenerateOut"];
                 };
             };
             /** @description Validation Error */

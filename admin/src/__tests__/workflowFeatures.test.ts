@@ -24,9 +24,9 @@ async function mountWith(component: unknown, role: Role, props: Record<string, u
   return wrapper
 }
 
-const faqItem = (review_status: string, review_note: string | null = null) => ({
+const profileItem = (review_status: string, review_note: string | null = null) => ({
   id: 'item', kind: 'campus_profile', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'rev-1',
-  latest_revision: { id: 'rev-2', version: 2, created_at: '2026-09-24T01:00:00Z', payload: { name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07-392-8366', intro: '', description: '', facebook: '', fb_note: '', line: '' }, review_status, review_note },
+  latest_revision: { id: 'rev-2', version: 2, created_at: '2026-09-24T01:00:00Z', payload: { name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07-392-8366', facebook: '', line: '' }, review_status, review_note },
 })
 
 function mockContent(item: unknown) {
@@ -42,8 +42,8 @@ function buttonTexts(wrapper: VueWrapper): string[] {
 
 describe('內容送審與審核', () => {
   it('內容編輯看不到發布，只能送審', async () => {
-    mockContent(faqItem('draft'))
-    const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem('pending_review'))
+    mockContent(profileItem('draft'))
+    const post = vi.spyOn(api, 'post').mockResolvedValue(profileItem('pending_review'))
     const wrapper = await mountWith(CampusProfileView, 'editor')
     expect(buttonTexts(wrapper)).not.toContain('發布到官網')
     await wrapper.findAll('button').find(b => b.text() === '送審')!.trigger('click')
@@ -52,16 +52,16 @@ describe('內容送審與審核', () => {
   })
 
   it('被退回時顯示原因', async () => {
-    mockContent(faqItem('rejected', '答案請寫電話'))
+    mockContent(profileItem('rejected', '答案請寫電話'))
     const wrapper = await mountWith(CampusProfileView, 'editor')
     expect(wrapper.text()).toContain('被退回')
     expect(wrapper.text()).toContain('答案請寫電話')
   })
 
   it('校區管理者看到待審核的版本時可以核准或退回', async () => {
-    mockContent(faqItem('pending_review'))
+    mockContent(profileItem('pending_review'))
     vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
-    const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem('approved'))
+    const post = vi.spyOn(api, 'post').mockResolvedValue(profileItem('approved'))
     const wrapper = await mountWith(CampusProfileView, 'campus_admin')
     expect(buttonTexts(wrapper)).toEqual(expect.arrayContaining(['退回', '核准並發布']))
     await wrapper.findAll('button').find(b => b.text() === '核准並發布')!.trigger('click')
@@ -70,7 +70,7 @@ describe('內容送審與審核', () => {
   })
 
   it('可以直接發布的角色看得到排程發布與版本紀錄', async () => {
-    mockContent(faqItem('draft'))
+    mockContent(profileItem('draft'))
     const wrapper = await mountWith(CampusProfileView, 'campus_admin')
     expect(buttonTexts(wrapper)).toEqual(expect.arrayContaining(['排程發布', '發布到官網', '版本紀錄']))
   })

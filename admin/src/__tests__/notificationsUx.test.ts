@@ -36,7 +36,6 @@ describe('通知操作與回應競態', () => {
     const old = new Promise<unknown[]>(resolve => { resolveOld = resolve })
     vi.spyOn(api, 'get').mockImplementation(url => {
       if (String(url).includes('notification-outbox')) return Promise.resolve({ items: [], total: 0 }) as Promise<never>
-      if (String(url).includes('reschedule-requests')) return Promise.resolve([]) as Promise<never>
       if (String(url).includes('renwu')) return Promise.resolve([notification('仁武新通知', 'renwu', '2026-10-24')]) as Promise<never>
       return old as Promise<never>
     })
@@ -52,11 +51,11 @@ describe('通知操作與回應競態', () => {
     expect(wrapper.text()).toContain('10/24（週六）')
   })
 
-  it('批次期間鎖住重複操作與校區切換，部分失敗保持未讀', async () => {
-    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : [notification('first'), notification('second')]) as Promise<never>)
-    let resolveFirst!: () => void
-    const first = new Promise<void>(resolve => { resolveFirst = resolve })
-    const post = vi.spyOn(api, 'post').mockImplementationOnce(() => first as Promise<never>).mockRejectedValueOnce(new Error('offline'))
+  it('全部標記已讀只送一次請求，期間鎖住重複操作與校區切換，完成後本機清單全變已讀', async () => {
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : [notification('first'), notification('second')]) as Promise<never>)
+    let resolveBulk!: (value: { updated: number }) => void
+    const pending = new Promise<{ updated: number }>(resolve => { resolveBulk = resolve })
+    const post = vi.spyOn(api, 'post').mockImplementationOnce(() => pending as Promise<never>)
     const wrapper = await setup()
     await flushPromises()
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'yihua')
@@ -66,20 +65,42 @@ describe('通知操作與回應競態', () => {
     await bulk.trigger('click')
     wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
+    // 一次呼叫就標完，不再逐筆；單一校區帶 campus_key。
     expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/admin/notifications/read-all?campus_key=yihua')
     expect(wrapper.getComponent(CampusSelect).props('modelValue')).toBe('yihua')
-    expect(wrapper.text()).toContain('標記中 0 / 2')
-    resolveFirst()
+    expect(wrapper.text()).toContain('標記中')
+    // 後端標了 5 則（含畫面上沒列出的更早未讀）：訊息用後端回的則數，畫面上的全變已讀。
+    resolveBulk({ updated: 5 })
     await flushPromises()
-    expect(post).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('已標記 1 則，1 則失敗')
-    expect(wrapper.text()).toContain('2 則通知，1 則未讀')
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('已標記 5 則為已讀（義華）')
+    expect(wrapper.text()).toContain('2 則通知，0 則未讀')
+    expect(wrapper.findAll('.notice.is-unread')).toHaveLength(0)
+  })
+
+  it('全部標記已讀失敗時顯示錯誤，清單維持未讀', async () => {
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : [notification('first'), notification('second')]) as Promise<never>)
+    const post = vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('offline'))
+    const wrapper = await setup()
+    await flushPromises()
+    wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'yihua')
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(document.body.textContent).toContain('標記失敗，請重試')
+    expect(wrapper.text()).not.toContain('已標記')
+    expect(wrapper.text()).toContain('2 則通知，2 則未讀')
+    expect(wrapper.findAll('.notice.is-unread')).toHaveLength(2)
+    // 失敗後按鈕恢復可再按。
+    expect(wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!.attributes('disabled')).toBeUndefined()
   })
 })
 
 describe('站內通知的校區範圍', () => {
   function mockList(rows: unknown[]) {
-    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : rows) as Promise<never>)
   }
 
   it('管多校的人預設看全部校區，頁籤寫則數、未讀寫出在哪幾校', async () => {
@@ -101,18 +122,21 @@ describe('站內通知的校區範圍', () => {
   it('全部校區時「全部標記已讀」先列出會動到哪幾校，選先不要就不標', async () => {
     mockList([notification('a'), notification('b', 'renwu')])
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel').mockResolvedValueOnce('confirm' as never)
-    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ updated: 2 } as never)
     const wrapper = await setup()
     await flushPromises()
     const bulk = () => wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!
     await bulk().trigger('click')
     await flushPromises()
-    expect(String(confirm.mock.calls[0]![0])).toContain('義華 1 則、仁武 1 則，共 2 則通知')
+    expect(String(confirm.mock.calls[0]![0])).toContain('義華 1 則、仁武 1 則，共 2 則未讀通知')
     expect(post).not.toHaveBeenCalled()
     await bulk().trigger('click')
     await flushPromises()
-    expect(post).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('已將全部校區 2 則通知標記為已讀（義華 1 則、仁武 1 則）')
+    // 全部校區不帶 campus_key，由後端標你負責的所有校區。
+    expect(post).toHaveBeenCalledTimes(1)
+    expect(post).toHaveBeenCalledWith('/admin/notifications/read-all')
+    expect(wrapper.text()).toContain('已標記 2 則為已讀（全部校區）')
+    expect(wrapper.findAll('.notice.is-unread')).toHaveLength(0)
   })
 
   it('只管一校的人直接看那一校、不出現校區選單與校名；清單滿 100 則時說明只列出最新的', async () => {
@@ -124,6 +148,28 @@ describe('站內通知的校區範圍', () => {
     expect(wrapper.findComponent(CampusSelect).exists()).toBe(false)
     expect(wrapper.find('.notice__meta').text()).toMatch(/^參觀 /)
     expect(wrapper.text()).toContain('只列出最新的 100 則通知')
+    expect(wrapper.text()).toContain('「全部標記已讀」會連沒有列出的未讀一併標記')
+
+    // 後端一次標完資料庫裡全部未讀（比畫面上列出的 100 則多），訊息寫後端回的則數。
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ updated: 130 } as never)
+    await wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/admin/notifications/read-all?campus_key=yihua')
+    expect(wrapper.text()).toContain('已標記 130 則為已讀（義華）')
+    expect(wrapper.findAll('.notice.is-unread')).toHaveLength(0)
+  })
+
+  it('全部校區且清單滿 100 則時，確認框說明沒有列出的更早未讀也會一併標記', async () => {
+    mockList(Array.from({ length: 100 }, (_, index) => notification(`n${index}`, index % 2 ? 'renwu' : 'yihua')))
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel')
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ updated: 0 } as never)
+    const wrapper = await setup()
+    await flushPromises()
+    await wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!.trigger('click')
+    await flushPromises()
+    expect(String(confirm.mock.calls[0]![0])).toContain('義華 50 則、仁武 50 則，共 100 則未讀通知')
+    expect(String(confirm.mock.calls[0]![0])).toContain('沒有列出的更早未讀也會一併標記')
+    expect(post).not.toHaveBeenCalled()
   })
 })
 
@@ -228,7 +274,7 @@ describe('寄送失敗的通知（第 2 條）', () => {
 
 describe('站內通知的參觀場次', () => {
   it('每列寫出參觀日期時段（後端讀取時查的），沒有場次就不寫；整列連到案件', async () => {
-    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : [
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : [
       notification('n1', 'yihua', '2026-10-24'),
       { ...notification('n2'), slot: null },
     ]) as Promise<never>)
@@ -247,7 +293,7 @@ describe('站內通知的版面（2026-10-05）', () => {
     return new Date(Date.now() - minutesAgo * 60_000).toISOString()
   }
   function mockRows(rows: unknown[]) {
-    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : rows) as Promise<never>)
   }
 
   it('依台北日期分成今天、昨天與更早，列上只寫幾點幾分', async () => {
@@ -298,7 +344,7 @@ describe('站內通知的版面（2026-10-05）', () => {
     expect(router.currentRoute.value.query).toEqual({})
   })
 
-  it('單校帳號的寄送失敗與改期申請不列校區欄', async () => {
+  it('單校帳號的寄送失敗不列校區欄', async () => {
     vi.spyOn(api, 'get').mockImplementation(url => {
       const path = String(url)
       if (path.includes('notification-outbox')) return Promise.resolve({ items: [failedItem('a', { campus_key: 'yihua' })], total: 1 }) as Promise<never>
@@ -337,7 +383,7 @@ describe('站內通知的版面（2026-10-05）', () => {
 
 describe('點開通知與家長稱呼（2026-10-05 業主裁定）', () => {
   function mockRows(rows: unknown[], failed: unknown[] = []) {
-    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: failed, total: failed.length } : String(url).includes('reschedule-requests') ? [] : rows) as Promise<never>)
+    return vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: failed, total: failed.length } : rows) as Promise<never>)
   }
 
   it('通知列與寄送失敗都寫出家長稱呼，沒有（已匿名化）就不寫', async () => {

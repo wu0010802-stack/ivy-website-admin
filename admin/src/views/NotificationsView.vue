@@ -6,20 +6,19 @@ import { AlarmClock, Bell, Check, CircleCheck, CircleClose, CirclePlus, RefreshR
 import { notifyError } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import {
-  campusLabel, formatDate, formatDateTime, formatShortDateTime, formatShortSlotWhen, formatSlotWhen, formatWeekday,
+  campusLabel, formatDate, formatDateTime, formatShortDateTime, formatShortSlotWhen, formatWeekday,
   notificationLabel, outboxErrorLabel,
 } from '../api/labels'
-import type { NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationRetryBatchOut, RescheduleRequestOut } from '../api/types'
+import type { NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationReadAllOut, NotificationRetryBatchOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
-import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from '../composables/rescheduleDecision'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 
 type NotificationOut = NotificationInboxItemOut
 
-// 管多校的人預設看「全部校區」（''），和下面寄送失敗、改期申請的範圍一致，不必
+// 管多校的人預設看「全部校區」（''），和下面寄送失敗的範圍一致，不必
 // 切五次才看完；只管一校的人直接是那一校。
 const { visibleCampusKeys, selected: campusFilter } = useCampusScope({ autoSelect: false })
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
@@ -37,7 +36,7 @@ if (multiCampus.value && visibleCampusKeys.value.includes(queryCampus)) campusFi
 // 後端一次最多回最新的 100 則（notifications/routes.py）。
 const NOTIFICATION_LIMIT = 100
 const { can } = usePermissions()
-// 核准／退回改期與重新寄送要能處理案件（booking.handle，含櫃台）；沒有的人
+// 重新寄送要能處理案件（booking.handle，含櫃台）；沒有的人
 // 只看清單，不顯示一按就被拒絕的按鈕。
 const canHandle = computed(() => can('booking.handle'))
 // 標記已讀改的是全校共用的處理狀態（有人標了，同校其他人就看不到未讀），
@@ -53,8 +52,6 @@ const loading = ref(false)
 const onlyUnread = ref(route.query.unread === '1')
 const busyId = ref<string | null>(null)
 const bulkBusy = ref(false)
-const bulkProgress = ref(0)
-const bulkTotal = ref(0)
 const loadError = ref('')
 const operationResult = ref('')
 const operationFailed = ref(false)
@@ -90,30 +87,9 @@ async function loadFailed() {
 }
 void loadFailed()
 
-// 待核准的改期申請同樣列出你負責的所有校區，不跟著上面的校區切換：側欄徽章
-// 與總覽「核准改期申請」算的是全部校區，點進來要看得到同一批，不能落在
-// 預設第一校的空清單。
-const pendingReschedules = ref<RescheduleRequestOut[]>([])
-const rescheduleError = ref('')
-let rescheduleVersion = 0
-
-async function loadReschedules() {
-  const version = ++rescheduleVersion
-  rescheduleError.value = ''
-  if (!can('booking.read')) { pendingReschedules.value = []; return }
-  try {
-    const rows = await api.get<RescheduleRequestOut[]>('/admin/reschedule-requests')
-    if (alive && version === rescheduleVersion) pendingReschedules.value = rows
-  } catch {
-    if (alive && version === rescheduleVersion) rescheduleError.value = '無法讀取待核准的改期申請，請重新整理。'
-  }
-}
-void loadReschedules()
-
 function refreshAll() {
   void load()
   void loadFailed()
-  void loadReschedules()
 }
 
 // quiet：切回分頁時的背景更新，保留畫面上的清單、不閃骨架，讀不到就維持原樣。
@@ -154,7 +130,7 @@ watch([campusFilter, onlyUnread], ([campus, unread]) => {
 })
 
 // 和案件列表一樣不做定時輪詢：切回這個分頁或視窗時，距上次讀取超過 60 秒就
-// 在背景重抓一次（三個區塊與頁首的改期數字）。處理中不打斷。
+// 在背景重抓一次（通知清單、寄送失敗與頁首的通知數字）。處理中不打斷。
 const STALE_MS = 60_000
 let loadedAt = 0
 function refreshIfStale() {
@@ -162,7 +138,6 @@ function refreshIfStale() {
   loadedAt = Date.now()
   void load({ quiet: true })
   void loadFailed()
-  void loadReschedules()
   void openRequests.refresh(true)
 }
 onMounted(() => {
@@ -211,7 +186,7 @@ const KIND_META: Record<string, { tone: Tone; icon: Component }> = {
   visit_upcoming: { tone: 'warning', icon: AlarmClock },
   visit_request_overdue: { tone: 'danger', icon: Warning },
   visit_request_cancelled: { tone: 'info', icon: CircleClose },
-  // 人工確認時期的舊種類：舊資料仍會出現。
+  // 人工確認時期、家長改期申請（2026-10-08 刪除）留下的舊種類：舊資料仍會出現。
   visit_reschedule_requested: { tone: 'warning', icon: Switch },
   visit_request_hold_expired: { tone: 'info', icon: Timer },
 }
@@ -300,18 +275,19 @@ async function markRead(n: NotificationOut) {
   }
 }
 
+// 一次標完：由後端一條 UPDATE 把範圍內（單一校區，或你負責的所有校區）資料庫裡
+// 全部未讀標成已讀，不只畫面上最新的 100 則；回傳實際標了幾則。
 async function markAllRead() {
   if (!canMarkRead.value || operationBusy.value || loading.value || loadError.value) return
   const campus = campusFilter.value
   if (!listMatches(campus)) return
   const unread = notifications.value.filter((n) => !n.read_at && (!campus || n.campus_key === campus))
   if (!unread.length) return
-  const scope = campus ? campusLabel(campus) : countByCampus(unread)
   // 已讀是同校共用的狀態；全部校區時一次會動到好幾校，先講清楚是哪幾校。
   if (!campus) {
     try {
       await ElMessageBox.confirm(
-        `會把 ${scope}，共 ${unread.length} 則通知標記為已讀${listCapped.value ? `（只含列出的最新 ${NOTIFICATION_LIMIT} 則）` : ''}。已讀是同校共用的狀態，這幾校的同事也會看到已讀。`,
+        `會把 ${countByCampus(unread)}，共 ${unread.length} 則未讀通知標記為已讀${listCapped.value ? '，另外沒有列出的更早未讀也會一併標記' : ''}。已讀是同校共用的狀態，這幾校的同事也會看到已讀。`,
         '全部校區標記已讀？',
         { confirmButtonText: '標記已讀', cancelButtonText: '先不要', type: 'warning' },
       )
@@ -321,25 +297,23 @@ async function markAllRead() {
     if (!alive || operationBusy.value || !listMatches(campus)) return
   }
   bulkBusy.value = true
-  bulkProgress.value = 0
-  bulkTotal.value = unread.length
   operationResult.value = ''
-  let failed = 0
   try {
-    for (const n of unread) {
-      if (!alive || campus !== campusFilter.value) break
-      try {
-        await api.post(`/admin/notifications/${n.id}/read`)
-        if (alive && campus === campusFilter.value) setReadLocally(n, new Date().toISOString())
-      } catch { failed++ }
-      bulkProgress.value++
-    }
+    const result = await api.post<NotificationReadAllOut>(
+      campus ? `/admin/notifications/read-all?campus_key=${encodeURIComponent(campus)}` : '/admin/notifications/read-all',
+    )
     if (alive && campus === campusFilter.value) {
-      operationFailed.value = failed > 0
-      operationResult.value = failed
-        ? `已標記 ${bulkProgress.value - failed} 則，${failed} 則失敗。失敗通知仍保留未讀，可再次操作。`
-        : campus ? `已將${scope}的 ${bulkProgress.value} 則通知標記為已讀。` : `已將全部校區 ${bulkProgress.value} 則通知標記為已讀（${scope}）。`
+      // 畫面上範圍內的都已是已讀（含背景更新換過的清單，所以重新掃一遍現在的清單）。
+      const readAt = new Date().toISOString()
+      for (const n of notifications.value) if (!n.read_at && (!campus || n.campus_key === campus)) n.read_at = readAt
+      operationFailed.value = false
+      operationResult.value = result.updated > 0
+        ? `已標記 ${result.updated} 則為已讀（${scopeLabel.value}）。`
+        : `${scopeLabel.value}已經沒有未讀通知，可能剛被同事標記過。`
     }
+  } catch {
+    // 失敗時後端沒有改任何一則，清單維持原樣。
+    if (alive) notifyError('標記失敗，請重試')
   } finally { bulkBusy.value = false }
 }
 
@@ -395,33 +369,6 @@ async function retryAll() {
     if (alive) notifyError(apiMessage(err, '重新寄送失敗，請重試'))
   } finally { retryAllBusy.value = false }
 }
-
-async function decideReschedule(row: RescheduleRequestOut, action: RescheduleAction) {
-  if (!canHandle.value || operationBusy.value) return
-  // 核准會直接換掉家長的參觀時間、退回會讓家長維持原時段，兩者都是對外
-  // 且不能反悔的動作，比照確認預約先問一次並講清楚是誰、從哪一場改到哪一場。
-  const decision = await confirmRescheduleDecision(row, action)
-  if (!decision) return
-  busyId.value = row.id
-  try {
-    await submitRescheduleDecision(row.id, action, decision.reason)
-    openRequests.refresh(true)
-    if (!alive) return
-    ElMessage.success(action === 'approve' ? `已核准，改到 ${formatSlotWhen(row.requested_slot)}` : '已退回改期申請')
-    await loadReschedules()
-  } catch (err) {
-    if (!alive) return
-    notifyError(apiMessage(err, '操作失敗，請重試'))
-    // 可能剛被別人處理或已失效：重讀清單，側欄數字也跟著更新。
-    openRequests.refresh(true)
-    await loadReschedules()
-  } finally { busyId.value = null }
-}
-
-// 名額以組家庭計（一組三人只占一個名額），和時段頁、官網一樣寫「組」。
-function requestedSlotNote(row: RescheduleRequestOut): string {
-  return row.requested_slot_available ? `剩 ${row.requested_slot_remaining} 組` : '已額滿、關閉或已開始，無法核准'
-}
 </script>
 
 <template>
@@ -433,58 +380,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
     <template v-else>
       <el-alert v-if="operationResult" :title="operationResult" :type="operationFailed ? 'warning' : 'success'" show-icon :closable="false" class="inline-error" />
 
-      <!-- 要園方動手的放最上面：家長等著回覆的改期，再來是沒送出去的通知。兩區都列你負責的所有校區，不跟著下面清單的校區切換。 -->
-      <el-alert v-if="rescheduleError" :title="rescheduleError" type="error" show-icon :closable="false" class="inline-error" />
-      <section v-if="pendingReschedules.length > 0" class="panel reschedule" aria-labelledby="reschedule-title">
-        <div class="panel__head"><h2 id="reschedule-title">待核准的改期申請（{{ pendingReschedules.length }}）</h2></div>
-        <p class="section-lead">核准前原場次仍有效。</p>
-        <el-table :data="pendingReschedules" class="data-table">
-          <el-table-column label="家長" min-width="140">
-            <template #default="{ row }: { row: RescheduleRequestOut }">
-              <router-link :to="`/visit-requests/${row.visit_request_id}`" class="case-link">{{ row.parent_name }}</router-link>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="multiCampus" label="校區" width="80">
-            <template #default="{ row }: { row: RescheduleRequestOut }">{{ campusLabel(row.campus_key) }}</template>
-          </el-table-column>
-          <el-table-column label="原場次" min-width="170">
-            <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num">{{ formatShortSlotWhen(row.current_slot) }}</span></template>
-          </el-table-column>
-          <el-table-column label="申請改到" min-width="190">
-            <template #default="{ row }: { row: RescheduleRequestOut }">
-              <strong class="num">{{ formatShortSlotWhen(row.requested_slot) }}</strong>
-              <span class="slot-note" :class="{ 'is-blocked': !row.requested_slot_available }">{{ requestedSlotNote(row) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="申請時間" width="120">
-            <template #default="{ row }: { row: RescheduleRequestOut }"><span class="num" :title="formatDateTime(row.created_at)">{{ formatShortDateTime(row.created_at) }}</span></template>
-          </el-table-column>
-          <el-table-column v-if="canHandle" label="操作" width="150" align="right">
-            <template #default="{ row }: { row: RescheduleRequestOut }">
-              <span class="cell-actions">
-                <el-button size="small" type="primary" plain :loading="busyId === row.id" :disabled="operationBusy || !row.requested_slot_available" @click="decideReschedule(row, 'approve')">核准</el-button>
-                <el-button size="small" :disabled="operationBusy" @click="decideReschedule(row, 'reject')">退回</el-button>
-              </span>
-            </template>
-          </el-table-column>
-        </el-table>
-        <ul class="mobile-records" aria-label="待核准的改期申請">
-          <li v-for="row in pendingReschedules" :key="row.id" class="mobile-record">
-            <div class="record-heading"><router-link :to="`/visit-requests/${row.visit_request_id}`" class="case-link">{{ row.parent_name }}</router-link></div>
-            <dl class="record-meta">
-              <template v-if="multiCampus"><dt>校區</dt><dd>{{ campusLabel(row.campus_key) }}</dd></template>
-              <dt>原場次</dt><dd>{{ formatShortSlotWhen(row.current_slot) }}</dd>
-              <dt>申請改到</dt><dd><strong>{{ formatShortSlotWhen(row.requested_slot) }}</strong><span class="slot-note" :class="{ 'is-blocked': !row.requested_slot_available }">{{ requestedSlotNote(row) }}</span></dd>
-              <dt>申請時間</dt><dd>{{ formatShortDateTime(row.created_at) }}</dd>
-            </dl>
-            <div v-if="canHandle" class="record-actions record-actions--split">
-              <el-button type="primary" plain :loading="busyId === row.id" :disabled="operationBusy || !row.requested_slot_available" @click="decideReschedule(row, 'approve')">核准</el-button>
-              <el-button :disabled="operationBusy" @click="decideReschedule(row, 'reject')">退回</el-button>
-            </div>
-          </li>
-        </ul>
-      </section>
-
+      <!-- 要園方動手的放最上面：沒送出去的通知。列你負責的所有校區，不跟著下面清單的校區切換。 -->
       <el-alert v-if="failedError" :title="failedError" type="error" show-icon :closable="false" class="inline-error" />
       <section v-if="failedOutbox.length > 0" class="panel failed" aria-labelledby="failed-outbox-title">
         <div class="panel__head">
@@ -556,8 +452,8 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
           <p v-if="unreadBreakdown" class="notices__breakdown">未讀：{{ unreadBreakdown }}</p>
           <span class="toolbar__spacer" />
           <CampusSelect v-if="multiCampus" class="notices__campus" :model-value="campusFilter" :keys="visibleCampusKeys" all-label="全部校區" :disabled="operationBusy" @update:model-value="changeCampus" />
-          <el-button v-if="canMarkRead" class="notices__mark-all" :disabled="operationBusy || loading || !!loadError || unreadCount === 0" :loading="bulkBusy" @click="markAllRead">{{ bulkBusy ? `標記中 ${bulkProgress} / ${bulkTotal}` : '全部標記已讀' }}</el-button>
-          <!-- 三個區塊一起重讀；切回分頁超過 60 秒也會自己更新，所以只放一顆小圖示。 -->
+          <el-button v-if="canMarkRead" class="notices__mark-all" :disabled="operationBusy || loading || !!loadError || unreadCount === 0" :loading="bulkBusy" @click="markAllRead">{{ bulkBusy ? '標記中…' : '全部標記已讀' }}</el-button>
+          <!-- 通知清單與寄送失敗一起重讀；切回分頁超過 60 秒也會自己更新，所以只放一顆小圖示。 -->
           <el-button class="notices__refresh" :icon="RefreshRight" aria-label="重新整理" title="重新整理" :disabled="operationBusy || loading" @click="refreshAll" />
         </div>
         <p class="visually-hidden" aria-live="polite">{{ liveSummary }}</p>
@@ -599,7 +495,7 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
               </li>
             </ul>
           </section>
-          <p v-if="listCapped" class="notices__cap">只列出最新的 {{ NOTIFICATION_LIMIT }} 則通知，更早的沒有列出；「全部標記已讀」也只處理列出的這些。</p>
+          <p v-if="listCapped" class="notices__cap">只列出最新的 {{ NOTIFICATION_LIMIT }} 則通知，更早的沒有列出；「全部標記已讀」會連沒有列出的未讀一併標記。</p>
         </template>
       </section>
     </template>
@@ -612,11 +508,6 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
   padding: 12px 24px;
   font-size: var(--text-sm);
   color: var(--ink-3);
-}
-
-.reschedule {
-  margin-bottom: 20px;
-  border-color: var(--el-color-warning-light-5);
 }
 
 .failed {
@@ -637,10 +528,6 @@ function requestedSlotNote(row: RescheduleRequestOut): string {
   display: block;
   font-size: var(--text-xs);
   color: var(--ink-3);
-}
-
-.slot-note.is-blocked {
-  color: var(--el-color-danger);
 }
 
 /* 通知清單：頁籤、校區、全部標記已讀放在清單自己的頂列，看得出它們只管這份清單。 */

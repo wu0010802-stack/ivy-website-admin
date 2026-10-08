@@ -55,7 +55,7 @@ describe('素材版位沒設定時，官網輸出跟這批改動之前完全相�
     const out = applyContentOverlay(site, {}, media)
     expect(out.home.hero).toEqual(site.home.hero)
     expect(out.dayExperience).toEqual(site.dayExperience)
-    expect(out.campuses).toEqual(site.campuses.map((c) => ({ ...c, faq: { ...c.faq } })))
+    expect(out.campuses).toEqual(site.campuses)
     expect(out.news.films).toBeUndefined()
   })
 })
@@ -184,7 +184,7 @@ describe('素材版位疊到官網內容', () => {
 
   // 分校頁首屏焦點（hero_focus）隨分校頁拿掉，2026-10-04 起官網不讀。
   it('分校：封面、首頁卡片焦點與線稿', () => {
-    const base = { name: '義華校', district: '', address: '', phone: '', intro: '', description: '', facebook: '', fb_note: '', line: '' }
+    const base = { name: '義華校', district: '', address: '', phone: '', facebook: '', line: '' }
     const yihua = site.campuses.find((c) => c.key === 'yihua')!
     const onlyFocus = applyContentOverlay(site, { campus_profile: { yihua: { ...base, card_focus: { x: 20, y: 70 } } } }, media)
       .campuses.find((c) => c.key === 'yihua')!

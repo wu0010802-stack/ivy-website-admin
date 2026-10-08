@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { notifyWarning } from '../composables/notify'
+import { notifyError, notifyWarning } from '../composables/notify'
 import { api, mediaPreviewUrl } from '../api/client'
-import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
+import type { MediaAssetOut, MediaAssetPageOut, MediaUploadLimitsOut } from '../api/types'
 import { campusLabel, contentItemLabel } from '../api/labels'
 import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -30,44 +30,62 @@ const visible = computed({
   set: (value) => emit('update:modelValue', value),
 })
 
+// 一次讀 40 張，底部「載入更多」接著讀下一頁。
+const PAGE_SIZE = 40
 const assets = ref<MediaAssetOut[]>([])
+const total = ref(0)
+const page = ref(1)
 const loading = ref(false)
+const loadingMore = ref(false)
 const query = ref('')
+// 實際送出的關鍵字：停止輸入 300ms 後才更新並重讀第 1 頁。
+const keyword = ref('')
 const error = ref<string | null>(null)
 const limits = ref<MediaUploadLimitsOut | null>(null)
 // 選圖器裡上傳的照片一律標記為目前這一校（沒有校區時為共用），可一次選多張。
 const queue = useMediaUploadQueue({ campusKey: () => props.campusKey ?? null, allowed: props.kind })
 
-// 轉檔中的影片可以先選進草稿（發布時後端會擋到轉好）；處理失敗的不列。
-const visibleAssets = computed(() =>
-  assets.value.filter(
-    (a) =>
-      a.kind === props.kind &&
-      a.status !== 'failed' &&
-      (a.campus_key === null || a.campus_key === props.campusKey) &&
-      (!query.value || a.original_filename.toLowerCase().includes(query.value.toLowerCase()) || (a.alt_text ?? '').includes(query.value) || (a.caption ?? '').includes(query.value) || (a.tags ?? []).some((t) => t.includes(query.value))),
-  ),
-)
+const hasMore = computed(() => assets.value.length < total.value)
 
-// 沒有說明的素材選用後，官網（頁面也沒另外填說明時）就沒有圖片說明：在格子上先標出來。
-const missingAlt = computed(() => visibleAssets.value.some((a) => !a.alt_text))
+// 沒有說明的素材選用後，官網（頁面也沒另外填說明時）就沒有圖片說明：在格子上先標出來（看已載入的）。
+const missingAlt = computed(() => assets.value.some((a) => !a.alt_text))
 
 /** 最新草稿用到這張照片的內容（素材庫可看完整清單）。 */
 function usedInText(asset: MediaAssetOut): string {
   return (asset.used_in ?? []).map((u) => contentItemLabel(u.kind, u.campus_key)).join('、')
 }
 
-// 開窗時的讀取比上傳後的重新讀取晚回來時，不能蓋掉比較新的清單。
+// 開窗時的讀取比上傳後的重新讀取晚回來時，不能蓋掉比較新的清單；換了關鍵字，
+// 還在讀的下一頁也不採用。
 const requests = useRequestSequence()
+
+// 只列一般素材（已封存與待清理的不出現在選圖器）。轉檔中的影片可以先選進草稿
+// （發布時後端會擋到轉好）；處理失敗的不列。有校區時列那一校加跨校共用，沒有時只列共用。
+function listPath(pageNo: number): string {
+  const params = new URLSearchParams({ kind: props.kind, exclude_failed: 'true' })
+  if (props.campusKey) {
+    params.set('campus', props.campusKey)
+    params.set('include_shared', 'true')
+  } else {
+    params.set('campus', '__shared')
+  }
+  if (keyword.value) params.set('q', keyword.value)
+  params.set('page', String(pageNo))
+  params.set('page_size', String(PAGE_SIZE))
+  return `/admin/media?${params}`
+}
 
 async function load() {
   const request = requests.begin()
   loading.value = true
+  loadingMore.value = false
   error.value = null
   try {
-    // 只列一般素材：已封存與待清理的不出現在選圖器。
-    const loaded = await api.get<MediaAssetOut[]>('/admin/media')
-    if (requests.isCurrent(request)) assets.value = loaded
+    const result = await api.get<MediaAssetPageOut>(listPath(1))
+    if (!requests.isCurrent(request)) return
+    assets.value = result.items
+    total.value = result.total
+    page.value = 1
   } catch {
     if (requests.isCurrent(request)) error.value = `無法讀取${noun.value}，請重新載入。`
   } finally {
@@ -75,9 +93,51 @@ async function load() {
   }
 }
 
+async function loadMore() {
+  if (loading.value || loadingMore.value || !hasMore.value) return
+  const request = requests.begin()
+  loadingMore.value = true
+  try {
+    const result = await api.get<MediaAssetPageOut>(listPath(page.value + 1))
+    if (!requests.isCurrent(request)) return
+    // 讀的途中有人上傳，後面的頁會往後推：已經列出的不再重複。
+    const listed = new Set(assets.value.map((a) => a.id))
+    assets.value = [...assets.value, ...result.items.filter((a) => !listed.has(a.id))]
+    total.value = result.total
+    page.value = result.page
+  } catch {
+    if (requests.isCurrent(request)) notifyError(`無法讀取更多${noun.value}，請再試一次`)
+  } finally {
+    if (requests.isCurrent(request)) loadingMore.value = false
+  }
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(query, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (value.trim() === keyword.value) return
+    keyword.value = value.trim()
+    void load()
+  }, 300)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+function clearSearch() {
+  query.value = ''
+  clearTimeout(searchTimer)
+  if (!keyword.value) return
+  keyword.value = ''
+  void load()
+}
+
 watch(visible, (v) => {
   if (v) {
     query.value = ''
+    clearTimeout(searchTimer)
+    keyword.value = ''
+    assets.value = []
+    total.value = 0
     queue.reset()
     load()
     void loadUploadLimits().then((value) => { limits.value = value })
@@ -141,7 +201,7 @@ async function onUploadChange(event: Event) {
 
     <el-alert v-if="error" :title="error" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
     <div v-else v-loading="loading" class="picker__grid">
-      <button v-for="asset in visibleAssets" :key="asset.id" type="button" class="picker__item" @click="choose(asset)">
+      <button v-for="asset in assets" :key="asset.id" type="button" class="picker__item" @click="choose(asset)">
         <img v-if="mediaPreviewUrl(asset)" :src="mediaPreviewUrl(asset)" :alt="asset.alt_text ?? ''" loading="lazy" />
         <span v-else class="picker__placeholder">影片</span>
         <span class="picker__name">{{ asset.original_filename }}</span>
@@ -151,10 +211,13 @@ async function onUploadChange(event: Event) {
         <span v-if="usedInText(asset)" class="picker__usage" :title="`用在：${usedInText(asset)}`">用在：{{ usedInText(asset) }}</span>
       </button>
       <el-empty
-        v-if="!loading && visibleAssets.length === 0"
-        :description="query ? `沒有符合的${noun}` : `目前沒有可用的${noun}，先上傳一${unit}`"
+        v-if="!loading && assets.length === 0"
+        :description="keyword ? `沒有符合的${noun}` : `目前沒有可用的${noun}，先上傳一${unit}`"
         class="picker__empty"
-      ><el-button v-if="query" @click="query = ''">清除搜尋</el-button></el-empty>
+      ><el-button v-if="keyword" @click="clearSearch">清除搜尋</el-button></el-empty>
+      <div v-if="!loading && hasMore" class="picker__more">
+        <el-button :loading="loadingMore" :disabled="loadingMore" @click="loadMore">載入更多</el-button>
+      </div>
     </div>
   </el-dialog>
 </template>
@@ -273,6 +336,14 @@ async function onUploadChange(event: Event) {
 
 .picker__empty {
   grid-column: 1 / -1;
+}
+
+/* 「載入更多」放在可捲動清單的最後，橫跨整列。 */
+.picker__more {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 8px;
 }
 
 @media (max-width: 720px) {

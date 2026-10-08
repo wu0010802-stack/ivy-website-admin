@@ -197,10 +197,7 @@ def _campus_profile_payload(name: str) -> dict:
         "district": "測試區",
         "address": "測試地址",
         "phone": "07-000-0000",
-        "intro": "測試簡介",
-        "description": "測試描述",
         "facebook": "https://facebook.com/test",
-        "fb_note": "測試粉專",
         "line": "",
     }
 

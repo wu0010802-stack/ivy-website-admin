@@ -71,7 +71,7 @@ const exportName = computed(() => analyticsCsvName(`每日${seriesLabel.value}`,
       <el-alert v-if="error" type="error" :closable="false" show-icon :title="error"><el-button @click="load">重新載入</el-button></el-alert>
       <el-skeleton v-else-if="loading && !trend" animated :rows="3" aria-label="正在讀取每日變化" />
       <template v-else-if="trend">
-        <DailyBars :title="`每日${seriesLabel}`" :points="points" unit="次" :markers="MARKERS" :export-filename="exportName" />
+        <DailyBars :title="`每日${seriesLabel}`" :points="points" unit="次" :value-label="`${seriesLabel}次數`" :markers="MARKERS" :export-filename="exportName" />
         <AnalyticsMeta :period="actualPeriod" unit="事件次數（依發生日期）" :as-of="trend.as_of" />
         <p v-if="trend.truncated" class="hint">期間超過 400 天，只畫最近 400 天。</p>
         <AnalyticsExplainer>

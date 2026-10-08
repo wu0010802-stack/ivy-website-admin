@@ -22,7 +22,7 @@ from app.operations import audit_service
 
 class NotPublishable(Exception):
     """發布前檢查不通過。code 是 API 的錯誤碼：素材未就緒、分校停用、欄位
-    格式過時各有自己的代碼，內容規則（例如示範同意文字）才是
+    格式過時各有自己的代碼，內容規則（例如隱私說明還是示意文字）才是
     CONTENT_NOT_READY。"""
 
     def __init__(self, message: str, code: str = "CONTENT_NOT_READY") -> None:

@@ -546,6 +546,8 @@ test('桌機預覽：虛擬視窗不超過 900 高、不被拉長；黏住的預
   expect(top.device!.bottom).toBeLessThanOrEqual(top.stage!.bottom + 1)
   expect(top.device!.right).toBeLessThanOrEqual(top.stage!.right + 1)
   expect(top.device!.left).toBeGreaterThanOrEqual(top.stage!.left - 1)
+  // 沒捲動時預覽欄的自然位置比黏住的位置低（頁首說明、工具列在上面）：欄底不能鑽進黏底動作列（T8b，量實際位置算高度）。
+  expect(top.pane!.bottom).toBeLessThanOrEqual(top.actions!.top + 1)
   await page.screenshot({ path: 'output/playwright/editor-live-desktop-scroll0.png' })
 
   // 預覽頁自己捲到底：頁尾的下緣貼齊虛擬視窗下緣（預覽頁真的捲得到底、頁尾完整看得到）。
@@ -562,9 +564,10 @@ test('桌機預覽：虛擬視窗不超過 900 高、不被拉長；黏住的預
   await expect.poll(async () => (await geometry()).win.scrollY, { timeout: 5_000 }).toBeGreaterThan(0)
   const bottom = await geometry()
   console.log('[桌機預覽] 幾何（捲到底）', JSON.stringify(bottom))
-  // 頁面捲到底時，預覽欄被容器下緣往上推（sticky 的限制）：頂端有一截在頂欄底下（Task 7 已記錄的可接受小問題），
-  // 這裡只量不擋；擋的是下緣——不能被黏底動作列蓋住、要完整在視窗裡。
+  // 頁面捲到底時 sticky 的預覽欄不能超出版面，會被往上推；欄高已扣掉版面底端到頁面底端的距離（usePreviewPaneFit），
+  // 所以推完頂端仍在頂欄下面（原本鑽到頂欄底下約 24px，Task 7 記錄的已知限制，T8b 修掉）；下緣不被黏底動作列蓋住、要完整在視窗裡。
   console.log(`[桌機預覽] 捲到底時預覽欄頂端被頂欄蓋住 ${Math.max(0, Math.round(bottom.top!.bottom - bottom.pane!.top))}px`)
+  expect(bottom.pane!.top).toBeGreaterThanOrEqual(bottom.top!.bottom - 1)
   expect(bottom.pane!.bottom).toBeLessThanOrEqual(bottom.actions!.top + 1)
   expect(bottom.pane!.bottom).toBeLessThanOrEqual(bottom.win.height + 1)
   const covered = await page.evaluate(() => {

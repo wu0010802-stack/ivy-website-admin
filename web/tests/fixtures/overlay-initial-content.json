@@ -42,10 +42,6 @@
  "booking_content": {
   "cta_label": "預約參觀",
   "cta_label_en": "Book a Visit",
-  "consent_text": "我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。",
-  "banner_title_template": "親自走一趟，感受{campusNameOrIvy}的日常。",
-  "banner_body": "帶著孩子，也帶著你想了解的事。我們期待與你相遇。",
-  "banner_button_label": "預約校園參觀",
   "privacy_title": "",
   "privacy_sections": []
  },
@@ -515,34 +511,6 @@
    }
   ]
  },
- "shared_faq": {
-  "items": [
-   {
-    "scope": "global",
-    "campus_keys": [],
-    "id": "faq-1",
-    "q": "第一次參觀，要怎麼預約？",
-    "a": "先選擇想參觀的校區，再留下家長稱呼、電話與方便聯絡的時段。這份 prototype 僅示範流程，不會送出資料；實際參觀請直接致電園所。",
-    "enabled": true
-   },
-   {
-    "scope": "global",
-    "campus_keys": [],
-    "id": "faq-2",
-    "q": "參觀時可以了解哪些事情？",
-    "a": "可以詢問校園環境、課程與生活安排、接送方式，以及孩子入學前需要準備的事。各校參觀範圍與接待時間請先向園所確認。",
-    "enabled": true
-   },
-   {
-    "scope": "global",
-    "campus_keys": [],
-    "id": "faq-3",
-    "q": "五所校區的環境與課程都一樣嗎？",
-    "a": "各校空間與課程安排可能不同。你可以先比較所在地與接送距離，再於參觀時了解該校的實際內容。",
-    "enabled": true
-   }
-  ]
- },
  "site_meta": {
   "title": "常春藤幼兒園｜每一天都有新發現",
   "description": "走進常春藤，認識五校的環境與孩子的校園生活。官網設計互動提案。",
@@ -561,10 +529,7 @@
    "district": "三民區",
    "address": "高雄市三民區義華路68號",
    "phone": "07-392-8366",
-   "intro": "在義華路上，走進孩子的日常。",
-   "description": "從戶外廣場、綠色園藝到共創教室，認識孩子每天活動、探索與學習的空間。義華校重視愛與關懷、閱讀素養與生活自理，陪伴孩子練習與世界相處。",
    "facebook": "https://www.facebook.com/ivy.kids.fb/",
-   "fb_note": "義華校粉絲專頁",
    "line": "https://lin.ee/gwl8fnA",
    "map_url": "",
    "cover": null,
@@ -578,10 +543,7 @@
    "district": "左營區",
    "address": "高雄市左營區明華一路176號",
    "phone": "07-556-6796",
-   "intro": "在明華一路，認識我們的校園。",
-   "description": "明華校位於高雄市左營區明華一路。先從校園外觀與所在位置認識學校，再安排一次參觀，親自了解孩子的學習環境與接送動線。",
    "facebook": "https://www.facebook.com/ivykid",
-   "fb_note": "常春藤機構粉絲專頁（明華校粉專待補）",
    "line": "",
    "map_url": "",
    "cover": null,
@@ -595,10 +557,7 @@
    "district": "左營區",
    "address": "高雄市左營區崇德路87號",
    "phone": "07-341-6286",
-   "intro": "從崇德路，開始一段校園探索。",
-   "description": "崇德校位於高雄市左營區崇德路。歡迎預約到園，看看校園空間，也與園所聊聊孩子的需要、生活安排與入學準備。",
    "facebook": "https://www.facebook.com/ivykid",
-   "fb_note": "常春藤機構粉絲專頁（崇德校粉專待補）",
    "line": "",
    "map_url": "",
    "cover": null,
@@ -612,10 +571,7 @@
    "district": "鳥松區",
    "address": "高雄市鳥松區球場路59號",
    "phone": "07-370-8001",
-   "intro": "走進鳥松，認識國際校。",
-   "description": "國際校位於高雄市鳥松區球場路。透過實際走訪了解校園環境與接送路線，並向園所確認適合孩子的課程與入學安排。",
    "facebook": "https://www.facebook.com/ivykid",
-   "fb_note": "常春藤機構粉絲專頁（國際校粉專待補）",
    "line": "",
    "map_url": "",
    "cover": null,
@@ -629,10 +585,7 @@
    "district": "仁武區",
    "address": "高雄市仁武區京吉一路102號",
    "phone": "07-375-7081",
-   "intro": "在仁武，遇見下一段成長。",
-   "description": "仁武校位於高雄市仁武區京吉一路。歡迎帶著對孩子成長的期待來認識校園，參觀時也可以與園所討論課程、生活照顧與接送安排。",
    "facebook": "https://www.facebook.com/ivykid",
-   "fb_note": "常春藤機構粉絲專頁（仁武校粉專待補）",
    "line": "",
    "map_url": "",
    "cover": null,
@@ -640,63 +593,6 @@
    "hero_focus": null,
    "line_art": null,
    "line_art_colour": null
-  }
- },
- "campus_faq": {
-  "yihua": {
-   "items": [
-    {
-     "q": "可以查詢招生年齡、名額與費用嗎？",
-     "a": "招生年齡、名額與費用依校區與學年度而異。請向義華校確認；這份提案不提供即時招生名額或費用報價。",
-     "enabled": true
-    }
-   ],
-   "include_shared": true,
-   "shared_position": "before"
-  },
-  "minghua": {
-   "items": [
-    {
-     "q": "可以查詢招生年齡、名額與費用嗎？",
-     "a": "招生年齡、名額與費用依校區與學年度而異。請向明華校確認；這份提案不提供即時招生名額或費用報價。",
-     "enabled": true
-    }
-   ],
-   "include_shared": true,
-   "shared_position": "before"
-  },
-  "chongde": {
-   "items": [
-    {
-     "q": "可以查詢招生年齡、名額與費用嗎？",
-     "a": "招生年齡、名額與費用依校區與學年度而異。請向崇德校確認；這份提案不提供即時招生名額或費用報價。",
-     "enabled": true
-    }
-   ],
-   "include_shared": true,
-   "shared_position": "before"
-  },
-  "international": {
-   "items": [
-    {
-     "q": "可以查詢招生年齡、名額與費用嗎？",
-     "a": "招生年齡、名額與費用依校區與學年度而異。請向國際校確認；這份提案不提供即時招生名額或費用報價。",
-     "enabled": true
-    }
-   ],
-   "include_shared": true,
-   "shared_position": "before"
-  },
-  "renwu": {
-   "items": [
-    {
-     "q": "可以查詢招生年齡、名額與費用嗎？",
-     "a": "招生年齡、名額與費用依校區與學年度而異。請向仁武校確認；這份提案不提供即時招生名額或費用報價。",
-     "enabled": true
-    }
-   ],
-   "include_shared": true,
-   "shared_position": "before"
   }
  },
  "campus_tour": {

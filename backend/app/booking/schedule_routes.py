@@ -18,8 +18,6 @@ from app.booking.schemas import (
     VisitScheduleOut,
     VisitScheduleSlotSyncOut,
     VisitScheduleUpdate,
-    VisitSlotGenerateOut,
-    VisitSlotGenerateRequest,
 )
 from app.campuses.models import Campus
 from app.common.timezones import today_local
@@ -183,31 +181,3 @@ async def remove_visit_exception(
     )
     await db.commit()
     return VisitExceptionRemovedOut(**result)
-
-
-@router.post("/admin/visit-schedule/{campus_key}/generate", response_model=VisitSlotGenerateOut)
-async def generate_visit_slots(
-    campus_key: str,
-    payload: VisitSlotGenerateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitSlotGenerateOut:
-    require_scope(current_user, "booking.manage", campus_keys=[campus_key])
-    await _campus_or_404(db, campus_key)
-    try:
-        result = await schedule_service.generate_slots(
-            db, campus_key, payload.date_from, payload.date_to, current_user.id
-        )
-    except schedule_service.GenerateRangeInvalid as exc:
-        raise HTTPException(status_code=422, detail=exc.message) from exc
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="visit_slots.generate",
-        target_type="visit_schedule",
-        target_id=campus_key,
-        campus_key=campus_key,
-        metadata={"date_from": payload.date_from.isoformat(), "date_to": payload.date_to.isoformat(), **result},
-    )
-    await db.commit()
-    return VisitSlotGenerateOut(**result)

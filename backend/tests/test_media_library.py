@@ -126,7 +126,7 @@ async def test_usages_list_revision_field_path_and_state(admin_client, db_sessio
     assert [(r.field_name, r.content_kind, str(r.revision_id)) for r in rows] == [
         ("scenes[0].image", "campus_tour", v1["latest_revision"]["id"])
     ]
-    listed = {a["id"]: a for a in (await admin_client.get(MEDIA)).json()}
+    listed = {a["id"]: a for a in (await admin_client.get(MEDIA)).json()["items"]}
     assert listed[media["id"]]["usage_count"] == 1
     assert listed[media["id"]]["used_in"] == [{"kind": "campus_tour", "campus_key": "yihua"}]
 
@@ -218,16 +218,16 @@ async def test_archive_hides_media_and_unarchive_brings_it_back(admin_client, db
 
     archived = await admin_client.post(f"{MEDIA}/{media['id']}/archive")
     assert archived.status_code == 200 and archived.json()["archived_at"]
-    active_ids = [a["id"] for a in (await admin_client.get(MEDIA)).json()]
+    active_ids = [a["id"] for a in (await admin_client.get(MEDIA)).json()["items"]]
     assert media["id"] not in active_ids and in_draft["id"] in active_ids
-    assert [a["id"] for a in (await admin_client.get(f"{MEDIA}?state=archived")).json()] == [media["id"]]
+    assert [a["id"] for a in (await admin_client.get(f"{MEDIA}?state=archived")).json()["items"]] == [media["id"]]
 
     # 封存的素材照樣可以被還原的舊版本引用（存檔不會擋）。
     await _save_tour(admin_client, 1, _scene("hall", "大廳", media["id"]))
 
     back = await admin_client.post(f"{MEDIA}/{media['id']}/unarchive")
     assert back.status_code == 200 and back.json()["archived_at"] is None
-    assert (await admin_client.get(f"{MEDIA}?state=archived")).json() == []
+    assert (await admin_client.get(f"{MEDIA}?state=archived")).json()["items"] == []
     actions = await _audit_actions(db_session)
     assert "media.archive" in actions and "media.unarchive" in actions
 
@@ -249,8 +249,8 @@ async def test_delete_marks_for_cleanup_and_can_be_restored(app, admin_client, d
     deleted = await admin_client.delete(f"{MEDIA}/{media['id']}")
     assert deleted.status_code == 204
 
-    assert media["id"] not in [a["id"] for a in (await admin_client.get(MEDIA)).json()]
-    [trashed] = (await admin_client.get(f"{MEDIA}?state=deleted")).json()
+    assert media["id"] not in [a["id"] for a in (await admin_client.get(MEDIA)).json()["items"]]
+    [trashed] = (await admin_client.get(f"{MEDIA}?state=deleted")).json()["items"]
     assert trashed["id"] == media["id"] and trashed["deleted_at"]
     deleted_at = datetime.fromisoformat(trashed["deleted_at"])
     assert datetime.fromisoformat(trashed["purge_after"]) - deleted_at == timedelta(days=7)
@@ -265,7 +265,7 @@ async def test_delete_marks_for_cleanup_and_can_be_restored(app, admin_client, d
 
     restored = await admin_client.post(f"{MEDIA}/{media['id']}/restore")
     assert restored.status_code == 200 and restored.json()["deleted_at"] is None
-    assert media["id"] in [a["id"] for a in (await admin_client.get(MEDIA)).json()]
+    assert media["id"] in [a["id"] for a in (await admin_client.get(MEDIA)).json()["items"]]
     again = await admin_client.post(f"{MEDIA}/{media['id']}/restore")
     assert again.status_code == 409 and again.json()["detail"]["code"] == "MEDIA_NOT_DELETED"
     actions = await _audit_actions(db_session)

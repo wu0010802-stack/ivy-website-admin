@@ -10,7 +10,8 @@ from typing import Literal
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, Query, status
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import case, cast, false, func, literal, or_, select, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +27,7 @@ from app.auth.permissions import (
     require_scope,
 )
 from app.auth.service import get_session_by_token
+from app.booking.schemas import has_control_chars
 from app.config import Settings
 from app.content.registry import managed_as_shared
 from app.media import jobs as media_jobs
@@ -34,6 +36,7 @@ from app.media import service
 from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
 from app.media.schemas import (
     MediaAssetOut,
+    MediaAssetPageOut,
     MediaHistoryReferenceOut,
     MediaReferenceOut,
     MediaUpdateRequest,
@@ -354,48 +357,137 @@ async def _get_owned_asset(db: AsyncSession, user: User, media_id: uuid.UUID) ->
     return asset
 
 
-@router.get("", response_model=list[MediaAssetOut])
+# 素材庫每頁 60 張；官網草稿預覽要拿到全部素材，用上限逐頁讀完。
+MEDIA_PAGE_SIZE_DEFAULT = 60
+MEDIA_PAGE_SIZE_MAX = 200
+# 校區篩選的特殊值：只列跨校共用素材（campus_key 為 NULL）。
+SHARED_CAMPUS_FILTER = "__shared"
+
+
+def _tags_jsonb():
+    """tags 欄轉成 jsonb 陣列，給標籤篩選、關鍵字比對標籤與標籤統計用。
+
+    列表要在資料庫分頁，篩選也只能在資料庫做；正式與測試都是 PostgreSQL（asyncpg），
+    直接用 jsonb 的函式。欄位型別是 JSON（不是 JSONB），值由 json.dumps 寫入、中文
+    存成 \\uXXXX 跳脫，轉成文字再 ILIKE 永遠比不到中文標籤；轉成 jsonb 才會解回原字。
+    PATCH 明寫 `tags: null` 時存的是 JSON 的 null（不是 SQL NULL），展開成列之前
+    當成空陣列，一筆這樣的資料不會讓整個列表變成 500。"""
+    tags = cast(MediaAsset.tags, JSONB)
+    return case((func.jsonb_typeof(tags) == "array", tags), else_=cast(literal("[]"), JSONB))
+
+
+def _like_pattern(text: str) -> str:
+    """ILIKE 用的「包含」樣式。使用者打的 % 與 _ 是字面值（同參觀案件列表的搜尋），
+    不跳脫的話一個 % 就會列出全部素材。"""
+    needle = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{needle}%"
+
+
+@router.get("", response_model=MediaAssetPageOut)
 async def list_media(
     request: Request,
     tag: str | None = Query(default=None, max_length=30, description="只列有這個標籤的素材"),
-    q: str | None = Query(default=None, max_length=100, description="檔名、圖片說明、圖說或標籤片段"),
+    q: str | None = Query(default=None, max_length=100, description="檔名、圖片說明、內部備註或標籤片段"),
     state: Literal["active", "archived", "deleted"] = Query(
         default="active", description="active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理"
     ),
+    campus: str | None = Query(
+        default=None,
+        max_length=50,
+        description="__shared＝只列跨校共用；校區代號＝只列那一校（看不到的校區沒有結果）；不帶＝看得到的全部",
+    ),
+    include_shared: bool = Query(default=False, description="和 campus=校區代號 一起用：那一校加上跨校共用（選圖器）"),
+    kind: MediaKind | None = Query(default=None, description="只列圖片或影片"),
+    exclude_failed: bool = Query(default=False, description="不列處理失敗的素材（選圖器）"),
+    # 上限只為了不讓 offset 超出 PostgreSQL 的 bigint（素材量遠小於這個數）。
+    page: int = Query(default=1, ge=1, le=100_000),
+    page_size: int = Query(default=MEDIA_PAGE_SIZE_DEFAULT, ge=1, le=MEDIA_PAGE_SIZE_MAX),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
-) -> list[MediaAssetOut]:
+) -> MediaAssetPageOut:
+    """素材庫與選圖器的清單：新的在前，同一時間再依 id 排，翻頁時不會重複或漏掉。
+    只對這一頁的素材讀衍生檔、引用與上傳者。"""
     require_scope(current_user, "media.read")
-    stmt = select(MediaAsset).options(selectinload(MediaAsset.variants), selectinload(MediaAsset.usages))
+    # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422（同參觀案件列表）。
+    if any(value and has_control_chars(value) for value in (tag, q, campus)):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
+
+    # 分頁狀態＋看得到的範圍（非 super_admin 只看共用＋自己校）：state_total 與標籤選單只看這些。
     if state == "deleted":
-        stmt = stmt.where(MediaAsset.deleted_at.is_not(None))
+        in_state = [MediaAsset.deleted_at.is_not(None)]
     else:
-        stmt = stmt.where(MediaAsset.deleted_at.is_(None))
-        stmt = stmt.where(
-            MediaAsset.archived_at.is_not(None) if state == "archived" else MediaAsset.archived_at.is_(None)
-        )
-    result = await db.execute(stmt.order_by(MediaAsset.created_at.desc()))
-    assets = list(result.scalars())
+        in_state = [
+            MediaAsset.deleted_at.is_(None),
+            MediaAsset.archived_at.is_not(None) if state == "archived" else MediaAsset.archived_at.is_(None),
+        ]
     visible = _visible_campus_keys(current_user)
     if visible is not None:
-        assets = [a for a in assets if a.campus_key is None or a.campus_key in visible]
-    # 素材量是幾百張等級，在應用層篩就好；JSON 欄位跨資料庫的包含查詢
-    # 寫法不一，不值得為此綁死 PostgreSQL 的 jsonb 運算子。
+        in_state.append(or_(MediaAsset.campus_key.is_(None), MediaAsset.campus_key.in_(visible)))
+
+    filters = list(in_state)
+    if campus == SHARED_CAMPUS_FILTER:
+        filters.append(MediaAsset.campus_key.is_(None))
+    elif campus:
+        # 看不到的校區當成沒有素材（不像參觀案件列表回 404）：帶 include_shared 的選圖器
+        # 照樣列得出跨校共用。後台遇到沒涵蓋的校區本來就不帶 campus（例如有共用授權的人
+        # 編別校的校園探索），這裡是保險。
+        own = MediaAsset.campus_key == campus if visible is None or campus in visible else false()
+        filters.append(or_(own, MediaAsset.campus_key.is_(None)) if include_shared else own)
+    if kind is not None:
+        filters.append(MediaAsset.kind == kind)
+    if exclude_failed:
+        filters.append(MediaAsset.status != MediaStatus.FAILED)
+    tags = _tags_jsonb()
     if tag and tag.strip():
-        wanted = tag.strip()
-        assets = [a for a in assets if wanted in (a.tags or [])]
+        filters.append(cast(MediaAsset.tags, JSONB).contains([tag.strip()]))
     if q and q.strip():
-        needle = q.strip().lower()
-        assets = [
-            a for a in assets
-            if needle in a.original_filename.lower()
-            or needle in (a.alt_text or "").lower()
-            or needle in (a.caption or "").lower()
-            or any(needle in t.lower() for t in (a.tags or []))
-        ]
+        pattern = _like_pattern(q.strip())
+        tag_text = func.jsonb_array_elements_text(tags).column_valued("tag_text")
+        filters.append(
+            or_(
+                MediaAsset.original_filename.ilike(pattern, escape="\\"),
+                MediaAsset.alt_text.ilike(pattern, escape="\\"),
+                MediaAsset.caption.ilike(pattern, escape="\\"),
+                select(tag_text).where(tag_text.ilike(pattern, escape="\\")).exists(),
+            )
+        )
+
+    total = await db.scalar(select(func.count()).select_from(MediaAsset).where(*filters)) or 0
+    state_total = (
+        total
+        if len(filters) == len(in_state)
+        else await db.scalar(select(func.count()).select_from(MediaAsset).where(*in_state)) or 0
+    )
+    used_tags = func.jsonb_array_elements_text(tags).table_valued("value", name="used_tag").lateral()
+    tag_rows = await db.execute(
+        select(used_tags.c.value, func.count())
+        .select_from(MediaAsset)
+        .join(used_tags, true())
+        .where(*in_state)
+        .group_by(used_tags.c.value)
+    )
+    # 次數相同依字串排序在 Python 做，不受資料庫定序影響。
+    tag_counts = sorted(tag_rows.all(), key=lambda row: (-row[1], row[0]))
+
+    result = await db.execute(
+        select(MediaAsset)
+        .options(selectinload(MediaAsset.variants), selectinload(MediaAsset.usages))
+        .where(*filters)
+        .order_by(MediaAsset.created_at.desc(), MediaAsset.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )
+    assets = list(result.scalars())
     creators = await _creators(db, assets)
     settings = request.app.state.settings
-    return [_out(a, settings, creators) for a in assets]
+    return MediaAssetPageOut(
+        items=[_out(a, settings, creators) for a in assets],
+        total=total,
+        state_total=state_total,
+        page=page,
+        page_size=page_size,
+        tags=[value for value, _ in tag_counts],
+    )
 
 
 @router.get("/upload-limits", response_model=MediaUploadLimitsOut)

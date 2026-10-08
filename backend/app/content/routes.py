@@ -75,7 +75,7 @@ def _get_kind_config(kind: str):
 
 
 def _campus_key_for(config, campus_key: str | None) -> str | None:
-    """共用內容一律不看 campus_key；分校內容（五校介紹、FAQ、探索、各校消息）
+    """共用內容一律不看 campus_key；分校內容（五校介紹、探索、各校消息）
     一定要指定校區——沒帶的話會被當成一份「共用」的同名內容，發布後官網
     讀到的形狀就錯了。"""
     if config.shared_only:
@@ -245,12 +245,6 @@ def _item_out(item: ContentItem, latest: ContentRevision | None) -> ContentItemO
         current_published_revision_id=item.current_published_revision_id,
         latest_revision=ContentRevisionOut.model_validate(latest) if latest else None,
     )
-
-
-@router.get("/admin/content-kinds", response_model=list[str])
-async def list_content_kinds(current_user: User = Depends(get_current_user)) -> list[str]:
-    require_scope(current_user, "content.read")
-    return sorted(CONTENT_KIND_REGISTRY.keys())
 
 
 @router.get("/admin/content-items/{kind}", response_model=ContentItemOut)

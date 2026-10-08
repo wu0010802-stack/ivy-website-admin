@@ -58,7 +58,7 @@ export const routes: RouteRecordRaw[] = [
       page('content/about-page', 'about-page', () => import('../views/AboutPageView.vue')),
       page('content/curriculum-page', 'curriculum-page', () => import('../views/CurriculumPageView.vue')),
       page('content/campus-profile', 'campus-profile', () => import('../views/CampusProfileView.vue')),
-      // 官網已沒有顯示常見問題的頁面；舊書籤與待審項目的連結改到五校介紹。
+      // 常見問題功能已於 2026-10-08 刪除（官網早就沒有顯示的頁面）；舊書籤與舊通知的連結改到五校介紹。
       { path: 'content/campus-faq', redirect: to => ({ path: '/content/campus-profile', query: to.query }) },
       { path: 'content/shared-faq', redirect: '/content/campus-profile' },
       page('content/campus-news', 'campus-news', () => import('../views/CampusNewsView.vue')),

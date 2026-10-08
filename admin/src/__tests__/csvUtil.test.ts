@@ -30,6 +30,17 @@ describe('rocMonthCsv：民國月份寫成「115年09月」，Excel 不會把 11
     expect(rocMonthCsv(undefined)).toBe('')
   })
 
+  // 後端 backend/tests/test_csv_export.py 的邊界測資，兩邊同一組：位數超過、多一段、結尾換行、全形數字都不是「年.月」。
+  it.each([
+    ['1150.09'],
+    ['115.009'],
+    ['115.09.08'],
+    ['115.09\n'],
+    ['１１５.０９'],
+  ])('邊界：%j 不符合「年.月」，原樣不動', (input) => {
+    expect(rocMonthCsv(input)).toBe(input)
+  })
+
   it('組進 CSV 後原樣輸出，不被補單引號', () => {
     expect(buildCsv(['月份'], [[rocMonthCsv('115.10')]])).toBe(`${CSV_BOM}月份\r\n115年10月\r\n`)
   })

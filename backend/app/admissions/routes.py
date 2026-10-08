@@ -141,7 +141,7 @@ async def list_recruitment_visits(
     return [RecruitmentVisitOut.model_validate(visit) for visit in result.scalars()]
 
 
-@router.get("/admin/admissions/records/export")
+@router.get("/admin/admissions/records/export", response_class=Response, responses=csv_export.CSV_RESPONSES)
 async def export_recruitment_visits(
     filters: records.RecruitmentVisitFilters = Depends(),
     current_user: User = Depends(get_current_user),
@@ -161,8 +161,11 @@ async def export_recruitment_visits(
     if len(visits) > csv_export.EXPORT_ROW_LIMIT:
         raise csv_export.too_many_rows()
     names = await download.owner_names(db, visits)
-    # 先組好檔案內容再寫稽核：轉換出錯時不會留下「匯出過」的紀錄。
+    # 先把整份檔案組好（逐列轉換加上 CSV 序列化，會丟錯的步驟都在這裡）再寫稽核並 commit：
+    # 組檔出錯時不會留下「匯出過」的紀錄，檔案沒有外流。
     rows = [download.record_row(visit, names) for visit in visits]
+    filename = f"admissions-records-{csv_export.filename_part(filters.campus_key)}-{today_local():%Y%m%d}.csv"
+    response = csv_export.csv_attachment(download.RECORD_HEADERS, rows, filename)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -173,8 +176,7 @@ async def export_recruitment_visits(
         metadata={"row_count": len(visits), **download.records_audit_metadata(filters)},
     )
     await db.commit()
-    filename = f"admissions-records-{csv_export.filename_part(filters.campus_key)}-{today_local():%Y%m%d}.csv"
-    return csv_export.csv_attachment(download.RECORD_HEADERS, rows, filename)
+    return response
 
 
 @router.post("/admin/admissions/records", response_model=RecruitmentVisitOut, status_code=status.HTTP_201_CREATED)
@@ -799,7 +801,7 @@ async def get_admissions_no_deposit_records(
     return NoDepositRecordsOut.model_validate(result)
 
 
-@router.get("/admin/admissions/no-deposit-records/export")
+@router.get("/admin/admissions/no-deposit-records/export", response_class=Response, responses=csv_export.CSV_RESPONSES)
 async def export_admissions_no_deposit_records(
     campus_key: str,
     school_year: int | None = Query(default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX),
@@ -832,8 +834,10 @@ async def export_admissions_no_deposit_records(
     )
     if result["total"] > csv_export.EXPORT_ROW_LIMIT:
         raise csv_export.too_many_rows()
-    # 先組好檔案內容再寫稽核：轉換出錯時不會留下「匯出過」的紀錄。
+    # 先把整份檔案組好（逐列轉換加上 CSV 序列化）再寫稽核並 commit：組檔出錯時不會留下「匯出過」的紀錄。
     rows = [download.no_deposit_row(campus_key, record) for record in result["records"]]
+    filename = f"admissions-no-deposit-{csv_export.filename_part(campus_key)}-{today_local():%Y%m%d}.csv"
+    response = csv_export.csv_attachment(download.NO_DEPOSIT_HEADERS, rows, filename)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -855,5 +859,4 @@ async def export_admissions_no_deposit_records(
         },
     )
     await db.commit()
-    filename = f"admissions-no-deposit-{csv_export.filename_part(campus_key)}-{today_local():%Y%m%d}.csv"
-    return csv_export.csv_attachment(download.NO_DEPOSIT_HEADERS, rows, filename)
+    return response

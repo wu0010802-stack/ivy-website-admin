@@ -8,7 +8,7 @@ const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach((wrapper) => wrapper.unmount()); wrappers.length = 0 })
 
 function mountBars(props: Record<string, unknown>) {
-  const wrapper = mount(DailyBars, { props: { title: '每日瀏覽', unit: '次', points: [], ...props }, global: { plugins: [ElementPlus] } })
+  const wrapper = mount(DailyBars, { props: { title: '每日瀏覽', unit: '次', valueLabel: '瀏覽次數', points: [], ...props }, global: { plugins: [ElementPlus] } })
   wrappers.push(wrapper)
   return wrapper
 }
@@ -24,6 +24,12 @@ describe('每日直條', () => {
     expect(rows[0]).toContain('09/30')
     expect(rows[0]).toContain('4')
     expect(rows).toHaveLength(3)
+  })
+
+  it('每日數字表的第二欄表頭用呼叫端給的欄名；摘要、軸線的單位仍是「次」', () => {
+    const wrapper = mountBars({ points, valueLabel: '預約鈕點擊次數' })
+    expect(wrapper.findAll('.daily-bars__table thead th').map((th) => th.text())).toEqual(['日期', '預約鈕點擊次數'])
+    expect(wrapper.get('.daily-bars__axis').text()).toContain('最多 4 次')
   })
 
   it('讀屏摘要寫期間、合計與最多的那天', () => {

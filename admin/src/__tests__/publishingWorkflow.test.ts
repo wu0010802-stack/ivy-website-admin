@@ -87,12 +87,56 @@ describe('巢狀內容的差異摘要（第 59 條）', () => {
     expect(change).toMatchObject({ label: '最新消息', before: '2 項', after: '2 項', detail: '新增「畢業典禮」；刪除「親子日」；修改「開學典禮」' })
   })
 
-  it('沒有 id 的清單依位置比，用問題或標題當名字；只換順序也講出來', () => {
-    expect(nestedChangeDetail([{ q: '幾歲入園？', a: '2 歲' }], [{ q: '幾歲入園？', a: '3 歲' }, { q: '有校車嗎？', a: '有' }]))
+  it('沒有 id 的清單依位置比，用標題當名字；只換順序也講出來', () => {
+    expect(nestedChangeDetail([{ title: '幾歲入園？', note: '2 歲' }], [{ title: '幾歲入園？', note: '3 歲' }, { title: '有校車嗎？', note: '有' }]))
       .toBe('新增「有校車嗎？」；修改「幾歲入園？」')
     expect(nestedChangeDetail([{ id: 'x', title: 'X' }, { id: 'y', title: 'Y' }], [{ id: 'y', title: 'Y' }, { id: 'x', title: 'X' }]))
       .toBe('調整了順序')
     expect(nestedChangeDetail([], [{}])).toBe('新增 第 1 項')
+  })
+
+  describe('沒有 id 的清單用標題對應同一項（隱私權政策的段落，T8b）', () => {
+    const section = (heading: string, body = `${heading}的內容`) => ({ heading, body })
+    const three = [section('蒐集的資料'), section('利用方式'), section('您的權利')]
+
+    it('刪掉中間一段：只標被刪的那一段，後面的段落不會因為位置前移被標成修改', () => {
+      const after = [three[0], three[2]]
+      expect(nestedChangeDetail(three, after)).toBe('刪除「利用方式」')
+      const [change] = diffPayload({ sections: three }, { sections: after })
+      expect(change).toMatchObject({ before: '3 項', after: '2 項', detail: '刪除「利用方式」' })
+    })
+
+    it('在中間插入一段、刪掉第一段、刪掉最後一段，都只標動到的那一段', () => {
+      expect(nestedChangeDetail(three, [three[0], section('保存期間'), three[1], three[2]])).toBe('新增「保存期間」')
+      expect(nestedChangeDetail(three, [three[1], three[2]])).toBe('刪除「蒐集的資料」')
+      expect(nestedChangeDetail(three, [three[0], three[1]])).toBe('刪除「您的權利」')
+    })
+
+    it('改某一段的內文只標那一段；改標題算修改（夾在對得上的段落之間依順序對應），不是新增加刪除', () => {
+      expect(nestedChangeDetail(three, [three[0], section('利用方式', '改過的內文'), three[2]])).toBe('修改「利用方式」')
+      expect(nestedChangeDetail(three, [three[0], section('資料的利用', three[1]!.body), three[2]])).toBe('修改「資料的利用」')
+    })
+
+    it('刪掉一段的同時改另一段的內文：各自標出來', () => {
+      const four = [...three, section('聯絡我們')]
+      expect(nestedChangeDetail(four, [four[0], four[2], section('聯絡我們', '新的聯絡方式')])).toBe('刪除「利用方式」；修改「聯絡我們」')
+    })
+
+    it('只調換順序：講調整了順序，不是每一段都改了', () => {
+      expect(nestedChangeDetail(three, [three[2], three[0], three[1]])).toBe('調整了順序')
+    })
+
+    it('標題重複（分不出是哪一段）或沒有標題：退回依順序對應（原本的行為）', () => {
+      const dup = [section('說明', '甲'), section('說明', '乙'), section('說明', '丙')]
+      // 刪掉中間那段，但標題都一樣：只能依位置比，第二段變成「丙」、最後一段不見了
+      expect(nestedChangeDetail(dup, [dup[0], dup[2]])).toBe('刪除「說明」；修改「說明」')
+      const untitled = [{ body: 'a' }, { body: 'b' }, { body: 'c' }]
+      expect(nestedChangeDetail(untitled, [untitled[0], untitled[2]])).toBe('刪除 第 3 項；修改 第 2 項')
+    })
+
+    it('有 id 的項目不和別項配對：對不上就是新增與刪除', () => {
+      expect(nestedChangeDetail([{ id: 'a', heading: 'X' }, { id: 'b', heading: 'Y' }], [{ id: 'a', heading: 'X' }, { id: 'c', heading: 'Z' }])).toBe('新增「Z」；刪除「Y」')
+    })
   })
 
   it('超過三項時列前三項加總數；物件列出改了哪些欄位；純文字清單不另外摘要', () => {
@@ -150,7 +194,7 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
   }
 
   it('最近一次排程略過時寫出原因與全站排程連結；提供手機版預覽連結', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const schedules = ref([
       { id: 'j2', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-25T01:00:00Z', status: 'skipped' as const, error: '排好之後官網已經發布過較新的第 2 版，不會把第 1 版蓋回去', created_by_email: null, finished_at: '2026-09-25T01:00:10Z' },
       { id: 'j1', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-20T01:00:00Z', status: 'done' as const, error: null, created_by_email: null, finished_at: '2026-09-20T01:00:10Z' },
@@ -192,7 +236,7 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
   })
 
   it('之後又成功發布過，就不再提舊的失敗', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const schedules = ref([
       { id: 'j2', revision_id: 'r2', revision_version: 2, publish_at: '2026-09-25T01:00:00Z', status: 'done' as const, error: null, created_by_email: null, finished_at: null },
       { id: 'j1', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-20T01:00:00Z', status: 'failed' as const, error: '素材還沒處理好', created_by_email: null, finished_at: null },
@@ -204,7 +248,7 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
   })
 
   it('排程失敗之後官網換過版本或有人按了「知道了」（resolved），就不再提示（B06-5）', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const schedules = ref([
       { id: 'j1', revision_id: 'r1', revision_version: 1, publish_at: '2026-09-20T01:00:00Z', status: 'failed' as const, error: '分校已停用，內容不會發布', created_by_email: null, finished_at: '2026-09-20T01:00:10Z', resolved: true },
     ])
@@ -221,7 +265,7 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
       schedules.value = schedules.value.map((job) => (job.id === jobId ? { ...job, resolved: true } : job))
       return true
     })
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const wrapper = mount(ContentEditor, { props: { editor: editorState({ schedules, loadSchedules: async () => {}, acknowledgeSchedule }) }, global })
     wrappers.push(wrapper)
     await flushPromises()
@@ -231,7 +275,7 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     expect(acknowledgeSchedule).toHaveBeenCalledWith('j1')
     expect(wrapper.text()).not.toContain('分校已停用')
 
-    const editor = await setup('/content/campus-faq', testUser('editor', { campus_keys: ['yihua'] }))
+    const editor = await setup('/content/campus-news', testUser('editor', { campus_keys: ['yihua'] }))
     const readOnlyView = mount(ContentEditor, {
       props: { editor: editorState({ schedules: ref([failed]), loadSchedules: async () => {}, acknowledgeSchedule }) },
       global: editor.global,
@@ -243,37 +287,57 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
   })
 
   it('發布成功後重讀排程，已處理的失敗提示跟著消失；「知道了」打對的 API（B06-5、B06-6）', async () => {
-    const { global } = await setup('/content/campus-faq')
-    const item = { id: 'i1', kind: 'campus_faq', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1', latest_revision: { id: 'r2', version: 2, created_at: '2026-09-25T02:00:00Z', payload: { title: '' } } }
+    const { global } = await setup('/content/campus-news')
+    const item = { id: 'i1', kind: 'campus_news', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1', latest_revision: { id: 'r2', version: 2, created_at: '2026-09-25T02:00:00Z', payload: { title: '' } } }
     const get = vi.spyOn(api, 'get').mockImplementation(((path: string) =>
       Promise.resolve(path.includes('/schedules') ? [] : item)) as typeof api.get)
     const post = vi.spyOn(api, 'post').mockImplementation(((path: string) =>
       Promise.resolve(path.endsWith('/publish?campus_key=yihua') ? { ...item, current_published_revision_id: 'r2' } : {})) as typeof api.post)
     let editor!: ReturnType<typeof useContentItem<{ title: string }>>
-    const Harness = defineComponent({ setup() { editor = useContentItem('campus_faq', { title: '' }, 'yihua'); return () => null } })
+    const Harness = defineComponent({ setup() { editor = useContentItem('campus_news', { title: '' }, 'yihua'); return () => null } })
     wrappers.push(mount(Harness, { global }))
     await editor.load()
     get.mockClear()
     expect(await editor.publish()).toBe(true)
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/schedules?campus_key=yihua')
     // 樂觀鎖：帶上載入時官網的版本，別人之後發布過就會被後端 409 擋下。
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_news/publish?campus_key=yihua', {
       revision_id: 'r2',
       expected_published_revision_id: 'r1',
     })
 
     get.mockClear()
     expect(await editor.acknowledgeSchedule('j1')).toBe(true)
-    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_faq/schedules/j1/acknowledge?campus_key=yihua')
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules?campus_key=yihua')
+    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_news/schedules/j1/acknowledge?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/schedules?campus_key=yihua')
+  })
+
+  // 2026-10-08：已拿掉的欄位（例如五校介紹的簡介）還原時後端會丟掉，版本紀錄不能列成「還原後會改回舊值」。
+  it('版本紀錄的差異兩邊都先經過 normalize：已拿掉的欄位不列成會改變', async () => {
+    const { global } = await setup('/content/campus-profile')
+    const item = { id: 'i1', kind: 'campus_profile', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r2', latest_revision: { id: 'r2', version: 2, created_at: '2026-10-08T02:00:00Z', payload: { name: '義華校', phone: '07-1' } } }
+    vi.spyOn(api, 'get').mockImplementation(((path: string) =>
+      Promise.resolve(path.includes('/revisions/r1')
+        ? { id: 'r1', version: 1, payload: { name: '義華校', phone: '07-0', intro: '舊簡介' } }
+        : path.includes('/schedules') ? [] : item)) as typeof api.get)
+    const dropIntro = (payload: { name: string; phone: string; intro?: string }) => {
+      const { intro: _retired, ...rest } = payload
+      return rest
+    }
+    let editor!: ReturnType<typeof useContentItem<{ name: string; phone: string }>>
+    const Harness = defineComponent({ setup() { editor = useContentItem('campus_profile', { name: '', phone: '' }, 'yihua', { normalize: dropIntro }); return () => null } })
+    wrappers.push(mount(Harness, { global }))
+    await editor.load()
+    const changes = diffPayload(editor.history.savedPayload(), await editor.history.payloadOf('r1'), 'campus_profile')
+    expect(changes.map((change) => change.key)).toEqual(['phone'])
   })
 
   it('預約文案可以預覽預約頁；內容連結帶校區', () => {
     expect(contentPreviewPath('booking_content')).toBe('/preview?page=visit')
-    expect(contentEditorPath('campus_faq', 'yihua')).toBe('/content/campus-faq?campus=yihua')
+    expect(contentEditorPath('campus_news', 'yihua')).toBe('/content/campus-news?campus=yihua')
     expect(contentEditorPath('admission_content')).toBe('/content/admission')
-    expect(contentItemLabel('campus_faq', 'yihua')).toBe('各校常見問題（義華）')
+    expect(contentItemLabel('campus_news', 'yihua')).toBe('各校消息與活動（義華）')
   })
 })
 
@@ -286,7 +350,7 @@ function release(id: string, overrides: Record<string, unknown> = {}) {
 
 function notice(id: string, overrides: Record<string, unknown> = {}) {
   return {
-    id, kind: 'content_review_rejected', campus_key: 'yihua', content_kind: 'campus_faq', revision_version: 3,
+    id, kind: 'content_review_rejected', campus_key: 'yihua', content_kind: 'campus_news', revision_version: 3,
     note: '請補電話', error: null, publish_at: null, actor_email: 'amy@ivy.example', created_at: '2026-09-25T02:00:00Z', read_at: null,
     ...overrides,
   }
@@ -294,7 +358,7 @@ function notice(id: string, overrides: Record<string, unknown> = {}) {
 
 function job(id: string, overrides: Record<string, unknown> = {}) {
   return {
-    id, kind: 'campus_faq', campus_key: 'yihua', revision_id: 'r1', revision_version: 2, publish_at: '2026-09-26T01:00:00Z',
+    id, kind: 'campus_news', campus_key: 'yihua', revision_id: 'r1', revision_version: 2, publish_at: '2026-09-26T01:00:00Z',
     status: 'scheduled', error: null, created_by_email: 'amy@ivy.example', created_at: '2026-09-25T01:00:00Z', finished_at: null,
     can_cancel: true, ...overrides,
   }
@@ -326,7 +390,7 @@ describe('發布紀錄頁（第 56 條）', () => {
         { content_item_id: 'i1', kind: 'home_about', campus_key: null, revision_id: 'r2', revision_version: 2, previous_revision_version: 1 },
       ] }),
       release('old', { created_at: '2026-09-20T02:00:00Z', source: 'initialize', changes: [
-        { content_item_id: 'i2', kind: 'campus_faq', campus_key: 'yihua', revision_id: 'r9', revision_version: 1, previous_revision_version: null },
+        { content_item_id: 'i2', kind: 'campus_news', campus_key: 'yihua', revision_id: 'r9', revision_version: 1, previous_revision_version: null },
       ] }),
     ]
     mockPublishingApi({ releases })
@@ -344,7 +408,7 @@ describe('發布紀錄頁（第 56 條）', () => {
     expect(text).not.toContain('第 2 版')
     expect(text).toContain('核准送審並發布')
     expect(text).toContain('第一次上線')
-    expect(wrapper.find('a[href="/content/campus-faq?campus=yihua"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/content/campus-news?campus=yihua"]').exists()).toBe(true)
     // 目前這一筆沒有還原鈕，其他兩筆有。
     expect(wrapper.findAll('button').filter((b) => b.text() === '整站還原到這次')).toHaveLength(2)
 
@@ -416,7 +480,7 @@ describe('發布紀錄頁（第 56 條）', () => {
     expect(wrapper.findAll('button').filter((b) => b.text() === '取消排程')).toHaveLength(1)
     await button(wrapper, '取消排程').trigger('click')
     await flushPromises()
-    expect(del).toHaveBeenCalledWith('/admin/content-items/campus_faq/schedules/j1?campus_key=yihua')
+    expect(del).toHaveBeenCalledWith('/admin/content-items/campus_news/schedules/j1?campus_key=yihua')
   })
 
   it('給自己的通知：顯示退回原因與連結，標記已讀後未讀數跟著減', async () => {
@@ -432,7 +496,7 @@ describe('發布紀錄頁（第 56 條）', () => {
     expect(text).toContain('退回原因：請補電話')
     expect(text).toContain('排程發布沒有執行')
     expect(text).toContain('素材還沒處理好')
-    expect(wrapper.find('a[href="/content/campus-faq?campus=yihua"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/content/campus-news?campus=yihua"]').exists()).toBe(true)
     await button(wrapper, '標記已讀').trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/my-notifications/n1/read')
@@ -459,10 +523,10 @@ describe('總覽的待發布、素材與排程失敗（第 54、58 條）', () =
       if (String(url) === '/admin/dashboard') {
         return Promise.resolve({
           today_visits: 0, pending_follow_up: 0, campuses_without_active_booking: [], failed_notifications: 0,
-          pending_publish: 2, pending_publish_kinds: ['campus_faq', 'home_about'],
+          pending_publish: 2, pending_publish_kinds: ['campus_news', 'home_about'],
           pending_publish_items: [
             { kind: 'home_about', campus_key: null, latest_version: 5, published_version: 4, updated_at: '2026-09-25T02:00:00Z' },
-            { kind: 'campus_faq', campus_key: 'renwu', latest_version: 1, published_version: null, updated_at: '2026-09-24T02:00:00Z' },
+            { kind: 'campus_news', campus_key: 'renwu', latest_version: 1, published_version: null, updated_at: '2026-09-24T02:00:00Z' },
           ],
           content_media_issues: [{ kind: 'campus_tour', campus_key: 'yihua', missing: 1, not_ready: 0, live: true }],
           failed_publish_jobs: [{ id: 'j1', kind: 'home_news', campus_key: null, revision_version: 3, publish_at: '2026-09-25T01:00:00Z', error: '素材還沒處理好' }],
@@ -478,7 +542,7 @@ describe('總覽的待發布、素材與排程失敗（第 54、58 條）', () =
     expect(text).toContain('有修改尚未發布・09/25 10:00 儲存')
     expect(text).toContain('從未發布・09/24 10:00 儲存')
     expect(text).not.toMatch(/第 \d+ 版/)
-    expect(wrapper.find('a[href="/content/campus-faq?campus=renwu"]').exists()).toBe(true)
+    expect(wrapper.find('a[href="/content/campus-news?campus=renwu"]').exists()).toBe(true)
     expect(text).toContain('內容缺少素材或素材還沒處理好')
     expect(text).toContain('官網上1 個已刪除')
     expect(wrapper.find('a[href="/content/campus-tour?campus=yihua"]').exists()).toBe(true)
@@ -504,7 +568,7 @@ describe('從總覽或通知帶 ?campus= 進編輯頁', () => {
     for (const [query, expected] of [['yihua', 'yihua'], ['minghua', 'renwu']] as const) {
       // 上一輪選過的校區會記在 sessionStorage（分校內容頁共用），這裡只測網址。
       sessionStorage.clear()
-      const { global } = await setup(`/content/campus-faq?campus=${query}`, testUser('campus_admin', { campus_keys: ['renwu', 'yihua'] }))
+      const { global } = await setup(`/content/campus-news?campus=${query}`, testUser('campus_admin', { campus_keys: ['renwu', 'yihua'] }))
       let picked = ''
       const Probe = defineComponent({
         setup() {

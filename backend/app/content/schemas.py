@@ -12,13 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
 from app.media.schemas import PublicMediaOut
 
-# 2026-09-25 現況：ContentItem.kind 已有 14 種（home_about／home_hero／
-# site_footer／site_meta／home_campus_board／booking_content／day_experience／
-# home_news／shared_faq／admission_content／campus_profile／campus_faq／
-# campus_news／campus_tour，定義見 registry.py 的 CONTENT_KIND_REGISTRY），
-# 涵蓋官網幾乎所有文字與素材版位；仍留在 Nuxt fixture、CMS 沒有對應欄位的
-# 只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。逐項現況見
-# docs/website-admin/acceptance.md 的 A01 列與各批小結。
+# 2026-10-08 現況：ContentItem.kind 有 15 種（home_about／home_hero／
+# site_footer／site_meta／home_campus_board／booking_content／privacy_policy／
+# day_experience／home_news／admission_content／curriculum_page／about_page／
+# campus_profile／campus_news／campus_tour，定義見 registry.py 的
+# CONTENT_KIND_REGISTRY），涵蓋官網幾乎所有文字與素材版位；仍留在 Nuxt
+# fixture、CMS 沒有對應欄位的只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。
+# 常見問題（shared_faq／campus_faq）官網早已不顯示，2026-10-08 連同資料刪除。
+# 逐項現況見 docs/website-admin/acceptance.md 的 A01 列與各批小結。
 
 _BLOCKED_URL_SCHEMES = ("javascript:", "data:", "vbscript:")
 _ALLOWED_URL_SCHEMES = ("https://", "http://", "mailto:", "tel:")
@@ -71,7 +72,7 @@ def _require_safe_media_ref(value: str) -> str:
 
 
 # 內容欄位會被公開 API 整份聚合、每個頁面的 SSR 都帶著跑，所以每個文字
-# 欄位都要有上限：不然一個校區管理者發布一段超長 FAQ，就能讓全站所有
+# 欄位都要有上限：不然一個校區管理者發布一段超長文字，就能讓全站所有
 # 訪客的每次載入一起變重。現有最長的文案不到 300 字，2000 字很寬。
 CONTENT_TEXT_MAX_LENGTH = 2000
 
@@ -348,12 +349,6 @@ class HomeCampusBoardPayload(_ContentPayload):
 PRIVACY_SAMPLE_MARKER = "【示意】"
 PRIVACY_SECTIONS_MAX = 12
 
-# 原型 fixture 的示範同意文字（「資料不會傳送給學校」），正式官網不能再
-# 發布它；匯入初始內容時換成官網一直顯示的正式文字（見 migration
-# 31eb94190b1c 的說明）。
-LEGACY_DEMO_CONSENT_TEXT = "我了解這是操作示範，資料不會傳送給學校，不代表預約成立。"
-FORMAL_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。"
-
 
 class PrivacySectionPayload(_ContentPayload):
     """隱私說明的一段：小標（可留空）與內文。只收純文字，官網照段落顯示。"""
@@ -375,14 +370,20 @@ class PrivacySectionPayload(_ContentPayload):
 
 
 class BookingContentPayload(_ContentPayload):
+    """預約文案：預約按鈕文字與隱私說明。
+
+    consent_text、banner_title_template、banner_body、banner_button_label 四欄
+    2026-10-08 拿掉：官網預約 2026-10-02 起不用勾選同意，橫幅三欄官網從沒讀過，
+    後台也沒有輸入框。改成選填只為舊版本可讀（舊值仍照原規則驗證）；
+    exclude=True 讓新存的版本不再帶這四欄，公開輸出也剔除（registry 的
+    public_view）。沒有 migration，已存的版本不動。"""
+
     cta_label: str
     cta_label_en: str
-    # 2026-10-02 起官網預約不用勾選同意，官網與後台都不再顯示這段文字；欄位留著讓
-    # 已發布的舊版本照常通過驗證。
-    consent_text: str = ""
-    banner_title_template: str
-    banner_body: str
-    banner_button_label: str
+    consent_text: str = Field(default="", exclude=True)
+    banner_title_template: str = Field(default="", exclude=True)
+    banner_body: str = Field(default="", exclude=True)
+    banner_button_label: str = Field(default="", exclude=True)
     # 2026-09-25 新增（規格 L130）：官網頁尾與預約表單可開啟的隱私／個資使用
     # 說明。空清單＝還沒有正式說明，官網不顯示入口。預設值讓舊版本照常通過驗證。
     privacy_title: str = Field(default="", max_length=40)
@@ -1145,14 +1146,21 @@ def require_map_url(value: str) -> str:
 
 
 class CampusProfilePayload(_ContentPayload):
+    """五校介紹。
+
+    intro、description、fb_note 三欄 2026-10-08 拿掉：分校頁已拿掉（官網不讀），
+    後台也不列。改成選填只為舊版本可讀（舊值仍照原規則驗證）；exclude=True 讓
+    新存的版本不再帶這三欄，公開輸出也剔除（registry 的 public_view）。
+    沒有 migration，已存的版本不動。"""
+
     name: str
     district: str
     address: str
     phone: str
-    intro: str
-    description: str
+    intro: str = Field(default="", exclude=True)
+    description: str = Field(default="", exclude=True)
     facebook: str
-    fb_note: str
+    fb_note: str = Field(default="", exclude=True)
     # 空字串代表這間校區尚未提供 LINE 官方帳號，跟前端 fixture 的
     # `line: string | null` 語意相同（web 端疊資料時把空字串轉回 null）。
     line: str
@@ -1190,93 +1198,6 @@ class CampusProfilePayload(_ContentPayload):
         # 社群連結在 CampusBoard.vue、SiteHeader.vue 直接綁 :href，
         # 是 CMS 內容通到公開站 href 的路徑，必須用允許清單。
         return _require_safe_url(value)
-
-
-class CampusFaqItemPayload(_ContentPayload):
-    q: str
-    a: str
-    # 停用的題目留在後台、官網不顯示（規格 3.4：逐題啟用狀態）。
-    enabled: bool = True
-
-    @field_validator("q", "a")
-    @classmethod
-    def _no_script_scheme(cls, value: str) -> str:
-        return _reject_unsafe_scheme(value)
-
-    @model_validator(mode="after")
-    def _shown_needs_text(self) -> "CampusFaqItemPayload":
-        # 停用的題目可以只有問題（「本校不顯示」某題共用題目就是存成這樣）；
-        # 要在官網顯示的題目問題與回答都要有，不然官網會出現一題空白的回答。
-        if self.enabled and not (self.q.strip() and self.a.strip()):
-            raise ValueError("在官網顯示的題目，問題與回答都不能空白（不想顯示請改成停用）")
-        return self
-
-
-def campus_faq_blank_items(payload: dict) -> list[int]:
-    """在官網顯示、但問題或回答空白的本校題目（從 1 起算的題號）。存檔時
-    CampusFaqItemPayload 已經擋下；這裡給發布前檢查用，擋住規則收緊前存的草稿。"""
-    return [
-        index
-        for index, item in enumerate(payload.get("items", []) or [], start=1)
-        if isinstance(item, dict)
-        and item.get("enabled", True)
-        and not (str(item.get("q") or "").strip() and str(item.get("a") or "").strip())
-    ]
-
-
-FAQ_SHARED_POSITIONS = ("before", "after")
-
-
-class CampusFaqPayload(_ContentPayload):
-    """各校常見問題：本校自己的題目，加上要不要顯示全站共用題目與放哪裡。
-
-    本校有一題和共用題目問題文字相同時，這校顯示本校的版本（停用就是這校
-    不顯示那一題），其他校照樣顯示共用的答案（規格 3.2：局部修改不改動其他校）。"""
-
-    # 可以是 0 題：全部用共用題目的校區不必另外寫。
-    items: list[CampusFaqItemPayload]
-    include_shared: bool = True
-    shared_position: Literal["before", "after"] = "before"
-
-    @field_validator("items")
-    @classmethod
-    def _items_bounded(cls, value: list[CampusFaqItemPayload]) -> list[CampusFaqItemPayload]:
-        if len(value) > 20:
-            raise ValueError("本校題目最多 20 題")
-        return value
-
-
-class SharedFaqItemPayload(_ScopedEntry):
-    id: str = Field(min_length=1, max_length=64)
-    q: str
-    a: str
-    enabled: bool = True
-
-    @field_validator("id", "q", "a")
-    @classmethod
-    def _no_script_scheme(cls, value: str) -> str:
-        return _reject_unsafe_scheme(value)
-
-    @field_validator("q", "a")
-    @classmethod
-    def _not_blank(cls, value: str) -> str:
-        return _nonblank(value, "問題與回答都不能空白")
-
-
-class SharedFaqPayload(_ContentPayload):
-    """全站共用常見問題（shared_faq）：總管理者或有「全站共用內容」授權的人編輯。
-    每題可以適用全部分校或指定分校；各校在自己的常見問題決定要不要顯示、
-    放在本校題目之前或之後。"""
-
-    items: list[SharedFaqItemPayload]
-
-    @field_validator("items")
-    @classmethod
-    def _items_bounded(cls, value: list[SharedFaqItemPayload]) -> list[SharedFaqItemPayload]:
-        if len(value) > 20:
-            raise ValueError("共用題目最多 20 題")
-        _unique_ids(value, "共用題目")
-        return value
 
 
 class TourSpotPayload(_ContentPayload):

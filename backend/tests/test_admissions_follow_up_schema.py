@@ -69,7 +69,12 @@ def test_paper_fields_migration_follows_legacy_pending_cleanup_and_keeps_data_on
     # 仍只有一個 head。
     assert script.get_revision("a3c7e9d1f5b2").down_revision == "e870893fac95"
     assert script.get_revision("c4e8a2f61b97").down_revision == "a3c7e9d1f5b2"
-    assert script.get_heads() == ["c4e8a2f61b97"]
+    # 2026-10-08 後台清理再接 304dd12e96bc（刪 site_settings）、e48a3ccedcd8（刪 reschedule_requests）
+    # 與 a9e11038c869（刪 FAQ 內容），仍只有一個 head。
+    assert script.get_revision("304dd12e96bc").down_revision == "c4e8a2f61b97"
+    assert script.get_revision("e48a3ccedcd8").down_revision == "304dd12e96bc"
+    assert script.get_revision("a9e11038c869").down_revision == "e48a3ccedcd8"
+    assert script.get_heads() == ["a9e11038c869"]
     upgrade = PAPER_FIELDS_MIGRATION.read_text(encoding="utf-8").split("def downgrade", 1)[0]
     # 升級只加可空欄位、放寬 CHECK，不改既有資料（deploy/CICD.md）；降級才把 revisit 改回 in_person。
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade

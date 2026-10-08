@@ -39,7 +39,7 @@ async def test_parent_can_exchange_token_and_read_own_request(admin_client, publ
     assert exchange.headers["cache-control"] == "private, no-store"
     assert exchange.headers["referrer-policy"] == "no-referrer"
     assert exchange.headers["x-robots-tag"] == "noindex, nofollow"
-    assert exchange.json()["reschedule_pending"] is False
+    assert "reschedule_pending" not in exchange.json()
 
     me = await public_client.get("/api/website/v1/public/visit-manage/me")
     assert me.status_code == 200
@@ -373,7 +373,7 @@ async def test_parent_page_keeps_inactive_campus_name_and_phone(admin_client, pu
     item = await content_service.get_or_create_content_item(db_session, "campus_profile", "yihua")
     profile = {
         "name": "常春藤義華校", "district": "三民區", "address": "高雄市三民區義華路68號", "phone": " 07-3800000 ",
-        "intro": "", "description": "", "facebook": "", "fb_note": "", "line": "",
+        "facebook": "", "line": "",
     }
     revision = await content_service.create_revision(db_session, item, profile, item.latest_version, None)
     await content_service.publish_revision(db_session, item, revision, None)

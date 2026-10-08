@@ -30,6 +30,7 @@ _EXEMPT = {
         "存草稿本身就是一筆 revision（含 created_by 與時間），不影響官網；發布、送審、還原另有稽核"
     ),
     ("POST", "/api/website/v1/admin/notifications/{notification_id}/read"): "站內通知已讀狀態",
+    ("POST", "/api/website/v1/admin/notifications/read-all"): "站內通知已讀狀態",
     ("POST", "/api/website/v1/admin/my-notifications/{notification_id}/read"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/my-notifications/read-all"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/retention/dry-run"): "只試算筆數，不改任何資料",

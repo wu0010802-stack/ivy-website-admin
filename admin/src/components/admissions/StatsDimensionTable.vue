@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
-import { NO_VALUE, barWidth, formatRate, type StatsColumn } from '../../admissions/statsFormat'
+import { NO_VALUE, barWidth, formatRate, rateCsvCell, type StatsColumn } from '../../admissions/statsFormat'
 import { notifyError } from '../../composables/notify'
 import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
 
@@ -57,7 +57,7 @@ function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
   if (override !== undefined) return override
   const value = row[column.key]
   if (column.csv === 'roc-month') return rocMonthCsv(typeof value === 'string' ? value : null)
-  if (column.kind === 'rate') return typeof value === 'number' ? formatRate(value) : ''
+  if (column.kind === 'rate') return rateCsvCell(typeof value === 'number' ? value : null)
   if (column.kind === 'count' || column.kind === 'bar') return toNumber(value)
   if (value === null || value === undefined || value === '' || value === NO_VALUE) return ''
   return String(value)

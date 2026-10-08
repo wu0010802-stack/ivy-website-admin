@@ -5,7 +5,7 @@ import { expect, test, type Download, type Locator, type Page } from '@playwrigh
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
-import { ROOT, SLOTS_CAMPUS } from './stack-env'
+import { ROOT, SLOTS_CAMPUS, USERS } from './stack-env'
 
 // 後台匯出擴充（2026-10-06）：在瀏覽器裡按「匯出 CSV」真的拿到檔案。Excel 要的 BOM、CRLF、中文欄名、
 // 民國月份「115年09月」與公式注入防護都在檔案裡，不只是單元測試裡的字串。
@@ -14,8 +14,11 @@ import { ROOT, SLOTS_CAMPUS } from './stack-env'
 // 本檔只比對自己建的孩子；招生訪視的絕對數字只在 admissions-flow.spec 斷言。
 const SHOTS = path.join(ROOT, 'output/playwright')
 const CHILD = '匯出流程寶貝'
-const TERM = currentTerm(taipeiDate(0))
-const VISIT_DATE = taipeiDate(-1)
+// 本檔開跑那天（台北）：建資料與操作紀錄的期間起點都用它。斷言「匯出當天」的地方不能用它——
+// 跨午夜（23:59 開跑）時匯出日期會是隔天，改在讀取當下重算（downloadCsv 的 days）。
+const RUN_DATE = taipeiDate(0)
+const TERM = currentTerm(RUN_DATE)
+const VISIT_DATE = new Date(Date.parse(`${RUN_DATE}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
 // 月份欄在 CSV 寫「115年10月」，不是畫面上的「115.10」：Excel 會把 115.10 轉成數字 115.1。
 const [VISIT_YEAR, VISIT_MONTH] = VISIT_DATE.split('-')
 const ROC_MONTH_CSV = `${Number(VISIT_YEAR) - 1911}年${VISIT_MONTH}月`
@@ -34,6 +37,8 @@ interface Csv {
   filename: string
   text: string
   rows: string[][]
+  /** 按下鈕前、收到檔案後各讀一次台北日期：檔名裡的匯出日期是處理請求當下算的，跨午夜時可能是其中任一天。 */
+  days: string[]
 }
 
 /** RFC 4180：雙引號包住的欄位可以有逗號、換行與兩個連續的雙引號。 */
@@ -68,9 +73,11 @@ function parseCsv(text: string): string[][] {
 
 /** 按下匯出鈕、取回瀏覽器下載的檔案，並檢查 Excel 要的三件事：開頭 BOM 位元組、CRLF 換行、一列一筆。 */
 async function downloadCsv(page: Page, click: () => Promise<void>): Promise<Csv> {
+  const dayBefore = taipeiDate(0)
   const downloading = page.waitForEvent('download')
   await click()
   const file: Download = await downloading
+  const dayAfter = taipeiDate(0)
   expect(await file.failure()).toBeNull()
   const bytes = await readFile((await file.path())!)
   expect([...bytes.subarray(0, 3)], '檔案開頭要有 UTF-8 BOM（EF BB BF）').toEqual([0xef, 0xbb, 0xbf])
@@ -80,7 +87,17 @@ async function downloadCsv(page: Page, click: () => Promise<void>): Promise<Csv>
   // 雙引號包住的換行（備註裡的）不算：其餘的換行一律是 CRLF，不能出現單獨的 LF 或 CR。
   const outsideQuotes = text.replace(/"(?:[^"]|"")*"/g, '')
   expect(/(^|[^\r])\n|\r(?!\n)/.test(outsideQuotes), '列與列之間只能是 CRLF').toBe(false)
-  return { filename: file.suggestedFilename(), text, rows: parseCsv(text).filter((row) => row.length > 1 || row[0] !== '') }
+  return {
+    filename: file.suggestedFilename(),
+    text,
+    rows: parseCsv(text).filter((row) => row.length > 1 || row[0] !== ''),
+    days: [...new Set([dayBefore, dayAfter])],
+  }
+}
+
+/** 檔名要等於「依匯出日期組出來的名字」之一（按下前、收到後的台北日期都算），23:59 開跑也不會紅。 */
+function expectFilename(csv: Csv, build: (day: string) => string): void {
+  expect(csv.days.map(build), `檔名 ${csv.filename}`).toContain(csv.filename)
 }
 
 /** 每一列欄數都和表頭一樣：自由文字的逗號、換行、引號沒有讓 Excel 錯位。 */
@@ -89,9 +106,14 @@ function expectRectangular({ rows }: Csv): void {
   for (const [index, row] of rows.entries()) expect(row, `第 ${index + 1} 列欄數`).toHaveLength(width)
 }
 
-/** 公式注入防護：開頭是 = + - @ 的儲存格前面補單引號，試算表不會當成公式執行。 */
+// 和後端 common/csv_export.py 的 safe_cell、後台 utils/csv.ts 的 safeCell 同一條規則：試算表會先略過開頭的
+// 空白與控制字元（Tab、CR、LF…）再判斷是不是公式，所以開頭是空白、控制字元，或 = + - @ 的儲存格，
+// 前面都要補單引號。補過之後沒有任何儲存格會以這些字元開頭。
+const FORMULA_START = /^[\s\p{C}=+\-@]/u
+
+/** 公式注入防護：開頭是空白、控制字元或 = + - @ 的儲存格前面補單引號，試算表不會當成公式執行。 */
 function expectNoFormulaCells({ rows }: Csv): void {
-  for (const row of rows) for (const cell of row) expect(cell, `儲存格「${cell}」會被當成公式`).not.toMatch(/^[=+\-@]/)
+  for (const row of rows) for (const cell of row) expect(cell, `儲存格 ${JSON.stringify(cell)} 會被當成公式`).not.toMatch(FORMULA_START)
 }
 
 async function createRecord(api: AdminApi): Promise<void> {
@@ -113,6 +135,9 @@ async function createRecord(api: AdminApi): Promise<void> {
   })
 }
 
+// 保留 serial：beforeAll 建的孩子不是冪等的（worker 在測試失敗後重啟會再建一筆，後面的 toHaveCount(1)
+// 與「只有這一筆」全部連鎖紅），而且「操作紀錄」那一個測試要讀前兩個測試匯出時留下的稽核。拆成各自
+// 準備得讓每個測試重做一次匯出與建資料，改動比收益大。
 test.describe.configure({ mode: 'serial' })
 
 let api: AdminApi
@@ -133,9 +158,10 @@ test('訪視明細：依畫面篩選下載，欄位、月份、公式注入防�
 
     await test.step('搜尋孩子後匯出：只有這一筆（匯出的是目前篩選的全部結果）', async () => {
       await page.getByRole('textbox', { name: '搜尋訪視' }).fill(CHILD)
-      await expect(page.locator('.records-table .el-table__body tr')).toHaveCount(1)
+      await expect(page.getByRole('row').filter({ hasText: CHILD })).toHaveCount(1)
+      await expect(page.getByText('本頁 1 筆')).toBeVisible()
       const csv = await downloadCsv(page, () => page.getByRole('button', { name: '匯出 CSV' }).click())
-      expect(csv.filename).toBe(`招生訪視明細-義華-${taipeiDate(0)}.csv`)
+      expectFilename(csv, (day) => `招生訪視明細-義華-${day}.csv`)
       expect(csv.rows[0]).toEqual(RECORD_HEADER)
       expect(csv.rows).toHaveLength(2)
       expectRectangular(csv)
@@ -161,7 +187,8 @@ test('訪視明細：依畫面篩選下載，欄位、月份、公式注入防�
 
     await test.step('換一個搜尋字：匯出跟著篩選走，沒有符合的只剩表頭', async () => {
       await page.getByRole('textbox', { name: '搜尋訪視' }).fill('這個名字絕對沒有人')
-      await expect(page.locator('.records-table .el-table__body tr')).toHaveCount(0)
+      await expect(page.getByText('目前篩選條件下沒有訪視紀錄。')).toBeVisible()
+      await expect(page.getByRole('row').filter({ hasText: CHILD })).toHaveCount(0)
       // 沒有資料時畫面是空狀態；篩選後 0 筆的匯出不是錯誤，是只有表頭的檔案。
       const csv = await downloadCsv(page, () => page.getByRole('button', { name: '匯出 CSV' }).click())
       expect(csv.rows).toEqual([RECORD_HEADER])
@@ -175,12 +202,12 @@ test('未預繳名單：統計分析的未預繳原因頁下載', async ({ brows
   const { context, page } = await openAs(browser, 'super_admin')
   try {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=nodeposit`, '招生入學')
-    const list = page.locator('section.nd')
+    const list = page.getByRole('region', { name: '未預繳明細', exact: true })
     await expect(list.getByRole('heading', { name: '未預繳明細' })).toBeVisible()
     await expect(list.getByText(CHILD)).toBeVisible()
 
     const csv = await downloadCsv(page, () => list.getByRole('button', { name: '匯出 CSV' }).click())
-    expect(csv.filename).toBe(`未預繳名單-義華-${taipeiDate(0)}.csv`)
+    expectFilename(csv, (day) => `未預繳名單-義華-${day}.csv`)
     expect(csv.rows[0]).toEqual(NO_DEPOSIT_HEADER)
     expectRectangular(csv)
     expectNoFormulaCells(csv)
@@ -203,8 +230,9 @@ test('統計表：每張表自己的「匯出 CSV」，月份寫成 115年10月�
   const { context, page } = await openAs(browser, 'super_admin')
   try {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=class`, '招生入學')
-    const block = page.locator('section.stats-block', { has: page.getByRole('heading', { name: '月份 × 班別分布' }) })
-    await expect(block.locator('tbody tr').first()).toBeVisible()
+    const block = page.getByRole('region', { name: '月份 × 班別分布', exact: true })
+    // 第 0 列是表頭，第 1 列起是資料。
+    await expect(block.getByRole('row').nth(1)).toBeVisible()
 
     const csv = await downloadCsv(page, () => block.getByRole('button', { name: '把「月份 × 班別分布」匯出 CSV' }).click())
     expect(csv.filename).toMatch(/^招生統計-月份 × 班別分布-義華-全部學年-\d{4}-\d{2}-\d{2}\.csv$/)
@@ -229,22 +257,24 @@ test('操作紀錄：選期間後下載，總部有裝置與 IP 欄，匯出招�
   const { context, page } = await openAs(browser, 'super_admin')
   try {
     await gotoAdmin(page, '/audit', '操作紀錄')
-    const today = taipeiDate(0)
+    // 期間從本檔開跑那天選到現在這天（讀取當下重算）：前兩個測試在開跑那天留下的稽核，跨午夜也還在範圍內。
+    const from = RUN_DATE
+    const to = taipeiDate(0)
 
-    await test.step('期間選今天：清單與匯出都帶同一組日期', async () => {
+    await test.step('期間選開跑那天到今天：清單與匯出都帶同一組日期', async () => {
       // 日期範圍選擇器的 aria-label 與 data-test 都落在兩個輸入框上（開始、結束）。
       const [start, end] = [page.getByRole('combobox', { name: '期間' }).first(), page.getByRole('combobox', { name: '期間' }).last()]
-      const reloaded = page.waitForRequest((request) => request.url().includes('/admin/audit-log') && request.url().includes(`created_from=${today}`))
-      await start.fill(today)
-      await end.fill(today)
+      const reloaded = page.waitForRequest((request) => request.url().includes('/admin/audit-log') && request.url().includes(`created_from=${from}`))
+      await start.fill(from)
+      await end.fill(to)
       await end.press('Enter')
       const url = new URL((await reloaded).url())
-      expect(url.searchParams.get('created_to')).toBe(today)
+      expect(url.searchParams.get('created_to')).toBe(to)
       await expect(page.getByRole('status').filter({ hasText: /已載入 \d+ 筆/ })).toBeVisible()
     })
 
     const csv = await downloadCsv(page, () => page.locator('[data-test="audit-export"]').click())
-    expect(csv.filename).toBe(`操作紀錄-全部校區-${today}至${today}-${today}.csv`)
+    expectFilename(csv, (day) => `操作紀錄-全部校區-${from}至${to}-${day}.csv`)
     // 總部多一欄 IP（後端只給總部）；每個人都有「裝置」。
     expect(csv.rows[0]).toEqual([...AUDIT_HEADER, 'IP'])
     expectRectangular(csv)
@@ -253,7 +283,7 @@ test('操作紀錄：選期間後下載，總部有裝置與 IP 欄，匯出招�
     const exported = csv.rows.filter((row) => row[3] === '匯出招生訪視明細')
     expect(exported.length, '匯出訪視明細的稽核紀錄').toBeGreaterThanOrEqual(1)
     expect(exported[0]![0]).toMatch(/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/)
-    expect(exported[0]![2]).toBe('e2e-super@ivy.example')
+    expect(exported[0]![2]).toBe(USERS.super_admin.email)
     // 這筆是 Chrome 按出來的：裝置欄有瀏覽器名稱，總部的 IP 欄有值。
     expect(exported[0]![9]).toContain('Chrome')
     expect(exported[0]![10]).toMatch(/\d/)
@@ -290,6 +320,11 @@ test('權限：分校管理者沒有名單匯出鈕，操作紀錄匯出沒有 I
   }
 })
 
+/** 沒有 role／label 可以認的版面容器，用它裡面可以認的元素往上一層找，不綁我們自己的 class 名稱。 */
+function parentOf(locator: Locator): Locator {
+  return locator.locator('xpath=..')
+}
+
 /** 元素在視窗座標的外框；看不到（沒有外框）就是測試失敗。 */
 async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number; right: number; bottom: number }> {
   const rect = await locator.boundingBox()
@@ -303,18 +338,19 @@ test('版面：訪視明細標題列在 901～1030px（側欄還在、面板只�
     try {
       await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=records`, '招生入學')
       await expect(page.getByText(CHILD).first()).toBeVisible()
-      await expect(page.locator('.records__head-actions').getByRole('button', { name: '匯出 CSV' })).toBeVisible()
+      await expect(page.getByRole('button', { name: '匯出 CSV' })).toBeVisible()
       await expectNoHorizontalOverflow(page)
 
-      const title = await box(page.locator('.records__head h2'))
+      const heading = page.getByRole('heading', { name: '訪視明細', level: 2 })
+      const title = await box(heading)
       expect(title.height, `${width}px：「訪視明細」被擠成兩行以上（單行約 20px、兩行約 40px）`).toBeLessThan(30)
       for (const name of ['匯出 CSV', '新增訪視']) {
-        const target = await box(page.locator('.records__head-actions').getByRole('button', { name }))
+        const target = await box(page.getByRole('button', { name }))
         expect(target.right, `${width}px：「${name}」超出視窗`).toBeLessThanOrEqual(width)
       }
-      const scope = await box(page.locator('#records-export-scope'))
+      const scope = await box(page.getByText('匯出範圍：目前篩選的全部結果（不只本頁）'))
       expect(scope.right, `${width}px：匯出範圍說明超出視窗`).toBeLessThanOrEqual(width)
-      await page.locator('.records__head').scrollIntoViewIfNeeded()
+      await parentOf(heading).scrollIntoViewIfNeeded()
       await page.screenshot({ path: path.join(SHOTS, `exports-admissions-records-${width}.png`) })
     } finally {
       await context.close()
@@ -332,18 +368,19 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
       await test.step(`訪視明細標題列 ${device.name}`, async () => {
         await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=records`, '招生入學')
         await expect(page.getByText(CHILD).first()).toBeVisible()
-        const actions = page.locator('.records__head-actions')
-        const exportButton = actions.getByRole('button', { name: '匯出 CSV' })
-        const addButton = actions.getByRole('button', { name: '新增訪視' })
+        const heading = page.getByRole('heading', { name: '訪視明細', level: 2 })
+        const exportButton = page.getByRole('button', { name: '匯出 CSV' })
+        const addButton = page.getByRole('button', { name: '新增訪視' })
         await expect(exportButton).toBeVisible()
         await expect(addButton).toBeVisible()
         await expectNoHorizontalOverflow(page)
 
-        const title = await box(page.locator('.records__head h2'))
-        const group = await box(actions)
+        const title = await box(heading)
+        // 動作列是匯出鈕的父層（本頁筆數、匯出、範圍說明、新增訪視同在一組）；標題列是標題的父層。
+        const group = await box(parentOf(exportButton))
         const exportBox = await box(exportButton)
         const addBox = await box(addButton)
-        const scope = await box(page.locator('#records-export-scope'))
+        const scope = await box(page.getByText('匯出範圍：目前篩選的全部結果（不只本頁）'))
         // 標題一行（直排時四個字各佔一行，高度 80 以上）。
         expect(title.height, '「訪視明細」被擠成直排').toBeLessThan(40)
         expect(Math.max(exportBox.right, addBox.right, scope.right), '按鈕與說明不超出視窗').toBeLessThanOrEqual(device.width)
@@ -354,7 +391,7 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
         } else {
           // 桌機：標題與動作列同一行（標題列高度只有一行的量）。
           expect(group.y, '桌機標題與動作列同一行').toBeLessThan(title.bottom)
-          const headBox = await box(page.locator('.records__head'))
+          const headBox = await box(parentOf(heading))
           expect(headBox.height).toBeLessThan(80)
         }
         await page.screenshot({ path: path.join(SHOTS, `exports-admissions-records-${device.name}.png`) })
@@ -362,7 +399,7 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
 
       await test.step(`未預繳名單匯出鈕列 ${device.name}`, async () => {
         await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=nodeposit`, '招生入學')
-        const list = page.locator('section.nd')
+        const list = page.getByRole('region', { name: '未預繳明細', exact: true })
         await expect(list.getByText(CHILD)).toBeVisible()
         const button = list.getByRole('button', { name: '匯出 CSV' })
         await button.scrollIntoViewIfNeeded()
@@ -388,19 +425,21 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
         // 每張統計表標題右邊都有「匯出 CSV」：標題不被擠成直排、按鈕不超出視窗。
         for (const sub of ['class', 'staff']) {
           await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=${sub}`, '招生入學')
-          const heads = page.locator('.stats-block__head:visible')
-          await expect(heads.first()).toBeVisible()
-          for (let index = 0; index < (await heads.count()); index += 1) {
-            const head = heads.nth(index)
+          // 每張表的匯出鈕名稱是「把「表名」匯出 CSV」；標題列是鈕的父層，標題是裡面的 h3。
+          const buttons = page.getByRole('button', { name: /^把「.+」匯出 CSV$/ })
+          await expect(buttons.first()).toBeVisible()
+          for (let index = 0; index < (await buttons.count()); index += 1) {
+            const button = buttons.nth(index)
+            const head = parentOf(button)
             const headBox = await box(head)
-            const titleBox = await box(head.locator('.stats-block__title'))
-            const buttonBox = await box(head.getByRole('button', { name: /匯出 CSV/ }))
+            const titleBox = await box(head.getByRole('heading', { level: 3 }))
+            const buttonBox = await box(button)
             expect(titleBox.height, `第 ${index + 1} 張統計表標題被擠成直排`).toBeLessThan(60)
             expect(buttonBox.right, `第 ${index + 1} 張統計表的匯出鈕超出視窗`).toBeLessThanOrEqual(device.width)
             expect(headBox.right).toBeLessThanOrEqual(device.width)
           }
           await expectNoHorizontalOverflow(page)
-          await heads.first().scrollIntoViewIfNeeded()
+          await buttons.first().scrollIntoViewIfNeeded()
           await page.screenshot({ path: path.join(SHOTS, `exports-stats-head-${sub}-${device.name}.png`) })
         }
       })
@@ -412,9 +451,12 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
         await expect(page.getByRole('combobox', { name: '期間' }).first()).toBeVisible()
         await expectNoHorizontalOverflow(page)
 
-        const bar = await box(page.locator('.filter-bar'))
-        const editor = await box(page.locator('.filter-bar .el-date-editor'))
-        const field = await box(page.locator('.filter-bar .audit-period'))
+        // 篩選卡片用我們加的 data-test 認（沒有 role）；期間欄位是包著日期選擇器的 label；
+        // 日期選擇器根元素只有 Element Plus 自己的 class（沒有 role／label 可用），保留它。
+        const bar = await box(page.locator('[data-test="audit-filter-bar"]'))
+        const periodField = page.locator('label').filter({ has: page.getByRole('combobox', { name: '期間' }) })
+        const editor = await box(periodField.locator('.el-date-editor'))
+        const field = await box(periodField)
         // 日期範圍選擇器不超出自己的欄位，也就不超出篩選卡片。
         expect(editor.right, '期間選擇器超出自己的欄位').toBeLessThanOrEqual(field.right + 0.5)
         expect(editor.right, '期間選擇器超出篩選卡片').toBeLessThanOrEqual(bar.right)

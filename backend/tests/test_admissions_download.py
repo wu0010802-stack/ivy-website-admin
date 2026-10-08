@@ -502,6 +502,30 @@ async def test_records_export_refuses_more_than_the_limit(admin_client, db_sessi
     assert [entry.metadata_json["row_count"] for entry in entries] == [1]
 
 
+@pytest.mark.asyncio
+async def test_records_export_writes_no_audit_when_building_the_csv_fails(admin_client, db_session, monkeypatch):
+    # 稽核要在檔案組好之後才寫：組檔（含 CSV 序列化）丟錯時不能留下「匯出過」的紀錄，檔案也沒有外流。
+    await create_record(admin_client, child_name="組檔失敗", grade="中班")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("組檔失敗")
+
+    monkeypatch.setattr(csv_export, "csv_attachment", boom)
+    with pytest.raises(RuntimeError, match="組檔失敗"):
+        await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua")
+    entries = (
+        await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export"))
+    ).scalars().all()
+    assert entries == []
+    # 組檔恢復正常後照常寫稽核。
+    monkeypatch.undo()
+    _csv(await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua"))
+    entries = (
+        await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export"))
+    ).scalars().all()
+    assert [entry.metadata_json["row_count"] for entry in entries] == [1]
+
+
 # ---- 未預繳名單：欄名、每列轉換、稽核 metadata ----
 
 NO_DEPOSIT_EXPECTED_HEADERS = [
@@ -720,6 +744,33 @@ async def test_no_deposit_export_refuses_more_than_the_limit(admin_client, db_se
     # 剛好等於上限可以匯出；被拒絕的不寫稽核（沒有檔案外流）。
     _, rows = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua&reason=費用考量"))
     assert [row["姓名"] for row in rows] == ["未預繳一"]
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")
+        )
+    ).scalars().all()
+    assert [entry.metadata_json["row_count"] for entry in entries] == [1]
+
+
+@pytest.mark.asyncio
+async def test_no_deposit_export_writes_no_audit_when_building_the_csv_fails(admin_client, db_session, monkeypatch):
+    await create_record(admin_client, child_name="未預繳組檔失敗", visit_date=_days_ago(5), no_deposit_reason="費用考量")
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("組檔失敗")
+
+    monkeypatch.setattr(csv_export, "csv_attachment", boom)
+    with pytest.raises(RuntimeError, match="組檔失敗"):
+        await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua")
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")
+        )
+    ).scalars().all()
+    assert entries == []
+    monkeypatch.undo()
+    _, rows = _csv(await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=yihua"))
+    assert [row["姓名"] for row in rows] == ["未預繳組檔失敗"]
     entries = (
         await db_session.execute(
             select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export_no_deposit")

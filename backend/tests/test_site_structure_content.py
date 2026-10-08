@@ -24,7 +24,7 @@ CONTENT = f"{API}/admin/content-items"
 def _profile(name: str = "仁武校", **overrides) -> dict:
     base = {
         "name": name, "district": "仁武區", "address": "高雄市仁武區仁雄路1號", "phone": "07-000-0000",
-        "intro": "簡介", "description": "介紹", "facebook": "", "fb_note": "", "line": "",
+        "facebook": "", "line": "",
     }
     return {**base, **overrides}
 
@@ -67,7 +67,6 @@ async def _save_and_publish(client, kind: str, payload: dict, campus_key: str | 
 async def test_inactive_campus_is_left_out_of_public_site_until_reactivated(admin_client, public_client):
     for key in ("yihua", "renwu"):
         await _save_and_publish(admin_client, "campus_profile", _profile(name=f"{key}校"), key)
-        await _save_and_publish(admin_client, "campus_faq", {"items": [{"q": "問", "a": "答"}]}, key)
     await _save_and_publish(admin_client, "campus_news", {"articles": [], "events": [
         {"id": "e1", "date": "2026-10-03", "title": "仁武活動", "description": "說明"},
     ]}, "renwu")
@@ -80,22 +79,16 @@ async def test_inactive_campus_is_left_out_of_public_site_until_reactivated(admi
         {**article, "id": "a2", "title": "義華與仁武", "campus_keys": ["yihua", "renwu"]},
         {**article, "id": "a3", "title": "全校", "scope": "global", "campus_keys": []},
     ]})
-    await _save_and_publish(admin_client, "shared_faq", {"items": [
-        {"id": "f1", "q": "仁武題", "a": "答", "scope": "campus", "campus_keys": ["renwu"]},
-        {"id": "f2", "q": "全校題", "a": "答", "scope": "global"},
-    ]})
 
     off = await admin_client.patch(f"{API}/admin/campuses/renwu/status", json={"active": False, "reason": "暫停招生"})
     assert off.status_code == 200, off.text
 
     content = (await public_client.get(f"{API}/public/site")).json()["content"]
-    for kind in ("campus_profile", "campus_faq"):
-        assert set(content[kind]) == {"yihua"}
+    assert set(content["campus_profile"]) == {"yihua"}
     assert "campus_news" not in content
     titles = [a["title"] for a in content["home_news"]["articles"]]
     assert titles == ["義華與仁武", "全校"]
     assert content["home_news"]["articles"][0]["campus_keys"] == ["yihua"]
-    assert [i["q"] for i in content["shared_faq"]["items"]] == ["全校題"]
 
     # 公開時段查詢也不列停用校區。
     today = date.today()
@@ -117,7 +110,6 @@ async def test_inactive_campus_is_left_out_of_public_site_until_reactivated(admi
     assert set(content["campus_profile"]) == {"yihua", "renwu"}
     assert set(content["campus_news"]) == {"renwu"}
     assert [a["title"] for a in content["home_news"]["articles"]] == ["只給仁武", "義華與仁武", "全校"]
-    assert len(content["shared_faq"]["items"]) == 2
 
 
 def test_legacy_news_campus_label_of_inactive_campus_is_hidden():
@@ -178,7 +170,7 @@ async def test_campus_board_order_roundtrip(admin_client, public_client):
 
 @pytest.mark.parametrize(
     "href",
-    ["/", "/#about", "/admission", "/campuses/yihua#faq", "https://www.ivykidschool.com/", "https://example.com:8443/"],
+    ["/", "/#about", "/admission", "/admission#steps", "https://www.ivykidschool.com/", "https://example.com:8443/"],
 )
 def test_site_links_accept_internal_paths_and_https(href):
     footer = SiteFooterPayload.model_validate(_footer(links=[{"label": "連結", "href": href}]))

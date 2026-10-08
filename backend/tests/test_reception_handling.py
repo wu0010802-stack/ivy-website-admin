@@ -1,7 +1,7 @@
 """接待人員處理案件（2026-09-25 業主裁定）：booking.handle。
 
 櫃台可以記聯絡紀錄、確認排入時段（舊案）、人工補登（選場次即確認）、取消、標記未到場、
-完成參觀、後台改期、核准／退回家長改期、產生／撤銷家長管理連結；時段、
+完成參觀、後台改期、產生／撤銷家長管理連結；時段、
 每週規則、休假日與預約設定仍限 booking.manage。站內通知標為
 已處理不在裁定的清單裡，業主確認前也限 booking.manage。"""
 
@@ -20,7 +20,6 @@ from tests.conftest import (
     _logged_in_client,
     book_slot,
     legacy_request,
-    legacy_reschedule_request,
     start_visit_slot,
 )
 
@@ -153,10 +152,6 @@ async def test_reception_cannot_touch_schedule_settings(admin_client, reception)
     assert (await desk.post(
         f"{BASE}/visit-schedule/yihua/exceptions", json={"exception_date": date.today().isoformat()}
     )).status_code == 403
-    today = date.today().isoformat()
-    assert (await desk.post(
-        f"{BASE}/visit-schedule/yihua/generate", json={"date_from": today, "date_to": today}
-    )).status_code == 403
     assert (await desk.patch(
         f"{BASE}/booking-config/yihua", json={"expected_version": 0, "mode": "phone", "phone": "07-000-0000"}
     )).status_code == 403
@@ -177,26 +172,6 @@ async def test_reception_stays_inside_own_campus(admin_client, reception):
                                         "phone": "0911222333", "consent_given": True, "slot_id": other_slot["id"]},
         headers={"Idempotency-Key": "desk-wrong-campus"},
     )).status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_reception_decides_parent_reschedule_requests(admin_client, public_client, reception, db_session):
-    _, desk = reception
-    booked = await book_slot(admin_client, public_client, idempotency_key="desk-reschedule-01")
-    receipt_id = booked["receipt_id"]
-    slot_b = await _slot(admin_client, days_ahead=4, start="15:00:00", end="16:00:00")
-    slot_c = await _slot(admin_client, days_ahead=4, start="16:00:00", end="17:00:00")
-
-    # 上線前家長送出、還在等園方核准的改期申請（家長端「申請改期」已退場）。
-    first = await legacy_reschedule_request(db_session, receipt_id, slot_b["id"])
-    rejected = await desk.post(f"{BASE}/reschedule-requests/{first}/reject")
-    assert rejected.status_code == 200, rejected.text
-    assert rejected.json()["status"] == "rejected"
-
-    second = await legacy_reschedule_request(db_session, receipt_id, slot_c["id"])
-    approved = await desk.post(f"{BASE}/reschedule-requests/{second}/approve")
-    assert approved.status_code == 200, approved.text
-    assert approved.json()["slot_id"] == slot_c["id"]
 
 
 @pytest.mark.asyncio

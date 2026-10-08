@@ -172,7 +172,7 @@ async function confirmSuperAdmin(who: string): Promise<boolean> {
 }
 
 // 全站共用內容授權實際涵蓋的範圍（nav.ts 裡標 shared 的各頁與共用素材）。
-const SHARED_CONTENT_SCOPE = '共用內容包括首頁各區塊、入學資訊頁、預約文案、共用常見問題、頁尾文字、網站標題與電話，以及五校共用的素材。'
+const SHARED_CONTENT_SCOPE = '共用內容包括首頁各區塊、入學資訊頁、預約文案、頁尾文字、網站標題與電話，以及五校共用的素材。'
 function sharedContentHelp(role: Role): string {
   return role === 'editor'
     ? '改完一樣要送審，由總管理者或有這項授權的校區管理者發布。'
@@ -498,7 +498,8 @@ function clearReset() {
   linkResult.value = null
 }
 
-const EXPORT_HELP = 'CSV 含家長姓名、電話、Email 與孩子資料，每次匯出都會留下操作紀錄。只開給確實需要的人。'
+// 三份匯出實際含的個資：參觀案件（家長姓名、電話、Email、孩子姓名與生日）、招生訪視明細（再加地址、父母職業、電訪回應與備註）、未預繳名單（姓名與電訪回應）。
+const EXPORT_HELP = '參觀案件與招生名單的 CSV 含孩子與家長的姓名、電話、Email、地址、父母職業等資料，每次匯出都會留下操作紀錄。只開給確實需要的人。'
 
 // 本人在「我的帳號」綁定的快速登入方式；總管理者只看得到有沒有綁，看不到對方的 Google／LINE 帳號。
 function loginLinks(u: UserOut): string {
@@ -652,7 +653,7 @@ onMounted(loadUsers)
             <span class="field-help">{{ SHARED_CONTENT_SCOPE }}{{ sharedContentHelp(form.role) }}</span>
           </el-form-item>
           <el-form-item v-if="EXPORT_ROLES.includes(form.role)">
-            <el-checkbox v-model="form.export_data">可以匯出負責校區的家長個資（CSV）</el-checkbox>
+            <el-checkbox v-model="form.export_data">可以匯出負責校區的參觀案件與招生名單（CSV）</el-checkbox>
             <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
         </el-form>
@@ -699,7 +700,7 @@ onMounted(loadUsers)
             <span class="field-help">{{ SHARED_CONTENT_SCOPE }}{{ sharedContentHelp(scopeRole) }}</span>
           </el-form-item>
           <el-form-item v-if="EXPORT_ROLES.includes(scopeRole)">
-            <el-checkbox v-model="scopeExport">可以匯出負責校區的家長個資（CSV）</el-checkbox>
+            <el-checkbox v-model="scopeExport">可以匯出負責校區的參觀案件與招生名單（CSV）</el-checkbox>
             <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
         </el-form>

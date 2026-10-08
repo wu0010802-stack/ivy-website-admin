@@ -449,7 +449,7 @@ describe('案件明細的聯絡紀錄寫名字', () => {
     id: 'case-a', campus_key: 'yihua', status: 'contacting', source: 'phone', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
     child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, party_size: null,
     slot_id: null, slot: null, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null, version: 1,
-    created_by: 'u2', confirmed_at: null, cancelled_at: null, pending_reschedule: null, access_link: null,
+    created_by: 'u2', confirmed_at: null, cancelled_at: null, access_link: null,
     history: [{ id: 'e1', event_type: 'contacting', source: 'staff', actor_user_id: 'u1', actor_email: 'amy@ivy.example', actor_display_name: '王小美', before: null, after: null, reason: null, created_at: '2026-09-22T01:00:00Z' }],
   }
   const notes = [{ id: 'n1', note: '已致電', created_at: '2026-09-22T02:00:00Z', created_by: 'u1', created_by_email: 'amy@ivy.example', created_by_display_name: '王小美' }]
@@ -497,10 +497,10 @@ describe('發布紀錄、排程與通知寫名字', () => {
         return { items: [{ id: 'r1', created_at: '2026-09-25T02:00:00Z', created_by_email: 'amy@ivy.example', created_by_display_name: '王小美', source: 'publish', restored_from_release_id: null, is_current: true, changes: [] }], next_before: null } as never
       }
       if (url.startsWith('/admin/publish-jobs')) {
-        return [{ id: 'j1', kind: 'campus_faq', campus_key: 'yihua', revision_id: 'r1', revision_version: 2, publish_at: '2099-09-26T01:00:00Z', status: 'scheduled', error: null, created_by_email: 'ed@ivy.example', created_by_display_name: null, created_at: '2026-09-25T01:00:00Z', finished_at: null, can_cancel: true }] as never
+        return [{ id: 'j1', kind: 'campus_news', campus_key: 'yihua', revision_id: 'r1', revision_version: 2, publish_at: '2099-09-26T01:00:00Z', status: 'scheduled', error: null, created_by_email: 'ed@ivy.example', created_by_display_name: null, created_at: '2026-09-25T01:00:00Z', finished_at: null, can_cancel: true }] as never
       }
       if (url.startsWith('/admin/my-notifications')) {
-        return [{ id: 'n1', kind: 'content_review_submitted', campus_key: 'yihua', content_kind: 'campus_faq', revision_version: 3, note: null, error: null, publish_at: null, actor_email: 'ed@ivy.example', actor_display_name: '編輯小陳', created_at: '2026-09-25T02:00:00Z', read_at: null }] as never
+        return [{ id: 'n1', kind: 'content_review_submitted', campus_key: 'yihua', content_kind: 'campus_news', revision_version: 3, note: null, error: null, publish_at: null, actor_email: 'ed@ivy.example', actor_display_name: '編輯小陳', created_at: '2026-09-25T02:00:00Z', read_at: null }] as never
       }
       return {} as never
     })

@@ -281,10 +281,15 @@ async def test_concurrent_deactivation_keeps_one_super_admin(app, admin_client, 
 
 @pytest.mark.asyncio
 async def test_content_text_fields_are_bounded(admin_client):
-    resp = await admin_client.post(
-        "/api/website/v1/admin/content-items/campus_faq/revisions?campus_key=yihua",
-        json={"expected_version": 0, "payload": {"items": [{"q": "問題", "a": "長" * 2001}]}},
-    )
+    url = "/api/website/v1/admin/content-items/campus_news/revisions?campus_key=yihua"
+
+    def payload(length: int) -> dict:
+        return {"events": [{"id": "event-1", "date": "2026-11-01", "title": "問題", "description": "長" * length}]}
+
+    # 剛好 2000 字可以存；多一個字就擋下（排除是其他欄位造成的 422）。
+    resp = await admin_client.post(url, json={"expected_version": 0, "payload": payload(2000)})
+    assert resp.status_code == 201, resp.text
+    resp = await admin_client.post(url, json={"expected_version": 1, "payload": payload(2001)})
     assert resp.status_code == 422
 
 

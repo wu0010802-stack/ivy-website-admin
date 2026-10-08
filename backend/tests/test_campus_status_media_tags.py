@@ -103,10 +103,10 @@ async def test_media_tags_caption_license_and_search(admin_client):
     assert other.status_code == 201
 
     by_tag = await admin_client.get(f"{API}/admin/media?tag=戶外")
-    assert [m["id"] for m in by_tag.json()] == [media_id]
+    assert [m["id"] for m in by_tag.json()["items"]] == [media_id]
     by_q = await admin_client.get(f"{API}/admin/media?q=遊戲")
-    assert [m["id"] for m in by_q.json()] == [media_id]
-    assert len((await admin_client.get(f"{API}/admin/media")).json()) == 2
+    assert [m["id"] for m in by_q.json()["items"]] == [media_id]
+    assert (await admin_client.get(f"{API}/admin/media")).json()["total"] == 2
 
     too_long = await admin_client.patch(f"{API}/admin/media/{media_id}", json={"expected_version": 1, "tags": ["x" * 31]})
     assert too_long.status_code == 422

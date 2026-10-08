@@ -56,7 +56,7 @@ NO_SLOTS_OR_RULES = NotReadyReason(
     "NO_SLOTS_OR_RULES", "目前沒有官網可預約的場次，也沒有每週開放規則，請先到「時段與容量」新增場次或規則"
 )
 
-# 家長在官網填表的方式：要有已發布的同意文字才能收件。
+# 家長在官網填表的方式（2026-10-02 起不必先發布同意文字）。
 FORM_MODES = (BookingMode.SLOTS,)
 
 

@@ -106,14 +106,15 @@ const meta = computed(() => {
 </template>
 
 <style scoped>
-/* 高度＝視窗高扣掉頂欄、上方間距與黏底動作列。--editor-actions-h 由 ContentEditor 的 .editor 定義
-   （依 --control-h 算出動作列真實高度）；88px 只是放在別處時的備用值（滑鼠操作時約 87）。 */
+/* top、height 由 ContentEditor 量到實際的頂欄、黏底動作列與版面位置後綁在 .editor 上（usePreviewPaneFit）：
+   沒捲動時欄底不被動作列蓋住、捲到底時欄頂不被頂欄蓋住。--live-preview-* 沒有（還沒量到、放在別處）時退回估算：
+   視窗高扣掉頂欄、上方間距與動作列，--editor-actions-h 由 ContentEditor 的 .editor 定義；88px 是放在別處時的備用值。 */
 .live-preview {
   position: sticky;
-  top: calc(var(--top-h) + 24px);
+  top: var(--live-preview-top, calc(var(--top-h) + 24px));
   display: flex;
   flex-direction: column;
-  height: calc(100svh - var(--top-h) - 24px - var(--editor-actions-h, 88px));
+  height: var(--live-preview-h, calc(100svh - var(--top-h) - 24px - var(--editor-actions-h, 88px)));
   min-height: 420px;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);

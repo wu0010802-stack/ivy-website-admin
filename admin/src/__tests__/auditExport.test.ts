@@ -305,3 +305,32 @@ describe('操作紀錄匯出 CSV', () => {
     expect(none.find('[data-test="audit-export"]').exists()).toBe(false)
   })
 })
+
+describe('操作紀錄的搜尋標籤與狀態區（T8a）', () => {
+  it('搜尋欄標籤不限定「已載入」；live region 只放會變動的筆數，匯出鈕與範圍說明在區外', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue([entry('a1')] as never)
+    const wrapper = await mountAudit()
+    expect(wrapper.get('.filter-search span').text()).toBe('搜尋紀錄')
+    const status = wrapper.get('.list-summary [role="status"]')
+    expect(status.text()).toBe('已載入 1 筆')
+    // 固定內容（重新整理、匯出、範圍說明）不在 live region 裡，切換校區讀屏不會整串重念。
+    const scope = wrapper.get('#audit-export-scope')
+    expect(scope.text()).toContain('匯出範圍')
+    expect(status.element.contains(scope.element)).toBe(false)
+    expect(status.element.contains(wrapper.get('[data-test="audit-export"]').element)).toBe(false)
+    expect(wrapper.get('[data-test="audit-export"]').attributes('aria-describedby')).toBe('audit-export-scope')
+  })
+
+  it('搜尋時筆數旁註明更早的紀錄還沒載入（畫面搜尋只比對已載入的）；全部載完就不註明', async () => {
+    const full = Array.from({ length: 100 }, (_, i) => entry(`a${i}`))
+    vi.spyOn(api, 'get').mockResolvedValue(full as never)
+    const more = await mountAudit()
+    await more.get('.filter-search input').setValue('匯出')
+    expect(more.get('.list-summary [role="status"]').text()).toBe('符合 100 筆・已載入 100 筆（更早的紀錄未載入）')
+
+    vi.spyOn(api, 'get').mockResolvedValue([entry('a1')] as never)
+    const done = await mountAudit()
+    await done.get('.filter-search input').setValue('匯出')
+    expect(done.get('.list-summary [role="status"]').text()).toBe('符合 1 筆・已載入 1 筆')
+  })
+})

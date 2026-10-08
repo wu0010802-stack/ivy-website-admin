@@ -61,7 +61,7 @@ const form = ref({
   external_url: '',
   message: '',
   // 預設由園方確認；明確開啟後才允許送出即成立。
-  // 家長線上取消／申請改期最晚到參觀前幾小時（規格 238，預設 24）。
+  // 家長線上取消／改期最晚到參觀前幾小時（規格 238，預設 24）。
   parent_change_deadline_hours: 24,
 })
 const snapshot = ref('')

@@ -15,6 +15,9 @@ import { webUrlError } from '../composables/newsContent'
 import type { EditorSection } from '../composables/editorSections'
 
 const campus = ref('')
+// 一句話簡介（intro）、詳細介紹（description）、Facebook 備註（fb_note）官網不顯示，
+// 2026-10-08 連後端欄位一起拿掉：舊版本存著的值載入時丟掉，不會出現在「變更了哪些
+// 欄位」，存檔也不再送出（後端同樣忽略）。
 const editor = useContentItem<CampusProfilePayload>(
   'campus_profile',
   {
@@ -22,11 +25,7 @@ const editor = useContentItem<CampusProfilePayload>(
     district: '',
     address: '',
     phone: '',
-    intro: '',
-    description: '',
     facebook: '',
-    // Facebook 備註：官網不顯示、後台不列。載入時舊內容的值會蓋過這個空字串，存檔照原樣送回。
-    fb_note: '',
     line: '',
     map_url: '',
     cover: null,
@@ -38,14 +37,23 @@ const editor = useContentItem<CampusProfilePayload>(
     youtube: '',
   },
   campus,
+  {
+    normalize: (payload) => {
+      const { intro: _intro, description: _description, fb_note: _fbNote, ...rest } = payload as CampusProfilePayload & {
+        intro?: string
+        description?: string
+        fb_note?: string
+      }
+      return rest
+    },
+  },
 )
 
 // 段落目錄（2026-10-06 方向 D）：每段列出它編輯的欄位，和官網不同時目錄打點。
-// intro、description 官網已不顯示（分校頁拿掉），fb_note 後台不列，都算在原本所在的那一段。
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-profile-basic', label: '基本資料', fields: ['name', 'district', 'address', 'map_url', 'phone', 'intro', 'description'] },
+  { id: 'section-profile-basic', label: '基本資料', fields: ['name', 'district', 'address', 'map_url', 'phone'] },
   { id: 'section-profile-cover', label: '封面照片與建築線稿', fields: ['cover', 'card_focus', 'hero_focus', 'line_art', 'line_art_colour'] },
-  { id: 'section-profile-social', label: '社群', fields: ['facebook', 'fb_note', 'line', 'instagram', 'youtube'] },
+  { id: 'section-profile-social', label: '社群', fields: ['facebook', 'line', 'instagram', 'youtube'] },
 ])
 
 // 官網內建的五校封面（沒換封面時也能只調兩個版位的焦點）。
@@ -211,8 +219,6 @@ function blankError(value: string | null | undefined): string {
         <el-input v-model="editor.form.value.facebook" inputmode="url" placeholder="https://www.facebook.com/…" />
         <span class="field-help">留空時首頁五校卡不顯示 Facebook；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
-      <!-- Facebook 備註（fb_note）官網不顯示，2026-09-29 業主同意後台不再列這一欄；
-           舊內容的值留在表單裡照原樣存回，不清掉。 -->
       <el-form-item label="LINE 官方帳號網址" :error="webUrlError(editor.form.value.line)">
         <el-input v-model="editor.form.value.line" inputmode="url" placeholder="https://lin.ee/…" />
         <span class="field-help">留空代表這一校尚未提供：首頁五校卡寫「LINE · 待園方提供」，頁首選單列出這一校的社群時標「待提供」；不會帶入其他校的帳號。</span>

@@ -4,7 +4,7 @@ import { campusLabel } from '../api/labels'
 import type { ScopedEntry } from '../api/types'
 import { CAMPUS_KEYS, scopeInvalid } from '../composables/newsContent'
 
-// 全站消息、活動與共用常見問題的適用範圍（規格 3.4）：全校，或指定校區
+// 全站消息與活動的適用範圍（規格 3.4）：全校，或指定校區
 // （至少一校）。只在全站內容用；各校自己的內容一定屬於那一校。直接改傳進來
 // 的那一項（同其他清單編輯的寫法）。
 const props = defineProps<{ entry: ScopedEntry; label?: string }>()

@@ -52,11 +52,7 @@ function makeFixture(): SiteContent {
     } as SiteContent['siteMeta'],
     booking: {
       ctaLabel: 'fixture cta label',
-      ctaLabelEn: 'fixture cta label en',
-      consentText: 'fixture consent',
-      bannerTitleTemplate: 'fixture banner title',
-      bannerBody: 'fixture banner body',
-      bannerButtonLabel: 'fixture banner button'
+      ctaLabelEn: 'fixture cta label en'
     } as SiteContent['booking'],
     dayExperience: {
       eyebrow: 'fixture day eyebrow',
@@ -162,11 +158,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
       home_campus_board: { section_title: '新區塊標題', eyebrow: '新 eyebrow', note: '新說明' },
       booking_content: {
         cta_label: '新按鈕',
-        cta_label_en: 'New CTA',
-        consent_text: '新同意文字',
-        banner_title_template: '新橫幅標題',
-        banner_body: '新橫幅內文',
-        banner_button_label: '新橫幅按鈕'
+        cta_label_en: 'New CTA'
       }
     })
     expect(result.siteMeta.title).toBe('新標題')
@@ -203,6 +195,8 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
   it('campus_profile 依 campus_key 分別套用到對應校區，不影響其他校；分校頁才用的欄位不再疊上', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {
+      // intro／description／fb_note 後端 2026-10-08 拿掉（新版本不帶）；這裡模擬線上已發布的舊版本
+      // 還帶著，官網照樣忽略。
       campus_profile: {
         yihua: {
           name: '義華新名稱',
@@ -216,7 +210,8 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
           line: 'https://line.me/test'
         }
       },
-      // 常見問題隨分校頁拿掉（2026-10-04 起官網不讀）。
+      // 常見問題隨分校頁拿掉（2026-10-04 起官網不讀），後端 2026-10-08 也刪了這個內容類型；
+      // 舊版 overlay 若還帶著，官網照樣忽略。
       campus_faq: {
         yihua: { items: [{ q: '新問題', a: '新回答' }] }
       }
@@ -239,10 +234,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
           district: 'd',
           address: 'a',
           phone: 'p',
-          intro: 'i',
-          description: 'desc',
           facebook: 'fb',
-          fb_note: 'fbn',
           line: ''
         }
       }
@@ -252,7 +244,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
   })
 
   describe('campus_profile 的 instagram／youtube（2026-09-25 新增欄位）', () => {
-    const profile = { name: 'n', district: 'd', address: 'a', phone: 'p', intro: 'i', description: 'desc', facebook: 'fb', fb_note: 'fbn', line: '' }
+    const profile = { name: 'n', district: 'd', address: 'a', phone: 'p', facebook: 'fb', line: '' }
     const withSocials = () => {
       const fixture = makeFixture()
       Object.assign(fixture.campuses[0]!, { instagram: 'https://fixture/ig', youtube: 'https://fixture/yt' })

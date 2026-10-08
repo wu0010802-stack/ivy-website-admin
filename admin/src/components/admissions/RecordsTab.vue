@@ -19,7 +19,8 @@ import { usePermissions } from '../../composables/usePermissions'
 import { useRouter } from 'vue-router'
 import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
-import { csvFilename, downloadServerCsv } from '../../utils/csv'
+import { csvFilename } from '../../utils/csv'
+import { useServerCsvExport } from '../../composables/useServerCsvExport'
 import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
 import TransitionDialog from './TransitionDialog.vue'
@@ -134,20 +135,11 @@ async function load() {
   }
 }
 
-// CSV 由後端產生（含個資、寫稽核、有筆數上限）：筆數太多回 422 中文訊息，沒權限回 403，
-// 都用提示講清楚，不產生檔案。
-const exporting = ref(false)
-async function exportCsv() {
-  if (exporting.value) return
-  exporting.value = true
-  try {
-    await downloadServerCsv(recordsExportPath(currentFilters()), csvFilename('招生訪視明細', campusLabel(props.campusKey), taipeiToday()))
-  } catch (err) {
-    notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
-  } finally {
-    exporting.value = false
-  }
-}
+// CSV 由後端產生（含個資、寫稽核、有筆數上限）：失敗提示與防重按在 useServerCsvExport。
+const { exporting, exportCsv } = useServerCsvExport(() => ({
+  path: recordsExportPath(currentFilters()),
+  filename: csvFilename('招生訪視明細', campusLabel(props.campusKey), taipeiToday()),
+}))
 
 async function loadOptions() {
   if (!props.campusKey) return

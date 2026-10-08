@@ -46,7 +46,6 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.schemas import (
-    VisitGroupCountsOut,
     VisitViewCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
@@ -1004,24 +1003,6 @@ def _apply_list_order(stmt, order: str):
     return stmt.order_by(VisitRequest.created_at.desc(), VisitRequest.id.desc())
 
 
-@router.get("/admin/visit-requests/group-counts", response_model=VisitGroupCountsOut)
-async def visit_request_group_counts(
-    filters: VisitRequestFilters = Depends(),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitGroupCountsOut:
-    """分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。"""
-    require_scope(current_user, "booking.read")
-    filters.status = None
-    filters.group = None
-    filters.view = None
-    base = filters.apply(select(func.count()).select_from(VisitRequest), current_user, "booking.read")
-    counts = {}
-    for group in status_groups.GROUPS:
-        counts[group] = (await db.execute(base.where(status_groups.group_condition(group)))).scalar_one()
-    return VisitGroupCountsOut(**counts)
-
-
 @router.get("/admin/visit-requests/view-counts", response_model=VisitViewCountsOut)
 async def visit_request_view_counts(
     filters: VisitRequestFilters = Depends(),
@@ -1092,7 +1073,7 @@ async def _stream_export_csv(snapshot: AsyncSession, stmt):
         await snapshot.close()
 
 
-@router.get("/admin/visit-requests/export")
+@router.get("/admin/visit-requests/export", response_class=Response, responses=csv_export.CSV_RESPONSES)
 async def export_visit_requests(
     request: Request,
     filters: VisitRequestFilters = Depends(),
@@ -1103,7 +1084,9 @@ async def export_visit_requests(
     # 串流輸出，不一次把全部案件載進記憶體。筆數與內容取自同一個
     # REPEATABLE READ 快照（匯出專用的獨立 session，交易生命週期跟回應一樣長，
     # 不能用請求注入的 session——它可能在串流完成前就關了），稽核紀錄在送出
-    # 第一個位元組之前寫好並 commit，筆數就是快照內實際會輸出的筆數。
+    # 第一個位元組之前寫好並 commit，筆數就是快照內實際會輸出的筆數。串流匯出沒有「先組好整份檔案」
+    # 這一步（chunk 邊讀邊組，不一次放進記憶體），所以不像招生兩支匯出（admissions/routes.py）把
+    # csv_attachment 排在稽核之前；commit 之後只剩建立回應物件（產生器要到送出 chunk 才會執行）。
     require_scope(current_user, "booking.export")
     base = filters.apply(select(VisitRequest), current_user, "booking.export")
     stmt = base.options(selectinload(VisitRequest.slot)).order_by(VisitRequest.created_at.desc())
@@ -1296,8 +1279,8 @@ async def get_visit_request(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> VisitRequestFullOut:
-    """案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長
-    改期申請、家長管理連結是否有效（規格 L299）。"""
+    """案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、家長管理連結
+    是否有效（規格 L299）。"""
     visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
     return await presenters.full_detail(db, visit_request)
 

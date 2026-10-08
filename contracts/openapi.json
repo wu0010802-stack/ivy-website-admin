@@ -4549,6 +4549,51 @@
         "title": "MediaAssetOut",
         "type": "object"
       },
+      "MediaAssetPageOut": {
+        "description": "素材列表的一頁（新的在前）。",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaAssetOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "state_total": {
+            "title": "State Total",
+            "type": "integer"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "state_total",
+          "page",
+          "page_size",
+          "tags"
+        ],
+        "title": "MediaAssetPageOut",
+        "type": "object"
+      },
       "MediaHistoryReferenceOut": {
         "description": "只剩可還原的舊版本在用：同一內容項合併成一筆。",
         "properties": {
@@ -5513,6 +5558,19 @@
         "title": "NotificationOutboxPageOut",
         "type": "object"
       },
+      "NotificationReadAllOut": {
+        "properties": {
+          "updated": {
+            "title": "Updated",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "title": "NotificationReadAllOut",
+        "type": "object"
+      },
       "NotificationRetryBatchOut": {
         "properties": {
           "requeued": {
@@ -6020,11 +6078,6 @@
               }
             ],
             "title": "Questions"
-          },
-          "reschedule_pending": {
-            "default": false,
-            "title": "Reschedule Pending",
-            "type": "boolean"
           },
           "slot": {
             "anyOf": [
@@ -8332,92 +8385,6 @@
         "title": "ReleaseRestoreRequest",
         "type": "object"
       },
-      "RescheduleDecisionRequest": {
-        "description": "退回家長改期申請時的原因（選填）。",
-        "properties": {
-          "reason": {
-            "anyOf": [
-              {
-                "maxLength": 500,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "title": "RescheduleDecisionRequest",
-        "type": "object"
-      },
-      "RescheduleRequestOut": {
-        "description": "家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，\n以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。",
-        "properties": {
-          "campus_key": {
-            "title": "Campus Key",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "current_slot": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/VisitSlotBriefOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "parent_name": {
-            "title": "Parent Name",
-            "type": "string"
-          },
-          "requested_slot": {
-            "$ref": "#/components/schemas/VisitSlotBriefOut"
-          },
-          "requested_slot_available": {
-            "title": "Requested Slot Available",
-            "type": "boolean"
-          },
-          "requested_slot_remaining": {
-            "title": "Requested Slot Remaining",
-            "type": "integer"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "visit_request_id": {
-            "format": "uuid",
-            "title": "Visit Request Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "visit_request_id",
-          "campus_key",
-          "status",
-          "parent_name",
-          "current_slot",
-          "requested_slot",
-          "requested_slot_remaining",
-          "requested_slot_available",
-          "created_at"
-        ],
-        "title": "RescheduleRequestOut",
-        "type": "object"
-      },
       "ResendConfirmationOut": {
         "description": "重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。",
         "properties": {
@@ -8912,51 +8879,6 @@
           "expected_version"
         ],
         "title": "SeatRequest",
-        "type": "object"
-      },
-      "SiteSettingsUpdate": {
-        "properties": {
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "expected_version": {
-            "minimum": 1.0,
-            "title": "Expected Version",
-            "type": "integer"
-          },
-          "noindex": {
-            "title": "Noindex",
-            "type": "boolean"
-          },
-          "privacy_policy_version": {
-            "title": "Privacy Policy Version",
-            "type": "string"
-          },
-          "share_image": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Share Image"
-          },
-          "title": {
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "expected_version",
-          "title",
-          "description",
-          "noindex",
-          "privacy_policy_version"
-        ],
-        "title": "SiteSettingsUpdate",
         "type": "object"
       },
       "SubmitReviewRequest": {
@@ -9842,29 +9764,6 @@
         "title": "VisitExceptionRemovedOut",
         "type": "object"
       },
-      "VisitGroupCountsOut": {
-        "properties": {
-          "cancelled": {
-            "title": "Cancelled",
-            "type": "integer"
-          },
-          "past": {
-            "title": "Past",
-            "type": "integer"
-          },
-          "upcoming": {
-            "title": "Upcoming",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "upcoming",
-          "past",
-          "cancelled"
-        ],
-        "title": "VisitGroupCountsOut",
-        "type": "object"
-      },
       "VisitHistoryOut": {
         "description": "案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝\n家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。\nbefore／after 只含狀態、時段（slot_date、start_time、end_time）或下次聯絡\n時間（2026-10-06 以前的舊紀錄可能還有已拿掉的承辦人），不含家長個資。",
         "properties": {
@@ -10462,7 +10361,7 @@
         "type": "object"
       },
       "VisitRequestFullOut": {
-        "description": "案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。\n列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。",
+        "description": "案件明細頁用：案件本身＋歷程、家長連結狀態。\n列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。",
         "properties": {
           "access_link": {
             "anyOf": [
@@ -10664,16 +10563,6 @@
             ],
             "title": "Party Size"
           },
-          "pending_reschedule": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RescheduleRequestOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "phone": {
             "title": "Phone",
             "type": "string"
@@ -10789,7 +10678,6 @@
           "created_at",
           "version",
           "history",
-          "pending_reschedule",
           "access_link",
           "parent_change_deadline_hours",
           "display_status"
@@ -11343,49 +11231,6 @@
           "capacity"
         ],
         "title": "VisitSlotCreateRequest",
-        "type": "object"
-      },
-      "VisitSlotGenerateOut": {
-        "properties": {
-          "created": {
-            "title": "Created",
-            "type": "integer"
-          },
-          "skipped_exception_days": {
-            "title": "Skipped Exception Days",
-            "type": "integer"
-          },
-          "skipped_existing": {
-            "title": "Skipped Existing",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "created",
-          "skipped_existing",
-          "skipped_exception_days"
-        ],
-        "title": "VisitSlotGenerateOut",
-        "type": "object"
-      },
-      "VisitSlotGenerateRequest": {
-        "properties": {
-          "date_from": {
-            "format": "date",
-            "title": "Date From",
-            "type": "string"
-          },
-          "date_to": {
-            "format": "date",
-            "title": "Date To",
-            "type": "string"
-          }
-        },
-        "required": [
-          "date_from",
-          "date_to"
-        ],
-        "title": "VisitSlotGenerateRequest",
         "type": "object"
       },
       "VisitSlotOut": {
@@ -12569,11 +12414,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載"
           },
           "422": {
             "content": {
@@ -13427,11 +13274,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載"
           },
           "422": {
             "content": {
@@ -16769,75 +16618,6 @@
         ]
       }
     },
-    "/api/website/v1/admin/content-kinds": {
-      "get": {
-        "operationId": "list_content_kinds_api_website_v1_admin_content_kinds_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "title": "Response List Content Kinds Api Website V1 Admin Content Kinds Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Content Kinds",
-        "tags": [
-          "content"
-        ]
-      }
-    },
     "/api/website/v1/admin/content-reviews": {
       "get": {
         "description": "待審核清單：只列目前使用者有權發布的內容。",
@@ -17260,6 +17040,7 @@
     },
     "/api/website/v1/admin/media": {
       "get": {
+        "description": "素材庫與選圖器的清單：新的在前，同一時間再依 id 排，翻頁時不會重複或漏掉。\n只對這一頁的素材讀衍生檔、引用與上傳者。",
         "operationId": "list_media_api_website_v1_admin_media_get",
         "parameters": [
           {
@@ -17282,7 +17063,7 @@
             }
           },
           {
-            "description": "檔名、圖片說明、圖說或標籤片段",
+            "description": "檔名、圖片說明、內部備註或標籤片段",
             "in": "query",
             "name": "q",
             "required": false,
@@ -17296,7 +17077,7 @@
                   "type": "null"
                 }
               ],
-              "description": "檔名、圖片說明、圖說或標籤片段",
+              "description": "檔名、圖片說明、內部備註或標籤片段",
               "title": "Q"
             }
           },
@@ -17315,6 +17096,91 @@
               ],
               "title": "State",
               "type": "string"
+            }
+          },
+          {
+            "description": "__shared＝只列跨校共用；校區代號＝只列那一校（看不到的校區沒有結果）；不帶＝看得到的全部",
+            "in": "query",
+            "name": "campus",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 50,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "__shared＝只列跨校共用；校區代號＝只列那一校（看不到的校區沒有結果）；不帶＝看得到的全部",
+              "title": "Campus"
+            }
+          },
+          {
+            "description": "和 campus=校區代號 一起用：那一校加上跨校共用（選圖器）",
+            "in": "query",
+            "name": "include_shared",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "和 campus=校區代號 一起用：那一校加上跨校共用（選圖器）",
+              "title": "Include Shared",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "只列圖片或影片",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/MediaKind"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只列圖片或影片",
+              "title": "Kind"
+            }
+          },
+          {
+            "description": "不列處理失敗的素材（選圖器）",
+            "in": "query",
+            "name": "exclude_failed",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "不列處理失敗的素材（選圖器）",
+              "title": "Exclude Failed",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 100000,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 60,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
             }
           },
           {
@@ -17355,11 +17221,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/MediaAssetOut"
-                  },
-                  "title": "Response List Media Api Website V1 Admin Media Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/MediaAssetPageOut"
                 }
               }
             },
@@ -18991,6 +18853,88 @@
         ]
       }
     },
+    "/api/website/v1/admin/notifications/read-all": {
+      "post": {
+        "description": "把還沒讀的案件通知一次標成已讀（一條 UPDATE）。\n\n標的是資料庫裡範圍內「全部」未讀，不是只有列表端點回的最新 100 則：\n列表有上限，逐筆標會留下列表外更早的未讀，這裡一次標完。沒帶\n`campus_key` 時範圍是你有 booking.manage 的所有校區（總管理者＝全部），\n帶了就只標那一校。權限、全校共用的語意與單筆標記相同（booking.manage，\n櫃台不開放），同樣不寫稽核。回傳實際從未讀變已讀的則數，已讀的不重複計。\n與 /admin/my-notifications/read-all（個人的內容審核通知，另一張表）無關。",
+        "operationId": "mark_all_notifications_read_api_website_v1_admin_notifications_read_all_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationReadAllOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark All Notifications Read",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/website/v1/admin/notifications/{notification_id}/read": {
       "post": {
         "operationId": "mark_notification_read_api_website_v1_admin_notifications__notification_id__read_post",
@@ -19314,262 +19258,6 @@
         "summary": "Restore Release",
         "tags": [
           "content"
-        ]
-      }
-    },
-    "/api/website/v1/admin/reschedule-requests": {
-      "get": {
-        "description": "待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的\n新時段與新時段剩餘名額，園方不必點進案件就能判斷。\n\n沒指定校區時列出你負責的所有校區，與側欄徽章、總覽的待核准數同一個\n範圍：點進站內通知就看得到那幾件，不必一校一校切。",
-        "operationId": "list_reschedule_requests_api_website_v1_admin_reschedule_requests_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "campus_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Campus Key"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RescheduleRequestOut"
-                  },
-                  "title": "Response List Reschedule Requests Api Website V1 Admin Reschedule Requests Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "List Reschedule Requests",
-        "tags": [
-          "parent-access"
-        ]
-      }
-    },
-    "/api/website/v1/admin/reschedule-requests/{request_id}/approve": {
-      "post": {
-        "operationId": "approve_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__approve_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitRequestDetailOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Approve Reschedule Request",
-        "tags": [
-          "parent-access"
-        ]
-      }
-    },
-    "/api/website/v1/admin/reschedule-requests/{request_id}/reject": {
-      "post": {
-        "description": "退回：家長維持原時段。原因選填，記在申請與案件歷程。",
-        "operationId": "reject_reschedule_request_api_website_v1_admin_reschedule_requests__request_id__reject_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/RescheduleDecisionRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reject Reschedule Request Api Website V1 Admin Reschedule Requests  Request Id  Reject Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Reject Reschedule Request",
-        "tags": [
-          "parent-access"
         ]
       }
     },
@@ -19921,150 +19609,6 @@
           }
         },
         "summary": "Update Retention Policy",
-        "tags": [
-          "operations"
-        ]
-      }
-    },
-    "/api/website/v1/admin/site-settings": {
-      "get": {
-        "deprecated": true,
-        "operationId": "get_site_settings_api_website_v1_admin_site_settings_get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Get Site Settings Api Website V1 Admin Site Settings Get",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Site Settings",
-        "tags": [
-          "operations"
-        ]
-      },
-      "patch": {
-        "deprecated": true,
-        "operationId": "update_site_settings_api_website_v1_admin_site_settings_patch",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SiteSettingsUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Update Site Settings Api Website V1 Admin Site Settings Patch",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Update Site Settings",
         "tags": [
           "operations"
         ]
@@ -21834,11 +21378,13 @@
         "responses": {
           "200": {
             "content": {
-              "application/json": {
-                "schema": {}
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
               }
             },
-            "description": "Successful Response"
+            "description": "CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載"
           },
           "422": {
             "content": {
@@ -21852,253 +21398,6 @@
           }
         },
         "summary": "Export Visit Requests",
-        "tags": [
-          "booking"
-        ]
-      }
-    },
-    "/api/website/v1/admin/visit-requests/group-counts": {
-      "get": {
-        "description": "分頁上的數字：套用同一組篩選（狀態與分組除外）後各組幾筆。",
-        "operationId": "visit_request_group_counts_api_website_v1_admin_visit_requests_group_counts_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "campus_key",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Campus Key"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "description": "家長或寶貝姓名、電話或 Email 片段",
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 100,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "家長或寶貝姓名、電話或 Email 片段",
-              "title": "Q"
-            }
-          },
-          {
-            "description": "只列已到預定聯絡時間、尚未結案的案件",
-            "in": "query",
-            "name": "follow_up_due",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "只列已到預定聯絡時間、尚未結案的案件",
-              "title": "Follow Up Due",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "案件來源：web／phone／line／walk_in／external",
-            "in": "query",
-            "name": "source",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "案件來源：web／phone／line／walk_in／external",
-              "title": "Source"
-            }
-          },
-          {
-            "description": "送出日期起（含），台灣日期",
-            "in": "query",
-            "name": "created_from",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "送出日期起（含），台灣日期",
-              "title": "Created From"
-            }
-          },
-          {
-            "description": "送出日期迄（含），台灣日期",
-            "in": "query",
-            "name": "created_to",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "date",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "送出日期迄（含），台灣日期",
-              "title": "Created To"
-            }
-          },
-          {
-            "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
-            "in": "query",
-            "name": "needs_attention",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "只列待人工處理：時段已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案",
-              "title": "Needs Attention",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
-            "in": "query",
-            "name": "group",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^(upcoming|past|cancelled)$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "案件分組：upcoming 預約正常／past 時間已過／cancelled 已取消",
-              "title": "Group"
-            }
-          },
-          {
-            "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
-            "in": "query",
-            "name": "open",
-            "required": false,
-            "schema": {
-              "default": false,
-              "description": "只列還沒結案的：預約正常（含時間已過還沒標記到場）",
-              "title": "Open",
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
-            "in": "query",
-            "name": "view",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "pattern": "^(upcoming|past|arrived|cancelled)$",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
-              "title": "View"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitGroupCountsOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Visit Request Group Counts",
         "tags": [
           "booking"
         ]
@@ -22353,7 +21652,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}": {
       "get": {
-        "description": "案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、待核准的家長\n改期申請、家長管理連結是否有效（規格 L299）。",
+        "description": "案件明細：案件本身＋歷程（誰、何時、異動前後、原因）、家長管理連結\n是否有效（規格 L299）。",
         "operationId": "get_visit_request_api_website_v1_admin_visit_requests__visit_request_id__get",
         "parameters": [
           {
@@ -23460,90 +22759,6 @@
           }
         },
         "summary": "Remove Visit Exception",
-        "tags": [
-          "booking"
-        ]
-      }
-    },
-    "/api/website/v1/admin/visit-schedule/{campus_key}/generate": {
-      "post": {
-        "operationId": "generate_visit_slots_api_website_v1_admin_visit_schedule__campus_key__generate_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campus_key",
-            "required": true,
-            "schema": {
-              "title": "Campus Key",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "x-csrf-token",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Csrf-Token"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "ivy_admin_session",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ivy Admin Session"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VisitSlotGenerateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VisitSlotGenerateOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Generate Visit Slots",
         "tags": [
           "booking"
         ]

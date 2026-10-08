@@ -23,6 +23,16 @@ BOM = "\ufeff"
 # 執行時才讀模組屬性，測試才能 monkeypatch。
 EXPORT_ROW_LIMIT = 10_000
 
+# OpenAPI 的匯出路由 200 回應：宣告成 text/csv 檔案，不是預設的 application/json。
+# 路由寫 `response_class=Response, responses=csv_export.CSV_RESPONSES`（response_class 設成
+# 沒有預設 media type 的 Response，FastAPI 才不會再補一個 application/json）。
+CSV_RESPONSES: dict[int | str, dict] = {
+    200: {
+        "description": "CSV 檔案（UTF-8，開頭有 BOM、CRLF 換行），當附件下載",
+        "content": {"text/csv": {"schema": {"type": "string"}}},
+    }
+}
+
 _SAFE_FILENAME_PART = re.compile(r"[a-z0-9_-]{1,32}")
 # 民國年月「115.09」：年 1–3 位、月 1–2 位。和 admin/src/utils/csv.ts 的 ROC_MONTH 同一條，
 # 用 [0-9] 與 fullmatch（\d 會吃全形數字，$ 會放過結尾換行，JS 版都不會）。

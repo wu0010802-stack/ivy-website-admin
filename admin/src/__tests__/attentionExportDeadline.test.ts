@@ -113,7 +113,7 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
 describe('待人工處理的入口', () => {
   it('總覽列出待辦並連到篩選後的清單', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({
-      today_visits: 0, today_visit_list: [], new_requests: 0, awaiting_confirmation: 0, pending_reschedule_requests: 0,
+      today_visits: 0, today_visit_list: [], new_requests: 0, awaiting_confirmation: 0,
       needs_attention: 2, pending_follow_up: 0, pending_publish: 0, pending_publish_kinds: [], pending_review: 0,
       campuses_without_active_booking: [], failed_notifications: 0,
     } as never)

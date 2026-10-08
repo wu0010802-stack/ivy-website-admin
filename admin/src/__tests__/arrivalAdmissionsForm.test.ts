@@ -27,7 +27,7 @@ const booking = (changes: Record<string, unknown> = {}) => ({
   party_size: null, consent_given: false, consent_revision_id: null, consent_accepted_at: null,
   slot_id: started.id, slot: started, created_at: '2026-10-05T00:00:00Z', hold_expires_at: null, follow_up_at: null,
   confirmed_at: '2026-10-05T00:00:00Z', cancelled_at: null, source: 'web', display_status: 'past',
-  history: [], pending_reschedule: null, access_link: null, version: 1, ...changes,
+  history: [], access_link: null, version: 1, ...changes,
 })
 const created = () => visit({ id: 'v-1', visit_request_id: VR_ID, has_visit_request: true, child_name: '小安', contact_name: '黃志明' })
 

@@ -98,7 +98,7 @@ describe('主選單與頁尾連結', () => {
   })
 
   it('連結只收站內路徑或 https 外部網址（同後端）', () => {
-    for (const ok of ['/', '/#about', '/admission', '/campuses/yihua#faq', 'https://www.ivykidschool.com/']) expect(siteLinkError(ok)).toBeNull()
+    for (const ok of ['/', '/#about', '/admission', '/admission#steps', 'https://www.ivykidschool.com/']) expect(siteLinkError(ok)).toBeNull()
     for (const bad of ['', 'http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://user@example.com/', 'https://a b.com', '/\\evil.com', 'https://example.com:99999/', 'https://example.com:abc/']) {
       expect(siteLinkError(bad)).not.toBeNull()
     }
@@ -201,7 +201,7 @@ describe('分校地圖網址', () => {
 
   it('分校介紹有地圖連結欄位，錯的網址即時提示', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
-      name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '',
+      name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07', facebook: '', line: '',
     }, 'yihua') as never)
     const wrapper = await mountAs(CampusProfileView, superAdmin(), '/content/campus-profile')
     expect(wrapper.text()).not.toContain('有未儲存的修改')

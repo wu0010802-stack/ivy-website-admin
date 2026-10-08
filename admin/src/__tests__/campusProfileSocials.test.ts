@@ -22,11 +22,13 @@ async function mountProfile() {
   return wrapper
 }
 
-// 2026-09-25 以前存的版本：沒有 instagram／youtube 兩欄
+// 2026-09-25 以前存的版本：沒有 instagram／youtube 兩欄，還帶著簡介、詳細介紹與 Facebook 備註
+// （2026-10-08 拿掉：載入時丟掉，存檔不再送出）。
 const legacyPayload = {
   name: '義華校', district: '三民區', address: '高雄市三民區義華路68號', phone: '07-392-8366',
   intro: '簡介', description: '介紹', facebook: 'https://www.facebook.com/ivy.kids.fb/', fb_note: '義華校粉絲專頁', line: 'https://lin.ee/gwl8fnA',
 }
+const { intro: _intro, description: _description, fb_note: _fbNote, ...keptPayload } = legacyPayload
 const item = (payload: object, version = 1) => ({
   id: 'item', kind: 'campus_profile', campus_key: 'yihua', latest_version: version, current_published_revision_id: 'rev-1',
   latest_revision: { id: `rev-${version}`, version, created_at: '2026-09-25T01:00:00Z', payload, review_status: 'draft', review_note: null },
@@ -50,8 +52,10 @@ describe('五校介紹：IG／YouTube 欄位', () => {
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/content-items/campus_profile/revisions?campus_key=yihua', {
       expected_version: 1,
-      // 其他欄位（地圖、封面…）照表單預設值送出；這裡只看舊欄位原樣保留、兩個新欄位有帶上
-      payload: expect.objectContaining({ ...legacyPayload, instagram: 'https://www.instagram.com/ivy.kids.school.ig/', youtube: 'https://www.youtube.com/@IvyKidsVideos' }),
+      // 其他欄位（地圖、封面…）照表單預設值送出；這裡只看還在的舊欄位原樣保留、兩個新欄位有帶上
+      payload: expect.objectContaining({ ...keptPayload, instagram: 'https://www.instagram.com/ivy.kids.school.ig/', youtube: 'https://www.youtube.com/@IvyKidsVideos' }),
     })
+    const sent = (post.mock.calls[0]![1] as { payload: object }).payload
+    for (const retired of ['intro', 'description', 'fb_note']) expect(sent).not.toHaveProperty(retired)
   })
 })

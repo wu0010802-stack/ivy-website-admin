@@ -8,30 +8,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content import service
-from app.content.models import ContentItem, ContentRevision, ReleaseSource
+from app.content.models import ContentItem, ReleaseSource
 from app.content.registry import CONTENT_KIND_REGISTRY
-from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
 
 
 def _copy_fields(source: dict, kind: str) -> dict:
     payload = {}
     for field, info in CONTENT_KIND_REGISTRY[kind].payload_model.model_fields.items():
+        # 已拿掉的欄位（exclude=True，例如預約文案的同意文字、五校介紹的簡介）
+        # 不再從 fixture 帶入。
+        if info.exclude:
+            continue
         parts = field.split("_")
         source_key = parts[0] + "".join(part.title() for part in parts[1:])
         # 之後才加、有預設值的欄位（例如預約文案的隱私說明）原型沒有，用預設值。
         if source_key not in source and not info.is_required():
             continue
         payload[field] = source[source_key]
-    return payload
-
-
-def _booking_payload(source: dict) -> dict:
-    """原型的同意文字是示範用的（「資料不會傳送給學校」），正式官網不能
-    發布；匯入時換成官網實際顯示的正式文字。隱私說明本文由園方提供，
-    匯入時留空（官網不顯示入口）。"""
-    payload = _copy_fields(source, "booking_content")
-    if payload["consent_text"] == LEGACY_DEMO_CONSENT_TEXT:
-        payload["consent_text"] = FORMAL_CONSENT_TEXT
     return payload
 
 
@@ -52,35 +45,6 @@ def _day_payload(source: dict) -> dict:
     return payload
 
 
-def _qa(items: list[dict]) -> list[tuple[str, str]]:
-    return [(item["q"], item["a"]) for item in items]
-
-
-def shared_faq_source(data: dict) -> list[dict]:
-    """原型五校的常見問題是同一份 generic 模板，只有少數題目帶校名。五校
-    一字不差的題目（依第一校的順序）搬進全站共用題目。"""
-    campuses = data["campuses"]
-    if not campuses:
-        return []
-    others = [set(_qa(c["faq"]["items"])) for c in campuses[1:]]
-    return [
-        item for item in campuses[0]["faq"]["items"]
-        if all((item["q"], item["a"]) in qa for qa in others)
-    ]
-
-
-def _shared_faq_payload(data: dict) -> dict:
-    return {"items": [
-        {"id": f"faq-{index + 1}", "q": item["q"], "a": item["a"], "scope": "global"}
-        for index, item in enumerate(shared_faq_source(data))
-    ]}
-
-
-def _own_faq_items(campus: dict, shared: list[dict]) -> list[dict]:
-    common = set(_qa(shared))
-    return [item for item in campus["faq"]["items"] if (item["q"], item["a"]) not in common]
-
-
 def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     entries = [
         ("home_about", None, _copy_fields(data["home"]["about"], "home_about")),
@@ -89,7 +53,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         # 官網沿用內建連結，主選單同理（site_meta 不帶 primary_nav）。
         ("site_footer", None, {k: v for k, v in _copy_fields(data["footer"], "site_footer").items() if k != "links"}),
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
-        ("booking_content", None, _booking_payload(data["booking"])),
+        # 預約按鈕文字；隱私說明本文由園方提供，匯入時留空（官網不顯示入口）。
+        ("booking_content", None, _copy_fields(data["booking"], "booking_content")),
         ("day_experience", None, _day_payload(data["dayExperience"])),
         # 原樣帶入原型的示意消息與 sampleNote：上線畫面不變（仍標「示意內容」），
         # 園方在後台換成真實消息、清空示意說明後才拿掉標示。
@@ -101,9 +66,6 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         # 關於常春藤頁（2026-10 開放後台編輯）：照片版位不帶（留空＝官網內建照片）。
         ("about_page", None, _copy_fields(data["aboutPage"], "about_page")),
     ]
-    # 五校共用的常見問題（2026-09-25）；各校只留自己的題目，預設顯示共用題。
-    shared_faq = shared_faq_source(data)
-    entries.append(("shared_faq", None, _shared_faq_payload(data)))
     meta = data["siteMeta"]
     entries.append(("site_meta", None, {
         "title": meta["title"], "description": meta["description"],
@@ -115,7 +77,6 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         for key in ("line", "instagram", "youtube"):
             profile[key] = profile[key] or ""
         entries.append(("campus_profile", campus["key"], profile))
-        entries.append(("campus_faq", campus["key"], {"items": _own_faq_items(campus, shared_faq)}))
         # Generated templates remain marked as pending on the public website.
         if isinstance(campus["tourScenes"], list):
             entries.append(("campus_tour", campus["key"], {"scenes": campus["tourScenes"]}))
@@ -144,118 +105,16 @@ async def pending_initialization(db: AsyncSession, data: dict) -> list[tuple[str
     return pending
 
 
-@dataclass
-class FaqPlan:
-    """補建全站共用題目時各校常見問題的處理方式（見 faq_initialization_plan）。"""
-
-    # 官網上還是原型匯入的版本：拿掉搬進共用的那幾題，改用共用題目。
-    adopt: list[str] = dataclass_field(default_factory=list)
-    # 園方改過（或有草稿）、本校題目裡沒有某幾題共用題目原文的校區 → 那幾題的
-    # 問題文字。共用題目先不給這幾校，免得改寫過的同一題在分校頁出現兩次。
-    held_back: dict[str, list[str]] = dataclass_field(default_factory=dict)
-
-
-def _new_shared_questions(payload: dict, shared_questions: list[str]) -> list[str]:
-    """這一版本校常見問題如果顯示共用題目，會多出哪幾題（官網 mergeCampusFaq
-    只用問題文字完全相同來判斷本校有沒有同一題，改過標點或用字就對不上）。"""
-    if payload.get("include_shared", True) is False:
-        return []
-    own = {str(item.get("q") or "").strip() for item in payload.get("items", []) or [] if isinstance(item, dict)}
-    return [q for q in shared_questions if q.strip() not in own]
-
-
-async def _latest_revision(db: AsyncSession, item: ContentItem) -> ContentRevision | None:
-    result = await db.execute(
-        select(ContentRevision).where(
-            ContentRevision.content_item_id == item.id, ContentRevision.version == item.latest_version
-        )
-    )
-    return result.scalar_one_or_none()
-
-
-async def faq_initialization_plan(db: AsyncSession, data: dict) -> FaqPlan:
-    """已經初始化過的環境（共用題目是後來才有的）：這次補建共用題目時，各校的
-    常見問題怎麼處理。
-
-    - 「官網上的版本就是原型匯入的那份、之後沒有任何新版本」的校區改用共用題目
-      （adopt）。
-    - 其他有版本的校區一律不動；其中本校題目（已發布版或最新草稿）裡缺了某幾題
-      共用題目原文、又顯示共用題目的（held_back），共用題目先不適用這幾校：園方
-      可能改過那題的標點或用字，官網比對不到同一題就會兩個版本都顯示。
-    - 還沒有任何版本的校區照原型建立，本校題目＋共用題目＝原本的題目，不受影響。
-    共用題目已經有版本時什麼都不做。"""
-    shared_item = await _existing_item(db, "shared_faq", None)
-    if shared_item is not None and shared_item.latest_version > 0:
-        return FaqPlan()
-    shared_questions = [item["q"] for item in shared_faq_source(data)]
-    plan = FaqPlan()
-    for campus in data["campuses"]:
-        item = await _existing_item(db, "campus_faq", campus["key"])
-        if item is None or item.latest_version == 0:
-            continue
-        published = (
-            await db.get(ContentRevision, item.current_published_revision_id)
-            if item.current_published_revision_id is not None
-            else None
-        )
-        if published is not None and published.version == item.latest_version:
-            items = published.payload.get("items", [])
-            untouched = (
-                _qa(items) == _qa(campus["faq"]["items"])
-                and all(i.get("enabled", True) for i in items)
-                and published.payload.get("include_shared", True)
-                and published.payload.get("shared_position", "before") == "before"
-            )
-            if untouched:
-                plan.adopt.append(campus["key"])
-                continue
-        missing: list[str] = []
-        for revision in (published, await _latest_revision(db, item)):
-            if revision is None:
-                continue
-            for q in _new_shared_questions(revision.payload, shared_questions):
-                if q not in missing:
-                    missing.append(q)
-        if missing:
-            plan.held_back[campus["key"]] = missing
-    return plan
-
-
-async def faq_adoption_candidates(db: AsyncSession, data: dict) -> list[str]:
-    """補建共用題目時可以一起改用共用題目的校區（faq_initialization_plan 的 adopt）。"""
-    return (await faq_initialization_plan(db, data)).adopt
-
-
-def _hold_back_shared_faq(payload: dict, held_back: dict[str, list[str]], data: dict) -> dict:
-    """共用題目先不給 held_back 的校區：適用範圍改成其他校；五校都要擋時整批
-    建成停用，等總部確認後再到後台打開。"""
-    if not held_back:
-        return payload
-    allowed = [campus["key"] for campus in data["campuses"] if campus["key"] not in held_back]
-    if allowed:
-        items = [{**item, "scope": "campus", "campus_keys": allowed} for item in payload["items"]]
-    else:
-        items = [{**item, "enabled": False} for item in payload["items"]]
-    return CONTENT_KIND_REGISTRY["shared_faq"].payload_model.model_validate({"items": items}).model_dump()
-
-
 async def initialize_content(
     db: AsyncSession, data: dict, created_by: uuid.UUID | None = None
 ) -> int:
-    plan = await faq_initialization_plan(db, data)
     # 先建版本再發布：站台鎖要在鎖內容項之前拿（見 service.lock_site_state）。
     await service.lock_site_state(db)
     created = 0
     for kind, campus, payload in initial_payloads(data):
         item = await service.get_or_create_content_item(db, kind, campus)
         if item.latest_version != 0:
-            if kind == "campus_faq" and campus in plan.adopt:
-                # 未改過的原型常見問題：拿掉已搬到共用題目的那幾題（新版本並發布）。
-                revision = await service.create_revision(db, item, payload, item.latest_version, created_by)
-                await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)
             continue
-        if kind == "shared_faq":
-            payload = _hold_back_shared_faq(payload, plan.held_back, data)
         revision = await service.create_revision(db, item, payload, 0, created_by)
         await service.publish_revision(db, item, revision, created_by, source=ReleaseSource.INITIALIZE)
         created += 1

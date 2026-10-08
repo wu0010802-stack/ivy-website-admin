@@ -3,15 +3,18 @@ import type { SiteContent } from '../types/site-content'
 const OLD_DESCRIPTION = '走進常春藤，認識五校的環境與孩子的校園生活。官網設計互動提案。'
 
 // 官網已不顯示、但 fixture 還留著的欄位（後端初始化內容要讀，見 types/site-content.ts
-// 開頭說明）。公開輸出前拿掉，頁面資料不帶這些舊文字（例如原型的示範同意文字與常見
-// 問題）。2026-10-04 隨後台拿掉這些欄位一起整理；2026-10-05 再加原型預約表單的示範說明、
+// 開頭說明）。公開輸出前拿掉，頁面資料不帶這些舊文字。
+// 2026-10-04 隨後台拿掉這些欄位一起整理；2026-10-05 再加原型預約表單的示範說明、
 // 步驟與欄位清單（isDemo／demoNote／steps／fields，官網的預約表單從沒讀過）。
+// 2026-10-08 常見問題（faq）、預約同意文字與橫幅（consentText／banner*）、分校簡介
+// 與臉書備註（intro／description／fbNote）連同 fixture 與後端欄位一起刪除，
+// 不在清單內。
 const RETIRED = {
   hero: ['eyebrow'],
   campusBoard: ['note'],
   dayExperience: ['sourceNote'],
-  booking: ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel', 'isDemo', 'demoNote', 'steps', 'fields'],
-  campus: ['intro', 'description', 'fbNote', 'heroPhotoPos', 'faq'],
+  booking: ['isDemo', 'demoNote', 'steps', 'fields'],
+  campus: ['heroPhotoPos'],
   tourScene: ['spots', 'spots_reviewed']
 } as const
 

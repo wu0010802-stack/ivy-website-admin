@@ -69,7 +69,7 @@ class BookingConfig(Base):
     # 預約方式，只影響哪些時段現在列給家長看；送單時仍依當下的值重判。
     min_lead_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24, server_default="24")
     max_advance_days: Mapped[int] = mapped_column(Integer, nullable=False, default=60, server_default="60")
-    # 規格 238：家長用管理連結線上取消／申請改期，最晚到參觀前幾小時。
+    # 規格 238：家長用管理連結線上取消／改期，最晚到參觀前幾小時。
     # 跟預約方式在同一個畫面、同一個 PATCH 存檔（service.update_config），
     # 存檔一律讓 version 加一：正在官網填表的家長送出時會收到
     # BOOKING_CONFIG_CHANGED，重新確認後再送。version 同時是後台兩人同時

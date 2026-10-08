@@ -212,8 +212,8 @@ async def test_campus_profile_cover_line_art_and_placement_focus(admin_client):
     cover = await _upload(admin_client, campus_key="yihua")
     other_campus = await _upload(admin_client, campus_key="minghua")
     base = {
-        "name": "義華校", "district": "鳳山區", "address": "地址", "phone": "07", "intro": "簡介",
-        "description": "介紹", "facebook": "", "fb_note": "", "line": "",
+        "name": "義華校", "district": "鳳山區", "address": "地址", "phone": "07",
+        "facebook": "", "line": "",
     }
     saved = await _save(
         admin_client, "campus_profile",
@@ -492,12 +492,15 @@ async def _latest(db, kind: str, campus_key: str | None = None) -> dict:
 
 
 def test_campus_profile_old_payload_still_valid():
-    """舊版本沒有素材欄位，照常通過驗證（留空＝官網沿用內建）。"""
+    """舊版本沒有素材欄位，照常通過驗證（留空＝官網沿用內建）。舊版本帶的 intro／
+    description／fb_note（2026-10-08 拿掉）也照收，但 model_dump 不再帶它們。"""
     payload = CampusProfilePayload.model_validate({
         "name": "義華校", "district": "鳳山區", "address": "地址", "phone": "07", "intro": "簡介",
-        "description": "介紹", "facebook": "", "fb_note": "", "line": "",
+        "description": "介紹", "facebook": "", "fb_note": "粉專", "line": "",
     })
     assert payload.cover is None and payload.card_focus is None and payload.line_art is None
+    assert (payload.intro, payload.description, payload.fb_note) == ("簡介", "介紹", "粉專")
+    assert not {"intro", "description", "fb_note"} & set(payload.model_dump())
 
 
 @requires_ffmpeg

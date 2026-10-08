@@ -16,6 +16,7 @@ import EditorSectionNav from './EditorSectionNav.vue'
 import LivePreviewPane from './LivePreviewPane.vue'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { useLivePreview } from '../composables/useLivePreview'
+import { usePreviewPaneFit } from '../composables/usePreviewPaneFit'
 import {
   livePreviewOrigin,
   previewFrameUrl,
@@ -90,6 +91,11 @@ const livePreview = useLivePreview({
   enabled: showPreviewPane,
 })
 const previewState = livePreview.state
+// 預覽欄的黏住位置與高度用量的（頂欄、動作列、版面位置），綁在根元素上給 LivePreviewPane 用；見 usePreviewPaneFit。
+const editorRoot = useTemplateRef<HTMLElement>('editorRoot')
+const editorLayout = useTemplateRef<HTMLElement>('editorLayout')
+const editorActions = useTemplateRef<HTMLElement>('editorActions')
+const previewPaneVars = usePreviewPaneFit({ active: showPreviewPane, root: editorRoot, layout: editorLayout, actions: editorActions })
 // 從沒存過任何版本：預覽看到的是官網目前的內容，說明不能寫「上次儲存的草稿」。
 const previewNeverSaved = computed(() => Boolean(props.editor.latestRevisionId) && latestRevisionId.value === null)
 const previewReload = ref(0)
@@ -149,7 +155,7 @@ const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
 const mobilePreviewUrl = computed(() => (previewUrl.value ? `${previewUrl.value}${previewUrl.value.includes('?') ? '&' : '?'}viewport=mobile` : ''))
 const apiPath = computed(() => props.editor.apiPath?.value ?? '')
-// 確認框標題帶上是哪一項內容（分校內容含校名），例如「發布「各校常見問題（明華）」
+// 確認框標題帶上是哪一項內容（分校內容含校名），例如「發布「各校消息與活動（明華）」
 // 到官網？」，避免在錯的校區按下發布。名稱本身已有引號（首頁「關於常春藤」）就不再加。
 const named = computed(() => {
   const label = props.editor.contextLabel?.value ?? ''
@@ -639,7 +645,7 @@ defineExpose({ confirmLeave })
 </script>
 
 <template>
-  <div class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav, 'editor--preview': showPreviewPane }">
+  <div ref="editorRoot" class="editor" :class="{ 'editor--wide': width === 'wide', 'editor--with-nav': hasNav, 'editor--preview': showPreviewPane }" :style="previewPaneVars">
     <div v-if="$slots.lead" class="page-lead"><slot name="lead" /></div>
 
     <div v-if="$slots.toolbar" class="toolbar"><slot name="toolbar" /></div>
@@ -653,7 +659,7 @@ defineExpose({ confirmLeave })
     <el-skeleton v-else-if="loading" :rows="6" animated class="editor__skeleton" />
 
     <template v-else>
-      <div class="editor__layout" :class="{ 'has-nav': hasNav, 'has-preview': showPreviewPane }">
+      <div ref="editorLayout" class="editor__layout" :class="{ 'has-nav': hasNav, 'has-preview': showPreviewPane }">
       <div class="editor__top">
       <!-- 狀態列不是即時區（裡面有預覽、版本紀錄等工具）；狀態變了才由下面隱藏的 status 唸一次。 -->
       <div class="editor__status" :data-tone="status.tone" role="group" :aria-labelledby="statusLabelId">
@@ -813,7 +819,7 @@ defineExpose({ confirmLeave })
         />
       </div>
 
-      <div v-if="!readOnly" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy, 'has-changes': Boolean(actionSummary) }">
+      <div v-if="!readOnly" ref="editorActions" class="editor__actions" :class="{ 'is-dirty': isDirty, 'is-busy': busy, 'has-changes': Boolean(actionSummary) }">
         <!-- 「放棄修改」放在說明這一側，離儲存、發布遠一點（破壞性動作不與主動作相鄰）。 -->
         <div class="editor__actions-state">
           <p class="editor__actions-text" :title="actionSummary?.title || (isDirty ? actionNote : undefined)">
@@ -896,9 +902,12 @@ defineExpose({ confirmLeave })
 .editor__schedule-error { margin: 8px 0 0; font-size: var(--text-sm); color: var(--el-color-danger); }
 /* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
 .editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
-/* --editor-actions-h：黏底動作列佔的高度，右側預覽欄的高度要扣掉它（LivePreviewPane）。
+/* --editor-actions-h：黏底動作列佔的高度的估算值，只在還沒量到的時候當備用（LivePreviewPane 的高度）。
    動作列＝上框 1＋上下內距 16＋16＋按鈕（--control-h：滑鼠 38、觸控 44）；再加它和表單之間的 16 間距，
-   預覽欄底端才不會貼著動作列。滑鼠 87、觸控 93。 */
+   預覽欄底端才不會貼著動作列。滑鼠 87、觸控 93。
+   這個估算不夠：動作列的高度會變（換行），而且沒捲動時預覽欄的自然位置比黏住的位置低、捲到底時被版面底端往上推，
+   所以 usePreviewPaneFit 量了實際的頂欄、動作列與版面位置，把 --live-preview-top／--live-preview-h 綁在這個根元素上，
+   有量到就用它們（見 LivePreviewPane）。 */
 .editor {
   max-width: 720px;
   --editor-actions-h: calc(var(--control-h) + 49px);

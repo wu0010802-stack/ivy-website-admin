@@ -196,59 +196,6 @@ async def test_retention_does_not_touch_active_requests(admin_client, public_cli
 
 
 @pytest.mark.asyncio
-async def test_site_settings_roundtrip(admin_client):
-    update = await admin_client.patch(
-        "/api/website/v1/admin/site-settings",
-        json={
-            "expected_version": 1,
-            "title": "常春藤幼兒園",
-            "description": "測試描述",
-            "share_image": None,
-            "noindex": True,
-            "privacy_policy_version": "v1",
-        },
-    )
-    assert update.status_code == 200
-    read = await admin_client.get("/api/website/v1/admin/site-settings")
-    assert read.json()["title"] == "常春藤幼兒園"
-    assert read.json()["noindex"] is True
-    assert read.json()["version"] == 2
-
-    # 拿舊版本存檔：不蓋掉別人剛改的設定。
-    stale = await admin_client.patch(
-        "/api/website/v1/admin/site-settings",
-        json={
-            "expected_version": 1,
-            "title": "舊畫面",
-            "description": "x",
-            "share_image": None,
-            "noindex": False,
-            "privacy_policy_version": "v1",
-        },
-    )
-    assert stale.status_code == 409
-    assert stale.json()["detail"]["code"] == "SITE_SETTINGS_VERSION_CONFLICT"
-    assert stale.json()["detail"]["current_version"] == 2
-    assert (await admin_client.get("/api/website/v1/admin/site-settings")).json()["title"] == "常春藤幼兒園"
-
-
-@pytest.mark.asyncio
-async def test_site_settings_requires_super_admin(minghua_client):
-    response = await minghua_client.patch(
-        "/api/website/v1/admin/site-settings",
-        json={
-            "expected_version": 1,
-            "title": "x",
-            "description": "x",
-            "share_image": None,
-            "noindex": True,
-            "privacy_policy_version": "v1",
-        },
-    )
-    assert response.status_code == 403
-
-
-@pytest.mark.asyncio
 async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client, db_session):
     """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
     數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""

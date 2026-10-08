@@ -31,7 +31,7 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-async function setup(path = '/content/campus-faq', user: UserOut = testUser('super_admin')) {
+async function setup(path = '/content/campus-news', user: UserOut = testUser('super_admin')) {
   const pinia = createPinia()
   useAuthStore(pinia).user = user
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
@@ -86,11 +86,11 @@ function mountShell(global: Global, editor: ContentEditorState) {
 // 真的 useContentItem＋ContentEditor（API 用 mock）
 // ---------------------------------------------------------------------------
 
-interface Faq { title: string; note: string }
+interface CampusDoc { title: string; note: string }
 
-function faqItem(overrides: Record<string, unknown> = {}, revision: Record<string, unknown> = {}) {
+function campusItem(overrides: Record<string, unknown> = {}, revision: Record<string, unknown> = {}) {
   return {
-    id: 'i1', kind: 'campus_faq', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1',
+    id: 'i1', kind: 'campus_news', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1',
     latest_revision: { id: 'r2', version: 2, created_at: '2026-09-25T02:00:00Z', payload: { title: '新標題', note: '' }, review_status: 'draft', review_note: null, ...revision },
     ...overrides,
   }
@@ -109,10 +109,10 @@ function mockContentApi(item: unknown, revisions: Record<string, unknown> = {}, 
 }
 
 function mountPage(global: Global) {
-  let editor!: ReturnType<typeof useContentItem<Faq>>
+  let editor!: ReturnType<typeof useContentItem<CampusDoc>>
   const Page = defineComponent({
     setup() {
-      editor = useContentItem<Faq>('campus_faq', { title: '', note: '' }, 'yihua')
+      editor = useContentItem<CampusDoc>('campus_news', { title: '', note: '' }, 'yihua')
       void editor.load()
       return () => h(ContentEditor, { editor: editor as unknown as ContentEditorState }, { default: () => h('input', { 'aria-label': '標題' }) })
     },
@@ -151,27 +151,27 @@ describe('狀態點依狀態上色（綠＝已上線、暖黃＝草稿或待注�
 describe('發布與核准的確認框列出和官網目前版本的差異', () => {
   it('發布已存的草稿：讀官網版比對（先補預設值），標題寫出內容與校區', async () => {
     const { global } = await setup()
-    const get = mockContentApi(faqItem(), { r1: { title: '舊標題' } })
-    const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem({ current_published_revision_id: 'r2' }) as never)
+    const get = mockContentApi(campusItem(), { r1: { title: '舊標題' } })
+    const post = vi.spyOn(api, 'post').mockResolvedValue(campusItem({ current_published_revision_id: 'r2' }) as never)
     const confirm = confirmYes()
     const { wrapper } = mountPage(global)
     await flushPromises()
     // 2026-10-06 方向 D：載入時就讀官網版（動作列要列出和官網不同的欄位），開確認框不再重讀。
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/revisions/r1?campus_key=yihua')
 
     await button(wrapper, '發布到官網').trigger('click')
     await flushPromises()
     expect(get.mock.calls.filter(([path]) => String(path).includes('/revisions/r1'))).toHaveLength(1)
     const [message, title] = confirm.mock.calls[0]!
-    expect(title).toBe('發布「各校常見問題（義華）」到官網？')
+    expect(title).toBe('發布「各校消息與活動（義華）」到官網？')
     const text = messageText(message)
     // 2026-10-06 方向 D：動作列已列出欄位，確認框只寫欄位名，不再列改前→改後。
-    expect(text).toContain(`和官網目前的內容相比，會更新 1 個欄位：${contentFieldLabelFor('campus_faq', 'title')}。`)
+    expect(text).toContain(`和官網目前的內容相比，會更新 1 個欄位：${contentFieldLabelFor('campus_news', 'title')}。`)
     expect(text).not.toContain('舊標題')
     // 舊版缺的 note 先補預設值才比，不會多出「（空白）→（空白）」。
     expect(text).not.toContain('（空白）')
     // 發布帶上載入時官網的版本（樂觀鎖，main 的 PR #14）。
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_news/publish?campus_key=yihua', {
       revision_id: 'r2',
       expected_published_revision_id: 'r1',
     })
@@ -179,8 +179,8 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
 
   it('已存草稿又有新修改：和官網比，已存與未存的修改都算進去；只跳最後一則 toast', async () => {
     const { global } = await setup()
-    mockContentApi(faqItem(), { r1: { title: '舊標題', note: '' } })
-    const saved = faqItem({ latest_version: 3 }, { id: 'r3', version: 3, payload: { title: '新標題', note: '補充說明' } })
+    mockContentApi(campusItem(), { r1: { title: '舊標題', note: '' } })
+    const saved = campusItem({ latest_version: 3 }, { id: 'r3', version: 3, payload: { title: '新標題', note: '補充說明' } })
     const post = vi.spyOn(api, 'post').mockImplementation(((path: string) =>
       Promise.resolve(path.includes('/publish') ? { ...saved, current_published_revision_id: 'r3' } : saved)) as typeof api.post)
     const success = vi.spyOn(ElMessage, 'success')
@@ -197,7 +197,7 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
     const [message, , options] = confirm.mock.calls[0]!
     expect(messageText(message)).toContain('會更新 2 個欄位')
     expect(options).toMatchObject({ confirmButtonText: '儲存並發布', cancelButtonText: '先不要' })
-    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_faq/publish?campus_key=yihua', {
+    expect(post).toHaveBeenLastCalledWith('/admin/content-items/campus_news/publish?campus_key=yihua', {
       revision_id: 'r3',
       expected_published_revision_id: 'r1',
     })
@@ -206,7 +206,7 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
 
   it('從沒發布過就說是第一次上線，不拿空白比；有排程時提醒排程會略過', async () => {
     const { global } = await setup()
-    const get = mockContentApi(faqItem({ current_published_revision_id: null }), {}, [scheduledJob()])
+    const get = mockContentApi(campusItem({ current_published_revision_id: null }), {}, [scheduledJob()])
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
     const { wrapper } = mountPage(global)
     await flushPromises()
@@ -221,7 +221,7 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
 
   it('讀不到官網版時退回講官網現在是哪一版', async () => {
     const { global } = await setup()
-    mockContentApi(faqItem())
+    mockContentApi(campusItem())
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
     const { wrapper } = mountPage(global)
     await flushPromises()
@@ -231,34 +231,34 @@ describe('發布與核准的確認框列出和官網目前版本的差異', () =
   })
 
   it('核准送審：列出送審版本和官網的差異，附預覽，標題寫出內容與校區', async () => {
-    const { global } = await setup('/content/campus-faq', testUser('campus_admin', { campus_keys: ['yihua'] }))
-    mockContentApi(faqItem({}, { review_status: 'pending_review' }), { r1: { title: '舊標題', note: '' } })
-    const post = vi.spyOn(api, 'post').mockResolvedValue(faqItem({ current_published_revision_id: 'r2' }, { review_status: 'approved' }) as never)
+    const { global } = await setup('/content/campus-news', testUser('campus_admin', { campus_keys: ['yihua'] }))
+    mockContentApi(campusItem({}, { review_status: 'pending_review' }), { r1: { title: '舊標題', note: '' } })
+    const post = vi.spyOn(api, 'post').mockResolvedValue(campusItem({ current_published_revision_id: 'r2' }, { review_status: 'approved' }) as never)
     const confirm = confirmYes()
     const { wrapper } = mountPage(global)
     await flushPromises()
     await button(wrapper, '核准並發布').trigger('click')
     await flushPromises()
     const [message, title] = confirm.mock.calls[0]!
-    expect(title).toBe('核准並發布「各校常見問題（義華）」？')
+    expect(title).toBe('核准並發布「各校消息與活動（義華）」？')
     const text = messageText(message)
     expect(text).toContain('和官網目前的內容相比，會更新 1 個欄位，核准後家長立刻看到')
     expect(text).toContain('舊標題')
     expect(text).toContain('預覽送審的內容 ↗')
-    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_faq/review?campus_key=yihua', { revision_id: 'r2', decision: 'approve', note: null })
+    expect(post).toHaveBeenCalledWith('/admin/content-items/campus_news/review?campus_key=yihua', { revision_id: 'r2', decision: 'approve', note: null })
   })
 })
 
 describe('儲存並發布／送審／排程只跳最後結果那一則 toast', () => {
   async function loaded(user: UserOut = testUser('super_admin')) {
-    const { global } = await setup('/content/campus-faq', user)
-    mockContentApi(faqItem())
+    const { global } = await setup('/content/campus-news', user)
+    mockContentApi(campusItem())
     const page = mountPage(global)
     await flushPromises()
     page.editor().form.value.title = '改過的標題'
     return page.editor()
   }
-  const savedItem = faqItem({ latest_version: 3 }, { id: 'r3', version: 3, payload: { title: '改過的標題', note: '' } })
+  const savedItem = campusItem({ latest_version: 3 }, { id: 'r3', version: 3, payload: { title: '改過的標題', note: '' } })
 
   it('存好但發布失敗：講明草稿已經存了', async () => {
     const editor = await loaded()
@@ -318,7 +318,7 @@ describe('動作列的主色給真正的下一步', () => {
   })
 
   it('內容編輯：草稿待送審→送審是主色；已送審→沒有主色鈕', async () => {
-    const { global } = await setup('/content/campus-faq', testUser('editor', { campus_keys: ['yihua'] }))
+    const { global } = await setup('/content/campus-news', testUser('editor', { campus_keys: ['yihua'] }))
     expect(primary(mountShell(global, editorState()))).toEqual(['送審'])
     expect(primary(mountShell(global, editorState({ reviewStatus: computed(() => 'pending_review') })))).toEqual([])
   })
@@ -326,7 +326,7 @@ describe('動作列的主色給真正的下一步', () => {
 
 describe('內容編輯看到的是送審說明', () => {
   it('草稿還沒送審、動作列講送審核准；共用內容寫總管理者核准', async () => {
-    const { global } = await setup('/content/shared-faq', testUser('editor', { campus_keys: ['yihua'] }))
+    const { global } = await setup('/content/home-about', testUser('editor', { campus_keys: ['yihua'] }))
     const wrapper = mountShell(global, editorState({ approver: '總管理者' }))
     expect(wrapper.get('.editor__status').text()).toContain('草稿還沒送審')
     expect(wrapper.get('.editor__status').text()).toContain('按「送審」後總管理者才看得到')
@@ -343,7 +343,7 @@ describe('放棄修改', () => {
       { key: 'title', label: '標題', before: '舊', after: '新' },
       { key: 'note', label: '說明文字', before: '', after: '補充' },
     ])
-    const wrapper = mountShell(global, editorState({ isDirty: computed(() => true), changes, reset, contextLabel: computed(() => '各校常見問題（義華）') }))
+    const wrapper = mountShell(global, editorState({ isDirty: computed(() => true), changes, reset, contextLabel: computed(() => '各校消息與活動（義華）') }))
     expect(wrapper.findAll('button').some((b) => b.text().trim() === '還原修改')).toBe(false)
     // 不和儲存、發布擠在同一組按鈕裡。
     expect(wrapper.find('.editor__buttons .editor__discard').exists()).toBe(false)
@@ -354,7 +354,7 @@ describe('放棄修改', () => {
     expect(reset).not.toHaveBeenCalled()
     const [message, title, options] = confirm.mock.calls[0]!
     expect(title).toBe('放棄 2 個欄位的修改？')
-    expect(String(message)).toContain('「各校常見問題（義華）」還沒儲存的修改會清掉')
+    expect(String(message)).toContain('「各校消息與活動（義華）」還沒儲存的修改會清掉')
     expect(options).toMatchObject({ confirmButtonText: '放棄修改', cancelButtonText: '先不要' })
 
     await button(wrapper, '放棄修改').trigger('click')
@@ -381,20 +381,20 @@ describe('分校內容的校區留在網址並記住', () => {
   }
 
   it('切校寫回 ?campus=；換到另一個分校內容頁沿用上次的校區；已在頁面上時跟著網址換校', async () => {
-    const { global, router } = await setup('/content/campus-faq')
-    const faq = probe(global)
+    const { global, router } = await setup('/content/campus-news')
+    const page = probe(global)
     await flushPromises()
-    expect(faq.campus.value).toBe('yihua')
-    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=yihua')
+    expect(page.campus.value).toBe('yihua')
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-news?campus=yihua')
 
-    faq.campus.value = 'renwu'
+    page.campus.value = 'renwu'
     await flushPromises()
-    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=renwu')
-    expect(faq.load).toHaveBeenCalledTimes(2)
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-news?campus=renwu')
+    expect(page.load).toHaveBeenCalledTimes(2)
 
-    await router.push('/content/campus-faq?campus=minghua')
+    await router.push('/content/campus-news?campus=minghua')
     await flushPromises()
-    expect(faq.campus.value).toBe('minghua')
+    expect(page.campus.value).toBe('minghua')
 
     await router.push('/content/campus-tour')
     const tour = probe(global)
@@ -402,50 +402,50 @@ describe('分校內容的校區留在網址並記住', () => {
     expect(tour.campus.value).toBe('minghua')
     expect(router.currentRoute.value.fullPath).toBe('/content/campus-tour?campus=minghua')
     // 前一頁（還掛著）不會跟著別頁的網址換校。
-    expect(faq.campus.value).toBe('minghua')
+    expect(page.campus.value).toBe('minghua')
     await router.push('/content/campus-tour?campus=chongde')
     await flushPromises()
     expect(tour.campus.value).toBe('chongde')
-    expect(faq.campus.value).toBe('minghua')
+    expect(page.campus.value).toBe('minghua')
   })
 
   it('有未儲存修改又選擇留下：取消這次換頁，校區和網址都不動、也不多一筆上一頁紀錄', async () => {
-    const { global, router } = await setup('/content/campus-faq?campus=renwu')
+    const { global, router } = await setup('/content/campus-news?campus=renwu')
     const confirmLeave = vi.fn(async () => false)
     const page = probe(global, true, confirmLeave)
     await flushPromises()
     expect(page.campus.value).toBe('renwu')
     const replace = vi.spyOn(router, 'replace')
-    const result = await router.push('/content/campus-faq?campus=minghua')
+    const result = await router.push('/content/campus-news?campus=minghua')
     await flushPromises()
     expect(isNavigationFailure(result, NavigationFailureType.aborted)).toBe(true)
     expect(confirmLeave).toHaveBeenCalledOnce()
     expect(replace).not.toHaveBeenCalled()
     expect(page.campus.value).toBe('renwu')
-    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=renwu')
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-news?campus=renwu')
   })
 
   it('有未儲存修改但同意放棄：只問一次就換校', async () => {
-    const { global, router } = await setup('/content/campus-faq?campus=renwu')
+    const { global, router } = await setup('/content/campus-news?campus=renwu')
     const confirmLeave = vi.fn(async () => true)
     const page = probe(global, true, confirmLeave)
     await flushPromises()
-    await router.push('/content/campus-faq?campus=minghua')
+    await router.push('/content/campus-news?campus=minghua')
     await flushPromises()
     expect(confirmLeave).toHaveBeenCalledOnce()
     expect(page.campus.value).toBe('minghua')
     expect(page.load).toHaveBeenCalledTimes(2)
-    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=minghua')
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-news?campus=minghua')
   })
 
   it('從側欄再點同一頁（網址沒帶校區）：畫面停在目前的校區，網址補回 ?campus=', async () => {
-    const { global, router } = await setup('/content/campus-faq?campus=renwu')
+    const { global, router } = await setup('/content/campus-news?campus=renwu')
     const page = probe(global)
     await flushPromises()
-    await router.push('/content/campus-faq')
+    await router.push('/content/campus-news')
     await flushPromises()
     expect(page.campus.value).toBe('renwu')
-    expect(router.currentRoute.value.fullPath).toBe('/content/campus-faq?campus=renwu')
+    expect(router.currentRoute.value.fullPath).toBe('/content/campus-news?campus=renwu')
   })
 
   it('內容編輯頁工具列裡的多校下拉也寫出「校區」；其他頁面外面已有標籤就不加', async () => {
@@ -523,7 +523,7 @@ describe('排程說明', () => {
   it('真的載入時：排的不是最新一版、官網也不是最新一版，才另外讀官網那一版的版本號', async () => {
     const { global } = await setup()
     // 排 r2、發布 r3、又存了 r4：官網 r3 不是最新一版，要讀它才知道比排定的新。
-    const item = faqItem({ latest_version: 4, current_published_revision_id: 'r3' }, { id: 'r4', version: 4, payload: { title: '草稿', note: '' } })
+    const item = campusItem({ latest_version: 4, current_published_revision_id: 'r3' }, { id: 'r4', version: 4, payload: { title: '草稿', note: '' } })
     const get = vi.spyOn(api, 'get').mockImplementation(((path: string) => {
       if (path.includes('/schedules')) return Promise.resolve([scheduledJob()])
       if (path.includes('/revisions/r3')) return Promise.resolve({ id: 'r3', version: 3, payload: { title: '官網', note: '' } })
@@ -531,7 +531,7 @@ describe('排程說明', () => {
     }) as typeof api.get)
     const { wrapper, editor } = mountPage(global)
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r3?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/revisions/r3?campus_key=yihua')
     expect(editor().liveVersion.value).toBe(3)
     expect(wrapper.get('.editor__schedules').text()).toContain('較早儲存的草稿，但官網已經是更新的內容，到時會略過。')
 
@@ -545,14 +545,14 @@ describe('排程說明', () => {
 
   it('排 r2 後在這頁發布 r3：排程列改講到時會略過，和發布前的提醒一致', async () => {
     const { global } = await setup()
-    const item = faqItem({ latest_version: 3, current_published_revision_id: 'r1' }, { id: 'r3', version: 3, payload: { title: '新標題', note: '' } })
+    const item = campusItem({ latest_version: 3, current_published_revision_id: 'r1' }, { id: 'r3', version: 3, payload: { title: '新標題', note: '' } })
     const get = mockContentApi(item, { r1: { title: '舊標題', note: '' } }, [scheduledJob()])
     vi.spyOn(api, 'post').mockResolvedValue({ ...item, current_published_revision_id: 'r3' } as never)
     const confirm = confirmYes()
     const { wrapper } = mountPage(global)
     await flushPromises()
     // 官網 r1 讀不到版號（mock 沒給）：不斷言一定會發布。
-    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_faq/revisions/r1?campus_key=yihua')
+    expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/revisions/r1?campus_key=yihua')
     expect(wrapper.get('.editor__schedules').text()).toContain('到時官網若已經是更新的內容就會略過')
 
     await button(wrapper, '發布到官網').trigger('click')
@@ -716,11 +716,11 @@ describe('發布紀錄', () => {
     const release = (id: string, changes: unknown[], extra: Record<string, unknown> = {}) =>
       ({ id, created_at: '2026-09-25T02:00:00Z', created_by_email: 'amy@ivy.example', source: 'publish', restored_from_release_id: null, is_current: false, changes, ...extra })
     const releases = [
-      release('now', [change('faq', 'campus_faq', 'yihua', 5, 4), change('news', 'home_news', null, 2, null)], { is_current: true }),
-      release('mid', [change('faq', 'campus_faq', 'yihua', 4, 3), change('hero', 'home_hero', null, 7, 6)]),
+      release('now', [change('cnews', 'campus_news', 'yihua', 5, 4), change('news', 'home_news', null, 2, null)], { is_current: true }),
+      release('mid', [change('cnews', 'campus_news', 'yihua', 4, 3), change('hero', 'home_hero', null, 7, 6)]),
       release('back', [change('about', 'home_about', null, 3, 2)]),
       release('undo', [change('about', 'home_about', null, 2, 3)]),
-      release('target', [change('faq', 'campus_faq', 'yihua', 3, 2)], { source: 'initialize' }),
+      release('target', [change('cnews', 'campus_news', 'yihua', 3, 2)], { source: 'initialize' }),
     ]
     vi.spyOn(api, 'get').mockImplementation(((path: string) => {
       if (path.startsWith('/admin/releases')) return Promise.resolve({ items: releases, next_before: null })
@@ -736,7 +736,7 @@ describe('發布紀錄', () => {
     await restoreButtons[restoreButtons.length - 1]!.trigger('click')
     await flushPromises()
     const message = String(confirm.mock.calls[0]![0])
-    expect(message).toContain('預計換回 2 項：各校常見問題（義華）、首頁大圖標語。')
+    expect(message).toContain('預計換回 2 項：各校消息與活動（義華）、首頁大圖標語。')
     expect(message).not.toContain('最新消息與活動')
     expect(message).not.toContain('關於常春藤')
     expect(message).toContain('實際換回哪些以還原後的訊息為準')

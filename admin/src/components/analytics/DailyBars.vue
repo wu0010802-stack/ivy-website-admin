@@ -6,11 +6,13 @@ import { saveAnalyticsCsv } from './csvExport'
 // 直條只用來看起伏，每天的數字在下方「每日數字」。markers 是口徑改變的日子
 // （例如 09/30 內頁開始計入），只畫期間內的。
 // exportFilename 有值且有資料才在「每日數字」旁顯示「匯出 CSV」（2026-10-06）：欄名與順序同那張表。
+// unit 只用在畫面上的摘要、軸線與提示（「共 6 次」）；「每日數字」表與 CSV 的第二欄表頭由呼叫端用
+// valueLabel 明寫（「瀏覽次數」「預約鈕點擊次數」），不能只剩一個「次」，檔案離開畫面後看不出在數什麼。
 export interface DailyPoint { day: string; value: number }
 export interface DailyMarker { day: string; label: string }
 
 const props = withDefaults(
-  defineProps<{ title: string; points: readonly DailyPoint[]; unit: string; markers?: readonly DailyMarker[]; exportFilename?: string }>(),
+  defineProps<{ title: string; points: readonly DailyPoint[]; unit: string; valueLabel: string; markers?: readonly DailyMarker[]; exportFilename?: string }>(),
   { markers: () => [], exportFilename: '' },
 )
 
@@ -40,7 +42,7 @@ const newestFirst = computed(() => [...props.points].reverse())
 // 日期寫完整西元年（畫面只有月/日），Excel 認得「2026/09/29」。
 function exportCsv() {
   if (!props.exportFilename) return
-  saveAnalyticsCsv(props.exportFilename, ['日期', props.unit], newestFirst.value.map((point) => [point.day.replaceAll('-', '/'), point.value]))
+  saveAnalyticsCsv(props.exportFilename, ['日期', props.valueLabel], newestFirst.value.map((point) => [point.day.replaceAll('-', '/'), point.value]))
 }
 </script>
 
@@ -76,7 +78,7 @@ function exportCsv() {
           <el-button size="small" text data-test="daily-bars-csv" :aria-label="`把「${title}」的每日數字匯出 CSV`" @click="exportCsv">匯出 CSV</el-button>
         </div>
         <table>
-          <thead><tr><th scope="col">日期</th><th scope="col">{{ unit }}</th></tr></thead>
+          <thead><tr><th scope="col">日期</th><th scope="col">{{ valueLabel }}</th></tr></thead>
           <tbody>
             <tr v-for="point in newestFirst" :key="point.day"><th scope="row" class="num">{{ short(point.day) }}</th><td class="num">{{ point.value }}</td></tr>
           </tbody>

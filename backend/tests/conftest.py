@@ -132,10 +132,10 @@ async def _clean_tables(app):
                 "media_jobs, media_usages, media_variants, media_assets, "
                 "site_release_entries, site_releases, site_state, "
                 "content_revisions, content_items, "
-                "audit_log_entries, analytics_events, site_settings, "
+                "audit_log_entries, analytics_events, "
                 "page_view_daily, web_vital_samples, "
                 "notification_deliveries, notification_inbox_items, user_notifications, "
-                "reschedule_requests, parent_sessions, parent_access_tokens, "
+                "parent_sessions, parent_access_tokens, "
                 "outbox_messages, visit_request_events, visit_contact_notes, "
                 "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
                 "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
@@ -208,7 +208,6 @@ async def _logged_in_client(app, email: str, password: str) -> httpx.AsyncClient
 
 
 VISIT_SUBMIT_PATH = "/api/website/v1/public/visit-requests"
-TEST_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀（測試）。"
 
 
 class ParentClient(httpx.AsyncClient):
@@ -252,10 +251,6 @@ async def publish_booking_consent(db: AsyncSession, **overrides) -> uuid.UUID:
     payload = {
         "cta_label": "預約參觀",
         "cta_label_en": "Book a Visit",
-        "consent_text": TEST_CONSENT_TEXT,
-        "banner_title_template": "歡迎預約參觀{campus}",
-        "banner_body": "期待與你相遇。",
-        "banner_button_label": "預約校園參觀",
         "privacy_title": "",
         "privacy_sections": [],
         **overrides,
@@ -269,7 +264,7 @@ async def publish_booking_consent(db: AsyncSession, **overrides) -> uuid.UUID:
 
 @pytest_asyncio.fixture
 async def booking_consent(db_session) -> uuid.UUID:
-    """已發布的同意文字。預約相關的測試檔用 pytestmark 帶入。"""
+    """已發布的預約文案。預約相關的測試檔用 pytestmark 帶入。"""
     return await publish_booking_consent(db_session)
 
 
@@ -525,22 +520,6 @@ async def legacy_request(
     db.add(visit_request)
     await db.commit()
     return str(visit_request.id)
-
-
-async def legacy_reschedule_request(db: AsyncSession, visit_request_id, requested_slot_id) -> str:
-    """家長「申請改期」已退場；後台核准／退回仍要處理舊資料。"""
-    from app.booking.access_models import RescheduleRequest
-
-    record = RescheduleRequest(
-        id=uuid.uuid4(),
-        visit_request_id=uuid.UUID(str(visit_request_id)),
-        requested_slot_id=uuid.UUID(str(requested_slot_id)),
-        status="pending",
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(record)
-    await db.commit()
-    return str(record.id)
 
 
 async def open_manage(public_client, manage_path: str) -> dict:

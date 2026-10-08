@@ -54,7 +54,7 @@ async def _lock_status(db: AsyncSession, visit_request: VisitRequest) -> None:
     )
 
 
-# 路由層要先鎖案件、再鎖其他列（例如核准改期申請）時用同一把鎖。
+# 路由層要先鎖案件、再鎖其他列時用同一把鎖。
 lock_status = _lock_status
 
 
@@ -67,9 +67,8 @@ async def _close(
     actor: Actor | None,
     reason: str | None = None,
 ) -> None:
-    """結案的共同收尾：撤銷家長連結、讓待核准的改期申請失效、寫歷程。"""
+    """結案的共同收尾：撤銷家長連結、寫歷程。"""
     await access_service.revoke_access_for_visit_request(db, visit_request.id)
-    await access_service.close_pending_reschedules(db, visit_request.id, resolved_by=_resolver_id(actor))
     history.record_event(
         db,
         visit_request.id,
@@ -183,15 +182,10 @@ async def reschedule(
     *,
     actor: Actor | None = None,
     reason: str | None = None,
-    approving_request_id: uuid.UUID | None = None,
 ) -> VisitRequest:
     """已確認的案件換時段（規格 L211）：保留案件 id，舊時段釋放與新時段
     占位在同一個交易。新時段名額不足、已關閉或已開始時整筆回滾，原預約
     不受影響。
-
-    家長先前送出、還在等核准的改期申請在同一個交易失效（approving_request_id
-    是正在核准的那一筆，不算在內）：園方電話談好直接改期後，別的同事再按
-    核准那筆舊申請，會把案件搬回家長當初申請的時段。
 
     先鎖案件列（與取消、結案同一把鎖），再以固定次序鎖住新舊時段避免
     deadlock：一律先鎖 id 字串較小的那個。"""
@@ -234,17 +228,6 @@ async def reschedule(
         after={"status": visit_request.status, "slot": history.slot_brief(new_slot)},
         reason=reason,
     )
-    superseded = await access_service.close_pending_reschedules(
-        db, visit_request.id, resolved_by=_resolver_id(actor), keep_id=approving_request_id
-    )
-    for requested_slot_id in superseded:
-        history.record_event(
-            db,
-            visit_request.id,
-            "reschedule_superseded",
-            actor=actor,
-            after={"requested_slot": history.slot_brief(await history.load_slot(db, requested_slot_id))},
-        )
     enqueue_outbox(
         db,
         visit_request.id,

@@ -136,7 +136,7 @@ class BookingConfigOut(BaseModel):
     phone: str | None
     external_url: str | None
     message: str | None
-    # 家長線上取消／申請改期最晚到參觀前幾小時（規格 238）。
+    # 家長線上取消／改期最晚到參觀前幾小時（規格 238）。
     parent_change_deadline_hours: int
     # 部署有設定寄信時，家長會收到確認信；官網與後台據此決定要不要講「已寄到信箱」。
     parent_email_enabled: bool = False
@@ -492,12 +492,6 @@ class VisitRequestDetailOut(BaseModel):
         )
 
 
-class VisitGroupCountsOut(BaseModel):
-    upcoming: int
-    past: int
-    cancelled: int
-
-
 class VisitViewCountsOut(BaseModel):
     """接待頁籤的數字（2026-10-06 方向 B）：接下來寫全部件數；時間已過只寫還沒標記到場的
     （＝總覽「參觀時間過了，還沒標記到場」、pending_kinds.awaiting_attendance）。已到場、已取消不寫數字。"""
@@ -601,7 +595,6 @@ class ParentVisitRequestOut(BaseModel):
     can_cancel: bool
     can_reschedule: bool
     can_edit: bool = False
-    reschedule_pending: bool = False
     # 預約的分校。停用的分校不在公開內容裡（官網沒有它的分校頁與預約頁），家長
     # 管理頁靠這三欄顯示校名、「暫停開放」與電話，不改列其他校區。校名與電話取自
     # 目前發布中的分校介紹；沒有發布過時校名用分校資料表的名稱、電話為 None。
@@ -679,12 +672,6 @@ class VisitRequestCancelRequest(BaseModel):
     reason: ReasonText = None
 
 
-class RescheduleDecisionRequest(BaseModel):
-    """退回家長改期申請時的原因（選填）。"""
-
-    reason: ReasonText = None
-
-
 class VisitHistoryOut(BaseModel):
     """案件歷程一筆。source：staff＝後台人員（actor_email 是誰）、parent＝
     家長（官網送單或管理連結）、system＝定期工作；舊紀錄可能沒有來源。
@@ -700,22 +687,6 @@ class VisitHistoryOut(BaseModel):
     before: dict | None
     after: dict | None
     reason: str | None
-    created_at: datetime
-
-
-class RescheduleRequestOut(BaseModel):
-    """家長線上改期申請。核准前園方要看得到是誰、原本哪一場、想改到哪一場，
-    以及那一場現在還剩幾位（已額滿或已開始時核准會失敗）。"""
-
-    id: uuid.UUID
-    visit_request_id: uuid.UUID
-    campus_key: str
-    status: str
-    parent_name: str
-    current_slot: VisitSlotBriefOut | None
-    requested_slot: VisitSlotBriefOut
-    requested_slot_remaining: int
-    requested_slot_available: bool
     created_at: datetime
 
 
@@ -748,11 +719,10 @@ class ParentAccessLinkCreatedOut(BaseModel):
 
 
 class VisitRequestFullOut(VisitRequestDetailOut):
-    """案件明細頁用：案件本身＋歷程、待核准的改期申請、家長連結狀態。
+    """案件明細頁用：案件本身＋歷程、家長連結狀態。
     列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。"""
 
     history: list[VisitHistoryOut]
-    pending_reschedule: RescheduleRequestOut | None
     access_link: ParentAccessLinkOut | None
     # 該校的家長線上異動期限（參觀前幾小時），產生連結時要跟家長講清楚。
     parent_change_deadline_hours: int
@@ -854,7 +824,7 @@ class VisitScheduleSlotSyncOut(BaseModel):
     reopened: int
     # 名額還是舊規則的值（園方沒調過），改成新規則名額的場次。
     capacity_updated: int
-    # 不符合新規則，但已有家長排入（或有待核准改期申請）而維持原樣的場次。
+    # 不符合新規則，但已有家長排入而維持原樣的場次。
     kept_booked: int
     # 存檔當下依新規則補到最遠開放天數的新場次數。
     created: int = 0
@@ -880,14 +850,3 @@ class VisitScheduleUpdate(BaseModel):
     min_lead_hours: int = Field(ge=0, le=24 * 14)
     max_advance_days: int = Field(ge=1, le=365)
     rules: list[VisitRuleIn] = Field(default_factory=list, max_length=50)
-
-
-class VisitSlotGenerateRequest(BaseModel):
-    date_from: date
-    date_to: date
-
-
-class VisitSlotGenerateOut(BaseModel):
-    created: int
-    skipped_existing: int
-    skipped_exception_days: int

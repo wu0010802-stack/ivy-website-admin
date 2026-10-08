@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
@@ -13,10 +12,8 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import campus_scope, require_scope
-from app.booking import access_service, history, presenters, slot_service, workflow_service
-from app.booking.access_models import RescheduleRequest
-from app.booking.exceptions import slot_unavailable
+from app.auth.permissions import require_scope
+from app.booking import access_service, history, slot_service, workflow_service
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
@@ -26,10 +23,7 @@ from app.booking.schemas import (
     ParentDetailsUpdate,
     ParentRescheduleRequest,
     ParentVisitRequestOut,
-    RescheduleDecisionRequest,
-    RescheduleRequestOut,
     ResendConfirmationOut,
-    VisitRequestDetailOut,
 )
 from app.campuses.models import Campus
 from app.common import ratelimit
@@ -146,12 +140,6 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
     )
     # 家長改資料用自己的版本（不是園方下次聯絡的 version）。
     output.version = await workflow_service.details_version(db, visit_request.id)
-    if visit_request.status == "confirmed":
-        pending_id = await db.scalar(select(RescheduleRequest.id).where(
-            RescheduleRequest.visit_request_id == visit_request.id,
-            RescheduleRequest.status == "pending",
-        ).limit(1))
-        output.reschedule_pending = pending_id is not None
     return output
 
 
@@ -338,7 +326,7 @@ async def parent_update_details(
 
 
 # ---------------------------------------------------------------------------
-# Admin：產生分享連結、審核改期申請
+# Admin：產生分享連結
 # ---------------------------------------------------------------------------
 
 
@@ -500,156 +488,3 @@ async def revoke_parent_access_link(
         campus_key=visit_request.campus_key,
     )
     await db.commit()
-
-
-@router.get("/admin/reschedule-requests", response_model=list[RescheduleRequestOut])
-async def list_reschedule_requests(
-    campus_key: str | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> list[RescheduleRequestOut]:
-    """待核准的家長改期申請，最早送出的在前。帶家長稱呼、原時段、申請的
-    新時段與新時段剩餘名額，園方不必點進案件就能判斷。
-
-    沒指定校區時列出你負責的所有校區，與側欄徽章、總覽的待核准數同一個
-    範圍：點進站內通知就看得到那幾件，不必一校一校切。"""
-    require_scope(current_user, "booking.read")
-    stmt = (
-        select(RescheduleRequest, VisitRequest)
-        .join(VisitRequest, RescheduleRequest.visit_request_id == VisitRequest.id)
-        .where(
-            RescheduleRequest.status == "pending",
-            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
-        )
-        .order_by(RescheduleRequest.created_at)
-    )
-    if campus_key:
-        require_scope(current_user, "booking.read", campus_keys=[campus_key])
-        stmt = stmt.where(VisitRequest.campus_key == campus_key)
-    else:
-        scope = campus_scope(current_user)
-        if scope is not None:
-            stmt = stmt.where(VisitRequest.campus_key.in_(scope))
-    result = await db.execute(stmt)
-    return await presenters.reschedule_request_outs(db, list(result.tuples().all()))
-
-
-async def _load_pending_decision(
-    db: AsyncSession, current_user: User, request_id: uuid.UUID
-) -> tuple[RescheduleRequest, VisitRequest]:
-    """取出申請與案件並依序上鎖：先案件列、再申請列，跟取消／結案（先鎖
-    案件、再把待核准申請標成 closed）同一個順序，避免互相等待。已處理或
-    已失效的申請回 409，不是 404——園方看到的清單可能已經過期。"""
-    record = await db.get(RescheduleRequest, request_id)
-    if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
-    result = await db.execute(
-        select(VisitRequest)
-        .options(selectinload(VisitRequest.slot))
-        .where(VisitRequest.id == record.visit_request_id)
-    )
-    visit_request = result.scalar_one()
-    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
-    await workflow_service.lock_status(db, visit_request)
-    await db.refresh(record, attribute_names=["status"], with_for_update=True)
-    if record.status != "pending":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "INVALID_TRANSITION", "message": "這筆改期申請已經處理過或已失效，請重新整理"},
-        )
-    return record, visit_request
-
-
-@router.post("/admin/reschedule-requests/{request_id}/approve", response_model=VisitRequestDetailOut)
-async def approve_reschedule_request(
-    request_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> VisitRequestDetailOut:
-    record, visit_request = await _load_pending_decision(db, current_user, request_id)
-    old_slot = visit_request.slot
-    try:
-        await workflow_service.reschedule(
-            db,
-            visit_request,
-            record.requested_slot_id,
-            actor=Actor.staff(current_user.id),
-            reason="核准家長線上申請的改期",
-            approving_request_id=record.id,
-        )
-    except workflow_service.SlotFull as exc:
-        await db.rollback()
-        raise slot_unavailable(exc, subject="新時段") from exc
-    except slot_service.SlotNotBookable as exc:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "SLOT_NOT_BOOKABLE", "message": exc.message},
-        ) from exc
-    except workflow_service.InvalidTransition as exc:
-        # 家長送出申請之後案件才被取消／標記完成，核准時就會走到這裡。
-        # 沒接的話整支端點回 500。
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={"code": "INVALID_TRANSITION", "message": exc.message},
-        ) from exc
-
-    record.status = "approved"
-    record.resolved_at = datetime.now(timezone.utc)
-    record.resolved_by = current_user.id
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="visit_request.approve_reschedule",
-        target_type="visit_request",
-        target_id=str(visit_request.id),
-        campus_key=visit_request.campus_key,
-        metadata={
-            "reschedule_request_id": str(record.id),
-            "from_slot_id": str(old_slot.id) if old_slot else None,
-            "to_slot_id": str(record.requested_slot_id),
-        },
-    )
-    await db.commit()
-    return VisitRequestDetailOut.model_validate(visit_request)
-
-
-@router.post("/admin/reschedule-requests/{request_id}/reject", response_model=dict)
-async def reject_reschedule_request(
-    request_id: uuid.UUID,
-    payload: RescheduleDecisionRequest | None = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    """退回：家長維持原時段。原因選填，記在申請與案件歷程。"""
-    record, visit_request = await _load_pending_decision(db, current_user, request_id)
-    reason = (payload.reason or "").strip() if payload else ""
-    record.status = "rejected"
-    record.resolved_at = datetime.now(timezone.utc)
-    record.resolved_by = current_user.id
-    record.reject_reason = reason or None
-    history.record_event(
-        db,
-        visit_request.id,
-        "reschedule_rejected",
-        actor=Actor.staff(current_user.id),
-        after={"requested_slot": history.slot_brief(await history.load_slot(db, record.requested_slot_id))},
-        reason=reason or None,
-    )
-    # 退回原因是自由文字，只記有沒有填。
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="visit_request.reject_reschedule",
-        target_type="visit_request",
-        target_id=str(visit_request.id),
-        campus_key=visit_request.campus_key,
-        metadata={
-            "reschedule_request_id": str(record.id),
-            "requested_slot_id": str(record.requested_slot_id),
-            "has_reason": bool(reason),
-        },
-    )
-    await db.commit()
-    return {"id": str(record.id), "status": record.status}

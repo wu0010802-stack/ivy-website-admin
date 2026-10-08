@@ -470,7 +470,7 @@ a:hover {
   gap: 0 16px;
 }
 
-/* 重複項目（FAQ、時刻卡、場景）：用序號與細線分隔，不疊卡片 */
+/* 重複項目（時刻卡、場景）：用序號與細線分隔，不疊卡片 */
 .repeat-item {
   padding: 16px 0 8px;
   border-top: 1px solid var(--line);

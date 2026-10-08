@@ -30,7 +30,9 @@ test('素材庫上傳照片，在「關於常春藤」選用並發布到官網',
   })
 
   const api = await adminApi('super_admin')
-  const assets = await api.get<{ id: string; original_filename: string; status: string }[]>('/admin/media')
+  const { items: assets } = await api.get<{ items: { id: string; original_filename: string; status: string }[] }>(
+    `/admin/media?q=${encodeURIComponent(FILE_NAME)}`,
+  )
   const asset = assets.find((item) => item.original_filename === FILE_NAME)
   expect(asset?.status).toBe('ready')
 

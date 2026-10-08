@@ -11,7 +11,7 @@ import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 
 // 官網的描述、分享圖與是否允許收錄只以「網站標題與電話」（site_meta）為準，
 // 有草稿與發布流程；這裡只讀官網目前發布中的值給總管理者核對。舊的
-// /admin/site-settings 官網從來不讀，已不再使用。
+// /admin/site-settings 與 site_settings 資料表官網從來不讀，2026-10-08 已刪除。
 interface PublishedSiteMeta {
   description?: string
   share_image?: string

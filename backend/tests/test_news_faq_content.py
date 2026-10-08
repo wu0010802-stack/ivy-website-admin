@@ -1,20 +1,18 @@
 """消息的適用範圍、結構化內文、首頁推薦與活動時間；各校消息（campus_news）
-與全站共用常見問題（shared_faq）的欄位規則與權限。"""
+的欄位規則與權限。常見問題（shared_faq、campus_faq）已於 2026-10-08 刪除，
+檔名保留，只留下「後台不再認得」的檢查。"""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from app.content.schemas import (
-    CampusFaqPayload,
     CampusNewsPayload,
     HomeNewsPayload,
     NewsArticlePayload,
     NewsEventPayload,
-    SharedFaqPayload,
 )
 
 API = "/api/website/v1/admin/content-items"
@@ -288,109 +286,18 @@ async def test_news_body_images_are_protected_and_campus_bound(admin_client, min
 
 
 # ---------------------------------------------------------------------------
-# 常見問題：全站共用＋各校
+# 常見問題（shared_faq、campus_faq）2026-10-08 連同資料刪除：後台不再認得這兩種內容
 # ---------------------------------------------------------------------------
 
 
-def test_faq_rules():
-    shared = SharedFaqPayload.model_validate({"items": [
-        {"id": "f1", "q": "要帶什麼？", "a": "水壺", "scope": "campus", "campus_keys": ["renwu"]},
-        {"id": "f2", "q": "可以參觀嗎？", "a": "可以", "enabled": False},
-    ]}).model_dump()
-    assert shared["items"][0]["campus_keys"] == ["renwu"] and shared["items"][1]["enabled"] is False
-    with pytest.raises(ValidationError, match="不可重複"):
-        SharedFaqPayload.model_validate({"items": [{"id": "f1", "q": "a", "a": "b"}] * 2})
-    with pytest.raises(ValidationError):
-        SharedFaqPayload.model_validate({"items": [{"id": "f1", "q": " ", "a": "b"}]})
-
-    # 各校可以沒有自己的題目（全部用共用題目），舊資料沒有新欄位照樣通過。
-    empty = CampusFaqPayload.model_validate({"items": []}).model_dump()
-    assert empty == {"items": [], "include_shared": True, "shared_position": "before"}
-    legacy = CampusFaqPayload.model_validate({"items": [{"q": "問", "a": "答"}]}).model_dump()
-    assert legacy["items"][0]["enabled"] is True
-    with pytest.raises(ValidationError):
-        CampusFaqPayload.model_validate({"items": [], "shared_position": "middle"})
-    with pytest.raises(ValidationError):
-        CampusFaqPayload.model_validate({"items": [{"q": "問", "a": "答"}] * 21})
-
-
-def test_campus_faq_shown_items_need_question_and_answer():
-    """「本校不顯示」產生的是只有問題的停用題；之後切回顯示卻沒寫回答，官網就會
-    出現一題空白的回答，所以顯示中的題目問題與回答都要有。"""
-    hidden = CampusFaqPayload.model_validate({"items": [{"q": "要帶什麼？", "a": "", "enabled": False}]})
-    assert hidden.items[0].enabled is False
-    for item in ({"q": "要帶什麼？", "a": ""}, {"q": "要帶什麼？", "a": "  "}, {"q": " ", "a": "水壺"}):
-        with pytest.raises(ValidationError, match="問題與回答都不能空白"):
-            CampusFaqPayload.model_validate({"items": [item]})
-
-
 @pytest.mark.asyncio
-async def test_campus_faq_with_blank_shown_item_cannot_be_published(db_session, admin_client):
-    """規則收緊前存下的草稿（顯示中卻沒有回答）發布時擋下，不讓空白回答上官網。"""
-    from app.content import service
-
-    item = await service.get_or_create_content_item(db_session, "campus_faq", "yihua")
-    revision = await service.create_revision(
-        db_session, item,
-        {"items": [{"q": "有校車嗎？", "a": "有", "enabled": True}, {"q": "要帶什麼？", "a": "", "enabled": True}]},
-        0, None,
-    )
-    await db_session.commit()
-    response = await admin_client.post(
-        f"{API}/campus_faq/publish?campus_key=yihua", json={"revision_id": str(revision.id)}
-    )
-    assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "CONTENT_NOT_READY"
-    assert "第 2 題" in response.json()["detail"]["message"]
-
-
-@pytest.mark.asyncio
-async def test_shared_faq_is_shared_only_and_public_hides_disabled(admin_client, minghua_client, public_client):
-    shared = {"items": [
-        {"id": "f1", "q": "要帶什麼？", "a": "水壺"},
-        {"id": "f2", "q": "停用的題目", "a": "不該出現", "enabled": False},
-    ]}
-    denied = await minghua_client.post(
-        f"{API}/shared_faq/revisions", json={"expected_version": 0, "payload": shared}
-    )
-    assert denied.status_code == 403
-    await _save_and_publish(admin_client, "shared_faq", shared)
-    await _save_and_publish(minghua_client, "campus_faq", {
-        "items": [
-            {"q": "明華的題目", "a": "明華的回答"},
-            {"q": "要帶什麼？", "a": "明華不顯示這題", "enabled": False},
-            {"q": "明華停用的私房題", "a": "不該出現", "enabled": False},
-            # 跟停用的共用題目同一題：共用那題官網本來就不顯示，不必留記號。
-            {"q": "停用的題目", "a": "", "enabled": False},
-        ],
-        "shared_position": "after",
-    }, "minghua")
-
-    content = (await public_client.get("/api/website/v1/public/site")).json()["content"]
-    assert [item["id"] for item in content["shared_faq"]["items"]] == ["f1"]
-    minghua = content["campus_faq"]["minghua"]
-    assert minghua["shared_position"] == "after"
-    # 停用的本校題目只在藏住同一題共用題目時留下問題文字（官網靠它藏那一題），
-    # 回答不輸出；跟共用題目無關的停用題整題不輸出。
-    assert minghua["items"] == [
-        {"q": "明華的題目", "a": "明華的回答", "enabled": True},
-        {"q": "要帶什麼？", "a": "", "enabled": False},
-    ]
-    assert "明華停用的私房題" not in json.dumps(content, ensure_ascii=False)
-
-
-@pytest.mark.asyncio
-async def test_public_faq_marker_needs_shared_question_for_that_campus(admin_client, public_client):
-    """共用題目只給別校時，本校同一題的停用記號也不輸出；還沒有共用題目時全部不輸出。"""
-    await _save_and_publish(admin_client, "campus_faq", {
-        "items": [{"q": "有校車嗎？", "a": "", "enabled": False}, {"q": "要帶什麼？", "a": "", "enabled": False}],
-    }, "yihua")
-    content = (await public_client.get("/api/website/v1/public/site")).json()["content"]
-    assert content["campus_faq"]["yihua"]["items"] == []
-
-    await _save_and_publish(admin_client, "shared_faq", {"items": [
-        {"id": "f1", "q": "要帶什麼？", "a": "水壺"},
-        {"id": "f2", "q": "有校車嗎？", "a": "仁武有", "scope": "campus", "campus_keys": ["renwu"]},
-    ]})
-    content = (await public_client.get("/api/website/v1/public/site")).json()["content"]
-    assert content["campus_faq"]["yihua"]["items"] == [{"q": "要帶什麼？", "a": "", "enabled": False}]
+@pytest.mark.parametrize("kind", ["shared_faq", "campus_faq"])
+async def test_faq_kinds_are_gone(admin_client, kind):
+    for response in (
+        await admin_client.get(f"{API}/{kind}?campus_key=yihua"),
+        await admin_client.post(
+            f"{API}/{kind}/revisions?campus_key=yihua", json={"expected_version": 0, "payload": {"items": []}}
+        ),
+    ):
+        assert response.status_code == 404
+        assert kind in response.json()["detail"]

@@ -49,6 +49,32 @@ describe('dirtySectionIds', () => {
     expect(dirtySectionIds(SECTIONS, new Set(['sections']), base, current)).toEqual(['p1'])
   })
 
+  it('清單某一項對的是基準裡「同一項」（依標題），不是同一個位置：刪掉前面的段落，後面的不打點', () => {
+    const a = { heading: '甲', body: '1' }
+    const b = { heading: '乙', body: '2' }
+    const c = { heading: '丙', body: '3' }
+    const sections: EditorSection[] = [
+      { id: 's0', label: '第一', fields: ['sections.0'] },
+      { id: 's1', label: '第二', fields: ['sections.1'] },
+    ]
+    // 基準 [甲, 乙, 丙] → 現在 [甲, 丙]：位置 1 現在是丙，基準的位置 1 是乙，但丙沒改
+    expect(dirtySectionIds(sections, new Set(['sections']), { sections: [a, b, c] }, { sections: [a, c] })).toEqual([])
+    // 丙同時改了內文：只有丙那一段打點
+    expect(dirtySectionIds(sections, new Set(['sections']), { sections: [a, b, c] }, { sections: [a, { ...c, body: '改' }] })).toEqual(['s1'])
+    // 換順序但內容都沒改：沒有一段打點（動作列仍會寫欄位改了）
+    expect(dirtySectionIds(sections, new Set(['sections']), { sections: [a, b] }, { sections: [b, a] })).toEqual([])
+  })
+
+  it('清單新增的一項在基準裡找不到對應：打點；標題重複分不出是哪一段時退回依位置比', () => {
+    const sections: EditorSection[] = [
+      { id: 's0', label: '第一', fields: ['sections.0'] },
+      { id: 's1', label: '第二', fields: ['sections.1'] },
+    ]
+    expect(dirtySectionIds(sections, new Set(['sections']), { sections: [{ heading: '甲' }] }, { sections: [{ heading: '甲' }, { heading: '乙' }] })).toEqual(['s1'])
+    const dup = [{ heading: '說明', body: '1' }, { heading: '說明', body: '2' }]
+    expect(dirtySectionIds(sections, new Set(['sections']), { sections: dup }, { sections: [dup[0], { heading: '說明', body: '改' }] })).toEqual(['s1'])
+  })
+
   it('沒有基準（從沒發布過）時 changedKeys 是空的，不打點', () => {
     expect(dirtySectionIds(SECTIONS, new Set(), null, { phone: '2' })).toEqual([])
   })

@@ -270,6 +270,91 @@ describe('VisitListRow 的點擊', () => {
     expect(wrapper.emitted('activate')).toHaveLength(1)
   })
 
+  describe('點列的空白處開新分頁（⌘／Ctrl／中鍵）', () => {
+    // 連結本體由瀏覽器自己處理；空白處沒有連結，元件用同一列的網址補開，而且不能在同一個分頁開預覽或換頁。
+    function spyOpen() {
+      return vi.spyOn(window, 'open').mockImplementation((() => null) as never)
+    }
+
+    it('⌘ 或 Ctrl 點空白處：用新分頁開同一列的網址，不開預覽', async () => {
+      const open = spyOpen()
+      const wrapper = await mountRow({ previewable: true })
+      await wrapper.get('.visit-row__acts').trigger('click', { metaKey: true })
+      await wrapper.get('.visit-row__acts').trigger('click', { ctrlKey: true })
+      await wrapper.trigger('click', { ctrlKey: true })
+      expect(open).toHaveBeenCalledTimes(3)
+      expect(open).toHaveBeenNthCalledWith(1, '/visit-requests/x', '_blank', 'noopener')
+      expect(wrapper.emitted('activate')).toBeUndefined()
+    })
+
+    it('中鍵（auxclick）點空白處：新分頁，不開預覽', async () => {
+      const open = spyOpen()
+      const wrapper = await mountRow({ previewable: true })
+      await wrapper.get('.visit-row__acts').trigger('auxclick', { button: 1 })
+      expect(open).toHaveBeenCalledTimes(1)
+      expect(open).toHaveBeenCalledWith('/visit-requests/x', '_blank', 'noopener')
+      expect(wrapper.emitted('activate')).toBeUndefined()
+    })
+
+    it('沒按修飾鍵的左鍵點空白處照舊 activate，不開新分頁；右鍵（auxclick button 2）不處理', async () => {
+      const open = spyOpen()
+      const wrapper = await mountRow({ previewable: true })
+      await wrapper.get('.visit-row__acts').trigger('click')
+      await wrapper.get('.visit-row__acts').trigger('auxclick', { button: 2 })
+      expect(wrapper.emitted('activate')).toHaveLength(1)
+      expect(open).not.toHaveBeenCalled()
+    })
+
+    it('連結本體、電話與勾選框不重複處理（連結由瀏覽器開新分頁，不能開兩個）', async () => {
+      const open = spyOpen()
+      const wrapper = await mountRow({
+        previewable: true, batch: true,
+        row: row('2026-01-05', '10:00', { display_status: 'past' }) as never,
+      })
+      const noDefault = (event: Event) => event.preventDefault()
+      document.addEventListener('click', noDefault)
+      await wrapper.get('a.visit-row__main').trigger('click', { metaKey: true })
+      await wrapper.get('a.visit-row__main').trigger('auxclick', { button: 1 })
+      await wrapper.get('a.visit-row__phone').trigger('click', { ctrlKey: true })
+      await wrapper.get('.visit-row__check').trigger('click', { ctrlKey: true })
+      document.removeEventListener('click', noDefault)
+      expect(open).not.toHaveBeenCalled()
+      expect(wrapper.emitted('activate')).toBeUndefined()
+    })
+  })
+
+  describe('家長・孩子的分隔符', () => {
+    // 版面（桌機寬度換行時行首的「・」被裁掉）要瀏覽器才看得到；這裡守 DOM 結構：
+    // 「・」是獨立的 aria-hidden 元素，孩子名的文字不含它，報讀由隱藏的逗號斷句。
+    it('「・」是 aria-hidden 的獨立元素，在孩子名那一塊的最前面；孩子名文字不含它', async () => {
+      const wrapper = await mountRow()
+      const child = wrapper.get('.visit-row__child')
+      const sep = child.get('.visit-row__sep')
+      expect(sep.text()).toBe('・')
+      expect(sep.attributes('aria-hidden')).toBe('true')
+      expect(child.element.firstElementChild).toBe(sep.element)
+      expect(child.text().replace('・', '')).toBe('小安')
+      // 家長名在孩子名前面，兩者在同一個 .visit-row__flow 裡（CSS 靠它一起往左縮來裁掉行首分隔符）。
+      const flow = wrapper.get('.visit-row__name > .visit-row__flow')
+      expect(Array.from(flow.element.children).map((el) => el.tagName + (el.className ? `.${el.className}` : ''))).toEqual(['B', 'SPAN.visually-hidden', 'SPAN.visit-row__child'])
+    })
+
+    it('報讀文字（扣掉 aria-hidden）是「家長，孩子」，沒有「・」', async () => {
+      const wrapper = await mountRow()
+      const clone = wrapper.get('.visit-row__name').element.cloneNode(true) as HTMLElement
+      clone.querySelectorAll('[aria-hidden="true"]').forEach((el) => el.remove())
+      expect(clone.textContent).toBe('家長07-10，小安')
+      expect(clone.textContent).not.toContain('・')
+    })
+
+    it('沒有孩子名時寫「孩子姓名未填寫」，分隔符照樣在最前面', async () => {
+      const wrapper = await mountRow({ row: row('2099-10-07', '10:00', { child_name: null }) as never })
+      const child = wrapper.get('.visit-row__child')
+      expect(child.element.firstElementChild?.classList.contains('visit-row__sep')).toBe(true)
+      expect(child.text()).toBe('・孩子姓名未填寫')
+    })
+  })
+
   it('勾選框所在的格子點空白、點勾選框本身都不開啟（P4）', async () => {
     const wrapper = await mountRow({
       batch: true,

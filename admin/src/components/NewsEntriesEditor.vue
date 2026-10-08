@@ -15,12 +15,12 @@ import {
   revealListItem,
   scheduleInvalid,
   scheduleState,
-  taipeiToday,
   useCollapsibleItems,
   webUrlError,
   NEWS_SECTION_IDS,
   type NewsMode,
 } from '../composables/newsContent'
+import { taipeiToday } from '../admissions/academic'
 import LengthHint from './LengthHint.vue'
 import MediaRefField from './MediaRefField.vue'
 import NewsBodyEditor from './NewsBodyEditor.vue'
