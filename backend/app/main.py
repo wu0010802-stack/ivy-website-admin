@@ -37,6 +37,7 @@ from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
 from app.logging_config import configure_logging
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
+from app.workers.geo_loop import GeoSyncLoop
 from app.workers.maintenance import MaintenanceLoop
 from app.workers.media_loop import MediaJobLoop
 
@@ -141,9 +142,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, poll_seconds=settings.media_jobs_poll_seconds
             )
             app.state.media_jobs.start()
+        # 招生區域分析的公開地理資料（app/workers/geo_loop.py）；兩個開關都開才跑。
+        if settings.admissions_enabled and settings.geo_auto_sync:
+            app.state.geo_sync = GeoSyncLoop(
+                app.state.session_factory, settings, check_seconds=settings.geo_sync_check_seconds
+            )
+            app.state.geo_sync.start()
         try:
             yield
         finally:
+            if app.state.geo_sync is not None:
+                await app.state.geo_sync.stop()
             # 先停轉檔迴圈：做到一半的影片放回佇列，下一個程序馬上接手（不算一次嘗試）。
             if app.state.media_jobs is not None:
                 await app.state.media_jobs.stop()
@@ -166,6 +175,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.maintenance = None
     app.state.media_jobs = None
+    app.state.geo_sync = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(

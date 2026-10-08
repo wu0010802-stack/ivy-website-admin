@@ -591,6 +591,57 @@ async def transcode_media_videos(*, apply: bool) -> None:
         raise SystemExit(1)
 
 
+def geo_sync_options(args: list[str]) -> dict:
+    """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那一種跳過；
+    --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。"""
+    usage = (
+        "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
+        "[--doorplates-version 115-10] [--kindergartens-file <JSON>]"
+    )
+    options: dict = {"force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None}
+    valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
+              "--kindergartens-file": "kindergartens_file"}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--force":
+            options["force"] = True
+            index += 1
+        elif arg in valued and index + 1 < len(args) and not args[index + 1].startswith("--"):
+            value = args[index + 1]
+            options[valued[arg]] = value if arg == "--doorplates-version" else Path(value)
+            index += 2
+        else:
+            raise SystemExit(usage)
+    for key in ("doorplates_file", "kindergartens_file"):
+        if options[key] is not None and not options[key].is_file():
+            raise SystemExit(f"找不到檔案：{options[key]}")
+    if options["doorplates_version"] is not None and options["doorplates_file"] is None:
+        raise SystemExit(usage)
+    return options
+
+
+async def geo_sync_command(**options) -> None:
+    """招生區域分析的公開地理資料同步（app/admissions/geo/sync.py）。不看
+    WEBSITE_GEO_AUTO_SYNC：那個開關只管 API 內的背景迴圈。另一個同步（背景迴圈或別的
+    CLI）正在進行時什麼都不做，exit 1。"""
+    from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
+
+    settings = get_settings()
+    session_factory = await _session_factory()
+    try:
+        result = await run_geo_sync(session_factory, settings, **options)
+    except GeoSyncBusy:
+        print("另一個公開資料同步正在進行，稍後再試", file=sys.stderr)
+        raise SystemExit(1)
+    print(
+        f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
+        f"幼兒園：{result.kindergartens}；重算訪視 {result.rematched} 筆"
+    )
+    if "failed" in (result.doorplates, result.kindergartens):
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -599,7 +650,8 @@ def main() -> None:
             "initialize-content <fixture> [--dry-run]|process-notifications|"
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
-            "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]>",
+            "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
+            "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -666,6 +718,8 @@ def main() -> None:
         if args - {"--apply", "--dry-run"} or {"--apply", "--dry-run"} <= args:
             raise SystemExit("用法：python -m app.cli transcode-media-videos [--apply]")
         asyncio.run(transcode_media_videos(apply="--apply" in args))
+    elif command == "geo-sync":
+        asyncio.run(geo_sync_command(**geo_sync_options(sys.argv[2:])))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)
