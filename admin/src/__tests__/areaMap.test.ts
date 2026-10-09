@@ -134,6 +134,14 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(leaflet.created.circle).toBeUndefined()
   })
 
+  it('本校有座標時先取視野、再加里界、半徑圓與幼兒園點（真 Leaflet 沒有視野時把加圖層排到 load，向量 renderer 還沒初始化會丟錯）', async () => {
+    await mountMap()
+    const viewAt = one('map').fitBounds.mock.invocationCallOrder[0]
+    for (const draw of [leaflet.module.geoJSON, leaflet.module.circle, leaflet.module.circleMarker]) {
+      expect(draw.mock.invocationCallOrder[0], '圖層在取視野之前就加了').toBeGreaterThan(viewAt)
+    }
+  })
+
   it('本校用星號（divIcon，不載預設圖示檔）；半徑虛線圓跟著清單的半徑', async () => {
     const wrapper = await mountMap()
     expect(one('marker').options).toMatchObject({ title: '義華', alt: '義華', keyboard: false })

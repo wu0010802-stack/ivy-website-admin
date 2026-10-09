@@ -245,6 +245,12 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
     maxZoom: 18,
   })
   map.attributionControl.setPrefix(false)
+  // 先有視野再加圖層：地圖還沒有視野時，Leaflet 把「加圖層」都排到 load 事件、依登記順序執行；
+  // 半徑圓一加就先建好向量圖層共用的 renderer、排在里界與幼兒園點之後，那兩種圖層先被加進還沒
+  // 初始化的 renderer 而丟 TypeError（真瀏覽器才會發生，mock 看不到）。本校位置未知時沒有半徑圓，
+  // 視野等里界畫好再取。
+  const located = props.campus.lat !== null && props.campus.lng !== null
+  if (located) fitInitialView()
   tiles = leaflet.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 18 })
   tiles.on('tileload', onTileLoad)
   tiles.on('tileerror', onTileError)
@@ -253,7 +259,7 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   drawVillages()
   drawCampus()
   drawKindergartens()
-  fitInitialView()
+  if (!located) fitInitialView()
   // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。子分頁切走是 v-show 藏起來（容器 0×0），
   // 藏著的時候重建的地圖 fitBounds 是在 0×0 裡算的（縮到最小級）：容器從沒尺寸變回有尺寸，視野要重取。
   if (typeof ResizeObserver !== 'undefined') {
