@@ -34,6 +34,13 @@ describe('資安標頭', () => {
     expect(preview['X-Frame-Options']).toBe('SAMEORIGIN')
   })
 
+  it('後台地圖的底圖圖磚只放行國土測繪中心（招生區域分析，2026-10-08）；公開頁不變', () => {
+    expect(ADMIN_CSP).toContain("img-src 'self' data: blob: https://wmts.nlsc.gov.tw;")
+    expect(ADMIN_CSP).not.toMatch(/img-src[^;]*\*/)
+    expect(ADMIN_CSP).toContain("connect-src 'self';")
+    expect(securityHeadersFor('/', 'production')['Content-Security-Policy']).not.toContain('nlsc')
+  })
+
   it('後台入口不快取；有雜湊的後台資源照常快取', () => {
     for (const path of ['/admin', '/admin/', '/admin/index.html']) {
       expect(securityHeadersFor(path, 'production')['Cache-Control']).toBe('private, no-store')

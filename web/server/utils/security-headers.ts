@@ -30,11 +30,13 @@ const PUBLIC_CSP = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 // 或公開站導入 nonce 型 script-src，併入上面延後的 CSP 收緊工作。
 // frame-src 'self'：內容編輯右側嵌同源的 /preview 即時預覽（2026-10-06 方向 D）；原本靠
 // default-src 退回，改成明寫，不允許嵌其他網站。
+// img-src 加 https://wmts.nlsc.gov.tw：招生「區域分析」地圖的底圖是國土測繪中心的電子地圖圖磚
+// （2026-10-08）。圖磚請求只帶視野範圍（z/x/y），不帶任何家長資料；其他外部圖片仍不放行。
 export const ADMIN_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://wmts.nlsc.gov.tw",
   "font-src 'self' data:",
   "connect-src 'self'",
   "frame-src 'self'",
