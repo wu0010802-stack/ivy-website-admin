@@ -1,3 +1,14 @@
+## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，未部署、未 push）
+
+使用者要求把園務「統計分析 → 區域分析」搬一部分過來。**使用者 10-08 裁定**：做里別來源統計、里界地圖、附近幼兒園、來源距離分布；精度到里即可、**不做地址分析同意勾選**（所以家長地址不送任何外部服務）、園所只用公開資料、地圖用 Leaflet＋國土測繪底圖。規格 `docs/specs/2026-10-08-admissions-area-design.md`，計畫 `docs/superpowers/plans/2026-10-08-admissions-area*.md`，規則見 DESIGN.md「招生入學：區域分析」，轉移契約記在 `contracts/ivy-recruitment/README.md` 第 18 點。
+
+- **後端**：新子套件 `backend/app/admissions/geo/`——地址解析（全形／之號／樓層／舊高雄縣／缺區／外縣市）、TWD97→WGS84 轉換（不加依賴）、門牌 CSV 串流匯入（分批 COPY、批次標記、成功才切換）、幼兒園 JSON 匯入、五級比對（exact／nearby／street／district／unlocated，另有 pending）與校區座標；migration `e7a1c4d9b2f6` 新增 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`、`recruitment_visit_geo` 四張表（`recruitment_visits` 不改結構，`district` 改由伺服器依地址填寫）；訪視建立與改地址時同交易比對，匿名化清掉里與距離、保留 `district`；同步由獨立背景迴圈（`workers/geo_loop.py`）與 CLI `python -m app.cli geo-sync` 兩條路，共用 session 級 advisory lock（搶不到就不跑）；新 API `GET /admin/admissions/area`、`/area/kindergartens`、`/area/boundaries`（ETag）；訪視明細新增 `district`／`village`／`geo=no_village` 篩選與 `geo` 回傳欄位；里界 GeoJSON（893 里，約 600KB）隨程式提交。契約重產（`contracts/openapi.json`、`website-api.d.ts`）。
+- **後台**：統計分析新增「區域分析」子分頁（狀態列、地圖、附近幼兒園、行政區／里／距離三張表；行政區表與里表每列有「查看明細」）；訪視明細可依區域篩選（網址 `area`）、展開列顯示比對結果；`StatsDimensionTable` 新增可選的按鈕欄；後台 CSP 放行 `https://wmts.nlsc.gov.tw` 圖磚。Leaflet 1.9.4 只在地圖 chunk 動態載入。
+- **口徑裁定**：統計以「有地址」為母數（`totals` 另有 `no_address`、`anonymized`）；本校位置未定位時所有訪視的距離一律歸「無距離」；鄰近比對同單雙號優先、號碼差 30 以內；距離分布表沒有「查看明細」。
+- **部署注意**：`WEBSITE_GEO_AUTO_SYNC` 所有環境預設關閉；開啟前確認 Railway PG 剩餘空間 ≥ 500MB（門牌一版含索引約 185MB，換版時新舊並存約 370MB）。關著時區域分析顯示「門牌資料尚未匯入」。開啟步驟與手動退路寫在 `deploy/README.md`「公開地理資料同步（招生區域分析）」。本校改址後，已存的距離要等下一次同步（或手動跑 `geo-sync`）才重算。
+- **驗證**（Node 22；後端用獨立測試庫 `ivy_website_area1008_test`，皆為本機結果）：A 階段閘 `test_geo_*`＋`test_csv_export` 238 passed、既有六個檔 109 passed、migration 升降升來回；完整 115 年 10 月門牌（775,772 列，略過 544 列）＋kiang 734 所高雄市營業中幼兒園地址比對：exact 708、nearby 11、street 2、district 13，精確＋鄰近 98.0%（門檻 95%），門牌表含索引 185MB。B 階段閘 後端全套 1929 passed、1 skipped，`npm run contract:check` 通過。C 階段：C8 完成時 admin 全套單元測試 1889 passed（其中一個既有的通知逾時測試在機器卡頓時失敗、單獨重跑通過）；stack e2e `admissions-area.spec.ts`＋`admissions-flow.spec.ts` 7 passed（含 1440／390 截圖斷言）。**最終整合驗證**（admin／web 全套單元測試、`contract:check`、stack e2e 重跑與截圖目視、bundle 檢查）尚待做，結果補在這一段。
+- **未驗證／未做**：沒有用過真實家長地址（手填錯字與寫法的比對率未知，只有幼兒園地址的 98.0%）；自動找最新月份的頁面解析只用存下來的頁面樣本測過，沒有對線上資料平台實跑同步；Railway PG 剩餘空間未確認、同步在正式環境從未跑過；e2e 的底圖圖磚被攔成透明圖，真底圖與 CSP 放行只在單元測試確認、沒在部署環境看過；沒有手機實機操作；併入園務時 `district` 的口徑要擇一（官網由門牌比對，園務由 regex 切出「○○區」）。不做人口、飽和度、機會判讀與各校 3／6 km 競爭環。
+
 ## 2026-10-07 公開資料不再帶出維護備註 `_todo`、更正兩處分校頁過時文件（`fix/public-todo-strip-20261007`，10-07 已部署 main `471966fc`）
 
 審查舊分支 `feature/website-admin`（落後 main 814 個 commit，三個程式 commit 都是 main 上 `26eb29d7`／`fb74e5ce`／`503ec361` 的舊版）時，查到 main 本身有三處殘留。

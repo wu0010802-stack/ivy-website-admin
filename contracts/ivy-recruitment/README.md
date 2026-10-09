@@ -101,7 +101,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 15. 同階段轉換（X→X）回 422 `TRANSITION_NOT_ALLOWED`；園務回 409 `STAGE_ALREADY`。
 16. 未預繳的「逾期」（預設 14 天、`overdue_days`）與「冷名單」（90 天）看**參觀日** `visit_date`：參觀日 <= 台北今天－N 天就算（2026-10-06 起）；園務看 `created_at`（建檔時間 <= 現在－N 天），補登舊訪視或預約隔很多天才按已到場時，逾期會從建檔那天重新起算。近 30／90 天、來源失衡的 90 天窗口仍照園務看 `created_at`。
 17. 訪視明細的 `has_deposit=false` 篩選排除已退出（`withdrawn_at` 有值）的列，和統計的未預繳同一批（2026-10-06 起）；園務明細的「未預繳」篩選只看 `has_deposit`。
-18. 區域分析（2026-10-08，`docs/specs/2026-10-08-admissions-area-design.md`）：`district` 由官網伺服器依高雄市門牌坐標開放資料比對填寫（行政區字串，例「三民區」），表單仍不收；園務由後端 regex 從地址切出「○○區」（未寫進欄位時查詢當下解析）。兩邊口徑不同（園務只認「區」、官網另處理舊高雄縣鄉鎮與外縣市），併入時要擇一。官網另有 `recruitment_visit_geo`（里、比對等級、未定位原因、到本校直線距離），以及公開資料表 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`，都不在轉移契約內。官網不做地址分析同意勾選，`geocoding_consent_at` 仍不填；家長地址不送任何外部服務（園務送 Google／TGOS）。匿名化時清掉里與距離、保留 `district`（同園務）。
+18. 區域分析（2026-10-08，`docs/specs/2026-10-08-admissions-area-design.md`）：`district` 由官網伺服器從**地址文字**解析出行政區名填寫（行政區字串，例「三民區」；舊高雄縣鄉鎮市如「仁武鄉」轉成新區名；門牌資料尚未匯入、只比對到區、里有歧義時也有值），表單仍不收；高雄市門牌坐標開放資料只用來補里與座標（到本校的距離），不決定行政區。外縣市地址（`outside_kaohsiung`）與解析不出高雄市區名的地址，官網的 `district` 為 NULL；園務由後端 regex 從地址切出「○○區」（未寫進欄位時查詢當下解析），外縣市地址也會切出該縣市的「○○區」。兩邊口徑不同（官網只認高雄市 38 區並處理舊高雄縣鄉鎮、外縣市留空；園務 regex 只認「○○區」字樣、不分縣市），併入時要擇一。官網另有 `recruitment_visit_geo`（里、比對等級、未定位原因、到本校直線距離），以及公開資料表 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`，都不在轉移契約內。官網不做地址分析同意勾選，`geocoding_consent_at` 仍不填；家長地址不送任何外部服務（園務送 Google／TGOS）。匿名化時清掉里與距離、保留 `district`（同園務）。
 
 ## 漂移檢查（手動，不進 CI）
 

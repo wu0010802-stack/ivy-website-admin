@@ -215,7 +215,7 @@ git commit -m "feat(admin): 區域分析 API client 與 Leaflet 依賴"
 **Interfaces:**
 - Consumes: C1 的型別。
 - Produces（後續任務照用）：
-  - `areaFilter.ts`：`AreaFilter`、`parseAreaQuery(value: unknown): AreaFilter | null`、`areaQuery(filter)`、`areaLabel(filter)`、`areaNotice(filter)`、`areaApiParams(filter | null)`。
+  - `areaFilter.ts`：`AreaFilter`、`parseAreaQuery(value: unknown): AreaFilter | null`、`areaQuery(filter)`、`areaNotice(filter)`、`areaApiParams(filter | null)`（主控裁定 R14：明細提示列比照 `vr` 的句型，不另做標籤函式）。
   - `areaFormat.ts`：`RadiusKm`、`RADIUS_OPTIONS`、`villageKey`、`levelOf`、`legendRanges`、`KIND_LABELS`、`KIND_ORDER`、`kindLabel`、`BAND_LABELS`、`bandLabel`、`REASON_LABELS`、`reasonLabel`、`doorplateVersionLabel`、`shortDay`、`formatDistance`、`shortName`、`visitGeoText`。
   - testkit：`areaStats()`、`kindergarten()`、`areaKindergartens()`、`villageBoundaries()`。
   - CSS token：`--area-level-1`…`--area-level-5`、`--area-boundary`、`--area-radius`、`--area-kind-public`、`--area-kind-nonprofit`、`--area-kind-quasi-public`、`--area-kind-private`、`--area-kind-own`、`--area-kind-own-ink`。
@@ -226,7 +226,7 @@ git commit -m "feat(admin): 區域分析 API client 與 Leaflet 依賴"
 
 ```ts
 import { describe, expect, it } from 'vitest'
-import { areaApiParams, areaLabel, areaNotice, areaQuery, parseAreaQuery } from '../admissions/areaFilter'
+import { areaApiParams, areaNotice, areaQuery, parseAreaQuery } from '../admissions/areaFilter'
 
 describe('區域篩選（網址 area，2026-10-08）', () => {
   it('行政區、里、未定位到里三種寫法可以來回轉', () => {
@@ -245,12 +245,11 @@ describe('區域篩選（網址 area，2026-10-08）', () => {
     }
   })
 
-  it('標籤、提示句與 API 參數', () => {
+  it('提示句與 API 參數', () => {
     const village = parseAreaQuery('三民區/本揚里')!
     const district = parseAreaQuery('三民區')!
     const none = parseAreaQuery('no_village')!
-    expect(areaLabel(village)).toBe('區域：三民區本揚里')
-    expect(areaLabel(none)).toBe('區域：未定位到里')
+    expect(areaNotice(village)).toBe('只顯示三民區本揚里的訪視。')
     expect(areaNotice(district)).toBe('只顯示三民區的訪視。')
     expect(areaNotice(none)).toBe('只顯示未定位到里的訪視（只到區、查無門牌、非高雄市地址或待比對）。')
     expect(areaApiParams(village)).toEqual({ district: '三民區', village: '本揚里', geo: null })
@@ -352,10 +351,6 @@ export function parseAreaQuery(value: unknown): AreaFilter | null {
 export function areaQuery(filter: AreaFilter): string {
   if (filter.kind === 'no_village') return NO_VILLAGE
   return filter.village ? `${filter.district}/${filter.village}` : filter.district
-}
-
-export function areaLabel(filter: AreaFilter): string {
-  return filter.kind === 'no_village' ? '區域：未定位到里' : `區域：${filter.district}${filter.village ?? ''}`
 }
 
 /** 訪視明細上方的提示句（比照「只顯示這筆官網預約建立的招生訪視。」）。 */
@@ -2960,6 +2955,8 @@ git commit -m "test(stack): 招生區域分析端到端（門牌與幼兒園樣�
 
 ### Task C11: 文件回寫
 
+> **實作註記（2026-10-08，主控裁定 R5／R13／R14／R21 與 C11 追加）**：下面 Step 2、Step 3 的區塊已換成實際寫進 DESIGN.md、README.md 的文字（狀態列以有地址為母數、距離分布表沒有「查看明細」、提示列比照 `vr`），不再是起稿。除下列三個檔案外，C11 另外回寫了 `docs/specs/2026-10-08-admissions-area-design.md`（依實作改數字與命名，新增 §17 實作裁定）、`contracts/ivy-recruitment/README.md` 第 18 點、`deploy/README.md`（新增「公開地理資料同步（招生區域分析）」操作說明與環境變數表一列）、總覽與本檔的 `areaLabel` 描述；招生規格另外在第 114、284 行的 `district` 欄位註記 2026-10-08 起由伺服器填寫。
+
 **Files:**
 - Modify: `docs/specs/2026-09-30-website-admissions-design.md`
 - Modify: `DESIGN.md`
@@ -2997,12 +2994,15 @@ git commit -m "test(stack): 招生區域分析端到端（門牌與幼兒園樣�
 使用者 10-08 要把園務「招生入學 → 統計分析 → 區域分析」搬一部分過來（取代 09-30「區域分析不做」）。規格 `docs/specs/2026-10-08-admissions-area-design.md`。
 
 - **範圍**：家長來源依行政區／里統計、里界著色地圖、附近幼兒園、來源距離分布。**不做**：人口與飽和度、機會判讀、各校 3／6 km 競爭環、Google 評分與車程分鐘。
-- **個資**：不做地址分析同意勾選，所以家長地址**不送任何外部服務**；後端用高雄市公開門牌資料在本機比對出區、里與到本校的直線距離（取整 100 m），不存家長座標。地圖只以「里」為單位聚合，不畫個別家庭的點。唯一的外部請求是底圖圖磚（只帶視野範圍），後台 CSP 的 `img-src` 只為它放行 `https://wmts.nlsc.gov.tw`。
-- **子分頁**：放在接待分析之後、未預繳原因之前（同園務），`sub=area`，點開才讀。口徑同其他子分頁（頁首校區＋入學學年學期）。狀態列寫門牌資料月份與幼兒園更新日；「有地址 N 筆：M 筆到里、K 筆未定位到里（查看）」，沒填地址另外寫，不混進未定位。
-- **表格**：行政區排行、里排行、距離分布三張，沿用 `StatsDimensionTable`（表頭「參觀人數／預繳人數／預繳率」、CSS 長條、匯出 CSV）。「查看明細」是每列最後一欄的按鈕（`actionLabel`），不做整列可點；按鈕欄不匯出。距離是直線距離，分 1 公里內、1–3、3–6、6 公里以上、無距離。
-- **地圖**：Leaflet＋國土測繪中心電子地圖，`AreaMap` 以 `defineAsyncComponent` 另切 chunk。里界依參觀人數分 5 級（`--area-level-1…5`，操作色由淺到深，0 筆不上色），本校金色星號、1／3／6 公里虛線圓、幼兒園依類型上色的小圓點（`--area-kind-*`，避開綠＝已上線、暖黃＝草稿）。Leaflet 的 `fillColor` 寫不了 CSS 變數：圖形只掛 class、顏色由 `:deep` 規則決定。滾輪不縮放；手機預設不攔單指捲動，按「移動地圖」才可拖曳縮放。底圖連續失敗才跳「底圖載入失敗」＋重試。
+- **資料來源只用公開資料**：高雄市政府資料開放平台的門牌坐標（每月一版）、內政部國土測繪中心村里界圖（115/08/17 版，隨程式提交）、全國教保資訊網經 kiang 整理的幼兒園資料、國土測繪中心電子地圖圖磚。不用 Google Places，也不用以行為人姓名為鍵的裁罰名冊。
+- **精度到「里」**：使用者裁定到里即可。里一律以門牌表的「村里」欄為準，不採信家長寫的里；行政區由地址文字解析，門牌資料只用來補里與座標。
+- **個資**：不做地址分析同意勾選（維持「地址分析同意不上畫面」的既有裁定），所以家長地址**不送任何外部服務**；後端用門牌資料在本機比對出區、里與到本校的直線距離（取整 100 m），不存家長座標。地圖只以「里」為單位聚合，不畫個別家庭的點。唯一的外部請求是底圖圖磚（只帶視野範圍），後台 CSP 的 `img-src` 只為它放行 `https://wmts.nlsc.gov.tw`，公開站不變。比對與同步的 log 不記地址。
+- **同步預設關**：`WEBSITE_GEO_AUTO_SYNC` 所有環境預設 false（開了會匯入約 185MB 的門牌），關著時區域分析寫「門牌資料尚未匯入，匯入後會自動比對。」，三張表照常顯示（全部算待比對）。
+- **子分頁**：放在接待分析之後、未預繳原因之前（同園務），`sub=area`，點開才讀。口徑同其他子分頁（頁首校區＋入學學年學期）。狀態列寫門牌資料月份與幼兒園更新日；摘要以「有地址」為母數：「有地址 N 筆：到里 a 筆、未定位到里 b 筆（只到區 c、查無門牌 d、非高雄市 e、待比對 f）」，括號只列非零項，「查看」跳明細 `area=no_village`（筆數＝b）；沒填地址的另外寫「另有 g 筆沒填地址」，已匿名化的不放在狀態列。整個範圍都沒有可比對的地址時寫原因：沒填地址、或「地址都已依保存期限清除」，不把匿名化說成沒填。
+- **表格**：行政區排行、里排行、距離分布三張，沿用 `StatsDimensionTable`（表頭「參觀人數／預繳人數／預繳率」、CSS 長條、匯出 CSV）。桌機用 auto-fit 格線，每張至少約 32rem（1440 一列兩張、距離分布換到下一列），窄螢幕單欄、表格在自己的框內橫捲。「查看明細」是行政區表與里表每列最後一欄的按鈕（`actionLabel`），不做整列可點；按鈕欄不匯出。**距離分布表沒有「查看明細」**（沒有對應的明細篩選）。距離是直線距離，分 1 公里內、1–3、3–6、6 公里以上、無距離；本校位置未定位時全部歸無距離，距離表改寫原因（找不到本校地址／門牌資料尚未匯入／本校地址比對不到門牌）。本校改址後，已存的距離要等下一次同步（或 CLI `geo-sync`）才重算。
+- **地圖**：Leaflet＋國土測繪中心電子地圖，`AreaMap` 以 `defineAsyncComponent` 另切 chunk（Leaflet 與圖磚網址只在這個 chunk）。里界依參觀人數分 5 級（`--area-level-1…5`，操作色由淺到深，0 筆不上色），本校金色星號、1／3／6 公里虛線圓、幼兒園依類型上色的小圓點（`--area-kind-*`，類型色避開綠＝已上線、暖黃＝草稿；本機構與本校星號用品牌金）。**地圖顏色一律走 token**：Leaflet 的 `fillColor` 寫不了 CSS 變數，圖形只掛 class、顏色由 `:deep` 規則決定。滾輪不縮放；手機預設不攔單指捲動，按「移動地圖」才可拖曳縮放。底圖連續失敗才跳「底圖載入失敗」＋重試；里界載入失敗或地圖 chunk 載入失敗（部署後舊 hash 檔不存在）時地圖區顯示原因，後者只能「重新整理」整頁，表格與幼兒園清單不受影響。
 - **附近幼兒園**：資料來自全國教保資訊網（kiang 每日整理、官網每月匯入），清單底部註明來源與「月費為估計值」；類型 chip 可複選、搜尋園名或地址、先列 20 所；距本校 50 m 內的標「本機構」、不算競爭園所；有裁罰只標「有裁罰紀錄」，不放裁罰對象姓名。
-- **訪視明細**：網址 `area`（`三民區`／`三民區/本揚里`／`no_village`）篩區域，常駐提示列＋「顯示全部」（同 `vr`；不放進「已套用篩選」chip，展開更多篩選時會被收掉）。展開列在地址下多一行「區域」（例「三民區本揚里・距本校 1.2 km」），沒有比對紀錄的舊資料不列。
+- **訪視明細**：網址 `area`（`三民區`／`三民區/本揚里`／`no_village`）篩區域，常駐提示列比照 `vr` 的句型（「只顯示三民區本揚里的訪視。」）＋「顯示全部」（不放進「已套用篩選」chip，展開更多篩選時會被收掉）。展開列在地址下多一行「區域」（例「三民區本揚里・距本校 1.2 km」）；有地址卻沒有比對紀錄的舊資料寫「待比對」，沒填地址的不列。
 ```
 
 2. `圖一律是表格＋CSS 長條（填色 \`--el-color-primary\`、底 \`--surface-3\`），不裝圖表套件；` 改成 `圖一律是表格＋CSS 長條（填色 \`--el-color-primary\`、底 \`--surface-3\`），不裝圖表套件（2026-10-08 例外：區域分析的地圖用 Leaflet，見「招生入學：區域分析」）；`
@@ -3011,18 +3011,19 @@ git commit -m "test(stack): 招生區域分析端到端（門牌與幼兒園樣�
 - [ ] **Step 3: README.md 頂部加日期段落**（第一行之前插入；部署狀態寫「未部署」，數字用實際跑出來的）
 
 ```markdown
-## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，未部署）
+## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，未部署、未 push）
 
-使用者要求把園務「統計分析 → 區域分析」搬一部分過來。**使用者 10-08 裁定**：做里別來源統計、里界地圖、附近幼兒園、來源距離分布；精度到里即可、**不做地址分析同意勾選**（所以家長地址不送任何外部服務）、園所只用公開資料、地圖用 Leaflet＋國土測繪底圖。規格 `docs/specs/2026-10-08-admissions-area-design.md`，計畫 `docs/superpowers/plans/2026-10-08-admissions-area*.md`，規則見 DESIGN.md「招生入學：區域分析」。
+使用者要求把園務「統計分析 → 區域分析」搬一部分過來。**使用者 10-08 裁定**：做里別來源統計、里界地圖、附近幼兒園、來源距離分布；精度到里即可、**不做地址分析同意勾選**（所以家長地址不送任何外部服務）、園所只用公開資料、地圖用 Leaflet＋國土測繪底圖。規格 `docs/specs/2026-10-08-admissions-area-design.md`，計畫 `docs/superpowers/plans/2026-10-08-admissions-area*.md`，規則見 DESIGN.md「招生入學：區域分析」，轉移契約記在 `contracts/ivy-recruitment/README.md` 第 18 點。
 
-- **後端**：（A、B 階段實際內容：geo 資料表、門牌與幼兒園匯入、比對、`/area` 三支 API、明細篩選、匿名化；照實際 commit 寫）
-- **後台**：統計分析新增「區域分析」子分頁（狀態列、地圖、附近幼兒園、行政區／里／距離三張表與「查看明細」）；訪視明細可依區域篩選、展開列顯示比對結果；`StatsDimensionTable` 新增可選的按鈕欄；後台 CSP 放行 `https://wmts.nlsc.gov.tw` 圖磚。
-- **部署注意**：`WEBSITE_GEO_AUTO_SYNC` 所有環境預設關閉；開啟前確認 Railway PG 剩餘空間 ≥ 500MB（門牌一版含索引約 185MB，換版時新舊並存約 370MB）。關著時區域分析顯示「門牌資料尚未匯入」。
-- **驗證**（Node 22）：（填 C12 實際跑出的指令與數字）
-- **未驗證／未做**：（填實際項目，例如正式資料量下的比對率只在本機以 115 年 10 月門牌驗過、實機手機操作）
+- **後端**：新子套件 `backend/app/admissions/geo/`——地址解析（全形／之號／樓層／舊高雄縣／缺區／外縣市）、TWD97→WGS84 轉換（不加依賴）、門牌 CSV 串流匯入（分批 COPY、批次標記、成功才切換）、幼兒園 JSON 匯入、五級比對（exact／nearby／street／district／unlocated，另有 pending）與校區座標；migration `e7a1c4d9b2f6` 新增 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`、`recruitment_visit_geo` 四張表（`recruitment_visits` 不改結構，`district` 改由伺服器依地址填寫）；訪視建立與改地址時同交易比對，匿名化清掉里與距離、保留 `district`；同步由獨立背景迴圈（`workers/geo_loop.py`）與 CLI `python -m app.cli geo-sync` 兩條路，共用 session 級 advisory lock（搶不到就不跑）；新 API `GET /admin/admissions/area`、`/area/kindergartens`、`/area/boundaries`（ETag）；訪視明細新增 `district`／`village`／`geo=no_village` 篩選與 `geo` 回傳欄位；里界 GeoJSON（893 里，約 600KB）隨程式提交。契約重產（`contracts/openapi.json`、`website-api.d.ts`）。
+- **後台**：統計分析新增「區域分析」子分頁（狀態列、地圖、附近幼兒園、行政區／里／距離三張表；行政區表與里表每列有「查看明細」）；訪視明細可依區域篩選（網址 `area`）、展開列顯示比對結果；`StatsDimensionTable` 新增可選的按鈕欄；後台 CSP 放行 `https://wmts.nlsc.gov.tw` 圖磚。Leaflet 1.9.4 只在地圖 chunk 動態載入。
+- **口徑裁定**：統計以「有地址」為母數（`totals` 另有 `no_address`、`anonymized`）；本校位置未定位時所有訪視的距離一律歸「無距離」；鄰近比對同單雙號優先、號碼差 30 以內；距離分布表沒有「查看明細」。
+- **部署注意**：`WEBSITE_GEO_AUTO_SYNC` 所有環境預設關閉；開啟前確認 Railway PG 剩餘空間 ≥ 500MB（門牌一版含索引約 185MB，換版時新舊並存約 370MB）。關著時區域分析顯示「門牌資料尚未匯入」。開啟步驟與手動退路寫在 `deploy/README.md`「公開地理資料同步（招生區域分析）」。本校改址後，已存的距離要等下一次同步（或手動跑 `geo-sync`）才重算。
+- **驗證**（Node 22；後端用獨立測試庫 `ivy_website_area1008_test`，皆為本機結果）：A 階段閘 `test_geo_*`＋`test_csv_export` 238 passed、既有六個檔 109 passed、migration 升降升來回；完整 115 年 10 月門牌（775,772 列，略過 544 列）＋kiang 734 所高雄市營業中幼兒園地址比對：exact 708、nearby 11、street 2、district 13，精確＋鄰近 98.0%（門檻 95%），門牌表含索引 185MB。B 階段閘 後端全套 1929 passed、1 skipped，`npm run contract:check` 通過。C 階段：C8 完成時 admin 全套單元測試 1889 passed（其中一個既有的通知逾時測試在機器卡頓時失敗、單獨重跑通過）；stack e2e `admissions-area.spec.ts`＋`admissions-flow.spec.ts` 7 passed（含 1440／390 截圖斷言）。**最終整合驗證**（admin／web 全套單元測試、`contract:check`、stack e2e 重跑與截圖目視、bundle 檢查）尚待做，結果補在這一段。
+- **未驗證／未做**：沒有用過真實家長地址（手填錯字與寫法的比對率未知，只有幼兒園地址的 98.0%）；自動找最新月份的頁面解析只用存下來的頁面樣本測過，沒有對線上資料平台實跑同步；Railway PG 剩餘空間未確認、同步在正式環境從未跑過；e2e 的底圖圖磚被攔成透明圖，真底圖與 CSP 放行只在單元測試確認、沒在部署環境看過；沒有手機實機操作；併入園務時 `district` 的口徑要擇一（官網由門牌比對，園務由 regex 切出「○○區」）。不做人口、飽和度、機會判讀與各校 3／6 km 競爭環。
 ```
 
-（括號內三處在 C12 跑完驗證後回填，**不要留括號**。）
+（C11 已依 A、B 階段與 C10 的結果寫成實際內容，沒有括號；C12 跑完最終整合驗證後，更新「驗證」「未驗證／未做」兩項即可。）
 
 - [ ] **Step 4: 檢查**
 

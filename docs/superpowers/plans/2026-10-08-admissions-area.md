@@ -33,7 +33,7 @@
 - 文案：繁體中文台灣用語；不寫開發輔助用字（操作說明、載入中字樣之外的狀態字）；表頭沿用其他子分頁的「參觀人數／預繳人數／預繳率」。
 - 計數與比率沿用 `backend/app/admissions/stats.py` 的 `COUNT_FIELDS`、`pct`（分母 0 回 None）。
 - 機器 8GB RAM：同一時間只跑一組測試；全套 pytest 由主 session 背景跑（子代理跑超過 10 分鐘會被中止）。
-- Commit：只在使用者同意的前提下於本分支 commit（Conventional Commit、繁體中文、結尾加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`）；不 push、不部署。
+- Commit：只在使用者同意的前提下於本分支 commit（Conventional Commit、繁體中文、結尾加 `Co-Authored-By: Claude <實際執行的模型名> <noreply@anthropic.com>`（主控裁定 R9）；不 push、不部署。
 
 ## Review Focus
 
@@ -66,19 +66,19 @@
 | `backend/app/workers/geo_loop.py` | `GeoSyncLoop` |
 | `backend/migrations/versions/e7a1c4d9b2f6_admissions_area_geo.py` | 四張表 |
 | `backend/scripts/geo_match_report.py` | 實際資料比對率報告（不進 CI） |
-| `backend/tests/fixtures/geo/doorplates-sample.csv`、`preschools-sample.json`、`villages-sample.geojson` | 測試樣本 |
-| `backend/tests/geo_helpers.py` | 載入樣本的共用函式 |
-| `backend/tests/test_geo_address.py`、`test_geo_projection.py`、`test_geo_doorplates.py`、`test_geo_kindergartens.py`、`test_geo_matcher.py`、`test_geo_sync.py`、`test_geo_boundaries.py`、`test_admissions_area.py` | 測試 |
+| `backend/tests/fixtures/geo/doorplates-sample.csv`、`preschools-sample.json`、`kcg-search.html`、`kcg-dataset.html` | 測試樣本（門牌 115 行、幼兒園 13 所、兩個存下來的資料平台頁面；里界測試直接讀隨程式提交的 `kaohsiung-villages.geojson`） |
+| `backend/tests/geo_helpers.py`、`backend/tests/admissions_area_helpers.py` | 載入樣本、寫入比對結果的共用函式 |
+| `backend/tests/test_geo_address.py`、`test_geo_projection.py`、`test_geo_schema.py`、`test_geo_doorplates.py`、`test_geo_kindergartens.py`、`test_geo_matcher.py`、`test_geo_sync.py`、`test_geo_loop.py`、`test_geo_boundaries.py`、`test_admissions_area.py`、`test_admissions_visit_geo.py` | 測試 |
 
 ### 後端（修改）
 
-`backend/app/config.py`（四個設定）、`backend/.env.example`、`backend/app/main.py`（啟動 `GeoSyncLoop`）、`backend/app/cli.py`（`geo-sync`）、`backend/migrations/env.py`（import geo models）、`backend/app/admissions/records.py`（建立／更新時比對、篩選）、`backend/app/admissions/retention.py`（匿名化）、`backend/app/admissions/routes.py`、`backend/app/admissions/schemas.py`、`backend/app/admissions/stats.py`（檔頭註解）、`backend/pyproject.toml`（hatch 打包 geojson，如有需要）、`contracts/openapi.json`、`contracts/generated/website-api.d.ts`、`contracts/ivy-recruitment/README.md`。
+`backend/app/config.py`（四個設定）、`backend/.env.example`、`backend/app/main.py`（啟動 `GeoSyncLoop`）、`backend/app/cli.py`（`geo-sync`）、`backend/migrations/env.py`（import geo models）、`backend/app/admissions/models.py`（`RecruitmentVisit.geo` 唯讀關聯）、`backend/app/admissions/download.py`（匯出稽核記區域篩選種類）、`backend/app/admissions/records.py`（建立／更新時比對、篩選）、`backend/app/admissions/retention.py`（匿名化）、`backend/app/admissions/routes.py`、`backend/app/admissions/schemas.py`、`backend/app/admissions/stats.py`（檔頭註解）、`contracts/openapi.json`、`contracts/generated/website-api.d.ts`、`contracts/ivy-recruitment/README.md`。
 
 ### 後台與官網
 
-新增：`admin/src/components/admissions/area/AreaTab.vue`、`AreaMap.vue`、`NearbyKindergartens.vue`、`areaFormat.ts`、`admin/src/admissions/areaFilter.ts`；測試 `admin/src/__tests__/areaTab.test.ts`、`areaMap.test.ts`、`nearbyKindergartens.test.ts`、`areaFilter.test.ts`；stack e2e `tests/stack/admissions-area.spec.ts`。
+新增：`admin/src/components/admissions/area/AreaTab.vue`、`AreaMap.vue`、`NearbyKindergartens.vue`、`areaFormat.ts`、`admin/src/admissions/areaFilter.ts`；測試 `admin/src/__tests__/areaTab.test.ts`、`areaTabChunkFailure.test.ts`、`areaMap.test.ts`、`nearbyKindergartens.test.ts`、`areaFilter.test.ts`、`areaFormat.test.ts`；stack e2e `tests/stack/admissions-area.spec.ts`。
 修改：`admin/package.json`、`admin/src/api/admissions.ts`、`admin/src/api/types.ts`、`admin/src/admissions/useAdmissionsFilters.ts`、`admin/src/components/admissions/StatsTab.vue`、`admin/src/views/AdmissionsView.vue`、`admin/src/components/admissions/RecordsTab.vue`、`admin/src/__tests__/admissionsTestKit.ts`、`web/server/utils/security-headers.ts`（與其測試）。
-文件：`docs/specs/2026-09-30-website-admissions-design.md`、`DESIGN.md`（worktree 為 sparse，DESIGN.md 在根目錄，cone 模式下根目錄檔案會 checkout）、`README.md`。
+文件：`docs/specs/2026-09-30-website-admissions-design.md`、`docs/specs/2026-10-08-admissions-area-design.md`、`contracts/ivy-recruitment/README.md`、`DESIGN.md`（worktree 為 sparse，DESIGN.md 在根目錄，cone 模式下根目錄檔案會 checkout）、`README.md`、`deploy/README.md`（公開地理資料同步的操作說明）。
 
 ## 跨階段介面（各階段計畫必須逐字使用這些名稱）
 
@@ -100,8 +100,8 @@ def fix_village_name(name: str) -> str   # "北美術館" -> "北美術館里"�
 class ParsedAddress:
     district: str | None        # 38 區之一；None＝解析不出高雄市的區
     street: str | None          # 門牌表「街路段」或「地區」的寫法，例 "民族一路"、"中正四路"、"大勇市場"
-    lane: int | None
-    alley: int | None
+    lane: str | None            # 具名巷照原字（"博愛"），數字去前導零（"66"）；A 計畫定案，見上方覆蓋說明
+    alley: str | None
     number: int | None
     number_sub: int             # 之號，無為 0
     outside_kaohsiung: bool     # 地址明寫其他縣市
@@ -115,7 +115,7 @@ def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float
 # app/admissions/geo/models.py（表名、欄位見規格 §5）
 class GeoDoorplate(Base): __tablename__ = "geo_doorplates"
 class GeoKindergarten(Base): __tablename__ = "geo_kindergartens"
-class GeoDatasetStatus(Base): __tablename__ = "geo_dataset_status"   # PK dataset: "doorplates" | "kindergartens"
+class GeoDatasetStatus(Base): __tablename__ = "geo_dataset_status"   # PK dataset: "doorplates" | "kindergartens" | "campuses"
 class RecruitmentVisitGeo(Base): __tablename__ = "recruitment_visit_geo"
 MATCH_LEVELS = ("exact", "nearby", "street", "district", "unlocated", "pending")
 UNLOCATED_REASONS = ("no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village", "anonymized")
@@ -168,9 +168,9 @@ class GeoSyncResult:
     rematched: int
 async def run_geo_sync(
     session_factory: async_sessionmaker[AsyncSession], settings: Settings, *,
-    force: bool = False, doorplates_file: Path | None = None, kindergartens_file: Path | None = None,
-    client: httpx.AsyncClient | None = None,
-) -> GeoSyncResult
+    force: bool = False, doorplates_file: Path | None = None, doorplates_version: str | None = None,
+    kindergartens_file: Path | None = None, client: httpx.AsyncClient | None = None,
+) -> GeoSyncResult        # 另一個同步持有 advisory lock 時丟 GeoSyncBusy（run_geo_sync 自己取鎖，呼叫端不必再包鎖）
 
 # app/config.py（Settings，env 前綴 WEBSITE_）
 geo_auto_sync: bool = False
@@ -185,15 +185,14 @@ geo_sync_check_seconds: int = 86400
   - `as_of: datetime`、`filters: {campus_key, school_year, semester}`
   - `data_status: AreaDataStatusOut {doorplate_version: str|None, doorplates_synced_at: datetime|None, kindergartens_synced_at: datetime|None, boundary_version: str}`
   - `campus: AreaCampusOut {key, name, lat: float|None, lng: float|None, locate_error: str|None}`
-  - `totals: AreaTotalsOut {visit, with_address, village_level, district_level, unlocated, pending, no_address, anonymized, unlocated_reasons: list[AreaReasonCountOut {reason, count}]}`（preflight 裁定 R5：village/district/unlocated/pending 都限有地址，四者相加＝with_address；with_address＋no_address＋anonymized＝visit；unlocated_reasons 只算有地址且未定位到里的原因）
-- `geo=no_village`＝有地址且未定位到里（R4）
+  - `totals: AreaTotalsOut {visit, with_address, village_level, district_level, unlocated, pending, no_address, anonymized, unlocated_reasons: list[AreaReasonCountOut {reason, count}]}`（preflight 裁定 R5：village/district/unlocated/pending 都限有地址，四者相加＝with_address；with_address＋no_address＋anonymized＝visit；unlocated_reasons 只算有地址且未定位到里的三種原因 `outside_kaohsiung`／`no_doorplate`／`ambiguous_village`，OpenAPI enum 只有這三值）
   - `districts: list[AreaDistrictRowOut {district, visit, deposit, visit_to_deposit_rate: float|None}]`
   - `villages: list[AreaVillageRowOut {district, village, village_code: str|None, visit, deposit, visit_to_deposit_rate}]`
   - `distance_bands: list[AreaDistanceBandOut {band: "0-1"|"1-3"|"3-6"|"6+"|"none", visit, deposit, visit_to_deposit_rate}]`（固定五列、此順序）
 - `GET /api/website/v1/admin/admissions/area/kindergartens?campus_key=&radius_km=1|3|6` → `AreaKindergartensOut {synced_at: datetime|None, source_note: str, campus: AreaCampusOut, radius_km: int, items: list[AreaKindergartenOut]}`；`AreaKindergartenOut` 欄位＝`NearbyKindergarten` 全部欄位＋`is_own: bool`。
 - `GET /api/website/v1/admin/admissions/area/boundaries` → GeoJSON（`application/geo+json`），`ETag`、`Cache-Control: private, max-age=86400`，`If-None-Match` 相符回 304。
-- `GET /api/website/v1/admin/admissions/records` 新增 query：`district: str|None`、`village: str|None`、`geo: Literal["no_village"]|None`。
-- `RecruitmentVisitOut` 新增 `geo: VisitGeoOut|None`，`VisitGeoOut {village: str|None, match_level: str, unlocated_reason: str|None, distance_m: int|None}`。
+- `GET /api/website/v1/admin/admissions/records`（與 `/records/export` 共用）新增 query：`district: str|None`、`village: str|None`、`geo: Literal["no_village"]|None`。`geo=no_village`＝有地址且未定位到里（R4：不含沒填地址、已匿名化；含沒有比對列的舊訪視）；`village` 只算已比對到里且未匿名化的訪視，下鑽單一里時一定同時送 `district`。
+- `RecruitmentVisitOut` 新增 `geo: VisitGeoOut|None`，`VisitGeoOut {village: str|None, match_level: MatchLevel, unlocated_reason: UnlocatedReason|None, distance_m: int|None}`。
 
 ### C 使用的前端名稱
 
@@ -216,7 +215,7 @@ export function getAreaBoundaries(): Promise<VillageBoundaries>   // VillageBoun
 export type AreaFilter = { kind: 'place'; district: string; village: string | null } | { kind: 'no_village' }
 export function parseAreaQuery(value: unknown): AreaFilter | null   // "三民區" | "三民區/鼎金里" | "no_village"
 export function areaQuery(filter: AreaFilter): string
-export function areaLabel(filter: AreaFilter): string               // "區域：三民區鼎金里" | "區域：未定位到里"
+export function areaNotice(filter: AreaFilter): string              // "只顯示三民區本揚里的訪視。" | "只顯示未定位到里的訪視（…）。"（R14：比照 vr 的句型，沒有另做標籤函式）
 export function areaApiParams(filter: AreaFilter | null): { district: string | null; village: string | null; geo: 'no_village' | null }
 
 // StatsTab emit 擴充
