@@ -16,7 +16,23 @@ import {
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
 // 口徑同其他子分頁（頁首校區＋入學學年學期）；家長地址在後端以公開門牌資料比對，不送任何外部服務。
 // 地圖（Leaflet）另切一個 chunk，點開這個子分頁才下載。
-const AreaMap = defineAsyncComponent(() => import('./AreaMap.vue'))
+// chunk 載入失敗（常見於剛部署完、舊的 hash 檔已不存在）：重抓同一個檔救不回來，只能整頁重新載入；
+// 三張表與幼兒園清單不受影響。給 errorComponent（空元件）開發模式才不會把載入錯誤再丟出去；
+// 旗標一翻畫面就換成說明，Vue 不會再替已卸載的元件記錄錯誤，所以這裡自己記。
+const mapChunkFailed = ref(false)
+const NoMap = () => null
+const AreaMap = defineAsyncComponent({
+  loader: () => import('./AreaMap.vue'),
+  errorComponent: NoMap,
+  onError(error, _retry, fail) {
+    console.error('[AreaTab] 地圖元件載入失敗', error)
+    mapChunkFailed.value = true
+    fail()
+  },
+})
+function reloadPage() {
+  window.location.reload()
+}
 
 const props = defineProps<{
   campusKey: string
@@ -103,10 +119,22 @@ const status = computed(() => {
     doorplate: dataStatus.doorplate_version
       ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}`
       : '門牌資料尚未匯入，匯入後會自動比對。',
-    kindergarten: dataStatus.kindergartens_synced_at ? `・幼兒園 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '',
+    doorplateImported: Boolean(dataStatus.doorplate_version),
+    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
   }
+})
+
+// 有訪視但沒有任何可比對的地址時的說明。此時 visit ＝ no_address ＋ anonymized：
+// 只有沒填地址、只有已匿名化（地址已依保存期限清除）、兩者都有，各寫各的，不把匿名化說成「沒填」。
+const noAddressText = computed(() => {
+  const totals = area.value?.totals
+  if (!totals || !totals.visit || totals.with_address) return ''
+  const { no_address: noAddress, anonymized } = totals
+  if (!anonymized) return '這個範圍的訪視都還沒填地址。'
+  if (!noAddress) return '這個範圍的訪視地址都已依保存期限清除，無法比對。'
+  return `這個範圍的訪視沒有可比對的地址：${noAddress} 筆沒填地址、${anonymized} 筆已依保存期限清除。`
 })
 
 const placeColumns = (label: string): StatsColumn[] => [
@@ -165,18 +193,24 @@ function openNoVillage() {
     <el-skeleton v-else-if="!area || !status" :rows="6" animated />
     <template v-else>
       <div class="area-head">
-        <p class="hint area-status"><span>{{ status.doorplate }}</span><span v-if="status.kindergarten">{{ status.kindergarten }}</span></p>
+        <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
+        <p class="hint area-status">
+          <span>{{ status.doorplate }}</span><span v-if="status.kindergarten" :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}</span>
+        </p>
         <p v-if="area.totals.with_address" class="area-summary">
           有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>
-            <el-button text size="small" @click="openNoVillage">查看</el-button></template><template v-if="area.totals.no_address">；另有 <span class="num">{{ area.totals.no_address }}</span> 筆沒填地址</template>
+            <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template><template v-if="area.totals.no_address">；另有 <span class="num">{{ area.totals.no_address }}</span> 筆沒填地址</template>
         </p>
         <p v-if="!area.totals.visit" class="area-empty">{{ emptyText }}</p>
-        <p v-else-if="!area.totals.with_address" class="area-empty">這個範圍的訪視都還沒填地址。</p>
+        <p v-else-if="noAddressText" class="area-empty">{{ noAddressText }}</p>
       </div>
 
       <div class="area-top">
         <div class="area-top__map">
-          <el-alert v-if="boundariesFailed" class="area-map-error" type="error" :closable="false" show-icon title="里界載入失敗，地圖無法顯示。">
+          <el-alert v-if="mapChunkFailed" class="area-map-error" type="error" :closable="false" show-icon title="地圖沒有載入成功，請重新整理這一頁。">
+            <el-button size="small" @click="reloadPage">重新整理</el-button>
+          </el-alert>
+          <el-alert v-else-if="boundariesFailed" class="area-map-error" type="error" :closable="false" show-icon title="里界載入失敗，地圖無法顯示。">
             <el-button size="small" @click="loadBoundaries()">重試</el-button>
           </el-alert>
           <el-skeleton v-else-if="!boundaries" :rows="8" animated />
@@ -259,6 +293,10 @@ function openNoVillage() {
 
 .area-summary {
   color: var(--ink);
+}
+
+.area-status__next {
+  margin-inline-start: 1em;
 }
 
 .area-empty {

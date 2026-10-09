@@ -254,10 +254,19 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   drawCampus()
   drawKindergartens()
   fitInitialView()
-  // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。
+  // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。子分頁切走是 v-show 藏起來（容器 0×0），
+  // 藏著的時候重建的地圖 fitBounds 是在 0×0 裡算的（縮到最小級）：容器從沒尺寸變回有尺寸，視野要重取。
   if (typeof ResizeObserver !== 'undefined') {
     const current = map
-    resizeObserver = new ResizeObserver(() => current.invalidateSize())
+    const sized = (width: number, height: number) => width > 0 && height > 0
+    let hidden = !sized(element.clientWidth, element.clientHeight)
+    resizeObserver = new ResizeObserver((entries) => {
+      const box = entries.at(-1)?.contentRect
+      const visible = box ? sized(box.width, box.height) : sized(element.clientWidth, element.clientHeight)
+      current.invalidateSize()
+      if (visible && hidden) fitInitialView()
+      hidden = !visible
+    })
     resizeObserver.observe(element)
   }
 }

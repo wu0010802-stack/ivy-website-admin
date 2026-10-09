@@ -70,6 +70,12 @@ describe('區域分析：讀取與三張表', () => {
     expect(wrapper.find('.area-reasons').exists()).toBe(false)
   })
 
+  it('狀態列的「查看」有說清楚是看什麼的名稱（讀屏不會只聽到「查看」）', async () => {
+    const { wrapper } = await mountTab()
+    const view = button(wrapper, '查看')!
+    expect(view.attributes('aria-label')).toBe('查看未定位到里的訪視明細')
+  })
+
   it('括號只列非零項（只到區、查無門牌、非高雄市、待比對）；「只到區」用 district_level，不從原因推', async () => {
     const area = areaStats({
       totals: totals({
@@ -198,10 +204,18 @@ describe('區域分析：讀取與三張表', () => {
 })
 
 describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
-  it('門牌資料還沒匯入：狀態列寫出來', async () => {
+  it('門牌資料還沒匯入：狀態列寫出來；句號後的幼兒園更新日另成一段，不接「。・」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toContain('門牌資料尚未匯入，匯入後會自動比對。')
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園 10/08 更新'])
+    expect(wrapper.get('.area-status').text()).not.toContain('。・')
+    expect(wrapper.get('.area-status').text()).not.toContain('・')
+  })
+
+  it('門牌資料已匯入但幼兒園還沒同步：只寫門牌版本，沒有多餘的分隔點', async () => {
+    const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月')
   })
 
   it('有訪視但都沒填地址：寫原因、不列三張表（不顯示假的 0）；地圖與清單照常', async () => {
@@ -211,10 +225,32 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
       distance_bands: areaStats().distance_bands.map((band) => ({ ...band, visit: band.band === 'none' ? 3 : 0, deposit: 0, visit_to_deposit_rate: band.band === 'none' ? 0 : null })),
     })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.text()).toContain('這個範圍的訪視都還沒填地址。')
+    expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視都還沒填地址。')
     expect(wrapper.findAll('.stats-block')).toHaveLength(0)
     expect(wrapper.find('.area-map-stub').exists()).toBe(true)
     expect(wrapper.find('.area-summary').exists()).toBe(false)
+  })
+
+  it('範圍內的訪視地址都已匿名化（依保存期限清除）：不說成「沒填地址」，三張表仍不列', async () => {
+    const area = areaStats({
+      totals: totals({ visit: 4, with_address: 0, village_level: 0, district_level: 0, unlocated: 0, pending: 0, no_address: 0, anonymized: 4, unlocated_reasons: [] }),
+      districts: [], villages: [],
+    })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視地址都已依保存期限清除，無法比對。')
+    expect(wrapper.text()).not.toContain('還沒填地址')
+    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+    expect(wrapper.find('.area-summary').exists()).toBe(false)
+  })
+
+  it('一部分沒填地址、一部分已匿名化（都沒有可比對的地址）：一句話寫兩個筆數', async () => {
+    const area = areaStats({
+      totals: totals({ visit: 5, with_address: 0, village_level: 0, district_level: 0, unlocated: 0, pending: 0, no_address: 3, anonymized: 2, unlocated_reasons: [] }),
+      districts: [], villages: [],
+    })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視沒有可比對的地址：3 筆沒填地址、2 筆已依保存期限清除。')
+    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
   })
 
   it('範圍內沒有訪視：沿用統計的空狀態文案', async () => {

@@ -76,6 +76,7 @@ afterEach(async () => {
   wrappers.length = 0
   if (chunkBroken) await chunkLoads()
   vi.clearAllMocks()
+  vi.unstubAllGlobals()
 })
 
 // 等動態 import 完成，再讓元件跑完 onMounted 之後的更新。
@@ -255,6 +256,67 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(map.fitBounds).toHaveBeenCalledTimes(2)
     expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.663189, 120.306301], meters: 12000 })
     expect(leaflet.created.marker).toHaveLength(2)
+  })
+
+  describe('容器尺寸（子分頁切走又切回）', () => {
+    type Observed = { width: number; height: number }
+    // 假的 ResizeObserver：記下 callback，測試手動餵 0×0 與有尺寸的 contentRect。
+    function stubResizeObserver() {
+      const state = { notify: (_box: Observed) => {}, disconnect: vi.fn<() => void>() }
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(callback: (entries: { contentRect: Observed }[]) => void) {
+          state.notify = (box) => callback([{ contentRect: box }])
+        }
+        observe() {}
+        disconnect() { state.disconnect() }
+      })
+      return state
+    }
+
+    it('藏著的時候建圖（0×0）：容器變回有尺寸時重新取景；之後一般的縮放不重設使用者的視野', async () => {
+      const observer = stubResizeObserver()
+      await mountMap()
+      const map = one('map')
+      expect(map.fitBounds).toHaveBeenCalledTimes(1)
+
+      observer.notify({ width: 640, height: 420 })
+      expect(map.invalidateSize).toHaveBeenCalledTimes(1)
+      expect(map.fitBounds).toHaveBeenCalledTimes(2)
+      expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.642456, 120.343713], meters: 12000 })
+
+      observer.notify({ width: 800, height: 420 })
+      expect(map.invalidateSize).toHaveBeenCalledTimes(2)
+      expect(map.fitBounds).toHaveBeenCalledTimes(2)
+
+      observer.notify({ width: 0, height: 0 })
+      expect(map.fitBounds).toHaveBeenCalledTimes(2)
+      observer.notify({ width: 640, height: 420 })
+      expect(map.fitBounds).toHaveBeenCalledTimes(3)
+    })
+
+    it('建圖時容器已經有尺寸：第一次通知不重新取景', async () => {
+      const observer = stubResizeObserver()
+      const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(640)
+      const height = vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(420)
+      try {
+        await mountMap()
+        const map = one('map')
+        observer.notify({ width: 640, height: 420 })
+        expect(map.invalidateSize).toHaveBeenCalledTimes(1)
+        expect(map.fitBounds).toHaveBeenCalledTimes(1)
+      } finally {
+        width.mockRestore()
+        height.mockRestore()
+      }
+    })
+
+    it('卸載時停止觀察', async () => {
+      const observer = stubResizeObserver()
+      const wrapper = await mountMap()
+      wrapper.unmount()
+      wrappers.pop()
+      expect(observer.disconnect).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('桌機沒有「移動地圖」鈕', async () => {
