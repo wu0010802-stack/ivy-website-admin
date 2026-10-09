@@ -105,7 +105,7 @@ class RecruitmentVisit(Base):
     father_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     mother_occupation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     address: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    # 行政區：伺服器依門牌比對填寫（2026-10-08 區域分析規格 §5.5），表單不收；匿名化時保留。
+    # 行政區：伺服器依地址文字解析填寫，門牌資料只補里與座標（2026-10-08 區域分析規格 §5.5），表單不收；匿名化時保留。
     district: Mapped[str | None] = mapped_column(String(30), nullable=True)
     source: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 園務表單稱「介紹者」，官網稱「家長介紹」（哪位家長介紹來的，不再當接待人員統計）。

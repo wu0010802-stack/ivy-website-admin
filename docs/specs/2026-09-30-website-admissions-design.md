@@ -113,7 +113,7 @@
 | `phone` | String(100) | 是 | 同 | |
 | `contact_name` | String(50) | 是 | 同 | 主要聯絡人（不一定是家長） |
 | `address` | String(200) | 是 | 同 | |
-| `district` | String(30) | 是 | 同 | 本次不填、不顯示；保留給之後的區域分析（**2026-10-08 起由伺服器依門牌比對填寫**，表單仍不收，見區域分析規格 §5.5） |
+| `district` | String(30) | 是 | 同 | 本次不填、不顯示；保留給之後的區域分析（**2026-10-08 起由伺服器依地址文字解析填寫**，門牌資料只補里與座標，表單仍不收，見區域分析規格 §5.5） |
 | `source` | String(50) | 是 | 同 | 幼生來源，自由文字 |
 | `referrer` | String(50) | 是 | 同 | 園務表單稱「介紹者」、統計稱「接待人員」，兩處沿用園務文案 |
 | `deposit_collector` | String(50) | 是 | 同 | 收預繳人員 |
@@ -348,7 +348,7 @@
 - **總覽**：
   - 主管決策摘要：本月看參考月份；近 30 天、近 90 天依 `created_at` 計算，同園務 `stats.py:502-507`；年度累計同園務。
   - 月比變化、本月漏斗快照、月度明細、年度統計，以及「本範圍合計」（六個計數、唯一幼生與四個比率）。園務的兩張圖（月度量體、轉換率走勢）由月度明細表的 CSS 長條取代；「全管道彙整」是園務自家官網報名，不做。
-  - 異常警示與行動入口：逐條移植園務 `shared.py` 的規則與門檻，包括逾期 14 天、冷名單 90 天、掉點 10 個百分點、高潛力積壓 5 筆、行動清單 3 筆。官網的 `target_tab` 是 `records`（訪視明細，帶 `month`）、`nodeposit`、`source`（園務是 `detail`／`nodeposit`／`area`）；園務的「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現（官網原本不做行政區；2026-10-08 起 `district` 由伺服器依門牌比對填寫，這條警示規則不變，仍用 `REVIEW_SOURCE`）。
+  - 異常警示與行動入口：逐條移植園務 `shared.py` 的規則與門檻，包括逾期 14 天、冷名單 90 天、掉點 10 個百分點、高潛力積壓 5 筆、行動清單 3 筆。官網的 `target_tab` 是 `records`（訪視明細，帶 `month`）、`nodeposit`、`source`（園務是 `detail`／`nodeposit`／`area`）；園務的「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現（官網原本不做行政區；2026-10-08 起 `district` 由伺服器依地址文字解析填寫（門牌資料只補里與座標），這條警示規則不變，仍用 `REVIEW_SOURCE`）。
 - **班別分析**：依 `grade`，含月份 × 班別。
 - **來源分析**：依 `source`；介紹者 × 來源交叉表放在「接待分析」（同園務 `RecruitmentStaffTab`，介紹者就是接待人員）。園務的來源別名合併表 `_SOURCE_GROUP_ALIASES` 是義華專屬字詞，本次不移植，改依原文分組。
 - **接待分析**：依 `referrer`，同園務 `RecruitmentStaffTab`。
@@ -368,7 +368,7 @@
 
 ## 10. 後台畫面
 
-路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。功能開關（`WEBSITE_ADMISSIONS_ENABLED`）關閉時側欄與側欄搜尋不列出這項：`/auth/me` 與登入回應帶 `features.admissions`，`nav.ts` 項目的 `feature` 欄位對應；路由守衛不擋，直接開網址仍到「招生入學尚未啟用」說明頁。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶；`sub`＝統計分頁的子分頁〔`class`／`source`／`staff`／`nodeposit`／`compare`，只在統計分頁使用，總覽不寫進網址，不合法或看不到就退回總覽〕），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
+路由 `/admin/admissions`，側欄新增「招生入學」（`router/nav.ts`），放在「參觀預約」組、「參觀場次」之後，圖示 `TrendCharts`，需要 `admissions.read`。功能開關（`WEBSITE_ADMISSIONS_ENABLED`）關閉時側欄與側欄搜尋不列出這項：`/auth/me` 與登入回應帶 `features.admissions`，`nav.ts` 項目的 `feature` 欄位對應；路由守衛不擋，直接開網址仍到「招生入學尚未啟用」說明頁。頁首放校區選擇（沿用 `CampusSelect`）與入學學年學期篩選。篩選和分頁同步到 URL query（`campus`、`sy`〔`all`＝不限學年〕、`sem`、`tab`；另有 `vr`＝只看某筆預約的招生訪視，給預約明細的連結用；`month`＝訪視明細的月份〔民國月份 `115.09`，格式不對就丟掉〕，統計的警示與行動入口會帶；`area`＝訪視明細的區域〔2026-10-08 起，區域分析的「查看明細」帶；只在 `tab=records` 有意義，值是 `三民區`、`三民區/鼎金里`（行政區、行政區加里）或 `no_village`（有地址卻未定位到里），離開訪視明細就從網址拿掉，手改成認不得的字串當沒篩〕；`sub`＝統計分頁的子分頁〔`class`／`source`／`staff`／`area`／`nodeposit`／`compare`，只在統計分頁使用，總覽不寫進網址，不合法或看不到就退回總覽〕），比照園務 `useAdmissionsTermFilter`。切換校區或學期時，用既有的 `useRequestSequence` 忽略舊回應。
 
 | 分頁 | 內容 |
 |---|---|
@@ -457,7 +457,7 @@
 | `provisional_grade`、`grade_intake_targets.grade` | 依名稱對應該租戶的 `class_grades.id` |
 | `actor_user_id` | 寫入 `metadata_json.website_actor`（`{"user_id", "name"}`），園務欄位留空 |
 | `version`、`anonymized_at`、`created` 事件 | 不轉 |
-| `recruitment_visit_geo`（里、比對等級、距離，2026-10-08） | 官網專用，不轉；`district` 由官網門牌比對填寫，與園務後端 regex 解析的口徑不同，併入時擇一 |
+| `recruitment_visit_geo`（里、比對等級、距離，2026-10-08） | 官網專用，不轉；`district` 由官網伺服器依地址文字解析填寫（門牌資料只補里與座標），與園務後端 regex 解析的口徑不同，併入時擇一 |
 
 ### 12.4 併入時的轉移順序（規劃，不在本次實作）
 
