@@ -317,9 +317,12 @@ function openNoVillage() {
   min-width: 0;
 }
 
+/* 一欄至少 32rem：里排行加上「查看明細」欄實測約 490px，窄過這個寬度寧可換列、不要把欄擠出表框。
+   1440 螢幕（側欄之外約 1124px）一列兩張，距離分布換到下一列；min(100%, …) 讓窄螢幕自然變單欄，
+   表格在自己的框內橫捲。 */
 .area-tables {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
   gap: 24px;
   min-width: 0;
 }
@@ -328,12 +331,6 @@ function openNoVillage() {
   .area-top {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     align-items: start;
-  }
-}
-
-@media (max-width: 720px) {
-  .area-tables {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

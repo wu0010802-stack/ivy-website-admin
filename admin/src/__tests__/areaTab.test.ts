@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isReactive } from 'vue'
 import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
+import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import {
   areaKindergartens, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
@@ -200,6 +201,16 @@ describe('區域分析：讀取與三張表', () => {
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-行政區排行.csv')
     expect(csv.slice(1).split('\r\n')[0]).toBe('#,行政區,參觀人數,預繳人數,預繳率')
+  })
+})
+
+describe('區域分析：三張表的版面', () => {
+  // jsdom 沒有排版，這裡只守住規則本身；實際寬度在真瀏覽器量過（1440 螢幕、側欄之外約 1124px）：
+  // 里排行加「查看明細」欄約 490px、行政區排行約 460px，一欄至少 32rem 才不會把欄擠出表框。
+  it('桌機自動換列：一欄至少 32rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
+    const rule = /\.area-tables \{([^}]*)\}/.exec(areaTabSource)![1]!
+    expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr))')
+    expect(rule).not.toContain('300px')
   })
 })
 
