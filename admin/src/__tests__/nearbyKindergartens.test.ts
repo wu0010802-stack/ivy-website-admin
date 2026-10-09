@@ -99,6 +99,17 @@ describe('附近幼兒園清單', () => {
     expect(link.attributes('rel')).toBe('noopener noreferrer')
     await row.trigger('click')
     expect(wrapper.find('.nearby__detail').exists()).toBe(false)
+    expect(wrapper.emitted('select')).toEqual([['kg-quasi']])
+  })
+
+  it('收合時不回報 select（只有展開才請地圖定位）；再展開同一列才再回報', async () => {
+    const wrapper = mountList()
+    const row = wrapper.findAll('.nearby__row')[1]!
+    await row.trigger('click')
+    await row.trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['kg-public']])
+    await row.trigger('click')
+    expect(wrapper.emitted('select')).toEqual([['kg-public'], ['kg-public']])
   })
 
   it('沒有電話、不是準公共的園所，詳情不列空行', async () => {

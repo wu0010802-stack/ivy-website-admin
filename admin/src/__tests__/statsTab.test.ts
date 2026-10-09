@@ -7,6 +7,17 @@ import type { AdmissionsStats } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
 import { button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
 
+vi.mock('../components/admissions/area/AreaTab.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'AreaTab',
+      props: ['campusKey', 'schoolYear', 'semester', 'csvName', 'emptyText'],
+      emits: ['open-records'],
+      setup: () => () => h('div', { class: 'area-tab-stub' }),
+    }),
+  }
+})
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
 
@@ -241,6 +252,25 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'compare' }) })
     expect(wrapper.emitted('update:sub')).toEqual([['overview']])
+  })
+
+  it('區域分析在接待之後、未預繳之前；sub=area 才掛，帶頁首條件、空狀態與匯出檔名；查看明細交給頁面', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
+    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因'])
+    const tab = wrapper.findComponent({ name: 'AreaTab' })
+    expect(tab.props()).toMatchObject({ campusKey: 'yihua', schoolYear: 115, semester: 1 })
+    expect(tab.props('emptyText')).toContain('還沒有招生訪視')
+    expect((tab.props('csvName') as (title: string) => string)('里排行')).toBe(`招生統計-里排行-義華-115 上學期-${taipeiToday()}.csv`)
+    tab.vm.$emit('open-records', { area: '三民區' })
+    expect(wrapper.emitted('open-records')).toEqual([[{ area: '三民區' }]])
+  })
+
+  it('沒點開區域分析不掛（不讀區域 API）', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findComponent({ name: 'AreaTab' }).exists()).toBe(false)
   })
 })
 

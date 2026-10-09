@@ -63,6 +63,15 @@ export const REASON_LABELS: Record<string, string> = {
 }
 export const reasonLabel = (reason: string): string => REASON_LABELS[reason] ?? reason
 
+const CAMPUS_NOT_LOCATED = new Map([
+  ['no_address', '找不到本校地址'],
+  ['pending', '門牌資料尚未匯入'],
+  ['no_doorplate', '本校地址比對不到門牌'],
+])
+/** 本校沒有座標時的原因（AreaCampus.locate_error）；不認得的值回 undefined，由呼叫端用自己的兜底句。 */
+export const campusNotLocatedReason = (locateError: string | null): string | undefined =>
+  locateError === null ? undefined : CAMPUS_NOT_LOCATED.get(locateError)
+
 /** 門牌資料版本「115-10」→「115 年 10 月」；其他寫法（手動匯入的版本名）照原文。 */
 export function doorplateVersionLabel(version: string): string {
   const match = /^(\d{3})-(\d{2})$/.exec(version)
@@ -94,8 +103,9 @@ export function shortName(name: string): string {
 const VILLAGE_LEVELS = new Set(['exact', 'nearby', 'street'])
 
 /**
- * 訪視明細展開列「區域」那一行（規格 9.6）。回空字串＝該行不列：沒有比對紀錄（geo 為 null 的
- * 舊資料）、沒填地址、已匿名化。到里：「行政區＋里」，有距離再加「・距本校 ○ km」；
+ * 訪視明細展開列「區域」那一行（規格 9.6）。回空字串＝該行不列：沒填地址、已匿名化，以及沒有
+ * 比對紀錄（geo 為 null 的舊資料；有填地址的由呼叫端寫「待比對」，見 RecordsTab）。
+ * 到里：「行政區＋里」，有距離再加「・距本校 ○ km」；
  * 只到區：「行政區（只到區）」，里有歧義時寫原因；比對還沒跑寫「待比對」；
  * 其餘未定位：外縣市寫「非高雄市地址」，其他寫「未定位：查無門牌」。
  */

@@ -4,7 +4,7 @@ import type * as Leaflet from 'leaflet'
 import type { AdmissionsArea, AreaKindergarten, AreaVillageRow } from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
-  KIND_LABELS, KIND_ORDER, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
+  KIND_LABELS, KIND_ORDER, campusNotLocatedReason, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
   type RadiusKm, type VillageBoundaries, type VillageProperties,
 } from './areaFormat'
 
@@ -32,12 +32,6 @@ const INITIAL_SPAN_M = 12_000
 const TILE_FAILURE_LIMIT = 4
 const STAR_SVG =
   '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>'
-// 本校沒標在地圖上時寫原因（主控裁定 R8）。
-const CAMPUS_NOT_LOCATED: Record<string, string> = {
-  no_address: '找不到本校地址',
-  pending: '門牌資料尚未匯入',
-  no_doorplate: '本校地址比對不到門牌',
-}
 
 type LeafletModule = typeof Leaflet
 type GeoJsonInput = Parameters<LeafletModule['geoJSON']>[0]
@@ -71,7 +65,7 @@ const legend = computed(() => legendRanges(villageStats.value.max))
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
 const campusNote = computed(() => {
   if (props.campus.lat !== null && props.campus.lng !== null) return ''
-  const reason = CAMPUS_NOT_LOCATED[props.campus.locate_error ?? '']
+  const reason = campusNotLocatedReason(props.campus.locate_error)
   return reason ? `本校位置未標示（${reason}）` : '本校位置未標示'
 })
 

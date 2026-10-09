@@ -2,10 +2,10 @@
 import { computed, ref, useId, watch } from 'vue'
 import type { AreaKindergartens } from '../../../api/types'
 import { NO_VALUE } from '../../../admissions/statsFormat'
-import { KIND_LABELS, KIND_ORDER, RADIUS_OPTIONS, formatDistance, kindLabel, shortDay, shortName, type RadiusKm } from './areaFormat'
+import { KIND_LABELS, KIND_ORDER, RADIUS_OPTIONS, campusNotLocatedReason, formatDistance, kindLabel, shortDay, shortName, type RadiusKm } from './areaFormat'
 
 // 附近幼兒園（2026-10-08 規格 9.4）：本校半徑內的公開園所資料，後端已依距離排序。
-// 點一列：地圖移過去並打開該園資訊（select），同時展開這一列的詳情。
+// 點一列：地圖移過去並打開該園資訊（select），同時展開這一列的詳情；再點一次只收合，不再請地圖定位。
 // 本機構（is_own）只標示，不算競爭園所，也不列入「沒有其他幼兒園」的判斷。
 const props = defineProps<{ data: AreaKindergartens | null; failed: boolean; radiusKm: RadiusKm }>()
 const emit = defineEmits<{ 'update:radiusKm': [value: RadiusKm]; select: [id: string]; retry: [] }>()
@@ -13,12 +13,6 @@ const emit = defineEmits<{ 'update:radiusKm': [value: RadiusKm]; select: [id: st
 const PAGE = 20
 // 教保資訊網沒有單一園所的固定網址，連到查詢頁。
 const MOE_SEARCH = 'https://ap.ece.moe.edu.tw/webecems/pubSearch.aspx'
-// 本校沒定位到座標時寫原因（主控裁定 R8）。
-const CAMPUS_NOT_LOCATED: Record<string, string> = {
-  no_address: '找不到本校地址',
-  pending: '門牌資料尚未匯入',
-  no_doorplate: '本校地址比對不到門牌',
-}
 const headingId = useId()
 const search = ref('')
 const kinds = ref<string[]>([])
@@ -47,15 +41,16 @@ const emptyText = computed(() => {
 })
 const notLocated = computed(() => {
   const reason = props.data?.campus.locate_error
-  return reason ? `${CAMPUS_NOT_LOCATED[reason] ?? '本校位置尚未確定'}，無法列出附近幼兒園。` : ''
+  return reason ? `${campusNotLocatedReason(reason) ?? '本校位置尚未確定'}，無法列出附近幼兒園。` : ''
 })
 
 function toggleKind(kind: string) {
   kinds.value = kinds.value.includes(kind) ? kinds.value.filter((value) => value !== kind) : [...kinds.value, kind]
 }
 function choose(id: string) {
-  expanded.value = expanded.value === id ? null : id
-  emit('select', id)
+  const opening = expanded.value !== id
+  expanded.value = opening ? id : null
+  if (opening) emit('select', id)
 }
 function setRadius(value: string | number | boolean | undefined) {
   const km = Number(value)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import AreaTab from './area/AreaTab.vue'
 import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
@@ -16,11 +17,11 @@ import { csvFilename } from '../../utils/csv'
 
 // 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
 // 子分頁與讀取。換校區或學期時先清空畫面再讀，只採用最後一次的回應（R15：不殘留別校的數字）。
-// 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、未預繳原因（園務的「區域分析」不做）。
+// 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、區域分析（2026-10-08 起官網也做，見區域分析規格）、未預繳原因。
 // 警示與行動入口指到統計內的子分頁就直接切；指到訪視明細就交給頁面（open-records）。
 // 「未預繳原因」另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
-const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
+const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string }] }>()
 
 // 統計表的匯出檔名：招生統計-表名-校區-學期-日期（沒選學年寫「全部學年」，只選學期就接上學期，
 // 檔名才不會把只有上學期的數字寫成全部）。
@@ -364,6 +365,17 @@ const noDepositKpis = computed(() => {
               caption="欄位是參觀人數前 10 名的來源；合計含其他來源。"
             />
           </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="區域分析" name="stats-area" lazy>
+          <AreaTab
+            :campus-key="campusKey"
+            :school-year="schoolYear"
+            :semester="semester"
+            :csv-name="csvName"
+            :empty-text="emptyText"
+            @open-records="emit('open-records', $event)"
+          />
         </el-tab-pane>
 
         <el-tab-pane label="未預繳原因" name="stats-nodeposit" lazy>

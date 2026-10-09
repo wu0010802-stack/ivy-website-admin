@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortDay, shortName, visitGeoText,
+  bandLabel, campusNotLocatedReason, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortDay, shortName, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import { areaKindergartens, areaStats, villageBoundaries } from './admissionsTestKit'
 
@@ -39,6 +39,14 @@ describe('區域分析格式（2026-10-08）', () => {
     expect(shortName('高雄市立大樹幼兒園')).toBe('大樹幼兒園')
     expect(shortName('高雄市三民區某某國小附設幼兒園')).toBe('三民區某某國小附設幼兒園')
     expect(shortName('臺南市私立某幼兒園')).toBe('臺南市私立某幼兒園')
+  })
+
+  it('本校沒有座標的原因（R8）：三種對照文案；不認得的值與沒有原因回 undefined，由呼叫端兜底', () => {
+    expect(['no_address', 'pending', 'no_doorplate'].map((reason) => campusNotLocatedReason(reason)))
+      .toEqual(['找不到本校地址', '門牌資料尚未匯入', '本校地址比對不到門牌'])
+    expect(campusNotLocatedReason('mystery')).toBeUndefined()
+    expect(campusNotLocatedReason('constructor')).toBeUndefined()
+    expect(campusNotLocatedReason(null)).toBeUndefined()
   })
 
   it('訪視明細的比對結果：到里帶距離；只到區寫原因；未定位寫原因；沒有比對紀錄、沒填地址、已匿名化不列', () => {
