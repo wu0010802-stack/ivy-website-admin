@@ -59,6 +59,11 @@ cd "$root/backend"
   uv run --frozen alembic upgrade head
   uv run --frozen python -m app.cli seed
   uv run --frozen python -m app.cli initialize-content ../content/site-fixture.json
+  # 招生區域分析（2026-10-08）：匯入 stack 專用的門牌與幼兒園樣本（不連外）。五校校址都在樣本裡，
+  # 校區座標才算得出來；WEBSITE_GEO_AUTO_SYNC 維持預設關閉，背景不會去抓正式資料。
+  uv run --frozen python -m app.cli geo-sync \
+    --doorplates-file ../tests/stack/fixtures/geo-doorplates.csv \
+    --kindergartens-file ../tests/stack/fixtures/geo-preschools.json
   # bootstrap-admin 刻意只從 stdin 讀密碼（不接受命令列參數、不寫 log）。
   printf '%s\n%s\n%s\n' "$E2E_ADMIN_EMAIL" "$E2E_ADMIN_PASSWORD" "$E2E_ADMIN_PASSWORD" \
     | uv run --frozen python -m app.cli bootstrap-admin
