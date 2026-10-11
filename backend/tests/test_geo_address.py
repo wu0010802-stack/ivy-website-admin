@@ -104,6 +104,13 @@ def test_malformed_chinese_house_number_does_not_raise():
     assert parse_address("高雄市三民區義華路二三十號").number is None
 
 
+@pytest.mark.parametrize("raw", ["高雄市三民區義華路一百二十號", "高雄市三民區義華路二千號", "高雄市三民區義華路一千零五號", "高雄市三民區義華路一百零五號", "高雄市三民區義華路一百號"])
+def test_chinese_hundreds_and_thousands_are_not_parsed_as_a_number(raw):
+    """cn_to_int 不認得「百」「千」。以前「一百二十號」只吃到「二十號」而解成 20，會比對到別的門牌；
+    現在整段視為無法解析（number=None），街路段照解析。"""
+    assert parse_address(raw) == P("三民區", "義華路")
+
+
 def test_house_number_bounds():
     assert parse_address("高雄市三民區義華路99999號").number == 99999
     assert parse_address("高雄市三民區義華路100000號").number is None

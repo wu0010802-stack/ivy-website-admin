@@ -625,6 +625,7 @@ async def geo_sync_command(**options) -> None:
     """招生區域分析的公開地理資料同步（app/admissions/geo/sync.py）。不看
     WEBSITE_GEO_AUTO_SYNC：那個開關只管 API 內的背景迴圈。另一個同步（背景迴圈或別的
     CLI）正在進行時什麼都不做，exit 1。"""
+    from app.admissions.geo.models import GeoDatasetStatus
     from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
 
     settings = get_settings()
@@ -638,7 +639,21 @@ async def geo_sync_command(**options) -> None:
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；重算訪視 {result.rematched} 筆"
     )
-    if "failed" in (result.doorplates, result.kindergartens):
+    failed = [
+        (dataset, label)
+        for dataset, label, outcome in (
+            ("doorplates", "門牌", result.doorplates),
+            ("kindergartens", "幼兒園", result.kindergartens),
+        )
+        if outcome == "failed"
+    ]
+    if failed:
+        # last_error 是 sync.py 自己寫的固定訊息（原因或例外類別），不含地址。
+        async with session_factory() as db:
+            for dataset, label in failed:
+                status = await db.get(GeoDatasetStatus, dataset)
+                if status is not None and status.last_error:
+                    print(f"{label}同步失敗：{status.last_error}", file=sys.stderr)
         raise SystemExit(1)
 
 

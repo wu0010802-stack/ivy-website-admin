@@ -39,7 +39,9 @@ _DISTRICT = re.compile(
 )
 _VILLAGE = re.compile(r"^([一-鿿]{1,4}[里村])(\d+鄰)?(.*)$")
 _STARTS_WITH_ROAD = re.compile(r"^[一-鿿]{2,}?" + _ROAD)
-_NUMBER = re.compile(r"臨?(\d+|[〇一二三四五六七八九十]+)(?:[-之](\d+))?號(?:之(\d+)(?![樓Ff\d]))?")
+# 零、百、千放進字集只為了讓「一百二十號」「一百零五號」整段被當成號碼文字（cn_to_int 不認得百、千，
+# 結果是無法解析）；不放的話 search 會跳過「一百」，只吃到「二十號」「五號」而解成 20、5。
+_NUMBER = re.compile(r"臨?(\d+|[〇零一二三四五六七八九十百千]+)(?:[-之](\d+))?號(?:之(\d+)(?![樓Ff\d]))?")
 _BARE_NUMBER = re.compile(r"(\d+)(?:-(\d+))?$")
 _ROAD_ORDINAL = re.compile(r"(?<=[一-鿿])(\d{1,2})(?=" + _ROAD + ")")
 _SECTION_DIGITS = re.compile("(" + _ROAD + r")(\d{1,2})段")

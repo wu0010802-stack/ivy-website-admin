@@ -67,8 +67,13 @@ def _int_or_none(value: object) -> int | None:
         return None
     if isinstance(value, int):
         return value
-    digits = re.sub(r"[^\d]", "", str(value or ""))
-    return int(digits) if digits else None
+    if isinstance(value, float):
+        return int(round(value)) if math.isfinite(value) else None
+    try:
+        number = float(re.sub(r"[,\s]", "", str(value or "")))
+    except ValueError:
+        return None
+    return int(round(number)) if math.isfinite(number) else None
 
 
 def _text_or_none(value: object) -> str | None:

@@ -7,7 +7,13 @@ from datetime import datetime, timezone
 import pytest
 from sqlalchemy import func, select
 
-from app.admissions.geo.kindergartens import KindergartenFormatError, nearby, parse_preschools, replace_kindergartens
+from app.admissions.geo.kindergartens import (
+    KindergartenFormatError,
+    _int_or_none,
+    nearby,
+    parse_preschools,
+    replace_kindergartens,
+)
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
 from tests.geo_helpers import SAMPLE_TAG, YIHUA_POINT, load_geo_samples, sample_preschools
 
@@ -47,6 +53,28 @@ def test_kinds_and_quasi_public_period():
     assert rows["高雄市三民區東光國民小學附設幼兒園"].kind == "public"
     later = _by_name(parse_preschools(sample_preschools(), school_year=116))
     assert later["高雄市私立保羅幼兒園"].kind == "private"  # 準公共期間已過
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (15073.0, 15073),  # 浮點數不能把小數點去掉後串起來（以前會變 150730）
+        (15072.6, 15073),
+        ("15073.0", 15073),
+        ("1,234", 1234),
+        (" 2 500 ", 2500),
+        (15073, 15073),
+        ("", None),
+        (None, None),
+        ("abc", None),
+        ("nan", None),
+        ("inf", None),
+        (float("nan"), None),
+        (True, None),
+    ],
+)
+def test_int_or_none(raw, expected):
+    assert _int_or_none(raw) == expected
 
 
 def test_fields_are_cleaned():

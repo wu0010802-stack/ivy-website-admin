@@ -187,8 +187,9 @@ async def apply_visit_geo(db: AsyncSession, visit: RecruitmentVisit) -> None:
     await _upsert_geo(db, visit.id, match, distance_to(match, point), await doorplate_label(db))
 
 
-async def rematch_visits(db: AsyncSession, *, batch_size: int = 500) -> int:
-    """重算所有未匿名化訪視（門牌換版、校址變更後由同步工作呼叫）。每批 commit；回傳
+async def rematch_visits(db: AsyncSession, *, batch_size: int = 100) -> int:
+    """重算所有未匿名化訪視（門牌換版、校址變更後由同步工作呼叫）。每批 commit（預設 100 筆：
+    一批持有這些列的列鎖，同時編輯其中一筆要等批次 commit，lock_timeout 只有 10 秒）；回傳
     處理筆數。用 Core UPDATE 只寫 district，條件是「地址仍是剛才讀到的值」：使用者同時
     改了地址就不覆蓋（他那筆交易已經用新地址比對過）。不碰 version、updated_at。"""
     version = await active_doorplate_version(db)

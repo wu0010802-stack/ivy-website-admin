@@ -10,7 +10,7 @@ from sqlalchemy import func, select, text
 
 from app import cli
 from app.admissions.geo import sync
-from app.admissions.geo.models import GeoDoorplate
+from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
 from app.cli import geo_sync_command, geo_sync_options
 from app.config import Settings
 from app.main import create_app
@@ -218,7 +218,12 @@ async def test_cli_geo_sync_exits_one_when_a_dataset_fails(app, cli_on_test_app,
     with pytest.raises(SystemExit) as exit_info:
         await geo_sync_command(doorplates_file=bad, kindergartens_file=SAMPLE_JSON)
     assert exit_info.value.code == 1
-    assert "門牌：failed" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert "門牌：failed" in captured.out
+    async with app.state.session_factory() as db:
+        assert (await db.get(GeoDatasetStatus, "doorplates")).last_error == "門牌資料的欄位和預期不同"
+    assert "門牌同步失敗：門牌資料的欄位和預期不同" in captured.err  # 失敗原因印到 stderr，不用另外查資料庫
+    assert "幼兒園同步失敗" not in captured.err  # 成功的那一種不印
 
 
 async def test_cli_geo_sync_exits_one_when_another_sync_is_running(app, cli_on_test_app, capsys):

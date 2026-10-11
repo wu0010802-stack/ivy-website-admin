@@ -104,7 +104,7 @@ async def anonymize_due(db: AsyncSession, days: int | None, *, now: datetime | N
         select(RecruitmentVisit)
         .where(*_due(days, now))
         .options(selectinload(RecruitmentVisit.events), selectinload(RecruitmentVisit.contact_logs))
-        .order_by(RecruitmentVisit.created_at)
+        .order_by(RecruitmentVisit.id)  # 鎖定順序同 matcher.rematch_visits（依 id 由小到大）
         .with_for_update(of=RecruitmentVisit)
     )
     visits = list(result.scalars())

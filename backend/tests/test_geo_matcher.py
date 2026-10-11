@@ -180,6 +180,25 @@ async def test_rematch_keeps_version_and_updated_at(db_session):
     assert (await db_session.execute(geo_of_anonymized)).first() is None
 
 
+async def test_rematch_commits_every_100_visits_by_default(db_session, monkeypatch):
+    """一批持有這些列的列鎖直到 commit，同時編輯要等；預設一批 100 筆，101 筆就是兩次 commit。"""
+    await load_geo_samples(db_session)
+    for _ in range(101):
+        await add_visit(db_session, address="高雄市三民區義華路68號")
+    await db_session.commit()
+    commits = 0
+    real_commit = db_session.commit
+
+    async def counting_commit():
+        nonlocal commits
+        commits += 1
+        await real_commit()
+
+    monkeypatch.setattr(db_session, "commit", counting_commit)
+    assert await rematch_visits(db_session) == 101
+    assert commits == 2
+
+
 async def test_rematch_does_not_overwrite_a_concurrent_address_edit(db_session, app, monkeypatch):
     await load_geo_samples(db_session)
     visit = await add_visit(db_session, address="高雄市三民區義華路68號")

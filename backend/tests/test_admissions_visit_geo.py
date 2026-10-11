@@ -230,6 +230,29 @@ async def test_anonymize_updates_visit_row_before_geo_row(admin_client, db_sessi
     assert max(visit_updates) < min(geo_updates)
 
 
+async def test_anonymize_locks_due_visits_in_id_order(admin_client, db_session, geo_samples):
+    """與 matcher.rematch_visits（依 id 逐列鎖）同一個順序，兩邊同時跑才不會互等：
+    匿名化鎖到期列的那句 SELECT … FOR UPDATE 必須依 recruitment_visits.id 排序。"""
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
+    await _age(db_session, record["id"], 60)
+    statements: list[str] = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(" ".join(statement.split()).lower())
+
+    engine = db_session.bind.sync_engine
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        assert await retention.anonymize_due(db_session, 30) == 1
+        await db_session.commit()
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    locking = [sql for sql in statements if " for update" in sql]
+    assert len(locking) == 1
+    assert "order by recruitment_visits.id for update" in locking[0]
+    assert "created_at" not in locking[0].split("order by", 1)[1]
+
+
 # ---- 訪視明細的區域篩選（規格 §8.4；主控裁定 R2、R4） ----
 
 
