@@ -358,7 +358,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 **開啟前**：
 
-- 確認 Railway PG 剩餘空間 **≥ 500MB**。門牌一版（775,772 列）含索引約 185MB（表 94MB＋索引 91MB）；每月換版時新舊兩版短暫並存約 370MB，換完才刪舊版。幼兒園只有幾百筆，可忽略。在 Railway Postgres 服務看 volume 用量與上限。
+- 確認 Railway PG 剩餘空間 **≥ 500MB**。門牌一版（775,772 列）含索引約 185MB（表 94MB＋索引 91MB）；每月換版時新舊兩版並存約 370MB，換完才刪舊版。`DELETE` 不會把空間還給檔案系統（只是讓 autovacuum 之後的新批次重用），所以第一次換版之後 `geo_doorplates` 在磁碟上會一直維持約兩版，穩態約 **370–400MB**（另加膨脹），不會回到 185MB。幼兒園只有幾百筆，可忽略。在 Railway Postgres 服務看 volume 用量與上限。
 - 背景自動同步只在 `WEBSITE_ADMISSIONS_ENABLED=true` 時才會啟動；手動指令 `geo-sync` 不檢查這個開關，也不看 `WEBSITE_GEO_AUTO_SYNC`。
 - 匯入只用 `INSERT`／`DELETE`（`COPY` 寫入、清批次用 `DELETE`，不用 `TRUNCATE`），已改用只有 DML 權限的執行期角色時不需要額外權限。
 - 首次匯入要下載約 100MB 的 CSV 並串流寫入（不落地、不整檔讀進記憶體）。本機從檔案匯入 77.6 萬列約 25 秒；Railway 上含下載的耗時與記憶體沒有量過，第一次開要看 api 的記憶體與 CPU。
@@ -369,7 +369,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 2. 重新部署 api。
 3. 看 api log：啟動約 30 秒後開始同步。成功會有「門牌資料已更新：115-10，775772 筆」與「幼兒園資料已更新：N 所」；失敗是「門牌資料同步失敗：…」或「幼兒園資料同步失敗：…」；另一個副本正在同步時是「公開地理資料同步：另一個同步正在進行，這一輪跳過」。log 只記等級與原因，不含地址。
 4. 後台「招生入學 → 統計分析 → 區域分析」狀態列應寫「門牌資料 115 年 10 月・幼兒園 MM/DD 更新」，原本「待比對」的訪視在同步結束時重算成到里或未定位。後台畫面不顯示失敗原因，要看原因查資料庫（只讀）：`select dataset, label, synced_at, checked_at, last_attempt_at, last_error from geo_dataset_status;`，`last_error` 只記原因、不含地址。
-5. 再看一次 PG 空間，確認換版後舊批次已清掉。
+5. 確認舊批次已清掉：`select dataset_version, count(*) from geo_doorplates group by 1;` 只剩一個批次標記（列數每月略有不同，約 77 萬）。看 PG 空間時要有心理準備：換過一次版之後磁碟用量不會掉回 185MB，穩態約 370–400MB（見上面「開啟前」）。
 
 **手動退路**（平台改版抓不到、想立刻更新、或想離線匯入）：
 
@@ -380,11 +380,29 @@ python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-ver
 Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終端機執行）：`! railway ssh --service api --environment production -- python -m app.cli geo-sync`。
 
 - 不帶參數＝和背景迴圈同一套（各自超過 30 天才下載），結束時檢查「各校已發布校址＋使用中門牌批次」有沒有變、有變才重算訪視。`--force` 略過 30 天與「月份相同」的判斷，立刻重抓。
-- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
+- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。只帶一種檔案時另一種不會匯入：同時帶 `--kindergartens-file`（或 `--doorplates-file`），或之後再跑一次不帶檔案的 `geo-sync`；幼兒園資料沒匯入前，後台附近幼兒園清單寫「幼兒園資料尚未匯入」，不是附近沒有園所。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
 - 自動找不到門牌檔時：設 `WEBSITE_GEO_DOORPLATE_URL` 指到直連網址，或下載 CSV 後用 `--doorplates-file`。
 - **結束碼 1**：另一個同步正在進行（會印「另一個公開資料同步正在進行，稍後再試」，什麼都沒做），或門牌、幼兒園任一種同步失敗（原因在 `geo_dataset_status.last_error`）。同一時間只允許一個同步，背景迴圈、CLI、多個副本共用同一把資料庫 advisory lock。
 
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
+
+**上線前就存在的訪視**：這些訪視沒有 `recruitment_visit_geo` 列，`recruitment_visits.district` 也是空的。`district` 只在新建訪視、改地址、或重算時寫入，而重算只在 `geo-sync`（背景迴圈或 CLI）結束時觸發，沒有別的入口。在第一次同步之前，它們在區域分析歸「待比對」，**不會出現在行政區排行**。第一次同步時資料庫沒有 `campuses` 那一列指紋，程式視為「有變」，會重算所有未匿名化的訪視；不論是背景迴圈第一輪（api 啟動約 30 秒後）、不帶參數的 CLI、或檔案模式的 CLI 都一樣，下載失敗的那一輪也一樣，不需要 `--force`。所以啟用自動同步後第一輪結束，行政區排行就會含舊訪視；想在啟用前先補，就在 api 容器內跑一次 `geo-sync`（`! railway ssh --service api --environment production -- python -m app.cli geo-sync`）。若那時門牌還沒匯入成功，舊訪視先得到行政區與 `pending`，等門牌匯入完成（指紋含使用中門牌批次，會變）會自動再重算一次補上里與距離。已匿名化的舊訪視不補建。重算每 100 筆一個交易。
+
+**回滾再上線**：回滾到舊版程式的期間，舊版改地址不會更新 `recruitment_visit_geo` 與 `district`，新建的訪視也沒有比對列，舊版的匿名化也不清比對列裡的里與距離。再上線時重算只在指紋（各校已發布校址＋使用中門牌批次）變了才觸發，回滾期間沒變就不會自動補。做法：
+
+1. 在資料庫刪掉指紋列，下一次同步就會視為「有變」而重算：`delete from geo_dataset_status where dataset = 'campuses';`（只刪這一列，`doorplates`、`kindergartens` 兩列不能動；先用 `select dataset, active_version from geo_dataset_status;` 確認）。
+2. 立刻跑一次 `! railway ssh --service api --environment production -- python -m app.cli geo-sync`（不帶參數時門牌、幼兒園未滿 30 天會跳過、不下載，只做重算）；自動同步開著的話等下一輪也行，最久約一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`。這會重算所有未匿名化訪視，回滾期間改過地址或新建的都補上。
+3. **重算跳過已匿名化的訪視**，所以回滾期間被舊版匿名化的訪視，比對列的里與距離還在。區域分析的統計不受影響（已匿名化的不進里表與距離分布），但資料留著；用下面的 SQL 清掉（規則同 `retention.py` 的匿名化：里與距離清空、有行政區退到 `district`、沒有退到 `unlocated`，原因 `anonymized`）：
+
+```sql
+update recruitment_visit_geo g
+   set village = null, distance_m = null,
+       match_level = case when coalesce(v.district, '') <> '' then 'district' else 'unlocated' end,
+       unlocated_reason = 'anonymized'
+  from recruitment_visits v
+ where v.id = g.visit_id and v.anonymized_at is not null
+   and (g.village is not null or g.distance_m is not null);
+```
 
 **資料來源更新頻率**：高雄市資料平台每年一個新資料集（「高雄市115年門牌坐標資料-TWD97」）、每月一個新檔案（檔案網址的 guid 每月不同），所以網址不能寫死，程式每次找最新月份；年初新資料集還沒有資源時會退回前一年度。頁面格式改版時會失敗並保留舊版（`last_error`：「找不到高雄市門牌坐標資料的下載檔」）。kiang 的幼兒園資料每日更新，官網每 30 天抓一次。里界檔隨程式提交、不同步，換版見 `backend/app/admissions/geo_data/README.md`。
 

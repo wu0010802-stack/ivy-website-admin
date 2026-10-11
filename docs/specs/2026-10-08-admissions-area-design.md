@@ -134,7 +134,7 @@
 
 - 訪視建立、或更新時 `address` 有變：在同一個交易內比對並寫 `recruitment_visit_geo` 與 `district`。只查資料庫，不呼叫外部服務。沒有地址也寫一列（`unlocated`／`no_address`），所以「待比對」只出現在兩種情況：上線前就存在、還沒重算的舊訪視，以及門牌資料尚未匯入的期間（見下一點）。
 - 門牌表尚未匯入：`match_level=pending`（行政區照樣由地址文字解析），匯入完成後由同步工作補比。
-- 門牌換版、校址變更：同步工作重算所有未匿名化的訪視（含沒填地址的，補寫 `no_address` 列），每 500 筆一個交易。只寫 `district` 與 `recruitment_visit_geo`，不動 `version`、`updated_at`；而且只在地址仍是剛讀到的值時才寫，使用者同時改了地址就不覆蓋（他那筆交易已用新地址比對過）。觸發條件是 `geo_dataset_status` 的 `campuses` 指紋變了（各校已發布校址或使用中門牌批次不同）。
+- 門牌換版、校址變更：同步工作重算所有未匿名化的訪視（含沒填地址的，補寫 `no_address` 列），每 100 筆一個交易（一批持有這些列的列鎖直到 commit，同時編輯其中一筆要等，`lock_timeout` 只有 10 秒，所以批次不放大）。只寫 `district` 與 `recruitment_visit_geo`，不動 `version`、`updated_at`；而且只在地址仍是剛讀到的值時才寫，使用者同時改了地址就不覆蓋（他那筆交易已用新地址比對過）。觸發條件是 `geo_dataset_status` 的 `campuses` 指紋變了（各校已發布校址或使用中門牌批次不同）。
 
 ### 6.2 正規化與解析
 
@@ -153,9 +153,11 @@
 | `street` | 對不到門牌，但「巷弄、巷、整條街路段」由窄到寬其中一層的所有門牌都在同一個里 | 里；距離空 |
 | `district` | 只解析得出區（含門牌表沒有這條街、里有歧義） | 區；里與距離空 |
 | `unlocated` | 沒有地址、明寫其他縣市、解析不出高雄市的區 | 原因 |
-| `pending` | 門牌資料尚未匯入，或上線前的舊訪視還沒重算（沒有比對列） | 區（由地址文字解析）；里與距離空 |
+| `pending` | 門牌資料尚未匯入（有比對列）；或上線前的舊訪視還沒重算（沒有比對列，`district` 也是空） | 前者：區（由地址文字解析），里與距離空；後者：什麼都沒有，要等第一次重算 |
 
 精確鍵對到兩個里時：`match_level=district`、`unlocated_reason=ambiguous_village`。
+
+上線前就存在的舊訪視沒有 `recruitment_visit_geo` 列，`recruitment_visits.district` 也是空的：`district` 只在新建訪視、改地址、或重算時寫入，而重算只在 `run_geo_sync` 結束時觸發（`rematch_if_changed`，沒有別的入口）。所以這些訪視在區域分析歸「待比對」，**不會出現在行政區排行**（排行以 `district` 分組），直到第一次同步。第一次同步時 `geo_dataset_status` 沒有 `campuses` 那一列，指紋視為變了，會重算所有未匿名化的訪視（含門牌檔案模式、含下載失敗的那一輪；背景迴圈第一輪或 CLI `geo-sync` 都一樣），這時才補上 `district` 與比對列；已匿名化的舊訪視不補建。
 
 同單雙號優先的理由：里界常沿街道中線劃分，對側門牌號碼雖然更近，卻常在另一個里。例：同街同巷弄有 10 號（甲里）、11 號（乙里）、13 號（乙里），查 12 號回甲里（同為雙號、差 2），不是乙里（差 1 但對側）。
 
@@ -290,7 +292,7 @@
 - 家長地址只在官網資料庫內比對；比對與同步的 log 不記地址，只記等級與原因。
 - 唯一的外部請求是地圖圖磚（只含視野範圍，不含家長資料）與同步工作下載公開資料。
 - `recruitment_visit_geo` 不存家長座標，距離取整到 100 m。
-- 匿名化（`retention.py` `anonymize_visit`）：既有清 `address`；新增把 `recruitment_visit_geo` 的 `village`、`distance_m` 清空、`match_level` 改為 `district`（有行政區時）或 `unlocated`（沒有時）、`unlocated_reason=anonymized`；`recruitment_visits.district` 保留（同園務、同既有行為）。沒有比對列的舊訪視不補建。鎖定順序與重算相同：先更新 `recruitment_visits` 的列，再動 `recruitment_visit_geo`，匿名化與重算同時跑才不會死鎖。
+- 匿名化（`retention.py` `anonymize_visit`）：既有清 `address`；新增把 `recruitment_visit_geo` 的 `village`、`distance_m` 清空、`match_level` 改為 `district`（有行政區時）或 `unlocated`（沒有時）、`unlocated_reason=anonymized`；`recruitment_visits.district` 保留（同園務、同既有行為）。沒有比對列的舊訪視不補建。鎖定順序與重算一致：兩邊都先鎖訪視列（依 id 由小到大；匿名化的 `SELECT … FOR UPDATE` 依 `recruitment_visits.id` 排序）、再動 geo 列。
 - 地圖與表格只呈現里層級聚合；後台人員本來就看得到明細地址，不另做小數量抑制。
 - 區域分析頁的統計：已匿名化的訪視不算有地址（`totals.anonymized`），但行政區表仍含它們（`district` 保留）；整個範圍都是已匿名化時，畫面寫「地址都已依保存期限清除，無法比對」（見 9.5）。
 
@@ -311,7 +313,7 @@
 ## 13. 部署
 
 - migration `e7a1c4d9b2f6` 只新增表；部署後畫面顯示「門牌資料尚未匯入」。
-- 開啟同步前置：確認 Railway PG 剩餘空間 ≥ 500MB（門牌一版約 185MB，換版時新舊兩版短暫並存約 370MB）。
+- 開啟同步前置：確認 Railway PG 剩餘空間 ≥ 500MB（門牌一版約 185MB，換版時新舊兩版並存約 370MB；`DELETE` 不把空間還給檔案系統，第一次換版後穩態約 370–400MB，不會回到 185MB）。
 - 開啟：Railway api service 設 `WEBSITE_GEO_AUTO_SYNC=true` → 重新部署 → 看 api log 的 geo-sync 結果與後台狀態列。完整步驟與手動退路（CLI `geo-sync`）見 `deploy/README.md`「公開地理資料同步（招生區域分析）」。
 - 本校改址後距離要等下一次同步（或手動 `geo-sync`）才重算，記在部署紀錄。
 - 照 CLAUDE.md：不自行 push、不部署。
