@@ -120,7 +120,7 @@ const status = computed(() => {
       ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}`
       : '門牌資料尚未匯入，匯入後會自動比對。',
     doorplateImported: Boolean(dataStatus.doorplate_version),
-    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '',
+    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園資料尚未匯入',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
   }
@@ -195,7 +195,7 @@ function openNoVillage() {
       <div class="area-head">
         <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
         <p class="hint area-status">
-          <span>{{ status.doorplate }}</span><span v-if="status.kindergarten" :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}</span>
+          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}</span>
         </p>
         <p v-if="area.totals.with_address" class="area-summary">
           有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>

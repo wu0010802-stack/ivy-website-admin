@@ -223,10 +223,20 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
-  it('門牌資料已匯入但幼兒園還沒同步：只寫門牌版本，沒有多餘的分隔點', async () => {
+  it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園資料尚未匯入」，不是整句消失', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月・幼兒園資料尚未匯入')
+  })
+
+  it('門牌與幼兒園資料都還沒匯入：兩句各自成段，不接「。・」', async () => {
+    const area = areaStats({
+      data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null, kindergartens_synced_at: null },
+    })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園資料尚未匯入'])
+    expect(wrapper.get('.area-status').text()).not.toContain('。・')
+    expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
   it('有訪視但都沒填地址：寫原因、不列三張表（不顯示假的 0）；地圖與清單照常', async () => {

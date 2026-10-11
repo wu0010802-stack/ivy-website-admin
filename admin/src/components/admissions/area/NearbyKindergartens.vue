@@ -43,6 +43,9 @@ const notLocated = computed(() => {
   const reason = props.data?.campus.locate_error
   return reason ? `${campusNotLocatedReason(reason) ?? '本校位置尚未確定'}，無法列出附近幼兒園。` : ''
 })
+// 幼兒園資料從未匯入（後端 synced_at 為 null）：空清單不代表附近沒有園所，寫原因、不顯示假的「沒有其他幼兒園」。
+// 校區位置沒標出來的原因優先（上一個分支先攔下）。
+const notImported = computed(() => props.data?.synced_at === null)
 
 function toggleKind(kind: string) {
   kinds.value = kinds.value.includes(kind) ? kinds.value.filter((value) => value !== kind) : [...kinds.value, kind]
@@ -73,6 +76,7 @@ const fee = (value: number | null) => (value === null ? NO_VALUE : `${value.toLo
     </el-alert>
     <el-skeleton v-else-if="!data" :rows="4" animated />
     <p v-else-if="notLocated" class="nearby__empty">{{ notLocated }}</p>
+    <p v-else-if="notImported" class="nearby__empty">幼兒園資料尚未匯入。</p>
     <template v-else>
       <el-input v-model="search" clearable maxlength="40" placeholder="園名或地址" aria-label="搜尋幼兒園" />
       <div class="nearby__kinds" role="group" aria-label="依類型篩選">
