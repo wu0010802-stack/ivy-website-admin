@@ -23,7 +23,7 @@ export function ogImagePath(imageName: string): string {
 }
 
 /**
- * 首頁與入學資訊頁的分享圖：後台設了素材庫分享圖就用它（同源公開媒體
+ * 全站分享圖（首頁，以及各頁沒另設分享圖時）：後台設了素材庫分享圖就用它（同源公開媒體
  * 端點，只有已發布的素材才會回檔案），否則沿用首頁大圖的 1200×630 JPG。
  */
 export function siteShareImage(site: SiteContent): { path: string; alt: string } {
@@ -70,7 +70,7 @@ export const ABOUT_PATH = '/about'
 export const PRIVACY_PATH = '/privacy'
 export const ANNIVERSARY_PATH = '/anniversary'
 
-/** 入學資訊頁的 SEO：標題描述預設固定、分享圖沿用首頁（不另產圖），後台可覆寫，麵包屑兩層。 */
+/** 入學資訊頁的 SEO：標題、描述、分享圖預設用內建（分享圖沿用首頁），後台「各頁搜尋與分享」可覆寫，麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'admission', {
@@ -90,7 +90,7 @@ export function admissionSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
 }
 
-/** 隱私權政策頁的 SEO：標題以後台標題為準，描述固定，分享圖沿用首頁，麵包屑兩層。 */
+/** 隱私權政策頁的 SEO：標題預設跟著政策標題，描述與分享圖預設內建，後台「各頁搜尋與分享」可覆寫，麵包屑兩層。 */
 export function privacySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const policyTitle = site.privacyPolicy?.title || '隱私權政策'
@@ -110,7 +110,7 @@ export function privacySeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 常春藤環境頁的 SEO（2026-09-25）：同入學資訊頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+/** 常春藤環境頁的 SEO（2026-09-25）：同入學資訊頁，預設內建、後台可覆寫（2026-10-12），麵包屑兩層。 */
 export function environmentSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'environment', {
@@ -129,7 +129,7 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+/** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：預設內建、後台可覆寫（2026-10-12），麵包屑兩層。 */
 export function anniversarySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'anniversary', {
@@ -148,7 +148,7 @@ export function anniversarySeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 特色教學頁的 SEO（2026-09-26）：同常春藤環境頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+/** 特色教學頁的 SEO（2026-09-26）：同常春藤環境頁，預設內建、後台可覆寫（2026-10-12），麵包屑兩層。 */
 export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'curriculum', {
@@ -175,7 +175,7 @@ export function foundingYear(site: Pick<SiteContent, 'aboutPage'>): number {
   return site.aboutPage?.milestones?.[0]?.year ?? 1997
 }
 
-/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，標題描述固定（創校年份跟著沿革）、分享圖沿用首頁，麵包屑兩層。 */
+/** 關於常春藤頁的 SEO（2026-09-26）：同特色教學頁，預設內建（創校年份跟著沿革）、後台可覆寫（2026-10-12），麵包屑兩層。 */
 export function aboutSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const year = foundingYear(site)
@@ -195,7 +195,7 @@ export function aboutSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 最新消息列表頁的 SEO（2026-09-26）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
+/** 最新消息列表頁的 SEO（2026-09-26）：預設內建、後台可覆寫（2026-10-12），麵包屑兩層。 */
 export function newsListSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'news', {
