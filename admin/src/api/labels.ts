@@ -295,6 +295,9 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'years_photo.media_id': '四個年段的照片',
   'hero_back_photo.media_id': '首屏後排照片',
   'hope_photo.media_id': '紙房子窗戶的照片',
+  // 常春藤環境頁（hero_photo 同上）；主打區的照片在巢狀物件裡。
+  'care_photo.media_id': '幼兒保育照片',
+  'feature.photo.media_id': '校園環境主打區的照片',
 }
 
 export function mediaFieldPathLabel(path: string): string {
@@ -311,6 +314,8 @@ export function mediaFieldPathLabel(path: string): string {
     if (slot[1] === 'gallery') return `兒童美術館第 ${n} 件作品的照片`
     return `五件事第 ${n} 件的照片`
   }
+  slot = /^(care_items|spaces)\[(\d+)\]\.photo\.media_id$/.exec(path)
+  if (slot) return slot[1] === 'care_items' ? `照顧的小事第 ${Number(slot[2]) + 1} 件的照片` : `校園環境第 ${Number(slot[2]) + 1} 個空間的照片`
   slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
   if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
   slot = /^testimonials\[(\d+)\]\.poster\.media_id$/.exec(path)
@@ -796,12 +801,13 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
   if (kind === 'privacy_policy') return '/privacy'
   if (kind === 'curriculum_page') return '/curriculum'
   if (kind === 'about_page') return '/about'
+  if (kind === 'environment_page') return '/environment'
   return '/'
 }
 
 // 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
 // 預約頁（預約文案：個資說明、頁首按鈕）、隱私權政策、特色教學頁、關於常春藤頁
-// 與常春藤環境頁（校園探索）。
+// 與常春藤環境頁（前三章的文字與照片、校園探索）。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_tour') return '/preview?page=environment'
   if (kind === 'campus_profile') {
@@ -813,6 +819,7 @@ export function contentPreviewPath(kind: string, _campusKey?: string | null): st
   if (kind === 'privacy_policy') return '/preview?page=privacy'
   if (kind === 'curriculum_page') return '/preview?page=curriculum'
   if (kind === 'about_page') return '/preview?page=about'
+  if (kind === 'environment_page') return '/preview?page=environment'
   return '/preview'
 }
 
@@ -895,6 +902,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   privacy_policy: '隱私權政策',
   curriculum_page: '特色教學頁',
   about_page: '關於常春藤頁',
+  environment_page: '常春藤環境頁',
   site_footer: '頁尾文字',
   site_meta: '網站標題與電話',
 }

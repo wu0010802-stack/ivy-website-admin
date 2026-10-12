@@ -225,6 +225,43 @@ export interface AboutPagePayload {
   outro_text: string
 }
 
+/**
+ * 常春藤環境頁前三章（後端 content/page_schemas.py 的 EnvironmentPagePayload）。標題用 \n 換行；
+ * 章名 4、五顆心 5、照顧的小事 5、空間 6、餐點 5 固定；餐點時間 HH:MM 要由早到晚；
+ * 照片版位留空＝官網內建照片，*_photo_alt 只在換了照片時生效。
+ */
+export interface EnvironmentPagePayload {
+  hero_title: string
+  hero_highlight: string
+  hero_lede: string
+  hero_notice: string
+  hero_photo?: MediaSlotPayload | null
+  hero_photo_alt?: string
+  hero_caption: string
+  chapter_names: string[]
+  care_title: string
+  care_lead: string
+  hearts: string[]
+  care_text: string
+  care_photo?: MediaSlotPayload | null
+  care_photo_alt?: string
+  care_caption: string
+  care_photo_note: string
+  care_items: ({ title: string; text: string } & PagePhotoPayload)[]
+  spaces_title: string
+  spaces_text: string
+  feature: { tag: string; title: string; text: string; note: string } & PagePhotoPayload
+  trail_hint: string
+  spaces: ({ title: string; text: string; note: string; campus_label: string } & PagePhotoPayload)[]
+  meals_title: string
+  meals_text: string
+  meals_day_title: string
+  meals: { time: string; name: string; note: string; text: string }[]
+  tour_title: string
+  tour_text: string
+  tour_hint: string
+}
+
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock）；不收 HTML。 */
 export type NewsBodyBlock =
   | { type: 'paragraph'; text: string }

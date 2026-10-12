@@ -41,15 +41,15 @@ afterEach(() => {
   localStorage.clear()
 })
 
-// 15 個用 ContentEditor 的編輯頁（router/nav.ts 的官網內容三組）。
+// 16 個用 ContentEditor 的編輯頁（router/nav.ts 的官網內容三組）。
 const EDITOR_KINDS = [
   'home_hero', 'home_about', 'day_experience', 'home_campus_board', 'home_news',
   'campus_profile', 'campus_news', 'campus_tour',
-  'booking_content', 'admission_content', 'privacy_policy', 'curriculum_page', 'about_page', 'site_footer', 'site_meta',
+  'booking_content', 'admission_content', 'privacy_policy', 'curriculum_page', 'about_page', 'environment_page', 'site_footer', 'site_meta',
 ]
 
 describe('預覽分頁對照表', () => {
-  it('15 個編輯頁都有列；只有校園探索沒有預覽欄；同一頁的分頁代號不重複', () => {
+  it('16 個編輯頁都有列；只有校園探索沒有預覽欄；同一頁的分頁代號不重複', () => {
     expect(Object.keys(PREVIEW_TARGETS).sort()).toEqual([...EDITOR_KINDS].sort())
     for (const kind of EDITOR_KINDS) {
       const targets = previewTargetsFor(kind)

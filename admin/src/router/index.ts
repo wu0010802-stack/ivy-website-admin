@@ -56,6 +56,7 @@ export const routes: RouteRecordRaw[] = [
       page('content/home-news', 'home-news', () => import('../views/HomeNewsView.vue')),
       page('content/admission', 'admission-content', () => import('../views/AdmissionContentView.vue')),
       page('content/about-page', 'about-page', () => import('../views/AboutPageView.vue')),
+      page('content/environment-page', 'environment-page', () => import('../views/EnvironmentPageView.vue')),
       page('content/curriculum-page', 'curriculum-page', () => import('../views/CurriculumPageView.vue')),
       page('content/campus-profile', 'campus-profile', () => import('../views/CampusProfileView.vue')),
       // 常見問題功能已於 2026-10-08 刪除（官網早就沒有顯示的頁面）；舊書籤與舊通知的連結改到五校介紹。

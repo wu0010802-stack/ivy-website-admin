@@ -151,6 +151,55 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     outro_title: '五所校園的標題',
     outro_text: '五所校園的說明',
   },
+  // 常春藤環境頁前三章：欄位名＝編輯頁的表單標籤（錯誤定位靠比對標籤）。
+  environment_page: {
+    hero_title: '首屏大標',
+    hero_highlight: '大標裡畫螢光的字',
+    hero_lede: '首屏介紹',
+    hero_notice: '首屏提醒',
+    hero_photo: '首屏照片',
+    hero_photo_alt: '首屏照片說明',
+    hero_caption: '首屏照片下的一句話',
+    chapter_names: '章名',
+    care_title: '幼兒保育的標題',
+    care_lead: '幼兒保育的引言',
+    hearts: '五顆心',
+    care_text: '幼兒保育的說明',
+    care_photo: '幼兒保育照片',
+    care_photo_alt: '幼兒保育照片說明',
+    care_caption: '保育照片下的一句話',
+    care_photo_note: '保育照片上的便條',
+    care_items: '照顧的小事',
+    spaces_title: '校園環境的標題',
+    spaces_text: '校園環境的說明',
+    feature: '主打區',
+    trail_hint: '小腳印提示',
+    spaces: '小腳印走過的空間',
+    meals_title: '幼兒餐點的標題',
+    meals_text: '幼兒餐點的說明',
+    meals_day_title: '一天吃什麼的標題',
+    meals: '一天的餐點',
+    tour_title: '五所校園的標題',
+    tour_text: '五所校園的說明',
+    tour_hint: '五所校園的提示',
+  },
+}
+
+// 內容裡的巢狀物件（不是清單）：['feature', 'tag'] 這種兩段路徑叫什麼。標籤＝編輯頁的表單標籤。
+const NESTED_FIELD_LABELS: Record<string, Record<string, string>> = {
+  environment_page: {
+    'feature.tag': '主打區的標籤',
+    'feature.title': '主打區的標題',
+    'feature.text': '主打區的說明',
+    'feature.note': '主打區照片上的便條',
+    'feature.photo': '主打區的照片',
+    'feature.photo_alt': '主打區的照片說明',
+  },
+}
+
+function nestedFieldLabel(kind: string | undefined, path: readonly (string | number)[]): string | undefined {
+  if (!kind || path.length !== 2 || !path.every((segment) => typeof segment === 'string')) return undefined
+  return NESTED_FIELD_LABELS[kind]?.[path.join('.')]
 }
 
 export function contentFieldLabelFor(kind: string | undefined, key: string): string {
@@ -169,6 +218,7 @@ const LIST_UNITS: Record<string, string> = {
   copy_lines: '行',
   chapters: '個', years: '個', directions: '個', gallery: '件', daily: '件', beliefs: '項',
   chapter_names: '個', milestones: '站', hope_quotes: '段',
+  hearts: '顆', care_items: '件', spaces: '個', meals: '個',
   social_links: '個',
   testimonials: '支',
 }
@@ -218,6 +268,10 @@ const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
     question: '家長常問',
     answer: '我們的回答',
   },
+  // 常春藤環境頁：標籤＝編輯頁每一項的表單標籤。空間的照片不叫「照片」，避免和「照片上的便條」「照片上的校名」撞開頭。
+  care_items: { title: '名稱', text: '說明', photo: '照片', photo_alt: '照片說明' },
+  spaces: { title: '名稱', text: '說明', note: '照片上的便條', campus_label: '照片上的校名', photo: '空間照片', photo_alt: '空間照片說明' },
+  meals: { time: '時間', name: '名稱', note: '小字', text: '說明' },
   items: { q: '問題', a: '回答' },
   social_links: { platform: '平台', label: '顯示名稱', url: '網址' },
   // 分校資料的家長分享影片：標籤＝CampusTestimonialsEditor 每一支的表單標籤（422 定位靠標籤）。
@@ -242,6 +296,8 @@ function listFieldLabel(kind: string | undefined, list: string, index: unknown, 
  * ["articles", 3, "title"] →「最新消息第 4 則・標題」；["facebook"] →「Facebook 粉絲專頁網址」。
  */
 export function contentPathLabel(kind: string | undefined, path: readonly (string | number)[]): string {
+  const nested = nestedFieldLabel(kind, path)
+  if (nested) return nested
   const seo = pageSeoPath(kind, path)
   if (seo) return seo.page && seo.field ? `${seo.page}的${seo.field}` : (seo.page ?? seo.field)!
   const parts: string[] = []
@@ -279,6 +335,8 @@ function pageSeoPath(kind: string | undefined, path: readonly (string | number)[
 export function contentPathFieldLabel(kind: string | undefined, path: readonly (string | number)[]): string {
   const last = path[path.length - 1]
   if (typeof last !== 'string') return ''
+  const nested = nestedFieldLabel(kind, path)
+  if (nested) return nested
   const seo = pageSeoPath(kind, path)
   if (seo?.field) return seo.field
   // 最靠近這一欄的清單名：後面接著數字索引的那一段。

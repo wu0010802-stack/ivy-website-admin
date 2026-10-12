@@ -1,6 +1,9 @@
+/// <reference types="node" />
 // 後端每新增一種通知 kind、稽核動作或稽核對象，後台都要有中文標籤，否則
 // 站內通知與操作紀錄頁會直接顯示英文代碼。這裡直接讀後端原始碼比對，不靠
 // 人記得同步：新增 log_action 或 outbox kind 忘了補 labels.ts，這個測試就會失敗。
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AUDIT_ACTION_LABELS,
@@ -9,6 +12,8 @@ import {
   AUDIT_TARGET_LABELS,
   auditChangeSummary,
   CANCEL_REASON_LABELS,
+  CONTENT_KIND_LABELS,
+  contentEditorPath,
   CTA_ENTRY_LABELS,
   REFERRAL_SOURCE_LABELS,
   RETENTION_CATEGORY_LABELS,
@@ -404,5 +409,26 @@ describe('操作紀錄細節涵蓋後端所有 metadata 鍵', () => {
     for (const key of ['capacity', 'closed', 'cancelled_days', 'auto_run_enabled', 'min_lead_hours', 'mode', 'role']) expect(fields, key).toContain(key)
     const raw = [...fields].filter((field) => auditChangeSummary({ before: { [field]: 1 }, after: { [field]: 2 } }).startsWith(`${field}：`))
     expect(raw).toEqual([])
+  })
+})
+
+// 後端 registry 每新增一種內容 kind，後台編輯頁標題、待發布清單與操作紀錄都要有中文名，編輯頁網址也要接得上
+// router（contentEditorPath 依 kind 推導 /content/<kind>）。這裡直接讀 registry.py，忘了補就失敗。
+describe('內容種類（content kind）都有中文名與編輯頁', () => {
+  const registryKinds = [...source('content/registry.py').matchAll(/^ {4}"([a-z_]+)": ContentKindConfig\(/gm)].map((m) => m[1]!)
+  const routerSource = readFileSync(resolve(__dirname, '../router/index.ts'), 'utf8')
+
+  it('掃得到 registry 的內容種類（含 2026-10-12 新增的環境頁）', () => {
+    expect(registryKinds.length).toBeGreaterThanOrEqual(15)
+    expect(registryKinds).toContain('environment_page')
+  })
+
+  it('每一種都有中文名', () => {
+    expect(registryKinds.filter((kind) => !CONTENT_KIND_LABELS[kind])).toEqual([])
+  })
+
+  it('每一種共用內容的編輯頁都註冊在 router（分校內容走 ?campus=，路徑相同）', () => {
+    const missing = registryKinds.filter((kind) => !routerSource.includes(`'${contentEditorPath(kind).slice(1)}'`))
+    expect(missing).toEqual([])
   })
 })

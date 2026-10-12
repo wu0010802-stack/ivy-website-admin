@@ -127,6 +127,7 @@ test('每個內容編輯頁的右側預覽都接得上；校園探索沒有預�
     ['/content/privacy-policy', '隱私權政策', [['隱私權政策頁', '#main']]],
     ['/content/curriculum-page', '特色教學頁', [['特色教學頁', '#main']]],
     ['/content/about-page', '關於常春藤頁', [['關於常春藤頁', '#main']]],
+    ['/content/environment-page', '常春藤環境頁', [['常春藤環境頁', '#main']]],
     ['/content/site-footer', '頁尾文字', [['頁尾', 'footer.footer']]],
     ['/content/site-meta', '網站標題與電話', [['頁首', 'header.header']]],
   ]

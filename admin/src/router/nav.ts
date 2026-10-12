@@ -105,6 +105,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
       { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', roles: ['super_admin'], shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
       { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', roles: ['super_admin'], shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
+      { name: 'environment-page', path: '/content/environment-page', title: '常春藤環境頁', icon: 'School', roles: ['super_admin'], shared: true, keywords: ['環境', '餐點', '保育', '校園', '空間', '遊樂區', '五顆心'] },
       // 常春藤環境頁「五所校園」：五校各一份，由總部統一管理。
       { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: ['super_admin'], shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
       { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },

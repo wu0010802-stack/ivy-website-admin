@@ -22,6 +22,7 @@ import CampusNewsView from '../views/CampusNewsView.vue'
 import DayExperienceView from '../views/DayExperienceView.vue'
 import AboutPageView from '../views/AboutPageView.vue'
 import CurriculumPageView from '../views/CurriculumPageView.vue'
+import EnvironmentPageView from '../views/EnvironmentPageView.vue'
 import AdmissionContentView from '../views/AdmissionContentView.vue'
 import PrivacyPolicyView from '../views/PrivacyPolicyView.vue'
 import SiteMetaView from '../views/SiteMetaView.vue'
@@ -63,6 +64,16 @@ const CASES: Case[] = [
   { name: '孩子的一天', component: DayExperienceView, kind: 'day_experience', campusKey: null, payload: {}, edit: { key: 'note', value: '新的說明', section: '背景影片' } },
   { name: '關於常春藤頁', component: AboutPageView, kind: 'about_page', campusKey: null, payload: {}, edit: { key: 'story_title', value: '新的章名', section: '第一章：一路走來' } },
   { name: '特色教學頁', component: CurriculumPageView, kind: 'curriculum_page', campusKey: null, payload: {}, edit: { key: 'gallery_title', value: '新的美術館', section: '03 兒童美術館' } },
+  { name: '常春藤環境頁', component: EnvironmentPageView, kind: 'environment_page', campusKey: null, payload: {}, edit: { key: 'tour_title', value: '新的標題', section: '04 五所校園' } },
+  {
+    // 巢狀的主打區（feature 是物件，不是清單）：只改它的標籤，只有「02 校園環境」打點。
+    name: '常春藤環境頁（主打區）',
+    component: EnvironmentPageView,
+    kind: 'environment_page',
+    campusKey: null,
+    payload: {},
+    edit: { key: 'feature', value: { tag: '新的標籤', title: '在遊戲裡，\n慢慢長大。', text: '遊戲幫助寶貝成長發育，發展精細動作、激發想像力、提升手眼協調力，讓寶貝開心、健康、快樂地成長。', note: '溜滑梯', photo: null, photo_alt: '' }, section: '02 校園環境' },
+  },
   { name: '入學資訊頁', component: AdmissionContentView, kind: 'admission_content', campusKey: null, payload: {}, edit: { key: 'fee_intro', value: '新的說明', section: '收退費辦法' } },
   { name: '全站設定', component: SiteMetaView, kind: 'site_meta', campusKey: null, payload: {}, edit: { key: 'allow_indexing', value: false, section: '搜尋引擎' } },
   {
