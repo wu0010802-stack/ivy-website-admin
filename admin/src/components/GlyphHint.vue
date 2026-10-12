@@ -5,6 +5,7 @@ import { TITLE_FONT_NAMES, useTitleFontCoverage, type TitleFontSubset } from '..
 // 標題欄位下方的缺字提示（規格 3.1.1）：官網這個位置用的字型沒有的字會以
 // 系統字顯示。一個欄位可能同時出現在兩種字型（例如校名：分校頁大標是明體、
 // 聯絡區小標是標題字型），逐個字型列出。只提醒，不擋存檔。
+// 環境頁（environment／environmentText）的圓體與手寫字型各字重都補了常用字，字表以外的才會退回系統字。
 const props = withDefaults(defineProps<{ value: string | null | undefined; fonts?: TitleFontSubset[] }>(), {
   fonts: () => ['bd'],
 })
@@ -19,7 +20,7 @@ const problems = computed(() =>
 
 <template>
   <p v-for="problem in problems" :key="problem.font" class="glyph-hint" role="status">
-    {{ TITLE_FONT_NAMES[problem.font] }}沒有「{{ problem.chars.join('') }}」，這幾個字會以系統字顯示。可以換個說法，或請工程補字。
+    {{ TITLE_FONT_NAMES[problem.font] }}沒有「{{ problem.chars.join('') }}」，這幾個字會{{ problem.font.startsWith('environment') ? '用' : '以' }}系統字顯示。可以換個說法，或請工程補字。
   </p>
 </template>
 

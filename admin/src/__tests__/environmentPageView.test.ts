@@ -9,12 +9,13 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import EnvironmentPageView from '../views/EnvironmentPageView.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
+import PageCopyField from '../components/PageCopyField.vue'
 import { api } from '../api/client'
 import type { EnvironmentPagePayload, UserOut } from '../api/types'
 import { contentFieldLabelFor, contentPathFieldLabel } from '../api/contentFieldLabels'
 import { revealContentPath } from '../composables/newsContent'
 import { environmentPageDraft } from '../composables/environmentPageDraft'
-import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
+import { resetTitleFontCoverage, TITLE_FONT_FILES } from '../composables/useTitleFontCoverage'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -233,6 +234,103 @@ describe('常春藤環境頁編輯器：即時檢查', () => {
     await input.setValue('9:45')
     await input.trigger('blur')
     expect((input.element as HTMLInputElement).value).toBe('09:45')
+  })
+})
+
+describe('常春藤環境頁編輯器：缺字提示', () => {
+  // 環境頁整頁是圓體與手寫字：字表是官網實際的 chars-environment*.txt。圓體 800 只補最常用的字，
+  // 所以 800 的大標（首屏 h1 與四章 h2）讀嚴格的 chars-environment.txt，其餘欄位讀 chars-environment-text.txt
+  const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
+  const strict = readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environment), 'utf8')
+  const text = readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environmentText), 'utf8')
+  const TITLES_IN_800 = ['首屏大標', '幼兒保育的標題', '校園環境的標題', '幼兒餐點的標題', '五所校園的標題']
+  function serveCharsets(served: boolean) {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (served && url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.environment}`)) return new Response(strict) as never
+      if (served && url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.environmentText}`)) return new Response(text) as never
+      return new Response('', { status: 404 }) as never
+    })
+  }
+  const hints = (scope: ReturnType<typeof field>) => scope.findAll('.glyph-hint').map((hint) => hint.text())
+
+  it('除了「大標裡畫螢光的字」，每個文字欄位都檢查環境頁字型：800 的五個大標用嚴格字表，其餘用內文字表', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    const fields = wrapper.findAllComponents(PageCopyField)
+    expect(fields.length).toBeGreaterThan(30)
+    for (const copy of fields) {
+      const label = copy.props('label')
+      const expected = label === '大標裡畫螢光的字' ? undefined : TITLES_IN_800.includes(label) ? ['environment'] : ['environmentText']
+      expect(copy.props('fonts'), label).toEqual(expected)
+    }
+    // 主打區的標題是 h3（700），不是 800
+    expect(field(wrapper, '主打區的標題').find('textarea').exists()).toBe(true)
+    expect(fields.find((copy) => copy.props('label') === '主打區的標題')!.props('fonts')).toEqual(['environmentText'])
+  })
+
+  it('標題、內文、清單項目、餐點欄位輸入罕用字，欄位下方都提示「這幾個字會用系統字顯示」', async () => {
+    serveCharsets(true)
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    expect(wrapper.findAll('.glyph-hint')).toHaveLength(0)
+    await field(wrapper, '首屏大標').find('textarea').setValue('孩子的每一天，\n都在這裡𠮷')
+    await field(wrapper, '首屏介紹').find('textarea').setValue('每天都有新發現𠮷𠮾')
+    await wrapper.find('[data-list="hearts"] [data-list-item="0"] input').setValue('愛𠮷')
+    await field(meal(wrapper, 0), '小字').find('input').setValue('營養𠮷')
+    await settle()
+    expect(hints(field(wrapper, '首屏大標'))).toEqual(['環境頁字型沒有「𠮷」，這幾個字會用系統字顯示。可以換個說法，或請工程補字。'])
+    expect(hints(field(wrapper, '首屏介紹'))[0]).toContain('環境頁字型沒有「𠮷𠮾」，這幾個字會用系統字顯示')
+    expect(wrapper.find('[data-list="hearts"] [data-list-item="0"]').find('.glyph-hint').text()).toContain('「𠮷」')
+    expect(hints(field(meal(wrapper, 0), '小字'))[0]).toContain('「𠮷」')
+    // 只改別處不影響其他欄位；改回常用字就不再提示
+    expect(hints(field(wrapper, '首屏提醒'))).toEqual([])
+    await field(wrapper, '首屏介紹').find('textarea').setValue('每天都有新發現')
+    await settle()
+    expect(hints(field(wrapper, '首屏介紹'))).toEqual([])
+  })
+
+  it('圓體 800 沒補到的字：大標提示、內文不提示（內文的 400 字型有）', async () => {
+    serveCharsets(true)
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    await field(wrapper, '校園環境的標題').find('textarea').setValue('寬敞的\n校園環境')
+    await field(wrapper, '校園環境的說明').find('textarea').setValue('寬敞明亮的空間')
+    await field(wrapper, '主打區的標題').find('textarea').setValue('寬敞的\n遊戲區')
+    await settle()
+    expect(hints(field(wrapper, '校園環境的標題'))[0]).toContain('環境頁字型沒有「敞」，這幾個字會用系統字顯示')
+    expect(hints(field(wrapper, '校園環境的說明'))).toEqual([])
+    expect(hints(field(wrapper, '主打區的標題'))).toEqual([])
+  })
+
+  it('內建內容的每個欄位都在字表內（一打開不會有缺字提示）', async () => {
+    serveCharsets(true)
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    await settle()
+    expect(wrapper.findAll('.glyph-hint').map((hint) => hint.text())).toEqual([])
+  })
+
+  it('大標裡畫螢光的字不另外提示缺字（它是大標的一段，大標欄位已經檢查）', async () => {
+    serveCharsets(true)
+    vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
+    const wrapper = await mountAs(superAdmin())
+    await field(wrapper, '大標裡畫螢光的字').find('input').setValue('𠮷')
+    await settle()
+    expect(hints(field(wrapper, '大標裡畫螢光的字'))).toEqual([])
+  })
+
+  it('字表讀不到時整頁都不提示、也不擋存檔', async () => {
+    serveCharsets(false)
+    const post = mockSave()
+    const wrapper = await mountAs(superAdmin())
+    await field(wrapper, '首屏介紹').find('textarea').setValue('每天都有新發現𠮷')
+    await settle()
+    expect(wrapper.findAll('.glyph-hint')).toHaveLength(0)
+    await wrapper.findAll('button').find((b) => b.text() === '儲存草稿')!.trigger('click')
+    await flushPromises()
+    const call = post.mock.calls.find(([path]) => String(path).includes('/revisions'))!
+    expect((call[1] as { payload: EnvironmentPagePayload }).payload.hero_lede).toBe('每天都有新發現𠮷')
   })
 })
 

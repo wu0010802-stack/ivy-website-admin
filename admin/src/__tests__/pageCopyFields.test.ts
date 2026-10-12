@@ -59,6 +59,22 @@ describe('PageCopyField', () => {
     expect(wrapper.find('.glyph-hint').text()).toContain('「𠮷」')
   })
 
+  it('指定 fonts：一般欄位也提示缺字；標題欄位改檢查指定的字型，不再用官網標題字型', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.environment}`)) return new Response('孩子每一天') as never
+      if (url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.bd}`)) return new Response('孩子每一天') as never
+      return new Response('', { status: 404 }) as never
+    })
+    const plain = copyField(ref('孩子𠮷'), { label: '說明', hint: 'curLede', multiline: true, fonts: ['environment'] })
+    const title = copyField(ref('每一天𠮷'), { label: '標題', hint: 'curHeroTitle', title: true, fonts: ['environment'] })
+    const bdTitle = copyField(ref('每一天𠮷'), { label: '標題', hint: 'curHeroTitle', title: true })
+    await flushPromises()
+    expect(plain.find('.glyph-hint').text()).toContain('環境頁字型沒有「𠮷」')
+    expect(title.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['環境頁字型沒有「𠮷」'])
+    expect(bdTitle.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['官網標題字型沒有「𠮷」'])
+  })
+
   it('一般欄位：按 Enter 不會換行，也不提示缺字', async () => {
     mockCharsets('')
     const value = ref('一句話')

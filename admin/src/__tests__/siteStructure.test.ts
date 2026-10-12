@@ -264,6 +264,37 @@ describe('標題缺字提示', () => {
     ])
   })
 
+  it('環境頁字型：讀 chars-environment.txt，罕用字提示「會用系統字顯示」；字表讀不到時不提示', async () => {
+    mockCharsets({ environment: '孩子每一天都在這裡長大' })
+    const hint = mount(GlyphHint, { props: { value: '孩子在這裡𠮷長大', fonts: ['environment'] } })
+    const clean = mount(GlyphHint, { props: { value: '孩子每一天', fonts: ['environment'] } })
+    wrappers.push(hint, clean)
+    await flushPromises()
+    expect(hint.get('.glyph-hint').text()).toContain('環境頁字型沒有「𠮷」，這幾個字會用系統字顯示')
+    expect(clean.find('.glyph-hint').exists()).toBe(false)
+    resetTitleFontCoverage()
+    mockCharsets({})
+    const unreadable = mount(GlyphHint, { props: { value: '孩子在這裡𠮷長大', fonts: ['environment'] } })
+    wrappers.push(unreadable)
+    await flushPromises()
+    expect(unreadable.text()).toBe('')
+  })
+
+  it('環境頁字表讀官網實際的字表：常用字不提示，只提示字型沒有的字；圓體 800 只補常用字，大標那份比較嚴', async () => {
+    const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
+    mockCharsets({
+      environment: readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environment), 'utf8'),
+      environmentText: readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environmentText), 'utf8'),
+    })
+    // 「敞」不在圓體 800 補的常用字裡，400、700、芫荽有
+    const strict = mount(GlyphHint, { props: { value: '孩子的每一天，都在這裡開心長大。𠮷寬敞', fonts: ['environment'] } })
+    const text = mount(GlyphHint, { props: { value: '孩子的每一天，都在這裡開心長大。𠮷寬敞', fonts: ['environmentText'] } })
+    wrappers.push(strict, text)
+    await flushPromises()
+    expect(strict.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['環境頁字型沒有「𠮷敞」'])
+    expect(text.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['環境頁字型沒有「𠮷」'])
+  })
+
   it('首屏小標在官網用系統字，不提示缺字（避免誤報）', async () => {
     mockCharsets({ bd: '高雄', eb: '高雄', serif: '高雄' })
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_hero', { eyebrow: '高雄五校・1997 創校', copy_lines: ['一', '二'] }) as never)

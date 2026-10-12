@@ -9,18 +9,26 @@ import { WEBSITE_ASSET_BASE } from '../config'
 //   2026-09-25 起是官方完整字型（scripts/subset-critical-fonts.py 切片），只缺罕見字與 emoji。
 // - eb：LINE Seed TW ExtraBold，首頁 h1；完整字型，字表與 bd 相同
 // - serif：Noto Serif TC 明體子集，校名與首頁五校區塊標題（三個明體子集的聯集）
-export type TitleFontSubset = 'bd' | 'eb' | 'serif'
+// - environment、environmentText：環境頁（/environment）的圓體 Chiron GoRound TC 400／700／800 與手寫芫荽 Iansui。
+//   四個字重都補了常用字頻表的分片（scripts/subset-environment-fonts.py），但圓體 800 只補最常用的 3,000 字
+//   （整個字型目錄要在 15 MB 內），所以有兩份字表：environment 是四個字重都有的字，用在 800 的大標
+//   （首屏 h1 與四章 h2）；environmentText 是 400、700 與芫荽都有的字，用在其餘欄位。字表以外的字會退回系統字。
+export type TitleFontSubset = 'bd' | 'eb' | 'serif' | 'environment' | 'environmentText'
 
 export const TITLE_FONT_FILES: Record<TitleFontSubset, string> = {
   bd: 'chars-bd.txt',
   eb: 'chars-eb.txt',
   serif: 'chars-serif.txt',
+  environment: 'chars-environment.txt',
+  environmentText: 'chars-environment-text.txt',
 }
 
 export const TITLE_FONT_NAMES: Record<TitleFontSubset, string> = {
   bd: '官網標題字型',
   eb: '首頁大標字型',
   serif: '校名明體字型',
+  environment: '環境頁字型',
+  environmentText: '環境頁字型',
 }
 
 const charsets = reactive<Partial<Record<TitleFontSubset, Set<string>>>>({})
