@@ -4,6 +4,12 @@
 
 來源：實作期間每個任務審查的 Minor 與最終整支審查的分級。最終審查把以下全部歸為「可延後」（Critical 0、Important 1 已修）。其中標「建議」的是審查者認為便宜、有空順手做的。
 
+## 2026-10-12 處理結果
+
+D0 盤點（對 origin/main `fb34d3a1`）後，仍在的程式與測試項**全部已修**，分四組各自 commit，並在下列逐條標註：D1 地址解析與匯入、D2 同步與 API、D3 後台畫面、D4 里界壓縮與 stack e2e。
+
+D0 裁定不做的（逐條標「不做」與理由）：B1 geo relationship 全域 selectin（已註解為取捨）、C6 多邊形不可鍵盤聚焦（表格與清單有等價路徑）、C8 每次換校區重建 Leaflet 與里界（設計取捨）、C11 品牌金與暖黃的辨識度（需目視，閘門 D 看截圖）、文件類措辭（A2、A7 README、A9、C11、C12、最終審查 Minor 的部署說明與規格數字）。「待業主／使用者決定」那一節（含 P1）不在這次範圍。
+
 ## 已修（不在此清單）
 
 最終審查的 Important（幼兒園資料從未匯入顯示假 0）與 F1–F9 已在 `2919ed5f`、`7d3c9bdc`、`6e359d09` 修掉。
@@ -39,17 +45,17 @@
 - **C6**：console.error spy 的 mockRestore 未放 finally；tileload/tileerror listener 銷毀時未 off；真實 Leaflet remove() 丟錯後重試可能 "already initialized"（2026-10-12 已修，D3：四處 console.error spy 的 mockRestore 放進 finally；destroyMap 先 off tileload／tileerror；remove() 丟錯後清掉容器的 _leaflet_id 與殘留節點，假 Leaflet 改成照真的規則（容器上還有 id 就丟 already initialized）驗重試）
 - **C7**：搜尋比對帶前綴的完整名稱（輸入「高雄市」幾乎全中）、無 NFKC／大小寫正規化；新視窗連結只有 ↗ 無報讀說明；展開鈕無 aria-controls；搜尋／chip 變動不重設顯示更多；半徑測試用 vm.$emit；approved_capacity null 未測；others=0 時仍顯示搜尋與 chip（2026-10-12 已修，D3：搜尋改比對短名＋地址並做 NFKC＋小寫；新視窗連結加 sr-only「（另開新視窗）」、↗ 設 aria-hidden；展開鈕 aria-controls 對應 dl id（展開時才有）；搜尋或 chip 變動收回「顯示更多」；others＝0 時不顯示搜尋與 chip，且舊搜尋字不再篩掉本機構；半徑測試改點真的 radio（無法由畫面送出的非法值那條保留 handler 保底並註明）；approved_capacity null 納入 kit 與測試）
 - **C8**：每次換校區／學期都重建 Leaflet 與 893 里界（設計取捨，地圖可常駐）；AreaTab 層缺幼兒園失敗隔離、連續換半徑丟舊回應、門牌未匯入表格照常的測試；.area-empty 虛線框與 .stats-empty 外觀不一；匿名化範圍是否顯示行政區表待業主（2026-10-12：每次換校區重建 Leaflet 與 893 里界：不做，設計取捨（D0 裁定）。已修，D3：areaTab.test.ts 補幼兒園失敗隔離、連續換半徑丟舊回應（成功與失敗兩種晚到）、門牌未匯入時表格照常；`.area-empty` 與 `.stats-empty` 改共用全域 `.empty-note`（虛線框、次要文字色、置中，全走 token）。匿名化範圍是否顯示行政區表：仍待業主）
-- **C10**（建議合併前修，最終審查降為可延後）：start-api.sh 未 unset WEBSITE_GEO_AUTO_SYNC／WEBSITE_GEO_DOORPLATE_URL（開發者 shell 有設時 stack 會連外）；e2e 無圖磚確實被攔且載入的正向斷言
-- **C10**：waitForLoadState('networkidle')；name==='390' 分支；未定位校區分支無真瀏覽器 e2e
+- **C10**（建議合併前修，最終審查降為可延後）：start-api.sh 未 unset WEBSITE_GEO_AUTO_SYNC／WEBSITE_GEO_DOORPLATE_URL（開發者 shell 有設時 stack 會連外）；e2e 無圖磚確實被攔且載入的正向斷言（2026-10-12 已修，D4：`blockTiles` 記下被攔的圖磚網址，`expectTilesLoaded` 等到 `img.leaflet-tile-loaded` 並核對網址是國土測繪中心的 WMTS；主流程、兩個截圖 test 與新的 390 test 都用。`start-api.sh` 的 unset 早在 `6e359d09` 做了，D4 核對仍在）
+- **C10**：waitForLoadState('networkidle')；name==='390' 分支；未定位校區分支無真瀏覽器 e2e（2026-10-12 已修，D4：拿掉 networkidle，改等里界路徑畫出、圖磚載入、骨架消失與幼兒園清單出現；390 的「移動地圖」手勢拆成獨立 test，鈕名改 exact 比對「移動地圖」與「完成移動地圖」（D3 加了 aria-label）；新增未定位校區 e2e——仁武校暫時發布查無門牌的校址（結束必還原），斷言地圖旁的說明、附近幼兒園與距離分布都寫原因，且頁面沒有未處理的錯誤；另加里界回應帶 `content-encoding: gzip`、ETag 重驗回 304 的 e2e）
 - **C11**：規格基準「正式站招生開關已開」沿用 10-05 規格記載，未再核對；品牌金與暖黃同色系辨識度待 C12 目視
 - **C12**：~~390 里排行「查看明細」初始只露 7px、無可橫捲提示~~（2026-10-12 修：手機改成名稱本身是連結，見 DESIGN.md）；1440 里表比行政區表低 23px、距離表右側留白；e2e 偶發逾時與 macOS 維護睡眠吻合（caffeinate 下全過）
 
 ## 最終審查另外列的 Minor（未修）
 
-- 里界 GeoJSON 600KB 未壓縮（`routes.py` 的 `/area/boundaries`；規格寫的 gzip 約 130KB 尚未實現）；快取一天，影響有限。2026-10-12 正式站實測 605,552 bytes、無 `content-encoding`；**後端掛 GZipMiddleware 沒用**：瀏覽器走 web 的同源代理（`web/server/routes/api/website/v1/[...].ts` 的 h3 `proxyRequest`），上游 fetch 會自動解壓、再拿掉 `content-encoding`，送到瀏覽器的還是原文。要壓縮得在代理那層做（會影響所有 API 回應，另開一件做）。後台 JS／CSS 由 Nitro 預壓 br，不受影響。
+- 里界 GeoJSON 600KB 未壓縮（`routes.py` 的 `/area/boundaries`；規格寫的 gzip 約 130KB 尚未實現）；快取一天，影響有限。2026-10-12 正式站實測 605,552 bytes、無 `content-encoding`；**後端掛 GZipMiddleware 沒用**：瀏覽器走 web 的同源代理（`web/server/routes/api/website/v1/[...].ts` 的 h3 `proxyRequest`），上游 fetch 會自動解壓、再拿掉 `content-encoding`，送到瀏覽器的還是原文。要壓縮得在代理那層做（會影響所有 API 回應，另開一件做）。後台 JS／CSS 由 Nitro 預壓 br，不受影響。（2026-10-12 已修，D4：只對 `GET /admin/admissions/area/boundaries` 在代理的 `onResponse` 壓縮——其他 API 路徑不動；`web/server/utils/gzip-boundaries.ts`。上游 200 且客戶端收 gzip 才壓，帶 `Content-Encoding: gzip`、`Vary: Accept-Encoding`，ETag／Cache-Control 照舊；304、錯誤與不收 gzip 的客戶端原樣；壓縮結果依 ETag 在記憶體留一筆。web 單元測試 `web/tests/gzip-boundaries.spec.ts`）
 - `tests/test_geo_loop.py` 把 `run_geo_sync` 換成假的，「同步期間不佔交易」沒有驗到真同步；`sleep(0.3)` 期望至少兩次呼叫，負載高時有輕微 flaky 風險。（2026-10-12 已修，D2：改成跑真的 run_geo_sync（只把下載換成假網站）；sleep(0.3) 改事件等待）
-- 部署說明「回滾再上線」的清除 SQL：說明寫「規則同 retention.py」略誇大，實際只清還留著里或距離的列；「啟用前先補」那句沒再提醒不帶參數的 `geo-sync` 會連帶做首次約 100MB 的門牌下載（前文有寫）。
-- 規格 §14.1 寫「共 247 個測試」，修正後已多約 20 個。
+- 部署說明「回滾再上線」的清除 SQL：說明寫「規則同 retention.py」略誇大，實際只清還留著里或距離的列；「啟用前先補」那句沒再提醒不帶參數的 `geo-sync` 會連帶做首次約 100MB 的門牌下載（前文有寫）。（不做：D0 裁定，文件類措辭）
+- 規格 §14.1 寫「共 247 個測試」，修正後已多約 20 個。（不做：D0 裁定，文件類措辭）
 - 既有問題（非本分支引入）：「義華路二十之一號」解成 number=1；「六十八號之一」之號不認中文數字；「一百零八巷」之類具名巷對不到門牌表只能退到街路層級。（2026-10-12 已修，D1：20 之 1、六十八號之一、一百零八巷 → 108）
 
 ## 2026-10-12 已處理（`feature/admissions-area-locate-20261012`）
