@@ -57,15 +57,17 @@ const trimmed = computed(() => ({
 }))
 
 // 和開啟時不同的欄位。Email、孩子姓名、孩子生日清空送 null；稱呼與手機不能清（下面檢查）。
+// 比對用兩邊都處理過的值：舊資料的稱呼或姓名前後可能有空白，表單送出的又是 trim 後的值，
+// base 不 trim 的話只改別的欄位也會被當成「改了稱呼」，寫進歷程與稽核、還同步招生端。
 const changes = computed(() => {
   const b = base.value
   const t = trimmed.value
   const out: Partial<Record<FieldName, string | null>> = {}
-  if (t.parent_name !== b.parent_name) out.parent_name = t.parent_name
-  if (t.phone !== b.phone) out.phone = t.phone
-  if (t.child_name !== b.child_name) out.child_name = t.child_name || null
+  if (t.parent_name !== b.parent_name.trim()) out.parent_name = t.parent_name
+  if (t.phone !== normalizePhoneInput(b.phone)) out.phone = t.phone
+  if (t.child_name !== b.child_name.trim()) out.child_name = t.child_name || null
   if (t.child_birthdate !== b.child_birthdate) out.child_birthdate = t.child_birthdate
-  if (t.email !== b.email) out.email = t.email || null
+  if (t.email !== b.email.trim()) out.email = t.email || null
   return out
 })
 

@@ -110,6 +110,38 @@ describe('被登出導來登入頁時，不自動換成別人的身分', () => {
     expect(wrapper.get('[data-test="login-reason"]').text()).toContain('這個瀏覽器已改用其他帳號登入')
   })
 
+  it('停在說明頁後按上一頁、或直接改網址到後台頁面：仍回登入頁，不拿 cookie 裡乙的身分進後台', async () => {
+    const { auth, router, wrapper, get } = await aTabAfterSwitch(meOf(userB))
+    expect(router.currentRoute.value.name).toBe('login')
+    const before = meCalls(get)
+
+    await router.push('/visit-requests')
+    await flushPromises()
+
+    expect(meCalls(get)).toBeGreaterThan(before)
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/visit-requests', reason: 'other-user' })
+    expect(auth.user).toBeNull()
+    expect(auth.csrfToken).toBeNull()
+    expect(auth.previousUserId).toBe('user-a')
+    expect(wrapper.get('[data-test="login-reason"]').text()).toContain('這個瀏覽器已改用其他帳號登入')
+  })
+
+  it('停在說明頁後 cookie 又換回甲：開後台頁面照舊恢復，並清掉 previousUserId', async () => {
+    const { auth, router, get } = await aTabAfterSwitch(meOf(userB))
+    get.mockImplementation(async (path: string) => {
+      if (path === '/auth/providers') return { google: false, line: false } as never
+      return meOf(userA) as never
+    })
+
+    await router.push('/visit-requests')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/visit-requests')
+    expect(auth.user?.id).toBe('user-a')
+    expect(auth.previousUserId).toBeNull()
+  })
+
   it('cookie 還是甲（例如另一個分頁重新登入了同一個帳號）：照舊恢復並回到原本的頁面', async () => {
     const { auth, router } = await aTabAfterSwitch(meOf(userA))
 

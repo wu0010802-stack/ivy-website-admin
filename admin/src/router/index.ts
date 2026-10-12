@@ -156,7 +156,11 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
   const redirect = to.fullPath !== '/' ? { redirect: to.fullPath } : {}
   if (!authStore.user) {
     try {
-      await authStore.restoreSession()
+      // 剛因為「換了帳號」被登出、停在登入頁說明時按上一頁或改網址進後台：cookie 裡多半是
+      // 別人的 session，不能在這裡直接恢復成對方（只有 previousUserId 有值才比對；
+      // 書籤、重新整理沒有這個值，照舊恢復）。
+      const outcome = await authStore.restoreSession({ expectUserId: authStore.previousUserId })
+      if (outcome === 'other-user') return { name: 'login', query: { ...redirect, reason: 'other-user' } }
     } catch {
       return { name: 'login', query: { ...redirect, reason: 'offline' } }
     }

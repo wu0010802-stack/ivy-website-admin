@@ -124,6 +124,25 @@ describe('VisitDetailsDialog', () => {
     expect(wrapper.emitted('saved')).toHaveLength(1)
   })
 
+  it('原本的稱呼、姓名、Email 前後有空白：只改別的欄位時，body 不含這些欄位', async () => {
+    const patch = mockPatch({ [PATH]: result() })
+    const detail = visitCase({ details_version: 3, parent_name: '王媽媽 ', child_name: ' 小安', phone: '0912000001' })
+    await openDialog({}, detail)
+    await input('Email').setValue('new@example.com')
+    await save()
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(patch).toHaveBeenCalledWith(PATH, { expected_version: 3, email: 'new@example.com' })
+  })
+
+  it('原本的稱呼前後有空白、重新輸入同樣的字：算沒改，不送出', async () => {
+    const patch = mockPatch({ [PATH]: result() })
+    const wrapper = await openDialog({}, visitCase({ details_version: 3, parent_name: '王媽媽 ' }))
+    await input('家長稱呼').setValue('王媽媽')
+    await save()
+    expect(patch).not.toHaveBeenCalled()
+    expect(wrapper.emitted('update:modelValue')).toEqual([[false]])
+  })
+
   it('Email、孩子姓名清空：送 null（後台可以清掉這三欄）；稱呼與手機不能清', async () => {
     const patch = mockPatch({ [PATH]: result({ changed_fields: ['email', 'child_name'] }) })
     await openDialog()
