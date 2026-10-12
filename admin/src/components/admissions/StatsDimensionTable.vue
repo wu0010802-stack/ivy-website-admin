@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
-import { NO_VALUE, barWidth, formatRate, rateCsvCell, type StatsColumn } from '../../admissions/statsFormat'
+import { NO_VALUE, barWidth, formatRange, formatRate, rateCsvCell, toRange, type StatsColumn } from '../../admissions/statsFormat'
 import { notifyError } from '../../composables/notify'
 import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
 
@@ -46,13 +46,15 @@ const maxima = computed(() => {
 
 function display(row: Record<string, unknown>, column: StatsColumn): string {
   const value = row[column.key]
+  if (column.kind === 'range') return formatRange(toRange(value))
   if (column.kind === 'rate') return formatRate(typeof value === 'number' ? value : null)
   if (column.kind === 'count' || column.kind === 'bar') return String(toNumber(value))
   if (value === null || value === undefined || value === '') return NO_VALUE
   return String(value)
 }
 
-const isNumeric = (column: StatsColumn) => column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar'
+const isNumeric = (column: StatsColumn) =>
+  column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar' || column.kind === 'range'
 
 // 按鈕的 aria-label 帶這一列的名稱（第一個 sticky 欄，沒有就第一欄），讀屏才分得出是哪一列的「查看明細」。
 const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
@@ -62,6 +64,7 @@ const actionAria = (row: Record<string, unknown>) =>
 // 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
 // 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
 // 月份欄（csv: 'roc-month'）寫「115年09月」；呼叫端要特別處理的格子走 csvCell。
+// 可能範圍欄拆成下限、上限兩欄（2026-10-12）。
 function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
   const override = props.csvCell?.(row, column)
   if (override !== undefined) return override
@@ -73,12 +76,23 @@ function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
   return String(value)
 }
 
+// 可能範圍欄（2026-10-12）匯出成「下限」「上限」兩個數字欄，Excel 才能排序、算平均；沒有值寫空白。
+function csvHeaders(column: StatsColumn): string[] {
+  return column.kind === 'range' ? [`${column.label}下限`, `${column.label}上限`] : [column.label]
+}
+
+function csvValues(row: Record<string, unknown>, column: StatsColumn): CsvCell[] {
+  if (column.kind !== 'range') return [csvValue(row, column)]
+  const range = toRange(row[column.key])
+  return range ? [range.low, range.high] : ['', '']
+}
+
 function exportCsv() {
   if (!props.exportFilename) return
-  const header = [...(props.numbered ? ['#'] : []), ...props.columns.map((column) => column.label)]
+  const header = [...(props.numbered ? ['#'] : []), ...props.columns.flatMap(csvHeaders)]
   const rows = props.rows.map((row, index) => [
     ...(props.numbered ? [index + 1] : []),
-    ...props.columns.map((column) => csvValue(row, column)),
+    ...props.columns.flatMap((column) => csvValues(row, column)),
   ])
   try {
     downloadCsv(props.exportFilename, buildCsv(header, rows))
