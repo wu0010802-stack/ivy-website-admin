@@ -6,7 +6,9 @@ import { startVisitSlot } from './db'
 import { answerMessageBox, expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT, SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
 
-// 後台一批補強（docs/specs/2026-10-12-admin-batch-design.md）：
+// 後台一批補強（docs/specs/2026-10-12-admin-batch-design.md）。檔名以 visit- 開頭：要排在 admissions-flow 之後
+// （它斷言義華的招生看板在它之前是空的；本檔第一條會建義華的招生訪視）。
+//
 // ① 預約明細改家長手機 → 招生訪視那欄還是當初帶過去的值，一起改（§3）；
 // ② 「時間已過、還沒標記」勾兩筆一次標記沒來（§4.1）；
 // ③ 總管理者改聯絡片語 → 案件明細輸入框上方的片語點一下帶入（§4.2）。
