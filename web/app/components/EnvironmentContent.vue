@@ -126,6 +126,11 @@ onMounted(async () => {
   if (!disposed && root.value) motion?.start(root.value)
 })
 onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
+// 後台即時預覽（pages/preview.vue）會一直換 page／campuses：文字變長變短、照片換掉後版面高度跟著變，
+// 手繪的框、章節底紙、便條箭頭要依新版面重畫（rough-sketch 只在掛載與視窗改寬時自己重畫；
+// 文字被換掉時 Vue 也會順手清掉宿主裡的手繪層）。flush: 'post' 等畫面更新完再量，同一個 tick 內改好幾處只畫一次。
+// 正式頁的 props 不會再變，這裡不會觸發；手繪層還沒建好時略過，第一次渲染本來就量最新版面。
+watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.refresh(root.value) }, { deep: true, flush: 'post' })
 </script>
 
 <template>
