@@ -20,17 +20,17 @@
 - **A4**：import_doorplates 清理失敗會蓋掉原始例外；幼兒園版本日期用 UTC（台北 00–08 點顯示前一天）；test_load_geo_samples_is_repeatable 未斷言 label（2026-10-12 已修，D1）
 - **A5**（建議合併前修，最終審查降為可延後）：nearby 用 func.abs(number-n)<=30 用不到索引第 6 欄，改 number.between(n-30, n+30)（rematch 會跑幾千筆）（2026-10-12 已修，D1）
 - **A5**：active_version 與 label 分兩次讀，換版瞬間可能一新一舊；nearby 同側等距跨里時靠匯入順序選邊；apply_visit_geo 清空測試斷言記憶體值未 refresh；併發測試只斷言無 geo 列；未測「忽略非使用中批次」與 rematch 寫距離路徑（2026-10-12 已修，D1）
-- **A6**：follow_redirects 可被導到非 https；log 只記例外類別名（正式站難查，可加 exc_info）；頁面 regex 依賴 title 在 href 前；最新年度頁 HTTP 錯不退回前一年；_stream_rows 未 aclosing
-- **A6**：_exclusive 解鎖只抓 Exception，連續兩次取消可能讓鎖隨連線外洩（可用 shield 或 BaseException＋invalidate）；隨機 GUID 檔名約 8.3% 仍誤判月份（lookbehind 可改排除英數）；WEBSITE_DB_POOL_SIZE=1 且無 overflow 時鎖連線會佔滿連線池
-- **A7**：ETag 測試未比對 sha1 本身；_village_codes 重複鍵會靜默覆蓋（目前 0 重複）；village_code 未測跨區同名；README 重建指令用 /tmp
-- **A8**：關閉順序 geo 迴圈排在媒體迴圈前（plan-mandated，最多多等 10 秒）；只要一種 skipped 就不記摘要；stop 逾時取消沒 warning；無 stop-during-sync 測試；conftest 未釘 geo_auto_sync=False；CLI main 分派無測試、failed 時不印原因
-- **A9**：brief Step 2 用 /tmp/ivy-geo-report（應用 scratchpad）
-- **B1**：records.py:58 docstring「也不丟例外」不精確（R20，B6 處理）；schemas MatchLevel/UnlocatedReason 手抄 geo 常數，建議加 get_args 對照測試；geo relationship 全域 selectin 讓匯出／看板／匿名化多一次 IN 查詢；測試檔預留 import 待 B2／B3 後確認；列表回應 geo、PATCH 帶 district 422、補建端點未單獨測
-- **B2**：未測「只動本次匿名化的訪視」與重跑冪等（審查者一次性測試已證實）；synchronize_session fetch 同步未測；anonymize_visit docstring 第一段誤稱會清 geo
-- **B3**：匯出測試未驗 row_count（列表／匯出一致）；缺區域篩選與學年學期組合測試；district/village 長度 422 未測；稽核 area 只記最細一種；district/village 未 strip；village 單獨用會跨區同名命中（C 下鑽要一併送 district）
-- **B4**：test_area_totals_invariants_on_seed 建構上恆成立；odd-rows 測試註解誤稱 "-" 會被正規化掉（實為 no_doorplate）；row.active 與「沒地址也沒比對列」分支無測試；_data_status 重查 label；預留給 B5 的未用 import 待確認
-- **B5**：If-None-Match 只認完全相同的強 ETag（W/、清單、* 不回 304）；boundaries 缺不相符 ETag 反例、304 未驗 Cache-Control、893 寫死；kindergartens 透傳欄位未完整比對；權限缺 readonly 與不存在校區、無「不寫稽核」斷言；本校 campus_point 算兩次；排序鍵與 nearby 重複；radius_km 非整數回預設 422 結構
-- **B6**：records.py:68-70 docstring 斷行；三值 Literal 與 REASON_ORDER 兩份來源
+- **A6**：follow_redirects 可被導到非 https；log 只記例外類別名（正式站難查，可加 exc_info）；頁面 regex 依賴 title 在 href 前；最新年度頁 HTTP 錯不退回前一年；_stream_rows 未 aclosing（2026-10-12 已修，D2：客戶端 request hook 檢查每一跳只跟 https；最新年度資料集頁 HTTP 錯誤退回前一年度，找到的月份比使用中的舊就不換版；匯入來源產生器在中途失敗時 aclose；兩處失敗 log 帶 traceback；資料集頁連結改用 html.parser 讀 <a> 屬性，不依賴屬性順序）
+- **A6**：_exclusive 解鎖只抓 Exception，連續兩次取消可能讓鎖隨連線外洩（可用 shield 或 BaseException＋invalidate）；隨機 GUID 檔名約 8.3% 仍誤判月份（lookbehind 可改排除英數）；WEBSITE_DB_POOL_SIZE=1 且無 overflow 時鎖連線會佔滿連線池（2026-10-12 已修，D2：解鎖與關連線都 shield，BaseException 含第二次取消一律丟掉連線；檔名月份 lookbehind 排除英數；geo_auto_sync 開啟時設定檢查 WEBSITE_DB_POOL_SIZE ≥ 2 或 WEBSITE_DB_MAX_OVERFLOW ≥ 1，否則啟動報錯）
+- **A7**：ETag 測試未比對 sha1 本身；_village_codes 重複鍵會靜默覆蓋（目前 0 重複）；village_code 未測跨區同名；README 重建指令用 /tmp（2026-10-12 已修，D2：ETag 比 sha1 前 12 碼、跨區同名各有代碼、重複 (區, 里) 直接 raise 都有測試；README 重建指令用 /tmp 屬文件措辭，不做）
+- **A8**：關閉順序 geo 迴圈排在媒體迴圈前（plan-mandated，最多多等 10 秒）；只要一種 skipped 就不記摘要；stop 逾時取消沒 warning；無 stop-during-sync 測試；conftest 未釘 geo_auto_sync=False；CLI main 分派無測試、failed 時不印原因（2026-10-12 已修，D2：關閉時 geo 與媒體迴圈並行 stop，各自保留 10 秒上限，任一個出錯不擋另一個與資料庫連線的關閉；有一項不是 skipped 就記摘要；stop 逾時取消 log warning；不用假同步的 stop-during-sync、cli.main 分派、conftest 釘 geo_auto_sync=False 都有測試；CLI failed 時印原因的部分早已有（geo_sync_command 印到 stderr，test_cli_geo_sync_exits_one_when_a_dataset_fails）。另：指定本機檔案時讀檔與解析改在執行緒裡分塊，不阻塞事件迴圈）
+- **A9**：brief Step 2 用 /tmp/ivy-geo-report（應用 scratchpad）（不做：D0 裁定，文件類措辭）
+- **B1**：records.py:58 docstring「也不丟例外」不精確（R20，B6 處理）；schemas MatchLevel/UnlocatedReason 手抄 geo 常數，建議加 get_args 對照測試；geo relationship 全域 selectin 讓匯出／看板／匿名化多一次 IN 查詢；測試檔預留 import 待 B2／B3 後確認；列表回應 geo、PATCH 帶 district 422、補建端點未單獨測（2026-10-12 已修，D2：docstring 更正、MatchLevel／UnlocatedReason／KindergartenKind／DistanceBandKey 與 geo 常數的 get_args 對照測試、補建端點 from-visit-request 的 geo 測試；PATCH 帶 district 422 已有測試（test_admissions_visit_geo.py 補上 PATCH 版），列表回應 geo 已有（test_records_list_carries_geo）；測試檔未用 import 以 ruff F401 確認沒有。不做：geo relationship 全域 selectin 已註解為取捨）
+- **B2**：未測「只動本次匿名化的訪視」與重跑冪等（審查者一次性測試已證實）；synchronize_session fetch 同步未測；anonymize_visit docstring 第一段誤稱會清 geo（2026-10-12 已修，D2：只動到期訪視與重跑冪等、session 內已載入物件同步（synchronize_session=fetch）都有測試；anonymize_visit docstring 更正）
+- **B3**：匯出測試未驗 row_count（列表／匯出一致）；缺區域篩選與學年學期組合測試；district/village 長度 422 未測；稽核 area 只記最細一種；district/village 未 strip；village 單獨用會跨區同名命中（C 下鑽要一併送 district）（2026-10-12 已修，D2：匯出 row_count 與列表、CSV 列數一致、區域加學年學期組合、district／village 長度 422、稽核 area 同時記 district 與 village（district+village）、district／village strip、只給 village 回 422 VILLAGE_NEEDS_DISTRICT；後台 areaApiParams 一定同時送 district 與 village）
+- **B4**：test_area_totals_invariants_on_seed 建構上恆成立；odd-rows 測試註解誤稱 "-" 會被正規化掉（實為 no_doorplate）；row.active 與「沒地址也沒比對列」分支無測試；_data_status 重查 label；預留給 B5 的未用 import 待確認（2026-10-12 已修，D2：不變式改用真實建立流程的資料、odd-rows 註解更正、address=NULL 且無 geo 列有測試、_data_status 直接用已讀到的 label；未用 import 以 ruff F401 確認沒有）
+- **B5**：If-None-Match 只認完全相同的強 ETag（W/、清單、* 不回 304）；boundaries 缺不相符 ETag 反例、304 未驗 Cache-Control、893 寫死；kindergartens 透傳欄位未完整比對；權限缺 readonly 與不存在校區、無「不寫稽核」斷言；本校 campus_point 算兩次；排序鍵與 nearby 重複；radius_km 非整數回預設 422 結構（2026-10-12 已修，D2：If-None-Match 支援 W/、清單、*，共用 app/common/http_cache.etag_matches；ETag 反例、304 驗 Cache-Control、筆數讀實際檔案；幼兒園欄位完整比對；readonly 與不存在校區、區域端點不寫稽核；本校座標只算一次；排序鍵只留 nearby 一份；radius_km 非整數回 INVALID_RADIUS）
+- **B6**：records.py:68-70 docstring 斷行；三值 Literal 與 REASON_ORDER 兩份來源（2026-10-12 已修，D2：docstring 重排、REASON_ORDER 與 API Literal 同一來源）
 - **C1**：api 層 import type 反向依賴 areaFormat.ts（C2 加函式時別對 api 做 value import）；VillageBoundaries geometry 型別寬鬆（C6 需轉型）；geo 窄型別無 @ts-expect-error 反向測試
 - **C2**：areaFormat.test 多一條後端沒有的不變式（reasons 合計＝district_level＋unlocated）；kit 幼兒園座標與 distance_m 不對應、本機構距校區 80m＞50m；999m 顯示 1000 m；style.css 註解稱避開暖黃但本機構用品牌金；areaFilter 缺過長值案例；kit 未 satisfies 契約型別；shortDay 同名異義
 - **C3+C4**：缺 RecordsTab CSV 匯出帶區域參數的元件測試；缺「顯示全部」→網址串接測試；filterKey 用原始 props.area；vr 與 area 提示列可並存、兩顆同名「顯示全部」；地址欄未 trim 的既有行為；visitGeoText 註解與呼叫端待比對規則有落差（C8 統一）
@@ -47,7 +47,7 @@
 ## 最終審查另外列的 Minor（未修）
 
 - 里界 GeoJSON 600KB 未壓縮（`routes.py` 的 `/area/boundaries`；規格寫的 gzip 約 130KB 尚未實現）；快取一天，影響有限。2026-10-12 正式站實測 605,552 bytes、無 `content-encoding`；**後端掛 GZipMiddleware 沒用**：瀏覽器走 web 的同源代理（`web/server/routes/api/website/v1/[...].ts` 的 h3 `proxyRequest`），上游 fetch 會自動解壓、再拿掉 `content-encoding`，送到瀏覽器的還是原文。要壓縮得在代理那層做（會影響所有 API 回應，另開一件做）。後台 JS／CSS 由 Nitro 預壓 br，不受影響。
-- `tests/test_geo_loop.py` 把 `run_geo_sync` 換成假的，「同步期間不佔交易」沒有驗到真同步；`sleep(0.3)` 期望至少兩次呼叫，負載高時有輕微 flaky 風險。
+- `tests/test_geo_loop.py` 把 `run_geo_sync` 換成假的，「同步期間不佔交易」沒有驗到真同步；`sleep(0.3)` 期望至少兩次呼叫，負載高時有輕微 flaky 風險。（2026-10-12 已修，D2：改成跑真的 run_geo_sync（只把下載換成假網站）；sleep(0.3) 改事件等待）
 - 部署說明「回滾再上線」的清除 SQL：說明寫「規則同 retention.py」略誇大，實際只清還留著里或距離的列；「啟用前先補」那句沒再提醒不帶參數的 `geo-sync` 會連帶做首次約 100MB 的門牌下載（前文有寫）。
 - 規格 §14.1 寫「共 247 個測試」，修正後已多約 20 個。
 - 既有問題（非本分支引入）：「義華路二十之一號」解成 number=1；「六十八號之一」之號不認中文數字；「一百零八巷」之類具名巷對不到門牌表只能退到街路層級。（2026-10-12 已修，D1：20 之 1、六十八號之一、一百零八巷 → 108）

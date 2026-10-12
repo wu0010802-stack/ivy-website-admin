@@ -420,6 +420,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 - 確認 Railway PG 剩餘空間 **≥ 500MB**。門牌一版（775,772 列）含索引約 185MB（表 94MB＋索引 91MB）；每月換版時新舊兩版並存約 370MB，換完才刪舊版。`DELETE` 不會把空間還給檔案系統（只是讓 autovacuum 之後的新批次重用），所以第一次換版之後 `geo_doorplates` 在磁碟上會一直維持約兩版，穩態約 **370–400MB**（另加膨脹），不會回到 185MB。幼兒園只有幾百筆，可忽略。在 Railway Postgres 服務看 volume 用量與上限。
 - 背景自動同步只在 `WEBSITE_ADMISSIONS_ENABLED=true` 時才會啟動；手動指令 `geo-sync` 不檢查這個開關，也不看 `WEBSITE_GEO_AUTO_SYNC`。
+- 同步期間有一條專用連線握著 advisory lock，所以 `WEBSITE_GEO_AUTO_SYNC=true` 時連線池要能多借一條：`WEBSITE_DB_POOL_SIZE` ≥ 2，或 `WEBSITE_DB_MAX_OVERFLOW` ≥ 1（預設 10＋10 沒問題）；兩者都不符時 api 啟動直接報錯。同步的下載只跟 https 轉址。
 - 匯入只用 `INSERT`／`DELETE`（`COPY` 寫入、清批次用 `DELETE`，不用 `TRUNCATE`），已改用只有 DML 權限的執行期角色時不需要額外權限。
 - 首次匯入要下載約 100MB 的 CSV 並串流寫入（不落地、不整檔讀進記憶體）。本機從檔案匯入 77.6 萬列約 25 秒；Railway 上含下載的耗時與記憶體沒有量過，第一次開要看 api 的記憶體與 CPU。
 
