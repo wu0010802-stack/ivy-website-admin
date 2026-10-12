@@ -13,6 +13,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-12 招生統計：預繳速度與可能範圍（main CI 部署，沒有 migration）
+
+- **合併**：`feature/admissions-deposit-pace-20261012` 從 `f09ad269` 開，推前兩次合入 origin/main（`cb26e52b` 區域分析後續、`b56d5ee1` 其部署紀錄；衝突只在 README 頂部段落，兩邊都留，契約重產後與自動合併一致），快轉推 main `b56d5ee1..ee62f74b`。內容見 README 頂部同日段落、DESIGN.md「招生統計：預繳速度與可能範圍」、規格 `docs/specs/2026-10-12-admissions-deposit-pace-design.md`。
+- **migration**：無。API 只新增欄位（`/stats` 的 `deposit_timing`、`deposit_pace`，各統計列的 `visit_to_deposit_range`），「本月漏斗轉換下滑」「來源結構失衡」兩個警示的判斷與文案改了（轉移契約第 19 點）。只讀計算、不改資料，沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前本機閘門**：合入 `cb26e52b` 後，後端全套 2012 passed、1 skipped，另有 2 個媒體測試因共用暫存目錄與筆電睡眠失敗，單獨重跑 47 passed；admin typecheck、build 通過，vitest 全套只有負載逾時，單獨重跑 63 passed；web typecheck、vitest 934 passed；`contract:check` 一致；stack 招生三支 14 passed。`b56d5ee1` 只動文件。
+- **CI**：main run 38238777687（`ee62f74b`）全綠，建立到完成 14.3 分鐘。各 job：Frontend admin 3.8 分、web 1.1 分；Backend 三組 9.6／7.6／8.2 分；E2E／Playwright 9.7 分；Deploy 4.5 分。
+- **正式 `release.json`**：base commit `ee62f74b`，created `2026-10-12T11:00:05Z`，`web+api`。
+- **線上唯讀檢查**：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - 未登入 `GET /admin/admissions/stats?campus_key=yihua` 回 401。
+  - 後台 chunk `AdmissionsView-CUj_IBAC.js` 有「怎麼看可能範圍與預繳速度」「預繳速度」「實際預繳過」「還沒有家長參觀滿」「往這張表的全體平均靠」與 `visit_to_deposit_range`。
+  - 共用表格所在的 `AnalyticsExplainer-DTvLhzyW.js` 有 CSV 的「下限」「上限」。
+- **未做**：沒有登入正式後台實際看統計。正式庫目前是測試資料，預繳速度卡應顯示「預繳過的家長還不到 10 位」，兩個警示暫時不判斷。
+
 ## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（main CI 部署）
 
 - **合併**：`feature/admissions-area-locate-20261012` 的 `cb26e52b` 從 `371b0e99` 開，快轉推 main `371b0e99..cb26e52b`。內容與驗證見 README 頂部同日段落。

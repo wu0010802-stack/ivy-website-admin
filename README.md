@@ -1,4 +1,4 @@
-## 2026-10-12 招生統計：預繳速度與可能範圍（`feature/admissions-deposit-pace-20261012`，未部署）
+## 2026-10-12 招生統計：預繳速度與可能範圍（`feature/admissions-deposit-pace-20261012`，10-12 已部署 main `ee62f74b`）
 
 使用者問招生判讀可以再加什麼演算法，選了「預繳速度」與「可能範圍」兩項。規則見 DESIGN.md「招生統計：預繳速度與可能範圍」，規格 `docs/specs/2026-10-12-admissions-deposit-pace-design.md`，計畫 `docs/superpowers/plans/2026-10-12-admissions-deposit-pace.md`。
 
