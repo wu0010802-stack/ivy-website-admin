@@ -18,6 +18,7 @@
  */
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
+import { wrapLines } from './cjkWrap'
 import { createCurl, curlPoint, setCurl } from './cornerCurl'
 import { computeIndexedNormals } from './gridNormals'
 import { CORNER_REACH, CORNER_REST, REACH_REFERENCE_WIDTH, type CornerPose } from './cornerWind'
@@ -207,33 +208,6 @@ function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number) {
   const em = ctx.measureText(first).width // 全形括號寬 1em
   ctx.fillText(first, -shift * em, y)
   ctx.fillText(line.slice(1), em * 0.5, y)
-}
-
-// 中文禁則：這些標點不放行首、開括號不留在行尾。跟瀏覽器一樣把前一個字一起帶到下一行，
-// 否則「。」「？」會自己掉到新的一行（DOM 版由瀏覽器處理，canvas 要自己來）。
-const NO_LINE_START = /[，。、；：！？」』）…,.;:!?)]/
-const NO_LINE_END = /[「『（(]/
-
-function wrapLines(ctx: CanvasRenderingContext2D, text: string, max: number): string[] {
-  const out: string[] = []
-  for (const raw of text.split('\n')) {
-    let line = ''
-    for (const ch of raw) {
-      if (line && ctx.measureText(line + ch).width > max) {
-        const chars = Array.from(line)
-        let carry = ch
-        while (chars.length > 1 && (NO_LINE_START.test(carry[0]!) || NO_LINE_END.test(chars[chars.length - 1]!))) {
-          carry = chars.pop()! + carry
-        }
-        out.push(chars.join(''))
-        line = carry
-      } else {
-        line += ch
-      }
-    }
-    out.push(line)
-  }
-  return out
 }
 
 interface Box {

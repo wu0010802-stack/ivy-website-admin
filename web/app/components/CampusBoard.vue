@@ -717,6 +717,8 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 @media(max-width:1100px){
   .campus-panorama.campus-gallery{--card-width:84vw}
   .gallery-track{height:clamp(340px,46vw,480px)}
+  /* 橫拿手機（2026-10-12）：照片 388px 比膠囊下方的可見高度（約 316px）還高，分頁和照片看不到同一畫面；只收高度，寬度與裁切定位不變。 */
+  @media(max-height:500px) and (orientation:landscape){.gallery-track{height:min(clamp(340px,46vw,480px),calc(100svh - 120px))}}
   .campus-details{grid-template-columns:minmax(200px,.85fr) minmax(0,1.15fr);gap:18px 32px;align-items:start}
   .campus-identity{grid-row:1/3;padding-top:8px}
   

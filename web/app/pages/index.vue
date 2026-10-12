@@ -18,7 +18,8 @@ const chapters = computed(() => {
   return [
     { id: content.home.about.anchorId },
     { id: content.dayExperience.sectionId, after: '.belief-reveal-track' },
-    { id: 'campuses' },
+    // 五校區塊包在最新消息簾幕的 sticky 裡，照錨點捲會量到釘住後的位置、捲過頭（2026-10-12）。
+    { id: 'campuses', after: '.day-reveal-track', pinned: true },
     { id: content.news.sectionId }
   ]
 })

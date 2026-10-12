@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiFieldErrors, focusNextFieldOnEnter, validateVisitContact } from '../app/utils/visit-form'
+import { wrapLines } from '../app/utils/cjkWrap'
 
 // 2026-10-12 手機版第四輪審查後的修正。多半是版面與樣式，比照 mobile-ux-20261002 鎖住原始碼裡的
 // 關鍵寫法，避免之後改版時悄悄退回；實測數字見 README 同日段落、DESIGN.md「手機版第四輪審查」。
@@ -226,5 +227,42 @@ describe('404 與全站', () => {
   })
   it('手機選單卡標出目前這一頁', () => {
     expect(read('../app/assets/css/studio.css')).toContain('.menu-links a[aria-current] .menu-link-copy>span {text-decoration:underline;')
+  })
+})
+
+describe('首頁', () => {
+  it('#campuses 包在最新消息簾幕的 sticky 裡：章節設 after＋pinned，簾幕在動時直接捲到孩子的一天擦完的位置', () => {
+    expect(read('../app/pages/index.vue')).toContain("{ id: 'campuses', after: '.day-reveal-track', pinned: true },")
+    const anchors = read('../app/composables/useChapterAnchors.ts')
+    expect(anchors).toContain(`if (chapter.pinned && track.closest('[data-motion="on"]')) {`)
+    // 從別頁連過來要等版面穩定（路由自己的錨點捲動晚到）；重新整理、上一頁／下一頁不搶回章節
+    expect(anchors).toContain('waitForStableHeight().then(() => { if (!disposed) scrollPastCurtain(chapter) })')
+    expect(anchors).toContain('if (initialLoad ? restoredLoad() : history.state?.scroll) return')
+  })
+  it('拍立得背面避免孤字：DOM 版 text-wrap:pretty', () => {
+    expect(read('../app/assets/css/styles.css')).toContain('.print-face p,.day-note{text-wrap:pretty}')
+  })
+  it('暫停圓鈕被拍立得蓋到時沉到卡片下面', () => {
+    expect(read('../app/assets/css/styles.css')).toContain('.day-film-ui[data-covered="1"]{z-index:0}')
+  })
+  it('橫拿手機五校照片高度不超過膠囊下方的可見高度', () => {
+    expect(read('../app/components/CampusBoard.vue')).toContain('@media(max-height:500px) and (orientation:landscape){.gallery-track{height:min(clamp(340px,46vw,480px),calc(100svh - 120px))}}')
+  })
+})
+
+describe('wrapLines（拍立得 WebGL 貼圖折行）', () => {
+  const mono = { measureText: (text: string) => ({ width: Array.from(text).length }) }
+  it('段落最後一行只剩一個字加標點時，從上一行帶一個字下來', () => {
+    // 寬 6 字：貪婪折行是「一二三四五六／七。」
+    expect(wrapLines(mono, '一二三四五六七。', 6)).toEqual(['一二三四五', '六七。'])
+  })
+  it('照舊遵守禁則：標點不放行首、開括號不留在行尾', () => {
+    expect(wrapLines(mono, '一二三四五，六七八', 5)).toEqual(['一二三四', '五，六七八'])
+    expect(wrapLines(mono, '一二三四「五六七', 5)).toEqual(['一二三四', '「五六七'])
+  })
+  it('最後一行夠長、或只有一行時不動；每個換行段落各自處理', () => {
+    expect(wrapLines(mono, '一二三四五六七八', 6)).toEqual(['一二三四五六', '七八'])
+    expect(wrapLines(mono, '一二三', 6)).toEqual(['一二三'])
+    expect(wrapLines(mono, '一二三四五六七\n八九', 6)).toEqual(['一二三四五', '六七', '八九'])
   })
 })
