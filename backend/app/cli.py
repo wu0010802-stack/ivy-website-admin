@@ -616,6 +616,8 @@ async def geo_sync_command(**options) -> None:
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；重算訪視 {result.rematched} 筆"
     )
+    if result.doorplate_rows_skipped or result.kindergarten_rows_skipped:
+        print(f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆")
     failed = [
         (dataset, label)
         for dataset, label, outcome in (

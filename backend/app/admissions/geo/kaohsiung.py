@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import math
+
 TOWN_CODES: dict[str, str] = {
     "6400100": "鹽埕區", "6400200": "鼓山區", "6400300": "左營區", "6400400": "楠梓區",
     "6400500": "三民區", "6400600": "新興區", "6400700": "前金區", "6400800": "苓雅區",
@@ -37,6 +39,24 @@ OTHER_COUNTIES: tuple[str, ...] = (
     "彰化縣", "南投縣", "雲林縣", "嘉義市", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣", "台東縣",
     "澎湖縣", "金門縣", "連江縣", "台北縣", "桃園縣", "台中縣", "台南縣",
 )
+
+
+# 匯入資料的座標檢查用的高雄市外框（WGS84 度，緯度, 經度）。只擋明顯錯誤（0,0、經緯度對調、
+# NaN、別的縣市），不是行政區邊界。里界圖（內政部國土測繪中心 115/08/17 版，已去掉東沙、南沙）
+# 的實際範圍是緯度 22.468–23.472、經度 120.175–121.049，外框各邊再放寬約 0.03–0.08 度
+# （3–9 公里）；換版里界圖時 tests/test_geo_address.py 會核對沒有把任何一個里切掉。
+KAOHSIUNG_LAT_RANGE: tuple[float, float] = (22.4, 23.5)
+KAOHSIUNG_LNG_RANGE: tuple[float, float] = (120.1, 121.1)
+
+
+def in_kaohsiung(lat: float, lng: float) -> bool:
+    """座標是有限數、且落在高雄市外框內。"""
+    return (
+        math.isfinite(lat)
+        and math.isfinite(lng)
+        and KAOHSIUNG_LAT_RANGE[0] <= lat <= KAOHSIUNG_LAT_RANGE[1]
+        and KAOHSIUNG_LNG_RANGE[0] <= lng <= KAOHSIUNG_LNG_RANGE[1]
+    )
 
 
 def fix_village_name(name: str) -> str:

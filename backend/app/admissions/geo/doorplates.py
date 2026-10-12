@@ -5,6 +5,9 @@ COPY 寫進去，不整檔讀進記憶體，也不讓交易在下載時閒置（
 idle_in_transaction 逾時）。全部匯完才由 activate_doorplates 切換使用中的批次；
 任何一步失敗都只會留下沒人查的批次，下次同步開頭清掉。
 
+逐列解析時，欄位超過資料表欄寬、號碼超出範圍、座標不是有限數或不在高雄市外框內的列，和
+其他解析不了的列一樣略過並計數（DoorplateParser.skipped），不讓一列壞資料使整批 COPY 失敗。
+
 「號」含樓層的列（「１２８號十樓之１」）去掉樓層後和同號重複、而且前後相鄰，用前一列
 的鍵去重。「附」號（「７４附２號」）、「特８號」「一棟二樓1號」這類不是一般門牌的寫法
 （全市約 800 列）直接略過。執行期資料庫角色只有 DML 權限（deploy/README.md），所以
@@ -13,6 +16,8 @@ idle_in_transaction 逾時）。全部匯完才由 activate_doorplates 切換使
 from __future__ import annotations
 
 import csv
+import logging
+import math
 import re
 import unicodedata
 from collections.abc import AsyncIterable
@@ -22,8 +27,8 @@ from datetime import datetime
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.admissions.geo.address import normalize_text, unit_token
-from app.admissions.geo.kaohsiung import TOWN_CODES, fix_village_name
+from app.admissions.geo.address import bounded_number, normalize_text, unit_token
+from app.admissions.geo.kaohsiung import TOWN_CODES, fix_village_name, in_kaohsiung
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
 from app.admissions.geo.projection import twd97_tm2_to_wgs84
 from app.common.csv_export import BOM
@@ -34,6 +39,10 @@ DOORPLATE_COLUMNS = (
     "number", "number_sub", "lat", "lng",
 )
 COPY_BATCH_SIZE = 5000
+logger = logging.getLogger("app.admissions.geo.doorplates")
+# 以資料表欄寬為準（lane、alley 的上限另在 address.unit_token，同為 16）。
+_STREET_WIDTH = GeoDoorplate.__table__.c.street.type.length
+_VILLAGE_WIDTH = GeoDoorplate.__table__.c.village.type.length
 # 「號」：主號、之號；門牌表也有把之號寫在號後面的（「５２號之５」），但「號」後面接樓層
 # 的「之」（「十樓之１」）不算。
 _NUMBER = re.compile(r"臨?(\d+)(?:之(\d+))?(?:之\d+)*號(?:之(\d+)(?![樓\d]))?")
@@ -58,7 +67,8 @@ class DoorplateRow:
     lng: float
 
 
-def _unit(value: str, suffix: str) -> str:
+def _unit(value: str, suffix: str) -> str | None:
+    """巷、弄欄位 → 編號字串；沒有是空字串，超過欄寬回 None。"""
     normalized = normalize_text(value)
     return unit_token(normalized.removesuffix(suffix)) if normalized else ""
 
@@ -105,23 +115,44 @@ class DoorplateParser:
         street = normalize_text(road or area)
         if district is None or matched is None or not street or not village.strip():
             return None
-        try:
-            lat, lng = twd97_tm2_to_wgs84(float(x), float(y))
-        except ValueError:
+        village = fix_village_name(village)
+        lane_text, alley_text = _unit(lane, "巷"), _unit(alley, "弄")
+        if len(street) > _STREET_WIDTH or len(village) > _VILLAGE_WIDTH or lane_text is None or alley_text is None:
             return None
+        number = bounded_number(matched.group(1))
+        sub_text = matched.group(2) or matched.group(3)
+        number_sub = bounded_number(sub_text) if sub_text else 0
+        if number is None or number_sub is None:
+            return None
+        coordinates = _coordinates(x, y)
+        if coordinates is None:
+            return None
+        lat, lng = coordinates
         return DoorplateRow(
             town_code=town_code,
             district=district,
-            village=fix_village_name(village),
+            village=village,
             street=street,
             street_kind="road" if road else "area",
-            lane=_unit(lane, "巷"),
-            alley=_unit(alley, "弄"),
-            number=int(matched.group(1)),
-            number_sub=int(matched.group(2) or matched.group(3) or 0),
+            lane=lane_text,
+            alley=alley_text,
+            number=number,
+            number_sub=number_sub,
             lat=round(lat, 7),
             lng=round(lng, 7),
         )
+
+
+def _coordinates(x: str, y: str) -> tuple[float, float] | None:
+    """TWD97 橫縱座標 → (緯度, 經度)；不是有限數、投影算不出來（溢位）、或不在高雄市外框內回 None。"""
+    try:
+        easting, northing = float(x), float(y)
+        if not (math.isfinite(easting) and math.isfinite(northing)):
+            return None
+        lat, lng = twd97_tm2_to_wgs84(easting, northing)
+    except (ValueError, OverflowError):
+        return None
+    return (lat, lng) if in_kaohsiung(lat, lng) else None
 
 
 async def copy_doorplates(db: AsyncSession, tag: str, rows: list[DoorplateRow]) -> None:
@@ -146,6 +177,13 @@ async def delete_batches(db: AsyncSession, *, keep: str | None) -> None:
     await db.execute(stmt)
 
 
+async def _discard_batch(session_factory: async_sessionmaker[AsyncSession], tag: str) -> None:
+    async with session_factory() as db:
+        await db.execute(text("SET LOCAL statement_timeout = 0"))
+        await db.execute(delete(GeoDoorplate).where(GeoDoorplate.dataset_version == tag))
+        await db.commit()
+
+
 async def import_doorplates(
     session_factory: async_sessionmaker[AsyncSession],
     tag: str,
@@ -153,7 +191,9 @@ async def import_doorplates(
     *,
     batch_size: int = COPY_BATCH_SIZE,
 ) -> int:
-    """把 rows 全部寫進 tag 批次，回傳列數。每批一個交易；失敗時刪掉這個批次再往上丟。"""
+    """把 rows 全部寫進 tag 批次，回傳列數。每批一個交易；失敗時刪掉這個批次再往上丟。
+    清批次本身也失敗（例如連線一起斷了）時只記 log、照樣丟原本的例外：殘留的批次沒人查，
+    下次同步開頭會清掉。"""
     count = 0
     batch: list[DoorplateRow] = []
     try:
@@ -171,10 +211,10 @@ async def import_doorplates(
                 await db.commit()
             count += len(batch)
     except Exception:
-        async with session_factory() as db:
-            await db.execute(text("SET LOCAL statement_timeout = 0"))
-            await db.execute(delete(GeoDoorplate).where(GeoDoorplate.dataset_version == tag))
-            await db.commit()
+        try:
+            await _discard_batch(session_factory, tag)
+        except Exception:  # noqa: BLE001 - 不能蓋掉原本的例外
+            logger.warning("清除失敗的門牌批次 %s 時又出錯，留給下次同步清理", tag, exc_info=True)
         raise
     return count
 

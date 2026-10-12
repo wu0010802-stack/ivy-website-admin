@@ -393,3 +393,60 @@ async def test_lock_is_released_after_sync(app, small_minimum, csv):
             await other.invalidate()  # 關掉這條連線，鎖隨連線釋放
     finally:
         await fresh.dispose()
+
+
+def _csv_with_bad_lines() -> bytes:
+    """樣本門牌加三列壞資料：街路名超長、座標是 nan、號碼是 5000 位數。"""
+    header, _, body = (FIXTURES / "doorplates-sample.csv").read_text(encoding="utf-8-sig").partition("\n")
+    bad = [
+        "64,6400500,本揚里,001," + "甲" * 41 + ",,,,１號,176205.163,2503011.609",
+        "64,6400500,本揚里,001,義華路,,,,２號,nan,nan",
+        "64,6400500,本揚里,001,義華路,,,," + "３" * 5000 + "號,176205.163,2503011.609",
+    ]
+    return ("\ufeff" + header + "\n" + "\n".join(bad) + "\n" + body).encode("utf-8")
+
+
+async def test_bad_doorplate_lines_are_skipped_counted_and_do_not_fail_the_sync(app, tmp_path):
+    """以前一列超長 COPY 就失敗、每月同步都卡住；現在略過那幾列，其餘照常換版，略過數放進結果。"""
+    path = tmp_path / "doorplates.csv"
+    path.write_bytes(_csv_with_bad_lines())
+    result = await run_geo_sync(app.state.session_factory, app.state.settings, doorplates_file=path, doorplates_version="115-10")
+    assert (result.doorplates, result.doorplate_rows_skipped, result.kindergarten_rows_skipped) == ("updated", 3, 0)
+    assert (await _counts(app))[0] == 73
+    assert (await _status(app, "doorplates")).last_error is None
+
+
+async def test_clean_sample_skips_nothing(app):
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        doorplates_file=FIXTURES / "doorplates-sample.csv", doorplates_version="115-10",
+        kindergartens_file=FIXTURES / "preschools-sample.json",
+    )
+    assert (result.doorplates, result.kindergartens) == ("updated", "updated")
+    assert (result.doorplate_rows_skipped, result.kindergarten_rows_skipped) == (0, 0)
+
+
+async def test_downloaded_doorplates_report_skipped_lines_too(app, small_minimum):
+    transport, _ = _site(csv=_csv_with_bad_lines())
+    result = await _sync(app, transport)
+    assert (result.doorplates, result.doorplate_rows_skipped) == ("updated", 3)
+    assert (await _counts(app))[0] == 73
+
+
+async def test_bad_kindergarten_entries_are_skipped_and_counted(app, tmp_path):
+    import json
+
+    data = json.loads((FIXTURES / "preschools-sample.json").read_text(encoding="utf-8"))
+    data["features"].append(
+        {"properties": {"id": "long", "title": "園" * 121, "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
+         "geometry": {"coordinates": [120.3, 22.6]}}
+    )
+    data["features"].append(
+        {"properties": {"id": "far", "title": "遠方", "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
+         "geometry": {"coordinates": [0, 0]}}
+    )
+    path = tmp_path / "preschools.json"
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    result = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=path)
+    assert (result.kindergartens, result.kindergarten_rows_skipped, result.doorplate_rows_skipped) == ("updated", 2, 0)
+    assert (await _counts(app))[1] == 10

@@ -4,8 +4,25 @@ from __future__ import annotations
 
 import pytest
 
-from app.admissions.geo.address import ParsedAddress, cn_number, cn_to_int, normalize_text, parse_address, unit_token
-from app.admissions.geo.kaohsiung import CODE_OF_DISTRICT, DISTRICTS, LEGACY_TOWNS, TOWN_CODES, fix_village_name
+from app.admissions.geo.address import (
+    MAX_UNIT_LENGTH,
+    ParsedAddress,
+    cn_number,
+    cn_to_int,
+    normalize_text,
+    parse_address,
+    unit_token,
+)
+from app.admissions.geo.kaohsiung import (
+    CODE_OF_DISTRICT,
+    DISTRICTS,
+    KAOHSIUNG_LAT_RANGE,
+    KAOHSIUNG_LNG_RANGE,
+    LEGACY_TOWNS,
+    TOWN_CODES,
+    fix_village_name,
+    in_kaohsiung,
+)
 
 
 def P(district=None, street=None, lane=None, alley=None, number=None, sub=0, outside=False) -> ParsedAddress:
@@ -78,6 +95,39 @@ CASES = [
     ("高雄市三民區義華路68\N{MINUS SIGN}1號", YIHUA_68_1),
     # 里名四個字（北美術館里）
     ("高雄市鼓山區北美術館里美術東二路100號", P("鼓山區", "美術東二路", number=100)),
+    # 前導零（門牌號補零到 6 位）先去零再判斷長度
+    ("高雄市三民區義華路000068號", YIHUA_68),
+    ("高雄市三民區義華路000068-000001號", YIHUA_68_1),
+    # 之號接中文數字：「二十之一號」是 20 之 1，不是 1 號
+    ("高雄市三民區義華路二十之一號", P("三民區", "義華路", number=20, sub=1)),
+    ("高雄市三民區義華路二十－一號", P("三民區", "義華路", number=20, sub=1)),
+    ("高雄市三民區義華路六十八號之一", YIHUA_68_1),
+    ("高雄市三民區義華路68號之一", YIHUA_68_1),
+    ("高雄市三民區義華路六十八號之二十", P("三民區", "義華路", number=68, sub=20)),
+    # 「號之N樓」的樓不是之號（中文數字也一樣，不能退成「之十」）
+    ("高雄市三民區義華路六十八號之一樓", YIHUA_68),
+    ("高雄市三民區義華路六十八號之十二樓", YIHUA_68),
+    # 百、千、零：整段轉成數字，不只吃到後半
+    ("高雄市三民區義華路一百二十號", P("三民區", "義華路", number=120)),
+    ("高雄市三民區義華路一百零五號", P("三民區", "義華路", number=105)),
+    ("高雄市三民區義華路一百號", P("三民區", "義華路", number=100)),
+    ("高雄市三民區義華路兩百號", P("三民區", "義華路", number=200)),
+    ("高雄市三民區義華路二千號", P("三民區", "義華路", number=2000)),
+    ("高雄市三民區義華路一千零五號", P("三民區", "義華路", number=1005)),
+    ("高雄市三民區義華路一百二十號之三", P("三民區", "義華路", number=120, sub=3)),
+    # 中文數字巷弄轉成門牌表的數字字串（含百、零）
+    ("高雄市三民區義華路一百零八巷5號", P("三民區", "義華路", lane="108", number=5)),
+    ("高雄市三民區義華路一百零八巷二十號之三", P("三民區", "義華路", lane="108", number=20, sub=3)),
+    ("高雄市三民區義華路十二巷三弄五號", P("三民區", "義華路", lane="12", alley="3", number=5)),
+    ("高雄市三民區義華路一百二十巷", P("三民區", "義華路", lane="120")),
+    # 巷弄超過欄寬（16 字）：放不進門牌表、也不可能比對到，不猜街路段，只留區
+    ("高雄市三民區義華路" + "甲" * 17 + "巷5號", P("三民區")),
+    ("高雄市三民區義華路12巷" + "乙" * 17 + "弄5號", P("三民區")),
+    ("高雄市三民區義華路" + "1" * 17 + "巷5號", P("三民區")),
+    ("高雄市三民區右昌" + "1" * 17 + "巷5號", P("三民區")),
+    # 剛好 16 字、去掉前導零後才 16 字都收
+    ("高雄市三民區義華路" + "甲" * 16 + "巷5號", P("三民區", "義華路", lane="甲" * 16, number=5)),
+    ("高雄市三民區義華路" + "0" * 20 + "12巷5號", P("三民區", "義華路", lane="12", number=5)),
     # 解析不出高雄市的區
     ("義華路68號", NO_DISTRICT),
     ("高雄市", NO_DISTRICT),
@@ -104,13 +154,6 @@ def test_malformed_chinese_house_number_does_not_raise():
     assert parse_address("高雄市三民區義華路二三十號").number is None
 
 
-@pytest.mark.parametrize("raw", ["高雄市三民區義華路一百二十號", "高雄市三民區義華路二千號", "高雄市三民區義華路一千零五號", "高雄市三民區義華路一百零五號", "高雄市三民區義華路一百號"])
-def test_chinese_hundreds_and_thousands_are_not_parsed_as_a_number(raw):
-    """cn_to_int 不認得「百」「千」。以前「一百二十號」只吃到「二十號」而解成 20，會比對到別的門牌；
-    現在整段視為無法解析（number=None），街路段照解析。"""
-    assert parse_address(raw) == P("三民區", "義華路")
-
-
 def test_house_number_bounds():
     assert parse_address("高雄市三民區義華路99999號").number == 99999
     assert parse_address("高雄市三民區義華路100000號").number is None
@@ -122,7 +165,8 @@ def test_house_number_bounds():
 def test_huge_digit_runs_do_not_raise():
     assert parse_address("高雄市三民區義華路" + "1" * 5000 + "號").number is None
     assert parse_address("高雄市三民區義華路" + "一" * 5000 + "號").number is None
-    assert parse_address("高雄市三民區義華路" + "9" * 5000 + "巷1號").number == 1
+    # 巷超過欄寬，整段當成無法解析（只留區），不是把巷丟掉再拿號碼去比對沒有巷的門牌
+    assert parse_address("高雄市三民區義華路" + "9" * 5000 + "巷1號") == P("三民區")
 
 
 def test_chinese_numbers():
@@ -132,13 +176,60 @@ def test_chinese_numbers():
     assert cn_to_int("") is None
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("一", 1), ("九", 9), ("十", 10), ("十二", 12), ("二十", 20), ("二十一", 21), ("九十九", 99),
+        ("一百", 100), ("一百零八", 108), ("一百〇八", 108), ("一百二十", 120), ("一百二十三", 123),
+        ("一百十二", 112), ("兩百", 200), ("二百", 200), ("九百九十九", 999),
+        ("一千", 1000), ("二千", 2000), ("三千零五", 3005), ("一千零二十", 1020), ("三千零五十", 3050),
+        ("一千二百零五", 1205), ("一千二百三十四", 1234), ("九千九百九十九", 9999),
+        # 沒有單位字（十百千）時是逐位數字
+        ("一二", 12), ("一〇八", 108), ("零", 0), ("〇", 0),
+    ],
+)
+def test_cn_to_int_values(text, expected):
+    assert cn_to_int(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "", "百", "千", "百二", "十百", "百十", "一百一百", "二千一千", "二三十", "十二三", "二二十",
+        "一百二",  # 「一百二」口語是 120、規範寫法是 102，有歧義就不猜
+        "一千二", "二十零五", "一百零", "零一百", "一千零二百", "一百零十", "零百", "一百零零八x", "博愛", "二十號",
+    ],
+)
+def test_cn_to_int_rejects_malformed_or_ambiguous(text):
+    assert cn_to_int(text) is None
+
+
 def test_normalize_text():
     assert normalize_text("臺北 １２３－４　號") == "台北123-4號"
 
 
-@pytest.mark.parametrize(("token", "expected"), [("06", "6"), ("66", "66"), ("十二", "12"), ("博愛", "博愛"), ("光明10", "光明10")])
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        ("06", "6"), ("66", "66"), ("十二", "12"), ("博愛", "博愛"), ("光明10", "光明10"),
+        ("一百零八", "108"), ("一百二十", "120"), ("000", "0"),
+        ("甲" * MAX_UNIT_LENGTH, "甲" * MAX_UNIT_LENGTH),  # 剛好滿欄
+        ("0" * 30 + "12", "12"),  # 去掉前導零才算長度
+    ],
+)
 def test_unit_token(token, expected):
     assert unit_token(token) == expected
+
+
+@pytest.mark.parametrize("token", ["甲" * (MAX_UNIT_LENGTH + 1), "1" * (MAX_UNIT_LENGTH + 1), "9" * 5000])
+def test_unit_token_over_column_width_is_none(token):
+    assert unit_token(token) is None
+
+
+def test_unit_length_matches_doorplate_columns():
+    from app.admissions.geo.models import GeoDoorplate
+
+    assert MAX_UNIT_LENGTH == GeoDoorplate.__table__.c.lane.type.length == GeoDoorplate.__table__.c.alley.type.length
 
 
 def test_kaohsiung_tables():
@@ -147,6 +238,44 @@ def test_kaohsiung_tables():
     assert len(LEGACY_TOWNS) == 27
     assert set(LEGACY_TOWNS.values()) <= DISTRICTS
     assert LEGACY_TOWNS["三民鄉"] == "那瑪夏區"
+
+
+def test_kaohsiung_box_contains_every_village_boundary():
+    """外框是寬鬆的合理範圍，不能把任何一個里切掉：換版里界圖時這裡先紅。"""
+    import json
+
+    from app.admissions.geo.boundaries import BOUNDARY_PATH
+
+    lats: list[float] = []
+    lngs: list[float] = []
+
+    def walk(coords):
+        if isinstance(coords[0], (int, float)):
+            lngs.append(coords[0])
+            lats.append(coords[1])
+        else:
+            for item in coords:
+                walk(item)
+
+    for feature in json.loads(BOUNDARY_PATH.read_bytes())["features"]:
+        walk(feature["geometry"]["coordinates"])
+    assert KAOHSIUNG_LAT_RANGE[0] <= min(lats) and max(lats) <= KAOHSIUNG_LAT_RANGE[1]
+    assert KAOHSIUNG_LNG_RANGE[0] <= min(lngs) and max(lngs) <= KAOHSIUNG_LNG_RANGE[1]
+
+
+@pytest.mark.parametrize(
+    ("lat", "lng", "expected"),
+    [
+        (22.6424556, 120.3437133, True),  # 義華
+        (23.2, 120.9, True),  # 山區
+        (0.0, 0.0, False), (22.6, 0.0, False), (0.0, 120.3, False),
+        (120.3, 22.6, False),  # 經緯度對調
+        (25.03, 121.56, False),  # 台北
+        (float("nan"), 120.3, False), (22.6, float("inf"), False), (float("-inf"), float("nan"), False),
+    ],
+)
+def test_in_kaohsiung(lat, lng, expected):
+    assert in_kaohsiung(lat, lng) is expected
 
 
 @pytest.mark.parametrize(

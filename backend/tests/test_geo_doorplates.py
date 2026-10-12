@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
 import pytest
@@ -72,6 +73,73 @@ def test_irregular_numbers_are_skipped(number_text):
     assert rows == [] and parser.skipped == 1
 
 
+def _line(
+    *, town="6400100", village="中原里", road="七賢三路", lane="", alley="", number="１號",
+    x="176205.163", y="2503011.609",
+) -> str:
+    return f"64,{town},{village},001,{road},,{lane},{alley},{number},{x},{y}"
+
+
+def test_a_normal_line_is_kept_by_the_helper():
+    rows, parser = _feed(_line())
+    assert len(rows) == 1 and parser.skipped == 0
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        _line(road="甲" * 41),  # street 欄寬 40
+        _line(village="甲" * 17 + "里"),  # village 欄寬 16
+        _line(village="甲" * 16),  # 補上「里」之後 17 字
+        _line(lane="１" * 17 + "巷"),  # lane 欄寬 16
+        _line(lane="甲" * 17 + "巷"),
+        _line(alley="甲" * 17 + "弄"),
+        _line(number="１" * 5000 + "號"),  # 超大數字不能丟例外
+        _line(number="１００００００號"),  # 超過 99999：解析端也不會產生這種門牌
+        _line(number="１之" + "９" * 5000 + "號"),
+        _line(number="１之１００００００號"),
+    ],
+    ids=["street", "village", "village-fixed", "lane-digits", "lane-name", "alley", "number-5000", "number-7", "sub-5000", "sub-7"],
+)
+def test_overlong_fields_skip_the_line_and_are_counted(line):
+    rows, parser = _feed(line, _line(number="２號"))
+    assert [r.number for r in rows] == [2]  # 後面的好行照常
+    assert (parser.parsed, parser.skipped) == (1, 1)
+
+
+def test_fields_exactly_at_column_width_are_kept():
+    rows, parser = _feed(
+        _line(road="甲" * 40, village="乙" * 15 + "里", lane="１" * 16 + "巷", alley="丙" * 16 + "弄", number="９９９９９號")
+    )
+    assert parser.skipped == 0
+    (row,) = rows
+    assert (len(row.street), len(row.village), len(row.lane), len(row.alley), row.number) == (40, 16, 16, 16, 99999)
+
+
+def test_leading_zero_lane_and_chinese_lane_match_the_address_parser():
+    rows, _ = _feed(_line(lane="０６６巷"), _line(lane="一百零八巷", number="２號"))
+    assert [(r.lane, r.number) for r in rows] == [("66", 1), ("108", 2)]
+
+
+@pytest.mark.parametrize(
+    ("x", "y"),
+    [
+        ("nan", "2503011.609"), ("176205.163", "nan"), ("inf", "2503011.609"), ("176205.163", "-inf"),
+        ("1e999", "2503011.609"),  # float() 本身就變 inf
+        ("1e200", "1e200"),  # 投影公式溢位（OverflowError）
+        ("0", "0"),  # 轉出來在幾內亞灣
+        ("2503011.609", "176205.163"),  # 橫縱對調
+        ("-176205.163", "2503011.609"),
+        ("176205.163", "9999999"),  # 在北極圈
+        ("550000", "2503011.609"),  # 在台灣東邊外海
+    ],
+)
+def test_bad_or_out_of_range_coordinates_are_skipped_without_raising(x, y):
+    rows, parser = _feed(_line(x=x, y=y), _line(number="２號"))
+    assert [r.number for r in rows] == [2]
+    assert (parser.parsed, parser.skipped) == (1, 1)
+
+
 def test_unknown_town_and_broken_coordinates_are_skipped():
     rows, parser = _feed(
         "65,6500100,某里,001,某路,,,,１號,176205.163,2503011.609",
@@ -138,6 +206,46 @@ async def test_failed_import_leaves_active_batch_alone(app):
     assert await _count(app) == 73
     async with factory() as db:
         assert (await db.get(GeoDatasetStatus, "doorplates")).active_version == "115-10#good00"
+
+
+async def test_failed_cleanup_does_not_hide_the_original_error(caplog):
+    """下載中斷（原例外）之後清批次又失敗（連線也斷了）：往上丟的要是原例外，清理失敗只記 log。"""
+
+    def broken_session_factory():
+        raise RuntimeError("清理時連線也斷了")
+
+    async def interrupted():
+        yield sample_doorplate_rows()[0]
+        raise ConnectionError("下載中斷")
+
+    with caplog.at_level(logging.WARNING, logger="app.admissions.geo.doorplates"):
+        with pytest.raises(ConnectionError, match="下載中斷"):
+            await import_doorplates(broken_session_factory, "115-11#bad000", interrupted(), batch_size=3)
+    assert any("115-11#bad000" in record.getMessage() for record in caplog.records)
+
+
+async def test_a_skipped_line_never_fails_the_whole_import(app):
+    """超長、座標不合格的列由解析器擋下並計數，整批照常寫進資料庫（以前一列超長整批 COPY 失敗）。"""
+    parser = DoorplateParser()
+    lines = [
+        HEADER,
+        _line(road="甲" * 41),
+        _line(x="nan", y="nan"),
+        _line(number="１" * 5000 + "號"),
+        _line(number="７號"),
+        _line(number="８號"),
+    ]
+
+    async def rows():
+        for line in lines:
+            row = parser.feed(line)
+            if row is not None:
+                yield row
+
+    factory = app.state.session_factory
+    assert await import_doorplates(factory, "115-10#skips0", rows()) == 2
+    assert (parser.parsed, parser.skipped) == (2, 3)
+    assert await _count(app, "115-10#skips0") == 2
 
 
 def test_fixture_keeps_original_file_format():

@@ -42,7 +42,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
-from app.admissions.geo.kindergartens import KindergartenFormatError, parse_preschools, replace_kindergartens
+from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, replace_kindergartens
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
 from app.campuses.models import CAMPUS_KEYS
@@ -91,6 +91,9 @@ class GeoSyncResult:
     kindergartens: str
     doorplate_version: str | None  # 使用中的門牌月份（label）
     rematched: int
+    # 這一輪解析時略過的列數（欄位超長、座標不合格等；門牌檔本來就有約 800 列不是一般門牌）。
+    doorplate_rows_skipped: int = 0
+    kindergarten_rows_skipped: int = 0
 
 
 def parse_dataset_search(page: str) -> list[tuple[int, str]]:
@@ -139,8 +142,9 @@ def label_for_file(path: Path, given: str | None) -> str:
     return current_label()
 
 
-async def _stream_rows(client: httpx.AsyncClient, url: str) -> AsyncIterator[doorplate_io.DoorplateRow]:
-    parser = doorplate_io.DoorplateParser()
+async def _stream_rows(
+    client: httpx.AsyncClient, url: str, parser: doorplate_io.DoorplateParser
+) -> AsyncIterator[doorplate_io.DoorplateRow]:
     async with client.stream("GET", url) as response:
         response.raise_for_status()
         response.encoding = "utf-8"
@@ -150,8 +154,7 @@ async def _stream_rows(client: httpx.AsyncClient, url: str) -> AsyncIterator[doo
                 yield row
 
 
-async def _file_rows(path: Path) -> AsyncIterator[doorplate_io.DoorplateRow]:
-    parser = doorplate_io.DoorplateParser()
+async def _file_rows(path: Path, parser: doorplate_io.DoorplateParser) -> AsyncIterator[doorplate_io.DoorplateRow]:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         for line in handle:
             row = parser.feed(line)
@@ -227,16 +230,18 @@ async def sync_doorplates(
     force: bool,
     file: Path | None,
     file_label: str | None,
-) -> str:
+) -> tuple[str, int]:
+    """回傳 (結果, 略過的列數)。"""
     status = await _status(session_factory, "doorplates")
     if file is None and (client is None or (not force and not _due(status, now))):
-        return "skipped"
+        return "skipped", 0
     active = status.active_version if status else None
+    parser = doorplate_io.DoorplateParser()
     try:
         # 之前中斷（停機、程序被殺）留下的半套批次，先清掉。
         await _discard_batches(session_factory, active)
         if file is not None:
-            label, rows, minimum = label_for_file(file, file_label), _file_rows(file), 1
+            label, rows, minimum = label_for_file(file, file_label), _file_rows(file, parser), 1
         else:
             assert client is not None
             if settings.geo_doorplate_url:
@@ -245,8 +250,8 @@ async def sync_doorplates(
                 source = await discover_doorplate_source(client)
             if not force and active is not None and status is not None and status.label == source.label:
                 await _record(session_factory, "doorplates", now=now, checked=True)
-                return "skipped"
-            label, rows, minimum = source.label, _stream_rows(client, source.url), MIN_DOORPLATE_ROWS
+                return "skipped", 0
+            label, rows, minimum = source.label, _stream_rows(client, source.url, parser), MIN_DOORPLATE_ROWS
         tag = f"{label}#{uuid.uuid4().hex[:6]}"
         count = await doorplate_io.import_doorplates(session_factory, tag, rows)
         if count < minimum:
@@ -257,12 +262,12 @@ async def sync_doorplates(
             await _discard_batches(session_factory, active)
             raise GeoSyncError(f"門牌資料匯入後資料庫有 {stored} 筆，應有 {count} 筆，不換版")
         await doorplate_io.activate_doorplates(session_factory, tag, label, now=now)
-        logger.info("門牌資料已更新：%s，%s 筆", label, count)
-        return "updated"
+        logger.info("門牌資料已更新：%s，%s 筆，略過 %s 列", label, count, parser.skipped)
+        return "updated", parser.skipped
     except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
         logger.warning("門牌資料同步失敗：%s", _error_text(exc))
         await _record(session_factory, "doorplates", now=now, error=_error_text(exc))
-        return "failed"
+        return "failed", 0
 
 
 async def sync_kindergartens(
@@ -273,10 +278,11 @@ async def sync_kindergartens(
     now: datetime,
     force: bool,
     file: Path | None,
-) -> str:
+) -> tuple[str, int]:
+    """回傳 (結果, 略過的筆數)。"""
     status = await _status(session_factory, "kindergartens")
     if file is None and (client is None or (not force and not _due(status, now))):
-        return "skipped"
+        return "skipped", 0
     try:
         if file is not None:
             data = json.loads(file.read_text(encoding="utf-8-sig"))
@@ -286,16 +292,17 @@ async def sync_kindergartens(
             response.raise_for_status()
             data = response.json()
         school_year, _ = current_term(today_local())
-        rows = parse_preschools(data, school_year=school_year)
+        report = ParseReport()
+        rows = parse_preschools(data, school_year=school_year, report=report)
         async with session_factory() as db:
             await replace_kindergartens(db, rows, synced_at=now)
             await db.commit()
-        logger.info("幼兒園資料已更新：%s 所", len(rows))
-        return "updated"
+        logger.info("幼兒園資料已更新：%s 所，略過 %s 筆", len(rows), report.skipped)
+        return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001
         logger.warning("幼兒園資料同步失敗：%s", _error_text(exc))
         await _record(session_factory, "kindergartens", now=now, error=_error_text(exc))
-        return "failed"
+        return "failed", 0
 
 
 async def campus_fingerprint(db: AsyncSession) -> str:
@@ -367,11 +374,11 @@ async def run_geo_sync(
             )
         network = None if file_mode else client
         try:
-            doorplates = await sync_doorplates(
+            doorplates, doorplate_skipped = await sync_doorplates(
                 session_factory, settings, network,
                 now=now, force=force, file=doorplates_file, file_label=doorplates_version,
             )
-            kindergartens = await sync_kindergartens(
+            kindergartens, kindergarten_skipped = await sync_kindergartens(
                 session_factory, settings, network, now=now, force=force, file=kindergartens_file
             )
         finally:
@@ -379,4 +386,7 @@ async def run_geo_sync(
                 await client.aclose()
         rematched = await rematch_if_changed(session_factory, now=now)
         status = await _status(session_factory, "doorplates")
-        return GeoSyncResult(doorplates, kindergartens, status.label if status else None, rematched)
+        return GeoSyncResult(
+            doorplates, kindergartens, status.label if status else None, rematched,
+            doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
+        )

@@ -209,7 +209,19 @@ async def test_cli_geo_sync_with_files_imports_and_exits_zero(app, cli_on_test_a
     await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON)
     output = capsys.readouterr().out
     assert "門牌：updated" in output and "幼兒園：updated" in output
+    assert "略過" not in output  # 樣本沒有壞資料，不多印一行
     assert await _doorplate_count(app) > 0
+
+
+async def test_cli_geo_sync_prints_how_many_rows_were_skipped(app, cli_on_test_app, capsys, tmp_path: Path):
+    csv = tmp_path / "doorplates.csv"
+    lines = SAMPLE_CSV.read_text(encoding="utf-8-sig").splitlines()
+    lines.insert(1, "64,6400500,本揚里,001," + "甲" * 41 + ",,,,１號,176205.163,2503011.609")
+    csv.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    await geo_sync_command(doorplates_file=csv, kindergartens_file=SAMPLE_JSON)
+    output = capsys.readouterr().out
+    assert "門牌：updated" in output
+    assert "略過：門牌 1 列、幼兒園 0 筆" in output
 
 
 async def test_cli_geo_sync_exits_one_when_a_dataset_fails(app, cli_on_test_app, capsys, tmp_path: Path):

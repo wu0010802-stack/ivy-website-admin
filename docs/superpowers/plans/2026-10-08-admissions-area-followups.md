@@ -10,16 +10,16 @@
 
 ## 延後項目（依任務）
 
-- **A1**：之N樓防護測試、U+2212 減號、小寫 f、4 字里名
-- **A1**：「一百二十號」只吃到二十（百不在字集）；DeprecationWarning 來自 passlib／authlib 既有雜訊
-- **A1**：「一百二十號」解成 20（百不在字集，建議遇百／千回 None）；lane/alley 無長度上限（下游寫入前要擋）；000068 前導零超 5 字回 None
+- **A1**：之N樓防護測試、U+2212 減號、小寫 f、4 字里名（2026-10-12 核對：這四項測試早已在 test_geo_address.py；D1 另補中文數字之號的同款防護：「號之十二樓」不會退成之十）
+- **A1**：「一百二十號」只吃到二十（百不在字集）；DeprecationWarning 來自 passlib／authlib 既有雜訊（「一百二十號」部分 2026-10-12 已修，D1：cn_to_int 認得百、千、零，整段轉成 120；DeprecationWarning 是第三方套件雜訊，不處理）
+- **A1**：「一百二十號」解成 20（百不在字集，建議遇百／千回 None）；lane/alley 無長度上限（下游寫入前要擋）；000068 前導零超 5 字回 None（2026-10-12 已修，D1：百、千改為正確轉數字而不是回 None；lane／alley 超過欄寬 16 時整段只留區；前導零先去零再判長度）
 - **A2**：projection.py docstring「橢球差公分級」用詞不準（實為基準實現差）；docstring 說 1e-9 但測試斷言 1e-6
-- **A3**：test_geo_schema 的 CHECK 對照只比字串出現、未鎖 constraint 名稱集合；DB 約束測試只驗例外型別、未測 unlocated_reason 正反例；第一個測試綁三件事
-- **A4**（建議合併前修，最終審查降為可延後）：kindergartens._int_or_none 遇浮點數放大 10 倍（15073.0→150730），月費靜默錯
-- **A4**（建議合併前修，最終審查降為可延後）：doorplates／kindergartens 解析未檢查欄寬（street 40、village 16、pre_public_period 16）與座標是否在高雄範圍，一列超長會讓整批 COPY 失敗、每月同步都卡住
-- **A4**：import_doorplates 清理失敗會蓋掉原始例外；幼兒園版本日期用 UTC（台北 00–08 點顯示前一天）；test_load_geo_samples_is_repeatable 未斷言 label
-- **A5**（建議合併前修，最終審查降為可延後）：nearby 用 func.abs(number-n)<=30 用不到索引第 6 欄，改 number.between(n-30, n+30)（rematch 會跑幾千筆）
-- **A5**：active_version 與 label 分兩次讀，換版瞬間可能一新一舊；nearby 同側等距跨里時靠匯入順序選邊；apply_visit_geo 清空測試斷言記憶體值未 refresh；併發測試只斷言無 geo 列；未測「忽略非使用中批次」與 rematch 寫距離路徑
+- **A3**：test_geo_schema 的 CHECK 對照只比字串出現、未鎖 constraint 名稱集合；DB 約束測試只驗例外型別、未測 unlocated_reason 正反例；第一個測試綁三件事（2026-10-12 已修，D1）
+- **A4**（建議合併前修，最終審查降為可延後）：kindergartens._int_or_none 遇浮點數放大 10 倍（15073.0→150730），月費靜默錯（浮點數 7d3c9bdc 已修；2026-10-12 D1 再補超出 int4 當未知）
+- **A4**（建議合併前修，最終審查降為可延後）：doorplates／kindergartens 解析未檢查欄寬（street 40、village 16、pre_public_period 16）與座標是否在高雄範圍，一列超長會讓整批 COPY 失敗、每月同步都卡住（2026-10-12 已修，D1：欄寬、數字範圍、座標（有限數＋高雄外框）不合格的列略過並計數，同步結果與 CLI 摘要顯示略過數）
+- **A4**：import_doorplates 清理失敗會蓋掉原始例外；幼兒園版本日期用 UTC（台北 00–08 點顯示前一天）；test_load_geo_samples_is_repeatable 未斷言 label（2026-10-12 已修，D1）
+- **A5**（建議合併前修，最終審查降為可延後）：nearby 用 func.abs(number-n)<=30 用不到索引第 6 欄，改 number.between(n-30, n+30)（rematch 會跑幾千筆）（2026-10-12 已修，D1）
+- **A5**：active_version 與 label 分兩次讀，換版瞬間可能一新一舊；nearby 同側等距跨里時靠匯入順序選邊；apply_visit_geo 清空測試斷言記憶體值未 refresh；併發測試只斷言無 geo 列；未測「忽略非使用中批次」與 rematch 寫距離路徑（2026-10-12 已修，D1）
 - **A6**：follow_redirects 可被導到非 https；log 只記例外類別名（正式站難查，可加 exc_info）；頁面 regex 依賴 title 在 href 前；最新年度頁 HTTP 錯不退回前一年；_stream_rows 未 aclosing
 - **A6**：_exclusive 解鎖只抓 Exception，連續兩次取消可能讓鎖隨連線外洩（可用 shield 或 BaseException＋invalidate）；隨機 GUID 檔名約 8.3% 仍誤判月份（lookbehind 可改排除英數）；WEBSITE_DB_POOL_SIZE=1 且無 overflow 時鎖連線會佔滿連線池
 - **A7**：ETag 測試未比對 sha1 本身；_village_codes 重複鍵會靜默覆蓋（目前 0 重複）；village_code 未測跨區同名；README 重建指令用 /tmp
@@ -50,7 +50,7 @@
 - `tests/test_geo_loop.py` 把 `run_geo_sync` 換成假的，「同步期間不佔交易」沒有驗到真同步；`sleep(0.3)` 期望至少兩次呼叫，負載高時有輕微 flaky 風險。
 - 部署說明「回滾再上線」的清除 SQL：說明寫「規則同 retention.py」略誇大，實際只清還留著里或距離的列；「啟用前先補」那句沒再提醒不帶參數的 `geo-sync` 會連帶做首次約 100MB 的門牌下載（前文有寫）。
 - 規格 §14.1 寫「共 247 個測試」，修正後已多約 20 個。
-- 既有問題（非本分支引入）：「義華路二十之一號」解成 number=1；「六十八號之一」之號不認中文數字；「一百零八巷」之類具名巷對不到門牌表只能退到街路層級。
+- 既有問題（非本分支引入）：「義華路二十之一號」解成 number=1；「六十八號之一」之號不認中文數字；「一百零八巷」之類具名巷對不到門牌表只能退到街路層級。（2026-10-12 已修，D1：20 之 1、六十八號之一、一百零八巷 → 108）
 
 ## 2026-10-12 已處理（`feature/admissions-area-locate-20261012`）
 

@@ -55,16 +55,25 @@ def _unlocated(reason: str) -> GeoMatch:
     return GeoMatch(None, None, "unlocated", reason, None, None)
 
 
+async def doorplate_state(db: AsyncSession) -> tuple[str | None, str | None]:
+    """(使用中的門牌批次標記「115-10#a1b2c3」, 畫面上顯示的月份「115-10」)，一個查詢讀完：
+    分兩次讀，換版瞬間會拿到新版本配舊月份。還沒匯入過是 (None, None)。"""
+    row = (
+        await db.execute(
+            select(GeoDatasetStatus.active_version, GeoDatasetStatus.label).where(GeoDatasetStatus.dataset == "doorplates")
+        )
+    ).first()
+    return (row.active_version, row.label) if row is not None else (None, None)
+
+
 async def active_doorplate_version(db: AsyncSession) -> str | None:
     """使用中的門牌批次標記（「115-10#a1b2c3」）；還沒匯入過回 None。"""
-    return await db.scalar(
-        select(GeoDatasetStatus.active_version).where(GeoDatasetStatus.dataset == "doorplates")
-    )
+    return (await doorplate_state(db))[0]
 
 
 async def doorplate_label(db: AsyncSession) -> str | None:
     """畫面上顯示的門牌資料月份（「115-10」）；還沒匯入過回 None。"""
-    return await db.scalar(select(GeoDatasetStatus.label).where(GeoDatasetStatus.dataset == "doorplates"))
+    return (await doorplate_state(db))[1]
 
 
 async def locate(db: AsyncSession, address: str | None, *, version: str | None) -> GeoMatch:
@@ -92,20 +101,7 @@ async def locate(db: AsyncSession, address: str | None, *, version: str | None) 
                 return GeoMatch(district, picked[0].village, "exact", None, picked[0].lat, picked[0].lng)
             if len(villages) > 1:
                 return GeoMatch(district, None, "district", "ambiguous_village", None, None)
-            near = (
-                await db.execute(
-                    select(GeoDoorplate.village, GeoDoorplate.lat, GeoDoorplate.lng)
-                    .where(*base, *same_unit, func.abs(GeoDoorplate.number - parsed.number) <= NEARBY_MAX_GAP)
-                    # 同單雙號（同一側街廓）優先，再看號碼差距：里界常沿街道中線劃分。
-                    .order_by(
-                        func.mod(GeoDoorplate.number + parsed.number, 2),
-                        func.abs(GeoDoorplate.number - parsed.number),
-                        GeoDoorplate.number_sub,
-                        GeoDoorplate.id,
-                    )
-                    .limit(1)
-                )
-            ).first()
+            near = (await db.execute(_nearby_stmt(base, same_unit, parsed.number))).first()
             if near is not None:
                 return GeoMatch(district, near.village, "nearby", None, near.lat, near.lng)
         for extra in (same_unit, same_unit[:1], ()):
@@ -117,6 +113,25 @@ async def locate(db: AsyncSession, address: str | None, *, version: str | None) 
             if len(villages_found) > 1:
                 break
     return GeoMatch(district, None, "district", None, None, None)
+
+
+def _nearby_stmt(base: tuple, same_unit: tuple, number: int):
+    """同街路段、同巷弄，號碼差距在 NEARBY_MAX_GAP 以內的最近一筆。範圍用 BETWEEN 而不是
+    abs(number - n) <= gap：後者用不到 ix_geo_doorplates_lookup 的 number 欄（rematch 會跑幾千次）。"""
+    return (
+        select(GeoDoorplate.village, GeoDoorplate.lat, GeoDoorplate.lng)
+        .where(*base, *same_unit, GeoDoorplate.number.between(number - NEARBY_MAX_GAP, number + NEARBY_MAX_GAP))
+        # 同單雙號（同一側街廓）優先，再看號碼差距：里界常沿街道中線劃分。同側等距（常跨里）時
+        # 先看里名（COLLATE "C"，逐字元排序，與資料庫語系無關）再看 id：結果不隨匯入順序改變。
+        .order_by(
+            func.mod(GeoDoorplate.number + number, 2),
+            func.abs(GeoDoorplate.number - number),
+            GeoDoorplate.number_sub,
+            GeoDoorplate.village.collate("C"),
+            GeoDoorplate.id,
+        )
+        .limit(1)
+    )
 
 
 async def _exact_rows(db: AsyncSession, base: tuple, same_unit: tuple, number: int, number_sub: int) -> list:
@@ -134,13 +149,17 @@ async def _exact_rows(db: AsyncSession, base: tuple, same_unit: tuple, number: i
 async def campus_point(db: AsyncSession, campus_key: str) -> CampusPoint:
     """校址取已發布的校區資料（content campus_profile 的 address），用同一套比對取座標；
     只接受 exact／nearby。行政區一律取自地址文字（parse_address），沒座標時也有。"""
+    return await _campus_point_at(db, campus_key, await active_doorplate_version(db))
+
+
+async def _campus_point_at(db: AsyncSession, campus_key: str, version: str | None) -> CampusPoint:
+    """campus_point，門牌批次由呼叫端給（同一次作業內版本、月份、校區座標都用同一個快照）。"""
     profile = await content_service.published_payload(db, "campus_profile", campus_key) or {}
     address = str(profile.get("address") or "").strip()
     if not address:
         return CampusPoint(campus_key, None, None, "no_address")
     parsed = parse_address(address)
     district = parsed.district if parsed is not None else None
-    version = await active_doorplate_version(db)
     if version is None:
         return CampusPoint(campus_key, None, None, "pending", district)
     match = await locate(db, address, version=version)
@@ -150,7 +169,8 @@ async def campus_point(db: AsyncSession, campus_key: str) -> CampusPoint:
 
 
 async def campus_points(db: AsyncSession) -> dict[str, CampusPoint]:
-    return {key: await campus_point(db, key) for key in CAMPUS_KEYS}
+    version = await active_doorplate_version(db)
+    return {key: await _campus_point_at(db, key, version) for key in CAMPUS_KEYS}
 
 
 def distance_to(match: GeoMatch, point: CampusPoint | None) -> int | None:
@@ -184,11 +204,11 @@ async def apply_visit_geo(db: AsyncSession, visit: RecruitmentVisit) -> None:
     已匿名化的訪視不動（匿名化另外處理，階段 B）。"""
     if visit.anonymized_at is not None:
         return
-    version = await active_doorplate_version(db)
+    version, label = await doorplate_state(db)
     match = await locate(db, visit.address, version=version)
-    point = await campus_point(db, visit.campus_key) if match.lat is not None else None
+    point = await _campus_point_at(db, visit.campus_key, version) if match.lat is not None else None
     visit.district = match.district
-    await _upsert_geo(db, visit.id, match, distance_to(match, point), await doorplate_label(db))
+    await _upsert_geo(db, visit.id, match, distance_to(match, point), label)
 
 
 async def rematch_visits(db: AsyncSession, *, batch_size: int = 100) -> int:
@@ -196,9 +216,8 @@ async def rematch_visits(db: AsyncSession, *, batch_size: int = 100) -> int:
     一批持有這些列的列鎖，同時編輯其中一筆要等批次 commit，lock_timeout 只有 10 秒）；回傳
     處理筆數。用 Core UPDATE 只寫 district，條件是「地址仍是剛才讀到的值」：使用者同時
     改了地址就不覆蓋（他那筆交易已經用新地址比對過）。不碰 version、updated_at。"""
-    version = await active_doorplate_version(db)
-    label = await doorplate_label(db)
-    points = await campus_points(db)
+    version, label = await doorplate_state(db)
+    points = {key: await _campus_point_at(db, key, version) for key in CAMPUS_KEYS}
     processed = 0
     last_id: uuid.UUID | None = None
     while True:
