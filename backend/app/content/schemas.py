@@ -12,10 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.campuses.models import CAMPUS_KEYS, CAMPUS_NAMES
 from app.media.schemas import PublicMediaOut
 
-# 2026-10-08 現況：ContentItem.kind 有 15 種（home_about／home_hero／
+# 2026-10-12 現況：ContentItem.kind 有 16 種（home_about／home_hero／
 # site_footer／site_meta／home_campus_board／booking_content／privacy_policy／
 # day_experience／home_news／admission_content／curriculum_page／about_page／
-# campus_profile／campus_news／campus_tour，定義見 registry.py 的
+# environment_page／campus_profile／campus_news／campus_tour，定義見 registry.py 的
 # CONTENT_KIND_REGISTRY），涵蓋官網幾乎所有文字與素材版位；仍留在 Nuxt
 # fixture、CMS 沒有對應欄位的只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。
 # 常見問題（shared_faq／campus_faq）官網早已不顯示，2026-10-08 連同資料刪除。

@@ -464,7 +464,8 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
     assert ("home_about", None) not in pending and ("campus_profile", "yihua") in pending
     # 全部初始內容（含 2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。14 → 18（2026-10-12）：
     # fixture 合一後讀 web 的營運版，明華、崇德、國際、仁武四校多出 campus_tour，初始內容共 21 筆。
-    assert len(pending) == 18
+    # 18 → 19（2026-10-12）：常春藤環境頁前三章開放後台編輯，多一筆 environment_page，共 22 筆。
+    assert len(pending) == 19
     assert len((await db_session.execute(select(ContentItem))).scalars().all()) == 3
 
 

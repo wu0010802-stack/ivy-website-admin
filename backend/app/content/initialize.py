@@ -1,6 +1,7 @@
 """Import the existing website copy into empty CMS entries without replacing edits."""
 from __future__ import annotations
 
+import re
 import uuid
 from dataclasses import dataclass, field as dataclass_field
 
@@ -45,6 +46,21 @@ def _day_payload(source: dict) -> dict:
     return payload
 
 
+def _snake_keys(node):
+    """巢狀欄位名稱 camelCase → snake_case（fixture 是官網用的 camelCase，後台 payload 是 snake_case）。"""
+    if isinstance(node, dict):
+        return {re.sub(r"[A-Z]", lambda m: "_" + m.group(0).lower(), key): _snake_keys(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_snake_keys(item) for item in node]
+    return node
+
+
+def _environment_payload(source: dict) -> dict:
+    """環境頁的清單項目（spaces[].campusLabel）有兩個字以上的欄位名稱，_copy_fields 只轉頂層，
+    巢狀的要自己轉；不轉的話 pydantic 會把 campusLabel 當不認得的欄位丟掉，校名就靜默變成空字串。"""
+    return {key: _snake_keys(value) if isinstance(value, (dict, list)) else value for key, value in _copy_fields(source, "environment_page").items()}
+
+
 def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     entries = [
         ("home_about", None, _copy_fields(data["home"]["about"], "home_about")),
@@ -66,6 +82,8 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         ("curriculum_page", None, _copy_fields(data["curriculumPage"], "curriculum_page")),
         # 關於常春藤頁（2026-10 開放後台編輯）：照片版位不帶（留空＝官網內建照片）。
         ("about_page", None, _copy_fields(data["aboutPage"], "about_page")),
+        # 常春藤環境頁前三章（2026-10-12 開放後台編輯）：照片版位不帶（留空＝官網內建圖）。
+        ("environment_page", None, _environment_payload(data["environmentPage"])),
     ]
     meta = data["siteMeta"]
     entries.append(("site_meta", None, {

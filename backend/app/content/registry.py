@@ -7,7 +7,7 @@ from typing import Callable
 
 from pydantic import BaseModel
 
-from app.content.page_schemas import AboutPagePayload, CurriculumPagePayload
+from app.content.page_schemas import AboutPagePayload, CurriculumPagePayload, EnvironmentPagePayload
 from app.content.schemas import (
     AdmissionContentPayload,
     BookingContentPayload,
@@ -177,6 +177,20 @@ def _list_slot_refs(payload: dict, list_name: str, label_key: str) -> list[Media
 
 def _extract_about_page_media_refs(payload: dict) -> list[MediaRef]:
     return _refs([_slot_ref(payload, name, "image") for name in ("hero_photo", "hero_back_photo", "hope_photo")])
+
+
+def _extract_environment_page_media_refs(payload: dict) -> list[MediaRef]:
+    feature = payload.get("feature")
+    return _refs(
+        [
+            _slot_ref(payload, "hero_photo", "image"),
+            _slot_ref(payload, "care_photo", "image"),
+            # 主打區的照片路徑像 `feature.photo.media_id`
+            _slot_ref(feature, "photo", "image", "feature.", feature.get("title")) if isinstance(feature, dict) else None,
+            *_list_slot_refs(payload, "care_items", "title"),
+            *_list_slot_refs(payload, "spaces", "title"),
+        ]
+    )
 
 
 def _extract_curriculum_page_media_refs(payload: dict) -> list[MediaRef]:
@@ -387,6 +401,11 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     # 關於常春藤頁（2026-10 開放後台編輯）：立體書的章節與五站固定。
     "about_page": ContentKindConfig(
         AboutPagePayload, shared_only=True, extract_media_refs=_extract_about_page_media_refs
+    ),
+    # 常春藤環境頁前三章（2026-10-12 開放後台編輯）：保育、校園環境、餐點三章的文字與照片，
+    # 項目數與便條位置固定（page_schemas.py）；第四章場景讀各校 campus_tour。
+    "environment_page": ContentKindConfig(
+        EnvironmentPagePayload, shared_only=True, extract_media_refs=_extract_environment_page_media_refs
     ),
     # 以下需要搭配 campus_key，每校各自一份，不是共用內容。
     "campus_profile": ContentKindConfig(

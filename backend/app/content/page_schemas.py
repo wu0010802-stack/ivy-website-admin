@@ -1,4 +1,4 @@
-"""整頁內容：特色教學頁（curriculum_page）與關於常春藤頁（about_page）。
+"""整頁內容：特色教學頁（curriculum_page）、關於常春藤頁（about_page）與常春藤環境頁前三章（environment_page）。
 
 2026-10-03 使用者裁定「文字與照片都開放」：標題、內文、照片都能在後台改，章節
 數量、順序與版面結構固定（水彩版的錯落排法、立體書的卡紙位置都照項目數排好，
@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 from pydantic import AfterValidator, Field, ValidationInfo, field_validator, model_validator
@@ -414,5 +415,246 @@ class AboutPagePayload(_ContentPayload):
 
     @model_validator(mode="after")
     def _no_script_scheme(self) -> "AboutPagePayload":
+        _reject_unsafe_strings(self.model_dump())
+        return self
+
+
+# ---------------------------------------------------------------------------
+# 常春藤環境頁（/environment）前三章
+# ---------------------------------------------------------------------------
+# 2026-10-12 開放前三章（幼兒保育、校園環境、幼兒餐點）的文字與照片；第四章「五所校園」的場景照片與說明
+# 仍讀各校的校園探索（campus_tour），這裡只開放它的標題、段落與提示。
+#
+# 字數上限＝內建文字長度 × 1.5 取整（標題逐行算；列表各項取該欄最長那筆），下面每一欄後面的註解是
+# 內建長度。第四章段落 2026-10-12 改過（原本寫「取自各分校頁」，分校頁已拿掉），上限依新句子算。
+# 這是硬上限（擋存檔），後台 contentHints.ts 的建議值另訂；實測破版就下修，三處一起改
+# （這裡、contentHints.ts、DESIGN.md 上限表）。
+#
+# 固定在官網程式、不開放的：便條的位置與箭頭落點（依格子序號）、太陽弧位置、結尾三張卡（NEXT）、
+# 營養餐點書連結、各章目次小字的計數、首屏小標與目次標題。
+
+# 欄位: (每行字數, 欄位名稱)
+ENVIRONMENT_TITLES: dict[str, tuple[int, str]] = {
+    "hero_title": (13, "首屏大標"),  # 7／9
+    "care_title": (9, "幼兒保育的標題"),  # 4／6
+    "spaces_title": (10, "校園環境的標題"),  # 7／7
+    "meals_title": (9, "幼兒餐點的標題"),  # 6／6
+    "tour_title": (12, "五所校園的標題"),  # 6／8
+}
+# 欄位: (上限, 欄位名稱, 可留空)
+ENVIRONMENT_TEXTS: dict[str, tuple[int, str, bool]] = {
+    "hero_highlight": (3, "大標裡畫螢光的字", True),  # 2
+    "hero_lede": (33, "首屏介紹", False),  # 22
+    "hero_notice": (30, "首屏提醒", True),  # 20
+    "hero_caption": (22, "首屏照片下的一句話", False),  # 15
+    "care_lead": (21, "幼兒保育的引言", False),  # 14
+    "care_text": (57, "幼兒保育的說明", False),  # 38
+    "care_caption": (27, "保育照片下的一句話", False),  # 18
+    "care_photo_note": (3, "保育照片上的便條", False),  # 2
+    "spaces_text": (51, "校園環境的說明", False),  # 34
+    "trail_hint": (16, "小腳印提示", False),  # 11
+    "meals_text": (78, "幼兒餐點的說明", False),  # 52
+    "meals_day_title": (16, "一天吃什麼的標題", False),  # 11
+    "tour_text": (45, "五所校園的說明", False),  # 30
+    "tour_hint": (15, "五所校園的提示", False),  # 10
+}
+ENVIRONMENT_CHAPTER_NAME_LIMIT = 6  # 4：同時是首屏目次與各章小標
+ENVIRONMENT_HEART_LIMIT = 4  # 愛心、細心、耐心、貼心、同理心：2／2／2／2／3
+
+ENVIRONMENT_FEATURE_TITLE_PER_LINE = 7  # 5／5
+ENVIRONMENT_FEATURE_TEXTS: dict[str, tuple[int, str, bool]] = {
+    "tag": (10, "主打區的標籤", False),  # 7
+    "text": (70, "主打區的說明", False),  # 47
+    "note": (4, "主打區照片上的便條", False),  # 3
+}
+ENVIRONMENT_CARE_ITEM_TEXTS: dict[str, tuple[int, str, bool]] = {
+    "title": (9, "照顧小事的名稱", False),  # 6
+    "text": (30, "照顧小事的說明", False),  # 20
+}
+ENVIRONMENT_SPACE_TEXTS: dict[str, tuple[int, str, bool]] = {
+    "title": (10, "空間的名稱", False),  # 7
+    "text": (69, "空間的說明", False),  # 46
+    "note": (12, "空間照片上的便條", False),  # 8
+    "campus_label": (4, "空間照片上的校名", True),  # 3：只有確定是哪一校的照片才標，其餘留空
+}
+ENVIRONMENT_MEAL_TEXTS: dict[str, tuple[int, str, bool]] = {
+    "name": (3, "餐點名稱", False),  # 2
+    "note": (10, "餐點小字", False),  # 7
+    "text": (28, "餐點說明", False),  # 19
+}
+_MEAL_TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
+
+def _validate_texts(table: dict[str, tuple[int, str, bool]], value: str, info: ValidationInfo) -> str:
+    limit, what, allow_blank = table[info.field_name]
+    return page_text(value, limit=limit, what=what, allow_blank=allow_blank)
+
+
+class EnvironmentCareItemPayload(PagePhotoFields):
+    title: str
+    text: str
+
+    @field_validator(*ENVIRONMENT_CARE_ITEM_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_texts(ENVIRONMENT_CARE_ITEM_TEXTS, value, info)
+
+
+class EnvironmentFeaturePayload(PagePhotoFields):
+    """02 校園環境最上面的主打區（遊樂區）。"""
+
+    tag: str
+    title: str
+    text: str
+    note: str
+
+    @field_validator("title")
+    @classmethod
+    def _title(cls, value: str) -> str:
+        return page_title(value, per_line=ENVIRONMENT_FEATURE_TITLE_PER_LINE, what="主打區的標題")
+
+    @field_validator(*ENVIRONMENT_FEATURE_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_texts(ENVIRONMENT_FEATURE_TEXTS, value, info)
+
+
+class EnvironmentSpacePayload(PagePhotoFields):
+    title: str
+    text: str
+    note: str
+    # 內建只有戶外廣場確定是明華校的照片；空字串＝不標校名。
+    campus_label: str = ""
+
+    @field_validator(*ENVIRONMENT_SPACE_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_texts(ENVIRONMENT_SPACE_TEXTS, value, info)
+
+
+class EnvironmentMealPayload(_ContentPayload):
+    # 時間在太陽弧上的位置（t）由官網程式依序號固定，所以時間要由早到晚（見 EnvironmentPagePayload.meals）。
+    time: str
+    name: str
+    note: str
+    text: str
+
+    @field_validator("time")
+    @classmethod
+    def _time(cls, value: str) -> str:
+        if not _MEAL_TIME.fullmatch(value):
+            raise ValueError("餐點時間要寫成 24 小時制的 HH:MM（例如 08:30）")
+        return value
+
+    @field_validator(*ENVIRONMENT_MEAL_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_texts(ENVIRONMENT_MEAL_TEXTS, value, info)
+
+
+def _environment_chapter_name(value: str) -> str:
+    return page_text(value, limit=ENVIRONMENT_CHAPTER_NAME_LIMIT, what="章名")
+
+
+def _environment_heart(value: str) -> str:
+    return page_text(value, limit=ENVIRONMENT_HEART_LIMIT, what="心的名稱")
+
+
+# 逐項驗證：422 的 loc 帶索引（例如 ("hearts", 2)），後台才定位得到第幾項。
+EnvironmentChapterName = Annotated[str, AfterValidator(_environment_chapter_name)]
+EnvironmentHeart = Annotated[str, AfterValidator(_environment_heart)]
+
+
+class EnvironmentPagePayload(_ContentPayload):
+    """常春藤環境頁（/environment）前三章。第四章的場景照片與說明讀各校校園探索；
+    便條位置、太陽弧、結尾三張卡與餐點書連結寫在官網 EnvironmentContent.vue。"""
+
+    # 首屏
+    hero_title: str
+    # 大標裡要畫螢光的字（必須和大標同一行裡的字一模一樣）；空字串＝不畫。
+    hero_highlight: str = ""
+    hero_lede: str
+    hero_notice: str
+    hero_photo: MediaSlotPayload | None = None
+    hero_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    hero_caption: str
+    # 幼兒保育、校園環境、幼兒餐點、五所校園（第四章沒有校園探索時整章不出現）。
+    chapter_names: list[EnvironmentChapterName]
+    # 01 幼兒保育
+    care_title: str
+    care_lead: str
+    hearts: list[EnvironmentHeart]
+    care_text: str
+    care_photo: MediaSlotPayload | None = None
+    care_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+    care_caption: str
+    care_photo_note: str
+    care_items: list[EnvironmentCareItemPayload]
+    # 02 校園環境
+    spaces_title: str
+    spaces_text: str
+    feature: EnvironmentFeaturePayload
+    trail_hint: str
+    spaces: list[EnvironmentSpacePayload]
+    # 03 幼兒餐點
+    meals_title: str
+    meals_text: str
+    meals_day_title: str
+    meals: list[EnvironmentMealPayload]
+    # 04 五所校園
+    tour_title: str
+    tour_text: str
+    tour_hint: str
+
+    @field_validator(*ENVIRONMENT_TITLES)
+    @classmethod
+    def _titles(cls, value: str, info: ValidationInfo) -> str:
+        per_line, what = ENVIRONMENT_TITLES[info.field_name]
+        return page_title(value, per_line=per_line, what=what)
+
+    @field_validator(*ENVIRONMENT_TEXTS)
+    @classmethod
+    def _texts(cls, value: str, info: ValidationInfo) -> str:
+        return _validate_texts(ENVIRONMENT_TEXTS, value, info)
+
+    @field_validator("hero_highlight")
+    @classmethod
+    def _highlight_in_title(cls, value: str, info: ValidationInfo) -> str:
+        title = info.data.get("hero_title")
+        # 大標本身沒過驗證時 info.data 沒有它，交給大標的錯誤訊息。
+        if value and isinstance(title, str) and not any(value in line for line in title.split("\n")):
+            raise ValueError("大標裡畫螢光的字要和大標同一行裡的字一模一樣")
+        return value
+
+    @field_validator("chapter_names")
+    @classmethod
+    def _chapter_names(cls, value: list[str]) -> list[str]:
+        return exactly(value, 4, "章名")
+
+    @field_validator("hearts")
+    @classmethod
+    def _hearts(cls, value: list[str]) -> list[str]:
+        return exactly(value, 5, "五顆心")
+
+    @field_validator("care_items")
+    @classmethod
+    def _care_items(cls, value: list[EnvironmentCareItemPayload]) -> list[EnvironmentCareItemPayload]:
+        return exactly(value, 5, "照顧的小事")
+
+    @field_validator("spaces")
+    @classmethod
+    def _spaces(cls, value: list[EnvironmentSpacePayload]) -> list[EnvironmentSpacePayload]:
+        return exactly(value, 6, "小腳印走過的空間")
+
+    @field_validator("meals")
+    @classmethod
+    def _meals(cls, value: list[EnvironmentMealPayload]) -> list[EnvironmentMealPayload]:
+        exactly(value, 5, "一天的餐點")
+        if any(later.time <= earlier.time for earlier, later in zip(value, value[1:])):
+            raise ValueError("一天的餐點時間要由早到晚，不能同一時間")
+        return value
+
+    @model_validator(mode="after")
+    def _no_script_scheme(self) -> "EnvironmentPagePayload":
         _reject_unsafe_strings(self.model_dump())
         return self
