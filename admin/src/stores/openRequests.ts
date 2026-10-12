@@ -2,20 +2,19 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api/client'
 
-// 頁首與總覽待辦的數字：待核准改期與給自己的內容通知未讀數（DESIGN 第六輪）。側欄「參觀案件」
-// 原本掛新需求＋待園方確認，2026-10-05 拿掉「待處理」後不再有數字。與總覽同一個來源
+// 頁首與總覽待辦的數字：給自己的內容通知未讀數（DESIGN 第六輪）。側欄「參觀案件」
+// 原本掛新需求＋待園方確認，2026-10-05 拿掉「待處理」後不再有數字；家長改期申請待核准數
+// 隨 2026-10-08 刪除申請流程一併拿掉。與總覽同一個來源
 // （/admin/dashboard），不另開計數 API。換頁時才重抓，而且 30 秒內不重複打；案件狀態變了強制重抓。
 // 總覽要的是完整彙總，透過 loadSummary 和外殼共用同一個進行中的請求：
 // 進總覽時外殼的換頁刷新與總覽自己的讀取只打一次。
 export const STALE_MS = 30_000
 
 export interface OpenRequestCounts {
-  pending_reschedule_requests?: number
   my_unread_notifications?: number
 }
 
 export const useOpenRequestsStore = defineStore('openRequests', () => {
-  const reschedules = ref(0)
   const myNotices = ref(0)
   let fetchedAt = 0
   let inflight: Promise<OpenRequestCounts> | null = null
@@ -23,7 +22,6 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   let session = 0
 
   function apply(counts: OpenRequestCounts): void {
-    reschedules.value = counts.pending_reschedule_requests ?? 0
     myNotices.value = counts.my_unread_notifications ?? 0
     fetchedAt = Date.now()
   }
@@ -51,7 +49,6 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
   }
 
   function reset(): void {
-    reschedules.value = 0
     myNotices.value = 0
     fetchedAt = 0
     // 下一位登入的人要重新讀，不接上一個人還在路上的請求。
@@ -59,5 +56,5 @@ export const useOpenRequestsStore = defineStore('openRequests', () => {
     inflight = null
   }
 
-  return { reschedules, myNotices, apply, loadSummary, refresh, reset }
+  return { myNotices, apply, loadSummary, refresh, reset }
 })

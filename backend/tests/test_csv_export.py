@@ -108,6 +108,31 @@ def test_roc_month_csv_matches_the_admin_helper(value, expected):
     assert csv_export.roc_month_csv(value) == expected
 
 
+def test_export_routes_declare_text_csv_not_json_in_openapi():
+    # 三支匯出路由回的是 CSV 附件：OpenAPI 的 200 要宣告 text/csv 字串，產生的前端型別才不會把它當 JSON。
+    from app.config import Settings
+    from app.main import create_app
+
+    # 只讀路由定義，不連 DB（同 test_display_names、test_audit_coverage）。
+    schema = create_app(
+        Settings(
+            environment="test",
+            database_url="postgresql+asyncpg://localhost/ivy_website_dev",
+            test_database_url="postgresql+asyncpg://localhost/ivy_website_test",
+            session_secret="test-only-secret-please-rotate",
+            # 招生入學預設關閉不掛路由；契約（scripts/export_openapi.py）一律包含招生端點。
+            admissions_enabled=True,
+        )
+    ).openapi()
+    for path in (
+        "/api/website/v1/admin/admissions/records/export",
+        "/api/website/v1/admin/admissions/no-deposit-records/export",
+        "/api/website/v1/admin/visit-requests/export",
+    ):
+        ok = schema["paths"][path]["get"]["responses"]["200"]
+        assert ok["content"] == {"text/csv": {"schema": {"type": "string"}}}, path
+
+
 def test_sources_never_contain_a_literal_bom_character():
     # 實體 U+FEFF 是看不見的字元：直接比對原始碼位元組，防止又被貼回來（要寫就用跳脫）。
     # 用 glob 掃整個 backend/app 與 backend/tests，新檔也自動納入，不維護固定檔名清單。

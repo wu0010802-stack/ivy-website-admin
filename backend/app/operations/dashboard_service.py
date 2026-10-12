@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.booking import pending_kinds, slot_service
-from app.booking.access_models import RescheduleRequest
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
@@ -100,20 +99,6 @@ async def get_dashboard_summary(
         VisitRequest.campus_key,
     )
     pending_follow_up = (await db.execute(pending_follow_up_stmt)).scalar_one()
-
-    # 家長線上申請改期、等園方核准的件數（規格 L239）。案件已結案的申請會
-    # 被標成 closed，這裡另外只算案件仍是已確認的，跟待核准清單同一個定義。
-    pending_reschedules_stmt = _scope(
-        select(func.count())
-        .select_from(RescheduleRequest)
-        .join(VisitRequest, RescheduleRequest.visit_request_id == VisitRequest.id)
-        .where(
-            RescheduleRequest.status == "pending",
-            VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
-        ),
-        VisitRequest.campus_key,
-    )
-    pending_reschedule_requests = (await db.execute(pending_reschedules_stmt)).scalar_one()
 
     # 關了時段、設了休假日或停用分校之後仍在進行中的案件（規格 L110、L227），
     # 要有人聯絡家長改期或取消。與案件清單 needs_attention 篩選同一個條件。
@@ -223,7 +208,6 @@ async def get_dashboard_summary(
         "today_visits": today_visits,
         "today_visit_list": today_visit_list,
         "awaiting_attendance": awaiting_attendance,
-        "pending_reschedule_requests": pending_reschedule_requests,
         "needs_attention": needs_attention,
         "pending_follow_up": pending_follow_up,
         "pending_publish": pending_publish,

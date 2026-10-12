@@ -46,7 +46,7 @@ async function openManualReschedule() {
       </div>
       <template v-else>
         <div class="reschedule reschedule--collapsed">
-          <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">{{ vc.detail.pending_reschedule ? '不照申請，改到其他場次…' : '改到其他場次…' }}</el-button>
+          <el-button link type="primary" class="reschedule__toggle" aria-expanded="false" @click="openManualReschedule">改到其他場次…</el-button>
         </div>
         <!-- 說明接在收合的連結後面，不放進連結那一格，那一格只有連結。 -->
         <p class="hint">改好後原場次的名額會空出來。</p>

@@ -76,25 +76,25 @@ async def test_campus_admin_cannot_restore_shared_content(admin_client, minghua_
 
 @pytest.mark.asyncio
 async def test_campus_history_is_scoped(admin_client, minghua_client):
-    assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_faq/revisions?campus_key=yihua")).status_code == 404
-    assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_faq/revisions?campus_key=minghua")).status_code == 200
+    assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_news/revisions?campus_key=yihua")).status_code == 404
+    assert (await minghua_client.get("/api/website/v1/admin/content-items/campus_news/revisions?campus_key=minghua")).status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_editor_cannot_restore_and_publish_in_one_step(editor_client):
     """main 的還原可以勾「同時發布」；內容編輯沒有發布權限，只能還原成草稿。"""
-    faq = "/api/website/v1/admin/content-items/campus_faq"
+    news = "/api/website/v1/admin/content-items/campus_news"
     first = await editor_client.post(
-        f"{faq}/revisions?campus_key=yihua",
-        json={"expected_version": 0, "payload": {"items": [{"q": "問", "a": "答"}]}},
+        f"{news}/revisions?campus_key=yihua",
+        json={"expected_version": 0, "payload": {"events": [{"id": "e1", "date": "2026-11-01", "title": "問", "description": "答"}]}},
     )
     rev_id = first.json()["latest_revision"]["id"]
     denied = await editor_client.post(
-        f"{faq}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1, "publish": True}
+        f"{news}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1, "publish": True}
     )
     assert denied.status_code == 403
     draft_only = await editor_client.post(
-        f"{faq}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1}
+        f"{news}/revisions/{rev_id}/restore?campus_key=yihua", json={"expected_version": 1}
     )
     assert draft_only.status_code == 201, draft_only.text
 

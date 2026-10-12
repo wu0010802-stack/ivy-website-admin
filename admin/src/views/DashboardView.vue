@@ -67,7 +67,6 @@ interface DashboardSummary {
   today_visit_list?: TodayVisit[]
   // 已確認、場次時間已過、還沒標記到場（和案件列表「時間已過」裡的「尚未確認到場」同一批）。
   awaiting_attendance?: number
-  pending_reschedule_requests?: number
   my_unread_notifications?: number
   needs_attention?: number
   pending_follow_up: number
@@ -291,20 +290,17 @@ function shortDateTime(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? '' : shortDateTimeFormatter.format(date).replace(/\s+/g, ' ')
 }
 
-const reschedules = computed(() => summary.value?.pending_reschedule_requests ?? 0)
 // 給自己的內容通知（送審、核准或退回、排程沒有發布）還沒讀的則數：側欄不掛數字，改在總覽與頁首提醒。
 const myNotices = computed(() => summary.value?.my_unread_notifications ?? 0)
 // 關了時段、設了休假日或停用分校，但家長還要來的案件：不聯絡的話家長會照原時間到園。
 const needsAttention = computed(() => summary.value?.needs_attention ?? 0)
 const followUpDue = computed(() => summary.value?.pending_follow_up ?? 0)
 const awaitingAttendance = computed(() => summary.value?.awaiting_attendance ?? 0)
-// 主按鈕帶去最急的一批：場次關了家長還要來，再來是改期申請、到期追蹤。按鈕上的字講的是
+// 主按鈕帶去最急的一批：場次關了家長還要來，再來是到期追蹤。按鈕上的字講的是
 // 點進去那一批，數字也只算那一批，不把幾批加總之後只帶去其中一批。
 const primary = computed(() => {
   // 待辦清單最上面那項：不聯絡的話家長會照原時間到園。
   if (needsAttention.value > 0) return { to: attentionListPath(), label: '聯絡要改期的家長', count: needsAttention.value }
-  // 家長在等園方回覆能不能改期，原時段也可能快到了。
-  if (reschedules.value > 0) return { to: '/notifications', label: '核准改期申請', count: reschedules.value }
   if (followUpDue.value > 0) return { to: '/visit-requests?due=1', label: '追蹤到期案件', count: followUpDue.value }
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
@@ -377,7 +373,6 @@ const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
   return (
-    reschedules.value > 0 ||
     (myNotices.value > 0 && canOpen('/releases')) ||
     needsAttention.value > 0 ||
     s.pending_follow_up > 0 ||
@@ -471,10 +466,6 @@ const hasTodo = computed(() => {
               <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()" v-bind="taskAria('attention')">
                 <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
                 <div><h3 id="task-attention-t">場次已關閉或分校停用，家長還要來</h3><p id="task-attention-d">請聯絡家長改期或取消，避免家長照原時間到園。</p><span id="task-attention-a" class="task__action">查看</span></div>
-              </router-link>
-              <router-link v-if="reschedules > 0" class="task task--urgent" to="/notifications" v-bind="taskAria('reschedule')">
-                <span id="task-reschedule-n" class="task__number">{{ reschedules }}</span>
-                <div><h3 id="task-reschedule-t">家長申請改期，等你核准</h3><span id="task-reschedule-d" class="visually-hidden">核准前原場次仍有效</span><span id="task-reschedule-a" class="task__action">查看</span></div>
               </router-link>
               <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
                 <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>

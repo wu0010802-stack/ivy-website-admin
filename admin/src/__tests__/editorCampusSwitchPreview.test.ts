@@ -21,7 +21,7 @@ function profile(campus: string) {
     id: `item-${campus}`, kind: 'campus_profile', campus_key: campus, latest_version: 1, current_published_revision_id: null,
     latest_revision: {
       id: `rev-${campus}`, version: 1, created_at: '2026-10-06T02:00:00Z', review_status: 'draft', review_note: null,
-      payload: { name, district: '', address: `${campus}路1號`, phone: '07-000-0000', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '' },
+      payload: { name, district: '', address: `${campus}路1號`, phone: '07-000-0000', facebook: '', line: '', map_url: '' },
     },
   }
 }

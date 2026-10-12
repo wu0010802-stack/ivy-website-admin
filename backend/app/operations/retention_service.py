@@ -28,7 +28,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import retention as admissions_retention
 from app.booking import status_groups
-from app.booking.access_models import RescheduleRequest
 from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
 from app.common.timezones import now_utc
 from app.operations.models import DEFAULT_RETENTION_DAYS, RetentionPolicy, RetentionRun, RetentionRunTrigger
@@ -195,17 +194,12 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
 
 
 async def _clear_free_text_reasons(db: AsyncSession, visit_request_ids) -> None:
-    """歷程與改期退回的「原因」也是人員寫的自由文字，跟聯絡紀錄一樣清掉；
+    """歷程的「原因」也是人員寫的自由文字，跟聯絡紀錄一樣清掉；
     歷程的動作、時間與前後狀態保留。"""
     await db.execute(
         update(VisitRequestEvent)
         .where(VisitRequestEvent.visit_request_id.in_(visit_request_ids), VisitRequestEvent.reason.is_not(None))
         .values(reason=None)
-    )
-    await db.execute(
-        update(RescheduleRequest)
-        .where(RescheduleRequest.visit_request_id.in_(visit_request_ids), RescheduleRequest.reject_reason.is_not(None))
-        .values(reject_reason=None)
     )
 
 

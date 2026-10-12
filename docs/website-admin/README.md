@@ -30,7 +30,7 @@ curl http://127.0.0.1:8000/api/website/v1/health
 uv run python -m app.cli bootstrap-admin   # 互動輸入 email/密碼，密碼不進 log
 uv run python -m app.cli seed --dry-run    # 檢查五校 seed 是否需要補
 uv run python -m app.cli initialize-content ../content/site-fixture.json --dry-run
-  # 新環境的啟動步驟：驗證後只補「從未發布過」的內容項（現在共 21 筆，含 shared_faq）；
+  # 新環境的啟動步驟：驗證後只補「從未發布過」的內容項（2026-10-08 起共 17 筆；常見問題 FAQ 已整個拿掉）；
   # 重跑不覆蓋既有草稿、不多建版本。--dry-run 只列出會補哪些，不寫入。
 ```
 
@@ -88,7 +88,7 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 - Element Plus 介面語系已設為 `zh-tw`（原本對話框按鈕會顯示英文 OK/Cancel）
 - 各校預約模式設定（`inquiry`/`line`/`phone`/`external`/`paused`/`slots`）+ 公開需求提交 API（idempotency、真實 PostgreSQL 併發驗證）（Task 6）
 - 時段容量、確認/取消/未到場/改期狀態機、接待工作台（案件列表/詳情/聯絡紀錄/CSV 匯出）（Task 7，含最後名額真實 PostgreSQL 併發驗證）
-- 通知 worker（DB lease、重試退避、crash 恢復）、本機 Email sink、站內通知、家長安全連結（token 只存 hash）與自助取消/改期申請（Task 9）
+- 通知 worker（DB lease、重試退避、crash 恢復）、本機 Email sink、站內通知、家長安全連結（token 只存 hash）與自助取消/改期（Task 9；改期 2026-09-30 起改成家長直接選新場次，舊的改期申請 2026-10-08 刪除）
 
 ```bash
 # 跑一次通知 worker（單次批次，非常駐；排程交給部署環境的 cron）

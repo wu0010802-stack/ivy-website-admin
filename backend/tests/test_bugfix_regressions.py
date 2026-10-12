@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.booking import workflow_service
 from app.booking.models import VisitRequestStatus
 from app.common.timezones import OPERATING_TZ, today_local
-from tests.conftest import legacy_request, legacy_reschedule_request, set_booking_mode
+from tests.conftest import legacy_request, set_booking_mode
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -25,8 +25,8 @@ FIXTURES = Path("/tmp/media-fixtures")
 
 PROFILE = {
     "name": "義華", "district": "鳳山區", "address": "高雄市鳳山區",
-    "phone": "07-1234567", "intro": "介紹", "description": "描述",
-    "facebook": "https://facebook.com/yihua", "fb_note": "粉專",
+    "phone": "07-1234567",
+    "facebook": "https://facebook.com/yihua",
     "line": "https://line.me/yihua",
 }
 
@@ -634,9 +634,8 @@ async def test_admin_can_revoke_leaked_access_link(admin_client, public_client, 
 
 @pytest.mark.asyncio
 async def test_reschedule_validates_slot(admin_client, public_client, minghua_client):
-    """原本：家長傳什麼 UUID 就寫什麼，不存在的 slot 直接撞 FK 變 500，
-    別校的 slot 會建立一筆永遠卡住的申請。家長改期現在是直接改場次
-    （POST /reschedule），一樣要驗場次存在、同校、不是同一個。"""
+    """原本：家長傳什麼 UUID 就寫什麼，不存在的 slot 直接撞 FK 變 500。
+    家長改期是直接改場次（POST /reschedule），要驗場次存在、同校、不是同一個。"""
     version = await _enable_slots(admin_client)
     slot = await _create_slot(admin_client)
     created = await public_client.post(
@@ -673,32 +672,6 @@ async def test_reschedule_validates_slot(admin_client, public_client, minghua_cl
     )
     assert same.status_code == 409
     assert same.json()["detail"]["code"] == "SAME_SLOT"
-
-
-@pytest.mark.asyncio
-async def test_approving_reschedule_for_cancelled_request_is_409_not_500(
-    admin_client, public_client, db_session
-):
-    """原本：核准端點沒接 InvalidTransition，案件已取消時回 500。"""
-    version = await _enable_slots(admin_client)
-    slot_a = await _create_slot(admin_client, days_ahead=3)
-    slot_b = await _create_slot(admin_client, days_ahead=4)
-    created = await public_client.post(
-        "/api/website/v1/public/visit-requests",
-        json=_payload(version, slot_a["id"]),
-        headers={"Idempotency-Key": "reschedule-cancelled-01"},
-    )
-    receipt_id = created.json()["receipt_id"]
-    # 家長申請改期已退場；上線前留下的待核准申請仍由後台處理。
-    request_id = await legacy_reschedule_request(db_session, receipt_id, slot_b["id"])
-
-    await admin_client.post(f"/api/website/v1/admin/visit-requests/{receipt_id}/cancel")
-
-    approved = await admin_client.post(
-        f"/api/website/v1/admin/reschedule-requests/{request_id}/approve"
-    )
-    assert approved.status_code == 409
-    assert approved.json()["detail"]["code"] == "INVALID_TRANSITION"
 
 
 # ------------------------------------------------------- notifications

@@ -62,6 +62,22 @@ class MediaAssetOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MediaAssetPageOut(BaseModel):
+    """素材列表的一頁（新的在前）。"""
+
+    items: list[MediaAssetOut]
+    # 符合全部篩選（校區、種類、標籤、關鍵字…）的筆數。
+    total: int
+    # 這個分頁狀態（素材／已封存／待清理）下看得到的全部筆數，不受其他篩選影響
+    # （素材庫的「顯示 X / N 個素材」）。
+    state_total: int
+    page: int
+    page_size: int
+    # 這個分頁狀態下看得到的素材用過的標籤：用得多的在前，次數相同依字串排序；
+    # 不受其他篩選影響（素材庫的標籤選單）。
+    tags: list[str]
+
+
 class MediaUpdateRequest(BaseModel):
     # 畫面載入時素材的 version；不符回 409 MEDIA_VERSION_CONFLICT。
     expected_version: int = Field(ge=1)

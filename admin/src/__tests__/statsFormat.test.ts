@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  alertLevelLabel, barWidth, formatPoints, formatRate, gradeColumns, priorityLabel, rateLevel, ratio, trendOf, TREND_MARK,
+  alertLevelLabel, barWidth, formatPoints, formatRate, gradeColumns, priorityLabel, rateCsvCell, rateLevel, ratio, trendOf, TREND_MARK,
 } from '../admissions/statsFormat'
 
 describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—」不寫 0）', () => {
@@ -10,6 +10,16 @@ describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—�
     expect(formatRate(0)).toBe('0.0%')
     expect(formatRate(55.6)).toBe('55.6%')
     expect(formatRate(100)).toBe('100.0%')
+  })
+
+  it('匯出 CSV 的比率格：有值同畫面、沒有值寫空白（不寫「—」）；label 有給就寫 label', () => {
+    expect(rateCsvCell(55.6)).toBe('55.6%')
+    expect(rateCsvCell(0)).toBe('0.0%')
+    expect(rateCsvCell(null)).toBe('')
+    expect(rateCsvCell(undefined)).toBe('')
+    expect(rateCsvCell(75, '75.0%（3/4）')).toBe('75.0%（3/4）')
+    // 沒有值時 label 不寫：畫面的「—（0/0）」不進檔案。
+    expect(rateCsvCell(null, '—（0/0）')).toBe('')
   })
 
   it('前端自己算的比率（接待人員 × 年級）：一位小數、分母 0 為 null', () => {

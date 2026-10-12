@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/auth'
 import { usePermissions } from '../composables/usePermissions'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { taipeiToday } from '../admissions/academic'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import WeeklySessionsCard from '../components/sessions/WeeklySessionsCard.vue'
@@ -34,10 +35,6 @@ const campusFromQuery = (value: unknown): string =>
 // 一次看一個校區；沒指定時預設第一個可見校區。
 const campusFilter = ref(campusFromQuery(route.query.campus) || visibleCampusKeys.value[0] || '')
 const sessionsCard = ref<InstanceType<typeof WeeklySessionsCard> | null>(null)
-
-function taipeiToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei' }).format(new Date())
-}
 
 // 日期一律用 YYYY-MM-DD 字串與 UTC 正午的 Date 計算，避免時區讓格子錯一天。
 function parse(iso: string): Date {

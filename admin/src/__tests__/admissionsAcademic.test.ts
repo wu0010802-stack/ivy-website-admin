@@ -36,6 +36,12 @@ describe('學期邊界（Review Focus 2）', () => {
     expect(taipeiToday(new Date('2026-07-31T16:00:00Z'))).toBe('2026-08-01')
     expect(taipeiToday(new Date('2026-07-31T15:59:59Z'))).toBe('2026-07-31')
   })
+
+  it('月與日補零（YYYY-MM-DD，檔名、日期欄與比大小都靠它）；沒傳時間就是現在', () => {
+    expect(taipeiToday(new Date('2026-03-04T02:00:00Z'))).toBe('2026-03-04')
+    expect(taipeiToday(new Date('2026-12-31T16:00:00Z'))).toBe('2027-01-01')
+    expect(taipeiToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
 })
 
 describe('園務 gradeForBirthday 的規則', () => {

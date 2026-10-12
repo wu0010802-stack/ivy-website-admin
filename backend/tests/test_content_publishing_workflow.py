@@ -22,14 +22,14 @@ from app.operations.models import AuditLogEntry
 from tests.conftest import _create_user, _logged_in_client
 
 API = "/api/website/v1"
-FAQ = f"{API}/admin/content-items/campus_faq"
+NEWS = f"{API}/admin/content-items/campus_news"
 Q = "?campus_key=yihua"
 ABOUT = f"{API}/admin/content-items/home_about"
 FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
 
 
-def _faq(q="參觀要預約嗎？"):
-    return {"items": [{"q": q, "a": "請先來電。"}]}
+def _news(title="參觀要預約嗎？"):
+    return {"events": [{"id": "event-1", "date": "2026-11-01", "title": title, "description": "請先來電。"}]}
 
 
 def _about(title="關於常春藤"):
@@ -45,7 +45,7 @@ async def yihua_admin(app, db_session):
 
 
 async def _draft(client, expected=0, q="參觀要預約嗎？"):
-    resp = await client.post(f"{FAQ}/revisions{Q}", json={"expected_version": expected, "payload": _faq(q)})
+    resp = await client.post(f"{NEWS}/revisions{Q}", json={"expected_version": expected, "payload": _news(q)})
     assert resp.status_code == 201, resp.text
     return resp.json()["latest_revision"]
 
@@ -65,7 +65,7 @@ async def _make_due(db_session):
     await db_session.commit()
 
 
-async def _schedule(client, revision_id, *, path=FAQ, query=Q):
+async def _schedule(client, revision_id, *, path=NEWS, query=Q):
     at = datetime.now(timezone.utc) + timedelta(hours=2)
     resp = await client.post(f"{path}/schedules{query}", json={"revision_id": revision_id, "publish_at": at.isoformat()})
     assert resp.status_code == 201, resp.text
@@ -80,49 +80,49 @@ async def _schedule(client, revision_id, *, path=FAQ, query=Q):
 @pytest.mark.asyncio
 async def test_new_draft_supersedes_pending_review(editor_client, yihua_admin):
     rev1 = await _draft(editor_client)
-    assert (await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev1["id"]})).status_code == 200
+    assert (await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev1["id"]})).status_code == 200
     assert len((await yihua_admin.get(f"{API}/admin/content-reviews")).json()) == 1
 
     # 送審後又改了一版：舊的待審版不會再被審，待審清單與總覽都歸零。
     await _draft(editor_client, expected=1, q="改過的問題")
     assert (await yihua_admin.get(f"{API}/admin/content-reviews")).json() == []
     assert (await yihua_admin.get(f"{API}/admin/dashboard")).json()["pending_review"] == 0
-    history = (await yihua_admin.get(f"{FAQ}/revisions{Q}")).json()
+    history = (await yihua_admin.get(f"{NEWS}/revisions{Q}")).json()
     assert [(r["version"], r["review_status"]) for r in history] == [(2, "draft"), (1, "superseded")]
     # 已被取代的版本不能再拿來審。
-    stale = await yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev1["id"], "decision": "approve"})
+    stale = await yihua_admin.post(f"{NEWS}/review{Q}", json={"revision_id": rev1["id"], "decision": "approve"})
     assert stale.status_code == 409
 
 
 @pytest.mark.asyncio
 async def test_direct_publish_and_restore_clear_pending_reviews(editor_client, yihua_admin):
     rev1 = await _draft(editor_client)
-    await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev1["id"]})
+    await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev1["id"]})
     # 管理者不經審核按鈕、直接發布待審的那一版：等於核准，不留在待審清單。
-    published = await yihua_admin.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    published = await yihua_admin.post(f"{NEWS}/publish{Q}", json={"revision_id": rev1["id"]})
     assert published.status_code == 200, published.text
     assert published.json()["latest_revision"]["review_status"] == "approved"
     assert (await yihua_admin.get(f"{API}/admin/content-reviews")).json() == []
 
     rev2 = await _draft(editor_client, expected=1, q="第二版")
-    await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev2["id"]})
+    await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev2["id"]})
     restored = await yihua_admin.post(
-        f"{FAQ}/revisions/{rev1['id']}/restore{Q}", json={"expected_version": 2, "publish": True}
+        f"{NEWS}/revisions/{rev1['id']}/restore{Q}", json={"expected_version": 2, "publish": True}
     )
     assert restored.status_code == 201, restored.text
     assert (await yihua_admin.get(f"{API}/admin/content-reviews")).json() == []
-    statuses = {r["version"]: r["review_status"] for r in (await yihua_admin.get(f"{FAQ}/revisions{Q}")).json()}
+    statuses = {r["version"]: r["review_status"] for r in (await yihua_admin.get(f"{NEWS}/revisions{Q}")).json()}
     assert statuses[2] == "superseded"
 
 
 @pytest.mark.asyncio
 async def test_submit_and_decisions_notify_the_other_side(editor_client, yihua_admin, minghua_client, admin_client):
     rev = await _draft(editor_client)
-    await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev["id"]})
+    await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev["id"]})
 
     inbox = (await yihua_admin.get(f"{API}/admin/my-notifications")).json()
     assert [(n["kind"], n["content_kind"], n["campus_key"], n["revision_version"]) for n in inbox] == [
-        ("content_review_submitted", "campus_faq", "yihua", 1)
+        ("content_review_submitted", "campus_news", "yihua", 1)
     ]
     assert inbox[0]["actor_email"] == "editor-yihua@ivy.example"
     # 總管理者也能核准，一樣收到；別校管理者與送審的人自己都不會收到。
@@ -130,7 +130,7 @@ async def test_submit_and_decisions_notify_the_other_side(editor_client, yihua_a
     assert (await minghua_client.get(f"{API}/admin/my-notifications")).json() == []
     assert (await editor_client.get(f"{API}/admin/my-notifications")).json() == []
 
-    await yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "請補電話"})
+    await yihua_admin.post(f"{NEWS}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "請補電話"})
     mine = (await editor_client.get(f"{API}/admin/my-notifications")).json()
     assert [(n["kind"], n["note"], n["actor_email"]) for n in mine] == [
         ("content_review_rejected", "請補電話", "yihua-admin@ivy.example")
@@ -151,8 +151,8 @@ async def test_submit_and_decisions_notify_the_other_side(editor_client, yihua_a
     assert all(n["read_at"] for n in (await yihua_admin.get(f"{API}/admin/my-notifications")).json())
 
     rev2 = await _draft(editor_client, expected=1, q="補上電話")
-    await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev2["id"]})
-    await yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev2["id"], "decision": "approve"})
+    await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev2["id"]})
+    await yihua_admin.post(f"{NEWS}/review{Q}", json={"revision_id": rev2["id"], "decision": "approve"})
     assert (await editor_client.get(f"{API}/admin/my-notifications")).json()[0]["kind"] == "content_review_approved"
 
 
@@ -161,7 +161,7 @@ async def test_review_status_check_constraint_and_schema_version(admin_client, d
     rev = await _draft(admin_client)
     stored = await db_session.get(ContentRevision, uuid.UUID(rev["id"]))
     assert stored.schema_version == 1
-    history = (await admin_client.get(f"{FAQ}/revisions{Q}")).json()
+    history = (await admin_client.get(f"{NEWS}/revisions{Q}")).json()
     assert history[0]["schema_version"] == 1
     with pytest.raises(IntegrityError):
         await db_session.execute(
@@ -180,14 +180,14 @@ async def test_schedule_skips_when_newer_version_published(admin_client, public_
     rev1 = await _draft(admin_client, q="排程的版本")
     job = await _schedule(admin_client, rev1["id"])
     rev2 = await _draft(admin_client, expected=1, q="後來直接發布的版本")
-    assert (await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})).status_code == 200
+    assert (await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev2["id"]})).status_code == 200
 
     await _make_due(db_session)
     assert await run_due_jobs(db_session) == {"published": 0, "failed": 0, "skipped": 1}
     site = (await public_client.get(f"{API}/public/site")).json()
-    assert site["content"]["campus_faq"]["yihua"]["items"][0]["q"] == "後來直接發布的版本"
+    assert site["content"]["campus_news"]["yihua"]["events"][0]["title"] == "後來直接發布的版本"
 
-    listed = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()
+    listed = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()
     assert listed[0]["id"] == job["id"] and listed[0]["status"] == "skipped"
     assert "第 2 版" in listed[0]["error"]
     notes = (await admin_client.get(f"{API}/admin/my-notifications")).json()
@@ -201,19 +201,19 @@ async def test_schedule_skips_when_newer_version_published(admin_client, public_
 @pytest.mark.asyncio
 async def test_schedule_skips_when_newer_version_was_published_then_rolled_back(admin_client, public_client, db_session):
     rev1 = await _draft(admin_client, q="第一版")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev1["id"]})
     rev2 = await _draft(admin_client, expected=1, q="排程的第二版")
     await _schedule(admin_client, rev2["id"])
     rev3 = await _draft(admin_client, expected=2, q="第三版")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev3["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev3["id"]})
     # 又把官網直接切回第一版：排程之後已經發布過更新的第 3 版，照排程發第 2 版
     # 就會蓋掉別人後來的決定，所以一樣不發。
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev1["id"]})
 
     await _make_due(db_session)
     assert await run_due_jobs(db_session) == {"published": 0, "failed": 0, "skipped": 1}
     site = (await public_client.get(f"{API}/public/site")).json()
-    assert site["content"]["campus_faq"]["yihua"]["items"][0]["q"] == "第一版"
+    assert site["content"]["campus_news"]["yihua"]["events"][0]["title"] == "第一版"
 
 
 @pytest.mark.asyncio
@@ -227,11 +227,11 @@ async def test_failed_schedule_notifies_and_shows_on_dashboard_until_published(a
     notes = (await admin_client.get(f"{API}/admin/my-notifications")).json()
     assert notes[0]["kind"] == "content_schedule_failed" and "停用" in notes[0]["error"]
     failed = (await admin_client.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"]
-    assert [(j["kind"], j["campus_key"], j["revision_version"]) for j in failed] == [("campus_faq", "yihua", 1)]
+    assert [(j["kind"], j["campus_key"], j["revision_version"]) for j in failed] == [("campus_news", "yihua", 1)]
 
     # 有人處理（分校重新啟用後發布）之後就不再列在總覽。
     await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev["id"]})
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []
 
 
@@ -243,18 +243,18 @@ async def test_site_wide_schedule_list_respects_scope(admin_client, yihua_admin,
     await _schedule(admin_client, about["id"], path=ABOUT, query="")
 
     everything = (await admin_client.get(f"{API}/admin/publish-jobs")).json()
-    assert {(j["kind"], j["campus_key"]) for j in everything} == {("campus_faq", "yihua"), ("home_about", None)}
+    assert {(j["kind"], j["campus_key"]) for j in everything} == {("campus_news", "yihua"), ("home_about", None)}
     assert all(j["can_cancel"] for j in everything)
 
     # 分校管理者看得到自己校與共用內容的排程，但共用內容沒有授權不能取消。
     own = {(j["kind"], j["campus_key"]): j for j in (await yihua_admin.get(f"{API}/admin/publish-jobs")).json()}
-    assert own[("campus_faq", "yihua")]["can_cancel"] is True
+    assert own[("campus_news", "yihua")]["can_cancel"] is True
     assert own[("home_about", None)]["can_cancel"] is False
     assert [j["kind"] for j in (await minghua_client.get(f"{API}/admin/publish-jobs")).json()] == ["home_about"]
     assert not any(j["can_cancel"] for j in (await editor_client.get(f"{API}/admin/publish-jobs")).json())
 
     # 從清單取消走原本的單一內容端點。
-    assert (await yihua_admin.delete(f"{FAQ}/schedules/{job['id']}{Q}")).status_code == 204
+    assert (await yihua_admin.delete(f"{NEWS}/schedules/{job['id']}{Q}")).status_code == 204
     statuses = {j["id"]: j["status"] for j in (await admin_client.get(f"{API}/admin/publish-jobs")).json()}
     assert statuses[job["id"]] == "cancelled"
 
@@ -268,8 +268,8 @@ async def test_site_wide_schedule_list_respects_scope(admin_client, yihua_admin,
 async def test_release_history_lists_changes_per_release(admin_client, yihua_admin, minghua_client):
     about1 = await _about_draft(admin_client, 0, "第一版關於")
     await admin_client.post(f"{ABOUT}/publish", json={"revision_id": about1["id"]})
-    faq = await _draft(yihua_admin)
-    await yihua_admin.post(f"{FAQ}/publish{Q}", json={"revision_id": faq["id"]})
+    news = await _draft(yihua_admin)
+    await yihua_admin.post(f"{NEWS}/publish{Q}", json={"revision_id": news["id"]})
     about2 = await _about_draft(admin_client, 1, "第二版關於")
     await admin_client.post(f"{ABOUT}/publish", json={"revision_id": about2["id"]})
 
@@ -281,7 +281,7 @@ async def test_release_history_lists_changes_per_release(admin_client, yihua_adm
     ]
     assert rows == [
         [("home_about", None, 2, 1)],
-        [("campus_faq", "yihua", 1, None)],
+        [("campus_news", "yihua", 1, None)],
         [("home_about", None, 1, None)],
     ]
     assert [r["is_current"] for r in page["items"]] == [True, False, False]
@@ -300,14 +300,14 @@ async def test_release_history_lists_changes_per_release(admin_client, yihua_adm
 async def test_release_restore_rolls_back_whole_site(admin_client, yihua_admin, public_client, db_session):
     about1 = await _about_draft(admin_client, 0, "第一版關於")
     await admin_client.post(f"{ABOUT}/publish", json={"revision_id": about1["id"]})
-    faq1 = await _draft(admin_client, q="第一版問題")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": faq1["id"]})
+    news1 = await _draft(admin_client, q="第一版問題")
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": news1["id"]})
     target = (await admin_client.get(f"{API}/admin/releases")).json()["items"][0]
 
     about2 = await _about_draft(admin_client, 1, "發錯的關於")
     await admin_client.post(f"{ABOUT}/publish", json={"revision_id": about2["id"]})
-    faq2 = await _draft(admin_client, expected=1, q="發錯的問題")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": faq2["id"]})
+    news2 = await _draft(admin_client, expected=1, q="發錯的問題")
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": news2["id"]})
     hero = await admin_client.post(
         f"{API}/admin/content-items/home_hero/revisions",
         json={"expected_version": 0, "payload": {"eyebrow": "新區塊", "copy_lines": ["後來才上線"], "cta_label": "參觀"}},
@@ -336,7 +336,7 @@ async def test_release_restore_rolls_back_whole_site(admin_client, yihua_admin, 
 
     content = (await public_client.get(f"{API}/public/site")).json()["content"]
     assert content["home_about"]["title"] == "第一版關於"
-    assert content["campus_faq"]["yihua"]["items"][0]["q"] == "第一版問題"
+    assert content["campus_news"]["yihua"]["events"][0]["title"] == "第一版問題"
     assert content["home_hero"]["eyebrow"] == "新區塊"
     about = (await admin_client.get(ABOUT)).json()
     assert about["latest_revision"]["payload"]["title"] == "還沒發布的草稿"
@@ -391,8 +391,8 @@ async def test_dashboard_counts_drafts_newer_than_live_and_media_issues(admin_cl
     items = {(i["kind"], i["campus_key"]): i for i in dash["pending_publish_items"]}
     assert items[("home_about", None)]["latest_version"] == 2
     assert items[("home_about", None)]["published_version"] == 1
-    assert items[("campus_faq", "yihua")]["published_version"] is None
-    assert dash["pending_publish_kinds"] == ["campus_faq", "home_about"]
+    assert items[("campus_news", "yihua")]["published_version"] is None
+    assert dash["pending_publish_kinds"] == ["campus_news", "home_about"]
 
     media = MediaAsset(
         id=uuid.uuid4(), kind=MediaKind.IMAGE, status=MediaStatus.PROCESSING, storage_key=f"t/{uuid.uuid4()}",
@@ -462,8 +462,8 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
     # initialize-content 的 dry-run 只列出還沒有版本的項目，不建立任何列。
     pending = await pending_initialization(db_session, data)
     assert ("home_about", None) not in pending and ("campus_profile", "yihua") in pending
-    # 23 筆（含 2026-09-25 起的全站共用常見問題、2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。
-    assert len(pending) == 20
+    # 全部初始內容（含 2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。
+    assert len(pending) == 14
     assert len((await db_session.execute(select(ContentItem))).scalars().all()) == 3
 
 
@@ -473,9 +473,9 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
 # ---------------------------------------------------------------------------
 
 
-async def _faq_item(db_session) -> ContentItem:
+async def _news_item(db_session) -> ContentItem:
     result = await db_session.execute(
-        select(ContentItem).where(ContentItem.kind == "campus_faq", ContentItem.campus_key == "yihua")
+        select(ContentItem).where(ContentItem.kind == "campus_news", ContentItem.campus_key == "yihua")
     )
     return result.scalar_one()
 
@@ -485,14 +485,14 @@ async def test_schedule_waits_for_concurrent_publish_before_comparing_versions(a
     """B06-1：排程先讀「官網現在是哪一版」、之後才鎖官網的話，中間有人手動發布
     較新的一版，排程拿到鎖以後還是會把舊版蓋回去。現在先鎖再讀。"""
     rev1 = await _draft(admin_client, q="第一版")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev1["id"]})
     rev2 = await _draft(admin_client, expected=1, q="排程的第二版")
     await _schedule(admin_client, rev2["id"])
     rev3 = await _draft(admin_client, expected=2, q="同時手動發布的第三版")
     await _make_due(db_session)
 
     async with app.state.session_factory() as manual:
-        item = await _faq_item(manual)
+        item = await _news_item(manual)
         revision = await manual.get(ContentRevision, uuid.UUID(rev3["id"]))
         # 手動發布拿到官網的鎖、還沒 commit 時，排程剛好到期。
         await service.publish_revision(manual, item, revision, None)
@@ -504,8 +504,8 @@ async def test_schedule_waits_for_concurrent_publish_before_comparing_versions(a
 
     assert counts == {"published": 0, "failed": 0, "skipped": 1}
     site = (await public_client.get(f"{API}/public/site")).json()
-    assert site["content"]["campus_faq"]["yihua"]["items"][0]["q"] == "同時手動發布的第三版"
-    job = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]
+    assert site["content"]["campus_news"]["yihua"]["events"][0]["title"] == "同時手動發布的第三版"
+    job = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()[0]
     assert job["status"] == "skipped" and "第 3 版" in job["error"]
 
 
@@ -514,11 +514,11 @@ async def test_skip_reason_tells_whether_site_still_has_that_version(admin_clien
     """B06-3：排好之後直接發布過這一版、又被整站還原換掉時，官網現在不是這一版，
     原因不能寫「官網已經是這一版」。"""
     rev1 = await _draft(admin_client, q="第一版")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev1["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev1["id"]})
     target = (await admin_client.get(f"{API}/admin/releases")).json()["items"][0]
     rev2 = await _draft(admin_client, expected=1, q="排程的第二版")
     await _schedule(admin_client, rev2["id"])
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev2["id"]})
     restored = await admin_client.post(f"{API}/admin/releases/{target['id']}/restore", json={})
     assert restored.status_code == 200, restored.text
 
@@ -529,12 +529,12 @@ async def test_skip_reason_tells_whether_site_still_has_that_version(admin_clien
 
     await _make_due(db_session)
     assert await run_due_jobs(db_session) == {"published": 0, "failed": 0, "skipped": 2}
-    faq_job = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]
-    assert faq_job["error"] == "排好之後官網發布過第 2 版，之後又換成第 1 版，不會自動蓋回去"
+    news_job = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()[0]
+    assert news_job["error"] == "排好之後官網發布過第 2 版，之後又換成第 1 版，不會自動蓋回去"
     about_job = (await admin_client.get(f"{ABOUT}/schedules")).json()[0]
     assert about_job["error"] == "官網已經是這一版，不需要再發布"
     notes = (await admin_client.get(f"{API}/admin/my-notifications")).json()
-    assert {n["error"] for n in notes if n["kind"] == "content_schedule_skipped"} == {faq_job["error"], about_job["error"]}
+    assert {n["error"] for n in notes if n["kind"] == "content_schedule_skipped"} == {news_job["error"], about_job["error"]}
 
 
 @pytest.mark.asyncio
@@ -542,15 +542,15 @@ async def test_schedule_refuses_revision_not_newer_than_live(admin_client, db_se
     """B06-4：排程官網上這一版或更舊的版本，到期一定會略過，建立時就擋下並說明。"""
     rev1 = await _draft(admin_client, q="第一版")
     rev2 = await _draft(admin_client, expected=1, q="第二版")
-    await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})
+    await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev2["id"]})
     at = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
 
-    older = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev1["id"], "publish_at": at})
+    older = await admin_client.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev1["id"], "publish_at": at})
     assert older.status_code == 409
     assert older.json()["detail"]["code"] == "SCHEDULE_REVISION_NOT_NEWER"
     assert "比官網目前的第 2 版舊" in older.json()["detail"]["message"]
     assert "從版本紀錄還原" in older.json()["detail"]["message"]
-    same = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev2["id"], "publish_at": at})
+    same = await admin_client.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev2["id"], "publish_at": at})
     assert same.status_code == 409 and same.json()["detail"]["message"] == "官網已經是這一版，不需要排程"
     assert (await db_session.execute(select(PublishJob))).scalars().all() == []
 
@@ -587,13 +587,13 @@ async def test_dashboard_shared_content_only_for_those_who_can_edit_it(admin_cli
     }
     saved = await admin_client.post(f"{API}/admin/content-items/site_meta/revisions", json={"expected_version": 0, "payload": meta})
     assert saved.status_code == 201, saved.text
-    faq = await _draft(yihua_admin)
-    own_job = await _schedule(yihua_admin, faq["id"])
+    news = await _draft(yihua_admin)
+    own_job = await _schedule(yihua_admin, news["id"])
     await _fail_due_job(db_session, own_job["id"])
 
     dash = (await yihua_admin.get(f"{API}/admin/dashboard")).json()
-    assert [(i["kind"], i["campus_key"]) for i in dash["pending_publish_items"]] == [("campus_faq", "yihua")]
-    assert dash["pending_publish"] == 1 and dash["pending_publish_kinds"] == ["campus_faq"]
+    assert [(i["kind"], i["campus_key"]) for i in dash["pending_publish_items"]] == [("campus_news", "yihua")]
+    assert dash["pending_publish"] == 1 and dash["pending_publish_kinds"] == ["campus_news"]
     assert dash["content_media_issues"] == []
     assert [j["id"] for j in dash["failed_publish_jobs"]] == [own_job["id"]]
 
@@ -603,7 +603,7 @@ async def test_dashboard_shared_content_only_for_those_who_can_edit_it(admin_cli
     assert granted.status_code == 200, granted.text
     dash = (await yihua_admin.get(f"{API}/admin/dashboard")).json()
     assert {(i["kind"], i["campus_key"]) for i in dash["pending_publish_items"]} == {
-        ("campus_faq", "yihua"), ("home_about", None), ("site_meta", None),
+        ("campus_news", "yihua"), ("home_about", None), ("site_meta", None),
     }
     assert [i["kind"] for i in dash["content_media_issues"]] == ["site_meta"]
     assert {j["id"] for j in dash["failed_publish_jobs"]} == {own_job["id"], shared_job["id"]}
@@ -618,11 +618,11 @@ async def test_unpublished_schedule_can_be_acknowledged(admin_client, yihua_admi
     await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": False})
     await _make_due(db_session)
     assert await run_due_jobs(db_session) == {"published": 0, "failed": 1, "skipped": 0}
-    listed = (await yihua_admin.get(f"{FAQ}/schedules{Q}")).json()
+    listed = (await yihua_admin.get(f"{NEWS}/schedules{Q}")).json()
     assert listed[0]["status"] == "failed" and listed[0]["resolved"] is False
     assert [j["id"] for j in (await yihua_admin.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"]] == [job["id"]]
 
-    ack_url = f"{FAQ}/schedules/{job['id']}/acknowledge{Q}"
+    ack_url = f"{NEWS}/schedules/{job['id']}/acknowledge{Q}"
     # 和取消排程同一個權限：內容編輯只能送審，別校的人看不到這項內容。
     assert (await editor_client.post(ack_url)).status_code == 403
     assert (await minghua_client.post(ack_url)).status_code == 404
@@ -630,7 +630,7 @@ async def test_unpublished_schedule_can_be_acknowledged(admin_client, yihua_admi
     assert acked.status_code == 200, acked.text
     assert acked.json()["resolved"] is True and acked.json()["status"] == "failed"
     assert (await yihua_admin.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []
-    assert (await yihua_admin.get(f"{FAQ}/schedules{Q}")).json()[0]["resolved"] is True
+    assert (await yihua_admin.get(f"{NEWS}/schedules{Q}")).json()[0]["resolved"] is True
     # 再按一次不重複記錄。
     assert (await yihua_admin.post(ack_url)).status_code == 200
     entries = (
@@ -646,7 +646,7 @@ async def test_unpublished_schedule_can_be_acknowledged(admin_client, yihua_admi
     await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
     rev2 = await _draft(yihua_admin, expected=1, q="第二版")
     pending = await _schedule(yihua_admin, rev2["id"])
-    refused = await yihua_admin.post(f"{FAQ}/schedules/{pending['id']}/acknowledge{Q}")
+    refused = await yihua_admin.post(f"{NEWS}/schedules/{pending['id']}/acknowledge{Q}")
     assert refused.status_code == 409 and refused.json()["detail"]["code"] == "INVALID_TRANSITION"
 
 
@@ -658,11 +658,11 @@ async def test_failed_schedule_resolved_once_site_changes_version(admin_client, 
     await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": False})
     await _make_due(db_session)
     await run_due_jobs(db_session)
-    assert (await admin_client.get(f"{FAQ}/schedules{Q}")).json()[0]["resolved"] is False
+    assert (await admin_client.get(f"{NEWS}/schedules{Q}")).json()[0]["resolved"] is False
 
     await admin_client.patch(f"{API}/admin/campuses/yihua/status", json={"active": True})
     rev2 = await _draft(admin_client, expected=1, q="改好再發布")
-    assert (await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": rev2["id"]})).status_code == 200
-    listed = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()
+    assert (await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": rev2["id"]})).status_code == 200
+    listed = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()
     assert listed[0]["status"] == "failed" and listed[0]["resolved"] is True
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []

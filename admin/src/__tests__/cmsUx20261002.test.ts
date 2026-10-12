@@ -12,7 +12,7 @@ import HomeNewsView from '../views/HomeNewsView.vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, contentFieldErrors, contentSaveErrorMessage } from '../api/errors'
 import { contentPathLabel } from '../api/contentFieldLabels'
-import { legacyCopyHint, LEGACY_FAQ_BOOKING, LEGACY_SITE_DESCRIPTION } from '../composables/contentHints'
+import { legacyCopyHint, LEGACY_SITE_DESCRIPTION } from '../composables/contentHints'
 import { useContentItem, type ContentEditorState, type RevisionSummary } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useAuthStore } from '../stores/auth'
@@ -129,20 +129,20 @@ describe('存檔被擋下時寫出哪一則哪一欄（cms-1）', () => {
 
 // ---------------------------------------------------------------------------
 
-interface Faq { title: string; note: string }
+interface CampusDoc { title: string; note: string }
 
-function faqItem(version: number, payload: Faq) {
+function campusItem(version: number, payload: CampusDoc) {
   return {
-    id: 'i1', kind: 'campus_faq', campus_key: 'yihua', latest_version: version, current_published_revision_id: 'r1',
+    id: 'i1', kind: 'campus_news', campus_key: 'yihua', latest_version: version, current_published_revision_id: 'r1',
     latest_revision: { id: `r${version}`, version, created_at: '2026-09-25T02:00:00Z', payload, review_status: 'draft', review_note: null },
   }
 }
 
-function mountFaqPage(global: Awaited<ReturnType<typeof setup>>['global']) {
-  let editor!: ReturnType<typeof useContentItem<Faq>>
+function mountCampusPage(global: Awaited<ReturnType<typeof setup>>['global']) {
+  let editor!: ReturnType<typeof useContentItem<CampusDoc>>
   const Page = defineComponent({
     setup() {
-      editor = useContentItem<Faq>('campus_faq', { title: '', note: '' }, 'yihua')
+      editor = useContentItem<CampusDoc>('campus_news', { title: '', note: '' }, 'yihua')
       void editor.load()
       return () => h(ContentEditor, { editor: editor as unknown as ContentEditorState }, { default: () => h('input', { 'aria-label': '標題' }) })
     },
@@ -154,13 +154,13 @@ function mountFaqPage(global: Awaited<ReturnType<typeof setup>>['global']) {
 
 describe('版本衝突保留自己的修改（cms-6）', () => {
   it('衝突時持續提示、停用儲存；看對方改了什麼；載入最新後可以只套回自己改的欄位', async () => {
-    const { global } = await setup('/content/campus-faq')
-    let current = faqItem(2, { title: '原標題', note: '原說明' })
+    const { global } = await setup('/content/campus-news')
+    let current = campusItem(2, { title: '原標題', note: '原說明' })
     vi.spyOn(api, 'get').mockImplementation(((path: string) =>
       Promise.resolve(path.includes('/schedules') || path.includes('/revisions') ? [] : current)) as typeof api.get)
     vi.spyOn(api, 'post').mockRejectedValue(new ApiError(409, { code: 'CONTENT_VERSION_CONFLICT', message: '內容已被其他人更新' }))
     const error = vi.spyOn(ElMessage, 'error')
-    const page = mountFaqPage(global)
+    const page = mountCampusPage(global)
     await flushPromises()
 
     page.editor().form.value.title = '我改的標題'
@@ -173,7 +173,7 @@ describe('版本衝突保留自己的修改（cms-6）', () => {
     expect(page.editor().form.value.title).toBe('我改的標題')
 
     // 對方改的是說明
-    current = faqItem(3, { title: '原標題', note: '對方的說明' })
+    current = campusItem(3, { title: '原標題', note: '對方的說明' })
     await button(page.wrapper, '看對方改了什麼').trigger('click')
     await flushPromises()
     expect(page.wrapper.get('.editor__conflict').text()).toContain('原說明 → 對方的說明')
@@ -194,7 +194,7 @@ describe('版本衝突保留自己的修改（cms-6）', () => {
 
 describe('狀態列寫草稿是誰存的（cms-2）', () => {
   it('從版本紀錄找最新一版的編輯者；讀不到就只寫時間', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const revisions: RevisionSummary[] = [
       { id: 'r2', version: 2, created_at: '2026-09-25T02:00:00Z', created_by_email: 'amy@ivy.example', created_by_display_name: '王園長', is_published: false },
     ]
@@ -221,13 +221,6 @@ describe('原型原文提示（cms-7）', () => {
   it('只認一字不差的原文，改過就不提示；不認「示意」關鍵字', () => {
     expect(legacyCopyHint('siteDescription', LEGACY_SITE_DESCRIPTION)).toContain('官網目前顯示替換後的正式描述')
     expect(legacyCopyHint('siteDescription', `${LEGACY_SITE_DESCRIPTION} `)).toBe('')
-    expect(legacyCopyHint('faqAnswer', LEGACY_FAQ_BOOKING)).toContain('原型留下的回答')
-    expect(legacyCopyHint('faqAnswer', '招生年齡、名額與費用依校區與學年度而異。請向明華校確認；這份提案不提供即時招生名額或費用報價。')).not.toBe('')
-    expect(legacyCopyHint('faqAnswer', '入園情境示意')).toBe('')
-    // 預約那一題改掉之後，官網不再替換這一校的費用回答，就不提示。
-    const fee = '招生年齡、名額與費用依校區與學年度而異。請向明華校確認；這份提案不提供即時招生名額或費用報價。'
-    expect(legacyCopyHint('faqAnswer', fee, [fee, '已改寫的預約回答'])).toBe('')
-    expect(legacyCopyHint('faqAnswer', fee, [fee, LEGACY_FAQ_BOOKING])).not.toBe('')
   })
 })
 
@@ -255,7 +248,7 @@ describe('離頁時可以先存草稿（cms-8）', () => {
   }
 
   it('離開路由：存草稿成功才放行，失敗留在原頁；放棄修改放行；關掉對話框留下', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const saveDraft = vi.fn(async () => true)
     const guard = mountGuard(global, saveDraft)
 
@@ -276,7 +269,7 @@ describe('離頁時可以先存草稿（cms-8）', () => {
   })
 
   it('切校（不帶 allowSave）維持兩個選項，不存草稿', async () => {
-    const { global } = await setup('/content/campus-faq')
+    const { global } = await setup('/content/campus-news')
     const saveDraft = vi.fn(async () => true)
     const guard = mountGuard(global, saveDraft)
     const confirm = pressInDialog('confirm')

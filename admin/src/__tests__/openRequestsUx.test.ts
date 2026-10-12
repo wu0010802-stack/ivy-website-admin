@@ -21,7 +21,7 @@ afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.lengt
 const hour = 3600 * 1000
 const summary = (changes: Record<string, unknown> = {}) => ({
   today_visits: 0, pending_follow_up: 0, pending_publish: 0, campuses_without_active_booking: [], failed_notifications: 0,
-  pending_reschedule_requests: 0, my_unread_notifications: 0, ...changes,
+  my_unread_notifications: 0, ...changes,
 })
 const request = (changes = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '測試家長', phone: '0912345678', child_name: null,
@@ -76,10 +76,9 @@ describe('總覽的主按鈕與待辦（2026-10-05 拿掉待處理狀態後）',
     expect(wrapper.find('.is-attention').exists()).toBe(false)
   })
 
-  it('主按鈕依序：家長還要來 → 改期申請 → 到期追蹤 → 查看參觀案件，字講的是點進去那一批', async () => {
+  it('主按鈕依序：家長還要來 → 到期追蹤 → 查看參觀案件，字講的是點進去那一批', async () => {
     const cases: [Record<string, number>, string, string][] = [
-      [{ needs_attention: 2, pending_reschedule_requests: 3, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1'],
-      [{ pending_reschedule_requests: 3, pending_follow_up: 5 }, '核准改期申請3', '/notifications'],
+      [{ needs_attention: 2, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1'],
       [{ pending_follow_up: 5 }, '追蹤到期案件5', '/visit-requests?due=1'],
       [{}, '查看參觀案件', '/visit-requests'],
     ]
@@ -136,7 +135,7 @@ describe('案件列表接住總覽帶來的條件', () => {
 })
 
 describe('側欄不再掛待處理數字', () => {
-  it('參觀案件旁沒有數字，即使 store 有改期與未讀通知數字也不掛', async () => {
+  it('參觀案件旁沒有數字，即使 store 有未讀通知數字也不掛', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
@@ -144,7 +143,7 @@ describe('側欄不再掛待處理數字', () => {
     const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper)
     expect(wrapper.find('.sidebar__badge').exists()).toBe(false)
-    useOpenRequestsStore(pinia).apply({ pending_reschedule_requests: 2, my_unread_notifications: 5, new_requests: 4, awaiting_confirmation: 7 } as never)
+    useOpenRequestsStore(pinia).apply({ my_unread_notifications: 5, new_requests: 4, awaiting_confirmation: 7 } as never)
     await flushPromises()
     expect(wrapper.findAll('.sidebar__badge')).toHaveLength(0)
     for (const href of ['/visit-requests', '/notifications', '/releases']) {
@@ -154,20 +153,19 @@ describe('側欄不再掛待處理數字', () => {
   })
 })
 
-describe('openRequests store（改期與未讀通知數字）', () => {
+describe('openRequests store（未讀通知數字）', () => {
   it('30 秒內換頁不重抓，強制重抓才會打 API；讀不到時保留原數字', async () => {
     setActivePinia(createPinia())
     const store = useOpenRequestsStore()
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 2, my_unread_notifications: 1 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ my_unread_notifications: 1 }) as never)
     await store.refresh()
     await store.refresh()
     expect(get).toHaveBeenCalledOnce()
-    expect(store.reschedules).toBe(2)
     expect(store.myNotices).toBe(1)
     get.mockRejectedValueOnce(new Error('offline'))
     await store.refresh(true)
     expect(get).toHaveBeenCalledTimes(2)
-    expect(store.reschedules).toBe(2)
+    expect(store.myNotices).toBe(1)
   })
 
   it('登出（reset）後不接上一位使用者還在路上的彙總，舊請求回來也不改數字', async () => {
@@ -176,23 +174,22 @@ describe('openRequests store（改期與未讀通知數字）', () => {
     let resolveOld!: (value: unknown) => void
     const get = vi.spyOn(api, 'get')
       .mockImplementationOnce(() => new Promise(r => { resolveOld = r }) as never)
-      .mockResolvedValueOnce(summary({ pending_reschedule_requests: 1 }) as never)
+      .mockResolvedValueOnce(summary({ my_unread_notifications: 1 }) as never)
     const old = store.loadSummary()
     store.reset()
     const next = await store.loadSummary<ReturnType<typeof summary>>()
     expect(get).toHaveBeenCalledTimes(2)
-    expect(next.pending_reschedule_requests).toBe(1)
-    resolveOld(summary({ pending_reschedule_requests: 9, my_unread_notifications: 9 }))
+    expect(next.my_unread_notifications).toBe(1)
+    resolveOld(summary({ my_unread_notifications: 9 }))
     await old
-    expect(store.reschedules).toBe(1)
-    expect(store.myNotices).toBe(0)
+    expect(store.myNotices).toBe(1)
   })
 
   it('總覽載入的數字直接給 store，不必另外打一次', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 2 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ my_unread_notifications: 2 }) as never)
     const { wrapper } = await mountAt('/')
     expect(get).toHaveBeenCalledOnce()
-    expect(wrapper.text()).toContain('核准改期申請2')
+    expect(wrapper.text()).toContain('有內容通知還沒看')
   })
 
   it('連同外殼一起掛上時，進一次總覽只打一次 /admin/dashboard', async () => {
@@ -201,7 +198,7 @@ describe('openRequests store（改期與未讀通知數字）', () => {
     const scroll = Element.prototype.scrollIntoView
     Element.prototype.scrollIntoView = () => {}
     onTestFinished(() => { Element.prototype.scrollIntoView = scroll; vi.unstubAllGlobals() })
-    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ pending_reschedule_requests: 1 }) as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ my_unread_notifications: 1 }) as never)
     const dashboardCalls = () => get.mock.calls.filter(call => call[0] === '/admin/dashboard').length
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', campus_keys: [] })
@@ -218,7 +215,7 @@ describe('openRequests store（改期與未讀通知數字）', () => {
     const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     expect(dashboardCalls()).toBe(1)
-    expect(wrapper.text()).toContain('核准改期申請1')
+    expect(wrapper.text()).toContain('有內容通知還沒看')
     // 換到別頁（數字 30 秒內不重抓），再回總覽：總覽自己讀一次，也只有一次。
     await router.push('/media'); await flushPromises()
     expect(dashboardCalls()).toBe(1)

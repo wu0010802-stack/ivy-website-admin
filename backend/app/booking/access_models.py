@@ -38,30 +38,3 @@ class ParentSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class RescheduleRequest(Base):
-    """家長自助申請改期：不直接動時段，先建一筆待核准紀錄，
-    園方核准後才真的呼叫 workflow_service.reschedule。
-
-    status：pending 待核准、approved 已核准、rejected 已退回、closed 案件
-    先結案（取消／完成／未到場）或園方已直接改期，申請隨之失效。"""
-
-    __tablename__ = "reschedule_requests"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    visit_request_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("visit_requests.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    requested_slot_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("visit_slots.id", ondelete="RESTRICT"), nullable=False
-    )
-    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL", name="fk_reschedule_requests_resolved_by_users"),
-        nullable=True,
-    )
-    # 退回時人員填的原因（選填）；匿名化時跟聯絡紀錄一起清掉。
-    reject_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)

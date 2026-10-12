@@ -22,7 +22,7 @@ const detail = (changes: Record<string, unknown> = {}) => ({
   id: VR_ID, campus_key: 'yihua', status: 'completed', parent_name: '陳媽媽', phone: '0911000111', child_name: '陳小寶',
   child_birthdate: '2023-03-02', email: 'chen@example.org', referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: started.id, slot: started, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
-  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web', pending_reschedule: null,
+  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web',
   access_link: null, version: 1,
   history: [
     { id: 'h1', event_type: 'created', source: 'parent', actor_user_id: null, actor_email: null, actor_display_name: null, before: null, after: null, reason: null, created_at: '2026-09-22T00:00:00Z' },
@@ -240,6 +240,25 @@ describe('唯讀招生權限（5.9）', () => {
     expect(hasButton(wrapper, '記錄聯絡')).toBe(false)
     expect(hasButton(wrapper, '重新預約（另建新案）')).toBe(false)
     expect(wrapper.text()).not.toContain('你的帳號只能查看案件')
+  })
+
+  it('只有 admissions.read：頁首沒有主動作可給，不留空的 .case-hero__actions 容器（不佔 gap）', async () => {
+    mockFamily()
+    const { wrapper } = await mountDetail(testUser('reception', { campus_keys: ['yihua'], effective_capabilities: ['admissions.read', 'booking.read'] }))
+    expect(wrapper.find('.case-hero__actions').exists()).toBe(false)
+    // 右側欄只剩狀態與撥號。
+    expect(wrapper.get('.case-hero__side').find('.detail__status').exists()).toBe(true)
+  })
+
+  it('有 admissions.write 的家庭版面頁首仍有「填招生資料」；招生訪視已匿名化就跟著收起容器', async () => {
+    mockFamily()
+    const writable = await mountDetail()
+    expect(writable.wrapper.get('.case-hero__actions').attributes('data-stage')).toBe('family')
+    expect(hasButton(writable.wrapper.get('.case-hero__actions'), '填招生資料')).toBe(true)
+    cleanup()
+    mockFamily({ records: [linked({ anonymized_at: '2026-10-01T00:00:00Z', phone: '0900000000' })] })
+    const anonymized = await mountDetail()
+    expect(anonymized.wrapper.find('.case-hero__actions').exists()).toBe(false)
   })
 })
 

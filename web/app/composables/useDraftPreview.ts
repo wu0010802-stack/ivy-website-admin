@@ -59,6 +59,33 @@ const SHARED_KINDS: SharedKind[] = [
 type CampusKind = 'campus_profile' | 'campus_tour' | 'campus_news'
 const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_tour', 'campus_news']
 
+interface AdminMediaPage {
+  items: AdminMediaAsset[]
+  total: number
+}
+
+// 後台素材列表每頁的上限（後端 MEDIA_PAGE_SIZE_MAX）。
+const MEDIA_PAGE_SIZE = 200
+
+/**
+ * 即時預覽時編輯器新選的任何素材都要查得到尺寸與衍生檔，所以讀完全部一般素材：
+ * 先讀第 1 頁拿到總數，其餘頁一起讀。處理失敗的不讀（previewMedia 只用處理好的）。
+ * 第 1 頁以後某一頁讀不到時保留讀到的頁：少的那幾張只用原檔，畫面照樣出得來。
+ */
+async function loadAllMedia(): Promise<AdminMediaAsset[]> {
+  const pageUrl = (page: number) => `/api/website/v1/admin/media?exclude_failed=true&page=${page}&page_size=${MEDIA_PAGE_SIZE}`
+  const first = await $fetch<AdminMediaPage>(pageUrl(1))
+  const pages = Math.ceil(first.total / MEDIA_PAGE_SIZE)
+  const rest = await Promise.allSettled(
+    Array.from({ length: Math.max(0, pages - 1) }, (_, i) => $fetch<AdminMediaPage>(pageUrl(i + 2)))
+  )
+  const loaded = [first, ...rest.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))]
+  // 讀的途中有人上傳，後面的頁會往後推一張：同一張只留一次。
+  const byId = new Map<string, AdminMediaAsset>()
+  for (const page of loaded) for (const asset of page.items) byId.set(asset.id, asset)
+  return [...byId.values()]
+}
+
 /**
  * `/preview` 專用：只在瀏覽器端執行（client-only），先確認目前瀏覽器
  * 帶的是不是有效的管理員 session（打 `/auth/me`，401 就視為未授權，
@@ -119,9 +146,7 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   }
 
   // 素材的尺寸、衍生檔與預設焦點（讀不到就只用原檔，畫面照樣出得來）。
-  const media = previewMedia(
-    await $fetch<AdminMediaAsset[]>('/api/website/v1/admin/media').catch(() => [] as AdminMediaAsset[])
-  )
+  const media = previewMedia(await loadAllMedia().catch(() => [] as AdminMediaAsset[]))
 
   return {
     authorized: true,

@@ -20,12 +20,12 @@ from app.content.publish_jobs import run_due_jobs
 from tests.conftest import _create_user, _logged_in_client
 
 API = "/api/website/v1"
-FAQ = f"{API}/admin/content-items/campus_faq"
+NEWS = f"{API}/admin/content-items/campus_news"
 Q = "?campus_key=yihua"
 
 
-def _faq(q="參觀要預約嗎？"):
-    return {"items": [{"q": q, "a": "請先來電。"}]}
+def _news(title="參觀要預約嗎？"):
+    return {"events": [{"id": "event-1", "date": "2026-11-01", "title": title, "description": "請先來電。"}]}
 
 
 @pytest.fixture
@@ -37,14 +37,14 @@ async def yihua_admin(app, db_session):
 
 
 async def _draft(client, expected=0, q="參觀要預約嗎？"):
-    resp = await client.post(f"{FAQ}/revisions{Q}", json={"expected_version": expected, "payload": _faq(q)})
+    resp = await client.post(f"{NEWS}/revisions{Q}", json={"expected_version": expected, "payload": _news(q)})
     assert resp.status_code == 201, resp.text
     return resp.json()["latest_revision"]
 
 
 async def _submitted(editor_client, q="被退回的內容"):
     rev = await _draft(editor_client, q=q)
-    submitted = await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": rev["id"]})
+    submitted = await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": rev["id"]})
     assert submitted.status_code == 200, submitted.text
     return rev
 
@@ -68,8 +68,8 @@ async def _my_notification_kinds(client) -> list[str]:
 @pytest.mark.asyncio
 async def test_rejected_revision_cannot_be_scheduled(editor_client, yihua_admin):
     rev = await _submitted(editor_client)
-    await yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "電話未確認"})
-    scheduled = await yihua_admin.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
+    await yihua_admin.post(f"{NEWS}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "電話未確認"})
+    scheduled = await yihua_admin.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
     assert scheduled.status_code == 409, scheduled.text
     assert scheduled.json()["detail"]["code"] == "CONTENT_REVISION_REJECTED"
 
@@ -77,10 +77,10 @@ async def test_rejected_revision_cannot_be_scheduled(editor_client, yihua_admin)
 @pytest.mark.asyncio
 async def test_rejecting_cancels_schedules_of_that_revision(editor_client, yihua_admin, public_client, db_session):
     rev = await _submitted(editor_client)
-    job = await yihua_admin.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
+    job = await yihua_admin.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
     assert job.status_code == 201, job.text
     rejected = await yihua_admin.post(
-        f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "電話未確認"}
+        f"{NEWS}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "電話未確認"}
     )
     assert rejected.status_code == 200, rejected.text
     assert (await db_session.get(PublishJob, uuid.UUID(job.json()["id"]), populate_existing=True)).status == "cancelled"
@@ -94,7 +94,7 @@ async def test_rejecting_cancels_schedules_of_that_revision(editor_client, yihua
 async def test_due_schedule_fails_when_revision_was_rejected(admin_client, public_client, db_session):
     """退回時會取消排程；這裡模擬繞過取消的情況（例如舊資料），到期時也不能發布。"""
     rev = await _draft(admin_client)
-    job = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
+    job = await admin_client.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
     assert job.status_code == 201, job.text
     await db_session.execute(
         update(ContentRevision).where(ContentRevision.id == uuid.UUID(rev["id"])).values(review_status="rejected")
@@ -113,7 +113,7 @@ async def test_publish_takes_site_lock_before_item_lock(app, admin_client, db_se
     rev = await _draft(admin_client)
     item_id = (
         await db_session.execute(
-            select(ContentItem.id).where(ContentItem.kind == "campus_faq", ContentItem.campus_key == "yihua")
+            select(ContentItem.id).where(ContentItem.kind == "campus_news", ContentItem.campus_key == "yihua")
         )
     ).scalar_one()
     await db_session.execute(text("INSERT INTO site_state (id, current_release_id) VALUES (1, NULL) ON CONFLICT DO NOTHING"))
@@ -124,7 +124,7 @@ async def test_publish_takes_site_lock_before_item_lock(app, admin_client, db_se
         await other.execute(text("SELECT id FROM site_state WHERE id = 1 FOR UPDATE"))
         publish = asyncio.create_task(
             admin_client.post(
-                f"{FAQ}/publish{Q}", json={"revision_id": rev["id"], "expected_published_revision_id": None}
+                f"{NEWS}/publish{Q}", json={"revision_id": rev["id"], "expected_published_revision_id": None}
             )
         )
         await asyncio.sleep(0.5)
@@ -162,7 +162,7 @@ async def test_concurrent_approvals_publish_once(slow_publish_check, editor_clie
     rev = await _submitted(editor_client)
     body = {"revision_id": rev["id"], "decision": "approve"}
     first, second = await asyncio.gather(
-        yihua_admin.post(f"{FAQ}/review{Q}", json=body), admin_client.post(f"{FAQ}/review{Q}", json=body)
+        yihua_admin.post(f"{NEWS}/review{Q}", json=body), admin_client.post(f"{NEWS}/review{Q}", json=body)
     )
     assert sorted([first.status_code, second.status_code]) == [200, 409], (first.text, second.text)
     releases = (await db_session.execute(select(SiteRelease))).scalars().all()
@@ -173,8 +173,8 @@ async def test_concurrent_approvals_publish_once(slow_publish_check, editor_clie
 async def test_concurrent_approve_and_reject_keep_one_decision(slow_publish_check, editor_client, yihua_admin, admin_client, db_session):
     rev = await _submitted(editor_client)
     approve, reject = await asyncio.gather(
-        yihua_admin.post(f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "approve"}),
-        admin_client.post(f"{FAQ}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "不行"}),
+        yihua_admin.post(f"{NEWS}/review{Q}", json={"revision_id": rev["id"], "decision": "approve"}),
+        admin_client.post(f"{NEWS}/review{Q}", json={"revision_id": rev["id"], "decision": "reject", "note": "不行"}),
     )
     assert sorted([approve.status_code, reject.status_code]) == [200, 409], (approve.text, reject.text)
     revision = await db_session.get(ContentRevision, uuid.UUID(rev["id"]), populate_existing=True)
@@ -187,7 +187,7 @@ async def test_concurrent_approve_and_reject_keep_one_decision(slow_publish_chec
 @pytest.mark.asyncio
 async def test_direct_publish_of_pending_revision_notifies_submitter(editor_client, yihua_admin):
     rev = await _submitted(editor_client, q="直接發布")
-    published = await yihua_admin.post(f"{FAQ}/publish{Q}", json={"revision_id": rev["id"]})
+    published = await yihua_admin.post(f"{NEWS}/publish{Q}", json={"revision_id": rev["id"]})
     assert published.status_code == 200, published.text
     assert await _my_notification_kinds(editor_client) == ["content_review_approved"]
 
@@ -195,7 +195,7 @@ async def test_direct_publish_of_pending_revision_notifies_submitter(editor_clie
 @pytest.mark.asyncio
 async def test_scheduled_publish_of_pending_revision_notifies_submitter(editor_client, yihua_admin, db_session):
     rev = await _submitted(editor_client, q="排程發布")
-    job = await yihua_admin.post(f"{FAQ}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
+    job = await yihua_admin.post(f"{NEWS}/schedules{Q}", json={"revision_id": rev["id"], "publish_at": _later()})
     assert job.status_code == 201, job.text
     await _make_due(db_session)
     assert (await run_due_jobs(db_session))["published"] == 1

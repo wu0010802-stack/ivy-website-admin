@@ -3,7 +3,6 @@ export type CaseStage =
   | 'loading' // 已到場、還在查招生：先不畫（免得查完整頁跳成家庭版面）
   | 'readonly' // 沒有 booking.handle：只寫提示
   | 'attendance' // 預約正常、場次已開始：家長到了／沒來
-  | 'reschedule' // 預約正常、還沒開始、家長申請改期：核准改期／退回申請
   | 'upcoming' // 預約正常、還沒開始：沒有主鈕
   | 'family' // 家庭版面：填招生資料
   | 'admissions-retry' // 已到場、招生讀不到：重新載入
@@ -15,7 +14,6 @@ export interface StageInput {
   status: string
   canHandle: boolean
   visitStarted: boolean
-  hasRescheduleRequest: boolean
   familyPending: boolean
   isFamily: boolean
   canReadAdmissions: boolean
@@ -29,7 +27,7 @@ export function caseStage(i: StageInput): CaseStage {
   if (i.status === 'confirmed') {
     if (!i.canHandle) return 'readonly'
     if (i.visitStarted) return 'attendance'
-    return i.hasRescheduleRequest ? 'reschedule' : 'upcoming'
+    return 'upcoming'
   }
   // 招生的三種情況只看招生權限，不看 booking.handle（同改版前的「招生訪視」區塊）。
   if (i.status === 'completed') {

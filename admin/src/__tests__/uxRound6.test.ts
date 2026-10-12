@@ -225,25 +225,24 @@ describe('找不到頁面', () => {
 })
 
 describe('側欄只留案件數字，未讀通知在頁首', () => {
-  it('頁首依權限列出改期申請與內容通知的連結', async () => {
+  it('頁首依權限列出內容通知的連結', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
-    vi.spyOn(api, 'get').mockResolvedValue({ pending_reschedule_requests: 2, my_unread_notifications: 3 } as never)
+    vi.spyOn(api, 'get').mockResolvedValue({ my_unread_notifications: 3 } as never)
     const pinia = makePinia('super_admin')
     const r = emptyRouter()
     await r.push('/'); await r.isReady()
     const wrapper = mount(AdminLayout, { global: { plugins: [pinia, r, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     const links = wrapper.findAll('.top__alert')
-    expect(links.map((l) => l.attributes('aria-label'))).toEqual(['改期申請待核准 2', '內容通知未讀 3'])
-    expect(links[0]!.attributes('href')).toBe('/notifications')
-    expect(links[1]!.attributes('href')).toBe('/releases')
+    expect(links.map((l) => l.attributes('aria-label'))).toEqual(['內容通知未讀 3'])
+    expect(links[0]!.attributes('href')).toBe('/releases')
     expect(wrapper.find('.sidebar__badge').exists()).toBe(false)
     vi.unstubAllGlobals()
   })
 
   it('內容編輯進不了「站內通知」，只看到內容通知', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
-    vi.spyOn(api, 'get').mockResolvedValue({ pending_reschedule_requests: 2, my_unread_notifications: 1 } as never)
+    vi.spyOn(api, 'get').mockResolvedValue({ my_unread_notifications: 1 } as never)
     const r = emptyRouter()
     await r.push('/'); await r.isReady()
     const wrapper = mount(AdminLayout, { global: { plugins: [makePinia('editor'), r, ElementPlus] } })

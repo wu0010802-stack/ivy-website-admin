@@ -348,6 +348,7 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   parent_visit_booked: '家長確認信（預約成功）',
   parent_visit_changed: '家長確認信（預約已變更）',
   parent_visit_cancelled: '家長確認信（預約已取消）',
+  // 家長改期申請功能已於 2026-10-08 刪除，保留給舊的站內通知列與寄送失敗重寄。
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
   visit_upcoming: '即將參觀（24 小時內）',
@@ -446,6 +447,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.cancel': '取消預約',
   'visit_request.no_show': '標記未到場',
   'visit_request.complete': '標記已到場',
+  // 家長改期申請功能已於 2026-10-08 刪除，保留給舊紀錄。
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',
   'visit_slot.create': '新增參觀場次',
@@ -565,6 +567,7 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   unassigned: '取消指派',
   linked_from_previous: '由先前的案件重新預約',
   rebooked_as_new: '另建新案重新預約',
+  // 家長改期申請功能已於 2026-10-08 刪除，保留給舊歷程。
   reschedule_requested: '家長申請改期',
   reschedule_rejected: '退回改期申請',
   reschedule_superseded: '家長的改期申請失效（已直接改期）',
@@ -714,6 +717,7 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   phone: '電話',
   line: 'LINE',
   facebook: 'Facebook',
+  // fb_note、consent_text、banner_* 2026-10-08 從表單與後端拿掉，留著只為版本歷程比較舊版本。
   fb_note: 'Facebook 備註',
   instagram: 'Instagram',
   youtube: 'YouTube',
@@ -767,12 +771,10 @@ export const HQ_MANAGED_KINDS: ReadonlySet<string> = new Set(['campus_tour'])
 export function contentPublicPath(kind: string, campusKey?: string | null): string {
   // 校園探索只在常春藤環境頁「五所校園」一章顯示。
   if (kind === 'campus_tour') return '/environment#campuses'
-  if (kind === 'campus_profile' || kind === 'campus_faq') {
+  if (kind === 'campus_profile') {
     // 分校頁已移除；分校資訊只剩首頁的五校區塊。
     return '/#campuses'
   }
-  // 共用常見問題目前沒有公開頁面顯示。
-  if (kind === 'shared_faq') return '/'
   if (kind === 'booking_content') return campusKey ? `/visit/${campusKey}` : '/visit'
   if (kind === 'admission_content') return '/admission'
   if (kind === 'privacy_policy') return '/privacy'
@@ -782,15 +784,14 @@ export function contentPublicPath(kind: string, campusKey?: string | null): stri
 }
 
 // 私有草稿預覽（官網 /preview，登入後才看得到未發布內容）。預覽頁有首頁、入學資訊、
-// 預約頁（預約文案：同意文字、個資說明、頁首按鈕）、隱私權政策、特色教學頁、關於常春藤頁
+// 預約頁（預約文案：個資說明、頁首按鈕）、隱私權政策、特色教學頁、關於常春藤頁
 // 與常春藤環境頁（校園探索）。
 export function contentPreviewPath(kind: string, _campusKey?: string | null): string {
   if (kind === 'campus_tour') return '/preview?page=environment'
-  if (kind === 'campus_profile' || kind === 'campus_faq') {
+  if (kind === 'campus_profile') {
     // 分校頁已移除，首頁預覽的五校區塊看得到分校的名稱、地址與電話。
     return '/preview'
   }
-  if (kind === 'shared_faq') return ''
   if (kind === 'admission_content') return '/preview?page=admission'
   if (kind === 'booking_content') return '/preview?page=visit'
   if (kind === 'privacy_policy') return '/preview?page=privacy'
@@ -805,7 +806,7 @@ export function contentEditorPath(kind: string, campusKey?: string | null): stri
   return campusKey ? `${path}?campus=${encodeURIComponent(campusKey)}` : path
 }
 
-/** 「首頁大圖標語」或「各校常見問題（義華校）」 */
+/** 「首頁大圖標語」或「五校介紹（義華校）」 */
 export function contentItemLabel(kind: string | null | undefined, campusKey?: string | null): string {
   const name = kind ? (CONTENT_KIND_LABELS[kind] ?? kind) : '內容'
   return campusKey ? `${name}（${campusLabel(campusKey)}）` : name
@@ -869,6 +870,7 @@ export const CONTENT_KIND_LABELS: Record<string, string> = {
   home_news: '最新消息與活動',
   admission_content: '入學資訊',
   campus_profile: '五校介紹',
+  // 常見問題（campus_faq、shared_faq）功能已於 2026-10-08 刪除，保留給舊操作紀錄與舊發布紀錄。
   campus_faq: '各校常見問題',
   shared_faq: '共用常見問題',
   campus_news: '各校消息與活動',
@@ -1168,7 +1170,7 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'version',
   'replaces_media_id',
   'replacement_id',
-  'reschedule_request_id',
+  'reschedule_request_id', // 舊的核准／退回改期申請紀錄才有（功能已於 2026-10-08 刪除）
   'from_slot_id',
   'to_slot_id',
   'requested_slot_id',
@@ -1177,7 +1179,7 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'restored_from_release_id',
   'content_type',
   'verification_code_id',
-  // 舊的 /admin/site-settings（官網從來不讀，已不再使用）才有的欄位。
+  // 舊的 /admin/site-settings（官網從來不讀，2026-10-08 已刪除）留在舊操作紀錄裡的欄位。
   'privacy_policy_version',
 ])
 
@@ -1297,7 +1299,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   affected_requests: (v) => `影響 ${countOf(v)} 筆已排入的案件`,
   reopened_slots: (v) => `重新開放 ${countOf(v)} 場`,
   created_slots: (v) => `依規則補上 ${countOf(v)} 場`,
-  // 依規則產生時段（visit_slots.generate）是新增幾場；由官網預約建立招生訪視是有沒有新建。
+  // 依規則產生時段（visit_slots.generate，API 2026-10-08 已刪，保留給舊操作紀錄）是新增幾場；由官網預約建立招生訪視是有沒有新建。
   created: (v, action) => {
     if (action === 'recruitment_visit.create_from_booking') return v ? '建立招生訪視' : '這筆預約已有招生訪視，沒有重複建立'
     return `新增 ${countOf(v)} 場`

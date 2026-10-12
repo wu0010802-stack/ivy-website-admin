@@ -21,6 +21,13 @@ export function formatRate(value: number | null | undefined): string {
   return value === null || value === undefined ? NO_VALUE : `${value.toFixed(1)}%`
 }
 
+/** 匯出 CSV 的比率格（統計表、五校比較、成效統計共用這一條）：有值寫「66.7%」，label 有給就寫 label
+ *  （五校比較要連分子分母「66.7%（2/3）」）；沒有值（null、undefined）寫空白，不寫「—」：Excel 會把「—」
+ *  當文字，算平均時出錯。 */
+export function rateCsvCell(value: number | null | undefined, label?: string): string {
+  return value === null || value === undefined ? '' : (label ?? formatRate(value))
+}
+
 /** 前端自己算的比率，只給後端沒有提供的組合（接待人員 × 年級的格子）；後端已有的比率一律直接讀，不要重算。一位小數、分母 0 為 null。 */
 export function ratio(num: number, den: number): number | null {
   return den ? Math.round((num / den) * 1000) / 10 : null

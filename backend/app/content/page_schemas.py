@@ -306,7 +306,7 @@ ABOUT_MILESTONE_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
 
 class AboutMilestonePayload(_ContentPayload):
     key: str
-    # 民國年由官網換算（西元 − 1911）。義華創校年份待園方確認（1997／1998），所以開放改。
+    # 民國年由官網換算（西元 − 1911）。義華創校年份業主 2026-10-03 裁定 1997；年份仍開放改。
     year: int = Field(ge=1950, le=2100)
     text: str
 

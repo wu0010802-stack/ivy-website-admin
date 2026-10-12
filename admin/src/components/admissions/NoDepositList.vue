@@ -2,16 +2,15 @@
 import { computed, ref, useId, watch } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { getNoDepositRecords, noDepositExportPath, type NoDepositFilters } from '../../api/admissions'
-import { apiErrorMessage } from '../../api/errors'
 import { campusLabel } from '../../api/labels'
 import type { NoDepositRecord } from '../../api/types'
 import { taipeiToday } from '../../admissions/academic'
 import { GRADES, NO_DEPOSIT_REASONS } from '../../admissions/constants'
 import { NO_VALUE, priorityLabel } from '../../admissions/statsFormat'
-import { notifyError } from '../../composables/notify'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
-import { csvFilename, downloadServerCsv } from '../../utils/csv'
+import { csvFilename } from '../../utils/csv'
+import { useServerCsvExport } from '../../composables/useServerCsvExport'
 
 // 未預繳明細（園務 RecruitmentNoDepositTab 的「未預繳明細」；2026-10-01 使用者裁定統計頁要列名單）。
 // 資料來自 GET /admin/admissions/no-deposit-records（C2b），母體同統計：未預繳且未退出。
@@ -120,20 +119,11 @@ async function load(options: { reset?: boolean } = {}) {
   }
 }
 
-// CSV 由後端產生（含個資、寫稽核、有筆數上限）：筆數太多回 422 中文訊息，沒權限回 403，
-// 都用提示講清楚，不產生檔案。
-const exporting = ref(false)
-async function exportCsv() {
-  if (exporting.value) return
-  exporting.value = true
-  try {
-    await downloadServerCsv(noDepositExportPath(currentFilters()), csvFilename('未預繳名單', campusLabel(props.campusKey), taipeiToday()))
-  } catch (err) {
-    notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
-  } finally {
-    exporting.value = false
-  }
-}
+// CSV 由後端產生（含個資、寫稽核、有筆數上限）：失敗提示與防重按在 useServerCsvExport。
+const { exporting, exportCsv } = useServerCsvExport(() => ({
+  path: noDepositExportPath(currentFilters()),
+  filename: csvFilename('未預繳名單', campusLabel(props.campusKey), taipeiToday()),
+}))
 
 applyPreset(props.preset)
 

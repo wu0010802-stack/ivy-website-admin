@@ -104,9 +104,9 @@ describe('總覽＝今天的行程板', () => {
   })
 
   it('要處理只列有數字的，一列一件；常用工作是一列文字連結', async () => {
-    const wrapper = await mountDashboard({ ...base(), pending_follow_up: 2, pending_reschedule_requests: 1, week_campuses: week() })
+    const wrapper = await mountDashboard({ ...base(), pending_follow_up: 2, awaiting_attendance: 1, week_campuses: week() })
     const tasks = wrapper.findAll('.task')
-    expect(tasks.map(t => t.get('h3').text())).toEqual(['家長申請改期，等你核准', '到期待追蹤'])
+    expect(tasks.map(t => t.get('h3').text())).toEqual(['到期待追蹤', '參觀時間過了，還沒標記到場'])
     expect(tasks[0]!.find('p').exists()).toBe(false)
     expect(wrapper.get('.dash__links').findAll('a').length).toBeGreaterThan(3)
     expect(wrapper.find('.dash__links small').exists()).toBe(false)

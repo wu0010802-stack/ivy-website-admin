@@ -486,8 +486,8 @@ watch(requests, () => {
   if (index >= 0) selectedIndex = index
 })
 
-// 預覽裡標了到場、改期、取消或記了一筆：清單與頁首的改期申請數一起更新。
-// 動作自己已經強制刷新過改期申請數（useVisitCase），這裡只補還沒刷新的（例如只記了一筆紀錄），不重複強制。
+// 預覽裡標了到場、改期、取消或記了一筆：清單與頁首的數字一起更新。
+// 動作自己已經強制刷新過頁首數字（useVisitCase），這裡只補還沒刷新的（例如只記了一筆紀錄），不重複強制。
 function onPreviewChanged() {
   void load({ quiet: true })
   void openRequests.refresh()

@@ -1,4 +1,4 @@
-import { computed, h, ref, unref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, h, onBeforeUnmount, ref, unref, watch, type ComputedRef, type Ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { notifyError } from './notify'
 import { api } from '../api/client'
@@ -7,6 +7,7 @@ import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicP
 import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
+import { pairItems } from './listAlignment'
 import { contentFieldErrors, contentSaveErrorMessage, isVersionConflict, type ContentFieldError } from '../api/errors'
 import { hasCapability } from './usePermissions'
 import { useAuthStore } from '../stores/auth'
@@ -50,8 +51,8 @@ export function summarizeValue(value: unknown): string {
   return text.length > 60 ? `${text.slice(0, 60)}…` : text
 }
 
-// 清單裡的一項用哪個欄位當名字（消息標題、常見問題、場景名…），都沒有就用第幾項。
-const ITEM_NAME_KEYS = ['title', 'name', 'q', 'heading', 'label', 'time', 'date', 'key', 'id'] as const
+// 清單裡的一項用哪個欄位當名字（消息標題、場景名…），都沒有就用第幾項。
+const ITEM_NAME_KEYS = ['title', 'name', 'heading', 'label', 'time', 'date', 'key', 'id'] as const
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -73,18 +74,6 @@ function itemName(item: unknown, index: number): string {
   return `第 ${index + 1} 項`
 }
 
-// 有 id／key 的清單（消息、時刻、場景）用它對應同一項，才分得出「改了」和
-// 「刪了再加」；沒有的依位置對應。
-function itemIdentity(item: unknown, index: number): string {
-  if (isPlainObject(item)) {
-    for (const key of ['id', 'key'] as const) {
-      const value = item[key]
-      if (typeof value === 'string' && value) return `${key}:${value}`
-    }
-  }
-  return `#${index}`
-}
-
 // 「新增「親子日」、第 3 項」：名字有引號就緊接動詞，「第 N 項」前留空白。
 function listNames(verb: string, names: string[]): string {
   const list = names.length > 3 ? `${names.slice(0, 3).join('、')} 等 ${names.length} 項` : names.join('、')
@@ -96,19 +85,15 @@ export function nestedChangeDetail(before: unknown, after: unknown): string | un
   const beforeList = Array.isArray(before) ? before : before == null ? [] : null
   const afterList = Array.isArray(after) ? after : after == null ? [] : null
   if (beforeList && afterList && (Array.isArray(before) || Array.isArray(after))) {
-    const oldById = new Map(beforeList.map((item, index) => [itemIdentity(item, index), { item, index }]))
-    const newIds = new Set(afterList.map((item, index) => itemIdentity(item, index)))
-    const added: string[] = []
-    const changed: string[] = []
-    afterList.forEach((item, index) => {
-      const previous = oldById.get(itemIdentity(item, index))
-      if (!previous) added.push(itemName(item, index))
-      else if (JSON.stringify(previous.item) !== JSON.stringify(item)) changed.push(itemName(item, index))
-    })
-    const removed = beforeList
-      .map((item, index) => ({ item, index }))
-      .filter(({ item, index }) => !newIds.has(itemIdentity(item, index)))
-      .map(({ item, index }) => itemName(item, index))
+    const paired = pairItems(beforeList, afterList)
+    const byIndex = (a: number, b: number) => a - b
+    const added = paired.added.sort(byIndex).map((index) => itemName(afterList[index], index))
+    const removed = paired.removed.sort(byIndex).map((index) => itemName(beforeList[index], index))
+    const changed = paired.pairs
+      .filter(([oldIndex, newIndex]) => JSON.stringify(beforeList[oldIndex]) !== JSON.stringify(afterList[newIndex]))
+      .map(([, newIndex]) => newIndex)
+      .sort(byIndex)
+      .map((index) => itemName(afterList[index], index))
     const moved = !added.length && !removed.length && !changed.length && JSON.stringify(before) !== JSON.stringify(after)
     const parts = [
       added.length ? listNames('新增', added) : '',
@@ -232,7 +217,7 @@ export interface ContentEditorState {
   loadedCampusKey?: Ref<string | null>
   /** 要上線的內容（表單）和官網目前的版本相比；讀不到官網版回 null。開確認框前才呼叫 */
   compareWithLive?: () => Promise<LiveComparison | null>
-  /** 確認框標題用的內容名稱，分校內容帶校名，例如「各校常見問題（明華）」 */
+  /** 確認框標題用的內容名稱，分校內容帶校名，例如「各校消息與活動（明華）」 */
   contextLabel?: ComputedRef<string>
   /** 最新一版的 id；排程列用來判斷排的是不是目前的草稿 */
   latestRevisionId?: ComputedRef<string | null>
@@ -688,10 +673,12 @@ export function useContentItem<TPayload extends object>(
   const history: RevisionHistoryHandle = {
     kind,
     list: () => api.get<RevisionSummary[]>(`/admin/content-items/${kind}/revisions${query()}`),
+    // 兩邊都先經過 withDefaults／normalize 再比：已拿掉的欄位（例如五校介紹的簡介、預約文案的
+    // 橫幅）還原時後端會丟掉，不該列成「還原後會改回舊值」；後來新增的欄位也不會多出「（空白）→」。
     async payloadOf(revisionId) {
-      return (await readRevision(revisionId)).payload
+      return withDefaults((await readRevision(revisionId)).payload) as Record<string, unknown>
     },
-    savedPayload: () => (item.value?.latest_revision?.payload as Record<string, unknown> | undefined) ?? {},
+    savedPayload: () => withDefaults(item.value?.latest_revision?.payload) as Record<string, unknown>,
     async restore(revisionId, publishNow) {
       if (!item.value) return false
       const scope = scopeNow()
@@ -778,7 +765,19 @@ export function useContentItem<TPayload extends object>(
   // （例如存檔後官網版沒換）不算讀取中，動作列不會為了重新確認而閃一下。
   const liveReading = ref(false)
 
-  async function refreshLiveBase(): Promise<void> {
+  // 讀失敗（網路抖一下）等 1.5 秒自動再讀一次；第二次還失敗才退回和上次儲存比。等待期間仍算讀取中
+  // （liveReading），動作列不會先寫一次「和上次儲存比」的數字、重試成功後又跳成另一個數字。
+  const LIVE_RETRY_MS = 1500
+  let liveRetryTimer: ReturnType<typeof setTimeout> | null = null
+  function cancelLiveRetry() {
+    if (liveRetryTimer !== null) clearTimeout(liveRetryTimer)
+    liveRetryTimer = null
+  }
+  // 元件卸載、換了內容（新的一次讀取開始）都放棄還沒到的重試。
+  onBeforeUnmount(cancelLiveRetry)
+
+  async function refreshLiveBase(allowRetry = true): Promise<void> {
+    cancelLiveRetry()
     const request = liveRequests.begin()
     const current = item.value
     const liveId = current?.current_published_revision_id
@@ -788,16 +787,26 @@ export function useContentItem<TPayload extends object>(
       return
     }
     liveReading.value = liveBase.value?.id !== liveId
+    let retrying = false
     try {
       const payload = await livePayloadOf(current)
       if (!liveRequests.isCurrent(request)) return
       liveBase.value = payload ? { id: liveId, payload: withDefaults(payload) as Record<string, unknown> } : null
     } catch {
-      /* 讀不到官網版：draftBaseline 退回和上次儲存比 */
-      if (liveRequests.isCurrent(request)) liveBase.value = null
+      /* 讀不到官網版：先重試一次，仍失敗 draftBaseline 退回和上次儲存比 */
+      if (liveRequests.isCurrent(request)) {
+        liveBase.value = null
+        if (allowRetry) {
+          retrying = true
+          liveRetryTimer = setTimeout(() => {
+            liveRetryTimer = null
+            if (liveRequests.isCurrent(request)) void refreshLiveBase(false)
+          }, LIVE_RETRY_MS)
+        }
+      }
     } finally {
-      // 被更新的一次取代時由那一次負責收尾，不在這裡關掉
-      if (liveRequests.isCurrent(request)) liveReading.value = false
+      // 被更新的一次取代時由那一次負責收尾，不在這裡關掉；等著重試時也還在讀取中
+      if (!retrying && liveRequests.isCurrent(request)) liveReading.value = false
     }
   }
 

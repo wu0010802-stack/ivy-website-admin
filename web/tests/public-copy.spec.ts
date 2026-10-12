@@ -26,7 +26,7 @@ it('修正已知原型說明，保留示意新聞與 CMS 自訂內容，不杜�
   expect(site.siteMeta.description).toContain('提案')
 })
 
-it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文字、常見問題、熱點等），fixture 本身不動', () => {
+it('官網已不顯示的舊欄位不進頁面資料（原型的預約示範說明、熱點等）', () => {
   const site = fixture as unknown as SiteContent
   const raw = fixture as unknown as {
     home: { hero: Record<string, unknown>; campusBoard: Record<string, unknown> }
@@ -34,9 +34,12 @@ it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文�
     booking: Record<string, unknown>
     campuses: (Record<string, unknown> & { tourScenes: unknown })[]
   }
-  // fixture 留著這些值：後端初始化內容要讀。
-  expect(raw.booking).toHaveProperty('consentText')
-  expect(raw.campuses[0]).toHaveProperty('faq')
+  // 2026-10-08 預約同意文字與橫幅、分校簡介與臉書備註、常見問題連同後端欄位一起刪除，
+  // fixture 也不再有這些 key。
+  for (const key of ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel']) expect(raw.booking).not.toHaveProperty(key)
+  for (const campus of raw.campuses) for (const key of ['intro', 'description', 'fbNote', 'faq']) expect(campus).not.toHaveProperty(key)
+  // 還留著、官網不讀的欄位：預約示範說明與步驟（isDemo／demoNote／steps／fields）。
+  expect(raw.booking).toHaveProperty('demoNote')
   const result = publicCopy(site)
   const json = JSON.stringify(result)
   expect(json).not.toContain('這份 prototype 僅示範流程')
@@ -48,10 +51,10 @@ it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文�
   expect(result.home.hero).not.toHaveProperty('eyebrow')
   expect(result.home.campusBoard).not.toHaveProperty('note')
   expect(result.dayExperience).not.toHaveProperty('sourceNote')
-  for (const key of ['consentText', 'bannerTitleTemplate', 'bannerBody', 'bannerButtonLabel', 'isDemo', 'demoNote', 'steps', 'fields']) expect(result.booking).not.toHaveProperty(key)
+  for (const key of ['isDemo', 'demoNote', 'steps', 'fields']) expect(result.booking).not.toHaveProperty(key)
   expect(Object.keys(result.booking).sort()).toEqual(['ctaLabel', 'ctaLabelEn'])
   for (const campus of result.campuses) {
-    for (const key of ['intro', 'description', 'fbNote', 'heroPhotoPos', 'faq']) expect(campus).not.toHaveProperty(key)
+    expect(campus).not.toHaveProperty('heroPhotoPos')
     if (Array.isArray(campus.tourScenes)) for (const scene of campus.tourScenes) expect(scene).not.toHaveProperty('spots')
   }
   // 頁面用得到的欄位照舊。
@@ -59,7 +62,8 @@ it('官網已不顯示的舊欄位不進頁面資料（原型的示範同意文�
   expect(result.campuses[0]!.address).toBe(site.campuses[0]!.address)
   expect(result.booking.ctaLabel).toBe(site.booking.ctaLabel)
   expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
-  expect(raw.booking).toHaveProperty('consentText')
+  // withoutRetiredFields 不修改傳入的 fixture。
+  expect(raw.booking).toHaveProperty('demoNote')
 })
 
 it('fixture 的 _todo 維護備註不進公開資料：任何層級都沒有，內部路徑與待辦字句也不外洩', () => {

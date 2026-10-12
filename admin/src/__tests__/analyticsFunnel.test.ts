@@ -8,7 +8,7 @@ import AnalyticsView from '../views/AnalyticsView.vue'
 import { api } from '../api/client'
 import type { AnalyticsFunnelOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
-import { taipeiToday } from '../composables/newsContent'
+import { taipeiToday } from '../admissions/academic'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []

@@ -41,7 +41,6 @@ from app.operations.models import (
     RETENTION_MIN_DAYS,
     RetentionPolicy,
     RetentionRunTrigger,
-    SiteSettings,
 )
 
 router = APIRouter(prefix="/api/website/v1", tags=["operations"])
@@ -527,93 +526,6 @@ async def get_audit_log(
         )
         for row in rows
     ]
-
-
-# 舊的「全站設定」單列：官網與後端都不讀它。官網的描述、分享圖與是否允許
-# 收錄以 site_meta 內容（有草稿與發布流程）為唯一來源，家長同意的版本記在
-# 案件的 consent_revision_id。端點保留給舊資料相容，後台已不再使用。
-class SiteSettingsUpdate(BaseModel):
-    # GET 拿到的 version；不符回 409 SITE_SETTINGS_VERSION_CONFLICT。
-    expected_version: int = Field(ge=1)
-    title: str
-    description: str
-    share_image: str | None = None
-    noindex: bool
-    privacy_policy_version: str
-
-
-async def _get_or_create_settings(db: AsyncSession, *, for_update: bool = False) -> SiteSettings:
-    stmt = select(SiteSettings).where(SiteSettings.id == 1)
-    result = await db.execute(stmt.with_for_update() if for_update else stmt)
-    settings = result.scalar_one_or_none()
-    if settings is None:
-        settings = SiteSettings(id=1, updated_at=datetime.now(timezone.utc))
-        db.add(settings)
-        await db.flush()
-    return settings
-
-
-@router.get("/admin/site-settings", deprecated=True)
-async def get_site_settings(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    require_scope(current_user, "content.read")
-    settings = await _get_or_create_settings(db)
-    await db.commit()
-    return {
-        "title": settings.title,
-        "description": settings.description,
-        "share_image": settings.share_image,
-        "noindex": settings.noindex,
-        "privacy_policy_version": settings.privacy_policy_version,
-        "version": settings.version,
-    }
-
-
-@router.patch("/admin/site-settings", deprecated=True)
-async def update_site_settings(
-    payload: SiteSettingsUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db_session),
-) -> dict:
-    require_scope(current_user, "site_settings.manage")
-    settings = await _get_or_create_settings(db, for_update=True)
-    if settings.version != payload.expected_version:
-        current = settings.version
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "SITE_SETTINGS_VERSION_CONFLICT",
-                "message": "全站設定剛被其他人修改，請重新載入後再編輯",
-                "current_version": current,
-            },
-        )
-    settings.version += 1
-    settings.title = payload.title
-    settings.description = payload.description
-    settings.share_image = payload.share_image
-    settings.noindex = payload.noindex
-    settings.privacy_policy_version = payload.privacy_policy_version
-    settings.updated_at = datetime.now(timezone.utc)
-    await audit_service.log_action(
-        db,
-        actor_user_id=current_user.id,
-        action="site_settings.update",
-        target_type="site_settings",
-        target_id="1",
-        metadata={"noindex": payload.noindex, "privacy_policy_version": payload.privacy_policy_version},
-    )
-    await db.commit()
-    return {
-        "title": settings.title,
-        "description": settings.description,
-        "share_image": settings.share_image,
-        "noindex": settings.noindex,
-        "privacy_policy_version": settings.privacy_policy_version,
-        "version": settings.version,
-    }
 
 
 class RetentionDaysOut(BaseModel):

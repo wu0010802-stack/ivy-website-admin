@@ -29,7 +29,7 @@ async def _ids(admin_client, **params) -> dict:
 
 
 @pytest.mark.asyncio
-async def test_list_filters_and_counts_by_group(admin_client, public_client, db_session):
+async def test_list_filters_by_group(admin_client, public_client, db_session):
     upcoming = await book_slot(admin_client, public_client, days_ahead=3, phone="0922000001")
     past = await book_slot(admin_client, public_client, days_ahead=4, phone="0922000002")
     await start_visit_slot(db_session, past["receipt_id"])
@@ -51,11 +51,9 @@ async def test_list_filters_and_counts_by_group(admin_client, public_client, db_
     assert everything[upcoming["receipt_id"]]["display_status"] == "upcoming"
     assert everything[past["receipt_id"]]["display_status"] == "past"
 
-    counts = await admin_client.get(f"{API}/admin/visit-requests/group-counts")
-    assert counts.status_code == 200, counts.text
-    assert counts.json() == {"upcoming": 1, "past": 2, "cancelled": 1}
-    other = (await admin_client.get(f"{API}/admin/visit-requests/group-counts", params={"campus_key": "minghua"})).json()
-    assert other == {"upcoming": 0, "past": 0, "cancelled": 0}
+    # 分組同時受校區篩選限制：別校沒有這些案件。
+    assert await _ids(admin_client, group="upcoming", campus_key="minghua") == {}
+    assert await _ids(admin_client, campus_key="minghua") == {}
 
 
 @pytest.mark.asyncio

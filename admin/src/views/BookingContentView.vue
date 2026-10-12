@@ -10,16 +10,36 @@ import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
 import LengthHint from '../components/LengthHint.vue'
 
-const editor = useContentItem<BookingContentPayload>('booking_content', {
-  cta_label: '',
-  cta_label_en: '',
-  consent_text: '',
-  banner_title_template: '',
-  banner_body: '',
-  banner_button_label: '',
-  privacy_title: '',
-  privacy_sections: [],
-})
+// 同意條款文字（consent_text）官網預約 2026-10-02 起不用勾選，橫幅標題／內文／按鈕
+// （banner_*）官網從沒讀過；2026-10-08 連後端欄位一起拿掉：舊版本存著的值載入時丟掉，
+// 不會出現在「變更了哪些欄位」，存檔也不再送出（後端同樣忽略）。
+const editor = useContentItem<BookingContentPayload>(
+  'booking_content',
+  {
+    cta_label: '',
+    cta_label_en: '',
+    privacy_title: '',
+    privacy_sections: [],
+  },
+  undefined,
+  {
+    normalize: (payload) => {
+      const {
+        consent_text: _consent,
+        banner_title_template: _bannerTitle,
+        banner_body: _bannerBody,
+        banner_button_label: _bannerButton,
+        ...rest
+      } = payload as BookingContentPayload & {
+        consent_text?: string
+        banner_title_template?: string
+        banner_body?: string
+        banner_button_label?: string
+      }
+      return rest
+    },
+  },
+)
 
 const sections = computed(() => editor.form.value.privacy_sections)
 // 示意段落不能發布（後端也會擋）；提早講，不要等按了發布才知道。
@@ -53,7 +73,7 @@ onMounted(editor.load)
 <template>
   <ContentEditor :editor="editor">
     <template #lead>
-      預約按鈕、同意條款與隱私說明的文字。各校採用哪種預約方式（表單、LINE、電話）在
+      預約按鈕與隱私說明的文字。各校採用哪種預約方式（表單、LINE、電話）在
       <router-link to="/booking">各校預約方式</router-link> 設定。
     </template>
 

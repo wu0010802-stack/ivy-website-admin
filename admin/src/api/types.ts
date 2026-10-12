@@ -108,11 +108,6 @@ export interface PrivacySectionPayload {
 export interface BookingContentPayload {
   cta_label: string
   cta_label_en: string
-  // 2026-10-02 起官網不再顯示，後台也不再編輯；載入的舊值原樣帶回。
-  consent_text?: string
-  banner_title_template: string
-  banner_body: string
-  banner_button_label: string
   /** 隱私／個資使用說明（2026-09-25 新增）；空清單＝官網不顯示說明入口 */
   privacy_title: string
   privacy_sections: PrivacySectionPayload[]
@@ -205,7 +200,7 @@ export type NewsBodyBlock =
   | { type: 'image'; image: string; alt: string; caption: string }
   | { type: 'link'; label: string; url: string }
 
-/** 全站消息、活動與共用常見問題的適用範圍：global＝全校；campus＝指定校區（至少一校） */
+/** 全站消息與活動的適用範圍：global＝全校；campus＝指定校區（至少一校） */
 export type ContentScope = 'global' | 'campus'
 
 export interface ScopedEntry {
@@ -349,10 +344,7 @@ export interface CampusProfilePayload {
   district: string
   address: string
   phone: string
-  intro: string
-  description: string
   facebook: string
-  fb_note: string
   line: string
   /** Google 地圖網址；空字串＝官網用地址搜尋 */
   map_url: string
@@ -366,30 +358,6 @@ export interface CampusProfilePayload {
   /** 2026-09-25 新增；之前存的版本沒有這兩欄，表單載入時補空字串。 */
   instagram: string
   youtube: string
-}
-
-export interface CampusFaqItemPayload {
-  q: string
-  a: string
-  /** 停用＝留在後台、官網不顯示；和共用題目同一題時等於這校不顯示那一題 */
-  enabled: boolean
-}
-
-export interface CampusFaqPayload {
-  items: CampusFaqItemPayload[]
-  include_shared: boolean
-  shared_position: 'before' | 'after'
-}
-
-export interface SharedFaqItemPayload extends ScopedEntry {
-  id: string
-  q: string
-  a: string
-  enabled: boolean
-}
-
-export interface SharedFaqPayload {
-  items: SharedFaqItemPayload[]
 }
 
 /** 已拿掉的分校頁校園探索熱點：官網不顯示、後台不編，只為舊版本保留 */
@@ -422,6 +390,7 @@ export type VariantKind = components['schemas']['VariantKind']
 
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
 export type MediaAssetOut = components['schemas']['MediaAssetOut']
+export type MediaAssetPageOut = components['schemas']['MediaAssetPageOut']
 export type MediaUsagesOut = components['schemas']['MediaUsagesOut']
 export type MediaReferenceOut = components['schemas']['MediaReferenceOut']
 export type MediaHistoryReferenceOut = components['schemas']['MediaHistoryReferenceOut']
@@ -440,11 +409,11 @@ export type PublicVisitSlotOut = components['schemas']['PublicVisitSlotOut']
 export type VisitRequestDetailOut = components['schemas']['VisitRequestDetailOut']
 export type VisitRequestFullOut = components['schemas']['VisitRequestFullOut']
 export type VisitHistoryOut = components['schemas']['VisitHistoryOut']
-export type RescheduleRequestOut = components['schemas']['RescheduleRequestOut']
 export type NotificationOutboxOut = components['schemas']['NotificationOutboxOut']
 export type NotificationOutboxPageOut = components['schemas']['NotificationOutboxPageOut']
 export type NotificationRetryBatchOut = components['schemas']['NotificationRetryBatchOut']
 export type NotificationInboxItemOut = components['schemas']['NotificationInboxItemOut']
+export type NotificationReadAllOut = components['schemas']['NotificationReadAllOut']
 export type ParentAccessLinkCreatedOut = components['schemas']['ParentAccessLinkCreatedOut']
 export type VisitContactNoteOut = components['schemas']['VisitContactNoteOut']
 export type VisitRequestManualCreate = components['schemas']['VisitRequestManualCreate']

@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { ArrowDown, Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
-import type { MediaAssetOut, MediaUploadLimitsOut } from '../api/types'
+import type { MediaAssetOut, MediaAssetPageOut, MediaUploadLimitsOut } from '../api/types'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
 import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus, staffEmail, staffLabel, staffOf } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
@@ -26,17 +26,34 @@ type ListState = 'active' | 'archived' | 'deleted'
 const authStore = useAuthStore()
 const { can } = usePermissions()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+// 篩選與分頁都在後端做，這裡只放目前這一頁。
+const PAGE_SIZE = 60
 const assets = ref<MediaAssetOut[]>([])
+const page = ref(1)
+// 符合篩選的總數、目前這一類（素材／已封存／待清理）的總數，給「顯示 X / N 個素材」。
+const total = ref(0)
+const stateTotal = ref(0)
+// 目前這一類素材用過的標籤，依使用次數排序（後端算，不受其他篩選影響）。
+const allTags = ref<string[]>([])
 const loading = ref(false)
 const listState = ref<ListState>('active')
 const campusFilter = ref('')
 const kindFilter = ref<'' | 'image' | 'video'>('')
 const query = ref('')
+// 實際送出的關鍵字：停止輸入 300ms 後才更新（同參觀案件列表）。
+const keyword = ref('')
 const tagFilter = ref('')
 const loadError = ref<string | null>(null)
 const limits = ref<MediaUploadLimitsOut | null>(null)
 const hasFilters = computed(() => Boolean(query.value.trim() || campusFilter.value || kindFilter.value || tagFilter.value))
-function clearFilters() { query.value = ''; campusFilter.value = ''; kindFilter.value = ''; tagFilter.value = '' }
+function clearFilters() {
+  query.value = ''
+  clearTimeout(searchTimer)
+  keyword.value = ''
+  campusFilter.value = ''
+  kindFilter.value = ''
+  tagFilter.value = ''
+}
 
 // 上傳、改說明、替換、封存、刪除要 media.manage（唯讀與櫃台只能看、只能選）。
 const canManage = computed(() => can('media.manage'))
@@ -46,23 +63,6 @@ const uploadCampusOptions = computed(() => visibleCampusKeys.value)
 function canManageAsset(asset: MediaAssetOut) {
   return canManage.value && (asset.campus_key !== null || canUploadShared.value)
 }
-
-const visibleAssets = computed(() =>
-  assets.value.filter(
-    (a) =>
-      (!campusFilter.value || a.campus_key === campusFilter.value || (campusFilter.value === '__shared' && a.campus_key === null)) &&
-      (!kindFilter.value || a.kind === kindFilter.value) &&
-      (!tagFilter.value || (a.tags ?? []).includes(tagFilter.value)) &&
-      (!query.value.trim() || `${a.original_filename} ${a.alt_text ?? ''} ${a.caption ?? ''} ${(a.tags ?? []).join(' ')}`.toLocaleLowerCase().includes(query.value.trim().toLocaleLowerCase())),
-  ),
-)
-
-// 篩選選單列出目前素材用過的所有標籤，依使用次數排序。
-const allTags = computed(() => {
-  const counts = new Map<string, number>()
-  for (const a of assets.value) for (const t of a.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1)
-  return [...counts.entries()].sort((x, y) => y[1] - x[1]).map(([t]) => t)
-})
 
 // 只列這個帳號看得到的校區（加跨校共用）：列出別校，篩了也是空的，上傳時還會被預選成
 // 沒有權限的校區、送出才被後端擋下。
@@ -76,21 +76,36 @@ const purgeDays = computed(() => limits.value?.purge_delay_days ?? 7)
 const listSummary = computed(() => {
   if (loading.value) return '正在讀取素材…'
   if (loadError.value) return '素材尚未載入'
-  return hasFilters.value ? `顯示 ${visibleAssets.value.length} / ${assets.value.length} 個素材` : `${assets.value.length} 個素材`
+  return hasFilters.value ? `顯示 ${total.value} / ${stateTotal.value} 個素材` : `${stateTotal.value} 個素材`
 })
 
-// 快速切換「素材／已封存／待清理」時，只採用最後一次讀取的回應，
-// 先發出、較晚回來的舊分頁清單不能蓋掉目前的分頁。
+// 快速切換「素材／已封存／待清理」或篩選時，只採用最後一次讀取的回應，
+// 先發出、較晚回來的舊清單不能蓋掉目前的清單。
 const requests = useRequestSequence()
+
+function listPath(): string {
+  const params = new URLSearchParams()
+  if (listState.value !== 'active') params.set('state', listState.value)
+  if (campusFilter.value) params.set('campus', campusFilter.value)
+  if (kindFilter.value) params.set('kind', kindFilter.value)
+  if (tagFilter.value) params.set('tag', tagFilter.value)
+  if (keyword.value) params.set('q', keyword.value)
+  params.set('page', String(page.value))
+  params.set('page_size', String(PAGE_SIZE))
+  return `/admin/media?${params}`
+}
 
 async function load() {
   const request = requests.begin()
   loading.value = true
   loadError.value = null
   try {
-    const suffix = listState.value === 'active' ? '' : `?state=${listState.value}`
-    const loaded = await api.get<MediaAssetOut[]>(`/admin/media${suffix}`)
-    if (requests.isCurrent(request)) assets.value = loaded
+    const result = await api.get<MediaAssetPageOut>(listPath())
+    if (!requests.isCurrent(request)) return
+    assets.value = result.items
+    total.value = result.total
+    stateTotal.value = result.state_total
+    allTags.value = result.tags
   } catch {
     if (requests.isCurrent(request)) loadError.value = '無法讀取素材庫，請重新載入。'
   } finally {
@@ -98,7 +113,37 @@ async function load() {
   }
 }
 
-watch(listState, load)
+// 封存、刪除、復原、改說明、替換之後重抓目前這一頁（卡片可能離開目前的篩選）；
+// 這一頁因此空了就退回上一頁。
+async function reloadPage() {
+  await load()
+  if (!loadError.value && assets.value.length === 0 && page.value > 1) {
+    page.value = Math.max(1, Math.min(page.value - 1, Math.ceil(total.value / PAGE_SIZE)))
+  }
+}
+
+// 邊打字邊查會連發請求，停下來再送。
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+watch(query, (value) => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { keyword.value = value.trim() }, 300)
+})
+onBeforeUnmount(() => clearTimeout(searchTimer))
+
+// 換篩選或切換素材／已封存／待清理都回第 1 頁；已經在第 1 頁就直接重讀（同一次變動不讀兩次）。
+const filterKey = computed(() => JSON.stringify([listState.value, campusFilter.value, kindFilter.value, tagFilter.value, keyword.value]))
+watch(filterKey, () => {
+  if (page.value !== 1) page.value = 1
+  else void load()
+})
+watch(page, () => void load())
+
+// 換頁後回到清單開頭（筆數列），不停在上一頁的底部。
+const summaryEl = ref<HTMLElement | null>(null)
+function setPage(value: number) {
+  page.value = value
+  summaryEl.value?.scrollIntoView?.({ block: 'start' })
+}
 
 function replaceListed(fresh: MediaAssetOut) {
   const index = assets.value.findIndex((a) => a.id === fresh.id)
@@ -183,8 +228,10 @@ async function submitUpload() {
   }
   const uploaded = await queue.start()
   const failed = queue.counts.value.failed
+  // 新上傳的排在最前面：回到「素材」分頁的第 1 頁。
   if (uploaded.length) {
     if (listState.value !== 'active') listState.value = 'active'
+    else if (page.value !== 1) page.value = 1
     else await load()
   }
   if (failed) {
@@ -276,7 +323,7 @@ async function submitEdit() {
     })
     ElMessage.success('已儲存')
     editDialogVisible.value = false
-    await load()
+    await reloadPage()
   } catch (err) {
     if (isVersionConflict(err)) await reloadEditing(err)
     else notifyError(apiErrorMessage(err, '儲存失敗'))
@@ -303,7 +350,7 @@ async function reloadEditing(err: unknown) {
   } catch (loadErr) {
     notifyError(apiErrorMessage(loadErr, '重新載入失敗'))
   }
-  await load()
+  await reloadPage()
 }
 
 // ---- 用在哪裡、替換 ----
@@ -353,7 +400,7 @@ async function setArchived(asset: MediaAssetOut, archived: boolean) {
     try {
       await api.post(`/admin/media/${asset.id}/${archived ? 'archive' : 'unarchive'}`)
       ElMessage.success(archived ? '已封存，可以在「已封存」找回來' : '已取消封存')
-      await load()
+      await reloadPage()
     } catch (err) {
       const detail = errorDetail(err)
       notifyError(detail.message ?? (archived ? '封存失敗' : '取消封存失敗'))
@@ -376,7 +423,7 @@ async function removeAsset(asset: MediaAssetOut) {
   try {
     await api.delete(`/admin/media/${asset.id}`)
     ElMessage.success(`已移到待清理，${purgeDays.value} 天內可以復原`)
-    await load()
+    await reloadPage()
   } catch (err) {
     const detail = errorDetail(err)
     if (detail.code === 'MEDIA_IN_HISTORY' && !asset.archived_at) {
@@ -402,7 +449,7 @@ async function restoreAsset(asset: MediaAssetOut) {
     try {
       await api.post(`/admin/media/${asset.id}/restore`)
       ElMessage.success('已復原')
-      await load()
+      await reloadPage()
     } catch (err) {
       notifyError(errorDetail(err).message ?? '復原失敗')
     }
@@ -456,19 +503,19 @@ onMounted(async () => {
       </div>
       <el-button v-if="hasFilters" text @click="clearFilters">清除篩選</el-button>
     </div>
-    <div class="list-summary" role="status"><span>{{ listSummary }}</span><el-button text :loading="loading" @click="load">重新整理</el-button></div>
+    <div ref="summaryEl" class="list-summary" role="status"><span>{{ listSummary }}</span><el-button text :loading="loading" @click="load">重新整理</el-button></div>
 
     <el-alert v-if="loadError" :title="loadError" type="error" show-icon :closable="false"><el-button @click="load">重新載入</el-button></el-alert>
-    <div v-else v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && visibleAssets.length === 0 }" :aria-busy="loading">
+    <div v-else v-loading="loading" class="media-grid" :class="{ 'is-empty': !loading && assets.length === 0 }" :aria-busy="loading">
       <el-empty
-        v-if="!loading && visibleAssets.length === 0"
+        v-if="!loading && assets.length === 0"
         :description="hasFilters ? '沒有符合條件的素材' : listState === 'archived' ? '沒有封存的素材' : listState === 'deleted' ? '沒有待清理的素材' : '素材庫還是空的，先上傳第一張照片'"
       >
         <el-button v-if="hasFilters" @click="clearFilters">清除篩選</el-button>
         <el-button v-else-if="canManage && listState === 'active'" type="primary" @click="openUpload">上傳素材</el-button>
       </el-empty>
 
-      <article v-for="asset in visibleAssets" :key="asset.id" class="media" :data-media-id="asset.id">
+      <article v-for="asset in assets" :key="asset.id" class="media" :data-media-id="asset.id">
         <div class="media__thumb">
           <!-- 列表一律用縮圖（圖片長邊 480、影片自動擷取的畫面），不載原檔。 -->
           <img v-if="asset.status === 'ready' && mediaPreviewUrl(asset)" :src="mediaPreviewUrl(asset)" :alt="asset.alt_text ?? ''" loading="lazy" />
@@ -529,6 +576,11 @@ onMounted(async () => {
           </template>
         </div>
       </article>
+    </div>
+
+    <div v-if="!loadError && total > PAGE_SIZE" class="media-pager">
+      <span class="hint">共 {{ total }} 個素材</span>
+      <el-pagination :current-page="page" :page-size="PAGE_SIZE" :total="total" layout="prev, pager, next" @current-change="setPage" />
     </div>
 
     <!-- 上傳中 Esc、X、點背景都關不掉（進度要看得到）；選好的檔案也不會因為點到背景就不見。 -->
@@ -628,7 +680,7 @@ onMounted(async () => {
     </el-dialog>
 
     <MediaUsagesDrawer v-model="usagesVisible" :asset="usagesAsset" />
-    <MediaReplaceDialog v-model="replaceVisible" :asset="replaceAsset" @done="load" />
+    <MediaReplaceDialog v-model="replaceVisible" :asset="replaceAsset" @done="reloadPage" />
   </div>
 </template>
 
@@ -656,6 +708,15 @@ onMounted(async () => {
 
 .media-grid.is-empty {
   display: block;
+}
+
+.media-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  margin-top: 16px;
 }
 
 .media {

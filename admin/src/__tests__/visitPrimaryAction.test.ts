@@ -12,7 +12,7 @@ import { testUser } from './fixtures'
 afterEach(() => { cleanup(); window.sessionStorage.clear() })
 
 const base: StageInput = {
-  status: 'confirmed', canHandle: true, visitStarted: false, hasRescheduleRequest: false, familyPending: false,
+  status: 'confirmed', canHandle: true, visitStarted: false, familyPending: false,
   isFamily: false, canReadAdmissions: true, canCreateAdmissions: true, admissionsAvailable: 'yes', lookupFailed: false,
 }
 
@@ -21,8 +21,6 @@ describe('caseStage：頁首主動作依階段', () => {
     [{ familyPending: true, status: 'completed' }, 'loading'],
     [{ canHandle: false }, 'readonly'],
     [{ visitStarted: true }, 'attendance'],
-    [{ visitStarted: true, hasRescheduleRequest: true }, 'attendance'],
-    [{ hasRescheduleRequest: true }, 'reschedule'],
     [{}, 'upcoming'],
     [{ status: 'completed', isFamily: true }, 'family'],
     [{ status: 'completed', lookupFailed: true }, 'admissions-retry'],
@@ -34,13 +32,6 @@ describe('caseStage：頁首主動作依階段', () => {
   ])('%o → %s', (changes, stage) => {
     expect(caseStage({ ...base, ...changes })).toBe(stage)
   })
-})
-
-const request = (available = true) => ({
-  id: 'req-1', parent_name: '林小姐', created_at: '2026-10-02T03:00:00Z',
-  current_slot: { slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' },
-  requested_slot: { slot_date: '2099-10-08', start_time: '10:00:00', end_time: '11:00:00' },
-  requested_slot_available: available, requested_slot_remaining: available ? 2 : 0,
 })
 
 async function mountDetail(data: Record<string, unknown>, routes: Record<string, unknown> = {}, user = undefined) {
@@ -69,23 +60,6 @@ describe('VisitPrimaryAction', () => {
     await button(wrapper.get('.case-hero__actions'), '家長到了')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VISIT_ID}/complete`)
-  })
-
-  it('場次開始後又有改期申請：到場仍是主鈕，核准改期是淺色', async () => {
-    const wrapper = await mountDetail({ ...started(), pending_reschedule: request() })
-    const approve = button(wrapper.get('.reschedule-request'), '核准改期')!
-    expect(approve.classes()).toContain('is-plain')
-    expect(wrapper.find('.detail__attendance').exists()).toBe(true)
-  })
-
-  it('還沒開始、家長申請改期：核准改期是實心主鈕；名額不足時停用', async () => {
-    const ok = await mountDetail(visitCase({ pending_reschedule: request() }))
-    expect(ok.get('.case-hero__actions').attributes('data-stage')).toBe('reschedule')
-    expect(button(ok.get('.reschedule-request'), '核准改期')!.classes()).not.toContain('is-plain')
-    cleanup()
-    const full = await mountDetail(visitCase({ pending_reschedule: request(false) }))
-    expect(button(full.get('.reschedule-request'), '核准改期')!.attributes('disabled')).toBeDefined()
-    expect(full.get('.reschedule-request').text()).toContain('無法核准')
   })
 
   it('還沒開始：沒有主鈕，只寫提示', async () => {

@@ -11,7 +11,6 @@ from app.content.page_schemas import AboutPagePayload, CurriculumPagePayload
 from app.content.schemas import (
     AdmissionContentPayload,
     BookingContentPayload,
-    CampusFaqPayload,
     CampusNewsPayload,
     CampusProfilePayload,
     CampusTourPayload,
@@ -24,9 +23,7 @@ from app.content.schemas import (
     PRIVACY_SAMPLE_MARKER,
     PrivacyPolicyPayload,
     SiteFooterPayload,
-    SharedFaqPayload,
     SiteMetaPayload,
-    campus_faq_blank_items,
     is_scheduled_visible,
 )
 
@@ -198,7 +195,8 @@ def set_at_path(payload: dict, path: str, value: object) -> None:
 def _booking_publish_blocker(payload: dict) -> str | None:
     """隱私說明還留著後台帶入的示意文字時不能發布（正式條款由園方提供）。
 
-    2026-10-02 起官網預約不用勾選同意，同意條款文字不再顯示，也不再檢查。"""
+    2026-10-02 起官網預約不用勾選同意，同意條款文字不再顯示，也不再檢查
+    （2026-10-08 欄位本身拿掉，見 BookingContentPayload）。"""
     texts = [payload.get("privacy_title", "")]
     for section in payload.get("privacy_sections", []):
         texts += [section.get("heading", ""), section.get("body", "")]
@@ -247,50 +245,15 @@ def _public_home_hero(payload: dict, today: str) -> dict:
     return {k: v for k, v in payload.items() if k != "cta_label"}
 
 
-def _public_shared_faq(payload: dict, today: str) -> dict:
-    # 停用的共用題目不輸出（舊資料沒有 enabled 欄位，視為啟用）。
-    return {**payload, "items": [i for i in payload.get("items", []) if i.get("enabled", True)]}
+def _public_without_retired(model: type[BaseModel]) -> Callable[[dict, str], dict]:
+    """剔除 payload 模型裡標了 exclude=True 的已拿掉欄位（schema 為舊版本可讀才留著）。
+    新存的版本 model_dump 已不帶它們，但線上已發布的舊版本可能還有，公開輸出不能外洩。"""
+    retired = frozenset(name for name, info in model.model_fields.items() if info.exclude)
 
+    def view(payload: dict, today: str) -> dict:
+        return {k: v for k, v in payload.items() if k not in retired}
 
-def _public_campus_faq(payload: dict, today: str) -> dict:
-    """停用的本校題目只留問題文字與 enabled=False：官網靠它把同一題的共用
-    題目藏起來（見 CampusFaqPayload），回答不必讓訪客拿到。跟共用題目無關的
-    停用題連問題也不該輸出，要對照共用題目才知道，由 service.get_public_content
-    讀完整份內容後再用 drop_unshared_faq_markers 拿掉。"""
-    items = [
-        item if item.get("enabled", True) else {"q": item.get("q", ""), "a": "", "enabled": False}
-        for item in payload.get("items", [])
-    ]
-    return {**payload, "items": items}
-
-
-def drop_unshared_faq_markers(campus_key: str, payload: dict, shared: dict | None) -> dict:
-    """公開的各校常見問題只保留「藏住某題共用題目」的停用題：問題文字要跟
-    官網上這一校看得到的共用題目（已過 _public_shared_faq，只剩啟用的）完全
-    相同才留，其他停用題整題不輸出——園方停用就是從官網拿掉，問題文字也不該
-    還能從 /public/site 讀到。比對規則同官網 mergeCampusFaq（去頭尾空白）。"""
-    shared_questions = {
-        str(item.get("q") or "").strip()
-        for item in (shared or {}).get("items", []) or []
-        if isinstance(item, dict)
-        and (item.get("scope") != "campus" or campus_key in (item.get("campus_keys") or []))
-    }
-    items = [
-        item
-        for item in payload.get("items", []) or []
-        if not isinstance(item, dict)
-        or item.get("enabled", True)
-        or str(item.get("q") or "").strip() in shared_questions
-    ]
-    return {**payload, "items": items}
-
-
-def _campus_faq_publish_blocker(payload: dict) -> str | None:
-    blank = campus_faq_blank_items(payload)
-    if blank:
-        numbers = "、".join(str(n) for n in blank)
-        return f"第 {numbers} 題設為在官網顯示，但問題或回答是空白，請補上回答或改成停用再發布"
-    return None
+    return view
 
 
 _CAMPUS_PROFILE_REQUIRED = (("name", "校名"), ("address", "地址"), ("phone", "參觀專線"))
@@ -351,7 +314,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     ),
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
     "booking_content": ContentKindConfig(
-        BookingContentPayload, shared_only=True, publish_blocker=_booking_publish_blocker
+        BookingContentPayload,
+        shared_only=True,
+        publish_blocker=_booking_publish_blocker,
+        public_view=_public_without_retired(BookingContentPayload),
     ),
     "privacy_policy": ContentKindConfig(
         PrivacyPolicyPayload, shared_only=True, publish_blocker=_privacy_policy_publish_blocker
@@ -368,8 +334,6 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         public_view=_public_news,
         schema_version=2,
     ),
-    # 全站共用常見問題；各校在 campus_faq 決定要不要顯示、放在哪裡。
-    "shared_faq": ContentKindConfig(SharedFaqPayload, shared_only=True, public_view=_public_shared_faq),
     "admission_content": ContentKindConfig(AdmissionContentPayload, shared_only=True),
     # 特色教學頁（2026-10 開放後台編輯）：文字與照片，章節數量與版面固定（page_schemas.py）。
     "curriculum_page": ContentKindConfig(
@@ -385,12 +349,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         shared_only=False,
         extract_media_refs=_extract_campus_profile_media_refs,
         publish_blocker=_campus_profile_publish_blocker,
-    ),
-    "campus_faq": ContentKindConfig(
-        CampusFaqPayload,
-        shared_only=False,
-        publish_blocker=_campus_faq_publish_blocker,
-        public_view=_public_campus_faq,
+        public_view=_public_without_retired(CampusProfilePayload),
     ),
     # 各校自己的消息與活動（分校人員只編本校），官網和 home_news 合併顯示。
     "campus_news": ContentKindConfig(

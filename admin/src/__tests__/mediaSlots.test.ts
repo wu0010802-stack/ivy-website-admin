@@ -22,7 +22,7 @@ import { filmClipError, filmStartError, filmYoutubeError, newHomeFilm, youtubeId
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { resetUploadLimits } from '../composables/mediaUpload'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { mediaListParams, mediaPage, testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 beforeEach(() => {
@@ -119,6 +119,7 @@ describe('縮圖與 poster', () => {
   it('素材庫卡片不載原檔：圖片用縮圖、影片顯示 poster 與長度', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+      if (path.startsWith('/admin/media?')) return mediaPage([asset(), VIDEO]) as never
       if (path.startsWith('/admin/media')) return [asset(), VIDEO] as never
       return [] as never
     })
@@ -135,6 +136,7 @@ describe('縮圖與 poster', () => {
   it('素材預設焦點用 0–100 點選、存 0–1，說明文字跟官網實際行為一致', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+      if (path.startsWith('/admin/media?')) return mediaPage([asset({ crop_focus_x: 0.25, crop_focus_y: 0.4 })]) as never
       if (path.startsWith('/admin/media')) return [asset({ crop_focus_x: 0.25, crop_focus_y: 0.4 })] as never
       return [] as never
     })
@@ -155,15 +157,18 @@ describe('縮圖與 poster', () => {
     expect(body.crop_focus_y).toBeCloseTo(0.4)
   })
 
-  it('選圖器可以只列影片，並用 poster 當預覽', async () => {
-    vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+  it('選圖器可以只列影片（向後端只要影片），並用 poster 當預覽', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
-      return [asset(), VIDEO] as never
+      // 後端依 kind 篩。
+      return mediaPage([asset(), VIDEO].filter((a) => a.kind === mediaListParams(path).kind)) as never
     })
     const open = ref(false)
     mountPlain(() => h(MediaPickerDialog, { modelValue: open.value, kind: 'video', 'onUpdate:modelValue': (v: boolean) => (open.value = v) }))
     open.value = true
     await flushPromises()
+    expect(get.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/media?')).map(mediaListParams))
+      .toEqual([{ kind: 'video', exclude_failed: 'true', campus: '__shared', page: '1', page_size: '40' }])
     const items = Array.from(document.body.querySelectorAll('.picker__item'))
     expect(items).toHaveLength(1)
     expect(items[0]!.querySelector('img')!.getAttribute('src')).toBe('/api/website/v1/admin/media/vid/variants/poster?v=p1')
@@ -209,7 +214,7 @@ describe('MediaSlotField', () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/m1') return asset({ crop_focus_x: 0.3, crop_focus_y: 0.6 }) as never
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
-      return [asset(), asset({ id: 'm2', original_filename: 'other.jpg' })] as never
+      return mediaPage([asset(), asset({ id: 'm2', original_filename: 'other.jpg' })]) as never
     })
     const slot = ref<MediaSlotPayload | null>(null)
     const picked: MediaAssetOut[] = []
@@ -281,6 +286,7 @@ describe('內容頁的素材版位', () => {
       if (path.startsWith('/admin/content-items/home_hero')) return contentItem('home_hero', { eyebrow: '小標', copy_lines: ['一'] }) as never
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
       if (path === '/admin/media/m1') return asset() as never
+      if (path.startsWith('/admin/media?')) return mediaPage([asset(), VIDEO]) as never
       if (path.startsWith('/admin/media')) return [asset(), VIDEO] as never
       return [] as never
     })
@@ -315,7 +321,7 @@ describe('內容頁的素材版位', () => {
 
   it('分校：沒換封面也能調首頁卡片的焦點，送出 0–100 的座標', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
-      name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
+      name: '義華校', district: '三民區', address: '地址', phone: '07', facebook: '', line: '', map_url: '',
     }, 'yihua') as never)
     const wrapper = await mountView(CampusProfileView, '/content/campus-profile')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
@@ -336,7 +342,7 @@ describe('內容頁的素材版位', () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/m1') return asset({ crop_focus_x: 0.3, crop_focus_y: 0.7 }) as never
       return contentItem('campus_profile', {
-        name: '義華校', district: '三民區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
+        name: '義華校', district: '三民區', address: '地址', phone: '07', facebook: '', line: '', map_url: '',
         cover: { media_id: 'm1', focus_x: null, focus_y: null }, card_focus: null, hero_focus: null, line_art: null, line_art_colour: null,
       }, 'yihua') as never
     })

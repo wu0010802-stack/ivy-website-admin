@@ -7,14 +7,11 @@ import ElementPlus, { ElMessageBox } from 'element-plus'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import NotificationsView from '../views/NotificationsView.vue'
 import DashboardView from '../views/DashboardView.vue'
-import AdminSidebar from '../components/AdminSidebar.vue'
-import CampusSelect from '../components/CampusSelect.vue'
 import { api } from '../api/client'
 import { AUDIT_ACTION_LABELS, NOTIFICATION_KIND_LABELS, slotStarted } from '../api/labels'
 import { visitEventActor, visitEventChanges, visitEventTitle } from '../api/visitHistory'
 import type { UserOut, VisitHistoryOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
-import { useOpenRequestsStore } from '../stores/openRequests'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
@@ -25,17 +22,12 @@ const later = { ...current, id: 'slot-b', slot_date: '2099-10-03', start_time: '
 // 已經開始的場次：完成參觀／未到場只在這種場次出現。
 const started = { ...current, id: 'slot-started', slot_date: '2020-01-01' }
 const listSlot = (slot: typeof current, extra = {}) => ({ ...slot, campus_key: 'yihua', capacity: 2, booked_count: 0, closed: false, ...extra })
-const pendingReschedule = (extra = {}) => ({
-  id: 'req-1', visit_request_id: 'case-a', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
-  current_slot: current, requested_slot: later, requested_slot_remaining: 2, requested_slot_available: true,
-  created_at: '2026-09-24T02:00:00Z', ...extra,
-})
 const confirmedCase = (extra = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: current.id, slot: current, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
   confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, source: 'web',
-  history: [], pending_reschedule: null, access_link: null, ...extra,
+  history: [], access_link: null, ...extra,
 })
 const confirmOk = () => vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue({ value: '', action: 'confirm' } as never)
 
@@ -85,23 +77,22 @@ describe('已確認案件的改期（第 13 條）', () => {
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('按「沒來」（標記未到場）不再說會釋出名額，結案後重抓側欄的待核准數', async () => {
+  it('按「沒來」（標記未到場）不再說會釋出名額，結案後重抓頁首數字', async () => {
     const confirm = confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
+    const { wrapper, get } = await mountDetail(confirmedCase({ slot: started }))
     get.mockClear()
     await button(wrapper, '沒來')!.trigger('click')
     await flushPromises()
     expect(String(confirm.mock.calls[0]![0])).toContain('名額仍算已使用')
     expect(String(confirm.mock.calls[0]![0])).not.toContain('釋出')
-    // 結案時家長的改期申請跟著失效，側欄徽章不能還留著。
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
 
-  it('按「家長到了」完成參觀後也重抓側欄的待核准數', async () => {
+  it('按「家長到了」完成參觀後也重抓頁首數字', async () => {
     confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    const { wrapper, get } = await mountDetail(confirmedCase({ slot: started, pending_reschedule: pendingReschedule() }))
+    const { wrapper, get } = await mountDetail(confirmedCase({ slot: started }))
     get.mockClear()
     await button(wrapper, '家長到了')!.trigger('click')
     await flushPromises()
@@ -133,11 +124,11 @@ describe('已確認案件的改期（第 13 條）', () => {
     }
   })
 
-  it('園方直接改期後重抓側欄的待核准數（家長先前的申請已失效）', async () => {
-    const { wrapper, get } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }), [listSlot(later)])
-    // 有家長的改期申請時，手動改期先收起來，主動作是核准或退回。
+  it('園方直接改期後重抓頁首數字', async () => {
+    const { wrapper, get } = await mountDetail(confirmedCase(), [listSlot(later)])
+    // 手動改期先收起來，點開才出現。
     expect(button(wrapper, '改到這一場')).toBeUndefined()
-    await button(wrapper, '不照申請，改到其他場次…')!.trigger('click')
+    await button(wrapper, '改到其他場次…')!.trigger('click')
     confirmOk()
     vi.spyOn(api, 'post').mockResolvedValue({} as never)
     wrapper.findAllComponents({ name: 'ElSelect' })[0]!.vm.$emit('update:modelValue', 'slot-b')
@@ -148,37 +139,10 @@ describe('已確認案件的改期（第 13 條）', () => {
     expect(get).toHaveBeenCalledWith('/admin/dashboard')
   })
 
-  it('案件頁直接看到家長的改期申請並可核准或退回（退回可填原因）', async () => {
-    const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }))
-    expect(wrapper.text()).toContain('家長申請改期')
-    expect(wrapper.text()).toContain('2099/10/03（週六）14:00–15:00')
-    expect(wrapper.text()).toContain('新場次剩 2 組')
-    const confirm = confirmOk()
-    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    await button(wrapper, '核准改期')!.trigger('click')
-    await flushPromises()
-    expect(String(confirm.mock.calls[0]![0])).toContain('陳媽媽 的參觀時間會從 2099/10/01（週四）10:00–11:00 改到 2099/10/03（週六）14:00–15:00')
-    expect(post).toHaveBeenCalledWith('/admin/reschedule-requests/req-1/approve')
-
-    post.mockClear()
-    vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: ' 當天校外教學 ', action: 'confirm' } as never)
-    await button(wrapper, '退回申請')!.trigger('click')
-    await flushPromises()
-    expect(post).toHaveBeenCalledWith('/admin/reschedule-requests/req-1/reject', { reason: '當天校外教學' })
-  })
-
-  it('申請的時段已經不能用時，核准按鈕停用並提示退回', async () => {
-    const { wrapper } = await mountDetail(confirmedCase({
-      pending_reschedule: pendingReschedule({ requested_slot_available: false, requested_slot_remaining: 0 }),
-    }))
-    expect(wrapper.text()).toContain('無法核准')
-    expect(button(wrapper, '核准改期')!.attributes('disabled')).toBeDefined()
-  })
-
   it('沒有處理權的帳號看不到改期與連結操作', async () => {
     const viewer = testUser('readonly', { campus_keys: ['yihua'], effective_capabilities: ['booking.read'] })
-    const { wrapper } = await mountDetail(confirmedCase({ pending_reschedule: pendingReschedule() }), [listSlot(later)], viewer)
-    for (const label of ['改到這一場', '核准改期', '退回申請', '產生連結']) expect(button(wrapper, label)).toBeUndefined()
+    const { wrapper } = await mountDetail(confirmedCase(), [listSlot(later)], viewer)
+    for (const label of ['改到其他場次…', '改到這一場', '產生連結']) expect(button(wrapper, label)).toBeUndefined()
   })
 })
 
@@ -292,7 +256,7 @@ describe('案件歷程（第 15 條）', () => {
   })
 })
 
-describe('家長改期申請：清單、通知與計數（第 4、19 條）', () => {
+describe('舊的家長改期申請通知（功能已於 2026-10-08 刪除）', () => {
   async function mountNotifications(user: UserOut = testUser('super_admin', { campus_keys: ['yihua'] })) {
     const pinia = createPinia()
     useAuthStore(pinia).user = user
@@ -303,50 +267,18 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     return wrapper
   }
 
-  it('清單顯示家長、原場次、申請的新場次與剩餘名額；通知連得到案件', async () => {
-    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : String(path).includes('reschedule-requests')
-      ? [pendingReschedule()]
+  it('舊通知仍有中文標題、連得到案件；通知頁不再讀待核准清單', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox')
+      ? { items: [], total: 0 }
       : [{ id: 'n1', campus_key: 'yihua', kind: 'visit_reschedule_requested', payload: { campus_key: 'yihua', receipt_id: 'case-a', reschedule_request_id: 'req-1' }, created_at: '2026-09-24T02:00:00Z', read_at: null }]) as never)
     const wrapper = await mountNotifications()
-    const text = wrapper.text()
-    expect(text).toContain('陳媽媽')
-    expect(text).toContain('2099/10/01（週四）10:00–11:00')
-    expect(text).toContain('2099/10/03（週六）14:00–15:00')
-    expect(text).toContain('剩 2 組')
-    expect(text).toContain('家長申請改期（待園方核准）')
+    expect(wrapper.text()).toContain('家長申請改期（待園方核准）')
+    expect(wrapper.text()).not.toContain('待核准的改期申請')
     expect(wrapper.findAll('a').some(a => a.attributes('href') === '/visit-requests/case-a')).toBe(true)
-
-    const confirm = confirmOk()
-    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
-    await wrapper.findAll('button').find(b => b.text() === '核准')!.trigger('click')
-    await flushPromises()
-    expect(String(confirm.mock.calls[0]![0])).toContain('改到 2099/10/03（週六）14:00–15:00')
-    expect(post).toHaveBeenCalledWith('/admin/reschedule-requests/req-1/approve')
+    expect(get.mock.calls.some(([path]) => String(path).includes('reschedule-requests'))).toBe(false)
   })
 
-  it('待核准清單列出負責的所有校區，不跟著校區選單只看第一校', async () => {
-    // 管明華、義華的分校管理者：通知預設「全部校區」，義華的申請也要看得到（側欄徽章算的是兩校）。
-    const get = vi.spyOn(api, 'get').mockImplementation(async path => (String(path).startsWith('/admin/reschedule-requests')
-      ? [pendingReschedule()]
-      : []) as never)
-    const wrapper = await mountNotifications(testUser('campus_admin', { campus_keys: ['minghua', 'yihua'] }))
-    const paths = get.mock.calls.map(([path]) => String(path))
-    expect(paths).toContain('/admin/reschedule-requests')
-    expect(paths).toContain('/admin/notifications')
-    const panel = wrapper.find('section.reschedule')
-    expect(panel.text()).toContain('待核准的改期申請（1）')
-    expect(panel.text()).toContain('陳媽媽')
-    expect(panel.text()).toContain('義華')
-
-    // 切換校區只重讀那一校的通知，不會把待核准清單清掉。
-    get.mockClear()
-    wrapper.getComponent(CampusSelect).vm.$emit('update:modelValue', 'yihua')
-    await flushPromises()
-    expect(get.mock.calls.map(([path]) => String(path))).toEqual(['/admin/notifications?campus_key=yihua'])
-    expect(wrapper.find('section.reschedule').text()).toContain('陳媽媽')
-  })
-
-  it('待核准改期列在總覽待辦；側欄任何項目都不掛數字', async () => {
+  it('總覽沒有改期申請的待辦與主按鈕（即使舊版 API 還帶著舊欄位）', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin')
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: DashboardView }, { path: '/:rest(.*)', component: defineComponent({ template: '<div />' }) }] })
@@ -357,15 +289,9 @@ describe('家長改期申請：清單、通知與計數（第 4、19 條）', ()
     } as never)
     const dashboard = mount({ template: '<router-view />' }, { global: { plugins: [pinia, router, ElementPlus] } })
     wrappers.push(dashboard); await flushPromises()
-    expect(dashboard.text()).toContain('家長申請改期，等你核准')
-    expect(dashboard.find('a.dash__primary').text()).toContain('核准改期申請')
-
-    useOpenRequestsStore(pinia).apply({ pending_reschedule_requests: 3, my_unread_notifications: 2 } as never)
-    const sidebar = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus] } })
-    wrappers.push(sidebar); await flushPromises()
-    expect(sidebar.findAll('.sidebar__badge')).toHaveLength(0)
-    const notifications = sidebar.findAll('a').find(a => a.attributes('href') === '/notifications')!
-    expect(notifications.text()).toBe('站內通知')
+    expect(dashboard.text()).not.toContain('家長申請改期')
+    expect(dashboard.find('a.dash__primary').text()).not.toContain('核准改期申請')
+    expect(dashboard.text()).toContain('目前沒有待處理事項')
   })
 })
 

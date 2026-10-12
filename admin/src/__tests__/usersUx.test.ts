@@ -239,7 +239,7 @@ describe('新增使用者表單說明哪裡沒填好', () => {
     // 選項文字仍只有角色名，說明放在外面。
     expect(dialog.findAllComponents({ name: 'ElRadio' }).map(radio => radio.text())).toEqual(ROLE_ORDER.map(role => ROLE_LABELS[role]))
     const shared = dialog.findAllComponents({ name: 'ElFormItem' }).find(item => item.text().includes('也可以編輯全站共用內容'))!
-    expect(shared.text()).toContain('入學資訊頁、預約文案、共用常見問題')
+    expect(shared.text()).toContain('入學資訊頁、預約文案、頁尾文字')
     expect(shared.text()).not.toContain('網站設定')
   })
 })

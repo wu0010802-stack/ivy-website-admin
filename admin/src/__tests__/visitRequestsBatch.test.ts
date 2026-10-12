@@ -32,7 +32,7 @@ const row = (extra: Record<string, unknown> = {}) => ({
   party_size: null, consent_given: false, consent_revision_id: null, consent_accepted_at: null,
   slot_id: started.id, slot: started, created_at: '2026-10-05T00:00:00Z', hold_expires_at: null, follow_up_at: null,
   confirmed_at: '2026-10-05T00:00:00Z', cancelled_at: null, source: 'web', display_status: 'past',
-  history: [], pending_reschedule: null, access_link: null, version: 1, ...extra,
+  history: [], access_link: null, version: 1, ...extra,
 })
 const rows = [row(), row({ id: 'r2', parent_name: '林爸爸' })]
 

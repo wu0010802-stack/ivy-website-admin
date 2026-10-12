@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import campus_scope, covers_campus, require_scope
+from app.auth.permissions import CapabilityDenied, campus_scope, covers_campus, require_scope
 from app.booking.models import OutboxStatus, VisitRequest, VisitSlot
 from app.notifications import outbox_admin
 from app.notifications.models import NotificationInboxItem, UserNotification
@@ -175,13 +175,46 @@ async def mark_notification_read(
     return {"id": str(item.id), "read_at": item.read_at.isoformat()}
 
 
+class NotificationReadAllOut(BaseModel):
+    updated: int
+
+
+@router.post("/admin/notifications/read-all", response_model=NotificationReadAllOut)
+async def mark_all_notifications_read(
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> NotificationReadAllOut:
+    """把還沒讀的案件通知一次標成已讀（一條 UPDATE）。
+
+    標的是資料庫裡範圍內「全部」未讀，不是只有列表端點回的最新 100 則：
+    列表有上限，逐筆標會留下列表外更早的未讀，這裡一次標完。沒帶
+    `campus_key` 時範圍是你有 booking.manage 的所有校區（總管理者＝全部），
+    帶了就只標那一校。權限、全校共用的語意與單筆標記相同（booking.manage，
+    櫃台不開放），同樣不寫稽核。回傳實際從未讀變已讀的則數，已讀的不重複計。
+    與 /admin/my-notifications/read-all（個人的內容審核通知，另一張表）無關。"""
+    require_scope(current_user, "booking.manage")
+    stmt = update(NotificationInboxItem).where(NotificationInboxItem.read_at.is_(None))
+    if campus_key:
+        require_scope(current_user, "booking.manage", campus_keys=[campus_key])
+        stmt = stmt.where(NotificationInboxItem.campus_key == campus_key)
+    elif (scope := campus_scope(current_user)) is not None:
+        # 分校管理者沒有任何校區（帳號尚未指派校區）時沒有可標的範圍。
+        if not scope:
+            raise CapabilityDenied()
+        stmt = stmt.where(NotificationInboxItem.campus_key.in_(scope))
+    result = await db.execute(stmt.values(read_at=datetime.now(timezone.utc)))
+    await db.commit()
+    return NotificationReadAllOut(updated=result.rowcount or 0)
+
+
 class UserNotificationOut(BaseModel):
     """給自己的站內通知（內容送審、核准或退回、排程發布沒有執行）。"""
 
     id: uuid.UUID
     kind: str
     campus_key: str | None
-    # 哪一種內容（home_about、campus_faq…），後台用它連到編輯頁。
+    # 哪一種內容（home_about、campus_profile…），後台用它連到編輯頁。
     content_kind: str | None
     revision_version: int | None
     # 退回原因或核准備註。

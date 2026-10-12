@@ -33,7 +33,7 @@ const request = (extra: Record<string, unknown> = {}) => ({
   id: 'case-a', campus_key: 'yihua', status: 'confirmed', source: 'web', parent_name: '陳媽媽', phone: '0912345678', child_name: null,
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null, party_size: null,
   slot_id: future.id, slot: future, created_at: '2026-09-22T00:00:00Z', follow_up_at: null, version: 1,
-  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, history: [], pending_reschedule: null, access_link: null,
+  confirmed_at: '2026-09-22T01:00:00Z', cancelled_at: null, history: [], access_link: null,
   ...extra,
 })
 
@@ -306,23 +306,16 @@ describe('下次聯絡', () => {
   })
 })
 
-describe('家長申請改期時的手動改期', () => {
+describe('手動改期展開後的焦點', () => {
   const slotA = { ...future, id: 'slot-a' }
   const slotB = { ...future, id: 'slot-b', slot_date: '2099-10-03' }
-  const confirmedWithRequest = () =>
-    request({
-      status: 'confirmed', slot_id: slotA.id, slot: slotA, confirmed_at: '2026-09-22T01:00:00Z',
-      pending_reschedule: {
-        id: 'req-1', visit_request_id: 'case-a', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
-        current_slot: slotA, requested_slot: slotB, requested_slot_remaining: 2, requested_slot_available: true,
-        created_at: '2026-09-24T02:00:00Z',
-      },
-    })
+  const confirmedCase = () =>
+    request({ status: 'confirmed', slot_id: slotA.id, slot: slotA, confirmed_at: '2026-09-22T01:00:00Z' })
 
   it('展開後焦點移到新時段選單，不會掉回頁面最上面', async () => {
-    mockApi(confirmedWithRequest(), {}, [{ ...slotB, campus_key: 'yihua', capacity: 2, booked_count: 0, closed: false }])
+    mockApi(confirmedCase(), {}, [{ ...slotB, campus_key: 'yihua', capacity: 2, booked_count: 0, closed: false }])
     const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
-    const toggle = button(wrapper, '不照申請，改到其他場次…')!
+    const toggle = button(wrapper, '改到其他場次…')!
     expect(toggle.attributes('aria-expanded')).toBe('false')
     await toggle.trigger('click')
     await flushPromises()
@@ -334,9 +327,9 @@ describe('家長申請改期時的手動改期', () => {
   })
 
   it('沒有其他時段可選時，焦點放在改期標題', async () => {
-    mockApi(confirmedWithRequest(), {}, [])
+    mockApi(confirmedCase(), {}, [])
     const { wrapper } = await mountDetail(undefined, undefined, undefined, { attach: true })
-    await button(wrapper, '不照申請，改到其他場次…')!.trigger('click')
+    await button(wrapper, '改到其他場次…')!.trigger('click')
     await flushPromises()
     expect(document.activeElement?.classList.contains('reschedule__title')).toBe(true)
     expect(document.activeElement?.textContent).toBe('改期（換場次）')

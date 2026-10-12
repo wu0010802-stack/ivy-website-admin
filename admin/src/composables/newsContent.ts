@@ -1,8 +1,9 @@
-// 消息與活動（全站 home_news、各校 campus_news）與共用常見問題編輯頁共用的
+// 消息與活動（全站 home_news、各校 campus_news）編輯頁共用的
 // 欄位預設值、舊資料換算與檢查。規則與後端 content/schemas.py 相同，前端先
 // 提示，真正的驗證仍在後端。
 import { nextTick, ref } from 'vue'
 import { CAMPUS_LABELS } from '../api/labels'
+import { taipeiToday } from '../admissions/academic'
 import type {
   CampusNewsArticlePayload,
   CampusNewsEventPayload,
@@ -29,10 +30,6 @@ export const NEWS_LIMITS = {
 export const NEWS_SECTION_IDS = { articles: 'section-news-articles', events: 'section-news-events' } as const
 
 export type NewsMode = 'global' | 'campus'
-
-export function taipeiToday(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-}
 
 export function newId(prefix: string): string {
   // 後端要求同一清單內 id 不重複；同一毫秒連按兩次也不能撞號。

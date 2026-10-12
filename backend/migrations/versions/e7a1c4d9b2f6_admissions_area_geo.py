@@ -6,7 +6,7 @@
 app/admissions/geo/models.py 逐字相同（tests/test_geo_schema.py 檢查）。
 
 Revision ID: e7a1c4d9b2f6
-Revises: c4e8a2f61b97
+Revises: a9e11038c869
 Create Date: 2026-10-08
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "e7a1c4d9b2f6"
-down_revision = "c4e8a2f61b97"
+down_revision = "a9e11038c869"
 branch_labels = None
 depends_on = None
 

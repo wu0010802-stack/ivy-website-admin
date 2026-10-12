@@ -14,7 +14,7 @@ import { formatDuration, formatFileSize, mediaFieldPathLabel } from '../api/labe
 import type { MediaAssetOut, MediaUsagesOut, UserOut } from '../api/types'
 import { precheckFile, resetUploadLimits, UPLOAD_CONCURRENCY, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { mediaListParams, mediaPage, testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 beforeEach(() => resetUploadLimits())
@@ -78,7 +78,7 @@ const USAGES: MediaUsagesOut = {
       field_path: 'articles[0].body[2].image', label: '運動會', states: ['draft'], publish_at: null, can_edit: false,
     },
   ],
-  history: [{ content_item_id: 'faq', kind: 'campus_news', campus_key: 'yihua', versions: [2, 1] }],
+  history: [{ content_item_id: 'cnews', kind: 'campus_news', campus_key: 'yihua', versions: [2, 1] }],
   untracked_usages: 0,
   can_archive: false,
   can_delete: false,
@@ -103,9 +103,14 @@ function mockGet(assets: MediaAssetOut[], usages: MediaUsagesOut = USAGES) {
   return vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path === '/admin/media/upload-limits') return LIMITS as never
     if (path.endsWith('/usages')) return usages as never
-    if (path.startsWith('/admin/media')) return assets as never
+    if (path.startsWith('/admin/media?')) return mediaPage(assets) as never
     return [] as never
   })
+}
+
+/** 送出過的素材列表請求（只看列表，不含單張、用在哪裡與上傳上限）。 */
+function listCalls(get: { mock: { calls: unknown[][] } }) {
+  return get.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/media?')).map(mediaListParams)
 }
 
 function pickFiles(input: VueWrapper['element'] | Element, files: File[]) {
@@ -236,7 +241,15 @@ describe('素材庫頁', () => {
   })
 
   it('篩選有看得到的標籤，筆數放在清單上方；分頁和篩選分開', async () => {
-    mockGet([asset({ tags: ['戶外'] }), asset({ id: 'm2', original_filename: 'b.jpg', campus_key: null })])
+    const outdoor = asset({ tags: ['戶外'] })
+    const all = [outdoor, asset({ id: 'm2', original_filename: 'b.jpg', campus_key: null })]
+    const get = mockGet(all)
+    get.mockImplementation(async (path: string) => {
+      if (path === '/admin/media/upload-limits') return LIMITS as never
+      // 後端篩標籤；state_total 與標籤選單不受篩選影響。
+      if (mediaListParams(path).tag === '戶外') return mediaPage([outdoor], { state_total: 2, tags: ['戶外'] }) as never
+      return mediaPage(all) as never
+    })
     const wrapper = await mountAs(MediaLibraryView, admin())
     const fields = wrapper.findAll('.filter-bar .filter-field > span:first-child').map((span) => span.text())
     expect(fields).toEqual(['搜尋素材', '校區', '標籤', '類型'])
@@ -254,6 +267,8 @@ describe('素材庫頁', () => {
     expect(wrapper.text()).toContain('跨校共用')
 
     await wrapper.find('.media__tag').trigger('click')
+    await flushPromises()
+    expect(listCalls(get).at(-1)).toEqual({ tag: '戶外', page: '1', page_size: '60' })
     expect(wrapper.find('.list-summary').text()).toContain('顯示 1 / 2 個素材')
   })
 
@@ -271,7 +286,7 @@ describe('素材庫頁', () => {
     const get = mockGet([])
     const wrapper = await mountAs(MediaLibraryView, admin())
     get.mockImplementation(async (path: string) =>
-      (path === '/admin/media?state=archived' ? [asset({ archived_at: '2026-09-25T00:00:00Z' })] : path === '/admin/media/upload-limits' ? LIMITS : []) as never)
+      (path === '/admin/media/upload-limits' ? LIMITS : mediaPage(mediaListParams(path).state === 'archived' ? [asset({ archived_at: '2026-09-25T00:00:00Z' })] : [])) as never)
     await wrapper.findAll('label.el-radio-button').find((l) => l.text() === '已封存')!.find('input').setValue(true)
     await flushPromises()
     expect(wrapper.find('.media__actions').findAll('button').map((b) => b.text())).toEqual(['取消封存', '用在哪裡', '更多'])
@@ -303,18 +318,117 @@ describe('素材庫頁', () => {
     const wrapper = await mountAs(MediaLibraryView, admin())
     const pending = new Map<string, (value: MediaAssetOut[]) => void>()
     get.mockImplementation((path: string) =>
-      (path === '/admin/media/upload-limits' ? Promise.resolve(LIMITS) : new Promise((resolve) => pending.set(path, resolve))) as never)
+      (path === '/admin/media/upload-limits'
+        ? Promise.resolve(LIMITS)
+        : new Promise((resolve) => pending.set(mediaListParams(path).state ?? 'active', (items) => resolve(mediaPage(items))))) as never)
     const tab = (label: string) => wrapper.findAll('label.el-radio-button').find((l) => l.text() === label)!.find('input')
     await tab('已封存').setValue(true)
     await tab('待清理').setValue(true)
     await flushPromises()
-    pending.get('/admin/media?state=deleted')!([asset({ id: 'gone', original_filename: 'gone.jpg', deleted_at: '2026-09-20T02:00:00Z', purge_after: '2026-09-27T02:00:00Z' })])
+    pending.get('deleted')!([asset({ id: 'gone', original_filename: 'gone.jpg', deleted_at: '2026-09-20T02:00:00Z', purge_after: '2026-09-27T02:00:00Z' })])
     await flushPromises()
-    pending.get('/admin/media?state=archived')!([asset({ id: 'old', original_filename: 'archived.jpg', archived_at: '2026-09-20T02:00:00Z' })])
+    pending.get('archived')!([asset({ id: 'old', original_filename: 'archived.jpg', archived_at: '2026-09-20T02:00:00Z' })])
     await flushPromises()
     expect(wrapper.text()).toContain('gone.jpg')
     expect(wrapper.text()).not.toContain('archived.jpg')
     expect(wrapper.find('.list-summary').text()).toContain('1 個素材')
+  })
+
+  it('篩選與關鍵字交給後端，換篩選回第 1 頁；超過一頁才有分頁，換頁帶 page', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+        if (path === '/admin/media/upload-limits') return LIMITS as never
+        return mediaPage([asset({ tags: ['戶外'] })], { total: 130, state_total: 200, page: Number(mediaListParams(path).page) }) as never
+      })
+      const wrapper = await mountAs(MediaLibraryView, admin())
+      expect(listCalls(get)).toEqual([{ page: '1', page_size: '60' }])
+      expect(wrapper.find('.list-summary').text()).toContain('200 個素材')
+      expect(wrapper.find('.media-pager').text()).toContain('共 130 個素材')
+
+      wrapper.findComponent({ name: 'ElPagination' }).vm.$emit('current-change', 3)
+      await flushPromises()
+      expect(listCalls(get).at(-1)).toEqual({ page: '3', page_size: '60' })
+
+      await wrapper.findAll('label.el-radio-button').find((l) => l.text() === '影片')!.find('input').setValue(true)
+      await flushPromises()
+      expect(listCalls(get).at(-1)).toEqual({ kind: 'video', page: '1', page_size: '60' })
+
+      wrapper.findAllComponents({ name: 'ElSelect' }).find((select) => select.props('placeholder') === '全部校區')!.vm.$emit('update:modelValue', '__shared')
+      await flushPromises()
+      expect(listCalls(get).at(-1)).toEqual({ campus: '__shared', kind: 'video', page: '1', page_size: '60' })
+
+      // 關鍵字停下 300ms 才送，前後空白不送。
+      const sent = listCalls(get).length
+      const search = wrapper.find('input[placeholder="檔名、圖片說明、內部備註或標籤"]')
+      await search.setValue('菜')
+      await search.setValue(' 菜園 ')
+      await vi.advanceTimersByTimeAsync(299)
+      expect(listCalls(get)).toHaveLength(sent)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushPromises()
+      expect(listCalls(get)).toHaveLength(sent + 1)
+      expect(listCalls(get).at(-1)).toEqual({ campus: '__shared', kind: 'video', q: '菜園', page: '1', page_size: '60' })
+      expect(wrapper.find('.list-summary').text()).toContain('顯示 130 / 200 個素材')
+
+      await wrapper.findAll('button').find((b) => b.text() === '清除篩選')!.trigger('click')
+      await flushPromises()
+      expect(listCalls(get).at(-1)).toEqual({ page: '1', page_size: '60' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('一頁以內不顯示分頁', async () => {
+    mockGet([asset()])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    expect(wrapper.find('.media-pager').exists()).toBe(false)
+  })
+
+  it('封存後重抓目前這一頁；這一頁因此空了就退回上一頁', async () => {
+    let archived = false
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/media/upload-limits') return LIMITS as never
+      const page = Number(mediaListParams(path).page)
+      const total = archived ? 60 : 61
+      // 第 2 頁只有一張，封存後第 2 頁就空了。
+      if (page === 2) return mediaPage(archived ? [] : [asset({ id: 'last', original_filename: 'last.jpg' })], { total, page }) as never
+      return mediaPage([asset({ id: 'first', original_filename: 'first.jpg' })], { total, page }) as never
+    })
+    vi.spyOn(api, 'post').mockImplementation(async () => {
+      archived = true
+      return {} as never
+    })
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    wrapper.findComponent({ name: 'ElPagination' }).vm.$emit('current-change', 2)
+    await flushPromises()
+    expect(wrapper.find('[data-media-id="last"]').exists()).toBe(true)
+    const sent = listCalls(get).length
+
+    await chooseMore(wrapper, '封存')
+    await flushPromises()
+    expect(listCalls(get).slice(sent)).toEqual([{ page: '2', page_size: '60' }, { page: '1', page_size: '60' }])
+    expect(wrapper.find('[data-media-id="first"]').exists()).toBe(true)
+  })
+
+  it('上傳完成回到第 1 頁重抓（新上傳的排在最前面）', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/media/upload-limits') return LIMITS as never
+      return mediaPage([asset()], { total: 61, page: Number(mediaListParams(path).page) }) as never
+    })
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    wrapper.findComponent({ name: 'ElPagination' }).vm.$emit('current-change', 2)
+    await flushPromises()
+    expect(listCalls(get).at(-1)).toEqual({ page: '2', page_size: '60' })
+
+    await wrapper.findAll('button').find((b) => b.text() === '上傳素材')!.trigger('click')
+    await flushPromises()
+    vi.spyOn(api, 'upload').mockResolvedValue(asset({ id: 'new' }) as never)
+    pickFiles(wrapper.find('input[type="file"]').element, [new File(['x'], 'a.jpg', { type: 'image/jpeg' })])
+    await flushPromises()
+    await wrapper.findAll('button').find((b) => b.text() === '上傳 1 個檔案')!.trigger('click')
+    await flushPromises()
+    expect(listCalls(get).at(-1)).toEqual({ page: '1', page_size: '60' })
   })
 
   it('編輯素材：改了說明後按 X 先問要不要放棄，選「先不要」就留著；沒改過直接關', async () => {
@@ -415,7 +529,7 @@ describe('素材庫頁', () => {
     )
     const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
     get.mockImplementation(async (path: string) =>
-      (path === '/admin/media/m1' ? asset({ version: 4, alt_text: '別人改的說明' }) : [asset({ version: 4, alt_text: '別人改的說明' })]) as never)
+      (path === '/admin/media/m1' ? asset({ version: 4, alt_text: '別人改的說明' }) : mediaPage([asset({ version: 4, alt_text: '別人改的說明' })])) as never)
     await wrapper.findAll('button').find((b) => b.text() === '儲存')!.trigger('click')
     await flushPromises()
     expect((patch.mock.calls[0]![1] as Record<string, unknown>).expected_version).toBe(3)
@@ -429,14 +543,14 @@ describe('素材庫頁', () => {
     const get = mockGet([])
     const wrapper = await mountAs(MediaLibraryView, admin())
     get.mockImplementation(async (path: string) =>
-      (path === '/admin/media?state=deleted'
-        ? [asset({ deleted_at: '2026-09-20T02:00:00Z', purge_after: '2026-09-27T02:00:00Z' })]
-        : path === '/admin/media/upload-limits' ? LIMITS : []) as never,
+      (path === '/admin/media/upload-limits'
+        ? LIMITS
+        : mediaPage(mediaListParams(path).state === 'deleted' ? [asset({ deleted_at: '2026-09-20T02:00:00Z', purge_after: '2026-09-27T02:00:00Z' })] : [])) as never,
     )
     const deletedTab = wrapper.findAll('label.el-radio-button').find((l) => l.text() === '待清理')!
     await deletedTab.find('input').setValue(true)
     await flushPromises()
-    expect(get).toHaveBeenCalledWith('/admin/media?state=deleted')
+    expect(get).toHaveBeenCalledWith('/admin/media?state=deleted&page=1&page_size=60')
     expect(wrapper.text()).toContain('後永久刪除')
     // 待清理只能復原：卡片上沒有「更多」（刪除、封存都收在裡面），也沒有用在哪裡。
     expect(wrapper.find('.media__actions').findAll('button').map((b) => b.text())).toEqual(['復原'])
@@ -552,7 +666,7 @@ describe('素材庫頁', () => {
       const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
         if (path === '/admin/media/upload-limits') return LIMITS as never
         if (path === '/admin/media/vp') return { ...processing, status: 'ready' } as never
-        if (path.startsWith('/admin/media')) return [processing, failed] as never
+        if (path.startsWith('/admin/media?')) return mediaPage([processing, failed]) as never
         return [] as never
       })
       const post = vi.spyOn(api, 'post').mockResolvedValue({ ...failed, status: 'processing', processing_error: null } as never)
@@ -747,7 +861,7 @@ describe('用在哪裡的連結', () => {
     ...USAGES,
     history: [],
     references: overrides.map((o, i) => ({
-      content_item_id: `c${i}`, kind: 'campus_faq', campus_key: 'yihua', revision_id: `r${i}`, version: 1,
+      content_item_id: `c${i}`, kind: 'campus_news', campus_key: 'yihua', revision_id: `r${i}`, version: 1,
       field_path: 'items[0].image', label: null, states: ['draft'], publish_at: null, can_edit: false, ...o,
     })),
   })
@@ -774,7 +888,7 @@ describe('用在哪裡的連結', () => {
     )
     const [mine, theirs, shared] = heads(wrapper)
     expect(mine!.text).toContain('前往編輯')
-    expect(mine!.link).toContain('/content/campus-faq?campus=minghua')
+    expect(mine!.link).toContain('/content/campus-news?campus=minghua')
     expect(theirs).toEqual({ text: expect.stringContaining('由其他校區管理'), link: null })
     expect(shared).toEqual({ text: expect.stringContaining('沒有編輯權限'), link: null })
   })
@@ -792,25 +906,71 @@ describe('用在哪裡的連結', () => {
     const [own] = heads(wrapper)
     expect(own!.text).toContain('前往查看')
     expect(own!.text).not.toContain('前往編輯')
-    expect(own!.link).toContain('/content/campus-faq?campus=yihua')
+    expect(own!.link).toContain('/content/campus-news?campus=yihua')
   })
 })
 
 describe('選圖器', () => {
-  it('選影片：處理中的可以選並標示轉檔中，失敗的不列', async () => {
-    // 選圖器沒帶校區時只列跨校共用（campus_key: null）。
-    mockGet([
+  it('選影片：向後端只要影片、不要處理失敗的；處理中的可以選並標示轉檔中', async () => {
+    const get = mockGet([
       asset({ id: 'ok', kind: 'video', campus_key: null, original_filename: 'ok.mp4' }),
       asset({ id: 'vp', kind: 'video', campus_key: null, status: 'processing', original_filename: 'run.mp4' }),
-      asset({ id: 'vf', kind: 'video', campus_key: null, status: 'failed', original_filename: 'bad.mp4' }),
     ])
     const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, kind: 'video' })
     await wrapper.setProps({ modelValue: true })
     await flushPromises()
+    // 選圖器沒帶校區時只列跨校共用。
+    expect(listCalls(get)).toEqual([{ kind: 'video', exclude_failed: 'true', campus: '__shared', page: '1', page_size: '40' }])
     const text = wrapper.findAll('.picker__item').map((item) => item.text()).join('\n')
     expect(text).toContain('run.mp4')
     expect(text).toContain('轉檔中，轉好才能發布')
-    expect(text).not.toContain('bad.mp4')
+  })
+
+  it('有校區時要那一校加跨校共用；關鍵字停下 300ms 才向後端搜尋', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const get = mockGet([asset()])
+      const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, campusKey: 'yihua' })
+      await wrapper.setProps({ modelValue: true })
+      await flushPromises()
+      expect(listCalls(get)).toEqual([{ kind: 'image', exclude_failed: 'true', campus: 'yihua', include_shared: 'true', page: '1', page_size: '40' }])
+
+      await wrapper.find('input[placeholder="搜尋檔名或說明"]').setValue('菜')
+      await wrapper.find('input[placeholder="搜尋檔名或說明"]').setValue('菜園')
+      await vi.advanceTimersByTimeAsync(299)
+      expect(listCalls(get)).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushPromises()
+      expect(listCalls(get)).toHaveLength(2)
+      expect(listCalls(get)[1]).toMatchObject({ q: '菜園', page: '1' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('還有下一頁才出現「載入更多」，按了接在後面；沒有了就收起來', async () => {
+    const first = Array.from({ length: 40 }, (_, i) => asset({ id: `p1-${i}`, original_filename: `first-${i}.jpg` }))
+    const second = Array.from({ length: 5 }, (_, i) => asset({ id: `p2-${i}`, original_filename: `second-${i}.jpg` }))
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/media/upload-limits') return LIMITS as never
+      const page = mediaListParams(path).page
+      return mediaPage(page === '2' ? second : first, { total: 45, page: Number(page), page_size: 40 }) as never
+    })
+    const wrapper = await mountAs(MediaPickerDialog, admin(), { modelValue: false, campusKey: 'yihua' })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    expect(wrapper.findAll('.picker__item')).toHaveLength(40)
+    const more = () => wrapper.findAll('button').find((b) => b.text() === '載入更多')
+    expect(more()).toBeDefined()
+
+    await more()!.trigger('click')
+    await flushPromises()
+    expect(listCalls(get).at(-1)).toMatchObject({ campus: 'yihua', page: '2', page_size: '40' })
+    const names = wrapper.findAll('.picker__name').map((n) => n.text())
+    expect(names).toHaveLength(45)
+    expect(names[0]).toBe('first-0.jpg')
+    expect(names.at(-1)).toBe('second-4.jpg')
+    expect(more()).toBeUndefined()
   })
 
   it('可一次上傳多張、顯示照片用在哪裡；只傳一張時照舊直接選用', async () => {

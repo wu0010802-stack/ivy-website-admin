@@ -10,8 +10,8 @@ import { useContentItem } from '../composables/useContentItem'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
-interface Faq { title: string; note: string }
-type Editor = ReturnType<typeof useContentItem<Faq>>
+interface CampusDoc { title: string; note: string }
+type Editor = ReturnType<typeof useContentItem<CampusDoc>>
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -20,9 +20,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function faqItem(campus: string, title: string) {
+function campusItem(campus: string, title: string) {
   return {
-    id: `i-${campus}`, kind: 'campus_faq', campus_key: campus, latest_version: 1, current_published_revision_id: null,
+    id: `i-${campus}`, kind: 'campus_news', campus_key: campus, latest_version: 1, current_published_revision_id: null,
     latest_revision: { id: `r-${campus}`, version: 1, created_at: '2026-10-06T02:00:00Z', payload: { title, note: '' }, review_status: 'draft', review_note: null },
   }
 }
@@ -40,19 +40,19 @@ function mockCampusApi() {
     })
   }) as typeof api.get)
   return {
-    answer: async (campus: string, title: string, index = 0) => { pending.get(campus)![index]!.resolve(faqItem(campus, title)); await flushPromises() },
+    answer: async (campus: string, title: string, index = 0) => { pending.get(campus)![index]!.resolve(campusItem(campus, title)); await flushPromises() },
     fail: async (campus: string, index = 0) => { pending.get(campus)![index]!.reject(new ApiError(500, '讀取失敗')); await flushPromises() },
     count: (campus: string) => pending.get(campus)?.length ?? 0,
   }
 }
 
-function mountFaq(campus: Ref<string>): () => Editor {
+function mountCampus(campus: Ref<string>): () => Editor {
   let editor!: Editor
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin')
   const wrapper = mount(defineComponent({
     setup() {
-      editor = useContentItem<Faq>('campus_faq', { title: '', note: '' }, campus)
+      editor = useContentItem<CampusDoc>('campus_news', { title: '', note: '' }, campus)
       return () => h('div')
     },
   }), { global: { plugins: [pinia] } })
@@ -64,7 +64,7 @@ describe('useContentItem.loadedCampusKey', () => {
   it('載入完成才記；校區選單先換、load 還沒跑（確認框開著）時還是上一校', async () => {
     const campus = ref('yihua')
     const server = mockCampusApi()
-    const editor = mountFaq(campus)
+    const editor = mountCampus(campus)
     expect(editor().loadedCampusKey.value).toBeNull()
     void editor().load()
     expect(editor().loadedCampusKey.value).toBeNull()
@@ -75,20 +75,20 @@ describe('useContentItem.loadedCampusKey', () => {
     await flushPromises()
     expect(editor().campusKey.value).toBe('minghua')
     expect(editor().loadedCampusKey.value).toBe('yihua')
-    expect((editor().form.value as Faq).title).toBe('義華')
+    expect((editor().form.value as CampusDoc).title).toBe('義華')
     // 載入開始、還沒回來：還是上一校；回來才換
     void editor().load()
     await flushPromises()
     expect(editor().loadedCampusKey.value).toBe('yihua')
     await server.answer('minghua', '明華')
     expect(editor().loadedCampusKey.value).toBe('minghua')
-    expect((editor().form.value as Faq).title).toBe('明華')
+    expect((editor().form.value as CampusDoc).title).toBe('明華')
   })
 
   it('載入失敗不記；被新的載入取代的舊回應不記', async () => {
     const campus = ref('yihua')
     const server = mockCampusApi()
-    const editor = mountFaq(campus)
+    const editor = mountCampus(campus)
     void editor().load()
     await server.answer('yihua', '義華')
     campus.value = 'minghua'
@@ -104,13 +104,13 @@ describe('useContentItem.loadedCampusKey', () => {
     expect(editor().loadedCampusKey.value).toBe('chongde')
     await server.answer('minghua', '明華', 1)
     expect(editor().loadedCampusKey.value).toBe('chongde')
-    expect((editor().form.value as Faq).title).toBe('崇德')
+    expect((editor().form.value as CampusDoc).title).toBe('崇德')
   })
 
   it('記的是送出請求當下的校區：載入途中選單被換掉，回來的還是那一校的內容', async () => {
     const campus = ref('yihua')
     const server = mockCampusApi()
-    const editor = mountFaq(campus)
+    const editor = mountCampus(campus)
     void editor().load()
     campus.value = 'minghua'
     await server.answer('yihua', '義華')

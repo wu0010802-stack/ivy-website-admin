@@ -4,9 +4,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitSlot
+from app.notifications.models import NotificationInboxItem
 from app.workers import lease_service
 from app.workers.runner import process_outbox_batch
 from tests.conftest import book_slot
@@ -197,3 +198,156 @@ async def test_notification_list_shows_visit_slot_and_parent_name_only(
     items = (await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")).json()
     assert all(item["slot"] is None for item in items)
     assert all(item["parent_name"] is None for item in items)
+
+
+# ---- 全部標記已讀（POST /admin/notifications/read-all） ----
+
+READ_ALL_PATH = "/api/website/v1/admin/notifications/read-all"
+
+
+async def _add_inbox_items(db_session, campus_key: str, count: int, *, read: int = 0) -> list[NotificationInboxItem]:
+    """直接寫入 count 則站內通知，其中前 read 則是已讀（read_at 為固定的舊時間）。"""
+    now = datetime.now(timezone.utc)
+    old_read_at = now - timedelta(days=1)
+    items = [
+        NotificationInboxItem(
+            id=uuid.uuid4(),
+            campus_key=campus_key,
+            kind="visit_request_created",
+            payload={"receipt_id": str(uuid.uuid4())},
+            created_at=now - timedelta(seconds=index),
+            read_at=old_read_at if index < read else None,
+        )
+        for index in range(count)
+    ]
+    db_session.add_all(items)
+    await db_session.commit()
+    return items
+
+
+async def _unread_by_campus(db_session) -> dict[str, int]:
+    db_session.expire_all()
+    rows = await db_session.execute(
+        select(NotificationInboxItem.campus_key, func.count())
+        .where(NotificationInboxItem.read_at.is_(None))
+        .group_by(NotificationInboxItem.campus_key)
+    )
+    return dict(rows.all())
+
+
+@pytest.mark.asyncio
+async def test_read_all_campus_admin_only_marks_own_campus(minghua_client, db_session):
+    await _add_inbox_items(db_session, "minghua", 3, read=1)
+    await _add_inbox_items(db_session, "yihua", 2)
+
+    response = await minghua_client.post(READ_ALL_PATH)
+    assert response.status_code == 200, response.text
+    # 明華 3 則裡本來就有 1 則已讀，只算實際從未讀變已讀的 2 則。
+    assert response.json() == {"updated": 2}
+    # 別校的通知（沒有權限的範圍）一則都沒動。
+    assert await _unread_by_campus(db_session) == {"yihua": 2}
+
+    # 再按一次：已經全是已讀，不重複計數。
+    again = await minghua_client.post(READ_ALL_PATH)
+    assert again.status_code == 200
+    assert again.json() == {"updated": 0}
+
+
+@pytest.mark.asyncio
+async def test_read_all_keeps_original_read_at_of_read_items(minghua_client, db_session):
+    items = await _add_inbox_items(db_session, "minghua", 2, read=1)
+    original = items[0].read_at
+
+    assert (await minghua_client.post(READ_ALL_PATH)).json() == {"updated": 1}
+
+    db_session.expire_all()
+    rows = {item.id: item for item in (await db_session.execute(select(NotificationInboxItem))).scalars()}
+    # 本來就已讀的不被覆寫成新時間。
+    assert rows[items[0].id].read_at == original
+    assert rows[items[1].id].read_at is not None and rows[items[1].id].read_at > original
+
+
+@pytest.mark.asyncio
+async def test_read_all_with_other_campus_key_is_denied_and_changes_nothing(minghua_client, db_session):
+    await _add_inbox_items(db_session, "yihua", 2)
+    await _add_inbox_items(db_session, "minghua", 1)
+
+    # 沒有義華權限：照既有慣例（同單筆標記、通知列表）當作這個範圍不存在，回 404。
+    denied = await minghua_client.post(f"{READ_ALL_PATH}?campus_key=yihua")
+    assert denied.status_code == 404
+    assert await _unread_by_campus(db_session) == {"yihua": 2, "minghua": 1}
+
+    own = await minghua_client.post(f"{READ_ALL_PATH}?campus_key=minghua")
+    assert own.status_code == 200
+    assert own.json() == {"updated": 1}
+    assert await _unread_by_campus(db_session) == {"yihua": 2}
+
+
+@pytest.mark.asyncio
+async def test_read_all_denied_for_reception_even_in_own_campus(app, db_session):
+    from app.auth.models import Role
+    from tests.conftest import _create_user, _logged_in_client
+
+    await _create_user(db_session, "desk-readall@ivy.example", "desk-password-1234", Role.RECEPTION, ["yihua"])
+    client = await _logged_in_client(app, "desk-readall@ivy.example", "desk-password-1234")
+    try:
+        await _add_inbox_items(db_session, "yihua", 2)
+        # 已讀是全校共用的狀態，櫃台只看、不能標（與單筆標記一致）。
+        assert (await client.post(READ_ALL_PATH)).status_code == 403
+        assert (await client.post(f"{READ_ALL_PATH}?campus_key=yihua")).status_code == 403
+        assert await _unread_by_campus(db_session) == {"yihua": 2}
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_read_all_denied_for_campus_admin_without_any_campus(app, db_session):
+    from app.auth.models import Role
+    from tests.conftest import _create_user, _logged_in_client
+
+    await _create_user(db_session, "no-campus@ivy.example", "no-campus-password-123", Role.CAMPUS_ADMIN)
+    client = await _logged_in_client(app, "no-campus@ivy.example", "no-campus-password-123")
+    try:
+        await _add_inbox_items(db_session, "yihua", 1)
+        assert (await client.post(READ_ALL_PATH)).status_code == 403
+        assert await _unread_by_campus(db_session) == {"yihua": 1}
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_read_all_super_admin_without_campus_key_marks_every_campus(admin_client, db_session):
+    await _add_inbox_items(db_session, "yihua", 2)
+    await _add_inbox_items(db_session, "minghua", 1)
+    await _add_inbox_items(db_session, "renwu", 1, read=1)
+
+    response = await admin_client.post(READ_ALL_PATH)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"updated": 3}
+    assert await _unread_by_campus(db_session) == {}
+
+
+@pytest.mark.asyncio
+async def test_read_all_super_admin_with_campus_key_marks_only_that_campus(admin_client, db_session):
+    await _add_inbox_items(db_session, "yihua", 2)
+    await _add_inbox_items(db_session, "minghua", 1)
+
+    response = await admin_client.post(f"{READ_ALL_PATH}?campus_key=yihua")
+    assert response.status_code == 200, response.text
+    assert response.json() == {"updated": 2}
+    assert await _unread_by_campus(db_session) == {"minghua": 1}
+
+
+@pytest.mark.asyncio
+async def test_read_all_covers_unread_beyond_the_list_limit(admin_client, db_session):
+    """列表端點最多回最新 100 則；一次標完是資料庫裡全部未讀，不是只標畫面上那些。"""
+    await _add_inbox_items(db_session, "yihua", 105)
+
+    listed = await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")
+    assert len(listed.json()) == 100
+
+    response = await admin_client.post(f"{READ_ALL_PATH}?campus_key=yihua")
+    assert response.json() == {"updated": 105}
+    assert await _unread_by_campus(db_session) == {}
+    after = await admin_client.get("/api/website/v1/admin/notifications?campus_key=yihua")
+    assert all(item["read_at"] is not None for item in after.json())

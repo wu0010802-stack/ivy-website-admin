@@ -407,23 +407,23 @@ async def test_existing_binding_to_unverified_group_keeps_working(line_app):
 
 # --- 發布前重驗欄位規則 ----------------------------------------------------------
 
-FAQ = f"{API}/admin/content-items/campus_faq"
+NEWS = f"{API}/admin/content-items/campus_news"
 Q = "?campus_key=yihua"
 _UNSAFE = "javascript:alert(document.domain)"
 
 
 async def _outdated_revision(db) -> ContentRevision:
     """模擬規則收緊前存下、現在過不了驗證的舊版本（直接寫 DB，繞過存檔驗證）。"""
-    item = await content_service.get_or_create_content_item(db, "campus_faq", "yihua")
+    item = await content_service.get_or_create_content_item(db, "campus_news", "yihua")
     revision = await content_service.create_revision(
-        db, item, {"items": [{"q": "參觀要預約嗎？", "a": _UNSAFE}]}, item.latest_version, None
+        db, item, {"events": [{"id": "event-1", "date": "2026-11-01", "title": "參觀要預約嗎？", "description": _UNSAFE}]}, item.latest_version, None
     )
     await db.commit()
     return revision
 
 
 async def _is_live(db, revision_id: uuid.UUID) -> bool:
-    item = (await db.execute(select(ContentItem).where(ContentItem.kind == "campus_faq"))).scalar_one()
+    item = (await db.execute(select(ContentItem).where(ContentItem.kind == "campus_news"))).scalar_one()
     await db.refresh(item)
     return item.current_published_revision_id == revision_id
 
@@ -431,7 +431,7 @@ async def _is_live(db, revision_id: uuid.UUID) -> bool:
 @pytest.mark.asyncio
 async def test_publish_revalidates_old_revision(admin_client, db_session, public_client):
     revision = await _outdated_revision(db_session)
-    resp = await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": str(revision.id)})
+    resp = await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": str(revision.id)})
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "CONTENT_SCHEMA_OUTDATED"
     assert not await _is_live(db_session, revision.id)
@@ -446,7 +446,7 @@ async def test_approve_revalidates_pending_revision(admin_client, db_session):
         update(ContentRevision).where(ContentRevision.id == revision.id).values(review_status="pending_review")
     )
     await db_session.commit()
-    resp = await admin_client.post(f"{FAQ}/review{Q}", json={"revision_id": str(revision.id), "decision": "approve"})
+    resp = await admin_client.post(f"{NEWS}/review{Q}", json={"revision_id": str(revision.id), "decision": "approve"})
     assert resp.status_code == 409
     assert resp.json()["detail"]["code"] == "CONTENT_SCHEMA_OUTDATED"
     assert not await _is_live(db_session, revision.id)
@@ -456,7 +456,7 @@ async def test_approve_revalidates_pending_revision(admin_client, db_session):
 async def test_schedule_creation_revalidates_revision(admin_client, db_session):
     revision = await _outdated_revision(db_session)
     resp = await admin_client.post(
-        f"{FAQ}/schedules{Q}",
+        f"{NEWS}/schedules{Q}",
         json={"revision_id": str(revision.id), "publish_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()},
     )
     assert resp.status_code == 409

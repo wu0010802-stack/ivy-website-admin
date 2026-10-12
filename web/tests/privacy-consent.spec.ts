@@ -13,11 +13,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 const booking = {
   cta_label: '預約參觀',
-  cta_label_en: 'Book a Visit',
-  consent_text: '我同意園方使用本次填寫的資料聯絡與安排參觀。',
-  banner_title_template: '歡迎{campusNameOrIvy}',
-  banner_body: '期待相遇',
-  banner_button_label: '預約'
+  cta_label_en: 'Book a Visit'
 }
 
 describe('隱私／個資使用說明', () => {

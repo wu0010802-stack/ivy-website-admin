@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatDateTime, formatSlotWhen } from '../../api/labels'
 import { injectVisitCase } from '../../composables/useVisitCase'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { caseStage } from '../../composables/visitCaseStage'
@@ -20,7 +19,6 @@ const stage = computed(() => {
     status: d?.status ?? '',
     canHandle: vc.canHandle,
     visitStarted: vc.visitStarted,
-    hasRescheduleRequest: Boolean(d?.pending_reschedule),
     familyPending: vc.familyPending,
     isFamily: Boolean(vc.familyVisit),
     canReadAdmissions: vc.canReadAdmissions,
@@ -29,14 +27,16 @@ const stage = computed(() => {
     lookupFailed: vc.lookupFailed,
   })
 })
-const request = computed(() => (vc.canHandle && vc.detail?.status === 'confirmed' ? (vc.detail.pending_reschedule ?? null) : null))
 const solid = (primaryHere: boolean) => primaryHere && !props.plain
 const familyEditable = computed(() => vc.canCreateAdmissions && !vc.familyVisit?.anonymized_at)
+// 家庭版面但不能改招生資料（只有 admissions.read、或招生訪視已匿名化）時沒有任何按鈕也沒有提示：
+// 整個容器不渲染，免得頁首（案件頁與預覽面板）在狀態與撥號之間留一塊空白與一段 gap。
+const hasContent = computed(() => !(stage.value === 'family' && !familyEditable.value))
 const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'admissions-create', 'admissions-ask'].includes(stage.value))
 </script>
 
 <template>
-  <div class="case-hero__actions" :class="{ 'case-hero__actions--stacked': stacked }" :data-stage="stage">
+  <div v-if="hasContent" class="case-hero__actions" :class="{ 'case-hero__actions--stacked': stacked }" :data-stage="stage">
     <el-skeleton v-if="stage === 'loading'" animated :rows="1" />
     <div v-else-if="stage === 'attendance'" class="detail__attendance" role="group" aria-labelledby="visit-attendance-title">
       <p id="visit-attendance-title" class="visually-hidden">家長到了嗎？</p>
@@ -45,22 +45,6 @@ const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'adm
         <el-button :loading="vc.pendingAction === 'no_show'" :disabled="vc.busy" @click="vc.markNoShow()">沒來</el-button>
       </div>
       <p v-if="vc.opensForm" class="hint case-hero__note">標記到場會接著開招生資料表單</p>
-    </div>
-
-    <div v-if="request" class="reschedule-request" role="group" aria-label="家長的改期申請">
-      <p class="reschedule-request__title">家長申請改期<span class="num">（{{ formatDateTime(request.created_at) }}）</span></p>
-      <p class="reschedule-request__slots">
-        {{ formatSlotWhen(request.current_slot) }}<br />→ <strong>{{ formatSlotWhen(request.requested_slot) }}</strong>
-      </p>
-      <p class="hint">
-        {{ request.requested_slot_available
-          ? `新場次剩 ${request.requested_slot_remaining} 組。原場次在核准前仍有效。`
-          : '新場次已額滿、關閉或已開始，無法核准；請退回並聯絡家長另約。' }}
-      </p>
-      <div class="reschedule-request__actions">
-        <el-button type="primary" :plain="!solid(stage === 'reschedule')" :loading="vc.pendingAction === 'approve'" :disabled="!request.requested_slot_available || vc.busy" @click="vc.decideReschedule('approve')">核准改期</el-button>
-        <el-button :loading="vc.pendingAction === 'reject'" :disabled="vc.busy" @click="vc.decideReschedule('reject')">退回申請</el-button>
-      </div>
     </div>
 
     <p v-if="stage === 'upcoming'" class="hint case-hero__note">參觀場次開始後可以標記已到場或未到場；家長事先說不來，請用下方的「取消預約」。</p>
@@ -102,7 +86,6 @@ const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'adm
 }
 
 .case-hero__buttons .el-button + .el-button,
-.reschedule-request__actions .el-button + .el-button,
 .case-hero__actions > .el-button + .el-button {
   margin-left: 0;
 }
@@ -117,45 +100,6 @@ const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'adm
   display: grid;
   justify-items: end;
   gap: 6px;
-}
-
-.reschedule-request {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--el-color-warning-light-5);
-  border-radius: var(--radius);
-  background: var(--el-color-warning-light-9);
-}
-
-.reschedule-request__title {
-  margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.reschedule-request__title .num {
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
-.reschedule-request__slots {
-  margin: 0;
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--ink-2);
-}
-
-.reschedule-request__slots strong {
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.reschedule-request__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .detail__admissions {

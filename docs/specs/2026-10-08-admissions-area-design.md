@@ -3,7 +3,7 @@
 日期：2026-10-08
 狀態：已實作於分支 `feature/admissions-area-20261008`，**未部署**；2026-10-08 依實作結果與主控裁定回寫（實作裁定見 §17）
 對象：業主、接手實作的 Claude
-基準：`origin/main` `82937a9f`（招生入學已部署；依 `2026-10-05-visit-family-page-design.md` 記載正式站招生開關已開；migration head `c4e8a2f61b97`；本功能新增一支 migration，head 變 `e7a1c4d9b2f6`）
+基準：`origin/main` `82937a9f`（招生入學已部署；依 `2026-10-05-visit-family-page-design.md` 記載正式站招生開關已開；migration head `c4e8a2f61b97`；本功能新增一支 migration `e7a1c4d9b2f6`。2026-10-12 合併時 origin/main 已多了後台清理的三支（`304dd12e96bc`→`e48a3ccedcd8`→`a9e11038c869`），本 migration 改接在 `a9e11038c869` 後面，head 仍是 `e7a1c4d9b2f6`）
 
 前置文件：
 

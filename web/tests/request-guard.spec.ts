@@ -25,7 +25,7 @@ describe('代理本文上限', () => {
     expect(isMediaUploadPath('/admin/media?x=1')).toBe(true)
     expect(proxyBodyLimit('/public/visit-requests')).toBe(DEFAULT_BODY_LIMIT)
     expect(proxyBodyLimit('/admin/media-evil')).toBe(DEFAULT_BODY_LIMIT)
-    expect(proxyBodyLimit('/admin/content-items/campus_faq/revisions')).toBe(DEFAULT_BODY_LIMIT)
+    expect(proxyBodyLimit('/admin/content-items/campus_news/revisions')).toBe(DEFAULT_BODY_LIMIT)
   })
 })
 
@@ -81,7 +81,7 @@ describe('代理不能被 .. 帶出 API 前綴（稽核 proxy-dot-segment-*）',
 
   it.each([
     '/public/media/0b7c3b3e-1a2b-4c5d-8e9f-001122334455/file',
-    '/admin/content-items/campus_faq?campus_key=yihua',
+    '/admin/content-items/campus_news?campus_key=yihua',
     '/auth/google/callback?code=a/../b&state=%2e%2e',
     '/admin/media/0b7c3b3e-1a2b-4c5d-8e9f-001122334455/variants/thumbnail',
     '/public/booking-config/yihua',

@@ -10,7 +10,7 @@ import { campusMapUrl, isMapUrl, siteLink } from '../app/utils/site-links'
 const site = fixture as unknown as SiteContent
 
 function profile(name: string, extra: Partial<LiveCampusProfile> = {}): LiveCampusProfile {
-  return { name, district: '區', address: '高雄市某路1號', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', ...extra }
+  return { name, district: '區', address: '高雄市某路1號', phone: '07', facebook: '', line: '', ...extra }
 }
 
 describe('停用的分校（後端不輸出那一校的內容）', () => {

@@ -22,10 +22,8 @@ from app.booking.models import VisitRequest
 from app.common.timezones import today_local
 from app.content import service as content_service
 from app.content.models import ContentItem, ContentRevision, SiteState
-from app.content.schemas import FORMAL_CONSENT_TEXT, LEGACY_DEMO_CONSENT_TEXT
 from app.operations.models import AuditLogEntry
 from tests.conftest import (
-    TEST_CONSENT_TEXT,
     add_weekly_rule,
     legacy_request,
     publish_booking_consent,
@@ -41,7 +39,14 @@ BOOKING = f"{API}/admin/content-items/booking_content"
 _BOOKING_PAYLOAD = {
     "cta_label": "預約參觀",
     "cta_label_en": "Book a Visit",
-    "consent_text": TEST_CONSENT_TEXT,
+}
+# 2026-10-08 以前存的預約文案帶著同意文字與橫幅三欄（現已拿掉），migration 31eb94190b1c 的
+# 測試要用這個舊形狀的資料。
+_DEMO_CONSENT_TEXT = "我了解這是操作示範，資料不會傳送給學校，不代表預約成立。"
+_FORMAL_CONSENT_TEXT = "我同意園方使用本次填寫的資料聯絡與安排參觀；送出需求後，仍須由園方確認參觀時間。"
+_LEGACY_BOOKING_PAYLOAD = {
+    **_BOOKING_PAYLOAD,
+    "consent_text": _DEMO_CONSENT_TEXT,
     "banner_title_template": "歡迎預約參觀{campus}",
     "banner_body": "期待與你相遇。",
     "banner_button_label": "預約校園參觀",
@@ -249,25 +254,21 @@ async def test_sample_privacy_text_cannot_be_published(admin_client):
     assert blocked.json()["detail"]["code"] == "CONTENT_NOT_READY"
     assert "示意" in blocked.json()["detail"]["message"]
 
-    # 同意條款文字 2026-10-02 起不再顯示：原型的示範文字也不擋。
-    demo = await _save_booking(admin_client, consent_text=LEGACY_DEMO_CONSENT_TEXT)
-    published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": demo["id"]})
-    assert published.status_code == 200, published.text
-
 
 @pytest.mark.asyncio
-async def test_blank_or_missing_consent_text_can_be_published(admin_client, public_client):
-    """2026-10-02 起同意條款文字不再顯示：空白或不帶都能發布，個資說明照常公開。"""
-    for blank in ("", "  \n "):
-        draft = await _save_booking(admin_client, consent_text=blank)
+async def test_booking_content_without_consent_text_can_be_published(admin_client, public_client):
+    """2026-10-02 起同意條款文字不再顯示、2026-10-08 欄位拿掉：不帶、帶空白或帶原型示範
+    文字都能發布，新版本不再存這個欄位，個資說明照常公開。"""
+    for old_value in ("", "  \n ", _DEMO_CONSENT_TEXT):
+        draft = await _save_booking(admin_client, consent_text=old_value)
+        assert "consent_text" not in draft["payload"]
         published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": draft["id"]})
-        assert published.status_code == 200, (blank, published.text)
+        assert published.status_code == 200, (old_value, published.text)
 
     item = (await admin_client.get(BOOKING)).json()
-    payload = {key: value for key, value in _BOOKING_PAYLOAD.items() if key != "consent_text"}
     saved = await admin_client.post(
         f"{BOOKING}/revisions",
-        json={"expected_version": item["latest_version"], "payload": {**payload, "privacy_title": "個資使用說明", "privacy_sections": _PRIVACY}},
+        json={"expected_version": item["latest_version"], "payload": {**_BOOKING_PAYLOAD, "privacy_title": "個資使用說明", "privacy_sections": _PRIVACY}},
     )
     assert saved.status_code == 201, saved.text
     published = await admin_client.post(f"{BOOKING}/publish", json={"revision_id": saved.json()["latest_revision"]["id"]})
@@ -571,21 +572,21 @@ async def _publish_raw(db_session, kind: str, payload: dict) -> ContentRevision:
     return revision
 
 
-def test_formal_consent_migration_uses_the_same_texts_as_the_app():
+def test_formal_consent_migration_texts_are_unchanged():
     migration = _load_formal_consent_migration()
-    assert migration.DEMO_CONSENT_TEXT == LEGACY_DEMO_CONSENT_TEXT
-    assert migration.FORMAL_CONSENT_TEXT == FORMAL_CONSENT_TEXT
+    assert migration.DEMO_CONSENT_TEXT == _DEMO_CONSENT_TEXT
+    assert migration.FORMAL_CONSENT_TEXT == _FORMAL_CONSENT_TEXT
 
 
 @pytest.mark.asyncio
 async def test_formal_consent_migration_republishes_the_demo_text(app, public_client, db_session):
     about = await _publish_raw(db_session, "home_about", {"title": "關於常春藤"})
     about_payload = dict(about.payload)
-    demo = await _publish_raw(db_session, "booking_content", {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT})
+    demo = await _publish_raw(db_session, "booking_content", dict(_LEGACY_BOOKING_PAYLOAD))
     item = await db_session.get(ContentItem, demo.content_item_id)
     # 園方另存了一版還沒發布、已送審的草稿。
     draft = await content_service.create_revision(
-        db_session, item, {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT, "cta_label": "草稿"}, item.latest_version, None
+        db_session, item, {**_LEGACY_BOOKING_PAYLOAD, "cta_label": "草稿"}, item.latest_version, None
     )
     draft.review_status = "pending_review"
     draft_payload = dict(draft.payload)
@@ -601,7 +602,7 @@ async def test_formal_consent_migration_republishes_the_demo_text(app, public_cl
     published = await db_session.get(ContentRevision, item.current_published_revision_id)
     assert published.version == draft_version + 1
     # 只換同意文字，其他欄位照原本發布的那一版（不是草稿）。
-    assert published.payload == {**demo_payload, "consent_text": FORMAL_CONSENT_TEXT}
+    assert published.payload == {**demo_payload, "consent_text": _FORMAL_CONSENT_TEXT}
     assert published.created_by is None and published.review_status == "draft"
     # 原本的草稿完全不動（仍在送審）；另外複製成最新一版草稿，編輯頁打開仍是
     # 園方改到一半的內容，示範同意文字一併換掉。
@@ -613,13 +614,15 @@ async def test_formal_consent_migration_republishes_the_demo_text(app, public_cl
             ContentRevision.content_item_id == item.id, ContentRevision.version == item.latest_version
         )
     )
-    assert carried.payload == {**draft_payload, "consent_text": FORMAL_CONSENT_TEXT}
+    assert carried.payload == {**draft_payload, "consent_text": _FORMAL_CONSENT_TEXT}
     assert carried.review_status == "draft" and carried.created_by is None
 
     state = await db_session.get(SiteState, 1)
     assert state.current_release_id != old_release
     site = (await public_client.get(f"{API}/public/site")).json()
-    assert site["content"]["booking_content"]["consent_text"] == FORMAL_CONSENT_TEXT
+    # 同意文字 2026-10-08 起公開輸出一律不帶（版本本身仍存著，上面已驗）。
+    assert "consent_text" not in site["content"]["booking_content"]
+    assert site["content"]["booking_content"]["cta_label"] == _BOOKING_PAYLOAD["cta_label"]
     # 其他內容沿用原本的發布版本。
     assert site["content"]["home_about"] == about_payload
 
@@ -652,7 +655,7 @@ async def test_formal_consent_migration_leaves_edited_or_missing_content_alone(a
     assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 0
 
     # 園方已經改過同意文字：不動。
-    custom = await _publish_raw(db_session, "booking_content", {**_BOOKING_PAYLOAD, "consent_text": "園方自己寫的同意文字。"})
+    custom = await _publish_raw(db_session, "booking_content", {**_LEGACY_BOOKING_PAYLOAD, "consent_text": "園方自己寫的同意文字。"})
     item_id, custom_id = custom.content_item_id, custom.id
     await _run_formal_consent_migration(app)
     db_session.expire_all()
@@ -662,7 +665,7 @@ async def test_formal_consent_migration_leaves_edited_or_missing_content_alone(a
 
     # 發布中的是園方的文字、草稿裡還留著示範文字：同樣不動（草稿本來就發布不了）。
     demo_draft = await content_service.create_revision(
-        db_session, item, {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT}, item.latest_version, None
+        db_session, item, dict(_LEGACY_BOOKING_PAYLOAD), item.latest_version, None
     )
     assert demo_draft.version == 2
     await db_session.commit()
@@ -675,7 +678,7 @@ async def test_formal_consent_migration_leaves_edited_or_missing_content_alone(a
 
 @pytest.mark.asyncio
 async def test_formal_consent_migration_without_draft_only_adds_the_published_version(app, public_client, db_session):
-    demo = await _publish_raw(db_session, "booking_content", {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT})
+    demo = await _publish_raw(db_session, "booking_content", dict(_LEGACY_BOOKING_PAYLOAD))
     item_id, demo_payload = demo.content_item_id, dict(demo.payload)
 
     await _run_formal_consent_migration(app)
@@ -685,7 +688,7 @@ async def test_formal_consent_migration_without_draft_only_adds_the_published_ve
     assert item.latest_version == 2
     published = await db_session.get(ContentRevision, item.current_published_revision_id)
     assert published.version == 2
-    assert published.payload == {**demo_payload, "consent_text": FORMAL_CONSENT_TEXT}
+    assert published.payload == {**demo_payload, "consent_text": _FORMAL_CONSENT_TEXT}
     audit = (
         await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "content.publish"))
     ).scalar_one()
@@ -709,10 +712,10 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
     from app.content import publish_jobs
     from app.content.models import PublishJob
 
-    demo = await _publish_raw(db_session, "booking_content", {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT})
+    demo = await _publish_raw(db_session, "booking_content", dict(_LEGACY_BOOKING_PAYLOAD))
     item = await db_session.get(ContentItem, demo.content_item_id)
     draft = await content_service.create_revision(
-        db_session, item, {**_BOOKING_PAYLOAD, "consent_text": LEGACY_DEMO_CONSENT_TEXT, "cta_label": "送審中"}, item.latest_version, None
+        db_session, item, {**_LEGACY_BOOKING_PAYLOAD, "cta_label": "送審中"}, item.latest_version, None
     )
     draft.review_status = "pending_review"
     now = datetime.now(timezone.utc)
@@ -749,7 +752,7 @@ async def test_formal_consent_migration_leftover_review_and_schedule_are_not_los
     item = await db_session.get(ContentItem, item_id)
     assert str(item.current_published_revision_id) == carried_id
     published = await db_session.get(ContentRevision, item.current_published_revision_id)
-    assert published.payload["consent_text"] == FORMAL_CONSENT_TEXT
+    assert published.payload["consent_text"] == _FORMAL_CONSENT_TEXT
 
 
 @pytest.mark.asyncio

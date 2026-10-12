@@ -44,7 +44,6 @@ def test_super_admin_only_capabilities():
         "campuses.activate",
         "booking.cross_campus",
         "audit.read_all",
-        "site_settings.manage",
         "retention.manage",
         "content.release_restore",
     ):
@@ -75,21 +74,6 @@ def test_campus_scope_helpers():
     assert campus_scope(campus_admin) == {"minghua"}
     assert covers_campus(campus_admin, "minghua")
     assert not covers_campus(campus_admin, "yihua")
-
-
-async def test_site_settings_update_requires_super_admin(minghua_client):
-    response = await minghua_client.patch(
-        "/api/website/v1/admin/site-settings",
-        json={
-            "expected_version": 1,
-            "title": "x",
-            "description": "x",
-            "share_image": None,
-            "noindex": True,
-            "privacy_policy_version": "v1",
-        },
-    )
-    assert response.status_code == 403
 
 
 @pytest.mark.parametrize("path", ["/api/website/v1/admin/retention/dry-run", "/api/website/v1/admin/retention/run"])

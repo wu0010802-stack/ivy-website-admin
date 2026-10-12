@@ -2,7 +2,7 @@
 // 後端：backend/app/operations/booking_outcomes_service.py、analytics_service.get_event_trend。
 import { api } from './client'
 import type { AdmissionsRate, BookingOutcomesOut, ClassDistributionOut, EventTrendOut } from './types'
-import { NO_VALUE, formatRate } from '../admissions/statsFormat'
+import { NO_VALUE, formatRate, rateCsvCell } from '../admissions/statsFormat'
 
 export interface DateRange {
   from: string
@@ -48,10 +48,10 @@ export function rateText(rate: AdmissionsRate): string {
   return rate.denominator ? `${formatRate(rate.value)}（${rate.numerator}/${rate.denominator}）` : NO_VALUE
 }
 
-/** 匯出 CSV 的比率格：「66.7%」；分母 0（畫面寫「—」）寫空白，Excel 才不會把「—」當文字。
+/** 匯出 CSV 的比率格：「66.7%」；分母 0（畫面寫「—」）寫空白（規則在 rateCsvCell）。
  *  分子分母已經在同一列的件數欄，畫面括號裡的「（2/3）」不重複寫。 */
 export function rateCsv(rate: AdmissionsRate): string {
-  return rate.denominator && rate.value !== null ? formatRate(rate.value) : ''
+  return rate.denominator ? rateCsvCell(rate.value) : ''
 }
 
 export function isSmallSample(rate: AdmissionsRate): boolean {

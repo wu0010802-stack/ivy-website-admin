@@ -16,13 +16,12 @@ import { useVisitStaff } from './useVisitStaff'
 import { useFamilyAdmissions } from './useFamilyAdmissions'
 import { arrivalFormLead } from './useArrivalAdmissionsForm'
 import { arrivalAdmissionsNote } from './visitAttendance'
-import { confirmRescheduleDecision, submitRescheduleDecision, type RescheduleAction } from './rescheduleDecision'
 import { readVisitNoteDraft, writeVisitNoteDraft } from './visitNoteDraft'
 import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked } from '../utils/visitSchedule'
 
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
-export type DetailAction = 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note' | RescheduleAction
+export type DetailAction = 'cancel' | 'no_show' | 'complete' | 'reschedule' | 'note'
 
 export interface VisitCaseHooks {
   /** 每次讀到案件（含動作後的靜默重讀）；明細頁用來算「下一筆」。 */
@@ -60,7 +59,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   // 已確認案件改期：選新場次、原因選填（記在案件歷程）。
   const rescheduleSlotId = ref('')
   const rescheduleReason = ref('')
-  // 家長已經申請改期時，該做的是核准或退回；手動改期先收起來，要用再展開。
+  // 改期表單先收起來，要用再展開。
   const manualRescheduleOpen = ref(false)
   // 聯絡紀錄草稿：被打斷時存在這個分頁，回到同一筆帶回（composables/visitNoteDraft.ts）。
   const newNote = ref(readVisitNoteDraft(id.value))
@@ -348,7 +347,6 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     try {
       await api.post(`/admin/visit-requests/${id.value}/no-show`)
       ElMessage.success('已標記未到場')
-      // 結案時家長待核准的改期申請跟著失效，側欄的待核准數要一起更新。
       openRequests.refresh(true)
       await load({ quiet: true })
       hooks.onChanged?.()
@@ -409,32 +407,12 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       rescheduleSlotId.value = ''
       rescheduleReason.value = ''
       manualRescheduleOpen.value = false
-      // 家長先前的改期申請在直接改期時失效，側欄的待核准數要一起更新。
       openRequests.refresh(true)
       await load({ quiet: true })
       hooks.onChanged?.()
     } catch (err) {
       // 名額或時段可能剛被別人用掉，重讀一次讓選單反映現況；狀態轉換被擋時 reportError 已經重讀，不再讀第二次。
       await (reportError(err, '改期失敗') ?? reloadNotifyingIfChanged())
-    } finally {
-      pendingAction.value = null
-    }
-  }
-
-  async function decideReschedule(action: RescheduleAction) {
-    const request = detail.value?.pending_reschedule
-    if (!request) return
-    const decision = await confirmRescheduleDecision(request, action)
-    if (!decision) return
-    pendingAction.value = action
-    try {
-      await submitRescheduleDecision(request.id, action, decision.reason)
-      ElMessage.success(action === 'approve' ? `已核准，改到 ${formatSlotWhen(request.requested_slot)}。記得告知家長。` : '已退回改期申請，家長維持原場次')
-      openRequests.refresh(true)
-      await load({ quiet: true })
-      hooks.onChanged?.()
-    } catch (err) {
-      await (reportError(err, '操作失敗') ?? reloadNotifyingIfChanged())
     } finally {
       pendingAction.value = null
     }
@@ -628,7 +606,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     familyVisit, familyPending, handled, noteDirty, openSlots, rescheduleSlots, parentMailNote, visitStarted, attendanceDue,
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
     latestFamilyContact, callPhone, bookingDataTitle,
-    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, opensForm, reschedule, decideReschedule,
+    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, opensForm, reschedule,
     addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
   })
 }

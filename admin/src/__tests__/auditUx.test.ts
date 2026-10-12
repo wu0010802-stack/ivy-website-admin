@@ -68,7 +68,7 @@ describe('案件類紀錄連到案件', () => {
       entry('a1', { action: 'visit_request.assign', target_type: 'visit_request', target_id: 'case-1', target_exists: true, campus_key: 'yihua' }),
       entry('a2', { action: 'visit_request.assign', target_type: 'visit_request', target_id: 'case-2', target_exists: false, campus_key: 'yihua', created_at: '2026-09-28T06:00:00Z' }),
       entry('a3', { action: 'visit_request.export', target_type: 'visit_request', target_id: 'yihua', target_exists: null, campus_key: 'yihua', created_at: '2026-09-28T05:00:00Z' }),
-      entry('a4', { action: 'content.publish', target_type: 'content_item', target_id: 'item-uuid', metadata: { kind: 'campus_faq' }, campus_key: 'renwu', created_at: '2026-09-28T04:00:00Z' }),
+      entry('a4', { action: 'content.publish', target_type: 'content_item', target_id: 'item-uuid', metadata: { kind: 'campus_news' }, campus_key: 'renwu', created_at: '2026-09-28T04:00:00Z' }),
     ] as never)
     const wrapper = await mountAudit()
     const rows = wrapper.findAll('.data-table .el-table__body tr')
@@ -76,7 +76,7 @@ describe('案件類紀錄連到案件', () => {
     expect(rows[1]!.text()).toContain('案件已清除')
     expect(rows[1]!.find('a').exists()).toBe(false)
     expect(rows[2]!.find('a').exists()).toBe(false)
-    expect(rows[3]!.get('a').attributes('href')).toBe('/content/campus-faq?campus=renwu')
+    expect(rows[3]!.get('a').attributes('href')).toBe('/content/campus-news?campus=renwu')
     // 不顯示案件編號。
     expect(wrapper.text()).not.toContain('case-1')
   })

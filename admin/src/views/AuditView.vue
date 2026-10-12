@@ -163,7 +163,8 @@ async function loadMore() {
   }
 }
 
-// 匯出：照目前校區、期間與搜尋，從最新的往前逐頁讀完（每次 500 筆），不只已載入的。超過
+// 匯出：照目前校區、期間與搜尋，從最新的往前逐頁讀完（每次 500 筆），不只已載入的（畫面上的搜尋
+// 只比對已載入的，所以筆數旁會註明更早的還沒載入；匯出是把同一個搜尋字套在讀完的全部紀錄）。超過
 // EXPORT_MAX 筆就停下、不產生半份檔案（半份的名單會被當成完整的）。紀錄不含家長個資，匯出本身不另寫稽核。
 // 裝置欄人人有；IP 欄只有總部（後端只給總部 IP），其他人的檔案沒有這一欄。
 const EXPORT_PAGE = 500
@@ -217,14 +218,15 @@ onMounted(() => {
   <div class="page">
     <PageHeader lead="誰在什麼時候改了什麼。" more="包含預約設定與案件處理、內容發布、素材、帳號與授權、個資清理等。紀錄裡不含家長個資。" />
 
-    <div class="filter-bar">
+    <div class="filter-bar" data-test="audit-filter-bar">
       <label class="filter-field"><span>校區</span><CampusSelect v-model="campusFilter" :keys="visibleCampusKeys" :all-label="isSuperAdmin ? '全部校區' : undefined" /></label>
-      <label class="filter-field filter-search"><span>搜尋已載入的紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
+      <label class="filter-field filter-search"><span>搜尋紀錄</span><el-input v-model="search" placeholder="操作、操作者、內容類型或細節" clearable /></label>
       <label class="filter-field audit-period"><span>期間</span><el-date-picker v-model="period" type="daterange" value-format="YYYY-MM-DD" :disabled-date="isFutureDate" start-placeholder="開始" end-placeholder="結束" range-separator="–" aria-label="期間" data-test="audit-period" /></label>
       <el-checkbox v-model="hideLogins" class="filter-check" data-test="audit-hide-logins">不列登入登出</el-checkbox>
     </div>
-    <div class="list-summary" role="status">
-      <span>{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : search ? `符合 ${visibleEntries.length} 筆・已載入 ${entries.length} 筆` : `已載入 ${entries.length} 筆` }}</span>
+    <!-- 只有筆數這句會隨載入與搜尋變動，才放進 live region；按鈕與匯出範圍說明是固定內容，不然切換校區讀屏會把整串再念一次。 -->
+    <div class="list-summary">
+      <span role="status">{{ loading ? '正在讀取操作紀錄…' : error ? '操作紀錄尚未載入' : search ? `符合 ${visibleEntries.length} 筆・已載入 ${entries.length} 筆${hasMore ? '（更早的紀錄未載入）' : ''}` : `已載入 ${entries.length} 筆` }}</span>
       <span class="audit-actions">
         <el-button :loading="loading" @click="load">重新整理</el-button>
         <el-button v-if="isSuperAdmin || campusFilter" :icon="Download" :loading="exporting" aria-describedby="audit-export-scope" data-test="audit-export" @click="exportCsv">匯出 CSV</el-button>

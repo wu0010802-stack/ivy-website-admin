@@ -4,7 +4,7 @@ import StatsDimensionTable from './StatsDimensionTable.vue'
 import { campusLabel } from '../../api/labels'
 import type { AdmissionsCompareRow, AdmissionsRate } from '../../api/types'
 import { termLabel } from '../../admissions/academic'
-import { formatRate, type StatsColumn } from '../../admissions/statsFormat'
+import { formatRate, rateCsvCell, type StatsColumn } from '../../admissions/statsFormat'
 import type { CsvCell } from '../../utils/csv'
 
 // 五校比較（官網延伸，規格 9.3）。數字是「招生案件數」：同一個孩子在兩校各參觀一次算兩筆，
@@ -25,7 +25,8 @@ const COLUMNS: StatsColumn[] = [
   { key: 'effective_to_enrolled', label: '排除轉期→註冊率' },
 ]
 
-// 匯出：比率沒有值（分母 0）寫空白，不把畫面的「—（0/0）」寫進 CSV；有值的照畫面寫「75.0%（3/4）」。
+// 匯出：比率沒有值（分母 0）寫空白，不把畫面的「—（0/0）」寫進 CSV（規則在 rateCsvCell，同統計表與成效統計）；
+// 有值的照畫面寫「75.0%（3/4）」。
 const RATE_FIELDS = {
   visit_to_deposit: 'visit_to_deposit_rate',
   visit_to_enrolled: 'visit_to_enrolled_rate',
@@ -38,7 +39,7 @@ function csvCell(row: Record<string, unknown>, column: StatsColumn): CsvCell | u
   if (!field) return undefined
   const source = props.rows.find((item) => item.campus_key === row.campus_key)
   const rate = source?.[field] as AdmissionsRate | undefined
-  return rate && rate.value === null ? '' : undefined
+  return rate ? rateCsvCell(rate.value, rateText(rate)) : undefined
 }
 
 function rateText(rate: AdmissionsRate): string {

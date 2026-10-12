@@ -42,6 +42,7 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     cta_label: '預約按鈕（中文）',
     cta_label_en: '預約按鈕英文副標',
     privacy_title: '說明標題',
+    // 以下三欄 2026-10-08 從表單與後端拿掉，留著只為版本歷程比較舊版本時有中文欄位名。
     banner_title_template: '橫幅標題',
     banner_body: '橫幅內文',
     banner_button_label: '橫幅按鈕文字',
@@ -50,6 +51,8 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     name: '校名',
     district: '行政區',
     phone: '參觀專線',
+    // intro、description（連同 labels.ts 的 fb_note）2026-10-08 從表單與後端拿掉，
+    // 留著只為版本歷程比較舊版本時有中文欄位名。
     intro: '一句話簡介',
     description: '詳細介紹',
     map_url: '地圖連結',

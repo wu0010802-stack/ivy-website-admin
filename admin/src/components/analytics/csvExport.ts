@@ -1,6 +1,6 @@
 // 成效統計各表的「匯出 CSV」共用（2026-10-06）：資料已經在畫面上（去識別的統計數字），
 // 在前端組檔，欄名與數字同畫面；檔名與下載失敗的提示在這裡統一。
-import { taipeiToday } from '../../composables/newsContent'
+import { taipeiToday } from '../../admissions/academic'
 import { notifyError } from '../../composables/notify'
 import { buildCsv, csvFilename, downloadCsv, type CsvCell } from '../../utils/csv'
 

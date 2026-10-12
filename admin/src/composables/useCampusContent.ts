@@ -7,7 +7,7 @@ import type ContentEditor from '../components/ContentEditor.vue'
 
 type EditorShell = InstanceType<typeof ContentEditor>
 
-// 分校內容頁共用「上次編輯的校區」：在五校介紹改完仁武，換到常見問題也還是
+// 分校內容頁共用「上次編輯的校區」：在五校介紹改完仁武，換到各校消息也還是
 // 仁武，不會每頁都跳回第一校。只記在這個分頁（sessionStorage）；私密模式等
 // 讀寫失敗就當作沒有記。
 const LAST_CAMPUS_KEY = 'ivy-admin-content-campus'
@@ -28,7 +28,7 @@ function rememberCampus(key: string) {
   }
 }
 
-// 分校內容頁（五校介紹、FAQ、消息、校園探索）共用：`campus` 由頁面先建好並交給
+// 分校內容頁（五校介紹、消息、校園探索）共用：`campus` 由頁面先建好並交給
 // useContentItem，這裡負責在選單切換時先確認有沒有未儲存的修改，確認放棄
 // 才真的換校並重新載入；取消就把選單撥回去。目前的校區寫在網址 ?campus=，
 // 重新整理或分享連結都停在同一校。

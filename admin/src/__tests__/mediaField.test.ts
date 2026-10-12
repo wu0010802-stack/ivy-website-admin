@@ -9,7 +9,7 @@ import CampusTourView from '../views/CampusTourView.vue'
 import HomeNewsView from '../views/HomeNewsView.vue'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { mediaPage, testUser } from './fixtures'
 import ElementPlus from 'element-plus'
 import MediaRefField from '../components/MediaRefField.vue'
 import { api } from '../api/client'
@@ -111,7 +111,7 @@ describe('MediaRefField', () => {
   it('從選圖器選一張：先更新值、再回報 picked（附上選之前的值）', async () => {
     vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
-      return [mediaAsset({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', original_filename: 'new.jpg' })] as never
+      return mediaPage([mediaAsset({ id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', original_filename: 'new.jpg' })]) as never
     })
     const { wrapper, value, events } = mountRef({ modelValue: ID })
     await wrapper.findAll('.media-field__actions button')[0]!.trigger('click')
@@ -157,6 +157,7 @@ function mockLibrary(item: ReturnType<typeof contentItem>, library: MediaAssetOu
   vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
     if (path.startsWith('/admin/content-items/')) return item as never
     if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
+    if (path.startsWith('/admin/media?')) return mediaPage(library) as never
     if (path.startsWith('/admin/media')) return library as never
     return [] as never
   })

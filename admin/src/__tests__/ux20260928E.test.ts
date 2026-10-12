@@ -31,7 +31,7 @@ import SiteMetaView from '../views/SiteMetaView.vue'
 import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
 import NewsBodyEditor from '../components/NewsBodyEditor.vue'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { mediaPage, testUser } from './fixtures'
 
 const adminSources = import.meta.glob(['../views/*.vue', '../components/*.vue'], {
   query: '?raw',
@@ -321,7 +321,7 @@ describe('入學資訊：階段與補助可排序，新增鈕在清單下方', (
 describe('五校介紹：社群網址', () => {
   it('邊打邊檢查網址；說明與官網一致，不再寫「待補」', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
-      name: '明華校', district: '左營區', address: '地址', phone: '07', intro: '', description: '', facebook: '', fb_note: '', line: '', map_url: '',
+      name: '明華校', district: '左營區', address: '地址', phone: '07', facebook: '', line: '', map_url: '',
     }, 'yihua') as never)
     const wrapper = await mountView(CampusProfileView, testUser('campus_admin', { campus_keys: ['yihua'] }))
     await wrapper.get('input[placeholder="https://www.facebook.com/…"]').setValue('www.facebook.com/ivy')
@@ -349,9 +349,9 @@ describe('官網沒顯示的欄位與預約橫幅', () => {
     expect(wrapper.text()).not.toContain('官網目前沒有顯示這一欄')
   })
 
-  it('預約文案頁不再有分校頁預約橫幅（官網已沒有分校頁）', async () => {
+  it('預約文案頁不再有分校頁預約橫幅（官網已沒有分校頁；舊版本帶著橫幅標題也不顯示）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('booking_content', {
-      cta_label: '', cta_label_en: '', consent_text: '', banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。', banner_body: '', banner_button_label: '',
+      cta_label: '', cta_label_en: '', banner_title_template: '親自走一趟，感受{campusNameOrIvy}的日常。',
       privacy_title: '', privacy_sections: [],
     }) as never)
     const wrapper = await mountView(BookingContentView)
@@ -449,6 +449,7 @@ describe('縮圖與圖片說明', () => {
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
       const one = known.find((a) => path === `/admin/media/${a.id}`)
       if (one) return one as never
+      if (path.startsWith('/admin/media?')) return mediaPage(library) as never
       if (path.startsWith('/admin/media')) return library as never
       return [] as never
     })
@@ -535,6 +536,7 @@ describe('縮圖與圖片說明', () => {
       }
       if (path === '/admin/media/upload-limits') return { max_image_bytes: 1, max_video_bytes: 1, image_types: [], video_types: [], purge_delay_days: 7 } as never
       if (path === '/admin/media/old') return mediaAsset({ id: 'old', original_filename: 'old.jpg', alt_text: '舊照片的說明' }) as never
+      if (path.startsWith('/admin/media?')) return mediaPage([mediaAsset()]) as never
       if (path.startsWith('/admin/media')) return [mediaAsset()] as never
       return [] as never
     })
@@ -576,8 +578,8 @@ describe('主選單與頁尾連結', () => {
 
 describe('唯讀帳號看內容', () => {
   const profile = {
-    name: '明華校', district: '左營區', address: '地址', phone: '07', intro: '', description: '',
-    facebook: 'https://www.facebook.com/ivykid', fb_note: '', line: '', map_url: '', instagram: '', youtube: '',
+    name: '明華校', district: '左營區', address: '地址', phone: '07',
+    facebook: 'https://www.facebook.com/ivykid', line: '', map_url: '', instagram: '', youtube: '',
   }
 
   it('值用正文色的樣式（表單加上唯讀樣式），空白欄位顯示（未填）', async () => {

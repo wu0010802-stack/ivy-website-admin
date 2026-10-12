@@ -18,7 +18,7 @@ import type {
   AnalyticsFunnelOut, BookingOutcomesOut, CampusOutcomeOut, ClassDistributionOut, EventTrendOut, OutcomeCountsOut,
 } from '../api/types'
 import type { TrafficSummary } from '../api/traffic'
-import { taipeiToday } from '../composables/newsContent'
+import { taipeiToday } from '../admissions/academic'
 import { notifyError } from '../composables/notify'
 import { useAuthStore } from '../stores/auth'
 import { CSV_BOM, downloadCsv } from '../utils/csv'
@@ -294,7 +294,7 @@ describe('成效統計匯出：每日變化', () => {
     await click(wrapper, 'daily-bars-csv')
     const { filename, lines } = lastDownload()
     expect(filename).toBe(`成效統計-每日送出需求-義華-2026-09-30–2026-10-02-${today}.csv`)
-    expect(lines).toEqual([`${CSV_BOM}日期,次`, '2026/10/02,0', '2026/10/01,4', '2026/09/30,2', ''])
+    expect(lines).toEqual([`${CSV_BOM}日期,送出需求次數`, '2026/10/02,0', '2026/10/01,4', '2026/09/30,2', ''])
   })
 
   it('切到預約鈕點擊，匯出的是點擊數、檔名跟著換', async () => {
@@ -304,7 +304,7 @@ describe('成效統計匯出：每日變化', () => {
     await click(wrapper, 'daily-bars-csv')
     const { filename, lines } = lastDownload()
     expect(filename).toBe(`成效統計-每日預約鈕點擊-義華-2026-09-30–2026-10-02-${today}.csv`)
-    expect(lines.slice(1, 4)).toEqual(['2026/10/02,0', '2026/10/01,8', '2026/09/30,1'])
+    expect(lines.slice(0, 4)).toEqual([`${CSV_BOM}日期,預約鈕點擊次數`, '2026/10/02,0', '2026/10/01,8', '2026/09/30,1'])
   })
 
   it('這段期間沒有資料時不顯示匯出鈕', async () => {
@@ -341,7 +341,7 @@ describe('成效統計匯出：官網瀏覽與速度', () => {
     await click(wrapper, 'daily-bars-csv')
     const { filename, lines } = lastDownload()
     expect(filename).toBe(`成效統計-每日瀏覽-官網全站-2026-09-02–2026-09-29-${today}.csv`)
-    expect(lines).toEqual([`${CSV_BOM}日期,次`, '2026/09/29,7', '2026/09/28,4', ''])
+    expect(lines).toEqual([`${CSV_BOM}日期,瀏覽次數`, '2026/09/29,7', '2026/09/28,4', ''])
   })
 
   it('各頁瀏覽：頁面（畫面上的白話名稱）與瀏覽次數，順序同畫面；全站合計所以檔名寫「官網全站」', async () => {

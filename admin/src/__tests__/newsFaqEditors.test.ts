@@ -1,4 +1,5 @@
-// 消息與活動（全站、各校）、共用常見問題與各校常見問題的後台編輯（2026-09-25 缺口 B07）。
+// 消息與活動（全站、各校）的後台編輯（2026-09-25 缺口 B07）。常見問題已於 2026-10-08 刪除，
+// 檔名保留，只留下「舊紀錄仍認得中文名稱、舊連結仍會轉址」的檢查。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -109,11 +110,13 @@ describe('消息欄位的預設值與檢查', () => {
     expect(news.path).toBe('/content/campus-news')
     expect(news.roles).toContain('campus_admin')
     expect(news.roles).toContain('editor')
+    // 常見問題功能已刪除，舊操作紀錄與舊發布紀錄裡的 kind 仍顯示中文名稱。
     expect(CONTENT_KIND_LABELS.shared_faq).toBe('共用常見問題')
+    expect(CONTENT_KIND_LABELS.campus_faq).toBe('各校常見問題')
     expect(CONTENT_KIND_LABELS.campus_news).toBe('各校消息與活動')
     expect(contentEditorPath('campus_news', 'minghua')).toBe('/content/campus-news?campus=minghua')
     expect(contentPublicPath('campus_news', 'minghua')).toBe('/')
-    expect(contentPreviewPath('shared_faq')).toBe('')
+    expect(contentPreviewPath('campus_news', 'minghua')).toBe('/preview')
   })
 })
 

@@ -129,7 +129,7 @@ function exportVitals() {
             </div>
           </div>
 
-          <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" :markers="TRAFFIC_MARKERS" :export-filename="dailyCsvName" />
+          <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" value-label="瀏覽次數" :markers="TRAFFIC_MARKERS" :export-filename="dailyCsvName" />
           <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
           <AnalyticsExplainer>
             <p>全站五校合計，不分校區權限，和各校預約的數字不能直接相比。</p>

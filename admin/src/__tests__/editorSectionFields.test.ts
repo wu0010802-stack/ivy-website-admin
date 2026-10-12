@@ -114,3 +114,45 @@ describe.each(CASES)('$name：段落目錄的欄位', (c) => {
     expect(dotted).toEqual([c.edit!.section])
   })
 })
+
+// 沒有 id 的段落清單（隱私權政策）刪掉前面或中間的一段時，後面的段落位置往前移，內容沒變：不能因此全被打點（T8b）。
+describe('隱私權政策：刪段落時目錄的打點跟著「同一段」而不是同一個位置', () => {
+  const privacy: Case = {
+    name: '隱私權政策',
+    component: PrivacyPolicyView,
+    kind: 'privacy_policy',
+    campusKey: null,
+    payload: {
+      title: '隱私權政策',
+      updated_on: null,
+      sections: [{ heading: '一、蒐集目的', body: '甲' }, { heading: '二、利用期間', body: '乙' }, { heading: '三、您的權利', body: '丙' }, { heading: '四、聯絡我們', body: '丁' }],
+    },
+  }
+  async function dottedAfter(change: (sections: { heading: string; body: string }[]) => void) {
+    const { wrapper, editor } = await mountCase(privacy)
+    change((editor.form!.value as { sections: { heading: string; body: string }[] }).sections)
+    await flushPromises()
+    const links = wrapper.get('nav[aria-label="這一頁的段落"]').findAll('a')
+    return links.filter((a) => a.find('.section-nav__dot').exists()).map((a) => a.get('.section-nav__label').text())
+  }
+
+  it('刪掉中間一段：剩下的段落都沒打點', async () => {
+    expect(await dottedAfter((sections) => { sections.splice(1, 1) })).toEqual([])
+  })
+
+  it('刪掉第一段：後面三段都沒打點', async () => {
+    expect(await dottedAfter((sections) => { sections.splice(0, 1) })).toEqual([])
+  })
+
+  it('刪掉一段、同時改另一段的內文：只有改過內文的那一段打點', async () => {
+    expect(await dottedAfter((sections) => { sections.splice(1, 1); sections[2]!.body = '丁改過' })).toEqual(['四、聯絡我們'])
+  })
+
+  it('在中間新增一段：只有新的那一段打點', async () => {
+    expect(await dottedAfter((sections) => { sections.splice(2, 0, { heading: '新增的一段', body: '新' }) })).toEqual(['新增的一段'])
+  })
+
+  it('只改標題：那一段打點（和後面的段落不連動）', async () => {
+    expect(await dottedAfter((sections) => { sections[1]!.heading = '二、資料利用期間' })).toEqual(['二、資料利用期間'])
+  })
+})

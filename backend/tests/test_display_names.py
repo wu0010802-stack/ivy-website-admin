@@ -22,7 +22,7 @@ from tests.conftest import _create_user, _logged_in_client, create_slot
 
 API = "/api/website/v1"
 BASE = f"{API}/admin"
-FAQ = f"{BASE}/content-items/campus_faq"
+NEWS = f"{BASE}/content-items/campus_news"
 Q = "?campus_key=yihua"
 MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "e9c3a7d5f214_user_display_name.py"
 
@@ -322,15 +322,15 @@ async def test_content_revisions_reviews_schedules_releases_and_notices(admin_cl
     await _set_name(db_session, "editor-yihua@ivy.example", EDITOR_NAME)
 
     draft = await editor_client.post(
-        f"{FAQ}/revisions{Q}", json={"expected_version": 0, "payload": {"items": [{"q": "要預約嗎？", "a": "要。"}]}}
+        f"{NEWS}/revisions{Q}", json={"expected_version": 0, "payload": {"events": [{"id": "e1", "date": "2026-11-01", "title": "要預約嗎？", "description": "要。"}]}}
     )
     assert draft.status_code == 201, draft.text
     revision_id = draft.json()["latest_revision"]["id"]
 
-    [summary] = (await admin_client.get(f"{FAQ}/revisions{Q}")).json()
+    [summary] = (await admin_client.get(f"{NEWS}/revisions{Q}")).json()
     assert (summary["created_by_email"], summary["created_by_display_name"]) == ("editor-yihua@ivy.example", EDITOR_NAME)
 
-    submitted = await editor_client.post(f"{FAQ}/submit{Q}", json={"revision_id": revision_id})
+    submitted = await editor_client.post(f"{NEWS}/submit{Q}", json={"revision_id": revision_id})
     assert submitted.status_code == 200, submitted.text
     [pending] = (await admin_client.get(f"{BASE}/content-reviews")).json()
     assert pending["submitted_by_email"] == "editor-yihua@ivy.example"
@@ -343,15 +343,15 @@ async def test_content_revisions_reviews_schedules_releases_and_notices(admin_cl
     assert read.json()["actor_display_name"] == EDITOR_NAME
 
     publish_at = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
-    job = await admin_client.post(f"{FAQ}/schedules{Q}", json={"revision_id": revision_id, "publish_at": publish_at})
+    job = await admin_client.post(f"{NEWS}/schedules{Q}", json={"revision_id": revision_id, "publish_at": publish_at})
     assert job.status_code in (200, 201), job.text
     assert job.json()["created_by_display_name"] == ADMIN_NAME
-    [listed_job] = (await admin_client.get(f"{FAQ}/schedules{Q}")).json()
+    [listed_job] = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()
     assert listed_job["created_by_display_name"] == ADMIN_NAME
     [site_job] = (await admin_client.get(f"{BASE}/publish-jobs")).json()
     assert (site_job["created_by_email"], site_job["created_by_display_name"]) == ("admin@ivy.example", ADMIN_NAME)
 
-    published = await admin_client.post(f"{FAQ}/publish{Q}", json={"revision_id": revision_id})
+    published = await admin_client.post(f"{NEWS}/publish{Q}", json={"revision_id": revision_id})
     assert published.status_code == 200, published.text
     release = (await admin_client.get(f"{BASE}/releases")).json()["items"][0]
     assert (release["created_by_email"], release["created_by_display_name"]) == ("admin@ivy.example", ADMIN_NAME)
@@ -373,7 +373,7 @@ async def test_media_uploader_display_name(admin_client, db_session):
     assert uploaded.json()["created_by_display_name"] == ADMIN_NAME
     media_id = uploaded.json()["id"]
     assert (await admin_client.get(f"{BASE}/media/{media_id}")).json()["created_by_display_name"] == ADMIN_NAME
-    [listed] = (await admin_client.get(f"{BASE}/media")).json()
+    [listed] = (await admin_client.get(f"{BASE}/media")).json()["items"]
     assert (listed["created_by_email"], listed["created_by_display_name"]) == ("admin@ivy.example", ADMIN_NAME)
 
 

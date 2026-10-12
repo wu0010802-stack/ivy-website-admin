@@ -326,11 +326,8 @@ const METADATA_HELPERS: [RegExp, () => string[]][] = [
   [/^_media_audit\(/, () => returnedKeys(functionBody(source('media/routes.py'), 'def _media_audit('))],
   [/^retention_service\.audit_metadata\(/, () => returnedKeys(functionBody(source('operations/retention_service.py'), 'def audit_metadata('))],
   [/^filters\.audit_metadata\(\)$/, () => returnedKeys(functionBody(source('booking/routes.py'), 'def audit_metadata('))],
-  [/^result$/, () => [
-    ...returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def remove_exception(')),
-    // generate_slots 回傳的是 _create_from_rules 的結果。
-    ...returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def _create_from_rules(')),
-  ]],
+  // 手動「依規則產生時段」的 API（visit_slots.generate）2026-10-08 已刪，只剩取消休假日回傳的結果。
+  [/^result$/, () => returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def remove_exception('))],
   [/^metadata$/, () => {
     const body = functionBody(source('auth/routes.py'), 'async def update_user_role(')
     return [...returnedKeys(body, /metadata = \{/g), ...[...body.matchAll(/metadata\["([a-z_]+)"\]/g)].map((m) => m[1]!)]
@@ -373,7 +370,7 @@ describe('操作紀錄細節涵蓋後端所有 metadata 鍵', () => {
     const keys = backendMetadataKeys()
     expect(keys.size).toBeGreaterThan(50)
     // 字面值、巢狀在字面值裡的輔助函式、**展開與 _audit_transition 的額外欄位都要掃得到。
-    for (const key of ['slot', 'from_status', 'to_status', 'row_count', 'has_search', 'size_bytes', 'trigger', 'run_id', 'has_reason', 'capabilities_removed', 'skipped_exception_days']) {
+    for (const key of ['slot', 'from_status', 'to_status', 'row_count', 'has_search', 'size_bytes', 'trigger', 'run_id', 'has_reason', 'capabilities_removed', 'reopened_slots']) {
       expect(keys, key).toContain(key)
     }
     expect(() => metadataKeys('some_new_helper(x)')).toThrow('新的 metadata 寫法')

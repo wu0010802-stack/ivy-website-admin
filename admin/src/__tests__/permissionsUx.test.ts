@@ -130,23 +130,15 @@ describe('參觀案件列表', () => {
 
 describe('站內通知', () => {
   const notification = { id: 'n1', campus_key: 'yihua', kind: 'visit_request_created', payload: {}, created_at: '2026-09-22T00:00:00Z', read_at: null }
-  const reschedule = {
-    id: 'r1', visit_request_id: 'v1', campus_key: 'yihua', status: 'pending', parent_name: '陳媽媽',
-    current_slot: { id: 's1', slot_date: '2099-10-01', start_time: '10:00:00', end_time: '11:00:00' },
-    requested_slot: { id: 's2', slot_date: '2099-10-02', start_time: '14:00:00', end_time: '15:00:00' },
-    requested_slot_remaining: 2, requested_slot_available: true, created_at: '2026-09-22T00:00:00Z',
-  }
   function mockApi() {
-    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : String(path).includes('reschedule-requests') ? [reschedule] : [notification]) as never)
+    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : [notification]) as never)
   }
 
-  it('櫃台可以核准或退回改期，但標記已讀（全校共用的狀態）等業主確認前不開放', async () => {
+  it('櫃台看得到通知清單，但標記已讀（全校共用的狀態）等業主確認前不開放', async () => {
     mockApi()
     const post = vi.spyOn(api, 'post')
     const { wrapper } = await mountAs(NotificationsView, desk(), '/notifications')
     expect(wrapper.text()).toContain('新的參觀預約')
-    expect(buttonTexts(wrapper)).toContain('核准')
-    expect(buttonTexts(wrapper)).toContain('退回')
     expect(buttonTexts(wrapper)).not.toContain('全部標記已讀')
     expect(buttonTexts(wrapper)).not.toContain('標記已讀')
     expect(post).not.toHaveBeenCalled()
@@ -162,18 +154,28 @@ describe('站內通知', () => {
     expect(post).toHaveBeenCalledWith('/admin/notifications/n1/read')
   })
 
+  it('校區管理者按「全部標記已讀」一次標完自己校區，不逐筆送', async () => {
+    // 前一個測試會把共用的 notification 標成已讀，這裡用自己的未讀資料。
+    vi.spyOn(api, 'get').mockImplementation(async path => (String(path).includes('notification-outbox') ? { items: [], total: 0 } : [{ ...notification, read_at: null }]) as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ updated: 1 } as never)
+    const { wrapper } = await mountAs(NotificationsView, campusAdmin(), '/notifications')
+    await wrapper.findAll('button').find(button => button.text() === '全部標記已讀')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(1)
+    // 只管一校的人直接帶自己那一校。
+    expect(post).toHaveBeenCalledWith('/admin/notifications/read-all?campus_key=yihua')
+  })
+
   it('沒有處理權的帳號只看清單', async () => {
     mockApi()
     const viewer = testUser('readonly', { campus_keys: ['yihua'], effective_capabilities: ['booking.read'] })
     const { wrapper } = await mountAs(NotificationsView, viewer, '/notifications')
-    // 只看的帳號照樣點得進案件（改期申請的家長姓名就是連結）。
-    expect(wrapper.get('.reschedule a.case-link').attributes('href')).toContain('/visit-requests/v1')
-    for (const label of ['全部標記已讀', '標記已讀', '核准', '退回']) expect(buttonTexts(wrapper)).not.toContain(label)
+    for (const label of ['全部標記已讀', '標記已讀']) expect(buttonTexts(wrapper)).not.toContain(label)
   })
 })
 
 describe('分校內容唯讀模式', () => {
-  const item = { id: 'c1', latest_version: 1, current_published_revision_id: 'r1', latest_revision: { id: 'r1', created_at: '2026-09-22T00:00:00Z', payload: { name: '義華校', items: [{ q: '幾歲入園？', a: '兩歲' }] }, review_status: 'approved' } }
+  const item = { id: 'c1', latest_version: 1, current_published_revision_id: 'r1', latest_revision: { id: 'r1', created_at: '2026-09-22T00:00:00Z', payload: { name: '義華校' }, review_status: 'approved' } }
 
   it('唯讀帳號看得到內容，但欄位停用、沒有儲存與送審', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(item as never)
@@ -240,7 +242,7 @@ describe('使用者：匯出授權與登入綁定', () => {
     const { wrapper } = await mountAs(UsersView, testUser('super_admin', { id: 'me' }), '/users')
     await wrapper.findAll('button').find(button => button.text() === '角色與校區')!.trigger('click')
     await flushPromises()
-    const exportBox = () => wrapper.findAllComponents({ name: 'ElCheckbox' }).find(box => box.text().includes('匯出負責校區的家長個資'))!
+    const exportBox = () => wrapper.findAllComponents({ name: 'ElCheckbox' }).find(box => box.text().includes('匯出負責校區的參觀案件與招生名單'))!
     expect(exportBox().props('modelValue')).toBe(true)
     expect(wrapper.find('[data-test="export-dropped"]').exists()).toBe(false)
 
@@ -266,13 +268,24 @@ describe('使用者：匯出授權與登入綁定', () => {
     const scopeButtons = wrapper.findAll('button').filter(button => button.text() === '角色與校區')
     await scopeButtons[1]!.trigger('click')
     await flushPromises()
-    const exportBox = wrapper.findAllComponents({ name: 'ElCheckbox' }).find(box => box.text().includes('匯出負責校區的家長個資'))!
+    const exportBox = wrapper.findAllComponents({ name: 'ElCheckbox' }).find(box => box.text().includes('匯出負責校區的參觀案件與招生名單'))!
     expect(exportBox).toBeTruthy()
     await exportBox.find('input').setValue(true)
     await wrapper.findAll('button').find(button => button.text() === '儲存')!.trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/users/rc/role', { role: 'reception', campus_keys: ['yihua'] })
     expect(patch).toHaveBeenCalledWith('/admin/users/rc/capabilities', { capabilities: ['booking.export'] })
+  })
+
+  it('匯出授權的勾選與說明寫明是參觀案件與招生名單，並列出主要個資類別（含地址、父母職業）', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(people as never)
+    const { wrapper } = await mountAs(UsersView, testUser('super_admin', { id: 'me' }), '/users')
+    await wrapper.findAll('button').filter(button => button.text() === '角色與校區')[1]!.trigger('click')
+    await flushPromises()
+    const box = wrapper.findAllComponents({ name: 'ElCheckbox' }).find(item => item.text().includes('匯出負責校區的參觀案件與招生名單'))!
+    expect(box.text()).toBe('可以匯出負責校區的參觀案件與招生名單（CSV）')
+    const help = wrapper.findAll('.field-help').map(item => item.text()).find(text => text.includes('每次匯出都會留下操作紀錄'))!
+    for (const word of ['參觀案件與招生名單', '姓名', '電話', 'Email', '地址', '父母職業']) expect(help).toContain(word)
   })
 })
 
@@ -322,10 +335,10 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
   const summary = {
     today_visits: 0, pending_follow_up: 0, failed_notifications: 0,
     campuses_without_active_booking: ['yihua'], campuses_slots_without_openings: ['yihua'],
-    pending_publish: 2, pending_publish_kinds: ['campus_faq', 'home_about'],
+    pending_publish: 2, pending_publish_kinds: ['campus_news', 'home_about'],
     pending_publish_items: [
       { kind: 'home_about', campus_key: null, latest_version: 5, published_version: 4, updated_at: '2026-09-25T02:00:00Z' },
-      { kind: 'campus_faq', campus_key: 'yihua', latest_version: 1, published_version: null, updated_at: '2026-09-24T02:00:00Z' },
+      { kind: 'campus_news', campus_key: 'yihua', latest_version: 1, published_version: null, updated_at: '2026-09-24T02:00:00Z' },
     ],
     content_media_issues: [{ kind: 'campus_tour', campus_key: 'yihua', missing: 1, not_ready: 0, live: true }],
     failed_publish_jobs: [{ id: 'j1', kind: 'home_news', campus_key: null, revision_version: 3, publish_at: '2026-09-25T01:00:00Z', error: '素材還沒處理好' }],
@@ -370,7 +383,7 @@ describe('營運總覽只放點得進去的連結（第 27 條）', () => {
     const links = hrefs(wrapper)
     expect(links).toContain('/booking')
     expect(text).toContain('設定參觀場次')
-    expect(links).toContain('/content/campus-faq?campus=yihua')
+    expect(links).toContain('/content/campus-news?campus=yihua')
     // 校園探索由總部管理（2026-10-05）：本校的也不給連結。
     expect(links).not.toContain('/content/campus-tour?campus=yihua')
     expect(links).toContain('/content/campus-profile?campus=yihua')

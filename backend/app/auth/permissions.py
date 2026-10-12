@@ -37,8 +37,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 去識別的成效統計（漏斗數字），唯讀角色依規格可以看。
     "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、
-    # 人工補登、取消、標記未到場、完成參觀、後台改期、核准／
-    # 退回家長改期申請、產生／撤銷家長管理連結。
+    # 人工補登、取消、標記未到場、完成參觀、後台改期、產生／撤銷
+    # 家長管理連結。
     # 也是「收新案通知信」的定義。
     "booking.handle": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
     # 管理預約的設定面：時段新增／容量／關閉、每週規則、休假日、預約方式。
@@ -64,7 +64,6 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "booking.cross_campus": {Role.SUPER_ADMIN},
     # 不指定校區的全站稽核紀錄；指定校區時改用 booking.read＋校區範圍。
     "audit.read_all": {Role.SUPER_ADMIN},
-    "site_settings.manage": {Role.SUPER_ADMIN},
     # 保存政策清理會刪個資，連預覽都限總管理者。
     "retention.manage": {Role.SUPER_ADMIN},
     # LINE 官方帳號推到哪些群組：通知會帶案件編號與後台連結，限總管理者設定。

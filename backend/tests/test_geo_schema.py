@@ -26,7 +26,7 @@ def test_migration_follows_previous_head_without_branching():
     config = Config(str(BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_revision("e7a1c4d9b2f6").down_revision == "c4e8a2f61b97"
+    assert script.get_revision("e7a1c4d9b2f6").down_revision == "a9e11038c869"
     assert len(script.get_heads()) == 1
     source = MIGRATION.read_text(encoding="utf-8")
     # 只建表，不改既有資料：與上一版程式相容（deploy/CICD.md）。

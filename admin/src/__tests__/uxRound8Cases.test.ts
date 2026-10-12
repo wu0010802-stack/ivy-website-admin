@@ -28,7 +28,7 @@ const caseOf = (extra: Record<string, unknown> = {}) => ({
   child_birthdate: null, email: null, referral_sources: [], age: null, preferred_time: null, questions: null,
   slot_id: future.id, slot: future, created_at: '2026-09-22T00:00:00Z', hold_expires_at: null, follow_up_at: null,
   confirmed_at: '2026-09-22T00:00:00Z', cancelled_at: null, source: 'web', display_status: 'upcoming',
-  history: [], pending_reschedule: null, access_link: null, version: 1, ...extra,
+  history: [], access_link: null, version: 1, ...extra,
 })
 
 async function mountDetail(responses: () => Record<string, unknown>) {
@@ -248,6 +248,7 @@ describe('承辦人已拿掉（2026-10-06）', () => {
     await flushPromises()
     expect(success).toHaveBeenCalled()
     expect(warning).not.toHaveBeenCalled()
-    expect(get.mock.calls.some(([p]) => String(p).includes('group-counts'))).toBe(false)
+    // 不查對方名下的案件件數（案件相關 API 一支都沒呼叫）。
+    expect(get.mock.calls.some(([p]) => String(p).includes('visit-requests'))).toBe(false)
   })
 })
