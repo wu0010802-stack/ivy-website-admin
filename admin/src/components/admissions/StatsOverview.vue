@@ -4,7 +4,7 @@ import { rocMonth, taipeiToday } from '../../admissions/academic'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import type { AdmissionsStats } from '../../api/types'
 import {
-  NO_VALUE, TREND_MARK, alertLevelLabel, formatPoints, formatRate, rateLevel, trendLabel, trendOf,
+  NO_VALUE, TREND_MARK, alertLevelLabel, barWidth, formatPoints, formatRate, rateLevel, trendLabel, trendOf,
   type StatsColumn, type StatsTarget,
 } from '../../admissions/statsFormat'
 
@@ -48,6 +48,19 @@ const kpiItems = computed(() => {
     { label: '預繳→註冊率', value: formatRate(kpi.deposit_to_enrolled_rate), sub: '' },
     { label: '排除轉期→註冊率', value: formatRate(kpi.effective_to_enrolled_rate), sub: '' },
   ]
+})
+
+// 預繳速度（2026-10-12 規格 §10.1）：參觀後第 N 天的累積預繳率；長條以五個觀察點的最大值為 100%。
+const timing = computed(() => props.stats.deposit_timing)
+const timingMax = computed(() => Math.max(0, ...timing.value.checkpoints.map((point) => point.cumulative_rate ?? 0)))
+const pace = computed(() => props.stats.deposit_pace)
+const paceText = computed(() => {
+  const value = pace.value
+  if (value.evaluable && value.expected !== null) {
+    return `依過去的預繳速度，到今天應有約 ${value.expected.toFixed(1)} 筆預繳，實際 ${value.observed} 筆。`
+  }
+  if (value.reason === 'insufficient_baseline') return `其他月份的預繳還不到 ${timing.value.min_events} 筆，先不比較預繳速度。`
+  return ''
 })
 
 function go(item: Target) {
@@ -193,8 +206,35 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
             <dd class="num">{{ mom.current_month ?? NO_VALUE }} / {{ mom.previous_month ?? NO_VALUE }}</dd>
           </div>
         </dl>
+        <p v-if="paceText" class="mom__pace" :class="{ 'mom__pace--slow': pace.slow }" data-test="deposit-pace">{{ paceText }}</p>
       </section>
     </div>
+
+    <section class="stats-card pace" data-test="deposit-timing">
+      <h3>預繳速度</h3>
+      <template v-if="timing.status === 'ok'">
+        <p v-if="timing.half_by_day !== null" class="pace__summary">
+          到第 90 天會預繳的家長，一半在參觀後 {{ timing.half_by_day }} 天內就預繳了。
+        </p>
+        <ol class="pace__rows">
+          <li v-for="point in timing.checkpoints" :key="point.day" class="pace__row">
+            <span class="pace__day">第 {{ point.day }} 天</span>
+            <span class="pace__bar" aria-hidden="true">
+              <span class="pace__fill" :style="{ width: barWidth(point.cumulative_rate ?? 0, timingMax) }" />
+            </span>
+            <strong class="num">{{ formatRate(point.cumulative_rate) }}</strong>
+            <span class="pace__reached">
+              {{ point.cumulative_rate === null ? `還沒有家長參觀滿 ${point.day} 天` : `參觀滿 ${point.day} 天：${point.visits_reached} 位` }}
+            </span>
+          </li>
+        </ol>
+        <p class="hint">預繳時間是後台標記預繳的日期，補登的訪視天數會偏長；之後退出的也算預繳過。</p>
+      </template>
+      <p v-else class="pace__empty">
+        預繳過的家長還不到 {{ timing.min_events }} 位（目前 {{ timing.deposited }} 位），先不計算預繳速度。
+      </p>
+      <p v-if="timing.missing_time > 0" class="hint">另有 {{ timing.missing_time }} 筆已預繳但沒有預繳紀錄時間，不列入。</p>
+    </section>
 
     <section class="stats-card">
       <h3>本範圍合計</h3>
@@ -499,9 +539,74 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
   font-size: var(--text-xs);
 }
 
+.mom__pace {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.mom__pace--slow {
+  color: var(--el-color-danger);
+}
+
+.pace__summary {
+  margin: 0 0 10px;
+}
+
+.pace__rows {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.pace__row {
+  display: grid;
+  grid-template-columns: 4.5em minmax(40px, 160px) 4.5em minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.pace__day,
+.pace__reached,
+.pace__empty {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.pace__row strong {
+  text-align: right;
+}
+
+.pace__bar {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.pace__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--el-color-primary);
+}
+
 @media (max-width: 720px) {
   .stats-card {
     padding: 14px 16px;
+  }
+
+  .pace__row {
+    grid-template-columns: 4.5em minmax(40px, 1fr) 4.5em;
+  }
+
+  .pace__reached {
+    grid-column: 1 / -1;
   }
 
   .decision__cards {

@@ -567,3 +567,66 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
     expect(block(pane, '來源排名明細').find('[data-test="stats-csv"]').exists()).toBe(false)
   })
 })
+
+describe('統計總覽：預繳速度（2026-10-12）', () => {
+  const okTiming = {
+    status: 'ok' as const, visits: 30, deposited: 12, missing_time: 2, min_events: 10, half_by_day: 6,
+    checkpoints: [
+      { day: 7, cumulative_rate: 23.3, visits_reached: 30 },
+      { day: 14, cumulative_rate: 40, visits_reached: 30 },
+      { day: 30, cumulative_rate: 40, visits_reached: 30 },
+      { day: 60, cumulative_rate: 40, visits_reached: 30 },
+      { day: 90, cumulative_rate: null, visits_reached: 0 },
+    ],
+  }
+
+  it('資料夠：五個觀察點、一半時間、補登與缺時間的註記', async () => {
+    mockGet({ '/admin/admissions/stats': stats({ deposit_timing: okTiming }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const card = wrapper.get('[data-test="deposit-timing"]')
+    expect(card.get('h3').text()).toBe('預繳速度')
+    const rows = card.findAll('.pace__row').map((row) => row.text().replace(/\s+/g, ''))
+    expect(rows).toEqual([
+      '第7天23.3%參觀滿7天：30位',
+      '第14天40.0%參觀滿14天：30位',
+      '第30天40.0%參觀滿30天：30位',
+      '第60天40.0%參觀滿60天：30位',
+      '第90天—還沒有家長參觀滿90天',
+    ])
+    expect(card.text()).toContain('到第 90 天會預繳的家長，一半在參觀後 6 天內就預繳了。')
+    expect(card.text()).toContain('補登的訪視天數會偏長')
+    expect(card.text()).toContain('另有 2 筆已預繳但沒有預繳紀錄時間，不列入。')
+    expect(card.find('.pace__fill').attributes('style')).toContain('width: 58%')   // 23.3 ÷ 40
+  })
+
+  it('資料不夠：寫目前幾位，不畫觀察點', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const card = wrapper.get('[data-test="deposit-timing"]')
+    expect(card.text()).toContain('預繳過的家長還不到 10 位（目前 0 位），先不計算預繳速度。')
+    expect(card.findAll('.pace__row')).toHaveLength(0)
+    expect(card.text()).toContain('另有 6 筆已預繳但沒有預繳紀錄時間，不列入。')
+  })
+
+  it('月比卡：可判斷時寫應有與實際，偏慢用警示色；比較組不夠時寫原因；沒有參考月份不顯示', async () => {
+    const slow = { evaluable: true, reason: null, month: '115.09', visits: 15, expected: 6, observed: 1, slow: true }
+    mockGet({ '/admin/admissions/stats': stats({ deposit_pace: slow }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const first = (await mountWith(StatsTab, { props: props() })).wrapper
+    const line = first.get('[data-test="deposit-pace"]')
+    expect(line.text()).toBe('依過去的預繳速度，到今天應有約 6.0 筆預繳，實際 1 筆。')
+    expect(line.classes()).toContain('mom__pace--slow')
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const second = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(second.get('[data-test="deposit-pace"]').text()).toBe('其他月份的預繳還不到 10 筆，先不比較預繳速度。')
+    cleanup()
+
+    const none = { evaluable: false, reason: 'no_reference_month' as const, month: null, visits: 0, expected: null, observed: 0, slow: false }
+    mockGet({ '/admin/admissions/stats': stats({ deposit_pace: none }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const third = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(third.find('[data-test="deposit-pace"]').exists()).toBe(false)
+  })
+})
