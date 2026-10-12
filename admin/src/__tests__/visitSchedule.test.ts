@@ -76,6 +76,18 @@ describe('日期分組（台北、週一開始）', () => {
     ])
     expect(groupVisitsByDay([row('2026-10-05'), row('2026-10-01')], tue).map((g) => g.label)).toEqual(['昨天 10/05（週一）', '更早'])
   })
+  it('提早到場釋出了場次（沒有場次、有 visited_on）：依到場那天分組，有場次的以場次日期為準', () => {
+    const rows = [
+      { id: 'early', slot: null, visited_on: '2026-10-06' },
+      { id: 'slot', slot: { slot_date: '2026-10-06' }, visited_on: '2026-10-06' },
+      { id: 'legacy', slot: null, visited_on: null },
+      { id: 'missing', slot: null },
+    ]
+    const groups = groupVisitsByDay(rows, tue)
+    expect(groups.map((g) => [g.label, g.rows.map((r) => r.id)])).toEqual([
+      ['今天 10/06（週二）', ['early', 'slot']], ['沒有場次', ['legacy', 'missing']],
+    ])
+  })
   it('不是台北今年的日子前面寫年份（去年、明年），今年省略', () => {
     expect(shortDay('2026-10-07', '2026-10-06')).toBe('10/07（週三）')
     expect(shortDay('2025-12-31', '2026-10-06')).toBe('2025/12/31（週三）')

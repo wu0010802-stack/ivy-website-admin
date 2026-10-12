@@ -469,6 +469,9 @@ class VisitRequestDetailOut(BaseModel):
     # relationship，取這個 schema 的查詢一律要 selectinload，否則 async
     # 下會踩到 lazy load。
     slot: VisitSlotBriefOut | None = None
+    # 案件列表的顯示與排序輔助，只有 GET /admin/visit-requests 會填。有場次＝場次日期；
+    # 沒有場次、已完成（提早到場釋出了場次）＝標記到場當天（台北日期）；其餘 None。
+    visited_on: date | None = None
     confirmed_at: datetime | None
     cancelled_at: datetime | None
     cancel_reason: str | None = None

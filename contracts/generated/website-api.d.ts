@@ -6230,6 +6230,8 @@ export interface components {
             status: string;
             /** Version */
             version: number;
+            /** Visited On */
+            visited_on?: string | null;
         };
         /**
          * VisitRequestFullOut
@@ -6315,6 +6317,8 @@ export interface components {
             status: string;
             /** Version */
             version: number;
+            /** Visited On */
+            visited_on?: string | null;
         };
         /**
          * VisitRequestManualCreate
@@ -10469,7 +10473,7 @@ export interface operations {
     list_visit_requests_api_website_v1_admin_visit_requests_get: {
         parameters: {
             query?: {
-                /** @description newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後） */
+                /** @description newest／oldest 依送出時間；visit_asc／visit_desc 依參觀日期（沒有日期的排最後） */
                 order?: string;
                 page?: number;
                 page_size?: number;

@@ -101,11 +101,14 @@ export function shortDay(day: string, today: string): string {
 
 export interface DayGroup<T> { key: string; bucket: DayBucket; label: string; rows: T[] }
 
-/** 已經依參觀時間排好的一頁切成連續的日期分組；同一組在清單裡相鄰，所以照清單順序走、不重排。 */
-export function groupVisitsByDay<T extends { slot?: { slot_date: string } | null }>(rows: readonly T[], today: string): DayGroup<T>[] {
+/**
+ * 已經依參觀時間排好的一頁切成連續的日期分組；同一組在清單裡相鄰，所以照清單順序走、不重排。
+ * 日期取場次日；提早到場釋出了場次的案件沒有場次，改用後端算好的 visited_on（到場當天）。
+ */
+export function groupVisitsByDay<T extends { slot?: { slot_date: string } | null; visited_on?: string | null }>(rows: readonly T[], today: string): DayGroup<T>[] {
   const groups: DayGroup<T>[] = []
   for (const row of rows) {
-    const day = row.slot?.slot_date ?? null
+    const day = row.slot?.slot_date ?? row.visited_on ?? null
     const bucket = dayBucket(day, today)
     const last = groups[groups.length - 1]
     if (last && last.bucket === bucket) {

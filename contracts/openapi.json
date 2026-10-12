@@ -10969,6 +10969,18 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "visited_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visited On"
           }
         },
         "required": [
@@ -11291,6 +11303,18 @@
           "version": {
             "title": "Version",
             "type": "integer"
+          },
+          "visited_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visited On"
           }
         },
         "required": [
@@ -21800,13 +21824,13 @@
         "operationId": "list_visit_requests_api_website_v1_admin_visit_requests_get",
         "parameters": [
           {
-            "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
+            "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀日期（沒有日期的排最後）",
             "in": "query",
             "name": "order",
             "required": false,
             "schema": {
               "default": "newest",
-              "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
+              "description": "newest／oldest 依送出時間；visit_asc／visit_desc 依參觀日期（沒有日期的排最後）",
               "pattern": "^(newest|oldest|visit_asc|visit_desc)$",
               "title": "Order",
               "type": "string"

@@ -29,6 +29,40 @@ async function mountList(path: string, rows: unknown[], options: { admissions?: 
   return { wrapper, router, get }
 }
 
+describe('提早到場的案件（沒有場次、有 visited_on）', () => {
+  const early = (extra: Record<string, unknown> = {}) =>
+    row('2026-10-12', '10:00', { status: 'completed', display_status: 'past', slot_id: null, slot: null, visited_on: '2026-10-12', ...extra })
+
+  it('列表依到場那天分組，時間欄寫「提早到場」，不寫「沒有場次」', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-12T02:30:00Z')) // 台北週一 10:30
+    const rows = [early(), row('2026-10-12', '14:00', { visited_on: '2026-10-12' })]
+    const { wrapper } = await mountList('/visit-requests', rows)
+    expect(titles(wrapper)).toEqual(['今天 10/12（週一）'])
+    const times = wrapper.findAll('.visit-row').map((r) => r.get('.visit-row__time b').text())
+    expect(times).toEqual(['提早到場', '14:00'])
+    expect(wrapper.text()).not.toContain('沒有場次')
+  })
+
+  it('不在今天／明天／昨天的組：第二行補上到場日', async () => {
+    const wrapper = (await mountWith(VisitListRow, {
+      user: reception(),
+      props: {
+        row: early({ visited_on: '2026-10-08' }) as never, now: Date.parse('2026-10-12T10:00:00+08:00'), to: '/visit-requests/x', dayOnly: false,
+        showCreated: false, multiCampus: false, selected: false, previewable: false, canHandle: true, canFillAdmissions: false,
+        batch: false, checked: false, busy: false, locked: false,
+      },
+    })).wrapper
+    expect(wrapper.get('.visit-row__time b').text()).toBe('提早到場')
+    expect(wrapper.get('.visit-row__time small').text()).toBe('10/08（週四）')
+  })
+
+  it('沒有場次也沒有到場日的舊案維持「沒有場次」', async () => {
+    const { wrapper } = await mountList('/visit-requests', [early({ visited_on: null, status: 'cancelled', display_status: 'cancelled' })])
+    expect(wrapper.get('.visit-row__time b').text()).toBe('沒有場次')
+  })
+})
+
 describe('行程清單（2026-10-06 方向 B）', () => {
   it('依參觀日分組：今天置頂、明天、本週、之後；今天的列只寫幾點與狀態', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })

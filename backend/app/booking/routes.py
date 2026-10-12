@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from starlette.background import BackgroundTask
-from sqlalchemy import func, or_, select
+from sqlalchemy import Date, cast, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
@@ -41,6 +41,7 @@ from app.booking.models import (
     BookingMode,
     VisitContactNote,
     VisitRequest,
+    VisitRequestEvent,
     VisitRequestSource,
     VisitRequestStatus,
     VisitSlot,
@@ -968,7 +969,7 @@ async def list_visit_requests(
     order: str = Query(
         default="newest",
         pattern="^(newest|oldest|visit_asc|visit_desc)$",
-        description="newest／oldest 依送出時間；visit_asc／visit_desc 依參觀時間（沒有場次的排最後）",
+        description="newest／oldest 依送出時間；visit_asc／visit_desc 依參觀日期（沒有日期的排最後）",
     ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -976,26 +977,50 @@ async def list_visit_requests(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitRequestDetailOut]:
     require_scope(current_user, "booking.read")
-    stmt = filters.apply(select(VisitRequest).options(selectinload(VisitRequest.slot)), current_user, "booking.read")
-    stmt = _apply_list_order(stmt, order).offset((page - 1) * page_size).limit(page_size)
+    visited_on = _visited_on_column()
+    stmt = filters.apply(
+        select(VisitRequest, visited_on).options(selectinload(VisitRequest.slot)), current_user, "booking.read"
+    )
+    stmt = _apply_list_order(stmt, order, visited_on).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
-    return [VisitRequestDetailOut.model_validate(r) for r in result.scalars()]
+    return [VisitRequestDetailOut.model_validate(r).model_copy(update={"visited_on": day}) for r, day in result.all()]
 
 
-def _apply_list_order(stmt, order: str):
+def _visited_on_column():
+    """案件列表的參觀日期（相關子查詢，一次查詢帶出整頁，不逐筆查）。有場次用場次日期；
+    提早到場、約之後日子的案件釋出了場次，沒有場次、而且已完成，改取最後一筆 completed 歷程的台北日期；
+    其餘（取消的舊案等）是 None。"""
+    slot_date = (
+        select(VisitSlot.slot_date).where(VisitSlot.id == VisitRequest.slot_id).correlate(VisitRequest).scalar_subquery()
+    )
+    completed_on = (
+        select(func.max(cast(func.timezone(OPERATING_TZ.key, VisitRequestEvent.created_at), Date)))
+        .where(
+            VisitRequestEvent.visit_request_id == VisitRequest.id,
+            VisitRequestEvent.event_type == "completed",
+            VisitRequest.status == VisitRequestStatus.COMPLETED.value,
+        )
+        .correlate(VisitRequest)
+        .scalar_subquery()
+    )
+    return func.coalesce(slot_date, completed_on).label("visited_on")
+
+
+def _apply_list_order(stmt, order: str, visited_on):
     """列表排序。最後都補 id，同一時間的案件在翻頁時不會重複或漏掉。"""
     if order in ("visit_asc", "visit_desc"):
-        # 行程清單（2026-10-06 方向 B）：依參觀日期與開始時間；沒有場次的舊案排最後。
+        # 行程清單（2026-10-06 方向 B）：依參觀日期（visited_on）與場次開始時間。沒有日期的舊案排最後；
+        # 同一天內，有場次的依開始時間排，沒有場次的（提早到場釋出了場次）不論遞增遞減都排在那天最後。
         # join 用別名：篩選條件裡 `slot_id IN (SELECT visit_slots.id …)` 的子查詢才不會被自動關聯到這個 join。
         slot = aliased(VisitSlot)
         stmt = stmt.outerjoin(slot, slot.id == VisitRequest.slot_id)
         if order == "visit_asc":
             return stmt.order_by(
-                slot.slot_date.asc().nulls_last(), slot.start_time.asc().nulls_last(),
+                visited_on.asc().nulls_last(), slot.start_time.asc().nulls_last(),
                 VisitRequest.created_at.asc(), VisitRequest.id.asc(),
             )
         return stmt.order_by(
-            slot.slot_date.desc().nulls_last(), slot.start_time.desc().nulls_last(),
+            visited_on.desc().nulls_last(), slot.start_time.desc().nulls_last(),
             VisitRequest.created_at.desc(), VisitRequest.id.desc(),
         )
     if order == "oldest":

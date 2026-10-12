@@ -36,14 +36,18 @@ const showAttendance = computed(() => props.canHandle && attendanceDue(props.row
 const showFill = computed(() => props.canFillAdmissions && props.row.status === 'completed')
 const manualSource = computed(() => (props.row.source && props.row.source !== 'web' ? `${visitSourceLabel(props.row.source)}補登` : ''))
 const followDue = computed(() => followUpDue(props.row, props.now))
+// 提早到場、約之後日子的案件釋出了場次（沒有場次），列表的 visited_on 是到場當天：寫「提早到場」，不寫「沒有場次」。
+const visitedEarlyOn = computed(() => (props.row.slot ? null : props.row.visited_on ?? null))
 const timeMain = computed(() => {
   const slot = props.row.slot
-  if (!slot) return '沒有場次'
+  if (!slot) return visitedEarlyOn.value ? '提早到場' : '沒有場次'
   return props.dayOnly ? formatTime(slot.start_time) : shortDay(slot.slot_date, taipeiDay(props.now))
 })
 const timeSub = computed(() => {
   const slot = props.row.slot
-  return slot && !props.dayOnly ? `${formatTime(slot.start_time)}–${formatTime(slot.end_time)}` : ''
+  // 今天／明天／昨天的組標題已經寫了日期，其餘的組才在第二行補到場日（同有場次的列）。
+  if (!slot) return visitedEarlyOn.value && !props.dayOnly ? shortDay(visitedEarlyOn.value, taipeiDay(props.now)) : ''
+  return !props.dayOnly ? `${formatTime(slot.start_time)}–${formatTime(slot.end_time)}` : ''
 })
 
 function onLinkClick(event: MouseEvent, navigate: (e?: MouseEvent) => unknown) {
