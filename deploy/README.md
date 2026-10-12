@@ -1079,7 +1079,7 @@ railway ssh --service api --environment production -- python -m app.cli initiali
 railway ssh --service api --environment production -- python -m app.cli bootstrap-admin
 ```
 
-`initialize-content` 驗證所有 payload 後，僅補 `latest_version=0` 的空白項目。重跑不覆蓋既有草稿、不多建版本。現行來源共初始化 20 筆：9 種共用內容（2026-09-24 起含 `home_news` 最新消息與活動、`admission_content` 入學資訊）、五校介紹、五校 FAQ、義華巡覽；其他四校巡覽仍保留待補狀態。來源文案原樣保留，包含尚未改成正式用語的原型說明。
+`initialize-content` 驗證所有 payload 後，僅補 `latest_version=0` 的空白項目。重跑不覆蓋既有草稿、不多建版本。2026-10-12 起來源是官網用的 `web/server/data/site-fixture.json`（映像把它複製到 `/app/content/site-fixture.json`，所以上面的指令路徑不變；原本另有一份 `content/site-fixture.json`，已刪除），共初始化 21 筆：11 種共用內容、五校介紹、五校校園探索（FAQ 已於 2026-10-08 拿掉）。正式站早已初始化過，重跑只補還沒有版本的項目：明華、崇德、國際、仁武四校的校園探索以前讀舊 fixture 時是待補樣板、沒建過，現在會用 fixture 的真實場景建立並發布，內容與官網內建的相同。（以下為 2026-09 首次初始化當時的紀錄：共 20 筆，其他四校巡覽保留待補狀態，來源文案原樣保留，包含尚未改成正式用語的原型說明。）
 
 **官網瀏覽量與速度上線步驟（2026-09-24）**：新增 migration `b7d2e4f1a903`（只建 `page_view_daily`、`web_vital_samples` 兩張表，不動既有資料）。（2026-09-24 更正：「schema 檢查擋下時正式站維持舊版」不成立。api 掛 volume，Railway 先停舊容器，檢查擋下就是停站；現已改為啟動時自動 upgrade。）
 

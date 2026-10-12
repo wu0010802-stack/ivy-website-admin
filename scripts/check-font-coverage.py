@@ -15,7 +15,7 @@ from pathlib import Path
 from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parent.parent
-FIXTURE = ROOT / "content" / "site-fixture.json"
+FIXTURE = ROOT / "web" / "server" / "data" / "site-fixture.json"
 FONTS = {
     "lineseed-bd": ROOT / "assets/fonts/lineseed-bd.woff",
     "lineseed-eb": ROOT / "assets/fonts/lineseed-eb.woff",

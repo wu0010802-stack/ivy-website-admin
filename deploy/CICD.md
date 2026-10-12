@@ -44,7 +44,7 @@ GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `m
 
 - Node 22.23.2、Python 3.12、uv 0.8.22、Railway CLI 5.45.10；npm/uv 均遵循 lockfile，FastAPI 維持 0.136.1。
 - CI 建立拋棄式 PostgreSQL 16 `ivy_website_test`，只在此 DB 執行 migration 與測試。YAML 的 `ci-only-*` 值僅用於此暫時環境。
-- CD 使用 `git archive GITHUB_SHA`，只取 `web/ admin/ backend/ content/ contracts/ deploy/ .dockerignore`，排除 `.env*`、本機資料、依賴與建置產物。
+- CD 使用 `git archive GITHUB_SHA`，只取 `web/ admin/ backend/ contracts/ deploy/ .dockerignore`（2026-10-12 起不含 `content/`，已刪除；後端初始化用的 fixture 改由 `web/server/data/site-fixture.json` 複製進映像），排除 `.env*`、本機資料、依賴與建置產物。
 - API/web 上傳同一份快照，`release.json` 記錄 `snapshot`、`base_commit`、`created_at`。hash 算法沿用原部署紀錄，排除 release 自己。
 - API 容器降權後，啟動 uvicorn 前依序執行（`deploy/api-start.py`，手動 `railway up` 同樣適用）：
   1. `alembic upgrade head`：升到映像內的 migration head。所有待跑 revision 在**同一交易**，失敗或 90 秒逾時整批回滾；`backend/migrations/env.py` 先取 PostgreSQL advisory lock，重疊的部署排隊，後到者看到已是新版就不重跑。已在 head 時為 no-op，所以容器重啟也安全。

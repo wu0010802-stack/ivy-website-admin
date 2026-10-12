@@ -25,7 +25,7 @@ API = "/api/website/v1"
 NEWS = f"{API}/admin/content-items/campus_news"
 Q = "?campus_key=yihua"
 ABOUT = f"{API}/admin/content-items/home_about"
-FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 
 
 def _news(title="參觀要預約嗎？"):
@@ -462,8 +462,9 @@ async def test_seed_from_fixture_refuses_to_overwrite_and_validates(db_session):
     # initialize-content 的 dry-run 只列出還沒有版本的項目，不建立任何列。
     pending = await pending_initialization(db_session, data)
     assert ("home_about", None) not in pending and ("campus_profile", "yihua") in pending
-    # 全部初始內容（含 2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。
-    assert len(pending) == 14
+    # 全部初始內容（含 2026-10 的特色教學頁與關於頁）扣掉已有版本的 3 筆。14 → 18（2026-10-12）：
+    # fixture 合一後讀 web 的營運版，明華、崇德、國際、仁武四校多出 campus_tour，初始內容共 21 筆。
+    assert len(pending) == 18
     assert len((await db_session.execute(select(ContentItem))).scalars().all()) == 3
 
 

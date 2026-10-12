@@ -7,19 +7,26 @@ from sqlalchemy import func, select
 from app.content import service
 from app.content.models import ContentRevision
 
-FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 
 
 @pytest.mark.asyncio
-async def test_initialize_preserves_source_and_skips_unverified_tours(db_session):
+async def test_initialize_preserves_source_and_imports_every_campus_tour(db_session):
     from app.content.initialize import initialize_content
 
     data = json.loads(FIXTURE.read_text())
-    assert await initialize_content(db_session, data) == 17
+    # 筆數 17 → 21（2026-10-12）：內容 fixture 合一，初始化改讀 web/server/data/ 的營運版，
+    # 明華、崇德、國際、仁武四校有真實的校園探索場景（舊 content/ 那份是待補的樣板，不匯入），
+    # 所以多建四筆 campus_tour，五校各一。
+    assert await initialize_content(db_session, data) == 21
     release_id, content = await service.get_public_content(db_session)
     assert release_id
     assert set(content["campus_profile"]) == {c["key"] for c in data["campuses"]}
-    assert set(content["campus_tour"]) == {"yihua"}
+    assert set(content["campus_tour"]) == {c["key"] for c in data["campuses"]}
+    for campus in data["campuses"]:
+        assert [s["key"] for s in content["campus_tour"][campus["key"]]["scenes"]] == [
+            s["key"] for s in campus["tourScenes"]
+        ]
     assert content["campus_profile"]["renwu"]["line"] == ""
     assert content["campus_profile"]["yihua"]["instagram"] == "https://www.instagram.com/ivy.kids.school.ig/"
     assert content["campus_profile"]["yihua"]["youtube"] == "https://www.youtube.com/@IvyKidsVideos"
@@ -46,7 +53,7 @@ async def test_initialize_preserves_source_and_skips_unverified_tours(db_session
         assert profile["name"] == campus["name"]
     assert await initialize_content(db_session, data) == 0
     assert (await service.get_public_content(db_session))[0] == release_id
-    assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 17
+    assert await db_session.scalar(select(func.count()).select_from(ContentRevision)) == 21
 
 
 @pytest.mark.asyncio
@@ -59,7 +66,7 @@ async def test_initialize_never_overwrites_or_publishes_existing_drafts(db_sessi
         {"eyebrow": "園方草稿", "copy_lines": ["待審稿"], "cta_label": "參觀"},
         0, None,
     )
-    assert await initialize_content(db_session, json.loads(FIXTURE.read_text())) == 16
+    assert await initialize_content(db_session, json.loads(FIXTURE.read_text())) == 20  # 少建被草稿占住的 home_hero：21 - 1
     assert item.latest_version == 1
     assert item.current_published_revision_id is None
     assert revision.payload["eyebrow"] == "園方草稿"

@@ -296,13 +296,13 @@ async def test_home_hero_saved_without_cta_label(admin_client, public_client):
 
 
 def test_initialize_keeps_builtin_links_and_order():
-    """原型 fixture 的連結是 hash 網址，匯入時不帶；五校順序照原型。"""
+    """頁尾連結與主選單匯入時不帶（None＝官網沿用內建，內建就是同一份 fixture）；五校順序照 fixture。"""
     import json
     from pathlib import Path
 
     from app.content.initialize import initial_payloads
 
-    data = json.loads((Path(__file__).resolve().parents[2] / "content" / "site-fixture.json").read_text())
+    data = json.loads((Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json").read_text())
     payloads = {(kind, campus): payload for kind, campus, payload in initial_payloads(data)}
     assert payloads[("site_footer", None)]["links"] is None
     assert payloads[("site_meta", None)]["primary_nav"] is None

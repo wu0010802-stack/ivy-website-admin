@@ -29,8 +29,9 @@ curl http://127.0.0.1:8000/api/website/v1/health
 ```bash
 uv run python -m app.cli bootstrap-admin   # 互動輸入 email/密碼，密碼不進 log
 uv run python -m app.cli seed --dry-run    # 檢查五校 seed 是否需要補
-uv run python -m app.cli initialize-content ../content/site-fixture.json --dry-run
-  # 新環境的啟動步驟：驗證後只補「從未發布過」的內容項（2026-10-08 起共 17 筆；常見問題 FAQ 已整個拿掉）；
+uv run python -m app.cli initialize-content ../web/server/data/site-fixture.json --dry-run
+  # 新環境的啟動步驟：驗證後只補「從未發布過」的內容項（2026-10-12 起共 21 筆：內容 fixture 合一，
+  # 讀官網用的 web/server/data/site-fixture.json，五校各有校園探索；常見問題 FAQ 已整個拿掉）；
   # 重跑不覆蓋既有草稿、不多建版本。--dry-run 只列出會補哪些，不寫入。
 ```
 
@@ -75,7 +76,7 @@ Playwright 使用系統已安裝的 Google Chrome（`channel: 'chrome'`），不
 
 - `artifacts/website-baseline/`：現行原型 1440/1024/390/375px 首頁與五校頁截圖（gitignore，本機用）。
 - `artifacts/prototype-baseline/preview.html` 與其 `.sha256`：`package_preview.py` 產出的離線快照備份。
-- `content/site-fixture.json`：從 `app.js`／`index.html` 抽出的內容 fixture，Nuxt 階段 A 用它渲染頁面（尚未接 FastAPI）。
+- `web/server/data/site-fixture.json`：官網的內容 fixture，也是後端 `initialize-content`、字型缺字檢查與 stack e2e 的唯一來源（2026-10-12 起；原本另有一份 `content/site-fixture.json`，已刪除）。正式站映像把它複製到 `/app/content/site-fixture.json`，所以線上指令路徑不變。
 - `scripts/check-font-coverage.py`：字型缺字檢查（`python3 scripts/check-font-coverage.py`）。
 - `scripts/capture-baseline.mjs`：重新拍攝基準截圖用（需先跑 `python3 -m http.server 8765` 服務根目錄原型）。
 

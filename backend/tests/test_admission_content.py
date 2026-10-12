@@ -12,8 +12,7 @@ from app.content.initialize import _copy_fields, initial_payloads
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.content.schemas import AdmissionContentPayload
 
-FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
-WEB_FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 
 
 def _payload() -> dict:
@@ -27,11 +26,16 @@ def test_fixture_admission_validates_and_is_shared_only():
     assert CONTENT_KIND_REGISTRY["admission_content"].shared_only is True
 
 
-def test_both_fixtures_carry_the_same_admission_copy():
-    # 後端初始化讀 content/，官網讀 web/server/data/；兩份不同步時 CMS 發布前後畫面會跳。
-    ours = json.loads(FIXTURE.read_text())["admission"]
-    web = json.loads(WEB_FIXTURE.read_text())["admission"]
-    assert ours == web
+@pytest.mark.asyncio
+async def test_initialize_publishes_the_fixture_admission_copy(db_session):
+    # 內容 fixture 只剩 web/server/data/ 一份（2026-10-12 合一，後端初始化也讀它）：
+    # 初始化後已發布的版本要等於 fixture 那段文案，CMS 發布前後畫面才不會跳。
+    from app.content import service
+    from app.content.initialize import initialize_content
+
+    await initialize_content(db_session, json.loads(FIXTURE.read_text()))
+    published = await service.published_payload(db_session, "admission_content", None)
+    assert published == AdmissionContentPayload.model_validate(_payload()).model_dump()
 
 
 def test_initialize_includes_admission_content():

@@ -49,8 +49,9 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
     entries = [
         ("home_about", None, _copy_fields(data["home"]["about"], "home_about")),
         ("home_hero", None, _copy_fields(data["home"]["hero"], "home_hero")),
-        # 原型的頁尾連結是 hash 網址（#/visit），不是正式官網的路徑；不帶入，
-        # 官網沿用內建連結，主選單同理（site_meta 不帶 primary_nav）。
+        # 頁尾連結與主選單不帶入（site_footer 不帶 links、site_meta 不帶 primary_nav）：
+        # None＝官網沿用內建連結，內建的正是同一份 fixture（2026-10-12 起後端也讀 web 那份，
+        # 連結已是正式路徑），帶入只會多一份要同步的副本。
         ("site_footer", None, {k: v for k, v in _copy_fields(data["footer"], "site_footer").items() if k != "links"}),
         ("home_campus_board", None, _copy_fields(data["home"]["campusBoard"], "home_campus_board")),
         # 預約按鈕文字；隱私說明本文由園方提供，匯入時留空（官網不顯示入口）。
@@ -77,7 +78,7 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         for key in ("line", "instagram", "youtube"):
             profile[key] = profile[key] or ""
         entries.append(("campus_profile", campus["key"], profile))
-        # Generated templates remain marked as pending on the public website.
+        # 校園探索場景還是待補樣板（非 list）的校區不匯入，官網繼續標示待補。
         if isinstance(campus["tourScenes"], list):
             entries.append(("campus_tour", campus["key"], {"scenes": campus["tourScenes"]}))
     # Validate everything before writing any entries; drop source-only fields.

@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.content.schemas import HomeNewsPayload
 
-FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 MEDIA = Path("/tmp/media-fixtures")
 
 

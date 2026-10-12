@@ -22,7 +22,8 @@ SERVICES = {
     "web": "e0851ec5-3bc0-4b5c-9471-9d9131616c26",
 }
 ORIGIN = "https://web-production-04caa.up.railway.app"
-SOURCE_PATHS = ("web", "admin", "backend", "content", "contracts", "deploy", ".dockerignore")
+# content/ 已於 2026-10-12 刪除（內容 fixture 合一到 web/server/data/）；git archive 對沒有追蹤檔案的路徑會失敗。
+SOURCE_PATHS = ("web", "admin", "backend", "contracts", "deploy", ".dockerignore")
 EXCLUDED_PARTS = {"node_modules", ".nuxt", ".output", "dist", ".venv", "__pycache__", ".pytest_cache", "var"}
 RELEASE_PATH = "web/public/release.json"
 

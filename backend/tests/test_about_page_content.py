@@ -20,8 +20,7 @@ YEARS = (1997, 2001, 2005, 2020, 2021)
 API = "/api/website/v1"
 ITEM = f"{API}/admin/content-items/about_page"
 MEDIA = f"{API}/admin/media"
-FIXTURE = Path(__file__).resolve().parents[2] / "content" / "site-fixture.json"
-WEB_FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
+FIXTURE = Path(__file__).resolve().parents[2] / "web" / "server" / "data" / "site-fixture.json"
 
 
 def _fixture_payload() -> dict:
@@ -142,8 +141,16 @@ def test_media_refs_cover_the_three_photos():
     ]
 
 
-def test_both_fixtures_carry_the_same_about_copy():
-    assert json.loads(FIXTURE.read_text())["aboutPage"] == json.loads(WEB_FIXTURE.read_text())["aboutPage"]
+@pytest.mark.asyncio
+async def test_initialize_publishes_the_fixture_about_copy(db_session):
+    # 內容 fixture 只剩 web/server/data/ 一份（2026-10-12 合一，後端初始化也讀它）：
+    # 初始化後已發布的版本要等於 fixture 那段文案，CMS 發布前後畫面才不會跳。
+    from app.content import service
+    from app.content.initialize import initialize_content
+
+    await initialize_content(db_session, json.loads(FIXTURE.read_text()))
+    published = await service.published_payload(db_session, "about_page", None)
+    assert published == AboutPagePayload.model_validate(_fixture_payload()).model_dump()
 
 
 def test_fixture_copy_passes_and_keeps_the_history():
