@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
+import type { InputInstance } from 'element-plus'
 import { formatDateTime } from '../../api/labels'
 import { buildTimeline } from '../../api/visitTimeline'
 import { arrivedAt } from '../../admissions/family'
+import { usePhraseInsert } from '../../composables/useContactPhrases'
 import { injectVisitCase } from '../../composables/useVisitCase'
+import ContactPhraseChips from '../ContactPhraseChips.vue'
 
 // 時間線（2026-10-06 方向 C）：聯絡紀錄與案件歷程合成一條，新的在上，輸入框固定在最上面。
 // 家庭版面再併入參觀後聯絡與招生事件，沿用家庭頁規則：沒有輸入框（參觀後用處理區的「記錄聯絡」）。
@@ -25,6 +28,9 @@ const entries = computed(() => {
 const shown = computed(() => (props.limit > 0 ? entries.value.slice(0, props.limit) : entries.value))
 const hidden = computed(() => entries.value.length - shown.value.length)
 const composing = computed(() => vc.canHandle && !vc.familyVisit)
+// 輸入框上方的常用片語：點一下接在現有內容後面，游標回到結尾。
+const noteInput = ref<InputInstance>()
+const insertPhrase = usePhraseInsert(() => vc.newNote, (text) => { vc.newNote = text }, noteInput)
 // 招生那邊的紀錄讀不到時，清單空著不代表「還沒有紀錄」：只寫讀不到，由重新載入處理。
 const historyFailed = computed(() => !!vc.familyVisit && (vc.extrasFailed.logs || vc.extrasFailed.events))
 
@@ -55,7 +61,9 @@ const followUpShortcuts = [
   <section class="panel case-timeline detail__notes" :aria-labelledby="titleId">
     <h2 :id="titleId" class="visually-hidden">聯絡紀錄與案件歷程</h2>
     <div v-if="composing" class="notes__form case-timeline__compose">
+      <ContactPhraseChips @pick="insertPhrase" />
       <el-input
+        ref="noteInput"
         v-model="vc.newNote"
         type="textarea"
         :autosize="{ minRows: 2, maxRows: 6 }"

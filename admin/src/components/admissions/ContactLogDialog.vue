@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, type InputInstance } from 'element-plus'
 import { createContactLog, listContactLogs } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
@@ -8,9 +8,11 @@ import { CONTACT_CHANNEL_LABELS } from '../../api/labels'
 import type { ContactLog, RecruitmentVisit } from '../../api/types'
 import { ANONYMIZED_CONFLICT_TEXT } from '../../admissions/constants'
 import { followUpText, isOpenStage, lastContactText, resolveNextFollowUp, type NextFollowUpChoice } from '../../admissions/followUp'
+import { usePhraseInsert } from '../../composables/useContactPhrases'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import ContactPhraseChips from '../ContactPhraseChips.vue'
 import NextFollowUpPicker from './NextFollowUpPicker.vue'
 
 // 記錄參觀後的一次聯絡（docs/specs/2026-10-04-admissions-follow-up-design.md 6.3、7.2）。
@@ -39,6 +41,10 @@ const contactedAt = ref<string | null>(null)
 const channel = ref('phone')
 const reached = ref<boolean | null>(null)
 const note = ref('')
+// 內容輸入框上方的常用片語；後端上限 1000 字，接上去會超過就不插入。
+const NOTE_MAX = 1000
+const noteInput = ref<InputInstance>()
+const insertPhrase = usePhraseInsert(() => note.value, (text) => { note.value = text }, noteInput, { maxLength: NOTE_MAX })
 const updateParentResponse = ref(true)
 const nextChoice = ref<NextFollowUpChoice>('')
 const nextCustom = ref<string | null>(null)
@@ -226,11 +232,13 @@ async function submit() {
         </el-radio-group>
       </el-form-item>
       <el-form-item label="內容" :required="noteRequired">
+        <ContactPhraseChips class="contact-log__phrases" :disabled="pending" @pick="insertPhrase" />
         <el-input
+          ref="noteInput"
           v-model="note"
           type="textarea"
           :autosize="{ minRows: 2, maxRows: 6 }"
-          maxlength="1000"
+          :maxlength="NOTE_MAX"
           show-word-limit
           :placeholder="reached === false ? '例如：沒接、轉語音信箱' : '家長怎麼說'"
           aria-label="聯絡內容"
@@ -321,6 +329,10 @@ async function submit() {
 
 .contact-log__stale {
   margin-bottom: 12px;
+}
+
+.contact-log__phrases {
+  margin-bottom: 8px;
 }
 
 .contact-log__row {

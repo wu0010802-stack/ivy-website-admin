@@ -128,6 +128,8 @@ export const NAV_GROUPS: NavGroup[] = [
       // 舊名留在關鍵字，習慣搜「全站設定」的人還找得到。
       { name: 'policies', path: '/policies', title: '個資與搜尋設定', icon: 'Setting', roles: ['super_admin'], keywords: ['全站設定', '個資', '保存期限', '清理'] },
       { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'], keywords: ['群組', '推播'] },
+      // 全站一份、總管理者維護（contact_phrases.manage）；接待與招生只在聯絡紀錄輸入框上方用，不開頁面。
+      { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', roles: ['super_admin'], keywords: ['範本', '片語', '聯絡', '常用語'] },
     ],
   },
 ]

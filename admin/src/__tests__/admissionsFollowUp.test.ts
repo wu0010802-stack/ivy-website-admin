@@ -9,6 +9,7 @@ import ContactLogDialog from '../components/admissions/ContactLogDialog.vue'
 import EventsDrawer from '../components/admissions/EventsDrawer.vue'
 import FunnelCard from '../components/admissions/FunnelCard.vue'
 import { api, ApiError } from '../api/client'
+import { invalidateContactPhrases } from '../composables/useContactPhrases'
 import { CONTACT_CHANNEL_LABELS } from '../api/labels'
 import {
   daysLaterAtTen, FOLLOW_UP_SHORTCUTS, followUpText, lastContactText, ownerLabel, resolveNextFollowUp,
@@ -128,6 +129,34 @@ describe('記錄聯絡對話框（7.2）', () => {
       next_follow_up_at: null, update_parent_response: true,
     })
     expect(wrapper.emitted('saved')?.[0]?.[0]).toMatchObject({ version: 4 })
+  })
+
+  it('內容輸入框上方有聯絡片語：點一下帶入並可繼續接，送出的就是帶入後的內容', async () => {
+    invalidateContactPhrases()
+    const phrases = ['已致電，轉語音信箱', '已加 LINE，等家長回覆']
+    mockGet({ '/admin/contact-phrases': { phrases, version: 1, updated_at: null, updated_by_name: null } })
+    const post = mockPost({ '/admin/admissions/records/v-1/contact-logs': { log: { id: 'l1' }, visit: visit({ version: 4 }) } })
+    await openDialog()
+    await clickRadio('聯絡到了')
+    const group = document.body.querySelector('[role="group"][aria-label="常用片語"]')!
+    const textarea = document.body.querySelector('textarea')!
+    expect(group.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const chips = [...group.querySelectorAll('button')]
+    expect(chips.map((b) => b.textContent?.trim())).toEqual(phrases)
+
+    chips[0]!.click()
+    await flushPromises()
+    expect(textarea.value).toBe(phrases[0])
+    chips[1]!.click()
+    await flushPromises()
+    expect(textarea.value).toBe(`${phrases[0]}，${phrases[1]}`)
+    expect(document.activeElement).toBe(textarea)
+    expect(textarea.selectionStart).toBe(textarea.value.length)
+
+    await clickRadio('不用再追')
+    dialogButton('記下來')!.click()
+    await flushPromises()
+    expect(bodyOf(post, '/admin/admissions/records/v-1/contact-logs')).toMatchObject({ note: `${phrases[0]}，${phrases[1]}` })
   })
 
   it('409 版本衝突：對話框不關、內容保留、請父層重讀', async () => {

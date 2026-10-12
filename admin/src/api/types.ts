@@ -15,6 +15,8 @@ export type GoogleLinkStart = components['schemas']['GoogleLinkStart']
 export type CampusOut = components['schemas']['CampusOut']
 export type PasswordResetLinkOut = components['schemas']['PasswordResetLinkOut']
 export type PasswordResetVerifyOut = components['schemas']['PasswordResetVerifyOut']
+export type ContactPhrasesOut = components['schemas']['ContactPhrasesOut']
+export type ContactPhrasesUpdate = components['schemas']['ContactPhrasesUpdate']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 

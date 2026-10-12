@@ -5,6 +5,7 @@ import VisitDetailView from '../views/VisitDetailView.vue'
 import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
 import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
 import { admissionsViewer, button, cleanup, mockGet, mountWith, pathsTo, visit as admissionsVisit } from './admissionsTestKit'
+import { invalidateContactPhrases } from '../composables/useContactPhrases'
 import { caseRoutes, mountRoutes, pastSlot, visitCase, VISIT_ID } from './visitCaseKit'
 
 afterEach(() => { cleanup(); window.sessionStorage.clear() })
@@ -25,6 +26,35 @@ describe('VisitCaseTimeline', () => {
     expect(items[0]!.get('.notes__author').attributes('title')).toBe('amy@ivy.example')
     expect(items[0]!.text()).toContain('記了一筆')
     expect(items[0]!.text()).toContain('再次確認會來')
+  })
+
+  it('輸入框上方有聯絡片語：點一下帶入（已有字先補「，」），游標在結尾', async () => {
+    invalidateContactPhrases()
+    const phrases = ['已致電，家長沒接', '家長已決定就讀']
+    const get = mockGet({
+      ...caseRoutes(visitCase(), []),
+      '/admin/contact-phrases': { phrases, version: 1, updated_at: null, updated_by_name: null },
+    })
+    const { wrapper } = await mountRoutes(`/visit-requests/${VISIT_ID}`, { detail: VisitDetailView })
+    const compose = wrapper.get('.case-timeline__compose')
+    const group = compose.get('[role="group"][aria-label="常用片語"]')
+    const textarea = compose.get('textarea')
+    // 片語列在輸入框上方
+    expect(group.element.compareDocumentPosition(textarea.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(group.findAll('button').map((b) => b.text())).toEqual(phrases)
+
+    await group.findAll('button')[0]!.trigger('click')
+    await flushPromises()
+    expect((textarea.element as HTMLTextAreaElement).value).toBe(phrases[0])
+    await group.findAll('button')[1]!.trigger('click')
+    await flushPromises()
+    const el = textarea.element as HTMLTextAreaElement
+    expect(el.value).toBe(`${phrases[0]}，${phrases[1]}`)
+    expect(document.activeElement).toBe(el)
+    expect(el.selectionStart).toBe(el.value.length)
+    // 帶入的字就是「新增紀錄」要送出的內容
+    expect(button(compose, '新增紀錄')!.attributes('disabled')).toBeUndefined()
+    expect(pathsTo(get, '/admin/contact-phrases')).toHaveLength(1)
   })
 
   it('家庭版面：沒有輸入框；標參觀前／後與預約／招生；參觀後聯絡讀不到可以重新載入', async () => {

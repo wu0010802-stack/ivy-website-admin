@@ -81,6 +81,7 @@ export const routes: RouteRecordRaw[] = [
       page('audit', 'audit', () => import('../views/AuditView.vue')),
       page('policies', 'policies', () => import('../views/PoliciesView.vue')),
       page('line-notifications', 'line-notifications', () => import('../views/LineNotificationsView.vue')),
+      page('contact-phrases', 'contact-phrases', () => import('../views/ContactPhrasesView.vue')),
       // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊（搜尋也找得到）。
       { path: 'account', name: 'account', component: () => import('../views/AccountView.vue'), meta: { title: '我的帳號' } },
       // 舊書籤、打錯字或改過名的網址。原本沒有這條，對不到路由時整頁空白、連側欄
