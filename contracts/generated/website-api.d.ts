@@ -2734,6 +2734,49 @@ export interface components {
             rolling_90d: components["schemas"]["AdmissionsMetricSnapshot"];
             ytd: components["schemas"]["AdmissionsMetricSnapshot"];
         };
+        /**
+         * AdmissionsDepositPace
+         * @description 參考月份家長的預繳速度比較（規格 §6.2、§6.4）；slow＝true 時另有 FUNNEL_DROP 警示。
+         */
+        AdmissionsDepositPace: {
+            /** Evaluable */
+            evaluable: boolean;
+            /** Expected */
+            expected: number | null;
+            /** Month */
+            month: string | null;
+            /** Observed */
+            observed: number;
+            /** Reason */
+            reason: ("no_reference_month" | "no_visits" | "insufficient_baseline") | null;
+            /** Slow */
+            slow: boolean;
+            /** Visits */
+            visits: number;
+        };
+        /**
+         * AdmissionsDepositTiming
+         * @description 預繳速度卡（2026-10-12 規格 §5、§9.1）。預繳不到 min_events 筆時 status＝insufficient、checkpoints 是空的。
+         */
+        AdmissionsDepositTiming: {
+            /** Checkpoints */
+            checkpoints: components["schemas"]["AdmissionsTimingCheckpoint"][];
+            /** Deposited */
+            deposited: number;
+            /** Half By Day */
+            half_by_day: number | null;
+            /** Min Events */
+            min_events: number;
+            /** Missing Time */
+            missing_time: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "insufficient";
+            /** Visits */
+            visits: number;
+        };
         /** AdmissionsFunnelSnapshot */
         AdmissionsFunnelSnapshot: {
             /** Deposit */
@@ -2768,6 +2811,7 @@ export interface components {
             grade: string;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
             /** Visit To Enrolled Rate */
@@ -2917,6 +2961,13 @@ export interface components {
             /** Previous */
             previous: number | null;
         };
+        /** AdmissionsRateRange */
+        AdmissionsRateRange: {
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+        };
         /** AdmissionsSourceRow */
         AdmissionsSourceRow: {
             /** Deposit */
@@ -2925,6 +2976,7 @@ export interface components {
             source: string;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };
@@ -3046,6 +3098,8 @@ export interface components {
             /** By Year */
             by_year: components["schemas"]["AdmissionsYearlyRow"][];
             decision_summary: components["schemas"]["AdmissionsDecisionSummary"];
+            deposit_pace: components["schemas"]["AdmissionsDepositPace"];
+            deposit_timing: components["schemas"]["AdmissionsDepositTiming"];
             filters: components["schemas"]["AdmissionsStatsFilters"];
             funnel_snapshot: components["schemas"]["AdmissionsFunnelSnapshot"];
             kpi: components["schemas"]["AdmissionsStatsKpi"];
@@ -3072,6 +3126,15 @@ export interface components {
             top_source_names: string[];
             tour_guide_source_cross: components["schemas"]["AdmissionsTourGuideSourceCross"];
         };
+        /** AdmissionsTimingCheckpoint */
+        AdmissionsTimingCheckpoint: {
+            /** Cumulative Rate */
+            cumulative_rate: number | null;
+            /** Day */
+            day: number;
+            /** Visits Reached */
+            visits_reached: number;
+        };
         /** AdmissionsTourGuideCrossRow */
         AdmissionsTourGuideCrossRow: {
             /** Sources */
@@ -3095,6 +3158,7 @@ export interface components {
             tour_guide: string;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };

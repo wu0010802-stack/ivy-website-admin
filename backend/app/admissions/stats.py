@@ -15,6 +15,10 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
 - 參考月份格式錯丟 InvalidReferenceMonth（路由轉 422）；園務是未處理的 ValueError。
 - SQL 只 GROUP BY 原始欄位，「未填寫」「未分類」在 Python 合併：asyncpg 用伺服器端參數，
   GROUP BY coalesce(x, $2) 與 SELECT coalesce(x, $1) 會被判定成不同運算式。
+- 「本月漏斗轉換下滑」改判斷（2026-10-12，契約第 19 點）：不再比月比的百分點，改看本月家長依過去的預繳速度
+  到今天應有幾筆預繳（deposit_pace.py）；也不再比參觀轉註冊。標題改「本月預繳比過去慢」。
+- 「來源結構失衡」改判斷（同上）：占比 ≥ 40% 不變，改拿這個來源和其他來源比預繳速度。
+- 班別、來源、帶參觀老師每列加可能範圍 visit_to_deposit_range（estimation.rate_range）；回應多 deposit_timing、deposit_pace。
 """
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ from typing import Any, Callable, Iterable
 from sqlalchemy import String, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import intake
+from app.admissions import deposit_pace, estimation, intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
 from app.admissions.constants import NO_DEPOSIT_PRIORITY, split_tour_guides
 from app.admissions.models import RecruitmentVisit
@@ -33,7 +37,6 @@ from app.common.timezones import now_utc, today_local
 
 # 門檻（園務 shared.py:54、77-82）。
 TOP_SOURCES_COUNT = 10
-FUNNEL_DROP_THRESHOLD = 10.0
 HIGH_POTENTIAL_BACKLOG_THRESHOLD = 5
 DEFAULT_OVERDUE_DAYS = 14
 COLD_LEAD_DAYS = 90
@@ -242,6 +245,11 @@ def _by_year(monthly: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{"year": year, **metric_snapshot(**yearly[year])} for year in order]
 
 
+def _with_range(rows: list[dict[str, Any]], prior: float | None) -> list[dict[str, Any]]:
+    """各列加可能範圍（2026-10-12 規格 §7）：預繳數、參觀數照列上的值，全體由呼叫端給。"""
+    return [{**row, "visit_to_deposit_range": estimation.rate_range(row["deposit"], row["visit"], prior)} for row in rows]
+
+
 def _by_grade(rows: list[Any]) -> list[dict[str, Any]]:
     merged = _merge(rows, lambda row: _label(row.grade, UNFILLED))
     result = [
@@ -358,30 +366,42 @@ async def _no_deposit_summary(db: AsyncSession, filters: list[Any], now: datetim
     return {name: int(getattr(row, name) or 0) for name in _SUMMARY_FIELDS}
 
 
-async def _find_source_imbalance(db: AsyncSession, filters: list[Any], window_start: datetime) -> dict[str, Any] | None:
-    """園務 shared.py:494-534：近 90 天占比 >= 40% 且預繳率低於整體（各自先 round 一位再比）。
-    同占比時取標籤升序的第一個（園務取 SQL 回傳順序）。"""
-    rows = await _grouped(db, [*filters, RecruitmentVisit.created_at >= window_start], RecruitmentVisit.source)
-    merged = _merge(rows, lambda row: _label(row.source, UNFILLED))
-    total_visit = sum(c["visit"] for c in merged.values())
-    if not total_visit:
+def _find_source_imbalance(
+    visits: list[deposit_pace.PaceVisit], window_start: datetime, today: date
+) -> dict[str, Any] | None:
+    """近 90 天（created_at）占比 >= 40% 的來源，預繳速度明顯比其他來源慢才算失衡（2026-10-12 規格 §6.3）。
+    占比照園務 shared.py:494-534 算；比較組是母體內其他來源的全部訪視（不限 90 天）。
+    兩個都失衡取占比高的，同占比取標籤升序第一個。"""
+    window = [visit for visit in visits if visit.created_at >= window_start]
+    if not window:
         return None
-    total_deposit = sum(c["deposit"] for c in merged.values())
-    overall_rate = round(total_deposit / total_visit * 100, 1)
+    groups: dict[str, list[deposit_pace.PaceVisit]] = {}
+    for visit in window:
+        groups.setdefault(_label(visit.source, UNFILLED), []).append(visit)
     candidate: dict[str, Any] | None = None
-    for source in sorted(merged):
-        visit, deposit = merged[source]["visit"], merged[source]["deposit"]
-        if not visit:
+    for source in sorted(groups):
+        share = round(len(groups[source]) / len(window) * 100, 1)
+        if share < SOURCE_IMBALANCE_SHARE_THRESHOLD:
             continue
-        share = round(visit / total_visit * 100, 1)
-        deposit_rate = round(deposit / visit * 100, 1)
-        if share >= SOURCE_IMBALANCE_SHARE_THRESHOLD and deposit_rate < overall_rate:
-            if candidate is None or share > candidate["share"]:
-                candidate = {
-                    "source": source, "visit": visit, "deposit": deposit,
-                    "share": share, "deposit_rate": deposit_rate, "overall_rate": overall_rate,
-                }
+        others = [visit for visit in visits if _label(visit.source, UNFILLED) != source]
+        result = deposit_pace.pace_check(groups[source], others, today)
+        if result.slow and (candidate is None or share > candidate["share"]):
+            candidate = {"source": source, "share": share, "expected": result.expected, "observed": result.observed}
     return candidate
+
+
+def _funnel_pace(
+    visits: list[deposit_pace.PaceVisit], reference_month: str | None, today: date
+) -> dict[str, Any]:
+    """參考月份參觀的家長 vs 其他月份的預繳速度（2026-10-12 規格 §6.2、§6.4）。"""
+    if reference_month is None:
+        result = deposit_pace.PaceResult(
+            evaluable=False, reason="no_reference_month", visits=0, expected=None, observed=0, slow=False,
+        )
+        return deposit_pace.pace_dict(result, None)
+    in_month = [visit for visit in visits if (_safe_normalize(visit.month) or visit.month) == reference_month]
+    others = [visit for visit in visits if (_safe_normalize(visit.month) or visit.month) != reference_month]
+    return deposit_pace.pace_dict(deposit_pace.pace_check(in_month, others, today), reference_month)
 
 
 def _ytd_snapshot(reference_month: str | None, monthly_map: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -417,24 +437,21 @@ def _month_over_month(
     return result
 
 
-def _points(value: float | None) -> str:
-    return "—" if value is None else f"{value:.1f}"
-
-
 def _alerts(
-    month_over_month: dict[str, Any], backlog: int, imbalance: dict[str, Any] | None, reference_month: str | None
+    funnel_pace: dict[str, Any], backlog: int, imbalance: dict[str, Any] | None, reference_month: str | None
 ) -> list[dict[str, Any]]:
-    """園務 shared.py:377-439，文案逐字照抄（含「占比 x% ，」的半形空格與全形句號）。"""
+    """園務 shared.py:377-439；FUNNEL_DROP 與 SOURCE_IMBALANCE 的判斷與文案 2026-10-12 起改看預繳速度（契約第 19 點），
+    HIGH_POTENTIAL_BACKLOG 照抄園務。"""
     alerts: list[dict[str, Any]] = []
-    to_deposit = month_over_month["visit_to_deposit_rate"]["delta"]
-    to_enrolled = month_over_month["visit_to_enrolled_rate"]["delta"]
-    dropped = [delta for delta in (to_deposit, to_enrolled) if delta is not None and delta <= -FUNNEL_DROP_THRESHOLD]
-    if dropped and reference_month:
+    if funnel_pace["slow"] and reference_month:
         alerts.append({
             "code": "FUNNEL_DROP",
             "level": "warning",
-            "title": "本月漏斗轉換下滑",
-            "message": f"{reference_month} 參觀轉預繳 {_points(to_deposit)} 個百分點，參觀轉註冊 {_points(to_enrolled)} 個百分點。",
+            "title": "本月預繳比過去慢",
+            "message": (
+                f"{reference_month} 參觀的 {funnel_pace['visits']} 位家長，依過去的預繳速度到今天應有約 "
+                f"{funnel_pace['expected']:.1f} 筆預繳，實際 {funnel_pace['observed']} 筆。"
+            ),
             "target_tab": "records",
             "target_filter": {"month": reference_month},
         })
@@ -453,8 +470,8 @@ def _alerts(
             "level": "info",
             "title": "來源結構失衡",
             "message": (
-                f"{imbalance['source']} 近 90 天占比 {imbalance['share']:.1f}% ，"
-                f"預繳率 {imbalance['deposit_rate']:.1f}% 低於整體 {imbalance['overall_rate']:.1f}%。"
+                f"{imbalance['source']} 近 90 天占比 {imbalance['share']:.1f}%，依其他來源的預繳速度應有約 "
+                f"{imbalance['expected']:.1f} 筆預繳，實際 {imbalance['observed']} 筆。"
             ),
             "target_tab": "source",
             "target_filter": {"source": imbalance["source"]},
@@ -486,7 +503,7 @@ def _action_queue(current_month: str | None, backlog: int, imbalance: dict[str, 
         actions.append({
             "code": "REVIEW_SOURCE",
             "title": "查看來源結構",
-            "description": f"{imbalance['source']} 近 90 天占比 {imbalance['share']:.1f}%，預繳率低於整體，先看這個來源的後續追蹤。",
+            "description": f"{imbalance['source']} 近 90 天占比 {imbalance['share']:.1f}%，預繳比其他來源慢，先看這個來源的後續追蹤。",
             "target_tab": "source",
             "target_filter": {"source": imbalance["source"]},
         })
@@ -510,11 +527,14 @@ async def query_stats(
         raise InvalidReferenceMonth("月份格式應為 民國年.月，如 115.03")
     filters = _base_filters(campus_key, school_year, semester)
     v = RecruitmentVisit
+    today = today_local(now)
+    pace_visits = await deposit_pace.load_visits(db, filters)
 
     kpi = await _aggregate(db, filters)
+    prior = estimation.prior_rate(kpi["deposit"], kpi["visit"])
     unique_visit, unique_deposit = await _unique_counts(db, filters)
     monthly = _monthly(await _grouped(db, filters, v.month))
-    by_source = _by_source(await _grouped(db, filters, v.source))
+    by_source = _with_range(_by_source(await _grouped(db, filters, v.source)), prior)
     top_source_names = [row["source"] for row in by_source[:TOP_SOURCES_COUNT]]
 
     # 未預繳母體排除已退出（園務 stats.py:395-435）：退預繳／退註冊會清 has_deposit，
@@ -529,7 +549,8 @@ async def query_stats(
     current_row = monthly_map.get(resolved_month) if resolved_month else None
     current_snapshot = metric_snapshot(**{name: current_row[name] for name in COUNT_FIELDS}) if current_row else metric_snapshot()
     month_over_month = _month_over_month(resolved_month, previous_month, monthly_map)
-    imbalance = await _find_source_imbalance(db, filters, now - timedelta(days=ROLLING_LONG_DAYS))
+    imbalance = _find_source_imbalance(pace_visits, now - timedelta(days=ROLLING_LONG_DAYS), today)
+    funnel_pace = _funnel_pace(pace_visits, resolved_month, today)
     backlog = summary["high_potential_backlog_count"]
 
     return {
@@ -548,15 +569,15 @@ async def query_stats(
         },
         "funnel_snapshot": {name: current_snapshot[name] for name in _FUNNEL_FIELDS},
         "month_over_month": month_over_month,
-        "alerts": _alerts(month_over_month, backlog, imbalance, resolved_month),
+        "alerts": _alerts(funnel_pace, backlog, imbalance, resolved_month),
         "top_action_queue": _action_queue(resolved_month, backlog, imbalance),
         "monthly": monthly,
         "by_year": _by_year(monthly),
-        "by_grade": _by_grade(await _grouped(db, filters, v.grade)),
+        "by_grade": _with_range(_by_grade(await _grouped(db, filters, v.grade)), prior),
         "month_grade": _month_grade(await _grouped(db, filters, v.month, v.grade)),
         "by_source": by_source,
         "top_source_names": top_source_names,
-        "by_tour_guide": _by_tour_guide(await _grouped(db, filters, v.tour_guide_name, v.grade)),
+        "by_tour_guide": _with_range(_by_tour_guide(await _grouped(db, filters, v.tour_guide_name, v.grade)), prior),
         "tour_guide_source_cross": _tour_guide_source_cross(
             await _grouped(db, filters, v.tour_guide_name, v.source), top_source_names
         ),
@@ -564,6 +585,8 @@ async def query_stats(
         "no_deposit_total": sum(row["count"] for row in no_deposit_reasons),
         "no_deposit_priority": _priority_totals(no_deposit_reasons),
         "no_deposit_summary": summary,
+        "deposit_timing": deposit_pace.deposit_timing(pace_visits, today),
+        "deposit_pace": funnel_pace,
     }
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
-from app.admissions import deposit_pace
+from app.admissions import deposit_pace, stats
 from app.admissions.academic import roc_month
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.stats import _base_filters
@@ -207,3 +207,127 @@ async def test_pace_check_insufficient_baseline_and_no_visits(db_session):
         "evaluable": False, "reason": "no_visits", "month": "115.09", "visits": 0, "expected": None,
         "observed": 0, "slow": False,
     }
+
+
+async def query(db, campus_key="chongde", reference_month=None):
+    return await stats.query_stats(db, campus_key, school_year=None, semester=None, reference_month=reference_month, now=NOW)
+
+
+async def test_funnel_drop_not_raised_early_in_month(db_session):
+    """舊判斷：115.09 預繳率 0% 對 115.06 的 40% → 月比 −40 會報；新判斷：才參觀 3 天，預期 0.5 筆 → 不報。"""
+    seed_june_baseline(db_session)
+    for _ in range(5):
+        add_visit(db_session, visit_date=date(2026, 9, 28))
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    assert result["reference_month"] == "115.09"
+    assert "FUNNEL_DROP" not in [alert["code"] for alert in result["alerts"]]
+    assert result["deposit_pace"] == {
+        "evaluable": True, "reason": None, "month": "115.09", "visits": 5, "expected": 0.5, "observed": 0, "slow": False,
+    }
+
+
+async def test_funnel_drop_raised_when_truly_slow(db_session):
+    seed_june_baseline(db_session)
+    for _ in range(14):
+        add_visit(db_session, visit_date=date(2026, 9, 11))
+    deposited_after(db_session, visit_date=date(2026, 9, 11), days=2)
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    assert result["alerts"][0] == {
+        "code": "FUNNEL_DROP", "level": "warning", "title": "本月預繳比過去慢",
+        "message": "115.09 參觀的 15 位家長，依過去的預繳速度到今天應有約 6.0 筆預繳，實際 1 筆。",
+        "target_tab": "records", "target_filter": {"month": "115.09"},
+    }
+    assert result["deposit_pace"]["slow"] is True
+    assert result["deposit_timing"]["status"] == "ok"
+
+
+async def test_funnel_drop_skipped_with_insufficient_baseline(db_session):
+    seed_june_baseline(db_session, deposits=9)
+    for _ in range(15):
+        add_visit(db_session, visit_date=date(2026, 9, 11))
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    assert result["alerts"] == []
+    assert result["deposit_pace"]["reason"] == "insufficient_baseline"
+    assert result["deposit_timing"]["status"] == "insufficient"
+
+
+async def test_pace_uses_selected_reference_month(db_session):
+    """Review Focus 2：手選 115.06，比較組是其他月份（包含之後的 115.09）。"""
+    seed_june_baseline(db_session)
+    for day in range(1, 11):
+        deposited_after(db_session, visit_date=date(2026, 9, 1), days=day)
+    await db_session.commit()
+
+    result = await query(db_session, reference_month="115.06")
+
+    assert result["reference_month"] == "115.06"
+    pace = result["deposit_pace"]
+    assert (pace["month"], pace["evaluable"], pace["visits"], pace["observed"]) == ("115.06", True, 30, 12)
+
+
+def seed_source_scenario(db, *, fb_visit_date: date, fb_deposits: int) -> None:
+    """親友介紹：06-01 參觀 30 筆（12 筆預繳，同 seed_june_baseline）＋08-01 參觀 15 筆（第 1..6 天各預繳 1 筆，
+    08-01 建檔，在近 90 天內）。FB 廣告：25 筆，建檔＝參觀日，其中 fb_deposits 筆在參觀隔天預繳。
+    近 90 天：FB 25、親友介紹 15 → FB 占 62.5%（≥ 40%）；舊判斷：FB 0%（或 4%）< 整體 15% → 會報失衡。"""
+    seed_june_baseline(db, source="親友介紹")
+    august = date(2026, 8, 1)
+    for day in range(1, 7):
+        deposited_after(db, visit_date=august, days=day, source="親友介紹")
+    for _ in range(9):
+        add_visit(db, visit_date=august, source="親友介紹")
+    for index in range(25):
+        if index < fb_deposits:
+            deposited_after(db, visit_date=fb_visit_date, days=1, source="FB 廣告")
+        else:
+            add_visit(db, visit_date=fb_visit_date, source="FB 廣告")
+
+
+async def test_source_imbalance_not_raised_for_new_source(db_session):
+    # FB 廣告 09-30 才參觀（1 天）：依親友介紹的速度預期約 1.1 筆，實際 0 → 少不到 2 筆，不報。
+    seed_source_scenario(db_session, fb_visit_date=date(2026, 9, 30), fb_deposits=0)
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    assert "SOURCE_IMBALANCE" not in [alert["code"] for alert in result["alerts"]]
+    assert "REVIEW_SOURCE" not in [action["code"] for action in result["top_action_queue"]]
+
+
+async def test_source_imbalance_raised_when_source_is_slow(db_session):
+    # FB 廣告 09-01 參觀（30 天）：親友介紹第 30 天累積 40% → 預期 10.0 筆，實際 1 筆 → 報。
+    seed_source_scenario(db_session, fb_visit_date=date(2026, 9, 1), fb_deposits=1)
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    imbalance = next(alert for alert in result["alerts"] if alert["code"] == "SOURCE_IMBALANCE")
+    assert imbalance == {
+        "code": "SOURCE_IMBALANCE", "level": "info", "title": "來源結構失衡",
+        "message": "FB 廣告 近 90 天占比 62.5%，依其他來源的預繳速度應有約 10.0 筆預繳，實際 1 筆。",
+        "target_tab": "source", "target_filter": {"source": "FB 廣告"},
+    }
+    review = next(action for action in result["top_action_queue"] if action["code"] == "REVIEW_SOURCE")
+    assert review["description"] == "FB 廣告 近 90 天占比 62.5%，預繳比其他來源慢，先看這個來源的後續追蹤。"
+
+
+async def test_stats_rows_have_ranges(db_session):
+    seed_june_baseline(db_session, source="親友介紹")
+    await db_session.commit()
+
+    result = await query(db_session)
+
+    # 全體 12/30 → prior (12+1)/(30+2)；只有一個來源，那一列的範圍就是 rate_range(12, 30, 13/32)。
+    from app.admissions import estimation
+    expected = estimation.rate_range(12, 30, 13 / 32)
+    assert result["by_source"][0]["visit_to_deposit_range"] == expected
+    assert result["by_grade"][0]["visit_to_deposit_range"] == expected
+    assert result["by_tour_guide"][0]["visit_to_deposit_range"] == expected
