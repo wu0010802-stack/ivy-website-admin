@@ -562,6 +562,69 @@ async def test_grade_is_left_alone_when_the_birthday_itself_was_edited_in_admiss
 
 
 @pytest.mark.asyncio
+async def test_enrolled_legacy_visit_keeps_its_grade_when_the_birthday_crosses_a_grade(
+    admin_client, public_client, db_session
+):
+    """已註冊、沒有 provisional_grade 的舊資料，年級決定算在哪一班，招生端的編輯表單改不了
+    （records._check_term_editable）；後台改預約生日也不能繞過：生日同步、年級不動並列在 skipped。"""
+    booking = await _completed_with_recruitment(admin_client, public_client, db_session, phone=OLD_PHONE)
+    case_id = booking["id"]
+    row = await _recruitment(db_session, case_id)
+    await db_session.execute(
+        update(RecruitmentVisit)
+        .where(RecruitmentVisit.id == row.id)
+        .values(enrolled=True, enrolled_on=today_local(), provisional_grade=None)
+    )
+    await db_session.commit()
+    new_birthday = date(2022, 3, 2)
+    assert _grade(new_birthday) != _grade(BIRTHDAY)
+    version_before = (await _recruitment(db_session, case_id)).version
+
+    response = await _patch(
+        admin_client,
+        case_id,
+        expected_version=await _version(admin_client, case_id),
+        child_birthdate=new_birthday.isoformat(),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["admissions_synced_fields"] == ["birthday"]
+    assert response.json()["admissions_skipped_fields"] == ["grade"]
+    after = await _recruitment(db_session, case_id)
+    assert (after.birthday, after.grade) == (new_birthday, _grade(BIRTHDAY))
+    assert after.version == version_before + 1
+
+
+@pytest.mark.asyncio
+async def test_enrolled_visit_with_provisional_grade_still_follows_the_grade(
+    admin_client, public_client, db_session
+):
+    """註冊時有寫 provisional_grade 的訪視，班級看 provisional_grade，grade 沒被鎖（與編輯表單同一條規則）。"""
+    booking = await _completed_with_recruitment(admin_client, public_client, db_session, phone=OLD_PHONE)
+    case_id = booking["id"]
+    row = await _recruitment(db_session, case_id)
+    await db_session.execute(
+        update(RecruitmentVisit)
+        .where(RecruitmentVisit.id == row.id)
+        .values(enrolled=True, enrolled_on=today_local(), provisional_grade=_grade(BIRTHDAY))
+    )
+    await db_session.commit()
+    new_birthday = date(2022, 3, 2)
+
+    response = await _patch(
+        admin_client,
+        case_id,
+        expected_version=await _version(admin_client, case_id),
+        child_birthdate=new_birthday.isoformat(),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["admissions_synced_fields"] == ["birthday", "grade"]
+    assert response.json()["admissions_skipped_fields"] == []
+    assert (await _recruitment(db_session, case_id)).grade == _grade(new_birthday)
+
+
+@pytest.mark.asyncio
 async def test_email_only_change_does_not_touch_recruitment(admin_client, public_client, db_session):
     """招生訪視沒有 Email 欄位：只改 Email 不動招生那筆（版本也不加）。"""
     booking = await _completed_with_recruitment(admin_client, public_client, db_session, phone=OLD_PHONE)

@@ -233,13 +233,20 @@ class TermLocked(Exception):
 _TERM_FIELDS = ("target_school_year", "target_semester")
 
 
+def grade_locked(visit: RecruitmentVisit) -> bool:
+    """年級是否鎖住：已註冊（沒退出）且沒有 provisional_grade 的舊資料，年級決定算在
+    哪一班，不能改。編輯表單（_check_term_editable）與官網預約改家長資料的同步
+    （booking_link.sync_from_visit_request）共用這一條，兩邊才不會漂移。"""
+    return bool(visit.enrolled and visit.withdrawn_at is None and visit.provisional_grade is None)
+
+
 def _check_term_editable(visit: RecruitmentVisit, values: dict) -> None:
     """入學學年學期決定看板、統計與名額算在哪一學期。已註冊的要先取消註冊（同保留座位
     的規則），保留座位的要走 /seat（寫歷程、重算超額），不能從編輯表單直接搬。註冊時
     一定寫 provisional_grade；舊資料沒有時，年級也決定算在哪一班，一併鎖住。"""
     moved = [key for key in _TERM_FIELDS if key in values and values[key] != getattr(visit, key)]
     if visit.enrolled and visit.withdrawn_at is None:
-        if visit.provisional_grade is None and "grade" in values and values["grade"] != visit.grade:
+        if grade_locked(visit) and "grade" in values and values["grade"] != visit.grade:
             moved.append("grade")
         if moved:
             raise TermLocked("RECRUITMENT_ENROLLED_TERM_LOCKED", "已註冊的訪視不能改入學學期或年級，要改請先取消註冊")

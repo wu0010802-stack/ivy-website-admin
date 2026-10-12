@@ -161,7 +161,8 @@ async def sync_from_visit_request(
     不會因為過了 8/1 換學年就把沒動過的年級誤判成改過。
 
     年級是從生日換算出來的：生日沒有同步（招生端改過生日）時年級也不動，免得招生那筆
-    出現「生日是 A、年級卻依 B 換算」。沒有招生訪視、已匿名化、或預約欄位轉換後沒有差異
+    出現「生日是 A、年級卻依 B 換算」；年級鎖住（已註冊且沒有 provisional_grade，見
+    records.grade_locked）時同樣不動、列在 skipped，生日照同步。沒有招生訪視、已匿名化、或預約欄位轉換後沒有差異
     的就什麼都不做。有同步時訪視 version +1（招生端正在編輯的人送出會被樂觀鎖擋下）、
     寫稽核 recruitment_visit.synced_from_visit_request（metadata 只記欄位名）。
     呼叫端已鎖住預約列；這裡再鎖招生訪視列（鎖的順序固定：預約 → 招生訪視）。"""
@@ -183,6 +184,10 @@ async def sync_from_visit_request(
             continue
         untouched = getattr(visit, field) == before[field]
         if field == "grade" and "birthday" in skipped:
+            untouched = False
+        if field == "grade" and records.grade_locked(visit):
+            # 已註冊且沒有 provisional_grade 的舊資料，年級鎖住（同 records._check_term_editable），
+            # 同步不能繞過；要改請先取消註冊。
             untouched = False
         if untouched:
             setattr(visit, field, after[field])

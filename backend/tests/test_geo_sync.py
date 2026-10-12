@@ -136,6 +136,7 @@ async def test_discover_gives_up_without_resources():
     [
         ("kcg_115_10.csv", None, "115-10"),
         ("門牌115年9月.csv", None, "115-09"),
+        ("門牌115年10月.csv", None, "115-10"),
         ("高雄市115年門牌坐標資料_115_10.csv", None, "115-10"),
         ("x.csv", "114-12", "114-12"),
         # 檔名裡不是月份的數字不能被當成月份，找不到有效的就用今天的民國年月
@@ -143,9 +144,12 @@ async def test_discover_gives_up_without_resources():
         ("doorplates_2026_10.csv", None, "199-12"),
         ("export-20261008_1.csv", None, "199-12"),
         ("doorplates_115_13.csv", None, "199-12"),
-        # 數字前面接英文字母也不是月份（隨機 GUID 檔名：8-4-4-4-12 的某一段剛好像「123-12」）
+        # 月份後面接英文字母也不是月份（隨機 GUID 檔名：8-4-4-4-12 的某一段剛好像「123-12」「123-1」）
         ("9f0a-b123-12de-4b5c-8d3e-1a2b3c4d5e6f.csv", None, "199-12"),
-        ("report115_10.csv", None, "199-12"),
+        ("9f0a-4b5c-a123-1a2b-8d3e-1a2b3c4d5e6f.csv", None, "199-12"),
+        # 年份前面接英文字母可以（「kcg115-10.csv」「report115_10.csv」這類檔名），只排除前面接數字
+        ("kcg115-10.csv", None, "115-10"),
+        ("report115_10.csv", None, "115-10"),
         # 前面是標點、空白、中文都可以
         ("門牌_115-10.csv", None, "115-10"),
         ("kcg 115年10月.csv", None, "115-10"),

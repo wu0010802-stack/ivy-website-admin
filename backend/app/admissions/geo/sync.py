@@ -64,10 +64,11 @@ REFRESH_AFTER = timedelta(days=30)
 MIN_DOORPLATE_ROWS = 500_000
 USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-geo-sync/1.0)"
 LOCK_KEY = "ivy-website:geo-sync"
-# 月份只認 ASCII 數字；檔名裡的「667aae8f-d427-488b」「20261008_1」這類不是月份（前面不能接英數、
-# 後面不能接數字），月份要在 1–12。前面排除英文字母：隨機 GUID 檔名有一段像「b123-12de」時不能誤判。
+# 月份只認 ASCII 數字；檔名裡的「667aae8f-d427-488b」「20261008_1」這類不是月份（年份前面不能接數字、
+# 月份後面不能接英數），月份要在 1–12。年份前面可以接英文字母（「kcg115-10.csv」「report115_10.csv」
+# 是正常檔名）；月份後面排除英文字母：隨機 GUID 檔名有一段像「b123-12de」「a123-1a」時不能誤判。
 _LABEL = re.compile(r"([0-9]{3})-([0-9]{2})")
-_LABEL_IN_FILENAME = re.compile(r"(?<![0-9A-Za-z])([0-9]{3})[-_年]([0-9]{1,2})(?![0-9])")
+_LABEL_IN_FILENAME = re.compile(r"(?<![0-9])([0-9]{3})[-_年]([0-9]{1,2})(?![0-9A-Za-z])")
 _DATASET_TITLE = re.compile(r"高雄市([0-9]{3})年門牌坐標資料-TWD97")
 _DATASET_HREF = re.compile(r"/DataSet/Detail/[0-9a-f-]{36}")
 _RESOURCE_TITLE = re.compile(r"([0-9]{3})年([0-9]{1,2})月門牌坐標資料")
