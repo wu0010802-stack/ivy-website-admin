@@ -1987,6 +1987,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Visit Request Details
+         * @description 後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。
+         *     任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的
+         *     details_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是
+         *     當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。
+         */
+        patch: operations["update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch"];
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
         parameters: {
             query?: never;
@@ -2654,6 +2677,127 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminDetailsUpdate
+         * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄
+         *     （人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
+         *
+         *     驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空
+         *     （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。
+         *     expected_version 是案件的 details_version，和家長端共用。
+         */
+        AdminDetailsUpdate: {
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Parent Name */
+            parent_name?: string | null;
+            /** Phone */
+            phone?: string | null;
+        };
+        /**
+         * AdminDetailsUpdateOut
+         * @description 後台改家長資料的回應：改完的案件明細（含新的 details_version 與歷程）＋這次的結果。
+         *     欄位清單只有欄位名；招生欄位名是招生訪視的（contact_name、phone、child_name、
+         *     birthday、grade）。
+         */
+        AdminDetailsUpdateOut: {
+            access_link: components["schemas"]["ParentAccessLinkOut"] | null;
+            /** Admissions Skipped Fields */
+            admissions_skipped_fields: string[];
+            /** Admissions Synced Fields */
+            admissions_synced_fields: string[];
+            /** Age */
+            age: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Cancel Reason */
+            cancel_reason?: string | null;
+            /** Cancelled At */
+            cancelled_at: string | null;
+            /** Changed Fields */
+            changed_fields: string[];
+            /** Child Birthdate */
+            child_birthdate?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /** Consent Accepted At */
+            consent_accepted_at?: string | null;
+            /**
+             * Consent Given
+             * @default true
+             */
+            consent_given: boolean;
+            /** Consent Revision Id */
+            consent_revision_id?: string | null;
+            /** Consent Revision Version */
+            consent_revision_version?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Details Version */
+            details_version: number;
+            /**
+             * Display Status
+             * @description upcoming／past／cancelled，後台列表與明細用這個分組顯示。
+             */
+            readonly display_status: string;
+            /** Email */
+            email?: string | null;
+            /** Email Notified */
+            email_notified: boolean;
+            /** Follow Up At */
+            follow_up_at: string | null;
+            /** History */
+            history: components["schemas"]["VisitHistoryOut"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Parent Change Deadline Hours */
+            parent_change_deadline_hours: number;
+            /** Parent Name */
+            parent_name: string;
+            /** Party Size */
+            party_size?: number | null;
+            /** Phone */
+            phone: string;
+            /** Preferred Time */
+            preferred_time: string | null;
+            /** Questions */
+            questions: string | null;
+            /** Referral Sources */
+            referral_sources?: ("friends_family" | "sibling" | "nearby" | "flyer" | "online" | "other" | "facebook" | "google_reviews" | "parent_community")[];
+            /** Related Request Id */
+            related_request_id?: string | null;
+            slot?: components["schemas"]["VisitSlotBriefOut"] | null;
+            /** Slot Id */
+            slot_id: string | null;
+            /**
+             * Source
+             * @default web
+             * @enum {string}
+             */
+            source: "web" | "phone" | "line" | "walk_in" | "external";
+            /** Status */
+            status: string;
+            /** Version */
+            version: number;
+            /** Visited On */
+            visited_on?: string | null;
+        };
         /** AdmissionsAreaOut */
         AdmissionsAreaOut: {
             /**
@@ -6272,6 +6416,8 @@ export interface components {
             created_at: string;
             /** Created By */
             created_by?: string | null;
+            /** Details Version */
+            details_version: number;
             /**
              * Display Status
              * @description upcoming／past／cancelled，後台列表與明細用這個分組顯示。
@@ -10914,6 +11060,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitContactNoteOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDetailsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDetailsUpdateOut"];
                 };
             };
             /** @description Validation Error */

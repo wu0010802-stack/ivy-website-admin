@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import User
-from app.booking import access_service, consent
+from app.booking import access_service, consent, workflow_service
 from app.booking.parent_policy import change_deadline_hours
 from app.booking.models import VisitRequest, VisitRequestEvent
 from app.booking.schemas import (
@@ -52,4 +52,5 @@ async def full_detail(db: AsyncSession, visit_request: VisitRequest) -> VisitReq
         access_link=ParentAccessLinkOut(created_at=token.created_at, expires_at=token.expires_at) if token else None,
         parent_change_deadline_hours=await change_deadline_hours(db, visit_request.campus_key),
         consent_revision_version=await consent.revision_version(db, visit_request.consent_revision_id),
+        details_version=await workflow_service.details_version(db, visit_request.id),
     )

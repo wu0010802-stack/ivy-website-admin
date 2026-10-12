@@ -1,6 +1,454 @@
 {
   "components": {
     "schemas": {
+      "AdminDetailsUpdate": {
+        "additionalProperties": false,
+        "description": "後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄\n（人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。\n\n驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空\n（送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。\nexpected_version 是案件的 details_version，和家長端共用。",
+        "properties": {
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "parent_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "AdminDetailsUpdate",
+        "type": "object"
+      },
+      "AdminDetailsUpdateOut": {
+        "description": "後台改家長資料的回應：改完的案件明細（含新的 details_version 與歷程）＋這次的結果。\n欄位清單只有欄位名；招生欄位名是招生訪視的（contact_name、phone、child_name、\nbirthday、grade）。",
+        "properties": {
+          "access_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParentAccessLinkOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "admissions_skipped_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Admissions Skipped Fields",
+            "type": "array"
+          },
+          "admissions_synced_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Admissions Synced Fields",
+            "type": "array"
+          },
+          "age": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cancel_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Reason"
+          },
+          "cancelled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancelled At"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changed Fields",
+            "type": "array"
+          },
+          "child_birthdate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Birthdate"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "consent_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Accepted At"
+          },
+          "consent_given": {
+            "default": true,
+            "title": "Consent Given",
+            "type": "boolean"
+          },
+          "consent_revision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Id"
+          },
+          "consent_revision_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Revision Version"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "details_version": {
+            "title": "Details Version",
+            "type": "integer"
+          },
+          "display_status": {
+            "description": "upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
+            "readOnly": true,
+            "title": "Display Status",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "email_notified": {
+            "title": "Email Notified",
+            "type": "boolean"
+          },
+          "follow_up_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up At"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/VisitHistoryOut"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "parent_change_deadline_hours": {
+            "title": "Parent Change Deadline Hours",
+            "type": "integer"
+          },
+          "parent_name": {
+            "title": "Parent Name",
+            "type": "string"
+          },
+          "party_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Party Size"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "string"
+          },
+          "preferred_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Time"
+          },
+          "questions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questions"
+          },
+          "referral_sources": {
+            "items": {
+              "enum": [
+                "friends_family",
+                "sibling",
+                "nearby",
+                "flyer",
+                "online",
+                "other",
+                "facebook",
+                "google_reviews",
+                "parent_community"
+              ],
+              "type": "string"
+            },
+            "title": "Referral Sources",
+            "type": "array"
+          },
+          "related_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Request Id"
+          },
+          "slot": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitSlotBriefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slot Id"
+          },
+          "source": {
+            "default": "web",
+            "enum": [
+              "web",
+              "phone",
+              "line",
+              "walk_in",
+              "external"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "visited_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visited On"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "status",
+          "parent_name",
+          "phone",
+          "age",
+          "preferred_time",
+          "questions",
+          "slot_id",
+          "confirmed_at",
+          "cancelled_at",
+          "follow_up_at",
+          "created_at",
+          "version",
+          "history",
+          "access_link",
+          "parent_change_deadline_hours",
+          "details_version",
+          "changed_fields",
+          "admissions_synced_fields",
+          "admissions_skipped_fields",
+          "email_notified",
+          "display_status"
+        ],
+        "title": "AdminDetailsUpdateOut",
+        "type": "object"
+      },
       "AdmissionsAreaOut": {
         "properties": {
           "as_of": {
@@ -11146,6 +11594,10 @@
             ],
             "title": "Created By"
           },
+          "details_version": {
+            "title": "Details Version",
+            "type": "integer"
+          },
           "display_status": {
             "description": "upcoming／past／cancelled，後台列表與明細用這個分組顯示。",
             "readOnly": true,
@@ -11335,6 +11787,7 @@
           "history",
           "access_link",
           "parent_change_deadline_hours",
+          "details_version",
           "display_status"
         ],
         "title": "VisitRequestFullOut",
@@ -23238,6 +23691,92 @@
           }
         },
         "summary": "Create Contact Note",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/details": {
+      "patch": {
+        "description": "後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。\n任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的\ndetails_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是\n當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。",
+        "operationId": "update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminDetailsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDetailsUpdateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Visit Request Details",
         "tags": [
           "booking"
         ]

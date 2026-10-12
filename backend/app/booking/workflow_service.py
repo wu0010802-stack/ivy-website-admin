@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -331,7 +333,8 @@ async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
 
     不用 visit_requests.version：那是園方下次聯絡時間的鎖（見 models），共用的話
     家長改一次 Email，園方開著的案件頁存下次聯絡就 409，反過來也一樣（2026-10-06
-    稽核）。只有家長會改這組欄位。"""
+    稽核）。改這組欄位的是家長（update_details_by_parent）與後台人員
+    （update_details_by_staff，2026-10-12），兩邊共用這個版本號，同時改的後送者 409。"""
     count = await db.scalar(
         select(func.count())
         .select_from(VisitRequestEvent)
@@ -360,3 +363,70 @@ async def update_details_by_parent(
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return changed
+
+
+# 後台人員可以改的家長資料（2026-10-12 規格 3.1）：不含參觀人數與想了解的事。
+EDITABLE_BY_STAFF = ("parent_name", "phone", "email", "child_name", "child_birthdate")
+# 其中會同步到招生訪視的四欄（招生訪視沒有 Email）。
+_ADMISSIONS_SOURCE_FIELDS = ("parent_name", "phone", "child_name", "child_birthdate")
+
+
+class DetailsAnonymized(Exception):
+    """案件已依保存政策匿名化，家長資料不能再改。"""
+
+
+@dataclass
+class StaffDetailsResult:
+    changed: list[str] = dataclass_field(default_factory=list)
+    # 變更通知已排給新信箱（Email 改成新值、案件仍是預約成立且場次還沒開始）。
+    email_notified: bool = False
+    admissions_synced: list[str] = dataclass_field(default_factory=list)
+    admissions_skipped: list[str] = dataclass_field(default_factory=list)
+
+
+async def update_details_by_staff(
+    db: AsyncSession,
+    visit_request: VisitRequest,
+    changes: dict,
+    *,
+    expected_version: int,
+    actor: Actor,
+    admissions_enabled: bool = False,
+) -> StaffDetailsResult:
+    """後台人員改家長資料（規格 3.1、3.2）。任何狀態都能改，已匿名化的不行（DetailsAnonymized）；
+    不受家長端的線上異動期限與次數限制。expected_version 是 details_version，和家長端共用。
+
+    歷程只記改了哪些欄位，不記內容（歷程不放個資）；沒有變化就什麼都不寫。Email 改成
+    新值而且案件仍是預約成立、場次還沒開始時，排一封變更信寄到新信箱（內含修改連結；
+    舊信箱不通知）——寄送當下才依案件狀態組信，其他情況 worker 一律略過，所以不排。
+    admissions_enabled 時，同一個交易把招生訪視上仍是當初帶過去的值一起改
+    （booking_link.sync_from_visit_request）。"""
+    # 函式內匯入：admissions 模組在載入時會匯入 booking，避免循環匯入。
+    from app.admissions import booking_link
+
+    await db.refresh(visit_request, attribute_names=["status", "anonymized_at", *EDITABLE_BY_STAFF], with_for_update=True)
+    if visit_request.anonymized_at is not None:
+        raise DetailsAnonymized()
+    current = await details_version(db, visit_request.id)
+    if current != expected_version:
+        raise VersionConflict(current)
+    changed = [f for f in EDITABLE_BY_STAFF if f in changes and getattr(visit_request, f) != changes[f]]
+    if not changed:
+        return StaffDetailsResult()
+    old = {f: getattr(visit_request, f) for f in _ADMISSIONS_SOURCE_FIELDS}
+    for name in changed:
+        setattr(visit_request, name, changes[name])
+    history.record_event(db, visit_request.id, "details_updated", actor=actor, after={"fields": changed})
+    result = StaffDetailsResult(changed=changed)
+    if "email" in changed and visit_request.email and visit_request.status == VisitRequestStatus.CONFIRMED.value:
+        slot = await history.load_slot(db, visit_request.slot_id)
+        if slot is None or not slot_service.has_started(slot):
+            await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+            result.email_notified = True
+    if admissions_enabled and any(f in changed for f in _ADMISSIONS_SOURCE_FIELDS):
+        new = {f: getattr(visit_request, f) for f in _ADMISSIONS_SOURCE_FIELDS}
+        result.admissions_synced, result.admissions_skipped = await booking_link.sync_from_visit_request(
+            db, visit_request.id, old, new, actor_user_id=actor.user_id
+        )
+    await db.flush()
+    return result

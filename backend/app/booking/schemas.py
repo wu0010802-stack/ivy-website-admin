@@ -569,6 +569,71 @@ class ParentDetailsUpdate(BaseModel):
         }
 
 
+# 後台改家長資料時不能清空的欄位，與清空時的錯誤訊息。
+_STAFF_REQUIRED_MESSAGES = {
+    "parent_name": "家長稱呼不能清空",
+    "phone": "手機不能清空",
+}
+
+
+class AdminDetailsUpdate(BaseModel):
+    """後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄
+    （人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
+
+    驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空
+    （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。
+    expected_version 是案件的 details_version，和家長端共用。"""
+
+    model_config = {"extra": "forbid"}
+
+    expected_version: int = Field(ge=1)
+    parent_name: str | None = Field(default=None, min_length=1, max_length=64)
+    phone: str | None = None
+    email: EmailStr | None = Field(default=None, max_length=254)
+    child_name: str | None = Field(default=None, max_length=64)
+    child_birthdate: date | None = None
+
+    @field_validator("parent_name", "child_name", mode="before")
+    @classmethod
+    def _strip(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("email", "child_name", "child_birthdate", mode="before")
+    @classmethod
+    def _blank_means_cleared(cls, value):
+        # 空字串（含只有空白）和 null 一樣是清空，存成 NULL。
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("parent_name", "child_name")
+    @classmethod
+    def _no_control_chars(cls, value):
+        return _reject_control_chars(value)
+
+    @field_validator("phone")
+    @classmethod
+    def _phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value) if value is not None else value
+
+    @field_validator("child_birthdate")
+    @classmethod
+    def _birthdate_not_future(cls, value: date | None) -> date | None:
+        if value is not None and value > today_local():
+            raise ValueError("寶貝出生日期不能晚於今天")
+        return value
+
+    @field_validator(*_STAFF_REQUIRED_MESSAGES, mode="before")
+    @classmethod
+    def _required_stay_filled(cls, value, info: ValidationInfo):
+        # 逐欄位回報：422 的 loc 指到被清空的那一欄（["body", "phone"]）。
+        if value is None:
+            raise ValueError(_STAFF_REQUIRED_MESSAGES[info.field_name])
+        return value
+
+    def changes(self) -> dict:
+        """請求裡有送的欄位與值（不含 expected_version）；清空的欄位值是 None。"""
+        return {field: getattr(self, field) for field in self.model_fields_set if field != "expected_version"}
+
+
 class ParentVisitRequestOut(BaseModel):
     """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
     含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
@@ -731,6 +796,23 @@ class VisitRequestFullOut(VisitRequestDetailOut):
     parent_change_deadline_hours: int
     # consent_revision_id 是「預約文案」的第幾版，明細顯示用。
     consent_revision_version: int | None = None
+    # 家長資料的樂觀鎖版本（PATCH /admin/visit-requests/{id}/details 帶回 expected_version）。
+    # 是 details_version，不是上面的 version（那是下次聯絡時間的鎖）。
+    details_version: int
+
+
+class AdminDetailsUpdateOut(VisitRequestFullOut):
+    """後台改家長資料的回應：改完的案件明細（含新的 details_version 與歷程）＋這次的結果。
+    欄位清單只有欄位名；招生欄位名是招生訪視的（contact_name、phone、child_name、
+    birthday、grade）。"""
+
+    # 這次實際改變的預約欄位；送出的值和現值一樣就是空清單。
+    changed_fields: list[str]
+    # 一起改了的招生欄位／因為招生端另外改過而沒有跟著改的招生欄位。
+    admissions_synced_fields: list[str]
+    admissions_skipped_fields: list[str]
+    # Email 改成新值，變更通知已排給新信箱。
+    email_notified: bool
 
 
 class VisitContactNoteCreateRequest(BaseModel):

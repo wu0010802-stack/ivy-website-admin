@@ -47,6 +47,8 @@ from app.booking.models import (
     VisitSlot,
 )
 from app.booking.schemas import (
+    AdminDetailsUpdate,
+    AdminDetailsUpdateOut,
     VisitViewCountsOut,
     BookingConfigOut,
     BookingConfigUpdateRequest,
@@ -1399,6 +1401,60 @@ async def create_contact_note(
     )
 
 
+@router.patch("/admin/visit-requests/{visit_request_id}/details", response_model=AdminDetailsUpdateOut)
+async def update_visit_request_details(
+    visit_request_id: uuid.UUID,
+    payload: AdminDetailsUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdminDetailsUpdateOut:
+    """後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。
+    任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的
+    details_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是
+    當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
+    try:
+        result = await workflow_service.update_details_by_staff(
+            db,
+            visit_request,
+            payload.changes(),
+            expected_version=payload.expected_version,
+            actor=Actor.staff(current_user.id),
+            admissions_enabled=request.app.state.settings.admissions_enabled,
+        )
+    except workflow_service.VersionConflict as exc:
+        await db.rollback()
+        raise _version_conflict(exc, "家長或同事剛改過這筆資料，請重新載入後再改") from exc
+    except workflow_service.DetailsAnonymized as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "VISIT_REQUEST_ANONYMIZED", "message": "這筆預約已依保存政策匿名化，不能再修改資料"},
+        ) from exc
+    if result.changed:
+        # 稽核只記欄位名；內容在案件本身，不複製進稽核。
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="visit_request.update_details",
+            target_type="visit_request",
+            target_id=str(visit_request.id),
+            campus_key=visit_request.campus_key,
+            metadata={"fields": result.changed},
+        )
+    await db.commit()
+    detail = await presenters.full_detail(db, visit_request)
+    return AdminDetailsUpdateOut(
+        **detail.model_dump(),
+        changed_fields=result.changed,
+        admissions_synced_fields=result.admissions_synced,
+        admissions_skipped_fields=result.admissions_skipped,
+        email_notified=result.email_notified,
+    )
+
+
 @router.post("/admin/visit-requests/{visit_request_id}/cancel", response_model=VisitRequestDetailOut)
 async def cancel_visit_request(
     visit_request_id: uuid.UUID,
@@ -1555,14 +1611,12 @@ async def reschedule_visit_request(
     return VisitRequestDetailOut.model_validate(visit_request)
 
 
-def _version_conflict(exc: workflow_service.VersionConflict) -> HTTPException:
+def _version_conflict(
+    exc: workflow_service.VersionConflict, message: str = "這筆案件的下次聯絡時間剛被其他人修改，請重新載入後再操作"
+) -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail={
-            "code": "VISIT_REQUEST_VERSION_CONFLICT",
-            "message": "這筆案件的下次聯絡時間剛被其他人修改，請重新載入後再操作",
-            "current_version": exc.current_version,
-        },
+        detail={"code": "VISIT_REQUEST_VERSION_CONFLICT", "message": message, "current_version": exc.current_version},
     )
 
 

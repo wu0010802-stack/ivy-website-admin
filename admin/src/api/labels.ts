@@ -448,6 +448,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.no_show': '標記未到場',
   'visit_request.complete': '標記已到場',
   'visit_request.complete_early': '提早標記已到場',
+  'visit_request.update_details': '修改家長資料',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊紀錄。
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',
@@ -495,6 +496,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.seat': '保留或釋放座位',
   'grade_intake_target.update': '設定計畫名額',
   'recruitment_visit.create_from_booking': '由官網預約建立招生訪視',
+  'recruitment_visit.synced_from_visit_request': '預約資料修改後同步到招生訪視',
   // 參觀後追蹤（2026-10-04）
   'recruitment_visit.contact_logged': '記錄參觀後聯絡',
   'recruitment_visit.follow_up_update': '改下次聯絡或追蹤負責人',
