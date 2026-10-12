@@ -84,6 +84,11 @@ export function createBoundariesGzip(compress: Compress = defaultCompress) {
     try {
       raw = Buffer.from(await response.arrayBuffer())
     } catch (error) {
+      // proxyRequest 呼叫 onResponse 之前已經把上游的 ETag、Cache-Control: private, max-age=86400 設到回應上：
+      // 本文讀到一半斷線的 502 若帶著它們，瀏覽器會把這個錯誤存一天、之後帶 If-None-Match 驗證也對不到好的版本。
+      // 先拿掉驗證與到期標頭、改成 no-store 再丟錯。
+      for (const name of ['etag', 'last-modified', 'expires']) res.removeHeader(name)
+      res.setHeader('cache-control', 'no-store')
       throw createError({ statusCode: 502, statusMessage: 'Bad Gateway', cause: error })
     }
 

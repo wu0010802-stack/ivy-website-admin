@@ -120,6 +120,16 @@ const shownVoice = ref(0) // 右頁大卡紙倒下、換片、站起來時才換
 const playing = ref(false)
 const tv = ref<HTMLElement | null>(null)
 const backVoices = computed(() => voices.value.map((item, index) => ({ item, index })).filter(({ index }) => index !== shownVoice.value).slice(0, 3))
+// 後台即時預覽（/preview）會在看著的時候刪影片、換順序：選中的位置超出範圍、或那個位置變成別支影片時，
+// 回到第 1 支並停止播放（不然 voices[shownVoice] 是 undefined，整頁預覽畫不出來）。
+// 只是改了說詞、封面這類（同一個位置還是同一支影片）不重設，免得每改一個字就跳回第 1 支。正式頁的 campuses 不會變。
+watch(voices, (list, before) => {
+  const kept = (i: number) => list[i] !== undefined && list[i]!.youtubeId === before[i]?.youtubeId
+  if (kept(pickedVoice.value) && kept(shownVoice.value)) return
+  pickedVoice.value = 0
+  shownVoice.value = 0
+  playing.value = false
+})
 const BACK = [
   { x: 0, y: 58, r: -2.5, color: 'var(--studio-sage)' },
   { x: 34.5, y: 63, r: 1, color: 'var(--cream)' },

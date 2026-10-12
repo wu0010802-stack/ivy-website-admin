@@ -252,6 +252,43 @@ describe('里界 GeoJSON 由官網代理 gzip', () => {
     expect(gunzipSync(response.body).equals(GEOJSON)).toBe(true)
   })
 
+  it('上游本文讀到一半斷線：回 502，不帶上游的一天快取與 ETag（瀏覽器與 CDN 不能把錯誤存下來）', async () => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/geo+json', 'content-length': String(GEOJSON.length), etag: '"e1"', 'cache-control': CACHE_CONTROL })
+      res.write(GEOJSON.subarray(0, 1024))
+      // 只送出一小段就斷線：fetch 讀本文時丟錯
+      setTimeout(() => res.destroy(), 20)
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, BOUNDARIES, { headers: { 'accept-encoding': 'gzip' } })
+    expect(response.status).toBe(502)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.headers.etag).toBeUndefined()
+    expect(response.headers['content-encoding']).toBeUndefined()
+  })
+
+  it('斷線後的下一次請求恢復正常（沒有把壞結果留在快取）', async () => {
+    let broken = true
+    upstreamHandler = (_req, res) => {
+      if (broken) {
+        res.writeHead(200, { 'content-type': 'application/geo+json', 'content-length': String(GEOJSON.length), etag: '"e1"', 'cache-control': CACHE_CONTROL })
+        res.write(GEOJSON.subarray(0, 1024))
+        setTimeout(() => res.destroy(), 20)
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/geo+json', 'content-length': String(GEOJSON.length), etag: '"e1"', 'cache-control': CACHE_CONTROL })
+      res.end(GEOJSON)
+    }
+    const proxy = await startProxy()
+    expect((await rawRequest(proxy, BOUNDARIES, { headers: { 'accept-encoding': 'gzip' } })).status).toBe(502)
+    broken = false
+    const ok = await rawRequest(proxy, BOUNDARIES, { headers: { 'accept-encoding': 'gzip' } })
+    expect(ok.status).toBe(200)
+    expect(ok.headers.etag).toBe('"e1"')
+    expect(ok.headers['cache-control']).toBe(CACHE_CONTROL)
+    expect(gunzipSync(ok.body).equals(GEOJSON)).toBe(true)
+  })
+
   it('同一個 ETag 連續兩次：第二次內容與第一次相同', async () => {
     geoUpstream()
     const proxy = await startProxy()

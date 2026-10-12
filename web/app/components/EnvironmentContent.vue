@@ -260,7 +260,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
         <div class="renv-day" data-rough="sunpath" data-seed="220">
           <p class="renv-hand renv-day-title">{{ page.mealsDayTitle }}</p>
           <ol class="renv-day-list">
-            <li v-for="item in meals" :key="item.time" class="renv-meal" :data-t="item.t">
+            <li v-for="(item, i) in meals" :key="i" class="renv-meal" :data-t="item.t">
               <time lang="en">{{ item.time }}</time><b>{{ item.name }}</b><small>{{ item.note }}</small>
               <p>{{ item.text }}</p>
             </li>

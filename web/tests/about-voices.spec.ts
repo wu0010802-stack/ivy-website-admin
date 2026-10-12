@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { computed, createSSRApp, defineComponent, h, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { computed, createSSRApp, defineComponent, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import fixture from '../server/data/site-fixture.json'
 import type { Campus, CampusTestimonial, SiteContent } from '../app/types/site-content'
@@ -15,6 +15,7 @@ import AboutMedal from '../app/components/AboutMedal.vue'
 // 看第四章真的畫出誰、什麼順序（Nuxt 的自動匯入在單元測試裡沒有，這裡補上，同 about-render.spec.ts）。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
+vi.stubGlobal('watch', watch)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 

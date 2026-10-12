@@ -110,6 +110,24 @@ describe('環境頁即時預覽換內容後重畫手繪線條', () => {
     expect(sketch.refresh).toHaveBeenCalledOnce()
   })
 
+  it('餐點時間打到一半（空字串、兩餐同時間）：清單的 key 不重複，不出現 Duplicate keys 警告', async () => {
+    const warnings: string[] = []
+    const state = reactive({ page: structuredClone(site.environmentPage) })
+    const host = document.createElement('div')
+    document.body.append(host)
+    app = createApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page: state.page }) })
+    app.component('NuxtLink', NuxtLink)
+    app.config.warnHandler = (message) => { warnings.push(message) }
+    app.mount(host)
+    await vi.waitFor(() => expect(document.querySelector('main.renv')).not.toBeNull())
+    state.page.meals[1]!.time = ''
+    state.page.meals[2]!.time = ''
+    state.page.meals[3]!.time = state.page.meals[0]!.time
+    await nextTick()
+    expect(document.querySelectorAll('.renv-meal')).toHaveLength(5)
+    expect(warnings.filter((message) => /duplicate/i.test(message))).toEqual([])
+  })
+
   it('手繪層還沒建好時內容就變了：不丟錯（第一次渲染本來就會量到最新版面）', async () => {
     const state = reactive({ page: structuredClone(site.environmentPage) })
     const host = document.createElement('div')

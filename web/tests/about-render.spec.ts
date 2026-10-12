@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest'
-import { computed, createSSRApp, defineComponent, h, onBeforeUnmount, onMounted, ref, type Component } from 'vue'
+import { computed, createSSRApp, defineComponent, h, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 import fixture from '../server/data/site-fixture.json'
 import type { AboutPageContent, SiteContent } from '../app/types/site-content'
@@ -13,6 +13,7 @@ import AboutMedal from '../app/components/AboutMedal.vue'
 // 六圈（AboutWholePerson）只在瀏覽器裡動，換成空元件。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
+vi.stubGlobal('watch', watch)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 

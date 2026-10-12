@@ -586,8 +586,6 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
   }
 }
 
-const MEAL_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
-
 function environmentPage(e: LiveEnvironmentPage, media: MediaInfoMap): EnvironmentPageContent {
   assertCounts({ chapterNames: e.chapter_names, hearts: e.hearts, careItems: e.care_items, spaces: e.spaces, meals: e.meals }, PAGE_COUNTS.environment)
   assertStrings(e, ['hero_title', 'hero_lede', 'hero_notice', 'hero_caption', 'care_title', 'care_lead', 'care_text', 'care_caption', 'care_photo_note', 'spaces_title', 'spaces_text', 'trail_hint', 'meals_title', 'meals_text', 'meals_day_title', 'tour_title', 'tour_text', 'tour_hint'], 'environment_page')
@@ -597,11 +595,8 @@ function environmentPage(e: LiveEnvironmentPage, media: MediaInfoMap): Environme
   assertItems(e.meals, ['time', 'name', 'note', 'text'], 'meals')
   e.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
   e.hearts.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`hearts[${i}] 應為字串`) })
-  // 餐點時間決定畫面順序（太陽弧位置照序號固定），不是 HH:MM 或沒由早到晚就整份退回內建，不要半套破版。
-  e.meals.forEach((m, i) => {
-    if (!MEAL_TIME.test(m.time)) throw new Error(`meals[${i}].time 應為 HH:MM`)
-    if (i > 0 && m.time <= e.meals[i - 1]!.time) throw new Error(`meals[${i}].time 應晚於上一餐`)
-  })
+  // 餐點時間的格式（HH:MM）與先後（由早到晚）由後端擋存檔（page_schemas.EnvironmentMeal），官網這層只檢查項目數與型別。
+  // 即時預覽打字打到一半（空字串、「8:3」、暫時倒序）時不要整份退回內建；太陽弧位置照序號固定，時間只是文字，不會破版。
   const hero = pagePhoto(e.hero_photo, e.hero_photo_alt, media)
   const care = pagePhoto(e.care_photo, e.care_photo_alt, media)
   return {

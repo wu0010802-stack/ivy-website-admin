@@ -135,7 +135,7 @@ describe('常春藤環境頁的後台內容', () => {
     expect(next.spaces[2]!.photo).toBeUndefined()
   })
 
-  it('形狀不符（少一張卡、多一個餐點、時間倒序…）：整份退回內建，不丟錯、不半套', () => {
+  it('形狀不符（少一張卡、多一個餐點、欄位型別不對…）：整份退回內建，不丟錯、不半套', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const mutations: ((live: any) => void)[] = [
       (live) => { live.care_items.pop() },
@@ -145,11 +145,7 @@ describe('常春藤環境頁的後台內容', () => {
       (live) => { live.meals.pop() },
       (live) => { live.hearts.pop() },
       (live) => { live.chapter_names.pop() },
-      (live) => { live.meals[2].time = '09:00' }, // 倒序
-      (live) => { live.meals[1].time = live.meals[0].time }, // 同時間
-      (live) => { live.meals[0].time = '8:30' }, // 不是 HH:MM
-      (live) => { live.meals[0].time = '25:00' },
-      (live) => { live.meals[3].time = null },
+      (live) => { live.meals[3].time = null }, // 型別不對仍退回（時間格式與先後不檢查，見下一個測試）
       (live) => { delete live.hero_title },
       (live) => { live.tour_hint = 7 },
       (live) => { live.hearts[0] = null },
@@ -171,6 +167,37 @@ describe('常春藤環境頁的後台內容', () => {
     }
     expect(error).toHaveBeenCalledTimes(mutations.length * 2)
     error.mockRestore()
+  })
+
+  it('餐點時間倒序、同時間、格式不對、空字串：照樣顯示，不退回內建（時間規則由後端擋存檔，即時預覽打到一半不要整份消失）', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const cases: [string, (live: LiveEnvironmentPage) => void, string[]][] = [
+      ['倒序', (live) => { live.meals[2]!.time = '09:00' }, ['08:30', '10:00', '09:00', '12:00', '15:30']],
+      ['同時間', (live) => { live.meals[1]!.time = live.meals[0]!.time }, ['08:30', '08:30', '11:40', '12:00', '15:30']],
+      ['不是 HH:MM', (live) => { live.meals[0]!.time = '8:30' }, ['8:30', '10:00', '11:40', '12:00', '15:30']],
+      ['超出 24 小時', (live) => { live.meals[0]!.time = '25:00' }, ['25:00', '10:00', '11:40', '12:00', '15:30']],
+      ['空字串', (live) => { live.meals[3]!.time = '' }, ['08:30', '10:00', '11:40', '', '15:30']]
+    ]
+    for (const [label, mutate, times] of cases) {
+      const live = livePayload()
+      live.hero_title = '預覽打到一半的標題'
+      mutate(live)
+      const next = overlay(live)
+      expect(next.heroTitle, label).toBe('預覽打到一半的標題')
+      expect(next.meals.map((m) => m.time), label).toEqual(times)
+    }
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
+  })
+
+  it('餐點時間空字串的預覽也畫得出來（SSR）', async () => {
+    const live = livePayload()
+    live.meals[1]!.time = ''
+    live.meals[2]!.time = ''
+    live.meals[1]!.name = '時間還沒填的餐點'
+    const html = await render(overlay(live))
+    expect(html).toContain('時間還沒填的餐點')
+    expect(html).toContain('<time lang="en"></time>')
   })
 
   it('預覽時 SSR 渲染的是整份取代後的內容', async () => {
