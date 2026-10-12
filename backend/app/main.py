@@ -27,6 +27,7 @@ from app.admissions.routes import router as admissions_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
+from app.contact_phrases.routes import router as contact_phrases_router
 from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -245,6 +246,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(line_router)
     app.include_router(operations_router)
+    app.include_router(contact_phrases_router)
     if settings.admissions_enabled:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)

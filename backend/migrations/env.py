@@ -22,6 +22,7 @@ from app.admissions.geo import models as geo_models  # noqa: F401
 from app.notifications import models as notification_models  # noqa: F401
 from app.operations import models as operations_models  # noqa: F401
 from app.common import models as common_models  # noqa: F401
+from app.contact_phrases import models as contact_phrase_models  # noqa: F401
 
 config = context.config
 

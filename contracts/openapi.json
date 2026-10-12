@@ -3782,6 +3782,75 @@
         "title": "ContactLogResultOut",
         "type": "object"
       },
+      "ContactPhrasesOut": {
+        "properties": {
+          "phrases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "phrases",
+          "version"
+        ],
+        "title": "ContactPhrasesOut",
+        "type": "object"
+      },
+      "ContactPhrasesUpdate": {
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "phrases": {
+            "items": {
+              "maxLength": 60,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Phrases",
+            "type": "array"
+          }
+        },
+        "required": [
+          "phrases",
+          "expected_version"
+        ],
+        "title": "ContactPhrasesUpdate",
+        "type": "object"
+      },
       "ContentItemOut": {
         "properties": {
           "campus_key": {
@@ -16921,6 +16990,146 @@
         "summary": "Update Campus Status",
         "tags": [
           "campuses"
+        ]
+      }
+    },
+    "/api/website/v1/admin/contact-phrases": {
+      "get": {
+        "description": "總部統一維護的聯絡片語，案件與招生的聯絡紀錄輸入框上方的快捷按鈕用。\n看得到預約案件或招生訪視的角色都能讀。",
+        "operationId": "get_contact_phrases_api_website_v1_admin_contact_phrases_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactPhrasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Contact Phrases",
+        "tags": [
+          "contact-phrases"
+        ]
+      },
+      "put": {
+        "description": "整組換掉片語，存檔立即生效（不經草稿與發布）。只有總管理者；版本不符 409。\n稽核只記句數，不記片語內容。",
+        "operationId": "update_contact_phrases_api_website_v1_admin_contact_phrases_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactPhrasesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactPhrasesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Contact Phrases",
+        "tags": [
+          "contact-phrases"
         ]
       }
     },

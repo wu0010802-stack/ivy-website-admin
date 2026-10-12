@@ -70,6 +70,13 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "notifications.manage": {Role.SUPER_ADMIN},
     # 整站還原（規格 L155）：一次把官網所有內容換回某次發布，跨校、跨共用內容。
     "content.release_restore": {Role.SUPER_ADMIN},
+    # 聯絡片語（2026-10-12 規格 4.2）：總部統一維護，全站同一份，存檔立即生效，所以
+    # 只有總管理者能改。
+    "contact_phrases.manage": {Role.SUPER_ADMIN},
+    # 讀取＝規格寫的「有 booking.read 或 admissions.read 任一」。權限表沒有「任一
+    # capability」的寫法，所以另開一項，讓後台只看一個鍵就知道要不要顯示片語；角色
+    # 集合刻意等於兩項的聯集（test_contact_phrases.py 比對，兩項日後改了會失敗）。
+    "contact_phrases.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
 }
 
 # 角色符合之外，還要總管理者逐人授予（User.capabilities）才算擁有；總管理

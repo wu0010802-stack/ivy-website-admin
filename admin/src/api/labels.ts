@@ -455,6 +455,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_slot.create': '新增參觀場次',
   'visit_slot.update': '調整場次名額或開關',
   'retention_policy.update': '更新個資保存政策',
+  'contact_phrases.update': '修改聯絡片語',
   'user.link_google': '綁定 Google 登入',
   'user.unlink_google': '解除 Google 登入綁定',
   'user.login_google': 'Google 登入',
@@ -612,6 +613,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   visit_exception: '休假日',
   visit_slot: '參觀場次',
   retention_policy: '個資保存政策',
+  contact_phrases: '聯絡片語',
   line_group: 'LINE 群組',
   line_verification_code: 'LINE 群組驗證碼',
   recruitment_visit: '招生訪視',
@@ -1280,6 +1282,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 時段與案件
   slot: (v) => `場次：${auditSlotLabel(v)}`,
   row_count: (v) => `匯出 ${countOf(v)} 筆`,
+  // 聯絡片語（contact_phrases.update）：存檔後共有幾句；片語內容不進稽核。
+  count: (v) => `共 ${countOf(v)} 句`,
   status: (v, action) => {
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
     if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`

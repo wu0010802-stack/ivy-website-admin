@@ -675,6 +675,32 @@ export interface paths {
         patch: operations["update_campus_status_api_website_v1_admin_campuses__key__status_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/contact-phrases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Contact Phrases
+         * @description 總部統一維護的聯絡片語，案件與招生的聯絡紀錄輸入框上方的快捷按鈕用。
+         *     看得到預約案件或招生訪視的角色都能讀。
+         */
+        get: operations["get_contact_phrases_api_website_v1_admin_contact_phrases_get"];
+        /**
+         * Update Contact Phrases
+         * @description 整組換掉片語，存檔立即生效（不經草稿與發布）。只有總管理者；版本不符 409。
+         *     稽核只記句數，不記片語內容。
+         */
+        put: operations["update_contact_phrases_api_website_v1_admin_contact_phrases_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/content-items/{kind}": {
         parameters: {
             query?: never;
@@ -3893,6 +3919,24 @@ export interface components {
         ContactLogResultOut: {
             log: components["schemas"]["ContactLogOut"];
             visit: components["schemas"]["RecruitmentVisitOut"];
+        };
+        /** ContactPhrasesOut */
+        ContactPhrasesOut: {
+            /** Phrases */
+            phrases: string[];
+            /** Updated At */
+            updated_at?: string | null;
+            /** Updated By Name */
+            updated_by_name?: string | null;
+            /** Version */
+            version: number;
+        };
+        /** ContactPhrasesUpdate */
+        ContactPhrasesUpdate: {
+            /** Expected Version */
+            expected_version: number;
+            /** Phrases */
+            phrases: string[];
         };
         /** ContentItemOut */
         ContentItemOut: {
@@ -8261,6 +8305,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampusStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_contact_phrases_api_website_v1_admin_contact_phrases_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactPhrasesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_contact_phrases_api_website_v1_admin_contact_phrases_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactPhrasesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactPhrasesOut"];
                 };
             };
             /** @description Validation Error */
