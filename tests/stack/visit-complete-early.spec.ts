@@ -71,6 +71,14 @@ test('家長提早到了：確認框寫出原場次 → 已到場、名額釋出
   const day = booked.slot.slot_date
   const slots = await api.get<SlotOut[]>(`/admin/slots?campus_key=${SLOTS_CAMPUS}&date_from=${day}&date_to=${day}`)
   expect(slots.find((s) => s.id === booked.slot.id)?.booked_count).toBe(0)
+
+  // 列表「已到場」：釋出了場次也不寫「沒有場次」，寫「提早到場」（2026-10-12）。
+  await gotoAdmin(page, '/visit-requests', '參觀案件')
+  await page.locator('.status-tab[data-group="arrived"]').click()
+  const row = page.locator('.visit-row', { hasText: DESKTOP_PARENT })
+  await expect(row.locator('.visit-row__time')).toContainText('提早到場')
+  await expect(row).not.toContainText('沒有場次')
+  await page.screenshot({ path: path.join(SHOTS, 'visit-complete-early-list-1440.png') })
   await context.close()
   await api.dispose()
 })
@@ -87,6 +95,17 @@ test('手機：「家長提早到了」整排撐滿、44px、不橫向捲動', a
   expect(box.width).toBeGreaterThan(300)
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: path.join(SHOTS, 'visit-complete-early-390.png') })
+
+  // 標記之後回列表：手機卡片也寫「提早到場」，不橫向溢出。
+  await early.click()
+  await page.getByRole('dialog', { name: '家長提早到了？' }).getByRole('button', { name: '標記已到場' }).click()
+  await page.getByRole('dialog').filter({ hasText: '已到場' }).last().getByRole('button', { name: '之後再填' }).click()
+  await expect(page.locator('.detail__status')).toContainText('已訪視')
+  await gotoAdmin(page, '/visit-requests', '參觀案件')
+  await page.locator('.status-tab[data-group="arrived"]').click()
+  await expect(page.locator('.visit-row', { hasText: MOBILE_PARENT }).locator('.visit-row__time')).toContainText('提早到場')
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'visit-complete-early-list-390.png') })
   await context.close()
   await api.dispose()
 })
