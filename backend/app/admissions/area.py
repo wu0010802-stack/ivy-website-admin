@@ -100,6 +100,7 @@ async def campus_out(db: AsyncSession, campus_key: str) -> dict[str, Any]:
         "lat": point.lat,
         "lng": point.lng,
         "locate_error": point.locate_error,
+        "district": point.district,
     }
 
 

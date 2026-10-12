@@ -21,7 +21,7 @@ YIHUA_LAT, YIHUA_LNG = 22.6424556, 120.3437133
 
 
 def _point(campus_key: str, lat: float | None, lng: float | None, error: str | None = None) -> matcher.CampusPoint:
-    return matcher.CampusPoint(campus_key=campus_key, lat=lat, lng=lng, locate_error=error)
+    return matcher.CampusPoint(campus_key=campus_key, lat=lat, lng=lng, locate_error=error, district="三民區")
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ async def test_area_levels_rows_and_bands(admin_client, db_session, located_camp
         ],
     }
     assert body["campus"] == {"key": "yihua", "name": body["campus"]["name"], "lat": YIHUA_LAT, "lng": YIHUA_LNG,
-                              "locate_error": None}
+                              "locate_error": None, "district": "三民區"}
     assert body["districts"] == [
         {"district": "三民區", "visit": 5, "deposit": 2, "visit_to_deposit_rate": 40.0},
         {"district": "左營區", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0},
@@ -195,6 +195,17 @@ async def test_area_campus_not_located(admin_client, db_session, monkeypatch):
         ("0-1", 0), ("1-3", 0), ("3-6", 0), ("6+", 0), ("none", 11),
     ]
     assert body["distance_bands"][4]["deposit"] == 2
+
+
+async def test_area_campus_district_before_doorplates(admin_client, db_session):
+    """門牌還沒匯入（正式站開同步前）：本校沒有座標，但帶校址的行政區，地圖才能先框住那一區。"""
+    await publish_campus_address(db_session, "yihua", "高雄市三民區義華路68號")
+    body = (await admin_client.get(f"{AREA}?campus_key=yihua&{TERM}")).json()
+    assert body["campus"]["key"] == "yihua"
+    assert (body["campus"]["lat"], body["campus"]["lng"]) == (None, None)
+    assert (body["campus"]["locate_error"], body["campus"]["district"]) == ("pending", "三民區")
+    kindergartens = (await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua")).json()
+    assert kindergartens["campus"]["district"] == "三民區"
 
 
 async def test_area_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):

@@ -47,6 +47,8 @@ class CampusPoint:
     lat: float | None
     lng: float | None
     locate_error: str | None  # "no_address" | "no_doorplate" | "pending"；有座標時 None
+    # 校址文字解析出的行政區，和門牌無關：門牌還沒匯入或對不到時，地圖先框住這一區。
+    district: str | None = None
 
 
 def _unlocated(reason: str) -> GeoMatch:
@@ -131,18 +133,20 @@ async def _exact_rows(db: AsyncSession, base: tuple, same_unit: tuple, number: i
 
 async def campus_point(db: AsyncSession, campus_key: str) -> CampusPoint:
     """校址取已發布的校區資料（content campus_profile 的 address），用同一套比對取座標；
-    只接受 exact／nearby。"""
+    只接受 exact／nearby。行政區一律取自地址文字（parse_address），沒座標時也有。"""
     profile = await content_service.published_payload(db, "campus_profile", campus_key) or {}
     address = str(profile.get("address") or "").strip()
     if not address:
         return CampusPoint(campus_key, None, None, "no_address")
+    parsed = parse_address(address)
+    district = parsed.district if parsed is not None else None
     version = await active_doorplate_version(db)
     if version is None:
-        return CampusPoint(campus_key, None, None, "pending")
+        return CampusPoint(campus_key, None, None, "pending", district)
     match = await locate(db, address, version=version)
     if match.match_level in ("exact", "nearby"):
-        return CampusPoint(campus_key, match.lat, match.lng, None)
-    return CampusPoint(campus_key, None, None, "no_doorplate")
+        return CampusPoint(campus_key, match.lat, match.lng, None, district)
+    return CampusPoint(campus_key, None, None, "no_doorplate", district)
 
 
 async def campus_points(db: AsyncSession) -> dict[str, CampusPoint]:

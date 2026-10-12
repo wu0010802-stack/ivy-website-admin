@@ -76,7 +76,7 @@ const fee = (value: number | null) => (value === null ? NO_VALUE : `${value.toLo
     </el-alert>
     <el-skeleton v-else-if="!data" :rows="4" animated />
     <p v-else-if="notLocated" class="nearby__empty">{{ notLocated }}</p>
-    <p v-else-if="notImported" class="nearby__empty">幼兒園資料尚未匯入。</p>
+    <p v-else-if="notImported" class="nearby__empty">幼兒園名單尚未匯入。</p>
     <template v-else>
       <el-input v-model="search" clearable maxlength="40" placeholder="園名或地址" aria-label="搜尋幼兒園" />
       <div class="nearby__kinds" role="group" aria-label="依類型篩選">

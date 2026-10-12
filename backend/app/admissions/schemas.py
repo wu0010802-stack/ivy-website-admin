@@ -827,6 +827,9 @@ class AreaCampusOut(BaseModel):
     lng: float | None
     # 校址比對不到門牌的原因（no_address／no_doorplate／pending）；有座標時是 null。
     locate_error: str | None
+    # 校址文字解析出的行政區（不看門牌）；沒有校址、外縣市或解析不出高雄的區時是 null。
+    # 沒座標時後台地圖先框住這一區。
+    district: str | None
 
 
 class AreaReasonCountOut(BaseModel):

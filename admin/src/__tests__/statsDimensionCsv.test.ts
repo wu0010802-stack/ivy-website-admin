@@ -149,6 +149,35 @@ describe('StatsDimensionTable「查看明細」欄（2026-10-08 區域分析）'
     wrapper.unmount()
   })
 
+  it('手機（≤720px）：名稱本身就是「查看明細」連結、不多一欄按鈕（按鈕欄在最右邊，窄螢幕一打開只露幾 px）', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const wrapper = mount(StatsDimensionTable, { props: { ...base, actionLabel: '查看明細' }, global: { plugins: [ElementPlus] } })
+      expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual(['來源', '參觀', '預繳率'])
+      const links = wrapper.findAll('tbody th button')
+      expect(links.map((item) => item.text())).toEqual(['=親友', '網路'])
+      expect(links[1]!.attributes('aria-label')).toBe('查看明細：網路')
+      expect(wrapper.findAll('tbody button')).toHaveLength(2)
+      await links[1]!.trigger('click')
+      expect(wrapper.emitted('action')).toEqual([[base.rows[1]]])
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('手機但沒給 actionLabel：名稱照舊是純文字', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const wrapper = mount(StatsDimensionTable, { props: base, global: { plugins: [ElementPlus] } })
+      expect(wrapper.findAll('tbody button')).toHaveLength(0)
+      expect(wrapper.findAll('tbody th').map((th) => th.text())).toEqual(['=親友', '網路'])
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('匯出 CSV 不含按鈕欄', async () => {
     const wrapper = mount(StatsDimensionTable, {
       props: { ...base, actionLabel: '查看明細', exportFilename: '招生統計-行政區排行.csv' },

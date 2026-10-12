@@ -3182,6 +3182,8 @@ export interface components {
         };
         /** AreaCampusOut */
         AreaCampusOut: {
+            /** District */
+            district: string | null;
             /** Key */
             key: string;
             /** Lat */

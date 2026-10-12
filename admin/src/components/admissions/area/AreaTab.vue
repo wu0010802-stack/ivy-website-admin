@@ -117,10 +117,10 @@ const status = computed(() => {
   ]
   return {
     doorplate: dataStatus.doorplate_version
-      ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}`
-      : '門牌資料尚未匯入，匯入後會自動比對。',
+      ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}版`
+      : '門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。',
     doorplateImported: Boolean(dataStatus.doorplate_version),
-    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園資料尚未匯入',
+    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
   }
