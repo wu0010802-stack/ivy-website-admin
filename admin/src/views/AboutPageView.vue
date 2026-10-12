@@ -12,7 +12,9 @@ import { builtinPhotoSrc } from '../composables/pageContent'
 import { ABOUT_BUILTIN_PHOTOS, ABOUT_CHAPTER_HINTS, ABOUT_PHOTO_PREVIEWS, aboutPageDraft } from '../composables/aboutPageDraft'
 
 // 關於常春藤頁（/about，立體書）。章節、沿革五站、期許兩段固定，只改字和換照片（2026-10-03 使用者裁定）。
-// 六大領域與核心素養是課綱名詞、家長怎麼說由各校的五校介紹編，都不在這裡。
+// 六大領域與核心素養是課綱名詞，不在這裡。第四章「家長怎麼說」的影片也不在這裡：由各校「五校介紹」的「家長分享影片」段
+// 管理（campus_profile.testimonials，null＝沿用內建、[]＝這校不放，每校最多 4 支），官網五校輪流取最多 4 支
+// （web/app/utils/testimonials.ts 的 pickVoices）。
 const editor = useContentItem<AboutPagePayload>('about_page', aboutPageDraft())
 const form = editor.form
 const neverSaved = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)

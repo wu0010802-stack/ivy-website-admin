@@ -66,6 +66,42 @@ unicode-range 仍含 `U+20`，讓它成為 CSS 的 first available font（決定
 `lineseed-bd-remaining-*`）與 `scripts/optimize-site-fonts.py`。`scripts/check-font-coverage.py` 是給
 凍結原型用的舊工具，不受這次改動影響。
 
+## 常春藤環境頁字型（`scripts/subset-environment-fonts.py`，2026-10-12 補圓體 700／800 常用字）
+
+`/environment` 用圓體 Chiron GoRound TC（800 大標、700 小標、400 內文）與手寫芫荽 Iansui（便條、菜名），兩套都是 SIL OFL 1.1，原始檔的 sha256 釘在腳本的 `SOURCES`。環境頁前三章開放後台編輯後，任何字重都可能出現任何常用字，所以四個字重（圓體 400／700／800、芫荽 400）都切 critical 加「其餘分片」；其餘分片由字頻表（`scripts/data/noto-sans-tc-frequency-tiers.json`）的常用字扣掉 critical，由常用到罕用切成約 40 KB 一片，寫進帶雜湊的 `environment/environment-fonts-extended-<hash>.css`，頁面執行時才掛上，用到新字才下載。字頻表以外的罕用字退回系統字。
+
+| 字重 | 其餘分片補到 |
+|---|---|
+| 圓體 400、芫荽 400 | 字頻表全部（芫荽以字型本身有的字為限） |
+| 圓體 700 | 字頻表全部（15,438 字、117 片） |
+| 圓體 800 | 只補字頻表前 3,000 字，標點照補（腳本的 `COMMON_LIMITS`） |
+
+輸出目錄 `web/public/assets/fonts/environment/` 整個要在 15 MB 內（`web/tests/environment-fonts.spec.ts` 擋）。800 全補會到 16.8 MB，所以限制在前 3,000 字；2026-10-12 補完後目錄約 13.7 MB（補之前約 8.2 MB）。
+
+後台缺字提示讀的兩份字表（格式同 `chars-bd.txt`：依碼位排序、不含空白）也由這支腳本一起產出：
+
+- `chars-environment.txt`：四個字重都有的字（4,138 字）。給用圓體 800 的大標欄位（首屏 h1 與四章 h2；admin 的 `useTitleFontCoverage('environment')`）。
+- `chars-environment-text.txt`：圓體 400、700 與芫荽都有的字（10,754 字）。給其餘欄位（小標、內文、便條；`useTitleFontCoverage('environmentText')`）。800 只補最常用的字，所以這份比上一份多很多。
+
+字表以外的字，後台欄位下方會寫「環境頁字型沒有「X」，這幾個字會用系統字顯示」，官網也真的退回系統字。重切時兩份字表要一起更新；`web/tests/environment-fonts.spec.ts` 會檢查它們等於各字重涵蓋範圍的交集。
+
+重切指令（需 fontTools 4.63.0＋Brotli）：
+
+```sh
+node scripts/environment-font-chars.cjs http://127.0.0.1:3107   # 先量各字重在本頁一開始就畫得到的字（要先起本機 server）
+uv run --no-project --with 'fonttools[woff]==4.63.0' python scripts/subset-environment-fonts.py
+```
+
+**腳本內建的下載很慢，而且沒有 timeout**：它用 `urllib` 從 GitHub 的 google/fonts 抓可變字型 `ChironGoRoundTC[wght].ttf`（約 51 MB）、`Iansui-Regular.ttf`（約 9 MB）與兩份授權檔，網路差時會卡很久也不會逾時。可以先用 curl 把原始檔放進 `output/fonts-src/`（已 gitignore），腳本看到檔案已在就不再下載，sha256 仍由腳本核對，對不上會直接 assert 失敗：
+
+```sh
+mkdir -p output/fonts-src && cd output/fonts-src
+curl -fL --max-time 600 -o 'ChironGoRoundTC[wght].ttf' 'https://github.com/google/fonts/raw/main/ofl/chirongoroundtc/ChironGoRoundTC%5Bwght%5D.ttf'
+curl -fL --max-time 600 -o Iansui-Regular.ttf 'https://github.com/google/fonts/raw/main/ofl/iansui/Iansui-Regular.ttf'
+curl -fL -o chiron-goround-tc-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/chirongoroundtc/OFL.txt'
+curl -fL -o iansui-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/iansui/OFL.txt'
+```
+
 ## 明體改為全站共用（2026-09-23）
 
 - `Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `web/app/assets/css/typography.css`，改成全站宣告；首頁分校資訊、分校頁校名、預約頁大標共用 `--font-serif`。
