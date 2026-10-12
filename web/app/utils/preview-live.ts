@@ -51,30 +51,33 @@ export type PreviewBlock =
   | 'visit-booking'
   | 'page-top'
   | 'about-voices'
+  | 'environment-tour'
 
 export interface PreviewBlockSpec {
   selector: string
   /** 找不到改到的文字時，要不要框整塊（整頁內容就不框） */
   outline: boolean
-  /** 首頁五校：先切到改的那一校 */
-  campusTab?: boolean
+  /** 五校分頁的區塊（首頁五校、環境頁五所校園）：先切到改的那一校，分頁按鈕的 id 是 `${campusTabPrefix}${校區代號}` */
+  campusTabPrefix?: string
 }
 
 export const PREVIEW_BLOCKS: Readonly<Record<PreviewBlock, PreviewBlockSpec>> = {
   'home-hero': { selector: '.studio-hero', outline: true },
   'home-about': { selector: '.home-belief', outline: true },
   'home-day': { selector: '.day-experience', outline: true },
-  'home-campuses': { selector: '#campuses', outline: true, campusTab: true },
+  'home-campuses': { selector: '#campuses', outline: true, campusTabPrefix: 'campus-tab-' },
   'home-news': { selector: '.home-news', outline: true },
   'site-header': { selector: 'header.header', outline: true },
   'site-footer': { selector: 'footer.footer', outline: true },
   'visit-booking': { selector: '.booking-draft', outline: true },
   'page-top': { selector: '#main', outline: false },
   // 關於頁第四章「家長怎麼說」。這一校或五校都沒有影片時整章不存在，找不到元素就不框（highlightPreview 回 none）。
-  'about-voices': { selector: '#voices', outline: true }
+  'about-voices': { selector: '#voices', outline: true },
+  // 常春藤環境頁第四章「五所校園」（校園探索）。這一校沒有場景、五校都沒有場景時整章不存在，找不到元素就不框。
+  'environment-tour': { selector: '.renv-tour', outline: true, campusTabPrefix: 'tour-tab-' }
 }
 
-const PAGES: readonly PreviewPage[] = ['home', 'admission', 'visit', 'privacy', 'curriculum', 'about', 'environment']
+const PAGES: readonly PreviewPage[] = ['home', 'admission', 'visit', 'privacy', 'curriculum', 'about', 'environment', 'news']
 
 export interface LiveFocus {
   block: PreviewBlock

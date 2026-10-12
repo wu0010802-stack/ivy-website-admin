@@ -46,6 +46,23 @@ describe('parseDraftMessage：格式不對就不套用', () => {
     expect(PREVIEW_BLOCKS['about-voices']).toEqual({ selector: '#voices', outline: true })
   })
 
+  it('校園探索：環境頁的 environment-tour 區塊收得下（campus_tour 草稿＋page environment），先切到改的那一校的分頁（tour-tab-）', () => {
+    const parsed = parseDraftMessage(
+      draft({ kind: 'campus_tour', campusKey: 'minghua', page: 'environment', payload: { scenes: [] }, focus: { block: 'environment-tour', campusKey: 'minghua', probe: null, mark: true } }),
+      CAMPUSES
+    )
+    expect(parsed).toMatchObject({ kind: 'campus_tour', campusKey: 'minghua', page: 'environment', focus: { block: 'environment-tour', campusKey: 'minghua' } })
+    expect(PREVIEW_BLOCKS['environment-tour']).toEqual({ selector: '.renv-tour', outline: true, campusTabPrefix: 'tour-tab-' })
+    expect(PREVIEW_BLOCKS['home-campuses']).toMatchObject({ selector: '#campuses', campusTabPrefix: 'campus-tab-' })
+  })
+
+  it('消息列表頁：page news 收得下（home_news、campus_news 草稿都可以）', () => {
+    const shared = parseDraftMessage(draft({ kind: 'home_news', page: 'news', payload: { articles: [], events: [] }, focus: { block: 'page-top', campusKey: null, probe: null, mark: true } }), CAMPUSES)
+    expect(shared).toMatchObject({ kind: 'home_news', page: 'news', focus: { block: 'page-top' } })
+    const campus = parseDraftMessage(draft({ kind: 'campus_news', campusKey: 'yihua', page: 'news', payload: { articles: [], events: [] }, focus: { block: 'page-top', campusKey: 'yihua', probe: null, mark: true } }), CAMPUSES)
+    expect(campus).toMatchObject({ kind: 'campus_news', campusKey: 'yihua', page: 'news' })
+  })
+
   it.each([
     ['type 不對', { type: 'something-else' }],
     ['版本不對', { v: 2 }],

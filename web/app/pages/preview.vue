@@ -24,7 +24,8 @@ useHead({
 })
 
 // ?page=admission 入學資訊頁、?page=privacy 隱私權政策、?page=visit
-// 預約頁的同意說明、?page=curriculum 特色教學頁、?page=about 關於常春藤頁、?page=environment 常春藤環境頁（校園探索），其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
+// 預約頁的同意說明、?page=curriculum 特色教學頁、?page=about 關於常春藤頁、?page=environment 常春藤環境頁（校園探索）、
+// ?page=news 最新消息列表頁，其餘預覽首頁。?viewport=mobile 用手機寬度看，?date= 換
 // 判斷消息上下架的日期（參數規則在 utils/draft-preview.ts）。
 // ?embed=1&live=1：後台內容編輯頁右側的即時預覽（2026-10-06 方向 D）。後台把還沒存的表單
 // 用 postMessage 傳進來，只放在這一頁的記憶體裡（不進網址、storage 或任何快取），蓋在已存
@@ -186,12 +187,12 @@ onBeforeUnmount(() => {
             <button type="button" :aria-pressed="viewport === 'desktop'" @click="setViewport('desktop')">桌機</button>
             <button type="button" :aria-pressed="viewport === 'mobile'" @click="setViewport('mobile')">手機</button>
           </div>
-          <label v-if="page === 'home'" class="preview-date">
+          <label v-if="page === 'home' || page === 'news'" class="preview-date">
             <span>以這天判斷消息上下架</span>
             <input type="date" :value="date" @change="setDate">
           </label>
         </div>
-        <p v-if="page === 'home' && hiddenNews.length" class="preview-hidden">
+        <p v-if="(page === 'home' || page === 'news') && hiddenNews.length" class="preview-hidden">
           {{ date === today ? '今天' : date }}不會顯示 {{ hiddenNews.length }} 則：
           <span v-for="item in hiddenNews" :key="`${item.type}-${item.title}-${item.reason}`" class="preview-hidden__item">{{ item.type === 'event' ? '活動' : '消息' }}「{{ item.title }}」（{{ item.reason }}）</span>
         </p>
@@ -211,6 +212,7 @@ onBeforeUnmount(() => {
         <CurriculumContent v-else-if="page === 'curriculum'" :page="draft.curriculumPage" />
         <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" />
         <EnvironmentContent v-else-if="page === 'environment'" :campuses="draft.campuses" :page="draft.environmentPage" />
+        <NewsIndexContent v-else-if="page === 'news'" :news="draft.news" :campuses="draft.campuses" />
         <PrivacyPolicyContent v-else-if="page === 'privacy' && draft.privacyPolicy" :policy="draft.privacyPolicy" />
         <main v-else-if="page === 'privacy'" id="main" tabindex="-1">
           <div class="container breadcrumb">還沒有儲存過隱私權政策的草稿，請先在後台儲存。</div>

@@ -62,6 +62,24 @@ describe('activatePreviewBlock', () => {
     expect(click).toHaveBeenCalledOnce()
     expect(activatePreviewBlock(document, focus({ block: 'site-footer', campusKey: 'minghua' }))).toBe(false)
   })
+
+  it('環境頁五所校園：改的那一校還不是目前那張時點 tour-tab- 分頁；已選就不點；沒指定校不點', () => {
+    document.body.innerHTML = '<section id="campuses" class="renv-tour"><button id="tour-tab-yihua" aria-selected="true"></button><button id="tour-tab-minghua" aria-selected="false"></button></section>'
+    const click = vi.fn()
+    document.getElementById('tour-tab-minghua')!.addEventListener('click', click)
+    expect(activatePreviewBlock(document, focus({ block: 'environment-tour', campusKey: 'yihua' }))).toBe(false)
+    expect(activatePreviewBlock(document, focus({ block: 'environment-tour', campusKey: null }))).toBe(false)
+    expect(click).not.toHaveBeenCalled()
+    expect(activatePreviewBlock(document, focus({ block: 'environment-tour', campusKey: 'minghua' }))).toBe(true)
+    expect(click).toHaveBeenCalledOnce()
+    // 這一校沒有場景（環境頁沒有它的分頁）：沒東西可點，不丟錯
+    expect(activatePreviewBlock(document, focus({ block: 'environment-tour', campusKey: 'renwu' }))).toBe(false)
+  })
+
+  it('環境頁沒有輪播播放鈕：切分頁照樣能用，不會去按別的東西', () => {
+    document.body.innerHTML = '<section id="campuses"><button id="tour-tab-minghua" aria-selected="false"></button></section>'
+    expect(activatePreviewBlock(document, focus({ block: 'environment-tour', campusKey: 'minghua' }))).toBe(true)
+  })
 })
 
 // 2026-10-07 controller 裁定：即時預覽暫停首頁五校輪播，切到被改的那一校後不會自己轉走。
@@ -139,6 +157,15 @@ describe('即時預覽暫停首頁五校輪播', () => {
     expect(source).toContain(`:aria-label="canAuto ? '${CAROUSEL_PLAYING_LABEL}' : '${PAUSED_LABEL}'"`)
     expect(source).toContain(':id="`campus-tab-${campus.key}`"')
     expect(source).toContain(':aria-selected="i === index"')
+  })
+})
+
+describe('和官網環境頁的標記對得上（改了 EnvironmentContent.vue 的分頁或章節，這裡要跟著改）', () => {
+  it('第四章是 section.renv-tour，分頁按鈕 id 是 tour-tab-、選中狀態寫在 aria-selected', () => {
+    const source = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../app/components/EnvironmentContent.vue'), 'utf8')
+    expect(source).toMatch(/<section[^>]*class="renv-section renv-tour"/)
+    expect(source).toContain(':id="`tour-tab-${tour.campus.key}`"')
+    expect(source).toContain(':aria-selected="tour.campus.key === activeKey"')
   })
 })
 

@@ -49,12 +49,11 @@ const EDITOR_KINDS = [
 ]
 
 describe('預覽分頁對照表', () => {
-  it('16 個編輯頁都有列；只有校園探索沒有預覽欄；同一頁的分頁代號不重複', () => {
+  it('16 個編輯頁都有預覽欄；同一頁的分頁代號不重複', () => {
     expect(Object.keys(PREVIEW_TARGETS).sort()).toEqual([...EDITOR_KINDS].sort())
     for (const kind of EDITOR_KINDS) {
       const targets = previewTargetsFor(kind)
-      if (kind === 'campus_tour') expect(targets).toEqual([])
-      else expect(targets.length).toBeGreaterThan(0)
+      expect(targets.length, kind).toBeGreaterThan(0)
       expect(new Set(targets.map((t) => t.id)).size).toBe(targets.length)
     }
     expect(previewTargetsFor(undefined)).toEqual([])
@@ -70,6 +69,18 @@ describe('預覽分頁對照表', () => {
     expect(previewTargetsFor('campus_profile').find((t) => t.block === 'about-voices')!.fields).toEqual(['testimonials'])
     expect(previewTargetsFor('booking_content').map((t) => t.fields)).toEqual([['privacy_title', 'privacy_sections'], ['cta_label', 'cta_label_en']])
     expect(previewTargetsFor('site_meta')[0]!.fields).toEqual(['header_phone_number', 'header_phone_note', 'primary_nav'])
+  })
+
+  it('校園探索：環境頁的「五所校園」一章；首頁消息與各校消息多一個消息列表頁分頁', () => {
+    expect(previewTargetsFor('campus_tour').map((t) => [t.label, t.page, t.block])).toEqual([
+      ['常春藤環境頁的五所校園', 'environment', 'environment-tour'],
+    ])
+    for (const kind of ['home_news', 'campus_news']) {
+      expect(previewTargetsFor(kind).map((t) => [t.label, t.page, t.block])).toEqual([
+        ['首頁最新消息', 'home', 'home-news'],
+        ['消息列表頁', 'news', 'page-top'],
+      ])
+    }
   })
 
   it('原型鍵不當成編輯頁：toString、constructor 一律沒有預覽欄', () => {

@@ -163,6 +163,32 @@ describe('和官網的訊息格式一致', () => {
     expect(read('../../../web/app/components/AboutContent.vue')).toMatch(/<section[^>]*\bid="voices"/)
   })
 
+  it('校園探索：後台指到環境頁的 environment-tour，官網用 .renv-tour 找，環境頁元件的第四章就是 section.renv-tour、分頁按鈕 id 是 tour-tab-', () => {
+    expect(PREVIEW_TARGETS.campus_tour).toEqual([{ id: 'tour', label: '常春藤環境頁的五所校園', page: 'environment', block: 'environment-tour' }])
+    expect(web.blocks).toContain('environment-tour')
+    expect(webSource).toMatch(/'environment-tour':\s*\{\s*selector:\s*'\.renv-tour'/)
+    // 切分頁的 id 前綴（官網 activatePreviewBlock 用它點分頁）和環境頁、首頁五校的實際 id 對得上
+    expect(webSource).toMatch(/'environment-tour':[^}]*campusTabPrefix:\s*'tour-tab-'/)
+    expect(webSource).toMatch(/'home-campuses':[^}]*campusTabPrefix:\s*'campus-tab-'/)
+    const environment = read('../../../web/app/components/EnvironmentContent.vue')
+    expect(environment).toMatch(/<section[^>]*class="renv-section renv-tour"/)
+    expect(environment).toContain(':id="`tour-tab-${tour.campus.key}`"')
+  })
+
+  it('最新消息列表頁：首頁消息與各校消息都有「消息列表頁」分頁（page news、page-top），官網的消息列表元件根是 #main', () => {
+    for (const kind of ['home_news', 'campus_news']) {
+      expect(PREVIEW_TARGETS[kind]!.map((t) => [t.id, t.label, t.page, t.block])).toEqual([
+        ['news', '首頁最新消息', 'home', 'home-news'],
+        ['news-page', '消息列表頁', 'news', 'page-top'],
+      ])
+      expect(web.kinds).toContain(kind)
+    }
+    expect(web.pages).toContain('news')
+    expect(webSource).toMatch(/'page-top':\s*\{\s*selector:\s*'#main'/)
+    expect(read('../../../web/app/components/NewsIndexContent.vue')).toMatch(/<main[^>]*\bid="main"/)
+    expect(read('../../../web/app/pages/preview.vue')).toContain(`<NewsIndexContent v-else-if="page === 'news'"`)
+  })
+
   it('後台的找位置文字長度不超過官網收的上限', () => {
     expect(PROBE_LENGTH).toBeLessThanOrEqual(web.maxProbe)
   })

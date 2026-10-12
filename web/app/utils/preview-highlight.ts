@@ -52,14 +52,17 @@ export function pausePreviewCarousel(doc: Document): boolean {
 }
 
 /**
- * 首頁五校：先讓輪播停住，再把改的那一校切成目前那張（點它的分頁）。
+ * 五校分頁的區塊（首頁五校的 campus-tab-、環境頁五所校園的 tour-tab-）：先讓輪播停住（環境頁沒有輪播，
+ * 找不到播放鈕就什麼都不做），再把改的那一校切成目前那張（點它的分頁）。
  * 回 true 表示點了分頁，畫面會再更新一次，要等下一次更新才找得到那一校的文字。
+ * 環境頁只有「有場景的校」才有分頁；改的那一校沒有分頁（還沒有任何場景）就沒東西可點。
  */
 export function activatePreviewBlock(doc: Document, focus: LiveFocus): boolean {
-  if (!PREVIEW_BLOCKS[focus.block].campusTab) return false
+  const prefix = PREVIEW_BLOCKS[focus.block].campusTabPrefix
+  if (!prefix) return false
   pausePreviewCarousel(doc)
   if (!focus.campusKey) return false
-  const tab = doc.getElementById(`campus-tab-${focus.campusKey}`)
+  const tab = doc.getElementById(`${prefix}${focus.campusKey}`)
   if (!tab || tab.getAttribute('aria-selected') === 'true') return false
   ;(tab as HTMLElement).click()
   return true

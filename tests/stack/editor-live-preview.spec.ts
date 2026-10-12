@@ -111,7 +111,7 @@ test('五校介紹（義華）：改參觀專線，切到「頁尾」分頁看�
   await context.close()
 })
 
-test('每個內容編輯頁的右側預覽都接得上；校園探索沒有預覽欄', async ({ browser }, testInfo) => {
+test('每個內容編輯頁的右側預覽都接得上（含校園探索、消息列表頁）', async ({ browser }, testInfo) => {
   test.setTimeout(300_000)
   // [網址, 頁面標題, [預覽分頁文字, 預覽頁裡該分頁對應的區塊選擇器]]（區塊選擇器對照 web/app/utils/preview-live.ts 的 PREVIEW_BLOCKS）
   const EDITORS: [path: string, heading: string, tabs: [label: string, block: string][]][] = [
@@ -119,9 +119,10 @@ test('每個內容編輯頁的右側預覽都接得上；校園探索沒有預�
     ['/content/home-about', '關於常春藤', [['首頁關於常春藤', '.home-belief']]],
     ['/content/day-experience', '孩子的一天', [['首頁孩子的一天', '.day-experience']]],
     ['/content/home-campus-board', '首頁五校區塊', [['首頁五校', '#campuses']]],
-    ['/content/home-news', '最新消息與活動', [['首頁最新消息', '.home-news']]],
+    ['/content/home-news', '最新消息與活動', [['首頁最新消息', '.home-news'], ['消息列表頁', 'main.np']]],
     ['/content/campus-profile?campus=yihua', '五校介紹', [['首頁五校', '#campuses'], ['頁尾', 'footer.footer']]],
-    ['/content/campus-news?campus=yihua', '各校消息與活動', [['首頁最新消息', '.home-news']]],
+    ['/content/campus-news?campus=yihua', '各校消息與活動', [['首頁最新消息', '.home-news'], ['消息列表頁', 'main.np']]],
+    ['/content/campus-tour?campus=yihua', '校園探索', [['常春藤環境頁的五所校園', '.renv-tour']]],
     ['/content/booking-content', '預約文案', [['預約頁', '.booking-draft'], ['頁首預約鈕', 'header.header']]],
     ['/content/admission', '入學資訊頁', [['入學資訊頁', '#main']]],
     ['/content/privacy-policy', '隱私權政策', [['隱私權政策頁', '#main']]],
@@ -149,9 +150,6 @@ test('每個內容編輯頁的右側預覽都接得上；校園探索沒有預�
       await page.screenshot({ path: `output/playwright/editor-live-${path.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}.png` })
     })
   }
-  await gotoAdmin(page, '/content/campus-tour', '校園探索')
-  await expect(page.getByRole('complementary', { name: '官網預覽' })).toHaveCount(0)
-  await expect(page.locator(FRAME)).toHaveCount(0)
   await context.close()
 })
 

@@ -4,10 +4,10 @@ import { WEBSITE_ASSET_BASE } from '../config'
 // page 對應官網 /preview?page=（web/app/utils/draft-preview.ts 的 PreviewPage），block 對應
 // web/app/utils/preview-live.ts 的 PREVIEW_BLOCKS；兩邊的名字由 previewProtocol.test.ts 比對。
 
-export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment'
+export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment' | 'news'
 export type PreviewBlock =
   | 'home-hero' | 'home-about' | 'home-day' | 'home-campuses' | 'home-news'
-  | 'site-header' | 'site-footer' | 'visit-booking' | 'page-top' | 'about-voices'
+  | 'site-header' | 'site-footer' | 'visit-booking' | 'page-top' | 'about-voices' | 'environment-tour'
 export type PreviewViewport = 'desktop' | 'mobile'
 /**
  * 預覽欄和預覽頁的連線狀態。connecting＝等預覽頁回應；live＝預覽的是還沒存的修改；
@@ -29,15 +29,19 @@ export interface PreviewTarget {
   fields?: readonly string[]
 }
 
-const HOME_NEWS: readonly PreviewTarget[] = [{ id: 'news', label: '首頁最新消息', page: 'home', block: 'home-news' }]
+// 全站消息與各校消息都出現在兩個地方：首頁的最新消息，和 /news 消息列表頁（各校消息在「全部」裡看得到）。
+const NEWS: readonly PreviewTarget[] = [
+  { id: 'news', label: '首頁最新消息', page: 'home', block: 'home-news' },
+  { id: 'news-page', label: '消息列表頁', page: 'news', block: 'page-top' },
+]
 
 export const PREVIEW_TARGETS: Readonly<Record<string, readonly PreviewTarget[]>> = {
   home_hero: [{ id: 'hero', label: '首頁首屏', page: 'home', block: 'home-hero' }],
   home_about: [{ id: 'about', label: '首頁關於常春藤', page: 'home', block: 'home-about' }],
   day_experience: [{ id: 'day', label: '首頁孩子的一天', page: 'home', block: 'home-day' }],
   home_campus_board: [{ id: 'campuses', label: '首頁五校', page: 'home', block: 'home-campuses' }],
-  home_news: HOME_NEWS,
-  campus_news: HOME_NEWS,
+  home_news: NEWS,
+  campus_news: NEWS,
   // 不做預約頁：官網 /preview?page=visit 只畫個資說明，沒有真正的預約表單（計畫裁定 10）。
   campus_profile: [
     { id: 'campuses', label: '首頁五校', page: 'home', block: 'home-campuses' },
@@ -58,8 +62,8 @@ export const PREVIEW_TARGETS: Readonly<Record<string, readonly PreviewTarget[]>>
   // 網站描述、分享圖、各頁搜尋與分享（page_seo）等只用在搜尋與分享，預覽頁上看不到；只有頁首電話與主選單會框。
   // 機構社群（social_links）在頁首選單面板裡，預覽的頁首是收起的選單，框不到，所以不列進 fields。
   site_meta: [{ id: 'header', label: '頁首', page: 'home', block: 'site-header', fields: ['header_phone_number', 'header_phone_note', 'primary_nav'] }],
-  // 校園探索是寬版編輯器（場景大圖＋熱點），不放預覽欄；照舊用「存草稿並預覽」。
-  campus_tour: [],
+  // 校園探索：官網環境頁的第四章「五所校園」。收到草稿時官網先切到改的那一校的分頁再框選。
+  campus_tour: [{ id: 'tour', label: '常春藤環境頁的五所校園', page: 'environment', block: 'environment-tour' }],
 }
 
 export function previewTargetsFor(kind: string | undefined): readonly PreviewTarget[] {

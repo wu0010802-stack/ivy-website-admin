@@ -90,8 +90,18 @@ describe('右側官網預覽欄', () => {
     expect(pane.get('.live-preview__meta').text()).toBe('正在載入預覽…')
   })
 
-  it('1280 以下、校園探索、尚未選校區：不顯示預覽欄', async () => {
-    expect((await mountEditor(editorState({ kind: 'campus_tour' }))).find('.editor__preview').exists()).toBe(false)
+  it('校園探索也有預覽欄（預覽常春藤環境頁）；首頁消息有兩個分頁，切到「消息列表頁」換成 page=news', async () => {
+    const tour = await mountEditor(editorState({ kind: 'campus_tour' }))
+    expect(tour.get('.editor').classes()).toContain('editor--preview')
+    expect(tour.get('aside.editor__preview iframe').attributes('src')).toBe(`${window.location.origin}/preview?embed=1&live=1&page=environment`)
+    const news = await mountEditor(editorState({ kind: 'home_news' }))
+    expect(news.get('iframe').attributes('src')).toContain('page=home')
+    await news.findAll('.editor__preview .el-radio-button input')[1]!.setValue(true)
+    await flushPromises()
+    expect(news.get('iframe').attributes('src')).toContain('page=news')
+  })
+
+  it('1280 以下、尚未選校區：不顯示預覽欄', async () => {
     expect((await mountEditor(editorState(), { placeholder: '你的帳號沒有可編輯的校區。' })).find('.editor__preview').exists()).toBe(false)
     narrowScreen()
     const narrow = await mountEditor(editorState())

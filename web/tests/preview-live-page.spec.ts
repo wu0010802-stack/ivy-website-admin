@@ -37,6 +37,14 @@ const SiteFooter = defineComponent({
   }
 })
 
+// 消息列表頁：只看拿到的消息篇數與校數，確認 preview.vue 把草稿的 news、campuses 交給它。
+const NewsIndexContent = defineComponent({
+  props: ['news', 'campuses'],
+  render() {
+    return h('main', { class: 'np' }, `${this.news.articles.length}:${this.campuses.length}`)
+  }
+})
+
 const parentWindow = { postMessage: vi.fn() }
 const originalParent = Object.getOwnPropertyDescriptor(window, 'parent')
 let app: App | null = null
@@ -49,6 +57,7 @@ function fakeResult({ authorized = true, failSaved = false, savedTagline }: Fake
     const content = structuredClone(site)
     if (savedTagline) content.footer.tagline = savedTagline
     if (live?.kind === 'site_footer') content.footer.tagline = String(live.payload.tagline)
+    if (live?.kind === 'home_news') content.news = { ...content.news, ...live.payload } as typeof content.news
     return { content, hiddenNews: [] }
   })
   return { authorized, campusKeys: authorized ? CAMPUS_KEYS : [], render: authorized ? render : null }
@@ -64,6 +73,7 @@ function mountPreview(result: ReturnType<typeof fakeResult>) {
   app.config.warnHandler = () => {}
   for (const name of ['SiteHeader', 'AdmissionContent', 'CurriculumContent', 'AboutContent', 'EnvironmentContent', 'PrivacyPolicyContent', 'BookingDraftPreview', 'HeroVideo', 'AboutSection', 'DayExperience', 'CampusBoard', 'NewsDialog', 'NuxtLink']) app.component(name, Stub)
   app.component('SiteFooter', SiteFooter)
+  app.component('NewsIndexContent', NewsIndexContent)
   app.mount(host)
   return result
 }
@@ -108,6 +118,20 @@ describe('/preview 即時預覽模式', () => {
     expect(footerText()).toBe('還沒存的標語')
     expect(repliesOf('ivy-preview:applied')[0]).toMatchObject({ seq: 1, hit: 'block' })
     expect(result.render).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ kind: 'site_footer' }))
+  })
+
+  it('消息列表頁：訊息的 page 是 news 就畫 NewsIndexContent，吃即時草稿的消息；沒校區篩選（網址沒有 campus）', async () => {
+    mountPreview(fakeResult())
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:ready')).toHaveLength(1))
+    expect(document.querySelector('.np')).toBeNull()
+    const focus = { block: 'page-top', campusKey: null, probe: null, mark: true }
+    deliver(draft(1, { articles: [{ id: 'a' }, { id: 'b' }], events: [] }, { kind: 'home_news', page: 'news', focus }))
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(1))
+    expect(document.querySelector('.np')?.textContent).toBe(`2:${site.campuses.length}`)
+    // 同一個預覽頁切回首頁（後台切預覽分頁只送訊息、不重新載入）
+    deliver(draft(2, { articles: [], events: [] }, { kind: 'home_news', page: 'home', focus: { ...focus, block: 'home-news' } }))
+    await vi.waitFor(() => expect(repliesOf('ivy-preview:applied')).toHaveLength(2))
+    expect(document.querySelector('.np')).toBeNull()
   })
 
   it('不是外層後台頁送的訊息一律不理（別的來源、別的視窗）', async () => {

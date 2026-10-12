@@ -365,6 +365,11 @@ function onPickMedia(asset: MediaAssetOut) {
   border-top: 1px solid var(--line);
 }
 
+/* 1280 以上右側有官網預覽欄（三欄版面），表單欄只有 440–640 寬：照片與欄位上下排，不各擠一半。 */
+.editor--preview .tour__grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 @media (max-width: 900px) {
   .tour__grid {
     grid-template-columns: minmax(0, 1fr);

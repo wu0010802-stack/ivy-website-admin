@@ -5,13 +5,13 @@ import type { MediaInfoMap, PublicMediaInfo } from './media-image'
 // 私有草稿預覽（/preview）的網址參數與消息上下架判斷。
 //
 // - page：home｜admission｜visit（預約頁的個資說明）｜privacy（隱私權政策）｜curriculum（特色教學頁）｜about（關於常春藤頁）
-//   ｜environment（常春藤環境頁，看校園探索的草稿）
+//   ｜environment（常春藤環境頁，看校園探索的草稿）｜news（最新消息列表頁）
 // - viewport=mobile：在頁面中間放一個手機寬度的 iframe 載入同一個預覽
 //   （iframe 內帶 embed=1，不再顯示工具列），看得到真正的手機斷行與裁切
 // - date=YYYY-MM-DD：用哪一天判斷消息與活動的上架／下架日期，預設台北今天
 // - live=1（搭配 embed=1）：後台內容編輯頁右側的即時預覽，見 utils/preview-live.ts
 
-export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment'
+export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment' | 'news'
 export type PreviewViewport = 'desktop' | 'mobile'
 
 type Query = Record<string, unknown>
@@ -26,7 +26,7 @@ function text(value: unknown): string {
 
 export function previewPage(query: Query): PreviewPage {
   const page = text(query.page)
-  return page === 'admission' || page === 'visit' || page === 'privacy' || page === 'curriculum' || page === 'about' || page === 'environment' ? page : 'home'
+  return page === 'admission' || page === 'visit' || page === 'privacy' || page === 'curriculum' || page === 'about' || page === 'environment' || page === 'news' ? page : 'home'
 }
 
 export function previewViewport(query: Query): PreviewViewport {
