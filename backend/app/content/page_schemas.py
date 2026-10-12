@@ -429,17 +429,19 @@ class AboutPagePayload(_ContentPayload):
 # 內建長度。第四章段落 2026-10-12 改過（原本寫「取自各分校頁」，分校頁已拿掉），上限依新句子算。
 # 這是硬上限（擋存檔），後台 contentHints.ts 的建議值另訂；實測破版就下修，三處一起改
 # （這裡、contentHints.ts、DESIGN.md 上限表）。
+# 2026-10-12 實測（scripts/page-copy-stress.cjs /environment＋逐寬量不換行字數）：首屏大標 1440 寬一行只放得下
+# 9 字（390 寬 10 字），×1.5 的 13 字會每行折成兩行；第四章標題 390／1440 都是 10 字。這兩欄改用實測值。
 #
 # 固定在官網程式、不開放的：便條的位置與箭頭落點（依格子序號）、太陽弧位置、結尾三張卡（NEXT）、
 # 營養餐點書連結、各章目次小字的計數、首屏小標與目次標題。
 
 # 欄位: (每行字數, 欄位名稱)
 ENVIRONMENT_TITLES: dict[str, tuple[int, str]] = {
-    "hero_title": (13, "首屏大標"),  # 7／9
+    "hero_title": (9, "首屏大標"),  # 7／9；實測 1440 寬一行 9 字
     "care_title": (9, "幼兒保育的標題"),  # 4／6
     "spaces_title": (10, "校園環境的標題"),  # 7／7
     "meals_title": (9, "幼兒餐點的標題"),  # 6／6
-    "tour_title": (12, "五所校園的標題"),  # 6／8
+    "tour_title": (10, "五所校園的標題"),  # 6／8；實測 390／1440 寬一行 10 字
 }
 # 欄位: (上限, 欄位名稱, 可留空)
 ENVIRONMENT_TEXTS: dict[str, tuple[int, str, bool]] = {

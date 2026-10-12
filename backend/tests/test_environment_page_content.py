@@ -145,7 +145,8 @@ def test_meal_order_error_names_the_rule():
 def test_limits_are_one_and_a_half_times_the_builtin_copy():
     """上限＝內建文字長度 × 1.5 取整（標題逐行；列表各項取該欄最長那筆）。
 
-    例外只有第四章段落：內建那句 2026-10-12 改過，上限依新句子算。"""
+    例外：第四章段落（內建那句 2026-10-12 改過，上限依新句子算）；首屏大標與第四章標題用版面實測值
+    （page_schemas.py 的說明：×1.5 會讓每行折成兩行）。"""
     data = _fixture()["environmentPage"]
 
     def longest(value) -> int:
@@ -157,8 +158,11 @@ def test_limits_are_one_and_a_half_times_the_builtin_copy():
         parts = name.split("_")
         return source[parts[0] + "".join(part.title() for part in parts[1:])]
 
+    measured = {"hero_title": 9, "tour_title": 10}
     for name, (per_line, *_rest) in ENVIRONMENT_TITLES.items():
-        assert per_line == int(longest(field(data, name)) * 1.5), name
+        expected = measured.get(name, int(longest(field(data, name)) * 1.5))
+        assert per_line == expected, name
+        assert per_line >= longest(field(data, name)), name
     for name, (limit, *_rest) in ENVIRONMENT_TEXTS.items():
         assert limit == int(longest(field(data, name)) * 1.5), name
     for table, items in (

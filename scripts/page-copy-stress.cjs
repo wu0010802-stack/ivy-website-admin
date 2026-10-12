@@ -81,6 +81,44 @@ const RULES = {
     { sel: '.abk-quote p', chars: 70, box: '.abk-page' },
     { sel: '#about-campuses-title', chars: 6 },
     { sel: '.abk-outro-copy p', chars: 80 }
+  ],
+  // 常春藤環境頁（2026-10-12 開放前三章）：數字是 page_schemas.py 的 ENVIRONMENT_* 上限。
+  // 便條（.renv-note）是貼在照片角上的手寫標籤，可以壓出照片邊，不量外框，只量有沒有被裁掉與溢出自己的框。
+  '/environment': [
+    { sel: '#environment-title', lines: 3, perLine: 9 },
+    { sel: '.renv-lede', chars: 33 },
+    { sel: '.renv-notice', chars: 30 },
+    { sel: '.renv-hero-photo figcaption', chars: 22 },
+    { sel: '.renv-index li b', chars: 6, box: '.renv-index li' },
+    { sel: '.renv-kicker', chars: 6, textNode: true },
+    { sel: '#care-title', lines: 3, perLine: 9 },
+    { sel: '.renv-care-top h2 + .renv-text', chars: 21 },
+    { sel: '.renv-hearts b', chars: 4, box: '.renv-hearts li' },
+    { sel: '.renv-hearts + .renv-text', chars: 57 },
+    { sel: '.renv-note.is-care', chars: 3 },
+    { sel: '.renv-care-photo figcaption', chars: 27 },
+    { sel: '.renv-hang-item h3', chars: 9, textNode: true, box: '.renv-hang-item' },
+    { sel: '.renv-hang-item > p', chars: 30, box: '.renv-hang-item' },
+    { sel: '#spaces-title', lines: 3, perLine: 10 },
+    { sel: '#spaces .renv-split-head .renv-text', chars: 51 },
+    { sel: '.renv-tag', chars: 10 },
+    { sel: '.renv-feature-copy h3', lines: 3, perLine: 7 },
+    { sel: '.renv-feature-copy > p:last-child', chars: 70, box: '.renv-feature' },
+    { sel: '.renv-note.is-slide', chars: 4 },
+    { sel: '.renv-trail-hint', chars: 16 },
+    { sel: '.renv-stop-copy h3', chars: 10, box: '.renv-stop' },
+    { sel: '.renv-stop-copy p', chars: 69, box: '.renv-stop' },
+    { sel: '.renv-stop .renv-note', chars: 12 },
+    { sel: '.renv-campus', chars: 4 },
+    { sel: '#meals-title', lines: 3, perLine: 9 },
+    { sel: '.renv-meals-top .renv-text', chars: 78 },
+    { sel: '.renv-day-title', chars: 16 },
+    { sel: '.renv-meal b', chars: 3, box: '.renv-meal' },
+    { sel: '.renv-meal small', chars: 10, box: '.renv-meal' },
+    { sel: '.renv-meal p', chars: 28, box: '.renv-meal' },
+    { sel: '#tour-title', lines: 3, perLine: 10 },
+    { sel: '#campuses .renv-split-head .renv-text', chars: 45 },
+    { sel: '.renv-tour-hint', chars: 15 }
   ]
 }
 
