@@ -107,6 +107,10 @@ def test_youtube_url_forms_that_resolve_to_an_id(url):
         {"youtube_url": "not a video"},
         {"youtube_url": ""},
         {"youtube_url": "https://www.youtube.com/watch?v=short"},
+        # \w 在 Python 會比對中文字、全形英數，影片 ID 只認 ASCII（和官網 youtubeId 一致）
+        {"youtube_url": "https://youtu.be/一二三四五六七八九十一"},
+        {"youtube_url": "一二三四五六七八九十一"},
+        {"youtube_url": "abcdefghij\uff11"},
         {"youtube_url": "https://www.youtube.com/watch?v=oaVMxHvquU0&x=" + "a" * 300},
         {"quote": "一" * 41},
         {"quote": ""},

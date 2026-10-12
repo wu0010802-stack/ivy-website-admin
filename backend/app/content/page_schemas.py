@@ -484,7 +484,8 @@ ENVIRONMENT_MEAL_TEXTS: dict[str, tuple[int, str, bool]] = {
     "note": (10, "餐點小字", False),  # 7
     "text": (28, "餐點說明", False),  # 19
 }
-_MEAL_TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+# 數字一律寫 [0-9]：\d 會比對全形數字（「０８:３０」），官網只認半形。
+_MEAL_TIME = re.compile(r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
 
 
 def _validate_texts(table: dict[str, tuple[int, str, bool]], value: str, info: ValidationInfo) -> str:

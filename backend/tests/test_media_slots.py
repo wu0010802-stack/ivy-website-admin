@@ -282,6 +282,13 @@ def test_film_validation():
     assert youtube_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3") == "dQw4w9WgXcQ"
     assert youtube_id("dQw4w9WgXcQ") == "dQw4w9WgXcQ"
     assert youtube_id("not a video") == ""
+    # 影片 ID 只認 ASCII 英數、底線、連字號：中文字、全形英數不是 ID
+    assert youtube_id("https://youtu.be/一二三四五六七八九十一") == ""
+    assert youtube_id("一二三四五六七八九十一") == ""
+    assert youtube_id("abcdefghij\uff11") == ""
+    with pytest.raises(ValueError, match="YouTube"):
+        HomeNewsPayload.model_validate({"sample_note": "", "articles": [], "events": [], "films": [
+            {**base, "source": "youtube", "youtube_url": "https://www.youtube.com/watch?v=一二三四五六七八九十一"}]})
 
 
 @pytest.mark.asyncio

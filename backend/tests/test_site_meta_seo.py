@@ -129,15 +129,83 @@ def test_public_view_tolerates_odd_stored_values():
 
 
 @pytest.mark.asyncio
-async def test_retired_admission_fields_are_accepted_but_not_saved(admin_client):
+async def test_retired_admission_fields_are_accepted_and_folded_into_page_seo(admin_client):
     saved = await _save(admin_client, _meta(admission_title="入學資訊｜常春藤", admission_description="舊描述"))
     assert saved.status_code == 201, saved.text
     payload = saved.json()["latest_revision"]["payload"]
+    # 舊欄位本身不再存；舊值在驗證時搬進 page_seo.admission，不會因為存新版本而消失。
     assert "admission_title" not in payload and "admission_description" not in payload
-    assert payload["page_seo"] is None and payload["social_links"] is None
+    assert payload["page_seo"] == {"admission": _seo(title="入學資訊｜常春藤", description="舊描述")}
+    assert payload["social_links"] is None
     # 舊值仍照原規則驗證。
     bad = await _save(admin_client, _meta(admission_title="javascript:alert(1)"), version=1)
     assert bad.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# 2b：還原舊版、素材替換走 _save_draft，退役欄位不能在存檔時被丟掉
+# ---------------------------------------------------------------------------
+
+
+async def _stored_revision(db_session, payload: dict):
+    """只寫進版本（不經 API 的欄位規則、不發布），模擬 10-12 之前存下的舊版本。"""
+    item = await content_service.get_or_create_content_item(db_session, "site_meta", None)
+    revision = await content_service.create_revision(db_session, item, payload, item.latest_version, None)
+    await db_session.commit()
+    return item, revision
+
+
+@pytest.mark.asyncio
+async def test_restoring_an_old_version_keeps_the_retired_admission_values(admin_client, db_session):
+    item, old = await _stored_revision(
+        db_session, _meta(admission_title="舊標題", admission_description="舊描述")
+    )
+    restored = await admin_client.post(
+        f"{META}/revisions/{old.id}/restore", json={"expected_version": item.latest_version}
+    )
+    assert restored.status_code == 201, restored.text
+    payload = restored.json()["latest_revision"]["payload"]
+    assert payload["page_seo"]["admission"] == _seo(title="舊標題", description="舊描述")
+    assert "admission_title" not in payload and "admission_description" not in payload
+
+
+@pytest.mark.asyncio
+async def test_replacing_a_share_image_keeps_the_retired_admission_values(admin_client, db_session):
+    old_image, new_image = await _upload(admin_client), await _upload(admin_client)
+    item, _ = await _stored_revision(
+        db_session, _meta(share_image=old_image["id"], admission_title="舊標題")
+    )
+    replaced = await admin_client.post(
+        f"{MEDIA}/{old_image['id']}/replace-references",
+        json={
+            "replacement_id": new_image["id"],
+            "items": [{"content_item_id": str(item.id), "expected_version": item.latest_version}],
+        },
+    )
+    assert replaced.status_code == 200, replaced.text
+    payload = (await admin_client.get(META)).json()["latest_revision"]["payload"]
+    assert payload["share_image"] == new_image["id"]
+    assert payload["page_seo"]["admission"] == _seo(title="舊標題")
+    assert "admission_title" not in payload
+
+
+@pytest.mark.asyncio
+async def test_retired_admission_values_never_overwrite_page_seo_admission(admin_client, db_session):
+    item, old = await _stored_revision(
+        db_session,
+        _meta(
+            admission_title="舊標題", admission_description="舊描述",
+            page_seo={"admission": _seo(title="新標題", share_image_alt="分享圖說明")},
+        ),
+    )
+    restored = await admin_client.post(
+        f"{META}/revisions/{old.id}/restore", json={"expected_version": item.latest_version}
+    )
+    assert restored.status_code == 201, restored.text
+    # 標題已有新值就留新值；描述是空的才補舊值。
+    assert restored.json()["latest_revision"]["payload"]["page_seo"]["admission"] == _seo(
+        title="新標題", description="舊描述", share_image_alt="分享圖說明"
+    )
 
 
 # ---------------------------------------------------------------------------

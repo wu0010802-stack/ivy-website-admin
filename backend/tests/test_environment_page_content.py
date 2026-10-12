@@ -87,6 +87,9 @@ def test_registered_as_shared_only_and_the_fixture_copy_is_valid():
         # 餐點時間：HH:MM、嚴格由早到晚
         lambda: _with(["meals", 0, "time"], "8:30"),
         lambda: _with(["meals", 0, "time"], "24:00"),
+        # 全形數字不放行（regex 的 \d 會比對全形，官網的時間格式只認半形）
+        lambda: _with(["meals", 0, "time"], "0\uff18:30"),
+        lambda: _with(["meals", 0, "time"], "08:3\uff10"),
         lambda: _with(["meals", 1, "time"], "08:30"),  # 和上一餐同時間
         lambda: _with(["meals", 2, "time"], "09:00"),  # 比上一餐早
         # 大標畫螢光的字要在大標某一行裡

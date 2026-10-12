@@ -361,6 +361,41 @@ class SiteMetaPayload(_ContentPayload):
     # 機構社群連結（依清單順序）。None＝官網沿用內建清單；[]＝不顯示。
     social_links: list[SocialLinkPayload] | None = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _fold_retired_admission_fields(cls, data):
+        """退役的 admission_title／admission_description 在驗證時搬進 page_seo.admission。
+        這個模型的輸出會 exclude 這兩欄，所以還原舊版、素材替換這些「讀舊版本再存新版本」
+        的路徑若不在這裡搬，舊值存檔後就永遠消失。只補 page_seo.admission 裡還是空的那一欄，
+        已有新值不覆蓋；公開輸出另有同樣的保險（registry._public_site_meta）。"""
+        if not isinstance(data, dict):
+            return data
+        legacy = {
+            name: data.get(f"admission_{name}")
+            for name in ("title", "description")
+            if isinstance(data.get(f"admission_{name}"), str) and data[f"admission_{name}"].strip()
+        }
+        if not legacy:
+            return data
+        page_seo = data.get("page_seo")
+        page_seo = dict(page_seo) if isinstance(page_seo, dict) else {}
+        admission = page_seo.get("admission")
+        if admission is None:
+            admission = {}
+        elif isinstance(admission, BaseModel):
+            admission = admission.model_dump()
+        elif isinstance(admission, dict):
+            admission = dict(admission)
+        else:
+            return data  # 結構壞掉就交給後面的欄位驗證回 422，不在這裡猜
+        for name in ("title", "description", "share_image", "share_image_alt"):
+            admission.setdefault(name, "")
+        for name, value in legacy.items():
+            if not str(admission.get(name) or "").strip():
+                admission[name] = value
+        page_seo["admission"] = admission
+        return {**data, "page_seo": page_seo}
+
     @field_validator(
         "title", "description", "header_phone_number", "header_phone_note",
         "share_image_alt", "admission_title", "admission_description",
@@ -895,8 +930,10 @@ def _unique_ids(entries: list, what: str) -> None:
         raise ValueError(f"{what}的 id 不可重複")
 
 
+# 影片 ID 只認 ASCII 英數、底線、連字號（Python 的 \w 會比對中文字與全形英數，官網 JS 的不會）。
+_YOUTUBE_ID_CHARS = r"[A-Za-z0-9_-]{11}"
 _YOUTUBE_ID_RE = re.compile(
-    r"(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))([\w-]{11})"
+    r"(?:youtu\.be/|youtube(?:-nocookie)?\.com/(?:watch\?(?:.*&)?v=|shorts/|embed/|live/))(" + _YOUTUBE_ID_CHARS + ")"
 )
 HOME_FILMS_MAX = 8
 
@@ -908,7 +945,7 @@ def youtube_id(value: str) -> str:
     match = _YOUTUBE_ID_RE.search(text)
     if match:
         return match.group(1)
-    return text if re.fullmatch(r"[\w-]{11}", text) else ""
+    return text if re.fullmatch(_YOUTUBE_ID_CHARS, text) else ""
 
 
 class HomeFilmPayload(_ContentPayload):
