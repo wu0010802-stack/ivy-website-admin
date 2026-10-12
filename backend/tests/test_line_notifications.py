@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from app.booking.models import VisitRequest
 from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
-from app.notifications.service import line_text
+from app.notifications.service import admin_visit_url, line_text
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
 from tests.conftest import (
@@ -356,6 +356,19 @@ def test_line_text_has_parent_line_only_when_known():
     assert text.splitlines()[:3] == ["[常春藤官網] 新的參觀預約", "校區：義華", "家長：林小姐"]
     for missing in (None, "", "   "):
         assert "家長" not in line_text("新的參觀預約", "義華", "abc", None, missing)
+
+
+def test_line_text_url_opens_external_browser():
+    # LINE 內建瀏覽器擋 Google 登入，連結要帶 openExternalBrowser=1 改用手機預設瀏覽器。
+    text = line_text("新的參觀預約", "義華校", "V-ABC123", "https://admin.example.com/")
+    assert text.splitlines()[-1] == "https://admin.example.com/admin/visit-requests/V-ABC123?openExternalBrowser=1"
+
+
+def test_email_url_has_no_line_param():
+    assert (
+        admin_visit_url("https://admin.example.com", "V-ABC123")
+        == "https://admin.example.com/admin/visit-requests/V-ABC123"
+    )
 
 
 async def test_outbox_push_skips_parent_name_once_case_is_anonymized(line_app, fake_line):

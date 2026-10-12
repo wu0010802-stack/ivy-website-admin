@@ -64,6 +64,8 @@ async def test_reception_receives_new_request_mail(
     assert "校區：義華校" in body
     assert "家長：陳小姐" in body
     assert f"案件：{ADMIN_ORIGIN}/admin/visit-requests/{receipt_id}" in body
+    # openExternalBrowser 只給 LINE 內建瀏覽器用，Email 連結不帶。
+    assert "openExternalBrowser" not in body
     # 家長選了場次，園方信要寫參觀時段。
     slot_day = date.fromisoformat(booked["slot_date"])
     weekday = "一二三四五六日"[slot_day.weekday()]

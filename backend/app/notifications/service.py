@@ -126,10 +126,14 @@ async def _campus_name(db: AsyncSession, campus_key: str) -> str:
     return name or campus_key
 
 
-def admin_visit_url(admin_origin: str | None, receipt_id: str | None) -> str | None:
+def admin_visit_url(
+    admin_origin: str | None, receipt_id: str | None, *, external_browser: bool = False
+) -> str | None:
     if not admin_origin or not receipt_id:
         return None
-    return f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}"
+    url = f"{admin_origin.rstrip('/')}/admin/visit-requests/{receipt_id}"
+    # LINE 內建瀏覽器擋 Google 登入：openExternalBrowser=1 是 LINE 官方參數，點開改用手機預設瀏覽器。
+    return f"{url}?openExternalBrowser=1" if external_browser else url
 
 
 # 家長稱呼是公開表單的自由文字（最長 64 字）。LINE 會把網址變成可點的連結，緊貼在真正
@@ -159,7 +163,7 @@ def line_text(
         lines.append(f"家長：{shown}")
     if receipt_id:
         lines.append(f"案件編號：{receipt_id}")
-        if url := admin_visit_url(admin_origin, receipt_id):
+        if url := admin_visit_url(admin_origin, receipt_id, external_browser=True):
             lines.append(url)
     return "\n".join(lines)
 
