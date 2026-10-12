@@ -1,4 +1,4 @@
-## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，未部署、未 push）
+## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，10-12 已部署 main `c7cbe1bc`；自動同步仍關）
 
 使用者要求把園務「統計分析 → 區域分析」搬一部分過來。**使用者 10-08 裁定**：做里別來源統計、里界地圖、附近幼兒園、來源距離分布；精度到里即可、**不做地址分析同意勾選**（所以家長地址不送任何外部服務）、園所只用公開資料、地圖用 Leaflet＋國土測繪底圖。規格 `docs/specs/2026-10-08-admissions-area-design.md`，計畫 `docs/superpowers/plans/2026-10-08-admissions-area*.md`，規則見 DESIGN.md「招生入學：區域分析」，轉移契約記在 `contracts/ivy-recruitment/README.md` 第 18 點。
 

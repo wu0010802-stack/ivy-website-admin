@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-12 招生入學區域分析（main CI 部署，含 1 支只新增表的 migration；自動同步仍關）
+
+- **合併**：`feature/admissions-area-20261008`（44 個 commit，含 `a85aecba` 合入後台工程清理）快轉推 main `41345e1a..c7cbe1bc`。內容、設計與驗證見 README 頂部 2026-10-08 段落與 `docs/specs/2026-10-08-admissions-area-design.md`；延後項目在 `docs/superpowers/plans/2026-10-08-admissions-area-followups.md`。
+- **migration**：正式庫 `a9e11038c869` → `e7a1c4d9b2f6`（只新增 `recruitment_visit_geo`、`geo_doorplates`、`geo_kindergartens`、`geo_dataset_status` 四張表，不改既有資料，所以這次沒做備份閘門）。API 啟動時自動 `alembic upgrade head`；部署成功表示已套用，**沒有直接查 `alembic_version`**。
+- **回退**：舊映像不認得新 revision，不能直接切回；要回退先用新映像跑 `alembic downgrade a9e11038c869`（刪掉四張表，區域分析的比對結果與公開資料一併消失）再切舊映像。
+- **推送前本機閘門**（合入 origin/main 之後重跑，皆本機結果）：後端全套 1964 passed、1 skipped；admin vitest 144 檔 1960 passed、1 skipped；web vitest 85 檔 934 passed；`contract:check`、admin typecheck 通過；`alembic heads` 單一，降級再升級成功；stack e2e 完整套件 107 passed（專屬庫與 port）。
+- **CI**：main run 38189062589（`c7cbe1bc`）全綠：Frontend web 1.0／admin 4.0 分鐘，Backend 三組 8.6／10.9／6.8 分鐘，E2E／Playwright 9.9 分鐘，Deploy Railway production 成功。
+- **正式 `release.json`**：base commit `c7cbe1bc0dc77d80c29ebee9a31c0353ef0d4764`，created `2026-10-12T00:54:35Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/admin/` 200，其 CSP 的 `img-src` 含 `https://wmts.nlsc.gov.tw`、公開首頁的 CSP 不含；`/api/website/v1/health` `status: ok`、`background_jobs.last_failed_steps` 為空；`/admin/admissions/area`、`/area/boundaries`、`/options` 皆 401，路由存在，也代表正式站招生功能開關是開的（開關關閉時是 404）。
+- **目前狀態**：沒有設 `WEBSITE_GEO_AUTO_SYNC`（預設關），所以區域分析預期顯示「門牌資料尚未匯入」，地圖與距離分布要等門牌匯入後才有內容。**沒有登入後台實測、沒看過實際畫面**。要開同步：照下方「公開地理資料同步」，先確認 Railway PG 剩餘空間 ≥ 500MB，再設 `WEBSITE_GEO_AUTO_SYNC=true` 並重新部署。
+
 ## 2026-10-09 後台工程清理：刪改期申請／FAQ／site_settings、素材分頁、一次標完已讀（main CI 部署，含 3 支刪表刪資料 migration）
 
 - **合併**：`chore/admin-cleanup-20261008` 的 `826b78fe`（程式與測試）、`9e89b8ff`（文件）從 `82937a9f` 開，快轉推 main `82937a9f..9e89b8ff`。內容、上線前步驟與驗證見 README 頂部 2026-10-08 段落。
