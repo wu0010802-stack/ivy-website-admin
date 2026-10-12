@@ -15,8 +15,6 @@ function makeFixture(): SiteContent {
           punctAfterGrowingWord: ''
         },
         copyLines: ['fixture line 1'],
-        ctaLabel: 'fixture cta',
-        ctaHref: '#/home/life',
         heroImage: 'fixture-image',
         heroImageAlt: 'fixture alt',
         heroVideoSrc: 'fixture.mp4',
@@ -68,7 +66,7 @@ function makeFixture(): SiteContent {
       {
         key: 'yihua',
         name: 'fixture 義華',
-        tourScenes: { _generated: true, note: 'fixture generated placeholder' }
+        tourScenes: [{ key: 'old', name: '舊場景', image: 'old-image', intro: 'old intro' }]
       } as SiteContent['campuses'][number],
       { key: 'minghua', name: 'fixture 明華' } as SiteContent['campuses'][number]
     ]
@@ -268,7 +266,7 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     })
   })
 
-  it('campus_tour 整組取代 tourScenes，含把 GeneratedTourScenes 佔位樣板換成真正場景；舊熱點不帶', () => {
+  it('campus_tour 整組取代 tourScenes；舊熱點不帶', () => {
     const fixture = makeFixture()
     const result = applyContentOverlay(fixture, {
       campus_tour: {

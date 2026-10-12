@@ -23,8 +23,6 @@
     "一起讀故事、做作品，也到戶外探索。",
     "在老師的陪伴下，動手試試，說出自己的想法。"
    ],
-   "ctaLabel": "看看孩子的一天",
-   "ctaHref": "/#life",
    "heroImage": "hero-campus-restored-v1-still",
    "heroImageAlt": "常春藤的孩子在戶外草地上奔跑、微笑的校園影片畫面",
    "heroVideoSrc": "assets/hero-campus.mp4",
@@ -1427,15 +1425,7 @@
   ],
   "campusListLabel": "我們的大家庭",
   "copyright": "© 2026 常春藤教育機構",
-  "bottomNote": "",
-  "titleFontCredit": {
-   "label": "標題字型 LINE Seed TW",
-   "href": "https://seed.line.me/index_tw.html"
-  },
-  "orgSiteLink": {
-   "label": "機構原官網",
-   "href": "https://www.ivykidschool.com/"
-  }
+  "bottomNote": ""
  },
  "siteMeta": {
   "title": "常春藤幼兒園｜每一天都有新發現",

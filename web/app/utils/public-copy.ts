@@ -45,9 +45,7 @@ export function withoutRetiredFields(site: SiteContent): SiteContent {
     booking: omit(site.booking, RETIRED.booking),
     campuses: site.campuses.map((campus) => ({
       ...omit(campus, RETIRED.campus),
-      tourScenes: Array.isArray(campus.tourScenes)
-        ? campus.tourScenes.map((scene) => omit(scene, RETIRED.tourScene))
-        : campus.tourScenes
+      tourScenes: campus.tourScenes.map((scene) => omit(scene, RETIRED.tourScene))
     }))
   })
 }

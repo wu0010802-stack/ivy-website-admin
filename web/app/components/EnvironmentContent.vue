@@ -8,7 +8,7 @@
 // 手繪線條由 utils/rough-sketch.ts 在瀏覽器畫上去，純裝飾；沒有 JS 時版面與文字照常。
 // 2026-09-28 加 GSAP 動態層（utils/environment-motion.ts；比稿 design/environment-gsap-mockup-20260928/）：
 // 小路改成小腳印、曬衣繩起風、太陽帶慣性、換校發牌。GSAP 跟 Rough.js 一樣只在這頁動態載入；載入失敗就照原本的虛線小路。
-import { isGeneratedTourScenes, type Campus, type TourScene } from '~/types/site-content'
+import type { Campus, TourScene } from '~/types/site-content'
 import { environmentHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
@@ -57,9 +57,9 @@ const NEXT = [
 const meal = mealBookLink()
 const hero = environmentHeroImage()
 
-// 第四章：只收有真正場景的校（佔位樣板不算）
+// 第四章：只收有場景的校
 const tours = computed(() => props.campuses
-  .map((campus) => ({ campus, scenes: isGeneratedTourScenes(campus.tourScenes) ? [] : campus.tourScenes }))
+  .map((campus) => ({ campus, scenes: campus.tourScenes }))
   .filter((tour): tour is { campus: Campus; scenes: TourScene[] } => tour.scenes.length > 0))
 const sceneCount = computed(() => tours.value.reduce((sum, tour) => sum + tour.scenes.length, 0))
 const active = ref('')

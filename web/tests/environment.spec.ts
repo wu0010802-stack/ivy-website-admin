@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
-import { isGeneratedTourScenes, type SiteContent } from '../app/types/site-content'
+import type { SiteContent } from '../app/types/site-content'
 import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
@@ -100,8 +100,8 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
 
   it('五所校園讀各校校園探索（fixture 五校都有真正的場景，標註點座標是照片的百分比）', () => {
     const campuses = (fixture as unknown as SiteContent).campuses
-    const scenes = campuses.flatMap((campus) => (isGeneratedTourScenes(campus.tourScenes) ? [] : campus.tourScenes))
-    expect(campuses.every((campus) => !isGeneratedTourScenes(campus.tourScenes) && campus.tourScenes.length > 0)).toBe(true)
+    const scenes = campuses.flatMap((campus) => campus.tourScenes)
+    expect(campuses.every((campus) => campus.tourScenes.length > 0)).toBe(true)
     for (const scene of scenes) for (const spot of scene.spots) {
       expect(spot.x).toBeGreaterThanOrEqual(0)
       expect(spot.x).toBeLessThanOrEqual(100)

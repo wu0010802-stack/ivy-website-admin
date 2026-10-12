@@ -11,6 +11,9 @@ export type { MediaImage }
 // 2026-10-08 常見問題（連同後端內容類型 shared_faq／campus_faq）、分校簡介／詳細介紹／
 // 臉書備註、預約同意文字與橫幅（consentText／banner*）從 fixture 刪除，
 // 後端那幾個欄位改選填、初始化不再讀。
+// 2026-10-12 沒人讀的欄位連同 fixture 一起刪除：首屏按鈕（home.hero 的 ctaLabel／ctaHref）、
+// 頁尾的字型出處與機構原官網連結（titleFontCredit／orgSiteLink）、校園探索佔位樣板
+// （GeneratedTourScenes）。booking.ctaLabel／ctaLabelEn 是頁首預約鈕在用，不在此列。
 
 export interface HeroContent {
   titleParts: {
@@ -21,8 +24,6 @@ export interface HeroContent {
     punctAfterGrowingWord: string
   }
   copyLines: string[]
-  ctaLabel: string
-  ctaHref: string
   heroImage: string
   heroImageAlt: string
   heroVideoSrc: string
@@ -102,24 +103,6 @@ export interface TourScene {
   imageMedia?: MediaImage
 }
 
-export interface GeneratedTourScenes {
-  _generated: true
-  note: string
-  template: {
-    key: string
-    name: string
-    image: string
-    introTemplate: string
-    spot: {
-      name: string
-      x: number
-      y: number
-      textTemplate: string
-      question: string
-    }
-  }
-}
-
 export interface Campus {
   key: string
   name: string
@@ -141,7 +124,7 @@ export interface Campus {
   mapQueryAddress: string
   /** 後台「分校介紹」填的 Google 地圖網址；沒有時用地址組成搜尋連結（utils/site-links.ts） */
   mapUrl?: string
-  tourScenes: TourScene[] | GeneratedTourScenes
+  tourScenes: TourScene[]
   /** 家長分享影片（2026-09-26，目前只有義華）；寫在 fixture，後台沒有這個欄位 */
   testimonials?: CampusTestimonial[]
 }
@@ -248,8 +231,6 @@ export interface FooterContent {
   campusListLabel: string
   copyright: string
   bottomNote: string
-  titleFontCredit: { label: string; href: string }
-  orgSiteLink: { label: string; href: string }
 }
 
 export interface SiteMetaContent {
@@ -401,10 +382,4 @@ export interface SiteContent {
   privacyPolicy?: PrivacyPolicyContent | null
   curriculumPage: CurriculumPageContent
   aboutPage: AboutPageContent
-}
-
-export function isGeneratedTourScenes(
-  scenes: TourScene[] | GeneratedTourScenes
-): scenes is GeneratedTourScenes {
-  return !Array.isArray(scenes)
 }

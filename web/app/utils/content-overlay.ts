@@ -800,8 +800,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     if (overlay.campus_tour) {
       const tours = overlay.campus_tour
       // 整組取代（不是逐場景/逐熱點合併）：後台編輯器一次送出完整
-      // scenes 陣列，這裡直接換掉 tourScenes，含把原本的
-      // GeneratedTourScenes 佔位樣板換成真正逐校撰寫的內容。
+      // scenes 陣列，這裡直接換掉 tourScenes。
       next.campuses = next.campuses.map((c) => {
         const tour = tours[c.key]
         if (!tour) return c
