@@ -205,11 +205,10 @@ describe('區域分析：讀取與三張表', () => {
 })
 
 describe('區域分析：三張表的版面', () => {
-  // jsdom 沒有排版，這裡只守住規則本身；實際寬度在真瀏覽器量過（1440 螢幕、側欄之外約 1124px）：
-  // 里排行加「查看明細」欄約 490px、行政區排行約 460px，一欄至少 32rem 才不會把欄擠出表框。
-  it('桌機自動換列：一欄至少 32rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
+  // 里排行加「可能範圍」「查看明細」欄 1440 實測約 562px，一欄至少 36rem 才不會把欄擠出表框（2026-10-12）。
+  it('桌機自動換列：一欄至少 36rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
     const rule = /\.area-tables \{([^}]*)\}/.exec(areaTabSource)![1]!
-    expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr))')
+    expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr))')
     expect(rule).not.toContain('300px')
   })
 })
