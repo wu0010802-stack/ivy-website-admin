@@ -1,7 +1,7 @@
 # 後台與官網內容一批補強（2026-10-12）設計
 
 日期：2026-10-12
-狀態：使用者 10-12 核可，實作中（計畫 `docs/superpowers/plans/2026-10-12-admin-batch.md`）
+狀態：使用者 10-12 核可；10-13 四階段實作完成、全套驗證通過，待上線（計畫 `docs/superpowers/plans/2026-10-12-admin-batch.md`）
 基準：`origin/main` `371b0e99`
 分支：`feature/admin-batch-20261012`（worktree `~/Repositories/ivy-website-wt/admin-batch-20261012`）
 
