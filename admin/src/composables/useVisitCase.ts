@@ -15,9 +15,9 @@ import { usePermissions } from './usePermissions'
 import { useVisitStaff } from './useVisitStaff'
 import { useFamilyAdmissions } from './useFamilyAdmissions'
 import { arrivalFormLead } from './useArrivalAdmissionsForm'
-import { arrivalAdmissionsNote } from './visitAttendance'
+import { arrivalAdmissionsNote, earlyArrivalNote } from './visitAttendance'
 import { readVisitNoteDraft, writeVisitNoteDraft } from './visitNoteDraft'
-import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked } from '../utils/visitSchedule'
+import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked, taipeiDay } from '../utils/visitSchedule'
 
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
@@ -431,16 +431,22 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   // 招生入學可用時，標記已到場會在同一個交易裡建立招生訪視（規格 6.1），所以先確認（規格第 10 節原文）。
   // 招生未啟用（招生 API 404）或還不確定時，維持改版前的行為：沒有確認框、原本的訊息。
   // 能改招生資料的人標記後接著打開招生資料表單（2026-10-06，同案件列表的 useArrivalAdmissionsForm）。
-  async function markCompleted() {
+  // 家長提早到了（early，2026-10-12）：場次還沒開始就標記已到場（/complete-early）。約之後的日子會釋出
+  // 那一場的名額，所以招生開不開都先確認，寫出原本約的時間；之後的流程與一般標記已到場相同。
+  async function complete(early: boolean) {
     // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
     const lookupInFlight = family.canRead.value ? family.settled() : null
     if (lookupInFlight) await lookupInFlight
     const withAdmissions = family.available.value === 'yes'
     // 標記後招生會重查，opensForm 可能跟著變，所以這一刻的結果先存起來，確認框與標記之後都用同一個答案。
     const opensFormNow = opensForm.value
-    if (withAdmissions) {
+    const slot = detail.value?.slot
+    const message = early && slot
+      ? earlyArrivalNote(slot, taipeiDay(Date.now()), withAdmissions, opensFormNow)
+      : withAdmissions ? arrivalAdmissionsNote(opensFormNow) : ''
+    if (message) {
       try {
-        await ElMessageBox.confirm(arrivalAdmissionsNote(opensFormNow), '標記已到場？', {
+        await ElMessageBox.confirm(message, early ? '家長提早到了？' : '標記已到場？', {
           confirmButtonText: '標記已到場',
           cancelButtonText: '先不要',
           type: 'info',
@@ -451,7 +457,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     }
     pendingAction.value = 'complete'
     try {
-      await api.post(`/admin/visit-requests/${id.value}/complete`)
+      await api.post(`/admin/visit-requests/${id.value}/${early ? 'complete-early' : 'complete'}`)
       if (!opensFormNow) ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
       openRequests.refresh(true)
       await load({ quiet: true })
@@ -463,6 +469,8 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       pendingAction.value = null
     }
   }
+  const markCompleted = () => complete(false)
+  const markCompletedEarly = () => complete(true)
 
   // ---- 家庭版面（2026-10-05 家庭頁規格第 5 節）----
   const latestFamilyContact = computed(() => latestContact(family.contactLogs.value))
@@ -606,7 +614,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     familyVisit, familyPending, handled, noteDirty, openSlots, rescheduleSlots, parentMailNote, visitStarted, attendanceDue,
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
     latestFamilyContact, callPhone, bookingDataTitle,
-    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, openArrivalForm, openAdmissionsForm, opensForm, reschedule,
+    load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, markCompletedEarly, openArrivalForm, openAdmissionsForm, opensForm, reschedule,
     addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
   })
 }

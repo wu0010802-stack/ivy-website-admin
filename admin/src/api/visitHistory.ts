@@ -44,6 +44,8 @@ export function visitEventTitle(event: VisitHistoryOut): string {
     const from = text(event.before, 'status')
     if (from === 'new' || from === 'contacting') return '取消需求'
   }
+  // 家長比場次早到（2026-10-12，/complete-early）：after 記 early；釋出的場次由下面的「釋出 …」寫出。
+  if (event.event_type === 'completed' && event.after?.early === true) return '提早標記已到場'
   return visitEventLabel(event.event_type)
 }
 

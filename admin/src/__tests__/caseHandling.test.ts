@@ -103,7 +103,7 @@ describe('已確認案件的改期（第 13 條）', () => {
     const { wrapper } = await mountDetail(confirmedCase())
     expect(button(wrapper, '家長到了')).toBeUndefined()
     expect(button(wrapper, '沒來')).toBeUndefined()
-    expect(wrapper.text()).toContain('參觀場次開始後可以標記已到場或未到場')
+    expect(wrapper.text()).toContain('場次開始後才能標記未到場')
     expect(wrapper.text()).toContain('請用下方的「取消預約」')
     expect(button(wrapper, '取消預約')).toBeDefined()
   })

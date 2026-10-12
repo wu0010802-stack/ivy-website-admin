@@ -22981,6 +22981,82 @@
         ]
       }
     },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/complete-early": {
+      "post": {
+        "description": "家長比預約的場次早到（2026-10-12 使用者裁定）：不等場次開始就標記已到場。\n約的是之後的日子會釋出那一場的名額，見 workflow_service.mark_completed。\n/complete 照舊要等場次開始，免得誤按占住未來的名額；場次已經開始才按這個，\n就是一般的標記已到場。",
+        "operationId": "mark_completed_early_api_website_v1_admin_visit_requests__visit_request_id__complete_early_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Completed Early",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/contact-notes": {
       "get": {
         "operationId": "list_contact_notes_api_website_v1_admin_visit_requests__visit_request_id__contact_notes_get",

@@ -62,11 +62,12 @@ describe('VisitPrimaryAction', () => {
     expect(post).toHaveBeenCalledWith(`/admin/visit-requests/${VISIT_ID}/complete`)
   })
 
-  it('還沒開始：沒有主鈕，只寫提示', async () => {
+  it('還沒開始：沒有實心主鈕，只有「家長提早到了」與提示（2026-10-12）', async () => {
     const wrapper = await mountDetail(visitCase())
     const actions = wrapper.get('.case-hero__actions')
-    expect(actions.findAll('button')).toHaveLength(0)
-    expect(actions.text()).toContain('參觀場次開始後可以標記已到場或未到場')
+    expect(actions.findAll('button').map((b) => b.text())).toEqual(['家長提早到了'])
+    expect(actions.find('.el-button--primary').exists()).toBe(false)
+    expect(actions.text()).toContain('場次開始後才能標記未到場')
   })
 
   it('已取消：重新預約（另建新案）是主鈕，打開補登對話框', async () => {

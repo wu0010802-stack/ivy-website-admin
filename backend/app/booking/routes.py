@@ -1436,14 +1436,36 @@ async def mark_completed(
     """家長依約來參觀了。狀態機早就有 completed（規格 6.2），只是一直
     沒有路由，已確認的案件只能停在「已確認」或被標成未到場。招生入學開啟時
     同一個交易建立招生訪視（WEBSITE_ADMISSIONS_ENABLED，預設關閉）。"""
+    return await _complete(db, request, current_user, visit_request_id, allow_early=False)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/complete-early", response_model=VisitRequestDetailOut)
+async def mark_completed_early(
+    visit_request_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """家長比預約的場次早到（2026-10-12 使用者裁定）：不等場次開始就標記已到場。
+    約的是之後的日子會釋出那一場的名額，見 workflow_service.mark_completed。
+    /complete 照舊要等場次開始，免得誤按占住未來的名額；場次已經開始才按這個，
+    就是一般的標記已到場。"""
+    return await _complete(db, request, current_user, visit_request_id, allow_early=True)
+
+
+async def _complete(
+    db: AsyncSession, request: Request, current_user: User, visit_request_id: uuid.UUID, *, allow_early: bool
+) -> VisitRequestDetailOut:
     visit_request = await _lock_for_transition(db, current_user, visit_request_id)
     before_status = visit_request.status
+    early = allow_early and workflow_service.arrives_early(visit_request.slot)
     try:
         await workflow_service.mark_completed(
             db,
             visit_request,
             actor=Actor.staff(current_user.id),
             admissions_enabled=request.app.state.settings.admissions_enabled,
+            early=early,
         )
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
@@ -1451,7 +1473,13 @@ async def mark_completed(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "INVALID_TRANSITION", "message": exc.message},
         ) from exc
-    await _audit_transition(db, current_user, visit_request, before_status, action="visit_request.complete")
+    await _audit_transition(
+        db,
+        current_user,
+        visit_request,
+        before_status,
+        action="visit_request.complete_early" if early else "visit_request.complete",
+    )
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)
 

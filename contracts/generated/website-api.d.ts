@@ -1946,6 +1946,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/complete-early": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Completed Early
+         * @description 家長比預約的場次早到（2026-10-12 使用者裁定）：不等場次開始就標記已到場。
+         *     約的是之後的日子會釋出那一場的名額，見 workflow_service.mark_completed。
+         *     /complete 照舊要等場次開始，免得誤按占住未來的名額；場次已經開始才按這個，
+         *     就是一般的標記已到場。
+         */
+        post: operations["mark_completed_early_api_website_v1_admin_visit_requests__visit_request_id__complete_early_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/contact-notes": {
         parameters: {
             query?: never;
@@ -10757,6 +10780,41 @@ export interface operations {
         };
     };
     mark_completed_api_website_v1_admin_visit_requests__visit_request_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_completed_early_api_website_v1_admin_visit_requests__visit_request_id__complete_early_post: {
         parameters: {
             query?: never;
             header?: {

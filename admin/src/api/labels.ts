@@ -447,6 +447,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.cancel': '取消預約',
   'visit_request.no_show': '標記未到場',
   'visit_request.complete': '標記已到場',
+  'visit_request.complete_early': '提早標記已到場',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊紀錄。
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',

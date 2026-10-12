@@ -47,7 +47,11 @@ const rebookSecondary = computed(() => vc.canHandle && ['admissions-retry', 'adm
       <p v-if="vc.opensForm" class="hint case-hero__note">標記到場會接著開招生資料表單</p>
     </div>
 
-    <p v-if="stage === 'upcoming'" class="hint case-hero__note">參觀場次開始後可以標記已到場或未到場；家長事先說不來，請用下方的「取消預約」。</p>
+    <!-- 家長比預約的場次早到（2026-10-12）：不是這個階段該做的事，所以不用實心主鈕。 -->
+    <template v-if="stage === 'upcoming'">
+      <el-button :loading="vc.pendingAction === 'complete'" :disabled="vc.busy" @click="vc.markCompletedEarly()">家長提早到了</el-button>
+      <p class="hint case-hero__note">場次開始後才能標記未到場；家長事先說不來，請用下方的「取消預約」。</p>
+    </template>
     <p v-else-if="stage === 'readonly'" class="hint case-hero__note">你的帳號只能查看案件，狀態由負責處理案件的同事更新。</p>
     <el-button v-else-if="stage === 'family' && familyEditable" type="primary" :plain="!solid(true)" @click="vc.openAdmissionsForm()">填招生資料</el-button>
     <div v-else-if="stage === 'admissions-retry' || stage === 'admissions-create' || stage === 'admissions-ask'" class="detail__admissions">

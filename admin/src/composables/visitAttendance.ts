@@ -1,7 +1,7 @@
 import { ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage } from '../api/errors'
-import { formatShortSlotWhen, slotStarted } from '../api/labels'
+import { formatShortSlotWhen, formatSlotWhen, formatTime, slotStarted } from '../api/labels'
 
 export type AttendanceKind = 'complete' | 'no_show'
 
@@ -21,6 +21,19 @@ export function attendanceDue(row: AttendanceRow, now: number = Date.now()): boo
 // （useArrivalAdmissionsForm），其他人之後在招生入學頁追蹤。明細頁同一組字。
 export function arrivalAdmissionsNote(opensForm: boolean): string {
   return opensForm ? '會同時建立一筆招生訪視，接著打開招生資料表單。' : '會同時建立一筆招生訪視，之後在招生入學頁追蹤。'
+}
+
+// 家長提早到了的確認文字（2026-10-12）：約今天只是早到；約之後的日子，那一場的名額會釋出、
+// 參觀日期記今天（後端 workflow_service.mark_completed 同一條規則）。today 是台北日期 YYYY-MM-DD。
+export function earlyArrivalNote(
+  slot: { slot_date: string; start_time: string; end_time?: string | null },
+  today: string,
+  withAdmissions: boolean,
+  opensForm: boolean,
+): string {
+  const admissions = withAdmissions ? arrivalAdmissionsNote(opensForm) : ''
+  if (slot.slot_date <= today) return `原本約今天 ${formatTime(slot.start_time)}，提早到了就先標記已到場。${admissions}`
+  return `原本約 ${formatSlotWhen(slot)}。標記已到場後，那一場的名額會釋出給其他家長，參觀日期記為今天。${admissions}`
 }
 
 // 列表一列一列很密，兩種都先確認一次，寫出家長與場次，免得點到隔壁那列。

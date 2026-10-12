@@ -1,3 +1,12 @@
+## 2026-10-12 參觀案件可以提早完成參觀（`feature/visit-complete-early-20261012`，未部署）
+
+使用者要一顆鈕，讓比預約早來的家長也能標記已到場；看完設計選「照設計做」。規則見 DESIGN.md「提早完成參觀」。
+
+- **後台**：案件頁首（明細與右側預覽）在場次還沒開始時多一顆淺色「家長提早到了」，按下先確認、寫出原本約的時間；之後的流程（建立招生訪視、接著開招生資料表單）同「家長到了」。提示改成「場次開始後才能標記未到場…」。時間線把提早的到場寫成「提早標記已到場」，操作紀錄新增同名動作。
+- **API**：新增 `POST /admin/visit-requests/{id}/complete-early`（`booking.handle`）。約今天的保留場次；約之後日子的不再掛場次、釋出那一場的名額，招生訪視參觀日期是今天，原場次留在歷程。場次已開始才按就是一般的標記已到場。`/complete` 照舊要等場次開始。沒有 migration。
+- **驗證**（Node 22；後端測試庫 `ivy_website_test_early1012`、stack 庫 `ivy_website_e2e_early1012_test`、埠 8751／3751）：後端全套 pytest 1704 passed、1 skipped（新檔 `test_visit_complete_early.py` 8 項）；後台 typecheck 通過，vitest 全套 1862 passed、2 failed（`admissionsRecords.test.ts` 兩項在全套負載下逾時，單獨重跑連同相關 4 檔 88 項全過）；`contract:check` 一致；官網 typecheck、`test:website` 933 passed；stack e2e 新增 `visit-complete-early.spec.ts`（桌機流程含名額釋出、手機 390 按鈕 44px 不橫捲）通過，`visual` 案件明細基準因頁首多一顆按鈕重拍（差異 6%，只有頁首按鈕與提示、下方內容下移）。
+- **未驗證**：正式站；iOS Safari 實機；跨午夜或場次剛開始那一刻按下（後端以鎖內判斷為準，有測試）。
+
 ## 2026-10-08 招生入學區域分析（`feature/admissions-area-20261008`，10-12 已部署 main `c7cbe1bc`；自動同步仍關）
 
 使用者要求把園務「統計分析 → 區域分析」搬一部分過來。**使用者 10-08 裁定**：做里別來源統計、里界地圖、附近幼兒園、來源距離分布；精度到里即可、**不做地址分析同意勾選**（所以家長地址不送任何外部服務）、園所只用公開資料、地圖用 Leaflet＋國土測繪底圖。規格 `docs/specs/2026-10-08-admissions-area-design.md`，計畫 `docs/superpowers/plans/2026-10-08-admissions-area*.md`，規則見 DESIGN.md「招生入學：區域分析」，轉移契約記在 `contracts/ivy-recruitment/README.md` 第 18 點。

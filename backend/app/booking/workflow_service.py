@@ -11,13 +11,14 @@ from app.booking import access_service, history, slot_service
 from app.booking.exceptions import InvalidTransition, SlotClosed, SlotFull, SlotNotFound
 from app.booking.export_labels import status_label
 from app.booking.history import PARENT, SYSTEM, Actor
-from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
+from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus, VisitSlot
 from app.booking.outbox import (
     PARENT_VISIT_CANCELLED,
     PARENT_VISIT_CHANGED,
     enqueue_outbox,
     enqueue_parent_email,
 )
+from app.common.timezones import today_local
 from app.operations import analytics_service
 from app.operations.models import AnalyticsEventType
 
@@ -66,6 +67,7 @@ async def _close(
     before: dict,
     actor: Actor | None,
     reason: str | None = None,
+    after_extra: dict | None = None,
 ) -> None:
     """結案的共同收尾：撤銷家長連結、寫歷程。"""
     await access_service.revoke_access_for_visit_request(db, visit_request.id)
@@ -75,7 +77,7 @@ async def _close(
         event_type,
         actor=actor,
         before=before,
-        after={"status": visit_request.status},
+        after={"status": visit_request.status, **(after_extra or {})},
         reason=reason,
     )
 
@@ -137,14 +139,26 @@ async def mark_no_show(
     return visit_request
 
 
+def arrives_early(slot: VisitSlot | None) -> bool:
+    """場次還沒開始，家長就到了。路由在鎖內用鎖內讀到的場次判斷一次，稽核動作與
+    歷程用同一個答案。"""
+    return slot is not None and not slot_service.has_started(slot)
+
+
 async def mark_completed(
     db: AsyncSession,
     visit_request: VisitRequest,
     *,
     actor: Actor | None = None,
     admissions_enabled: bool = False,
+    early: bool = False,
 ) -> VisitRequest:
     """規格 225：完成參觀後名額仍算已使用。
+
+    提早到（early，2026-10-12 使用者裁定；呼叫端先用 arrives_early 判斷）：不等場次
+    開始。約的是今天就保留場次；約的是之後的日子就不再掛場次、釋出那一場的名額，招生
+    訪視的參觀日期因此是今天。原本的場次留在歷程的 before；after 記 early，釋出時另記
+    slot: None（時間線寫「釋出 …」）。
 
     招生入學（2026-10 規格 6.1）：admissions_enabled（路由傳入
     Settings.admissions_enabled，預設關閉）時，同一個交易建立這筆預約的招生訪視
@@ -159,10 +173,20 @@ async def mark_completed(
     await _lock_status(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition("只有已確認的案件可以標記完成")
-    await _require_visit_started(db, visit_request, "參觀時段開始後才能標記完成參觀")
+    if not early:
+        await _require_visit_started(db, visit_request, "參觀時段開始後才能標記完成參觀")
     before = await history.state_of(db, visit_request)
     visit_request.status = VisitRequestStatus.COMPLETED.value
-    await _close(db, visit_request, "completed", before=before, actor=actor)
+    after_extra: dict | None = None
+    if early:
+        after_extra = {"early": True}
+        slot = await history.load_slot(db, visit_request.slot_id)
+        if slot is not None and slot.slot_date > today_local():
+            # 關聯與外鍵一起清：下面建立招生訪視讀 slot_id，回應讀 slot。
+            visit_request.slot = None
+            visit_request.slot_id = None
+            after_extra["slot"] = None
+    await _close(db, visit_request, "completed", before=before, actor=actor, after_extra=after_extra)
     if admissions_enabled:
         await booking_link.ensure_from_visit_request(db, visit_request, actor_user_id=_resolver_id(actor))
     await analytics_service.record_internal_event(
