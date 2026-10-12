@@ -13,7 +13,7 @@ MAX_PHRASE_LENGTH = 60
 
 # 比對 javascript: 前先清掉不可見字元與空白：瀏覽器解析 scheme 時會忽略內嵌的
 # TAB／換行，`java<TAB>script:` 一樣會執行（見 content/schemas.py 的說明）。
-_INVISIBLE_RE = re.compile(r"[\x00-\x20\x7f­​-‏  ﻿]")
+_INVISIBLE_RE = re.compile(r"[\x00-\x20\x7f\u00ad\u200b-\u200f\u2028\u2029\ufeff]")
 # Cc 控制字元（含換行、TAB、NUL、ESC）、Cf 格式字元（零寬空白、雙向控制）、
 # Zl／Zp 行與段落分隔符：片語是單行純文字，這些都不該出現。
 _FORBIDDEN_CATEGORIES = {"Cc", "Cf", "Zl", "Zp"}
