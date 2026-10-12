@@ -12,7 +12,7 @@
 - **合入 origin/main 後重跑**（2026-10-12，合入區域分析後續 `cb26e52b`；README 兩段都留，契約重產後與自動合併一致）：`contract:check` 一致；admin typecheck、build，vitest 全套兩次各有 1／3 個 5 秒逾時（`admissionsView`、`admissionsRecords`，本分支沒改；機器負載 28），單獨重跑 63 passed；web typecheck、單元測試 934 passed；後端全套 2012 passed／2 failed／1 skipped，失敗的 `test_media_job_loop`、`test_media_jobs` 是共用媒體暫存目錄多出檔案（跑到一半筆電睡眠），單獨重跑 47 passed；stack 三支 14 passed。
 - **未驗證**：正式站（目前是測試資料，卡片會先顯示「還不到 10 位」、兩個警示暫時不判斷）；真實資料下的誤報率（規格 §15：p ≤ 0.10，完全正常的月份或來源約一成會被報）。
 
-## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（`feature/admissions-area-locate-20261012`）
+## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（`feature/admissions-area-locate-20261012`，10-12 已部署 main `cb26e52b`；門牌同步 ConnectTimeout 待處理）
 
 使用者看正式站義華的區域分析，要求「優化區域分析、自動把園方地址轉座標、打開時直接定位在分校」，範圍選「定位＋延後清單小修」。規則見 DESIGN.md「招生入學：區域分析」、規格 6.4／9.2／9.3／9.5 的 2026-10-12 段。
 

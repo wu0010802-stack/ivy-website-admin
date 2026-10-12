@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（main CI 部署）
+
+- **合併**：`feature/admissions-area-locate-20261012` 的 `cb26e52b` 從 `371b0e99` 開，快轉推 main `371b0e99..cb26e52b`。內容與驗證見 README 頂部同日段落。
+- **migration**：無（API 只多 `campus.district`）。沒有備份。
+- **CI**：main run 38207828613（`cb26e52b`）全綠，建立到完成 14.8 分鐘：Frontend admin 3.9／web 1.1 分鐘，Backend 三組 7.3／7.5／9.0 分鐘，E2E／Playwright 9.8 分鐘，Deploy 5.7 分鐘。本機因高負載沒跑完的後端全套由這次 CI 補上。
+- **正式 `release.json`**：base commit `cb26e52b`，created `2026-10-12T05:34:30Z`，`web+api`。
+- **線上唯讀檢查**：`/api/website/v1/health` `status: ok`、`last_failed_steps` 空；未登入 `GET /admin/admissions/area?campus_key=yihua` 401。後台 chunk：`AreaMap-Cn_5H0uS.js` 有「地圖先顯示」、`AdmissionsView-MI8_9Ojh.js` 有「算不出距離；匯入後自動補上」「幼兒園名單尚未匯入」、`StatsDimensionTable-BHDqJOdV.js` 有 `stats-table__name-link`；舊文案「匯入後會自動比對」「幼兒園資料尚未匯入」掃 98 個 chunk 都沒有。用使用者已登入的瀏覽器讀義華區域分析：圖例下「本校位置未標示（門牌資料尚未匯入），地圖先顯示三民區。」，底圖 zoom 13、893 個里界。
+- **地理同步**：使用者已在 api 設 `WEBSITE_GEO_AUTO_SYNC`（只看變數名稱、沒看值）。部署後 05:36 第一輪：幼兒園匯入成功（狀態列「幼兒園名單 10/12 更新」）；**門牌失敗「下載或匯入失敗：ConnectTimeout」**——api 連 `data.kcg.gov.tw` 15 秒內連不上（同時間從本機連 0.19 秒、200）。門牌沒有使用中版本時每一輪都會重試，但背景迴圈一天才一輪。是偶發還是平台擋境外 IP 待查，本校座標、里與距離要等門牌匯入。
+- **未做**：沒有在正式站實際點換半徑、手機排行的名稱連結（本機真瀏覽器驗過）；Safari／iOS 實機。
+
 ## 2026-10-12 參觀案件可以提早完成參觀（main CI 部署，沒有 migration）
 
 - **合併**：`feature/visit-complete-early-20261012` 的 `f09ad269`（從 origin/main 開，推前兩次 rebase 接上 `c7cbe1bc` 區域分析與 `6fcd3911` 其部署紀錄，衝突只在 README、DESIGN 頂部段落，兩邊都保留），快轉推 main `6fcd3911..f09ad269`。內容與規則見 README 頂部 2026-10-12 段落、DESIGN.md「提早完成參觀」。
