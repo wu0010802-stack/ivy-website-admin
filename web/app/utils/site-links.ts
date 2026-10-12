@@ -24,6 +24,21 @@ export function siteLink(href: string | null | undefined): SiteLink | null {
   return { href: value, external: true }
 }
 
+/**
+ * 公開的 https 連結（機構社群、結構化資料的 sameAs）：完整網址、有主機名稱、不含帳密與空白。
+ * 回傳去掉前後空白的網址；CMS 留空、填錯格式或舊資料裡的怪網址（javascript:、http:）一律回 undefined。
+ */
+export function httpsUrl(value: string | null | undefined): string | undefined {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text || /[\s\\]/.test(text)) return undefined
+  try {
+    const url = new URL(text)
+    return url.protocol === 'https:' && url.hostname && !url.username && !url.password ? text : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const MAP_PATH_HOSTS = new Set(['www.google.com', 'google.com', 'www.google.com.tw', 'google.com.tw'])
 const MAP_HOSTS = new Set(['maps.google.com', 'maps.google.com.tw'])
 

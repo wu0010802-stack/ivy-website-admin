@@ -1,5 +1,7 @@
 import { indexableArticles, NEWS_PATH, newsPath } from './news-content'
-import type { Campus, NewsArticle, NewsContent, SiteContent, SiteMetaContent } from '../types/site-content'
+import { mediaFileUrl, isMediaId } from './media-image'
+import { httpsUrl } from './site-links'
+import type { Campus, NewsArticle, NewsContent, PageSeoKey, SiteContent, SiteMetaContent } from '../types/site-content'
 
 /** 固定部署 origin；不從不可信 Host 或 CMS 文字組 canonical。 */
 export function normalizeSiteOrigin(value: string): string {
@@ -26,12 +28,30 @@ export function ogImagePath(imageName: string): string {
  */
 export function siteShareImage(site: SiteContent): { path: string; alt: string } {
   const media = site.siteMeta.shareImage
-  if (media && /^[0-9a-f-]{36}$/i.test(media)) {
-    return { path: `/api/website/v1/public/media/${media}/file`, alt: site.siteMeta.shareImageAlt || site.home.hero.heroImageAlt }
+  if (isMediaId(media)) {
+    return { path: mediaFileUrl(media), alt: site.siteMeta.shareImageAlt || site.home.hero.heroImageAlt }
   }
   // 後台換了首屏照片：分享圖跟著用它（素材原檔，不是另外產生的 1200×630）。
   const hero = site.home.hero.heroImageMedia
   return { path: hero ? hero.src : ogImagePath(site.home.hero.heroImage), alt: site.home.hero.heroImageAlt }
+}
+
+/**
+ * 公開單頁的搜尋設定（後台「全站設定」的各頁搜尋與分享，2026-10-12）：標題、描述有填才覆寫內建，
+ * 空字串視為沒設定；分享圖要是合法的素材 UUID 才用（說明用該頁的，沒填退回全站說明），
+ * 否則退回全站分享圖（siteShareImage）。
+ */
+function pageOverride(site: SiteContent, page: PageSeoKey, builtin: { title: string; description: string }) {
+  const entry = site.siteMeta.pageSeo?.[page]
+  const global = siteShareImage(site)
+  const share = isMediaId(entry?.shareImage)
+    ? { path: mediaFileUrl(entry.shareImage), alt: entry.shareImageAlt?.trim() || global.alt }
+    : global
+  return {
+    title: entry?.title?.trim() || builtin.title,
+    description: entry?.description?.trim() || builtin.description,
+    share
+  }
 }
 
 /** 分校的分享圖：後台換了封面就用封面原檔，否則用內建的 1200×630 JPG。 */
@@ -41,6 +61,8 @@ export function campusShareImagePath(campus: Campus): string {
 
 /** 公開的單頁（非分校頁）：最新消息列表、關於常春藤、入學資訊、常春藤環境、特色教學、30 週年。 */
 export type StaticPage = 'news' | 'about' | 'admission' | 'environment' | 'curriculum' | 'privacy' | 'anniversary'
+/** 後台「各頁搜尋與分享」開放設定的七個頁面（同 StaticPage，與後端 PAGE_SEO_KEYS 一致） */
+export const PAGE_SEO_KEYS: readonly PageSeoKey[] = ['admission', 'about', 'curriculum', 'environment', 'news', 'anniversary', 'privacy']
 export const ADMISSION_PATH = '/admission'
 export const ENVIRONMENT_PATH = '/environment'
 export const CURRICULUM_PATH = '/curriculum'
@@ -48,13 +70,14 @@ export const ABOUT_PATH = '/about'
 export const PRIVACY_PATH = '/privacy'
 export const ANNIVERSARY_PATH = '/anniversary'
 
-/** 入學資訊頁的 SEO：標題描述固定、分享圖沿用首頁（不另產圖），麵包屑兩層。 */
+/** 入學資訊頁的 SEO：標題描述預設固定、分享圖沿用首頁（不另產圖），後台可覆寫，麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = site.siteMeta.admissionTitle || `入學資訊｜入學流程、新生須知、收退費與分班｜${site.siteMeta.brandName}`
-  const description = site.siteMeta.admissionDescription || '常春藤幼兒園入學流程、新生入園須知、收退費辦法與補助，並可依寶貝生日查詢就讀班級。'
+  const { title, description, share } = pageOverride(site, 'admission', {
+    title: `入學資訊｜入學流程、新生須知、收退費與分班｜${site.siteMeta.brandName}`,
+    description: '常春藤幼兒園入學流程、新生入園須知、收退費辦法與補助，並可依寶貝生日查詢就讀班級。'
+  })
   const canonical = origin ? `${origin}${ADMISSION_PATH}` : undefined
-  const share = siteShareImage(site)
   const imagePath = share.path
   const image = origin ? `${origin}${imagePath}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
@@ -71,10 +94,11 @@ export function admissionSeo(site: SiteContent, siteOrigin: string) {
 export function privacySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const policyTitle = site.privacyPolicy?.title || '隱私權政策'
-  const title = `${policyTitle}｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園官網如何蒐集、使用與保護您的個人資料，以及 Cookie 的使用方式。'
+  const { title, description, share } = pageOverride(site, 'privacy', {
+    title: `${policyTitle}｜${site.siteMeta.brandName}`,
+    description: '常春藤幼兒園官網如何蒐集、使用與保護您的個人資料，以及 Cookie 的使用方式。'
+  })
   const canonical = origin ? `${origin}${PRIVACY_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -89,10 +113,11 @@ export function privacySeo(site: SiteContent, siteOrigin: string) {
 /** 常春藤環境頁的 SEO（2026-09-25）：同入學資訊頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
 export function environmentSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `常春藤環境｜幼兒保育、校園環境與幼兒餐點｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園的保育照顧、校園空間與每日餐點：五顆心照顧孩子，教室、教具、衛廁到戶外廣場都以安全與探索為出發點，每月菜單收在營養餐點書。'
+  const { title, description, share } = pageOverride(site, 'environment', {
+    title: `常春藤環境｜幼兒保育、校園環境與幼兒餐點｜${site.siteMeta.brandName}`,
+    description: '常春藤幼兒園的保育照顧、校園空間與每日餐點：五顆心照顧孩子，教室、教具、衛廁到戶外廣場都以安全與探索為出發點，每月菜單收在營養餐點書。'
+  })
   const canonical = origin ? `${origin}${ENVIRONMENT_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -107,10 +132,11 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
 /** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
 export function anniversarySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`
-  const description = '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。'
+  const { title, description, share } = pageOverride(site, 'anniversary', {
+    title: `常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`,
+    description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。'
+  })
   const canonical = origin ? `${origin}${ANNIVERSARY_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -125,10 +151,11 @@ export function anniversarySeo(site: SiteContent, siteOrigin: string) {
 /** 特色教學頁的 SEO（2026-09-26）：同常春藤環境頁，標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
 export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `特色教學｜四個年段、七個課程方向與每天的五件事｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園的特色教學：幼幼班到大班四個年段，認知、統整、多元文化、品德、自主學習、課程活動與藝術共創七個課程方向，孩子作品的兒童美術館，以及靜心、教具操作、美術創作、閱讀與大肌肉時間。'
+  const { title, description, share } = pageOverride(site, 'curriculum', {
+    title: `特色教學｜四個年段、七個課程方向與每天的五件事｜${site.siteMeta.brandName}`,
+    description: '常春藤幼兒園的特色教學：幼幼班到大班四個年段，認知、統整、多元文化、品德、自主學習、課程活動與藝術共創七個課程方向，孩子作品的兒童美術館，以及靜心、教具操作、美術創作、閱讀與大肌肉時間。'
+  })
   const canonical = origin ? `${origin}${CURRICULUM_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -152,10 +179,11 @@ export function foundingYear(site: Pick<SiteContent, 'aboutPage'>): number {
 export function aboutSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const year = foundingYear(site)
-  const title = `關於常春藤｜${year} 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`
-  const description = `常春藤幼兒園 ${year} 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。`
+  const { title, description, share } = pageOverride(site, 'about', {
+    title: `關於常春藤｜${year} 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`,
+    description: `常春藤幼兒園 ${year} 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。`
+  })
   const canonical = origin ? `${origin}${ABOUT_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'AboutPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -170,10 +198,11 @@ export function aboutSeo(site: SiteContent, siteOrigin: string) {
 /** 最新消息列表頁的 SEO（2026-09-26）：標題描述固定、分享圖沿用首頁，麵包屑兩層。 */
 export function newsListSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `最新消息｜校園活動與各校公告｜${site.siteMeta.brandName}`
-  const description = '常春藤幼兒園義華、明華、崇德、國際、仁武五校的最新消息與近期活動。'
+  const { title, description, share } = pageOverride(site, 'news', {
+    title: `最新消息｜校園活動與各校公告｜${site.siteMeta.brandName}`,
+    description: '常春藤幼兒園義華、明華、崇德、國際、仁武五校的最新消息與近期活動。'
+  })
   const canonical = origin ? `${origin}${NEWS_PATH}` : undefined
-  const share = siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
     { '@type': 'CollectionPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
@@ -207,12 +236,6 @@ export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: N
     ] }
   ] : []
   return { title, description, canonical, image, imagePath, imageAlt: article.alt, graph }
-}
-
-/** 結構化資料只收公開的 https 連結（社群、地圖）；CMS 留空或填錯格式就不列。 */
-function httpsUrl(value: string | null | undefined): string | undefined {
-  if (!value) return undefined
-  try { return new URL(value).protocol === 'https:' ? value.trim() : undefined } catch { return undefined }
 }
 
 /** 機構本身的社群（全站設定的 socialLinks），首頁 EducationalOrganization 的 sameAs。 */

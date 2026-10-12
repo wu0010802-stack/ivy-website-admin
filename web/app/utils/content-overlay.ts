@@ -1,8 +1,9 @@
-import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PagePhoto, SiteContent, TourScene } from '~/types/site-content'
+import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
-import { siteLink } from './site-links'
+import { PAGE_SEO_KEYS } from './seo'
+import { httpsUrl, siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
 import {
   focusPosition, isMediaId, mediaImage, slotImage, slotPosition, slotVideoSrc, videoPosterUrl,
@@ -57,11 +58,28 @@ export interface LiveSiteMeta {
   // 2026-09-24 新增，舊的已發布版本沒有這些欄位。
   share_image?: string
   share_image_alt?: string
-  admission_title?: string
-  admission_description?: string
+  // 2026-10-12 起沒有 admission_title／admission_description：後端公開輸出已把舊值補進 page_seo.admission 再剔除，官網不讀。
   allow_indexing?: boolean
   /** 2026-09-25 新增；沒有（或 null）＝沿用內建主選單 */
   primary_nav?: LiveNavLink[] | null
+  /** 2026-10-12 新增；沒有（或 null）＝七頁全部沿用內建標題、描述與全站分享圖 */
+  page_seo?: LivePageSeo | null
+  /** 2026-10-12 新增；沒有（或 null）＝沿用內建機構社群；空陣列＝不顯示 */
+  social_links?: LiveSocialLink[] | null
+}
+
+export interface LivePageSeoEntry {
+  title?: string
+  description?: string
+  share_image?: string
+  share_image_alt?: string
+}
+export type LivePageSeo = Partial<Record<PageSeoKey, LivePageSeoEntry>>
+
+export interface LiveSocialLink {
+  platform: SocialPlatform
+  label: string
+  url: string
 }
 
 export interface LiveHomeCampusBoard {
@@ -498,6 +516,40 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
   }
 }
 
+const PAGE_SEO_FIELDS = [
+  ['title', 'title'], ['description', 'description'], ['share_image', 'shareImage'], ['share_image_alt', 'shareImageAlt']
+] as const
+const SOCIAL_PLATFORMS: readonly string[] = ['facebook', 'line', 'instagram', 'youtube']
+
+/** 各頁搜尋設定 snake_case → camelCase：只收七個已知頁面、字串欄位；空字串視為沒設定，整頁都空就不留。 */
+function livePageSeo(value: unknown): Partial<Record<PageSeoKey, PageSeoEntry>> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const result: Partial<Record<PageSeoKey, PageSeoEntry>> = {}
+  for (const key of PAGE_SEO_KEYS) {
+    const raw = Object.prototype.hasOwnProperty.call(value, key) ? (value as Record<string, unknown>)[key] : undefined
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+    const entry: PageSeoEntry = {}
+    for (const [from, to] of PAGE_SEO_FIELDS) {
+      const text = (raw as Record<string, unknown>)[from]
+      if (typeof text === 'string' && text.trim()) entry[to] = text.trim()
+    }
+    if (Object.keys(entry).length) result[key] = entry
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
+/** 機構社群：平台在四種內、文字非空、網址通過 httpsUrl 才留；網址存驗證過（去空白）的值。 */
+function liveSocialLinks(links: readonly unknown[]): SocialLink[] {
+  return links.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const { platform, label, url } = item as Record<string, unknown>
+    const href = typeof url === 'string' ? httpsUrl(url) : undefined
+    if (typeof platform !== 'string' || !SOCIAL_PLATFORMS.includes(platform)) return []
+    if (typeof label !== 'string' || !label.trim() || !href) return []
+    return [{ platform: platform as SocialPlatform, label: label.trim(), url: href }]
+  })
+}
+
 export function applyContentOverlay(content: SiteContent, overlay: ContentOverlay, media: MediaInfoMap = {}): SiteContent {
   const next: SiteContent = {
     ...content,
@@ -589,10 +641,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         },
         shareImage: overlay.site_meta.share_image || undefined,
         shareImageAlt: overlay.site_meta.share_image_alt || undefined,
-        admissionTitle: overlay.site_meta.admission_title || undefined,
-        admissionDescription: overlay.site_meta.admission_description || undefined,
+        pageSeo: livePageSeo(overlay.site_meta.page_seo),
         allowIndexing: overlay.site_meta.allow_indexing ?? true
       }
+      // 機構社群：後台設定過就整組取代內建（過濾後可能是空的＝不顯示）；null／沒有這個鍵＝沿用內建。
+      if (Array.isArray(overlay.site_meta.social_links)) next.siteMeta.socialLinks = liveSocialLinks(overlay.site_meta.social_links)
       const nav = (overlay.site_meta.primary_nav ?? [])
         .filter((item) => item.label?.trim() && siteLink(item.href))
         .map((item) => ({ label: item.label, labelEn: item.label_en ?? '', href: item.href.trim() }))

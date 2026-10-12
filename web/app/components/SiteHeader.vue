@@ -2,7 +2,7 @@
 import type { SiteContent } from '~/types/site-content'
 import { getCampusSocials } from '~/utils/campus-socials'
 import { isPlainLeftClick } from '~/utils/campusPhotoMorph'
-import { siteLink } from '~/utils/site-links'
+import { httpsUrl, siteLink } from '~/utils/site-links'
 
 const props = defineProps<{ content: SiteContent }>()
 
@@ -232,7 +232,11 @@ const primaryNav = computed(() => props.content.siteMeta.primaryNav.flatMap((ite
   return link ? [{ ...item, ...link }] : []
 }))
 const headerPhone = computed(() => props.content.siteMeta.headerPhone)
-const institutionSocials = computed(() => props.content.siteMeta.socialLinks ?? [])
+// 機構社群：只渲染通過 httpsUrl 的連結，href 綁驗證過的值（後台存檔已驗證，這裡防 fixture 或舊資料有怪網址）。
+const institutionSocials = computed(() => (props.content.siteMeta.socialLinks ?? []).flatMap((social) => {
+  const url = httpsUrl(social.url)
+  return url ? [{ ...social, url }] : []
+}))
 const menuCampusKey = ref<string | null>(null)
 const contactCampus = computed(() =>
   campuses.value.find(campus => campus.key === menuCampusKey.value)

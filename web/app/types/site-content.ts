@@ -233,6 +233,13 @@ export interface FooterContent {
   bottomNote: string
 }
 
+export type SocialPlatform = 'facebook' | 'line' | 'instagram' | 'youtube'
+export interface SocialLink { platform: SocialPlatform; label: string; url: string }
+
+/** 有獨立搜尋設定的七個公開頁（首頁用全站的標題與描述，不在內；預約頁不開放） */
+export type PageSeoKey = 'admission' | 'about' | 'curriculum' | 'environment' | 'news' | 'anniversary' | 'privacy'
+export interface PageSeoEntry { title?: string; description?: string; shareImage?: string; shareImageAlt?: string }
+
 export interface SiteMetaContent {
   title: string
   description: string
@@ -243,13 +250,13 @@ export interface SiteMetaContent {
   logo: string
   primaryNav: { label: string; labelEn: string; href: string }[]
   headerPhone: { number: string; note: string; _todo?: string }
-  socialLinks?: { platform: 'facebook' | 'line'; label: string; url: string }[]
+  /** 機構社群：沒有這個欄位＝沿用內建清單；後台設定過就整組取代（空陣列＝不顯示） */
+  socialLinks?: SocialLink[]
   /** 後台「全站設定」：社群分享圖（素材庫媒體 UUID），空值沿用首頁大圖 */
   shareImage?: string
   shareImageAlt?: string
-  /** 入學資訊頁搜尋標題／描述；空值沿用內建文字 */
-  admissionTitle?: string
-  admissionDescription?: string
+  /** 後台「各頁搜尋與分享」（2026-10-12）：七頁各自的標題、描述與分享圖；沒有或留空的欄位沿用內建 */
+  pageSeo?: Partial<Record<PageSeoKey, PageSeoEntry>>
   /** false 時一律 noindex（只能收緊，部署沒開索引時不會因此變成可索引） */
   allowIndexing?: boolean
 }

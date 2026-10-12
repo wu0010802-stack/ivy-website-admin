@@ -518,10 +518,10 @@
   "header_phone_note": "義華校 · 參觀專線",
   "share_image": "",
   "share_image_alt": "",
-  "admission_title": "",
-  "admission_description": "",
   "allow_indexing": true,
-  "primary_nav": null
+  "primary_nav": null,
+  "page_seo": null,
+  "social_links": null
  },
  "campus_profile": {
   "yihua": {
