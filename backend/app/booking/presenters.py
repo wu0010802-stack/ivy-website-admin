@@ -53,4 +53,5 @@ async def full_detail(db: AsyncSession, visit_request: VisitRequest) -> VisitReq
         parent_change_deadline_hours=await change_deadline_hours(db, visit_request.campus_key),
         consent_revision_version=await consent.revision_version(db, visit_request.consent_revision_id),
         details_version=await workflow_service.details_version(db, visit_request.id),
+        anonymized=visit_request.anonymized_at is not None,
     )

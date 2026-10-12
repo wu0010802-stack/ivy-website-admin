@@ -230,10 +230,16 @@ describe('案件頁的「修改」', () => {
   })
 
   it('已匿名化的案件、或沒有處理案件權限的帳號：不顯示「修改」', async () => {
-    mockGet(caseRoutes(visitCase({ parent_name: ANONYMIZED_NAME, phone: '0000000000', child_name: null, child_birthdate: null, email: null })))
+    mockGet(caseRoutes(visitCase({ anonymized: true, parent_name: ANONYMIZED_NAME, phone: '0000000000', child_name: null, child_birthdate: null, email: null })))
     const anonymized = await mountRoutes(`/visit-requests/${VISIT_ID}`, { detail: VisitDetailView })
     expect(anonymized.wrapper.find('.case-facts').exists()).toBe(true)
     expect(anonymized.wrapper.get('.case-facts .panel__head').findAll('button').some((b) => b.text() === '修改')).toBe(false)
+    cleanup()
+
+    // 看旗標、不看稱呼：家長剛好填了同一句話，沒有匿名化就照常能修改。
+    mockGet(caseRoutes(visitCase({ parent_name: ANONYMIZED_NAME })))
+    const lookalike = await mountRoutes(`/visit-requests/${VISIT_ID}`, { detail: VisitDetailView })
+    expect(lookalike.wrapper.get('.case-facts .panel__head').findAll('button').some((b) => b.text() === '修改')).toBe(true)
     cleanup()
 
     mockGet(caseRoutes(visitCase()))

@@ -2714,6 +2714,8 @@ export interface components {
             admissions_synced_fields: string[];
             /** Age */
             age: string | null;
+            /** Anonymized */
+            anonymized: boolean;
             /** Campus Key */
             campus_key: string;
             /** Cancel Reason */
@@ -6386,6 +6388,8 @@ export interface components {
             access_link: components["schemas"]["ParentAccessLinkOut"] | null;
             /** Age */
             age: string | null;
+            /** Anonymized */
+            anonymized: boolean;
             /** Campus Key */
             campus_key: string;
             /** Cancel Reason */

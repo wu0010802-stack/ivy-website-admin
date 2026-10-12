@@ -7,12 +7,10 @@ export function updateVisitDetails(id: string, body: AdminDetailsUpdate): Promis
   return api.patch<AdminDetailsUpdateOut>(`/admin/visit-requests/${id}/details`, body)
 }
 
-// 保存政策匿名化時，後端把稱呼換成這句（retention_service.ANONYMIZED_NOTE）。案件回應沒有
-// anonymized_at，園方端只能用它判斷；真的送出時後端另外會擋（409 VISIT_REQUEST_ANONYMIZED）。
-export const ANONYMIZED_PARENT_NAME = '（已依保存政策匿名化）'
-
-export function isAnonymizedCase(detail: Pick<VisitRequestFullOut, 'parent_name'> | null | undefined): boolean {
-  return detail?.parent_name === ANONYMIZED_PARENT_NAME
+// 已依保存政策匿名化的案件（後端 visit_request.anonymized_at 有值）不能再改資料；後端明細回應帶 anonymized，
+// 不要用稱呼文字判斷。真的送出時後端另外會擋（409 VISIT_REQUEST_ANONYMIZED）。
+export function isAnonymizedCase(detail: Pick<VisitRequestFullOut, 'anonymized'> | null | undefined): boolean {
+  return detail?.anonymized === true
 }
 
 // ---- 輸入檢查（前端先擋；後端 normalize_phone 與 EmailStr 才是準的）----

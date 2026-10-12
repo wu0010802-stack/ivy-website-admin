@@ -799,6 +799,9 @@ class VisitRequestFullOut(VisitRequestDetailOut):
     # 家長資料的樂觀鎖版本（PATCH /admin/visit-requests/{id}/details 帶回 expected_version）。
     # 是 details_version，不是上面的 version（那是下次聯絡時間的鎖）。
     details_version: int
+    # 已依保存政策匿名化（visit_request.anonymized_at 有值）：資料已被換掉，後台不再開放修改。
+    # 後台靠這個旗標判斷，不再比對稱呼字串。
+    anonymized: bool
 
 
 class AdminDetailsUpdateOut(VisitRequestFullOut):

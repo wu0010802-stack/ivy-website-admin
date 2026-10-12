@@ -253,6 +253,26 @@ async def test_anonymized_case_is_409(admin_client, public_client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_detail_reports_anonymized_flag(admin_client, public_client, db_session):
+    """案件明細帶 anonymized：後台不必靠稱呼字串猜；一般案件 false，匿名化之後 true。"""
+    booking = await started_booking(admin_client, public_client, db_session, phone=OLD_PHONE)
+    case_id = booking["id"]
+
+    before = await admin_client.get(f"{CASES}/{case_id}")
+    assert before.status_code == 200, before.text
+    assert before.json()["anonymized"] is False
+
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == uuid.UUID(case_id)).values(anonymized_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+
+    after = await admin_client.get(f"{CASES}/{case_id}")
+    assert after.status_code == 200, after.text
+    assert after.json()["anonymized"] is True
+
+
+@pytest.mark.asyncio
 async def test_validation_rules(admin_client, public_client, db_session):
     """情境 6：稱呼與手機不能清空、手機格式、未來生日 422；Email、孩子姓名、生日可以清空。"""
     booking = await started_booking(
