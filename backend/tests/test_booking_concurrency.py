@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
-
 import pytest
 
-from app.common.timezones import today_local
-from tests.conftest import create_slot, set_booking_mode
+from tests.conftest import create_slot_record, set_booking_mode
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -27,12 +24,15 @@ def _payload(config_version: int, slot_id: str):
     }
 
 
-async def _open_slot(admin_client, *, capacity: int = 2, days_ahead: int = 3) -> tuple[int, str]:
-    """建一個場次再切到 slots；回傳（設定版本, slot_id）。"""
-    slot_id = await create_slot(admin_client, "yihua", days_ahead=days_ahead, capacity=capacity)
+async def _open_slot(admin_client, *, capacity: int = 2, days_ahead: int = 3) -> tuple[int, str, str]:
+    """建一個場次再切到 slots；回傳（設定版本, slot_id, slot_date）。
+
+    slot_date 取自建好的場次，不另外呼叫 today_local()：台北午夜前後兩次取「今天」會差一天，
+    之後用日期查場次就對不到。"""
+    slot = await create_slot_record(admin_client, "yihua", days_ahead=days_ahead, capacity=capacity)
     response = await set_booking_mode(admin_client, "yihua", mode="slots")
     assert response.status_code == 200, response.text
-    return response.json()["version"], slot_id
+    return response.json()["version"], slot["id"], slot["slot_date"]
 
 
 @pytest.mark.asyncio
@@ -41,7 +41,7 @@ async def test_concurrent_identical_submissions_create_only_one_request(
 ):
     """真實併發：兩個獨立連線同時用同一個 idempotency key 送出同樣內容，
     只能有一筆案件被建立，另一個必須安全地拿到同一個 receipt（不是各建一筆）。"""
-    version, slot_id = await _open_slot(admin_client)
+    version, slot_id, _slot_date = await _open_slot(admin_client)
 
     payload = _payload(version, slot_id)
     headers = {"Idempotency-Key": "race-test-01"}
@@ -67,7 +67,7 @@ async def test_many_concurrent_identical_submissions_still_one_request(app, admi
     提高真的撞上 INSERT 競爭窗口的機率，驗證 IntegrityError 安全網。"""
     import httpx
 
-    version, slot_id = await _open_slot(admin_client)
+    version, slot_id, _slot_date = await _open_slot(admin_client)
     # 這裡用一般 httpx client（不經測試用的家長 client），官網會帶的人數自己補上，
     # 十個請求才會同時打到建單。
     payload = {**_payload(version, slot_id), "party_size": 2}
@@ -99,8 +99,7 @@ async def test_one_slot_cannot_accept_two_families(
 ):
     """計畫 Task 7 明確要求的真實 PostgreSQL 併發驗證：同一個時段的
     最後一個名額，兩個不同 idempotency key 的並發請求只能一個成功。"""
-    version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=5)
-    slot_date = (today_local() + timedelta(days=5)).isoformat()
+    version, slot_id, slot_date = await _open_slot(admin_client, capacity=1, days_ahead=5)
 
     def _payload(name: str) -> dict:
         return {
@@ -185,8 +184,7 @@ def _hold_until_both_return(monkeypatch, module, name: str) -> None:
 
 async def _last_slot_payload(admin_client) -> tuple[dict, str, str]:
     """slots 模式，開一個只剩一個名額的時段。回傳 (送單內容, 時段 id, 日期)。"""
-    version, slot_id = await _open_slot(admin_client, capacity=1, days_ahead=6)
-    slot_date = (today_local() + timedelta(days=6)).isoformat()
+    version, slot_id, slot_date = await _open_slot(admin_client, capacity=1, days_ahead=6)
     return _payload(version, slot_id), slot_id, slot_date
 
 

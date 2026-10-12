@@ -37,11 +37,16 @@ export function startVisitSlot(visitRequestId: string): void {
 /**
  * 參觀後追蹤（2026-10-04 規格 F19）：把這個孩子的招生訪視的下次聯絡移到一小時前，當成已到期。
  * 「下次聯絡」只能排在未來（API 會擋），要測到期只能直接改測試庫。只改一筆，對不到就丟錯。
+ *
+ * 下限取台北今天 00:00：台北 00–01 點時 now() - 1 小時會落在昨天，招生「今天要聯絡」的清單
+ * 只看今天，會漏掉這筆（那段時間跑這支測試會紅）。
  */
 export function makeFollowUpDue(childName: string): void {
   const moved = psql(
     `UPDATE recruitment_visits
-        SET follow_up_at = now() - interval '1 hour'
+        SET follow_up_at = GREATEST(
+              now() - interval '1 hour',
+              date_trunc('day', now() AT TIME ZONE 'Asia/Taipei') AT TIME ZONE 'Asia/Taipei')
       WHERE child_name = :'child'
         AND follow_up_at IS NOT NULL
   RETURNING id;`,

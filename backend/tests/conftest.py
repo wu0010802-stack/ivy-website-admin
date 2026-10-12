@@ -406,6 +406,26 @@ async def editor_client(app, db_session):
     await client.aclose()
 
 
+async def create_slot_record(
+    admin_client,
+    campus_key: str = "yihua",
+    *,
+    days_ahead: int = 3,
+    start_time: str = "10:00:00",
+    end_time: str = "11:00:00",
+    capacity: int = 2,
+) -> dict:
+    """建一個場次並回傳 API 的完整回應（含 slot_date）。測試要用場次日期時，從這裡讀，
+    不要自己再呼叫一次 today_local()：台北午夜前後兩次呼叫可能差一天。"""
+    slot_date = (today_local() + timedelta(days=days_ahead)).isoformat()
+    response = await admin_client.post(
+        f"/api/website/v1/admin/slots?campus_key={campus_key}",
+        json={"slot_date": slot_date, "start_time": start_time, "end_time": end_time, "capacity": capacity},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 async def create_slot(
     admin_client,
     campus_key: str = "yihua",
@@ -415,13 +435,15 @@ async def create_slot(
     end_time: str = "11:00:00",
     capacity: int = 2,
 ) -> str:
-    slot_date = (today_local() + timedelta(days=days_ahead)).isoformat()
-    response = await admin_client.post(
-        f"/api/website/v1/admin/slots?campus_key={campus_key}",
-        json={"slot_date": slot_date, "start_time": start_time, "end_time": end_time, "capacity": capacity},
+    record = await create_slot_record(
+        admin_client,
+        campus_key,
+        days_ahead=days_ahead,
+        start_time=start_time,
+        end_time=end_time,
+        capacity=capacity,
     )
-    assert response.status_code == 201, response.text
-    return response.json()["id"]
+    return record["id"]
 
 
 async def book_slot(
