@@ -208,6 +208,42 @@ async def test_failed_import_leaves_active_batch_alone(app):
         assert (await db.get(GeoDatasetStatus, "doorplates")).active_version == "115-10#good00"
 
 
+async def test_source_generator_is_closed_when_the_import_fails(app, monkeypatch):
+    """匯入中途失敗（寫入出錯）時，上游的列產生器要被確實關閉（它握著下載連線），
+    不能等垃圾回收；匯入成功讀完時也一樣關。"""
+    from app.admissions.geo import doorplates as doorplate_io
+
+    rows = sample_doorplate_rows()
+    closed: list[str] = []
+
+    async def source(name: str):
+        try:
+            for row in rows[:10]:
+                yield row
+        finally:
+            closed.append(name)
+
+    real_copy = doorplate_io.copy_doorplates
+    calls: list[int] = []
+
+    async def failing_second_copy(db, tag, batch):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("寫入失敗")
+        await real_copy(db, tag, batch)
+
+    monkeypatch.setattr(doorplate_io, "copy_doorplates", failing_second_copy)
+    broken = source("broken")
+    with pytest.raises(RuntimeError, match="寫入失敗"):
+        await import_doorplates(app.state.session_factory, "115-11#close0", broken, batch_size=3)
+    assert closed == ["broken"]  # 呼叫端還握著 broken，不是垃圾回收收掉的
+
+    monkeypatch.setattr(doorplate_io, "copy_doorplates", real_copy)
+    finished = source("finished")
+    assert await import_doorplates(app.state.session_factory, "115-11#close1", finished, batch_size=3) == 10
+    assert closed == ["broken", "finished"]
+
+
 async def test_failed_cleanup_does_not_hide_the_original_error(caplog):
     """下載中斷（原例外）之後清批次又失敗（連線也斷了）：往上丟的要是原例外，清理失敗只記 log。"""
 

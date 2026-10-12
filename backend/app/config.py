@@ -292,6 +292,13 @@ class Settings(BaseSettings):
                 raise ValueError("WEBSITE_S3_ENDPOINT_URL 必須是不含帳密與路徑的網址")
             if self.environment == "production" and endpoint.scheme != "https":
                 raise ValueError("production 環境的 WEBSITE_S3_ENDPOINT_URL 必須使用 HTTPS")
+        if self.geo_auto_sync and self.db_pool_size < 2 and self.db_max_overflow < 1:
+            # 公開資料同步（app/admissions/geo/sync.py）整段期間用一條專用連線握 advisory lock；
+            # 連線池只有一條又不能溢出時，那條就是全部，同步期間所有請求都借不到連線。
+            raise ValueError(
+                "WEBSITE_GEO_AUTO_SYNC 開啟時，連線池要能多借一條給同步用："
+                "WEBSITE_DB_POOL_SIZE 至少 2，或 WEBSITE_DB_MAX_OVERFLOW 至少 1"
+            )
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
             raise ValueError("Turnstile 必須同時設定 WEBSITE_TURNSTILE_SITE_KEY 與 WEBSITE_TURNSTILE_SECRET_KEY")
         if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):

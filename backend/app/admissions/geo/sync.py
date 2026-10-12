@@ -15,7 +15,10 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 搜尋頁 /dataset?keyword=門牌坐標資料：每年一個資料集，連結 title「高雄市115年門牌坐標資料-TWD97」；
 - 資料集頁：每月一個資源，連結 title「115年10月門牌坐標資料」、href /Resource/<guid>；
 - 檔案 /File/DirectDownload/<guid>（text/csv、UTF-8 帶 BOM；HEAD 回 405、Range 被忽略）。
-頁面上的 title 是 HTML 實體編碼，先 html.unescape 再比對。
+頁面上的 title 是 HTML 實體編碼，用 html.parser 讀 <a> 的屬性（實體會還原；屬性順序、
+單雙引號、中間夾別的屬性都不影響）。
+
+網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
 同一時間只允許一個同步（CLI、背景迴圈、多個副本都一樣）：run_geo_sync 開頭取 session 級
 advisory lock，整個同步期間持有。否則後到的同步開頭清「使用中以外的批次」，會刪掉先到的
@@ -23,8 +26,9 @@ advisory lock，整個同步期間持有。否則後到的同步開頭清「使�
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-import html
+import itertools
 import json
 import logging
 import re
@@ -33,6 +37,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
@@ -59,12 +64,16 @@ REFRESH_AFTER = timedelta(days=30)
 MIN_DOORPLATE_ROWS = 500_000
 USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-geo-sync/1.0)"
 LOCK_KEY = "ivy-website:geo-sync"
-# 月份只認 ASCII 數字；檔名裡的「667aae8f-d427-488b」「20261008_1」這類不是月份（前面不能接數字、
-# 後面不能接數字），月份要在 1–12。
+# 月份只認 ASCII 數字；檔名裡的「667aae8f-d427-488b」「20261008_1」這類不是月份（前面不能接英數、
+# 後面不能接數字），月份要在 1–12。前面排除英文字母：隨機 GUID 檔名有一段像「b123-12de」時不能誤判。
 _LABEL = re.compile(r"([0-9]{3})-([0-9]{2})")
-_LABEL_IN_FILENAME = re.compile(r"(?<![0-9])([0-9]{3})[-_年]([0-9]{1,2})(?![0-9])")
-_DATASET_LINK = re.compile(r'title="高雄市(\d{3})年門牌坐標資料-TWD97"\s+href="(/DataSet/Detail/[0-9a-f-]{36})"')
-_RESOURCE_LINK = re.compile(r'title="(\d{3})年(\d{1,2})月門牌坐標資料"\s+href="/Resource/([0-9a-f-]{36})"')
+_LABEL_IN_FILENAME = re.compile(r"(?<![0-9A-Za-z])([0-9]{3})[-_年]([0-9]{1,2})(?![0-9])")
+_DATASET_TITLE = re.compile(r"高雄市([0-9]{3})年門牌坐標資料-TWD97")
+_DATASET_HREF = re.compile(r"/DataSet/Detail/[0-9a-f-]{36}")
+_RESOURCE_TITLE = re.compile(r"([0-9]{3})年([0-9]{1,2})月門牌坐標資料")
+_RESOURCE_HREF = re.compile(r"/Resource/([0-9a-f-]{36})")
+# 指定本機檔案時，每次交給執行緒讀取與解析的行數。
+FILE_CHUNK_LINES = 5000
 
 
 class GeoSyncError(RuntimeError):
@@ -77,6 +86,24 @@ class InvalidDoorplateLabel(GeoSyncError, ValueError):
 
 class GeoSyncBusy(RuntimeError):
     """另一個公開資料同步正在進行；這一輪什麼都沒做。"""
+
+
+async def _require_https(request: httpx.Request) -> None:
+    """每一個請求（含轉址的每一跳）送出前檢查：不是 https 就不送。設定只驗了起始網址，
+    轉址目的地要靠這裡擋。訊息不含網址（狀態列會顯示）。"""
+    if request.url.scheme != "https":
+        raise GeoSyncError("下載網址不是 https，已拒絕")
+
+
+def new_client(*, transport: httpx.AsyncBaseTransport | None = None) -> httpx.AsyncClient:
+    """同步用的 HTTP 客戶端：會跟轉址，但只跟 https。transport 給測試換成假網站。"""
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(120.0, connect=15.0),
+        headers={"User-Agent": USER_AGENT},
+        follow_redirects=True,
+        event_hooks={"request": [_require_https]},
+        transport=transport,
+    )
 
 
 @dataclass(frozen=True)
@@ -96,29 +123,66 @@ class GeoSyncResult:
     kindergarten_rows_skipped: int = 0
 
 
+class _AnchorCollector(HTMLParser):
+    """頁面上所有 <a> 的屬性（名稱小寫；屬性值的 HTML 實體已還原）。"""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.anchors: list[dict[str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "a":
+            self.anchors.append({name: value or "" for name, value in attrs})
+
+
+def _anchors(page: str) -> list[dict[str, str]]:
+    collector = _AnchorCollector()
+    collector.feed(page)
+    collector.close()
+    return collector.anchors
+
+
 def parse_dataset_search(page: str) -> list[tuple[int, str]]:
     """搜尋頁 → [(民國年, "/DataSet/Detail/<guid>")]，新到舊。"""
-    found = {(int(year), path) for year, path in _DATASET_LINK.findall(html.unescape(page))}
+    found = set()
+    for anchor in _anchors(page):
+        title, href = _DATASET_TITLE.fullmatch(anchor.get("title", "")), anchor.get("href", "")
+        if title is not None and _DATASET_HREF.fullmatch(href):
+            found.add((int(title.group(1)), href))
     return sorted(found, reverse=True)
 
 
 def parse_dataset_resources(page: str) -> list[tuple[int, int, str]]:
     """資料集頁 → [(民國年, 月, guid)]，新到舊。"""
-    found = {(int(year), int(month), guid) for year, month, guid in _RESOURCE_LINK.findall(html.unescape(page))}
+    found = set()
+    for anchor in _anchors(page):
+        title, href = _RESOURCE_TITLE.fullmatch(anchor.get("title", "")), _RESOURCE_HREF.fullmatch(anchor.get("href", ""))
+        if title is not None and href is not None:
+            found.add((int(title.group(1)), int(title.group(2)), href.group(1)))
     return sorted(found, reverse=True)
 
 
 async def discover_doorplate_source(client: httpx.AsyncClient) -> DoorplateSource:
-    """最新年度資料集的最新月份；最新年度還沒有資源（年初）就看前一年度。"""
+    """最新年度資料集的最新月份；最新年度還沒有資源、或資料集頁暫時打不開（年初新年度的頁面
+    常常先列在搜尋頁、內容還沒上線，回 404／500）就看前一年度。兩年都沒有就丟錯：兩頁都是 HTTP
+    錯誤時丟最後一個，讓狀態列寫出 HTTP 狀態碼。"""
     search = await client.get(KCG_SEARCH_URL)
     search.raise_for_status()
+    last_error: httpx.HTTPStatusError | None = None
     for _, path in parse_dataset_search(search.text)[:2]:
         page = await client.get(f"{KCG_BASE}{path}")
-        page.raise_for_status()
+        try:
+            page.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.warning("門牌資料集頁 %s 回 HTTP %s，改看前一年度", path, exc.response.status_code)
+            last_error = exc
+            continue
         resources = parse_dataset_resources(page.text)
         if resources:
             year, month, guid = resources[0]
             return DoorplateSource(f"{year}-{month:02d}", f"{KCG_BASE}/File/DirectDownload/{guid}")
+    if last_error is not None:
+        raise last_error
     raise GeoSyncError("找不到高雄市門牌坐標資料的下載檔")
 
 
@@ -154,11 +218,27 @@ async def _stream_rows(
                 yield row
 
 
+def _read_chunk(handle, parser: doorplate_io.DoorplateParser, count: int) -> tuple[list[doorplate_io.DoorplateRow], bool]:
+    """從 handle 再讀 count 行並解析（在執行緒裡跑）。回傳 (解析出的列, 檔案是否已經讀完)。"""
+    rows = []
+    lines = 0
+    for line in itertools.islice(handle, count):
+        lines += 1
+        row = parser.feed(line)
+        if row is not None:
+            rows.append(row)
+    return rows, lines < count
+
+
 async def _file_rows(path: Path, parser: doorplate_io.DoorplateParser) -> AsyncIterator[doorplate_io.DoorplateRow]:
+    """本機檔案的列。讀檔與解析（約 76 萬列、數秒的 CPU）交給執行緒、FILE_CHUNK_LINES 行一塊：
+    每一塊之間事件迴圈可以處理別的工作，而不是整份讀完才讓出一次。parser 同一時間只被一個
+    執行緒用（await 期間這個產生器自己停著）。"""
     with path.open(encoding="utf-8-sig", newline="") as handle:
-        for line in handle:
-            row = parser.feed(line)
-            if row is not None:
+        finished = False
+        while not finished:
+            rows, finished = await asyncio.to_thread(_read_chunk, handle, parser, FILE_CHUNK_LINES)
+            for row in rows:
                 yield row
 
 
@@ -251,6 +331,11 @@ async def sync_doorplates(
             if not force and active is not None and status is not None and status.label == source.label:
                 await _record(session_factory, "doorplates", now=now, checked=True)
                 return "skipped", 0
+            if active is not None and status is not None and status.label and source.label < status.label:
+                # 最新年度頁暫時出錯、退回前一年度時會走到這裡：不能拿舊月份換掉較新的，也不算確認過
+                # （不更新 checked_at，明天再看）。標記是固定寬度的「115-10」，字串比較就是時間先後。
+                logger.warning("門牌來源最新只找到 %s，比使用中的 %s 舊，不更新", source.label, status.label)
+                return "skipped", 0
             label, rows, minimum = source.label, _stream_rows(client, source.url, parser), MIN_DOORPLATE_ROWS
         tag = f"{label}#{uuid.uuid4().hex[:6]}"
         count = await doorplate_io.import_doorplates(session_factory, tag, rows)
@@ -265,7 +350,7 @@ async def sync_doorplates(
         logger.info("門牌資料已更新：%s，%s 筆，略過 %s 列", label, count, parser.skipped)
         return "updated", parser.skipped
     except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
-        logger.warning("門牌資料同步失敗：%s", _error_text(exc))
+        logger.warning("門牌資料同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "doorplates", now=now, error=_error_text(exc))
         return "failed", 0
 
@@ -300,7 +385,7 @@ async def sync_kindergartens(
         logger.info("幼兒園資料已更新：%s 所，略過 %s 筆", len(rows), report.skipped)
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001
-        logger.warning("幼兒園資料同步失敗：%s", _error_text(exc))
+        logger.warning("幼兒園資料同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "kindergartens", now=now, error=_error_text(exc))
         return "failed", 0
 
@@ -348,10 +433,15 @@ async def _exclusive(session_factory: async_sessionmaker[AsyncSession]) -> Async
             yield
         finally:
             try:
-                await conn.execute(text("SELECT pg_advisory_unlock(hashtext(:key))"), {"key": LOCK_KEY})
-            except Exception:  # noqa: BLE001 - 解鎖失敗就丟掉這條連線，鎖隨連線結束釋放，不能還回連線池
-                logger.warning("公開資料同步鎖解除失敗，關閉該連線")
-                await conn.invalidate()
+                # shield：停機取消同步後又被取消一次時，解鎖那一步不會做到一半被打斷。
+                await asyncio.shield(conn.execute(text("SELECT pg_advisory_unlock(hashtext(:key))"), {"key": LOCK_KEY}))
+            except BaseException as exc:
+                # 解鎖失敗或又被取消（CancelledError 不是 Exception）：鎖可能還在這條連線上，不能還回連線
+                # 池——丟掉連線，鎖隨連線結束釋放。被取消時關閉動作也 shield，之後照樣把取消往上丟。
+                logger.warning("公開資料同步鎖解除失敗或被取消，關閉該連線", exc_info=isinstance(exc, Exception))
+                await asyncio.shield(conn.invalidate())
+                if not isinstance(exc, Exception):
+                    raise
 
 
 async def run_geo_sync(
@@ -369,9 +459,7 @@ async def run_geo_sync(
         file_mode = doorplates_file is not None or kindergartens_file is not None
         own_client = client is None and not file_mode
         if own_client:
-            client = httpx.AsyncClient(
-                timeout=httpx.Timeout(120.0, connect=15.0), headers={"User-Agent": USER_AGENT}, follow_redirects=True
-            )
+            client = new_client()
         network = None if file_mode else client
         try:
             doorplates, doorplate_skipped = await sync_doorplates(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -152,11 +153,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             yield
         finally:
-            if app.state.geo_sync is not None:
-                await app.state.geo_sync.stop()
-            # 先停轉檔迴圈：做到一半的影片放回佇列，下一個程序馬上接手（不算一次嘗試）。
-            if app.state.media_jobs is not None:
-                await app.state.media_jobs.stop()
+            # 公開資料同步與轉檔迴圈各自最多等 10 秒，並行停，不疊加成 20 秒。先停轉檔迴圈：做到一半
+            # 的影片放回佇列，下一個程序馬上接手（不算一次嘗試）；兩者都停了才停 maintenance。
+            stops = [loop.stop() for loop in (app.state.geo_sync, app.state.media_jobs) if loop is not None]
+            for outcome in await asyncio.gather(*stops, return_exceptions=True):
+                if isinstance(outcome, BaseException):
+                    logger.error("背景迴圈停止時出錯", exc_info=outcome)
             if app.state.maintenance is not None:
                 await app.state.maintenance.stop()
             await app.state.rate_limit_engine.dispose()

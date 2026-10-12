@@ -196,8 +196,9 @@ async def import_doorplates(
     下次同步開頭會清掉。"""
     count = 0
     batch: list[DoorplateRow] = []
+    source = aiter(rows)
     try:
-        async for row in rows:
+        async for row in source:
             batch.append(row)
             if len(batch) >= batch_size:
                 async with session_factory() as db:
@@ -216,6 +217,11 @@ async def import_doorplates(
         except Exception:  # noqa: BLE001 - 不能蓋掉原本的例外
             logger.warning("清除失敗的門牌批次 %s 時又出錯，留給下次同步清理", tag, exc_info=True)
         raise
+    finally:
+        # 來源（下載串流、檔案）握著連線或檔案：中途失敗時立刻關，不等垃圾回收。
+        close = getattr(source, "aclose", None)
+        if close is not None:
+            await close()
     return count
 
 

@@ -15,12 +15,14 @@ import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.admissions.geo.doorplates import DoorplateParser, DoorplateRow, copy_doorplates
 from app.admissions.geo.kindergartens import parse_preschools, replace_kindergartens
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
+from app.admissions.geo.sync import LOCK_KEY
 from app.admissions.models import RecruitmentVisit
 
 FIXTURES = Path(__file__).parent / "fixtures" / "geo"
@@ -104,3 +106,17 @@ async def add_visit(
     db.add(visit)
     await db.flush()
     return visit
+
+
+async def lock_is_free(app) -> bool:
+    """公開資料同步的 advisory lock 現在有沒有被任何連線握著：用全新連線（NullPool，不受同連線可重入、
+    連線池影響）去拿，拿到就馬上關掉那條連線。"""
+    fresh = create_async_engine(app.state.engine.url, poolclass=NullPool)
+    try:
+        async with fresh.connect() as other:
+            other = await other.execution_options(isolation_level="AUTOCOMMIT")
+            got = await other.scalar(text("SELECT pg_try_advisory_lock(hashtext(:key))"), {"key": LOCK_KEY})
+            await other.invalidate()  # 關掉這條連線，鎖隨連線釋放
+            return bool(got)
+    finally:
+        await fresh.dispose()

@@ -58,6 +58,7 @@ class GeoSyncLoop:
         try:
             await asyncio.wait_for(asyncio.shield(self._task), timeout=timeout)
         except asyncio.TimeoutError:
+            logger.warning("公開地理資料同步：停機後 %s 秒內沒有結束，取消這一輪（沒換版的批次下次同步會清掉）", timeout)
             self._task.cancel()
             await asyncio.gather(self._task, return_exceptions=True)
 
@@ -86,7 +87,8 @@ class GeoSyncLoop:
         while True:
             try:
                 result = await self.run_once()
-                if result is not None and "skipped" not in (result.doorplates, result.kindergartens):
+                # 只要有一項真的做了事（更新或失敗）就記摘要；兩項都是 skipped（30 天內不看來源）才不吵。
+                if result is not None and (result.doorplates, result.kindergartens) != ("skipped", "skipped"):
                     logger.info("公開地理資料同步：%s", result)
             except Exception:  # noqa: BLE001 - 連線失敗等，下一輪再試
                 logger.exception("公開地理資料同步：這一輪無法完成")

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -12,6 +14,7 @@ from sqlalchemy.pool import NullPool
 
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import sync
+from app.admissions.geo.doorplates import DoorplateParser
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten, RecruitmentVisitGeo
 from app.admissions.geo.sync import (
     DoorplateSource,
@@ -23,7 +26,7 @@ from app.admissions.geo.sync import (
     parse_dataset_search,
     run_geo_sync,
 )
-from tests.geo_helpers import FIXTURES, add_visit, publish_campus_address
+from tests.geo_helpers import FIXTURES, add_visit, lock_is_free, publish_campus_address
 
 CSV_URL = "https://data.kcg.gov.tw/File/DirectDownload/667aae8f-d427-488b-9420-e51f28783dc3"
 DATASET_115 = "https://data.kcg.gov.tw/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7c9cd411414"
@@ -31,7 +34,14 @@ DATASET_114 = "https://data.kcg.gov.tw/DataSet/Detail/1e015103-320c-45e7-927b-70
 KIANG_URL = "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
 
 
-def _site(*, csv: bytes | None = None, csv_status: int = 200, kiang: bytes | None = None, dataset_115: str | None = None):
+def _site(
+    *,
+    csv: bytes | None = None,
+    csv_status: int = 200,
+    kiang: bytes | None = None,
+    dataset_115: str | None = None,
+    dataset_115_status: int = 200,
+):
     """假的高雄市資料平台＋kiang；回傳 (transport, 請求過的網址清單)。"""
     seen: list[str] = []
 
@@ -42,7 +52,7 @@ def _site(*, csv: bytes | None = None, csv_status: int = 200, kiang: bytes | Non
             return httpx.Response(200, text=(FIXTURES / "kcg-search.html").read_text(encoding="utf-8"))
         if url == DATASET_115:
             page = dataset_115 if dataset_115 is not None else (FIXTURES / "kcg-dataset.html").read_text(encoding="utf-8")
-            return httpx.Response(200, text=page)
+            return httpx.Response(dataset_115_status, text=page)
         if url == DATASET_114:
             return httpx.Response(200, text=(FIXTURES / "kcg-dataset.html").read_text(encoding="utf-8").replace("115&#x5E74;", "114&#x5E74;"))
         if url == CSV_URL or url == "https://example.org/doorplates.csv":
@@ -133,6 +143,12 @@ async def test_discover_gives_up_without_resources():
         ("doorplates_2026_10.csv", None, "199-12"),
         ("export-20261008_1.csv", None, "199-12"),
         ("doorplates_115_13.csv", None, "199-12"),
+        # 數字前面接英文字母也不是月份（隨機 GUID 檔名：8-4-4-4-12 的某一段剛好像「123-12」）
+        ("9f0a-b123-12de-4b5c-8d3e-1a2b3c4d5e6f.csv", None, "199-12"),
+        ("report115_10.csv", None, "199-12"),
+        # 前面是標點、空白、中文都可以
+        ("門牌_115-10.csv", None, "115-10"),
+        ("kcg 115年10月.csv", None, "115-10"),
     ],
 )
 def test_label_for_file(tmp_path, monkeypatch, name, given, expected):
@@ -450,3 +466,248 @@ async def test_bad_kindergarten_entries_are_skipped_and_counted(app, tmp_path):
     result = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=path)
     assert (result.kindergartens, result.kindergarten_rows_skipped, result.doorplate_rows_skipped) == ("updated", 2, 0)
     assert (await _counts(app))[1] == 10
+
+
+# ---- 延後項目 D2：轉址、年度退回、log、解鎖、解析、檔案讀取 ----
+
+
+def _redirecting_client(location: str, seen: list[str]) -> httpx.AsyncClient:
+    """用 sync 自己建客戶端的方式（new_client）接上假網站；CSV_URL 轉址到 location。"""
+    transport, _ = _site()
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if str(request.url) == CSV_URL:
+            return httpx.Response(302, headers={"location": location})
+        return transport.handle_request(request)
+
+    return sync.new_client(transport=httpx.MockTransport(handle))
+
+
+async def test_redirect_to_plain_http_is_refused_before_any_request_is_sent(app, small_minimum):
+    """轉址只跟 https：被導到 http 時那一跳根本不送出，同步失敗、使用中的版本不動。"""
+    seen: list[str] = []
+    async with _redirecting_client("http://data.kcg.gov.tw/File/DirectDownload/x", seen) as client:
+        result = await run_geo_sync(app.state.session_factory, app.state.settings, client=client)
+    assert result.doorplates == "failed"
+    assert not any(url.startswith("http://") for url in seen)
+    assert (await _status(app, "doorplates")).last_error == "下載網址不是 https，已拒絕"
+    assert await _counts(app) == (0, 10)  # 幼兒園不受影響
+
+
+async def test_redirect_to_another_https_url_is_followed(app, small_minimum):
+    seen: list[str] = []
+    async with _redirecting_client("https://example.org/doorplates.csv", seen) as client:
+        result = await run_geo_sync(app.state.session_factory, app.state.settings, client=client)
+    assert result.doorplates == "updated"
+    assert "https://example.org/doorplates.csv" in seen
+    assert (await _counts(app))[0] == 73
+
+
+async def test_new_client_follows_redirects_and_checks_every_hop():
+    """客戶端本身（不經同步流程）：第一跳 https 轉第二跳 http 時，第二跳被擋在送出之前。"""
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path == "/a":
+            return httpx.Response(302, headers={"location": "https://example.org/b"})
+        if request.url.path == "/b":
+            return httpx.Response(302, headers={"location": "http://example.org/c"})
+        return httpx.Response(200, text="不該到這裡")
+
+    async with sync.new_client(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(GeoSyncError):
+            await client.get("https://example.org/a")
+    assert seen == ["https://example.org/a", "https://example.org/b"]
+
+
+async def test_latest_year_page_http_error_falls_back_to_previous_year():
+    """年初最新年度的資料集頁還沒上線（404／500）：退回前一年度，不讓整個同步失敗。"""
+    for status in (404, 500):
+        transport, _ = _site(dataset_115_status=status)
+        async with httpx.AsyncClient(transport=transport) as client:
+            source = await discover_doorplate_source(client)
+        assert source.label == "114-10", status
+
+
+async def test_every_dataset_page_failing_reports_the_http_status(app, small_minimum):
+    transport, _ = _site(dataset_115_status=503)
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == DATASET_114:
+            return httpx.Response(502)
+        return transport.handle_request(request)
+
+    result = await _sync(app, httpx.MockTransport(handle))
+    assert result.doorplates == "failed"
+    assert (await _status(app, "doorplates")).last_error == "下載失敗：HTTP 502"
+
+
+async def test_fallback_never_downgrades_to_an_older_month_than_the_active_one(app, small_minimum):
+    """最新年度頁暫時出錯、退回前一年度時，找到的月份比使用中的舊：不換版、不連去下載，下次再看。"""
+    good, _ = _site()
+    await _sync(app, good)
+    active = (await _status(app, "doorplates")).active_version
+    async with app.state.session_factory() as db:
+        old = datetime.now(timezone.utc) - timedelta(days=31)
+        await db.execute(update(GeoDatasetStatus).values(checked_at=old, synced_at=old))
+        await db.commit()
+
+    flaky, seen = _site(dataset_115_status=500)
+    result = await _sync(app, flaky, force=True)
+    assert result.doorplates == "skipped"
+    assert CSV_URL not in seen and not any("DirectDownload" in url for url in seen)
+    status_row = await _status(app, "doorplates")
+    assert status_row.active_version == active and status_row.label == "115-10"
+    assert status_row.checked_at == old  # 沒有確認成功，不能延後下一次檢查
+
+
+async def test_failures_are_logged_with_traceback(app, small_minimum, caplog):
+    """兩種資料的失敗都帶 traceback（狀態列只留例外類別，正式站要靠 log 查原因）。"""
+    transport, _ = _site(csv=b"", csv_status=500, kiang=b'{"type": "FeatureCollection", "features": []}')
+    with caplog.at_level(logging.WARNING, logger="app.admissions.geo.sync"):
+        result = await _sync(app, transport)
+    assert (result.doorplates, result.kindergartens) == ("failed", "failed")
+    failures = {record.getMessage().split("：")[0]: record for record in caplog.records if "同步失敗" in record.getMessage()}
+    assert set(failures) == {"門牌資料同步失敗", "幼兒園資料同步失敗"}
+    assert all(record.exc_info and record.exc_info[1] is not None for record in failures.values())
+
+
+class _TrackedStream(httpx.AsyncByteStream):
+    def __init__(self, chunks: list[bytes]) -> None:
+        self.chunks = chunks
+        self.closed = False
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            yield chunk
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
+async def test_download_stream_is_closed_when_the_import_fails_midway(app, small_minimum, monkeypatch):
+    """寫入中途失敗時，下載連線要立刻關掉（不等垃圾回收）。"""
+    sample = (FIXTURES / "doorplates-sample.csv").read_bytes().splitlines(keepends=True)
+    stream = _TrackedStream(sample)
+    good, _ = _site()
+
+    async def handle(request):
+        if str(request.url) == CSV_URL:
+            return httpx.Response(200, stream=stream, headers={"content-type": "text/csv"})
+        return await good.handle_async_request(request)
+
+    real_copy = doorplate_io.copy_doorplates
+    real_import = doorplate_io.import_doorplates
+    calls: list[int] = []
+
+    async def failing_second_copy(db, tag, batch):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("寫入失敗")
+        await real_copy(db, tag, batch)
+
+    async def small_batches(session_factory, tag, rows, **kwargs):
+        return await real_import(session_factory, tag, rows, batch_size=3)
+
+    monkeypatch.setattr(doorplate_io, "copy_doorplates", failing_second_copy)
+    monkeypatch.setattr(doorplate_io, "import_doorplates", small_batches)
+    result = await _sync(app, httpx.MockTransport(handle))
+    assert result.doorplates == "failed"
+    assert stream.closed
+
+
+async def test_second_cancellation_during_unlock_does_not_leak_the_lock_into_the_pool(app, monkeypatch):
+    """停機取消同步時，解鎖那一步又被取消一次（CancelledError 不是 Exception）：鎖還在連線上，
+    連線不能原樣還回連線池，要丟掉。（改前：except Exception 接不到，鎖隨連線回池，之後所有同步都被 Busy 擋掉。）"""
+    from sqlalchemy.ext.asyncio import AsyncConnection
+
+    real_execute = AsyncConnection.execute
+
+    async def execute(self, statement, *args, **kwargs):
+        if "pg_advisory_unlock" in str(statement):
+            raise asyncio.CancelledError
+        return await real_execute(self, statement, *args, **kwargs)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(AsyncConnection, "execute", execute)
+        with pytest.raises(asyncio.CancelledError):
+            async with sync._exclusive(app.state.session_factory):
+                pass
+
+    # 池裡不能留著還握鎖的連線：同一個 engine 再借連線拿鎖要成功，全新連線也拿得到。
+    engine = app.state.session_factory.kw["bind"]
+    async with engine.connect() as again:
+        again = await again.execution_options(isolation_level="AUTOCOMMIT")
+        assert await _try_lock(again)
+        await again.execute(text("SELECT pg_advisory_unlock(hashtext(:key))"), {"key": sync.LOCK_KEY})
+    assert await lock_is_free(app)
+
+
+async def test_cancellation_while_running_releases_the_lock(app):
+    """同步進行中被取消（停機逾時）：鎖照常釋放。"""
+    entered = asyncio.Event()
+
+    async def hang():
+        async with sync._exclusive(app.state.session_factory):
+            entered.set()
+            await asyncio.sleep(3600)
+
+    task = asyncio.create_task(hang())
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert await lock_is_free(app)
+
+
+def test_dataset_links_are_found_whatever_the_attribute_order():
+    page = (
+        '<a href="/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7c9cd411414" class="x" '
+        'title="高雄市115年門牌坐標資料-TWD97">115</a>'
+        "<a title='高雄市114年門牌坐標資料-TWD97' href='/DataSet/Detail/1e015103-320c-45e7-927b-70a3c0be87c3'>114</a>"
+        '<a href="/DataSet/Detail/7d92ad41-81a0-495e-aa45-3180f2ee72ab" title="高雄市區代碼">不是</a>'
+    )
+    assert parse_dataset_search(page) == [
+        (115, "/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7c9cd411414"),
+        (114, "/DataSet/Detail/1e015103-320c-45e7-927b-70a3c0be87c3"),
+    ]
+
+
+def test_resource_links_are_found_whatever_the_attribute_order():
+    page = (
+        '<a href="/Resource/667aae8f-d427-488b-9420-e51f28783dc3" class="fw-bolder" '
+        'data-x="1" title="115&#x5E74;10&#x6708;&#x9580;&#x724C;&#x5750;&#x6A19;&#x8CC7;&#x6599;">115年10月</a>'
+        '<a title="115年9月門牌坐標資料" class="fw-bolder" href="/Resource/222a9251-194a-478f-9ff9-c218da6cec7b">9</a>'
+        '<a title="詳細資料" href="/Resource/222a9251-194a-478f-9ff9-c218da6cec7b">詳細資料</a>'
+    )
+    assert parse_dataset_resources(page) == [
+        (115, 10, "667aae8f-d427-488b-9420-e51f28783dc3"),
+        (115, 9, "222a9251-194a-478f-9ff9-c218da6cec7b"),
+    ]
+
+
+async def test_reading_a_file_does_not_block_the_event_loop(tmp_path, monkeypatch):
+    """指定本機檔案時，讀檔與解析在執行緒裡分塊做：每一塊之間事件迴圈有機會處理別的工作。
+    （改前：整個產生器一個 await 都沒有，其他協程要等到整份讀完。）"""
+    monkeypatch.setattr(sync, "FILE_CHUNK_LINES", 10)
+    path = tmp_path / "doorplates.csv"
+    path.write_bytes((FIXTURES / "doorplates-sample.csv").read_bytes())
+    ticks = 0
+    done = False
+
+    async def ticker():
+        nonlocal ticks
+        while not done:
+            ticks += 1
+            await asyncio.sleep(0)
+
+    task = asyncio.create_task(ticker())
+    await asyncio.sleep(0)
+    parser = DoorplateParser()
+    rows = [row async for row in sync._file_rows(path, parser)]
+    done = True
+    await task
+    assert len(rows) == 73 and parser.skipped == 0
+    assert ticks >= 5  # 約 74 行、每塊 10 行：至少 7 次讓出

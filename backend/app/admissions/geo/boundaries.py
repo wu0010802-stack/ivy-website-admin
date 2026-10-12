@@ -27,11 +27,16 @@ def boundary_etag() -> str:
 
 @lru_cache(maxsize=1)
 def _village_codes() -> dict[tuple[str, str], str]:
-    data = json.loads(boundary_bytes())
-    return {
-        (feature["properties"]["TOWNNAME"], feature["properties"]["VILLNAME"]): feature["properties"]["VILLCODE"]
-        for feature in data["features"]
-    }
+    """(區, 里) → 里代碼。里名在不同區可以重複（例：中正里），所以鍵是兩個一起；同一個 (區, 里) 出現
+    兩次是界圖檔案有問題，直接報錯，不靜默讓後面的蓋掉前面的。"""
+    codes: dict[tuple[str, str], str] = {}
+    for feature in json.loads(boundary_bytes())["features"]:
+        properties = feature["properties"]
+        key = (properties["TOWNNAME"], properties["VILLNAME"])
+        if key in codes:
+            raise ValueError(f"里界資料有重複的行政區與里：{key[0]}{key[1]}")
+        codes[key] = properties["VILLCODE"]
+    return codes
 
 
 def village_code(district: str, village: str) -> str | None:

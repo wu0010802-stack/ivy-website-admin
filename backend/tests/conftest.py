@@ -100,6 +100,9 @@ def _test_settings() -> Settings:
         # 正式站預設關閉；測試預設開啟，招生測試照常。關閉時的行為另有測試
         # （test_admissions_booking_link.py::test_admissions_disabled_skips_visit_and_hides_endpoints）。
         admissions_enabled=True,
+        # 開發者 shell 裡可能設了 WEBSITE_GEO_AUTO_SYNC=true：測試不能因此起背景同步迴圈、連外下載
+        # （迴圈的測試自己用 model_copy 打開）。
+        geo_auto_sync=False,
     )
 
 
