@@ -661,6 +661,8 @@ class AdmissionsCompareRow(BaseModel):
     effective_deposit: int
     pending_deposit: int
     visit_to_deposit_rate: AdmissionsRate
+    # 只有參觀→預繳有可能範圍（2026-10-12 規格 §9.3）。
+    visit_to_deposit_range: AdmissionsRateRange | None
     visit_to_enrolled_rate: AdmissionsRate
     deposit_to_enrolled_rate: AdmissionsRate
     effective_to_enrolled_rate: AdmissionsRate
@@ -902,6 +904,7 @@ class AreaDistrictRowOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AreaVillageRowOut(BaseModel):
@@ -912,6 +915,7 @@ class AreaVillageRowOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AreaDistanceBandOut(BaseModel):
@@ -919,6 +923,7 @@ class AreaDistanceBandOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AdmissionsAreaOut(BaseModel):

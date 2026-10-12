@@ -66,19 +66,27 @@ async def test_area_levels_rows_and_bands(admin_client, db_session, located_camp
     assert body["campus"] == {"key": "yihua", "name": body["campus"]["name"], "lat": YIHUA_LAT, "lng": YIHUA_LNG,
                               "locate_error": None}
     assert body["districts"] == [
-        {"district": "三民區", "visit": 5, "deposit": 2, "visit_to_deposit_rate": 40.0},
-        {"district": "左營區", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0},
+        {"district": "三民區", "visit": 5, "deposit": 2, "visit_to_deposit_rate": 40.0,
+         "visit_to_deposit_range": {"low": 14.7, "high": 44.1}},
+        {"district": "左營區", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+         "visit_to_deposit_range": {"low": 7.2, "high": 37.3}},
     ]
     villages = [(row["district"], row["village"], row["visit"], row["deposit"], row["visit_to_deposit_rate"])
                 for row in body["villages"]]
     assert villages == [("三民區", "鼎金里", 2, 1, 50.0), ("三民區", "寶業里", 1, 1, 100.0)]
+    assert [row["visit_to_deposit_range"] for row in body["villages"]] == [
+        {"low": 12.4, "high": 44.5}, {"low": 13.7, "high": 48.2},
+    ]
     assert body["villages"][0]["village_code"] == "64000050001"
     assert body["distance_bands"] == [
-        {"band": "0-1", "visit": 1, "deposit": 1, "visit_to_deposit_rate": 100.0},
-        {"band": "1-3", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0},
-        {"band": "3-6", "visit": 0, "deposit": 0, "visit_to_deposit_rate": None},
-        {"band": "6+", "visit": 0, "deposit": 0, "visit_to_deposit_rate": None},
-        {"band": "none", "visit": 9, "deposit": 1, "visit_to_deposit_rate": 11.1},
+        {"band": "0-1", "visit": 1, "deposit": 1, "visit_to_deposit_rate": 100.0,
+         "visit_to_deposit_range": {"low": 13.7, "high": 48.2}},
+        {"band": "1-3", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+         "visit_to_deposit_range": {"low": 7.2, "high": 37.3}},
+        {"band": "3-6", "visit": 0, "deposit": 0, "visit_to_deposit_rate": None, "visit_to_deposit_range": None},
+        {"band": "6+", "visit": 0, "deposit": 0, "visit_to_deposit_rate": None, "visit_to_deposit_range": None},
+        {"band": "none", "visit": 9, "deposit": 1, "visit_to_deposit_rate": 11.1,
+         "visit_to_deposit_range": {"low": 7.4, "high": 29.0}},
     ]
     assert body["data_status"]["boundary_version"]
     assert body["data_status"]["doorplate_version"] is None  # 這個測試沒匯入門牌樣本

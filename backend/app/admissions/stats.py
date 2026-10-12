@@ -613,6 +613,11 @@ async def compare(
         )
     ).all()
     counts_by_campus = {row.campus_key: _counts(row) for row in rows}
+    # 可能範圍的全體＝這次回傳的各校相加（2026-10-12 規格 §7.2）。
+    pooled = estimation.prior_rate(
+        sum(counts_by_campus.get(key, {}).get("deposit", 0) for key in campus_keys),
+        sum(counts_by_campus.get(key, {}).get("visit", 0) for key in campus_keys),
+    )
     result: list[dict[str, Any]] = []
     for campus_key in campus_keys:
         c = counts_by_campus.get(campus_key, dict.fromkeys(COUNT_FIELDS, 0))
@@ -622,6 +627,7 @@ async def compare(
             "campus_key": campus_key,
             **c,
             "visit_to_deposit_rate": _rate(c["deposit"], c["visit"]),
+            "visit_to_deposit_range": estimation.rate_range(c["deposit"], c["visit"], pooled),
             "visit_to_enrolled_rate": _rate(c["enrolled"], c["visit"]),
             "deposit_to_enrolled_rate": _rate(c["enrolled"], c["deposit"]),
             "effective_to_enrolled_rate": _rate(c["enrolled"], c["effective_deposit"]),

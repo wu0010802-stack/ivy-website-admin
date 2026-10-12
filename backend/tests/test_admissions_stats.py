@@ -552,7 +552,10 @@ async def test_compare_rows_and_seats(db_session):
     assert rows[0] == {
         "campus_key": "yihua", "visit": 4, "deposit": 3, "enrolled": 1, "transfer_term": 0,
         "effective_deposit": 3, "pending_deposit": 2,
-        "visit_to_deposit_rate": rate(75.0, 3, 4), "visit_to_enrolled_rate": rate(25.0, 1, 4),
+        "visit_to_deposit_rate": rate(75.0, 3, 4),
+        # 三校合計 3/5 → prior 4/7，義華 3/4 的範圍往合計收縮。
+        "visit_to_deposit_range": {"low": 45.5, "high": 78.2},
+        "visit_to_enrolled_rate": rate(25.0, 1, 4),
         "deposit_to_enrolled_rate": rate(33.3, 1, 3), "effective_to_enrolled_rate": rate(33.3, 1, 3),
         "target_seats": 10, "remaining_seats": 8, "grades_with_target": 2,
     }
@@ -588,7 +591,10 @@ async def test_compare_without_targets(db_session):
     assert rows[0] == {
         "campus_key": "minghua", "visit": 1, "deposit": 0, "enrolled": 0, "transfer_term": 0,
         "effective_deposit": 0, "pending_deposit": 0,
-        "visit_to_deposit_rate": rate(0.0, 0, 1), "visit_to_enrolled_rate": rate(0.0, 0, 1),
+        "visit_to_deposit_rate": rate(0.0, 0, 1),
+        # 明華 0/1、仁武 0/0 合計 0/1 → prior 1/3；範圍不是 0–0%（Review Focus 3）。
+        "visit_to_deposit_range": {"low": 13.9, "high": 48.5},
+        "visit_to_enrolled_rate": rate(0.0, 0, 1),
         "deposit_to_enrolled_rate": NO_RATE, "effective_to_enrolled_rate": NO_RATE,
         "target_seats": None, "remaining_seats": None, "grades_with_target": 0,
     }
@@ -596,6 +602,22 @@ async def test_compare_without_targets(db_session):
     assert rows[1]["visit"] == 0
     assert rows[1]["visit_to_deposit_rate"] == NO_RATE
     assert (rows[1]["target_seats"], rows[1]["remaining_seats"]) == (None, None)
+    assert rows[1]["visit_to_deposit_range"] is None
+
+
+async def test_compare_ranges(db_session):
+    """Review Focus 3：五校合計 0 筆預繳時，各校範圍不是 0–0%。"""
+    add_visit(db_session, campus_key="minghua", grade="中班")
+    add_visit(db_session, campus_key="renwu", grade="小班")
+    add_visit(db_session, campus_key="renwu", grade="小班")
+    await db_session.commit()
+
+    rows = (await stats.compare(db_session, ["minghua", "renwu"], school_year=115, semester=1, now=NOW))["rows"]
+
+    # 合計 0/3 → prior 1/5；0/1 與 0/2 的範圍下限 0 附近、上限 > 0。
+    assert rows[0]["visit_to_deposit_range"]["high"] > 0
+    assert rows[1]["visit_to_deposit_range"]["high"] > 0
+    assert rows[1]["visit_to_deposit_range"]["high"] < rows[0]["visit_to_deposit_range"]["high"]
 
 
 async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yihua_client, editor_client, db_session):

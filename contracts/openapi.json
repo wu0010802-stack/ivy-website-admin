@@ -162,6 +162,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "$ref": "#/components/schemas/AdmissionsRate"
           },
@@ -178,6 +188,7 @@
           "effective_deposit",
           "pending_deposit",
           "visit_to_deposit_rate",
+          "visit_to_deposit_range",
           "visit_to_enrolled_rate",
           "deposit_to_enrolled_rate",
           "effective_to_enrolled_rate",
@@ -2016,6 +2027,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -2032,7 +2053,8 @@
           "band",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaDistanceBandOut",
         "type": "object"
@@ -2051,6 +2073,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -2067,7 +2099,8 @@
           "district",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaDistrictRowOut",
         "type": "object"
@@ -2368,6 +2401,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -2386,7 +2429,8 @@
           "village_code",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaVillageRowOut",
         "type": "object"

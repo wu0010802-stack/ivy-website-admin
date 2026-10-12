@@ -2715,6 +2715,7 @@ export interface components {
             transfer_term: number;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             visit_to_deposit_rate: components["schemas"]["AdmissionsRate"];
             visit_to_enrolled_rate: components["schemas"]["AdmissionsRate"];
         };
@@ -3282,6 +3283,7 @@ export interface components {
             deposit: number;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };
@@ -3293,6 +3295,7 @@ export interface components {
             district: string;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };
@@ -3401,6 +3404,7 @@ export interface components {
             village_code: string | null;
             /** Visit */
             visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };
