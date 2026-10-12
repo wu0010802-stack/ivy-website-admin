@@ -77,6 +77,32 @@ export interface SiteFooterPayload {
   links?: SiteLinkPayload[] | null
 }
 
+/** 各頁搜尋與分享可以設定的七個頁面（後端 PAGE_SEO_KEYS） */
+export type PageSeoKey = 'admission' | 'about' | 'curriculum' | 'environment' | 'news' | 'anniversary' | 'privacy'
+
+/** 某一頁的搜尋結果與社群分享設定；每個欄位留空＝沿用官網內建（標題、描述）或全站分享圖 */
+export interface PageSeoEntryPayload {
+  /** 最多 120 字 */
+  title: string
+  /** 最多 300 字 */
+  description: string
+  /** 素材庫圖片 UUID；空字串沿用全站分享圖 */
+  share_image: string
+  /** 最多 200 字 */
+  share_image_alt: string
+}
+
+export type SocialPlatform = 'facebook' | 'line' | 'instagram' | 'youtube'
+
+/** 機構的社群連結（頁首選單面板）；網址只收 https */
+export interface SocialLinkPayload {
+  platform: SocialPlatform
+  /** 1–20 字 */
+  label: string
+  /** https 開頭，最多 300 字 */
+  url: string
+}
+
 export interface SiteMetaPayload {
   title: string
   description: string
@@ -85,11 +111,16 @@ export interface SiteMetaPayload {
   /** 素材庫媒體 UUID；空字串沿用首頁大圖 */
   share_image: string
   share_image_alt: string
-  admission_title: string
-  admission_description: string
   allow_indexing: boolean
   /** null＝還沒設定過，官網沿用內建主選單 */
   primary_nav?: NavLinkPayload[] | null
+  /**
+   * 各頁的搜尋標題、描述與分享圖。載入時一律補成七頁（見 composables/pageSeoDefaults 的 normalizePageSeo）；
+   * 舊版本的 admission_title／admission_description 在那時搬進 page_seo.admission，不再存回。
+   */
+  page_seo: Record<PageSeoKey, PageSeoEntryPayload>
+  /** null＝官網沿用內建清單；[]＝不顯示；最多 6 筆、網址不可重複 */
+  social_links: SocialLinkPayload[] | null
 }
 
 export interface HomeCampusBoardPayload {

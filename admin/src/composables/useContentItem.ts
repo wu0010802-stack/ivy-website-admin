@@ -8,6 +8,7 @@ import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
 import { useRequestSequence } from './useRequestSequence'
 import { pairItems } from './listAlignment'
+import { pageSeoChangeDetail } from './pageSeoDefaults'
 import { contentFieldErrors, contentSaveErrorMessage, isVersionConflict, type ContentFieldError } from '../api/errors'
 import { hasCapability } from './usePermissions'
 import { useAuthStore } from '../stores/auth'
@@ -121,7 +122,10 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
       const change: FieldChange = { key, label: contentFieldLabelFor(kind, key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }
       // 字串清單（標語）前後值已經逐字列出，不必再摘要。
       const plainStrings = [before[key], after[key]].every((v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
-      const detail = plainStrings ? undefined : nestedChangeDetail(before[key], after[key])
+      // 全站設定的各頁搜尋：鍵是頁名，列「修改 關於常春藤頁、隱私權政策頁」，不列英文頁碼。
+      const detail = kind === 'site_meta' && key === 'page_seo'
+        ? pageSeoChangeDetail(before[key], after[key])
+        : plainStrings ? undefined : nestedChangeDetail(before[key], after[key])
       if (detail) change.detail = detail
       return change
     })

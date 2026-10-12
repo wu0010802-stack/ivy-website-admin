@@ -1,5 +1,5 @@
 import { CAMPUS_LABELS } from '../api/labels'
-import type { NavLinkPayload, SiteLinkPayload } from '../api/types'
+import type { NavLinkPayload, SiteLinkPayload, SocialLinkPayload, SocialPlatform } from '../api/types'
 
 // 主選單、頁尾連結與分校地圖網址的前端檢查。規則和後端 content/schemas.py
 // （_require_site_link、is_map_url）、官網 web/app/utils/site-links.ts 相同；
@@ -30,6 +30,61 @@ export const DEFAULT_FOOTER_LINKS: SiteLinkPayload[] = [
   { label: '特色教學', href: '/curriculum' },
   { label: '30 週年', href: '/anniversary' },
 ]
+
+// 機構社群（官網頁首選單面板的「機構社群」）：官網內建一個 Facebook 粉絲專頁。還沒在後台設定過
+// （social_links 是 null）的版本顯示「沿用內建」，按「改成自訂」才帶入這份。
+// __tests__/siteMetaSeo.test.ts 會比對 web/server/data/site-fixture.json 的 siteMeta.socialLinks。
+export const DEFAULT_SOCIAL_LINKS: SocialLinkPayload[] = [
+  { platform: 'facebook', label: '機構粉絲專頁', url: 'https://www.facebook.com/ivykid' },
+]
+
+/** 後端 SOCIAL_LINKS_MAX、SocialLinkPayload.url 的上限 */
+export const SOCIAL_LINKS_MAX = 6
+export const SOCIAL_URL_MAX = 300
+
+export const SOCIAL_PLATFORMS: readonly { value: SocialPlatform; label: string; example: string }[] = [
+  { value: 'facebook', label: 'Facebook', example: 'https://www.facebook.com/…' },
+  { value: 'line', label: 'LINE', example: 'https://lin.ee/…' },
+  { value: 'instagram', label: 'Instagram', example: 'https://www.instagram.com/…' },
+  { value: 'youtube', label: 'YouTube', example: 'https://www.youtube.com/@…' },
+]
+
+/**
+ * 社群網址有問題時回傳說明；沒問題回 null。規則同後端 SocialLinkPayload.url（和主選單的外部連結
+ * 一樣）：只收 https、要有主機名稱、不含帳密與空白、埠號合法。後端存檔時才是最後把關。
+ */
+export function socialUrlError(url: string): string | null {
+  const value = url.trim()
+  if (!value) return '請填寫網址'
+  if (value.length > SOCIAL_URL_MAX) return `網址最多 ${SOCIAL_URL_MAX} 字`
+  if (!/^https:\/\//i.test(value)) return '網址要用 https:// 開頭'
+  if (/[\s\\]/.test(value)) return '網址中間不能有空白'
+  try {
+    const parsed = new URL(value)
+    if (!parsed.username && !parsed.password && parsed.hostname.includes('.')) return null
+  } catch {
+    // 落到下面的說明
+  }
+  return '請填寫完整的網址（不含帳號密碼），例如 https://www.facebook.com/…'
+}
+
+// 判斷重複用的鍵：網域大小寫與結尾斜線不算不同（同後端 _social_url_key）。
+function socialUrlKey(url: string): string {
+  try {
+    const parsed = new URL(url.trim())
+    return `${parsed.hostname}|${parsed.port}|${parsed.pathname.replace(/\/+$/, '')}|${parsed.search}|${parsed.hash}`
+  } catch {
+    return url.trim()
+  }
+}
+
+/** 這一筆的網址和前面哪一筆重複；沒有重複回 -1。空白網址不算。 */
+export function socialDuplicateIndex(links: readonly Pick<SocialLinkPayload, 'url'>[], index: number): number {
+  const target = links[index]
+  if (!target || !target.url.trim()) return -1
+  const key = socialUrlKey(target.url)
+  return links.findIndex((link, i) => i < index && link.url.trim() !== '' && socialUrlKey(link.url) === key)
+}
 
 const SITE_PATH = /^\/(?!\/)[A-Za-z0-9\-._~/#?=&%]*$/
 

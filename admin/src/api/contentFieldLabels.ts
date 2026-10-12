@@ -1,4 +1,5 @@
 import { contentFieldLabel } from './labels'
+import { PAGE_SEO_FIELD_LABELS, pageSeoPageLabel } from '../composables/pageSeoDefaults'
 
 // 差異清單（發布、核准、還原）的欄位名要和編輯頁的表單標籤一致，使用者才對得上
 // 「改了哪裡」。同一個欄位鍵在不同內容種類的表單叫法不同（例如 intro 在分校
@@ -34,8 +35,9 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     header_phone_note: '電話備註',
     share_image: '社群分享預覽圖',
     share_image_alt: '分享圖說明',
-    admission_title: '入學資訊頁的搜尋結果標題',
-    admission_description: '入學資訊頁的搜尋結果描述',
+    // 入學頁的搜尋標題與描述 2026-10-12 搬進 page_seo.admission：舊欄位載入時搬走，不再有自己的名字。
+    page_seo: '各頁搜尋與分享',
+    social_links: '機構社群',
     allow_indexing: '搜尋引擎收錄',
   },
   booking_content: {
@@ -166,6 +168,7 @@ const LIST_UNITS: Record<string, string> = {
   copy_lines: '行',
   chapters: '個', years: '個', directions: '個', gallery: '件', daily: '件', beliefs: '項',
   chapter_names: '個', milestones: '站', hope_quotes: '段',
+  social_links: '個',
 }
 
 const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
@@ -214,6 +217,7 @@ const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
     answer: '我們的回答',
   },
   items: { q: '問題', a: '回答' },
+  social_links: { platform: '平台', label: '顯示名稱', url: '網址' },
   body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', alt: '圖片說明', caption: '圖說' },
 }
 
@@ -234,6 +238,8 @@ function listFieldLabel(kind: string | undefined, list: string, index: unknown, 
  * ["articles", 3, "title"] →「最新消息第 4 則・標題」；["facebook"] →「Facebook 粉絲專頁網址」。
  */
 export function contentPathLabel(kind: string | undefined, path: readonly (string | number)[]): string {
+  const seo = pageSeoPath(kind, path)
+  if (seo) return seo.page && seo.field ? `${seo.page}的${seo.field}` : (seo.page ?? seo.field)!
   const parts: string[] = []
   let parentList: string | undefined
   for (let i = 0; i < path.length; i++) {
@@ -251,10 +257,26 @@ export function contentPathLabel(kind: string | undefined, path: readonly (strin
   return parts.join('・')
 }
 
+/**
+ * 全站設定的 page_seo（頁名是字典的鍵，不是清單索引）：['page_seo', 'about', 'title'] →
+ * 頁「關於常春藤頁」、欄位「搜尋標題」；只有 ['page_seo'] 時整段叫「各頁搜尋與分享」。其他情形回 null。
+ */
+function pageSeoPath(kind: string | undefined, path: readonly (string | number)[]): { page?: string; field?: string } | null {
+  if (kind !== 'site_meta' || path[0] !== 'page_seo') return null
+  if (path.length === 1) return { field: '各頁搜尋與分享' }
+  const page = typeof path[1] === 'string' ? pageSeoPageLabel(path[1]) : undefined
+  if (!page) return null
+  if (path.length === 2) return { page }
+  const field = typeof path[2] === 'string' ? PAGE_SEO_FIELD_LABELS[path[2] as keyof typeof PAGE_SEO_FIELD_LABELS] : undefined
+  return field ? { page, field } : null
+}
+
 /** 錯誤指到的那一欄在表單上的標籤（最後一段），定位欄位時比對 el-form-item 的標籤用。 */
 export function contentPathFieldLabel(kind: string | undefined, path: readonly (string | number)[]): string {
   const last = path[path.length - 1]
   if (typeof last !== 'string') return ''
+  const seo = pageSeoPath(kind, path)
+  if (seo?.field) return seo.field
   // 最靠近這一欄的清單名：後面接著數字索引的那一段。
   let list: string | undefined
   let index: unknown

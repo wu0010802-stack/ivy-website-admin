@@ -517,7 +517,7 @@ describe('縮圖與圖片說明', () => {
 
   it('分享圖：改回首頁大圖時清掉說明，再選別張用新照片的說明', async () => {
     mockMedia(
-      contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: 'old', share_image_alt: 'A 照片的說明', admission_title: '', admission_description: '', allow_indexing: true, primary_nav: [] }),
+      contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: 'old', share_image_alt: 'A 照片的說明', allow_indexing: true, primary_nav: [], page_seo: null, social_links: null }),
       [mediaAsset({ alt_text: null })],
     )
     const wrapper = await mountView(SiteMetaView)
@@ -600,10 +600,11 @@ describe('唯讀帳號看內容', () => {
     expect(editor.get('form').classes()).not.toContain('form--readonly-values')
     expect(editor.find('input[placeholder="https://lin.ee/…"]').exists()).toBe(true)
 
-    vi.spyOn(api, 'get').mockResolvedValue(contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: '', share_image_alt: '', admission_title: '', admission_description: '', allow_indexing: true }) as never)
+    vi.spyOn(api, 'get').mockResolvedValue(contentItem('site_meta', { title: '', description: '', header_phone_number: '', header_phone_note: '', share_image: '', share_image_alt: '', allow_indexing: true }) as never)
     const reader = await mountView(SiteMetaView, testUser('readonly', { campus_keys: ['yihua'] }))
-    const admissionTitle = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '標題')!
-    expect(admissionTitle.get('textarea').attributes('placeholder')).toContain('留空使用預設')
+    // 各頁搜尋標題的提示字是官網內建的標題（第一頁籤是入學資訊頁），唯讀時也保留。
+    const admissionTitle = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '搜尋標題')!
+    expect(admissionTitle.get('textarea').attributes('placeholder')).toContain('留空使用預設：入學資訊')
     const phone = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '頁首電話')!
     expect(phone.get('input').attributes('placeholder')).toBe(EMPTY_VALUE_TEXT)
   })

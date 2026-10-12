@@ -196,6 +196,12 @@ async function expandItem(item: HTMLElement): Promise<void> {
   await nextTick()
 }
 
+/**
+ * 欄位藏在頁籤裡（全站設定的各頁搜尋與分享）：對欄位發這個事件，會往上冒泡，頁籤面板接到就
+ * 切到自己那一頁。display:none 的欄位聚焦不了，所以要先切頁籤再聚焦。
+ */
+export const FIELD_REVEAL_EVENT = 'field-reveal'
+
 function scrollAndFocus(target: HTMLElement, field: string) {
   const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   target.scrollIntoView?.({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
@@ -222,10 +228,21 @@ export async function revealListItem(root: ParentNode | null | undefined, select
  * （沒有 data-list 時找 root 裡第一個對得上的項目）；欄位先找 `[data-field="title"]`，再找標籤以
  * fieldLabel 開頭的 el-form-item，都找不到時再找同名的清單 `[data-list="milestones"]`
  * （整個清單的錯誤，例如沿革年份沒有由早到晚，loc 只有清單名）。找不到欄位就停在
- * 那一項；什麼都找不到回 false。
+ * 那一項；什麼都找不到回 false。路徑全是字串又不只一段（page_seo.about.title）時，
+ * 先找整條路徑當 data-field 的欄位。
  */
 export async function revealContentPath(root: HTMLElement | null | undefined, path: readonly (string | number)[], fieldLabel = ''): Promise<boolean> {
   if (!root) return false
+  // 路徑全是字串、不經過清單（page_seo.about.title）：欄位用整條路徑當 data-field，並先請外層頁籤切過來。
+  if (path.length > 1 && path.every((segment) => typeof segment === 'string')) {
+    const whole = root.querySelector<HTMLElement>(`[data-field="${path.join('.')}"]`)
+    if (whole) {
+      whole.dispatchEvent(new CustomEvent(FIELD_REVEAL_EVENT, { bubbles: true }))
+      await nextTick()
+      scrollAndFocus(whole, FIRST_FIELD)
+      return true
+    }
+  }
   let scope: HTMLElement = root
   let i = 0
   while (i < path.length - 1 && typeof path[i] === 'string' && typeof path[i + 1] === 'number') {

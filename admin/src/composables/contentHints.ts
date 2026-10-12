@@ -22,6 +22,9 @@ export const LENGTH_HINTS = {
   momentStory: { max: 120, why: '翻面後的卡片放不下，要捲動才看得完' },
   tourIntro: { max: 80, why: '場景說明會蓋住照片' },
   bookingCta: { max: 6, why: '頁首按鈕放不下' },
+  // 各頁搜尋與分享（全站設定，2026-10-12）：Google 搜尋結果只顯示標題與描述的前段，超過會被「…」截掉。
+  seoTitle: { max: 32, why: '搜尋結果裡後面的字會被截掉' },
+  seoDescription: { max: 80, why: '搜尋結果裡後面的字會被截掉，手機上更短' },
   // 特色教學頁（2026-10 開放後台編輯）：建議值＝現在的字數再留一點；擋存檔的硬上限在後端
   // content/page_schemas.py（DESIGN.md「特色教學頁、關於常春藤頁開放後台編輯」有對照表）。
   curEyebrow: { max: 16, why: '手機上會換成兩行' },

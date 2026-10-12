@@ -11,6 +11,7 @@ import type { UserOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import type { EditorSection } from '../composables/editorSections'
 import type { ContentEditorState } from '../composables/useContentItem'
+import { normalizePageSeo } from '../composables/pageSeoDefaults'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
@@ -22,6 +23,7 @@ import AboutPageView from '../views/AboutPageView.vue'
 import CurriculumPageView from '../views/CurriculumPageView.vue'
 import AdmissionContentView from '../views/AdmissionContentView.vue'
 import PrivacyPolicyView from '../views/PrivacyPolicyView.vue'
+import SiteMetaView from '../views/SiteMetaView.vue'
 
 const wrappers: VueWrapper[] = []
 const originalScroll = Element.prototype.scrollIntoView
@@ -52,6 +54,24 @@ const CASES: Case[] = [
   { name: '關於常春藤頁', component: AboutPageView, kind: 'about_page', campusKey: null, payload: {}, edit: { key: 'story_title', value: '新的章名', section: '第一章：一路走來' } },
   { name: '特色教學頁', component: CurriculumPageView, kind: 'curriculum_page', campusKey: null, payload: {}, edit: { key: 'gallery_title', value: '新的美術館', section: '03 兒童美術館' } },
   { name: '入學資訊頁', component: AdmissionContentView, kind: 'admission_content', campusKey: null, payload: {}, edit: { key: 'fee_intro', value: '新的說明', section: '收退費辦法' } },
+  { name: '全站設定', component: SiteMetaView, kind: 'site_meta', campusKey: null, payload: {}, edit: { key: 'allow_indexing', value: false, section: '搜尋引擎' } },
+  {
+    name: '全站設定（機構社群）',
+    component: SiteMetaView,
+    kind: 'site_meta',
+    campusKey: null,
+    payload: {},
+    edit: { key: 'social_links', value: [{ platform: 'line', label: 'LINE 官方帳號', url: 'https://lin.ee/abc' }], section: '機構社群' },
+  },
+  {
+    // 各頁搜尋與分享是一整段（page_seo 一個欄位）；舊版本的入學頁欄位載入時搬進去，不是改動。
+    name: '全站設定（各頁搜尋與分享）',
+    component: SiteMetaView,
+    kind: 'site_meta',
+    campusKey: null,
+    payload: { admission_title: '舊標題' },
+    edit: { key: 'page_seo', value: normalizePageSeo({ about: { title: '關於' } }), section: '各頁搜尋與分享' },
+  },
   {
     name: '隱私權政策',
     component: PrivacyPolicyView,

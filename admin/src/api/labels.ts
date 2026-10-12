@@ -2,6 +2,7 @@
 // 角色），畫面上一律經過這裡轉成園方看得懂的字，不要在各頁面各自硬寫。
 import type { Role } from './types'
 import { formatWeekday, slotStart } from '../utils/visitSchedule'
+import { pageSeoPageLabel } from '../composables/pageSeoDefaults'
 
 export const CAMPUS_LABELS: Record<string, string> = {
   yihua: '義華',
@@ -298,6 +299,8 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
 
 export function mediaFieldPathLabel(path: string): string {
   if (path === 'share_image') return '分享預覽圖'
+  const seo = /^page_seo\.([a-z]+)\.share_image$/.exec(path)
+  if (seo) return `${pageSeoPageLabel(seo[1]!) ?? seo[1]}的分享圖`
   if (MEDIA_SLOT_PATH_LABELS[path]) return MEDIA_SLOT_PATH_LABELS[path]
   let slot = /^moments\[(\d+)\]\.photo\.media_id$/.exec(path)
   if (slot) return `孩子的一天第 ${Number(slot[1]) + 1} 張卡片的照片`

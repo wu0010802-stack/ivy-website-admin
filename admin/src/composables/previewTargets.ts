@@ -52,7 +52,8 @@ export const PREVIEW_TARGETS: Readonly<Record<string, readonly PreviewTarget[]>>
   curriculum_page: [{ id: 'page', label: '特色教學頁', page: 'curriculum', block: 'page-top' }],
   about_page: [{ id: 'page', label: '關於常春藤頁', page: 'about', block: 'page-top' }],
   site_footer: [{ id: 'footer', label: '頁尾', page: 'home', block: 'site-footer' }],
-  // 網站描述、分享圖等只用在搜尋與分享，預覽頁上看不到；只有頁首電話與主選單會框。
+  // 網站描述、分享圖、各頁搜尋與分享（page_seo）等只用在搜尋與分享，預覽頁上看不到；只有頁首電話與主選單會框。
+  // 機構社群（social_links）在頁首選單面板裡，預覽的頁首是收起的選單，框不到，所以不列進 fields。
   site_meta: [{ id: 'header', label: '頁首', page: 'home', block: 'site-header', fields: ['header_phone_number', 'header_phone_note', 'primary_nav'] }],
   // 校園探索是寬版編輯器（場景大圖＋熱點），不放預覽欄；照舊用「存草稿並預覽」。
   campus_tour: [],
