@@ -133,3 +133,43 @@ test('總管理者改聯絡片語，案件明細點片語帶入輸入框（桌�
   await api.send('PUT', '/admin/contact-phrases', { phrases: current.phrases.filter((p) => p !== '已傳簡訊提醒'), expected_version: current.version })
   await api.dispose()
 })
+
+const FRAME = 'iframe[title="官網預覽"]'
+
+test('各頁搜尋與分享：改關於頁的搜尋標題並發布，官網 /about 的 <title> 跟著換', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const { context, page } = await openAs(browser, 'super_admin')
+  await gotoAdmin(page, '/content/site-meta', '網站標題與電話')
+  await page.getByRole('tab', { name: /關於常春藤/ }).click()
+  const title = `關於常春藤 e2e 搜尋標題 ${Date.now() % 100000}`
+  await page.getByRole('textbox', { name: '搜尋標題' }).fill(title)
+  await page.screenshot({ path: path.join(SHOTS, 'admin-batch-page-seo-1440.png') })
+  await page.getByRole('button', { name: '儲存並發布到官網' }).click()
+  const confirm = page.getByRole('dialog', { name: /到官網？/ })
+  await confirm.getByRole('button', { name: '儲存並發布' }).click()
+  await expect(confirm).toBeHidden()
+  await expect.poll(async () => {
+    const visitor = await browser.newPage()
+    await visitor.goto('/about')
+    const value = await visitor.title()
+    await visitor.close()
+    return value
+  }, { timeout: 30_000 }).toBe(title)
+  await context.close()
+})
+
+test('常春藤環境頁編輯器：改首屏大標，預覽即時換字（桌機）', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const { context, page } = await openAs(browser, 'super_admin')
+  await gotoAdmin(page, '/content/environment-page', '常春藤環境頁')
+  const frame = page.frameLocator(FRAME)
+  await expect(frame.locator('#environment-title')).toBeVisible({ timeout: 15_000 })
+  const marker = `大標測試${Date.now() % 1000}`
+  await page.getByRole('textbox', { name: '首屏大標' }).fill(marker)
+  await expect(frame.locator('#environment-title')).toContainText(marker, { timeout: 5_000 })
+  await page.screenshot({ path: path.join(SHOTS, 'admin-batch-environment-editor-1440.png') })
+  await page.getByRole('button', { name: '放棄修改' }).click()
+  await answerMessageBox(page, '放棄 1 個欄位的修改？', '放棄修改')
+  await expect(frame.locator('#environment-title')).not.toContainText(marker)
+  await context.close()
+})
