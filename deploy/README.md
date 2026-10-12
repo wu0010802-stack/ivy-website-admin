@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-12 參觀案件可以提早完成參觀（main CI 部署，沒有 migration）
+
+- **合併**：`feature/visit-complete-early-20261012` 的 `f09ad269`（從 origin/main 開，推前兩次 rebase 接上 `c7cbe1bc` 區域分析與 `6fcd3911` 其部署紀錄，衝突只在 README、DESIGN 頂部段落，兩邊都保留），快轉推 main `6fcd3911..f09ad269`。內容與規則見 README 頂部 2026-10-12 段落、DESIGN.md「提早完成參觀」。
+- **migration**：沒有。提早到、約在之後日子的案件把 `slot_id` 設成 NULL（資料表只要求「已確認」有場次），不改結構。
+- **回退**：可直接切回前一個映像；已用新端點標記的案件仍是一般的「已到場」，舊版照常顯示（釋出場次的那幾筆列表寫「沒有場次」）。
+- **推送前本機閘門**：rebase 前後端全套 1704 passed、1 skipped，admin vitest 全套 1862 passed（2 項負載逾時，單獨重跑過），web vitest 933 passed、typecheck；接上 `c7cbe1bc` 後重跑 `contract:check`、admin typecheck、後端受影響 7 檔 63 passed、admin 相關 7 檔 87 passed，重新 build 後 stack 新 spec＋`visual.spec` 5 張基準 8 passed（admin 全套在本機負載 109 時有 73 項逾時，改由 CI 判定）。`6fcd3911` 只動文件，程式與已驗證的 `1d1670f8` 相同。
+- **CI**：main run 38191155223（`f09ad269`）全綠，建立到完成 14.5 分鐘：Frontend web 1.4／admin 4.9 分鐘，Backend 三組 9.8／5.7／9.4 分鐘，E2E／Playwright 8.6 分鐘，Deploy 4.5 分鐘。
+- **正式 `release.json`**：base commit `f09ad269132e5e97df40920802c67f7d6b169c85`，created `2026-10-12T01:25:23Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空；`POST /admin/visit-requests/<uuid>/complete-early` 401（對照 `/complete` 401、不存在的路徑 404，路由已掛）；後台 bundle 的 `VisitCaseTimeline-*.js` 含「家長提早到了」與 `complete-early`，`labels-*.js` 含「提早標記已到場」。
+- **未做**：沒有登入後台實際按過（正式站預約都是測試資料，要試請挑測試案件）；部署期間開著的舊後台分頁要重新整理；Safari／iOS 實機。
+
 ## 2026-10-12 招生入學區域分析（main CI 部署，含 1 支只新增表的 migration；自動同步仍關）
 
 - **合併**：`feature/admissions-area-20261008`（44 個 commit，含 `a85aecba` 合入後台工程清理）快轉推 main `41345e1a..c7cbe1bc`。內容、設計與驗證見 README 頂部 2026-10-08 段落與 `docs/specs/2026-10-08-admissions-area-design.md`；延後項目在 `docs/superpowers/plans/2026-10-08-admissions-area-followups.md`。
