@@ -190,10 +190,14 @@ def records_audit_metadata(filters: RecruitmentVisitFilters) -> dict:
         "follow_up": filters.follow_up,
         # 負責人只記類別，不記帳號 id：me、none，或 staff（指定某位同仁）。
         "owner": (filters.owner if filters.owner in ("me", "none") else "staff") if filters.owner else None,
-        # 區域只記篩了哪一種（2026-10-08），不記區名與里名。
-        "area": "no_village"
-        if filters.geo
-        else ("village" if filters.village else ("district" if filters.district else None)),
+        # 區域只記篩了哪些條件（2026-10-08），不記區名與里名；同時有多個用 + 串起來，順序固定：
+        # district、village、no_village（例：district+village）。
+        "area": "+".join(
+            name
+            for name, applied in (("district", filters.district), ("village", filters.village), ("no_village", filters.geo))
+            if applied
+        )
+        or None,
     }
     return {key: value for key, value in applied.items() if value is not None}
 

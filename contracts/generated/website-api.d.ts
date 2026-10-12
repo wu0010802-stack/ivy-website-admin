@@ -58,6 +58,7 @@ export interface paths {
          * Get Admissions Area Kindergartens
          * @description 本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。
          *     radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。
+         *     不在 1、3、6，或根本不是整數（abc、3.5、空字串）都回 INVALID_RADIUS。
          */
         get: operations["get_admissions_area_kindergartens_api_website_v1_admin_admissions_area_kindergartens_get"];
         put?: never;
@@ -7384,7 +7385,7 @@ export interface operations {
                 owner?: string | null;
                 /** @description 行政區（2026-10-08 區域分析） */
                 district?: string | null;
-                /** @description 里；只算比對到里的訪視 */
+                /** @description 里；只算比對到里的訪視。要同時給 district（不同區有同名的里） */
                 village?: string | null;
                 /** @description no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算） */
                 geo?: "no_village" | null;
@@ -7486,7 +7487,7 @@ export interface operations {
                 owner?: string | null;
                 /** @description 行政區（2026-10-08 區域分析） */
                 district?: string | null;
-                /** @description 里；只算比對到里的訪視 */
+                /** @description 里；只算比對到里的訪視。要同時給 district（不同區有同名的里） */
                 village?: string | null;
                 /** @description no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算） */
                 geo?: "no_village" | null;

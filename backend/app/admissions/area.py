@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, get_args
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,13 +31,14 @@ from app.admissions.geo import kindergartens as geo_kindergartens
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, RecruitmentVisitGeo
 from app.admissions.geo.projection import haversine_m
 from app.admissions.models import RecruitmentVisit
+from app.admissions.schemas import AreaUnlocatedReason
 from app.admissions.stats import _base_filters, _count_columns, pct
 from app.campuses.models import Campus
 
 DISTANCE_BANDS = ("0-1", "1-3", "3-6", "6+", "none")
 # 有地址卻沒到里的原因，筆數相同時照這個順序列。no_address、anonymized 不在其中：
-# 它們各有自己的層級與筆數（totals.no_address、totals.anonymized）。
-REASON_ORDER = ("outside_kaohsiung", "no_doorplate", "ambiguous_village")
+# 它們各有自己的層級與筆數（totals.no_address、totals.anonymized）。與 API 的 Literal 同一個來源。
+REASON_ORDER: tuple[str, ...] = get_args(AreaUnlocatedReason)
 RADIUS_CHOICES = (1, 3, 6)
 # 與任一校區座標相距這個距離內的園所視為本機構（規格 §8.2）。
 OWN_CAMPUS_RADIUS_M = 50
@@ -93,9 +94,10 @@ def _row(bucket: dict[str, int], prior: float | None, **labels: Any) -> dict[str
     }
 
 
-async def campus_out(db: AsyncSession, campus_key: str) -> dict[str, Any]:
+async def campus_out(db: AsyncSession, campus_key: str, point: matcher.CampusPoint | None = None) -> dict[str, Any]:
+    """point 由呼叫端給（已經算過這一校的座標）就不再算一次。"""
     campus = await db.get(Campus, campus_key)
-    point = await matcher.campus_point(db, campus_key)
+    point = point if point is not None else await matcher.campus_point(db, campus_key)
     return {
         "key": campus_key,
         "name": campus.name if campus is not None else campus_key,
@@ -111,8 +113,9 @@ async def _data_status(db: AsyncSession) -> dict[str, Any]:
     doorplates = statuses.get("doorplates")
     kindergartens = statuses.get("kindergartens")
     return {
-        # 畫面顯示月份「115-10」；active_version 是內部批次標記（A 階段定案）。
-        "doorplate_version": await matcher.doorplate_label(db),
+        # 畫面顯示月份「115-10」（label）；active_version 是內部批次標記（A 階段定案）。
+        # 取自已讀到的狀態列，不為它再查一次。
+        "doorplate_version": doorplates.label if doorplates is not None else None,
         "doorplates_synced_at": doorplates.synced_at if doorplates is not None else None,
         "kindergartens_synced_at": kindergartens.synced_at if kindergartens is not None else None,
         "boundary_version": boundaries.BOUNDARY_VERSION,
@@ -200,7 +203,9 @@ async def query_area(
 async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: int) -> dict[str, Any]:
     """本校半徑內的幼兒園（規格 §8.2），依距離排序。校區比對不到座標時回空清單，原因在
     campus.locate_error。is_own：與任一校區座標相距 50 公尺內（本機構，不算競爭園所）。"""
-    campus = await campus_out(db, campus_key)
+    # 五校座標一次算完：本校的拿來回 campus，全部拿來判斷哪些園所是本機構（本校不算兩次）。
+    points = await matcher.campus_points(db)
+    campus = await campus_out(db, campus_key, points[campus_key])
     status = await db.get(GeoDatasetStatus, "kindergartens")
     result: dict[str, Any] = {
         "synced_at": status.synced_at if status is not None else None,
@@ -211,17 +216,14 @@ async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: i
     }
     if campus["lat"] is None or campus["lng"] is None:
         return result
-    own_points = [
-        (point.lat, point.lng)
-        for point in (await matcher.campus_points(db)).values()
-        if point.lat is not None and point.lng is not None
-    ]
+    own_points = [(point.lat, point.lng) for point in points.values() if point.lat is not None and point.lng is not None]
+    # nearby 已依距離、名稱排好序（排序鍵只在那裡定義一次）。
     found = await geo_kindergartens.nearby(db, campus["lat"], campus["lng"], radius_km * 1000)
     result["items"] = [
         {
             **asdict(item),
             "is_own": any(haversine_m(item.lat, item.lng, lat, lng) <= OWN_CAMPUS_RADIUS_M for lat, lng in own_points),
         }
-        for item in sorted(found, key=lambda kindergarten: (kindergarten.distance_m, kindergarten.name))
+        for item in found
     ]
     return result

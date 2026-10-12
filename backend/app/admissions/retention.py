@@ -53,10 +53,10 @@ def anonymize_visit(
     contact_logs: list[RecruitmentContactLog] = (),
 ) -> None:
     """清掉一筆訪視的個資欄位、歷程原因與聯絡紀錄內容（events、contact_logs 是這筆
-    訪視的歷程與聯絡紀錄）。區域比對結果的里與距離一併清掉，行政區保留。
+    訪視的歷程與聯絡紀錄）。行政區（district）保留。
 
-    只改這一列訪視與它的歷程；區域比對結果由 anonymize_due 在訪視 flush 之後清
-    （見 _anonymize_geo）。"""
+    只改這一列訪視與它的歷程，不碰區域比對結果：里與距離由 anonymize_due 在訪視 flush
+    之後清（見 _anonymize_geo）。"""
     visit.child_name = ANONYMIZED_TEXT
     visit.english_name = None
     visit.birthday = None

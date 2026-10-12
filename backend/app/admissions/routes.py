@@ -10,6 +10,7 @@ metadata 不放個資。
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Literal
 
@@ -53,6 +54,7 @@ from app.auth.permissions import ScopeDenied, covers_campus, require_scope
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
 from app.common import csv_export
+from app.common.http_cache import etag_matches
 from app.common.timezones import today_local
 from app.operations import audit_service
 
@@ -789,7 +791,30 @@ async def get_admissions_area(
     return AdmissionsAreaOut.model_validate(result)
 
 
-@router.get("/admin/admissions/area/kindergartens", response_model=AreaKindergartensOut)
+def _invalid_radius() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "INVALID_RADIUS", "message": "半徑只能是 1、3 或 6 公里"},
+    )
+
+
+_PLAIN_INTEGER = re.compile(r"[0-9]+")
+
+
+async def _require_integer_radius(request: Request, _user: User = Depends(get_current_user)) -> None:
+    """radius_km 不是整數（abc、3.5、空字串）時，FastAPI 會在進入路由前回預設的驗證錯誤結構
+    （陣列）；這裡先擋下，改回和「不在 1、3、6」同一個 INVALID_RADIUS。依賴 get_current_user：
+    登入檢查仍在最前面（沒登入的人帶錯誤半徑還是 401），且和路由共用同一次解析。"""
+    raw = request.query_params.get("radius_km")
+    if raw is not None and not _PLAIN_INTEGER.fullmatch(raw):
+        raise _invalid_radius()
+
+
+@router.get(
+    "/admin/admissions/area/kindergartens",
+    response_model=AreaKindergartensOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
 async def get_admissions_area_kindergartens(
     campus_key: str,
     radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
@@ -797,13 +822,11 @@ async def get_admissions_area_kindergartens(
     db: AsyncSession = Depends(get_db_session),
 ) -> AreaKindergartensOut:
     """本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。
-    radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。"""
+    radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。
+    不在 1、3、6，或根本不是整數（abc、3.5、空字串）都回 INVALID_RADIUS。"""
     _require_campus(current_user, "admissions.read", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "INVALID_RADIUS", "message": "半徑只能是 1、3 或 6 公里"},
-        )
+        raise _invalid_radius()
     result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
     return AreaKindergartensOut.model_validate(result)
 
@@ -826,7 +849,7 @@ async def get_admissions_area_boundaries(
     require_scope(current_user, "admissions.read")
     etag = geo_boundaries.boundary_etag()
     headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
-    if request.headers.get("if-none-match") == etag:
+    if etag_matches(request.headers.get("if-none-match"), etag):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     return Response(content=geo_boundaries.boundary_bytes(), media_type="application/geo+json", headers=headers)
 

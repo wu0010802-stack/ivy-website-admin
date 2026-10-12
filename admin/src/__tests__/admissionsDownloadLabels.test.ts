@@ -63,3 +63,20 @@ describe('稽核紀錄裡「不在選項內」的篩選值', () => {
     )
   })
 })
+
+describe('稽核紀錄裡的區域篩選', () => {
+  const action = 'recruitment_visit.export'
+  it('同時套用的條件用「+」串起來（後端 records_audit_metadata），逐項翻成白話；舊紀錄的單一值照舊', () => {
+    expect(auditMetadataSummary({ row_count: 3, area: 'district+village' }, action)).toContain('篩選區域：指定行政區、指定里')
+    expect(auditMetadataSummary({ row_count: 3, area: 'district+no_village' }, action)).toContain('篩選區域：指定行政區、未定位到里')
+    for (const [value, text] of [['district', '指定行政區'], ['village', '指定里'], ['no_village', '未定位到里']] as const) {
+      expect(auditMetadataSummary({ row_count: 3, area: value }, action)).toContain(`篩選區域：${text}`)
+    }
+  })
+
+  it('後端只會寫這三個名字，而且用「+」串接', () => {
+    const body = downloadPy!.slice(downloadPy!.indexOf('def records_audit_metadata('))
+    expect(body).toContain('("district", filters.district), ("village", filters.village), ("no_village", filters.geo)')
+    expect(body).toContain('"+".join(')
+  })
+})

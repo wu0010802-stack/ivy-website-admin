@@ -14,7 +14,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Literal
 
-from fastapi import Query
+from fastapi import HTTPException, Query, status
 from sqlalchemy import ColumnElement, and_, func, literal_column, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,8 +65,8 @@ async def _apply_geo(db: AsyncSession, visit: RecruitmentVisit) -> None:
     """區域分析（2026-10-08 規格 §6.1）：依地址比對行政區與里，寫 recruitment_visit_geo
     並設定 district。只查資料庫、不呼叫外部服務、不加 version；比對本身沒有自訂例外，
     資料庫錯誤會直接往外丟，整筆寫入跟著 rollback（標記已到場的交易也會走到這裡）。
-    matcher 可能用 Core upsert 寫入，identity map 裡已載入的舊
-    比對結果不會自己更新，所以寫完重讀一次（populate_existing）掛回 visit.geo。"""
+    matcher 用 Core upsert 寫入，identity map 裡已載入的舊比對結果不會自己更新，
+    所以寫完重讀一次（populate_existing）掛回 visit.geo。"""
     from sqlalchemy.orm.attributes import set_committed_value
 
     from app.admissions.geo import matcher
@@ -314,7 +314,9 @@ class RecruitmentVisitFilters:
             default=None, pattern=constants.OWNER_FILTER_PATTERN, description="追蹤負責人：me、none 或帳號 id"
         ),
         district: str | None = Query(default=None, max_length=30, description="行政區（2026-10-08 區域分析）"),
-        village: str | None = Query(default=None, max_length=16, description="里；只算比對到里的訪視"),
+        village: str | None = Query(
+            default=None, max_length=16, description="里；只算比對到里的訪視。要同時給 district（不同區有同名的里）"
+        ),
         geo: _GeoFilter | None = Query(
             default=None,
             description="no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
@@ -334,9 +336,15 @@ class RecruitmentVisitFilters:
         self.q = q.strip() if q and q.strip() else None
         self.follow_up = follow_up
         self.owner = owner
-        self.district = district
-        self.village = village
+        self.district = district.strip() or None if district else None
+        self.village = village.strip() or None if village else None
         self.geo = geo
+        if self.village and not self.district:
+            # 里名在不同行政區會重複（例：中正里）：只給里會把別區的也撈進來。
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "VILLAGE_NEEDS_DISTRICT", "message": "指定里時要同時指定行政區（不同行政區有同名的里）"},
+            )
 
     def apply(self, stmt, *, current_user_id: uuid.UUID | None = None):
         """current_user_id 給 owner=me 用（路由傳入目前登入的帳號）。"""

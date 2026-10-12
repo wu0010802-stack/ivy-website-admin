@@ -178,3 +178,27 @@ async def test_kindergarten_kind_accepts_declared_values_and_rejects_others(db_s
         db_session.add(kindergarten(f"k{index}", kind))
     await db_session.commit()
     await _expect_rejected(db_session, kindergarten("bad", "charter"))
+
+
+def test_api_literals_match_the_geo_constants():
+    """schemas.py 的 Literal 與 geo 常數（資料庫約束的來源）各寫了一份：加減一個值卻漏改另一份，
+    API 就會在回應驗證時才炸。這裡逐一對照（順序也要一樣，OpenAPI 與前端選項照這個順序）。"""
+    from typing import get_args
+
+    from app.admissions import area
+    from app.admissions.schemas import (
+        AreaUnlocatedReason,
+        DistanceBandKey,
+        KindergartenKind,
+        MatchLevel,
+        UnlocatedReason,
+    )
+
+    assert get_args(MatchLevel) == MATCH_LEVELS
+    assert get_args(UnlocatedReason) == UNLOCATED_REASONS
+    assert get_args(KindergartenKind) == KINDERGARTEN_KINDS
+    assert get_args(DistanceBandKey) == area.DISTANCE_BANDS
+    # 統計裡列出的「有地址卻沒到里」原因：API 型別與統計排序是同一個來源，且都是合法的未定位原因。
+    assert area.REASON_ORDER == get_args(AreaUnlocatedReason)
+    assert set(area.REASON_ORDER) < set(UNLOCATED_REASONS)
+    assert not {"no_address", "anonymized"} & set(area.REASON_ORDER)  # 這兩個各有自己的層級與筆數

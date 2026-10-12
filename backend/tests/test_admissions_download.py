@@ -579,7 +579,7 @@ def test_audit_metadata_only_records_which_filters_were_applied():
 
 
 def test_audit_metadata_records_only_the_kind_of_area_filter():
-    """區域篩選只記類別（district／village／no_village），不記區名與里名；同時有多個時取最細的。"""
+    """區域篩選只記有哪些條件（district／village／no_village，同時有多個用 + 串起來），不記區名與里名。"""
 
     def area(**overrides):
         values = dict(
@@ -592,9 +592,12 @@ def test_audit_metadata_records_only_the_kind_of_area_filter():
 
     assert area() == {}
     assert area(district="三民區") == {"area": "district"}
-    assert area(district="三民區", village="鼎金里") == {"area": "village"}
+    assert area(district="三民區", village="鼎金里") == {"area": "district+village"}
+    assert area(village="鼎金里") == {"area": "village"}  # 舊的紀錄與直接呼叫（API 已要求里一定要帶行政區）
     assert area(geo="no_village") == {"area": "no_village"}
+    assert area(district="三民區", geo="no_village") == {"area": "district+no_village"}
     assert "三民區" not in str(area(district="三民區", village="鼎金里"))
+    assert "鼎金里" not in str(area(district="三民區", village="鼎金里"))
 
 
 def test_audit_metadata_records_reason_and_grade_verbatim_only_when_they_are_known_choices():

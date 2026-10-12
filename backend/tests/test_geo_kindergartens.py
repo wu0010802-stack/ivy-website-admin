@@ -144,6 +144,24 @@ async def test_replace_and_nearby(db_session):
     assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 2
 
 
+async def test_nearby_is_sorted_by_distance_then_name(db_session):
+    """排序鍵只定義在 nearby（API 層不再重排）：距離相同時依名稱，與寫入順序無關。"""
+    now = datetime.now(timezone.utc)
+    lat, lng = YIHUA_POINT
+    for source_id, name, dlat in (("a", "甲幼兒園", 0.001), ("b", "乙幼兒園", 0.001), ("c", "丙幼兒園", 0.0005)):
+        db_session.add(
+            GeoKindergarten(
+                source_id=source_id, name=name, kind="private", district="三民區", address="某路1號",
+                lat=lat + dlat, lng=lng, is_active=True, synced_at=now,
+            )
+        )
+    await db_session.commit()
+    found = await nearby(db_session, lat, lng, 1000)
+    # 乙（U+4E59）排在甲（U+7532）前面，和寫入順序（甲先）相反：確實是名稱在決定順序。
+    assert [item.name for item in found] == ["丙幼兒園", "乙幼兒園", "甲幼兒園"]
+    assert found[1].distance_m == found[2].distance_m
+
+
 @pytest.mark.parametrize(
     ("synced_at", "label"),
     [

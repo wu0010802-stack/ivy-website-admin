@@ -25,6 +25,7 @@ from app.auth.permissions import (
 from app.content import notices, service
 from app.content import publish_jobs
 from app.campuses.models import Campus
+from app.common.http_cache import etag_matches
 from app.common.timezones import today_local
 from app.content.models import (
     ContentItem,
@@ -544,17 +545,6 @@ async def publish_content_item(
     return _item_out(item, latest)
 
 
-def _etag_matches(header: str | None, etag: str) -> bool:
-    """If-None-Match 可能是 *、多個以逗號分隔的值，或帶 W/ 的弱比對值。"""
-    if not header:
-        return False
-    for candidate in header.split(","):
-        candidate = candidate.strip()
-        if candidate == "*" or candidate.removeprefix("W/") == etag:
-            return True
-    return False
-
-
 class _PublicSiteCache:
     """/public/site 的程序內快取：序列化後的本文與 ETag。分兩層——
     content：鍵是 (release id, 停用分校, 台北日期)，這三個決定公開內容（release 的
@@ -662,7 +652,7 @@ async def get_public_site(
         )
     body, etag = cached
     headers = {"Cache-Control": "no-cache, max-age=0", "ETag": etag}
-    if _etag_matches(request.headers.get("if-none-match"), etag):
+    if etag_matches(request.headers.get("if-none-match"), etag):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     return Response(content=body, media_type="application/json", headers=headers)
 

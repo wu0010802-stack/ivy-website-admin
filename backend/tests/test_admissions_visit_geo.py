@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -75,6 +77,31 @@ async def test_booking_arrival_writes_geo_row(admin_client, public_client, db_se
     assert (geo.match_level, geo.unlocated_reason) == ("unlocated", "no_address")
 
 
+async def test_rebuilding_from_a_visit_request_writes_the_geo_row_too(admin_client, public_client, db_session, geo_samples):
+    """補建端點（POST /from-visit-request）也走 create_visit：回應帶比對結果、資料庫有 geo 列。
+    預約沒有地址，所以是 unlocated／no_address。"""
+    booking = await started_booking(admin_client, public_client, db_session)
+    assert (await complete(admin_client, booking["id"])).status_code == 200
+    first = await db_session.scalar(
+        select(RecruitmentVisit)
+        .where(RecruitmentVisit.visit_request_id == uuid.UUID(str(booking["id"])))
+        .execution_options(populate_existing=True)
+    )
+    assert (await admin_client.delete(f"{ADMISSIONS}/records/{first.id}?expected_version={first.version}")).status_code == 204
+    assert await _geo_row(db_session, str(first.id)) is None  # 刪訪視連帶刪 geo 列
+
+    rebuilt = await admin_client.post(f"{ADMISSIONS}/from-visit-request/{booking['id']}")
+    assert rebuilt.status_code == 200, rebuilt.text
+    expected = {"village": None, "match_level": "unlocated", "unlocated_reason": "no_address", "distance_m": None}
+    assert rebuilt.json()["geo"] == expected
+    assert rebuilt.json()["district"] is None
+    geo = await _geo_row(db_session, rebuilt.json()["id"])
+    assert geo is not None and (geo.match_level, geo.unlocated_reason) == ("unlocated", "no_address")
+    assert geo.doorplate_version == "115-10"  # 當時使用中的門牌月份
+    fetched = (await admin_client.get(f"{ADMISSIONS}/records/{rebuilt.json()['id']}")).json()
+    assert fetched["geo"] == expected
+
+
 async def test_editing_address_to_outside_clears_district_and_village(admin_client, geo_samples):
     """Review Focus 2：改到外縣市，舊的里與行政區不殘留；只加一次 version。"""
     record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
@@ -116,6 +143,17 @@ async def test_district_from_client_is_still_rejected(admin_client):
         },
     )
     assert response.status_code == 422
+
+
+async def test_district_in_a_patch_is_rejected_too(admin_client, geo_samples):
+    """行政區由伺服器依地址填，修改時帶 district 也是 422（建立時同樣，見上一則）。"""
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
+    response = await admin_client.patch(
+        f"{ADMISSIONS}/records/{record['id']}", json={"expected_version": record["version"], "district": "苓雅區"}
+    )
+    assert response.status_code == 422, response.text
+    fetched = (await admin_client.get(f"{ADMISSIONS}/records/{record['id']}")).json()
+    assert fetched["district"] == record["district"] and fetched["version"] == record["version"]
 
 
 @pytest.mark.parametrize("target", ["outside", "blank"])
@@ -183,6 +221,51 @@ async def test_anonymize_clears_distance_of_nearby_visit(admin_client, db_sessio
     await db_session.commit()
     geo = await _geo_row(db_session, record["id"])
     assert (geo.village, geo.distance_m, geo.match_level, geo.unlocated_reason) == (
+        None, None, "district", "anonymized",
+    )
+
+
+async def test_anonymize_only_touches_the_due_visits_and_is_idempotent(admin_client, db_session, geo_samples):
+    """只動到期的那一筆：沒到期的訪視，里、距離、行政區都原封不動。再跑一次什麼都不做，
+    已匿名化那筆的比對結果維持 district／anonymized。"""
+    await publish_campus_address(db_session, "yihua", SAMPLE_ADDRESSES["yihua_exact"])
+    due = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_nearby"])
+    fresh = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_exact"])
+    fresh_before = await _geo_row(db_session, fresh["id"])
+    snapshot = (fresh_before.village, fresh_before.match_level, fresh_before.distance_m, fresh_before.unlocated_reason)
+    assert snapshot[0] is not None and snapshot[1] == "exact"
+    await _age(db_session, due["id"], 60)
+
+    assert await retention.anonymize_due(db_session, 30) == 1
+    await db_session.commit()
+    fresh_after = await _geo_row(db_session, fresh["id"])
+    assert (fresh_after.village, fresh_after.match_level, fresh_after.distance_m, fresh_after.unlocated_reason) == snapshot
+    fresh_visit = await db_session.scalar(
+        select(RecruitmentVisit).where(RecruitmentVisit.id == uuid.UUID(fresh["id"])).execution_options(populate_existing=True)
+    )
+    assert (fresh_visit.district, fresh_visit.anonymized_at) == (parse_address(SAMPLE_ADDRESSES["yihua_exact"]).district, None)
+
+    done = await _geo_row(db_session, due["id"])
+    assert (done.village, done.distance_m, done.match_level, done.unlocated_reason) == (None, None, "district", "anonymized")
+    matched_at = done.matched_at
+    assert await retention.anonymize_due(db_session, 30) == 0  # 已匿名化的不再算到期
+    await db_session.commit()
+    again = await _geo_row(db_session, due["id"])
+    assert (again.village, again.distance_m, again.match_level, again.unlocated_reason, again.matched_at) == (
+        None, None, "district", "anonymized", matched_at,
+    )
+
+
+async def test_anonymize_updates_geo_objects_already_loaded_in_the_session(admin_client, db_session, geo_samples):
+    """同一個 session 裡已經載入的 geo 物件，匿名化之後不必 refresh 就是新值（Core UPDATE 用
+    synchronize_session=fetch）；否則同交易後面的程式會讀到舊的里與距離。"""
+    await publish_campus_address(db_session, "yihua", SAMPLE_ADDRESSES["yihua_exact"])
+    record = await create_record(admin_client, address=SAMPLE_ADDRESSES["yihua_nearby"])
+    await _age(db_session, record["id"], 60)
+    loaded = await db_session.get(RecruitmentVisitGeo, uuid.UUID(record["id"]))
+    assert (loaded.village, loaded.match_level) != (None, "district")  # 載入時還是舊值
+    assert await retention.anonymize_due(db_session, 30) == 1
+    assert (loaded.village, loaded.distance_m, loaded.match_level, loaded.unlocated_reason) == (
         None, None, "district", "anonymized",
     )
 
@@ -278,7 +361,7 @@ async def test_records_filter_by_district_and_village(admin_client, db_session):
     assert _ids(await _list(admin_client, district="三民區")) == _expect(visits, "V1", "V2", "V3", "V5", "V10", "X2")
     assert _ids(await _list(admin_client, district="三民區", village="鼎金里")) == _expect(visits, "V1", "V2", "X2")
     # 里要比對到里才算：V5（里有歧義）、匿名化的 V10 不算。
-    assert _ids(await _list(admin_client, village="寶業里")) == _expect(visits, "V3")
+    assert _ids(await _list(admin_client, district="三民區", village="寶業里")) == _expect(visits, "V3")
     assert _ids(await _list(admin_client, district="左營區")) == _expect(visits, "V4")
 
 
@@ -326,7 +409,7 @@ async def test_records_filter_rejects_unknown_geo_value(admin_client):
 
 
 async def test_records_export_audits_area_filter_category(admin_client, db_session):
-    """匯出稽核只記篩了哪一種區域，不記區名（同其他篩選只記類別的做法）。"""
+    """匯出稽核只記篩了哪些區域條件（行政區、里），不記區名與里名（同其他篩選只記類別的做法）。"""
     await seed_area(db_session)
     await db_session.commit()
     response = await admin_client.get(f"{ADMISSIONS}/records/export?campus_key=yihua&district=三民區&village=鼎金里")
@@ -336,6 +419,79 @@ async def test_records_export_audits_area_filter_category(admin_client, db_sessi
         .where(AuditLogEntry.action == "recruitment_visit.export")
         .order_by(AuditLogEntry.created_at.desc())
     )
-    assert entry.metadata_json["area"] == "village"
+    assert entry.metadata_json["area"] == "district+village"
     assert "三民區" not in str(entry.metadata_json)
     assert "鼎金里" not in str(entry.metadata_json)
+
+
+async def test_records_filter_village_without_district_is_refused(admin_client, db_session):
+    """不同行政區有同名的里（例：中正里）：只給里會跨區命中，所以要求一定要同時給行政區。
+    列表與匯出都一樣，不是默默回一份混了別區的結果。"""
+    await seed_area(db_session)
+    await db_session.commit()
+    for path in ("records", "records/export"):
+        response = await admin_client.get(f"{ADMISSIONS}/{path}?campus_key=yihua&village=%E5%AF%B6%E6%A5%AD%E9%87%8C")
+        assert response.status_code == 422, (path, response.text)
+        assert response.json()["detail"]["code"] == "VILLAGE_NEEDS_DISTRICT"
+    # 空白的行政區等於沒給
+    blank = await admin_client.get(f"{ADMISSIONS}/records?campus_key=yihua&village=%E5%AF%B6%E6%A5%AD%E9%87%8C&district=%20")
+    assert blank.status_code == 422
+
+
+async def test_records_filter_same_village_name_in_two_districts_stays_apart(admin_client, db_session):
+    """同名的里 + 各自的行政區：三民區的「中正里」不會撈到鼓山區的。"""
+    san = await add_visit(db_session, district="三民區", geo={"level": "exact", "village": "中正里", "distance_m": 100})
+    gu = await add_visit(db_session, district="鼓山區", geo={"level": "exact", "village": "中正里", "distance_m": 100})
+    await db_session.commit()
+    assert _ids(await _list(admin_client, district="三民區", village="中正里")) == {str(san.id)}
+    assert _ids(await _list(admin_client, district="鼓山區", village="中正里")) == {str(gu.id)}
+
+
+async def test_records_filter_trims_district_and_village(admin_client, db_session):
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    padded = await _list(admin_client, district="%20三民區%20", village="%20鼎金里%20")
+    assert _ids(padded) == _expect(visits, "V1", "V2", "X2")
+    assert _ids(await _list(admin_client, district="%20%20")) == _ids(await _list(admin_client))  # 只有空白＝沒篩
+
+
+@pytest.mark.parametrize(("district", "village"), [("區" * 31, None), ("三民區", "里" * 17)])
+async def test_records_filter_rejects_too_long_district_or_village(admin_client, district, village):
+    params = f"district={district}" + (f"&village={village}" if village else "")
+    response = await admin_client.get(f"{ADMISSIONS}/records?campus_key=yihua&{params}")
+    assert response.status_code == 422
+
+
+async def test_records_filter_boundary_lengths_are_accepted(admin_client):
+    response = await admin_client.get(f"{ADMISSIONS}/records?campus_key=yihua&district={'區' * 30}&village={'里' * 16}")
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+async def test_records_filter_area_combined_with_school_year_and_semester(admin_client, db_session):
+    """區域條件與入學學年、學期可以一起用（交集）：X2 是 114 學年，只在不指定學年時出現。"""
+    visits = await seed_area(db_session)
+    await db_session.commit()
+    both = await _list(admin_client, district="三民區", village="鼎金里", target_school_year=115, target_semester=1)
+    assert _ids(both) == _expect(visits, "V1", "V2")
+    old_year = await _list(admin_client, district="三民區", village="鼎金里", target_school_year=114)
+    assert _ids(old_year) == _expect(visits, "X2")
+    assert _ids(await _list(admin_client, district="三民區", target_school_year=115, target_semester=2)) == set()
+    no_village = await _list(admin_client, geo="no_village", target_school_year=115, target_semester=1)
+    assert _ids(no_village) == _expect(visits, "V4", "V5", "V7", "V8", "V9")
+
+
+async def test_records_export_row_count_matches_the_list_with_an_area_filter(admin_client, db_session):
+    """匯出：稽核的 row_count、CSV 實際的資料列、同篩選的列表筆數三者一致。"""
+    await seed_area(db_session)
+    await db_session.commit()
+    query = "campus_key=yihua&district=%E4%B8%89%E6%B0%91%E5%8D%80&village=%E9%BC%8E%E9%87%91%E9%87%8C"
+    listed = (await admin_client.get(f"{ADMISSIONS}/records?{query}&page_size=100")).json()
+    response = await admin_client.get(f"{ADMISSIONS}/records/export?{query}")
+    assert response.status_code == 200, response.text
+    rows = list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+    entry = await db_session.scalar(
+        select(AuditLogEntry).where(AuditLogEntry.action == "recruitment_visit.export").order_by(AuditLogEntry.created_at.desc())
+    )
+    assert len(rows) - 1 == len(listed) == entry.metadata_json["row_count"] == 3  # V1、V2、X2
+    assert entry.metadata_json["area"] == "district+village"

@@ -162,6 +162,9 @@ class RecruitmentVisitUpdate(_VisitEditable):
 # MATCH_LEVELS、UNLOCATED_REASONS 相同。
 MatchLevel = Literal["exact", "nearby", "street", "district", "unlocated", "pending"]
 UnlocatedReason = Literal["no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village", "anonymized"]
+# 統計裡列出的「有地址卻沒到里」原因，同時是這幾種原因在畫面上的固定順序（area.REASON_ORDER 取自這裡）；
+# no_address、anonymized 各有自己的層級與筆數，不在其中。
+AreaUnlocatedReason = Literal["outside_kaohsiung", "no_doorplate", "ambiguous_village"]
 
 
 class VisitGeoOut(BaseModel):
@@ -878,7 +881,7 @@ class AreaCampusOut(BaseModel):
 
 class AreaReasonCountOut(BaseModel):
     # 只有有地址卻沒到里的三種原因；no_address、anonymized 各有自己的層級與筆數（見 AreaTotalsOut）。
-    reason: Literal["outside_kaohsiung", "no_doorplate", "ambiguous_village"]
+    reason: AreaUnlocatedReason
     count: int
 
 
