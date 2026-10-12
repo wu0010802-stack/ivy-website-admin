@@ -143,7 +143,7 @@ export const areaStats = (changes: Record<string, unknown> = {}) => ({
     doorplate_version: '115-10', doorplates_synced_at: '2026-10-06T18:00:00Z',
     kindergartens_synced_at: '2026-10-07T18:30:00Z', boundary_version: '115-08-17',
   },
-  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null },
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
   totals: {
     visit: 9, with_address: 7, village_level: 5, district_level: 1, unlocated: 1, pending: 0, no_address: 2, anonymized: 0,
     unlocated_reasons: [{ reason: 'ambiguous_village', count: 1 }, { reason: 'no_doorplate', count: 1 }],

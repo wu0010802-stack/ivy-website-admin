@@ -25,6 +25,38 @@ export const RADIUS_OPTIONS: readonly RadiusKm[] = [1, 3, 6]
 /** 里的鍵：後端 villages 列（district＋village）與里界屬性（TOWNNAME＋VILLNAME）用同一個。 */
 export const villageKey = (district: string, village: string): string => `${district}/${village}`
 
+/** 南西角、東北角（[緯度, 經度]），Leaflet fitBounds 直接吃。 */
+export type LatLngBox = [[number, number], [number, number]]
+
+/**
+ * 某個行政區所有里的外框；里界檔裡沒有這個區（或沒給區）回 null。本校沒有座標時地圖先框住校址
+ * 所在的區，不退到整個高雄（含山區，一打開是半個南台灣）。GeoJSON 座標是 [經度, 緯度]，
+ * Polygon 與 MultiPolygon 巢狀層數不同，遞迴找到數字對為止。
+ */
+export function districtBounds(boundaries: VillageBoundaries, district: string | null | undefined): LatLngBox | null {
+  if (!district) return null
+  let south = Infinity
+  let west = Infinity
+  let north = -Infinity
+  let east = -Infinity
+  const visit = (node: unknown): void => {
+    if (!Array.isArray(node)) return
+    const [lng, lat] = node
+    if (typeof lng === 'number' && typeof lat === 'number') {
+      south = Math.min(south, lat)
+      north = Math.max(north, lat)
+      west = Math.min(west, lng)
+      east = Math.max(east, lng)
+      return
+    }
+    node.forEach(visit)
+  }
+  for (const feature of boundaries.features) {
+    if (feature.properties.TOWNNAME === district) visit(feature.geometry.coordinates)
+  }
+  return south === Infinity ? null : [[south, west], [north, east]]
+}
+
 /** 里界著色 5 級：0 筆是 0 級（不上色），其餘依該範圍參觀人數最多的那一里等分。 */
 export function levelOf(count: number, max: number): number {
   if (count <= 0 || max <= 0) return 0

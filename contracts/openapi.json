@@ -1902,6 +1902,17 @@
       },
       "AreaCampusOut": {
         "properties": {
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
           "key": {
             "title": "Key",
             "type": "string"
@@ -1949,7 +1960,8 @@
           "name",
           "lat",
           "lng",
-          "locate_error"
+          "locate_error",
+          "district"
         ],
         "title": "AreaCampusOut",
         "type": "object"

@@ -2,12 +2,14 @@
 import { computed, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRange, formatRate, rateCsvCell, toRange, type StatsColumn } from '../../admissions/statsFormat'
 import { notifyError } from '../../composables/notify'
+import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
 
 // 統計的共用表格：標題＋表格，bar 欄在數字旁畫 CSS 長條（規格 10：不新增圖表套件，
 // 長條只是輔助，數字一定寫出來）。手機寬度表格在框內橫捲，sticky 欄固定在左側，
 // 頁面本身不溢出（R16）。count／bar 欄缺值寫 0（呼叫端已補齊），text 欄缺值寫「—」。
 // 有 actionLabel 時最後多一欄按鈕（區域分析的「查看明細」，2026-10-08）；不做整列可點（列不是按鈕，鍵盤與讀屏不好用）。按鈕欄不匯出。
+// 手機（≤720px）不多那一欄：按鈕欄在最右邊，一打開只露幾 px、看不出能橫捲（2026-10-12），改成名稱本身是連結。
 const props = withDefaults(
   defineProps<{
     title: string
@@ -60,6 +62,11 @@ const isNumeric = (column: StatsColumn) =>
 const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
 const actionAria = (row: Record<string, unknown>) =>
   nameColumn.value ? `${props.actionLabel}：${display(row, nameColumn.value)}` : props.actionLabel
+// 名稱連結只放在 sticky 名稱欄（橫捲時一直看得到）；沒有 sticky 欄的表手機上照舊用按鈕欄。
+const narrow = useNarrowScreen()
+const nameLinks = computed(() => Boolean(props.actionLabel) && narrow.value && Boolean(nameColumn.value?.sticky))
+const actionColumn = computed(() => Boolean(props.actionLabel) && !nameLinks.value)
+const nameAsAction = (column: StatsColumn) => nameLinks.value && column === nameColumn.value
 
 // 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
 // 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
@@ -132,14 +139,19 @@ function exportCsv() {
             >
               {{ column.label }}
             </th>
-            <th v-if="actionLabel" scope="col" class="stats-table__action"><span class="visually-hidden">操作</span></th>
+            <th v-if="actionColumn" scope="col" class="stats-table__action"><span class="visually-hidden">操作</span></th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="(row, index) in rows" :key="String(row[rowKey])">
             <td v-if="numbered" class="stats-table__index num">{{ index + 1 }}</td>
             <template v-for="column in columns" :key="column.key">
-              <th v-if="column.sticky" scope="row" class="stats-table__sticky">{{ display(row, column) }}</th>
+              <th v-if="column.sticky" scope="row" class="stats-table__sticky">
+                <button v-if="nameAsAction(column)" type="button" class="stats-table__name-link" :aria-label="actionAria(row)" @click="emit('action', row)">
+                  {{ display(row, column) }}
+                </button>
+                <template v-else>{{ display(row, column) }}</template>
+              </th>
               <td v-else-if="column.kind === 'bar'" class="stats-table__number">
                 <span class="stats-bar" aria-hidden="true">
                   <span class="stats-bar__fill" :style="{ width: barWidth(toNumber(row[column.key]), maxima[column.key] ?? 0) }" />
@@ -148,7 +160,7 @@ function exportCsv() {
               </td>
               <td v-else :class="{ 'stats-table__number': isNumeric(column), num: isNumeric(column) }">{{ display(row, column) }}</td>
             </template>
-            <td v-if="actionLabel" class="stats-table__action">
+            <td v-if="actionColumn" class="stats-table__action">
               <el-button size="small" text type="primary" :aria-label="actionAria(row)" @click="emit('action', row)">{{ actionLabel }}</el-button>
             </td>
           </tr>
@@ -238,6 +250,19 @@ function exportCsv() {
 .stats-table .stats-table__action {
   width: 1%;
   text-align: right;
+}
+
+/* 手機的名稱連結：不用 el-button（自帶 32px 高，整張表每列被撐高一倍）。 */
+.stats-table__name-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--el-color-primary);
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .stats-table__sticky {

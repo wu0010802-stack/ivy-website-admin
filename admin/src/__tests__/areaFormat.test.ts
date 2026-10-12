@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortDay, shortName, visitGeoText,
+  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortDay, shortName,
+  visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import { areaKindergartens, areaStats, villageBoundaries } from './admissionsTestKit'
 
@@ -47,6 +48,27 @@ describe('區域分析格式（2026-10-08）', () => {
     expect(campusNotLocatedReason('mystery')).toBeUndefined()
     expect(campusNotLocatedReason('constructor')).toBeUndefined()
     expect(campusNotLocatedReason(null)).toBeUndefined()
+  })
+
+  it('行政區範圍（本校沒座標時地圖框住這一區）：同區所有里的外框，Polygon 與 MultiPolygon 都算；GeoJSON 是經度在前', () => {
+    const multi = {
+      type: 'FeatureCollection' as const,
+      features: [
+        ...villageBoundaries().features,
+        {
+          type: 'Feature' as const,
+          properties: { TOWNNAME: '鼓山區', VILLNAME: '登山里', VILLCODE: '' },
+          geometry: {
+            type: 'MultiPolygon',
+            coordinates: [[[[120.26, 22.62], [120.27, 22.62], [120.27, 22.63], [120.26, 22.62]]], [[[120.25, 22.61], [120.255, 22.61], [120.25, 22.615], [120.25, 22.61]]]],
+          },
+        },
+      ],
+    }
+    expect(districtBounds(multi as never, '三民區')).toEqual([[22.64, 120.34], [22.65, 120.35]])
+    expect(districtBounds(multi as never, '鼓山區')).toEqual([[22.61, 120.25], [22.65, 120.35]])
+    expect(districtBounds(multi as never, '旗津區')).toBeNull()
+    expect(districtBounds(multi as never, null)).toBeNull()
   })
 
   it('訪視明細的比對結果：到里帶距離；只到區寫原因；未定位寫原因；沒有比對紀錄、沒填地址、已匿名化不列', () => {

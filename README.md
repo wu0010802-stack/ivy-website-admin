@@ -11,7 +11,20 @@
 - **驗證**（Node 22；後端測試庫 `ivy_website_pace1012_test`、stack 庫 `ivy_website_pace1012_e2e_test`、埠 8796／3796，皆為本機結果）：後端全套 pytest 2012 passed／1 skipped；`contract:check` 一致；admin typecheck、vitest 145 檔 1977 passed／1 skipped、build；web nuxt typecheck、單元測試 934 passed；stack `admissions-flow`＋`admissions-area`＋`exports` 15 passed（含 1440／390 頁面不橫向溢出、預繳速度卡「目前 1 位」）。欄寬改 36rem 後重跑 `areaTab` 單元測試與 `admissions-area` stack，並實量 1440／1280 三張表都不需框內橫捲。預繳速度卡「資料夠」的狀態沒有真實資料，用攔截回應的方式截圖確認 1440／390 版面。
 - **未驗證**：正式站（目前是測試資料，卡片會先顯示「還不到 10 位」、兩個警示暫時不判斷）；真實資料下的誤報率（規格 §15：p ≤ 0.10，完全正常的月份或來源約一成會被報）。
 
-## 2026-10-12 參觀案件可以提早完成參觀（`feature/visit-complete-early-20261012`，未部署）
+## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（`feature/admissions-area-locate-20261012`）
+
+使用者看正式站義華的區域分析，要求「優化區域分析、自動把園方地址轉座標、打開時直接定位在分校」，範圍選「定位＋延後清單小修」。規則見 DESIGN.md「招生入學：區域分析」、規格 6.4／9.2／9.3／9.5 的 2026-10-12 段。
+
+- **正式站現況**（10-12 用使用者已登入的瀏覽器看）：門牌與幼兒園公開資料從沒匯入（`WEBSITE_GEO_AUTO_SYNC` 沒開），本校沒座標，地圖框住整個高雄＝嘉義到台東。校址轉座標本來就是自動的（已發布校址在本機比對門牌），卡在資料沒匯入。Postgres volume 1133MB／50GB，開同步的空間條件已滿足。**開同步要使用者在 Railway api 設 `WEBSITE_GEO_AUTO_SYNC=true`**（步驟見 deploy/README.md「公開地理資料同步」）。
+- **校址轉座標**：以 115 年 10 月真實門牌（775,772 列）比對，五校已發布校址全部 `exact`。外部地址服務都不採用：國土測繪 API `PERMISSION DENIED`（要申請）、OSM Nominatim 五校都查不到、Google 付費、TGOS 要金鑰。
+- **後端**：`campus` 多 `district`（校址文字解析出的行政區，不需要門牌），區域與附近幼兒園兩支 API 都帶；契約重產。沒有 migration。
+- **地圖**：視野剛好框住目前的半徑圈（四邊留 24px），換 1／3／6 公里跟著縮放；本校沒座標時框住校址所在的區，連區都不知道才看整個高雄；圖例下寫「本校位置未標示（門牌資料尚未匯入），地圖先顯示三民區。」。
+- **文案**：狀態列「門牌資料 115 年 10 月版・幼兒園名單 10/12 更新」；沒匯入時「門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。」；幼兒園清單「幼兒園名單尚未匯入。」。
+- **手機表格**（延後清單 C12）：行政區／里排行在 ≤720px 不多「查看明細」那一欄（原本在最右邊只露幾 px），改成 sticky 名稱欄本身是連結（讀屏名稱同按鈕）；連結用原生 button，避免 `el-button` 把每列撐高。
+- **驗證**（Node 22，皆本機；機器同時有其他 session 跑測試，磁碟 I/O 滿載）：後端受影響子集（`test_geo_*`、`test_admissions_*`、`test_display_names`、`test_csv_export`、`test_logging_config`）577 passed、1 error——fixture 的 TRUNCATE 在高負載下 statement timeout，單獨重跑那個檔 27 項全過；**後端全套沒跑完**（高負載下每分鐘 2 項，中止），交給 CI。後台 vitest 145 檔 1975 passed／1 skipped，唯一失敗是 `admissionsRecords.test.ts` 一項 5 秒逾時，單獨重跑 38 項全過；`vue-tsc -b` 通過；`contract:check` 一致；stack `admissions-area.spec.ts` 4 項全過（庫 `ivy_website_arealocate1012_e2e_test`、埠 8761／3761）。真底圖目視：專用庫匯入真實門牌與幼兒園＋24 筆示範訪視，1440／390 截圖、切子分頁再切回、換 1／3／6 公里、沒門牌時框住三民區、手機點里名跳明細帶 `area`，console 沒有錯誤。
+- **沒做**：里界 GeoJSON 壓縮——正式站實測 605KB 未壓縮，但後端加 gzip 沒用（web 同源代理的上游 fetch 會解壓），要在代理那層做、會影響所有 API，另開一件。
+
+## 2026-10-12 參觀案件可以提早完成參觀（`feature/visit-complete-early-20261012`，10-12 已部署 main `f09ad269`）
 
 使用者要一顆鈕，讓比預約早來的家長也能標記已到場；看完設計選「照設計做」。規則見 DESIGN.md「提早完成參觀」。
 

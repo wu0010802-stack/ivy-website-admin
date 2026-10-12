@@ -124,14 +124,37 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(wrapper.findAll('.area-legend--levels .area-swatch').map((item) => item.classes().at(-1))).toEqual(['area-swatch--l2', 'area-swatch--l4', 'area-swatch--l5'])
   })
 
-  it('初始視野：本校為中心 12 公里見方；本校沒定位時看整個里界、不畫星號與半徑', async () => {
-    await mountMap()
-    expect(one('map').fitBounds).toHaveBeenCalledWith({ center: [22.642456, 120.343713], meters: 12000 })
-    leaflet.reset()
-    await mountMap({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error: 'no_doorplate' } })
-    expect(one('map').fitBounds).toHaveBeenCalledWith({ bounds: 'geoJSON' })
+  it('初始視野：本校為中心、剛好框住半徑圈（留邊）；換半徑時視野跟著框住新的圈', async () => {
+    const wrapper = await mountMap()
+    const map = one('map')
+    expect(map.fitBounds).toHaveBeenCalledTimes(1)
+    expect(map.fitBounds).toHaveBeenCalledWith({ center: [22.642456, 120.343713], meters: 6000 }, { padding: [24, 24] })
+    await wrapper.setProps({ radiusKm: 1 })
+    expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.642456, 120.343713], meters: 2000 }, { padding: [24, 24] })
+    await wrapper.setProps({ radiusKm: 6 })
+    expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.642456, 120.343713], meters: 12000 }, { padding: [24, 24] })
+    expect(map.fitBounds).toHaveBeenCalledTimes(3)
+  })
+
+  it('本校沒座標：框住校址所在的行政區（先取視野再加圖層），不畫星號與半徑；換半徑不動視野', async () => {
+    const wrapper = await mountMap({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error: 'pending', district: '三民區' } })
+    const map = one('map')
+    expect(map.fitBounds).toHaveBeenCalledTimes(1)
+    expect(map.fitBounds).toHaveBeenCalledWith([[22.64, 120.34], [22.65, 120.35]])
+    expect(leaflet.module.geoJSON.mock.invocationCallOrder[0]).toBeGreaterThan(map.fitBounds.mock.invocationCallOrder[0])
     expect(leaflet.created.marker).toBeUndefined()
     expect(leaflet.created.circle).toBeUndefined()
+    await wrapper.setProps({ radiusKm: 6 })
+    expect(map.fitBounds).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    ['沒有行政區', null],
+    ['行政區不在里界檔裡', '旗津區'],
+  ])('本校沒座標、%s：才退回整個里界', async (_label, district) => {
+    await mountMap({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error: 'no_address', district } })
+    expect(one('map').fitBounds).toHaveBeenCalledTimes(1)
+    expect(one('map').fitBounds).toHaveBeenCalledWith({ bounds: 'geoJSON' })
   })
 
   it('本校有座標時先取視野、再加里界、半徑圓與幼兒園點（真 Leaflet 沒有視野時把加圖層排到 load，向量 renderer 還沒初始化會丟錯）', async () => {
@@ -262,7 +285,7 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(leaflet.created.marker).toHaveLength(1)
     await wrapper.setProps({ campus: { ...areaStats().campus, lat: 22.663189, lng: 120.306301 } })
     expect(map.fitBounds).toHaveBeenCalledTimes(2)
-    expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.663189, 120.306301], meters: 12000 })
+    expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.663189, 120.306301], meters: 6000 }, { padding: [24, 24] })
     expect(leaflet.created.marker).toHaveLength(2)
   })
 
@@ -290,7 +313,7 @@ describe('區域分析地圖（2026-10-08）', () => {
       observer.notify({ width: 640, height: 420 })
       expect(map.invalidateSize).toHaveBeenCalledTimes(1)
       expect(map.fitBounds).toHaveBeenCalledTimes(2)
-      expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.642456, 120.343713], meters: 12000 })
+      expect(map.fitBounds).toHaveBeenLastCalledWith({ center: [22.642456, 120.343713], meters: 6000 }, { padding: [24, 24] })
 
       observer.notify({ width: 800, height: 420 })
       expect(map.invalidateSize).toHaveBeenCalledTimes(2)
@@ -455,7 +478,9 @@ describe('Leaflet 載入失敗（動態載入）', () => {
 })
 
 describe('本校沒標在地圖上的原因（主控裁定 R8）', () => {
-  const lost = (locate_error: string | null) => ({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error } })
+  const lost = (locate_error: string | null, district: string | null = null) => ({
+    campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error, district },
+  })
 
   it.each([
     ['no_address', '找不到本校地址'],
@@ -464,6 +489,11 @@ describe('本校沒標在地圖上的原因（主控裁定 R8）', () => {
   ])('%s → %s', async (error, text) => {
     const wrapper = await mountMap(lost(error))
     expect(wrapper.get('.area-map__campus-note').text()).toContain(text)
+  })
+
+  it('知道校址所在的行政區：補一句地圖先顯示哪一區', async () => {
+    const wrapper = await mountMap(lost('pending', '三民區'))
+    expect(wrapper.get('.area-map__campus-note').text()).toBe('本校位置未標示（門牌資料尚未匯入），地圖先顯示三民區。')
   })
 
   it('有定位就不寫', async () => {

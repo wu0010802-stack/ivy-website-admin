@@ -62,7 +62,7 @@ describe('區域分析：讀取與三張表', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area?')[0]!))).toEqual({ campus_key: 'yihua', school_year: '115' })
     expect(pathsTo(get, '/admin/admissions/area/boundaries')).toHaveLength(1)
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月・幼兒園 10/08 更新')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新')
   })
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
@@ -217,15 +217,15 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
   it('門牌資料還沒匯入：狀態列寫出來；句號後的幼兒園更新日另成一段，不接「。・」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園 10/08 更新'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
     expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
-  it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園資料尚未匯入」，不是整句消失', async () => {
+  it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園名單尚未匯入」，不是整句消失', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月・幼兒園資料尚未匯入')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入')
   })
 
   it('門牌與幼兒園資料都還沒匯入：兩句各自成段，不接「。・」', async () => {
@@ -233,7 +233,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
       data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null, kindergartens_synced_at: null },
     })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園資料尚未匯入'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
     expect(wrapper.get('.area-status').text()).not.toContain('・')
   })

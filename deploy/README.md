@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-12 參觀案件可以提早完成參觀（main CI 部署，沒有 migration）
+
+- **合併**：`feature/visit-complete-early-20261012` 的 `f09ad269`（從 origin/main 開，推前兩次 rebase 接上 `c7cbe1bc` 區域分析與 `6fcd3911` 其部署紀錄，衝突只在 README、DESIGN 頂部段落，兩邊都保留），快轉推 main `6fcd3911..f09ad269`。內容與規則見 README 頂部 2026-10-12 段落、DESIGN.md「提早完成參觀」。
+- **migration**：沒有。提早到、約在之後日子的案件把 `slot_id` 設成 NULL（資料表只要求「已確認」有場次），不改結構。
+- **回退**：可直接切回前一個映像；已用新端點標記的案件仍是一般的「已到場」，舊版照常顯示（釋出場次的那幾筆列表寫「沒有場次」）。
+- **推送前本機閘門**：rebase 前後端全套 1704 passed、1 skipped，admin vitest 全套 1862 passed（2 項負載逾時，單獨重跑過），web vitest 933 passed、typecheck；接上 `c7cbe1bc` 後重跑 `contract:check`、admin typecheck、後端受影響 7 檔 63 passed、admin 相關 7 檔 87 passed，重新 build 後 stack 新 spec＋`visual.spec` 5 張基準 8 passed（admin 全套在本機負載 109 時有 73 項逾時，改由 CI 判定）。`6fcd3911` 只動文件，程式與已驗證的 `1d1670f8` 相同。
+- **CI**：main run 38191155223（`f09ad269`）全綠，建立到完成 14.5 分鐘：Frontend web 1.4／admin 4.9 分鐘，Backend 三組 9.8／5.7／9.4 分鐘，E2E／Playwright 8.6 分鐘，Deploy 4.5 分鐘。
+- **正式 `release.json`**：base commit `f09ad269132e5e97df40920802c67f7d6b169c85`，created `2026-10-12T01:25:23Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空；`POST /admin/visit-requests/<uuid>/complete-early` 401（對照 `/complete` 401、不存在的路徑 404，路由已掛）；後台 bundle 的 `VisitCaseTimeline-*.js` 含「家長提早到了」與 `complete-early`，`labels-*.js` 含「提早標記已到場」。
+- **未做**：沒有登入後台實際按過（正式站預約都是測試資料，要試請挑測試案件）；部署期間開著的舊後台分頁要重新整理；Safari／iOS 實機。
+
 ## 2026-10-12 招生入學區域分析（main CI 部署，含 1 支只新增表的 migration；自動同步仍關）
 
 - **合併**：`feature/admissions-area-20261008`（44 個 commit，含 `a85aecba` 合入後台工程清理）快轉推 main `41345e1a..c7cbe1bc`。內容、設計與驗證見 README 頂部 2026-10-08 段落與 `docs/specs/2026-10-08-admissions-area-design.md`；延後項目在 `docs/superpowers/plans/2026-10-08-admissions-area-followups.md`。
@@ -23,6 +34,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `c7cbe1bc0dc77d80c29ebee9a31c0353ef0d4764`，created `2026-10-12T00:54:35Z`，`web+api`。
 - **線上唯讀檢查**（未登入）：`/admin/` 200，其 CSP 的 `img-src` 含 `https://wmts.nlsc.gov.tw`、公開首頁的 CSP 不含；`/api/website/v1/health` `status: ok`、`background_jobs.last_failed_steps` 為空；`/admin/admissions/area`、`/area/boundaries`、`/options` 皆 401，路由存在，也代表正式站招生功能開關是開的（開關關閉時是 404）。
 - **目前狀態**：沒有設 `WEBSITE_GEO_AUTO_SYNC`（預設關），所以區域分析預期顯示「門牌資料尚未匯入」，地圖與距離分布要等門牌匯入後才有內容。**沒有登入後台實測、沒看過實際畫面**。要開同步：照下方「公開地理資料同步」，先確認 Railway PG 剩餘空間 ≥ 500MB，再設 `WEBSITE_GEO_AUTO_SYNC=true` 並重新部署。
+- **2026-10-12 補**（區域分析定位那一輪）：用使用者已登入的瀏覽器看了正式站義華的區域分析：門牌、幼兒園都沒匯入，本校沒座標，地圖框住整個高雄（畫面是嘉義到台東）。`railway volume list` 顯示 Postgres volume 1133MB／50000MB，空間條件（≥ 500MB）已滿足；同步仍未開。
 
 ## 2026-10-09 後台工程清理：刪改期申請／FAQ／site_settings、素材分頁、一次標完已讀（main CI 部署，含 3 支刪表刪資料 migration）
 
@@ -371,7 +383,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 | 變數 | 預設 | 作用 |
 | --- | --- | --- |
-| `WEBSITE_GEO_AUTO_SYNC` | `false`（所有環境） | 自動同步總開關。`true` **且** `WEBSITE_ADMISSIONS_ENABLED` 也是 `true` 時，api 啟動約 30 秒後開始背景同步迴圈；關著時迴圈不啟動，後台區域分析（從未匯入過資料時）顯示「門牌資料尚未匯入，匯入後會自動比對。」。手動指令 `geo-sync` 不看這個開關 |
+| `WEBSITE_GEO_AUTO_SYNC` | `false`（所有環境） | 自動同步總開關。`true` **且** `WEBSITE_ADMISSIONS_ENABLED` 也是 `true` 時，api 啟動約 30 秒後開始背景同步迴圈；關著時迴圈不啟動，後台區域分析（從未匯入過資料時）顯示「門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。」，本校沒有座標，地圖先框住校址所在的行政區。手動指令 `geo-sync` 不看這個開關 |
 | `WEBSITE_GEO_DOORPLATE_URL` | 空 | 空＝自動在高雄市政府資料開放平台找最新年度、最新月份的門牌檔。指定時必須是 `https://` 的檔案直連網址（平台改版、自動找不到時的退路），月份標籤改用同步當天的民國年月 |
 | `WEBSITE_GEO_KINDERGARTENS_URL` | `https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json` | 幼兒園資料（kiang 每日整理全國教保資訊網）。必須是 `https://` |
 | `WEBSITE_GEO_SYNC_CHECK_SECONDS` | `86400` | 背景迴圈多久醒來檢查一次，允許 300 到 604800 秒。醒來後門牌、幼兒園各自距上次確認超過 30 天才真的去看來源（門牌先找最新月份，和使用中的一樣就不下載） |
