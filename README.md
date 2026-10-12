@@ -7,6 +7,9 @@
 - **可能範圍**：班別、來源、接待、區域、五校比較的預繳率旁加「可能範圍」（Beta 收縮 80%），CSV 拆下限、上限兩欄。
 - **後端**：新增 `admissions/estimation.py`（純標準函式庫）、`admissions/deposit_pace.py`；沒有 migration。
 - **口徑**：預繳時間取最後一筆 `deposit_added`（台北日期），之後退出的也算預繳過，補登舊訪視會讓天數偏長；可能範圍的事前平均用全體 (預繳+1)/(參觀+2)。
+- **版面**：區域分析三張表的欄寬下限改成 36rem（多了「可能範圍」欄後，1440 時里排行實測 562px，兩欄並排會擠出表框），1440 改成一欄一張表。五校比較在 1280 有資料時要在框內橫捲約 16px，1440 放得下。
+- **驗證**（Node 22；後端測試庫 `ivy_website_pace1012_test`、stack 庫 `ivy_website_pace1012_e2e_test`、埠 8796／3796，皆為本機結果）：後端全套 pytest 2012 passed／1 skipped；`contract:check` 一致；admin typecheck、vitest 145 檔 1977 passed／1 skipped、build；web nuxt typecheck、單元測試 934 passed；stack `admissions-flow`＋`admissions-area`＋`exports` 15 passed（含 1440／390 頁面不橫向溢出、預繳速度卡「目前 1 位」）。欄寬改 36rem 後重跑 `areaTab` 單元測試與 `admissions-area` stack，並實量 1440／1280 三張表都不需框內橫捲。預繳速度卡「資料夠」的狀態沒有真實資料，用攔截回應的方式截圖確認 1440／390 版面。
+- **未驗證**：正式站（目前是測試資料，卡片會先顯示「還不到 10 位」、兩個警示暫時不判斷）；真實資料下的誤報率（規格 §15：p ≤ 0.10，完全正常的月份或來源約一成會被報）。
 
 ## 2026-10-12 參觀案件可以提早完成參觀（`feature/visit-complete-early-20261012`，未部署）
 
