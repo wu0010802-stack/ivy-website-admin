@@ -155,6 +155,8 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=stats`, '招生入學')
     await expect(page.locator('.decision__visit').first()).toHaveText('1 人次')
     await expect(page.locator('.decision__foot').first()).toHaveText('預繳 1 · 註冊 1')
+    // 2026-10-12 預繳速度：只有這一筆預繳，資料不夠。
+    await expect(page.locator('[data-test="deposit-timing"]')).toContainText('預繳過的家長還不到 10 位（目前 1 位）')
   })
 
   await Promise.all([staff.context.close(), api.dispose()])

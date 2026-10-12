@@ -505,12 +505,19 @@ class AdmissionsStatsAction(BaseModel):
     target_filter: dict[str, str | int]
 
 
+class AdmissionsRateRange(BaseModel):
+    # 可能範圍（2026-10-12 規格 §7）：預繳率的 Beta 收縮 80% 範圍，百分比到小數一位。
+    low: float
+    high: float
+
+
 class AdmissionsGradeRow(BaseModel):
     grade: str
     visit: int
     deposit: int
     enrolled: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
     visit_to_enrolled_rate: float | None
     deposit_to_enrolled_rate: float | None
 
@@ -520,6 +527,7 @@ class AdmissionsSourceRow(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AdmissionsGradeCount(BaseModel):
@@ -532,6 +540,7 @@ class AdmissionsTourGuideRow(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
     by_grade: dict[str, AdmissionsGradeCount]
 
 
@@ -569,6 +578,37 @@ class AdmissionsNoDepositSummary(BaseModel):
     high_potential_backlog_count: int
 
 
+class AdmissionsTimingCheckpoint(BaseModel):
+    day: int
+    # 參觀後第 day 天的累積預繳率（%）；沒有人參觀滿 day 天時是 None。
+    cumulative_rate: float | None
+    visits_reached: int
+
+
+class AdmissionsDepositTiming(BaseModel):
+    """預繳速度卡（2026-10-12 規格 §5、§9.1）。預繳不到 min_events 筆時 status＝insufficient、checkpoints 是空的。"""
+
+    status: Literal["ok", "insufficient"]
+    visits: int
+    deposited: int
+    missing_time: int
+    min_events: int
+    checkpoints: list[AdmissionsTimingCheckpoint]
+    half_by_day: int | None
+
+
+class AdmissionsDepositPace(BaseModel):
+    """參考月份家長的預繳速度比較（規格 §6.2、§6.4）；slow＝true 時另有 FUNNEL_DROP 警示。"""
+
+    evaluable: bool
+    reason: Literal["no_reference_month", "no_visits", "insufficient_baseline"] | None
+    month: str | None
+    visits: int
+    expected: float | None
+    observed: int
+    slow: bool
+
+
 class AdmissionsStatsFilters(BaseModel):
     campus_key: str
     school_year: int | None
@@ -599,6 +639,8 @@ class AdmissionsStatsOut(BaseModel):
     no_deposit_total: int
     no_deposit_priority: AdmissionsNoDepositPriority
     no_deposit_summary: AdmissionsNoDepositSummary
+    deposit_timing: AdmissionsDepositTiming
+    deposit_pace: AdmissionsDepositPace
 
 
 class AdmissionsRate(BaseModel):
@@ -619,6 +661,8 @@ class AdmissionsCompareRow(BaseModel):
     effective_deposit: int
     pending_deposit: int
     visit_to_deposit_rate: AdmissionsRate
+    # 只有參觀→預繳有可能範圍（2026-10-12 規格 §9.3）。
+    visit_to_deposit_range: AdmissionsRateRange | None
     visit_to_enrolled_rate: AdmissionsRate
     deposit_to_enrolled_rate: AdmissionsRate
     effective_to_enrolled_rate: AdmissionsRate
@@ -863,6 +907,7 @@ class AreaDistrictRowOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AreaVillageRowOut(BaseModel):
@@ -873,6 +918,7 @@ class AreaVillageRowOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AreaDistanceBandOut(BaseModel):
@@ -880,6 +926,7 @@ class AreaDistanceBandOut(BaseModel):
     visit: int
     deposit: int
     visit_to_deposit_rate: float | None
+    visit_to_deposit_range: AdmissionsRateRange | None
 
 
 class AdmissionsAreaOut(BaseModel):

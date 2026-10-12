@@ -162,6 +162,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "$ref": "#/components/schemas/AdmissionsRate"
           },
@@ -178,6 +188,7 @@
           "effective_deposit",
           "pending_deposit",
           "visit_to_deposit_rate",
+          "visit_to_deposit_range",
           "visit_to_enrolled_rate",
           "deposit_to_enrolled_rate",
           "effective_to_enrolled_rate",
@@ -233,6 +244,134 @@
           "ytd"
         ],
         "title": "AdmissionsDecisionSummary",
+        "type": "object"
+      },
+      "AdmissionsDepositPace": {
+        "description": "參考月份家長的預繳速度比較（規格 §6.2、§6.4）；slow＝true 時另有 FUNNEL_DROP 警示。",
+        "properties": {
+          "evaluable": {
+            "title": "Evaluable",
+            "type": "boolean"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "observed": {
+            "title": "Observed",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_reference_month",
+                  "no_visits",
+                  "insufficient_baseline"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "slow": {
+            "title": "Slow",
+            "type": "boolean"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evaluable",
+          "reason",
+          "month",
+          "visits",
+          "expected",
+          "observed",
+          "slow"
+        ],
+        "title": "AdmissionsDepositPace",
+        "type": "object"
+      },
+      "AdmissionsDepositTiming": {
+        "description": "預繳速度卡（2026-10-12 規格 §5、§9.1）。預繳不到 min_events 筆時 status＝insufficient、checkpoints 是空的。",
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsTimingCheckpoint"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "half_by_day": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half By Day"
+          },
+          "min_events": {
+            "title": "Min Events",
+            "type": "integer"
+          },
+          "missing_time": {
+            "title": "Missing Time",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "insufficient"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "visits",
+          "deposited",
+          "missing_time",
+          "min_events",
+          "checkpoints",
+          "half_by_day"
+        ],
+        "title": "AdmissionsDepositTiming",
         "type": "object"
       },
       "AdmissionsFunnelSnapshot": {
@@ -320,6 +459,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -349,6 +498,7 @@
           "deposit",
           "enrolled",
           "visit_to_deposit_rate",
+          "visit_to_deposit_range",
           "visit_to_enrolled_rate",
           "deposit_to_enrolled_rate"
         ],
@@ -852,6 +1002,24 @@
         "title": "AdmissionsRateDiff",
         "type": "object"
       },
+      "AdmissionsRateRange": {
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "number"
+          },
+          "low": {
+            "title": "Low",
+            "type": "number"
+          }
+        },
+        "required": [
+          "low",
+          "high"
+        ],
+        "title": "AdmissionsRateRange",
+        "type": "object"
+      },
       "AdmissionsSourceRow": {
         "properties": {
           "deposit": {
@@ -865,6 +1033,16 @@
           "visit": {
             "title": "Visit",
             "type": "integer"
+          },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "visit_to_deposit_rate": {
             "anyOf": [
@@ -882,7 +1060,8 @@
           "source",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AdmissionsSourceRow",
         "type": "object"
@@ -1225,6 +1404,12 @@
           "decision_summary": {
             "$ref": "#/components/schemas/AdmissionsDecisionSummary"
           },
+          "deposit_pace": {
+            "$ref": "#/components/schemas/AdmissionsDepositPace"
+          },
+          "deposit_timing": {
+            "$ref": "#/components/schemas/AdmissionsDepositTiming"
+          },
           "filters": {
             "$ref": "#/components/schemas/AdmissionsStatsFilters"
           },
@@ -1321,9 +1506,41 @@
           "no_deposit_reasons",
           "no_deposit_total",
           "no_deposit_priority",
-          "no_deposit_summary"
+          "no_deposit_summary",
+          "deposit_timing",
+          "deposit_pace"
         ],
         "title": "AdmissionsStatsOut",
+        "type": "object"
+      },
+      "AdmissionsTimingCheckpoint": {
+        "properties": {
+          "cumulative_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cumulative Rate"
+          },
+          "day": {
+            "title": "Day",
+            "type": "integer"
+          },
+          "visits_reached": {
+            "title": "Visits Reached",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "cumulative_rate",
+          "visits_reached"
+        ],
+        "title": "AdmissionsTimingCheckpoint",
         "type": "object"
       },
       "AdmissionsTourGuideCrossRow": {
@@ -1373,6 +1590,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -1390,6 +1617,7 @@
           "visit",
           "deposit",
           "visit_to_deposit_rate",
+          "visit_to_deposit_range",
           "by_grade"
         ],
         "title": "AdmissionsTourGuideRow",
@@ -1811,6 +2039,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -1827,7 +2065,8 @@
           "band",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaDistanceBandOut",
         "type": "object"
@@ -1846,6 +2085,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -1862,7 +2111,8 @@
           "district",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaDistrictRowOut",
         "type": "object"
@@ -2163,6 +2413,16 @@
             "title": "Visit",
             "type": "integer"
           },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "visit_to_deposit_rate": {
             "anyOf": [
               {
@@ -2181,7 +2441,8 @@
           "village_code",
           "visit",
           "deposit",
-          "visit_to_deposit_rate"
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range"
         ],
         "title": "AreaVillageRowOut",
         "type": "object"

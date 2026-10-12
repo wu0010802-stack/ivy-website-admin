@@ -20,7 +20,7 @@ const NO_RATE = rate(null, 0, 0)
 function row(campusKey: string, changes: Partial<AdmissionsCompareRow> = {}): AdmissionsCompareRow {
   return {
     campus_key: campusKey, visit: 0, deposit: 0, enrolled: 0, transfer_term: 0, effective_deposit: 0, pending_deposit: 0,
-    visit_to_deposit_rate: NO_RATE, visit_to_enrolled_rate: NO_RATE, deposit_to_enrolled_rate: NO_RATE,
+    visit_to_deposit_rate: NO_RATE, visit_to_deposit_range: null, visit_to_enrolled_rate: NO_RATE, deposit_to_enrolled_rate: NO_RATE,
     effective_to_enrolled_rate: NO_RATE, target_seats: null, remaining_seats: null, grades_with_target: 0, ...changes,
   }
 }
@@ -29,14 +29,16 @@ function row(campusKey: string, changes: Partial<AdmissionsCompareRow> = {}): Ad
 // 崇德是超額：計畫 2，已保留 3。
 const YIHUA = row('yihua', {
   visit: 4, deposit: 3, enrolled: 1, effective_deposit: 3, pending_deposit: 2,
-  visit_to_deposit_rate: rate(75, 3, 4), visit_to_enrolled_rate: rate(25, 1, 4),
+  visit_to_deposit_rate: rate(75, 3, 4), visit_to_deposit_range: { low: 55.6, high: 85.8 }, visit_to_enrolled_rate: rate(25, 1, 4),
   deposit_to_enrolled_rate: rate(33.3, 1, 3), effective_to_enrolled_rate: rate(33.3, 1, 3),
   target_seats: 10, remaining_seats: 8, grades_with_target: 2,
 })
-const MINGHUA = row('minghua', { visit: 1, visit_to_deposit_rate: rate(0, 0, 1), visit_to_enrolled_rate: rate(0, 0, 1) })
+const MINGHUA = row('minghua', {
+  visit: 1, visit_to_deposit_rate: rate(0, 0, 1), visit_to_deposit_range: { low: 44.8, high: 81.2 }, visit_to_enrolled_rate: rate(0, 0, 1),
+})
 const CHONGDE = row('chongde', {
   visit: 3, deposit: 3, effective_deposit: 3, pending_deposit: 3,
-  visit_to_deposit_rate: rate(100, 3, 3), visit_to_enrolled_rate: rate(0, 0, 3),
+  visit_to_deposit_rate: rate(100, 3, 3), visit_to_deposit_range: { low: 61.4, high: 90.4 }, visit_to_enrolled_rate: rate(0, 0, 3),
   deposit_to_enrolled_rate: rate(0, 0, 3), effective_to_enrolled_rate: rate(0, 0, 3),
   target_seats: 2, remaining_seats: -1, grades_with_target: 1,
 })
@@ -77,6 +79,8 @@ function quietStats(): AdmissionsStats {
     tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [], no_deposit_total: 0,
     no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
+    deposit_timing: { status: 'insufficient', visits: 1, deposited: 0, missing_time: 0, min_events: 10, checkpoints: [], half_by_day: null },
+    deposit_pace: { evaluable: false, reason: 'insufficient_baseline', month: '115.09', visits: 1, expected: null, observed: 0, slow: false },
   }
 }
 
@@ -96,13 +100,13 @@ describe('五校比較表（規格 9.3）', () => {
     expect(wrapper.text()).toContain('不是跨校去重後的孩子數')
     expect(headers(wrapper)).toEqual([
       '校區', '參觀', '預繳', '註冊', '有效預繳', '預繳未註冊',
-      '參觀→預繳率', '參觀→註冊率', '預繳→註冊率', '排除轉期→註冊率',
+      '參觀→預繳率', '可能範圍', '參觀→註冊率', '預繳→註冊率', '排除轉期→註冊率',
     ])
     expect(bodyRows(wrapper)).toEqual([
-      ['義華', '4', '3', '1', '3', '2', '75.0%（3/4）', '25.0%（1/4）', '33.3%（1/3）', '33.3%（1/3）'],
-      ['明華', '1', '0', '0', '0', '0', '0.0%（0/1）', '0.0%（0/1）', '—（0/0）', '—（0/0）'],
-      ['崇德', '3', '3', '0', '3', '3', '100.0%（3/3）', '0.0%（0/3）', '0.0%（0/3）', '0.0%（0/3）'],
-      ['仁武', '0', '0', '0', '0', '0', '—（0/0）', '—（0/0）', '—（0/0）', '—（0/0）'],
+      ['義華', '4', '3', '1', '3', '2', '75.0%（3/4）', '56–86%', '25.0%（1/4）', '33.3%（1/3）', '33.3%（1/3）'],
+      ['明華', '1', '0', '0', '0', '0', '0.0%（0/1）', '45–81%', '0.0%（0/1）', '—（0/0）', '—（0/0）'],
+      ['崇德', '3', '3', '0', '3', '3', '100.0%（3/3）', '61–90%', '0.0%（0/3）', '0.0%（0/3）', '0.0%（0/3）'],
+      ['仁武', '0', '0', '0', '0', '0', '—（0/0）', '—', '—（0/0）', '—（0/0）', '—（0/0）'],
     ])
     expect(wrapper.text()).not.toContain('名額')
   })
@@ -208,11 +212,11 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-五校比較-115 學年-2026-10-01.csv')
     const lines = csv.split('\r\n')
-    expect(lines[0]).toBe(`\uFEFF${headers(pane).join(',')}`)
-    expect(lines[1]).toBe('義華,4,3,1,3,2,75.0%（3/4）,25.0%（1/4）,33.3%（1/3）,33.3%（1/3）')
-    // 比率沒有值（分母 0）寫空白，不把畫面的「—（0/0）」寫進 CSV；有值的仍帶分子分母。
-    expect(lines[2]).toBe('明華,1,0,0,0,0,0.0%（0/1）,0.0%（0/1）,,')
-    expect(lines[3]).toBe('仁武,0,0,0,0,0,,,,')
+    expect(lines[0]).toBe('\uFEFF校區,參觀,預繳,註冊,有效預繳,預繳未註冊,參觀→預繳率,可能範圍下限,可能範圍上限,參觀→註冊率,預繳→註冊率,排除轉期→註冊率')
+    expect(lines[1]).toBe('義華,4,3,1,3,2,75.0%（3/4）,55.6,85.8,25.0%（1/4）,33.3%（1/3）,33.3%（1/3）')
+    // 比率沒有值（分母 0）寫空白，不把畫面的「—（0/0）」寫進 CSV；有值的仍帶分子分母。範圍沒有值也是兩格空白。
+    expect(lines[2]).toBe('明華,1,0,0,0,0,0.0%（0/1）,44.8,81.2,0.0%（0/1）,,')
+    expect(lines[3]).toBe('仁武,0,0,0,0,0,,,,,,')
     expect(lines.join('')).not.toContain('—')
     expect(pane.text()).toContain('—（0/0）')
     expect(lines).toHaveLength(5)

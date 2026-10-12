@@ -142,6 +142,7 @@ const placeColumns = (label: string): StatsColumn[] => [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 const DISTRICT_COLUMNS = placeColumns('行政區')
 const VILLAGE_COLUMNS = placeColumns('里')
@@ -150,6 +151,7 @@ const DISTANCE_COLUMNS: StatsColumn[] = [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 
 const districtRows = computed(() => (area.value?.districts ?? []).map((row) => ({ ...row, place: row.district })))
@@ -317,12 +319,12 @@ function openNoVillage() {
   min-width: 0;
 }
 
-/* 一欄至少 32rem：里排行加上「查看明細」欄實測約 490px，窄過這個寬度寧可換列、不要把欄擠出表框。
-   1440 螢幕（側欄之外約 1124px）一列兩張，距離分布換到下一列；min(100%, …) 讓窄螢幕自然變單欄，
+/* 一欄至少 36rem：里排行加上「可能範圍」與「查看明細」欄，1440 實測約 562px（2026-10-12），窄過這個寬度寧可換列、不要把欄擠出表框。
+   1440 螢幕（側欄之外約 1124px）放不下兩欄，三張表各占一列；更寬的螢幕才兩張並排。min(100%, …) 讓窄螢幕自然變單欄，
    表格在自己的框內橫捲。 */
 .area-tables {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr));
   gap: 24px;
   min-width: 0;
 }

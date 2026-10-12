@@ -9,8 +9,8 @@ export type StatsTarget = 'records' | 'nodeposit' | 'source'
 export interface StatsColumn {
   key: string
   label: string
-  /** text：原文；count：整數；rate：百分比（null 寫「—」）；bar：整數＋CSS 長條。 */
-  kind?: 'text' | 'count' | 'rate' | 'bar'
+  /** text：原文；count：整數；rate：百分比（null 寫「—」）；bar：整數＋CSS 長條；range：可能範圍「29–64%」（2026-10-12），CSV 拆下限、上限兩欄。 */
+  kind?: 'text' | 'count' | 'rate' | 'bar' | 'range'
   /** 手機橫捲時固定在左側的欄。 */
   sticky?: boolean
   /** 匯出 CSV 時的寫法：roc-month 把「115.09」寫成「115年09月」（Excel 會把 115.10 轉成數字）；畫面不變。 */
@@ -19,6 +19,20 @@ export interface StatsColumn {
 
 export function formatRate(value: number | null | undefined): string {
   return value === null || value === undefined ? NO_VALUE : `${value.toFixed(1)}%`
+}
+
+export type RateRange = { low: number; high: number }
+
+/** 後端的 visit_to_deposit_range：{low, high}（百分比、小數一位）或 null。 */
+export function toRange(value: unknown): RateRange | null {
+  if (value === null || typeof value !== 'object') return null
+  const { low, high } = value as Record<string, unknown>
+  return typeof low === 'number' && typeof high === 'number' ? { low, high } : null
+}
+
+/** 可能範圍（2026-10-12 規格 §10.2）：畫面寫整數「29–64%」，小數只會讓人以為很精確；沒有值寫「—」。 */
+export function formatRange(range: RateRange | null | undefined): string {
+  return range ? `${Math.round(range.low)}–${Math.round(range.high)}%` : NO_VALUE
 }
 
 /** 匯出 CSV 的比率格（統計表、五校比較、成效統計共用這一條）：有值寫「66.7%」，label 有給就寫 label

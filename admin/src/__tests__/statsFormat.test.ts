@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  alertLevelLabel, barWidth, formatPoints, formatRate, gradeColumns, priorityLabel, rateCsvCell, rateLevel, ratio, trendOf, TREND_MARK,
+  alertLevelLabel, barWidth, formatPoints, formatRange, formatRate, gradeColumns, priorityLabel, rateCsvCell, rateLevel, ratio, toRange, trendOf, TREND_MARK,
 } from '../admissions/statsFormat'
 
 describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—」不寫 0）', () => {
@@ -56,5 +56,21 @@ describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—�
   it('年級欄：四個年級固定在前，其他標籤（未填寫）有出現才加在後面，「合計」不算年級', () => {
     expect(gradeColumns(['小班', '合計'])).toEqual(['幼幼班', '小班', '中班', '大班'])
     expect(gradeColumns(['未填寫', '小班', '合計'])).toEqual(['幼幼班', '小班', '中班', '大班', '未填寫'])
+  })
+})
+
+describe('可能範圍格式（2026-10-12）', () => {
+  it('整數百分比、en dash；沒有值寫「—」', () => {
+    expect(formatRange({ low: 28.8, high: 63.8 })).toBe('29–64%')
+    expect(formatRange({ low: 0.4, high: 9.5 })).toBe('0–10%')
+    expect(formatRange(null)).toBe('—')
+    expect(formatRange(undefined)).toBe('—')
+  })
+
+  it('toRange 只認 {low, high} 數字物件', () => {
+    expect(toRange({ low: 1, high: 2 })).toEqual({ low: 1, high: 2 })
+    expect(toRange(null)).toBeNull()
+    expect(toRange('29–64%')).toBeNull()
+    expect(toRange({ low: '1', high: 2 })).toBeNull()
   })
 })

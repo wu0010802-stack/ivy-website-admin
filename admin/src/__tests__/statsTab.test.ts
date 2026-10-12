@@ -51,8 +51,8 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
       deposit_to_enrolled_rate: rateDiff(0, 33.3, -33.3), effective_to_enrolled_rate: rateDiff(0, 50, -50),
     },
     alerts: [{
-      code: 'FUNNEL_DROP', level: 'warning', title: '本月漏斗轉換下滑',
-      message: '115.09 參觀轉預繳 -80.0 個百分點，參觀轉註冊 -33.3 個百分點。', target_tab: 'records', target_filter: { month: '115.09' },
+      code: 'FUNNEL_DROP', level: 'warning', title: '本月預繳比過去慢',
+      message: '115.09 參觀的 15 位家長，依過去的預繳速度到今天應有約 6.0 筆預繳，實際預繳過 1 筆（含之後退出）。', target_tab: 'records', target_filter: { month: '115.09' },
     }],
     top_action_queue: [
       { code: 'FOLLOW_HIGH_POTENTIAL', title: '查看高風險未預繳', description: '目前有 2 筆高潛力名單逾期未追。',
@@ -70,10 +70,10 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
       { year: '115', ...snap(8, 4, 1, 1, 2, 3, 50, 12.5, 25, 33.3) },
     ],
     by_grade: [
-      { grade: '小班', visit: 5, deposit: 3, enrolled: 1, visit_to_deposit_rate: 60, visit_to_enrolled_rate: 20, deposit_to_enrolled_rate: 33.3 },
-      { grade: '中班', visit: 2, deposit: 2, enrolled: 1, visit_to_deposit_rate: 100, visit_to_enrolled_rate: 50, deposit_to_enrolled_rate: 50 },
-      { grade: '幼幼班', visit: 1, deposit: 0, enrolled: 0, visit_to_deposit_rate: 0, visit_to_enrolled_rate: 0, deposit_to_enrolled_rate: null },
-      { grade: '未填寫', visit: 1, deposit: 0, enrolled: 0, visit_to_deposit_rate: 0, visit_to_enrolled_rate: 0, deposit_to_enrolled_rate: null },
+      { grade: '小班', visit: 5, deposit: 3, enrolled: 1, visit_to_deposit_rate: 60, visit_to_enrolled_rate: 20, deposit_to_enrolled_rate: 33.3, visit_to_deposit_range: { low: 40, high: 72.4 } },
+      { grade: '中班', visit: 2, deposit: 2, enrolled: 1, visit_to_deposit_rate: 100, visit_to_enrolled_rate: 50, deposit_to_enrolled_rate: 50, visit_to_deposit_range: { low: 44, high: 79.3 } },
+      { grade: '幼幼班', visit: 1, deposit: 0, enrolled: 0, visit_to_deposit_rate: 0, visit_to_enrolled_rate: 0, deposit_to_enrolled_rate: null, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
+      { grade: '未填寫', visit: 1, deposit: 0, enrolled: 0, visit_to_deposit_rate: 0, visit_to_enrolled_rate: 0, deposit_to_enrolled_rate: null, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
     ],
     month_grade: {
       '114.12': { 中班: 1, 合計: 1 },
@@ -81,17 +81,17 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
       '115.09': { 小班: 3, 幼幼班: 1, 未填寫: 1, 合計: 5 },
     },
     by_source: [
-      { source: 'Facebook', visit: 5, deposit: 4, visit_to_deposit_rate: 80 },
-      { source: '親友介紹', visit: 2, deposit: 1, visit_to_deposit_rate: 50 },
-      { source: 'Google 評論', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
-      { source: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+      { source: 'Facebook', visit: 5, deposit: 4, visit_to_deposit_rate: 80, visit_to_deposit_range: { low: 46.9, high: 78.4 } },
+      { source: '親友介紹', visit: 2, deposit: 1, visit_to_deposit_rate: 50, visit_to_deposit_range: { low: 35.5, high: 71.8 } },
+      { source: 'Google 評論', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
+      { source: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
     ],
     top_source_names: ['Facebook', '親友介紹', 'Google 評論', '未填寫'],
     by_tour_guide: [
-      { tour_guide: '林老師', visit: 5, deposit: 3, visit_to_deposit_rate: 60, by_grade: { 小班: { visit: 5, deposit: 3 } } },
-      { tour_guide: '張老師', visit: 3, deposit: 2, visit_to_deposit_rate: 66.7,
+      { tour_guide: '林老師', visit: 5, deposit: 3, visit_to_deposit_rate: 60, visit_to_deposit_range: { low: 40, high: 72.4 }, by_grade: { 小班: { visit: 5, deposit: 3 } } },
+      { tour_guide: '張老師', visit: 3, deposit: 2, visit_to_deposit_rate: 66.7, visit_to_deposit_range: { low: 39.7, high: 74.4 },
         by_grade: { 中班: { visit: 2, deposit: 2 }, 幼幼班: { visit: 1, deposit: 0 } } },
-      { tour_guide: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, by_grade: { 未填寫: { visit: 1, deposit: 0 } } },
+      { tour_guide: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 }, by_grade: { 未填寫: { visit: 1, deposit: 0 } } },
     ],
     tour_guide_source_cross: {
       sources: ['Facebook', '親友介紹', 'Google 評論', '未填寫'],
@@ -108,6 +108,8 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
     no_deposit_total: 3,
     no_deposit_priority: { high: 2, medium: 0, low: 0, other: 1 },
     no_deposit_summary: { high_potential_count: 2, overdue_followup_count: 3, cold_count: 0, high_potential_backlog_count: 2 },
+    deposit_timing: { status: 'insufficient', visits: 3, deposited: 0, missing_time: 6, min_events: 10, checkpoints: [], half_by_day: null },
+    deposit_pace: { evaluable: false, reason: 'insufficient_baseline', month: '115.09', visits: 3, expected: null, observed: 0, slow: false },
     ...changes,
   }
 }
@@ -223,12 +225,23 @@ describe('統計分頁：總覽', () => {
     expect(snapshot).not.toContain('6.3%')
   })
 
+  it('統計頂部有收起的說明：可能範圍與預繳速度怎麼看', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const explainer = wrapper.get('[data-test="stats-explainer"]')
+    expect(explainer.element.tagName).toBe('DETAILS')
+    expect(explainer.attributes('open')).toBeUndefined()
+    expect(explainer.get('summary').text()).toBe('怎麼看可能範圍與預繳速度')
+    expect(explainer.text()).toContain('3 筆裡 3 筆不代表比較好')
+  })
+
   it('警示與行動入口：統計內的跳子分頁，「訪視明細」交給頁面切分頁並帶月份', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
     const alert = wrapper.get('.alert-item')
-    expect(alert.text().replace(/\s+/g, '')).toBe('中本月漏斗轉換下滑115.09參觀轉預繳-80.0個百分點，參觀轉註冊-33.3個百分點。')
+    expect(alert.text().replace(/\s+/g, '')).toBe('中本月預繳比過去慢115.09參觀的15位家長，依過去的預繳速度到今天應有約6.0筆預繳，實際預繳過1筆（含之後退出）。')
     await alert.trigger('click')
     expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09' }]])
 
@@ -280,9 +293,10 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '班別分析')
 
-    expect(headers(block(pane, '班別統計'))).toEqual(['班別', '參觀人數', '預繳人數', '預繳率'])
+    expect(headers(block(pane, '班別統計'))).toEqual(['班別', '參觀人數', '預繳人數', '預繳率', '可能範圍'])
     expect(bodyRows(block(pane, '班別統計'))).toEqual([
-      ['小班', '5', '3', '60.0%'], ['中班', '2', '2', '100.0%'], ['幼幼班', '1', '0', '0.0%'], ['未填寫', '1', '0', '0.0%'],
+      ['小班', '5', '3', '60.0%', '40–72%'], ['中班', '2', '2', '100.0%', '44–79%'],
+      ['幼幼班', '1', '0', '0.0%', '31–69%'], ['未填寫', '1', '0', '0.0%', '31–69%'],
     ])
     expect(headers(block(pane, '月份 × 班別分布'))).toEqual(['月份', '幼幼班', '小班', '中班', '大班', '未填寫', '合計'])
     expect(bodyRows(block(pane, '月份 × 班別分布'))[2]).toEqual(['115.09', '1', '3', '0', '0', '1', '5'])
@@ -293,8 +307,8 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '來源分析')
 
-    expect(headers(block(pane, '來源排名明細'))).toEqual(['#', '來源', '參觀人數', '預繳人數', '預繳率'])
-    expect(bodyRows(block(pane, '來源排名明細'))[0]).toEqual(['1', 'Facebook', '5', '4', '80.0%'])
+    expect(headers(block(pane, '來源排名明細'))).toEqual(['#', '來源', '參觀人數', '預繳人數', '預繳率', '可能範圍'])
+    expect(bodyRows(block(pane, '來源排名明細'))[0]).toEqual(['1', 'Facebook', '5', '4', '80.0%', '47–78%'])
     expect(pane.get('.stats-bar__fill').attributes('style')).toContain('width: 100%')
   })
 
@@ -303,7 +317,7 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '接待分析')
 
-    expect(bodyRows(block(pane, '接待人員統計'))[1]).toEqual(['張老師', '3', '2', '66.7%'])
+    expect(bodyRows(block(pane, '接待人員統計'))[1]).toEqual(['張老師', '3', '2', '66.7%', '40–74%'])
     expect(pane.text()).toContain('依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。')
     expect(headers(block(pane, '接待人員 × 各年級預繳率'))).toEqual(['接待人員', '幼幼班', '小班', '中班', '大班', '未填寫'])
     expect(bodyRows(block(pane, '接待人員 × 各年級預繳率'))[1]).toEqual(['張老師', '1人 / 0.0%', '—', '2人 / 100.0%', '—', '—'])
@@ -551,5 +565,68 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '來源分析')
     expect(block(pane, '來源排名明細').find('[data-test="stats-csv"]').exists()).toBe(false)
+  })
+})
+
+describe('統計總覽：預繳速度（2026-10-12）', () => {
+  const okTiming = {
+    status: 'ok' as const, visits: 30, deposited: 12, missing_time: 2, min_events: 10, half_by_day: 6,
+    checkpoints: [
+      { day: 7, cumulative_rate: 23.3, visits_reached: 30 },
+      { day: 14, cumulative_rate: 40, visits_reached: 30 },
+      { day: 30, cumulative_rate: 40, visits_reached: 30 },
+      { day: 60, cumulative_rate: 40, visits_reached: 30 },
+      { day: 90, cumulative_rate: null, visits_reached: 0 },
+    ],
+  }
+
+  it('資料夠：五個觀察點、一半時間、補登與缺時間的註記', async () => {
+    mockGet({ '/admin/admissions/stats': stats({ deposit_timing: okTiming }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const card = wrapper.get('[data-test="deposit-timing"]')
+    expect(card.get('h3').text()).toBe('預繳速度')
+    const rows = card.findAll('.pace__row').map((row) => row.text().replace(/\s+/g, ''))
+    expect(rows).toEqual([
+      '第7天23.3%參觀滿7天：30位',
+      '第14天40.0%參觀滿14天：30位',
+      '第30天40.0%參觀滿30天：30位',
+      '第60天40.0%參觀滿60天：30位',
+      '第90天—還沒有家長參觀滿90天',
+    ])
+    expect(card.text()).toContain('到第 90 天會預繳的家長，一半在參觀後 6 天內就預繳了。')
+    expect(card.text()).toContain('補登的訪視天數會偏長')
+    expect(card.text()).toContain('另有 2 筆已預繳但沒有預繳紀錄時間，不列入。')
+    expect(card.find('.pace__fill').attributes('style')).toContain('width: 58%')   // 23.3 ÷ 40
+  })
+
+  it('資料不夠：寫目前幾位，不畫觀察點', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+
+    const card = wrapper.get('[data-test="deposit-timing"]')
+    expect(card.text()).toContain('預繳過的家長還不到 10 位（目前 0 位），先不計算預繳速度。')
+    expect(card.findAll('.pace__row')).toHaveLength(0)
+    expect(card.text()).toContain('另有 6 筆已預繳但沒有預繳紀錄時間，不列入。')
+  })
+
+  it('月比卡：可判斷時寫應有與實際，偏慢用警示色；比較組不夠時寫原因；沒有參考月份不顯示', async () => {
+    const slow = { evaluable: true, reason: null, month: '115.09', visits: 15, expected: 6, observed: 1, slow: true }
+    mockGet({ '/admin/admissions/stats': stats({ deposit_pace: slow }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const first = (await mountWith(StatsTab, { props: props() })).wrapper
+    const line = first.get('[data-test="deposit-pace"]')
+    expect(line.text()).toBe('依過去的預繳速度，到今天應有約 6.0 筆預繳，實際預繳過 1 筆（含之後退出）。')
+    expect(line.classes()).toContain('mom__pace--slow')
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const second = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(second.get('[data-test="deposit-pace"]').text()).toBe('其他月份的預繳還不到 10 筆，先不比較預繳速度。')
+    cleanup()
+
+    const none = { evaluable: false, reason: 'no_reference_month' as const, month: null, visits: 0, expected: null, observed: 0, slow: false }
+    mockGet({ '/admin/admissions/stats': stats({ deposit_pace: none }), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const third = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(third.find('[data-test="deposit-pace"]').exists()).toBe(false)
   })
 })

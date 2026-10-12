@@ -48,7 +48,21 @@
   - stack e2e 沒在本機跑。
   - 開場布幕與 H.264 影片：這台 Chromium 不支援，用 VP9 替身。
 
-## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（`feature/admissions-area-locate-20261012`）
+## 2026-10-12 招生統計：預繳速度與可能範圍（`feature/admissions-deposit-pace-20261012`，10-12 已部署 main `ee62f74b`）
+
+使用者問招生判讀可以再加什麼演算法，選了「預繳速度」與「可能範圍」兩項。規則見 DESIGN.md「招生統計：預繳速度與可能範圍」，規格 `docs/specs/2026-10-12-admissions-deposit-pace-design.md`，計畫 `docs/superpowers/plans/2026-10-12-admissions-deposit-pace.md`。
+
+- **警示**：「本月漏斗轉換下滑」改成「本月預繳比過去慢」、「來源結構失衡」也改看預繳速度：依過去的速度算到今天應有幾筆預繳，實際明顯偏少才報，月初與新來源不再誤報。來源失衡只和同一個 90 天窗口內的其他來源比。
+- **統計總覽**：新增「預繳速度」卡（參觀後第 7／14／30／60／90 天累積預繳率）；月比卡多一行應有／實際預繳數。
+- **可能範圍**：班別、來源、接待、區域、五校比較的預繳率旁加「可能範圍」（Beta 收縮 80%），CSV 拆下限、上限兩欄。
+- **後端**：新增 `admissions/estimation.py`（純標準函式庫）、`admissions/deposit_pace.py`；沒有 migration。
+- **口徑**：預繳時間取最後一筆 `deposit_added`（台北日期），之後退出的也算預繳過，補登舊訪視會讓天數偏長；可能範圍的事前平均用全體 (預繳+1)/(參觀+2)。
+- **版面**：區域分析三張表的欄寬下限改成 36rem（多了「可能範圍」欄後，1440 時里排行實測 562px，兩欄並排會擠出表框），1440 改成一欄一張表。五校比較在 1280 有資料時要在框內橫捲約 16px，1440 放得下。
+- **驗證**（Node 22；後端測試庫 `ivy_website_pace1012_test`、stack 庫 `ivy_website_pace1012_e2e_test`、埠 8796／3796，皆為本機結果）：後端全套 pytest 2012 passed／1 skipped；`contract:check` 一致；admin typecheck、vitest 145 檔 1977 passed／1 skipped、build；web nuxt typecheck、單元測試 934 passed；stack `admissions-flow`＋`admissions-area`＋`exports` 15 passed（含 1440／390 頁面不橫向溢出、預繳速度卡「目前 1 位」）。欄寬改 36rem 後重跑 `areaTab` 單元測試與 `admissions-area` stack，並實量 1440／1280 三張表都不需框內橫捲。預繳速度卡「資料夠」的狀態沒有真實資料，用攔截回應的方式截圖確認 1440／390 版面。
+- **合入 origin/main 後重跑**（2026-10-12，合入區域分析後續 `cb26e52b`；README 兩段都留，契約重產後與自動合併一致）：`contract:check` 一致；admin typecheck、build，vitest 全套兩次各有 1／3 個 5 秒逾時（`admissionsView`、`admissionsRecords`，本分支沒改；機器負載 28），單獨重跑 63 passed；web typecheck、單元測試 934 passed；後端全套 2012 passed／2 failed／1 skipped，失敗的 `test_media_job_loop`、`test_media_jobs` 是共用媒體暫存目錄多出檔案（跑到一半筆電睡眠），單獨重跑 47 passed；stack 三支 14 passed。
+- **未驗證**：正式站（目前是測試資料，卡片會先顯示「還不到 10 位」、兩個警示暫時不判斷）；真實資料下的誤報率（規格 §15：p ≤ 0.10，完全正常的月份或來源約一成會被報）。
+
+## 2026-10-12 區域分析打開就定位在分校、文案與手機表格小修（`feature/admissions-area-locate-20261012`，10-12 已部署 main `cb26e52b`；正式站連不到高雄市資料平台，門牌 10-12 改以檔案匯入）
 
 使用者看正式站義華的區域分析，要求「優化區域分析、自動把園方地址轉座標、打開時直接定位在分校」，範圍選「定位＋延後清單小修」。規則見 DESIGN.md「招生入學：區域分析」、規格 6.4／9.2／9.3／9.5 的 2026-10-12 段。
 

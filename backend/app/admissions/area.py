@@ -25,7 +25,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import records
+from app.admissions import estimation, records
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo import kindergartens as geo_kindergartens
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, RecruitmentVisitGeo
@@ -82,12 +82,14 @@ def _add(bucket: dict[str, int], row: Any) -> None:
     bucket["deposit"] += int(row.deposit or 0)
 
 
-def _row(bucket: dict[str, int], **labels: Any) -> dict[str, Any]:
+def _row(bucket: dict[str, int], prior: float | None, **labels: Any) -> dict[str, Any]:
     return {
         **labels,
         "visit": bucket["visit"],
         "deposit": bucket["deposit"],
         "visit_to_deposit_rate": pct(bucket["deposit"], bucket["visit"]),
+        # 可能範圍（2026-10-12 規格 §7）：全體＝距離帶相加（每筆訪視恰好落在一個距離帶）。
+        "visit_to_deposit_range": estimation.rate_range(bucket["deposit"], bucket["visit"], prior),
     }
 
 
@@ -159,6 +161,9 @@ async def query_area(
             _add(villages.setdefault((row.district, row.village), _counter()), row)
         _add(bands[distance_band(row.distance_m if row.active and located else None)], row)
 
+    prior = estimation.prior_rate(
+        sum(bucket["deposit"] for bucket in bands.values()), sum(bucket["visit"] for bucket in bands.values())
+    )
     with_address = levels["village"] + levels["district"] + levels["unlocated"] + levels["pending"]
     ranked_reasons = sorted(
         ((reason, count) for reason, count in reasons.items() if count),
@@ -181,14 +186,14 @@ async def query_area(
             "unlocated_reasons": [{"reason": reason, "count": count} for reason, count in ranked_reasons],
         },
         "districts": [
-            _row(bucket, district=name)
+            _row(bucket, prior, district=name)
             for name, bucket in sorted(districts.items(), key=lambda item: (-item[1]["visit"], item[0]))
         ],
         "villages": [
-            _row(bucket, district=district, village=village, village_code=boundaries.village_code(district, village))
+            _row(bucket, prior, district=district, village=village, village_code=boundaries.village_code(district, village))
             for (district, village), bucket in sorted(villages.items(), key=lambda item: (-item[1]["visit"], item[0]))
         ],
-        "distance_bands": [_row(bands[band], band=band) for band in DISTANCE_BANDS],
+        "distance_bands": [_row(bands[band], prior, band=band) for band in DISTANCE_BANDS],
     }
 
 

@@ -317,6 +317,8 @@
 
 ## 9. 統計分析
 
+> 2026-10-12：警示判斷、預繳速度與可能範圍改見 `docs/specs/2026-10-12-admissions-deposit-pace-design.md`。
+
 依園務 `api/recruitment/stats.py::_query_stats` 與 `shared.py::_visit_metric_cases` 移植。
 
 ### 9.1 篩選
