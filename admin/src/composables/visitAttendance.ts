@@ -61,12 +61,12 @@ export function attendanceChanged(err: unknown): boolean {
   return (err instanceof ApiError && err.status === 409) || apiErrorCode(err) === 'INVALID_TRANSITION'
 }
 
-// ── 批次標記已到場（2026-10-04 參觀後追蹤規格 7.5；2026-10-05 從招生入學「官網預約」分頁搬到案件列表）──
-// 一天的場次結束後，把來了的家長一次勾起來。只批次「已到場」：沒來的個別按「沒來」。
+// ── 批次標記已到場／沒來（2026-10-04 參觀後追蹤規格 7.5；2026-10-05 從招生入學「官網預約」分頁搬到案件列表；2026-10-12 加批次沒來）──
+// 一天的場次結束後，把來了的家長一次勾起來標記已到場，沒來的也可以勾起來一次標記沒來。
 export async function confirmBatchArrival(count: number, withAdmissions: boolean): Promise<boolean> {
   const message = withAdmissions
-    ? `會同時建立 ${count} 筆招生訪視，之後在招生入學頁追蹤。沒來的請個別按「沒來」。`
-    : '沒來的請個別按「沒來」。'
+    ? `會同時建立 ${count} 筆招生訪視，之後在招生入學頁追蹤。沒來的家長請另外勾選，標記沒來。`
+    : '沒來的家長請另外勾選，標記沒來。'
   try {
     await ElMessageBox.confirm(message, `${count} 位標記已到場？`, { confirmButtonText: '標記已到場', cancelButtonText: '先不要', type: 'info' })
     return true
@@ -75,18 +75,38 @@ export async function confirmBatchArrival(count: number, withAdmissions: boolean
   }
 }
 
+// 標記沒來不能復原（會結案、停用家長的修改連結），確認鈕用危險色、焦點不放在確認鈕；
+// 名額不會釋出，和單筆「沒來」（confirmAttendance）同一條規則。
+export async function confirmBatchNoShow(count: number): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(`把 ${count} 筆標成沒來？會結案、停用家長的修改連結，名額不會釋出。`, '批次標記沒來', {
+      confirmButtonText: '標記沒來',
+      cancelButtonText: '先不要',
+      type: 'warning',
+      confirmButtonClass: 'el-button--danger',
+      autofocus: false,
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export interface BatchFailure { id: string; name: string; reason: string }
 
-// 依序呼叫既有的 /complete，每筆各自一個交易（與單筆相同），不另開批次端點；失敗的逐筆記下原因。
-export async function markArrivedInOrder(
+export type BatchMarkKind = 'arrived' | 'no-show'
+
+// 依序呼叫既有的 /complete 或 /no-show，每筆各自一個交易（與單筆相同），不另開批次端點；失敗的逐筆記下原因。
+export async function markInOrder(
   rows: { id: string; parent_name: string }[],
+  kind: BatchMarkKind,
   onProgress: (done: number) => void,
 ): Promise<{ succeeded: number; failures: BatchFailure[] }> {
   let succeeded = 0
   const failures: BatchFailure[] = []
   for (const [index, row] of rows.entries()) {
     try {
-      await submitAttendance(row.id, 'complete')
+      await submitAttendance(row.id, kind === 'arrived' ? 'complete' : 'no_show')
       succeeded += 1
     } catch (err) {
       const reason = attendanceChanged(err) ? '狀態剛被其他人更新，請看最新的清單' : apiErrorMessage(err, '標記失敗')
@@ -95,6 +115,13 @@ export async function markArrivedInOrder(
     onProgress(index + 1)
   }
   return { succeeded, failures }
+}
+
+export function markArrivedInOrder(
+  rows: { id: string; parent_name: string }[],
+  onProgress: (done: number) => void,
+): Promise<{ succeeded: number; failures: BatchFailure[] }> {
+  return markInOrder(rows, 'arrived', onProgress)
 }
 
 // 「場次已過、還沒標記到場」＝案件列表的 ?group=past&status=confirmed（後端 pending_kinds

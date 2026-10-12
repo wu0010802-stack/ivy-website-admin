@@ -57,6 +57,7 @@ describe('不能回復的確認框：確認鈕用危險色，焦點不放在確�
     ['views/MediaLibraryView.vue', '刪除'],
     ['views/PublishHistoryView.vue', '整站還原'],
     ['views/PoliciesView.vue', '執行清理'],
+    ['composables/visitAttendance.ts', '標記沒來'],
   ]
 
   it.each(CASES)('%s「%s」', (file, label) => {

@@ -15,7 +15,8 @@ import { useOpenRequestsStore } from '../stores/openRequests'
 import { useAuthStore } from '../stores/auth'
 import { notifyError, notifyWarning } from '../composables/notify'
 import {
-  attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, markArrivedInOrder, submitAttendance, type AttendanceKind, type BatchFailure,
+  attendanceChanged, attendanceDue, confirmAttendance, confirmBatchArrival, confirmBatchNoShow, markInOrder, submitAttendance,
+  type AttendanceKind, type BatchFailure, type BatchMarkKind,
 } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import { groupVisitsByDay, nextInList, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
@@ -373,12 +374,12 @@ async function markAttendance(row: VisitRequestDetailOut, kind: AttendanceKind) 
   }
 }
 
-// ── 批次標記已到場（2026-10-05 從招生入學「官網預約」分頁搬來）──
+// ── 批次標記已到場／沒來（2026-10-05 從招生入學「官網預約」分頁搬來；2026-10-12 加批次沒來）──
 // 只在「只看尚未確認到場」時出現勾選欄：一天的場次結束後，把來了的家長一次勾起來。
-// 只勾這一頁；依序呼叫 /complete，失敗的逐筆列在清單上方，清單重讀。
+// 只勾這一頁；依序呼叫 /complete 或 /no-show，失敗的逐筆列在清單上方，清單重讀。
 const batchMode = computed(() => canHandle.value && attendanceOnly.value)
 const selected = ref<VisitRequestDetailOut[]>([])
-const batch = ref<{ done: number; total: number } | null>(null)
+const batch = ref<{ done: number; total: number; kind: BatchMarkKind } | null>(null)
 const batchFailures = ref<BatchFailure[]>([])
 const attendanceLocked = computed(() => Boolean(attendanceBusy.value) || batch.value !== null)
 const canSelect = (row: VisitRequestDetailOut) => !attendanceLocked.value && showAttendance(row)
@@ -395,16 +396,18 @@ function toggleSelected(row: VisitRequestDetailOut, on: boolean) {
 watch(requests, () => { selected.value = [] })
 watch(attendanceOnly, () => { batchFailures.value = [] })
 
-async function markSelectedArrived() {
+// 已到場、沒來共用一份勾選與流程：先確認，依序送出，失敗留在清單上方，最後重讀列表。
+async function markSelected(kind: BatchMarkKind) {
   const rows = [...selected.value]
-  const withAdmissions = Boolean(authStore.features.admissions)
-  if (!rows.length || attendanceLocked.value || !(await confirmBatchArrival(rows.length, withAdmissions))) return
+  const withAdmissions = kind === 'arrived' && Boolean(authStore.features.admissions)
+  if (!rows.length || attendanceLocked.value) return
+  if (!(await (kind === 'arrived' ? confirmBatchArrival(rows.length, withAdmissions) : confirmBatchNoShow(rows.length)))) return
   batchFailures.value = []
-  batch.value = { done: 0, total: rows.length }
-  const { succeeded, failures } = await markArrivedInOrder(rows, (done) => { batch.value = { done, total: rows.length } })
+  batch.value = { done: 0, total: rows.length, kind }
+  const { succeeded, failures } = await markInOrder(rows, kind, (done) => { batch.value = { done, total: rows.length, kind } })
   batch.value = null
   batchFailures.value = failures
-  if (succeeded) ElMessage.success(`已標記 ${succeeded} 位已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
+  if (succeeded) ElMessage.success(kind === 'arrived' ? `已標記 ${succeeded} 位已到場${withAdmissions ? '，招生訪視已建立' : ''}` : `已標記 ${succeeded} 位沒來`)
   if (failures.length) notifyWarning(`有 ${failures.length} 筆沒有標記成功，原因列在清單上方`)
   void openRequests.refresh(true)
   await load({ quiet: true })
@@ -624,10 +627,13 @@ onMounted(() => {
         <div class="visit-list__head"><h2>{{ listTitle }}</h2><span class="hint">{{ loading ? '載入中…' : `本頁 ${requests.length} 件` }}</span></div>
         <div v-if="batchMode && requests.length" class="requests-batch">
           <el-checkbox :model-value="allSelected" :indeterminate="someSelected" :disabled="attendanceLocked || !selectableRows.length" @update:model-value="(on: string | number | boolean) => selectAll(Boolean(on))">全選這一頁</el-checkbox>
-          <el-button type="primary" plain :disabled="!selected.length || attendanceLocked" :loading="batch !== null" class="requests-batch__button" @click="markSelectedArrived">
-            {{ batch ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
+          <el-button type="primary" plain :disabled="!selected.length || attendanceLocked" :loading="batch?.kind === 'arrived'" class="requests-batch__button" @click="markSelected('arrived')">
+            {{ batch?.kind === 'arrived' ? `標記中 ${batch.done}／${batch.total}` : selected.length ? `${selected.length} 位標記已到場` : '勾選後一次標記已到場' }}
           </el-button>
-          <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記。</span>
+          <el-button plain :disabled="!selected.length || attendanceLocked" :loading="batch?.kind === 'no-show'" class="requests-batch__button" @click="markSelected('no-show')">
+            {{ batch?.kind === 'no-show' ? `標記中 ${batch.done}／${batch.total}` : '標記沒來' }}
+          </el-button>
+          <span class="hint">一天的場次結束後，可以把來了的家長一次勾起來標記已到場；沒來的勾起來標記沒來。</span>
         </div>
         <el-alert
           v-if="batchFailures.length"

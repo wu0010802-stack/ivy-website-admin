@@ -5,10 +5,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
-import ElementPlus, { ElMessageBox } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
+import { markArrivedInOrder, markInOrder } from '../composables/visitAttendance'
 import type { UserOut } from '../api/types'
 import { testUser } from './fixtures'
 
@@ -134,5 +135,95 @@ describe('案件列表：批次標記已到場', () => {
     const { wrapper } = await mountList(ATTENDANCE, rows, { user: testUser('readonly', { campus_keys: ['yihua'] }) })
     expect(wrapper.find('.requests-batch').exists()).toBe(false)
     expect(wrapper.find('.visit-row__check').exists()).toBe(false)
+  })
+})
+
+// 批次標記沒來（2026-10-12）：同一份勾選、同一條 /no-show，後端不改。
+const batchButton = (wrapper: VueWrapper, text: string) => wrapper.get('.requests-batch').findAll('button').find(b => b.text() === text)
+const NO_SHOW_CONFIRM = '把 2 筆標成沒來？會結案、停用家長的修改連結，名額不會釋出。'
+
+describe('案件列表：批次標記沒來', () => {
+  it('批次列有「標記沒來」，沒勾選時停用；非「只看尚未確認到場」或唯讀帳號沒有', async () => {
+    const { wrapper } = await mountList(ATTENDANCE, rows)
+    expect(batchButton(wrapper, '標記沒來')?.attributes('disabled')).toBeDefined()
+    await selectAll(wrapper)
+    expect(batchButton(wrapper, '標記沒來')?.attributes('disabled')).toBeUndefined()
+
+    const plain = (await mountList('/visit-requests?group=past', rows)).wrapper
+    expect(plain.find('.requests-batch').exists()).toBe(false)
+    expect(plain.findAll('button').some(b => b.text() === '標記沒來')).toBe(false)
+
+    const readonly = (await mountList(ATTENDANCE, rows, { user: testUser('readonly', { campus_keys: ['yihua'] }) })).wrapper
+    expect(readonly.findAll('button').some(b => b.text() === '標記沒來')).toBe(false)
+  })
+
+  it('勾兩筆：確認框寫出筆數與後果、確認鈕危險色；確認後依序打 /no-show，成功訊息，列表重讀', async () => {
+    const { wrapper, get } = await mountList(ATTENDANCE, rows, { admissions: true })
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const success = vi.spyOn(ElMessage, 'success')
+    await selectAll(wrapper)
+    const callsBefore = get.mock.calls.length
+    await batchButton(wrapper, '標記沒來')!.trigger('click')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledWith(NO_SHOW_CONFIRM, expect.any(String), expect.objectContaining({
+      confirmButtonText: '標記沒來', cancelButtonText: '先不要', confirmButtonClass: 'el-button--danger', autofocus: false,
+    }))
+    expect(post.mock.calls.map(call => call[0])).toEqual(['/admin/visit-requests/r1/no-show', '/admin/visit-requests/r2/no-show'])
+    expect(success).toHaveBeenCalledWith('已標記 2 位沒來')
+    expect(wrapper.find('.requests-batch__failures').exists()).toBe(false)
+    expect(get.mock.calls.length).toBeGreaterThan(callsBefore)
+  })
+
+  it('一筆回 409：逐筆列出「狀態剛被其他人更新」，另一筆照常送出', async () => {
+    const { wrapper } = await mountList(ATTENDANCE, rows)
+    vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const post = vi.spyOn(api, 'post').mockImplementation(async (url: string) => {
+      if (url.includes('/r1/')) throw new ApiError(409, { code: 'INVALID_TRANSITION' })
+      return {} as never
+    })
+    const success = vi.spyOn(ElMessage, 'success')
+    await selectAll(wrapper)
+    await batchButton(wrapper, '標記沒來')!.trigger('click')
+    await flushPromises()
+    expect(post.mock.calls.map(call => call[0])).toEqual(['/admin/visit-requests/r1/no-show', '/admin/visit-requests/r2/no-show'])
+    expect(wrapper.get('.requests-batch__failures').text()).toContain('黃志明：狀態剛被其他人更新')
+    expect(success).toHaveBeenCalledWith('已標記 1 位沒來')
+  })
+
+  it('確認框按「先不要」：不送出', async () => {
+    const { wrapper } = await mountList(ATTENDANCE, rows)
+    vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel' as never)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    await selectAll(wrapper)
+    await batchButton(wrapper, '標記沒來')!.trigger('click')
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+  })
+})
+
+describe('markInOrder：依序呼叫、各自收失敗', () => {
+  const targets = [{ id: 'a', parent_name: 'A' }, { id: 'b', parent_name: 'B' }, { id: 'c', parent_name: 'C' }]
+
+  it('no-show：依序打 /no-show；b 回 409 記下「狀態剛被其他人更新」，c 仍會送', async () => {
+    const post = vi.spyOn(api, 'post').mockImplementation(async (url: string) => {
+      if (url.includes('/b/')) throw new ApiError(409, { code: 'INVALID_TRANSITION' })
+      return {} as never
+    })
+    const progress: number[] = []
+    const result = await markInOrder(targets, 'no-show', done => progress.push(done))
+    expect(post.mock.calls.map(call => call[0])).toEqual([
+      '/admin/visit-requests/a/no-show', '/admin/visit-requests/b/no-show', '/admin/visit-requests/c/no-show',
+    ])
+    expect(result.succeeded).toBe(2)
+    expect(result.failures).toEqual([{ id: 'b', name: 'B', reason: expect.stringContaining('狀態剛被其他人更新') }])
+    expect(progress).toEqual([1, 2, 3])
+  })
+
+  it('arrived：打 /complete；markArrivedInOrder 是它的包裝', async () => {
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    expect((await markInOrder(targets.slice(0, 1), 'arrived', () => {})).succeeded).toBe(1)
+    expect((await markArrivedInOrder(targets.slice(1, 2), () => {})).succeeded).toBe(1)
+    expect(post.mock.calls.map(call => call[0])).toEqual(['/admin/visit-requests/a/complete', '/admin/visit-requests/b/complete'])
   })
 })
