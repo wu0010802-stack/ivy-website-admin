@@ -21,7 +21,7 @@ export function visitCase(extra: Record<string, unknown> = {}) {
     referral_sources: ['friends_family'], age: null, preferred_time: null, questions: null, party_size: null,
     consent_given: false, slot_id: futureSlot.id, slot: futureSlot, display_status: 'upcoming',
     confirmed_at: '2026-10-01T08:25:00Z', cancelled_at: null, cancel_reason: null, follow_up_at: null,
-    related_request_id: null, created_at: '2026-10-01T08:25:00Z', version: 1,
+    related_request_id: null, created_at: '2026-10-01T08:25:00Z', version: 1, details_version: 1,
     history: [], access_link: null, parent_change_deadline_hours: 24, ...extra,
   }
 }

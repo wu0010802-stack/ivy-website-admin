@@ -590,6 +590,12 @@ export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
   system: '系統自動',
 }
 
+// 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。
+export const VISIT_DETAIL_FIELD_LABELS: Record<string, string> = {
+  parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
+  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事',
+}
+
 // 與後端 log_action 的 target_type 同一組（labels.test.ts 會比對）。
 export const AUDIT_TARGET_LABELS: Record<string, string> = {
   booking_config: '預約設定',
@@ -1328,10 +1334,12 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   filename: (v) => `檔名：${String(v)}`,
   size_bytes: (v) => `檔案大小：${formatFileSize(countOf(v))}`,
   deleted_at: (v) => `刪除時間：${auditWhen(v)}`,
-  // 素材說明（media.update）或招生訪視（recruitment_visit.update）被改了哪些欄位。
+  // 素材說明（media.update）、招生訪視（recruitment_visit.*）或家長資料（visit_request.update_details）被改了哪些欄位。
   fields: (v, action) => {
     if (!Array.isArray(v)) return null
-    const names = action.startsWith('recruitment_visit.') ? RECRUITMENT_FIELD_LABELS : MEDIA_FIELD_LABELS
+    const names = action.startsWith('recruitment_visit.')
+      ? RECRUITMENT_FIELD_LABELS
+      : action.startsWith('visit_request.') ? VISIT_DETAIL_FIELD_LABELS : MEDIA_FIELD_LABELS
     return `修改：${Array.from(new Set(v.map((field) => names[String(field)] ?? String(field)))).join('、')}`
   },
   imported: (v) => `匯入 ${countOf(v)} 個`,

@@ -9,6 +9,7 @@ import {
   staffLabelById,
   staffOf,
   visitEventLabel,
+  VISIT_DETAIL_FIELD_LABELS,
   VISIT_EVENT_SOURCE_LABELS,
   visitSourceLabel,
   visitStatus,
@@ -46,6 +47,8 @@ export function visitEventTitle(event: VisitHistoryOut): string {
   }
   // 家長比場次早到（2026-10-12，/complete-early）：after 記 early；釋出的場次由下面的「釋出 …」寫出。
   if (event.event_type === 'completed' && event.after?.early === true) return '提早標記已到場'
+  // 家長修改資料（修改連結）與園方修改家長資料（2026-10-12）共用 details_updated：依誰改的分開寫。
+  if (event.event_type === 'details_updated' && event.source === 'staff') return '修改家長資料'
   return visitEventLabel(event.event_type)
 }
 
@@ -57,12 +60,6 @@ export function visitEventActor(event: VisitHistoryOut): string {
     return event.actor_user_id ? '已移除的帳號' : VISIT_EVENT_SOURCE_LABELS.staff!
   }
   return event.source ? (VISIT_EVENT_SOURCE_LABELS[event.source] ?? event.source) : ''
-}
-
-// 家長修改資料只記改了哪些欄位，不記內容（歷程會給多位同事看）。
-const PARENT_FIELD_LABELS: Record<string, string> = {
-  parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
-  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事',
 }
 
 /** 異動前後，一行一件事。 */
@@ -101,8 +98,12 @@ export function visitEventChanges(
   if (after && 'assigned_staff_id' in after) {
     lines.push(`${staffLabelById(text(before, 'assigned_staff_id'), staff)} → ${staffLabelById(text(after, 'assigned_staff_id'), staff)}`)
   }
+  // 修改資料只記改了哪些欄位，不記內容（歷程會給多位同事看）。
   const fields = after?.fields
-  if (Array.isArray(fields) && fields.length) lines.push(`修改欄位：${fields.map(f => PARENT_FIELD_LABELS[String(f)] ?? String(f)).join('、')}`)
+  if (Array.isArray(fields) && fields.length) {
+    const names = fields.map(f => VISIT_DETAIL_FIELD_LABELS[String(f)] ?? String(f)).join('、')
+    lines.push(event.event_type === 'details_updated' ? `${visitEventActor(event)}改了 ${names}` : `修改欄位：${names}`)
+  }
   const followUp = text(after, 'follow_up_at')
   if (followUp) lines.push(`下次聯絡 ${formatDateTime(followUp)}`)
   const expires = text(after, 'expires_at')

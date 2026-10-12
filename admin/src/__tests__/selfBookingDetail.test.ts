@@ -68,7 +68,7 @@ describe('階段 A 帶過來的後台顯示', () => {
   it('家長修改資料的歷程列出改了哪些欄位（不寫內容）', async () => {
     const { visitEventChanges } = await import('../api/visitHistory')
     const lines = visitEventChanges({ id: 'h1', event_type: 'details_updated', source: 'parent', before: null, after: { fields: ['phone', 'party_size', 'questions'] } } as never)
-    expect(lines).toEqual(['修改欄位：手機、參觀人數、想了解的事'])
+    expect(lines).toEqual(['家長改了 手機、參觀人數、想了解的事'])
   })
 
   it('改期申請失效的標籤不寫「園方」（家長自己改期也會讓它失效）', async () => {

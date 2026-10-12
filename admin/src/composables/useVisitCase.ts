@@ -5,7 +5,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import { lastHandled } from '../api/visitHistory'
-import type { RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
+import { isAnonymizedCase } from '../api/visitDetails'
+import type { AdminDetailsUpdateOut, RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
 import { formatDateTime, formatSlotWhen, maskEmail, slotStarted, visitDisplay, visitDisplayStatus, visitStatus } from '../api/labels'
 import { familyLastHandled, latestContact } from '../admissions/family'
 import { useAuthStore } from '../stores/auth'
@@ -75,12 +76,16 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   const pendingAction = ref<DetailAction | null>(null)
   const busy = computed(() => pendingAction.value !== null)
   const rebookOpen = ref(false)
+  // 資料表的「修改」（家長稱呼、手機、Email、孩子姓名與生日）：對話框掛在 VisitCaseDialogs。
+  const detailsOpen = ref(false)
   const loading = ref(true)
   const { can } = usePermissions()
   // 處理案件（聯絡紀錄、確認、取消、改期…）含櫃台；新增時段仍是校區管理者以上
   // （booking.manage）。
   const canHandle = computed(() => can('booking.handle'))
   const canManage = computed(() => can('booking.manage'))
+  // 任何狀態都能改家長資料，只有已依保存政策匿名化的不行（後端也會擋）。
+  const canEditDetails = computed(() => canHandle.value && !!detail.value && !isAnonymizedCase(detail.value))
   const { staff, load: loadStaff } = useVisitStaff()
 
   // 打好還沒按「新增紀錄」的聯絡紀錄：返回、下一筆、側欄換頁前都先問，
@@ -418,6 +423,19 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     }
   }
 
+  // 修改家長資料存好：重讀案件（資料表、歷程、版本）；列表上那一列的稱呼與電話也是舊的。
+  // 招生資料有一起改的欄位時，家庭版面上的招生訪視也重讀。
+  async function onDetailsSaved(result: AdminDetailsUpdateOut) {
+    await load({ quiet: true })
+    hooks.onChanged?.()
+    if (result.admissions_synced_fields.length) void family.reload()
+  }
+
+  // 修改家長資料遇到版本衝突（家長或同事剛改過）：重讀讓畫面顯示最新的。
+  async function onDetailsConflict() {
+    await reloadNotifyingIfChanged()
+  }
+
   // 重新預約（另建新案）建好：側欄的件數跟著更新；導到新案件由呼叫端（明細頁、預覽面板）決定。
   async function onRebooked(created: VisitRequestDetailOut) {
     openRequests.refresh(true)
@@ -600,13 +618,14 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     rescheduleSlotId.value = ''
     rescheduleReason.value = ''
     manualRescheduleOpen.value = false
+    detailsOpen.value = false
     void load()
   })
 
   return reactive({
     detail, notes, availableSlots, loading, error, newNote, followUpAt, rescheduleSlotId, rescheduleReason, manualRescheduleOpen,
-    pendingAction, busy, bookingDataOpen, rebookOpen, arrivalOpen, arrivalLead, emailEnabled, clockNow,
-    canHandle, canManage, staff, family,
+    pendingAction, busy, bookingDataOpen, rebookOpen, detailsOpen, arrivalOpen, arrivalLead, emailEnabled, clockNow,
+    canHandle, canManage, canEditDetails, staff, family,
     canReadAdmissions: family.canRead, canCreateAdmissions: family.canWrite, admissionsVisit: family.visit,
     admissionsAvailable: family.available, creatingAdmissions: family.creating, lookupFailed: family.lookupFailed,
     extrasFailed: family.extrasFailed, familyEvents: family.events, familyLogs: family.contactLogs,
@@ -615,7 +634,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     statusDisplay, confirmedAtShown, followUpTracked, followUpDue, followUpPast, linkApplicable, isWebCase,
     latestFamilyContact, callPhone, bookingDataTitle,
     load, refreshDetail, refreshIfStale, cancel, markNoShow, markCompleted, markCompletedEarly, openArrivalForm, openAdmissionsForm, opensForm, reschedule,
-    addNote, onFamilyChanged, onRebooked, slotLabel, chosenSlotText,
+    addNote, onFamilyChanged, onRebooked, onDetailsSaved, onDetailsConflict, slotLabel, chosenSlotText,
   })
 }
 

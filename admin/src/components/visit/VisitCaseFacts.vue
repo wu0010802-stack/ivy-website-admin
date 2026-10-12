@@ -40,15 +40,18 @@ const open = computed(() => !collapsible.value || vc.bookingDataOpen)
   <section v-if="vc.detail" class="panel detail__data case-facts">
     <div class="panel__head">
       <h2>{{ vc.bookingDataTitle }}</h2>
-      <el-button
-        v-if="collapsible"
-        link
-        type="primary"
-        :aria-expanded="open ? 'true' : 'false'"
-        aria-controls="visit-booking-data"
-        @click="vc.bookingDataOpen = !vc.bookingDataOpen"
-      >{{ open ? '收起' : '展開' }}</el-button>
-      <span v-else class="hint">{{ vc.isWebCase ? '官網表單' : '園方補登' }}</span>
+      <div class="case-facts__tools">
+        <el-button v-if="vc.canEditDetails" link type="primary" @click="vc.detailsOpen = true">修改</el-button>
+        <el-button
+          v-if="collapsible"
+          link
+          type="primary"
+          :aria-expanded="open ? 'true' : 'false'"
+          aria-controls="visit-booking-data"
+          @click="vc.bookingDataOpen = !vc.bookingDataOpen"
+        >{{ open ? '收起' : '展開' }}</el-button>
+        <span v-else class="hint">{{ vc.isWebCase ? '官網表單' : '園方補登' }}</span>
+      </div>
     </div>
     <dl v-show="open" id="visit-booking-data" class="case-facts__list">
       <template v-for="fact in facts" :key="fact.label">
@@ -63,6 +66,16 @@ const open = computed(() => !collapsible.value || vc.bookingDataOpen)
 </template>
 
 <style scoped>
+.case-facts__tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.case-facts__tools .el-button + .el-button {
+  margin-left: 0;
+}
+
 .case-facts__list {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);

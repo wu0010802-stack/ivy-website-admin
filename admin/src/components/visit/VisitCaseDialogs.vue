@@ -5,8 +5,9 @@ import { useCampusScope } from '../../composables/useCampusScope'
 import { injectVisitCase } from '../../composables/useVisitCase'
 import ManualVisitDialog from '../ManualVisitDialog.vue'
 import RecordDialog from '../admissions/RecordDialog.vue'
+import VisitDetailsDialog from './VisitDetailsDialog.vue'
 
-// 案件的兩個對話框：重新預約（另建新案）與招生資料表單（標記到場後自動打開、或頁首「填招生資料」）。
+// 案件的三個對話框：重新預約（另建新案）、修改家長資料（資料表的「修改」）與招生資料表單（標記到場後自動打開、或頁首「填招生資料」）。
 // RecordDialog 一直掛著：它在打開的那一刻（open 變 true）才把 record 帶進表單。
 const vc = injectVisitCase()
 const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
@@ -17,6 +18,13 @@ const cancelText = computed(() => (vc.arrivalLead ? ARRIVAL_FORM_CANCEL_TEXT : u
 <template>
   <template v-if="vc.detail">
     <ManualVisitDialog v-model="vc.rebookOpen" :campus-keys="visibleCampusKeys" :related-from="vc.detail" @created="vc.onRebooked" />
+    <VisitDetailsDialog
+      v-model="vc.detailsOpen"
+      :detail="vc.detail"
+      :email-enabled="vc.emailEnabled"
+      @saved="vc.onDetailsSaved"
+      @reload="vc.onDetailsConflict"
+    />
     <RecordDialog
       v-if="vc.canCreateAdmissions"
       v-model="vc.arrivalOpen"
