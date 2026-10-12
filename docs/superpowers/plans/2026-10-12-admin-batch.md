@@ -14,7 +14,7 @@
 
 - worktree：`~/Repositories/ivy-website-wt/admin-batch-20261012`，分支 `feature/admin-batch-20261012`。所有指令在這個目錄跑，不碰 `~/Desktop/ivy-website-admin`。
 - Node 22：`source ~/.nvm/nvm.sh; nvm use 22`（source 會 exit 3，一律用分號串接，不要用 `&&`）。
-- 後端測試：`cd backend; WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_batch1012_test uv run pytest tests/<檔>.py -q`。**subagent 只跑單檔前景**；全套由主 session 背景跑。
+- 後端測試：`cd backend; export WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_batch1012_test WEBSITE_SESSION_SECRET=test-secret-0123456789abcdef0123456789abcdef WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_batch1012_test; uv run pytest tests/<檔>.py -q`（設定的 env 前綴是 `WEBSITE_`）。**subagent 只跑單檔前景**；全套由主 session 背景跑。
 - 同時只跑一組測試（8GB RAM）。Vitest 跑單檔：`npm --prefix admin exec vitest run src/__tests__/<檔>`、`npm --prefix web exec vitest run tests/<檔>`。
 - FastAPI 0.136.1 釘版，勿升；不新增 Python／npm 依賴。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表，路由不寫角色判斷。
@@ -41,7 +41,7 @@
 ### Task 0: 建測試庫
 
 - [ ] `createdb ivy_website_batch1012_test`
-- [ ] `cd backend; WEBSITE_ENVIRONMENT=test DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_batch1012_test SESSION_SECRET=test-secret-0123456789abcdef0123456789 uv run alembic upgrade head`
+- [ ] 帶上 Global Constraints 的後端環境變數，`cd backend; uv run alembic upgrade head`
 - [ ] 跑一支小測試確認可用：`uv run pytest tests/test_health.py -q`（帶上面的測試庫環境變數）。
 
 ---
