@@ -351,8 +351,6 @@ export interface CampusProfilePayload {
   cover?: MediaSlotPayload | null
   /** 首頁五校卡片與預約頁的校區照片 */
   card_focus?: FocusPointPayload | null
-  /** 分校頁首屏 */
-  hero_focus?: FocusPointPayload | null
   line_art?: MediaSlotPayload | null
   line_art_colour?: MediaSlotPayload | null
   /** 2026-09-25 新增；之前存的版本沒有這兩欄，表單載入時補空字串。 */

@@ -1168,12 +1168,13 @@ class CampusProfilePayload(_ContentPayload):
     # 官網照舊用地址組成 Google 地圖搜尋連結。
     map_url: str = Field(default="", max_length=SITE_LINK_MAX_LENGTH)
     # 2026-09-25 新增（規格 L107-108）：封面照片與建築線稿從素材庫選，留空沿用
-    # 官網內建。封面在兩個版位裁成不同比例，各有自己的焦點：card_focus＝首頁
-    # 五校卡片與預約頁的校區照片、hero_focus＝分校頁首屏。版位焦點留空時用
-    # 封面設定的焦點，再沒有就用素材本身的焦點。沒換封面也可以只調焦點。
+    # 官網內建。card_focus＝首頁五校卡片與預約頁的校區照片焦點；留空時用封面設定的
+    # 焦點，再沒有就用素材本身的焦點。沒換封面也可以只調焦點。
     cover: MediaSlotPayload | None = None
     card_focus: FocusPointPayload | None = None
-    hero_focus: FocusPointPayload | None = None
+    # 2026-10-12 退役：分校頁已拿掉，首屏焦點沒人讀。保留欄位只為吃線上舊版本，
+    # exclude=True 讓新存的版本不再帶它，公開輸出由 _public_without_retired 剔除。
+    hero_focus: FocusPointPayload | None = Field(default=None, exclude=True)
     # 首頁五校分頁上的建築線稿（平常）與上色版（選到那一校時疊上去）。
     line_art: MediaSlotPayload | None = None
     line_art_colour: MediaSlotPayload | None = None

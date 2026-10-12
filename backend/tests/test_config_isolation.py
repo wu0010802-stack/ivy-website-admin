@@ -78,7 +78,6 @@ def test_valid_settings_construct_successfully():
         session_secret="test-only-secret",
     )
     assert settings.active_database_url() == "postgresql://localhost/ivy_website_test"
-    assert settings.indexing_enabled is False
     assert settings.enable_fixture is False
     # 招生入學預設關閉（規格 §15 Q1 裁定前正式站不可開）。
     assert settings.admissions_enabled is False

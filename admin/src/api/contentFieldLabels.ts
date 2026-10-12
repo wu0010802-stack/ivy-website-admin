@@ -61,7 +61,6 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     instagram: 'Instagram 網址',
     youtube: 'YouTube 頻道網址',
     card_focus: '首頁五校卡片、預約頁的裁切焦點',
-    hero_focus: '分校頁首屏的裁切焦點',
     line_art_colour: '建築線稿（上色版）',
   },
   day_experience: {

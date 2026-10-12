@@ -16,8 +16,9 @@ import type { EditorSection } from '../composables/editorSections'
 
 const campus = ref('')
 // 一句話簡介（intro）、詳細介紹（description）、Facebook 備註（fb_note）官網不顯示，
-// 2026-10-08 連後端欄位一起拿掉：舊版本存著的值載入時丟掉，不會出現在「變更了哪些
-// 欄位」，存檔也不再送出（後端同樣忽略）。
+// 2026-10-08 連後端欄位一起拿掉；分校頁首屏焦點（hero_focus）分校頁拿掉後沒人讀，
+// 2026-10-12 照辦。舊版本存著的值載入時丟掉，不會出現在「變更了哪些欄位」，存檔也不再
+// 送出（後端同樣忽略）。
 const editor = useContentItem<CampusProfilePayload>(
   'campus_profile',
   {
@@ -30,7 +31,6 @@ const editor = useContentItem<CampusProfilePayload>(
     map_url: '',
     cover: null,
     card_focus: null,
-    hero_focus: null,
     line_art: null,
     line_art_colour: null,
     instagram: '',
@@ -39,10 +39,17 @@ const editor = useContentItem<CampusProfilePayload>(
   campus,
   {
     normalize: (payload) => {
-      const { intro: _intro, description: _description, fb_note: _fbNote, ...rest } = payload as CampusProfilePayload & {
+      const {
+        intro: _intro,
+        description: _description,
+        fb_note: _fbNote,
+        hero_focus: _heroFocus,
+        ...rest
+      } = payload as CampusProfilePayload & {
         intro?: string
         description?: string
         fb_note?: string
+        hero_focus?: FocusPointPayload | null
       }
       return rest
     },
@@ -52,7 +59,7 @@ const editor = useContentItem<CampusProfilePayload>(
 // 段落目錄（2026-10-06 方向 D）：每段列出它編輯的欄位，和官網不同時目錄打點。
 const navSections = computed<EditorSection[]>(() => [
   { id: 'section-profile-basic', label: '基本資料', fields: ['name', 'district', 'address', 'map_url', 'phone'] },
-  { id: 'section-profile-cover', label: '封面照片與建築線稿', fields: ['cover', 'card_focus', 'hero_focus', 'line_art', 'line_art_colour'] },
+  { id: 'section-profile-cover', label: '封面照片與建築線稿', fields: ['cover', 'card_focus', 'line_art', 'line_art_colour'] },
   { id: 'section-profile-social', label: '社群', fields: ['facebook', 'line', 'instagram', 'youtube'] },
 ])
 
@@ -79,8 +86,8 @@ const coverSrc = computed(() => {
   if (!editor.form.value.cover) return builtinCover.value
   return currentCoverAsset.value ? mediaFocusUrl(currentCoverAsset.value) : ''
 })
-// 版位焦點沒設時官網實際用的位置：沒換封面＝內建位置（web fixture 的 panoramaPos／
-// heroPhotoPos，沒有就是元件預設）；換了封面＝封面設定的焦點，再來是素材庫設定的
+// 版位焦點沒設時官網實際用的位置：沒換封面＝內建位置（web fixture 的 panoramaPos，
+// 沒有就是元件預設）；換了封面＝封面設定的焦點，再來是素材庫設定的
 // 素材預設焦點（官網 slotPosition 的順序），都沒有才是元件預設。
 const BUILTIN_CARD_FOCUS: Record<string, FocusPointPayload> = { yihua: { x: 50, y: 12 } }
 const CARD_DEFAULT: FocusPointPayload = { x: 50, y: 55 }

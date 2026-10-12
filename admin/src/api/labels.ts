@@ -753,7 +753,6 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   film_caption_en: '影片說明（英文）',
   cover: '封面照片',
   card_focus: '首頁卡片焦點',
-  hero_focus: '分校頁首屏焦點',
   line_art: '建築線稿',
   line_art_colour: '建築線稿（上色）',
   films: '手機版活動影片',

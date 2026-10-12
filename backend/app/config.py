@@ -37,7 +37,6 @@ class Settings(BaseSettings):
     s3_prefix: str = ""
     session_secret: str
     enable_fixture: bool = False
-    indexing_enabled: bool = False
     admin_origin: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = Field(default=None, repr=False)

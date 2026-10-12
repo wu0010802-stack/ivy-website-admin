@@ -320,8 +320,10 @@ describe('內容頁的素材版位', () => {
   })
 
   it('分校：沒換封面也能調首頁卡片的焦點，送出 0–100 的座標', async () => {
+    // 舊版本還帶著已退役的 hero_focus：載入時丟掉，不算未儲存的修改，存檔也不再送。
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('campus_profile', {
       name: '義華校', district: '三民區', address: '地址', phone: '07', facebook: '', line: '', map_url: '',
+      hero_focus: { x: 85, y: 16 },
     }, 'yihua') as never)
     const wrapper = await mountView(CampusProfileView, '/content/campus-profile')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
@@ -334,7 +336,7 @@ describe('內容頁的素材版位', () => {
     await card.trigger('keydown', { key: 'ArrowDown', shiftKey: true })
     const payload = await savedPayload(wrapper, 'campus_profile')
     expect(payload.card_focus).toEqual({ x: 50, y: 22 })
-    expect(payload.hero_focus).toBeNull()
+    expect(payload).not.toHaveProperty('hero_focus')
     expect(payload.cover).toBeNull()
   })
 
@@ -343,7 +345,7 @@ describe('內容頁的素材版位', () => {
       if (path === '/admin/media/m1') return asset({ crop_focus_x: 0.3, crop_focus_y: 0.7 }) as never
       return contentItem('campus_profile', {
         name: '義華校', district: '三民區', address: '地址', phone: '07', facebook: '', line: '', map_url: '',
-        cover: { media_id: 'm1', focus_x: null, focus_y: null }, card_focus: null, hero_focus: null, line_art: null, line_art_colour: null,
+        cover: { media_id: 'm1', focus_x: null, focus_y: null }, card_focus: null, line_art: null, line_art_colour: null,
       }, 'yihua') as never
     })
     const wrapper = await mountView(CampusProfileView, '/content/campus-profile')

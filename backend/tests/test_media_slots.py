@@ -223,6 +223,8 @@ async def test_campus_profile_cover_line_art_and_placement_focus(admin_client):
     assert saved.status_code == 201, saved.text
     payload = saved.json()["latest_revision"]["payload"]
     assert payload["card_focus"] == {"x": 85.0, "y": 50.0}
+    # hero_focus（分校頁首屏焦點，分校頁拿掉後沒人讀）照收不 422，但新版本不再存它。
+    assert "hero_focus" not in payload
     refs = CONTENT_KIND_REGISTRY["campus_profile"].extract_media_refs(payload)
     assert [(r.path, str(r.media_id), r.kind) for r in refs] == [("cover.media_id", cover["id"], "image")]
     # 焦點只收 0–100，不收 CSS 字串。
@@ -396,7 +398,7 @@ def test_plan_covers_current_site_files():
     assert "optimized" in str(video.path)
     yihua = next(e for e in entries if e.key == "yihua-cover")
     assert yihua.campus_key == "yihua"
-    assert yihua.target.extra == {"card_focus": {"x": 50.0, "y": 36.0}, "hero_focus": {"x": 85.0, "y": 16.0}}
+    assert yihua.target.extra == {"card_focus": {"x": 50.0, "y": 36.0}}
 
 
 def _mini_web_root(tmp_path: Path) -> Path:
@@ -459,7 +461,7 @@ async def test_import_site_assets_dedupes_and_writes_drafts(db_session, tmp_path
     assert day["moments"][0]["photo"]["media_id"] == by_key["day-moment-hello"]
     yihua = await _latest(db_session, "campus_profile", "yihua")
     assert yihua["cover"]["media_id"] == by_key["yihua-cover"]
-    assert yihua["card_focus"] == {"x": 50.0, "y": 36.0} and yihua["hero_focus"] == {"x": 85.0, "y": 16.0}
+    assert yihua["card_focus"] == {"x": 50.0, "y": 36.0} and "hero_focus" not in yihua
     minghua = await _latest(db_session, "campus_profile", "minghua")
     assert minghua["card_focus"] is None
     # 草稿不發布：公開內容仍是初始化的版本。
@@ -496,11 +498,34 @@ def test_campus_profile_old_payload_still_valid():
     description／fb_note（2026-10-08 拿掉）也照收，但 model_dump 不再帶它們。"""
     payload = CampusProfilePayload.model_validate({
         "name": "義華校", "district": "鳳山區", "address": "地址", "phone": "07", "intro": "簡介",
-        "description": "介紹", "facebook": "", "fb_note": "粉專", "line": "",
+        "description": "介紹", "facebook": "", "fb_note": "粉專", "line": "", "hero_focus": {"x": 85, "y": 16},
     })
     assert payload.cover is None and payload.card_focus is None and payload.line_art is None
     assert (payload.intro, payload.description, payload.fb_note) == ("簡介", "介紹", "粉專")
-    assert not {"intro", "description", "fb_note"} & set(payload.model_dump())
+    # hero_focus（2026-10-12 退役）同樣照收、不再輸出。
+    assert payload.hero_focus is not None
+    assert not {"intro", "description", "fb_note", "hero_focus"} & set(payload.model_dump())
+
+
+@pytest.mark.asyncio
+async def test_public_site_drops_hero_focus_from_old_published_campus_profile(public_client, db_session):
+    """hero_focus 退役（2026-10-12）：線上已發布的舊版本還帶著它，公開輸出不能再外洩；
+    發布紀錄裡的原始 payload 不動。"""
+    from app.content import service as content_service
+
+    payload = {
+        "name": "義華校", "district": "鳳山區", "address": "地址", "phone": "07", "facebook": "", "line": "",
+        "card_focus": {"x": 50, "y": 36}, "hero_focus": {"x": 85, "y": 16},
+    }
+    item = await content_service.get_or_create_content_item(db_session, "campus_profile", "yihua")
+    revision = await content_service.create_revision(db_session, item, payload, item.latest_version, None)
+    await content_service.publish_revision(db_session, item, revision, None)
+    await db_session.commit()
+    assert "hero_focus" in revision.payload
+
+    yihua = (await public_client.get(f"{API}/public/site")).json()["content"]["campus_profile"]["yihua"]
+    assert yihua["card_focus"] == {"x": 50, "y": 36}
+    assert "hero_focus" not in yihua
 
 
 @requires_ffmpeg

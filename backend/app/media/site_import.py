@@ -169,14 +169,8 @@ def plan_site_assets(web_root: Path = DEFAULT_WEB_ROOT) -> list[ImportEntry]:
     for campus in fixture["campuses"]:
         key = campus["key"]
         name = campus["name"]
-        focus = {
-            name: point
-            for name, point in (
-                ("card_focus", css_position_to_focus(campus.get("panoramaPos"))),
-                ("hero_focus", css_position_to_focus(campus.get("heroPhotoPos"))),
-            )
-            if point is not None
-        }
+        card_focus = css_position_to_focus(campus.get("panoramaPos"))
+        focus = {"card_focus": card_focus} if card_focus is not None else {}
         entries += [
             ImportEntry(
                 f"{key}-cover", f"{name}封面照片", _asset(web_root, campus["image"]), MediaKind.IMAGE, key,
