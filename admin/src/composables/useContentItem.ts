@@ -53,7 +53,7 @@ export function summarizeValue(value: unknown): string {
 }
 
 // 清單裡的一項用哪個欄位當名字（消息標題、場景名…），都沒有就用第幾項。
-const ITEM_NAME_KEYS = ['title', 'name', 'heading', 'label', 'time', 'date', 'key', 'id'] as const
+const ITEM_NAME_KEYS = ['title', 'name', 'heading', 'label', 'time', 'date', 'key', 'id', 'speaker'] as const
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -79,6 +79,12 @@ function itemName(item: unknown, index: number): string {
 function listNames(verb: string, names: string[]): string {
   const list = names.length > 3 ? `${names.slice(0, 3).join('、')} 等 ${names.length} 項` : names.join('、')
   return list.startsWith('「') ? `${verb}${list}` : `${verb} ${list}`
+}
+
+// 分校資料的家長分享影片：null（沿用官網內建）和 []（這校不放）是兩回事，不能都摘要成「（空白）」。
+function summarizeTestimonials(value: unknown): string {
+  if (!Array.isArray(value)) return '沿用官網內建'
+  return value.length ? `${value.length} 支` : '這校不放影片'
 }
 
 /** 清單或物件欄位的逐項差異摘要；純文字欄位回 undefined。 */
@@ -119,7 +125,9 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
   return keys
     .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
     .map((key) => {
-      const change: FieldChange = { key, label: contentFieldLabelFor(kind, key), before: summarizeValue(before[key]), after: summarizeValue(after[key]) }
+      const voices = kind === 'campus_profile' && key === 'testimonials'
+      const summarize = voices ? summarizeTestimonials : summarizeValue
+      const change: FieldChange = { key, label: contentFieldLabelFor(kind, key), before: summarize(before[key]), after: summarize(after[key]) }
       // 字串清單（標語）前後值已經逐字列出，不必再摘要。
       const plainStrings = [before[key], after[key]].every((v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
       // 全站設定的各頁搜尋：鍵是頁名，列「修改 關於常春藤頁、隱私權政策頁」，不列英文頁碼。

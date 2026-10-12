@@ -69,6 +69,9 @@ export const LENGTH_HINTS = {
   aboutQuote: { max: 40, why: '引言會換成很多行' },
   aboutOutroTitle: { max: 6, why: '目次最後一格放不下' },
   aboutOutroText: { max: 45, why: '結尾說明會換成很多行' },
+  // 家長分享影片（分校資料，2026-10-12）：和後端 TestimonialPayload 的 quote／speaker 硬上限相同。
+  voiceQuote: { max: 40, why: '超過這個字數存不了' },
+  voiceSpeaker: { max: 20, why: '超過這個字數存不了' },
 } as const satisfies Record<string, LengthHintRule>
 
 export type LengthHintKey = keyof typeof LENGTH_HINTS

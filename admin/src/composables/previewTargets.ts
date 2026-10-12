@@ -7,7 +7,7 @@ import { WEBSITE_ASSET_BASE } from '../config'
 export type PreviewPage = 'home' | 'admission' | 'visit' | 'privacy' | 'curriculum' | 'about' | 'environment'
 export type PreviewBlock =
   | 'home-hero' | 'home-about' | 'home-day' | 'home-campuses' | 'home-news'
-  | 'site-header' | 'site-footer' | 'visit-booking' | 'page-top'
+  | 'site-header' | 'site-footer' | 'visit-booking' | 'page-top' | 'about-voices'
 export type PreviewViewport = 'desktop' | 'mobile'
 /**
  * 預覽欄和預覽頁的連線狀態。connecting＝等預覽頁回應；live＝預覽的是還沒存的修改；
@@ -42,6 +42,8 @@ export const PREVIEW_TARGETS: Readonly<Record<string, readonly PreviewTarget[]>>
   campus_profile: [
     { id: 'campuses', label: '首頁五校', page: 'home', block: 'home-campuses' },
     { id: 'footer', label: '頁尾', page: 'home', block: 'site-footer' },
+    // 關於頁第四章「家長怎麼說」：這一校沒有影片、五校都沒有影片時整章不存在，預覽就停在頁面上方不框。
+    { id: 'about-voices', label: '關於頁家長怎麼說', page: 'about', block: 'about-voices', fields: ['testimonials'] },
   ],
   booking_content: [
     { id: 'visit', label: '預約頁', page: 'visit', block: 'visit-booking', fields: ['privacy_title', 'privacy_sections'] },

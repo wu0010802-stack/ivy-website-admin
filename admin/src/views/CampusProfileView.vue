@@ -10,6 +10,7 @@ import CampusSelect from '../components/CampusSelect.vue'
 import GlyphHint from '../components/GlyphHint.vue'
 import MediaSlotField from '../components/MediaSlotField.vue'
 import FocusPicker from '../components/FocusPicker.vue'
+import CampusTestimonialsEditor from '../components/CampusTestimonialsEditor.vue'
 import { addressSearchUrl, mapUrlError } from '../composables/siteLinks'
 import { webUrlError } from '../composables/newsContent'
 import type { EditorSection } from '../composables/editorSections'
@@ -35,6 +36,8 @@ const editor = useContentItem<CampusProfilePayload>(
     line_art_colour: null,
     instagram: '',
     youtube: '',
+    // null＝關於頁的家長分享影片沿用官網內建；舊版本沒有這欄也是 null。
+    testimonials: null,
   },
   campus,
   {
@@ -61,6 +64,7 @@ const navSections = computed<EditorSection[]>(() => [
   { id: 'section-profile-basic', label: '基本資料', fields: ['name', 'district', 'address', 'map_url', 'phone'] },
   { id: 'section-profile-cover', label: '封面照片與建築線稿', fields: ['cover', 'card_focus', 'line_art', 'line_art_colour'] },
   { id: 'section-profile-social', label: '社群', fields: ['facebook', 'line', 'instagram', 'youtube'] },
+  { id: 'section-profile-voices', label: '家長分享影片', fields: ['testimonials'] },
 ])
 
 // 官網內建的五校封面（沒換封面時也能只調兩個版位的焦點）。
@@ -132,7 +136,7 @@ function blankError(value: string | null | undefined): string {
     :sections="navSections"
     :placeholder="visibleCampusKeys.length === 0 ? '你的帳號沒有可編輯的校區。' : undefined"
   >
-    <template #lead>各校在首頁五校區塊、選單與頁尾顯示的基本資料。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
+    <template #lead>各校在首頁五校區塊、選單與頁尾顯示的基本資料，以及關於頁「家長怎麼說」的家長分享影片。社群連結留空時，首頁五校卡只列出有填的平台（LINE 會寫「待園方提供」）。</template>
     <template #toolbar>
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" :disabled="campusLocked" />
     </template>
@@ -238,12 +242,23 @@ function blankError(value: string | null | undefined): string {
         <el-input v-model="editor.form.value.youtube" inputmode="url" placeholder="https://www.youtube.com/@…" />
         <span class="field-help">留空時首頁五校卡不顯示 YouTube；頁首選單列出這一校的社群時標「待提供」。</span>
       </el-form-item>
+
+      <h3 id="section-profile-voices" class="form-section" data-section-anchor tabindex="-1">家長分享影片</h3>
+      <p class="field-help voices-lead">
+        關於常春藤頁第四章「家長怎麼說」的影片。五校輪流取：每校先取第 1 支，再取第 2 支，最多放 4 支，所以一校放再多也不會占滿整章。
+      </p>
+      <CampusTestimonialsEditor
+        v-model:testimonials="editor.form.value.testimonials"
+        :campus-key="campus"
+        :read-only="editor.readOnly.value"
+      />
     </el-form>
   </ContentEditor>
 </template>
 
 <style scoped>
-.social-lead {
+.social-lead,
+.voices-lead {
   margin: 0 0 12px;
 }
 

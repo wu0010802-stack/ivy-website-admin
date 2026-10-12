@@ -313,6 +313,8 @@ export function mediaFieldPathLabel(path: string): string {
   }
   slot = /^films\[(\d+)\]\.(video|poster)\.media_id$/.exec(path)
   if (slot) return `第 ${Number(slot[1]) + 1} 支活動影片的${slot[2] === 'video' ? '影片' : '封面'}`
+  slot = /^testimonials\[(\d+)\]\.poster\.media_id$/.exec(path)
+  if (slot) return `第 ${Number(slot[1]) + 1} 支家長分享影片的封面`
   let m = /^scenes\[(\d+)\]\.image$/.exec(path)
   if (m) return `第 ${Number(m[1]) + 1} 個場景的照片`
   m = /^articles\[(\d+)\]\.image$/.exec(path)
@@ -769,6 +771,7 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   line_art: '建築線稿',
   line_art_colour: '建築線稿（上色）',
   films: '手機版活動影片',
+  testimonials: '家長分享影片',
 }
 
 export function contentFieldLabel(key: string): string {

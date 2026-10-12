@@ -171,6 +171,21 @@ describe('highlightPreview', () => {
     expect(highlightPreview(document, focus({ block: 'visit-booking' }), { isRendered: rendered })).toBe('none')
   })
 
+  it('關於頁家長怎麼說（#voices）：框整塊；這一校沒有影片、整章不存在時回 none，不丟錯、不框', () => {
+    document.body.innerHTML = '<main id="main"><section id="voices"><q>老師把孩子放第一</q></section></main>'
+    stubView()
+    expect(highlightPreview(document, focus({ block: 'about-voices' }), { isRendered: rendered })).toBe('block')
+    expect(document.querySelector(`.${PREVIEW_HIT_CLASS}`)!.id).toBe('voices')
+    expect(highlightPreview(document, focus({ block: 'about-voices', probe: '老師把孩子放第一' }), { isRendered: rendered })).toBe('text')
+    expect(document.querySelector(`.${PREVIEW_HIT_CLASS}`)!.tagName).toBe('Q')
+
+    document.body.innerHTML = '<main id="main"><section id="story"><p>一路走來</p></section></main>'
+    expect(() => highlightPreview(document, focus({ block: 'about-voices' }), { isRendered: rendered })).not.toThrow()
+    expect(highlightPreview(document, focus({ block: 'about-voices' }), { isRendered: rendered })).toBe('none')
+    expect(highlightPreview(document, focus({ block: 'about-voices', probe: '老師把孩子放第一' }), { isRendered: rendered })).toBe('none')
+    expect(document.querySelector(`.${PREVIEW_HIT_CLASS}`)).toBeNull()
+  })
+
   it('整頁區塊（page-top）：文字只落在 #main 本身（沒有更深的元素）時不框整個 #main、不回報 text', () => {
     // 'ab' 跨兩個子元素，沒有任何一個子元素單獨含有 → 最深只到 #main。
     document.body.innerHTML = '<main id="main"><span>a</span><span>b</span></main>'

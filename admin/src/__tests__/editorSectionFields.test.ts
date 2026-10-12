@@ -11,6 +11,7 @@ import type { UserOut } from '../api/types'
 import ContentEditor from '../components/ContentEditor.vue'
 import type { EditorSection } from '../composables/editorSections'
 import type { ContentEditorState } from '../composables/useContentItem'
+import { campusTestimonialsDraft } from '../composables/campusTestimonialsDraft'
 import { normalizePageSeo } from '../composables/pageSeoDefaults'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
 import { useAuthStore } from '../stores/auth'
@@ -48,6 +49,15 @@ interface Case {
 
 const CASES: Case[] = [
   { name: '五校介紹', component: CampusProfileView, kind: 'campus_profile', campusKey: 'yihua', payload: {}, edit: { key: 'phone', value: '07-000-0000', section: '基本資料' } },
+  {
+    // 家長分享影片（2026-10-12）：testimonials 從 null 改成自訂清單，只有「家長分享影片」那一段打點。
+    name: '五校介紹（家長分享影片）',
+    component: CampusProfileView,
+    kind: 'campus_profile',
+    campusKey: 'yihua',
+    payload: {},
+    edit: { key: 'testimonials', value: campusTestimonialsDraft('yihua'), section: '家長分享影片' },
+  },
   { name: '最新消息與活動', component: HomeNewsView, kind: 'home_news', campusKey: null, payload: {}, edit: { key: 'home_display_count', value: 3, section: '最新消息' } },
   { name: '各校消息與活動', component: CampusNewsView, kind: 'campus_news', campusKey: 'yihua', payload: {} },
   { name: '孩子的一天', component: DayExperienceView, kind: 'day_experience', campusKey: null, payload: {}, edit: { key: 'note', value: '新的說明', section: '背景影片' } },

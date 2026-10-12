@@ -49,6 +49,7 @@ export type PreviewBlock =
   | 'site-footer'
   | 'visit-booking'
   | 'page-top'
+  | 'about-voices'
 
 export interface PreviewBlockSpec {
   selector: string
@@ -67,7 +68,9 @@ export const PREVIEW_BLOCKS: Readonly<Record<PreviewBlock, PreviewBlockSpec>> = 
   'site-header': { selector: 'header.header', outline: true },
   'site-footer': { selector: 'footer.footer', outline: true },
   'visit-booking': { selector: '.booking-draft', outline: true },
-  'page-top': { selector: '#main', outline: false }
+  'page-top': { selector: '#main', outline: false },
+  // 關於頁第四章「家長怎麼說」。這一校或五校都沒有影片時整章不存在，找不到元素就不框（highlightPreview 回 none）。
+  'about-voices': { selector: '#voices', outline: true }
 }
 
 const PAGES: readonly PreviewPage[] = ['home', 'admission', 'visit', 'privacy', 'curriculum', 'about', 'environment']

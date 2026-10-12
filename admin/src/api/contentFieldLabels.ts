@@ -64,6 +64,7 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     youtube: 'YouTube 頻道網址',
     card_focus: '首頁五校卡片、預約頁的裁切焦點',
     line_art_colour: '建築線稿（上色版）',
+    testimonials: '家長分享影片',
   },
   day_experience: {
     eyebrow: '小標（中文）',
@@ -169,6 +170,7 @@ const LIST_UNITS: Record<string, string> = {
   chapters: '個', years: '個', directions: '個', gallery: '件', daily: '件', beliefs: '項',
   chapter_names: '個', milestones: '站', hope_quotes: '段',
   social_links: '個',
+  testimonials: '支',
 }
 
 const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
@@ -218,6 +220,8 @@ const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
   },
   items: { q: '問題', a: '回答' },
   social_links: { platform: '平台', label: '顯示名稱', url: '網址' },
+  // 分校資料的家長分享影片：標籤＝CampusTestimonialsEditor 每一支的表單標籤（422 定位靠標籤）。
+  testimonials: { youtube_url: 'YouTube 影片網址', quote: '家長說的話', speaker: '稱呼', poster: '封面', poster_alt: '封面說明' },
   body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', alt: '圖片說明', caption: '圖說' },
 }
 

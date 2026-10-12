@@ -8,6 +8,7 @@ import {
   isTrustedPreviewEvent,
   MAX_DRAFT_CHARS,
   parseDraftMessage,
+  PREVIEW_BLOCKS,
   PREVIEW_HITS,
   PREVIEW_MESSAGE
 } from '../app/utils/preview-live'
@@ -33,6 +34,16 @@ describe('parseDraftMessage：格式不對就不套用', () => {
     })
     const campus = parseDraftMessage(draft({ kind: 'campus_profile', campusKey: 'yihua', focus: { block: 'home-campuses', campusKey: 'yihua', probe: null, mark: true } }), CAMPUSES)
     expect(campus?.campusKey).toBe('yihua')
+  })
+
+  it('分校資料的家長分享影片：關於頁的 about-voices 區塊收得下（campus_profile 草稿＋page about）', () => {
+    const parsed = parseDraftMessage(
+      draft({ kind: 'campus_profile', campusKey: 'yihua', page: 'about', payload: { name: '義華校', testimonials: [] }, focus: { block: 'about-voices', campusKey: 'yihua', probe: null, mark: true } }),
+      CAMPUSES
+    )
+    expect(parsed?.page).toBe('about')
+    expect(parsed?.focus.block).toBe('about-voices')
+    expect(PREVIEW_BLOCKS['about-voices']).toEqual({ selector: '#voices', outline: true })
   })
 
   it.each([

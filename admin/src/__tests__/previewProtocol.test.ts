@@ -155,6 +155,14 @@ describe('和官網的訊息格式一致', () => {
     expect(sorted(webDraftPages)).toEqual(sorted(web.pages))
   })
 
+  it('分校資料的「關於頁家長怎麼說」分頁：後台指到關於頁的 about-voices，官網用 #voices 找，關於頁元件的第四章就是 section#voices', () => {
+    const target = PREVIEW_TARGETS.campus_profile!.find((t) => t.block === 'about-voices')
+    expect(target).toMatchObject({ page: 'about', block: 'about-voices', fields: ['testimonials'] })
+    expect(web.blocks).toContain('about-voices')
+    expect(webSource).toMatch(/'about-voices':\s*\{\s*selector:\s*'#voices'/)
+    expect(read('../../../web/app/components/AboutContent.vue')).toMatch(/<section[^>]*\bid="voices"/)
+  })
+
   it('後台的找位置文字長度不超過官網收的上限', () => {
     expect(PROBE_LENGTH).toBeLessThanOrEqual(web.maxProbe)
   })

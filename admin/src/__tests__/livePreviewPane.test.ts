@@ -61,8 +61,13 @@ describe('預覽分頁對照表', () => {
     expect(previewTargetsFor('no_such_kind')).toEqual([])
   })
 
-  it('五校介紹：首頁五校與頁尾；預約文案與網站標題只對看得到的欄位', () => {
-    expect(previewTargetsFor('campus_profile').map((t) => [t.label, t.page, t.block])).toEqual([['首頁五校', 'home', 'home-campuses'], ['頁尾', 'home', 'site-footer']])
+  it('五校介紹：首頁五校、頁尾與關於頁家長怎麼說（只對家長影片欄位）；預約文案與網站標題只對看得到的欄位', () => {
+    expect(previewTargetsFor('campus_profile').map((t) => [t.label, t.page, t.block])).toEqual([
+      ['首頁五校', 'home', 'home-campuses'],
+      ['頁尾', 'home', 'site-footer'],
+      ['關於頁家長怎麼說', 'about', 'about-voices'],
+    ])
+    expect(previewTargetsFor('campus_profile').find((t) => t.block === 'about-voices')!.fields).toEqual(['testimonials'])
     expect(previewTargetsFor('booking_content').map((t) => t.fields)).toEqual([['privacy_title', 'privacy_sections'], ['cta_label', 'cta_label_en']])
     expect(previewTargetsFor('site_meta')[0]!.fields).toEqual(['header_phone_number', 'header_phone_note', 'primary_nav'])
   })
@@ -153,7 +158,7 @@ describe('LivePreviewPane', () => {
     expect(wrapper.get('aside').attributes('aria-label')).toBe('官網預覽')
     // 兩組單選各自有報讀名稱：一組選預覽哪裡、一組選預覽寬度。
     expect(wrapper.findAll('[role="radiogroup"]').map((g) => g.attributes('aria-label'))).toEqual(['預覽哪裡', '預覽寬度'])
-    expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['首頁五校', '頁尾', '桌機', '手機'])
+    expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['首頁五校', '頁尾', '關於頁家長怎麼說', '桌機', '手機'])
     expect(wrapper.get('.live-preview__meta').text()).toBe('預覽的是還沒存的修改')
     const frame = wrapper.get('iframe')
     expect(frame.attributes('title')).toBe('官網預覽')
@@ -168,6 +173,8 @@ describe('LivePreviewPane', () => {
     await wrapper.findAll('.el-radio-button input')[1]!.setValue(true)
     expect(wrapper.emitted('update:target')![0]).toEqual(['footer'])
     await wrapper.findAll('.el-radio-button input')[2]!.setValue(true)
+    expect(wrapper.emitted('update:target')![1]).toEqual(['about-voices'])
+    await wrapper.findAll('.el-radio-button input')[3]!.setValue(true)
     expect(wrapper.emitted('update:viewport')![0]).toEqual(['desktop'])
   })
 

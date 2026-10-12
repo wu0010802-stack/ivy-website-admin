@@ -389,6 +389,23 @@ export interface CampusProfilePayload {
   /** 2026-09-25 新增；之前存的版本沒有這兩欄，表單載入時補空字串。 */
   instagram: string
   youtube: string
+  /**
+   * 2026-10-12 新增：關於頁「家長怎麼說」的家長分享影片。null（或舊版本沒有這欄）＝沿用官網內建清單
+   * （目前只有義華）；[]＝這校不放；最多 4 支。官網五校輪流取（每校先取第 1 支）。
+   */
+  testimonials?: TestimonialPayload[] | null
+}
+
+/** 一支家長分享影片（後端 TestimonialPayload）。poster 空＝內建同一支影片的封面，再沒有就用 YouTube 縮圖。 */
+export interface TestimonialPayload {
+  /** YouTube 網址或 11 碼影片編號，最多 300 字，要解得出編號 */
+  youtube_url: string
+  /** 家長說的話，1–40 字 */
+  quote: string
+  /** 稱呼，1–20 字 */
+  speaker: string
+  poster?: MediaSlotPayload | null
+  poster_alt?: string
 }
 
 /** 已拿掉的分校頁校園探索熱點：官網不顯示、後台不編，只為舊版本保留 */

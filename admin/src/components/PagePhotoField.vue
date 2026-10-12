@@ -10,6 +10,7 @@ import type { MediaAssetOut, MediaSlotPayload } from '../api/types'
 // previews：官網實際裁切的比例（同 MediaSlotField 的 focusPreviews，ratio 用 CSS aspect-ratio 寫法「3 / 2」），
 // 桌機與手機比例不同時分開列，用同一個焦點示範各自裁成什麼樣子。
 // noFocus：作品照保留原本比例、不裁切，不需要焦點。
+// campusKey：分校內容的照片（家長分享影片的封面）傳校區，素材庫只列這一校與共用的素材；整頁內容不用傳。
 const photo = defineModel<MediaSlotPayload | null | undefined>('photo', { required: true })
 const alt = defineModel<string | undefined>('alt', { required: true })
 const props = withDefaults(
@@ -17,12 +18,13 @@ const props = withDefaults(
     label: string
     builtin: string
     builtinSrc: string
+    campusKey?: string
     previews?: readonly { label: string; ratio: string }[]
     noFocus?: boolean
     help?: string
     disabled?: boolean
   }>(),
-  { previews: () => [], noFocus: false, help: '', disabled: false },
+  { campusKey: undefined, previews: () => [], noFocus: false, help: '', disabled: false },
 )
 const focusPreviews = computed(() => (props.noFocus ? [] : props.previews.map((preview) => ({ ...preview }))))
 
@@ -35,6 +37,7 @@ function onPicked(asset: MediaAssetOut, previousId: string | null) {
   <el-form-item :label="props.label">
     <MediaSlotField
       v-model="photo"
+      :campus-key="props.campusKey"
       :builtin="props.builtin"
       :builtin-src="props.builtinSrc"
       :focus="props.noFocus ? false : undefined"
