@@ -11,6 +11,7 @@
 // WEBSITE_TRUSTED_CLIENT_IP_HEADER 讀取（見 deploy/README.md）。訪客 IP 由
 // trustedClientIp 從 X-Forwarded-For 右邊取，不採信訪客可自填的最左段。
 import { apiProxyTarget, escapesApiPrefix, isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
+import { boundariesGzip, isBoundariesRequest } from '../../../../utils/gzip-boundaries'
 import { abortOnClientClose, streamProxy } from '../../../../utils/stream-proxy'
 
 const CLIENT_IP_HEADER = 'x-website-client-ip'
@@ -69,6 +70,9 @@ export default defineEventHandler(async (event) => {
       // OAuth 302/303 必須交給瀏覽器，否則伺服器會跟到 Google／LINE 並遺失握手 cookie。
       fetchOptions: { redirect: 'manual', signal: controller.signal },
       headers: clientIpHeader,
+      // 後台區域分析的里界 GeoJSON（約 600 KB）：h3 代理不轉 accept-encoding，上游壓不了，
+      // 由這一層對收 gzip 的客戶端壓縮（見 utils/gzip-boundaries.ts）。其他路徑不帶這個鉤子。
+      ...(isBoundariesRequest(event.method, target.apiPath) ? { onResponse: boundariesGzip } : {}),
     })
   } catch (error) {
     if (controller.signal.aborted) return
