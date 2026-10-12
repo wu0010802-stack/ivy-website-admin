@@ -1,11 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortDay, shortName,
-  visitGeoText,
+  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortName,
+  taipeiMonthDay, visitGeoText,
 } from '../components/admissions/area/areaFormat'
+import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
 import { areaKindergartens, areaStats, villageBoundaries } from './admissionsTestKit'
 
-const geo = (changes: Record<string, unknown> = {}) => ({ village: null, match_level: 'exact', unlocated_reason: null, distance_m: null, ...changes }) as never
+const OWN_CAMPUS_RADIUS_M = 50
+/** 兩點的直線距離（公尺），球半徑 6371000 m，和後端 haversine_m 同一個算法。 */
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const rad = (degrees: number) => (degrees * Math.PI) / 180
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2
+  return 2 * 6371000 * Math.asin(Math.sqrt(a))
+}
+
+const geo = (changes: Partial<VisitGeo> = {}): VisitGeo => ({ village: null, match_level: 'exact', unlocated_reason: null, distance_m: null, ...changes })
 
 describe('區域分析格式（2026-10-08）', () => {
   it('里界 5 級：0 筆是 0 級；其餘依最多的那一里等分；圖例和分級一致', () => {
@@ -33,13 +42,22 @@ describe('區域分析格式（2026-10-08）', () => {
     expect(doorplateVersionLabel('115-10')).toBe('115 年 10 月')
     expect(doorplateVersionLabel('115-09')).toBe('115 年 9 月')
     expect(doorplateVersionLabel('local')).toBe('local')
-    expect(shortDay('2026-10-07T18:30:00Z')).toBe('10/08')
-    expect(shortDay(null)).toBe('—')
-    expect([0, 34, 420, 999, 1000, 1240, null].map(formatDistance)).toEqual(['0 m', '30 m', '420 m', '1000 m', '1.0 km', '1.2 km', '—'])
+    expect(taipeiMonthDay('2026-10-07T18:30:00Z')).toBe('10/08')
+    expect(taipeiMonthDay(null)).toBe('—')
+    expect(taipeiMonthDay('not a date')).toBe('—')
     expect(shortName('高雄市私立小樹幼兒園')).toBe('小樹幼兒園')
     expect(shortName('高雄市立大樹幼兒園')).toBe('大樹幼兒園')
     expect(shortName('高雄市三民區某某國小附設幼兒園')).toBe('三民區某某國小附設幼兒園')
     expect(shortName('臺南市私立某幼兒園')).toBe('臺南市私立某幼兒園')
+  })
+
+  // 規則：不滿 1000 m 寫整數公尺（四捨五入到 1 m）；四捨五入後達 1000 m 起改寫公里、一位小數。
+  // 以前取整到 10 m，994 m 以上會顯示成「1000 m」，同一頁又有「1.0 km」，單位在 995–999 m 之間跳不過去。
+  it('距離：不滿 1000 m 寫整數公尺，995–999 m 不會變成「1000 m」；1000 m 起寫公里一位小數', () => {
+    expect([0, 34, 420, 994, 995, 999, 999.4, 999.6, 1000, 1240, null, undefined].map(formatDistance))
+      .toEqual(['0 m', '34 m', '420 m', '994 m', '995 m', '999 m', '999 m', '1.0 km', '1.0 km', '1.2 km', '—', '—'])
+    for (let meters = 0; meters < 1000; meters++) expect(formatDistance(meters)).toBe(`${meters} m`)
+    expect(formatDistance(0.4)).toBe('0 m')
   })
 
   it('本校沒有座標的原因（R8）：三種對照文案；不認得的值與沒有原因回 undefined，由呼叫端兜底', () => {
@@ -96,9 +114,9 @@ describe('區域分析測試假資料（主控裁定 R15）', () => {
     for (const district of districts) {
       expect(villages.filter((row) => row.district === district.district).reduce((sum, row) => sum + row.visit, 0)).toBeLessThanOrEqual(district.visit)
     }
-    // 里界沒有 no_address／anonymized：它們各有自己的筆數，不重複列在原因裡。
+    // 原因清單只列外縣市、查無門牌、里有歧義三種：沒填地址、已匿名化各有自己的筆數。清單合計不保證等於
+    // district_level＋unlocated（只到區或未定位但沒有原因的列不會進清單），後端也沒有這條不變式，所以不在這裡守。
     expect(totals.unlocated_reasons.map((item) => item.reason).sort()).toEqual(['ambiguous_village', 'no_doorplate'])
-    expect(totals.unlocated_reasons.reduce((sum, item) => sum + item.count, 0)).toBe(totals.district_level + totals.unlocated)
   })
 
   it('里的代碼用真值：里界檔和里表對得上；幼兒園地址沒有郵遞區號前綴（照 parse_preschools 存的樣子）', () => {
@@ -110,5 +128,46 @@ describe('區域分析測試假資料（主控裁定 R15）', () => {
     for (const item of areaKindergartens().items as { address: string }[]) {
       expect(item.address).not.toMatch(/^\[\d+\]/)
     }
+  })
+
+  it('幼兒園的座標和 distance_m 對得上（到本校的直線距離，誤差 1 m 內）；本機構在校區 50 m 內、其他園所在 50 m 外', () => {
+    const { campus } = areaKindergartens()
+    const items = areaKindergartens().items as { source_id: string; lat: number; lng: number; distance_m: number; is_own: boolean }[]
+    expect(items.length).toBeGreaterThan(0)
+    for (const item of items) {
+      const meters = haversineMeters(campus.lat!, campus.lng!, item.lat, item.lng)
+      expect(Math.abs(meters - item.distance_m), `${item.source_id} 的座標離校區 ${meters.toFixed(1)} m，distance_m 寫 ${item.distance_m}`).toBeLessThanOrEqual(1)
+      // 後端 OWN_CAMPUS_RADIUS_M（backend/app/admissions/area.py）：距任一校區 50 m 內才算本機構。
+      expect(meters <= OWN_CAMPUS_RADIUS_M, item.source_id).toBe(item.is_own)
+    }
+    expect(items.some((item) => item.is_own)).toBe(true)
+  })
+
+  it('假資料有核定人數未知（null）的園所，介面寫得出來', () => {
+    expect((areaKindergartens().items as { approved_capacity: number | null }[]).some((item) => item.approved_capacity === null)).toBe(true)
+  })
+})
+
+// 型別守門：@ts-expect-error 底下那行若哪天不再報錯，vue-tsc 會把「多餘的 expect-error」當錯誤。
+describe('區域分析的窄型別', () => {
+  const matchLevel = (value: VisitGeo['match_level']) => value
+  const reason = (value: NonNullable<VisitGeo['unlocated_reason']>) => value
+  const geometry = (value: VillageFeature['geometry']) => value
+
+  it('比對層級與未定位原因只收後端的列舉值；里界只收 Polygon／MultiPolygon', () => {
+    expect(matchLevel('exact')).toBe('exact')
+    // @ts-expect-error 不是後端的 match_level
+    matchLevel('exactly')
+    expect(reason('no_doorplate')).toBe('no_doorplate')
+    // @ts-expect-error 不是後端的 unlocated_reason
+    reason('far_away')
+    expect(geometry({ type: 'Polygon', coordinates: [[[120.3, 22.6]]] }).type).toBe('Polygon')
+    expect(geometry({ type: 'MultiPolygon', coordinates: [[[[120.3, 22.6]]]] }).type).toBe('MultiPolygon')
+    // @ts-expect-error 里界沒有 Point
+    geometry({ type: 'Point', coordinates: [120.3, 22.6] })
+    // @ts-expect-error 座標是三層（Polygon）或四層（MultiPolygon）的 [經度, 緯度]
+    geometry({ type: 'Polygon', coordinates: 'oops' })
+    const collection: VillageBoundaries = villageBoundaries()
+    expect(collection.features.length).toBeGreaterThan(0)
   })
 })

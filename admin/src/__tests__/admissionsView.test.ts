@@ -296,6 +296,30 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     }
   })
 
+  it('(h2) 訪視明細按「不限區域」：網址拿掉 area、重讀的明細不再帶 district／village；按「不限這筆預約」只清 vr', async () => {
+    const get = mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, {
+      path: `/admissions?campus=yihua&tab=records&area=${encodeURIComponent('三民區/本揚里')}&vr=${VR_ID}`,
+    })
+    const lastList = () => new URLSearchParams(pathsTo(get, '/admin/admissions/records?').at(-1)!.split('?')[1])
+    expect(lastList().get('district')).toBe('三民區')
+    expect(lastList().get('village')).toBe('本揚里')
+    expect(router.currentRoute.value.query).toMatchObject({ area: '三民區/本揚里', vr: VR_ID })
+    const clear = (label: string) => wrapper.findAll('.records__notice button').find((item) => item.text() === label)!
+    await clear('不限區域').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.area).toBeUndefined()
+    expect(router.currentRoute.value.query.vr).toBe(VR_ID)
+    expect(wrapper.findComponent(RecordsTab).props('area')).toBe('')
+    expect(lastList().has('district')).toBe(false)
+    expect(lastList().has('village')).toBe(false)
+    expect(lastList().get('visit_request_id')).toBe(VR_ID)
+    await clear('不限這筆預約').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.vr).toBeUndefined()
+    expect(lastList().has('visit_request_id')).toBe(false)
+  })
+
   it('(i) area 只在訪視明細有意義：離開訪視明細就從網址拿掉；其他分頁的網址帶 area 也被清掉', async () => {
     mockGet({ ...routesOn, '/admin/admissions/records': [] })
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=records&area=%E4%B8%89%E6%B0%91%E5%8D%80' })

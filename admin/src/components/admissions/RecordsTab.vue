@@ -13,7 +13,7 @@ import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASON
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
-import { areaApiParams, areaNotice, parseAreaQuery } from '../../admissions/areaFilter'
+import { areaApiParams, areaNotice, areaQuery, parseAreaQuery } from '../../admissions/areaFilter'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
@@ -186,8 +186,9 @@ watch(search, (value) => {
 onBeforeUnmount(() => clearTimeout(searchTimer))
 
 // 條件一變就回第一頁；已經在第一頁就直接重讀（避免同一次變動讀兩次）。
+// 區域用解析後的篩選：網址手改成認不得的寫法（視同沒篩）不會被當成條件變動而重讀、把頁碼拉回第一頁。
 const filterKey = computed(() => JSON.stringify([
-  props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId, props.area,
+  props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId, areaFilter.value ? areaQuery(areaFilter.value) : '',
   grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, keyword.value, followUp.value, owner.value,
 ]))
 watch(filterKey, () => {
@@ -256,7 +257,7 @@ function extraInfo(row: RecruitmentVisit): InfoItem[] {
   const category = row.source_category ? sourceCategoryLabel(row.source_category, options.value?.source_categories) : ''
   const items: InfoItem[] = [
     { label: '英文名字', value: row.english_name ?? '' },
-    { label: '地址', value: row.address || row.district || '' },
+    { label: '地址', value: row.address?.trim() || row.district || '' },
     // 門牌比對結果（2026-10-08 區域分析）。沒有比對紀錄（geo 為 null 的舊資料）：有填地址算「待比對」，
     // 與區域分析的 pending、area=no_village 篩選同口徑；連地址都沒填就不列。
     { label: '區域', value: row.geo ? visitGeoText(row.geo, row.district) : row.address?.trim() ? '待比對' : '' },
@@ -526,11 +527,11 @@ async function remove(row: RecruitmentVisit) {
     </ul>
 
     <el-alert v-if="visitRequestId" type="info" :closable="false" show-icon class="records__notice" title="只顯示這筆官網預約建立的招生訪視。">
-      <el-button size="small" @click="emit('update:visitRequestId', '')">顯示全部</el-button>
+      <el-button size="small" @click="emit('update:visitRequestId', '')">不限這筆預約</el-button>
     </el-alert>
 
     <el-alert v-if="areaFilter" type="info" :closable="false" show-icon class="records__notice" :title="areaNotice(areaFilter)">
-      <el-button size="small" @click="emit('update:area', '')">顯示全部</el-button>
+      <el-button size="small" @click="emit('update:area', '')">不限區域</el-button>
     </el-alert>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="records__notice">

@@ -283,13 +283,13 @@ describe('篩選、分頁與權限', () => {
     expect(wrapper.emitted('update:month')).toEqual([['115.08']])
   })
 
-  it('從預約明細連進來（vr）只看那一筆；「顯示全部」清掉', async () => {
+  it('從預約明細連進來（vr）只看那一筆；「不限這筆預約」清掉', async () => {
     const get = mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props({ schoolYear: null, visitRequestId: VR_ID }) })
     expect(lastQuery(get).get('visit_request_id')).toBe(VR_ID)
     expect(lastQuery(get).has('target_school_year')).toBe(false)
     expect(wrapper.text()).toContain('只顯示這筆官網預約建立的招生訪視。')
-    await button(wrapper, '顯示全部')!.trigger('click')
+    await button(wrapper, '不限這筆預約')!.trigger('click')
     expect(wrapper.emitted('update:visitRequestId')).toEqual([['']])
   })
 
@@ -592,15 +592,63 @@ describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔�
 })
 
 describe('訪視明細：區域篩選與比對結果（2026-10-08 區域分析）', () => {
-  it('area＝某一里：查詢帶 district、village（不帶 geo）；提示寫出範圍，「顯示全部」清掉', async () => {
+  it('area＝某一里：查詢帶 district、village（不帶 geo）；提示寫出範圍，「不限區域」清掉', async () => {
     const get = mockGet({ '/admin/admissions/records': [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: props({ area: '三民區/本揚里' }) })
     expect(lastQuery(get).get('district')).toBe('三民區')
     expect(lastQuery(get).get('village')).toBe('本揚里')
     expect(lastQuery(get).has('geo')).toBe(false)
     expect(wrapper.text()).toContain('只顯示三民區本揚里的訪視。')
-    await button(wrapper, '顯示全部')!.trigger('click')
+    await button(wrapper, '不限區域')!.trigger('click')
     expect(wrapper.emitted('update:area')).toEqual([['']])
+  })
+
+  it('預約與區域兩個提示可以並存：兩顆清除鈕各有自己的名稱，各清各的（不再有兩顆同名的「顯示全部」）', async () => {
+    mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ schoolYear: null, visitRequestId: VR_ID, area: '三民區' }) })
+    expect(wrapper.text()).toContain('只顯示這筆官網預約建立的招生訪視。')
+    expect(wrapper.text()).toContain('只顯示三民區的訪視。')
+    expect(wrapper.findAll('button').filter((item) => item.text() === '顯示全部')).toHaveLength(0)
+    const labels = wrapper.findAll('.records__notice button').map((item) => item.text())
+    expect(labels).toEqual(['不限這筆預約', '不限區域'])
+    expect(new Set(labels).size).toBe(labels.length)
+    await button(wrapper, '不限區域')!.trigger('click')
+    expect(wrapper.emitted('update:area')).toEqual([['']])
+    expect(wrapper.emitted('update:visitRequestId')).toBeUndefined()
+    await button(wrapper, '不限這筆預約')!.trigger('click')
+    expect(wrapper.emitted('update:visitRequestId')).toEqual([['']])
+  })
+
+  it('手改成別種認不得的 area 寫法：視同沒篩，不重讀（條件鍵看解析後的篩選，不看網址原文）', async () => {
+    const get = mockGet({ '/admin/admissions/records': [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ area: 'hack' }) })
+    const before = listPaths(get).length
+    await wrapper.setProps({ area: 'other-junk' })
+    await flushPromises()
+    await wrapper.setProps({ area: '' })
+    await flushPromises()
+    await wrapper.setProps({ area: '三民區/abc' })
+    await flushPromises()
+    expect(listPaths(get)).toHaveLength(before)
+    // 真的換成有效的範圍才重讀。
+    await wrapper.setProps({ area: '三民區' })
+    await flushPromises()
+    expect(listPaths(get)).toHaveLength(before + 1)
+    expect(lastQuery(get).get('district')).toBe('三民區')
+  })
+
+  it('翻到第 2 頁後手改成認不得的 area：不會被拉回第 1 頁、也不重讀', async () => {
+    const full = Array.from({ length: 50 }, (_, index) => visit({ id: `v-${index}`, child_name: `孩子${index}` }))
+    const get = mockGet({ '/admin/admissions/records': full })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ area: 'hack' }) })
+    await button(wrapper, '下一頁')!.trigger('click')
+    await flushPromises()
+    const before = listPaths(get).length
+    expect(lastQuery(get).get('page')).toBe('2')
+    await wrapper.setProps({ area: 'still-junk' })
+    await flushPromises()
+    expect(listPaths(get)).toHaveLength(before)
+    expect(lastQuery(get).get('page')).toBe('2')
   })
 
   it('area＝no_village：查詢帶 geo=no_village；空結果算「目前篩選條件下」', async () => {
@@ -652,7 +700,30 @@ describe('訪視明細：區域篩選與比對結果（2026-10-08 區域分析�
     const second = await expandedInfo(1)
     expect(second.labels).toEqual(['地址', '區域'])
     expect(second.text).toContain('待比對')
-    expect((await expandedInfo(2)).labels).toEqual(['地址'])
+    // 地址只有空白：不顯示空白地址，改寫行政區（同「區域」那一行的 trim 規則）。
+    const blank = await expandedInfo(2)
+    expect(blank.labels).toEqual(['地址'])
+    expect(blank.text.replace(/^地址\s*/, '')).toBe('鼓山區')
     expect((await expandedInfo(3)).labels).toEqual(['地址'])
+  })
+
+  it('展開列的地址前後空白修掉；只有空白又沒有行政區就不列地址', async () => {
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ address: '  高雄市三民區義華路61號 ', district: '三民區', geo: null }),
+        visit({ id: 'v-2', child_name: '李小樂', address: ' \t ', district: null, geo: null }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    const icons = wrapper.findAll('.records-table .el-table__expand-icon')
+    await icons[0]!.trigger('click')
+    await flushPromises()
+    const address = wrapper.get('.records__info dd')
+    expect(address.text()).toBe('高雄市三民區義華路61號')
+    expect(address.element.textContent).toBe('高雄市三民區義華路61號')
+    await icons[0]!.trigger('click')
+    await icons[1]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.records__info').exists()).toBe(false)
   })
 })

@@ -15,8 +15,10 @@ const leaflet = vi.hoisted(() => {
     const handlers: Record<string, Handler[]> = {}
     const self: any = {
       kind,
+      handlers,
       fire: (event: string, payload?: unknown) => (handlers[event] ?? []).forEach((fn) => fn(payload)),
       on: vi.fn((event: string, fn: Handler) => { (handlers[event] ??= []).push(fn); return self }),
+      off: vi.fn((event: string, fn: Handler) => { handlers[event] = (handlers[event] ?? []).filter((item) => item !== fn); return self }),
       addTo: vi.fn(() => self),
       remove: vi.fn(() => self),
       bindPopup: vi.fn(() => self),
@@ -36,11 +38,18 @@ const leaflet = vi.hoisted(() => {
     return self
   }
   const handler = () => ({ enable: vi.fn(), disable: vi.fn() })
+  // 真 Leaflet 把 _leaflet_id 記在容器上、remove() 才清掉；容器上還有 id 時再建地圖會丟 "Map container is already initialized."。
+  let containerCounter = 0
   const module = {
-    map: vi.fn((element: HTMLElement, options: Record<string, unknown>) => layer('map', {
-      element, options, fitBounds: vi.fn(), setView: vi.fn(), getZoom: vi.fn(() => 13), invalidateSize: vi.fn(),
-      dragging: handler(), touchZoom: handler(), attributionControl: { setPrefix: vi.fn() },
-    })),
+    map: vi.fn((element: HTMLElement & { _leaflet_id?: number }, options: Record<string, unknown>) => {
+      if (element._leaflet_id) throw new Error('Map container is already initialized.')
+      element._leaflet_id = ++containerCounter
+      return layer('map', {
+        element, options, fitBounds: vi.fn(), setView: vi.fn(), getZoom: vi.fn(() => 13), invalidateSize: vi.fn(),
+        dragging: handler(), touchZoom: handler(), attributionControl: { setPrefix: vi.fn() },
+        remove: vi.fn(() => { delete element._leaflet_id }),
+      })
+    }),
     tileLayer: vi.fn((url: string, options: Record<string, unknown>) => layer('tileLayer', { url, options })),
     geoJSON: vi.fn((data: unknown, options: Record<string, any>) => layer('geoJSON', { data, options })),
     marker: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('marker', { latlng, options })),
@@ -386,6 +395,93 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(wrapper.text()).not.toContain('底圖載入失敗。')
   })
 
+  it('卸載時圖磚的 tileload／tileerror 監聽拿掉（跟登記的是同一個函式），之後再來的事件不會動到狀態', async () => {
+    const wrapper = await mountMap()
+    const tiles = one('tileLayer')
+    expect(tiles.handlers.tileload).toHaveLength(1)
+    expect(tiles.handlers.tileerror).toHaveLength(1)
+    const [onLoad] = tiles.on.mock.calls.find((call: unknown[]) => call[0] === 'tileload')!.slice(1)
+    const [onError] = tiles.on.mock.calls.find((call: unknown[]) => call[0] === 'tileerror')!.slice(1)
+    wrapper.unmount()
+    wrappers.length = 0
+    expect(tiles.off).toHaveBeenCalledWith('tileload', onLoad)
+    expect(tiles.off).toHaveBeenCalledWith('tileerror', onError)
+    expect(tiles.handlers.tileload).toEqual([])
+    expect(tiles.handlers.tileerror).toEqual([])
+  })
+
+  it('建圖失敗後清半成品：同樣拿掉圖磚監聽', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      leaflet.module.geoJSON.mockImplementationOnce(() => { throw new Error('geoJSON failed') })
+      await mountMap()
+      const tiles = one('tileLayer')
+      expect(tiles.off).toHaveBeenCalledWith('tileload', expect.any(Function))
+      expect(tiles.off).toHaveBeenCalledWith('tileerror', expect.any(Function))
+      expect(tiles.handlers.tileload).toEqual([])
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it('地圖容器有名稱（讀屏知道這是什麼地圖、資料在哪看）；載入中的提示是常駐的 status 區域，載完只是清空', async () => {
+    const wrapper = mount(AreaMap, { props: baseProps() as never, attachTo: document.body, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    const canvas = wrapper.get('.area-map__canvas')
+    expect(canvas.attributes('role')).toBe('group')
+    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀人數著色）；同樣的資料在下方的里排行與幼兒園清單')
+    const status = wrapper.get('[role="status"]')
+    expect(status.text()).toBe('地圖載入中…')
+    const element = status.element
+    await settle()
+    expect(wrapper.get('[role="status"]').element).toBe(element)
+    expect(wrapper.get('[role="status"]').text()).toBe('')
+    expect(wrapper.text()).not.toContain('地圖載入中')
+  })
+
+  it('手機的「完成」鈕有語境：讀屏唸「完成移動地圖」，看到的字仍是「完成」', async () => {
+    const wrapper = await mountMap({ narrow: true })
+    expect(button(wrapper, '移動地圖')!.attributes('aria-label')).toBeUndefined()
+    await button(wrapper, '移動地圖')!.trigger('click')
+    const done = button(wrapper, '完成')!
+    expect(done.attributes('aria-label')).toBe('完成移動地圖')
+    expect(done.text()).toBe('完成')
+  })
+
+  it('版面在手機與桌機之間切換：里界整層重畫（hover 里名只在桌機綁）、拖曳與雙指縮放跟著開關', async () => {
+    const wrapper = await mountMap()
+    const map = one('map')
+    const bindTooltip = () => {
+      const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+      leaflet.created.geoJSON!.at(-1)!.options.onEachFeature(feature('三民區', '本揚里'), village)
+      return village.bindTooltip
+    }
+    expect(bindTooltip()).toHaveBeenCalled()
+    await wrapper.setProps({ narrow: true })
+    expect(leaflet.created.geoJSON).toHaveLength(2)
+    expect(leaflet.created.geoJSON![0].remove).toHaveBeenCalled()
+    expect(bindTooltip()).not.toHaveBeenCalled()
+    expect(map.dragging.disable).toHaveBeenCalled()
+    expect(map.touchZoom.disable).toHaveBeenCalled()
+    expect(button(wrapper, '移動地圖')).toBeDefined()
+    await wrapper.setProps({ narrow: false })
+    expect(leaflet.created.geoJSON).toHaveLength(3)
+    expect(bindTooltip()).toHaveBeenCalled()
+    expect(map.dragging.enable).toHaveBeenCalled()
+    expect(map.touchZoom.enable).toHaveBeenCalled()
+    expect(button(wrapper, '移動地圖')).toBeUndefined()
+  })
+
+  it('幼兒園的彈出框：核定人數未知（null）就不寫「核定」；距離照 formatDistance', async () => {
+    await mountMap()
+    const popup = (index: number) => (leaflet.created.circleMarker![index].bindPopup.mock.calls[0]![0] as () => HTMLElement)()
+    expect(popup(1).textContent).toBe('大樹幼兒園公立・380 m・核定 90 人')
+    const quasi = popup(2)
+    expect(quasi.textContent).toBe('小草幼兒園準公共・950 m')
+    expect(quasi.textContent).not.toContain('核定')
+    expect(popup(0).textContent).toBe('常春藤幼兒園本機構・0 m・核定 210 人')
+  })
+
   it('卸載時移除地圖', async () => {
     const wrapper = await mountMap()
     const map = one('map')
@@ -406,65 +502,112 @@ describe('區域分析地圖（2026-10-08）', () => {
 describe('Leaflet 載入失敗（動態載入）', () => {
   it('程式碼檔載不下來：顯示「地圖載入失敗」與重試，重試成功就建出地圖', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await chunkFails()
-    const wrapper = await mountMap()
-    expect(leaflet.created.map).toBeUndefined()
-    expect(logged).toHaveBeenCalledWith('[AreaMap] 地圖建立失敗', expect.any(Error))
-    expect(wrapper.text()).toContain('地圖載入失敗')
-    expect(wrapper.text()).not.toContain('地圖載入中')
-    await chunkLoads()
-    await button(wrapper, '重試')!.trigger('click')
-    await settle()
-    expect(one('map')).toBeDefined()
-    expect(wrapper.text()).not.toContain('地圖載入失敗')
-    expect(button(wrapper, '重試')).toBeUndefined()
-    logged.mockRestore()
+    try {
+      await chunkFails()
+      const wrapper = await mountMap()
+      expect(leaflet.created.map).toBeUndefined()
+      expect(logged).toHaveBeenCalledWith('[AreaMap] 地圖建立失敗', expect.any(Error))
+      expect(wrapper.text()).toContain('地圖載入失敗')
+      expect(wrapper.text()).not.toContain('地圖載入中')
+      await chunkLoads()
+      await button(wrapper, '重試')!.trigger('click')
+      await settle()
+      expect(one('map')).toBeDefined()
+      expect(wrapper.text()).not.toContain('地圖載入失敗')
+      expect(button(wrapper, '重試')).toBeUndefined()
+    } finally {
+      logged.mockRestore()
+    }
   })
 
   it('手機：Leaflet 本身載不下來時沒有「移動地圖」鈕（沒有地圖可移動）', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    await chunkFails()
-    const wrapper = await mountMap({ narrow: true })
-    expect(wrapper.text()).toContain('地圖載入失敗')
-    expect(button(wrapper, '移動地圖')).toBeUndefined()
-    expect(button(wrapper, '完成')).toBeUndefined()
-    logged.mockRestore()
+    try {
+      await chunkFails()
+      const wrapper = await mountMap({ narrow: true })
+      expect(wrapper.text()).toContain('地圖載入失敗')
+      expect(button(wrapper, '移動地圖')).toBeUndefined()
+      expect(button(wrapper, '完成')).toBeUndefined()
+    } finally {
+      logged.mockRestore()
+    }
   })
 
   it('建到一半丟錯（地圖已建出來）：移除半成品、記錄錯誤、顯示失敗，重試後只剩一張活的地圖', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const boom = new Error('tile layer failed')
-    leaflet.module.tileLayer.mockImplementationOnce(() => { throw boom })
-    const wrapper = await mountMap()
-    const [first] = leaflet.created.map!
-    expect(first.remove).toHaveBeenCalledTimes(1)
-    expect(logged).toHaveBeenCalledWith('[AreaMap] 地圖建立失敗', boom)
-    expect(wrapper.text()).toContain('地圖載入失敗')
-    await button(wrapper, '重試')!.trigger('click')
-    await settle()
-    const maps = leaflet.created.map!
-    expect(maps).toHaveLength(2)
-    expect(first.remove).toHaveBeenCalledTimes(1)
-    expect(maps[1].remove).not.toHaveBeenCalled()
-    expect(maps.filter((created: { remove: { mock: { calls: unknown[] } } }) => created.remove.mock.calls.length === 0)).toHaveLength(1)
-    expect(wrapper.text()).not.toContain('地圖載入失敗')
-    logged.mockRestore()
+    try {
+      const boom = new Error('tile layer failed')
+      leaflet.module.tileLayer.mockImplementationOnce(() => { throw boom })
+      const wrapper = await mountMap()
+      const [first] = leaflet.created.map!
+      expect(first.remove).toHaveBeenCalledTimes(1)
+      expect(logged).toHaveBeenCalledWith('[AreaMap] 地圖建立失敗', boom)
+      expect(wrapper.text()).toContain('地圖載入失敗')
+      await button(wrapper, '重試')!.trigger('click')
+      await settle()
+      const maps = leaflet.created.map!
+      expect(maps).toHaveLength(2)
+      expect(first.remove).toHaveBeenCalledTimes(1)
+      expect(maps[1].remove).not.toHaveBeenCalled()
+      expect(maps.filter((created: { remove: { mock: { calls: unknown[] } } }) => created.remove.mock.calls.length === 0)).toHaveLength(1)
+      expect(wrapper.text()).not.toContain('地圖載入失敗')
+    } finally {
+      logged.mockRestore()
+    }
   })
 
   it('清半成品時也丟錯：照樣顯示失敗、可重試', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    leaflet.module.tileLayer.mockImplementationOnce(() => {
-      leaflet.created.map![0].remove.mockImplementationOnce(() => { throw new Error('remove failed') })
-      throw new Error('tile layer failed')
-    })
+    try {
+      leaflet.module.tileLayer.mockImplementationOnce(() => {
+        leaflet.created.map![0].remove.mockImplementationOnce(() => { throw new Error('remove failed') })
+        throw new Error('tile layer failed')
+      })
+      const wrapper = await mountMap()
+      expect(wrapper.text()).toContain('地圖載入失敗')
+      expect(logged).toHaveBeenCalledWith('[AreaMap] 清除未完成的地圖失敗', expect.any(Error))
+      await button(wrapper, '重試')!.trigger('click')
+      await settle()
+      expect(leaflet.created.map).toHaveLength(2)
+      expect(wrapper.text()).not.toContain('地圖載入失敗')
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  // 真 Leaflet 的 remove() 做到一半丟錯時容器上的 _leaflet_id 還在，重試再建地圖會丟 "Map container is already initialized."
+  // （上面那個測試的假 Leaflet 也照這個規則）。清掉 id 和半拆的圖層，重試才建得出來，也不會有兩張地圖疊在同一個容器。
+  it('remove() 丟錯後：清掉容器上的 _leaflet_id 與殘留的圖層節點，重試能建出新地圖', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      leaflet.module.tileLayer.mockImplementationOnce(() => {
+        const [broken] = leaflet.created.map!
+        broken.element.append(document.createElement('div'))
+        broken.remove.mockImplementationOnce(() => { throw new Error('remove failed') })
+        throw new Error('tile layer failed')
+      })
+      const wrapper = await mountMap()
+      const canvas = wrapper.get('.area-map__canvas').element as HTMLElement & { _leaflet_id?: number }
+      expect(canvas._leaflet_id).toBeUndefined()
+      expect(canvas.childElementCount).toBe(0)
+      await button(wrapper, '重試')!.trigger('click')
+      await settle()
+      expect(leaflet.created.map).toHaveLength(2)
+      expect(logged).not.toHaveBeenCalledWith('[AreaMap] 地圖建立失敗', expect.objectContaining({ message: 'Map container is already initialized.' }))
+      expect(wrapper.text()).not.toContain('地圖載入失敗')
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it('卸載時 remove() 丟錯：照樣清掉容器上的 _leaflet_id', async () => {
     const wrapper = await mountMap()
-    expect(wrapper.text()).toContain('地圖載入失敗')
-    expect(logged).toHaveBeenCalledWith('[AreaMap] 清除未完成的地圖失敗', expect.any(Error))
-    await button(wrapper, '重試')!.trigger('click')
-    await settle()
-    expect(leaflet.created.map).toHaveLength(2)
-    expect(wrapper.text()).not.toContain('地圖載入失敗')
-    logged.mockRestore()
+    const canvas = wrapper.get('.area-map__canvas').element as HTMLElement & { _leaflet_id?: number }
+    one('map').remove.mockImplementationOnce(() => { throw new Error('remove failed') })
+    expect(canvas._leaflet_id).toBeDefined()
+    expect(() => wrapper.unmount()).toThrow()
+    wrappers.length = 0
+    expect(canvas._leaflet_id).toBeUndefined()
   })
 
   it('原始碼：只用動態 import 載入 Leaflet 與它的樣式，不寫顏色字面值', () => {

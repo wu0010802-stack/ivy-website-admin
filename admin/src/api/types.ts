@@ -565,6 +565,27 @@ export type AreaKindergartens = components['schemas']['AreaKindergartensOut']
 export type AreaKindergarten = components['schemas']['AreaKindergartenOut']
 export type VisitGeo = components['schemas']['VisitGeoOut']
 
+/** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
+export interface VillageProperties {
+  TOWNNAME: string
+  VILLNAME: string
+  VILLCODE: string
+}
+/** GeoJSON 座標 [經度, 緯度]（與 @types/geojson 的 Position 同為 number[]，Leaflet 的 geoJSON() 才能直接收）。里界只有 Polygon（外環＋洞）與 MultiPolygon 兩種。 */
+type GeoPosition = number[]
+export type VillageGeometry =
+  | { type: 'Polygon'; coordinates: GeoPosition[][] }
+  | { type: 'MultiPolygon'; coordinates: GeoPosition[][][] }
+export interface VillageFeature {
+  type: 'Feature'
+  properties: VillageProperties
+  geometry: VillageGeometry
+}
+export interface VillageBoundaries {
+  type: 'FeatureCollection'
+  features: VillageFeature[]
+}
+
 // 五校比較（C4）。後端回 {as_of, school_year, semester, rows}；AdmissionsRate 是 {value, numerator, denominator}，畫面同時寫分子分母。
 export type AdmissionsCompare = components['schemas']['AdmissionsCompareOut']
 export type AdmissionsCompareRow = components['schemas']['AdmissionsCompareRow']

@@ -1,23 +1,7 @@
 import { NO_VALUE } from '../../../admissions/statsFormat'
-import type { VisitGeo } from '../../../api/types'
+import type { VillageBoundaries, VisitGeo } from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
-
-/** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性）。 */
-export interface VillageProperties {
-  TOWNNAME: string
-  VILLNAME: string
-  VILLCODE: string
-}
-export interface VillageFeature {
-  type: 'Feature'
-  properties: VillageProperties
-  geometry: { type: string; coordinates: unknown }
-}
-export interface VillageBoundaries {
-  type: 'FeatureCollection'
-  features: VillageFeature[]
-}
 
 export type RadiusKm = 1 | 3 | 6
 export const RADIUS_OPTIONS: readonly RadiusKm[] = [1, 3, 6]
@@ -111,8 +95,8 @@ export function doorplateVersionLabel(version: string): string {
 }
 
 const dayFormatter = new Intl.DateTimeFormat('en-CA', { month: '2-digit', day: '2-digit', timeZone: 'Asia/Taipei' })
-/** ISO 時間 → 台北日期「10/08」。 */
-export function shortDay(value: string | null | undefined): string {
+/** ISO 時間 → 台北日期「10/08」（資料更新日用）。不是 utils/visitSchedule 的 shortDay（附週幾）或 admissions/followUp 的 shortDay。 */
+export function taipeiMonthDay(value: string | null | undefined): string {
   if (!value) return NO_VALUE
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return NO_VALUE
@@ -120,10 +104,15 @@ export function shortDay(value: string | null | undefined): string {
   return `${parts.month}/${parts.day}`
 }
 
-/** 距離：1 公里內寫公尺（取整到 10 公尺），以上寫一位小數的公里。 */
+/**
+ * 距離顯示規則：四捨五入到整數公尺後不滿 1000 m 就寫「999 m」；到 1000 m 起改寫一位小數的公里「1.0 km」。
+ * 先取整再判斷單位：999.6 m 取整成 1000 m，直接走公里，不會出現「1000 m」。以前取整到 10 m，
+ * 995–999 m 會被進位成「1000 m」，同一頁又有「1.0 km」，單位對不上。
+ */
 export function formatDistance(meters: number | null | undefined): string {
   if (meters === null || meters === undefined) return NO_VALUE
-  if (meters < 1000) return `${Math.round(meters / 10) * 10} m`
+  const rounded = Math.round(meters)
+  if (rounded < 1000) return `${rounded} m`
   return `${(meters / 1000).toFixed(1)} km`
 }
 

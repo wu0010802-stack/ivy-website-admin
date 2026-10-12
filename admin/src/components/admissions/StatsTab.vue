@@ -303,7 +303,7 @@ const noDepositKpis = computed(() => {
               </div>
             </template>
           </StatsOverview>
-          <p v-else class="stats-empty">{{ emptyText }}</p>
+          <p v-else class="empty-note stats-empty">{{ emptyText }}</p>
         </el-tab-pane>
 
         <el-tab-pane label="班別分析" name="stats-class">
@@ -480,12 +480,6 @@ const noDepositKpis = computed(() => {
   display: grid;
   gap: 24px;
   min-width: 0;
-}
-
-.stats-empty {
-  padding: 32px 16px;
-  color: var(--ink-2);
-  text-align: center;
 }
 
 .nodeposit-summary {

@@ -1,9 +1,12 @@
 // 區域分析子分頁（2026-10-08 規格 9）。地圖元件換成 stub（地圖本身見 areaMap.test.ts）。
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { isReactive } from 'vue'
 import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
 import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
+import statsTabSource from '../components/admissions/StatsTab.vue?raw'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import {
   areaKindergartens, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
@@ -205,6 +208,27 @@ describe('區域分析：讀取與三張表', () => {
 })
 
 describe('區域分析：三張表的版面', () => {
+  // 區域分析的 .area-empty 與統計總覽的 .stats-empty 是同一種「這個範圍沒有資料」：外觀共用全域的 .empty-note
+  // （虛線框、次要文字色、置中，顏色全走 token），兩個元件不再各寫一份不一樣的。
+  it('空狀態外觀共用 .empty-note：兩個元件沒有自己的 .area-empty／.stats-empty 樣式，全域樣式只用 token', () => {
+    expect(areaTabSource).not.toMatch(/\.area-empty\s*\{/)
+    expect(statsTabSource).not.toMatch(/\.stats-empty\s*\{/)
+    expect(areaTabSource).toContain('class="empty-note area-empty"')
+    expect(statsTabSource).toContain('class="empty-note stats-empty"')
+    const globalStyle = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
+    const rule = /\n\.empty-note \{([^}]*)\}/.exec(globalStyle)?.[1]
+    expect(rule, 'style.css 要有 .empty-note').toBeDefined()
+    expect(rule).toContain('border: 1px dashed var(--line-strong)')
+    expect(rule).toContain('color: var(--ink-2)')
+    expect(rule).toContain('text-align: center')
+    expect(rule).not.toMatch(/rgba?\(|oklch\(|hsla?\(|#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  it('「查看明細」事件拿到的就是那一列的型別，不再 as 轉型', () => {
+    expect(areaTabSource).not.toMatch(/\bas Area(District|Village)Row\b/)
+    expect(areaTabSource).not.toContain('as unknown as')
+  })
+
   // 里排行加「可能範圍」「查看明細」欄 1440 實測約 562px，一欄至少 36rem 才不會把欄擠出表框（2026-10-12）。
   it('桌機自動換列：一欄至少 36rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
     const rule = /\.area-tables \{([^}]*)\}/.exec(areaTabSource)![1]!
@@ -246,6 +270,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     })
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視都還沒填地址。')
+    expect(wrapper.get('.area-empty').classes()).toContain('empty-note')
     expect(wrapper.findAll('.stats-block')).toHaveLength(0)
     expect(wrapper.find('.area-map-stub').exists()).toBe(true)
     expect(wrapper.find('.area-summary').exists()).toBe(false)
@@ -332,5 +357,88 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     await flushPromises()
     await vi.waitFor(() => expect(wrapper.findComponent({ name: 'AreaMap' }).exists()).toBe(true))
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('campus')).toMatchObject({ key: 'minghua' })
+  })
+})
+
+describe('區域分析：各區塊互不牽連（2026-10-12）', () => {
+  it('附近幼兒園讀取失敗：只有清單那一塊寫錯誤與重試，統計、三張表、地圖照常；重試成功清單回來', async () => {
+    let fail = true
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/kindergartens': () => { if (fail) throw new Error('boom'); return areaKindergartens() },
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    expect(wrapper.text()).toContain('無法讀取附近幼兒園。')
+    expect(wrapper.text()).not.toContain('無法讀取區域分析')
+    expect(wrapper.find('.area-summary').exists()).toBe(true)
+    expect(bodyRows(block(wrapper, '里排行'))).toHaveLength(3)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('kindergartens')).toEqual([])
+    fail = false
+    await button(wrapper, '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('無法讀取附近幼兒園。')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('kindergartens')).toHaveLength(4)
+  })
+
+  it('連續換半徑：先送出的 3 公里晚回，不蓋掉後來選的 6 公里（清單與地圖都是 6 公里的）', async () => {
+    const slow3 = deferred<unknown>()
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/kindergartens': (path: string) => {
+        const radius = queryOf(path).get('radius_km')
+        if (radius === '3') return slow3.promise
+        return areaKindergartens(areaKindergartens().items.slice(0, 2), { radius_km: Number(radius) })
+      },
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    expect(wrapper.findComponent(NearbyKindergartens).props('data')).toMatchObject({ radius_km: 6 })
+    slow3.resolve(areaKindergartens(undefined, { radius_km: 3 }))
+    await flushPromises()
+    expect(wrapper.findComponent(NearbyKindergartens).props('data')).toMatchObject({ radius_km: 6 })
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(2)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('kindergartens')).toHaveLength(2)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(6)
+  })
+
+  it('連續換半徑：舊的請求晚到的失敗，也不會蓋掉新的成功（不出現錯誤提示）', async () => {
+    const slow3 = deferred<unknown>()
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/kindergartens': (path: string) => (queryOf(path).get('radius_km') === '3' ? slow3.promise : areaKindergartens(undefined, { radius_km: 6 })),
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    slow3.reject(new Error('timeout'))
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('無法讀取附近幼兒園。')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+  })
+
+  it('門牌資料還沒匯入（家長地址全是「待比對」）：狀態列寫原因，三張表照常出現、空的寫各自的空狀態，不整頁壞掉', async () => {
+    const empty = areaStats().distance_bands.map((band) => ({
+      ...band, visit: band.band === 'none' ? 7 : 0, deposit: 0, visit_to_deposit_rate: band.band === 'none' ? 0 : null,
+      visit_to_deposit_range: band.band === 'none' ? { low: 8, high: 35 } : null,
+    }))
+    const area = areaStats({
+      data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null },
+      totals: totals({ visit: 9, with_address: 7, village_level: 0, district_level: 0, unlocated: 0, pending: 7, no_address: 2, anonymized: 0, unlocated_reasons: [] }),
+      districts: [], villages: [], distance_bands: empty,
+    })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-status').text()).toContain('門牌資料尚未匯入')
+    expect(squash(wrapper.get('.area-summary').text())).toBe('有地址7筆：到里0筆、未定位到里7筆（待比對7）查看；另有2筆沒填地址')
+    expect(wrapper.findAll('.stats-block')).toHaveLength(3)
+    expect(block(wrapper, '行政區排行').text()).toContain('這個範圍還沒有比對到行政區的地址')
+    expect(block(wrapper, '里排行').text()).toContain('這個範圍還沒有定位到里的地址')
+    expect(bodyRows(block(wrapper, '距離分布')).find((row) => row[0] === '無距離')).toEqual(['無距離', '7', '0', '0.0%', '8–35%'])
+    expect(wrapper.find('.empty-note').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).exists()).toBe(true)
   })
 })

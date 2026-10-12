@@ -121,14 +121,20 @@ describe('附近幼兒園清單', () => {
     expect(detail.text()).not.toContain('準公共')
   })
 
-  it('半徑 1／3／6 公里：選了回報 update:radiusKm', async () => {
+  it('半徑 1／3／6 公里：真的點選項（不是直接發事件），選了回報 update:radiusKm；目前的半徑是選取狀態', async () => {
     const wrapper = mountList()
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 6)
-    expect(wrapper.emitted('update:radiusKm')).toEqual([[6]])
     expect(wrapper.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
+    const radios = wrapper.findAll('input.el-radio-button__original-radio')
+    expect(radios.map((radio) => (radio.element as HTMLInputElement).checked)).toEqual([false, true, false])
+    await radios[2]!.setValue()
+    expect(wrapper.emitted('update:radiusKm')).toEqual([[6]])
+    await radios[0]!.setValue()
+    expect(wrapper.emitted('update:radiusKm')).toEqual([[6], [1]])
   })
 
-  it('半徑只接受 1／3／6，其他值不往外送', () => {
+  // 畫面上點不出這幾個值（選項只有 1／3／6），這條直接呼叫元件的 handler 保底：以後有人加了別的選項或從別處發事件，
+  // 不合法的半徑不會往外送、更不會變成對後端的 radius_km 請求。
+  it('半徑只接受 1／3／6，其他值不往外送（handler 的保底）', () => {
     const wrapper = mountList()
     const group = wrapper.findComponent({ name: 'ElRadioGroup' })
     group.vm.$emit('update:modelValue', 2)
@@ -195,6 +201,117 @@ describe('附近幼兒園清單', () => {
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.get('.nearby__detail').text()).toContain('<b>義華路</b>1號')
     expect(source).not.toContain('v-html')
+  })
+
+  describe('搜尋比對（2026-10-12）', () => {
+    const search = (wrapper: VueWrapper, value: string) => wrapper.get('input[aria-label="搜尋幼兒園"]').setValue(value)
+
+    it('比對的是列表上看到的短名與地址，不含「高雄市私立／市立」前綴：輸入「高雄市」「私立」不會全部命中', async () => {
+      const wrapper = mountList()
+      await search(wrapper, '高雄市')
+      expect(names(wrapper)).toEqual([])
+      expect(wrapper.text()).toContain('沒有符合條件的幼兒園。')
+      await search(wrapper, '私立')
+      expect(names(wrapper)).toEqual([])
+      // 名稱本身有的字照常命中（短名保留「三民區」）。
+      await search(wrapper, '三民區')
+      expect(names(wrapper)).toEqual(['三民區小芽非營利幼兒園'])
+      await search(wrapper, '小草')
+      expect(names(wrapper)).toEqual(['小草幼兒園'])
+    })
+
+    it('全形半形、大小寫視為相同（NFKC＋小寫），地址也一樣', async () => {
+      const mixed = [
+        kindergarten({ source_id: 'kg-abc', name: '高雄市私立ABC雙語幼兒園', address: '義華路12號 Yihua Road' }),
+        kindergarten({ source_id: 'kg-other', name: '高雄市私立小樹幼兒園', address: '大順路3號' }),
+      ]
+      const wrapper = mountList({ data: areaKindergartens(mixed) })
+      for (const keyword of ['abc', 'ＡＢＣ', 'ａｂｃ', ' AbC ']) {
+        await search(wrapper, keyword)
+        expect(names(wrapper), keyword).toEqual(['ABC雙語幼兒園'])
+      }
+      for (const keyword of ['１２號', 'yihua road', 'ＹＩＨＵＡ']) {
+        await search(wrapper, keyword)
+        expect(names(wrapper), keyword).toEqual(['ABC雙語幼兒園'])
+      }
+      await search(wrapper, '大順')
+      expect(names(wrapper)).toEqual(['小樹幼兒園'])
+    })
+  })
+
+  it('搜尋或類型 chip 一變就收回「顯示更多」（不然篩過之後還停在展開的狀態）', async () => {
+    const many = Array.from({ length: 25 }, (_, index) => kindergarten({
+      source_id: `kg-${index}`, name: `高雄市私立第${index}幼兒園`, kind: index % 2 ? 'public' : 'private',
+    }))
+    const wrapper = mountList({ data: areaKindergartens(many) })
+    const input = wrapper.get('input[aria-label="搜尋幼兒園"]')
+    await button(wrapper, '顯示更多（還有 5 所）')!.trigger('click')
+    expect(names(wrapper)).toHaveLength(25)
+    await input.setValue('第')
+    expect(names(wrapper)).toHaveLength(20)
+    expect(button(wrapper, '顯示更多（還有 5 所）')).toBeDefined()
+    await button(wrapper, '顯示更多（還有 5 所）')!.trigger('click')
+    expect(names(wrapper)).toHaveLength(25)
+    await wrapper.findAll('.nearby__kind').find((item) => item.text() === '私立')!.trigger('click')
+    expect(names(wrapper)).toHaveLength(13)
+    expect(wrapper.text()).not.toContain('顯示更多')
+    await wrapper.findAll('.nearby__kind').find((item) => item.text() === '私立')!.trigger('click')
+    expect(names(wrapper)).toHaveLength(20)
+    expect(button(wrapper, '顯示更多（還有 5 所）')).toBeDefined()
+  })
+
+  it('新視窗連結：另開新視窗寫給讀屏聽，↗ 只是裝飾', async () => {
+    const wrapper = mountList()
+    await wrapper.findAll('.nearby__row')[1]!.trigger('click')
+    const link = wrapper.get('.nearby__detail a')
+    expect(link.get('.visually-hidden').text()).toBe('（另開新視窗）')
+    expect(link.get('[aria-hidden="true"]').text()).toBe('↗')
+    expect(link.text()).toContain('全國教保資訊網查詢')
+  })
+
+  it('展開鈕 aria-controls 指到它展開的詳情（dl 的 id）；收合時沒有可指的對象就不寫；每一列的 id 不重複', async () => {
+    const wrapper = mountList()
+    const rows = wrapper.findAll('.nearby__row')
+    expect(rows[1]!.attributes('aria-controls')).toBeUndefined()
+    await rows[1]!.trigger('click')
+    const id = rows[1]!.attributes('aria-controls')!
+    expect(id).toBeTruthy()
+    expect(wrapper.get(`#${id}`).element).toBe(wrapper.get('.nearby__detail').element)
+    await rows[2]!.trigger('click')
+    expect(rows[1]!.attributes('aria-controls')).toBeUndefined()
+    const second = rows[2]!.attributes('aria-controls')!
+    expect(second).toBeTruthy()
+    expect(second).not.toBe(id)
+    expect(wrapper.get(`#${second}`).element).toBe(wrapper.get('.nearby__detail').element)
+    await rows[2]!.trigger('click')
+    expect(rows[2]!.attributes('aria-controls')).toBeUndefined()
+  })
+
+  it('核定人數未知（null）：寫「—」，不寫 0', () => {
+    const wrapper = mountList()
+    const quasi = wrapper.findAll('.nearby__row')[2]!.text().replace(/\s+/g, '')
+    expect(quasi).toContain('950m・核定—人・月費（估）9,800元')
+    expect(quasi).not.toContain('核定0人')
+  })
+
+  it('除了本機構沒有別的園所：不顯示搜尋框與類型 chip（沒東西可篩），本機構仍列出', () => {
+    const wrapper = mountList({ data: areaKindergartens([kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', is_own: true })]), radiusKm: 1 })
+    expect(wrapper.text()).toContain('1 公里內沒有其他幼兒園。')
+    expect(wrapper.find('input[aria-label="搜尋幼兒園"]').exists()).toBe(false)
+    expect(wrapper.find('.nearby__kinds').exists()).toBe(false)
+    expect(names(wrapper)).toEqual(['常春藤幼兒園'])
+  })
+
+  it('篩了「大樹」再換成沒有其他園所的半徑：搜尋框收起後舊的搜尋字與 chip 不再篩掉本機構', async () => {
+    const wrapper = mountList()
+    await wrapper.get('input[aria-label="搜尋幼兒園"]').setValue('大樹')
+    await wrapper.findAll('.nearby__kind').find((item) => item.text() === '公立')!.trigger('click')
+    expect(names(wrapper)).toEqual(['大樹幼兒園'])
+    await wrapper.setProps({ data: areaKindergartens([kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', is_own: true })], { radius_km: 1 }), radiusKm: 1 })
+    expect(wrapper.find('input[aria-label="搜尋幼兒園"]').exists()).toBe(false)
+    expect(names(wrapper)).toEqual(['常春藤幼兒園'])
+    expect(wrapper.text()).toContain('1 公里內沒有其他幼兒園。')
+    expect(wrapper.text()).not.toContain('沒有符合條件的幼兒園。')
   })
 
   it('樣式只用 token：沒有 rgba／oklch／hex 色碼', () => {

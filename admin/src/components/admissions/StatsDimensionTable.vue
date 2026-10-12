@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="Row extends Record<string, unknown>">
 import { computed, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRange, formatRate, rateCsvCell, toRange, type StatsColumn } from '../../admissions/statsFormat'
 import { notifyError } from '../../composables/notify'
@@ -10,10 +10,12 @@ import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/cs
 // 頁面本身不溢出（R16）。count／bar 欄缺值寫 0（呼叫端已補齊），text 欄缺值寫「—」。
 // 有 actionLabel 時最後多一欄按鈕（區域分析的「查看明細」，2026-10-08）；不做整列可點（列不是按鈕，鍵盤與讀屏不好用）。按鈕欄不匯出。
 // 手機（≤720px）不多那一欄：按鈕欄在最右邊，一打開只露幾 px、看不出能橫捲（2026-10-12），改成名稱本身是連結。
+// 桌機（721px 以上）按鈕欄固定在表格右緣（sticky right）：表格比框寬、要橫捲時操作還是看得到，不必捲到最右邊才找得到按鈕。
+// 泛型 Row：rows 是什麼型別，action 事件就回同一個型別，呼叫端不用自己轉型。
 const props = withDefaults(
   defineProps<{
     title: string
-    rows: readonly Record<string, unknown>[]
+    rows: readonly Row[]
     columns: readonly StatsColumn[]
     rowKey: string
     emptyText: string
@@ -24,12 +26,12 @@ const props = withDefaults(
     /** 有值時每列最後多一顆這個字的按鈕，按下 emit('action', row)。 */
     actionLabel?: string
     /** 匯出專用的格值：回傳值優先於畫面值（含 ''＝寫空白），回 undefined 就照欄位規則。 */
-    csvCell?: (row: Record<string, unknown>, column: StatsColumn) => CsvCell | undefined
+    csvCell?: (row: Row, column: StatsColumn) => CsvCell | undefined
   }>(),
   { numbered: false, caption: '', exportFilename: '', actionLabel: '' },
 )
 
-const emit = defineEmits<{ action: [row: Record<string, unknown>] }>()
+const emit = defineEmits<{ action: [row: Row] }>()
 
 const headingId = useId()
 
@@ -46,7 +48,7 @@ const maxima = computed(() => {
   return result
 })
 
-function display(row: Record<string, unknown>, column: StatsColumn): string {
+function display(row: Row, column: StatsColumn): string {
   const value = row[column.key]
   if (column.kind === 'range') return formatRange(toRange(value))
   if (column.kind === 'rate') return formatRate(typeof value === 'number' ? value : null)
@@ -60,8 +62,11 @@ const isNumeric = (column: StatsColumn) =>
 
 // 按鈕的 aria-label 帶這一列的名稱（第一個 sticky 欄，沒有就第一欄），讀屏才分得出是哪一列的「查看明細」。
 const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
-const actionAria = (row: Record<string, unknown>) =>
-  nameColumn.value ? `${props.actionLabel}：${display(row, nameColumn.value)}` : props.actionLabel
+// 名稱缺值（畫面上寫「—」）或根本沒有欄位時不寫「查看明細：—」，改寫第幾列，讀屏才分得出是哪一列。
+const actionAria = (row: Row, index: number) => {
+  const name = nameColumn.value ? display(row, nameColumn.value) : NO_VALUE
+  return name === NO_VALUE ? `${props.actionLabel}（第 ${index + 1} 列）` : `${props.actionLabel}：${name}`
+}
 // 名稱連結只放在 sticky 名稱欄（橫捲時一直看得到）；沒有 sticky 欄的表手機上照舊用按鈕欄。
 const narrow = useNarrowScreen()
 const nameLinks = computed(() => Boolean(props.actionLabel) && narrow.value && Boolean(nameColumn.value?.sticky))
@@ -72,7 +77,7 @@ const nameAsAction = (column: StatsColumn) => nameLinks.value && column === name
 // 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
 // 月份欄（csv: 'roc-month'）寫「115年09月」；呼叫端要特別處理的格子走 csvCell。
 // 可能範圍欄拆成下限、上限兩欄（2026-10-12）。
-function csvValue(row: Record<string, unknown>, column: StatsColumn): CsvCell {
+function csvValue(row: Row, column: StatsColumn): CsvCell {
   const override = props.csvCell?.(row, column)
   if (override !== undefined) return override
   const value = row[column.key]
@@ -88,7 +93,7 @@ function csvHeaders(column: StatsColumn): string[] {
   return column.kind === 'range' ? [`${column.label}下限`, `${column.label}上限`] : [column.label]
 }
 
-function csvValues(row: Record<string, unknown>, column: StatsColumn): CsvCell[] {
+function csvValues(row: Row, column: StatsColumn): CsvCell[] {
   if (column.kind !== 'range') return [csvValue(row, column)]
   const range = toRange(row[column.key])
   return range ? [range.low, range.high] : ['', '']
@@ -147,7 +152,7 @@ function exportCsv() {
             <td v-if="numbered" class="stats-table__index num">{{ index + 1 }}</td>
             <template v-for="column in columns" :key="column.key">
               <th v-if="column.sticky" scope="row" class="stats-table__sticky">
-                <button v-if="nameAsAction(column)" type="button" class="stats-table__name-link" :aria-label="actionAria(row)" @click="emit('action', row)">
+                <button v-if="nameAsAction(column)" type="button" class="stats-table__name-link" :aria-label="actionAria(row, index)" @click="emit('action', row)">
                   {{ display(row, column) }}
                 </button>
                 <template v-else>{{ display(row, column) }}</template>
@@ -161,7 +166,7 @@ function exportCsv() {
               <td v-else :class="{ 'stats-table__number': isNumeric(column), num: isNumeric(column) }">{{ display(row, column) }}</td>
             </template>
             <td v-if="actionColumn" class="stats-table__action">
-              <el-button size="small" text type="primary" :aria-label="actionAria(row)" @click="emit('action', row)">{{ actionLabel }}</el-button>
+              <el-button size="small" text type="primary" :aria-label="actionAria(row, index)" @click="emit('action', row)">{{ actionLabel }}</el-button>
             </td>
           </tr>
         </tbody>
@@ -248,8 +253,19 @@ function exportCsv() {
 }
 
 .stats-table .stats-table__action {
+  position: sticky;
+  right: 0;
+  z-index: 1;
   width: 1%;
+  background: var(--surface);
+  /* 表格比框寬、要橫捲時，操作欄壓在最右邊：左緣一條細線表示底下還有欄。用 inset 陰影而不是 border，
+     border-collapse 的表格 sticky 欄的邊框不會跟著走。 */
+  box-shadow: inset 1px 0 0 var(--line);
   text-align: right;
+}
+
+.stats-table thead .stats-table__action {
+  background: var(--surface-2);
 }
 
 /* 手機的名稱連結：不用 el-button（自帶 32px 高，整張表每列被撐高一倍）。 */

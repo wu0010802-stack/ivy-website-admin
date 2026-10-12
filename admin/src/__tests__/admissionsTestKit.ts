@@ -7,7 +7,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
-import type { UserOut } from '../api/types'
+import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, UserOut, VillageBoundaries } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -136,7 +136,7 @@ export const options = () => ({
 // ---- 區域分析（2026-10-08）----
 // 數字彼此對得上（主控裁定 R5 兩條不變式）：參觀 9＝有地址 7＋沒填 2＋匿名化 0；
 // 有地址 7＝到里 5（本揚 3、寶業 1、龍子 1）＋只到區 1（里有歧義）＋未定位 1（查無門牌）＋待比對 0。
-export const areaStats = (changes: Record<string, unknown> = {}) => ({
+const buildAreaStats = () => ({
   as_of: '2026-10-08T02:00:00Z',
   filters: { campus_key: 'yihua', school_year: 115, semester: null },
   data_status: {
@@ -164,22 +164,35 @@ export const areaStats = (changes: Record<string, unknown> = {}) => ({
     { band: '6+', visit: 0, deposit: 0, visit_to_deposit_rate: null, visit_to_deposit_range: null },
     { band: 'none', visit: 4, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 7.5, high: 33.6 } },
   ],
-  ...changes,
-})
+} satisfies AdmissionsArea)
+/** 每次呼叫都是一份新的（測試改它不會影響別的測試）；changes 整欄換掉，要改巢狀欄位的某一格就自己展開 areaStats().xxx。 */
+export const areaStats = (changes: Record<string, unknown> = {}) => ({ ...buildAreaStats(), ...changes })
+
+// 座標由 distance_m 反推（從校區正北方量出去），所以座標和 distance_m 一致、本機構（0 m）落在校區 50 m 內，
+// 競爭園所都在 50 m 外（後端 OWN_CAMPUS_RADIUS_M）；areaFormat.test.ts 的守門測試用 haversine 驗。
+const METERS_PER_DEGREE_LAT = (Math.PI / 180) * 6371000
+const northOfCampus = (distanceM: number) => {
+  const { lat, lng } = areaStats().campus
+  return { lat: Number((lat + distanceM / METERS_PER_DEGREE_LAT).toFixed(6)), lng }
+}
 
 // address 沒有郵遞區號前綴：parse_preschools 存進資料庫前就用 _POSTAL_PREFIX 去掉了「[807]」。
-export const kindergarten = (changes: Record<string, unknown> = {}) => ({
-  source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', pre_public_period: null, address: '義華路12號',
-  lat: 22.6431, lng: 120.3441, distance_m: 420, approved_capacity: 120, monthly_fee_estimate: 9800, has_penalty: false,
-  phone: '(07)3800000', is_own: false, ...changes,
-})
+export const kindergarten = (changes: Partial<AreaKindergarten> = {}): AreaKindergarten => {
+  const distance_m = changes.distance_m ?? 420
+  return {
+    source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', pre_public_period: null, address: '義華路12號',
+    ...northOfCampus(distance_m), distance_m, approved_capacity: 120, monthly_fee_estimate: 9800, has_penalty: false,
+    phone: '(07)3800000', is_own: false, ...changes,
+  } satisfies AreaKindergarten
+}
 
-export const areaKindergartens = (items: unknown[] = [
+export const areaKindergartens = (items: AreaKindergarten[] = [
   kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', distance_m: 0, approved_capacity: 210, monthly_fee_estimate: 15000, is_own: true }),
   kindergarten({ source_id: 'kg-public', name: '高雄市立大樹幼兒園', kind: 'public', distance_m: 380, approved_capacity: 90, monthly_fee_estimate: 2500, phone: null }),
-  kindergarten({ source_id: 'kg-quasi', name: '高雄市私立小草幼兒園', kind: 'quasi_public', pre_public_period: '114-116', distance_m: 950, has_penalty: true }),
+  // 核定人數未知（null）：畫面寫「—」，不寫 0。
+  kindergarten({ source_id: 'kg-quasi', name: '高雄市私立小草幼兒園', kind: 'quasi_public', pre_public_period: '114-116', distance_m: 950, approved_capacity: null, has_penalty: true }),
   kindergarten({ source_id: 'kg-nonprofit', name: '高雄市三民區小芽非營利幼兒園', kind: 'nonprofit', distance_m: 1800, monthly_fee_estimate: null }),
-], changes: Record<string, unknown> = {}) => ({
+], changes: Partial<AreaKindergartens> = {}): AreaKindergartens => ({
   synced_at: '2026-10-07T18:30:00Z',
   source_note: '資料來源：全國教保資訊網（kiang 整理），月費為估計值',
   campus: areaStats().campus,
@@ -192,11 +205,11 @@ export const areaKindergartens = (items: unknown[] = [
 // 鼎金里 64000050001、龍子里 64000020015）。龍子里在 areaStats().villages 的 village_code 刻意是 null，
 // 模擬「里表有這一里、里界檔對不到代碼」；地圖仍用 TOWNNAME＋VILLNAME 對。
 const villageFeature = (town: string, village: string, code: string) => ({
-  type: 'Feature',
+  type: 'Feature' as const,
   properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code },
-  geometry: { type: 'Polygon', coordinates: [[[120.34, 22.64], [120.35, 22.64], [120.35, 22.65], [120.34, 22.64]]] },
+  geometry: { type: 'Polygon' as const, coordinates: [[[120.34, 22.64], [120.35, 22.64], [120.35, 22.65], [120.34, 22.64]]] },
 })
-export const villageBoundaries = () => ({
+export const villageBoundaries = (): VillageBoundaries => ({
   type: 'FeatureCollection',
   features: [
     villageFeature('三民區', '本揚里', '64000050015'),

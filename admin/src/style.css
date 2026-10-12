@@ -42,7 +42,10 @@
   --photo-caption-ink: oklch(0.98 0 0);
 
   /* 招生區域分析的地圖（2026-10-08）：里界依參觀人數分 5 級，用操作色由淺到深，0 筆不上色；
-     幼兒園四種類型與本機構只在地圖與圖例用，避開狀態色（綠＝已上線、暖黃＝草稿）。 */
+     幼兒園四種類型只在地圖與圖例用，另挑四個色相，避開狀態色（綠＝已上線、暖黃＝草稿）。
+     唯一的例外是本機構（--area-kind-own）：刻意用品牌金（--brand-gold，官網的金色就是我們自己），不另挑色。
+     它在地圖上是唯一的星號與較大的點、帶深金描邊（--brand-gold-ink），圖例另寫「本機構」；地圖上沒有草稿
+     或待注意的東西，不會跟暖黃狀態色（--el-color-warning，偏橘、較深）搞混。 */
   --area-level-1: color-mix(in oklch, var(--admin-accent), var(--surface) 82%);
   --area-level-2: color-mix(in oklch, var(--admin-accent), var(--surface) 62%);
   --area-level-3: color-mix(in oklch, var(--admin-accent), var(--surface) 40%);
@@ -258,6 +261,16 @@ a:hover {
 .hint strong {
   color: var(--ink-2);
   font-weight: 600;
+}
+
+/* 「這個範圍沒有資料」的空狀態（招生統計總覽、區域分析）：虛線框、次要文字色、置中。 */
+.empty-note {
+  margin: 0;
+  padding: 24px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  text-align: center;
 }
 
 .mono {

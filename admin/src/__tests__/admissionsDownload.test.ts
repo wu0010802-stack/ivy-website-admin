@@ -72,6 +72,32 @@ describe('訪視明細匯出 CSV', () => {
     expect(withoutPaging(query)).toEqual(withoutPaging(listQuery))
   })
 
+  // 區域分析的「查看明細」帶來的區域也要跟著匯出（2026-10-08 規格 8.4）：畫面上看到的那一批就是匯出的那一批，
+  // 後端稽核記 district 與 village（D2），所以前端一定要同時送區與里。
+  it.each([
+    ['三民區/本揚里', { district: '三民區', village: '本揚里' }, ['geo']],
+    ['三民區', { district: '三民區' }, ['village', 'geo']],
+    ['no_village', { geo: 'no_village' }, ['district', 'village']],
+  ])('區域篩選 %s：匯出網址帶同一組區域參數，和列表送的完全一樣', async (area, expected, absent) => {
+    const get = mockGet({ [RECORDS]: [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: { ...recordProps, area } })
+    await button(wrapper, '匯出 CSV')!.trigger('click')
+    await flushPromises()
+    const query = queryOf(vi.mocked(downloadServerCsv).mock.calls.at(-1)![0])
+    for (const [key, value] of Object.entries(expected)) expect(query.get(key)).toBe(value)
+    for (const key of absent) expect(query.has(key)).toBe(false)
+    expect(withoutPaging(query)).toEqual(withoutPaging(queryOf(pathsTo(get, `${RECORDS}?`).at(-1)!)))
+  })
+
+  it('手改成認不得的 area：匯出不帶任何區域參數', async () => {
+    mockGet({ [RECORDS]: [visit()] })
+    const { wrapper } = await mountWith(RecordsTab, { props: { ...recordProps, area: 'hack' } })
+    await button(wrapper, '匯出 CSV')!.trigger('click')
+    await flushPromises()
+    const query = queryOf(vi.mocked(downloadServerCsv).mock.calls.at(-1)![0])
+    for (const key of ['district', 'village', 'geo']) expect(query.has(key)).toBe(false)
+  })
+
   it('沒有匯出個資授權的櫃台看不到按鈕', async () => {
     mockGet({ [RECORDS]: [visit()] })
     const { wrapper } = await mountWith(RecordsTab, { props: recordProps, user: reception() })

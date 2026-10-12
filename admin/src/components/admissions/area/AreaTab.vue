@@ -4,13 +4,13 @@ import StatsDimensionTable from '../StatsDimensionTable.vue'
 import NearbyKindergartens from './NearbyKindergartens.vue'
 import { getArea, getAreaBoundaries, getAreaKindergartens } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
-import type { AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaVillageRow } from '../../../api/types'
+import type { AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaVillageRow, VillageBoundaries } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  bandLabel, campusNotLocatedReason, doorplateVersionLabel, reasonLabel, shortDay, type RadiusKm, type VillageBoundaries,
+  bandLabel, campusNotLocatedReason, doorplateVersionLabel, reasonLabel, taipeiMonthDay, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
@@ -120,7 +120,7 @@ const status = computed(() => {
       ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}版`
       : '門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。',
     doorplateImported: Boolean(dataStatus.doorplate_version),
-    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${shortDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
+    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${taipeiMonthDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
   }
@@ -170,13 +170,11 @@ const distanceEmptyText = computed(
   () => `${campusNotLocatedReason(area.value?.campus.locate_error ?? null) ?? '本校位置尚未確定'}，無法計算距離。`,
 )
 
-// StatsDimensionTable 的 action 回傳的是它收到的那一列，這裡收窄成後端的列型別再取行政區、里。
-function openDistrict(row: Record<string, unknown>) {
-  const { district } = row as AreaDistrictRow
+// StatsDimensionTable 是泛型：action 回傳的就是 rows 那一列的型別（後端列型別加上畫面用的欄位），不需要轉型。
+function openDistrict({ district }: AreaDistrictRow) {
   emit('open-records', { area: areaQuery({ kind: 'place', district, village: null }) })
 }
-function openVillage(row: Record<string, unknown>) {
-  const { district, village } = row as AreaVillageRow
+function openVillage({ district, village }: AreaVillageRow) {
   emit('open-records', { area: areaQuery({ kind: 'place', district, village }) })
 }
 function openPlace(filter: { district: string; village: string }) {
@@ -203,8 +201,8 @@ function openNoVillage() {
           有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>
             <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template><template v-if="area.totals.no_address">；另有 <span class="num">{{ area.totals.no_address }}</span> 筆沒填地址</template>
         </p>
-        <p v-if="!area.totals.visit" class="area-empty">{{ emptyText }}</p>
-        <p v-else-if="noAddressText" class="area-empty">{{ noAddressText }}</p>
+        <p v-if="!area.totals.visit" class="empty-note area-empty">{{ emptyText }}</p>
+        <p v-else-if="noAddressText" class="empty-note area-empty">{{ noAddressText }}</p>
       </div>
 
       <div class="area-top">
@@ -299,14 +297,6 @@ function openNoVillage() {
 
 .area-status__next {
   margin-inline-start: 1em;
-}
-
-.area-empty {
-  padding: 16px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--ink-2);
-  text-align: center;
 }
 
 .area-top {

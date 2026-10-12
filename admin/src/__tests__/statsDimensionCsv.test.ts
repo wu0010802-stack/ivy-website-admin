@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import StatsDimensionTable from '../components/admissions/StatsDimensionTable.vue'
+import tableSource from '../components/admissions/StatsDimensionTable.vue?raw'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -178,6 +179,69 @@ describe('StatsDimensionTable「查看明細」欄（2026-10-08 區域分析）'
     }
   })
 
+  it('名稱欄缺值（null、空字串、沒這個欄位）：aria-label 不寫「查看明細：—」，改寫第幾列；有名稱的照寫', () => {
+    const wrapper = mount(StatsDimensionTable, {
+      props: {
+        title: '來源',
+        rows: [{ source: null, visit: 1 }, { source: '', visit: 2 }, { visit: 3 }, { source: '網路', visit: 4 }],
+        columns: [{ key: 'source', label: '來源', sticky: true }, { key: 'visit', label: '參觀', kind: 'bar' as const }],
+        rowKey: 'visit',
+        emptyText: '尚無資料',
+        actionLabel: '查看明細',
+      },
+      global: { plugins: [ElementPlus] },
+    })
+    const labels = wrapper.findAll('tbody button').map((item) => item.attributes('aria-label'))
+    expect(labels).toEqual(['查看明細（第 1 列）', '查看明細（第 2 列）', '查看明細（第 3 列）', '查看明細：網路'])
+    expect(labels.join()).not.toContain('：—')
+    wrapper.unmount()
+  })
+
+  it('手機的名稱連結：名稱缺值時 aria-label 一樣不寫「—」，連結文字仍是畫面上的「—」', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const wrapper = mount(StatsDimensionTable, {
+        props: { ...base, rows: [{ source: null, visit: 1 }, { source: '網路', visit: 2 }], rowKey: 'visit', actionLabel: '查看明細' },
+        global: { plugins: [ElementPlus] },
+      })
+      const links = wrapper.findAll('tbody th button')
+      expect(links.map((item) => item.text())).toEqual(['—', '網路'])
+      expect(links.map((item) => item.attributes('aria-label'))).toEqual(['查看明細（第 1 列）', '查看明細：網路'])
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('沒有 sticky 欄：aria-label 用第一欄當名稱；手機也不改成名稱連結，照舊多一欄按鈕', () => {
+    const noSticky = {
+      title: '月份', rows: [{ month: '115.09', visit: 5 }], rowKey: 'month', emptyText: '尚無資料', actionLabel: '查看明細',
+      columns: [{ key: 'month', label: '月份' }, { key: 'visit', label: '參觀', kind: 'bar' as const }],
+    }
+    const wide = mount(StatsDimensionTable, { props: noSticky, global: { plugins: [ElementPlus] } })
+    expect(wide.get('tbody button').attributes('aria-label')).toBe('查看明細：115.09')
+    wide.unmount()
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const narrow = mount(StatsDimensionTable, { props: noSticky, global: { plugins: [ElementPlus] } })
+      expect(narrow.findAll('thead th').map((th) => th.text())).toEqual(['月份', '參觀', '操作'])
+      expect(narrow.findAll('tbody th button')).toHaveLength(0)
+      expect(narrow.get('tbody td button').attributes('aria-label')).toBe('查看明細：115.09')
+      narrow.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('沒有任何欄位（columns 空）：沒有名稱可帶，aria-label 改寫第幾列，不寫「：」也不寫「—」', () => {
+    const wrapper = mount(StatsDimensionTable, {
+      props: { title: '空欄', rows: [{ id: 'a' }, { id: 'b' }], columns: [], rowKey: 'id', emptyText: '尚無資料', actionLabel: '查看明細' },
+      global: { plugins: [ElementPlus] },
+    })
+    expect(wrapper.findAll('tbody button').map((item) => item.attributes('aria-label'))).toEqual(['查看明細（第 1 列）', '查看明細（第 2 列）'])
+    wrapper.unmount()
+  })
+
   it('匯出 CSV 不含按鈕欄', async () => {
     const wrapper = mount(StatsDimensionTable, {
       props: { ...base, actionLabel: '查看明細', exportFilename: '招生統計-行政區排行.csv' },
@@ -228,5 +292,23 @@ describe('StatsDimensionTable 可能範圍欄（2026-10-12）', () => {
       '未填寫,0,,,',
     ])
     wrapper.unmount()
+  })
+})
+
+describe('StatsDimensionTable 版面（2026-10-12）', () => {
+  // 721px 以上「查看明細」欄在最右邊：表格比框寬時要固定在右緣（sticky right），不能要使用者先橫捲到最右邊才看到按鈕。
+  it('操作欄固定在右緣（sticky right）、表頭同色不透出底下的欄，樣式只用 token', () => {
+    const rule = /\.stats-table \.stats-table__action \{([^}]*)\}/.exec(tableSource)![1]!
+    expect(rule).toContain('position: sticky')
+    expect(rule).toContain('right: 0')
+    expect(rule).toMatch(/background: var\(--surface\)/)
+    expect(tableSource).toMatch(/\.stats-table thead \.stats-table__action \{[^}]*background: var\(--surface-2\)/)
+    const style = tableSource.slice(tableSource.indexOf('<style'))
+    expect(style).not.toMatch(/rgba?\(|oklch\(|hsla?\(|#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  it('rows 的型別就是 action 事件的型別（泛型），呼叫端不用 as 轉型', () => {
+    expect(tableSource).toContain('generic="Row extends Record<string, unknown>"')
+    expect(tableSource).toContain('action: [row: Row]')
   })
 })

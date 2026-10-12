@@ -5,10 +5,9 @@ import { api } from './client'
 import type {
   AdmissionsArea, AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaKindergartens, ContactLog, ContactLogCreate,
   ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
-  RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest,
+  RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
 import type { Stage } from '../admissions/constants'
-import type { VillageBoundaries } from '../components/admissions/area/areaFormat'
 
 /** 訪視明細的篩選（後端 RecruitmentVisitFilters）。空字串與 null 不送。 */
 export type RecordFilters = {

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type * as Leaflet from 'leaflet'
-import type { AdmissionsArea, AreaKindergarten, AreaVillageRow } from '../../../api/types'
+import type { AdmissionsArea, AreaKindergarten, AreaVillageRow, VillageBoundaries, VillageProperties } from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
   KIND_LABELS, KIND_ORDER, campusNotLocatedReason, districtBounds, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
-  type RadiusKm, type VillageBoundaries, type VillageProperties,
+  type RadiusKm,
 } from './areaFormat'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
@@ -34,12 +34,13 @@ const STAR_SVG =
   '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>'
 
 type LeafletModule = typeof Leaflet
-type GeoJsonInput = Parameters<LeafletModule['geoJSON']>[0]
 
 const container = ref<HTMLElement | null>(null)
 // 地圖物件不放進響應式：Leaflet 自己管狀態，包成 proxy 只會拖慢。
 let L: LeafletModule | null = null
 let map: Leaflet.Map | null = null
+// 建這張地圖用的容器：remove() 失敗後要清它身上 Leaflet 留的記號（見 destroyMap）。
+let mapElement: (HTMLElement & { _leaflet_id?: number }) | null = null
 let tiles: Leaflet.TileLayer | null = null
 let villageLayer: Leaflet.GeoJSON | null = null
 let campusMarker: Leaflet.Marker | null = null
@@ -121,7 +122,7 @@ function drawVillages() {
   if (!L || !map) return
   villageLayer?.remove()
   const { max } = villageStats.value
-  villageLayer = L.geoJSON(props.boundaries as unknown as GeoJsonInput, {
+  villageLayer = L.geoJSON(props.boundaries, {
     style: (feature) => {
       const row = feature ? villageRow(feature.properties as VillageProperties) : undefined
       return { className: `area-village area-village--l${levelOf(row?.visit ?? 0, max)}`, weight: 1 }
@@ -225,23 +226,39 @@ function retryTiles() {
 // 先把狀態清乾淨再移除地圖：remove() 就算丟錯，重試也不會碰到舊的半成品。
 function destroyMap() {
   const current = map
+  const element = mapElement
+  // 圖磚層的監聽拿掉：remove() 之後飛來的 tileload／tileerror 不能再動到下一張地圖的計數與提示。
+  tiles?.off('tileload', onTileLoad)
+  tiles?.off('tileerror', onTileError)
   resizeObserver?.disconnect()
   resizeObserver = null
   L = null
   map = null
+  mapElement = null
   tiles = null
   villageLayer = null
   campusMarker = null
   radiusCircle = null
   kindergartenGroup = null
   kindergartenMarkers.clear()
-  current?.remove()
+  try {
+    current?.remove()
+  } catch (error) {
+    // remove() 做到一半丟錯：容器上的 _leaflet_id 還在、半拆的圖層節點也還在，重試時 L.map() 會丟
+    // "Map container is already initialized."（真 Leaflet 才會，mock 看不到）。把記號與殘留節點清掉。
+    if (element) {
+      delete element._leaflet_id
+      element.replaceChildren()
+    }
+    throw error
+  }
 }
 
 function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   L = leaflet
   tileErrors = 0
   tilesLoaded = 0
+  mapElement = element
   map = leaflet.map(element, {
     zoomControl: true,
     scrollWheelZoom: false,
@@ -338,13 +355,22 @@ onBeforeUnmount(destroyMap)
 <template>
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
-      <div ref="container" class="area-map__canvas" />
-      <p v-if="loading" class="area-map__loading" role="status">地圖載入中…</p>
+      <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在下方的表格與清單。 -->
+      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依參觀人數著色）；同樣的資料在下方的里排行與幼兒園清單`" />
+      <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
+      <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>
       <div v-if="failure" class="area-map__notice" role="alert">
         <span>{{ failure === 'tiles' ? '底圖載入失敗。' : '地圖載入失敗，請重試或重新整理頁面。' }}</span>
         <el-button size="small" @click="retry">重試</el-button>
       </div>
-      <el-button v-if="narrow && !loading && failure !== 'library'" class="area-map__move" size="small" :type="interactive ? 'primary' : 'default'" @click="setInteractive(!interactive)">
+      <el-button
+        v-if="narrow && !loading && failure !== 'library'"
+        class="area-map__move"
+        size="small"
+        :type="interactive ? 'primary' : 'default'"
+        :aria-label="interactive ? '完成移動地圖' : undefined"
+        @click="setInteractive(!interactive)"
+      >
         {{ interactive ? '完成' : '移動地圖' }}
       </el-button>
     </div>

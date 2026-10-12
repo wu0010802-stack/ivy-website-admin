@@ -2,11 +2,12 @@
 import { computed, ref, useId, watch } from 'vue'
 import type { AreaKindergartens } from '../../../api/types'
 import { NO_VALUE } from '../../../admissions/statsFormat'
-import { KIND_LABELS, KIND_ORDER, RADIUS_OPTIONS, campusNotLocatedReason, formatDistance, kindLabel, shortDay, shortName, type RadiusKm } from './areaFormat'
+import { KIND_LABELS, KIND_ORDER, RADIUS_OPTIONS, campusNotLocatedReason, formatDistance, kindLabel, shortName, taipeiMonthDay, type RadiusKm } from './areaFormat'
 
 // 附近幼兒園（2026-10-08 規格 9.4）：本校半徑內的公開園所資料，後端已依距離排序。
 // 點一列：地圖移過去並打開該園資訊（select），同時展開這一列的詳情；再點一次只收合，不再請地圖定位。
-// 本機構（is_own）只標示，不算競爭園所，也不列入「沒有其他幼兒園」的判斷。
+// 本機構（is_own）只標示，不算競爭園所，也不列入「沒有其他幼兒園」的判斷；除了本機構沒有別的園所時沒東西可篩，不顯示搜尋與類型 chip。
+// 搜尋比對的是列表上看到的短名（去掉「高雄市私立／市立」前綴）與地址，全形半形（NFKC）與大小寫視為相同。
 const props = defineProps<{ data: AreaKindergartens | null; failed: boolean; radiusKm: RadiusKm }>()
 const emit = defineEmits<{ 'update:radiusKm': [value: RadiusKm]; select: [id: string]; retry: [] }>()
 
@@ -14,6 +15,8 @@ const PAGE = 20
 // 教保資訊網沒有單一園所的固定網址，連到查詢頁。
 const MOE_SEARCH = 'https://ap.ece.moe.edu.tw/webecems/pubSearch.aspx'
 const headingId = useId()
+// 展開的詳情（dl）的 id，給展開鈕的 aria-controls 指；只有展開的那一列有 dl，id 跟著列的位置編。
+const detailId = (index: number) => `${headingId}-detail-${index}`
 const search = ref('')
 const kinds = ref<string[]>([])
 const showAll = ref(false)
@@ -24,14 +27,22 @@ watch(() => props.data, () => {
   showAll.value = false
   expanded.value = null
 })
+// 搜尋字或類型 chip 一變，結果就是另一批：收回「顯示更多」，不留在上一批展開的狀態。
+watch([search, kinds], () => {
+  showAll.value = false
+})
 
 const items = computed(() => props.data?.items ?? [])
 const others = computed(() => items.value.filter((item) => !item.is_own).length)
+// NFKC 把全形英數、相容字轉成一般寫法，再轉小寫；兩邊（輸入與資料）用同一個函式。
+const normalize = (value: string) => value.normalize('NFKC').toLowerCase()
 const filtered = computed(() => {
-  const keyword = search.value.trim()
+  // 沒有其他園所：搜尋框與 chip 都收起來了，之前輸入的搜尋字、選的類型不能再把本機構篩掉。
+  if (!others.value) return items.value
+  const keyword = normalize(search.value).trim()
   return items.value.filter((item) => {
     if (kinds.value.length && (item.is_own || !kinds.value.includes(item.kind))) return false
-    return !keyword || item.name.includes(keyword) || item.address.includes(keyword)
+    return !keyword || normalize(shortName(item.name)).includes(keyword) || normalize(item.address).includes(keyword)
   })
 })
 const visible = computed(() => (showAll.value ? filtered.value : filtered.value.slice(0, PAGE)))
@@ -78,24 +89,32 @@ const fee = (value: number | null) => (value === null ? NO_VALUE : `${value.toLo
     <p v-else-if="notLocated" class="nearby__empty">{{ notLocated }}</p>
     <p v-else-if="notImported" class="nearby__empty">幼兒園名單尚未匯入。</p>
     <template v-else>
-      <el-input v-model="search" clearable maxlength="40" placeholder="園名或地址" aria-label="搜尋幼兒園" />
-      <div class="nearby__kinds" role="group" aria-label="依類型篩選">
-        <button
-          v-for="kind in KIND_ORDER"
-          :key="kind"
-          type="button"
-          class="nearby__kind"
-          :class="{ 'is-on': kinds.includes(kind) }"
-          :aria-pressed="kinds.includes(kind)"
-          @click="toggleKind(kind)"
-        >
-          <span class="nearby__dot" :class="`nearby__dot--${kind}`" aria-hidden="true" />{{ KIND_LABELS[kind] }}
-        </button>
-      </div>
+      <template v-if="others">
+        <el-input v-model="search" clearable maxlength="40" placeholder="園名或地址" aria-label="搜尋幼兒園" />
+        <div class="nearby__kinds" role="group" aria-label="依類型篩選">
+          <button
+            v-for="kind in KIND_ORDER"
+            :key="kind"
+            type="button"
+            class="nearby__kind"
+            :class="{ 'is-on': kinds.includes(kind) }"
+            :aria-pressed="kinds.includes(kind)"
+            @click="toggleKind(kind)"
+          >
+            <span class="nearby__dot" :class="`nearby__dot--${kind}`" aria-hidden="true" />{{ KIND_LABELS[kind] }}
+          </button>
+        </div>
+      </template>
 
       <ul v-if="visible.length" class="nearby__list">
-        <li v-for="item in visible" :key="item.source_id" class="nearby__item">
-          <button type="button" class="nearby__row" :aria-expanded="expanded === item.source_id" @click="choose(item.source_id)">
+        <li v-for="(item, index) in visible" :key="item.source_id" class="nearby__item">
+          <button
+            type="button"
+            class="nearby__row"
+            :aria-expanded="expanded === item.source_id"
+            :aria-controls="expanded === item.source_id ? detailId(index) : undefined"
+            @click="choose(item.source_id)"
+          >
             <span class="nearby__line">
               <span class="nearby__name">{{ shortName(item.name) }}</span>
               <el-tag v-if="item.is_own" size="small" effect="plain" round>本機構</el-tag>
@@ -104,17 +123,17 @@ const fee = (value: number | null) => (value === null ? NO_VALUE : `${value.toLo
             </span>
             <span class="nearby__meta num">{{ formatDistance(item.distance_m) }}・核定 {{ item.approved_capacity ?? NO_VALUE }} 人・月費（估）{{ fee(item.monthly_fee_estimate) }}</span>
           </button>
-          <dl v-if="expanded === item.source_id" class="nearby__detail">
+          <dl v-if="expanded === item.source_id" :id="detailId(index)" class="nearby__detail">
             <div><dt>地址</dt><dd>{{ item.address }}</dd></div>
             <div v-if="item.phone"><dt>電話</dt><dd>{{ item.phone }}</dd></div>
             <div v-if="item.pre_public_period"><dt>準公共</dt><dd>{{ item.pre_public_period }} 學年</dd></div>
-            <div><dt>官方資料</dt><dd><a :href="MOE_SEARCH" target="_blank" rel="noopener noreferrer">全國教保資訊網查詢 ↗</a></dd></div>
+            <div><dt>官方資料</dt><dd><a :href="MOE_SEARCH" target="_blank" rel="noopener noreferrer">全國教保資訊網查詢 <span aria-hidden="true">↗</span><span class="visually-hidden">（另開新視窗）</span></a></dd></div>
           </dl>
         </li>
       </ul>
       <p v-if="emptyText" class="nearby__empty">{{ emptyText }}</p>
       <el-button v-if="!showAll && filtered.length > PAGE" text @click="showAll = true">顯示更多（還有 {{ filtered.length - PAGE }} 所）</el-button>
-      <p class="hint nearby__source">{{ data.source_note }}・{{ shortDay(data.synced_at) }} 更新</p>
+      <p class="hint nearby__source">{{ data.source_note }}・{{ taipeiMonthDay(data.synced_at) }} 更新</p>
     </template>
   </section>
 </template>
