@@ -19,6 +19,7 @@ from app.content.schemas import (
     HomeCampusBoardPayload,
     HomeHeroPayload,
     HomeNewsPayload,
+    PAGE_SEO_KEYS,
     PRIVACY_POLICY_PENDING_MARKER,
     PRIVACY_SAMPLE_MARKER,
     PrivacyPolicyPayload,
@@ -83,8 +84,19 @@ def _extract_news_media_refs(payload: dict) -> list[MediaRef]:
 
 
 def _extract_site_meta_media_refs(payload: dict) -> list[MediaRef]:
+    """全站分享圖，加上各頁（page_seo）自己的分享圖。各頁的分享圖只能是圖片
+    （kind=image）；路徑像 `page_seo.about.share_image`，批次替換的 set_at_path
+    直接改那個字串。已發布的舊版本沒有 page_seo，也可能是壞掉的值，一律略過。"""
     share = payload.get("share_image") or ""
-    return _refs([_media_ref(share, "share_image")]) if share else []
+    refs: list[MediaRef | None] = [_media_ref(share, "share_image")] if share else []
+    page_seo = payload.get("page_seo")
+    if isinstance(page_seo, dict):
+        for key in PAGE_SEO_KEYS:
+            entry = page_seo.get(key)
+            image = entry.get("share_image") if isinstance(entry, dict) else None
+            ref = _media_ref(image, f"page_seo.{key}.share_image") if image else None
+            refs.append(replace(ref, kind="image") if ref else None)
+    return _refs(refs)
 
 
 def _slot_ref(payload: dict, field_name: str, kind: str, prefix: str = "", label: object = None) -> MediaRef | None:
@@ -256,6 +268,33 @@ def _public_without_retired(model: type[BaseModel]) -> Callable[[dict, str], dic
     return view
 
 
+_PAGE_SEO_EMPTY = {"title": "", "description": "", "share_image": "", "share_image_alt": ""}
+_without_retired_site_meta = _public_without_retired(SiteMetaPayload)
+
+
+def _public_site_meta(payload: dict, today: str) -> dict:
+    """公開輸出的全站設定：把退役的入學頁標題／描述補進 page_seo.admission 再剔除
+    舊欄位，官網只讀 page_seo。page_seo.admission 的標題或描述已經有值就用新的，
+    只補空的那一個；已發布的版本本身不動（沒有 migration）。"""
+    view = _without_retired_site_meta(payload, today)
+    legacy = {
+        name: payload.get(f"admission_{name}")
+        for name in ("title", "description")
+        if str(payload.get(f"admission_{name}") or "").strip()
+    }
+    if not legacy:
+        return view
+    page_seo = view.get("page_seo")
+    page_seo = dict(page_seo) if isinstance(page_seo, dict) else {}
+    admission = page_seo.get("admission")
+    admission = {**_PAGE_SEO_EMPTY, **admission} if isinstance(admission, dict) else dict(_PAGE_SEO_EMPTY)
+    for name, value in legacy.items():
+        if not str(admission.get(name) or "").strip():
+            admission[name] = value
+    page_seo["admission"] = admission
+    return {**view, "page_seo": page_seo}
+
+
 _CAMPUS_PROFILE_REQUIRED = (("name", "校名"), ("address", "地址"), ("phone", "參觀專線"))
 
 
@@ -310,7 +349,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     ),
     "site_footer": ContentKindConfig(SiteFooterPayload, shared_only=True),
     "site_meta": ContentKindConfig(
-        SiteMetaPayload, shared_only=True, extract_media_refs=_extract_site_meta_media_refs
+        SiteMetaPayload,
+        shared_only=True,
+        extract_media_refs=_extract_site_meta_media_refs,
+        public_view=_public_site_meta,
     ),
     "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
     "booking_content": ContentKindConfig(

@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 
 import re
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal, Union, get_args
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -265,6 +265,77 @@ class SiteFooterPayload(_ContentPayload):
         return value
 
 
+def _share_image_media_id(value: str) -> str:
+    """分享圖欄位（全站與各頁共用）：空字串＝沿用上一層，否則必須是素材庫 UUID。"""
+    if value == "":
+        return value
+    try:
+        return str(uuid.UUID(value))
+    except ValueError as exc:
+        raise ValueError("分享圖請從素材庫選擇") from exc
+
+
+# 有各自搜尋標題與分享圖設定的頁面（首頁不在內，用 SiteMetaPayload 自己的
+# title／description／share_image）。順序就是後台頁籤與素材引用的順序。
+PageSeoKey = Literal["admission", "about", "curriculum", "environment", "news", "anniversary", "privacy"]
+PAGE_SEO_KEYS: tuple[str, ...] = get_args(PageSeoKey)
+
+
+class PageSeoPayload(_ContentPayload):
+    """某一頁的搜尋結果與社群分享設定（2026-10-12）。每個欄位留空＝沿用官網內建
+    （標題、描述）或全站分享圖。"""
+
+    title: str = Field(default="", max_length=120)
+    description: str = Field(default="", max_length=300)
+    # 素材庫的圖片 UUID（存檔時檢查是圖片，registry 的 _extract_site_meta_media_refs）。
+    share_image: str = ""
+    share_image_alt: str = Field(default="", max_length=200)
+
+    @field_validator("title", "description", "share_image_alt")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+    @field_validator("share_image")
+    @classmethod
+    def _share_image_is_media_id(cls, value: str) -> str:
+        return _share_image_media_id(value)
+
+
+SOCIAL_LINKS_MAX = 6
+
+
+class SocialLinkPayload(_ContentPayload):
+    """機構的社群連結（頁首選單面板、結構化資料 sameAs）。連結只收 https。"""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    platform: Literal["facebook", "line", "instagram", "youtube"]
+    label: str = Field(min_length=1, max_length=20)
+    url: str = Field(max_length=SITE_LINK_MAX_LENGTH)
+
+    @field_validator("label")
+    @classmethod
+    def _label(cls, value: str) -> str:
+        return _reject_unsafe_scheme(_nonblank(value, "連結文字不能空白"))
+
+    @field_validator("url")
+    @classmethod
+    def _url(cls, value: str) -> str:
+        # 跟主選單的外部連結同一套規則（官網與後台用 new URL() 解析，解析不了就不當連結）：
+        # 只收 https、要有主機名稱、不接受帳密、埠號要合法。
+        candidate = value.strip()
+        if not _is_external_site_link(candidate):
+            raise ValueError("請填寫 https:// 開頭的完整網址")
+        return candidate
+
+
+def _social_url_key(url: str) -> tuple:
+    """判斷網址重複用：網域大小寫與結尾斜線不算不同。"""
+    parts = urlsplit(url)
+    return (parts.hostname, parts.port, parts.path.rstrip("/"), parts.query, parts.fragment)
+
+
 class SiteMetaPayload(_ContentPayload):
     title: str
     description: str
@@ -274,14 +345,21 @@ class SiteMetaPayload(_ContentPayload):
     # 社群分享圖：素材庫媒體 UUID；空字串沿用首頁大圖的分享圖。
     share_image: str = ""
     share_image_alt: str = Field(default="", max_length=200)
-    # 入學資訊頁的搜尋標題與描述；空字串沿用官網內建文字。
-    admission_title: str = Field(default="", max_length=120)
-    admission_description: str = Field(default="", max_length=300)
+    # 2026-10-12 退役：入學頁的搜尋標題與描述改放 page_seo.admission。保留欄位只為
+    # 舊版本可讀；exclude=True 讓新存的版本不再帶它們，公開輸出把舊值補進
+    # page_seo.admission 後剔除（registry 的 public_view）。沒有 migration。
+    admission_title: str = Field(default="", max_length=120, exclude=True)
+    admission_description: str = Field(default="", max_length=300, exclude=True)
     # 只能「收緊」：部署設定沒開索引時，這裡勾了也不會變成可索引。
     allow_indexing: bool = True
     # 主選單（頁首與選單面板，依清單順序）。None＝還沒在後台設定過，官網沿用
     # 內建選單。品牌名稱與 Logo 依 2026-09-19 核可鎖定，不在這裡。
     primary_nav: list[NavLinkPayload] | None = None
+    # 各頁的搜尋標題、描述與分享圖（2026-10-12）。None＝全部沿用官網內建；
+    # 沒列到的頁、留空的欄位也沿用內建。
+    page_seo: dict[PageSeoKey, PageSeoPayload] | None = None
+    # 機構社群連結（依清單順序）。None＝官網沿用內建清單；[]＝不顯示。
+    social_links: list[SocialLinkPayload] | None = None
 
     @field_validator(
         "title", "description", "header_phone_number", "header_phone_note",
@@ -294,12 +372,7 @@ class SiteMetaPayload(_ContentPayload):
     @field_validator("share_image")
     @classmethod
     def _share_image_is_media_id(cls, value: str) -> str:
-        if value == "":
-            return value
-        try:
-            return str(uuid.UUID(value))
-        except ValueError as exc:
-            raise ValueError("分享圖請從素材庫選擇") from exc
+        return _share_image_media_id(value)
 
     @field_validator("primary_nav")
     @classmethod
@@ -309,6 +382,18 @@ class SiteMetaPayload(_ContentPayload):
         if not 1 <= len(value) <= PRIMARY_NAV_MAX:
             raise ValueError(f"主選單需為 1 到 {PRIMARY_NAV_MAX} 個項目")
         _unique_hrefs(value, "主選單")
+        return value
+
+    @field_validator("social_links")
+    @classmethod
+    def _social_links_bounded(cls, value: list[SocialLinkPayload] | None) -> list[SocialLinkPayload] | None:
+        if value is None:
+            return None
+        if len(value) > SOCIAL_LINKS_MAX:
+            raise ValueError(f"社群連結最多 {SOCIAL_LINKS_MAX} 個")
+        keys = [_social_url_key(link.url) for link in value]
+        if len(keys) != len(set(keys)):
+            raise ValueError("社群連結的網址不可重複")
         return value
 
 
