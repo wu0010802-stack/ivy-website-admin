@@ -1,0 +1,123 @@
+export interface VisitContact {
+  parentName: string
+  phone: string
+  childName?: string
+  childBirthdate?: string
+  email?: string
+}
+
+export type VisitField = keyof VisitContact | 'visitDate' | 'slotId'
+export type VisitErrors = Partial<Record<VisitField, string>>
+
+export const REFERRAL_OPTIONS = [
+  // 2026-10-03：只問來源歸因看不到的管道，網路來源合成一項（細節之後由自建歸因補）。
+  // 媽媽社團、LINE 群組的口碑算親友介紹；舊代碼 facebook／google_reviews／parent_community 後端仍收。
+  // 2026-10-05 照園方紙本加兄姊（舊生弟妹）與傳單，兩者都是網站追蹤看不到的管道。
+  { value: 'friends_family', label: '親友介紹' },
+  { value: 'sibling', label: '哥哥姊姊讀過或正在讀' },
+  { value: 'nearby', label: '住附近／路過看到' },
+  { value: 'flyer', label: '傳單／DM' },
+  { value: 'online', label: '網路上看到' },
+  { value: 'other', label: '其他' }
+] as const
+
+// 規格 190：方便聯絡時段是固定選項，送代碼、顯示中文。API 也接受舊的
+// 中文標籤（已快取的舊頁面），但新頁面一律送代碼。
+export const CONTACT_TIME_OPTIONS = [
+  { value: 'flexible', label: '時間彈性' },
+  { value: 'weekday_morning', label: '平日上午' },
+  { value: 'weekday_afternoon', label: '平日下午' },
+  { value: 'other', label: '其他，另行確認' }
+] as const
+
+export type ContactTimeCode = (typeof CONTACT_TIME_OPTIONS)[number]['value']
+
+
+export function contactTimeLabel(value: string): string {
+  return CONTACT_TIME_OPTIONS.find((option) => option.value === value)?.label ?? value
+}
+
+export function taipeiDate(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+}
+
+export function visitDateLabel(value: string) {
+  return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${value}T12:00:00+08:00`))
+}
+
+/** 線上取消／改期截止說明。期限是各校設定（預設參觀前 24 小時），整天數且超過一天時講「天」。 */
+export function changeDeadlineRule(hours: number | null | undefined) {
+  if (!hours || hours < 1) return ''
+  return hours >= 48 && hours % 24 === 0 ? `參觀前 ${hours / 24} 天` : `參觀前 ${hours} 小時`
+}
+
+// 送單時選的時段已經不能用：API 依原因回不同代碼（已關閉不再冒充「額滿」），
+// 家長看到的說明跟著原因走；都要重新選時段。
+const SLOT_UNAVAILABLE_MESSAGES: Record<string, string> = {
+  SLOT_FULL: '這個時段名額剛好滿了，請選擇其他時段。',
+  SLOT_CLOSED: '這個時段剛被園所關閉了，請選擇其他時段。',
+  SLOT_NOT_FOUND: '這個時段已經不存在了，請選擇其他時段。',
+  SLOT_NOT_BOOKABLE: '這個時段已經無法預約了，請選擇其他時段。',
+}
+
+export function slotUnavailableMessage(code: string | null | undefined): string | null {
+  return (code && SLOT_UNAVAILABLE_MESSAGES[code]) || null
+}
+
+export function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00Z`)
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+}
+
+/** 接受手機自動填入、複製貼上的空格與連字號，API 仍收到 09 開頭的十碼。 */
+export function normalizeVisitPhone(phone: string) {
+  return phone.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
+}
+
+export function validateVisitContact(contact: VisitContact, today = taipeiDate()): VisitErrors {
+  const errors: VisitErrors = {}
+  if (!contact.parentName.trim()) errors.parentName = '請填寫家長稱呼，讓我們知道怎麼稱呼你。'
+  else if (contact.parentName.trim().length > 40) errors.parentName = '家長稱呼請在 40 字以內。'
+  if (!/^09[0-9]{8}$/.test(normalizeVisitPhone(contact.phone))) errors.phone = '請填寫 09 開頭的 10 碼手機號碼。'
+  // 舊呼叫端不帶兒童欄位；新版表單帶空字串時才套用必填驗證。
+  if (contact.childName !== undefined) {
+    if (!contact.childName.trim()) errors.childName = '請填寫孩子姓名。'
+    else if (contact.childName.trim().length > 64) errors.childName = '孩子姓名請在 64 字以內。'
+  }
+  if (contact.childBirthdate !== undefined) {
+    if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
+    else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
+  }
+  // 新版表單一律帶 email 欄位（2026-09-30 起必填：確認信與修改連結寄到這裡）；舊呼叫端不帶。
+  if (contact.email !== undefined) {
+    const email = contact.email.trim()
+    if (!email) errors.email = '請填寫 Email，確認信與修改連結會寄到這裡。'
+    else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = '請填寫有效的 Email，例如 name@example.com。'
+  }
+  return errors
+}
+
+const API_FIELDS: Record<string, VisitField> = {
+  slot_id: 'slotId', email: 'email', phone: 'phone', parent_name: 'parentName', child_name: 'childName',
+  child_birthdate: 'childBirthdate'
+}
+const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
+  slotId: '請選擇這一天的參觀場次。',
+  email: '請填寫有效的 Email，確認信與修改連結會寄到這裡。',
+  phone: '請填寫 09 開頭的 10 碼手機號碼。',
+  parentName: '請填寫家長稱呼。',
+  childName: '請填寫孩子姓名。',
+  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。'
+}
+
+// 後端 422 是 FastAPI 的標準格式：detail 是陣列，loc[1] 是欄位名稱。
+export function apiFieldErrors(detail: unknown): VisitErrors {
+  if (!Array.isArray(detail)) return {}
+  const errors: VisitErrors = {}
+  for (const item of detail) {
+    const field = API_FIELDS[String((item as { loc?: unknown[] })?.loc?.[1] ?? '')]
+    if (field && !errors[field]) errors[field] = API_FIELD_MESSAGES[field] ?? '請檢查這個欄位。'
+  }
+  return errors
+}

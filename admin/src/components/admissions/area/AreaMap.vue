@@ -4,7 +4,7 @@ import type * as Leaflet from 'leaflet'
 import type { AdmissionsArea, AreaKindergarten, AreaVillageRow } from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
-  KIND_LABELS, KIND_ORDER, campusNotLocatedReason, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
+  KIND_LABELS, KIND_ORDER, campusNotLocatedReason, districtBounds, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
   type RadiusKm, type VillageBoundaries, type VillageProperties,
 } from './areaFormat'
 
@@ -26,8 +26,8 @@ const emit = defineEmits<{ 'open-area': [filter: { district: string; village: st
 
 const TILE_URL = 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}'
 const TILE_ATTRIBUTION = '© 國土測繪中心'
-// 初始視野：本校為中心、半徑 6 公里（12 公里見方）。
-const INITIAL_SPAN_M = 12_000
+// 視野：本校為中心、剛好框住半徑圈，四邊留一點空（圈線不貼邊）；本校沒座標時框住校址所在的行政區。
+const VIEW_PADDING: [number, number] = [24, 24]
 // 一張都沒載到、又連續失敗這麼多張，才當成底圖壞了（偶發失敗 Leaflet 自己會再試）。
 const TILE_FAILURE_LIMIT = 4
 const STAR_SVG =
@@ -63,10 +63,14 @@ const villageStats = computed(() => ({
 }))
 const legend = computed(() => legendRanges(villageStats.value.max))
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
+const campusLocated = computed(() => props.campus.lat !== null && props.campus.lng !== null)
+// 校址所在行政區的外框（後端從地址文字解析，不需要門牌）；里界檔沒有這個區時為 null。
+const districtBox = computed(() => districtBounds(props.boundaries, props.campus.district))
 const campusNote = computed(() => {
-  if (props.campus.lat !== null && props.campus.lng !== null) return ''
+  if (campusLocated.value) return ''
   const reason = campusNotLocatedReason(props.campus.locate_error)
-  return reason ? `本校位置未標示（${reason}）` : '本校位置未標示'
+  const note = reason ? `本校位置未標示（${reason}）` : '本校位置未標示'
+  return districtBox.value ? `${note}，地圖先顯示${props.campus.district}。` : `${note}。`
 })
 
 function villageRow(properties: VillageProperties): AreaVillageRow | undefined {
@@ -152,10 +156,12 @@ function drawCampus() {
   }).addTo(map)
 }
 
+// 有座標：框住半徑圈（直徑見方）；沒座標：框住校址所在的區；連區都不知道才看整個里界（半個南台灣）。
 function fitInitialView() {
   if (!L || !map) return
   const { lat, lng } = props.campus
-  if (lat !== null && lng !== null) map.fitBounds(L.latLng(lat, lng).toBounds(INITIAL_SPAN_M))
+  if (lat !== null && lng !== null) map.fitBounds(L.latLng(lat, lng).toBounds(props.radiusKm * 2000), { padding: VIEW_PADDING })
+  else if (districtBox.value) map.fitBounds(districtBox.value)
   else if (villageLayer) map.fitBounds(villageLayer.getBounds())
 }
 
@@ -247,10 +253,10 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   map.attributionControl.setPrefix(false)
   // 先有視野再加圖層：地圖還沒有視野時，Leaflet 把「加圖層」都排到 load 事件、依登記順序執行；
   // 半徑圓一加就先建好向量圖層共用的 renderer、排在里界與幼兒園點之後，那兩種圖層先被加進還沒
-  // 初始化的 renderer 而丟 TypeError（真瀏覽器才會發生，mock 看不到）。本校位置未知時沒有半徑圓，
-  // 視野等里界畫好再取。
-  const located = props.campus.lat !== null && props.campus.lng !== null
-  if (located) fitInitialView()
+  // 初始化的 renderer 而丟 TypeError（真瀏覽器才會發生，mock 看不到）。視野要靠里界圖層本身算
+  // （本校沒座標、也不知道在哪一區）時沒有半徑圓，等里界畫好再取。
+  const viewFirst = campusLocated.value || districtBox.value !== null
+  if (viewFirst) fitInitialView()
   tiles = leaflet.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 18 })
   tiles.on('tileload', onTileLoad)
   tiles.on('tileerror', onTileError)
@@ -259,7 +265,7 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   drawVillages()
   drawCampus()
   drawKindergartens()
-  if (!located) fitInitialView()
+  if (!viewFirst) fitInitialView()
   // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。子分頁切走是 v-show 藏起來（容器 0×0），
   // 藏著的時候重建的地圖 fitBounds 是在 0×0 裡算的（縮到最小級）：容器從沒尺寸變回有尺寸，視野要重取。
   if (typeof ResizeObserver !== 'undefined') {
@@ -313,7 +319,12 @@ watch([() => props.campus.lat, () => props.campus.lng], () => {
   drawCampus()
   fitInitialView()
 })
-watch(() => props.radiusKm, (km) => radiusCircle?.setRadius(km * 1000))
+// 換半徑是使用者自己按的：視野跟著框住新的圈。本校沒座標時沒有圈，視野不動。
+watch(() => props.radiusKm, (km) => {
+  if (!radiusCircle) return
+  radiusCircle.setRadius(km * 1000)
+  fitInitialView()
+})
 watch(() => props.kindergartens, drawKindergartens)
 watch(() => props.narrow, (narrow) => {
   setInteractive(!narrow)

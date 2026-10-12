@@ -24,6 +24,7 @@ const reload = () => { window.location.reload() }
   <div>
     <IconSprite />
     <a class="skip" href="#main">跳至主要內容</a>
+    <NuxtRouteAnnouncer />
     <SiteHeader v-if="content" :content="content" />
     <main id="main" class="error-page" tabindex="-1">
       <div class="error-inner">
@@ -44,7 +45,8 @@ const reload = () => { window.location.reload() }
           <h2 id="error-campuses-title">五所校園</h2>
           <ul>
             <li v-for="campus in campuses" :key="campus.key">
-              <span class="error-campus-name">{{ campus.name }}</span>
+              <!-- 原本是 span 卻畫成連結的樣子、點不動（2026-10-12）；分校頁 10-03 拿掉了，連到該校的預約頁。 -->
+              <NuxtLink class="error-campus-name" :to="`/visit/${campus.key}`">{{ campus.name }}</NuxtLink>
               <span class="error-campus-district">{{ campus.district }}</span>
               <a v-if="campus.phone" class="error-campus-phone" :href="`tel:${campus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campus.phone }}</a>
             </li>
@@ -65,6 +67,8 @@ const reload = () => { window.location.reload() }
 @media(min-width:760px) {.error-crest {--size:168px}}
 @media(min-width:1180px) {.error-crest {--size:176px;position:absolute;top:-8px;left:calc(100% + 32px);margin:0}}
 @media(min-width:1320px) {.error-crest {--size:220px;left:calc(100% + 48px);top:-16px}}
+/* 橫拿手機（2026-10-12）：原本第一屏只有頁首、168px 校徽和「404」，標題與按鈕都在折線下。 */
+@media(max-width:1179px) and (max-height:500px) and (orientation:landscape) {.error-page {padding-top:24px}.error-crest {--size:96px;margin-bottom:8px}}
 .error-code {margin:0 0 12px;color:var(--muted);font-size:var(--fs-sm);letter-spacing:.12em}
 h1 {margin:0;color:var(--green);font:700 clamp(2rem,1.5rem + 2vw,2.75rem)/1.35 var(--font-head);letter-spacing:.02em}
 .error-lead {max-width:34em;margin:20px 0 0;font-size:var(--fs-md);line-height:1.9;color:var(--muted)}

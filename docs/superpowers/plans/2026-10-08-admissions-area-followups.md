@@ -42,15 +42,22 @@
 - **C10**（建議合併前修，最終審查降為可延後）：start-api.sh 未 unset WEBSITE_GEO_AUTO_SYNC／WEBSITE_GEO_DOORPLATE_URL（開發者 shell 有設時 stack 會連外）；e2e 無圖磚確實被攔且載入的正向斷言
 - **C10**：waitForLoadState('networkidle')；name==='390' 分支；未定位校區分支無真瀏覽器 e2e
 - **C11**：規格基準「正式站招生開關已開」沿用 10-05 規格記載，未再核對；品牌金與暖黃同色系辨識度待 C12 目視
-- **C12**：390 里排行「查看明細」初始只露 7px、無可橫捲提示；1440 里表比行政區表低 23px、距離表右側留白；e2e 偶發逾時與 macOS 維護睡眠吻合（caffeinate 下全過）
+- **C12**：~~390 里排行「查看明細」初始只露 7px、無可橫捲提示~~（2026-10-12 修：手機改成名稱本身是連結，見 DESIGN.md）；1440 里表比行政區表低 23px、距離表右側留白；e2e 偶發逾時與 macOS 維護睡眠吻合（caffeinate 下全過）
 
 ## 最終審查另外列的 Minor（未修）
 
-- 里界 GeoJSON 600KB 未壓縮（`routes.py` 的 `/area/boundaries`；規格寫的 gzip 約 130KB 尚未實現）；快取一天，影響有限。可預先 gzip 或掛 GZipMiddleware。
+- 里界 GeoJSON 600KB 未壓縮（`routes.py` 的 `/area/boundaries`；規格寫的 gzip 約 130KB 尚未實現）；快取一天，影響有限。2026-10-12 正式站實測 605,552 bytes、無 `content-encoding`；**後端掛 GZipMiddleware 沒用**：瀏覽器走 web 的同源代理（`web/server/routes/api/website/v1/[...].ts` 的 h3 `proxyRequest`），上游 fetch 會自動解壓、再拿掉 `content-encoding`，送到瀏覽器的還是原文。要壓縮得在代理那層做（會影響所有 API 回應，另開一件做）。後台 JS／CSS 由 Nitro 預壓 br，不受影響。
 - `tests/test_geo_loop.py` 把 `run_geo_sync` 換成假的，「同步期間不佔交易」沒有驗到真同步；`sleep(0.3)` 期望至少兩次呼叫，負載高時有輕微 flaky 風險。
 - 部署說明「回滾再上線」的清除 SQL：說明寫「規則同 retention.py」略誇大，實際只清還留著里或距離的列；「啟用前先補」那句沒再提醒不帶參數的 `geo-sync` 會連帶做首次約 100MB 的門牌下載（前文有寫）。
 - 規格 §14.1 寫「共 247 個測試」，修正後已多約 20 個。
 - 既有問題（非本分支引入）：「義華路二十之一號」解成 number=1；「六十八號之一」之號不認中文數字；「一百零八巷」之類具名巷對不到門牌表只能退到街路層級。
+
+## 2026-10-12 已處理（`feature/admissions-area-locate-20261012`）
+
+- 地圖打開就定位在分校：視野框住目前的半徑圈、換半徑跟著縮放；本校沒座標時框住校址所在的行政區（`campus.district`），不再是半個南台灣。
+- 狀態列與幼兒園清單的「尚未匯入」文案改寫（見規格 9.2、9.5）。
+- 手機里排行／行政區排行的「查看明細」（C12）。
+- 五校已發布校址以 115 年 10 月真實門牌比對全部 `exact`；正式站 Postgres volume 1133MB／50GB（10-12 `railway volume list`），開同步的空間條件已滿足。
 
 ## 待業主／使用者決定
 

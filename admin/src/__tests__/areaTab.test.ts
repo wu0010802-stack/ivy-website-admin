@@ -62,7 +62,7 @@ describe('區域分析：讀取與三張表', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area?')[0]!))).toEqual({ campus_key: 'yihua', school_year: '115' })
     expect(pathsTo(get, '/admin/admissions/area/boundaries')).toHaveLength(1)
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月・幼兒園 10/08 更新')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新')
   })
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
@@ -102,23 +102,23 @@ describe('區域分析：讀取與三張表', () => {
 
   it('行政區、里（依參觀人數排）、距離三張表；表頭同其他子分頁；距離表沒有「查看明細」欄', async () => {
     const { wrapper } = await mountTab()
-    expect(block(wrapper, '行政區排行').findAll('thead th').map((th) => th.text())).toEqual(['#', '行政區', '參觀人數', '預繳人數', '預繳率', '操作'])
+    expect(block(wrapper, '行政區排行').findAll('thead th').map((th) => th.text())).toEqual(['#', '行政區', '參觀人數', '預繳人數', '預繳率', '可能範圍', '操作'])
     expect(bodyRows(block(wrapper, '行政區排行'))).toEqual([
-      ['1', '三民區', '5', '2', '40.0%', '查看明細'],
-      ['2', '鼓山區', '1', '0', '0.0%', '查看明細'],
+      ['1', '三民區', '5', '2', '40.0%', '17–47%', '查看明細'],
+      ['2', '鼓山區', '1', '0', '0.0%', '10–42%', '查看明細'],
     ])
     expect(bodyRows(block(wrapper, '里排行'))).toEqual([
-      ['1', '三民區本揚里', '3', '1', '33.3%', '查看明細'],
-      ['2', '三民區寶業里', '1', '1', '100.0%', '查看明細'],
-      ['3', '鼓山區龍子里', '1', '0', '0.0%', '查看明細'],
+      ['1', '三民區本揚里', '3', '1', '33.3%', '14–45%', '查看明細'],
+      ['2', '三民區寶業里', '1', '1', '100.0%', '17–53%', '查看明細'],
+      ['3', '鼓山區龍子里', '1', '0', '0.0%', '10–42%', '查看明細'],
     ])
-    expect(block(wrapper, '距離分布').findAll('thead th').map((th) => th.text())).toEqual(['距本校', '參觀人數', '預繳人數', '預繳率'])
+    expect(block(wrapper, '距離分布').findAll('thead th').map((th) => th.text())).toEqual(['距本校', '參觀人數', '預繳人數', '預繳率', '可能範圍'])
     expect(bodyRows(block(wrapper, '距離分布'))).toEqual([
-      ['1 公里內', '4', '2', '50.0%'],
-      ['1–3 公里', '0', '0', '—'],
-      ['3–6 公里', '1', '0', '0.0%'],
-      ['6 公里以上', '0', '0', '—'],
-      ['無距離', '4', '0', '0.0%'],
+      ['1 公里內', '4', '2', '50.0%', '18–50%'],
+      ['1–3 公里', '0', '0', '—', '—'],
+      ['3–6 公里', '1', '0', '0.0%', '10–42%'],
+      ['6 公里以上', '0', '0', '—', '—'],
+      ['無距離', '4', '0', '0.0%', '8–34%'],
     ])
     expect(block(wrapper, '距離分布').find('tbody button').exists()).toBe(false)
   })
@@ -200,16 +200,15 @@ describe('區域分析：讀取與三張表', () => {
     await block(wrapper, '行政區排行').get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-行政區排行.csv')
-    expect(csv.slice(1).split('\r\n')[0]).toBe('#,行政區,參觀人數,預繳人數,預繳率')
+    expect(csv.slice(1).split('\r\n')[0]).toBe('#,行政區,參觀人數,預繳人數,預繳率,可能範圍下限,可能範圍上限')
   })
 })
 
 describe('區域分析：三張表的版面', () => {
-  // jsdom 沒有排版，這裡只守住規則本身；實際寬度在真瀏覽器量過（1440 螢幕、側欄之外約 1124px）：
-  // 里排行加「查看明細」欄約 490px、行政區排行約 460px，一欄至少 32rem 才不會把欄擠出表框。
-  it('桌機自動換列：一欄至少 32rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
+  // 里排行加「可能範圍」「查看明細」欄 1440 實測約 562px，一欄至少 36rem 才不會把欄擠出表框（2026-10-12）。
+  it('桌機自動換列：一欄至少 36rem、窄螢幕靠 min(100%, …) 變單欄，不再寫死 300px', () => {
     const rule = /\.area-tables \{([^}]*)\}/.exec(areaTabSource)![1]!
-    expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr))')
+    expect(rule).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr))')
     expect(rule).not.toContain('300px')
   })
 })
@@ -218,15 +217,15 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
   it('門牌資料還沒匯入：狀態列寫出來；句號後的幼兒園更新日另成一段，不接「。・」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園 10/08 更新'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
     expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
-  it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園資料尚未匯入」，不是整句消失', async () => {
+  it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園名單尚未匯入」，不是整句消失', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月・幼兒園資料尚未匯入')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入')
   })
 
   it('門牌與幼兒園資料都還沒匯入：兩句各自成段，不接「。・」', async () => {
@@ -234,7 +233,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
       data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null, kindergartens_synced_at: null },
     })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，匯入後會自動比對。', '幼兒園資料尚未匯入'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
     expect(wrapper.get('.area-status').text()).not.toContain('・')
   })

@@ -36,6 +36,8 @@ const toggleFlip = (key: string) => { flipped.value = { ...flipped.value, [key]:
 const artActive = ref(-1)
 const lightbox = ref<HTMLDialogElement | null>(null)
 const lightboxIndex = ref(0)
+// 點背景關閉（2026-10-12，比照首頁活動對話框）：對話框沒有內距，點到 dialog 本身就是點到背景。
+const closeLightboxOnBackdrop = (e: MouseEvent) => { if (e.target === lightbox.value) lightbox.value?.close() }
 const openArt = (i: number) => {
   lightboxIndex.value = i
   lightbox.value?.showModal()
@@ -113,17 +115,19 @@ onMounted(async () => {
   root.value.classList.add('is-live')
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
   // 時間軸：進到視窗附近才載入（紙偶、蠟筆線、立體卡片、校徽）
-  const lazy = (el: HTMLElement | null, load: () => Promise<() => void>) => {
-    if (!el) return
+  const lazy = (el: HTMLElement | null | (HTMLElement | null)[], load: () => Promise<() => void>) => {
+    const els = (Array.isArray(el) ? el : [el]).filter((e): e is HTMLElement => Boolean(e))
+    if (!els.length) return
     const io = new IntersectionObserver(async (entries) => {
       if (!entries.some((e) => e.isIntersecting)) return
       io.disconnect()
       try { cleanups.push(await load()) } catch (e) { console.error(e) }
     }, { rootMargin: '600px 0px' })
-    io.observe(el)
+    els.forEach((e) => io.observe(e))
     cleanups.push(() => io.disconnect())
   }
-  lazy(track.value, async () => {
+  // 結尾舞台也算：直接落在結尾以下（#anni-cake、返回）時時間軸不在範圍內，舞台照樣要掛上（2026-10-12）。
+  lazy([track.value, root.value.querySelector<HTMLElement>('.anni-finale')], async () => {
     const { mountTrack } = await import('~/utils/anniversary/track')
     return mountTrack(track.value!, { reduce, onYear: (y) => { year.value = y }, onProgress: (y) => mapCard.value?.setYear(y) })
   })
@@ -300,7 +304,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
           <canvas ref="mosaicCanvas" aria-hidden="true" />
         </div>
       </div>
-      <dialog ref="lightbox" class="anni-lightbox" :aria-label="artThumbs[lightboxIndex]?.label">
+      <dialog ref="lightbox" class="anni-lightbox" :aria-label="artThumbs[lightboxIndex]?.label" @click="closeLightboxOnBackdrop">
         <form method="dialog">
           <img
             :src="responsiveImage(artThumbs[lightboxIndex]!.image).src"

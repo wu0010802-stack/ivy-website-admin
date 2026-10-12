@@ -162,13 +162,17 @@ async def test_stats_matches_ivy_semantics(db_session):
     # 年級 NULL（V6）顯示「未填寫」。同為 1 筆時依標籤字碼升序：幼(U+5E7C) < 未(U+672A)。
     assert result["by_grade"] == [
         {"grade": "小班", "visit": 5, "deposit": 3, "enrolled": 1,
-         "visit_to_deposit_rate": 60.0, "visit_to_enrolled_rate": 20.0, "deposit_to_enrolled_rate": 33.3},
+         "visit_to_deposit_rate": 60.0, "visit_to_enrolled_rate": 20.0, "deposit_to_enrolled_rate": 33.3,
+         "visit_to_deposit_range": {"low": 40.0, "high": 72.4}},
         {"grade": "中班", "visit": 2, "deposit": 2, "enrolled": 1,
-         "visit_to_deposit_rate": 100.0, "visit_to_enrolled_rate": 50.0, "deposit_to_enrolled_rate": 50.0},
+         "visit_to_deposit_rate": 100.0, "visit_to_enrolled_rate": 50.0, "deposit_to_enrolled_rate": 50.0,
+         "visit_to_deposit_range": {"low": 44.0, "high": 79.3}},
         {"grade": "幼幼班", "visit": 1, "deposit": 0, "enrolled": 0,
-         "visit_to_deposit_rate": 0.0, "visit_to_enrolled_rate": 0.0, "deposit_to_enrolled_rate": None},
+         "visit_to_deposit_rate": 0.0, "visit_to_enrolled_rate": 0.0, "deposit_to_enrolled_rate": None,
+         "visit_to_deposit_range": {"low": 30.6, "high": 68.6}},
         {"grade": "未填寫", "visit": 1, "deposit": 0, "enrolled": 0,
-         "visit_to_deposit_rate": 0.0, "visit_to_enrolled_rate": 0.0, "deposit_to_enrolled_rate": None},
+         "visit_to_deposit_rate": 0.0, "visit_to_enrolled_rate": 0.0, "deposit_to_enrolled_rate": None,
+         "visit_to_deposit_range": {"low": 30.6, "high": 68.6}},
     ]
     assert result["month_grade"] == {
         "114.12": {"中班": 1, "合計": 1},
@@ -179,10 +183,14 @@ async def test_stats_matches_ivy_semantics(db_session):
     # 來源：Facebook V1 V2 V4 V7 V9＝5（預繳 4）→ 80.0；親友介紹 V3 V8＝2（預繳 1）→ 50.0；
     # Google 評論 1、未填寫 1 同票同預繳 → 來源升序，'G'(0x47) 排在「未」前面。
     assert result["by_source"] == [
-        {"source": "Facebook", "visit": 5, "deposit": 4, "visit_to_deposit_rate": 80.0},
-        {"source": "親友介紹", "visit": 2, "deposit": 1, "visit_to_deposit_rate": 50.0},
-        {"source": "Google 評論", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0},
-        {"source": "未填寫", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0},
+        {"source": "Facebook", "visit": 5, "deposit": 4, "visit_to_deposit_rate": 80.0,
+         "visit_to_deposit_range": {"low": 46.9, "high": 78.4}},
+        {"source": "親友介紹", "visit": 2, "deposit": 1, "visit_to_deposit_rate": 50.0,
+         "visit_to_deposit_range": {"low": 35.5, "high": 71.8}},
+        {"source": "Google 評論", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+         "visit_to_deposit_range": {"low": 30.6, "high": 68.6}},
+        {"source": "未填寫", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+         "visit_to_deposit_range": {"low": 30.6, "high": 68.6}},
     ]
     assert result["top_source_names"] == ["Facebook", "親友介紹", "Google 評論", "未填寫"]
 
@@ -190,10 +198,13 @@ async def test_stats_matches_ivy_semantics(db_session):
     # 張老師 V3 V5 V9＝3（預繳 V3 V9）→ 66.7，中班 2／2、幼幼班 1／0；V6 帶參觀老師與年級都是 NULL。
     assert result["by_tour_guide"] == [
         {"tour_guide": "林老師", "visit": 5, "deposit": 3, "visit_to_deposit_rate": 60.0,
+         "visit_to_deposit_range": {"low": 40.0, "high": 72.4},
          "by_grade": {"小班": {"visit": 5, "deposit": 3}}},
         {"tour_guide": "張老師", "visit": 3, "deposit": 2, "visit_to_deposit_rate": 66.7,
+         "visit_to_deposit_range": {"low": 39.7, "high": 74.4},
          "by_grade": {"中班": {"visit": 2, "deposit": 2}, "幼幼班": {"visit": 1, "deposit": 0}}},
         {"tour_guide": "未填寫", "visit": 1, "deposit": 0, "visit_to_deposit_rate": 0.0,
+         "visit_to_deposit_range": {"low": 30.6, "high": 68.6},
          "by_grade": {"未填寫": {"visit": 1, "deposit": 0}}},
     ]
     # 介紹者 × 來源：欄是前 10 名來源，缺的補 0；total＝該介紹者全部來源合計。
@@ -220,15 +231,18 @@ async def test_stats_matches_ivy_semantics(db_session):
         "high_potential_count": 2, "overdue_followup_count": 3, "cold_count": 0, "high_potential_backlog_count": 2,
     }
 
-    # 警示：參觀轉預繳 delta －80.0 <= －10 → FUNNEL_DROP；高潛力積壓 2 < 5 不警示；
-    # 近 90 天來源（V1 V3–V8）：Facebook 3 筆預繳 2，占比 42.9% 但預繳率 66.7% 不低於整體 3/7＝42.9% → 不失衡。
-    assert result["alerts"] == [
-        {
-            "code": "FUNNEL_DROP", "level": "warning", "title": "本月漏斗轉換下滑",
-            "message": "115.09 參觀轉預繳 -80.0 個百分點，參觀轉註冊 -33.3 個百分點。",
-            "target_tab": "records", "target_filter": {"month": "115.09"},
-        },
-    ]
+    # 警示：R10 的訪視都是直接寫資料庫、沒有 deposit_added 事件 → 預繳過的 6 筆（V1 V2 V3 V7 V9＋退出的 V8）
+    # 都沒有預繳時間，比較組沒有預繳 → 不判斷預繳速度（2026-10-12 起不再看月比百分點）；
+    # 高潛力積壓 2 < 5 不警示；來源失衡同理不判斷。
+    assert result["alerts"] == []
+    assert result["deposit_pace"] == {
+        "evaluable": False, "reason": "insufficient_baseline", "month": "115.09", "visits": 3, "expected": None,
+        "observed": 0, "slow": False,
+    }
+    assert result["deposit_timing"] == {
+        "status": "insufficient", "visits": 3, "deposited": 0, "missing_time": 6, "min_events": 10,
+        "checkpoints": [], "half_by_day": None,
+    }
     assert result["top_action_queue"] == [
         {
             "code": "FOLLOW_HIGH_POTENTIAL", "title": "查看高風險未預繳",
@@ -317,7 +331,7 @@ async def test_multi_tour_guides_each_counted_once(db_session):
     assert cross["未填寫"]["total"] == 1
 
 
-async def test_alert_thresholds_and_source_imbalance(db_session):
+async def test_high_potential_backlog_alert(db_session):
     # 明華：社區傳單 6 筆都是高潛力、未預繳——4 筆 09-10 參觀、1 筆剛好參觀滿 14 天（09-17，<= 截止，算）、
     # 1 筆 09-18 參觀（不算）。逾期看參觀日不看建檔：6 筆都是 20 天前建檔；親友介紹 4 筆 10 天前、預繳 3。
     for _ in range(4):
@@ -334,51 +348,23 @@ async def test_alert_thresholds_and_source_imbalance(db_session):
 
     result = await stats.query_stats(db_session, "minghua", school_year=None, semester=None, reference_month=None, now=NOW)
 
-    # 積壓 4＋1＝5 >= 5 → 警示。近 90 天共 10 筆、預繳 3 → 整體 30.0%；
-    # 社區傳單 6/10＝60.0% >= 40 且預繳率 0.0% < 30.0% → 失衡；親友介紹 40.0% 但預繳率 75.0% → 不是。
-    # 上月 115.08 沒資料：上月比率 None → 月比 delta None → 不判定漏斗下滑。
-    assert result["month_over_month"]["visit_to_deposit_rate"] == {"current": 30.0, "previous": None, "delta": None}
+    # 積壓 4＋1＝5 >= 5 → 警示。來源失衡與漏斗下滑都要看預繳速度（2026-10-12），這裡的預繳沒有事件 → 不判斷，
+    # 失衡與漏斗的情境在 test_admissions_deposit_pace.py。
     assert result["alerts"] == [
         {
             "code": "HIGH_POTENTIAL_BACKLOG", "level": "danger", "title": "高潛力未預繳名單堆積",
             "message": "參觀超過 14 天仍未預繳的高潛力名單有 5 筆。",
             "target_tab": "nodeposit", "target_filter": {"priority": "high", "overdue_days": 14},
         },
-        {
-            "code": "SOURCE_IMBALANCE", "level": "info", "title": "來源結構失衡",
-            "message": "社區傳單 近 90 天占比 60.0% ，預繳率 0.0% 低於整體 30.0%。",
-            "target_tab": "source", "target_filter": {"source": "社區傳單"},
-        },
     ]
-    assert [action["code"] for action in result["top_action_queue"]] == [
-        "FOLLOW_HIGH_POTENTIAL", "REVIEW_CURRENT_MONTH", "REVIEW_SOURCE",
-    ]
-    assert result["top_action_queue"][2] == {
-        "code": "REVIEW_SOURCE", "title": "查看來源結構",
-        "description": "社區傳單 近 90 天占比 60.0%，預繳率低於整體，先看這個來源的後續追蹤。",
-        "target_tab": "source", "target_filter": {"source": "社區傳單"},
-    }
+    assert [action["code"] for action in result["top_action_queue"]] == ["FOLLOW_HIGH_POTENTIAL", "REVIEW_CURRENT_MONTH"]
 
     # 早一天算（台北 09-30）：09-17 參觀那筆變成「還沒逾期」→ 積壓 4 < 5，不警示；行動入口只要 > 0 就列。
     earlier = await stats.query_stats(
         db_session, "minghua", school_year=None, semester=None, reference_month=None, now=NOW - timedelta(days=1)
     )
-    assert [alert["code"] for alert in earlier["alerts"]] == ["SOURCE_IMBALANCE"]
+    assert earlier["alerts"] == []
     assert earlier["top_action_queue"][0]["description"] == "目前有 4 筆高潛力名單逾期未追。"
-
-
-async def test_funnel_drop_alert_at_exact_threshold(db_session):
-    # 崇德：115.08 兩筆預繳 1 → 50.0%；115.09 五筆預繳 2 → 40.0%；delta＝－10.0，<= －10 也要警示。
-    for has_deposit in (True, False):
-        add_visit(db_session, campus_key="chongde", visit_date=date(2026, 8, 5), has_deposit=has_deposit)
-    for has_deposit in (True, True, False, False, False):
-        add_visit(db_session, campus_key="chongde", visit_date=date(2026, 9, 5), has_deposit=has_deposit)
-    await db_session.commit()
-
-    result = await stats.query_stats(db_session, "chongde", school_year=115, semester=1, reference_month=None, now=NOW)
-
-    assert result["alerts"][0]["code"] == "FUNNEL_DROP"
-    assert result["alerts"][0]["message"] == "115.09 參觀轉預繳 -10.0 個百分點，參觀轉註冊 0.0 個百分點。"
 
 
 async def test_rolling_windows_cut_at_exact_instant_across_taipei_midnight(db_session):
@@ -417,7 +403,7 @@ async def test_reference_month_previous_month_and_ytd_cross_year(db_session):
     mom = default["month_over_month"]
     assert (mom["current_month"], mom["previous_month"]) == ("115.01", "114.12")
     assert mom["visit"] == {"current": 2, "previous": 1, "delta": 1}
-    # 1/2＝50.0 對 1/1＝100.0 → －50.0，觸發漏斗下滑。
+    # 1/2＝50.0 對 1/1＝100.0 → －50.0（月比照算；漏斗警示 2026-10-12 起改看預繳速度）。
     assert mom["visit_to_deposit_rate"] == {"current": 50.0, "previous": 100.0, "delta": -50.0}
     assert default["decision_summary"]["ytd"]["visit"] == 2  # 114.12 是去年，不算
 
@@ -477,6 +463,14 @@ async def test_stats_empty_campus(admin_client, db_session):
     assert result["no_deposit_summary"] == dict.fromkeys(
         ("high_potential_count", "overdue_followup_count", "cold_count", "high_potential_backlog_count"), 0
     )
+    assert result["deposit_timing"] == {
+        "status": "insufficient", "visits": 0, "deposited": 0, "missing_time": 0, "min_events": 10,
+        "checkpoints": [], "half_by_day": None,
+    }
+    assert result["deposit_pace"] == {
+        "evaluable": False, "reason": "no_reference_month", "month": None, "visits": 0, "expected": None,
+        "observed": 0, "slow": False,
+    }
 
     response = await admin_client.get(f"{API}/admin/admissions/stats?campus_key=renwu&school_year=115&semester=1")
     assert response.status_code == 200, response.text
@@ -558,7 +552,10 @@ async def test_compare_rows_and_seats(db_session):
     assert rows[0] == {
         "campus_key": "yihua", "visit": 4, "deposit": 3, "enrolled": 1, "transfer_term": 0,
         "effective_deposit": 3, "pending_deposit": 2,
-        "visit_to_deposit_rate": rate(75.0, 3, 4), "visit_to_enrolled_rate": rate(25.0, 1, 4),
+        "visit_to_deposit_rate": rate(75.0, 3, 4),
+        # 三校合計 3/5 → prior 4/7，義華 3/4 的範圍往合計收縮。
+        "visit_to_deposit_range": {"low": 45.5, "high": 78.2},
+        "visit_to_enrolled_rate": rate(25.0, 1, 4),
         "deposit_to_enrolled_rate": rate(33.3, 1, 3), "effective_to_enrolled_rate": rate(33.3, 1, 3),
         "target_seats": 10, "remaining_seats": 8, "grades_with_target": 2,
     }
@@ -594,7 +591,10 @@ async def test_compare_without_targets(db_session):
     assert rows[0] == {
         "campus_key": "minghua", "visit": 1, "deposit": 0, "enrolled": 0, "transfer_term": 0,
         "effective_deposit": 0, "pending_deposit": 0,
-        "visit_to_deposit_rate": rate(0.0, 0, 1), "visit_to_enrolled_rate": rate(0.0, 0, 1),
+        "visit_to_deposit_rate": rate(0.0, 0, 1),
+        # 明華 0/1、仁武 0/0 合計 0/1 → prior 1/3；範圍不是 0–0%（Review Focus 3）。
+        "visit_to_deposit_range": {"low": 13.9, "high": 48.5},
+        "visit_to_enrolled_rate": rate(0.0, 0, 1),
         "deposit_to_enrolled_rate": NO_RATE, "effective_to_enrolled_rate": NO_RATE,
         "target_seats": None, "remaining_seats": None, "grades_with_target": 0,
     }
@@ -602,6 +602,22 @@ async def test_compare_without_targets(db_session):
     assert rows[1]["visit"] == 0
     assert rows[1]["visit_to_deposit_rate"] == NO_RATE
     assert (rows[1]["target_seats"], rows[1]["remaining_seats"]) == (None, None)
+    assert rows[1]["visit_to_deposit_range"] is None
+
+
+async def test_compare_ranges(db_session):
+    """Review Focus 3：五校合計 0 筆預繳時，各校範圍不是 0–0%。"""
+    add_visit(db_session, campus_key="minghua", grade="中班")
+    add_visit(db_session, campus_key="renwu", grade="小班")
+    add_visit(db_session, campus_key="renwu", grade="小班")
+    await db_session.commit()
+
+    rows = (await stats.compare(db_session, ["minghua", "renwu"], school_year=115, semester=1, now=NOW))["rows"]
+
+    # 合計 0/3 → prior 1/5；0/1 與 0/2 的範圍下限 0 附近、上限 > 0。
+    assert rows[0]["visit_to_deposit_range"]["high"] > 0
+    assert rows[1]["visit_to_deposit_range"]["high"] > 0
+    assert rows[1]["visit_to_deposit_range"]["high"] < rows[0]["visit_to_deposit_range"]["high"]
 
 
 async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yihua_client, editor_client, db_session):

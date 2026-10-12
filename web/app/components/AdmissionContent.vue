@@ -213,7 +213,7 @@ onBeforeUnmount(() => {
             <p class="ap-eyebrow">常春藤幼兒園・入學資訊</p>
             <h1 id="admission-title">從參觀到開學，<br>一步一步來。</h1>
             <p v-if="admission.intro" class="ap-lede">{{ admission.intro }}</p>
-            <a class="ap-action" href="#classes">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
+            <a class="ap-action" href="#birthday-tool">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
             <p v-if="admission.notice" class="ap-notice">{{ admission.notice }}</p>
           </div>
         </div>
@@ -272,7 +272,8 @@ onBeforeUnmount(() => {
           <h2 id="classes-title">寶貝何時入學？</h2>
           <p>輸入寶貝生日，直接看每一學年讀哪一班。9 月 2 日到隔年 9 月 1 日出生為同一屆。</p>
         </div>
-        <div class="ap-datapage">
+        <!-- 首屏「查寶貝讀哪一班」直接落在生日欄（2026-10-12）：落在章節開頭時，手機選完生日答案在畫面外。 -->
+        <div id="birthday-tool" class="ap-datapage">
           <div class="ap-rosette-host" data-rosette="data" data-key="data" aria-hidden="true">
             <svg v-if="rosettes.data" class="ap-rosette" :viewBox="`0 0 ${rosettes.data.size} ${rosettes.data.size}`" focusable="false"><path v-for="(d, i) in rosettes.data.paths" :key="i" :d="d" /></svg>
           </div>

@@ -31,6 +31,8 @@
   font-family:var(--renv-round);color:var(--renv-ink);
   background:var(--renv-paper) radial-gradient(var(--renv-dot) 1.1px,transparent 1.5px) 13px 13px/26px 26px;
 }
+/* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
+.renv :where(p,li,figcaption){text-wrap:pretty}
 body:has(.renv){background:var(--ivy-ivory)}
 .renv-wrap{width:min(100% - 2*var(--renv-gutter),1200px);margin-inline:auto;position:relative}
 /* 權重歸零：各元件自己寫的 position（便條、膠帶、色紙是 absolute）要能蓋過 */

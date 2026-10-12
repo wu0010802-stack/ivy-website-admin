@@ -373,7 +373,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
       <ul class="abk-ribbons">
         <template v-for="(item, i) in milestones" :key="item.key">
-          <li v-if="item.campus"><NuxtLink to="/#campuses" :style="{ '--c': RIBBONS[i]!.color, '--len': `${RIBBONS[i]!.length}px` }"><b>{{ item.campus.name }}</b><small>{{ item.campus.district }}</small></NuxtLink></li>
+          <li v-if="item.campus"><NuxtLink :to="{ path: '/', query: { campus: item.campus.key }, hash: '#campuses' }" :style="{ '--c': RIBBONS[i]!.color, '--len': `${RIBBONS[i]!.length}px` }"><b>{{ item.campus.name }}</b><small>{{ item.campus.district }}</small></NuxtLink></li>
         </template>
       </ul>
     </section>

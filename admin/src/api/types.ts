@@ -551,6 +551,10 @@ export type AdmissionsStaff = components['schemas']['AdmissionsStaffOut']
 
 // 統計（C3）。AdmissionsStatsOut 在 C1 才進 OpenAPI，所以沒有跟 A9 的別名放在一起。
 export type AdmissionsStats = components['schemas']['AdmissionsStatsOut']
+// 預繳速度與可能範圍（2026-10-12 規格 §9）。
+export type AdmissionsRateRange = components['schemas']['AdmissionsRateRange']
+export type AdmissionsDepositTiming = components['schemas']['AdmissionsDepositTiming']
+export type AdmissionsDepositPace = components['schemas']['AdmissionsDepositPace']
 
 // 區域分析（2026-10-08 規格 8）。
 export type AdmissionsArea = components['schemas']['AdmissionsAreaOut']

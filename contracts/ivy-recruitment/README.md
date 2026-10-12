@@ -91,7 +91,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 5. 年級固定四個名稱（幼幼班、小班、中班、大班），存名稱不存 `class_grades.id`。
 6. 官網多寫 `created` 事件（`metadata_json.origin` 為 `manual` 或 `visit_request`）；園務不寫，匯出時略過。
 7. 狀態不允許的轉換回 422 `TRANSITION_NOT_ALLOWED`；園務回 400。
-8. 月比（本月對上月）任一邊是 `null`，差值也是 `null`，不判定「本月漏斗轉換下滑」；園務會算成 100.0－0，上月沒資料就誤報。
+8. 月比（本月對上月）任一邊是 `null`，差值也是 `null`；園務會算成 100.0－0，上月沒資料就誤報。「本月漏斗轉換下滑」警示 2026-10-12 起不再看月比，改由第 19 點判斷。
 9. 同票排序：園務的班別、接待人員、介紹者 × 來源、未預繳原因只有單鍵降序，同票順序看資料庫；官網一律加第二鍵「標籤字串升序（Python 字碼順序）」。來源分析照園務三鍵（參觀降、預繳降、來源升）。來源失衡同占比時取標籤升序的第一個（園務取 SQL 回傳順序）。
 10. 警示與行動入口的 `target_tab`：官網是 `records`（`target_filter.month`）／`nodeposit`／`source`，園務是 `detail`／`nodeposit`／`area`。行動入口「查看區域機會」（`AREA_OPPORTUNITY`）改成「查看來源結構」（`REVIEW_SOURCE`），只在來源失衡時出現：官網的區域分析（2026-10-08 起，見第 18 點）不做市場機會判讀，警示與行動入口都不指到區域分析。
 11. 未預繳：`/stats` 只回分布與數字（`no_deposit_reasons`、`no_deposit_priority`、`no_deposit_summary`）；名單是 `GET /no-deposit-records`（對應園務 `/no-deposit-analysis`），query 與 `summary` 口徑照抄，另篩入學學年學期，每列只回畫面要的欄位（不含電話、地址、生日）。母體同園務：未預繳且未退出（退預繳後殘留的高潛力原因不算）。排序：園務 `ORDER BY month DESC, seq_no` 是字串排序（同月「10」排在「2」前面，`99.12` 排在 `115.01` 前面），官網改成民國月份排序鍵降序、序號開頭數字升序（沒有數字的排在後面），再以 `created_at`、`id` 收尾。已匿名化的列不另標示（姓名欄已是匿名化文字）。
@@ -102,6 +102,13 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 16. 未預繳的「逾期」（預設 14 天、`overdue_days`）與「冷名單」（90 天）看**參觀日** `visit_date`：參觀日 <= 台北今天－N 天就算（2026-10-06 起）；園務看 `created_at`（建檔時間 <= 現在－N 天），補登舊訪視或預約隔很多天才按已到場時，逾期會從建檔那天重新起算。近 30／90 天、來源失衡的 90 天窗口仍照園務看 `created_at`。
 17. 訪視明細的 `has_deposit=false` 篩選排除已退出（`withdrawn_at` 有值）的列，和統計的未預繳同一批（2026-10-06 起）；園務明細的「未預繳」篩選只看 `has_deposit`。
 18. 區域分析（2026-10-08，`docs/specs/2026-10-08-admissions-area-design.md`）：`district` 由官網伺服器從**地址文字**解析出行政區名填寫（行政區字串，例「三民區」；舊高雄縣鄉鎮市如「仁武鄉」轉成新區名；門牌資料尚未匯入、只比對到區、里有歧義時也有值），表單仍不收；高雄市門牌坐標開放資料只用來補里與座標（到本校的距離），不決定行政區。外縣市地址（`outside_kaohsiung`）與解析不出高雄市區名的地址，官網的 `district` 為 NULL；園務由後端 regex 從地址切出「○○區」（未寫進欄位時查詢當下解析），外縣市地址也會切出該縣市的「○○區」。兩邊口徑不同（官網只認高雄市 38 區並處理舊高雄縣鄉鎮、外縣市留空；園務 regex 只認「○○區」字樣、不分縣市），併入時要擇一。官網另有 `recruitment_visit_geo`（里、比對等級、未定位原因、到本校直線距離），以及公開資料表 `geo_doorplates`、`geo_kindergartens`、`geo_dataset_status`，都不在轉移契約內。官網不做地址分析同意勾選，`geocoding_consent_at` 仍不填；家長地址不送任何外部服務（園務送 Google／TGOS）。匿名化時清掉里與距離、保留 `district`（同園務）。
+19. 預繳速度與可能範圍（2026-10-12，`docs/specs/2026-10-12-admissions-deposit-pace-design.md`），都是讀取時計算、不改資料表與匯出：
+    - `/stats` 新增 `deposit_timing`（參觀後第 7／14／30／60／90 天累積預繳率、`visits_reached`、`half_by_day`、`missing_time`；預繳少於 10 筆時 `status: insufficient`）與 `deposit_pace`（參考月份的應有／實際預繳數與 `slow`）。
+    - 預繳時間取最後一筆 `deposit_added` 事件（台北日期）；之後退出的也算預繳過。參觀日在未來、預繳過卻沒有 `deposit_added` 事件的訪視不列入。補登舊訪視會讓天數偏長。
+    - `FUNNEL_DROP`（標題改「本月預繳比過去慢」）：不再比月比的百分點、也不再比參觀轉註冊；改用其他月份（含參考月份之後的月份）的訪視算「參觀後第 N 天累積預繳率」（Kaplan–Meier），算出參考月份每位家長到今天應有的預繳數，實際明顯偏少（Poisson-binomial P ≤ 0.10 且少 2 筆以上）才報；其他月份的預繳少於 10 筆不判斷。訊息改寫為「{月份} 參觀的 {n} 位家長，依過去的預繳速度到今天應有約 {E} 筆預繳，實際預繳過 {O} 筆（含之後退出）。」園務照月比 −10 個百分點判斷，月初家長還沒到預繳時間就會誤報。
+    - `SOURCE_IMBALANCE`：占比 ≥ 40% 不變；判斷從「預繳率低於整體」改成「這個來源近 90 天的家長，依同一個 90 天窗口內其他來源的預繳速度明顯偏少」，新來源剛投放、或這一季大家都慢都不會誤報。訊息改寫為「{來源} 近 90 天占比 {x}%，依其他來源的預繳速度應有約 {E} 筆預繳，實際預繳過 {O} 筆（含之後退出）。」，行動入口 `REVIEW_SOURCE` 描述改為「{來源} 近 90 天占比 {x}%，預繳比其他來源慢，先看這個來源的後續追蹤。」（第 9、10 點的排序與 target 規則不變）。
+    - 班別、來源、帶參觀老師、行政區、里、距離帶、五校比較每列多 `visit_to_deposit_range`：Beta 收縮（事前強度 10、全體 (預繳+1)/(參觀+2)）的 80% 範圍。
+    - 算法集中在 `backend/app/admissions/estimation.py`（只用標準函式庫），併入時由園務決定要不要跟進。
 
 ## 漂移檢查（手動，不進 CI）
 

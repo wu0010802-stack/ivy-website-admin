@@ -149,6 +149,35 @@ describe('StatsDimensionTable「查看明細」欄（2026-10-08 區域分析）'
     wrapper.unmount()
   })
 
+  it('手機（≤720px）：名稱本身就是「查看明細」連結、不多一欄按鈕（按鈕欄在最右邊，窄螢幕一打開只露幾 px）', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const wrapper = mount(StatsDimensionTable, { props: { ...base, actionLabel: '查看明細' }, global: { plugins: [ElementPlus] } })
+      expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual(['來源', '參觀', '預繳率'])
+      const links = wrapper.findAll('tbody th button')
+      expect(links.map((item) => item.text())).toEqual(['=親友', '網路'])
+      expect(links[1]!.attributes('aria-label')).toBe('查看明細：網路')
+      expect(wrapper.findAll('tbody button')).toHaveLength(2)
+      await links[1]!.trigger('click')
+      expect(wrapper.emitted('action')).toEqual([[base.rows[1]]])
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('手機但沒給 actionLabel：名稱照舊是純文字', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    try {
+      const wrapper = mount(StatsDimensionTable, { props: base, global: { plugins: [ElementPlus] } })
+      expect(wrapper.findAll('tbody button')).toHaveLength(0)
+      expect(wrapper.findAll('tbody th').map((th) => th.text())).toEqual(['=親友', '網路'])
+      wrapper.unmount()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('匯出 CSV 不含按鈕欄', async () => {
     const wrapper = mount(StatsDimensionTable, {
       props: { ...base, actionLabel: '查看明細', exportFilename: '招生統計-行政區排行.csv' },
@@ -158,6 +187,46 @@ describe('StatsDimensionTable「查看明細」欄（2026-10-08 區域分析）'
     const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(csv.charCodeAt(0)).toBe(0xfeff)
     expect(csv.slice(1).split('\r\n')[0]).toBe('來源,參觀,預繳率')
+    wrapper.unmount()
+  })
+})
+
+describe('StatsDimensionTable 可能範圍欄（2026-10-12）', () => {
+  const props = {
+    title: '來源排名明細',
+    rows: [
+      { source: 'Facebook', visit: 5, rate: 80, range: { low: 46.9, high: 78.4 } },
+      { source: '未填寫', visit: 0, rate: null, range: null },
+    ],
+    columns: [
+      { key: 'source', label: '來源', sticky: true },
+      { key: 'visit', label: '參觀', kind: 'bar' as const },
+      { key: 'rate', label: '預繳率', kind: 'rate' as const },
+      { key: 'range', label: '可能範圍', kind: 'range' as const },
+    ],
+    rowKey: 'source',
+    emptyText: '尚無資料',
+    exportFilename: 'x.csv',
+  }
+
+  it('畫面寫整數範圍、靠右；沒有值寫「—」', () => {
+    const wrapper = mount(StatsDimensionTable, { props, global: { plugins: [ElementPlus] } })
+    const cells = wrapper.findAll('tbody tr').map((tr) => tr.findAll('th, td').map((cell) => cell.text()))
+    expect(cells).toEqual([['Facebook', '5', '80.0%', '47–78%'], ['未填寫', '0', '—', '—']])
+    expect(wrapper.findAll('thead th').map((th) => th.text())).toEqual(['來源', '參觀', '預繳率', '可能範圍'])
+    expect(wrapper.findAll('tbody tr')[0]!.findAll('td').at(-1)!.classes()).toContain('stats-table__number')
+    wrapper.unmount()
+  })
+
+  it('CSV 拆成下限、上限兩欄，數字照後端的值，沒有值寫空白', async () => {
+    const wrapper = mount(StatsDimensionTable, { props, global: { plugins: [ElementPlus] } })
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(csv.split('\r\n').slice(0, 3)).toEqual([
+      '\uFEFF來源,參觀,預繳率,可能範圍下限,可能範圍上限',
+      'Facebook,5,80.0%,46.9,78.4',
+      '未填寫,0,,,',
+    ])
     wrapper.unmount()
   })
 })

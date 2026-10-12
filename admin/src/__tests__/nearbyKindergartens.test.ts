@@ -151,7 +151,7 @@ describe('附近幼兒園清單', () => {
 
   it('幼兒園資料從未匯入（synced_at 為 null）：寫「尚未匯入」，不寫「沒有其他幼兒園」、沒有搜尋框與類型 chip、頁尾沒有「更新」', () => {
     const wrapper = mountList({ data: areaKindergartens([], { synced_at: null }), radiusKm: 3 })
-    expect(wrapper.text()).toContain('幼兒園資料尚未匯入。')
+    expect(wrapper.text()).toContain('幼兒園名單尚未匯入。')
     expect(wrapper.text()).not.toContain('沒有其他幼兒園')
     expect(wrapper.find('input[aria-label="搜尋幼兒園"]').exists()).toBe(false)
     expect(wrapper.find('.nearby__kind').exists()).toBe(false)
@@ -159,10 +159,10 @@ describe('附近幼兒園清單', () => {
     expect(wrapper.text()).not.toContain('更新')
   })
 
-  it('校區位置沒標出來時，仍是校區的原因（優先於「幼兒園資料尚未匯入」）', () => {
+  it('校區位置沒標出來時，仍是校區的原因（優先於「幼兒園名單尚未匯入」）', () => {
     const wrapper = mountList({ data: { ...unlocated('no_doorplate'), synced_at: null } })
     expect(wrapper.text()).toContain('本校地址比對不到門牌，無法列出附近幼兒園。')
-    expect(wrapper.text()).not.toContain('幼兒園資料尚未匯入')
+    expect(wrapper.text()).not.toContain('幼兒園名單尚未匯入')
   })
 
   it('半徑內一所都沒有：寫「沒有其他幼兒園」，不是空白列表', () => {

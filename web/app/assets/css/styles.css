@@ -136,6 +136,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:20px;padding-top:14px}
 .print-question{font-size:var(--fs-sm);font-weight:600;line-height:1.7;color:var(--green)}
 .print-answer{font-size:var(--fs-sm);line-height:1.95;margin-top:8px;color:var(--muted)}
+/* 拍立得背面與圖說避免孤字（2026-10-12；360／320 寬「適／應？」「下／午。」）；WebGL 貼圖版在 utils/cjkWrap.ts 同規則。 */
+.print-face p,.day-note{text-wrap:pretty}
 /* 無文字提示：整卡可點，翻面暗示是右下角被風掀起（.print-corner／WebGL），跟著紙一起翻。 */
 .print-turn{position:absolute;inset:0;z-index:5;display:block;width:100%;height:100%;padding:0;border:0;border-radius:0;background:transparent;color:var(--green);cursor:pointer;-webkit-tap-highlight-color:transparent}
 .print-turn:focus-visible{outline:3px solid var(--green);outline-offset:6px;transition:outline-color .25s}
@@ -178,6 +180,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .day-film-ui[data-covered="1"] .day-film-caption{opacity:0}
  .day-film-ui[data-covered="1"] .day-film-toggle{width:44px;height:44px;padding:0;justify-content:center;gap:0}
  .day-film-ui[data-covered="1"] .day-film-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ /* 收成圓鈕仍會蓋到右側卡片的時間戳，點下去是暫停影片、不是翻面（2026-10-12）：被蓋住時沉到卡片下面，讓卡片從上面滑過。
+    .day-film 是 z-index:auto、DOM 在前，圓鈕仍在影片上面。 */
+ .day-film-ui[data-covered="1"]{z-index:0}
 }
 @media(prefers-reduced-motion:reduce){
  .print-photo{filter:none;opacity:1;transition:none}

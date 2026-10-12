@@ -93,19 +93,31 @@ async def test_pending_before_doorplates_are_imported(db_session):
 
 
 async def test_campus_point(db_session):
-    assert (await campus_point(db_session, "yihua")).locate_error == "no_address"
+    missing = await campus_point(db_session, "yihua")
+    assert (missing.locate_error, missing.district) == ("no_address", None)
     await publish_campus_address(db_session, "yihua", "高雄市三民區義華路68號")
-    assert (await campus_point(db_session, "yihua")).locate_error == "pending"
+    # 門牌還沒匯入：沒有座標，但行政區照樣從校址文字解析（地圖先框住這個區）。
+    pending = await campus_point(db_session, "yihua")
+    assert (pending.lat, pending.lng, pending.locate_error, pending.district) == (None, None, "pending", "三民區")
 
     await load_geo_samples(db_session)
     point = await campus_point(db_session, "yihua")
     assert point.locate_error is None
+    assert point.district == "三民區"
     assert (point.lat, point.lng) == pytest.approx(YIHUA_POINT, abs=1e-6)
 
     await publish_campus_address(db_session, "renwu", "高雄市仁武區不存在路1號")
     points = await campus_points(db_session)
     assert set(points) == {"yihua", "minghua", "chongde", "international", "renwu"}
-    assert points["renwu"].locate_error == "no_doorplate"
+    assert (points["renwu"].locate_error, points["renwu"].district) == ("no_doorplate", "仁武區")
+
+
+async def test_campus_point_district_from_address_text(db_session):
+    """行政區只看地址文字：舊縣轄鄉鎮轉新區名；外縣市或解析不出高雄的區時是 None。"""
+    await publish_campus_address(db_session, "international", "833高雄縣鳥松鄉球場路59號")
+    assert (await campus_point(db_session, "international")).district == "鳥松區"
+    await publish_campus_address(db_session, "renwu", "臺南市東區大學路1號")
+    assert (await campus_point(db_session, "renwu")).district is None
 
 
 def test_distance_rounds_to_100m():
