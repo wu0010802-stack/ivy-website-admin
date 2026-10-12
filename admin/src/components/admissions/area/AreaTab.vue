@@ -142,6 +142,7 @@ const placeColumns = (label: string): StatsColumn[] => [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 const DISTRICT_COLUMNS = placeColumns('行政區')
 const VILLAGE_COLUMNS = placeColumns('里')
@@ -150,6 +151,7 @@ const DISTANCE_COLUMNS: StatsColumn[] = [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 
 const districtRows = computed(() => (area.value?.districts ?? []).map((row) => ({ ...row, place: row.district })))

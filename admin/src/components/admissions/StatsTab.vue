@@ -5,6 +5,7 @@ import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
+import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import { getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
@@ -166,12 +167,14 @@ const GRADE_COLUMNS: StatsColumn[] = [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 const SOURCE_COLUMNS: StatsColumn[] = [
   { key: 'source', label: '來源', sticky: true },
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 // 接待人員＝帶參觀老師（2026-10-06 起，原本看介紹者欄；和園務分歧）。一筆有多位老師時每位各算一次。
 const STAFF_COLUMNS: StatsColumn[] = [
@@ -179,6 +182,7 @@ const STAFF_COLUMNS: StatsColumn[] = [
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
+  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
 ]
 
 // 動態欄的 key 加前綴（g: 年級、s: 來源），來源或年級字面上叫 month／total 也不會撞到。
@@ -272,6 +276,10 @@ const noDepositKpis = computed(() => {
           統計範圍：{{ campusLabel(campusKey) }}・{{ scopeLabel }}（依入學學年學期）・資料時間
           <time class="num">{{ formatDateTime(stats.as_of) }}</time>
         </p>
+        <AnalyticsExplainer summary="怎麼看可能範圍與預繳速度" class="stats-explainer" data-test="stats-explainer">
+          <p>可能範圍：依筆數估計真實預繳率大概落在哪裡。筆數少時範圍寬，而且會往全校平均靠，所以 3 筆裡 3 筆不代表比全校好。</p>
+          <p>預繳速度：剛參觀的家長還沒到會預繳的時候，所以「本月預繳比過去慢」「來源結構失衡」改成依過去的速度，算到今天應該有幾筆預繳再比較。</p>
+        </AnalyticsExplainer>
       </div>
 
       <el-tabs v-loading="loading" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
@@ -454,6 +462,10 @@ const noDepositKpis = computed(() => {
 
 .stats-scope {
   margin: 0;
+}
+
+.stats-explainer {
+  flex-basis: 100%;
 }
 
 .stats-month {
