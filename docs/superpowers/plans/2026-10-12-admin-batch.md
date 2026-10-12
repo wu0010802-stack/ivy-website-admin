@@ -550,7 +550,50 @@ async def sync_from_visit_request(db, visit_request_id, old: dict, new: dict, *,
 
 - [ ] 開工前 `git fetch origin main`，看 `admissions-deposit-pace-20261012` 是否已併入；確認 `~/Repositories/ivy-website-wt/admissions-area-locate-20261012` 未提交的修改動到哪些檔（只讀），避開衝突。
 - [ ] 派 scout 對 `docs/superpowers/plans/2026-10-08-admissions-area-followups.md` 每一條，在目前程式查「仍在／已修」，輸出清單（檔案:行號）。不做「待業主」P1 與 C8「每次換校重建 Leaflet」。
-- [ ] 依結果把仍在的項目分成 D1 地址解析與匯入、D2 API 與同步、D3 後台畫面、D4 測試與文件，每組寫成本檔的子任務（失敗測試→實作→PASS→commit），逐條在 followups 文件勾掉。
+- [x] 依結果把仍在的項目分成 D1 地址解析與匯入、D2 API 與同步、D3 後台畫面、D4 測試與文件，每組寫成本檔的子任務（失敗測試→實作→PASS→commit），逐條在 followups 文件勾掉。
+
+D0 結果（2026-10-12，scout 對 origin/main `fb34d3a1` 逐條核對）：deposit-pace、area-locate 兩支已併入 main 並部署，worktree 已清；開工前先把 origin/main 合入本分支。
+不做（取捨，回報時說明）：B1 geo relationship 全域 selectin（已註解為取捨）、C6 多邊形不可鍵盤聚焦（表格／清單有等價路徑）、C11 品牌金與暖黃辨識度（需目視，閘門 D 截圖看）、文件類措辭（A2、A7 README、A9、C11、C12、Minor 規格數字）。
+
+### Task D1: 地址解析、匯入與比對（backend/app/admissions/geo/）
+
+- `address.py`：前導零號碼先去零再判長度（000068 → 68）；lane／alley 長度上限 16（超過回 None）；「二十之一號」（之後接中文數字）、「六十八號之一」（之號認中文數字）、中文數字巷（含百、零：一百零八巷 → 108）轉數字字串。
+- `doorplates.py`／`kindergartens.py`：解析列時檢查欄寬（門牌 street 40、village 16、lane／alley 16；幼兒園 pre_public_period 16、name 120、address 200、phone 40、reg_no 80、source_id 64——以 `geo/models.py` 實際欄寬為準）與座標（有限數、高雄範圍），不合格的列略過並計數，不讓整批 COPY 失敗；`import_doorplates` 的清理放 try/finally，清理失敗不蓋掉原例外；幼兒園版本 label 用台北日期。
+- `matcher.py`：nearby 改 `number.between(n-30, n+30)` 吃索引（排序仍用距離）；active_version 與 label 一次讀；同側等距跨里的排序加確定性鍵（village 名稱）再 id。
+- 測試：`test_geo_address.py`（上列每種寫法）、`test_geo_doorplates.py`／`test_geo_kindergartens.py`（超長列略過、座標超範圍略過、清理失敗保留原例外、label 台北日期、`test_load_geo_samples_is_repeatable` 補 label 斷言）、`test_geo_matcher.py`（between 結果與原本相同、refresh 後再斷言清空、併發測試補 address／district 未被覆蓋、忽略非使用中批次）、`test_geo_schema.py`（鎖 constraint 名稱集合、unlocated_reason 正反例、拆成三個測試、刪未用 import）。
+- commit：`fix(admissions): 區域分析地址解析與匯入補強（延後項目 D1）`
+
+### Task D2: 同步、API 與統計（sync.py、boundaries.py、geo_loop、routes、area.py、records.py、download.py、schemas）
+
+- `sync.py`：轉址只跟 https（event hook 檢查每一跳）；最新年度頁 HTTP 錯誤退回前一年度；`_stream_rows` 用 aclosing；兩處失敗 log 加 `exc_info=True`；`_exclusive` 解鎖能處理 CancelledError（shield 或 BaseException＋invalidate）；頁面 regex 不依賴屬性順序；檔名月份 lookbehind 排除英數；`_file_rows` 的檔案讀取不阻塞 event loop（to_thread 或分塊）。
+- `config.py`：`geo_auto_sync` 開啟時要求連線池能多借一條（pool_size ≥ 2 或 max_overflow ≥ 1），否則啟動報錯說明。
+- `boundaries.py`：`_village_codes` 遇重複 (區,里) 直接 raise。
+- `workers/geo_loop.py`：只要有一項不是 skipped 就記摘要；stop 逾時取消時 log warning。`main.py` 關閉時 geo 與媒體迴圈並行 stop（不疊加等待）。
+- `routes.py`：If-None-Match 支援 `W/`、逗號清單與 `*`；`radius_km` 非整數也回 INVALID_RADIUS。
+- `area.py`：`_data_status` 用已讀到的 label；本校 campus_point 只算一次；幼兒園排序鍵只留一份；REASON_ORDER 與 schemas 的 Literal 同一來源（`get_args`）。
+- `records.py`：district／village strip；只給 village 沒給 district 時 422（避免跨區同名）。`download.py`：區域稽核同時記 district 與 village。
+- `schemas.py`：MatchLevel／UnlocatedReason 與 geo 常數加 `get_args` 對照測試。
+- 測試：`test_geo_sync.py`（非 https 轉址被擋、年度頁 404 退回前一年、aclosing、CancelledError 解鎖）、`test_geo_boundaries.py`（ETag 比 sha1、跨區同名、重複鍵 raise）、`test_geo_loop.py`（不用假同步的 stop-during-sync、去掉 sleep(0.3) 改事件等待、摘要規則、cli.main 分派）、`conftest.py` 釘 `geo_auto_sync=False`、`test_admissions_area.py`（ETag 反例／W／*、304 帶 Cache-Control、893 改讀實際筆數、kindergartens 欄位完整比對、readonly 與不存在校區、不寫稽核、radius_km=abc、invariants 改用不依賴建構的資料、odd-rows 註解、address=NULL 且無 geo 列）、`test_admissions_visit_geo.py`（from-visit-request 的 geo、只動到期訪視、重跑冪等、synchronize_session、匯出 row_count、district／village 長度 422、區域＋學年學期組合）。
+- commit：`fix(admissions): 區域分析同步、API 與統計補強（延後項目 D2）`
+
+### Task D3: 後台區域分析畫面（admin/src/components/admissions/）
+
+- `areaFormat.ts`：999 m 顯示 `999 m`（≥ 995 m 改走 km 或保留整數公尺，規則寫清楚）；`shortDay` 改成不會跟其他兩個同名函式混淆的名字；geometry 型別收窄，拿掉 `AreaMap.vue` 的 `as unknown as`。
+- `style.css`：註解與本機構顏色一致（說明為何用品牌金）。
+- `RecordsTab.vue`：filterKey 用解析後的 area；地址欄 trim；兩顆同名「顯示全部」改成各自的文字。
+- `StatsDimensionTable.vue`：名稱缺值時 aria 不寫「查看明細：—」；`action` 事件型別泛型化，拿掉 `AreaTab.vue` 的 `as` 轉型；721px 以上操作欄的橫捲提示（可視提示或固定右側，二選一，量 1024／1440 不破版）。
+- `AreaMap.vue`：destroy 前 off `tileload`／`tileerror`；`remove()` 失敗後清掉容器 `_leaflet_id`；地圖容器加 aria 名稱；「完成」鈕補語境；`role=status` 改常駐容器。
+- `NearbyKindergartens.vue`：搜尋比對用短名＋NFKC＋小寫；新視窗連結加 sr-only「（另開新視窗）」；展開鈕 aria-controls 對應 dl id；搜尋或 chip 變動重設「顯示更多」；others=0 時不顯示搜尋與 chip。
+- `AreaTab.vue`：`.area-empty` 與 `.stats-empty` 外觀一致。
+- 測試：`areaFormat.test.ts`（999、移除多出的不變式）、`admissionsTestKit.ts`（座標與 distance_m 對齊、本機構 ≤ 50 m、`satisfies` 契約型別、approved_capacity null）、`areaFilter.test.ts`（過長值）、RecordsTab（匯出帶區域參數、「顯示全部」→網址）、`statsDimensionCsv.test.ts`（nameColumn 退路與空 columns 的 aria）、`areaMap.test.ts`（narrow 切換重畫、mockRestore 放 finally、off listener）、`nearbyKindergartens.test.ts`（實際互動取代 vm.$emit）、`areaTab.test.ts`（幼兒園失敗隔離、連續換半徑丟舊回應、門牌未匯入表格照常）、`@ts-expect-error` 反向型別測試。
+- commit：`fix(admin): 區域分析畫面延後項目（D3）`
+
+### Task D4: 里界壓縮與 stack e2e
+
+- 官網代理（`web/server/routes/api/website/v1/[...].ts`）：只對 `GET /admin/admissions/area/boundaries`，在客戶端 `Accept-Encoding` 含 gzip 時由 web 層壓縮上游回應（h3 代理不轉 accept-encoding，上游無法壓），帶 `Content-Encoding: gzip`、`Vary: Accept-Encoding`，保留 ETag／Cache-Control／304；壓縮結果依 ETag 快取一份（記憶體上限一筆）。其他路徑行為不變。測試：web 單元測試（壓縮、304 直通、不支援 gzip 時原樣、其他路徑不壓）。
+- `tests/stack/admissions-area.spec.ts`：圖磚攔截補正向斷言；拿掉 networkidle；`name==='390'` 拆成獨立 test；補未定位校區（用 API 或 psql 讓某校沒有座標）的 e2e；里界回應帶 `content-encoding: gzip`。
+- followups 文件逐條標註處理結果（已修／不做與理由）。
+- commit：`perf(web): 里界 GeoJSON 由官網代理壓縮；區域分析 e2e 補強（D4）`
 
 ### 閘門 D（主 session）
 
