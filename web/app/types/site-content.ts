@@ -383,6 +383,52 @@ export interface AboutPageContent {
   outroText: string
 }
 
+/**
+ * 常春藤環境頁（/environment）前三章在後台改得到的文字與照片（後端 EnvironmentPagePayload）。
+ * 第四章的場景照片與說明讀各校校園探索，這裡只有標題、段落與提示。便條位置與箭頭落點、太陽弧位置、
+ * 結尾三張卡、營養餐點書連結與各章目次小字的計數寫在 EnvironmentContent.vue，清單照索引對應。
+ * 標題用 \n 換行；照片沒換（沒有 photo）時用元件內建的圖與內建說明。
+ */
+export interface EnvironmentPageContent {
+  heroTitle: string
+  /** 大標裡畫螢光的字；空字串＝不畫 */
+  heroHighlight: string
+  heroLede: string
+  /** 空字串＝不顯示 */
+  heroNotice: string
+  heroPhoto?: MediaImage
+  heroPhotoAlt?: string
+  heroCaption: string
+  /** 幼兒保育、校園環境、幼兒餐點、五所校園 */
+  chapterNames: string[]
+  careTitle: string
+  careLead: string
+  /** 五顆心，一顆一個詞 */
+  hearts: string[]
+  careText: string
+  carePhoto?: MediaImage
+  carePhotoAlt?: string
+  careCaption: string
+  /** 照片上的便條 */
+  carePhotoNote: string
+  careItems: ({ title: string; text: string } & PagePhoto)[]
+  spacesTitle: string
+  spacesText: string
+  /** 校園環境最上面的主打區（遊樂區） */
+  feature: { tag: string; title: string; text: string; note: string } & PagePhoto
+  trailHint: string
+  /** campusLabel：照片上的校名，空字串＝不標 */
+  spaces: ({ title: string; text: string; note: string; campusLabel: string } & PagePhoto)[]
+  mealsTitle: string
+  mealsText: string
+  mealsDayTitle: string
+  /** time 是 HH:MM，由早到晚 */
+  meals: { time: string; name: string; note: string; text: string }[]
+  tourTitle: string
+  tourText: string
+  tourHint: string
+}
+
 export interface SiteContent {
   schemaVersion: string
   isDemo: boolean
@@ -397,4 +443,5 @@ export interface SiteContent {
   privacyPolicy?: PrivacyPolicyContent | null
   curriculumPage: CurriculumPageContent
   aboutPage: AboutPageContent
+  environmentPage: EnvironmentPageContent
 }

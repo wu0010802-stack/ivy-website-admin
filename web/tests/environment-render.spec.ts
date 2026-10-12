@@ -29,7 +29,7 @@ async function renderMain(): Promise<string> {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-12T04:00:00Z'))
   try {
-    const app = createSSRApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses }) })
+    const app = createSSRApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page: site.environmentPage }) })
     app.component('NuxtLink', NuxtLink)
     return await renderToString(app)
   } finally {

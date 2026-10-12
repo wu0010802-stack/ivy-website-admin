@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
+import { environmentHeroAttrs } from '../app/utils/media-image'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
 import { clotheslineY, mealArcPoint } from '../app/utils/rough-sketch'
@@ -87,8 +88,10 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
     const attrs = environmentHeroImage()
     expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
     expect(attrs.srcset).toBeTruthy()
-    expect(component).toContain('const hero = environmentHeroImage()')
-    expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'environment') return environmentHeroImage()")
+    // 2026-10-12 首屏照片後台可換：<img> 與預載改走 environmentHeroAttrs（沒換照片時 ＝ environmentHeroImage()，見 environment-page-overlay.spec.ts）
+    expect(environmentHeroAttrs(site.environmentPage)).toEqual(attrs)
+    expect(component).toContain('environmentHeroAttrs(page)')
+    expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'environment') return environmentHeroAttrs(site.value.environmentPage)")
     expect(read('../app/assets/css/environment.css')).toMatch(/\.renv-hero-photo>img\{aspect-ratio:3\/2;/)
   })
 
@@ -183,8 +186,10 @@ describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/
     expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools, geo); return }')
   })
 
-  it('小路提示字跟著改成小腳印', () => {
-    expect(component).toContain('跟著小腳印，走一圈看看')
+  it('小路提示字跟著改成小腳印（2026-10-12 起提示字在 fixture 的 environmentPage，元件讀 page.trailHint）', () => {
+    expect(site.environmentPage.trailHint).toBe('跟著小腳印，走一圈看看')
+    expect(JSON.stringify(site.environmentPage)).not.toContain('跟著虛線')
+    expect(component).toContain('{{ page.trailHint }}')
     expect(component).not.toContain('跟著虛線')
   })
 

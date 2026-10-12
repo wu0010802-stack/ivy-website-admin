@@ -34,7 +34,8 @@ export const SHARED_LIVE_KINDS = [
   'admission_content',
   'privacy_policy',
   'curriculum_page',
-  'about_page'
+  'about_page',
+  'environment_page'
 ] as const
 export const CAMPUS_LIVE_KINDS = ['campus_profile', 'campus_tour', 'campus_news'] as const
 export type LiveKind = (typeof SHARED_LIVE_KINDS)[number] | (typeof CAMPUS_LIVE_KINDS)[number]

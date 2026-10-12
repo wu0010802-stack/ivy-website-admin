@@ -1,4 +1,4 @@
-import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CampusTestimonial, CurriculumPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
+import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CampusTestimonial, CurriculumPageContent, EnvironmentPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
@@ -253,6 +253,39 @@ export interface LiveAboutPage {
   outro_text: string
 }
 
+/** 後端 content/page_schemas.py 的 EnvironmentPagePayload */
+export interface LiveEnvironmentPage {
+  hero_title: string
+  hero_highlight?: string
+  hero_lede: string
+  hero_notice: string
+  hero_photo?: LiveMediaSlot | null
+  hero_photo_alt?: string
+  hero_caption: string
+  chapter_names: string[]
+  care_title: string
+  care_lead: string
+  hearts: string[]
+  care_text: string
+  care_photo?: LiveMediaSlot | null
+  care_photo_alt?: string
+  care_caption: string
+  care_photo_note: string
+  care_items: ({ title: string; text: string } & LivePagePhoto)[]
+  spaces_title: string
+  spaces_text: string
+  feature: { tag: string; title: string; text: string; note: string } & LivePagePhoto
+  trail_hint: string
+  spaces: ({ title: string; text: string; note: string; campus_label?: string } & LivePagePhoto)[]
+  meals_title: string
+  meals_text: string
+  meals_day_title: string
+  meals: { time: string; name: string; note: string; text: string }[]
+  tour_title: string
+  tour_text: string
+  tour_hint: string
+}
+
 export interface LiveAdmissionContent {
   notice: string
   intro: string
@@ -325,6 +358,7 @@ export interface ContentOverlay {
   privacy_policy?: LivePrivacyPolicy | null
   curriculum_page?: LiveCurriculumPage | null
   about_page?: LiveAboutPage | null
+  environment_page?: LiveEnvironmentPage | null
   // 以下每校各一份，key 是 campus_key（見後端 get_public_content /
   // useDraftPreview 對應處理，跟其餘扁平 kind 的形狀不同）。
   campus_profile?: Record<string, LiveCampusProfile> | null
@@ -549,6 +583,57 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
     hopePhotoAlt: hope.photoAlt,
     outroTitle: a.outro_title,
     outroText: a.outro_text
+  }
+}
+
+const MEAL_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
+
+function environmentPage(e: LiveEnvironmentPage, media: MediaInfoMap): EnvironmentPageContent {
+  assertCounts({ chapterNames: e.chapter_names, hearts: e.hearts, careItems: e.care_items, spaces: e.spaces, meals: e.meals }, PAGE_COUNTS.environment)
+  assertStrings(e, ['hero_title', 'hero_lede', 'hero_notice', 'hero_caption', 'care_title', 'care_lead', 'care_text', 'care_caption', 'care_photo_note', 'spaces_title', 'spaces_text', 'trail_hint', 'meals_title', 'meals_text', 'meals_day_title', 'tour_title', 'tour_text', 'tour_hint'], 'environment_page')
+  assertStrings(e.feature, ['tag', 'title', 'text', 'note'], 'feature')
+  assertItems(e.care_items, ['title', 'text'], 'care_items')
+  assertItems(e.spaces, ['title', 'text', 'note'], 'spaces')
+  assertItems(e.meals, ['time', 'name', 'note', 'text'], 'meals')
+  e.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
+  e.hearts.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`hearts[${i}] 應為字串`) })
+  // 餐點時間決定畫面順序（太陽弧位置照序號固定），不是 HH:MM 或沒由早到晚就整份退回內建，不要半套破版。
+  e.meals.forEach((m, i) => {
+    if (!MEAL_TIME.test(m.time)) throw new Error(`meals[${i}].time 應為 HH:MM`)
+    if (i > 0 && m.time <= e.meals[i - 1]!.time) throw new Error(`meals[${i}].time 應晚於上一餐`)
+  })
+  const hero = pagePhoto(e.hero_photo, e.hero_photo_alt, media)
+  const care = pagePhoto(e.care_photo, e.care_photo_alt, media)
+  return {
+    heroTitle: e.hero_title,
+    heroHighlight: typeof e.hero_highlight === 'string' ? e.hero_highlight : '',
+    heroLede: e.hero_lede,
+    heroNotice: e.hero_notice,
+    heroPhoto: hero.photo,
+    heroPhotoAlt: hero.photoAlt,
+    heroCaption: e.hero_caption,
+    chapterNames: [...e.chapter_names],
+    careTitle: e.care_title,
+    careLead: e.care_lead,
+    hearts: [...e.hearts],
+    careText: e.care_text,
+    carePhoto: care.photo,
+    carePhotoAlt: care.photoAlt,
+    careCaption: e.care_caption,
+    carePhotoNote: e.care_photo_note,
+    careItems: e.care_items.map((x) => ({ title: x.title, text: x.text, ...pagePhoto(x.photo, x.photo_alt, media) })),
+    spacesTitle: e.spaces_title,
+    spacesText: e.spaces_text,
+    feature: { tag: e.feature.tag, title: e.feature.title, text: e.feature.text, note: e.feature.note, ...pagePhoto(e.feature.photo, e.feature.photo_alt, media) },
+    trailHint: e.trail_hint,
+    spaces: e.spaces.map((x) => ({ title: x.title, text: x.text, note: x.note, campusLabel: typeof x.campus_label === 'string' ? x.campus_label : '', ...pagePhoto(x.photo, x.photo_alt, media) })),
+    mealsTitle: e.meals_title,
+    mealsText: e.meals_text,
+    mealsDayTitle: e.meals_day_title,
+    meals: e.meals.map((x) => ({ time: x.time, name: x.name, note: x.note, text: x.text })),
+    tourTitle: e.tour_title,
+    tourText: e.tour_text,
+    tourHint: e.tour_hint
   }
 }
 
@@ -820,6 +905,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   guard('about_page', () => {
     // 整份取代；項目數或格式不符時丟錯，guard 退回內建內容。
     if (overlay.about_page) next.aboutPage = aboutPage(overlay.about_page, media)
+  })
+
+  guard('environment_page', () => {
+    // 整份取代；項目數、時間順序或格式不符時丟錯，guard 退回內建內容。
+    if (overlay.environment_page) next.environmentPage = environmentPage(overlay.environment_page, media)
   })
 
   guard('campus_profile', () => {

@@ -24,11 +24,15 @@ export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
  * 單欄、最寬 560px。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
  */
 export const ENVIRONMENT_HERO_ASPECT = 3 / 2
+/** factor＝原圖寬高比 ÷ 3:2（至少 1）：橫幅被裁成相框時，要畫的寬度是框寬乘上它。 */
+export function environmentHeroSizes(factor: number) {
+  return `(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`
+}
 export function environmentHeroImage() {
   const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_IMAGE] : undefined
   const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
   const factor = Number(scale.toFixed(2))
-  return responsiveImage(ENVIRONMENT_HERO_IMAGE, `(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
+  return responsiveImage(ENVIRONMENT_HERO_IMAGE, environmentHeroSizes(factor))
 }
 
 /**

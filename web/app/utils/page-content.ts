@@ -1,12 +1,13 @@
 import { pickImage, type MediaImage } from './media-image'
 
-// 整頁內容（特色教學頁、關於常春藤頁）共用的小工具。後台的標題欄位用 \n 表示換行；
+// 整頁內容（特色教學頁、關於常春藤頁、常春藤環境頁）共用的小工具。後台的標題欄位用 \n 表示換行；
 // 照片版位沒換過就用元件寫死的內建圖與內建說明。
 
 /** 各清單固定的項目數（同後端 content/page_schemas.py）；已發布內容不符時官網退回內建內容。 */
 export const PAGE_COUNTS = {
   curriculum: { chapters: 4, years: 4, directions: 7, gallery: 8, daily: 5, beliefs: 5 },
-  about: { chapterNames: 4, milestones: 5, hopeQuotes: 2 }
+  about: { chapterNames: 4, milestones: 5, hopeQuotes: 2 },
+  environment: { chapterNames: 4, hearts: 5, careItems: 5, spaces: 6, meals: 5 }
 } as const
 
 export function assertCounts(lists: Record<string, unknown>, expected: Record<string, number>): void {
