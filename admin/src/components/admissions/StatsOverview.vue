@@ -57,7 +57,7 @@ const pace = computed(() => props.stats.deposit_pace)
 const paceText = computed(() => {
   const value = pace.value
   if (value.evaluable && value.expected !== null) {
-    return `依過去的預繳速度，到今天應有約 ${value.expected.toFixed(1)} 筆預繳，實際 ${value.observed} 筆。`
+    return `依過去的預繳速度，到今天應有約 ${value.expected.toFixed(1)} 筆預繳，實際預繳過 ${value.observed} 筆（含之後退出）。`
   }
   if (value.reason === 'insufficient_baseline') return `其他月份的預繳還不到 ${timing.value.min_events} 筆，先不比較預繳速度。`
   return ''
@@ -601,8 +601,13 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
     padding: 14px 16px;
   }
 
+  .pace__rows {
+    gap: 12px;
+  }
+
   .pace__row {
     grid-template-columns: 4.5em minmax(40px, 1fr) 4.5em;
+    row-gap: 2px;
   }
 
   .pace__reached {

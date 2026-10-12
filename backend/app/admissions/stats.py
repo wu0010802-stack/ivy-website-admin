@@ -17,7 +17,7 @@ _build_ytd_snapshot、_build_alerts、_build_action_queue、_find_source_imbalan
   GROUP BY coalesce(x, $2) 與 SELECT coalesce(x, $1) 會被判定成不同運算式。
 - 「本月漏斗轉換下滑」改判斷（2026-10-12，契約第 19 點）：不再比月比的百分點，改看本月家長依過去的預繳速度
   到今天應有幾筆預繳（deposit_pace.py）；也不再比參觀轉註冊。標題改「本月預繳比過去慢」。
-- 「來源結構失衡」改判斷（同上）：占比 ≥ 40% 不變，改拿這個來源和其他來源比預繳速度。
+- 「來源結構失衡」改判斷（同上）：占比 ≥ 40% 不變，改拿這個來源和同一個 90 天窗口內的其他來源比預繳速度。
 - 班別、來源、帶參觀老師每列加可能範圍 visit_to_deposit_range（estimation.rate_range）；回應多 deposit_timing、deposit_pace。
 """
 from __future__ import annotations
@@ -369,9 +369,9 @@ async def _no_deposit_summary(db: AsyncSession, filters: list[Any], now: datetim
 def _find_source_imbalance(
     visits: list[deposit_pace.PaceVisit], window_start: datetime, today: date
 ) -> dict[str, Any] | None:
-    """近 90 天（created_at）占比 >= 40% 的來源，預繳速度明顯比其他來源慢才算失衡（2026-10-12 規格 §6.3）。
-    占比照園務 shared.py:494-534 算；比較組是母體內其他來源的全部訪視（不限 90 天）。
-    兩個都失衡取占比高的，同占比取標籤升序第一個。"""
+    """近 90 天（created_at）占比 >= 40% 的來源，預繳速度明顯比同一個 90 天窗口內的其他來源慢才算失衡
+    （2026-10-12 規格 §6.3；比較組限同一窗口是最終審查裁定：不限時間會把「這一季大家都慢」說成「這個來源慢」）。
+    占比照園務 shared.py:494-534 算。兩個都失衡取占比高的，同占比取標籤升序第一個。"""
     window = [visit for visit in visits if visit.created_at >= window_start]
     if not window:
         return None
@@ -383,7 +383,7 @@ def _find_source_imbalance(
         share = round(len(groups[source]) / len(window) * 100, 1)
         if share < SOURCE_IMBALANCE_SHARE_THRESHOLD:
             continue
-        others = [visit for visit in visits if _label(visit.source, UNFILLED) != source]
+        others = [visit for visit in window if _label(visit.source, UNFILLED) != source]
         result = deposit_pace.pace_check(groups[source], others, today)
         if result.slow and (candidate is None or share > candidate["share"]):
             candidate = {"source": source, "share": share, "expected": result.expected, "observed": result.observed}
@@ -450,7 +450,7 @@ def _alerts(
             "title": "本月預繳比過去慢",
             "message": (
                 f"{reference_month} 參觀的 {funnel_pace['visits']} 位家長，依過去的預繳速度到今天應有約 "
-                f"{funnel_pace['expected']:.1f} 筆預繳，實際 {funnel_pace['observed']} 筆。"
+                f"{funnel_pace['expected']:.1f} 筆預繳，實際預繳過 {funnel_pace['observed']} 筆（含之後退出）。"
             ),
             "target_tab": "records",
             "target_filter": {"month": reference_month},
@@ -471,7 +471,7 @@ def _alerts(
             "title": "來源結構失衡",
             "message": (
                 f"{imbalance['source']} 近 90 天占比 {imbalance['share']:.1f}%，依其他來源的預繳速度應有約 "
-                f"{imbalance['expected']:.1f} 筆預繳，實際 {imbalance['observed']} 筆。"
+                f"{imbalance['expected']:.1f} 筆預繳，實際預繳過 {imbalance['observed']} 筆（含之後退出）。"
             ),
             "target_tab": "source",
             "target_filter": {"source": imbalance["source"]},

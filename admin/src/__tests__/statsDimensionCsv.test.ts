@@ -189,7 +189,7 @@ describe('StatsDimensionTable 可能範圍欄（2026-10-12）', () => {
     wrapper.unmount()
   })
 
-  it('CSV 拆成下限、上限兩欄，數字寫小數一位，沒有值寫空白', async () => {
+  it('CSV 拆成下限、上限兩欄，數字照後端的值，沒有值寫空白', async () => {
     const wrapper = mount(StatsDimensionTable, { props, global: { plugins: [ElementPlus] } })
     await wrapper.get('[data-test="stats-csv"]').trigger('click')
     const [, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!

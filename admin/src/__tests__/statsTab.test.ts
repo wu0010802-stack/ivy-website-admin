@@ -52,7 +52,7 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
     },
     alerts: [{
       code: 'FUNNEL_DROP', level: 'warning', title: '本月預繳比過去慢',
-      message: '115.09 參觀的 15 位家長，依過去的預繳速度到今天應有約 6.0 筆預繳，實際 1 筆。', target_tab: 'records', target_filter: { month: '115.09' },
+      message: '115.09 參觀的 15 位家長，依過去的預繳速度到今天應有約 6.0 筆預繳，實際預繳過 1 筆（含之後退出）。', target_tab: 'records', target_filter: { month: '115.09' },
     }],
     top_action_queue: [
       { code: 'FOLLOW_HIGH_POTENTIAL', title: '查看高風險未預繳', description: '目前有 2 筆高潛力名單逾期未追。',
@@ -233,7 +233,7 @@ describe('統計分頁：總覽', () => {
     expect(explainer.element.tagName).toBe('DETAILS')
     expect(explainer.attributes('open')).toBeUndefined()
     expect(explainer.get('summary').text()).toBe('怎麼看可能範圍與預繳速度')
-    expect(explainer.text()).toContain('3 筆裡 3 筆不代表比全校好')
+    expect(explainer.text()).toContain('3 筆裡 3 筆不代表比較好')
   })
 
   it('警示與行動入口：統計內的跳子分頁，「訪視明細」交給頁面切分頁並帶月份', async () => {
@@ -241,7 +241,7 @@ describe('統計分頁：總覽', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
     const alert = wrapper.get('.alert-item')
-    expect(alert.text().replace(/\s+/g, '')).toBe('中本月預繳比過去慢115.09參觀的15位家長，依過去的預繳速度到今天應有約6.0筆預繳，實際1筆。')
+    expect(alert.text().replace(/\s+/g, '')).toBe('中本月預繳比過去慢115.09參觀的15位家長，依過去的預繳速度到今天應有約6.0筆預繳，實際預繳過1筆（含之後退出）。')
     await alert.trigger('click')
     expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09' }]])
 
@@ -615,7 +615,7 @@ describe('統計總覽：預繳速度（2026-10-12）', () => {
     mockGet({ '/admin/admissions/stats': stats({ deposit_pace: slow }), [NO_DEPOSIT_PATH]: noDepositRecords })
     const first = (await mountWith(StatsTab, { props: props() })).wrapper
     const line = first.get('[data-test="deposit-pace"]')
-    expect(line.text()).toBe('依過去的預繳速度，到今天應有約 6.0 筆預繳，實際 1 筆。')
+    expect(line.text()).toBe('依過去的預繳速度，到今天應有約 6.0 筆預繳，實際預繳過 1 筆（含之後退出）。')
     expect(line.classes()).toContain('mom__pace--slow')
     cleanup()
 

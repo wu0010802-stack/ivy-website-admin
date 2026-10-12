@@ -277,8 +277,8 @@ const noDepositKpis = computed(() => {
           <time class="num">{{ formatDateTime(stats.as_of) }}</time>
         </p>
         <AnalyticsExplainer summary="怎麼看可能範圍與預繳速度" class="stats-explainer" data-test="stats-explainer">
-          <p>可能範圍：依筆數估計真實預繳率大概落在哪裡。筆數少時範圍寬，而且會往全校平均靠，所以 3 筆裡 3 筆不代表比全校好。</p>
-          <p>預繳速度：剛參觀的家長還沒到會預繳的時候，所以「本月預繳比過去慢」「來源結構失衡」改成依過去的速度，算到今天應該有幾筆預繳再比較。</p>
+          <p>可能範圍：依筆數估計真實預繳率大概落在哪裡。筆數少時範圍寬，而且會往這張表的全體平均靠，所以 3 筆裡 3 筆不代表比較好。</p>
+          <p>預繳速度：剛參觀的家長還沒到會預繳的時候，所以「本月預繳比過去慢」「來源結構失衡」是依過去的速度，算到今天應該有幾筆預繳再比較。</p>
         </AnalyticsExplainer>
       </div>
 
