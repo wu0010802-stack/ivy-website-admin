@@ -125,16 +125,24 @@ export interface Campus {
   /** 後台「分校介紹」填的 Google 地圖網址；沒有時用地址組成搜尋連結（utils/site-links.ts） */
   mapUrl?: string
   tourScenes: TourScene[]
-  /** 家長分享影片（2026-09-26，目前只有義華）；寫在 fixture，後台沒有這個欄位 */
+  /**
+   * 家長分享影片（關於頁第四章）。fixture 只有義華有內建清單；後台「分校資料」有發布
+   * testimonials 陣列時整組取代（[]＝這校不放），沒有（或 null）就維持這份內建清單。
+   */
   testimonials?: CampusTestimonial[]
 }
 
-/** 分校頁「家長分享」：YouTube 影片＋影片標題裡家長說的話。poster 是影片畫面（不用頻道封面）。 */
+/** 關於頁「家長怎麼說」：YouTube 影片＋影片標題裡家長說的話。poster 是影片畫面（不用頻道封面）。 */
 export interface CampusTestimonial {
   youtubeId: string
   quote: string
   speaker: string
+  /** 封面網址：後台選的素材 > 內建同一支影片的封面 > YouTube 縮圖 */
   poster: string
+  /** 後台選了封面素材時才有：srcset 與焦點用它，poster 則是原檔網址 */
+  posterMedia?: MediaImage
+  /** 後台填的封面說明；沒填就不帶（素材庫說明在 posterMedia.alt） */
+  posterAlt?: string
 }
 
 /** 消息結構化內文的一塊（後端 content/schemas.py 的 NewsBodyBlock），官網逐塊用固定元素顯示。 */

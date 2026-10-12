@@ -221,9 +221,9 @@ describe('立體書精修：翻頁的封面與明暗', () => {
 })
 
 describe('立體書精修：家長怎麼說', () => {
-  it('讀各校後台的 testimonials，最多四位；沒有資料時整章不出現', () => {
-    expect(component).toContain('campus.testimonials ?? []')
-    expect(component).toContain('.slice(0, 4)')
+  it('讀各校後台的 testimonials，五校輪流取最多四位（行為見 about-voices.spec.ts）；沒有資料時整章不出現', () => {
+    expect(component).toContain('pickVoices(props.campuses)')
+    expect(component).not.toContain('.slice(0, 4)')
     expect(template).toContain('<section v-if="voices.length" id="voices"')
   })
   it('按播放才插 youtube-nocookie；沒有 JS 時是連到 YouTube 的連結', () => {

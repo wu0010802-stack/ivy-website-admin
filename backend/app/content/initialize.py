@@ -77,6 +77,9 @@ def initial_payloads(data: dict) -> list[tuple[str, str | None, dict]]:
         profile = _copy_fields(campus, "campus_profile")
         for key in ("line", "instagram", "youtube"):
             profile[key] = profile[key] or ""
+        # fixture 的 testimonials 是官網內建的家長影片（camelCase、poster 是靜態圖路徑），
+        # 形狀和後台 payload 不同，也不該複製一份來同步：不匯入，None＝官網沿用內建。
+        profile.pop("testimonials", None)
         entries.append(("campus_profile", campus["key"], profile))
         # 校園探索場景還是待補樣板（非 list）的校區不匯入，官網繼續標示待補。
         if isinstance(campus["tourScenes"], list):

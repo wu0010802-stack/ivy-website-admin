@@ -1,4 +1,4 @@
-import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CurriculumPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
+import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CampusTestimonial, CurriculumPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
 import { newsMonth } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
@@ -287,6 +287,18 @@ export interface LiveCampusProfile {
   /** 2026-09-25 新增；之前存的版本沒有這兩欄。 */
   instagram?: string
   youtube?: string
+  /** 2026-10-12 新增：關於頁家長分享影片。陣列＝整組取代（[]＝這校不放）；沒有（或 null）＝沿用內建清單 */
+  testimonials?: LiveTestimonial[] | null
+}
+
+export interface LiveTestimonial {
+  /** YouTube 網址或 11 碼影片 ID；官網只取 ID */
+  youtube_url: string
+  quote: string
+  speaker: string
+  /** 空＝內建同一支影片的封面，再沒有就用 YouTube 縮圖 */
+  poster?: LiveMediaSlot | null
+  poster_alt?: string
 }
 
 export interface LiveTourScene {
@@ -382,6 +394,30 @@ export function homeFilms(films: LiveHomeFilm[], media: MediaInfoMap): HomeFilm[
       start: film.start ?? 0,
       end: film.end ?? null,
       poster: posterImage?.src ?? videoPosterUrl(film.video.media_id, media[film.video.media_id])
+    })
+  }
+  return out
+}
+
+/**
+ * 後台的家長分享影片 → 官網用的格式（整組取代該校的內建清單）。封面依序：後台選的素材、
+ * 內建清單裡同一支影片的封面（id 不分大小寫）、YouTube 縮圖。看不懂的影片網址整支略過。
+ */
+export function campusTestimonials(items: LiveTestimonial[], builtinPosters: Map<string, string>, media: MediaInfoMap): CampusTestimonial[] {
+  const out: CampusTestimonial[] = []
+  for (const item of items) {
+    const id = youtubeId(typeof item.youtube_url === 'string' ? item.youtube_url : '')
+    if (!id || typeof item.quote !== 'string' || typeof item.speaker !== 'string') continue
+    const posterImage = slotImage(item.poster, media)
+    // 說明：後台填的優先，沒填用素材庫的；都沒有就不帶（元件當裝飾圖）
+    const alt = item.poster_alt || posterImage?.alt || ''
+    out.push({
+      youtubeId: id,
+      quote: item.quote,
+      speaker: item.speaker,
+      poster: posterImage?.src ?? builtinPosters.get(id.toLowerCase()) ?? youtubeThumb(id),
+      ...(posterImage ? { posterMedia: posterImage } : {}),
+      ...(alt ? { posterAlt: alt } : {})
     })
   }
   return out
@@ -789,6 +825,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   guard('campus_profile', () => {
     if (overlay.campus_profile) {
       const profiles = overlay.campus_profile
+      // 內建家長影片的封面（各校合在一起，以影片 id 小寫查）：後台自訂的清單沒選封面、影片又是內建那幾支時沿用
+      const builtinPosters = new Map(content.campuses.flatMap((c) => (c.testimonials ?? []).map((t) => [t.youtubeId.toLowerCase(), t.poster] as const)))
       next.campuses = next.campuses.map((c) => {
         const profile = profiles[c.key]
         if (!profile) return c
@@ -804,6 +842,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
           instagram: profile.instagram === undefined ? c.instagram : profile.instagram || null,
           youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
+          // 陣列（含 []）整組取代；null／沒有這欄＝保留 fixture 的內建清單
+          ...(Array.isArray(profile.testimonials) ? { testimonials: campusTestimonials(profile.testimonials, builtinPosters, media) } : {}),
           ...campusMedia(c, profile, media)
         }
       })

@@ -1230,6 +1230,36 @@ def require_map_url(value: str) -> str:
     return candidate
 
 
+TESTIMONIALS_MAX = 4
+
+
+class TestimonialPayload(_ContentPayload):
+    """關於頁第四章「家長怎麼說」的一支家長分享影片（YouTube）。quote 是家長原話
+    （標題用它換行），speaker 是稱呼；poster 留空＝官網先找內建的同一支影片封面，
+    再沒有就用 YouTube 縮圖。"""
+
+    # 同 HomeFilmPayload：YouTube 網址或 11 碼影片 ID 都收，官網只取 ID。
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    youtube_url: str = Field(max_length=SITE_LINK_MAX_LENGTH)
+    quote: str = Field(min_length=1, max_length=40)
+    speaker: str = Field(min_length=1, max_length=20)
+    poster: MediaSlotPayload | None = None
+    poster_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
+
+    @field_validator("youtube_url")
+    @classmethod
+    def _youtube_url(cls, value: str) -> str:
+        if not youtube_id(value):
+            raise ValueError("看不懂的 YouTube 連結，請貼影片網址")
+        return value
+
+    @field_validator("youtube_url", "quote", "speaker", "poster_alt")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
 class CampusProfilePayload(_ContentPayload):
     """五校介紹。
 
@@ -1267,6 +1297,16 @@ class CampusProfilePayload(_ContentPayload):
     # 也照樣通過驗證（web 端遇到舊版本缺欄位時沿用 fixture，見 content-overlay.ts）。
     instagram: str = ""
     youtube: str = ""
+    # 2026-10-12 新增：關於頁「家長怎麼說」的家長分享影片。None＝沿用官網內建清單
+    # （目前只有義華）；[]＝這校不放；最多 4 支。官網五校輪流取（每校先取第 1 支……）。
+    testimonials: list[TestimonialPayload] | None = None
+
+    @field_validator("testimonials")
+    @classmethod
+    def _testimonials_bounded(cls, value: list[TestimonialPayload] | None) -> list[TestimonialPayload] | None:
+        if value is not None and len(value) > TESTIMONIALS_MAX:
+            raise ValueError(f"家長分享影片最多 {TESTIMONIALS_MAX} 支")
+        return value
 
     @field_validator("name", "district", "address", "phone", "intro", "description", "fb_note")
     @classmethod

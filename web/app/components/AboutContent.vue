@@ -14,15 +14,17 @@
 // 2026-10-01 只將右頁轉盤換成 AboutWholePerson 的 A2 六圈；沒有 JS 時書攤開、六圈顯示完成圖。
 // 2026-10-02 精修（design/about-refine-mockup-20261002/，使用者「先這樣實作」）：首屏放目次與第二張卡紙、章名改中文、
 // 右頁背面是章節封面、頁緣厚度跟著讀到哪裡變、紙條改成有站名的紙槽、紙房子加常春藤、結尾改成書底垂下的緞帶，
-// 並新增「家長怎麼說」：讀各校後台的 testimonials（目前只有義華），沒有資料時整章不出現。
+// 並新增「家長怎麼說」：讀各校後台的 testimonials（沒自訂的校沿用內建，目前內建只有義華），沒有資料時整章不出現。
+// 2026-10-12 起後台「分校資料」可自訂各校的家長影片，選片改成五校輪流取（見 utils/testimonials.ts）。
 // 首屏照片裡的長輩是創辦人（使用者 2026-10-02 確認；姓名未提供，頁面不寫名字）。
 // 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
 // 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。手機章名和卡紙不在同一個畫面，
 // 紀念章改到右頁上緣接縫。義華創校年份 1997（業主 2026-10-03 裁定）。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
-import { aboutHeroAttrs, pickImage } from '~/utils/media-image'
+import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
 import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
 import { youtubeEmbed } from '~/utils/filmCarousel'
+import { pickVoices } from '~/utils/testimonials'
 import type { AboutPopup } from '~/utils/about-popup'
 
 const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
@@ -78,10 +80,15 @@ const RIBBONS = [
   { color: 'var(--studio-orange)', length: 172 }
 ]
 
-// 家長怎麼說：各校後台的 testimonials，最多四位（右頁一張大卡紙＋後排三張）
-const voices = computed(() => props.campuses
-  .flatMap((campus) => (campus.testimonials ?? []).map((item: CampusTestimonial) => ({ ...item, campus })))
-  .slice(0, 4))
+// 家長怎麼說：各校的 testimonials（後台自訂，沒自訂的校用內建）五校輪流取，最多四位（右頁一張大卡紙＋後排三張）
+const voices = computed(() => pickVoices(props.campuses))
+// 封面：後台選的素材用它的 srcset 與焦點；內建靜態圖與 YouTube 縮圖只有網址（卡紙裡 16:9 裁切）
+const POSTER_SIZES = '(min-width: 900px) 480px, 90vw'
+function posterAttrs(item: CampusTestimonial) {
+  const image = item.posterMedia
+  if (!image) return { src: item.poster, width: 800, height: 450 }
+  return { ...mediaImageAttrs(image, POSTER_SIZES), width: 800, height: 450, ...(image.position ? { style: { objectPosition: image.position } } : {}) }
+}
 const voiceCampuses = computed(() => [...new Map(voices.value.map((v) => [v.campus.key, v.campus])).values()])
 // 標題用第一位家長的原話，在第一個逗號後換行
 const voiceTitle = computed(() => {
@@ -315,7 +322,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <p class="abk-cite">{{ voices[0]!.campus.name }}　{{ voices[0]!.speaker }}</p>
         <p class="abk-text">{{ voiceCampuses.map((c) => c.name).join('、') }}家長在學校 YouTube 頻道上的分享。點一句話，右頁就換成那位家長的影片。</p>
         <ol class="abk-voice-list">
-          <li v-for="(item, i) in voices" :key="item.youtubeId">
+          <li v-for="(item, i) in voices" :key="`${item.campus.key}-${i}`">
             <button type="button" :aria-pressed="i === pickedVoice" @click="pickVoice(i)"><q>{{ item.quote }}</q><small>{{ item.speaker }}<template v-if="voiceCampuses.length > 1"> · {{ item.campus.name }}</template></small></button>
           </li>
         </ol>
@@ -330,7 +337,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <div class="abk-face">
           <div class="abk-stage abk-theater">
             <div v-for="(back, k) in backVoices" :key="k" class="abk-pop is-thumb" data-pop data-back aria-hidden="true" :style="backStyle(k)" @click="pickVoice(back.index)">
-              <div class="abk-card"><img :src="back.item.poster" alt="" width="800" height="450" loading="lazy" decoding="async"><i>{{ back.item.speaker }}</i></div>
+              <div class="abk-card"><img v-bind="posterAttrs(back.item)" alt="" loading="lazy" decoding="async"><i>{{ back.item.speaker }}</i></div>
               <span class="abk-fold" />
             </div>
             <figure ref="tv" class="abk-pop is-tv" data-pop :style="{ '--x': '5%', '--y': '4%', '--w': '90%', '--c': 'var(--trail)', '--r': '-.6deg', '--z': 3 }">
@@ -341,7 +348,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
                     allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin"
                   />
                   <a v-else class="abk-play" :href="`https://www.youtube.com/watch?v=${voices[shownVoice]!.youtubeId}`" target="_blank" rel="noopener noreferrer" :aria-label="`播放${voices[shownVoice]!.speaker}的分享影片（YouTube）`" @click.prevent="playing = true">
-                    <img :src="voices[shownVoice]!.poster" alt="" width="800" height="450" loading="lazy" decoding="async">
+                    <img v-bind="posterAttrs(voices[shownVoice]!)" :alt="voices[shownVoice]!.posterAlt ?? ''" loading="lazy" decoding="async">
                     <span class="abk-play-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-play" /></svg></span>
                   </a>
                 </div>

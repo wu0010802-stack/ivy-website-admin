@@ -137,13 +137,16 @@ def _extract_day_media_refs(payload: dict) -> list[MediaRef]:
 
 
 def _extract_campus_profile_media_refs(payload: dict) -> list[MediaRef]:
-    return _refs(
-        [
-            _slot_ref(payload, "cover", "image"),
-            _slot_ref(payload, "line_art", "image"),
-            _slot_ref(payload, "line_art_colour", "image"),
-        ]
-    )
+    refs = [
+        _slot_ref(payload, "cover", "image"),
+        _slot_ref(payload, "line_art", "image"),
+        _slot_ref(payload, "line_art_colour", "image"),
+    ]
+    # 家長分享影片的自訂封面（路徑像 `testimonials[1].poster.media_id`）。
+    for i, item in enumerate(payload.get("testimonials") or []):
+        if isinstance(item, dict):
+            refs.append(_slot_ref(item, "poster", "image", f"testimonials[{i}].", item.get("speaker")))
+    return _refs(refs)
 
 
 def _extract_home_news_media_refs(payload: dict) -> list[MediaRef]:
