@@ -10,7 +10,7 @@
 | `dayMoments`（6 張拍立得卡） | `dayExperience.moments[]` | 欄位比照 key/time/label/tint/photo/alt/caption/title/story/question/answer 全數保留，`title` 保留原始 `\n` 換行 |
 | `faq(key)` | `campuses[].faq.items[]` | 函式回傳固定 4 題，第 3 題文字內插校名；fixture 對每校各展開一份（第 3 題已代入該校校名），並標 `template: "generic-4-item"` 註明本質是同一模板 |
 | `homepageNews`（IIFE 內 `articles`／`events`） | `news.articles[]` / `news.events[]` | 完整搬入，含 `sampleNote` 示意文字 |
-| `tourScenes`（義華校專屬三場景）＋ `scenesFor(key)` 對其他四校的通用產生邏輯 | `campuses.yihua.tourScenes[]`（逐場景逐熱點）；其餘四校 `tourScenes._generated: true` + `template`（模板＋插值規則） | 未把其他四校的「產生後」場景展開成假資料，避免看起來像是四校各自有專屬熱點文案——實際上 app.js 對非義華校是即時字串插值產生單一場景 |
+| `tourScenes`（義華校專屬三場景）＋ `scenesFor(key)` 對其他四校的通用產生邏輯 | `campuses[].tourScenes[]`（逐場景逐熱點，五校都是真場景） | 2026-09-19 抽取時，其他四校在原型裡是即時字串插值產生的單一通用場景，所以當時 fixture 只放模板、不展開成假資料。2026-09-26 起四校已換成機構站各校介紹頁的實景，共 11 個場景（明華 2、崇德 3、國際 3、仁武 3，`fd3428fe`），義華維持 3 個，fixture 不再有 `_generated`／`template` 欄位 |
 | `home()` 內 hero 文案 | `home.hero` | 標題拆成 before/punct/middle/growingWord 以還原 `<span class="growing-word">` 結構；影片來源 `HERO_VIDEO_SRC` 一併收錄 |
 | `home()` 內「關於常春藤」區塊 | `home.about` | 含 belief watermark（`關於`/`常春藤`）、SINCE 1997、完整內文、兩張照片與 caption |
 | `campusBoardSection()` | `home.campusBoard` | 僅收版位設定（首頁預設顯示義華校、五校切換順序），視覺是輪播程式邏輯，非逐校資料，故不重複展開 |

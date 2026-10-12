@@ -4,11 +4,11 @@
 
 | ID | 階段 | 驗收情境 | 狀態 | 證據 |
 |---|---|---|---|---|
-| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 通過（2026-09-26 更新） | 48 項 Playwright e2e（4 視口 × SSR 內容/舊路由）全過；`tests/stack/keyboard.spec.ts` 檢查官網與後台在 390／1440px 下 `scrollWidth ≤ clientWidth`，並涵蓋選單/膠囊/dialog 的 Tab／Enter／Escape／焦點返回；`tests/stack/visual.spec.ts` 對後台 5 個關鍵頁面建立像素級 `toHaveScreenshot`（macOS 基準，其他平台略過比對） |
-| A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 通過 | `artifacts/prototype-baseline/preview.html`（+ sha256）已備妥；Nuxt localhost 預覽見階段 A 小結；`/preview` 私有草稿殼（見 Task 8 小結）已用 Playwright 驗證未登入拒絕、登入後見草稿、公開站不洩漏 |
-| A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 通過 | `tests/e2e/nuxt-rendering.spec.ts`（五校＋首頁 SSR）、`tests/e2e/legacy-routes.spec.ts`（5 項舊 hash 轉址）皆過；未知校區與未知 visit key 均 404 |
-| A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，`tests/e2e/nuxt-rendering.spec.ts` 6 項通過 |
-| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 通過（2026-09-26 更新） | `web/public/`＋正式 build 輸出已人工檢查，只有素材與字型，無原始碼／env／design／versions／preview.html；**`tests/stack/hydration.spec.ts` 已建立系統性檢查**：對 10 個公開頁跑 production build 與 `nuxt dev` 兩種模式，斷言 console 沒有 hydration 訊息與 pageerror，並用竄改 SSR HTML 的方式驗證這個檢查真的抓得到 mismatch（不是空測試） |
+| A18 | A | 1440/1024/390/375px、鍵盤、降動態、無水平溢出 | 通過（2026-09-26 更新；2026-10-12 校對證據） | `playwright.config.ts` 設 1440／1024／390／375px 四個視口專案，`tests/e2e/` 各跑一輪（2026-09-26 全過 48 項；之後該目錄增為 23 項，2026-10-12 未重跑）；`tests/stack/keyboard.spec.ts` 檢查官網與後台在 390／1440px 下 `scrollWidth ≤ clientWidth`，並涵蓋選單／膠囊／dialog 的 Tab／Enter／Escape／焦點返回——所以「無水平溢出」的斷言只有 390 與 1440 兩個寬度，1024／375px 沒有；`tests/stack/visual.spec.ts` 對後台案件明細、各校預約方式、五校介紹、使用者、登入頁 5 個畫面做 `toHaveScreenshot`（`maxDiffPixelRatio` 0.01，macOS 基準，其他平台略過比對）；降動態：兩份 Playwright 設定預設 `reducedMotion: 'reduce'`。階段 A 小結（2026-09-19）當時標「部分、尚無像素回歸」，已被本列取代 |
+| A19 | A | 原型快照可離線開啟；新版 Nuxt localhost／授權預覽可用，fixture 不會真實提交 | 通過（2026-10-12 校對證據） | 原型快照：根目錄 `preview.html`（進版控，sha256 `95ce81fd…ab923`，與本機備份 `artifacts/prototype-baseline/preview.html`＋`.sha256` 相同，備份目錄已 gitignore）；Nuxt 本機預覽見階段 A 小結；私有草稿預覽 `/preview`（Task 8）：`tests/e2e/private-preview.spec.ts`（未登入拒絕看到草稿、回應一律 private/no-store＋noindex、登入後見草稿與橫幅、公開首頁看不到未發布草稿）、`web/tests/preview-headers.spec.ts`、`tests/stack/editor-live-preview.spec.ts`；正式環境禁用示範 fixture：`web/tests/published-site.spec.ts`「正式環境禁止 fixture，live 失敗維持 503，不回示範資料」。階段 A 小結當時標「部分」（私有登入草稿預覽屬 Task 8），已被本列取代 |
+| A21 | A | 五校正式路徑、直接開啟／刷新、前進後退、舊 hash 相容、未知校區 404 | 通過（2026-10-03 範圍改變；2026-10-12 校對證據） | 2026-10-03 官網拿掉各校分校資訊頁（`26eb29d7`），`/campuses` 與 `/campuses/**` 一律 301 回首頁（`web/nuxt.config.ts` routeRules），原本的「五校正式路徑」改驗「已移除路徑轉回首頁」；各校預約頁 `/visit/{校區}` 仍是校區路徑，未知校區在 `web/app/pages/visit/[key].vue` 丟 404。證據：`tests/e2e/public-site.spec.ts`「已移除的分校頁網址 301 轉回首頁」（`/campuses/minghua`、`/campuses/not-a-real-campus`）、`tests/e2e/nuxt-rendering.spec.ts`「已移除的分校頁轉回首頁」、`tests/e2e/legacy-routes.spec.ts`（5 項舊 hash，`#/yihua` 轉到 `/#campuses`、`#/visit/renwu` 轉到 `/visit/renwu`）、`web/tests/legacy-hash.spec.ts`（白名單與非白名單 hash 的轉址單元測試）、`tests/e2e/public-site.spec.ts`「/visit/renwu 直接進入…」（直接開啟預約頁）。沒有自動測試的部分：前進後退、`/visit/{未知校區}` 回 404 |
+| A22 | A | 主要內容在 SSR HTML，禁用 JS 仍可讀；不靠整頁 ClientOnly | 通過（2026-10-12 校對證據；範圍縮為首頁） | `tests/e2e/nuxt-rendering.spec.ts`「首頁停用 JS 仍可讀 hero 與關於文案」（`javaScriptEnabled:false`，斷言回應 200 且 `main` 非空）。五校分校頁 2026-10-03 拿掉後，停用 JS 的自動測試只剩首頁，/about、/admission、/curriculum、/environment、/visit/{校區} 沒有；另有 `tests/e2e/release-freshness.spec.ts` 用 `page.request.get('/')` 直接讀 SSR HTML 含新發布的首屏文案，`tests/stack/hydration.spec.ts` 逐頁確認 SSR 後 hydrate 無錯 |
+| A24 | A | 無 hydration mismatch，進出頁清理動畫／影片；私有資產與原始碼不被靜態服務暴露 | 通過（2026-09-26 更新；2026-10-12 校對證據） | `web/public/`＋正式 build 輸出已人工檢查（2026-09），只有素材與字型，無原始碼／env／design／versions／preview.html，目前沒有自動化的「原始碼／私有素材讀不到」邊界測試；**`tests/stack/hydration.spec.ts` 已建立系統性檢查**：對 8 個公開頁（首頁、特色教學、關於、常春藤環境、入學資訊、預約頁、`/visit/{校區}`、`/visit/manage`）跑 production build 與 `nuxt dev` 兩種模式，斷言 console 沒有 hydration 訊息與 pageerror，2026-09-26 建立時曾手動竄改 SSR HTML 驗證這個檢查抓得到 mismatch（這個驗證不在測試檔裡，之後沒有自動重驗）；/news、/anniversary、/privacy 不在清單內。階段 A 小結當時標「部分」，已被本列取代 |
 | A25 | A→B | 階段 A：缺字檢查報告完整 | 完成（2026-10-08 更新：`web/` 已改用完整 LINE Seed TW，缺字不再是限制，見 `operations.md`「已知限制」第一點） | `docs/website-admin/baseline.md` §字型缺字檢查 |
 | A01 | B | 現有首頁、五校、一天影片與照片卡、探索、消息、FAQ 欄位都有 editor | 通過（2026-09-25 更新；2026-10-08 FAQ 兩種 kind 刪除，官網早已不顯示） | ContentItem 已有 14 種 kind（2026-10-08 起扣掉 FAQ 兩種、另加入學資訊／特色教學／關於／隱私權政策等頁），涵蓋首頁、五校介紹、一天照片卡（含新增卡與刪卡）、校園探索（視覺化熱點編輯器，可排序）、各校消息與活動（結構化內文）、全站共用常見問題與各校常見問題（逐題啟用）、預約文案、頁尾／網站設定／主選單。影片／照片素材已接媒體庫（見 A04），仍留在 fixture、CMS 沒有對應欄位的只剩品牌名稱與 Logo（2026-09-19 核可鎖定）。詳見各批小結與 `backend/app/content/registry.py` |
 | A02 | B | 修改一校不影響另一校；role/scope 在 API 生效 | 通過 | `test_auth_scope.py`、`test_media.py`、`test_permission_table.py` 正負權限測試；2026-09-25 起改為 capability 表＋逐人授權（`booking.export`／`content.shared`），見 `docs/website-admin/operations.md`「權限」 |
@@ -27,18 +27,15 @@
 | A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 通過（2026-09-25／26 更新） | 消息／活動上下架（`test_home_news.py`）之外，**內容送審／核准／退回已完成**（過期待審版自動標記 `superseded`，送審通知可核准的人、核准或退回通知送審者）；**整份內容排程發布已完成**，到期時若官網已是更新版本會標成「已略過」而不蓋回舊內容，失敗或略過都通知排程者並列在總覽；全站 release 還原見 A03 |
 | A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過（2026-09-25 更新） | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資；成效漏斗新增 `visit_cancelled`（含原因）、日期區間、依來源／「從哪裡知道我們」分組；公開點擊事件改用 `event_id` 去重＋入口代碼白名單 |
 | A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過（2026-09-25／26 更新） | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練；**保存政策已改為後台可設定天數並持久化**（`retention_policies`，依結案時間起算，未結案案件一律不清），有清理紀錄與定期工作自動清理開關（兩個開關都要開才會自動跑） |
-| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-09-25／26 更新） | `tests/e2e/release-freshness.spec.ts` 真的發布一版新 revision，驗證新 HTTP 請求／重新整理／站內換頁都讀到新內容；CMS content kind 已擴充到 14 種（見 A01），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`）；`/preview` 走獨立 client-only 殼，SSR 不輸出任何管理端資料，`tests/stack/hydration.spec.ts`（2026-09-26 新增）用竄改 SSR HTML 驗證能抓到 mismatch，並對 10 個公開頁檢查 console 無 hydration 訊息；2026-09-29 起官網 SSR 有 3 秒程序內快取（`web/server/utils/published-site.ts` 的 `PUBLISHED_SITE_TTL_MS`），發布後最多 3 秒出現在官網，`release-freshness.spec.ts` 與 `tests/stack/content-flow.spec.ts` 改成在 TTL 內重新載入輪詢 |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-10-12 重寫；缺「hydrate 不重複讀取」的測試） | **已有**——(1) 新鮮度：`tests/e2e/release-freshness.spec.ts` 真的發布一版 `home_hero`，驗證新 HTTP 請求（在 3 秒快取 TTL 內輪詢）／重新整理／站內換頁都讀到新內容；`tests/stack/content-flow.spec.ts`（CI 跑的 stack 套件）驗證核准發布後 `/api/public-site` 在 TTL 內出現新內容；快取行為：`web/tests/published-site.spec.ts`（TTL 內共用、過期帶 `If-None-Match` 重新驗證、並發只打一次、失敗不快取、API 暫時失敗退回上一份）。CMS content kind 目前 15 種（見 A01 與 `backend/app/content/schemas.py` 開頭註解），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`），沒有逐 kind 的新鮮度測試。(2) 無跨 request 私密資料：`web/server/utils/published-site.ts` 的程序內快取只放已發布內容（API `/public/site` 不看 cookie）；`/preview` 走獨立 client-only 殼，`tests/e2e/private-preview.spec.ts` 與 `web/tests/preview-headers.spec.ts` 驗證未登入拒絕、private/no-store＋noindex、公開首頁看不到草稿。(3) hydration 不出錯：`tests/stack/hydration.spec.ts`（見 A24）。**還缺**——「hydrate 不重複讀取」：`usePublishedSite()` 用固定 key `published-site` 的 `useAsyncData` 讓 SSR payload 與 hydrate 共用，但 `tests/` 與 `web/tests/` 沒有任何測試計算瀏覽器首次載入時對 `/api/published-site` 的請求數，所以這一條只有程式設計、沒有驗證；補一支 stack e2e 記錄首次載入的請求、斷言 hydrate 後沒有再打 `/api/published-site`，即可改通過。另外 `release-freshness.spec.ts` 屬 `tests/e2e/`，CI 只跑 `npm run test:e2e:stack`，所以它不在 CI 內，2026-10-12 也未重跑 |
 
 ## 階段 A 小結（2026-09-19）
 
 | 項目 | 狀態 | 備註 |
 |---|---|---|
-| A18 四視口/鍵盤/降動態/無水平溢出 | 部分 | 48 項 Playwright e2e（4 視口 × SSR 內容/舊路由）全過；**尚未**建立 `toHaveScreenshot` 像素回歸測試（門檻 maxDiffPixelRatio 0.01），僅人工截圖比對 |
-| A19 原型快照離線可開 + Nuxt 預覽可用 | 部分 | `preview.html` 快照與 checksum 已備妥；Nuxt `npm run dev`/`start` 本機可用且已驗證；私有登入草稿預覽屬 Task 8（階段 C），此階段未做 |
-| A21 五校正式路徑/前進後退/舊 hash/未知 404 | 通過 | `/campuses/{key}` 五校皆可達；未知校區與未知 visit key 均 404；舊 hash 白名單轉址 5 項 e2e 全過 |
-| A22 SSR 主要內容禁用 JS 可讀 | 通過 | `javaScriptEnabled:false` 情境下五校＋首頁 heading/內文可讀，6 項 e2e 通過 |
-| A24 無 hydration mismatch / 私有資產不外洩 | 部分 | dev/start log 未見 hydration 警告；**未做**「原始碼/私有素材不可被靜態服務讀到」的邊界測試 |
 | A25 缺字檢查（階段 A 範圍） | 通過 | 見上方「字型缺字檢查」，已知限制已記錄，未默默退回系統字（沿用子集現況） |
+
+> 2026-10-12 合併：A18、A19、A21、A22、A24 在階段 A 結束時（2026-09-19）為「部分」或僅有 e2e 的結論，之後都已補齊或改變範圍；這五項只保留頂部總表各一列，不在此重複。
 
 **原型凍結點**：commit `63a0c05`（2026-09-19，`feat(website-admin): 階段 A - Nuxt 官網骨架、後台殼、獨立 API 基礎`）。根目錄 vanilla 檔案（`index.html`/`app.js`/`styles.css`/`studio.css`/`preview.html`）未修改。
 
@@ -266,7 +263,7 @@ npx playwright test --project=desktop-1440                       # 27 passed
 > 2026-10-05 補註：校園探索改由總部管理，權限比照共用內容（`hq_managed`，分校帳號不能改），見 DESIGN.md「校園探索改由總部管理」。
 
 - **admin 視覺化編輯器**（`CampusTourView.vue`）：選校區→選/新增場景→在圖片上點擊新增熱點、拖曳圖釘調整位置、編輯熱點名稱/說明/提問。圖片預覽讀官網現有素材（尚未接媒體庫，新增 `admin/src/config.ts` 的 `WEBSITE_ASSET_BASE` 指向 Nuxt 官網的靜態資產，本機預設 `http://127.0.0.1:3000`，可用 `VITE_WEBSITE_ASSET_BASE` 覆蓋）。
-- **web 端疊資料**：`applyContentOverlay` 新增 `campus_tour`，整組取代該校 `tourScenes`——包含把目前 4 校（明華/崇德/國際/仁武）仍在用的 `GeneratedTourScenes` 通用佔位樣板換成真正逐校撰寫的內容；義華校原本的 3 場景手寫內容也可以被後台覆蓋（一次整組取代，不是逐場景合併）。
+- **web 端疊資料**：`applyContentOverlay` 新增 `campus_tour`，整組取代該校 `tourScenes`——當時（2026-09-21）4 校（明華／崇德／國際／仁武）仍用 `GeneratedTourScenes` 通用佔位樣板，這個機制讓它們可以換成逐校撰寫的內容（2026-09-26 起四校 fixture 已是各自的實景場景，共 11 個，見 `fd3428fe`，不再用通用樣板）；義華校原本的 3 場景手寫內容也可以被後台覆蓋（一次整組取代，不是逐場景合併）。
 - **驗證**：用 Playwright 對真實 backend+admin+production build 跑過完整流程：在圖片上點擊新增熱點，驗證回存座標與點擊位置吻合；拖曳圖釘重新定位，驗證座標正確更新（例如拖到畫面右上角後回存 x=80.0, y=14.8，跟拖曳終點一致）；儲存草稿→發布→公開頁面（義華校）點擊圖釘，驗證顯示的標題/說明/提問正確對應剛剛編輯的內容。backend 新增 2 項 pytest（`test_campus_tour_scene_and_spot_bounds` 涵蓋場景數量上限、重複 key、熱點數量上限、x/y 超出範圍四種情境；`test_campus_tour_isolated_per_campus` 驗證兩校資料不互相覆蓋），累計 **112 項全過**；web 新增 1 項單元測試，累計 **34 項**；既有 **27 項 e2e 全過**。測試資料驗證後已還原成義華校原本的 3 場景真實內容，測試帳號已刪除。
 
 **已知限制**：場景圖片欄位仍是素材代號字串（例如 `campus`），管理者需要知道官網目前有哪些素材代號才能正確填寫；跟其他 kind 一樣尚未接媒體庫做「選圖」。
@@ -495,9 +492,9 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | 存檔錯誤定位到哪一則哪一欄 | 已於 10-02 第七輪完成 | `ContentEditor.vue:415-420,589-599` |
 | 兩人同時處理（最後處理、衝突重讀、切回更新、中文訊息） | 通過 | `uxRound8Cases.test.ts`、`test_visit_workflow.py` |
 | 我承辦的未結案、承辦人已停用 | 通過 | `uxRound8Cases.test.ts`、`test_dashboard_my_cases.py` |
-| 登入逾時接續、12 小時前提醒 | 通過（單元測試；兩分頁換帳號實機未驗證） | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py` |
+| 登入逾時接續、12 小時前提醒 | 通過（單元測試）；兩分頁換帳號的已知限制已修（2026-10-12），實機雙分頁待驗 | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py`；換帳號修正（`1fdc209a`）：被登出導來時先記住原帳號，登入頁比對 `/auth/me`，不同人就停在登入頁、不拿對方的 session，同一人才恢復並導回原頁，測試 `authGuardSwitchUser.test.ts` |
 
-未驗證：Safari／iOS 實機；正式站（未部署）。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
+未驗證：Safari／iOS 實機；正式站（未部署）；兩分頁換帳號只有單元測試，沒有真的開兩個瀏覽器分頁操作過。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
 
 ## 總管理者寄重設密碼連結（2026-10-04 實作，10-04 已部署 main `d559cae`）
 

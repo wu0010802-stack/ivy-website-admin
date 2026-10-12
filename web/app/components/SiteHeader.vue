@@ -8,10 +8,11 @@ const props = defineProps<{ content: SiteContent }>()
 
 const route = useRoute()
 
-// 首頁、入學資訊頁（2026-09-24 改首頁版型）、特色教學頁與關於常春藤頁（2026-09-26，同入學頁版型）任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
-// 分校頁與預約頁只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：
-// 手機內頁頁首原本一直佔 78px）。其他桌機內頁維持展開頁首與 `.navigation`。
-// 常春藤環境頁 2026-09-28 改成淺色紙底首屏（手繪版），不再是深色照片 hero，所以移出名單、跟分校頁一樣。
+// 首頁、入學資訊頁（2026-09-24 改首頁版型）、特色教學頁與關於常春藤頁（2026-09-26，同入學頁版型）、
+// 30 週年頁（2026-10-04）這五個頁面，任何寬度捲過 COMPACT_AT 都收成浮動膠囊；
+// 其他頁面（常春藤環境、最新消息、預約、隱私權政策等）桌機維持展開頁首與 `.navigation`，
+// 只在 900px 以下（手機／平板）跟進，同一張膠囊選單卡（2026-09-23：手機內頁頁首原本一直佔 78px）。
+// 常春藤環境頁 2026-09-28 改成淺色紙底首屏（手繪版），不再是深色照片 hero，所以不在名單內。
 const PILL_PAGES = ['/', '/about', '/admission', '/curriculum', '/anniversary']
 const isNarrow = ref(false)
 const usePanel = computed(() => PILL_PAGES.includes(route.path) || isNarrow.value)
