@@ -90,10 +90,14 @@ export const routes: RouteRecordRaw[] = [
   },
 ]
 
+/** 登入頁的 reason 是這幾種時，代表剛才是被「換了別的帳號」登出（見 api/client.ts 的 UnauthorizedReason）。 */
+const SWITCHED_USER_REASONS: ReadonlySet<string> = new Set(['session-changed', 'other-user'])
+
 /**
  * 每次換頁的登入與角色檢查。匯出給測試用同一份規則建 router。
  * 被導回登入頁時帶 reason，登入頁據此說明原因：signin＝連結要先登入、
- * offline＝連不上伺服器（session 可能還有效）、expired＝用到一半逾時（router/unauthorized.ts）。
+ * offline＝連不上伺服器（session 可能還有效）、expired＝用到一半逾時（router/unauthorized.ts）、
+ * session-changed／other-user＝這個瀏覽器換了別的帳號登入。
  */
 export async function authGuard(to: RouteLocationNormalized): Promise<boolean | RouteLocationRaw> {
   // 不用登入的頁面：不恢復 session、不導去登入頁（重設連結常從信箱 App 的內建瀏覽器開）。
@@ -117,10 +121,20 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
     // 從書籤直接開登入頁、或在別的分頁重新登入後重新整理這一頁時，cookie 裡的
     // session 可能還有效：先試著恢復，不要讓人再登入一次（每次都會多建一個
     // session）。/auth/me 回 401 時 router/unauthorized.ts 的處理看到沒有登入者就不動作，不會繞圈。
+    //
+    // 例外：這個分頁剛因為「換了帳號」被登出導來（reason 為 session-changed／other-user，而且記得
+    // 原本是誰）：cookie 裡多半已經是別的分頁新登入的帳號，直接恢復會讓原本的人以為還在用自己的
+    // 帳號。cookie 裡是同一個人才恢復；是別人就不寫進 store，停在登入頁說明（2026-10-12）。
+    // 沒有 previousUserId（書籤、重新整理）時照舊。
     let reachable = true
+    const switchedAway = typeof to.query.reason === 'string' && SWITCHED_USER_REASONS.has(to.query.reason)
     if (!authStore.user) {
       try {
-        await authStore.restoreSession()
+        const outcome = await authStore.restoreSession({ expectUserId: switchedAway ? authStore.previousUserId : null })
+        if (outcome === 'other-user') {
+          if (to.query.reason === 'other-user') return true
+          return { name: 'login', query: { ...to.query, reason: 'other-user' }, replace: true }
+        }
       } catch {
         // 連不上伺服器就先顯示登入頁
         reachable = false

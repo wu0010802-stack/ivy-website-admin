@@ -22,6 +22,13 @@ export const useAuthStore = defineStore('auth', () => {
    * 會卡在已登出、側欄帳號區消失、之後每次儲存都 401 的頁面。
    */
   const logoutPending = ref(false)
+  /**
+   * 被登出（401、CSRF 對不上、換了帳號）之前登入的是誰。同一個瀏覽器在別的分頁換成另一個帳號時，
+   * cookie 裡已經是對方的 session：登入頁恢復 session 前要先比對，不同人就不能自動登進去
+   * （router/index.ts 的 authGuard 用 restoreSession({ expectUserId })）。只放記憶體：重新整理
+   * 或從書籤開登入頁沒有這個值，照舊恢復 cookie 裡的 session。登入成功或恢復成功就清掉。
+   */
+  const previousUserId = ref<string | null>(null)
 
   async function login(email: string, password: string): Promise<void> {
     isLoading.value = true
@@ -34,6 +41,7 @@ export const useAuthStore = defineStore('auth', () => {
       features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
+      previousUserId.value = null
       announceSignedIn()
     } finally {
       isLoading.value = false
@@ -48,6 +56,15 @@ export const useAuthStore = defineStore('auth', () => {
     csrfToken.value = null
     setCsrfToken(null)
     sessionMaxExpiresAt.value = null
+  }
+
+  /**
+   * 被登出（API 回 401／CSRF 對不上／發現換了帳號）：先記住原本是誰，再清掉本地登入狀態。
+   * 導去登入頁之後 authGuard 靠 previousUserId 分辨「同一個人重新登入」與「cookie 已經是別人」。
+   */
+  function expireSession(): void {
+    previousUserId.value = user.value?.id ?? previousUserId.value
+    clearSession()
   }
 
   /**
@@ -68,6 +85,8 @@ export const useAuthStore = defineStore('auth', () => {
       else if (!(error instanceof ApiError && error.status === 401)) throw error
     }
     clearSession()
+    // 主動登出就不是「被換帳號」：沒有需要比對的人。
+    previousUserId.value = null
     // 主動登出才清案件草稿；逾時被導回登入（只走 clearSession）要留著讓人接著寫。
     clearVisitNoteDrafts()
     return outcome
@@ -77,17 +96,25 @@ export const useAuthStore = defineStore('auth', () => {
    * 用 cookie 裡的 session 恢復登入。只有 401 代表真的沒登入；斷線、API 重啟
    * （代理回 502／503）時把錯誤丟出去，讓 router 說「連不上伺服器」，不要當成
    * 已登出——session 其實還有效，重新整理就能回到原本的頁面。
+   *
+   * 傳 expectUserId（有值）時，cookie 裡是別的帳號就什麼都不寫入、回 'other-user'：
+   * 別的分頁換了帳號後，這個分頁不能直接變成對方（authGuard 的登入頁分支用）。
+   * 回傳 'restored'＝已恢復、'none'＝cookie 裡沒有有效登入（401）。
    */
-  async function restoreSession(): Promise<void> {
+  async function restoreSession(options: { expectUserId?: string | null } = {}): Promise<'restored' | 'other-user' | 'none'> {
     isLoading.value = true
     try {
       const result = await api.get<MeResponse>('/auth/me')
+      // 先比對再寫入：不能讓這個分頁拿到對方的身分與 CSRF token。
+      if (options.expectUserId && result.user.id !== options.expectUserId) return 'other-user'
       user.value = result.user
       features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
+      previousUserId.value = null
       announceSignedIn()
+      return 'restored'
     } catch (error) {
       user.value = null
       sessionMaxExpiresAt.value = null
@@ -95,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
       csrfToken.value = null
       setCsrfToken(null)
       if (!(error instanceof ApiError && error.status === 401)) throw error
+      return 'none'
     } finally {
       isLoading.value = false
     }
@@ -123,5 +151,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, features, csrfToken, isLoading, sessionMaxExpiresAt, logoutPending, login, logout, restoreSession, refreshSession, clearSession }
+  return { user, features, csrfToken, isLoading, sessionMaxExpiresAt, logoutPending, previousUserId, login, logout, restoreSession, refreshSession, clearSession, expireSession }
 })

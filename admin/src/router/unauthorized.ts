@@ -49,7 +49,9 @@ export function redirectToLoginOnUnauthorized(router: Router): (reason?: Unautho
       void recoverInPlace(router, reason)
       return
     }
-    authStore.clearSession()
+    // 先記住是誰再清：登入頁恢復 cookie 裡的 session 前，要確認不是別的分頁換成了別人
+    // （authGuard 的登入頁分支，2026-10-12）。
+    authStore.expireSession()
     if (router.currentRoute.value.name === 'login') return
     void router.replace(loginRoute(router, reason))
   }
@@ -94,7 +96,7 @@ async function recoverInPlace(router: Router, reason: UnauthorizedReason): Promi
       const outcome = await Promise.race([dialog, signIn.promise.then(() => 'signed-in' as const)])
       if (outcome === 'cancel') {
         const route = loginRoute(router, reason)
-        authStore.clearSession()
+        authStore.expireSession()
         await leaveWithoutAsking(() => router.replace(route))
         return
       }

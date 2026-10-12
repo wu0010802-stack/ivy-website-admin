@@ -547,7 +547,7 @@ migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只�
 - **CI**：run 37161427628（`b4bb570`）E2E、Frontend web／admin、Backend／PostgreSQL／contracts、Deploy Railway production 全部 success（2026-10-03 23:19–23:40 UTC）。
 - **正式 `release.json`**：base commit `b4bb570`，created `2026-10-03T23:37:05Z`。
 - **線上唯讀檢查**：後台 lazy chunk 有新字樣——`AnalyticsView`「五校比較」「預約孩子的班別」「每日變化」「樣本較少」、`DashboardView`「我承辦的案件」「承辦人已停用」、`VisitDetailView`「最後處理」「這筆案件剛有更新」、`index`「登入帳號已改變」；三支新統計 API 與 `/auth/me` 未登入回 401（路由存在）；`/`、`/about`、`/visit`、`/admin/` 200。
-- **未做**：正式站沒登入看後台畫面；Safari／iOS 實機。待使用者確認（都先照預設上線）：到場率分母、班別預設學年與是否含已取消、唯讀角色看「我承辦的案件」、停用帳號不清承辦人、到期前 15 分鐘提醒、家長端錯誤訊息改中文狀態名。已知限制：沒有未儲存修改的分頁，在別的分頁換成另一個帳號登入後會直接以那個帳號回到原頁（同舊行為）。
+- **未做**：正式站沒登入看後台畫面；Safari／iOS 實機。待使用者確認（都先照預設上線）：到場率分母、班別預設學年與是否含已取消、唯讀角色看「我承辦的案件」、停用帳號不清承辦人、到期前 15 分鐘提醒、家長端錯誤訊息改中文狀態名。已知限制（沒有未儲存修改的分頁，在別的分頁換成另一個帳號登入後會直接以那個帳號回到原頁）**已修（2026-10-12）**：被登出導來時先記住原本的帳號（auth store 的 `previousUserId`），登入頁的 `authGuard` 在 reason 為 `session-changed`／`other-user` 時用 `restoreSession({ expectUserId })` 先比對 `/auth/me`，不同人就不寫進 store、停在登入頁說明「這個瀏覽器已改用其他帳號登入」，同一人才恢復並導回原頁；沒有 `previousUserId`（書籤、重新整理）維持原行為。測試 `admin/src/__tests__/authGuardSwitchUser.test.ts`。
 
 ## 2026-10-04 關於頁第一章：紀念章取代「拉拉看」、正反交替（main CI 部署）
 

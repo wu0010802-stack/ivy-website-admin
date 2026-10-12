@@ -508,7 +508,7 @@ describe('登入頁（shell-10／shell-11／jr-login-back）', () => {
     setActivePinia(createPinia())
     const auth = useAuthStore()
     vi.spyOn(api, 'get').mockRejectedValueOnce(new ApiError(401, '未登入'))
-    await expect(auth.restoreSession()).resolves.toBeUndefined()
+    await expect(auth.restoreSession()).resolves.toBe('none')
     vi.spyOn(api, 'get').mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await expect(auth.restoreSession()).rejects.toThrow('Failed to fetch')
     expect(auth.user).toBeNull()
