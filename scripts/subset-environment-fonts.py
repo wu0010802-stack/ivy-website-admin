@@ -13,14 +13,23 @@
 1. critical：web/app/generated/environment-font-chars.json 裡那個字重在本頁一開始就畫得到的字（圓體 400 再加英數與
    常用標點）。宣告在 web/app/assets/css/environment-fonts.css（跟著頁面 CSS 進來）；大標那片由頁面預載。
 2. tour：還沒切到的校園探索分頁用到、但 critical 沒有的字，另切一片，切過去才下載（同樣宣告在 inline CSS）。
-3. 其餘（只有會顯示後台文字的字重才做：圓體 400 的校園探索說明、芫荽的場景名與標註名）：
+3. 其餘（圓體 400／700／800 與芫荽四個字重都做：環境頁前三章與校園探索的文字都能在後台改，標題 800、小標 700、
+   內文 400、手寫字芫荽都可能出現任何常用字；2026-10-12 起 700、800 也補，之前只有 400 與芫荽）：
    scripts/data/noto-sans-tc-frequency-tiers.json 的常用字（Google Fonts 繁中切片的字頻層級）與標點，扣掉 critical，
    由常用到罕用切成約 40 KB（上限 60 KB）的分片，宣告在帶雜湊的
    web/public/assets/fonts/environment/environment-fonts-extended-*.css，由頁面在執行時掛上（utils/environment-fonts.ts），
-   用到新字時才下載那一片。字頻表以外的罕用字、以及 700／800 不在本頁的字退回系統字。
+   用到新字時才下載那一片。字頻表以外的罕用字退回系統字。
+   整個輸出目錄要控制在 15 MB 內：全補是 16.8 MB，所以圓體 800 只補字頻表前 3,000 字（COMMON_LIMITS），
+   800 只用在大標，其餘字重補到字頻表全部。
 
 同一個字重內 unicode-range 互斥。重跑會刪掉輸出目錄裡沒用到的舊雜湊檔；另外產出
-web/app/generated/environment-font-manifest.json（預載與樣式表網址）與兩份 OFL 授權全文。
+web/app/generated/environment-font-manifest.json（預載與樣式表網址）、兩份 OFL 授權全文，以及
+web/public/assets/fonts/chars-environment.txt 與 chars-environment-text.txt：後台環境頁欄位的缺字提示讀的字表（admin 的
+useTitleFontCoverage('environment'／'environmentText')），依碼位排序、不含空白，格式同 chars-bd.txt。
+- chars-environment.txt：四個字重（critical＋tour＋其餘分片）都有的字。用在圓體 800 的大標（首屏 h1 與四章 h2）。
+- chars-environment-text.txt：沒設 COMMON_LIMITS 的字重（圓體 400、700 與芫荽）都有的字。用在其餘欄位（小標、內文、便條）。
+  800 只補最常用的字時，這份比上一份多很多字；沒有字重設上限時兩份相同。
+字表以外的字，在對應的欄位會退回系統字。
 """
 from __future__ import annotations
 
@@ -41,6 +50,9 @@ from fontTools.varLib import instancer
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / 'output/fonts-src'
 OUTPUT = ROOT / 'web/public/assets/fonts/environment'
+# 後台缺字提示的字表（格式同 chars-bd.txt）：四個字重都有的字；以及沒設上限的字重都有的字
+COVERAGE_LIST = ROOT / 'web/public/assets/fonts/chars-environment.txt'
+COVERAGE_TEXT_LIST = ROOT / 'web/public/assets/fonts/chars-environment-text.txt'
 PUBLIC_URL = '/assets/fonts/environment'
 INLINE_CSS = ROOT / 'web/app/assets/css/environment-fonts.css'
 MANIFEST = ROOT / 'web/app/generated/environment-font-manifest.json'
@@ -62,13 +74,16 @@ SOURCES = {
 }
 # (字型, CSS 字重, 可變軸位置, 要不要其餘分片, 要不要預載, critical 要不要加英數標點)
 FACES = [
-    ('round', 800, {'wght': 800}, False, True, False),
-    ('round', 700, {'wght': 700}, False, False, False),
+    ('round', 800, {'wght': 800}, True, True, False),
+    ('round', 700, {'wght': 700}, True, False, False),
     ('round', 400, {'wght': 400}, True, False, True),
     ('hand', 400, None, True, False, False),
 ]
 TARGET_BYTES = 40_000
 LIMIT_BYTES = 60_000
+# 其餘分片最多補字頻表前幾個字（標點與符號不算、一律保留）；沒列的字重補到字頻表全部（約 15,000 字）。
+# 圓體 800 只給大標用，全補會讓字型目錄超過 15 MB（2026-10-12 實測 16.8 MB），所以只補最常用的 3,000 字。
+COMMON_LIMITS = {'round-800': 3000}
 # 內文字重的英數與常用全形標點一律進 critical：頁面各處都有，不值得為它們多下載一片
 BASICS = ''.join(chr(cp) for cp in range(0x20, 0x7F)) + '，。、：；！？「」『』（）・～—…％＋－'
 
@@ -174,6 +189,7 @@ def main() -> None:
     inline_rules: list[str] = []
     extended_rules: list[str] = []
     manifest: dict = {'sources': [], 'preload': [], 'stylesheet': None, 'faces': {}}
+    coverage: dict[str, set[int]] = {}
     for code, weight, location, extend, preload, basics in FACES:
         face = Face(code, weight, location)
         wanted = {ord(char) for char in used.get(f'{code}-{weight}', '') + (BASICS if basics else '')} | {0x20}
@@ -187,7 +203,9 @@ def main() -> None:
         if extend:
             rest = set(face.cmap) - critical - tour
             marks = sorted(cp for cp in rest if unicodedata.category(chr(cp))[0] in 'PS')
-            common = marks + sorted((cp for cp in rest if cp in tier_of and cp not in marks), key=lambda cp: (tier_of[cp], cp))
+            mark_set = set(marks)
+            ranked = sorted((cp for cp in rest if cp in tier_of and cp not in mark_set), key=lambda cp: (tier_of[cp], cp))
+            common = marks + ranked[:COMMON_LIMITS.get(f'{code}-{weight}', len(ranked))]
             probe = set(common[len(common) // 2:len(common) // 2 + 150])
             budget = TARGET_BYTES / (len(face.build(probe)) / sum(face.cost[cp] for cp in probe))
             plan += [('common', group) for group in pack(common, face.cost, budget)]
@@ -208,6 +226,7 @@ def main() -> None:
             covered |= codepoints
 
         key = f'{code}-{weight}'
+        coverage[key] = covered
         summary: dict = {'family': face.family, 'weight': weight, 'characters': len(covered), 'slices': len(built), 'bytes': 0, 'largest': 0, 'critical': None}
         for number, (kind, codepoints, data) in enumerate(built):
             label = kind if kind in ('critical', 'tour') else f'{number:03d}'
@@ -248,6 +267,12 @@ def main() -> None:
         if stale.name not in written:
             stale.unlink()
     print(f'extended 樣式表 {sheet}（{len(extended.encode()) / 1e3:.0f} KB）')
+
+    # 後台缺字提示的字表。空白不在字形裡（只有 critical 的 unicode-range 帶 U+20），不列
+    for target, keys in ((COVERAGE_LIST, list(coverage)), (COVERAGE_TEXT_LIST, [key for key in coverage if key not in COMMON_LIMITS])):
+        shared = sorted(cp for cp in set.intersection(*(coverage[key] for key in keys)) if not chr(cp).isspace())
+        target.write_text(''.join(chr(cp) for cp in shared), encoding='utf-8')
+        print(f"{target.relative_to(ROOT)}：{len(shared)} 字（{'、'.join(keys)} 都有）")
 
 
 if __name__ == '__main__':

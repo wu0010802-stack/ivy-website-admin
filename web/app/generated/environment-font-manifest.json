@@ -12,22 +12,22 @@
     }
   ],
   "preload": [
-    "/assets/fonts/environment/round-800-critical-8a94acd49f80.woff2"
+    "/assets/fonts/environment/round-800-critical-22bb6c12a88d.woff2"
   ],
   "stylesheet": {
-    "src": "/assets/fonts/environment/environment-fonts-extended-e2807e9431d8.css",
-    "bytes": 168072
+    "src": "/assets/fonts/environment/environment-fonts-extended-f59c330a22f6.css",
+    "bytes": 290987
   },
   "faces": {
     "round-800": {
       "family": "Chiron GoRound TC",
       "weight": 800,
-      "characters": 43,
-      "slices": 1,
-      "bytes": 11304,
-      "largest": 11304,
+      "characters": 4859,
+      "slices": 29,
+      "bytes": 1180536,
+      "largest": 59592,
       "critical": {
-        "src": "/assets/fonts/environment/round-800-critical-8a94acd49f80.woff2",
+        "src": "/assets/fonts/environment/round-800-critical-22bb6c12a88d.woff2",
         "bytes": 11304,
         "characters": 43
       }
@@ -35,14 +35,14 @@
     "round-700": {
       "family": "Chiron GoRound TC",
       "weight": 700,
-      "characters": 117,
-      "slices": 1,
-      "bytes": 37396,
-      "largest": 37396,
+      "characters": 15438,
+      "slices": 117,
+      "bytes": 4242828,
+      "largest": 59880,
       "critical": {
-        "src": "/assets/fonts/environment/round-700-critical-bbe393acd75c.woff2",
-        "bytes": 37396,
-        "characters": 117
+        "src": "/assets/fonts/environment/round-700-critical-ad6c5f040d39.woff2",
+        "bytes": 35620,
+        "characters": 111
       }
     },
     "round-400": {
@@ -50,25 +50,25 @@
       "weight": 400,
       "characters": 15438,
       "slices": 102,
-      "bytes": 4064372,
-      "largest": 118264,
+      "bytes": 4064856,
+      "largest": 118128,
       "critical": {
-        "src": "/assets/fonts/environment/round-400-critical-e1d9932053db.woff2",
-        "bytes": 118264,
-        "characters": 405
+        "src": "/assets/fonts/environment/round-400-critical-4987138ee004.woff2",
+        "bytes": 118128,
+        "characters": 402
       }
     },
     "hand-400": {
       "family": "Iansui",
       "weight": 400,
       "characters": 10832,
-      "slices": 101,
-      "bytes": 3898280,
-      "largest": 52200,
+      "slices": 100,
+      "bytes": 3897428,
+      "largest": 56636,
       "critical": {
-        "src": "/assets/fonts/environment/hand-400-critical-e590c771331b.woff2",
-        "bytes": 52200,
-        "characters": 146
+        "src": "/assets/fonts/environment/hand-400-critical-c77ff39ae5ac.woff2",
+        "bytes": 44164,
+        "characters": 120
       }
     }
   }
