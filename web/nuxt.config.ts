@@ -76,6 +76,9 @@ export default defineNuxtConfig({
   app: {
     head: {
       htmlAttrs: { lang: 'zh-Hant-TW' },
+      // 手機瀏覽器網址列用頁面的米白底（tokens.css --paper：oklch(99% .008 95)）。<meta> 讀不到 CSS 變數，改色時兩邊一起改。
+      // 2026-10-12 從 app.vue 的 useHead 搬來：錯誤頁（error.vue 取代 app.vue）原本沒有這一行。
+      meta: [{ name: 'theme-color', content: '#fdfcf6' }],
       script: [{ key: 'motion-layout', tagPriority: 'critical', innerHTML: "document.documentElement.dataset.ivyMotion='ready'" }],
       // 頁首品牌字（Noto Sans TC 600／Source Sans 3）的 @font-face 併進
       // styles.css，不再另載一支阻塞渲染的 brand-fonts.css。只預載首屏

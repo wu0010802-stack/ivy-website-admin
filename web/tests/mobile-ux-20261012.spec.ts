@@ -163,3 +163,68 @@ describe('內容頁避免孤字、觸控不留 hover', () => {
     expect(css).toMatch(/@media \(hover: hover\) \{\n {2}\.cur-index a:hover \.cur-blot\.is-painted/)
   })
 })
+
+describe('30 週年頁', () => {
+  const css = read('../app/assets/css/anniversary.css')
+  const content = read('../app/components/AnniversaryContent.vue')
+  it('五校卡的電話與「地圖 ↗」補到 44px 點擊範圍，窄螢幕列距拉開不重疊', () => {
+    expect(css).toContain('.anni-campus-info a::before { content: ""; position: absolute; inset: -13px -6px; }')
+    expect(css).toMatch(/@media \(max-width: 760px\) \{\n {2}\.anni-campus-info \{ row-gap: 20px; \}/)
+  })
+  it('非建校年份不用 opacity 淡化', () => {
+    const year = css.slice(css.indexOf('.anni-year {'), css.indexOf('}', css.indexOf('.anni-year {')))
+    expect(year).not.toContain('opacity')
+  })
+  it('畫紙寬度跟著視窗高度收：手指在畫紙上是畫畫，整張畫紙要放得進視窗', () => {
+    expect(css).toContain('.anni-pad { width: min(100%, calc((100svh - 100px) * 1.6)); margin-inline: auto;')
+    expect(css).toContain('.anni-pad { aspect-ratio: 4 / 5; width: min(100%, calc((100svh - 160px) * .8)); }')
+  })
+  it('橫拿手機計數列不黏頂', () => {
+    expect(css).toMatch(/@media \(max-width: 1100px\) and \(max-height: 500px\) \{\n {2}\.anni-mapcard \{ position: relative; top: auto; \}/)
+  })
+  it('結尾舞台高度在第一幀就留好，結尾也觸發掛上：返回與 #anni-cake 落在對的段落', () => {
+    expect(css).toContain('html[data-ivy-motion] .anni-finale-stage { min-height: max(100svh, 560px); }')
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\) \{\n {2}html\[data-ivy-motion\] \.anni-finale \{ height: 250vh; height: 250svh; \}/)
+    expect(content).toContain("lazy([track.value, root.value.querySelector<HTMLElement>('.anni-finale')], async () => {")
+  })
+  it('作品燈箱點背景關閉', () => {
+    expect(content).toContain('@click="closeLightboxOnBackdrop"')
+    expect(content).toContain('if (e.target === lightbox.value) lightbox.value?.close()')
+  })
+  it('內文 text-wrap:pretty', () => {
+    expect(css).toContain('.anni :where(p, li, figcaption), .anni-art-list span { text-wrap: pretty; }')
+  })
+  it('開場按鈕底色加深；深色蓋層 5 秒沒開始播就拿掉', () => {
+    const intro = read('../app/components/AnniversaryIntro.vue')
+    expect(intro).toContain('background: rgb(var(--ink) / .75); color: var(--paper);')
+    expect(intro).toContain("setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)")
+  })
+  it('總覽地圖校名 12px、年份 11px，補點擊範圍；授權署名與區名不再疊 opacity', () => {
+    const map = read('../app/components/AnniversaryMap.vue')
+    expect(map).toContain('font: 700 clamp(12px, 3.3cqi, 14px)/1.25 var(--font-head)')
+    expect(map).toContain('.anni-map-campus a span { font: 600 11px/1 var(--font);')
+    expect(map).toContain('.anni-map-campus a::before { content: ""; position: absolute; inset: -12px -4px; }')
+    expect(map).not.toMatch(/\.anni-map-source \{[^}]*opacity/)
+    expect(map).not.toMatch(/\.anni-map-district \{[^}]*opacity/)
+  })
+})
+
+describe('404 與全站', () => {
+  const error = read('../app/error.vue')
+  it('404 的五校校名是連到該校預約頁的連結；橫拿手機校徽縮小、上距收短', () => {
+    expect(error).toContain('<NuxtLink class="error-campus-name" :to="`/visit/${campus.key}`">{{ campus.name }}</NuxtLink>')
+    expect(error).not.toContain('<span class="error-campus-name">')
+    expect(error).toContain('@media(max-width:1179px) and (max-height:500px) and (orientation:landscape) {.error-page {padding-top:24px}.error-crest {--size:96px;margin-bottom:8px}}')
+  })
+  it('theme-color 寫在 nuxt.config（錯誤頁也有），不在 app.vue', () => {
+    expect(read('../nuxt.config.ts')).toContain("meta: [{ name: 'theme-color', content: '#fdfcf6' }],")
+    expect(read('../app/app.vue')).not.toContain('theme-color')
+  })
+  it('SPA 換頁有讀屏播報', () => {
+    expect(read('../app/app.vue')).toContain('<NuxtRouteAnnouncer />')
+    expect(error).toContain('<NuxtRouteAnnouncer />')
+  })
+  it('手機選單卡標出目前這一頁', () => {
+    expect(read('../app/assets/css/studio.css')).toContain('.menu-links a[aria-current] .menu-link-copy>span {text-decoration:underline;')
+  })
+})
