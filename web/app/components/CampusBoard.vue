@@ -11,7 +11,11 @@ const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
   .map(key => props.campuses.find(campus => campus.key === key))
   .filter((campus): campus is Campus => Boolean(campus)))
-const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === props.board.defaultCampus)))
+// 關於頁結尾的校名緞帶連到 /?campus=<校>#campuses（2026-10-12）：從點的那所開始，不是預設校。
+const route = useRoute()
+const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
+const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus) ? requestedCampus : props.board.defaultCampus
+const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === startCampus)))
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
 const photoViewport = ref<HTMLElement | null>(null)
@@ -713,6 +717,8 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 @media(max-width:1100px){
   .campus-panorama.campus-gallery{--card-width:84vw}
   .gallery-track{height:clamp(340px,46vw,480px)}
+  /* 橫拿手機（2026-10-12）：照片 388px 比膠囊下方的可見高度（約 316px）還高，分頁和照片看不到同一畫面；只收高度，寬度與裁切定位不變。 */
+  @media(max-height:500px) and (orientation:landscape){.gallery-track{height:min(clamp(340px,46vw,480px),calc(100svh - 120px))}}
   .campus-details{grid-template-columns:minmax(200px,.85fr) minmax(0,1.15fr);gap:18px 32px;align-items:start}
   .campus-identity{grid-row:1/3;padding-top:8px}
   

@@ -965,6 +965,8 @@ body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-copy>span {display:block}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+/* 選單卡標出目前這一頁（2026-10-12）：原本只有 aria-current，看起來和其他項目一樣。 */
+body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a[aria-current] .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses {
   margin-top:18px;
   padding:0 var(--menu-gutter);

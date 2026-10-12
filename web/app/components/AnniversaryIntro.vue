@@ -25,12 +25,13 @@ const poster = computed(() => (portrait.value ? ANNI_MEDIA.posterMobile : ANNI_M
 const first = computed(() => (portrait.value ? ANNI_MEDIA.firstMobile : ANNI_MEDIA.firstDesktop))
 const film = computed(() => (portrait.value ? ANNI_MEDIA.filmMobile : ANNI_MEDIA.filmDesktop))
 
-// 第一次繪製前就決定要不要播：要播就先蓋一層深色，避免頁面先閃一下再被影片蓋住
+// 第一次繪製前就決定要不要播：要播就先蓋一層深色，避免頁面先閃一下再被影片蓋住。
+// 5 秒還沒開始播（JS 載不到、極慢的網路）就拿掉深色蓋層，不讓頁面一直黑著、鎖住捲動（2026-10-12）。
 useHead({
   script: [{
     key: 'anni-intro-gate',
     tagPosition: 'head',
-    innerHTML: `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;d.dataset.anniIntro='pending'}catch(e){}})()`
+    innerHTML: `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`
   }]
 })
 
@@ -233,9 +234,10 @@ html[data-anni-intro="pending"]::before { content: ""; position: fixed; inset: 0
 .anni-intro-bar.is-leaving { opacity: 0; pointer-events: none; }
 .anni-intro-btn {
   min-height: 44px; padding: 10px 18px; border: 1px solid rgb(var(--on-dark) / .5); border-radius: 999px;
-  background: rgb(var(--ink) / .45); color: var(--paper); font: 600 var(--fs-sm)/1.2 var(--font); backdrop-filter: blur(6px);
+  background: rgb(var(--ink) / .75); color: var(--paper); font: 600 var(--fs-sm)/1.2 var(--font); backdrop-filter: blur(6px);
 }
-.anni-intro-btn:hover { background: rgb(var(--ink) / .7); }
+/* 底色 .45 在影片亮畫面上只有約 3.1:1（2026-10-12 改 .75，最亮畫面也有 6.8:1）。 */
+.anni-intro-btn:hover { background: rgb(var(--ink) / .9); }
 .anni-intro-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .anni-intro-btn.is-big { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); min-height: 56px; padding: 14px 28px; font-size: var(--fs-lg); background: var(--gold); color: var(--deep); border-color: transparent; }
 .anni-intro-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--gold); transform-origin: 0 50%; transform: scaleX(0); }

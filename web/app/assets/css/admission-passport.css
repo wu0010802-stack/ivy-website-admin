@@ -24,6 +24,8 @@
 .ap h1, .ap h2, .ap h3 { letter-spacing: .02em; word-break: keep-all; overflow-wrap: anywhere; }
 .ap h4, .ap figure, .ap fieldset { margin: 0; }
 .ap p { max-width: none; text-wrap: pretty; }
+/* 清單與條款也避免孤字（2026-10-12；標題照舊 balance）。 */
+.ap li { text-wrap: pretty; }
 .ap ol, .ap ul { margin: 0; padding: 0; list-style: none; }
 .ap fieldset { padding: 0; border: 0; min-width: 0; }
 .ap img { display: block; max-width: 100%; height: auto; }
@@ -111,7 +113,7 @@
 .ap-visa-stamp { grid-column: 2; grid-row: 2 / 4; display: grid; place-items: center; align-self: center; min-height: 112px; }
 
 /* ── 第 3 頁：資料頁 ── */
-.ap-datapage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: 'fields stamp' 'slots slots' 'detail detail'; column-gap: 48px; padding: 36px 44px 40px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 12px; background: var(--ap-page-alt); }
+.ap-datapage { scroll-margin-top: 12px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: 'fields stamp' 'slots slots' 'detail detail'; column-gap: 48px; padding: 36px 44px 40px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 12px; background: var(--ap-page-alt); }
 /* 資料頁的細紋只墊在蓋章處後面，不壓到欄位 */
 .ap-datapage > .ap-rosette-host { position: absolute; right: -90px; top: -70px; width: 460px; pointer-events: none; }
 .ap-datapage .ap-rosette { stroke: var(--ap-line-soft); }
@@ -144,6 +146,8 @@
 .ap-slot-class { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--deep); }
 .ap-slot-age { font-size: var(--fs-xs); color: var(--muted); }
 .ap-slot-year { display: flex; align-items: baseline; gap: 4px; margin-top: auto; font-size: var(--fs-xs); color: var(--muted); transition: opacity .3s var(--ap-ease); }
+/* 「學年度」原本吃瀏覽器 small 預設縮成 10px（2026-10-12）；不斷行，320 寬才不會斷成「學年／度」。 */
+.ap-slot-year small { font-size: var(--fs-xs); white-space: nowrap; }
 .ap-slot-year b { font: 400 var(--fs-3xl)/1 var(--font-date); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-slots.empty .ap-slot-year { opacity: 0; }
 .ap-slot[data-state='past'] .ap-slot-class { font-weight: 500; color: var(--muted); }
@@ -276,6 +280,9 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-visas { grid-template-columns: 1fr 1fr; }
   .ap-datapage { grid-template-columns: minmax(0, 1fr) 260px; column-gap: 28px; padding: 28px; }
   .ap-fields { grid-template-columns: 1fr; }
+  /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
+  .ap-answer { order: 1; }
+  .ap-field-static { order: 2; }
   .ap-coupons { grid-template-columns: 1fr; max-width: 560px; }
   .ap-fees-grid { grid-template-columns: 1fr; }
   .ap-week { grid-template-columns: 1fr; }

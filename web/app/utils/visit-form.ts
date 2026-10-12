@@ -89,10 +89,11 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
   }
-  // 新版表單一律帶 email 欄位（2026-09-30 起必填：確認信與修改連結寄到這裡）；舊呼叫端不帶。
+  // 新版表單一律帶 email 欄位（2026-09-30 起必填）；舊呼叫端不帶。錯誤字不提「確認信會寄到這裡」：
+  // 寄信看各校 parent_email_enabled（10-02 正式站是關的），欄位說明才跟著設定換句子（2026-10-12）。
   if (contact.email !== undefined) {
     const email = contact.email.trim()
-    if (!email) errors.email = '請填寫 Email，確認信與修改連結會寄到這裡。'
+    if (!email) errors.email = '請填寫 Email。'
     else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = '請填寫有效的 Email，例如 name@example.com。'
   }
   return errors
@@ -104,7 +105,7 @@ const API_FIELDS: Record<string, VisitField> = {
 }
 const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   slotId: '請選擇這一天的參觀場次。',
-  email: '請填寫有效的 Email，確認信與修改連結會寄到這裡。',
+  email: '請填寫有效的 Email，例如 name@example.com。',
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
   childName: '請填寫孩子姓名。',
@@ -120,4 +121,20 @@ export function apiFieldErrors(detail: unknown): VisitErrors {
     if (field && !errors[field]) errors[field] = API_FIELD_MESSAGES[field] ?? '請檢查這個欄位。'
   }
   return errors
+}
+
+/**
+ * 觸控裝置的文字欄位按 Enter（虛擬鍵盤的「下一項」）跳到下一欄，最後一欄收起鍵盤；不攔注音選字，
+ * 桌機照舊 Enter 送出（2026-09-29 預約表單，2026-10-12 家長修改資料共用）。
+ */
+export function focusNextFieldOnEnter(event: KeyboardEvent, root: HTMLElement | null | undefined) {
+  if (event.isComposing || event.keyCode === 229 || !matchMedia('(pointer: coarse)').matches) return
+  const target = event.target
+  if (!(target instanceof HTMLInputElement) || !['text', 'tel', 'email', 'date'].includes(target.type)) return
+  event.preventDefault()
+  const fields = [...(root?.querySelectorAll<HTMLElement>('input:not([type=radio]):not([type=checkbox]),select,textarea') ?? [])]
+    .filter(el => el.offsetParent && !el.closest('details:not([open])'))
+  const next = fields[fields.indexOf(target) + 1]
+  if (next) next.focus()
+  else target.blur()
 }

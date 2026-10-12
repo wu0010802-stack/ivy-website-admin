@@ -14,6 +14,8 @@
   color: var(--text);
   overflow-x: clip;
 }
+/* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
+.cur :where(p, li, figcaption) { text-wrap: pretty; }
 .cur-wrap { width: min(1280px, calc(100% - 2 * var(--cur-gutter))); margin-inline: auto; }
 .cur-num { font-family: var(--font-date); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
 
@@ -78,8 +80,13 @@
 .cur-index-copy { display: grid; min-width: 0; }
 .cur-index b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 6px; transition: text-decoration-color .3s; }
 .cur-index-copy span { font-size: var(--fs-sm); color: var(--muted); }
-.cur-index a:is(:hover, :focus-visible) .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
-.cur-index a:is(:hover, :focus-visible) b { text-decoration-color: currentColor; }
+/* 觸控不留 hover（09-29）：點過的那格原本一直放大、帶底線，2026-10-12 就地包 hover:hover。 */
+.cur-index a:focus-visible .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
+.cur-index a:focus-visible b { text-decoration-color: currentColor; }
+@media (hover: hover) {
+  .cur-index a:hover .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
+  .cur-index a:hover b { text-decoration-color: currentColor; }
+}
 
 /* ---------- 01 四個年段 ---------- */
 .cur-years-head { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 6vw, 96px); align-items: center; }

@@ -1,6 +1,12 @@
 // 首頁章節錨點的判斷（useChapterAnchors 用），抽出來方便測試。
 
-export interface ChapterAnchor { id: string; after?: string }
+export interface ChapterAnchor {
+  id: string
+  /** 前一道簾幕的 track：錨點落在它擦完之前時，補捲到擦完的位置 */
+  after?: string
+  /** 章節本身包在下一道簾幕的 sticky 裡（#campuses 在最新消息簾幕下）：簾幕在動時 scrollIntoView 量到的是釘住後的位置 */
+  pinned?: boolean
+}
 
 /**
  * 首頁網址是否指向需要跳過簾幕的章節：只認同源、路徑是首頁的 #hash。

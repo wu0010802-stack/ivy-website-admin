@@ -40,12 +40,16 @@
   mask: var(--anni-paper-tile) 0 0 / 140px luminance; }
 .anni.is-live .anni-rail::before { content: none; }
 .anni-ink, .anni-kids { position: absolute; left: 0; top: 0; }
+/* 內文避免孤字（2026-10-12；390 寬「仁／武」被拆開）。:where 不加權重；標題照舊 balance。 */
+.anni :where(p, li, figcaption), .anni-art-list span { text-wrap: pretty; }
 .anni-ink { width: 100%; height: 100%; mask: var(--anni-paper-tile) 0 0 / 150px luminance; }
 .anni-kids { width: 132px; height: auto; will-change: transform; filter: drop-shadow(0 6px 6px rgb(var(--ink) / .2)); }
 .anni-years { grid-column: 1 / 3; grid-row: 1; margin: 0; padding: 0; list-style: none; }
 /* 年份放在蠟筆線最左的擺幅（crayonLineX ≥ 0.23）再往左，線怎麼擺都不會壓到字；必要時伸進頁面左邊距 */
 .anni-years > li { position: relative; display: grid; grid-template-columns: var(--anni-rail) minmax(0, 1fr); min-height: 58px; }
-.anni-year { grid-column: 1; align-self: start; justify-self: end; padding: 2px 18px 0 0; margin-right: calc(var(--anni-rail) * .77 + 6px); font: 700 var(--fs-md)/1.4 var(--font-head); color: var(--muted); font-variant-numeric: tabular-nums; opacity: .62; }
+.anni-year { grid-column: 1; align-self: start; justify-self: end; padding: 2px 18px 0 0; margin-right: calc(var(--anni-rail) * .77 + 6px); font: 700 var(--fs-md)/1.4 var(--font-head); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* 非建校年份原本疊 opacity .62，14px 字只剩 2.7:1（2026-10-12 拿掉；10-02「小字不用 opacity 表示次要」）。
+   層次靠建校年份的綠色大字。 */
 .anni-years > li.is-campus { padding-block: 34px 70px; }
 .anni-years > li.is-campus > .anni-year { font-size: var(--fs-2xl); color: var(--green); opacity: 1; }
 .anni-campus { grid-column: 2; container-type: inline-size; scroll-margin-top: 120px; }
@@ -86,7 +90,10 @@
 .anni-campus-info { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0 0; font-size: var(--fs-sm); line-height: 1.7; }
 .anni-campus-info dt { color: var(--muted); }
 .anni-campus-info dd { margin: 0; }
-.anni-campus-info a { color: var(--green); border-bottom: 1px solid rgb(var(--ink) / .2); }
+.anni-campus-info a { position: relative; color: var(--green); border-bottom: 1px solid rgb(var(--ink) / .2); }
+/* 電話與「地圖 ↗」外觀只有 17–19px 高，透明 ::before 補到 44px（2026-10-12，比照 10-02 文字連結規則）。 */
+.anni-campus-info a::before { content: ""; position: absolute; inset: -13px -6px; }
+.anni-campus-info .anni-maplink::before { inset: -14px -6px; }
 .anni-campus-info .anni-maplink { margin-left: 8px; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
 .anni-campus-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-top: 8px; }
 .anni-campus-actions .text-link { border: 0; border-bottom: 1px solid currentColor; padding: 0; background: none; color: var(--green); }
@@ -125,6 +132,13 @@
 .anni-finale.is-live .anni-finale-stage { height: 100vh; height: 100svh; min-height: 560px; }
 .anni-finale.is-pinned { height: 250vh; height: 250svh; }
 .anni-finale.is-pinned .anni-finale-stage { position: sticky; top: 0; overflow: clip; }
+/* 舞台高度先留好、不等時間軸載入（2026-10-12）：從下半部的預約鈕離開再按返回、或直接開 #anni-cake 時，
+   時間軸不在載入範圍，結尾只有約 500px，瀏覽器還原的位置落到別段。和 track.ts 掛上的 is-live／is-pinned 同高。
+   用 head 腳本第一幀前就設好的 data-ivy-motion（有 JS 才有），錨點跳轉發生在 hydration 之前。 */
+html[data-ivy-motion] .anni-finale-stage { min-height: max(100svh, 560px); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-ivy-motion] .anni-finale { height: 250vh; height: 250svh; }
+}
 .anni-finale.is-live .anni-finale-box { display: block; height: 100%; padding: 0; }
 .anni-finale.is-live .anni-finale-ink { display: block; position: absolute; inset: 0; width: 100%; height: 100%; mask: var(--anni-paper-tile) 0 0 / 150px luminance; }
 .anni-finale.is-live .anni-finale-kids { display: block; position: absolute; left: 0; top: 0; will-change: transform; filter: drop-shadow(0 6px 6px rgb(var(--ink) / .2)); visibility: hidden; }
@@ -177,7 +191,9 @@
 .anni-draw-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; }
 .anni-draw-note a, .anni-draw-share { color: var(--green); border: 0; border-bottom: 1px solid currentColor; padding: 0; background: none; font: inherit; font-weight: 600; min-height: 32px; }
 .anni-draw-tools .icon { width: 18px; height: 18px; }
-.anni-pad { position: relative; aspect-ratio: 16 / 10; background: var(--white); box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .06), 0 28px 50px -26px rgb(var(--ink) / .5); }
+/* 畫紙不比視窗高（2026-10-12）：手指在畫紙上拖曳是畫畫、不捲頁，橫拿手機原本整個畫面都是畫紙、捲不出去。
+   寬度跟著視窗高度收，比例不變。 */
+.anni-pad { width: min(100%, calc((100svh - 100px) * 1.6)); margin-inline: auto; position: relative; aspect-ratio: 16 / 10; background: var(--white); box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .06), 0 28px 50px -26px rgb(var(--ink) / .5); }
 .anni-pad-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 
 /* ── 預約 ──────────────────────────────────────────── */
@@ -224,7 +240,7 @@
   .anni-kids { width: 62px; }
   .anni-campus-year { font-size: var(--fs-4xl); }
   .anni-art-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .anni-pad { aspect-ratio: 4 / 5; }
+  .anni-pad { aspect-ratio: 4 / 5; width: min(100%, calc((100svh - 160px) * .8)); }
   /* 手機：計數列貼在頁首下方 */
   .anni-mapcard { top: 68px; }
   .anni-mapcard .anni-map { width: 60px; }
@@ -241,4 +257,12 @@
   .anni-card[data-state] .anni-card-turn { animation: none; transform: none; }
   .anni-card.is-flipped .anni-card-turn { transform: rotateY(180deg); transition: none; }
   .anni-flap-digit { animation: none; }
+}
+/* 橫拿手機（2026-10-12）：膠囊加黏頂的計數列占掉 38% 畫面、時間軸約 5000px 都這樣。橫拿時計數列不黏頂。 */
+@media (max-width: 1100px) and (max-height: 500px) {
+  .anni-mapcard { position: relative; top: auto; }
+}
+/* 窄螢幕地址換行時「地圖 ↗」掉到電話正上方，兩個補出來的點擊範圍會重疊；列距拉開到各自都有 44px（2026-10-12）。 */
+@media (max-width: 760px) {
+  .anni-campus-info { row-gap: 20px; }
 }
