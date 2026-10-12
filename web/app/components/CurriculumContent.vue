@@ -123,7 +123,7 @@ useWatercolor(root)
             <p class="cur-text">{{ page.yearsText }}</p>
             <p class="cur-spiral"><span class="cur-blot" data-blot="sky" aria-hidden="true" /><b>{{ page.spiralLabel }}</b>{{ page.spiralText }}</p>
             <div class="cur-links">
-              <NuxtLink class="cur-link" to="/admission#classes">用生日查孩子讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+              <NuxtLink class="cur-link" to="/admission#birthday-tool">用生日查孩子讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
               <NuxtLink class="cur-link" to="/about#whole-child">課綱六大領域與核心素養<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
             </div>
           </div>

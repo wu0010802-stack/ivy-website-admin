@@ -22,6 +22,8 @@
   color:var(--text);
   overflow-x:clip;
 }
+/* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
+.abk :where(p,li,figcaption){text-wrap:pretty}
 .abk h1,.abk h2{color:var(--ivy-forest)}
 .abk-title{margin-top:14px;font-size:clamp(2rem,1.3rem + 2vw,3rem);line-height:1.28}
 .abk-text{margin-top:18px;max-width:34em;font-size:var(--fs-lg);line-height:1.95;color:var(--muted)}

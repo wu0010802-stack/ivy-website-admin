@@ -3,7 +3,7 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction, type BookingActionKind, type BookingConfig } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { apiFieldErrors, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
@@ -174,6 +174,9 @@ const resultStatus = ref<string | null>(null)
 const receiptId = ref('')
 const managePath = ref<string | null>(null)
 const linkCopied = ref(false)
+// LINE 等內建瀏覽器可能不給寫剪貼簿：失敗時把完整網址印出來讓家長長按複製（2026-10-12）。
+const linkCopyFailed = ref(false)
+const manageUrl = computed(() => managePath.value && import.meta.client ? new URL(managePath.value, window.location.origin).href : '')
 const resultKind = computed(() => visitResultKind(resultStatus.value))
 const resultCopy = computed(() => visitResultCopy(resultKind.value, {
   emailEnabled: Boolean(bookingConfig.value?.parent_email_enabled),
@@ -183,11 +186,16 @@ const resultCopy = computed(() => visitResultCopy(resultKind.value, {
 async function copyManageLink() {
   if (!managePath.value) return
   try {
-    await navigator.clipboard.writeText(new URL(managePath.value, window.location.origin).href)
+    await navigator.clipboard.writeText(manageUrl.value)
     linkCopied.value = true
+    linkCopyFailed.value = false
   } catch {
     linkCopied.value = false
+    linkCopyFailed.value = true
   }
+}
+function selectManageUrl(event: FocusEvent) {
+  (event.target as HTMLInputElement).select()
 }
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
@@ -195,6 +203,7 @@ const submitError = ref<string | null>(null)
 // 頂端的 role=alert 已經朗讀過）。只給「原封不動再按一次」就好的失敗，稍後再試、
 // 其實已送出等情況不顯示。
 const submitRetryHint = ref(false)
+const submitButtonRef = ref<HTMLButtonElement | null>(null)
 // 同一次填寫用同一個 idempotency key；重送（例如網路重試）會安全地
 // 回到同一筆案件，不會建立第二筆。只有成功後才換新的 key。
 const idempotencyKey = ref(crypto.randomUUID())
@@ -331,15 +340,7 @@ onBeforeUnmount(() => { for (const [type, listener] of pointerListeners) documen
 // 跳到下一欄（最後一欄就收起鍵盤），只有按「確認預約」才送出。桌機鍵盤維持
 // Enter 送出。注音、倉頡選字也用 Enter 確認，組字中（Safari 的 keyCode 229）不攔。
 function onEnterKey(event: KeyboardEvent) {
-  if (event.isComposing || event.keyCode === 229 || !matchMedia('(pointer: coarse)').matches) return
-  const target = event.target
-  if (!(target instanceof HTMLInputElement) || !['text', 'tel', 'email', 'date'].includes(target.type)) return
-  event.preventDefault()
-  const fields = [...(formRef.value?.querySelectorAll<HTMLElement>('input:not([type=radio]):not([type=checkbox]),select,textarea') ?? [])]
-    .filter(el => el.offsetParent && !el.closest('details:not([open])'))
-  const next = fields[fields.indexOf(target) + 1]
-  if (next) next.focus()
-  else target.blur()
+  focusNextFieldOnEnter(event, formRef.value)
 }
 
 async function focusError() {
@@ -402,6 +403,7 @@ async function onSubmit() {
     receiptId.value = created?.receipt_id || idempotencyKey.value
     managePath.value = created?.manage_path ?? null
     linkCopied.value = false
+    linkCopyFailed.value = false
     submitted.value = true
     idempotencyKey.value = crypto.randomUUID()
     await nextTick()
@@ -456,9 +458,16 @@ async function onSubmit() {
     // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。Turnstile
     // token 只能用一次（伺服器可能已經驗過），重置元件讓家長重新驗證。
     resetTurnstile()
-    await focusError()
+    if (!submitRetryHint.value) await focusError()
   } finally {
     submitting.value = false
+  }
+  // 原封不動再按一次就好的失敗：焦點留在送出鈕（鈕旁有提示，頂端 role=alert 照樣朗讀）。
+  // 焦點跳到頂端錯誤會把手機畫面往上捲一千八百多 px，要再捲回來才按得到送出（2026-10-12）。
+  // 送出中按鈕是 disabled、focus 不進去，所以等 submitting 解除才聚焦。
+  if (submitRetryHint.value && submitError.value) {
+    await nextTick()
+    submitButtonRef.value?.focus()
   }
 }
 
@@ -521,11 +530,12 @@ async function onSubmit() {
                 <legend class="sr-only">想參觀的校區</legend>
                 <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
                      DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
-                     400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。 -->
+                     400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。
+                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。 -->
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-mode" :class="{ 'is-online': campusModes[campus.key] === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
@@ -564,7 +574,7 @@ async function onSubmit() {
                   <section v-if="bookingConfig?.mode === 'slots'" class="visit-form-section visit-schedule-section" aria-labelledby="visit-schedule-title">
                     <h3 id="visit-schedule-title">參觀安排</h3>
                     <p class="visit-field-hint">僅列出{{ selectedCampus.name }}目前開放的日期與場次。</p>
-                    <p v-if="slotsPending" class="visit-status" role="status">正在讀取可預約場次…</p>
+                    <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
                     <div v-else-if="slotsError || !availableSlots.length" class="visit-slots-empty" role="status">
                       <p>{{ slotsError || '目前沒有開放的參觀場次，歡迎直接聯絡園所安排。' }}</p>
                       <div class="visit-contact-actions"><button type="button" class="button outline" @click="loadSlots">重新載入場次</button><a v-if="selectedCampus.phone" class="visit-inline-link" :href="`tel:${selectedCampus.phone}`">致電{{ selectedCampus.name }}</a></div>
@@ -608,7 +618,7 @@ async function onSubmit() {
                   <div ref="turnstileRef" class="visit-turnstile-widget" />
                   <p v-if="turnstileLoadError" class="visit-field-error" role="alert">{{ turnstileLoadError }}</p>
                 </div>
-                <div class="visit-submit-row"><div class="visit-submit-summary"><template v-if="bookingSummary.length"><p class="visit-summary-what"><strong>{{ selectedCampus.name }}</strong><span v-for="(part, index) in bookingSummary" :key="index" class="visit-nowrap">{{ index ? '・' : '' }}{{ part }}</span></p><p>按下就完成預約，之後可以用修改連結改時間或取消。</p></template><p v-else>還沒選參觀日期與場次。</p></div><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}</p><button type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在預約…' : '確認預約' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
+                <div class="visit-submit-row"><div class="visit-submit-summary"><template v-if="bookingSummary.length"><p class="visit-summary-what"><strong>{{ selectedCampus.name }}</strong><span v-for="(part, index) in bookingSummary" :key="index" class="visit-nowrap">{{ part }}{{ index < bookingSummary.length - 1 ? '・' : '' }}</span></p><p>按下就完成預約，之後可以用修改連結改時間或取消。</p></template><p v-else>還沒選參觀日期與場次。</p></div><p v-if="submitRetryHint && submitError" class="visit-submit-retry" aria-hidden="true">{{ turnstileSiteKey ? '送出沒有成功，機器人驗證重新完成後再按一次。' : '送出沒有成功，可以直接再按一次。' }}{{ callFallback }}</p><button ref="submitButtonRef" type="submit" class="button primary" :disabled="submitting || slotsPending || (bookingConfig?.mode === 'slots' && (!availableSlots.length || Boolean(slotsError)))">{{ submitting ? '正在預約…' : '確認預約' }}<span v-if="!submitting" aria-hidden="true">→</span></button></div>
               </form>
             </template>
           </template>
@@ -619,7 +629,6 @@ async function onSubmit() {
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p v-if="resultKind === 'booked' && submittedSlot" class="visit-result-when"><span class="visit-nowrap">{{ shortDateLabel(submittedSlot.slot_date) }}</span> <span class="visit-nowrap">{{ slotTime(submittedSlot) }}</span><span class="visit-result-where">{{ selectedCampus?.name }}・{{ selectedCampus?.address }}</span></p>
             <p class="visit-step-copy">{{ resultCopy.body }}</p>
-            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>
             <VisitCalendarActions
               v-if="resultKind === 'booked' && submittedSlot && selectedCampus"
               :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"
@@ -632,12 +641,16 @@ async function onSubmit() {
                 <a class="button primary" :href="managePath">修改或取消預約</a>
                 <button type="button" class="button outline" @click="copyManageLink">{{ linkCopied ? '已複製連結' : '複製連結' }}</button>
               </div>
+              <p class="visit-copy-feedback" role="status">{{ linkCopyFailed ? '沒有複製成功，請長按下面的網址複製。' : '' }}</p>
+              <input v-if="linkCopyFailed" class="visit-copy-url" type="url" readonly :value="manageUrl" aria-label="修改或取消預約的連結" @focus="selectManageUrl">
             </div>
             <div v-else class="visit-result-next">
               <h3>需要協助？</h3>
               <p>請直接聯絡{{ selectedCampus?.name }}。</p>
               <div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><NuxtLink v-if="selectedCampus" class="visit-inline-link" :to="`/visit/${selectedCampus.key}`">重新選擇場次</NuxtLink></div>
             </div>
+            <!-- 填寫內容放在下一步之後：正式站不寄確認信時，修改連結是家長唯一的管理入口，手機上原本要捲近兩屏才看到（2026-10-12）。 -->
+            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>
         </div>

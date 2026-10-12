@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotRange, slotWhen } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
@@ -252,16 +252,16 @@ async function submitEdit() {
               </div>
             </form>
 
-            <form v-if="editOpen" ref="editPanel" class="parent-visit-confirm parent-visit-edit" novalidate @submit.prevent="submitEdit">
+            <form v-if="editOpen" ref="editPanel" class="parent-visit-confirm parent-visit-edit" novalidate @submit.prevent="submitEdit" @keydown.enter="focusNextFieldOnEnter($event, editPanel)">
               <h3>修改預約資料</h3>
               <div class="parent-visit-fields">
-                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" :aria-invalid="Boolean(editErrors.parentName)"></label>
+                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" enterkeyhint="next" :aria-invalid="Boolean(editErrors.parentName)"></label>
                 <p class="parent-visit-error">{{ editErrors.parentName }}</p>
-                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" :aria-invalid="Boolean(editErrors.phone)"></label>
+                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" :aria-invalid="Boolean(editErrors.phone)"></label>
                 <p class="parent-visit-error">{{ editErrors.phone }}</p>
-                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" :aria-invalid="Boolean(editErrors.email)"></label>
+                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)"></label>
                 <p class="parent-visit-error">{{ editErrors.email }}</p>
-                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" :aria-invalid="Boolean(editErrors.childName)"></label>
+                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
                 <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
@@ -340,11 +340,18 @@ async function submitEdit() {
 .parent-visit-contact .parent-visit-actions { margin-top: 12px; }
 @media (max-width: 480px) {
   .parent-visit { padding-top: 24px; }
-  .parent-visit-card { padding: 20px; }
+  /* 改場次的月曆七欄：320 寬原本每格只剩 31px（預約頁同寬 38px），外框與卡片內距各收 4px（2026-10-12）。 */
+  .parent-visit-shell { width: calc(100% - 32px); }
+  .parent-visit-card { padding: 16px; }
   .parent-visit-details > div { grid-template-columns: 1fr; gap: 4px; }
   .parent-visit-actions .button { width: 100%; padding-inline: 16px; }
 }
 .parent-visit-fields{display:grid;gap:4px}
 .parent-visit-fields label{display:grid;gap:6px}
+/* 修改資料的輸入框原本是瀏覽器預設（35px 高、灰色凹框），和預約表單同一套外觀與 54px 觸控高度（2026-10-12）。 */
+.parent-visit-fields input{display:block;width:100%;min-width:0;min-height:54px;padding:12px 16px;font:400 var(--fs-md)/1.65 var(--font);border:1px solid color-mix(in oklch,var(--green) 72%,var(--white));border-radius:12px;background:var(--white);color:var(--text)}
+.parent-visit-fields input:focus{border-color:var(--green)}
+.parent-visit-fields input:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
+.parent-visit-fields input[aria-invalid="true"]{border-color:var(--error)}
 .parent-visit-fields .parent-visit-error:empty{display:none}
 </style>

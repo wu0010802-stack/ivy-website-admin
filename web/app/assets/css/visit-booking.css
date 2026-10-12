@@ -198,6 +198,9 @@
 .visit-submit-row .button {white-space:nowrap}
 .visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9}
 .visit-loading {padding-block:40px;min-height:180px}
+/* 讀場次時先留月曆的高度（月曆約 380–410px）：只有一行字時，月曆一插進來就把孩子資料欄推下去
+   約 470px，手機上看得到、點得到的欄位突然跑掉，也會算進版面位移（2026-10-12）。 */
+.visit-slots-loading {min-height:400px}
 .visit-config-note {max-width:none;margin:24px 0;padding:14px 18px;border-radius:12px;background:var(--visit-soft);font-size:var(--fs-sm);line-height:1.8}
 .visit-contact-step {padding-top:6px}
 .visit-contact-kicker {display:block;color:var(--visit-muted);font-size:var(--fs-xs);letter-spacing:.1em;margin-bottom:12px}
@@ -224,6 +227,8 @@
 .visit-result-next h3 {font:600 var(--fs-md)/1.7 var(--font);color:var(--visit-ink)}
 .visit-result-next>p {font-size:var(--fs-sm);color:var(--visit-muted);line-height:1.85;margin-top:8px}
 .visit-home {margin-top:24px}
+.visit-copy-feedback:not(:empty) {margin-top:14px;font-size:var(--fs-sm);color:var(--visit-ink)}
+.visit-copy-url {display:block;width:100%;min-width:0;min-height:48px;margin-top:8px;padding:10px 14px;font:400 var(--fs-md)/1.5 var(--font);border:1px solid var(--visit-field-border);border-radius:12px;background:var(--visit-surface);color:var(--text)}
 
 @keyframes visit-photo-in {from{opacity:0;scale:1.03}to{opacity:1;scale:1}}
 @media(hover:hover) {
@@ -302,11 +307,42 @@
   .visit-contact-actions .button {width:100%;min-height:52px}
   .visit-contact-actions .visit-inline-link {align-self:flex-start}
   .visit-result-list>div {grid-template-columns:82px minmax(0,1fr);gap:12px}
+  /* 線稿縮小，讓結果與下一步早一點出現（2026-10-12）。 */
+  .visit-result-art {width:min(150px,45%);margin-bottom:12px}
 }
 @media(max-width:380px) {.visit-next-row {margin-inline:-16px;padding-inline:16px}}
 @media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}}
 /* 橫拿手機（單欄版面 960 以下、高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
 @media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
+/* 手機第一屏要看得到選校卡（2026-10-12）：iPhone Safari 扣掉網址列與工具列，可視高度多在 560–700，
+   原本頁首、迎賓區、步驟列與標題就占滿第一屏，黏底「下一步」直接蓋在第一張卡起點。
+   黏底列只留按鈕（狀態字留給讀屏；選中的卡本身有打勾，按鈕文字也跟著換），矮螢幕再拿掉導言、收迎賓區上距。 */
+@media(max-width:760px) {
+  .visit-next-row>p {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+}
+@media(max-width:760px) and (max-height:760px) {
+  .visit-page[data-step='1'] .visit-welcome {padding:18px 0 14px}
+  .visit-page[data-step='1'] .visit-lead {display:none}
+  .visit-page[data-step='1'] .visit-stage {padding-top:18px}
+  .visit-pick-step .visit-step-copy {margin-top:4px}
+}
+/* iPhone SE 這類（Safari 可視高度約 550）：眉標和麵包屑同一句、選校說明也拿掉，第一張卡至少露出校名。 */
+@media(max-width:760px) and (max-height:620px) {
+  .visit-page[data-step='1'] .visit-eyebrow {display:none}
+  .visit-page[data-step='1'] .visit-steps {margin-bottom:16px}
+  .visit-pick-step .visit-step-copy {display:none}
+  .visit-campus-list {margin-top:14px}
+}
+/* 橫拿手機（2026-10-12）：3:4 選校卡一列三張比可視高度還高（約 332／309px），下一步在三屏多以外；
+   月曆右邊的場次欄跟月曆頂端對齊，點下排日期後新出現的場次在畫面外、看起來像沒反應。
+   改用手機的細條卡（一列兩張）；拿掉場次區的容器查詢，月曆與場次回到上下排。 */
+@media(max-width:960px) and (max-height:500px) and (orientation:landscape) {
+  .visit-campus-choice {flex:0 1 calc((100% - 16px) / 2)}
+  .visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}
+  .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:72%;padding:0 18px;background:linear-gradient(to right,rgb(var(--ink) / .8),rgb(var(--ink) / 0))}
+  .visit-campus-check {top:50%;translate:0 -50%}
+  .visit-schedule-section {container-type:normal}
+}
 @media(forced-colors:active) {
   .visit-campus-choice input:checked+.visit-campus-card {outline:3px solid Highlight;outline-offset:3px}
   .visit-campus-check {border:1px solid CanvasText}

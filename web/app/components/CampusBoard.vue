@@ -11,7 +11,11 @@ const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
   .map(key => props.campuses.find(campus => campus.key === key))
   .filter((campus): campus is Campus => Boolean(campus)))
-const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === props.board.defaultCampus)))
+// 關於頁結尾的校名緞帶連到 /?campus=<校>#campuses（2026-10-12）：從點的那所開始，不是預設校。
+const route = useRoute()
+const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
+const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus) ? requestedCampus : props.board.defaultCampus
+const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === startCampus)))
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
 const photoViewport = ref<HTMLElement | null>(null)
