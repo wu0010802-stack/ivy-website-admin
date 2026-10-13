@@ -276,6 +276,51 @@ async def test_run_geo_sync_with_population_files_does_not_go_online(app, few_vi
     assert await _count(app) == RIS_SAMPLE_VILLAGES
 
 
+def _write_pages(tmp_path: Path, month: str) -> list[Path]:
+    """那個月份的樣本頁寫成檔案（和 --population-file 收的內政部原始回應一樣）。"""
+    files = []
+    for index, page in enumerate(ris_sample_pages(month), start=1):
+        path = tmp_path / f"{month}-{index}.json"
+        path.write_text(json.dumps(page, ensure_ascii=False), encoding="utf-8")
+        files.append(path)
+    return files
+
+
+async def _sync_files(app, files: list[Path], **kwargs) -> tuple[str, int]:
+    return await sync.sync_population(
+        app.state.session_factory, None, now=kwargs.pop("now", datetime.now(timezone.utc)),
+        force=kwargs.pop("force", False), files=files,
+    )
+
+
+async def test_an_older_population_file_does_not_replace_a_newer_month(app, few_villages, tmp_path: Path):
+    """檔案匯入和網路一樣不退回舊月份；拒絕時保留使用中的版本與時間戳，原因寫進 last_error 給 CLI 印出。"""
+    assert await _sync_files(app, _write_pages(tmp_path, "11509")) == ("updated", 0)
+    before = await _status(app)
+    result = await _sync_files(app, _write_pages(tmp_path, "11508"), now=before.synced_at + timedelta(days=1))
+    assert result == ("failed", 0)
+    status = await _status(app)
+    assert (status.active_version, status.label) == ("115-09", "115-09")
+    assert (status.synced_at, status.checked_at) == (before.synced_at, before.checked_at)
+    assert "115-08" in status.last_error and "115-09" in status.last_error and "--force" in status.last_error
+    assert await _count(app) == RIS_SAMPLE_VILLAGES
+
+
+async def test_force_lets_an_older_population_file_replace_the_month(app, few_villages, tmp_path: Path):
+    """真的要退回舊月份（新月份的檔案有問題）：明確加 --force 才行。"""
+    await _sync_files(app, _write_pages(tmp_path, "11509"))
+    assert await _sync_files(app, _write_pages(tmp_path, "11508"), force=True) == ("updated", 0)
+    status = await _status(app)
+    assert (status.active_version, status.label, status.last_error) == ("115-08", "115-08", None)
+
+
+async def test_the_same_month_population_file_can_be_imported_again(app, few_villages, tmp_path: Path):
+    files = _write_pages(tmp_path, "11509")
+    await _sync_files(app, files)
+    assert await _sync_files(app, files) == ("updated", 0)
+    assert (await _status(app)).label == "115-09"
+
+
 async def test_population_file_with_no_data_fails(app, few_villages, tmp_path: Path):
     path = tmp_path / "empty.json"
     path.write_text(json.dumps({"responseCode": "OD-0102-S", "responseMessage": "查無資料"}), encoding="utf-8")

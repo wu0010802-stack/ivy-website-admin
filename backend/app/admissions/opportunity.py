@@ -11,7 +11,9 @@
   這是拿實際參觀和公開人口做描述性比較，不預測、不對任何一戶打分（規格 1.3）。
 
 只算比對到里、未匿名化的訪視；只到區、未定位、待比對、沒填地址、已匿名化的合計成
-unplaced_visit，到了里但在半徑外的合計成 outside_visit，兩者都不進附近平均。"""
+unplaced_visit，到了里但在半徑外的合計成 outside_visit，兩者都不進附近平均。
+在半徑內、但人口表沒有那個里（人口批次只要 850 個里就能換版）的里列在 no_population_villages：
+沒有孩子數可除，參觀同樣不進附近平均，也不算半徑外。"""
 
 from __future__ import annotations
 
@@ -124,6 +126,7 @@ async def query_opportunity(
         "baseline": None,
         "outside_visit": 0,
         "unplaced_visit": 0,
+        "no_population_villages": [],
         "villages": [],
     }
     visits, unplaced = await _visits_by_village(db, campus_key, school_year, semester)
@@ -133,18 +136,34 @@ async def query_opportunity(
         # 會讓畫面寫出「N 位來自 3 公里外」的錯話，所以留 0，由畫面寫原因。
         return result
 
-    centroids = boundaries.village_centroids()
+    # 「附近」只看里界重心的距離（規格 O2），不看人口表有沒有那個里。人口批次有 850 個里就能換版，附近的里
+    # 可能沒有人口列；它的參觀若被當成半徑外，距本校 287 m 的里會被寫成「3 公里外」。
     radius_m = radius_km * 1000
-    nearby: list[tuple[GeoVillagePopulation, int]] = []
-    for row in (await db.execute(select(GeoVillagePopulation))).scalars():
-        point = centroids.get(row.village_code)
-        if point is None:
-            continue
+    near: dict[str, int] = {}
+    for code, point in boundaries.village_centroids().items():
         distance = haversine_m(campus["lat"], campus["lng"], *point)
         if distance <= radius_m:
-            nearby.append((row, _round_distance(distance)))
-    nearby_codes = {row.village_code for row, _ in nearby}
-    result["outside_visit"] = sum(count for code, count in visits.items() if code not in nearby_codes)
+            near[code] = _round_distance(distance)
+    population = (await db.execute(select(GeoVillagePopulation))).scalars().all()
+    nearby = [(row, near[row.village_code]) for row in population if row.village_code in near]
+    result["outside_visit"] = sum(count for code, count in visits.items() if code not in near)
+    # 附近但人口表沒有的里：沒有孩子數可除，參觀不進附近平均；列出來讓畫面交代，參觀多的排前面。
+    with_population = {row.village_code for row in population}
+    names = boundaries.village_names()
+    result["no_population_villages"] = sorted(
+        (
+            {
+                "district": names[code][0],
+                "village": names[code][1],
+                "village_code": code,
+                "distance_m": distance,
+                "visit": visits.get(code, 0),
+            }
+            for code, distance in near.items()
+            if code not in with_population
+        ),
+        key=lambda item: (-item["visit"], item["distance_m"], item["district"], item["village"]),
+    )
 
     children_total = sum(_sum_ages(row, AGE_BAND) for row, _ in nearby)
     visit_total = sum(visits.get(row.village_code, 0) for row, _ in nearby)

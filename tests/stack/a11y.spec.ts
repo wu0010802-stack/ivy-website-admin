@@ -82,6 +82,7 @@ test.describe('後台', () => {
     ['/visit-requests?group=arrived', '參觀案件'],
     ['/visit-requests/{visit}', '案件明細'],
     ['/visit-calendar', '參觀場次'],
+    ['/visit-calendar?campus=yihua&tab=usage', '參觀場次'],
     ['/admissions', '招生入學'],
     ['/admissions?tab=records', '招生入學'],
     ['/admissions?tab=stats', '招生入學'],

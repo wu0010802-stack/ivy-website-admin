@@ -270,6 +270,8 @@ async def test_download_cut_off_midway_keeps_active_version(app, small_minimum, 
         return await real_import(session_factory, tag, rows, batch_size=3)
 
     monkeypatch.setattr(doorplate_io, "import_doorplates", small_batches)
+    # 下載中的行收滿一塊才交給執行緒解析：塊也調小，斷線前的 10 筆才會先解析、寫進資料庫。
+    monkeypatch.setattr(sync, "FILE_CHUNK_LINES", 3)
     result = await _sync(app, httpx.MockTransport(handle), force=True)
     assert (result.doorplates, result.doorplate_version) == ("failed", "115-10")
     status_row = await _status(app, "doorplates")

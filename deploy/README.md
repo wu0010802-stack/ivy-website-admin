@@ -13,6 +13,44 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 審查四條修正：招生機會缺人口資料／舊月份人口檔、預約取鎖後重讀場次（main CI 部署，沒有 migration）
+
+- **提交**：直接推 main，`fbed245a..d3486cac` 兩個 commit（`4fd5f3b0` 招生、`d3486cac` 預約）。內容見 README 頂部 10-13「審查四條修正」。
+- **migration**：無。API 回應只新增 `no_population_villages[]`（契約已重新產生），資料表沒動。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**：
+  - 兩條招生在 `8c4ec20a` 上：後端全套 2584（2494 passed、1 skipped；另 89 個先前因 sparse worktree 缺 `web`／`deploy` 目錄而 `FileNotFoundError`，補檔後全過）、admin vitest 2306 passed、`vue-tsc` 無錯、`contract:check` 一致。
+  - 兩條預約在 `8c4ec20a` 上：後端全套 2582（2581 passed、1 skipped、1 failed）。唯一失敗是 `test_referral_text_matches_admin_labels`，原因是該 worktree 沒有 `admin/src/api/labels.ts`；補檔後單獨跑 14 passed。新增 `test_booking_stale_reads.py` 5 個（真並發），撤掉修正時 5 個全紅、套回後連跑 8 次全過。
+  - 接上 `fbed245a`（含別的 session 併入的場次使用情況與新 migration `b4d7e1a92c58`）後：測試庫升到 head，預約／場次／招生機會／門牌相關 379 passed；`contract:check` 一致；`areaFormat`、`areaMap` vitest 71 passed；`vue-tsc` 無錯。接上 `72d0f933` 時另跑過招生與預約相關 44 個檔共 1085 passed。
+- **CI**：main run 38419719691（`d3486cac`），建立 15:10:15Z，排在 run 38418981759（`fbed245a`）之後，15:22:38Z 開跑，15:39:55Z 部署完成，全綠：
+  - Frontend web 1.9 分、admin 10.1 分；Backend 三組 9.8／7.9／11.6 分；E2E／Playwright 8.9 分；Deploy Railway production 5.6 分。
+- **正式 `release.json`**：base commit `d3486cac876b819d5d9175ca62e917a1b7214591`，snapshot `4dcc468f…`，created `2026-10-13T15:34:43Z`，`web+api`。
+- **線上唯讀檢查**（未登入，15:4x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - 後台 `areaFormat-BVrl5a8-.js` 含「沒有人口資料」「沒算進去」；`AreaMap-DPtlKTyX.js` 含「沒有算進附近平均」。
+- **未在線上驗證**：
+  - 預約兩條的競態需要真並發，線上沒有重現；以上述真 PostgreSQL 並發測試為準。
+  - 沒登入後台看地圖畫面；正式站的人口資料有沒有缺里也沒查。
+  - 舊月份人口檔的擋下只在測試庫驗證過，正式站下一次匯入時才會碰到。
+
+## 2026-10-13 效能第五輪（main CI 部署，沒有 migration）
+
+- **合併**：PR #36（`feature/perf-20261013`，head `3390d6ae`）由 GitHub 以 merge commit 併入 main `8c4ec20a..72d0f933`。內容見 README 頂部 10-13「效能第五輪」、DESIGN.md 最上方一節。
+- **migration**：無。後端只改可能範圍的快取與門牌／幼兒園同步的解析位置，API 與契約沒改。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**：本機結果見 README 頂部同名段落（web unit 1170、admin 2306 passed、後端全套 2578 passed、`contract:check` 一致、stack e2e 以 Chromium 跑）。PR 上的 CI（`3390d6ae`）全綠。
+- **CI**：main run 38410820917（`72d0f933`），建立到部署完成 22.8 分鐘，全綠：
+  - Frontend web 1.3 分、admin 5.9 分；Backend 三組 9.7／9.6／12.1 分；E2E／Playwright 8.1 分。
+  - Deploy Railway production 約 10.5 分，成功；其中 checkout 一步就花了 6.1 分，比前幾次慢。
+- **正式 `release.json`**：base commit `72d0f9339b77c25a95eb4e4f81fe04efa3dd3e63`，snapshot `60a52996…`，created `2026-10-13T14:27:05Z`，`web+api`。
+- **線上唯讀檢查**（未登入，14:3x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - `/`、`/about` 的 HTML 帶 `content-encoding: br`（SSR 壓縮改非同步後照常）。
+  - 代理壓縮 JSON：`/api/website/v1/public/site` 帶 `Accept-Encoding: gzip` 回 `content-encoding: gzip`、`vary: Accept-Encoding`，4,438 bytes（不壓 9,479），解壓後和不壓的內容逐位元組相同。
+  - 後台：`/admin/` 多了 `vue-C-Nk7iAn.js`、`labels-BeXPTfd5.js` 兩個 chunk。`DashboardView-b_2XoL6Y.js` 只動態載入 RecordDialog；`AdmissionsView-COPbQE1j.js` 動態載入 RecordsTab、StatsTab（RecordDialog 仍是漏斗看板的靜態依賴）。
+  - `/about` 的 motion chunk `BHDyLS79.js` 原始 68,562 bytes（原本約 135 KB），以 brotli 送。
+- **未做**：沒有登入正式後台實際操作總覽標記到場、區域分析換著色；沒有讀 Railway log；門牌同步改執行緒解析要等下次換月或 `--force` 才會跑到。
+
 ## 2026-10-13 招生機會地圖（main CI 部署，migration 只新增表並放寬一個約束）
 
 - **合併**：PR #34（`claude/amazing-cannon-0cqnpc`，head `ad66341e`，其中 `ee3170ff` 已合入 PR #33 的 main `00428c2f`）由 GitHub 以 merge commit 併入 main `00428c2f..58ec755d`。內容見 README 頂部 10-13「招生機會地圖」、DESIGN.md 最上方一節、規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`。

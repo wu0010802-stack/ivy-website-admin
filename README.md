@@ -19,6 +19,85 @@
 - **未驗證**：Safari／iOS 實機、真機 GPU 下的首頁開場效能；headless Chromium 播不了 H.264，首頁與 30 週年影片相關的檢查用 ffmpeg 抽幀與海報代替。
 - **待業主確認**：特色教學頁水彩顏色變柔和（色票本來的樣子）；其餘待決定事項列在 DESIGN.md。
 
+## 2026-10-13 審查四條修正（招生機會缺人口／舊月份人口檔、預約取鎖後重讀場次）
+
+來源是外部審查回報的四條，先用真 PostgreSQL 重現，再修。
+
+- **招生機會：人口批次只缺一個里**：「附近」改成只看里界重心距離（規格 O2），不看人口表。過去缺的那個里（距校約 287 m）被當成半徑外，20 筆參觀算成「3 公里外」。回應新增 `no_population_villages[]`（區、里、代碼、距離、參觀數），總結小字與地圖彈出框寫明「這個里沒有人口資料」。加總式 `baseline.visit + outside_visit + Σ no_population_villages.visit + unplaced_visit` 等於統計頁的總參觀。
+- **人口檔倒退**：`--population-file` 匯入比使用中更舊的月份時，當驗證不過（`failed`＋`last_error`，保留 `synced_at`／`checked_at`，CLI 會印出原因）；真的要退回舊月份加 `--force`。網路來源連 `--force` 也不降版。門牌檔案匯入本來就不擋舊版（檔案可指定月份），兩者不同：人口月份取自資料本身。
+- **預約：改期與改 Email 交錯**：`update_details_by_staff` 取鎖時補重讀 `slot_id`，新連結的效期與要不要補發才照改期後的場次算（原本拿舊場次，效期只剩 14 天，原場次已開始時只撤銷不補發）。
+- **預約：交錯改期後家長仍能操作**：家長取消／改資料／再改期，期限檢查原本在取鎖之前；現在取鎖後重讀場次再判斷，園方剛把預約改到 24 小時內時回 409 `CHANGE_DEADLINE_PASSED`。改期與改資料保留鎖外早期檢查（期限過了仍優先於限流 429），並在限流檢查之後補一次鎖內檢查：限流器用自己的連線池，不能握著案件鎖等它。
+- **測試**：預約兩條用真並發重現（另一交易持鎖改期未 commit，請求卡在鎖上，之後才 commit），見 `backend/tests/test_booking_stale_reads.py`。驗證結果與 CI 見 `deploy/README.md` 同名段落。
+
+## 2026-10-13 場次使用情況（`feature/visit-slot-usage-20261013`）
+
+使用者要「更多可以做招生判讀的資料」，四項裡的第一項。規格 `docs/specs/2026-10-13-visit-slot-usage-design.md`，規則見 DESIGN.md「參觀場次：場次使用情況」。
+
+- **記錄**：公開 `GET /public/slots` 在 `purpose=new_booking` 時記一次「最早能約哪天」（五個區間），只存每日彙總 `slot_lookup_daily`；新預約表單帶這個參數，改期管理頁不帶。不改公開頁外觀。
+- **回推**：各時段（星期×起訖）過去 4／12／26 週的場次數、總名額、已約、填滿率、額滿場次，判讀「常額滿／很少人約／還不判斷」。
+- **畫面**：參觀場次頁多「場次使用情況」頁籤（`?tab=usage`）。
+- **migration**：`b4d7e1a92c58` 只新增表，不需備份閘門。
+- **驗證**：
+  - stack e2e（Node 22、專屬庫與 port；`npm run e2e:build` 後 `playwright test -c playwright.stack.config.ts tests/stack/slot-usage.spec.ts tests/stack/a11y.spec.ts tests/stack/schedule-flow.spec.ts`）36 個全過，含新增的 `slot-usage.spec.ts` 4 個（1440／390 頁籤不橫向溢出、頁籤進網址、分校管理者）與 a11y 掃描 `/admin/visit-calendar?campus=yihua&tab=usage`。
+  - `slot-usage.spec.ts` 單獨跑 4 個過；請求不帶 `purpose=new_booking` 時，1440／390 兩個案例失敗（總結句不出現）。分校管理者案例含單校標籤、無校區下拉與跨校 API 404 的斷言。
+  - 有表格的畫面另以測試庫的過去場次與預約檢查（三個時段，常額滿／很少人約／還不判斷各一）：axe 0 個違規（1440、390），頁面不橫向溢出；390 的表格在表內橫向捲動（時段欄固定，判讀欄要往右捲）。
+  - 最終程式碼（含最終審查後的修正 commit「fix: 場次使用情況最終審查修正」）：
+    - 後端全套 2626 passed、1 skipped（約 37 分鐘）。這輪跑在「test(e2e): 分校管理者那條補上…」那個 commit，也就是最終審查修正之前；修正涉及的 schema、lookup、usage 三個測試檔另在修正後跑 51 passed，ruff 通過。
+    - admin vitest 全套：機器負載約 16–21 時有 35、36 個逾時失敗（`STACK_TRACE_ERROR`），分散在 13–16 個與本次無關的檔案。這些檔案逾時放寬到 60 秒、單程序重跑 392 passed、1 skipped、0 failed。本次新增的 `slotUsage.test.ts`（33 個）在全套中全過。
+    - web vitest 98 個檔案、1162 passed；admin、web typecheck 通過；`contract:check` 一致。
+    - stack e2e 三支（`slot-usage`、`a11y`、`schedule-flow`）在最終程式碼重新 build 後再跑一次，36 passed。
+  - 重新對齊 main（效能第五輪合併後的 `72d0f933`；無新 migration、之後 main 只多一個部署紀錄 commit、只有 README／DESIGN 文字衝突）後：
+    - 完整 stack 套件 134 passed、0 failed（約 9.7 分鐘，含 `slot-usage.spec.ts` 4 個與 a11y 的 `tab=usage`）。
+    - 後端相關檔（場次三個、`test_geo_sync`、`test_admissions_area`、`test_admissions_estimation`）191 passed；admin 的 `slotUsage`、`areaMap` 等相關檔 116 passed、web 的 `slot-lookup-purpose`、`gzip-boundaries` 70 passed；admin、web typecheck 與 `contract:check` 通過。
+    - 後端全套未在對齊後重跑：main 新增的變更只動 `estimation.py`、`geo/sync.py`，與本分支沒有重疊檔案。
+
+## 2026-10-13 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（`feature/perf-20261013`）
+
+使用者要「優化專案的效能」。官網、後台、後端分三路盤點，每一項先量再決定做不做；外觀不變。規則與「量過不改」的清單寫在 DESIGN.md 最上方一節。量測在本機 stack（真 API＋隔離測試庫＋production build），腳本放在 session 暫存，不進版控。
+
+- **後端**
+  - 可能範圍（`estimation.rate_range`）加 `lru_cache`。一次區域分析要算幾百個里，同一次請求的 prior 相同；300 次呼叫只有 21 種組合，107 ms → 8 ms。這段原本全在 event loop 上，而正式站 API 只有一個 worker。
+  - 門牌同步：下載中的 CSV 收滿 5,000 行交給執行緒解析（本機檔案本來就這樣做）。幼兒園名單的 JSON 解析與篩選也丟執行緒。
+    - 20 萬行實測：event loop 延遲 p99 101 → 11 ms；總耗時多約 10%。
+    - 全市約 129 萬行，原本每月同步時會斷斷續續卡住官網的預約與內容請求約一分鐘。
+    - `test_download_cut_off_midway_keeps_active_version` 把分塊調成 3 行，維持「斷線前已寫進半個批次」的情境。
+- **官網代理**：JSON 回應對收 gzip 的客戶端壓縮（`createJsonGzip`）。
+  - 1 KB 以下、HEAD、304、非 JSON 不動；CSV 匯出與素材照舊串流；里界 GeoJSON 照舊走依 ETag 快取的那支。
+  - 訪視明細一頁 50 筆（測試資料）72 KB → 3.8 KB。
+  - `gzip-boundaries.spec.ts` 原本「其他路徑不壓縮」那組改成新的行為，另補分塊傳輸、422、小檔、不收 gzip、304、非 JSON、HEAD、斷線 502、不快取、壓縮失敗退回原樣。
+- **官網**
+  - `/about` 的 motion 改在 `.then` 裡解構，打包才 tree-shake 得掉：chunk 135 → 69 KB（brotli 40 → 22 KB）。回傳型別要標 `AboutPopupDeps`，讓 TS 推導整個 motion 的型別會使 `server/api/public-site.get.ts` 跳 TS2321。
+  - SSR HTML 壓縮改用非同步 zlib，brotli／gzip 移到 libuv 執行緒。
+- **後台**
+  - 總覽：招生資料表單（RecordDialog 連同日期、下拉元件）改成確認標記到場那一刻才下載。總覽在入口之外的 JS（gzip）70 → 12 KB。
+  - 招生入學：訪視明細、統計分析兩個分頁另切 chunk，預設的漏斗看板在入口之外 166 → 101 KB（gzip）。
+  - 新 `composables/lazyComponent.ts`：載入失敗比照換頁，整頁重載一次。`reloadAfterChunkError` 搬到 `router/chunkReload.ts`，`router/index.ts` 照舊匯出。
+  - RecordDialog 的 open watcher 改成 immediate（掛上時已打開也帶入資料）。
+  - rolldown `codeSplitting.groups`：Vue／Vue Router／Pinia 一個 chunk、`src/api/labels.ts` 一個 chunk。改標籤只讓 17 KB（gzip）的 labels 失效，不再連 Vue 一起重抓；入口總量不變（167 KB gzip）。
+  - 區域分析地圖：資料重讀、換半徑、換著色只換 893 個里圖形的 class，不重建圖層。
+    - 真 Leaflet、4 倍 CPU 降速，切換著色 360–750 ms → 56–96 ms；三種模式的著色分布與改前相同。
+    - 里界換了、手機／桌機版面切換才重建。
+- **量過、不改**（詳見 DESIGN.md）：
+  - 每頁重複的阻塞樣式表：限速手機換成空檔，LCP /about 2380 vs 2408 ms、首頁 1584 vs 1576 ms，誤差內。
+  - 字型其餘分片樣式表降優先權：LCP 不變。
+  - 站內換頁不會重抓 `/api/published-site`。
+  - 消息進度條每 50 ms 更新：profile 看不到成本。
+  - 校區座標快取、招生機會預先篩里、頁首徽章輕量端點：差距在 10 ms 內。
+- **驗證**（本機 Node 22.22、PostgreSQL 16）：
+  - web：`nuxt typecheck` 通過；vitest 97 檔 1170 項通過；production build 通過。
+  - admin：`vue-tsc -b` 通過；vitest 154 檔 2306 過、1 略過；build 通過。
+  - backend：改到的測試（estimation、deposit_pace 49 項；geo sync／kindergartens／doorplates／loop／population 235 項）通過；全套 2578 passed（獨立測試庫，41 分鐘）。
+  - stack e2e（本機沒有 Google Chrome，用 `/opt/pw-browsers/chromium`；暫用設定放 `output/`，不進版控）：
+    - 全套 122 過、1 敗、6 未執行。失敗的是 `exports.spec` 的訪視明細下載：Chromium 給的檔名是 `download`，和 10-13 招生機會地圖那輪記錄的一樣。後台的 CSV 下載是瀏覽器端 Blob＋`a.download`，檔名由前端決定、和代理無關；檔名之前的 BOM、CRLF 檢查都通過。同一檔是 serial，後面 6 支跟著沒跑。
+    - 總覽改成「到場成功後才掛表單」之後重 build，補跑 `visit-complete-early`、`roles`、`keyboard`、`sidebar-collapse`、`admissions-area`、`admissions-flow`：29 過。`exports.spec` 其餘會下載的 4 支同樣卡在 Chromium 檔名；兩支版面測試通過。
+    - CI（Google Chrome）的 E2E 全綠，含 `exports.spec`。
+  - `contract:check` 一致（沒有 API 變更）。
+  - 瀏覽器實測（本機 Chromium）：
+    - `/about` 新舊兩版捲過整頁，動畫中間狀態與最終狀態相同、沒有錯誤。
+    - 後台總覽、招生入學三個分頁、區域分析地圖依序打開，各自只在需要時下載對應 chunk、沒有錯誤。
+    - SSR HTML 的 br／gzip／不壓三種回應解開後與原文相同。
+- **未驗證**：Safari／iOS 實機；正式站（Railway）上的實際延遲；真實家長資料的 JSON 壓縮比（測試資料重複度高，壓縮比偏樂觀）。
+
 ## 2026-10-13 招生機會地圖（`claude/amazing-cannon-0cqnpc`）
 
 使用者要「令人驚艷、不是 AI」的功能，從四個方案選了招生機會地圖。重開區域分析 10-08 延後的「人口與機會判讀」（飽和度仍不做）。規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`，規則見 DESIGN.md 最上方一節。

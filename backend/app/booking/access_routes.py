@@ -57,10 +57,20 @@ async def require_parent_request(request: Request, parent_header: str | None = H
         raise HTTPException(status_code=429, detail={"code": "RATE_LIMITED", "message": "操作太頻繁，請稍後再試"}, headers={"Retry-After": str(exc.retry_after_seconds)}) from exc
 
 
-async def require_change_window(db: AsyncSession, visit_request: VisitRequest) -> None:
-    """期限依該校設定（規格 L238），與家長頁顯示的截止時間同一個算法。"""
+async def require_change_window(db: AsyncSession, visit_request: VisitRequest, *, locked: bool = False) -> None:
+    """期限依該校設定（規格 L238），與家長頁顯示的截止時間同一個算法。
+
+    locked=True（2026-10-13 審查）：先鎖住案件列、在鎖內重讀場次，再依鎖內的場次判斷。園方可能剛把
+    預約改到期限之內；請求最初讀到的場次是鎖外載入的，只靠它檢查的話，卡在鎖上的請求等園方 commit
+    之後仍會照舊取消、改資料或再改期。期限已過就先 rollback 放掉鎖再回 409。
+    限流器用自己的連線池，不能握著案件列鎖等它，所以有每案次數限制的路由先看次數，再做鎖內檢查。"""
+    if locked:
+        await workflow_service.lock_status(db, visit_request)
+        await db.refresh(visit_request, attribute_names=["slot"])
     hours = await change_deadline_hours(db, visit_request.campus_key)
     if not parent_change_open(visit_request, hours):
+        if locked:
+            await db.rollback()
         raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
 
 
@@ -200,7 +210,7 @@ async def parent_cancel(
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     _require_same_visit_request(visit_request, payload.visit_request_id if payload else None)
-    await require_change_window(db, visit_request)
+    await require_change_window(db, visit_request, locked=True)
     try:
         await workflow_service.cancel(db, visit_request, actor=PARENT)
     except workflow_service.InvalidTransition as exc:
@@ -243,6 +253,8 @@ async def parent_reschedule(
     await require_change_window(db, visit_request)
     visit_request_id = visit_request.id
     await require_case_quota(request, PARENT_RESCHEDULE_PER_CASE, visit_request_id)
+    # 上面那次是鎖外的快速檢查；鎖內再看一次，才擋得住「剛被園方改到期限之內」的預約。
+    await require_change_window(db, visit_request, locked=True)
     try:
         await access_service.validate_parent_reschedule(db, visit_request, payload.slot_id)
         await workflow_service.reschedule(db, visit_request, payload.slot_id, actor=PARENT)
@@ -304,6 +316,7 @@ async def parent_update_details(
         raise _conflict("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，要修改資料請來電洽詢")
     visit_request_id = visit_request.id
     await require_case_quota(request, PARENT_EDIT_PER_CASE, visit_request_id)
+    await require_change_window(db, visit_request, locked=True)
     try:
         changed = await workflow_service.update_details_by_parent(
             db, visit_request, payload.changes(), expected_version=payload.expected_version

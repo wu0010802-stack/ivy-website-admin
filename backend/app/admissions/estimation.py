@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 from typing import Iterable, Sequence
 
 # 可能範圍：先借 10 位全體平均的家長（事前強度），取事後分布的 80% 範圍。
@@ -94,10 +95,18 @@ def rate_range(
     prior_rate 是 0–1 之間（不含兩端）的比例，用 prior_rate() 算；trials 為 0 或 prior_rate 為 None 時回 None。"""
     if trials <= 0 or prior_rate is None:
         return None
+    low, high = _range_bounds(successes, trials, prior_rate, strength, level)
+    return {"low": low, "high": high}
+
+
+# 一次區域分析要算幾百個里（加區、距離帶），一次 0.3–1 ms 全在 event loop 上；同一次請求的
+# prior 相同，(預繳, 參觀) 多半是 (0,1)、(1,2) 這種小數字，實測 300 次只有 21 種。純函式，直接快取。
+@lru_cache(maxsize=4096)
+def _range_bounds(successes: int, trials: int, prior_rate: float, strength: float, level: float) -> tuple[float, float]:
     a = successes + strength * prior_rate
     b = trials - successes + strength * (1.0 - prior_rate)
     tail = (1.0 - level) / 2.0
-    return {"low": round(beta_ppf(tail, a, b) * 100, 1), "high": round(beta_ppf(1.0 - tail, a, b) * 100, 1)}
+    return round(beta_ppf(tail, a, b) * 100, 1), round(beta_ppf(1.0 - tail, a, b) * 100, 1)
 
 
 def kaplan_meier(observations: Iterable[tuple[int, bool]]) -> list[tuple[int, float]]:

@@ -48,6 +48,12 @@ def village_codes() -> frozenset[str]:
     return frozenset(_village_codes().values())
 
 
+@lru_cache(maxsize=1)
+def village_names() -> dict[str, tuple[str, str]]:
+    """里代碼 → (區, 里)；village_code 的反查（招生機會要替人口表沒有的里寫出名稱）。"""
+    return {code: key for key, code in _village_codes().items()}
+
+
 def _ring_centroid(ring: list[list[float]]) -> tuple[float, float, float]:
     """外環的 (帶號面積, 重心經度, 重心緯度)：shoelace 公式，座標直接當平面算（一個里只有幾百公尺到
     幾公里，經緯度的變形可以忽略）。面積為 0 的退化環回 (0, 0, 0)，由呼叫端略過。"""

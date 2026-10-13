@@ -51,7 +51,17 @@ const leaflet = vi.hoisted(() => {
       })
     }),
     tileLayer: vi.fn((url: string, options: Record<string, unknown>) => layer('tileLayer', { url, options })),
-    geoJSON: vi.fn((data: unknown, options: Record<string, any>) => layer('geoJSON', { data, options })),
+    // 里界圖層：每個 feature 一個子圖形，像真 Leaflet 的 SVG renderer 一樣在建立時把 className 與 leaflet-interactive
+    // 掛到 <path> 上（之後 setStyle 不會再動 class），eachLayer 逐一走過。
+    geoJSON: vi.fn((data: { features?: unknown[] } | undefined, options: Record<string, any>) => {
+      const children = (data?.features ?? []).map((feature) => {
+        const className: string = options.style(feature).className
+        const element = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+        element.setAttribute('class', `${className} leaflet-interactive`)
+        return { feature, options: { className }, getElement: () => element }
+      })
+      return layer('geoJSON', { data, options, children, eachLayer: vi.fn((fn: (child: unknown) => void) => children.forEach(fn)) })
+    }),
     marker: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('marker', { latlng, options })),
     circle: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('circle', { latlng, options })),
     circleMarker: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('circleMarker', { latlng, options })),
@@ -240,9 +250,28 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(popup.querySelector('img, b')).toBeNull()
   })
 
-  it('里的參觀人數變了：整層重畫（class 只在建立時套用）', async () => {
+  // 圖形的 class：子圖形的 <path> 上除了 leaflet-interactive 以外的 class。
+  const pathClass = (town: string, village: string) => {
+    const child = one('geoJSON').children.find((item: any) => item.feature.properties.TOWNNAME === town && item.feature.properties.VILLNAME === village)
+    return [...child.getElement().classList].filter((name: string) => name !== 'leaflet-interactive').join(' ')
+  }
+
+  it('里的參觀人數變了：不重建圖層，只換各里圖形的 class（保留 leaflet-interactive，options 一起改）', async () => {
     const wrapper = await mountMap()
+    expect(pathClass('三民區', '本揚里')).toBe('area-village area-village--l5')
     await wrapper.setProps({ villages: [] })
+    expect(leaflet.created.geoJSON).toHaveLength(1)
+    expect(one('geoJSON').remove).not.toHaveBeenCalled()
+    expect(pathClass('三民區', '本揚里')).toBe('area-village area-village--l0')
+    expect(pathClass('三民區', '寶業里')).toBe('area-village area-village--l0')
+    const benyang = one('geoJSON').children.find((item: any) => item.feature.properties.VILLNAME === '本揚里')
+    expect(benyang.getElement().classList).toContain('leaflet-interactive')
+    expect(benyang.options.className).toBe('area-village area-village--l0')
+  })
+
+  it('里界換了（重新讀到不同的里界檔）才整層重建', async () => {
+    const wrapper = await mountMap()
+    await wrapper.setProps({ boundaries: villageBoundaries() })
     expect(one('geoJSON').remove).toHaveBeenCalled()
     expect(leaflet.created.geoJSON).toHaveLength(2)
   })
@@ -685,6 +714,24 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     expect(missing.get('.area-map__mode-note').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
   })
 
+  // 子圖形 <path> 上實際掛的 class（換模式不重建圖層，畫面靠這個換色）。
+  const pathOf = (item: ReturnType<typeof coded>) => {
+    const child = latest().children.find((entry: any) => entry.feature.properties.VILLCODE === item.properties.VILLCODE)
+    return child ? [...child.getElement().classList].filter((name: string) => name !== 'leaflet-interactive').join(' ') : undefined
+  }
+
+  it('換著色模式不重建圖層：各里圖形的 class 直接換掉，換回來也一樣', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity() })
+    expect(pathOf(BENYANG)).toBe(classOf(BENYANG))
+    await choose(wrapper, 'opportunity')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
+    expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(pathOf)).toEqual([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf))
+    expect(pathOf(DINGJIN)).toBe('area-village area-village--chance')
+    await choose(wrapper, 'visits')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
+    expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(pathOf)).toEqual([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf))
+  })
+
   it('2–5 歲孩子：半徑內依孩子數分 5 級，半徑外不上色；圖例寫「位」；地圖名稱跟著換', async () => {
     const wrapper = await mountMap({ opportunity: areaOpportunity() })
     await choose(wrapper, 'children')
@@ -703,12 +750,30 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
       'area-village area-village--l0',
     ])
     expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
-      .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷或在半徑外'])
+      .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷、在半徑外或沒有人口資料'])
     expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual([
       '三民區鼎金里', '2–5 歲 500 位・0–1 歲 150 位', '參觀 3 位（0.6%），照附近應有約 10 位', '少了約 7 位',
     ])
     // 有參觀的里照樣可以「查看明細」；不在半徑內的里寫出來，不留空白。
     expect(popupOf(BENYANG).querySelector('button')?.textContent).toBe('查看明細')
+    expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
+  })
+
+  it('半徑內但人口表沒有的里：不上色，彈出框寫沒有人口資料與參觀人數，不寫成不在半徑內', async () => {
+    const base = areaOpportunity()
+    const wrapper = await mountMap({
+      opportunity: {
+        ...base,
+        villages: base.villages.filter((row) => row.village_code !== BENYANG.properties.VILLCODE),
+        no_population_villages: [{ district: '三民區', village: '本揚里', village_code: BENYANG.properties.VILLCODE, distance_m: 300, visit: 6 }],
+      },
+    })
+    await choose(wrapper, 'opportunity')
+    expect(classOf(BENYANG)).toBe('area-village area-village--l0')
+    expect([...popupOf(BENYANG).children].map((node) => node.textContent)).toEqual([
+      '三民區本揚里', '這個里沒有人口資料，沒有算進附近平均', '參觀 6 位', '查看明細',
+    ])
+    // 真的在半徑外的里照舊。
     expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
   })
 
@@ -723,6 +788,7 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await wrapper.setProps({ opportunity: areaOpportunity() })
     await flushPromises()
     expect(classOf(DINGJIN)).toBe('area-village area-village--chance')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
   })
 
   it('招生機會變得用不了（換校區後人口沒匯入、讀取失敗）：退回參觀人數著色', async () => {

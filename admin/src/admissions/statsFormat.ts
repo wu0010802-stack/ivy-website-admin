@@ -13,6 +13,8 @@ export interface StatsColumn {
   kind?: 'text' | 'count' | 'rate' | 'bar' | 'range'
   /** 手機橫捲時固定在左側的欄。 */
   sticky?: boolean
+  /** bar 欄長條以這個值為 100%；沒設就以該欄目前最大值為 100%（比大小用）。數值本身就是比例的欄（填滿率 0–100）要設，不然最高那列永遠是滿的。 */
+  barMax?: number
   /** 匯出 CSV 時的寫法：roc-month 把「115.09」寫成「115年09月」（Excel 會把 115.10 轉成數字）；畫面不變。 */
   csv?: 'roc-month'
 }

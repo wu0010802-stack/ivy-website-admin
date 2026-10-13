@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import logging
 import uuid
 from datetime import date, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
@@ -26,7 +28,9 @@ from app.booking import (
     presenters,
     readiness,
     service,
+    slot_lookup,
     slot_service,
+    slot_usage,
     status_groups,
     turnstile,
     workflow_service,
@@ -60,6 +64,7 @@ from app.booking.schemas import (
     PrivacyNoticeOut,
     PublicBookingConfigOut,
     PublicVisitSlotOut,
+    SlotUsageOut,
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
     VisitRequestCancelRequest,
@@ -770,12 +775,42 @@ async def get_visit_calendar(
     ]
 
 
+@router.get("/admin/visit-slot-usage", response_model=SlotUsageOut)
+async def get_visit_slot_usage(
+    campus_key: str,
+    weeks: int = Query(default=12),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> SlotUsageOut:
+    """場次使用情況（2026-10-13 規格 §4）：新預約表單近 4 週的「最早能約哪天」＋各時段過去坐了幾成。
+    權限同接待月曆；只回數字，沒有個資，不寫操作紀錄。"""
+    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；權限過了才擋，沒權限的人照舊拿 404／403。
+    if has_control_chars(campus_key):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
+    if weeks not in slot_usage.WEEK_CHOICES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_WEEKS", "message": "weeks 只能是 4、12 或 26"},
+        )
+    today = today_local()
+    config = await db.get(BookingConfig, campus_key)
+    return SlotUsageOut(
+        campus_key=campus_key,
+        booking_mode=config.mode.value if config is not None else None,
+        today=today,
+        lookups=await slot_lookup.lookup_summary(db, campus_key, today),
+        slots=await slot_usage.slot_rows(db, campus_key, weeks, today),
+    )
+
+
 @router.get("/public/slots", response_model=list[PublicVisitSlotOut])
 async def list_public_slots(
     campus_key: str,
     request: Request,
     date_from: date = Query(...),
     date_to: date = Query(...),
+    purpose: Literal["new_booking"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublicVisitSlotOut]:
     # 匿名可呼叫、每次最多讀 62 天的時段：每個來源限流（在碰請求連線之前）。
@@ -818,6 +853,19 @@ async def list_public_slots(
                 remaining=remaining,
             )
         )
+    # 場次使用情況（2026-10-13）：新預約表單讀場次時記一次「最早能約哪天」。只有校區存在且 active（停用的
+    # 上面已回空清單）、預約方式是自選場次才記；失敗只記 log，不能讓家長讀不到場次。
+    if purpose == "new_booking" and campus is not None and config is not None and config.mode == BookingMode.SLOTS:
+        today = today_local()
+        earliest = min((s.slot_date for s in result), default=None)
+        try:
+            await slot_lookup.record_lookup(db, campus_key=campus_key, earliest=earliest, today=today)
+            await db.commit()
+        except SQLAlchemyError:
+            # 連線斷了的話 rollback 自己也會丟錯；記錄是附帶的，這裡不能讓它變成家長的 500。
+            with contextlib.suppress(SQLAlchemyError):
+                await db.rollback()
+            logger.warning("record slot lookup failed", exc_info=True)
     return result
 
 

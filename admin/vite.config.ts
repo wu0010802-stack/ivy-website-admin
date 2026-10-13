@@ -21,6 +21,22 @@ export default defineConfig({
       dts: false,
     }),
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          // 沒指定時 rolldown 把 Vue 執行環境、Element Plus 共用程式和常改的 src/api/labels.ts 放在同一個檔，
+          // 改一個標籤所有人就要重抓整個 Vue。Vue／Vue Router／Pinia 自成一個 chunk、labels.ts 自成一個，
+          // 入口總量不變。只收這四個套件：範圍放大到整個 node_modules 會把地圖、日期選擇器這些頁面才用的
+          // 套件一起拉進入口。
+          groups: [
+            { name: 'vue', test: /node_modules[\\/](?:@vue|vue|vue-router|pinia)[\\/]/ },
+            { name: 'labels', test: /src[\\/]api[\\/]labels\.ts$/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api/website/v1/': {
