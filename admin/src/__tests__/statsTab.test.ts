@@ -18,6 +18,16 @@ vi.mock('../components/admissions/area/AreaTab.vue', async () => {
     }),
   }
 })
+vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'BookingStatsPane',
+      props: ['campusKey', 'campusKeys'],
+      setup: () => () => h('div', { class: 'booking-stats-stub' }),
+    }),
+  }
+})
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
 
@@ -271,7 +281,7 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因', '參觀預約'])
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props()).toMatchObject({ campusKey: 'yihua', schoolYear: 115, semester: 1 })
     expect(tab.props('emptyText')).toContain('還沒有招生訪視')
@@ -284,6 +294,47 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     expect(wrapper.findComponent({ name: 'AreaTab' }).exists()).toBe(false)
+  })
+})
+
+describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', () => {
+  it('排在最後（五校比較之後）；sub=booking 才掛，拿頁首校區與看得到的校區；上方的招生統計範圍與說明不顯示', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'booking', campusKeys: ['yihua', 'minghua'] }) })
+    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因', '五校比較', '參觀預約'])
+    const pane = wrapper.findComponent({ name: 'BookingStatsPane' })
+    expect(pane.props()).toMatchObject({ campusKey: 'yihua', campusKeys: ['yihua', 'minghua'] })
+    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.find('[data-test="stats-explainer"]').exists()).toBe(false)
+  })
+
+  it('沒點開參觀預約不掛；切回總覽時統計範圍與說明回來', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(false)
+    expect(wrapper.find('.stats-toolbar').exists()).toBe(true)
+    await openSubTab(wrapper, '參觀預約')
+    expect(wrapper.emitted('update:sub')?.at(-1)).toEqual(['booking'])
+  })
+
+  it('招生統計還在讀或讀失敗時，參觀預約照樣看得到；讀失敗時子分頁列也在，切得過去', async () => {
+    const pending = deferred<AdmissionsStats>()
+    mockGet({ '/admin/admissions/stats': () => pending.promise })
+    const loading = await mountWith(StatsTab, { props: props({ sub: 'booking' }) })
+    expect(loading.wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(true)
+    expect(loading.wrapper.find('.el-skeleton').exists()).toBe(false)
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': () => { throw new Error('network') } })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.get('.el-alert').text()).toContain('無法讀取統計資料，請重新載入。')
+    const labels = wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text())
+    expect(labels).toContain('參觀預約')
+    await wrapper.setProps({ sub: 'booking' })
+    await flushPromises()
+    expect(wrapper.find('.el-alert').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(true)
   })
 })
 

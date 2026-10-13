@@ -473,7 +473,7 @@ const hasTodo = computed(() => {
               </router-link>
               <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
                 <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
-                <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><span id="task-arrival-d" class="visually-hidden">沒標記的話，成效統計的到場數字會偏低</span><span id="task-arrival-a" class="task__action">查看</span></div>
+                <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><span id="task-arrival-d" class="visually-hidden">沒標記的話，參觀預約統計的到場數字會偏低</span><span id="task-arrival-a" class="task__action">查看</span></div>
               </router-link>
               <router-link v-if="myNotices > 0 && canOpen('/releases')" class="task" to="/releases" v-bind="taskAria('notices')">
                 <span id="task-notices-n" class="task__number">{{ myNotices }}</span>

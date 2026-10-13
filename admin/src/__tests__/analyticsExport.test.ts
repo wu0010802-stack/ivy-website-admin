@@ -1,21 +1,23 @@
 // 成效統計匯出（2026-10-03 計畫 Task 12，2026-10-06 依三頁籤改版後的畫面重做）：
 // 畫面上每張表都有「匯出 CSV」，欄名同畫面；比率沒有值寫空白（畫面的「—」不進檔案）、計數缺值寫 0、
-// 沒有資料的表不顯示按鈕；檔名是「成效統計-表名-範圍-期間-今天（台北）」。
+// 沒有資料的表不顯示按鈕；檔名是「成效統計-表名-範圍-期間-今天（台北）」。2026-10-13 起參觀預約的表
+// 搬到招生入學 → 統計分析 → 參觀預約，檔名改「招生統計-參觀預約-表名-範圍-期間-今天」，官網瀏覽照舊。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
-import AnalyticsView from '../views/AnalyticsView.vue'
+import BookingStatsPane from '../components/analytics/BookingStatsPane.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
 import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
 import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import { api } from '../api/client'
 import { funnelSourceLabel } from '../api/labels'
-import type {
-  AnalyticsFunnelOut, BookingOutcomesOut, CampusOutcomeOut, ClassDistributionOut, EventTrendOut, OutcomeCountsOut,
+import {
+  CAMPUS_KEYS,
+  type AnalyticsFunnelOut, type BookingOutcomesOut, type CampusOutcomeOut, type ClassDistributionOut, type EventTrendOut, type OutcomeCountsOut,
 } from '../api/types'
 import type { TrafficSummary } from '../api/traffic'
 import { taipeiToday } from '../admissions/academic'
@@ -51,7 +53,7 @@ const clicks = (form: number, line = 0, phone = 0, external = 0) => ({
   booking_cta_clicked: form, cta_click_line: line, cta_click_phone: phone, cta_click_external: external,
 })
 
-// ---- AnalyticsView：依來源、預約鈕點擊（其餘面板照 analyticsFunnel.test.ts 全部 stub）----
+// ---- BookingStatsPane：依來源、預約鈕點擊（其餘面板照 analyticsFunnel.test.ts 全部 stub）----
 
 const funnel: AnalyticsFunnelOut = {
   as_of: '2026-10-03T06:05:00Z',
@@ -81,17 +83,18 @@ async function mountAnalytics(data: AnalyticsFunnelOut = funnel) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/analytics')
+  await router.push('/admissions?tab=stats&sub=booking')
   await router.isReady()
   // 後端把查詢的期間原樣寫回 date_from／date_to（沒選期間是 null）。
   vi.spyOn(api, 'get').mockImplementation((url) => {
     const query = new URL(String(url), 'http://localhost').searchParams
     return Promise.resolve({ ...data, date_from: query.get('from'), date_to: query.get('to') }) as Promise<never>
   })
-  const wrapper = mount(AnalyticsView, {
+  const wrapper = mount(BookingStatsPane, {
+    props: { campusKey: 'yihua', campusKeys: CAMPUS_KEYS },
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { SiteTrafficPanel: true, BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
+      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -100,12 +103,12 @@ async function mountAnalytics(data: AnalyticsFunnelOut = funnel) {
   return wrapper
 }
 
-describe('成效統計匯出：依來源與預約鈕點擊', () => {
+describe('參觀預約統計匯出：依來源與預約鈕點擊', () => {
   it('「案件來源」欄名同畫面；沒有送出需求或取消比送出多時，取消率寫空白', async () => {
     const wrapper = await mountAnalytics()
     await click(wrapper, 'analytics-csv-dimension')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-案件來源-義華-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-案件來源-義華-開站至今-${today}.csv`)
     expect(lines).toEqual([
       `${CSV_BOM}來源,送出,確認,完成,取消,取消率`,
       `${funnelSourceLabel('web')},4,3,2,1,25%`,
@@ -122,7 +125,7 @@ describe('成效統計匯出：依來源與預約鈕點擊', () => {
     await flushPromises()
     await click(wrapper, 'analytics-csv-dimension')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-從哪裡知道我們-義華-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-從哪裡知道我們-義華-開站至今-${today}.csv`)
     expect(lines[0]).toBe(`${CSV_BOM}從哪裡知道,送出,確認,完成,取消,取消率`)
     expect(lines).toHaveLength(4) // 表頭＋兩列＋結尾換行
     expect(lines[1]!.endsWith(',5,3,2,0,0%')).toBe(true)
@@ -135,14 +138,14 @@ describe('成效統計匯出：依來源與預約鈕點擊', () => {
     select.vm.$emit('update:modelValue', '30')
     await flushPromises()
     await click(wrapper, 'analytics-csv-entries')
-    expect(lastDownload().filename).toMatch(new RegExp(`^成效統計-預約鈕點擊-義華-\\d{4}-\\d{2}-\\d{2}–${today}-${today}\\.csv$`))
+    expect(lastDownload().filename).toMatch(new RegExp(`^招生統計-參觀預約-預約鈕點擊-義華-\\d{4}-\\d{2}-\\d{2}–${today}-${today}\\.csv$`))
   })
 
   it('「預約鈕點擊」欄名同畫面、照畫面的合計由多到少排', async () => {
     const wrapper = await mountAnalytics()
     await click(wrapper, 'analytics-csv-entries')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-預約鈕點擊-義華-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-預約鈕點擊-義華-開站至今-${today}.csv`)
     expect(lines).toEqual([
       `${CSV_BOM}按鈕位置,預約表單,LINE,電話,外部網站`,
       '分校頁首屏,12,1,0,3',
@@ -192,7 +195,7 @@ async function mountOutcomes(data: BookingOutcomesOut) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { campus_keys: ['yihua', 'minghua'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/analytics')
+  await router.push('/admissions?tab=stats&sub=booking')
   await router.isReady()
   vi.spyOn(api, 'get').mockResolvedValue(data as never)
   const wrapper = mount(BookingOutcomesSection, {
@@ -204,7 +207,7 @@ async function mountOutcomes(data: BookingOutcomesOut) {
   return wrapper
 }
 
-describe('成效統計匯出：五校比較', () => {
+describe('參觀預約統計匯出：五校比較', () => {
   it('欄名同畫面（「現在」標籤併進欄名）；比率沒有分母寫空白、停用的校區照畫面寫；最後一列是合計', async () => {
     const wrapper = await mountOutcomes(outcomes([
       outcomeRow('yihua'),
@@ -213,7 +216,7 @@ describe('成效統計匯出：五校比較', () => {
     ]))
     await click(wrapper, 'analytics-csv-compare')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-五校比較-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-五校比較-開站至今-${today}.csv`)
     expect(lines).toEqual([
       `${CSV_BOM}校區,預約方式,預約案件,已到場,未到場,到場率,已取消,取消率,待標記到場（現在）,到期待追蹤（現在）`,
       '義華,自選場次,8,2,1,66.7%,2,25.0%,2,3',
@@ -228,7 +231,7 @@ describe('成效統計匯出：五校比較', () => {
     const wrapper = await mountOutcomes(outcomes([outcomeRow('yihua')]))
     await wrapper.setProps({ periodLabel: '2026/09/01–2026/09/30' }) // 還沒重抓完，畫面仍是舊資料
     await click(wrapper, 'analytics-csv-compare')
-    expect(lastDownload().filename).toBe(`成效統計-五校比較-開站至今-${today}.csv`)
+    expect(lastDownload().filename).toBe(`招生統計-參觀預約-五校比較-開站至今-${today}.csv`)
   })
 
   it('沒有任何校區的資料時不顯示匯出鈕', async () => {
@@ -253,12 +256,12 @@ async function mountClasses(data: ClassDistributionOut) {
   return wrapper
 }
 
-describe('成效統計匯出：預約孩子的班別', () => {
+describe('參觀預約統計匯出：預約孩子的班別', () => {
   it('欄名與每一列（含「不在幼幼班～大班」「沒有生日資料」）同畫面', async () => {
     const wrapper = await mountClasses(dist())
     await click(wrapper, 'stats-csv')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-預約孩子的班別-義華-115學年度-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-預約孩子的班別-義華-115學年度-開站至今-${today}.csv`)
     expect(lines).toEqual([
       `${CSV_BOM}班別,預約案件`, '幼幼班,2', '小班,3', '中班,1', '大班,0', '不在幼幼班～大班,1', '沒有生日資料,2', '',
     ])
@@ -288,12 +291,12 @@ async function mountTrend(data: EventTrendOut) {
   return wrapper
 }
 
-describe('成效統計匯出：每日變化', () => {
+describe('參觀預約統計匯出：每日變化', () => {
   it('匯出「每日數字」那張表：日期寫完整西元年、順序同畫面（新的在上），檔名寫項目與實際畫出的期間', async () => {
     const wrapper = await mountTrend(trend())
     await click(wrapper, 'daily-bars-csv')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-每日送出需求-義華-2026-09-30–2026-10-02-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-每日送出需求-義華-2026-09-30–2026-10-02-${today}.csv`)
     expect(lines).toEqual([`${CSV_BOM}日期,送出需求次數`, '2026/10/02,0', '2026/10/01,4', '2026/09/30,2', ''])
   })
 
@@ -303,7 +306,7 @@ describe('成效統計匯出：每日變化', () => {
     await flushPromises()
     await click(wrapper, 'daily-bars-csv')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`成效統計-每日預約鈕點擊-義華-2026-09-30–2026-10-02-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-每日預約鈕點擊-義華-2026-09-30–2026-10-02-${today}.csv`)
     expect(lines.slice(0, 4)).toEqual([`${CSV_BOM}日期,預約鈕點擊次數`, '2026/10/02,0', '2026/10/01,8', '2026/09/30,1'])
   })
 

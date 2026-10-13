@@ -4,9 +4,10 @@ import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
+import BookingStatsPane from '../components/analytics/BookingStatsPane.vue'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import { api } from '../api/client'
-import type { AnalyticsFunnelOut } from '../api/types'
+import { CAMPUS_KEYS, type AnalyticsFunnelOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { taipeiToday } from '../admissions/academic'
 import { testUser } from './fixtures'
@@ -48,13 +49,14 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/analytics')
+  await router.push('/admissions?tab=stats&sub=booking')
   await router.isReady()
   const get = vi.spyOn(api, 'get').mockResolvedValue(data as never)
-  const wrapper = mount(AnalyticsView, {
+  const wrapper = mount(BookingStatsPane, {
+    props: { campusKey: 'yihua', campusKeys: CAMPUS_KEYS },
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { SiteTrafficPanel: true, BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
+      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -72,7 +74,7 @@ async function pickRange(wrapper: VueWrapper, from: string, to: string) {
   await flushPromises()
 }
 
-describe('成效漏斗：期間、取消與來源維度', () => {
+describe('參觀預約統計（原成效統計各校預約）：期間、取消與來源維度', () => {
   it('預約結果面板拿到目前的校區與期間；看得到兩校以上才畫五校比較', async () => {
     const { wrapper } = await setup()
     const section = wrapper.findComponent({ name: 'BookingOutcomesSection' })
@@ -90,7 +92,7 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     expect(rows[3]).toContain('官網需求取消率 25%')
     expect(rows[3]).toContain('另有後台補登 1 筆')
     expect(wrapper.text()).toContain('家長自行取消 1・園方取消 1・待確認逾期 1')
-    expect(wrapper.find('.analytics__section-title').text()).toBe('各校預約（開站至今）')
+    expect(wrapper.find('.analytics__section-title').text()).toBe('參觀預約（開站至今）')
   })
 
   it('確認率只算官網表單的需求，補登另外寫；比例不會超過 100%（2026/10/01 以前的期間）', async () => {
@@ -321,5 +323,42 @@ describe('成效漏斗：期間、取消與來源維度', () => {
     const panel = wrapper.findAll('.panel').find((item) => item.text().includes('預約流程'))!
     expect(panel.text()).toContain('單位：事件次數（依發生日期）')
     expect(panel.text()).toContain('10/03 14:05')
+  })
+})
+
+describe('2026-10-13 搬移：參觀預約到招生統計，成效統計只留官網瀏覽與速度', () => {
+  it('校區跟招生入學的頁首（子分頁裡沒有校區選單）；換校區就重抓預約流程，各面板拿到新校區', async () => {
+    const { wrapper, get } = await setup()
+    expect(wrapper.text()).not.toContain('查看校區')
+    expect(wrapper.findComponent({ name: 'CampusSelect' }).exists()).toBe(false)
+    await wrapper.setProps({ campusKey: 'renwu' })
+    await flushPromises()
+    expect(String(get.mock.calls.at(-1)![0])).toBe('/admin/analytics/funnel?campus_key=renwu')
+    for (const name of ['BookingOutcomesSection', 'EventTrendPanel', 'ClassDistributionPanel']) {
+      expect(wrapper.findComponent({ name }).props('campusKey')).toBe('renwu')
+    }
+  })
+
+  it('只看得到一校時不畫五校比較', async () => {
+    const { wrapper } = await setup()
+    await wrapper.setProps({ campusKeys: ['yihua'] })
+    expect(wrapper.findComponent({ name: 'BookingOutcomesSection' }).props('showCompare')).toBe(false)
+  })
+
+  it('成效統計沒有頁籤與預約面板，只掛官網瀏覽與速度；舊連結 ?tab=booking 也一樣', async () => {
+    const pinia = createPinia()
+    useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/analytics?tab=booking')
+    await router.isReady()
+    const get = vi.spyOn(api, 'get').mockResolvedValue(funnel as never)
+    const wrapper = mount(AnalyticsView, { global: { plugins: [pinia, router, ElementPlus], stubs: { SiteTrafficPanel: true } } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'SiteTrafficPanel' }).exists()).toBe(true)
+    expect(wrapper.find('[role="tab"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(false)
+    expect(get).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('官網的瀏覽量與網頁速度')
   })
 })

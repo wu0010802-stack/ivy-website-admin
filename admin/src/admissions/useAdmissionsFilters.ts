@@ -10,8 +10,9 @@ export const ADMISSIONS_TABS = ['funnel', 'records', 'stats'] as const
 export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 統計分析的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
-// 順序同園務：區域分析在接待之後、未預繳之前（2026-10-08 起官網也做）。
-export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare'] as const
+// 順序同園務：區域分析在接待之後、未預繳之前（2026-10-08 起官網也做）。官網延伸的「參觀預約」
+// （2026-10-13 從成效統計搬來）排最後，園務有的子分頁順序不動。
+export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking'] as const
 export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

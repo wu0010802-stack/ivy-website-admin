@@ -1,3 +1,14 @@
+## 2026-10-13 參觀預約統計搬到招生入學（`feature/booking-stats-move-20261013`）
+
+使用者要把成效統計的「各校預約」與「預約孩子的班別」整合到招生入學的統計分析，成效統計只留官網瀏覽與速度。規則寫在 DESIGN.md 最上方一節。
+
+- **招生入學 → 統計分析 → 參觀預約**（`?tab=stats&sub=booking`，最後一個子分頁）：五校比較、預約結果、預約流程、每日變化、預約孩子的班別、依來源、預約鈕點擊都搬過來，口徑與 API 不變。校區跟頁首；入學學年學期在這個子分頁停用，期間在子分頁裡選。
+- **成效統計**只剩官網瀏覽與速度，沒有頁籤。
+- 參觀預約的 CSV 檔名改 `招生統計-參觀預約-…`。
+- 新元件 `admin/src/components/analytics/BookingStatsPane.vue`（從 AnalyticsView 搬出），`StatsTab` 讓參觀預約不受招生統計讀取狀態影響。
+- 連帶影響：editor、readonly 帳號看不到參觀預約的數字（招生入學沒開給這兩種角色）；招生開關關閉時也看不到。
+- 測試：單元測試改測新元件；stack e2e 新增 `booking-stats.spec.ts`（1440／390 面板、停用條件、分校管理者、成效統計只剩瀏覽），鍵盤溢出與 axe 清單加上新子分頁與 `/analytics`。
+
 ## 2026-10-12 後台與官網內容一批補強（`feature/admin-batch-20261012`）
 
 使用者從 10-12 盤點挑出第 2、4、5、6、7、8 項，加上收尾技術債。規格 `docs/specs/2026-10-12-admin-batch-design.md`，計畫 `docs/superpowers/plans/2026-10-12-admin-batch.md`，分 A–D 四階段，每階段跑完整閘門。已合入 origin/main `fb34d3a1`。

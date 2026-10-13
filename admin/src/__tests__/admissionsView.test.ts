@@ -9,6 +9,17 @@ import { canSeeNavItem, NAV_GROUPS, navItem } from '../router/nav'
 import { testUser } from './fixtures'
 import { cleanup, mockGet, mountWith, options, pathsTo, VR_ID } from './admissionsTestKit'
 
+vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return {
+    default: defineComponent({
+      name: 'BookingStatsPane',
+      props: ['campusKey', 'campusKeys'],
+      setup: () => () => h('div', { class: 'booking-stats-stub' }),
+    }),
+  }
+})
+
 afterEach(cleanup)
 
 // 2026-10-01（台北）＝115 學年上學期。
@@ -133,7 +144,7 @@ describe('招生開關關閉（R1）', () => {
     })
     const { wrapper } = await mountWith(AdmissionsView)
     expect(wrapper.text()).toContain('招生入學尚未啟用')
-    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、訪視明細與統計分析。')
+    expect(wrapper.text()).toContain('開啟後這裡會出現漏斗看板、訪視明細與統計分析（含參觀預約的統計）。')
     expect(wrapper.findAll('.el-tabs__item')).toHaveLength(0)
     expect(pathsTo(get, '/admin/admissions/follow-ups')).toEqual([])
     expect(document.body.querySelector('.el-message')).toBeNull()
@@ -264,7 +275,7 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
   })
 
   it('(g) 區域分析排在接待之後、未預繳之前；sub=area 跟其他子分頁一樣用 replace 寫進網址，切回總覽不帶 sub', async () => {
-    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare'])
+    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking'])
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats' })
     const push = vi.spyOn(router, 'push')
@@ -348,6 +359,35 @@ describe('頁首篩選的作用範圍與手機摘要', () => {
       await summary.trigger('click')
       expect(summary.attributes('aria-expanded')).toBe('true')
       expect(wrapper.find('#admissions-filters').exists()).toBe(true)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('統計分析的參觀預約不分入學學年學期：兩個下拉停用並寫明，值保留；切回總覽恢復', async () => {
+    freezeToday()
+    mockGet(routesOn)
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&sy=114&sem=2&tab=stats&sub=booking' })
+    const selects = () => ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label)!)
+    expect(selects().map((item) => item.props('disabled'))).toEqual([true, true])
+    expect(wrapper.get('.admissions__scope-note').text()).toBe('這個分頁不分入學學年學期')
+    expect(wrapper.findComponent({ name: 'BookingStatsPane' }).props()).toMatchObject({ campusKey: 'yihua' })
+    expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2', sub: 'booking' })
+
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
+    await flushPromises()
+    expect(selects().map((item) => item.props('disabled'))).toEqual([false, false])
+    expect(wrapper.find('.admissions__scope-note').exists()).toBe(false)
+    expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2' })
+  })
+
+  it('手機摘要在參觀預約寫「不分學年學期」', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    freezeToday()
+    mockGet(routesOn)
+    try {
+      const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=booking' })
+      expect(wrapper.get('.admissions__summary').text()).toContain('義華・不分學年學期')
     } finally {
       vi.unstubAllGlobals()
     }

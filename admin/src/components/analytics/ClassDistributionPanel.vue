@@ -9,7 +9,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import StatsDimensionTable from '../admissions/StatsDimensionTable.vue'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
-import { analyticsCsvName } from './csvExport'
+import { bookingCsvName } from './csvExport'
 
 // 預約孩子的生日換算成某學年度的班別（GET /admin/analytics/class-distribution）。換算在後端
 // （admissions/academic.grade_for_birthday，和招生入學、官網入學資訊頁共用案例
@@ -89,7 +89,7 @@ const rows = computed(() =>
           :columns="COLUMNS"
           row-key="key"
           empty-text="沒有資料"
-          :export-filename="analyticsCsvName('預約孩子的班別', `${campusLabel(loadedCampus)}-${data.school_year}學年度`, loadedPeriod)"
+          :export-filename="bookingCsvName('預約孩子的班別', `${campusLabel(loadedCampus)}-${data.school_year}學年度`, loadedPeriod)"
         />
         <AnalyticsMeta :period="loadedPeriod" unit="預約案件數（含已取消）" :as-of="data.as_of" />
         <AnalyticsExplainer>
