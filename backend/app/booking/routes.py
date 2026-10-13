@@ -5,6 +5,7 @@ import io
 import logging
 import uuid
 from datetime import date, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
@@ -26,6 +27,7 @@ from app.booking import (
     presenters,
     readiness,
     service,
+    slot_lookup,
     slot_service,
     status_groups,
     turnstile,
@@ -776,6 +778,7 @@ async def list_public_slots(
     request: Request,
     date_from: date = Query(...),
     date_to: date = Query(...),
+    purpose: Literal["new_booking"] | None = Query(default=None),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PublicVisitSlotOut]:
     # 匿名可呼叫、每次最多讀 62 天的時段：每個來源限流（在碰請求連線之前）。
@@ -818,6 +821,17 @@ async def list_public_slots(
                 remaining=remaining,
             )
         )
+    # 場次使用情況（2026-10-13）：新預約表單讀場次時記一次「最早能約哪天」。只有校區存在且 active（停用的
+    # 上面已回空清單）、預約方式是自選場次才記；失敗只記 log，不能讓家長讀不到場次。
+    if purpose == "new_booking" and campus is not None and config is not None and config.mode == BookingMode.SLOTS:
+        today = today_local()
+        earliest = min((s.slot_date for s in result), default=None)
+        try:
+            await slot_lookup.record_lookup(db, campus_key=campus_key, earliest=earliest, today=today)
+            await db.commit()
+        except SQLAlchemyError:
+            await db.rollback()
+            logger.warning("record slot lookup failed", exc_info=True)
     return result
 
 
