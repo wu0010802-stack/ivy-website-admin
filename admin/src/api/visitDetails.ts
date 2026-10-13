@@ -15,9 +15,13 @@ export function isAnonymizedCase(detail: Pick<VisitRequestFullOut, 'anonymized'>
 
 // ---- 輸入檢查（前端先擋；後端 normalize_phone 與 EmailStr 才是準的）----
 
-/** 後端會去掉空白與連字號再檢查，這裡也先去掉。 */
+/**
+ * 後端會去掉空白與各種連字號再檢查（booking/schemas.py 的 _PHONE_STRIP_RE），這裡去掉同一組字：
+ * 原本只去 -、－，從別處貼來的「0912–345–678」（en dash）後端收、這裡卻按不了儲存（2026-10-13）。
+ * 官網預約表單（web/app/utils/visit-form.ts）用的也是這一組。
+ */
 export function normalizePhoneInput(value: string): string {
-  return value.replace(/[\s\-－]/g, '')
+  return value.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
 }
 
 export function phoneError(value: string): string {

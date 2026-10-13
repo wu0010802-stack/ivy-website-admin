@@ -101,6 +101,16 @@ describe('VisitDetailsDialog', () => {
     expect(patch).toHaveBeenCalledWith(PATH, { expected_version: 3, phone: '0933444555' })
   })
 
+  it('從別處貼來的 en dash、減號、全形空白（後端也會去掉）：一樣能存（2026-10-13）', async () => {
+    const patch = mockPatch({ [PATH]: result({ changed_fields: ['phone'] }) })
+    await openDialog()
+    await input('手機').setValue('0933\u2013444\u2212555\u3000')
+    await flushPromises()
+    expect(field('手機').text()).not.toContain('09 開頭')
+    await save()
+    expect(patch).toHaveBeenCalledWith(PATH, { expected_version: 3, phone: '0933444555' })
+  })
+
   it('家長稱呼清空、Email 格式不對：各自顯示原因，不送出', async () => {
     const patch = mockPatch({ [PATH]: result() })
     await openDialog()
