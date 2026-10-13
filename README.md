@@ -1,3 +1,17 @@
+## 2026-10-13 場次使用情況（`feature/visit-slot-usage-20261013`）
+
+使用者要「更多可以做招生判讀的資料」，四項裡的第一項。規格 `docs/specs/2026-10-13-visit-slot-usage-design.md`，規則見 DESIGN.md「參觀場次：場次使用情況」。
+
+- **記錄**：公開 `GET /public/slots` 在 `purpose=new_booking` 時記一次「最早能約哪天」（五個區間），只存每日彙總 `slot_lookup_daily`；新預約表單帶這個參數，改期管理頁不帶。不改公開頁外觀。
+- **回推**：各時段（星期×起訖）過去 4／12／26 週的場次數、總名額、已約、填滿率、額滿場次，判讀「常額滿／很少人約／還不判斷」。
+- **畫面**：參觀場次頁多「場次使用情況」頁籤（`?tab=usage`）。
+- **migration**：`b4d7e1a92c58` 只新增表，不需備份閘門。
+- **驗證**：
+  - stack e2e（Node 22、專屬庫與 port；`npm run e2e:build` 後 `playwright test -c playwright.stack.config.ts tests/stack/slot-usage.spec.ts tests/stack/a11y.spec.ts tests/stack/schedule-flow.spec.ts`）36 個全過，含新增的 `slot-usage.spec.ts` 4 個（1440／390 頁籤不橫向溢出、頁籤進網址、分校管理者）與 a11y 掃描 `/admin/visit-calendar?campus=yihua&tab=usage`。
+  - `slot-usage.spec.ts` 單獨跑 4 個過；把 `purpose=new_booking` 拿掉重跑，1440／390 兩個紅（總結句不出現），證明次數是那一次讀場次記下的。
+  - 另在測試庫塞過去的場次與預約（三個時段、常額滿／很少人約／還不判斷各一）看有表格的畫面：axe 0 個違規（1440、390），頁面不橫向溢出；390 的表格在表內橫向捲動（時段欄固定，判讀欄要往右捲）。這段是暫時腳本，沒有提交。
+  - 尚未在這段記錄：完整 stack 套件、後端 pytest、前端單元測試與型別檢查。
+
 ## 2026-10-13 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（`feature/perf-20261013`）
 
 使用者要「優化專案的效能」。官網、後台、後端分三路盤點，每一項先量再決定做不做；外觀不變。規則與「量過不改」的清單寫在 DESIGN.md 最上方一節。量測在本機 stack（真 API＋隔離測試庫＋production build），腳本放在 session 暫存，不進版控。
