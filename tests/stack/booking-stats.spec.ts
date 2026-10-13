@@ -16,8 +16,10 @@ const VIEWPORTS = [
   { name: '390', device: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
 ] as const
 
+// 公開送單每來源每校每小時 5 筆，整套 stack 裡義華已經有好幾支 spec 在送：這筆用自己的來源，不吃掉別支的額度
+// （2026-10-13 第一次上 CI 時就把 roles.spec.ts 的送單擠到 429）。
 test.beforeAll(async () => {
-  await submitPublicRequest(SLOTS_CAMPUS, '參觀預約統計家長', '0912000813')
+  await submitPublicRequest(SLOTS_CAMPUS, '參觀預約統計家長', '0912000813', { forwardedFor: '198.51.100.41' })
 })
 
 async function openBookingStats(page: Page): Promise<void> {
