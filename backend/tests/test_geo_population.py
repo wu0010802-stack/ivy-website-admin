@@ -321,6 +321,8 @@ async def test_cli_geo_sync_with_population_files(app, few_villages, monkeypatch
         return app.state.session_factory
 
     monkeypatch.setattr(cli, "_session_factory", session_factory)
+    # 用測試 app 的設定（同 test_geo_loop 的 cli_on_test_app）：CI 沒有設 WEBSITE_DATABASE_URL 等執行期變數。
+    monkeypatch.setattr(cli, "get_settings", lambda: app.state.settings)
     await geo_sync_command(**geo_sync_options([arg for path in RIS_SAMPLE_PAGES for arg in ("--population-file", str(path))]))
     output = capsys.readouterr().out
     assert "各里人口：updated（使用中 115-09）" in output
