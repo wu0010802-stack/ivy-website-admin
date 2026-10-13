@@ -1423,6 +1423,7 @@ async def update_visit_request_details(
             expected_version=payload.expected_version,
             actor=Actor.staff(current_user.id),
             admissions_enabled=request.app.state.settings.admissions_enabled,
+            access_secret=request.app.state.settings.session_secret,
         )
     except workflow_service.VersionConflict as exc:
         await db.rollback()
@@ -1452,6 +1453,7 @@ async def update_visit_request_details(
         admissions_synced_fields=result.admissions_synced,
         admissions_skipped_fields=result.admissions_skipped,
         email_notified=result.email_notified,
+        access_link_reset=result.access_link_reset,
     )
 
 

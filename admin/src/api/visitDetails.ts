@@ -62,5 +62,11 @@ export function detailsNotices(result: AdminDetailsUpdateOut, emailEnabled: bool
     if (emailEnabled === false) warnings.push('尚未設定寄信，變更通知沒有寄出，請電話通知家長')
     else success.push('已寄變更通知到新信箱')
   }
+  // 原本的 Email 被改掉：舊信箱收到的修改連結已失效（2026-10-13）。有寄變更信時新連結在信裡；
+  // 沒寄（清空 Email、場次已開始、沒設定寄信）時家長手上沒有可用的連結。
+  if (result.access_link_reset) {
+    if (result.email_notified && emailEnabled !== false) success.push('原本寄出的家長管理連結已失效，新連結在變更通知裡')
+    else warnings.push('原本寄出的家長管理連結已失效；家長需要連結時，請在「家長管理連結」重新產生')
+  }
   return { success, warnings }
 }

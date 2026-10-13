@@ -2735,6 +2735,8 @@ export interface components {
          */
         AdminDetailsUpdateOut: {
             access_link: components["schemas"]["ParentAccessLinkOut"] | null;
+            /** Access Link Reset */
+            access_link_reset: boolean;
             /** Admissions Skipped Fields */
             admissions_skipped_fields: string[];
             /** Admissions Synced Fields */

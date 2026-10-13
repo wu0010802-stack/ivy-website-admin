@@ -22,6 +22,7 @@ from app.admissions import academic, constants
 from app.admissions.models import RecruitmentVisit
 from app.auth.models import Role
 from app.auth.permissions import _CAPABILITY_ROLES
+from app.booking import workflow_service
 from app.booking.models import OutboxMessage, VisitRequest, VisitRequestEvent
 from app.common.timezones import today_local
 from app.main import create_app
@@ -381,6 +382,95 @@ async def test_email_change_queues_one_mail_to_the_new_address(
     assert await _changed_mail_count(db_session, case_id) == baseline + 1
 
 
+async def _exchange(public_client, manage_path: str):
+    return await public_client.post(
+        f"{PARENT_MANAGE}/exchange", json={"token": manage_path.split("token=", 1)[1]}
+    )
+
+
+@pytest.mark.asyncio
+async def test_correcting_the_email_replaces_the_link_sent_to_the_old_address(
+    app, admin_client, public_client, db_session, recording_mail_adapter
+):
+    """2026-10-13：補登或送單時 Email 打錯，連結已經寄到陌生人的信箱。改正 Email 後舊連結失效，
+    變更信寄到新信箱、裡面是新的連結；歷程記「產生家長管理連結」（不含 token）。"""
+    booked = await book_slot(admin_client, public_client, phone=OLD_PHONE)
+    case_id = booked["receipt_id"]
+    await process_outbox_batch(
+        db_session, recording_mail_adapter, limit=50, admin_origin="https://www.ivy.example",
+        access_secret=app.state.settings.session_secret,
+    )
+    recording_mail_adapter.sent.clear()
+
+    response = await _patch(admin_client, case_id, expected_version=await _version(admin_client, case_id), email=NEW_EMAIL)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["email_notified"] is True
+    assert response.json()["access_link_reset"] is True
+    assert response.json()["access_link"] is not None  # 新連結已經在了
+    assert (await _exchange(public_client, booked["manage_path"])).status_code == 401
+    created = await _events(db_session, case_id, "access_link_created")
+    assert created[-1].after["replaced_previous"] is True
+    assert "token" not in json.dumps(created[-1].after)
+
+    await process_outbox_batch(
+        db_session, recording_mail_adapter, limit=50, admin_origin="https://www.ivy.example",
+        access_secret=app.state.settings.session_secret,
+    )
+    [mail] = recording_mail_adapter.sent
+    assert mail["to"] == NEW_EMAIL
+    fragment = "/visit/manage#token=" + mail["body"].split("/visit/manage#token=", 1)[1].split()[0]
+    assert fragment != booked["manage_path"]
+    await open_manage(public_client, fragment)
+
+
+@pytest.mark.asyncio
+async def test_clearing_the_email_or_editing_a_started_case_only_revokes_the_old_link(
+    admin_client, public_client, db_session
+):
+    """不寄變更信（Email 清空、場次已開始）時只撤銷，不另外產生一條沒人拿得到的連結。"""
+    booked = await book_slot(admin_client, public_client, phone=OLD_PHONE)
+    started = await started_booking(admin_client, public_client, db_session, start_time="14:00:00", end_time="15:00:00")
+    for case_id, manage_path, body in (
+        (booked["receipt_id"], booked["manage_path"], {"email": None}),
+        (started["id"], started["manage_path"], {"email": NEW_EMAIL}),
+    ):
+        response = await _patch(admin_client, case_id, expected_version=await _version(admin_client, case_id), **body)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["email_notified"] is False
+        assert response.json()["access_link_reset"] is True
+        assert response.json()["access_link"] is None
+        assert (await _exchange(public_client, manage_path)).status_code == 401
+        assert len(await _events(db_session, case_id, "access_link_revoked")) == 1
+
+
+@pytest.mark.asyncio
+async def test_other_edits_keep_the_link_and_adding_a_first_email_keeps_it_too(
+    admin_client, public_client, db_session
+):
+    """只改電話不動連結；原本沒有 Email（連結是園方直接交給家長的）補上 Email 也不動。"""
+    booked = await book_slot(admin_client, public_client, phone=OLD_PHONE)
+    case_id = booked["receipt_id"]
+    phone_only = await _patch(
+        admin_client, case_id, expected_version=await _version(admin_client, case_id), phone=NEW_PHONE
+    )
+    assert phone_only.json()["access_link_reset"] is False
+
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == uuid.UUID(case_id)).values(email=None)
+    )
+    await db_session.commit()
+    first_email = await _patch(
+        admin_client, case_id, expected_version=await _version(admin_client, case_id), email=NEW_EMAIL
+    )
+
+    assert first_email.status_code == 200, first_email.text
+    assert first_email.json()["email_notified"] is True
+    assert first_email.json()["access_link_reset"] is False
+    await open_manage(public_client, booked["manage_path"])
+
+
 @pytest.mark.asyncio
 async def test_email_change_on_a_closed_or_started_case_queues_nothing(admin_client, public_client, db_session):
     """變更信寄出前，案件已不是預約成立或場次已開始，worker 一律略過；這種案件改 Email 不排信，
@@ -413,6 +503,31 @@ async def test_any_status_can_be_edited(admin_client, db_session, status):
 
 
 # ---------------------------------------------------------------- 3.2 招生同步
+
+
+@pytest.mark.asyncio
+async def test_mark_arrived_builds_the_recruitment_visit_from_values_committed_before_the_lock(
+    app, admin_client, public_client, db_session
+):
+    """2026-10-13：「已到場」的請求讀到預約時還沒上鎖；同事在這之間改好電話並先提交，招生訪視
+    要用改好的電話建立，不能用請求一開始讀到的舊值（之後再改也會被當成招生端另外改過）。"""
+    booking = await started_booking(
+        admin_client, public_client, db_session, phone=OLD_PHONE, child_name="王小明", child_birthdate=BIRTHDAY.isoformat()
+    )
+    async with app.state.session_factory() as arrived:
+        # 「已到場」的請求先讀到預約（還是舊電話）……
+        stale = (await arrived.execute(select(VisitRequest).where(VisitRequest.id == uuid.UUID(booking["id"])))).scalar_one()
+        assert stale.phone == OLD_PHONE
+        # ……同事這時把電話改好並提交……
+        fixed = await _patch(
+            admin_client, booking["id"], expected_version=await _version(admin_client, booking["id"]), phone=NEW_PHONE
+        )
+        assert fixed.status_code == 200, fixed.text
+        # ……「已到場」才拿到鎖、建立招生訪視。
+        await workflow_service.mark_completed(arrived, stale, admissions_enabled=True)
+        await arrived.commit()
+
+    assert (await _recruitment(db_session, booking["id"])).phone == NEW_PHONE
 
 
 @pytest.mark.asyncio
