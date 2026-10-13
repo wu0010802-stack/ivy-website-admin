@@ -1,5 +1,5 @@
-import { NO_VALUE } from '../../../admissions/statsFormat'
-import type { VillageBoundaries, VisitGeo } from '../../../api/types'
+import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
+import type { AreaOpportunity, AreaOpportunityRow, OpportunitySignal, VillageBoundaries, VisitGeo } from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
 
@@ -146,4 +146,84 @@ export function visitGeoText(geo: VisitGeo | null | undefined, district: string 
   if (geo.unlocated_reason === 'no_address' || geo.unlocated_reason === 'anonymized') return ''
   if (geo.unlocated_reason === 'outside_kaohsiung') return '非高雄市地址'
   return '未定位：查無門牌'
+}
+
+// ---- 招生機會（2026-10-13 規格 7）----
+
+/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會。 */
+export type MapMode = 'visits' | 'children' | 'opportunity'
+export const MAP_MODES: readonly { value: MapMode; label: string }[] = [
+  { value: 'visits', label: '參觀人數' },
+  { value: 'children', label: '2–5 歲孩子' },
+  { value: 'opportunity', label: '招生機會' },
+]
+
+/** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
+export const populationVersionLabel = doorplateVersionLabel
+
+/** 人數加千分位：「12,883」。 */
+export const formatCount = (value: number): string => value.toLocaleString('zh-TW')
+
+/** 照附近應有：「約 6 位」；四捨五入後是 0 寫「不到 1 位」；沒有附近平均（null）寫「—」。 */
+export function expectedText(expected: number | null | undefined): string {
+  if (expected === null || expected === undefined) return NO_VALUE
+  const rounded = Math.round(expected)
+  return rounded < 1 ? '不到 1 位' : `約 ${formatCount(rounded)} 位`
+}
+
+/** 判讀（表格、地圖彈出框共用）。明顯偏少寫少了幾位（至少 1 位：偏少一定少了東西，不寫「少了約 0 位」）。 */
+export function signalText(row: Pick<AreaOpportunityRow, 'signal' | 'shortfall'>): string {
+  switch (row.signal) {
+    case 'below':
+      return `少了約 ${formatCount(Math.max(1, Math.round(row.shortfall ?? 0)))} 位`
+    case 'above':
+      return '比附近多'
+    case 'typical':
+      return '差不多'
+    case 'few_children':
+      return '孩子少，看不出來'
+    default:
+      return '還不判斷'
+  }
+}
+
+/** 地圖上招生機會的色階：明顯偏少、比附近多、差不多各一色；孩子少與不判斷不上色（none）。 */
+export function signalTone(signal: OpportunitySignal): 'chance' | 'strong' | 'typical' | 'none' {
+  if (signal === 'below') return 'chance'
+  if (signal === 'above') return 'strong'
+  return signal === 'typical' ? 'typical' : 'none'
+}
+
+/** 招生機會用不了的原因（地圖切換停用、區塊空狀態共用）；可以用回 null。 */
+export function opportunityUnavailable(data: AreaOpportunity): string | null {
+  if (data.population.version === null) return '各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。'
+  if (data.campus.lat === null || data.campus.lng === null) {
+    const reason = campusNotLocatedReason(data.campus.locate_error)
+    return `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。`
+  }
+  return null
+}
+
+/**
+ * 招生機會的總結（規格 7.3）：第一句是半徑內的合計，第二句是判讀；note 是不算在內的人數（都是 0 就空字串）。
+ * 沒有合計（人口未匯入、本校沒座標）回 null，由呼叫端寫 opportunityUnavailable 的原因。
+ */
+export function opportunitySummary(data: AreaOpportunity): { lead: string; verdict: string; note: string } | null {
+  const { baseline, radius_km: radius } = data
+  if (!baseline) return null
+  const lead =
+    `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位，` +
+    `參觀 ${formatCount(baseline.visit)} 位（參觀率 ${formatRate(baseline.rate)}）。`
+  const below = data.villages.filter((row) => row.signal === 'below')
+  const missing = Math.round(below.reduce((sum, row) => sum + (row.shortfall ?? 0), 0))
+  const verdict = !baseline.judged
+    ? '附近參觀還不到 10 位，先不判斷哪些里偏少。'
+    : below.length
+      ? `明顯偏少的里 ${below.length} 個，照附近的參觀率合計少了約 ${formatCount(Math.max(1, missing))} 位。`
+      : '沒有明顯偏少的里。'
+  const parts = [
+    data.outside_visit ? `${formatCount(data.outside_visit)} 位來自 ${radius} 公里外` : '',
+    data.unplaced_visit ? `${formatCount(data.unplaced_visit)} 位沒對到里` : '',
+  ].filter(Boolean)
+  return { lead, verdict, note: parts.length ? `另有 ${parts.join('、')}，不算在內。` : '' }
 }

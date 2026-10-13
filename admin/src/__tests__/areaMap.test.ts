@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { areaKindergartens, areaStats, button, villageBoundaries } from './admissionsTestKit'
+import { areaKindergartens, areaOpportunity, areaStats, button, villageBoundaries } from './admissionsTestKit'
 
 // any 只出現在 Leaflet 的 mock 物件上。
 const leaflet = vi.hoisted(() => {
@@ -651,5 +651,93 @@ describe('本校沒標在地圖上的原因（主控裁定 R8）', () => {
     expect(leaflet.created.marker).toHaveLength(1)
     expect(leaflet.created.circle).toHaveLength(1)
     expect(wrapper.find('.area-map__campus-note').exists()).toBe(false)
+  })
+})
+
+describe('招生機會著色（2026-10-13 規格 7.2）', () => {
+  // 里界屬性帶代碼：招生機會的列以 village_code 對（同 villageBoundaries 的真值）。
+  const coded = (town: string, village: string, code: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code } })
+  const DINGJIN = coded('三民區', '鼎金里', '64000050001')
+  const BENYANG = coded('三民區', '本揚里', '64000050015')
+  const BAOYE = coded('三民區', '寶業里', '64000050025')
+  const LONGZI = coded('鼓山區', '龍子里', '64000020015')
+  const latest = (): any => leaflet.created.geoJSON!.at(-1)
+  const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
+  const popupOf = (item: ReturnType<typeof coded>) => {
+    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    latest().options.onEachFeature(item, village)
+    return village.bindPopup.mock.calls[0]![0]() as HTMLElement
+  }
+  async function choose(wrapper: VueWrapper, mode: string) {
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await flushPromises()
+  }
+
+  it('三種著色，預設參觀人數；招生機會用不了時後兩種停用並寫原因', async () => {
+    const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
+    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會'])
+    expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
+    expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(ready.find('.area-map__mode-note').exists()).toBe(false)
+
+    const missing = await mountMap({ opportunity: null, opportunityNote: '各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。' })
+    expect(missing.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['2–5 歲孩子', '招生機會'])
+    expect(missing.get('.area-map__mode-note').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+  })
+
+  it('2–5 歲孩子：半徑內依孩子數分 5 級，半徑外不上色；圖例寫「位」；地圖名稱跟著換', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity() })
+    await choose(wrapper, 'children')
+    expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf)).toEqual([
+      'area-village area-village--l5', 'area-village area-village--l3', 'area-village area-village--l2', 'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--levels li')[0]!.text()).toBe('1–100 位')
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依2–5 歲孩子著色')
+  })
+
+  it('招生機會：明顯偏少、差不多、比附近多三色，其餘不上色；圖例；彈出框寫孩子、參觀、應有與判讀', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity() })
+    await choose(wrapper, 'opportunity')
+    expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf)).toEqual([
+      'area-village area-village--chance', 'area-village area-village--typical', 'area-village area-village--strong',
+      'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
+      .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷或在半徑外'])
+    expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual([
+      '三民區鼎金里', '2–5 歲 500 位・0–1 歲 150 位', '參觀 3 位（0.6%），照附近應有約 10 位', '少了約 7 位',
+    ])
+    // 有參觀的里照樣可以「查看明細」；不在半徑內的里寫出來，不留空白。
+    expect(popupOf(BENYANG).querySelector('button')?.textContent).toBe('查看明細')
+    expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
+  })
+
+  it('換半徑重讀中：留在招生機會、先不上色，彈出框寫讀取中；資料回來再上色', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity() })
+    await choose(wrapper, 'opportunity')
+    await wrapper.setProps({ opportunity: null, opportunityNote: '' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[2]!.classes()).toContain('is-active')
+    expect(classOf(DINGJIN)).toBe('area-village area-village--l0')
+    expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual(['三民區鼎金里', '招生機會讀取中…'])
+    await wrapper.setProps({ opportunity: areaOpportunity() })
+    await flushPromises()
+    expect(classOf(DINGJIN)).toBe('area-village area-village--chance')
+  })
+
+  it('招生機會變得用不了（換校區後人口沒匯入、讀取失敗）：退回參觀人數著色', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity() })
+    await choose(wrapper, 'opportunity')
+    await wrapper.setProps({ opportunity: null, opportunityNote: '招生機會讀取失敗。' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(classOf(BENYANG)).toBe('area-village area-village--l5')
+  })
+
+  it('招生機會的顏色走 token（style.css 的 --area-chance），元件裡不寫色碼', () => {
+    const source = readFileSync(join(__dirname, '..', 'components', 'admissions', 'area', 'AreaMap.vue'), 'utf8')
+    expect(source).toContain('fill: var(--area-chance)')
+    const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
+    expect(style).toMatch(/--area-chance: oklch\(/)
   })
 })

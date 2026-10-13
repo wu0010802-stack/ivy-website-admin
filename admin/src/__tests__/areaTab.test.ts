@@ -9,7 +9,7 @@ import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
 import statsTabSource from '../components/admissions/StatsTab.vue?raw'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import {
-  areaKindergartens, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
+  areaKindergartens, areaOpportunity, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
 const mapStub = vi.hoisted(() => ({ focus: vi.fn() }))
@@ -20,7 +20,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
     __esModule: true,
     default: defineComponent({
       name: 'AreaMap',
-      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow'],
+      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote'],
       emits: ['open-area'],
       setup(_, { expose }) {
         expose({ focusKindergarten: mapStub.focus })
@@ -41,13 +41,14 @@ const EMPTY_TEXT = '義華在 115 學年還沒有招生訪視。新增訪視，�
 const props = (changes: Record<string, unknown> = {}) => ({
   campusKey: 'yihua', schoolYear: 115, semester: null, csvName: (title: string) => `招生統計-${title}.csv`, emptyText: EMPTY_TEXT, ...changes,
 })
-const routes = (area: unknown = areaStats()) => ({
+const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) => ({
   '/admin/admissions/area/boundaries': villageBoundaries(),
   '/admin/admissions/area/kindergartens': areaKindergartens(),
+  '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area': area,
 })
-async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats()) {
-  const get = mockGet(routes(area))
+async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) {
+  const get = mockGet(routes(area, opportunity))
   const mounted = await mountWith(AreaTab, { props: props(changes) })
   await vi.waitFor(() => expect(mounted.wrapper.find('.area-map-stub').exists() || mounted.wrapper.find('.area-map-error').exists()).toBe(true))
   return { ...mounted, get }
@@ -65,7 +66,7 @@ describe('區域分析：讀取與三張表', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area?')[0]!))).toEqual({ campus_key: 'yihua', school_year: '115' })
     expect(pathsTo(get, '/admin/admissions/area/boundaries')).toHaveLength(1)
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・各里人口 115 年 9 月')
   })
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
@@ -241,15 +242,14 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
   it('門牌資料還沒匯入：狀態列寫出來；句號後的幼兒園更新日另成一段，不接「。・」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新・各里人口 115 年 9 月'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
-    expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
   it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園名單尚未匯入」，不是整句消失', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入・各里人口 115 年 9 月')
   })
 
   it('門牌與幼兒園資料都還沒匯入：兩句各自成段，不接「。・」', async () => {
@@ -257,9 +257,8 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
       data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null, kindergartens_synced_at: null },
     })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入・各里人口 115 年 9 月'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
-    expect(wrapper.get('.area-status').text()).not.toContain('・')
   })
 
   it('有訪視但都沒填地址：寫原因、不列三張表（不顯示假的 0）；地圖與清單照常', async () => {
@@ -271,7 +270,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視都還沒填地址。')
     expect(wrapper.get('.area-empty').classes()).toContain('empty-note')
-    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+    expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(0)
     expect(wrapper.find('.area-map-stub').exists()).toBe(true)
     expect(wrapper.find('.area-summary').exists()).toBe(false)
   })
@@ -284,7 +283,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視地址都已依保存期限清除，無法比對。')
     expect(wrapper.text()).not.toContain('還沒填地址')
-    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+    expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(0)
     expect(wrapper.find('.area-summary').exists()).toBe(false)
   })
 
@@ -295,7 +294,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     })
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-empty').text()).toBe('這個範圍的訪視沒有可比對的地址：3 筆沒填地址、2 筆已依保存期限清除。')
-    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+    expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(0)
   })
 
   it('範圍內沒有訪視：沿用統計的空狀態文案', async () => {
@@ -306,7 +305,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.text()).toContain(EMPTY_TEXT)
     expect(wrapper.text()).not.toContain('還沒填地址')
-    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+    expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(0)
   })
 
   it.each([
@@ -434,11 +433,162 @@ describe('區域分析：各區塊互不牽連（2026-10-12）', () => {
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-status').text()).toContain('門牌資料尚未匯入')
     expect(squash(wrapper.get('.area-summary').text())).toBe('有地址7筆：到里0筆、未定位到里7筆（待比對7）查看；另有2筆沒填地址')
-    expect(wrapper.findAll('.stats-block')).toHaveLength(3)
+    expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(3)
     expect(block(wrapper, '行政區排行').text()).toContain('這個範圍還沒有比對到行政區的地址')
     expect(block(wrapper, '里排行').text()).toContain('這個範圍還沒有定位到里的地址')
     expect(bodyRows(block(wrapper, '距離分布')).find((row) => row[0] === '無距離')).toEqual(['無距離', '7', '0', '0.0%', '8–35%'])
     expect(wrapper.find('.empty-note').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'AreaMap' }).exists()).toBe(true)
+  })
+})
+
+describe('招生機會（2026-10-13 規格 7）', () => {
+  it('依頁首校區、學期與半徑讀招生機會；換半徑重讀並帶 radius_km', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/opportunity')[0]!)))
+      .toEqual({ campus_key: 'yihua', school_year: '115', radius_km: '3' })
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 1)
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/opportunity').at(-1)!).get('radius_km')).toBe('1')
+  })
+
+  it('狀態列寫人口月份；人口還沒匯入寫「各里人口尚未匯入」', async () => {
+    const area = areaStats({ data_status: { ...areaStats().data_status, population_version: null, population_synced_at: null } })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・各里人口尚未匯入')
+  })
+
+  it('總結：半徑內合計、明顯偏少的里與合計少了幾位、不算在內的人數', async () => {
+    const { wrapper } = await mountTab()
+    const section = block(wrapper, '招生機會（本校 3 公里內）')
+    expect(section.findAll('.opportunity-summary p').map((line) => line.text())).toEqual([
+      '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 20 位（參觀率 2.0%）。明顯偏少的里 1 個，照附近的參觀率合計少了約 7 位。',
+      '另有 2 位來自 3 公里外、3 位沒對到里，不算在內。',
+    ])
+  })
+
+  it('表格：少最多的排最前面，判讀寫「少了約 N 位」等；說明寫資料來源與月份', async () => {
+    const { wrapper } = await mountTab()
+    const section = block(wrapper, '招生機會（本校 3 公里內）')
+    expect(section.findAll('thead th').map((th) => th.text())).toEqual(['#', '里', '距本校', '2–5 歲', '0–1 歲', '參觀人數', '參觀率', '照附近應有', '判讀'])
+    expect(bodyRows(section)).toEqual([
+      ['1', '三民區鼎金里', '800 m', '500', '150', '3', '0.6%', '約 10 位', '少了約 7 位'],
+      ['2', '三民區本揚里', '300 m', '300', '90', '6', '2.0%', '約 6 位', '差不多'],
+      ['3', '三民區寶業里', '300 m', '200', '60', '11', '5.5%', '約 4 位', '比附近多'],
+    ])
+    expect(section.get('.stats-block__caption').text()).toContain('資料來源：內政部戶政司 村里戶數、單一年齡人口，115 年 9 月。')
+    expect(section.get('.stats-block__caption').text()).toContain('約有一成機率是誤報')
+  })
+
+  it('匯出 CSV：「照附近應有」寫數字，不寫「約」', async () => {
+    const { wrapper } = await mountTab()
+    await block(wrapper, '招生機會（本校 3 公里內）').get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-招生機會.csv')
+    const lines = csv.slice(1).split('\r\n')
+    expect(lines[0]).toBe('#,里,距本校,2–5 歲,0–1 歲,參觀人數,參觀率,照附近應有,判讀')
+    expect(lines[1]).toBe('1,三民區鼎金里,800 m,500,150,3,0.6%,10,少了約 7 位')
+  })
+
+  it('里很多時先列前 10 個，「顯示全部」展開、再按收合；匯出 CSV 一律是全部', async () => {
+    const base = areaOpportunity().villages[1]!
+    const many = areaOpportunity({
+      villages: Array.from({ length: 12 }, (_, index) => ({ ...base, village: `第${index + 1}里`, village_code: `6400005${String(index).padStart(4, '0')}` })),
+    })
+    const { wrapper } = await mountTab({}, areaStats(), many)
+    const section = () => block(wrapper, '招生機會（本校 3 公里內）')
+    expect(section().findAll('tbody tr')).toHaveLength(10)
+    const more = button(section(), '顯示全部 12 列')!
+    expect(more.attributes('aria-expanded')).toBe('false')
+    await more.trigger('click')
+    expect(section().findAll('tbody tr')).toHaveLength(12)
+    await button(section(), '只顯示前 10 列')!.trigger('click')
+    expect(section().findAll('tbody tr')).toHaveLength(10)
+    await section().get('[data-test="stats-csv"]').trigger('click')
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![1].slice(1).split('\r\n').filter(Boolean)).toHaveLength(13)
+  })
+
+  it('三個里以內沒有「顯示全部」', async () => {
+    const { wrapper } = await mountTab()
+    expect(block(wrapper, '招生機會（本校 3 公里內）').text()).not.toContain('顯示全部')
+  })
+
+  it('附近參觀不到 10 位：總結寫先不判斷；沒有偏少的里寫「沒有明顯偏少的里」；不算在內的都是 0 就不寫', async () => {
+    const quiet = areaOpportunity({
+      baseline: { ...areaOpportunity().baseline!, visit: 6, judged: false },
+      outside_visit: 0, unplaced_visit: 0,
+      villages: areaOpportunity().villages.map((row) => ({ ...row, signal: 'not_judged' as const })),
+    })
+    const { wrapper } = await mountTab({}, areaStats(), quiet)
+    const section = block(wrapper, '招生機會（本校 3 公里內）')
+    expect(section.findAll('.opportunity-summary p').map((line) => line.text())).toEqual([
+      '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 6 位（參觀率 2.0%）。附近參觀還不到 10 位，先不判斷哪些里偏少。',
+    ])
+    expect(bodyRows(section).map((row) => row.at(-1))).toEqual(['還不判斷', '還不判斷', '還不判斷'])
+  })
+
+  it('人口沒匯入：區塊寫原因、地圖後兩種著色停用並給同一個原因', async () => {
+    const missing = areaOpportunity({ population: { ...areaOpportunity().population, version: null, synced_at: null }, baseline: null, villages: [] })
+    const { wrapper } = await mountTab({}, areaStats(), missing)
+    const section = block(wrapper, '招生機會（本校 3 公里內）')
+    expect(section.get('.stats-block__empty').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+    expect(section.find('.opportunity-summary').exists()).toBe(false)
+    expect(section.find('[data-test="stats-csv"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+  })
+
+  it('本校沒座標：區塊寫原因', async () => {
+    const unlocated = areaOpportunity({
+      campus: { ...areaOpportunity().campus, lat: null, lng: null, locate_error: 'no_doorplate' }, baseline: null, villages: [],
+    })
+    const { wrapper } = await mountTab({}, areaStats(), unlocated)
+    expect(block(wrapper, '招生機會（本校 3 公里內）').get('.stats-block__empty').text())
+      .toBe('本校位置未標示（本校地址比對不到門牌），算不出附近有哪些里。')
+  })
+
+  it('讀取失敗：只有這一塊寫錯誤與重試，三張表與地圖照常；地圖後兩種著色停用；重試成功恢復', async () => {
+    let fail = true
+    mockGet(routes(areaStats(), () => {
+      if (fail) throw new Error('boom')
+      return areaOpportunity()
+    }))
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.opportunity-error').exists()).toBe(true))
+    expect(block(wrapper, '里排行')).toBeDefined()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('招生機會讀取失敗。')
+    fail = false
+    await button(wrapper.get('.opportunity-error') as never, '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.opportunity-error').exists()).toBe(false)
+    expect(block(wrapper, '招生機會（本校 3 公里內）')).toBeDefined()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('')
+  })
+
+  it('讀取中不算用不了：地圖的著色切換照常可選（換半徑時不跳回參觀人數）', async () => {
+    const slow = deferred<unknown>()
+    mockGet(routes(areaStats(), () => slow.promise))
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    const map = wrapper.findComponent({ name: 'AreaMap' })
+    expect(map.props('opportunity')).toBeNull()
+    expect(map.props('opportunityNote')).toBe('')
+    slow.resolve(areaOpportunity())
+    await flushPromises()
+    expect(map.props('opportunity')).toMatchObject({ radius_km: 3 })
+  })
+
+  it('連續換半徑：先送出的晚回，不蓋掉後來選的', async () => {
+    const slow3 = deferred<unknown>()
+    mockGet(routes(areaStats(), (path: string) =>
+      queryOf(path).get('radius_km') === '3' ? slow3.promise : areaOpportunity({ radius_km: 6 }),
+    ))
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    slow3.resolve(areaOpportunity())
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunity')).toMatchObject({ radius_km: 6 })
+    expect(block(wrapper, '招生機會（本校 6 公里內）')).toBeDefined()
   })
 })

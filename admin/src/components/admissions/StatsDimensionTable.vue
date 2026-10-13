@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="Row extends Record<string, unknown>">
-import { computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRange, formatRate, rateCsvCell, toRange, type StatsColumn } from '../../admissions/statsFormat'
 import { notifyError } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
@@ -27,13 +27,19 @@ const props = withDefaults(
     actionLabel?: string
     /** 匯出專用的格值：回傳值優先於畫面值（含 ''＝寫空白），回 undefined 就照欄位規則。 */
     csvCell?: (row: Row, column: StatsColumn) => CsvCell | undefined
+    /** 有值時預設只列前 N 列，表格下一顆「顯示全部」（招生機會的各里排行，2026-10-13）；匯出 CSV 一律是全部。 */
+    collapsedRows?: number
   }>(),
-  { numbered: false, caption: '', exportFilename: '', actionLabel: '' },
+  { numbered: false, caption: '', exportFilename: '', actionLabel: '', collapsedRows: 0 },
 )
 
 const emit = defineEmits<{ action: [row: Row] }>()
 
 const headingId = useId()
+
+const expanded = ref(false)
+const collapsible = computed(() => props.collapsedRows > 0 && props.rows.length > props.collapsedRows)
+const shownRows = computed(() => (collapsible.value && !expanded.value ? props.rows.slice(0, props.collapsedRows) : props.rows))
 
 function toNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
@@ -129,6 +135,8 @@ function exportCsv() {
         匯出 CSV
       </el-button>
     </div>
+    <!-- 標題與表格之間的說明（招生機會的總結，2026-10-13）；caption 是小字，intro 是正文。 -->
+    <slot name="intro" />
     <p v-if="caption" class="hint stats-block__caption">{{ caption }}</p>
     <p v-if="!rows.length" class="stats-block__empty">{{ emptyText }}</p>
     <div v-else class="stats-block__scroll" role="region" tabindex="0" :aria-label="`${title}（可左右捲動）`">
@@ -148,7 +156,7 @@ function exportCsv() {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in rows" :key="String(row[rowKey])">
+          <tr v-for="(row, index) in shownRows" :key="String(row[rowKey])">
             <td v-if="numbered" class="stats-table__index num">{{ index + 1 }}</td>
             <template v-for="column in columns" :key="column.key">
               <th v-if="column.sticky" scope="row" class="stats-table__sticky">
@@ -172,6 +180,17 @@ function exportCsv() {
         </tbody>
       </table>
     </div>
+    <el-button
+      v-if="rows.length && collapsible"
+      class="stats-block__more"
+      size="small"
+      text
+      type="primary"
+      :aria-expanded="expanded"
+      @click="expanded = !expanded"
+    >
+      {{ expanded ? `只顯示前 ${collapsedRows} 列` : `顯示全部 ${rows.length} 列` }}
+    </el-button>
   </section>
 </template>
 
@@ -202,6 +221,10 @@ function exportCsv() {
   border-radius: var(--radius);
   color: var(--ink-3);
   text-align: center;
+}
+
+.stats-block__more {
+  margin-top: 4px;
 }
 
 .stats-block__scroll {

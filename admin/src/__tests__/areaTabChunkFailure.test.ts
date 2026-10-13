@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
-import { areaKindergartens, areaStats, button, cleanup, mockGet, mountWith, villageBoundaries } from './admissionsTestKit'
+import { areaKindergartens, areaOpportunity, areaStats, button, cleanup, mockGet, mountWith, villageBoundaries } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaMap.vue', () => {
   throw new Error('Failed to fetch dynamically imported module: https://example.test/admin/assets/AreaMap-old.js')
@@ -26,6 +26,7 @@ describe('區域分析：地圖元件載入失敗', () => {
     mockGet({
       '/admin/admissions/area/boundaries': villageBoundaries(),
       '/admin/admissions/area/kindergartens': areaKindergartens(),
+      '/admin/admissions/area/opportunity': areaOpportunity(),
       '/admin/admissions/area': areaStats(),
     })
     const { wrapper } = await mountWith(AreaTab, { props: props() })
@@ -37,8 +38,8 @@ describe('區域分析：地圖元件載入失敗', () => {
     expect(wrapper.text()).not.toContain('里界載入失敗')
     expect(logged).toHaveBeenCalledWith('[AreaTab] 地圖元件載入失敗', expect.any(Error))
 
-    expect(wrapper.findAll('.stats-block__title').map((title) => title.text())).toEqual(['行政區排行', '里排行', '距離分布'])
-    expect(wrapper.findAll('.stats-block')[0]!.findAll('tbody tr')).toHaveLength(2)
+    expect(wrapper.findAll('.area-tables .stats-block__title').map((title) => title.text())).toEqual(['行政區排行', '里排行', '距離分布'])
+    expect(wrapper.findAll('.area-tables .stats-block')[0]!.findAll('tbody tr')).toHaveLength(2)
     expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
 
     await button(notice, '重新整理')!.trigger('click')
