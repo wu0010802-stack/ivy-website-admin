@@ -33,6 +33,24 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 沒登入後台看地圖畫面；正式站的人口資料有沒有缺里也沒查。
   - 舊月份人口檔的擋下只在測試庫驗證過，正式站下一次匯入時才會碰到。
 
+## 2026-10-13 場次使用情況（main CI 部署，migration 只新增一張表）
+
+- **合併**：使用者在本機直接推 `feature/visit-slot-usage-20261013` 到 main（fast-forward `b6cc2f4d..fbed245a`，15 個 commit，沒有開 PR）。內容見 README 頂部 10-13「場次使用情況」、DESIGN.md「參觀場次：場次使用情況」、規格 `docs/specs/2026-10-13-visit-slot-usage-design.md`。
+- **migration**：`f3c8a2d47b19` → `b4d7e1a92c58`，新增 `slot_lookup_daily`（日×校×五區間→次數）。不改既有資料，所以沒有先備份。API 啟動時自動 `alembic upgrade head`；部署成功表示已套用，**沒有直接查 `alembic_version`**。
+- **回退**：舊映像不認得 `b4d7e1a92c58`，`check_schema.py` 會擋（見 CICD.md）。要退先用新映像跑 `alembic downgrade f3c8a2d47b19`（刪掉 `slot_lookup_daily`，已記的次數一併消失），再切舊映像。
+- **推送前閘門**：本機結果見 README 頂部同名段落。對齊 main `72d0f933` 後：完整 stack 套件 134 passed、後端相關檔 191 passed、admin 相關 116 passed、web 相關 70 passed、`contract:check` 一致。後端全套 2626 passed 是對齊前、最終審查修正前跑的。
+- **CI**：main run 38418981759（`fbed245a`），建立到部署完成 17.5 分鐘，全綠：
+  - Frontend web 1.4 分、admin 5.5 分；Backend 三組 11.4／10.2／12.2 分；E2E／Playwright 11.0 分。
+  - Deploy Railway production 5.1 分，成功。
+- **正式 `release.json`**：base commit `fbed245a8d1d176a7f289d9cfbb9ad4beda64f01`，snapshot `9f265c6e…`，created `2026-10-13T15:17:52Z`，`web+api`。
+- **線上唯讀檢查**（未登入，15:3x UTC；刻意不帶 `purpose=new_booking`，避免在正式庫多記一筆）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - `GET /public/slots?campus_key=yihua&date_from=…&date_to=…`（不帶 `purpose`）回 200 與場次清單；`purpose=bogus` 回 422（`Input should be 'new_booking'`）。
+  - 未登入 `GET /admin/visit-slot-usage?campus_key=yihua&weeks=4` 回 401，路由已上線。
+  - 後台 chunk：`VisitCalendarView-CjgI1sJp.js` 有「場次使用情況」「最早能約哪天」與 `SlotUsagePane`。
+- **未做**：沒有登入正式後台看「場次使用情況」頁籤的實際畫面；沒有查 `slot_lookup_daily` 的列數（新預約表單要有家長打開才會開始累積，剛上線是空的，頁面會寫還沒有記錄）；沒有讀 Railway log。
+  - 唯讀查法：`select day, campus_key, bucket, lookups from slot_lookup_daily order by day desc, campus_key, bucket limit 20;`（一天一校一區間一列）。
+
 ## 2026-10-13 效能第五輪（main CI 部署，沒有 migration）
 
 - **合併**：PR #36（`feature/perf-20261013`，head `3390d6ae`）由 GitHub 以 merge commit 併入 main `8c4ec20a..72d0f933`。內容見 README 頂部 10-13「效能第五輪」、DESIGN.md 最上方一節。
