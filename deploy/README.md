@@ -13,6 +13,24 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 全站精修：以國際設計獎的完成度逐頁檢查（main CI 部署，沒有 migration）
+
+- **合併**：PR #37（`claude/award-polish-20261013`，head `cda82b6c`）由 GitHub 以 merge commit 併入 main `ca6d2132..25b166b9`。只改官網 `web/`（各頁版面、文字換行、圖片 sizes、30 週年開場動畫、特色教學水彩上色方式）與 README／DESIGN。內容見 README 頂部 10-13「全站精修」、DESIGN.md 最上方一節。
+- **migration**：無。後端、API、契約都沒動。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**（合入 `ca6d2132` 之後）：web typecheck 通過、vitest 101 檔 1225 過；PR 上每一批的 CI 全綠（web、admin、後端三組、stack e2e）。改版前後同機 Lighthouse A/B 沒有退步（數字見 README）。
+- **CI**：main run 38478756505（`25b166b9`），22:35:03Z 開跑，22:51:27Z 部署完成，全綠：
+  - Frontend web 1.2 分、admin 4.4 分；Backend 三組 9.7／10.0／11.5 分；E2E／Playwright 10.7 分；Deploy Railway production 4.8 分。
+- **正式 `release.json`**：base commit `25b166b912cbe62bce1935495521c3da691a3a3f`，snapshot `1f87d461…`，created `2026-10-13T22:47:08Z`，`web+api`。
+- **線上唯讀檢查**（未登入，23:0x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`fixture_enabled: false`，`last_failed_steps` 為空。
+  - 首頁、入學、特色教學、關於、環境、消息、30 週年、預約八頁都回 200（0.44–0.65 秒）；Chromium 1440 開過八頁，沒有 console 錯誤、沒有水平溢出。
+  - 八頁都載到新的 `::selection` 規則；入學頁有補助券直排編號（`.ap-tcy`）與 `.ap .ap-slots` 間距規則。
+- **未在線上驗證**：
+  - 特色教學水彩的新顏色只在本機與截圖看過，**待業主確認**。
+  - Safari／iOS 實機、真機 GPU 下的首頁開場效能。
+  - 正式站的消息是園方發布的內容（有 campusKeys），校區篩選的修正主要影響示意消息，線上沒有逐校點過。
+
 ## 2026-10-13 審查四條修正：招生機會缺人口資料／舊月份人口檔、預約取鎖後重讀場次（main CI 部署，沒有 migration）
 
 - **提交**：直接推 main，`fbed245a..d3486cac` 兩個 commit（`4fd5f3b0` 招生、`d3486cac` 預約）。內容見 README 頂部 10-13「審查四條修正」。
