@@ -29,11 +29,12 @@ const YEARS = [
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
+// 2026-10-13 多元文化 38%→75%：桌機 4:5 裁切原本中間是沒有頭的外籍老師，改以大笑的男孩為中心（老師的手仍在畫面裡）；平板與手機 4:3 不裁切。
 const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
   { key: 'integrated', image: 'cur-integrated', alt: '孩子抱著比自己還大的足球', wash: 'mint,.44,.6,.66,.56', position: '40% 50%' },
-  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師在戶外和孩子們說話', wash: 'sky,.56,.58,.66,.56', position: '38% 50%' },
+  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師在戶外和孩子們說話', wash: 'sky,.56,.58,.66,.56', position: '75% 50%' },
   { key: 'quote' },
   { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子在桌上操作教具', wash: 'sun,.46,.6,.62,.6' },
   { key: 'activities', image: 'cur-activities', alt: '孩子們在戶外教學時聽解說員說話', wash: 'mint,.56,.6,.66,.56', position: '30% 50%' },
@@ -54,12 +55,13 @@ const GALLERY = [
 ] satisfies { image: string, alt: string, wash: string }[]
 
 // 義華校的五件事，一件配一種顏料。
+// 照片後的顏料 2026-10-13 往上收（中心 .56–.6→.5、上下半徑 .6→.5，左右放寬 .64→.7）：原本往下暈到編號，01 天藍、03 橙的編號顏料團和底下同色顏料糊成一片。
 const DAILY = [
-  { image: 'cur-daily-calm', alt: '孩子們閉上眼睛，雙手合十靜下心來', pigment: 'sky', wash: 'sky,.56,.56,.64,.62' },
-  { image: 'cur-daily-materials', alt: '女孩笑著把貓頭鷹積木一個個疊高', pigment: 'sun', wash: 'sun,.46,.6,.64,.6' },
-  { image: 'cur-daily-art', alt: '女孩專心把材料黏到作品上', pigment: 'orange', wash: 'orange,.56,.58,.64,.62' },
-  { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.58,.64,.62' },
-  { image: 'cur-daily-motor', alt: '男孩在操場上跳過一排跨欄', pigment: 'leaf', wash: 'leaf,.56,.6,.64,.6' }
+  { image: 'cur-daily-calm', alt: '孩子們閉上眼睛，雙手合十靜下心來', pigment: 'sky', wash: 'sky,.56,.5,.7,.5' },
+  { image: 'cur-daily-materials', alt: '女孩笑著把貓頭鷹積木一個個疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
+  { image: 'cur-daily-art', alt: '女孩專心把材料黏到作品上', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
+  { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
+  { image: 'cur-daily-motor', alt: '男孩在操場上跳過一排跨欄', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
 
 // 教學理念五項各配一種顏料（文字在後台）。
@@ -94,7 +96,8 @@ useWatercolor(root)
     <section class="cur-hero" aria-labelledby="curriculum-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-hero-grid">
-        <div class="cur-hero-copy" data-wash="sun,.3,.44,.6,.5,.024,42|orange,.04,.96,.12,.1,.03,26">
+        <!-- 橙色小顏料 2026-10-13 從左下移到右上：原本墊在首屏提醒底下，提醒字對比只剩 3.2–4.3:1、金色圓點看不見 -->
+        <div class="cur-hero-copy" data-wash="sun,.3,.44,.6,.5,.024,42|orange,.92,.06,.12,.1,.03,26">
           <p class="cur-eyebrow">{{ page.heroEyebrow }}</p>
           <h1 id="curriculum-title"><template v-for="(line, i) in heroLines" :key="i"><br v-if="i">{{ line.before }}<span v-if="line.mark" class="cur-swash"><span class="cur-blot cur-swash-paint" data-blot="orange" aria-hidden="true" />{{ line.mark }}</span>{{ line.after }}</template></h1>
           <p class="cur-lede">{{ page.heroLede }}</p>
@@ -182,7 +185,7 @@ useWatercolor(root)
         </div>
         <ul class="cur-art-wall" aria-label="孩子的作品" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
-            <div class="cur-frame" :data-wash="art.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 33vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy"></div>
+            <div class="cur-frame" :data-wash="art.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy"></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
