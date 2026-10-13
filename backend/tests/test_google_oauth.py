@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import json
@@ -20,6 +21,7 @@ from app.auth.models import Role, User
 from app.auth.models import Session as AuthSession
 from app.main import create_app
 from tests.conftest import _create_user
+from tests.test_booking_stale_reads import _wait_until_blocked
 
 ROOT = "/api/website/v1/auth"
 CALLBACK = f"http://test{ROOT}/google/callback"
@@ -559,3 +561,39 @@ async def test_google_link_handshake_cannot_be_replayed(google_client, google_pr
     assert sum(req.url.path == "/token" for req in google_provider["requests"]) == token_requests
     await db_session.refresh(user)
     assert user.google_sub == SUB
+
+
+async def _recover_while_callback_waits(app, user_id, mode: str, request):
+    """另一個交易先鎖住帳號列、做帳號復原但還沒 commit；這時送出 callback，等它卡在鎖上才 commit。
+    session 是 callback 在等鎖「之前」驗的（2026-10-13 審查）。"""
+    async with app.state.session_factory() as other:
+        user = (await other.execute(select(User).where(User.id == user_id).with_for_update())).scalar_one()
+        if mode == "deactivate":
+            await service.set_user_active(other, user, False)
+        else:
+            if mode == "clear":
+                service.clear_external_logins(user)
+                await other.flush()
+            await service.revoke_user_sessions(other, user_id)
+        task = asyncio.create_task(request)
+        await _wait_until_blocked(app, task)
+        await other.commit()
+    return await task
+
+
+@pytest.mark.parametrize("mode", ["reset", "clear", "deactivate"])
+async def test_google_link_callback_is_refused_when_recovery_revoked_the_session_while_it_waited(
+    app, google_client, google_provider, db_session, mode
+):
+    """重設密碼／清除綁定／停權在 callback 等帳號列鎖時撤銷了 session：鎖後重驗，不能新增 google_sub。"""
+    user = await _create_user(db_session, "staff@example.org", "test-password-123", Role.CAMPUS_ADMIN, ["minghua"])
+    user_id = user.id
+    await password_login(google_client, "staff@example.org")
+    state = await start_link(google_client, google_provider)
+
+    response = await _recover_while_callback_waits(app, user_id, mode, finish(google_client, state))
+
+    assert response.status_code == 303
+    assert response.headers["location"] == f"{ACCOUNT}failed"
+    await db_session.refresh(user)
+    assert user.google_sub is None

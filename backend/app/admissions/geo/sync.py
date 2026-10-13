@@ -30,13 +30,14 @@ advisory lock，整個同步期間持有。否則後到的同步開頭清「使�
 from __future__ import annotations
 
 import asyncio
+import codecs
 import hashlib
 import itertools
 import json
 import logging
 import re
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -82,9 +83,27 @@ FILE_CHUNK_LINES = 5000
 # 各里人口從上一個月往回找幾個月：戶政司通常在次月中旬公布，往回 4 個月夠涵蓋偶爾的延遲。
 POPULATION_LOOKBACK_MONTHS = 4
 
+# 上游回應的大小與同步時間上限（2026-10-13 深度掃描 12、13）：同步在 API 同一支程序裡跑，上游內容的
+# 發布者不該能用超大回應耗盡記憶體、或用超量的列數填滿共用資料庫。都是正常值的好幾倍，只擋失控的來源。
+# 位元組數以解壓縮後計（壓縮炸彈也擋）。
+HTML_MAX_BYTES = 2 * 1024 * 1024  # 高雄市資料平台的搜尋頁與資料集頁（正常約數百 KB）
+KINDERGARTENS_MAX_BYTES = 64 * 1024 * 1024  # 全國幼兒園名單（正常約十 MB）
+POPULATION_PAGE_MAX_BYTES = 32 * 1024 * 1024  # 各里人口每一頁（正常約 10 MB）
+DOORPLATE_MAX_BYTES = 400 * 1024 * 1024  # 門牌 CSV（正常約 102 MB）
+DOORPLATE_MAX_ROWS = 1_500_000  # 匯入資料庫的門牌列數（全市正常約 76 萬）
+DOORPLATE_MAX_LINE_CHARS = 64 * 1024  # 單行長度：沒有換行的串流不能無限長大
+# 單一資料種類從開始到結束的時間上限（逾時中止、寫進狀態列）。
+DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
+KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
+POPULATION_TIME_BUDGET = timedelta(minutes=30)
+
 
 class GeoSyncError(RuntimeError):
     """同步失敗的原因；訊息會寫進 geo_dataset_status.last_error，不得含地址。"""
+
+
+class ResponseTooLarge(GeoSyncError):
+    """上游回應超過大小上限；訊息不含網址與內容。"""
 
 
 class InvalidDoorplateLabel(GeoSyncError, ValueError):
@@ -111,6 +130,36 @@ def new_client(*, transport: httpx.AsyncBaseTransport | None = None) -> httpx.As
         event_hooks={"request": [_require_https]},
         transport=transport,
     )
+
+
+def _too_large() -> ResponseTooLarge:
+    return ResponseTooLarge("上游回應超過大小上限，已中止")
+
+
+def _declared_too_large(response: httpx.Response, max_bytes: int) -> bool:
+    declared = response.headers.get("content-length", "")
+    return declared.isdigit() and int(declared) > max_bytes
+
+
+async def _fetch_capped(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> tuple[bytes, str]:
+    """GET 並串流收本文，解壓縮後超過 max_bytes 就在收滿之前中止（回傳 (本文, 編碼)）。HTTP 錯誤照 raise_for_status 丟。"""
+    async with client.stream("GET", url) as response:
+        response.raise_for_status()
+        if _declared_too_large(response, max_bytes):
+            raise _too_large()
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in response.aiter_bytes():
+            total += len(chunk)
+            if total > max_bytes:
+                raise _too_large()
+            chunks.append(chunk)
+        return b"".join(chunks), response.encoding or "utf-8"
+
+
+async def _fetch_text(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> str:
+    body, encoding = await _fetch_capped(client, url, max_bytes=max_bytes)
+    return body.decode(encoding, errors="replace")
 
 
 @dataclass(frozen=True)
@@ -177,19 +226,16 @@ async def discover_doorplate_source(client: httpx.AsyncClient) -> DoorplateSourc
     """最新年度資料集的最新月份；最新年度還沒有資源、或資料集頁暫時打不開（年初新年度的頁面
     常常先列在搜尋頁、內容還沒上線，回 404／500）就看前一年度。兩年都沒有就丟錯：兩頁都是 HTTP
     錯誤時丟最後一個，讓狀態列寫出 HTTP 狀態碼。"""
-    search = await client.get(KCG_SEARCH_URL)
-    search.raise_for_status()
+    pages = parse_dataset_search(await _fetch_text(client, KCG_SEARCH_URL, max_bytes=HTML_MAX_BYTES))[:2]
     errors: list[httpx.HTTPStatusError] = []
-    pages = parse_dataset_search(search.text)[:2]
     for _, path in pages:
-        page = await client.get(f"{KCG_BASE}{path}")
         try:
-            page.raise_for_status()
+            page_text = await _fetch_text(client, f"{KCG_BASE}{path}", max_bytes=HTML_MAX_BYTES)
         except httpx.HTTPStatusError as exc:
             logger.warning("門牌資料集頁 %s 回 HTTP %s，改看前一年度", path, exc.response.status_code)
             errors.append(exc)
             continue
-        resources = parse_dataset_resources(page.text)
+        resources = parse_dataset_resources(page_text)
         if resources:
             year, month, guid = resources[0]
             return DoorplateSource(f"{year}-{month:02d}", f"{KCG_BASE}/File/DirectDownload/{guid}")
@@ -225,6 +271,29 @@ def _parse_lines(parser: doorplate_io.DoorplateParser, lines: list[str]) -> list
     return [row for row in map(parser.feed, lines) if row is not None]
 
 
+async def _capped_lines(response: httpx.Response, *, max_bytes: int) -> AsyncIterator[str]:
+    """下載中的行（UTF-8，以 \n 分行）。解壓縮後的總位元組與單行長度都有上限：串流可以很長，
+    但不能一路長大到耗盡記憶體（單行沒有換行時 aiter_lines 會一直暫存）。"""
+    if _declared_too_large(response, max_bytes):
+        raise _too_large()
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    pending = ""
+    total = 0
+    async for chunk in response.aiter_bytes():
+        total += len(chunk)
+        if total > max_bytes:
+            raise _too_large()
+        lines = (pending + decoder.decode(chunk)).split("\n")
+        pending = lines.pop()
+        if len(pending) > DOORPLATE_MAX_LINE_CHARS:
+            raise _too_large()
+        for line in lines:
+            yield line
+    pending += decoder.decode(b"", final=True)
+    if pending:
+        yield pending
+
+
 async def _stream_rows(
     client: httpx.AsyncClient, url: str, parser: doorplate_io.DoorplateParser
 ) -> AsyncIterator[doorplate_io.DoorplateRow]:
@@ -232,9 +301,8 @@ async def _stream_rows(
     （官網的預約、內容請求跟著排隊）；同 _file_rows 收滿 FILE_CHUNK_LINES 行交給執行緒解析一次。"""
     async with client.stream("GET", url) as response:
         response.raise_for_status()
-        response.encoding = "utf-8"
         lines: list[str] = []
-        async for line in response.aiter_lines():
+        async for line in _capped_lines(response, max_bytes=DOORPLATE_MAX_BYTES):
             lines.append(line)
             if len(lines) >= FILE_CHUNK_LINES:
                 for row in await asyncio.to_thread(_parse_lines, parser, lines):
@@ -320,7 +388,13 @@ async def _batch_rows(session_factory: async_sessionmaker[AsyncSession], tag: st
 
 def _error_text(exc: Exception) -> str:
     """寫進狀態列的原因：只留我們自己的訊息或例外類別，不帶回應內容（可能很長）。"""
-    own = (GeoSyncError, doorplate_io.DoorplateFormatError, KindergartenFormatError, population_io.PopulationFormatError)
+    own = (
+        GeoSyncError,
+        doorplate_io.DoorplateFormatError,
+        doorplate_io.DoorplateTooManyRows,
+        KindergartenFormatError,
+        population_io.PopulationFormatError,
+    )
     if isinstance(exc, own):
         return str(exc)
     if isinstance(exc, httpx.HTTPStatusError):
@@ -365,7 +439,7 @@ async def sync_doorplates(
                 return "skipped", 0
             label, rows, minimum = source.label, _stream_rows(client, source.url, parser), MIN_DOORPLATE_ROWS
         tag = f"{label}#{uuid.uuid4().hex[:6]}"
-        count = await doorplate_io.import_doorplates(session_factory, tag, rows)
+        count = await doorplate_io.import_doorplates(session_factory, tag, rows, max_rows=DOORPLATE_MAX_ROWS)
         if count < minimum:
             await _discard_batches(session_factory, active)
             raise GeoSyncError(f"門牌資料只有 {count} 筆，少於 {minimum} 筆，不換版")
@@ -400,10 +474,9 @@ async def sync_kindergartens(
             data = json.loads(file.read_text(encoding="utf-8-sig"))
         else:
             assert client is not None
-            response = await client.get(settings.geo_kindergartens_url)
-            response.raise_for_status()
+            body, _ = await _fetch_capped(client, settings.geo_kindergartens_url, max_bytes=KINDERGARTENS_MAX_BYTES)
             # 全國名單有好幾 MB：解析 JSON 與篩選都在執行緒裡做，不占住事件迴圈。
-            data = await asyncio.to_thread(response.json)
+            data = await asyncio.to_thread(json.loads, body)
         school_year, _ = current_term(today_local())
         report = ParseReport()
         rows = await asyncio.to_thread(parse_preschools, data, school_year=school_year, report=report)
@@ -431,9 +504,8 @@ def recent_months(count: int = POPULATION_LOOKBACK_MONTHS) -> list[str]:
 
 async def _population_page(client: httpx.AsyncClient, yyymm: str, page: int) -> object:
     """一頁回應，解析時就只留高雄市的列（population.parse_page）；解析在執行緒裡做，不卡住事件迴圈。"""
-    response = await client.get(population_io.page_url(yyymm, page))
-    response.raise_for_status()
-    return await asyncio.to_thread(population_io.parse_page, response.text)
+    text_ = await _fetch_text(client, population_io.page_url(yyymm, page), max_bytes=POPULATION_PAGE_MAX_BYTES)
+    return await asyncio.to_thread(population_io.parse_page, text_)
 
 
 async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, object]:
@@ -515,6 +587,33 @@ async def sync_population(
         return "failed", 0
 
 
+async def _within_budget(
+    session_factory: async_sessionmaker[AsyncSession],
+    dataset: str,
+    budget: timedelta,
+    *,
+    now: datetime,
+    work: Awaitable[tuple[str, int]],
+    on_timeout: Callable[[], Awaitable[None]] | None = None,
+) -> tuple[str, int]:
+    """一種資料的同步有時間上限：上游一直慢慢吐資料也不能讓同步（與它持有的鎖、連線）永遠跑下去。
+    逾時就取消、寫進狀態列、保留使用中的版本（on_timeout 清掉中斷留下的半套批次）。"""
+    limit = asyncio.timeout(budget.total_seconds())
+    try:
+        async with limit:
+            return await work
+    except TimeoutError:
+        if not limit.expired():
+            raise
+        seconds = int(budget.total_seconds())
+        after = f"{seconds // 60} 分鐘" if seconds >= 60 else f"{seconds} 秒"
+        logger.warning("%s 同步超過 %s，已中止", dataset, after)
+        await _record(session_factory, dataset, now=now, error=f"同步超過 {after}，已中止")
+        if on_timeout is not None:
+            await on_timeout()
+        return "failed", 0
+
+
 async def campus_fingerprint(db: AsyncSession) -> str:
     """各校已發布校址＋使用中門牌批次的指紋；任一個變了就要重算訪視。"""
     addresses = []
@@ -588,15 +687,25 @@ async def run_geo_sync(
             client = new_client()
         network = None if file_mode else client
         try:
-            doorplates, doorplate_skipped = await sync_doorplates(
-                session_factory, settings, network,
-                now=now, force=force, file=doorplates_file, file_label=doorplates_version,
+            async def discard_unfinished_doorplates() -> None:
+                status = await _status(session_factory, "doorplates")
+                await _discard_batches(session_factory, status.active_version if status else None)
+
+            doorplates, doorplate_skipped = await _within_budget(
+                session_factory, "doorplates", DOORPLATE_TIME_BUDGET, now=now,
+                work=sync_doorplates(
+                    session_factory, settings, network,
+                    now=now, force=force, file=doorplates_file, file_label=doorplates_version,
+                ),
+                on_timeout=discard_unfinished_doorplates,
             )
-            kindergartens, kindergarten_skipped = await sync_kindergartens(
-                session_factory, settings, network, now=now, force=force, file=kindergartens_file
+            kindergartens, kindergarten_skipped = await _within_budget(
+                session_factory, "kindergartens", KINDERGARTENS_TIME_BUDGET, now=now,
+                work=sync_kindergartens(session_factory, settings, network, now=now, force=force, file=kindergartens_file),
             )
-            population, population_skipped = await sync_population(
-                session_factory, network, now=now, force=force, files=population_files
+            population, population_skipped = await _within_budget(
+                session_factory, "population", POPULATION_TIME_BUDGET, now=now,
+                work=sync_population(session_factory, network, now=now, force=force, files=population_files),
             )
         finally:
             if own_client and client is not None:

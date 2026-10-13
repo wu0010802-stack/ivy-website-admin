@@ -12,26 +12,19 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
 
+from app import libpq  # noqa: E402
 from app.config import get_settings  # noqa: E402
 
 
-def _psql_args(database_url: str) -> list[str]:
-    parsed = urlparse(database_url.replace("+asyncpg", ""))
-    args = ["psql", "--quiet"]
-    if parsed.hostname:
-        args += ["-h", parsed.hostname]
-    if parsed.port:
-        args += ["-p", str(parsed.port)]
-    if parsed.username:
-        args += ["-U", parsed.username]
-    args += ["-d", parsed.path.lstrip("/")]
-    return args
+def _psql_command(database_url: str) -> tuple[list[str], dict[str, str]]:
+    """psql 的命令列與環境變數；密碼與 TLS 要求只走環境變數（見 backup_website._pg_dump_command）。"""
+    connection = libpq.parse(database_url)
+    return ["psql", "--quiet", *connection.host_args(), "-d", connection.dbname], connection.env
 
 
 def main() -> int:
@@ -55,8 +48,13 @@ def main() -> int:
 
     database_url = settings.active_database_url()
     print(f"還原到隔離測試資料庫（DSN 已通過 Settings 驗證，非 ivymanagement）...")
+    try:
+        command, connection_env = _psql_command(database_url)
+    except libpq.UnsupportedDsn as exc:
+        print(f"拒絕還原：{exc}", file=sys.stderr)
+        return 1
     with open(dump_path, encoding="utf-8") as f:
-        result = subprocess.run(_psql_args(database_url), stdin=f, env={**os.environ})
+        result = subprocess.run(command, stdin=f, env={**os.environ, **connection_env})
     if result.returncode != 0:
         print("還原失敗", file=sys.stderr)
         return 1

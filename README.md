@@ -1,3 +1,21 @@
+## 2026-10-13 深度掃描 14 項（`fix/security-scan-20261013`）
+
+Codex 對 `8c4ec20a` 做深度掃描（3 項 medium、11 項 low）。每項先對照現行程式確認成立再修。第 1、2、3、5、6、7、8、10、11 項的新測試用真並發（兩個連線、鎖住其中一個，不 mock 資料庫），都先退回修正確認會失敗、修好後轉綠；第 9、12、13 項是純函式與 MockTransport 測試。第 4 項（家長異動期限在案件鎖外檢查）已在 `fix/booking-stale-read-20261013` 修過、驗證過，那份修正與 `test_booking_stale_reads.py` 原樣帶進這個分支，沒有重做。第 14 項是政策取捨，沒有改程式。
+
+- **預約家長連結與 session（第 1、5、7、10、11 項）**
+  - 寄信 worker 讀案件時拿 `FOR SHARE`（`notifications/service.py`）：Email 與「目前有效連結」是同一個世代，信組好才放鎖再寄。後台更正 Email、換發連結都先拿同一列的 `FOR UPDATE`，所以舊信箱最多收到更正時已撤銷的舊連結。
+  - 家長取消、改資料、改期在案件鎖內重驗 session（`access_service.parent_session_active`）；`revoke-access` 路由也先鎖案件列，撤銷才和卡在鎖上的家長異動序列化。
+  - 家長自己更正 Email：舊連結與其他 session 作廢、換發新連結寄到新信箱；家長正在用的 session 留著（`keep_session_id`）。後台更正與家長更正共用 `_reset_access_after_email_change`。
+  - 後台更正或清空 Email 時**無條件**撤銷案件所有連結與 session，不再看「有沒有有效連結」：連結已到期、兩小時的 session 還活著時，舊收件人原本仍讀得到更正後的資料。新 session 的效期也不超過來源連結的到期時間。
+  - 送單重播的 `original_manage_path` 改成一次查出所有 token 再判斷，不再「先數筆數、再另查最新那條」。
+- **登入憑證（第 2、3 項）**：`service.lock_user_for_session` 鎖帳號列後重驗帳號啟用與 session 有效。本人改密碼另外比對「驗證時的密碼雜湊」，被重設蓋過回 401／409（`CREDENTIALS_CHANGED`）；Google／LINE 綁定 callback 等鎖期間 session 被撤銷就拒絕新增 `google_sub`／`line_sub`。
+- **保存政策（第 8 項）**：`retention_service.anonymize` 先鎖案件列、整列重讀，補填的 Email、孩子姓名、生日一併清除；每次清理順手補清「已標記匿名化卻還有個資」的舊案；清理筆數改算實際匿名化的。
+- **備份與還原（第 9 項）**：新 `app/libpq.py` 把連線字串轉成 libpq 設定。`ssl`／`sslmode`、CA、客戶端憑證與密碼只走環境變數（不進命令列、不印出），認得的才轉、不認得的參數拒絕執行；DSN 的 TLS 要求蓋過行程環境裡較弱的設定。
+- **公開資料同步（第 12、13 項）**：搜尋頁／資料集頁 2 MB、幼兒園名單 64 MB、人口每頁 32 MB、門牌 CSV 400 MB（以解壓縮後計，無 Content-Length 的串流也擋）；單行 64K 字元；匯入門牌總列數 150 萬（正常約 76 萬）；每種資料各有同步時間上限（45／10／30 分鐘），逾時取消並清掉半套批次。
+- **後台草稿（第 6 項）**：草稿的主人也記在 sessionStorage（`claimVisitNoteDrafts`），逾時後重新整理、`previousUserId` 沒了，另一位登入時照樣清掉前一位的草稿；同一個人登回來保留。
+- **沒改：第 14 項**（內容編輯可直接改已發布素材的替代文字與裁切）。現行行為有測試與後台操作畫面支持（`test_media_slots.py` 斷言 metadata 變動「本文要立刻換」），規格第 4 節卻寫「編輯不直接影響官網」「內容編輯只能送審」，兩者矛盾，等業主決定。
+- 新測試：`test_booking_access_races.py`、`test_auth_credential_races.py`、`test_retention_races.py`、`test_libpq_dsn.py`、`test_geo_limits.py`，另在 `test_google_oauth.py`、`test_line_oauth.py`、`authGuardSwitchUser.test.ts` 各補案例。
+
 ## 2026-10-14 參觀場次：國定假日匯入、停班停課；操作紀錄搜尋、站內通知翻頁（`feature/holiday-closure-20261014`）
 
 使用者從功能盤點裡選了這兩項，說「先做這些」。規格 `docs/specs/2026-10-14-holiday-closure-design.md`，規則見 DESIGN.md 最上方一節，操作步驟見 `docs/website-admin/operations.md`「國定假日與停班停課」。

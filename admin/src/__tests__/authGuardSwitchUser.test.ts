@@ -20,6 +20,7 @@ import { testUser } from './fixtures'
 const wrappers: VueWrapper[] = []
 const cleanups: (() => void)[] = []
 afterEach(() => {
+  window.sessionStorage.clear()
   wrappers.splice(0).forEach(wrapper => wrapper.unmount())
   cleanups.splice(0).forEach(cleanup => cleanup())
   resetUnauthorizedForTests()
@@ -325,6 +326,55 @@ describe('2026-10-13：換帳號之後的兩個漏洞', () => {
     expect(readVisitNoteDraft('case-1')).toBe('')
     expect(reset).toHaveBeenCalledTimes(1)
     expect(auth.previousUserId).toBeNull()
+  })
+
+  it('逾時後重新整理（記憶體裡的 previousUserId 沒了）再由乙登入：甲的草稿一樣不帶給乙', async () => {
+    setActivePinia(createPinia())
+    const first = useAuthStore()
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userA), features: undefined } as never)
+    await first.login('a@example.invalid', 'pw')
+    writeVisitNoteDraft('case-1', '甲寫到一半')
+    first.expireSession()
+
+    setActivePinia(createPinia()) // 重新整理：全新的 store，previousUserId 是空的
+    const reloaded = useAuthStore()
+    expect(reloaded.previousUserId).toBeNull()
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userB), features: undefined } as never)
+    await reloaded.login('b@example.invalid', 'pw')
+
+    expect(readVisitNoteDraft('case-1')).toBe('')
+  })
+
+  it('逾時後重新整理，甲自己登回來：草稿留著', async () => {
+    setActivePinia(createPinia())
+    const first = useAuthStore()
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userA), features: undefined } as never)
+    await first.login('a@example.invalid', 'pw')
+    writeVisitNoteDraft('case-1', '甲寫到一半')
+    first.expireSession()
+
+    setActivePinia(createPinia())
+    const reloaded = useAuthStore()
+    mockApi(meOf(userA))
+    expect(await reloaded.restoreSession()).toBe('restored')
+
+    expect(readVisitNoteDraft('case-1')).toBe('甲寫到一半')
+  })
+
+  it('主動登出把草稿與主人一起清掉，下一位登入不受影響', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userA), features: undefined } as never)
+    await auth.login('a@example.invalid', 'pw')
+    writeVisitNoteDraft('case-1', '甲寫到一半')
+    vi.spyOn(api, 'post').mockResolvedValueOnce(undefined as never)
+    await auth.logout()
+    expect(readVisitNoteDraft('case-1')).toBe('')
+
+    writeVisitNoteDraft('case-1', '乙自己的草稿') // 登出後沒有主人；乙登入時歸給乙
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userB), features: undefined } as never)
+    await auth.login('b@example.invalid', 'pw')
+    expect(readVisitNoteDraft('case-1')).toBe('乙自己的草稿')
   })
 
   it('從 cookie 恢復成另一個人（閒置逾時後的登入頁）也一樣清掉', async () => {

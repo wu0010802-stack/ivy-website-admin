@@ -13,28 +13,21 @@ import sys
 import tarfile
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 os.environ.setdefault("WEBSITE_SKIP_DEFAULT_APP", "1")
 
+from app import libpq  # noqa: E402
 from app.config import get_settings  # noqa: E402
 
 
-def _pg_dump_args(database_url: str) -> list[str]:
-    """把 SQLAlchemy 的 asyncpg DSN 轉成 pg_dump 看得懂的連線參數；
-    不把密碼印進任何輸出。"""
-    parsed = urlparse(database_url.replace("+asyncpg", ""))
-    args = ["pg_dump", "--no-owner", "--no-privileges"]
-    if parsed.hostname:
-        args += ["-h", parsed.hostname]
-    if parsed.port:
-        args += ["-p", str(parsed.port)]
-    if parsed.username:
-        args += ["-U", parsed.username]
-    args.append(parsed.path.lstrip("/"))
-    return args
+def _pg_dump_command(database_url: str) -> tuple[list[str], dict[str, str]]:
+    """把 SQLAlchemy 的 asyncpg DSN 轉成 pg_dump 的命令列與環境變數。密碼與 TLS 要求
+    （ssl／sslmode、CA、客戶端憑證）只走環境變數，不進命令列、不印出來；不認得的參數拒絕
+    （app/libpq.py），不默默丟掉。"""
+    connection = libpq.parse(database_url)
+    return ["pg_dump", "--no-owner", "--no-privileges", *connection.host_args(), connection.dbname], connection.env
 
 
 def _open_private(path: Path):
@@ -68,8 +61,13 @@ def main() -> int:
 
     dump_path = output_dir / f"website-db-{timestamp}.sql"
     print(f"備份資料庫（環境：{settings.environment}）到 {dump_path} ...")
+    try:
+        command, connection_env = _pg_dump_command(database_url)
+    except libpq.UnsupportedDsn as exc:
+        print(f"拒絕備份：{exc}", file=sys.stderr)
+        return 1
     with _open_private(dump_path) as f:
-        result = subprocess.run(_pg_dump_args(database_url), stdout=f, env={**os.environ})
+        result = subprocess.run(command, stdout=f, env={**os.environ, **connection_env})
     if result.returncode != 0:
         print("pg_dump 失敗，請確認本機有裝 PostgreSQL client 工具", file=sys.stderr)
         return 1

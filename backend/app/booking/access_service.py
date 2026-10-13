@@ -81,10 +81,23 @@ async def create_access_token(
 
 
 async def issue_access_token(
-    db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str, slot: VisitSlot | None
+    db: AsyncSession,
+    visit_request_id: uuid.UUID,
+    *,
+    secret: str,
+    slot: VisitSlot | None,
+    keep_session_id: str | None = None,
 ) -> tuple[str, datetime]:
-    await revoke_access_for_visit_request(db, visit_request_id)
+    await revoke_access_for_visit_request(db, visit_request_id, keep_session_id=keep_session_id)
     return await create_access_token(db, visit_request_id, secret=secret, slot=slot)
+
+
+def _manage_path_of(token: ParentAccessToken, secret: str) -> str | None:
+    """token 列重算出原始連結；2026-09-30 以前隨機產生、或密鑰更換前發的重算不出來，回 None。"""
+    raw_token = _derive_raw(secret, token.id)
+    if not hmac.compare_digest(_hash(raw_token), token.token_hash):
+        return None
+    return manage_path(raw_token)
 
 
 async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
@@ -93,22 +106,24 @@ async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, 
     token = await active_access_token(db, visit_request_id)
     if token is None:
         return None
-    raw_token = _derive_raw(secret, token.id)
-    if not hmac.compare_digest(_hash(raw_token), token.token_hash):
-        return None
-    return manage_path(raw_token)
+    return _manage_path_of(token, secret)
 
 
 async def original_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
     """送單重播（同一個 Idempotency-Key 再送一次）要回的修改連結：只有送單時發的那條
     還是唯一一條時才回。園方因為連結外流而「重新產生」之後，手上有原始請求的人重送
-    不能拿到新連結（2026-10-06 稽核）。"""
-    issued = await db.scalar(
-        select(func.count()).select_from(ParentAccessToken).where(ParentAccessToken.visit_request_id == visit_request_id)
-    )
-    if issued != 1:
+    不能拿到新連結（2026-10-06 稽核）。
+
+    一次查出這個案件發過的所有 token 再判斷（2026-10-13 審查）：先數筆數、再另查「目前有效的
+    那條」是兩個查詢，園方剛好在中間重新產生時，筆數檢查看到 1、後一個查詢卻拿到新的那條。"""
+    result = await db.execute(select(ParentAccessToken).where(ParentAccessToken.visit_request_id == visit_request_id))
+    issued = result.scalars().all()
+    if len(issued) != 1:
         return None
-    return await current_manage_path(db, visit_request_id, secret=secret)
+    token = issued[0]
+    if token.revoked_at is not None or token.expires_at <= datetime.now(timezone.utc):
+        return None
+    return _manage_path_of(token, secret)
 
 
 async def ensure_access_token(
@@ -145,12 +160,17 @@ async def extend_token_expiry(db: AsyncSession, visit_request_id: uuid.UUID, slo
         await db.flush()
 
 
-async def revoke_access_for_visit_request(db: AsyncSession, visit_request_id: uuid.UUID) -> None:
+async def revoke_access_for_visit_request(
+    db: AsyncSession, visit_request_id: uuid.UUID, *, keep_session_id: str | None = None
+) -> None:
     """撤銷某個案件底下所有尚未撤銷的分享 token 與受限 session。
 
     案件走到終態（取消／完成／未到場）之後，那條連結就不該再開得起來；
     規格 6.4 明文要求 token「可撤銷」。這是唯一的撤銷寫入點，workflow
-    的終態轉換都會呼叫它。"""
+    的終態轉換都會呼叫它。
+
+    keep_session_id：家長自己更正 Email 時，他正在用的 session 不撤銷（否則他一改完就被登出），
+    其餘全部撤銷。呼叫端必須已持有案件列鎖，撤銷才會和家長異動序列化。"""
     now = datetime.now(timezone.utc)
     await db.execute(
         update(ParentAccessToken)
@@ -160,14 +180,10 @@ async def revoke_access_for_visit_request(db: AsyncSession, visit_request_id: uu
         )
         .values(revoked_at=now)
     )
-    await db.execute(
-        update(ParentSession)
-        .where(
-            ParentSession.visit_request_id == visit_request_id,
-            ParentSession.revoked_at.is_(None),
-        )
-        .values(revoked_at=now)
-    )
+    session_filters = [ParentSession.visit_request_id == visit_request_id, ParentSession.revoked_at.is_(None)]
+    if keep_session_id is not None:
+        session_filters.append(ParentSession.id != keep_session_id)
+    await db.execute(update(ParentSession).where(*session_filters).values(revoked_at=now))
     await db.flush()
 
 
@@ -211,7 +227,9 @@ async def exchange_token(db: AsyncSession, raw_token: str) -> tuple[str, VisitRe
             id=_hash(raw_session_token),
             visit_request_id=visit_request.id,
             created_at=now,
-            expires_at=now + SESSION_TTL,
+            # 不超過來源連結的到期時間：連結到期後換出來的 session 不該比連結還長命，
+            # 否則園方在連結到期後更正誤寄的 Email，換過 session 的收件人仍讀得到資料。
+            expires_at=min(now + SESSION_TTL, token.expires_at),
         )
     )
     await db.flush()
@@ -236,6 +254,26 @@ async def _prune_sessions(db: AsyncSession, visit_request_id: uuid.UUID, now: da
     overflow_ids = [row[0] for row in overflow.all()]
     if overflow_ids:
         await db.execute(delete(ParentSession).where(ParentSession.id.in_(overflow_ids)))
+
+
+def session_id_of(raw_session_token: str) -> str:
+    return _hash(raw_session_token)
+
+
+async def parent_session_active(db: AsyncSession, raw_session_token: str, visit_request_id: uuid.UUID) -> bool:
+    """這個 session 現在還有效、而且屬於這個案件。家長異動先在鎖外驗過 session，取得案件列鎖之後
+    要再驗一次（2026-10-13 審查）：園方在這段空檔換發連結、更正 Email 或撤銷存取並 commit 後，
+    已通過初驗的舊請求不能再落地。撤銷都在案件列鎖內進行，所以鎖內重讀看得到。"""
+    result = await db.execute(
+        select(ParentSession.id)
+        .where(
+            ParentSession.id == _hash(raw_session_token),
+            ParentSession.visit_request_id == visit_request_id,
+            ParentSession.revoked_at.is_(None),
+            ParentSession.expires_at > datetime.now(timezone.utc),
+        )
+    )
+    return result.first() is not None
 
 
 async def get_visit_request_for_session(db: AsyncSession, raw_session_token: str) -> VisitRequest | None:

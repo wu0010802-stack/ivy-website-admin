@@ -206,14 +206,19 @@ def slot_text(slot: VisitSlot) -> str:
     )
 
 
-async def _load_visit_request(db: AsyncSession, receipt_id: str | None) -> VisitRequest | None:
+async def _load_visit_request(
+    db: AsyncSession, receipt_id: str | None, *, share_lock: bool = False
+) -> VisitRequest | None:
+    """share_lock：以 FOR SHARE 讀案件列並覆蓋已載入的值。後台更正 Email、換發連結都先拿同一列的
+    FOR UPDATE，所以持有共享鎖期間讀到的 Email 與「目前有效連結」是同一個世代。"""
     try:
         visit_id = uuid.UUID(str(receipt_id))
     except ValueError:
         return None
-    result = await db.execute(
-        select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_id)
-    )
+    query = select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_id)
+    if share_lock:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -265,7 +270,13 @@ async def _dispatch_parent_email(
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return False
-    visit_request = await _load_visit_request(db, payload.get("receipt_id"))
+    # 收件人與管理連結要是同一個世代（2026-10-13 審查）：先讀 Email、之後才另查「目前有效連結」，
+    # 後台剛好在中間更正 Email 並換發連結時，新連結會寄回舊信箱。所以讀案件時就拿共享鎖，讀完 Email 與
+    # 連結、組好信之後才放鎖再寄；寄的是舊世代的信也沒關係，更正時舊連結已一併撤銷。
+    # 取消通知不含連結，不需要鎖。
+    visit_request = await _load_visit_request(
+        db, payload.get("receipt_id"), share_lock=kind != PARENT_VISIT_CANCELLED
+    )
     if visit_request is None or visit_request.anonymized_at is not None or not visit_request.email:
         return False
     # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
@@ -315,9 +326,10 @@ async def _dispatch_parent_email(
             closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
         )
     )
-    await asyncio.to_thread(
-        adapter.send, to=_header_safe(visit_request.email), subject=_header_safe(subject), body=body
-    )
+    recipient = _header_safe(visit_request.email)
+    # 信組好了：放掉共享鎖再寄，不握著案件列鎖等 SMTP。
+    await db.commit()
+    await asyncio.to_thread(adapter.send, to=recipient, subject=_header_safe(subject), body=body)
     _record_delivery(db, outbox_message_id, "email", recipient_key)
     await db.commit()
     return True

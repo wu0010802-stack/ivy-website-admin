@@ -74,6 +74,8 @@ WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhos
   uv run python scripts/restore_website.py ./var/backups/website-db-<timestamp>.sql
 ```
 
+連線字串裡的 TLS 要求（`ssl`／`sslmode`、`sslrootcert`、`sslcert`、`sslkey`、`sslcrl`）與密碼會轉成 libpq 環境變數交給 `pg_dump`／`psql`，不進命令列（`app/libpq.py`）；不認得的參數（可能是安全設定）會拒絕備份或還原，不會默默丟掉。asyncpg 專用的快取調校參數（`statement_cache_size` 等）會略過。
+
 已對隔離測試 DB + 測試媒體目錄實際演練過（見 `docs/website-admin/acceptance.md` Task 10 小結），備份產出一份 `pg_dump` SQL 與媒體 tarball，還原後 schema 與資料皆正確。**還原前務必確認目標是隔離測試環境，指令本身會拒絕在非 test 環境執行，但仍建議操作前再次手動確認 DSN。**
 
 ## 保存政策 / 資料清理（2026-09-26 改為後台可設定並持久化）
