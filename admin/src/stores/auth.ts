@@ -5,6 +5,7 @@ import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/ty
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { clearVisitNoteDrafts } from '../composables/visitNoteDraft'
+import { useOpenRequestsStore } from './openRequests'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserOut | null>(null)
@@ -41,11 +42,24 @@ export const useAuthStore = defineStore('auth', () => {
       features.value = result.features ?? { admissions: false, password_reset_email: false }
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
-      previousUserId.value = null
+      forgetPreviousUser(result.user.id)
       announceSignedIn()
     } finally {
       isLoading.value = false
     }
+  }
+
+  /**
+   * 登入或恢復成功之後清掉 previousUserId。被迫登出（逾時、別的分頁換了帳號）時案件草稿與頁首
+   * 數字刻意留著，讓同一個人登回來接著寫；但登進來的是另一個人（櫃台共用電腦）時不能帶給他：
+   * 上一位沒送出的聯絡紀錄會出現在對方的案件頁、以對方的名義送出（2026-10-13）。
+   */
+  function forgetPreviousUser(nextUserId: string): void {
+    if (previousUserId.value && previousUserId.value !== nextUserId) {
+      clearVisitNoteDrafts()
+      useOpenRequestsStore().reset()
+    }
+    previousUserId.value = null
   }
 
   /** 清掉本地登入狀態（不打 API）。401 的集中處理會用到。 */
@@ -84,9 +98,12 @@ export const useAuthStore = defineStore('auth', () => {
       if (error instanceof ApiError && error.status === 403 && error.detail === CSRF_INVALID_DETAIL) outcome = 'session-changed'
       else if (!(error instanceof ApiError && error.status === 401)) throw error
     }
+    const signedInAs = user.value?.id ?? null
     clearSession()
-    // 主動登出就不是「被換帳號」：沒有需要比對的人。
-    previousUserId.value = null
+    // 主動登出就不是「被換帳號」：沒有需要比對的人。例外是 session-changed（別的分頁已經換成別人
+    // 登入）：記住是誰，之後按上一頁回後台時 authGuard 才不會拿 cookie 裡別人的 session 恢復成對方
+    // （2026-10-13，9ac5fbf 只擋了被動登出那條路）。
+    previousUserId.value = outcome === 'session-changed' ? signedInAs : null
     // 主動登出才清案件草稿；逾時被導回登入（只走 clearSession）要留著讓人接著寫。
     clearVisitNoteDrafts()
     return outcome
@@ -112,7 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
-      previousUserId.value = null
+      forgetPreviousUser(result.user.id)
       announceSignedIn()
       return 'restored'
     } catch (error) {

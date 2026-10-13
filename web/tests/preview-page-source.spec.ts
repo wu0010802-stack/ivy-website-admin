@@ -62,7 +62,7 @@ describe('/preview 即時預覽不外洩草稿', () => {
   })
 
   it('消息列表頁分支：渲染 NewsIndexContent，吃預覽草稿的消息與五校（行為由 preview-live-page.spec 驗）', () => {
-    expect(page).toContain('<NewsIndexContent v-else-if="page === \'news\'" :news="draft.news" :campuses="draft.campuses" />')
+    expect(page).toContain('<NewsIndexContent v-else-if="page === \'news\'" :news="draft.news" :campuses="draft.campuses" :today="date" />')
   })
 
   it('即時預覽模式擋連結換頁、錯誤不換成整頁錯誤畫面；框線用預覽工具列的 token', () => {

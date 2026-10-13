@@ -146,7 +146,14 @@ function pickVoice(index: number) {
   if (index === pickedVoice.value) return
   pickedVoice.value = index
   const card = tv.value
-  const apply = () => { shownVoice.value = index; playing.value = false }
+  const picked = voices.value[index]
+  // 換片動畫（約半秒）之後才真的換。這段時間裡即時預覽把影片刪掉或換了順序（上面的 watch 已經
+  // 回到第 1 支），就不再換到那個位置：可能已經超出範圍，voices[shownVoice] 是 undefined，整頁畫不出來（2026-10-13）。
+  const apply = () => {
+    if (voices.value[index]?.youtubeId !== picked?.youtubeId || pickedVoice.value !== index) return
+    shownVoice.value = index
+    playing.value = false
+  }
   if (!card) { apply(); return }
   // 手機：清單和影片上下分開，選了就把影片捲進畫面
   const rect = card.getBoundingClientRect()

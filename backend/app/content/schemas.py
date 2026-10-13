@@ -686,7 +686,8 @@ def is_scheduled_visible(entry: dict, today: str) -> bool:
 # 消息與活動（home_news 全站、campus_news 各校）
 # ---------------------------------------------------------------------------
 
-_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# [0-9] 而不是 \d：\d 會比對全形數字（「1８:3０」），官網只認 ASCII；配 fullmatch，結尾的換行也不放行（2026-10-13）。
+_TIME_RE = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
 
 # 規格 3.4：消息內文只支援段落、小標、清單、圖片與驗證後連結，存成結構化
 # 資料，官網逐塊用固定的元素顯示，不插入任何使用者 HTML。
@@ -891,7 +892,7 @@ class _NewsEventFields(_ScheduledPayload):
     def _time_format(cls, value: str | None) -> str | None:
         if value is None or value == "":
             return None
-        if not _TIME_RE.match(value):
+        if not _TIME_RE.fullmatch(value):
             raise ValueError("時間格式需為 HH:MM（24 小時制）")
         return value
 

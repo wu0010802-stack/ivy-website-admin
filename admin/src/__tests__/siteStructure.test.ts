@@ -99,7 +99,9 @@ describe('主選單與頁尾連結', () => {
 
   it('連結只收站內路徑或 https 外部網址（同後端）', () => {
     for (const ok of ['/', '/#about', '/admission', '/admission#steps', 'https://www.ivykidschool.com/']) expect(siteLinkError(ok)).toBeNull()
-    for (const bad of ['', 'http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://user@example.com/', 'https://a b.com', '/\\evil.com', 'https://example.com:99999/', 'https://example.com:abc/']) {
+    for (const bad of ['', 'http://example.com', '//example.com', 'javascript:alert(1)', '#/visit', 'https://user@example.com/', 'https://a b.com', '/\\evil.com', 'https://example.com:99999/', 'https://example.com:abc/',
+      // 2026-10-13：後端也擋的看不見的字元、空帳號、主機裡的 %
+      'https://www.ivykidschool.com/\u200b', 'https://@www.ivykidschool.com/', 'https://www.ivykid%73chool.com/']) {
       expect(siteLinkError(bad)).not.toBeNull()
     }
     expect(labelEnError('Admission')).toBeNull()

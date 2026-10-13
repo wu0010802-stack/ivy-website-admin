@@ -212,7 +212,7 @@ onBeforeUnmount(() => {
         <CurriculumContent v-else-if="page === 'curriculum'" :page="draft.curriculumPage" />
         <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" />
         <EnvironmentContent v-else-if="page === 'environment'" :campuses="draft.campuses" :page="draft.environmentPage" />
-        <NewsIndexContent v-else-if="page === 'news'" :news="draft.news" :campuses="draft.campuses" />
+        <NewsIndexContent v-else-if="page === 'news'" :news="draft.news" :campuses="draft.campuses" :today="date" />
         <PrivacyPolicyContent v-else-if="page === 'privacy' && draft.privacyPolicy" :policy="draft.privacyPolicy" />
         <main v-else-if="page === 'privacy'" id="main" tabindex="-1">
           <div class="container breadcrumb">還沒有儲存過隱私權政策的草稿，請先在後台儲存。</div>

@@ -190,6 +190,10 @@ async def mark_completed(
             after_extra["slot"] = None
     await _close(db, visit_request, "completed", before=before, actor=actor, after_extra=after_extra)
     if admissions_enabled:
+        # 招生訪視的資料要用鎖住之後的值：路由讀到這筆預約時還沒上鎖，同事或家長正好改了
+        # 電話、孩子資料並先提交的話，記憶體裡是舊值；用舊值建了招生訪視，之後再改也會因為
+        # 「招生端另外改過」而不同步（2026-10-13）。_lock_status 只重讀狀態與場次。
+        await db.refresh(visit_request, attribute_names=list(_ADMISSIONS_CREATE_FIELDS))
         await booking_link.ensure_from_visit_request(db, visit_request, actor_user_id=_resolver_id(actor))
     await analytics_service.record_internal_event(
         db,
@@ -369,6 +373,8 @@ async def update_details_by_parent(
 EDITABLE_BY_STAFF = ("parent_name", "phone", "email", "child_name", "child_birthdate")
 # 其中會同步到招生訪視的四欄（招生訪視沒有 Email）。
 _ADMISSIONS_SOURCE_FIELDS = ("parent_name", "phone", "child_name", "child_birthdate")
+# 標記已到場建立招生訪視時讀的預約欄位（booking_link.fields_from_visit_request 與追蹤欄位）。
+_ADMISSIONS_CREATE_FIELDS = (*_ADMISSIONS_SOURCE_FIELDS, "referral_sources", "questions", "follow_up_at")
 
 
 class DetailsAnonymized(Exception):
@@ -380,6 +386,8 @@ class StaffDetailsResult:
     changed: list[str] = dataclass_field(default_factory=list)
     # 變更通知已排給新信箱（Email 改成新值、案件仍是預約成立且場次還沒開始）。
     email_notified: bool = False
+    # 原本的 Email 被改掉時，舊的家長修改連結已失效（換發新的寄到新信箱，或只撤銷）。
+    access_link_reset: bool = False
     admissions_synced: list[str] = dataclass_field(default_factory=list)
     admissions_skipped: list[str] = dataclass_field(default_factory=list)
 
@@ -392,6 +400,7 @@ async def update_details_by_staff(
     expected_version: int,
     actor: Actor,
     admissions_enabled: bool = False,
+    access_secret: str | None = None,
 ) -> StaffDetailsResult:
     """後台人員改家長資料（規格 3.1、3.2）。任何狀態都能改，已匿名化的不行（DetailsAnonymized）；
     不受家長端的線上異動期限與次數限制。expected_version 是 details_version，和家長端共用。
@@ -399,6 +408,12 @@ async def update_details_by_staff(
     歷程只記改了哪些欄位，不記內容（歷程不放個資）；沒有變化就什麼都不寫。Email 改成
     新值而且案件仍是預約成立、場次還沒開始時，排一封變更信寄到新信箱（內含修改連結；
     舊信箱不通知）——寄送當下才依案件狀態組信，其他情況 worker 一律略過，所以不排。
+
+    原本的 Email 有值又被改掉（改成別的或清空）而案件還有有效的修改連結時，舊連結作廢
+    （2026-10-13）：補登打錯信箱時，連結已經寄到陌生人手上，改正之後那條連結不能還看得到
+    電話、孩子資料，也不能拿來取消或改期。會寄變更信時換發一條新的（信在寄件當下重算，
+    寄到新信箱的就是新連結；access_secret 由路由傳入），其他情況只撤銷，園方需要時再
+    「重新產生」。原本沒有 Email（連結是園方直接交給家長的）不動。
     admissions_enabled 時，同一個交易把招生訪視上仍是當初帶過去的值一起改
     （booking_link.sync_from_visit_request）。"""
     # 函式內匯入：admissions 模組在載入時會匯入 booking，避免循環匯入。
@@ -414,15 +429,36 @@ async def update_details_by_staff(
     if not changed:
         return StaffDetailsResult()
     old = {f: getattr(visit_request, f) for f in _ADMISSIONS_SOURCE_FIELDS}
+    old_email = visit_request.email
     for name in changed:
         setattr(visit_request, name, changes[name])
     history.record_event(db, visit_request.id, "details_updated", actor=actor, after={"fields": changed})
     result = StaffDetailsResult(changed=changed)
+    notify = False
+    slot = None
     if "email" in changed and visit_request.email and visit_request.status == VisitRequestStatus.CONFIRMED.value:
         slot = await history.load_slot(db, visit_request.slot_id)
-        if slot is None or not slot_service.has_started(slot):
-            await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
-            result.email_notified = True
+        notify = slot is None or not slot_service.has_started(slot)
+    if "email" in changed and old_email and await access_service.active_access_token(db, visit_request.id) is not None:
+        if notify and access_secret:
+            _, expires_at = await access_service.issue_access_token(
+                db, visit_request.id, secret=access_secret, slot=slot
+            )
+            # 只記到期時間，原始 token 不進歷程（同「重新產生」）。
+            history.record_event(
+                db,
+                visit_request.id,
+                "access_link_created",
+                actor=actor,
+                after={"expires_at": expires_at.isoformat(), "replaced_previous": True},
+            )
+        else:
+            await access_service.revoke_access_for_visit_request(db, visit_request.id)
+            history.record_event(db, visit_request.id, "access_link_revoked", actor=actor)
+        result.access_link_reset = True
+    if notify:
+        await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+        result.email_notified = True
     if admissions_enabled and any(f in changed for f in _ADMISSIONS_SOURCE_FIELDS):
         new = {f: getattr(visit_request, f) for f in _ADMISSIONS_SOURCE_FIELDS}
         result.admissions_synced, result.admissions_skipped = await booking_link.sync_from_visit_request(

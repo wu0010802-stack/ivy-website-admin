@@ -176,3 +176,20 @@ describe('外殼記住收合狀態', () => {
     expect(document.activeElement).toBe(wrapper.get('input[aria-label="搜尋後台功能"]').element)
   })
 })
+
+describe('圖示欄的鍵盤操作（2026-10-13 補）', () => {
+  it('收起時選單最上面按 ↑ 回到搜尋鈕（搜尋框不在畫面上）；搜尋鈕按 ↓ 到第一個項目', async () => {
+    // jsdom 沒有版面，getClientRects 一律是空的；改成「被 v-show 藏起來才算看不到」（同 sidebarNav20261005）。
+    vi.spyOn(Element.prototype, 'getClientRects').mockImplementation(function (this: Element) {
+      return (this.closest('[style*="display: none"]') ? [] : [{}]) as unknown as DOMRectList
+    })
+    const wrapper = await mountSidebar({ collapsed: true })
+    const button = wrapper.get<HTMLButtonElement>('.sidebar__rail-search')
+    await button.trigger('keydown', { key: 'ArrowDown' })
+    const first = document.activeElement as HTMLElement
+    expect(wrapper.get('nav').element.contains(first)).toBe(true)
+    first.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }))
+    expect(document.activeElement).toBe(button.element)
+    expect(wrapper.emitted('update:collapsed')).toBeUndefined() // 只移焦點，不展開
+  })
+})

@@ -131,6 +131,21 @@ async def test_discover_gives_up_without_resources():
             await discover_doorplate_source(client)
 
 
+async def test_one_page_without_resources_and_one_http_error_is_not_reported_as_http():
+    """2026-10-13：最新年度頁打得開但還沒有下載檔、前一年度頁 500——原因是找不到下載檔，
+    不是 HTTP 500（只有每一頁都是 HTTP 錯誤時才報狀態碼）。"""
+    transport, _ = _site(dataset_115="<html></html>")
+
+    def broken_114(request):
+        if str(request.url) == DATASET_114:
+            return httpx.Response(500)
+        return transport.handle_request(request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(broken_114)) as client:
+        with pytest.raises(GeoSyncError):
+            await discover_doorplate_source(client)
+
+
 @pytest.mark.parametrize(
     ("name", "given", "expected"),
     [

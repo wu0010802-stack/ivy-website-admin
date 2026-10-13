@@ -47,14 +47,19 @@ _VILLAGE = re.compile(r"^([一-鿿]{1,4}[里村])(\d+鄰)?(.*)$")
 _STARTS_WITH_ROAD = re.compile(r"^[一-鿿]{2,}?" + _ROAD)
 # 號碼文字：阿拉伯或中文數字（含零、百、千，「一百零五號」整段才是 105；只吃一部分會變成別的門牌）。
 # 「號」之後的之號不能緊接樓層字或數字，否則「號之十二樓」會退成「之十」。
+# 第二個之號以後（「12之3之4號」）同門牌表（doorplates._NUMBER）吃掉不用：只允許一個之號時，
+# search 會從中間的「3之4號」開始比對，變成 3 之 4 號那一戶（2026-10-13）。
 _NUMBER = re.compile(
-    rf"臨?(\d+|{_CN_NUMBER})(?:[-之](\d+|{_CN_NUMBER}))?號(?:之(\d+|{_CN_NUMBER})(?![樓Ff\d{_CN_CHARS}]))?"
+    rf"臨?(\d+|{_CN_NUMBER})(?:[-之](\d+|{_CN_NUMBER}))?(?:[-之](?:\d+|{_CN_NUMBER}))*號"
+    rf"(?:之(\d+|{_CN_NUMBER})(?![樓Ff\d{_CN_CHARS}]))?"
 )
 _BARE_NUMBER = re.compile(r"(\d+)(?:-(\d+))?$")
 _ROAD_ORDINAL = re.compile(r"(?<=[一-鿿])(\d{1,2})(?=" + _ROAD + ")")
 _SECTION_DIGITS = re.compile("(" + _ROAD + r")(\d{1,2})段")
 _STREET = re.compile(r"^(.*?" + _ROAD + r"(?:[一-鿿]{1,2}段)?)(.*)$")
 _LANE_ALLEY = re.compile(r"^(?:(.+?)巷)?(?:(.+?)弄)?$")
+# 巷弄後面夾了別的字時（「100巷，」「100巷(近公園)」），只認寫在最前面、乾淨的巷弄編號。
+_LEADING_LANE_ALLEY = re.compile(rf"^(?:(\d+|{_CN_NUMBER})巷)?(?:(\d+|{_CN_NUMBER})弄)?")
 _AREA = re.compile(r"^(.+?)(?:(\d+)巷)?(?:(\d+)弄)?$")
 
 
@@ -200,9 +205,17 @@ def parse_address(raw: str | None) -> ParsedAddress | None:
         street = street_match.group(1)
         # 街名與號之間若夾了巷弄以外的字（「115、117號」「121.123號」這種多門牌），
         # 巷弄當作沒寫，號仍照用。
-        units = _LANE_ALLEY.match(street_match.group(2))
+        rest = street_match.group(2)
+        units = _LANE_ALLEY.match(rest)
         if units is not None:
             lane_text, alley_text = units.group(1), units.group(2)
+        elif "巷" in rest or "弄" in rest:
+            # 有寫巷弄，但巷弄和號之間夾了別的字（「100巷，5號」「100巷(近公園)5號」「100巷內5號」）：
+            # 號是巷子裡的門牌，巷弄又讀不準，號不能拿去比對——會對到街上同號、沒有巷弄的別戶
+            # （2026-10-13）。寫在最前面的乾淨巷弄編號照用（查得到那條巷子所在的里），號丟掉。
+            leading = _LEADING_LANE_ALLEY.match(rest)
+            lane_text, alley_text = leading.group(1), leading.group(2)
+            number, number_sub = None, 0
     else:
         area = _AREA.match(head)
         if area is None:

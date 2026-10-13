@@ -86,6 +86,7 @@
   4. 歷程 `details_updated`：source＝staff、`actor_user_id`，`after={"fields": [...]}`，只記欄位名不記內容（沿用歷程不放個資的約定）。
   5. 稽核 `visit_request.update_details`，metadata 記欄位名。
   6. **只有 Email 改了而且新值不為空**時，`enqueue_parent_email(PARENT_VISIT_CHANGED)`。信寄到新信箱，內含修改連結；舊信箱不通知（同家長端）。
+  7. （2026-10-13 補）**原本的 Email 有值又被改掉**（改成別的或清空）而且還有有效的家長管理連結時，舊連結作廢：補登打錯信箱時，連結已經寄到陌生人手上。會寄第 6 點的變更信時換發一條新的（信在寄件當下重算，寄到新信箱的就是新連結，歷程記 `access_link_created`、`replaced_previous`）；其他情況（清空、場次已開始、案件不是預約成立）只撤銷（歷程記 `access_link_revoked`），園方需要時再「重新產生」。原本沒有 Email（連結是園方直接交給家長的）不動。回應多一個 `access_link_reset`。
 - 回應：`VisitRequestFullOut`，含新的 `details_version`。
 
 ### 3.2 招生資料同步（裁定 Q2）
@@ -119,6 +120,7 @@
   - 案件頁重新載入。
   - 依回應提示招生同步結果。
   - Email 有改時，另外提示「已寄變更通知到新信箱」；沒設 SMTP 時，沿用現有「沒有寄信」的說法。
+  - （2026-10-13 補）`access_link_reset` 時：有寄變更信說「原本寄出的家長管理連結已失效，新連結在變更通知裡」；沒寄就警告要在「家長管理連結」重新產生。
 - `labels.ts` 補 `AUDIT_ACTION_LABELS` 兩個新 action。`labelCoverage.test.ts` 會掃。
 - 歷程的「資料已更新」依 source 顯示「家長改了…」或「○○改了…」。
 

@@ -21,6 +21,8 @@ const router = useRouter()
 const query = ref('')
 const passwordOpen = ref(false)
 const searchInput = ref<{ focus: () => void } | null>(null)
+// 圖示欄的搜尋鈕（收起時搜尋框不在畫面上）：選單最上面按 ↑ 回到這裡。
+const railSearch = ref<HTMLButtonElement | null>(null)
 const navEl = ref<HTMLElement | null>(null)
 // 桌機收起來是 64px 的圖示欄（2026-10-13，同園務系統）：不畫分組標題、所有項目都列出，
 // 名稱改成滑過或鍵盤停到時的浮動提示，連結裡仍留著名稱給報讀器。手機抽屜不收合。
@@ -146,7 +148,8 @@ function moveFocus(event: KeyboardEvent) {
   event.preventDefault()
   const next = targets[event.key === 'ArrowDown' ? index + 1 : index - 1]
   if (next) next.focus()
-  else if (event.key === 'ArrowUp') searchInput.value?.focus()
+  // 收起時搜尋框不在畫面上（v-else），回到圖示欄的搜尋鈕；按 Enter 才展開（2026-10-13）。
+  else if (event.key === 'ArrowUp') (rail.value ? railSearch.value : searchInput.value)?.focus()
 }
 // 桌機側欄：⌘K（Windows 是 Ctrl+K）跳到搜尋框。對話框開著時不搶：焦點陷阱
 // 會把焦點拉回對話框，看起來像按了沒反應。手機抽屜沒有實體鍵盤，不掛。
@@ -215,7 +218,8 @@ const userLine = computed(() => {
     </div>
     <div class="sidebar__search">
       <el-tooltip v-if="rail" :content="`搜尋功能（${shortcutHint}）`" placement="right" :trigger="tipTrigger" :hide-after="0">
-        <button class="sidebar__rail-search" type="button" aria-label="搜尋功能" aria-keyshortcuts="Meta+K Control+K" @click="openSearch">
+        <button ref="railSearch" class="sidebar__rail-search" type="button" aria-label="搜尋功能" aria-keyshortcuts="Meta+K Control+K"
+          @click="openSearch" @keydown.down.prevent="focusFirstTarget">
           <el-icon aria-hidden="true"><Search /></el-icon>
         </button>
       </el-tooltip>
