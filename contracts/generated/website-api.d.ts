@@ -2193,6 +2193,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/visit-slot-usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Visit Slot Usage
+         * @description 場次使用情況（2026-10-13 規格 §4）：新預約表單近 4 週的「最早能約哪天」＋各時段過去坐了幾成。
+         *     權限同接待月曆；只回數字，沒有個資，不寫操作紀錄。
+         */
+        get: operations["get_visit_slot_usage_api_website_v1_admin_visit_slot_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-staff": {
         parameters: {
             query?: never;
@@ -6145,6 +6166,106 @@ export interface components {
             target_school_year?: number | null;
             /** Target Semester */
             target_semester?: number | null;
+        };
+        /** SlotLookupBucketOut */
+        SlotLookupBucketOut: {
+            /** Count */
+            count: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "within_1" | "days_2_3" | "days_4_7" | "over_7" | "none";
+        };
+        /** SlotLookupSummaryOut */
+        SlotLookupSummaryOut: {
+            /** Buckets */
+            buckets: components["schemas"]["SlotLookupBucketOut"][];
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** First Recorded Day */
+            first_recorded_day: string | null;
+            /** Total */
+            total: number;
+        };
+        /** SlotUsageOut */
+        SlotUsageOut: {
+            /** Booking Mode */
+            booking_mode: string | null;
+            /** Campus Key */
+            campus_key: string;
+            lookups: components["schemas"]["SlotLookupSummaryOut"];
+            slots: components["schemas"]["SlotUsageSlotsOut"];
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+        };
+        /** SlotUsageRowOut */
+        SlotUsageRowOut: {
+            /** Booked */
+            booked: number;
+            /** Capacity Total */
+            capacity_total: number;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Fill Rate */
+            fill_rate: number;
+            /** Full Count */
+            full_count: number;
+            /**
+             * Signal
+             * @enum {string}
+             */
+            signal: "too_few" | "often_full" | "rarely_booked" | "normal";
+            /** Slot Count */
+            slot_count: number;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /** SlotUsageSlotsOut */
+        SlotUsageSlotsOut: {
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /** Rows */
+            rows: components["schemas"]["SlotUsageRowOut"][];
+            thresholds: components["schemas"]["SlotUsageThresholdsOut"];
+            /** Weeks */
+            weeks: number;
+        };
+        /** SlotUsageThresholdsOut */
+        SlotUsageThresholdsOut: {
+            /** Min Slots */
+            min_slots: number;
+            /** Often Full Share */
+            often_full_share: number;
+            /** Rarely Booked Rate */
+            rarely_booked_rate: number;
         };
         /** SubmitReviewRequest */
         SubmitReviewRequest: {
@@ -11749,6 +11870,42 @@ export interface operations {
             };
         };
     };
+    get_visit_slot_usage_api_website_v1_admin_visit_slot_usage_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                weeks?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SlotUsageOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_visit_staff_api_website_v1_admin_visit_staff_get: {
         parameters: {
             query?: never;
@@ -12464,6 +12621,7 @@ export interface operations {
                 campus_key: string;
                 date_from: string;
                 date_to: string;
+                purpose?: "new_booking" | null;
             };
             header?: never;
             path?: never;

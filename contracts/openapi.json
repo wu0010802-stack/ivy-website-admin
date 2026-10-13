@@ -10515,6 +10515,237 @@
         "title": "SeatRequest",
         "type": "object"
       },
+      "SlotLookupBucketOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "enum": [
+              "within_1",
+              "days_2_3",
+              "days_4_7",
+              "over_7",
+              "none"
+            ],
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count"
+        ],
+        "title": "SlotLookupBucketOut",
+        "type": "object"
+      },
+      "SlotLookupSummaryOut": {
+        "properties": {
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/SlotLookupBucketOut"
+            },
+            "title": "Buckets",
+            "type": "array"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "first_recorded_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Recorded Day"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date_from",
+          "date_to",
+          "first_recorded_day",
+          "total",
+          "buckets"
+        ],
+        "title": "SlotLookupSummaryOut",
+        "type": "object"
+      },
+      "SlotUsageOut": {
+        "properties": {
+          "booking_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Mode"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "lookups": {
+            "$ref": "#/components/schemas/SlotLookupSummaryOut"
+          },
+          "slots": {
+            "$ref": "#/components/schemas/SlotUsageSlotsOut"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "booking_mode",
+          "today",
+          "lookups",
+          "slots"
+        ],
+        "title": "SlotUsageOut",
+        "type": "object"
+      },
+      "SlotUsageRowOut": {
+        "properties": {
+          "booked": {
+            "title": "Booked",
+            "type": "integer"
+          },
+          "capacity_total": {
+            "title": "Capacity Total",
+            "type": "integer"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "fill_rate": {
+            "title": "Fill Rate",
+            "type": "number"
+          },
+          "full_count": {
+            "title": "Full Count",
+            "type": "integer"
+          },
+          "signal": {
+            "enum": [
+              "too_few",
+              "often_full",
+              "rarely_booked",
+              "normal"
+            ],
+            "title": "Signal",
+            "type": "string"
+          },
+          "slot_count": {
+            "title": "Slot Count",
+            "type": "integer"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "start_time",
+          "end_time",
+          "slot_count",
+          "capacity_total",
+          "booked",
+          "fill_rate",
+          "full_count",
+          "signal"
+        ],
+        "title": "SlotUsageRowOut",
+        "type": "object"
+      },
+      "SlotUsageSlotsOut": {
+        "properties": {
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SlotUsageRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/SlotUsageThresholdsOut"
+          },
+          "weeks": {
+            "title": "Weeks",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weeks",
+          "date_from",
+          "date_to",
+          "thresholds",
+          "rows"
+        ],
+        "title": "SlotUsageSlotsOut",
+        "type": "object"
+      },
+      "SlotUsageThresholdsOut": {
+        "properties": {
+          "min_slots": {
+            "title": "Min Slots",
+            "type": "integer"
+          },
+          "often_full_share": {
+            "title": "Often Full Share",
+            "type": "number"
+          },
+          "rarely_booked_rate": {
+            "title": "Rarely Booked Rate",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min_slots",
+          "often_full_share",
+          "rarely_booked_rate"
+        ],
+        "title": "SlotUsageThresholdsOut",
+        "type": "object"
+      },
       "SubmitReviewRequest": {
         "properties": {
           "revision_id": {
@@ -25303,6 +25534,91 @@
         ]
       }
     },
+    "/api/website/v1/admin/visit-slot-usage": {
+      "get": {
+        "description": "場次使用情況（2026-10-13 規格 §4）：新預約表單近 4 週的「最早能約哪天」＋各時段過去坐了幾成。\n權限同接待月曆；只回數字，沒有個資，不寫操作紀錄。",
+        "operationId": "get_visit_slot_usage_api_website_v1_admin_visit_slot_usage_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotUsageOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Visit Slot Usage",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/website/v1/admin/visit-staff": {
       "get": {
         "description": "處理參觀案件的同事（booking.handle：總管理者、分校管理者、接待人員），\n畫面用來把登錄的人、聯絡紀錄與歷程裡的 id 翻成名字。\n非總管理者只看得到總管理者與跟自己有共同校區的同事，不藉這個清單看出\n其他校的人員配置。",
@@ -26491,6 +26807,23 @@
               "format": "date",
               "title": "Date To",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "purpose",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "new_booking",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Purpose"
             }
           }
         ],

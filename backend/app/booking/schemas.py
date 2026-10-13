@@ -941,3 +941,50 @@ class VisitScheduleUpdate(BaseModel):
     min_lead_hours: int = Field(ge=0, le=24 * 14)
     max_advance_days: int = Field(ge=1, le=365)
     rules: list[VisitRuleIn] = Field(default_factory=list, max_length=50)
+
+
+class SlotLookupBucketOut(BaseModel):
+    key: Literal["within_1", "days_2_3", "days_4_7", "over_7", "none"]
+    count: int
+
+
+class SlotLookupSummaryOut(BaseModel):
+    date_from: date
+    date_to: date
+    first_recorded_day: date | None
+    total: int
+    buckets: list[SlotLookupBucketOut]
+
+
+class SlotUsageThresholdsOut(BaseModel):
+    min_slots: int
+    often_full_share: float
+    rarely_booked_rate: float
+
+
+class SlotUsageRowOut(BaseModel):
+    weekday: int
+    start_time: time
+    end_time: time
+    slot_count: int
+    capacity_total: int
+    booked: int
+    fill_rate: float
+    full_count: int
+    signal: Literal["too_few", "often_full", "rarely_booked", "normal"]
+
+
+class SlotUsageSlotsOut(BaseModel):
+    weeks: int
+    date_from: date
+    date_to: date
+    thresholds: SlotUsageThresholdsOut
+    rows: list[SlotUsageRowOut]
+
+
+class SlotUsageOut(BaseModel):
+    campus_key: str
+    booking_mode: str | None
+    today: date
+    lookups: SlotLookupSummaryOut
+    slots: SlotUsageSlotsOut

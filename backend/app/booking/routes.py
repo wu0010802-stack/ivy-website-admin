@@ -29,6 +29,7 @@ from app.booking import (
     service,
     slot_lookup,
     slot_service,
+    slot_usage,
     status_groups,
     turnstile,
     workflow_service,
@@ -62,6 +63,7 @@ from app.booking.schemas import (
     PrivacyNoticeOut,
     PublicBookingConfigOut,
     PublicVisitSlotOut,
+    SlotUsageOut,
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
     VisitRequestCancelRequest,
@@ -770,6 +772,32 @@ async def get_visit_calendar(
         )
         for slot in slots
     ]
+
+
+@router.get("/admin/visit-slot-usage", response_model=SlotUsageOut)
+async def get_visit_slot_usage(
+    campus_key: str,
+    weeks: int = Query(default=12),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> SlotUsageOut:
+    """場次使用情況（2026-10-13 規格 §4）：新預約表單近 4 週的「最早能約哪天」＋各時段過去坐了幾成。
+    權限同接待月曆；只回數字，沒有個資，不寫操作紀錄。"""
+    require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    if weeks not in slot_usage.WEEK_CHOICES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_WEEKS", "message": "weeks 只能是 4、12 或 26"},
+        )
+    today = today_local()
+    config = await db.get(BookingConfig, campus_key)
+    return SlotUsageOut(
+        campus_key=campus_key,
+        booking_mode=config.mode.value if config is not None else None,
+        today=today,
+        lookups=await slot_lookup.lookup_summary(db, campus_key, today),
+        slots=await slot_usage.slot_rows(db, campus_key, weeks, today),
+    )
 
 
 @router.get("/public/slots", response_model=list[PublicVisitSlotOut])
