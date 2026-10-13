@@ -301,6 +301,30 @@ class VisitException(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+# 家長打開新預約表單時，最早能約的場次離今天幾天，分五個區間（2026-10-13 場次使用情況規格 §2）。
+LOOKUP_BUCKETS = ("within_1", "days_2_3", "days_4_7", "over_7", "none")
+
+
+class SlotLookupDaily(Base):
+    """新預約表單讀場次的次數，按台北日期、校區、等待區間累計成一列。比照 page_view_daily：
+    不存 IP、User-Agent、cookie 與單次時間點；campus_key 不設外鍵（校區日後停用也留著歷史）。"""
+
+    __tablename__ = "slot_lookup_daily"
+    __table_args__ = (
+        UniqueConstraint("day", "campus_key", "bucket", name="uq_slot_lookup_daily_bucket"),
+        CheckConstraint(
+            "bucket IN ('within_1', 'days_2_3', 'days_4_7', 'over_7', 'none')",
+            name="ck_slot_lookup_daily_bucket",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    day: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
+    campus_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    bucket: Mapped[str] = mapped_column(String(16), nullable=False)
+    lookups: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class VisitContactNote(Base):
     """接待聯絡紀錄；每筆是一次聯絡歷程，不覆寫舊紀錄。"""
 
