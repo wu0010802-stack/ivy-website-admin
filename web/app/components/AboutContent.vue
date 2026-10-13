@@ -27,7 +27,7 @@ import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
 import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
 import { youtubeEmbed } from '~/utils/filmCarousel'
 import { pickVoices } from '~/utils/testimonials'
-import type { AboutPopup } from '~/utils/about-popup'
+import type { AboutPopup, AboutPopupDeps } from '~/utils/about-popup'
 
 const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
 
@@ -166,10 +166,15 @@ function pickVoice(index: number) {
 onMounted(async () => {
   if (matchMedia('(forced-colors: active)').matches) return
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-  const loaded = await Promise.all([import('motion'), import('~/utils/about-popup')]).catch(() => null)
+  // motion 在 .then 裡直接解構：打包時才看得出只用這三個、其餘 tree-shake 掉（包在 Promise.all 裡解構會整包打進來）。
+  const loaded = await Promise.all([
+    // 回傳型別標成 AboutPopupDeps：讓 TS 推導整個 motion 的型別會拖垮型別檢查（別支檔案跟著 TS2321）。
+    import('motion').then(({ animate, scroll, inView }): AboutPopupDeps => ({ animate, scroll, inView })),
+    import('~/utils/about-popup'),
+  ]).catch(() => null)
   if (!loaded || disposed || !root.value) return
-  const [{ animate, scroll, inView }, { createAboutPopup }] = loaded
-  popup = createAboutPopup(root.value, { animate, scroll, inView }, { reducedMotion })
+  const [motion, { createAboutPopup }] = loaded
+  popup = createAboutPopup(root.value, motion, { reducedMotion })
 })
 onBeforeUnmount(() => { disposed = true; popup?.destroy() })
 </script>

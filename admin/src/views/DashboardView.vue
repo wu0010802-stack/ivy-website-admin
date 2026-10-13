@@ -6,7 +6,7 @@ import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
-import RecordDialog from '../components/admissions/RecordDialog.vue'
+import { lazyComponent } from '../composables/lazyComponent'
 import { BOOKING_MODE_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatTime } from '../api/labels'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
@@ -269,6 +269,10 @@ const attendanceBusy = ref<string | null>(null)
 // 標記已到場後接著打開招生資料表單（2026-10-06，同案件列表）：表單上方寫出已到場，不另跳成功訊息。
 const arrival = useArrivalAdmissionsForm()
 const { open: arrivalOpen, record: arrivalRecord, options: arrivalOptions, lead: arrivalLead } = arrival
+// 表單（連同日期、下拉元件約 55 KB gzip）另切 chunk，總覽一打開不必先下載：到場標記成功後才掛上，
+// 和找招生訪視的請求同時下載。不在送出到場之前掛：剛部署完 chunk 載入失敗會整頁重載，不能打斷到場的請求。
+const RecordDialog = lazyComponent(() => import('../components/admissions/RecordDialog.vue'))
+const arrivalFormMounted = ref(false)
 async function markTodayAttendance(visit: TodayVisit, kind: AttendanceKind) {
   const row = { status: 'confirmed', parent_name: visit.parent_name, slot: { slot_date: taipeiDay(clockNow.value), start_time: visit.start_time, end_time: visit.end_time } }
   const withAdmissions = kind === 'complete' && Boolean(authStore.features.admissions)
@@ -277,7 +281,10 @@ async function markTodayAttendance(visit: TodayVisit, kind: AttendanceKind) {
   attendanceBusy.value = visit.id
   try {
     await submitAttendance(visit.id, kind)
-    if (opensForm) void arrival.openFor(visit)
+    if (opensForm) {
+      arrivalFormMounted.value = true
+      void arrival.openFor(visit)
+    }
     else ElMessage.success(kind === 'no_show' ? `已標記 ${visit.parent_name} 未到場` : `已標記 ${visit.parent_name} 已到場${withAdmissions ? '，招生訪視已建立' : ''}`)
   } catch (err) {
     notifyError(apiErrorCode(err) === 'INVALID_TRANSITION' ? `${visit.parent_name} 這筆剛被其他人處理過，名單已更新` : apiErrorMessage(err, '操作失敗'))
@@ -575,9 +582,9 @@ const hasTodo = computed(() => {
         <router-link v-for="link in shortcuts" :key="link.title" :to="link.to">{{ link.title }}</router-link>
       </nav>
     </template>
-    <!-- 一直掛著：RecordDialog 在打開的那一刻（open 變 true）才把 record 帶進表單。 -->
+    <!-- 第一次標記到場後一直掛著：RecordDialog 在打開的那一刻（open 變 true，或掛上時已是 true）才把 record 帶進表單。 -->
     <RecordDialog
-      v-if="canHandleVisits"
+      v-if="canHandleVisits && arrivalFormMounted"
       v-model="arrivalOpen"
       mode="edit"
       :campus-key="arrivalRecord?.campus_key ?? ''"

@@ -1,3 +1,46 @@
+## 2026-10-13 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（`feature/perf-20261013`）
+
+使用者要「優化專案的效能」。官網、後台、後端分三路盤點，每一項先量再決定做不做；外觀不變。規則與「量過不改」的清單寫在 DESIGN.md 最上方一節。量測在本機 stack（真 API＋隔離測試庫＋production build），腳本放在 session 暫存，不進版控。
+
+- **後端**
+  - 可能範圍（`estimation.rate_range`）加 `lru_cache`。一次區域分析要算幾百個里，同一次請求的 prior 相同；300 次呼叫只有 21 種組合，107 ms → 8 ms。這段原本全在 event loop 上，而正式站 API 只有一個 worker。
+  - 門牌同步：下載中的 CSV 收滿 5,000 行交給執行緒解析（本機檔案本來就這樣做）。幼兒園名單的 JSON 解析與篩選也丟執行緒。
+    - 20 萬行實測：event loop 延遲 p99 101 → 11 ms；總耗時多約 10%。
+    - 全市約 129 萬行，原本每月同步時會斷斷續續卡住官網的預約與內容請求約一分鐘。
+    - `test_download_cut_off_midway_keeps_active_version` 把分塊調成 3 行，維持「斷線前已寫進半個批次」的情境。
+- **官網代理**：JSON 回應對收 gzip 的客戶端壓縮（`createJsonGzip`）。
+  - 1 KB 以下、HEAD、304、非 JSON 不動；CSV 匯出與素材照舊串流；里界 GeoJSON 照舊走依 ETag 快取的那支。
+  - 訪視明細一頁 50 筆（測試資料）72 KB → 3.8 KB。
+  - `gzip-boundaries.spec.ts` 原本「其他路徑不壓縮」那組改成新的行為，另補分塊傳輸、422、小檔、不收 gzip、304、非 JSON、HEAD、斷線 502、不快取、壓縮失敗退回原樣。
+- **官網**
+  - `/about` 的 motion 改在 `.then` 裡解構，打包才 tree-shake 得掉：chunk 135 → 69 KB（brotli 40 → 22 KB）。回傳型別要標 `AboutPopupDeps`，讓 TS 推導整個 motion 的型別會使 `server/api/public-site.get.ts` 跳 TS2321。
+  - SSR HTML 壓縮改用非同步 zlib，brotli／gzip 移到 libuv 執行緒。
+- **後台**
+  - 總覽：招生資料表單（RecordDialog 連同日期、下拉元件）改成確認標記到場那一刻才下載。總覽在入口之外的 JS（gzip）70 → 12 KB。
+  - 招生入學：訪視明細、統計分析兩個分頁另切 chunk，預設的漏斗看板在入口之外 166 → 101 KB（gzip）。
+  - 新 `composables/lazyComponent.ts`：載入失敗比照換頁，整頁重載一次。`reloadAfterChunkError` 搬到 `router/chunkReload.ts`，`router/index.ts` 照舊匯出。
+  - RecordDialog 的 open watcher 改成 immediate（掛上時已打開也帶入資料）。
+  - rolldown `codeSplitting.groups`：Vue／Vue Router／Pinia 一個 chunk、`src/api/labels.ts` 一個 chunk。改標籤只讓 17 KB（gzip）的 labels 失效，不再連 Vue 一起重抓；入口總量不變（167 KB gzip）。
+  - 區域分析地圖：資料重讀、換半徑、換著色只換 893 個里圖形的 class，不重建圖層。
+    - 真 Leaflet、4 倍 CPU 降速，切換著色 360–750 ms → 56–96 ms；三種模式的著色分布與改前相同。
+    - 里界換了、手機／桌機版面切換才重建。
+- **量過、不改**（詳見 DESIGN.md）：
+  - 每頁重複的阻塞樣式表：限速手機換成空檔，LCP /about 2380 vs 2408 ms、首頁 1584 vs 1576 ms，誤差內。
+  - 字型其餘分片樣式表降優先權：LCP 不變。
+  - 站內換頁不會重抓 `/api/published-site`。
+  - 消息進度條每 50 ms 更新：profile 看不到成本。
+  - 校區座標快取、招生機會預先篩里、頁首徽章輕量端點：差距在 10 ms 內。
+- **驗證**（本機 Node 22.22、PostgreSQL 16）：
+  - web：`nuxt typecheck` 通過；vitest 97 檔 1170 項通過；production build 通過。
+  - admin：`vue-tsc -b` 通過；vitest 154 檔 2306 過、1 略過；build 通過。
+  - backend：改到的測試（estimation、deposit_pace 49 項；geo sync／kindergartens／doorplates／loop／population 235 項）通過。全套 pytest 與 stack e2e 執行中，結果補在下一段。
+  - `contract:check` 一致（沒有 API 變更）。
+  - 瀏覽器實測（本機 Chromium）：
+    - `/about` 新舊兩版捲過整頁，動畫中間狀態與最終狀態相同、沒有錯誤。
+    - 後台總覽、招生入學三個分頁、區域分析地圖依序打開，各自只在需要時下載對應 chunk、沒有錯誤。
+    - SSR HTML 的 br／gzip／不壓三種回應解開後與原文相同。
+- **未驗證**：Safari／iOS 實機；正式站（Railway）上的實際延遲；真實家長資料的 JSON 壓縮比（測試資料重複度高，壓縮比偏樂觀）。
+
 ## 2026-10-13 招生機會地圖（`claude/amazing-cannon-0cqnpc`）
 
 使用者要「令人驚艷、不是 AI」的功能，從四個方案選了招生機會地圖。重開區域分析 10-08 延後的「人口與機會判讀」（飽和度仍不做）。規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`，規則見 DESIGN.md 最上方一節。

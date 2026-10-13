@@ -220,16 +220,28 @@ def label_for_file(path: Path, given: str | None) -> str:
     return current_label()
 
 
+def _parse_lines(parser: doorplate_io.DoorplateParser, lines: list[str]) -> list[doorplate_io.DoorplateRow]:
+    """解析一塊已下載的行（在執行緒裡跑）。"""
+    return [row for row in map(parser.feed, lines) if row is not None]
+
+
 async def _stream_rows(
     client: httpx.AsyncClient, url: str, parser: doorplate_io.DoorplateParser
 ) -> AsyncIterator[doorplate_io.DoorplateRow]:
+    """下載中的門牌列。全市約 129 萬行、每行約 30 µs，逐行在事件迴圈上解析會讓 API 連續卡住近一分鐘
+    （官網的預約、內容請求跟著排隊）；同 _file_rows 收滿 FILE_CHUNK_LINES 行交給執行緒解析一次。"""
     async with client.stream("GET", url) as response:
         response.raise_for_status()
         response.encoding = "utf-8"
+        lines: list[str] = []
         async for line in response.aiter_lines():
-            row = parser.feed(line)
-            if row is not None:
-                yield row
+            lines.append(line)
+            if len(lines) >= FILE_CHUNK_LINES:
+                for row in await asyncio.to_thread(_parse_lines, parser, lines):
+                    yield row
+                lines = []
+        for row in await asyncio.to_thread(_parse_lines, parser, lines):
+            yield row
 
 
 def _read_chunk(handle, parser: doorplate_io.DoorplateParser, count: int) -> tuple[list[doorplate_io.DoorplateRow], bool]:
@@ -390,10 +402,11 @@ async def sync_kindergartens(
             assert client is not None
             response = await client.get(settings.geo_kindergartens_url)
             response.raise_for_status()
-            data = response.json()
+            # 全國名單有好幾 MB：解析 JSON 與篩選都在執行緒裡做，不占住事件迴圈。
+            data = await asyncio.to_thread(response.json)
         school_year, _ = current_term(today_local())
         report = ParseReport()
-        rows = parse_preschools(data, school_year=school_year, report=report)
+        rows = await asyncio.to_thread(parse_preschools, data, school_year=school_year, report=report)
         async with session_factory() as db:
             await replace_kindergartens(db, rows, synced_at=now)
             await db.commit()
