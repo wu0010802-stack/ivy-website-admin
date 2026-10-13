@@ -124,6 +124,12 @@ describe('立體書：紀念章跟著捲動翻面', () => {
     expect(top + 730).toBeLessThanOrEqual(760 - 16)
     expect(medalPinTop(650, 797, 50, 730, margin)).toBeNull()
   })
+  it('整個跨頁放得進頁首膠囊下方時讓到膠囊下面（2026-10-13，1440×900 原本右上角被膠囊蓋住）；放不下照舊置中', () => {
+    const margin = { top: 16, bottom: 16, header: 82 }
+    expect(medalPinTop(900, 797, 50, 730, margin)).toBe(82)
+    expect(medalPinTop(1080, 797, 50, 730, margin)).toBeCloseTo(141.5)
+    expect(medalPinTop(800, 797, 50, 730, margin)).toBeCloseTo(1.5)
+  })
   it('拉紙條拿掉；章名旁與右頁接縫各一個紀念章，外層軌道給釘住用；不寫「相隔十五年」', () => {
     expect(template).not.toMatch(/abk-pull|abk-tab|role="slider"|拉拉看/)
     expect(template).toContain('<div class="abk-track" data-medal-track>')

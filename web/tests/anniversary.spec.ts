@@ -169,3 +169,33 @@ describe('30 週年分頁：畫板的 30 導引', () => {
     expect(Math.max(...all.map((p) => p[1]))).toBeCloseTo(33.5, 0)
   })
 })
+
+describe('30 週年分頁：2026-10-13 精修', () => {
+  const track = read('app/utils/anniversary/track.ts')
+  const content = read('app/components/AnniversaryContent.vue')
+  it('年份在線右邊（≤1100px，軌道 120／64px）時紙偶翻到線左邊，左緣夾在視窗內；紙偶走在校園卡片前、計數列底下', () => {
+    expect(track).toContain('kidsFlip = railW < 130')
+    expect(track).toContain('placeKids(kids, xAt(head), head, kidsFlip, 1, 1, PUPPET_TIP, 4 - railLeft)')
+    expect(css).toContain('.anni-rail { z-index: 1; }')
+    expect(css).toMatch(/\.anni-mapcard \{ grid-column: 3; grid-row: 1;[^}]*z-index: 2;/)
+  })
+  it('吹完蠟燭，蠟筆屑不會留在畫布下緣：每一格先清整張畫布', () => {
+    expect(read('app/utils/anniversary/cake.ts')).toContain('g.clearRect(0, 0, canvas.width, canvas.height)')
+  })
+  it('黏頂計數列在膠囊底下（膠囊底緣 70–74px）', () => {
+    expect(css).toContain('.anni-mapcard { grid-column: 1 / -1; top: 80px;')
+    expect(css).not.toContain('.anni-mapcard { top: 68px; }')
+  })
+  it('專有名詞、門牌、計數列單位不拆行；燈箱照片照比例、不留奶油色邊', () => {
+    expect(css).toContain('.anni-nobr { white-space: nowrap; }')
+    expect(css).toContain('.anni-counter-meta > span { white-space: nowrap; }')
+    expect(content).toContain("const NOBR = /(常春藤|高雄|三民區|義華路|\\d+ 年)/")
+    expect(content).toContain(':style="{ \'--anni-ar\': lightboxRatio }"')
+    expect(css).toContain('.anni-lightbox img { justify-self: center; width: min(100%, 70vh * var(--anni-ar, 1));')
+  })
+  it('「開聲音」和旁邊的按鈕同一款（方角 outline）', () => {
+    const toggle = read('app/components/AnniversarySoundToggle.vue')
+    expect(toggle).toContain('class="button outline anni-sound"')
+    expect(toggle).not.toContain('border-radius: 999px')
+  })
+})

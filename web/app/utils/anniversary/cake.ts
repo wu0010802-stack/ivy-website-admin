@@ -253,9 +253,11 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
           c: k % crayonCols.length, len: 4 + Math.random() * 5, curl: 0.8 + Math.random() * 1.4, ph: Math.random() * 6 })
       }
     }
-    // 畫
+    // 畫：先用畫布像素清整張（2026-10-13）。原本在縮放後清 CAKE_W×CAKE_H，畫布高度四捨五入後底下多出約 2 個裝置像素沒清到，
+    // 落到底的蠟筆屑在那一條留成虛線、吹完一直卡在蛋糕下緣。
+    g.setTransform(1, 0, 0, 1, 0, 0)
+    g.clearRect(0, 0, canvas.width, canvas.height)
     g.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0)
-    g.clearRect(0, 0, CAKE_W, CAKE_H)
     candles.forEach((c, i) => { if (c.lit) flame(c, t, i) })
     for (let i = smokes.length - 1; i >= 0; i--) if (!drawSmoke(smokes[i]!, now)) smokes.splice(i, 1)
     for (let i = sparks.length - 1; i >= 0; i--) {

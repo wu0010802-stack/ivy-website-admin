@@ -31,6 +31,7 @@ const form = reactive({
 
 const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
 const stageRef = ref<HTMLElement | null>(null)
+const titleRef = ref<HTMLElement | null>(null)
 const asideRef = ref<HTMLElement | null>(null)
 const pickerRef = ref<HTMLElement | null>(null)
 const formRef = ref<HTMLFormElement | null>(null)
@@ -262,10 +263,11 @@ const emailHint = computed(() => bookingConfig.value?.parent_email_enabled
 async function focusStage() {
   await nextTick()
   stageRef.value?.focus({ preventScroll: true })
-  // 960px 以下側欄收成表單上方一條：捲到側欄（它沒有 scroll-margin，只讓出 html 的
-  // scroll-padding），所選校區與「更換校區」才不會卡在頁首膠囊底下；.visit-stage 的
+  // 960px 以下側欄收成表單上方一條：捲到側欄上面那行頁名（「預約校園參觀」，它和側欄都沒有 scroll-margin，
+  // 只讓出 html 的 scroll-padding），頁名、所選校區與「更換校區」才不會卡在頁首膠囊底下；.visit-stage 的
   // scroll-margin 再疊上去會多捲一段、把側欄捲走。桌機兩欄照舊捲 stage。
-  const target = !isPicking.value && asideRef.value && matchMedia('(max-width: 960px)').matches ? asideRef.value : stageRef.value
+  // 2026-10-13：原本捲到側欄本身，390 寬按「下一步」後頁名剛好一半壓在浮動膠囊底下。
+  const target = !isPicking.value && asideRef.value && matchMedia('(max-width: 960px)').matches ? (titleRef.value ?? asideRef.value) : stageRef.value
   target?.scrollIntoView({ block: 'start', behavior: 'instant' })
 }
 
@@ -480,7 +482,7 @@ async function onSubmit() {
       <div class="container visit-welcome-inner">
         <div class="visit-welcome-copy">
           <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
-          <h1 id="visit-title"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
+          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
           <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
@@ -531,11 +533,14 @@ async function onSubmit() {
                 <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
                      DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
                      400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。
-                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。 -->
+                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。
+                     761px 以上卡片是 3:4 直框、object-fit: cover，橫幅外觀照（約 1.9:1）要畫的寬度是「框高 × 1.92」
+                     ≈ 卡寬 × 2.56，不是卡寬（2026-10-13）：桌機卡寬最多約 237px → 620px；761–960 一列三張、卡寬約 30vw → 77vw。
+                     原本寫卡寬（260px／30vw），DPR2 桌機只拿到 800w、平板拿到 480w，照片發糊。 -->
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-mode" :class="{ 'is-online': campusModes[campus.key] === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
@@ -554,13 +559,15 @@ async function onSubmit() {
               <div v-else-if="!selectedCampus" class="visit-status"><p>請先選擇想參觀的校區。</p><button class="button outline" type="button" @click="changeCampus">選擇校區</button></div>
               <section v-else-if="action.kind !== 'form'" class="booking-alt-cta visit-contact-step" aria-labelledby="visit-contact-title">
                 <span class="visit-contact-kicker">參觀方式</span>
-                <h2 id="visit-contact-title">{{ action.kind === 'unavailable' ? '參觀方式暫時無法載入' : `歡迎與${selectedCampus.name}聯絡` }}</h2>
+                <!-- 讀不到參觀方式時標題也寫「歡迎與○○聯絡」：原本標題「參觀方式暫時無法載入」和底下的說明幾乎同一句。
+                     這時打電話一定有用、重新載入不一定，致電是主要按鈕、重新載入改外框鈕排在後面（2026-10-13）。 -->
+                <h2 id="visit-contact-title">歡迎與{{ selectedCampus.name }}聯絡</h2>
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
-                  <button v-if="action.kind === 'unavailable'" type="button" class="button primary" @click="retryBookingConfig">重新載入參觀方式</button>
                   <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction">{{ action.label }} <span aria-hidden="true">↗</span></a>
                   <a v-else-if="action.href" data-booking-cta class="button primary" :href="action.href" @click="trackContactAction"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
-                  <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span>{{ selectedCampus.phone }}</span></a>
+                  <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a>
+                  <button v-if="action.kind === 'unavailable'" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="retryBookingConfig">重新載入參觀方式</button>
                   <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
                 </div>
               </section>
@@ -575,9 +582,11 @@ async function onSubmit() {
                     <h3 id="visit-schedule-title">參觀安排</h3>
                     <p class="visit-field-hint">僅列出{{ selectedCampus.name }}目前開放的日期與場次。</p>
                     <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
+                    <!-- 沒有場次時重新載入幫不上忙：只給寫出號碼的致電主要按鈕；讀取失敗才加「重新載入場次」外框鈕。
+                         說明放進和參觀方式步驟同一種淡色底塊（2026-10-13，原本是一行灰字＋大外框鈕＋沒有號碼的小連結）。 -->
                     <div v-else-if="slotsError || !availableSlots.length" class="visit-slots-empty" role="status">
                       <p>{{ slotsError || '目前沒有開放的參觀場次，歡迎直接聯絡園所安排。' }}</p>
-                      <div class="visit-contact-actions"><button type="button" class="button outline" @click="loadSlots">重新載入場次</button><a v-if="selectedCampus.phone" class="visit-inline-link" :href="`tel:${selectedCampus.phone}`">致電{{ selectedCampus.name }}</a></div>
+                      <div v-if="selectedCampus.phone || slotsError" class="visit-contact-actions"><a v-if="selectedCampus.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a><button v-if="slotsError" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="loadSlots">重新載入場次</button></div>
                     </div>
                     <div v-else class="visit-schedule-fields">
                       <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>

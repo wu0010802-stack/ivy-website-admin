@@ -37,7 +37,9 @@ export function buildFinalePath(entry: [number, number]): FinalePath {
   const t0 = three[0]!, t1 = three.at(-1)!
   // 3 的起點在左上，順時針往右上走；接線從上方垂直下來，再轉進 3 的方向
   const drop = Math.max(12, (entry[1] - t0[1]) * 0.6)
-  const lead = cubic(entry, [entry[0], entry[1] - drop], [t0[0] - 16, t0[1] - 4], t0, 40)
+  // 接線最後一段順著 3 起筆的方向進去（2026-10-13）：原本從 (−16, −4) 進來，和 3 的起筆差約 30°，蠟筆點在接點錯開一格
+  const t01 = three[1]!, tl = Math.hypot(t01[0] - t0[0], t01[1] - t0[1]) || 1
+  const lead = cubic(entry, [entry[0], entry[1] - drop], [t0[0] - 16 * (t01[0] - t0[0]) / tl, t0[1] - 16 * (t01[1] - t0[1]) / tl], t0, 40)
   // 3 畫完，蠟筆提起來，孩子跳一個弧線到 0 的最底下（0 從底部逆時針畫）
   const z0: [number, number] = [ZERO.cx, ZERO.cy - ZERO.ry]
   const bridge = cubic(t1, [t1[0] + 12, t1[1] + 40], [z0[0] - 16, z0[1] + 40], z0, 36)

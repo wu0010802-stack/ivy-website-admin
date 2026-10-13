@@ -102,6 +102,16 @@ describe('30 週年分頁 v2：結尾畫成 30', () => {
     expect(Math.hypot((end.x - ZERO.cx) / ZERO.rx, (end.y - ZERO.cy) / ZERO.ry)).toBeLessThan(1.05)
   })
 
+  it('接線順著 3 起筆的方向進去，接點不錯開（2026-10-13）', () => {
+    for (const entry of [[-60, 50], [-45, 70], [-70, 40]] as Array<[number, number]>) {
+      const fp = buildFinalePath(entry)
+      // pts = [entry, ...接線 40 點（最後一點是 3 的起點）, ...3]
+      const [a, b, c] = [fp.pts[39]!, fp.pts[40]!, fp.pts[41]!]
+      const turn = Math.abs(Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]))
+      expect(Math.min(turn, Math.PI * 2 - turn)).toBeLessThan(0.12)
+    }
+  })
+
   it('3 畫完跳到 0 的那一段：起點是 3 的尾巴、終點是 0 的最底下', () => {
     const fp = buildFinalePath([-60, 50])
     const a = pointAt(fp, fp.marks.threeEnd), b = pointAt(fp, fp.marks.zeroStart)

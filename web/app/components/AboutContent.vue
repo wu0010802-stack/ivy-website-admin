@@ -43,12 +43,13 @@ const HOPE_ALT = '孩子們笑著圍在戴眼鏡的長輩身邊，大家開心�
 
 // 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色，左頁沿革同一列用同色小方塊
 // 五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
+// tint＝左頁沿革那一列上色的濃度（%）：淡色卡紙要混多一點才看得出來，各列對米白都約 1.1–1.2:1（2026-10-13）
 const STAGE = [
-  { x: 0, y: 46, w: 31, r: -1.5, color: 'var(--yellow)' },
-  { x: 34.5, y: 52, w: 31, r: 0.8, color: 'var(--studio-blue)' },
-  { x: 69, y: 46, w: 31, r: 1.6, color: 'var(--studio-sage)' },
-  { x: 17.25, y: 4, w: 31, r: -1, color: 'var(--mint)' },
-  { x: 51.75, y: 4, w: 31, r: 1.2, color: 'var(--studio-orange)' }
+  { x: 0, y: 46, w: 31, r: -1.5, color: 'var(--yellow)', tint: 30 },
+  { x: 34.5, y: 52, w: 31, r: 0.8, color: 'var(--studio-blue)', tint: 36 },
+  { x: 69, y: 46, w: 31, r: 1.6, color: 'var(--studio-sage)', tint: 85 },
+  { x: 17.25, y: 4, w: 31, r: -1, color: 'var(--mint)', tint: 45 },
+  { x: 51.75, y: 4, w: 31, r: 1.2, color: 'var(--studio-orange)', tint: 20 }
 ]
 const cardStyle = (i: number) => {
   const s = STAGE[i]!
@@ -224,7 +225,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         <AboutMedal class="is-title" :stops="medalStops" />
         <p class="abk-text">{{ page.storyText }}</p>
         <ol class="abk-list">
-          <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color }">
+          <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color, '--tint': `${STAGE[i]!.tint}%` }">
             <p class="abk-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
             <div>
               <span v-if="item.campus" class="abk-campus">{{ item.campus.name }}</span>
@@ -309,14 +310,16 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       <div class="abk-page is-right">
         <div class="abk-face">
           <div class="abk-stage abk-scene">
+            <!-- 草坡高 46px、是半個橢圓：樹與房子的底邊對齊草坡在那個位置的高度（樹幹那裡約 30px、房子牆角約 41px），各陷進去 3px。
+                 原本一律 14%，桌機舞台高 620px 時樹浮在草坡上 14–19px（2026-10-13） -->
             <div class="abk-pop abk-ground" data-pop aria-hidden="true" :style="{ '--x': '-2%', '--y': '6%', '--w': '104%', '--z': 1 }"><div class="abk-card"><i /></div></div>
-            <div class="abk-pop abk-tree is-l" data-pop aria-hidden="true" :style="{ '--x': '1%', '--y': '14%', '--w': '21%', '--z': 2 }">
+            <div class="abk-pop abk-tree is-l" data-pop aria-hidden="true" :style="{ '--x': '1%', '--y': 'calc(6% + 27px)', '--w': '21%', '--z': 2 }">
               <div class="abk-card"><svg viewBox="0 0 100 160"><rect class="abk-trunk" x="46" y="96" width="8" height="64" rx="2" /><ellipse class="abk-crown" cx="50" cy="62" rx="40" ry="54" /><path class="abk-crown-shade" d="M50 8 A40 54 0 0 1 50 116 A26 54 0 0 0 50 8 Z" /></svg></div>
             </div>
-            <div class="abk-pop abk-tree is-r" data-pop aria-hidden="true" :style="{ '--x': '80%', '--y': '14%', '--w': '18%', '--z': 2 }">
+            <div class="abk-pop abk-tree is-r" data-pop aria-hidden="true" :style="{ '--x': '80%', '--y': 'calc(6% + 27px)', '--w': '18%', '--z': 2 }">
               <div class="abk-card"><svg viewBox="0 0 100 160"><rect class="abk-trunk" x="46" y="100" width="8" height="60" rx="2" /><ellipse class="abk-crown" cx="50" cy="60" rx="32" ry="58" /><path class="abk-crown-shade" d="M50 2 A32 58 0 0 1 50 118 A20 58 0 0 0 50 2 Z" /></svg></div>
             </div>
-            <figure class="abk-pop abk-house" data-pop :style="{ '--x': '21%', '--y': '14%', '--w': '58%', '--z': 3 }">
+            <figure class="abk-pop abk-house" data-pop :style="{ '--x': '21%', '--y': 'calc(6% + 38px)', '--w': '58%', '--z': 3 }">
               <div class="abk-card">
                 <div class="abk-roof" aria-hidden="true"><span class="abk-chimney" /></div>
                 <div class="abk-wall">
@@ -350,8 +353,9 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
             <button type="button" :aria-pressed="i === pickedVoice" @click="pickVoice(i)"><q>{{ item.quote }}</q><small>{{ item.speaker }}<template v-if="voiceCampuses.length > 1"> · {{ item.campus.name }}</template></small></button>
           </li>
         </ol>
+        <!-- 「分享 ↗」不拆行：分與享之間 word joiner（&#8288;）、箭頭前不斷行空格（2026-10-13：320 寬箭頭自己掉到下一行） -->
         <template v-for="campus in voiceCampuses" :key="campus.key">
-          <a v-if="campus.youtube" class="abk-link" :href="campus.youtube" target="_blank" rel="noopener noreferrer">到{{ campus.name }} YouTube 看更多分享 ↗<span class="sr-only">（另開新視窗）</span></a>
+          <a v-if="campus.youtube" class="abk-link" :href="campus.youtube" target="_blank" rel="noopener noreferrer">到{{ campus.name }} YouTube 看更多分&#8288;享&nbsp;↗<span class="sr-only">（另開新視窗）</span></a>
         </template>
         <span class="abk-cast" aria-hidden="true" />
         <span class="abk-edge" aria-hidden="true" />

@@ -11,6 +11,8 @@ const domains = [
   { name: '情緒', lines: ['情緒'], color: 'var(--ivy-whole-emotion)' },
   { name: '美感', lines: ['美感'], color: 'var(--ivy-whole-aesthetic)' }
 ]
+// 兩行的標籤（身體動作／與健康）：y 是固定值、dy 跟著字級（em），22 號字時兩行在 −2、38（同原本），
+// 手機 38 號字時在 −6、40，行距跟著字放大，不再疊在一起（2026-10-13；原本一律 i × 40 − 2，38 號字上下兩行疊 3px）
 const root = shallowRef<HTMLElement | null>(null)
 const progress = shallowRef(1) // SSR／沒有 JS 時也有完整的六圈圖。
 const playing = shallowRef(false)
@@ -119,7 +121,7 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
           <text class="abk-whole-sub" x="360" y="390" :opacity="portion(progress, .85, 1)">完整的自己</text>
         </g>
         <text v-for="(domain, i) in circles" :key="`label-${domain.name}`" class="abk-whole-label" :class="{ 'is-dim': dimmed(i) }" :transform="`translate(${domain.label.x} ${domain.label.y})`">
-          <tspan v-for="(line, i) in domain.lines" :key="line" x="0" :y="domain.lines.length === 2 ? i * 40 - 2 : 7">{{ line }}</tspan>
+          <tspan v-for="(line, i) in domain.lines" :key="line" x="0" :y="domain.lines.length === 2 ? (i ? 35.25 : 3.5) : 7" :dy="domain.lines.length === 2 ? (i ? '.125em' : '-.25em') : undefined">{{ line }}</tspan>
         </text>
       </g>
     </svg>
@@ -138,6 +140,9 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
 .abk-whole-title{font:800 70.4px var(--font-head);letter-spacing:-.04em}
 .abk-whole-sub{font-size:16px;letter-spacing:.18em}
 .abk-whole-label{font-size:22px;font-weight:600;letter-spacing:.07em}
+/* 字級分三段（SVG 單位，圖寬 612）：容器 ≤380（手機、901–1000）38／32；381–460（1024–1180）28／22，原本這段掉回 22／16，
+   實際只有 14px／10px，比 960 寬還小；461 以上（1280 起）照舊 22／16，實際約 18／13.5px。（2026-10-13） */
+@container(max-width:460px){.abk-whole-label{font-size:28px}.abk-whole-sub{font-size:22px}}
 @container(max-width:380px){.abk-whole-label{font-size:38px}.abk-whole-sub{font-size:32px}}
 @media(max-width:900px){.abk-whole{min-height:0;height:auto;padding-block:8px 28px}}
 @media(prefers-reduced-motion:reduce){.abk-whole-circle,.abk-whole-label{transition:none}}

@@ -61,12 +61,15 @@ export function medalShown(turn: number, states: number) {
   return Math.cos(((turn * 180 + MEDAL_YAW) * Math.PI) / 180) > 0 ? a : b
 }
 
-/** 釘住時跨頁（或右頁）頂端離視窗頂多遠：要看到的範圍 [from, to]（相對元素頂端）放進上下留白之內，能置中就置中；放不下回傳 null。 */
-export function medalPinTop(viewport: number, height: number, from: number, to: number, margin: { top: number, bottom: number }) {
+/** 釘住時跨頁（或右頁）頂端離視窗頂多遠：要看到的範圍 [from, to]（相對元素頂端）放進上下留白之內，能置中就置中；放不下回傳 null。
+ *  margin.header：整個元素放得進「頁首膠囊下方到視窗底」時，頂端至少讓到這裡（2026-10-13：1440×900 置中時右上角被膠囊蓋住）。 */
+export function medalPinTop(viewport: number, height: number, from: number, to: number, margin: { top: number, bottom: number, header?: number }) {
   const lo = margin.top - from
   const hi = viewport - margin.bottom - to
   if (lo > hi) return null
-  return Math.min(hi, Math.max(lo, (viewport - height) / 2))
+  const centered = (viewport - height) / 2
+  const clear = margin.header !== undefined && margin.header + height <= viewport - margin.bottom ? Math.max(centered, margin.header) : centered
+  return Math.min(hi, Math.max(lo, clear))
 }
 
 /** 捲動進度 p（0–1）→ 右頁翻開程度、紙面背光、壓在左頁的影子。翻開程度用 smoothstep，開頭與收尾比較慢。 */
@@ -214,7 +217,8 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
       const lift = medal ? medal.offsetHeight * 0.16 : 0
       const from = medal ? medal.getBoundingClientRect().top - box.top - lift : 0
       const bottoms = [...cards, ...(wideNow ? rows : [])].map((node) => node.getBoundingClientRect().bottom - box.top)
-      const top = medalPinTop(innerHeight, box.height, from, Math.max(...bottoms) + 12, wideNow ? { top: 16, bottom: 16 } : { top: 88, bottom: 12 })
+      // 桌機頁首膠囊在右上角（頂 12、底 70px），放得下時跨頁讓到 82px
+      const top = medalPinTop(innerHeight, box.height, from, Math.max(...bottoms) + 12, wideNow ? { top: 16, bottom: 16, header: 82 } : { top: 88, bottom: 12 })
       pinned = top !== null
       pinTop = top ?? 0
       track.style.setProperty('--abk-pin-top', `${Math.round(pinTop)}px`)
@@ -251,15 +255,27 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
       paint(turn)
       if (turn !== target) raf = requestAnimationFrame(tick)
     }
+    const kick = () => { if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick) } }
+    // 讀者停在兩站之間時，紀念章會側立或翻到一半（約四分之一的位置偏離正面 60° 以上）：捲動停 150ms 後轉到最近的一站，
+    // 卡紙與沿革跟著那一站。再捲就照捲動位置走（2026-10-13）。減少動態時整段不跑。
+    let idle = 0
+    const settle = () => {
+      idle = 0
+      const k = Math.round(target)
+      if (k !== target) { target = k; kick() }
+    }
     const onScroll = () => {
       target = aim()
-      if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick) }
+      kick()
+      clearTimeout(idle)
+      idle = window.setTimeout(settle, 150)
     }
     // 手機網址列收合只改高度：不重新量（避免釘住位置跟著跳）
     const onResize = () => { if (wideNow || innerWidth !== lastWidth) measure(); onScroll() }
     measure()
     turn = target = aim()
     paint(turn, true)
+    idle = window.setTimeout(settle, 150)
     addEventListener('scroll', onScroll, { passive: true })
     addEventListener('resize', onResize)
     // 字型、沿革換行讓高度變了就重量（觀察左右頁本身，釘住多出來的那一列不會再觸發）
@@ -271,6 +287,7 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
       removeEventListener('scroll', onScroll)
       removeEventListener('resize', onResize)
       cancelAnimationFrame(raf)
+      clearTimeout(idle)
       track.classList.remove('is-pinned')
       story.classList.remove('is-pinned')
     })

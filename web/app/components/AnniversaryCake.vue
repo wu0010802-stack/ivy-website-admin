@@ -152,14 +152,21 @@ onBeforeUnmount(() => { clearTimeout(announceTimer); stopSong(); ctl?.destroy();
 <style scoped>
 .anni-cake { padding-block: clamp(72px, 8vw, 128px); scroll-margin-top: 40px; }
 .anni-cake-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 6fr); gap: clamp(28px, 4vw, 64px); align-items: center; }
-.anni-cake-copy { display: grid; gap: 18px; justify-items: start; min-width: 0; }
+.anni-cake-copy { display: grid; gap: 18px; justify-items: start; min-width: 0; container-type: inline-size; }
 .anni-cake-copy h2 { font-size: clamp(var(--fs-4xl), 3.4vw, var(--fs-6xl)); color: var(--green); }
 .anni-cake-copy > p { font-size: var(--fs-lg); }
 .anni-cake-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .anni-cake-tools .button { min-height: 46px; padding: 10px 20px; }
+/* 「開聲音」改成跟旁邊一樣的方角按鈕、16px 字（2026-10-13）後寬了 20px，390 寬三顆排不進一列；窄欄內距與間距收一點，328px 以上仍是一列。 */
+@container (max-width: 370px) {
+  .anni-cake-tools { gap: 8px; }
+  .anni-cake-tools .button { padding-inline: 13px; }
+}
 .anni-blow { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; transition: transform .15s, background-color .2s; }
 .anni-blow.is-holding { transform: scale(.96); background: var(--deep); }
 .anni-cake-note { font-size: var(--fs-sm); color: var(--muted); }
+/* 2026-10-13：提示兩行時最後一行常只剩兩三個字，改 balance（AnniversaryContent 的 .anni :where(p) pretty 權重相同、載入在後，要多一層） */
+.anni-cake-copy > .anni-cake-note { text-wrap: balance; }
 .anni-cake-count { margin: 0; font: 700 var(--fs-xl)/1.3 var(--font-head); color: var(--green); font-variant-numeric: tabular-nums; }
 .anni-cake-stage { position: relative; aspect-ratio: 600 / 560; touch-action: pan-y; cursor: crosshair; }
 .anni-cake-art, .anni-cake-fx { position: absolute; inset: 0; width: 100%; height: 100%; }

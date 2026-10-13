@@ -11,6 +11,7 @@ import { admissionHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, CLASS_BY_OFFSET, classPlan, classRanges, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
 import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
 import { splitStampText } from '~/utils/passport-stamp'
+import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
 import { ADMISSION_FONT_PRELOAD, attachAdmissionFontStylesheet } from '~/utils/admission-fonts'
 import type { AdmissionContent } from '~/types/site-content'
@@ -25,6 +26,8 @@ const hasNewcomerExtras = computed(() => {
   const a = admission.value
   return a.uniformWeek.length > 0 || a.pickupNotes.length > 0 || a.registrationNotes.length > 0
 })
+// 新生準備的標題：結尾括號另包一段整段換行（splitTrailingParen）
+const phaseTitles = computed(() => admission.value.phases.map(phase => splitTrailingParen(phase.title)))
 const showNewcomer = computed(() => admission.value.phases.length > 0 || hasNewcomerExtras.value)
 // 目錄與章節同一個條件：後台把新生須知全部清空時，目錄也一起拿掉，不留點了沒反應的錨點。
 const chapters = computed(() => [
@@ -290,7 +293,7 @@ onBeforeUnmount(() => {
             <div class="ap-answer" :class="{ empty: !plan }" aria-live="polite">
               <template v-if="plan">
                 <p class="ap-answer-lead">
-                  <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</template>
+                  <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，<span class="ap-nowrap">寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</span></template>
                   <template v-else-if="plan.status === 'young'">寶貝 <em>{{ plan.cohort + 3 }} 學年度</em><span class="ap-nowrap">可以開始讀幼幼班。</span></template>
                   <template v-else>寶貝已到國小年齡囉。</template>
                 </p>
@@ -385,7 +388,7 @@ onBeforeUnmount(() => {
               <img v-bind="responsiveImage(PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.name, '(max-width: 760px) 96px, 132px')" :alt="PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.alt" loading="lazy">
               <div>
                 <p class="ap-phase-tag"><span lang="en">{{ pad2(p + 1) }}</span>{{ phase.tag || '新生' }}</p>
-                <h3>{{ phase.title }}</h3>
+                <h3>{{ phaseTitles[p]!.head }}<span v-if="phaseTitles[p]!.paren" class="ap-keep" :style="{ '--ap-keep-chars': Array.from(phaseTitles[p]!.paren).length }">{{ phaseTitles[p]!.paren }}</span></h3>
               </div>
             </header>
             <fieldset v-if="phase.items.length" class="ap-bring">
@@ -464,7 +467,7 @@ onBeforeUnmount(() => {
                 <p class="ap-coupon-amt"><b>{{ subsidy.amount }}</b><span>{{ subsidy.unit }}</span></p>
                 <p class="ap-coupon-who">{{ subsidy.who }}</p>
               </div>
-              <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第 {{ pad2(i + 1) }} 張</small></div>
+              <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small></div>
             </li>
           </ul>
         </template>

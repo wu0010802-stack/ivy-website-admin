@@ -112,7 +112,10 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
 
   // ── 尺寸 ──
   let marks: YearMark[] = []
-  let trackTop = 0, trackH = 0, railW = 0, dpr = 1, inkDrawnTo = 0, maxHead = 0
+  let trackTop = 0, trackH = 0, railW = 0, railLeft = 0, dpr = 1, inkDrawnTo = 0, maxHead = 0
+  // 年份標籤在線的右邊（≤1100px，軌道 120／64px）時紙偶翻到背面站在線的左邊（2026-10-13）：
+  // 原本只看軌道 < 90px，761–1100px 的紙偶站在線右邊，年份剛好壓在孩子臉上。
+  let kidsFlip = false
   let finaleTop = 0, finaleH = 0, fDpr = 1, fDrawn = 0, fMax = 0
   let lay = { k: 1, ox: 0, oy: 0 }
   let fp: FinalePath = buildFinalePath([-60, 60])
@@ -128,6 +131,8 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     trackTop = r.top + scrollY
     trackH = track.offsetHeight
     railW = rail.offsetWidth
+    railLeft = rail.getBoundingClientRect().left
+    kidsFlip = railW < 130
     marks = [...track.querySelectorAll<HTMLElement>('.anni-years > li')].map((li) => {
       const label = li.querySelector<HTMLElement>('.anni-year')!
       const lr = label.getBoundingClientRect()
@@ -145,7 +150,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     ink.width = Math.max(1, Math.round(railW * dpr))
     ink.height = Math.max(1, Math.round(trackH * dpr))
     inkDrawnTo = 0
-    const kw = railW < 90 ? 62 : 132
+    const kw = kidsFlip ? 62 : 132
     sizeKids(kids, kw)
     // 結尾：字形放在舞台中間，入口接在軌道末端的線頭（兩邊都是 .container，左緣對齊）
     const fr = finale.getBoundingClientRect()
@@ -165,7 +170,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     fBox.style.setProperty('--cap-y', `${(lay.oy + 41.5 * lay.k + Math.max(28, lay.k * 6)).toFixed(1)}px`)
     const cw = Math.round(d * scaleDpr())
     if (cw && crestCanvas.width !== cw) { crestCanvas.width = crestCanvas.height = cw; crestDone = false }
-    sizeKids(fKids, Math.round(Math.max(kw, Math.min(150, lay.k * 19))))
+    sizeKids(fKids, Math.round(Math.max(railW < 90 ? 62 : 132, Math.min(150, lay.k * 19))))
   }
 
   // ── 時間軸的蠟筆線：一小段一小段往下蓋點 ──
@@ -202,7 +207,11 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
       const [x, y] = toStage(p.x, p.y)
       // 3 畫完到 0 開始：蠟筆提起來，孩子跳過去
       if (s > threeEnd && s < zeroStart) continue
-      const w = w0 * (1 + 0.75 * easeInOut(s / lead))
+      // 0 的頭尾收細（2026-10-13）：0 從最底下起筆、多繞一點收在起點內側，頭尾都是全寬時收筆壓在起筆的方頭上，
+      // 底部留下一個方形的台階。起筆由細變粗、最後往內收的那段收細，像蠟筆落下和提起。
+      const z = (s - zeroStart) / (1 - zeroStart)
+      const taper = s < zeroStart ? 1 : Math.min(0.35 + 0.65 * easeInOut(z / 0.06), 1 - 0.65 * easeInOut((z - 0.91) / 0.09))
+      const w = w0 * (1 + 0.75 * easeInOut(s / lead)) * taper
       stamp(g, crayonRGB, x, y, w, d * 7.31, Math.sin(p.angle), Math.cos(p.angle))
     }
     fDrawn = to
@@ -225,12 +234,12 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     gl.drawCard(c.tex, c.canvas, draw, wash)
     if (draw >= 1 && wash >= 1) c.done = true
   }
-  /** 把紙偶畫布上的 anchor 點（0–1）放到 (x, y)；預設 anchor 是蠟筆尖 */
-  const placeKids = (canvas: HTMLCanvasElement, x: number, y: number, flip: boolean, scale = 1, alpha = 1, anchor: readonly [number, number] = PUPPET_TIP) => {
+  /** 把紙偶畫布上的 anchor 點（0–1）放到 (x, y)；預設 anchor 是蠟筆尖。minLeft：畫布左緣至少到這裡（不縮放時用） */
+  const placeKids = (canvas: HTMLCanvasElement, x: number, y: number, flip: boolean, scale = 1, alpha = 1, anchor: readonly [number, number] = PUPPET_TIP, minLeft = -Infinity) => {
     const kw = canvas.width / scaleDpr(), kh = kw / PUPPET_ASPECT
     const ax = flip ? 1 - anchor[0] : anchor[0]
     // transform-origin 是畫布中心：縮放後 anchor 會往中心靠，先補回去
-    const tx = x - kw / 2 - (ax - 0.5) * kw * scale, ty = y - kh / 2 - (anchor[1] - 0.5) * kh * scale
+    const tx = Math.max(minLeft, x - kw / 2 - (ax - 0.5) * kw * scale), ty = y - kh / 2 - (anchor[1] - 0.5) * kh * scale
     canvas.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px)${flip ? ' scaleX(-1)' : ''}${scale !== 1 ? ` scale(${scale.toFixed(3)})` : ''}`
     canvas.style.opacity = alpha >= 0.999 ? '' : alpha.toFixed(3)
   }
@@ -247,8 +256,9 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     const speed = Math.min(1, Math.abs(dy) / 24)
     stride += (speed - stride) * Math.min(1, dt * 8)
     phase += Math.abs(dy) * 0.045
-    // 窄螢幕軌道放不下：紙偶翻到背面（鏡像）站在線的左邊，蠟筆尖一樣對著線頭
-    placeKids(kids, xAt(head), head, railW < 90)
+    // 窄螢幕：紙偶翻到背面（鏡像）站在線的左邊，蠟筆尖一樣對著線頭。
+    // 線擺到最左時翻面的紙偶會超出視窗左緣（390 寬 −25px、320 寬 −29px），左緣夾在視窗內 4px（2026-10-13）。
+    placeKids(kids, xAt(head), head, kidsFlip, 1, 1, PUPPET_TIP, 4 - railLeft)
     puppet.draw(kids, { phase, stride })
     // 年份（整數給計數器，小數給地圖）
     const yf = yearAtOffset(head, marks)

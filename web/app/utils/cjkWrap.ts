@@ -48,3 +48,12 @@ function avoidOrphan(ctx: TextMeasurer, lines: string[], start: number, max: num
   lines[lines.length - 2] = prev.join('')
   lines[lines.length - 1] = moved + last.join('')
 }
+
+/**
+ * DOM 標題用：把結尾的全形括號「（…）」拆出來，畫面上包成 inline-block 整段換行，
+ * 不會斷成「適應期（上學前三／天）」（2026-10-13，入學頁 320、768 寬實測）。沒有結尾括號時 paren 是空字串。
+ */
+export function splitTrailingParen(text: string): { head: string; paren: string } {
+  const m = /^(.*\S)\s*(（[^（）]+）)$/.exec(text)
+  return m ? { head: m[1]!, paren: m[2]! } : { head: text, paren: '' }
+}

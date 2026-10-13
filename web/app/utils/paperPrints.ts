@@ -188,6 +188,26 @@ function pxOf(el: Element | null, prop: 'fontSize' | 'lineHeight', fallback: num
   return Number.isFinite(n) ? n : fallback
 }
 
+// 照片在相片框裡的裁切位置照 DOM 的 object-position（CSS 預設或後台設定的焦點），貼圖不另寫一份
+// （2026-10-13：原本寫死 50% 40%，CSS 改成避開照片右上角台標後兩邊會裁得不一樣）。
+// slack＝照片比框多出來的長度；百分比照 CSS 定義乘上它，px 直接當位移；讀不懂的寫法退回 fallback。
+export function objectOffset(token: string | undefined, slack: number, fallback: number): number {
+  const n = parseFloat(token ?? '')
+  if (!token || !Number.isFinite(n)) return slack * fallback
+  if (token.endsWith('%')) return slack * (n / 100)
+  return token.endsWith('px') ? n : slack * fallback
+}
+
+// 文字基線照 CSS 行框算：(行高 − 字型 ascent − descent) / 2 + ascent。canvas 的 fontBoundingBox 就是 CSS 排行用的那組值，
+// 背面每行字才會跟 DOM 一樣落在兩條橫線中間（2026-10-13）；量不到時退回原本的 0.72 行高。
+function baselineIn(ctx: CanvasRenderingContext2D, top: number, lineHeight: number): number {
+  const m = ctx.measureText('永')
+  const ascent = m.fontBoundingBoxAscent
+  const descent = m.fontBoundingBoxDescent
+  if (!Number.isFinite(ascent) || !Number.isFinite(descent)) return top + lineHeight * 0.72
+  return top + (lineHeight - ascent - descent) / 2 + ascent
+}
+
 function setFill(ctx: CanvasRenderingContext2D, value: string, fallback: string) {
   ctx.fillStyle = fallback
   ctx.fillStyle = value
@@ -389,6 +409,7 @@ export async function mountPaper(
         frontBg: colorOf(front, 'backgroundColor', '#fffdf7'),
         backBg: colorOf(back, 'backgroundColor', '#fff6df'),
         figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
+        photoPosition: getComputedStyle(img!).objectPosition.trim().split(/\s+/),
         lineColor: 'rgb(32 64 47 / .07)',
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
         stampColor: colorOf(stamp, 'color', '#ffb347'),
@@ -547,6 +568,10 @@ export async function mountPaper(
     const cover = Math.max(box.figure.w / img!.naturalWidth, box.figure.h / img!.naturalHeight)
     const photoW = img!.naturalWidth * cover
     const photoH = img!.naturalHeight * cover
+    // 兩個值以外的寫法（四值 right 10px bottom 0 等）退回原本的 50% 40%
+    const [posX, posY] = style.photoPosition.length === 2 ? style.photoPosition : []
+    const photoX = objectOffset(posX, box.figure.w - photoW, 0.5)
+    const photoY = objectOffset(posY, box.figure.h - photoH, 0.4)
     // 相紙底＋照片（依顯影程度加濾鏡與透明度）＋乳白覆蓋層，畫在 (ox, oy) 起的相片區。
     function drawDeveloping(ctx: CanvasRenderingContext2D, d: number, ox = box.figure.x, oy = box.figure.y) {
       const f = box.figure
@@ -557,7 +582,7 @@ export async function mountPaper(
           ? 'none'
           : `sepia(${(1 - d) * 0.55}) contrast(${0.28 + 0.72 * d}) brightness(${1.55 - 0.55 * d}) saturate(${0.35 + 0.65 * d}) blur(${(1 - d) * 2.5}px)`
       ctx.globalAlpha = 0.28 + 0.72 * d
-      ctx.drawImage(img!, ox + (f.w - photoW) / 2, oy + (f.h - photoH) * 0.4, photoW, photoH)
+      ctx.drawImage(img!, ox + photoX, oy + photoY, photoW, photoH)
       ctx.filter = 'none'
       ctx.globalAlpha = 1
       if (d < 1) {
@@ -657,7 +682,10 @@ export async function mountPaper(
       ctx.fillRect(0, 0, W, H)
       ctx.strokeStyle = style.lineColor
       ctx.lineWidth = 1
-      for (let y = 31.5; y < H; y += 32) {
+      // 橫線距＝故事行高、對齊故事段落的行框（同 styles.css 的 .print-story::before）：線佔每格最後 1px
+      const pitch = style.storyLine > 4 ? style.storyLine : 32
+      const anchor = box.story ? box.story.y : 0
+      for (let y = (((anchor % pitch) + pitch) % pitch) - 0.5; y < H; y += pitch) {
         ctx.beginPath()
         ctx.moveTo(0, y)
         ctx.lineTo(W, y)
@@ -669,13 +697,13 @@ export async function mountPaper(
       if (bk) {
         setFill(ctx, style.kickerColor, '#6e7c5b')
         ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, bk.x, bk.y + bk.h * 0.78)
+        ctx.fillText(copy.kicker, bk.x, baselineIn(ctx, bk.y, bk.h))
       }
       const s = box.story
       if (s) {
         setFill(ctx, style.storyColor, '#3f5045')
         ctx.font = style.storyFont
-        let y = s.y + style.storyLine * 0.72
+        let y = baselineIn(ctx, s.y, style.storyLine)
         for (const line of wrapLines(ctx, copy.story, s.w)) {
           ctx.fillText(line, s.x, y)
           y += style.storyLine
@@ -695,7 +723,7 @@ export async function mountPaper(
       if (q) {
         setFill(ctx, style.questionColor, '#203f32')
         ctx.font = style.questionFont
-        let y = q.y + style.questionLine * 0.72
+        let y = baselineIn(ctx, q.y, style.questionLine)
         for (const line of wrapLines(ctx, copy.question, q.w)) {
           ctx.fillText(line, q.x, y)
           y += style.questionLine
@@ -705,7 +733,7 @@ export async function mountPaper(
       if (an) {
         setFill(ctx, style.answerColor, '#6e7c5b')
         ctx.font = style.answerFont
-        let y = an.y + style.answerLine * 0.72
+        let y = baselineIn(ctx, an.y, style.answerLine)
         for (const line of wrapLines(ctx, copy.answer, an.w)) {
           ctx.fillText(line, an.x, y)
           y += style.answerLine

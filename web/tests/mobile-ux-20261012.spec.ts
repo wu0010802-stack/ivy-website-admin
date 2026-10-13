@@ -204,7 +204,7 @@ describe('30 週年頁', () => {
     const map = read('../app/components/AnniversaryMap.vue')
     expect(map).toContain('font: 700 clamp(12px, 3.3cqi, 14px)/1.25 var(--font-head)')
     expect(map).toContain('.anni-map-campus a span { font: 600 11px/1 var(--font);')
-    expect(map).toContain('.anni-map-campus a::before { content: ""; position: absolute; inset: -12px -4px; }')
+    expect(map).toContain('.anni-map-campus a::before { content: ""; position: absolute; inset: -13px -4px; }')
     expect(map).not.toMatch(/\.anni-map-source \{[^}]*opacity/)
     expect(map).not.toMatch(/\.anni-map-district \{[^}]*opacity/)
   })

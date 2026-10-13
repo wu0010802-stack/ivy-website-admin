@@ -71,14 +71,19 @@ const reload = () => { window.location.reload() }
 @media(max-width:1179px) and (max-height:500px) and (orientation:landscape) {.error-page {padding-top:24px}.error-crest {--size:96px;margin-bottom:8px}}
 .error-code {margin:0 0 12px;color:var(--muted);font-size:var(--fs-sm);letter-spacing:.12em}
 h1 {margin:0;color:var(--green);font:700 clamp(2rem,1.5rem + 2vw,2.75rem)/1.35 var(--font-head);letter-spacing:.02em}
-.error-lead {max-width:34em;margin:20px 0 0;font-size:var(--fs-md);line-height:1.9;color:var(--muted)}
+/* 2026-10-13：說明在手機從詞中間斷（「可以從下／面的校區找起」）。keep-all 讓中文只在標點後換行，
+   一段比一行長時 overflow-wrap:anywhere 才在字中間斷；pretty 避免一兩字的末行。 */
+.error-lead {max-width:34em;margin:20px 0 0;font-size:var(--fs-md);line-height:1.9;color:var(--muted);text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
 .error-actions {display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;margin-top:32px}
+/* 「回到首頁」用全站其他主要行動的膠囊（預約鈕、消息頁預約參觀），不是舊 .button 的 2px 方角（2026-10-13）。 */
+.error-actions .button {border-radius:999px}
 .error-text-link {display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0;border:0;background:none;color:var(--green);font:inherit;font-size:var(--fs-md);text-decoration:underline;text-underline-offset:6px;cursor:pointer}
 .error-campuses {margin-top:clamp(48px,7vw,72px);padding-top:28px;border-top:1px solid var(--line)}
 .error-campuses h2 {margin:0 0 8px;font:700 var(--fs-lg)/1.5 var(--font-head);color:var(--green)}
 .error-campuses ul {margin:0;padding:0;list-style:none}
 .error-campuses li {display:grid;grid-template-columns:minmax(6em,auto) 1fr auto;align-items:center;gap:4px 20px;padding:10px 0;border-bottom:1px solid var(--line)}
-.error-campus-name {display:inline-flex;align-items:center;min-height:44px;color:var(--green);font-weight:700;text-decoration:underline;text-underline-offset:5px}
+/* justify-self:start：格線第一欄至少 6em，連結原本被撐滿整欄，鍵盤焦點框是校名約兩倍寬的直角方塊（2026-10-13）。 */
+.error-campus-name {display:inline-flex;align-items:center;justify-self:start;min-height:44px;border-radius:4px;color:var(--green);font-weight:700;text-decoration:underline;text-underline-offset:5px}
 .error-campus-district {color:var(--muted);font-size:var(--fs-sm)}
 .error-campus-phone {display:inline-flex;align-items:center;gap:8px;min-height:44px;color:var(--text);font-variant-numeric:tabular-nums}
 .error-campus-phone .icon {width:16px;height:16px;color:var(--green)}

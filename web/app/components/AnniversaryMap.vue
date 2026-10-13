@@ -210,6 +210,10 @@ defineExpose({ setYear })
 /* 標籤：HTML 疊在上面，字級跟著地圖寬度（cqi），不會跟著 SVG 一起縮到看不見 */
 .anni-map-labels, .anni-map-campuses { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; pointer-events: none; }
 .anni-map-labels li, .anni-map-campuses li { position: absolute; white-space: nowrap; line-height: 1.2; }
+/* 區名、湖、河、地標的字描一圈紙色的邊（2026-10-13）：路線穿過「金獅湖」、塗色斜線壓著「澄清湖／蓮池潭」、
+   區界穿過「高雄巨蛋」、愛河的線壓著「愛河」。描邊畫在字的下面（paint-order），字形不會變細。 */
+.anni-map-labels li { -webkit-text-stroke: 4px var(--white); paint-order: stroke fill; }
+@media (forced-colors: active) { .anni-map-labels li { -webkit-text-stroke: 0; } }
 .anni-map-district { transform: translate(-50%, -50%); font: 700 clamp(12px, 3.4cqi, 15px)/1.2 var(--font-head); color: var(--muted); }
 .anni-map-district.has-campus { color: var(--deep); opacity: .85; }
 .anni-map-place { transform: translate(-50%, -50%); font-size: clamp(10px, 2.9cqi, 13px); color: var(--muted); }
@@ -218,10 +222,11 @@ defineExpose({ setYear })
 .anni-map-place.is-landmark.is-left { transform: translate(calc(-100% - 10px), -50%); }
 .anni-map-campus { transform: translate(clamp(9px, 2.8cqi, 14px), calc(-100% - clamp(6px, 2cqi, 10px))); transition: opacity .3s .15s, transform .45s cubic-bezier(.3, 1.5, .5, 1) .1s; }
 .anni-map-campus:not(.is-on) { opacity: 0; visibility: hidden; transform: translate(clamp(9px, 2.8cqi, 14px), -40%); }
-/* 手機下限 11／9px 太小、可點只有 18px 高（2026-10-12）：下限改 12／11px，透明 ::before 補點擊範圍。 */
+/* 手機下限 11／9px 太小、可點只有 18px 高（2026-10-12）：下限改 12／11px，透明 ::before 補點擊範圍。
+   連結本身約 18–19px 高，上下 -12px 只補到 43px（2026-10-13 改 -13px）。 */
 .anni-map-campus a { position: relative; display: inline-flex; align-items: baseline; gap: 4px; padding: 1px 6px 2px; border-radius: 4px; background: rgb(var(--on-dark) / .82); pointer-events: auto;
   font: 700 clamp(12px, 3.3cqi, 14px)/1.25 var(--font-head); color: var(--green); box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / .08); }
-.anni-map-campus a::before { content: ""; position: absolute; inset: -12px -4px; }
+.anni-map-campus a::before { content: ""; position: absolute; inset: -13px -4px; }
 .anni-map-campus a span { font: 600 11px/1 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
 .anni-map-campus a:hover { background: var(--white); color: var(--deep); }
 .anni-map-source { justify-self: end; font-size: 10px; line-height: 1.4; color: var(--muted); }

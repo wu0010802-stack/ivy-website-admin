@@ -200,6 +200,14 @@ describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/
     for (const name of registered) expect(name).toMatch(/^--renv-/)
   })
 
+  it('換校發牌途中滑過照片不重畫（會量到縮放中的尺寸）；底紙用原始種子、蠟筆底避開章節色紙（2026-10-13）', () => {
+    expect(sketch).toContain('motion?.busy?.(el)')
+    expect(motion).toContain('gsap.isTweening(scene)')
+    expect(sketch).toContain('fill: paperColor(el, base)')
+    // 01 天藍色紙上的五顆心與曬衣繩編號圓（circle、heart）
+    expect(sketch.match(/fill: paperColor\(el, seed\)/g)).toHaveLength(2)
+  })
+
   it('路線經過每一個點（Catmull-Rom 每一段的終點就是下一個點）', () => {
     const points: [number, number][] = [[0, -70], [120, 200], [40, 520], [110, 900]]
     const d = smoothPath(points)

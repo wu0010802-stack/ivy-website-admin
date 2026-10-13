@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { WEEKDAY_LABELS, monthCells, monthOf, monthTitle, shiftMonth } from '~/utils/visit-month'
-import { visitDateLabel } from '~/utils/visit-form'
+import { taipeiDate, visitDateLabel } from '~/utils/visit-form'
 
 // 預約日期月曆（2026-10-02 取代 40 多個選項的原生下拉）：只有開放場次的日子可以選，
 // 每格寫當天還有幾場。一天一個原生 radio，鍵盤方向鍵、表單驗證與讀螢幕都照原生行為；
@@ -22,6 +22,9 @@ const cells = computed(() => month.value ? monthCells(month.value) : [])
 const canPrev = computed(() => Boolean(month.value) && month.value > firstMonth.value)
 const canNext = computed(() => Boolean(month.value) && month.value < lastMonth.value)
 const dayNumber = (date: string) => Number(date.slice(8))
+// 標出今天（2026-10-13）：沒開放的日子與已經過去的日子原本長得一樣，看不出從哪天起才是「之後」。
+// 月曆只在瀏覽器讀到場次後才出現，用台北的今天。
+const today = taipeiDate()
 
 // 重新讀場次後月份超出範圍（例如原本看的那個月已經沒有場次）就回到有場次的第一個月；
 // 已選的日子在別的月份時跟著翻過去。
@@ -49,10 +52,10 @@ watch(() => props.modelValue, (date) => { if (date && monthOf(date) !== month.va
             :aria-label="`${visitDateLabel(cell)}，${counts[cell]} 場可預約`" :aria-invalid="invalid"
             @change="emit('update:modelValue', cell)"
           >
-          <span class="visit-day-number">{{ dayNumber(cell) }}</span>
+          <span class="visit-day-number" :class="{ 'is-today': cell === today }">{{ dayNumber(cell) }}</span>
           <small>{{ counts[cell] }} 場</small>
         </label>
-        <span v-else class="visit-day" aria-hidden="true"><span class="visit-day-number">{{ dayNumber(cell) }}</span></span>
+        <span v-else class="visit-day" aria-hidden="true"><span class="visit-day-number" :class="{ 'is-today': cell === today }">{{ dayNumber(cell) }}</span></span>
       </template>
     </div>
   </fieldset>
@@ -72,6 +75,9 @@ watch(() => props.modelValue, (date) => { if (date && monthOf(date) !== month.va
 .visit-weekday {padding-bottom:2px;text-align:center;font-size:var(--fs-xs);line-height:1.8;color:var(--visit-muted)}
 .visit-day {position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:54px;border-radius:12px;font-variant-numeric:tabular-nums;color:var(--visit-muted);line-height:1.3}
 .visit-day-number {font-size:var(--fs-md)}
+/* 今天：數字改深色、沒開放時下面加小圓點（圖形狀態，不用淡化表示過去：10-02「小字不疊 opacity」）。圓點相對 .visit-day 定位。 */
+.visit-day-number.is-today {color:var(--visit-ink)}
+.visit-day:not(.is-open) .is-today::after {content:'';position:absolute;bottom:7px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor}
 .visit-day.is-open {border:1px solid color-mix(in oklch,var(--visit-ink) 32%,var(--visit-surface));background:var(--visit-surface);color:var(--visit-ink);cursor:pointer;transition:background-color .2s,border-color .2s,color .2s}
 .visit-day.is-open .visit-day-number {font-weight:600}
 .visit-day.is-open small {font-size:var(--fs-xs);color:var(--visit-muted)}

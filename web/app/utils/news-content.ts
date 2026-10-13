@@ -73,11 +73,33 @@ export function indexableArticles(articles: readonly NewsArticle[], sampleNote: 
   return sortedArticles(articles).filter((item) => !isSampleNews(item, sampleNote))
 }
 
-/** 列表頁的校區篩選：全校消息（campusKeys 空）在每一校都看得到。 */
-export function articlesForCampus(articles: readonly NewsArticle[], campusKey: string | undefined): NewsArticle[] {
+/**
+ * 這一則（消息或活動）適不適用某一校。後台內容一定帶 campusKeys（空陣列＝全校，舊版手打的校區文字也是空陣列），
+ * 照舊：全校在每一校都看得到。內建示意消息沒有 campusKeys、只有顯示用的校名（「義華校」「全校」）：
+ * 原本一律當全校，/news?campus=yihua 標題寫「義華校的消息」卻列出另外四校的示意消息（2026-10-13），
+ * 沒有 campusKeys 時改比對校名——「全校」、空白或校名清單裡有這一校才算；沒給校名時照舊都算。
+ */
+export function newsInCampus(item: Pick<NewsArticle, 'campus' | 'campusKeys'>, campusKey: string, campusName?: string): boolean {
+  if (item.campusKeys) return !item.campusKeys.length || item.campusKeys.includes(campusKey)
+  const names = item.campus.split('、').map((name) => name.trim()).filter(Boolean)
+  return !campusName || !names.length || names.includes('全校') || names.includes(campusName)
+}
+
+/** 列表頁的校區篩選：全校消息（campusKeys 空）在每一校都看得到；沒有 campusKeys 的內建消息比對校名（見 newsInCampus）。 */
+export function articlesForCampus(articles: readonly NewsArticle[], campusKey: string | undefined, campusName?: string): NewsArticle[] {
   const list = sortedArticles(articles)
   if (!campusKey) return list
-  return list.filter((item) => !item.campusKeys?.length || item.campusKeys.includes(campusKey))
+  return list.filter((item) => newsInCampus(item, campusKey, campusName))
+}
+
+/**
+ * 標題依句中的「，、；！？」切成幾段（標點留在前一段尾），畫面上每段包成 inline-block：
+ * 手機寬度放得下一段時就在標點後換行，不會斷成「小小園丁，把好／奇心種進生活裡。」（2026-10-13，390／320 實測）。
+ * 一段比一行長時 inline-block 內部照常折行（沿用 h1–h3 的 balance）；沒有句中標點時回傳整句一段。
+ */
+export function titleClauses(title: string): string[] {
+  const parts = title.match(/[^，、；！？]*[，、；！？]+|[^，、；！？]+$/g)
+  return parts && parts.join('') === title ? parts : [title]
 }
 
 /** 只放行 http／https 的完整網址（後端已驗證，這裡再擋一次才綁進 href）。 */

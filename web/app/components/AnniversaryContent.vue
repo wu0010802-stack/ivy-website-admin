@@ -17,7 +17,16 @@ const rows = computed(() => ANNI_YEARS.map((year) => {
   const m = milestoneOf(year)
   return { year, milestone: m, campus: m ? campusOf(m.key) : undefined }
 }))
-const campusNames = computed(() => ANNI_MILESTONES.map((m) => campusOf(m.key)?.name.replace('校', '') ?? '').filter(Boolean).join('、'))
+const campusNames = computed(() => ANNI_MILESTONES.map((m) => campusOf(m.key)?.name.replace('校', '') ?? '').filter(Boolean))
+// 專有名詞與「2027 年」不拆行（2026-10-13）：中文字之間都能換行，窄欄會拆成「常春／藤」「高／雄」「義／華路」「2027／年」。
+// 只處理程式裡寫好的字（首屏導言；校名另外各包一段），字不變，只是包進不換行的 span。
+const NOBR = /(常春藤|高雄|三民區|義華路|\d+ 年)/
+const nobr = (text: string) => text.split(NOBR).filter(Boolean).map((t) => ({ t, keep: NOBR.test(t) }))
+// 沿革每句都很短（逗號前後各不到 10 字）：整句不換行，窄欄只在逗號後換行，不會拆成「義／華路」「有／了」
+const clauses = (text: string) => text.split(/(?<=，)/)
+const HERO_LEAD = nobr('1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。現在高雄有五所常春藤：')
+// 門牌和「號」不拆開（2026-10-13；原本斷成「明華一路176／號」）。地址是後台內容，只把最後一段「數字＋號」包成不換行，字不變。
+const addressParts = (a: string): [string, string] => { const m = /^(.*?)(\d+(?:[-之]\d+)?號.*)$/.exec(a); return m ? [m[1]!, m[2]!] : [a, ''] }
 const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`
 const photoOf = (c: Campus | undefined) => (c ? responsiveImage(c.image, '(max-width: 760px) 92vw, 520px') : undefined)
 const artThumbs = ANNI_ARTWORKS.map((a) => ({ ...a, img: responsiveImage(a.image, '(max-width: 760px) 22vw, 120px') }))
@@ -38,6 +47,7 @@ const lightbox = ref<HTMLDialogElement | null>(null)
 const lightboxIndex = ref(0)
 // 點背景關閉（2026-10-12，比照首頁活動對話框）：對話框沒有內距，點到 dialog 本身就是點到背景。
 const closeLightboxOnBackdrop = (e: MouseEvent) => { if (e.target === lightbox.value) lightbox.value?.close() }
+const lightboxRatio = computed(() => { const r = responsiveImage(artThumbs[lightboxIndex.value]!.image); return r.width && r.height ? r.width / r.height : 1 })
 const openArt = (i: number) => {
   lightboxIndex.value = i
   lightbox.value?.showModal()
@@ -157,7 +167,9 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
         <div class="anni-hero-copy">
           <h1 id="anni-title" ref="heroTitle" tabindex="-1">常春藤 30 週年</h1>
           <p class="anni-hero-years"><span>1997</span><span class="anni-hero-dash" aria-hidden="true" /><span>2027</span></p>
-          <p class="anni-hero-lead">1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。現在高雄有五所常春藤：{{ campusNames }}。</p>
+          <p class="anni-hero-lead">
+            <template v-for="(part, i) in HERO_LEAD" :key="i"><span v-if="part.keep" class="anni-nobr">{{ part.t }}</span><template v-else>{{ part.t }}</template></template><template v-for="(n, i) in campusNames" :key="n">{{ i ? '、' : '' }}<span class="anni-nobr">{{ n }}</span></template>。
+          </p>
           <div class="anni-hero-actions">
             <button type="button" class="button primary" @click="replayIntro">重看開場影片</button>
             <NuxtLink class="button outline" to="/visit">預約參觀</NuxtLink>
@@ -237,12 +249,13 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
                 <div class="anni-campus-text">
                   <p class="anni-campus-year">{{ row.year }}<span>民國 {{ row.milestone.roc }} 年</span></p>
                   <h3>{{ row.campus.name }}</h3>
-                  <p class="anni-campus-history">{{ row.milestone.history }}</p>
+                  <p class="anni-campus-history">
+                    <span v-for="(c, i) in clauses(row.milestone.history)" :key="i" class="anni-nobr">{{ c }}</span>
+                  </p>
                   <dl class="anni-campus-info">
                     <dt>地址</dt>
                     <dd>
-                      {{ row.campus.address }}
-                      <a class="anni-maplink" :href="campusMapUrl(row.campus)" target="_blank" rel="noopener noreferrer">地圖 ↗<span class="sr-only">（{{ row.campus.name }}，另開新視窗）</span></a>
+                      {{ addressParts(row.campus.address)[0] }}<span class="anni-nobr">{{ addressParts(row.campus.address)[1] }}</span> <a class="anni-maplink" :href="campusMapUrl(row.campus)" target="_blank" rel="noopener noreferrer">地圖 ↗<span class="sr-only">（{{ row.campus.name }}，另開新視窗）</span></a>
                     </dd>
                     <dt>電話</dt><dd><a :href="telHref(row.campus.phone)">{{ row.campus.phone }}</a></dd>
                   </dl>
@@ -268,7 +281,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
               <canvas class="anni-crest-canvas" aria-hidden="true" />
             </div>
             <canvas class="anni-finale-kids" aria-hidden="true" />
-            <p class="anni-crest-caption"><b>2027 年，滿 30 年。</b>從義華的第一間，到現在高雄的五所校園。</p>
+            <p class="anni-crest-caption"><b>2027 年，滿 30 年。</b><span><span class="anni-nobr">從義華的第一間，</span><span class="anni-nobr">到現在高雄的五所校園。</span></span></p>
           </div>
         </div>
       </div>
@@ -310,6 +323,9 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
             :src="responsiveImage(artThumbs[lightboxIndex]!.image).src"
             :srcset="responsiveImage(artThumbs[lightboxIndex]!.image).srcset"
             sizes="(max-width: 760px) 92vw, 70vh"
+            :width="responsiveImage(artThumbs[lightboxIndex]!.image).width"
+            :height="responsiveImage(artThumbs[lightboxIndex]!.image).height"
+            :style="{ '--anni-ar': lightboxRatio }"
             :alt="artThumbs[lightboxIndex]!.alt"
           >
           <p><b>{{ artThumbs[lightboxIndex]!.label }}</b>{{ artThumbs[lightboxIndex]!.alt }}</p>
@@ -369,7 +385,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
     <section class="anni-visit" aria-labelledby="anni-visit-title">
       <div class="container anni-visit-inner">
         <h2 id="anni-visit-title">帶孩子來學校看看</h2>
-        <p>想看看孩子每天在哪裡上學，可以預約到校參觀。</p>
+        <p><span class="anni-nobr">想看看孩子每天在哪裡上學，</span><span class="anni-nobr">可以預約到校參觀。</span></p>
         <NuxtLink class="button yellow" to="/visit">預約參觀</NuxtLink>
       </div>
     </section>
