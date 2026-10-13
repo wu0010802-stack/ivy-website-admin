@@ -121,14 +121,15 @@
 .ap-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 32px; align-content: start; }
 .ap-field label, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
 .ap-field input { width: 100%; min-height: 54px; padding: 8px 16px; border: 1.5px solid var(--green); border-radius: 6px; background: var(--white); color: var(--text); font: inherit; font-size: var(--fs-lg); }
-.ap-field input:focus-visible { outline: 3px solid var(--ap-red); outline-offset: 3px; }
+/* 焦點框用全站的葉綠（2026-10-13）：紅框像是填錯了。 */
+.ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
 .ap-field-static strong { display: block; font: 700 var(--fs-2xl)/1.3 var(--font-head); color: var(--deep); }
 .ap-field-static small { font-size: var(--fs-xs); color: var(--muted); }
 .ap-answer { grid-column: 1 / -1; min-height: 5.5em; padding-top: 16px; border-top: 1px dashed var(--ap-rule); }
 .ap-answer-lead { font: 700 var(--fs-3xl)/1.45 var(--font-head); color: var(--deep); }
 .ap-answer-lead em { font-style: normal; color: var(--ap-red); }
 .ap-answer.empty .ap-answer-lead { font: 400 var(--fs-md)/1.8 var(--font); color: var(--muted); }
-.ap-answer-next { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
+.ap .ap-answer-next { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
 .ap-answer-next li { display: flex; align-items: center; gap: 8px; }
 .ap-answer-next li::before { content: ''; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
 .ap-stampzone { grid-area: stamp; display: grid; place-items: center; min-height: 260px; }
@@ -138,7 +139,8 @@
 .ap-result { grid-area: 1 / 1; z-index: 1; width: 230px; height: 230px; }
 .ap-result .ap-stamp { position: absolute; inset: 0; }
 /* 五格學年度欄位＝成長軌道 */
-.ap-slots { grid-area: slots; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 28px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 8px; background: var(--ap-page-alt); }
+/* 選擇器帶 .ap（2026-10-13）：`.ap ol { margin: 0 }` 權重較高，原本的 28px（手機 16px）從來沒生效，班別條緊貼上面的字。 */
+.ap .ap-slots { grid-area: slots; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 28px; overflow: hidden; border: 1.5px solid var(--ap-rule); border-radius: 8px; background: var(--ap-page-alt); }
 .ap-slot + .ap-slot { border-left: 1.5px solid var(--ap-rule); }
 .ap-slot button { position: relative; display: grid; justify-items: start; gap: 2px; width: 100%; height: 100%; min-height: 138px; padding: 14px 16px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color .2s var(--ap-ease); }
 .ap-slot button[aria-pressed='true'] { background: color-mix(in oklch, var(--ap-page-alt) 80%, var(--mint)); box-shadow: inset 0 -3px 0 var(--green); }
@@ -155,6 +157,10 @@
 .ap-slot-mark .ap-stamp { position: absolute; inset: 0; }
 @media (hover: hover) {
   .ap-slot button:hover { background: color-mix(in oklch, var(--ap-page-alt) 88%, var(--mint)); }
+  /* 其他可點的地方也給滑鼠回饋（2026-10-13）：完整對照表的鈕、退費條文、必備品勾選列原本滑過去沒有變化。 */
+  .ap-table summary:hover .ap-pill { border-color: var(--green); }
+  .ap-refunds summary:hover .ap-clause-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+  .ap-bring label:hover input:not(:checked) + .ap-box { background: color-mix(in oklch, var(--white) 55%, var(--mint)); }
 }
 .ap-detail { grid-area: detail; margin-top: 28px; }
 .ap-detail-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
@@ -166,6 +172,9 @@
 .ap-range strong { display: block; margin-top: 4px; font: 400 1.75rem/1.2 var(--font-date); font-variant-numeric: tabular-nums; color: var(--text); }
 .ap-range small { display: block; font: 400 var(--fs-sm) var(--font-date); color: var(--muted); }
 .ap-range-mark { position: absolute; right: 12px; top: 10px; }
+/* 卡片不到約 440px（761–1024 兩欄時 305–424px）右上角的橢圓章會壓到日期，改成接在日期下面（同手機）（2026-10-13）。 */
+.ap-range { container-type: inline-size; }
+@container (width < 440px) { .ap-range-mark { position: static; display: block; margin-top: 8px; } }
 .ap-detail-note { margin-top: 14px; font-size: var(--fs-sm); color: var(--muted); }
 .ap-table { margin-top: 28px; }
 .ap-table summary { display: flex; justify-content: center; list-style: none; cursor: pointer; }
@@ -181,6 +190,8 @@
 .ap-table-wrap th, .ap-table-wrap td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .ap-table-wrap tbody tr:last-child > * { border-bottom: 0; }
 .ap-table-wrap thead th { font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
+/* 學年度欄頭對齊下面格子裡的字（td 6px＋.ap-cell 10px），不再往左凸 4px（2026-10-13）。 */
+.ap-table-wrap thead th + th { padding-left: 16px; }
 .ap-table-wrap th small { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--muted); }
 .ap-table-wrap tbody th { white-space: nowrap; color: var(--deep); }
 .ap-table-wrap td { padding: 6px; font: 400 var(--fs-md) var(--font-date); font-variant-numeric: tabular-nums; }
@@ -215,7 +226,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-done { width: 52px; height: 46px; }
 .ap-done .ap-stamp { position: absolute; left: 3px; top: 0; }
 .ap-phase h4 { margin-top: 26px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
-.ap-tips { margin-top: 8px; }
+.ap .ap-tips { margin-top: 8px; }
 .ap-tips li { position: relative; padding: 10px 0 10px 34px; font-size: var(--fs-sm); line-height: 1.85; }
 .ap-tips li + li { border-top: 1px solid color-mix(in oklch, var(--ap-page-alt) 70%, var(--ap-rule)); }
 .ap-tip-no { position: absolute; left: 0; top: 11px; display: grid; place-items: center; width: 22px; height: 22px; border: 1.5px solid var(--ap-red); border-radius: 50%; font: 600 var(--fs-xs)/1 var(--font-date); color: var(--ap-red); }
@@ -243,13 +254,20 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-coupon-main > :not(.ap-rosette-host) { position: relative; }
 .ap-coupon-rosette { position: absolute; right: -60px; bottom: -70px; width: 200px; pointer-events: none; }
 .ap-coupon-by { font-size: var(--fs-xs); color: var(--muted); }
-.ap-coupon-amt { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
+.ap-coupon-amt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 10px; }
 .ap-coupon-amt b { font: 700 var(--fs-5xl)/1 var(--font-head); font-variant-numeric: tabular-nums; color: var(--deep); }
-.ap-coupon-amt span { font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
+.ap-coupon-amt span { font-size: var(--fs-sm); font-weight: 600; color: var(--green); white-space: nowrap; }
+/* 金額跟著券面寬度收（2026-10-13）：1101–1180 三欄時券面只剩約 184px，「15,000」加單位放不下，單位被拆成「元／／學期」。
+   數字約 3.7em 寬、單位約 64px，字級＝(券面寬 − 64px) ÷ 3.7，介於 32–40px；還是放不下時單位整段換到下一行。 */
+.ap-coupon-main { container-type: inline-size; }
+@supports (width: 1cqi) { .ap-coupon-amt b { font-size: clamp(var(--fs-4xl), (100cqi - 64px) / 3.7, var(--fs-5xl)); } }
 .ap-coupon-who { margin-top: auto; padding-top: 14px; font-size: var(--fs-md); font-weight: 700; }
 .ap-coupon-stub { display: grid; place-content: center; justify-items: center; gap: 6px; border-left: 2px dashed var(--ap-rule); background: color-mix(in oklch, var(--white) 70%, var(--ap-page)); }
-.ap-coupon-stub span { writing-mode: vertical-rl; font: 900 var(--fs-lg)/1 var(--ap-serif); letter-spacing: .3em; color: var(--ap-red); }
-.ap-coupon-stub small { writing-mode: vertical-rl; font-size: var(--fs-xs); letter-spacing: .1em; color: var(--muted); }
+.ap-coupon-stub > span { writing-mode: vertical-rl; font: 900 var(--fs-lg)/1 var(--ap-serif); letter-spacing: .3em; color: var(--ap-red); }
+.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--ap-serif); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--muted); }
+/* 直排裡的「01」縱中橫：兩位數字直立占一格，不再橫躺壓到「第」（2026-10-13）。字型跟「補助券」一樣用護照明體：
+   內文的黑體備用字型沒有直排字距資料時，縱中橫的數字會疊在「第」上。 */
+.ap-tcy { text-combine-upright: all; letter-spacing: 0; }
 .ap-fees-grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 56px; }
 .ap-fees-grid.no-allowance { grid-template-columns: 1fr; }
 .ap-rate { width: 100%; border-collapse: collapse; border: 1.5px solid var(--ap-rule); background: var(--white); }
@@ -260,6 +278,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-rate thead th { border-bottom: 1.5px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
 .ap-rate tbody th { font-weight: 600; }
 .ap-rate td { text-align: right; font-size: var(--fs-sm); color: var(--muted); }
+.ap-rate thead th:last-child { text-align: right; }
 .ap-rate td b { font: 700 var(--fs-2xl) var(--font-head); font-variant-numeric: tabular-nums; color: var(--deep); }
 .ap-refunds h3 { font-size: var(--fs-xl); color: var(--deep); }
 .ap-refunds > p { margin-top: 4px; font-size: var(--fs-sm); color: var(--muted); }
@@ -271,7 +290,10 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-clause-title { font-weight: 700; }
 .ap-refunds summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
 .ap-refunds details[open] summary .icon { transform: rotate(45deg); }
-.ap-clause-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 28px; padding: 4px 0 22px 76px; font-size: var(--fs-sm); line-height: 1.85; }
+.ap-clause-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 4px 0 22px 76px; font-size: var(--fs-sm); line-height: 1.85; }
+/* 退費條文一組一列、類別在左（2026-10-13）：原本三組並排各約 290px，條文斷成「1/3 入／園」「收／取 2/3」。 */
+.ap-clause-body > div { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 2px 16px; }
+.ap-clause-body > div > h4 { line-height: 2.16; }
 /* 退費小項是後台文字：內文字型粗體 */
 .ap-clause-body h4 { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; color: var(--green); }
 .ap-clause-body ul li { position: relative; padding-left: 14px; }
@@ -288,7 +310,9 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
   .ap-answer { order: 1; }
   .ap-field-static { order: 2; }
-  .ap-coupons { grid-template-columns: 1fr; max-width: 560px; }
+  /* 單欄時券面跟下面的津貼表同寬，不再縮在左邊 560px、右邊空一大塊（2026-10-13）。 */
+  .ap-coupons { grid-template-columns: 1fr; }
+  .ap-coupon { min-height: 150px; }
   .ap-fees-grid { grid-template-columns: 1fr; }
   .ap-week { grid-template-columns: 1fr; }
 }
@@ -325,7 +349,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-stampzone::before { width: 176px; height: 176px; }
   .ap-result { width: 172px; height: 172px; }
   .ap-result .ap-stamp svg { width: 172px; height: 172px; }
-  .ap-slots { margin-top: 16px; }
+  .ap .ap-slots { margin-top: 16px; }
   .ap-slot button { min-height: 118px; padding: 10px 4px 12px 8px; }
   .ap-slot-class { font-size: var(--fs-sm); }
   .ap-slot-year { flex-direction: column; gap: 0; }
@@ -356,8 +380,18 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-fees-grid { gap: 36px; margin-top: 40px; }
   .ap-refunds summary { grid-template-columns: 52px minmax(0, 1fr) 24px; }
   .ap-clause-body { padding-left: 0; }
+  .ap-clause-body > div { grid-template-columns: minmax(0, 1fr); }
 }
 /* 320 寬一欄只有 56px，62px 的印章左右壓進鄰欄、最後一枚超出內容區（2026-10-02 手機審查）：360 以下印章最寬等於欄寬。 */
+/* 320 寬簽證欄的印章欄 88px 把內文擠到一行約 8 字，「5,000／元」「代辦／品」被拆開（2026-10-13）：
+   360 以下印章縮到 64px 放在標題右邊，內文跨兩欄。 */
+@media (max-width: 360px) {
+  .ap-visa { grid-template-columns: minmax(0, 1fr) 64px; }
+  .ap-visa h3 { align-self: center; }
+  .ap-visa p { grid-column: 1 / -1; }
+  .ap-visa-stamp { grid-row: 2; min-height: 64px; }
+  .ap-visa-stamp .ap-stamp svg { width: 62px; height: 62px; }
+}
 @media (max-width: 360px) {
   .ap-wear { display: block; width: 100%; }
   .ap-wear .ap-stamp svg { width: min(62px, 100%); height: auto; margin-inline: auto; }

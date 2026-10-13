@@ -56,3 +56,44 @@ describe('全站選取與原生控制用品牌色', () => {
     expect(read('app/assets/css/styles.css')).toContain('::selection{background:var(--yellow);color:var(--deep)}:root{accent-color:var(--green)}')
   })
 })
+
+describe('入學頁第二批（2026-10-13 逐頁檢查）', () => {
+  const css = read('app/assets/css/admission-passport.css')
+  it('壓章落定後 SVG 字重排，不留第一格的縮小字', () => {
+    const motion = read('app/utils/admission-motion.ts')
+    expect(motion).toContain("clearProps: 'opacity,transform', onComplete: () => relayoutSvgText(stamp) }")
+    expect(motion).toMatch(/svg\.style\.display = 'none'\n {2}void svg\.getBoundingClientRect\(\)\n {2}svg\.style\.display = ''/)
+  })
+  it('補助券存根的編號縱中橫、跟「補助券」同字型', () => {
+    expect(read('app/components/AdmissionContent.vue')).toContain('<small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small>')
+    expect(css).toContain('.ap-tcy { text-combine-upright: all; letter-spacing: 0; }')
+    expect(css).toContain('.ap-coupon-stub > span { writing-mode')
+    expect(css).toContain('.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--ap-serif);')
+  })
+  it('`.ap ol { margin: 0 }` 權重較高：班別條、答案下一行、叮嚀清單的間距選擇器帶 .ap', () => {
+    expect(css).toContain('.ap ol, .ap ul { margin: 0; padding: 0; list-style: none; }')
+    expect(css).toMatch(/^\.ap \.ap-slots \{ grid-area: slots;.*margin-top: 28px;/m)
+    expect(css).toContain('  .ap .ap-slots { margin-top: 16px; }')
+    expect(css).toMatch(/^\.ap \.ap-answer-next \{/m)
+    expect(css).toContain('.ap .ap-tips { margin-top: 8px; }')
+  })
+  it('窄卡片的橢圓章接在日期下面、補助券金額跟著券面寬收', () => {
+    expect(css).toContain('@container (width < 440px) { .ap-range-mark { position: static; display: block; margin-top: 8px; } }')
+    expect(css).toContain('font-size: clamp(var(--fs-4xl), (100cqi - 64px) / 3.7, var(--fs-5xl))')
+    expect(css).not.toContain('.ap-coupons { grid-template-columns: 1fr; max-width: 560px; }')
+  })
+  it('退費條文一組一列、焦點框用葉綠', () => {
+    expect(css).toContain('.ap-clause-body > div { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 2px 16px; }')
+    expect(css).toContain('.ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }')
+  })
+})
+
+describe('特色教學水彩：顏料色不被 8 位元 canvas 的四捨五入帶偏', () => {
+  const wc = read('app/composables/useWatercolor.ts')
+  it('逐層只疊濃度（黑色），每幀用 source-in 一次上滿顏料色', () => {
+    expect(wc).toContain('target.fillStyle = `rgb(0 0 0 / ${job.alpha})`')
+    expect(wc).toContain("tint.globalCompositeOperation = 'source-in'")
+    expect(wc).toContain('tint.fillStyle = `rgb(${job.rgb})`')
+    expect(wc).not.toContain('job.ctx.fillStyle = `rgb(${job.rgb} / ${job.alpha})`')
+  })
+})

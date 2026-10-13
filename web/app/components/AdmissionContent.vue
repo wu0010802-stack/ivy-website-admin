@@ -293,7 +293,7 @@ onBeforeUnmount(() => {
             <div class="ap-answer" :class="{ empty: !plan }" aria-live="polite">
               <template v-if="plan">
                 <p class="ap-answer-lead">
-                  <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</template>
+                  <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，<span class="ap-nowrap">寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</span></template>
                   <template v-else-if="plan.status === 'young'">寶貝 <em>{{ plan.cohort + 3 }} 學年度</em><span class="ap-nowrap">可以開始讀幼幼班。</span></template>
                   <template v-else>寶貝已到國小年齡囉。</template>
                 </p>
@@ -467,7 +467,7 @@ onBeforeUnmount(() => {
                 <p class="ap-coupon-amt"><b>{{ subsidy.amount }}</b><span>{{ subsidy.unit }}</span></p>
                 <p class="ap-coupon-who">{{ subsidy.who }}</p>
               </div>
-              <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第 {{ pad2(i + 1) }} 張</small></div>
+              <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small></div>
             </li>
           </ul>
         </template>

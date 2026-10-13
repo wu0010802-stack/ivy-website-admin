@@ -21,7 +21,7 @@ export function createAdmissionMotion(gsap: typeof Gsap): AdmissionMotion {
       const rot = parseFloat(stamp.style.getPropertyValue('--rot')) || 0
       const bleed = stamp.querySelector('.bleed')
       const timeline = gsap.timeline({ delay, onComplete: () => { running.delete(timeline); done() } })
-      timeline.fromTo(stamp, { opacity: 0, scale: 1.32, rotation: rot - 9, y: -10 }, { opacity: 1, scale: 1, rotation: rot, y: 0, duration: 0.24, ease: 'power3.in', clearProps: 'opacity,transform' })
+      timeline.fromTo(stamp, { opacity: 0, scale: 1.32, rotation: rot - 9, y: -10 }, { opacity: 1, scale: 1, rotation: rot, y: 0, duration: 0.24, ease: 'power3.in', clearProps: 'opacity,transform', onComplete: () => relayoutSvgText(stamp) })
       if (bleed) timeline.fromTo(bleed, { opacity: 0 }, { opacity: 0.14, duration: 0.6, ease: 'expo.out' }, '>-0.02')
       running.add(timeline)
     },
@@ -34,6 +34,20 @@ export function createAdmissionMotion(gsap: typeof Gsap): AdmissionMotion {
       running.clear()
     }
   }
+}
+
+/**
+ * 壓章落定後讓章裡的 SVG 字重新排一次（2026-10-13）。Chromium 的 SVG 字依當下整體縮放挑字級，祖先 span
+ * 的 transform 在補間裡變、版面卻沒重排時，會留著第一格（scale 1.32）的字級：邊框正常，字縮成約 0.76 倍
+ * 擠在左上，圓章的環狀字缺一截。蓋章途中捲動頁面就會遇到（headless Chromium 實測約一半機率）。
+ * 同步切 display 再量一次，中間不會畫出來，不會閃。
+ */
+function relayoutSvgText(stamp: HTMLElement) {
+  const svg = stamp.querySelector('svg')
+  if (!svg) return
+  svg.style.display = 'none'
+  void svg.getBoundingClientRect()
+  svg.style.display = ''
 }
 
 /**

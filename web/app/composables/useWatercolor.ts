@@ -24,8 +24,12 @@ export function useWatercolor(root: Ref<HTMLElement | null>) {
   onBeforeUnmount(() => stop?.())
 }
 
-interface Job { ctx: CanvasRenderingContext2D, make: () => Point[][], polys?: Point[][], rgb: string, alpha: number, i: number, per: number }
-interface Painted { width: number, height: number, mobile: boolean, ctx: CanvasRenderingContext2D }
+interface Job { layer: WashLayer, make: () => Point[][], polys?: Point[][], rgb: string, alpha: number, i: number, per: number, mask?: WashMask }
+/** 一團顏料自己的濃度（只有 alpha）與上色後的樣子，範圍只到這團的外框。 */
+interface WashMask { x: number, y: number, mask: CanvasRenderingContext2D, tint: CanvasRenderingContext2D }
+/** 段落的顏料層：畫面上的 canvas、畫完的顏料累積在 done，還在暈開的在 active，每幀重疊一次。 */
+interface WashLayer { ctx: CanvasRenderingContext2D, done: CanvasRenderingContext2D, active: Job[], dirty: boolean }
+interface Painted { width: number, height: number, mobile: boolean, layer: WashLayer }
 type IdleHandle = number | ReturnType<typeof setTimeout>
 
 const TASK_BUDGET = 8
@@ -150,31 +154,96 @@ function start(main: HTMLElement) {
   cleanups.push(() => revealObserver.disconnect())
 
   // ---------- 段落顏料：逐層畫，一幀最多 7ms；多邊形在要畫的那一幀才算 ----------
+  // 2026-10-13：每層透明度只有 0.01–0.02，直接用顏料色疊在 8 位元 canvas 上，RGB 三個通道各自四捨五入，
+  // 疊幾十層後色相跑掉：薄荷與天藍都變青綠、暖黃變杏、理念段的天藍變紫、薄荷變灰（DESIGN.md「Android 偏灰」其實每個平台都會）。
+  // 一團顏料只有一個顏色，所以改成先在這團自己的小 canvas 只疊濃度（黑色、同樣的透明度與層數，alpha 的累積和原本一樣），
+  // 每幀再用 source-in 一次上滿顏料色、疊回段落 canvas：形狀與濃淡不變，顏色回到 tokens 的顏料色。
   const jobs: Job[] = []
   let pumpFrame = 0
+  const maskOf = (polys: Point[][]) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+    for (const poly of polys) for (const [x, y] of poly) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+    // 外框以 canvas 像素對齊，疊回段落時不會差半格
+    const x = Math.floor((x0 - 2) * washScale), y = Math.floor((y0 - 2) * washScale)
+    const make = () => {
+      const el = document.createElement('canvas')
+      el.width = Math.max(1, Math.ceil((x1 + 2) * washScale) - x)
+      el.height = Math.max(1, Math.ceil((y1 + 2) * washScale) - y)
+      return el.getContext('2d')!
+    }
+    const mask = make(), tint = make()
+    mask.setTransform(washScale, 0, 0, washScale, -x, -y)
+    return { x, y, mask, tint }
+  }
+  const tintMask = (job: Job) => {
+    const { mask, tint } = job.mask!
+    tint.globalCompositeOperation = 'copy'
+    tint.drawImage(mask.canvas, 0, 0)
+    tint.globalCompositeOperation = 'source-in'
+    tint.fillStyle = `rgb(${job.rgb})`
+    tint.fillRect(0, 0, tint.canvas.width, tint.canvas.height)
+  }
+  const composite = (layer: WashLayer) => {
+    const { ctx, done } = layer
+    ctx.save()
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.globalCompositeOperation = 'copy'
+    ctx.drawImage(done.canvas, 0, 0)
+    ctx.globalCompositeOperation = 'source-over'
+    for (const job of layer.active) if (job.mask) ctx.drawImage(job.mask.tint.canvas, job.mask.x, job.mask.y)
+    ctx.restore()
+    layer.dirty = false
+    // 都畫完了：畫面上的就是最終結果，done 先放掉；之後首屏滴顏料再從畫面複製回來
+    if (!layer.active.length) layer.done.canvas.width = layer.done.canvas.height = 0
+  }
+  const settle = (job: Job) => {
+    const { layer } = job
+    layer.active.splice(layer.active.indexOf(job), 1)
+    layer.done.save()
+    layer.done.setTransform(1, 0, 0, 1, 0, 0)
+    layer.done.drawImage(job.mask!.tint.canvas, job.mask!.x, job.mask!.y)
+    layer.done.restore()
+    job.mask!.mask.canvas.width = job.mask!.tint.canvas.width = 0
+    layer.dirty = true
+  }
   const pump = () => {
     pumpFrame = 0
     const t0 = performance.now()
     let n = 0
+    const touched = new Set<WashLayer>()
     while (jobs.length && performance.now() - t0 < 7) {
       const job = jobs[n % jobs.length]!
       const polys = (job.polys ??= job.make())
+      const target = (job.mask ??= maskOf(polys)).mask
       const end = Math.min(polys.length, job.i + (reduce ? Infinity : job.per))
-      job.ctx.fillStyle = `rgb(${job.rgb} / ${job.alpha})`
-      job.ctx.strokeStyle = `rgb(${job.rgb} / ${Math.min(0.06, job.alpha * 1.6)})`
-      job.ctx.lineWidth = 1
+      target.fillStyle = `rgb(0 0 0 / ${job.alpha})`
+      target.strokeStyle = `rgb(0 0 0 / ${Math.min(0.06, job.alpha * 1.6)})`
+      target.lineWidth = 1
       for (; job.i < end; job.i++) {
-        tracePolygon(job.ctx, polys[job.i]!)
-        job.ctx.fill()
-        if (job.i % 4 === 0) job.ctx.stroke()
+        tracePolygon(target, polys[job.i]!)
+        target.fill()
+        if (job.i % 4 === 0) target.stroke()
       }
-      if (job.i >= polys.length) jobs.splice(jobs.indexOf(job), 1)
+      tintMask(job)
+      touched.add(job.layer)
+      if (job.i >= polys.length) { jobs.splice(jobs.indexOf(job), 1); settle(job) }
       n++
       if (!reduce && n >= jobs.length + 1) break
     }
+    for (const layer of touched) if (layer.dirty || layer.active.length) composite(layer)
     if (jobs.length && !stopped) pumpFrame = requestAnimationFrame(pump)
   }
-  const queue = (job: Job) => { jobs.push(job); if (!pumpFrame) pumpFrame = requestAnimationFrame(pump) }
+  const queue = (job: Job) => {
+    const { layer } = job
+    if (!layer.done.canvas.width) {
+      layer.done.canvas.width = layer.ctx.canvas.width
+      layer.done.canvas.height = layer.ctx.canvas.height
+      layer.done.drawImage(layer.ctx.canvas, 0, 0)
+    }
+    jobs.push(job)
+    layer.active.push(job)
+    if (!pumpFrame) pumpFrame = requestAnimationFrame(pump)
+  }
   cleanups.push(() => { cancelAnimationFrame(pumpFrame); jobs.length = 0 })
 
   const sections = [...main.querySelectorAll<HTMLElement>('.cur-hero, .cur-sec')]
@@ -200,8 +269,12 @@ function start(main: HTMLElement) {
     canvas.width = Math.max(1, Math.round(width * washScale))
     canvas.height = Math.max(1, Math.round(height * washScale))
     const ctx = canvas.getContext('2d')!
-    ctx.setTransform(washScale, 0, 0, washScale, 0, 0)
-    for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i]!.ctx === ctx) jobs.splice(i, 1)
+    const doneCanvas = document.createElement('canvas')
+    doneCanvas.width = canvas.width
+    doneCanvas.height = canvas.height
+    const layer: WashLayer = { ctx, done: doneCanvas.getContext('2d')!, active: [], dirty: false }
+    const previous = painted.get(section)?.layer
+    for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i]!.layer === previous) jobs.splice(i, 1)
     const mobile = mobileQuery.matches
     const random = seededRandom((section.id || 'hero').length * 131)
     section.querySelectorAll<HTMLElement>('[data-wash],[data-wash-mobile]').forEach((el) => {
@@ -212,10 +285,10 @@ function start(main: HTMLElement) {
         const color = rgb[spec.pigment]
         if (!color) continue
         const { cx, cy, rx, ry } = washEllipse(spec, box, height)
-        queue({ ctx, make: () => washPolygons(random, cx, cy, rx, ry, Math.round(spec.layers * 1.3)), rgb: color, alpha: spec.alpha * 0.55, i: 0, per: animate ? 3 : Infinity })
+        queue({ layer, make: () => washPolygons(random, cx, cy, rx, ry, Math.round(spec.layers * 1.3)), rgb: color, alpha: spec.alpha * 0.55, i: 0, per: animate ? 3 : Infinity })
       }
     })
-    painted.set(section, { width, height, mobile, ctx })
+    painted.set(section, { width, height, mobile, layer })
   }
   const nearObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
     const section = entry.target as HTMLElement
@@ -238,7 +311,7 @@ function start(main: HTMLElement) {
       travel = 0
       const r = hero.getBoundingClientRect(), random = seededRandom(900 + drops), size = 16 + random() * 26
       const x = event.clientX - r.left, y = event.clientY - r.top
-      queue({ ctx: state.ctx, make: () => washPolygons(random, x, y, size, size * 0.85, 14), rgb: rgb[order[drops % 4]!], alpha: 0.04, i: 0, per: 1 })
+      queue({ layer: state.layer, make: () => washPolygons(random, x, y, size, size * 0.85, 14), rgb: rgb[order[drops % 4]!], alpha: 0.04, i: 0, per: 1 })
       drops++
     }
     hero.addEventListener('pointermove', onMove, { passive: true })
