@@ -816,6 +816,9 @@ class AdminDetailsUpdateOut(VisitRequestFullOut):
     admissions_skipped_fields: list[str]
     # Email 改成新值，變更通知已排給新信箱。
     email_notified: bool
+    # 原本的 Email 被改掉，舊的家長修改連結已失效（email_notified 時新連結隨信寄到新信箱，
+    # 否則要給家長連結得「重新產生」）。
+    access_link_reset: bool
 
 
 class VisitContactNoteCreateRequest(BaseModel):

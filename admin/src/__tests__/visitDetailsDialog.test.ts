@@ -30,7 +30,7 @@ const saveButton = () => body().findAll('button').find((b) => b.text() === '儲�
 function result(extra: Record<string, unknown> = {}) {
   return {
     ...visitCase({ details_version: 4 }),
-    changed_fields: ['email'], admissions_synced_fields: [], admissions_skipped_fields: [], email_notified: false,
+    changed_fields: ['email'], admissions_synced_fields: [], admissions_skipped_fields: [], email_notified: false, access_link_reset: false,
     ...extra,
   }
 }
@@ -95,6 +95,16 @@ describe('VisitDetailsDialog', () => {
     const patch = mockPatch({ [PATH]: result({ changed_fields: ['phone'] }) })
     await openDialog()
     await input('手機').setValue('0933-444 555')
+    await flushPromises()
+    expect(field('手機').text()).not.toContain('09 開頭')
+    await save()
+    expect(patch).toHaveBeenCalledWith(PATH, { expected_version: 3, phone: '0933444555' })
+  })
+
+  it('從別處貼來的 en dash、減號、全形空白（後端也會去掉）：一樣能存（2026-10-13）', async () => {
+    const patch = mockPatch({ [PATH]: result({ changed_fields: ['phone'] }) })
+    await openDialog()
+    await input('手機').setValue('0933\u2013444\u2212555\u3000')
     await flushPromises()
     expect(field('手機').text()).not.toContain('09 開頭')
     await save()
@@ -201,6 +211,26 @@ describe('VisitDetailsDialog', () => {
     await save()
     expect(successTexts(success).join('|')).not.toContain('已寄變更通知')
     expect(successTexts(warning).join('|')).toContain('尚未設定寄信')
+  })
+
+  it('改掉原本的 Email、舊連結作廢（2026-10-13）：有寄變更信說新連結在信裡；沒寄就提醒要重新產生', async () => {
+    const success = vi.spyOn(ElMessage, 'success').mockReturnValue(undefined as never)
+    const warning = vi.spyOn(ElMessage, 'warning').mockReturnValue(undefined as never)
+    mockPatch({ [PATH]: result({ email_notified: true, access_link_reset: true }) })
+    await openDialog()
+    await input('Email').setValue('new@example.com')
+    await save()
+    expect(successTexts(success).join('|')).toContain('原本寄出的家長管理連結已失效，新連結在變更通知裡')
+    expect(successTexts(warning)).toEqual([])
+
+    success.mockClear()
+    document.body.innerHTML = ''
+    mockPatch({ [PATH]: result({ email_notified: false, access_link_reset: true }) })
+    await openDialog()
+    await input('Email').setValue('other@example.com')
+    await save()
+    expect(successTexts(success).join('|')).not.toContain('已失效')
+    expect(successTexts(warning)).toEqual(['原本寄出的家長管理連結已失效；家長需要連結時，請在「家長管理連結」重新產生'])
   })
 
   it('版本衝突 409：提示「家長或同事剛改過資料，已重新載入」並通知案件頁重新載入', async () => {

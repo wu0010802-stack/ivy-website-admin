@@ -313,6 +313,35 @@ describe('內容編輯頁的排程結果與預覽（第 54、57 條）', () => {
     expect(get).toHaveBeenCalledWith('/admin/content-items/campus_news/schedules?campus_key=yihua')
   })
 
+  // 2026-10-13：後端存的是正規化過的內容（去掉前後空白）。快照要用它，不然發布後一直顯示「1 處修改」。
+  it('儲存後表單與快照換成後端存下的內容；送出後又改的不蓋掉', async () => {
+    const { global } = await setup('/content/campus-news')
+    const item = { id: 'i1', kind: 'campus_news', campus_key: 'yihua', latest_version: 1, current_published_revision_id: null, latest_revision: { id: 'r1', version: 1, created_at: '2026-10-13T02:00:00Z', payload: { title: '舊' } } }
+    vi.spyOn(api, 'get').mockImplementation(((path: string) => Promise.resolve(path.includes('/schedules') ? [] : item)) as typeof api.get)
+    const trimmed = (version: number, title: string) => ({ ...item, latest_version: version, latest_revision: { ...item.latest_revision, id: `r${version}`, version, payload: { title } } })
+    let editor!: ReturnType<typeof useContentItem<{ title: string }>>
+    const Harness = defineComponent({ setup() { editor = useContentItem('campus_news', { title: '' }, 'yihua'); return () => null } })
+    wrappers.push(mount(Harness, { global }))
+    await editor.load()
+
+    vi.spyOn(api, 'post').mockResolvedValueOnce(trimmed(2, '樂樂媽咪') as never)
+    editor.form.value = { title: '樂樂媽咪 ' }
+    expect(await editor.save({ silent: true })).toBe(true)
+    expect(editor.form.value).toEqual({ title: '樂樂媽咪' })
+    expect(editor.isDirty.value).toBe(false)
+
+    // 回應回來之前又改了：保留新改的字，算未儲存的修改
+    let resolve!: (value: unknown) => void
+    vi.spyOn(api, 'post').mockImplementationOnce((() => new Promise<unknown>((r) => { resolve = r })) as typeof api.post)
+    editor.form.value = { title: '新稱呼 ' }
+    const saving = editor.save({ silent: true })
+    editor.form.value = { title: '又改了' }
+    resolve(trimmed(3, '新稱呼'))
+    expect(await saving).toBe(true)
+    expect(editor.form.value).toEqual({ title: '又改了' })
+    expect(editor.isDirty.value).toBe(true)
+  })
+
   // 2026-10-08：已拿掉的欄位（例如五校介紹的簡介）還原時後端會丟掉，版本紀錄不能列成「還原後會改回舊值」。
   it('版本紀錄的差異兩邊都先經過 normalize：已拿掉的欄位不列成會改變', async () => {
     const { global } = await setup('/content/campus-profile')

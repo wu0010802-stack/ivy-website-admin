@@ -49,6 +49,20 @@ export const SOCIAL_PLATFORMS: readonly { value: SocialPlatform; label: string; 
   { value: 'youtube', label: 'YouTube', example: 'https://www.youtube.com/@…' },
 ]
 
+// 後端 _INVISIBLE_RE 擋的字：控制字元、空白、軟連字號、零寬字元與方向標記、BOM。JS 的 \s 沒有全包到，
+// 從聊天軟體複製的網址常夾著看不見的 U+200B／U+200E，這裡沒擋就要等存檔才被後端 422（2026-10-13）。
+const URL_HIDDEN_CHARS = /[\u0000-\u0020\u007f\u00ad\u200b-\u200f\u2028\u2029\ufeff]/
+const HIDDEN_CHARS_MESSAGE = '網址裡有看不見的字元（常見於從聊天軟體複製），請刪掉重新輸入'
+
+/**
+ * https:// 之後、第一個 / ? # 之前（主機與埠號）有 @ 或 %：後端（urlsplit）一律不收，new URL() 卻會
+ * 吞掉空的帳號（「https://@www.facebook.com」）、把 %xx 解碼成一般字，這裡要另外擋。
+ */
+function authorityHasUserinfoOrEscapes(value: string): boolean {
+  const authority = value.slice('https://'.length).split(/[/?#]/, 1)[0] ?? ''
+  return /[@%]/.test(authority)
+}
+
 /**
  * 社群網址有問題時回傳說明；沒問題回 null。規則同後端 SocialLinkPayload.url（和主選單的外部連結
  * 一樣）：只收 https、要有主機名稱、不含帳密與空白、埠號合法。後端存檔時才是最後把關。
@@ -59,9 +73,10 @@ export function socialUrlError(url: string): string | null {
   if (value.length > SOCIAL_URL_MAX) return `網址最多 ${SOCIAL_URL_MAX} 字`
   if (!/^https:\/\//i.test(value)) return '網址要用 https:// 開頭'
   if (/[\s\\]/.test(value)) return '網址中間不能有空白'
+  if (URL_HIDDEN_CHARS.test(value)) return HIDDEN_CHARS_MESSAGE
   try {
     const parsed = new URL(value)
-    if (!parsed.username && !parsed.password && parsed.hostname.includes('.')) return null
+    if (!parsed.username && !parsed.password && !authorityHasUserinfoOrEscapes(value) && parsed.hostname.includes('.')) return null
   } catch {
     // 落到下面的說明
   }
@@ -97,10 +112,11 @@ export function siteLinkError(href: string): string | null {
   const value = href.trim()
   if (!value) return '請填寫連結'
   if (SITE_PATH.test(value)) return null
+  if (/^https:\/\//i.test(value) && URL_HIDDEN_CHARS.test(value) && !/[\s\\]/.test(value)) return HIDDEN_CHARS_MESSAGE
   if (/^https:\/\//i.test(value) && !/[\s\\]/.test(value)) {
     try {
       const url = new URL(value)
-      if (!url.username && !url.password && url.hostname.includes('.')) return null
+      if (!url.username && !url.password && !authorityHasUserinfoOrEscapes(value) && url.hostname.includes('.')) return null
     } catch {
       // 落到下面的說明
     }

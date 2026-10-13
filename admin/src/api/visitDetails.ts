@@ -15,9 +15,13 @@ export function isAnonymizedCase(detail: Pick<VisitRequestFullOut, 'anonymized'>
 
 // ---- 輸入檢查（前端先擋；後端 normalize_phone 與 EmailStr 才是準的）----
 
-/** 後端會去掉空白與連字號再檢查，這裡也先去掉。 */
+/**
+ * 後端會去掉空白與各種連字號再檢查（booking/schemas.py 的 _PHONE_STRIP_RE），這裡去掉同一組字：
+ * 原本只去 -、－，從別處貼來的「0912–345–678」（en dash）後端收、這裡卻按不了儲存（2026-10-13）。
+ * 官網預約表單（web/app/utils/visit-form.ts）用的也是這一組。
+ */
 export function normalizePhoneInput(value: string): string {
-  return value.replace(/[\s\-－]/g, '')
+  return value.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
 }
 
 export function phoneError(value: string): string {
@@ -61,6 +65,12 @@ export function detailsNotices(result: AdminDetailsUpdateOut, emailEnabled: bool
   if (result.email_notified) {
     if (emailEnabled === false) warnings.push('尚未設定寄信，變更通知沒有寄出，請電話通知家長')
     else success.push('已寄變更通知到新信箱')
+  }
+  // 原本的 Email 被改掉：舊信箱收到的修改連結已失效（2026-10-13）。有寄變更信時新連結在信裡；
+  // 沒寄（清空 Email、場次已開始、沒設定寄信）時家長手上沒有可用的連結。
+  if (result.access_link_reset) {
+    if (result.email_notified && emailEnabled !== false) success.push('原本寄出的家長管理連結已失效，新連結在變更通知裡')
+    else warnings.push('原本寄出的家長管理連結已失效；家長需要連結時，請在「家長管理連結」重新產生')
   }
   return { success, warnings }
 }

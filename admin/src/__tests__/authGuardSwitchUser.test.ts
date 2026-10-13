@@ -13,6 +13,8 @@ import { authGuard } from '../router'
 import { redirectToLoginOnUnauthorized, resetUnauthorizedForTests } from '../router/unauthorized'
 import { registerUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useAuthStore } from '../stores/auth'
+import { useOpenRequestsStore } from '../stores/openRequests'
+import { readVisitNoteDraft, writeVisitNoteDraft } from '../composables/visitNoteDraft'
 import { testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
@@ -264,5 +266,76 @@ describe('restoreSession 的 expectUserId', () => {
     expect(await auth.restoreSession({ expectUserId: 'user-a' })).toBe('none')
     vi.spyOn(api, 'get').mockRejectedValueOnce(new TypeError('Failed to fetch'))
     await expect(auth.restoreSession({ expectUserId: 'user-a' })).rejects.toThrow('Failed to fetch')
+  })
+})
+
+describe('2026-10-13：換帳號之後的兩個漏洞', () => {
+  it('別的分頁已換成乙、甲在這個分頁按登出（session-changed）：之後按上一頁回後台，不以乙的身分恢復', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore(pinia)
+    auth.user = userA
+    const router = appRouter()
+    await router.push('/visit-requests')
+    await router.isReady()
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError(403, 'CSRF token 無效'))
+    const get = mockApi(meOf(userB))
+
+    auth.logoutPending = true
+    await router.push('/login')
+    auth.logoutPending = false // AdminLayout 的 handleLogout 在 finally 放掉
+    expect(router.currentRoute.value.query.reason).toBe('session-changed')
+    expect(auth.previousUserId).toBe('user-a')
+    expect(meCalls(get)).toBe(0)
+
+    await router.push('/visit-requests') // 上一頁
+    await flushPromises()
+
+    expect(auth.user).toBeNull()
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.reason).toBe('other-user')
+  })
+
+  it('一般登出（不是 session-changed）照舊不記人', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.user = userA
+    vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
+    await expect(auth.logout()).resolves.toBe('signed-out')
+    expect(auth.previousUserId).toBeNull()
+  })
+
+  it('甲被迫登出後換乙在同一個分頁登入：甲沒送出的聯絡紀錄草稿與頁首數字不帶給乙；甲自己登回來則留著', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    const openRequests = useOpenRequestsStore()
+    const reset = vi.spyOn(openRequests, 'reset')
+    auth.user = userA
+    writeVisitNoteDraft('case-1', '甲寫到一半')
+    auth.expireSession()
+
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userA), features: undefined } as never)
+    await auth.login('a@example.invalid', 'pw')
+    expect(readVisitNoteDraft('case-1')).toBe('甲寫到一半')
+    expect(reset).not.toHaveBeenCalled()
+
+    auth.expireSession()
+    vi.spyOn(api, 'post').mockResolvedValueOnce({ ...meOf(userB), features: undefined } as never)
+    await auth.login('b@example.invalid', 'pw')
+    expect(readVisitNoteDraft('case-1')).toBe('')
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(auth.previousUserId).toBeNull()
+  })
+
+  it('從 cookie 恢復成另一個人（閒置逾時後的登入頁）也一樣清掉', async () => {
+    setActivePinia(createPinia())
+    const auth = useAuthStore()
+    auth.user = userA
+    writeVisitNoteDraft('case-1', '甲寫到一半')
+    auth.expireSession()
+    mockApi(meOf(userB))
+
+    expect(await auth.restoreSession()).toBe('restored')
+    expect(readVisitNoteDraft('case-1')).toBe('')
   })
 })

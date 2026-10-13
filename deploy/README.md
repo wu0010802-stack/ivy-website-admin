@@ -13,6 +13,36 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 參觀預約統計搬到招生入學＋桌機側欄收合（main CI 部署，沒有 migration）
+
+- **合併**：`feature/booking-stats-move-20261013` 的 `da61c64c` 從 `9cb26f26` 開。合入 origin/main `60332d8f`（另一個 session 的桌機側欄收合，README 頂部兩段都留）成 `e1a995b0`，再加 `a5d790cf`（web 偶發測試修正），快轉推 main `60332d8f..a5d790cf`。
+  - 這次 run 同時部署兩件：參觀預約統計搬移（README／DESIGN 頂部 10-13「參觀預約統計搬到招生入學」）與桌機側欄收合 `60332d8f`（README／DESIGN 頂部 10-13「後台側欄可以收合」）。
+  - 側欄收合自己的 run 38330629293 紅在 web 偶發測試、Deploy 被略過，那個 run 沒有重跑部署，改由這次一起上線。
+- **migration**：無。只改後台畫面、測試與文件，後端 API 與契約沒改。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **web 偶發測試**：`web/tests/about-voices-preview.spec.ts`「影片還在原位時」本機約三成紅。
+  - 原因：`vi.mock` 換掉 about-popup 攔不住 `AboutContent.vue` 的動態 `import('~/utils/about-popup')`。async 工廠（`await importOriginal`）還沒跑完時再載入一次，會拿到原模組（側欄 session 查到）。真的立體書動畫在測試等待的 20ms 內載入時，選片被延後。
+  - 修法 `a5d790cf`：改走元件本來就有的強制色彩模式，`onMounted` 不載入動畫。本機連跑 10 次全過；拿掉重設邏輯時另外兩項照樣紅。
+- **推送前本機閘門**（合入 `60332d8f` 之後）：
+  - admin：typecheck 通過，相關 16 檔 223 passed。全套在負載 20–60 下只有逾時，失敗檔逐一單獨重跑全過。
+  - web：typecheck 通過，vitest 95 檔 1152 passed。
+  - stack：55 passed，含 booking-stats、keyboard、a11y、sidebar-collapse、admissions-flow、visual。
+- **CI**：main run 38332211341（`a5d790cf`），建立到完成 17.6 分鐘。
+  - 通過：Frontend admin 5.1 分、web 1.4 分；Backend 三組 12.1／9.2／11.2 分；Deploy 5.3 分成功。
+  - **E2E／Playwright 紅 1 條**（10.8 分，124 passed、1 failed）：`roles.spec.ts:17`「接待人員…」的 beforeAll 送公開預約拿到 429 `BOOKING_LIMIT`。
+  - 原因是新的 `booking-stats.spec.ts` 也從預設來源替義華送了一筆，整套超過同來源、同校每小時 5 筆的上限；本機推前只跑了部分 spec，沒抓到。
+  - 修正：那支 spec 改用自己的 `X-Forwarded-For`（198.51.100.41），和這份紀錄同一個提交。E2E 不擋部署，線上不受影響。
+  - 修正後本機跑完整 stack 套件兩輪：
+    - 第一輪 126 passed、1 failed：`booking-flow.spec.ts:217` 送單時「yihua 沒有可預約的場次」，逾時。義華只開 3 場 × 3 位，整套共用。這支排在 booking-stats 之前，CI 上也過，判斷為既有的偶發。
+    - 第二輪 127 passed。
+- **正式 `release.json`**：base commit `a5d790cf`，created `2026-10-13T01:40:04Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。未登入 `GET /admin/analytics/funnel` 回 401。
+  - `AnalyticsView-DbirriHs.js` 有「官網的瀏覽量與網頁速度」，沒有「預約流程」「查看校區」。
+  - `AdmissionsView-D7-6-tzD.js` 有「參觀預約」「這個分頁不分入學學年學期」「預約流程」「預約孩子的班別」與 `stats-booking`。
+  - 側欄（側欄 session 檢查）：`index-Hxbjo34A.js` 有「收合側邊欄」「展開側邊欄」與 `ivy-admin-sidebar-collapsed`，CSS 有 `--side-w-collapsed:64px`。
+- **未做**：沒有登入正式後台實際看參觀預約子分頁與側欄收合。
+
 ## 2026-10-13 後台與官網內容一批補強（main CI 部署，migration 只新增表）
 
 - **合併**：

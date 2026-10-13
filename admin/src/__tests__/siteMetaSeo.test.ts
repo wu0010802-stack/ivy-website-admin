@@ -140,6 +140,18 @@ describe('社群網址的檢查（同後端 SocialLinkPayload）', () => {
     expect(socialUrlError(`https://example.com/${'a'.repeat(300)}`)).toContain('300')
   })
 
+  it('後端會擋的看不見的字元、主機前的 @、主機裡的 %：這裡也擋，不等存檔才 422（2026-10-13）', () => {
+    for (const hidden of ['https://www.facebook.com/ivy\u200b', 'https://www.facebook.com/\u200eivy', 'https://www.face\u00adbook.com/ivy', 'https://www.facebook.com/ivy\u0007']) {
+      expect(socialUrlError(hidden), JSON.stringify(hidden)).toContain('看不見的字元')
+    }
+    for (const bad of ['https://@www.facebook.com/ivy', 'https://www.facebook.com@evil.example/ivy', 'https://www.f%61cebook.com/ivy']) {
+      expect(socialUrlError(bad), bad).not.toBeNull()
+    }
+    // 路徑裡的 @、% 照收（YouTube 頻道、已編碼的路徑）
+    expect(socialUrlError('https://www.youtube.com/@ivy')).toBeNull()
+    expect(socialUrlError('https://www.facebook.com/%E5%B8%B8')).toBeNull()
+  })
+
   it('重複：網域大小寫與結尾斜線不算不同，回傳先出現的那一筆', () => {
     const link = (url: string) => ({ platform: 'facebook' as const, label: 'x', url })
     const links = [link('https://www.facebook.com/ivykid'), link('https://lin.ee/a'), link('HTTPS://WWW.Facebook.com/ivykid/')]

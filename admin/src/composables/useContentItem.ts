@@ -87,6 +87,19 @@ function summarizeTestimonials(value: unknown): string {
   return value.length ? `${value.length} 支` : '這校不放影片'
 }
 
+// 全站設定的機構社群同理：null 沿用官網內建（機構粉絲專頁）、[] 官網不顯示這一區（2026-10-13）。
+function summarizeSocialLinks(value: unknown): string {
+  if (!Array.isArray(value)) return '沿用官網內建'
+  return value.length ? `${value.length} 個` : '不顯示'
+}
+
+/** null＝沿用官網內建的清單欄位：摘要要分得出 null 與 []，換成或換回內建時也不列逐項差異。 */
+function builtInListSummary(kind: string | undefined, key: string): ((value: unknown) => string) | null {
+  if (kind === 'campus_profile' && key === 'testimonials') return summarizeTestimonials
+  if (kind === 'site_meta' && key === 'social_links') return summarizeSocialLinks
+  return null
+}
+
 /** 清單或物件欄位的逐項差異摘要；純文字欄位回 undefined。 */
 export function nestedChangeDetail(before: unknown, after: unknown): string | undefined {
   const beforeList = Array.isArray(before) ? before : before == null ? [] : null
@@ -125,15 +138,18 @@ export function diffPayload(before: Record<string, unknown>, after: Record<strin
   return keys
     .filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]))
     .map((key) => {
-      const voices = kind === 'campus_profile' && key === 'testimonials'
-      const summarize = voices ? summarizeTestimonials : summarizeValue
+      const builtIn = builtInListSummary(kind, key)
+      const summarize = builtIn ?? summarizeValue
       const change: FieldChange = { key, label: contentFieldLabelFor(kind, key), before: summarize(before[key]), after: summarize(after[key]) }
       // 字串清單（標語）前後值已經逐字列出，不必再摘要。
       const plainStrings = [before[key], after[key]].every((v) => v == null || (Array.isArray(v) && v.every((x) => typeof x === 'string')))
+      // 換回內建（改成 null）：前後摘要已經說了，逐項差異會把「恢復內建」寫成「刪除 …」，
+      // 看起來像官網那幾個連結會不見。從內建改成自訂則照列新增了哪些。
+      const toBuiltIn = builtIn !== null && before[key] != null && after[key] == null
       // 全站設定的各頁搜尋：鍵是頁名，列「修改 關於常春藤頁、隱私權政策頁」，不列英文頁碼。
       const detail = kind === 'site_meta' && key === 'page_seo'
         ? pageSeoChangeDetail(before[key], after[key])
-        : plainStrings ? undefined : nestedChangeDetail(before[key], after[key])
+        : plainStrings || toBuiltIn ? undefined : nestedChangeDetail(before[key], after[key])
       if (detail) change.detail = detail
       return change
     })
@@ -473,6 +489,7 @@ export function useContentItem<TPayload extends object>(
     if (!item.value) return false
     const scope = scopeNow()
     saving.value = true
+    const sent = JSON.stringify(form.value)
     try {
       const saved = await api.post<ContentItemOut>(`/admin/content-items/${kind}/revisions${query()}`, {
         expected_version: item.value.latest_version,
@@ -481,7 +498,18 @@ export function useContentItem<TPayload extends object>(
       if (!sameScope(scope)) return false
       item.value = saved
       isPublished.value = false
-      takeSnapshot()
+      // 快照拍「存下的內容」，不是回應回來時的表單：送出之後又改的字是新的未儲存修改。
+      // 後端會正規化（去掉稱呼、網址前後的空白，只有空白的欄位存成 ""）：存下的和送出的不同時，
+      // 表單與快照都換成後端那份，不然發布後官網版是正規化過的，動作列和段落目錄會一直顯示
+      // 「1 處修改」（2026-10-13）。兩邊都經過 withDefaults 再比，欄位順序不同不算不同。
+      const stored = saved.latest_revision ? withDefaults(saved.latest_revision.payload) : null
+      const storedText = stored ? JSON.stringify(stored) : null
+      if (stored && storedText !== JSON.stringify(withDefaults(JSON.parse(sent)))) {
+        if (JSON.stringify(form.value) === sent) form.value = stored
+        snapshot.value = storedText!
+      } else {
+        snapshot.value = sent
+      }
       fieldErrors.value = []
       // 存成新的一版後，衝突前記著的修改就不再對得上這一版，不再提供套回。
       stash.value = null

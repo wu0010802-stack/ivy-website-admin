@@ -91,6 +91,10 @@
               }
             ]
           },
+          "access_link_reset": {
+            "title": "Access Link Reset",
+            "type": "boolean"
+          },
           "admissions_skipped_fields": {
             "items": {
               "type": "string"
@@ -449,6 +453,7 @@
           "admissions_synced_fields",
           "admissions_skipped_fields",
           "email_notified",
+          "access_link_reset",
           "display_status"
         ],
         "title": "AdminDetailsUpdateOut",

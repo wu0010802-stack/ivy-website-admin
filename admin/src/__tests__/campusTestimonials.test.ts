@@ -357,5 +357,20 @@ describe('發布前的差異摘要', () => {
     expect(cleared).toMatchObject({ before: '4 支', after: '這校不放影片' })
     const [restored] = diffPayload({ testimonials: [] }, { testimonials: null }, 'campus_profile')
     expect(restored).toMatchObject({ before: '這校不放影片', after: '沿用官網內建' })
+    const [backToBuiltin] = diffPayload({ testimonials: builtin }, { testimonials: null }, 'campus_profile')
+    expect(backToBuiltin).toMatchObject({ before: '4 支', after: '沿用官網內建' })
+    expect(backToBuiltin!.detail).toBeUndefined()
+  })
+
+  it('全站設定的機構社群：null（沿用內建）與 []（不顯示）分得出來；恢復內建不寫成「刪除」（2026-10-13）', async () => {
+    const { diffPayload } = await import('../composables/useContentItem')
+    const fb = [{ platform: 'facebook', label: '機構粉絲專頁', url: 'https://www.facebook.com/ivy' }]
+    const [hidden] = diffPayload({ social_links: null }, { social_links: [] }, 'site_meta')
+    expect(hidden).toMatchObject({ before: '沿用官網內建', after: '不顯示' })
+    const [custom] = diffPayload({ social_links: null }, { social_links: fb }, 'site_meta')
+    expect(custom).toMatchObject({ before: '沿用官網內建', after: '1 個' })
+    const [restored] = diffPayload({ social_links: fb }, { social_links: null }, 'site_meta')
+    expect(restored).toMatchObject({ before: '1 個', after: '沿用官網內建' })
+    expect(restored!.detail).toBeUndefined()
   })
 })
