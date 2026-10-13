@@ -186,6 +186,10 @@ def test_event_time_location_and_link():
         {"all_day": False},
         {"all_day": False, "start_time": "9:30"},
         {"all_day": False, "start_time": "24:00"},
+        # 全形數字、結尾換行（2026-10-13：官網只認 ASCII 的 HH:MM）
+        {"all_day": False, "start_time": "1８:3０"},
+        {"all_day": False, "start_time": "09:30", "end_time": "１１:00"},
+        {"all_day": False, "start_time": "09:30\n"},
         {"all_day": False, "start_time": "10:00", "end_time": "10:00"},
         {"all_day": False, "start_time": "10:00", "end_time": "09:00"},
         {"link_url": "ftp://example.com"},
