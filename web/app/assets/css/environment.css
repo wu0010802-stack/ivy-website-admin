@@ -12,6 +12,9 @@
   --renv-ink-soft:var(--ivy-forest-soft);
   --renv-muted:oklch(47% .03 150);
   --renv-pen:oklch(55% .17 33);
+  /* 深一階紅筆：色紙上的小字（章節編號、餐點書便條的月份）用。--renv-pen 在天藍 3.5:1、黃 3.7:1 不夠，
+     --error 是 tokens.css 唯一更深的紅（天藍 4.8、黃 5.1）；只借色，不帶錯誤的語意（2026-10-13） */
+  --renv-pen-deep:var(--error);
   --renv-note:oklch(98.8% .014 95);
   --renv-tape:oklch(90% .08 92 / .78);
   --renv-yellow:oklch(88% .13 90);
@@ -48,6 +51,10 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-kicker [lang="en"]{font-weight:400;letter-spacing:.12em;color:var(--renv-pen)}
 .renv-title{margin-top:18px;font-weight:800;font-size:clamp(2rem,1.25rem + 2.4vw,3.25rem);line-height:1.3;letter-spacing:.03em;color:var(--renv-ink);text-wrap:balance}
 .renv-text{margin-top:20px;max-width:34em;font-size:var(--fs-md);line-height:1.95;color:var(--renv-ink-soft)}
+/* 01 天藍、03 黃色紙上的小字（2026-10-13）：--renv-ink-soft 在天藍只有 4.4:1、壓到色紙斜紋約 3.9，小標與內文改深綠；
+   章節編號的紅字改深一階紅筆（點格紙上的編號照舊） */
+:is(.renv-care,.renv-meals) .renv-kicker [lang="en"]{color:var(--renv-pen-deep)}
+:is(.renv-care,.renv-meals) :is(.renv-kicker,.renv-text){color:var(--renv-ink)}
 .renv-box{display:inline-block;flex:none;width:24px;height:24px}
 .renv-section{position:relative;padding-block:clamp(96px,10vw,168px)}
 .renv-sheet{position:absolute;inset:0;z-index:-1;pointer-events:none}
@@ -81,8 +88,13 @@ body:has(.renv){background:var(--ivy-ivory)}
 /* 兩欄時字欄寬約 44.4vw，每行最多 9 字（含螢光筆內距）要約 9.7em：原本 901–1150 字級長得比欄寬快，
    第二行被擠成「都在這裡安心長／大。」（1024 iPad 橫拿也是）。上限 4.5vw 保證 9 字放得下，1200 以上不變（2026-10-13）。 */
 @media (width>900px){.renv-hero h1{font-size:clamp(2.3rem,min(1.3rem + 2.8vw,4.5vw),3.6rem)}}
-.renv-mark{display:inline-block;isolation:isolate;padding-inline:.08em;margin-inline:.02em}
+/* 螢光筆本來就畫出字框左右各 6px；原本再加內距與外距，「安心」前後各空出約 .1em，像多打了空格（2026-10-13 拿掉）。
+   拿掉後螢光筆會伸進前後兩個字底下，所以這裡不再 isolation：螢光筆那層（z-index:-1）改墊在整個 .renv 的字後面，
+   不會蓋到「裡」「長」的筆畫（.renv 本身 isolation，墊不到頁面底下）。 */
+.renv-mark{display:inline-block}
 .renv-lede{margin-top:24px;font-size:var(--fs-lg);line-height:1.85;color:var(--renv-ink-soft)}
+/* 只在標點斷行：390 寬原本斷成「整理在同／一頁。」（2026-10-13）；整段沒有標點、一行放不下時 break-word 照樣斷開，不會撐破版面 */
+.renv-lede,.renv-day.is-arc .renv-meal p{word-break:keep-all;overflow-wrap:break-word}
 .renv-notice{margin-top:30px;font-size:var(--fs-sm);color:var(--renv-muted)}
 /* 相框 3:2（utils/responsive-image.ts 的 ENVIRONMENT_HERO_ASPECT 依此算 sizes） */
 .renv-hero-photo{transform:rotate(2.4deg)}
@@ -107,10 +119,12 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-hearts b{font-weight:700;font-size:var(--fs-lg);letter-spacing:.06em}
 .renv-care-photo{transform:rotate(-1.4deg)}
 .renv-care-photo>img{aspect-ratio:2/1;object-fit:cover;object-position:0% 50%}
-.renv-care-photo figcaption{margin-top:30px;font-size:var(--fs-md);color:var(--renv-ink-soft)}
+.renv-care-photo figcaption{margin-top:30px;font-size:var(--fs-md);color:var(--renv-ink)}
 .renv-note.is-care{top:-22px;left:24%;--r:4deg}
 
 .renv-hang{margin-top:clamp(72px,7vw,108px);outline-offset:8px}
+/* 可以用 Tab 停的捲動區與分頁內容（tabindex=0 的 div）：全站 3px 葉綠框只寫給 a、button，這兩個原本是瀏覽器預設的細黑框（2026-10-13） */
+.renv :is(.renv-hang,.renv-tour-panel):focus-visible{outline:3px solid var(--leaf)}
 .renv-hang-track{list-style:none;margin:0;padding:0 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:28px}
 .renv-hang-item{--rot:-2deg;transform-origin:50% -12px;transform:rotate(var(--rot));transition:transform .6s var(--renv-ease)}
 .renv-hang-item:nth-of-type(2){--rot:1.6deg}
@@ -123,7 +137,7 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-hang-item h3{display:flex;align-items:center;gap:12px;margin-top:30px;font-weight:700;font-size:var(--fs-xl);line-height:1.4}
 /* 蠟筆底的小圓編號用深綠字，紅字在淺色蠟筆上對比不夠 */
 .renv-count{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;font-size:var(--fs-md);color:var(--renv-ink)}
-.renv-hang-item p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85;color:var(--renv-ink-soft)}
+.renv-hang-item p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85;color:var(--renv-ink)}
 
 /* ---------- 02 校園環境：遊樂區大圖＋跟著虛線走一圈 ---------- */
 .renv-feature{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:clamp(40px,5vw,80px);align-items:center;margin-top:clamp(64px,7vw,96px)}
@@ -162,8 +176,11 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-book-cover{display:block;width:min(300px,100%);transform:rotate(3.2deg);box-shadow:0 30px 50px -24px rgb(var(--renv-shadow)/.5),0 2px 4px rgb(var(--renv-shadow)/.18);transition:transform .5s var(--renv-ease)}
 .renv-book-cover>img{display:block;width:100%;height:auto}
 @media (hover:hover){.renv-book-cover:hover{transform:rotate(0deg) translateY(-6px)}}
-.renv-book-note{position:absolute;left:-12%;bottom:4%;font-size:var(--fs-lg);line-height:1.55;color:var(--renv-ink);transform:rotate(-5deg)}
-.renv-book-note span{color:var(--renv-pen)}
+/* 便條右緣貼著書封左緣、壓進 11px（書封寬 min(300px,100%) 置中）：原本 left:-12% 跟著欄寬走，
+   901–1280 欄窄時便條整塊蓋到書封上 22–97px、紅筆箭頭縮成一小勾；1440 以上維持原樣（2026-10-13）。
+   改用 right 定位後可用寬度變窄，max-content 讓兩行照 <br> 斷、不被擠成直排 */
+.renv-book-note{position:absolute;right:calc(50% + min(150px,50%) - 11px);bottom:4%;width:max-content;font-size:var(--fs-lg);line-height:1.55;color:var(--renv-ink);transform:rotate(-5deg)}
+.renv-book-note span{color:var(--renv-pen-deep)}
 
 /* 沒有 JS（或窄螢幕）時是直式清單；JS 在桌機加上 .is-arc，才把五個時段排到太陽弧上 */
 .renv-day{position:relative;margin-top:clamp(72px,7vw,112px);padding-top:56px}
@@ -206,7 +223,8 @@ body:has(.renv){background:var(--ivy-ivory)}
 
 /* ---------- 結尾：接下來可以看（不放預約） ---------- */
 .renv-next{padding-block:clamp(40px,5vw,72px) clamp(96px,9vw,136px)}
-.renv-next-title{font-size:clamp(1.5rem,1.1rem + 1.2vw,2.125rem);line-height:1.4;color:var(--renv-ink);transform:rotate(-1.2deg);transform-origin:left}
+/* 只在逗號後斷行：320 寬原本斷成「還／可以看看這幾頁」（2026-10-13） */
+.renv-next-title{font-size:clamp(1.5rem,1.1rem + 1.2vw,2.125rem);line-height:1.4;color:var(--renv-ink);transform:rotate(-1.2deg);transform-origin:left;word-break:keep-all;overflow-wrap:break-word}
 .renv-next-list{list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px}
 .renv-next-link{display:grid;align-content:center;gap:6px;min-height:120px;padding:24px 30px;isolation:isolate;color:var(--renv-ink);text-decoration:none;transform:rotate(var(--r,-1.2deg));transition:transform .45s var(--renv-ease)}
 .renv-next-list li:nth-child(2) .renv-next-link{--r:1deg}
@@ -218,7 +236,6 @@ body:has(.renv){background:var(--ivy-ivory)}
 /* ---------- 斷點：沿用站內 1100／900／760 ---------- */
 @media (width<=1100px){
   .renv-index ol{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .renv-hang-track{gap:20px}
   .renv-hang-item h3{font-size:var(--fs-lg)}
   .renv-day.is-arc .renv-meal{width:170px}
 }
@@ -227,9 +244,10 @@ body:has(.renv){background:var(--ivy-ivory)}
   .renv-split-head .renv-text{grid-column:1;grid-row:auto;margin:20px 0 0}
   .renv-hero-photo{max-width:560px;margin-top:8px}
   .renv-index ol{grid-template-columns:1fr;gap:4px}
-  .renv-hang{margin-inline:calc(-1 * var(--renv-gutter));padding:22px var(--renv-gutter) 8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+  .renv-hang{margin-inline:calc(-1 * var(--renv-gutter));padding:22px var(--renv-gutter) 8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;outline-offset:-3px}
   .renv-hang::-webkit-scrollbar{display:none}
-  .renv-hang-track{grid-template-columns:repeat(5,min(64vw,260px));width:max-content;padding-right:var(--renv-gutter)}
+  /* 縮成 20px 只給橫向滑動的曬衣繩；901–1100 五張並排時照片各自歪一點，20px 會讓相鄰兩張的說明只隔 5–11px（2026-10-13） */
+  .renv-hang-track{grid-template-columns:repeat(5,min(64vw,260px));gap:20px;width:max-content;padding-right:var(--renv-gutter)}
   .renv-hang-item{scroll-snap-align:center}
   .renv-book{justify-items:start;padding-left:18%}
   .renv-book-cover{width:min(220px,60%)}
@@ -239,6 +257,13 @@ body:has(.renv){background:var(--ivy-ivory)}
   .renv-tour-tabs{grid-template-columns:repeat(5,minmax(124px,1fr));margin-inline:calc(-1 * var(--renv-gutter));padding:6px var(--renv-gutter) 14px;overflow-x:auto;scrollbar-width:none}
   .renv-tour-tabs::-webkit-scrollbar{display:none}
   .renv-next-list{grid-template-columns:1fr;gap:24px}
+}
+/* 761–900：已經單欄、還不是手機版（2026-10-13）。
+   ② 號碼在站上 34% 的高度，這段照片較矮，便條「各式操作教具」往左伸 22px 會壓到號碼右下角，改成貼齊照片左緣；
+   首屏照片下那句說明（bottom:-80px）跟「這一頁有四件事」只差 0–4px，目錄往下多留 20px。 */
+@media (760px<width<=900px){
+  .renv-note.is-n2{left:-2px}
+  .renv-index{margin-top:108px}
 }
 @media (width<=760px){
   .renv-hero{padding-top:40px}
@@ -256,6 +281,15 @@ body:has(.renv){background:var(--ivy-ivory)}
   .renv-note.is-slide{left:-6px}
   .renv-book{padding-left:4%}
   .renv-book-note{font-size:var(--fs-md)}
+  /* 照片底紙在手機縮小一圈（rough-sketch 的 frame：16→10px），照片左右再讓 4／10px：底紙原本往右多伸、加上傾斜，
+     320–430 寬每張都超出視窗 3–15px、撕紙邊被切成直線（2026-10-13） */
+  .renv-snap{margin-inline:4px 10px}
+}
+/* 380 以下五顆心排不下一列（最後的「同理心」自己掉到第二列）：心與字縮一級、間距收窄（2026-10-13） */
+@media (width<380px){
+  .renv-hearts{column-gap:8px}
+  .renv-heart{width:48px;height:44px}
+  .renv-hearts b{font-size:var(--fs-md)}
 }
 /* 360 以下（小手機、Android 放大顯示）：標題第二行 9 個字，「大。」會被擠成獨立一行（下限用 rem，放大字級時仍會變大）；
    書封與便條只隔約 4px，紅筆箭頭縮成一小段、蓋在書封的「9 月」上，只藏這支裝飾箭頭

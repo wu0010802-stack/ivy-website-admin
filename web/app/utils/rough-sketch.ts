@@ -50,7 +50,7 @@ export interface SketchTools {
   /** size 是事先量好的宿主寬高；有給就不再讀版面（批次渲染時一定會給）。 */
   layer: (host: HTMLElement, key: string, bleed?: number, under?: boolean, size?: Size) => { svg: SVGSVGElement; rc: RoughSVG; w: number; h: number }
   rel: (el: Element, host: Element) => Box
-  /** 這張照片底紙的顏色（和 frame 同一個算法，用原始種子；滑過去重畫時底紙會換色，這裡不跟著變）。 */
+  /** 這張照片底紙的顏色（和 frame 同一個算法，用原始種子；滑過去重畫時底紙也照原始種子畫，顏色不變）。 */
   paperColor: (el: HTMLElement) => string
 }
 
@@ -62,6 +62,8 @@ export interface SketchMotion {
   sun?: (p: number, place: (p: number, spin?: number) => SVGGElement[]) => void
   /** 這個元素的進場由動態層負責：這裡不先藏線、不描線。 */
   owns?: (el: HTMLElement) => boolean
+  /** 這個元素正被動態層移動、縮放（換校發牌途中）：量到的是變形中的尺寸，滑過去先不重畫。 */
+  busy?: (el: HTMLElement) => boolean
 }
 
 export interface SketchHandle {
@@ -161,21 +163,24 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
 
   const draw: Record<string, Kind> = {
     frame: kind({
-      measure: (el) => {
+      measure: (el, vw) => {
         const img = el.querySelector(':scope > img')
-        return { s: size(el), box: img ? rel(img, el) : null }
+        return { s: size(el), box: img ? rel(img, el) : null, narrow: vw <= 760 }
       },
-      paint(el, seed, { s, box }) {
+      paint(el, seed, { s, box, narrow }) {
         const { svg, rc } = layer(el, 'frame', 18, false, s)
         // 照片沒有白邊，直接貼在一張蠟筆底紙上；框只框照片本身，圖說留在底紙外
         const { x, y, w, h } = box ?? { x: 0, y: 0, w: s.w, h: s.h }
         svg.append(rc.rectangle(x + 2, y + 2, w - 4, h - 4, { stroke: C.ink, strokeWidth: PEN.frame, roughness: PEN.rough, bowing: PEN.bow, seed }))
         const { svg: back, rc: rb } = layer(el, 'backing', 30, true, s)
-        const r = seeded(seed)
-        const pad = el.matches('.renv-hang-photo') ? 9 : 16
+        // 底紙一律用原始種子：滑過去「抖一下」只換墨線，底紙的形狀與顏色不變，才跟小腳印的顏色對得上（2026-10-13；原本每滑一次換一個色）
+        const base = Number(el.dataset.seed) || 1
+        const r = seeded(base)
+        // 手機底紙縮一圈（左右只有 20px 留白，16px 加上傾斜會超出視窗、撕紙邊被切掉；environment.css 的 .renv-snap 同時讓位）
+        const pad = el.matches('.renv-hang-photo') ? 9 : narrow ? 10 : 16
         const pts: Point[] = [[x - pad + r() * 8, y - pad + r() * 8], [x + w + pad + r() * 8, y - pad * 0.6 + r() * 8], [x + w + pad * 1.2 + r() * 8, y + h + pad + r() * 8], [x - pad * 0.8 + r() * 8, y + h + pad * 1.1 + r() * 8]]
-        back.append(rb.polygon(pts, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 2.2, seed }))
-        const grain = rb.polygon(pts, { fill: C.ink, fillStyle: 'hachure', hachureGap: 9, fillWeight: 0.6, stroke: C.ink, strokeWidth: 1.6, roughness: 2.4, seed: seed + 1 })
+        back.append(rb.polygon(pts, { fill: paperColor(el, base), fillStyle: 'solid', stroke: 'none', roughness: 2.2, seed: base }))
+        const grain = rb.polygon(pts, { fill: C.ink, fillStyle: 'hachure', hachureGap: 9, fillWeight: 0.6, stroke: C.ink, strokeWidth: 1.6, roughness: 2.4, seed: base + 1 })
         grain.style.opacity = '0.16'
         back.append(grain)
       }
@@ -209,14 +214,16 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     circle: sized((el, seed, s) => {
       const big = el.matches('.renv-circle')
       const { svg, rc, w, h } = layer(el, 'circle', 22, true, s)
-      if (!big) svg.append(rc.circle(w / 2, h / 2, Math.max(w, h) + 10, { fill: CRAYONS[seed % 4], fillStyle: 'solid', stroke: 'none', roughness: 1.6, seed: seed + 3 }))
+      // 蠟筆底跟照片底紙一樣避開所在章節的色紙（2026-10-13：01 天藍色紙上第 4 個圓原本也是天藍，看不出底色）
+      if (!big) svg.append(rc.circle(w / 2, h / 2, Math.max(w, h) + 10, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 1.6, seed: seed + 3 }))
       svg.append(rc.ellipse(w / 2, h / 2 + (big ? 2 : 0), w + (big ? 26 : 16), h + (big ? 14 : 10), { stroke: C.pen, strokeWidth: big ? PEN.hand + 0.6 : PEN.hand * 0.8, roughness: big ? 2 : 1.3, seed }))
     }),
     heart: sized((el, seed, s) => {
       const { svg, rc, w, h } = layer(el, 'heart', 8, false, s)
       const P = (x: number, y: number) => `${((x * w) / 56).toFixed(1)} ${((y * h) / 52).toFixed(1)}`
       const d = `M${P(28, 48)} C${P(10, 36)} ${P(2, 24)} ${P(6, 14)} C${P(10, 4)} ${P(24, 4)} ${P(28, 16)} C${P(32, 4)} ${P(46, 4)} ${P(50, 14)} C${P(54, 24)} ${P(46, 36)} ${P(28, 48)} Z`
-      svg.append(rc.path(d, { fill: CRAYONS[seed % 4], fillStyle: 'solid', stroke: 'none', roughness: 1.4, seed: seed + 1 }))
+      // 同上避開色紙：愛心、同理心原本是天藍色畫在天藍色紙上，只剩紅框與墨線（2026-10-13）
+      svg.append(rc.path(d, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 1.4, seed: seed + 1 }))
       svg.append(rc.path(d, { fill: C.ink, fillStyle: 'zigzag', hachureGap: 7, fillWeight: 0.7, hachureAngle: -50, stroke: C.pen, strokeWidth: PEN.hand * 0.8, roughness: 1.2, seed }))
     }),
     note: kind({
@@ -562,7 +569,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   if (!reducedMotion && matchMedia('(hover: hover)').matches) {
     const onEnter = (e: Event) => {
       const el = (e.target as HTMLElement).closest<HTMLElement>('.renv-stop-photo, .renv-hang-photo, .renv-book-cover, .renv-scene-photo, [data-rough="button"], [data-rough="card"]')
-      if (!el || !root.contains(el) || el.contains((e as PointerEvent).relatedTarget as Node | null)) return
+      // 換校發牌途中照片從滑鼠底下飛出來也會觸發：這時量到的是縮小中的尺寸，框與底紙會擠在照片左上角（2026-10-13）
+      if (!el || !root.contains(el) || el.contains((e as PointerEvent).relatedTarget as Node | null) || motion?.busy?.(el)) return
       boil.set(el, (boil.get(el) ?? 0) + 1)
       render(el)
     }

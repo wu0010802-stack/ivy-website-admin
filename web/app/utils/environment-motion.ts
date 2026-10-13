@@ -345,6 +345,11 @@ export function createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin 
       // 小路上的便條等走到那一站才貼上，由這裡負責進場
       return !reducedMotion && el.matches('.renv-trail .renv-note')
     },
+    busy(el) {
+      // 換校發牌的卡片還在飛（縮放、旋轉中）：手繪層這時量版面會量到變形後的大小（2026-10-13）
+      const scene = el.closest('.renv-scene')
+      return !!scene && gsap.isTweening(scene)
+    },
     start(root) {
       started = true
       if (reducedMotion) return
