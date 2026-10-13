@@ -22,11 +22,14 @@
   - 狀態列多一段「各里人口 115 年 9 月」。
 - **驗證**（Node 22.22、本機 PostgreSQL 16；測試庫 `ivy_website_opportunity_test`）：
   - 後端新測試：招生機會 API 19、人口解析與同步 28、Poisson 4（含參數化共 7）。既有的 geo／area 測試同時跑過。
-  - 後端全套：見下方「後端全套」。
+  - 後端全套 2561 passed（約 40 分鐘）。這輪跑在「只抓高雄、解析時就篩」那次修改之前；修改後，改到的 geo、area、estimation、opportunity 測試另跑 241 passed。
   - admin：vitest 2291 passed、1 skipped、1 failed。失敗的 `ux20260928F`（日期字串「9月29日 星期二」多一個空格）在改動前的 `a5d790c` 也一樣失敗：這台機器的 Node 是 22.22，`.nvmrc` 指定 22.23，兩者的 ICU 日期格式不同，和本次無關。
   - admin typecheck 通過；web typecheck 通過、unit 1152 passed。
   - `contract:check` 一致；deploy tests 22 OK。
   - stack e2e `admissions-area` 9 passed，含新加的兩支。本機沒有 Google Chrome，用 `/opt/pw-browsers/chromium` 跑（暫用設定放在 `output/`，不進版控）。
+  - stack e2e 全套 119 passed、2 failed，兩支都和本次無關：
+    - `roles.spec` 接待人員那支：整套連跑時撞到「這個網路近一小時送出的預約次數過多」限流，單獨重跑會過。
+    - `exports.spec` 訪視明細下載：Chromium 給的檔名是 `download`，單獨跑也一樣。本次沒動明細匯出的程式與 API，推測是 Chromium 與 Chrome 的下載差異，以 CI 的 Chrome 結果為準。
   - 截圖在 `output/playwright/admissions-opportunity-*.png`（gitignore）。另用攔截 API 的方式，看過有判讀結果時的地圖配色與表格。
 - **未驗證**：
   - 正式站能不能連到內政部 API：門牌那邊被擋過境外 IP，連不到時照 `deploy/README.md` 的手動退路匯入。
