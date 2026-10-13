@@ -13,6 +13,57 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 後台與官網內容一批補強（main CI 部署，migration 只新增表）
+
+- **合併**：
+  - `feature/admin-batch-20261012` 從 `371b0e99` 開。
+  - 中途合入 origin/main（預繳速度、區域分析定位、門牌檔案匯入、手機 UX），沒有衝突。
+  - 使用者快轉推 main `e144bb78..a13fc430`。
+  - 內容見 README 頂部 10-12 同名段落、規格 `docs/specs/2026-10-12-admin-batch-design.md`、計畫 `docs/superpowers/plans/2026-10-12-admin-batch.md`。
+- **migration**：
+  - `ad783510900a` 只新增 `contact_phrase_sets`，並插入 `key='default'` 的 6 句預設片語（`ON CONFLICT DO NOTHING`）。
+  - 不改既有資料，所以沒有先備份。
+  - API 啟動時自動 `alembic upgrade head`。
+- **回退**：
+  - 可直接切回前一個映像。舊程式不讀這張新表，留著無害。
+  - `site_meta` 新存的版本不再帶 `admission_title／description`，而是寫進 `page_seo.admission`。
+  - 回退後，舊程式讀不到新結構，入學頁搜尋標題會顯示內建文字。正式站目前沒設過這兩欄，所以實際沒有差別。
+- **打包變更**：
+  - `content/` 已刪，`deploy/api.Dockerfile` 改成把 `web/server/data/site-fixture.json` 複製到 `/app/content/site-fixture.json`，正式站指令路徑不變。
+  - `railway_ci.py` 的 `SOURCE_PATHS` 已拿掉 `content`。
+  - 環境頁字型目錄從 8.2 MB 增為 14 MB。
+- **推送前本機閘門**（10-13，HEAD `a13fc430`）：
+  - 後端全套 2503 passed、1 skipped。
+  - web unit 1152 passed；admin unit 2250 passed、1 skipped；兩邊 typecheck 通過。
+  - `contract:check` 一致；deploy tests 通過。
+  - stack e2e 全套 117 passed。
+- **CI**：main run 38320751399（`a13fc430`）全綠，從建立到完成 17.3 分鐘。各 job 耗時：
+  - Frontend：admin 5.7 分、web 1.3 分。
+  - Backend 三組：11.8／8.0／11.1 分。
+  - E2E／Playwright：10.0 分。
+  - Deploy：5.4 分。
+- **正式 `release.json`**：base commit `a13fc430`，created `2026-10-12T23:23:22Z`，`web+api`。
+- **線上唯讀檢查**（10-13 07:30 左右，台北）：
+  - **健康檢查**：`/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - **頁面**：`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/news`、`/anniversary` 都 200，`<title>` 是內建值。
+    - 已發布的 `site_meta` 只有初始化的四欄，沒有 `page_seo`。
+    - `/privacy` 仍是 404，因為隱私權政策還沒發布，和部署前相同。
+  - **環境頁與關於頁**：
+    - `/environment` 第四章新句子「空間配置各校不同…各校的教室」已上線，舊的「取自各分校頁」已不見，五校分頁在。
+    - `/about` 有 `#voices`。
+    - `/assets/fonts/chars-environment.txt` 回 200。
+  - **新端點未登入一律回 401**：`GET /admin/contact-phrases`、`GET /admin/admissions/area/boundaries`、`PATCH /admin/visit-requests/{id}/details`。
+  - **後台 chunk**：
+    - `ContactPhrasesView` 有「聯絡片語」「新增一句」。
+    - `EnvironmentPageView` 有「首屏大標」。
+    - `SiteMetaView` 有「各頁搜尋與分享」「機構社群」。
+    - `CampusProfileView` 有「家長分享影片」。
+- **未做**：
+  - 沒有登入正式後台實測：改家長資料、片語、各頁搜尋設定、里界 gzip 都要登入才看得到。
+  - LINE 通知連結沒有在真的 LINE 裡點過。
+  - 正式站 `environment_page` 沒有已發布版本，官網用內建內容；第一次在後台存檔發布後才會有。
+  - Railway api 上殘留的 `WEBSITE_INDEXING_ENABLED` 不擋啟動，可自行刪除。
+
 ## 2026-10-12 招生統計：預繳速度與可能範圍（main CI 部署，沒有 migration）
 
 - **合併**：`feature/admissions-deposit-pace-20261012` 從 `f09ad269` 開，推前兩次合入 origin/main（`cb26e52b` 區域分析後續、`b56d5ee1` 其部署紀錄；衝突只在 README 頂部段落，兩邊都留，契約重產後與自動合併一致），快轉推 main `b56d5ee1..ee62f74b`。內容見 README 頂部同日段落、DESIGN.md「招生統計：預繳速度與可能範圍」、規格 `docs/specs/2026-10-12-admissions-deposit-pace-design.md`。
