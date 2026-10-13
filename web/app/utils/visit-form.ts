@@ -41,6 +41,14 @@ export function taipeiDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }
 
+/** 新預約表單讀公開場次的查詢（2026-10-13）：多帶 purpose=new_booking，伺服器據此記一次「最早能約哪天」。
+ *  purpose 只決定記不記，不影響回傳的場次；改期管理頁讀同一支端點，不帶。 */
+export function newBookingSlotsQuery(campusKey: string, today: string, days = 60) {
+  const end = new Date(`${today}T12:00:00+08:00`)
+  end.setUTCDate(end.getUTCDate() + days)
+  return { campus_key: campusKey, date_from: today, date_to: taipeiDate(end), purpose: 'new_booking' as const }
+}
+
 export function visitDateLabel(value: string) {
   return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${value}T12:00:00+08:00`))
 }

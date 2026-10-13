@@ -3,7 +3,7 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { resolveBookingAction, type BookingActionKind, type BookingConfig } from '~/utils/booking-action'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { apiFieldErrors, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
@@ -145,7 +145,7 @@ async function loadSlots() {
   today.value = taipeiDate()
   try {
     const slots = await $fetch<PublicVisitSlot[]>('/api/website/v1/public/slots', {
-      query: { campus_key: campusKey, date_from: today.value, date_to: taipeiDate(new Date(Date.now() + 60 * 86400000)) }
+      query: newBookingSlotsQuery(campusKey, today.value)
     })
     if (request !== slotRequest) return
     availableSlots.value = slots.filter(slot => slot.remaining > 0).sort((a, b) => `${a.slot_date} ${a.start_time}`.localeCompare(`${b.slot_date} ${b.start_time}`))
