@@ -36,7 +36,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   campus_admin: '處理指定校區的內容、預約設定、時段與參觀案件。匯出家長個資要另外授權。',
   editor: '編輯指定校區的內容與素材；不能發布，改好送審，由校區管理者發布。看不到家長個資。',
   reception: '處理指定校區的參觀案件：記聯絡紀錄、排入既有時段、補登、改期、取消與完成。不能新增時段、改預約設定或官網內容。',
-  readonly: '查看指定校區的內容與去識別的成效統計；看不到家長個資。',
+  readonly: '查看指定校區的內容與官網瀏覽、速度統計；看不到家長個資。',
 }
 
 export const ROLE_ORDER: Role[] = ['campus_admin', 'editor', 'reception', 'readonly', 'super_admin']

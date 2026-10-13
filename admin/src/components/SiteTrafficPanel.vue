@@ -8,7 +8,7 @@ import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
 
-// 後端只接受 7～90 天（速度資料只留 90 天），所以和各校預約的期間分開選；
+// 後端只接受 7～90 天（速度資料只留 90 天），所以期間只有這三種（參觀預約的期間另外選）；
 // 28 天對齊 Google 量測網頁速度的區間。
 const DAY_OPTIONS = [
   { value: 7, label: '近 7 天' },
@@ -132,7 +132,7 @@ function exportVitals() {
           <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" value-label="瀏覽次數" :markers="TRAFFIC_MARKERS" :export-filename="dailyCsvName" />
           <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
           <AnalyticsExplainer>
-            <p>全站五校合計，不分校區權限，和各校預約的數字不能直接相比。</p>
+            <p>全站五校合計，不分校區權限，和參觀預約的統計不能直接相比。</p>
             <p>計算首頁、五校介紹頁、預約參觀頁，2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息；期間跨過這天時，前後的瀏覽次數不能直接比較。</p>
             <p>不記錄 IP、cookie 或個人資料；訪客開啟「不要追蹤」時不計入。</p>
           </AnalyticsExplainer>

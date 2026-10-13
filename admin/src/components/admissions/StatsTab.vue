@@ -6,6 +6,7 @@ import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
+import BookingStatsPane from '../analytics/BookingStatsPane.vue'
 import { getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
@@ -21,6 +22,9 @@ import { csvFilename } from '../../utils/csv'
 // 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、區域分析（2026-10-08 起官網也做，見區域分析規格）、未預繳原因。
 // 警示與行動入口指到統計內的子分頁就直接切；指到訪視明細就交給頁面（open-records）。
 // 「未預繳原因」另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面。
+// 「參觀預約」（2026-10-13 從成效統計搬來，BookingStatsPane）讀自己的 API、不用招生統計：招生統計還在讀或
+// 讀失敗時，子分頁列照樣出現，切得過去；招生的子分頁和以前一樣等招生統計回來才畫（讀失敗只有錯誤與
+// 重新載入）。上方的統計範圍與說明只屬於招生統計，在參觀預約不顯示。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string }] }>()
 
@@ -35,6 +39,8 @@ const csvName = (title: string) => csvFilename('招生統計', title, campusLabe
 // 子分頁由頁面放在網址（sub，見 useAdmissionsFilters）；單獨掛載（測試）時沒有父層就用元件自己的值。
 const sub = defineModel<StatsSub>('sub', { default: 'overview' })
 const subTab = computed(() => `stats-${sub.value}`)
+
+const bookingSub = computed(() => sub.value === 'booking')
 
 function setSubTab(name: string | number) {
   const value = String(name).replace(/^stats-/, '')
@@ -266,12 +272,12 @@ const noDepositKpis = computed(() => {
 
 <template>
   <section class="stats" aria-label="統計分析">
-    <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取統計資料，請重新載入。" class="inline-error">
-      <el-button size="small" @click="load()">重新載入</el-button>
-    </el-alert>
-    <el-skeleton v-else-if="!stats" :rows="6" animated />
-    <template v-else>
-      <div class="stats-toolbar">
+    <template v-if="!bookingSub">
+      <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取統計資料，請重新載入。" class="inline-error">
+        <el-button size="small" @click="load()">重新載入</el-button>
+      </el-alert>
+      <el-skeleton v-else-if="!stats" :rows="6" animated />
+      <div v-else class="stats-toolbar">
         <p class="hint stats-scope">
           統計範圍：{{ campusLabel(campusKey) }}・{{ scopeLabel }}（依入學學年學期）・資料時間
           <time class="num">{{ formatDateTime(stats.as_of) }}</time>
@@ -281,9 +287,11 @@ const noDepositKpis = computed(() => {
           <p>預繳速度：剛參觀的家長還沒到會預繳的時候，所以「本月預繳比過去慢」「來源結構失衡」是依過去的速度，算到今天應該有幾筆預繳再比較。</p>
         </AnalyticsExplainer>
       </div>
+    </template>
 
-      <el-tabs v-loading="loading" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
-        <el-tab-pane label="總覽" name="stats-overview">
+    <el-tabs v-if="stats || failed || bookingSub" v-loading="loading && !bookingSub" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
+      <el-tab-pane label="總覽" name="stats-overview">
+        <template v-if="stats">
           <StatsOverview v-if="hasData" :stats="stats" :csv-name="csvName" @navigate="navigate">
             <template #reference-month>
               <div class="filter-field stats-month-field">
@@ -304,145 +312,150 @@ const noDepositKpis = computed(() => {
             </template>
           </StatsOverview>
           <p v-else class="empty-note stats-empty">{{ emptyText }}</p>
-        </el-tab-pane>
+        </template>
+      </el-tab-pane>
 
-        <el-tab-pane label="班別分析" name="stats-class">
-          <div class="stats-pane">
-            <StatsDimensionTable
-              title="班別統計"
-              :rows="stats.by_grade"
-              :columns="GRADE_COLUMNS"
-              row-key="grade"
-              empty-text="此區間尚無班別資料"
-              :export-filename="csvName('班別統計')"
-            />
-            <StatsDimensionTable
-              title="月份 × 班別分布"
-              :export-filename="csvName('月份 × 班別分布')"
-              :rows="monthGradeRows"
-              :columns="monthGradeColumns"
-              row-key="month"
-              empty-text="此區間尚無班別資料"
-            />
-          </div>
-        </el-tab-pane>
+      <el-tab-pane label="班別分析" name="stats-class">
+        <div v-if="stats" class="stats-pane">
+          <StatsDimensionTable
+            title="班別統計"
+            :rows="stats.by_grade"
+            :columns="GRADE_COLUMNS"
+            row-key="grade"
+            empty-text="此區間尚無班別資料"
+            :export-filename="csvName('班別統計')"
+          />
+          <StatsDimensionTable
+            title="月份 × 班別分布"
+            :export-filename="csvName('月份 × 班別分布')"
+            :rows="monthGradeRows"
+            :columns="monthGradeColumns"
+            row-key="month"
+            empty-text="此區間尚無班別資料"
+          />
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane label="來源分析" name="stats-source">
-          <div class="stats-pane">
-            <StatsDimensionTable
-              title="來源排名明細"
-              :export-filename="csvName('來源排名明細')"
-              :rows="stats.by_source"
-              :columns="SOURCE_COLUMNS"
-              row-key="source"
-              numbered
-              empty-text="此區間尚無來源資料"
-              caption="依家長填的來源原文分組，寫法不同會分開算（例如「FB」和「臉書」）。"
-            />
-          </div>
-        </el-tab-pane>
+      <el-tab-pane label="來源分析" name="stats-source">
+        <div v-if="stats" class="stats-pane">
+          <StatsDimensionTable
+            title="來源排名明細"
+            :export-filename="csvName('來源排名明細')"
+            :rows="stats.by_source"
+            :columns="SOURCE_COLUMNS"
+            row-key="source"
+            numbered
+            empty-text="此區間尚無來源資料"
+            caption="依家長填的來源原文分組，寫法不同會分開算（例如「FB」和「臉書」）。"
+          />
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane label="接待分析" name="stats-staff">
-          <div class="stats-pane">
-            <StatsDimensionTable
-              title="接待人員統計"
-              :export-filename="csvName('接待人員統計')"
-              :rows="stats.by_tour_guide"
-              :columns="STAFF_COLUMNS"
-              row-key="tour_guide"
-              empty-text="此區間尚無接待資料"
-              caption="依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。"
-            />
-            <StatsDimensionTable
-              title="接待人員 × 各年級預繳率"
-              :export-filename="csvName('接待人員 × 各年級預繳率')"
-              :rows="staffGradeRows"
-              :columns="staffGradeColumns"
-              row-key="tour_guide"
-              empty-text="此區間尚無接待資料"
-              caption="格內寫「參觀人數 / 預繳率」。"
-            />
-            <StatsDimensionTable
-              v-if="crossRows.length"
-              title="接待人員 × 來源 交叉分析"
-              :export-filename="csvName('接待人員 × 來源 交叉分析')"
-              :rows="crossRows"
-              :columns="crossColumns"
-              row-key="tour_guide"
-              empty-text="此區間尚無接待資料"
-              caption="欄位是參觀人數前 10 名的來源；合計含其他來源。"
-            />
-          </div>
-        </el-tab-pane>
+      <el-tab-pane label="接待分析" name="stats-staff">
+        <div v-if="stats" class="stats-pane">
+          <StatsDimensionTable
+            title="接待人員統計"
+            :export-filename="csvName('接待人員統計')"
+            :rows="stats.by_tour_guide"
+            :columns="STAFF_COLUMNS"
+            row-key="tour_guide"
+            empty-text="此區間尚無接待資料"
+            caption="依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。"
+          />
+          <StatsDimensionTable
+            title="接待人員 × 各年級預繳率"
+            :export-filename="csvName('接待人員 × 各年級預繳率')"
+            :rows="staffGradeRows"
+            :columns="staffGradeColumns"
+            row-key="tour_guide"
+            empty-text="此區間尚無接待資料"
+            caption="格內寫「參觀人數 / 預繳率」。"
+          />
+          <StatsDimensionTable
+            v-if="crossRows.length"
+            title="接待人員 × 來源 交叉分析"
+            :export-filename="csvName('接待人員 × 來源 交叉分析')"
+            :rows="crossRows"
+            :columns="crossColumns"
+            row-key="tour_guide"
+            empty-text="此區間尚無接待資料"
+            caption="欄位是參觀人數前 10 名的來源；合計含其他來源。"
+          />
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane label="區域分析" name="stats-area" lazy>
-          <AreaTab
+      <el-tab-pane label="區域分析" name="stats-area" lazy>
+        <AreaTab
+          v-if="stats"
+          :campus-key="campusKey"
+          :school-year="schoolYear"
+          :semester="semester"
+          :csv-name="csvName"
+          :empty-text="emptyText"
+          @open-records="emit('open-records', $event)"
+        />
+      </el-tab-pane>
+
+      <el-tab-pane label="未預繳原因" name="stats-nodeposit" lazy>
+        <div v-if="stats" class="stats-pane">
+          <template v-if="stats.no_deposit_total">
+            <div class="nodeposit-summary">
+              <div
+                v-for="item in noDepositKpis"
+                :key="item.label"
+                class="nodeposit-kpi"
+                :class="{ 'nodeposit-kpi--on': item.value > 0 }"
+              >
+                <span>{{ item.label }}</span>
+                <strong class="num">{{ item.value }}</strong>
+              </div>
+            </div>
+            <p class="nodeposit-priority">
+              高潛力 {{ stats.no_deposit_priority.high }}・中潛力 {{ stats.no_deposit_priority.medium }}・低潛力 {{ stats.no_deposit_priority.low }}・未歸類 {{ stats.no_deposit_priority.other }}（共 {{ stats.no_deposit_total }} 筆）
+            </p>
+          </template>
+          <StatsDimensionTable
+            title="未預繳原因分佈"
+            :export-filename="csvName('未預繳原因分佈')"
+            :rows="noDepositRows"
+            :columns="noDepositColumns"
+            row-key="reason"
+            empty-text="此區間尚無未預繳資料"
+          />
+          <p class="hint">已退預繳、退註冊的不算未預繳；逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳。</p>
+          <NoDepositList
+            v-if="stats.no_deposit_total"
             :campus-key="campusKey"
             :school-year="schoolYear"
             :semester="semester"
-            :csv-name="csvName"
-            :empty-text="emptyText"
+            :preset="noDepositPreset"
+            :overall-total="stats.no_deposit_total"
             @open-records="emit('open-records', $event)"
           />
-        </el-tab-pane>
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane label="未預繳原因" name="stats-nodeposit" lazy>
-          <div class="stats-pane">
-            <template v-if="stats.no_deposit_total">
-              <div class="nodeposit-summary">
-                <div
-                  v-for="item in noDepositKpis"
-                  :key="item.label"
-                  class="nodeposit-kpi"
-                  :class="{ 'nodeposit-kpi--on': item.value > 0 }"
-                >
-                  <span>{{ item.label }}</span>
-                  <strong class="num">{{ item.value }}</strong>
-                </div>
-              </div>
-              <p class="nodeposit-priority">
-                高潛力 {{ stats.no_deposit_priority.high }}・中潛力 {{ stats.no_deposit_priority.medium }}・低潛力 {{ stats.no_deposit_priority.low }}・未歸類 {{ stats.no_deposit_priority.other }}（共 {{ stats.no_deposit_total }} 筆）
-              </p>
-            </template>
-            <StatsDimensionTable
-              title="未預繳原因分佈"
-              :export-filename="csvName('未預繳原因分佈')"
-              :rows="noDepositRows"
-              :columns="noDepositColumns"
-              row-key="reason"
-              empty-text="此區間尚無未預繳資料"
-            />
-            <p class="hint">已退預繳、退註冊的不算未預繳；逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳。</p>
-            <NoDepositList
-              v-if="stats.no_deposit_total"
-              :campus-key="campusKey"
-              :school-year="schoolYear"
-              :semester="semester"
-              :preset="noDepositPreset"
-              :overall-total="stats.no_deposit_total"
-              @open-records="emit('open-records', $event)"
-            />
-          </div>
-        </el-tab-pane>
+      <el-tab-pane v-if="showCompare" label="五校比較" name="stats-compare" lazy>
+        <div v-if="stats" class="stats-pane">
+          <p v-if="compareNote" class="hint compare-note">{{ compareNote }}</p>
+          <el-alert v-if="compareFailed" type="error" :closable="false" show-icon title="無法讀取五校比較，請重新載入。">
+            <el-button size="small" @click="loadCompare()">重新載入</el-button>
+          </el-alert>
+          <el-skeleton v-else-if="!compareResult" :rows="4" animated />
+          <CompareTable
+            v-else
+            :rows="compareResult.rows"
+            :school-year="compareResult.school_year"
+            :semester="compareResult.semester"
+            :export-filename="csvFilename('招生統計', '五校比較', termLabel(compareResult.school_year, compareResult.semester), taipeiToday())"
+          />
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane v-if="showCompare" label="五校比較" name="stats-compare" lazy>
-          <div class="stats-pane">
-            <p v-if="compareNote" class="hint compare-note">{{ compareNote }}</p>
-            <el-alert v-if="compareFailed" type="error" :closable="false" show-icon title="無法讀取五校比較，請重新載入。">
-              <el-button size="small" @click="loadCompare()">重新載入</el-button>
-            </el-alert>
-            <el-skeleton v-else-if="!compareResult" :rows="4" animated />
-            <CompareTable
-              v-else
-              :rows="compareResult.rows"
-              :school-year="compareResult.school_year"
-              :semester="compareResult.semester"
-              :export-filename="csvFilename('招生統計', '五校比較', termLabel(compareResult.school_year, compareResult.semester), taipeiToday())"
-            />
-          </div>
-        </el-tab-pane>
-      </el-tabs>
-    </template>
+      <el-tab-pane label="參觀預約" name="stats-booking" lazy>
+        <BookingStatsPane :campus-key="campusKey" :campus-keys="campusKeys" />
+      </el-tab-pane>
+    </el-tabs>
   </section>
 </template>
 

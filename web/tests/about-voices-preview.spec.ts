@@ -9,16 +9,18 @@ import AboutMedal from '../app/components/AboutMedal.vue'
 // 2026-10-12 即時預覽補洞：關於頁第四章選了第 3 支家長影片後，後台把影片刪到只剩 1 支，
 // pickedVoice／shownVoice 還停在第 3 支，voices[shownVoice] 是 undefined，整頁預覽畫不出來。
 // 影片變少或換掉時要回到第 1 支、停止播放。Nuxt 的自動匯入在單元測試裡沒有，這裡補上（同 about-render.spec.ts）；
-// 立體書動畫（motion、about-popup）換成假的，沒有動畫時選片直接換。
+// 立體書動畫不載入，沒有動畫時選片直接換：走元件本來就有的「強制色彩模式不載入動畫」那條路（onMounted 一開始就 return）。
+// 不用 vi.mock 換掉 about-popup：.vue 裡的動態 import('~/utils/about-popup') 攔不住，載入在等待的 20ms 內完成時
+// 會跑到真的動畫、選片被延後，第二項偶發失敗（2026-10-13 main CI 紅過一次，本機約三成）。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
-vi.mock('motion', () => ({ animate: vi.fn(), scroll: vi.fn(), inView: vi.fn() }))
-// 同步的 factory：寫成 async（importOriginal）時，元件 onMounted 裡的動態 import 有時拿到真的模組，
-// 第二個案例就會跑真的換片動畫（280ms 後才換），CI 上時過時不過（2026-10-13）。這支測試只需要 createAboutPopup。
-vi.mock('../app/utils/about-popup', () => ({ createAboutPopup: () => null }))
+const realMatchMedia = window.matchMedia.bind(window)
+vi.stubGlobal('matchMedia', (query: string) => query === '(forced-colors: active)'
+  ? { matches: true, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
+  : realMatchMedia(query))
 
 const site = fixture as unknown as SiteContent
 const yihua = site.campuses.find((c) => c.key === 'yihua')!

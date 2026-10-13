@@ -11,7 +11,7 @@ import { usePermissions } from '../../composables/usePermissions'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
-import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
+import { bookingCsvName, saveAnalyticsCsv } from './csvExport'
 
 // 預約結果（GET /admin/analytics/booking-outcomes，招生分析報告階段 1 第 1、4、5 項）：期間內
 // 送出的案件現在各是什麼結果。一次回全部授權校區，換校只換顯示的列、不重抓；換期間才重抓。
@@ -151,7 +151,7 @@ const COMPARE_CSV_HEADER = [
 function exportCompare() {
   const rows = compareTotal.value ? [...compareRows.value, compareTotal.value] : compareRows.value
   saveAnalyticsCsv(
-    analyticsCsvName('五校比較', '', loadedLabel.value),
+    bookingCsvName('五校比較', '', loadedLabel.value),
     COMPARE_CSV_HEADER,
     rows.map((item) => [
       item.campus, item.modeShort, item.cases, item.completed, item.no_show, rateCsv(item.attendance),
@@ -318,7 +318,7 @@ function exportCompare() {
 </template>
 
 <style scoped>
-/* 兩塊直接排進父層格線（AnalyticsView 的 .booking-grid）；本身不占格。 */
+/* 兩塊直接排進父層格線（BookingStatsPane 的 .booking-grid）；本身不占格。 */
 .outcomes-section {
   display: contents;
 }

@@ -1,8 +1,7 @@
 ## 2026-10-13 10-12～10-13 改動審查出的一批 bug（`claude/affectionate-maxwell-uten3y`，PR #33）
 
-審查 `c91d939..60332d8` 找到的問題一次修掉。main 上 `60332d8`（側欄收合）的 CI 兩次都紅在官網單元測試，那一版沒有部署；這批合入後會一起上線。
+審查 `c91d939..60332d8` 找到的問題一次修掉。（同一輪找到的 `about-voices-preview.spec.ts` 偶發失敗，main 已在 `a5d790c` 另外修好，以 main 的版本為準。）
 
-- **CI 被卡**：`about-voices-preview.spec.ts` 的 `vi.mock` 寫成 async（importOriginal），元件 onMounted 的動態 import 有時拿到真的 about-popup，第二個案例跑真的換片動畫，時過時不過。改成同步 factory。
 - **後台改 Email 時舊家長連結作廢**：補登或送單時 Email 打錯，連結已寄到陌生人信箱；改正後那條連結仍看得到電話、孩子資料，也能取消或改期。原本的 Email 有值又被改掉時：會寄變更信就換發新連結（新信箱收到的是新的），否則只撤銷，園方要給家長時在「家長管理連結」重新產生。原本沒有 Email 的不動。規格 `docs/specs/2026-10-12-admin-batch-design.md` 3.1 第 7 點補記；回應多 `access_link_reset`（契約已重產，沒有 migration）。
 - **標記已到場**：建立招生訪視前在鎖內重讀家長資料，同事同時改好電話時不再用舊值建。
 - **消息活動時間**：不再收全形數字與結尾換行（`0645aad` 漏的 `_TIME_RE`）。
@@ -14,6 +13,17 @@
 - 驗證：
   - admin vitest 154 檔 2271 過、typecheck 過；web vitest 97 檔 1157 過、typecheck 過；`contract:check` 一致。
   - 後端改到的測試檔（預約修改、消息、地址、門牌同步、比對）本機 PostgreSQL 全過；新加的測試拿掉修正會失敗。
+
+## 2026-10-13 參觀預約統計搬到招生入學（`feature/booking-stats-move-20261013`）
+
+使用者要把成效統計的「各校預約」與「預約孩子的班別」整合到招生入學的統計分析，成效統計只留官網瀏覽與速度。規則寫在 DESIGN.md 最上方一節。
+
+- **招生入學 → 統計分析 → 參觀預約**（`?tab=stats&sub=booking`，最後一個子分頁）：五校比較、預約結果、預約流程、每日變化、預約孩子的班別、依來源、預約鈕點擊都搬過來，口徑與 API 不變。校區跟頁首；入學學年學期在這個子分頁停用，期間在子分頁裡選。
+- **成效統計**只剩官網瀏覽與速度，沒有頁籤。
+- 參觀預約的 CSV 檔名改 `招生統計-參觀預約-…`。
+- 新元件 `admin/src/components/analytics/BookingStatsPane.vue`（從 AnalyticsView 搬出），`StatsTab` 讓參觀預約不受招生統計讀取狀態影響。
+- 連帶影響：editor、readonly 帳號看不到參觀預約的數字（招生入學沒開給這兩種角色）；招生開關關閉時也看不到。
+- 測試：單元測試改測新元件；stack e2e 新增 `booking-stats.spec.ts`（1440／390 面板、停用條件、分校管理者、成效統計只剩瀏覽），鍵盤溢出與 axe 清單加上新子分頁與 `/analytics`。
 
 ## 2026-10-13 後台側欄可以收合（`feature/admin-layout-20261013`）
 

@@ -57,13 +57,17 @@ async function checkAvailability() {
 
 watch(campus, () => void checkAvailability(), { immediate: true })
 
+// 統計分析的「參觀預約」看預約案件的送出日或事件日，不分入學學年學期：兩個下拉停用（值保留，
+// 切回其他子分頁還在），期間在子分頁裡選。同 2026-10-05「待追蹤」的做法。
+const termless = computed(() => tab.value === 'stats' && sub.value === 'booking')
 // 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
 const narrow = useNarrowScreen()
 const filtersOpen = ref(false)
 const filterSummary = computed(() => {
   const parts: string[] = []
   if (multiCampus.value) parts.push(campusLabel(campus.value))
-  parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
+  if (termless.value) parts.push('不分學年學期')
+  else parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
   return parts.join('・')
 })
 
@@ -95,7 +99,7 @@ function showUnscoped() {
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、訪視明細與統計分析。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板、訪視明細與統計分析（含參觀預約的統計）。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
       <button
@@ -116,17 +120,18 @@ function showUnscoped() {
         </div>
         <div class="filter-field">
           <span>入學學年</span>
-          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" @update:model-value="setYear">
+          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" :disabled="termless" @update:model-value="setYear">
             <el-option v-for="year in yearOptions" :key="year" :label="`${year} 學年`" :value="year" />
           </el-select>
         </div>
         <div class="filter-field">
           <span>入學學期</span>
-          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" @update:model-value="setSemester">
+          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" :disabled="termless" @update:model-value="setSemester">
             <el-option :value="1" :label="SEMESTER_LABELS[1]" />
             <el-option :value="2" :label="SEMESTER_LABELS[2]" />
           </el-select>
         </div>
+        <p v-if="termless" class="admissions__scope-note hint">這個分頁不分入學學年學期</p>
       </div>
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
@@ -170,6 +175,12 @@ function showUnscoped() {
 <style scoped>
 .admissions__filters .el-select {
   width: 140px;
+}
+
+.admissions__scope-note {
+  align-self: flex-end;
+  margin: 0;
+  padding-bottom: 6px;
 }
 
 .admissions__summary {

@@ -7,7 +7,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
 import DailyBars from './DailyBars.vue'
-import { analyticsCsvName } from './csvExport'
+import { bookingCsvName } from './csvExport'
 
 // 選定校區的每日事件（GET /admin/analytics/event-trend）。和「預約流程」同一個口徑：依事件發生
 // 的台北日期計數；確認不畫（10/01 起和送出需求同時發生），未到場沒有事件，看「預約結果」。
@@ -56,7 +56,7 @@ const points = computed(() => (trend.value?.days ?? []).map((item) => ({ day: it
 const slash = (day: string) => day.replaceAll('-', '/')
 const actualPeriod = computed(() => (trend.value ? `${slash(trend.value.date_from)}–${slash(trend.value.date_to)}` : props.periodLabel))
 // 匯出的檔名：畫面上這批資料的項目、校區、實際畫出的期間。
-const exportName = computed(() => analyticsCsvName(`每日${seriesLabel.value}`, campusLabel(loadedCampus.value), actualPeriod.value))
+const exportName = computed(() => bookingCsvName(`每日${seriesLabel.value}`, campusLabel(loadedCampus.value), actualPeriod.value))
 </script>
 
 <template>
