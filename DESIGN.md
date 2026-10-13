@@ -1372,6 +1372,23 @@
 - **焦點框往內縮**（`outline-offset:-2px`）：選單是捲動區，往外畫的外框在最上、最下一項會被裁掉。
 - **沒改**：側欄寬 260、深色 token、只有參觀案件掛數字、分組與開合記憶、帳號區兩顆圖示鈕（手機兩顆帶字按鈕）。
 
+### 桌機側欄收合成圖示欄（2026-10-13，`feature/admin-layout-20261013`）
+
+使用者要「側邊選單可以收合」。比照園務系統（ivy-frontend `AdminSidebar.vue`）：品牌列右邊一顆收合鈕（Fold／Expand），收成 64px（`--side-w-collapsed`）。同仁兩套系統都在用，操作要一樣。
+
+- **收起來只是變窄，項目都還在**：
+  - 不畫區段與分組標題，所有看得到的項目都列成圖示，連平常收起來的分組也列。
+  - 分組之間用一條 `--sidebar-line` 細線隔開。
+  - 不做「分組圖示＋彈出子選單」：多點一下才到得了，而且分組沒有自己的圖示。
+- **名稱用 Element Plus 浮動提示**（`placement="right"`、`trigger` 為 hover＋focus、`hide-after=0`），鍵盤 ↑↓ 移到哪一項就顯示哪一項。名稱仍留在連結裡（`.visually-hidden`）給報讀器念。側欄是 `overflow:hidden`，CSS 提示會被裁掉，所以不用 CSS 做。
+- **搜尋**：圖示欄的搜尋框換成搜尋鈕。按它或 ⌘K 都先展開側欄（搜尋要打字，64px 放不下），展開後焦點進搜尋框。收起時清掉搜尋字。
+- **品牌列**只剩展開鈕，同園務。**帳號區**只留頭像（進我的帳號）與登出；更改密碼在我的帳號頁也有。
+- **捲軸藏起來**（`scrollbar-width:none`）：64px 放不下 Windows 的傳統捲軸，上下緣的捲動陰影仍會提示還有項目。
+- **不做寬度動畫**：表格、地圖、即時預覽每一格都要重排，直接切換比較穩。地圖與預覽欄本來就用 ResizeObserver，會跟著重算。
+- 收合狀態記在 localStorage `ivy-admin-sidebar-collapsed`，讀寫失敗就當展開。手機（900px 以下）用抽屜，不收合。
+- 測試：`admin/src/__tests__/sidebarCollapse20261013.test.ts`、`tests/stack/sidebar-collapse.spec.ts`。
+- **右邊被切掉不是版面問題**：使用者 10-13 回報 1470px 螢幕右側被切。實測同頁 1568px 寬沒有橫向溢出，是 Chrome 視窗比螢幕寬。之後再有人回報，先在他的瀏覽器量 `innerWidth` 與 `screen.width`。
+
 ## 官網後台站內通知頁（2026-10-05，`feature/admin-notifications-20261005`）
 
 使用者要「優化 /admin/notifications 的 UI/UX」。以下是之後要照著做的：

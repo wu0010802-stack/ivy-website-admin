@@ -17,6 +17,24 @@ const route = useRoute()
 const mobileQuery = window.matchMedia('(max-width: 900px)')
 const isMobile = ref(mobileQuery.matches)
 const drawerOpen = ref(false)
+// 桌機側欄可以收成圖示欄，多出來的寬度給內容；收合記在瀏覽器裡，下次進來照舊。
+// 私密視窗或封鎖 site data 時讀寫會丟例外，接住就好，收合只是便利。手機用抽屜，不收合。
+const COLLAPSED_KEY = 'ivy-admin-sidebar-collapsed'
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+const sidebarCollapsed = ref(readCollapsed())
+watch(sidebarCollapsed, value => {
+  try {
+    localStorage.setItem(COLLAPSED_KEY, value ? '1' : '0')
+  } catch {
+    /* 存不了不影響操作 */
+  }
+})
 const main = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const pageTitle = computed(() => route.meta.title ?? '')
@@ -104,9 +122,9 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="shell">
+  <div class="shell" :class="{ 'is-collapsed': sidebarCollapsed && !isMobile }">
     <a class="skip-link" href="#main">跳到主要內容</a>
-    <aside v-if="!isMobile" class="side"><AdminSidebar @logout="handleLogout" /></aside>
+    <aside v-if="!isMobile" class="side"><AdminSidebar v-model:collapsed="sidebarCollapsed" @logout="handleLogout" /></aside>
     <el-drawer v-else v-model="drawerOpen" title="主選單" direction="ltr" :size="'min(320px, 88vw)'"
       :with-header="false" class="admin-nav-drawer" @close-auto-focus="menuButton?.focus()">
       <AdminSidebar mobile @close="drawerOpen = false" @logout="handleLogout" />
@@ -136,6 +154,8 @@ async function handleLogout() {
 
 <style scoped>
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100svh; }
+/* 收合不做寬度動畫：內容（表格、地圖、預覽）每一格都要重排，直接切換比較穩。 */
+.shell.is-collapsed { grid-template-columns: var(--side-w-collapsed) minmax(0, 1fr); }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px; border-radius: var(--radius); background: var(--ink); color: var(--surface); }
 .skip-link:focus { top: 12px; }
 /* overflow:hidden 是保險：側欄裡絕對定位的東西（例如數字的報讀文字）不能把整頁撐高。 */

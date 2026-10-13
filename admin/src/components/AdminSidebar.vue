@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
-  Document as DocumentIcon, EditPen, Files, Film, House, Location as LocationIcon, Lock, Memo,
+  Document as DocumentIcon, EditPen, Expand, Files, Film, Fold, House, Location as LocationIcon, Lock, Memo,
   Notebook, Notification as NotificationIcon, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
@@ -13,8 +13,8 @@ import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labe
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
 import crestMarkUrl from '../assets/brand/ivy-crest-mark.webp'
 
-const props = defineProps<{ mobile?: boolean }>()
-const emit = defineEmits<{ close: []; logout: [] }>()
+const props = defineProps<{ mobile?: boolean; collapsed?: boolean }>()
+const emit = defineEmits<{ close: []; logout: []; 'update:collapsed': [value: boolean] }>()
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -22,6 +22,31 @@ const query = ref('')
 const passwordOpen = ref(false)
 const searchInput = ref<{ focus: () => void } | null>(null)
 const navEl = ref<HTMLElement | null>(null)
+// 桌機收起來是 64px 的圖示欄（2026-10-13，同園務系統）：不畫分組標題、所有項目都列出，
+// 名稱改成滑過或鍵盤停到時的浮動提示，連結裡仍留著名稱給報讀器。手機抽屜不收合。
+const rail = computed(() => Boolean(props.collapsed) && !props.mobile)
+// 浮動提示滑鼠與鍵盤焦點都會出現；離開馬上收，沿著圖示欄往下滑不會疊好幾個。
+const tipTrigger: ('hover' | 'focus')[] = ['hover', 'focus']
+// 收起時按搜尋鈕或 ⌘K：先展開（搜尋要打字，圖示欄放不下），展開畫好之後再把焦點放進搜尋框。
+let focusSearchOnExpand = false
+function openSearch() {
+  if (!rail.value) {
+    searchInput.value?.focus()
+    return
+  }
+  focusSearchOnExpand = true
+  emit('update:collapsed', false)
+}
+watch(rail, isRail => {
+  // 收起前打的搜尋字清掉，圖示欄不該只剩搜尋結果。
+  if (isRail) {
+    query.value = ''
+    return
+  }
+  if (!focusSearchOnExpand) return
+  focusSearchOnExpand = false
+  searchInput.value?.focus()
+}, { flush: 'post' })
 // 每天要用的總覽與參觀預約預設展開，內容三組與系統收起；使用者自己的
 // 開合記在瀏覽器裡，下次進來不必重開。私密視窗或封鎖 site data 時讀寫
 // 都會丟例外，接住就好，收合只是便利。
@@ -131,7 +156,7 @@ function onShortcut(event: KeyboardEvent) {
   if (event.isComposing || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
   if ([...document.querySelectorAll('[aria-modal="true"]')].some(el => el.getClientRects().length > 0)) return
   event.preventDefault()
-  searchInput.value?.focus()
+  openSearch()
 }
 onMounted(() => { if (!props.mobile) window.addEventListener('keydown', onShortcut) })
 onBeforeUnmount(() => window.removeEventListener('keydown', onShortcut))
@@ -170,18 +195,31 @@ const userLine = computed(() => {
 </script>
 
 <template>
-  <div class="sidebar" :class="{ 'is-mobile': mobile }">
+  <div class="sidebar" :class="{ 'is-mobile': mobile, 'is-collapsed': rail }">
     <div class="sidebar__brand">
-      <router-link :to="homePath" class="sidebar__home" title="回到起始頁">
+      <router-link v-if="!rail" :to="homePath" class="sidebar__home" title="回到起始頁">
         <img :src="crestMarkUrl" alt="" width="41" height="44" />
         <span class="sidebar__brand-text"><strong>常春藤官網</strong><span>管理後台</span></span>
       </router-link>
       <button v-if="mobile" class="sidebar__close" type="button" aria-label="關閉選單" @click="emit('close')">
         <el-icon><Close /></el-icon>
       </button>
+      <!-- 同一顆鈕切換收合與展開：按完焦點留在原處，可以馬上再按回來。 -->
+      <el-tooltip v-else :content="rail ? '展開側邊欄' : '收合側邊欄'" :placement="rail ? 'right' : 'bottom'"
+        :trigger="tipTrigger" :hide-after="0">
+        <button class="sidebar__toggle" type="button" :aria-label="rail ? '展開側邊欄' : '收合側邊欄'"
+          @click="emit('update:collapsed', !rail)">
+          <el-icon aria-hidden="true"><Expand v-if="rail" /><Fold v-else /></el-icon>
+        </button>
+      </el-tooltip>
     </div>
     <div class="sidebar__search">
-      <el-input ref="searchInput" v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Search" clearable
+      <el-tooltip v-if="rail" :content="`搜尋功能（${shortcutHint}）`" placement="right" :trigger="tipTrigger" :hide-after="0">
+        <button class="sidebar__rail-search" type="button" aria-label="搜尋功能" aria-keyshortcuts="Meta+K Control+K" @click="openSearch">
+          <el-icon aria-hidden="true"><Search /></el-icon>
+        </button>
+      </el-tooltip>
+      <el-input v-else ref="searchInput" v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Search" clearable
         :aria-keyshortcuts="mobile ? undefined : 'Meta+K Control+K'"
         @keydown.enter="openFirstResult" @keydown.esc="clearSearch" @keydown.down.prevent="focusFirstTarget">
         <template v-if="!mobile && !query" #suffix><kbd class="sidebar__kbd" aria-hidden="true">{{ shortcutHint }}</kbd></template>
@@ -189,9 +227,9 @@ const userLine = computed(() => {
     </div>
     <nav ref="navEl" class="sidebar__nav" aria-label="主選單" @keydown="moveFocus">
       <template v-for="block in blocks" :key="block.key">
-      <p v-if="block.section" class="sidebar__section">{{ block.section }}</p>
+      <p v-if="block.section && !rail" class="sidebar__section">{{ block.section }}</p>
       <section v-for="group in block.groups" :key="group.key" class="sidebar__group" :class="{ 'is-nested': block.section }">
-        <h2 v-if="!group.flat">
+        <h2 v-if="!group.flat && !rail">
           <button type="button" class="sidebar__group-toggle"
             :class="{ 'has-current': !hasQuery && !expanded[group.key] && group.key === activeGroupKey }"
             :disabled="hasQuery" :aria-expanded="hasQuery || expanded[group.key]"
@@ -201,14 +239,16 @@ const userLine = computed(() => {
             <span class="sidebar__label">{{ group.label }}</span>
           </button>
         </h2>
-        <ul v-show="group.flat || hasQuery || expanded[group.key]" :id="`nav-${group.key}`">
+        <ul v-show="group.flat || hasQuery || rail || expanded[group.key]" :id="`nav-${group.key}`">
           <li v-for="item in group.items" :key="item.name">
-            <router-link :to="item.path" class="sidebar__link"
-              :class="{ 'is-active': activePath === item.path, 'is-first': firstResult?.path === item.path }"
-              :aria-current="activePath === item.path ? 'page' : undefined">
-              <el-icon v-if="item.icon && icons[item.icon]" aria-hidden="true"><component :is="icons[item.icon]" /></el-icon>
-              <span class="sidebar__label">{{ item.title }}</span>
-            </router-link>
+            <el-tooltip :disabled="!rail" :content="item.title" placement="right" :trigger="tipTrigger" :hide-after="0">
+              <router-link :to="item.path" class="sidebar__link"
+                :class="{ 'is-active': activePath === item.path, 'is-first': firstResult?.path === item.path }"
+                :aria-current="activePath === item.path ? 'page' : undefined">
+                <el-icon v-if="item.icon && icons[item.icon]" aria-hidden="true"><component :is="icons[item.icon]" /></el-icon>
+                <span :class="rail ? 'visually-hidden' : 'sidebar__label'">{{ item.title }}</span>
+              </router-link>
+            </el-tooltip>
           </li>
         </ul>
       </section>
@@ -219,17 +259,25 @@ const userLine = computed(() => {
       </div>
     </nav>
     <div v-if="auth.user" class="sidebar__user">
-      <router-link to="/account" class="sidebar__account" :class="{ 'is-active': route.path === '/account' }"
-        :aria-current="route.path === '/account' ? 'page' : undefined"
-        :aria-label="`我的帳號：${staffWithEmail(auth.user)}`" :title="`${auth.user.email}（${userLine}）`">
-        <span class="sidebar__avatar" aria-hidden="true">{{ userInitial.toUpperCase() }}</span>
-        <div class="sidebar__user-text"><strong>{{ userName }}</strong><span>{{ userLine }}</span></div>
-      </router-link>
+      <el-tooltip :disabled="!rail" :content="`${userName}（${userLine}）`" placement="right" :trigger="tipTrigger" :hide-after="0">
+        <router-link to="/account" class="sidebar__account" :class="{ 'is-active': route.path === '/account' }"
+          :aria-current="route.path === '/account' ? 'page' : undefined"
+          :aria-label="`我的帳號：${staffWithEmail(auth.user)}`" :title="rail ? undefined : `${auth.user.email}（${userLine}）`">
+          <span class="sidebar__avatar" aria-hidden="true">{{ userInitial.toUpperCase() }}</span>
+          <div v-if="!rail" class="sidebar__user-text"><strong>{{ userName }}</strong><span>{{ userLine }}</span></div>
+        </router-link>
+      </el-tooltip>
       <!-- 手機抽屜：觸控沒有 tooltip，圖示旁直接寫字。 -->
       <div v-if="mobile" class="sidebar__user-actions">
         <el-button text @click="passwordOpen = true"><el-icon><Lock /></el-icon><span>更改密碼</span></el-button>
         <el-button text @click="emit('logout')"><el-icon><SwitchButton /></el-icon><span>登出</span></el-button>
       </div>
+      <!-- 圖示欄只留登出；更改密碼在頭像進去的「我的帳號」裡也有。 -->
+      <template v-else-if="rail">
+        <el-tooltip content="登出" placement="right" :trigger="tipTrigger" :hide-after="0">
+          <el-button text circle aria-label="登出" @click="emit('logout')"><el-icon><SwitchButton /></el-icon></el-button>
+        </el-tooltip>
+      </template>
       <template v-else>
         <el-button text circle aria-label="更改密碼" title="更改密碼" @click="passwordOpen = true"><el-icon><Lock /></el-icon></el-button>
         <el-button text circle aria-label="登出" title="登出" @click="emit('logout')"><el-icon><SwitchButton /></el-icon></el-button>
@@ -350,10 +398,29 @@ const userLine = computed(() => {
 .sidebar__user-actions .el-button { flex: 1; min-height: 44px; border: 1px solid var(--sidebar-line); font-size: var(--text-base); }
 .sidebar__user-actions .el-button .el-icon { margin-right: 6px; }
 .sidebar__close { display: grid; place-items: center; flex-shrink: 0; margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: var(--radius); background: transparent; color: var(--sidebar-ink); cursor: pointer; }
+/* 桌機收合鈕：品牌列右邊、灰色，不跟品牌搶；圖示欄的搜尋鈕畫成跟搜尋框一樣的框。 */
+.sidebar__toggle, .sidebar__rail-search {
+  display: grid; place-items: center; flex-shrink: 0; height: 36px; padding: 0; border: 0; border-radius: var(--radius);
+  background: transparent; color: var(--sidebar-muted); cursor: pointer;
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+}
+.sidebar__toggle { width: 36px; }
+.sidebar__rail-search { width: 100%; border: 1px solid var(--sidebar-line); }
+.sidebar__toggle .el-icon, .sidebar__rail-search .el-icon { font-size: var(--nav-icon); }
+/* 收起：64px 圖示欄。品牌列只剩展開鈕；分組標題拿掉，分組之間改畫一條細線；
+   捲軸藏起來（64px 放不下一條傳統捲軸），上下緣的捲動陰影照樣提示還有項目。 */
+.sidebar.is-collapsed .sidebar__brand { justify-content: center; padding: 0; }
+.sidebar.is-collapsed .sidebar__nav { scrollbar-width: none; }
+.sidebar.is-collapsed .sidebar__link { justify-content: center; padding: 0; }
+.sidebar.is-collapsed .sidebar__group + .sidebar__group { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--sidebar-line); }
+.sidebar.is-collapsed .sidebar__group.is-nested > ul { margin-left: 0; padding-left: 0; border-left: 0; }
+.sidebar.is-collapsed .sidebar__user { flex-direction: column; gap: 8px; padding-inline: 0; }
+.sidebar.is-collapsed .sidebar__account { flex: none; margin: 0; padding: 4px; }
 /* 滑鼠才有 hover 底色；觸控點開抽屜後手指的位置不會留下一塊亮底。 */
 .sidebar__home:hover, .sidebar__link:hover, .sidebar__account:hover { text-decoration: none; }
 @media (hover: hover) {
   .sidebar__home:hover, .sidebar__link:not(.is-active):hover, .sidebar__account:not(.is-active):hover, .sidebar__close:hover,
+  .sidebar__toggle:hover, .sidebar__rail-search:hover,
   .sidebar__group-toggle:hover:not(:disabled) { background: var(--sidebar-hover); color: var(--sidebar-ink); }
   .sidebar__group-toggle.has-current:hover { color: var(--sidebar-active-ink); }
 }

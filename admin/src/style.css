@@ -61,6 +61,8 @@
   --area-kind-own-ink: var(--brand-gold-ink);
 
   --side-w: 260px;
+  /* 桌機側欄收起後的圖示欄寬（同園務系統）。 */
+  --side-w-collapsed: 64px;
   --top-h: 64px;
   --control-h: 38px;
   --radius: 8px;
