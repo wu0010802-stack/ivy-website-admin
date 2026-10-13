@@ -47,6 +47,14 @@ def test_village_codes():
     assert village_code("三民區", "不存在里") is None
 
 
+def test_village_names_is_the_inverse_of_village_codes():
+    """里代碼 → (區, 里)：人口表沒有的里，招生機會要靠它寫出名稱。同名的里（中正里）靠區分開。"""
+    names = boundaries.village_names()
+    assert names["64000050015"] == ("三民區", "本揚里")
+    assert len(names) == 893 and set(names) == boundaries.village_codes()
+    assert all(village_code(*name) == code for code, name in names.items())
+
+
 def test_doorplate_village_names_match_boundaries():
     """門牌表補過「里」字後，里名要對得上界圖。"""
     for row in sample_doorplate_rows():

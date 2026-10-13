@@ -217,4 +217,22 @@ describe('招生機會的文字（2026-10-13 規格 7）', () => {
     const none = areaOpportunity({ villages: rows.map((row) => ({ ...row, signal: 'typical' as const })), unplaced_visit: 0 })
     expect(opportunitySummary(none)).toMatchObject({ verdict: '沒有明顯偏少的里。', note: '另有 2 位來自 3 公里外，不算在內。' })
   })
+
+  it('總結：附近的里沒有人口資料時多寫一句（不是半徑外）：有參觀寫人數、沒有只寫孩子數、超過 3 個里只列前 3 個', () => {
+    const missing = (village: string, visit: number) => ({ district: '三民區', village, village_code: `code-${village}`, distance_m: 300, visit })
+    const only = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_population_villages: [missing('本揚里', 20)] })
+    expect(opportunitySummary(only)!.note).toBe('三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。')
+    // 和既有的「不算在內」並存：先寫半徑外與沒對到里，再寫缺人口的里。
+    const both = areaOpportunity({ unplaced_visit: 0, no_population_villages: [missing('本揚里', 20)] })
+    expect(opportunitySummary(both)!.note).toBe('另有 2 位來自 3 公里外，不算在內。三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。')
+    const noVisit = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_population_villages: [missing('本揚里', 0)] })
+    expect(opportunitySummary(noVisit)!.note).toBe('三民區本揚里沒有人口資料，孩子數沒算進去。')
+    const many = areaOpportunity({
+      outside_visit: 0, unplaced_visit: 0,
+      no_population_villages: ['本揚里', '寶業里', '鼎金里', '寶國里', '本上里'].map((village, index) => missing(village, 10 - index)),
+    })
+    expect(opportunitySummary(many)!.note).toBe(
+      '三民區本揚里、三民區寶業里、三民區鼎金里等 5 個里沒有人口資料，孩子數與其中的 40 位參觀都沒算進去。',
+    )
+  })
 })

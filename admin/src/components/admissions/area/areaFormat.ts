@@ -1,5 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
-import type { AreaOpportunity, AreaOpportunityRow, OpportunitySignal, VillageBoundaries, VisitGeo } from '../../../api/types'
+import type {
+  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, OpportunitySignal, VillageBoundaries, VisitGeo,
+} from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
 
@@ -204,8 +206,18 @@ export function opportunityUnavailable(data: AreaOpportunity): string | null {
   return null
 }
 
+/** 半徑內但人口表沒有的里（總結的 note 用）：列前 3 個里名，其餘寫「等 N 個里」；沒有就空字串。 */
+function missingPopulationNote(villages: readonly AreaOpportunityMissing[]): string {
+  if (!villages.length) return ''
+  const names = villages.slice(0, 3).map((item) => `${item.district}${item.village}`).join('、')
+  const where = villages.length > 3 ? `${names}等 ${villages.length} 個里` : names
+  const visit = villages.reduce((sum, item) => sum + item.visit, 0)
+  return `${where}沒有人口資料，${visit ? `孩子數與其中的 ${formatCount(visit)} 位參觀都沒算進去。` : '孩子數沒算進去。'}`
+}
+
 /**
- * 招生機會的總結（規格 7.3）：第一句是半徑內的合計，第二句是判讀；note 是不算在內的人數（都是 0 就空字串）。
+ * 招生機會的總結（規格 7.3）：第一句是半徑內的合計，第二句是判讀；note 是不算在內的人數（都是 0 就空字串），
+ * 之後接半徑內但人口表沒有的里（它們不是半徑外，要另外交代）。
  * 沒有合計（人口未匯入、本校沒座標）回 null，由呼叫端寫 opportunityUnavailable 的原因。
  */
 export function opportunitySummary(data: AreaOpportunity): { lead: string; verdict: string; note: string } | null {
@@ -225,5 +237,6 @@ export function opportunitySummary(data: AreaOpportunity): { lead: string; verdi
     data.outside_visit ? `${formatCount(data.outside_visit)} 位來自 ${radius} 公里外` : '',
     data.unplaced_visit ? `${formatCount(data.unplaced_visit)} 位沒對到里` : '',
   ].filter(Boolean)
-  return { lead, verdict, note: parts.length ? `另有 ${parts.join('、')}，不算在內。` : '' }
+  const excluded = parts.length ? `另有 ${parts.join('、')}，不算在內。` : ''
+  return { lead, verdict, note: excluded + missingPopulationNote(data.no_population_villages) }
 }

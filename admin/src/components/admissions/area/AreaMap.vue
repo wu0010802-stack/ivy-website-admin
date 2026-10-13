@@ -77,7 +77,12 @@ const villageStats = computed(() => ({
 // 招生機會的列以里代碼對（後端回 village_code，里界屬性有 VILLCODE）。
 const opportunityStats = computed(() => {
   const rows = props.opportunity?.villages ?? []
-  return { maxChildren: Math.max(0, ...rows.map((row) => row.children)), byCode: new Map(rows.map((row) => [row.village_code, row])) }
+  return {
+    maxChildren: Math.max(0, ...rows.map((row) => row.children)),
+    byCode: new Map(rows.map((row) => [row.village_code, row])),
+    // 半徑內但人口表沒有的里：沒有列，也不是半徑外。
+    noPopulation: new Map((props.opportunity?.no_population_villages ?? []).map((item) => [item.village_code, item])),
+  }
 })
 const mode = ref<MapMode>('visits')
 const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: option.value !== 'visits' && Boolean(props.opportunityNote) })))
@@ -119,11 +124,16 @@ function popupLine(text: string): HTMLParagraphElement {
   return line
 }
 
-// 2–5 歲孩子、招生機會兩種模式的彈出框：孩子數、參觀與應有、判讀；半徑外的里寫不在範圍內。
+// 2–5 歲孩子、招生機會兩種模式的彈出框：孩子數、參觀與應有、判讀；半徑外的里寫不在範圍內，
+// 半徑內但人口表沒有的里寫沒有人口資料（不能說成不在範圍內）。
 function opportunityLines(properties: VillageProperties): HTMLParagraphElement[] {
   if (!props.opportunity) return [popupLine('招生機會讀取中…')]
   const row = opportunityRow(properties)
-  if (!row) return [popupLine(`不在本校 ${props.opportunity?.radius_km ?? props.radiusKm} 公里內`)]
+  if (!row) {
+    const missing = opportunityStats.value.noPopulation.get(properties.VILLCODE)
+    if (missing) return [popupLine('這個里沒有人口資料，沒有算進附近平均'), popupLine(`參觀 ${formatCount(missing.visit)} 位`)]
+    return [popupLine(`不在本校 ${props.opportunity?.radius_km ?? props.radiusKm} 公里內`)]
+  }
   const expected = row.expected === null ? '' : `，照附近應有${expectedText(row.expected)}`
   return [
     popupLine(`2–5 歲 ${formatCount(row.children)} 位・0–1 歲 ${formatCount(row.infants)} 位`),
@@ -463,7 +473,7 @@ onBeforeUnmount(destroyMap)
         <li><span class="area-swatch area-swatch--chance" aria-hidden="true" />明顯偏少</li>
         <li><span class="area-swatch area-swatch--typical" aria-hidden="true" />差不多</li>
         <li><span class="area-swatch area-swatch--strong" aria-hidden="true" />比附近多</li>
-        <li><span class="area-swatch area-swatch--l0" aria-hidden="true" />孩子少、還不判斷或在半徑外</li>
+        <li><span class="area-swatch area-swatch--l0" aria-hidden="true" />孩子少、還不判斷、在半徑外或沒有人口資料</li>
       </ul>
       <ul v-else-if="legend.length" class="area-legend area-legend--levels" :aria-label="`${modeLabel}圖例`">
         <li v-for="item in legend" :key="item.level">

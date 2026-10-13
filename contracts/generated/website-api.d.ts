@@ -3595,6 +3595,23 @@ export interface components {
             /** Visit */
             visit: number;
         };
+        /**
+         * AreaOpportunityMissingOut
+         * @description 半徑內、但各里人口沒有這個里（來源和里界的里清單有出入）：沒有孩子數，參觀不進附近平均，也不是半徑外。
+         *     visit＝這個里的參觀人數。
+         */
+        AreaOpportunityMissingOut: {
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+            /** Visit */
+            visit: number;
+        };
         /** AreaOpportunityOut */
         AreaOpportunityOut: {
             /**
@@ -3605,6 +3622,8 @@ export interface components {
             baseline: components["schemas"]["AreaOpportunityBaselineOut"] | null;
             campus: components["schemas"]["AreaCampusOut"];
             filters: components["schemas"]["AreaFiltersOut"];
+            /** No Population Villages */
+            no_population_villages: components["schemas"]["AreaOpportunityMissingOut"][];
             /** Outside Visit */
             outside_visit: number;
             population: components["schemas"]["AreaPopulationOut"];

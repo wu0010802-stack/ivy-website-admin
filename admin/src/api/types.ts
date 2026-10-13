@@ -567,6 +567,8 @@ export type VisitGeo = components['schemas']['VisitGeoOut']
 // 招生機會（2026-10-13 規格 6）：本校半徑內各里的 2–5 歲孩子、參觀率與判讀。
 export type AreaOpportunity = components['schemas']['AreaOpportunityOut']
 export type AreaOpportunityRow = components['schemas']['AreaOpportunityRowOut']
+/** 半徑內、但各里人口沒有這個里：沒有孩子數，參觀不算進附近平均，也不是半徑外。 */
+export type AreaOpportunityMissing = components['schemas']['AreaOpportunityMissingOut']
 export type OpportunitySignal = AreaOpportunityRow['signal']
 
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */

@@ -750,12 +750,30 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
       'area-village area-village--l0',
     ])
     expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
-      .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷或在半徑外'])
+      .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷、在半徑外或沒有人口資料'])
     expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual([
       '三民區鼎金里', '2–5 歲 500 位・0–1 歲 150 位', '參觀 3 位（0.6%），照附近應有約 10 位', '少了約 7 位',
     ])
     // 有參觀的里照樣可以「查看明細」；不在半徑內的里寫出來，不留空白。
     expect(popupOf(BENYANG).querySelector('button')?.textContent).toBe('查看明細')
+    expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
+  })
+
+  it('半徑內但人口表沒有的里：不上色，彈出框寫沒有人口資料與參觀人數，不寫成不在半徑內', async () => {
+    const base = areaOpportunity()
+    const wrapper = await mountMap({
+      opportunity: {
+        ...base,
+        villages: base.villages.filter((row) => row.village_code !== BENYANG.properties.VILLCODE),
+        no_population_villages: [{ district: '三民區', village: '本揚里', village_code: BENYANG.properties.VILLCODE, distance_m: 300, visit: 6 }],
+      },
+    })
+    await choose(wrapper, 'opportunity')
+    expect(classOf(BENYANG)).toBe('area-village area-village--l0')
+    expect([...popupOf(BENYANG).children].map((node) => node.textContent)).toEqual([
+      '三民區本揚里', '這個里沒有人口資料，沒有算進附近平均', '參觀 6 位', '查看明細',
+    ])
+    // 真的在半徑外的里照舊。
     expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
   })
 

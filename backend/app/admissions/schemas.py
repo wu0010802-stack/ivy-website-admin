@@ -1020,6 +1020,17 @@ class AreaOpportunityRowOut(BaseModel):
     signal: OpportunitySignal
 
 
+class AreaOpportunityMissingOut(BaseModel):
+    """半徑內、但各里人口沒有這個里（來源和里界的里清單有出入）：沒有孩子數，參觀不進附近平均，也不是半徑外。
+    visit＝這個里的參觀人數。"""
+
+    district: str
+    village: str
+    village_code: str
+    distance_m: int
+    visit: int
+
+
 class AreaOpportunityOut(BaseModel):
     as_of: datetime
     filters: AreaFiltersOut
@@ -1031,5 +1042,7 @@ class AreaOpportunityOut(BaseModel):
     # 比對到里、但里在半徑外的參觀人數；沒對到里的（只到區、未定位、待比對、沒填地址、已匿名化）參觀人數。
     outside_visit: int
     unplaced_visit: int
+    # 半徑內但人口表沒有的里（通常是空的）；參觀多的在前、再依距離、區、里名。
+    no_population_villages: list[AreaOpportunityMissingOut]
     # 依「應有 − 實際」由大到小；同值依孩子數、區、里名。
     villages: list[AreaOpportunityRowOut]

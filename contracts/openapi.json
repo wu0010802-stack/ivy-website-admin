@@ -2833,6 +2833,40 @@
         "title": "AreaOpportunityBaselineOut",
         "type": "object"
       },
+      "AreaOpportunityMissingOut": {
+        "description": "半徑內、但各里人口沒有這個里（來源和里界的里清單有出入）：沒有孩子數，參觀不進附近平均，也不是半徑外。\nvisit＝這個里的參觀人數。",
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "title": "Village Code",
+            "type": "string"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "district",
+          "village",
+          "village_code",
+          "distance_m",
+          "visit"
+        ],
+        "title": "AreaOpportunityMissingOut",
+        "type": "object"
+      },
       "AreaOpportunityOut": {
         "properties": {
           "as_of": {
@@ -2855,6 +2889,13 @@
           },
           "filters": {
             "$ref": "#/components/schemas/AreaFiltersOut"
+          },
+          "no_population_villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOpportunityMissingOut"
+            },
+            "title": "No Population Villages",
+            "type": "array"
           },
           "outside_visit": {
             "title": "Outside Visit",
@@ -2888,6 +2929,7 @@
           "baseline",
           "outside_visit",
           "unplaced_visit",
+          "no_population_villages",
           "villages"
         ],
         "title": "AreaOpportunityOut",

@@ -180,6 +180,7 @@ const buildAreaOpportunity = () => ({
   baseline: { villages: 3, children: 1000, infants: 300, visit: 20, rate: 2, judged: true },
   outside_visit: 2,
   unplaced_visit: 3,
+  no_population_villages: [],
   villages: [
     { district: '三民區', village: '鼎金里', village_code: '64000050001', distance_m: 800, children: 500, infants: 150, visit: 3, rate: 0.6, expected: 10, shortfall: 7, signal: 'below' },
     { district: '三民區', village: '本揚里', village_code: '64000050015', distance_m: 300, children: 300, infants: 90, visit: 6, rate: 2, expected: 6, shortfall: 0, signal: 'typical' },

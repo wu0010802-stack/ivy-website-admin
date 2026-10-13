@@ -479,19 +479,24 @@ async def sync_population(
     files: list[Path] | None,
 ) -> tuple[str, int]:
     """各里人口（2026-10-13 招生機會規格 §4）。回傳 (結果, 對不到里界而略過的高雄列數)。
-    月份和使用中的一樣就不下載其餘頁、只記確認時間；比使用中的舊不換（同門牌）。"""
+    月份和使用中的一樣就不下載其餘頁、只記確認時間；比使用中的舊不換（同門牌）。
+    指定檔案也一樣不退回舊月份：人口的月份取自資料本身，不像門牌可以另外指定，拿錯舊檔會讓五校共用的
+    人口一起倒退，而且重新起算 30 天的更新間隔。確定要退回就加 force；網路來源連 force 也不退。"""
     status = await _status(session_factory, "population")
     if not files and (client is None or (not force and not _due(status, now))):
         return "skipped", 0
+    active = status.label if status is not None and status.active_version is not None else None
     try:
         if files:
             # 幾頁 JSON、每頁約 10 MB：解析交給執行緒，不卡住事件迴圈。
             batch = await asyncio.to_thread(_population_file_batch, files)
+            if not force and active is not None and batch.label < active:
+                # 當成驗證不過：保留使用中的版本與時間戳，原因寫進 last_error（CLI 會印出來）。
+                raise GeoSyncError(f"人口檔的月份 {batch.label} 比使用中的 {active} 舊，不匯入（真的要退回舊月份請加 --force）")
         else:
             assert client is not None
             yyymm, first = await discover_population_month(client)
             label = population_io.label_of(yyymm)
-            active = status.label if status is not None and status.active_version is not None else None
             if not force and active == label:
                 await _record(session_factory, "population", now=now, checked=True)
                 return "skipped", 0

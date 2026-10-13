@@ -139,12 +139,13 @@ async def test_opportunity_radius_one_moves_far_villages_outside(admin_client, d
 
 
 async def test_opportunity_counts_add_up_to_stats(admin_client, db_session, located_campus):
-    """附近＋半徑外＋沒對到里＝範圍內全部參觀（和 /stats 同母體）。"""
+    """附近＋半徑外＋附近但缺人口＋沒對到里＝範圍內全部參觀（和 /stats 同母體）。"""
     await _seed(db_session)
     stats = (await admin_client.get(f"{API}/admin/admissions/stats?campus_key=yihua&{TERM}")).json()
     for radius in (1, 3, 6):
         body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}&radius_km={radius}")).json()
-        assert body["baseline"]["visit"] + body["outside_visit"] + body["unplaced_visit"] == stats["kpi"]["visit"], radius
+        no_population = sum(row["visit"] for row in body["no_population_villages"])
+        assert body["baseline"]["visit"] + body["outside_visit"] + no_population + body["unplaced_visit"] == stats["kpi"]["visit"], radius
 
 
 async def test_opportunity_without_term_counts_every_year(admin_client, db_session, located_campus):
@@ -169,7 +170,7 @@ async def test_opportunity_without_population(admin_client, db_session, located_
     await db_session.commit()
     body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json()
     assert body["population"]["version"] is None and body["population"]["synced_at"] is None
-    assert body["baseline"] is None and body["villages"] == []
+    assert body["baseline"] is None and body["villages"] == [] and body["no_population_villages"] == []
     assert (body["outside_visit"], body["unplaced_visit"]) == (0, 3)
     area = (await admin_client.get(f"{AREA}?campus_key=yihua&{TERM}")).json()
     assert area["data_status"]["population_version"] is None
@@ -183,7 +184,7 @@ async def test_opportunity_when_campus_not_located(admin_client, db_session, mon
     await _seed(db_session)
     body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json()
     assert body["campus"]["locate_error"] == "no_doorplate"
-    assert body["baseline"] is None and body["villages"] == []
+    assert body["baseline"] is None and body["villages"] == [] and body["no_population_villages"] == []
     assert body["population"]["version"] == "115-09"
 
 
@@ -202,6 +203,39 @@ async def test_opportunity_village_with_no_children(admin_client, db_session, lo
     await db_session.commit()
     row = _by_village((await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json())["本上里"]
     assert (row["children"], row["rate"], row["expected"], row["signal"]) == (0, None, 0.0, "few_children")
+
+
+async def test_opportunity_nearby_village_without_population_is_not_outside(admin_client, db_session, located_campus):
+    """人口批次有 850 個里就能換版（893 里缺幾個也過），所以附近的里可能沒有人口列。本揚里距本校 287 m：
+    它的參觀不能被寫成「3 公里外」，也不進附近平均（沒有孩子數可除），另外列在 no_population_villages。"""
+    population = {key: value for key, value in POPULATION.items() if key != ("三民區", "本揚里")}
+    await _seed_population(db_session, population)
+    await _seed_visits(db_session, {**VISITS, ("三民區", "本揚里"): 20})
+    await db_session.commit()
+    body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json()
+    assert body["outside_visit"] == 2  # 只有真的在 3 公里外的青島里
+    assert body["baseline"] == {"villages": 4, "children": 800, "infants": 120, "visit": 20, "rate": 2.5, "judged": True}
+    assert "本揚里" not in _by_village(body)
+    missing = {row["village"]: row for row in body["no_population_villages"]}
+    assert missing["本揚里"] == {
+        "district": "三民區", "village": "本揚里", "village_code": "64000050015", "distance_m": 300, "visit": 20,
+    }
+    assert "青島里" not in missing  # 半徑外的里是半徑外，不是缺人口
+    stats = (await admin_client.get(f"{API}/admin/admissions/stats?campus_key=yihua&{TERM}")).json()
+    total = body["baseline"]["visit"] + body["outside_visit"] + sum(row["visit"] for row in body["no_population_villages"])
+    assert total + body["unplaced_visit"] == stats["kpi"]["visit"]
+
+
+async def test_opportunity_far_village_without_population_stays_outside(admin_client, db_session, located_campus):
+    """半徑外的里有沒有人口列都是半徑外：由里界重心的距離決定，不看人口表。"""
+    population = {key: value for key, value in POPULATION.items() if key != ("小港區", "青島里")}
+    await _seed_population(db_session, population)
+    await _seed_visits(db_session)
+    await db_session.commit()
+    body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json()
+    assert body["outside_visit"] == 2
+    assert body["baseline"]["visit"] == 20
+    assert all(row["village"] != "青島里" for row in body["no_population_villages"])
 
 
 @pytest.mark.parametrize("radius", ["2", "0", "abc", "", "3.5"])
