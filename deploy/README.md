@@ -13,6 +13,24 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 效能第五輪（main CI 部署，沒有 migration）
+
+- **合併**：PR #36（`feature/perf-20261013`，head `3390d6ae`）由 GitHub 以 merge commit 併入 main `8c4ec20a..72d0f933`。內容見 README 頂部 10-13「效能第五輪」、DESIGN.md 最上方一節。
+- **migration**：無。後端只改可能範圍的快取與門牌／幼兒園同步的解析位置，API 與契約沒改。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**：本機結果見 README 頂部同名段落（web unit 1170、admin 2306 passed、後端全套 2578 passed、`contract:check` 一致、stack e2e 以 Chromium 跑）。PR 上的 CI（`3390d6ae`）全綠。
+- **CI**：main run 38410820917（`72d0f933`），建立到部署完成 22.8 分鐘，全綠：
+  - Frontend web 1.3 分、admin 5.9 分；Backend 三組 9.7／9.6／12.1 分；E2E／Playwright 8.1 分。
+  - Deploy Railway production 約 10.5 分，成功；其中 checkout 一步就花了 6.1 分，比前幾次慢。
+- **正式 `release.json`**：base commit `72d0f9339b77c25a95eb4e4f81fe04efa3dd3e63`，snapshot `60a52996…`，created `2026-10-13T14:27:05Z`，`web+api`。
+- **線上唯讀檢查**（未登入，14:3x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
+  - `/`、`/about` 的 HTML 帶 `content-encoding: br`（SSR 壓縮改非同步後照常）。
+  - 代理壓縮 JSON：`/api/website/v1/public/site` 帶 `Accept-Encoding: gzip` 回 `content-encoding: gzip`、`vary: Accept-Encoding`，4,438 bytes（不壓 9,479），解壓後和不壓的內容逐位元組相同。
+  - 後台：`/admin/` 多了 `vue-C-Nk7iAn.js`、`labels-BeXPTfd5.js` 兩個 chunk。`DashboardView-b_2XoL6Y.js` 只動態載入 RecordDialog；`AdmissionsView-COPbQE1j.js` 動態載入 RecordsTab、StatsTab（RecordDialog 仍是漏斗看板的靜態依賴）。
+  - `/about` 的 motion chunk `BHDyLS79.js` 原始 68,562 bytes（原本約 135 KB），以 brotli 送。
+- **未做**：沒有登入正式後台實際操作總覽標記到場、區域分析換著色；沒有讀 Railway log；門牌同步改執行緒解析要等下次換月或 `--force` 才會跑到。
+
 ## 2026-10-13 招生機會地圖（main CI 部署，migration 只新增表並放寬一個約束）
 
 - **合併**：PR #34（`claude/amazing-cannon-0cqnpc`，head `ad66341e`，其中 `ee3170ff` 已合入 PR #33 的 main `00428c2f`）由 GitHub 以 merge commit 併入 main `00428c2f..58ec755d`。內容見 README 頂部 10-13「招生機會地圖」、DESIGN.md 最上方一節、規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`。
