@@ -1,3 +1,46 @@
+## 2026-10-13 招生機會地圖（`claude/amazing-cannon-0cqnpc`）
+
+使用者要「令人驚艷、不是 AI」的功能，從四個方案選了招生機會地圖。重開區域分析 10-08 延後的「人口與機會判讀」（飽和度仍不做）。規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`，規則見 DESIGN.md 最上方一節。
+
+- **資料**：內政部戶政司 ODRP014 各里單一年齡人口，每月一版。
+  - 併進既有的公開資料同步，成為第三種資料 `population`；新表 `geo_village_population`。
+  - migration `f3c8a2d47b19` 只新增表，並把 `geo_dataset_status` 的 dataset 約束放寬成多收 `population`，不改資料。
+  - 115 年 9 月版高雄市 893 里的代碼與名稱，和里界檔 100% 對得上。
+  - 驗證不過就不換版：月份不一致、數字不是整數、少於 850 里、代碼重複。
+  - 下載帶 `COUNTY=高雄市`：一頁、約 4.4MB。解析時就只留高雄的列與 0–6 歲欄位，真實 115-09 資料本機解析峰值約 22MB、0.4 秒（第一版抓全國四頁、整頁解析，峰值約 117MB）。
+  - CLI `geo-sync` 新增 `--population-file`（可給多頁），正式站連不到內政部時用。
+- **API**：`GET /admin/admissions/area/opportunity`。
+  - 參數：校區、入學學年學期、半徑 1／3／6 公里。
+  - 回應：本校半徑內各里的 2–5 歲孩子數、0–1 歲孩子數、參觀率、照附近應有的參觀人數與判讀。
+  - 判讀：Poisson 單尾檢定 p ≤ 0.10，判「明顯偏少／差不多／比附近多」；附近參觀不到 10 位不判斷。
+  - `/area` 的 `data_status` 多帶人口月份。
+- **後台**（招生入學 → 統計分析 → 區域分析）：
+  - 地圖圖例上方三段切換「參觀人數／2–5 歲孩子／招生機會」。
+  - 招生機會模式：明顯偏少用新 token `--area-chance`（玫瑰色）。
+  - 地圖下新增「招生機會（本校 N 公里內）」：一句總結（幾個里、多少孩子、參觀率、明顯偏少的里合計少了約幾位），加上各里排行。
+  - 排行先列 10 個里，可展開全部，CSV 一律匯出全部。`StatsDimensionTable` 因此多了 `intro` 插槽與 `collapsedRows`。
+  - 狀態列多一段「各里人口 115 年 9 月」。
+- **驗證**（Node 22.22、本機 PostgreSQL 16；測試庫 `ivy_website_opportunity_test`）：
+  - 後端新測試：招生機會 API 19、人口解析與同步 28、Poisson 4（含參數化共 7）。既有的 geo／area 測試同時跑過。
+  - 後端全套 2561 passed（約 40 分鐘）。這輪跑在「只抓高雄、解析時就篩」那次修改之前；修改後，改到的 geo、area、estimation、opportunity 測試另跑 241 passed。
+  - admin：vitest 2291 passed、1 skipped、1 failed。失敗的 `ux20260928F`（日期字串「9月29日 星期二」多一個空格）在改動前的 `a5d790c` 也一樣失敗：這台機器的 Node 是 22.22，`.nvmrc` 指定 22.23，兩者的 ICU 日期格式不同，和本次無關。
+  - admin typecheck 通過；web typecheck 通過、unit 1152 passed。
+  - `contract:check` 一致；deploy tests 22 OK。
+  - stack e2e `admissions-area` 9 passed，含新加的兩支。本機沒有 Google Chrome，用 `/opt/pw-browsers/chromium` 跑（暫用設定放在 `output/`，不進版控）。
+  - stack e2e 全套 119 passed、2 failed，兩支都和本次無關：
+    - `roles.spec` 接待人員那支：整套連跑時撞到「這個網路近一小時送出的預約次數過多」限流，單獨重跑會過。
+    - `exports.spec` 訪視明細下載：Chromium 給的檔名是 `download`，單獨跑也一樣。本次沒動明細匯出的程式與 API，推測是 Chromium 與 Chrome 的下載差異，以 CI 的 Chrome 結果為準。
+  - 截圖在 `output/playwright/admissions-opportunity-*.png`（gitignore）。另用攔截 API 的方式，看過有判讀結果時的地圖配色與表格。
+  - 合入 origin/main `00428c2`（PR #33）之後重跑：
+    - 後端 geo 與招生測試 876 passed，alembic 單一 head `f3c8a2d47b19`。
+    - admin vitest 2304 passed、1 skipped，typecheck 通過。上面那支 ICU 日期測試已由 main 的 `046eb85` 修好。
+    - web typecheck 通過、unit 1157 passed；`contract:check` 一致。
+    - stack `admissions-area`、`admissions-flow`、`booking-stats`、`roles` 共 20 passed。
+- **未驗證**：
+  - 正式站能不能連到內政部 API：門牌那邊被擋過境外 IP，連不到時照 `deploy/README.md` 的手動退路匯入。
+  - 真實參觀資料下的判讀分布：正式站目前是測試資料，多半會寫「附近參觀還不到 10 位，先不判斷」。
+  - 沒有在正式站登入實測；Safari／iOS 實機。
+
 ## 2026-10-13 10-12～10-13 改動審查出的一批 bug（`claude/affectionate-maxwell-uten3y`，PR #33）
 
 審查 `c91d939..60332d8` 找到的問題一次修掉。（同一輪找到的 `about-voices-preview.spec.ts` 偶發失敗，main 已在 `a5d790c` 另外修好，以 main 的版本為準。）

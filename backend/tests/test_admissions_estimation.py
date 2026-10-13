@@ -109,3 +109,38 @@ def test_poisson_binomial_cdf_edges():
     assert E.poisson_binomial_cdf([0.5, 0.5], -1) == 0.0
     # 15 筆各 0.4、實際 1 筆：0.6^15 + 15·0.4·0.6^14 ≈ 0.0052（規格 §6.1 例子）。
     assert E.poisson_binomial_cdf([0.4] * 15, 1) == pytest.approx(0.6**15 + 15 * 0.4 * 0.6**14)
+
+
+# ---- Poisson（2026-10-13 招生機會規格 §5）：參考值以 50 位小數的 decimal 逐項加總離線算好 ----
+
+
+@pytest.mark.parametrize(
+    ("k", "mu", "expected"),
+    [
+        (0, 6.0, 0.0024787521766663584),
+        (2, 3.5, 0.32084719886213407),
+        (150, 200.0, 0.00013135703016944038),  # μ 大、逐項的 e^-μ 很小也不會下溢成 0
+    ],
+)
+def test_poisson_cdf_reference_values(k, mu, expected):
+    assert E.poisson_cdf(k, mu) == pytest.approx(expected, rel=1e-9)
+
+
+def test_poisson_sf_reference_values():
+    assert E.poisson_sf(9, 5.0) == pytest.approx(0.06809363472184856, rel=1e-9)
+    assert E.poisson_sf(250, 200.0) == pytest.approx(0.00036207045828969313, rel=1e-6)
+
+
+@pytest.mark.parametrize("mu", [0.3, 1.0, 4.2, 37.5])
+def test_poisson_cdf_and_sf_are_complements(mu):
+    for k in range(0, 60):
+        assert E.poisson_cdf(k, mu) + E.poisson_sf(k + 1, mu) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_poisson_edges():
+    assert E.poisson_cdf(-1, 3.0) == 0.0
+    assert E.poisson_cdf(0, 0.0) == 1.0  # μ = 0：一定是 0 次
+    assert E.poisson_sf(0, 3.0) == 1.0
+    assert E.poisson_sf(1, 0.0) == 0.0
+    with pytest.raises(ValueError):
+        E.poisson_cdf(1, -0.5)

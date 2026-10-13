@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type * as Leaflet from 'leaflet'
-import type { AdmissionsArea, AreaKindergarten, AreaVillageRow, VillageBoundaries, VillageProperties } from '../../../api/types'
+import type {
+  AdmissionsArea, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaVillageRow, VillageBoundaries, VillageProperties,
+} from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
-  KIND_LABELS, KIND_ORDER, campusNotLocatedReason, districtBounds, formatDistance, kindLabel, legendRanges, levelOf, shortName, villageKey,
-  type RadiusKm,
+  KIND_LABELS, KIND_ORDER, MAP_MODES, campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, kindLabel,
+  legendRanges, levelOf, shortName, signalText, signalTone, villageKey, type MapMode, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
@@ -13,15 +15,24 @@ import {
 // 顏色由下面的 :deep 規則用 --area-* token 決定；分級變了整層重畫（class 只在建立時套用）。
 // Leaflet 與它的樣式只在這裡用動態 import 載入（掛載後才下載，不進主 bundle）；載不下來顯示重試。
 // 圖磚請求只帶視野範圍，不帶家長資料；家長來源只以「里」為單位聚合。
-const props = defineProps<{
-  boundaries: VillageBoundaries
-  villages: readonly AreaVillageRow[]
-  campus: AdmissionsArea['campus']
-  campusName: string
-  kindergartens: readonly AreaKindergarten[]
-  radiusKm: RadiusKm
-  narrow: boolean
-}>()
+// 2026-10-13 招生機會：著色可以切成「2–5 歲孩子」（半徑內依孩子數分 5 級）或「招生機會」（明顯偏少／差不多／
+// 比附近多三色，孩子少與不判斷不上色），半徑外的里這兩種都不上色。招生機會資料用不了時（讀取中、人口沒匯入、
+// 本校沒座標、讀取失敗）後兩種停用，opportunityNote 寫原因；讀取中（opportunity 是 null、沒有原因）照常可選，先不上色。
+const props = withDefaults(
+  defineProps<{
+    boundaries: VillageBoundaries
+    villages: readonly AreaVillageRow[]
+    campus: AdmissionsArea['campus']
+    campusName: string
+    kindergartens: readonly AreaKindergarten[]
+    radiusKm: RadiusKm
+    narrow: boolean
+    opportunity?: AreaOpportunity | null
+    /** 招生機會用不了的原因；空字串＝可以用。 */
+    opportunityNote?: string
+  }>(),
+  { opportunity: null, opportunityNote: '' },
+)
 const emit = defineEmits<{ 'open-area': [filter: { district: string; village: string }] }>()
 
 const TILE_URL = 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}'
@@ -62,7 +73,17 @@ const villageStats = computed(() => ({
   max: Math.max(0, ...props.villages.map((row) => row.visit)),
   byKey: new Map(props.villages.map((row) => [villageKey(row.district, row.village), row])),
 }))
-const legend = computed(() => legendRanges(villageStats.value.max))
+// 招生機會的列以里代碼對（後端回 village_code，里界屬性有 VILLCODE）。
+const opportunityStats = computed(() => {
+  const rows = props.opportunity?.villages ?? []
+  return { maxChildren: Math.max(0, ...rows.map((row) => row.children)), byCode: new Map(rows.map((row) => [row.village_code, row])) }
+})
+const mode = ref<MapMode>('visits')
+const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: option.value !== 'visits' && Boolean(props.opportunityNote) })))
+const modeLabel = computed(() => MAP_MODES.find((option) => option.value === mode.value)!.label)
+const legend = computed(() =>
+  legendRanges(mode.value === 'children' ? opportunityStats.value.maxChildren : villageStats.value.max),
+)
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
 const campusLocated = computed(() => props.campus.lat !== null && props.campus.lng !== null)
 // 校址所在行政區的外框（後端從地址文字解析，不需要門牌）；里界檔沒有這個區時為 null。
@@ -78,6 +99,38 @@ function villageRow(properties: VillageProperties): AreaVillageRow | undefined {
   return villageStats.value.byKey.get(villageKey(properties.TOWNNAME, properties.VILLNAME))
 }
 
+function opportunityRow(properties: VillageProperties): AreaOpportunityRow | undefined {
+  return opportunityStats.value.byCode.get(properties.VILLCODE)
+}
+
+/** 里的 class：依目前的著色模式。分級 l0 與招生機會的 none 都是不上色。 */
+function villageClass(properties: VillageProperties): string {
+  if (mode.value === 'visits') return `area-village area-village--l${levelOf(villageRow(properties)?.visit ?? 0, villageStats.value.max)}`
+  const row = opportunityRow(properties)
+  if (mode.value === 'children') return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
+  const tone = row ? signalTone(row.signal) : 'none'
+  return tone === 'none' ? 'area-village area-village--l0' : `area-village area-village--${tone}`
+}
+
+function popupLine(text: string): HTMLParagraphElement {
+  const line = document.createElement('p')
+  line.textContent = text
+  return line
+}
+
+// 2–5 歲孩子、招生機會兩種模式的彈出框：孩子數、參觀與應有、判讀；半徑外的里寫不在範圍內。
+function opportunityLines(properties: VillageProperties): HTMLParagraphElement[] {
+  if (!props.opportunity) return [popupLine('招生機會讀取中…')]
+  const row = opportunityRow(properties)
+  if (!row) return [popupLine(`不在本校 ${props.opportunity?.radius_km ?? props.radiusKm} 公里內`)]
+  const expected = row.expected === null ? '' : `，照附近應有${expectedText(row.expected)}`
+  return [
+    popupLine(`2–5 歲 ${formatCount(row.children)} 位・0–1 歲 ${formatCount(row.infants)} 位`),
+    popupLine(`參觀 ${formatCount(row.visit)} 位（${formatRate(row.rate)}）${expected}`),
+    popupLine(signalText(row)),
+  ]
+}
+
 // 彈出框用 DOM 組，不用 HTML 字串（名稱一律走 textContent）。
 function villagePopup(properties: VillageProperties): HTMLElement {
   const row = villageRow(properties)
@@ -85,9 +138,11 @@ function villagePopup(properties: VillageProperties): HTMLElement {
   root.className = 'area-popup'
   const title = document.createElement('strong')
   title.textContent = `${properties.TOWNNAME}${properties.VILLNAME}`
-  const line = document.createElement('p')
-  line.textContent = row ? `參觀 ${row.visit}・預繳 ${row.deposit}（${formatRate(row.visit_to_deposit_rate)}）` : '這個範圍沒有參觀'
-  root.append(title, line)
+  const lines =
+    mode.value === 'visits'
+      ? [popupLine(row ? `參觀 ${row.visit}・預繳 ${row.deposit}（${formatRate(row.visit_to_deposit_rate)}）` : '這個範圍沒有參觀')]
+      : opportunityLines(properties)
+  root.append(title, ...lines)
   if (row && row.visit > 0) {
     const link = document.createElement('button')
     link.type = 'button'
@@ -121,12 +176,11 @@ function kindergartenPopup(item: AreaKindergarten): HTMLElement {
 function drawVillages() {
   if (!L || !map) return
   villageLayer?.remove()
-  const { max } = villageStats.value
   villageLayer = L.geoJSON(props.boundaries, {
-    style: (feature) => {
-      const row = feature ? villageRow(feature.properties as VillageProperties) : undefined
-      return { className: `area-village area-village--l${levelOf(row?.visit ?? 0, max)}`, weight: 1 }
-    },
+    style: (feature) => ({
+      className: feature ? villageClass(feature.properties as VillageProperties) : 'area-village area-village--l0',
+      weight: 1,
+    }),
     onEachFeature: (feature, layer) => {
       const properties = feature.properties as VillageProperties
       layer.bindPopup(() => villagePopup(properties))
@@ -330,7 +384,11 @@ function retry() {
 
 onMounted(() => void startMap())
 
-watch(() => [props.boundaries, props.villages], drawVillages)
+watch(() => [props.boundaries, props.villages, props.opportunity, mode.value], drawVillages)
+// 招生機會變得用不了（換校區後人口未匯入、讀取失敗）：退回參觀人數，不留在畫不出東西的模式。讀取中不退。
+watch(() => props.opportunityNote, (note) => {
+  if (note && mode.value !== 'visits') mode.value = 'visits'
+})
 // 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。
 watch([() => props.campus.lat, () => props.campus.lng], () => {
   drawCampus()
@@ -356,7 +414,7 @@ onBeforeUnmount(destroyMap)
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
       <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在下方的表格與清單。 -->
-      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依參觀人數著色）；同樣的資料在下方的里排行與幼兒園清單`" />
+      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依${modeLabel}著色）；同樣的資料在下方的${mode === 'visits' ? '里排行' : '招生機會表'}與幼兒園清單`" />
       <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
       <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>
       <div v-if="failure" class="area-map__notice" role="alert">
@@ -374,13 +432,27 @@ onBeforeUnmount(destroyMap)
         {{ interactive ? '完成' : '移動地圖' }}
       </el-button>
     </div>
+    <div class="area-map__modes">
+      <el-radio-group v-model="mode" size="small" aria-label="地圖著色">
+        <el-radio-button v-for="option in modeOptions" :key="option.value" :value="option.value" :disabled="option.disabled">
+          {{ option.label }}
+        </el-radio-button>
+      </el-radio-group>
+      <span v-if="opportunityNote" class="area-map__mode-note">{{ opportunityNote }}</span>
+    </div>
     <div class="area-map__legend">
-      <ul v-if="legend.length" class="area-legend area-legend--levels" aria-label="參觀人數圖例">
+      <ul v-if="mode === 'opportunity'" class="area-legend area-legend--signals" aria-label="招生機會圖例">
+        <li><span class="area-swatch area-swatch--chance" aria-hidden="true" />明顯偏少</li>
+        <li><span class="area-swatch area-swatch--typical" aria-hidden="true" />差不多</li>
+        <li><span class="area-swatch area-swatch--strong" aria-hidden="true" />比附近多</li>
+        <li><span class="area-swatch area-swatch--l0" aria-hidden="true" />孩子少、還不判斷或在半徑外</li>
+      </ul>
+      <ul v-else-if="legend.length" class="area-legend area-legend--levels" :aria-label="`${modeLabel}圖例`">
         <li v-for="item in legend" :key="item.level">
-          <span class="area-swatch" :class="`area-swatch--l${item.level}`" aria-hidden="true" />{{ item.label }} 人
+          <span class="area-swatch" :class="`area-swatch--l${item.level}`" aria-hidden="true" />{{ item.label }} {{ mode === 'children' ? '位' : '人' }}
         </li>
       </ul>
-      <p v-else class="area-map__none">這個範圍還沒有定位到里的參觀。</p>
+      <p v-else class="area-map__none">{{ mode === 'children' ? '半徑內的里沒有 2–5 歲孩子的資料。' : '這個範圍還沒有定位到里的參觀。' }}</p>
       <div class="area-legend area-legend--kinds">
         <el-switch
           :model-value="showKindergartens"
@@ -495,11 +567,27 @@ onBeforeUnmount(destroyMap)
   border-radius: 3px;
 }
 
+.area-swatch--l0 { background: var(--surface); }
 .area-swatch--l1 { background: var(--area-level-1); }
 .area-swatch--l2 { background: var(--area-level-2); }
 .area-swatch--l3 { background: var(--area-level-3); }
 .area-swatch--l4 { background: var(--area-level-4); }
 .area-swatch--l5 { background: var(--area-level-5); }
+.area-swatch--chance { background: var(--area-chance); }
+.area-swatch--typical { background: var(--area-level-1); }
+.area-swatch--strong { background: var(--area-level-4); }
+
+.area-map__modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.area-map__mode-note {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
 
 .area-dot {
   width: 10px;
@@ -529,6 +617,9 @@ onBeforeUnmount(destroyMap)
 .area-map :deep(.area-village--l3) { fill: var(--area-level-3); fill-opacity: 0.6; }
 .area-map :deep(.area-village--l4) { fill: var(--area-level-4); fill-opacity: 0.6; }
 .area-map :deep(.area-village--l5) { fill: var(--area-level-5); fill-opacity: 0.6; }
+.area-map :deep(.area-village--chance) { fill: var(--area-chance); fill-opacity: 0.65; }
+.area-map :deep(.area-village--typical) { fill: var(--area-level-1); fill-opacity: 0.6; }
+.area-map :deep(.area-village--strong) { fill: var(--area-level-4); fill-opacity: 0.6; }
 
 .area-map :deep(.area-radius) {
   stroke: var(--area-radius);

@@ -59,6 +59,9 @@
   --area-kind-private: oklch(0.45 0.03 255);
   --area-kind-own: var(--brand-gold);
   --area-kind-own-ink: var(--brand-gold-ink);
+  /* 招生機會（2026-10-13）：「孩子多、參觀明顯偏少」的里。地圖上要一眼跳出來，另挑玫瑰色相，
+     避開操作藍（比附近多、差不多沿用 --area-level-4／-1）、狀態綠、草稿暖黃與四種幼兒園類型色。 */
+  --area-chance: oklch(0.6 0.19 12);
 
   --side-w: 260px;
   /* 桌機側欄收起後的圖示欄寬（同園務系統）。 */

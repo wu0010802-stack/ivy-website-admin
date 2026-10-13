@@ -41,3 +41,42 @@ def _village_codes() -> dict[tuple[str, str], str]:
 
 def village_code(district: str, village: str) -> str | None:
     return _village_codes().get((district, village))
+
+
+def village_codes() -> frozenset[str]:
+    """里界檔裡所有的里代碼（各里人口匯入時，對不到的列略過）。"""
+    return frozenset(_village_codes().values())
+
+
+def _ring_centroid(ring: list[list[float]]) -> tuple[float, float, float]:
+    """外環的 (帶號面積, 重心經度, 重心緯度)：shoelace 公式，座標直接當平面算（一個里只有幾百公尺到
+    幾公里，經緯度的變形可以忽略）。面積為 0 的退化環回 (0, 0, 0)，由呼叫端略過。"""
+    area = cx = cy = 0.0
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:] + ring[:1]):
+        cross = x1 * y2 - x2 * y1
+        area += cross
+        cx += (x1 + x2) * cross
+        cy += (y1 + y2) * cross
+    if area == 0:
+        return 0.0, 0.0, 0.0
+    return area / 2, cx / (3 * area), cy / (3 * area)
+
+
+@lru_cache(maxsize=1)
+def village_centroids() -> dict[str, tuple[float, float]]:
+    """里代碼 → 面積重心 (緯度, 經度)（2026-10-13 招生機會規格 §5.3）：每個多邊形取外環重心，
+    MultiPolygon 依各塊面積加權（洞不扣，里界幾乎沒有洞，影響可忽略）。"""
+    centroids: dict[str, tuple[float, float]] = {}
+    for feature in json.loads(boundary_bytes())["features"]:
+        geometry = feature["geometry"]
+        polygons = [geometry["coordinates"]] if geometry["type"] == "Polygon" else geometry["coordinates"]
+        total = lng = lat = 0.0
+        for polygon in polygons:
+            area, x, y = _ring_centroid(polygon[0])
+            weight = abs(area)
+            total += weight
+            lng += x * weight
+            lat += y * weight
+        if total > 0:
+            centroids[feature["properties"]["VILLCODE"]] = (lat / total, lng / total)
+    return centroids

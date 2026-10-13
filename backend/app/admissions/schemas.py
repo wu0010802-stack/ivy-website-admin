@@ -859,12 +859,15 @@ class AreaFiltersOut(BaseModel):
 
 
 class AreaDataStatusOut(BaseModel):
-    """公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本。"""
+    """公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
+    各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）。"""
 
     doorplate_version: str | None
     doorplates_synced_at: datetime | None
     kindergartens_synced_at: datetime | None
     boundary_version: str
+    population_version: str | None
+    population_synced_at: datetime | None
 
 
 class AreaCampusOut(BaseModel):
@@ -970,3 +973,63 @@ class AreaKindergartensOut(BaseModel):
     campus: AreaCampusOut
     radius_km: int
     items: list[AreaKindergartenOut]
+
+
+# ---- 招生機會（2026-10-13 招生機會規格 §6）----
+
+OpportunitySignal = Literal["below", "typical", "above", "few_children", "not_judged"]
+
+
+class AreaPopulationOut(BaseModel):
+    """各里人口的版本與口徑。version 是統計月份「115-09」，還沒匯入是 null；age_band 固定 "2-5"。"""
+
+    version: str | None
+    synced_at: datetime | None
+    age_band: Literal["2-5"]
+    source_note: str
+
+
+class AreaOpportunityBaselineOut(BaseModel):
+    """本校半徑內（里的面積重心在圈內）的合計。rate＝visit ÷ children 的百分比（小數一位，分母 0 是 null）；
+    judged＝visit 至少 10 位，才判斷哪些里偏少。"""
+
+    villages: int
+    children: int
+    infants: int
+    visit: int
+    rate: float | None
+    judged: bool
+
+
+class AreaOpportunityRowOut(BaseModel):
+    """半徑內一個里。children＝2–5 歲、infants＝0–1 歲；rate＝visit ÷ children（百分比）；
+    expected＝照附近的參觀率應有的參觀人數、shortfall＝expected − visit（皆小數一位，沒有附近平均是 null）。
+    signal：below 明顯偏少、typical 差不多、above 比附近多、few_children 應有不到 1 位、not_judged 附近參觀不到 10 位。"""
+
+    district: str
+    village: str
+    village_code: str
+    # 本校到里界面積重心的直線距離，取整到 100 m。
+    distance_m: int
+    children: int
+    infants: int
+    visit: int
+    rate: float | None
+    expected: float | None
+    shortfall: float | None
+    signal: OpportunitySignal
+
+
+class AreaOpportunityOut(BaseModel):
+    as_of: datetime
+    filters: AreaFiltersOut
+    radius_km: int
+    population: AreaPopulationOut
+    campus: AreaCampusOut
+    # 沒有人口資料或本校沒座標時是 null（villages 也是空的）。
+    baseline: AreaOpportunityBaselineOut | None
+    # 比對到里、但里在半徑外的參觀人數；沒對到里的（只到區、未定位、待比對、沒填地址、已匿名化）參觀人數。
+    outside_visit: int
+    unplaced_visit: int
+    # 依「應有 − 實際」由大到小；同值依孩子數、區、里名。
+    villages: list[AreaOpportunityRowOut]

@@ -112,6 +112,9 @@ async def _data_status(db: AsyncSession) -> dict[str, Any]:
     statuses = {status.dataset: status for status in (await db.execute(select(GeoDatasetStatus))).scalars()}
     doorplates = statuses.get("doorplates")
     kindergartens = statuses.get("kindergartens")
+    # 各里人口（2026-10-13 招生機會）：只有換版成功過（active_version 有值）才算匯入，失敗只留 last_error 的列不算。
+    population = statuses.get("population")
+    population_imported = population is not None and population.active_version is not None
     return {
         # 畫面顯示月份「115-10」（label）；active_version 是內部批次標記（A 階段定案）。
         # 取自已讀到的狀態列，不為它再查一次。
@@ -119,6 +122,8 @@ async def _data_status(db: AsyncSession) -> dict[str, Any]:
         "doorplates_synced_at": doorplates.synced_at if doorplates is not None else None,
         "kindergartens_synced_at": kindergartens.synced_at if kindergartens is not None else None,
         "boundary_version": boundaries.BOUNDARY_VERSION,
+        "population_version": population.label if population_imported else None,
+        "population_synced_at": population.synced_at if population_imported else None,
     }
 
 

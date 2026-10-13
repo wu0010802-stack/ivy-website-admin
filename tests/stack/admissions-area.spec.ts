@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
@@ -227,6 +227,82 @@ test('區域分析：本校地址比對不到門牌 → 地圖、幼兒園清單
       await Promise.all([context.close(), api.dispose()])
     }
   }
+})
+
+// 招生機會（2026-10-13 規格 9）：start-api.sh 匯入 115 年 9 月高雄市各里人口（真實資料）。崇德校附近參觀很少
+// （這個 spec 只建了幾筆），所以總結寫「先不判斷」；表格的 2–5 歲人數要和人口檔一致。
+test('招生機會：狀態列人口月份 → 總結與各里排行 → 換半徑 → 地圖改依孩子／招生機會著色', async ({ browser }) => {
+  test.setTimeout(90_000)
+  mkdirSync(SHOTS, { recursive: true })
+  const population = JSON.parse(readFileSync(path.join(ROOT, 'tests/stack/fixtures/geo-population-11509.json'), 'utf8')) as {
+    responseData: Record<string, string>[]
+  }
+  const xinshang = population.responseData.find((row) => row.site_id === '高雄市左營區' && row.village === '新上里')!
+  const children = [2, 3, 4, 5].reduce((sum, age) => sum + Number(xinshang[`people_age_00${age}_m`]) + Number(xinshang[`people_age_00${age}_f`]), 0)
+  const api = await adminApi('super_admin')
+  await api.send('POST', `/admin/admissions/records?campus_key=${CAMPUS}`, {
+    visit_date: taipeiDate(0),
+    child_name: '招生機會甲童',
+    birthday: `${TERM.schoolYear + 1911 - 3}-05-20`,
+    target_school_year: TERM.schoolYear,
+    target_semester: TERM.semester,
+    address: '813高雄市左營區明華一路175號3樓',
+  })
+  const { context, page } = await openAs(browser, 'super_admin')
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+  const block = statsBlock(page, '招生機會（本校 3 公里內）')
+
+  await test.step('狀態列寫人口月份；總結寫半徑內合計，參觀太少先不判斷', async () => {
+    await expect(page.locator('.area-status')).toContainText('各里人口 115 年 9 月')
+    const summary = block.locator('.opportunity-summary')
+    await expect(summary).toContainText(/本校 3 公里內 \d+ 個里，2–5 歲孩子 [\d,]+ 位，參觀 \d+ 位/)
+    await expect(summary).toContainText('附近參觀還不到 10 位，先不判斷哪些里偏少。')
+  })
+
+  await test.step('各里排行：先列 10 個里，「顯示全部」展開；新上里的 2–5 歲人數和人口檔一致、有參觀；說明寫資料來源', async () => {
+    await expect(block.locator('tbody tr')).toHaveCount(10)
+    await block.getByRole('button', { name: /^顯示全部 \d+ 列$/ }).click()
+    expect(await block.locator('tbody tr').count()).toBeGreaterThan(10)
+    const cells = block.locator('tbody tr', { hasText: '左營區新上里' }).locator('th, td')
+    await expect(cells.nth(3)).toHaveText(String(children))
+    expect(Number(await cells.nth(5).textContent())).toBeGreaterThanOrEqual(1)
+    await expect(cells.nth(8)).toHaveText('還不判斷')
+    await expect(block.locator('.stats-block__caption')).toContainText('資料來源：內政部戶政司')
+  })
+
+  await test.step('地圖改依 2–5 歲孩子著色：半徑內孩子最多的里是最深一級；招生機會模式有圖例', async () => {
+    const modes = page.locator('.area-map__modes')
+    await modes.locator('.el-radio-button', { hasText: '2–5 歲孩子' }).click()
+    await expect(page.locator('.area-map path.area-village--l5').first()).toBeAttached()
+    await expect(page.locator('.area-legend--levels li').first()).toContainText('位')
+    await page.locator('.area-top').screenshot({ path: path.join(SHOTS, 'admissions-opportunity-children-1440.png') })
+    await modes.locator('.el-radio-button', { hasText: '招生機會' }).click()
+    await expect(page.locator('.area-legend--signals')).toBeVisible()
+    await page.screenshot({ path: path.join(SHOTS, 'admissions-opportunity-1440.png'), fullPage: true })
+  })
+
+  await test.step('換 1 公里：標題、總結與地圖範圍跟著換', async () => {
+    await page.locator('.nearby .el-radio-button', { hasText: '1 公里' }).click()
+    const near = statsBlock(page, '招生機會（本校 1 公里內）')
+    await expect(near.locator('.opportunity-summary')).toContainText('本校 1 公里內')
+  })
+
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await Promise.all([context.close(), api.dispose()])
+})
+
+test('390px：招生機會切換與表格不撐出頁面', async ({ browser }) => {
+  mkdirSync(SHOTS, { recursive: true })
+  const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await openArea(page)
+  await page.locator('.area-map__modes .el-radio-button', { hasText: '招生機會' }).click()
+  await expect(page.locator('.area-legend--signals')).toBeVisible()
+  await expect(statsBlock(page, '招生機會（本校 3 公里內）').locator('tbody tr').first()).toBeAttached()
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-opportunity-390.png'), fullPage: true })
+  await context.close()
 })
 
 const DESKTOP = { viewport: { width: 1440, height: 900 } }

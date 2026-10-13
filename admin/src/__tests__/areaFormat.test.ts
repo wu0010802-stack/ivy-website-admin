@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, formatDistance, kindLabel, legendRanges, levelOf, reasonLabel, shortName,
-  taipeiMonthDay, visitGeoText,
+  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, kindLabel, legendRanges, levelOf,
+  opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone, taipeiMonthDay, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
-import { areaKindergartens, areaStats, villageBoundaries } from './admissionsTestKit'
+import { areaKindergartens, areaOpportunity, areaStats, villageBoundaries } from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
 /** 兩點的直線距離（公尺），球半徑 6371000 m，和後端 haversine_m 同一個算法。 */
@@ -169,5 +169,52 @@ describe('區域分析的窄型別', () => {
     geometry({ type: 'Polygon', coordinates: 'oops' })
     const collection: VillageBoundaries = villageBoundaries()
     expect(collection.features.length).toBeGreaterThan(0)
+  })
+})
+
+describe('招生機會的文字（2026-10-13 規格 7）', () => {
+  it('照附近應有：四捨五入成整數「約 N 位」，0 寫「不到 1 位」，沒有附近平均寫「—」；千分位', () => {
+    expect([6.4, 6.5, 0.4, 0, null, 1234.2].map(expectedText)).toEqual(['約 6 位', '約 7 位', '不到 1 位', '不到 1 位', '—', '約 1,234 位'])
+  })
+
+  it('判讀：明顯偏少寫少了幾位（至少 1 位），其餘各一句', () => {
+    expect(signalText({ signal: 'below', shortfall: 6.7 })).toBe('少了約 7 位')
+    expect(signalText({ signal: 'below', shortfall: 0.3 })).toBe('少了約 1 位')
+    expect(signalText({ signal: 'above', shortfall: -5 })).toBe('比附近多')
+    expect(signalText({ signal: 'typical', shortfall: 1 })).toBe('差不多')
+    expect(signalText({ signal: 'few_children', shortfall: 0.6 })).toBe('孩子少，看不出來')
+    expect(signalText({ signal: 'not_judged', shortfall: 3 })).toBe('還不判斷')
+  })
+
+  it('地圖色階：偏少、比附近多、差不多各一色，其餘不上色', () => {
+    expect((['below', 'above', 'typical', 'few_children', 'not_judged'] as const).map(signalTone))
+      .toEqual(['chance', 'strong', 'typical', 'none', 'none'])
+  })
+
+  it('用不了的原因：人口沒匯入優先，其次本校沒座標（帶原因）；可以用回 null', () => {
+    expect(opportunityUnavailable(areaOpportunity())).toBeNull()
+    const noPopulation = areaOpportunity({ population: { ...areaOpportunity().population, version: null }, campus: { ...areaOpportunity().campus, lat: null } })
+    expect(opportunityUnavailable(noPopulation)).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+    const unlocated = areaOpportunity({ campus: { ...areaOpportunity().campus, lat: null, lng: null, locate_error: 'pending' } })
+    expect(opportunityUnavailable(unlocated)).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+    const unknown = areaOpportunity({ campus: { ...areaOpportunity().campus, lat: null, lng: null, locate_error: 'weird' } })
+    expect(opportunityUnavailable(unknown)).toBe('本校位置未標示，算不出附近有哪些里。')
+  })
+
+  it('總結：合計句、判讀句（合計少了幾位四捨五入、至少 1 位）、不算在內的人數只寫非零項', () => {
+    expect(opportunitySummary(areaOpportunity({ baseline: null }))).toBeNull()
+    expect(opportunitySummary(areaOpportunity())).toEqual({
+      lead: '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 20 位（參觀率 2.0%）。',
+      verdict: '明顯偏少的里 1 個，照附近的參觀率合計少了約 7 位。',
+      note: '另有 2 位來自 3 公里外、3 位沒對到里，不算在內。',
+    })
+    const rows = areaOpportunity().villages
+    const twoSmall = areaOpportunity({
+      villages: [{ ...rows[0]!, shortfall: 0.2 }, { ...rows[1]!, signal: 'below', shortfall: 0.1 }, rows[2]!],
+      outside_visit: 0,
+    })
+    expect(opportunitySummary(twoSmall)).toMatchObject({ verdict: '明顯偏少的里 2 個，照附近的參觀率合計少了約 1 位。', note: '另有 3 位沒對到里，不算在內。' })
+    const none = areaOpportunity({ villages: rows.map((row) => ({ ...row, signal: 'typical' as const })), unplaced_visit: 0 })
+    expect(opportunitySummary(none)).toMatchObject({ verdict: '沒有明顯偏少的里。', note: '另有 2 位來自 3 公里外，不算在內。' })
   })
 })

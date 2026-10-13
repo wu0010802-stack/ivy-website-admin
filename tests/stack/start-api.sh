@@ -62,9 +62,12 @@ cd "$root/backend"
   uv run --frozen python -m app.cli initialize-content ../web/server/data/site-fixture.json
   # 招生區域分析（2026-10-08）：匯入 stack 專用的門牌與幼兒園樣本（不連外）。五校校址都在樣本裡，
   # 校區座標才算得出來；WEBSITE_GEO_AUTO_SYNC 維持預設關閉，背景不會去抓正式資料。
+  # 招生機會（2026-10-13）：各里人口用 115 年 9 月高雄市 893 里的真實資料（內政部 ODRP014，只留 0–6 歲欄位），
+  # 同步規定至少 850 個里才換版，所以不能只放幾個里。
   uv run --frozen python -m app.cli geo-sync \
     --doorplates-file ../tests/stack/fixtures/geo-doorplates.csv \
-    --kindergartens-file ../tests/stack/fixtures/geo-preschools.json
+    --kindergartens-file ../tests/stack/fixtures/geo-preschools.json \
+    --population-file ../tests/stack/fixtures/geo-population-11509.json
   # bootstrap-admin 刻意只從 stdin 讀密碼（不接受命令列參數、不寫 log）。
   printf '%s\n%s\n%s\n' "$E2E_ADMIN_EMAIL" "$E2E_ADMIN_PASSWORD" "$E2E_ADMIN_PASSWORD" \
     | uv run --frozen python -m app.cli bootstrap-admin

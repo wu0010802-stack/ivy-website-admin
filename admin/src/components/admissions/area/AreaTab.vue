@@ -2,18 +2,23 @@
 import { computed, defineAsyncComponent, ref, shallowRef, watch } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
 import NearbyKindergartens from './NearbyKindergartens.vue'
-import { getArea, getAreaBoundaries, getAreaKindergartens } from '../../../api/admissions'
+import OpportunityPanel from './OpportunityPanel.vue'
+import { getArea, getAreaBoundaries, getAreaKindergartens, getAreaOpportunity } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
-import type { AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaVillageRow, VillageBoundaries } from '../../../api/types'
+import type {
+  AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaVillageRow, VillageBoundaries,
+} from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  bandLabel, campusNotLocatedReason, doorplateVersionLabel, reasonLabel, taipeiMonthDay, type RadiusKm,
+  bandLabel, campusNotLocatedReason, doorplateVersionLabel, opportunityUnavailable, populationVersionLabel, reasonLabel, taipeiMonthDay,
+  type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
+// 2026-10-13 招生機會：地圖可改依 2–5 歲孩子或招生機會著色，地圖下方多一張「招生機會」表（半徑跟附近幼兒園同一個）。
 // 口徑同其他子分頁（頁首校區＋入學學年學期）；家長地址在後端以公開門牌資料比對，不送任何外部服務。
 // 地圖（Leaflet）另切一個 chunk，點開這個子分頁才下載。
 // chunk 載入失敗（常見於剛部署完、舊的 hash 檔已不存在）：重抓同一個檔救不回來，只能整頁重新載入；
@@ -96,6 +101,32 @@ async function loadKindergartens() {
 }
 watch([() => props.campusKey, radiusKm], () => void loadKindergartens(), { immediate: true })
 
+// 招生機會（2026-10-13 規格 7）：母體同區域分析，半徑同附近幼兒園；換任何一個都清空再讀、只採用最後一次的回應。
+const opportunity = ref<AreaOpportunity | null>(null)
+const opportunityFailed = ref(false)
+const opportunityRequests = useRequestSequence()
+async function loadOpportunity() {
+  const request = opportunityRequests.begin()
+  opportunity.value = null
+  opportunityFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaOpportunity({
+      campus_key: props.campusKey, school_year: props.schoolYear, semester: props.semester, radius_km: radiusKm.value,
+    })
+    if (opportunityRequests.isCurrent(request)) opportunity.value = result
+  } catch {
+    if (opportunityRequests.isCurrent(request)) opportunityFailed.value = true
+  }
+}
+watch([() => props.campusKey, () => props.schoolYear, () => props.semester, radiusKm], () => void loadOpportunity(), { immediate: true })
+// 地圖後兩種著色停用時的原因；空字串＝可以用。讀取中不算用不了：換半徑時正在看招生機會的人，
+// 地圖不該跳回參觀人數（地圖在資料回來前先不上色）。
+const opportunityNote = computed(() => {
+  if (opportunityFailed.value) return '招生機會讀取失敗。'
+  return opportunity.value ? (opportunityUnavailable(opportunity.value) ?? '') : ''
+})
+
 const map = ref<{ focusKindergarten: (id: string) => void } | null>(null)
 function focusKindergarten(id: string) {
   map.value?.focusKindergarten(id)
@@ -121,6 +152,7 @@ const status = computed(() => {
       : '門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。',
     doorplateImported: Boolean(dataStatus.doorplate_version),
     kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${taipeiMonthDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
+    population: dataStatus.population_version ? `各里人口 ${populationVersionLabel(dataStatus.population_version)}` : '各里人口尚未匯入',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
   }
@@ -195,7 +227,7 @@ function openNoVillage() {
       <div class="area-head">
         <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
         <p class="hint area-status">
-          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}</span>
+          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}・{{ status.population }}</span>
         </p>
         <p v-if="area.totals.with_address" class="area-summary">
           有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>
@@ -224,6 +256,8 @@ function openNoVillage() {
             :kindergartens="kindergartens?.items ?? []"
             :radius-km="radiusKm"
             :narrow="narrow"
+            :opportunity="opportunity"
+            :opportunity-note="opportunityNote"
             @open-area="openPlace"
           />
         </div>
@@ -235,6 +269,8 @@ function openNoVillage() {
           @retry="loadKindergartens()"
         />
       </div>
+
+      <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
 
       <div v-if="area.totals.with_address" class="area-tables">
         <StatsDimensionTable

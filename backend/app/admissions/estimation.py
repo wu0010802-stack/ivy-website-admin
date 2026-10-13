@@ -133,6 +133,27 @@ def cumulative_at(curve: Sequence[tuple[int, float]], day: int) -> float:
     return value
 
 
+def _poisson_log_pmf(i: int, mu: float) -> float:
+    return i * math.log(mu) - mu - math.lgamma(i + 1)
+
+
+def poisson_cdf(k: int, mu: float) -> float:
+    """P(X ≤ k)，X ~ Poisson(mu)（2026-10-13 招生機會規格 §5）：對數空間逐項加總，k 是參觀人數、
+    最多幾百，逐項加不會慢；mu 很大時每一項都很小，不會溢位。"""
+    if mu < 0:
+        raise ValueError("mu 不能小於 0")
+    if k < 0:
+        return 0.0
+    if mu == 0:
+        return 1.0
+    return min(1.0, sum(math.exp(_poisson_log_pmf(i, mu)) for i in range(k + 1)))
+
+
+def poisson_sf(k: int, mu: float) -> float:
+    """P(X ≥ k)，X ~ Poisson(mu)：1 − P(X ≤ k − 1)。"""
+    return 1.0 if k <= 0 else max(0.0, 1.0 - poisson_cdf(k - 1, mu))
+
+
 def poisson_binomial_cdf(probabilities: Sequence[float], k: int) -> float:
     """P(X ≤ k)，X 是各自獨立、機率 probabilities[i] 的成功次數總和（動態規劃精確算）。"""
     if k < 0:

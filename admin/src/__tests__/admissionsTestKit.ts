@@ -7,7 +7,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
-import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, UserOut, VillageBoundaries } from '../api/types'
+import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, AreaOpportunity, UserOut, VillageBoundaries } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -142,6 +142,7 @@ const buildAreaStats = () => ({
   data_status: {
     doorplate_version: '115-10', doorplates_synced_at: '2026-10-06T18:00:00Z',
     kindergartens_synced_at: '2026-10-07T18:30:00Z', boundary_version: '115-08-17',
+    population_version: '115-09', population_synced_at: '2026-10-12T18:00:00Z',
   },
   campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
   totals: {
@@ -167,6 +168,26 @@ const buildAreaStats = () => ({
 } satisfies AdmissionsArea)
 /** 每次呼叫都是一份新的（測試改它不會影響別的測試）；changes 整欄換掉，要改巢狀欄位的某一格就自己展開 areaStats().xxx。 */
 export const areaStats = (changes: Record<string, unknown> = {}) => ({ ...buildAreaStats(), ...changes })
+
+// 招生機會（2026-10-13）：3 公里內 3 個里，參觀合計 3＋6＋11＝20、2–5 歲 500＋300＋200＝1,000，參觀率 2.0%；
+// 鼎金里明顯偏少（應有 10、實際 3）、本揚里差不多、寶業里比附近多。里代碼同 villageBoundaries。
+const buildAreaOpportunity = () => ({
+  as_of: '2026-10-13T02:00:00Z',
+  filters: { campus_key: 'yihua', school_year: 115, semester: null },
+  radius_km: 3,
+  population: { version: '115-09', synced_at: '2026-10-12T18:00:00Z', age_band: '2-5', source_note: '資料來源：內政部戶政司 村里戶數、單一年齡人口' },
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
+  baseline: { villages: 3, children: 1000, infants: 300, visit: 20, rate: 2, judged: true },
+  outside_visit: 2,
+  unplaced_visit: 3,
+  villages: [
+    { district: '三民區', village: '鼎金里', village_code: '64000050001', distance_m: 800, children: 500, infants: 150, visit: 3, rate: 0.6, expected: 10, shortfall: 7, signal: 'below' },
+    { district: '三民區', village: '本揚里', village_code: '64000050015', distance_m: 300, children: 300, infants: 90, visit: 6, rate: 2, expected: 6, shortfall: 0, signal: 'typical' },
+    { district: '三民區', village: '寶業里', village_code: '64000050025', distance_m: 300, children: 200, infants: 60, visit: 11, rate: 5.5, expected: 4, shortfall: -7, signal: 'above' },
+  ],
+} satisfies AreaOpportunity)
+/** 每次呼叫都是一份新的；changes 整欄換掉。 */
+export const areaOpportunity = (changes: Partial<AreaOpportunity> = {}): AreaOpportunity => ({ ...buildAreaOpportunity(), ...changes })
 
 // 座標由 distance_m 反推（從校區正北方量出去），所以座標和 distance_m 一致、本機構（0 m）落在校區 50 m 內，
 // 競爭園所都在 50 m 外（後端 OWN_CAMPUS_RADIUS_M）；areaFormat.test.ts 的守門測試用 haversine 驗。
