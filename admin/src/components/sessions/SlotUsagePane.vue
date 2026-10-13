@@ -38,7 +38,14 @@ async function load() {
     if (requests.isCurrent(request)) loading.value = false
   }
 }
-watch(() => [props.campusKey, weeks.value], load, { immediate: true })
+// 換校區時先清空：回應回來前不能顯示「新校名＋舊校數字」。只換週數則保留舊表格，等新範圍回來再換。
+watch(() => [props.campusKey, weeks.value] as const, ([campusKey], previous) => {
+  if (previous && previous[0] !== campusKey) {
+    usage.value = null
+    error.value = null
+  }
+  load()
+}, { immediate: true })
 
 const lookupEmpty = computed(() => (usage.value ? lookupEmptyText(usage.value) : null))
 const slotsEmpty = computed(() => (usage.value ? slotsEmptyText(usage.value) : null))
@@ -65,7 +72,7 @@ const columns: StatsColumn[] = [
 </script>
 
 <template>
-  <div class="usage" :aria-busy="loading">
+  <div v-loading="loading" class="usage" :class="{ 'usage--pending': loading && !usage }" :aria-busy="loading">
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error">
       <el-button size="small" data-test="reload" @click="load">重新載入</el-button>
     </el-alert>
@@ -121,6 +128,7 @@ const columns: StatsColumn[] = [
 
 <style scoped>
 .usage { display: grid; gap: 24px; }
+.usage--pending { min-height: 160px; }
 .usage__block { display: grid; gap: 12px; }
 .usage__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .usage__title { margin: 0; font-size: var(--text-lg); }

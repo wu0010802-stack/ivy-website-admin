@@ -186,6 +186,28 @@ describe('SlotUsagePane', () => {
     expect(wrapper.text()).toContain('打開明華校預約頁 99 次')
   })
 
+  it('換校區時先清掉舊校的數字，新校的回應回來前不會出現「新校名＋舊校數字」', async () => {
+    const { wrapper, get } = await mountPane(usage())
+    expect(wrapper.text()).toContain('近 4 週家長打開義華校預約頁 10 次')
+    get.mockReturnValue(new Promise(() => {}) as never)
+    await wrapper.setProps({ campusKey: 'minghua', campusName: '明華校' })
+    await flushPromises()
+    expect(urlOf(get).at(-1)).toBe('/admin/visit-slot-usage?campus_key=minghua&weeks=12')
+    expect(wrapper.text()).not.toContain('近 4 週家長打開')
+    expect(wrapper.text()).not.toContain('週六 10:00–11:00')
+    expect(wrapper.attributes('aria-busy')).toBe('true')
+  })
+
+  it('只換週數時，新範圍回來前舊表格還在', async () => {
+    const { wrapper, get } = await mountPane(usage())
+    get.mockReturnValue(new Promise(() => {}) as never)
+    await wrapper.get('[data-test="weeks-26"]').trigger('click')
+    await flushPromises()
+    expect(urlOf(get).at(-1)).toBe('/admin/visit-slot-usage?campus_key=yihua&weeks=26')
+    expect(wrapper.text()).toContain('週六 10:00–11:00')
+    expect(wrapper.attributes('aria-busy')).toBe('true')
+  })
+
   it('「怎麼算」說明預設收合，內容寫出口徑', async () => {
     const { wrapper } = await mountPane(usage())
     const details = wrapper.get('details')
@@ -280,11 +302,10 @@ describe('參觀場次頁：頁籤', () => {
 
   it('切校區兩個頁籤共用：在使用情況頁籤換校會重讀新校', async () => {
     const get = vi.spyOn(api, 'get'); route(get)
-    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    const { router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
     await router.replace({ query: { campus: 'minghua', tab: 'usage' } })
     await flushPromises()
     expect(get.mock.calls.map(c => String(c[0]))).toContain('/admin/visit-slot-usage?campus_key=minghua&weeks=12')
-    expect(wrapper.exists()).toBe(true)
   })
 
   it('接待月曆有沒存的修改時，切到場次使用情況先問，取消就留在原頁籤（頁籤列也不動）', async () => {

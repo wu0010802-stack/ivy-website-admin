@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import csv
 import io
 import logging
@@ -784,6 +785,9 @@ async def get_visit_slot_usage(
     """場次使用情況（2026-10-13 規格 §4）：新預約表單近 4 週的「最早能約哪天」＋各時段過去坐了幾成。
     權限同接待月曆；只回數字，沒有個資，不寫操作紀錄。"""
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；權限過了才擋，沒權限的人照舊拿 404／403。
+    if has_control_chars(campus_key):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
     if weeks not in slot_usage.WEEK_CHOICES:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -858,7 +862,9 @@ async def list_public_slots(
             await slot_lookup.record_lookup(db, campus_key=campus_key, earliest=earliest, today=today)
             await db.commit()
         except SQLAlchemyError:
-            await db.rollback()
+            # 連線斷了的話 rollback 自己也會丟錯；記錄是附帶的，這裡不能讓它變成家長的 500。
+            with contextlib.suppress(SQLAlchemyError):
+                await db.rollback()
             logger.warning("record slot lookup failed", exc_info=True)
     return result
 

@@ -161,6 +161,13 @@ async def test_api_rejects_unknown_weeks(admin_client, weeks):
 
 
 @pytest.mark.asyncio
+async def test_api_rejects_control_characters_in_campus_key(admin_client):
+    """網址上的 %00 不能一路送到 PostgreSQL（會被拒收成 500）；權限檢查過了之後回 422。"""
+    response = await admin_client.get(f"{URL}?campus_key=yi%00hua&weeks=12")
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
 async def test_api_requires_campus_key(admin_client):
     assert (await admin_client.get(f"{URL}?weeks=12")).status_code == 422
 

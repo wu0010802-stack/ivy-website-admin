@@ -8,8 +8,8 @@
 - **migration**：`b4d7e1a92c58` 只新增表，不需備份閘門。
 - **驗證**：
   - stack e2e（Node 22、專屬庫與 port；`npm run e2e:build` 後 `playwright test -c playwright.stack.config.ts tests/stack/slot-usage.spec.ts tests/stack/a11y.spec.ts tests/stack/schedule-flow.spec.ts`）36 個全過，含新增的 `slot-usage.spec.ts` 4 個（1440／390 頁籤不橫向溢出、頁籤進網址、分校管理者）與 a11y 掃描 `/admin/visit-calendar?campus=yihua&tab=usage`。
-  - `slot-usage.spec.ts` 單獨跑 4 個過；把 `purpose=new_booking` 拿掉重跑，1440／390 兩個紅（總結句不出現）。分校管理者那條補了單校標籤、無校區下拉與跨校 API 404 的斷言，修正後單跑 4 個過。
-  - 另在測試庫塞過去的場次與預約（三個時段、常額滿／很少人約／還不判斷各一）看有表格的畫面：axe 0 個違規（1440、390），頁面不橫向溢出；390 的表格在表內橫向捲動（時段欄固定，判讀欄要往右捲）。腳本未納入版控。
+  - `slot-usage.spec.ts` 單獨跑 4 個過；請求不帶 `purpose=new_booking` 時，1440／390 兩個案例失敗（總結句不出現）。分校管理者案例含單校標籤、無校區下拉與跨校 API 404 的斷言。
+  - 有表格的畫面另以測試庫的過去場次與預約檢查（三個時段，常額滿／很少人約／還不判斷各一）：axe 0 個違規（1440、390），頁面不橫向溢出；390 的表格在表內橫向捲動（時段欄固定，判讀欄要往右捲）。
   - 尚未在這段記錄：完整 stack 套件、後端 pytest、前端單元測試與型別檢查。
 
 ## 2026-10-13 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（`feature/perf-20261013`）

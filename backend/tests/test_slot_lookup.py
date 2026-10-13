@@ -11,7 +11,7 @@ from app.booking import slot_lookup
 from app.booking.models import LOOKUP_BUCKETS, SlotLookupDaily
 from app.common.timezones import today_local
 
-from tests.conftest import create_slot, set_booking_mode
+from tests.conftest import create_slot, create_slot_record, set_booking_mode
 
 API = "/api/website/v1"
 
@@ -163,13 +163,39 @@ async def test_recording_failure_still_returns_the_slots_and_keeps_the_session_u
 
 
 @pytest.mark.asyncio
+async def test_recording_and_rollback_both_failing_still_returns_the_slots(
+    admin_client, public_client, db_session, monkeypatch
+):
+    """連線整個斷了：記錄失敗之後 rollback 自己也丟錯，家長照樣拿到場次（不是 500）。"""
+    from sqlalchemy.exc import OperationalError, SQLAlchemyError
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    await create_slot(admin_client, days_ahead=5)
+    assert (await set_booking_mode(admin_client, mode="slots")).status_code == 200
+
+    async def boom(*args, **kwargs):
+        raise OperationalError("INSERT", {}, Exception("connection lost"))
+
+    async def dead_rollback(self, *args, **kwargs):
+        raise SQLAlchemyError("connection already closed")
+
+    # 只在這一次請求期間換掉 rollback；離開 context 就還原，後面的 fixture 收尾照常。
+    with monkeypatch.context() as scoped:
+        scoped.setattr(slot_lookup, "record_lookup", boom)
+        scoped.setattr(AsyncSession, "rollback", dead_rollback)
+        response = await public_client.get(f"{API}/public/slots?campus_key=yihua&{_range()}&purpose=new_booking")
+    assert response.status_code == 200 and len(response.json()) == 1
+    assert await _lookups(db_session) == {}
+
+
+@pytest.mark.asyncio
 async def test_lookup_day_and_wait_come_from_the_routes_taipei_today(admin_client, public_client, db_session, monkeypatch):
     """記錄的日期與等待天數都取自路由的 today_local()（台北時間），不是 UTC 日期或 date.today()。"""
     from app.booking import routes as booking_routes
 
-    await create_slot(admin_client, days_ahead=3)
+    created = await create_slot_record(admin_client, days_ahead=3)
     assert (await set_booking_mode(admin_client, mode="slots")).status_code == 200
-    slot_date = (today_local() + timedelta(days=3))
+    slot_date = date.fromisoformat(created["slot_date"])
     # 假裝台北今天是「場次日期 − 1 天」→ 最早場次離今天 1 天，記在 within_1，記錄日期是假的今天。
     fake_today = slot_date - timedelta(days=1)
     monkeypatch.setattr(booking_routes, "today_local", lambda *a, **k: fake_today)
