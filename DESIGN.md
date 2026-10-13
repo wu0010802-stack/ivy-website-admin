@@ -1,5 +1,23 @@
 # Design
 
+## 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（2026-10-13，`feature/perf-20261013`）
+
+使用者 10-13 要「優化專案的效能」。第四輪（10-05）之後官網首屏已經調過，這輪分官網、後台、後端三路重新盤點，每一項先量再決定做不做；外觀不變。量測腳本與數字見 README 同日段落。
+
+- **後台：打開才用到的大元件另切 chunk**（`admin/src/composables/lazyComponent.ts`）。對話框、不是預設的分頁用 `lazyComponent(() => import(...))`，不要在頁面頂端靜態 import：總覽的招生資料表單（RecordDialog 連同日期、下拉元件）、招生入學的訪視明細與統計分析分頁已經這樣做。載入失敗比照換頁（`router/chunkReload.ts` 的 `reloadAfterChunkError`：整頁重載一次，10 秒內再失敗只提示）。
+- **RecordDialog 可以晚掛**：open 的 watcher 是 `immediate`，掛上時 open 已經是 true 也會把 record 帶進表單。總覽在「確認標記到場」那一刻才掛上（和標記、找招生訪視的請求同時下載）。
+- **後台 chunk 分組**（`admin/vite.config.ts` 的 rolldown `codeSplitting.groups`）：Vue／Vue Router／Pinia 一組、`src/api/labels.ts` 一組，改標籤不讓整個 Vue 跟著失效。**不要把範圍放大到整個 `node_modules`**：會把地圖、日期選擇器這些頁面才用的套件拉進入口。
+- **區域分析地圖換色不重建圖層**（`AreaMap.vue` 的 `restyleVillages`）：里的資料、招生機會、著色模式變了，只換各里 SVG 圖形的 class（Leaflet 只在建立圖形時套 className，`setStyle` 不管它，所以直接改元素並同步 `options.className`）。里界換了、手機／桌機版面切換（hover 里名要重綁）才整層重建。之後加會影響里著色的狀態，放進 restyle 的 watch，不要回到整層重建：893 個里重建一次在 4 倍降速要 360–750 ms。
+- **官網代理壓縮 JSON**（`web/server/utils/gzip-boundaries.ts` 的 `createJsonGzip`）：h3 代理不轉 Accept-Encoding、Railway 也不壓，代理對收 gzip 的客戶端壓縮 JSON 回應（`application/json`、`…+json`），1 KB 以下、HEAD、304、非 JSON 不動；里界 GeoJSON 照舊走依 ETag 快取的那支。CSV 匯出與素材是串流，不經過這裡。之後若新增「串流的 JSON」端點，要在代理排除，否則會被讀完整份才送。
+- **後端：CPU 重的工作不放在事件迴圈上**（正式站 API 只有一個 uvicorn worker，卡住會連官網預約、內容請求一起等）：可能範圍的 Beta 分位數用 `lru_cache`（純函式；一次區域分析幾百個里多半是同幾組小數字）；門牌下載中的 CSV 收滿 `FILE_CHUNK_LINES` 行才交給執行緒解析，幼兒園名單的 JSON 解析與篩選也在執行緒裡。
+- **官網 SSR HTML 壓縮用非同步 zlib**（`server/plugins/compress-html.ts`；nitro 會 await `render:response`）。
+- **量過、不改（下一輪不用再提）**：
+  - 每頁那 1–2 支重複的阻塞樣式表（頁面元件的 CSS 已 inline，又因為 `/preview` 直接用各頁元件、元件被抽成沒有來源檔的共用 chunk 而再 link 一次）：限速手機（1.6 Mbps／150 ms／CPU 4×）把它們換成空檔，LCP 沒有變（誤差內），不為此改即時預覽頁的結構。`SiteFooter.css` 本來就還要（隱私說明對話框只在用戶端出現，CSS 沒有 inline）。
+  - 執行時掛上的 LINE Seed 其餘分片樣式表（`lineseed-extended-*.css`）降優先權：換成空檔後 LCP 不變。
+  - 站內 NuxtLink 換頁不會重抓 `/api/published-site`（實測 0 次，同第四輪）。
+  - 首頁最新消息進度條每 50 ms 更新：CPU profile 裡看不到；那段時間的 CPU 是水彩、遮罩這些一次性效果。特色教學轉場遮罩已經是閒置時逐張產生。
+  - 校區座標快取、招生機會先依里中心篩里、頁首徽章改輕量端點：本機量差距都在 10 ms 內，不值得加快取失效或新 API。
+
 ## 招生入學：招生機會地圖（2026-10-13，`claude/amazing-cannon-0cqnpc`）
 
 使用者 10-13 要一個「令人驚艷、不是 AI」的功能，從四個方案選了招生機會地圖。重開區域分析 10-08 延後的「人口與機會判讀」（飽和度仍不做）。規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`。

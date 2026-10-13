@@ -1,10 +1,16 @@
-import { brotliCompressSync, constants, gzipSync } from 'node:zlib'
+import { promisify } from 'node:util'
+import { brotliCompress, constants, gzip } from 'node:zlib'
 
 // Railway 的反向代理不會壓縮回應，首頁 SSR HTML（含 payload 與圖示 sprite）
 // 約 94 KB，在 4G 上多花將近半秒。靜態資源由 nitro.compressPublicAssets
 // 預先壓好；這裡只補 SSR 頁面本體。brotli 品質 5 對這個大小約 1–2 ms。
+// 用非同步版：壓縮在 libuv 執行緒做，同時進來的其他請求（API 代理、靜態檔）不用排在後面等。
+// nitro 的 renderer 會 await render:response 的鉤子。
+const brotliAsync = promisify(brotliCompress)
+const gzipAsync = promisify(gzip)
+
 export default defineNitroPlugin((nitroApp) => {
-  nitroApp.hooks.hook('render:response', (response, { event }) => {
+  nitroApp.hooks.hook('render:response', async (response, { event }) => {
     if (typeof response.body !== 'string' || response.body.length < 1024) return
     // 錯誤頁不壓：Nuxt 的錯誤處理器是用內部 fetch 打 /__nuxt_error 拿到這裡的
     // 回應，再以 .text() 讀 body 後照抄 headers 送出。壓過的 Buffer 被當 UTF-8
@@ -18,8 +24,8 @@ export default defineNitroPlugin((nitroApp) => {
     if (!encoding) return
     const raw = Buffer.from(response.body, 'utf8')
     const compressed = encoding === 'br'
-      ? brotliCompressSync(raw, { params: { [constants.BROTLI_PARAM_QUALITY]: 5, [constants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
-      : gzipSync(raw, { level: 6 })
+      ? await brotliAsync(raw, { params: { [constants.BROTLI_PARAM_QUALITY]: 5, [constants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+      : await gzipAsync(raw, { level: 6 })
     // nitro 的 render handler 直接回傳 body，h3 可送 Buffer；型別宣告仍是 string。
     response.body = compressed as unknown as string
     headers['content-encoding'] = encoding

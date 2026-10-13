@@ -118,11 +118,12 @@ function reset(state: FormState) {
   error.value = null
 }
 
+// immediate：呼叫端可以等到要打開時才掛上（另切 chunk 的總覽），掛上時 open 已經是 true 也要帶入。
 watch(open, (value) => {
   if (!value) return
   current.value = props.mode === 'edit' ? (props.record ?? null) : null
   reset(current.value ? fromRecord(current.value) : blank())
-})
+}, { immediate: true })
 
 // 新增時游標直接停在幼生姓名（多半邊講電話邊填）；編輯時不搶焦點。
 function focusChild() {

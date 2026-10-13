@@ -12,7 +12,8 @@ import {
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
 // 標出本校、半徑虛線圓與附近幼兒園。Leaflet 的 fillColor 寫不了 CSS 變數，所以圖形只掛 class，
-// 顏色由下面的 :deep 規則用 --area-* token 決定；分級變了整層重畫（class 只在建立時套用）。
+// 顏色由下面的 :deep 規則用 --area-* token 決定。分級或著色模式變了只換各里圖形的 class（restyleVillages）：
+// Leaflet 只在建立圖形時套用 className（setStyle 不管它），整層重建 893 個里在手機上一次要好幾百 ms。
 // Leaflet 與它的樣式只在這裡用動態 import 載入（掛載後才下載，不進主 bundle）；載不下來顯示重試。
 // 圖磚請求只帶視野範圍，不帶家長資料；家長來源只以「里」為單位聚合。
 // 2026-10-13 招生機會：著色可以切成「2–5 歲孩子」（半徑內依孩子數分 5 級）或「招生機會」（明顯偏少／差不多／
@@ -189,6 +190,22 @@ function drawVillages() {
   }).addTo(map)
   // 里界壓在最底下：半徑圓與幼兒園點畫在同一個 SVG 裡，要在上面。
   villageLayer.bringToBack()
+}
+
+// 資料或著色模式變了：不重建圖層，逐一換掉各里 SVG 圖形的 class（沒變的不動）。options.className 一起改，
+// Leaflet 之後重建這個圖形（移出再加回地圖）時也是新的 class。彈出框在打開時才組，本來就讀目前的資料與模式。
+function restyleVillages() {
+  villageLayer?.eachLayer((layer) => {
+    const path = layer as Leaflet.Path & { feature?: GeoJSON.Feature }
+    const next = path.feature ? villageClass(path.feature.properties as VillageProperties) : 'area-village area-village--l0'
+    const current = path.options.className ?? ''
+    if (next === current) return
+    path.options.className = next
+    const element = path.getElement()
+    if (!element) return
+    element.classList.remove(...current.split(' ').filter(Boolean))
+    element.classList.add(...next.split(' '))
+  })
 }
 
 function drawCampus() {
@@ -384,7 +401,8 @@ function retry() {
 
 onMounted(() => void startMap())
 
-watch(() => [props.boundaries, props.villages, props.opportunity, mode.value], drawVillages)
+watch(() => props.boundaries, drawVillages)
+watch([() => props.villages, () => props.opportunity, mode], restyleVillages)
 // 招生機會變得用不了（換校區後人口未匯入、讀取失敗）：退回參觀人數，不留在畫不出東西的模式。讀取中不退。
 watch(() => props.opportunityNote, (note) => {
   if (note && mode.value !== 'visits') mode.value = 'visits'

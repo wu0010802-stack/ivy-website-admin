@@ -4,7 +4,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, createError, defineEventHandler, getHeader, proxyRequest, toNodeListener } from 'h3'
 import { trustedClientIp } from '../server/utils/client-ip'
-import { acceptsGzip, createBoundariesGzip, isBoundariesRequest } from '../server/utils/gzip-boundaries'
+import { acceptsGzip, createBoundariesGzip, createJsonGzip, isBoundariesRequest } from '../server/utils/gzip-boundaries'
 
 const servers: Server[] = []
 async function listen(server: Server) {
@@ -299,26 +299,183 @@ describe('里界 GeoJSON 由官網代理 gzip', () => {
   })
 })
 
-describe('其他路徑行為完全不變', () => {
+// 2026-10-13：里界以外的 JSON 回應也由代理壓縮（不快取）；不是 JSON 的（CSV、重新導向）照舊串流原樣送。
+describe('其他 JSON 回應：收 gzip 就壓縮，每次壓、不快取', () => {
+  const RECORDS = '/api/website/v1/admin/admissions/records?campus_key=yihua&page=1'
+  // 後台列表的樣子：50 筆、每筆幾十個欄位，約 50 KB。
+  const LIST = Buffer.from(JSON.stringify(Array.from({ length: 50 }, (_, i) => ({ id: `v-${i}`, child_name: `小安${i}`, notes: '家長關心午睡與戶外活動時間', address: '高雄市左營區明華一路175號' }))))
+
   it.each([
+    ['GET', RECORDS],
     ['GET', '/api/website/v1/admin/admissions/area/kindergartens?campus_key=chongde'],
     ['GET', '/api/website/v1/admin/admissions/area/boundaries/'],
-    ['GET', '/api/website/v1/admin/admissions/area/Boundaries'],
     ['GET', '/api/website/v1/public/site'],
-    ['HEAD', '/api/website/v1/admin/admissions/area/boundaries'],
     ['POST', '/api/website/v1/admin/admissions/area/boundaries'],
-  ])('%s %s：不壓縮、不加 Vary，本文原樣', async (method, path) => {
+  ])('%s %s：gzip 後送出，標頭照上游、加 Vary', async (method, path) => {
     upstreamHandler = (_req, res) => {
-      res.writeHead(200, { 'content-type': 'application/json', etag: '"o"' })
-      res.end(method === 'HEAD' ? undefined : GEOJSON)
+      res.writeHead(200, { 'content-type': 'application/json', 'content-length': String(LIST.length), etag: '"o"', 'cache-control': 'private, no-store' })
+      res.end(LIST)
     }
     const proxy = await startProxy()
-    const response = await rawRequest(proxy, path, { method, headers: { 'accept-encoding': 'gzip' } })
+    const response = await rawRequest(proxy, path, { method, headers: { 'accept-encoding': 'gzip, deflate, br' } })
     expect(response.status).toBe(200)
+    expect(response.headers['content-encoding']).toBe('gzip')
+    expect(response.headers.vary).toBe('Accept-Encoding')
+    expect(response.headers.etag).toBe('"o"')
+    expect(response.headers['cache-control']).toBe('private, no-store')
+    expect(response.headers['content-length']).toBe(String(response.body.length))
+    expect(response.body.length).toBeLessThan(LIST.length / 4)
+    expect(gunzipSync(response.body).equals(LIST)).toBe(true)
+  })
+
+  it('上游沒帶 Content-Length（分塊傳輸）也壓', async () => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
+      res.write(LIST.subarray(0, 100))
+      res.end(LIST.subarray(100))
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    expect(response.headers['content-encoding']).toBe('gzip')
+    expect(response.headers['transfer-encoding']).toBeUndefined()
+    expect(gunzipSync(response.body).equals(LIST)).toBe(true)
+  })
+
+  it('錯誤回應的 JSON 夠大也壓（422 的欄位說明）', async () => {
+    const errorBody = JSON.stringify({ detail: Array.from({ length: 40 }, (_, i) => ({ loc: ['body', `field${i}`], msg: '欄位格式不正確' })) })
+    upstreamHandler = (_req, res) => {
+      res.writeHead(422, { 'content-type': 'application/json' })
+      res.end(errorBody)
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, RECORDS, { method: 'POST', headers: { 'accept-encoding': 'gzip' } })
+    expect(response.status).toBe(422)
+    expect(response.headers['content-encoding']).toBe('gzip')
+    expect(gunzipSync(response.body).toString()).toBe(errorBody)
+  })
+
+  it('1 KB 以下不壓：上游有宣告長度時照原本串流，沒宣告時原樣送（補 Content-Length）', async () => {
+    const small = Buffer.from(JSON.stringify({ ok: true, items: [1, 2, 3] }))
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', 'content-length': String(small.length) })
+      res.end(small)
+    }
+    const proxy = await startProxy()
+    const declared = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    expect(declared.headers['content-encoding']).toBeUndefined()
+    expect(declared.headers.vary).toBe('Accept-Encoding')
+    expect(declared.body.equals(small)).toBe(true)
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(small)
+    }
+    const chunked = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    expect(chunked.headers['content-encoding']).toBeUndefined()
+    expect(chunked.headers['content-length']).toBe(String(small.length))
+    expect(chunked.body.equals(small)).toBe(true)
+  })
+
+  it.each([
+    ['沒帶 Accept-Encoding', undefined],
+    ['identity', 'identity'],
+    ['只收 br', 'br'],
+  ])('客戶端不收 gzip（%s）：原樣回，仍帶 Vary', async (_label, acceptEncoding) => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', etag: '"o"' })
+      res.end(LIST)
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, RECORDS, { headers: acceptEncoding === undefined ? {} : { 'accept-encoding': acceptEncoding } })
+    expect(response.headers['content-encoding']).toBeUndefined()
+    expect(response.headers.vary).toBe('Accept-Encoding')
+    expect(response.body.equals(LIST)).toBe(true)
+  })
+
+  it('上游 304：沒有本文、不加 Content-Encoding，Vary 和 200 一致', async () => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(304, { etag: '"o"' })
+      res.end()
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, '/api/website/v1/public/site', { headers: { 'accept-encoding': 'gzip', 'if-none-match': '"o"' } })
+    expect(response.status).toBe(304)
+    expect(response.headers['content-encoding']).toBeUndefined()
+    expect(response.headers.vary).toBe('Accept-Encoding')
+    expect(response.body.length).toBe(0)
+  })
+
+  it.each([
+    ['CSV 匯出', 'text/csv; charset=utf-8'],
+    ['純文字', 'text/plain'],
+    ['JSON 字樣不在開頭', 'text/x-json-like'],
+  ])('不是 JSON（%s）：不壓縮、不加 Vary，照原本串流', async (_label, contentType) => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': contentType, etag: '"o"' })
+      res.end(LIST)
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
     expect(response.headers['content-encoding']).toBeUndefined()
     expect(response.headers.vary).toBeUndefined()
+    expect(response.body.equals(LIST)).toBe(true)
+  })
+
+  it('HEAD：不讀本文、不壓縮', async () => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', etag: '"o"' })
+      res.end()
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, '/api/website/v1/admin/admissions/area/boundaries', { method: 'HEAD', headers: { 'accept-encoding': 'gzip' } })
+    expect(response.status).toBe(200)
+    expect(response.headers['content-encoding']).toBeUndefined()
     expect(response.headers.etag).toBe('"o"')
-    if (method !== 'HEAD') expect(response.body.equals(GEOJSON)).toBe(true)
+  })
+
+  it('本文讀到一半斷線：回 502、no-store、不帶 ETag', async () => {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json', 'content-length': String(LIST.length), etag: '"o"', 'cache-control': 'private, max-age=60' })
+      res.write(LIST.subarray(0, 1024))
+      setTimeout(() => res.destroy(), 20)
+    }
+    const proxy = await startProxy()
+    const response = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    expect(response.status).toBe(502)
+    expect(response.headers['cache-control']).toBe('no-store')
+    expect(response.headers.etag).toBeUndefined()
+  })
+
+  it('同樣的回應連續兩次都壓（不快取：後台資料每次都可能不同）', async () => {
+    let n = 0
+    upstreamHandler = (_req, res) => {
+      const body = Buffer.from(JSON.stringify({ n: ++n, rows: JSON.parse(LIST.toString()) }))
+      res.writeHead(200, { 'content-type': 'application/json', etag: '"same"' })
+      res.end(body)
+    }
+    const proxy = await startProxy()
+    const first = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    const second = await rawRequest(proxy, RECORDS, { headers: { 'accept-encoding': 'gzip' } })
+    expect(JSON.parse(gunzipSync(first.body).toString()).n).toBe(1)
+    expect(JSON.parse(gunzipSync(second.body).toString()).n).toBe(2)
+  })
+})
+
+describe('createJsonGzip：壓縮失敗退回原樣', () => {
+  it('壓縮函式丟錯：原樣送出、不帶 Content-Encoding', async () => {
+    const body = Buffer.from(JSON.stringify({ rows: 'x'.repeat(4000) }))
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(body)
+    }
+    const upstreamPort = await startUpstream()
+    const onResponse = createJsonGzip(() => Promise.reject(new Error('zlib 壞了')))
+    const app = createApp().use(defineEventHandler(event => proxyRequest(event, `http://127.0.0.1:${upstreamPort}/json`, { onResponse })))
+    const proxy = await listen(createServer(toNodeListener(app)))
+    const response = await rawRequest(proxy, '/json', { headers: { 'accept-encoding': 'gzip' } })
+    expect(response.status).toBe(200)
+    expect(response.headers['content-encoding']).toBeUndefined()
+    expect(response.headers['content-length']).toBe(String(body.length))
+    expect(response.body.equals(body)).toBe(true)
   })
 })
 

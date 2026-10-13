@@ -5,8 +5,7 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
-import RecordsTab from '../components/admissions/RecordsTab.vue'
-import StatsTab from '../components/admissions/StatsTab.vue'
+import { lazyComponent } from '../composables/lazyComponent'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { getOptions } from '../api/admissions'
 import { ApiError } from '../api/client'
@@ -19,6 +18,9 @@ import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissi
 // 官網預約兩個分頁（和園務分歧）：確認到場改在案件列表的「只看尚未確認到場」。2026-10-06 拿掉
 // 官網延伸的「待追蹤」分頁：下次聯絡、負責人改在訪視明細的「追蹤」「負責人」篩選看。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
+// 預設是漏斗看板：訪視明細與統計分析（表格、地圖、參觀預約統計）切過去才下載。
+const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
+const StatsTab = lazyComponent(() => import('../components/admissions/StatsTab.vue'))
 const {
   campus, schoolYear, semester, tab, visitRequestId, month, area, sub, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
