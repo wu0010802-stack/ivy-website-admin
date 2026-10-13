@@ -6,8 +6,16 @@ import type { Campus, NewsContent, NewsEvent } from '~/types/site-content'
 import { articlesForCampus, eventTimeDetail, isSampleNews, newsPath, safeWebUrl, sampleCoverage, taipeiToday, upcomingEvents } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 
-const props = defineProps<{ news: NewsContent; campuses: Campus[] }>()
+// today：判斷「近期活動」的日期。後台預覽（/preview?page=news&date=）傳預覽的那一天，和消息上下架同一天；
+// 正式頁不傳，用台北的今天。
+const props = defineProps<{ news: NewsContent; campuses: Campus[]; today?: string }>()
 const route = useRoute()
+// 校區篩選只換 campus，網址其他參數照留：在 /preview 裡顯示時，page=news、date、viewport、embed
+// 不能丟，不然一點校區就跳回首頁預覽、日期也回到今天（2026-10-13）。
+function filterQuery(campus?: string) {
+  const { campus: _current, ...rest } = route.query
+  return campus ? { ...rest, campus } : rest
+}
 
 const campusKey = computed(() => {
   const value = typeof route.query.campus === 'string' ? route.query.campus : ''
@@ -15,8 +23,8 @@ const campusKey = computed(() => {
 })
 const campusName = computed(() => props.campuses.find((c) => c.key === campusKey.value)?.name)
 const articles = computed(() => articlesForCampus(props.news.articles, campusKey.value))
-const today = taipeiToday()
-const events = computed(() => upcomingEvents(props.news.events, today)
+const today = computed(() => props.today ?? taipeiToday())
+const events = computed(() => upcomingEvents(props.news.events, today.value)
   .filter((e) => !campusKey.value || !e.campusKeys?.length || e.campusKeys.includes(campusKey.value)))
 const isSample = (item: { sample?: boolean }) => isSampleNews(item, props.news.sampleNote)
 const articlesSample = computed(() => sampleCoverage(articles.value, props.news.sampleNote))
@@ -40,8 +48,8 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
       </header>
 
       <nav class="np-filter" aria-label="依校區篩選">
-        <NuxtLink :to="{ query: {} }" :aria-current="!campusKey ? 'page' : undefined">全部</NuxtLink>
-        <NuxtLink v-for="c in campuses" :key="c.key" :to="{ query: { campus: c.key } }" :aria-current="campusKey === c.key ? 'page' : undefined">{{ c.name }}</NuxtLink>
+        <NuxtLink :to="{ query: filterQuery() }" :aria-current="!campusKey ? 'page' : undefined">全部</NuxtLink>
+        <NuxtLink v-for="c in campuses" :key="c.key" :to="{ query: filterQuery(c.key) }" :aria-current="campusKey === c.key ? 'page' : undefined">{{ c.name }}</NuxtLink>
       </nav>
 
       <section v-if="events.length" class="np-events" aria-labelledby="np-events-title">
