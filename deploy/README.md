@@ -13,6 +13,27 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-13 招生機會地圖（main CI 部署，migration 只新增表並放寬一個約束）
+
+- **合併**：PR #34（`claude/amazing-cannon-0cqnpc`，head `ad66341e`，其中 `ee3170ff` 已合入 PR #33 的 main `00428c2f`）由 GitHub 以 merge commit 併入 main `00428c2f..58ec755d`。內容見 README 頂部 10-13「招生機會地圖」、DESIGN.md 最上方一節、規格 `docs/specs/2026-10-13-admissions-opportunity-design.md`。
+- **migration**：`ad783510900a` → `f3c8a2d47b19`。
+  - 新增 `geo_village_population`；把 `geo_dataset_status` 的 dataset 約束重建成多收 `population`。
+  - 不改既有資料，所以沒有先備份。API 啟動時自動 `alembic upgrade head`；部署成功表示已套用，**沒有直接查 `alembic_version`**。
+- **回退**：舊映像不認得 `f3c8a2d47b19`，`check_schema.py` 會擋（見 CICD.md）。要退先用新映像跑 `alembic downgrade ad783510900a`（刪掉人口表與 `population` 狀態列、約束改回），再切舊映像；匯入過的各里人口一併消失，下次同步重抓。
+- **推送前閘門**：本機結果見 README 頂部同名段落（合入 `00428c2` 後重跑：後端 geo 與招生 876 passed、admin vitest 2304 passed、web unit 1157 passed、`contract:check` 一致、stack 20 passed）。PR 上的 CI（`ad66341e`）全綠。
+- **CI**：main run 38352283382（`58ec755d`），建立到部署完成 17.8 分鐘，全綠：
+  - Frontend web 1.5 分、admin 6.2 分；Backend 三組 12.9／9.3／11.4 分；E2E／Playwright 10.3 分（含 `admissions-area` 新加的兩支與 `exports`）。
+  - Deploy Railway production 4.7 分，成功。
+- **正式 `release.json`**：base commit `58ec755d2814406fc3cac5b6e8f96837bd1e2483`，created `2026-10-13T05:50:14Z`，`web+api`。
+- **線上唯讀檢查**（未登入，05:5x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空；`/admin/` 200。
+  - 未登入 `GET /admin/admissions/area/opportunity?campus_key=yihua&radius_km=3` 回 401（同前綴不存在的路徑回 404），路由已上線。
+  - 後台 chunk：`AdmissionsView-DM-6aJgy.js` 有「招生機會」「各里人口」「照附近應有」「顯示全部」；`AreaMap-D4WkKVFh.js` 有「2–5 歲孩子」「明顯偏少」「招生機會讀取中」；`AreaMap-Bz_tNl_i.css`、`index-6Kj4RtFR.css` 有 `--area-chance`。
+- **各里人口同步**：正式 api 已設 `WEBSITE_GEO_AUTO_SYNC`（見 10-12「招生入學區域分析」紀錄），所以這次部署後，背景迴圈第一輪（api 啟動約 30 秒後）會因為人口表是空的而立刻去抓內政部 API。**結果還沒看**：沒有讀 Railway log，也沒有登入後台看狀態列。
+  - 狀態列寫「各里人口 115 年 9 月」＝成功；寫「各里人口尚未匯入」多半是內政部也擋境外 IP，照下方「公開地理資料同步 → 各里人口」的手動退路匯入。
+  - 唯讀查法：`select dataset, label, synced_at, last_error from geo_dataset_status where dataset = 'population';`
+- **未做**：沒有登入正式後台看招生機會的實際畫面；正式站目前多是測試參觀資料，判讀多半會寫「附近參觀還不到 10 位，先不判斷」。
+
 ## 2026-10-13 參觀預約統計搬到招生入學＋桌機側欄收合（main CI 部署，沒有 migration）
 
 - **合併**：`feature/booking-stats-move-20261013` 的 `da61c64c` 從 `9cb26f26` 開。合入 origin/main `60332d8f`（另一個 session 的桌機側欄收合，README 頂部兩段都留）成 `e1a995b0`，再加 `a5d790cf`（web 偶發測試修正），快轉推 main `60332d8f..a5d790cf`。
