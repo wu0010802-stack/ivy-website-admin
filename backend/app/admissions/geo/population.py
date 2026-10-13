@@ -1,15 +1,18 @@
 """高雄市各里學齡前人口（內政部戶政司 ODRP014「村里戶數、單一年齡人口（新增區域代碼）」，
 docs/specs/2026-10-13-admissions-opportunity-design.md 第 2–4 節）。
 
-來源是全國資料、每頁最多 2,000 筆的 JSON API，高雄市的列不在固定頁，要全部抓完再篩
-（district_code 以 64000 開頭）。值全是字串。這裡只管解析、驗證與寫入；下載與排程在
-sync.py。驗證任一項不過就整批不換，保留使用中的月份。"""
+來源是每頁最多 2,000 筆的 JSON API；帶 COUNTY=高雄市 只回高雄 893 里（一頁、約 4.4 MB，2026-10-13 實測），
+不帶是全國約 7,800 筆、四頁共約 38 MB。值全是字串。解析時仍只留 district_code 以 64000 開頭的列
+（來源哪天不理會 COUNTY 也不會把外縣市寫進來）。這裡只管解析、驗證與寫入；下載與排程在 sync.py。
+驗證任一項不過就整批不換，保留使用中的月份。"""
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
+from urllib.parse import urlencode
 
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,10 +28,14 @@ RESPONSE_OK = "OD-0101-S"
 RESPONSE_NO_DATA = "OD-0102-S"
 # 高雄 893 里；少於這個數字多半是來源給了殘缺的資料，不換版。
 MIN_VILLAGES = 850
-# 全國約 7,800 筆、每頁 2,000 筆，4 頁；超過這個頁數視為來源異常，不無限抓下去。
+# 只要高雄是 1 頁（全國也只有 4 頁）；超過這個頁數視為來源異常，不無限抓下去。
 MAX_PAGES = 10
 AGES = range(0, 7)
-SOURCE_NOTE = "資料來源：內政部戶政司 村里戶數、單一年齡人口（每月更新）"
+_KEEP_FIELDS = (
+    "statistic_yyymm", "district_code", "site_id", "village", "people_total",
+    *(f"people_age_{age:03d}_{sex}" for age in AGES for sex in "mf"),
+)
+SOURCE_NOTE = "資料來源：內政部戶政司 村里戶數、單一年齡人口"
 _MONTH = re.compile(r"([0-9]{3})(0[1-9]|1[0-2])")
 # 只認 ASCII 數字：str.isdigit() 會放行「²」這類字，int() 卻轉不了。
 _COUNT = re.compile(r"[0-9]+")
@@ -63,7 +70,7 @@ class PopulationBatch:
 
 
 def page_url(yyymm: str, page: int) -> str:
-    return f"{RIS_BASE}/{yyymm}?page={page}"
+    return f"{RIS_BASE}/{yyymm}?{urlencode({'COUNTY': KAOHSIUNG_NAME, 'page': page})}"
 
 
 def label_of(yyymm: str) -> str:
@@ -87,7 +94,28 @@ def response_rows(data: object) -> list[dict] | None:
     return rows
 
 
-def total_pages(data: dict) -> int:
+def _slim_row(obj: dict) -> dict | None:
+    """json.loads 的 object_hook：每個 JSON 物件一解析出來就經過這裡。資料列（有 district_code）不是高雄市的
+    回 None、是高雄的只留用得到的欄位；其他物件（整頁的外層）原樣回傳。"""
+    if "district_code" not in obj:
+        return obj
+    if not str(obj["district_code"]).startswith(KAOHSIUNG_PREFIX):
+        return None
+    return {key: obj[key] for key in _KEEP_FIELDS if key in obj}
+
+
+def parse_page(text: str) -> object:
+    """解析一頁 API 回應，解析當下就丟掉其他縣市的列與 7 歲以上的欄位。每列 210 欄，整頁照原樣解析成
+    物件很佔記憶體（全國一頁上百 MB）；api 容器記憶體有限，所以不先整份解析再篩。"""
+    data = json.loads(text, object_hook=_slim_row)
+    if isinstance(data, dict) and isinstance(data.get("responseData"), list):
+        data["responseData"] = [row for row in data["responseData"] if row is not None]
+    return data
+
+
+def total_pages(data: object) -> int:
+    if not isinstance(data, dict):
+        raise PopulationFormatError("人口資料不是 JSON 物件")
     try:
         pages = int(str(data.get("totalPage", "")))
     except ValueError as exc:
@@ -107,7 +135,7 @@ def _count(row: dict, key: str) -> int:
 def collect(pages: list[list[dict]]) -> PopulationBatch:
     """把各頁的資料列篩成高雄市、驗證後組成一批（規格 §4 的驗證）。
 
-    - 每一列的 statistic_yyymm 要一樣（同一個月份）；
+    - 每一列的 statistic_yyymm 要一樣（同一個月份；經 parse_page 解析的頁只剩高雄的列，就只比高雄的列）；
     - 只留 district_code 以 64000 開頭的列，代碼不在里界檔的略過並計數；
     - 各歲與全里人口要是非負整數，同一個代碼不能出現兩次；
     - 對到的里至少 MIN_VILLAGES 個。"""

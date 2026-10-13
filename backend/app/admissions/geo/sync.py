@@ -413,13 +413,14 @@ def recent_months(count: int = POPULATION_LOOKBACK_MONTHS) -> list[str]:
     return months
 
 
-async def _population_page(client: httpx.AsyncClient, yyymm: str, page: int) -> dict:
+async def _population_page(client: httpx.AsyncClient, yyymm: str, page: int) -> object:
+    """一頁回應，解析時就只留高雄市的列（population.parse_page）；解析在執行緒裡做，不卡住事件迴圈。"""
     response = await client.get(population_io.page_url(yyymm, page))
     response.raise_for_status()
-    return response.json()
+    return await asyncio.to_thread(population_io.parse_page, response.text)
 
 
-async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, dict]:
+async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, object]:
     """最近一個有資料的月份與它的第一頁；最近幾個月都「查無資料」就丟錯。"""
     for yyymm in recent_months():
         first = await _population_page(client, yyymm, 1)
@@ -428,7 +429,7 @@ async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, dic
     raise GeoSyncError("找不到最近幾個月的各里人口資料")
 
 
-async def _download_population(client: httpx.AsyncClient, yyymm: str, first: dict) -> population_io.PopulationBatch:
+async def _download_population(client: httpx.AsyncClient, yyymm: str, first: object) -> population_io.PopulationBatch:
     """第一頁已經在手上：照 totalPage 把其餘頁抓完再一起驗證。中途某頁變成「查無資料」視為來源異常。"""
     pages = [population_io.response_rows(first) or []]
     for page in range(2, population_io.total_pages(first) + 1):
@@ -446,7 +447,7 @@ def _population_file_batch(files: list[Path]) -> population_io.PopulationBatch:
     """指定的本機檔案（API 原始回應，可多頁）。月份取資料本身的 statistic_yyymm。"""
     pages = []
     for path in files:
-        rows = population_io.response_rows(json.loads(path.read_text(encoding="utf-8-sig")))
+        rows = population_io.response_rows(population_io.parse_page(path.read_text(encoding="utf-8-sig")))
         if rows is None:
             raise GeoSyncError(f"人口檔 {path.name} 是「查無資料」的回應")
         pages.append(rows)

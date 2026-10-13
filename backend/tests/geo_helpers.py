@@ -62,7 +62,7 @@ RIS_SAMPLE_MONTH = "11509"
 RIS_SAMPLE_PAGES = (FIXTURES / "ris-odrp014-11509-p1.json", FIXTURES / "ris-odrp014-11509-p2.json")
 # 樣本裡高雄市的里數（另有 3 筆外縣市要被篩掉）。
 RIS_SAMPLE_VILLAGES = 24
-_RIS_URL = re.compile(re.escape(population_io.RIS_BASE) + r"/([0-9]{5})\?page=([0-9]+)")
+_RIS_PATH = re.compile(re.escape(population_io.RIS_BASE) + r"/([0-9]{5})")
 
 
 def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
@@ -79,10 +79,14 @@ def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
 def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response | None:
     """假的內政部 ODRP014：網址不是它就回 None（由呼叫端處理）。months 給定時只有這些月份有資料，
     其他月份回「查無資料」；沒給就每個月份都有（月份改成網址上的）。"""
-    matched = _RIS_URL.fullmatch(url)
+    parsed = httpx.URL(url)
+    matched = _RIS_PATH.fullmatch(f"{parsed.scheme}://{parsed.host}{parsed.path}")
     if matched is None:
         return None
-    month, page = matched.group(1), int(matched.group(2))
+    # 同步一律帶 COUNTY=高雄市；沒帶就是程式寫錯（會抓到全國資料），回 400 讓測試看得到。
+    if parsed.params.get("COUNTY") != population_io.KAOHSIUNG_NAME:
+        return httpx.Response(400)
+    month, page = matched.group(1), int(parsed.params.get("page", "0"))
     if months is not None and month not in months:
         return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})
     pages = ris_sample_pages(month)

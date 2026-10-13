@@ -125,6 +125,17 @@ def test_collect_rejects_mixed_months_duplicates_and_empty(few_villages):
         collect([[]])
 
 
+def test_parse_page_keeps_only_kaohsiung_rows_and_needed_fields():
+    """解析當下就丟掉其他縣市的列與 7 歲以上的欄位（全國一頁整份解析要上百 MB）。"""
+    page = json.loads(RIS_SAMPLE_PAGES[0].read_text(encoding="utf-8"))
+    parsed = population_io.parse_page(RIS_SAMPLE_PAGES[0].read_text(encoding="utf-8"))
+    kept = parsed["responseData"]
+    assert parsed["totalPage"] == "2" and parsed["responseCode"] == "OD-0101-S"
+    assert len(kept) == sum(row["district_code"].startswith("64000") for row in page["responseData"]) > 0
+    assert all(row["district_code"].startswith("64000") for row in kept)
+    assert "people_age_007_m" not in kept[0] and "people_age_006_f" in kept[0] and "people_total" in kept[0]
+
+
 def test_response_rows_and_pages():
     first = ris_sample_pages()[0]
     assert response_rows(first) == first["responseData"]
@@ -136,6 +147,12 @@ def test_response_rows_and_pages():
     for pages in ("", "0", "11", "abc"):
         with pytest.raises(PopulationFormatError):
             total_pages({"totalPage": pages})
+
+
+def test_page_url_asks_only_for_kaohsiung():
+    assert population_io.page_url("11509", 2) == (
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/11509?COUNTY=%E9%AB%98%E9%9B%84%E5%B8%82&page=2"
+    )
 
 
 def test_label_of():
@@ -220,7 +237,7 @@ async def test_a_bad_page_fails_and_keeps_the_month_in_use(app, few_villages, oc
 
     def broken(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
-        if url.endswith("page=2"):
+        if request.url.params.get("page") == "2":
             return httpx.Response(500)
         response = ris_response(url, months={"11509"})
         return response or httpx.Response(404)
@@ -234,7 +251,7 @@ async def test_a_bad_page_fails_and_keeps_the_month_in_use(app, few_villages, oc
 async def test_page_that_turns_into_no_data_is_a_source_error(app, few_villages, october):
     def flaky(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
-        if url.endswith("page=2"):
+        if request.url.params.get("page") == "2":
             return httpx.Response(200, json={"responseCode": "OD-0102-S", "responseMessage": "查無資料"})
         return ris_response(url, months={"11509"}) or httpx.Response(404)
 
