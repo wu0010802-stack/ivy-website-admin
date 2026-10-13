@@ -16,10 +16,9 @@ vi.stubGlobal('watch', watch)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.mock('motion', () => ({ animate: vi.fn(), scroll: vi.fn(), inView: vi.fn() }))
-vi.mock('../app/utils/about-popup', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../app/utils/about-popup')>()),
-  createAboutPopup: () => null
-}))
+// 同步的 factory：寫成 async（importOriginal）時，元件 onMounted 裡的動態 import 有時拿到真的模組，
+// 第二個案例就會跑真的換片動畫（280ms 後才換），CI 上時過時不過（2026-10-13）。這支測試只需要 createAboutPopup。
+vi.mock('../app/utils/about-popup', () => ({ createAboutPopup: () => null }))
 
 const site = fixture as unknown as SiteContent
 const yihua = site.campuses.find((c) => c.key === 'yihua')!
