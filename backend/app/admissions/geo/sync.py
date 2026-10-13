@@ -169,21 +169,24 @@ async def discover_doorplate_source(client: httpx.AsyncClient) -> DoorplateSourc
     錯誤時丟最後一個，讓狀態列寫出 HTTP 狀態碼。"""
     search = await client.get(KCG_SEARCH_URL)
     search.raise_for_status()
-    last_error: httpx.HTTPStatusError | None = None
-    for _, path in parse_dataset_search(search.text)[:2]:
+    errors: list[httpx.HTTPStatusError] = []
+    pages = parse_dataset_search(search.text)[:2]
+    for _, path in pages:
         page = await client.get(f"{KCG_BASE}{path}")
         try:
             page.raise_for_status()
         except httpx.HTTPStatusError as exc:
             logger.warning("門牌資料集頁 %s 回 HTTP %s，改看前一年度", path, exc.response.status_code)
-            last_error = exc
+            errors.append(exc)
             continue
         resources = parse_dataset_resources(page.text)
         if resources:
             year, month, guid = resources[0]
             return DoorplateSource(f"{year}-{month:02d}", f"{KCG_BASE}/File/DirectDownload/{guid}")
-    if last_error is not None:
-        raise last_error
+    # 每一頁都是 HTTP 錯誤才報狀態碼；有一頁打得開只是沒有下載檔（新年度還沒上線）時，
+    # 原因是「找不到下載檔」，不是另一頁的 HTTP 錯誤（2026-10-13）。
+    if pages and len(errors) == len(pages):
+        raise errors[-1]
     raise GeoSyncError("找不到高雄市門牌坐標資料的下載檔")
 
 
