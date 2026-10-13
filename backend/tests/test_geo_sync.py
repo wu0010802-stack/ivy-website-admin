@@ -26,7 +26,8 @@ from app.admissions.geo.sync import (
     parse_dataset_search,
     run_geo_sync,
 )
-from tests.geo_helpers import FIXTURES, add_visit, lock_is_free, publish_campus_address
+from app.admissions.geo import population as population_io
+from tests.geo_helpers import FIXTURES, add_visit, lock_is_free, publish_campus_address, ris_response
 
 CSV_URL = "https://data.kcg.gov.tw/File/DirectDownload/667aae8f-d427-488b-9420-e51f28783dc3"
 DATASET_115 = "https://data.kcg.gov.tw/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7c9cd411414"
@@ -41,8 +42,9 @@ def _site(
     kiang: bytes | None = None,
     dataset_115: str | None = None,
     dataset_115_status: int = 200,
+    population_months: set[str] | None = None,
 ):
-    """假的高雄市資料平台＋kiang；回傳 (transport, 請求過的網址清單)。"""
+    """假的高雄市資料平台＋kiang＋內政部 ODRP014；回傳 (transport, 請求過的網址清單)。"""
     seen: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -61,6 +63,9 @@ def _site(
         if url == KIANG_URL:
             body = kiang if kiang is not None else (FIXTURES / "preschools-sample.json").read_bytes()
             return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+        population = ris_response(url, months=population_months)
+        if population is not None:
+            return population
         return httpx.Response(404)
 
     return httpx.MockTransport(handle), seen
@@ -68,8 +73,9 @@ def _site(
 
 @pytest.fixture
 def small_minimum(monkeypatch):
-    """樣本只有 73 個門牌；下載的筆數下限降到 1。"""
+    """樣本只有 73 個門牌、24 個里的人口；下載的筆數下限都降到 1。"""
     monkeypatch.setattr(sync, "MIN_DOORPLATE_ROWS", 1)
+    monkeypatch.setattr(population_io, "MIN_VILLAGES", 1)
 
 
 async def _sync(app, transport, **kwargs):

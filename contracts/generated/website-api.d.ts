@@ -69,6 +69,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/opportunity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Opportunity
+         * @description 招生機會（2026-10-13 招生機會規格 §6）：本校半徑內各里的 2–5 歲孩子數、參觀率，以及和附近平均比
+         *     明顯偏少的里。母體同 /area；半徑規則同 /area/kindergartens。只讀，不寫稽核；只有里層級的聚合數字。
+         */
+        get: operations["get_admissions_area_opportunity_api_website_v1_admin_admissions_area_opportunity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/board": {
         parameters: {
             query?: never;
@@ -3435,7 +3456,8 @@ export interface components {
         };
         /**
          * AreaDataStatusOut
-         * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本。
+         * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
+         *     各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）。
          */
         AreaDataStatusOut: {
             /** Boundary Version */
@@ -3446,6 +3468,10 @@ export interface components {
             doorplates_synced_at: string | null;
             /** Kindergartens Synced At */
             kindergartens_synced_at: string | null;
+            /** Population Synced At */
+            population_synced_at: string | null;
+            /** Population Version */
+            population_version: string | null;
         };
         /** AreaDistanceBandOut */
         AreaDistanceBandOut: {
@@ -3526,6 +3552,95 @@ export interface components {
             source_note: string;
             /** Synced At */
             synced_at: string | null;
+        };
+        /**
+         * AreaOpportunityBaselineOut
+         * @description 本校半徑內（里的面積重心在圈內）的合計。rate＝visit ÷ children 的百分比（小數一位，分母 0 是 null）；
+         *     judged＝visit 至少 10 位，才判斷哪些里偏少。
+         */
+        AreaOpportunityBaselineOut: {
+            /** Children */
+            children: number;
+            /** Infants */
+            infants: number;
+            /** Judged */
+            judged: boolean;
+            /** Rate */
+            rate: number | null;
+            /** Villages */
+            villages: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AreaOpportunityOut */
+        AreaOpportunityOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            baseline: components["schemas"]["AreaOpportunityBaselineOut"] | null;
+            campus: components["schemas"]["AreaCampusOut"];
+            filters: components["schemas"]["AreaFiltersOut"];
+            /** Outside Visit */
+            outside_visit: number;
+            population: components["schemas"]["AreaPopulationOut"];
+            /** Radius Km */
+            radius_km: number;
+            /** Unplaced Visit */
+            unplaced_visit: number;
+            /** Villages */
+            villages: components["schemas"]["AreaOpportunityRowOut"][];
+        };
+        /**
+         * AreaOpportunityRowOut
+         * @description 半徑內一個里。children＝2–5 歲、infants＝0–1 歲；rate＝visit ÷ children（百分比）；
+         *     expected＝照附近的參觀率應有的參觀人數、shortfall＝expected − visit（皆小數一位，沒有附近平均是 null）。
+         *     signal：below 明顯偏少、typical 差不多、above 比附近多、few_children 應有不到 1 位、not_judged 附近參觀不到 10 位。
+         */
+        AreaOpportunityRowOut: {
+            /** Children */
+            children: number;
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Expected */
+            expected: number | null;
+            /** Infants */
+            infants: number;
+            /** Rate */
+            rate: number | null;
+            /** Shortfall */
+            shortfall: number | null;
+            /**
+             * Signal
+             * @enum {string}
+             */
+            signal: "below" | "typical" | "above" | "few_children" | "not_judged";
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+            /** Visit */
+            visit: number;
+        };
+        /**
+         * AreaPopulationOut
+         * @description 各里人口的版本與口徑。version 是統計月份「115-09」，還沒匯入是 null；age_band 固定 "2-5"。
+         */
+        AreaPopulationOut: {
+            /**
+             * Age Band
+             * @constant
+             */
+            age_band: "2-5";
+            /** Source Note */
+            source_note: string;
+            /** Synced At */
+            synced_at: string | null;
+            /** Version */
+            version: string | null;
         };
         /** AreaReasonCountOut */
         AreaReasonCountOut: {
@@ -6994,6 +7109,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaKindergartensOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_opportunity_api_website_v1_admin_admissions_area_opportunity_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝不篩 */
+                school_year?: number | null;
+                semester?: number | null;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaOpportunityOut"];
                 };
             };
             /** @description Validation Error */

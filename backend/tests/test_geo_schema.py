@@ -1,4 +1,4 @@
-"""招生區域分析四張表的 migration 與約束（2026-10-08 規格 §5）。"""
+"""招生區域分析五張表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3）。"""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoDoorplate,
     GeoKindergarten,
+    GeoVillagePopulation,
     RecruitmentVisitGeo,
 )
 from app.admissions.models import RecruitmentVisit
@@ -25,7 +26,10 @@ from tests.geo_helpers import add_visit
 
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "versions" / "e7a1c4d9b2f6_admissions_area_geo.py"
-MODELS = (GeoDoorplate, GeoKindergarten, GeoDatasetStatus, RecruitmentVisitGeo)
+POPULATION_MIGRATION = BACKEND / "migrations" / "versions" / "f3c8a2d47b19_admissions_village_population.py"
+# 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population，其餘仍是 e7a1c4d9b2f6。
+CONSTRAINT_MIGRATIONS = {"ck_geo_dataset_status_dataset": POPULATION_MIGRATION}
+MODELS = (GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoDatasetStatus, RecruitmentVisitGeo)
 # 加減約束要改這裡，同時改 models.py 與 migration。
 CHECK_NAMES = {
     "ck_geo_doorplates_street_kind",
@@ -57,6 +61,18 @@ def test_migration_only_creates_tables():
     assert "op.execute" not in source and "UPDATE " not in source and "add_column" not in source
 
 
+def test_population_migration_follows_contact_phrases_and_only_adds():
+    """各里人口：接在聯絡片語之後；升級只建表與放寬約束，不動既有資料（降級才刪 population 狀態列）。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    assert ScriptDirectory.from_config(config).get_revision("f3c8a2d47b19").down_revision == "ad783510900a"
+    upgrade = POPULATION_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
+
+
 def test_check_constraint_names_in_models_are_the_locked_set():
     assert {c.name for c in _model_checks()} == CHECK_NAMES
 
@@ -76,10 +92,10 @@ async def test_check_constraint_names_in_database_are_the_locked_set(db_session)
 
 
 def test_check_conditions_are_identical_in_models_and_migration():
-    source = MIGRATION.read_text(encoding="utf-8").replace('"\n    "', "")
     for constraint in _model_checks():
+        source = CONSTRAINT_MIGRATIONS.get(constraint.name, MIGRATION).read_text(encoding="utf-8").replace('"\n    "', "")
         assert str(constraint.sqltext) in source, constraint.name
-        assert f'name="{constraint.name}"' in source, constraint.name
+        assert f'"{constraint.name}"' in source, constraint.name
 
 
 async def test_tables_exist(db_session):
@@ -91,7 +107,9 @@ async def test_tables_exist(db_session):
             )
         )
     ).scalars().all()
-    assert set(names) == {"geo_doorplates", "geo_kindergartens", "geo_dataset_status", "recruitment_visit_geo"}
+    assert set(names) == {
+        "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
+    }
 
 
 async def _expect_rejected(db_session, instance) -> None:

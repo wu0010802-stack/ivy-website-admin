@@ -569,32 +569,42 @@ async def transcode_media_videos(*, apply: bool) -> None:
 
 
 def geo_sync_options(args: list[str]) -> dict:
-    """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那一種跳過；
-    --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。"""
+    """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
+    --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
+    --population-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的統計月份。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
-        "[--doorplates-version 115-10] [--kindergartens-file <JSON>]"
+        "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...]"
     )
-    options: dict = {"force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None}
+    options: dict = {
+        "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
+        "population_files": None,
+    }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
               "--kindergartens-file": "kindergartens_file"}
+    population_files: list[Path] = []
     index = 0
     while index < len(args):
         arg = args[index]
         if arg == "--force":
             options["force"] = True
             index += 1
+        elif arg == "--population-file" and index + 1 < len(args) and not args[index + 1].startswith("--"):
+            population_files.append(Path(args[index + 1]))
+            index += 2
         elif arg in valued and index + 1 < len(args) and not args[index + 1].startswith("--"):
             value = args[index + 1]
             options[valued[arg]] = value if arg == "--doorplates-version" else Path(value)
             index += 2
         else:
             raise SystemExit(usage)
-    for key in ("doorplates_file", "kindergartens_file"):
-        if options[key] is not None and not options[key].is_file():
-            raise SystemExit(f"找不到檔案：{options[key]}")
+    for path in (options["doorplates_file"], options["kindergartens_file"], *population_files):
+        if path is not None and not path.is_file():
+            raise SystemExit(f"找不到檔案：{path}")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
         raise SystemExit(usage)
+    if population_files:
+        options["population_files"] = population_files
     return options
 
 
@@ -614,15 +624,21 @@ async def geo_sync_command(**options) -> None:
         raise SystemExit(1)
     print(
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
-        f"幼兒園：{result.kindergartens}；重算訪視 {result.rematched} 筆"
+        f"幼兒園：{result.kindergartens}；"
+        f"各里人口：{result.population}（使用中 {result.population_version or '尚未匯入'}）；"
+        f"重算訪視 {result.rematched} 筆"
     )
-    if result.doorplate_rows_skipped or result.kindergarten_rows_skipped:
-        print(f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆")
+    if result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped:
+        print(
+            f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆、"
+            f"各里人口 {result.population_rows_skipped} 列"
+        )
     failed = [
         (dataset, label)
         for dataset, label, outcome in (
             ("doorplates", "門牌", result.doorplates),
             ("kindergartens", "幼兒園", result.kindergartens),
+            ("population", "各里人口", result.population),
         )
         if outcome == "failed"
     ]
@@ -645,7 +661,8 @@ def main() -> None:
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
-            "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>]>",
+            "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
+            "[--population-file <JSON> ...]>",
             file=sys.stderr,
         )
         raise SystemExit(1)

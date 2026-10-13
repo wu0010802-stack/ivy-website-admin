@@ -1,14 +1,14 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
-幼兒園；門牌換版或校址變更後重算訪視。
+幼兒園、各里人口（2026-10-13 招生機會規格 §4）；門牌換版或校址變更後重算訪視。
 
-只下載公開資料，不送出任何家長資料。兩種資料各自成敗：失敗只寫
+只下載公開資料，不送出任何家長資料。三種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 兩種用法：
 - 背景（app/workers/geo_loop.py，每天一次）：各自超過 30 天沒確認過才去看來源；門牌
   先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file 指定本機檔案，這時完全不連外，沒指定檔案的那一種跳過。
+  --kindergartens-file／--population-file 指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）。
 
 高雄市資料開放平台（data.kcg.gov.tw，2026 年改版後不是 CKAN，/api/3 回 404）：
@@ -17,6 +17,9 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 檔案 /File/DirectDownload/<guid>（text/csv、UTF-8 帶 BOM；HEAD 回 405、Range 被忽略）。
 頁面上的 title 是 HTML 實體編碼，用 html.parser 讀 <a> 的屬性（實體會還原；屬性順序、
 單雙引號、中間夾別的屬性都不影響）。
+
+內政部戶政司 ODRP014（各里人口，population.py）：網址帶民國年月與頁碼，還沒公布的月份回
+「查無資料」；從上一個月往回找第一個有資料的月份，再把全部頁數抓完、篩出高雄市。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -47,6 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import population as population_io
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, replace_kindergartens
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
@@ -75,6 +79,8 @@ _RESOURCE_TITLE = re.compile(r"([0-9]{3})年([0-9]{1,2})月門牌坐標資料")
 _RESOURCE_HREF = re.compile(r"/Resource/([0-9a-f-]{36})")
 # 指定本機檔案時，每次交給執行緒讀取與解析的行數。
 FILE_CHUNK_LINES = 5000
+# 各里人口從上一個月往回找幾個月：戶政司通常在次月中旬公布，往回 4 個月夠涵蓋偶爾的延遲。
+POPULATION_LOOKBACK_MONTHS = 4
 
 
 class GeoSyncError(RuntimeError):
@@ -122,6 +128,10 @@ class GeoSyncResult:
     # 這一輪解析時略過的列數（欄位超長、座標不合格等；門牌檔本來就有約 800 列不是一般門牌）。
     doorplate_rows_skipped: int = 0
     kindergarten_rows_skipped: int = 0
+    # 各里人口（2026-10-13）：結果、使用中的月份（label）、對不到里界而略過的高雄列數。
+    population: str = "skipped"
+    population_version: str | None = None
+    population_rows_skipped: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -295,7 +305,8 @@ async def _batch_rows(session_factory: async_sessionmaker[AsyncSession], tag: st
 
 def _error_text(exc: Exception) -> str:
     """寫進狀態列的原因：只留我們自己的訊息或例外類別，不帶回應內容（可能很長）。"""
-    if isinstance(exc, (GeoSyncError, doorplate_io.DoorplateFormatError, KindergartenFormatError)):
+    own = (GeoSyncError, doorplate_io.DoorplateFormatError, KindergartenFormatError, population_io.PopulationFormatError)
+    if isinstance(exc, own):
         return str(exc)
     if isinstance(exc, httpx.HTTPStatusError):
         return f"下載失敗：HTTP {exc.response.status_code}"
@@ -391,6 +402,97 @@ async def sync_kindergartens(
         return "failed", 0
 
 
+def recent_months(count: int = POPULATION_LOOKBACK_MONTHS) -> list[str]:
+    """今天（台北）的上一個月起往回 count 個月的民國年月「11509」，新到舊。這個月的資料要到下個月才公布。"""
+    today = today_local()
+    year, month = today.year - 1911, today.month
+    months = []
+    for _ in range(count):
+        year, month = (year, month - 1) if month > 1 else (year - 1, 12)
+        months.append(f"{year}{month:02d}")
+    return months
+
+
+async def _population_page(client: httpx.AsyncClient, yyymm: str, page: int) -> dict:
+    response = await client.get(population_io.page_url(yyymm, page))
+    response.raise_for_status()
+    return response.json()
+
+
+async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, dict]:
+    """最近一個有資料的月份與它的第一頁；最近幾個月都「查無資料」就丟錯。"""
+    for yyymm in recent_months():
+        first = await _population_page(client, yyymm, 1)
+        if population_io.response_rows(first) is not None:
+            return yyymm, first
+    raise GeoSyncError("找不到最近幾個月的各里人口資料")
+
+
+async def _download_population(client: httpx.AsyncClient, yyymm: str, first: dict) -> population_io.PopulationBatch:
+    """第一頁已經在手上：照 totalPage 把其餘頁抓完再一起驗證。中途某頁變成「查無資料」視為來源異常。"""
+    pages = [population_io.response_rows(first) or []]
+    for page in range(2, population_io.total_pages(first) + 1):
+        rows = population_io.response_rows(await _population_page(client, yyymm, page))
+        if rows is None:
+            raise GeoSyncError("各里人口資料下載到一半變成查無資料")
+        pages.append(rows)
+    batch = population_io.collect(pages)
+    if batch.label != population_io.label_of(yyymm):
+        raise GeoSyncError("各里人口資料的月份和網址不一致")
+    return batch
+
+
+def _population_file_batch(files: list[Path]) -> population_io.PopulationBatch:
+    """指定的本機檔案（API 原始回應，可多頁）。月份取資料本身的 statistic_yyymm。"""
+    pages = []
+    for path in files:
+        rows = population_io.response_rows(json.loads(path.read_text(encoding="utf-8-sig")))
+        if rows is None:
+            raise GeoSyncError(f"人口檔 {path.name} 是「查無資料」的回應")
+        pages.append(rows)
+    return population_io.collect(pages)
+
+
+async def sync_population(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+) -> tuple[str, int]:
+    """各里人口（2026-10-13 招生機會規格 §4）。回傳 (結果, 對不到里界而略過的高雄列數)。
+    月份和使用中的一樣就不下載其餘頁、只記確認時間；比使用中的舊不換（同門牌）。"""
+    status = await _status(session_factory, "population")
+    if not files and (client is None or (not force and not _due(status, now))):
+        return "skipped", 0
+    try:
+        if files:
+            # 幾頁 JSON、每頁約 10 MB：解析交給執行緒，不卡住事件迴圈。
+            batch = await asyncio.to_thread(_population_file_batch, files)
+        else:
+            assert client is not None
+            yyymm, first = await discover_population_month(client)
+            label = population_io.label_of(yyymm)
+            active = status.label if status is not None and status.active_version is not None else None
+            if not force and active == label:
+                await _record(session_factory, "population", now=now, checked=True)
+                return "skipped", 0
+            if active is not None and label < active:
+                logger.warning("各里人口來源最新只找到 %s，比使用中的 %s 舊，不更新", label, active)
+                return "skipped", 0
+            batch = await _download_population(client, yyymm, first)
+        async with session_factory() as db:
+            await population_io.replace_population(db, batch, synced_at=now)
+            await db.commit()
+        logger.info("各里人口已更新：%s，%s 個里，略過 %s 列", batch.label, len(batch.rows), batch.skipped)
+        return "updated", batch.skipped
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("各里人口同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "population", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
 async def campus_fingerprint(db: AsyncSession) -> str:
     """各校已發布校址＋使用中門牌批次的指紋；任一個變了就要重算訪視。"""
     addresses = []
@@ -453,11 +555,12 @@ async def run_geo_sync(
     doorplates_file: Path | None = None,
     doorplates_version: str | None = None,
     kindergartens_file: Path | None = None,
+    population_files: list[Path] | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     async with _exclusive(session_factory):
         now = datetime.now(timezone.utc)
-        file_mode = doorplates_file is not None or kindergartens_file is not None
+        file_mode = doorplates_file is not None or kindergartens_file is not None or bool(population_files)
         own_client = client is None and not file_mode
         if own_client:
             client = new_client()
@@ -470,12 +573,19 @@ async def run_geo_sync(
             kindergartens, kindergarten_skipped = await sync_kindergartens(
                 session_factory, settings, network, now=now, force=force, file=kindergartens_file
             )
+            population, population_skipped = await sync_population(
+                session_factory, network, now=now, force=force, files=population_files
+            )
         finally:
             if own_client and client is not None:
                 await client.aclose()
         rematched = await rematch_if_changed(session_factory, now=now)
         status = await _status(session_factory, "doorplates")
+        population_status = await _status(session_factory, "population")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
+            population=population,
+            population_version=population_status.label if population_status and population_status.active_version else None,
+            population_rows_skipped=population_skipped,
         )

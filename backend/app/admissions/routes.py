@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import area as area_service
+from app.admissions import opportunity as opportunity_service
 from app.admissions import stats as stats_service
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
@@ -30,6 +31,7 @@ from app.admissions.schemas import (
     AdmissionsStaffOut,
     AdmissionsStatsOut,
     AreaKindergartensOut,
+    AreaOpportunityOut,
     ContactLogCreate,
     ContactLogOut,
     ContactLogResultOut,
@@ -829,6 +831,32 @@ async def get_admissions_area_kindergartens(
         raise _invalid_radius()
     result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
     return AreaKindergartensOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/opportunity",
+    response_model=AreaOpportunityOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_opportunity(
+    campus_key: str,
+    school_year: int | None = Query(
+        default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX, description="入學學年；不帶＝不篩"
+    ),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaOpportunityOut:
+    """招生機會（2026-10-13 招生機會規格 §6）：本校半徑內各里的 2–5 歲孩子數、參觀率，以及和附近平均比
+    明顯偏少的里。母體同 /area；半徑規則同 /area/kindergartens。只讀，不寫稽核；只有里層級的聚合數字。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await opportunity_service.query_opportunity(
+        db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
+    )
+    return AreaOpportunityOut.model_validate(result)
 
 
 @router.get(
