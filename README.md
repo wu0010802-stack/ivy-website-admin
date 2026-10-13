@@ -33,7 +33,7 @@
 - **驗證**（本機 Node 22.22、PostgreSQL 16）：
   - web：`nuxt typecheck` 通過；vitest 97 檔 1170 項通過；production build 通過。
   - admin：`vue-tsc -b` 通過；vitest 154 檔 2306 過、1 略過；build 通過。
-  - backend：改到的測試（estimation、deposit_pace 49 項；geo sync／kindergartens／doorplates／loop／population 235 項）通過。全套 pytest 執行中。
+  - backend：改到的測試（estimation、deposit_pace 49 項；geo sync／kindergartens／doorplates／loop／population 235 項）通過；全套 2578 passed（獨立測試庫，41 分鐘）。
   - stack e2e（本機沒有 Google Chrome，用 `/opt/pw-browsers/chromium`；暫用設定放 `output/`，不進版控）：
     - 全套 122 過、1 敗、6 未執行。失敗的是 `exports.spec` 的訪視明細下載：Chromium 給的檔名是 `download`，和 10-13 招生機會地圖那輪記錄的一樣。後台的 CSV 下載是瀏覽器端 Blob＋`a.download`，檔名由前端決定、和代理無關；檔名之前的 BOM、CRLF 檢查都通過。同一檔是 serial，後面 6 支跟著沒跑。
     - 總覽改成「到場成功後才掛表單」之後重 build，補跑 `visit-complete-early`、`roles`、`keyboard`、`sidebar-collapse`、`admissions-area`、`admissions-flow`：29 過。`exports.spec` 其餘會下載的 4 支同樣卡在 Chromium 檔名；兩支版面測試通過。
