@@ -31,6 +31,7 @@ const form = reactive({
 
 const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
 const stageRef = ref<HTMLElement | null>(null)
+const titleRef = ref<HTMLElement | null>(null)
 const asideRef = ref<HTMLElement | null>(null)
 const pickerRef = ref<HTMLElement | null>(null)
 const formRef = ref<HTMLFormElement | null>(null)
@@ -262,10 +263,11 @@ const emailHint = computed(() => bookingConfig.value?.parent_email_enabled
 async function focusStage() {
   await nextTick()
   stageRef.value?.focus({ preventScroll: true })
-  // 960px 以下側欄收成表單上方一條：捲到側欄（它沒有 scroll-margin，只讓出 html 的
-  // scroll-padding），所選校區與「更換校區」才不會卡在頁首膠囊底下；.visit-stage 的
+  // 960px 以下側欄收成表單上方一條：捲到側欄上面那行頁名（「預約校園參觀」，它和側欄都沒有 scroll-margin，
+  // 只讓出 html 的 scroll-padding），頁名、所選校區與「更換校區」才不會卡在頁首膠囊底下；.visit-stage 的
   // scroll-margin 再疊上去會多捲一段、把側欄捲走。桌機兩欄照舊捲 stage。
-  const target = !isPicking.value && asideRef.value && matchMedia('(max-width: 960px)').matches ? asideRef.value : stageRef.value
+  // 2026-10-13：原本捲到側欄本身，390 寬按「下一步」後頁名剛好一半壓在浮動膠囊底下。
+  const target = !isPicking.value && asideRef.value && matchMedia('(max-width: 960px)').matches ? (titleRef.value ?? asideRef.value) : stageRef.value
   target?.scrollIntoView({ block: 'start', behavior: 'instant' })
 }
 
@@ -480,7 +482,7 @@ async function onSubmit() {
       <div class="container visit-welcome-inner">
         <div class="visit-welcome-copy">
           <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
-          <h1 id="visit-title"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
+          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
           <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
@@ -557,13 +559,15 @@ async function onSubmit() {
               <div v-else-if="!selectedCampus" class="visit-status"><p>請先選擇想參觀的校區。</p><button class="button outline" type="button" @click="changeCampus">選擇校區</button></div>
               <section v-else-if="action.kind !== 'form'" class="booking-alt-cta visit-contact-step" aria-labelledby="visit-contact-title">
                 <span class="visit-contact-kicker">參觀方式</span>
-                <h2 id="visit-contact-title">{{ action.kind === 'unavailable' ? '參觀方式暫時無法載入' : `歡迎與${selectedCampus.name}聯絡` }}</h2>
+                <!-- 讀不到參觀方式時標題也寫「歡迎與○○聯絡」：原本標題「參觀方式暫時無法載入」和底下的說明幾乎同一句。
+                     這時打電話一定有用、重新載入不一定，致電是主要按鈕、重新載入改外框鈕排在後面（2026-10-13）。 -->
+                <h2 id="visit-contact-title">歡迎與{{ selectedCampus.name }}聯絡</h2>
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
-                  <button v-if="action.kind === 'unavailable'" type="button" class="button primary" @click="retryBookingConfig">重新載入參觀方式</button>
                   <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction">{{ action.label }} <span aria-hidden="true">↗</span></a>
                   <a v-else-if="action.href" data-booking-cta class="button primary" :href="action.href" @click="trackContactAction"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
-                  <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span>{{ selectedCampus.phone }}</span></a>
+                  <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a>
+                  <button v-if="action.kind === 'unavailable'" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="retryBookingConfig">重新載入參觀方式</button>
                   <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
                 </div>
               </section>
@@ -578,9 +582,11 @@ async function onSubmit() {
                     <h3 id="visit-schedule-title">參觀安排</h3>
                     <p class="visit-field-hint">僅列出{{ selectedCampus.name }}目前開放的日期與場次。</p>
                     <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
+                    <!-- 沒有場次時重新載入幫不上忙：只給寫出號碼的致電主要按鈕；讀取失敗才加「重新載入場次」外框鈕。
+                         說明放進和參觀方式步驟同一種淡色底塊（2026-10-13，原本是一行灰字＋大外框鈕＋沒有號碼的小連結）。 -->
                     <div v-else-if="slotsError || !availableSlots.length" class="visit-slots-empty" role="status">
                       <p>{{ slotsError || '目前沒有開放的參觀場次，歡迎直接聯絡園所安排。' }}</p>
-                      <div class="visit-contact-actions"><button type="button" class="button outline" @click="loadSlots">重新載入場次</button><a v-if="selectedCampus.phone" class="visit-inline-link" :href="`tel:${selectedCampus.phone}`">致電{{ selectedCampus.name }}</a></div>
+                      <div v-if="selectedCampus.phone || slotsError" class="visit-contact-actions"><a v-if="selectedCampus.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a><button v-if="slotsError" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="loadSlots">重新載入場次</button></div>
                     </div>
                     <div v-else class="visit-schedule-fields">
                       <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>

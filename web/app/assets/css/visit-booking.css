@@ -69,10 +69,14 @@
 /* 第二步起收成一行頁名，讓表單前移。 */
 .visit-page:not([data-step='1']) .visit-welcome {padding:32px 0 0}
 .visit-page:not([data-step='1']) .visit-welcome-inner {display:block}
-.visit-page:not([data-step='1']) .visit-welcome h1 {font:600 var(--fs-sm)/1.6 var(--font-information,var(--font));letter-spacing:.16em;color:var(--visit-muted)}
+/* 2026-10-13：頁名跟第一步的眉標（.visit-eyebrow）同一個樣子——短線、字重 500、字距 .06em、--visit-ink；
+   原本 .16em 寬字距、600 字重、灰字，兩步看起來像兩種標籤。不沿用 .visit-eyebrow 的 margin-bottom，表單位置不變。 */
+.visit-page:not([data-step='1']) .visit-welcome h1 {display:flex;align-items:center;gap:14px;font:500 var(--fs-sm)/1.6 var(--font-information,var(--font));letter-spacing:.06em}
+.visit-page:not([data-step='1']) .visit-welcome h1::before {content:'';width:34px;height:1px;background:currentColor;opacity:.35}
 
 /* 版面 -------------------------------------------------------------------- */
-.visit-content {max-width:1248px}
+/* 2026-10-13 拿掉 .visit-content 的 max-width:1248px：1440 寬時選校卡、側欄與表單比麵包屑、迎賓區、頁首頁尾的
+   .container（1280px，x=80）往內縮 16px（x=96）。1344px 以下 .container 本來就比 1248 窄，沒有差別。 */
 /* 第一步：色帶以下換回米白（整寬）。 */
 .visit-page[data-step='1'] .visit-content {position:relative;padding-bottom:96px;background:var(--visit-bg);box-shadow:0 0 0 100vmax var(--visit-bg);clip-path:inset(0 -100vmax)}
 .visit-shell {position:relative;min-width:0}
@@ -90,7 +94,8 @@
 .visit-steps [aria-current=step] .visit-step-number {background:var(--visit-ink);border-color:var(--visit-ink);color:var(--visit-bg)}
 .visit-steps .is-complete .visit-step-number {background:var(--visit-soft);border-color:var(--visit-soft);color:var(--visit-ink)}
 .visit-stage h2 {font:700 var(--fs-3xl)/1.45 var(--font-head);color:var(--visit-ink);letter-spacing:.02em;text-wrap:balance}
-.visit-step-copy {margin-top:8px;font-size:var(--fs-md);line-height:1.85;color:var(--visit-muted)}
+/* text-wrap:pretty：320 寬「…做好準／備。」末行只剩一個字（2026-10-13）。 */
+.visit-step-copy {margin-top:8px;font-size:var(--fs-md);line-height:1.85;color:var(--visit-muted);text-wrap:pretty}
 
 .visit-page .button {min-height:54px;padding:14px 28px;border:1px solid transparent;border-radius:999px;font-size:var(--fs-md);font-weight:500;line-height:1.5;letter-spacing:.04em;gap:18px;transition:background-color .2s,color .2s,border-color .2s}
 .visit-page .button span[aria-hidden] {font-size:var(--fs-xl);line-height:1}
@@ -108,7 +113,10 @@
 .visit-campus-card {position:relative;display:block;aspect-ratio:3/4;border-radius:20px;overflow:hidden;isolation:isolate;background:var(--visit-band)}
 .visit-campus-photo {position:absolute;inset:0;display:block}
 .visit-campus-photo img {width:100%;height:100%;object-fit:cover;transition:scale .7s var(--visit-ease)}
-.visit-campus-copy {position:absolute;inset:auto 0 0;z-index:1;display:flex;flex-direction:column;gap:2px;padding:72px 18px 18px;background:linear-gradient(to top,rgb(var(--ink) / .8),rgb(var(--ink) / 0));color:var(--paper)}
+/* 2026-10-13 壓字底加深：原本 .8→0 一路線性淡出，校名與地址落在只有 .35–.5 的位置，明華校地址壓在白色校牌上約 1:1、
+   崇德與義華的地址壓在淺色外牆上（文字設透明後量背後最亮像素，五校最差 2.0–3.4）。改成文字範圍內至少 .7、
+   上方 88px 才淡出：小字（地址、參觀方式）對最亮像素 ≥4.5:1、校名 ≥3:1（1440／1024／768 實測）。 */
+.visit-campus-copy {position:absolute;inset:auto 0 0;z-index:1;display:flex;flex-direction:column;gap:2px;padding:88px 18px 18px;background:linear-gradient(to top,rgb(var(--ink) / .82),rgb(var(--ink) / .7) calc(100% - 88px),rgb(var(--ink) / .3) calc(100% - 40px),rgb(var(--ink) / 0));color:var(--paper)}
 .visit-campus-copy strong {font:700 var(--fs-xl)/1.4 var(--font-head);letter-spacing:.04em}
 .visit-campus-copy small {font-size:var(--fs-xs);letter-spacing:.1em}
 /* 參觀方式（VisitForm campusModeLabel）：讀到前先保留一行高度，不推動卡片文字。 */
@@ -142,8 +150,10 @@
 .visit-form-section h3 {display:flex;align-items:center;gap:14px;font:600 var(--fs-sm)/1.6 var(--font-information,var(--font));letter-spacing:.14em;color:var(--visit-ink)}
 .visit-form-section h3::before {content:'';width:28px;height:1px;background:currentColor;opacity:.45}
 .visit-form-section .visit-field-grid,.visit-schedule-fields {margin-top:18px}
-.visit-slots-empty {padding-top:16px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted)}
-.visit-slots-empty .visit-contact-actions {margin-top:10px}
+.visit-slots-empty {padding-top:16px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted);text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
+/* 說明用參觀方式步驟同一種淡色底塊（.visit-contact-step .visit-status，2026-10-13）。 */
+.visit-slots-empty>p {max-width:none;padding:14px 18px;border-radius:12px;background:var(--visit-soft);color:var(--text)}
+.visit-slots-empty .visit-contact-actions {margin-top:16px}
 .visit-referrals {border:0;padding:0;margin:26px 0 32px;min-width:0}
 .visit-referrals legend,.visit-slot-list legend {font-size:var(--fs-md);font-weight:600;line-height:1.8;padding:0;margin-bottom:10px}
 .visit-referrals legend small,.visit-slot-list legend small {display:inline-block;font-size:var(--fs-xs);font-weight:400;color:var(--visit-muted);margin-left:9px}
@@ -196,11 +206,17 @@
    961–1100 兩欄最窄時由它自己折行，不去擠左邊的說明（否則說明被擠成四行）。 */
 .visit-submit-row>.visit-submit-retry {flex:1 1 0;color:var(--error);text-align:right}
 .visit-submit-row .button {white-space:nowrap}
-.visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9}
+/* 2026-10-13：短的狀態句在手機從詞中間斷（「…或直接聯／絡園所。」）。keep-all 讓中文只在標點後換行，
+   一段比一行長時 overflow-wrap:anywhere 才在字中間斷；pretty 避免一兩字的末行。 */
+.visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9;text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
 .visit-loading {padding-block:40px;min-height:180px}
 /* 讀場次時先留月曆的高度（月曆約 380–410px）：只有一行字時，月曆一插進來就把孩子資料欄推下去
    約 470px，手機上看得到、點得到的欄位突然跑掉，也會算進版面位移（2026-10-12）。 */
 .visit-slots-loading {min-height:400px}
+/* 2026-10-13：留白處放一塊淡色月曆底當骨架，原本只有一行灰字加 400px 空白，像壞掉。減少動態時不閃。 */
+.visit-slots-loading {max-width:none}
+.visit-slots-loading::after {content:'';display:block;height:340px;margin-top:12px;border-radius:14px;background:var(--visit-soft);animation:visit-skeleton 1.4s ease-in-out infinite alternate}
+@keyframes visit-skeleton {to{opacity:.45}}
 .visit-config-note {max-width:none;margin:24px 0;padding:14px 18px;border-radius:12px;background:var(--visit-soft);font-size:var(--fs-sm);line-height:1.8}
 .visit-contact-step {padding-top:6px}
 .visit-contact-kicker {display:block;color:var(--visit-muted);font-size:var(--fs-xs);letter-spacing:.1em;margin-bottom:12px}
@@ -263,6 +279,10 @@
   .visit-aside-name {margin:2px 0;font-size:var(--fs-4xl)}
   .visit-aside-info {margin:0;padding:0;border:0}
   .visit-campus-choice {flex:0 1 calc((100% - 32px) / 3)}
+  /* 2026-10-13 平板直拿（768×1024）：單欄迎賓照片 2:1 有 336px 高，選校卡起點在第一屏外 127px；照片收成 12:5
+     （同桌機矮視窗），少 56–72px。五張卡一列三張，第二列兩張置中，不在右邊留一個空位。 */
+  .visit-welcome-photo img {aspect-ratio:12/5}
+  .visit-campus-list {justify-content:center}
   .visit-welcome-inner {grid-template-columns:1fr;row-gap:40px}
   /* 送出結果不再疊 scroll-margin：html 的 scroll-padding 已經讓出頁首，疊上去狀態與標題會被推到畫面下緣。 */
   .visit-result {scroll-margin-top:0}
@@ -298,7 +318,9 @@
   .visit-campus-list {flex-direction:column;gap:12px;margin-top:22px}
   .visit-campus-choice {flex:none}
   .visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}
-  .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:72%;padding:0 18px;background:linear-gradient(to right,rgb(var(--ink) / .8),rgb(var(--ink) / 0))}
+  /* 細條卡的壓字底同桌機（2026-10-13）：文字範圍內至少 .7，右側 72px 才淡出；寬度跟著文字長（最少原本的 72%），
+     320 寬地址較長時暗底也蓋得到字尾。原本 .8→0 線性，地址後半段只剩 .3 左右，義華校地址壓在白色校舍上。 */
+  .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:auto;min-width:72%;max-width:100%;padding:0 72px 0 18px;background:linear-gradient(to right,rgb(var(--ink) / .82),rgb(var(--ink) / .7) calc(100% - 72px),rgb(var(--ink) / .3) calc(100% - 32px),rgb(var(--ink) / 0))}
   .visit-campus-check {top:50%;translate:0 -50%}
   .visit-submit-row {flex-direction:column;align-items:stretch;gap:13px;margin-top:4px}
   .visit-submit-row>p {font-size:var(--fs-xs);text-align:center}
@@ -311,6 +333,9 @@
   .visit-result-art {width:min(150px,45%);margin-bottom:12px}
 }
 @media(max-width:380px) {.visit-next-row {margin-inline:-16px;padding-inline:16px}}
+/* 2026-10-13：320 寬「致電○○校 07-…」折成兩行（72px 高、電話圖示只對齊第一行）。號碼在側欄已經寫了，
+   360 以下按鈕只留「致電○○校」，號碼改成只給讀屏（仍在可及名稱裡）。 */
+@media(max-width:360px) {.visit-call-number {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}}
 /* 橫拿手機（單欄版面 960 以下、高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
 @media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
@@ -338,11 +363,13 @@
    改用手機的細條卡（一列兩張）；拿掉場次區的容器查詢，月曆與場次回到上下排。 */
 @media(max-width:960px) and (max-height:500px) and (orientation:landscape) {
   .visit-campus-choice {flex:0 1 calc((100% - 16px) / 2)}
+  .visit-campus-list {justify-content:flex-start}
   .visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}
-  .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:72%;padding:0 18px;background:linear-gradient(to right,rgb(var(--ink) / .8),rgb(var(--ink) / 0))}
+  .visit-campus-copy {inset:0 auto 0 0;justify-content:center;width:auto;min-width:72%;max-width:100%;padding:0 72px 0 18px;background:linear-gradient(to right,rgb(var(--ink) / .82),rgb(var(--ink) / .7) calc(100% - 72px),rgb(var(--ink) / .3) calc(100% - 32px),rgb(var(--ink) / 0))}
   .visit-campus-check {top:50%;translate:0 -50%}
   .visit-schedule-section {container-type:normal}
 }
+@media(prefers-reduced-motion:reduce) {.visit-slots-loading::after {animation:none}}
 @media(forced-colors:active) {
   .visit-campus-choice input:checked+.visit-campus-card {outline:3px solid Highlight;outline-offset:3px}
   .visit-campus-check {border:1px solid CanvasText}
