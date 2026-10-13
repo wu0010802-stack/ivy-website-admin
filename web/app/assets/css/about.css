@@ -25,7 +25,9 @@
 /* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
 .abk :where(p,li,figcaption){text-wrap:pretty}
 .abk h1,.abk h2{color:var(--ivy-forest)}
-.abk-title{margin-top:14px;font-size:clamp(2rem,1.3rem + 2vw,3rem);line-height:1.28}
+/* 章名大標最長一行 9 字（「孩子的第一所學校，」「不是把父母放第一。」）：901–1010 寬左頁文字欄只有 332–370px，40px 字放不下、
+   最後一兩個字掉到下一行（2026-10-13 實測 901、960）。字級上限跟著文字欄寬（跨頁寬／2 − 左右內距）÷ 9.4，同 900px 以下的寫法。 */
+.abk-title{margin-top:14px;font-size:min(clamp(2rem,1.3rem + 2vw,3rem),calc((min(100vw - 2 * var(--abk-gutter),1240px) / 2 - 2 * var(--abk-pad-x)) / 9.4));line-height:1.28}
 .abk-text{margin-top:18px;max-width:34em;font-size:var(--fs-lg);line-height:1.95;color:var(--muted)}
 /* 章名：同章色的小書籤＋「第一章　一路走來」（取代 09-29 的「01 Our story」寬字距英文眉標） */
 .abk-chap{display:flex;align-items:center;gap:12px;font-size:var(--fs-sm);font-weight:700;letter-spacing:.06em;color:var(--leaf)}
@@ -99,7 +101,8 @@
 .abk-toc a{display:flex;align-items:center;gap:12px;min-height:48px;font-weight:700;color:var(--ivy-forest)}
 .abk-toc a::before{content:'';flex:none;width:9px;height:18px;background:var(--c);clip-path:polygon(0 0,100% 0,100% 100%,50% 76%,0 100%);transform-origin:50% 0;transition:transform .35s var(--abk-ease)}
 .abk-toc i{flex:1;height:0;border-bottom:2px dotted var(--line);transform:translateY(5px)}
-.abk-toc b{min-width:2.4em;text-align:right;font:600 var(--fs-md)/1 var(--font-date);color:var(--muted)}
+/* 寬度用 rem：頁碼與「書籤」字級不同，用 em 時書籤那列的點線短 5px（2026-10-13） */
+.abk-toc b{min-width:2.4rem;text-align:right;font:600 var(--fs-md)/1 var(--font-date);color:var(--muted)}
 .abk-toc b:not([lang]){font:600 var(--fs-sm)/1 var(--font)}
 @media (hover:hover){
   .abk-toc a:hover::before{transform:scaleY(1.5)}
@@ -109,8 +112,10 @@
 /* ---------- 第一章 一路走來：左頁沿革（章名旁紀念章）、右頁五校卡紙 ---------- */
 .abk-list{list-style:none;margin:20px 0 0;padding:0;display:grid;gap:2px}
 .abk-list li{display:grid;grid-template-columns:92px 1fr;gap:14px;align-items:baseline;margin-inline:-12px;padding:6px 12px;border-radius:8px;transition:background-color .4s var(--abk-ease)}
-/* 紀念章翻到哪一站，左頁那一列淡淡上那一校的卡紙色（翻回校徽正面時都不上色） */
-.abk-list li.is-on{background:color-mix(in oklch,var(--c) 26%,var(--abk-page))}
+/* 紀念章翻到哪一站，左頁那一列淡淡上那一校的卡紙色（翻回校徽正面時都不上色）。
+   2026-10-13 改用 oklab：oklch 混米白（色相 95）會走短邊色相，明華藍變淡綠、仁武橘變土黃；
+   淡色卡紙（崇德 sage、國際 mint）26% 幾乎看不出來，各列濃度 --tint 由 AboutContent 的 STAGE 給（約 1.1:1 起跳）。 */
+.abk-list li.is-on{background:color-mix(in oklab,var(--c) var(--tint,26%),var(--abk-page))}
 .abk-year{display:grid;gap:2px}
 .abk-year span{font:600 1.4rem/1 var(--font-date);color:var(--ivy-forest)}
 .abk-year small{font-size:var(--fs-xs);letter-spacing:.06em;color:var(--muted)}
@@ -133,10 +138,13 @@
 
 /* ---------- 第二章 全人教育：領域圓點與右頁六圈同色（右頁六圈樣式在 AboutWholePerson） ---------- */
 .abk-lists{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px}
+/* 兩份清單的小標與清單各占一列（subgrid）：901–1010 寬「帶得走的能力 · 六大核心素養」折成兩行時，右邊清單不再比左邊低 17px（2026-10-13） */
+.abk-lists>div{display:grid;grid-row:span 2;grid-template-rows:subgrid;row-gap:0}
 .abk-lists h3{font-size:var(--fs-xs);font-weight:600;letter-spacing:.12em;color:var(--muted)}
 .abk-lists ol{list-style:none;margin:6px 0 0;padding:0}
 .abk-lists li{display:flex;align-items:center;gap:10px;min-height:36px;border-bottom:1px dashed var(--line);font-weight:700;font-size:var(--fs-md);color:var(--ivy-forest)}
-.abk-domains li::before{content:'';flex:none;width:12px;height:12px;border-radius:50%;background:color-mix(in oklch,var(--c) 45%,var(--abk-page));box-shadow:inset 0 0 0 1.5px var(--c)}
+/* 圓點淡色用 oklab 混（2026-10-13：oklch 走短邊色相，認知的藍點混成綠的） */
+.abk-domains li::before{content:'';flex:none;width:12px;height:12px;border-radius:50%;background:color-mix(in oklab,var(--c) 45%,var(--abk-page));box-shadow:inset 0 0 0 1.5px var(--c)}
 .abk-literacies{counter-reset:abk-lit}
 .abk-literacies li::before{counter-increment:abk-lit;content:counter(abk-lit);flex:none;width:14px;font:600 var(--fs-xs)/1 var(--font-date);color:var(--muted);text-align:center}
 .abk-fine{margin-top:14px;max-width:36em;font-size:var(--fs-sm);line-height:1.8;color:var(--muted)}
@@ -154,7 +162,8 @@
 .abk-scene{min-height:460px}
 .abk-scene .abk-card{padding:0;background:none;box-shadow:none}
 .abk-scene .abk-pop::after{display:none}
-.abk-ground .abk-card i{display:block;height:46px;border-radius:50% 50% 0 0/100% 100% 0 0;background:var(--studio-sage);box-shadow:inset 0 2px 0 rgb(var(--on-dark)/.6),0 1px 0 rgb(var(--ink)/.12)}
+/* 草坡用 --mint（2026-10-13：--studio-sage 在米白紙上約 1.15:1，幾乎看不到，樹和房子像浮在空中） */
+.abk-ground .abk-card i{display:block;height:46px;border-radius:50% 50% 0 0/100% 100% 0 0;background:var(--mint);box-shadow:inset 0 2px 0 rgb(var(--on-dark)/.6),0 1px 0 rgb(var(--ink)/.12)}
 .abk-tree svg{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 0 rgb(var(--ink)/.16))}
 .abk-trunk{fill:var(--ivy-campus-accent)}
 .abk-tree.is-l .abk-crown{fill:var(--leaf)}
@@ -186,16 +195,21 @@
 .abk-voices .abk-text{margin-top:14px;font-size:var(--fs-md);line-height:1.85}
 .abk-voice-list{list-style:none;display:grid;gap:2px;margin:18px 0 0;padding:0}
 .abk-voice-list button{display:grid;grid-template-columns:14px 1fr;column-gap:12px;width:calc(100% + 24px);margin-inline:-12px;padding:10px 12px;border:0;border-radius:8px;background:none;text-align:left;color:var(--ivy-forest);transition:background-color .35s var(--abk-ease)}
-/* 選中的那位：圓點填滿＋淡淡的章色底 */
+/* 選中的那位：圓點填滿＋淡淡的章色底（2026-10-13 改 oklab 混：oklch 混米白變卡其色，滑過與選中幾乎同色） */
 .abk-voice-list button::before{content:'';grid-row:span 2;width:12px;height:12px;margin-top:7px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--trail)}
-.abk-voice-list button[aria-pressed="true"]{background:color-mix(in oklch,var(--trail) 20%,var(--abk-page))}
+.abk-voice-list button[aria-pressed="true"]{background:color-mix(in oklab,var(--trail) 20%,var(--abk-page))}
 .abk-voice-list button[aria-pressed="true"]::before{background:var(--ivy-forest);box-shadow:inset 0 0 0 2px var(--ivy-forest)}
 .abk-voice-list q{quotes:'「' '」';font-weight:700;line-height:1.65;text-wrap:pretty}
 .abk-voice-list small{font-size:var(--fs-sm);color:var(--muted)}
-@media (hover:hover){.abk-voice-list button:not([aria-pressed="true"]):hover{background:color-mix(in oklch,var(--trail) 9%,var(--abk-page))}}
+@media (hover:hover){.abk-voice-list button:not([aria-pressed="true"]):hover{background:color-mix(in oklab,var(--trail) 8%,var(--abk-page))}}
 .abk-voices .abk-link{margin-top:10px;margin-right:16px}
 .abk-theater{min-height:460px}
 .abk-pop.is-thumb .abk-card{cursor:pointer}
+/* 後排小卡點了會換片：滑過時往上浮一點（獨立的 translate，不動卡紙的 rotate 與站起來的 --up；2026-10-13） */
+@media (hover:hover){
+  .abk-pop.is-thumb{transition:translate .35s var(--abk-ease)}
+  .abk-pop.is-thumb:hover{translate:0 -6px}
+}
 .abk-pop.is-thumb img,.abk-video img{aspect-ratio:16/9}
 .abk-pop.is-tv .abk-card{padding:10px 10px 14px}
 .abk-video{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:2px;background:var(--deep)}
@@ -205,6 +219,9 @@
 .abk-play-mark{position:absolute;left:50%;top:50%;display:grid;place-items:center;width:60px;height:60px;border-radius:50%;background:var(--paper);color:var(--ivy-forest);box-shadow:0 6px 20px rgb(var(--ink)/.3);transform:translate(-50%,-50%);transition:transform .3s var(--abk-ease)}
 .abk-play-mark .icon{width:22px;height:22px;margin-left:3px}
 @media (hover:hover){.abk-play:hover .abk-play-mark{transform:translate(-50%,-50%) scale(1.08)}}
+/* 鍵盤焦點框往內收：.abk-video 有 overflow:hidden，全站預設往外 5px 的框會被整個裁掉（2026-10-13） */
+.abk-play:focus-visible{outline-offset:-6px}
+.abk-play:focus-visible .abk-play-mark{transform:translate(-50%,-50%) scale(1.08)}
 .abk-pop.is-tv figcaption{display:grid;gap:2px;margin-top:12px;padding:0 6px;text-align:left;color:rgb(var(--ink))}
 .abk-pop.is-tv q{quotes:'「' '」';font-size:var(--fs-md);font-weight:700;line-height:1.6;text-wrap:pretty}
 .abk-pop.is-tv small{font-size:var(--fs-sm);font-weight:600}
@@ -218,12 +235,15 @@
 .abk-outro p{margin-top:12px;max-width:24em;color:var(--muted)}
 .abk-ribbons{list-style:none;display:flex;align-items:flex-start;gap:clamp(10px,1.6vw,20px);margin:0;padding:0 0 0 clamp(20px,3vw,48px)}
 .abk-ribbons li{filter:drop-shadow(3px 7px 5px rgb(var(--ink)/.2))}
-.abk-ribbons a{position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px;width:clamp(56px,6.2vw,80px);height:var(--len);padding-bottom:30px;color:rgb(var(--ink));text-decoration:none;transition:transform .55s var(--abk-ease)}
+/* 滑過／鍵盤焦點時緞帶往下拉長 12px（--pull）：上端仍接著書底，不像 10-02 的 translateY 整條往下掉、和書之間露出一條縫。
+   負的 margin-bottom 抵掉多出來的高度，外框不變、下面的頁尾不會跟著動（2026-10-13） */
+.abk-ribbons a{--pull:0px;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:2px;width:clamp(56px,6.2vw,80px);height:calc(var(--len) + var(--pull));margin-bottom:calc(-1 * var(--pull));padding-bottom:30px;color:rgb(var(--ink));text-decoration:none;transition:height .55s var(--abk-ease),margin-bottom .55s var(--abk-ease)}
 .abk-ribbons a::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgb(var(--ink)/.26),rgb(var(--ink)/0) 30px),linear-gradient(90deg,rgb(var(--on-dark)/.24),rgb(var(--on-dark)/0) 40%),var(--c);clip-path:polygon(0 0,100% 0,100% 100%,50% calc(100% - 18px),0 100%)}
 .abk-ribbons b{font-size:var(--fs-md);font-weight:800}
 .abk-ribbons small{font-size:13px;font-weight:700}
-@media (hover:hover){.abk-ribbons a:hover{transform:translateY(12px)}}
-.abk-ribbons a:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:4px}
+@media (hover:hover){.abk-ribbons a:hover{--pull:12px}}
+/* 焦點框畫在緞帶內側：往外的框上緣會被書（z-index 較高）蓋住（2026-10-13） */
+.abk-ribbons a:focus-visible{--pull:12px;outline:3px solid var(--ivy-forest);outline-offset:-3px}
 
 /* ---------- 900px 以下：跨頁改成上下兩頁，不翻頁（卡紙照樣站起來） ---------- */
 @media (max-width:900px){
@@ -261,7 +281,15 @@
   .abk-hero .abk-stage{min-height:max(320px,calc(.74 * min(100cqw,480px) + 40px))}
   .abk-story .abk-stage{min-height:max(340px,calc(.62 * min(100cqw,480px) + 120px));flex:none;margin-bottom:12px}
   .abk-hope .abk-stage{min-height:max(360px,calc(.84 * min(100cqw,480px) + 40px))}
-  .abk-theater{min-height:max(380px,calc(1.05 * min(100cqw,480px) + 60px))}
+  /* 第四章（2026-10-13 改）：原本大卡紙貼舞台底、後排用舞台高的百分比，舞台寬 248–480px 時大卡紙蓋掉後排名字 36–83%，舞台上方反而空一大塊。
+     改成大卡紙跟著內容排（舞台高＝後排＋大卡紙，說詞變長也不會往上蓋），後排從舞台頂往下排、兩側比中間低 20px；
+     大卡紙上緣＝兩側小卡底邊往上 4px，只蓋到底邊留白。margin 的 % 以舞台寬計：小卡高＝8 + (31% − 16px) × 9/16 + 6 + 名字一行 + 10。
+     名字不折行（折到第二行會被蓋住）。flow-root：大卡紙的上邊距不穿出舞台。 */
+  .abk-theater{display:flow-root;min-height:0}
+  .abk-theater .abk-pop.is-thumb{top:20px;bottom:auto}
+  .abk-theater .abk-pop.is-thumb:nth-child(2){top:0}
+  .abk-theater .abk-pop.is-thumb .abk-card>i{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .abk-theater .abk-pop.is-tv{position:relative;bottom:auto;margin:calc(31% * .5625 + 31px + 1.8 * var(--fs-sm)) 0 18px}
   .abk .abk-medal.is-title{display:none}
   .abk .abk-medal.is-seam{display:block;position:absolute;top:-46px;right:24px;--size:96px;rotate:6deg}
   /* 手機釘右頁：右頁跨兩列（第三列 --abk-pin-run 撐出捲動距離），貼在頁首膠囊下方 */
@@ -270,12 +298,17 @@
   .abk-story.is-pinned>.abk-page.is-right{grid-row:2/4;align-self:start;position:sticky;top:var(--abk-pin-top,0px)}
   .abk-outro{grid-template-columns:minmax(0,1fr)}
   .abk-ribbons{order:-1;justify-content:center;gap:8px;padding:0 12px}
-  .abk-ribbons a{width:min(64px,calc((100vw - 2 * var(--abk-gutter) - 56px) / 5));height:calc(var(--len) * .8);padding-bottom:26px}
+  .abk-ribbons a{width:min(64px,calc((100vw - 2 * var(--abk-gutter) - 56px) / 5));height:calc(var(--len) * .8 + var(--pull));padding-bottom:26px}
   .abk-ribbons b{font-size:var(--fs-sm)}
-  .abk-outro-copy{padding:28px 8px 0}
+  /* 左右內距同書頁文字欄（24px；2026-10-13 原本 8px，比上面的書頁文字往左凸 16px） */
+  .abk-outro-copy{padding:28px 24px 0}
 }
 @media (max-width:420px){
   .abk-lists{grid-template-columns:minmax(0,1fr)}
+}
+/* 320 寬首屏大標第一行剛好滿 7 字，句尾「，」碰到緞帶 6px：窄螢幕緞帶往右靠（2026-10-13） */
+@media (max-width:380px){
+  .abk-ribbon{right:8px}
 }
 
 @media (prefers-reduced-motion:reduce){
