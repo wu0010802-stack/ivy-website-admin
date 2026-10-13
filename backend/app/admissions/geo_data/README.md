@@ -9,7 +9,10 @@
 - 處理：只留高雄市、去掉 11 筆「未編定村里」（`VILLNAME` 空白，含東沙、南沙——不濾掉地圖
   `fitBounds` 會縮到南海）；只留 `TOWNNAME`、`VILLNAME`、`VILLCODE`；mapshaper 簡化 10%
   （`keep-shapes`），座標精度 1e-5 度。約 600KB，gzip 約 130KB。
-- 里代碼（`VILLCODE`）與內政部戶政司人口統計 ODRP014 的 `district_code` 相同。
+- 里代碼（`VILLCODE`）與內政部戶政司人口統計 ODRP014 的 `district_code` 相同：115 年 9 月版高雄市
+  893 里代碼與名稱 100% 對得上（2026-10-13 實測）。招生機會（`app/admissions/opportunity.py`）用界圖算
+  每個里的面積重心（`boundaries.village_centroids`），判斷里在不在本校半徑內；人口本身不隨程式提交，
+  由公開資料同步（`app/admissions/geo/population.py`）每月匯入資料庫。
 
 ## 重新產生
 

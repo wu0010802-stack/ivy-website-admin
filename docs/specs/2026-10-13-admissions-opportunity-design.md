@@ -1,7 +1,7 @@
 # 招生機會地圖（2026-10-13）設計
 
 日期：2026-10-13
-狀態：使用者 10-13 選定（「招生機會地圖」）；實作中
+狀態：使用者 10-13 選定（「招生機會地圖」）；10-13 實作完成、本機驗證通過，待上線
 基準：`origin/main` `a5d790c`
 分支：`claude/amazing-cannon-0cqnpc`
 
@@ -51,10 +51,10 @@
 | 項目 | 內容 |
 |---|---|
 | 資料集 | 內政部戶政司「村里戶數、單一年齡人口（新增區域代碼）」ODRP014（`data.gov.tw/dataset/32973` 說明同系列） |
-| 網址 | `https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{民國年月，例 11509}?page={N}` |
-| 格式 | JSON：`responseCode`（`OD-0101-S` 處理完成；`OD-0102-S` 查無資料）、`totalPage`、`totalDataSize`、`page`、`responseData[]`。每頁最多 2,000 筆，全國約 7,781 筆、4 頁，每頁約 10 MB、回應約 10 秒（2026-10-13 實測） |
+| 網址 | `https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/{民國年月，例 11509}?COUNTY=高雄市&page={N}`（API 文件另有 `TOWN`、`VILLAGE` 參數） |
+| 格式 | JSON：`responseCode`（`OD-0101-S` 處理完成；`OD-0102-S` 查無資料）、`totalPage`、`totalDataSize`、`page`、`responseData[]`。每頁最多 2,000 筆。帶 `COUNTY=高雄市`：1 頁、893 筆、約 4.4 MB、回應約 7 秒（`totalDataSize` 仍寫全國的 7,781）；不帶是全國 7,781 筆、4 頁，每頁約 10 MB（2026-10-13 實測） |
 | 欄位 | `statistic_yyymm`、`district_code`（11 碼村里代碼）、`site_id`（「高雄市三民區」）、`village`、`household_no`、`people_total`、`people_age_000_m`…`people_age_100up_f`（每歲分男女）；**值全是字串** |
-| 高雄市 | `district_code` 以 `64000` 開頭，115 年 9 月 893 筆；**代碼與名稱和里界檔 `VILLCODE`、`TOWNNAME`＋`VILLNAME` 100% 對應**（893／893，2026-10-13 實測）；不在固定頁（9 月版在第 2、3 頁），要全部抓完再篩 |
+| 高雄市 | `district_code` 以 `64000` 開頭，115 年 9 月 893 筆；**代碼與名稱和里界檔 `VILLCODE`、`TOWNNAME`＋`VILLNAME` 100% 對應**（893／893，2026-10-13 實測） |
 | 更新 | 每月；10-13 時最新是 115 年 9 月（`11510` 回查無資料） |
 | 授權 | 政府資料開放授權條款第一版；畫面註明「資料來源：內政部戶政司」 |
 
@@ -82,14 +82,14 @@
 
 - **背景**：同門牌、幼兒園，`WEBSITE_ADMISSIONS_ENABLED` 與 `WEBSITE_GEO_AUTO_SYNC` 都開才跑；資料表空時立刻抓，之後距上次確認超過 30 天才去看來源。
 - **找最新月份**：從今天（台北）的上一個月往回最多試 4 個月，第一個 `responseCode` 是 `OD-0101-S` 的就是最新。和使用中的月份一樣且沒有 `--force`：只更新 `checked_at`。比使用中的舊：不換（同門牌）。
-- **下載**：第 1 頁拿到 `totalPage` 後依序抓完（上限 10 頁，超過視為來源異常）；只留 `district_code` 以 `64000` 開頭的列。
+- **下載**：一律帶 `COUNTY=高雄市`。第 1 頁拿到 `totalPage` 後依序抓完（上限 10 頁，超過視為來源異常）。解析時（`json.loads` 的 `object_hook`）就只留 `district_code` 以 `64000` 開頭的列與 0–6 歲欄位：來源哪天不理會 `COUNTY` 也不會把外縣市寫進來，記憶體也不會隨全國資料膨脹。實測真實 115-09 高雄一頁：解析峰值約 22 MB、0.4 秒；若退回全國四頁約 90 MB。
 - **驗證**（任一不過就不換、保留使用中的版本，寫 `last_error`）：
   - 每列的 `statistic_yyymm` 都等於這次的月份；
   - 數字欄是非負整數；
   - 代碼在里界檔裡（對不到的列略過、計數）；
   - 對到的里至少 **850** 個（高雄 893 里；殘缺檔不換）；
   - 同一個代碼不重複。
-- **CLI 退路**：`python -m app.cli geo-sync --population-file <JSON> [--population-file <JSON> …]`：給 API 的原始回應檔（可多頁），月份取資料本身的 `statistic_yyymm`。指定任一個檔案就完全不連外（和門牌、幼兒園同一個規則）；檔案匯入一樣要過驗證。
+- **CLI 退路**：`python -m app.cli geo-sync --population-file <JSON> [--population-file <JSON> …]`：給 API 的原始回應檔（帶 `COUNTY=高雄市` 是一個檔；全國的四頁也收，解析時只留高雄），月份取資料本身的 `statistic_yyymm`。指定任一個檔案就完全不連外（和門牌、幼兒園同一個規則）；檔案匯入一樣要過驗證。
 - `last_error` 只記我們自己的訊息或例外類別，不含回應內容。
 
 ## 5. 計算（`app/admissions/opportunity.py`，只讀）
@@ -131,7 +131,7 @@ Poisson 累積機率用標準函式庫自己算（`estimation.poisson_cdf`／`po
 
 ### 7.2 地圖
 
-- 圖例上方加三段切換：**參觀人數**（預設，現狀）／**2–5 歲孩子**／**招生機會**。招生資料讀取中、人口沒匯入、本校沒座標時，後兩個停用並在旁邊寫原因。
+- 圖例上方加三段切換：**參觀人數**（預設，現狀）／**2–5 歲孩子**／**招生機會**。人口沒匯入、本校沒座標、讀取失敗時，後兩個停用並在旁邊寫原因，正在看的人退回參觀人數。讀取中（例如換半徑）不停用、不跳回，地圖先不上色、彈出框寫「招生機會讀取中…」。
 - 2–5 歲孩子：半徑內的里依孩子數分 5 級（同參觀人數的 5 級切法與顏色），半徑外不上色。
 - 招生機會：明顯偏少用 `--area-chance`（新 token，玫瑰色，避開狀態綠、草稿暖黃、四種幼兒園類型色）、比附近多用 `--area-level-4`、差不多用 `--area-level-1`、孩子少與不判斷不上色；半徑外不上色。
 - 點里的彈出框（後兩種模式）：「三民區鼎金里」／「2–5 歲 412 位・0–1 歲 150 位」／「參觀 3 位（0.7%），照附近應有約 6 位」／判讀（「明顯偏少，少了約 3 位」等）；有參觀才有「查看明細」。半徑外的里寫「不在本校 3 公里內」。
@@ -170,7 +170,7 @@ Poisson 累積機率用標準函式庫自己算（`estimation.poisson_cdf`／`po
 ## 10. 部署
 
 - migration 只新增表並放寬一個約束，不改資料，不需先備份；可直接切回前一個映像（舊程式不讀新表；`population` 狀態列對舊程式無害）。
-- 部署後：`WEBSITE_GEO_AUTO_SYNC` 開著時背景迴圈下一輪就抓人口（約 40 MB 下載、寫入 893 列）；正式站連不到內政部時，在自己電腦下載四頁 JSON，上傳到 api volume，跑 `python -m app.cli geo-sync --population-file /data/11509-1.json --population-file /data/11509-2.json …`。步驟寫進 `deploy/README.md`「公開地理資料同步」。
+- 部署後：`WEBSITE_GEO_AUTO_SYNC` 開著時背景迴圈下一輪就抓人口（一頁約 4.4 MB、寫入 893 列）；正式站連不到內政部時，在自己電腦下載那一頁 JSON，上傳到 api volume，跑 `python -m app.cli geo-sync --population-file /data/population-11509.json`。步驟寫進 `deploy/README.md`「公開地理資料同步」。
 - 照 CLAUDE.md：不自行合併 main、不部署。
 
 ## 11. 文件回寫

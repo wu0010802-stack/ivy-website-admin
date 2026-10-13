@@ -454,7 +454,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 公開地理資料同步（招生區域分析）
 
-招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要兩種公開資料：高雄市門牌坐標（比對家長地址的里與距離）與全國教保資訊網的高雄市幼兒園（附近幼兒園清單）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。
+招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要三種公開資料：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）與內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。
 
 **四個環境變數**（api 服務，全部選填；沒設就用預設）：
 
@@ -486,7 +486,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 **手動退路**（平台改版抓不到、想立刻更新、或想離線匯入）：
 
 ```bash
-python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>]
+python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...]
 ```
 
 Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終端機執行）：`! railway ssh --service api --environment production -- python -m app.cli geo-sync`。
@@ -496,6 +496,13 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 自動找不到門牌檔時：設 `WEBSITE_GEO_DOORPLATE_URL` 指到直連網址，或下載 CSV 後用 `--doorplates-file`。
 - **正式站連不到高雄市資料平台**（2026-10-12 實測：api 自動下載兩次都 `ConnectTimeout`，同時間從台灣連 0.19 秒；判斷是擋境外 IP）：門牌的背景同步每次都會失敗（幼兒園來源在 GitHub Pages，照常更新），畫面繼續用已匯入的版本；上次成功滿 30 天後，每一輪都會記一次「門牌資料同步失敗」WARNING。要換新月份就手動：在本機下載當月 CSV（資料平台搜尋「門牌坐標資料」，或用 `app.admissions.geo.sync.discover_doorplate_source` 找 `File/DirectDownload/<guid>`）→ `! railway volume -p <project> -e <env> files -v api-volume upload <本機 CSV> /doorplates-115-11.csv`（volume 根目錄＝容器 `/data`；檔名帶月份，`--doorplates-version` 就能省略）→ `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --doorplates-file /data/doorplates-115-11.csv` → 刪掉 CSV：`railway volume -p <project> -e <env> files -v api-volume delete /doorplates-115-11.csv`。auto 模式會擋前兩條，用 `!` 由使用者執行；刪檔連 `!` 都會被 Railway CLI 拒絕（偵測到 agent 環境），要在自己的終端機視窗或 Railway 網頁版的 volume 檔案頁刪。
 - **結束碼 1**：另一個同步正在進行（會印「另一個公開資料同步正在進行，稍後再試」，什麼都沒做），或門牌、幼兒園任一種同步失敗（原因在 `geo_dataset_status.last_error`）。同一時間只允許一個同步，背景迴圈、CLI、多個副本共用同一把資料庫 advisory lock。
+
+**各里人口（招生機會，2026-10-13）**：同一套同步多了第三種資料，給「區域分析」的招生機會用。規格 `docs/specs/2026-10-13-admissions-opportunity-design.md` §4。
+
+- 來源：內政部戶政司 ODRP014「村里戶數、單一年齡人口」API，帶 `COUNTY=高雄市` 只回高雄 893 里（`https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/<民國年月>?COUNTY=高雄市&page=1`，一頁約 4.4MB、回應約 7 秒）；只留 0–6 歲人數與全里人口，寫進 `geo_village_population`（893 列，空間可忽略；本機解析峰值約 22MB）。不需要新的環境變數。
+- 自動：和門牌、幼兒園同一個背景迴圈與開關（`WEBSITE_GEO_AUTO_SYNC`）。資料表空時立刻抓，之後超過 30 天才再看；從上個月往回最多找 4 個月，月份和使用中的一樣就只讀第一頁、不寫入。log：成功「各里人口已更新：115-09，893 個里，略過 0 列」，失敗「各里人口同步失敗：…」。驗證不過（月份不一致、數字不是整數、少於 850 個里、代碼重複）就不換版，畫面繼續用舊月份。
+- 手動退路（正式站連不到內政部時；和門牌一樣可能被擋境外 IP，**還沒在 Railway 實測過**）：在本機下載 `curl -sSG "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/11509" --data-urlencode "COUNTY=高雄市" --data-urlencode "page=1" -o population-11509.json`（`totalPage` 不是 1 時其餘頁照樣各存一檔）→ 上傳到 api volume（同門牌的 `railway volume … files -v api-volume upload`）→ `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --population-file /data/population-11509.json`（多頁就重複 `--population-file`）→ 刪掉上傳的檔案。指定人口檔時同樣完全不連外、門牌與幼兒園跳過；月份取資料本身的 `statistic_yyymm`。
+- 看狀態：`select dataset, label, synced_at, last_error from geo_dataset_status where dataset = 'population';`；後台區域分析狀態列最後一段寫「各里人口 115 年 9 月」或「各里人口尚未匯入」。
 
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
 
