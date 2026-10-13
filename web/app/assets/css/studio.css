@@ -48,6 +48,11 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-news-head{display:flex;justify-content:space-between;align-items:end;gap:20px}
 /* 兩欄標題都貼齊 78px 標題區底部，「近期活動」才不會比「最新消息」高 9px。 */
 .hn-events>.hn-head{display:flex;flex-direction:column;justify-content:flex-end}
+/* 901–1180 左欄只有 210–242px，「UPCOMING EVENTS」加「示意內容」標籤放不下：標籤掉到第二行還帶著 10px 左距，「近期活動」也就比「最新消息」低 16px（2026-10-13）。
+   眉標改 flex，標籤換行時貼齊行首；這段寬度兩欄標題區一樣高（容得下兩行眉標），大標都貼底，不管哪一欄換行都對齊。 */
+.home-news .hn-kicker{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.home-news .hn-kicker .hn-sample-tag{margin-left:0}
+@media(min-width:901px) and (max-width:1180px){.home-news .hn-head{min-height:100px}}
 .home-news .hn-more,.hn-dialog .hn-more{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:20px;min-height:44px;font-size:var(--fs-sm);font-weight:600;border-bottom:1px solid currentColor;white-space:nowrap}
 .hn-event-stack{display:grid;gap:18px;margin-bottom:18px}
 .home-news .hn-event,.hn-dialog .hn-event{display:flex;align-items:center;gap:16px;width:100%;min-height:104px;padding:18px;background:var(--ivy-news-event-1);border-radius:12px}
@@ -57,6 +62,8 @@ html{scroll-padding-top:112px}.container{width:min(1280px,calc(100% - 96px))}.he
 .hn-date>span{font-size:10px;letter-spacing:.1em}
 .hn-event-copy{flex:1;min-width:0}.hn-event-copy small{display:block;font-size:var(--fs-xs);margin-bottom:4px}
 .hn-event-copy strong{display:block;font-family:var(--font-head);font-size:var(--fs-md);line-height:1.5}
+/* 活動標題兩行時平均分（2026-10-13）：768 是「一起出發！親子探索／日」、901–1180「親子探／索日」。只加 balance、不加 keep-all（09-29：沒有中間標點的標題加 keep-all 會讓句號單獨成行）。 */
+.hn-event-copy strong{text-wrap:balance}
 .hn-event:hover{outline:1px solid var(--ivy-news-event-outline);outline-offset:-1px}
 .home-news .hn-films{display:none}
 .hn-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;align-items:start}

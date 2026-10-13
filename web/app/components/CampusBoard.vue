@@ -707,6 +707,10 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .social-row{display:flex;align-items:center;gap:8px 20px;color:var(--muted);font-size:var(--fs-sm);margin-top:7px;flex-wrap:wrap}
 .social-row a,.social-row span{display:inline-flex;align-items:center;min-height:44px;gap:8px}
 .social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
+/* 四個社群連結在 318–423px 寬的欄裡會排成 3＋1，YouTube 單獨掉到第二行（390、760 實測，2026-10-13）：
+   欄寬不到一排放得下的寬度時改成 2×2 對齊的兩欄。量的是聯絡欄本身（容器查詢），手機與平板兩欄版都適用；不支援 :has／容器查詢時照舊換行。 */
+.campus-contact{container-type:inline-size}
+@container (max-width:440px){.social-row:has(> :nth-child(4)){display:grid;grid-template-columns:repeat(2,minmax(0,max-content));column-gap:28px}}
 .campus-actions{display:flex;align-items:center;justify-content:flex-end}
 .booking-link{display:inline-flex;align-items:center;justify-content:space-between;gap:30px;min-height:54px;padding:14px 24px;border-radius:999px;background:var(--yellow);color:var(--deep);font-size:var(--fs-sm);font-weight:600;letter-spacing:.035em;transition:background .2s,color .2s;white-space:nowrap}
 /* 2026-09-27：底色從低彩度杏色（--ivy-campus-gold）改用頁首預約鈕同一個金色，首頁唯一帶校區的預約入口要像主要行動。 */

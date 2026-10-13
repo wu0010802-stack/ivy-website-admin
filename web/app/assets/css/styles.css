@@ -41,6 +41,10 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .section.day-experience{scroll-margin-top:-112px;display:grid;position:relative;isolation:isolate;padding:0;background:var(--deep);color:var(--paper)}
 .day-film{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);overflow:clip;background:var(--deep)}
 .day-film-poster,.day-film-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 48%}
+/* 背景片左上角燒進了 IVY KIDS 台標（1440×810 原檔 x 32–138、y 8–132），置中裁切在 16:10（1440×900、1280×800）正好切成「Y KIDS」（2026-10-13）。
+   寬高比 ≥7/5 改貼左上：16:10、16:9 與更寬的視窗台標整個留在畫面內；更窄（4:3、直拿平板、手機）置中本來就整個裁掉，不動。
+   後台設定的位置（inline style）照樣優先。 */
+@media(min-aspect-ratio:7/5){.day-film-poster,.day-film-video{object-position:4% 0}}
 .day-film-video{opacity:0;transition:opacity .8s}
 .day-film-video.is-ready{opacity:1}
 .day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
@@ -55,8 +59,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film[data-light=afternoon] .is-amber{opacity:.45}
 .day-film[data-light=dusk] .is-amber{opacity:.75}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
-.day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark) / .86)}
-.day-film-caption span[lang]{font-size:.5625rem;letter-spacing:.14em}
+/* 圖說小字不疊 opacity、英文從 9px 提到 11px（2026-10-13，10-12「小字不疊 opacity」）：影片 12 幀最低 4.7。 */
+.day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark))}
+.day-film-caption span[lang]{font-size:.6875rem;letter-spacing:.14em}
 .day-film-toggle{position:absolute;right:32px;bottom:22px;pointer-events:auto;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:8px 18px;border:1px solid rgb(var(--on-dark) / .4);border-radius:100px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:var(--fs-xs);letter-spacing:.06em}
 .day-film-toggle:hover{background:rgb(var(--ink) / .9)}
 /* Phosphor 播放／暫停圖示；收成 44px 圓鈕時是唯一可見內容，固定 16px，不跟 12px 小字縮。 */
@@ -64,7 +69,10 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-stage{grid-area:1/1;position:relative;z-index:2}
 .day-intro{position:sticky;top:0;z-index:0;height:var(--reveal-height,100svh);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-inline:24px}
 .day-intro>*{opacity:var(--word-fade,1)}
-.day-intro .eyebrow{display:flex;align-items:center;gap:18px;color:var(--gold);margin-bottom:16px;text-shadow:0 1px 12px rgb(var(--ink) / .35)}
+.day-intro .eyebrow{position:relative;isolation:isolate;display:flex;align-items:center;gap:18px;color:var(--gold);margin-bottom:16px;text-shadow:0 1px 12px rgb(var(--ink) / .35)}
+/* 金色眉標墊在跳舞的亮色衣服與氣球上，影片 12 幀的第 5 百分位只有 2.4（2026-10-13）：字後面墊一團淡墨綠光暈（同首屏「遮罩只墊在文字後面」），
+   跟著大標一起淡出。量法同 09-24：字設透明取背景，1440／1280×720／1024／768／390／320 最低 4.57。 */
+.day-intro .eyebrow::before{content:'';position:absolute;z-index:-1;inset:-12px -40px;background:radial-gradient(closest-side,rgb(var(--ink) / .6) 70%,rgb(var(--ink) / 0));pointer-events:none}
 .day-intro .eyebrow span[lang]{font-size:.625rem;letter-spacing:.16em}
 .day-title{font-size:clamp(3.2rem,12.6vw,12.5rem);line-height:1.06;letter-spacing:0;white-space:nowrap;color:var(--paper);text-shadow:0 4px 40px rgb(var(--ink) / .25)}
 /* 滿版＋左右內距（內容寬仍是 min(1280px,100% - 96px)）：WebGL 紙的畫布比卡片寬，要在視窗邊緣裁掉、不讓手機能左右滑。 */
@@ -82,7 +90,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 紙膠帶在 .print 裡、略浮於正面（translateZ），跟著紙翻；翻到背面時被紙擋住，只露出超出上緣的一截。WebGL 版由 paperPrints.ts 讀 --tape-a／--tape-b 畫進貼圖。 */
 .print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,var(--ivy-white-pure));--tape-b:color-mix(in oklch,var(--print-tint) 32%,var(--ivy-white-pure));position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
 .day-print:nth-child(even) .print-tape{rotate:5deg;left:auto;right:26px}
-.print-wrap{--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,var(--ivy-print-face));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,var(--ivy-print-back));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
+.print-wrap{--rule:32px;--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,var(--ivy-print-face));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,var(--ivy-print-back));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
 /* --flip 由 DayMomentCard 依翻面位置給（0、-180deg、-360deg…）：永遠右緣掀起往左翻。時長與曲線同 utils/printFlip.ts。 */
 .print{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .95s cubic-bezier(.28,.1,.38,1)}
 /* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。 */
@@ -116,7 +124,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-corner .print-corner-b{transform:rotateY(180deg)}
 /* 正面那片朝外是相紙正面、翻過 90° 露出背面橫線紙；背面那片相反 */
 .print-corner.is-front .print-corner-a,.print-corner.is-back .print-corner-b{--corner-paper:var(--print-face-bg)}
-.print-corner.is-front .print-corner-b,.print-corner.is-back .print-corner-a{--corner-paper:repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px),var(--print-back-bg)}
+.print-corner.is-front .print-corner-b,.print-corner.is-back .print-corner-a{--corner-paper:repeating-linear-gradient(transparent 0 calc(var(--rule) - 1px),rgb(var(--ink) / .07) calc(var(--rule) - 1px) var(--rule)),var(--print-back-bg)}
 .print-corner-flap>.print-corner-a{--shade:var(--corner-shade-a);clip-path:polygon(100% -1.5px,100% 50%,50% 100%,-1.5px 100%)}
 .print-corner-flap>.print-corner-b{--shade:var(--corner-shade-b);clip-path:polygon(0 -1.5px,0 50%,50% 100%,calc(100% + 1.5px) 100%)}
 .print-corner-tip>.print-corner-a{--shade:var(--corner-tip-shade-a);clip-path:polygon(100% -1.5px,100% 100%,-1.5px 100%)}
@@ -124,7 +132,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-face::before{content:'';position:absolute;inset:0;z-index:6;pointer-events:none;background:radial-gradient(circle at var(--gx,50%) var(--gy,30%),rgb(var(--on-dark) / .34) 0,rgb(var(--on-dark) / .1) 22%,transparent 46%);opacity:var(--glare,0);transition:opacity .4s;mix-blend-mode:screen}
 .print-front{padding:8% 8% 0}
 .print-figure{position:relative;margin:0;overflow:hidden;background:var(--line)}.print-figure.is-blank{aspect-ratio:1;background:color-mix(in oklch,var(--print-tint) 45%,var(--line))}
-.print-photo{width:100%;height:auto;aspect-ratio:1;object-position:50% 40%;filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
+/* 裁切靠左 36%（2026-10-13）：五張日常照右上角燒進了 IVY KIDS 台標（1080×800 原檔 x≈921 起），置中裁正方形會切出一截綠色桂葉；
+   36% 時正方形右緣停在 x≈901。WebGL 貼圖（paperPrints.ts）讀這裡的 computed object-position，後台設定的焦點照樣蓋過。 */
+.print-photo{width:100%;height:auto;aspect-ratio:1;object-position:36% 40%;filter:sepia(.55) contrast(.28) brightness(1.55) saturate(.35) blur(2.5px);opacity:.28;transition:filter 3s cubic-bezier(.25,.55,.3,1),opacity 3s cubic-bezier(.25,.55,.3,1)}
 .day-print.is-revealed .print-photo{filter:none;opacity:1}
 .print-figure::after{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(160deg,var(--ivy-print-glass-cool),var(--ivy-print-glass-warm) 55%,var(--ivy-print-glass-cool));transition:opacity 3.2s ease .3s}
 .day-print.is-revealed .print-figure::after{opacity:0}
@@ -134,11 +144,16 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-foot{padding:18px 4px 46px;min-height:130px}
 .print-kicker{font-size:var(--fs-xs);letter-spacing:.08em;color:var(--muted)}
 .print-foot h3{margin-top:8px;font-size:clamp(1.25rem,1.6vw,1.5rem);line-height:1.45;letter-spacing:.02em;color:var(--green);rotate:-.8deg}
-.print-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:32px 32px 60px;background:var(--print-back-bg) repeating-linear-gradient(transparent 0 31px,rgb(var(--ink) / .07) 31px 32px)}
-.print-story{font-size:var(--fs-md);line-height:2.1;margin-top:14px;color:var(--text)}
-.print-ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:20px;padding-top:14px}
-.print-question{font-size:var(--fs-sm);font-weight:600;line-height:1.7;color:var(--green)}
-.print-answer{font-size:var(--fs-sm);line-height:1.95;margin-top:8px;color:var(--muted)}
+/* 背面橫線紙（2026-10-13）：線原本從背面上緣起每 32px 一條，字卻是置中排、行高 33.6／27.3px，線穿過字。
+   改成線距＝行距（.print-wrap 的 --rule：桌機 32、手機 28），線畫在故事段落往上下延伸的 ::before、跟著故事第一行的行框走；
+   小標、問答也吃同一個行距，問答上方的虛線落在空的那一格正中間，每行字都在兩條線之間。WebGL 貼圖（paperPrints.ts drawBack）照故事段落位置畫同一組線。 */
+.print-back{position:absolute;inset:0;transform:rotateY(180deg);display:flex;flex-direction:column;justify-content:center;padding:32px 32px 60px;overflow:hidden;background:var(--print-back-bg)}
+.print-back .print-kicker{line-height:var(--rule)}
+.print-story{position:relative;font-size:var(--fs-md);line-height:var(--rule);color:var(--text)}
+.print-story::before{content:'';position:absolute;z-index:-1;inset:calc(-20 * var(--rule)) -200px;background:repeating-linear-gradient(transparent 0 calc(var(--rule) - 1px),rgb(var(--ink) / .07) calc(var(--rule) - 1px) var(--rule));pointer-events:none}
+.print-ask{border-top:1px dashed rgb(var(--ink) / .25);margin-top:calc(var(--rule) / 2);padding-top:calc(var(--rule) / 2 - 1px)}
+.print-question{font-size:var(--fs-sm);font-weight:600;line-height:var(--rule);color:var(--green)}
+.print-answer{font-size:var(--fs-sm);line-height:var(--rule);color:var(--muted)}
 /* 拍立得背面與圖說避免孤字（2026-10-12；360／320 寬「適／應？」「下／午。」）；WebGL 貼圖版在 utils/cjkWrap.ts 同規則。 */
 .print-face p,.day-note{text-wrap:pretty}
 /* 無文字提示：整卡可點，翻面暗示是右下角被風掀起（.print-corner／WebGL），跟著紙一起翻。 */
@@ -148,8 +163,12 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-wrap.is-turning .print-turn:focus-visible{outline-color:transparent;transition-duration:.12s}
 /* WebGL 已把紙膠帶畫入貼圖、角落捲起改彎網格，DOM 只留下語意與版面。 */
 .print-wrap.webgl-ready .print-tape{visibility:hidden}
-.day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto;padding-bottom:96px;color:rgb(var(--on-dark) / .74);font-size:var(--fs-xs);line-height:1.9}
-@media(max-width:1100px){.day-prints{padding-inline:32px;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.day-print:nth-child(n) .print-card{width:100%;margin-inline:0}.day-note{width:calc(100% - 64px)}}
+/* 底部留白用 margin、不用 padding（2026-10-13）：說明字接指標，padding 會把底部的暫停圓鈕一起蓋住、點不到。 */
+.day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto 96px;color:rgb(var(--on-dark));font-size:var(--fs-xs);line-height:1.9}
+/* 說明字原本 74% 白，最低只有 3.3（2026-10-13）：改全白，字後墊一條上下淡出、左右收邊的淡墨綠帶；影片 12 幀最低 4.6（1440）、手機 7.4。 */
+/* 左右只伸到頁面邊距（--note-bleed：桌機 48、≤1100 32、手機 20），再多會撐出橫向捲動。 */
+.day-note::before{content:'';position:absolute;z-index:-1;inset:-20px calc(-1 * var(--note-bleed,48px));background:linear-gradient(rgb(var(--ink) / 0),rgb(var(--ink) / .35) 20px calc(100% - 20px),rgb(var(--ink) / 0));-webkit-mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);pointer-events:none}
+@media(max-width:1100px){.day-prints{padding-inline:32px;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.day-print:nth-child(n) .print-card{width:100%;margin-inline:0}.day-note{width:calc(100% - 64px);--note-bleed:32px}}
 @media(max-width:760px){
  .day-intro .eyebrow{gap:12px;margin-bottom:12px}
  .day-title{font-size:clamp(2.5rem,13.5vw,4.4rem)}
@@ -167,26 +186,31 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-photo{transition-duration:.9s,.9s}
  .print-figure::after{transition:opacity .9s ease .1s}
  .print-foot{padding:14px 2px 44px;min-height:118px}
+ .print-wrap{--rule:28px}
  .print-back{position:relative;inset:auto;padding:24px 22px 56px}
- .print-story{font-size:var(--fs-sm);line-height:1.95;margin-top:10px}
- .print-ask{margin-top:16px;padding-top:12px}
- .print-answer{font-size:var(--fs-sm);line-height:1.85}
- .day-note{width:calc(100% - 40px);padding-bottom:64px}
+ .print-story{font-size:var(--fs-sm)}
+ .day-note{width:calc(100% - 40px);margin-bottom:64px;--note-bleed:20px}
 }
 /* 圖說與暫停鍵的讓位規則跟布幕短版用同一個手機定義：橫拿手機（高度 ≤500）卡片比視窗高，底部控制列一定壓在卡片上，也要讓位。 */
 @media(max-width:760px),(max-height:500px){
  .day-film-caption{left:18px;bottom:18px}
  .day-film-caption span[lang]{display:none}
  .day-film-toggle{right:16px;bottom:14px;padding:8px 14px}
- /* 拍立得蓋上來以後（DayExperience 的 data-covered）：圖說退場、暫停鍵收成 44px 圓鈕，不再壓住卡片上的時間與內文。 */
- .day-film-caption{transition:opacity .3s ease-out}
- .day-film-ui[data-covered="1"] .day-film-caption{opacity:0}
- .day-film-ui[data-covered="1"] .day-film-toggle{width:44px;height:44px;padding:0;justify-content:center;gap:0}
- .day-film-ui[data-covered="1"] .day-film-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
- /* 收成圓鈕仍會蓋到右側卡片的時間戳，點下去是暫停影片、不是翻面（2026-10-12）：被蓋住時沉到卡片下面，讓卡片從上面滑過。
-    .day-film 是 z-index:auto、DOM 在前，圓鈕仍在影片上面。 */
- .day-film-ui[data-covered="1"]{z-index:0}
 }
+/* 拍立得蓋上來以後（DayExperience 的 data-covered）：圖說退場、暫停鍵收成 44px 圓鈕，不再壓住卡片上的時間與內文。
+   2026-10-13 從手機擴到全寬度：桌機圖說原本一直留在 z-index 4，印在左排拍立得的相框與標題上、又和底部說明字疊字，暫停膠囊蓋住右排的紙膠帶。
+   圖說只在大標那一屏出現；背景出處底部說明字也有寫。 */
+.day-film-caption{transition:opacity .3s ease-out}
+.day-film-ui[data-covered="1"] .day-film-caption{opacity:0}
+.day-film-ui[data-covered="1"] .day-film-toggle{width:44px;height:44px;padding:0;justify-content:center;gap:0}
+.day-film-ui[data-covered="1"] .day-film-state{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+/* 收成圓鈕仍會蓋到右側卡片的時間戳，點下去是暫停影片、不是翻面（2026-10-12）：被蓋住時沉到卡片下面，讓卡片從上面滑過。
+   .day-film 是 z-index:auto、DOM 在前，圓鈕仍在影片上面。 */
+.day-film-ui[data-covered="1"]{z-index:0}
+/* 圓鈕沉下去以後，原本整個舞台（滿版的 sticky 大標、卡片列）都蓋在它上面，滑鼠／手指永遠點不到（2026-10-13）：
+   舞台本身不接指標，只有卡片與說明字接，卡片之間露出圓鈕的地方照樣點得到。 */
+.day-stage{pointer-events:none}
+.day-stage :is(.print-card,.day-note){pointer-events:auto}
 @media(prefers-reduced-motion:reduce){
  .print-photo{filter:none;opacity:1;transition:none}
  .print-figure::after{opacity:0;transition:none}
@@ -200,6 +224,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-turn{color:ButtonText}.print-turn:focus-visible,.print-wrap.is-turning .print-turn:focus-visible{outline-color:Highlight}.print-wrap.is-cornering .print-face{clip-path:none}.print-corner{display:none}
  .day-film-shade{background:Canvas}
  .day-intro .eyebrow{color:CanvasText;text-shadow:none}
+ .day-intro .eyebrow::before,.day-note::before{display:none}
  .day-film-poster,.day-film-video,.day-film-light{display:none}
  .print-photo{filter:none;opacity:1}
  .print-figure::after{display:none}
