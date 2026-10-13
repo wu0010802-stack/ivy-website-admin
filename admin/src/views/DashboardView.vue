@@ -212,7 +212,11 @@ const dayFormatter = new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: 
 function taipeiDay(time: number): string {
   return dayFormatter.format(new Date(time))
 }
-const todayLabel = computed(() => todayFormatter.format(new Date(clockNow.value)))
+// 「9月29日星期二」：日與星期之間有沒有空白隨瀏覽器（ICU 版本）而不同（Node 22.22 是「9月29日 星期二」），
+// 同一個畫面在不同電腦長得不一樣，單元測試也跟著時過時不過。分隔用的空白一律拿掉（2026-10-13）。
+const todayLabel = computed(() => todayFormatter.formatToParts(new Date(clockNow.value))
+  .map((part) => (part.type === 'literal' ? part.value.replace(/\s+/g, '') : part.value))
+  .join(''))
 // 資料不是今天讀的（開著過夜、換日後重讀失敗）就連日期一起寫：「更新於 09/29 17:30」。
 const updatedLabel = computed(() => {
   if (loadedAt.value === null) return ''
