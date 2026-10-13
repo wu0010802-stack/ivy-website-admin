@@ -2,8 +2,8 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, request } from '@playwright/test'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
-import { ROOT, SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
-import { taipeiDate } from './api'
+import { ROOT, SECOND_CAMPUS, SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
+import { adminApi, taipeiDate } from './api'
 
 // 2026-10-13 場次使用情況：家長打開義華預約頁讀場次（purpose=new_booking）後，後台
 // 參觀場次 → 場次使用情況的「最早能約哪天」至少有 1 次；頁籤進網址，1440／390 不橫向溢出。
@@ -56,5 +56,14 @@ test('分校管理者只看得到自己的校', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'campus_admin')
   await gotoAdmin(page, USAGE_PATH, '參觀場次')
   await expect(page.getByRole('heading', { level: 2, name: /^最早能約哪天/ })).toBeVisible()
+  // 只看得到一校時，校區選擇器是唯讀標籤（義華），沒有可以選別校的下拉。
+  await expect(page.locator('.campus-single')).toContainText('義華')
+  await expect(page.getByRole('combobox', { name: '校區' })).toHaveCount(0)
   await context.close()
+
+  // 範圍外的校區：API 視為不存在（和接待月曆一致），不是回空資料。
+  const api = await adminApi('campus_admin')
+  const denied = await api.context.get(`/api/website/v1/admin/visit-slot-usage?campus_key=${SECOND_CAMPUS}&weeks=12`)
+  expect(denied.status(), await denied.text()).toBe(404)
+  await api.dispose()
 })
