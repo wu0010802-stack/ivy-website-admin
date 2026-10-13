@@ -58,7 +58,7 @@ const columns: StatsColumn[] = [
   { key: 'slot_count', label: '場次數', kind: 'count' },
   { key: 'capacity_total', label: '總名額', kind: 'count' },
   { key: 'booked', label: '已約', kind: 'count' },
-  { key: 'fill', label: '填滿率（%）', kind: 'bar' },
+  { key: 'fill', label: '填滿率（%）', kind: 'bar', barMax: 100 },
   { key: 'full_count', label: '額滿場次', kind: 'count' },
   { key: 'signalLabel', label: '判讀', kind: 'text' },
 ]
@@ -103,7 +103,7 @@ const columns: StatsColumn[] = [
           empty-text="" :export-filename="usageCsvFilename(campusName, usage.slots.weeks, usage.today)"
         />
         <p v-if="hasOftenFull" class="usage__link">
-          <el-link type="primary" data-test="go-calendar" @click="$emit('go-calendar')">到接待月曆改規則</el-link>
+          <el-button link type="primary" data-test="go-calendar" @click="$emit('go-calendar')">到接待月曆改規則</el-button>
         </p>
       </section>
 

@@ -45,11 +45,11 @@ function toNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-// 每個 bar 欄的最大值：長條以它為 100%。
+// 每個 bar 欄的最大值：長條以它為 100%；欄位指定 barMax 時（數值本身就是比例的欄）改用它。
 const maxima = computed(() => {
   const result: Record<string, number> = {}
   for (const column of props.columns) {
-    if (column.kind === 'bar') result[column.key] = Math.max(0, ...props.rows.map((row) => toNumber(row[column.key])))
+    if (column.kind === 'bar') result[column.key] = column.barMax ?? Math.max(0, ...props.rows.map((row) => toNumber(row[column.key])))
   }
   return result
 })

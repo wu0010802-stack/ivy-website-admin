@@ -5,6 +5,7 @@ import { computed, defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import SlotUsagePane from '../components/sessions/SlotUsagePane.vue'
+import StatsDimensionTable from '../components/admissions/StatsDimensionTable.vue'
 import VisitCalendarView from '../views/VisitCalendarView.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
@@ -136,8 +137,16 @@ describe('SlotUsagePane', () => {
 
   it('連結按下發出 go-calendar', async () => {
     const { wrapper } = await mountPane(usage())
+    // 要能用鍵盤到達：<a> 沒有 href 不能 focus、Enter 也不會觸發 click，所以必須是 <button>。
+    expect(wrapper.get('[data-test="go-calendar"]').element.tagName).toBe('BUTTON')
     await wrapper.get('[data-test="go-calendar"]').trigger('click')
     expect(wrapper.emitted('go-calendar')).toHaveLength(1)
+  })
+
+  it('填滿率的長條以 100% 為滿，不以該欄最大值為滿', async () => {
+    const low = usage({}, {}, { rows: [{ weekday: 5, start_time: '10:00:00', end_time: '11:00:00', slot_count: 10, capacity_total: 30, booked: 9, fill_rate: 0.3, full_count: 0, signal: 'normal' }] })
+    const { wrapper } = await mountPane(low)
+    expect(wrapper.get('.stats-bar__fill').attributes('style')).toContain('width: 30%')
   })
 
   it('上線初期：第一塊寫還沒有紀錄，第二塊照常', async () => {
@@ -199,6 +208,31 @@ async function mountCalendarAt(path: string) {
   return { wrapper, router }
 }
 
+describe('StatsDimensionTable：bar 欄的長條比例', () => {
+  const columns = (barMax?: number) => [
+    { key: 'name', label: '名稱', sticky: true },
+    { key: 'fill', label: '填滿率', kind: 'bar' as const, ...(barMax === undefined ? {} : { barMax }) },
+  ]
+  const rows = [{ name: 'a', fill: 30 }, { name: 'b', fill: 15 }]
+  const widths = (barMax?: number) => {
+    const wrapper = mount(StatsDimensionTable, { props: { title: 't', rows, columns: columns(barMax), rowKey: 'name', emptyText: '' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    return wrapper.findAll('.stats-bar__fill').map(fill => fill.attributes('style'))
+  }
+
+  it('有 barMax 就以它為 100%：30 是 30% 寬，不是滿', () => {
+    const [first, second] = widths(100)
+    expect(first).toContain('width: 30%')
+    expect(second).toContain('width: 15%')
+  })
+
+  it('沒有 barMax 照舊：最大值那列是 100%', () => {
+    const [first, second] = widths()
+    expect(first).toContain('width: 100%')
+    expect(second).toContain('width: 50%')
+  })
+})
+
 describe('參觀場次頁：頁籤', () => {
   const route = (get: ReturnType<typeof vi.spyOn>) => {
     get.mockImplementation((async (path: string) => {
@@ -253,7 +287,7 @@ describe('參觀場次頁：頁籤', () => {
     expect(wrapper.exists()).toBe(true)
   })
 
-  it('接待月曆有沒存的修改時，切到場次使用情況先問，取消就留在原頁籤', async () => {
+  it('接待月曆有沒存的修改時，切到場次使用情況先問，取消就留在原頁籤（頁籤列也不動）', async () => {
     const get = vi.spyOn(api, 'get'); route(get)
     const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
     // 用 script setup 的 ref 換成假的卡片：confirmLeave 回 false＝使用者選了取消。
@@ -262,5 +296,27 @@ describe('參觀場次頁：頁籤', () => {
     await flushPromises()
     expect(router.currentRoute.value.query.tab).toBeUndefined()
     expect(wrapper.find('.calendar__grid').exists()).toBe(true)
+    // el-tabs 自己會先把點到的頁籤標成選取：取消後要退回，不能內容在月曆、頁籤列卻亮著「場次使用情況」。
+    expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('接待月曆')
+  })
+
+  it('接待月曆有沒存的修改時按確定，照常切過去，頁籤列跟著亮', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => true }
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBe('usage')
+    expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('場次使用情況')
+  })
+
+  it('網址改成 tab=usage（例如瀏覽器上一頁）時直接跟著切，不再問，頁籤列與內容一致', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => false }
+    await router.replace({ query: { campus: 'yihua', tab: 'usage' } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('最早能約哪天')
+    expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('場次使用情況')
   })
 })

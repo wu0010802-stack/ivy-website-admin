@@ -43,12 +43,15 @@ const sessionsCard = ref<InstanceType<typeof WeeklySessionsCard> | null>(null)
 type VisitTab = 'calendar' | 'usage'
 const tabFromQuery = (value: unknown): VisitTab => (value === 'usage' ? 'usage' : 'calendar')
 const tab = ref<VisitTab>(tabFromQuery(route.query.tab))
-// 離開接待月曆時，每週場次卡片有沒存的修改要先問（取消就留在原頁籤）。
-async function setTab(name: string | number) {
-  const next = tabFromQuery(name)
-  if (next === tab.value) return
-  if (tab.value === 'calendar' && (await sessionsCard.value?.confirmLeave()) === false) return
-  tab.value = next
+// 離開接待月曆時，每週場次卡片有沒存的修改要先問（取消就留在原頁籤）。問要放在 el-tabs 的 before-leave：
+// 它自己會先把點到的頁籤標成選取，只有 before-leave 回 false 才會退回，頁籤列與內容才不會不同步；方向鍵切換也走這裡。
+// 程式改 tab（網址、「到接待月曆改規則」）時 el-tabs 是被 modelValue 帶著走，內容已經換了，這時 tab 已不是 calendar，不再問。
+async function confirmLeaveCalendar(_next: string | number, current: string | number): Promise<boolean> {
+  if (current !== 'calendar' || tab.value !== 'calendar') return true
+  return (await sessionsCard.value?.confirmLeave()) !== false
+}
+const setTab = (name: string | number) => {
+  tab.value = tabFromQuery(name)
 }
 watch(tab, value => {
   if (tabFromQuery(route.query.tab) === value) return
@@ -210,7 +213,7 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
     <PageHeader lead="月曆上點一天，看誰要來、調整那天的場次。" more="上方設定每週固定的參觀場次；點月曆上的某一天，可以停止或恢復某一場、設休假、加開，也看得到那天有誰要來。「場次使用情況」看家長最早能約哪天、各時段坐了幾成。" />
 
     <div class="toolbar calendar__toolbar">
-      <el-tabs :model-value="tab" class="calendar__tabs" @update:model-value="setTab">
+      <el-tabs :model-value="tab" class="calendar__tabs" :before-leave="confirmLeaveCalendar" @update:model-value="setTab">
         <el-tab-pane label="接待月曆" name="calendar" />
         <el-tab-pane label="場次使用情況" name="usage" />
       </el-tabs>
