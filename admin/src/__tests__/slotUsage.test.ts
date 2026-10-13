@@ -1,4 +1,14 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import ElementPlus from 'element-plus'
+import { computed, defineComponent } from 'vue'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
+import SlotUsagePane from '../components/sessions/SlotUsagePane.vue'
+import VisitCalendarView from '../views/VisitCalendarView.vue'
+import { api } from '../api/client'
+import { useAuthStore } from '../stores/auth'
+import { testUser } from './fixtures'
 import {
   BUCKET_LABELS, lookupEmptyText, lookupSummaryText, signalText, slotLabel, slotsEmptyText, usageCsvFilename,
 } from '../utils/slotUsage'
@@ -78,5 +88,179 @@ describe('場次使用情況：空狀態（規格 §5.3）', () => {
   it('範圍內沒有過去的場次', () => {
     expect(slotsEmptyText(usage({}, {}, { rows: [] }))).toBe('近 12 週沒有開放的場次。')
     expect(slotsEmptyText(usage())).toBeNull()
+  })
+})
+
+const wrappers: VueWrapper[] = []
+afterEach(() => {
+  wrappers.forEach(wrapper => wrapper.unmount())
+  wrappers.length = 0
+  vi.restoreAllMocks()
+})
+
+async function mountPane(data: SlotUsage | Error) {
+  const get = vi.spyOn(api, 'get')
+  if (data instanceof Error) get.mockRejectedValue(data)
+  else get.mockResolvedValue(data as never)
+  const wrapper = mount(SlotUsagePane, { props: { campusKey: 'yihua', campusName: '義華校' }, global: { plugins: [ElementPlus] } })
+  wrappers.push(wrapper)
+  await flushPromises()
+  return { wrapper, get }
+}
+
+const urlOf = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.map(call => String(call[0]))
+
+describe('SlotUsagePane', () => {
+  it('讀 API（預設近 12 週）並顯示總結句、五個區間與時段表', async () => {
+    const { wrapper, get } = await mountPane(usage())
+    expect(urlOf(get)).toEqual(['/admin/visit-slot-usage?campus_key=yihua&weeks=12'])
+    expect(wrapper.text()).toContain('近 4 週家長打開義華校預約頁 10 次')
+    for (const label of ['明天以前', '2–3 天', '4–7 天', '超過 7 天', '沒有場次']) expect(wrapper.text()).toContain(label)
+    expect(wrapper.text()).toContain('週六 10:00–11:00')
+    expect(wrapper.text()).toContain('常額滿，可以考慮加開')
+    expect(wrapper.text()).toContain('到接待月曆改規則')
+  })
+
+  it('切換週數會重讀', async () => {
+    const { wrapper, get } = await mountPane(usage())
+    await wrapper.get('[data-test="weeks-26"]').trigger('click')
+    await flushPromises()
+    expect(urlOf(get).at(-1)).toBe('/admin/visit-slot-usage?campus_key=yihua&weeks=26')
+  })
+
+  it('沒有常額滿的列就不顯示「到接待月曆改規則」', async () => {
+    const calm = usage({}, {}, { rows: [{ weekday: 0, start_time: '10:00:00', end_time: '11:00:00', slot_count: 6, capacity_total: 12, booked: 6, fill_rate: 0.5, full_count: 0, signal: 'normal' }] })
+    const { wrapper } = await mountPane(calm)
+    expect(wrapper.text()).not.toContain('到接待月曆改規則')
+  })
+
+  it('連結按下發出 go-calendar', async () => {
+    const { wrapper } = await mountPane(usage())
+    await wrapper.get('[data-test="go-calendar"]').trigger('click')
+    expect(wrapper.emitted('go-calendar')).toHaveLength(1)
+  })
+
+  it('上線初期：第一塊寫還沒有紀錄，第二塊照常', async () => {
+    const fresh = usage({}, { first_recorded_day: null, total: 0, buckets: usage().lookups.buckets.map(b => ({ ...b, count: 0 })) })
+    const { wrapper } = await mountPane(fresh)
+    expect(wrapper.text()).toContain('還沒有家長打開預約頁的紀錄。')
+    expect(wrapper.text()).toContain('週六 10:00–11:00')
+  })
+
+  it('非自選場次的校區', async () => {
+    const phone = usage({ booking_mode: 'phone' }, { first_recorded_day: null, total: 0, buckets: usage().lookups.buckets.map(b => ({ ...b, count: 0 })) }, { rows: [] })
+    const { wrapper } = await mountPane(phone)
+    expect(wrapper.text()).toContain('目前的預約方式不是自選場次，家長看不到場次。')
+    expect(wrapper.text()).toContain('近 12 週沒有開放的場次。')
+  })
+
+  it('讀取失敗：整個頁籤顯示錯誤與重新載入，重新載入會再讀', async () => {
+    const { wrapper, get } = await mountPane(new Error('boom'))
+    expect(wrapper.text()).toContain('無法讀取場次使用情況，請重新載入。')
+    get.mockResolvedValue(usage() as never)
+    await wrapper.get('[data-test="reload"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('近 4 週家長打開義華校預約頁 10 次')
+  })
+
+  it('換校區重讀，舊回應不會蓋掉新回應', async () => {
+    const slow = new Promise<SlotUsage>(resolve => setTimeout(() => resolve(usage({ campus_key: 'yihua' })), 20))
+    const get = vi.spyOn(api, 'get')
+      .mockReturnValueOnce(slow as never)
+      .mockResolvedValueOnce(usage({ campus_key: 'minghua' }, { total: 99 }) as never)
+    const wrapper = mount(SlotUsagePane, { props: { campusKey: 'yihua', campusName: '義華校' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await wrapper.setProps({ campusKey: 'minghua', campusName: '明華校' })
+    await new Promise(resolve => setTimeout(resolve, 40))
+    await flushPromises()
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('打開明華校預約頁 99 次')
+  })
+
+  it('「怎麼算」說明預設收合，內容寫出口徑', async () => {
+    const { wrapper } = await mountPane(usage())
+    const details = wrapper.get('details')
+    expect(details.attributes('open')).toBeUndefined()
+    for (const phrase of ['次', '取消', '關閉', '4 場', '50%', '20%']) expect(details.text()).toContain(phrase)
+  })
+})
+
+async function mountCalendarAt(path: string) {
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: [] })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+  await router.push(path)
+  await router.isReady()
+  const wrapper = mount(VisitCalendarView, {
+    global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } },
+  } as never)
+  wrappers.push(wrapper)
+  await flushPromises()
+  return { wrapper, router }
+}
+
+describe('參觀場次頁：頁籤', () => {
+  const route = (get: ReturnType<typeof vi.spyOn>) => {
+    get.mockImplementation((async (path: string) => {
+      if (path.startsWith('/admin/visit-slot-usage')) return usage()
+      if (path.startsWith('/admin/visit-schedule/')) return { exceptions: [], rules: [], version: 1, min_lead_hours: 24, max_advance_days: 60 }
+      return []
+    }) as never)
+  }
+
+  it('預設是接待月曆，沒有讀場次使用情況', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    expect(get.mock.calls.map(c => String(c[0])).some(p => p.startsWith('/admin/visit-slot-usage'))).toBe(false)
+    expect(wrapper.findAll('[role="tab"]').map(t => t.text())).toEqual(['接待月曆', '場次使用情況'])
+    expect(wrapper.find('.calendar__grid').exists()).toBe(true)
+  })
+
+  it('直接開 ?tab=usage 就顯示場次使用情況，且只在這時才讀 API', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    expect(get.mock.calls.map(c => String(c[0]))).toContain('/admin/visit-slot-usage?campus_key=yihua&weeks=12')
+    expect(wrapper.text()).toContain('最早能約哪天')
+  })
+
+  it('切頁籤寫進網址（replace、保留 campus），回月曆時拿掉 tab', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toMatchObject({ campus: 'yihua', tab: 'usage' })
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBeUndefined()
+    expect(router.currentRoute.value.query.campus).toBe('yihua')
+  })
+
+  it('「到接待月曆改規則」切回第一個頁籤', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    await wrapper.get('[data-test="go-calendar"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBeUndefined()
+    expect(wrapper.find('.calendar__grid').exists()).toBe(true)
+  })
+
+  it('切校區兩個頁籤共用：在使用情況頁籤換校會重讀新校', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    await router.replace({ query: { campus: 'minghua', tab: 'usage' } })
+    await flushPromises()
+    expect(get.mock.calls.map(c => String(c[0]))).toContain('/admin/visit-slot-usage?campus_key=minghua&weeks=12')
+    expect(wrapper.exists()).toBe(true)
+  })
+
+  it('接待月曆有沒存的修改時，切到場次使用情況先問，取消就留在原頁籤', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    // 用 script setup 的 ref 換成假的卡片：confirmLeave 回 false＝使用者選了取消。
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => false }
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBeUndefined()
+    expect(wrapper.find('.calendar__grid').exists()).toBe(true)
   })
 })
