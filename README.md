@@ -10,12 +10,15 @@
   - stack e2e（Node 22、專屬庫與 port；`npm run e2e:build` 後 `playwright test -c playwright.stack.config.ts tests/stack/slot-usage.spec.ts tests/stack/a11y.spec.ts tests/stack/schedule-flow.spec.ts`）36 個全過，含新增的 `slot-usage.spec.ts` 4 個（1440／390 頁籤不橫向溢出、頁籤進網址、分校管理者）與 a11y 掃描 `/admin/visit-calendar?campus=yihua&tab=usage`。
   - `slot-usage.spec.ts` 單獨跑 4 個過；請求不帶 `purpose=new_booking` 時，1440／390 兩個案例失敗（總結句不出現）。分校管理者案例含單校標籤、無校區下拉與跨校 API 404 的斷言。
   - 有表格的畫面另以測試庫的過去場次與預約檢查（三個時段，常額滿／很少人約／還不判斷各一）：axe 0 個違規（1440、390），頁面不橫向溢出；390 的表格在表內橫向捲動（時段欄固定，判讀欄要往右捲）。
-  - 最終程式碼（含最終審查後的修正 `41bef709`）：
-    - 後端全套 2626 passed、1 skipped（約 37 分鐘）。這輪跑在 `0754182a`，也就是最終審查修正之前；修正涉及的 schema、lookup、usage 三個測試檔另在 `41bef709` 跑 51 passed，ruff 通過。
+  - 最終程式碼（含最終審查後的修正 commit「fix: 場次使用情況最終審查修正」）：
+    - 後端全套 2626 passed、1 skipped（約 37 分鐘）。這輪跑在「test(e2e): 分校管理者那條補上…」那個 commit，也就是最終審查修正之前；修正涉及的 schema、lookup、usage 三個測試檔另在修正後跑 51 passed，ruff 通過。
     - admin vitest 全套：機器負載約 16–21 時有 35、36 個逾時失敗（`STACK_TRACE_ERROR`），分散在 13–16 個與本次無關的檔案。這些檔案逾時放寬到 60 秒、單程序重跑 392 passed、1 skipped、0 failed。本次新增的 `slotUsage.test.ts`（33 個）在全套中全過。
     - web vitest 98 個檔案、1162 passed；admin、web typecheck 通過；`contract:check` 一致。
     - stack e2e 三支（`slot-usage`、`a11y`、`schedule-flow`）在最終程式碼重新 build 後再跑一次，36 passed。
-  - 尚未跑：完整 stack 套件（推 main 前要跑一次）。
+  - 重新對齊 main（效能第五輪合併後的 `72d0f933`；無新 migration、之後 main 只多一個部署紀錄 commit、只有 README／DESIGN 文字衝突）後：
+    - 完整 stack 套件 134 passed、0 failed（約 9.7 分鐘，含 `slot-usage.spec.ts` 4 個與 a11y 的 `tab=usage`）。
+    - 後端相關檔（場次三個、`test_geo_sync`、`test_admissions_area`、`test_admissions_estimation`）191 passed；admin 的 `slotUsage`、`areaMap` 等相關檔 116 passed、web 的 `slot-lookup-purpose`、`gzip-boundaries` 70 passed；admin、web typecheck 與 `contract:check` 通過。
+    - 後端全套未在對齊後重跑：main 新增的變更只動 `estimation.py`、`geo/sync.py`，與本分支沒有重疊檔案。
 
 ## 2026-10-13 效能第五輪：後台按需載入與地圖換色、代理壓縮 JSON、後端事件迴圈（`feature/perf-20261013`）
 
