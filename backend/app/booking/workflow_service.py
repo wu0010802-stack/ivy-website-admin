@@ -419,7 +419,12 @@ async def update_details_by_staff(
     # 函式內匯入：admissions 模組在載入時會匯入 booking，避免循環匯入。
     from app.admissions import booking_link
 
-    await db.refresh(visit_request, attribute_names=["status", "anonymized_at", *EDITABLE_BY_STAFF], with_for_update=True)
+    # slot_id 也要在鎖內重讀（2026-10-13 審查）：下面依場次決定要不要補發連結、效期算多久。路由讀到案件
+    # 後、取得鎖之前，園方可能剛把預約改到別的場次；用舊場次算，新連結效期會偏短，原場次已開始時
+    # 甚至只撤銷、不補發。
+    await db.refresh(
+        visit_request, attribute_names=["status", "slot_id", "anonymized_at", *EDITABLE_BY_STAFF], with_for_update=True
+    )
     if visit_request.anonymized_at is not None:
         raise DetailsAnonymized()
     current = await details_version(db, visit_request.id)
