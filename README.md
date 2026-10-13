@@ -11,10 +11,10 @@
 - **後台側欄與總覽**：圖示欄最上面按 ↑ 回到搜尋鈕；總覽日期不隨瀏覽器（ICU 版本）多一個空白。
 - **官網預覽**：最新消息預覽點校區篩選不再丟掉預覽參數，近期活動跟著預覽日期；關於頁換片動畫播到一半影片被刪少時，預覽不再整頁畫不出來。
 - 驗證：
-  - admin vitest 154 檔 2271 過、typecheck 過；web vitest 97 檔 1157 過、typecheck 過；`contract:check` 一致。
+  - 合入 main 之後：admin vitest 154 檔 2279 過、typecheck 過；web vitest 97 檔 1157 過、typecheck 過；`contract:check` 一致。
   - 後端改到的測試檔（預約修改、消息、地址、門牌同步、比對）本機 PostgreSQL 全過；新加的測試拿掉修正會失敗。
 
-## 2026-10-13 參觀預約統計搬到招生入學（`feature/booking-stats-move-20261013`）
+## 2026-10-13 參觀預約統計搬到招生入學（`feature/booking-stats-move-20261013`，10-13 已部署 main `a5d790cf`）
 
 使用者要把成效統計的「各校預約」與「預約孩子的班別」整合到招生入學的統計分析，成效統計只留官網瀏覽與速度。規則寫在 DESIGN.md 最上方一節。
 
