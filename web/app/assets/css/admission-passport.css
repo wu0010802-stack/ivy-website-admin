@@ -198,6 +198,11 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-phase-tag { display: flex; align-items: center; gap: 10px; font: 700 var(--fs-sm)/1.6 var(--font-head); letter-spacing: .16em; color: var(--ap-red); }
 .ap-phase-tag span { font-size: var(--fs-xs); font-weight: 400; letter-spacing: 0; color: var(--muted); }
 .ap-phase h3 { margin-top: 4px; font-size: var(--fs-2xl); line-height: 1.4; color: var(--deep); }
+/* 結尾括號整段換行（utils/cjkWrap.ts splitTrailingParen）：不斷成「適應期（上學前三／天）」。
+   字欄只有 121–375px（768 寬護照單頁時最窄），連括號本身都放不下時，括號縮到剛好一行（字欄寬 ÷ 字數），
+   變成主標下面的小一號副標；放得下的寬度維持原字級。不支援容器單位的瀏覽器照舊整段換行。 */
+.ap-phase-head > div { container-type: inline-size; }
+.ap-keep { display: inline-block; font-size: min(1em, calc(100cqi / (var(--ap-keep-chars, 8) + .3))); }
 .ap-bring { margin-top: 20px; }
 .ap-bring legend { margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
 .ap-bring label { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 52px; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px dashed var(--ap-rule); cursor: pointer; }

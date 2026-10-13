@@ -78,6 +78,9 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-hero-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:clamp(40px,6vw,104px);align-items:center}
 .renv-eyebrow{font-size:var(--fs-sm);font-weight:700;letter-spacing:.16em;color:var(--renv-ink-soft)}
 .renv-hero h1{margin-top:22px;font-weight:800;font-size:clamp(2.3rem,1.3rem + 2.8vw,3.6rem);line-height:1.26;letter-spacing:.03em;color:var(--renv-ink)}
+/* 兩欄時字欄寬約 44.4vw，每行最多 9 字（含螢光筆內距）要約 9.7em：原本 901–1150 字級長得比欄寬快，
+   第二行被擠成「都在這裡安心長／大。」（1024 iPad 橫拿也是）。上限 4.5vw 保證 9 字放得下，1200 以上不變（2026-10-13）。 */
+@media (width>900px){.renv-hero h1{font-size:clamp(2.3rem,min(1.3rem + 2.8vw,4.5vw),3.6rem)}}
 .renv-mark{display:inline-block;isolation:isolate;padding-inline:.08em;margin-inline:.02em}
 .renv-lede{margin-top:24px;font-size:var(--fs-lg);line-height:1.85;color:var(--renv-ink-soft)}
 .renv-notice{margin-top:30px;font-size:var(--fs-sm);color:var(--renv-muted)}

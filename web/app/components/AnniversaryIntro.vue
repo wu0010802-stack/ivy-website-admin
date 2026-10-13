@@ -83,14 +83,43 @@ function targetBox() {
   return { left: r.left + r.width / 2 - w / 2, top: r.top + r.height / 2 - h / 2, width: w, height: h, tilt }
 }
 
-const fullBox = () => ({ left: 0, top: 0, width: innerWidth, height: innerHeight, tilt: '0deg' })
-const kf = (b: ReturnType<typeof fullBox>, radius: string) => ({ left: `${b.left}px`, top: `${b.top}px`, width: `${b.width}px`, height: `${b.height}px`, borderRadius: radius, transform: `rotate(${b.tilt})` })
+type Box = { left: number; top: number; width: number; height: number; tilt: string }
+const frameSize = () => ({ w: frame.value?.offsetWidth || innerWidth, h: frame.value?.offsetHeight || innerHeight })
+const fullBox = (): Box => { const { w, h } = frameSize(); return { left: 0, top: 0, width: w, height: h, tilt: '0deg' } }
+
+/**
+ * 飛進／飛出相框的一格（2026-10-13）。原本直接動框的 left/top/width/height，每一幀都是版面位移：
+ * 自動播完飛進相框那 1.15 秒，Lighthouse 手機量到 CLS 0.39（不良，真實使用者的 CWV 也會算進去）。
+ * 改成框一直是滿版，只動 transform 與 clip-path（都不算版面位移）：等比縮放 s 把框的中心移到相框，
+ * clip-path 裁成相框的比例；裡面的影片與海報再縮 m，因為「滿版 cover 再整體縮 s」比「相框大小的 cover」
+ * 放大得多一點，不縮的話最後一格和頁面上的海報對不齊。路徑與時間不變。
+ */
+function flight(b: Box, radius: number) {
+  const { w: W, h: H } = frameSize()
+  const s = Math.max(b.width / W, b.height / H)
+  const ix = Math.max(0, (W - b.width / s) / 2), iy = Math.max(0, (H - b.height / s) / 2)
+  const dx = b.left + b.width / 2 - W / 2, dy = b.top + b.height / 2 - H / 2
+  const img = finalImg.value, v = video.value
+  const mw = img?.naturalWidth || v?.videoWidth || 0, mh = img?.naturalHeight || v?.videoHeight || 0
+  const m = mw && mh ? Math.max(b.width / mw, b.height / mh) / (Math.max(W / mw, H / mh) * s) : 1
+  return {
+    frame: { transform: `translate(${dx}px, ${dy}px) rotate(${b.tilt}) scale(${s})`, clipPath: `inset(${iy}px ${ix}px round ${radius / s}px)` },
+    media: { transform: `scale(${m})` }
+  }
+}
+
+/** 框與裡面的影片、海報一起飛；回傳框的動畫（呼叫端等它結束） */
+function fly(from: Box, fromRadius: number, to: Box, toRadius: number, timing: KeyframeAnimationOptions) {
+  const a = flight(from, fromRadius), b = flight(to, toRadius)
+  for (const el of [video.value, finalImg.value]) el?.animate([a.media, b.media], timing)
+  return frame.value!.animate([a.frame, b.frame], timing)
+}
 
 function finish() {
   state.value = 'off'
   delete html().dataset.anniIntro
   try { sessionStorage.setItem(ANNI_INTRO_SESSION_KEY, '1') } catch { /* 無痕模式寫不進去也沒關係 */ }
-  frame.value?.getAnimations().forEach((a) => a.cancel())
+  frame.value?.getAnimations({ subtree: true }).forEach((a) => a.cancel())
   backdrop.value?.getAnimations().forEach((a) => a.cancel())
   if (finalImg.value) finalImg.value.style.opacity = '0'
   cancelAnimationFrame(raf)
@@ -112,9 +141,9 @@ function leave(skipped: boolean) {
     frame.value!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: 'forwards' }).finished.then(() => { v?.pause(); finish() })
     return
   }
-  const fly = frame.value!.animate([kf(fullBox(), '0px'), kf(to, '2px')], { duration: 1150, delay: skipped ? 200 : 0, easing: 'cubic-bezier(.62,.02,.18,1)', fill: 'forwards' })
+  const flying = fly(fullBox(), 0, to, 2, { duration: 1150, delay: skipped ? 200 : 0, easing: 'cubic-bezier(.62,.02,.18,1)', fill: 'forwards' })
   backdrop.value!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, delay: skipped ? 380 : 200, easing: 'ease-out', fill: 'forwards' })
-  fly.finished.then(() => {
+  flying.finished.then(() => {
     // 開著聲音就讓配樂的尾巴播完；畫面已經是海報，不再動
     if (v && !v.muted && !v.ended) {
       const stop = () => { v.removeEventListener('ended', stop); finish() }
@@ -142,7 +171,7 @@ function replay() {
   img.style.opacity = '1'
   const from = targetBox() ?? fullBox()
   nextTick(() => {
-    frame.value!.animate([kf(from, '2px'), kf(fullBox(), '0px')], { duration: 750, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' }).finished.then(() => {
+    fly(from, 2, fullBox(), 0, { duration: 750, easing: 'cubic-bezier(.5,0,.2,1)', fill: 'forwards' }).finished.then(() => {
       img.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: 'forwards' })
       state.value = 'play'
       skipBtn.value?.focus({ preventScroll: true })

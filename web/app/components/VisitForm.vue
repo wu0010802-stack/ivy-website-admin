@@ -531,11 +531,14 @@ async function onSubmit() {
                 <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
                      DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
                      400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。
-                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。 -->
+                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。
+                     761px 以上卡片是 3:4 直框、object-fit: cover，橫幅外觀照（約 1.9:1）要畫的寬度是「框高 × 1.92」
+                     ≈ 卡寬 × 2.56，不是卡寬（2026-10-13）：桌機卡寬最多約 237px → 620px；761–960 一列三張、卡寬約 30vw → 77vw。
+                     原本寫卡寬（260px／30vw），DPR2 桌機只拿到 800w、平板拿到 480w，照片發糊。 -->
                 <label v-for="campus in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 30vw, 260px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-mode" :class="{ 'is-online': campusModes[campus.key] === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
