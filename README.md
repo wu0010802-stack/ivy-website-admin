@@ -1,3 +1,20 @@
+## 2026-10-13 後台側欄可以收合（`feature/admin-layout-20261013`）
+
+使用者在 MacBook Air（螢幕 1470px）看正式後台，右邊被切掉一截。查證不是版面問題：同一頁 1568px 寬也沒有橫向捲動（`scrollWidth`＝`clientWidth`），是 Chrome 視窗比螢幕寬約 100px，右側跑出螢幕外。把視窗調回螢幕大小就好（選單「視窗 → 填滿」或按住 Option 點綠色按鈕），程式沒改。
+
+同一輪使用者要側欄可以收合，做法比照園務系統：
+
+- 收合鈕在品牌列右邊。按了收成 64px 圖示欄，再按展開。
+- 收合狀態記在瀏覽器裡（`ivy-admin-sidebar-collapsed`）。
+- 圖示欄不畫分組標題，所有項目都列出來，分組之間用細線隔開。
+- 名稱用浮動提示顯示，滑鼠滑過或鍵盤停到都會出現。連結裡仍保留名稱給報讀器。
+- 搜尋框換成搜尋鈕。按它或 ⌘K 會先展開側欄，再把焦點放進搜尋框。
+- 帳號區只留頭像與登出。
+- 手機抽屜不變。
+- 驗證：
+  - admin vitest 154 檔 2261 過，typecheck／build 過。
+  - stack 共 48 條全過：新的 `sidebar-collapse.spec.ts`，加上 a11y、keyboard、roles、visual。後台 4 張視覺基準已更新（品牌列多了收合鈕）。
+
 ## 2026-10-12 後台與官網內容一批補強（`feature/admin-batch-20261012`）
 
 使用者從 10-12 盤點挑出第 2、4、5、6、7、8 項，加上收尾技術債。規格 `docs/specs/2026-10-12-admin-batch-design.md`，計畫 `docs/superpowers/plans/2026-10-12-admin-batch.md`，分 A–D 四階段，每階段跑完整閘門。已合入 origin/main `fb34d3a1`。
