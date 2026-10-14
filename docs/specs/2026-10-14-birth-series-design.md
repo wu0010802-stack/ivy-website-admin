@@ -34,7 +34,7 @@ main 上已有：本校半徑「近 12 個月出生」「和前一年同月份�
 | S5 | 增減 | 每期和**前一期（更舊的）**比，只比兩期都有資料的同月份；可比月份不到 6 個，或前一期可比的出生不到 20 位，不算（—）；最舊的一期沒有前一期，也是（—）；`baseline.births_change_pct` 用同一個函式 | 沿用 A 段「只比兩段都有的月份」的作法；20 位門檻擋 1 公里半徑小數字亂跳 |
 | S6 | 缺月 | **不估算、不補值**；缺的月份列在該期，畫面寫出來 | 111-03 兩個來源都查無（§2），那一期永遠是 11 個月 |
 | S7 | 回補與到期 | 部署後第一輪回補到視窗起點；回補沒到頭時隔天續補，到頭才回到每 30 天一次（§4.1） | 現有規則只看 30 天，回補一半失敗要等一個月 |
-| S8 | 退路 | 打包腳本出生改 72 個月；`--births-file`、`--bundle` 照舊 | 正式站連不連得到 ris.gov.tw 沒實測，同 A 段 |
+| S8 | 退路 | 打包腳本出生改 72 個月；`--births-file`、`--bundle` 照舊 | Railway 連得到 ris.gov.tw（10-14 里的變化第一輪同步實測）；72 個月回補的量正式站還沒實測，失敗才走打包 |
 | S9 | 畫面 | 「里的變化」區塊內、總結句下面、里表上面，自己的 ARIA table 加 CSS 橫向長條，最新一期在最上面；缺月小字註明 | 長條樣式同 `StatsDimensionTable`（不嵌套第二個 `StatsDimensionTable`，會讓外層「里的變化」表的 `thead`、`tbody` 選擇器選到兩張表；計畫裁定 R1）；不裝圖表套件、數字一律寫出來 |
 | S10 | 契約 | API 多 `baseline.births_series`；`openapi.json` 與 `website-api.d.ts` 重新產生 | 既有流程 |
 | S11 | migration | **不新增**；`geo_village_births` 結構不變，只改保留月數 | 沒有備份閘門，不會和別的分支撞 migration 序號 |
@@ -147,7 +147,7 @@ main 上已有：本校半徑「近 12 個月出生」「和前一年同月份�
 
 - 沒有 migration：不需要部署前備份，不會和其他分支撞序號。
 - **回退**：可直接切回前一個映像。舊程式下一次寫入出生時會把多出的月份裁回 25 個月，資料不會壞；舊程式仍抓 ODRP010，ODRP010 缺的月份照舊缺。
-- 上線後第一輪（`WEBSITE_GEO_AUTO_SYNC=true` 已在 api 開啟）約 50 個請求、5～8 分鐘；失敗寫進 `geo_dataset_status.last_error`，退路是本機 `fetch_geo_bundle.py` 打包再上傳。Railway 連不連得到 ris.gov.tw 沒實測（A 段同樣未知）。
+- 上線後第一輪（`WEBSITE_GEO_AUTO_SYNC=true` 已在 api 開啟）預估約 50 個請求、5～8 分鐘；失敗寫進 `geo_dataset_status.last_error`，退路是本機 `fetch_geo_bundle.py` 打包再上傳。Railway 連得到 ris.gov.tw（10-14 里的變化第一輪同步實測）；72 個月回補的請求數與時間正式站還沒實測。
 - 檢查：`select min(month), max(month), count(distinct month) from geo_village_births;`，補完後預期 109-10、最新月份、71 個月（缺 111-03）；`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'births';`。
 - 部署後在 `deploy/README.md` 補紀錄。
 
