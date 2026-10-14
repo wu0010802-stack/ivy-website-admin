@@ -1,3 +1,23 @@
+## 2026-10-14 招生區域：里的變化 B1 段（新成屋同步與門牌比對；`feature/admissions-new-homes-20261014`，疊在 D 段 PR #44 上）
+
+照規格 §12 做 B1：只做同步與比對，**API 與畫面都不加**（業主確認命中率量完前不上畫面）。B2（`new_homes` 欄位、「近 4 季新屋」欄、「新屋交屋」著色）要先在台灣網路跑命中率報告、到里 ≥ 90% 才做。**未部署**，要等 A、C、D 段先合併。
+
+- **資料**：內政部實價登錄高雄市買賣季檔（`https://plvr.land.moi.gov.tw/DownloadSeason?season=115S3&fileName=e_lvr_land_a.csv`，一季約 3.5 MB）併進公開資料同步，留最新季往回 8 季。季別或檔案不存在時來源回 HTTP 200 的錯誤頁，當成那一季還沒出；約一成請求被 reset，沿用 C 段的重試。
+- **新成屋（V7）**：交易標的含建物、主要用途含住、建築完成年月在登記期間迄日的月份往前 12 個月內，含預售屋交屋。115S2 2,892 筆、115S3 3,805 筆，和規格實測相同。
+- **比對**：沿用門牌比對（`matcher.locate_parsed`，從 `locate` 拆出），只存門牌鍵與比對結果，不存地址原文、價格、面積。門牌尚未匯入時是 pending；同步結束時，比對時門牌月份和使用中不同的列整批重比。migration `e4f1a8c6b203` 只新增 `geo_new_home_sales`、放寬一個約束。
+- **順手修**：`address.py` 讀「２號之１三樓」會丟掉之號（阿拉伯數字之號接中文數字樓層），家長地址也受益。
+- **CLI 與工具**：
+  - `geo-sync --new-homes-file 115S3_e_lvr_land_a.csv [--new-homes-season 115S3]`。
+  - 打包檔帶 8 季。
+  - `geo_match_report.py --new-homes <檔> --season 115S3` 量到里（exact＋nearby＋street）的比例，門檻 90%。
+- **真資料實測**：本機用 CLI 匯入 113S4～115S3 8 季共 26,035 筆、3,413 個門牌鍵，約 34 秒，表約 5 MB。本機只有 73 筆門牌樣本，比對幾乎都只到區，不代表命中率。
+- **驗證**：
+  - `test_geo_new_homes.py`（季別、V7 篩選與邊界、錯誤頁、回補 8 季、較新季覆蓋、reset 重試、中途失敗、比對各等級與 pending、門牌換版重比、檔案、CLI、打包）。
+  - `test_geo_address.py` 加「號之１三樓」。
+  - `test_geo_sync.py` 的假網站補上所得、新成屋來源。
+  - geo 相關測試共 179 過。
+- **未驗證**：命中率（雲端與正式站都連不到 `data.kcg.gov.tw` 下載門牌）；正式站能不能連 `plvr.land.moi.gov.tw`。
+
 ## 2026-10-14 招生區域：里的變化 D 段（國小學區；`feature/admissions-school-districts-20261014`，疊在 C 段 PR #43 上）
 
 照規格 §12 的順序接著做 D 段。業主 10-14 確認用 115 學年版上線（V10）。**未部署**，要等 A、C 段先合併；D 段沒有 migration、沒有同步。
