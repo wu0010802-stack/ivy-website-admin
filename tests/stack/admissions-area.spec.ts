@@ -452,8 +452,7 @@ test('近幾年的出生數：6 期、缺月註明、增減只比兩期都有的
       const children = [...element.querySelectorAll('.trends-summary, .birth-series, table.stats-table')]
       return children.map((child) => (child.matches('.trends-summary') ? 'summary' : child.matches('.birth-series') ? 'series' : 'table'))
     })
-    expect(order.indexOf('summary')).toBeLessThan(order.indexOf('series'))
-    expect(order.indexOf('series')).toBeLessThan(order.indexOf('table'))
+    expect(order).toEqual(['summary', 'series', 'table'])
   })
 
   await test.step('新區塊沒有 serious／critical 的無障礙問題', async () => {

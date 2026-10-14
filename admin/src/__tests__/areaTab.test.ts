@@ -831,8 +831,15 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(rows[2]!.get('.birth-series__missing').text()).toBe('缺 113 年 3 月')
     // 順序：總結句 → 近幾年的出生數 → 里表；而且新區塊沒有 <table>，原表頭與列不受影響。
     const html = section.html()
-    expect(html.indexOf('trends-summary')).toBeLessThan(html.indexOf('birth-series'))
-    expect(html.indexOf('birth-series')).toBeLessThan(html.indexOf('<table'))
+    const summaryAt = html.indexOf('trends-summary')
+    const seriesAt = html.indexOf('birth-series')
+    const tableAt = html.indexOf('<table')
+    // 三個標記都要在；缺一個時 indexOf 回 −1，後面的大小比較會恆真而空轉。
+    expect(summaryAt).toBeGreaterThan(-1)
+    expect(seriesAt).toBeGreaterThan(-1)
+    expect(tableAt).toBeGreaterThan(-1)
+    expect(summaryAt).toBeLessThan(seriesAt)
+    expect(seriesAt).toBeLessThan(tableAt)
     expect(series.find('table').exists()).toBe(false)
     expect(section.findAll('thead th')).toHaveLength(10)
   })

@@ -6,7 +6,7 @@ import { formatCount, populationVersionLabel, signedPercent } from './areaFormat
 // 近幾年的出生數（2026-10-14 出生走勢規格 §4.3）：本校半徑每 12 個月一期的出生數。只呈現後端算好的數字，
 // 不另外推估；缺月寫出來，不補值。
 
-export const BIRTH_SERIES_NOTE = '每 12 個月一期，加總本校半徑內各里的出生數；出生依出生登記的戶籍里。資料來源：內政部戶政司。'
+export const BIRTH_SERIES_NOTE = '每 12 個月一期，加總本校半徑內各里的出生數；和前一期只比兩期都有資料的月份；出生依出生登記的戶籍里。資料來源：內政部戶政司。'
 
 export interface BirthSeriesRow {
   key: string

@@ -117,18 +117,20 @@ function exportCsv() {
 }
 
 .birth-series__figure {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
   white-space: nowrap;
 }
 
 .birth-series__bar {
-  display: inline-block;
+  flex: none;
   width: 72px;
   height: 6px;
-  margin-right: 8px;
   overflow: hidden;
   border-radius: 3px;
   background: var(--surface-3);
-  vertical-align: middle;
 }
 
 .birth-series__fill {
@@ -143,7 +145,15 @@ function exportCsv() {
   font-variant-numeric: tabular-nums;
 }
 
-.birth-series__change {
+/* 固定寬度，長條左緣才不會因位數不同而漂移；要容得下 5 位數加千分位 */
+.birth-series__number {
+  min-width: 3.5em;
+  text-align: right;
+}
+
+/* 表頭與其欄對齊：第 2、3 格（含表頭）一律靠右，期間欄維持靠左、可換行 */
+.birth-series__row > :nth-child(2),
+.birth-series__row > :nth-child(3) {
   text-align: right;
 }
 
@@ -153,7 +163,7 @@ function exportCsv() {
 
 @media (max-width: 720px) {
   .birth-series__row {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) 104px 64px;
     padding: 8px 10px;
   }
 
