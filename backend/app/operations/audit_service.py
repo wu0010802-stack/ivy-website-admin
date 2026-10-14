@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Literal
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import String, Text, and_, cast, func, or_, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -90,6 +93,58 @@ def _visit_exists(entry: AuditLogEntry, existing: set[uuid.UUID]) -> bool | None
     return visit_id in existing
 
 
+# 操作者篩選「系統」：排程發布、每天清理這類沒有操作者的紀錄。
+SYSTEM_ACTOR = "system"
+# 後台把一個搜尋字展開成「原字＋名稱含這個字的代碼」（2026-10-14 規格 §4），上限 30 個詞。
+MAX_SEARCH_TERMS = 30
+
+
+def _like_pattern(text: str) -> str:
+    """使用者打的 %、_ 與反斜線是字面值（同案件搜尋）。"""
+    needle = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{needle}%"
+
+
+def _json_text(term: str) -> str:
+    """metadata 存的是 json.dumps 預設（ensure_ascii）的文字，中文是 \\uXXXX：把搜尋字用同一種
+    方式轉義後再比對原文。不轉 jsonb：只要有一筆 metadata 含 \\u0000，轉型就會失敗、整個搜尋跟著壞。"""
+    return json.dumps(term)[1:-1]
+
+
+def _search_condition(actor, terms: Sequence[str], *, search_ip: bool):
+    """任一個詞出現在動作、對象、校區、操作者、對象帳號、裝置、metadata（與看得到 IP 的人的 IP）就算。"""
+    target = aliased(User)
+    entry_fields = [
+        AuditLogEntry.action,
+        AuditLogEntry.target_type,
+        AuditLogEntry.target_id,
+        AuditLogEntry.campus_key,
+        AuditLogEntry.user_agent,
+        actor.email,
+        actor.display_name,
+    ]
+    if search_ip:
+        entry_fields.append(AuditLogEntry.ip_address)
+    conditions = []
+    target_conditions = []
+    for term in terms:
+        pattern = _like_pattern(term)
+        conditions += [field.ilike(pattern, escape="\\") for field in entry_fields]
+        conditions.append(cast(AuditLogEntry.metadata_json, Text).ilike(_like_pattern(_json_text(term)), escape="\\"))
+        target_conditions += [target.email.ilike(pattern, escape="\\"), target.display_name.ilike(pattern, escape="\\")]
+    # 對哪個帳號（target_type 為 user）：對方的 email 與顯示名稱也搜得到，同畫面上的「對象」。
+    target_match = (
+        select(target.id)
+        .where(
+            AuditLogEntry.target_type == "user",
+            cast(target.id, String) == AuditLogEntry.target_id,
+            or_(*target_conditions),
+        )
+        .exists()
+    )
+    return or_(*conditions, target_match)
+
+
 async def list_recent(
     db: AsyncSession,
     campus_key: str | None,
@@ -99,10 +154,16 @@ async def list_recent(
     exclude_login: bool = False,
     since: datetime | None = None,
     until: datetime | None = None,
+    actor_filter: uuid.UUID | Literal["system"] | None = None,
+    terms: Sequence[str] = (),
+    search_ip: bool = False,
 ) -> list[AuditRow]:
     """新的在前，一次 limit 筆。before 是上一頁最後一筆的 (created_at, id)，
     傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。
-    since（含）、until（不含）是 UTC，路由先把台北日期換好。"""
+    since（含）、until（不含）是 UTC，路由先把台北日期換好。
+
+    actor_filter：某個帳號，或 SYSTEM_ACTOR（沒有操作者的紀錄）。terms：任一個詞符合就列
+    （比對範圍見 _search_condition）；search_ip 只給看得到 IP 的人（總部），其他人不能用搜尋猜 IP。"""
     actor = aliased(User)
     stmt = (
         select(AuditLogEntry, actor.email, actor.display_name)
@@ -112,6 +173,12 @@ async def list_recent(
     )
     if campus_key:
         stmt = stmt.where(AuditLogEntry.campus_key == campus_key)
+    if actor_filter == SYSTEM_ACTOR:
+        stmt = stmt.where(AuditLogEntry.actor_user_id.is_(None))
+    elif actor_filter is not None:
+        stmt = stmt.where(AuditLogEntry.actor_user_id == actor_filter)
+    if terms:
+        stmt = stmt.where(_search_condition(actor, terms, search_ip=search_ip))
     if before is not None:
         stmt = stmt.where(tuple_(AuditLogEntry.created_at, AuditLogEntry.id) < tuple_(*before))
     if exclude_login:
@@ -153,4 +220,37 @@ async def list_recent(
             target_exists=_visit_exists(entry, existing_visits),
         )
         for entry, actor_email, actor_display_name in rows
+    ]
+
+
+@dataclass(frozen=True)
+class ActorOption:
+    """操作者篩選的一個選項。user_id 為 None 是「系統」（沒有操作者的紀錄）。"""
+
+    user_id: uuid.UUID | None
+    email: str | None
+    display_name: str | None
+    last_at: datetime
+
+
+# 操作者下拉最多列幾個（最近操作的在前）。
+MAX_ACTOR_OPTIONS = 200
+
+
+async def list_actors(db: AsyncSession, campus_key: str | None) -> list[ActorOption]:
+    """這個範圍內出現過的操作者（含系統），最近操作的在前。只列操作紀錄裡本來就看得到的人。"""
+    last_at = func.max(AuditLogEntry.created_at).label("last_at")
+    grouped = select(AuditLogEntry.actor_user_id, last_at).group_by(AuditLogEntry.actor_user_id)
+    if campus_key:
+        grouped = grouped.where(AuditLogEntry.campus_key == campus_key)
+    sub = grouped.subquery()
+    rows = await db.execute(
+        select(sub.c.actor_user_id, User.email, User.display_name, sub.c.last_at)
+        .outerjoin(User, and_(User.id == sub.c.actor_user_id))
+        .order_by(sub.c.last_at.desc())
+        .limit(MAX_ACTOR_OPTIONS)
+    )
+    return [
+        ActorOption(user_id=user_id, email=email, display_name=display_name, last_at=at)
+        for user_id, email, display_name, at in rows.all()
     ]
