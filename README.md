@@ -1,3 +1,24 @@
+## 2026-10-14 全專案 bug 盤點與兩條修正（`feature/fix-entrance-publish-lock-20261014`）
+
+使用者要「看看專案有沒有 bugs」：官網、後台、API 分五塊逐檔審查，每條候選都追到實際呼叫路徑再判斷。沒有高嚴重度問題；修了影響最大的兩條，其餘低嚴重度的列在下面待排。
+
+- **首頁開場簾幕蓋住整頁 5.5 秒**：先進內頁（例如從搜尋結果進 `/admission`）、再點頁首校徽或麵包屑回首頁，整頁被靜態布幕圖蓋住 5.5 秒、開場也不播，點擊還會穿過去點到看不見的頁面。原因是站內換頁時 unhead 會在 `EntranceCurtain` 掛載、判斷完不播之後才重新插入 head 的 bootstrap，它又把 `data-ivy-entrance` 設成 pending。bootstrap 改成只有 SSR 解析中的那一份（`document.readyState==='loading'`）能啟動（`web/app/utils/entrance-policy.ts`）。
+- **排程發布與退回審核互等成死結**：排程到期時先鎖排程列再等站台鎖，退回是站台 → 這一版 → 取消這一版的排程，順序相反。被中止的若是審核者，拿到 500 而退回的內容照樣上線；若是排程，這一輪其餘到期的排程整批延後。排程改成先拿站台鎖再鎖排程列（`backend/app/content/publish_jobs.py`），其他碰排程列的路徑（取消、標成已處理）都只鎖排程列，不會因此多出新的死結。
+- **驗證**（Node 22.22、本機 PostgreSQL 16、Chromium headless）：
+  - 修正前全套：web typecheck 通過、vitest 1225 過；admin typecheck 通過、vitest 2341 過 1 略過；後端 pytest 2640 過；`contract:check` 一致；部署腳本 22 過。
+  - 修正後：web vitest 1227 過（新增 readyState 兩例）、typecheck 通過；後端新增 `test_reject_and_due_schedule_concurrently_does_not_deadlock`，用舊程式跑會 `DeadlockDetectedError`、修正後連跑 5 次都過；內容／排程／維護相關 236 項通過。
+  - dev server（fixture）上實測 1440 與 390：首次進首頁布幕照常播；`/admission` 點校徽回首頁不再出現蓋層。
+- **其餘已確認、未修**（低嚴重度，待排）：
+  - 家長點管理連結與園方取消／改期同時發生可能死結，一邊 500、資料不壞（`booking/access_service.py` `exchange_token` 先鎖 token 再插 session；結案、改期先鎖案件再改 token）。
+  - 「重新產生連結」「重寄確認信」用取鎖前讀到的場次算效期（`booking/access_routes.py`；`lock_status` 只重讀 status、slot_id），10-13 修過 `update_details_by_staff` 的同類問題，這兩支漏了。
+  - 連結已過期後園方改期，變更信沒有管理連結（`extend_token_expiry` 只延長有效的連結，不補發）。
+  - 30 週年蛋糕：權限視窗開著時離開頁面再按允許，麥克風一直開到重新整理（`anniversary/cake.ts` `startMic` await 後沒檢查已銷毀）。
+  - 後台三處把部署中 502 的 HTML 原文跳給員工看（`ParentAccessLinkPanel.vue`、`PublishHistoryView.vue`、`mediaUpload.ts` 沒看 `err.json`）。
+  - 後台聯絡紀錄、追蹤對話框的「取消」繞過放棄確認（`ContactLogDialog.vue`、`FollowUpDialog.vue`）。
+  - 頁首「內容通知未讀」在發布紀錄頁標成已讀後最多 30 秒不更新。
+  - 最早四支 migration 的 downgrade 沒刪 enum 型別，downgrade 後再 upgrade 會失敗（正式站不會自動 downgrade）。
+  - `/anniversary` 的開場 head 腳本是同一種寫法；從內頁站內換頁進去實測開場照常播，沒有重現，未改。
+
 ## 2026-10-13 全站精修：以國際設計獎的完成度逐頁檢查（`claude/award-polish-20261013`，PR #37）
 
 使用者要「以 awwwards、webby、FWA 得獎的程度為目標，自我檢查、反覆提升到達標」。只改 `web/`，已定案的方向不動，只修執行瑕疵；規則與待決定事項見 DESIGN.md 最上方一節。
