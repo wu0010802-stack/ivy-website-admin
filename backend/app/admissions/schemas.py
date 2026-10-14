@@ -1070,6 +1070,13 @@ class AreaTrendsIncomeSourceOut(BaseModel):
     note: str
 
 
+class AreaTrendsSchoolDistrictSourceOut(BaseModel):
+    """國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。"""
+
+    school_year: int
+    note: str
+
+
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
@@ -1077,6 +1084,7 @@ class AreaTrendsSourcesOut(BaseModel):
     # 內政部戶政司三個資料集的來源（一句）。
     note: str
     income: AreaTrendsIncomeSourceOut
+    school_districts: AreaTrendsSchoolDistrictSourceOut
 
 
 class AreaTrendsBaselineOut(BaseModel):
@@ -1094,6 +1102,17 @@ class AreaTrendsBaselineOut(BaseModel):
     births_change_pct: float | None
     migration_net_12m: int | None
     migration_months: int
+
+
+class AreaTrendsVillageSchoolOut(BaseModel):
+    """一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。
+    district 是學校所在的區（有同名學校，畫面寫「區＋校名」）。"""
+
+    code: str
+    name: str
+    district: str
+    partial: bool
+    free_zone: bool
 
 
 class AreaTrendsVillageOut(BaseModel):
@@ -1118,6 +1137,27 @@ class AreaTrendsVillageOut(BaseModel):
     # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。
     income_median: int | None
     income_boundary_changed: bool
+    # 國小學區（D 段）：整里在前、部分在後。
+    schools: list[AreaTrendsVillageSchoolOut]
+
+
+class AreaTrendsSchoolOut(BaseModel):
+    """依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區
+    的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕
+    ／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；
+    rate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。"""
+
+    code: str
+    name: str
+    district: str
+    enrollment: Literal["district", "open", "spacious", "capped"]
+    villages_full: int
+    villages_partial: int
+    children: int | None
+    kids_net: int | None
+    kids_partial: bool
+    visit: int
+    rate: float | None
 
 
 class AreaTrendsOut(BaseModel):
@@ -1133,3 +1173,5 @@ class AreaTrendsOut(BaseModel):
     kids_unavailable: Literal["no_population", "no_year_ago", "no_migration"] | None
     # 依這一年淨增由大到小（算不出來的在最後）；同值依 2–5 歲孩子、區、里名。
     villages: list[AreaTrendsVillageOut]
+    # 依參觀人數由大到小；同值依 2–5 歲孩子、學校所在區、校名。本校沒座標時是空的。
+    schools: list[AreaTrendsSchoolOut]

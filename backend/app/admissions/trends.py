@@ -12,6 +12,9 @@
 - 分級（V6）：戶籍是全數登記不是抽樣，不做統計檢定，用固定門檻。
 - 所得（V9，C 段）：最新年度的中位數，只當背景，不排序、不分級、不進合計。合併組不列（中位數不能相加）；
   里界在所得年度之後調整過（V5 的門檻，看遷入遷出表裡所有存著的月份）的里照列，另標 income_boundary_changed。
+- 國小學區（V10、V11，D 段）：每列寫對到的國小（部分鄰、自由學區另標）。「依國小學區」只列學區碰到半徑內任一個里
+  的國小，每所合計**整個學區**（含半徑外的里）的孩子、這一年淨增與參觀人數；部分里與自由學區的里同時算進每一所，
+  各列不能相加。參觀人數的母體同 /area/opportunity（頁首校區＋入學學年學期，到里且未匿名化）。
 
 這些都是描述性的數字，不預測、不打分（招生統計「不做」清單不變）。"""
 
@@ -28,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
+from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
@@ -38,6 +42,8 @@ from app.admissions.geo.models import (
     GeoVillagePopulation,
 )
 from app.admissions.geo.projection import haversine_m
+from app.admissions.opportunity import visits_by_village
+from app.admissions.stats import pct
 
 # 本月 2–5 歲（幼兒園年紀，同招生機會）；一年前的同一批孩子是 1–4 歲。
 KIDS_BAND = (2, 5)
@@ -194,6 +200,85 @@ def _sum_ages(row: GeoVillageAges | GeoVillagePopulation | None, band: tuple[int
     return sum(getattr(row, f"age_{age}") for age in range(band[0], band[1] + 1))
 
 
+def _unit_schools(codes: list[str]) -> list[dict[str, Any]]:
+    """一列（一個里或合併組）對到的國小：整里在前、部分在後，同級依校名。合併組裡只要有一個里只屬部分鄰、或
+    有里不屬這所，就算部分。"""
+    found: dict[str, dict[str, Any]] = {}
+    for code in codes:
+        for item in sd.by_village().get(code, ()):
+            school = sd.schools()[item.school_code]
+            entry = found.setdefault(
+                item.school_code,
+                {"code": school.code, "name": school.name, "district": school.district, "partial": False,
+                 "free_zone": False, "villages": 0},
+            )
+            entry["partial"] = entry["partial"] or item.partial
+            entry["free_zone"] = entry["free_zone"] or item.free_zone
+            entry["villages"] += 1
+    rows = []
+    for entry in found.values():
+        villages = entry.pop("villages")
+        entry["partial"] = entry["partial"] or villages < len(codes)
+        rows.append(entry)
+    return sorted(rows, key=lambda row: (row["partial"], row["name"], row["district"]))
+
+
+async def _schools(
+    db: AsyncSession,
+    touched: list[str],
+    data: _Data,
+    *,
+    adjusted: set[str],
+    kids_months: list[str],
+    campus_key: str,
+    school_year: int | None,
+    semester: int | None,
+) -> list[dict[str, Any]]:
+    """依國小學區（規格 §5.9）：每所合計整個學區的里。這一年淨增只加算得出的里（里界調整過、或缺一年前年齡的
+    另標 kids_partial）；kids_months 是空的（全部算不出來）時是 null。"""
+    if not touched:
+        return []
+    visits, _ = await visits_by_village(db, campus_key, school_year, semester)
+    rows = []
+    for school_code in touched:
+        school = sd.schools()[school_code]
+        items = sd.by_school()[school_code]
+        codes = [item.village_code for item in items]
+        with_population = [code for code in codes if code in data.population]
+        children = sum(_sum_ages(data.population[code], KIDS_BAND) for code in with_population) if with_population else None
+        kids_net, kids_partial = None, False
+        if kids_months:
+            countable = [
+                code for code in codes
+                if code not in adjusted and all(code in data.ages.get(month, {}) for month in kids_months)
+            ]
+            kids_partial = len(countable) < len(codes)
+            if countable:
+                kids_net = sum(
+                    _sum_ages(data.ages[kids_months[1]][code], KIDS_BAND)
+                    - _sum_ages(data.ages[kids_months[0]][code], YEAR_AGO_BAND)
+                    for code in countable
+                )
+        visit = sum(visits.get(code, 0) for code in codes)
+        rows.append(
+            {
+                "code": school.code,
+                "name": school.name,
+                "district": school.district,
+                "enrollment": school.enrollment,
+                "villages_full": sum(not item.partial for item in items),
+                "villages_partial": sum(item.partial for item in items),
+                "children": children,
+                "kids_net": kids_net,
+                "kids_partial": kids_partial,
+                "visit": visit,
+                "rate": pct(visit, children) if children else None,
+            }
+        )
+    rows.sort(key=lambda row: (-row["visit"], -(row["children"] or 0), row["district"], row["name"]))
+    return rows
+
+
 async def query_trends(
     db: AsyncSession,
     campus_key: str,
@@ -224,10 +309,12 @@ async def query_trends(
             "migration": {"latest": migration_latest, "months": [], "missing": []},
             "note": series_io.SOURCE_NOTE,
             "income": {"year": None, "note": ""},
+            "school_districts": {"school_year": sd.SCHOOL_DISTRICT_YEAR, "note": sd.SOURCE_NOTE},
         },
         "baseline": None,
         "kids_unavailable": None,
         "villages": [],
+        "schools": [],
     }
     if campus["lat"] is None or campus["lng"] is None:
         return result
@@ -239,7 +326,10 @@ async def query_trends(
         if distance <= radius_m:
             near[code] = _round_distance(distance)
     names = boundaries.village_names()
-    districts = {names[code][0] for code in near}
+    # 學區碰到半徑內任一個里的國小，整個學區的里都要讀（含半徑外的里所在的區）。
+    touched = sorted({item.school_code for code in near for item in sd.by_village().get(code, ())})
+    school_villages = {item.village_code for school in touched for item in sd.by_school()[school]}
+    districts = {names[code][0] for code in (*near, *school_villages) if code in names}
     data = await _load(
         db,
         districts,
@@ -326,6 +416,7 @@ async def query_trends(
         merged = unit["key"].startswith("group:")
         villages.append(
             {
+                "schools": _unit_schools(current_codes),
                 "key": unit["key"],
                 "district": unit["district"],
                 "village": "、".join(names[code][1] for code in current_codes),
@@ -356,6 +447,10 @@ async def query_trends(
         )
     )
     result["villages"] = villages
+    result["schools"] = await _schools(
+        db, touched, data, adjusted=adjusted, kids_months=kids_months if unavailable is None else [],
+        campus_key=campus_key, school_year=school_year, semester=semester,
+    )
 
     all_codes = [code for row in villages for code in row["codes"]]
     compared = [

@@ -3933,6 +3933,8 @@ export interface components {
             kids_unavailable: ("no_population" | "no_year_ago" | "no_migration") | null;
             /** Radius Km */
             radius_km: number;
+            /** Schools */
+            schools: components["schemas"]["AreaTrendsSchoolOut"][];
             sources: components["schemas"]["AreaTrendsSourcesOut"];
             /** Villages */
             villages: components["schemas"]["AreaTrendsVillageOut"][];
@@ -3947,6 +3949,50 @@ export interface components {
             /** Year Ago Month */
             year_ago_month: string | null;
         };
+        /**
+         * AreaTrendsSchoolDistrictSourceOut
+         * @description 國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。
+         */
+        AreaTrendsSchoolDistrictSourceOut: {
+            /** Note */
+            note: string;
+            /** School Year */
+            school_year: number;
+        };
+        /**
+         * AreaTrendsSchoolOut
+         * @description 依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區
+         *     的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕
+         *     ／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；
+         *     rate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。
+         */
+        AreaTrendsSchoolOut: {
+            /** Children */
+            children: number | null;
+            /** Code */
+            code: string;
+            /** District */
+            district: string;
+            /**
+             * Enrollment
+             * @enum {string}
+             */
+            enrollment: "district" | "open" | "spacious" | "capped";
+            /** Kids Net */
+            kids_net: number | null;
+            /** Kids Partial */
+            kids_partial: boolean;
+            /** Name */
+            name: string;
+            /** Rate */
+            rate: number | null;
+            /** Villages Full */
+            villages_full: number;
+            /** Villages Partial */
+            villages_partial: number;
+            /** Visit */
+            visit: number;
+        };
         /** AreaTrendsSourcesOut */
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
@@ -3955,6 +4001,7 @@ export interface components {
             /** Note */
             note: string;
             population: components["schemas"]["AreaTrendsPopulationSourceOut"];
+            school_districts: components["schemas"]["AreaTrendsSchoolDistrictSourceOut"];
         };
         /**
          * AreaTrendsVillageOut
@@ -3992,8 +4039,27 @@ export interface components {
             merged: boolean;
             /** Migration Net 12M */
             migration_net_12m: number | null;
+            /** Schools */
+            schools: components["schemas"]["AreaTrendsVillageSchoolOut"][];
             /** Village */
             village: string;
+        };
+        /**
+         * AreaTrendsVillageSchoolOut
+         * @description 一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。
+         *     district 是學校所在的區（有同名學校，畫面寫「區＋校名」）。
+         */
+        AreaTrendsVillageSchoolOut: {
+            /** Code */
+            code: string;
+            /** District */
+            district: string;
+            /** Free Zone */
+            free_zone: boolean;
+            /** Name */
+            name: string;
+            /** Partial */
+            partial: boolean;
         };
         /** AreaVillageRowOut */
         AreaVillageRowOut: {

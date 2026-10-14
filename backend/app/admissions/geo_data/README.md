@@ -36,3 +36,55 @@ npx -y mapshaper@0.7.80 VILLAGE_NLSC_*.shp encoding=utf8 \
 ```
 
 換版時同步改 `boundaries.py` 的 `BOUNDARY_VERSION`，並重跑 `tests/test_geo_boundaries.py`。
+
+# 國小學區（里的變化 D 段，2026-10-14）
+
+`school-districts-115.csv`、`elementary-schools-115.csv`：高雄市 115 學年度的「里 → 國小」對照與學校名錄，給
+`app/admissions/geo/school_districts.py` 讀（`SCHOOL_DISTRICT_YEAR = 115`），區域分析「里的變化」表的「國小學區」欄與
+「依國小學區」表用。不建資料表、不同步，每學年人工換一次檔。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md`
+§2.4、§3.4、§4.5。
+
+- 來源：高雄市政府教育局「115 學年度國民小學學區劃分一覽表」PDF（23 頁，2026-01-07 建立，副本
+  `https://orgws.kcg.gov.tw/001/KcgOrgUploadFiles/237/RelFile/15482/507212/e07df8bf-d1de-4188-a87e-89c4c3909f6b.pdf`，
+  sha256 `13a22f4074a5fc7f3dfd6c6f5748cef45b807657ed8f6d7ec2647226eee4eab5`）；學校代碼與地址取教育部「國民小學名錄」
+  `https://stats.moe.gov.tw/files/school/115/e1_new.csv`（data.gov.tw 6087），高雄市公立 238 所。
+- `school-districts-115.csv`：一列一個（里、學校），1,120 列、893 個里全有學校。欄位 `village_code`、`district`、
+  `village`、`school_code`（教育部代碼；分校是「本校代碼-分校名」）、`coverage`（`full` 整里／`partial` 部分鄰）、
+  `neighborhoods`（一覽表原文的鄰範圍，只當說明、不拿來算）、`free_zone`（和別校自由學區）、`note`。
+  一個里對到 1 所 700 個、2 所 169、3 所 17、4 所 4、5 所 3。
+- `elementary-schools-115.csv`：241 個學校單位（238 所＋岡山國小灣裡分校、阿蓮國小峰山分校、廣興國小新威分校），
+  `enrollment` 取一覽表備註：實驗教育 7 校大學區（`open`）、空間充裕 38 校（`spacious`）、總量管制 13 校（`capped`），
+  其餘一般學區（`district`）。分校的區寫一覽表上分校那一列的區、地址留空（名錄只有本校地址）。
+- `school-districts-115-overrides.csv`：人工處理的 34 列，逐列寫原因：
+  - 改名、改制：新威國小 114 學年起是廣興國小新威分校；興中國小名錄改名興中原住民族小學。
+  - 不是里的條件：油廠國小的台灣中油、台積電員工子女，山頂國小的「內厝路以北、水源路以南」。
+  - 寫法：「崎漏區(崎漏里)」、峰山／峯山異體字。
+  - 里寫在學校所在的區（4 個：瑞隆里、湖內里、本洲里、頂鹽里）改回里所在的區。
+  - 表格漏標自由學區（一覽表備註有寫）：鳳山區光明里（曹公國小）、文衡里（文德、文華國小）。
+  - 115-07 里鄰調整（一覽表在調整前公告；對照依市府民政局 7 區 21 里調整的公告與新聞報導）：新設的 13 個里沿用調整前
+    的里——合併成的（北端←博愛＋慈愛、崇聖←聖西＋聖南、廍後←廍北＋廍南、南／北美術館←龍水）照抄整里或部分，
+    從還在的里分出的（福愛、福華、福榮←福山，菜福、高鐵←菜公，新超←新上，清翔←清豐，八德←八卦）一律算部分；
+    名字沒變、界線改了的五個里（福山、菜公、新上、清豐、八卦）加註「鄰範圍是調整前的編組」。
+    併進既有里的舊里（中南→中北、祥和→屏山、宏南→宏毅、縣口→成功）和併入的里同一所學校整里，不必處理。
+  - 灣內里：表格寫「2、8 鄰」、備註寫「2 至 8 鄰」，鄰範圍只存原文、加註。
+- 守門：`tests/test_school_districts.py`——里界檔每個里至少一所、代碼與里名和里界檔一致、每個學校代碼都在學校檔、
+  同一（里、學校）只一列、兩所以上整里一定是自由學區、115 學年版的筆數。里界換版時這裡會擋下沒更新的對照檔。
+
+## 換學年
+
+每年約 12 月草稿、1 月正式公告（116 學年版推估 2026-12～2027-01）：
+
+```bash
+cd backend
+# 1. 下載新的一覽表 PDF 與教育部名錄（學年換成新的）
+curl -sSLo /tmp/sd/districts-116.pdf '<教育局公告的 PDF 網址>'
+curl -sSLo /tmp/sd/e1_new.csv 'https://stats.moe.gov.tw/files/school/116/e1_new.csv'
+# 2. 複製 overrides 成新學年的檔，刪掉已不適用的列（腳本會列出「overrides 沒用到」）
+cp app/admissions/geo_data/school-districts-115-overrides.csv app/admissions/geo_data/school-districts-116-overrides.csv
+# 3. 轉換（pdfplumber 只在這支腳本用）；看報告：對不到里界、看不懂的項目、和上一學年比多出或少掉的對應
+uv run --with pdfplumber==0.11.4 python scripts/build_school_districts.py --pdf /tmp/sd/districts-116.pdf --schools /tmp/sd/e1_new.csv --year 116
+# 4. 補 overrides、重跑到報告乾淨；改 school_districts.py 的 SCHOOL_DISTRICT_YEAR、tests/test_school_districts.py 的筆數
+uv run pytest tests/test_school_districts.py
+```
+
+舊學年的三個檔在新學年上線後刪掉（程式只讀 SCHOOL_DISTRICT_YEAR 那一份）。

@@ -1,7 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrends, AreaTrendsVillage, KidsLevel, OpportunitySignal,
-  VillageBoundaries, VisitGeo,
+  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrends, AreaTrendsSchool, AreaTrendsVillage, KidsLevel,
+  OpportunitySignal, VillageBoundaries, VisitGeo,
 } from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
@@ -292,6 +292,43 @@ export function trendsPlaceName(row: Pick<AreaTrendsVillage, 'district' | 'villa
 export function incomeText(row: Pick<AreaTrendsVillage, 'income_median' | 'income_boundary_changed'>): string {
   if (row.income_median === null) return NO_VALUE
   return `${(row.income_median / 10).toFixed(1)} 萬${row.income_boundary_changed ? '*' : ''}`
+}
+
+/**
+ * 一列對到的國小（D 段）：「光武國小（部分）、陽明國小（部分）」；和別校是自由學區的加「自由學區」。
+ * 學校在別的區時前面加區名（有同名學校：民權、中山、成功…）。
+ */
+export function villageSchoolsText(row: Pick<AreaTrendsVillage, 'district' | 'schools'>, separator = '、'): string {
+  if (!row.schools.length) return NO_VALUE
+  return row.schools
+    .map((school) => {
+      const marks = [school.partial ? '部分' : '', school.free_zone ? '自由學區' : ''].filter(Boolean)
+      const name = school.district === row.district ? school.name : `${school.district}${school.name}`
+      return marks.length ? `${name}（${marks.join('，')}）` : name
+    })
+    .join(separator)
+}
+
+/** 學區里數：「12 里＋部分 3 里」「3 里」「部分 2 里」。 */
+export function schoolVillagesText(row: Pick<AreaTrendsSchool, 'villages_full' | 'villages_partial'>): string {
+  const parts = [
+    row.villages_full ? `${formatCount(row.villages_full)} 里` : '',
+    row.villages_partial ? `部分 ${formatCount(row.villages_partial)} 里` : '',
+  ].filter(Boolean)
+  return parts.join('＋') || NO_VALUE
+}
+
+export const ENROLLMENT_NOTES: Record<AreaTrendsSchool['enrollment'], string> = {
+  district: '',
+  open: '大學區（實驗教育）',
+  spacious: '空間充裕，可跨學區申請',
+  capped: '總量管制',
+}
+
+/** 學區的這一年淨增：有里沒算進去（里界調整過或缺一年前的年齡）加「*」；算不出來寫「—」。 */
+export function schoolKidsNetText(row: Pick<AreaTrendsSchool, 'kids_net' | 'kids_partial'>): string {
+  if (row.kids_net === null) return NO_VALUE
+  return `${signedCount(row.kids_net)}${row.kids_partial ? '*' : ''}`
 }
 
 const KIDS_UNAVAILABLE: Record<NonNullable<AreaTrends['kids_unavailable']>, string> = {
