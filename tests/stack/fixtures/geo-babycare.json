@@ -1,0 +1,8 @@
+{"type": "FeatureCollection", "features": [
+{"type": "Feature", "properties": {"id": "e2e-bc-near", "name": "高雄市私立測試甲托嬰中心", "city": "高雄市", "address": "813高雄市左營區測試路1號", "phone": "07-1111111", "capacity": 30, "status": 24, "is_active": true}, "geometry": {"type": "Point", "coordinates": [120.3085, 22.6745]}},
+{"type": "Feature", "properties": {"id": "e2e-bc-home", "name": "高雄市政府社會局委託測試單位辦理高雄市測試社區公共托育家園", "city": "高雄市", "address": "813高雄市左營區測試路2號", "phone": "07-2222222", "capacity": 12, "status": 12, "is_active": true}, "geometry": {"type": "Point", "coordinates": [120.3105, 22.6765]}},
+{"type": "Feature", "properties": {"id": "e2e-bc-mid", "name": "高雄市私立測試乙托嬰中心", "city": "高雄市", "address": "813高雄市左營區測試路3號", "phone": "07-3333333", "capacity": 40, "status": 20, "is_active": true}, "geometry": {"type": "Point", "coordinates": [120.315, 22.685]}},
+{"type": "Feature", "properties": {"id": "e2e-bc-far", "name": "高雄市私立測試丙托嬰中心", "city": "高雄市", "address": "813高雄市左營區測試路4號", "phone": "07-4444444", "capacity": 25, "status": 10, "is_active": true}, "geometry": {"type": "Point", "coordinates": [120.3, 22.71]}},
+{"type": "Feature", "properties": {"id": "e2e-bc-closed", "name": "高雄市私立測試已停業托嬰中心", "city": "高雄市", "address": "813高雄市左營區測試路5號", "phone": "07-5555555", "capacity": 20, "status": 0, "is_active": false}, "geometry": {"type": "Point", "coordinates": [120.3085, 22.6745]}},
+{"type": "Feature", "properties": {"id": "e2e-bc-tainan", "name": "臺南市私立測試丁托嬰中心", "city": "臺南市", "address": "700臺南市中西區測試路6號", "phone": "06-6666666", "capacity": 20, "status": 20, "is_active": true}, "geometry": {"type": "Point", "coordinates": [120.2167, 22.9997]}}
+]}

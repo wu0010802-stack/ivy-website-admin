@@ -47,7 +47,7 @@ unset WEBSITE_SMTP_HOST WEBSITE_LINE_MESSAGING_CHANNEL_SECRET WEBSITE_LINE_MESSA
   WEBSITE_GOOGLE_CLIENT_ID WEBSITE_GOOGLE_CLIENT_SECRET WEBSITE_GOOGLE_REDIRECT_URI \
   WEBSITE_LINE_CHANNEL_ID WEBSITE_LINE_CHANNEL_SECRET WEBSITE_LINE_REDIRECT_URI \
   WEBSITE_MEDIA_STORAGE WEBSITE_S3_BUCKET WEBSITE_S3_ACCESS_KEY_ID WEBSITE_S3_SECRET_ACCESS_KEY \
-  WEBSITE_GEO_AUTO_SYNC WEBSITE_GEO_DOORPLATE_URL WEBSITE_GEO_KINDERGARTENS_URL
+  WEBSITE_GEO_AUTO_SYNC WEBSITE_GEO_DOORPLATE_URL WEBSITE_GEO_KINDERGARTENS_URL WEBSITE_GEO_BABYCARE_URL
 
 rm -rf "$E2E_STATE_DIR/media" "$E2E_STATE_DIR/mail"
 mkdir -p "$E2E_STATE_DIR/media" "$E2E_STATE_DIR/mail"
@@ -60,13 +60,14 @@ cd "$root/backend"
   uv run --frozen alembic upgrade head
   uv run --frozen python -m app.cli seed
   uv run --frozen python -m app.cli initialize-content ../web/server/data/site-fixture.json
-  # 招生區域分析（2026-10-08）：匯入 stack 專用的門牌與幼兒園樣本（不連外）。五校校址都在樣本裡，
+  # 招生區域分析（2026-10-08）：匯入 stack 專用的門牌、幼兒園與托嬰樣本（不連外）。五校校址都在樣本裡，
   # 校區座標才算得出來；WEBSITE_GEO_AUTO_SYNC 維持預設關閉，背景不會去抓正式資料。
   # 招生機會（2026-10-13）：各里人口用 115 年 9 月高雄市 893 里的真實資料（內政部 ODRP014，只留 0–6 歲欄位），
   # 同步規定至少 850 個里才換版，所以不能只放幾個里。
   uv run --frozen python -m app.cli geo-sync \
     --doorplates-file ../tests/stack/fixtures/geo-doorplates.csv \
     --kindergartens-file ../tests/stack/fixtures/geo-preschools.json \
+    --babycare-file ../tests/stack/fixtures/geo-babycare.json \
     --population-file ../tests/stack/fixtures/geo-population-11509.json
   # bootstrap-admin 刻意只從 stdin 讀密碼（不接受命令列參數、不寫 log）。
   printf '%s\n%s\n%s\n' "$E2E_ADMIN_EMAIL" "$E2E_ADMIN_PASSWORD" "$E2E_ADMIN_PASSWORD" \

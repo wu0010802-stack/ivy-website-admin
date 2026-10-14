@@ -54,3 +54,23 @@ export function makeFollowUpDue(childName: string): void {
   )
   if (moved.split('\n').filter(Boolean).length !== 1) throw new Error(`下次聯絡沒有移動：${childName}`)
 }
+
+/**
+ * 附近園所的變化（2026-10-14）：同步一次只會建立基準，不會有異動；要看有內容的畫面只能直接寫測試庫。
+ * 寫兩件事（重複執行不會重複）：一所已停辦的托嬰（5 天前的停辦事件）、崇德校附近一所幼兒園設立日改成 40 天前
+ * （新設看設立日，不靠事件）。座標在崇德校 1 公里內。
+ */
+export function seedProviderChanges(): void {
+  psql(
+    `INSERT INTO geo_babycare (source_id, name, kind, address, lat, lng, approved_capacity, enrolled, phone, is_active, synced_at)
+     VALUES ('e2e-bc-gone', '高雄市私立測試已停辦托嬰中心', 'center', '高雄市左營區測試路9號', 22.6745, 120.3085, 30, 0, NULL, false, now())
+     ON CONFLICT (source_id) DO NOTHING;
+     INSERT INTO geo_provider_events (provider, source_id, change, occurred_on)
+     VALUES ('babycare', 'e2e-bc-gone', 'closed', (now() AT TIME ZONE 'Asia/Taipei')::date - 5)
+     ON CONFLICT DO NOTHING;
+     UPDATE geo_kindergartens
+        SET registered_on = (now() AT TIME ZONE 'Asia/Taipei')::date - 40
+      WHERE source_id = 'e2e-kg-quasi';`,
+    {},
+  )
+}

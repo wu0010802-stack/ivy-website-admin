@@ -1,8 +1,10 @@
 import { mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
+import { seedProviderChanges } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
@@ -10,6 +12,7 @@ import { ROOT } from './stack-env'
 // （不連外）。在崇德校建兩筆訪視——admissions-flow.spec 的統計斷言只看義華，不互相影響：
 // 一筆左營區新上里（距崇德約 1.2 公里）、一筆臺南地址（非高雄市）。地圖底圖圖磚一律攔下回透明圖，
 // 並確認它真的被請求、被 Leaflet 載入（blockTiles／expectTilesLoaded）。
+// 托嬰名單與園所變化（2026-10-14）：start-api.sh 另匯入托嬰樣本，db.ts 寫入停辦事件與新設日期。
 // 其餘：里界 GeoJSON 經官網代理壓成 gzip（2026-10-12）、390px 地圖「移動地圖」手勢、
 // 本校地址比對不到門牌（仁武校暫時改地址，結束還原）、1440／390 截圖（output/playwright/，給人看，
 // 不比對像素）與「頁面不橫向溢出」。
@@ -324,6 +327,98 @@ for (const { name, device } of VIEWPORTS) {
     await context.close()
   })
 }
+
+// 托嬰中心與園所變化（2026-10-14 規格 7）：start-api.sh 匯入 stack 專用的托嬰樣本（崇德校 3 公里內 3 所、
+// 3–6 公里 1 所）。同步只會建立基準、不會有異動，所以空狀態先看，再用 db.ts 寫入異動看有內容的畫面。
+test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊', async ({ browser }) => {
+  test.setTimeout(90_000)
+  mkdirSync(SHOTS, { recursive: true })
+  const { context, page } = await openAs(browser, 'super_admin')
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+  const changes = page.locator('.changes')
+
+  await test.step('預設是幼兒園清單，托嬰圖層沒有打開；變化區塊是空的並說明從哪天起記錄', async () => {
+    await expect(page.locator('.nearby .nearby__title')).toHaveText('附近幼兒園')
+    await expect(page.locator('.nearby--babycare')).toHaveCount(0)
+    await expect(page.locator('.area-map .area-bc')).toHaveCount(0)
+    await expect(changes.locator('.changes__title')).toHaveText('附近園所的變化')
+    await expect(changes.locator('.changes__empty')).toHaveText('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
+    await expect(changes.locator('.changes__note')).toHaveText(/^停辦與類型變動從 \d+ 月 \d+ 日起記錄；新設的幼兒園以設立日為準。$/)
+  })
+
+  await test.step('切到托嬰中心：3 公里內 3 所、總結、地圖自動出現菱形標點', async () => {
+    await page.locator('.nearby-panel .el-radio-button', { hasText: '托嬰中心' }).click()
+    const list = page.locator('.nearby--babycare')
+    await expect(list.locator('.nearby__title')).toHaveText('附近托嬰中心')
+    await expect(list.locator('.nearby__item')).toHaveCount(3)
+    await expect(list.locator('.nearby__summary')).toHaveText('3 公里內托嬰中心 3 所，核定 82 位，實際收托 56 位。')
+    await expect(list).toContainText('托育家園')
+    await expect(list).not.toContainText('已停業')
+    await expect(list).not.toContainText('測試丁')
+    await expect(page.locator('.area-map .area-bc')).toHaveCount(3)
+    await expect(page.locator('.area-legend[aria-label="托嬰中心圖例"]')).toContainText('托嬰中心與托育家園')
+  })
+
+  await test.step('換 6 公里多一所；點一列展開地址與電話並打開地圖資訊', async () => {
+    const list = page.locator('.nearby--babycare')
+    await list.locator('.el-radio-button', { hasText: '6 公里' }).click()
+    await expect(list.locator('.nearby__item')).toHaveCount(4)
+    await expect(list.locator('.nearby__summary')).toContainText('6 公里內托嬰中心 4 所')
+    await list.locator('.nearby__row').first().click()
+    await expect(list.locator('.nearby__detail')).toContainText('高雄市左營區測試路1號')
+    await expect(list.locator('.nearby__detail')).toContainText('07-1111111')
+    await expect(page.locator('.leaflet-popup')).toContainText('測試甲托嬰中心')
+  })
+
+  await test.step('勾掉地圖上的托嬰圖層，標點消失；切回幼兒園清單', async () => {
+    await page.locator('.el-switch', { hasText: '托嬰中心' }).click()
+    await expect(page.locator('.area-map .area-bc')).toHaveCount(0)
+    await page.locator('.nearby-panel .el-radio-button', { hasText: '幼兒園' }).click()
+    await expect(page.locator('.nearby .nearby__title')).toHaveText('附近幼兒園')
+    await expect(page.locator('.nearby--babycare')).toHaveCount(0)
+  })
+
+  seedProviderChanges()
+  await test.step('寫入異動後重新整理：停辦的托嬰與設立日在 40 天前的幼兒園，新到舊', async () => {
+    await page.reload()
+    await expect(page.locator('.area-map .leaflet-container')).toBeVisible()
+    const rows = page.locator('.changes .changes__item')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.nth(0)).toContainText('停辦')
+    await expect(rows.nth(0)).toContainText('托嬰')
+    await expect(rows.nth(0)).toContainText('測試已停辦托嬰中心')
+    await expect(rows.nth(0)).toContainText('起不在名單')
+    await expect(rows.nth(1)).toContainText('新設')
+    await expect(rows.nth(1)).toContainText('幼兒園')
+    await expect(rows.nth(1)).toContainText('測試乙幼兒園')
+    await expect(rows.nth(1)).toContainText('設立日')
+    await expect(page.locator('.changes .changes__empty')).toHaveCount(0)
+  })
+
+  await test.step('新區塊沒有 serious／critical 的無障礙問題', async () => {
+    const results = await new AxeBuilder({ page }).include('.area-top__side').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+    const serious = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    expect(serious.map((violation) => `${violation.id}：${violation.nodes.map((node) => node.target.join(' ')).join('；')}`)).toEqual([])
+  })
+
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-provider-changes-1440.png'), fullPage: true })
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await context.close()
+})
+
+test('390px：托嬰中心清單與園所變化不撐出頁面', async ({ browser }) => {
+  mkdirSync(SHOTS, { recursive: true })
+  const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await openArea(page)
+  await page.locator('.nearby-panel .el-radio-button', { hasText: '托嬰中心' }).click()
+  await expect(page.locator('.nearby--babycare .nearby__item').first()).toBeAttached()
+  await expect(page.locator('.changes')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-provider-changes-390.png'), fullPage: true })
+  await context.close()
+})
 
 test('390px：地圖手機預設不攔單指，按「移動地圖」才接手，按「完成移動地圖」還給頁面捲動', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'super_admin', PHONE)

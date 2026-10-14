@@ -1,3 +1,15 @@
+## 2026-10-14 托嬰中心與園所異動（`feature/provider-changes-20261014`）
+
+招生判讀四個子專案的第二個（前一個是場次使用情況）。規格 `docs/specs/2026-10-14-provider-changes-design.md`，規則見 DESIGN.md「招生入學：托嬰中心與園所異動」。
+
+- **托嬰名單**：kiang 每天整理的衛福部社家署公開資料（`babycare.json`，高雄 160 筆、營業 151），併進公開資料同步成為第四種資料（表 `geo_babycare`）。後台區域分析的「附近幼兒園」卡片頂端可切到「托嬰中心」，列出半徑內的托嬰中心與托育家園（核定、實際收托、距離），地圖多一個預設不勾的菱形圖層。
+- **園所異動**：幼兒園與托嬰的同步從「刪光重寫」改成依 `source_id` 比對，停辦的標 `is_active` 假、列留著，新設、停辦、類型變動記在 `geo_provider_events`；卡片下方新增「附近園所的變化」（近 12 個月）。新設的幼兒園看設立日，上線第一輪同步後就有；停辦與類型變動從基準日（第一次用新程式同步成功的日子）才開始累積，畫面會寫「從 N 月 N 日起記錄」。
+- **頻率**：幼兒園與托嬰改成每 7 天看一次來源（門牌、人口維持 30 天）。
+- **防誤報**：8 月學年更替不產生假的類型變動；停辦後 30 天內又出現視為來源漏收；新名單營業中數量少於上次 80% 不換版（`geo-sync --force` 略過）。
+- **migration** `c6a9e3f15d27`：新增 `geo_babycare`、`geo_provider_events`，`geo_kindergartens` 加設立日、`geo_dataset_status` 加基準日並多收 `babycare`；不改既有資料，不需要部署前備份。
+- **不做**：核定人數與月費估算的異動、托嬰分配到里、收托比例與趨勢、預測、點變化列定位地圖、匯出 CSV。一年下來單一校 3 公里內新設或停辦大約各 0～1 件，所以變化區塊多數時候是空的。
+- **驗證**：後端 geo／招生區域 13 個測試檔（`test_geo_schema`、`test_geo_babycare`、`test_geo_kindergartens`、`test_geo_providers`、`test_geo_changes`、`test_geo_babycare_sync`、`test_geo_sync`、`test_geo_limits`、`test_geo_loop`、`test_geo_population`、`test_admissions_provider_area`、`test_admissions_area`、`test_admissions_visit_geo`）465 passed；admin vitest `areaFormat`、`areaTab`、`areaMap`、`nearbyProviders`、`admissionsApi` 5 檔 178 passed，字級守門 `ux20261005` 29 passed；admin `npm run typecheck` 通過；根目錄 `npm run contract:check` 通過（契約與目前 API 一致、契約型別與 `openapi.json` 一致）；`tests/stack/admissions-area.spec.ts` 只確認型別檢查通過、Playwright 列得出 11 個案例，**e2e 尚未實際跑**；後端全套、admin 全套、完整 stack 套件**尚未**。
+
 ## 2026-10-13 深度掃描 14 項（`fix/security-scan-20261013`）
 
 Codex 對 `8c4ec20a` 做深度掃描（3 項 medium、11 項 low）。每項先對照現行程式確認成立再修。第 1、2、3、5、6、7、8、10、11 項的新測試用真並發（兩個連線、鎖住其中一個，不 mock 資料庫），都先退回修正確認會失敗、修好後轉綠；第 9、12、13 項是純函式與 MockTransport 測試。第 4 項（家長異動期限在案件鎖外檢查）已在 `fix/booking-stale-read-20261013` 修過、驗證過，那份修正與 `test_booking_stale_reads.py` 原樣帶進這個分支，沒有重做。第 14 項是政策取捨，沒有改程式。
