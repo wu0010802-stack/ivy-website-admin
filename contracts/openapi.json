@@ -3359,6 +3359,13 @@
             "title": "Radius Km",
             "type": "integer"
           },
+          "schools": {
+            "items": {
+              "$ref": "#/components/schemas/AreaTrendsSchoolOut"
+            },
+            "title": "Schools",
+            "type": "array"
+          },
           "sources": {
             "$ref": "#/components/schemas/AreaTrendsSourcesOut"
           },
@@ -3378,7 +3385,8 @@
           "sources",
           "baseline",
           "kids_unavailable",
-          "villages"
+          "villages",
+          "schools"
         ],
         "title": "AreaTrendsOut",
         "type": "object"
@@ -3416,6 +3424,116 @@
         "title": "AreaTrendsPopulationSourceOut",
         "type": "object"
       },
+      "AreaTrendsSchoolDistrictSourceOut": {
+        "description": "國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "note"
+        ],
+        "title": "AreaTrendsSchoolDistrictSourceOut",
+        "type": "object"
+      },
+      "AreaTrendsSchoolOut": {
+        "description": "依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區\n的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕\n／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；\nrate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。",
+        "properties": {
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "enrollment": {
+            "enum": [
+              "district",
+              "open",
+              "spacious",
+              "capped"
+            ],
+            "title": "Enrollment",
+            "type": "string"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "kids_partial": {
+            "title": "Kids Partial",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "villages_full": {
+            "title": "Villages Full",
+            "type": "integer"
+          },
+          "villages_partial": {
+            "title": "Villages Partial",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "district",
+          "enrollment",
+          "villages_full",
+          "villages_partial",
+          "children",
+          "kids_net",
+          "kids_partial",
+          "visit",
+          "rate"
+        ],
+        "title": "AreaTrendsSchoolOut",
+        "type": "object"
+      },
       "AreaTrendsSourcesOut": {
         "properties": {
           "births": {
@@ -3433,6 +3551,9 @@
           },
           "population": {
             "$ref": "#/components/schemas/AreaTrendsPopulationSourceOut"
+          },
+          "school_districts": {
+            "$ref": "#/components/schemas/AreaTrendsSchoolDistrictSourceOut"
           }
         },
         "required": [
@@ -3440,7 +3561,8 @@
           "births",
           "migration",
           "note",
-          "income"
+          "income",
+          "school_districts"
         ],
         "title": "AreaTrendsSourcesOut",
         "type": "object"
@@ -3554,6 +3676,13 @@
             ],
             "title": "Migration Net 12M"
           },
+          "schools": {
+            "items": {
+              "$ref": "#/components/schemas/AreaTrendsVillageSchoolOut"
+            },
+            "title": "Schools",
+            "type": "array"
+          },
           "village": {
             "title": "Village",
             "type": "string"
@@ -3573,9 +3702,44 @@
           "births_12m",
           "migration_net_12m",
           "income_median",
-          "income_boundary_changed"
+          "income_boundary_changed",
+          "schools"
         ],
         "title": "AreaTrendsVillageOut",
+        "type": "object"
+      },
+      "AreaTrendsVillageSchoolOut": {
+        "description": "一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。\ndistrict 是學校所在的區（有同名學校，畫面寫「區＋校名」）。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "free_zone": {
+            "title": "Free Zone",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "district",
+          "partial",
+          "free_zone"
+        ],
+        "title": "AreaTrendsVillageSchoolOut",
         "type": "object"
       },
       "AreaVillageRowOut": {

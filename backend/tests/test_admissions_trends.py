@@ -1,5 +1,5 @@
 """里的變化 API（2026-10-14 里的變化規格 §5、§6）：這一年淨增與分級、近 12 個月出生與淨遷入、出生和前一年
-同月份比、里界調整合併、算不出來的原因、所得中位數（C 段）、本校沒座標、半徑、權限與開關。
+同月份比、里界調整合併、算不出來的原因、所得中位數（C 段）、國小學區（D 段）、本校沒座標、半徑、權限與開關。
 
 義華校址固定在門牌樣本的座標；公開資料直接寫資料庫。1 公里內（里界面積重心）有本揚里 287 m、寶業里 329 m、
 寶國里 458 m、本上里 489 m 等 12 個里；本武里 1.5 公里。「三民區測試舊里」（64000059999）是假的已廢止代碼：
@@ -14,6 +14,7 @@ from sqlalchemy import func, select
 
 from app.admissions import trends
 from app.admissions.geo import boundaries, matcher
+from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
@@ -25,7 +26,7 @@ from app.admissions.geo.models import (
 )
 from app.main import create_app
 from app.operations.models import AuditLogEntry
-from tests.admissions_area_helpers import AREA
+from tests.admissions_area_helpers import AREA, add_visit
 from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
 from tests.conftest import _logged_in_client, _test_settings
 
@@ -136,6 +137,17 @@ def _by_key(body: dict) -> dict[str, dict]:
     return {row["key"]: row for row in body["villages"]}
 
 
+def _school(name: str, *, partial: bool = False, free_zone: bool = False) -> dict:
+    """一列對到的國小（測試用的校名都只有一所）。"""
+    (school,) = [school for school in sd.schools().values() if school.name == name]
+    return {"code": school.code, "name": name, "district": school.district, "partial": partial, "free_zone": free_zone}
+
+
+def _school_row(body: dict, name: str) -> dict:
+    (row,) = [row for row in body["schools"] if row["name"] == name]
+    return row
+
+
 def test_kids_level_thresholds():
     assert trends.kids_level(None, 100) == "unknown"
     assert trends.kids_level(5, 19) == "few"
@@ -165,6 +177,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
         "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
+        "schools": [_school("東光國小")],
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
     assert (rows[BAOGUO]["kids_net"], rows[BAOGUO]["kids_level"]) == (-20, "down2")
@@ -173,6 +186,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
         "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
+        "schools": [_school("光武國小")],
     }
     # 排序：淨增由大到小，算不出來的在最後。
     keys = [row["key"] for row in body["villages"]]
@@ -188,6 +202,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
         "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
         "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
+        "schools": [_school("東光國小")],
     }
 
 
@@ -277,6 +292,50 @@ async def test_income_is_background_only(admin_client, db_session, located_campu
     assert "income" not in str(body["baseline"])
 
 
+async def test_each_row_lists_its_elementary_schools(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["school_districts"]["school_year"] == 115
+    assert "115 學年度國民小學學區劃分一覽表" in body["sources"]["school_districts"]["note"]
+    rows = _by_key(body)
+    # 寶業里拆鄰分給光武、陽明：兩所都是部分。
+    assert rows[BAOYE]["schools"] == [_school("光武國小", partial=True), _school("陽明國小", partial=True)]
+
+
+async def test_schools_sum_their_whole_district(admin_client, db_session, located_campus):
+    """依國小學區：學區碰到半徑內的國小，每所合計整個學區（含半徑外的里）；部分里同時算進每一所。"""
+    await _seed(db_session)
+    for village, count in (("本揚里", 3), ("本元里", 1), ("本武里", 2)):
+        for _ in range(count):
+            await add_visit(db_session, district="三民區", geo={"level": "exact", "village": village, "distance_m": 500})
+    # 不在母體：明華的參觀、只到區的參觀。
+    await add_visit(db_session, campus_key="minghua", district="三民區", geo={"level": "exact", "village": "本揚里"})
+    await add_visit(db_session, district="三民區", geo={"level": "district"})
+    await db_session.commit()
+    body = await _get(admin_client)
+    names = [row["name"] for row in body["schools"]]
+    assert {"東光國小", "光武國小", "陽明國小"} <= set(names)
+    # 東光國小：本上、本安、本揚整里，本元部分；有人口的是本揚 120、本上 40。淨增只加算得出的本揚（本上里界調整過）。
+    dongguang = _school_row(body, "東光國小")
+    assert dongguang | {"code": "", "district": ""} == {
+        "code": "", "name": "東光國小", "district": "", "enrollment": "district",
+        "villages_full": 3, "villages_partial": 1, "children": 160, "kids_net": 20, "kids_partial": True,
+        "visit": 4, "rate": 2.5,
+    }
+    # 陽明國小：本武整里（本校 1.5 公里，不在 1 公里內也算進學區）、寶國與寶業部分。
+    yangming = _school_row(body, "陽明國小")
+    assert (yangming["children"], yangming["kids_net"], yangming["visit"]) == (16 + 80 + 100, 0 - 20 + 0, 3)
+    # 依參觀人數由大到小。
+    visits = [row["visit"] for row in body["schools"]]
+    assert visits == sorted(visits, reverse=True) and names[0] == "東光國小"
+
+
+async def test_schools_without_the_year_ago_ages(admin_client, db_session, located_campus):
+    await _seed(db_session, year_ago=False)
+    row = _school_row(await _get(admin_client), "東光國小")
+    assert (row["children"], row["kids_net"], row["kids_partial"], row["visit"], row["rate"]) == (160, None, False, 0, 0.0)
+
+
 async def test_without_the_year_ago_ages_kids_are_not_counted(admin_client, db_session, located_campus):
     await _seed(db_session, year_ago=False)
     body = await _get(admin_client)
@@ -308,6 +367,9 @@ async def test_nothing_imported(admin_client, located_campus):
     body = await _get(admin_client)
     assert body["kids_unavailable"] == "no_population"
     assert body["sources"]["births"] == {"latest": None, "months": [], "missing": []}
+    # 學區對照檔隨程式提交：沒有人口也列學校，孩子數是 null、參觀率是 null。
+    row = _school_row(body, "東光國小")
+    assert (row["children"], row["kids_net"], row["visit"], row["rate"]) == (None, None, 0, None)
     assert body["baseline"]["births_12m"] is None and body["baseline"]["migration_net_12m"] is None
     assert all(row["births_12m"] is None for row in body["villages"])
 
@@ -328,7 +390,7 @@ async def test_when_campus_not_located(admin_client, db_session, monkeypatch):
     await _seed(db_session)
     body = await _get(admin_client)
     assert body["campus"]["locate_error"] == "no_doorplate"
-    assert body["baseline"] is None and body["villages"] == []
+    assert body["baseline"] is None and body["villages"] == [] and body["schools"] == []
     assert body["sources"]["population"]["month"] == CURRENT
 
 
