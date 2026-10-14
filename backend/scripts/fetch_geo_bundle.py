@@ -1,8 +1,8 @@
 """在台灣的電腦抓齊公開資料、打包成一個 zip（2026-10-14 里的變化規格 §4.6），給正式站連不到來源時用。
 
 照同步的規則抓：各里出生（ODRP010）、遷入遷出（ODRP011）各最新月份往回 25 個月（來源查無資料的月份跳過），
-各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度。ris.gov.tw 每個
-請求之間隔 3 秒（連續快速請求會回擋頁），全部約 3 分鐘。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
+各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
+高雄市買賣季檔）最新季往回 8 季。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），全部約 4 分鐘、約 30 MB。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
 用法（在 backend/）：
   uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip]
@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.admissions.geo import income as income_io  # noqa: E402
+from app.admissions.geo import new_homes as new_homes_io  # noqa: E402
 from app.admissions.geo import population as population_io  # noqa: E402
 from app.admissions.geo import sync  # noqa: E402
 from app.admissions.geo import village_series as series_io  # noqa: E402
@@ -107,6 +108,21 @@ async def build(out: Path | None) -> Path:
         income_io.parse_csv(income_io.decode(body), year)  # 先驗證，壞檔不打包
         files.append(BundleFile(f"{year}_165-E.csv", "income", str(year), income_io.csv_url(year), body))
         print(f"各里所得：{year} 年度")
+        # 新成屋：同步的同一條路（從今天所在的季往回找最新季，再往回 8 季；錯誤頁＝那一季沒有檔）。
+        latest, fetched = await sync.discover_new_home_seasons(client, None)
+        for season in new_homes_io.window(latest):
+            text_ = fetched.get(season) or await sync._new_homes_text(client, season)
+            if text_ is None:
+                print(f"新成屋 {season}：來源沒有檔，跳過")
+                continue
+            batch = new_homes_io.parse_csv(text_, season)  # 先驗證，壞檔不打包
+            files.append(
+                BundleFile(
+                    f"{season}_e_lvr_land_a.csv", "new_homes", season, new_homes_io.season_url(season),
+                    text_.encode("utf-8"),
+                )
+            )
+            print(f"新成屋 {season}：{len(batch.rows)} 筆")
     target = out or Path(f"geo-bundle-{population_latest}.zip")
     write_bundle(target, files)
     print(f"已寫入 {target}（{len(files)} 個檔，{target.stat().st_size / 1024 / 1024:.1f} MB）")
@@ -114,7 +130,7 @@ async def build(out: Path | None) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口、所得，打包給 geo-sync --bundle")
+    parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口、所得、新成屋，打包給 geo-sync --bundle")
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
     args = parser.parse_args()
     asyncio.run(build(args.out))

@@ -46,12 +46,13 @@ _DISTRICT = re.compile(
 _VILLAGE = re.compile(r"^([一-鿿]{1,4}[里村])(\d+鄰)?(.*)$")
 _STARTS_WITH_ROAD = re.compile(r"^[一-鿿]{2,}?" + _ROAD)
 # 號碼文字：阿拉伯或中文數字（含零、百、千，「一百零五號」整段才是 105；只吃一部分會變成別的門牌）。
-# 「號」之後的之號不能緊接樓層字或數字，否則「號之十二樓」會退成「之十」。
+# 「號」之後的之號不能緊接樓層字或同一種數字，否則「號之十二樓」會退成「之十」、「號之12樓」退成「之1」。
+# 阿拉伯數字的之號後面接中文數字的樓層（「２號之１三樓」，實價登錄常見）寫法不同、沒有歧義，照收（2026-10-14）。
 # 第二個之號以後（「12之3之4號」）同門牌表（doorplates._NUMBER）吃掉不用：只允許一個之號時，
 # search 會從中間的「3之4號」開始比對，變成 3 之 4 號那一戶（2026-10-13）。
 _NUMBER = re.compile(
     rf"臨?(\d+|{_CN_NUMBER})(?:[-之](\d+|{_CN_NUMBER}))?(?:[-之](?:\d+|{_CN_NUMBER}))*號"
-    rf"(?:之(\d+|{_CN_NUMBER})(?![樓Ff\d{_CN_CHARS}]))?"
+    rf"(?:之(?:(\d+)(?![樓Ff\d])|({_CN_NUMBER})(?![樓Ff\d{_CN_CHARS}])))?"
 )
 _BARE_NUMBER = re.compile(r"(\d+)(?:-(\d+))?$")
 _ROAD_ORDINAL = re.compile(r"(?<=[一-鿿])(\d{1,2})(?=" + _ROAD + ")")
@@ -182,7 +183,7 @@ def parse_address(raw: str | None) -> ParsedAddress | None:
     found = _NUMBER.search(text)
     if found:
         number = bounded_number(found.group(1))
-        sub = found.group(2) or found.group(3)
+        sub = found.group(2) or found.group(3) or found.group(4)
         number_sub = bounded_number(sub) if sub else 0
         if number is None or number_sub is None:
             number, number_sub = None, 0

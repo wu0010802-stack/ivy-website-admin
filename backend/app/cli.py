@@ -573,25 +573,26 @@ def geo_sync_options(args: list[str]) -> dict:
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
     --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
     統計月份。--income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
-    比使用中舊的年度要加 --force。--bundle 是 scripts/fetch_geo_bundle.py 打包的 zip（2026-10-14 里的變化
-    規格 §4.6），等於把裡面的檔各自用 --…-file 指定。"""
+    比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
+    （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--bundle 是 scripts/fetch_geo_bundle.py
+    打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的檔各自用 --…-file 指定。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
         "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...] "
         "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
-        "[--bundle <ZIP>]"
+        "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
         "population_files": None, "births_files": None, "migration_files": None,
-        "income_file": None, "income_year": None, "bundle": None,
+        "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
               "--kindergartens-file": "kindergartens_file", "--income-file": "income_file",
-              "--income-year": "income_year", "--bundle": "bundle"}
-    texts = {"--doorplates-version", "--income-year"}
+              "--income-year": "income_year", "--new-homes-season": "new_homes_season", "--bundle": "bundle"}
+    texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
     repeated = {"--population-file": "population_files", "--births-file": "births_files",
-                "--migration-file": "migration_files"}
+                "--migration-file": "migration_files", "--new-homes-file": "new_homes_files"}
     lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
     index = 0
     while index < len(args):
@@ -622,6 +623,15 @@ def geo_sync_options(args: list[str]) -> dict:
         try:
             options["income_year"] = parse_year(options["income_year"])
         except IncomeFormatError as exc:
+            raise SystemExit(str(exc)) from exc
+    if options["new_homes_season"] is not None:
+        if len(lists["new_homes_files"]) != 1:
+            raise SystemExit("--new-homes-season 只能配一個 --new-homes-file")
+        from app.admissions.geo.new_homes import NewHomesFormatError, parse_season
+
+        try:
+            options["new_homes_season"] = parse_season(options["new_homes_season"])
+        except NewHomesFormatError as exc:
             raise SystemExit(str(exc)) from exc
     for key, files in lists.items():
         if files:
@@ -673,6 +683,10 @@ async def geo_sync_command(**options) -> None:
         f"一年前的年齡：{result.age_history}；"
         f"各里所得：{result.income}（使用中 {result.income_version + ' 年度' if result.income_version else '尚未匯入'}）"
     )
+    print(
+        f"新成屋：{result.new_homes}（最新 {result.new_homes_version or '尚未匯入'}，這次寫入 {result.new_homes_seasons} 季，"
+        f"重比 {result.new_homes_rematched} 筆）"
+    )
     if (
         result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped
         or result.income_rows_skipped
@@ -691,6 +705,7 @@ async def geo_sync_command(**options) -> None:
             ("migration", "各里遷入遷出", result.migration),
             ("population", "一年前的年齡", result.age_history),
             ("income", "各里所得", result.income),
+            ("new_homes", "新成屋", result.new_homes),
         )
         if outcome == "failed"
     ]
@@ -715,7 +730,7 @@ def main() -> None:
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
             "[--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
-            "[--income-file <CSV> [--income-year 112]] [--bundle <ZIP>]>",
+            "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
