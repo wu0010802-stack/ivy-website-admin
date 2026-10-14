@@ -138,6 +138,21 @@ def datagov_income_listing(years: list[int]) -> dict:
     }
 
 
+def income_response(url: str, *, years: tuple[int, ...] = (112,)) -> httpx.Response | None:
+    """假的 data.gov.tw 資料集 17971 與財政資訊中心：網址不是它們就回 None。資料集列出 years，那些年度的檔是
+    樣本，其他年度 404（同真的）。"""
+    from app.admissions.geo import income as income_io
+
+    if url == income_io.DATASET_API:
+        return httpx.Response(200, json=datagov_income_listing(list(years)))
+    year = income_io.year_of_url(url)
+    if year is None:
+        return None
+    if year in years:
+        return httpx.Response(200, content=INCOME_SAMPLE.read_bytes(), headers={"content-type": "text/csv"})
+    return httpx.Response(404, text="error page!", headers={"content-type": "text/html"})
+
+
 def sample_preschools() -> dict:
     return json.loads((FIXTURES / "preschools-sample.json").read_text(encoding="utf-8"))
 
