@@ -10,7 +10,8 @@ import { slotEnded, type CalendarSlot } from '../../utils/calendarChips'
 import { sessionName } from '../../utils/sessions'
 
 const props = defineProps<{ day: string; campusKey: string; slots: CalendarSlot[]; holiday: { id: string; reason: string | null } | null; canManage: boolean }>()
-const emit = defineEmits<{ changed: [] }>()
+// notify：休假日還有已約的家長，打開「寄停課通知」（接待月曆頁的停課對話框，日期與校區固定）。
+const emit = defineEmits<{ changed: []; notify: [] }>()
 
 const busyId = ref('')
 const adding = ref(false)
@@ -61,7 +62,7 @@ function setCapacity(slot: CalendarSlot, capacity: number) {
 }
 
 async function setHoliday() {
-  const warning = bookedToday.value ? `這天還有 ${bookedToday.value} 組家長預約，設為休假後不會自動取消，請逐筆改期或取消（會寄信通知家長）。` : '這天所有場次都會停止申請。'
+  const warning = bookedToday.value ? `這天還有 ${bookedToday.value} 組家長預約，設為休假後不會自動取消。設好後可以按「寄停課通知」請家長自己改約，或逐筆改期、取消。` : '這天所有場次都會停止申請。'
   let reason = ''
   try {
     const answer = await ElMessageBox.prompt(`${warning}\n休假原因（選填）：`, `${formatDate(props.day)} 整天休假？`, { confirmButtonText: '設為休假', cancelButtonText: '先不要', inputPlaceholder: '例如：教師研習' })
@@ -116,8 +117,11 @@ async function addSlot() {
     <div class="section__title day-panel__head">
       <h2 id="day-panel-title">{{ formatDate(day) }}（{{ formatWeekday(day) }}）<span v-if="holiday" class="day-panel__holiday">休假：{{ holiday.reason || '未填原因' }}</span></h2>
       <template v-if="canManage && !dayPast">
-        <el-button v-if="holiday" @click="cancelHoliday">取消休假</el-button>
-        <el-button v-else @click="setHoliday">整天休假</el-button>
+        <span class="day-panel__head-actions">
+          <el-button v-if="holiday && bookedToday" type="primary" data-test="day-closure-notify" @click="emit('notify')">寄停課通知（{{ bookedToday }} 組）</el-button>
+          <el-button v-if="holiday" @click="cancelHoliday">取消休假</el-button>
+          <el-button v-else @click="setHoliday">整天休假</el-button>
+        </span>
       </template>
     </div>
     <p v-if="!sorted.length && !holiday" class="hint">這天沒有場次。</p>
@@ -159,6 +163,8 @@ async function addSlot() {
 <style scoped>
 .day-panel__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .day-panel__holiday { margin-left: 8px; font-size: var(--text-base); color: var(--ink-3); }
+.day-panel__head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.day-panel__head-actions .el-button + .el-button { margin-left: 0; }
 .day-panel__actions { display: flex; gap: 8px; align-items: center; margin-left: auto; }
 .day-panel__capacity { width: 88px; }
 .day-panel__add { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }

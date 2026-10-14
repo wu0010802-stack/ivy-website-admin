@@ -358,6 +358,8 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   parent_visit_booked: '家長確認信（預約成功）',
   parent_visit_changed: '家長確認信（預約已變更）',
   parent_visit_cancelled: '家長確認信（預約已取消）',
+  // 停班停課（2026-10-14）：請家長用修改連結改約或取消。
+  parent_visit_day_closed: '家長停課通知（請改約）',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊的站內通知列與寄送失敗重寄。
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
@@ -483,6 +485,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_slots.generate': '依規則產生場次',
   'visit_exception.create': '設定休假日',
   'visit_exception.delete': '取消休假日',
+  'visit_exception.import_holidays': '匯入國定假日',
+  'visit_closure.create': '停班停課',
   'campus.activate': '重新啟用分校',
   'campus.deactivate': '停用分校',
   'media.upload': '上傳素材',
@@ -588,6 +592,8 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   access_link_created: '產生家長管理連結',
   access_link_revoked: '撤銷家長管理連結',
   details_updated: '家長修改資料',
+  // 停班停課（2026-10-14）：排了一封停課通知，請家長改約或取消；原因在歷程的 reason。
+  closure_notice: '寄停課通知',
 }
 
 export function visitEventLabel(eventType: string): string {
@@ -1328,9 +1334,18 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 依規則產生時段（visit_slots.generate，API 2026-10-08 已刪，保留給舊操作紀錄）是新增幾場；由官網預約建立招生訪視是有沒有新建。
   created: (v, action) => {
     if (action === 'recruitment_visit.create_from_booking') return v ? '建立招生訪視' : '這筆預約已有招生訪視，沒有重複建立'
+    if (action === 'visit_exception.import_holidays') return `新增 ${countOf(v)} 天休假日`
     return `新增 ${countOf(v)} 場`
   },
-  skipped_existing: (v) => (countOf(v) ? `${countOf(v)} 場已經有了` : null),
+  skipped_existing: (v, action) => {
+    if (!countOf(v)) return null
+    return action === 'visit_exception.import_holidays' ? `${countOf(v)} 天原本就是休假日` : `${countOf(v)} 場已經有了`
+  },
+  // 國定假日匯入、停班停課（2026-10-14）
+  skipped_weekend: (v) => (countOf(v) ? `${countOf(v)} 個週末節日這校沒有場次，略過` : null),
+  already_closed: (v) => (v ? '這天原本就是休假日' : null),
+  notified: (v) => (countOf(v) ? `寄停課通知給 ${countOf(v)} 位家長` : '沒有寄停課通知'),
+  no_email: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，要來電` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
   open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,
@@ -1581,4 +1596,46 @@ export function funnelReferralLabel(referral: string): string {
   if (referral === ANALYTICS_UNKNOWN) return '未記錄'
   if (referral === 'none') return '未填寫'
   return REFERRAL_SOURCE_LABELS[referral] ?? referral
+}
+
+
+// ---- 操作紀錄的伺服器端搜尋（2026-10-14 規格 §4）----
+// 後端比對動作、對象、校區、操作者、裝置與 metadata 原文（代碼與園方填的字）；中文名稱只存在這份檔案，
+// 所以把搜尋字展開成「原字＋名稱含這個字的代碼」一起送，例如「休假」→ visit_exception.create…。
+const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
+  AUDIT_ACTION_LABELS,
+  // 案件狀態（狀態：預約正常 → 未到場 這類修改前後值）：「未到場」→ no_show。
+  Object.fromEntries(Object.entries(VISIT_STATUS).map(([code, meta]) => [code, meta.label])),
+  AUDIT_TARGET_LABELS,
+  CAMPUS_LABELS,
+  ROLE_LABELS,
+  CONTENT_KIND_LABELS,
+  BOOKING_MODE_LABELS,
+  GRANT_LABELS,
+  AUDIT_FIELD_LABELS,
+  BOOKING_CONFIG_FIELD_LABELS,
+  AUDIT_REASON_LABELS,
+  RETENTION_CATEGORY_LABELS,
+  RETENTION_TRIGGER_LABELS,
+  VISIT_SOURCE_LABELS,
+  CANCEL_REASON_LABELS,
+  MEDIA_FIELD_LABELS,
+]
+
+/** 和後端 audit_service.MAX_SEARCH_TERMS 一致。 */
+export const AUDIT_SEARCH_MAX_TERMS = 30
+
+/** 搜尋字 → 送給後端的詞（原字在第一個，最多 30 個）。空白回空陣列。 */
+export function auditSearchTerms(keyword: string): string[] {
+  const word = keyword.trim().slice(0, 100)
+  if (!word) return []
+  const needle = word.toLocaleLowerCase()
+  const terms = [word]
+  for (const table of AUDIT_SEARCH_TABLES) {
+    for (const [code, label] of Object.entries(table)) {
+      if (terms.length >= AUDIT_SEARCH_MAX_TERMS) return terms
+      if (label.toLocaleLowerCase().includes(needle) && !terms.includes(code)) terms.push(code)
+    }
+  }
+  return terms
 }

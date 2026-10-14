@@ -139,7 +139,7 @@ describe('站內通知的校區範圍', () => {
     expect(wrapper.findAll('.notice.is-unread')).toHaveLength(0)
   })
 
-  it('只管一校的人直接看那一校、不出現校區選單與校名；清單滿 100 則時說明只列出最新的', async () => {
+  it('只管一校的人直接看那一校、不出現校區選單與校名；清單滿 100 則時可以載入更早的', async () => {
     const rows = Array.from({ length: 100 }, (_, index) => notification(`n${index}`))
     const get = mockList(rows)
     const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
@@ -147,8 +147,9 @@ describe('站內通知的校區範圍', () => {
     expect(get).toHaveBeenCalledWith('/admin/notifications?campus_key=yihua')
     expect(wrapper.findComponent(CampusSelect).exists()).toBe(false)
     expect(wrapper.find('.notice__meta').text()).toMatch(/^參觀 /)
-    expect(wrapper.text()).toContain('只列出最新的 100 則通知')
-    expect(wrapper.text()).toContain('「全部標記已讀」會連沒有列出的未讀一併標記')
+    // 2026-10-14 起可以翻頁：滿 100 則就給「載入更早的通知」，不再只列最新的。
+    expect(wrapper.find('[data-test="notifications-load-more"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('只列出最新的 100 則')
 
     // 後端一次標完資料庫裡全部未讀（比畫面上列出的 100 則多），訊息寫後端回的則數。
     const post = vi.spyOn(api, 'post').mockResolvedValue({ updated: 130 } as never)
@@ -363,7 +364,8 @@ describe('站內通知的版面（2026-10-05）', () => {
     const get = mockRows([{ ...notification('n1'), created_at: new Date(start).toISOString() }])
     const wrapper = await setup()
     await flushPromises()
-    const reads = () => get.mock.calls.filter(([url]) => String(url).startsWith('/admin/notifications')).length
+    // 只數清單（2026-10-14 起另有 /admin/notifications/counts 計數，跟著清單一起讀）。
+    const reads = () => get.mock.calls.filter(([url]) => String(url).startsWith('/admin/notifications') && !String(url).includes('/counts')).length
     expect(reads()).toBe(1)
 
     now.mockReturnValue(start + 30_000)
@@ -432,5 +434,53 @@ describe('點開通知與家長稱呼（2026-10-05 業主裁定）', () => {
     await wrapper.get('a.notice__main').trigger('click')
     await flushPromises()
     expect(post).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('站內通知翻頁與計數（2026-10-14）', () => {
+  const at = (minutes: number) => new Date(Date.UTC(2026, 9, 14, 2, 0) - minutes * 60_000).toISOString()
+
+  it('載入更早的通知：用最後一則當游標、接在後面；不到一頁就沒有按鈕', async () => {
+    const first = Array.from({ length: 100 }, (_, index) => ({ ...notification(`n${index}`), created_at: at(index) }))
+    const older = [{ ...notification('older'), created_at: at(500) }]
+    const get = vi.spyOn(api, 'get').mockImplementation(url => {
+      const path = String(url)
+      if (path.includes('notification-outbox')) return Promise.resolve({ items: [], total: 0 }) as Promise<never>
+      if (path.includes('/counts')) return Promise.resolve({ total: 101, unread: 101, unread_by_campus: [{ campus_key: 'yihua', unread: 101 }] }) as Promise<never>
+      return Promise.resolve(path.includes('before=') ? older : first) as Promise<never>
+    })
+    const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
+    await flushPromises()
+    // 頁籤數字用後端計數（含還沒載入的）。
+    expect(wrapper.findAll('.status-tab').map(tab => tab.text())).toEqual(['全部101 則', '未讀101 則'])
+    expect(wrapper.text()).toContain('還有 1 則更早的未讀沒有列出')
+    await wrapper.get('[data-test="notifications-load-more"]').trigger('click')
+    await flushPromises()
+    const params = new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams
+    expect(params.get('campus_key')).toBe('yihua')
+    expect(params.get('before')).toBe(first[99]!.created_at)
+    expect(params.get('before_id')).toBe('n99')
+    expect(wrapper.findAll('.notice')).toHaveLength(101)
+    expect(wrapper.find('[data-test="notifications-load-more"]').exists()).toBe(false)
+  })
+
+  it('「未讀」頁籤由後端篩（帶 unread_only），標記已讀後頁籤數字跟著減', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(url => {
+      const path = String(url)
+      if (path.includes('notification-outbox')) return Promise.resolve({ items: [], total: 0 }) as Promise<never>
+      if (path.includes('/counts')) return Promise.resolve({ total: 9, unread: 2, unread_by_campus: [{ campus_key: 'yihua', unread: 2 }] }) as Promise<never>
+      return Promise.resolve([{ ...notification('u1'), created_at: at(1) }, { ...notification('u2'), created_at: at(2) }]) as Promise<never>
+    })
+    vi.spyOn(api, 'post').mockResolvedValue({ id: 'u1', read_at: at(0) } as never)
+    const wrapper = await setup(testUser('campus_admin', { id: 'ca', email: 'ca@example.invalid', campus_keys: ['yihua'] }))
+    await flushPromises()
+    await wrapper.findAll('.status-tab')[1]!.trigger('click')
+    await flushPromises()
+    expect(String(get.mock.calls.filter(call => !String(call[0]).includes('/counts') && !String(call[0]).includes('outbox')).at(-1)![0])).toBe('/admin/notifications?campus_key=yihua&unread_only=true')
+    await wrapper.findAll('button').find(button => button.attributes('title') === '標記已讀')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.status-tab').map(tab => tab.text())).toEqual(['全部9 則', '未讀1 則'])
+    expect(wrapper.findAll('.notice')).toHaveLength(1)
   })
 })
