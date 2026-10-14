@@ -7,7 +7,7 @@
 - **後台**：區域分析地圖第四種著色「孩子增減」（玫瑰色是減少，token `--area-down-1`／`-2`），招生機會下面新增「里的變化」表（可匯出 CSV）。
 - **正式站連不到來源時**：`scripts/fetch_geo_bundle.py` 在台灣的電腦打包、`geo-sync --bundle` 一次匯入；步驟在 `deploy/README.md`「公開地理資料同步」。
 - **真資料實測**：打包 3 分 10 秒、48 個檔、2.4 MB；義華 3 公里 98 個里、2–5 歲 9,788 位、這一年淨減 41 位，本揚里 +36，出生比前一年同 9 個月少 20.7%；仁武八卦里、八德里合併成一列。
-- **驗證**：後端受影響的測試（geo 全部、`test_admissions_trends.py`、權限表、契約）過，全套本機在跑；後台 typecheck、vitest 155 檔 2,361 過（加測後再跑一次）；`npm run contract:check`、`deploy/tests` 過；migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 過；本機 API＋後台 dev server 用 Playwright 截 1440／390，兩種寬度沒有水平溢出。
+- **驗證**：後端全套 2,707 過（合併 main 前，36 分鐘）；合併 main 後再跑 geo、里的變化、招生機會、權限表、契約 598 過；後台 typecheck、vitest 156 檔 2,377 過（合併 main 後）；`npm run contract:check`、`deploy/tests` 過；migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 過；本機 API＋後台 dev server 用 Playwright 截 1440／390，兩種寬度沒有水平溢出。
 - **未驗證**：正式站（Railway）能不能連 ris.gov.tw；真實後台資料（有參觀紀錄的校區）下的畫面。
 
 ## 2026-10-13 深度掃描 14 項（`fix/security-scan-20261013`）
