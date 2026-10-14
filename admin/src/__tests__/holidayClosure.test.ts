@@ -2,7 +2,7 @@
 // 「寄停課通知」、操作紀錄搜尋詞展開。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent } from 'vue'
+import { computed, defineComponent, type Component } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
@@ -35,10 +35,11 @@ const closureOut = (dryRun: boolean, rows = [closureRow()], email = true) => ({
   dry_run: dryRun, closure_date: '2026-10-14', parent_email_enabled: email, campuses: rows,
 })
 
-function mountDialog<T>(component: T, props: Record<string, unknown>) {
+function mountDialog(component: Component, props: Record<string, unknown>) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  const wrapper = mount(component as never, {
-    props: { modelValue: true, 'onUpdate:modelValue': () => {}, ...props },
+  // 兩個對話框的 props 不同，這裡共用一個掛載函式，props 型別交給各測試自己帶對。
+  const wrapper = mount(component, {
+    props: { modelValue: true, 'onUpdate:modelValue': () => {}, ...props } as never,
     global: { plugins: [ElementPlus, router] },
     attachTo: document.body,
   })
