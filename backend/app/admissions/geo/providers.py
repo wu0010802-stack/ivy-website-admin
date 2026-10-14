@@ -270,7 +270,7 @@ async def nearby_changes(
                 continue
             kind_changed = event.change == "kind_changed"
             # 停辦列的 kind 是「最後一次同步寫入的值」：幼兒園停辦後經過學年更替、準公共期間過期時不會再重算，可能已過期。
-            # 目前畫面只有托嬰列用 kind 當標籤，所以無害；日後若要顯示幼兒園停辦列的類型，要改用
+            # 目前畫面不讀這個欄位（只用名稱與新舊類型），所以無害；日後若要顯示幼兒園停辦列的類型，要改用
             # kind_as_of(row.kind, row.pre_public_period, 目前學年)。
             found[(provider, row.source_id, event.change)] = ProviderChange(
                 provider=provider, source_id=row.source_id, name=row.name, kind=row.kind, change=event.change,
