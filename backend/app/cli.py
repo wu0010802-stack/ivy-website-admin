@@ -572,19 +572,24 @@ def geo_sync_options(args: list[str]) -> dict:
     """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
     --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
-    統計月份。--bundle 是 scripts/fetch_geo_bundle.py 打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的
-    檔各自用 --…-file 指定。"""
+    統計月份。--income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
+    比使用中舊的年度要加 --force。--bundle 是 scripts/fetch_geo_bundle.py 打包的 zip（2026-10-14 里的變化
+    規格 §4.6），等於把裡面的檔各自用 --…-file 指定。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
         "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...] "
-        "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--bundle <ZIP>]"
+        "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
+        "[--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
-        "population_files": None, "births_files": None, "migration_files": None, "bundle": None,
+        "population_files": None, "births_files": None, "migration_files": None,
+        "income_file": None, "income_year": None, "bundle": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
-              "--kindergartens-file": "kindergartens_file", "--bundle": "bundle"}
+              "--kindergartens-file": "kindergartens_file", "--income-file": "income_file",
+              "--income-year": "income_year", "--bundle": "bundle"}
+    texts = {"--doorplates-version", "--income-year"}
     repeated = {"--population-file": "population_files", "--births-file": "births_files",
                 "--migration-file": "migration_files"}
     lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
@@ -599,15 +604,25 @@ def geo_sync_options(args: list[str]) -> dict:
             index += 2
         elif arg in valued and index + 1 < len(args) and not args[index + 1].startswith("--"):
             value = args[index + 1]
-            options[valued[arg]] = value if arg == "--doorplates-version" else Path(value)
+            options[valued[arg]] = value if arg in texts else Path(value)
             index += 2
         else:
             raise SystemExit(usage)
-    for path in (options["doorplates_file"], options["kindergartens_file"], options["bundle"], *(p for files in lists.values() for p in files)):
+    singles = (options["doorplates_file"], options["kindergartens_file"], options["income_file"], options["bundle"])
+    for path in (*singles, *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
             raise SystemExit(f"找不到檔案：{path}")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
         raise SystemExit(usage)
+    if options["income_year"] is not None:
+        if options["income_file"] is None:
+            raise SystemExit(usage)
+        from app.admissions.geo.income import IncomeFormatError, parse_year
+
+        try:
+            options["income_year"] = parse_year(options["income_year"])
+        except IncomeFormatError as exc:
+            raise SystemExit(str(exc)) from exc
     for key, files in lists.items():
         if files:
             options[key] = files
@@ -635,6 +650,10 @@ async def geo_sync_command(**options) -> None:
                 print(f"打包檔不匯入：{exc}", file=sys.stderr)
                 raise SystemExit(1)
             for kind, files in unpacked.items():
+                if kind == "income":
+                    # 打包檔裡的所得只有一個年度（bundle.py 驗證過），年度取檔名「112_165-E.csv」。
+                    options["income_file"] = files[0]
+                    continue
                 key = f"{kind}_files"
                 options[key] = [*(options.get(key) or []), *files]
         try:
@@ -651,12 +670,16 @@ async def geo_sync_command(**options) -> None:
     print(
         f"各里出生：{result.births}（最新 {result.births_version or '尚未匯入'}，這次寫入 {result.births_months} 個月）；"
         f"各里遷入遷出：{result.migration}（最新 {result.migration_version or '尚未匯入'}，這次寫入 {result.migration_months} 個月）；"
-        f"一年前的年齡：{result.age_history}"
+        f"一年前的年齡：{result.age_history}；"
+        f"各里所得：{result.income}（使用中 {result.income_version + ' 年度' if result.income_version else '尚未匯入'}）"
     )
-    if result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped:
+    if (
+        result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped
+        or result.income_rows_skipped
+    ):
         print(
             f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆、"
-            f"各里人口 {result.population_rows_skipped} 列"
+            f"各里人口 {result.population_rows_skipped} 列、各里所得 {result.income_rows_skipped} 列（對不到里界）"
         )
     failed = [
         (dataset, label)
@@ -667,6 +690,7 @@ async def geo_sync_command(**options) -> None:
             ("births", "各里出生", result.births),
             ("migration", "各里遷入遷出", result.migration),
             ("population", "一年前的年齡", result.age_history),
+            ("income", "各里所得", result.income),
         )
         if outcome == "failed"
     ]
@@ -690,7 +714,8 @@ def main() -> None:
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
-            "[--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] [--bundle <ZIP>]>",
+            "[--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
+            "[--income-file <CSV> [--income-year 112]] [--bundle <ZIP>]>",
             file=sys.stderr,
         )
         raise SystemExit(1)

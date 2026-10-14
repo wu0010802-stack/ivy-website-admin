@@ -1,8 +1,8 @@
 """在台灣的電腦抓齊公開資料、打包成一個 zip（2026-10-14 里的變化規格 §4.6），給正式站連不到來源時用。
 
 照同步的規則抓：各里出生（ODRP010）、遷入遷出（ODRP011）各最新月份往回 25 個月（來源查無資料的月份跳過），
-各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會
-回擋頁），全部約 3 分鐘。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
+各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度。ris.gov.tw 每個
+請求之間隔 3 秒（連續快速請求會回擋頁），全部約 3 分鐘。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
 用法（在 backend/）：
   uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip]
@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.admissions.geo import income as income_io  # noqa: E402
 from app.admissions.geo import population as population_io  # noqa: E402
 from app.admissions.geo import sync  # noqa: E402
 from app.admissions.geo import village_series as series_io  # noqa: E402
@@ -98,6 +99,14 @@ async def build(out: Path | None) -> Path:
                     )
                 )
             print(f"各里人口 {series_io.label_of(yyymm)}：{len(pages)} 頁")
+        # 各里所得：同步的同一條路（data.gov.tw 找最新年度，讀不到就直接試財政資訊中心；連線被 reset 會重試）。
+        found = await sync._discover_income(client, None, force=False)
+        if found is None:  # pragma: no cover - active 是 None 時找不到會丟錯
+            raise SystemExit("找不到各里所得")
+        year, body = found
+        income_io.parse_csv(income_io.decode(body), year)  # 先驗證，壞檔不打包
+        files.append(BundleFile(f"{year}_165-E.csv", "income", str(year), income_io.csv_url(year), body))
+        print(f"各里所得：{year} 年度")
     target = out or Path(f"geo-bundle-{population_latest}.zip")
     write_bundle(target, files)
     print(f"已寫入 {target}（{len(files)} 個檔，{target.stat().st_size / 1024 / 1024:.1f} MB）")
@@ -105,7 +114,7 @@ async def build(out: Path | None) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口，打包給 geo-sync --bundle")
+    parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口、所得，打包給 geo-sync --bundle")
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
     args = parser.parse_args()
     asyncio.run(build(args.out))

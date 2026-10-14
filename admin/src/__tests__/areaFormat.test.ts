@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, kidsLevelTone, kidsNetText,
+  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, incomeText, kidsLevelTone,
+  kidsNetText,
   kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone,
   signedCount, taipeiMonthDay, trendMapNote, trendsPlaceName, trendsSummary, visitGeoText,
 } from '../components/admissions/area/areaFormat'
@@ -251,6 +252,13 @@ describe('里的變化的文字（2026-10-14 規格 7）', () => {
     expect(kidsNetText({ kids_net: 0, kids_base: 100 })).toBe('0（0.0%）')
     expect(kidsNetText({ kids_net: 3, kids_base: 0 })).toBe('+3')
     expect(kidsNetText({ kids_net: null, kids_base: null })).toBe('—')
+  })
+
+  it('所得中位數：千元換成萬（小數一位），界線在所得年度後調整加「*」，沒有寫「—」', () => {
+    expect(incomeText({ income_median: 458, income_boundary_changed: false })).toBe('45.8 萬')
+    expect(incomeText({ income_median: 952, income_boundary_changed: true })).toBe('95.2 萬*')
+    expect(incomeText({ income_median: 300, income_boundary_changed: false })).toBe('30.0 萬')
+    expect(incomeText({ income_median: null, income_boundary_changed: false })).toBe('—')
   })
 
   it('地圖色階：孩子少與算不出來不上色', () => {

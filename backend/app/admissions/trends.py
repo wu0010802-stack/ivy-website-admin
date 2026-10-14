@@ -10,6 +10,8 @@
 - 里界調整（V5）：上面三個期間內代碼頭尾不齊，或某個月行政區域調整人數（增或減取大）≥ 該里人口 1% 且
   ≥ 20 人的里，同一區的合併成一組（含已廢止的舊代碼），數字整組相加；組裡只要有一個里在半徑內，整組列一列。
 - 分級（V6）：戶籍是全數登記不是抽樣，不做統計檢定，用固定門檻。
+- 所得（V9，C 段）：最新年度的中位數，只當背景，不排序、不分級、不進合計。合併組不列（中位數不能相加）；
+  里界在所得年度之後調整過（V5 的門檻，看遷入遷出表裡所有存著的月份）的里照列，另標 income_boundary_changed。
 
 這些都是描述性的數字，不預測、不打分（招生統計「不做」清單不變）。"""
 
@@ -20,16 +22,18 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
+from app.admissions.geo import income as income_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoVillageAges,
     GeoVillageBirths,
+    GeoVillageIncome,
     GeoVillageMigration,
     GeoVillagePopulation,
 )
@@ -76,6 +80,31 @@ def _round_distance(meters: float) -> int:
 async def _label(db: AsyncSession, dataset: str) -> str | None:
     status = await db.get(GeoDatasetStatus, dataset)
     return status.label if status is not None and status.active_version is not None else None
+
+
+async def _income(db: AsyncSession, districts: set[str]) -> tuple[int | None, str, dict[str, int]]:
+    """(使用中的所得年度, 顯名與附註, 代碼 → 中位數)。"""
+    status = await db.get(GeoDatasetStatus, "income")
+    if status is None or status.active_version is None:
+        return None, "", {}
+    year = int(status.active_version)
+    rows = await db.execute(
+        select(GeoVillageIncome.village_code, GeoVillageIncome.median).where(GeoVillageIncome.district.in_(districts))
+    )
+    return year, income_io.citation(year, status.synced_at), {code: median for code, median in rows.all()}
+
+
+async def _adjusted_since(db: AsyncSession, districts: set[str], year: int, people: dict[str, int]) -> set[str]:
+    """所得年度之後（遷入遷出表裡所有存著的月份），行政區域調整人數過 V5 門檻的代碼。表只存 25 個月，
+    更早的調整看不到（規格 §5.8 的限制）。"""
+    m = GeoVillageMigration
+    moved = func.greatest(m.boundary_in, m.boundary_out)
+    rows = await db.execute(
+        select(m.village_code, func.max(moved))
+        .where(m.district.in_(districts), m.month > f"{year:03d}-12", moved >= BOUNDARY_MIN_PEOPLE)
+        .group_by(m.village_code)
+    )
+    return {code for code, most in rows.all() if most >= BOUNDARY_SHARE * people.get(code, 0)}
 
 
 @dataclass
@@ -194,6 +223,7 @@ async def query_trends(
             "births": {"latest": births_latest, "months": [], "missing": []},
             "migration": {"latest": migration_latest, "months": [], "missing": []},
             "note": series_io.SOURCE_NOTE,
+            "income": {"year": None, "note": ""},
         },
         "baseline": None,
         "kids_unavailable": None,
@@ -216,6 +246,14 @@ async def query_trends(
         current=current,
         births_months=sorted({*births_window, *births_previous}),
         migration_months=sorted({*migration_window, *kids_window}),
+    )
+
+    income_year, income_note, incomes = await _income(db, districts)
+    result["sources"]["income"] = {"year": income_year, "note": income_note}
+    income_changed = (
+        await _adjusted_since(db, districts, income_year, {code: _people(data, code) for code in incomes})
+        if income_year is not None
+        else set()
     )
 
     births_present = [month for month in births_window if month in data.births]
@@ -308,6 +346,8 @@ async def query_trends(
                     if has_rows(data.migration, migration_present, codes)
                     else None
                 ),
+                "income_median": None if merged else incomes.get(codes[0]),
+                "income_boundary_changed": not merged and codes[0] in incomes and codes[0] in income_changed,
             }
         )
     villages.sort(

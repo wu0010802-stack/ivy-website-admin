@@ -3898,6 +3898,16 @@ export interface components {
             villages: number;
         };
         /**
+         * AreaTrendsIncomeSourceOut
+         * @description 各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。
+         */
+        AreaTrendsIncomeSourceOut: {
+            /** Note */
+            note: string;
+            /** Year */
+            year: number | null;
+        };
+        /**
          * AreaTrendsMonthsOut
          * @description 出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。
          */
@@ -3940,6 +3950,7 @@ export interface components {
         /** AreaTrendsSourcesOut */
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
+            income: components["schemas"]["AreaTrendsIncomeSourceOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
             /** Note */
             note: string;
@@ -3962,6 +3973,10 @@ export interface components {
             distance_m: number;
             /** District */
             district: string;
+            /** Income Boundary Changed */
+            income_boundary_changed: boolean;
+            /** Income Median */
+            income_median: number | null;
             /** Key */
             key: string;
             /** Kids Base */

@@ -285,6 +285,15 @@ export function trendsPlaceName(row: Pick<AreaTrendsVillage, 'district' | 'villa
   return `${row.district}${shown}（里界調整，合併）`
 }
 
+/**
+ * 所得中位數（C 段，規格 V9）：千元換成「45.8 萬」；里界在所得年度之後調整過加「*」；沒有所得（新設的里、合併組）
+ * 寫「—」。只當背景：不著色、不分級、不排序。
+ */
+export function incomeText(row: Pick<AreaTrendsVillage, 'income_median' | 'income_boundary_changed'>): string {
+  if (row.income_median === null) return NO_VALUE
+  return `${(row.income_median / 10).toFixed(1)} 萬${row.income_boundary_changed ? '*' : ''}`
+}
+
 const KIDS_UNAVAILABLE: Record<NonNullable<AreaTrends['kids_unavailable']>, string> = {
   no_population: '各里人口尚未匯入，這一年淨增先不算。',
   no_year_ago: '一年前的各里人口還沒匯入，這一年淨增先不算。',

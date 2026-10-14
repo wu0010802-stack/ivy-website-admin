@@ -8,7 +8,7 @@ zip 內是 manifest.json 與原始回應檔：
     {"version": 1, "created_at": "2026-10-14T03:00:00+00:00",
      "files": [{"path": "births-11509.json", "kind": "births", "period": "115-09",
                 "source": "https://www.ris.gov.tw/…", "sha256": "…"}]}
-manifest 缺欄位、檔名不安全、種類不認得、sha256 不符、檔案太大：整包不匯入。"""
+manifest 缺欄位、檔名不安全、種類不認得、sha256 不符、檔案太大、所得超過一個檔：整包不匯入。"""
 
 from __future__ import annotations
 
@@ -22,8 +22,10 @@ from pathlib import Path
 
 MANIFEST = "manifest.json"
 VERSION = 1
-# 這一段（A）收的資料種類；新成屋、所得在之後的段落加。
-KINDS = ("population", "births", "migration")
+# 收的資料種類（A 段人口、出生、遷入遷出；C 段所得）；新成屋在 B 段加。
+KINDS = ("population", "births", "migration", "income")
+# 只能有一個檔的種類：所得只存最新一個年度，年度取檔名（「112_165-E.csv」，sync 的 income.year_of_filename）。
+SINGLE_KINDS = ("income",)
 # 單檔上限（全國的人口一頁約 10 MB）與檔數上限（出生、遷入遷出各 25 個月＋人口兩個月份）。
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 200
@@ -94,6 +96,8 @@ def open_bundle(source: Path, destination: Path) -> dict[str, list[Path]]:
                 raise BundleError(f"manifest.json 裡的檔名不能用：{name!r}")
             if kind not in KINDS:
                 raise BundleError(f"不認得的資料種類：{kind!r}（{name}）")
+            if kind in SINGLE_KINDS and any(other == kind for _, other, _ in checked):
+                raise BundleError(f"{kind} 只能有一個檔")
             if not isinstance(digest, str) or not isinstance(entry.get("period"), str):
                 raise BundleError(f"{name} 缺少 sha256 或期間")
             try:
