@@ -183,6 +183,28 @@ async def test_a_kindergarten_closed_and_reopened_later(db_session):
     ]
 
 
+async def test_a_kindergarten_back_within_30_days_with_a_new_type_keeps_only_the_kind_change(db_session):
+    """停辦後 30 天內回來（來源漏收）：停辦事件撤掉、不寫重新營業；但類型真的變了，這筆照寫（規格 §4 第 3 步）。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("k2", kind="private")])
+    await put_kindergartens(db_session, [kg("k1")], now=later(3))
+    report = await put_kindergartens(db_session, [kg("k1"), kg("k2", kind="nonprofit")], now=later(10))
+    assert (report.cancelled_closures, report.opened, report.kind_changed) == (1, 0, 1)
+    assert await events(db_session) == [("kindergarten", "k2", "kind_changed", date(2026, 10, 24), "private", "nonprofit")]
+
+
+async def test_a_kindergarten_back_after_30_days_with_a_new_type_writes_all_three_events(db_session):
+    """第 31 天才回來：停辦、重新營業，類型變了再加一筆（同一天的 opened 在 kind_changed 前面）。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("k2", kind="private")])
+    await put_kindergartens(db_session, [kg("k1")], now=later(3))
+    report = await put_kindergartens(db_session, [kg("k1"), kg("k2", kind="nonprofit")], now=later(34))
+    assert (report.cancelled_closures, report.opened, report.kind_changed) == (0, 1, 1)
+    assert await events(db_session) == [
+        ("kindergarten", "k2", "closed", date(2026, 10, 17), None, None),
+        ("kindergarten", "k2", "opened", date(2026, 11, 17), None, None),
+        ("kindergarten", "k2", "kind_changed", date(2026, 11, 17), "private", "nonprofit"),
+    ]
+
+
 async def test_existing_rows_are_updated_in_place(db_session):
     await put_kindergartens(db_session, [kg("k1", name="舊名", capacity=100)])
     await put_kindergartens(db_session, [kg("k1", name="新名", capacity=120, registered_on=date(2026, 2, 13))], now=later(7))

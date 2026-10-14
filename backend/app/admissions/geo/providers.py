@@ -135,8 +135,8 @@ async def _apply(
             if had_rows and spec.new_row_is_event:
                 add_event(source_id, "opened")
             continue
-        # 類型要在覆寫欄位之前比（要用舊列的準公共期間重算）。
-        changed_kind = kind_change(row, values) if kind_change is not None and row.is_active else None
+        # 類型要在覆寫欄位之前比（要用舊列的準公共期間重算）。停辦中的列也比：回來時類型變了照寫。
+        changed_kind = kind_change(row, values) if kind_change is not None else None
         reopened = not row.is_active
         for column, value in values.items():
             setattr(row, column, value)
@@ -147,7 +147,7 @@ async def _apply(
                 cancelled += 1
             else:
                 add_event(source_id, "opened")
-        elif changed_kind is not None:
+        if changed_kind is not None:
             add_event(source_id, "kind_changed", *changed_kind)
     for source_id, row in existing.items():
         if row.is_active and source_id not in incoming:
