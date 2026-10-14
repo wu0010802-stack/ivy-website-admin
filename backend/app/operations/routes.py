@@ -470,6 +470,58 @@ def _as_utc(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
+def _actor_filter(value: str | None) -> uuid.UUID | Literal["system"] | None:
+    if value is None or value == "":
+        return None
+    if value == audit_service.SYSTEM_ACTOR:
+        return audit_service.SYSTEM_ACTOR
+    try:
+        return uuid.UUID(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_ACTOR", "message": "操作者要是帳號 id 或 system"},
+        ) from exc
+
+
+def _search_terms(values: list[str]) -> list[str]:
+    terms = list(dict.fromkeys(term.strip() for term in values if term.strip()))
+    if len(terms) > audit_service.MAX_SEARCH_TERMS or any(len(term) > 100 for term in terms):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_SEARCH", "message": "搜尋字太長，請縮短後再試"},
+        )
+    return terms
+
+
+class AuditActorOut(BaseModel):
+    """操作者篩選的一個選項；actor_user_id 為 null 是「系統」（排程發布、每天清理等）。"""
+
+    actor_user_id: uuid.UUID | None
+    email: str | None
+    display_name: str | None
+    # 這個範圍內最近一次操作的時間。
+    last_at: datetime
+
+
+@router.get("/admin/audit-log/actors", response_model=list[AuditActorOut])
+async def get_audit_log_actors(
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[AuditActorOut]:
+    """這個範圍內出現過的操作者（最近操作的在前，最多 200 個）。權限同操作紀錄列表：只列紀錄裡本來就看得到的人。"""
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    else:
+        require_scope(current_user, "audit.read_all")
+    rows = await audit_service.list_actors(db, campus_key)
+    return [
+        AuditActorOut(actor_user_id=row.user_id, email=row.email, display_name=row.display_name, last_at=row.last_at)
+        for row in rows
+    ]
+
+
 @router.get("/admin/audit-log", response_model=list[AuditLogEntryOut])
 async def get_audit_log(
     campus_key: str | None = None,
@@ -479,6 +531,14 @@ async def get_audit_log(
     created_from: date | None = Query(None, description="紀錄日期起（含），台灣日期"),
     created_to: date | None = Query(None, description="紀錄日期迄（含），台灣日期"),
     limit: int = Query(100, ge=1, le=500, description="一次幾筆；後台匯出時用 500 減少來回"),
+    actor: str | None = Query(None, description="只看某個操作者：帳號 id，或 system（排程等沒有操作者的紀錄）"),
+    q: list[str] = Query(
+        [],
+        description=(
+            "搜尋詞，任一個符合就列出（最多 30 個、每個 100 字內）。比對動作、對象、校區、操作者、"
+            "對象帳號、裝置與細節原文；IP 只有總部比對。後台會把中文名稱展開成對應的代碼一起送。"
+        ),
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[AuditLogEntryOut]:
@@ -487,6 +547,8 @@ async def get_audit_log(
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
+    actor_filter = _actor_filter(actor)
+    terms = _search_terms(q)
     if (before is None) != (before_id is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -505,6 +567,9 @@ async def get_audit_log(
         exclude_login=exclude_login,
         since=local_day_bounds_utc(created_from)[0] if created_from else None,
         until=local_day_bounds_utc(created_to)[1] if created_to else None,
+        actor_filter=actor_filter,
+        terms=terms,
+        search_ip=has_capability(current_user, "audit.read_all"),
     )
     show_ip = has_capability(current_user, "audit.read_all")
     return [

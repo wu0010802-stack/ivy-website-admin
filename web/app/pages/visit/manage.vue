@@ -29,15 +29,19 @@ const selectedNewSlot = computed(() => slots.value.find(slot => slot.id === sele
 // 停用的分校不在公開內容裡：校名、電話改用預約回應帶的，不改列其他校區。
 const visitCampus = computed(() => parentVisitCampus(visit.value, data.value?.content.campuses))
 // 預約成立才給「加入行事曆／導航」（規格 197）。地址只取公開中的分校資料；停用的分校沒有地址，就只給行事曆。
+// 停課日（2026-10-14）：那天園方休假或停班停課，原本的參觀不會進行。沒有線上修改期限，
+// 改寫「請選擇新的時間，或取消」；也不給「加入行事曆」（那個時間不會有參觀）。
+const dayClosed = computed(() => visit.value?.status === 'confirmed' && Boolean(visit.value.day_closed))
 const calendarCampus = computed(() => {
-  if (visit.value?.status !== 'confirmed' || !visit.value.slot || !visitCampus.value?.name) return null
+  if (visit.value?.status !== 'confirmed' || !visit.value.slot || !visitCampus.value?.name || dayClosed.value) return null
   const published = visitCampus.value.listed ? data.value?.content.campuses.find(campus => campus.key === visitCampus.value!.key) : undefined
   return { name: visitCampus.value.name, phone: visitCampus.value.phone, address: published?.address ?? null }
 })
 const statusLabels: Record<string, string> = {
   confirmed: '預約成功', cancelled: '預約已取消', completed: '已完成參觀', no_show: '未完成參觀'
 }
-const statusLabel = computed(() => statusLabels[visit.value?.status || ''] || '請聯絡園所確認')
+// 停課日不寫「預約成功」：和下面的停課說明互相矛盾。
+const statusLabel = computed(() => dayClosed.value ? '這天停課' : statusLabels[visit.value?.status || ''] || '請聯絡園所確認')
 const deadlineLabel = computed(() => visit.value?.change_deadline
   ? new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(visit.value.change_deadline))
   : '')
@@ -203,6 +207,7 @@ async function submitEdit() {
               <div v-if="visit.child_birthdate"><dt>出生年月日</dt><dd>{{ visit.child_birthdate }}</dd></div>
               <div v-if="visit.questions"><dt>想了解的事</dt><dd>{{ visit.questions }}</dd></div>
             </dl>
+            <p v-if="dayClosed" class="parent-visit-notice" role="status" data-test="day-closed">園方這天停課，原本的參觀無法進行。<template v-if="visit.can_reschedule">請選擇新的時間，或取消這次預約。</template></p>
             <p v-if="visitCampus?.paused" class="parent-visit-notice">
               {{ visitCampus.name || '這所分校' }}目前暫停開放，暫不受理線上預約與改期。<template v-if="visitCampus.phone">如需協助，請來電 <a :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">{{ visitCampus.phone }}</a>。</template><template v-else>如需協助，請直接聯絡園所。</template>
             </p>

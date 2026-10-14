@@ -17,7 +17,7 @@ from app.booking import access_service, history, slot_service, workflow_service
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
-from app.booking.parent_policy import change_deadline_hours, parent_change_open
+from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_open
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
     ParentDetailsUpdate,
@@ -68,7 +68,8 @@ async def require_change_window(db: AsyncSession, visit_request: VisitRequest, *
         await workflow_service.lock_status(db, visit_request)
         await db.refresh(visit_request, attribute_names=["slot"])
     hours = await change_deadline_hours(db, visit_request.campus_key)
-    if not parent_change_open(visit_request, hours):
+    # 停課日不受期限限制（2026-10-14 規格 §3.4），同家長頁顯示的 day_closed。
+    if not parent_change_open(visit_request, hours, day_closed=await day_closed(db, visit_request)):
         if locked:
             await db.rollback()
         raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
@@ -147,6 +148,7 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
         campus_active=campus is None or campus.active,
         campus_phone=str(profile.get("phone") or "").strip() or None,
         slots_open=config is not None and config.mode == BookingMode.SLOTS,
+        day_closed=await day_closed(db, visit_request),
     )
     # 家長改資料用自己的版本（不是園方下次聯絡的 version）。
     output.version = await workflow_service.details_version(db, visit_request.id)

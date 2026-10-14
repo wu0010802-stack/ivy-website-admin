@@ -3,9 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, time, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
@@ -119,20 +119,41 @@ async def _visit_details(
     }
 
 
+def _inbox_scope(stmt, current_user: User, campus_key: str | None):
+    """列表與計數共用的範圍：指定校區（要有權限），或你負責的所有校區（總管理者＝全部）。"""
+    require_scope(current_user, "booking.read")
+    if campus_key:
+        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        return stmt.where(NotificationInboxItem.campus_key == campus_key)
+    if (scope := campus_scope(current_user)) is not None:
+        return stmt.where(NotificationInboxItem.campus_key.in_(scope))
+    return stmt
+
+
 @router.get("/admin/notifications", response_model=list[NotificationInboxItemOut])
 async def list_notifications(
     campus_key: str | None = None,
+    before: datetime | None = Query(None, description="上一頁最後一則的 created_at；和 before_id 一起傳，讀更早的通知"),
+    before_id: uuid.UUID | None = Query(None, description="上一頁最後一則的 id"),
+    unread_only: bool = Query(False, description="只列還沒讀的"),
+    limit: int = Query(100, ge=1, le=200, description="一次幾則"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[NotificationInboxItemOut]:
-    require_scope(current_user, "booking.read")
-    stmt = select(NotificationInboxItem)
-    if campus_key:
-        require_scope(current_user, "booking.read", campus_keys=[campus_key])
-        stmt = stmt.where(NotificationInboxItem.campus_key == campus_key)
-    elif (scope := campus_scope(current_user)) is not None:
-        stmt = stmt.where(NotificationInboxItem.campus_key.in_(scope))
-    stmt = stmt.order_by(NotificationInboxItem.created_at.desc()).limit(100)
+    """新的在前，一次最多 limit 則；要更早的就帶上一頁最後一則的 before／before_id（2026-10-14 起）。
+    同一時間的多則用 id 排出固定順序，翻頁不會漏也不會重複。"""
+    if (before is None) != (before_id is None):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_CURSOR", "message": "before 與 before_id 要一起傳"},
+        )
+    stmt = _inbox_scope(select(NotificationInboxItem), current_user, campus_key)
+    if unread_only:
+        stmt = stmt.where(NotificationInboxItem.read_at.is_(None))
+    if before is not None and before_id is not None:
+        cursor_at = before if before.tzinfo else before.replace(tzinfo=timezone.utc)
+        stmt = stmt.where(tuple_(NotificationInboxItem.created_at, NotificationInboxItem.id) < tuple_(cursor_at, before_id))
+    stmt = stmt.order_by(NotificationInboxItem.created_at.desc(), NotificationInboxItem.id.desc()).limit(limit)
     items = list((await db.execute(stmt)).scalars())
     details = await _visit_details(db, items)
     out: list[NotificationInboxItemOut] = []
@@ -152,6 +173,45 @@ async def list_notifications(
             )
         )
     return out
+
+
+class NotificationCampusCountOut(BaseModel):
+    campus_key: str
+    unread: int
+
+
+class NotificationCountsOut(BaseModel):
+    """範圍內的通知數（不受列表一頁幾則限制），頁籤數字與「未讀：義華 3 則」用。"""
+
+    total: int
+    unread: int
+    # 有未讀的校區，依校區 key 排序。
+    unread_by_campus: list[NotificationCampusCountOut]
+
+
+@router.get("/admin/notifications/counts", response_model=NotificationCountsOut)
+async def notification_counts(
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> NotificationCountsOut:
+    unread_count = func.count().filter(NotificationInboxItem.read_at.is_(None))
+    rows = (
+        await db.execute(
+            _inbox_scope(
+                select(NotificationInboxItem.campus_key, func.count(), unread_count), current_user, campus_key
+            )
+            .group_by(NotificationInboxItem.campus_key)
+            .order_by(NotificationInboxItem.campus_key)
+        )
+    ).all()
+    return NotificationCountsOut(
+        total=sum(total for _, total, _ in rows),
+        unread=sum(unread for _, _, unread in rows),
+        unread_by_campus=[
+            NotificationCampusCountOut(campus_key=key, unread=unread) for key, _, unread in rows if unread
+        ],
+    )
 
 
 @router.post("/admin/notifications/{notification_id}/read")

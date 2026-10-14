@@ -9,7 +9,7 @@ import {
   campusLabel, formatDate, formatDateTime, formatShortDateTime, formatShortSlotWhen, formatWeekday,
   notificationLabel, outboxErrorLabel,
 } from '../api/labels'
-import type { NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationReadAllOut, NotificationRetryBatchOut } from '../api/types'
+import type { NotificationCountsOut, NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationReadAllOut, NotificationRetryBatchOut } from '../api/types'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -33,7 +33,7 @@ const route = useRoute()
 const router = useRouter()
 const queryCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
 if (multiCampus.value && visibleCampusKeys.value.includes(queryCampus)) campusFilter.value = queryCampus
-// 後端一次最多回最新的 100 則（notifications/routes.py）。
+// 一頁 100 則（後端預設）；回滿 100 則就可能還有更早的，用最後一則當游標接著讀（2026-10-14）。
 const NOTIFICATION_LIMIT = 100
 const { can } = usePermissions()
 // 重新寄送要能處理案件（booking.handle，含櫃台）；沒有的人
@@ -53,6 +53,12 @@ const onlyUnread = ref(route.query.unread === '1')
 const busyId = ref<string | null>(null)
 const bulkBusy = ref(false)
 const loadError = ref('')
+// 範圍內的總則數與未讀數（/admin/notifications/counts，不受一頁 100 則限制）。讀不到時（含舊版 API）
+// 退回用已載入的清單算。
+const counts = ref<NotificationCountsOut | null>(null)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+const moreError = ref('')
 const operationResult = ref('')
 const operationFailed = ref(false)
 const retryAllBusy = ref(false)
@@ -92,23 +98,55 @@ function refreshAll() {
   void loadFailed()
 }
 
+function listPath(campus: string, unread: boolean, before?: NotificationOut): string {
+  // 不帶校區＝你負責的全部校區（後端依權限範圍過濾）。「未讀」頁籤由後端篩（2026-10-14），更早的未讀也翻得到。
+  const params = new URLSearchParams()
+  if (campus) params.set('campus_key', campus)
+  if (unread) params.set('unread_only', 'true')
+  if (before) {
+    params.set('before', before.created_at)
+    params.set('before_id', before.id)
+  }
+  const query = params.toString()
+  return `/admin/notifications${query ? `?${query}` : ''}`
+}
+
+function validCounts(value: unknown): NotificationCountsOut | null {
+  const c = value as NotificationCountsOut | null
+  return c && typeof c === 'object' && typeof c.total === 'number' && typeof c.unread === 'number' && Array.isArray(c.unread_by_campus) ? c : null
+}
+
+async function loadCounts(campus: string, version: number) {
+  try {
+    const result = await api.get<NotificationCountsOut>(campus ? `/admin/notifications/counts?campus_key=${encodeURIComponent(campus)}` : '/admin/notifications/counts')
+    if (alive && version === loadVersion && campus === campusFilter.value) counts.value = validCounts(result)
+  } catch {
+    if (alive && version === loadVersion) counts.value = null
+  }
+}
+
 // quiet：切回分頁時的背景更新，保留畫面上的清單、不閃骨架，讀不到就維持原樣。
 async function load(options: { quiet?: boolean } = {}) {
   const version = ++loadVersion
   const campus = campusFilter.value
+  const unread = onlyUnread.value
   const quiet = options.quiet === true && listMatches(campus) && !loadError.value
   if (!quiet) {
     notifications.value = []
     loadedFilter.value = null
     loadError.value = ''
+    counts.value = null
+    hasMore.value = false
   }
+  moreError.value = ''
   if (visibleCampusKeys.value.length === 0) { loading.value = false; return }
   if (!quiet) loading.value = true
+  void loadCounts(campus, version)
   try {
-    // 不帶校區＝你負責的全部校區（後端依權限範圍過濾）。
-    const n = await api.get<NotificationOut[]>(campus ? `/admin/notifications?campus_key=${encodeURIComponent(campus)}` : '/admin/notifications')
+    const n = await api.get<NotificationOut[]>(listPath(campus, unread))
     if (!alive || version !== loadVersion || campus !== campusFilter.value) return
     notifications.value = n
+    hasMore.value = n.length >= NOTIFICATION_LIMIT
     loadedFilter.value = campus
     loadedAt = Date.now()
   } catch {
@@ -118,10 +156,33 @@ async function load(options: { quiet?: boolean } = {}) {
   }
 }
 
+// 接著讀更早的 100 則，接在目前清單後面。途中換校區、換頁籤或重新整理，舊的回應不寫回。
+async function loadMore() {
+  const last = notifications.value[notifications.value.length - 1]
+  if (!last || loadingMore.value || loading.value) return
+  const version = loadVersion
+  const campus = campusFilter.value
+  loadingMore.value = true
+  moreError.value = ''
+  try {
+    const page = await api.get<NotificationOut[]>(listPath(campus, onlyUnread.value, last))
+    if (!alive || version !== loadVersion || campus !== campusFilter.value) return
+    const seen = new Set(notifications.value.map(row => row.id))
+    notifications.value = [...notifications.value, ...page.filter(row => !seen.has(row.id))]
+    hasMore.value = page.length >= NOTIFICATION_LIMIT
+  } catch {
+    if (alive && version === loadVersion) moreError.value = '讀不到更早的通知，請再試一次。'
+  } finally {
+    if (alive) loadingMore.value = false
+  }
+}
+
 function changeCampus(value: string) {
   if (!operationBusy.value) campusFilter.value = value ?? ''
 }
 watch(campusFilter, () => { operationResult.value = ''; void load() }, { immediate: true })
+// 「未讀」頁籤由後端篩：切頁籤就重讀（上面的清單仍會把剛標成已讀的藏起來）。
+watch(onlyUnread, () => { void load() })
 watch([campusFilter, onlyUnread], ([campus, unread]) => {
   const campusParam = multiCampus.value && campus ? campus : undefined
   const unreadParam = unread ? '1' : undefined
@@ -154,7 +215,9 @@ onBeforeUnmount(() => {
 const visibleNotifications = computed(() =>
   onlyUnread.value ? notifications.value.filter((n) => !n.read_at) : notifications.value,
 )
-const unreadCount = computed(() => notifications.value.filter((n) => !n.read_at).length)
+const loadedUnread = computed(() => notifications.value.filter((n) => !n.read_at).length)
+const unreadCount = computed(() => counts.value?.unread ?? loadedUnread.value)
+const totalCount = computed(() => counts.value?.total ?? notifications.value.length)
 const scopeLabel = computed(() => (campusFilter.value ? campusLabel(campusFilter.value) : '全部校區'))
 // 「義華 3 則、仁武 1 則」：全部校區時講清楚未讀在哪幾校。
 function countByCampus(rows: NotificationOut[]): string {
@@ -162,17 +225,22 @@ function countByCampus(rows: NotificationOut[]): string {
   for (const row of rows) counts.set(row.campus_key, (counts.get(row.campus_key) ?? 0) + 1)
   return [...counts].map(([key, count]) => `${campusLabel(key)} ${count} 則`).join('、')
 }
-const unreadBreakdown = computed(() => (campusFilter.value ? '' : countByCampus(notifications.value.filter((n) => !n.read_at))))
-const listCapped = computed(() => notifications.value.length >= NOTIFICATION_LIMIT)
+const unreadBreakdown = computed(() => {
+  if (campusFilter.value) return ''
+  if (counts.value) return counts.value.unread_by_campus.map((row) => `${campusLabel(row.campus_key)} ${row.unread} 則`).join('、')
+  return countByCampus(notifications.value.filter((n) => !n.read_at))
+})
+// 還有沒列出的通知（更早的頁還沒載入，或未讀總數比畫面上的多）：全部標記已讀時要講清楚會一併標記。
+const listCapped = computed(() => hasMore.value || unreadCount.value > loadedUnread.value)
 // 給螢幕報讀器的清單摘要（畫面上的數字在頁籤裡）。
 const liveSummary = computed(() => {
   if (loading.value) return '正在讀取通知…'
   if (loadError.value) return ''
-  return `${scopeLabel.value} · ${notifications.value.length} 則通知，${unreadCount.value} 則未讀${unreadBreakdown.value ? `（${unreadBreakdown.value}）` : ''}`
+  return `${scopeLabel.value} · ${totalCount.value} 則通知，${unreadCount.value} 則未讀${unreadBreakdown.value ? `（${unreadBreakdown.value}）` : ''}`
 })
 
 const listTabs = computed(() => [
-  { unread: false, label: '全部', count: notifications.value.length },
+  { unread: false, label: '全部', count: totalCount.value },
   { unread: true, label: '未讀', count: unreadCount.value },
 ])
 
@@ -244,9 +312,21 @@ function listMatches(campus: string): boolean {
 
 // 標記成功後寫回目前畫面上的那一則：背景更新可能已經換過一份清單。
 function setReadLocally(n: NotificationOut, readAt: string | null) {
+  const wasUnread = !n.read_at
   n.read_at = readAt
   const current = notifications.value.find((row) => row.id === n.id)
   if (current) current.read_at = readAt
+  // 頁籤數字（後端計數）跟著加減，不必整份重讀。
+  if (counts.value && wasUnread !== !readAt) {
+    const delta = readAt ? -1 : 1
+    counts.value = {
+      ...counts.value,
+      unread: Math.max(counts.value.unread + delta, 0),
+      unread_by_campus: counts.value.unread_by_campus
+        .map((row) => (row.campus_key === n.campus_key ? { ...row, unread: Math.max(row.unread + delta, 0) } : row))
+        .filter((row) => row.unread > 0),
+    }
+  }
 }
 
 // 點通知打開案件就算看過，順手標成已讀（2026-10-05 業主裁定）。標記權限照舊只有
@@ -282,12 +362,16 @@ async function markAllRead() {
   const campus = campusFilter.value
   if (!listMatches(campus)) return
   const unread = notifications.value.filter((n) => !n.read_at && (!campus || n.campus_key === campus))
-  if (!unread.length) return
+  // 有後端計數時用範圍內的真實未讀數（含還沒載入的更早未讀）；讀不到計數才只看畫面上的。
+  const known = counts.value
+  const total = known ? known.unread : unread.length
+  if (!total) return
   // 已讀是同校共用的狀態；全部校區時一次會動到好幾校，先講清楚是哪幾校。
   if (!campus) {
+    const where = known ? unreadBreakdown.value : countByCampus(unread)
     try {
       await ElMessageBox.confirm(
-        `會把 ${countByCampus(unread)}，共 ${unread.length} 則未讀通知標記為已讀${listCapped.value ? '，另外沒有列出的更早未讀也會一併標記' : ''}。已讀是同校共用的狀態，這幾校的同事也會看到已讀。`,
+        `會把 ${where}，共 ${total} 則未讀通知標記為已讀${!known && listCapped.value ? '，另外沒有列出的更早未讀也會一併標記' : ''}。已讀是同校共用的狀態，這幾校的同事也會看到已讀。`,
         '全部校區標記已讀？',
         { confirmButtonText: '標記已讀', cancelButtonText: '先不要', type: 'warning' },
       )
@@ -306,6 +390,7 @@ async function markAllRead() {
       // 畫面上範圍內的都已是已讀（含背景更新換過的清單，所以重新掃一遍現在的清單）。
       const readAt = new Date().toISOString()
       for (const n of notifications.value) if (!n.read_at && (!campus || n.campus_key === campus)) n.read_at = readAt
+      if (counts.value) counts.value = { ...counts.value, unread: 0, unread_by_campus: [] }
       operationFailed.value = false
       operationResult.value = result.updated > 0
         ? `已標記 ${result.updated} 則為已讀（${scopeLabel.value}）。`
@@ -495,7 +580,11 @@ async function retryAll() {
               </li>
             </ul>
           </section>
-          <p v-if="listCapped" class="notices__cap">只列出最新的 {{ NOTIFICATION_LIMIT }} 則通知，更早的沒有列出；「全部標記已讀」會連沒有列出的未讀一併標記。</p>
+          <div v-if="hasMore || moreError" class="notices__more">
+            <el-alert v-if="moreError" :title="moreError" type="error" show-icon :closable="false" />
+            <el-button :loading="loadingMore" :disabled="operationBusy" data-test="notifications-load-more" @click="loadMore">載入更早的通知</el-button>
+            <p v-if="canMarkRead && unreadCount > loadedUnread" class="notices__cap">還有 {{ unreadCount - loadedUnread }} 則更早的未讀沒有列出；「全部標記已讀」會一併標記。</p>
+          </div>
         </template>
       </section>
     </template>
@@ -567,10 +656,18 @@ async function retryAll() {
   width: auto;
 }
 
+/* 清單底部：載入更早的通知（2026-10-14 起翻頁，不再只列最新 100 則）。 */
+.notices__more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+}
+
 .notices__cap {
   margin: 0;
-  padding: 12px 24px 16px;
-  border-top: 1px solid var(--line);
   font-size: var(--text-sm);
   color: var(--ink-3);
 }
@@ -706,7 +803,7 @@ a.notice__main:focus-visible {
   .notices__breakdown { order: 5; flex-basis: 100%; }
   .notices__skeleton { padding: 16px; }
   .notices__error { margin: 16px; }
-  .notices__cap { padding: 12px 16px 16px; }
+  .notices__more { padding: 12px 16px 16px; }
   .notice-day__label { padding: 14px 16px 4px; }
   /* 手機：時間在右上，標記已讀在右下（44px 觸控），標題可以換行。 */
   .notice {

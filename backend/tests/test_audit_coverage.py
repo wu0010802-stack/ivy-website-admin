@@ -34,6 +34,8 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/my-notifications/{notification_id}/read"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/my-notifications/read-all"): "個人通知已讀狀態",
     ("POST", "/api/website/v1/admin/retention/dry-run"): "只試算筆數，不改任何資料",
+    ("POST", "/api/website/v1/admin/holiday-calendar/fetch"): "只下載並解析辦公日曆給後台預覽，不改任何資料；套用（apply）才寫稽核",
+    ("POST", "/api/website/v1/admin/holiday-calendar/parse"): "只解析上傳的辦公日曆給後台預覽，不改任何資料；套用（apply）才寫稽核",
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),

@@ -500,6 +500,7 @@ export type NotificationOutboxOut = components['schemas']['NotificationOutboxOut
 export type NotificationOutboxPageOut = components['schemas']['NotificationOutboxPageOut']
 export type NotificationRetryBatchOut = components['schemas']['NotificationRetryBatchOut']
 export type NotificationInboxItemOut = components['schemas']['NotificationInboxItemOut']
+export type NotificationCountsOut = components['schemas']['NotificationCountsOut']
 export type NotificationReadAllOut = components['schemas']['NotificationReadAllOut']
 export type ParentAccessLinkCreatedOut = components['schemas']['ParentAccessLinkCreatedOut']
 export type VisitContactNoteOut = components['schemas']['VisitContactNoteOut']
@@ -528,6 +529,7 @@ export type RetentionPolicyOut = components['schemas']['RetentionPolicyOut']
 export type RetentionReportOut = components['schemas']['RetentionReportOut']
 export type RetentionRunOut = components['schemas']['RetentionRunOut']
 export type AuditLogEntryOut = components['schemas']['AuditLogEntryOut']
+export type AuditActorOut = components['schemas']['AuditActorOut']
 export type DisplayNameUpdateRequest = components['schemas']['DisplayNameUpdateRequest']
 
 // 招生入學（2026-10 規格 13）。名稱去掉 Out；B 階段的 api/admissions.ts 從這裡匯入。
@@ -600,3 +602,10 @@ export type AdmissionsRate = components['schemas']['AdmissionsRate']
 // 未預繳明細（C3b）。NoDepositRecordsOut 在 C2b 才進 OpenAPI。
 export type NoDepositRecords = components['schemas']['NoDepositRecordsOut']
 export type NoDepositRecord = components['schemas']['NoDepositRecordOut']
+
+// 國定假日匯入、停班停課（2026-10-14）
+export type HolidayCalendarOut = components['schemas']['HolidayCalendarOut']
+export type HolidayApplyOut = components['schemas']['HolidayApplyOut']
+export type HolidayApplyCampusOut = components['schemas']['HolidayApplyCampusOut']
+export type VisitClosureOut = components['schemas']['VisitClosureOut']
+export type VisitClosureCampusOut = components['schemas']['VisitClosureCampusOut']

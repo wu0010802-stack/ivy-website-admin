@@ -267,6 +267,17 @@ describe('parent visit campus', () => {
     expect(page).not.toContain('history.replaceState')
   })
 
+  it('停課日寫「請選擇新的時間，或取消」，不給加入行事曆', () => {
+    const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
+    expect(page).toMatch(/const dayClosed = computed\(\(\) => visit\.value\?\.status === 'confirmed' && Boolean\(visit\.value\.day_closed\)\)/)
+    const notice = page.split('\n').find(line => line.includes('data-test="day-closed"'))
+    expect(notice).toContain('v-if="dayClosed"')
+    expect(notice).toContain('園方這天停課，原本的參觀無法進行。')
+    expect(notice).toContain('請選擇新的時間，或取消這次預約。')
+    expect(page).toMatch(/!visitCampus\.value\?\.name \|\| dayClosed\.value\) return null/)
+    expect(page).toContain("dayClosed.value ? '這天停課' :")
+  })
+
   it('offers rebooking only when the campus booking page exists', () => {
     const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
     const rebook = page.split('\n').find(line => line.includes('>重新預約</NuxtLink>'))

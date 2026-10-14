@@ -13,6 +13,8 @@ import CampusSelect from '../components/CampusSelect.vue'
 import WeeklySessionsCard from '../components/sessions/WeeklySessionsCard.vue'
 import DayPanel from '../components/sessions/DayPanel.vue'
 import SlotUsagePane from '../components/sessions/SlotUsagePane.vue'
+import ClosureDialog from '../components/sessions/ClosureDialog.vue'
+import HolidayImportDialog from '../components/sessions/HolidayImportDialog.vue'
 import { campusLabel } from '../api/labels'
 import { dayAriaLabel, dayChips, type CalendarSlot } from '../utils/calendarChips'
 
@@ -206,6 +208,19 @@ async function selectDay(day: string, event?: MouseEvent) {
 }
 
 const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? [])
+
+// 停班停課、匯入國定假日（2026-10-14）。從某一天的「寄停課通知」打開時日期與校區固定。
+const closureOpen = ref(false)
+const closureFixed = ref<{ date: string; campus: string; reason: string | null } | null>(null)
+const holidayOpen = ref(false)
+function openClosure() {
+  closureFixed.value = null
+  closureOpen.value = true
+}
+function openDayNotice() {
+  closureFixed.value = { date: selectedDay.value, campus: campusFilter.value, reason: holidays.value.get(selectedDay.value)?.reason ?? null }
+  closureOpen.value = true
+}
 </script>
 
 <template>
@@ -227,6 +242,10 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
           <strong class="calendar__month" aria-live="polite">{{ monthLabel }}</strong>
           <el-button :icon="ArrowRight" aria-label="下個月" @click="shiftMonth(1)" />
           <el-button text @click="goToday">今天</el-button>
+        </div>
+        <div v-if="canManage && campusFilter" class="calendar__actions">
+          <el-button data-test="open-closure" @click="openClosure">停班停課</el-button>
+          <el-button data-test="open-holiday-import" @click="holidayOpen = true">匯入國定假日</el-button>
         </div>
       </div>
 
@@ -279,7 +298,9 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
         </div>
       </div>
 
-      <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" @changed="load" />
+      <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" @changed="load" @notify="openDayNotice" />
+      <ClosureDialog v-if="canManage" v-model="closureOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" :fixed="closureFixed" @done="load" />
+      <HolidayImportDialog v-if="canManage" v-model="holidayOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" @done="load" />
     </template>
 
     <SlotUsagePane v-else-if="campusFilter" :campus-key="campusFilter" :campus-name="campusName" @go-calendar="tab = 'calendar'" />
@@ -297,6 +318,8 @@ const selectedSlots = computed(() => slotsByDay.value.get(selectedDay.value) ?? 
 .calendar__swatch { flex-shrink: 0; width: 20px; height: 14px; border-radius: 3px; }
 .calendar__legend-date { font-size: var(--text-sm); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .calendar__nav { display: flex; align-items: center; gap: 8px; }
+.calendar__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.calendar__actions .el-button + .el-button { margin-left: 0; }
 .calendar__nav .el-button + .el-button { margin-left: 0; }
 .calendar__month { min-width: 8em; text-align: center; font-size: var(--text-lg); }
 .calendar { overflow: hidden; }

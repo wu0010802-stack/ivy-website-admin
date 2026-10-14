@@ -1,3 +1,48 @@
+## 2026-10-14 參觀場次：國定假日匯入、停班停課；操作紀錄搜尋、站內通知翻頁（`feature/holiday-closure-20261014`）
+
+使用者從功能盤點裡選了這兩項，說「先做這些」。規格 `docs/specs/2026-10-14-holiday-closure-design.md`，規則見 DESIGN.md 最上方一節，操作步驟見 `docs/website-admin/operations.md`「國定假日與停班停課」。
+
+- **匯入國定假日**（參觀場次 →「匯入國定假日」）：
+  - 從政府資料開放平台下載人事行政總處的「行政機關辦公日曆表」（今年或明年）；連不到時上傳同一份 CSV。
+  - 預覽每一天（可取消勾選）、選校區、先試算再套用。
+  - 星期一到五的假日一律成為休假日；週末節日只在那校有週末場次時才建；已是休假日的不動；補行上班的週六不加開。
+  - 解析器在 114（Big5 更新版）、115、116 年的真實檔案上驗過；本機實際從平台下載 116 年版，義華建了 17 天、略過 7 個週末節日。
+- **停班停課**（參觀場次 →「停班停課」）：
+  - 選日期（今天到 60 天內）、校區（可複選）、原因（會寫進給家長的信），先試算再確認。
+  - 那天變成休假日、場次全部關閉；已約的預約不取消。
+  - 有 Email 的家長收到停課通知（附修改連結），同一筆同一天只寄一次；沒有 Email 的照舊在「待人工處理」由櫃台來電。正式站沒設寄信時不排信。
+  - 休假日還有已約的家長時，月曆那天的面板多一顆「寄停課通知（N 組）」。
+- **停課日家長不受線上修改期限限制**：期限是讓園方來得及反應的，停課日沒有意義。家長頁寫「園方這天停課…請選擇新的時間，或取消這次預約」、狀態寫「這天停課」，不給「加入行事曆」。月曆上一般的「整天休假」也適用。
+- **待人工處理**：改看「那天有沒有休假」。先「停止申請」、之後整天休假的場次（關閉來源仍是 manual），已約的家長原本不會列進來，現在會。
+- **操作紀錄**：
+  - 多「操作者」篩選（這個範圍出現過的人，含「系統」）。
+  - 搜尋改由後端比對全部紀錄，不再只搜已載入的；後台把中文名稱展開成代碼一起送，清單與匯出用同一組條件。
+- **站內通知**：
+  - 「載入更早的通知」（游標翻頁），「未讀」頁籤由後端篩。
+  - 頁籤數字是範圍內的真實總數；拿掉「只列出最新的 100 則」。
+- **API**：
+  - 新增 `POST /admin/holiday-calendar/fetch|parse|apply`、`POST /admin/visit-closures`、`GET /admin/audit-log/actors`、`GET /admin/notifications/counts`。
+  - `GET /admin/audit-log` 多 `actor`、`q`；`GET /admin/notifications` 多 `before`、`before_id`、`unread_only`、`limit`（回應仍是陣列）；`ParentVisitRequestOut` 多 `day_closed`。
+  - 新的家長信種類 `parent_visit_day_closed`、歷程 `closure_notice`、操作紀錄 `visit_exception.import_holidays`、`visit_closure.create`。
+  - **沒有 migration**。
+- **驗證**（Node 22.22、PostgreSQL 16、本機 Chromium）：
+  - 後端全套分 3 組平行跑（各自的測試庫）：2680 passed、1 failed。失敗的是 `test_media_job_loop.py::test_stop_terminates_running_ffmpeg_and_requeues_job`（「停止要在 4 秒內完成」的計時斷言，三組同時跑 CPU 滿載），和本次無關，單獨重跑 9 passed。
+  - 新增的後端測試：`test_holiday_calendar.py` 24、`test_visit_closure.py` 10、`test_audit_search_and_inbox_paging.py` 8。
+  - admin vitest（`--maxWorkers=2`，同 CI）156 檔 2354 passed、1 skipped；web vitest 101 檔 1226 passed。
+  - admin `vue-tsc -b --noEmit`、web `nuxt typecheck`、admin build、`contract:check` 都通過。
+  - 解析器以 114（Big5 更新版）、115、116 年的真實檔案驗過；本機實際從開放平台下載 116 年版。
+  - 本機 stack（API＋後台 dev＋官網 dev）上用 Playwright 跑桌機 1440、手機 390，都沒有水平溢出：
+    - 停班停課：試算顯示 6 組（4 位寄信、2 位要來電），送出後寄出 4 封。
+    - 那天面板的「寄停課通知」：4 位之前寄過、不重寄。
+    - 匯入國定假日：義華新增 17 天、略過 7 個週末節日。
+    - 操作紀錄：搜尋「停班」找到那一筆；操作者篩選正常。
+    - 站內通知：130 則翻頁到 130、未讀頁籤 86。
+    - 家長頁：把期限設成 14 天，停課日仍可改場次與取消，不顯示期限也沒有加入行事曆。
+- **未驗證**：
+  - 正式站（Railway）連不連得到 data.gov.tw／dgpa.gov.tw（連不到就用上傳）。
+  - 真的寄出的停課信：本機沒有 SMTP，只驗了排信、信件內容與連結。
+  - Safari／iOS 實機。
+
 ## 2026-10-14 全專案 bug 盤點與兩條修正（`feature/fix-entrance-publish-lock-20261014`）
 
 使用者要「看看專案有沒有 bugs」：官網、後台、API 分五塊逐檔審查，每條候選都追到實際呼叫路徑再判斷。沒有高嚴重度問題；修了影響最大的兩條，其餘低嚴重度的列在下面待排。
