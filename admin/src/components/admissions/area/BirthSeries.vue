@@ -47,7 +47,7 @@ function exportCsv() {
       </div>
       <div v-for="row in rows" :key="row.key" class="birth-series__row" role="row">
         <span role="rowheader" class="birth-series__period">
-          <span class="birth-series__label">{{ row.label }}</span>
+          <span class="birth-series__label"><span class="birth-series__part">{{ row.label_from }}～</span><span class="birth-series__part">{{ row.label_to }}</span></span>
           <small v-if="row.missing_text" class="birth-series__missing">{{ row.missing_text }}</small>
         </span>
         <span role="cell" class="birth-series__figure">
@@ -83,6 +83,7 @@ function exportCsv() {
 }
 
 .birth-series__table {
+  max-width: 640px;
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -108,6 +109,12 @@ function exportCsv() {
   color: var(--ink-2);
   font-size: var(--text-sm);
   font-weight: 600;
+}
+
+/* 期間標籤只在「～」處換行，不把「115 年 9 月」拆成兩行 */
+.birth-series__part {
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .birth-series__missing {

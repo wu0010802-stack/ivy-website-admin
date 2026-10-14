@@ -11,6 +11,9 @@ export const BIRTH_SERIES_NOTE = '每 12 個月一期，加總本校半徑內各
 export interface BirthSeriesRow {
   key: string
   label: string
+  /** label 拆成「～」前後兩段，畫面只在「～」處換行。 */
+  label_from: string
+  label_to: string
   missing_text: string
   births: number
   births_text: string
@@ -36,6 +39,8 @@ export function birthSeriesRows(periods: readonly AreaTrendsBirthPeriod[]): Birt
   return periods.map((period) => ({
     key: period.ends,
     label: birthPeriodLabel(period),
+    label_from: populationVersionLabel(period.starts),
+    label_to: populationVersionLabel(period.ends),
     missing_text: birthMissingText(period),
     births: period.births,
     births_text: formatCount(period.births),

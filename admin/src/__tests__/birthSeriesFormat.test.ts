@@ -31,8 +31,14 @@ describe('birthSeriesFormat', () => {
   it('列：最新在前（照後端順序），出生數加千分位', () => {
     const rows = birthSeriesRows([period(), period({ starts: '113-10', ends: '114-09', births: 13497, change_pct: null, missing: ['113-11'], months: 11 })])
     expect(rows).toEqual([
-      { key: '115-09', label: '114 年 10 月～115 年 9 月', missing_text: '', births: 10929, births_text: '10,929', change_text: '−19.0%' },
-      { key: '114-09', label: '113 年 10 月～114 年 9 月', missing_text: '缺 113 年 11 月', births: 13497, births_text: '13,497', change_text: '—' },
+      {
+        key: '115-09', label: '114 年 10 月～115 年 9 月', label_from: '114 年 10 月', label_to: '115 年 9 月',
+        missing_text: '', births: 10929, births_text: '10,929', change_text: '−19.0%',
+      },
+      {
+        key: '114-09', label: '113 年 10 月～114 年 9 月', label_from: '113 年 10 月', label_to: '114 年 9 月',
+        missing_text: '缺 113 年 11 月', births: 13497, births_text: '13,497', change_text: '—',
+      },
     ])
   })
 
