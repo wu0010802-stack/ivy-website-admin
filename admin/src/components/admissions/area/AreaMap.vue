@@ -8,7 +8,7 @@ import type {
 import { formatRate } from '../../../admissions/statsFormat'
 import {
   KIDS_LEVEL_LABELS, KIND_LABELS, KIND_ORDER, MAP_MODES, babycareKindLabel, babycareMeta, babycareShortName,
-  campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, homesMax, kidsLevelTone, kidsNetText, kindLabel,
+  campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, homesCount, homesMax, kidsLevelTone, kidsNetText, kindLabel,
   legendRanges, levelOf, shortName, signalText, signalTone, signedCount, trendsPlaceName, villageKey,
   type MapMode, type RadiusKm,
 } from './areaFormat'
@@ -24,8 +24,9 @@ import {
 // 本校沒座標、讀取失敗）後兩種停用，opportunityNote 寫原因；讀取中（opportunity 是 null、沒有原因）照常可選，先不上色。
 // 2026-10-14 里的變化：多一種「孩子增減」（這一年 2–5 歲孩子淨增的分級：增加兩級、減少兩級、差不多），里界調整
 // 合併的組、孩子少、半徑外不上色。資料用不了時（讀取失敗、本校沒座標、淨增算不出來）停用，trendNote 寫原因。
-// 2026-10-14 新屋交屋（B2 段）：近 4 季到里的新成屋筆數依半徑內最多的那一里分 5 級（同參觀人數的切法），0 筆、里界調整
-// 合併的組（整組的數字不能算給組內每個里）、半徑外不上色。新成屋沒匯入、本校沒座標、讀取失敗時停用，homesNote 寫原因。
+// 2026-10-14 新屋交屋（B2 段）：近 4 季到里的新成屋筆數依半徑內最多的那一里分 5 級（同參觀人數的切法），0 筆、半徑外
+// 不上色。里界調整合併的組，列上的數字是整組的，組內各里用各自的筆數上色（new_homes_by_code）。新成屋沒匯入、
+// 本校沒座標、讀取失敗時停用，homesNote 寫原因。
 // 2026-10-14 托嬰與園所異動：托嬰中心用菱形標點、獨立圖層（預設不勾）。
 const props = withDefaults(
   defineProps<{
@@ -109,7 +110,7 @@ const trendStats = computed(() => {
   for (const row of props.trends?.villages ?? []) for (const code of row.codes) byCode.set(code, row)
   return byCode
 })
-// 新屋交屋的分級用半徑內沒有合併的里的最大值。
+// 新屋交屋的分級用半徑內各里自己的筆數的最大值。
 const homesMaxValue = computed(() => homesMax(props.trends?.villages ?? []))
 const mode = ref<MapMode>('visits')
 function modeNote(value: MapMode): string {
@@ -163,9 +164,7 @@ function villageClass(properties: VillageProperties): string {
   }
   if (mode.value === 'homes') {
     const row = trendStats.value.get(properties.VILLCODE)
-    return row && !row.merged
-      ? `area-village area-village--l${levelOf(row.new_homes ?? 0, homesMaxValue.value)}`
-      : 'area-village area-village--l0'
+    return row ? `area-village area-village--l${levelOf(homesCount(row, properties.VILLCODE), homesMaxValue.value)}` : 'area-village area-village--l0'
   }
   const row = opportunityRow(properties)
   if (mode.value === 'children') return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
@@ -215,7 +214,7 @@ function trendLines(properties: VillageProperties): HTMLParagraphElement[] {
   return lines.length ? lines : [popupLine('這個里還沒有資料')]
 }
 
-// 新屋交屋模式的彈出框：近 4 季與最近一季的筆數；合併組先寫和哪些里合併，數字是整組的。
+// 新屋交屋模式的彈出框：近 4 季與最近一季的筆數；合併組先寫和哪些里合併，再寫這個里自己的筆數與整組的筆數。
 function homesLines(properties: VillageProperties): HTMLParagraphElement[] {
   if (!props.trends) return [popupLine('里的變化讀取中…')]
   const row = trendStats.value.get(properties.VILLCODE)
@@ -224,7 +223,12 @@ function homesLines(properties: VillageProperties): HTMLParagraphElement[] {
   if (row.merged) lines.push(popupLine(`里界調整過，和同區的里合併計算：${trendsPlaceName(row)}`))
   if (row.new_homes === null) return [...lines, popupLine('新成屋資料尚未匯入')]
   const latest = props.trends.sources.new_homes.latest
-  lines.push(popupLine(`近 4 季新屋交屋 ${formatCount(row.new_homes)} 筆${row.merged ? '（整組）' : ''}`))
+  if (row.merged) {
+    lines.push(popupLine(`近 4 季新屋交屋 ${formatCount(homesCount(row, properties.VILLCODE))} 筆（整組 ${formatCount(row.new_homes)} 筆）`))
+    if (latest) lines.push(popupLine(`最近一季（${latest}）整組 ${formatCount(row.new_homes_latest ?? 0)} 筆`))
+    return lines
+  }
+  lines.push(popupLine(`近 4 季新屋交屋 ${formatCount(row.new_homes)} 筆`))
   if (latest) lines.push(popupLine(`最近一季（${latest}）${formatCount(row.new_homes_latest ?? 0)} 筆`))
   return lines
 }
@@ -633,7 +637,7 @@ onBeforeUnmount(destroyMap)
         <li v-for="item in legend" :key="item.level">
           <span class="area-swatch" :class="`area-swatch--l${item.level}`" aria-hidden="true" />{{ item.label }} {{ legendUnit }}
         </li>
-        <li v-if="mode === 'homes'"><span class="area-swatch area-swatch--l0" aria-hidden="true" />0 筆、里界調整、在半徑外</li>
+        <li v-if="mode === 'homes'"><span class="area-swatch area-swatch--l0" aria-hidden="true" />0 筆或在半徑外</li>
       </ul>
       <p v-else class="area-map__none">{{ noneText }}</p>
       <div class="area-legend area-legend--kinds">

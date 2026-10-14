@@ -13,7 +13,8 @@
 - 所得（V9，C 段）：最新年度的中位數，只當背景，不排序、不分級、不進合計。合併組不列（中位數不能相加）；
   里界在所得年度之後調整過（V5 的門檻，看遷入遷出表裡所有存著的月份）的里照列，另標 income_boundary_changed。
 - 新屋交屋（V7、V8，B2 段）：最新季往回 4 季、到里（exact、nearby、street）的筆數，另回最近一季。多數里是 0，
-  匯入了新成屋 0 就是 0；只到區、待比對、里名對不到里界的不進里表，另回「範圍內的區沒對到里的筆數」。合併組整組相加。
+  匯入了新成屋 0 就是 0；只到區、待比對、里名對不到里界的不進里表，另回「範圍內的區沒對到里的筆數」。合併組整組相加，
+  另回各代碼自己的筆數（新屋交屋是用當前門牌比對的流量，不需要合併就能比；地圖靠它替組內各里上色）。
 - 國小學區（V10、V11，D 段）：每列寫對到的國小（部分鄰、自由學區另標）。「依國小學區」只列學區碰到半徑內任一個里
   的國小，每所合計**整個學區**（含半徑外的里）的孩子、這一年淨增與參觀人數；部分里與自由學區的里同時算進每一所，
   各列不能相加。參觀人數的母體同 /area/opportunity（頁首校區＋入學學年學期，到里且未匿名化）。
@@ -485,6 +486,8 @@ async def query_trends(
                 "income_boundary_changed": not merged and codes[0] in incomes and codes[0] in income_changed,
                 "new_homes": sum(homes.get(code, (0, 0))[0] for code in codes) if homes_latest is not None else None,
                 "new_homes_latest": sum(homes.get(code, (0, 0))[1] for code in codes) if homes_latest is not None else None,
+                # 各代碼自己的近 4 季筆數（只列有交屋的）：合併組的數字是整組的，地圖要靠它替組內各里上色。
+                "new_homes_by_code": {code: homes[code][0] for code in codes if code in homes},
             }
         )
     villages.sort(

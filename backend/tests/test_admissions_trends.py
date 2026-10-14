@@ -179,7 +179,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
         "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
-        "new_homes": None, "new_homes_latest": None,
+        "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "schools": [_school("東光國小")],
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
@@ -189,7 +189,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
         "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
-        "new_homes": None, "new_homes_latest": None,
+        "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "schools": [_school("光武國小")],
     }
     # 排序：淨增由大到小，算不出來的在最後。
@@ -206,7 +206,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
         "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
         "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
-        "new_homes": None, "new_homes_latest": None,
+        "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "schools": [_school("東光國小")],
     }
 
@@ -345,6 +345,10 @@ async def test_new_homes_are_counted_per_village_over_the_last_four_seasons(admi
     assert (rows[f"group:三民區:{BENSHANG}"]["new_homes"], rows[f"group:三民區:{BENSHANG}"]["new_homes_latest"]) == (2, 2)
     assert (rows[BAOYE]["new_homes"], rows[BAOYE]["new_homes_latest"]) == (0, 0)
     assert rows[BAOHUA]["new_homes"] == 0
+    # 各代碼自己的筆數（只列有交屋的）：合併組整組 2 筆，全是本上里的；沒有交屋的里是空的。
+    assert rows[BENYANG]["new_homes_by_code"] == {BENYANG: 6}
+    assert rows[f"group:三民區:{BENSHANG}"]["new_homes_by_code"] == {BENSHANG: 2}
+    assert rows[BAOYE]["new_homes_by_code"] == {}
     baseline = body["baseline"]
     assert (baseline["new_homes"], baseline["new_homes_latest"], baseline["new_homes_seasons"]) == (8, 5, 3)
 

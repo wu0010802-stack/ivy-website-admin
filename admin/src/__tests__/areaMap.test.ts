@@ -974,17 +974,50 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     await flushPromises()
   }
 
-  it('近 4 季筆數依半徑內最多的里分 5 級（同參觀人數的切法）；合併組、0 筆、半徑外不上色；圖例寫「筆」；地圖名稱跟著換', async () => {
+  it('近 4 季筆數依半徑內最多的里分 5 級（同參觀人數的切法）；0 筆、半徑外不上色；圖例寫「筆」；地圖名稱跟著換', async () => {
     const wrapper = await mountMap({ trends: areaTrends() })
     await choose(wrapper, 'homes')
-    // 本揚里 24 筆、鼎金里 106 筆（最多）；寶業里、龍子里是同一個合併組：數字是整組的，不替組內各里上色。
+    // 本揚里 24 筆、鼎金里 106 筆（最多）；寶業里、龍子里是同一個合併組，組內沒有交屋（0 筆）：不上色。
     expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
       'area-village area-village--l2', 'area-village area-village--l5',
       'area-village area-village--l0', 'area-village area-village--l0', 'area-village area-village--l0',
     ])
     expect(wrapper.findAll('.area-legend--levels li').map((item) => item.text()))
-      .toEqual(['1–21 筆', '22–42 筆', '43–63 筆', '64–84 筆', '85–106 筆', '0 筆、里界調整、在半徑外'])
+      .toEqual(['1–21 筆', '22–42 筆', '43–63 筆', '64–84 筆', '85–106 筆', '0 筆或在半徑外'])
     expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在下方的里的變化表')
+  })
+
+  it('里界調整合併的組：列上是整組的數字，組內各里依自己的筆數上色，彈出框寫自己的與整組的', async () => {
+    const base = areaTrends()
+    // 寶業里 8 筆、龍子里 4 筆，整組 12 筆（分級的最大值仍是鼎金里的 106 筆）。
+    const trends = areaTrends({
+      villages: base.villages.map((row) =>
+        row.merged ? { ...row, new_homes: 12, new_homes_latest: 5, new_homes_by_code: { '64000050025': 8, '64000020015': 4 } } : row),
+    })
+    const wrapper = await mountMap({ trends })
+    await choose(wrapper, 'homes')
+    expect([BAOYE, LONGZI].map(classOf)).toEqual(['area-village area-village--l1', 'area-village area-village--l1'])
+    expect(popupLines(BAOYE)).toEqual([
+      '三民區寶業里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
+      '近 4 季新屋交屋 8 筆（整組 12 筆）', '最近一季（115S3）整組 5 筆', '查看明細',
+    ])
+    expect(popupLines(LONGZI).at(2)).toBe('近 4 季新屋交屋 4 筆（整組 12 筆）')
+  })
+
+  it('合併組比任何一個單獨的里都多時，分級以組內最多的那一里為最大值（不是整組）', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      villages: base.villages.map((row) =>
+        row.merged
+          ? { ...row, new_homes: 639, new_homes_latest: 100, new_homes_by_code: { '64000050025': 500, '64000020015': 139 } }
+          : { ...row, new_homes: 24, new_homes_by_code: row.new_homes_by_code }),
+    })
+    const wrapper = await mountMap({ trends })
+    await choose(wrapper, 'homes')
+    // 最大值是組內寶業里的 500：寶業里最深（l5），龍子里 139（l2）；鼎金里 24（l1）。
+    expect([BAOYE, LONGZI, BENYANG].map(classOf)).toEqual([
+      'area-village area-village--l5', 'area-village area-village--l2', 'area-village area-village--l1',
+    ])
   })
 
   it('半徑內都沒有交屋：圖例換成一句話，不留空圖例', async () => {
@@ -1001,7 +1034,7 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     expect(popupLines(BENYANG)).toEqual(['三民區本揚里', '近 4 季新屋交屋 24 筆', '最近一季（115S3）9 筆', '查看明細'])
     expect(popupLines(LONGZI)).toEqual([
       '鼓山區龍子里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
-      '近 4 季新屋交屋 0 筆（整組）', '最近一季（115S3）0 筆', '查看明細',
+      '近 4 季新屋交屋 0 筆（整組 0 筆）', '最近一季（115S3）整組 0 筆', '查看明細',
     ])
     expect(popupLines(OUTSIDE)).toEqual(['小港區青島里', '不在本校 3 公里內'])
   })

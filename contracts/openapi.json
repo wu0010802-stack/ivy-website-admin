@@ -4101,6 +4101,13 @@
             ],
             "title": "New Homes"
           },
+          "new_homes_by_code": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "New Homes By Code",
+            "type": "object"
+          },
           "new_homes_latest": {
             "anyOf": [
               {
@@ -4141,6 +4148,7 @@
           "income_boundary_changed",
           "new_homes",
           "new_homes_latest",
+          "new_homes_by_code",
           "schools"
         ],
         "title": "AreaTrendsVillageOut",

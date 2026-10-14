@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAP_MODES, NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
   changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, expectedText, formatDistance,
-  homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
+  homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
   providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
 } from '../components/admissions/area/areaFormat'
@@ -437,8 +437,21 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect([seasonRange(['115S3']), seasonRange(['114S4', '115S1', '115S2', '115S3']), seasonRange([])]).toEqual(['115S3', '114S4–115S3', ''])
   })
 
-  it('地圖分級的最大值只看沒有合併的里（合併組在地圖上不上色）', () => {
-    expect(homesMax([{ merged: false, new_homes: 24 }, { merged: true, new_homes: 500 }, { merged: false, new_homes: null }])).toBe(24)
+  it('地圖上某個里的筆數：一般的里用那一列，合併組用組內各代碼自己的筆數（整組的數字不算給每個里）', () => {
+    expect(homesCount({ merged: false, new_homes: 24, new_homes_by_code: { A: 24 } }, 'A')).toBe(24)
+    expect(homesCount({ merged: false, new_homes: null, new_homes_by_code: {} }, 'A')).toBe(0)
+    const group = { merged: true, new_homes: 639, new_homes_by_code: { A: 500, B: 139 } }
+    expect([homesCount(group, 'A'), homesCount(group, 'B'), homesCount(group, 'C')]).toEqual([500, 139, 0])
+  })
+
+  it('地圖分級的最大值：每個里自己的筆數，合併組看組內各里、不看整組', () => {
+    const rows: Parameters<typeof homesMax>[0] = [
+      { merged: false, new_homes: 24, new_homes_by_code: { A: 24 } },
+      { merged: true, new_homes: 639, new_homes_by_code: { B: 500, C: 139 } },
+      { merged: false, new_homes: null, new_homes_by_code: {} },
+    ]
+    expect(homesMax(rows)).toBe(500)
+    expect(homesMax([{ merged: true, new_homes: 0, new_homes_by_code: {} }])).toBe(0)
     expect(homesMax([])).toBe(0)
   })
 

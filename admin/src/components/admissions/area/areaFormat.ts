@@ -485,9 +485,22 @@ export function seasonRange(seasons: readonly string[]): string {
   return first === last ? first : `${first}–${last}`
 }
 
-/** 新屋交屋的地圖分級用的最大值：只看沒有合併的里（合併組在地圖上不上色）。 */
-export function homesMax(villages: readonly Pick<AreaTrendsVillage, 'merged' | 'new_homes'>[]): number {
-  return Math.max(0, ...villages.filter((row) => !row.merged).map((row) => row.new_homes ?? 0))
+type HomesRow = Pick<AreaTrendsVillage, 'merged' | 'new_homes' | 'new_homes_by_code'>
+
+/**
+ * 地圖上某個里的近 4 季新屋交屋筆數：一般的里是那一列的數字；里界調整合併的組，列上的數字是整組的，
+ * 組內各里用後端回的各代碼自己的筆數（新屋交屋不需要合併就能比，整組的數字不能算給組內每個里）。
+ */
+export function homesCount(row: HomesRow, code: string): number {
+  return row.merged ? (row.new_homes_by_code[code] ?? 0) : (row.new_homes ?? 0)
+}
+
+/** 新屋交屋的地圖分級用的最大值：每個里自己的筆數（合併組看組內各里，不看整組）。 */
+export function homesMax(villages: readonly HomesRow[]): number {
+  return Math.max(
+    0,
+    ...villages.flatMap((row) => (row.merged ? Object.values(row.new_homes_by_code) : [row.new_homes ?? 0])),
+  )
 }
 
 /**

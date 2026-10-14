@@ -1229,6 +1229,8 @@ class AreaTrendsVillageOut(BaseModel):
     # 還沒匯入是 null。合併組整組相加。
     new_homes: int | None
     new_homes_latest: int | None
+    # 各代碼自己的近 4 季筆數（只列有交屋的里；沒匯入是空的）。合併組的 new_homes 是整組的，地圖用這個替組內各里上色。
+    new_homes_by_code: dict[str, int]
     # 國小學區（D 段）：整里在前、部分在後。
     schools: list[AreaTrendsVillageSchoolOut]
 

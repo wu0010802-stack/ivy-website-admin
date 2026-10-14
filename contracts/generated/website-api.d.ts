@@ -4217,6 +4217,10 @@ export interface components {
             migration_net_12m: number | null;
             /** New Homes */
             new_homes: number | null;
+            /** New Homes By Code */
+            new_homes_by_code: {
+                [key: string]: number;
+            };
             /** New Homes Latest */
             new_homes_latest: number | null;
             /** Schools */
