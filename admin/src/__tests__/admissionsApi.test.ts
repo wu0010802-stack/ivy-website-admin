@@ -73,6 +73,12 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     expect(get).toHaveBeenLastCalledWith('/admin/admissions/area/opportunity?campus_key=yihua&semester=2&radius_km=1')
   })
 
+  it('里的變化：參數同招生機會', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
+    await admissions.getAreaTrends({ campus_key: 'yihua', school_year: 115, semester: null, radius_km: 6 })
+    expect(get).toHaveBeenLastCalledWith('/admin/admissions/area/trends?campus_key=yihua&school_year=115&radius_km=6')
+  })
+
   it('明細的區域篩選：district／village／geo 有值才帶，列表與匯出同一組', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     await admissions.listRecords({ campus_key: 'yihua', district: '三民區', village: '本揚里', geo: null, page: 1, page_size: 50 })

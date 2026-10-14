@@ -29,6 +29,8 @@ const props = withDefaults(
     csvCell?: (row: Row, column: StatsColumn) => CsvCell | undefined
     /** 有值時預設只列前 N 列，表格下一顆「顯示全部」（招生機會的各里排行，2026-10-13）；匯出 CSV 一律是全部。 */
     collapsedRows?: number
+    /** 匯出用的欄（只在 CSV 多幾欄時給，例如里的變化的「一年前 1–4 歲」，2026-10-14）；沒給就是 columns。 */
+    csvColumns?: readonly StatsColumn[]
   }>(),
   { numbered: false, caption: '', exportFilename: '', actionLabel: '', collapsedRows: 0 },
 )
@@ -107,10 +109,11 @@ function csvValues(row: Row, column: StatsColumn): CsvCell[] {
 
 function exportCsv() {
   if (!props.exportFilename) return
-  const header = [...(props.numbered ? ['#'] : []), ...props.columns.flatMap(csvHeaders)]
+  const columns = props.csvColumns ?? props.columns
+  const header = [...(props.numbered ? ['#'] : []), ...columns.flatMap(csvHeaders)]
   const rows = props.rows.map((row, index) => [
     ...(props.numbered ? [index + 1] : []),
-    ...props.columns.flatMap((column) => csvValues(row, column)),
+    ...columns.flatMap((column) => csvValues(row, column)),
   ])
   try {
     downloadCsv(props.exportFilename, buildCsv(header, rows))

@@ -2,12 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type * as Leaflet from 'leaflet'
 import type {
-  AdmissionsArea, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaVillageRow, VillageBoundaries, VillageProperties,
+  AdmissionsArea, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaTrends, AreaTrendsVillage, AreaVillageRow,
+  VillageBoundaries, VillageProperties,
 } from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
-  KIND_LABELS, KIND_ORDER, MAP_MODES, campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, kindLabel,
-  legendRanges, levelOf, shortName, signalText, signalTone, villageKey, type MapMode, type RadiusKm,
+  KIDS_LEVEL_LABELS, KIND_LABELS, KIND_ORDER, MAP_MODES, campusNotLocatedReason, districtBounds, expectedText, formatCount,
+  formatDistance, kidsLevelTone, kidsNetText, kindLabel, legendRanges, levelOf, shortName, signalText, signalTone, signedCount,
+  trendsPlaceName, villageKey, type MapMode, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
@@ -19,6 +21,8 @@ import {
 // 2026-10-13 招生機會：著色可以切成「2–5 歲孩子」（半徑內依孩子數分 5 級）或「招生機會」（明顯偏少／差不多／
 // 比附近多三色，孩子少與不判斷不上色），半徑外的里這兩種都不上色。招生機會資料用不了時（讀取中、人口沒匯入、
 // 本校沒座標、讀取失敗）後兩種停用，opportunityNote 寫原因；讀取中（opportunity 是 null、沒有原因）照常可選，先不上色。
+// 2026-10-14 里的變化：多一種「孩子增減」（這一年 2–5 歲孩子淨增的分級：增加兩級、減少兩級、差不多），里界調整
+// 合併的組、孩子少、半徑外不上色。資料用不了時（讀取失敗、本校沒座標、淨增算不出來）停用，trendNote 寫原因。
 const props = withDefaults(
   defineProps<{
     boundaries: VillageBoundaries
@@ -31,8 +35,11 @@ const props = withDefaults(
     opportunity?: AreaOpportunity | null
     /** 招生機會用不了的原因；空字串＝可以用。 */
     opportunityNote?: string
+    trends?: AreaTrends | null
+    /** 「孩子增減」用不了的原因；空字串＝可以用。 */
+    trendNote?: string
   }>(),
-  { opportunity: null, opportunityNote: '' },
+  { opportunity: null, opportunityNote: '', trends: null, trendNote: '' },
 )
 const emit = defineEmits<{ 'open-area': [filter: { district: string; village: string }] }>()
 
@@ -84,8 +91,20 @@ const opportunityStats = computed(() => {
     noPopulation: new Map((props.opportunity?.no_population_villages ?? []).map((item) => [item.village_code, item])),
   }
 })
+// 里的變化的列以里代碼對：合併組的每個代碼都指到同一列。
+const trendStats = computed(() => {
+  const byCode = new Map<string, AreaTrendsVillage>()
+  for (const row of props.trends?.villages ?? []) for (const code of row.codes) byCode.set(code, row)
+  return byCode
+})
 const mode = ref<MapMode>('visits')
-const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: option.value !== 'visits' && Boolean(props.opportunityNote) })))
+function modeNote(value: MapMode): string {
+  if (value === 'visits') return ''
+  return value === 'trend' ? props.trendNote : props.opportunityNote
+}
+const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: Boolean(modeNote(option.value)) })))
+// 切換列旁邊寫停用的原因：招生機會那兩種的原因優先（同一個原因時只寫一次）。
+const modeNotes = computed(() => [...new Set([props.opportunityNote, props.trendNote].filter(Boolean))])
 const modeLabel = computed(() => MAP_MODES.find((option) => option.value === mode.value)!.label)
 const legend = computed(() =>
   legendRanges(mode.value === 'children' ? opportunityStats.value.maxChildren : villageStats.value.max),
@@ -109,9 +128,14 @@ function opportunityRow(properties: VillageProperties): AreaOpportunityRow | und
   return opportunityStats.value.byCode.get(properties.VILLCODE)
 }
 
-/** 里的 class：依目前的著色模式。分級 l0 與招生機會的 none 都是不上色。 */
+/** 里的 class：依目前的著色模式。分級 l0 與招生機會、孩子增減的 none 都是不上色。 */
 function villageClass(properties: VillageProperties): string {
   if (mode.value === 'visits') return `area-village area-village--l${levelOf(villageRow(properties)?.visit ?? 0, villageStats.value.max)}`
+  if (mode.value === 'trend') {
+    const row = trendStats.value.get(properties.VILLCODE)
+    const tone = row && !row.merged ? kidsLevelTone(row.kids_level) : 'none'
+    return tone === 'none' ? 'area-village area-village--l0' : `area-village area-village--${tone}`
+  }
   const row = opportunityRow(properties)
   if (mode.value === 'children') return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
   const tone = row ? signalTone(row.signal) : 'none'
@@ -142,6 +166,24 @@ function opportunityLines(properties: VillageProperties): HTMLParagraphElement[]
   ]
 }
 
+// 孩子增減模式的彈出框：孩子數與一年前、淨增與分級、出生與淨遷入；合併組先寫和哪些里合併，數字是整組的。
+function trendLines(properties: VillageProperties): HTMLParagraphElement[] {
+  if (!props.trends) return [popupLine('里的變化讀取中…')]
+  const row = trendStats.value.get(properties.VILLCODE)
+  if (!row) return [popupLine(`不在本校 ${props.trends.radius_km} 公里內`)]
+  const lines: HTMLParagraphElement[] = []
+  if (row.merged) lines.push(popupLine(`里界調整過，和同區的里合併計算：${trendsPlaceName(row)}`))
+  if (row.children !== null) {
+    const before = row.kids_base === null ? '' : `（一年前 1–4 歲 ${formatCount(row.kids_base)} 位）`
+    lines.push(popupLine(`2–5 歲 ${formatCount(row.children)} 位${before}`))
+  }
+  if (row.kids_net !== null) lines.push(popupLine(`這一年淨增 ${kidsNetText(row)}・${KIDS_LEVEL_LABELS[row.kids_level]}`))
+  const births = row.births_12m === null ? '' : `近 12 個月出生 ${formatCount(row.births_12m)} 位`
+  const moves = row.migration_net_12m === null ? '' : `淨遷入 ${signedCount(row.migration_net_12m)} 人`
+  if (births || moves) lines.push(popupLine([births, moves].filter(Boolean).join('・')))
+  return lines.length ? lines : [popupLine('這個里還沒有資料')]
+}
+
 // 彈出框用 DOM 組，不用 HTML 字串（名稱一律走 textContent）。
 function villagePopup(properties: VillageProperties): HTMLElement {
   const row = villageRow(properties)
@@ -152,7 +194,9 @@ function villagePopup(properties: VillageProperties): HTMLElement {
   const lines =
     mode.value === 'visits'
       ? [popupLine(row ? `參觀 ${row.visit}・預繳 ${row.deposit}（${formatRate(row.visit_to_deposit_rate)}）` : '這個範圍沒有參觀')]
-      : opportunityLines(properties)
+      : mode.value === 'trend'
+        ? trendLines(properties)
+        : opportunityLines(properties)
   root.append(title, ...lines)
   if (row && row.visit > 0) {
     const link = document.createElement('button')
@@ -412,10 +456,10 @@ function retry() {
 onMounted(() => void startMap())
 
 watch(() => props.boundaries, drawVillages)
-watch([() => props.villages, () => props.opportunity, mode], restyleVillages)
-// 招生機會變得用不了（換校區後人口未匯入、讀取失敗）：退回參觀人數，不留在畫不出東西的模式。讀取中不退。
-watch(() => props.opportunityNote, (note) => {
-  if (note && mode.value !== 'visits') mode.value = 'visits'
+watch([() => props.villages, () => props.opportunity, () => props.trends, mode], restyleVillages)
+// 正在看的模式變得用不了（換校區後人口未匯入、讀取失敗）：退回參觀人數，不留在畫不出東西的模式。讀取中不退。
+watch([() => props.opportunityNote, () => props.trendNote], () => {
+  if (modeNote(mode.value)) mode.value = 'visits'
 })
 // 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。
 watch([() => props.campus.lat, () => props.campus.lng], () => {
@@ -442,7 +486,7 @@ onBeforeUnmount(destroyMap)
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
       <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在下方的表格與清單。 -->
-      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依${modeLabel}著色）；同樣的資料在下方的${mode === 'visits' ? '里排行' : '招生機會表'}與幼兒園清單`" />
+      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依${modeLabel}著色）；同樣的資料在下方的${mode === 'visits' ? '里排行' : mode === 'trend' ? '里的變化表' : '招生機會表'}與幼兒園清單`" />
       <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
       <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>
       <div v-if="failure" class="area-map__notice" role="alert">
@@ -466,10 +510,18 @@ onBeforeUnmount(destroyMap)
           {{ option.label }}
         </el-radio-button>
       </el-radio-group>
-      <span v-if="opportunityNote" class="area-map__mode-note">{{ opportunityNote }}</span>
+      <span v-for="note in modeNotes" :key="note" class="area-map__mode-note">{{ note }}</span>
     </div>
     <div class="area-map__legend">
-      <ul v-if="mode === 'opportunity'" class="area-legend area-legend--signals" aria-label="招生機會圖例">
+      <ul v-if="mode === 'trend'" class="area-legend area-legend--signals" aria-label="孩子增減圖例">
+        <li><span class="area-swatch area-swatch--up2" aria-hidden="true" />增加多</li>
+        <li><span class="area-swatch area-swatch--up1" aria-hidden="true" />增加</li>
+        <li><span class="area-swatch area-swatch--flat" aria-hidden="true" />差不多</li>
+        <li><span class="area-swatch area-swatch--down1" aria-hidden="true" />減少</li>
+        <li><span class="area-swatch area-swatch--down2" aria-hidden="true" />減少多</li>
+        <li><span class="area-swatch area-swatch--l0" aria-hidden="true" />孩子少、里界調整、在半徑外或沒有資料</li>
+      </ul>
+      <ul v-else-if="mode === 'opportunity'" class="area-legend area-legend--signals" aria-label="招生機會圖例">
         <li><span class="area-swatch area-swatch--chance" aria-hidden="true" />明顯偏少</li>
         <li><span class="area-swatch area-swatch--typical" aria-hidden="true" />差不多</li>
         <li><span class="area-swatch area-swatch--strong" aria-hidden="true" />比附近多</li>
@@ -604,6 +656,11 @@ onBeforeUnmount(destroyMap)
 .area-swatch--chance { background: var(--area-chance); }
 .area-swatch--typical { background: var(--area-level-1); }
 .area-swatch--strong { background: var(--area-level-4); }
+.area-swatch--up2 { background: var(--area-level-4); }
+.area-swatch--up1 { background: var(--area-level-2); }
+.area-swatch--flat { background: var(--area-level-1); }
+.area-swatch--down1 { background: var(--area-down-1); }
+.area-swatch--down2 { background: var(--area-down-2); }
 
 .area-map__modes {
   display: flex;
@@ -648,6 +705,11 @@ onBeforeUnmount(destroyMap)
 .area-map :deep(.area-village--chance) { fill: var(--area-chance); fill-opacity: 0.65; }
 .area-map :deep(.area-village--typical) { fill: var(--area-level-1); fill-opacity: 0.6; }
 .area-map :deep(.area-village--strong) { fill: var(--area-level-4); fill-opacity: 0.6; }
+.area-map :deep(.area-village--up2) { fill: var(--area-level-4); fill-opacity: 0.6; }
+.area-map :deep(.area-village--up1) { fill: var(--area-level-2); fill-opacity: 0.6; }
+.area-map :deep(.area-village--flat) { fill: var(--area-level-1); fill-opacity: 0.6; }
+.area-map :deep(.area-village--down1) { fill: var(--area-down-1); fill-opacity: 0.65; }
+.area-map :deep(.area-village--down2) { fill: var(--area-down-2); fill-opacity: 0.65; }
 
 .area-map :deep(.area-radius) {
   stroke: var(--area-radius);

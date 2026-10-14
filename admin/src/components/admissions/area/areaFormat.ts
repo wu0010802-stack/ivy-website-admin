@@ -1,6 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, OpportunitySignal, VillageBoundaries, VisitGeo,
+  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrends, AreaTrendsVillage, KidsLevel, OpportunitySignal,
+  VillageBoundaries, VisitGeo,
 } from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
@@ -152,12 +153,13 @@ export function visitGeoText(geo: VisitGeo | null | undefined, district: string 
 
 // ---- 招生機會（2026-10-13 規格 7）----
 
-/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會。 */
-export type MapMode = 'visits' | 'children' | 'opportunity'
+/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會；孩子增減（2026-10-14 里的變化）。 */
+export type MapMode = 'visits' | 'children' | 'opportunity' | 'trend'
 export const MAP_MODES: readonly { value: MapMode; label: string }[] = [
   { value: 'visits', label: '參觀人數' },
   { value: 'children', label: '2–5 歲孩子' },
   { value: 'opportunity', label: '招生機會' },
+  { value: 'trend', label: '孩子增減' },
 ]
 
 /** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
@@ -239,4 +241,112 @@ export function opportunitySummary(data: AreaOpportunity): { lead: string; verdi
   ].filter(Boolean)
   const excluded = parts.length ? `另有 ${parts.join('、')}，不算在內。` : ''
   return { lead, verdict, note: excluded + missingPopulationNote(data.no_population_villages) }
+}
+
+// ---- 里的變化（2026-10-14 規格 7）----
+
+const MINUS = '\u2212'
+
+/** 有正負號的人數：「+139」「−46」「0」；null 寫「—」。 */
+export function signedCount(value: number | null | undefined): string {
+  if (value === null || value === undefined) return NO_VALUE
+  if (value > 0) return `+${formatCount(value)}`
+  return value < 0 ? `${MINUS}${formatCount(-value)}` : '0'
+}
+
+/** 有正負號的百分比（小數一位）：「+21.0%」「−0.7%」。 */
+function signedPercent(value: number): string {
+  const text = Math.abs(value).toFixed(1)
+  if (text === '0.0') return '0.0%'
+  return `${value > 0 ? '+' : MINUS}${text}%`
+}
+
+/** 這一年淨增：「+139（+20.6%）」；一年前 1–4 歲是 0 只寫人數；算不出來寫「—」。 */
+export function kidsNetText(row: Pick<AreaTrendsVillage, 'kids_net' | 'kids_base'>): string {
+  if (row.kids_net === null || row.kids_base === null) return NO_VALUE
+  if (row.kids_base === 0) return signedCount(row.kids_net)
+  return `${signedCount(row.kids_net)}（${signedPercent((row.kids_net / row.kids_base) * 100)}）`
+}
+
+export const KIDS_LEVEL_LABELS: Record<KidsLevel, string> = {
+  up2: '增加多', up1: '增加', flat: '差不多', down1: '減少', down2: '減少多', few: '孩子少', unknown: NO_VALUE,
+}
+
+/** 地圖上孩子增減的色階：增加兩級、減少兩級、差不多；孩子少、算不出來不上色（none）。 */
+export function kidsLevelTone(level: KidsLevel): 'up2' | 'up1' | 'flat' | 'down1' | 'down2' | 'none' {
+  return level === 'few' || level === 'unknown' ? 'none' : level
+}
+
+/** 里的名稱：一般的里「三民區本揚里」；里界調整合併的組列前 3 個里名，其餘寫「等 N 個里」，後面註明合併。 */
+export function trendsPlaceName(row: Pick<AreaTrendsVillage, 'district' | 'village' | 'merged'>): string {
+  if (!row.merged) return `${row.district}${row.village}`
+  const names = row.village.split('、').filter(Boolean)
+  const shown = names.length > 3 ? `${names.slice(0, 3).join('、')}等 ${names.length} 個里` : names.join('、')
+  return `${row.district}${shown}（里界調整，合併）`
+}
+
+const KIDS_UNAVAILABLE: Record<NonNullable<AreaTrends['kids_unavailable']>, string> = {
+  no_population: '各里人口尚未匯入，這一年淨增先不算。',
+  no_year_ago: '一年前的各里人口還沒匯入，這一年淨增先不算。',
+  no_migration: '遷入遷出資料不到 10 個月，看不出里界有沒有調整，這一年淨增先不算。',
+}
+
+/** 「這一年淨增」算不出來的原因；算得出來回空字串。 */
+export const kidsUnavailableText = (data: AreaTrends): string =>
+  data.kids_unavailable ? KIDS_UNAVAILABLE[data.kids_unavailable] : ''
+
+/** 里的變化整塊用不了的原因（區塊空狀態用）：本校沒座標，或出生、遷入遷出、人口都還沒匯入；可以用回 null。 */
+export function trendsUnavailable(data: AreaTrends): string | null {
+  if (data.campus.lat === null || data.campus.lng === null) {
+    const reason = campusNotLocatedReason(data.campus.locate_error)
+    return `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。`
+  }
+  const { sources } = data
+  if (sources.births.latest === null && sources.migration.latest === null && sources.population.month === null) {
+    return '各里出生、遷入遷出資料尚未匯入；匯入後就能看哪些里孩子變多。'
+  }
+  return null
+}
+
+/** 地圖「孩子增減」停用的原因：整塊用不了，或這一年淨增算不出來；可以用回空字串。 */
+export function trendMapNote(data: AreaTrends): string {
+  return trendsUnavailable(data) ?? kidsUnavailableText(data)
+}
+
+/**
+ * 里的變化的總結（規格 7.2）：每一句只在有資料時出現；note 是合併組與算不出來的原因。
+ * 本校沒座標（baseline 是 null）回 null，由呼叫端寫 trendsUnavailable 的原因。
+ */
+export function trendsSummary(data: AreaTrends): { lines: string[]; note: string } | null {
+  const { baseline, radius_km: radius } = data
+  if (!baseline) return null
+  const lines: string[] = []
+  if (baseline.children !== null) {
+    let lead = `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位`
+    if (baseline.kids_net !== null && baseline.kids_base) {
+      const share = signedPercent((baseline.kids_net / baseline.kids_base) * 100)
+      const net = baseline.kids_net
+      lead += `；和一年前同一批孩子比，${net < 0 ? '淨減' : '淨增'} ${formatCount(Math.abs(net))} 位（${share}）`
+    }
+    lines.push(`${lead}。`)
+  }
+  if (baseline.births_12m !== null) {
+    const partial = baseline.births_months < 12 ? `（有 ${baseline.births_months} 個月的資料）` : ''
+    const change = baseline.births_change_pct
+    const compare =
+      change === null
+        ? ''
+        : `，比前一年同期${change < 0 ? '少' : '多'} ${Math.abs(change).toFixed(1)}%（比 ${baseline.births_compared_months} 個月）`
+    lines.push(`近 12 個月出生 ${formatCount(baseline.births_12m)} 位${partial}${compare}。`)
+  }
+  if (baseline.migration_net_12m !== null) {
+    const net = baseline.migration_net_12m
+    lines.push(`近 12 個月全年齡${net < 0 ? '淨遷出' : '淨遷入'} ${formatCount(Math.abs(net))} 人。`)
+  }
+  const merged = data.villages.filter((row) => row.merged).map((row) => trendsPlaceName(row).replace('（里界調整，合併）', ''))
+  const notes = [
+    merged.length ? `${merged.join('；')}的里界調整過，${merged.length > 1 ? '各自' : ''}合併成一列計算。` : '',
+    kidsUnavailableText(data),
+  ].filter(Boolean)
+  return { lines, note: notes.join('') }
 }

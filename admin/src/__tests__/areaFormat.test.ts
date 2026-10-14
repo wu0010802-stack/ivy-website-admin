@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, kindLabel, legendRanges, levelOf,
-  opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone, taipeiMonthDay, visitGeoText,
+  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, kidsLevelTone, kidsNetText,
+  kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone,
+  signedCount, taipeiMonthDay, trendMapNote, trendsPlaceName, trendsSummary, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
-import { areaKindergartens, areaOpportunity, areaStats, villageBoundaries } from './admissionsTestKit'
+import { areaKindergartens, areaOpportunity, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
 /** 兩點的直線距離（公尺），球半徑 6371000 m，和後端 haversine_m 同一個算法。 */
@@ -234,5 +235,56 @@ describe('招生機會的文字（2026-10-13 規格 7）', () => {
     expect(opportunitySummary(many)!.note).toBe(
       '三民區本揚里、三民區寶業里、三民區鼎金里等 5 個里沒有人口資料，孩子數與其中的 40 位參觀都沒算進去。',
     )
+  })
+})
+
+describe('里的變化的文字（2026-10-14 規格 7）', () => {
+  const MINUS = '\u2212'
+
+  it('有正負號的人數：正數加「+」、負數用減號、0 不加；null 寫「—」', () => {
+    expect([signedCount(1234), signedCount(-46), signedCount(0), signedCount(null)]).toEqual(['+1,234', `${MINUS}46`, '0', '—'])
+  })
+
+  it('這一年淨增：人數加比例（小數一位）；一年前是 0 只寫人數；算不出來寫「—」', () => {
+    expect(kidsNetText({ kids_net: 139, kids_base: 674 })).toBe('+139（+20.6%）')
+    expect(kidsNetText({ kids_net: -46, kids_base: 545 })).toBe(`${MINUS}46（${MINUS}8.4%）`)
+    expect(kidsNetText({ kids_net: 0, kids_base: 100 })).toBe('0（0.0%）')
+    expect(kidsNetText({ kids_net: 3, kids_base: 0 })).toBe('+3')
+    expect(kidsNetText({ kids_net: null, kids_base: null })).toBe('—')
+  })
+
+  it('地圖色階：孩子少與算不出來不上色', () => {
+    expect((['up2', 'up1', 'flat', 'down1', 'down2', 'few', 'unknown'] as const).map(kidsLevelTone))
+      .toEqual(['up2', 'up1', 'flat', 'down1', 'down2', 'none', 'none'])
+  })
+
+  it('合併組的名稱：三個以內全列，超過寫「等 N 個里」，後面註明合併', () => {
+    expect(trendsPlaceName({ district: '三民區', village: '本揚里', merged: false })).toBe('三民區本揚里')
+    expect(trendsPlaceName({ district: '仁武區', village: '八卦里、八德里', merged: true })).toBe('仁武區八卦里、八德里（里界調整，合併）')
+    expect(trendsPlaceName({ district: '左營區', village: '中北里、尾南里、屏山里、聖后里、埤東里', merged: true }))
+      .toBe('左營區中北里、尾南里、屏山里等 5 個里（里界調整，合併）')
+  })
+
+  it('總結：淨減寫「淨減」；出生不滿 12 個月寫有幾個月；沒有比較就不寫比較；淨遷入是正的寫「淨遷入」', () => {
+    const base = areaTrends()
+    const summary = trendsSummary(areaTrends({
+      baseline: { ...base.baseline!, kids_net: -86, kids_base: 12000, births_months: 9, births_change_pct: null, migration_net_12m: 1234 },
+      villages: base.villages.filter((row) => !row.merged),
+    }))!
+    expect(summary.lines).toEqual([
+      `本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨減 86 位（${MINUS}0.7%）。`,
+      '近 12 個月出生 180 位（有 9 個月的資料）。',
+      '近 12 個月全年齡淨遷入 1,234 人。',
+    ])
+    expect(summary.note).toBe('')
+    expect(trendsSummary(areaTrends({ baseline: null }))).toBeNull()
+  })
+
+  it('地圖停用的原因：本校沒座標優先，其次是淨增算不出來；都可以用回空字串', () => {
+    expect(trendMapNote(areaTrends())).toBe('')
+    expect(trendMapNote(areaTrends({ kids_unavailable: 'no_migration' })))
+      .toBe('遷入遷出資料不到 10 個月，看不出里界有沒有調整，這一年淨增先不算。')
+    const unlocated = areaTrends({ campus: { ...areaTrends().campus, lat: null, lng: null, locate_error: 'no_address' }, kids_unavailable: 'no_year_ago' })
+    expect(trendMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 })

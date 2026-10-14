@@ -9,7 +9,7 @@ import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
 import statsTabSource from '../components/admissions/StatsTab.vue?raw'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import {
-  areaKindergartens, areaOpportunity, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
+  areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
 const mapStub = vi.hoisted(() => ({ focus: vi.fn() }))
@@ -20,7 +20,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
     __esModule: true,
     default: defineComponent({
       name: 'AreaMap',
-      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote'],
+      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote', 'trends', 'trendNote'],
       emits: ['open-area'],
       setup(_, { expose }) {
         expose({ focusKindergarten: mapStub.focus })
@@ -45,6 +45,7 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/boundaries': villageBoundaries(),
   '/admin/admissions/area/kindergartens': areaKindergartens(),
   '/admin/admissions/area/opportunity': opportunity,
+  '/admin/admissions/area/trends': areaTrends(),
   '/admin/admissions/area': area,
 })
 async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) {
@@ -590,5 +591,116 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunity')).toMatchObject({ radius_km: 6 })
     expect(block(wrapper, '招生機會（本校 6 公里內）')).toBeDefined()
+  })
+})
+
+describe('里的變化（2026-10-14 規格 7.2）', () => {
+  const TITLE = '里的變化（本校 3 公里內）'
+  async function mountTrends(trends: unknown) {
+    const get = mockGet({ ...routes(), '/admin/admissions/area/trends': trends })
+    const mounted = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(mounted.wrapper.find('.area-map-stub').exists()).toBe(true))
+    return { ...mounted, get }
+  }
+
+  it('依頁首校區、學期與半徑讀里的變化；換半徑重讀；資料交給地圖', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/trends')[0]!)))
+      .toEqual({ campus_key: 'yihua', school_year: '115', radius_km: '3' })
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trends')).toMatchObject({ radius_km: 3 })
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('')
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/trends').at(-1)!).get('radius_km')).toBe('6')
+  })
+
+  it('放在招生機會之下、三張表之上', async () => {
+    const { wrapper } = await mountTab()
+    const titles = wrapper.findAll('.stats-block__title').map((title) => title.text())
+    expect(titles.indexOf(TITLE)).toBe(titles.indexOf('招生機會（本校 3 公里內）') + 1)
+    expect(titles.indexOf(TITLE)).toBeLessThan(titles.indexOf('行政區排行'))
+  })
+
+  it('總結：孩子與一年前比、出生和前一年同期比、全年齡淨遷入；合併的里另寫一句', async () => {
+    const { wrapper } = await mountTab()
+    expect(block(wrapper, TITLE).findAll('.trends-summary p').map((line) => line.text())).toEqual([
+      '本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨增 26 位（+1.9%）。',
+      '近 12 個月出生 180 位，比前一年同期少 20.7%（比 9 個月）。',
+      '近 12 個月全年齡淨遷出 160 人。',
+      '三民區寶業里、龍子里的里界調整過，合併成一列計算。',
+    ])
+  })
+
+  it('表格：淨增最多的在前，寫人數與比例、分級；合併組的名稱註明；說明寫定義與資料月份', async () => {
+    const { wrapper } = await mountTab()
+    const section = block(wrapper, TITLE)
+    expect(section.findAll('thead th').map((th) => th.text()))
+      .toEqual(['#', '里', '距本校', '2–5 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入'])
+    expect(bodyRows(section)).toEqual([
+      ['1', '三民區本揚里', '300 m', '317', '+36（+12.8%）', '增加多', '36', '−122'],
+      ['2', '三民區寶業里、龍子里（里界調整，合併）', '300 m', '583', '+12（+2.0%）', '差不多', '90', '+30'],
+      ['3', '三民區鼎金里', '800 m', '500', '−22（−4.5%）', '減少', '54', '−68'],
+    ])
+    const caption = section.get('.stats-block__caption').text()
+    expect(caption).toContain('這一年淨增＝本月 2–5 歲減一年前 1–4 歲的同一批孩子')
+    expect(caption).toContain('（人口 115 年 9 月與 114 年 9 月、出生 114 年 10 月到 115 年 9 月、遷入遷出 114 年 10 月到 115 年 9 月）')
+  })
+
+  it('匯出 CSV：數字欄寫有號整數，多一欄「一年前 1–4 歲」', async () => {
+    const { wrapper } = await mountTab()
+    await block(wrapper, TITLE).get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-里的變化.csv')
+    const lines = csv.slice(1).split('\r\n')
+    expect(lines[0]).toBe('#,里,距本校,2–5 歲,這一年淨增,一年前 1–4 歲,孩子增減,近 12 個月出生,近 12 個月淨遷入')
+    expect(lines[1]).toBe('1,三民區本揚里,300 m,317,36,281,增加多,36,-122')
+    expect(lines[3]).toBe('3,三民區鼎金里,800 m,500,-22,493,減少,54,-68')
+  })
+
+  it('一年前的人口還沒匯入：淨增寫「—」，總結與地圖都寫原因（地圖的孩子增減停用）', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      kids_unavailable: 'no_year_ago',
+      sources: { ...base.sources, population: { month: '115-09', year_ago_month: null } },
+      baseline: { ...base.baseline!, kids_net: null, kids_base: null },
+      villages: base.villages.map((row) => ({ ...row, kids_net: null, kids_base: null, kids_level: 'unknown' as const })),
+    })
+    const { wrapper } = await mountTrends(trends)
+    const section = block(wrapper, TITLE)
+    expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122'])
+    expect(section.get('.trends-summary .hint').text()).toContain('一年前的各里人口還沒匯入，這一年淨增先不算。')
+    expect(section.findAll('.trends-summary p')[0]!.text()).toBe('本校 3 公里內 4 個里，2–5 歲孩子 1,400 位。')
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
+  })
+
+  it('什麼都還沒匯入：區塊寫原因；本校沒座標：寫本校位置未標示', async () => {
+    const base = areaTrends()
+    const empty = areaTrends({
+      kids_unavailable: 'no_population', baseline: null, villages: [],
+      sources: { ...base.sources, population: { month: null, year_ago_month: null }, births: { latest: null, months: [], missing: [] }, migration: { latest: null, months: [], missing: [] } },
+    })
+    const { wrapper } = await mountTrends(empty)
+    expect(block(wrapper, TITLE).get('.stats-block__empty').text()).toBe('各里出生、遷入遷出資料尚未匯入；匯入後就能看哪些里孩子變多。')
+    cleanup()
+    const unlocated = areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [] })
+    const second = await mountTrends(unlocated)
+    expect(block(second.wrapper, TITLE).get('.stats-block__empty').text()).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+    expect(second.wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+  })
+
+  it('讀取失敗：只有這一塊寫錯誤與重試，地圖的孩子增減停用；重試成功恢復', async () => {
+    let fail = true
+    const { wrapper } = await mountTrends(() => {
+      if (fail) throw new Error('boom')
+      return areaTrends()
+    })
+    await vi.waitFor(() => expect(wrapper.find('.trends-error').exists()).toBe(true))
+    expect(block(wrapper, '招生機會（本校 3 公里內）')).toBeDefined()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('里的變化讀取失敗。')
+    fail = false
+    await button(wrapper.get('.trends-error') as never, '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.trends-error').exists()).toBe(false)
+    expect(block(wrapper, TITLE)).toBeDefined()
   })
 })
