@@ -13,6 +13,22 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 里的變化 B2：新屋交屋上畫面與跨區界道比對（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/village-new-homes-b2-20261014` 到 main（fast-forward `03eaa872..eb5779bf`，5 個 commit）：`e1b058f1` 跨區界道比對、`34bc5084` B2 本體、`69cca639` 合併組在地圖上依各里自己的筆數上色（和規格 §5.6 的刻意差異，可單獨還原）、`314492a9` 文件、`eb5779bf` 併入 main 當時的托嬰部署紀錄 `03eaa872`。內容見 README 頂部 10-14「B2 段」、DESIGN.md「招生入學：里的變化」、規格 §18。
+- **migration**：沒有，不改既有資料，所以沒有先備份。要退可直接切回前一個映像（沒有新表、新欄位；API 新增的是回應欄位）。**已存的新成屋列與訪視是用舊規則比對的，新規則要等下一次門牌換版（或重匯新成屋）才會重比**，所以線上七賢一路 61–95 號那 63 筆目前仍是「只到區」。
+- **推送前閘門**（本機，Node 22；各數字跑在哪個 commit 見 README 頂部驗證條）：
+  - 後端 geo／招生／稽核／權限相關 1232 passed（`69cca639`；不是後端全套，全套由 CI 跑）。
+  - 後台 vitest 全套 157 檔、2456 passed、1 skipped（`--testTimeout=60000`）；`typecheck` 無錯誤；契約 `export_openapi.py --check` 與 `check-contract-types.mjs` 一致。
+  - stack 端到端只跑區域分析：`admissions-area.spec.ts` 11 passed（含 1440／390 不橫向溢出）。
+- **CI**：main run 38575188946（`eb5779bf`）13:50:17Z 開跑，14:10:33Z 部署完成（20.3 分），全綠：
+  - Frontend web 1.6 分、admin 5.8 分；Backend 三組 9.2／12.1／14.2 分；E2E／Playwright 10.7 分；Deploy Railway production 5.9 分（14:04:39Z 開始）。
+- **正式 `release.json`**：base commit `eb5779bf2d5a57387f6c2e0fe4ae67aafb33fd81`，snapshot `723f817d…`，created `2026-10-14T14:05:04Z`，`web+api`。
+- **線上唯讀檢查**（未登入，約 14:15Z）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 14:11:27Z 完成一輪）。
+  - 後台 lazy chunk（`AreaMap`、`areaFormat`、`StatsTab`）含「近 4 季新屋」「新屋交屋」「新成屋資料尚未匯入」「0 筆或在半徑外」與 `new_homes_by_code`。
+  - **沒驗到**：登入後的實際畫面與 `/area/trends` 的回應欄位（要登入）。請使用者登入後台看「統計分析 → 區域分析」的「里的變化」表（多「近 4 季新屋」欄）與地圖第五個著色「新屋交屋」。
+
 ## 2026-10-14 托嬰中心與園所異動（main CI 部署，1 支 migration）
 
 - **提交**：使用者在本機直接推 `feature/provider-changes-20261014` 到 main（fast-forward `3fb67463..1f472d15`，28 個 commit，沒有開 PR）；其中 `fc404ff7` 是併入「里的變化」的 merge commit，`1f472d15` 併入 main 當時的部署紀錄 PR #46。內容見 README 頂部 10-14「托嬰中心與園所異動」、DESIGN.md「招生入學：托嬰中心與園所異動」、規格 `docs/specs/2026-10-14-provider-changes-design.md`。
