@@ -209,7 +209,7 @@ async def test_latest_month_falls_back_when_the_newest_is_not_out(app, few_villa
 
 
 async def test_within_30_days_does_not_go_online(app, few_villages, october):
-    transport, seen = _ris(series_months={"11509"})
+    transport, seen = _ris()
     await _sync(app, transport, BIRTHS)
     seen.clear()
     assert await _sync(app, transport, BIRTHS) == ("skipped", 0)
@@ -222,6 +222,48 @@ async def test_force_downloads_the_latest_month_again(app, few_villages, october
     seen.clear()
     assert await _sync(app, transport, BIRTHS, force=True) == ("updated", 1)
     assert seen.count(series_io.page_url(BIRTHS, "11509", 1)) == 1
+
+
+async def _insert_births(app, months: list[str], *, checked_at: datetime) -> None:
+    """表裡已有這些月份（舊程式寫的）、整輪確認時間是 checked_at：用來測「回補沒到頭」的到期判斷。"""
+    async with app.state.session_factory() as db:
+        for month in months:
+            db.add(GeoVillageBirths(month=month, village_code=YIHUA_VILLAGE, district="三民區", village="本揚里", births=1))
+        latest = max(months)
+        db.add(GeoDatasetStatus(dataset="births", active_version=latest, label=latest, synced_at=checked_at, checked_at=checked_at))
+        await db.commit()
+
+
+async def test_an_unfinished_backfill_is_due_even_within_30_days(app, few_villages, october):
+    """部署後表裡只有 25 個月、確認時間才剛記過：最舊月份還沒補到視窗起點，馬上接著補（不等 30 天）。"""
+    await _insert_births(app, window("115-09", 25), checked_at=datetime.now(timezone.utc))
+    transport, seen = _ris()
+    assert await _sync(app, transport, BIRTHS) == ("updated", 47)
+    assert sorted(await _months(app, GeoVillageBirths)) == window("115-09", 72)
+    # 最新月份的第一頁拿來找月份、不重抓；其餘 47 個月各一次。
+    assert len(seen) == 48
+    seen.clear()
+    assert await _sync(app, transport, BIRTHS) == ("skipped", 0)  # 補到頭了：回到 30 天一次
+    assert seen == []
+
+
+async def test_a_missing_window_start_month_does_not_retry_every_day(app, few_villages, october):
+    """視窗起點（109-10）剛好是來源查無的月份：最舊月份只晚 1 個月，不算沒補到頭。"""
+    months = [month for month in window("115-09", 72) if month != "109-10"]
+    await _insert_births(app, months, checked_at=datetime.now(timezone.utc))
+    transport, seen = _ris()
+    assert await _sync(app, transport, BIRTHS) == ("skipped", 0)
+    assert seen == []
+
+
+async def test_two_missing_months_at_the_window_start_are_asked_again(app, few_villages, october):
+    """起點連續缺兩個月：最舊月份晚了 2 個月，視為還沒補到頭，會再問來源（問到查無就什麼都不寫）。"""
+    months = [month for month in window("115-09", 72) if month not in ("109-10", "109-11")]
+    await _insert_births(app, months, checked_at=datetime.now(timezone.utc))
+    available = {series_io.yyymm_of(month) for month in window("115-09", 72)} - {"10910", "10911"}
+    transport, seen = _ris(series_months=available)
+    assert await _sync(app, transport, BIRTHS) == ("skipped", 0)
+    assert sorted(seen) == sorted(series_io.page_url(BIRTHS, month, 1) for month in ("11509", "10910", "10911"))
 
 
 async def test_no_recent_month_fails(app, few_villages, october):

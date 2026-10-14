@@ -827,12 +827,26 @@ async def _copy_population_to_history(db: AsyncSession, month: str) -> None:
     await series_io.replace_month(db, series_io.AGES, batch)
 
 
-def _series_due(status: GeoDatasetStatus | None, now: datetime) -> bool:
+def _series_due(status: GeoDatasetStatus | None, now: datetime, backfill_pending: bool = False) -> bool:
     """只看 checked_at（整輪回補做完才記）：回補到一半失敗時 synced_at 是新的、checked_at 沒動，
-    下一輪（背景迴圈一天一次）就接著補，不必等 30 天。"""
+    下一輪（背景迴圈一天一次）就接著補，不必等 30 天。backfill_pending（表裡最舊月份還沒補到視窗起點）
+    時不管 checked_at 一律到期：部署把保留月數從 25 拉到 72 後，確認時間才剛記過也要馬上續補。"""
+    if backfill_pending:
+        return True
     if status is None or status.checked_at is None:
         return True
     return now - status.checked_at >= REFRESH_AFTER
+
+
+async def _backfill_pending(session_factory: async_sessionmaker[AsyncSession], series: series_io.Series) -> bool:
+    """回補還沒到頭：表裡最舊的月份比視窗起點晚 2 個月以上（容許起點那個月來源查無，不會天天重試）。
+    表是空的由 status 判斷，這裡不算。"""
+    async with session_factory() as db:
+        months = await series_io.months_in_table(db, series)
+    if not months:
+        return False
+    start = series_io.shift(max(months), -(series.keep_months - 1))
+    return min(months) > series_io.shift(start, 1)
 
 
 async def _series_page(client: httpx.AsyncClient, series: series_io.Series, yyymm: str, page: int) -> object:
@@ -911,7 +925,8 @@ async def sync_series(
     月份跳過、不記錄，下次到期再問）；force 時最新月份重抓。每個月份各自一個交易，中途失敗已寫的保留。
     檔案：依資料本身的月份分組逐月寫入，不連外。"""
     status = await _status(session_factory, series.dataset)
-    if not files and (client is None or (not force and not _series_due(status, now))):
+    pending = await _backfill_pending(session_factory, series)
+    if not files and (client is None or (not force and not _series_due(status, now, pending))):
         return "skipped", 0
     written = 0
     try:
