@@ -119,7 +119,7 @@ describe('附近園所的變化', () => {
     vi.setSystemTime(new Date(2026, 9, 14))
     const wrapper = mountIt(ProviderChanges, changesProps({ data: areaChanges([]) }))
     expect(wrapper.get('.changes__empty').text()).toBe('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
-    expect(wrapper.get('.changes__note').text()).toBe('停辦與類型變動從 10 月 14 日起記錄；新設的幼兒園以設立日為準。')
+    expect(wrapper.get('.changes__note').text()).toBe('停辦與類型變動從 10 月 14 日起記錄；新設以設立日為準（托嬰從 10 月 14 日起記錄）。')
   })
 
   it('還沒開始記錄：小字寫「尚未開始記錄。」；基準日已滿 12 個月：不寫小字', () => {
@@ -127,6 +127,9 @@ describe('附近園所的變化', () => {
     vi.setSystemTime(new Date(2026, 9, 14))
     const never = mountIt(ProviderChanges, changesProps({ data: areaChanges([], { tracking_since: { kindergarten: null, babycare: null } }) }))
     expect(never.get('.changes__note').text()).toBe('尚未開始記錄。')
+    expect(never.find('.changes__empty').exists()).toBe(false)
+    const oneSide = mountIt(ProviderChanges, changesProps({ data: areaChanges([], { tracking_since: { kindergarten: '2026-10-14', babycare: null } }) }))
+    expect(oneSide.get('.changes__empty').text()).toBe('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
     const old = mountIt(ProviderChanges, changesProps({ data: areaChanges([], { tracking_since: { kindergarten: '2025-01-01', babycare: '2025-01-01' } }) }))
     expect(old.find('.changes__note').exists()).toBe(false)
   })

@@ -18,6 +18,8 @@ const notLocated = computed(() => {
   return reason ? `${campusNotLocatedReason(reason) ?? '本校位置尚未確定'}，無法列出附近園所的變化。` : ''
 })
 const note = computed(() => (props.data ? trackingNote(props.data.tracking_since, props.data.window_months) : ''))
+// 兩邊都還沒開始記錄時 items 必然是空的，不能再寫「沒有…」像是紀錄完整，只留「尚未開始記錄。」
+const neverTracked = computed(() => !props.data?.tracking_since.kindergarten && !props.data?.tracking_since.babycare)
 const nameOf = (item: AreaChange): string => (item.provider === 'babycare' ? babycareShortName(item.name) : shortName(item.name))
 const metaOf = (item: AreaChange): string => {
   const kind = kindChangeText(item)
@@ -51,7 +53,7 @@ const tagType = (change: string): 'success' | 'warning' | 'info' =>
           <span class="changes__meta num">{{ metaOf(item) }}</span>
         </li>
       </ul>
-      <p v-else class="changes__empty">{{ changesEmptyText(data.radius_km, data.window_months) }}</p>
+      <p v-else-if="!neverTracked" class="changes__empty">{{ changesEmptyText(data.radius_km, data.window_months) }}</p>
       <p v-if="note" class="hint changes__note">{{ note }}</p>
     </template>
   </section>

@@ -345,7 +345,7 @@ test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊',
     await expect(page.locator('.area-map .area-bc')).toHaveCount(0)
     await expect(changes.locator('.changes__title')).toHaveText('附近園所的變化')
     await expect(changes.locator('.changes__empty')).toHaveText('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
-    await expect(changes.locator('.changes__note')).toHaveText(/^停辦與類型變動從 \d+ 月 \d+ 日起記錄；新設的幼兒園以設立日為準。$/)
+    await expect(changes.locator('.changes__note')).toHaveText(/^停辦與類型變動從 \d+ 月 \d+ 日起記錄；新設以設立日為準（托嬰從 \d+ 月 \d+ 日起記錄）。$/)
   })
 
   await test.step('切到托嬰中心：3 公里內 3 所、總結、地圖自動出現菱形標點', async () => {

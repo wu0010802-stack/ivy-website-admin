@@ -319,21 +319,25 @@ const monthDay = (iso: string): string => `${Number(iso.slice(5, 7))} 月 ${Numb
 
 /**
  * 變化區塊底下的小字（規格 7.3）：異動紀錄從基準日才開始累積，基準日離今天不到視窗長度時要老實說從哪天起記錄；
- * 兩邊都還沒開始記錄寫「尚未開始記錄。」；都已滿視窗長度就不需要說明（回空字串）。
- * 幼兒園的新設看設立日、不需要等紀錄，所以每種寫法都帶「新設的幼兒園以設立日為準」。
+ * 還沒開始記錄（基準日是空）的那一側明說「尚未開始記錄」，兩邊都空寫「尚未開始記錄。」；兩邊都已記錄滿視窗長度才不需要說明（回空字串）。
+ * 已滿視窗長度的那一側省略不印日期（不帶年份，一年後讀起來會像今年）。
+ * 幼兒園的新設看設立日、不需要等紀錄，所以每種寫法都帶「新設…以設立日為準」。
  */
 export function trackingNote(tracking: AreaTrackingSince, months = 12, now: Date = new Date()): string {
   const { kindergarten, babycare } = tracking
   if (!kindergarten && !babycare) return '尚未開始記錄。'
   const cutoff = monthsAgoIso(now, months)
-  if ((!kindergarten || kindergarten <= cutoff) && (!babycare || babycare <= cutoff)) return ''
-  const tail = '新設的幼兒園以設立日為準。'
-  if (kindergarten && babycare && kindergarten === babycare) return `停辦與類型變動從 ${monthDay(kindergarten)}起記錄；${tail}`
-  const parts = [
-    kindergarten ? `幼兒園的停辦與類型變動從 ${monthDay(kindergarten)}起記錄` : '幼兒園的停辦與類型變動尚未開始記錄',
-    babycare ? `托嬰從 ${monthDay(babycare)}起記錄` : '托嬰尚未開始記錄',
-  ]
-  return `${parts.join('；')}；${tail}`
+  const recent = (iso: string | null): iso is string => iso !== null && iso > cutoff // 基準日離今天還不到視窗長度
+  if (kindergarten && babycare && !recent(kindergarten) && !recent(babycare)) return ''
+  if (kindergarten && babycare && kindergarten === babycare) {
+    return `停辦與類型變動從 ${monthDay(kindergarten)}起記錄；新設以設立日為準（托嬰從 ${monthDay(babycare)}起記錄）。`
+  }
+  const parts: string[] = []
+  if (!kindergarten) parts.push('幼兒園的停辦與類型變動尚未開始記錄')
+  else if (recent(kindergarten)) parts.push(`幼兒園的停辦與類型變動從 ${monthDay(kindergarten)}起記錄`)
+  if (!babycare) parts.push('托嬰尚未開始記錄')
+  else if (recent(babycare)) parts.push(`托嬰從 ${monthDay(babycare)}起記錄`)
+  return `${parts.join('；')}；新設的幼兒園以設立日為準。`
 }
 
 /** 頁首狀態列的托嬰名單那一段。 */
