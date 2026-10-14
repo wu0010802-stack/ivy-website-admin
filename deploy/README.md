@@ -34,7 +34,10 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 保存政策清理（第 8 項）下次排程才會碰到正式資料；清理會順手補清「已標記匿名化卻還有個資」的舊案。
   - 公開資料同步的大小與時間上限（第 12、13 項）：自動同步在正式站仍是關閉的，沒用真實來源實測；正式資料若超過上限，同步會失敗並把原因寫進狀態列。
   - 備份／還原（第 9 項）：只有手動執行，下次備份時 DSN 若帶了不認得的參數，腳本會拒絕執行。
-- **後續**：測試斷言修正以另一個提交隨本紀錄推上 main；它動到 `tests/`，會再跑一次完整 CI 並重新部署同一份應用程式碼（內容沒變）。
+- **測試斷言修正的第二次部署**：`025f502d` 與本紀錄 `c056b2c9` 由使用者推上 main（`abc994ce..c056b2c9`）。動到 `tests/`，所以又跑一次完整 CI 並重新部署同一份應用程式碼（內容沒變）：
+  - main run 38512541226（`c056b2c9`），04:39:47Z 開跑，04:57:41Z 部署完成，**全綠，含 E2E／Playwright 8.0 分**（上一個 run 失敗的那條已通過）。
+  - Backend 三組 12.6／7.4／9.0 分、Frontend web 1.5 分、admin 4.4 分、Deploy Railway production 5.2 分。
+  - 正式 `release.json`：base commit `c056b2c92866f417c2d0258259fbdf793c06f797`，snapshot `633034ef…`，created `2026-10-14T04:52:52Z`，`web+api`。`/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空。
 
 ## 2026-10-14 bug 盤點兩條修正：站內換頁回首頁的布幕蓋層、排程發布與退回審核死結（main CI 部署，沒有 migration）
 
