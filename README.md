@@ -7,6 +7,12 @@
 - **同步**：出生表留 72 個月（其餘 25 個月）；預估約 50 個請求（5～8 分鐘、約 55 MB），正式站還沒實測；沒到頭隔天續補。沒有 migration。
 - **小半徑**：前一期可比出生不到 20 位不給百分比，所以 1 公里半徑原本顯示的「比前一年同期少 N%」可能變成不顯示；3 公里以上通常不受影響。
 - **不做**：預測、里層級走勢、依性別拆開、估算缺月、更早的年份、公開官網顯示。
+- **驗證**（Node 22、PostgreSQL、本機 Chromium；2026-10-14／15；已併入 main `c13f2c88`〔里的變化 B2〕，程式碼在 merge commit `2054facd`，其後只有文件 commit）：
+  - 後端全套 3093 passed、1 skipped、0 failed（18 分鐘，獨立測試庫）。
+  - admin 全套 159 個檔案、2468 passed、1 skipped、0 failed；admin 與 web `typecheck` 無錯誤；契約檢查（不經 `uv run` 的 `export_openapi.py --check` 加 `check-contract-types.mjs`）一致；alembic 單一 head `c6a9e3f15d27`（本案沒有 migration）。
+  - 完整 stack 套件（合併後重新 build）138 passed、0 failed（5.3 分鐘），含 `tests/stack/admissions-area.spec.ts` 新增的 2 個案例（6 期、缺月註明、增減只比兩期都有的月份、位置、axe、1440／390 不橫向溢出）；截圖 1440／390 人工看過。
+  - 各任務、整支分支與整合 main 都經過獨立審查；審查中修掉的實質問題：手機版欄位對不齊、期間標籤在手機換行時拆開「9／月」、桌機版留白過大、兩個會空轉的位置斷言、三個門檻缺邊界測試、把預估寫成事實的文件、文件與 main 的實測紀錄矛盾。
+  - **沒做**：沒有在正式站實跑 72 個月回補（請求數、時間、用量是預估；正式站目前出生表 21 個月）；沒有登入正式後台看實際畫面；部署後第一輪的結果要看 `geo_dataset_status`（見 `deploy/README.md`）。
 
 ## 2026-10-14 招生區域：里的變化 B2 段（新屋交屋上畫面）與跨區界道比對（`feature/village-new-homes-b2-20261014`）
 
