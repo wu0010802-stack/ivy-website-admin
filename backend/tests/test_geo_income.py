@@ -105,7 +105,7 @@ def test_parse_the_sample(few_villages):
 def test_parse_accepts_the_older_header_and_plain_bom(few_villages):
     """109 年度第一欄叫「鄉鎮市區」、BOM 不在引號裡；欄名寫錯（110 年度起的「縣市別」）也只看位置。"""
     lines = _sample_text().split("\r\n")
-    older = "﻿" + lines[0].replace("﻿縣市別", "鄉鎮市區") + "\r\n" + "\r\n".join(lines[1:])
+    older = "\ufeff" + lines[0].replace("\ufeff縣市別", "鄉鎮市區") + "\r\n" + "\r\n".join(lines[1:])
     assert len(income_io.parse_csv(older, 109).rows) == INCOME_SAMPLE_VILLAGES
 
 

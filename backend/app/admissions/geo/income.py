@@ -6,7 +6,7 @@ docs/specs/2026-10-14-admissions-village-trends-design.md §2.3、§3.3、§4.4�
 舊里不存）；換年度時同一個交易刪光再寫入。驗證任一項不過就不換，保留使用中的年度。
 
 格式（2026-10-14 實測 109～112 年度）：
-- UTF-8、CRLF；BOM 有時在引號裡（`"﻿縣市別"`），`utf-8-sig` 去不掉，要自己剝；
+- UTF-8、CRLF；BOM 有時在引號裡（`"\\ufeff縣市別"`），`utf-8-sig` 去不掉，要自己剝；
 - 110 年度起第一欄欄名誤標「縣市別」（109 年度是「鄉鎮市區」），值都是「高雄市鹽埕區」：第一欄只看位置；
 - 整數欄可能寫成「6392.00」（規格 §4.4；實測這四個年度都沒有，仍照收）。
 
@@ -127,7 +127,7 @@ def _amount(value: str, column: str) -> int:
 
 
 def _clean(cell: str) -> str:
-    return cell.replace("﻿", "").strip().strip('"').strip()
+    return cell.replace("\ufeff", "").strip().strip('"').strip()
 
 
 def parse_csv(text: str, year: int) -> IncomeBatch:
@@ -136,7 +136,7 @@ def parse_csv(text: str, year: int) -> IncomeBatch:
     - 跳過「其他」「合計」與「高雄市其他」；區名去掉「高雄市」；
     - 數字欄是非負數；同一（區、里）不能出現兩次；
     - 對到里界的至少 MIN_VILLAGES 個，對不到的略過並計數。"""
-    reader = csv.reader(io.StringIO(text.lstrip("﻿")))
+    reader = csv.reader(io.StringIO(text.lstrip("\ufeff")))
     try:
         header = [_clean(cell) for cell in next(reader)]
     except (StopIteration, csv.Error) as exc:
