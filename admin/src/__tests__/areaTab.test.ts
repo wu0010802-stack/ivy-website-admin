@@ -718,4 +718,41 @@ describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
     expect(wrapper.findAll('.changes__item')).toHaveLength(0)
     expect(wrapper.get('.changes__empty').text()).toBe('近 12 個月，6 公里內沒有新設、停辦或類型變動的園所。')
   })
+
+  // 規格 7.2「卡片切到托嬰中心，自動打開地圖的托嬰圖層」：圖層開關存在 AreaMap 實例裡，實例換了就要重新打開。
+  it('卡片停在托嬰時換學年：地圖卸載重掛，新的地圖實例再被請求打開托嬰圖層', async () => {
+    const { wrapper } = await mountTab()
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    expect(mapStub.reveal).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ schoolYear: 114 })
+    expect(wrapper.find('.area-map-stub').exists()).toBe(false) // 讀取期間整塊換成骨架，地圖已卸載
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(wrapper.find('.nearby--babycare').exists()).toBe(true)
+    expect(mapStub.reveal).toHaveBeenCalledTimes(2)
+  })
+
+  it('地圖還沒掛上（里界慢回）就切到托嬰：地圖出現後補打開一次', async () => {
+    const slow = deferred<unknown>()
+    mockGet({ ...routes(), '/admin/admissions/area/boundaries': () => slow.promise })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.findComponent(NearbyPanel).exists()).toBe(true))
+    expect(wrapper.find('.area-map-stub').exists()).toBe(false)
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    expect(mapStub.reveal).not.toHaveBeenCalled()
+    slow.resolve(villageBoundaries())
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(mapStub.reveal).toHaveBeenCalledTimes(1)
+  })
+
+  it('卡片停在幼兒園：地圖掛上與重掛都不請地圖打開托嬰圖層', async () => {
+    const { wrapper } = await mountTab()
+    await wrapper.setProps({ schoolYear: 114 })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(mapStub.reveal).not.toHaveBeenCalled()
+  })
 })

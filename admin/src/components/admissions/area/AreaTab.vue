@@ -173,9 +173,11 @@ function focusKindergarten(id: string) {
 function focusBabycare(id: string) {
   map.value?.focusBabycare(id)
 }
-// 卡片切到托嬰中心就打開地圖上的托嬰圖層（預設不勾，維持現有畫面）。
-watch(nearbyKind, (kind) => {
-  if (kind === 'babycare') map.value?.revealBabycare()
+// 卡片切到托嬰中心就打開地圖上的托嬰圖層（預設不勾，維持現有畫面）。同時盯著地圖實例：圖層開關存在 AreaMap 裡，
+// 換校區或學年學期時整塊換成骨架、AreaMap 卸載再重掛，新實例的開關回到預設；地圖還沒掛上（里界或 Leaflet 還在下載）
+// 就切到托嬰時，那次呼叫也沒有對象。實例一出現就補一次；只有種類或實例改變才觸發，使用者手動關掉圖層後不會被反覆打開。
+watch([nearbyKind, map], ([kind, instance]) => {
+  if (kind === 'babycare') instance?.revealBabycare()
 })
 
 // 狀態列（主控裁定 R5）：以「有地址」為母數——「有地址 N 筆：到里 a 筆、未定位到里 b 筆（只到區 c、查無門牌 d、
