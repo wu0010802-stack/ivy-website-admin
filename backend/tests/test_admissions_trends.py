@@ -303,6 +303,37 @@ async def test_a_period_with_fewer_than_ten_months_is_not_listed(admin_client, d
     ]
 
 
+async def test_a_period_with_exactly_ten_months_is_listed(admin_client, db_session, located_campus):
+    """門檻是「不到 10 個月不列」：22 個月（113-12 起）時，第 1 期（113-10～114-09）剛好 10 個月，要列；它沒有前一期，增減是 null。"""
+    await _seed(db_session, births=False)
+    await _seed_births(db_session, series_io.window(CURRENT, 22), lambda month: 2 if month > YEAR_AGO else 3)
+    series = (await _get(admin_client))["baseline"]["births_series"]
+    assert series == [
+        # 114-10 起的 12 個月都有；前一年同月份只有 114-12 到 115-09 這 10 個月在：20 對 30。
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
+        {"starts": "113-10", "ends": "114-09", "months": 10, "missing": ["113-10", "113-11"], "births": 30, "change_pct": None},
+    ]
+
+
+async def test_exactly_six_compared_months_still_give_a_change(admin_client, db_session, located_campus):
+    """門檻是「比較的月份不到 6 個不算」：18 個月（114-04 起）時，前一年同月份只有 114-04～114-09 這 6 個，剛好夠；
+    本期這 6 個月每月 2 位（12），前一年每月 4 位（24，≥ 20）：−50.0。"""
+    await _seed(db_session, births=False)
+    await _seed_births(db_session, series_io.window(CURRENT, 18), lambda month: 2 if month > YEAR_AGO else 4)
+    baseline = (await _get(admin_client))["baseline"]
+    assert (baseline["births_compared_months"], baseline["births_change_pct"]) == (6, -50.0)
+    assert baseline["births_series"][0]["change_pct"] == -50.0
+
+
+async def test_exactly_twenty_births_in_the_previous_period_still_give_a_change(admin_client, db_session, located_campus):
+    """門檻是「前一年可比的出生不到 20 位不算」：前一年同月份 8 個月各 2 位、4 個月各 1 位，剛好 20；本期每月 2 位（24）：+20.0。"""
+    await _seed(db_session, births=False)
+    await _seed_births(db_session, series_io.window(CURRENT, 24), lambda month: 2 if month >= "114-02" else 1)
+    baseline = (await _get(admin_client))["baseline"]
+    assert (baseline["births_12m"], baseline["births_compared_months"], baseline["births_change_pct"]) == (24, 12, 20.0)
+    assert baseline["births_series"][0]["change_pct"] == 20.0
+
+
 async def test_a_change_needs_twenty_births_in_the_previous_period(admin_client, db_session, located_campus):
     """前一年同月份合計只有 12 位（< 20）：不給百分比（含 baseline），月份數照實寫。"""
     await _seed(db_session, births=False)

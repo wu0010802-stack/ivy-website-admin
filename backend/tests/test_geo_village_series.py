@@ -103,6 +103,8 @@ def test_parse_keeps_kaohsiung_rows_and_only_the_fields_in_use():
 
 
 def test_births_parse_ignores_the_other_odrp061_columns():
+    # 原始樣本真的帶著用不到的欄位，下面「只留 5 個 key」才測得到「忽略」。
+    assert {"household_no", "birth_legal_m"} <= set(ris_series_page("ODRP061")["responseData"][0])
     data = series_io.parse_page(BIRTHS, json.dumps(ris_series_page("ODRP061"), ensure_ascii=False))
     rows = series_io.response_rows(BIRTHS, data)
     assert len(rows) == RIS_SAMPLE_VILLAGES  # 新北市 2 筆在解析時就丟掉
