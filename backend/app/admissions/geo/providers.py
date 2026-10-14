@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import calendar
+import math
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.geo.babycare import BabycareRow
 from app.admissions.geo.kindergartens import KindergartenRow, kind_as_of
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKindergarten, GeoProviderEvent
+from app.admissions.geo.projection import haversine_m
 from app.common.timezones import today_local
 
 # 幼兒園、托嬰每 7 天看一次來源（P10）；門牌、人口維持 sync.REFRESH_AFTER 的 30 天。
@@ -37,6 +39,7 @@ REOPEN_CANCELS_CLOSURE = timedelta(days=30)  # P6
 TRUNCATION_RATIO = 0.8  # P9
 TRUNCATION_MIN_PREVIOUS = 20
 SHRUNK_MESSAGE = "名單營業中的數量比上次少了兩成以上，疑似殘缺，未更新"
+_METERS_PER_DEGREE = 111_320.0
 
 
 class ProviderShrunk(RuntimeError):
@@ -50,6 +53,22 @@ class ChangeReport:
     closed: int = 0
     kind_changed: int = 0
     cancelled_closures: int = 0  # 30 天內回來而撤掉的停辦事件
+
+
+@dataclass(frozen=True)
+class ProviderChange:
+    """附近園所的一筆變化（API 的 items 就是這個）。date_basis：registered＝設立日、observed＝我們同步到的日期。"""
+
+    provider: str
+    source_id: str
+    name: str
+    kind: str
+    change: str
+    date: date
+    date_basis: str
+    distance_m: int
+    old_kind: str | None
+    new_kind: str | None
 
 
 @dataclass(frozen=True)
@@ -215,3 +234,62 @@ async def apply_babycare(
 ) -> ChangeReport:
     """托嬰名單換新並記錄異動（不 commit）。"""
     return await _apply(db, _BABYCARE, {row.source_id: asdict(row) for row in rows}, synced_at=synced_at, force=force)
+
+
+def _box(lat: float, lng: float, radius_m: int) -> tuple[float, float, float, float]:
+    """經緯度方框（先用索引篩，再算大圓距離）：(南, 北, 西, 東)。"""
+    dlat = radius_m / _METERS_PER_DEGREE
+    dlng = radius_m / (_METERS_PER_DEGREE * math.cos(math.radians(lat)))
+    return lat - dlat, lat + dlat, lng - dlng, lng + dlng
+
+
+async def nearby_changes(
+    db: AsyncSession, lat: float, lng: float, radius_m: int, *, today: date
+) -> list[ProviderChange]:
+    """半徑內近 12 個月的變化（規格 §5）：事件＋幼兒園的設立日新設。同一所同一種只留一筆，設立日優先；
+    依日期新到舊、距離近到遠、名稱排序。停辦的園所不在 nearby 清單裡，這裡 join 對應的園所表取名稱與座標。"""
+    since = months_ago(today, CHANGE_WINDOW_MONTHS)
+    south, north, west, east = _box(lat, lng, radius_m)
+    found: dict[tuple[str, str, str], ProviderChange] = {}
+    for provider, model in (("kindergarten", GeoKindergarten), ("babycare", GeoBabycare)):
+        result = await db.execute(
+            select(GeoProviderEvent, model)
+            .join(model, model.source_id == GeoProviderEvent.source_id)
+            .where(
+                GeoProviderEvent.provider == provider,
+                GeoProviderEvent.occurred_on >= since,
+                GeoProviderEvent.occurred_on <= today,
+                model.lat.between(south, north),
+                model.lng.between(west, east),
+            )
+            .order_by(GeoProviderEvent.occurred_on)  # 同一所同一種有好幾天時，最近的蓋掉較早的
+        )
+        for event, row in result.all():
+            distance = haversine_m(lat, lng, row.lat, row.lng)
+            if distance > radius_m:
+                continue
+            kind_changed = event.change == "kind_changed"
+            found[(provider, row.source_id, event.change)] = ProviderChange(
+                provider=provider, source_id=row.source_id, name=row.name, kind=row.kind, change=event.change,
+                date=event.occurred_on, date_basis="observed", distance_m=round(distance),
+                old_kind=event.old_value if kind_changed else None,
+                new_kind=event.new_value if kind_changed else None,
+            )
+    registered = await db.execute(
+        select(GeoKindergarten).where(
+            GeoKindergarten.is_active.is_(True),
+            GeoKindergarten.registered_on >= since,
+            GeoKindergarten.registered_on <= today,  # 來源把設立日打成未來不算新設
+            GeoKindergarten.lat.between(south, north),
+            GeoKindergarten.lng.between(west, east),
+        )
+    )
+    for row in registered.scalars():
+        distance = haversine_m(lat, lng, row.lat, row.lng)
+        if distance > radius_m:
+            continue
+        found[("kindergarten", row.source_id, "opened")] = ProviderChange(
+            provider="kindergarten", source_id=row.source_id, name=row.name, kind=row.kind, change="opened",
+            date=row.registered_on, date_basis="registered", distance_m=round(distance), old_kind=None, new_kind=None,
+        )
+    return sorted(found.values(), key=lambda item: (-item.date.toordinal(), item.distance_m, item.name))

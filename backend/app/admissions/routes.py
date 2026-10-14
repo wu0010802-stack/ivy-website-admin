@@ -30,6 +30,8 @@ from app.admissions.schemas import (
     AdmissionsOptionsOut,
     AdmissionsStaffOut,
     AdmissionsStatsOut,
+    AreaBabycareOut,
+    AreaChangesOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
     ContactLogCreate,
@@ -831,6 +833,46 @@ async def get_admissions_area_kindergartens(
         raise _invalid_radius()
     result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
     return AreaKindergartensOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/babycare",
+    response_model=AreaBabycareOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_babycare(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaBabycareOut:
+    """本校附近的托嬰中心與公共托育家園（2026-10-14 規格 §6）：公開資料，依距離排序。只讀，不寫稽核。
+    半徑規則同 /area/kindergartens。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await area_service.query_babycare(db, campus_key, radius_km=radius_km)
+    return AreaBabycareOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/changes",
+    response_model=AreaChangesOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_changes(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaChangesOut:
+    """本校附近近 12 個月的園所變化（2026-10-14 規格 §6）：新設、停辦、類型變動，幼兒園與托嬰都涵蓋。
+    只讀，不寫稽核；半徑規則同 /area/kindergartens。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await area_service.query_changes(db, campus_key, radius_km=radius_km)
+    return AreaChangesOut.model_validate(result)
 
 
 @router.get(

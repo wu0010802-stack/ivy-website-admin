@@ -14,6 +14,8 @@ from app.admissions.geo.models import (
     DATASETS,
     KINDERGARTEN_KINDS,
     MATCH_LEVELS,
+    PROVIDER_CHANGES,
+    PROVIDERS,
     STREET_KINDS,
     UNLOCATED_REASONS,
     GeoBabycare,
@@ -275,15 +277,21 @@ def test_api_literals_match_the_geo_constants():
     from app.admissions import area
     from app.admissions.schemas import (
         AreaUnlocatedReason,
+        BabycareKind,
         DistanceBandKey,
         KindergartenKind,
         MatchLevel,
+        ProviderChangeKind,
+        ProviderName,
         UnlocatedReason,
     )
 
     assert get_args(MatchLevel) == MATCH_LEVELS
     assert get_args(UnlocatedReason) == UNLOCATED_REASONS
     assert get_args(KindergartenKind) == KINDERGARTEN_KINDS
+    assert get_args(BabycareKind) == BABYCARE_KINDS
+    assert get_args(ProviderName) == PROVIDERS
+    assert get_args(ProviderChangeKind) == PROVIDER_CHANGES
     assert get_args(DistanceBandKey) == area.DISTANCE_BANDS
     # 統計裡列出的「有地址卻沒到里」原因：API 型別與統計排序是同一個來源，且都是合法的未定位原因。
     assert area.REASON_ORDER == get_args(AreaUnlocatedReason)

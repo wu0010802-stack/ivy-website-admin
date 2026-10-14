@@ -2358,6 +2358,160 @@
         "title": "AnalyticsFunnelOut",
         "type": "object"
       },
+      "AreaBabycareItemOut": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "approved_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Capacity"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "enrolled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled"
+          },
+          "kind": {
+            "enum": [
+              "center",
+              "home"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "kind",
+          "address",
+          "lat",
+          "lng",
+          "distance_m",
+          "approved_capacity",
+          "enrolled",
+          "phone"
+        ],
+        "title": "AreaBabycareItemOut",
+        "type": "object"
+      },
+      "AreaBabycareOut": {
+        "properties": {
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AreaBabycareItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "source_note": {
+            "title": "Source Note",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/AreaBabycareSummaryOut"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "required": [
+          "synced_at",
+          "source_note",
+          "campus",
+          "radius_km",
+          "summary",
+          "items"
+        ],
+        "title": "AreaBabycareOut",
+        "type": "object"
+      },
+      "AreaBabycareSummaryOut": {
+        "description": "營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。",
+        "properties": {
+          "approved_total": {
+            "title": "Approved Total",
+            "type": "integer"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "enrolled_total": {
+            "title": "Enrolled Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "approved_total",
+          "enrolled_total"
+        ],
+        "title": "AreaBabycareSummaryOut",
+        "type": "object"
+      },
       "AreaCampusOut": {
         "properties": {
           "district": {
@@ -2424,9 +2578,161 @@
         "title": "AreaCampusOut",
         "type": "object"
       },
-      "AreaDataStatusOut": {
-        "description": "公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、\n各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）。",
+      "AreaChangeItemOut": {
         "properties": {
+          "change": {
+            "enum": [
+              "opened",
+              "closed",
+              "kind_changed"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "date_basis": {
+            "enum": [
+              "registered",
+              "observed"
+            ],
+            "title": "Date Basis",
+            "type": "string"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "public",
+              "nonprofit",
+              "quasi_public",
+              "private",
+              "center",
+              "home"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "public",
+                  "nonprofit",
+                  "quasi_public",
+                  "private"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Kind"
+          },
+          "old_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "public",
+                  "nonprofit",
+                  "quasi_public",
+                  "private"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Old Kind"
+          },
+          "provider": {
+            "enum": [
+              "kindergarten",
+              "babycare"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "source_id",
+          "name",
+          "kind",
+          "change",
+          "date",
+          "date_basis",
+          "distance_m",
+          "old_kind",
+          "new_kind"
+        ],
+        "title": "AreaChangeItemOut",
+        "type": "object"
+      },
+      "AreaChangesOut": {
+        "properties": {
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AreaChangeItemOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "tracking_since": {
+            "$ref": "#/components/schemas/AreaTrackingSinceOut"
+          },
+          "window_months": {
+            "title": "Window Months",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus",
+          "radius_km",
+          "window_months",
+          "tracking_since",
+          "items"
+        ],
+        "title": "AreaChangesOut",
+        "type": "object"
+      },
+      "AreaDataStatusOut": {
+        "description": "公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、\n各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。",
+        "properties": {
+          "babycare_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Babycare Synced At"
+          },
           "boundary_version": {
             "title": "Boundary Version",
             "type": "string"
@@ -2494,6 +2800,7 @@
           "doorplate_version",
           "doorplates_synced_at",
           "kindergartens_synced_at",
+          "babycare_synced_at",
           "boundary_version",
           "population_version",
           "population_synced_at"
@@ -3150,6 +3457,41 @@
           "unlocated_reasons"
         ],
         "title": "AreaTotalsOut",
+        "type": "object"
+      },
+      "AreaTrackingSinceOut": {
+        "description": "各種名單開始記錄異動的日子（基準日）；還沒記錄過是 null。",
+        "properties": {
+          "babycare": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Babycare"
+          },
+          "kindergarten": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kindergarten"
+          }
+        },
+        "required": [
+          "kindergarten",
+          "babycare"
+        ],
+        "title": "AreaTrackingSinceOut",
         "type": "object"
       },
       "AreaVillageRowOut": {
@@ -13971,6 +14313,93 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/area/babycare": {
+      "get": {
+        "description": "本校附近的托嬰中心與公共托育家園（2026-10-14 規格 §6）：公開資料，依距離排序。只讀，不寫稽核。\n半徑規則同 /area/kindergartens。",
+        "operationId": "get_admissions_area_babycare_api_website_v1_admin_admissions_area_babycare_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaBabycareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Babycare",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/area/boundaries": {
       "get": {
         "description": "里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。\n檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，\nmain.py 的 no-store 中介層會尊重）。",
@@ -14031,6 +14460,93 @@
           }
         },
         "summary": "Get Admissions Area Boundaries",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/changes": {
+      "get": {
+        "description": "本校附近近 12 個月的園所變化（2026-10-14 規格 §6）：新設、停辦、類型變動，幼兒園與托嬰都涵蓋。\n只讀，不寫稽核；半徑規則同 /area/kindergartens。",
+        "operationId": "get_admissions_area_changes_api_website_v1_admin_admissions_area_changes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaChangesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Changes",
         "tags": [
           "admissions"
         ]

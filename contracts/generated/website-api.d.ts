@@ -25,6 +25,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/babycare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Babycare
+         * @description 本校附近的托嬰中心與公共托育家園（2026-10-14 規格 §6）：公開資料，依距離排序。只讀，不寫稽核。
+         *     半徑規則同 /area/kindergartens。
+         */
+        get: operations["get_admissions_area_babycare_api_website_v1_admin_admissions_area_babycare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/boundaries": {
         parameters: {
             query?: never;
@@ -39,6 +60,27 @@ export interface paths {
          *     main.py 的 no-store 中介層會尊重）。
          */
         get: operations["get_admissions_area_boundaries_api_website_v1_admin_admissions_area_boundaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Changes
+         * @description 本校附近近 12 個月的園所變化（2026-10-14 規格 §6）：新設、停辦、類型變動，幼兒園與托嬰都涵蓋。
+         *     只讀，不寫稽核；半徑規則同 /area/kindergartens。
+         */
+        get: operations["get_admissions_area_changes_api_website_v1_admin_admissions_area_changes_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3585,6 +3627,57 @@ export interface components {
                 [key: string]: number;
             } | null;
         };
+        /** AreaBabycareItemOut */
+        AreaBabycareItemOut: {
+            /** Address */
+            address: string;
+            /** Approved Capacity */
+            approved_capacity: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Enrolled */
+            enrolled: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "center" | "home";
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Source Id */
+            source_id: string;
+        };
+        /** AreaBabycareOut */
+        AreaBabycareOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            /** Items */
+            items: components["schemas"]["AreaBabycareItemOut"][];
+            /** Radius Km */
+            radius_km: number;
+            /** Source Note */
+            source_note: string;
+            summary: components["schemas"]["AreaBabycareSummaryOut"];
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /**
+         * AreaBabycareSummaryOut
+         * @description 營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。
+         */
+        AreaBabycareSummaryOut: {
+            /** Approved Total */
+            approved_total: number;
+            /** Count */
+            count: number;
+            /** Enrolled Total */
+            enrolled_total: number;
+        };
         /** AreaCampusOut */
         AreaCampusOut: {
             /** District */
@@ -3600,12 +3693,63 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** AreaChangeItemOut */
+        AreaChangeItemOut: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "opened" | "closed" | "kind_changed";
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Date Basis
+             * @enum {string}
+             */
+            date_basis: "registered" | "observed";
+            /** Distance M */
+            distance_m: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private" | "center" | "home";
+            /** Name */
+            name: string;
+            /** New Kind */
+            new_kind: ("public" | "nonprofit" | "quasi_public" | "private") | null;
+            /** Old Kind */
+            old_kind: ("public" | "nonprofit" | "quasi_public" | "private") | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "kindergarten" | "babycare";
+            /** Source Id */
+            source_id: string;
+        };
+        /** AreaChangesOut */
+        AreaChangesOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            /** Items */
+            items: components["schemas"]["AreaChangeItemOut"][];
+            /** Radius Km */
+            radius_km: number;
+            tracking_since: components["schemas"]["AreaTrackingSinceOut"];
+            /** Window Months */
+            window_months: number;
+        };
         /**
          * AreaDataStatusOut
          * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
-         *     各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）。
+         *     各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。
          */
         AreaDataStatusOut: {
+            /** Babycare Synced At */
+            babycare_synced_at: string | null;
             /** Boundary Version */
             boundary_version: string;
             /** Doorplate Version */
@@ -3846,6 +3990,16 @@ export interface components {
             visit: number;
             /** With Address */
             with_address: number;
+        };
+        /**
+         * AreaTrackingSinceOut
+         * @description 各種名單開始記錄異動的日子（基準日）；還沒記錄過是 null。
+         */
+        AreaTrackingSinceOut: {
+            /** Babycare */
+            babycare: string | null;
+            /** Kindergarten */
+            kindergarten: string | null;
         };
         /** AreaVillageRowOut */
         AreaVillageRowOut: {
@@ -7491,6 +7645,43 @@ export interface operations {
             };
         };
     };
+    get_admissions_area_babycare_api_website_v1_admin_admissions_area_babycare_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaBabycareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_admissions_area_boundaries_api_website_v1_admin_admissions_area_boundaries_get: {
         parameters: {
             query?: never;
@@ -7519,6 +7710,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_changes_api_website_v1_admin_admissions_area_changes_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaChangesOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -1,4 +1,4 @@
-"""招生區域分析（2026-10-08 區域分析規格 §8）：/admin/admissions/area 與 /area/kindergartens。
+"""招生區域分析（2026-10-08 區域分析規格 §8）：/admin/admissions/area 與 /area/kindergartens、/area/babycare 與 /area/changes。
 
 只讀：不 flush、不 commit、不寫稽核。回應只有聚合數字與公開園所資料，不含家長個資。
 口徑沿用 stats.py：母體 _base_filters（校區＋入學學年學期），參觀人數＝筆數、預繳人數＝
@@ -19,7 +19,7 @@ SQL 只 GROUP BY 原始欄位與 IS NULL，層級在 Python 判斷（同 stats.p
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, get_args
 
 from sqlalchemy import select
@@ -27,13 +27,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import estimation, records
 from app.admissions.geo import boundaries, matcher
+from app.admissions.geo import babycare as geo_babycare
 from app.admissions.geo import kindergartens as geo_kindergartens
+from app.admissions.geo import providers as geo_providers
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, RecruitmentVisitGeo
 from app.admissions.geo.projection import haversine_m
 from app.admissions.models import RecruitmentVisit
 from app.admissions.schemas import AreaUnlocatedReason
 from app.admissions.stats import _base_filters, _count_columns, pct
 from app.campuses.models import Campus
+from app.common.timezones import today_local
 
 DISTANCE_BANDS = ("0-1", "1-3", "3-6", "6+", "none")
 # 有地址卻沒到里的原因，筆數相同時照這個順序列。no_address、anonymized 不在其中：
@@ -43,6 +46,7 @@ RADIUS_CHOICES = (1, 3, 6)
 # 與任一校區座標相距這個距離內的園所視為本機構（規格 §8.2）。
 OWN_CAMPUS_RADIUS_M = 50
 KINDERGARTEN_SOURCE_NOTE = geo_kindergartens.SOURCE_NOTE
+BABYCARE_SOURCE_NOTE = geo_babycare.SOURCE_NOTE
 
 
 def distance_band(distance_m: int | None) -> str:
@@ -112,6 +116,7 @@ async def _data_status(db: AsyncSession) -> dict[str, Any]:
     statuses = {status.dataset: status for status in (await db.execute(select(GeoDatasetStatus))).scalars()}
     doorplates = statuses.get("doorplates")
     kindergartens = statuses.get("kindergartens")
+    babycare = statuses.get("babycare")
     # 各里人口（2026-10-13 招生機會）：只有換版成功過（active_version 有值）才算匯入，失敗只留 last_error 的列不算。
     population = statuses.get("population")
     population_imported = population is not None and population.active_version is not None
@@ -121,6 +126,7 @@ async def _data_status(db: AsyncSession) -> dict[str, Any]:
         "doorplate_version": doorplates.label if doorplates is not None else None,
         "doorplates_synced_at": doorplates.synced_at if doorplates is not None else None,
         "kindergartens_synced_at": kindergartens.synced_at if kindergartens is not None else None,
+        "babycare_synced_at": babycare.synced_at if babycare is not None else None,
         "boundary_version": boundaries.BOUNDARY_VERSION,
         "population_version": population.label if population_imported else None,
         "population_synced_at": population.synced_at if population_imported else None,
@@ -231,4 +237,56 @@ async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: i
         }
         for item in found
     ]
+    return result
+
+
+async def query_babycare(db: AsyncSession, campus_key: str, *, radius_km: int) -> dict[str, Any]:
+    """本校半徑內營業中的托嬰中心與托育家園（2026-10-14 規格 §6），依距離排序。校區比對不到座標時回空清單，
+    原因在 campus.locate_error；名單從未匯入時 synced_at 是 null（畫面寫尚未匯入，不寫附近沒有）。"""
+    campus = await campus_out(db, campus_key)
+    status = await db.get(GeoDatasetStatus, "babycare")
+    result: dict[str, Any] = {
+        "synced_at": status.synced_at if status is not None else None,
+        "source_note": BABYCARE_SOURCE_NOTE,
+        "campus": campus,
+        "radius_km": radius_km,
+        "summary": {"count": 0, "approved_total": 0, "enrolled_total": 0},
+        "items": [],
+    }
+    if campus["lat"] is None or campus["lng"] is None:
+        return result
+    found = await geo_babycare.nearby(db, campus["lat"], campus["lng"], radius_km * 1000)
+    result["items"] = [asdict(item) for item in found]
+    result["summary"] = {
+        "count": len(found),
+        "approved_total": sum(item.approved_capacity or 0 for item in found),
+        "enrolled_total": sum(item.enrolled or 0 for item in found),
+    }
+    return result
+
+
+async def query_changes(
+    db: AsyncSession, campus_key: str, *, radius_km: int, today: date | None = None
+) -> dict[str, Any]:
+    """本校半徑內近 12 個月的新設、停辦、類型變動（規格 §5、§6）。today 只給測試固定日期用，預設台北今天。
+    tracking_since 讓畫面老實說從哪天開始記錄。"""
+    campus = await campus_out(db, campus_key)
+    statuses = {status.dataset: status for status in (await db.execute(select(GeoDatasetStatus))).scalars()}
+    kindergartens, babycare = statuses.get("kindergartens"), statuses.get("babycare")
+    result: dict[str, Any] = {
+        "campus": campus,
+        "radius_km": radius_km,
+        "window_months": geo_providers.CHANGE_WINDOW_MONTHS,
+        "tracking_since": {
+            "kindergarten": kindergartens.baseline_on if kindergartens is not None else None,
+            "babycare": babycare.baseline_on if babycare is not None else None,
+        },
+        "items": [],
+    }
+    if campus["lat"] is None or campus["lng"] is None:
+        return result
+    found = await geo_providers.nearby_changes(
+        db, campus["lat"], campus["lng"], radius_km * 1000, today=today or today_local()
+    )
+    result["items"] = [asdict(item) for item in found]
     return result

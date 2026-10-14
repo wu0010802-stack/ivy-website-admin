@@ -850,6 +850,14 @@ class AdmissionsStaffOut(BaseModel):
 
 DistanceBandKey = Literal["0-1", "1-3", "3-6", "6+", "none"]
 KindergartenKind = Literal["public", "nonprofit", "quasi_public", "private"]
+BabycareKind = Literal["center", "home"]
+ProviderName = Literal["kindergarten", "babycare"]
+ProviderChangeKind = Literal["opened", "closed", "kind_changed"]
+ChangeDateBasis = Literal["registered", "observed"]
+# 異動列的 kind：幼兒園是四種類型，托嬰是 center／home。
+ChangeItemKind = Literal["public", "nonprofit", "quasi_public", "private", "center", "home"]
+# 欄位叫 date 的 model 裡，用別名當型別，避免欄位名稱遮住 datetime.date。
+DateOnly = date
 
 
 class AreaFiltersOut(BaseModel):
@@ -860,11 +868,12 @@ class AreaFiltersOut(BaseModel):
 
 class AreaDataStatusOut(BaseModel):
     """公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
-    各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）。"""
+    各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。"""
 
     doorplate_version: str | None
     doorplates_synced_at: datetime | None
     kindergartens_synced_at: datetime | None
+    babycare_synced_at: datetime | None
     boundary_version: str
     population_version: str | None
     population_synced_at: datetime | None
@@ -973,6 +982,70 @@ class AreaKindergartensOut(BaseModel):
     campus: AreaCampusOut
     radius_km: int
     items: list[AreaKindergartenOut]
+
+
+# ---- 托嬰與園所異動（2026-10-14 規格 §6）----
+
+
+class AreaBabycareItemOut(BaseModel):
+    source_id: str
+    name: str
+    kind: BabycareKind
+    address: str
+    lat: float
+    lng: float
+    distance_m: int
+    # 核定人數與實際收托（官方回報，統計時點官方沒有說明）；來源沒給是 null，畫面寫「—」。
+    approved_capacity: int | None
+    enrolled: int | None
+    phone: str | None
+
+
+class AreaBabycareSummaryOut(BaseModel):
+    """營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。"""
+
+    count: int
+    approved_total: int
+    enrolled_total: int
+
+
+class AreaBabycareOut(BaseModel):
+    synced_at: datetime | None
+    source_note: str
+    campus: AreaCampusOut
+    radius_km: int
+    summary: AreaBabycareSummaryOut
+    items: list[AreaBabycareItemOut]
+
+
+class AreaTrackingSinceOut(BaseModel):
+    """各種名單開始記錄異動的日子（基準日）；還沒記錄過是 null。"""
+
+    kindergarten: DateOnly | None
+    babycare: DateOnly | None
+
+
+class AreaChangeItemOut(BaseModel):
+    provider: ProviderName
+    source_id: str
+    name: str
+    kind: ChangeItemKind
+    change: ProviderChangeKind
+    # registered＝設立日（幼兒園新設）、observed＝我們同步到的那天（來源沒有停辦日）。
+    date: DateOnly
+    date_basis: ChangeDateBasis
+    distance_m: int
+    # 只有 kind_changed 才有：舊的與新的幼兒園類型。
+    old_kind: KindergartenKind | None
+    new_kind: KindergartenKind | None
+
+
+class AreaChangesOut(BaseModel):
+    campus: AreaCampusOut
+    radius_km: int
+    window_months: int
+    tracking_since: AreaTrackingSinceOut
+    items: list[AreaChangeItemOut]
 
 
 # ---- 招生機會（2026-10-13 招生機會規格 §6）----
