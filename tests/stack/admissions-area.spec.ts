@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
-import { seedProviderChanges } from './db'
+import { seedBirthSeries, seedProviderChanges } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
@@ -417,6 +417,67 @@ test('390px：托嬰中心清單與園所變化不撐出頁面', async ({ browse
   await expect(page.locator('.changes')).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: path.join(SHOTS, 'admissions-provider-changes-390.png'), fullPage: true })
+  await context.close()
+})
+
+test('近幾年的出生數：6 期、缺月註明、增減只比兩期都有的月份', async ({ browser }) => {
+  test.setTimeout(90_000)
+  mkdirSync(SHOTS, { recursive: true })
+  seedBirthSeries()
+  const { context, page } = await openAs(browser, 'super_admin')
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+
+  const series = page.locator('.birth-series')
+  await test.step('標題與 6 期（最新在前）', async () => {
+    await expect(series.locator('.birth-series__title')).toHaveText('近幾年的出生數（本校 3 公里內）')
+    const rows = series.locator('.birth-series__row:not(.birth-series__row--head)')
+    await expect(rows).toHaveCount(6)
+    await expect(rows.nth(0).locator('.birth-series__label')).toHaveText('114 年 10 月～115 年 9 月')
+    await expect(rows.nth(5).locator('.birth-series__label')).toHaveText('109 年 10 月～110 年 9 月')
+  })
+
+  await test.step('111-03 缺月：那一期寫「缺 111 年 3 月」，增減只比兩期都有的月份', async () => {
+    const rows = series.locator('.birth-series__row:not(.birth-series__row--head)')
+    await expect(rows.nth(4).locator('.birth-series__label')).toHaveText('110 年 10 月～111 年 9 月')
+    await expect(rows.nth(4).locator('.birth-series__missing')).toHaveText('缺 111 年 3 月')
+    // 每個里每月出生數 2、2、3、3、4、4：0%、−33.3%、0%、−25.0%（缺月那一年比 11 個月）、0%、最舊一期沒有前一期。
+    await expect(rows.locator('.birth-series__change')).toHaveText(['0.0%', '−33.3%', '0.0%', '−25.0%', '0.0%', '—'])
+  })
+
+  await test.step('位置：在「里的變化」區塊內、總結句下面、里表上面', async () => {
+    const block = page.locator('.stats-block', { has: page.locator('.stats-block__title', { hasText: '里的變化（本校 3 公里內）' }) }).first()
+    const order = await block.evaluate((element) => {
+      const children = [...element.querySelectorAll('.trends-summary, .birth-series, table.stats-table')]
+      return children.map((child) => (child.matches('.trends-summary') ? 'summary' : child.matches('.birth-series') ? 'series' : 'table'))
+    })
+    expect(order.indexOf('summary')).toBeLessThan(order.indexOf('series'))
+    expect(order.indexOf('series')).toBeLessThan(order.indexOf('table'))
+  })
+
+  await test.step('新區塊沒有 serious／critical 的無障礙問題', async () => {
+    const results = await new AxeBuilder({ page }).include('.birth-series').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+    const serious = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    expect(serious.map((violation) => `${violation.id}：${violation.nodes.map((node) => node.target.join(' ')).join('；')}`)).toEqual([])
+  })
+
+  await expectNoHorizontalOverflow(page)
+  await series.scrollIntoViewIfNeeded()
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-birth-series-1440.png'), fullPage: true })
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await context.close()
+})
+
+test('390px：近幾年的出生數不撐出頁面', async ({ browser }) => {
+  mkdirSync(SHOTS, { recursive: true })
+  seedBirthSeries()
+  const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await openArea(page)
+  await expect(page.locator('.birth-series')).toBeVisible()
+  await expect(page.locator('.birth-series__row:not(.birth-series__row--head)')).toHaveCount(6)
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-birth-series-390.png'), fullPage: true })
   await context.close()
 })
 

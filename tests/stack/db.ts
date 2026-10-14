@@ -74,3 +74,41 @@ export function seedProviderChanges(): void {
     {},
   )
 }
+
+// 每個里每月出生數，從最新一期往回：2、2、3、3、4、4（出生走勢 e2e，2026-10-14）。
+const BIRTH_PERIOD_COUNTS = [2, 2, 3, 3, 4, 4]
+
+function birthSeriesMonths(): { month: string; perVillage: number }[] {
+  const months: { month: string; perVillage: number }[] = []
+  for (let period = 0; period < BIRTH_PERIOD_COUNTS.length; period++) {
+    for (let offset = 0; offset < 12; offset++) {
+      // 115-09 往回第 (period × 12 + offset) 個月。
+      const total = 115 * 12 + 9 - 1 - (period * 12 + offset)
+      const month = `${String(Math.floor(total / 12)).padStart(3, '0')}-${String((total % 12) + 1).padStart(2, '0')}`
+      if (month === '111-03') continue // 來源兩個資料集都查無的月份：留成缺月
+      months.push({ month, perVillage: BIRTH_PERIOD_COUNTS[period]! })
+    }
+  }
+  return months
+}
+
+/**
+ * 近幾年的出生數（2026-10-14）：stack 啟動時只匯入各里人口，沒有出生歷史；要看有內容的畫面只能直接寫測試庫。
+ * 每個里（沿用已匯入的 893 里）寫 71 個月（109-10 到 115-09，缺 111-03）、每月 2／2／3／3／4／4 位（每期一個數字，
+ * 從最新往回），並寫出生的狀態列（最新月份 115-09）。重複執行不會重複。
+ */
+export function seedBirthSeries(): void {
+  const values = birthSeriesMonths()
+    .map(({ month, perVillage }) => `('${month}', ${perVillage})`)
+    .join(', ')
+  psql(
+    `INSERT INTO geo_village_births (month, village_code, district, village, births)
+     SELECT m.month, p.village_code, p.district, p.village, m.per_village
+       FROM geo_village_population AS p CROSS JOIN (VALUES ${values}) AS m(month, per_village)
+     ON CONFLICT (month, village_code) DO NOTHING;
+     INSERT INTO geo_dataset_status (dataset, active_version, label, synced_at, checked_at)
+     VALUES ('births', '115-09', '115-09', now(), now())
+     ON CONFLICT (dataset) DO UPDATE SET active_version = '115-09', label = '115-09';`,
+    {},
+  )
+}
