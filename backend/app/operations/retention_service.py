@@ -22,7 +22,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import Text, cast, func, select, update
+from sqlalchemy import Text, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -165,9 +165,17 @@ async def preview(db: AsyncSession, days: dict[str, int | None], *, now: datetim
     )
 
 
-async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
+async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> bool:
     """匿名化不動狀態、不動時段、不動預約設定——只清掉個資欄位，
-    保留案件本身與統計用的 event/analytics 紀錄完整。"""
+    保留案件本身與統計用的 event/analytics 紀錄完整。回傳 False＝已有人先匿名化，這次沒動。
+
+    候選是不上鎖的查詢載入的（2026-10-13 審查），載入到清理之間後台人員可能補填了 Email、孩子姓名
+    或生日並提交：把原本 NULL 的欄位再賦值 None，SQLAlchemy 看不到淨變更、不會寫進 UPDATE，補填的
+    個資就留在已標記匿名化的案件上。所以先鎖住案件列、整列重讀，再依最新的值清除。後台人員的改資料
+    也鎖同一列並檢查 anonymized_at，兩者因此序列化。"""
+    await db.refresh(visit_request, with_for_update=True)
+    if visit_request.anonymized_at is not None:
+        return False
     visit_request.parent_name = ANONYMIZED_NOTE
     visit_request.phone = "0000000000"
     visit_request.child_name = None
@@ -191,6 +199,7 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> None:
     await _clear_free_text_reasons(db, [visit_request.id])
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
+    return True
 
 
 async def _clear_free_text_reasons(db: AsyncSession, visit_request_ids) -> None:
@@ -215,11 +224,12 @@ async def run_sweep(
     retention_runs。呼叫端負責確認部署允許真正清理、寫稽核與 commit。"""
     current = now or now_utc()
     found = await find_candidates(db, days, now=current)
-    counts = {k: len(v) for k, v in found.items()}
+    counts = {k: 0 for k in found}
     open_overdue_count = await count_open_overdue(db, days, now=current)
-    for candidates in found.values():
+    for category, candidates in found.items():
         for candidate in candidates:
-            await anonymize(db, candidate)
+            if await anonymize(db, candidate):
+                counts[category] += 1
     await _backfill_anonymized(db)
     if days.get("admissions_days") is not None:
         counts[ADMISSIONS] = await admissions_retention.anonymize_due(db, days["admissions_days"], now=current)
@@ -257,6 +267,21 @@ async def _backfill_anonymized(db: AsyncSession) -> None:
             ),
             idempotency_key=func.concat(ANONYMIZED_IDEMPOTENCY_PREFIX, cast(VisitRequest.id, Text)),
         )
+        .execution_options(synchronize_session=False)
+    )
+    # 舊版（或上面還沒鎖列的版本）清理時被並行補填的個資：已標記匿名化卻還有值的，補清。
+    await db.execute(
+        update(VisitRequest)
+        .where(
+            VisitRequest.anonymized_at.is_not(None),
+            or_(
+                VisitRequest.email.is_not(None),
+                VisitRequest.child_name.is_not(None),
+                VisitRequest.child_birthdate.is_not(None),
+                VisitRequest.questions.is_not(None),
+            ),
+        )
+        .values(email=None, child_name=None, child_birthdate=None, questions=None)
         .execution_options(synchronize_session=False)
     )
     anonymized = select(VisitRequest.id).where(VisitRequest.anonymized_at.is_not(None))

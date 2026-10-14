@@ -520,6 +520,7 @@ async def change_own_password(
 ) -> None:
     """本人改密碼：先驗證目前密碼；成功後其他裝置登出，這個分頁保留。
     目前密碼的驗證跟登入共用帳號鎖（持有 session 的人不能在這裡線上猜密碼）。"""
+    verified_hash = current_user.password_hash
     try:
         await service.verify_current_password(
             db, current_user, payload.current_password, limiter=ratelimit.limiter(request), context="change_password"
@@ -530,8 +531,21 @@ async def change_own_password(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="目前的密碼不正確") from exc
     if payload.current_password == payload.new_password:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密碼不能跟目前的一樣")
-    user = await db.get(User, current_user.id)
-    user.password_hash = await service.hash_password_async(payload.new_password)
+    new_hash = await service.hash_password_async(payload.new_password)
+    # 驗密碼、算新雜湊都是慢的：這段空檔裡重設密碼（連結或總管理者直接重設）可能已經提交並撤銷了所有
+    # session。鎖住帳號列後重驗 session 與「驗證時的那份密碼雜湊」，不能讓這個過期的請求把剛重設好的
+    # 密碼蓋回去（2026-10-13 審查）。
+    user = await service.lock_user_for_session(db, session)
+    if user is None:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="未登入")
+    if user.password_hash != verified_hash:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "CREDENTIALS_CHANGED", "message": "這個帳號的密碼剛被更動，請重新登入後再試"},
+        )
+    user.password_hash = new_hash
     await service.revoke_user_sessions(db, user.id, keep_session_id=session.id)
     await password_reset.revoke_outstanding(db, user.id)
     await audit_service.log_action(

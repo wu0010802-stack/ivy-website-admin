@@ -623,6 +623,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/audit-log/actors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Audit Log Actors
+         * @description 這個範圍內出現過的操作者（最近操作的在前，最多 200 個）。權限同操作紀錄列表：只列紀錄裡本來就看得到的人。
+         */
+        get: operations["get_audit_log_actors_api_website_v1_admin_audit_log_actors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/booking-config/{campus_key}": {
         parameters: {
             query?: never;
@@ -968,6 +988,66 @@ export interface paths {
         get: operations["get_dashboard_api_website_v1_admin_dashboard_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/holiday-calendar/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Holiday Calendar
+         * @description 把假日套用成各校的休假日。dry_run 只算數字；套用時每一校寫一筆操作紀錄。
+         */
+        post: operations["apply_holiday_calendar_api_website_v1_admin_holiday_calendar_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/holiday-calendar/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch Holiday Calendar
+         * @description 從政府資料開放平台下載某一年的辦公日曆並解析，給後台預覽；不寫任何資料。
+         */
+        post: operations["fetch_holiday_calendar_api_website_v1_admin_holiday_calendar_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/holiday-calendar/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse Holiday Calendar
+         * @description 解析上傳的辦公日曆 CSV（連不到政府資料開放平台時用），給後台預覽；不寫任何資料。
+         */
+        post: operations["parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1427,8 +1507,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Notifications */
+        /**
+         * List Notifications
+         * @description 新的在前，一次最多 limit 則；要更早的就帶上一頁最後一則的 before／before_id（2026-10-14 起）。
+         *     同一時間的多則用 id 排出固定順序，翻頁不會漏也不會重複。
+         */
         get: operations["list_notifications_api_website_v1_admin_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/notifications/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Notification Counts */
+        get: operations["notification_counts_api_website_v1_admin_notifications_counts_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1856,6 +1957,28 @@ export interface paths {
         get: operations["get_visit_calendar_api_website_v1_admin_visit_calendar_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-closures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Visit Closure
+         * @description 一天停課（可多校）：設成休假日、關閉當天場次，有 Email 的家長寄停課通知。
+         *
+         *     dry_run 只回每校的數字，不寫任何資料；正式執行時每一校寫一筆操作紀錄。
+         */
+        post: operations["create_visit_closure_api_website_v1_admin_visit_closures_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3874,6 +3997,23 @@ export interface components {
             visit_to_deposit_rate: number | null;
         };
         /**
+         * AuditActorOut
+         * @description 操作者篩選的一個選項；actor_user_id 為 null 是「系統」（排程發布、每天清理等）。
+         */
+        AuditActorOut: {
+            /** Actor User Id */
+            actor_user_id: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Email */
+            email: string | null;
+            /**
+             * Last At
+             * Format: date-time
+             */
+            last_at: string;
+        };
+        /**
          * AuditLogEntryOut
          * @description 操作紀錄一筆。actor_*、target_label 是讀取當下 join users 查出來的，
          *     不存在稽核表裡（metadata 不放同事的 email 或名字）。
@@ -3922,6 +4062,11 @@ export interface components {
             google: boolean;
             /** Line */
             line: boolean;
+        };
+        /** Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post */
+        Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post: {
+            /** File */
+            file: string;
         };
         /** Body_replace_media_api_website_v1_admin_media__media_id__replace_post */
         Body_replace_media_api_website_v1_admin_media__media_id__replace_post: {
@@ -4684,6 +4829,86 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HolidayApplyCampusOut */
+        HolidayApplyCampusOut: {
+            /** Affected Dates */
+            affected_dates: string[];
+            /** Affected Requests */
+            affected_requests: number;
+            /** Campus Key */
+            campus_key: string;
+            /** Created */
+            created: number;
+            /** Skipped Existing */
+            skipped_existing: number;
+            /** Skipped Weekend */
+            skipped_weekend: number;
+        };
+        /** HolidayApplyIn */
+        HolidayApplyIn: {
+            /** Campus Keys */
+            campus_keys: string[];
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /** Holidays */
+            holidays: components["schemas"]["HolidayIn"][];
+        };
+        /** HolidayApplyOut */
+        HolidayApplyOut: {
+            /** Campuses */
+            campuses: components["schemas"]["HolidayApplyCampusOut"][];
+            /** Dry Run */
+            dry_run: boolean;
+            /** Skipped Past */
+            skipped_past: number;
+        };
+        /** HolidayCalendarFetchIn */
+        HolidayCalendarFetchIn: {
+            /** Year */
+            year: number;
+        };
+        /**
+         * HolidayCalendarOut
+         * @description 解析好的辦公日曆，給後台預覽；還沒有寫入任何資料。
+         */
+        HolidayCalendarOut: {
+            /** Holidays */
+            holidays: components["schemas"]["HolidayOut"][];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "open_data" | "upload";
+            /** Source Label */
+            source_label: string;
+            /** Years */
+            years: number[];
+        };
+        /** HolidayIn */
+        HolidayIn: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+        };
+        /** HolidayOut */
+        HolidayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name */
+            name: string;
+            /** Weekday */
+            weekday: number;
+        };
         /** IntakePlanOut */
         IntakePlanOut: {
             /**
@@ -5171,6 +5396,25 @@ export interface components {
             /** Overdue Followup Count */
             overdue_followup_count: number;
         };
+        /** NotificationCampusCountOut */
+        NotificationCampusCountOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Unread */
+            unread: number;
+        };
+        /**
+         * NotificationCountsOut
+         * @description 範圍內的通知數（不受列表一頁幾則限制），頁籤數字與「未讀：義華 3 則」用。
+         */
+        NotificationCountsOut: {
+            /** Total */
+            total: number;
+            /** Unread */
+            unread: number;
+            /** Unread By Campus */
+            unread_by_campus: components["schemas"]["NotificationCampusCountOut"][];
+        };
         /**
          * NotificationInboxItemOut
          * @description 依校區共用的案件通知（新的參觀預約、已確認、已改期、已取消、逾期提醒…）。
@@ -5455,6 +5699,11 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /**
+             * Day Closed
+             * @default false
+             */
+            day_closed: boolean;
             /** Email */
             email?: string | null;
             /**
@@ -6621,6 +6870,61 @@ export interface components {
          * @enum {string}
          */
         VariantKind: "thumbnail" | "poster" | "large" | "medium" | "video_desktop" | "video_mobile";
+        /** VisitClosureCampusOut */
+        VisitClosureCampusOut: {
+            /** Already Closed */
+            already_closed: boolean;
+            /** Already Notified */
+            already_notified: number;
+            /** Campus Key */
+            campus_key: string;
+            /** Closed Slots */
+            closed_slots: number;
+            /** Confirmed Requests */
+            confirmed_requests: number;
+            /** No Email */
+            no_email: number;
+            /** Notified */
+            notified: number;
+            /** With Email */
+            with_email: number;
+        };
+        /** VisitClosureIn */
+        VisitClosureIn: {
+            /** Campus Keys */
+            campus_keys: string[];
+            /**
+             * Closure Date
+             * Format: date
+             */
+            closure_date: string;
+            /**
+             * Dry Run
+             * @default true
+             */
+            dry_run: boolean;
+            /**
+             * Notify Parents
+             * @default true
+             */
+            notify_parents: boolean;
+            /** Reason */
+            reason: string;
+        };
+        /** VisitClosureOut */
+        VisitClosureOut: {
+            /** Campuses */
+            campuses: components["schemas"]["VisitClosureCampusOut"][];
+            /**
+             * Closure Date
+             * Format: date
+             */
+            closure_date: string;
+            /** Dry Run */
+            dry_run: boolean;
+            /** Parent Email Enabled */
+            parent_email_enabled: boolean;
+        };
         /** VisitContactNoteCreateRequest */
         VisitContactNoteCreateRequest: {
             /** Expected Version */
@@ -8612,6 +8916,10 @@ export interface operations {
                 created_to?: string | null;
                 /** @description 一次幾筆；後台匯出時用 500 減少來回 */
                 limit?: number;
+                /** @description 只看某個操作者：帳號 id，或 system（排程等沒有操作者的紀錄） */
+                actor?: string | null;
+                /** @description 搜尋詞，任一個符合就列出（最多 30 個、每個 100 字內）。比對動作、對象、校區、操作者、對象帳號、裝置與細節原文；IP 只有總部比對。後台會把中文名稱展開成對應的代碼一起送。 */
+                q?: string[];
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -8630,6 +8938,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditLogEntryOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_audit_log_actors_api_website_v1_admin_audit_log_actors_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditActorOut"][];
                 };
             };
             /** @description Validation Error */
@@ -9455,6 +9798,117 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_holiday_calendar_api_website_v1_admin_holiday_calendar_apply_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayApplyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fetch_holiday_calendar_api_website_v1_admin_holiday_calendar_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HolidayCalendarFetchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HolidayCalendarOut"];
                 };
             };
             /** @description Validation Error */
@@ -10369,6 +10823,14 @@ export interface operations {
         parameters: {
             query?: {
                 campus_key?: string | null;
+                /** @description 上一頁最後一則的 created_at；和 before_id 一起傳，讀更早的通知 */
+                before?: string | null;
+                /** @description 上一頁最後一則的 id */
+                before_id?: string | null;
+                /** @description 只列還沒讀的 */
+                unread_only?: boolean;
+                /** @description 一次幾則 */
+                limit?: number;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -10387,6 +10849,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationInboxItemOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notification_counts_api_website_v1_admin_notifications_counts_get: {
+        parameters: {
+            query?: {
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationCountsOut"];
                 };
             };
             /** @description Validation Error */
@@ -11262,6 +11759,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarSlotOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_visit_closure_api_website_v1_admin_visit_closures_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitClosureIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitClosureOut"];
                 };
             };
             /** @description Validation Error */

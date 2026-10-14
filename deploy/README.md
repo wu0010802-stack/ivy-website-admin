@@ -13,6 +13,34 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 bug 盤點兩條修正：站內換頁回首頁的布幕蓋層、排程發布與退回審核死結（main CI 部署，沒有 migration）
+
+- **合併**：PR #41（`feature/fix-entrance-publish-lock-20261014`，head `d6162142`）由 GitHub 以 merge commit 併入 main `3a047c29..93ddc9b1`。內容：
+  - `web/app/utils/entrance-policy.ts`：開場 bootstrap 只有 SSR 解析中的那一份能啟動。
+  - `backend/app/content/publish_jobs.py`：排程先拿站台鎖，再鎖排程列。
+  - 對應測試。
+  - 細節見 README 頂部 10-14 段落、DESIGN.md 最上方一節。
+- **migration**：無。API 介面與契約都沒動。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**：本機結果見 README 頂部同名段落。PR 上的 CI 全綠：web、admin、後端三組、stack e2e。
+- **CI**：main run 38498704758（`93ddc9b1`），02:00:00Z 開跑，02:20:17Z 部署完成，全綠：
+  - Frontend web 1.5 分、admin 6.0 分。
+  - Backend 三組 10.0／9.0／11.2 分。
+  - E2E／Playwright 8.1 分。
+  - Deploy Railway production 9.0 分。
+- **正式 `release.json`**：base commit `93ddc9b1406243a6fc360a2bb4b8536c75c6ad74`，snapshot `298e3608…`，created `2026-10-14T02:11:43Z`，`web+api`。
+- **線上唯讀檢查**（未登入，02:2x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`fixture_enabled: false`，`last_failed_steps` 為空。
+  - 首頁、入學、特色教學、關於、環境、消息、30 週年、預約八頁都回 200（0.43–0.81 秒）。首頁 HTML 已帶新的 `document.readyState!=='loading'` 判斷。
+  - Chromium headless，1440 與 390 兩種寬度：
+    - 先進 `/admission` 再點校徽回首頁：不再出現布幕蓋層，`data-ivy-entrance` 維持空值。
+    - 首次進首頁：開場照常播。把網路估計固定成 4g 時，標記 4 ms 設成 pending，約 1 秒開出布幕對話框；手機 5.7 秒收掉，桌機 11.0 秒收掉。
+    - 同一工作階段再從內頁回首頁也沒有蓋層。
+  - 沒固定網路估計時，Chromium 偶爾把這條連線估成 3g，這時開場本來就不播（既有的慢網路判斷），與這次修正無關。
+- **未在線上驗證**：
+  - 排程發布與退回審核的死結需要真並發，線上沒有重現；以真 PostgreSQL 並發測試為準（舊程式 `DeadlockDetectedError`，修正後連跑 5 次都過）。
+  - Safari／iOS 實機。
+
 ## 2026-10-13 全站精修：以國際設計獎的完成度逐頁檢查（main CI 部署，沒有 migration）
 
 - **合併**：PR #37（`claude/award-polish-20261013`，head `cda82b6c`）由 GitHub 以 merge commit 併入 main `ca6d2132..25b166b9`。只改官網 `web/`（各頁版面、文字換行、圖片 sizes、30 週年開場動畫、特色教學水彩上色方式）與 README／DESIGN。內容見 README 頂部 10-13「全站精修」、DESIGN.md 最上方一節。

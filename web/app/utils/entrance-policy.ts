@@ -26,9 +26,13 @@ const ENTRANCE_ASSETS = [[ENTRANCE_PROJECTION, 'image'], [ENTRANCE_DIGIT_FONT, '
 
 // Runs before the first homepage paint. Failure is deliberately fail-open:
 // without this marker neither the temporary cover nor the WebGL layer appears.
+// Only the copy the parser runs from the SSR head may start the entrance. On a
+// client-side navigation to / the head manager inserts this script again, but
+// after EntranceCurtain has mounted and passed, so a marker set then would
+// raise the cover with nothing left to lift it (2026-10-14).
 export const entranceBootstrap = `(()=>{
   try {
-    if(location.pathname!=='/'||location.hash||window.__ivyEntranceSeen)return;
+    if(location.pathname!=='/'||location.hash||window.__ivyEntranceSeen||document.readyState!=='loading')return;
     if(matchMedia('(prefers-reduced-motion: reduce)').matches||matchMedia('(forced-colors: active)').matches)return;
     const c=navigator.connection;
     if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')))return;

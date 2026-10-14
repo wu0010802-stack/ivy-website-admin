@@ -434,8 +434,12 @@ describe('操作紀錄的「操作者」', () => {
       auditEntry({ id: 'a1' }),
       auditEntry({ id: 'a2', actor_display_name: '櫃台阿芬', actor_email: 'desk@ivy.example', created_at: '2026-09-28T06:00:00Z' }),
     ])
+    // 2026-10-14 起由後端比對操作者的顯示名稱與 Email（含還沒載入的紀錄）：搜尋字原樣送出。
+    const get = vi.mocked(api.get)
     await wrapper.get('.filter-search input').setValue('阿芬')
-    expect(wrapper.findAll('.data-table [data-test="audit-actor"]').map((a) => a.text())).toEqual(['櫃台阿芬'])
+    await new Promise((resolve) => setTimeout(resolve, 320))
+    await flushPromises()
+    expect(new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')).toEqual(['阿芬'])
   })
 })
 

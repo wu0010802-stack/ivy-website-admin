@@ -52,6 +52,8 @@ async function mountAudit(role: 'super_admin' | 'campus_admin' = 'super_admin', 
 
 const paramsOf = (url: unknown) => new URL(String(url), 'http://x').searchParams
 const isExportCall = (url: unknown) => paramsOf(url).get('limit') === '500'
+// 搜尋字打完 300 ms 才重讀（AuditView 的 AUDIT_SEARCH_DEBOUNCE_MS）。
+const afterSearchDebounce = async () => { await new Promise(resolve => setTimeout(resolve, 320)); await flushPromises() }
 
 describe('操作紀錄 CSV 的欄位', () => {
   it('台北時間、操作者與完整 Email、動作與細節是中文', () => {
@@ -224,38 +226,35 @@ describe('操作紀錄匯出 CSV', () => {
     expect(vi.mocked(downloadCsv).mock.calls.at(-1)![1].split('\r\n')).toHaveLength(1 + 5000 + 1)
   })
 
-  it('有搜尋字時只匯出符合的紀錄', async () => {
-    vi.spyOn(api, 'get').mockImplementation((url) =>
-      Promise.resolve(
-        isExportCall(url)
-          ? [entry('a1'), entry('a2', { action: 'user.create', target_type: 'user', metadata: {} })]
-          : [entry('screen')],
-      ) as Promise<never>,
+  it('有搜尋字時匯出也帶同一組搜尋詞（後端篩，中文名稱展開成代碼）', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation((url) =>
+      Promise.resolve(isExportCall(url) ? [entry('a2', { action: 'user.create', target_type: 'user', metadata: {} })] : [entry('screen')]) as Promise<never>,
     )
     const wrapper = await mountAudit()
     await wrapper.get('.filter-search input').setValue('新增帳號')
+    await afterSearchDebounce()
     await wrapper.get('[data-test="audit-export"]').trigger('click')
     await flushPromises()
+    const exportCall = get.mock.calls.map(call => call[0]).find(isExportCall)
+    expect(paramsOf(exportCall).getAll('q')).toEqual(expect.arrayContaining(['新增帳號', 'user.create']))
     const csv = vi.mocked(downloadCsv).mock.calls.at(-1)![1]
     expect(csv).toContain('新增帳號')
-    expect(csv).not.toContain('匯出家長個資')
   })
 
   it('可以用 IP 或裝置搜尋再匯出（和畫面搜尋一致）', async () => {
-    vi.spyOn(api, 'get').mockImplementation((url) =>
+    const get = vi.spyOn(api, 'get').mockImplementation((url) =>
       Promise.resolve(
-        isExportCall(url)
-          ? [entry('a1', { ip_address: '203.0.113.9', user_agent: IPHONE_LINE }), entry('a2', { ip_address: '198.51.100.7', user_agent: 'curl/8.7.1' })]
-          : [entry('screen')],
+        isExportCall(url) ? [entry('a1', { ip_address: '203.0.113.9', user_agent: IPHONE_LINE })] : [entry('screen')],
       ) as Promise<never>,
     )
     const wrapper = await mountAudit()
     await wrapper.get('.filter-search input').setValue('203.0.113')
+    await afterSearchDebounce()
     await wrapper.get('[data-test="audit-export"]').trigger('click')
     await flushPromises()
-    const csv = vi.mocked(downloadCsv).mock.calls.at(-1)![1]
-    expect(csv).toContain('203.0.113.9')
-    expect(csv).not.toContain('198.51.100.7')
+    const exportCall = get.mock.calls.map(call => call[0]).find(isExportCall)
+    expect(paramsOf(exportCall).getAll('q')).toEqual(['203.0.113'])
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![1]).toContain('203.0.113.9')
   })
 
   it('總部的檔案有 IP 欄與裝置欄', async () => {
@@ -321,16 +320,47 @@ describe('操作紀錄的搜尋標籤與狀態區（T8a）', () => {
     expect(wrapper.get('[data-test="audit-export"]').attributes('aria-describedby')).toBe('audit-export-scope')
   })
 
-  it('搜尋時筆數旁註明更早的紀錄還沒載入（畫面搜尋只比對已載入的）；全部載完就不註明', async () => {
+  it('搜尋由後端比對全部紀錄：打完字才重讀、帶展開的詞；還有更早的符合紀錄就註明', async () => {
     const full = Array.from({ length: 100 }, (_, i) => entry(`a${i}`))
-    vi.spyOn(api, 'get').mockResolvedValue(full as never)
+    const get = vi.spyOn(api, 'get').mockResolvedValue(full as never)
     const more = await mountAudit()
+    const before = get.mock.calls.length
     await more.get('.filter-search input').setValue('匯出')
-    expect(more.get('.list-summary [role="status"]').text()).toBe('符合 100 筆・已載入 100 筆（更早的紀錄未載入）')
+    // 還在打字：不重讀。
+    expect(get.mock.calls.length).toBe(before)
+    await afterSearchDebounce()
+    const terms = paramsOf(get.mock.calls.at(-1)![0]).getAll('q')
+    expect(terms[0]).toBe('匯出')
+    expect(terms).toContain('visit_request.export')
+    expect(more.get('.list-summary [role="status"]').text()).toBe('符合 100 筆（還有更早的，按「載入更早的紀錄」）')
 
     vi.spyOn(api, 'get').mockResolvedValue([entry('a1')] as never)
     const done = await mountAudit()
     await done.get('.filter-search input').setValue('匯出')
-    expect(done.get('.list-summary [role="status"]').text()).toBe('符合 1 筆・已載入 1 筆')
+    await afterSearchDebounce()
+    expect(done.get('.list-summary [role="status"]').text()).toBe('符合 1 筆')
+  })
+
+  it('選操作者就帶 actor 重新讀取；選項來自這個範圍出現過的人，含「系統」', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation((url) =>
+      Promise.resolve(
+        String(url).startsWith('/admin/audit-log/actors')
+          ? [
+              { actor_user_id: 'u-1', email: 'amy@ivy.example', display_name: '王小美', last_at: '2026-10-14T01:00:00Z' },
+              { actor_user_id: null, email: null, display_name: null, last_at: '2026-10-13T01:00:00Z' },
+            ]
+          : [entry('a1')],
+      ) as Promise<never>,
+    )
+    const wrapper = await mountAudit()
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find(c => c.attributes('data-test') === 'audit-actor-filter')!
+    const labels = select.findAllComponents({ name: 'ElOption' }).map(option => option.props('label'))
+    expect(labels).toEqual(['全部操作者', '系統（排程、自動清理）', '王小美'])
+    select.vm.$emit('update:modelValue', 'u-1')
+    await flushPromises()
+    expect(paramsOf(get.mock.calls.at(-1)![0]).get('actor')).toBe('u-1')
+    select.vm.$emit('update:modelValue', 'system')
+    await flushPromises()
+    expect(paramsOf(get.mock.calls.at(-1)![0]).get('actor')).toBe('system')
   })
 })

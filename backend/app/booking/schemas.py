@@ -10,6 +10,7 @@ from pydantic import (
     BaseModel,
     EmailStr,
     Field,
+    StringConstraints,
     ValidationInfo,
     computed_field,
     field_validator,
@@ -669,6 +670,9 @@ class ParentVisitRequestOut(BaseModel):
     campus_name: str
     campus_active: bool
     campus_phone: str | None
+    # 停課日（2026-10-14）：預約那天園方休假或停班停課，原本的參觀不會進行。這時沒有線上修改
+    # 期限（change_deadline 為 null），家長頁改寫「請選擇新的時間，或取消」。
+    day_closed: bool = False
 
     @classmethod
     def from_visit_request(
@@ -680,8 +684,9 @@ class ParentVisitRequestOut(BaseModel):
         campus_active: bool,
         campus_phone: str | None,
         slots_open: bool = True,
+        day_closed: bool = False,
     ) -> "ParentVisitRequestOut":
-        change_open = parent_change_open(visit_request, deadline_hours)
+        change_open = parent_change_open(visit_request, deadline_hours, day_closed=day_closed)
         return cls(
             id=visit_request.id,
             campus_key=visit_request.campus_key,
@@ -705,13 +710,14 @@ class ParentVisitRequestOut(BaseModel):
             confirmed_at=visit_request.confirmed_at,
             cancelled_at=visit_request.cancelled_at,
             created_at=visit_request.created_at,
-            change_deadline=parent_change_deadline(visit_request, deadline_hours),
+            change_deadline=parent_change_deadline(visit_request, deadline_hours, day_closed=day_closed),
             change_deadline_hours=deadline_hours,
             can_cancel=visit_request.status == "confirmed" and change_open,
             # 停用的分校停止公開預約（規格 3.2），公開時段也不列，不給改期；取消照常。
             # 預約方式不是自選場次（暫停、LINE、電話…）時官網沒有場次可選，也不給改期。
             can_reschedule=visit_request.status == "confirmed" and change_open and campus_active and slots_open,
             can_edit=visit_request.status == "confirmed" and change_open and campus_active,
+            day_closed=day_closed,
         )
 
 
@@ -988,3 +994,119 @@ class SlotUsageOut(BaseModel):
     today: date
     lookups: SlotLookupSummaryOut
     slots: SlotUsageSlotsOut
+
+
+# ---------------------------------------------------------------------------
+# 國定假日匯入、停班停課（2026-10-14 規格 §2、§3）
+# ---------------------------------------------------------------------------
+
+CampusKeyList = Annotated[list[str], Field(min_length=1, max_length=5)]
+
+
+def _unique_campus_keys(value: list[str]) -> list[str]:
+    cleaned = [key.strip() for key in value]
+    if any(not key for key in cleaned):
+        raise ValueError("校區不能是空白")
+    if len(set(cleaned)) != len(cleaned):
+        raise ValueError("校區重複了")
+    return cleaned
+
+
+class HolidayOut(BaseModel):
+    date: date
+    name: str
+    # 0＝星期一 … 6＝星期日（同 date.weekday()、visit_rules.weekday）。
+    weekday: int
+
+
+class HolidayCalendarOut(BaseModel):
+    """解析好的辦公日曆，給後台預覽；還沒有寫入任何資料。"""
+
+    source: Literal["open_data", "upload"]
+    # 資料集上的檔名（例如「116年中華民國政府行政機關辦公日曆表」）或上傳的檔名。
+    source_label: str
+    years: list[int]
+    holidays: list[HolidayOut]
+
+
+class HolidayCalendarFetchIn(BaseModel):
+    # 西元年；只收今年與明年（路由檢查）。
+    year: int = Field(ge=2000, le=2100)
+
+
+HolidayName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=40), AfterValidator(_reject_control_chars)
+]
+
+
+class HolidayIn(BaseModel):
+    date: date
+    name: HolidayName
+
+
+class HolidayApplyIn(BaseModel):
+    campus_keys: Annotated[CampusKeyList, AfterValidator(_unique_campus_keys)]
+    holidays: Annotated[list[HolidayIn], Field(min_length=1, max_length=80)]
+    # true＝只試算每校會建幾天、影響幾筆預約，不寫任何資料。
+    dry_run: bool = True
+
+    @field_validator("holidays")
+    @classmethod
+    def _unique_dates(cls, value: list[HolidayIn]) -> list[HolidayIn]:
+        if len({h.date for h in value}) != len(value):
+            raise ValueError("同一天出現兩次")
+        return value
+
+
+class HolidayApplyCampusOut(BaseModel):
+    campus_key: str
+    # 新建的休假日（dry run：會建的）。
+    created: int
+    # 那天已經是休假日，維持原樣。
+    skipped_existing: int
+    # 週末的節日，但這校每週固定場次沒有那一天。
+    skipped_weekend: int
+    # 新休假日上已確認的預約（不會自動取消，要通知家長改約）。
+    affected_requests: int
+    affected_dates: list[date]
+
+
+class HolidayApplyOut(BaseModel):
+    dry_run: bool
+    # 早於台北今天、略過的日子。
+    skipped_past: int
+    campuses: list[HolidayApplyCampusOut]
+
+
+ClosureReason = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60), AfterValidator(_reject_control_chars)
+]
+
+
+class VisitClosureIn(BaseModel):
+    closure_date: date
+    campus_keys: Annotated[CampusKeyList, AfterValidator(_unique_campus_keys)]
+    # 會寫進給家長的停課通知，例如「颱風停班停課」。
+    reason: ClosureReason
+    # 有 Email 的家長寄停課通知（附修改連結）；正式站沒設寄信時不寄。
+    notify_parents: bool = True
+    dry_run: bool = True
+
+
+class VisitClosureCampusOut(BaseModel):
+    campus_key: str
+    already_closed: bool
+    closed_slots: int
+    confirmed_requests: int
+    with_email: int
+    notified: int
+    already_notified: int
+    no_email: int
+
+
+class VisitClosureOut(BaseModel):
+    dry_run: bool
+    closure_date: date
+    # 正式站有沒有設寄信；沒有時不會寄停課通知，家長要靠櫃台來電。
+    parent_email_enabled: bool
+    campuses: list[VisitClosureCampusOut]

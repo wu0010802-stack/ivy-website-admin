@@ -3594,6 +3594,58 @@
         "title": "AreaVillageRowOut",
         "type": "object"
       },
+      "AuditActorOut": {
+        "description": "操作者篩選的一個選項；actor_user_id 為 null 是「系統」（排程發布、每天清理等）。",
+        "properties": {
+          "actor_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor User Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "last_at": {
+            "format": "date-time",
+            "title": "Last At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actor_user_id",
+          "email",
+          "display_name",
+          "last_at"
+        ],
+        "title": "AuditActorOut",
+        "type": "object"
+      },
       "AuditLogEntryOut": {
         "description": "操作紀錄一筆。actor_*、target_label 是讀取當下 join users 查出來的，\n不存在稽核表裡（metadata 不放同事的 email 或名字）。",
         "properties": {
@@ -3746,6 +3798,20 @@
           "line"
         ],
         "title": "AuthProviders",
+        "type": "object"
+      },
+      "Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post",
         "type": "object"
       },
       "Body_replace_media_api_website_v1_admin_media__media_id__replace_post": {
@@ -5865,6 +5931,206 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HolidayApplyCampusOut": {
+        "properties": {
+          "affected_dates": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Affected Dates",
+            "type": "array"
+          },
+          "affected_requests": {
+            "title": "Affected Requests",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created": {
+            "title": "Created",
+            "type": "integer"
+          },
+          "skipped_existing": {
+            "title": "Skipped Existing",
+            "type": "integer"
+          },
+          "skipped_weekend": {
+            "title": "Skipped Weekend",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "created",
+          "skipped_existing",
+          "skipped_weekend",
+          "affected_requests",
+          "affected_dates"
+        ],
+        "title": "HolidayApplyCampusOut",
+        "type": "object"
+      },
+      "HolidayApplyIn": {
+        "properties": {
+          "campus_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Campus Keys",
+            "type": "array"
+          },
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayIn"
+            },
+            "maxItems": 80,
+            "minItems": 1,
+            "title": "Holidays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campus_keys",
+          "holidays"
+        ],
+        "title": "HolidayApplyIn",
+        "type": "object"
+      },
+      "HolidayApplyOut": {
+        "properties": {
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayApplyCampusOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "skipped_past": {
+            "title": "Skipped Past",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dry_run",
+          "skipped_past",
+          "campuses"
+        ],
+        "title": "HolidayApplyOut",
+        "type": "object"
+      },
+      "HolidayCalendarFetchIn": {
+        "properties": {
+          "year": {
+            "maximum": 2100.0,
+            "minimum": 2000.0,
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year"
+        ],
+        "title": "HolidayCalendarFetchIn",
+        "type": "object"
+      },
+      "HolidayCalendarOut": {
+        "description": "解析好的辦公日曆，給後台預覽；還沒有寫入任何資料。",
+        "properties": {
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayOut"
+            },
+            "title": "Holidays",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "open_data",
+              "upload"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "source",
+          "source_label",
+          "years",
+          "holidays"
+        ],
+        "title": "HolidayCalendarOut",
+        "type": "object"
+      },
+      "HolidayIn": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "name"
+        ],
+        "title": "HolidayIn",
+        "type": "object"
+      },
+      "HolidayOut": {
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "name",
+          "weekday"
+        ],
+        "title": "HolidayOut",
+        "type": "object"
+      },
       "IntakePlanOut": {
         "properties": {
           "as_of": {
@@ -7407,6 +7673,51 @@
         "title": "NoDepositSummaryOut",
         "type": "object"
       },
+      "NotificationCampusCountOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "unread"
+        ],
+        "title": "NotificationCampusCountOut",
+        "type": "object"
+      },
+      "NotificationCountsOut": {
+        "description": "範圍內的通知數（不受列表一頁幾則限制），頁籤數字與「未讀：義華 3 則」用。",
+        "properties": {
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          },
+          "unread_by_campus": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationCampusCountOut"
+            },
+            "title": "Unread By Campus",
+            "type": "array"
+          }
+        },
+        "required": [
+          "total",
+          "unread",
+          "unread_by_campus"
+        ],
+        "title": "NotificationCountsOut",
+        "type": "object"
+      },
       "NotificationInboxItemOut": {
         "description": "依校區共用的案件通知（新的參觀預約、已確認、已改期、已取消、逾期提醒…）。",
         "properties": {
@@ -8077,6 +8388,11 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "day_closed": {
+            "default": false,
+            "title": "Day Closed",
+            "type": "boolean"
           },
           "email": {
             "anyOf": [
@@ -11833,6 +12149,127 @@
         ],
         "title": "VariantKind",
         "type": "string"
+      },
+      "VisitClosureCampusOut": {
+        "properties": {
+          "already_closed": {
+            "title": "Already Closed",
+            "type": "boolean"
+          },
+          "already_notified": {
+            "title": "Already Notified",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "closed_slots": {
+            "title": "Closed Slots",
+            "type": "integer"
+          },
+          "confirmed_requests": {
+            "title": "Confirmed Requests",
+            "type": "integer"
+          },
+          "no_email": {
+            "title": "No Email",
+            "type": "integer"
+          },
+          "notified": {
+            "title": "Notified",
+            "type": "integer"
+          },
+          "with_email": {
+            "title": "With Email",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "already_closed",
+          "closed_slots",
+          "confirmed_requests",
+          "with_email",
+          "notified",
+          "already_notified",
+          "no_email"
+        ],
+        "title": "VisitClosureCampusOut",
+        "type": "object"
+      },
+      "VisitClosureIn": {
+        "properties": {
+          "campus_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Campus Keys",
+            "type": "array"
+          },
+          "closure_date": {
+            "format": "date",
+            "title": "Closure Date",
+            "type": "string"
+          },
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "notify_parents": {
+            "default": true,
+            "title": "Notify Parents",
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "closure_date",
+          "campus_keys",
+          "reason"
+        ],
+        "title": "VisitClosureIn",
+        "type": "object"
+      },
+      "VisitClosureOut": {
+        "properties": {
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/VisitClosureCampusOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "closure_date": {
+            "format": "date",
+            "title": "Closure Date",
+            "type": "string"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "parent_email_enabled": {
+            "title": "Parent Email Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "dry_run",
+          "closure_date",
+          "parent_email_enabled",
+          "campuses"
+        ],
+        "title": "VisitClosureOut",
+        "type": "object"
       },
       "VisitContactNoteCreateRequest": {
         "properties": {
@@ -17918,6 +18355,39 @@
             }
           },
           {
+            "description": "只看某個操作者：帳號 id，或 system（排程等沒有操作者的紀錄）",
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只看某個操作者：帳號 id，或 system（排程等沒有操作者的紀錄）",
+              "title": "Actor"
+            }
+          },
+          {
+            "description": "搜尋詞，任一個符合就列出（最多 30 個、每個 100 字內）。比對動作、對象、校區、操作者、對象帳號、裝置與細節原文；IP 只有總部比對。後台會把中文名稱展開成對應的代碼一起送。",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": [],
+              "description": "搜尋詞，任一個符合就列出（最多 30 個、每個 100 字內）。比對動作、對象、校區、操作者、對象帳號、裝置與細節原文；IP 只有總部比對。後台會把中文名稱展開成對應的代碼一起送。",
+              "items": {
+                "type": "string"
+              },
+              "title": "Q",
+              "type": "array"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -17977,6 +18447,92 @@
           }
         },
         "summary": "Get Audit Log",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/audit-log/actors": {
+      "get": {
+        "description": "這個範圍內出現過的操作者（最近操作的在前，最多 200 個）。權限同操作紀錄列表：只列紀錄裡本來就看得到的人。",
+        "operationId": "get_audit_log_actors_api_website_v1_admin_audit_log_actors_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AuditActorOut"
+                  },
+                  "title": "Response Get Audit Log Actors Api Website V1 Admin Audit Log Actors Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audit Log Actors",
         "tags": [
           "operations"
         ]
@@ -19906,6 +20462,234 @@
         "summary": "Get Dashboard",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/holiday-calendar/apply": {
+      "post": {
+        "description": "把假日套用成各校的休假日。dry_run 只算數字；套用時每一校寫一筆操作紀錄。",
+        "operationId": "apply_holiday_calendar_api_website_v1_admin_holiday_calendar_apply_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Holiday Calendar",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/holiday-calendar/fetch": {
+      "post": {
+        "description": "從政府資料開放平台下載某一年的辦公日曆並解析，給後台預覽；不寫任何資料。",
+        "operationId": "fetch_holiday_calendar_api_website_v1_admin_holiday_calendar_fetch_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayCalendarFetchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fetch Holiday Calendar",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/holiday-calendar/parse": {
+      "post": {
+        "description": "解析上傳的辦公日曆 CSV（連不到政府資料開放平台時用），給後台預覽；不寫任何資料。",
+        "operationId": "parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_parse_holiday_calendar_api_website_v1_admin_holiday_calendar_parse_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayCalendarOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse Holiday Calendar",
+        "tags": [
+          "booking"
         ]
       }
     },
@@ -21924,6 +22708,7 @@
     },
     "/api/website/v1/admin/notifications": {
       "get": {
+        "description": "新的在前，一次最多 limit 則；要更早的就帶上一頁最後一則的 before／before_id（2026-10-14 起）。\n同一時間的多則用 id 排出固定順序，翻頁不會漏也不會重複。",
         "operationId": "list_notifications_api_website_v1_admin_notifications_get",
         "parameters": [
           {
@@ -21940,6 +22725,70 @@
                 }
               ],
               "title": "Campus Key"
+            }
+          },
+          {
+            "description": "上一頁最後一則的 created_at；和 before_id 一起傳，讀更早的通知",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "上一頁最後一則的 created_at；和 before_id 一起傳，讀更早的通知",
+              "title": "Before"
+            }
+          },
+          {
+            "description": "上一頁最後一則的 id",
+            "in": "query",
+            "name": "before_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "上一頁最後一則的 id",
+              "title": "Before Id"
+            }
+          },
+          {
+            "description": "只列還沒讀的",
+            "in": "query",
+            "name": "unread_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "只列還沒讀的",
+              "title": "Unread Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "一次幾則",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "description": "一次幾則",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
             }
           },
           {
@@ -22002,6 +22851,87 @@
           }
         },
         "summary": "List Notifications",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/notifications/counts": {
+      "get": {
+        "operationId": "notification_counts_api_website_v1_admin_notifications_counts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCountsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Notification Counts",
         "tags": [
           "notifications"
         ]
@@ -23934,6 +24864,82 @@
           }
         },
         "summary": "Get Visit Calendar",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-closures": {
+      "post": {
+        "description": "一天停課（可多校）：設成休假日、關閉當天場次，有 Email 的家長寄停課通知。\n\ndry_run 只回每校的數字，不寫任何資料；正式執行時每一校寫一筆操作紀錄。",
+        "operationId": "create_visit_closure_api_website_v1_admin_visit_closures_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitClosureIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitClosureOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Visit Closure",
         "tags": [
           "booking"
         ]

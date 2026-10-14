@@ -84,14 +84,15 @@ describe('操作紀錄顯示 IP 與裝置', () => {
     expect(wrapper.find('[data-test="audit-source-mobile"]').exists()).toBe(false)
   })
 
-  it('可以用 IP 或裝置搜尋', async () => {
+  it('可以用 IP 或裝置搜尋（搜尋字原樣送給後端比對 IP 與 User-Agent）', async () => {
     const wrapper = await mountAudit([
-      entry('a1', { ip_address: '203.0.113.9', user_agent: IPHONE_LINE }),
       entry('a2', { ip_address: '198.51.100.7', user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0' }),
     ])
-    await wrapper.get('.filter-search input').setValue('203.0.113')
-    expect(wrapper.get('.list-summary').text()).toContain('符合 1 筆')
+    const get = vi.mocked(api.get)
     await wrapper.get('.filter-search input').setValue('firefox')
+    await new Promise(resolve => setTimeout(resolve, 320))
+    await flushPromises()
+    expect(new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')).toEqual(['firefox'])
     expect(wrapper.get('.list-summary').text()).toContain('符合 1 筆')
     expect(wrapper.get('[data-test="audit-source"]').text()).toBe('Windows・Firefox・198.51.100.7')
   })

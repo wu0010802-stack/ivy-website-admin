@@ -664,3 +664,23 @@ async def test_line_link_and_unlink_require_recent_auth(line_client, line_provid
     assert ok.status_code == 204
     await db_session.refresh(user)
     assert user.line_sub is None
+
+
+@pytest.mark.parametrize("mode", ["reset", "clear", "deactivate"])
+async def test_line_link_callback_is_refused_when_recovery_revoked_the_session_while_it_waited(
+    app, line_client, line_provider, db_session, mode
+):
+    """重設密碼／清除綁定／停權在 callback 等帳號列鎖時撤銷了 session：鎖後重驗，不能新增 line_sub
+    （2026-10-13 審查；session 是 callback 在等鎖之前驗的）。"""
+    from tests.test_google_oauth import _recover_while_callback_waits
+
+    user = await _create_user(db_session, "staff@ivy.example", "test-password-123", Role.CAMPUS_ADMIN, ["renwu"])
+    user_id = user.id
+    await password_login(line_client)
+    state = await start_link(line_client, line_provider)
+
+    response = await _recover_while_callback_waits(app, user_id, mode, finish(line_client, state))
+
+    assert response.headers["location"] == ACCOUNT + "failed"
+    await db_session.refresh(user)
+    assert user.line_sub is None

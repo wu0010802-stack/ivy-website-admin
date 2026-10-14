@@ -357,21 +357,44 @@ async def create_session(db: AsyncSession, user: User, *, idle: timedelta) -> tu
     return raw_token, csrf_token
 
 
+def _session_usable(session: Session, now: datetime) -> bool:
+    return not (
+        session.revoked_at is not None
+        or session.expires_at <= now
+        # 絕對上限另外再檢查一次：上線前發出的 session 的 expires_at 不一定對。
+        or session.created_at + SESSION_TTL <= now
+    )
+
+
 async def get_session_by_token(db: AsyncSession, raw_token: str) -> Session | None:
     session_id = _hash_token(raw_token)
     result = await db.execute(select(Session).where(Session.id == session_id))
     session = result.scalar_one_or_none()
     if session is None:
         return None
-    now = datetime.now(timezone.utc)
-    if (
-        session.revoked_at is not None
-        or session.expires_at <= now
-        # 絕對上限另外再檢查一次：上線前發出的 session 的 expires_at 不一定對。
-        or session.created_at + SESSION_TTL <= now
-    ):
+    if not _session_usable(session, datetime.now(timezone.utc)):
         return None
     return session
+
+
+async def lock_user_for_session(db: AsyncSession, session: Session) -> User | None:
+    """鎖住這個 session 的帳號列，再重驗帳號仍啟用、session 還有效（2026-10-13 審查）。
+
+    改密碼、綁定 Google／LINE 這類「發憑證」的動作，session 是在等鎖之前驗的；等鎖的空檔裡，重設密碼、
+    總管理者清除綁定、停權都會先鎖帳號列、撤銷 session 再 commit。這些撤銷都在帳號列鎖內進行，所以拿到鎖
+    之後重讀（populate_existing，不沿用等鎖前載入的值）就看得到。帳號或 session 已失效回 None，呼叫端
+    不能再動手。"""
+    user = (
+        await db.execute(
+            select(User).where(User.id == session.user_id).with_for_update().execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    fresh = (
+        await db.execute(select(Session).where(Session.id == session.id).execution_options(populate_existing=True))
+    ).scalar_one_or_none()
+    if user is None or not user.is_active or fresh is None or not _session_usable(fresh, datetime.now(timezone.utc)):
+        return None
+    return user
 
 
 async def refresh_session_expiry(

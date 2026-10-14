@@ -10,6 +10,90 @@
 - **驗證**：後端受影響的測試（geo 全部、`test_admissions_trends.py`、權限表、契約）過，全套本機在跑；後台 typecheck、vitest 155 檔 2,361 過（加測後再跑一次）；`npm run contract:check`、`deploy/tests` 過；migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 過；本機 API＋後台 dev server 用 Playwright 截 1440／390，兩種寬度沒有水平溢出。
 - **未驗證**：正式站（Railway）能不能連 ris.gov.tw；真實後台資料（有參觀紀錄的校區）下的畫面。
 
+## 2026-10-13 深度掃描 14 項（`fix/security-scan-20261013`）
+
+Codex 對 `8c4ec20a` 做深度掃描（3 項 medium、11 項 low）。每項先對照現行程式確認成立再修。第 1、2、3、5、6、7、8、10、11 項的新測試用真並發（兩個連線、鎖住其中一個，不 mock 資料庫），都先退回修正確認會失敗、修好後轉綠；第 9、12、13 項是純函式與 MockTransport 測試。第 4 項（家長異動期限在案件鎖外檢查）已在 `fix/booking-stale-read-20261013` 修過、驗證過，那份修正與 `test_booking_stale_reads.py` 原樣帶進這個分支，沒有重做。第 14 項是政策取捨，沒有改程式。
+
+- **預約家長連結與 session（第 1、5、7、10、11 項）**
+  - 寄信 worker 讀案件時拿 `FOR SHARE`（`notifications/service.py`）：Email 與「目前有效連結」是同一個世代，信組好才放鎖再寄。後台更正 Email、換發連結都先拿同一列的 `FOR UPDATE`，所以舊信箱最多收到更正時已撤銷的舊連結。
+  - 家長取消、改資料、改期在案件鎖內重驗 session（`access_service.parent_session_active`）；`revoke-access` 路由也先鎖案件列，撤銷才和卡在鎖上的家長異動序列化。
+  - 家長自己更正 Email：舊連結與其他 session 作廢、換發新連結寄到新信箱；家長正在用的 session 留著（`keep_session_id`）。後台更正與家長更正共用 `_reset_access_after_email_change`。
+  - 後台更正或清空 Email 時**無條件**撤銷案件所有連結與 session，不再看「有沒有有效連結」：連結已到期、兩小時的 session 還活著時，舊收件人原本仍讀得到更正後的資料。新 session 的效期也不超過來源連結的到期時間。
+  - 送單重播的 `original_manage_path` 改成一次查出所有 token 再判斷，不再「先數筆數、再另查最新那條」。
+- **登入憑證（第 2、3 項）**：`service.lock_user_for_session` 鎖帳號列後重驗帳號啟用與 session 有效。本人改密碼另外比對「驗證時的密碼雜湊」，被重設蓋過回 401／409（`CREDENTIALS_CHANGED`）；Google／LINE 綁定 callback 等鎖期間 session 被撤銷就拒絕新增 `google_sub`／`line_sub`。
+- **保存政策（第 8 項）**：`retention_service.anonymize` 先鎖案件列、整列重讀，補填的 Email、孩子姓名、生日一併清除；每次清理順手補清「已標記匿名化卻還有個資」的舊案；清理筆數改算實際匿名化的。
+- **備份與還原（第 9 項）**：新 `app/libpq.py` 把連線字串轉成 libpq 設定。`ssl`／`sslmode`、CA、客戶端憑證與密碼只走環境變數（不進命令列、不印出），認得的才轉、不認得的參數拒絕執行；DSN 的 TLS 要求蓋過行程環境裡較弱的設定。
+- **公開資料同步（第 12、13 項）**：搜尋頁／資料集頁 2 MB、幼兒園名單 64 MB、人口每頁 32 MB、門牌 CSV 400 MB（以解壓縮後計，無 Content-Length 的串流也擋）；單行 64K 字元；匯入門牌總列數 150 萬（正常約 76 萬）；每種資料各有同步時間上限（45／10／30 分鐘），逾時取消並清掉半套批次。
+- **後台草稿（第 6 項）**：草稿的主人也記在 sessionStorage（`claimVisitNoteDrafts`），逾時後重新整理、`previousUserId` 沒了，另一位登入時照樣清掉前一位的草稿；同一個人登回來保留。
+- **沒改：第 14 項**（內容編輯可直接改已發布素材的替代文字與裁切）。現行行為有測試與後台操作畫面支持（`test_media_slots.py` 斷言 metadata 變動「本文要立刻換」），規格第 4 節卻寫「編輯不直接影響官網」「內容編輯只能送審」，兩者矛盾，等業主決定。
+- 新測試：`test_booking_access_races.py`、`test_auth_credential_races.py`、`test_retention_races.py`、`test_libpq_dsn.py`、`test_geo_limits.py`，另在 `test_google_oauth.py`、`test_line_oauth.py`、`authGuardSwitchUser.test.ts` 各補案例。
+
+## 2026-10-14 參觀場次：國定假日匯入、停班停課；操作紀錄搜尋、站內通知翻頁（`feature/holiday-closure-20261014`）
+
+使用者從功能盤點裡選了這兩項，說「先做這些」。規格 `docs/specs/2026-10-14-holiday-closure-design.md`，規則見 DESIGN.md 最上方一節，操作步驟見 `docs/website-admin/operations.md`「國定假日與停班停課」。
+
+- **匯入國定假日**（參觀場次 →「匯入國定假日」）：
+  - 從政府資料開放平台下載人事行政總處的「行政機關辦公日曆表」（今年或明年）；連不到時上傳同一份 CSV。
+  - 預覽每一天（可取消勾選）、選校區、先試算再套用。
+  - 星期一到五的假日一律成為休假日；週末節日只在那校有週末場次時才建；已是休假日的不動；補行上班的週六不加開。
+  - 解析器在 114（Big5 更新版）、115、116 年的真實檔案上驗過；本機實際從平台下載 116 年版，義華建了 17 天、略過 7 個週末節日。
+- **停班停課**（參觀場次 →「停班停課」）：
+  - 選日期（今天到 60 天內）、校區（可複選）、原因（會寫進給家長的信），先試算再確認。
+  - 那天變成休假日、場次全部關閉；已約的預約不取消。
+  - 有 Email 的家長收到停課通知（附修改連結），同一筆同一天只寄一次；沒有 Email 的照舊在「待人工處理」由櫃台來電。正式站沒設寄信時不排信。
+  - 休假日還有已約的家長時，月曆那天的面板多一顆「寄停課通知（N 組）」。
+- **停課日家長不受線上修改期限限制**：期限是讓園方來得及反應的，停課日沒有意義。家長頁寫「園方這天停課…請選擇新的時間，或取消這次預約」、狀態寫「這天停課」，不給「加入行事曆」。月曆上一般的「整天休假」也適用。
+- **待人工處理**：改看「那天有沒有休假」。先「停止申請」、之後整天休假的場次（關閉來源仍是 manual），已約的家長原本不會列進來，現在會。
+- **操作紀錄**：
+  - 多「操作者」篩選（這個範圍出現過的人，含「系統」）。
+  - 搜尋改由後端比對全部紀錄，不再只搜已載入的；後台把中文名稱展開成代碼一起送，清單與匯出用同一組條件。
+- **站內通知**：
+  - 「載入更早的通知」（游標翻頁），「未讀」頁籤由後端篩。
+  - 頁籤數字是範圍內的真實總數；拿掉「只列出最新的 100 則」。
+- **API**：
+  - 新增 `POST /admin/holiday-calendar/fetch|parse|apply`、`POST /admin/visit-closures`、`GET /admin/audit-log/actors`、`GET /admin/notifications/counts`。
+  - `GET /admin/audit-log` 多 `actor`、`q`；`GET /admin/notifications` 多 `before`、`before_id`、`unread_only`、`limit`（回應仍是陣列）；`ParentVisitRequestOut` 多 `day_closed`。
+  - 新的家長信種類 `parent_visit_day_closed`、歷程 `closure_notice`、操作紀錄 `visit_exception.import_holidays`、`visit_closure.create`。
+  - **沒有 migration**。
+- **驗證**（Node 22.22、PostgreSQL 16、本機 Chromium）：
+  - 後端全套分 3 組平行跑（各自的測試庫）：2680 passed、1 failed。失敗的是 `test_media_job_loop.py::test_stop_terminates_running_ffmpeg_and_requeues_job`（「停止要在 4 秒內完成」的計時斷言，三組同時跑 CPU 滿載），和本次無關，單獨重跑 9 passed。
+  - 新增的後端測試：`test_holiday_calendar.py` 24、`test_visit_closure.py` 10、`test_audit_search_and_inbox_paging.py` 8。
+  - admin vitest（`--maxWorkers=2`，同 CI）156 檔 2354 passed、1 skipped；web vitest 101 檔 1226 passed。
+  - admin `vue-tsc -b --noEmit`、web `nuxt typecheck`、admin build、`contract:check` 都通過。
+  - 解析器以 114（Big5 更新版）、115、116 年的真實檔案驗過；本機實際從開放平台下載 116 年版。
+  - 本機 stack（API＋後台 dev＋官網 dev）上用 Playwright 跑桌機 1440、手機 390，都沒有水平溢出：
+    - 停班停課：試算顯示 6 組（4 位寄信、2 位要來電），送出後寄出 4 封。
+    - 那天面板的「寄停課通知」：4 位之前寄過、不重寄。
+    - 匯入國定假日：義華新增 17 天、略過 7 個週末節日。
+    - 操作紀錄：搜尋「停班」找到那一筆；操作者篩選正常。
+    - 站內通知：130 則翻頁到 130、未讀頁籤 86。
+    - 家長頁：把期限設成 14 天，停課日仍可改場次與取消，不顯示期限也沒有加入行事曆。
+- **未驗證**：
+  - 正式站（Railway）連不連得到 data.gov.tw／dgpa.gov.tw（連不到就用上傳）。
+  - 真的寄出的停課信：本機沒有 SMTP，只驗了排信、信件內容與連結。
+  - Safari／iOS 實機。
+
+## 2026-10-14 全專案 bug 盤點與兩條修正（`feature/fix-entrance-publish-lock-20261014`）
+
+使用者要「看看專案有沒有 bugs」：官網、後台、API 分五塊逐檔審查，每條候選都追到實際呼叫路徑再判斷。沒有高嚴重度問題；修了影響最大的兩條，其餘低嚴重度的列在下面待排。
+
+- **首頁開場簾幕蓋住整頁 5.5 秒**：先進內頁（例如從搜尋結果進 `/admission`）、再點頁首校徽或麵包屑回首頁，整頁被靜態布幕圖蓋住 5.5 秒、開場也不播，點擊還會穿過去點到看不見的頁面。原因是站內換頁時 unhead 會在 `EntranceCurtain` 掛載、判斷完不播之後才重新插入 head 的 bootstrap，它又把 `data-ivy-entrance` 設成 pending。bootstrap 改成只有 SSR 解析中的那一份（`document.readyState==='loading'`）能啟動（`web/app/utils/entrance-policy.ts`）。
+- **排程發布與退回審核互等成死結**：排程到期時先鎖排程列再等站台鎖，退回是站台 → 這一版 → 取消這一版的排程，順序相反。被中止的若是審核者，拿到 500 而退回的內容照樣上線；若是排程，這一輪其餘到期的排程整批延後。排程改成先拿站台鎖再鎖排程列（`backend/app/content/publish_jobs.py`），其他碰排程列的路徑（取消、標成已處理）都只鎖排程列，不會因此多出新的死結。
+- **驗證**（Node 22.22、本機 PostgreSQL 16、Chromium headless）：
+  - 修正前全套：web typecheck 通過、vitest 1225 過；admin typecheck 通過、vitest 2341 過 1 略過；後端 pytest 2640 過；`contract:check` 一致；部署腳本 22 過。
+  - 修正後：web vitest 1227 過（新增 readyState 兩例）、typecheck 通過；後端新增 `test_reject_and_due_schedule_concurrently_does_not_deadlock`，用舊程式跑會 `DeadlockDetectedError`、修正後連跑 5 次都過；內容／排程／維護相關 236 項通過。
+  - dev server（fixture）上實測 1440 與 390：首次進首頁布幕照常播；`/admission` 點校徽回首頁不再出現蓋層。
+- **其餘已確認、未修**（低嚴重度，待排）：
+  - 家長點管理連結與園方取消／改期同時發生可能死結，一邊 500、資料不壞（`booking/access_service.py` `exchange_token` 先鎖 token 再插 session；結案、改期先鎖案件再改 token）。
+  - 「重新產生連結」「重寄確認信」用取鎖前讀到的場次算效期（`booking/access_routes.py`；`lock_status` 只重讀 status、slot_id），10-13 修過 `update_details_by_staff` 的同類問題，這兩支漏了。
+  - 連結已過期後園方改期，變更信沒有管理連結（`extend_token_expiry` 只延長有效的連結，不補發）。
+  - 30 週年蛋糕：權限視窗開著時離開頁面再按允許，麥克風一直開到重新整理（`anniversary/cake.ts` `startMic` await 後沒檢查已銷毀）。
+  - 後台三處把部署中 502 的 HTML 原文跳給員工看（`ParentAccessLinkPanel.vue`、`PublishHistoryView.vue`、`mediaUpload.ts` 沒看 `err.json`）。
+  - 後台聯絡紀錄、追蹤對話框的「取消」繞過放棄確認（`ContactLogDialog.vue`、`FollowUpDialog.vue`）。
+  - 頁首「內容通知未讀」在發布紀錄頁標成已讀後最多 30 秒不更新。
+  - 最早四支 migration 的 downgrade 沒刪 enum 型別，downgrade 後再 upgrade 會失敗（正式站不會自動 downgrade）。
+  - `/anniversary` 的開場 head 腳本是同一種寫法；從內頁站內換頁進去實測開場照常播，沒有重現，未改。
+
 ## 2026-10-13 全站精修：以國際設計獎的完成度逐頁檢查（`claude/award-polish-20261013`，PR #37）
 
 使用者要「以 awwwards、webby、FWA 得獎的程度為目標，自我檢查、反覆提升到達標」。只改 `web/`，已定案的方向不動，只修執行瑕疵；規則與待決定事項見 DESIGN.md 最上方一節。

@@ -220,10 +220,10 @@ async def _finish_link(request: Request, db: AsyncSession, sub: str) -> Response
     session = await service.get_session_by_token(db, raw_session) if raw_session else None
     if session is None or str(session.user_id) != request.session.get("user_id"):
         return _link_result("failed")
-    user = (
-        await db.execute(select(User).where(User.id == session.user_id).with_for_update())
-    ).scalar_one_or_none()
-    if user is None or not user.is_active:
+    # 鎖住帳號列後重驗 session：等鎖期間重設密碼、清除綁定或停權可能已經撤銷了它（2026-10-13 審查），
+    # 撤銷後不能再替這個帳號新增一條登入管道。
+    user = await service.lock_user_for_session(db, session)
+    if user is None:
         return _link_result("failed")
     if user.google_sub == sub:
         return _link_result("linked")

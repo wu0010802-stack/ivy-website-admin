@@ -347,12 +347,60 @@ async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
     return 1 + int(count or 0)
 
 
+async def _reset_access_after_email_change(
+    db: AsyncSession,
+    visit_request: VisitRequest,
+    *,
+    actor: Actor,
+    secret: str | None,
+    slot: VisitSlot | None,
+    reissue: bool,
+    keep_session_id: str | None = None,
+) -> bool:
+    """原本有值的 Email 被改掉（改成別的或清空）：舊收件人手上的家長連結與 session 一律作廢
+    （2026-10-13 審查）。連結寄到打錯的信箱時，改正之後那條連結不能還看得到電話、孩子資料，也不能拿來
+    取消或改期。
+
+    只要 Email 改掉就無條件撤銷案件所有的連結與 session，不看「目前有沒有有效連結」：連結已到期、
+    但兩小時的 session 還活著時，誤寄的收件人仍讀得到更正後的資料。有連結而且 reissue 時，換發一條新的
+    （信在寄件當下重算，寄到新信箱的就是新連結），其餘只撤銷。keep_session_id 是家長自己更正時正在用的
+    session，不撤銷。呼叫端已持有案件列鎖。回傳作廢前是否有有效連結。"""
+    had_link = await access_service.active_access_token(db, visit_request.id) is not None
+    if had_link and reissue and secret:
+        _, expires_at = await access_service.issue_access_token(
+            db, visit_request.id, secret=secret, slot=slot, keep_session_id=keep_session_id
+        )
+        # 只記到期時間，原始 token 不進歷程（同「重新產生」）。
+        history.record_event(
+            db,
+            visit_request.id,
+            "access_link_created",
+            actor=actor,
+            after={"expires_at": expires_at.isoformat(), "replaced_previous": True},
+        )
+        return True
+    await access_service.revoke_access_for_visit_request(db, visit_request.id, keep_session_id=keep_session_id)
+    if had_link:
+        history.record_event(db, visit_request.id, "access_link_revoked", actor=actor)
+    return had_link
+
+
 async def update_details_by_parent(
-    db: AsyncSession, visit_request: VisitRequest, changes: dict, *, expected_version: int
+    db: AsyncSession,
+    visit_request: VisitRequest,
+    changes: dict,
+    *,
+    expected_version: int,
+    access_secret: str | None = None,
+    keep_session_id: str | None = None,
 ) -> list[str]:
     """家長從修改連結改資料。歷程只記改了哪些欄位，不記內容（歷程不放個資）。
-    回傳實際改變的欄位；沒有變化就什麼都不寫。expected_version 是 details_version。"""
-    await db.refresh(visit_request, attribute_names=["status", *EDITABLE_BY_PARENT], with_for_update=True)
+    回傳實際改變的欄位；沒有變化就什麼都不寫。expected_version 是 details_version。
+
+    Email 改掉時，原本那條連結與其他 session 作廢，換發新連結寄到新信箱（2026-10-13 審查）：
+    原本誤填成別人的信箱時，真正的家長自己更正之後，舊收件人不能還握著同一條連結。
+    keep_session_id 是家長正在用的 session，留著，他不會一改完就被登出。"""
+    await db.refresh(visit_request, attribute_names=["status", "slot_id", *EDITABLE_BY_PARENT], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能修改資料")
     current = await details_version(db, visit_request.id)
@@ -361,9 +409,20 @@ async def update_details_by_parent(
     changed = [f for f in EDITABLE_BY_PARENT if f in changes and getattr(visit_request, f) != changes[f]]
     if not changed:
         return []
+    old_email = visit_request.email
     for field in changed:
         setattr(visit_request, field, changes[field])
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
+    if "email" in changed and old_email:
+        await _reset_access_after_email_change(
+            db,
+            visit_request,
+            actor=PARENT,
+            secret=access_secret,
+            slot=await history.load_slot(db, visit_request.slot_id),
+            reissue=True,
+            keep_session_id=keep_session_id,
+        )
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return changed
@@ -444,23 +503,10 @@ async def update_details_by_staff(
     if "email" in changed and visit_request.email and visit_request.status == VisitRequestStatus.CONFIRMED.value:
         slot = await history.load_slot(db, visit_request.slot_id)
         notify = slot is None or not slot_service.has_started(slot)
-    if "email" in changed and old_email and await access_service.active_access_token(db, visit_request.id) is not None:
-        if notify and access_secret:
-            _, expires_at = await access_service.issue_access_token(
-                db, visit_request.id, secret=access_secret, slot=slot
-            )
-            # 只記到期時間，原始 token 不進歷程（同「重新產生」）。
-            history.record_event(
-                db,
-                visit_request.id,
-                "access_link_created",
-                actor=actor,
-                after={"expires_at": expires_at.isoformat(), "replaced_previous": True},
-            )
-        else:
-            await access_service.revoke_access_for_visit_request(db, visit_request.id)
-            history.record_event(db, visit_request.id, "access_link_revoked", actor=actor)
-        result.access_link_reset = True
+    if "email" in changed and old_email:
+        result.access_link_reset = await _reset_access_after_email_change(
+            db, visit_request, actor=actor, secret=access_secret, slot=slot, reissue=notify
+        )
     if notify:
         await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
         result.email_notified = True

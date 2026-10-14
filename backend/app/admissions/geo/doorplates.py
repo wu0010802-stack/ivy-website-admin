@@ -52,6 +52,10 @@ class DoorplateFormatError(ValueError):
     """CSV 欄位和預期不同（平台改版）。訊息不含任何資料內容。"""
 
 
+class DoorplateTooManyRows(ValueError):
+    """匯入的門牌超過列數上限（上游來源失控）。訊息不含任何資料內容。"""
+
+
 @dataclass(frozen=True)
 class DoorplateRow:
     town_code: str
@@ -190,16 +194,22 @@ async def import_doorplates(
     rows: AsyncIterable[DoorplateRow],
     *,
     batch_size: int = COPY_BATCH_SIZE,
+    max_rows: int | None = None,
 ) -> int:
     """把 rows 全部寫進 tag 批次，回傳列數。每批一個交易；失敗時刪掉這個批次再往上丟。
     清批次本身也失敗（例如連線一起斷了）時只記 log、照樣丟原本的例外：殘留的批次沒人查，
-    下次同步開頭會清掉。"""
+    下次同步開頭會清掉。
+
+    max_rows：總列數上限（2026-10-13 深度掃描）。每批各自 commit 到共用資料庫，上游供應超量的
+    合法列時不設上限會一路寫到磁碟滿；在寫下一批之前就超過就中止（整批清掉）。"""
     count = 0
     batch: list[DoorplateRow] = []
     source = aiter(rows)
     try:
         async for row in source:
             batch.append(row)
+            if max_rows is not None and count + len(batch) > max_rows:
+                raise DoorplateTooManyRows("門牌資料超過列數上限，已中止")
             if len(batch) >= batch_size:
                 async with session_factory() as db:
                     await copy_doorplates(db, tag, batch)

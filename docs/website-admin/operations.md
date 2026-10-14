@@ -74,6 +74,8 @@ WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhos
   uv run python scripts/restore_website.py ./var/backups/website-db-<timestamp>.sql
 ```
 
+連線字串裡的 TLS 要求（`ssl`／`sslmode`、`sslrootcert`、`sslcert`、`sslkey`、`sslcrl`）與密碼會轉成 libpq 環境變數交給 `pg_dump`／`psql`，不進命令列（`app/libpq.py`）；不認得的參數（可能是安全設定）會拒絕備份或還原，不會默默丟掉。asyncpg 專用的快取調校參數（`statement_cache_size` 等）會略過。
+
 已對隔離測試 DB + 測試媒體目錄實際演練過（見 `docs/website-admin/acceptance.md` Task 10 小結），備份產出一份 `pg_dump` SQL 與媒體 tarball，還原後 schema 與資料皆正確。**還原前務必確認目標是隔離測試環境，指令本身會拒絕在非 test 環境執行，但仍建議操作前再次手動確認 DSN。**
 
 ## 保存政策 / 資料清理（2026-09-26 改為後台可設定並持久化）
@@ -181,6 +183,16 @@ npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
 - 既有影片補轉檔：`python -m app.cli transcode-media-videos`（dry-run）→ `--apply`（排入背景）。排除已有 done 工作與超過 10 分鐘的影片；沒有 `--force`，之後改轉檔參數要手動清 `media_jobs` 才會重列。
 - 既有圖片補中圖：`python -m app.cli regenerate-media-variants`（dry-run）→ `--apply`。會把每張圖的縮圖／中圖／大圖全部重產，全站圖片網址換一次。
 - inline 模式在呼叫端交易內等 ffmpeg，長影片可能撞 idle_in_transaction 300 秒；正式站全新匯入長影片（`import-site-assets`）要先改設 background。
+
+## 國定假日與停班停課（2026-10-14）
+
+- **每年一次匯入國定假日**：人事行政總處通常 6 月公布隔年的辦公日曆。到「參觀場次」→「匯入國定假日」，選明年、按「從政府資料開放平台下載」，確認清單（可以取消勾選照常開放的日子）與校區，看試算數字後按「套用」。管多校的人可以一次勾全部校區。
+- **連不到開放平台時**：到政府資料開放平台搜尋「行政機關辦公日曆表」，下載那一年的 CSV（**不是**「Google行事曆專用」那份），在同一個對話框按「上傳 CSV」。
+- **年中有更新版**（例如 114 年 10 月公布的「(1141020更新)」）：重新下載套用即可，已經是休假日的日子不會重建、原因不會被蓋掉，只會補上新增的假日。
+- **颱風或臨時停課**：「參觀場次」→「停班停課」，選日期、校區、原因（會寫進給家長的信），先看試算再按「確認停課」。已約的預約不會被取消：有 Email 的家長收到附修改連結的停課通知，可以自己改約或取消（停課日不受線上修改期限限制）；沒有 Email 的列在「參觀案件」→「待人工處理」，由櫃台來電。正式站沒設寄信時不會寄任何信，全部要來電。
+- **之後再補寄**：月曆點那一天，面板上的「寄停課通知（N 組）」。已經寄過的不會重寄。
+- **停課取消了**：月曆點那一天按「取消休假」，場次重新開放；還沒寄出的停課通知寄送前會發現那天已不是休假日，自動略過。已經寄出的信收不回，請來電說明。
+- 操作紀錄：「匯入國定假日」「停班停課」每校各一筆，細節寫建了幾天、寄給幾位、幾位要來電。
 
 ## 已知限制（誠實列出，2026-09-25／26 更新）
 

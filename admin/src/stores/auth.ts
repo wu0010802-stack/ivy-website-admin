@@ -4,7 +4,7 @@ import { ApiError, CSRF_INVALID_DETAIL, api, setCsrfToken } from '../api/client'
 import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/types'
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
-import { clearVisitNoteDrafts } from '../composables/visitNoteDraft'
+import { claimVisitNoteDrafts, clearVisitNoteDrafts } from '../composables/visitNoteDraft'
 import { useOpenRequestsStore } from './openRequests'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -59,6 +59,9 @@ export const useAuthStore = defineStore('auth', () => {
       clearVisitNoteDrafts()
       useOpenRequestsStore().reset()
     }
+    // 被動登出後重新整理，記憶體裡的 previousUserId 就沒了；草稿的主人另外記在 sessionStorage，
+    // 另一位登進來時照樣清掉前一位的草稿（2026-10-13 審查）。
+    claimVisitNoteDrafts(nextUserId)
     previousUserId.value = null
   }
 

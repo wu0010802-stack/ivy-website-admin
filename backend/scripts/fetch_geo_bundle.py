@@ -40,25 +40,29 @@ def _check(text: str, what: str) -> dict | None:
     return data
 
 
+async def _get(client, url: str) -> str:
+    """同步用的同一條路：請求間隔 3 秒、大小上限（人口一頁的上限最大，三種資料共用）。"""
+    return await sync._ris_text(client, url, max_bytes=sync.POPULATION_PAGE_MAX_BYTES)
+
+
 async def _month_pages(client, url_of, yyymm: str, what: str) -> list[bytes] | None:
-    """一個月份的全部頁（原始回應）；查無資料回 None。"""
-    response = await sync._ris_get(client, url_of(yyymm, 1))
-    first = _check(response.text, f"{what} {yyymm}")
+    """一個月份的全部頁（回應原文，UTF-8）；查無資料回 None。"""
+    text = await _get(client, url_of(yyymm, 1))
+    first = _check(text, f"{what} {yyymm}")
     if first is None:
         return None
-    pages = [response.content]
+    pages = [text.encode("utf-8")]
     for page in range(2, int(first.get("totalPage", "1")) + 1):
-        response = await sync._ris_get(client, url_of(yyymm, page))
-        if _check(response.text, f"{what} {yyymm} 第 {page} 頁") is None:
+        text = await _get(client, url_of(yyymm, page))
+        if _check(text, f"{what} {yyymm} 第 {page} 頁") is None:
             raise SystemExit(f"{what} {yyymm} 下載到一半變成查無資料")
-        pages.append(response.content)
+        pages.append(text.encode("utf-8"))
     return pages
 
 
 async def _latest(client, url_of, what: str) -> str:
     for yyymm in sync.recent_months():
-        response = await sync._ris_get(client, url_of(yyymm, 1))
-        if _check(response.text, f"{what} {yyymm}") is not None:
+        if _check(await _get(client, url_of(yyymm, 1)), f"{what} {yyymm}") is not None:
             return yyymm
     raise SystemExit(f"找不到最近幾個月的{what}")
 

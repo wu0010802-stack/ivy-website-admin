@@ -15,8 +15,8 @@ from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
 from app.booking import access_service
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED
-from app.booking.parent_policy import change_deadline_hours, parent_change_deadline
+from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED
+from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline
 from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc
 from app.content import service as content_service
@@ -38,6 +38,8 @@ _KIND_LABELS = {
     "parent_visit_booked": "家長確認信（預約成功）",
     "parent_visit_changed": "家長確認信（預約已變更）",
     "parent_visit_cancelled": "家長確認信（預約已取消）",
+    # 停班停課（2026-10-14）：請家長用修改連結改約或取消。
+    "parent_visit_day_closed": "家長停課通知（請改約）",
     # 舊流程（家長送出改期申請、等園方核准，2026-10-08 刪除）留下的通知，
     # 站內通知列與寄送失敗清單重寄時仍要有標題。
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
@@ -204,14 +206,19 @@ def slot_text(slot: VisitSlot) -> str:
     )
 
 
-async def _load_visit_request(db: AsyncSession, receipt_id: str | None) -> VisitRequest | None:
+async def _load_visit_request(
+    db: AsyncSession, receipt_id: str | None, *, share_lock: bool = False
+) -> VisitRequest | None:
+    """share_lock：以 FOR SHARE 讀案件列並覆蓋已載入的值。後台更正 Email、換發連結都先拿同一列的
+    FOR UPDATE，所以持有共享鎖期間讀到的 Email 與「目前有效連結」是同一個世代。"""
     try:
         visit_id = uuid.UUID(str(receipt_id))
     except ValueError:
         return None
-    result = await db.execute(
-        select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_id)
-    )
+    query = select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_id)
+    if share_lock:
+        query = query.with_for_update(read=True).execution_options(populate_existing=True)
+    result = await db.execute(query)
     return result.scalar_one_or_none()
 
 
@@ -263,7 +270,13 @@ async def _dispatch_parent_email(
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return False
-    visit_request = await _load_visit_request(db, payload.get("receipt_id"))
+    # 收件人與管理連結要是同一個世代（2026-10-13 審查）：先讀 Email、之後才另查「目前有效連結」，
+    # 後台剛好在中間更正 Email 並換發連結時，新連結會寄回舊信箱。所以讀案件時就拿共享鎖，讀完 Email 與
+    # 連結、組好信之後才放鎖再寄；寄的是舊世代的信也沒關係，更正時舊連結已一併撤銷。
+    # 取消通知不含連結，不需要鎖。
+    visit_request = await _load_visit_request(
+        db, payload.get("receipt_id"), share_lock=kind != PARENT_VISIT_CANCELLED
+    )
     if visit_request is None or visit_request.anonymized_at is not None or not visit_request.email:
         return False
     # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
@@ -274,6 +287,13 @@ async def _dispatch_parent_email(
     slot = visit_request.slot
     started = slot is not None and slot_start_utc(slot.slot_date, slot.start_time) <= datetime.now(timezone.utc)
     if kind != PARENT_VISIT_CANCELLED and started:
+        return False
+    # 停課通知寄出前：家長已經改約到別天、或園方取消了那天的休假，就不寄。
+    if kind == PARENT_VISIT_DAY_CLOSED and (
+        slot is None
+        or slot.slot_date.isoformat() != payload.get("closure_date")
+        or not await day_closed(db, visit_request)
+    ):
         return False
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):
@@ -297,15 +317,19 @@ async def _dispatch_parent_email(
             campus_phone=str(profile.get("phone") or "").strip() or None,
             manage_url=manage_url,
             change_deadline=parent_change_deadline(
-                visit_request, await change_deadline_hours(db, visit_request.campus_key)
+                visit_request,
+                await change_deadline_hours(db, visit_request.campus_key),
+                day_closed=kind == PARENT_VISIT_DAY_CLOSED,
             ),
             cancel_reason=visit_request.cancel_reason,
             rebook_url=f"{origin}/visit/{visit_request.campus_key}" if origin else None,
+            closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
         )
     )
-    await asyncio.to_thread(
-        adapter.send, to=_header_safe(visit_request.email), subject=_header_safe(subject), body=body
-    )
+    recipient = _header_safe(visit_request.email)
+    # 信組好了：放掉共享鎖再寄，不握著案件列鎖等 SMTP。
+    await db.commit()
+    await asyncio.to_thread(adapter.send, to=recipient, subject=_header_safe(subject), body=body)
     _record_delivery(db, outbox_message_id, "email", recipient_key)
     await db.commit()
     return True

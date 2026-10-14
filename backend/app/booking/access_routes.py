@@ -17,7 +17,7 @@ from app.booking import access_service, history, slot_service, workflow_service
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
-from app.booking.parent_policy import change_deadline_hours, parent_change_open
+from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_open
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
     ParentDetailsUpdate,
@@ -57,18 +57,28 @@ async def require_parent_request(request: Request, parent_header: str | None = H
         raise HTTPException(status_code=429, detail={"code": "RATE_LIMITED", "message": "操作太頻繁，請稍後再試"}, headers={"Retry-After": str(exc.retry_after_seconds)}) from exc
 
 
-async def require_change_window(db: AsyncSession, visit_request: VisitRequest, *, locked: bool = False) -> None:
+async def require_change_window(
+    db: AsyncSession, visit_request: VisitRequest, *, locked: bool = False, session_token: str | None = None
+) -> None:
     """期限依該校設定（規格 L238），與家長頁顯示的截止時間同一個算法。
 
     locked=True（2026-10-13 審查）：先鎖住案件列、在鎖內重讀場次，再依鎖內的場次判斷。園方可能剛把
     預約改到期限之內；請求最初讀到的場次是鎖外載入的，只靠它檢查的話，卡在鎖上的請求等園方 commit
     之後仍會照舊取消、改資料或再改期。期限已過就先 rollback 放掉鎖再回 409。
+    session_token：鎖內也重驗這個家長 session（園方在空檔換發連結、更正 Email 或撤銷存取後，
+    已通過初驗的舊請求不能再落地），失效就 rollback 並回 401。
     限流器用自己的連線池，不能握著案件列鎖等它，所以有每案次數限制的路由先看次數，再做鎖內檢查。"""
     if locked:
         await workflow_service.lock_status(db, visit_request)
+        if session_token is not None and not await access_service.parent_session_active(
+            db, session_token, visit_request.id
+        ):
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="連結已過期，請重新取得")
         await db.refresh(visit_request, attribute_names=["slot"])
     hours = await change_deadline_hours(db, visit_request.campus_key)
-    if not parent_change_open(visit_request, hours):
+    # 停課日不受期限限制（2026-10-14 規格 §3.4），同家長頁顯示的 day_closed。
+    if not parent_change_open(visit_request, hours, day_closed=await day_closed(db, visit_request)):
         if locked:
             await db.rollback()
         raise HTTPException(status_code=409, detail={"code": "CHANGE_DEADLINE_PASSED", "message": "已超過線上異動時間，請直接聯絡園所"})
@@ -147,6 +157,7 @@ async def _parent_output(db: AsyncSession, visit_request: VisitRequest) -> Paren
         campus_active=campus is None or campus.active,
         campus_phone=str(profile.get("phone") or "").strip() or None,
         slots_open=config is not None and config.mode == BookingMode.SLOTS,
+        day_closed=await day_closed(db, visit_request),
     )
     # 家長改資料用自己的版本（不是園方下次聯絡的 version）。
     output.version = await workflow_service.details_version(db, visit_request.id)
@@ -210,7 +221,7 @@ async def parent_cancel(
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     _require_same_visit_request(visit_request, payload.visit_request_id if payload else None)
-    await require_change_window(db, visit_request, locked=True)
+    await require_change_window(db, visit_request, locked=True, session_token=session_token)
     try:
         await workflow_service.cancel(db, visit_request, actor=PARENT)
     except workflow_service.InvalidTransition as exc:
@@ -253,8 +264,9 @@ async def parent_reschedule(
     await require_change_window(db, visit_request)
     visit_request_id = visit_request.id
     await require_case_quota(request, PARENT_RESCHEDULE_PER_CASE, visit_request_id)
-    # 上面那次是鎖外的快速檢查；鎖內再看一次，才擋得住「剛被園方改到期限之內」的預約。
-    await require_change_window(db, visit_request, locked=True)
+    # 上面那次是鎖外的快速檢查；鎖內再看一次，才擋得住「剛被園方改到期限之內」的預約，
+    # 也才看得到剛被撤銷的 session。
+    await require_change_window(db, visit_request, locked=True, session_token=session_token)
     try:
         await access_service.validate_parent_reschedule(db, visit_request, payload.slot_id)
         await workflow_service.reschedule(db, visit_request, payload.slot_id, actor=PARENT)
@@ -316,10 +328,15 @@ async def parent_update_details(
         raise _conflict("BOOKING_UNAVAILABLE", "本校目前暫停受理線上參觀預約，要修改資料請來電洽詢")
     visit_request_id = visit_request.id
     await require_case_quota(request, PARENT_EDIT_PER_CASE, visit_request_id)
-    await require_change_window(db, visit_request, locked=True)
+    await require_change_window(db, visit_request, locked=True, session_token=session_token)
     try:
         changed = await workflow_service.update_details_by_parent(
-            db, visit_request, payload.changes(), expected_version=payload.expected_version
+            db,
+            visit_request,
+            payload.changes(),
+            expected_version=payload.expected_version,
+            access_secret=request.app.state.settings.session_secret,
+            keep_session_id=access_service.session_id_of(session_token),
         )
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
@@ -488,6 +505,9 @@ async def revoke_parent_access_link(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
 
+    # 和重新產生、更正 Email、取消同一把案件列鎖：撤銷要和卡在鎖上的家長異動序列化，
+    # 鎖後那些請求才看得到自己的 session 已被撤銷（2026-10-13 審查）。
+    await workflow_service.lock_status(db, visit_request)
     had_link = await access_service.active_access_token(db, visit_request_id) is not None
     await access_service.revoke_access_for_visit_request(db, visit_request_id)
     if had_link:

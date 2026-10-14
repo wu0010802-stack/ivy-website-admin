@@ -146,16 +146,15 @@ describe('操作紀錄頁', () => {
     expect(others[0]!.text()).toContain('brand_new_key：abc')
   })
 
-  it('搜尋比對翻好的中文', async () => {
+  it('搜尋由後端比對：中文名稱展開成代碼一起送（2026-10-14 起不再只搜已載入的）', async () => {
     const wrapper = await mountAudit(entries)
+    const get = vi.mocked(api.get)
     await wrapper.get('.filter-search input').setValue('未到場')
+    await new Promise(resolve => setTimeout(resolve, 320))
     await flushPromises()
-    expect(wrapper.findAll('.data-table .el-table__body tr')).toHaveLength(1)
-    await wrapper.get('.filter-search input').setValue('全站')
-    await flushPromises()
-    expect(wrapper.findAll('.data-table .el-table__body tr')).toHaveLength(2)
-    await wrapper.get('.filter-search input').setValue('from_status')
-    await flushPromises()
-    expect(wrapper.text()).toContain('找不到符合條件的紀錄')
+    const terms = new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')
+    expect(terms[0]).toBe('未到場')
+    // 狀態代碼（修改前後值）與動作代碼都帶上。
+    expect(terms).toEqual(expect.arrayContaining(['no_show', 'visit_request.no_show']))
   })
 })

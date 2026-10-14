@@ -6,7 +6,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, time
 
-from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CANCELLED, PARENT_VISIT_CHANGED
+from app.booking.outbox import (
+    PARENT_VISIT_BOOKED,
+    PARENT_VISIT_CANCELLED,
+    PARENT_VISIT_CHANGED,
+    PARENT_VISIT_DAY_CLOSED,
+)
 from app.common.timezones import OPERATING_TZ
 
 _WEEKDAYS = "一二三四五六日"
@@ -14,6 +19,7 @@ _TITLES = {
     PARENT_VISIT_BOOKED: "參觀預約成功",
     PARENT_VISIT_CHANGED: "參觀預約已變更",
     PARENT_VISIT_CANCELLED: "參觀預約已取消",
+    PARENT_VISIT_DAY_CLOSED: "參觀日停課，請改約時間",
 }
 
 
@@ -45,6 +51,8 @@ class ParentEmail:
     change_deadline: datetime | None
     cancel_reason: str | None
     rebook_url: str | None
+    # 停課通知的原因（園方填給家長看的，例如「颱風停班停課」）；其他種類為 None。
+    closure_reason: str | None = None
 
 
 def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
@@ -54,6 +62,9 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
 
     if mail.kind == PARENT_VISIT_BOOKED:
         intro = f"您已完成常春藤{mail.campus_name}的參觀預約，期待與您見面。"
+    elif mail.kind == PARENT_VISIT_DAY_CLOSED:
+        because = f"因{mail.closure_reason}，" if mail.closure_reason else ""
+        intro = f"{because}常春藤{mail.campus_name}這天停課，原本約好的參觀無法進行，很抱歉。"
     elif mail.kind == PARENT_VISIT_CHANGED:
         intro = "您的參觀預約已更新，以下是最新內容。"
     elif mail.cancel_reason == "parent":
@@ -77,6 +88,12 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
 
     if mail.kind == PARENT_VISIT_CANCELLED:
         lines.append(f"想再預約參觀，請到：{mail.rebook_url}" if mail.rebook_url else "想再預約參觀，歡迎來電洽詢。")
+    elif mail.kind == PARENT_VISIT_DAY_CLOSED:
+        # 停課日沒有線上修改期限（parent_policy.day_closed），不寫截止時間。
+        if mail.manage_url:
+            lines += ["請開啟這個連結改約其他時間，或取消這次預約：", mail.manage_url, "請勿把這個連結轉給他人。"]
+        else:
+            lines.append("請來電改約其他時間，或告訴我們要取消這次預約。")
     elif mail.manage_url:
         deadline = f"（{_deadline_text(mail.change_deadline)}前可以線上修改）" if mail.change_deadline else ""
         lines += [f"要改時間、修改資料或取消，請開啟這個連結{deadline}：", mail.manage_url, "請勿把這個連結轉給他人。"]
