@@ -5,10 +5,15 @@
 - **托嬰名單**：kiang 每天整理的衛福部社家署公開資料（`babycare.json`，高雄 160 筆、營業 151），併進公開資料同步成為第四種資料（表 `geo_babycare`）。後台區域分析的「附近幼兒園」卡片頂端可切到「托嬰中心」，列出半徑內的托嬰中心與托育家園（核定、實際收托、距離），地圖多一個預設不勾的菱形圖層。
 - **園所異動**：幼兒園與托嬰的同步從「刪光重寫」改成依 `source_id` 比對，停辦的標 `is_active` 假、列留著，新設、停辦、類型變動記在 `geo_provider_events`；卡片下方新增「附近園所的變化」（近 12 個月）。新設的幼兒園看設立日，上線第一輪同步後就有；停辦與類型變動從基準日（第一次用新程式同步成功的日子）才開始累積，畫面會寫「從 N 月 N 日起記錄」。
 - **頻率**：幼兒園與托嬰改成每 7 天看一次來源（門牌、人口維持 30 天）。
-- **防誤報**：8 月學年更替不產生假的類型變動；停辦後 30 天內又出現視為來源漏收；新名單營業中數量少於上次 80% 不換版（`geo-sync --force` 略過）。
+- **防誤報**：8 月學年更替不產生假的類型變動；準公共期間續約或換期間（舊列與新列都是私立、兩邊都有期間字串）不算類型變動——否則續約那一輪（高雄 268 所的期間是「113-115」）三公里內會冒一串假異動，取捨與限制見規格 P7；停辦後 30 天內又出現視為來源漏收；新名單營業中數量少於上次 80% 不換版（`geo-sync --force` 略過）。
 - **migration** `c6a9e3f15d27`：新增 `geo_babycare`、`geo_provider_events`，`geo_kindergartens` 加設立日、`geo_dataset_status` 加基準日並多收 `babycare`；不改既有資料，不需要部署前備份。
 - **不做**：核定人數與月費估算的異動、托嬰分配到里、收托比例與趨勢、預測、點變化列定位地圖、匯出 CSV。一年下來單一校 3 公里內新設或停辦大約各 0～1 件，所以變化區塊多數時候是空的。
-- **驗證**：後端 geo／招生區域 13 個測試檔（`test_geo_schema`、`test_geo_babycare`、`test_geo_kindergartens`、`test_geo_providers`、`test_geo_changes`、`test_geo_babycare_sync`、`test_geo_sync`、`test_geo_limits`、`test_geo_loop`、`test_geo_population`、`test_admissions_provider_area`、`test_admissions_area`、`test_admissions_visit_geo`）465 passed；admin vitest `areaFormat`、`areaTab`、`areaMap`、`nearbyProviders`、`admissionsApi` 5 檔 178 passed，字級守門 `ux20261005` 29 passed；admin `npm run typecheck` 通過；根目錄 `npm run contract:check` 通過（契約與目前 API 一致、契約型別與 `openapi.json` 一致）；`tests/stack/admissions-area.spec.ts` 只確認型別檢查通過、Playwright 列得出 11 個案例，**e2e 尚未實際跑**；後端全套、admin 全套、完整 stack 套件**尚未**。
+- **驗證**（Node 22、PostgreSQL、本機 Chromium；2026-10-14，分支 rebase 到 `origin/main` `5fe246ba` 之後）：
+  - 後端全套 2903 passed、1 skipped、0 failed（18 分鐘，獨立測試庫；跑在最後審查修正輪之前，該輪只動前端與一行註解）。
+  - admin 全套 157 個檔案、2412 passed、1 skipped；admin 與 web `typecheck` 無錯誤；根目錄 `npm run contract:check` 一致。
+  - 完整 stack 套件（最終程式碼重新 build）136 passed、0 failed（5.3 分鐘），含 `tests/stack/admissions-area.spec.ts` 新增的 2 個案例（切換名單、地圖圖層、變化區塊、axe、1440／390 不橫向溢出）；截圖 1440／390 人工看過。
+  - 各 task 與最後整支分支都經過獨立審查；審查過程發現並修掉的實質問題：設立日年份極大時整批解析失敗、重新營業的幼兒園不比類型、準公共續約會冒一整批假的類型變動、切到托嬰後換校區地圖圖層沒跟著開、兩邊都沒記錄時畫面先說沒有變化。
+  - **沒做**：沒有在正式站與真實資料上驗證；沒有登入正式後台看實際畫面；部署後第一輪同步的結果要看 `geo_dataset_status`（見 `deploy/README.md`）。
 
 ## 2026-10-13 深度掃描 14 項（`fix/security-scan-20261013`）
 
