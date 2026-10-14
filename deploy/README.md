@@ -23,9 +23,9 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 後台 vitest 全套 156 檔 2,385 passed、typecheck；`contract:check` 一致；三支 migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 通過。
   - 四個 PR 的 CI（後端三組、前端兩組、E2E）在合併前的最後 head 上都是綠的。
 - **CI**：
-  - main run 38523210483（`d2f75ea8`，只有 A 段）06:36:34Z 開跑，06:54:07Z 部署完成：Backend 三組 12.9／10.2／12.6 分、Frontend web 1.5 分、admin 4.9 分、E2E 10.3 分、Deploy Railway production 4.4 分，全綠。
+  - main run 38523210483（`d2f75ea8`，只有 A 段）06:36:34Z 開跑，06:54:07Z 部署完成：Backend 三組 13.1／11.3／12.6 分、Frontend web 1.5 分、admin 4.9 分、E2E 10.3 分、Deploy Railway production 4.4 分，全綠。
   - #43、#44 的 run（38523291089、38523339788）在排隊時被較新的 run 取代（`main` 的 concurrency 不取消執行中的 run，只取代排隊中的），沒有部署。
-  - main run 38523432261（`1cddfc3a`，四段全部）06:54:10Z 開跑，07:10:09Z 部署完成：Backend 三組 9.9／10.2／10.3 分、Frontend web 1.5 分、admin 5.8 分、E2E 10.6 分、Deploy Railway production 4.6 分，全綠。
+  - main run 38523432261（`1cddfc3a`，四段全部）06:54:10Z 開跑，07:10:09Z 部署完成：Backend 三組 10.0／11.2／11.3 分、Frontend web 1.5 分、admin 5.9 分、E2E 10.6 分、Deploy Railway production 4.7 分，全綠。
 - **正式 `release.json`**：base commit `1cddfc3a70636e5821163cdcd768f129e4b006dd`，snapshot `330f5680…`，created `2026-10-14T07:05:54Z`，`web+api`。
 - **線上唯讀檢查**（未登入，07:2x UTC）：
   - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 07:20:42Z 完成一輪）。
