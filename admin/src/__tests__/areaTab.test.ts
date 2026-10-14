@@ -635,26 +635,45 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     const { wrapper } = await mountTab()
     const section = block(wrapper, TITLE)
     expect(section.findAll('thead th').map((th) => th.text()))
-      .toEqual(['#', '里', '距本校', '2–5 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入'])
+      .toEqual(['#', '里', '距本校', '2–5 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '所得中位數'])
     expect(bodyRows(section)).toEqual([
-      ['1', '三民區本揚里', '300 m', '317', '+36（+12.8%）', '增加多', '36', '−122'],
-      ['2', '三民區寶業里、龍子里（里界調整，合併）', '300 m', '583', '+12（+2.0%）', '差不多', '90', '+30'],
-      ['3', '三民區鼎金里', '800 m', '500', '−22（−4.5%）', '減少', '54', '−68'],
+      ['1', '三民區本揚里', '300 m', '317', '+36（+12.8%）', '增加多', '36', '−122', '45.8 萬'],
+      ['2', '三民區寶業里、龍子里（里界調整，合併）', '300 m', '583', '+12（+2.0%）', '差不多', '90', '+30', '—'],
+      ['3', '三民區鼎金里', '800 m', '500', '−22（−4.5%）', '減少', '54', '−68', '51.2 萬*'],
     ])
     const caption = section.get('.stats-block__caption').text()
     expect(caption).toContain('這一年淨增＝本月 2–5 歲減一年前 1–4 歲的同一批孩子')
     expect(caption).toContain('（人口 115 年 9 月與 114 年 9 月、出生 114 年 10 月到 115 年 9 月、遷入遷出 114 年 10 月到 115 年 9 月）')
+    expect(caption).toContain('所得是 112 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過')
+    expect(caption).toContain('財政部財政資訊中心（2026）綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市（112年度）')
+    expect(caption).toContain('不宜逕作為衡量所得差距之參據')
   })
 
-  it('匯出 CSV：數字欄寫有號整數，多一欄「一年前 1–4 歲」', async () => {
+  it('所得還沒匯入：所得欄整欄「—」、欄位不隱藏，說明寫尚未匯入', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      sources: { ...base.sources, income: { year: null, note: '' } },
+      villages: base.villages.map((row) => ({ ...row, income_median: null, income_boundary_changed: false })),
+    })
+    const { wrapper } = await mountTrends(trends)
+    const section = block(wrapper, TITLE)
+    expect(section.findAll('thead th').at(-1)!.text()).toBe('所得中位數')
+    expect(bodyRows(section).map((row) => row.at(-1))).toEqual(['—', '—', '—'])
+    const caption = section.get('.stats-block__caption').text()
+    expect(caption).toContain('各里所得資料尚未匯入。')
+    expect(caption).not.toContain('財政部')
+  })
+
+  it('匯出 CSV：數字欄寫有號整數，多一欄「一年前 1–4 歲」；所得拆成千元、年度、界線調整', async () => {
     const { wrapper } = await mountTab()
     await block(wrapper, TITLE).get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-里的變化.csv')
     const lines = csv.slice(1).split('\r\n')
-    expect(lines[0]).toBe('#,里,距本校,2–5 歲,這一年淨增,一年前 1–4 歲,孩子增減,近 12 個月出生,近 12 個月淨遷入')
-    expect(lines[1]).toBe('1,三民區本揚里,300 m,317,36,281,增加多,36,-122')
-    expect(lines[3]).toBe('3,三民區鼎金里,800 m,500,-22,493,減少,54,-68')
+    expect(lines[0]).toBe('#,里,距本校,2–5 歲,這一年淨增,一年前 1–4 歲,孩子增減,近 12 個月出生,近 12 個月淨遷入,所得中位數（千元）,所得年度,界線在所得年度後調整')
+    expect(lines[1]).toBe('1,三民區本揚里,300 m,317,36,281,增加多,36,-122,458,112,')
+    expect(lines[2]).toBe('2,三民區寶業里、龍子里（里界調整，合併）,300 m,583,12,600,差不多,90,30,,,')
+    expect(lines[3]).toBe('3,三民區鼎金里,800 m,500,-22,493,減少,54,-68,512,112,是')
   })
 
   it('一年前的人口還沒匯入：淨增寫「—」，總結與地圖都寫原因（地圖的孩子增減停用）', async () => {
@@ -667,7 +686,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     })
     const { wrapper } = await mountTrends(trends)
     const section = block(wrapper, TITLE)
-    expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122'])
+    expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122', '45.8 萬'])
     expect(section.get('.trends-summary .hint').text()).toContain('一年前的各里人口還沒匯入，這一年淨增先不算。')
     expect(section.findAll('.trends-summary p')[0]!.text()).toBe('本校 3 公里內 4 個里，2–5 歲孩子 1,400 位。')
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')

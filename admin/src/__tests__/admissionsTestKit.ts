@@ -201,6 +201,10 @@ const buildAreaTrends = () => ({
     births: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
     migration: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
     note: '資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口',
+    income: {
+      year: 112,
+      note: '資料來源：財政部財政資訊中心（2026）綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市（112年度）。本統計之所得為課稅資料，不含政府移轉、免稅與分離課稅所得，不宜逕作為衡量所得差距之參據',
+    },
   },
   baseline: {
     villages: 4, children: 1400, kids_net: 26, kids_base: 1374, births_12m: 180, births_months: 12, births_compared_months: 9,
@@ -208,9 +212,9 @@ const buildAreaTrends = () => ({
   },
   kids_unavailable: null,
   villages: [
-    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122 },
-    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30 },
-    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68 },
+    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false },
+    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false },
+    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true },
   ],
 } satisfies AreaTrends)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */

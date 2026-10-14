@@ -5,8 +5,8 @@ import type { AreaTrends, AreaTrendsVillage } from '../../../api/types'
 import { NO_VALUE, type StatsColumn } from '../../../admissions/statsFormat'
 import type { CsvCell } from '../../../utils/csv'
 import {
-  KIDS_LEVEL_LABELS, formatCount, formatDistance, kidsNetText, populationVersionLabel, signedCount, trendsPlaceName,
-  trendsSummary, trendsUnavailable,
+  KIDS_LEVEL_LABELS, formatCount, formatDistance, incomeText, kidsNetText, populationVersionLabel, signedCount,
+  trendsPlaceName, trendsSummary, trendsUnavailable,
 } from './areaFormat'
 
 type Row = AreaTrendsVillage & {
@@ -17,9 +17,11 @@ type Row = AreaTrendsVillage & {
   level_text: string
   births_text: string
   migration_text: string
+  income_text: string
 }
 
-// 里的變化（2026-10-14 規格 7.2）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與全年齡淨遷入。
+// 里的變化（2026-10-14 規格 7.2）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與全年齡淨遷入，
+// 以及所得中位數（C 段；只當背景，規格 V9：不著色、不分級、不排序、不進總結）。
 // 半徑跟招生機會、附近幼兒園同一個 1／3／6 公里（AreaTab 換半徑就重讀）。這裡只呈現後端算好的數字與分級，
 // 不另外推估；里界調整過的里後端已合併成一列，名稱寫出來。
 const props = defineProps<{
@@ -40,6 +42,7 @@ const COLUMNS = computed<StatsColumn[]>(() => {
     { key: 'level_text', label: '孩子增減' },
     { key: 'births_text', label: '近 12 個月出生' },
     { key: 'migration_text', label: '近 12 個月淨遷入' },
+    { key: 'income_text', label: '所得中位數' },
   ]
 })
 
@@ -59,6 +62,7 @@ const rows = computed<Row[]>(() =>
     level_text: KIDS_LEVEL_LABELS[row.kids_level],
     births_text: row.births_12m === null ? NO_VALUE : formatCount(row.births_12m),
     migration_text: signedCount(row.migration_net_12m),
+    income_text: incomeText(row),
   })),
 )
 
@@ -77,6 +81,10 @@ const caption = computed(() => {
     '「附近」是里的中心點在半徑內的里。這一年淨增＝本月 2–5 歲減一年前 1–4 歲的同一批孩子，是搬進搬出的結果，不是推估；' +
       '分級：增減 10% 以上且至少 5 位是「增加多／減少多」，3% 以上且至少 3 位是「增加／減少」，一年前 1–4 歲不到 20 位是「孩子少」。',
     '出生依出生登記的戶籍里；淨遷入＝跨區遷入減遷出，加上同區換址的進出。',
+    sources.income.year === null
+      ? '各里所得資料尚未匯入。'
+      : `所得是 ${sources.income.year} 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過，` +
+        '里界調整合併的列不列所得。',
   ]
   const months = [
     sources.population.month
@@ -88,11 +96,13 @@ const caption = computed(() => {
   const missing = sources.births.missing.length
     ? `出生缺 ${sources.births.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}`
+  const income = sources.income.note ? `${sources.income.note}。` : ''
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${income}`
 })
 const emptyText = computed(() => unavailable.value ?? `本校 ${props.data?.radius_km ?? 3} 公里內沒有里的資料。`)
 
-// CSV 寫數字：淨增拆「這一年淨增」「一年前 1–4 歲」兩欄、淨遷入寫有號整數，要拿去算的人不用再拆字；沒有值寫空白。
+// CSV 寫數字：淨增拆「這一年淨增」「一年前 1–4 歲」兩欄、淨遷入寫有號整數、所得寫千元並另寫年度與界線調整，
+// 要拿去算的人不用再拆字；沒有值寫空白。
 function csvCell(row: Row, column: StatsColumn): CsvCell | undefined {
   if (column.key === 'kids_text') return row.kids_net ?? ''
   if (column.key === 'kids_base') return row.kids_base ?? ''
@@ -100,12 +110,23 @@ function csvCell(row: Row, column: StatsColumn): CsvCell | undefined {
   if (column.key === 'births_text') return row.births_12m ?? ''
   if (column.key === 'migration_text') return row.migration_net_12m ?? ''
   if (column.key === 'level_text') return row.kids_level === 'unknown' ? '' : row.level_text
+  if (column.key === 'income_text') return row.income_median ?? ''
+  if (column.key === 'income_year') return row.income_median === null ? '' : (props.data?.sources.income.year ?? '')
+  if (column.key === 'income_changed') return row.income_boundary_changed ? '是' : ''
   return undefined
 }
 const csvColumns = computed<StatsColumn[]>(() => {
   const columns = [...COLUMNS.value]
   // 一年前 1–4 歲只在 CSV（淨增的分母）：插在「這一年淨增」後面。
   columns.splice(columns.findIndex((column) => column.key === 'kids_text') + 1, 0, { key: 'kids_base', label: '一年前 1–4 歲' })
+  // 所得：畫面的「45.8 萬*」在 CSV 拆成千元、年度、界線是否調整過三欄。
+  const income = columns.findIndex((column) => column.key === 'income_text')
+  columns.splice(
+    income, 1,
+    { key: 'income_text', label: '所得中位數（千元）' },
+    { key: 'income_year', label: '所得年度' },
+    { key: 'income_changed', label: '界線在所得年度後調整' },
+  )
   return columns
 })
 </script>
