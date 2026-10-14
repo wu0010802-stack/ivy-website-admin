@@ -692,7 +692,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動退路（正式站連不到時）：本機下載 `curl -sSLo babycare.json https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json`，上傳到 api volume 後 `python -m app.cli geo-sync --babycare-file /data/babycare.json`（刪檔用自己的終端機，agent 不能刪 volume 檔）。
 - **放行殘缺檔檢查要用檔案模式**：單獨 `geo-sync --force` 會同時強制重抓門牌與各里人口（Railway 連不到高雄市資料平台時門牌會 failed、結束碼 1），而且 `--force` 同時也是略過殘缺檔檢查。只想放行托嬰或幼兒園（確定來源真的縮小）時，先把 JSON 下載到本機、上傳到 api volume，再跑 `geo-sync --babycare-file <檔> --force`（或 `--kindergartens-file <檔> --force`）——單一種資料、不連外。
 - 看狀態：`select dataset, label, synced_at, baseline_on, last_error from geo_dataset_status where dataset in ('kindergartens', 'babycare');`；看異動：`select provider, change, occurred_on, count(*) from geo_provider_events group by 1, 2, 3 order by 3 desc limit 20;`。後台區域分析狀態列會寫「托嬰名單 MM/DD 更新」或「托嬰名單尚未匯入」。
-- 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade b4d7e1a92c58`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像；不 downgrade 就直接切回舊映像也不會壞——舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒，畫面讀取時 join 不到而忽略它們；之後再上線新版，基準日與事件不會補回，要重新建立就先 downgrade 再 upgrade。
+- 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade b4d7e1a92c58`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像。不 downgrade 就切舊映像會被 `check_schema.py` 擋下（停站）；若有人繞過檢查硬啟動舊版，舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒（畫面讀取時 join 不到、直接忽略），之後再上線新版也補不回來，要重新建立基準與事件就先 downgrade 再 upgrade。
 
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
 
