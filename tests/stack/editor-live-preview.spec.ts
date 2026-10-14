@@ -467,7 +467,9 @@ test('資安（真瀏覽器）：草稿不進預覽網址、storage、cookie、r
   // 後台本來就會記側欄展開狀態（ivy-admin-nav-expanded，只有選單開合），預覽相關的只有桌機／手機偏好。
   expect(Object.keys(stores.local).filter((key) => key !== 'ivy-admin-nav-expanded')).toEqual(['ivy-admin-preview-viewport'])
   expect(stores.local['ivy-admin-preview-viewport']).toBe('desktop')
-  expect(Object.keys(stores.session)).toEqual([])
+  // sessionStorage 只允許案件備註草稿的「主人」（ivy-visit-note-draft-owner，只存登入者編號，2026-10-13 掃描第 6 項）；
+  // 內容編輯器的草稿一律不進 storage，上面的 token 比對已確認任何 storage 都沒有草稿文字。
+  expect(Object.keys(stores.session).filter((key) => key !== 'ivy-visit-note-draft-owner')).toEqual([])
   expect(JSON.stringify(await context.cookies())).not.toContain(token)
 
   // 整個過程沒有任何 request（API、telemetry、靜態資源）的網址或內容帶著草稿。
