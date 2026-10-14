@@ -1,3 +1,8 @@
+## 首頁開場布幕只由首次載入啟動（2026-10-14 修正）
+
+- head 內嵌的 `entranceBootstrap` 只有 SSR 解析中的那一份能設 `data-ivy-entrance`（`document.readyState==='loading'`）。站內換頁到 `/` 時 unhead 會在 `EntranceCurtain` 掛載、判斷完不播**之後**才重新插入同一段腳本，這時再設 pending 會留下 5.5 秒沒人收的布幕蓋層。
+- 之後新增「第一次繪製前決定」的 head 腳本也要照這條：靠 `onMounted` 讀 head 腳本設的標記時，站內換頁的順序是反的。
+
 # Design
 
 ## 全站精修：以國際設計獎的完成度逐頁檢查（2026-10-13，`claude/award-polish-20261013`）

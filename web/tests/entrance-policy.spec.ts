@@ -14,7 +14,7 @@ function aspectMatches(query: string, aspect: number) {
   return match[1] === 'min' ? aspect >= ratio : aspect <= ratio
 }
 
-function run(options: { path?: string; hash?: string; reduced?: boolean; colors?: boolean; seen?: boolean; blockedStorage?: boolean; connection?: object; runtimeSeen?: boolean; aspect?: number } = {}) {
+function run(options: { path?: string; hash?: string; reduced?: boolean; colors?: boolean; seen?: boolean; blockedStorage?: boolean; connection?: object; runtimeSeen?: boolean; aspect?: number; readyState?: string } = {}) {
   const dataset: Record<string, string> = {}
   const writes: string[][] = []
   const preloads: Record<string, string>[] = []
@@ -24,6 +24,7 @@ function run(options: { path?: string; hash?: string; reduced?: boolean; colors?
     location: { pathname: options.path ?? '/', hash: options.hash ?? '' },
     window: { __ivyEntranceSeen: options.runtimeSeen ?? false },
     document: {
+      readyState: options.readyState ?? 'loading',
       documentElement: { dataset },
       createElement: () => ({}),
       head: { append: (link: Record<string, string>) => { preloads.push({ ...link }) } },
@@ -57,7 +58,9 @@ describe('first entrance eligibility', () => {
   it.each([
     { path: '/visit' }, { hash: '#campuses' }, { reduced: true }, { colors: true },
     { seen: true }, { runtimeSeen: true }, { connection: { saveData: true } },
-    { connection: { effectiveType: '3g' } }, { connection: { effectiveType: '2g' } }
+    { connection: { effectiveType: '3g' } }, { connection: { effectiveType: '2g' } },
+    // Re-inserted by a client-side navigation to / after the page has loaded.
+    { readyState: 'interactive' }, { readyState: 'complete' }
   ])('does not cover content for an ineligible visit: %j', options => {
     const result = run(options)
     expect(result.dataset.ivyEntrance).toBeUndefined()

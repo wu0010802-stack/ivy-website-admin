@@ -201,6 +201,13 @@ async def _finish_unpublished(
 
 
 async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
+    # 先鎖官網再讀這項內容現在是哪一版：手動發布、核准、整站還原都拿同一把
+    # 鎖，這樣它們要嘛在這之前 commit（下面讀得到），要嘛等排程做完。先讀後
+    # 鎖的話，讀完到 publish_revision 拿到鎖之間有人發布較新的一版，排程還是
+    # 會把舊版蓋回官網。
+    # 排程列也要在站台鎖之後才鎖（2026-10-14）：退回審核是站台 → 這一版 → 取消
+    # 這一版的排程，先鎖排程列再等站台鎖會跟它互等成死結。
+    await service.lock_site_state(db)
     locked = await db.execute(
         select(PublishJob).where(PublishJob.id == job_id).with_for_update(skip_locked=True)
     )
@@ -208,11 +215,6 @@ async def _run_one(db: AsyncSession, job_id: uuid.UUID) -> str | None:
     if job is None or job.status != "scheduled":
         await db.rollback()
         return None
-    # 先鎖官網再讀這項內容現在是哪一版：手動發布、核准、整站還原都拿同一把
-    # 鎖，這樣它們要嘛在這之前 commit（下面讀得到），要嘛等排程做完。先讀後
-    # 鎖的話，讀完到 publish_revision 拿到鎖之間有人發布較新的一版，排程還是
-    # 會把舊版蓋回官網。
-    await service.lock_site_state(db)
     item = await db.get(ContentItem, job.content_item_id, populate_existing=True)
     revision = await db.get(ContentRevision, job.revision_id, populate_existing=True)
     creator = None
