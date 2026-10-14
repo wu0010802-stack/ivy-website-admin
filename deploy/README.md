@@ -32,7 +32,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 首頁、入學、特色教學、關於、環境、預約、義華預約、`/admin/` 都回 200（0.38–0.76 秒）。
   - `GET /api/website/v1/admin/admissions/area/trends` 未登入回 401（路由已掛；招生開關沒開時會是 404）。
 - **未在線上驗證**：
-  - **新表目前都是空的**：公開資料自動同步在正式站仍是關閉的，部署後不會自己去抓出生、遷入遷出、所得、新成屋。後台「里的變化」會寫「各里出生、遷入遷出資料尚未匯入」，所得欄整欄「—」；國小學區是隨程式提交的對照檔，部署後就有。要匯入：開 `WEBSITE_GEO_AUTO_SYNC`（正式站變數，由使用者決定），或在 api 容器手動 `python -m app.cli geo-sync`；正式站連不到 ris.gov.tw、www.fia.gov.tw、plvr.land.moi.gov.tw 時用打包檔（本檔「公開地理資料同步」的 `fetch_geo_bundle.py` → `--bundle` 步驟）。
+  - **新表有沒有資料還沒看**：10-12 紀錄記使用者已在 api 設 `WEBSITE_GEO_AUTO_SYNC`（只看到變數名稱、沒看值；當天部署後幼兒園確實自動匯入），10-14 深度掃描那段卻寫「自動同步在正式站仍是關閉的」，兩段不一致，這次沒有權限讀 Railway 變數。若值是 `true`，api 07:10 重啟後約 30 秒的背景第一輪會因為新表是空的去抓各里出生、遷入遷出（約 3 分鐘、35 MB）、一年前的年齡、所得、新成屋 8 季（約 30 MB）；Railway 連不連得到 ris.gov.tw、www.fia.gov.tw、plvr.land.moi.gov.tw 沒實測，連不到時各自寫 `last_error`、隔天再試。若是關的（或連不到），後台「里的變化」會寫「各里出生、遷入遷出資料尚未匯入」、所得欄整欄「—」；匯入方式：設 `WEBSITE_GEO_AUTO_SYNC=true`、在 api 容器手動 `python -m app.cli geo-sync`，或用打包檔（本檔「公開地理資料同步」的 `fetch_geo_bundle.py` → `--bundle`）。國小學區是隨程式提交的對照檔，部署後就有。查法：`select dataset, label, synced_at, last_error from geo_dataset_status order by 1;`。
   - Railway 能不能連上面三個來源：沒實測。
   - 登入後的畫面（里的變化表、所得欄、依國小學區表、地圖「孩子增減」）：只有本機 Playwright 截圖與 CI 的 E2E。
   - B2（新成屋上畫面）要先在台灣網路跑 `geo_match_report.py --new-homes` 量命中率（到里 ≥ 90%）。
