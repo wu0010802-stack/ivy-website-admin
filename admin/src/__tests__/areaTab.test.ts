@@ -25,7 +25,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote', 'babycare',
-        'trends', 'trendNote',
+        'trends', 'trendNote', 'homesNote',
       ],
       emits: ['open-area'],
       setup(_, { expose }) {
@@ -776,6 +776,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
       .toEqual({ campus_key: 'yihua', school_year: '115', radius_km: '3' })
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trends')).toMatchObject({ radius_km: 3 })
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('')
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('homesNote')).toBe('')
     wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/trends').at(-1)!).get('radius_km')).toBe('6')
@@ -794,7 +795,8 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
       '本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨增 26 位（+1.9%）。',
       '近 12 個月出生 180 位，比前一年同期少 20.7%（比 9 個月）。',
       '近 12 個月全年齡淨遷出 160 人。',
-      '三民區寶業里、龍子里的里界調整過，合併成一列計算。',
+      '近 4 季新屋交屋 130 筆，最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。',
+      '三民區寶業里、龍子里的里界調整過，合併成一列計算。範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。',
     ])
   })
 
@@ -802,15 +804,17 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     const { wrapper } = await mountTab()
     const section = block(wrapper, TITLE)
     expect(section.findAll('thead th').map((th) => th.text()))
-      .toEqual(['#', '里', '距本校', '2–5 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '所得中位數', '國小學區'])
+      .toEqual(['#', '里', '距本校', '2–5 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '近 4 季新屋', '所得中位數', '國小學區'])
     expect(bodyRows(section)).toEqual([
-      ['1', '三民區本揚里', '300 m', '317', '+36（+12.8%）', '增加多', '36', '−122', '45.8 萬', '東光國小'],
-      ['2', '三民區寶業里、龍子里（里界調整，合併）', '300 m', '583', '+12（+2.0%）', '差不多', '90', '+30', '—', '光武國小（部分）、鼓山區龍華國小（部分）'],
-      ['3', '三民區鼎金里', '800 m', '500', '−22（−4.5%）', '減少', '54', '−68', '51.2 萬*', '獅湖國小、民族國小（部分，自由學區）'],
+      ['1', '三民區本揚里', '300 m', '317', '+36（+12.8%）', '增加多', '36', '−122', '24', '45.8 萬', '東光國小'],
+      ['2', '三民區寶業里、龍子里（里界調整，合併）', '300 m', '583', '+12（+2.0%）', '差不多', '90', '+30', '0', '—', '光武國小（部分）、鼓山區龍華國小（部分）'],
+      ['3', '三民區鼎金里', '800 m', '500', '−22（−4.5%）', '減少', '54', '−68', '106', '51.2 萬*', '獅湖國小、民族國小（部分，自由學區）'],
     ])
     const caption = section.get('.stats-block__caption').text()
     expect(caption).toContain('這一年淨增＝本月 2–5 歲減一年前 1–4 歲的同一批孩子')
-    expect(caption).toContain('（人口 115 年 9 月與 114 年 9 月、出生 114 年 10 月到 115 年 9 月、遷入遷出 114 年 10 月到 115 年 9 月）')
+    expect(caption).toContain('（人口 115 年 9 月與 114 年 9 月、出生 114 年 10 月到 115 年 9 月、遷入遷出 114 年 10 月到 115 年 9 月、新成屋 114S4–115S3）')
+    expect(caption).toContain('新屋交屋是完工一年內的住宅過戶（含預售屋交屋），不等於已入住、也不等於有孩子。')
+    expect(caption).toContain('資料來源：內政部不動產交易實價查詢服務網')
     expect(caption).toContain('所得是 112 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過')
     expect(caption).toContain('財政部財政資訊中心（2026）綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市（112年度）')
     expect(caption).toContain('不宜逕作為衡量所得差距之參據')
@@ -841,7 +845,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(summaryAt).toBeLessThan(seriesAt)
     expect(seriesAt).toBeLessThan(tableAt)
     expect(series.find('table').exists()).toBe(false)
-    expect(section.findAll('thead th')).toHaveLength(10)
+    expect(section.findAll('thead th')).toHaveLength(11)
   })
 
   it('沒有出生走勢（空陣列）時不顯示這一塊', async () => {
@@ -871,10 +875,10 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-里的變化.csv')
     const lines = csv.slice(1).split('\r\n')
-    expect(lines[0]).toBe('#,里,距本校,2–5 歲,這一年淨增,一年前 1–4 歲,孩子增減,近 12 個月出生,近 12 個月淨遷入,所得中位數（千元）,所得年度,界線在所得年度後調整,國小學區')
-    expect(lines[1]).toBe('1,三民區本揚里,300 m,317,36,281,增加多,36,-122,458,112,,東光國小')
-    expect(lines[2]).toBe('2,三民區寶業里、龍子里（里界調整，合併）,300 m,583,12,600,差不多,90,30,,,,光武國小（部分）；鼓山區龍華國小（部分）')
-    expect(lines[3]).toBe('3,三民區鼎金里,800 m,500,-22,493,減少,54,-68,512,112,是,獅湖國小；民族國小（部分，自由學區）')
+    expect(lines[0]).toBe('#,里,距本校,2–5 歲,這一年淨增,一年前 1–4 歲,孩子增減,近 12 個月出生,近 12 個月淨遷入,近 4 季新屋,最近一季新屋,所得中位數（千元）,所得年度,界線在所得年度後調整,國小學區')
+    expect(lines[1]).toBe('1,三民區本揚里,300 m,317,36,281,增加多,36,-122,24,9,458,112,,東光國小')
+    expect(lines[2]).toBe('2,三民區寶業里、龍子里（里界調整，合併）,300 m,583,12,600,差不多,90,30,0,0,,,,光武國小（部分）；鼓山區龍華國小（部分）')
+    expect(lines[3]).toBe('3,三民區鼎金里,800 m,500,-22,493,減少,54,-68,106,32,512,112,是,獅湖國小；民族國小（部分，自由學區）')
   })
 
   it('一年前的人口還沒匯入：淨增寫「—」，總結與地圖都寫原因（地圖的孩子增減停用）', async () => {
@@ -887,10 +891,30 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     })
     const { wrapper } = await mountTrends(trends)
     const section = block(wrapper, TITLE)
-    expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122', '45.8 萬', '東光國小'])
+    expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122', '24', '45.8 萬', '東光國小'])
     expect(section.get('.trends-summary .hint').text()).toContain('一年前的各里人口還沒匯入，這一年淨增先不算。')
     expect(section.findAll('.trends-summary p')[0]!.text()).toBe('本校 3 公里內 4 個里，2–5 歲孩子 1,400 位。')
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
+  })
+
+  it('新成屋還沒匯入：新屋欄整欄「—」、欄位不隱藏；總結沒有這一句；說明寫尚未匯入；只有「新屋交屋」停用，孩子增減照用', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      sources: { ...base.sources, new_homes: { latest: null, seasons: [], unplaced: 0, note: '' } },
+      baseline: { ...base.baseline!, new_homes: null, new_homes_latest: null, new_homes_seasons: 0 },
+      villages: base.villages.map((row) => ({ ...row, new_homes: null, new_homes_latest: null })),
+    })
+    const { wrapper } = await mountTrends(trends)
+    const section = block(wrapper, TITLE)
+    expect(section.findAll('thead th').map((th) => th.text())).toContain('近 4 季新屋')
+    expect(bodyRows(section).map((row) => row.at(-3))).toEqual(['—', '—', '—'])
+    expect(section.findAll('.trends-summary p').map((line) => line.text()).join('')).not.toContain('新屋交屋')
+    const caption = section.get('.stats-block__caption').text()
+    expect(caption).toContain('新成屋資料尚未匯入。')
+    expect(caption).not.toContain('不動產交易實價查詢服務網')
+    const map = wrapper.findComponent({ name: 'AreaMap' })
+    expect(map.props('homesNote')).toBe('新成屋資料尚未匯入。')
+    expect(map.props('trendNote')).toBe('')
   })
 
   it('什麼都還沒匯入：區塊寫原因；本校沒座標：寫本校位置未標示', async () => {
@@ -917,6 +941,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     await vi.waitFor(() => expect(wrapper.find('.trends-error').exists()).toBe(true))
     expect(block(wrapper, '招生機會（本校 3 公里內）')).toBeDefined()
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('里的變化讀取失敗。')
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('homesNote')).toBe('里的變化讀取失敗。')
     fail = false
     await button(wrapper.get('.trends-error') as never, '重新載入')!.trigger('click')
     await flushPromises()

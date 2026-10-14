@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.geo import matcher
 from app.admissions.geo.address import ParsedAddress, parse_address
-from app.admissions.geo.models import GeoDatasetStatus, GeoNewHomeSale
+from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, GeoNewHomeSale
 
 PLVR_ROOT = "https://plvr.land.moi.gov.tw/DownloadSeason"
 FILE_NAME = "e_lvr_land_a.csv"
@@ -245,10 +245,16 @@ async def match_keys(db: AsyncSession, keys: Iterable[Key], *, version: str | No
     return result
 
 
+def _district_of(stated: str, match: matcher.GeoMatch) -> str:
+    """表裡存的區：到里的列用門牌表登記的區（跨區界道，實價登錄寫苓雅區、門牌表登在新興區，里屬於新興區；
+    (區, 里) 才對得到里界），其餘維持實價登錄寫的區。重比時表裡的區就是門牌鍵的區，換版後仍會再比一次。"""
+    return match.district if match.match_level in VILLAGE_LEVELS and match.district else stated
+
+
 def _values(row: NewHomeRow, match: matcher.GeoMatch, label: str | None) -> dict:
     return {
         "serial": row.serial, "season": row.season, "completed_on": row.completed_on, "presale": row.presale,
-        "building_type": row.building_type, "district": row.district, "street": row.street, "lane": row.lane,
+        "building_type": row.building_type, "district": _district_of(row.district, match), "street": row.street, "lane": row.lane,
         "alley": row.alley, "number": row.number, "number_sub": row.number_sub,
         "village": match.village, "match_level": match.match_level,
         "doorplate_version": label if match.match_level != "pending" else None,
@@ -330,7 +336,10 @@ async def rematch(session_factory: async_sessionmaker[AsyncSession], *, keys_per
                 result = await db.execute(
                     update(t)
                     .where(stale, *conditions)
-                    .values(village=match.village, match_level=match.match_level, doorplate_version=label)
+                    .values(
+                        district=_district_of(key[0], match), village=match.village, match_level=match.match_level,
+                        doorplate_version=label,
+                    )
                     .execution_options(synchronize_session=False)
                 )
                 updated += result.rowcount or 0

@@ -208,6 +208,9 @@ const buildAreaTrends = () => ({
       year: 112,
       note: '資料來源：財政部財政資訊中心（2026）綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市（112年度）。本統計之所得為課稅資料，不含政府移轉、免稅與分離課稅所得，不宜逕作為衡量所得差距之參據',
     },
+    new_homes: {
+      latest: '115S3', seasons: ['114S4', '115S1', '115S2', '115S3'], unplaced: 7, note: '資料來源：內政部不動產交易實價查詢服務網',
+    },
     school_districts: {
       school_year: 115,
       note: '學區依高雄市政府教育局「115 學年度國民小學學區劃分一覽表」；學校依教育部「國民小學名錄」（115 學年度）',
@@ -221,17 +224,18 @@ const buildAreaTrends = () => ({
       { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2 },
       { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null },
     ],
+    new_homes: 130, new_homes_latest: 41, new_homes_seasons: 4,
   },
   kids_unavailable: null,
   villages: [
-    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false,
+    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
       schools: [{ code: '593615', name: '東光國小', district: '三民區', partial: false, free_zone: false }] },
-    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false,
+    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
       schools: [
         { code: '553608', name: '光武國小', district: '三民區', partial: true, free_zone: false },
         { code: '523606', name: '龍華國小', district: '鼓山區', partial: true, free_zone: false },
       ] },
-    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true,
+    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
       schools: [
         { code: '553604', name: '獅湖國小', district: '三民區', partial: false, free_zone: false },
         { code: '593603', name: '民族國小', district: '三民區', partial: true, free_zone: true },

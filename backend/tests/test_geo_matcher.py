@@ -304,6 +304,42 @@ async def test_nearby_tie_between_villages_is_decided_by_village_name_not_import
     assert (match.village, match.match_level, match.lat) == ("博惠里", "nearby", 22.6)  # 「博」(U+535A) 在「本」(U+672C) 前
 
 
+async def test_border_street_listed_under_the_neighbouring_district_is_still_located(db_session):
+    """跨區界道：實價登錄寫「苓雅區七賢一路」，門牌表整條七賢一路都登在新興區（2026-10-14 實測 115S3 新成屋
+    七賢一路 61–95 號 31 筆因此只到區）。地址的區沒有這條街路段、整個門牌表只有一個別的區有，就用那個區比對；
+    比到里時回傳的區也是門牌表登記的區（順昌里屬於新興區，(區, 里) 才對得到里界），沒比到里維持地址寫的區。"""
+    await load_geo_samples(db_session)
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="七賢一路", number=63, village="順昌里", district="新興區", lat=22.63)
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="七賢一路", number=77, village="開平里", district="新興區", lat=22.64)
+    await db_session.commit()
+
+    exact = await locate(db_session, "高雄市苓雅區七賢一路63號十樓", version=SAMPLE_TAG)
+    assert (exact.district, exact.village, exact.match_level, exact.lat) == ("新興區", "順昌里", "exact", 22.63)
+    nearby = await locate(db_session, "高雄市苓雅區七賢一路79號", version=SAMPLE_TAG)
+    assert (nearby.district, nearby.village, nearby.match_level) == ("新興區", "開平里", "nearby")
+    street = await locate(db_session, "高雄市苓雅區七賢一路500號", version=SAMPLE_TAG)
+    # 差超過 30 號，兩個里，street 層也分不出來：維持地址寫的區。
+    assert (street.district, street.village, street.match_level) == ("苓雅區", None, "district")
+
+
+async def test_border_street_fallback_needs_exactly_one_other_district(db_session):
+    """別的區也有同名街路段時不猜（中山路、中正路這種每區都有）；地址寫的區自己有這條街路段時，
+    沒有那個號也不跳到別的區。"""
+    await load_geo_samples(db_session)
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="中山路", number=5, village="甲里", district="新興區")
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="中山路", number=5, village="乙里", district="前金區")
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="自強路", number=5, village="丙里", district="新興區")
+    await _add_doorplate(db_session, version=SAMPLE_TAG, street="自強路", number=9, village="丁里", district="苓雅區")
+    await db_session.commit()
+
+    two_districts = await locate(db_session, "高雄市苓雅區中山路5號", version=SAMPLE_TAG)
+    assert (two_districts.village, two_districts.match_level) == (None, "district")
+    own_district_has_street = await locate(db_session, "高雄市苓雅區自強路300號", version=SAMPLE_TAG)
+    assert (own_district_has_street.village, own_district_has_street.match_level) == ("丁里", "street")
+    inactive = await locate(db_session, "高雄市苓雅區自強路5號", version="115-09#old000")
+    assert (inactive.village, inactive.match_level) == (None, "district")  # 只看使用中的批次
+
+
 def _filters(street: str, district: str = "三民區", lane: str = "", alley: str = "") -> tuple[tuple, tuple]:
     base = (
         GeoDoorplate.dataset_version == SAMPLE_TAG,

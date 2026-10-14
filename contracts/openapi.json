@@ -3582,6 +3582,32 @@
             ],
             "title": "Migration Net 12M"
           },
+          "new_homes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Homes"
+          },
+          "new_homes_latest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Homes Latest"
+          },
+          "new_homes_seasons": {
+            "title": "New Homes Seasons",
+            "type": "integer"
+          },
           "villages": {
             "title": "Villages",
             "type": "integer"
@@ -3598,7 +3624,10 @@
           "births_change_pct",
           "births_series",
           "migration_net_12m",
-          "migration_months"
+          "migration_months",
+          "new_homes",
+          "new_homes_latest",
+          "new_homes_seasons"
         ],
         "title": "AreaTrendsBaselineOut",
         "type": "object"
@@ -3713,6 +3742,45 @@
           "missing"
         ],
         "title": "AreaTrendsMonthsOut",
+        "type": "object"
+      },
+      "AreaTrendsNewHomesSourceOut": {
+        "description": "新成屋交屋（B2 段）：使用中的最新季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）、本校半徑內有里的區裡\n沒對到里的筆數（只到區、待比對、里名對不到里界；不進里表）；note 是畫面照引的來源（沒匯入是空字串）。",
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "seasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seasons",
+            "type": "array"
+          },
+          "unplaced": {
+            "title": "Unplaced",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "latest",
+          "seasons",
+          "unplaced",
+          "note"
+        ],
+        "title": "AreaTrendsNewHomesSourceOut",
         "type": "object"
       },
       "AreaTrendsOut": {
@@ -3944,6 +4012,9 @@
           "migration": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
+          "new_homes": {
+            "$ref": "#/components/schemas/AreaTrendsNewHomesSourceOut"
+          },
           "note": {
             "title": "Note",
             "type": "string"
@@ -3961,6 +4032,7 @@
           "migration",
           "note",
           "income",
+          "new_homes",
           "school_districts"
         ],
         "title": "AreaTrendsSourcesOut",
@@ -4075,6 +4147,35 @@
             ],
             "title": "Migration Net 12M"
           },
+          "new_homes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Homes"
+          },
+          "new_homes_by_code": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "New Homes By Code",
+            "type": "object"
+          },
+          "new_homes_latest": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Homes Latest"
+          },
           "schools": {
             "items": {
               "$ref": "#/components/schemas/AreaTrendsVillageSchoolOut"
@@ -4102,6 +4203,9 @@
           "migration_net_12m",
           "income_median",
           "income_boundary_changed",
+          "new_homes",
+          "new_homes_latest",
+          "new_homes_by_code",
           "schools"
         ],
         "title": "AreaTrendsVillageOut",

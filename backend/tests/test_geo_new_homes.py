@@ -15,7 +15,8 @@ from app import cli
 from app.admissions.geo import new_homes as nh
 from app.admissions.geo import sync
 from app.admissions.geo.bundle import BundleFile, write_bundle
-from app.admissions.geo.models import GeoDatasetStatus, GeoNewHomeSale
+from app.admissions.geo.kaohsiung import CODE_OF_DISTRICT
+from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoNewHomeSale
 from app.cli import geo_sync_command, geo_sync_options
 from tests.geo_helpers import (
     INCOME_SAMPLE,
@@ -24,6 +25,7 @@ from tests.geo_helpers import (
     NEW_HOMES_SAMPLE_SEASON,
     PLVR_ERROR_PAGE,
     SAMPLE_LABEL,
+    SAMPLE_TAG,
     load_geo_samples,
     plvr_response,
     plvr_sample,
@@ -284,6 +286,39 @@ async def test_rows_are_matched_against_doorplates(app, db_session, few_rows):
     assert levels["RPVNMLLKOHLGFFE78DA"] == ("district", None, SAMPLE_LABEL)  # 門牌樣本沒有橋新環路
     # 不存地址原文：表裡沒有放得下地址字串的欄位。
     assert not {"address", "price", "floor"} & set(GeoNewHomeSale.__table__.columns.keys())
+
+
+async def test_border_street_rows_take_the_doorplate_district_and_stay_there_through_a_rematch(app, db_session, few_rows):
+    """跨區界道：實價登錄寫苓雅區七賢一路，門牌表整條登在新興區。到里的列存門牌表的區（順昌里屬於新興區，
+    (區, 里) 才對得到里界）；換門牌月份重比時鍵裡的區就是新興區，結果不變。"""
+    await load_geo_samples(db_session)
+    db_session.add(
+        GeoDoorplate(
+            dataset_version=SAMPLE_TAG, town_code=CODE_OF_DISTRICT["新興區"], district="新興區", village="順昌里",
+            street="七賢一路", street_kind="road", lane="", alley="", number=63, number_sub=0, lat=22.63, lng=120.31,
+        )
+    )
+    await db_session.commit()
+
+    def row(serial: str, number: int) -> nh.NewHomeRow:
+        return nh.NewHomeRow(
+            serial=serial, season=NEW_HOMES_SAMPLE_SEASON, completed_on=date(2026, 3, 1), presale=False,
+            building_type="住宅大樓", district="苓雅區", street="七賢一路", lane="", alley="", number=number, number_sub=0,
+        )
+
+    batch = nh.NewHomesBatch(season=NEW_HOMES_SAMPLE_SEASON, rows=[row("BORDER1", 63), row("BORDER2", 500)], total=2)
+    await nh.write_season(app.state.session_factory, batch, now=datetime.now(timezone.utc))
+    rows = await _rows(app)
+    assert (rows["BORDER1"].district, rows["BORDER1"].village, rows["BORDER1"].match_level) == ("新興區", "順昌里", "exact")
+    # 500 號查無、差超過 30 號：新興區這條街路段只有順昌里一個里，street 層對得到，區也是新興區。
+    assert (rows["BORDER2"].district, rows["BORDER2"].village, rows["BORDER2"].match_level) == ("新興區", "順昌里", "street")
+
+    await db_session.execute(update(GeoDatasetStatus).where(GeoDatasetStatus.dataset == "doorplates").values(label="115-11"))
+    await db_session.commit()
+    assert await nh.rematch(app.state.session_factory) == 2
+    rows = await _rows(app)
+    assert (rows["BORDER1"].district, rows["BORDER1"].village, rows["BORDER1"].match_level) == ("新興區", "順昌里", "exact")
+    assert rows["BORDER1"].doorplate_version == "115-11"
 
 
 async def test_pending_until_doorplates_then_rematched(app, db_session, few_rows):

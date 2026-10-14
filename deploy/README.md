@@ -13,6 +13,22 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 里的變化 B2：新屋交屋上畫面與跨區界道比對（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/village-new-homes-b2-20261014` 到 main（fast-forward `03eaa872..eb5779bf`，5 個 commit）：`e1b058f1` 跨區界道比對、`34bc5084` B2 本體、`69cca639` 合併組在地圖上依各里自己的筆數上色（和規格 §5.6 的刻意差異，可單獨還原）、`314492a9` 文件、`eb5779bf` 併入 main 當時的托嬰部署紀錄 `03eaa872`。內容見 README 頂部 10-14「B2 段」、DESIGN.md「招生入學：里的變化」、規格 §18。
+- **migration**：沒有，不改既有資料，所以沒有先備份。要退可直接切回前一個映像（沒有新表、新欄位；API 新增的是回應欄位）。**已存的新成屋列與訪視是用舊規則比對的，新規則要等下一次門牌換版（或重匯新成屋）才會重比**，所以線上七賢一路 61–95 號那 63 筆目前仍是「只到區」。
+- **推送前閘門**（本機，Node 22；各數字跑在哪個 commit 見 README 頂部驗證條）：
+  - 後端 geo／招生／稽核／權限相關 1232 passed（`69cca639`；不是後端全套，全套由 CI 跑）。
+  - 後台 vitest 全套 157 檔、2456 passed、1 skipped（`--testTimeout=60000`）；`typecheck` 無錯誤；契約 `export_openapi.py --check` 與 `check-contract-types.mjs` 一致。
+  - stack 端到端只跑區域分析：`admissions-area.spec.ts` 11 passed（含 1440／390 不橫向溢出）。
+- **CI**：main run 38575188946（`eb5779bf`）13:50:17Z 開跑，14:10:33Z 部署完成（20.3 分），全綠：
+  - Frontend web 1.6 分、admin 5.8 分；Backend 三組 9.2／12.1／14.2 分；E2E／Playwright 10.7 分；Deploy Railway production 5.9 分（14:04:39Z 開始）。
+- **正式 `release.json`**：base commit `eb5779bf2d5a57387f6c2e0fe4ae67aafb33fd81`，snapshot `723f817d…`，created `2026-10-14T14:05:04Z`，`web+api`。
+- **線上唯讀檢查**（未登入，約 14:15Z）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 14:11:27Z 完成一輪）。
+  - 後台 lazy chunk（`AreaMap`、`areaFormat`、`StatsTab`）含「近 4 季新屋」「新屋交屋」「新成屋資料尚未匯入」「0 筆或在半徑外」與 `new_homes_by_code`。
+  - **沒驗到**：登入後的實際畫面與 `/area/trends` 的回應欄位（要登入）。請使用者登入後台看「統計分析 → 區域分析」的「里的變化」表（多「近 4 季新屋」欄）與地圖第五個著色「新屋交屋」。
+
 ## 2026-10-14 托嬰中心與園所異動（main CI 部署，1 支 migration）
 
 - **提交**：使用者在本機直接推 `feature/provider-changes-20261014` 到 main（fast-forward `3fb67463..1f472d15`，28 個 commit，沒有開 PR）；其中 `fc404ff7` 是併入「里的變化」的 merge commit，`1f472d15` 併入 main 當時的部署紀錄 PR #46。內容見 README 頂部 10-14「托嬰中心與園所異動」、DESIGN.md「招生入學：托嬰中心與園所異動」、規格 `docs/specs/2026-10-14-provider-changes-design.md`。
@@ -53,7 +69,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 首頁、入學、特色教學、關於、環境、預約、義華預約、`/admin/` 都回 200（0.38–0.76 秒）。
   - `GET /api/website/v1/admin/admissions/area/trends` 未登入回 401（路由已掛；招生開關沒開時會是 404）。
 - **未在線上驗證**：
-  - **公開資料自動同步**：使用者 10-14 約 07:40Z 回報已在 api 設好 `WEBSITE_GEO_AUTO_SYNC=true`（10-12 紀錄只看到變數名稱；10-14 深度掃描那段寫「仍是關閉的」，以這次回報為準；值與 api 是否已重新部署都沒看到，這裡沒有讀 Railway 的權限；07:41Z 的公開 health 只看得到 maintenance 正常，看不出同步迴圈）。api 重新部署後約 30 秒跑第一輪：門牌、幼兒園 10-12 已匯入，30 天內不重抓；新表是空的，會去抓各里出生、遷入遷出（約 3 分鐘、35 MB）、一年前的年齡、所得、新成屋 8 季（約 30 MB）。Railway 連不連得到 ris.gov.tw、www.fia.gov.tw、plvr.land.moi.gov.tw 沒實測，連不到時各自寫 `last_error`、隔天再試。**結果還沒看**。沒匯入前，後台「里的變化」會寫「各里出生、遷入遷出資料尚未匯入」、所得欄整欄「—」；連不到時改用打包檔（本檔「公開地理資料同步」的 `fetch_geo_bundle.py` → `--bundle`）。國小學區是隨程式提交的對照檔，部署後就有。查法：`select dataset, label, synced_at, last_error from geo_dataset_status order by 1;`，或 api 日誌找「公開地理資料同步：」那行。
+  - **公開資料自動同步**：使用者 10-14 約 07:40Z 回報已在 api 設好 `WEBSITE_GEO_AUTO_SYNC=true`（10-12 紀錄只看到變數名稱；10-14 深度掃描那段寫「仍是關閉的」，以這次回報為準；變數的值當時沒看到；下面第一輪的結果證明 api 已重新部署、同步迴圈有跑）。api 重新部署後約 30 秒跑第一輪：門牌、幼兒園 10-12 已匯入，30 天內不重抓；新表是空的，會去抓各里出生、遷入遷出、一年前的年齡、所得、新成屋 8 季。**第一輪結果（10-14，使用者在 Railway Postgres 查 `geo_dataset_status` 與各表筆數貼回）：全部成功、八列 `last_error` 都是空的，不需要打包匯入**——births／migration 115-09（06:52Z，出生 21 個月有資料、遷入遷出 25 個月）、population 115-09（893 里，年齡歷史 2 個月）、income 112（879 列）、new_homes 115S3（26,035 列，07:08Z）、doorplates 115-10、kindergartens 2026-10-12（10-12 匯入）。**ris.gov.tw、www.fia.gov.tw、plvr.land.moi.gov.tw 從 Railway 都連得到**（只有 `data.kcg.gov.tw` 擋境外 IP，門牌仍要每月手動）。國小學區是隨程式提交的對照檔，部署後就有。**看結果要看資料庫，不要只靠日誌**：日誌只看得到最新那次部署的容器（出生、遷入遷出在較早的 deploy 就跑完，07:08Z 的容器日誌只剩所得「各里所得已更新」與新成屋「新成屋已更新」兩行）；背景迴圈的總結行「公開地理資料同步：」只有門牌、幼兒園、人口三項至少一項真的做了事才印（`workers/geo_loop.py`），三項都 skipped（30 天內不重抓）時不會有，沒看到不是異常。查法：Railway Postgres 的 **Database** 分頁（Console 分頁是容器裡的 bash，不是 SQL 視窗；要在 Console 用 `psql "$DATABASE_URL"`）跑 `select dataset, label, synced_at, checked_at, last_error from geo_dataset_status order by 1;`，另可看 `select count(distinct month) from geo_village_births;`、`select count(*) from geo_new_home_sales;`。日誌：`railway logs -p <project> -e production -s api -d --since 3h -n 3000 -f 'admissions.geo'`（`-n` 上限比 20000 小，3000 可用；`-f` 是伺服器端文字篩選，Python 日誌走 stderr，別用 `@level`）；auto 模式會擋 agent 讀正式環境日誌，要使用者用 `!` 跑。
   - Railway 能不能連上面三個來源：沒實測。
   - 登入後的畫面（里的變化表、所得欄、依國小學區表、地圖「孩子增減」）：只有本機 Playwright 截圖與 CI 的 E2E。
   - B2（新成屋上畫面）要先在台灣網路跑 `geo_match_report.py --new-homes` 量命中率（到里 ≥ 90%）。
@@ -746,13 +762,14 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動：`--income-file <CSV>`，年度取檔名（`112_165-E.csv`）或 `--income-year 112`；比使用中舊的年度要加 `--force`。打包檔（`fetch_geo_bundle.py`）也會帶最新年度的所得。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'income';`、`select year, count(*) from geo_village_income group by 1;`（112 年度應有 879 列）。
 
-**新成屋交屋（里的變化 B1 段，2026-10-14）**：同一套同步再多一種資料，**只同步與比對、不上 API 與畫面**（B2 才上）。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4.3。**尚未部署**（要在 A、C、D 段之後）。
+**新成屋交屋（里的變化 B1 段，2026-10-14）**：同一套同步再多一種資料。B1 只同步與比對；**B2（2026-10-14）起「里的變化」表多「近 4 季新屋」欄、地圖多「新屋交屋」著色**（API 欄位與實作差異見規格 §18）。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4.3。B1 已隨 main 部署（正式站 10-14 同步第一輪已寫入 8 季、26,035 列）；**B2 尚未部署**。
 
 - 來源：內政部實價登錄高雄市買賣季檔 `https://plvr.land.moi.gov.tw/DownloadSeason?season=<115S3>&fileName=e_lvr_land_a.csv`（一季約 3.5 MB）。寫進 `geo_new_home_sales`，留最新季往回 8 季（約 2.6 萬列、5 MB）。不需要新的環境變數。
 - migration `e4f1a8c6b203` 只新增一張表、放寬 `ck_geo_dataset_status_dataset`（多收 `new_homes`），不動既有資料。回退：舊映像不認得 `e4f1a8c6b203`，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade d8b3f6a2c914`，再切舊映像。
 - 自動：表空時立刻抓——從今天所在的季往回試三季找最新季，再回補 8 季（約 30 MB）；之後 30 天看一次有沒有下一季。HTTP 200 的錯誤頁＝那一季還沒出。每季一個交易，中途失敗隔天接著補。同步結束時，比對時門牌月份和使用中不同的列整批重比（門牌換版、或匯入時門牌還沒進來）。log：「新成屋已更新：最新 115S3，這一輪寫入 N 季」、「新成屋同步失敗：…」。
 - 手動：`--new-homes-file 115S3_e_lvr_land_a.csv`（可重複，季別取檔名；檔名沒有季別時配 `--new-homes-season 115S3`，只能一個檔）；打包檔也帶 8 季。
-- **B2 之前**：在台灣網路下載門牌後跑命中率報告（雲端與正式站連不到 `data.kcg.gov.tw`）：`WEBSITE_ENVIRONMENT=test … uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> --new-homes 115S3_e_lvr_land_a.csv --season 115S3`，到里（exact＋nearby＋street）≥ 90% 才做 B2，結果寫回規格 §2.2。
+- **命中率報告（B2 閘門，2026-10-14 已量、已過）**：在台灣網路下載門牌後跑（雲端與正式站連不到 `data.kcg.gov.tw`）：`WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=… WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<庫名要含 geo 與 test> WEBSITE_SESSION_SECRET=… uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> --new-homes 115S3_e_lvr_land_a.csv --season 115S3`（腳本自己匯入門牌，不必先 `geo-sync`；不會自動下載，三個檔案要先備好；庫要先 `alembic upgrade head`、用完 `dropdb`）。到里（exact＋nearby＋street）≥ 90% 才做 B2。**結果：98.9%（3,805 筆裡 exact 3,765），補跨區界道後 99.9%（exact 3,801）**，寫在規格 §2.2；幼兒園地址 97.6%。
+- **跨區界道修正的部署注意（B2 分支）**：不需要 migration、不需要備份。已存在表裡的新成屋列與訪視是用舊規則比對的，要等下一次門牌換版（每月手動匯入 115-11 之後的 `geo-sync` 結尾會重比）才會補上；七賢一路 61–95 號那 63 筆目前存的是「苓雅區、只到區」。想立刻補：用打包檔或 `--new-homes-file` 重匯新成屋（檔案模式會整季重比，不連外）。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
 
 **國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。

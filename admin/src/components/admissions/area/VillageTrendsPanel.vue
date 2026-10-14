@@ -6,8 +6,8 @@ import type { AreaTrends, AreaTrendsVillage } from '../../../api/types'
 import { NO_VALUE, type StatsColumn } from '../../../admissions/statsFormat'
 import type { CsvCell } from '../../../utils/csv'
 import {
-  KIDS_LEVEL_LABELS, formatCount, formatDistance, incomeText, kidsNetText, populationVersionLabel, signedCount,
-  trendsPlaceName, trendsSummary, trendsUnavailable, villageSchoolsText,
+  KIDS_LEVEL_LABELS, formatCount, formatDistance, homesText, incomeText, kidsNetText, populationVersionLabel, seasonRange,
+  signedCount, trendsPlaceName, trendsSummary, trendsUnavailable, villageSchoolsText,
 } from './areaFormat'
 
 type Row = AreaTrendsVillage & {
@@ -18,11 +18,13 @@ type Row = AreaTrendsVillage & {
   level_text: string
   births_text: string
   migration_text: string
+  homes_text: string
   income_text: string
   schools_text: string
 }
 
-// 里的變化（2026-10-14 規格 7.2）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與全年齡淨遷入，
+// 里的變化（2026-10-14 規格 7.2）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與全年齡淨遷入、
+// 近 4 季新屋交屋（B2 段；到里的筆數，新成屋還沒匯入整欄「—」），
 // 以及所得中位數（C 段；只當背景，規格 V9：不著色、不分級、不排序、不進總結）與國小學區（D 段）。
 // 半徑跟招生機會、附近幼兒園同一個 1／3／6 公里（AreaTab 換半徑就重讀）。這裡只呈現後端算好的數字與分級，
 // 不另外推估；里界調整過的里後端已合併成一列，名稱寫出來。
@@ -44,6 +46,7 @@ const COLUMNS = computed<StatsColumn[]>(() => {
     { key: 'level_text', label: '孩子增減' },
     { key: 'births_text', label: '近 12 個月出生' },
     { key: 'migration_text', label: '近 12 個月淨遷入' },
+    { key: 'homes_text', label: '近 4 季新屋' },
     { key: 'income_text', label: '所得中位數' },
     { key: 'schools_text', label: '國小學區' },
   ]
@@ -67,6 +70,7 @@ const rows = computed<Row[]>(() =>
     level_text: KIDS_LEVEL_LABELS[row.kids_level],
     births_text: row.births_12m === null ? NO_VALUE : formatCount(row.births_12m),
     migration_text: signedCount(row.migration_net_12m),
+    homes_text: homesText(row),
     income_text: incomeText(row),
     schools_text: villageSchoolsText(row),
   })),
@@ -87,6 +91,9 @@ const caption = computed(() => {
     '「附近」是里的中心點在半徑內的里。這一年淨增＝本月 2–5 歲減一年前 1–4 歲的同一批孩子，是搬進搬出的結果，不是推估；' +
       '分級：增減 10% 以上且至少 5 位是「增加多／減少多」，3% 以上且至少 3 位是「增加／減少」，一年前 1–4 歲不到 20 位是「孩子少」。',
     '出生依出生登記的戶籍里；淨遷入＝跨區遷入減遷出，加上同區換址的進出。',
+    sources.new_homes.latest === null
+      ? '新成屋資料尚未匯入。'
+      : '新屋交屋是完工一年內的住宅過戶（含預售屋交屋），不等於已入住、也不等於有孩子。',
     sources.income.year === null
       ? '各里所得資料尚未匯入。'
       : `所得是 ${sources.income.year} 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過，` +
@@ -98,13 +105,15 @@ const caption = computed(() => {
       : '',
     sources.births.months.length ? `出生 ${monthRange(sources.births.months)}` : '',
     sources.migration.months.length ? `遷入遷出 ${monthRange(sources.migration.months)}` : '',
+    sources.new_homes.seasons.length ? `新成屋 ${seasonRange(sources.new_homes.seasons)}` : '',
   ].filter(Boolean)
   const missing = sources.births.missing.length
     ? `出生缺 ${sources.births.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
+  const homes = sources.new_homes.note ? `${sources.new_homes.note}。` : ''
   const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${income}${schools}`
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${homes}${income}${schools}`
 })
 const emptyText = computed(() => unavailable.value ?? `本校 ${props.data?.radius_km ?? 3} 公里內沒有里的資料。`)
 
@@ -116,6 +125,8 @@ function csvCell(row: Row, column: StatsColumn): CsvCell | undefined {
   if (column.key === 'children_text') return row.children ?? ''
   if (column.key === 'births_text') return row.births_12m ?? ''
   if (column.key === 'migration_text') return row.migration_net_12m ?? ''
+  if (column.key === 'homes_text') return row.new_homes ?? ''
+  if (column.key === 'homes_latest') return row.new_homes_latest ?? ''
   if (column.key === 'level_text') return row.kids_level === 'unknown' ? '' : row.level_text
   if (column.key === 'income_text') return row.income_median ?? ''
   if (column.key === 'income_year') return row.income_median === null ? '' : (props.data?.sources.income.year ?? '')
@@ -127,6 +138,8 @@ const csvColumns = computed<StatsColumn[]>(() => {
   const columns = [...COLUMNS.value]
   // 一年前 1–4 歲只在 CSV（淨增的分母）：插在「這一年淨增」後面。
   columns.splice(columns.findIndex((column) => column.key === 'kids_text') + 1, 0, { key: 'kids_base', label: '一年前 1–4 歲' })
+  // 最近一季的新屋交屋只在 CSV：插在「近 4 季新屋」後面。
+  columns.splice(columns.findIndex((column) => column.key === 'homes_text') + 1, 0, { key: 'homes_latest', label: '最近一季新屋' })
   // 所得：畫面的「45.8 萬*」在 CSV 拆成千元、年度、界線是否調整過三欄。
   const income = columns.findIndex((column) => column.key === 'income_text')
   columns.splice(

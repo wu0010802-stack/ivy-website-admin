@@ -19,8 +19,8 @@ import { areaQuery } from '../../../admissions/areaFilter'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, opportunityUnavailable, populationVersionLabel, reasonLabel,
-  taipeiMonthDay, trendMapNote, type NearbyKind, type RadiusKm,
+  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, homesMapNote, opportunityUnavailable,
+  populationVersionLabel, reasonLabel, taipeiMonthDay, trendMapNote, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
@@ -196,6 +196,11 @@ const trendNote = computed(() => {
   if (trendsFailed.value) return '里的變化讀取失敗。'
   return trends.value ? trendMapNote(trends.value) : ''
 })
+// 「新屋交屋」停用的原因：新成屋沒匯入、本校沒座標、讀取失敗；出生、遷入遷出沒匯入不影響它。
+const homesNote = computed(() => {
+  if (trendsFailed.value) return '里的變化讀取失敗。'
+  return trends.value ? homesMapNote(trends.value) : ''
+})
 
 const map = ref<{ focusKindergarten: (id: string) => void; focusBabycare: (id: string) => void; revealBabycare: () => void } | null>(null)
 function focusKindergarten(id: string) {
@@ -341,6 +346,7 @@ function openNoVillage() {
             :opportunity-note="opportunityNote"
             :trends="trends"
             :trend-note="trendNote"
+            :homes-note="homesNote"
             @open-area="openPlace"
           />
         </div>

@@ -1150,6 +1150,16 @@ class AreaTrendsSchoolDistrictSourceOut(BaseModel):
     note: str
 
 
+class AreaTrendsNewHomesSourceOut(BaseModel):
+    """新成屋交屋（B2 段）：使用中的最新季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）、本校半徑內有里的區裡
+    沒對到里的筆數（只到區、待比對、里名對不到里界；不進里表）；note 是畫面照引的來源（沒匯入是空字串）。"""
+
+    latest: str | None
+    seasons: list[str]
+    unplaced: int
+    note: str
+
+
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
@@ -1157,6 +1167,7 @@ class AreaTrendsSourcesOut(BaseModel):
     # 內政部戶政司三個資料集的來源（一句）。
     note: str
     income: AreaTrendsIncomeSourceOut
+    new_homes: AreaTrendsNewHomesSourceOut
     school_districts: AreaTrendsSchoolDistrictSourceOut
 
 
@@ -1190,6 +1201,10 @@ class AreaTrendsBaselineOut(BaseModel):
     births_series: list[AreaTrendsBirthPeriodOut]
     migration_net_12m: int | None
     migration_months: int
+    # 新成屋交屋（B2 段）：近 4 季到里的筆數、最近一季的筆數、近 4 季裡有資料的季數；沒匯入新成屋是 null、0。
+    new_homes: int | None
+    new_homes_latest: int | None
+    new_homes_seasons: int
 
 
 class AreaTrendsVillageSchoolOut(BaseModel):
@@ -1225,6 +1240,12 @@ class AreaTrendsVillageOut(BaseModel):
     # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。
     income_median: int | None
     income_boundary_changed: bool
+    # 新成屋交屋（B2 段）：近 4 季、最近一季到里的筆數（含預售屋交屋，不等於已入住）。匯入了新成屋，沒有交屋的里是 0；
+    # 還沒匯入是 null。合併組整組相加。
+    new_homes: int | None
+    new_homes_latest: int | None
+    # 各代碼自己的近 4 季筆數（只列有交屋的里；沒匯入是空的）。合併組的 new_homes 是整組的，地圖用這個替組內各里上色。
+    new_homes_by_code: dict[str, int]
     # 國小學區（D 段）：整里在前、部分在後。
     schools: list[AreaTrendsVillageSchoolOut]
 
