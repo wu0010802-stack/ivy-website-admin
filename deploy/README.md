@@ -13,11 +13,32 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 托嬰中心與園所異動（main CI 部署，1 支 migration）
+
+- **提交**：使用者在本機直接推 `feature/provider-changes-20261014` 到 main（fast-forward `3fb67463..1f472d15`，28 個 commit，沒有開 PR）；其中 `fc404ff7` 是併入「里的變化」的 merge commit，`1f472d15` 併入 main 當時的部署紀錄 PR #46。內容見 README 頂部 10-14「托嬰中心與園所異動」、DESIGN.md「招生入學：托嬰中心與園所異動」、規格 `docs/specs/2026-10-14-provider-changes-design.md`。
+- **migration**：`c6a9e3f15d27`（接在 `e4f1a8c6b203` 之後，alembic 單一 head）：新增 `geo_babycare`、`geo_provider_events`，`geo_kindergartens` 加 `registered_on`，`geo_dataset_status` 加 `baseline_on` 並放寬 `ck_geo_dataset_status_dataset`（多收 `babycare`）。不改既有資料，所以沒有先備份。API 啟動時自動 `alembic upgrade head`；部署成功表示已套用，**沒有直接查 `alembic_version`**。
+- **回退**：舊映像不認得 `c6a9e3f15d27`，`check_schema.py` 會擋（見 CICD.md）。要退先用新映像跑 `alembic downgrade e4f1a8c6b203`（刪兩張新表與兩個新欄位、約束改回、刪掉 `babycare` 狀態列，已記的異動一併消失），再切舊映像。
+- **推送前閘門**（本機；各數字跑在哪個 commit 見 README 頂部驗證條）：
+  - 後端全套（`fc404ff7`）3,067 passed／1 skipped。
+  - 後台 vitest 全套 157 檔：第一次 6 檔共 11 個案例在高負載下逾時（`Test timed out in 5000ms`），改 `--testTimeout=60000` 重跑 182 passed；admin 與 web typecheck、`contract:check` 一致。
+  - 完整 stack 套件 130 passed、6 項逾時（27.7 分，當時別的專案同時在跑測試）；那 6 項重跑後都通過，沒有在乾淨負載下一次跑完整套。
+- **CI**：main run 38535057966（`1f472d15`）08:25:58Z 開跑，08:48:43Z 部署完成（22.8 分），全綠：
+  - Frontend web 1.3 分、admin 5.6 分；Backend 三組 16.4／12.1／13.7 分；E2E／Playwright 8.6 分；Deploy Railway production 6.2 分（08:42:31Z 開始）。
+- **正式 `release.json`**：base commit `1f472d152b6ab31014d8175063cfb487759d7d7d`，snapshot `83fdd913…`，created `2026-10-14T08:42:54Z`，`web+api`。
+- **線上唯讀檢查**（未登入，08:50Z）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 08:48:40Z 完成一輪）。
+  - 首頁、入學、預約、`/admin/` 都回 200（0.24–0.46 秒）。
+  - `GET /api/website/v1/admin/admissions/area/babycare`、`/area/changes` 未登入回 401（路由已掛）。
+- **未在線上驗證**：
+  - **自動同步第一輪**：使用者已在 api 開 `WEBSITE_GEO_AUTO_SYNC=true`（見下一段紀錄）。api 啟動約 30 秒後第一輪會把幼兒園補上設立日、建立基準日（`baseline_on` 空算到期，第一次只建基準、不寫事件），並第一次匯入托嬰名單（高雄約 160 筆、營業 151）。Railway 連不連得到來源沒實測（這裡沒有讀 Railway 的權限）；連不到時各自寫 `last_error`。看狀態的 SQL 在下方「托嬰名單與園所異動」。
+  - 登入後的畫面（切換托嬰名單、「附近園所的變化」、地圖托嬰菱形圖層）：只有本機 Playwright 截圖與 CI 的 E2E；托嬰菱形與「孩子增減」減少色疊在一起的畫面沒有實際看到（fixture 沒有孩子增減資料）。
+  - 規格 P7（準公共續約護欄）的取捨、`--force` 一旗兩義、殘缺檔檢查只比淨數量，都在等使用者裁定，見 README 頂部 10-14 段與規格。
+
 ## 2026-10-14 招生區域「里的變化」A、C、D、B1 段（main CI 部署，3 支 migration）
 
 - **提交**：使用者要求合併，06:36–06:38Z 依序把 PR #40（A 段：各里出生、遷入遷出、孩子增減，`d2f75ea8`）、#43（C 段：各里所得，`ae192c76`）、#44（D 段：國小學區，`0e7fdf39`）、#45（B1 段：新成屋同步與比對、不上畫面，`1cddfc3a`）以 merge commit 併入 main（`5fe246ba..1cddfc3a`）。內容見 README 頂部 10-14 四段、規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §14–§17。
 - **migration**：`c5e9a1f3b7d2`（`geo_village_births`／`geo_village_migration`／`geo_village_ages`）、`d8b3f6a2c914`（`geo_village_income`）、`e4f1a8c6b203`（`geo_new_home_sales`），三支都只新增表、把 `ck_geo_dataset_status_dataset` 放寬成多收 `births`、`migration`、`income`、`new_homes`，不動既有資料，沒有備份（`deploy/CICD.md` 只要求刪改既有資料的 migration 先備份）。
-- **回退**：可直接切回 `5fe246ba` 的映像（舊程式不讀新表、不寫新狀態列）；不要往回 downgrade。
+- **回退**（2026-10-14 托嬰那次部署時更正）：**不能**直接切回 `5fe246ba` 的映像——舊映像不認得 `c5e9a1f3b7d2`、`d8b3f6a2c914`、`e4f1a8c6b203`，`check_schema.py` 會擋、停站（見 CICD.md）。要退先用新映像 `alembic downgrade b4d7e1a92c58`（刪掉這三支建的新表、約束改回，已匯入的資料消失、同步會重抓），再切舊映像。
 - **推送前閘門**（各分支，本機）：
   - C 段後端全套 2,835 passed／2 failed，失敗的是 `test_geo_sync` 兩項（假網站缺所得來源），已在 `f7525dbc` 修正。
   - 後台 vitest 全套 156 檔 2,385 passed、typecheck；`contract:check` 一致；三支 migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 通過。
