@@ -76,7 +76,7 @@
 
 ## 3. 資料模型
 
-一支 migration（新 revision id，`down_revision` = `b4d7e1a92c58`）：
+一支 migration（`c6a9e3f15d27`，`down_revision` = `e4f1a8c6b203`；原本接 `b4d7e1a92c58`，10-14 併入 main 的「里的變化」三支 migration 後改接在它們之後）：
 
 - **新表 `geo_babycare`**（公開資料、與校區無關、官網專用、不進園務轉移契約）：
 
@@ -113,7 +113,7 @@
 
 ## 4. 同步
 
-併進既有的 `run_geo_sync`，成為第四種資料，各自成敗、各自的時間上限；幼兒園與托嬰共用同一組比對邏輯（`app/admissions/geo/providers.py`，新檔）。
+併進既有的 `run_geo_sync`，成為另一種資料（10-14 併入 main 的「里的變化」後與出生、遷入遷出、所得、新成屋並列），各自成敗、各自的時間上限；幼兒園與托嬰共用同一組比對邏輯（`app/admissions/geo/providers.py`，新檔）。
 
 - **背景與頻率**：同門牌、幼兒園，`WEBSITE_ADMISSIONS_ENABLED` 與 `WEBSITE_GEO_AUTO_SYNC` 都開才跑，背景迴圈本來每天看一次。`_due` 多一個間隔參數：幼兒園、托嬰 `PROVIDER_REFRESH_AFTER = 7 天`，門牌、人口維持 `REFRESH_AFTER = 30 天`。`baseline_on` 還是空的（含狀態列不存在）也算到期（P10）：既有幼兒園資料在上線後第一輪就補上設立日，不必等 7 天。托嬰資料表空時立刻抓。
 - **下載**：`_fetch_capped(client, settings.geo_babycare_url, max_bytes=BABYCARE_MAX_BYTES)`，解析 JSON 與篩選丟執行緒（同幼兒園）。`parse_babycare`：只留 `city` 為高雄市（臺／台視為相同）的列；`is_active` 為真的才算營業中（不營業的整列不收，當作「名單沒有」）；缺必要欄位（`id`、`name`）、座標不是有限數或不在高雄市外框內、欄位超過資料表欄寬、`id` 重複，整筆略過並計入 `ParseReport.skipped`；一所營業中的都沒有丟 `BabycareFormatError`。
@@ -221,7 +221,7 @@
 
 - migration 只新增表、加欄位並放寬一個約束，不改既有資料，不需先備份。
 - 正式站 `WEBSITE_GEO_AUTO_SYNC` 已開：部署後第一輪背景同步會補上幼兒園設立日、建立托嬰名單與基準日；來源同樣是 `kiang.github.io`，Railway 連得到。正式站連不到時走 `geo-sync --babycare-file`，步驟寫進 `deploy/README.md`「公開地理資料同步」。
-- 回退：舊映像不認得新 revision，`check_schema.py` 會擋（見 CICD.md）；要退先用新映像跑 `alembic downgrade b4d7e1a92c58`（刪新表與新欄位、約束改回；已記的異動一併消失，下次同步重新建立基準）再切舊映像。
+- 回退：舊映像不認得新 revision，`check_schema.py` 會擋（見 CICD.md）；要退先用新映像跑 `alembic downgrade e4f1a8c6b203`（刪新表與新欄位、約束改回；已記的異動一併消失，下次同步重新建立基準）再切舊映像。
 - 照 CLAUDE.md：不自行合併 main、不部署。
 
 ## 11. 文件回寫

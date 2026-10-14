@@ -1119,3 +1119,132 @@ class AreaOpportunityOut(BaseModel):
     no_population_villages: list[AreaOpportunityMissingOut]
     # 依「應有 − 實際」由大到小；同值依孩子數、區、里名。
     villages: list[AreaOpportunityRowOut]
+
+
+class AreaTrendsPopulationSourceOut(BaseModel):
+    """各里人口：使用中的月份 M；year_ago_month 是 M−12，年齡歷史裡 M 與 M−12 都在才有值。"""
+
+    month: str | None
+    year_ago_month: str | None
+
+
+class AreaTrendsMonthsOut(BaseModel):
+    """出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。"""
+
+    latest: str | None
+    months: list[str]
+    missing: list[str]
+
+
+class AreaTrendsIncomeSourceOut(BaseModel):
+    """各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。"""
+
+    year: int | None
+    note: str
+
+
+class AreaTrendsSchoolDistrictSourceOut(BaseModel):
+    """國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。"""
+
+    school_year: int
+    note: str
+
+
+class AreaTrendsSourcesOut(BaseModel):
+    population: AreaTrendsPopulationSourceOut
+    births: AreaTrendsMonthsOut
+    migration: AreaTrendsMonthsOut
+    # 內政部戶政司三個資料集的來源（一句）。
+    note: str
+    income: AreaTrendsIncomeSourceOut
+    school_districts: AreaTrendsSchoolDistrictSourceOut
+
+
+class AreaTrendsBaselineOut(BaseModel):
+    """本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。
+    children＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；
+    births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。"""
+
+    villages: int
+    children: int | None
+    kids_net: int | None
+    kids_base: int | None
+    births_12m: int | None
+    births_months: int
+    births_compared_months: int
+    births_change_pct: float | None
+    migration_net_12m: int | None
+    migration_months: int
+
+
+class AreaTrendsVillageSchoolOut(BaseModel):
+    """一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。
+    district 是學校所在的區（有同名學校，畫面寫「區＋校名」）。"""
+
+    code: str
+    name: str
+    district: str
+    partial: bool
+    free_zone: bool
+
+
+class AreaTrendsVillageOut(BaseModel):
+    """半徑內一個里，或同區里界調整過的一組（merged，key 是 group:<區>:<組內最小代碼>、village 是頓號連起的里名、
+    codes 含已廢止的舊代碼）。kids_level：up2 增加多／up1 增加／flat 差不多／down1 減少／down2 減少多／
+    few 一年前 1–4 歲不到 20 位／unknown 算不出來。migration_net_12m＝跨區遷入 − 遷出 ＋ 住址變更入 − 出。"""
+
+    key: str
+    district: str
+    village: str
+    codes: list[str]
+    merged: bool
+    # 本校到里界面積重心的直線距離，取整到 100 m；合併組取組內最近的里。
+    distance_m: int
+    children: int | None
+    kids_net: int | None
+    kids_base: int | None
+    kids_level: Literal["up2", "up1", "flat", "down1", "down2", "few", "unknown"]
+    births_12m: int | None
+    migration_net_12m: int | None
+    # 所得中位數（千元，規格 V9：只當背景，不排序、不分級）。沒有所得的里（115-07 新設）與合併組是 null（中位數
+    # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。
+    income_median: int | None
+    income_boundary_changed: bool
+    # 國小學區（D 段）：整里在前、部分在後。
+    schools: list[AreaTrendsVillageSchoolOut]
+
+
+class AreaTrendsSchoolOut(BaseModel):
+    """依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區
+    的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕
+    ／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；
+    rate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。"""
+
+    code: str
+    name: str
+    district: str
+    enrollment: Literal["district", "open", "spacious", "capped"]
+    villages_full: int
+    villages_partial: int
+    children: int | None
+    kids_net: int | None
+    kids_partial: bool
+    visit: int
+    rate: float | None
+
+
+class AreaTrendsOut(BaseModel):
+    as_of: datetime
+    filters: AreaFiltersOut
+    radius_km: int
+    campus: AreaCampusOut
+    sources: AreaTrendsSourcesOut
+    # 本校沒座標時是 null（villages 也是空的）。
+    baseline: AreaTrendsBaselineOut | None
+    # 這一年淨增算不出來的原因：no_population 人口還沒匯入、no_year_ago 一年前的年齡還沒匯入、
+    # no_migration 遷入遷出不足 10 個月；算得出來是 null。
+    kids_unavailable: Literal["no_population", "no_year_ago", "no_migration"] | None
+    # 依這一年淨增由大到小（算不出來的在最後）；同值依 2–5 歲孩子、區、里名。
+    villages: list[AreaTrendsVillageOut]
+    # 依參觀人數由大到小；同值依 2–5 歲孩子、學校所在區、校名。本校沒座標時是空的。
+    schools: list[AreaTrendsSchoolOut]

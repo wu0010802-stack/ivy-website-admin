@@ -1,15 +1,18 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
-幼兒園、各里人口（2026-10-13 招生機會規格 §4）、托嬰名單（2026-10-14 規格 §4）；門牌換版或校址變更後重算訪視。
+幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
+各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）；
+門牌換版或校址變更後重算訪視與新成屋。
 
-只下載公開資料，不送出任何家長資料。四種資料各自成敗：失敗只寫
+只下載公開資料，不送出任何家長資料。每種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 兩種用法：
 - 背景（app/workers/geo_loop.py，每天一次）：門牌、各里人口超過 30 天沒確認過，幼兒園與托嬰超過 7 天
   （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file／--babycare-file／--population-file 指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
-  門牌檔不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；幼兒園與托嬰的檔案一樣過殘缺檔檢查
+  --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
+  --new-homes-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
   同時代表「立刻重抓」與「略過殘缺檔檢查」。
 
@@ -22,6 +25,17 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 內政部戶政司 ODRP014（各里人口，population.py）：網址帶民國年月與頁碼，還沒公布的月份回
 「查無資料」；從上一個月往回找第一個有資料的月份，再把全部頁數抓完、篩出高雄市。
+ODRP010、ODRP011（出生、遷入遷出，village_series.py）同一支 API：找到最新月份後，往回 24 個月
+內表裡沒有的月份逐月補，每個月份各自一個交易。ris.gov.tw 連續快速請求會回擋頁（2026-10-14 實測），
+所以每個請求之間至少隔 RIS_REQUEST_GAP_SECONDS 秒。
+
+財政部財政資訊中心的各里所得（income.py）：每 30 天讀一次 data.gov.tw 的資料集 API，從檔案清單找年度最大、
+比使用中新的高雄市檔；data.gov.tw 讀不到時直接試財政資訊中心的下一個年度（404＝還沒出）。
+www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線失敗時間隔 2、4、8 秒重試。
+
+內政部實價登錄的新成屋（new_homes.py）：季檔依登記日切季，從使用中的下一季往後試（表空時從今天所在的季往回試），
+回 HTML 錯誤頁（HTTP 200）＝那一季還沒出；最新季往回 8 季內表裡沒有的逐季補，每季一個交易。約一成請求被 reset，
+同樣重試。門牌換版後同步結束時整表重比（只重比比對當時門牌月份和使用中不同的列）。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -38,6 +52,7 @@ import itertools
 import json
 import logging
 import re
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -53,12 +68,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import income as income_io
+from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import population as population_io
 from app.admissions.geo import providers
+from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
-from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
+from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
 from app.config import Settings
@@ -86,6 +104,8 @@ _RESOURCE_HREF = re.compile(r"/Resource/([0-9a-f-]{36})")
 FILE_CHUNK_LINES = 5000
 # 各里人口從上一個月往回找幾個月：戶政司通常在次月中旬公布，往回 4 個月夠涵蓋偶爾的延遲。
 POPULATION_LOOKBACK_MONTHS = 4
+# ris.gov.tw 不間斷連抓約 70 次後回了 HTML 擋頁、間隔 3 秒的都正常（2026-10-14 實測）：每個請求之間至少隔這麼久。
+RIS_REQUEST_GAP_SECONDS = 3.0
 
 # 上游回應的大小與同步時間上限（2026-10-13 深度掃描 12、13）：同步在 API 同一支程序裡跑，上游內容的
 # 發布者不該能用超大回應耗盡記憶體、或用超量的列數填滿共用資料庫。都是正常值的好幾倍，只擋失控的來源。
@@ -102,6 +122,20 @@ DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
 KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
 BABYCARE_TIME_BUDGET = timedelta(minutes=5)
 POPULATION_TIME_BUDGET = timedelta(minutes=30)
+# 各里出生、遷入遷出（2026-10-14）：高雄一個月一頁約 0.2–1.2 MB（全國一頁約 3 MB）；回補 25 個月、每個請求
+# 隔 3 秒，正常約 2 分鐘。
+SERIES_PAGE_MAX_BYTES = 16 * 1024 * 1024
+SERIES_TIME_BUDGET = timedelta(minutes=20)
+# 各里所得（2026-10-14 C 段）：data.gov.tw 資料集回應（正常約 16 KB）、所得 CSV（正常約 90 KB）。
+DATASET_API_MAX_BYTES = 2 * 1024 * 1024
+INCOME_MAX_BYTES = 4 * 1024 * 1024
+INCOME_TIME_BUDGET = timedelta(minutes=5)
+# 連線被 reset（TransportError）時的重試間隔：最多重試三次。
+FETCH_RETRY_WAITS = (2.0, 4.0, 8.0)
+# 新成屋（2026-10-14 B 段）：一季高雄買賣檔約 3.5 MB；找新的一季最多往後試幾季。
+NEW_HOMES_MAX_BYTES = 32 * 1024 * 1024
+NEW_HOMES_TIME_BUDGET = timedelta(minutes=20)
+NEW_HOMES_LOOKAHEAD = 2
 
 
 class GeoSyncError(RuntimeError):
@@ -190,6 +224,23 @@ class GeoSyncResult:
     # 托嬰名單（2026-10-14）：結果、解析時略過的筆數。
     babycare: str = "skipped"
     babycare_rows_skipped: int = 0
+    # 各里出生、遷入遷出（2026-10-14）：結果、表裡最新的月份、這一輪寫入的月份數；一年前的年齡回補結果。
+    births: str = "skipped"
+    births_version: str | None = None
+    births_months: int = 0
+    migration: str = "skipped"
+    migration_version: str | None = None
+    migration_months: int = 0
+    age_history: str = "skipped"
+    # 各里所得（2026-10-14 C 段）：結果、使用中的年度、對不到里界而略過的列數（115-07 調整前的舊里）。
+    income: str = "skipped"
+    income_version: str | None = None
+    income_rows_skipped: int = 0
+    # 新成屋（2026-10-14 B 段）：結果、表裡最新的季、這一輪寫入的季數、這一輪重比的列數。
+    new_homes: str = "skipped"
+    new_homes_version: str | None = None
+    new_homes_seasons: int = 0
+    new_homes_rematched: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -411,6 +462,9 @@ def _error_text(exc: Exception) -> str:
         BabycareFormatError,
         providers.ProviderShrunk,
         population_io.PopulationFormatError,
+        series_io.SeriesFormatError,
+        income_io.IncomeFormatError,
+        new_homes_io.NewHomesFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -558,9 +612,31 @@ def recent_months(count: int = POPULATION_LOOKBACK_MONTHS) -> list[str]:
     return months
 
 
+_ris_last_request: float | None = None
+
+
+async def _sleep(seconds: float) -> None:
+    """測試換掉這個就不必真的等。"""
+    await asyncio.sleep(seconds)
+
+
+async def _ris_text(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> str:
+    """向 ris.gov.tw 要一頁（有大小上限，同 _fetch_text）：和上一個請求至少隔 RIS_REQUEST_GAP_SECONDS 秒
+    （整個程序共用一個時鐘）。"""
+    global _ris_last_request
+    if _ris_last_request is not None:
+        wait = RIS_REQUEST_GAP_SECONDS - (time.monotonic() - _ris_last_request)
+        if wait > 0:
+            await _sleep(wait)
+    try:
+        return await _fetch_text(client, url, max_bytes=max_bytes)
+    finally:
+        _ris_last_request = time.monotonic()
+
+
 async def _population_page(client: httpx.AsyncClient, yyymm: str, page: int) -> object:
     """一頁回應，解析時就只留高雄市的列（population.parse_page）；解析在執行緒裡做，不卡住事件迴圈。"""
-    text_ = await _fetch_text(client, population_io.page_url(yyymm, page), max_bytes=POPULATION_PAGE_MAX_BYTES)
+    text_ = await _ris_text(client, population_io.page_url(yyymm, page), max_bytes=POPULATION_PAGE_MAX_BYTES)
     return await asyncio.to_thread(population_io.parse_page, text_)
 
 
@@ -573,8 +649,11 @@ async def discover_population_month(client: httpx.AsyncClient) -> tuple[str, obj
     raise GeoSyncError("找不到最近幾個月的各里人口資料")
 
 
-async def _download_population(client: httpx.AsyncClient, yyymm: str, first: object) -> population_io.PopulationBatch:
-    """第一頁已經在手上：照 totalPage 把其餘頁抓完再一起驗證。中途某頁變成「查無資料」視為來源異常。"""
+async def _download_population(
+    client: httpx.AsyncClient, yyymm: str, first: object
+) -> tuple[population_io.PopulationBatch, list[list[dict]]]:
+    """第一頁已經在手上：照 totalPage 把其餘頁抓完再一起驗證。中途某頁變成「查無資料」視為來源異常。
+    連同各頁的資料列一起回傳（年齡歷史用同一份資料，不再下載）。"""
     pages = [population_io.response_rows(first) or []]
     for page in range(2, population_io.total_pages(first) + 1):
         rows = population_io.response_rows(await _population_page(client, yyymm, page))
@@ -584,18 +663,49 @@ async def _download_population(client: httpx.AsyncClient, yyymm: str, first: obj
     batch = population_io.collect(pages)
     if batch.label != population_io.label_of(yyymm):
         raise GeoSyncError("各里人口資料的月份和網址不一致")
-    return batch
+    return batch, pages
 
 
-def _population_file_batch(files: list[Path]) -> population_io.PopulationBatch:
-    """指定的本機檔案（API 原始回應，可多頁）。月份取資料本身的 statistic_yyymm。"""
-    pages = []
+def _population_file_pages(files: list[Path]) -> dict[str, list[list[dict]]]:
+    """指定的本機檔案（API 原始回應，一頁一檔）依資料本身的統計月份分組：月份「115-09」→ 各頁的資料列。
+    全國的頁也收（解析時只留高雄）：沒有高雄列的那幾頁略過。"""
+    grouped: dict[str, list[list[dict]]] = {}
     for path in files:
         rows = population_io.response_rows(population_io.parse_page(path.read_text(encoding="utf-8-sig")))
         if rows is None:
             raise GeoSyncError(f"人口檔 {path.name} 是「查無資料」的回應")
-        pages.append(rows)
-    return population_io.collect(pages)
+        if not rows:
+            continue
+        month = series_io.month_of_rows(rows)
+        if month is None:
+            raise GeoSyncError(f"人口檔 {path.name} 是空的或混了不同月份")
+        grouped.setdefault(population_io.label_of(month), []).append(rows)
+    return grouped
+
+
+async def _write_population(
+    session_factory: async_sessionmaker[AsyncSession],
+    batch: population_io.PopulationBatch,
+    pages: list[list[dict]],
+    *,
+    now: datetime,
+) -> None:
+    """換上使用中的月份，同一個交易也把這個月寫進年齡歷史（2026-10-14 規格 §4.2）。"""
+    ages = series_io.collect(series_io.AGES, pages)
+    async with session_factory() as db:
+        await population_io.replace_population(db, batch, synced_at=now)
+        await series_io.replace_month(db, series_io.AGES, ages)
+        await series_io.prune(db, series_io.AGES, batch.label)
+        await db.commit()
+
+
+async def _write_age_history(session_factory: async_sessionmaker[AsyncSession], pages: list[list[dict]]) -> str:
+    """只寫進年齡歷史（不動使用中的人口）；回傳寫入的月份。"""
+    ages = series_io.collect(series_io.AGES, pages)
+    async with session_factory() as db:
+        await series_io.replace_month(db, series_io.AGES, ages)
+        await db.commit()
+    return ages.label
 
 
 async def sync_population(
@@ -607,9 +717,12 @@ async def sync_population(
     files: list[Path] | None,
 ) -> tuple[str, int]:
     """各里人口（2026-10-13 招生機會規格 §4）。回傳 (結果, 對不到里界而略過的高雄列數)。
-    月份和使用中的一樣就不下載其餘頁、只記確認時間；比使用中的舊不換（同門牌）。
-    指定檔案也一樣不退回舊月份：人口的月份取自資料本身，不像門牌可以另外指定，拿錯舊檔會讓五校共用的
-    人口一起倒退，而且重新起算 30 天的更新間隔。確定要退回就加 force；網路來源連 force 也不退。"""
+    月份和使用中的一樣就不下載其餘頁、只記確認時間；比使用中的舊不換（同門牌）。換上新月份時同一個交易
+    也寫進年齡歷史（2026-10-14 里的變化規格 §4.2）。
+
+    指定檔案時依統計月份分組：最新的那個月照舊當使用中的候選；比使用中的舊（或不是最新的那幾個月）
+    只寫進年齡歷史、不動使用中的人口，結果是 "history"（2026-10-14 起不再當錯誤：一年前的月份要靠這條匯入）。
+    人口的月份取自資料本身，舊檔不能讓五校共用的人口倒退；確定要退回就加 force。網路來源連 force 也不退。"""
     status = await _status(session_factory, "population")
     if not files and (client is None or (not force and not _due(status, now))):
         return "skipped", 0
@@ -617,10 +730,21 @@ async def sync_population(
     try:
         if files:
             # 幾頁 JSON、每頁約 10 MB：解析交給執行緒，不卡住事件迴圈。
-            batch = await asyncio.to_thread(_population_file_batch, files)
-            if not force and active is not None and batch.label < active:
-                # 當成驗證不過：保留使用中的版本與時間戳，原因寫進 last_error（CLI 會印出來）。
-                raise GeoSyncError(f"人口檔的月份 {batch.label} 比使用中的 {active} 舊，不匯入（真的要退回舊月份請加 --force）")
+            grouped = await asyncio.to_thread(_population_file_pages, files)
+            if not grouped:
+                raise GeoSyncError("人口檔裡沒有高雄市的資料")
+            newest = max(grouped)
+            history_only = [label for label in grouped if label != newest]
+            if not force and active is not None and newest < active:
+                history_only.append(newest)
+                newest = None
+            for label in sorted(history_only):
+                written = await _write_age_history(session_factory, grouped[label])
+                logger.info("各里人口檔 %s 比使用中的舊，只寫進年齡歷史", written)
+            if newest is None:
+                return "history", 0
+            batch = population_io.collect(grouped[newest])
+            pages = grouped[newest]
         else:
             assert client is not None
             yyymm, first = await discover_population_month(client)
@@ -631,16 +755,391 @@ async def sync_population(
             if active is not None and label < active:
                 logger.warning("各里人口來源最新只找到 %s，比使用中的 %s 舊，不更新", label, active)
                 return "skipped", 0
-            batch = await _download_population(client, yyymm, first)
-        async with session_factory() as db:
-            await population_io.replace_population(db, batch, synced_at=now)
-            await db.commit()
+            batch, pages = await _download_population(client, yyymm, first)
+        await _write_population(session_factory, batch, pages, now=now)
         logger.info("各里人口已更新：%s，%s 個里，略過 %s 列", batch.label, len(batch.rows), batch.skipped)
         return "updated", batch.skipped
     except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
         logger.warning("各里人口同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "population", now=now, error=_error_text(exc))
         return "failed", 0
+
+
+async def sync_age_history(
+    session_factory: async_sessionmaker[AsyncSession], client: httpx.AsyncClient | None, *, now: datetime
+) -> str:
+    """確認使用中的人口月份 M 與一年前 M−12 都在年齡歷史裡（「這一年淨增」要比這兩個月，規格 §4.2）。
+    M 不在：從使用中的人口表複製（不下載；部署後第一輪就靠這個補）。M−12 不在：下載 ODRP014 那個月，
+    只寫進歷史。不看 30 天間隔（只有缺的時候才下載）；沒有網路（檔案模式）時只做複製。
+    失敗不影響使用中的人口，原因寫進 population 的 last_error。"""
+    status = await _status(session_factory, "population")
+    if status is None or status.active_version is None or status.label is None:
+        return "skipped"
+    current = status.label
+    year_ago = series_io.shift(current, -12)
+    try:
+        async with session_factory() as db:
+            present = await series_io.months_in_table(db, series_io.AGES)
+            changed = False
+            if current not in present:
+                await _copy_population_to_history(db, current)
+                changed = True
+            await series_io.prune(db, series_io.AGES, current)
+            await db.commit()
+        if year_ago not in present and client is not None:
+            yyymm = series_io.yyymm_of(year_ago)
+            first = await _population_page(client, yyymm, 1)
+            if population_io.response_rows(first) is None:
+                raise GeoSyncError(f"一年前（{year_ago}）的各里人口查無資料")
+            pages = [population_io.response_rows(first) or []]
+            for page in range(2, population_io.total_pages(first) + 1):
+                rows = population_io.response_rows(await _population_page(client, yyymm, page))
+                if rows is None:
+                    raise GeoSyncError("一年前的各里人口下載到一半變成查無資料")
+                pages.append(rows)
+            await _write_age_history(session_factory, pages)
+            changed = True
+        return "updated" if changed else "skipped"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("一年前的各里人口回補失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "population", now=now, error=f"一年前的人口：{_error_text(exc)}")
+        return "failed"
+
+
+async def _paired(work: Awaitable[str]) -> tuple[str, int]:
+    """把只回結果的同步包成 _within_budget 要的 (結果, 數字)。"""
+    return await work, 0
+
+
+async def _copy_population_to_history(db: AsyncSession, month: str) -> None:
+    """使用中的人口表 → 年齡歷史的那個月份（不 commit）。"""
+    rows = (await db.execute(select(GeoVillagePopulation))).scalars().all()
+    batch = series_io.SeriesBatch(
+        label=month,
+        rows=[
+            {
+                "month": month, "village_code": row.village_code, "district": row.district, "village": row.village,
+                **{f"age_{age}": getattr(row, f"age_{age}") for age in range(7)}, "people_total": row.people_total,
+            }
+            for row in rows
+        ],
+    )
+    await series_io.replace_month(db, series_io.AGES, batch)
+
+
+def _series_due(status: GeoDatasetStatus | None, now: datetime) -> bool:
+    """只看 checked_at（整輪回補做完才記）：回補到一半失敗時 synced_at 是新的、checked_at 沒動，
+    下一輪（背景迴圈一天一次）就接著補，不必等 30 天。"""
+    if status is None or status.checked_at is None:
+        return True
+    return now - status.checked_at >= REFRESH_AFTER
+
+
+async def _series_page(client: httpx.AsyncClient, series: series_io.Series, yyymm: str, page: int) -> object:
+    text_ = await _ris_text(client, series_io.page_url(series, yyymm, page), max_bytes=SERIES_PAGE_MAX_BYTES)
+    return await asyncio.to_thread(series_io.parse_page, series, text_)
+
+
+async def _download_series_month(
+    client: httpx.AsyncClient, series: series_io.Series, yyymm: str, first: object | None = None
+) -> series_io.SeriesBatch | None:
+    """抓一個月份的全部頁並驗證；那個月份來源查無資料回 None。"""
+    if first is None:
+        first = await _series_page(client, series, yyymm, 1)
+    rows = series_io.response_rows(series, first)
+    if rows is None:
+        return None
+    pages = [rows]
+    for page in range(2, series_io.total_pages(series, first) + 1):
+        more = series_io.response_rows(series, await _series_page(client, series, yyymm, page))
+        if more is None:
+            raise GeoSyncError(f"{series.name}下載到一半變成查無資料")
+        pages.append(more)
+    batch = series_io.collect(series, pages)
+    if batch.label != series_io.label_of(yyymm):
+        raise GeoSyncError(f"{series.name}的月份和網址不一致")
+    return batch
+
+
+def _series_file_pages(series: series_io.Series, files: list[Path]) -> dict[str, list[list[dict]]]:
+    grouped: dict[str, list[list[dict]]] = {}
+    for path in files:
+        rows = series_io.response_rows(series, series_io.parse_page(series, path.read_text(encoding="utf-8-sig")))
+        if rows is None:
+            raise GeoSyncError(f"{series.name}檔 {path.name} 是「查無資料」的回應")
+        if not rows:
+            continue  # 全國的頁裡沒有高雄列的那幾頁
+        month = series_io.month_of_rows(rows)
+        if month is None:
+            raise GeoSyncError(f"{series.name}檔 {path.name} 是空的或混了不同月份")
+        grouped.setdefault(series_io.label_of(month), []).append(rows)
+    return grouped
+
+
+async def _write_series_month(
+    session_factory: async_sessionmaker[AsyncSession], series: series_io.Series, batch: series_io.SeriesBatch, *, now: datetime
+) -> str:
+    """寫入一個月份並更新狀態列（label＝表裡最新的月份），同一個交易；回傳表裡最新的月份。"""
+    async with session_factory() as db:
+        await series_io.replace_month(db, series, batch)
+        latest = max(await series_io.months_in_table(db, series))
+        await series_io.prune(db, series, latest)
+        status = await db.get(GeoDatasetStatus, series.dataset, with_for_update=True)
+        if status is None:
+            status = GeoDatasetStatus(dataset=series.dataset)
+            db.add(status)
+        status.active_version = latest
+        status.label = latest
+        status.synced_at = now
+        status.last_error = None
+        await db.commit()
+    return latest
+
+
+async def sync_series(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    series: series_io.Series,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+) -> tuple[str, int]:
+    """各里出生或遷入遷出（2026-10-14 里的變化規格 §4.2）。回傳 (結果, 這一輪寫入的月份數)。
+
+    網路：從上一個月往回最多 4 個月找最新月份，再把最新往回 24 個月內表裡沒有的月份逐月補（來源查無資料的
+    月份跳過、不記錄，下次到期再問）；force 時最新月份重抓。每個月份各自一個交易，中途失敗已寫的保留。
+    檔案：依資料本身的月份分組逐月寫入，不連外。"""
+    status = await _status(session_factory, series.dataset)
+    if not files and (client is None or (not force and not _series_due(status, now))):
+        return "skipped", 0
+    written = 0
+    try:
+        if files:
+            grouped = await asyncio.to_thread(_series_file_pages, series, files)
+            if not grouped:
+                raise GeoSyncError(f"{series.name}檔裡沒有高雄市的資料")
+            for label in sorted(grouped):
+                await _write_series_month(session_factory, series, series_io.collect(series, grouped[label]), now=now)
+                written += 1
+            await _record(session_factory, series.dataset, now=now, checked=True)
+            return "updated", written
+        assert client is not None
+        latest_yyymm, first = None, None
+        for yyymm in recent_months():
+            page = await _series_page(client, series, yyymm, 1)
+            if series_io.response_rows(series, page) is not None:
+                latest_yyymm, first = yyymm, page
+                break
+        if latest_yyymm is None:
+            raise GeoSyncError(f"找不到最近幾個月的{series.name}資料")
+        latest = series_io.label_of(latest_yyymm)
+        async with session_factory() as db:
+            present = await series_io.months_in_table(db, series)
+        for label in reversed(series_io.window(latest, series_io.KEEP_MONTHS)):
+            if label in present and not (force and label == latest):
+                continue
+            yyymm = series_io.yyymm_of(label)
+            batch = await _download_series_month(client, series, yyymm, first if label == latest else None)
+            if batch is None:
+                continue
+            await _write_series_month(session_factory, series, batch, now=now)
+            written += 1
+        await _record(session_factory, series.dataset, now=now, checked=True)
+        if written:
+            logger.info("%s已更新：最新 %s，這一輪寫入 %s 個月份", series.name, latest, written)
+        return ("updated" if written else "skipped"), written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("%s同步失敗：%s", series.name, _error_text(exc), exc_info=True)
+        await _record(session_factory, series.dataset, now=now, error=_error_text(exc))
+        return "failed", written
+
+
+async def _fetch_retrying(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> bytes:
+    """GET（有大小上限）；連線層的錯誤（reset、逾時）間隔 FETCH_RETRY_WAITS 重試，HTTP 錯誤照丟不重試。"""
+    for wait in (*FETCH_RETRY_WAITS, None):
+        try:
+            body, _ = await _fetch_capped(client, url, max_bytes=max_bytes)
+            return body
+        except httpx.TransportError:
+            if wait is None:
+                raise
+            await _sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _income_guesses(active: int | None) -> list[int]:
+    """data.gov.tw 讀不到時直接試的年度：使用中的下一年；還沒有使用中的年度時，從今年（民國）往回 2～4 年
+    （所得落後約 3 年：115 年時最新是 112 年度）。"""
+    if active is not None:
+        return [active + 1]
+    year = today_local().year - 1911
+    return [year - 2, year - 3, year - 4]
+
+
+async def _discover_income(client: httpx.AsyncClient, active: int | None, *, force: bool) -> tuple[int, bytes] | None:
+    """找比使用中新的所得年度並下載；沒有新的回 None（force 時使用中的年度也重抓）。"""
+    try:
+        text_ = await _fetch_text(client, income_io.DATASET_API, max_bytes=DATASET_API_MAX_BYTES)
+        listed: list[int] | None = income_io.years_listed(json.loads(text_))
+    except Exception as exc:  # noqa: BLE001 - data.gov.tw 讀不到就直接試財政資訊中心
+        logger.info("data.gov.tw 的所得資料集讀不到（%s），直接試財政資訊中心", _error_text(exc))
+        listed = None
+    if listed is not None:
+        if not listed:
+            raise GeoSyncError("data.gov.tw 的所得資料集沒有高雄市的檔案")
+        latest = listed[0]
+        if active is not None and (latest < active or (latest == active and not force)):
+            return None
+        return latest, await _fetch_retrying(client, income_io.csv_url(latest), max_bytes=INCOME_MAX_BYTES)
+    candidates = _income_guesses(active)
+    if force and active is not None:
+        candidates.append(active)
+    for year in candidates:
+        try:
+            return year, await _fetch_retrying(client, income_io.csv_url(year), max_bytes=INCOME_MAX_BYTES)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+    if active is None:
+        raise GeoSyncError("找不到各里所得的檔案")
+    return None
+
+
+async def sync_income(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None,
+    file_year: int | None,
+) -> tuple[str, int]:
+    """各里綜合所得（2026-10-14 里的變化規格 §4.4）。回傳 (結果, 對不到里界而略過的列數)。
+    網路：每 30 天看一次有沒有比使用中新的年度。檔案：年度取 file_year 或檔名（「112_165-E.csv」）；
+    比使用中舊的年度要加 force 才換（同一年度可重匯）。"""
+    status = await _status(session_factory, "income")
+    if file is None and (client is None or (not force and not _due(status, now))):
+        return "skipped", 0
+    active = int(status.active_version) if status is not None and status.active_version else None
+    try:
+        if file is not None:
+            year = file_year or income_io.year_of_filename(file.name)
+            if year is None:
+                raise GeoSyncError("所得檔名裡沒有年度（例：112_165-E.csv），請加 --income-year 112")
+            if active is not None and year < active and not force:
+                raise GeoSyncError(f"所得檔是 {year} 年度，比使用中的 {active} 年度舊；要換回舊年度請加 --force")
+            body = file.read_bytes()
+        else:
+            assert client is not None
+            found = await _discover_income(client, active, force=force)
+            if found is None:
+                await _record(session_factory, "income", now=now, checked=True)
+                return "skipped", 0
+            year, body = found
+        batch = await asyncio.to_thread(income_io.parse_csv, income_io.decode(body), year)
+        async with session_factory() as db:
+            await income_io.replace_income(db, batch, synced_at=now)
+            await db.commit()
+        logger.info("各里所得已更新：%s 年度，%s 個里，略過 %s 列", year, len(batch.rows), batch.skipped)
+        return "updated", batch.skipped
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("各里所得同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "income", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
+async def _new_homes_text(client: httpx.AsyncClient, season: str) -> str | None:
+    """一季的買賣檔（文字）；錯誤頁（那一季還沒出）回 None。"""
+    body = await _fetch_retrying(client, new_homes_io.season_url(season), max_bytes=NEW_HOMES_MAX_BYTES)
+    return new_homes_io.decode(body)
+
+
+async def discover_new_home_seasons(client: httpx.AsyncClient, active: str | None) -> tuple[str, dict[str, str]]:
+    """(最新季, 這次已下載的季 → 檔案文字)。有使用中的季時從下一季往後試 NEW_HOMES_LOOKAHEAD 季；沒有時從今天
+    所在的季往回試三季。都沒有就丟錯。"""
+    fetched: dict[str, str] = {}
+    if active is not None:
+        latest = active
+        for offset in range(1, NEW_HOMES_LOOKAHEAD + 1):
+            season = new_homes_io.shift_season(active, offset)
+            text_ = await _new_homes_text(client, season)
+            if text_ is None:
+                break
+            fetched[season], latest = text_, season
+        return latest, fetched
+    current = new_homes_io.season_of_day(today_local())
+    for offset in (0, -1, -2):
+        season = new_homes_io.shift_season(current, offset)
+        text_ = await _new_homes_text(client, season)
+        if text_ is not None:
+            fetched[season] = text_
+            return season, fetched
+    raise GeoSyncError("找不到最近幾季的實價登錄買賣檔")
+
+
+def _new_homes_files(files: list[Path], season: str | None) -> list[tuple[str, str]]:
+    """(季別, 檔案文字)。季別取 season（只能配一個檔）或檔名（「115S3_e_lvr_land_a.csv」）。"""
+    if season is not None and len(files) != 1:
+        raise GeoSyncError("--new-homes-season 只能配一個 --new-homes-file")
+    result = []
+    for path in files:
+        label = season or new_homes_io.season_of_filename(path.name)
+        if label is None:
+            raise GeoSyncError(f"新成屋檔名裡沒有季別（例：115S3_e_lvr_land_a.csv），請加 --new-homes-season：{path.name}")
+        text_ = new_homes_io.decode(path.read_bytes())
+        if text_ is None:
+            raise GeoSyncError(f"新成屋檔 {path.name} 不是實價登錄的買賣季檔（可能是錯誤頁）")
+        result.append((label, text_))
+    return result
+
+
+async def sync_new_homes(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+    season: str | None,
+) -> tuple[str, int]:
+    """新成屋交屋（2026-10-14 里的變化規格 §4.3）。回傳 (結果, 這一輪寫入的季數)。
+    網路：找最新季，最新往回 8 季內表裡沒有的逐季補（force 時最新季重抓）；每季一個交易，中途失敗已寫的保留，
+    「到期」只看 checked_at（同出生、遷入遷出），回補到一半失敗隔天就接著補。檔案：逐檔寫入，不連外。"""
+    status = await _status(session_factory, "new_homes")
+    if not files and (client is None or (not force and not _series_due(status, now))):
+        return "skipped", 0
+    written = 0
+    try:
+        if files:
+            for label, text_ in await asyncio.to_thread(_new_homes_files, files, season):
+                batch = await asyncio.to_thread(new_homes_io.parse_csv, text_, label)
+                await new_homes_io.write_season(session_factory, batch, now=now)
+                written += 1
+            await _record(session_factory, "new_homes", now=now, checked=True)
+            return "updated", written
+        assert client is not None
+        active = status.label if status is not None and status.active_version else None
+        latest, fetched = await discover_new_home_seasons(client, active)
+        async with session_factory() as db:
+            present = await new_homes_io.seasons_in_table(db)
+        for label in reversed(new_homes_io.window(latest)):  # 新到舊：中途失敗時先保住最新的季
+            if label in present and not (force and label == latest):
+                continue
+            text_ = fetched.get(label) or await _new_homes_text(client, label)
+            if text_ is None:
+                continue  # 那一季來源沒有檔
+            batch = await asyncio.to_thread(new_homes_io.parse_csv, text_, label)
+            await new_homes_io.write_season(session_factory, batch, now=now)
+            written += 1
+        await _record(session_factory, "new_homes", now=now, checked=True)
+        if written:
+            logger.info("新成屋已更新：最新 %s，這一輪寫入 %s 季", latest, written)
+        return ("updated" if written else "skipped"), written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("新成屋同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "new_homes", now=now, error=_error_text(exc))
+        return "failed", written
 
 
 async def _within_budget(
@@ -734,13 +1233,20 @@ async def run_geo_sync(
     kindergartens_file: Path | None = None,
     babycare_file: Path | None = None,
     population_files: list[Path] | None = None,
+    births_files: list[Path] | None = None,
+    migration_files: list[Path] | None = None,
+    income_file: Path | None = None,
+    income_year: int | None = None,
+    new_homes_files: list[Path] | None = None,
+    new_homes_season: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     async with _exclusive(session_factory):
         now = datetime.now(timezone.utc)
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
-            or bool(population_files)
+            or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
+            or bool(new_homes_files)
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -771,12 +1277,48 @@ async def run_geo_sync(
                 session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                 work=sync_population(session_factory, network, now=now, force=force, files=population_files),
             )
+            births, births_months = await _within_budget(
+                session_factory, "births", SERIES_TIME_BUDGET, now=now,
+                work=sync_series(session_factory, network, series_io.BIRTHS, now=now, force=force, files=births_files),
+            )
+            migration, migration_months = await _within_budget(
+                session_factory, "migration", SERIES_TIME_BUDGET, now=now,
+                work=sync_series(session_factory, network, series_io.MIGRATION, now=now, force=force, files=migration_files),
+            )
+            # 檔案模式只在指定了人口檔時做（只會從使用中的人口表複製，不連外）。逾時記在 population。
+            age_history = "skipped"
+            if network is not None or population_files:
+                age_history, _ = await _within_budget(
+                    session_factory, "population", POPULATION_TIME_BUDGET, now=now,
+                    work=_paired(sync_age_history(session_factory, network, now=now)),
+                )
+            income, income_skipped = await _within_budget(
+                session_factory, "income", INCOME_TIME_BUDGET, now=now,
+                work=sync_income(session_factory, network, now=now, force=force, file=income_file, file_year=income_year),
+            )
+            new_homes, new_homes_seasons = await _within_budget(
+                session_factory, "new_homes", NEW_HOMES_TIME_BUDGET, now=now,
+                work=sync_new_homes(
+                    session_factory, network, now=now, force=force, files=new_homes_files, season=new_homes_season
+                ),
+            )
         finally:
             if own_client and client is not None:
                 await client.aclose()
         rematched = await rematch_if_changed(session_factory, now=now)
+        # 新成屋：門牌換版（或之前門牌還沒匯入）的列重比；失敗只記在 new_homes，不擋同步結果。
+        try:
+            new_homes_rematched = await new_homes_io.rematch(session_factory)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("新成屋重比失敗：%s", _error_text(exc), exc_info=True)
+            await _record(session_factory, "new_homes", now=now, error=f"重比失敗：{_error_text(exc)}")
+            new_homes_rematched = 0
         status = await _status(session_factory, "doorplates")
         population_status = await _status(session_factory, "population")
+        births_status = await _status(session_factory, "births")
+        migration_status = await _status(session_factory, "migration")
+        income_status = await _status(session_factory, "income")
+        new_homes_status = await _status(session_factory, "new_homes")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -784,4 +1326,18 @@ async def run_geo_sync(
             population_version=population_status.label if population_status and population_status.active_version else None,
             population_rows_skipped=population_skipped,
             babycare=babycare, babycare_rows_skipped=babycare_skipped,
+            births=births,
+            births_version=births_status.label if births_status and births_status.active_version else None,
+            births_months=births_months,
+            migration=migration,
+            migration_version=migration_status.label if migration_status and migration_status.active_version else None,
+            migration_months=migration_months,
+            age_history=age_history,
+            income=income,
+            income_version=income_status.label if income_status and income_status.active_version else None,
+            income_rows_skipped=income_skipped,
+            new_homes=new_homes,
+            new_homes_version=new_homes_status.label if new_homes_status and new_homes_status.active_version else None,
+            new_homes_seasons=new_homes_seasons,
+            new_homes_rematched=new_homes_rematched,
         )

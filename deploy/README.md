@@ -684,15 +684,43 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動退路（正式站連不到內政部時；和門牌一樣可能被擋境外 IP，**還沒在 Railway 實測過**）：在本機下載 `curl -sSG "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/11509" --data-urlencode "COUNTY=高雄市" --data-urlencode "page=1" -o population-11509.json`（`totalPage` 不是 1 時其餘頁照樣各存一檔）→ 上傳到 api volume（同門牌的 `railway volume … files -v api-volume upload`）→ `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --population-file /data/population-11509.json`（多頁就重複 `--population-file`）→ 刪掉上傳的檔案。指定人口檔時同樣完全不連外、門牌與幼兒園跳過；月份取資料本身的 `statistic_yyymm`。
 - 看狀態：`select dataset, label, synced_at, last_error from geo_dataset_status where dataset = 'population';`；後台區域分析狀態列最後一段寫「各里人口 115 年 9 月」或「各里人口尚未匯入」。
 
-**托嬰名單與園所異動（2026-10-14）**：同一套同步多了第四種資料，給「區域分析」的托嬰清單與「附近園所的變化」用。規格 `docs/specs/2026-10-14-provider-changes-design.md` §4。
+**各里出生、遷入遷出與一年前的年齡（里的變化，2026-10-14，A 段）**：同一套同步再多兩種資料，給「區域分析」的「里的變化」表與地圖的「孩子增減」。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4。**尚未部署**。
+
+- 來源：內政部戶政司 ODRP010（各里出生）、ODRP011（遷入遷出），網址同 ODRP014，只把代碼換掉；帶 `COUNTY=高雄市` 一個月一頁（約 220 KB、1.2 MB）。寫進 `geo_village_births`、`geo_village_migration`，各留最新月份往回 25 個月（約 2.2 萬列）。人口同步換月份時順便寫一份到 `geo_village_ages`，並補抓一年前那個月（約 4.4 MB），給「這一年淨增」比同一批孩子。不需要新的環境變數。
+- migration `c5e9a1f3b7d2` 只新增三張表、放寬 `ck_geo_dataset_status_dataset`（多收 `births`、`migration`），不動既有資料，可直接切回前一個映像。
+- 自動：同一個背景迴圈與開關。表空時立刻回補 24 個月：出生、遷入遷出各 25 次請求，ris.gov.tw 每個請求隔 3 秒（連抓約 70 次曾回 HTML 擋頁，2026-10-14 實測），約 3 分鐘、35 MB。一個月份一個交易：中途失敗已寫的保留，下一輪（隔天）從缺的接著補；整輪做完才記確認時間，之後 30 天看一次。來源查無資料的月份不記錄（出生目前缺 113-10、113-11、114-01），下次再問。log：成功「各里出生已更新：最新 115-09，這一輪寫入 N 個月份」，失敗「各里出生同步失敗：…」；一年前的年齡失敗寫在 `population` 的 `last_error`（開頭「一年前的人口：」），不影響使用中的人口。
+- 手動：`--births-file <JSON>`、`--migration-file <JSON>` 可重複（一個月一檔，月份取資料本身）。`--population-file` 給比使用中舊的月份時改成只寫進年齡歷史（結果 `history`），不再當錯誤；使用中的人口照樣不倒退。
+- **一次打包（正式站連不到內政部時）**：在台灣的電腦 `cd backend && uv run python scripts/fetch_geo_bundle.py --out geo-bundle-11509.zip`（不需要資料庫與環境變數，約 3 分鐘；2026-10-14 實測 48 個檔、2.4 MB）→ `! railway volume -p <project> -e <env> files -v api-volume upload geo-bundle-11509.zip /geo-bundle-11509.zip` → `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --bundle /data/geo-bundle-11509.zip` → 在自己的終端機刪掉 volume 上的 zip（同門牌）。zip 裡有 `manifest.json`（每個檔的種類、期間、來源、sha256），manifest 不對或 sha256 不符整包不匯入、exit 1。門牌 CSV 不進打包檔。
+- 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset in ('births', 'migration', 'population');`、`select count(distinct month) from geo_village_births;`（出生目前 21 個月有資料）、`select month, count(*) from geo_village_ages group by 1;`（應有使用中月份與一年前兩個月）。
+
+**各里所得（里的變化 C 段，2026-10-14）**：同一套同步再多一種資料，給「里的變化」表的「所得中位數」欄。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4.4。**尚未部署**（要在 A 段之後）。
+
+- 來源：財政部財政資訊中心「綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市」（`https://www.fia.gov.tw/WEB/fia/ias/ias112/112_165-E.csv`，約 90 KB）；新年度從 data.gov.tw 資料集 17971（`https://data.gov.tw/api/v2/rest/dataset/17971`）的檔案清單找，每年約 8 月出新年度。寫進 `geo_village_income`（只存最新一個年度、879 列）。不需要新的環境變數。
+- migration `d8b3f6a2c914` 只新增一張表、放寬 `ck_geo_dataset_status_dataset`（多收 `income`），不動既有資料，可直接切回前一個映像。
+- 自動：表空時立刻抓，之後 30 天看一次有沒有新年度；data.gov.tw 讀不到時直接試下一個年度（404＝還沒出，只記確認時間）。`www.fia.gov.tw` 常 reset 連線（2026-10-14 實測約一半），下載間隔 2、4、8 秒最多重試三次。log：成功「各里所得已更新：112 年度，879 個里，略過 11 列」，失敗「各里所得同步失敗：…」。
+- 手動：`--income-file <CSV>`，年度取檔名（`112_165-E.csv`）或 `--income-year 112`；比使用中舊的年度要加 `--force`。打包檔（`fetch_geo_bundle.py`）也會帶最新年度的所得。
+- 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'income';`、`select year, count(*) from geo_village_income group by 1;`（112 年度應有 879 列）。
+
+**新成屋交屋（里的變化 B1 段，2026-10-14）**：同一套同步再多一種資料，**只同步與比對、不上 API 與畫面**（B2 才上）。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4.3。**尚未部署**（要在 A、C、D 段之後）。
+
+- 來源：內政部實價登錄高雄市買賣季檔 `https://plvr.land.moi.gov.tw/DownloadSeason?season=<115S3>&fileName=e_lvr_land_a.csv`（一季約 3.5 MB）。寫進 `geo_new_home_sales`，留最新季往回 8 季（約 2.6 萬列、5 MB）。不需要新的環境變數。
+- migration `e4f1a8c6b203` 只新增一張表、放寬 `ck_geo_dataset_status_dataset`（多收 `new_homes`），不動既有資料，可直接切回前一個映像。
+- 自動：表空時立刻抓——從今天所在的季往回試三季找最新季，再回補 8 季（約 30 MB）；之後 30 天看一次有沒有下一季。HTTP 200 的錯誤頁＝那一季還沒出。每季一個交易，中途失敗隔天接著補。同步結束時，比對時門牌月份和使用中不同的列整批重比（門牌換版、或匯入時門牌還沒進來）。log：「新成屋已更新：最新 115S3，這一輪寫入 N 季」、「新成屋同步失敗：…」。
+- 手動：`--new-homes-file 115S3_e_lvr_land_a.csv`（可重複，季別取檔名；檔名沒有季別時配 `--new-homes-season 115S3`，只能一個檔）；打包檔也帶 8 季。
+- **B2 之前**：在台灣網路下載門牌後跑命中率報告（雲端與正式站連不到 `data.kcg.gov.tw`）：`WEBSITE_ENVIRONMENT=test … uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> --new-homes 115S3_e_lvr_land_a.csv --season 115S3`，到里（exact＋nearby＋street）≥ 90% 才做 B2，結果寫回規格 §2.2。
+- 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
+
+**國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
+
+**托嬰名單與園所異動（2026-10-14）**：同一套同步再多一種資料，給「區域分析」的托嬰清單與「附近園所的變化」用。規格 `docs/specs/2026-10-14-provider-changes-design.md` §4。
 
 - 來源：`https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json`（kiang 每天用 GitHub Actions 整理，與幼兒園同一個 `kiang.github.io`，Railway 連得到；本機下載曾花 70 秒，正式站逾時預算 120 秒、整種資料上限 5 分鐘、檔案上限 8MB）。只留高雄市營業中的機構，寫進 `geo_babycare`。
-- 自動：和門牌、幼兒園同一個背景迴圈與開關（`WEBSITE_GEO_AUTO_SYNC`）。**幼兒園與托嬰每 7 天看一次來源**（其他兩種仍是 30 天）；`geo_dataset_status.baseline_on` 還是空的（還沒用異動比對的程式同步過）也算到期，所以部署後第一輪背景同步就會補上幼兒園設立日、建立托嬰名單與基準日。
+- 自動：和門牌、幼兒園同一個背景迴圈與開關（`WEBSITE_GEO_AUTO_SYNC`）。**幼兒園與托嬰每 7 天看一次來源**（門牌、各里人口與里的變化各種資料仍是 30 天）；`geo_dataset_status.baseline_on` 還是空的（還沒用異動比對的程式同步過）也算到期，所以部署後第一輪背景同步就會補上幼兒園設立日、建立托嬰名單與基準日。
 - 異動：同步不再刪光重寫，改成依 `source_id` 比對；名單裡不見的標停辦（`is_active` 假、列留著），新設、停辦、類型變動寫進 `geo_provider_events`。第一次同步只建立基準、不寫事件。停辦後 30 天內又出現的視為來源漏收，撤掉停辦事件。新名單營業中的數量少於上次的 80%（上次 ≥ 20 所才檢查）不換版，原因寫進 `last_error`；確定來源真的大幅縮減才用 `geo-sync --force`。
 - 手動退路（正式站連不到時）：本機下載 `curl -sSLo babycare.json https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json`，上傳到 api volume 後 `python -m app.cli geo-sync --babycare-file /data/babycare.json`（刪檔用自己的終端機，agent 不能刪 volume 檔）。
-- **放行殘缺檔檢查要用檔案模式**：單獨 `geo-sync --force` 會同時強制重抓門牌與各里人口（Railway 連不到高雄市資料平台時門牌會 failed、結束碼 1），而且 `--force` 同時也是略過殘缺檔檢查。只想放行托嬰或幼兒園（確定來源真的縮小）時，先把 JSON 下載到本機、上傳到 api volume，再跑 `geo-sync --babycare-file <檔> --force`（或 `--kindergartens-file <檔> --force`）——單一種資料、不連外。
+- **放行殘缺檔檢查要用檔案模式**：單獨 `geo-sync --force` 會同時強制重抓門牌、各里人口與里的變化各種資料（Railway 連不到高雄市資料平台時門牌會 failed、結束碼 1），而且 `--force` 同時也是略過殘缺檔檢查。只想放行托嬰或幼兒園（確定來源真的縮小）時，先把 JSON 下載到本機、上傳到 api volume，再跑 `geo-sync --babycare-file <檔> --force`（或 `--kindergartens-file <檔> --force`）——單一種資料、不連外。
 - 看狀態：`select dataset, label, synced_at, baseline_on, last_error from geo_dataset_status where dataset in ('kindergartens', 'babycare');`；看異動：`select provider, change, occurred_on, count(*) from geo_provider_events group by 1, 2, 3 order by 3 desc limit 20;`。後台區域分析狀態列會寫「托嬰名單 MM/DD 更新」或「托嬰名單尚未匯入」。
-- 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade b4d7e1a92c58`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像。不 downgrade 就切舊映像會被 `check_schema.py` 擋下（停站）；若有人繞過檢查硬啟動舊版，舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒（畫面讀取時 join 不到、直接忽略），之後再上線新版也補不回來，要重新建立基準與事件就先 downgrade 再 upgrade。
+- 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade e4f1a8c6b203`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像。不 downgrade 就切舊映像會被 `check_schema.py` 擋下（停站）；若有人繞過檢查硬啟動舊版，舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒（畫面讀取時 join 不到、直接忽略），之後再上線新版也補不回來，要重新建立基準與事件就先 downgrade 再 upgrade。
 
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
 

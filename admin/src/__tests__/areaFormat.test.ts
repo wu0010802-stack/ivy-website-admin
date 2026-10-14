@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
   changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, expectedText, formatDistance,
-  kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable, providerLabel, reasonLabel, shortName,
-  signalText, signalTone, taipeiMonthDay, trackingNote, visitGeoText,
+  incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
+  providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
+  trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
 import {
-  areaBabycare, areaKindergartens, areaOpportunity, areaStats, babycareItem, providerChange, villageBoundaries,
+  areaBabycare, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, providerChange, villageBoundaries,
 } from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
@@ -345,5 +346,81 @@ describe('托嬰與園所異動的文字（2026-10-14）', () => {
   it('頁首狀態列：托嬰名單更新日與尚未匯入', () => {
     expect(babycareStatusText('2026-10-13T18:30:00Z')).toBe('托嬰名單 10/14 更新')
     expect(babycareStatusText(null)).toBe('托嬰名單尚未匯入')
+  })
+})
+
+describe('里的變化的文字（2026-10-14 規格 7）', () => {
+  const MINUS = '\u2212'
+
+  it('有正負號的人數：正數加「+」、負數用減號、0 不加；null 寫「—」', () => {
+    expect([signedCount(1234), signedCount(-46), signedCount(0), signedCount(null)]).toEqual(['+1,234', `${MINUS}46`, '0', '—'])
+  })
+
+  it('這一年淨增：人數加比例（小數一位）；一年前是 0 只寫人數；算不出來寫「—」', () => {
+    expect(kidsNetText({ kids_net: 139, kids_base: 674 })).toBe('+139（+20.6%）')
+    expect(kidsNetText({ kids_net: -46, kids_base: 545 })).toBe(`${MINUS}46（${MINUS}8.4%）`)
+    expect(kidsNetText({ kids_net: 0, kids_base: 100 })).toBe('0（0.0%）')
+    expect(kidsNetText({ kids_net: 3, kids_base: 0 })).toBe('+3')
+    expect(kidsNetText({ kids_net: null, kids_base: null })).toBe('—')
+  })
+
+  it('所得中位數：千元換成萬（小數一位），界線在所得年度後調整加「*」，沒有寫「—」', () => {
+    expect(incomeText({ income_median: 458, income_boundary_changed: false })).toBe('45.8 萬')
+    expect(incomeText({ income_median: 952, income_boundary_changed: true })).toBe('95.2 萬*')
+    expect(incomeText({ income_median: 300, income_boundary_changed: false })).toBe('30.0 萬')
+    expect(incomeText({ income_median: null, income_boundary_changed: false })).toBe('—')
+  })
+
+  it('國小學區：部分、自由學區加註；學校在別區的加區名；沒有寫「—」', () => {
+    const school = (name: string, district: string, partial: boolean, free_zone: boolean) => ({ code: name, name, district, partial, free_zone })
+    expect(villageSchoolsText({ district: '三民區', schools: [school('東光國小', '三民區', false, false)] })).toBe('東光國小')
+    expect(villageSchoolsText({
+      district: '仁武區', schools: [school('八卦國小', '仁武區', false, true), school('福山國小', '左營區', true, true)],
+    })).toBe('八卦國小（自由學區）、左營區福山國小（部分，自由學區）')
+    expect(villageSchoolsText({ district: '三民區', schools: [school('A', '三民區', true, false), school('B', '三民區', false, false)] }, '；'))
+      .toBe('A（部分）；B')
+    expect(villageSchoolsText({ district: '三民區', schools: [] })).toBe('—')
+  })
+
+  it('學區里數與學區的淨增', () => {
+    expect([schoolVillagesText({ villages_full: 12, villages_partial: 3 }), schoolVillagesText({ villages_full: 3, villages_partial: 0 }),
+      schoolVillagesText({ villages_full: 0, villages_partial: 2 })]).toEqual(['12 里＋部分 3 里', '3 里', '部分 2 里'])
+    expect([schoolKidsNetText({ kids_net: 20, kids_partial: true }), schoolKidsNetText({ kids_net: -3, kids_partial: false }),
+      schoolKidsNetText({ kids_net: null, kids_partial: false })]).toEqual(['+20*', `${MINUS}3`, '—'])
+  })
+
+  it('地圖色階：孩子少與算不出來不上色', () => {
+    expect((['up2', 'up1', 'flat', 'down1', 'down2', 'few', 'unknown'] as const).map(kidsLevelTone))
+      .toEqual(['up2', 'up1', 'flat', 'down1', 'down2', 'none', 'none'])
+  })
+
+  it('合併組的名稱：三個以內全列，超過寫「等 N 個里」，後面註明合併', () => {
+    expect(trendsPlaceName({ district: '三民區', village: '本揚里', merged: false })).toBe('三民區本揚里')
+    expect(trendsPlaceName({ district: '仁武區', village: '八卦里、八德里', merged: true })).toBe('仁武區八卦里、八德里（里界調整，合併）')
+    expect(trendsPlaceName({ district: '左營區', village: '中北里、尾南里、屏山里、聖后里、埤東里', merged: true }))
+      .toBe('左營區中北里、尾南里、屏山里等 5 個里（里界調整，合併）')
+  })
+
+  it('總結：淨減寫「淨減」；出生不滿 12 個月寫有幾個月；沒有比較就不寫比較；淨遷入是正的寫「淨遷入」', () => {
+    const base = areaTrends()
+    const summary = trendsSummary(areaTrends({
+      baseline: { ...base.baseline!, kids_net: -86, kids_base: 12000, births_months: 9, births_change_pct: null, migration_net_12m: 1234 },
+      villages: base.villages.filter((row) => !row.merged),
+    }))!
+    expect(summary.lines).toEqual([
+      `本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨減 86 位（${MINUS}0.7%）。`,
+      '近 12 個月出生 180 位（有 9 個月的資料）。',
+      '近 12 個月全年齡淨遷入 1,234 人。',
+    ])
+    expect(summary.note).toBe('')
+    expect(trendsSummary(areaTrends({ baseline: null }))).toBeNull()
+  })
+
+  it('地圖停用的原因：本校沒座標優先，其次是淨增算不出來；都可以用回空字串', () => {
+    expect(trendMapNote(areaTrends())).toBe('')
+    expect(trendMapNote(areaTrends({ kids_unavailable: 'no_migration' })))
+      .toBe('遷入遷出資料不到 10 個月，看不出里界有沒有調整，這一年淨增先不算。')
+    const unlocated = areaTrends({ campus: { ...areaTrends().campus, lat: null, lng: null, locate_error: 'no_address' }, kids_unavailable: 'no_year_ago' })
+    expect(trendMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 })

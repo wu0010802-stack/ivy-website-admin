@@ -12,7 +12,15 @@
 - kcg-search.html、kcg-dataset.html：高雄市資料開放平台搜尋頁與資料集頁的連結片段。
 - ris-odrp014-11509-p1.json、-p2.json：內政部戶政司 ODRP014 115 年 9 月的兩頁（2026-10-13 下載），
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
-  totalPage 改成 2。"""
+  totalPage 改成 2。
+- ris-odrp010-11509.json、ris-odrp011-11509.json：ODRP010（出生）、ODRP011（遷入遷出）115 年 9 月同樣那 24 個里
+  （2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），欄位與原檔相同、一頁。
+- fia-112_165-E-sample.csv：財政資訊中心 112 年度各里所得（2026-10-14 下載）同樣那 24 個里，加三民區「其他」「合計」、
+  「高雄市其他」兩列、115-07 已廢止的鹽埕區慈愛里（對不到里界）；原檔格式（引號裡的 BOM、欄名「縣市別」、CRLF）。
+- plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：
+  7 筆真實列（預售屋交屋、完工剛好 12 個月前、完工太久、只有土地、商業用、沒有完工日、只有車位），另 6 筆是拿真實列
+  改成門牌樣本裡的門牌（編號 SAMPLE 開頭）：義華路 68 號（exact）、68 號之１三樓（之號接中文樓層）、80 號（nearby）、
+  憲政路 999 號（street）、「義華路６６號等１８５戶共用部分」（沒有市、區）、完工在登記期間之後的月份。"""
 
 from __future__ import annotations
 
@@ -31,6 +39,7 @@ from app.admissions.geo.doorplates import DoorplateParser, DoorplateRow, copy_do
 from app.admissions.geo.babycare import parse_babycare
 from app.admissions.geo.kindergartens import parse_preschools
 from app.admissions.geo import population as population_io
+from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoProviderEvent
 from app.admissions.geo.providers import apply_babycare, apply_kindergartens
 from app.admissions.geo.sync import LOCK_KEY
@@ -66,7 +75,8 @@ RIS_SAMPLE_MONTH = "11509"
 RIS_SAMPLE_PAGES = (FIXTURES / "ris-odrp014-11509-p1.json", FIXTURES / "ris-odrp014-11509-p2.json")
 # 樣本裡高雄市的里數（另有 3 筆外縣市要被篩掉）。
 RIS_SAMPLE_VILLAGES = 24
-_RIS_PATH = re.compile(re.escape(population_io.RIS_BASE) + r"/([0-9]{5})")
+_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP01[014])/([0-9]{5})")
+RIS_SERIES_FIXTURES = {"ODRP010": FIXTURES / "ris-odrp010-11509.json", "ODRP011": FIXTURES / "ris-odrp011-11509.json"}
 
 
 def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
@@ -80,8 +90,19 @@ def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
     return pages
 
 
-def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response | None:
-    """假的內政部 ODRP014：網址不是它就回 None（由呼叫端處理）。months 給定時只有這些月份有資料，
+def ris_series_page(code: str, month: str = RIS_SAMPLE_MONTH) -> dict:
+    """ODRP010／ODRP011 樣本（一頁）；month 不是 11509 時把每列的統計月份改成那個月。"""
+    data = json.loads(RIS_SERIES_FIXTURES[code].read_text(encoding="utf-8"))
+    for row in data["responseData"]:
+        row["statistic_yyymm"] = month
+    return data
+
+
+def ris_response(
+    url: str, *, months: set[str] | None = None, series_months: set[str] | None = None
+) -> httpx.Response | None:
+    """假的內政部 ODRP014（各里人口）、ODRP010（出生）、ODRP011（遷入遷出）：網址不是它們就回 None（由呼叫端
+    處理）。months 給定時 ODRP014 只有這些月份有資料、series_months 給定時 ODRP010／011 只有這些月份有資料，
     其他月份回「查無資料」；沒給就每個月份都有（月份改成網址上的）。"""
     parsed = httpx.URL(url)
     matched = _RIS_PATH.fullmatch(f"{parsed.scheme}://{parsed.host}{parsed.path}")
@@ -90,13 +111,96 @@ def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response 
     # 同步一律帶 COUNTY=高雄市；沒帶就是程式寫錯（會抓到全國資料），回 400 讓測試看得到。
     if parsed.params.get("COUNTY") != population_io.KAOHSIUNG_NAME:
         return httpx.Response(400)
-    month, page = matched.group(1), int(parsed.params.get("page", "0"))
+    code, month, page = matched.group(1), matched.group(2), int(parsed.params.get("page", "0"))
+    no_data = {"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"}
+    if code in RIS_SERIES_FIXTURES:
+        if (series_months is not None and month not in series_months) or page != 1:
+            return httpx.Response(200, json=no_data)
+        return httpx.Response(200, json=ris_series_page(code, month))
     if months is not None and month not in months:
-        return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})
+        return httpx.Response(200, json=no_data)
     pages = ris_sample_pages(month)
     if not 1 <= page <= len(pages):
         return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})
     return httpx.Response(200, json=pages[page - 1])
+
+
+INCOME_SAMPLE = FIXTURES / "fia-112_165-E-sample.csv"
+# 樣本裡對得到里界的里數（慈愛里對不到、「其他」「合計」不是里）。
+INCOME_SAMPLE_VILLAGES = 24
+
+
+def datagov_income_listing(years: list[int]) -> dict:
+    """data.gov.tw 資料集 17971 的回應（只留用得到的欄位）：每個年度一個財政資訊中心的高雄市檔。"""
+    return {
+        "success": True,
+        "result": {
+            "datasetId": "17971",
+            "distribution": [
+                {"resourceDescription": f"{year}年度綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市",
+                 "resourceDownloadUrl": f"https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-E.csv",
+                 "resourceFormat": "CSV"}
+                for year in years
+            ],
+        },
+    }
+
+
+NEW_HOMES_SAMPLE = FIXTURES / "plvr-115S3_e_lvr_land_a-sample.csv"
+NEW_HOMES_SAMPLE_SEASON = "115S3"
+# 樣本裡符合新成屋（V7）的筆數。
+NEW_HOMES_SAMPLE_ROWS = 7
+PLVR_ERROR_PAGE = '<table class="border"><tr><td class="text_bg">系統訊息</td></tr></table>'
+
+
+def plvr_sample(season: str = NEW_HOMES_SAMPLE_SEASON, *, serial_prefix: bool = True) -> bytes:
+    """新成屋樣本假裝成另一季：建築完成年月整批平移（和 115S3 差幾季就移幾個 3 個月），符合 V7 的列不變；
+    serial_prefix 時編號前面加季別（各季的編號不重複，同真實資料）。"""
+    import csv as csv_module
+    import io as io_module
+
+    shift = (int(season[:3]) * 4 + int(season[-1])) - (int(NEW_HOMES_SAMPLE_SEASON[:3]) * 4 + int(NEW_HOMES_SAMPLE_SEASON[-1]))
+    text = NEW_HOMES_SAMPLE.read_bytes().decode("utf-8").lstrip("\ufeff")
+    rows = list(csv_module.reader(io_module.StringIO(text)))
+    header = rows[0]
+    completed, serial = header.index("建築完成年月"), header.index("編號")
+    for row in rows[2:]:
+        value = row[completed]
+        if len(value) == 7 and value.isdigit() and shift:
+            index = int(value[:3]) * 12 + int(value[3:5]) - 1 + shift * 3
+            row[completed] = f"{index // 12:03d}{index % 12 + 1:02d}{value[5:]}"
+        if serial_prefix and season != NEW_HOMES_SAMPLE_SEASON:
+            row[serial] = f"{season}{row[serial]}"[:40]
+    buffer = io_module.StringIO()
+    csv_module.writer(buffer, lineterminator="\r\n").writerows(rows)
+    return ("\ufeff" + buffer.getvalue()).encode("utf-8")
+
+
+def plvr_response(url: str, *, seasons: set[str] | None = None) -> httpx.Response | None:
+    """假的實價登錄季檔下載：網址不是它就回 None。seasons 給定時只有這些季有檔，其他季和真的一樣回 HTTP 200 的
+    錯誤頁；沒給就每一季都有。"""
+    parsed = httpx.URL(url)
+    if f"{parsed.scheme}://{parsed.host}{parsed.path}" != "https://plvr.land.moi.gov.tw/DownloadSeason":
+        return None
+    season = parsed.params.get("season", "")
+    if parsed.params.get("fileName") != "e_lvr_land_a.csv" or (seasons is not None and season not in seasons):
+        return httpx.Response(200, text=PLVR_ERROR_PAGE, headers={"content-type": "text/html"})
+    return httpx.Response(200, content=plvr_sample(season), headers={"content-type": "application/octet-stream"})
+
+
+def income_response(url: str, *, years: tuple[int, ...] = (112,)) -> httpx.Response | None:
+    """假的 data.gov.tw 資料集 17971 與財政資訊中心：網址不是它們就回 None。資料集列出 years，那些年度的檔是
+    樣本，其他年度 404（同真的）。"""
+    from app.admissions.geo import income as income_io
+
+    if url == income_io.DATASET_API:
+        return httpx.Response(200, json=datagov_income_listing(list(years)))
+    year = income_io.year_of_url(url)
+    if year is None:
+        return None
+    if year in years:
+        return httpx.Response(200, content=INCOME_SAMPLE.read_bytes(), headers={"content-type": "text/csv"})
+    return httpx.Response(404, text="error page!", headers={"content-type": "text/html"})
 
 
 def sample_preschools() -> dict:

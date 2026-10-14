@@ -278,7 +278,8 @@ def test_cli_options_with_files():
     csv, data = SAMPLE_CSV, SAMPLE_JSON
     assert geo_sync_options(["--doorplates-file", str(csv), "--kindergartens-file", str(data)]) == {
         "force": False, "doorplates_file": csv, "doorplates_version": None, "kindergartens_file": data,
-        "babycare_file": None, "population_files": None,
+        "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
+        "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
     }
     assert geo_sync_options(["--force"])["force"] is True
     assert geo_sync_options(["--doorplates-file", str(csv), "--doorplates-version", "115-10"])["doorplates_version"] == "115-10"
@@ -438,7 +439,8 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
     assert received == [
         {
             "force": True, "doorplates_file": SAMPLE_CSV, "doorplates_version": "115-10", "kindergartens_file": None,
-            "babycare_file": None, "population_files": None,
+            "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
+            "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         }
     ]
 

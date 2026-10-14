@@ -76,7 +76,7 @@ async def population_status(db: AsyncSession) -> dict[str, Any]:
     }
 
 
-async def _visits_by_village(
+async def visits_by_village(
     db: AsyncSession, campus_key: str, school_year: int | None, semester: int | None
 ) -> tuple[dict[str, int], int]:
     """(里代碼 → 參觀人數, 沒對到里的參觀人數)。到里的訪視以 (區, 里) 轉代碼；里界檔裡沒有
@@ -129,7 +129,7 @@ async def query_opportunity(
         "no_population_villages": [],
         "villages": [],
     }
-    visits, unplaced = await _visits_by_village(db, campus_key, school_year, semester)
+    visits, unplaced = await visits_by_village(db, campus_key, school_year, semester)
     result["unplaced_visit"] = unplaced
     if status["version"] is None or campus["lat"] is None or campus["lng"] is None:
         # 沒有人口或本校沒座標：算不出附近有哪些里。到里的參觀全部算在半徑外沒有意義，照實放進 outside_visit

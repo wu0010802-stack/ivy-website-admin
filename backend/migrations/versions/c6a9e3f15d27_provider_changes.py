@@ -10,7 +10,7 @@ geo_dataset_status 加 baseline_on（異動紀錄的基準日），並把 ck_geo
 降級先刪 babycare 狀態列（否則還原舊約束會失敗），再還原約束、拿掉欄位、刪表；已記的異動一併消失。
 
 Revision ID: c6a9e3f15d27
-Revises: b4d7e1a92c58
+Revises: e4f1a8c6b203
 Create Date: 2026-10-14
 """
 from __future__ import annotations
@@ -19,12 +19,17 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "c6a9e3f15d27"
-down_revision = "b4d7e1a92c58"
+down_revision = "e4f1a8c6b203"
 branch_labels = None
 depends_on = None
 
-DATASET_CHECK = "dataset IN ('doorplates', 'kindergartens', 'campuses', 'population', 'babycare')"
-PREVIOUS_DATASET_CHECK = "dataset IN ('doorplates', 'kindergartens', 'campuses', 'population')"
+DATASET_CHECK = (
+    "dataset IN ('doorplates', 'kindergartens', 'campuses', 'population', 'births', 'migration', 'income', 'new_homes',"
+    " 'babycare')"
+)
+PREVIOUS_DATASET_CHECK = (
+    "dataset IN ('doorplates', 'kindergartens', 'campuses', 'population', 'births', 'migration', 'income', 'new_homes')"
+)
 BABYCARE_KIND_CHECK = "kind IN ('center', 'home')"
 PROVIDER_CHECK = "provider IN ('kindergarten', 'babycare')"
 CHANGE_CHECK = "change IN ('opened', 'closed', 'kind_changed')"

@@ -132,6 +132,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/trends": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Trends
+         * @description 里的變化（2026-10-14 里的變化規格 §5、§6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與
+         *     淨遷入。參數同 /area/opportunity（學年學期目前只回在 filters，之後的「依國小學區」才用到參觀人數）。
+         *     只讀，不寫稽核；只有里層級的公開資料與加總。
+         */
+        get: operations["get_admissions_area_trends_api_website_v1_admin_admissions_area_trends_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/board": {
         parameters: {
             query?: never;
@@ -4001,6 +4023,198 @@ export interface components {
             /** Kindergarten */
             kindergarten: string | null;
         };
+        /**
+         * AreaTrendsBaselineOut
+         * @description 本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。
+         *     children＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；
+         *     births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。
+         */
+        AreaTrendsBaselineOut: {
+            /** Births 12M */
+            births_12m: number | null;
+            /** Births Change Pct */
+            births_change_pct: number | null;
+            /** Births Compared Months */
+            births_compared_months: number;
+            /** Births Months */
+            births_months: number;
+            /** Children */
+            children: number | null;
+            /** Kids Base */
+            kids_base: number | null;
+            /** Kids Net */
+            kids_net: number | null;
+            /** Migration Months */
+            migration_months: number;
+            /** Migration Net 12M */
+            migration_net_12m: number | null;
+            /** Villages */
+            villages: number;
+        };
+        /**
+         * AreaTrendsIncomeSourceOut
+         * @description 各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。
+         */
+        AreaTrendsIncomeSourceOut: {
+            /** Note */
+            note: string;
+            /** Year */
+            year: number | null;
+        };
+        /**
+         * AreaTrendsMonthsOut
+         * @description 出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。
+         */
+        AreaTrendsMonthsOut: {
+            /** Latest */
+            latest: string | null;
+            /** Missing */
+            missing: string[];
+            /** Months */
+            months: string[];
+        };
+        /** AreaTrendsOut */
+        AreaTrendsOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            baseline: components["schemas"]["AreaTrendsBaselineOut"] | null;
+            campus: components["schemas"]["AreaCampusOut"];
+            filters: components["schemas"]["AreaFiltersOut"];
+            /** Kids Unavailable */
+            kids_unavailable: ("no_population" | "no_year_ago" | "no_migration") | null;
+            /** Radius Km */
+            radius_km: number;
+            /** Schools */
+            schools: components["schemas"]["AreaTrendsSchoolOut"][];
+            sources: components["schemas"]["AreaTrendsSourcesOut"];
+            /** Villages */
+            villages: components["schemas"]["AreaTrendsVillageOut"][];
+        };
+        /**
+         * AreaTrendsPopulationSourceOut
+         * @description 各里人口：使用中的月份 M；year_ago_month 是 M−12，年齡歷史裡 M 與 M−12 都在才有值。
+         */
+        AreaTrendsPopulationSourceOut: {
+            /** Month */
+            month: string | null;
+            /** Year Ago Month */
+            year_ago_month: string | null;
+        };
+        /**
+         * AreaTrendsSchoolDistrictSourceOut
+         * @description 國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。
+         */
+        AreaTrendsSchoolDistrictSourceOut: {
+            /** Note */
+            note: string;
+            /** School Year */
+            school_year: number;
+        };
+        /**
+         * AreaTrendsSchoolOut
+         * @description 依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區
+         *     的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕
+         *     ／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；
+         *     rate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。
+         */
+        AreaTrendsSchoolOut: {
+            /** Children */
+            children: number | null;
+            /** Code */
+            code: string;
+            /** District */
+            district: string;
+            /**
+             * Enrollment
+             * @enum {string}
+             */
+            enrollment: "district" | "open" | "spacious" | "capped";
+            /** Kids Net */
+            kids_net: number | null;
+            /** Kids Partial */
+            kids_partial: boolean;
+            /** Name */
+            name: string;
+            /** Rate */
+            rate: number | null;
+            /** Villages Full */
+            villages_full: number;
+            /** Villages Partial */
+            villages_partial: number;
+            /** Visit */
+            visit: number;
+        };
+        /** AreaTrendsSourcesOut */
+        AreaTrendsSourcesOut: {
+            births: components["schemas"]["AreaTrendsMonthsOut"];
+            income: components["schemas"]["AreaTrendsIncomeSourceOut"];
+            migration: components["schemas"]["AreaTrendsMonthsOut"];
+            /** Note */
+            note: string;
+            population: components["schemas"]["AreaTrendsPopulationSourceOut"];
+            school_districts: components["schemas"]["AreaTrendsSchoolDistrictSourceOut"];
+        };
+        /**
+         * AreaTrendsVillageOut
+         * @description 半徑內一個里，或同區里界調整過的一組（merged，key 是 group:<區>:<組內最小代碼>、village 是頓號連起的里名、
+         *     codes 含已廢止的舊代碼）。kids_level：up2 增加多／up1 增加／flat 差不多／down1 減少／down2 減少多／
+         *     few 一年前 1–4 歲不到 20 位／unknown 算不出來。migration_net_12m＝跨區遷入 − 遷出 ＋ 住址變更入 − 出。
+         */
+        AreaTrendsVillageOut: {
+            /** Births 12M */
+            births_12m: number | null;
+            /** Children */
+            children: number | null;
+            /** Codes */
+            codes: string[];
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Income Boundary Changed */
+            income_boundary_changed: boolean;
+            /** Income Median */
+            income_median: number | null;
+            /** Key */
+            key: string;
+            /** Kids Base */
+            kids_base: number | null;
+            /**
+             * Kids Level
+             * @enum {string}
+             */
+            kids_level: "up2" | "up1" | "flat" | "down1" | "down2" | "few" | "unknown";
+            /** Kids Net */
+            kids_net: number | null;
+            /** Merged */
+            merged: boolean;
+            /** Migration Net 12M */
+            migration_net_12m: number | null;
+            /** Schools */
+            schools: components["schemas"]["AreaTrendsVillageSchoolOut"][];
+            /** Village */
+            village: string;
+        };
+        /**
+         * AreaTrendsVillageSchoolOut
+         * @description 一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。
+         *     district 是學校所在的區（有同名學校，畫面寫「區＋校名」）。
+         */
+        AreaTrendsVillageSchoolOut: {
+            /** Code */
+            code: string;
+            /** District */
+            district: string;
+            /** Free Zone */
+            free_zone: boolean;
+            /** Name */
+            name: string;
+            /** Partial */
+            partial: boolean;
+        };
         /** AreaVillageRowOut */
         AreaVillageRowOut: {
             /** Deposit */
@@ -7823,6 +8037,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaOpportunityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_trends_api_website_v1_admin_admissions_area_trends_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 入學學年；不帶＝不篩 */
+                school_year?: number | null;
+                semester?: number | null;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaTrendsOut"];
                 };
             };
             /** @description Validation Error */

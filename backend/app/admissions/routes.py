@@ -22,6 +22,7 @@ from app.admissions import academic, booking_link, constants, download, follow_u
 from app.admissions import area as area_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import stats as stats_service
+from app.admissions import trends as trends_service
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
@@ -34,6 +35,7 @@ from app.admissions.schemas import (
     AreaChangesOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
+    AreaTrendsOut,
     ContactLogCreate,
     ContactLogOut,
     ContactLogResultOut,
@@ -899,6 +901,33 @@ async def get_admissions_area_opportunity(
         db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
     )
     return AreaOpportunityOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/trends",
+    response_model=AreaTrendsOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_trends(
+    campus_key: str,
+    school_year: int | None = Query(
+        default=None, ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX, description="入學學年；不帶＝不篩"
+    ),
+    semester: int | None = Query(default=None, ge=1, le=2),
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaTrendsOut:
+    """里的變化（2026-10-14 里的變化規格 §5、§6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與
+    淨遷入。參數同 /area/opportunity（學年學期目前只回在 filters，之後的「依國小學區」才用到參觀人數）。
+    只讀，不寫稽核；只有里層級的公開資料與加總。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await trends_service.query_trends(
+        db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
+    )
+    return AreaTrendsOut.model_validate(result)
 
 
 @router.get(

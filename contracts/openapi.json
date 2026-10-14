@@ -3494,6 +3494,596 @@
         "title": "AreaTrackingSinceOut",
         "type": "object"
       },
+      "AreaTrendsBaselineOut": {
+        "description": "本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。\nchildren＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；\nbirths_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。",
+        "properties": {
+          "births_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Births 12M"
+          },
+          "births_change_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Births Change Pct"
+          },
+          "births_compared_months": {
+            "title": "Births Compared Months",
+            "type": "integer"
+          },
+          "births_months": {
+            "title": "Births Months",
+            "type": "integer"
+          },
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "kids_base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Base"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "migration_months": {
+            "title": "Migration Months",
+            "type": "integer"
+          },
+          "migration_net_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migration Net 12M"
+          },
+          "villages": {
+            "title": "Villages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "villages",
+          "children",
+          "kids_net",
+          "kids_base",
+          "births_12m",
+          "births_months",
+          "births_compared_months",
+          "births_change_pct",
+          "migration_net_12m",
+          "migration_months"
+        ],
+        "title": "AreaTrendsBaselineOut",
+        "type": "object"
+      },
+      "AreaTrendsIncomeSourceOut": {
+        "description": "各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "year",
+          "note"
+        ],
+        "title": "AreaTrendsIncomeSourceOut",
+        "type": "object"
+      },
+      "AreaTrendsMonthsOut": {
+        "description": "出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。",
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "latest",
+          "months",
+          "missing"
+        ],
+        "title": "AreaTrendsMonthsOut",
+        "type": "object"
+      },
+      "AreaTrendsOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaTrendsBaselineOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AreaFiltersOut"
+          },
+          "kids_unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_population",
+                  "no_year_ago",
+                  "no_migration"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Unavailable"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "schools": {
+            "items": {
+              "$ref": "#/components/schemas/AreaTrendsSchoolOut"
+            },
+            "title": "Schools",
+            "type": "array"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/AreaTrendsSourcesOut"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaTrendsVillageOut"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "filters",
+          "radius_km",
+          "campus",
+          "sources",
+          "baseline",
+          "kids_unavailable",
+          "villages",
+          "schools"
+        ],
+        "title": "AreaTrendsOut",
+        "type": "object"
+      },
+      "AreaTrendsPopulationSourceOut": {
+        "description": "各里人口：使用中的月份 M；year_ago_month 是 M−12，年齡歷史裡 M 與 M−12 都在才有值。",
+        "properties": {
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "year_ago_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Ago Month"
+          }
+        },
+        "required": [
+          "month",
+          "year_ago_month"
+        ],
+        "title": "AreaTrendsPopulationSourceOut",
+        "type": "object"
+      },
+      "AreaTrendsSchoolDistrictSourceOut": {
+        "description": "國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "note"
+        ],
+        "title": "AreaTrendsSchoolDistrictSourceOut",
+        "type": "object"
+      },
+      "AreaTrendsSchoolOut": {
+        "description": "依國小學區（D 段）：學區碰到本校半徑內任一個里的國小，每所合計整個學區（含半徑外的里）。部分里與自由學區\n的里同時算進每一所，各列不能相加。enrollment：district 一般學區／open 大學區（實驗教育）／spacious 空間充裕\n／capped 總量管制。kids_net 只加算得出的里（kids_partial＝有里界調整過或缺一年前年齡的里沒算進去）；\nrate＝參觀人數 ÷ 2–5 歲（%，小數一位，沒有孩子數是 null）。",
+        "properties": {
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "enrollment": {
+            "enum": [
+              "district",
+              "open",
+              "spacious",
+              "capped"
+            ],
+            "title": "Enrollment",
+            "type": "string"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "kids_partial": {
+            "title": "Kids Partial",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "villages_full": {
+            "title": "Villages Full",
+            "type": "integer"
+          },
+          "villages_partial": {
+            "title": "Villages Partial",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "district",
+          "enrollment",
+          "villages_full",
+          "villages_partial",
+          "children",
+          "kids_net",
+          "kids_partial",
+          "visit",
+          "rate"
+        ],
+        "title": "AreaTrendsSchoolOut",
+        "type": "object"
+      },
+      "AreaTrendsSourcesOut": {
+        "properties": {
+          "births": {
+            "$ref": "#/components/schemas/AreaTrendsMonthsOut"
+          },
+          "income": {
+            "$ref": "#/components/schemas/AreaTrendsIncomeSourceOut"
+          },
+          "migration": {
+            "$ref": "#/components/schemas/AreaTrendsMonthsOut"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "population": {
+            "$ref": "#/components/schemas/AreaTrendsPopulationSourceOut"
+          },
+          "school_districts": {
+            "$ref": "#/components/schemas/AreaTrendsSchoolDistrictSourceOut"
+          }
+        },
+        "required": [
+          "population",
+          "births",
+          "migration",
+          "note",
+          "income",
+          "school_districts"
+        ],
+        "title": "AreaTrendsSourcesOut",
+        "type": "object"
+      },
+      "AreaTrendsVillageOut": {
+        "description": "半徑內一個里，或同區里界調整過的一組（merged，key 是 group:<區>:<組內最小代碼>、village 是頓號連起的里名、\ncodes 含已廢止的舊代碼）。kids_level：up2 增加多／up1 增加／flat 差不多／down1 減少／down2 減少多／\nfew 一年前 1–4 歲不到 20 位／unknown 算不出來。migration_net_12m＝跨區遷入 − 遷出 ＋ 住址變更入 − 出。",
+        "properties": {
+          "births_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Births 12M"
+          },
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "income_boundary_changed": {
+            "title": "Income Boundary Changed",
+            "type": "boolean"
+          },
+          "income_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Income Median"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kids_base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Base"
+          },
+          "kids_level": {
+            "enum": [
+              "up2",
+              "up1",
+              "flat",
+              "down1",
+              "down2",
+              "few",
+              "unknown"
+            ],
+            "title": "Kids Level",
+            "type": "string"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "merged": {
+            "title": "Merged",
+            "type": "boolean"
+          },
+          "migration_net_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Migration Net 12M"
+          },
+          "schools": {
+            "items": {
+              "$ref": "#/components/schemas/AreaTrendsVillageSchoolOut"
+            },
+            "title": "Schools",
+            "type": "array"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "district",
+          "village",
+          "codes",
+          "merged",
+          "distance_m",
+          "children",
+          "kids_net",
+          "kids_base",
+          "kids_level",
+          "births_12m",
+          "migration_net_12m",
+          "income_median",
+          "income_boundary_changed",
+          "schools"
+        ],
+        "title": "AreaTrendsVillageOut",
+        "type": "object"
+      },
+      "AreaTrendsVillageSchoolOut": {
+        "description": "一列對到的國小：partial＝只有部分鄰屬於這所（合併組裡有里不屬這所也算），free_zone＝和別校自由學區。\ndistrict 是學校所在的區（有同名學校，畫面寫「區＋校名」）。",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "free_zone": {
+            "title": "Free Zone",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "district",
+          "partial",
+          "free_zone"
+        ],
+        "title": "AreaTrendsVillageSchoolOut",
+        "type": "object"
+      },
       "AreaVillageRowOut": {
         "properties": {
           "deposit": {
@@ -14759,6 +15349,131 @@
           }
         },
         "summary": "Get Admissions Area Opportunity",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/trends": {
+      "get": {
+        "description": "里的變化（2026-10-14 里的變化規格 §5、§6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與\n淨遷入。參數同 /area/opportunity（學年學期目前只回在 filters，之後的「依國小學區」才用到參觀人數）。\n只讀，不寫稽核；只有里層級的公開資料與加總。",
+        "operationId": "get_admissions_area_trends_api_website_v1_admin_admissions_area_trends_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "入學學年；不帶＝不篩",
+            "in": "query",
+            "name": "school_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 100,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "入學學年；不帶＝不篩",
+              "title": "School Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "semester",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Semester"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaTrendsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Trends",
         "tags": [
           "admissions"
         ]

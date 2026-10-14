@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { areaBabycare, areaKindergartens, areaOpportunity, areaStats, babycareItem, button, villageBoundaries } from './admissionsTestKit'
+import {
+  areaBabycare, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, button, villageBoundaries,
+} from './admissionsTestKit'
 
 // any 只出現在 Leaflet 的 mock 物件上。
 const leaflet = vi.hoisted(() => {
@@ -702,9 +704,9 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await flushPromises()
   }
 
-  it('三種著色，預設參觀人數；招生機會用不了時後兩種停用並寫原因', async () => {
+  it('四種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
     const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
-    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會'])
+    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減'])
     expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
     expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
     expect(ready.find('.area-map__mode-note').exists()).toBe(false)
@@ -877,5 +879,78 @@ describe('托嬰中心圖層（2026-10-14）', () => {
     await wrapper.setProps({ babycare: items().slice(0, 2) })
     expect(leaflet.created.layerGroup![1].clearLayers).toHaveBeenCalled()
     expect(babycareMarkers()).toHaveLength(2)
+  })
+})
+
+describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
+  const coded = (town: string, village: string, code: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code } })
+  const DINGJIN = coded('三民區', '鼎金里', '64000050001')
+  const BENYANG = coded('三民區', '本揚里', '64000050015')
+  const BAOYE = coded('三民區', '寶業里', '64000050025')
+  const LONGZI = coded('鼓山區', '龍子里', '64000020015')
+  const OUTSIDE = coded('小港區', '青島里', '64000110001')
+  const latest = (): any => leaflet.created.geoJSON!.at(-1)
+  const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
+  const popupLines = (item: ReturnType<typeof coded>) => {
+    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    latest().options.onEachFeature(item, village)
+    return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
+  }
+  async function choose(wrapper: VueWrapper, mode: string) {
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await flushPromises()
+  }
+
+  it('增加多、減少依分級上色；里界調整合併的組、半徑外不上色；圖例；地圖名稱跟著換', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'trend')
+    expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
+      'area-village area-village--up2', 'area-village area-village--down1',
+      // 寶業里、龍子里是同一個合併組：數字是整組的，不替組內各里上色。
+      'area-village area-village--l0', 'area-village area-village--l0', 'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
+      .toEqual(['增加多', '增加', '差不多', '減少', '減少多', '孩子少、里界調整、在半徑外或沒有資料'])
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依孩子增減著色）；同樣的資料在下方的里的變化表')
+  })
+
+  it('彈出框：孩子與一年前、淨增與分級、出生與淨遷入；合併組先寫合併；半徑外寫不在範圍內', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'trend')
+    expect(popupLines(BENYANG)).toEqual([
+      '三民區本揚里', '2–5 歲 317 位（一年前 1–4 歲 281 位）', '這一年淨增 +36（+12.8%）・增加多', '近 12 個月出生 36 位・淨遷入 \u2212122 人', '查看明細',
+    ])
+    expect(popupLines(LONGZI)).toEqual([
+      '鼓山區龍子里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
+      '2–5 歲 583 位（一年前 1–4 歲 600 位）', '這一年淨增 +12（+2.0%）・差不多', '近 12 個月出生 90 位・淨遷入 +30 人', '查看明細',
+    ])
+    expect(popupLines(OUTSIDE)).toEqual(['小港區青島里', '不在本校 3 公里內'])
+  })
+
+  it('孩子增減用不了時停用並寫原因；正在看的人退回參觀人數', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'trend')
+    await wrapper.setProps({ trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['孩子增減'])
+    expect(wrapper.get('.area-map__mode-note').text()).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
+  })
+
+  it('讀取中（換半徑）：留在孩子增減、先不上色，彈出框寫讀取中', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'trend')
+    await wrapper.setProps({ trends: null, trendNote: '' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[3]!.classes()).toContain('is-active')
+    expect(classOf(BENYANG)).toBe('area-village area-village--l0')
+    expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
+  })
+
+  it('減少的顏色走 token（style.css 的 --area-down-*），元件裡不寫色碼', () => {
+    const source = readFileSync(join(__dirname, '..', 'components', 'admissions', 'area', 'AreaMap.vue'), 'utf8')
+    expect(source).toContain('fill: var(--area-down-2)')
+    const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
+    expect(style).toMatch(/--area-down-1: color-mix\(/)
   })
 })

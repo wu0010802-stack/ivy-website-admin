@@ -20,7 +20,7 @@ from sqlalchemy import distinct, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.geo.address import parse_address
+from app.admissions.geo.address import ParsedAddress, parse_address
 from app.admissions.geo.kaohsiung import CODE_OF_DISTRICT
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, RecruitmentVisitGeo
 from app.admissions.geo.projection import haversine_m
@@ -84,7 +84,14 @@ async def locate(db: AsyncSession, address: str | None, *, version: str | None) 
         return _unlocated("outside_kaohsiung")
     if parsed.district is None:
         return _unlocated("no_doorplate")
+    return await locate_parsed(db, parsed, version=version)
+
+
+async def locate_parsed(db: AsyncSession, parsed: ParsedAddress, *, version: str | None) -> GeoMatch:
+    """已解析、有高雄市行政區的地址 → 比對結果（locate 的後半）。新成屋只存解析後的門牌鍵（不存地址原文），
+    換門牌版本時用這個重比（2026-10-14 里的變化規格 §4.3）。"""
     district = parsed.district
+    assert district is not None
     if version is None:
         return GeoMatch(district, None, "pending", None, None, None)
     if parsed.street:

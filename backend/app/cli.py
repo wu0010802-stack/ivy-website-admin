@@ -569,64 +569,116 @@ async def transcode_media_videos(*, apply: bool) -> None:
 
 
 def geo_sync_options(args: list[str]) -> dict:
-    """`geo-sync` 的參數（--doorplates-file／--kindergartens-file／--babycare-file／--population-file）。
-    指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
+    """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
-    --population-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的統計月份。
-    --force 一個旗標同時代表「立刻重抓」與「略過殘缺檔檢查」：幼兒園與托嬰的檔案一樣會檢查
+    --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
+    統計月份。--income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
+    比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
+    （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--bundle 是 scripts/fetch_geo_bundle.py
+    打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的檔各自用 --…-file 指定。
+    --force 一個旗標同時代表「立刻重抓」與「略過殘缺檔檢查」：幼兒園與托嬰（--babycare-file）的檔案一樣會檢查
     （上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error 並印出，exit 1），
     確定要換就加 --force。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force（立刻重抓，也略過幼兒園與托嬰的殘缺檔檢查）] "
         "[--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
-        "[--babycare-file <JSON>] [--population-file <JSON> ...]"
+        "[--babycare-file <JSON>] [--population-file <JSON> ...] "
+        "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
+        "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
-        "babycare_file": None, "population_files": None,
+        "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
+        "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
-              "--kindergartens-file": "kindergartens_file", "--babycare-file": "babycare_file"}
-    population_files: list[Path] = []
+              "--kindergartens-file": "kindergartens_file", "--babycare-file": "babycare_file",
+              "--income-file": "income_file", "--income-year": "income_year",
+              "--new-homes-season": "new_homes_season", "--bundle": "bundle"}
+    texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
+    repeated = {"--population-file": "population_files", "--births-file": "births_files",
+                "--migration-file": "migration_files", "--new-homes-file": "new_homes_files"}
+    lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
     index = 0
     while index < len(args):
         arg = args[index]
         if arg == "--force":
             options["force"] = True
             index += 1
-        elif arg == "--population-file" and index + 1 < len(args) and not args[index + 1].startswith("--"):
-            population_files.append(Path(args[index + 1]))
+        elif arg in repeated and index + 1 < len(args) and not args[index + 1].startswith("--"):
+            lists[repeated[arg]].append(Path(args[index + 1]))
             index += 2
         elif arg in valued and index + 1 < len(args) and not args[index + 1].startswith("--"):
             value = args[index + 1]
-            options[valued[arg]] = value if arg == "--doorplates-version" else Path(value)
+            options[valued[arg]] = value if arg in texts else Path(value)
             index += 2
         else:
             raise SystemExit(usage)
-    for path in (options["doorplates_file"], options["kindergartens_file"], options["babycare_file"], *population_files):
+    singles = (
+        options["doorplates_file"], options["kindergartens_file"], options["babycare_file"], options["income_file"],
+        options["bundle"],
+    )
+    for path in (*singles, *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
             raise SystemExit(f"找不到檔案：{path}")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
         raise SystemExit(usage)
-    if population_files:
-        options["population_files"] = population_files
+    if options["income_year"] is not None:
+        if options["income_file"] is None:
+            raise SystemExit(usage)
+        from app.admissions.geo.income import IncomeFormatError, parse_year
+
+        try:
+            options["income_year"] = parse_year(options["income_year"])
+        except IncomeFormatError as exc:
+            raise SystemExit(str(exc)) from exc
+    if options["new_homes_season"] is not None:
+        if len(lists["new_homes_files"]) != 1:
+            raise SystemExit("--new-homes-season 只能配一個 --new-homes-file")
+        from app.admissions.geo.new_homes import NewHomesFormatError, parse_season
+
+        try:
+            options["new_homes_season"] = parse_season(options["new_homes_season"])
+        except NewHomesFormatError as exc:
+            raise SystemExit(str(exc)) from exc
+    for key, files in lists.items():
+        if files:
+            options[key] = files
     return options
 
 
 async def geo_sync_command(**options) -> None:
     """招生區域分析的公開地理資料同步（app/admissions/geo/sync.py）。不看
     WEBSITE_GEO_AUTO_SYNC：那個開關只管 API 內的背景迴圈。另一個同步（背景迴圈或別的
-    CLI）正在進行時什麼都不做，exit 1。"""
+    CLI）正在進行時什麼都不做，exit 1。--bundle 先驗證整包（sha256 等），不對就什麼都不匯入、exit 1。"""
+    import tempfile
+
+    from app.admissions.geo.bundle import BundleError, open_bundle
     from app.admissions.geo.models import GeoDatasetStatus
     from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
 
+    bundle = options.pop("bundle", None)
     settings = get_settings()
     session_factory = await _session_factory()
-    try:
-        result = await run_geo_sync(session_factory, settings, **options)
-    except GeoSyncBusy:
-        print("另一個公開資料同步正在進行，稍後再試", file=sys.stderr)
-        raise SystemExit(1)
+    with tempfile.TemporaryDirectory(prefix="geo-bundle-") as workdir:
+        if bundle is not None:
+            try:
+                unpacked = open_bundle(bundle, Path(workdir))
+            except BundleError as exc:
+                print(f"打包檔不匯入：{exc}", file=sys.stderr)
+                raise SystemExit(1)
+            for kind, files in unpacked.items():
+                if kind == "income":
+                    # 打包檔裡的所得只有一個年度（bundle.py 驗證過），年度取檔名「112_165-E.csv」。
+                    options["income_file"] = files[0]
+                    continue
+                key = f"{kind}_files"
+                options[key] = [*(options.get(key) or []), *files]
+        try:
+            result = await run_geo_sync(session_factory, settings, **options)
+        except GeoSyncBusy:
+            print("另一個公開資料同步正在進行，稍後再試", file=sys.stderr)
+            raise SystemExit(1)
     print(
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；"
@@ -634,13 +686,24 @@ async def geo_sync_command(**options) -> None:
         f"各里人口：{result.population}（使用中 {result.population_version or '尚未匯入'}）；"
         f"重算訪視 {result.rematched} 筆"
     )
+    print(
+        f"各里出生：{result.births}（最新 {result.births_version or '尚未匯入'}，這次寫入 {result.births_months} 個月）；"
+        f"各里遷入遷出：{result.migration}（最新 {result.migration_version or '尚未匯入'}，這次寫入 {result.migration_months} 個月）；"
+        f"一年前的年齡：{result.age_history}；"
+        f"各里所得：{result.income}（使用中 {result.income_version + ' 年度' if result.income_version else '尚未匯入'}）"
+    )
+    print(
+        f"新成屋：{result.new_homes}（最新 {result.new_homes_version or '尚未匯入'}，這次寫入 {result.new_homes_seasons} 季，"
+        f"重比 {result.new_homes_rematched} 筆）"
+    )
     if (
         result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.babycare_rows_skipped
-        or result.population_rows_skipped
+        or result.population_rows_skipped or result.income_rows_skipped
     ):
         print(
             f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆、"
-            f"托嬰 {result.babycare_rows_skipped} 筆、各里人口 {result.population_rows_skipped} 列"
+            f"托嬰 {result.babycare_rows_skipped} 筆、各里人口 {result.population_rows_skipped} 列、"
+            f"各里所得 {result.income_rows_skipped} 列（對不到里界）"
         )
     failed = [
         (dataset, label)
@@ -649,6 +712,11 @@ async def geo_sync_command(**options) -> None:
             ("kindergartens", "幼兒園", result.kindergartens),
             ("babycare", "托嬰", result.babycare),
             ("population", "各里人口", result.population),
+            ("births", "各里出生", result.births),
+            ("migration", "各里遷入遷出", result.migration),
+            ("population", "一年前的年齡", result.age_history),
+            ("income", "各里所得", result.income),
+            ("new_homes", "新成屋", result.new_homes),
         )
         if outcome == "failed"
     ]
@@ -672,7 +740,8 @@ def main() -> None:
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
-            "[--babycare-file <JSON>] [--population-file <JSON> ...]>",
+            "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
+            "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
