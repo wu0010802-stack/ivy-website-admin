@@ -1,7 +1,7 @@
 # 招生區域：里的變化與背景資料（出生、搬遷、新成屋、所得、國小學區）設計
 
 日期：2026-10-14
-狀態：規格草稿；2026-10-14 業主確認 §13 第 1–4 項（2–5 歲、所得要放、學區用 115 學年版上線、新成屋先不上畫面），其餘仍是預設值；**尚未實作**
+狀態：2026-10-14 業主確認 §13 第 1–4 項（2–5 歲、所得要放、學區用 115 學年版上線、新成屋先不上畫面），其餘仍是預設值。**A 段 10-14 已實作於本分支、未部署**（實作與規格的差異見 §14）；B–D 段尚未實作
 對象：業主、接手實作的 Claude
 基準：`origin/main` `3a047c2`（migration head `b4d7e1a92c58`）
 分支：實作時開 `feature/admissions-village-trends-20261014`；A–D 四段可各自一個分支、各自合併（見 §12）
@@ -262,7 +262,7 @@
 3. **這一年淨增**（V1）：`Σ age(M, 2..5) − Σ age(M−12, 1..4)`，`kids_base`＝一年前 1–4 歲。要有 M−12 的年齡，以及 (M−12, M] 至少 10 個月的遷入遷出（用來判斷里界調整）；缺任何一個，這一欄整欄 null，回原因。
 4. **近 12 個月出生**：出生最新月份往回 12 個月內有資料的月份相加，並回「用了幾個月」。**前一年同月份**只算半徑合計（V3、V4）：兩段都有資料的月份才比，比較的月份不到 6 個就不比。
 5. **近 12 個月淨遷入**（V2）：遷入遷出最新月份往回 12 個月內有資料的月份相加，回「用了幾個月」。
-6. **里界調整合併**（V5）：在各欄自己的期間內，符合 V5 的里依區分組，組的數字＝組內所有代碼（含已廢止的舊代碼）相加。組裡只要有一個里在半徑內，整組列成一列：名稱「仁武區八卦里、八德里（115 年 7 月里界調整，合併計算）」，距離取組內最近的里，`children` 也是整組相加。組內的里在地圖上不上色，彈出框寫合併的數字。
+6. **里界調整合併**（V5）：三個期間（孩子、出生、遷入遷出）任一個裡符合 V5 的里依區分組（取聯集，所有欄位用同一個分組；實作時從「各欄自己的期間」簡化，見 §14），組的數字＝組內所有代碼（含已廢止的舊代碼）相加。組裡只要有一個里在半徑內，整組列成一列：名稱「仁武區八卦里、八德里（115 年 7 月里界調整，合併計算）」，距離取組內最近的里，`children` 也是整組相加。組內的里在地圖上不上色，彈出框寫合併的數字。
 7. **新屋交屋**：每里近 4 季（最新季往回 4 季，季檔不齊時回「用了幾季」）、到里的列數，另回最近一季的數字。只到區、未定位、待比對的不進里表，半徑合計之外另回「範圍內的區有 N 筆沒對到里」（以 `district` 判斷「範圍內的區」：半徑內有里的區）。合併組（V5）照樣相加。
 8. **所得**（V9）：`geo_village_income` 的中位數（千元）與年度。里在所得年度之後調過界線（V5 的門檻，看遷入遷出表裡所有存著的月份）時，照樣列數字，但標 `income_boundary_changed`，畫面加註「界線調整前的範圍」。新設、沒有所得的里是 null。限制：遷入遷出只存 25 個月，比這更早、但在所得年度之後的調整看不到（目前 112 年度所得 → 113-01～113-08 的調整看不到；實測這段只有小調整，最大三民區本安里 624 人、11.9%）。
 9. **學區**（V10、V11）：
@@ -282,8 +282,8 @@
 |---|---|
 | `as_of`、`filters`、`radius_km`、`campus` | 同 `/area/opportunity` |
 | `sources` | `population`：`month`、`year_ago_month`（歷史表有一年前才有值）；`births`：`latest`、`months`（期間內有資料的月份）、`missing`（期間內來源查無資料的月份）；`migration`：同出生；`new_homes`：`latest`（「115S3」）、`seasons`（近 4 季中有資料的季）、`unplaced`（範圍內的區沒對到里的筆數）；`income`：`year`；`school_districts`：`school_year`；`notes[]`：各來源的引用文字 |
-| `baseline` | §5.10；沒有人口或本校沒座標時 null |
-| `kids_unavailable` | 淨增算不出來的原因：`no_year_ago`（一年前的人口還沒匯入）／`no_migration`（遷入遷出不足 10 個月）／null |
+| `baseline` | §5.10；本校沒座標時 null（人口沒匯入時照樣有，`children` 是 null） |
+| `kids_unavailable` | 淨增算不出來的原因：`no_population`（人口還沒匯入）／`no_year_ago`（一年前的人口還沒匯入）／`no_migration`（遷入遷出不足 10 個月）／null |
 | `villages[]` | `key`（里代碼，合併組是 `group:<區>:<組內最小代碼>`）、`district`、`village`（合併組是頓號連起的里名）、`codes[]`、`merged`、`distance_m`、`children`、`kids_net`、`kids_base`、`kids_level`（`up2`／`up1`／`flat`／`down1`／`down2`／`few`／`unknown`）、`births_12m`、`migration_net_12m`、`new_homes`（近 4 季）、`new_homes_latest`（最近一季）、`income_median`、`income_boundary_changed`、`schools[]`（`code`、`name`、`partial`、`free_zone`） |
 | `schools[]` | 「依國小學區」：`code`、`name`、`district`（學校所在區）、`enrollment`、`villages_full`、`villages_partial`、`children`、`kids_net`、`kids_partial`、`visit`、`rate`（分母 0 是 null） |
 
@@ -386,3 +386,20 @@ README 頂部日期段落；DESIGN.md 招生章節新增「招生入學：里的
 5. V6 的分級門檻（±3%／±10%）。
 6. V7 新屋交屋的期間（完工在登記期間迄日往前 12 個月）。24 個月時 115S2 是 3,265 筆，只多 13%。
 7. D 段一覽表的鄰範圍只存原文、不拿來算；要不要另案讓訪視比到「鄰」（`geo_doorplates` 加鄰欄、`recruitment_visit_geo` 加鄰），把拆鄰的里分清楚？
+
+## 14. A 段實作紀錄（2026-10-14）
+
+和上面的規格不同、以實作為準的地方：
+
+- **回補失敗後的重試**（§4.1）：出生、遷入遷出的「到期」只看 `checked_at`（整輪做完才記）。回補到一半失敗時 `synced_at` 是新的、`checked_at` 沒動，下一輪（背景迴圈一天一次）就接著補，不等 30 天。
+- **合併分組**（§5.6）：三個期間的 V5 判斷取聯集，所有欄位用同一個分組，免得同一個里在不同欄位分屬不同的列。
+- **API**（§6）：`sources.note` 是一句（三個資料集同一個來源），不是陣列；`baseline` 欄位是 `villages`、`children`、`kids_net`、`kids_base`、`births_12m`、`births_months`、`births_compared_months`、`births_change_pct`、`migration_net_12m`、`migration_months`；`kids_unavailable` 多 `no_population`。新成屋、所得、學區的欄位等 B–D 段再加（API 先不放空欄位）。一個里沒有任何資料列時，數字是 null 不是 0。
+- **畫面**（§7.2）：表格多一欄「孩子增減」（分級的文字，對應地圖顏色）；2–5 歲有里沒有人口時改成文字欄（缺值寫「—」，長條會把 null 畫成 0）。CSV 多一欄「一年前 1–4 歲」（`StatsDimensionTable` 新增 `csvColumns`）。合併組名稱超過三個里寫「等 N 個里」。
+- **色彩**（§7.1）：`--area-down-1` 用 `color-mix(in oklab, …)`；`in oklch` 會讓淡玫瑰變淡紫（底色帶藍，色相內插）。
+- **人口檔**（§4.2）：比使用中舊的月份只寫進年齡歷史，`sync_population` 回 `history`；`--bundle` 同時帶使用中與一年前兩個月份時，較新的換上使用中、較舊的只進歷史。
+
+驗證：
+
+- 真資料：`scripts/fetch_geo_bundle.py` 從 ris.gov.tw 抓 3 分 10 秒、48 個檔、2.4 MB；`geo-sync --bundle` 匯入（出生 21 個月、遷入遷出 25 個月、年齡 115-09 與 114-09）。義華 3 公里：98 個里、2–5 歲 9,788 位、淨減 41 位，本揚里 +36（和 §2.1 試算相同），出生比前一年同 9 個月少 20.7%；以仁武八德里為中心：八卦里、八德里合併成一列，左營 17 個里合併成一列；查詢 199 ms（含里界重心第一次計算）、38 ms。
+- 後端：`test_geo_village_series.py`、`test_admissions_trends.py`、`test_geo_bundle.py` 與既有 geo 測試；後台 vitest 全套、typecheck；`contract:generate`。
+- 畫面：本機 API（真資料＋門牌樣本）＋後台 dev server，Playwright 1440／390 截圖：表格、總結、地圖「孩子增減」與圖例，兩種寬度頁面都沒有水平溢出。

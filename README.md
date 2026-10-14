@@ -1,3 +1,15 @@
+## 2026-10-14 招生區域：里的變化 A 段（出生、遷入遷出、孩子增減；`feature/admissions-village-trends-20261014`，PR #40）
+
+使用者問「還有什麼公開資料可以串來提升招生判讀」，選了出生、遷入遷出、新成屋、所得、國小學區五項，業主確認口徑（孩子 2–5 歲、所得要放、學區用 115 學年版、新成屋量完命中率前不上畫面）後開工。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md`，這次做 A 段；新成屋、所得、學區（B–D 段）另做。**未部署**。
+
+- **資料**：內政部戶政司 ODRP010（各里出生）、ODRP011（遷入遷出）併進公開資料同步，各留 25 個月；人口同步順便存年齡歷史並補抓一年前的月份。migration `c5e9a1f3b7d2` 只新增三張表、放寬一個約束。ris.gov.tw 請求之間隔 3 秒（實測連抓會被擋）。出生 API 實際缺 113-10、113-11、114-01。
+- **計算**（`app/admissions/trends.py`、`GET /admin/admissions/area/trends`）：這一年淨增＝本月 2–5 歲減一年前 1–4 歲；近 12 個月出生（半徑合計和前一年同月份比）；全年齡淨遷入（含同區換址）。115-07 高雄改里界（890→893 里），調整過的里同區合併成一列。
+- **後台**：區域分析地圖第四種著色「孩子增減」（玫瑰色是減少，token `--area-down-1`／`-2`），招生機會下面新增「里的變化」表（可匯出 CSV）。
+- **正式站連不到來源時**：`scripts/fetch_geo_bundle.py` 在台灣的電腦打包、`geo-sync --bundle` 一次匯入；步驟在 `deploy/README.md`「公開地理資料同步」。
+- **真資料實測**：打包 3 分 10 秒、48 個檔、2.4 MB；義華 3 公里 98 個里、2–5 歲 9,788 位、這一年淨減 41 位，本揚里 +36，出生比前一年同 9 個月少 20.7%；仁武八卦里、八德里合併成一列。
+- **驗證**：後端受影響的測試（geo 全部、`test_admissions_trends.py`、權限表、契約）過，全套本機在跑；後台 typecheck、vitest 155 檔 2,361 過（加測後再跑一次）；`npm run contract:check`、`deploy/tests` 過；migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 過；本機 API＋後台 dev server 用 Playwright 截 1440／390，兩種寬度沒有水平溢出。
+- **未驗證**：正式站（Railway）能不能連 ris.gov.tw；真實後台資料（有參觀紀錄的校區）下的畫面。
+
 ## 2026-10-13 全站精修：以國際設計獎的完成度逐頁檢查（`claude/award-polish-20261013`，PR #37）
 
 使用者要「以 awwwards、webby、FWA 得獎的程度為目標，自我檢查、反覆提升到達標」。只改 `web/`，已定案的方向不動，只修執行瑕疵；規則與待決定事項見 DESIGN.md 最上方一節。
