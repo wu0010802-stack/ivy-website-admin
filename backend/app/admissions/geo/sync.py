@@ -1,6 +1,6 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
 幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
-各里綜合所得（2026-10-14 里的變化規格 §4）；門牌換版或校址變更後重算訪視。
+各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）；門牌換版或校址變更後重算訪視與新成屋。
 
 只下載公開資料，不送出任何家長資料。三種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
@@ -9,7 +9,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 背景（app/workers/geo_loop.py，每天一次）：各自超過 30 天沒確認過才去看來源；門牌
   先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file／--population-file／--births-file／--migration-file／--income-file（或 --bundle）
+  --kindergartens-file／--population-file／--births-file／--migration-file／--income-file／--new-homes-file（或 --bundle）
   指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）。
 
@@ -29,6 +29,10 @@ ODRP010、ODRP011（出生、遷入遷出，village_series.py）同一支 API：
 財政部財政資訊中心的各里所得（income.py）：每 30 天讀一次 data.gov.tw 的資料集 API，從檔案清單找年度最大、
 比使用中新的高雄市檔；data.gov.tw 讀不到時直接試財政資訊中心的下一個年度（404＝還沒出）。
 www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線失敗時間隔 2、4、8 秒重試。
+
+內政部實價登錄的新成屋（new_homes.py）：季檔依登記日切季，從使用中的下一季往後試（表空時從今天所在的季往回試），
+回 HTML 錯誤頁（HTTP 200）＝那一季還沒出；最新季往回 8 季內表裡沒有的逐季補，每季一個交易。約一成請求被 reset，
+同樣重試。門牌換版後同步結束時整表重比（只重比比對當時門牌月份和使用中不同的列）。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -62,6 +66,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import income as income_io
+from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import population as population_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, replace_kindergartens
@@ -120,6 +125,10 @@ INCOME_MAX_BYTES = 4 * 1024 * 1024
 INCOME_TIME_BUDGET = timedelta(minutes=5)
 # 連線被 reset（TransportError）時的重試間隔：最多重試三次。
 FETCH_RETRY_WAITS = (2.0, 4.0, 8.0)
+# 新成屋（2026-10-14 B 段）：一季高雄買賣檔約 3.5 MB；找新的一季最多往後試幾季。
+NEW_HOMES_MAX_BYTES = 32 * 1024 * 1024
+NEW_HOMES_TIME_BUDGET = timedelta(minutes=20)
+NEW_HOMES_LOOKAHEAD = 2
 
 
 class GeoSyncError(RuntimeError):
@@ -217,6 +226,11 @@ class GeoSyncResult:
     income: str = "skipped"
     income_version: str | None = None
     income_rows_skipped: int = 0
+    # 新成屋（2026-10-14 B 段）：結果、表裡最新的季、這一輪寫入的季數、這一輪重比的列數。
+    new_homes: str = "skipped"
+    new_homes_version: str | None = None
+    new_homes_seasons: int = 0
+    new_homes_rematched: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -432,6 +446,7 @@ def _error_text(exc: Exception) -> str:
         population_io.PopulationFormatError,
         series_io.SeriesFormatError,
         income_io.IncomeFormatError,
+        new_homes_io.NewHomesFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -977,6 +992,99 @@ async def sync_income(
         return "failed", 0
 
 
+async def _new_homes_text(client: httpx.AsyncClient, season: str) -> str | None:
+    """一季的買賣檔（文字）；錯誤頁（那一季還沒出）回 None。"""
+    body = await _fetch_retrying(client, new_homes_io.season_url(season), max_bytes=NEW_HOMES_MAX_BYTES)
+    return new_homes_io.decode(body)
+
+
+async def discover_new_home_seasons(client: httpx.AsyncClient, active: str | None) -> tuple[str, dict[str, str]]:
+    """(最新季, 這次已下載的季 → 檔案文字)。有使用中的季時從下一季往後試 NEW_HOMES_LOOKAHEAD 季；沒有時從今天
+    所在的季往回試三季。都沒有就丟錯。"""
+    fetched: dict[str, str] = {}
+    if active is not None:
+        latest = active
+        for offset in range(1, NEW_HOMES_LOOKAHEAD + 1):
+            season = new_homes_io.shift_season(active, offset)
+            text_ = await _new_homes_text(client, season)
+            if text_ is None:
+                break
+            fetched[season], latest = text_, season
+        return latest, fetched
+    current = new_homes_io.season_of_day(today_local())
+    for offset in (0, -1, -2):
+        season = new_homes_io.shift_season(current, offset)
+        text_ = await _new_homes_text(client, season)
+        if text_ is not None:
+            fetched[season] = text_
+            return season, fetched
+    raise GeoSyncError("找不到最近幾季的實價登錄買賣檔")
+
+
+def _new_homes_files(files: list[Path], season: str | None) -> list[tuple[str, str]]:
+    """(季別, 檔案文字)。季別取 season（只能配一個檔）或檔名（「115S3_e_lvr_land_a.csv」）。"""
+    if season is not None and len(files) != 1:
+        raise GeoSyncError("--new-homes-season 只能配一個 --new-homes-file")
+    result = []
+    for path in files:
+        label = season or new_homes_io.season_of_filename(path.name)
+        if label is None:
+            raise GeoSyncError(f"新成屋檔名裡沒有季別（例：115S3_e_lvr_land_a.csv），請加 --new-homes-season：{path.name}")
+        text_ = new_homes_io.decode(path.read_bytes())
+        if text_ is None:
+            raise GeoSyncError(f"新成屋檔 {path.name} 不是實價登錄的買賣季檔（可能是錯誤頁）")
+        result.append((label, text_))
+    return result
+
+
+async def sync_new_homes(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+    season: str | None,
+) -> tuple[str, int]:
+    """新成屋交屋（2026-10-14 里的變化規格 §4.3）。回傳 (結果, 這一輪寫入的季數)。
+    網路：找最新季，最新往回 8 季內表裡沒有的逐季補（force 時最新季重抓）；每季一個交易，中途失敗已寫的保留，
+    「到期」只看 checked_at（同出生、遷入遷出），回補到一半失敗隔天就接著補。檔案：逐檔寫入，不連外。"""
+    status = await _status(session_factory, "new_homes")
+    if not files and (client is None or (not force and not _series_due(status, now))):
+        return "skipped", 0
+    written = 0
+    try:
+        if files:
+            for label, text_ in await asyncio.to_thread(_new_homes_files, files, season):
+                batch = await asyncio.to_thread(new_homes_io.parse_csv, text_, label)
+                await new_homes_io.write_season(session_factory, batch, now=now)
+                written += 1
+            await _record(session_factory, "new_homes", now=now, checked=True)
+            return "updated", written
+        assert client is not None
+        active = status.label if status is not None and status.active_version else None
+        latest, fetched = await discover_new_home_seasons(client, active)
+        async with session_factory() as db:
+            present = await new_homes_io.seasons_in_table(db)
+        for label in reversed(new_homes_io.window(latest)):  # 新到舊：中途失敗時先保住最新的季
+            if label in present and not (force and label == latest):
+                continue
+            text_ = fetched.get(label) or await _new_homes_text(client, label)
+            if text_ is None:
+                continue  # 那一季來源沒有檔
+            batch = await asyncio.to_thread(new_homes_io.parse_csv, text_, label)
+            await new_homes_io.write_season(session_factory, batch, now=now)
+            written += 1
+        await _record(session_factory, "new_homes", now=now, checked=True)
+        if written:
+            logger.info("新成屋已更新：最新 %s，這一輪寫入 %s 季", latest, written)
+        return ("updated" if written else "skipped"), written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("新成屋同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "new_homes", now=now, error=_error_text(exc))
+        return "failed", written
+
+
 async def _within_budget(
     session_factory: async_sessionmaker[AsyncSession],
     dataset: str,
@@ -1071,6 +1179,8 @@ async def run_geo_sync(
     migration_files: list[Path] | None = None,
     income_file: Path | None = None,
     income_year: int | None = None,
+    new_homes_files: list[Path] | None = None,
+    new_homes_season: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     async with _exclusive(session_factory):
@@ -1078,6 +1188,7 @@ async def run_geo_sync(
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
+            or bool(new_homes_files)
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1123,15 +1234,29 @@ async def run_geo_sync(
                 session_factory, "income", INCOME_TIME_BUDGET, now=now,
                 work=sync_income(session_factory, network, now=now, force=force, file=income_file, file_year=income_year),
             )
+            new_homes, new_homes_seasons = await _within_budget(
+                session_factory, "new_homes", NEW_HOMES_TIME_BUDGET, now=now,
+                work=sync_new_homes(
+                    session_factory, network, now=now, force=force, files=new_homes_files, season=new_homes_season
+                ),
+            )
         finally:
             if own_client and client is not None:
                 await client.aclose()
         rematched = await rematch_if_changed(session_factory, now=now)
+        # 新成屋：門牌換版（或之前門牌還沒匯入）的列重比；失敗只記在 new_homes，不擋同步結果。
+        try:
+            new_homes_rematched = await new_homes_io.rematch(session_factory)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("新成屋重比失敗：%s", _error_text(exc), exc_info=True)
+            await _record(session_factory, "new_homes", now=now, error=f"重比失敗：{_error_text(exc)}")
+            new_homes_rematched = 0
         status = await _status(session_factory, "doorplates")
         population_status = await _status(session_factory, "population")
         births_status = await _status(session_factory, "births")
         migration_status = await _status(session_factory, "migration")
         income_status = await _status(session_factory, "income")
+        new_homes_status = await _status(session_factory, "new_homes")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -1148,4 +1273,8 @@ async def run_geo_sync(
             income=income,
             income_version=income_status.label if income_status and income_status.active_version else None,
             income_rows_skipped=income_skipped,
+            new_homes=new_homes,
+            new_homes_version=new_homes_status.label if new_homes_status and new_homes_status.active_version else None,
+            new_homes_seasons=new_homes_seasons,
+            new_homes_rematched=new_homes_rematched,
         )

@@ -700,6 +700,15 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動：`--income-file <CSV>`，年度取檔名（`112_165-E.csv`）或 `--income-year 112`；比使用中舊的年度要加 `--force`。打包檔（`fetch_geo_bundle.py`）也會帶最新年度的所得。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'income';`、`select year, count(*) from geo_village_income group by 1;`（112 年度應有 879 列）。
 
+**新成屋交屋（里的變化 B1 段，2026-10-14）**：同一套同步再多一種資料，**只同步與比對、不上 API 與畫面**（B2 才上）。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §4.3。**尚未部署**（要在 A、C、D 段之後）。
+
+- 來源：內政部實價登錄高雄市買賣季檔 `https://plvr.land.moi.gov.tw/DownloadSeason?season=<115S3>&fileName=e_lvr_land_a.csv`（一季約 3.5 MB）。寫進 `geo_new_home_sales`，留最新季往回 8 季（約 2.6 萬列、5 MB）。不需要新的環境變數。
+- migration `e4f1a8c6b203` 只新增一張表、放寬 `ck_geo_dataset_status_dataset`（多收 `new_homes`），不動既有資料，可直接切回前一個映像。
+- 自動：表空時立刻抓——從今天所在的季往回試三季找最新季，再回補 8 季（約 30 MB）；之後 30 天看一次有沒有下一季。HTTP 200 的錯誤頁＝那一季還沒出。每季一個交易，中途失敗隔天接著補。同步結束時，比對時門牌月份和使用中不同的列整批重比（門牌換版、或匯入時門牌還沒進來）。log：「新成屋已更新：最新 115S3，這一輪寫入 N 季」、「新成屋同步失敗：…」。
+- 手動：`--new-homes-file 115S3_e_lvr_land_a.csv`（可重複，季別取檔名；檔名沒有季別時配 `--new-homes-season 115S3`，只能一個檔）；打包檔也帶 8 季。
+- **B2 之前**：在台灣網路下載門牌後跑命中率報告（雲端與正式站連不到 `data.kcg.gov.tw`）：`WEBSITE_ENVIRONMENT=test … uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> --new-homes 115S3_e_lvr_land_a.csv --season 115S3`，到里（exact＋nearby＋street）≥ 90% 才做 B2，結果寫回規格 §2.2。
+- 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
+
 **國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
 
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。

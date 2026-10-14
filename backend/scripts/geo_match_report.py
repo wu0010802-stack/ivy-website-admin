@@ -8,11 +8,15 @@ head），再拿 kiang preschools.json 裡高雄市營業中幼兒園的地址�
 報告庫：WEBSITE_ENVIRONMENT 必須是 test，且資料庫名稱要含 geo（例如
 ivy_website_area1008_geo_test；共用測試庫、dev、prod 一律拒絕，exit 2）。用完 dropdb。
 
+新成屋（2026-10-14 里的變化規格 §4.3，B2 開工前）：另給 `--new-homes <高雄市買賣季檔.csv> --season 115S3`，篩出
+新成屋（V7）後用同一套比對量「到里」（exact＋nearby＋street）的比例，門檻 90%；兩項都過才 exit 0。
+
 用法（在 backend/）：
   WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_dev \\
   WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_area1008_geo_test \\
   WEBSITE_SESSION_SECRET=local-only-session-secret-0000 \\
-  uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> [--label 115-10]
+  uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> [--label 115-10] \\
+      [--new-homes 115S3_e_lvr_land_a.csv --season 115S3]
 """
 
 from __future__ import annotations
@@ -30,12 +34,14 @@ from sqlalchemy import delete, text
 from sqlalchemy.engine import make_url
 
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo.matcher import locate
 from app.admissions.geo.models import GeoDoorplate
 from app.config import get_settings
 from app.db import create_engine, create_session_factory
 
 PASS_RATE = 0.95
+NEW_HOMES_PASS_RATE = 0.90
 # 批次標記 f"{label}#report" 要放得進 geo_doorplates.dataset_version（String(16)）。
 MAX_LABEL_LENGTH = 9
 
@@ -92,9 +98,36 @@ async def main(args: argparse.Namespace) -> int:
         print(f"幼兒園地址 {total} 筆：" + "、".join(f"{level} {n}" for level, n in levels.most_common()))
         print(f"精確＋鄰近：{rate:.1%}（門檻 {PASS_RATE:.0%}）")
         print("沒對到門牌的：\n" + "\n".join(misses[:40]))
-        return 0 if rate >= PASS_RATE else 1
+        passed = rate >= PASS_RATE
+        if args.new_homes:
+            passed = await _new_homes_report(session_factory, Path(args.new_homes), args.season, tag) and passed
+        return 0 if passed else 1
     finally:
         await engine.dispose()
+
+
+async def _new_homes_report(session_factory, path: Path, season: str, tag: str) -> bool:
+    """新成屋到里的比例（以筆數算；同一個門牌鍵只查一次）。"""
+    text_ = new_homes_io.decode(path.read_bytes())
+    if text_ is None:
+        print("新成屋：檔案不是實價登錄的買賣季檔", file=sys.stderr)
+        return False
+    batch = new_homes_io.parse_csv(text_, new_homes_io.parse_season(season))
+    async with session_factory() as db:
+        matches = await new_homes_io.match_keys(db, (row.key for row in batch.rows), version=tag)
+    levels: collections.Counter[str] = collections.Counter(matches[row.key].match_level for row in batch.rows)
+    keys: collections.Counter[str] = collections.Counter(match.match_level for match in matches.values())
+    placed = sum(levels[level] for level in ("exact", "nearby", "street"))
+    rate = placed / len(batch.rows) if batch.rows else 0.0
+    print(f"新成屋 {batch.season}：{len(batch.rows)} 筆（{len(matches)} 個門牌鍵）：" + "、".join(f"{k} {n}" for k, n in levels.most_common()))
+    print("  門牌鍵：" + "、".join(f"{k} {n}" for k, n in keys.most_common()))
+    print(f"  到里（exact＋nearby＋street）：{rate:.1%}（門檻 {NEW_HOMES_PASS_RATE:.0%}）")
+    missed = collections.Counter(
+        "".join(str(part) for part in row.key[:4] if part) + (f"{row.number}號" if row.number is not None else "")
+        for row in batch.rows if matches[row.key].match_level not in ("exact", "nearby", "street")
+    )
+    print("  沒到里的門牌（筆數多的在前）：\n" + "\n".join(f"    {n:>4} {key}" for key, n in missed.most_common(30)))
+    return rate >= NEW_HOMES_PASS_RATE
 
 
 if __name__ == "__main__":
@@ -102,4 +135,9 @@ if __name__ == "__main__":
     parser.add_argument("doorplates")
     parser.add_argument("preschools")
     parser.add_argument("--label", default="115-10")
-    sys.exit(asyncio.run(main(parser.parse_args())))
+    parser.add_argument("--new-homes", default=None, help="實價登錄高雄市買賣季檔（e_lvr_land_a.csv）")
+    parser.add_argument("--season", default=None, help="新成屋季檔的季別，例如 115S3")
+    parsed_args = parser.parse_args()
+    if parsed_args.new_homes and not parsed_args.season:
+        parser.error("--new-homes 要配 --season")
+    sys.exit(asyncio.run(main(parsed_args)))

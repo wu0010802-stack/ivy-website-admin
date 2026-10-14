@@ -1,12 +1,12 @@
 """招生區域分析的公開地理資料與訪視比對結果（docs/specs/2026-10-08-admissions-area-design.md 第 5 節；
 各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節；各里出生、遷入遷出、
-年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節，各里所得見同一份第 3.3 節）。
+年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節，新成屋見第 3.2 節，各里所得見第 3.3 節）。
 
 這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
-geo_village_income／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
+geo_village_income／geo_new_home_sales／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset 是 d8b3f6a2c914，其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
+geo_dataset_status 的 dataset 與 geo_new_home_sales 的 match_level 是 e4f1a8c6b203，其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
 再從 RecruitmentVisit 那邊建立 geo relationship（階段 B）；反過來 import 會循環。
@@ -15,12 +15,13 @@ geo_dataset_status 的 dataset 是 d8b3f6a2c914，其餘是 e7a1c4d9b2f6（tests
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -42,7 +43,8 @@ STREET_KINDS = ("road", "area")
 # population：各里人口（2026-10-13 招生機會），migration f3c8a2d47b19 加進約束。
 # births、migration：各里出生、遷入遷出的月份歷史（2026-10-14 里的變化），migration c5e9a1f3b7d2 加進約束。
 # income：各里綜合所得（2026-10-14 里的變化 C 段），migration d8b3f6a2c914 加進約束。
-DATASETS = ("doorplates", "kindergartens", "campuses", "population", "births", "migration", "income")
+# new_homes：新成屋交屋（2026-10-14 里的變化 B 段），migration e4f1a8c6b203 加進約束。
+DATASETS = ("doorplates", "kindergartens", "campuses", "population", "births", "migration", "income", "new_homes")
 
 
 def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
@@ -114,7 +116,8 @@ class GeoDatasetStatus(Base):
       （同步工作內部用，畫面不讀）；
     - population：active_version、label 都是人口統計月份「115-09」；一年前的年齡回補失敗也寫在這裡；
     - births、migration：active_version、label 都是歷史表裡最新的月份「115-09」；
-    - income：active_version、label 都是所得年度（民國）「112」。
+    - income：active_version、label 都是所得年度（民國）「112」；
+    - new_homes：active_version、label 都是表裡最新的季「115S3」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 
     __tablename__ = "geo_dataset_status"
@@ -214,6 +217,35 @@ class GeoVillageIncome(Base):
     q1: Mapped[int] = mapped_column(Integer, nullable=False)
     q3: Mapped[int] = mapped_column(Integer, nullable=False)
     mean: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoNewHomeSale(Base):
+    """新成屋交屋（內政部實價登錄買賣，2026-10-14 里的變化規格 §3.2、V7）：一筆符合「有建物、主要用途含住、建築
+    完成年月在該季登記期間迄日往前 12 個月內」的交易一列，含預售屋交屋。只存最新季往回 8 季；同一個編號出現在較新的
+    季檔時覆蓋。不存地址原文、樓層、價格、面積、建案名稱，只存換門牌版本時重比要用的門牌鍵（同 geo_doorplates 的
+    查詢鍵：巷、弄沒有時是空字串）與比對結果。"""
+
+    __tablename__ = "geo_new_home_sales"
+    __table_args__ = (
+        CheckConstraint(_in("match_level", MATCH_LEVELS), name="ck_geo_new_home_sales_match_level"),
+        Index("ix_geo_new_home_sales_season", "season"),
+    )
+
+    serial: Mapped[str] = mapped_column(String(40), primary_key=True)
+    season: Mapped[str] = mapped_column(String(5), nullable=False)
+    completed_on: Mapped[date] = mapped_column(Date, nullable=False)
+    presale: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    building_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    street: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    lane: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    alley: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    number_sub: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    village: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    match_level: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 比對當時的門牌月份（「115-10」）；門牌還沒匯入（pending）是 null。
+    doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class RecruitmentVisitGeo(Base):
