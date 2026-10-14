@@ -13,7 +13,7 @@
   893 里代碼與名稱 100% 對得上（2026-10-13 實測）。招生機會（`app/admissions/opportunity.py`）用界圖算
   每個里的面積重心（`boundaries.village_centroids`），判斷里在不在本校半徑內；人口本身不隨程式提交，
   由公開資料同步（`app/admissions/geo/population.py`）每月匯入資料庫。
-- 里的變化（2026-10-14，`app/admissions/trends.py`）也用同一套代碼：各里出生（ODRP010）、遷入遷出（ODRP011）與一年前的
+- 里的變化（2026-10-14，`app/admissions/trends.py`）也用同一套代碼：各里出生（ODRP061，2026-10-14 起取代 ODRP010）、遷入遷出（ODRP011）與一年前的
   年齡由同步匯入月份歷史表（`app/admissions/geo/village_series.py`）。115-07 高雄里鄰調整後，舊月份有 11 個代碼
   不在這份里界檔（已廢止的里）；歷史表照存，里界調整合併時用。里界檔本身已是調整後的 893 里。
 - 各里所得（2026-10-14 C 段，`app/admissions/geo/income.py`）沒有里代碼，用（區名、里名）對這份里界檔
