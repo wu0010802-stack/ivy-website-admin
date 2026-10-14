@@ -13,6 +13,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 招生區域「里的變化」A、C、D、B1 段（main CI 部署，3 支 migration）
+
+- **提交**：使用者要求合併，06:36–06:38Z 依序把 PR #40（A 段：各里出生、遷入遷出、孩子增減，`d2f75ea8`）、#43（C 段：各里所得，`ae192c76`）、#44（D 段：國小學區，`0e7fdf39`）、#45（B1 段：新成屋同步與比對、不上畫面，`1cddfc3a`）以 merge commit 併入 main（`5fe246ba..1cddfc3a`）。內容見 README 頂部 10-14 四段、規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §14–§17。
+- **migration**：`c5e9a1f3b7d2`（`geo_village_births`／`geo_village_migration`／`geo_village_ages`）、`d8b3f6a2c914`（`geo_village_income`）、`e4f1a8c6b203`（`geo_new_home_sales`），三支都只新增表、把 `ck_geo_dataset_status_dataset` 放寬成多收 `births`、`migration`、`income`、`new_homes`，不動既有資料，沒有備份（`deploy/CICD.md` 只要求刪改既有資料的 migration 先備份）。
+- **回退**：可直接切回 `5fe246ba` 的映像（舊程式不讀新表、不寫新狀態列）；不要往回 downgrade。
+- **推送前閘門**（各分支，本機）：
+  - C 段後端全套 2,835 passed／2 failed，失敗的是 `test_geo_sync` 兩項（假網站缺所得來源），已在 `f7525dbc` 修正。
+  - 後台 vitest 全套 156 檔 2,385 passed、typecheck；`contract:check` 一致；三支 migration upgrade／downgrade／upgrade 與 `deploy/check_schema.py` 通過。
+  - 四個 PR 的 CI（後端三組、前端兩組、E2E）在合併前的最後 head 上都是綠的。
+- **CI**：
+  - main run 38523210483（`d2f75ea8`，只有 A 段）06:36:34Z 開跑，06:54:07Z 部署完成：Backend 三組 12.9／10.2／12.6 分、Frontend web 1.5 分、admin 4.9 分、E2E 10.3 分、Deploy Railway production 4.4 分，全綠。
+  - #43、#44 的 run（38523291089、38523339788）在排隊時被較新的 run 取代（`main` 的 concurrency 不取消執行中的 run，只取代排隊中的），沒有部署。
+  - main run 38523432261（`1cddfc3a`，四段全部）06:54:10Z 開跑，07:10:09Z 部署完成：Backend 三組 9.9／10.2／10.3 分、Frontend web 1.5 分、admin 5.8 分、E2E 10.6 分、Deploy Railway production 4.6 分，全綠。
+- **正式 `release.json`**：base commit `1cddfc3a70636e5821163cdcd768f129e4b006dd`，snapshot `330f5680…`，created `2026-10-14T07:05:54Z`，`web+api`。
+- **線上唯讀檢查**（未登入，07:2x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 07:20:42Z 完成一輪）。
+  - 首頁、入學、特色教學、關於、環境、預約、義華預約、`/admin/` 都回 200（0.38–0.76 秒）。
+  - `GET /api/website/v1/admin/admissions/area/trends` 未登入回 401（路由已掛；招生開關沒開時會是 404）。
+- **未在線上驗證**：
+  - **新表目前都是空的**：公開資料自動同步在正式站仍是關閉的，部署後不會自己去抓出生、遷入遷出、所得、新成屋。後台「里的變化」會寫「各里出生、遷入遷出資料尚未匯入」，所得欄整欄「—」；國小學區是隨程式提交的對照檔，部署後就有。要匯入：開 `WEBSITE_GEO_AUTO_SYNC`（正式站變數，由使用者決定），或在 api 容器手動 `python -m app.cli geo-sync`；正式站連不到 ris.gov.tw、www.fia.gov.tw、plvr.land.moi.gov.tw 時用打包檔（本檔「公開地理資料同步」的 `fetch_geo_bundle.py` → `--bundle` 步驟）。
+  - Railway 能不能連上面三個來源：沒實測。
+  - 登入後的畫面（里的變化表、所得欄、依國小學區表、地圖「孩子增減」）：只有本機 Playwright 截圖與 CI 的 E2E。
+  - B2（新成屋上畫面）要先在台灣網路跑 `geo_match_report.py --new-homes` 量命中率（到里 ≥ 90%）。
+
 ## 2026-10-14 深度掃描 14 項中的 13 項（main CI 部署，沒有 migration）
 
 - **提交**：`abc994ce`（`fix/security-scan-20261013`，base 為 main `2a4710c6`）由使用者推上 main，`2a4710c6..abc994ce`。內容見 README 頂部 10-13「深度掃描 14 項」段落；第 14 項（編輯直接改已發布素材的替代文字與裁切）等業主決定，沒改。
