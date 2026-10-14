@@ -112,7 +112,7 @@ def _registered_on(value: object) -> date | None:
     try:
         year, month, day = (int(part) for part in text.split("/"))
         return date(year, month, day)
-    except ValueError:  # 段數不對、不是數字、不存在的日期都是
+    except (ValueError, OverflowError):  # 段數不對、不是數字、不存在的日期；年份大到超出 C int 是 OverflowError
         return None
 
 

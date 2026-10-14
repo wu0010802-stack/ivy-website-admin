@@ -95,6 +95,7 @@ def test_int_or_none(raw, expected):
         ("2026-02-13", None),  # 來源固定用斜線
         ("20260213", None),
         ("0000/01/01", None),
+        ("99999999999/01/01", None),  # 年份大到超出 C int（date() 丟 OverflowError 不是 ValueError）
         ("", None),
         (None, None),
     ],
