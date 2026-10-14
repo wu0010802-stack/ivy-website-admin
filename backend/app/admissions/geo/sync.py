@@ -52,7 +52,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import population as population_io
-from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, replace_kindergartens
+from app.admissions.geo import providers
+from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
 from app.campuses.models import CAMPUS_KEYS
@@ -393,6 +394,7 @@ def _error_text(exc: Exception) -> str:
         doorplate_io.DoorplateFormatError,
         doorplate_io.DoorplateTooManyRows,
         KindergartenFormatError,
+        providers.ProviderShrunk,
         population_io.PopulationFormatError,
     )
     if isinstance(exc, own):
@@ -481,9 +483,12 @@ async def sync_kindergartens(
         report = ParseReport()
         rows = await asyncio.to_thread(parse_preschools, data, school_year=school_year, report=report)
         async with session_factory() as db:
-            await replace_kindergartens(db, rows, synced_at=now)
+            changes = await providers.apply_kindergartens(db, rows, synced_at=now, school_year=school_year, force=force)
             await db.commit()
-        logger.info("幼兒園資料已更新：%s 所，略過 %s 筆", len(rows), report.skipped)
+        logger.info(
+            "幼兒園資料已更新：%s 所，略過 %s 筆；停辦 %s、重新營業 %s、類型變動 %s",
+            changes.active, report.skipped, changes.closed, changes.opened, changes.kind_changed,
+        )
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001
         logger.warning("幼兒園資料同步失敗：%s", _error_text(exc), exc_info=True)

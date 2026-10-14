@@ -28,9 +28,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.admissions.geo.doorplates import DoorplateParser, DoorplateRow, copy_doorplates
-from app.admissions.geo.kindergartens import parse_preschools, replace_kindergartens
+from app.admissions.geo.babycare import parse_babycare
+from app.admissions.geo.kindergartens import parse_preschools
 from app.admissions.geo import population as population_io
-from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
+from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoProviderEvent
+from app.admissions.geo.providers import apply_babycare, apply_kindergartens
 from app.admissions.geo.sync import LOCK_KEY
 from app.admissions.models import RecruitmentVisit
 
@@ -109,6 +111,7 @@ async def load_geo_samples(db: AsyncSession) -> None:
     """清掉三張公開資料表，載入門牌與幼兒園樣本並設為使用中（doorplates、kindergartens
     兩筆狀態都有 synced_at）。可以重複呼叫。會 commit。"""
     await db.execute(delete(GeoDoorplate))
+    await db.execute(delete(GeoProviderEvent))
     await db.execute(delete(GeoKindergarten))
     await db.execute(delete(GeoDatasetStatus))
     await copy_doorplates(db, SAMPLE_TAG, sample_doorplate_rows())
@@ -120,7 +123,17 @@ async def load_geo_samples(db: AsyncSession) -> None:
     )
     await db.flush()
     rows = parse_preschools(sample_preschools(), school_year=SAMPLE_SCHOOL_YEAR)
-    await replace_kindergartens(db, rows, synced_at=now)
+    await apply_kindergartens(db, rows, synced_at=now, school_year=SAMPLE_SCHOOL_YEAR)
+    await db.commit()
+
+
+async def load_babycare_sample(db: AsyncSession, *, now: datetime | None = None) -> None:
+    """清掉托嬰名單與異動紀錄，載入托嬰樣本（高雄營業中 6 所）並設為使用中。可以重複呼叫。會 commit。
+    不動幼兒園與其他狀態列（load_geo_samples 的狀態列斷言只認 doorplates、kindergartens 兩筆）。"""
+    await db.execute(delete(GeoProviderEvent).where(GeoProviderEvent.provider == "babycare"))
+    await db.execute(delete(GeoBabycare))
+    await db.execute(delete(GeoDatasetStatus).where(GeoDatasetStatus.dataset == "babycare"))
+    await apply_babycare(db, parse_babycare(sample_babycare()), synced_at=now or datetime.now(timezone.utc))
     await db.commit()
 
 

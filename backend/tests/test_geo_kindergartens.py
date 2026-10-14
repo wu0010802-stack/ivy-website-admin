@@ -15,9 +15,9 @@ from app.admissions.geo.kindergartens import (
     kind_as_of,
     nearby,
     parse_preschools,
-    replace_kindergartens,
 )
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
+from app.admissions.geo.providers import apply_kindergartens
 from app.common.timezones import today_local
 from tests.geo_helpers import SAMPLE_LABEL, SAMPLE_TAG, YIHUA_POINT, load_geo_samples, sample_preschools
 
@@ -157,10 +157,10 @@ def test_unexpected_shape_is_rejected(data):
         parse_preschools(data, school_year=115)
 
 
-async def test_replace_and_nearby(db_session):
+async def test_apply_and_nearby(db_session):
     rows = parse_preschools(sample_preschools(), school_year=115)
     now = datetime.now(timezone.utc)
-    assert await replace_kindergartens(db_session, rows, synced_at=now) == 10
+    assert (await apply_kindergartens(db_session, rows, synced_at=now, school_year=115)).active == 10
     await db_session.commit()
 
     within_1km = await nearby(db_session, *YIHUA_POINT, 1000)
@@ -179,9 +179,13 @@ async def test_replace_and_nearby(db_session):
     status = await db_session.get(GeoDatasetStatus, "kindergartens")
     assert status.synced_at == now and status.label == today_local(now).isoformat()
 
-    await replace_kindergartens(db_session, rows[:2], synced_at=now)
+    await apply_kindergartens(db_session, rows[:2], synced_at=now, school_year=115)
     await db_session.commit()
-    assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 2
+    # 不在名單裡的標成停辦、列留著；附近查詢與計數只看營業中的。
+    assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 10
+    active = select(func.count()).select_from(GeoKindergarten).where(GeoKindergarten.is_active.is_(True))
+    assert await db_session.scalar(active) == 2
+    assert len(await nearby(db_session, *YIHUA_POINT, 3000)) == 2
 
 
 async def test_nearby_is_sorted_by_distance_then_name(db_session):
@@ -214,7 +218,7 @@ async def test_nearby_is_sorted_by_distance_then_name(db_session):
 async def test_version_label_is_the_taipei_date(db_session, synced_at, label):
     """台北凌晨 0–8 點 UTC 日期還停在前一天；畫面上的「資料日期」要照園方所在時區。"""
     rows = parse_preschools(sample_preschools(), school_year=115)
-    await replace_kindergartens(db_session, rows, synced_at=synced_at)
+    await apply_kindergartens(db_session, rows, synced_at=synced_at, school_year=115)
     await db_session.commit()
     status = await db_session.get(GeoDatasetStatus, "kindergartens")
     assert (status.label, status.active_version) == (label, label)
@@ -346,7 +350,7 @@ async def test_a_row_that_would_not_fit_never_reaches_the_database(db_session):
     data = _collection(_feature(id="ok"), _feature(id="long", title="園" * 121), _feature(id="far", coordinates=[0, 0]))
     report = ParseReport()
     rows = parse_preschools(data, school_year=115, report=report)
-    assert await replace_kindergartens(db_session, rows, synced_at=datetime.now(timezone.utc)) == 1
+    assert (await apply_kindergartens(db_session, rows, synced_at=datetime.now(timezone.utc), school_year=115)).active == 1
     await db_session.commit()
     assert report.skipped == 2
     assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 1

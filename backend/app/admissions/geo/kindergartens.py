@@ -3,7 +3,7 @@
 只留高雄市、營業中（is_active＝1）的園所；不存負責人姓名（owner），也不讀
 punish_all.json（以行為人姓名為鍵）。類型對照：公立→public、非營利→nonprofit、
 私立且 pre_public 學年區間涵蓋目前學年→quasi_public、其餘私立→private。月費是
-kiang 依收費明細估算的值，畫面上要標「估」。kiang 的資料有一筆座標是字串，一律轉 float。
+kiang 依收費明細估算的值，畫面上要標「估」。kiang 的資料有一筆座標是字串，一律轉 float。名單換新與異動紀錄見 providers.py（2026-10-14）。
 
 高雄市營業中的園所若缺必要欄位、欄位超過資料表欄寬、座標不是有限數或不在高雄市外框內、
 source_id 重複，整筆略過並計入 ParseReport.skipped（高雄市以外、停業的本來就不要，不算）；
@@ -13,16 +13,15 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo.kaohsiung import in_kaohsiung
-from app.admissions.geo.models import GeoDatasetStatus, GeoKindergarten
+from app.admissions.geo.models import GeoKindergarten
 from app.admissions.geo.projection import haversine_m
-from app.common.timezones import today_local
 
 SOURCE_NOTE = "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
 _KIND_BY_TYPE = {"公立": "public", "非營利": "nonprofit", "私立": "private"}
@@ -193,27 +192,6 @@ def _row(feature: dict, props: dict, school_year: int) -> KindergartenRow | None
     if any(len(getattr(row, column) or "") > width for column, width in _WIDTHS.items()):
         return None
     return row
-
-
-async def replace_kindergartens(db: AsyncSession, rows: list[KindergartenRow], *, synced_at: datetime) -> int:
-    """整批換新並更新狀態列（不 commit）。約 700 筆，一個交易做完。"""
-    await db.execute(delete(GeoKindergarten))
-    await db.execute(
-        insert(GeoKindergarten),
-        [{**asdict(row), "is_active": True, "synced_at": synced_at} for row in rows],
-    )
-    status = await db.get(GeoDatasetStatus, "kindergartens", with_for_update=True)
-    if status is None:
-        status = GeoDatasetStatus(dataset="kindergartens")
-        db.add(status)
-    # 版本日期照園方所在時區（台北）：UTC 日期在台北 00–08 點還是前一天。
-    day = today_local(synced_at).isoformat()
-    status.active_version = day
-    status.label = day
-    status.synced_at = synced_at
-    status.checked_at = synced_at
-    status.last_error = None
-    return len(rows)
 
 
 async def nearby(db: AsyncSession, lat: float, lng: float, radius_m: int) -> list[NearbyKindergarten]:
