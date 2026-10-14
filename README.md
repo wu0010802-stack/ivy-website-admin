@@ -1,3 +1,18 @@
+## 2026-10-14 招生區域：里的變化 B2 段（新屋交屋上畫面）與跨區界道比對（`feature/village-new-homes-b2-20261014`）
+
+規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §12 的 B2，實作與規格的差異見該檔 §18，規則見 DESIGN.md「招生入學：里的變化」。三個 commit，**未 push、未部署**。
+
+- **閘門**：台灣網路實測命中率（門牌 115-10 全量 775,772 筆＋115S3 季檔）：到里 98.9%（3,805 筆裡 exact 3,765），過 90%；補下面的跨區界道後 99.9%（exact 3,801，只剩 4 筆只到區）。結果寫回規格 §2.2。
+- **跨區界道比對**（獨立一個 commit）：實價登錄寫「苓雅區七賢一路 61–95 號」，門牌表整條七賢一路登在新興區，所以 31 筆新成屋（八季共 63 筆）只到區。地址的區在門牌表完全沒有這條街路段、整個門牌表只有一個別的區有，才改用那個區比對，回傳的區也跟著門牌表走；同名街路段（中山路）不猜。**已存的新成屋與訪視要等下一次門牌換版才會重比**（部署注意見 `deploy/README.md`）。
+- **B2 本體**：`/area/trends` 多 `sources.new_homes`、`villages[].new_homes`／`new_homes_latest`、`baseline.new_homes*`；後台「里的變化」表多「近 4 季新屋」欄（CSV 多「最近一季新屋」）、總結多一句、地圖第五種著色「新屋交屋」。新屋交屋不等於已入住、也不等於有孩子，說明寫在表格底下。沒有 migration。
+- **合併組在地圖上依各里自己的筆數上色**（和規格 §5.6 的刻意差異，獨立一個 commit，要照規格不上色就整個還原）：真資料 6 公里內新屋交屋最多的兩團（左營區 17 個里 871 筆、仁武區八卦里＋八德里 639 筆）都是合併組，不上色地圖會是空白。API 多回 `new_homes_by_code`。
+- **驗證**（Node 22、PostgreSQL、本機 Chrome；2026-10-14，數字註明跑在哪個 commit）：
+  - 真資料（本機示範庫：門牌 115-10 全量、`fetch_geo_bundle.py` 打包檔、kiang 幼兒園）：八季 26,035 筆，到里 25,972、只到區 63；義華 1／3／6 公里近 4 季新屋交屋 352／1,524／6,944 筆，沒對到里 0／0／1 筆；七賢一路 364 筆全對到里。Playwright 1440／390（3 與 6 公里）截圖人工看過：表格、總結、地圖與圖例，沒有橫向溢出、沒有 console 錯誤；6 公里時合併組也有顏色。
+  - 後端（最終程式 `69cca639`）：geo、招生、稽核、權限相關 1232 passed（`tests/test_geo_*.py`、`test_admissions_*.py`、`test_audit_actions.py`、`test_audit_coverage.py`、`test_permission_table.py`；10 分 56 秒，獨立測試庫）。**不是後端全套**。
+  - 後台（Node 22、`--testTimeout=60000`）：全套 157 檔、2456 passed、1 skipped，`typecheck` 無錯誤。第一次用預設 Node 25＋5 秒逾時有 71 個失敗（逾時與 `localStorage` 環境問題，都不在區域分析），改 Node 22 後整套重跑全過。
+  - 契約：`contract:generate`；`export_openapi.py --check` 與 `check-contract-types.mjs` 一致。
+  - **沒跑**：web、Playwright e2e／stack 套件、正式站。
+
 ## 2026-10-14 托嬰中心與園所異動（`feature/provider-changes-20261014`）
 
 招生判讀四個子專案的第二個（前一個是場次使用情況）。規格 `docs/specs/2026-10-14-provider-changes-design.md`，規則見 DESIGN.md「招生入學：托嬰中心與園所異動」。
