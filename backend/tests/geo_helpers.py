@@ -10,7 +10,9 @@
 - kcg-search.html、kcg-dataset.html：高雄市資料開放平台搜尋頁與資料集頁的連結片段。
 - ris-odrp014-11509-p1.json、-p2.json：內政部戶政司 ODRP014 115 年 9 月的兩頁（2026-10-13 下載），
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
-  totalPage 改成 2。"""
+  totalPage 改成 2。
+- ris-odrp010-11509.json、ris-odrp011-11509.json：ODRP010（出生）、ODRP011（遷入遷出）115 年 9 月同樣那 24 個里
+  （2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），欄位與原檔相同、一頁。"""
 
 from __future__ import annotations
 
@@ -28,6 +30,7 @@ from sqlalchemy.pool import NullPool
 from app.admissions.geo.doorplates import DoorplateParser, DoorplateRow, copy_doorplates
 from app.admissions.geo.kindergartens import parse_preschools, replace_kindergartens
 from app.admissions.geo import population as population_io
+from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
 from app.admissions.geo.sync import LOCK_KEY
 from app.admissions.models import RecruitmentVisit
@@ -62,7 +65,8 @@ RIS_SAMPLE_MONTH = "11509"
 RIS_SAMPLE_PAGES = (FIXTURES / "ris-odrp014-11509-p1.json", FIXTURES / "ris-odrp014-11509-p2.json")
 # 樣本裡高雄市的里數（另有 3 筆外縣市要被篩掉）。
 RIS_SAMPLE_VILLAGES = 24
-_RIS_PATH = re.compile(re.escape(population_io.RIS_BASE) + r"/([0-9]{5})")
+_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP01[014])/([0-9]{5})")
+RIS_SERIES_FIXTURES = {"ODRP010": FIXTURES / "ris-odrp010-11509.json", "ODRP011": FIXTURES / "ris-odrp011-11509.json"}
 
 
 def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
@@ -76,8 +80,19 @@ def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
     return pages
 
 
-def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response | None:
-    """假的內政部 ODRP014：網址不是它就回 None（由呼叫端處理）。months 給定時只有這些月份有資料，
+def ris_series_page(code: str, month: str = RIS_SAMPLE_MONTH) -> dict:
+    """ODRP010／ODRP011 樣本（一頁）；month 不是 11509 時把每列的統計月份改成那個月。"""
+    data = json.loads(RIS_SERIES_FIXTURES[code].read_text(encoding="utf-8"))
+    for row in data["responseData"]:
+        row["statistic_yyymm"] = month
+    return data
+
+
+def ris_response(
+    url: str, *, months: set[str] | None = None, series_months: set[str] | None = None
+) -> httpx.Response | None:
+    """假的內政部 ODRP014（各里人口）、ODRP010（出生）、ODRP011（遷入遷出）：網址不是它們就回 None（由呼叫端
+    處理）。months 給定時 ODRP014 只有這些月份有資料、series_months 給定時 ODRP010／011 只有這些月份有資料，
     其他月份回「查無資料」；沒給就每個月份都有（月份改成網址上的）。"""
     parsed = httpx.URL(url)
     matched = _RIS_PATH.fullmatch(f"{parsed.scheme}://{parsed.host}{parsed.path}")
@@ -86,9 +101,14 @@ def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response 
     # 同步一律帶 COUNTY=高雄市；沒帶就是程式寫錯（會抓到全國資料），回 400 讓測試看得到。
     if parsed.params.get("COUNTY") != population_io.KAOHSIUNG_NAME:
         return httpx.Response(400)
-    month, page = matched.group(1), int(parsed.params.get("page", "0"))
+    code, month, page = matched.group(1), matched.group(2), int(parsed.params.get("page", "0"))
+    no_data = {"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"}
+    if code in RIS_SERIES_FIXTURES:
+        if (series_months is not None and month not in series_months) or page != 1:
+            return httpx.Response(200, json=no_data)
+        return httpx.Response(200, json=ris_series_page(code, month))
     if months is not None and month not in months:
-        return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})
+        return httpx.Response(200, json=no_data)
     pages = ris_sample_pages(month)
     if not 1 <= page <= len(pages):
         return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})

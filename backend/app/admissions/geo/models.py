@@ -1,11 +1,12 @@
 """招生區域分析的公開地理資料與訪視比對結果（docs/specs/2026-10-08-admissions-area-design.md 第 5 節；
-各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節）。
+各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節；各里出生、遷入遷出、
+年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節）。
 
-五張表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／
-geo_village_population／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo
-一筆訪視一列，不存家長座標。列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）
-該約束的 migration 逐字相同：geo_dataset_status 的 dataset 是 f3c8a2d47b19，其餘是
-e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
+這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／
+geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
+geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
+列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
+geo_dataset_status 的 dataset 是 c5e9a1f3b7d2，其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
 再從 RecruitmentVisit 那邊建立 geo relationship（階段 B）；反過來 import 會循環。
@@ -39,7 +40,8 @@ VILLAGE_LEVELS = ("exact", "nearby", "street")
 KINDERGARTEN_KINDS = ("public", "nonprofit", "quasi_public", "private")
 STREET_KINDS = ("road", "area")
 # population：各里人口（2026-10-13 招生機會），migration f3c8a2d47b19 加進約束。
-DATASETS = ("doorplates", "kindergartens", "campuses", "population")
+# births、migration：各里出生、遷入遷出的月份歷史（2026-10-14 里的變化），migration c5e9a1f3b7d2 加進約束。
+DATASETS = ("doorplates", "kindergartens", "campuses", "population", "births", "migration")
 
 
 def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
@@ -109,7 +111,8 @@ class GeoDatasetStatus(Base):
     - kindergartens：active_version、label 都是同步日期；
     - campuses：active_version＝「各校已發布校址＋使用中門牌批次」的指紋，變了就重算訪視
       （同步工作內部用，畫面不讀）；
-    - population：active_version、label 都是人口統計月份「115-09」。
+    - population：active_version、label 都是人口統計月份「115-09」；一年前的年齡回補失敗也寫在這裡；
+    - births、migration：active_version、label 都是歷史表裡最新的月份「115-09」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 
     __tablename__ = "geo_dataset_status"
@@ -134,6 +137,55 @@ class GeoVillagePopulation(Base):
     village_code: Mapped[str] = mapped_column(String(11), primary_key=True)
     district: Mapped[str] = mapped_column(String(8), nullable=False)
     village: Mapped[str] = mapped_column(String(16), nullable=False)
+    age_0: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_1: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_2: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_3: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_4: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_5: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_6: Mapped[int] = mapped_column(Integer, nullable=False)
+    people_total: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class _VillageMonth:
+    """月份歷史表共用的欄位（2026-10-14 里的變化規格 §3.1）：主鍵（月份「115-09」、里代碼）。存所有
+    64000 開頭的代碼，包括已不在里界檔裡的舊代碼（里界調整合併時要用）；名稱照來源存。"""
+
+    month: Mapped[str] = mapped_column(String(6), primary_key=True)
+    village_code: Mapped[str] = mapped_column(String(11), primary_key=True)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    village: Mapped[str] = mapped_column(String(16), nullable=False)
+
+
+class GeoVillageBirths(_VillageMonth, Base):
+    """各里每月出生數（內政部戶政司 ODRP010，依出生登記的戶籍里）。來源查無資料的月份整個月沒有列。"""
+
+    __tablename__ = "geo_village_births"
+
+    births: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoVillageMigration(_VillageMonth, Base):
+    """各里每月遷入遷出（內政部戶政司 ODRP011），都是男＋女：moved_in／moved_out＝跨區遷入、遷出合計
+    （他區、他縣市、國外、初設、廢止），address_in／address_out＝住址變更（同區換址），
+    boundary_in／boundary_out＝行政區域調整。"""
+
+    __tablename__ = "geo_village_migration"
+
+    moved_in: Mapped[int] = mapped_column(Integer, nullable=False)
+    moved_out: Mapped[int] = mapped_column(Integer, nullable=False)
+    address_in: Mapped[int] = mapped_column(Integer, nullable=False)
+    address_out: Mapped[int] = mapped_column(Integer, nullable=False)
+    boundary_in: Mapped[int] = mapped_column(Integer, nullable=False)
+    boundary_out: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoVillageAges(_VillageMonth, Base):
+    """各里每月 0–6 歲人數與全里人口（內政部戶政司 ODRP014）。使用中的月份另在 geo_village_population；
+    這裡存月份歷史，給「這一年淨增」比一年前的同一批孩子。"""
+
+    __tablename__ = "geo_village_ages"
+
     age_0: Mapped[int] = mapped_column(Integer, nullable=False)
     age_1: Mapped[int] = mapped_column(Integer, nullable=False)
     age_2: Mapped[int] = mapped_column(Integer, nullable=False)

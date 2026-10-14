@@ -144,6 +144,7 @@ async def _clean_tables(app):
                 "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
                 "retention_policies, retention_runs, "
                 "recruitment_visit_geo, geo_doorplates, geo_kindergartens, geo_village_population, geo_dataset_status, "
+                "geo_village_births, geo_village_migration, geo_village_ages, "
                 "recruitment_contact_logs, recruitment_event_log, recruitment_visits, grade_intake_targets "
                 "RESTART IDENTITY CASCADE"
             )
@@ -166,12 +167,18 @@ def _reset_process_caches():
     from app.operations import public_caps, traffic_service
     from app.media import service as media_service
     from app.content import routes as content_routes
+    from app.admissions.geo import sync as geo_sync
 
     traffic_service._last_purge = None
     media_service._release_media_cache = None
     public_caps._last_logged.clear()
     content_routes._public_site_cache.reset()
+    # ris.gov.tw 請求間隔（2026-10-14）：測試用假網站，不必真的等 3 秒。
+    geo_sync._ris_last_request = None
+    original_gap = geo_sync.RIS_REQUEST_GAP_SECONDS
+    geo_sync.RIS_REQUEST_GAP_SECONDS = 0.0
     yield
+    geo_sync.RIS_REQUEST_GAP_SECONDS = original_gap
 
 
 @pytest_asyncio.fixture

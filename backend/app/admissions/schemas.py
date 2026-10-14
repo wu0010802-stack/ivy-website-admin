@@ -1046,3 +1046,77 @@ class AreaOpportunityOut(BaseModel):
     no_population_villages: list[AreaOpportunityMissingOut]
     # 依「應有 − 實際」由大到小；同值依孩子數、區、里名。
     villages: list[AreaOpportunityRowOut]
+
+
+class AreaTrendsPopulationSourceOut(BaseModel):
+    """各里人口：使用中的月份 M；year_ago_month 是 M−12，年齡歷史裡 M 與 M−12 都在才有值。"""
+
+    month: str | None
+    year_ago_month: str | None
+
+
+class AreaTrendsMonthsOut(BaseModel):
+    """出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。"""
+
+    latest: str | None
+    months: list[str]
+    missing: list[str]
+
+
+class AreaTrendsSourcesOut(BaseModel):
+    population: AreaTrendsPopulationSourceOut
+    births: AreaTrendsMonthsOut
+    migration: AreaTrendsMonthsOut
+    note: str
+
+
+class AreaTrendsBaselineOut(BaseModel):
+    """本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。
+    children＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；
+    births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。"""
+
+    villages: int
+    children: int | None
+    kids_net: int | None
+    kids_base: int | None
+    births_12m: int | None
+    births_months: int
+    births_compared_months: int
+    births_change_pct: float | None
+    migration_net_12m: int | None
+    migration_months: int
+
+
+class AreaTrendsVillageOut(BaseModel):
+    """半徑內一個里，或同區里界調整過的一組（merged，key 是 group:<區>:<組內最小代碼>、village 是頓號連起的里名、
+    codes 含已廢止的舊代碼）。kids_level：up2 增加多／up1 增加／flat 差不多／down1 減少／down2 減少多／
+    few 一年前 1–4 歲不到 20 位／unknown 算不出來。migration_net_12m＝跨區遷入 − 遷出 ＋ 住址變更入 − 出。"""
+
+    key: str
+    district: str
+    village: str
+    codes: list[str]
+    merged: bool
+    # 本校到里界面積重心的直線距離，取整到 100 m；合併組取組內最近的里。
+    distance_m: int
+    children: int | None
+    kids_net: int | None
+    kids_base: int | None
+    kids_level: Literal["up2", "up1", "flat", "down1", "down2", "few", "unknown"]
+    births_12m: int | None
+    migration_net_12m: int | None
+
+
+class AreaTrendsOut(BaseModel):
+    as_of: datetime
+    filters: AreaFiltersOut
+    radius_km: int
+    campus: AreaCampusOut
+    sources: AreaTrendsSourcesOut
+    # 本校沒座標時是 null（villages 也是空的）。
+    baseline: AreaTrendsBaselineOut | None
+    # 這一年淨增算不出來的原因：no_population 人口還沒匯入、no_year_ago 一年前的年齡還沒匯入、
+    # no_migration 遷入遷出不足 10 個月；算得出來是 null。
+    kids_unavailable: Literal["no_population", "no_year_ago", "no_migration"] | None
+    # 依這一年淨增由大到小（算不出來的在最後）；同值依 2–5 歲孩子、區、里名。
+    villages: list[AreaTrendsVillageOut]

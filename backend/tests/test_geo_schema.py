@@ -1,4 +1,5 @@
-"""招生區域分析五張表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3）。"""
+"""招生區域分析各表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3；
+各里出生、遷入遷出、年齡歷史 2026-10-14 里的變化規格 §3.1）。"""
 
 from __future__ import annotations
 
@@ -18,6 +19,9 @@ from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoDoorplate,
     GeoKindergarten,
+    GeoVillageAges,
+    GeoVillageBirths,
+    GeoVillageMigration,
     GeoVillagePopulation,
     RecruitmentVisitGeo,
 )
@@ -27,9 +31,14 @@ from tests.geo_helpers import add_visit
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "versions" / "e7a1c4d9b2f6_admissions_area_geo.py"
 POPULATION_MIGRATION = BACKEND / "migrations" / "versions" / "f3c8a2d47b19_admissions_village_population.py"
-# 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population，其餘仍是 e7a1c4d9b2f6。
-CONSTRAINT_MIGRATIONS = {"ck_geo_dataset_status_dataset": POPULATION_MIGRATION}
-MODELS = (GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoDatasetStatus, RecruitmentVisitGeo)
+HISTORY_MIGRATION = BACKEND / "migrations" / "versions" / "c5e9a1f3b7d2_admissions_village_history.py"
+# 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population、10-14 再多收 births、
+# migration，其餘仍是 e7a1c4d9b2f6。
+CONSTRAINT_MIGRATIONS = {"ck_geo_dataset_status_dataset": HISTORY_MIGRATION}
+MODELS = (
+    GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoVillageBirths, GeoVillageMigration, GeoVillageAges,
+    GeoDatasetStatus, RecruitmentVisitGeo,
+)
 # 加減約束要改這裡，同時改 models.py 與 migration。
 CHECK_NAMES = {
     "ck_geo_doorplates_street_kind",
@@ -73,6 +82,20 @@ def test_population_migration_follows_contact_phrases_and_only_adds():
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
 
 
+def test_history_migration_follows_slot_usage_and_only_adds():
+    """月份歷史：接在場次使用情況之後；升級只建表與放寬約束，不動既有資料（降級才刪 births、migration 狀態列）。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert script.get_revision("c5e9a1f3b7d2").down_revision == "b4d7e1a92c58"
+    assert script.get_heads() == ["c5e9a1f3b7d2"]
+    upgrade = HISTORY_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
+
+
 def test_check_constraint_names_in_models_are_the_locked_set():
     assert {c.name for c in _model_checks()} == CHECK_NAMES
 
@@ -109,6 +132,7 @@ async def test_tables_exist(db_session):
     ).scalars().all()
     assert set(names) == {
         "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
+        "geo_village_births", "geo_village_migration", "geo_village_ages",
     }
 
 

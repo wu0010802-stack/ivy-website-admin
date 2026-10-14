@@ -571,26 +571,31 @@ async def transcode_media_videos(*, apply: bool) -> None:
 def geo_sync_options(args: list[str]) -> dict:
     """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
-    --population-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的統計月份。"""
+    --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
+    統計月份。--bundle 是 scripts/fetch_geo_bundle.py 打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的
+    檔各自用 --…-file 指定。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
-        "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...]"
+        "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...] "
+        "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
-        "population_files": None,
+        "population_files": None, "births_files": None, "migration_files": None, "bundle": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
-              "--kindergartens-file": "kindergartens_file"}
-    population_files: list[Path] = []
+              "--kindergartens-file": "kindergartens_file", "--bundle": "bundle"}
+    repeated = {"--population-file": "population_files", "--births-file": "births_files",
+                "--migration-file": "migration_files"}
+    lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
     index = 0
     while index < len(args):
         arg = args[index]
         if arg == "--force":
             options["force"] = True
             index += 1
-        elif arg == "--population-file" and index + 1 < len(args) and not args[index + 1].startswith("--"):
-            population_files.append(Path(args[index + 1]))
+        elif arg in repeated and index + 1 < len(args) and not args[index + 1].startswith("--"):
+            lists[repeated[arg]].append(Path(args[index + 1]))
             index += 2
         elif arg in valued and index + 1 < len(args) and not args[index + 1].startswith("--"):
             value = args[index + 1]
@@ -598,35 +603,55 @@ def geo_sync_options(args: list[str]) -> dict:
             index += 2
         else:
             raise SystemExit(usage)
-    for path in (options["doorplates_file"], options["kindergartens_file"], *population_files):
+    for path in (options["doorplates_file"], options["kindergartens_file"], options["bundle"], *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
             raise SystemExit(f"找不到檔案：{path}")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
         raise SystemExit(usage)
-    if population_files:
-        options["population_files"] = population_files
+    for key, files in lists.items():
+        if files:
+            options[key] = files
     return options
 
 
 async def geo_sync_command(**options) -> None:
     """招生區域分析的公開地理資料同步（app/admissions/geo/sync.py）。不看
     WEBSITE_GEO_AUTO_SYNC：那個開關只管 API 內的背景迴圈。另一個同步（背景迴圈或別的
-    CLI）正在進行時什麼都不做，exit 1。"""
+    CLI）正在進行時什麼都不做，exit 1。--bundle 先驗證整包（sha256 等），不對就什麼都不匯入、exit 1。"""
+    import tempfile
+
+    from app.admissions.geo.bundle import BundleError, open_bundle
     from app.admissions.geo.models import GeoDatasetStatus
     from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
 
+    bundle = options.pop("bundle", None)
     settings = get_settings()
     session_factory = await _session_factory()
-    try:
-        result = await run_geo_sync(session_factory, settings, **options)
-    except GeoSyncBusy:
-        print("另一個公開資料同步正在進行，稍後再試", file=sys.stderr)
-        raise SystemExit(1)
+    with tempfile.TemporaryDirectory(prefix="geo-bundle-") as workdir:
+        if bundle is not None:
+            try:
+                unpacked = open_bundle(bundle, Path(workdir))
+            except BundleError as exc:
+                print(f"打包檔不匯入：{exc}", file=sys.stderr)
+                raise SystemExit(1)
+            for kind, files in unpacked.items():
+                key = f"{kind}_files"
+                options[key] = [*(options.get(key) or []), *files]
+        try:
+            result = await run_geo_sync(session_factory, settings, **options)
+        except GeoSyncBusy:
+            print("另一個公開資料同步正在進行，稍後再試", file=sys.stderr)
+            raise SystemExit(1)
     print(
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；"
         f"各里人口：{result.population}（使用中 {result.population_version or '尚未匯入'}）；"
         f"重算訪視 {result.rematched} 筆"
+    )
+    print(
+        f"各里出生：{result.births}（最新 {result.births_version or '尚未匯入'}，這次寫入 {result.births_months} 個月）；"
+        f"各里遷入遷出：{result.migration}（最新 {result.migration_version or '尚未匯入'}，這次寫入 {result.migration_months} 個月）；"
+        f"一年前的年齡：{result.age_history}"
     )
     if result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped:
         print(
@@ -639,6 +664,9 @@ async def geo_sync_command(**options) -> None:
             ("doorplates", "門牌", result.doorplates),
             ("kindergartens", "幼兒園", result.kindergartens),
             ("population", "各里人口", result.population),
+            ("births", "各里出生", result.births),
+            ("migration", "各里遷入遷出", result.migration),
+            ("population", "一年前的年齡", result.age_history),
         )
         if outcome == "failed"
     ]
@@ -662,7 +690,7 @@ def main() -> None:
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
-            "[--population-file <JSON> ...]>",
+            "[--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] [--bundle <ZIP>]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
