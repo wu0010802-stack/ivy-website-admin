@@ -1,8 +1,8 @@
-"""招生區域分析五張表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3）。"""
+"""招生區域分析七張表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3；托嬰與異動 2026-10-14 規格 §3）。"""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -10,14 +10,17 @@ from sqlalchemy import CheckConstraint, delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.admissions.geo.models import (
+    BABYCARE_KINDS,
     DATASETS,
     KINDERGARTEN_KINDS,
     MATCH_LEVELS,
     STREET_KINDS,
     UNLOCATED_REASONS,
+    GeoBabycare,
     GeoDatasetStatus,
     GeoDoorplate,
     GeoKindergarten,
+    GeoProviderEvent,
     GeoVillagePopulation,
     RecruitmentVisitGeo,
 )
@@ -27,9 +30,17 @@ from tests.geo_helpers import add_visit
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "versions" / "e7a1c4d9b2f6_admissions_area_geo.py"
 POPULATION_MIGRATION = BACKEND / "migrations" / "versions" / "f3c8a2d47b19_admissions_village_population.py"
-# 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population，其餘仍是 e7a1c4d9b2f6。
-CONSTRAINT_MIGRATIONS = {"ck_geo_dataset_status_dataset": POPULATION_MIGRATION}
-MODELS = (GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoDatasetStatus, RecruitmentVisitGeo)
+PROVIDER_MIGRATION = BACKEND / "migrations" / "versions" / "c6a9e3f15d27_provider_changes.py"
+# 約束最後一次寫進資料庫的 migration：dataset 的條件 10-14 再放寬一次（多收 babycare），托嬰與異動紀錄的約束也在這支。
+CONSTRAINT_MIGRATIONS = {
+    "ck_geo_dataset_status_dataset": PROVIDER_MIGRATION,
+    "ck_geo_babycare_kind": PROVIDER_MIGRATION,
+    "ck_geo_provider_events_provider": PROVIDER_MIGRATION,
+    "ck_geo_provider_events_change": PROVIDER_MIGRATION,
+}
+MODELS = (
+    GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoDatasetStatus, RecruitmentVisitGeo, GeoBabycare, GeoProviderEvent,
+)
 # 加減約束要改這裡，同時改 models.py 與 migration。
 CHECK_NAMES = {
     "ck_geo_doorplates_street_kind",
@@ -37,6 +48,9 @@ CHECK_NAMES = {
     "ck_geo_dataset_status_dataset",
     "ck_recruitment_visit_geo_match_level",
     "ck_recruitment_visit_geo_reason",
+    "ck_geo_babycare_kind",
+    "ck_geo_provider_events_provider",
+    "ck_geo_provider_events_change",
 }
 
 
@@ -73,6 +87,59 @@ def test_population_migration_follows_contact_phrases_and_only_adds():
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
 
 
+def test_provider_migration_follows_slot_usage_and_only_adds():
+    """托嬰與異動：接在場次使用情況之後、單一 head；升級只建表、加欄位與放寬約束，不動既有資料。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert script.get_revision("c6a9e3f15d27").down_revision == "b4d7e1a92c58"
+    assert len(script.get_heads()) == 1
+    upgrade = PROVIDER_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade
+
+
+async def test_new_columns_exist(db_session):
+    found = (
+        await db_session.execute(
+            text(
+                "SELECT table_name, column_name FROM information_schema.columns WHERE "
+                "(table_name = 'geo_kindergartens' AND column_name = 'registered_on') OR "
+                "(table_name = 'geo_dataset_status' AND column_name = 'baseline_on')"
+            )
+        )
+    ).all()
+    assert sorted(tuple(row) for row in found) == [("geo_dataset_status", "baseline_on"), ("geo_kindergartens", "registered_on")]
+
+
+async def test_babycare_kind_accepts_declared_values_and_rejects_others(db_session):
+    def babycare(source_id: str, kind: str) -> GeoBabycare:
+        return GeoBabycare(
+            source_id=source_id, name="測試托嬰中心", kind=kind, address="高雄市三民區某路1號", lat=22.6, lng=120.3,
+            synced_at=datetime.now(timezone.utc),
+        )
+
+    for index, kind in enumerate(BABYCARE_KINDS):
+        db_session.add(babycare(f"b{index}", kind))
+    await db_session.commit()
+    await _expect_rejected(db_session, babycare("bad", "nursery"))
+
+
+async def test_provider_event_constraints(db_session):
+    def event(*, provider: str = "babycare", change: str = "closed", day: date = date(2026, 10, 14)) -> GeoProviderEvent:
+        return GeoProviderEvent(provider=provider, source_id="b1", change=change, occurred_on=day)
+
+    db_session.add(event())
+    await db_session.commit()
+    await _expect_rejected(db_session, event())  # 同一天、同一所、同一種只能一筆
+    await _expect_rejected(db_session, event(provider="school"))
+    await _expect_rejected(db_session, event(change="renamed"))
+    db_session.add(event(day=date(2026, 10, 15)))  # 另一天可以
+    await db_session.commit()
+
+
 def test_check_constraint_names_in_models_are_the_locked_set():
     assert {c.name for c in _model_checks()} == CHECK_NAMES
 
@@ -84,7 +151,8 @@ async def test_check_constraint_names_in_database_are_the_locked_set(db_session)
             text(
                 "SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid IN "
                 "('geo_doorplates'::regclass, 'geo_kindergartens'::regclass, "
-                "'geo_dataset_status'::regclass, 'recruitment_visit_geo'::regclass)"
+                "'geo_dataset_status'::regclass, 'recruitment_visit_geo'::regclass, "
+                "'geo_babycare'::regclass, 'geo_provider_events'::regclass)"
             )
         )
     ).scalars().all()
@@ -109,6 +177,7 @@ async def test_tables_exist(db_session):
     ).scalars().all()
     assert set(names) == {
         "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
+        "geo_babycare", "geo_provider_events",
     }
 
 

@@ -1,11 +1,12 @@
 """招生區域分析的公開地理資料與訪視比對結果（docs/specs/2026-10-08-admissions-area-design.md 第 5 節；
-各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節）。
+各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節；托嬰與園所異動見
+docs/specs/2026-10-14-provider-changes-design.md 第 3 節）。
 
-五張表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／
-geo_village_population／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo
-一筆訪視一列，不存家長座標。列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）
-該約束的 migration 逐字相同：geo_dataset_status 的 dataset 是 f3c8a2d47b19，其餘是
-e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
+七張表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_babycare／
+geo_provider_events／geo_village_population／geo_dataset_status 是公開資料、與校區無關；
+recruitment_visit_geo 一筆訪視一列，不存家長座標。列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）
+該約束的 migration 逐字相同：geo_dataset_status 的 dataset、geo_babycare、geo_provider_events 是 c6a9e3f15d27，
+其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
 再從 RecruitmentVisit 那邊建立 geo relationship（階段 B）；反過來 import 會循環。
@@ -14,12 +15,13 @@ e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -27,6 +29,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -38,8 +41,12 @@ UNLOCATED_REASONS = ("no_address", "outside_kaohsiung", "no_doorplate", "ambiguo
 VILLAGE_LEVELS = ("exact", "nearby", "street")
 KINDERGARTEN_KINDS = ("public", "nonprofit", "quasi_public", "private")
 STREET_KINDS = ("road", "area")
-# population：各里人口（2026-10-13 招生機會），migration f3c8a2d47b19 加進約束。
-DATASETS = ("doorplates", "kindergartens", "campuses", "population")
+# population：各里人口（2026-10-13 招生機會），migration f3c8a2d47b19 加進約束；
+# babycare：托嬰名單（2026-10-14），migration c6a9e3f15d27 加進約束。
+DATASETS = ("doorplates", "kindergartens", "campuses", "population", "babycare")
+BABYCARE_KINDS = ("center", "home")
+PROVIDERS = ("kindergarten", "babycare")
+PROVIDER_CHANGES = ("opened", "closed", "kind_changed")
 
 
 def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
@@ -78,7 +85,8 @@ class GeoDoorplate(Base):
 
 
 class GeoKindergarten(Base):
-    """高雄市營業中的幼兒園（kiang 整理的全國教保資訊網資料）。不存負責人姓名。"""
+    """高雄市營業中的幼兒園（kiang 整理的全國教保資訊網資料）。不存負責人姓名。
+    停辦的園所 is_active 為假、列留著（2026-10-14）。"""
 
     __tablename__ = "geo_kindergartens"
     __table_args__ = (
@@ -99,8 +107,56 @@ class GeoKindergarten(Base):
     monthly_fee_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_penalty: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # 設立日（來源 reg_date）；解析不出來存 NULL。近 12 個月內設立的營業中園所算「新設」（規格 P3）。
+    registered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoBabycare(Base):
+    """高雄市的托嬰中心與公共托育家園（kiang 整理的衛福部社家署公開資料）。停辦的列留著（is_active 假）。
+    不存負責人姓名（來源本來就沒有）。實際收托是官方回報的數字，統計時點官方沒有說明。"""
+
+    __tablename__ = "geo_babycare"
+    __table_args__ = (
+        CheckConstraint(_in("kind", BABYCARE_KINDS), name="ck_geo_babycare_kind"),
+        Index("ix_geo_babycare_lat_lng", "lat", "lng"),
+    )
+
+    source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    address: Mapped[str] = mapped_column(String(200), nullable=False)
+    lat: Mapped[float] = mapped_column(Float, nullable=False)
+    lng: Mapped[float] = mapped_column(Float, nullable=False)
+    approved_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    enrolled: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoProviderEvent(Base):
+    """幼兒園與托嬰的異動紀錄（opened＝新出現或重新營業、closed＝停辦、kind_changed＝類型變了）。
+    不存名稱與座標，讀的時候 join 對應的園所表（列不刪，只標停辦）。occurred_on 是同步到的台北日期，
+    來源沒有停辦日。同一天、同一所、同一種只有一筆（唯一約束），所以同步重跑不會重複。"""
+
+    __tablename__ = "geo_provider_events"
+    __table_args__ = (
+        CheckConstraint(_in("provider", PROVIDERS), name="ck_geo_provider_events_provider"),
+        CheckConstraint(_in("change", PROVIDER_CHANGES), name="ck_geo_provider_events_change"),
+        UniqueConstraint("provider", "source_id", "change", "occurred_on", name="uq_geo_provider_events_once"),
+        Index("ix_geo_provider_events_occurred_on", "occurred_on"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    change: Mapped[str] = mapped_column(String(16), nullable=False)
+    occurred_on: Mapped[date] = mapped_column(Date, nullable=False)
+    # kind_changed 才有：舊的與新的幼兒園類型。
+    old_value: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    new_value: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class GeoDatasetStatus(Base):
@@ -109,7 +165,9 @@ class GeoDatasetStatus(Base):
     - kindergartens：active_version、label 都是同步日期；
     - campuses：active_version＝「各校已發布校址＋使用中門牌批次」的指紋，變了就重算訪視
       （同步工作內部用，畫面不讀）；
-    - population：active_version、label 都是人口統計月份「115-09」。
+    - population：active_version、label 都是人口統計月份「115-09」；
+    - babycare：active_version、label 都是同步日期（同 kindergartens）；
+    baseline_on 是第一次用「依 source_id 比對」的程式同步成功的台北日期（kindergartens、babycare 才有；規格 P8），畫面靠它寫「從 N 月 N 日起記錄」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 
     __tablename__ = "geo_dataset_status"
@@ -122,6 +180,7 @@ class GeoDatasetStatus(Base):
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    baseline_on: Mapped[date | None] = mapped_column(Date, nullable=True)
 
 
 class GeoVillagePopulation(Base):
