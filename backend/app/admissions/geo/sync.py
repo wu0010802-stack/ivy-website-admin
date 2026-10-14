@@ -1,6 +1,6 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
-幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡
-（2026-10-14 里的變化規格 §4）；門牌換版或校址變更後重算訪視。
+幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
+各里綜合所得（2026-10-14 里的變化規格 §4）；門牌換版或校址變更後重算訪視。
 
 只下載公開資料，不送出任何家長資料。三種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
@@ -9,7 +9,8 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 背景（app/workers/geo_loop.py，每天一次）：各自超過 30 天沒確認過才去看來源；門牌
   先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file／--population-file 指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  --kindergartens-file／--population-file／--births-file／--migration-file／--income-file（或 --bundle）
+  指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）。
 
 高雄市資料開放平台（data.kcg.gov.tw，2026 年改版後不是 CKAN，/api/3 回 404）：
@@ -24,6 +25,10 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 ODRP010、ODRP011（出生、遷入遷出，village_series.py）同一支 API：找到最新月份後，往回 24 個月
 內表裡沒有的月份逐月補，每個月份各自一個交易。ris.gov.tw 連續快速請求會回擋頁（2026-10-14 實測），
 所以每個請求之間至少隔 RIS_REQUEST_GAP_SECONDS 秒。
+
+財政部財政資訊中心的各里所得（income.py）：每 30 天讀一次 data.gov.tw 的資料集 API，從檔案清單找年度最大、
+比使用中新的高雄市檔；data.gov.tw 讀不到時直接試財政資訊中心的下一個年度（404＝還沒出）。
+www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線失敗時間隔 2、4、8 秒重試。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -56,6 +61,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import income as income_io
 from app.admissions.geo import population as population_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, replace_kindergartens
@@ -108,6 +114,12 @@ POPULATION_TIME_BUDGET = timedelta(minutes=30)
 # 隔 3 秒，正常約 2 分鐘。
 SERIES_PAGE_MAX_BYTES = 16 * 1024 * 1024
 SERIES_TIME_BUDGET = timedelta(minutes=20)
+# 各里所得（2026-10-14 C 段）：data.gov.tw 資料集回應（正常約 16 KB）、所得 CSV（正常約 90 KB）。
+DATASET_API_MAX_BYTES = 2 * 1024 * 1024
+INCOME_MAX_BYTES = 4 * 1024 * 1024
+INCOME_TIME_BUDGET = timedelta(minutes=5)
+# 連線被 reset（TransportError）時的重試間隔：最多重試三次。
+FETCH_RETRY_WAITS = (2.0, 4.0, 8.0)
 
 
 class GeoSyncError(RuntimeError):
@@ -201,6 +213,10 @@ class GeoSyncResult:
     migration_version: str | None = None
     migration_months: int = 0
     age_history: str = "skipped"
+    # 各里所得（2026-10-14 C 段）：結果、使用中的年度、對不到里界而略過的列數（115-07 調整前的舊里）。
+    income: str = "skipped"
+    income_version: str | None = None
+    income_rows_skipped: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -415,6 +431,7 @@ def _error_text(exc: Exception) -> str:
         KindergartenFormatError,
         population_io.PopulationFormatError,
         series_io.SeriesFormatError,
+        income_io.IncomeFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -866,6 +883,100 @@ async def sync_series(
         return "failed", written
 
 
+async def _fetch_retrying(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> bytes:
+    """GET（有大小上限）；連線層的錯誤（reset、逾時）間隔 FETCH_RETRY_WAITS 重試，HTTP 錯誤照丟不重試。"""
+    for wait in (*FETCH_RETRY_WAITS, None):
+        try:
+            body, _ = await _fetch_capped(client, url, max_bytes=max_bytes)
+            return body
+        except httpx.TransportError:
+            if wait is None:
+                raise
+            await _sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
+def _income_guesses(active: int | None) -> list[int]:
+    """data.gov.tw 讀不到時直接試的年度：使用中的下一年；還沒有使用中的年度時，從今年（民國）往回 2～4 年
+    （所得落後約 3 年：115 年時最新是 112 年度）。"""
+    if active is not None:
+        return [active + 1]
+    year = today_local().year - 1911
+    return [year - 2, year - 3, year - 4]
+
+
+async def _discover_income(client: httpx.AsyncClient, active: int | None, *, force: bool) -> tuple[int, bytes] | None:
+    """找比使用中新的所得年度並下載；沒有新的回 None（force 時使用中的年度也重抓）。"""
+    try:
+        text_ = await _fetch_text(client, income_io.DATASET_API, max_bytes=DATASET_API_MAX_BYTES)
+        listed: list[int] | None = income_io.years_listed(json.loads(text_))
+    except Exception as exc:  # noqa: BLE001 - data.gov.tw 讀不到就直接試財政資訊中心
+        logger.info("data.gov.tw 的所得資料集讀不到（%s），直接試財政資訊中心", _error_text(exc))
+        listed = None
+    if listed is not None:
+        if not listed:
+            raise GeoSyncError("data.gov.tw 的所得資料集沒有高雄市的檔案")
+        latest = listed[0]
+        if active is not None and (latest < active or (latest == active and not force)):
+            return None
+        return latest, await _fetch_retrying(client, income_io.csv_url(latest), max_bytes=INCOME_MAX_BYTES)
+    candidates = _income_guesses(active)
+    if force and active is not None:
+        candidates.append(active)
+    for year in candidates:
+        try:
+            return year, await _fetch_retrying(client, income_io.csv_url(year), max_bytes=INCOME_MAX_BYTES)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+    if active is None:
+        raise GeoSyncError("找不到各里所得的檔案")
+    return None
+
+
+async def sync_income(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None,
+    file_year: int | None,
+) -> tuple[str, int]:
+    """各里綜合所得（2026-10-14 里的變化規格 §4.4）。回傳 (結果, 對不到里界而略過的列數)。
+    網路：每 30 天看一次有沒有比使用中新的年度。檔案：年度取 file_year 或檔名（「112_165-E.csv」）；
+    比使用中舊的年度要加 force 才換（同一年度可重匯）。"""
+    status = await _status(session_factory, "income")
+    if file is None and (client is None or (not force and not _due(status, now))):
+        return "skipped", 0
+    active = int(status.active_version) if status is not None and status.active_version else None
+    try:
+        if file is not None:
+            year = file_year or income_io.year_of_filename(file.name)
+            if year is None:
+                raise GeoSyncError("所得檔名裡沒有年度（例：112_165-E.csv），請加 --income-year 112")
+            if active is not None and year < active and not force:
+                raise GeoSyncError(f"所得檔是 {year} 年度，比使用中的 {active} 年度舊；要換回舊年度請加 --force")
+            body = file.read_bytes()
+        else:
+            assert client is not None
+            found = await _discover_income(client, active, force=force)
+            if found is None:
+                await _record(session_factory, "income", now=now, checked=True)
+                return "skipped", 0
+            year, body = found
+        batch = await asyncio.to_thread(income_io.parse_csv, income_io.decode(body), year)
+        async with session_factory() as db:
+            await income_io.replace_income(db, batch, synced_at=now)
+            await db.commit()
+        logger.info("各里所得已更新：%s 年度，%s 個里，略過 %s 列", year, len(batch.rows), batch.skipped)
+        return "updated", batch.skipped
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("各里所得同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "income", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
 async def _within_budget(
     session_factory: async_sessionmaker[AsyncSession],
     dataset: str,
@@ -958,13 +1069,15 @@ async def run_geo_sync(
     population_files: list[Path] | None = None,
     births_files: list[Path] | None = None,
     migration_files: list[Path] | None = None,
+    income_file: Path | None = None,
+    income_year: int | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     async with _exclusive(session_factory):
         now = datetime.now(timezone.utc)
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None
-            or bool(population_files) or bool(births_files) or bool(migration_files)
+            or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1006,6 +1119,10 @@ async def run_geo_sync(
                     session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                     work=_paired(sync_age_history(session_factory, network, now=now)),
                 )
+            income, income_skipped = await _within_budget(
+                session_factory, "income", INCOME_TIME_BUDGET, now=now,
+                work=sync_income(session_factory, network, now=now, force=force, file=income_file, file_year=income_year),
+            )
         finally:
             if own_client and client is not None:
                 await client.aclose()
@@ -1014,6 +1131,7 @@ async def run_geo_sync(
         population_status = await _status(session_factory, "population")
         births_status = await _status(session_factory, "births")
         migration_status = await _status(session_factory, "migration")
+        income_status = await _status(session_factory, "income")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -1027,4 +1145,7 @@ async def run_geo_sync(
             migration_version=migration_status.label if migration_status and migration_status.active_version else None,
             migration_months=migration_months,
             age_history=age_history,
+            income=income,
+            income_version=income_status.label if income_status and income_status.active_version else None,
+            income_rows_skipped=income_skipped,
         )

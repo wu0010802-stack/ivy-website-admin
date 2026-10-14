@@ -3253,6 +3253,32 @@
         "title": "AreaTrendsBaselineOut",
         "type": "object"
       },
+      "AreaTrendsIncomeSourceOut": {
+        "description": "各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "year",
+          "note"
+        ],
+        "title": "AreaTrendsIncomeSourceOut",
+        "type": "object"
+      },
       "AreaTrendsMonthsOut": {
         "description": "出生或遷入遷出：表裡最新的月份（還沒匯入是 null）、近 12 個月裡有資料的月份、沒有資料的月份（舊到新）。",
         "properties": {
@@ -3395,6 +3421,9 @@
           "births": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
+          "income": {
+            "$ref": "#/components/schemas/AreaTrendsIncomeSourceOut"
+          },
           "migration": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
@@ -3410,7 +3439,8 @@
           "population",
           "births",
           "migration",
-          "note"
+          "note",
+          "income"
         ],
         "title": "AreaTrendsSourcesOut",
         "type": "object"
@@ -3454,6 +3484,21 @@
           "district": {
             "title": "District",
             "type": "string"
+          },
+          "income_boundary_changed": {
+            "title": "Income Boundary Changed",
+            "type": "boolean"
+          },
+          "income_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Income Median"
           },
           "key": {
             "title": "Key",
@@ -3526,7 +3571,9 @@
           "kids_base",
           "kids_level",
           "births_12m",
-          "migration_net_12m"
+          "migration_net_12m",
+          "income_median",
+          "income_boundary_changed"
         ],
         "title": "AreaTrendsVillageOut",
         "type": "object"

@@ -1063,11 +1063,20 @@ class AreaTrendsMonthsOut(BaseModel):
     missing: list[str]
 
 
+class AreaTrendsIncomeSourceOut(BaseModel):
+    """各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。"""
+
+    year: int | None
+    note: str
+
+
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
     migration: AreaTrendsMonthsOut
+    # 內政部戶政司三個資料集的來源（一句）。
     note: str
+    income: AreaTrendsIncomeSourceOut
 
 
 class AreaTrendsBaselineOut(BaseModel):
@@ -1105,6 +1114,10 @@ class AreaTrendsVillageOut(BaseModel):
     kids_level: Literal["up2", "up1", "flat", "down1", "down2", "few", "unknown"]
     births_12m: int | None
     migration_net_12m: int | None
+    # 所得中位數（千元，規格 V9：只當背景，不排序、不分級）。沒有所得的里（115-07 新設）與合併組是 null（中位數
+    # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。
+    income_median: int | None
+    income_boundary_changed: bool
 
 
 class AreaTrendsOut(BaseModel):

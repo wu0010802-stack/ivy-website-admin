@@ -1,5 +1,5 @@
 """里的變化 API（2026-10-14 里的變化規格 §5、§6）：這一年淨增與分級、近 12 個月出生與淨遷入、出生和前一年
-同月份比、里界調整合併、算不出來的原因、本校沒座標、半徑、權限與開關。
+同月份比、里界調整合併、算不出來的原因、所得中位數（C 段）、本校沒座標、半徑、權限與開關。
 
 義華校址固定在門牌樣本的座標；公開資料直接寫資料庫。1 公里內（里界面積重心）有本揚里 287 m、寶業里 329 m、
 寶國里 458 m、本上里 489 m 等 12 個里；本武里 1.5 公里。「三民區測試舊里」（64000059999）是假的已廢止代碼：
@@ -19,6 +19,7 @@ from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoVillageAges,
     GeoVillageBirths,
+    GeoVillageIncome,
     GeoVillageMigration,
     GeoVillagePopulation,
 )
@@ -157,12 +158,13 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert body["sources"]["births"] == {"latest": CURRENT, "months": series_io.window(CURRENT, 12), "missing": []}
     assert body["sources"]["migration"]["months"] == series_io.window(CURRENT, 12)
     assert "內政部戶政司" in body["sources"]["note"]
+    assert body["sources"]["income"] == {"year": None, "note": ""}
     rows = _by_key(body)
     assert rows[BENYANG] == {
         "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
         "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
-        "births_12m": 24, "migration_net_12m": 84,
+        "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
     assert (rows[BAOGUO]["kids_net"], rows[BAOGUO]["kids_level"]) == (-20, "down2")
@@ -170,7 +172,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert rows[BAOHUA] | {"distance_m": 0} == {
         "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
-        "births_12m": None, "migration_net_12m": None,
+        "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
     }
     # 排序：淨增由大到小，算不出來的在最後。
     keys = [row["key"] for row in body["villages"]]
@@ -185,7 +187,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
     assert group == {
         "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
-        "births_12m": 0, "migration_net_12m": 0,
+        "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
     }
 
 
@@ -228,6 +230,51 @@ async def test_birth_gaps_are_listed_and_too_few_compared_months_are_not_compare
     assert (body["baseline"]["births_months"], body["baseline"]["births_compared_months"]) == (11, 5)
     assert body["baseline"]["births_change_pct"] is None
     assert body["baseline"]["births_12m"] == 22
+
+
+async def _seed_income(db) -> None:
+    """112 年度所得：本揚里、寶國里、寶業里、本上里（合併組）。寶國里 114-06（所得年度之後、近 12 個月之前）有
+    100 人行政區域調整；寶業里 112-06（所得年度之內）調整過。"""
+    for code, median in ((BENYANG, 500), (BAOGUO, 400), (BAOYE, 450), (BENSHANG, 600)):
+        district, village = _name(code)
+        db.add(
+            GeoVillageIncome(
+                village_code=code, district=district, village=village, year=112,
+                taxpayers=1000, median=median, q1=median // 2, q3=median * 2, mean=median + 100,
+            )
+        )
+    for code, month in ((BAOGUO, "114-06"), (BAOYE, "112-06")):
+        district, village = _name(code)
+        db.add(
+            GeoVillageMigration(
+                month=month, village_code=code, district=district, village=village,
+                moved_in=0, moved_out=0, address_in=0, address_out=0, boundary_in=100, boundary_out=0,
+            )
+        )
+    db.add(GeoDatasetStatus(dataset="income", active_version="112", label="112", synced_at=NOW))
+    await db.commit()
+
+
+async def test_income_is_background_only(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    await _seed_income(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["income"]["year"] == 112
+    note = body["sources"]["income"]["note"]
+    assert note.startswith("資料來源：財政部財政資訊中心（2026）") and "（112年度）" in note and "不宜逕作為衡量所得差距之參據" in note
+    rows = _by_key(body)
+    assert (rows[BENYANG]["income_median"], rows[BENYANG]["income_boundary_changed"]) == (500, False)
+    # 寶國里在所得年度之後調整過界線：照列，另標記；不因此合併（調整在近 12 個月之前）。
+    assert (rows[BAOGUO]["income_median"], rows[BAOGUO]["income_boundary_changed"], rows[BAOGUO]["merged"]) == (400, True, False)
+    # 所得年度之內的調整不算。
+    assert (rows[BAOYE]["income_median"], rows[BAOYE]["income_boundary_changed"]) == (450, False)
+    # 合併組不列（中位數不能相加）；沒有所得的里是 null。
+    group = rows[f"group:三民區:{BENSHANG}"]
+    assert (group["income_median"], group["income_boundary_changed"]) == (None, False)
+    assert rows[BAOHUA]["income_median"] is None
+    # 不排序：順序和沒有所得時一樣（淨增由大到小）。
+    assert [row["key"] for row in body["villages"]][:4] == [BENYANG, BAOYE, f"group:三民區:{BENSHANG}", BAOGUO]
+    assert "income" not in str(body["baseline"])
 
 
 async def test_without_the_year_ago_ages_kids_are_not_counted(admin_client, db_session, located_campus):

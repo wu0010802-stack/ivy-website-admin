@@ -12,7 +12,9 @@
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
   totalPage 改成 2。
 - ris-odrp010-11509.json、ris-odrp011-11509.json：ODRP010（出生）、ODRP011（遷入遷出）115 年 9 月同樣那 24 個里
-  （2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），欄位與原檔相同、一頁。"""
+  （2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），欄位與原檔相同、一頁。
+- fia-112_165-E-sample.csv：財政資訊中心 112 年度各里所得（2026-10-14 下載）同樣那 24 個里，加三民區「其他」「合計」、
+  「高雄市其他」兩列、115-07 已廢止的鹽埕區慈愛里（對不到里界）；原檔格式（引號裡的 BOM、欄名「縣市別」、CRLF）。"""
 
 from __future__ import annotations
 
@@ -113,6 +115,27 @@ def ris_response(
     if not 1 <= page <= len(pages):
         return httpx.Response(200, json={"responseCode": population_io.RESPONSE_NO_DATA, "responseMessage": "查無資料"})
     return httpx.Response(200, json=pages[page - 1])
+
+
+INCOME_SAMPLE = FIXTURES / "fia-112_165-E-sample.csv"
+# 樣本裡對得到里界的里數（慈愛里對不到、「其他」「合計」不是里）。
+INCOME_SAMPLE_VILLAGES = 24
+
+
+def datagov_income_listing(years: list[int]) -> dict:
+    """data.gov.tw 資料集 17971 的回應（只留用得到的欄位）：每個年度一個財政資訊中心的高雄市檔。"""
+    return {
+        "success": True,
+        "result": {
+            "datasetId": "17971",
+            "distribution": [
+                {"resourceDescription": f"{year}年度綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市",
+                 "resourceDownloadUrl": f"https://www.fia.gov.tw/WEB/fia/ias/ias{year}/{year}_165-E.csv",
+                 "resourceFormat": "CSV"}
+                for year in years
+            ],
+        },
+    }
 
 
 def sample_preschools() -> dict:
