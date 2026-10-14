@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import codecs
+import dataclasses
 import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -111,14 +112,19 @@ async def test_a_failed_download_keeps_the_previous_list(app, small_minimum):
 
 
 async def test_a_babycare_file_never_touches_the_network(app):
+    requested: list[str] = []
+
     def refuse(request):
+        requested.append(str(request.url))  # 同步會把連線錯誤吞掉記成 failed，所以另外記下有沒有發出請求
         raise AssertionError(f"不該連外：{request.url}")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(refuse)) as client:
         result = await run_geo_sync(app.state.session_factory, app.state.settings, client=client, babycare_file=BABYCARE_SAMPLE)
-    assert (result.doorplates, result.kindergartens, result.population, result.babycare) == (
-        "skipped", "skipped", "skipped", "updated",
-    )
+    assert requested == []
+    # 結果欄位（型別是 str）除了托嬰，其餘每一種資料都沒碰：之後新增的資料種類也會被這裡抓到
+    outcomes = {f.name: getattr(result, f.name) for f in dataclasses.fields(result) if f.type in (str, "str")}
+    assert outcomes.pop("babycare") == "updated"
+    assert set(outcomes.values()) == {"skipped"}, outcomes
     assert await _count(app) == 6
 
 

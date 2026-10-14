@@ -222,6 +222,25 @@ async def test_loop_summarises_a_round_unless_both_were_skipped(app, monkeypatch
     assert bool(lines) is summarised, lines
 
 
+@pytest.mark.parametrize("dataset", ["population", "babycare", "births", "migration", "age_history", "income", "new_homes"])
+async def test_loop_summarises_a_round_in_which_only_a_later_dataset_did_something(app, monkeypatch, caplog, dataset):
+    """門牌與幼兒園都沒到期、只有後來加的某一種資料做了事（或失敗）時，也要記摘要，不能因為前兩項是 skipped 就靜音。"""
+    ran = asyncio.Event()
+
+    async def fake_sync(session_factory, settings, **kwargs):
+        ran.set()
+        return GeoSyncResult("skipped", "skipped", None, 0, **{dataset: "failed"})
+
+    monkeypatch.setattr(geo_loop, "run_geo_sync", fake_sync)
+    loop = GeoSyncLoop(app.state.session_factory, app.state.settings, check_seconds=3600, first_delay_seconds=0)
+    with caplog.at_level(logging.INFO, logger="app.admissions.geo.loop"):
+        loop.start()
+        await _until(ran)
+        await loop.stop()
+    lines = [record.getMessage() for record in caplog.records if f"{dataset}='failed'" in record.getMessage()]
+    assert lines
+
+
 @pytest.mark.parametrize(
     ("admissions", "auto_sync", "expected"), [(True, True, True), (True, False, False), (False, True, False)]
 )
