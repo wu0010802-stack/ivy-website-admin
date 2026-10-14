@@ -7,13 +7,15 @@
 - street：巷弄、巷、整條街路段，由窄到寬其中一層的門牌全在同一個里（沒有座標）；
 - district：只知道區；
 - unlocated：沒有地址、外縣市、解析不出高雄市的區。
+地址的區沒有這條街路段、整個門牌表只有一個別的區有（跨區界道）時，改用那個區比對；比到里的話回傳的區也是門牌表
+登記的那個區（里屬於它，(區, 里) 才對得到里界），沒比到里就維持地址寫的區。
 精確門牌對到兩個里時不硬選：district＋ambiguous_village。里一律以門牌表為準，
 不採信地址裡寫的里。門牌表還沒匯入時是 pending（區照樣從地址解析）。"""
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from sqlalchemy import distinct, func, select, update
@@ -21,7 +23,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo.address import ParsedAddress, parse_address
-from app.admissions.geo.kaohsiung import CODE_OF_DISTRICT
+from app.admissions.geo.kaohsiung import CODE_OF_DISTRICT, TOWN_CODES
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, RecruitmentVisitGeo
 from app.admissions.geo.projection import haversine_m
 from app.admissions.models import RecruitmentVisit
@@ -94,31 +96,60 @@ async def locate_parsed(db: AsyncSession, parsed: ParsedAddress, *, version: str
     assert district is not None
     if version is None:
         return GeoMatch(district, None, "pending", None, None, None)
-    if parsed.street:
-        base = (
-            GeoDoorplate.dataset_version == version,
-            GeoDoorplate.town_code == CODE_OF_DISTRICT[district],
-            GeoDoorplate.street == parsed.street,
+    if not parsed.street:
+        return GeoMatch(district, None, "district", None, None, None)
+    stated_code = CODE_OF_DISTRICT[district]
+    match = await _locate_in_town(db, parsed, version, stated_code)
+    if match.match_level == "district" and match.unlocated_reason is None:
+        border_code = await _border_street_code(db, parsed.street, version, stated_code)
+        if border_code is not None:
+            border = await _locate_in_town(db, parsed, version, border_code)
+            if border.match_level != "district":
+                return replace(border, district=TOWN_CODES[border_code])
+    return match
+
+
+async def _border_street_code(db: AsyncSession, street: str, version: str, stated_code: str) -> str | None:
+    """跨區界道：地址寫的區在門牌表裡完全沒有這條街路段，而整個門牌表只有一個別的區有，回那個區的代碼。
+    實價登錄（地政）寫「苓雅區七賢一路」，門牌表（戶政）整條七賢一路都登在新興區（2026-10-14 實測 115S3
+    新成屋 31 筆）。別的區也有同名街路段（中山路）、或地址的區自己有這條街路段時都不猜。"""
+    codes = (
+        await db.execute(
+            select(distinct(GeoDoorplate.town_code))
+            .where(GeoDoorplate.dataset_version == version, GeoDoorplate.street == street)
+            .limit(2)
         )
-        same_unit = (GeoDoorplate.lane == (parsed.lane or ""), GeoDoorplate.alley == (parsed.alley or ""))
-        if parsed.number is not None:
-            picked = await _exact_rows(db, base, same_unit, parsed.number, parsed.number_sub)
-            villages = {row.village for row in picked}
-            if len(villages) == 1:
-                return GeoMatch(district, picked[0].village, "exact", None, picked[0].lat, picked[0].lng)
-            if len(villages) > 1:
-                return GeoMatch(district, None, "district", "ambiguous_village", None, None)
-            near = (await db.execute(_nearby_stmt(base, same_unit, parsed.number))).first()
-            if near is not None:
-                return GeoMatch(district, near.village, "nearby", None, near.lat, near.lng)
-        for extra in (same_unit, same_unit[:1], ()):
-            villages_found = (
-                await db.execute(select(distinct(GeoDoorplate.village)).where(*base, *extra).limit(2))
-            ).scalars().all()
-            if len(villages_found) == 1:
-                return GeoMatch(district, villages_found[0], "street", None, None, None)
-            if len(villages_found) > 1:
-                break
+    ).scalars().all()
+    return codes[0] if len(codes) == 1 and codes[0] != stated_code else None
+
+
+async def _locate_in_town(db: AsyncSession, parsed: ParsedAddress, version: str, town_code: str) -> GeoMatch:
+    """在一個鄉鎮代碼裡依序試 exact → nearby → street；都沒有是 district。回傳的區一律是地址寫的區。"""
+    district = parsed.district
+    base = (
+        GeoDoorplate.dataset_version == version,
+        GeoDoorplate.town_code == town_code,
+        GeoDoorplate.street == parsed.street,
+    )
+    same_unit = (GeoDoorplate.lane == (parsed.lane or ""), GeoDoorplate.alley == (parsed.alley or ""))
+    if parsed.number is not None:
+        picked = await _exact_rows(db, base, same_unit, parsed.number, parsed.number_sub)
+        villages = {row.village for row in picked}
+        if len(villages) == 1:
+            return GeoMatch(district, picked[0].village, "exact", None, picked[0].lat, picked[0].lng)
+        if len(villages) > 1:
+            return GeoMatch(district, None, "district", "ambiguous_village", None, None)
+        near = (await db.execute(_nearby_stmt(base, same_unit, parsed.number))).first()
+        if near is not None:
+            return GeoMatch(district, near.village, "nearby", None, near.lat, near.lng)
+    for extra in (same_unit, same_unit[:1], ()):
+        villages_found = (
+            await db.execute(select(distinct(GeoDoorplate.village)).where(*base, *extra).limit(2))
+        ).scalars().all()
+        if len(villages_found) == 1:
+            return GeoMatch(district, villages_found[0], "street", None, None, None)
+        if len(villages_found) > 1:
+            break
     return GeoMatch(district, None, "district", None, None, None)
 
 
