@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
+  MAP_MODES, NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
   changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, expectedText, formatDistance,
-  incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
-  providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
+  homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
+  providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
@@ -411,8 +411,9 @@ describe('里的變化的文字（2026-10-14 規格 7）', () => {
       `本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨減 86 位（${MINUS}0.7%）。`,
       '近 12 個月出生 180 位（有 9 個月的資料）。',
       '近 12 個月全年齡淨遷入 1,234 人。',
+      '近 4 季新屋交屋 130 筆，最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。',
     ])
-    expect(summary.note).toBe('')
+    expect(summary.note).toBe('範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。')
     expect(trendsSummary(areaTrends({ baseline: null }))).toBeNull()
   })
 
@@ -422,5 +423,69 @@ describe('里的變化的文字（2026-10-14 規格 7）', () => {
       .toBe('遷入遷出資料不到 10 個月，看不出里界有沒有調整，這一年淨增先不算。')
     const unlocated = areaTrends({ campus: { ...areaTrends().campus, lat: null, lng: null, locate_error: 'no_address' }, kids_unavailable: 'no_year_ago' })
     expect(trendMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
+  })
+})
+
+
+describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
+  it('筆數：匯入了沒有交屋是 0，還沒匯入（null）才寫「—」；千分位', () => {
+    expect([homesText({ new_homes: 24 }), homesText({ new_homes: 0 }), homesText({ new_homes: 1234 }), homesText({ new_homes: null })])
+      .toEqual(['24', '0', '1,234', '—'])
+  })
+
+  it('季別範圍：一季寫那一季、多季寫頭尾、沒有回空字串', () => {
+    expect([seasonRange(['115S3']), seasonRange(['114S4', '115S1', '115S2', '115S3']), seasonRange([])]).toEqual(['115S3', '114S4–115S3', ''])
+  })
+
+  it('地圖分級的最大值只看沒有合併的里（合併組在地圖上不上色）', () => {
+    expect(homesMax([{ merged: false, new_homes: 24 }, { merged: true, new_homes: 500 }, { merged: false, new_homes: null }])).toBe(24)
+    expect(homesMax([])).toBe(0)
+  })
+
+  it('地圖停用的原因：本校沒座標優先，其次新成屋沒匯入；出生、遷入遷出沒匯入不影響', () => {
+    const base = areaTrends()
+    expect(homesMapNote(base)).toBe('')
+    expect(homesMapNote(areaTrends({ sources: { ...base.sources, new_homes: { latest: null, seasons: [], unplaced: 0, note: '' } } })))
+      .toBe('新成屋資料尚未匯入。')
+    expect(homesMapNote(areaTrends({ kids_unavailable: 'no_population', sources: { ...base.sources, births: { latest: null, months: [], missing: [] } } }))).toBe('')
+    const unlocated = areaTrends({
+      campus: { ...base.campus, lat: null, lng: null, locate_error: 'no_address' },
+      sources: { ...base.sources, new_homes: { latest: null, seasons: [], unplaced: 0, note: '' } },
+    })
+    expect(homesMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
+  })
+
+  it('地圖著色多一個「新屋交屋」，排在孩子增減後面', () => {
+    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['visits', 'children', 'opportunity', 'trend', 'homes'])
+    expect(MAP_MODES.at(-1)!.label).toBe('新屋交屋')
+  })
+
+  it('總結：不滿 4 季寫有幾季的資料；沒有交屋不寫「最多的是」；沒對到里的筆數是 0 就不寫；沒匯入或沒有任何一季不寫這一句', () => {
+    const base = areaTrends()
+    const withHomes = (baseline: Partial<NonNullable<typeof base.baseline>>, unplaced = 0) =>
+      trendsSummary(areaTrends({
+        baseline: { ...base.baseline!, ...baseline },
+        sources: { ...base.sources, new_homes: { ...base.sources.new_homes, unplaced } },
+      }))!
+    const partial = withHomes({ new_homes_seasons: 3 })
+    expect(partial.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆（有 3 季的資料），最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。')
+    const none = trendsSummary(areaTrends({
+      baseline: { ...base.baseline!, new_homes: 0, new_homes_latest: 0 },
+      villages: base.villages.map((row) => ({ ...row, new_homes: 0, new_homes_latest: 0 })),
+    }))!
+    expect(none.lines.at(-1)).toBe('近 4 季新屋交屋 0 筆。')
+    expect(withHomes({}, 0).note).not.toContain('新屋交屋')
+    expect(withHomes({ new_homes: null, new_homes_latest: null }, 9).lines.join('')).not.toContain('新屋交屋')
+    expect(withHomes({ new_homes_seasons: 0 }, 9).note).not.toContain('新屋交屋')
+  })
+
+  it('總結：最多的里只列前 3 個，合併組寫里名不寫「里界調整，合併」', () => {
+    const base = areaTrends()
+    const village = (key: string, name: string, homes: number, merged = false) =>
+      ({ ...base.villages[0]!, key, district: '三民區', village: name, merged, new_homes: homes, new_homes_latest: homes })
+    const summary = trendsSummary(areaTrends({
+      villages: [village('a', '甲里', 5), village('b', '乙、丙里', 90, true), village('c', '丁里', 30), village('d', '戊里', 12)],
+    }))!
+    expect(summary.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆，最多的是三民區乙、丙里（90 筆）、三民區丁里（30 筆）、三民區戊里（12 筆）。')
   })
 })

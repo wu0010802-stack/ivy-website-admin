@@ -7,10 +7,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from app.admissions import trends
 from app.admissions.geo import boundaries, matcher
@@ -18,6 +18,7 @@ from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
+    GeoNewHomeSale,
     GeoVillageAges,
     GeoVillageBirths,
     GeoVillageIncome,
@@ -171,12 +172,14 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert body["sources"]["migration"]["months"] == series_io.window(CURRENT, 12)
     assert "內政部戶政司" in body["sources"]["note"]
     assert body["sources"]["income"] == {"year": None, "note": ""}
+    assert body["sources"]["new_homes"] == {"latest": None, "seasons": [], "unplaced": 0, "note": ""}
     rows = _by_key(body)
     assert rows[BENYANG] == {
         "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
         "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
         "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
+        "new_homes": None, "new_homes_latest": None,
         "schools": [_school("東光國小")],
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
@@ -186,6 +189,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
         "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
+        "new_homes": None, "new_homes_latest": None,
         "schools": [_school("光武國小")],
     }
     # 排序：淨增由大到小，算不出來的在最後。
@@ -202,6 +206,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
         "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
         "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
+        "new_homes": None, "new_homes_latest": None,
         "schools": [_school("東光國小")],
     }
 
@@ -229,6 +234,7 @@ async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin
         # 本揚里近 12 個月每月 2 位、前一年每月 3 位：少 33.3%。
         "births_12m": 24, "births_months": 12, "births_compared_months": 12, "births_change_pct": -33.3,
         "migration_net_12m": 84, "migration_months": 12,
+        "new_homes": None, "new_homes_latest": None, "new_homes_seasons": 0,
     }
 
 
@@ -290,6 +296,83 @@ async def test_income_is_background_only(admin_client, db_session, located_campu
     # 不排序：順序和沒有所得時一樣（淨增由大到小）。
     assert [row["key"] for row in body["villages"]][:4] == [BENYANG, BAOYE, f"group:三民區:{BENSHANG}", BAOGUO]
     assert "income" not in str(body["baseline"])
+
+
+async def _seed_new_homes(db) -> None:
+    """115S3 為最新季，近 4 季是 114S4～115S3，114S4 沒有檔（只有 3 季有資料）。本揚里 115S3 三筆（到里的三種等級各
+    算）、115S2 兩筆、115S1 一筆，另有 114S3 一筆在期間外；本上里（合併組）115S3 兩筆。三民區只到區兩筆、待比對一筆
+    不進里，岡山區不在半徑內，不算進沒對到里的筆數；里界檔沒有的里名（已廢止的）和參觀人數一樣算沒對到里。"""
+    serial = 0
+
+    def sale(season: str, level: str, village: str | None, district: str = "三民區") -> GeoNewHomeSale:
+        nonlocal serial
+        serial += 1
+        return GeoNewHomeSale(
+            serial=f"RPT{serial:04d}", season=season, completed_on=date(2026, 3, 1), presale=False, building_type="住宅大樓",
+            district=district, street="義華路", lane="", alley="", number=serial, number_sub=0,
+            village=village, match_level=level, doorplate_version="115-10",
+        )
+
+    db.add_all(
+        [
+            sale("115S3", "exact", "本揚里"), sale("115S3", "nearby", "本揚里"), sale("115S3", "street", "本揚里"),
+            sale("115S2", "exact", "本揚里"), sale("115S2", "exact", "本揚里"),
+            sale("115S1", "exact", "本揚里"),
+            sale("114S3", "exact", "本揚里"),  # 期間外
+            sale("115S3", "exact", "本上里"), sale("115S3", "exact", "本上里"),
+            sale("115S3", "district", None), sale("115S3", "district", None), sale("115S2", "pending", None),
+            sale("115S3", "district", None, district="岡山區"),
+            sale("115S3", "exact", "測試舊里"),
+        ]
+    )
+    db.add(GeoDatasetStatus(dataset="new_homes", active_version="115S3", label="115S3", synced_at=NOW))
+    await db.commit()
+
+
+async def test_new_homes_are_counted_per_village_over_the_last_four_seasons(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    await _seed_new_homes(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["new_homes"] == {
+        "latest": "115S3", "seasons": ["115S1", "115S2", "115S3"],
+        # 三民區（半徑內有里的區）：只到區兩筆、待比對一筆、里名對不到里界的一筆。岡山區不在範圍內。
+        "unplaced": 4, "note": "資料來源：內政部不動產交易實價查詢服務網",
+    }
+    rows = _by_key(body)
+    # 到里（exact、nearby、street）都算；近 4 季＝115S1～115S3（114S3 在期間外）。
+    assert (rows[BENYANG]["new_homes"], rows[BENYANG]["new_homes_latest"]) == (6, 3)
+    # 合併組整組相加；匯入了新成屋，沒有交屋的里是 0 不是 null。
+    assert (rows[f"group:三民區:{BENSHANG}"]["new_homes"], rows[f"group:三民區:{BENSHANG}"]["new_homes_latest"]) == (2, 2)
+    assert (rows[BAOYE]["new_homes"], rows[BAOYE]["new_homes_latest"]) == (0, 0)
+    assert rows[BAOHUA]["new_homes"] == 0
+    baseline = body["baseline"]
+    assert (baseline["new_homes"], baseline["new_homes_latest"], baseline["new_homes_seasons"]) == (8, 5, 3)
+
+
+async def test_new_homes_in_other_districts_do_not_count_as_unplaced(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    await _seed_new_homes(db_session)
+    await db_session.execute(
+        delete(GeoNewHomeSale).where(
+            GeoNewHomeSale.district == "三民區", GeoNewHomeSale.village.is_(None) | (GeoNewHomeSale.village == "測試舊里")
+        )
+    )
+    await db_session.commit()
+    body = await _get(admin_client)
+    assert body["sources"]["new_homes"]["unplaced"] == 0
+
+
+async def test_new_homes_window_follows_the_latest_season(admin_client, db_session, located_campus):
+    """最新季是 115S2 時近 4 季是 114S3～115S2（114S3 那筆進來）；表裡比使用中的最新季新的 115S3 不會被算進去。"""
+    await _seed(db_session)
+    await _seed_new_homes(db_session)
+    status = await db_session.get(GeoDatasetStatus, "new_homes")
+    status.active_version = status.label = "115S2"
+    await db_session.commit()
+    body = await _get(admin_client)
+    assert body["sources"]["new_homes"]["seasons"] == ["114S3", "115S1", "115S2"]
+    row = _by_key(body)[BENYANG]
+    assert (row["new_homes"], row["new_homes_latest"]) == (1 + 1 + 2, 2)
 
 
 async def test_each_row_lists_its_elementary_schools(admin_client, db_session, located_campus):

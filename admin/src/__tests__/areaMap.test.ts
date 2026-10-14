@@ -704,9 +704,9 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await flushPromises()
   }
 
-  it('四種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
+  it('五種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
     const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
-    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減'])
+    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減', '新屋交屋'])
     expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
     expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
     expect(ready.find('.area-map__mode-note').exists()).toBe(false)
@@ -952,5 +952,80 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
     expect(source).toContain('fill: var(--area-down-2)')
     const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
     expect(style).toMatch(/--area-down-1: color-mix\(/)
+  })
+})
+
+describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
+  const coded = (town: string, village: string, code: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code } })
+  const DINGJIN = coded('三民區', '鼎金里', '64000050001')
+  const BENYANG = coded('三民區', '本揚里', '64000050015')
+  const BAOYE = coded('三民區', '寶業里', '64000050025')
+  const LONGZI = coded('鼓山區', '龍子里', '64000020015')
+  const OUTSIDE = coded('小港區', '青島里', '64000110001')
+  const latest = (): any => leaflet.created.geoJSON!.at(-1)
+  const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
+  const popupLines = (item: ReturnType<typeof coded>) => {
+    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    latest().options.onEachFeature(item, village)
+    return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
+  }
+  async function choose(wrapper: VueWrapper, mode: string) {
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await flushPromises()
+  }
+
+  it('近 4 季筆數依半徑內最多的里分 5 級（同參觀人數的切法）；合併組、0 筆、半徑外不上色；圖例寫「筆」；地圖名稱跟著換', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'homes')
+    // 本揚里 24 筆、鼎金里 106 筆（最多）；寶業里、龍子里是同一個合併組：數字是整組的，不替組內各里上色。
+    expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
+      'area-village area-village--l2', 'area-village area-village--l5',
+      'area-village area-village--l0', 'area-village area-village--l0', 'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--levels li').map((item) => item.text()))
+      .toEqual(['1–21 筆', '22–42 筆', '43–63 筆', '64–84 筆', '85–106 筆', '0 筆、里界調整、在半徑外'])
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在下方的里的變化表')
+  })
+
+  it('半徑內都沒有交屋：圖例換成一句話，不留空圖例', async () => {
+    const base = areaTrends()
+    const wrapper = await mountMap({ trends: areaTrends({ villages: base.villages.map((row) => ({ ...row, new_homes: 0, new_homes_latest: 0 })) }) })
+    await choose(wrapper, 'homes')
+    expect(wrapper.find('.area-legend--levels').exists()).toBe(false)
+    expect(wrapper.get('.area-map__none').text()).toBe('半徑內近 4 季沒有新屋交屋。')
+  })
+
+  it('彈出框：近 4 季與最近一季；合併組先寫合併、數字是整組的；半徑外寫不在範圍內', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'homes')
+    expect(popupLines(BENYANG)).toEqual(['三民區本揚里', '近 4 季新屋交屋 24 筆', '最近一季（115S3）9 筆', '查看明細'])
+    expect(popupLines(LONGZI)).toEqual([
+      '鼓山區龍子里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
+      '近 4 季新屋交屋 0 筆（整組）', '最近一季（115S3）0 筆', '查看明細',
+    ])
+    expect(popupLines(OUTSIDE)).toEqual(['小港區青島里', '不在本校 3 公里內'])
+  })
+
+  it('新屋交屋用不了時停用並寫原因（正在看的人退回參觀人數）；孩子增減停用不連帶它', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'homes')
+    await wrapper.setProps({ homesNote: '新成屋資料尚未匯入。' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['新屋交屋'])
+    expect(wrapper.get('.area-map__mode-note').text()).toBe('新成屋資料尚未匯入。')
+
+    const other = await mountMap({ trends: areaTrends(), trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
+    expect(other.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['孩子增減'])
+  })
+
+  it('讀取中（換半徑）：留在新屋交屋、先不上色，彈出框寫讀取中', async () => {
+    const wrapper = await mountMap({ trends: areaTrends() })
+    await choose(wrapper, 'homes')
+    await wrapper.setProps({ trends: null, homesNote: '' })
+    await flushPromises()
+    expect(wrapper.findAll('.el-radio-button')[4]!.classes()).toContain('is-active')
+    expect(classOf(BENYANG)).toBe('area-village area-village--l0')
+    expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
   })
 })

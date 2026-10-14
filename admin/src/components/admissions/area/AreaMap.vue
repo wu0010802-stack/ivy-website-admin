@@ -8,7 +8,7 @@ import type {
 import { formatRate } from '../../../admissions/statsFormat'
 import {
   KIDS_LEVEL_LABELS, KIND_LABELS, KIND_ORDER, MAP_MODES, babycareKindLabel, babycareMeta, babycareShortName,
-  campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, kidsLevelTone, kidsNetText, kindLabel,
+  campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, homesMax, kidsLevelTone, kidsNetText, kindLabel,
   legendRanges, levelOf, shortName, signalText, signalTone, signedCount, trendsPlaceName, villageKey,
   type MapMode, type RadiusKm,
 } from './areaFormat'
@@ -24,6 +24,8 @@ import {
 // 本校沒座標、讀取失敗）後兩種停用，opportunityNote 寫原因；讀取中（opportunity 是 null、沒有原因）照常可選，先不上色。
 // 2026-10-14 里的變化：多一種「孩子增減」（這一年 2–5 歲孩子淨增的分級：增加兩級、減少兩級、差不多），里界調整
 // 合併的組、孩子少、半徑外不上色。資料用不了時（讀取失敗、本校沒座標、淨增算不出來）停用，trendNote 寫原因。
+// 2026-10-14 新屋交屋（B2 段）：近 4 季到里的新成屋筆數依半徑內最多的那一里分 5 級（同參觀人數的切法），0 筆、里界調整
+// 合併的組（整組的數字不能算給組內每個里）、半徑外不上色。新成屋沒匯入、本校沒座標、讀取失敗時停用，homesNote 寫原因。
 // 2026-10-14 托嬰與園所異動：托嬰中心用菱形標點、獨立圖層（預設不勾）。
 const props = withDefaults(
   defineProps<{
@@ -41,8 +43,10 @@ const props = withDefaults(
     trends?: AreaTrends | null
     /** 「孩子增減」用不了的原因；空字串＝可以用。 */
     trendNote?: string
+    /** 「新屋交屋」用不了的原因；空字串＝可以用。 */
+    homesNote?: string
   }>(),
-  { babycare: () => [], opportunity: null, opportunityNote: '', trends: null, trendNote: '' },
+  { babycare: () => [], opportunity: null, opportunityNote: '', trends: null, trendNote: '', homesNote: '' },
 )
 const emit = defineEmits<{ 'open-area': [filter: { district: string; village: string }] }>()
 
@@ -105,17 +109,30 @@ const trendStats = computed(() => {
   for (const row of props.trends?.villages ?? []) for (const code of row.codes) byCode.set(code, row)
   return byCode
 })
+// 新屋交屋的分級用半徑內沒有合併的里的最大值。
+const homesMaxValue = computed(() => homesMax(props.trends?.villages ?? []))
 const mode = ref<MapMode>('visits')
 function modeNote(value: MapMode): string {
   if (value === 'visits') return ''
+  if (value === 'homes') return props.homesNote
   return value === 'trend' ? props.trendNote : props.opportunityNote
 }
 const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: Boolean(modeNote(option.value)) })))
 // 切換列旁邊寫停用的原因：招生機會那兩種的原因優先（同一個原因時只寫一次）。
-const modeNotes = computed(() => [...new Set([props.opportunityNote, props.trendNote].filter(Boolean))])
+const modeNotes = computed(() => [...new Set([props.opportunityNote, props.trendNote, props.homesNote].filter(Boolean))])
 const modeLabel = computed(() => MAP_MODES.find((option) => option.value === mode.value)!.label)
 const legend = computed(() =>
-  legendRanges(mode.value === 'children' ? opportunityStats.value.maxChildren : villageStats.value.max),
+  legendRanges(
+    mode.value === 'children' ? opportunityStats.value.maxChildren : mode.value === 'homes' ? homesMaxValue.value : villageStats.value.max,
+  ),
+)
+const legendUnit = computed(() => (mode.value === 'children' ? '位' : mode.value === 'homes' ? '筆' : '人'))
+const noneText = computed(() =>
+  mode.value === 'children'
+    ? '半徑內的里沒有 2–5 歲孩子的資料。'
+    : mode.value === 'homes'
+      ? '半徑內近 4 季沒有新屋交屋。'
+      : '這個範圍還沒有定位到里的參觀。',
 )
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
 const campusLocated = computed(() => props.campus.lat !== null && props.campus.lng !== null)
@@ -143,6 +160,12 @@ function villageClass(properties: VillageProperties): string {
     const row = trendStats.value.get(properties.VILLCODE)
     const tone = row && !row.merged ? kidsLevelTone(row.kids_level) : 'none'
     return tone === 'none' ? 'area-village area-village--l0' : `area-village area-village--${tone}`
+  }
+  if (mode.value === 'homes') {
+    const row = trendStats.value.get(properties.VILLCODE)
+    return row && !row.merged
+      ? `area-village area-village--l${levelOf(row.new_homes ?? 0, homesMaxValue.value)}`
+      : 'area-village area-village--l0'
   }
   const row = opportunityRow(properties)
   if (mode.value === 'children') return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
@@ -192,6 +215,20 @@ function trendLines(properties: VillageProperties): HTMLParagraphElement[] {
   return lines.length ? lines : [popupLine('這個里還沒有資料')]
 }
 
+// 新屋交屋模式的彈出框：近 4 季與最近一季的筆數；合併組先寫和哪些里合併，數字是整組的。
+function homesLines(properties: VillageProperties): HTMLParagraphElement[] {
+  if (!props.trends) return [popupLine('里的變化讀取中…')]
+  const row = trendStats.value.get(properties.VILLCODE)
+  if (!row) return [popupLine(`不在本校 ${props.trends.radius_km} 公里內`)]
+  const lines: HTMLParagraphElement[] = []
+  if (row.merged) lines.push(popupLine(`里界調整過，和同區的里合併計算：${trendsPlaceName(row)}`))
+  if (row.new_homes === null) return [...lines, popupLine('新成屋資料尚未匯入')]
+  const latest = props.trends.sources.new_homes.latest
+  lines.push(popupLine(`近 4 季新屋交屋 ${formatCount(row.new_homes)} 筆${row.merged ? '（整組）' : ''}`))
+  if (latest) lines.push(popupLine(`最近一季（${latest}）${formatCount(row.new_homes_latest ?? 0)} 筆`))
+  return lines
+}
+
 // 彈出框用 DOM 組，不用 HTML 字串（名稱一律走 textContent）。
 function villagePopup(properties: VillageProperties): HTMLElement {
   const row = villageRow(properties)
@@ -204,7 +241,9 @@ function villagePopup(properties: VillageProperties): HTMLElement {
       ? [popupLine(row ? `參觀 ${row.visit}・預繳 ${row.deposit}（${formatRate(row.visit_to_deposit_rate)}）` : '這個範圍沒有參觀')]
       : mode.value === 'trend'
         ? trendLines(properties)
-        : opportunityLines(properties)
+        : mode.value === 'homes'
+          ? homesLines(properties)
+          : opportunityLines(properties)
   root.append(title, ...lines)
   if (row && row.visit > 0) {
     const link = document.createElement('button')
@@ -520,7 +559,7 @@ onMounted(() => void startMap())
 watch(() => props.boundaries, drawVillages)
 watch([() => props.villages, () => props.opportunity, () => props.trends, mode], restyleVillages)
 // 正在看的模式變得用不了（換校區後人口未匯入、讀取失敗）：退回參觀人數，不留在畫不出東西的模式。讀取中不退。
-watch([() => props.opportunityNote, () => props.trendNote], () => {
+watch([() => props.opportunityNote, () => props.trendNote, () => props.homesNote], () => {
   if (modeNote(mode.value)) mode.value = 'visits'
 })
 // 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。
@@ -549,7 +588,7 @@ onBeforeUnmount(destroyMap)
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
       <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在下方的表格與清單。 -->
-      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依${modeLabel}著色）；同樣的資料在下方的${mode === 'visits' ? '里排行' : mode === 'trend' ? '里的變化表' : '招生機會表'}與幼兒園清單`" />
+      <div ref="container" class="area-map__canvas" role="group" :aria-label="`${campusName}周邊里界地圖（依${modeLabel}著色）；同樣的資料在下方的${mode === 'visits' ? '里排行' : mode === 'trend' || mode === 'homes' ? '里的變化表' : '招生機會表'}與幼兒園清單`" />
       <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
       <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>
       <div v-if="failure" class="area-map__notice" role="alert">
@@ -592,10 +631,11 @@ onBeforeUnmount(destroyMap)
       </ul>
       <ul v-else-if="legend.length" class="area-legend area-legend--levels" :aria-label="`${modeLabel}圖例`">
         <li v-for="item in legend" :key="item.level">
-          <span class="area-swatch" :class="`area-swatch--l${item.level}`" aria-hidden="true" />{{ item.label }} {{ mode === 'children' ? '位' : '人' }}
+          <span class="area-swatch" :class="`area-swatch--l${item.level}`" aria-hidden="true" />{{ item.label }} {{ legendUnit }}
         </li>
+        <li v-if="mode === 'homes'"><span class="area-swatch area-swatch--l0" aria-hidden="true" />0 筆、里界調整、在半徑外</li>
       </ul>
-      <p v-else class="area-map__none">{{ mode === 'children' ? '半徑內的里沒有 2–5 歲孩子的資料。' : '這個範圍還沒有定位到里的參觀。' }}</p>
+      <p v-else class="area-map__none">{{ noneText }}</p>
       <div class="area-legend area-legend--kinds">
         <el-switch
           :model-value="showKindergartens"

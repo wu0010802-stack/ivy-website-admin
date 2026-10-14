@@ -4048,6 +4048,12 @@ export interface components {
             migration_months: number;
             /** Migration Net 12M */
             migration_net_12m: number | null;
+            /** New Homes */
+            new_homes: number | null;
+            /** New Homes Latest */
+            new_homes_latest: number | null;
+            /** New Homes Seasons */
+            new_homes_seasons: number;
             /** Villages */
             villages: number;
         };
@@ -4072,6 +4078,21 @@ export interface components {
             missing: string[];
             /** Months */
             months: string[];
+        };
+        /**
+         * AreaTrendsNewHomesSourceOut
+         * @description 新成屋交屋（B2 段）：使用中的最新季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）、本校半徑內有里的區裡
+         *     沒對到里的筆數（只到區、待比對、里名對不到里界；不進里表）；note 是畫面照引的來源（沒匯入是空字串）。
+         */
+        AreaTrendsNewHomesSourceOut: {
+            /** Latest */
+            latest: string | null;
+            /** Note */
+            note: string;
+            /** Seasons */
+            seasons: string[];
+            /** Unplaced */
+            unplaced: number;
         };
         /** AreaTrendsOut */
         AreaTrendsOut: {
@@ -4152,6 +4173,7 @@ export interface components {
             births: components["schemas"]["AreaTrendsMonthsOut"];
             income: components["schemas"]["AreaTrendsIncomeSourceOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
+            new_homes: components["schemas"]["AreaTrendsNewHomesSourceOut"];
             /** Note */
             note: string;
             population: components["schemas"]["AreaTrendsPopulationSourceOut"];
@@ -4193,6 +4215,10 @@ export interface components {
             merged: boolean;
             /** Migration Net 12M */
             migration_net_12m: number | null;
+            /** New Homes */
+            new_homes: number | null;
+            /** New Homes Latest */
+            new_homes_latest: number | null;
             /** Schools */
             schools: components["schemas"]["AreaTrendsVillageSchoolOut"][];
             /** Village */

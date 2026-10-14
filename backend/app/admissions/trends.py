@@ -12,6 +12,8 @@
 - 分級（V6）：戶籍是全數登記不是抽樣，不做統計檢定，用固定門檻。
 - 所得（V9，C 段）：最新年度的中位數，只當背景，不排序、不分級、不進合計。合併組不列（中位數不能相加）；
   里界在所得年度之後調整過（V5 的門檻，看遷入遷出表裡所有存著的月份）的里照列，另標 income_boundary_changed。
+- 新屋交屋（V7、V8，B2 段）：最新季往回 4 季、到里（exact、nearby、street）的筆數，另回最近一季。多數里是 0，
+  匯入了新成屋 0 就是 0；只到區、待比對、里名對不到里界的不進里表，另回「範圍內的區沒對到里的筆數」。合併組整組相加。
 - 國小學區（V10、V11，D 段）：每列寫對到的國小（部分鄰、自由學區另標）。「依國小學區」只列學區碰到半徑內任一個里
   的國小，每所合計**整個學區**（含半徑外的里）的孩子、這一年淨增與參觀人數；部分里與自由學區的里同時算進每一所，
   各列不能相加。參觀人數的母體同 /area/opportunity（頁首校區＋入學學年學期，到里且未匿名化）。
@@ -31,10 +33,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
+from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
+    VILLAGE_LEVELS,
     GeoDatasetStatus,
+    GeoNewHomeSale,
     GeoVillageAges,
     GeoVillageBirths,
     GeoVillageIncome,
@@ -58,6 +63,8 @@ FEW_BASE = 20
 BOUNDARY_SHARE = 0.01
 BOUNDARY_MIN_PEOPLE = 20
 DISTANCE_ROUND_M = 100
+# 新屋交屋看最新季往回幾季。
+NEW_HOME_SEASONS = 4
 
 
 def kids_level(net: int | None, base: int | None) -> str:
@@ -98,6 +105,36 @@ async def _income(db: AsyncSession, districts: set[str]) -> tuple[int | None, st
         select(GeoVillageIncome.village_code, GeoVillageIncome.median).where(GeoVillageIncome.district.in_(districts))
     )
     return year, income_io.citation(year, status.synced_at), {code: median for code, median in rows.all()}
+
+
+async def _new_homes(
+    db: AsyncSession, districts: set[str]
+) -> tuple[str | None, list[str], dict[str, tuple[int, int]], int]:
+    """(使用中的最新季, 近 4 季裡表有資料的季, 里代碼 → (近 4 季筆數, 最近一季筆數), 沒對到里的筆數)。
+    districts 是半徑內有里的區：只讀這些區的列；沒對到里的筆數也只算這些區。到里的列用 (區, 里) 轉代碼，
+    里界檔沒有那個 (區, 里)（理論上不會發生）和參觀人數一樣算沒對到里。表裡比最新季新的季不算。"""
+    status = await db.get(GeoDatasetStatus, "new_homes")
+    if status is None or status.active_version is None:
+        return None, [], {}, 0
+    latest = status.active_version
+    window = new_homes_io.window(latest, NEW_HOME_SEASONS)
+    sale = GeoNewHomeSale
+    seasons = sorted((await db.execute(select(sale.season).where(sale.season.in_(window)).distinct())).scalars().all())
+    rows = await db.execute(
+        select(sale.district, sale.village, sale.season, sale.match_level, func.count())
+        .where(sale.season.in_(window), sale.district.in_(districts))
+        .group_by(sale.district, sale.village, sale.season, sale.match_level)
+    )
+    counts: dict[str, tuple[int, int]] = {}
+    unplaced = 0
+    for district, village, season, level, count in rows.all():
+        code = boundaries.village_code(district, village) if level in VILLAGE_LEVELS and village else None
+        if code is None:
+            unplaced += count
+            continue
+        total, newest = counts.get(code, (0, 0))
+        counts[code] = (total + count, newest + (count if season == latest else 0))
+    return latest, seasons, counts, unplaced
 
 
 async def _adjusted_since(db: AsyncSession, districts: set[str], year: int, people: dict[str, int]) -> set[str]:
@@ -309,6 +346,7 @@ async def query_trends(
             "migration": {"latest": migration_latest, "months": [], "missing": []},
             "note": series_io.SOURCE_NOTE,
             "income": {"year": None, "note": ""},
+            "new_homes": {"latest": None, "seasons": [], "unplaced": 0, "note": ""},
             "school_districts": {"school_year": sd.SCHOOL_DISTRICT_YEAR, "note": sd.SOURCE_NOTE},
         },
         "baseline": None,
@@ -345,6 +383,12 @@ async def query_trends(
         if income_year is not None
         else set()
     )
+
+    homes_latest, homes_seasons, homes, homes_unplaced = await _new_homes(db, {names[code][0] for code in near})
+    if homes_latest is not None:
+        result["sources"]["new_homes"] = {
+            "latest": homes_latest, "seasons": homes_seasons, "unplaced": homes_unplaced, "note": new_homes_io.SOURCE_NOTE,
+        }
 
     births_present = [month for month in births_window if month in data.births]
     migration_present = [month for month in migration_window if month in data.migration]
@@ -439,6 +483,8 @@ async def query_trends(
                 ),
                 "income_median": None if merged else incomes.get(codes[0]),
                 "income_boundary_changed": not merged and codes[0] in incomes and codes[0] in income_changed,
+                "new_homes": sum(homes.get(code, (0, 0))[0] for code in codes) if homes_latest is not None else None,
+                "new_homes_latest": sum(homes.get(code, (0, 0))[1] for code in codes) if homes_latest is not None else None,
             }
         )
     villages.sort(
@@ -476,5 +522,8 @@ async def query_trends(
         "births_change_pct": change,
         "migration_net_12m": sum(row["migration_net_12m"] or 0 for row in villages) if migration_present else None,
         "migration_months": len(migration_present),
+        "new_homes": sum(row["new_homes"] for row in villages) if homes_latest is not None else None,
+        "new_homes_latest": sum(row["new_homes_latest"] for row in villages) if homes_latest is not None else None,
+        "new_homes_seasons": len(homes_seasons),
     }
     return result
