@@ -25,7 +25,19 @@
   - `GET /admin/audit-log` 多 `actor`、`q`；`GET /admin/notifications` 多 `before`、`before_id`、`unread_only`、`limit`（回應仍是陣列）；`ParentVisitRequestOut` 多 `day_closed`。
   - 新的家長信種類 `parent_visit_day_closed`、歷程 `closure_notice`、操作紀錄 `visit_exception.import_holidays`、`visit_closure.create`。
   - **沒有 migration**。
-- **驗證**（Node 22.22、PostgreSQL 16、本機 Chromium）：見下方「驗證結果」。
+- **驗證**（Node 22.22、PostgreSQL 16、本機 Chromium）：
+  - 後端全套分 3 組平行跑（各自的測試庫）：2680 passed、1 failed。失敗的是 `test_media_job_loop.py::test_stop_terminates_running_ffmpeg_and_requeues_job`（「停止要在 4 秒內完成」的計時斷言，三組同時跑 CPU 滿載），和本次無關，單獨重跑 9 passed。
+  - 新增的後端測試：`test_holiday_calendar.py` 24、`test_visit_closure.py` 10、`test_audit_search_and_inbox_paging.py` 8。
+  - admin vitest（`--maxWorkers=2`，同 CI）156 檔 2354 passed、1 skipped；web vitest 101 檔 1226 passed。
+  - admin `vue-tsc -b --noEmit`、web `nuxt typecheck`、admin build、`contract:check` 都通過。
+  - 解析器以 114（Big5 更新版）、115、116 年的真實檔案驗過；本機實際從開放平台下載 116 年版。
+  - 本機 stack（API＋後台 dev＋官網 dev）上用 Playwright 跑桌機 1440、手機 390，都沒有水平溢出：
+    - 停班停課：試算顯示 6 組（4 位寄信、2 位要來電），送出後寄出 4 封。
+    - 那天面板的「寄停課通知」：4 位之前寄過、不重寄。
+    - 匯入國定假日：義華新增 17 天、略過 7 個週末節日。
+    - 操作紀錄：搜尋「停班」找到那一筆；操作者篩選正常。
+    - 站內通知：130 則翻頁到 130、未讀頁籤 86。
+    - 家長頁：把期限設成 14 天，停課日仍可改場次與取消，不顯示期限也沒有加入行事曆。
 - **未驗證**：
   - 正式站（Railway）連不連得到 data.gov.tw／dgpa.gov.tw（連不到就用上傳）。
   - 真的寄出的停課信：本機沒有 SMTP，只驗了排信、信件內容與連結。
