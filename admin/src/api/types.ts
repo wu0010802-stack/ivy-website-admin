@@ -577,6 +577,8 @@ export type AreaTrends = components['schemas']['AreaTrendsOut']
 /** 半徑內一個里，或同區里界調整過的一組（merged）。 */
 export type AreaTrendsVillage = components['schemas']['AreaTrendsVillageOut']
 export type KidsLevel = AreaTrendsVillage['kids_level']
+export type AreaTrendsVillageSchool = components['schemas']['AreaTrendsVillageSchoolOut']
+export type AreaTrendsSchool = components['schemas']['AreaTrendsSchoolOut']
 
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {

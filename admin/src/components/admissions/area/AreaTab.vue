@@ -4,6 +4,7 @@ import StatsDimensionTable from '../StatsDimensionTable.vue'
 import NearbyKindergartens from './NearbyKindergartens.vue'
 import OpportunityPanel from './OpportunityPanel.vue'
 import VillageTrendsPanel from './VillageTrendsPanel.vue'
+import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
 import { getArea, getAreaBoundaries, getAreaKindergartens, getAreaOpportunity, getAreaTrends } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
@@ -301,6 +302,7 @@ function openNoVillage() {
 
       <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
       <VillageTrendsPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" @retry="loadTrends()" />
+      <SchoolDistrictPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" />
 
       <div v-if="area.totals.with_address" class="area-tables">
         <StatsDimensionTable

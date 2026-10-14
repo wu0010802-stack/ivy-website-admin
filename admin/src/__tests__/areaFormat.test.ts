@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, incomeText, kidsLevelTone,
-  kidsNetText,
+  kidsNetText, schoolKidsNetText, schoolVillagesText, villageSchoolsText,
   kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone,
   signedCount, taipeiMonthDay, trendMapNote, trendsPlaceName, trendsSummary, visitGeoText,
 } from '../components/admissions/area/areaFormat'
@@ -259,6 +259,24 @@ describe('里的變化的文字（2026-10-14 規格 7）', () => {
     expect(incomeText({ income_median: 952, income_boundary_changed: true })).toBe('95.2 萬*')
     expect(incomeText({ income_median: 300, income_boundary_changed: false })).toBe('30.0 萬')
     expect(incomeText({ income_median: null, income_boundary_changed: false })).toBe('—')
+  })
+
+  it('國小學區：部分、自由學區加註；學校在別區的加區名；沒有寫「—」', () => {
+    const school = (name: string, district: string, partial: boolean, free_zone: boolean) => ({ code: name, name, district, partial, free_zone })
+    expect(villageSchoolsText({ district: '三民區', schools: [school('東光國小', '三民區', false, false)] })).toBe('東光國小')
+    expect(villageSchoolsText({
+      district: '仁武區', schools: [school('八卦國小', '仁武區', false, true), school('福山國小', '左營區', true, true)],
+    })).toBe('八卦國小（自由學區）、左營區福山國小（部分，自由學區）')
+    expect(villageSchoolsText({ district: '三民區', schools: [school('A', '三民區', true, false), school('B', '三民區', false, false)] }, '；'))
+      .toBe('A（部分）；B')
+    expect(villageSchoolsText({ district: '三民區', schools: [] })).toBe('—')
+  })
+
+  it('學區里數與學區的淨增', () => {
+    expect([schoolVillagesText({ villages_full: 12, villages_partial: 3 }), schoolVillagesText({ villages_full: 3, villages_partial: 0 }),
+      schoolVillagesText({ villages_full: 0, villages_partial: 2 })]).toEqual(['12 里＋部分 3 里', '3 里', '部分 2 里'])
+    expect([schoolKidsNetText({ kids_net: 20, kids_partial: true }), schoolKidsNetText({ kids_net: -3, kids_partial: false }),
+      schoolKidsNetText({ kids_net: null, kids_partial: false })]).toEqual(['+20*', `${MINUS}3`, '—'])
   })
 
   it('地圖色階：孩子少與算不出來不上色', () => {

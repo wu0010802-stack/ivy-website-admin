@@ -6,7 +6,7 @@ import { NO_VALUE, type StatsColumn } from '../../../admissions/statsFormat'
 import type { CsvCell } from '../../../utils/csv'
 import {
   KIDS_LEVEL_LABELS, formatCount, formatDistance, incomeText, kidsNetText, populationVersionLabel, signedCount,
-  trendsPlaceName, trendsSummary, trendsUnavailable,
+  trendsPlaceName, trendsSummary, trendsUnavailable, villageSchoolsText,
 } from './areaFormat'
 
 type Row = AreaTrendsVillage & {
@@ -18,10 +18,11 @@ type Row = AreaTrendsVillage & {
   births_text: string
   migration_text: string
   income_text: string
+  schools_text: string
 }
 
 // 里的變化（2026-10-14 規格 7.2）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與全年齡淨遷入，
-// 以及所得中位數（C 段；只當背景，規格 V9：不著色、不分級、不排序、不進總結）。
+// 以及所得中位數（C 段；只當背景，規格 V9：不著色、不分級、不排序、不進總結）與國小學區（D 段）。
 // 半徑跟招生機會、附近幼兒園同一個 1／3／6 公里（AreaTab 換半徑就重讀）。這裡只呈現後端算好的數字與分級，
 // 不另外推估；里界調整過的里後端已合併成一列，名稱寫出來。
 const props = defineProps<{
@@ -43,6 +44,7 @@ const COLUMNS = computed<StatsColumn[]>(() => {
     { key: 'births_text', label: '近 12 個月出生' },
     { key: 'migration_text', label: '近 12 個月淨遷入' },
     { key: 'income_text', label: '所得中位數' },
+    { key: 'schools_text', label: '國小學區' },
   ]
 })
 
@@ -63,6 +65,7 @@ const rows = computed<Row[]>(() =>
     births_text: row.births_12m === null ? NO_VALUE : formatCount(row.births_12m),
     migration_text: signedCount(row.migration_net_12m),
     income_text: incomeText(row),
+    schools_text: villageSchoolsText(row),
   })),
 )
 
@@ -97,7 +100,8 @@ const caption = computed(() => {
     ? `出生缺 ${sources.births.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${income}`
+  const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${income}${schools}`
 })
 const emptyText = computed(() => unavailable.value ?? `本校 ${props.data?.radius_km ?? 3} 公里內沒有里的資料。`)
 
@@ -113,6 +117,7 @@ function csvCell(row: Row, column: StatsColumn): CsvCell | undefined {
   if (column.key === 'income_text') return row.income_median ?? ''
   if (column.key === 'income_year') return row.income_median === null ? '' : (props.data?.sources.income.year ?? '')
   if (column.key === 'income_changed') return row.income_boundary_changed ? '是' : ''
+  if (column.key === 'schools_text') return row.schools.length ? villageSchoolsText(row, '；') : ''
   return undefined
 }
 const csvColumns = computed<StatsColumn[]>(() => {
