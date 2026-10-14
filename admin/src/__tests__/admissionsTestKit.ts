@@ -7,7 +7,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
-import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, AreaOpportunity, UserOut, VillageBoundaries } from '../api/types'
+import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends, UserOut, VillageBoundaries } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -189,6 +189,32 @@ const buildAreaOpportunity = () => ({
 } satisfies AreaOpportunity)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaOpportunity = (changes: Partial<AreaOpportunity> = {}): AreaOpportunity => ({ ...buildAreaOpportunity(), ...changes })
+
+// 里的變化（2026-10-14）：本揚里淨增最多、鼎金里減少；寶業里與龍子里因里界調整合併（代碼含一個已廢止的舊代碼）。
+const buildAreaTrends = () => ({
+  as_of: '2026-10-14T02:00:00Z',
+  filters: { campus_key: 'yihua', school_year: 115, semester: null },
+  radius_km: 3,
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
+  sources: {
+    population: { month: '115-09', year_ago_month: '114-09' },
+    births: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
+    migration: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
+    note: '資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口',
+  },
+  baseline: {
+    villages: 4, children: 1400, kids_net: 26, kids_base: 1374, births_12m: 180, births_months: 12, births_compared_months: 9,
+    births_change_pct: -20.7, migration_net_12m: -160, migration_months: 12,
+  },
+  kids_unavailable: null,
+  villages: [
+    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122 },
+    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30 },
+    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68 },
+  ],
+} satisfies AreaTrends)
+/** 每次呼叫都是一份新的；changes 整欄換掉。 */
+export const areaTrends = (changes: Partial<AreaTrends> = {}): AreaTrends => ({ ...buildAreaTrends(), ...changes })
 
 // 座標由 distance_m 反推（從校區正北方量出去），所以座標和 distance_m 一致、本機構（0 m）落在校區 50 m 內，
 // 競爭園所都在 50 m 外（後端 OWN_CAMPUS_RADIUS_M）；areaFormat.test.ts 的守門測試用 haversine 驗。

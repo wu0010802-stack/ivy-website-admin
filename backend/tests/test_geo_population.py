@@ -13,7 +13,8 @@ from sqlalchemy import func, select, update
 from app import cli
 from app.admissions.geo import population as population_io
 from app.admissions.geo import sync
-from app.admissions.geo.models import GeoDatasetStatus, GeoVillagePopulation
+from app.admissions.geo import village_series as series_io
+from app.admissions.geo.models import GeoDatasetStatus, GeoVillageAges, GeoVillagePopulation
 from app.admissions.geo.population import PopulationFormatError, collect, label_of, response_rows, total_pages
 from app.cli import geo_sync_command, geo_sync_options
 from tests.geo_helpers import RIS_SAMPLE_PAGES, RIS_SAMPLE_VILLAGES, ris_response, ris_sample_pages
@@ -23,8 +24,9 @@ TODAY = date(2026, 10, 13)
 
 @pytest.fixture
 def few_villages(monkeypatch):
-    """樣本只有 24 個里；下限降到 1。"""
+    """樣本只有 24 個里；下限降到 1（年齡歷史用同一份資料，下限一起降）。"""
     monkeypatch.setattr(population_io, "MIN_VILLAGES", 1)
+    monkeypatch.setattr(series_io, "MIN_VILLAGES", 1)
 
 
 @pytest.fixture
@@ -293,17 +295,49 @@ async def _sync_files(app, files: list[Path], **kwargs) -> tuple[str, int]:
     )
 
 
-async def test_an_older_population_file_does_not_replace_a_newer_month(app, few_villages, tmp_path: Path):
-    """檔案匯入和網路一樣不退回舊月份；拒絕時保留使用中的版本與時間戳，原因寫進 last_error 給 CLI 印出。"""
+async def test_an_older_population_file_only_goes_into_the_age_history(app, few_villages, tmp_path: Path):
+    """檔案匯入和網路一樣不退回舊月份。2026-10-14 起舊月份的檔案不再當錯誤：只寫進年齡歷史（「這一年淨增」要
+    一年前的月份），使用中的人口、版本與時間戳都不動。"""
     assert await _sync_files(app, _write_pages(tmp_path, "11509")) == ("updated", 0)
     before = await _status(app)
     result = await _sync_files(app, _write_pages(tmp_path, "11508"), now=before.synced_at + timedelta(days=1))
-    assert result == ("failed", 0)
+    assert result == ("history", 0)
     status = await _status(app)
-    assert (status.active_version, status.label) == ("115-09", "115-09")
+    assert (status.active_version, status.label, status.last_error) == ("115-09", "115-09", None)
     assert (status.synced_at, status.checked_at) == (before.synced_at, before.checked_at)
-    assert "115-08" in status.last_error and "115-09" in status.last_error and "--force" in status.last_error
     assert await _count(app) == RIS_SAMPLE_VILLAGES
+    assert await _history_months(app) == {"115-08": RIS_SAMPLE_VILLAGES, "115-09": RIS_SAMPLE_VILLAGES}
+
+
+async def test_population_files_of_two_months_import_the_newer_and_keep_the_older_as_history(
+    app, few_villages, tmp_path: Path
+):
+    """bundle 會同時帶使用中的月份與一年前的月份：較新的換上使用中，較舊的只進歷史。"""
+    files = _write_pages(tmp_path, "11409") + _write_pages(tmp_path, "11509")
+    assert await _sync_files(app, files) == ("updated", 0)
+    assert (await _status(app)).label == "115-09"
+    assert await _history_months(app) == {"114-09": RIS_SAMPLE_VILLAGES, "115-09": RIS_SAMPLE_VILLAGES}
+
+
+async def test_nationwide_pages_without_kaohsiung_rows_are_skipped(app, few_villages, tmp_path: Path):
+    """部署文件寫「全國的四頁也收」：全國的頁有的整頁都不是高雄，略過，不能當成空檔失敗。"""
+    files = _write_pages(tmp_path, "11509")
+    others = ris_sample_pages()[0]
+    others["responseData"] = [row for row in others["responseData"] if not row["district_code"].startswith("64000")]
+    assert others["responseData"]  # 樣本第一頁有新北市的列
+    path = tmp_path / "11509-nationwide-other.json"
+    path.write_text(json.dumps(others, ensure_ascii=False), encoding="utf-8")
+    assert await _sync_files(app, [*files, path]) == ("updated", 0)
+    assert await _count(app) == RIS_SAMPLE_VILLAGES
+    result = await _sync_files(app, [path])
+    assert result == ("failed", 0)
+    assert "沒有高雄市的資料" in (await _status(app)).last_error
+
+
+async def _history_months(app) -> dict[str, int]:
+    async with app.state.session_factory() as db:
+        rows = (await db.execute(select(GeoVillageAges.month, func.count()).group_by(GeoVillageAges.month))).all()
+    return {month: count for month, count in rows}
 
 
 async def test_force_lets_an_older_population_file_replace_the_month(app, few_villages, tmp_path: Path):

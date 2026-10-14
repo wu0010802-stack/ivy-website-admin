@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
-import { areaKindergartens, areaOpportunity, areaStats, button, cleanup, mockGet, mountWith, villageBoundaries } from './admissionsTestKit'
+import { areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, mockGet, mountWith, villageBoundaries } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaMap.vue', () => {
   throw new Error('Failed to fetch dynamically imported module: https://example.test/admin/assets/AreaMap-old.js')
@@ -27,6 +27,7 @@ describe('區域分析：地圖元件載入失敗', () => {
       '/admin/admissions/area/boundaries': villageBoundaries(),
       '/admin/admissions/area/kindergartens': areaKindergartens(),
       '/admin/admissions/area/opportunity': areaOpportunity(),
+      '/admin/admissions/area/trends': areaTrends(),
       '/admin/admissions/area': areaStats(),
     })
     const { wrapper } = await mountWith(AreaTab, { props: props() })

@@ -27,6 +27,7 @@ from app.admissions.geo.sync import (
     run_geo_sync,
 )
 from app.admissions.geo import population as population_io
+from app.admissions.geo import village_series as series_io
 from tests.geo_helpers import FIXTURES, add_visit, lock_is_free, publish_campus_address, ris_response
 
 CSV_URL = "https://data.kcg.gov.tw/File/DirectDownload/667aae8f-d427-488b-9420-e51f28783dc3"
@@ -76,6 +77,7 @@ def small_minimum(monkeypatch):
     """樣本只有 73 個門牌、24 個里的人口；下載的筆數下限都降到 1。"""
     monkeypatch.setattr(sync, "MIN_DOORPLATE_ROWS", 1)
     monkeypatch.setattr(population_io, "MIN_VILLAGES", 1)
+    monkeypatch.setattr(series_io, "MIN_VILLAGES", 1)
 
 
 async def _sync(app, transport, **kwargs):

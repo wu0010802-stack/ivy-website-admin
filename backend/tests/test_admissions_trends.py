@@ -1,0 +1,324 @@
+"""里的變化 API（2026-10-14 里的變化規格 §5、§6）：這一年淨增與分級、近 12 個月出生與淨遷入、出生和前一年
+同月份比、里界調整合併、算不出來的原因、本校沒座標、半徑、權限與開關。
+
+義華校址固定在門牌樣本的座標；公開資料直接寫資料庫。1 公里內（里界面積重心）有本揚里 287 m、寶業里 329 m、
+寶國里 458 m、本上里 489 m 等 12 個里；本武里 1.5 公里。「三民區測試舊里」（64000059999）是假的已廢止代碼：
+只出現在一年前的年齡與 115-07 之前的遷入遷出，和 115-07 行政區域調整過的本上里合併成一組。"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+from sqlalchemy import func, select
+
+from app.admissions import trends
+from app.admissions.geo import boundaries, matcher
+from app.admissions.geo import village_series as series_io
+from app.admissions.geo.models import (
+    GeoDatasetStatus,
+    GeoVillageAges,
+    GeoVillageBirths,
+    GeoVillageMigration,
+    GeoVillagePopulation,
+)
+from app.main import create_app
+from app.operations.models import AuditLogEntry
+from tests.admissions_area_helpers import AREA
+from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
+from tests.conftest import _logged_in_client, _test_settings
+
+TRENDS = f"{AREA}/trends"
+YIHUA_LAT, YIHUA_LNG = 22.6424556, 120.3437133
+NOW = datetime(2026, 10, 14, 4, 0, tzinfo=timezone.utc)
+CURRENT, YEAR_AGO = "115-09", "114-09"
+OLD_CODE = "64000059999"
+BENYANG = boundaries.village_code("三民區", "本揚里")
+BAOYE = boundaries.village_code("三民區", "寶業里")
+BAOGUO = boundaries.village_code("三民區", "寶國里")
+BENSHANG = boundaries.village_code("三民區", "本上里")
+BENWU = boundaries.village_code("三民區", "本武里")
+BAOHUA = boundaries.village_code("三民區", "寶華里")
+# 代碼 → (本月每一歲 2–5 歲的人數, 一年前每一歲 1–4 歲的人數)；None＝那個月份沒有這個代碼。
+AGES = {
+    BENYANG: (30, 25),  # 120 對 100：+20（+20%）增加多
+    BAOYE: (25, 25),  # 100 對 100：0 差不多
+    BAOGUO: (20, 25),  # 80 對 100：−20（−20%）減少多
+    BENSHANG: (10, 5),  # 和舊里合併：40 對 20＋24
+    OLD_CODE: (None, 6),
+    BENWU: (4, 4),  # 一年前 1–4 歲 16 位：孩子少
+}
+NAMES = {OLD_CODE: ("三民區", "測試舊里")}
+
+
+@pytest.fixture
+def located_campus(monkeypatch):
+    async def located(db, campus_key):
+        return matcher.CampusPoint(campus_key=campus_key, lat=YIHUA_LAT, lng=YIHUA_LNG, locate_error=None, district="三民區")
+
+    monkeypatch.setattr(matcher, "campus_point", located)
+
+
+def _name(code: str) -> tuple[str, str]:
+    return NAMES.get(code) or boundaries.village_names()[code]
+
+
+def _ages_row(month: str, code: str, per_age: int, band: tuple[int, int]) -> GeoVillageAges:
+    district, village = _name(code)
+    values = {f"age_{age}": (per_age if band[0] <= age <= band[1] else 0) for age in range(7)}
+    return GeoVillageAges(month=month, village_code=code, district=district, village=village, people_total=3000, **values)
+
+
+async def _seed(
+    db,
+    *,
+    year_ago: bool = True,
+    migration_months: list[str] | None = None,
+    births: bool = True,
+    population: bool = True,
+) -> None:
+    if population:
+        for code, (now, _) in AGES.items():
+            if now is None:
+                continue
+            district, village = _name(code)
+            db.add(
+                GeoVillagePopulation(
+                    village_code=code, district=district, village=village, age_0=0, age_1=0,
+                    age_2=now, age_3=now, age_4=now, age_5=now, age_6=0, people_total=3000,
+                )
+            )
+            db.add(_ages_row(CURRENT, code, now, (2, 5)))
+        db.add(GeoDatasetStatus(dataset="population", active_version=CURRENT, label=CURRENT, synced_at=NOW))
+    if year_ago:
+        for code, (_, before) in AGES.items():
+            db.add(_ages_row(YEAR_AGO, code, before, (1, 4)))
+    months = series_io.window(CURRENT, 12) if migration_months is None else migration_months
+    for month in months:
+        for code in AGES:
+            if code == OLD_CODE and month >= "115-07":
+                continue
+            district, village = _name(code)
+            moves = (10, 4, 2, 1) if code == BENYANG else (0, 0, 0, 0)
+            # 本上里 115-07 有 100 人行政區域調整（≥ 20 人且 ≥ 3,000 人的 1%）。
+            boundary = 100 if code == BENSHANG and month == "115-07" else 0
+            db.add(
+                GeoVillageMigration(
+                    month=month, village_code=code, district=district, village=village,
+                    moved_in=moves[0], moved_out=moves[1], address_in=moves[2], address_out=moves[3],
+                    boundary_in=boundary, boundary_out=0,
+                )
+            )
+    if months:
+        db.add(GeoDatasetStatus(dataset="migration", active_version=max(months), label=max(months), synced_at=NOW))
+    if births:
+        for month in series_io.window(CURRENT, 24):
+            for code in AGES:
+                if code == OLD_CODE:
+                    continue
+                district, village = _name(code)
+                count = 0
+                if code == BENYANG:
+                    count = 2 if month > YEAR_AGO else 3
+                db.add(GeoVillageBirths(month=month, village_code=code, district=district, village=village, births=count))
+        db.add(GeoDatasetStatus(dataset="births", active_version=CURRENT, label=CURRENT, synced_at=NOW))
+    await db.commit()
+
+
+async def _get(client, query: str = "radius_km=1") -> dict:
+    response = await client.get(f"{TRENDS}?campus_key=yihua&{query}")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _by_key(body: dict) -> dict[str, dict]:
+    return {row["key"]: row for row in body["villages"]}
+
+
+def test_kids_level_thresholds():
+    assert trends.kids_level(None, 100) == "unknown"
+    assert trends.kids_level(5, 19) == "few"
+    assert trends.kids_level(10, 100) == "up2"
+    assert trends.kids_level(9, 100) == "up1"  # +9% 還不到 10%
+    assert trends.kids_level(4, 40) == "up1"  # +10% 但不到 5 位
+    assert trends.kids_level(3, 100) == "up1"
+    assert trends.kids_level(2, 20) == "flat"  # +10% 但不到 3 位
+    assert trends.kids_level(-3, 100) == "down1"
+    assert trends.kids_level(-10, 100) == "down2"
+    assert trends.kids_level(-4, 44) == "down1"
+    assert trends.kids_level(0, 100) == "flat"
+
+
+async def test_trends_one_km(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    body = await _get(admin_client)
+    assert body["radius_km"] == 1 and body["kids_unavailable"] is None
+    assert body["sources"]["population"] == {"month": CURRENT, "year_ago_month": YEAR_AGO}
+    assert body["sources"]["births"] == {"latest": CURRENT, "months": series_io.window(CURRENT, 12), "missing": []}
+    assert body["sources"]["migration"]["months"] == series_io.window(CURRENT, 12)
+    assert "內政部戶政司" in body["sources"]["note"]
+    rows = _by_key(body)
+    assert rows[BENYANG] == {
+        "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
+        "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
+        # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
+        "births_12m": 24, "migration_net_12m": 84,
+    }
+    assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
+    assert (rows[BAOGUO]["kids_net"], rows[BAOGUO]["kids_level"]) == (-20, "down2")
+    # 沒有任何資料的近鄰里：數字是 null，不是 0。
+    assert rows[BAOHUA] | {"distance_m": 0} == {
+        "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
+        "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
+        "births_12m": None, "migration_net_12m": None,
+    }
+    # 排序：淨增由大到小，算不出來的在最後。
+    keys = [row["key"] for row in body["villages"]]
+    assert keys[:4] == [BENYANG, BAOYE, f"group:三民區:{BENSHANG}", BAOGUO]
+    assert all(row["kids_net"] is None for row in body["villages"][4:])
+
+
+async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    group = _by_key(await _get(admin_client))[f"group:三民區:{BENSHANG}"]
+    # 本上里 115-07 調整過、舊里 115-07 起不見了：同區合併成一列，數字整組相加（舊里只有一年前有孩子）。
+    assert group == {
+        "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
+        "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
+        "births_12m": 0, "migration_net_12m": 0,
+    }
+
+
+async def test_small_routine_adjustments_do_not_merge(admin_client, db_session, located_campus):
+    """每月常有幾個人的鄰界調整：不到門檻（20 人且 1%）不合併。"""
+    await _seed(db_session)
+    small = (await db_session.execute(
+        select(GeoVillageMigration).where(GeoVillageMigration.village_code == BAOYE, GeoVillageMigration.month == "115-05")
+    )).scalar_one()
+    small.boundary_out = 19
+    await db_session.commit()
+    rows = _by_key(await _get(admin_client))
+    assert rows[BAOYE]["merged"] is False
+
+
+async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    baseline = (await _get(admin_client))["baseline"]
+    assert baseline == {
+        "villages": 12,
+        "children": 120 + 100 + 80 + 40,
+        "kids_net": 20 + 0 - 20 - 4,
+        "kids_base": 100 + 100 + 100 + 44,
+        # 本揚里近 12 個月每月 2 位、前一年每月 3 位：少 33.3%。
+        "births_12m": 24, "births_months": 12, "births_compared_months": 12, "births_change_pct": -33.3,
+        "migration_net_12m": 84, "migration_months": 12,
+    }
+
+
+async def test_birth_gaps_are_listed_and_too_few_compared_months_are_not_compared(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    # 前一年只留 5 個月：比較的月份不到 6 個，不比；本期缺 115-02 也照列。
+    keep_previous = {"114-05", "114-06", "114-07", "114-08", "114-09"}
+    for row in (await db_session.execute(select(GeoVillageBirths))).scalars():
+        if (row.month <= YEAR_AGO and row.month not in keep_previous) or row.month == "115-02":
+            await db_session.delete(row)
+    await db_session.commit()
+    body = await _get(admin_client)
+    assert body["sources"]["births"]["missing"] == ["115-02"]
+    assert (body["baseline"]["births_months"], body["baseline"]["births_compared_months"]) == (11, 5)
+    assert body["baseline"]["births_change_pct"] is None
+    assert body["baseline"]["births_12m"] == 22
+
+
+async def test_without_the_year_ago_ages_kids_are_not_counted(admin_client, db_session, located_campus):
+    await _seed(db_session, year_ago=False)
+    body = await _get(admin_client)
+    assert body["kids_unavailable"] == "no_year_ago"
+    assert body["sources"]["population"]["year_ago_month"] is None
+    rows = _by_key(body)
+    assert (rows[BENYANG]["kids_net"], rows[BENYANG]["kids_level"], rows[BENYANG]["children"]) == (None, "unknown", 120)
+    assert rows[BENYANG]["births_12m"] == 24
+    assert body["baseline"]["kids_net"] is None
+
+
+async def test_without_enough_migration_months_kids_are_not_counted(admin_client, db_session, located_campus):
+    await _seed(db_session, migration_months=series_io.window(CURRENT, 9))
+    body = await _get(admin_client)
+    assert body["kids_unavailable"] == "no_migration"
+    assert body["baseline"]["migration_months"] == 9
+
+
+async def test_without_population(admin_client, db_session, located_campus):
+    await _seed(db_session, population=False, year_ago=False)
+    body = await _get(admin_client)
+    assert body["kids_unavailable"] == "no_population"
+    assert body["sources"]["population"] == {"month": None, "year_ago_month": None}
+    assert body["baseline"]["children"] is None
+    assert _by_key(body)[BENYANG]["births_12m"] == 24
+
+
+async def test_nothing_imported(admin_client, located_campus):
+    body = await _get(admin_client)
+    assert body["kids_unavailable"] == "no_population"
+    assert body["sources"]["births"] == {"latest": None, "months": [], "missing": []}
+    assert body["baseline"]["births_12m"] is None and body["baseline"]["migration_net_12m"] is None
+    assert all(row["births_12m"] is None for row in body["villages"])
+
+
+async def test_three_km_includes_farther_villages(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    rows = _by_key(await _get(admin_client, "radius_km=3"))
+    assert rows[BENWU]["distance_m"] == 1500
+    assert (rows[BENWU]["kids_net"], rows[BENWU]["kids_level"]) == (0, "few")
+    assert BENWU not in _by_key(await _get(admin_client, "radius_km=1"))
+
+
+async def test_when_campus_not_located(admin_client, db_session, monkeypatch):
+    async def unlocated(db, campus_key):
+        return matcher.CampusPoint(campus_key=campus_key, lat=None, lng=None, locate_error="no_doorplate", district="三民區")
+
+    monkeypatch.setattr(matcher, "campus_point", unlocated)
+    await _seed(db_session)
+    body = await _get(admin_client)
+    assert body["campus"]["locate_error"] == "no_doorplate"
+    assert body["baseline"] is None and body["villages"] == []
+    assert body["sources"]["population"]["month"] == CURRENT
+
+
+@pytest.mark.parametrize("radius", ["2", "0", "abc", "", "3.5"])
+async def test_rejects_bad_radius(admin_client, radius):
+    response = await admin_client.get(f"{TRENDS}?campus_key=yihua&radius_km={radius}")
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_RADIUS"
+
+
+async def test_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
+    path = f"{TRENDS}?campus_key="
+    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
+    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
+    assert (await minghua_client.get(path + "yihua")).status_code == 404
+    assert (await editor_client.get(path + "yihua")).status_code == 403
+    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
+    assert (await admin_client.get(path + "nowhere")).status_code == 404
+
+
+async def test_needs_login(public_client):
+    assert (await public_client.get(f"{TRENDS}?campus_key=yihua")).status_code == 401
+
+
+async def test_hidden_when_admissions_disabled(admin_client):
+    disabled = create_app(_test_settings().model_copy(update={"admissions_enabled": False}))
+    client = await _logged_in_client(disabled, "admin@ivy.example", "super-admin-password-123")
+    try:
+        assert (await client.get(f"{TRENDS}?campus_key=yihua")).status_code == 404
+    finally:
+        await client.aclose()
+        await disabled.state.engine.dispose()
+        await disabled.state.rate_limit_engine.dispose()
+
+
+async def test_never_writes_audit_entries(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    before = await db_session.scalar(select(func.count()).select_from(AuditLogEntry))
+    await _get(admin_client)
+    assert await db_session.scalar(select(func.count()).select_from(AuditLogEntry)) == before

@@ -572,6 +572,11 @@ export type AreaOpportunityRow = components['schemas']['AreaOpportunityRowOut']
 /** 半徑內、但各里人口沒有這個里：沒有孩子數，參觀不算進附近平均，也不是半徑外。 */
 export type AreaOpportunityMissing = components['schemas']['AreaOpportunityMissingOut']
 export type OpportunitySignal = AreaOpportunityRow['signal']
+// 里的變化（2026-10-14 規格 §6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與淨遷入。
+export type AreaTrends = components['schemas']['AreaTrendsOut']
+/** 半徑內一個里，或同區里界調整過的一組（merged）。 */
+export type AreaTrendsVillage = components['schemas']['AreaTrendsVillageOut']
+export type KidsLevel = AreaTrendsVillage['kids_level']
 
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {

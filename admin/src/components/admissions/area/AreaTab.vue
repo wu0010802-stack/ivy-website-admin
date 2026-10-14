@@ -3,10 +3,11 @@ import { computed, defineAsyncComponent, ref, shallowRef, watch } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
 import NearbyKindergartens from './NearbyKindergartens.vue'
 import OpportunityPanel from './OpportunityPanel.vue'
-import { getArea, getAreaBoundaries, getAreaKindergartens, getAreaOpportunity } from '../../../api/admissions'
+import VillageTrendsPanel from './VillageTrendsPanel.vue'
+import { getArea, getAreaBoundaries, getAreaKindergartens, getAreaOpportunity, getAreaTrends } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaVillageRow, VillageBoundaries,
+  AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaTrends, AreaVillageRow, VillageBoundaries,
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
@@ -14,11 +15,12 @@ import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
   bandLabel, campusNotLocatedReason, doorplateVersionLabel, opportunityUnavailable, populationVersionLabel, reasonLabel, taipeiMonthDay,
-  type RadiusKm,
+  trendMapNote, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
 // 2026-10-13 招生機會：地圖可改依 2–5 歲孩子或招生機會著色，地圖下方多一張「招生機會」表（半徑跟附近幼兒園同一個）。
+// 2026-10-14 里的變化：地圖多「孩子增減」著色，招生機會下面多一張「里的變化」表（半徑同上）。
 // 口徑同其他子分頁（頁首校區＋入學學年學期）；家長地址在後端以公開門牌資料比對，不送任何外部服務。
 // 地圖（Leaflet）另切一個 chunk，點開這個子分頁才下載。
 // chunk 載入失敗（常見於剛部署完、舊的 hash 檔已不存在）：重抓同一個檔救不回來，只能整頁重新載入；
@@ -125,6 +127,31 @@ watch([() => props.campusKey, () => props.schoolYear, () => props.semester, radi
 const opportunityNote = computed(() => {
   if (opportunityFailed.value) return '招生機會讀取失敗。'
   return opportunity.value ? (opportunityUnavailable(opportunity.value) ?? '') : ''
+})
+
+// 里的變化（2026-10-14 規格 7）：參數同招生機會；換任何一個都清空再讀、只採用最後一次的回應。
+const trends = ref<AreaTrends | null>(null)
+const trendsFailed = ref(false)
+const trendsRequests = useRequestSequence()
+async function loadTrends() {
+  const request = trendsRequests.begin()
+  trends.value = null
+  trendsFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaTrends({
+      campus_key: props.campusKey, school_year: props.schoolYear, semester: props.semester, radius_km: radiusKm.value,
+    })
+    if (trendsRequests.isCurrent(request)) trends.value = result
+  } catch {
+    if (trendsRequests.isCurrent(request)) trendsFailed.value = true
+  }
+}
+watch([() => props.campusKey, () => props.schoolYear, () => props.semester, radiusKm], () => void loadTrends(), { immediate: true })
+// 「孩子增減」停用的原因；空字串＝可以用（讀取中也可以用，同招生機會）。
+const trendNote = computed(() => {
+  if (trendsFailed.value) return '里的變化讀取失敗。'
+  return trends.value ? trendMapNote(trends.value) : ''
 })
 
 const map = ref<{ focusKindergarten: (id: string) => void } | null>(null)
@@ -258,6 +285,8 @@ function openNoVillage() {
             :narrow="narrow"
             :opportunity="opportunity"
             :opportunity-note="opportunityNote"
+            :trends="trends"
+            :trend-note="trendNote"
             @open-area="openPlace"
           />
         </div>
@@ -271,6 +300,7 @@ function openNoVillage() {
       </div>
 
       <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
+      <VillageTrendsPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" @retry="loadTrends()" />
 
       <div v-if="area.totals.with_address" class="area-tables">
         <StatsDimensionTable
