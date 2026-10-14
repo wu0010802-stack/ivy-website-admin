@@ -13,6 +13,29 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 深度掃描 14 項中的 13 項（main CI 部署，沒有 migration）
+
+- **提交**：`abc994ce`（`fix/security-scan-20261013`，base 為 main `2a4710c6`）由使用者推上 main，`2a4710c6..abc994ce`。內容見 README 頂部 10-13「深度掃描 14 項」段落；第 14 項（編輯直接改已發布素材的替代文字與裁切）等業主決定，沒改。
+- **migration**：無。API 介面與契約都沒動。沒有備份。
+- **回退**：可直接切回前一個映像，資料不受影響。
+- **推送前閘門**（合併後的樹，本機）：
+  - 受影響的後端測試 1182 passed；對假日休園新進程式碼重跑交集 171 passed；`export_openapi.py --check` 與 `check-contract-types.mjs` 一致。
+  - admin `vue-tsc -b --noEmit` 通過、`authGuardSwitchUser.test.ts` 20 passed。
+  - 後端全套、stack e2e、web 單元測試沒在本機重跑，交給 CI。
+- **CI**：main run 38508036535（`abc994ce`），03:47:10Z 排進佇列（前一個 run `2a4710c6` 還在跑），03:53:11Z 開跑，04:07Z 結束。Backend 三組 9.1／7.3／8.8 分、Frontend web 1.3 分、admin 4.9 分、Deploy Railway production 4.6 分，都成功；**E2E／Playwright 失敗 1 條**（133 passed），Deploy 不等 E2E，所以部署照常完成：
+  - `editor-live-preview.spec.ts:413`「資安（真瀏覽器）：草稿不進預覽網址、storage…」斷言 `sessionStorage` 必須是空的，而第 6 項新增的 `ivy-visit-note-draft-owner`（只存登入者編號，不含任何草稿文字）讓它多出一個 key。是本次改動造成的測試斷言過嚴，不是功能問題。
+  - 修正：斷言改成排除這個 key（草稿文字的 token 比對照舊）。本機 `npm run e2e:build` 後只跑這條（加 setup）2 passed；storage 實測只有 `ivy-visit-note-draft-owner` 一個 session key。其餘 133 條在 CI 上已通過。
+- **正式 `release.json`**：base commit `abc994ceb9e530fc4a65dd5c2b4eea4f24b89ed2`，snapshot `59728a56…`，created `2026-10-14T04:02:53Z`，`web+api`。
+- **線上唯讀檢查**（未登入，04:1x UTC）：
+  - `/api/website/v1/health` 回 `status: ok`，`fixture_enabled: false`，`last_failed_steps` 為空（背景工作 04:09:53Z 完成一輪、無失敗步驟）。
+  - 首頁、入學、特色教學、關於、環境、預約、義華預約、`/admin/` 都回 200（0.15–0.48 秒）。
+- **未在線上驗證**：
+  - 預約連結／session、改密碼、Google／LINE 綁定的競態：都需要真並發與登入，只有本機真並發測試。
+  - 保存政策清理（第 8 項）下次排程才會碰到正式資料；清理會順手補清「已標記匿名化卻還有個資」的舊案。
+  - 公開資料同步的大小與時間上限（第 12、13 項）：自動同步在正式站仍是關閉的，沒用真實來源實測；正式資料若超過上限，同步會失敗並把原因寫進狀態列。
+  - 備份／還原（第 9 項）：只有手動執行，下次備份時 DSN 若帶了不認得的參數，腳本會拒絕執行。
+- **後續**：測試斷言修正以另一個提交隨本紀錄推上 main；它動到 `tests/`，會再跑一次完整 CI 並重新部署同一份應用程式碼（內容沒變）。
+
 ## 2026-10-14 bug 盤點兩條修正：站內換頁回首頁的布幕蓋層、排程發布與退回審核死結（main CI 部署，沒有 migration）
 
 - **合併**：PR #41（`feature/fix-entrance-publish-lock-20261014`，head `d6162142`）由 GitHub 以 merge commit 併入 main `3a047c29..93ddc9b1`。內容：
