@@ -569,19 +569,24 @@ async def transcode_media_videos(*, apply: bool) -> None:
 
 
 def geo_sync_options(args: list[str]) -> dict:
-    """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
+    """`geo-sync` 的參數（--doorplates-file／--kindergartens-file／--babycare-file／--population-file）。
+    指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
-    --population-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的統計月份。"""
+    --population-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的統計月份。
+    --force 一個旗標同時代表「立刻重抓」與「略過殘缺檔檢查」：幼兒園與托嬰的檔案一樣會檢查
+    （上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error 並印出，exit 1），
+    確定要換就加 --force。"""
     usage = (
-        "用法：python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] "
-        "[--doorplates-version 115-10] [--kindergartens-file <JSON>] [--population-file <JSON> ...]"
+        "用法：python -m app.cli geo-sync [--force（立刻重抓，也略過幼兒園與托嬰的殘缺檔檢查）] "
+        "[--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
+        "[--babycare-file <JSON>] [--population-file <JSON> ...]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
-        "population_files": None,
+        "babycare_file": None, "population_files": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
-              "--kindergartens-file": "kindergartens_file"}
+              "--kindergartens-file": "kindergartens_file", "--babycare-file": "babycare_file"}
     population_files: list[Path] = []
     index = 0
     while index < len(args):
@@ -598,7 +603,7 @@ def geo_sync_options(args: list[str]) -> dict:
             index += 2
         else:
             raise SystemExit(usage)
-    for path in (options["doorplates_file"], options["kindergartens_file"], *population_files):
+    for path in (options["doorplates_file"], options["kindergartens_file"], options["babycare_file"], *population_files):
         if path is not None and not path.is_file():
             raise SystemExit(f"找不到檔案：{path}")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
@@ -625,19 +630,24 @@ async def geo_sync_command(**options) -> None:
     print(
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；"
+        f"托嬰：{result.babycare}；"
         f"各里人口：{result.population}（使用中 {result.population_version or '尚未匯入'}）；"
         f"重算訪視 {result.rematched} 筆"
     )
-    if result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.population_rows_skipped:
+    if (
+        result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.babycare_rows_skipped
+        or result.population_rows_skipped
+    ):
         print(
             f"略過：門牌 {result.doorplate_rows_skipped} 列、幼兒園 {result.kindergarten_rows_skipped} 筆、"
-            f"各里人口 {result.population_rows_skipped} 列"
+            f"托嬰 {result.babycare_rows_skipped} 筆、各里人口 {result.population_rows_skipped} 列"
         )
     failed = [
         (dataset, label)
         for dataset, label, outcome in (
             ("doorplates", "門牌", result.doorplates),
             ("kindergartens", "幼兒園", result.kindergartens),
+            ("babycare", "托嬰", result.babycare),
             ("population", "各里人口", result.population),
         )
         if outcome == "failed"
@@ -662,7 +672,7 @@ def main() -> None:
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
-            "[--population-file <JSON> ...]>",
+            "[--babycare-file <JSON>] [--population-file <JSON> ...]>",
             file=sys.stderr,
         )
         raise SystemExit(1)

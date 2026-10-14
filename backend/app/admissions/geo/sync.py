@@ -1,15 +1,17 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
-幼兒園、各里人口（2026-10-13 招生機會規格 §4）；門牌換版或校址變更後重算訪視。
+幼兒園、各里人口（2026-10-13 招生機會規格 §4）、托嬰名單（2026-10-14 規格 §4）；門牌換版或校址變更後重算訪視。
 
-只下載公開資料，不送出任何家長資料。三種資料各自成敗：失敗只寫
+只下載公開資料，不送出任何家長資料。四種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 兩種用法：
-- 背景（app/workers/geo_loop.py，每天一次）：各自超過 30 天沒確認過才去看來源；門牌
-  先找最新月份，月份和使用中的一樣就不下載。
+- 背景（app/workers/geo_loop.py，每天一次）：門牌、各里人口超過 30 天沒確認過，幼兒園與托嬰超過 7 天
+  （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file／--population-file 指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
-  指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）。
+  --kindergartens-file／--babycare-file／--population-file 指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  門牌檔不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；幼兒園與托嬰的檔案一樣過殘缺檔檢查
+  （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
+  同時代表「立刻重抓」與「略過殘缺檔檢查」。
 
 高雄市資料開放平台（data.kcg.gov.tw，2026 年改版後不是 CKAN，/api/3 回 404）：
 - 搜尋頁 /dataset?keyword=門牌坐標資料：每年一個資料集，連結 title「高雄市115年門牌坐標資料-TWD97」；
@@ -53,6 +55,7 @@ from app.admissions.academic import current_term
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import population as population_io
 from app.admissions.geo import providers
+from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate
@@ -89,6 +92,7 @@ POPULATION_LOOKBACK_MONTHS = 4
 # 位元組數以解壓縮後計（壓縮炸彈也擋）。
 HTML_MAX_BYTES = 2 * 1024 * 1024  # 高雄市資料平台的搜尋頁與資料集頁（正常約數百 KB）
 KINDERGARTENS_MAX_BYTES = 64 * 1024 * 1024  # 全國幼兒園名單（正常約十 MB）
+BABYCARE_MAX_BYTES = 8 * 1024 * 1024  # 托嬰名單（正常約 1.4 MB）
 POPULATION_PAGE_MAX_BYTES = 32 * 1024 * 1024  # 各里人口每一頁（正常約 10 MB）
 DOORPLATE_MAX_BYTES = 400 * 1024 * 1024  # 門牌 CSV（正常約 102 MB）
 DOORPLATE_MAX_ROWS = 1_500_000  # 匯入資料庫的門牌列數（全市正常約 76 萬）
@@ -96,6 +100,7 @@ DOORPLATE_MAX_LINE_CHARS = 64 * 1024  # 單行長度：沒有換行的串流不�
 # 單一資料種類從開始到結束的時間上限（逾時中止、寫進狀態列）。
 DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
 KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
+BABYCARE_TIME_BUDGET = timedelta(minutes=5)
 POPULATION_TIME_BUDGET = timedelta(minutes=30)
 
 
@@ -182,6 +187,9 @@ class GeoSyncResult:
     population: str = "skipped"
     population_version: str | None = None
     population_rows_skipped: int = 0
+    # 托嬰名單（2026-10-14）：結果、解析時略過的筆數。
+    babycare: str = "skipped"
+    babycare_rows_skipped: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -364,11 +372,17 @@ async def _record(
         await db.commit()
 
 
-def _due(status: GeoDatasetStatus | None, now: datetime) -> bool:
+def _due(status: GeoDatasetStatus | None, now: datetime, interval: timedelta = REFRESH_AFTER) -> bool:
     if status is None or status.active_version is None:
         return True
     last = status.checked_at or status.synced_at
-    return last is None or now - last >= REFRESH_AFTER
+    return last is None or now - last >= interval
+
+
+def _provider_due(status: GeoDatasetStatus | None, now: datetime) -> bool:
+    """幼兒園、托嬰（規格 P10）：每 7 天看一次來源；基準日還是空的（還沒用異動比對的程式同步過，
+    例如既有的幼兒園資料）立刻到期，上線後第一輪就補上設立日與基準。"""
+    return _due(status, now, providers.PROVIDER_REFRESH_AFTER) or status.baseline_on is None
 
 
 async def _discard_batches(session_factory: async_sessionmaker[AsyncSession], keep: str | None) -> None:
@@ -394,6 +408,7 @@ def _error_text(exc: Exception) -> str:
         doorplate_io.DoorplateFormatError,
         doorplate_io.DoorplateTooManyRows,
         KindergartenFormatError,
+        BabycareFormatError,
         providers.ProviderShrunk,
         population_io.PopulationFormatError,
     )
@@ -469,7 +484,7 @@ async def sync_kindergartens(
 ) -> tuple[str, int]:
     """回傳 (結果, 略過的筆數)。"""
     status = await _status(session_factory, "kindergartens")
-    if file is None and (client is None or (not force and not _due(status, now))):
+    if file is None and (client is None or (not force and not _provider_due(status, now))):
         return "skipped", 0
     try:
         if file is not None:
@@ -493,6 +508,42 @@ async def sync_kindergartens(
     except Exception as exc:  # noqa: BLE001
         logger.warning("幼兒園資料同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "kindergartens", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
+async def sync_babycare(
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None,
+) -> tuple[str, int]:
+    """托嬰名單（2026-10-14 規格 §4）。回傳 (結果, 略過的筆數)。"""
+    status = await _status(session_factory, "babycare")
+    if file is None and (client is None or (not force and not _provider_due(status, now))):
+        return "skipped", 0
+    try:
+        if file is not None:
+            data = json.loads(file.read_text(encoding="utf-8-sig"))
+        else:
+            assert client is not None
+            body, _ = await _fetch_capped(client, settings.geo_babycare_url, max_bytes=BABYCARE_MAX_BYTES)
+            data = await asyncio.to_thread(json.loads, body)
+        report = ParseReport()
+        rows = await asyncio.to_thread(parse_babycare, data, report=report)
+        async with session_factory() as db:
+            changes = await providers.apply_babycare(db, rows, synced_at=now, force=force)
+            await db.commit()
+        logger.info(
+            "托嬰名單已更新：%s 所，略過 %s 筆；新增 %s、停辦 %s",
+            changes.active, report.skipped, changes.opened, changes.closed,
+        )
+        return "updated", report.skipped
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("托嬰名單同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "babycare", now=now, error=_error_text(exc))
         return "failed", 0
 
 
@@ -681,12 +732,16 @@ async def run_geo_sync(
     doorplates_file: Path | None = None,
     doorplates_version: str | None = None,
     kindergartens_file: Path | None = None,
+    babycare_file: Path | None = None,
     population_files: list[Path] | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     async with _exclusive(session_factory):
         now = datetime.now(timezone.utc)
-        file_mode = doorplates_file is not None or kindergartens_file is not None or bool(population_files)
+        file_mode = (
+            doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
+            or bool(population_files)
+        )
         own_client = client is None and not file_mode
         if own_client:
             client = new_client()
@@ -708,6 +763,10 @@ async def run_geo_sync(
                 session_factory, "kindergartens", KINDERGARTENS_TIME_BUDGET, now=now,
                 work=sync_kindergartens(session_factory, settings, network, now=now, force=force, file=kindergartens_file),
             )
+            babycare, babycare_skipped = await _within_budget(
+                session_factory, "babycare", BABYCARE_TIME_BUDGET, now=now,
+                work=sync_babycare(session_factory, settings, network, now=now, force=force, file=babycare_file),
+            )
             population, population_skipped = await _within_budget(
                 session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                 work=sync_population(session_factory, network, now=now, force=force, files=population_files),
@@ -724,4 +783,5 @@ async def run_geo_sync(
             population=population,
             population_version=population_status.label if population_status and population_status.active_version else None,
             population_rows_skipped=population_skipped,
+            babycare=babycare, babycare_rows_skipped=babycare_skipped,
         )

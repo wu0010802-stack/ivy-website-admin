@@ -3,10 +3,10 @@
 不併進 maintenance 的 run_cycle：那一輪持全域 advisory lock、每 60 秒一次，下載並匯入
 約 100MB 的門牌資料要一兩分鐘，會讓排程發布與通知一起延後。這裡自己一個 asyncio
 task，每 check_seconds（預設一天）呼叫一次 run_geo_sync；要不要真的下載由 sync 依
-「超過 30 天沒確認過」判斷。同一時間只允許一個同步：互斥由 run_geo_sync 自己的 session
-級 advisory lock（sync.LOCK_KEY）負責，多個副本同時醒來時後到者收到 GeoSyncBusy，這裡
-把它當成「這一輪跳過」。只在 WEBSITE_ADMISSIONS_ENABLED 與 WEBSITE_GEO_AUTO_SYNC 都開時
-啟動（app/main.py）；CLI `geo-sync` 不看這兩個開關。"""
+「超過 30 天沒確認過」（幼兒園與托嬰是 7 天）判斷。同一時間只允許一個同步：互斥由
+run_geo_sync 自己的 session 級 advisory lock（sync.LOCK_KEY）負責，多個副本同時醒來時
+後到者收到 GeoSyncBusy，這裡把它當成「這一輪跳過」。只在 WEBSITE_ADMISSIONS_ENABLED 與
+WEBSITE_GEO_AUTO_SYNC 都開時啟動（app/main.py）；CLI `geo-sync` 不看這兩個開關。"""
 
 from __future__ import annotations
 
@@ -87,8 +87,8 @@ class GeoSyncLoop:
         while True:
             try:
                 result = await self.run_once()
-                # 只要有一項真的做了事（更新或失敗）就記摘要；三項都是 skipped（30 天內不看來源）才不吵。
-                if result is not None and {result.doorplates, result.kindergartens, result.population} != {"skipped"}:
+                # 只要有一項真的做了事（更新或失敗）就記摘要；四項都是 skipped（還沒到期，不看來源）才不吵。
+                if result is not None and {result.doorplates, result.kindergartens, result.population, result.babycare} != {"skipped"}:
                     logger.info("公開地理資料同步：%s", result)
             except Exception:  # noqa: BLE001 - 連線失敗等，下一輪再試
                 logger.exception("公開地理資料同步：這一輪無法完成")

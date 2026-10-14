@@ -33,6 +33,7 @@ CSV_URL = "https://data.kcg.gov.tw/File/DirectDownload/667aae8f-d427-488b-9420-e
 DATASET_115 = "https://data.kcg.gov.tw/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7c9cd411414"
 DATASET_114 = "https://data.kcg.gov.tw/DataSet/Detail/1e015103-320c-45e7-927b-70a3c0be87c3"
 KIANG_URL = "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
+BABYCARE_URL = "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
 
 
 def _site(
@@ -40,11 +41,12 @@ def _site(
     csv: bytes | None = None,
     csv_status: int = 200,
     kiang: bytes | None = None,
+    babycare: bytes | None = None,
     dataset_115: str | None = None,
     dataset_115_status: int = 200,
     population_months: set[str] | None = None,
 ):
-    """假的高雄市資料平台＋kiang＋內政部 ODRP014；回傳 (transport, 請求過的網址清單)。"""
+    """假的高雄市資料平台＋kiang＋托嬰名單＋內政部 ODRP014；回傳 (transport, 請求過的網址清單)。"""
     seen: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -62,6 +64,9 @@ def _site(
             return httpx.Response(csv_status, content=body, headers={"content-type": "text/csv"})
         if url == KIANG_URL:
             body = kiang if kiang is not None else (FIXTURES / "preschools-sample.json").read_bytes()
+            return httpx.Response(200, content=body, headers={"content-type": "application/json"})
+        if url == BABYCARE_URL:
+            body = babycare if babycare is not None else (FIXTURES / "babycare-sample.json").read_bytes()
             return httpx.Response(200, content=body, headers={"content-type": "application/json"})
         population = ris_response(url, months=population_months)
         if population is not None:
