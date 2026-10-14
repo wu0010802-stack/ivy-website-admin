@@ -7,6 +7,8 @@
   憲政路（整條同一里）、府北路 25 號四樓之 3 附 1（附號寫在樓層後）。
 - preschools-sample.json：kiang preschools.json 的 13 筆（去掉負責人等欄位），含停業、
   臺南市、座標是字串、準公共、非營利、公立、本機構。
+- babycare-sample.json：kiang babycare.json 的 9 筆（2026-10-14 下載），高雄營業中 6 筆（離義華 165／435／
+  939／1297／1657／8307 公尺，含一筆托育家園、一筆地址有重複「高雄市…區…里」前綴）、高雄停業 2 筆、新北市 1 筆。
 - kcg-search.html、kcg-dataset.html：高雄市資料開放平台搜尋頁與資料集頁的連結片段。
 - ris-odrp014-11509-p1.json、-p2.json：內政部戶政司 ODRP014 115 年 9 月的兩頁（2026-10-13 下載），
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
@@ -97,6 +99,10 @@ def ris_response(url: str, *, months: set[str] | None = None) -> httpx.Response 
 
 def sample_preschools() -> dict:
     return json.loads((FIXTURES / "preschools-sample.json").read_text(encoding="utf-8"))
+
+
+def sample_babycare() -> dict:
+    return json.loads((FIXTURES / "babycare-sample.json").read_text(encoding="utf-8"))
 
 
 async def load_geo_samples(db: AsyncSession) -> None:

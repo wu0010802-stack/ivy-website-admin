@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     # 門牌檔案網址；留空＝自動在高雄市資料開放平台找最新月份。平台改版找不到時的退路。
     geo_doorplate_url: str | None = None
     geo_kindergartens_url: str = "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
+    # 托嬰名單（2026-10-14）：kiang 每天整理的衛福部社家署公開資料。
+    geo_babycare_url: str = "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
     # 背景迴圈多久醒來檢查一次（秒）；真的下載與否由「超過 30 天沒確認過」決定。
     geo_sync_check_seconds: int = Field(default=86400, ge=300, le=7 * 86400)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
@@ -155,6 +157,14 @@ class Settings(BaseSettings):
         value = value.strip()
         if not value.startswith("https://"):
             raise ValueError("WEBSITE_GEO_KINDERGARTENS_URL 必須是 https:// 網址")
+        return value
+
+    @field_validator("geo_babycare_url")
+    @classmethod
+    def _geo_babycare_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value.startswith("https://"):
+            raise ValueError("WEBSITE_GEO_BABYCARE_URL 必須是 https:// 網址")
         return value
 
     @field_validator("background_jobs_interval_seconds")

@@ -14,7 +14,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,6 +63,7 @@ class KindergartenRow:
     monthly_fee_estimate: int | None
     has_penalty: bool
     phone: str | None
+    registered_on: date | None = None
 
 
 @dataclass(frozen=True)
@@ -103,12 +104,33 @@ def _text_or_none(value: object) -> str | None:
     return cleaned or None
 
 
+def _registered_on(value: object) -> date | None:
+    """來源的設立日 reg_date，格式 YYYY/MM/DD（月日可只有一位）；格式不符或不是真的日期回 None。"""
+    text = _text_or_none(value)
+    if text is None:
+        return None
+    try:
+        year, month, day = (int(part) for part in text.split("/"))
+        return date(year, month, day)
+    except ValueError:  # 段數不對、不是數字、不存在的日期都是
+        return None
+
+
 def _kind(type_name: str, pre_public: str | None, school_year: int) -> str | None:
     kind = _KIND_BY_TYPE.get(type_name)
     if kind == "private" and pre_public:
         matched = _PRE_PUBLIC.fullmatch(pre_public)
         if matched and int(matched.group(1)) <= school_year <= int(matched.group(2)):
             return "quasi_public"
+    return kind
+
+
+def kind_as_of(kind: str, pre_public_period: str | None, school_year: int) -> str:
+    """資料表裡舊列的類型，用 school_year 這一學年重算（規格 P7）。公立、非營利不受準公共期間影響；
+    私立與準公共本質上都是私立，依舊列保存的準公共期間重算。8 月學年更替時沒改過資料的園所類型會
+    自己變，比對異動時舊的一邊要先這樣重算，才不會一次冒出一批假的類型變動。"""
+    if kind in ("private", "quasi_public"):
+        return _kind("私立", pre_public_period, school_year) or kind
     return kind
 
 
@@ -166,6 +188,7 @@ def _row(feature: dict, props: dict, school_year: int) -> KindergartenRow | None
         monthly_fee_estimate=_int_or_none(props.get("monthly")),
         has_penalty=str(props.get("penalty") or "") == "有",
         phone=_text_or_none(props.get("tel")),
+        registered_on=_registered_on(props.get("reg_date")),
     )
     if any(len(getattr(row, column) or "") > width for column, width in _WIDTHS.items()):
         return None

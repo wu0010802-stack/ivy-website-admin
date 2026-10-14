@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 import pytest
 from sqlalchemy import func, select
@@ -12,6 +12,7 @@ from app.admissions.geo.kindergartens import (
     KindergartenFormatError,
     ParseReport,
     _int_or_none,
+    kind_as_of,
     nearby,
     parse_preschools,
     replace_kindergartens,
@@ -83,6 +84,44 @@ def test_kinds_and_quasi_public_period():
 )
 def test_int_or_none(raw, expected):
     assert _int_or_none(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("2026/02/13", date(2026, 2, 13)),
+        ("2026/2/3", date(2026, 2, 3)),
+        ("2026/02/30", None),  # 不存在的日期
+        ("2026-02-13", None),  # 來源固定用斜線
+        ("20260213", None),
+        ("0000/01/01", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_registered_on_is_parsed_or_unknown(raw, expected):
+    (row,) = parse_preschools(_collection(_feature(id="x", reg_date=raw)), school_year=115)
+    assert row.registered_on == expected
+
+
+def test_registered_on_is_unknown_when_the_source_has_no_such_field():
+    (row,) = parse_preschools(_collection(_feature(id="x")), school_year=115)
+    assert row.registered_on is None
+
+
+@pytest.mark.parametrize(
+    ("kind", "period", "school_year", "expected"),
+    [
+        ("quasi_public", "113-115", 115, "quasi_public"),
+        ("quasi_public", "113-115", 116, "private"),  # 期間過了：沒改過資料的準公共自己變回私立
+        ("private", "113-115", 115, "quasi_public"),  # 舊列存的是私立，但期間涵蓋這一年
+        ("private", None, 115, "private"),
+        ("public", "113-115", 116, "public"),  # 公立、非營利不受準公共期間影響
+        ("nonprofit", None, 116, "nonprofit"),
+    ],
+)
+def test_kind_as_of_recomputes_the_private_and_quasi_public_kinds(kind, period, school_year, expected):
+    assert kind_as_of(kind, period, school_year) == expected
 
 
 def test_fields_are_cleaned():

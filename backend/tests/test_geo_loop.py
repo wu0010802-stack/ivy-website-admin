@@ -249,6 +249,7 @@ def test_geo_settings_defaults():
     assert settings.geo_auto_sync is False
     assert settings.geo_doorplate_url is None
     assert settings.geo_kindergartens_url == "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
+    assert settings.geo_babycare_url == "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
     assert settings.geo_sync_check_seconds == 86400
 
 
@@ -264,6 +265,7 @@ def test_geo_settings_read_environment(monkeypatch):
     [
         {"geo_doorplate_url": "http://data.kcg.gov.tw/x.csv"},
         {"geo_kindergartens_url": "ftp://example.org/x.json"},
+        {"geo_babycare_url": "http://example.org/b.json"},
         {"geo_sync_check_seconds": 10},
     ],
 )
