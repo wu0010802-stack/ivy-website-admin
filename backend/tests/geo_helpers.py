@@ -13,8 +13,9 @@
 - ris-odrp014-11509-p1.json、-p2.json：內政部戶政司 ODRP014 115 年 9 月的兩頁（2026-10-13 下載），
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
   totalPage 改成 2。
-- ris-odrp010-11509.json、ris-odrp011-11509.json：ODRP010（出生）、ODRP011（遷入遷出）115 年 9 月同樣那 24 個里
-  （2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），欄位與原檔相同、一頁。
+- ris-odrp061-11509.json、ris-odrp011-11509.json：ODRP061（出生，2026-10-14 起取代 ODRP010）、ODRP011（遷入遷出）
+  115 年 9 月同樣那 24 個里（2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），
+  欄位與原檔相同、一頁。ODRP061 樣本多了 household_no 等幾個欄位（程式只用 birth_total，其餘解析時丟掉）。
 - fia-112_165-E-sample.csv：財政資訊中心 112 年度各里所得（2026-10-14 下載）同樣那 24 個里，加三民區「其他」「合計」、
   「高雄市其他」兩列、115-07 已廢止的鹽埕區慈愛里（對不到里界）；原檔格式（引號裡的 BOM、欄名「縣市別」、CRLF）。
 - plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：
@@ -75,8 +76,8 @@ RIS_SAMPLE_MONTH = "11509"
 RIS_SAMPLE_PAGES = (FIXTURES / "ris-odrp014-11509-p1.json", FIXTURES / "ris-odrp014-11509-p2.json")
 # 樣本裡高雄市的里數（另有 3 筆外縣市要被篩掉）。
 RIS_SAMPLE_VILLAGES = 24
-_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP01[014])/([0-9]{5})")
-RIS_SERIES_FIXTURES = {"ODRP010": FIXTURES / "ris-odrp010-11509.json", "ODRP011": FIXTURES / "ris-odrp011-11509.json"}
+_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP(?:01[14]|061))/([0-9]{5})")
+RIS_SERIES_FIXTURES = {"ODRP061": FIXTURES / "ris-odrp061-11509.json", "ODRP011": FIXTURES / "ris-odrp011-11509.json"}
 
 
 def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
@@ -91,7 +92,7 @@ def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:
 
 
 def ris_series_page(code: str, month: str = RIS_SAMPLE_MONTH) -> dict:
-    """ODRP010／ODRP011 樣本（一頁）；month 不是 11509 時把每列的統計月份改成那個月。"""
+    """ODRP061／ODRP011 樣本（一頁）；month 不是 11509 時把每列的統計月份改成那個月。"""
     data = json.loads(RIS_SERIES_FIXTURES[code].read_text(encoding="utf-8"))
     for row in data["responseData"]:
         row["statistic_yyymm"] = month
@@ -101,8 +102,8 @@ def ris_series_page(code: str, month: str = RIS_SAMPLE_MONTH) -> dict:
 def ris_response(
     url: str, *, months: set[str] | None = None, series_months: set[str] | None = None
 ) -> httpx.Response | None:
-    """假的內政部 ODRP014（各里人口）、ODRP010（出生）、ODRP011（遷入遷出）：網址不是它們就回 None（由呼叫端
-    處理）。months 給定時 ODRP014 只有這些月份有資料、series_months 給定時 ODRP010／011 只有這些月份有資料，
+    """假的內政部 ODRP014（各里人口）、ODRP061（出生）、ODRP011（遷入遷出）：網址不是它們就回 None（由呼叫端
+    處理）。months 給定時 ODRP014 只有這些月份有資料、series_months 給定時 ODRP061／011 只有這些月份有資料，
     其他月份回「查無資料」；沒給就每個月份都有（月份改成網址上的）。"""
     parsed = httpx.URL(url)
     matched = _RIS_PATH.fullmatch(f"{parsed.scheme}://{parsed.host}{parsed.path}")

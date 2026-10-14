@@ -25,7 +25,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 內政部戶政司 ODRP014（各里人口，population.py）：網址帶民國年月與頁碼，還沒公布的月份回
 「查無資料」；從上一個月往回找第一個有資料的月份，再把全部頁數抓完、篩出高雄市。
-ODRP010、ODRP011（出生、遷入遷出，village_series.py）同一支 API：找到最新月份後，往回 24 個月
+ODRP061、ODRP011（出生、遷入遷出，village_series.py）同一支 API：找到最新月份後，出生往回 71 個月（表留 72 個月）、遷入遷出往回 24 個月
 內表裡沒有的月份逐月補，每個月份各自一個交易。ris.gov.tw 連續快速請求會回擋頁（2026-10-14 實測），
 所以每個請求之間至少隔 RIS_REQUEST_GAP_SECONDS 秒。
 
@@ -907,7 +907,7 @@ async def sync_series(
 ) -> tuple[str, int]:
     """各里出生或遷入遷出（2026-10-14 里的變化規格 §4.2）。回傳 (結果, 這一輪寫入的月份數)。
 
-    網路：從上一個月往回最多 4 個月找最新月份，再把最新往回 24 個月內表裡沒有的月份逐月補（來源查無資料的
+    網路：從上一個月往回最多 4 個月找最新月份，再把最新往回（`series.keep_months` − 1）個月內表裡沒有的月份逐月補（來源查無資料的
     月份跳過、不記錄，下次到期再問）；force 時最新月份重抓。每個月份各自一個交易，中途失敗已寫的保留。
     檔案：依資料本身的月份分組逐月寫入，不連外。"""
     status = await _status(session_factory, series.dataset)
@@ -936,7 +936,7 @@ async def sync_series(
         latest = series_io.label_of(latest_yyymm)
         async with session_factory() as db:
             present = await series_io.months_in_table(db, series)
-        for label in reversed(series_io.window(latest, series_io.KEEP_MONTHS)):
+        for label in reversed(series_io.window(latest, series.keep_months)):
             if label in present and not (force and label == latest):
                 continue
             yyymm = series_io.yyymm_of(label)

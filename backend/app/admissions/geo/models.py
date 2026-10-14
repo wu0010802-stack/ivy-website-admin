@@ -232,7 +232,7 @@ class _VillageMonth:
 
 
 class GeoVillageBirths(_VillageMonth, Base):
-    """各里每月出生數（內政部戶政司 ODRP010，依出生登記的戶籍里）。來源查無資料的月份整個月沒有列。"""
+    """各里每月出生數（內政部戶政司 ODRP061（2026-10-14 起取代 ODRP010），依出生登記的戶籍里）。來源查無資料的月份整個月沒有列。"""
 
     __tablename__ = "geo_village_births"
 

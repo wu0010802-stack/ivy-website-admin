@@ -1,6 +1,6 @@
 """在台灣的電腦抓齊公開資料、打包成一個 zip（2026-10-14 里的變化規格 §4.6），給正式站連不到來源時用。
 
-照同步的規則抓：各里出生（ODRP010）、遷入遷出（ODRP011）各最新月份往回 25 個月（來源查無資料的月份跳過），
+照同步的規則抓：各里出生（ODRP061，往回 72 個月）、遷入遷出（ODRP011，往回 25 個月）各抓最新月份往回的視窗（來源查無資料的月份跳過），
 各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
 高雄市買賣季檔）最新季往回 8 季。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），全部約 4 分鐘、約 30 MB。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
@@ -77,7 +77,7 @@ async def build(out: Path | None) -> Path:
                 return series_io.page_url(series, yyymm, page)
 
             latest = series_io.label_of(await _latest(client, url_of, series.name))
-            for label in reversed(series_io.window(latest, series_io.KEEP_MONTHS)):
+            for label in reversed(series_io.window(latest, series.keep_months)):
                 yyymm = series_io.yyymm_of(label)
                 pages = await _month_pages(client, url_of, yyymm, series.name)
                 if pages is None:

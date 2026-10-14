@@ -1,10 +1,10 @@
-"""各里出生、遷入遷出、年齡的月份歷史（內政部戶政司 ODRP010／ODRP011／ODRP014，
+"""各里出生、遷入遷出、年齡的月份歷史（內政部戶政司 ODRP061／ODRP011／ODRP014，
 docs/specs/2026-10-14-admissions-village-trends-design.md §2.1、§3.1、§4.2）。
 
 三種資料同一支 API、同一套 11 碼村里代碼（和里界檔、ODRP014 相同），帶 COUNTY=高雄市 都只有一頁；
 值全是字串。這裡只管網址、解析、驗證、寫入與月份運算；下載、回補與排程在 sync.py。
 和 population.py（使用中的各里人口，只存一個月份）不同的地方：
-- 一個月份一批，表裡留最新月份往回 KEEP_MONTHS 個月；
+- 一個月份一批，表裡留最新月份往回各 series 的 keep_months 個月（出生 72、其餘 25）；
 - 里界檔沒有的高雄代碼（例如 115-07 里鄰調整前的舊里）照存、不略過：里界調整合併計算時要用；
 - 驗證任一項不過，那個月份不寫，其他月份照舊。"""
 
@@ -23,8 +23,10 @@ from app.admissions.geo import population as population_io
 from app.admissions.geo.models import GeoVillageAges, GeoVillageBirths, GeoVillageMigration
 
 RIS_ROOT = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore"
-# 最新月份往回幾個月（含）：近 12 個月，加上前一年同月份。
+# 最新月份往回幾個月（含）：近 12 個月，加上前一年同月份。遷入遷出、年齡用這個。
 KEEP_MONTHS = 25
+# 出生（2026-10-14 出生走勢規格 S2）：6 個完整的 12 個月期，現在是 109-10 到 115-09。
+BIRTHS_KEEP_MONTHS = 72
 # 代碼對得到里界檔的里至少這麼多（高雄 893 里；115-06 以前的月份有 879 個對得到）；少於多半是殘缺檔。
 MIN_VILLAGES = 850
 _ID_KEYS = ("statistic_yyymm", "district_code", "site_id", "village")
@@ -41,13 +43,14 @@ class SeriesFormatError(ValueError):
 @dataclass(frozen=True)
 class Series:
     """一種月份資料。dataset 是 geo_dataset_status 的資料種類（年齡歷史沒有自己的狀態列，跟著 population）；
-    columns 是「資料表欄位 → 相加的來源欄位」。"""
+    columns 是「資料表欄位 → 相加的來源欄位」；keep_months 是表裡留的月數（最新月份往回，含）。"""
 
     dataset: str
     code: str
     name: str
     model: type
     columns: dict[str, tuple[str, ...]]
+    keep_months: int = KEEP_MONTHS
 
     @property
     def source_keys(self) -> tuple[str, ...]:
@@ -58,7 +61,9 @@ def _both(prefix: str) -> tuple[str, str]:
     return (f"{prefix}_m", f"{prefix}_f")
 
 
-BIRTHS = Series("births", "ODRP010", "各里出生", GeoVillageBirths, {"births": ("birth_total",)})
+BIRTHS = Series(
+    "births", "ODRP061", "各里出生", GeoVillageBirths, {"births": ("birth_total",)}, BIRTHS_KEEP_MONTHS
+)
 MIGRATION = Series(
     "migration",
     "ODRP011",
@@ -250,6 +255,6 @@ async def months_in_table(db: AsyncSession, series: Series) -> set[str]:
 
 
 async def prune(db: AsyncSession, series: Series, latest: str) -> None:
-    """只留 latest 往回 KEEP_MONTHS 個月（不 commit）。比 latest 新的月份不會出現（換版只往前）。"""
+    """只留 latest 往回 series.keep_months 個月（不 commit）。比 latest 新的月份不會出現（換版只往前）。"""
     model = series.model
-    await db.execute(delete(model).where(model.month < shift(latest, -(KEEP_MONTHS - 1))))
+    await db.execute(delete(model).where(model.month < shift(latest, -(series.keep_months - 1))))

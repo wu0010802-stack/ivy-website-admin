@@ -40,7 +40,7 @@ def _json(data: dict) -> bytes:
 
 def _sample_files() -> list[BundleFile]:
     files = [
-        BundleFile(f"births-{month}.json", "births", series_io.label_of(month), "https://example.org", _json(ris_series_page("ODRP010", month)))
+        BundleFile(f"births-{month}.json", "births", series_io.label_of(month), "https://example.org", _json(ris_series_page("ODRP061", month)))
         for month in ("11509", "11508")
     ]
     files.append(BundleFile("migration-11509.json", "migration", "115-09", "https://example.org", _json(ris_series_page("ODRP011"))))

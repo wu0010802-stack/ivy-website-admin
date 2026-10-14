@@ -76,7 +76,9 @@ def test_month_arithmetic_crosses_years():
     assert shift("115-01", -1) == "114-12"
     assert shift("114-12", 1) == "115-01"
     assert window("115-09", 3) == ["115-07", "115-08", "115-09"]
-    assert len(window("115-09", series_io.KEEP_MONTHS)) == 25 and window("115-09", 25)[0] == "113-09"
+    assert series_io.KEEP_MONTHS == 25 and series_io.BIRTHS_KEEP_MONTHS == 72
+    assert (series_io.BIRTHS.keep_months, series_io.MIGRATION.keep_months, series_io.AGES.keep_months) == (72, 25, 25)
+    assert window("115-09", 25)[0] == "113-09" and window("115-09", 72)[0] == "109-10"
     assert series_io.yyymm_of("115-09") == "11509" and series_io.label_of("11509") == "115-09"
     for bad in ("115-13", "11509", "115-9"):
         with pytest.raises(SeriesFormatError):
@@ -85,7 +87,7 @@ def test_month_arithmetic_crosses_years():
 
 def test_page_url_asks_only_for_kaohsiung():
     assert series_io.page_url(BIRTHS, "11509", 1) == (
-        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP010/11509?COUNTY=%E9%AB%98%E9%9B%84%E5%B8%82&page=1"
+        "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP061/11509?COUNTY=%E9%AB%98%E9%9B%84%E5%B8%82&page=1"
     )
     assert "/ODRP011/11508?" in series_io.page_url(MIGRATION, "11508", 1)
 
@@ -100,6 +102,13 @@ def test_parse_keeps_kaohsiung_rows_and_only_the_fields_in_use():
     assert set(rows[0]) == {"statistic_yyymm", "district_code", "site_id", "village", *MIGRATION.source_keys}
 
 
+def test_births_parse_ignores_the_other_odrp061_columns():
+    data = series_io.parse_page(BIRTHS, json.dumps(ris_series_page("ODRP061"), ensure_ascii=False))
+    rows = series_io.response_rows(BIRTHS, data)
+    assert len(rows) == RIS_SAMPLE_VILLAGES  # 新北市 2 筆在解析時就丟掉
+    assert set(rows[0]) == {"statistic_yyymm", "district_code", "site_id", "village", "birth_total"}
+
+
 def test_a_block_page_is_a_format_error_without_its_content():
     with pytest.raises(SeriesFormatError, match="可能被來源擋下") as caught:
         series_io.parse_page(BIRTHS, "<html><head><META NAME=\"ROBOTS\"></head><body>Request Rejected</body></html>")
@@ -107,12 +116,12 @@ def test_a_block_page_is_a_format_error_without_its_content():
 
 
 def test_collect_births_sums_and_names(few_villages):
-    batch = collect(BIRTHS, _rows("ODRP010"))
+    batch = collect(BIRTHS, _rows("ODRP061"))
     assert batch.label == "115-09" and batch.unknown == 0
     assert len(batch.rows) == RIS_SAMPLE_VILLAGES
     yihua = next(row for row in batch.rows if row["village_code"] == YIHUA_VILLAGE)
     assert (yihua["month"], yihua["district"], yihua["village"]) == ("115-09", "三民區", "本揚里")
-    source = next(r for r in _rows("ODRP010")[0] if r["district_code"] == YIHUA_VILLAGE)
+    source = next(r for r in _rows("ODRP061")[0] if r["district_code"] == YIHUA_VILLAGE)
     assert yihua["births"] == int(source["birth_total"])
 
 
@@ -127,7 +136,7 @@ def test_collect_migration_adds_men_and_women(few_villages):
 
 def test_collect_keeps_codes_that_are_not_in_the_boundary_file(few_villages):
     """115-07 里鄰調整前的舊里（例如鹽埕區慈愛里）不在里界檔：照存並計數（里界調整合併時要用）。"""
-    rows = _rows("ODRP010")
+    rows = _rows("ODRP061")
     rows[0].append({**rows[0][-1], "district_code": "64000010002", "site_id": "高雄市鹽埕區", "village": "慈愛里"})
     batch = collect(BIRTHS, rows)
     assert batch.unknown == 1
@@ -136,7 +145,7 @@ def test_collect_keeps_codes_that_are_not_in_the_boundary_file(few_villages):
 
 def test_collect_requires_enough_villages_on_the_boundary_file():
     with pytest.raises(SeriesFormatError, match="少於 850"):
-        collect(BIRTHS, _rows("ODRP010"))
+        collect(BIRTHS, _rows("ODRP061"))
 
 
 @pytest.mark.parametrize("bad", ["", "-1", "1.5", "²", None])
@@ -148,11 +157,11 @@ def test_collect_rejects_counts_that_are_not_plain_integers(few_villages, bad):
 
 
 def test_collect_rejects_mixed_months_duplicates_and_empty(few_villages):
-    rows = _rows("ODRP010")
+    rows = _rows("ODRP061")
     rows[0][4]["statistic_yyymm"] = "11508"
     with pytest.raises(SeriesFormatError, match="不同月份"):
         collect(BIRTHS, rows)
-    rows = _rows("ODRP010")
+    rows = _rows("ODRP061")
     rows[0].append(dict(rows[0][-1]))
     with pytest.raises(SeriesFormatError, match="重複"):
         collect(BIRTHS, rows)
@@ -163,24 +172,27 @@ def test_collect_rejects_mixed_months_duplicates_and_empty(few_villages):
 # ---- 同步 ----
 
 
-async def test_first_sync_backfills_25_months_and_records_the_latest(app, few_villages, october):
+@pytest.mark.parametrize(
+    ("series", "model", "keep"), [(BIRTHS, GeoVillageBirths, 72), (MIGRATION, GeoVillageMigration, 25)]
+)
+async def test_first_sync_backfills_the_retention_window_and_records_the_latest(app, few_villages, october, series, model, keep):
     transport, seen = _ris()
-    assert await _sync(app, transport, BIRTHS) == ("updated", 25)
-    months = await _months(app, GeoVillageBirths)
-    assert sorted(months) == window("115-09", 25)
+    assert await _sync(app, transport, series) == ("updated", keep)
+    months = await _months(app, model)
+    assert sorted(months) == window("115-09", keep)
     assert set(months.values()) == {RIS_SAMPLE_VILLAGES}
-    status = await _status(app, "births")
+    status = await _status(app, series.dataset)
     assert (status.active_version, status.label, status.last_error) == ("115-09", "115-09", None)
     assert status.checked_at is not None
-    # 最新月份的第一頁拿來找月份，不重抓；其餘 24 個月各一次。
-    assert len(seen) == 25 and seen[0] == series_io.page_url(BIRTHS, "11509", 1)
+    # 最新月份的第一頁拿來找月份，不重抓；其餘月份各一次。
+    assert len(seen) == keep and seen[0] == series_io.page_url(series, "11509", 1)
 
 
 async def test_months_the_source_does_not_have_are_skipped_and_asked_again_later(app, few_villages, october):
-    """出生 API 真的缺 113-10、113-11、114-01（2026-10-14 實測）：跳過、不記錄，下次到期再問。"""
-    available = {series_io.yyymm_of(label) for label in window("115-09", 25)} - {"11310", "11311", "11401"}
+    """出生 API 缺 113-10、113-11、114-01 的 ODRP010 已不用；這裡模擬來源仍然缺這三個月。"""
+    available = {series_io.yyymm_of(label) for label in window("115-09", 72)} - {"11310", "11311", "11401"}
     transport, seen = _ris(series_months=available)
-    assert await _sync(app, transport, BIRTHS) == ("updated", 22)
+    assert await _sync(app, transport, BIRTHS) == ("updated", 69)
     assert {"113-10", "113-11", "114-01"}.isdisjoint(await _months(app, GeoVillageBirths))
     seen.clear()
     later = datetime.now(timezone.utc) + timedelta(days=31)
@@ -236,18 +248,19 @@ async def test_failure_midway_keeps_the_months_already_written(app, few_villages
     assert status.label == "115-09" and "可能被來源擋下" in status.last_error
 
     transport, seen = _ris()
-    assert await _sync(app, transport, BIRTHS) == ("updated", 22)
-    assert len(await _months(app, GeoVillageBirths)) == 25
+    assert await _sync(app, transport, BIRTHS) == ("updated", 69)
+    assert len(await _months(app, GeoVillageBirths)) == 72
     assert series_io.page_url(BIRTHS, "11508", 1) not in seen
 
 
-async def test_months_older_than_25_are_pruned(app, few_villages, october):
+async def test_months_older_than_the_births_window_are_pruned(app, few_villages, october):
     async with app.state.session_factory() as db:
-        db.add(GeoVillageBirths(month="113-08", village_code=YIHUA_VILLAGE, district="三民區", village="本揚里", births=1))
+        db.add(GeoVillageBirths(month="109-09", village_code=YIHUA_VILLAGE, district="三民區", village="本揚里", births=1))
         await db.commit()
     transport, _ = _ris()
     await _sync(app, transport, BIRTHS)
-    assert "113-08" not in await _months(app, GeoVillageBirths)
+    months = await _months(app, GeoVillageBirths)
+    assert "109-09" not in months and "109-10" in months
 
 
 async def test_requests_to_ris_are_spaced(app, few_villages, october, monkeypatch):
@@ -268,7 +281,7 @@ async def test_files_are_grouped_by_month_and_do_not_go_online(app, few_villages
     files = []
     for month in ("11509", "11508"):
         path = tmp_path / f"births-{month}.json"
-        path.write_text(json.dumps(ris_series_page("ODRP010", month), ensure_ascii=False), encoding="utf-8")
+        path.write_text(json.dumps(ris_series_page("ODRP061", month), ensure_ascii=False), encoding="utf-8")
         files.append(path)
 
     def must_not_be_called(request: httpx.Request) -> httpx.Response:  # pragma: no cover - 被叫到就是錯
@@ -279,6 +292,18 @@ async def test_files_are_grouped_by_month_and_do_not_go_online(app, few_villages
     assert (result.births, result.births_version, result.births_months) == ("updated", "115-09", 2)
     assert (result.doorplates, result.kindergartens, result.population, result.migration) == ("skipped",) * 4
     assert sorted(await _months(app, GeoVillageBirths)) == ["115-08", "115-09"]
+
+
+async def test_births_files_keep_months_inside_the_72_month_window(app, few_villages, tmp_path: Path):
+    """出生視窗是 72 個月：檔案模式匯入的 109-10（視窗起點）不能被寫進去又立刻刪掉。"""
+    files = []
+    for month in ("11509", "10910"):
+        path = tmp_path / f"births-{month}.json"
+        path.write_text(json.dumps(ris_series_page("ODRP061", month), ensure_ascii=False), encoding="utf-8")
+        files.append(path)
+    result = await sync.run_geo_sync(app.state.session_factory, app.state.settings, births_files=files)
+    assert (result.births, result.births_months) == ("updated", 2)
+    assert sorted(await _months(app, GeoVillageBirths)) == ["109-10", "115-09"]
 
 
 async def test_a_no_data_file_fails(app, few_villages, tmp_path: Path):
@@ -340,5 +365,5 @@ async def test_run_geo_sync_fills_births_migration_and_the_year_ago_ages(app, fe
     async with httpx.AsyncClient(transport=transport) as client:
         result = await sync.run_geo_sync(app.state.session_factory, app.state.settings, client=client)
     assert (result.population, result.births, result.migration, result.age_history) == ("updated", "updated", "updated", "updated")
-    assert (result.births_version, result.migration_version, result.births_months, result.migration_months) == ("115-09", "115-09", 25, 25)
+    assert (result.births_version, result.migration_version, result.births_months, result.migration_months) == ("115-09", "115-09", 72, 25)
     assert set(await _months(app, GeoVillageAges)) == {"114-09", "115-09"}
