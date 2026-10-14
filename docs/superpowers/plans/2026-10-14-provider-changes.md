@@ -1380,7 +1380,6 @@ Expected：收集階段 FAIL，`ModuleNotFoundError: No module named 'app.admiss
 from __future__ import annotations
 
 import calendar
-import math
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
@@ -1393,7 +1392,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.geo.babycare import BabycareRow
 from app.admissions.geo.kindergartens import KindergartenRow, kind_as_of
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKindergarten, GeoProviderEvent
-from app.admissions.geo.projection import haversine_m
 from app.common.timezones import today_local
 
 # 幼兒園、托嬰每 7 天看一次來源（P10）；門牌、人口維持 sync.REFRESH_AFTER 的 30 天。
@@ -1404,7 +1402,6 @@ REOPEN_CANCELS_CLOSURE = timedelta(days=30)  # P6
 TRUNCATION_RATIO = 0.8  # P9
 TRUNCATION_MIN_PREVIOUS = 20
 SHRUNK_MESSAGE = "名單營業中的數量比上次少了兩成以上，疑似殘缺，未更新"
-_METERS_PER_DEGREE = 111_320.0
 
 
 class ProviderShrunk(RuntimeError):
@@ -1418,22 +1415,6 @@ class ChangeReport:
     closed: int = 0
     kind_changed: int = 0
     cancelled_closures: int = 0  # 30 天內回來而撤掉的停辦事件
-
-
-@dataclass(frozen=True)
-class ProviderChange:
-    """附近園所的一筆變化（API 的 items 就是這個）。date_basis：registered＝設立日、observed＝我們同步到的日期。"""
-
-    provider: str
-    source_id: str
-    name: str
-    kind: str
-    change: str
-    date: date
-    date_basis: str
-    distance_m: int
-    old_kind: str | None
-    new_kind: str | None
 
 
 @dataclass(frozen=True)
@@ -1590,7 +1571,7 @@ async def apply_babycare(
     return await _apply(db, _BABYCARE, {row.source_id: asdict(row) for row in rows}, synced_at=synced_at, force=force)
 ```
 
-`nearby_changes` 這個函式在 Task 5 才加進同一個檔案（上面已先 import 好 `math`、`haversine_m`、`ProviderChange` 給它用；Task 3 結束時 ruff 會抱怨這幾個未使用，Task 5 補上後就用到了）。
+`nearby_changes` 與它用到的 `ProviderChange`、`haversine_m`、`math` 都在 Task 5 才加進同一個檔案，這裡不放（避免 Task 3 留下沒人用的程式）。
 
 - [ ] **Step 5: 移除 `replace_kindergartens`，接上新函式**
 
@@ -2093,8 +2074,9 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 - Regenerate: `contracts/openapi.json`、`contracts/generated/website-api.d.ts`
 
 **Interfaces:**
-- Consumes：Task 2 的 `babycare.nearby`、`SOURCE_NOTE`；Task 3 的 `ProviderChange`、`months_ago`、`CHANGE_WINDOW_MONTHS`；Task 3 的 `tests/geo_helpers.load_babycare_sample`。
+- Consumes：Task 2 的 `babycare.nearby`、`SOURCE_NOTE`；Task 3 的 `months_ago`、`CHANGE_WINDOW_MONTHS`、`tests/geo_helpers.load_babycare_sample`。
 - Produces：
+  - `providers.ProviderChange`（frozen dataclass：`provider, source_id, name, kind, change, date, date_basis, distance_m, old_kind, new_kind`）
   - `async providers.nearby_changes(db, lat, lng, radius_m, *, today: date) -> list[ProviderChange]`（依日期新到舊、距離近到遠、名稱排序）
   - `async area.query_babycare(db, campus_key, *, radius_km) -> dict`、`async area.query_changes(db, campus_key, *, radius_km, today=None) -> dict`
   - `GET /api/website/v1/admin/admissions/area/babycare?campus_key=&radius_km=` → `AreaBabycareOut`
@@ -2259,7 +2241,30 @@ Expected：FAIL，`ImportError: cannot import name 'nearby_changes'`。
 
 - [ ] **Step 3: 實作 `nearby_changes`**
 
-在 `backend/app/admissions/geo/providers.py` 檔尾加（`math`、`haversine_m`、`ProviderChange`、`_METERS_PER_DEGREE` 都在 Task 3 已準備好）：
+在 `backend/app/admissions/geo/providers.py`：
+
+(a) import 區加 `import math`（放在 `import calendar` 後面）與 `from app.admissions.geo.projection import haversine_m`（放在 `from app.admissions.geo.models import …` 後面）；常數區 `SHRUNK_MESSAGE = …` 下一行加 `_METERS_PER_DEGREE = 111_320.0`。
+
+(b) 在 `ChangeReport` 之後加：
+
+```python
+@dataclass(frozen=True)
+class ProviderChange:
+    """附近園所的一筆變化（API 的 items 就是這個）。date_basis：registered＝設立日、observed＝我們同步到的日期。"""
+
+    provider: str
+    source_id: str
+    name: str
+    kind: str
+    change: str
+    date: date
+    date_basis: str
+    distance_m: int
+    old_kind: str | None
+    new_kind: str | None
+```
+
+(c) 檔尾加：
 
 ```python
 def _box(lat: float, lng: float, radius_m: int) -> tuple[float, float, float, float]:
