@@ -1,3 +1,13 @@
+## 2026-10-14 招生區域：里的變化 D 段（國小學區；`feature/admissions-school-districts-20261014`，疊在 C 段 PR #43 上）
+
+照規格 §12 的順序接著做 D 段。業主 10-14 確認用 115 學年版上線（V10）。**未部署**，要等 A、C 段先合併；D 段沒有 migration、沒有同步。
+
+- **資料**：教育局「115 學年度國民小學學區劃分一覽表」PDF 用 `scripts/build_school_districts.py`（pdfplumber 只在腳本用，`uv run --with pdfplumber==0.11.4`）轉成隨程式提交的兩個 CSV：1,120 個（里、學校），893 個里全有學校；241 個學校單位（含 3 所分校），學校代碼取教育部國民小學名錄。人工處理的 34 列寫在 `school-districts-115-overrides.csv`、逐列有原因（改名改制、員工子女條件、里寫錯區、漏標自由學區、115-07 新設的 13 個里沿用調整前的里）。步驟與換學年的指令在 `backend/app/admissions/geo_data/README.md`。
+- **計算**（`/area/trends`）：每列多 `schools`（對到的國小，部分鄰、自由學區另標）；另回 `schools[]`「依國小學區」——學區碰到半徑內任一個里的國小，每所合計整個學區（含半徑外的里）的 2–5 歲、這一年淨增（只加算得出的里）、參觀人數（母體同招生機會）與參觀率。`opportunity._visits_by_village` 改名 `visits_by_village` 共用。
+- **後台**：「里的變化」表最後多一欄「國小學區」（「光武國小（部分）、陽明國小（部分）」）；下面新增「依國小學區」表（校名前加區、學區里數「4 里＋部分 6 里」、備註寫空間充裕／總量管制／大學區，先列 10 列、可匯出 CSV）。
+- **真資料實測**：義華 1／3／6 公里碰到 5／29／77 所國小，查詢 223／143／206 ms；1440／390 截圖沒有水平溢出。
+- **驗證**：`test_school_districts.py`（守門＋轉換腳本的文字解析，23 項）、`test_admissions_trends.py` 加學區（與招生機會共 46 過）；後台 typecheck、vitest 區域分析相關 5 檔 155 過；`npm run contract:generate`。
+
 ## 2026-10-14 招生區域：里的變化 C 段（各里所得；`feature/admissions-village-income-20261014`，疊在 A 段 PR #40 上）
 
 使用者 10-14 交代「完成 A 後直接繼續」，照規格 §12 的順序做 C 段（A → C → D → B1 → B2）。規格 `docs/specs/2026-10-14-admissions-village-trends-design.md` §2.3、§3.3、§4.4、§5.8；業主 10-14 確認「所得要放」，只當背景（V9）。**未部署**，要等 A 段先合併。

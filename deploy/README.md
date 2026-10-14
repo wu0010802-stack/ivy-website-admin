@@ -697,6 +697,8 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動：`--income-file <CSV>`，年度取檔名（`112_165-E.csv`）或 `--income-year 112`；比使用中舊的年度要加 `--force`。打包檔（`fetch_geo_bundle.py`）也會帶最新年度的所得。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'income';`、`select year, count(*) from geo_village_income group by 1;`（112 年度應有 879 列）。
 
+**國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
+
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
 
 **上線前就存在的訪視**：這些訪視沒有 `recruitment_visit_geo` 列，`recruitment_visits.district` 也是空的。`district` 只在新建訪視、改地址、或重算時寫入，而重算只在 `geo-sync`（背景迴圈或 CLI）結束時觸發，沒有別的入口。在第一次同步之前，它們在區域分析歸「待比對」，**不會出現在行政區排行**。第一次同步時資料庫沒有 `campuses` 那一列指紋，程式視為「有變」，會重算所有未匿名化的訪視；不論是背景迴圈第一輪（api 啟動約 30 秒後）、不帶參數的 CLI、或檔案模式的 CLI 都一樣，下載失敗的那一輪也一樣，不需要 `--force`。所以啟用自動同步後第一輪結束，行政區排行就會含舊訪視；想在啟用前先補，就在 api 容器內跑一次 `geo-sync`（`! railway ssh --service api --environment production -- python -m app.cli geo-sync`）。若那時門牌還沒匯入成功，舊訪視先得到行政區與 `pending`，等門牌匯入完成（指紋含使用中門牌批次，會變）會自動再重算一次補上里與距離。已匿名化的舊訪視不補建。重算每 100 筆一個交易。
