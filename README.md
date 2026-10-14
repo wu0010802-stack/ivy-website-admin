@@ -8,13 +8,14 @@
 - **防誤報**：8 月學年更替不產生假的類型變動；準公共期間續約或換期間（舊列與新列都是私立、兩邊都有期間字串）不算類型變動——否則續約那一輪（高雄 268 所的期間是「113-115」）三公里內會冒一串假異動，取捨與限制見規格 P7；停辦後 30 天內又出現視為來源漏收；新名單營業中數量少於上次 80% 不換版（`geo-sync --force` 略過）。
 - **migration** `c6a9e3f15d27`（接在 main「里的變化」的 `e4f1a8c6b203` 之後）：新增 `geo_babycare`、`geo_provider_events`，`geo_kindergartens` 加設立日、`geo_dataset_status` 加基準日並多收 `babycare`；不改既有資料，不需要部署前備份。
 - **不做**：核定人數與月費估算的異動、托嬰分配到里、收托比例與趨勢、預測、點變化列定位地圖、匯出 CSV。一年下來單一校 3 公里內新設或停辦大約各 0～1 件，所以變化區塊多數時候是空的。
-- **驗證**（Node 22、PostgreSQL、本機 Chromium；2026-10-14，分支 rebase 到 `origin/main` `5fe246ba` 之後）：
-  - 後端全套 2903 passed、1 skipped、0 failed（18 分鐘，獨立測試庫；跑在最後審查修正輪之前，該輪只動前端與一行註解）。
-  - admin 全套 157 個檔案、2412 passed、1 skipped；admin 與 web `typecheck` 無錯誤；根目錄 `npm run contract:check` 一致。
-  - 完整 stack 套件（最終程式碼重新 build）136 passed、0 failed（5.3 分鐘），含 `tests/stack/admissions-area.spec.ts` 新增的 2 個案例（切換名單、地圖圖層、變化區塊、axe、1440／390 不橫向溢出）；截圖 1440／390 人工看過。
-  - 各 task 與最後整支分支都經過獨立審查；審查過程發現並修掉的實質問題：設立日年份極大時整批解析失敗、重新營業的幼兒園不比類型、準公共續約會冒一整批假的類型變動、切到托嬰後換校區地圖圖層沒跟著開、兩邊都沒記錄時畫面先說沒有變化。
+- **驗證**（Node 22、PostgreSQL、本機 Chromium；2026-10-14，最後一次是併入 main `1cddfc3a` 之後；數字註明跑在哪個 commit）：
+  - 後端全套（合併 commit `fc404ff7`）3067 passed、1 skipped、0 failed（24 分鐘，獨立測試庫）；之後只改兩個測試檔與文件，改過的 `test_geo_babycare_sync.py`、`test_geo_loop.py` 單獨跑 68 passed。
+  - admin 全套（同上）157 個檔案：第一次 151 個檔通過、6 個檔共 11 個案例因高負載逾時（`Test timed out in 5000ms`，沒有斷言錯誤），那 6 個檔改 `--testTimeout=60000` 重跑 182 passed；admin 與 web `typecheck` 無錯誤；`contract:check`（不經 `uv run` 的等價指令：`export_openapi.py --check` ＋ `check-contract-types.mjs`）一致。
+  - 完整 stack 套件（合併後重新 build）：整套 130 passed、6 個逾時（27.7 分鐘，當時 load 約 16、別的專案同時在跑 pytest／vitest；合併前同一套 136 passed 只要 5.3 分鐘）。逾時的 6 個（後台橫向溢出 ×2、素材影片、素材照片、重設密碼、場次）第一次單獨重跑 5 個通過、`media.spec` 仍失敗（公開首頁 10 秒內沒換上新照片）；`media.spec` 單獨跑 5.0 秒通過，同一組 5 個檔在較低負載下再跑 14 passed。本分支沒有改 `web/`、`backend/app/content`、`backend/app/media`，判斷為負載造成的時序問題，**但沒有在乾淨負載下把整套 136 個一次跑完**。
+  - 截圖 1440／390 人工看過（合併後）：切換鈕在卡片頂端、「附近園所的變化」在正下方、下接「里的變化」與依小學區等表；手機切到托嬰後地圖出現菱形、圖例分組、無橫向溢出。fixture 沒有「孩子增減」資料，所以托嬰菱形與減少色（同為玫瑰色相）疊在一起的畫面沒有實際看到；整合審查用色彩計算判斷不混淆（菱形有白邊、畫在里界之上，OKLab ΔE 約 0.18），亮度對比約 1.9:1，醒目度是弱點。
+  - 各 task、最後整支分支與整合都經過獨立審查；審查過程發現並修掉的實質問題：設立日年份極大時整批解析失敗、重新營業的幼兒園不比類型、準公共續約會冒一整批假的類型變動、切到托嬰後換校區地圖圖層沒跟著開、兩邊都沒記錄時畫面先說沒有變化。
   - **沒做**：沒有在正式站與真實資料上驗證；沒有登入正式後台看實際畫面；部署後第一輪同步的結果要看 `geo_dataset_status`（見 `deploy/README.md`）。
-- **併入 main 的「里的變化」**（PR #40／#43／#44／#45，用 merge、不改寫既有 commit）：migration 改接 `e4f1a8c6b203`，`ck_geo_dataset_status_dataset` 取聯集（main 的八種再加 `babycare`）；同步（各自成敗、各自的時間上限）、CLI 參數與輸出、背景迴圈摘要（改成看全部種類）、後台區域分析（地圖「孩子增減」著色＋托嬰圖層、右欄切換名單＋附近園所的變化、里的變化與國小學區表）兩邊都留；契約重新產生。合併後跑過：geo 與招生區域相關後端測試 933 passed，權限表、稽核、招生契約、schema guard 21 passed；測試庫重建後 `alembic upgrade head`、`downgrade e4f1a8c6b203`、再 `upgrade head` 與 `deploy/check_schema.py` 都過；admin 區域分析相關 8 個檔 240 passed、`typecheck` 無錯誤；根目錄 `contract:check` 一致。合併後的後端全套、admin 全套與 stack 尚未跑。
+- **併入 main 的「里的變化」**（PR #40／#43／#44／#45，用 merge、不改寫既有 commit）：migration 改接 `e4f1a8c6b203`，`ck_geo_dataset_status_dataset` 取聯集（main 的八種再加 `babycare`）；同步（各自成敗、各自的時間上限）、CLI 參數與輸出、背景迴圈摘要（改成看全部種類）、後台區域分析（地圖「孩子增減」著色＋托嬰圖層、右欄切換名單＋附近園所的變化、里的變化與國小學區表）兩邊都留；契約重新產生。合併後跑過：geo 與招生區域相關後端測試 933 passed，權限表、稽核、招生契約、schema guard 21 passed；測試庫重建後 `alembic upgrade head`、`downgrade e4f1a8c6b203`、再 `upgrade head` 與 `deploy/check_schema.py` 都過；admin 區域分析相關 8 個檔 240 passed、`typecheck` 無錯誤；根目錄 `contract:check` 一致。合併後的全套驗證結果見上方「驗證」。
 
 ## 2026-10-14 招生區域：里的變化 B1 段（新成屋同步與門牌比對；`feature/admissions-new-homes-20261014`，疊在 D 段 PR #44 上）
 
