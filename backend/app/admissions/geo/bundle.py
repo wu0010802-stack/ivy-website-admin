@@ -26,7 +26,7 @@ VERSION = 1
 KINDS = ("population", "births", "migration", "income", "new_homes")
 # 只能有一個檔的種類：所得只存最新一個年度，年度取檔名（「112_165-E.csv」，sync 的 income.year_of_filename）。
 SINGLE_KINDS = ("income",)
-# 單檔上限（全國的人口一頁約 10 MB）與檔數上限（出生、遷入遷出各 25 個月＋人口兩個月份＋所得＋新成屋 8 季）。
+# 單檔上限（全國的人口一頁約 10 MB）與檔數上限（出生 72 個月、遷入遷出 25 個月＋人口兩個月份＋所得＋新成屋 8 季）。
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 200
 _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")

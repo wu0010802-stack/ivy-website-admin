@@ -122,8 +122,8 @@ DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
 KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
 BABYCARE_TIME_BUDGET = timedelta(minutes=5)
 POPULATION_TIME_BUDGET = timedelta(minutes=30)
-# 各里出生、遷入遷出（2026-10-14）：高雄一個月一頁約 0.2–1.2 MB（全國一頁約 3 MB）；回補 25 個月、每個請求
-# 隔 3 秒，正常約 2 分鐘。
+# 各里出生、遷入遷出（2026-10-14）：高雄一個月一頁約 0.2–1.2 MB（全國一頁約 3 MB）；出生 72 個月、遷入遷出
+# 25 個月，每個請求隔 3 秒；SERIES_TIME_BUDGET 為每個資料集整輪的時間上限。
 SERIES_PAGE_MAX_BYTES = 16 * 1024 * 1024
 SERIES_TIME_BUDGET = timedelta(minutes=20)
 # 各里所得（2026-10-14 C 段）：data.gov.tw 資料集回應（正常約 16 KB）、所得 CSV（正常約 90 KB）。
@@ -829,7 +829,7 @@ async def _copy_population_to_history(db: AsyncSession, month: str) -> None:
 
 def _series_due(status: GeoDatasetStatus | None, now: datetime, backfill_pending: bool = False) -> bool:
     """只看 checked_at（整輪回補做完才記）：回補到一半失敗時 synced_at 是新的、checked_at 沒動，
-    下一輪（背景迴圈一天一次）就接著補，不必等 30 天。backfill_pending（表裡最舊月份還沒補到視窗起點）
+    下一輪（背景迴圈一天一次）就接著補，不必等 30 天。backfill_pending（表裡最舊月份比視窗起點晚 2 個月以上）
     時不管 checked_at 一律到期：部署把保留月數從 25 拉到 72 後，確認時間才剛記過也要馬上續補。"""
     if backfill_pending:
         return True

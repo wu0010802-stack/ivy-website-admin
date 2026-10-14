@@ -14,8 +14,9 @@
   義華附近 24 個里＋新北市 2 筆、臺南市 1 筆（要被篩掉）；只留 0–9 歲欄位，其餘欄位與原檔相同，
   totalPage 改成 2。
 - ris-odrp061-11509.json、ris-odrp011-11509.json：ODRP061（出生，2026-10-14 起取代 ODRP010）、ODRP011（遷入遷出）
-  115 年 9 月同樣那 24 個里（2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），
-  欄位與原檔相同、一頁。ODRP061 樣本多了 household_no 等幾個欄位（程式只用 birth_total，其餘解析時丟掉）。
+  115 年 9 月同樣那 24 個里（ODRP011 與 ODRP061 的底稿 ODRP010 都是 2026-10-14 下載，帶 COUNTY=高雄市）＋新北市 2 筆（同日不帶 COUNTY 下載的第一頁），
+  欄位與原檔相同、一頁。ODRP061 樣本是把 ODRP010 的下載檔手動多加了 household_no、neighbor_no2、people_total、
+  twinborn_child_m／f、birth_legal_m／f 七個欄位，不是真實的 ODRP061 下載（程式只用 birth_total，其餘解析時丟掉）。
 - fia-112_165-E-sample.csv：財政資訊中心 112 年度各里所得（2026-10-14 下載）同樣那 24 個里，加三民區「其他」「合計」、
   「高雄市其他」兩列、115-07 已廢止的鹽埕區慈愛里（對不到里界）；原檔格式（引號裡的 BOM、欄名「縣市別」、CRLF）。
 - plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：

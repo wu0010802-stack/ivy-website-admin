@@ -287,7 +287,7 @@ async def test_births_series_lists_the_periods_newest_first(admin_client, db_ses
         # 112-03 的前一年同月份是缺月 111-03，只比 11 個月：33 對 44，是 −25.0，不是 36 對 44 的 −18.2。
         {"starts": "111-10", "ends": "112-09", "months": 12, "missing": [], "births": 36, "change_pct": -25.0},
         {"starts": "110-10", "ends": "111-09", "months": 11, "missing": ["111-03"], "births": 44, "change_pct": 0.0},
-        # 最舊一期沒有前一期（表裡沒有 108-10 以前）。
+        # `_load` 只讀 72 個月，最舊一期沒有前一期，所以是 null。
         {"starts": "109-10", "ends": "110-09", "months": 12, "missing": [], "births": 48, "change_pct": None},
     ]
     assert (baseline["births_12m"], baseline["births_compared_months"], baseline["births_change_pct"]) == (24, 12, 0.0)
