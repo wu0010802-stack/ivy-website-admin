@@ -216,6 +216,11 @@ const buildAreaTrends = () => ({
   baseline: {
     villages: 4, children: 1400, kids_net: 26, kids_base: 1374, births_12m: 180, births_months: 12, births_compared_months: 9,
     births_change_pct: -20.7, migration_net_12m: -160, migration_months: 12,
+    births_series: [
+      { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 180, change_pct: -20.7 },
+      { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2 },
+      { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null },
+    ],
   },
   kids_unavailable: null,
   villages: [

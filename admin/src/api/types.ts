@@ -585,6 +585,8 @@ export type AreaTrendsVillage = components['schemas']['AreaTrendsVillageOut']
 export type KidsLevel = AreaTrendsVillage['kids_level']
 export type AreaTrendsVillageSchool = components['schemas']['AreaTrendsVillageSchoolOut']
 export type AreaTrendsSchool = components['schemas']['AreaTrendsSchoolOut']
+/** 本校半徑每 12 個月一期的出生數（2026-10-14 出生走勢規格）。 */
+export type AreaTrendsBirthPeriod = components['schemas']['AreaTrendsBirthPeriodOut']
 
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {

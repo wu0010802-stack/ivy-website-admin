@@ -358,7 +358,7 @@ export function signedCount(value: number | null | undefined): string {
 }
 
 /** 有正負號的百分比（小數一位）：「+21.0%」「−0.7%」。 */
-function signedPercent(value: number): string {
+export function signedPercent(value: number): string {
   const text = Math.abs(value).toFixed(1)
   if (text === '0.0') return '0.0%'
   return `${value > 0 ? '+' : MINUS}${text}%`

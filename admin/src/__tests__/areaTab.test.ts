@@ -817,6 +817,32 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(caption).toContain('國小學區依 115 學年度一覽表，「部分」是只有部分鄰屬於那所國小。')
   })
 
+  it('近幾年的出生數：在總結句下面、里表上面；一期一列，缺月與增減寫出來；里表的表頭與列不變', async () => {
+    const { wrapper } = await mountTab()
+    const section = block(wrapper, TITLE)
+    const series = section.get('.birth-series')
+    expect(series.get('.birth-series__title').text()).toBe('近幾年的出生數（本校 3 公里內）')
+    const rows = series.findAll('.birth-series__row:not(.birth-series__row--head)')
+    expect(rows.map((row) => [row.get('.birth-series__label').text(), row.get('.birth-series__number').text(), row.get('.birth-series__change').text()])).toEqual([
+      ['114 年 10 月～115 年 9 月', '180', '−20.7%'],
+      ['113 年 10 月～114 年 9 月', '227', '−5.2%'],
+      ['112 年 10 月～113 年 9 月', '215', '—'],
+    ])
+    expect(rows[2]!.get('.birth-series__missing').text()).toBe('缺 113 年 3 月')
+    // 順序：總結句 → 近幾年的出生數 → 里表；而且新區塊沒有 <table>，原表頭與列不受影響。
+    const html = section.html()
+    expect(html.indexOf('trends-summary')).toBeLessThan(html.indexOf('birth-series'))
+    expect(html.indexOf('birth-series')).toBeLessThan(html.indexOf('<table'))
+    expect(series.find('table').exists()).toBe(false)
+    expect(section.findAll('thead th')).toHaveLength(10)
+  })
+
+  it('沒有出生走勢（空陣列）時不顯示這一塊', async () => {
+    const base = areaTrends()
+    const { wrapper } = await mountTrends(areaTrends({ baseline: { ...base.baseline!, births_series: [] } }))
+    expect(block(wrapper, TITLE).find('.birth-series').exists()).toBe(false)
+  })
+
   it('所得還沒匯入：所得欄整欄「—」、欄位不隱藏，說明寫尚未匯入', async () => {
     const base = areaTrends()
     const trends = areaTrends({

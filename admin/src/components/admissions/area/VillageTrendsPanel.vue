@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
+import BirthSeries from './BirthSeries.vue'
 import type { AreaTrends, AreaTrendsVillage } from '../../../api/types'
 import { NO_VALUE, type StatsColumn } from '../../../admissions/statsFormat'
 import type { CsvCell } from '../../../utils/csv'
@@ -53,6 +54,8 @@ const COLLAPSED_ROWS = 10
 
 const title = computed(() => `里的變化（本校 ${props.data?.radius_km ?? 3} 公里內）`)
 const unavailable = computed(() => (props.data ? trendsUnavailable(props.data) : null))
+const birthPeriods = computed(() => props.data?.baseline?.births_series ?? [])
+const radiusKm = computed(() => props.data?.radius_km ?? 3)
 const summary = computed(() => (props.data && !unavailable.value ? trendsSummary(props.data) : null))
 const rows = computed<Row[]>(() =>
   (props.data?.villages ?? []).map((row) => ({
@@ -161,6 +164,12 @@ const csvColumns = computed<StatsColumn[]>(() => {
         <p v-for="line in summary.lines" :key="line">{{ line }}</p>
         <p v-if="summary.note" class="hint">{{ summary.note }}</p>
       </div>
+      <BirthSeries
+        v-if="!unavailable && birthPeriods.length"
+        :periods="birthPeriods"
+        :radius-km="radiusKm"
+        :csv-name="csvName('近幾年的出生數')"
+      />
     </template>
   </StatsDimensionTable>
 </template>
