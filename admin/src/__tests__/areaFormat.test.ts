@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bandLabel, campusNotLocatedReason, districtBounds, doorplateVersionLabel, expectedText, formatDistance, kindLabel, legendRanges, levelOf,
-  opportunitySummary, opportunityUnavailable, reasonLabel, shortName, signalText, signalTone, taipeiMonthDay, visitGeoText,
+  NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
+  changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, expectedText, formatDistance,
+  kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable, providerLabel, reasonLabel, shortName,
+  signalText, signalTone, taipeiMonthDay, trackingNote, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
-import { areaKindergartens, areaOpportunity, areaStats, villageBoundaries } from './admissionsTestKit'
+import {
+  areaBabycare, areaKindergartens, areaOpportunity, areaStats, babycareItem, providerChange, villageBoundaries,
+} from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
 /** 兩點的直線距離（公尺），球半徑 6371000 m，和後端 haversine_m 同一個算法。 */
@@ -234,5 +238,94 @@ describe('招生機會的文字（2026-10-13 規格 7）', () => {
     expect(opportunitySummary(many)!.note).toBe(
       '三民區本揚里、三民區寶業里、三民區鼎金里等 5 個里沒有人口資料，孩子數與其中的 40 位參觀都沒算進去。',
     )
+  })
+})
+
+describe('托嬰與園所異動的文字（2026-10-14）', () => {
+  it('名單種類切換：幼兒園在前、托嬰中心在後', () => {
+    expect(NEARBY_KINDS).toEqual([
+      { value: 'kindergarten', label: '幼兒園' },
+      { value: 'babycare', label: '托嬰中心' },
+    ])
+  })
+
+  it('托嬰類型標籤', () => {
+    expect([babycareKindLabel('center'), babycareKindLabel('home'), babycareKindLabel('other')]).toEqual(['托嬰中心', '托育家園', 'other'])
+  })
+
+  it('托嬰機構短名：取「辦理」「附設」之後的機構名；取不出像樣的名稱就維持原名', () => {
+    expect(babycareShortName('高雄市私立頂尖小子托嬰中心')).toBe('頂尖小子托嬰中心')
+    expect(babycareShortName('高雄市政府社會局委託財團法人靖娟兒童安全文教基金會辦理高雄市三民公共托嬰中心')).toBe('三民公共托嬰中心')
+    expect(babycareShortName('長庚醫療財團法人高雄長庚紀念醫院附設高雄市私立長庚托嬰中心')).toBe('長庚托嬰中心')
+    expect(babycareShortName('高雄市政府社會局委託嘉藥學校辦理高雄市苓雅社區公共托育家園')).toBe('苓雅社區公共托育家園')
+    // 括號收尾的「…辦理)」：尾巴沒有托嬰字樣，維持原名（只去掉「高雄市」前綴）。
+    expect(babycareShortName('高雄市政府員工子女托嬰中心(委託社團法人高雄市社區教育協會辦理)')).toBe('政府員工子女托嬰中心(委託社團法人高雄市社區教育協會辦理)')
+  })
+
+  it('托嬰清單的總結：核定與實際收托合計；未知的不計入；沒有托嬰中心寫沒有', () => {
+    const data = areaBabycare()
+    expect(babycareSummaryText(data.summary, 3)).toBe('3 公里內托嬰中心 3 所，核定 92 位，實際收托 84 位。')
+    expect(babycareSummaryText({ count: 0, approved_total: 0, enrolled_total: 0 }, 1)).toBe('1 公里內沒有托嬰中心。')
+    expect(babycareSummaryText({ count: 1200, approved_total: 31000, enrolled_total: 29500 }, 6)).toBe('6 公里內托嬰中心 1,200 所，核定 31,000 位，實際收托 29,500 位。')
+  })
+
+  it('每列第二行：距離・核定・實際收托；未知寫「—」不寫 0', () => {
+    expect(babycareMeta(babycareItem({ distance_m: 520 }))).toBe('520 m・核定 40 人・實際收托 32 人')
+    expect(babycareMeta(babycareItem({ distance_m: 1297, approved_capacity: null, enrolled: null }))).toBe('1.3 km・核定 — 人・實際收托 — 人')
+    expect(babycareMeta(babycareItem({ approved_capacity: 12, enrolled: 0 }))).toContain('實際收托 0 人') // 真的是 0 就寫 0
+  })
+
+  it('變化的種類與對象標籤', () => {
+    expect([changeLabel('opened'), changeLabel('closed'), changeLabel('kind_changed')]).toEqual(['新設', '停辦', '類型變動'])
+    expect([providerLabel('kindergarten'), providerLabel('babycare')]).toEqual(['幼兒園', '托嬰'])
+  })
+
+  it('日期依據：設立日、同步到的日期各寫各的', () => {
+    expect(changeDateText(providerChange({ change: 'opened', date: '2026-09-03', date_basis: 'registered' }))).toBe('設立日 2026/09')
+    expect(changeDateText(providerChange({ change: 'opened', date: '2026-10-21', date_basis: 'observed' }))).toBe('2026/10 起出現在名單')
+    expect(changeDateText(providerChange({ change: 'closed', date: '2026-10-09', date_basis: 'observed' }))).toBe('2026/10 起不在名單')
+    expect(changeDateText(providerChange({ change: 'kind_changed', date: '2026-01-05', date_basis: 'observed' }))).toBe('2026/01 起')
+  })
+
+  it('類型變動多寫「私立 → 準公共」，其他種類不寫', () => {
+    expect(kindChangeText(providerChange({ change: 'kind_changed', old_kind: 'private', new_kind: 'quasi_public' }))).toBe('私立 → 準公共')
+    expect(kindChangeText(providerChange({ change: 'closed' }))).toBe('')
+    expect(kindChangeText(providerChange({ change: 'kind_changed', old_kind: null, new_kind: null }))).toBe('')
+  })
+
+  it('變化區塊的副標與空狀態跟著半徑與視窗走', () => {
+    expect(changesSubtitle(3, 12)).toBe('近 12 個月・3 公里內')
+    expect(changesEmptyText(1, 12)).toBe('近 12 個月，1 公里內沒有新設、停辦或類型變動的園所。')
+  })
+
+  describe('記錄起點的說明（trackingNote）', () => {
+    const now = new Date(2026, 9, 14) // 2026/10/14
+    it('兩邊都還沒開始記錄', () => {
+      expect(trackingNote({ kindergarten: null, babycare: null }, 12, now)).toBe('尚未開始記錄。')
+    })
+    it('基準日同一天、不到 12 個月：說從哪天起記錄，新設以設立日為準', () => {
+      expect(trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-14' }, 12, now)).toBe(
+        '停辦與類型變動從 10 月 14 日起記錄；新設的幼兒園以設立日為準。',
+      )
+    })
+    it('基準日不同天：分開寫', () => {
+      expect(trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-20' }, 12, now)).toBe(
+        '幼兒園的停辦與類型變動從 10 月 14 日起記錄；托嬰從 10 月 20 日起記錄；新設的幼兒園以設立日為準。',
+      )
+    })
+    it('只有一邊開始記錄', () => {
+      expect(trackingNote({ kindergarten: '2026-10-14', babycare: null }, 12, now)).toBe(
+        '幼兒園的停辦與類型變動從 10 月 14 日起記錄；托嬰尚未開始記錄；新設的幼兒園以設立日為準。',
+      )
+    })
+    it('基準日已滿 12 個月（剛好 12 個月前那天也算滿）：不需要說明', () => {
+      expect(trackingNote({ kindergarten: '2025-10-14', babycare: '2025-09-01' }, 12, now)).toBe('')
+      expect(trackingNote({ kindergarten: '2025-10-15', babycare: '2025-09-01' }, 12, now)).not.toBe('')
+    })
+  })
+
+  it('頁首狀態列：托嬰名單更新日與尚未匯入', () => {
+    expect(babycareStatusText('2026-10-13T18:30:00Z')).toBe('托嬰名單 10/14 更新')
+    expect(babycareStatusText(null)).toBe('托嬰名單尚未匯入')
   })
 })

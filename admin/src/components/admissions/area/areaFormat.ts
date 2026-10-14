@@ -1,6 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, OpportunitySignal, VillageBoundaries, VisitGeo,
+  AreaBabycare, AreaBabycareItem, AreaChange, AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrackingSince,
+  OpportunitySignal, VillageBoundaries, VisitGeo,
 } from '../../../api/types'
 
 // 區域分析的顯示格式與地圖用的小工具（2026-10-08 規格 9）。
@@ -240,3 +241,101 @@ export function opportunitySummary(data: AreaOpportunity): { lead: string; verdi
   const excluded = parts.length ? `另有 ${parts.join('、')}，不算在內。` : ''
   return { lead, verdict, note: excluded + missingPopulationNote(data.no_population_villages) }
 }
+
+// ---- 托嬰與園所異動（2026-10-14 規格 7）----
+
+/** 「附近幼兒園」卡片的名單種類：幼兒園（預設）、托嬰中心。 */
+export type NearbyKind = 'kindergarten' | 'babycare'
+export const NEARBY_KINDS: readonly { value: NearbyKind; label: string }[] = [
+  { value: 'kindergarten', label: '幼兒園' },
+  { value: 'babycare', label: '托嬰中心' },
+]
+
+export const BABYCARE_KIND_LABELS: Record<string, string> = { center: '托嬰中心', home: '托育家園' }
+export const babycareKindLabel = (kind: string): string => BABYCARE_KIND_LABELS[kind] ?? kind
+
+/**
+ * 托嬰機構的短名：政府委託辦理的名稱很長（「高雄市政府社會局委託○○基金會辦理高雄市三民公共托嬰中心」），
+ * 取「辦理」「附設」之後真正的機構名；取出來的尾巴不像機構名（沒有托嬰／托育字樣，例如括號收尾的「…辦理)」）就維持原名。
+ * 最後一樣去掉「高雄市私立／高雄市」前綴。
+ */
+export function babycareShortName(name: string): string {
+  let short = name
+  for (const marker of ['辦理', '附設']) {
+    const tail = short.split(marker).at(-1)!.trim()
+    if (/托嬰|托育/.test(tail)) short = tail
+  }
+  return shortName(short) || name
+}
+
+/** 托嬰清單最上面一句。只放數量，不算任何比例。 */
+export function babycareSummaryText(summary: AreaBabycare['summary'], radiusKm: number): string {
+  if (!summary.count) return `${radiusKm} 公里內沒有托嬰中心。`
+  return (
+    `${radiusKm} 公里內托嬰中心 ${formatCount(summary.count)} 所，` +
+    `核定 ${formatCount(summary.approved_total)} 位，實際收托 ${formatCount(summary.enrolled_total)} 位。`
+  )
+}
+
+/** 清單每列第二行：距離・核定 N 人・實際收托 M 人。來源沒給（null）寫「—」，不寫 0。 */
+export function babycareMeta(item: Pick<AreaBabycareItem, 'distance_m' | 'approved_capacity' | 'enrolled'>): string {
+  const count = (value: number | null): string => (value === null ? NO_VALUE : String(value))
+  return `${formatDistance(item.distance_m)}・核定 ${count(item.approved_capacity)} 人・實際收托 ${count(item.enrolled)} 人`
+}
+
+const CHANGE_LABELS: Record<string, string> = { opened: '新設', closed: '停辦', kind_changed: '類型變動' }
+export const changeLabel = (change: string): string => CHANGE_LABELS[change] ?? change
+export const providerLabel = (provider: string): string => (provider === 'babycare' ? '托嬰' : '幼兒園')
+
+/** 2026-10-03 → 「2026/10」。 */
+const yearMonth = (isoDate: string): string => isoDate.slice(0, 7).replace('-', '/')
+
+/** 變化列的日期：新設依設立日、其餘是我們同步到的月份（來源沒有停辦日）。 */
+export function changeDateText(item: Pick<AreaChange, 'change' | 'date' | 'date_basis'>): string {
+  const when = yearMonth(item.date)
+  if (item.change === 'opened') return item.date_basis === 'registered' ? `設立日 ${when}` : `${when} 起出現在名單`
+  if (item.change === 'closed') return `${when} 起不在名單`
+  return `${when} 起`
+}
+
+/** 類型變動多寫「私立 → 準公共」；其他種類（或缺新舊值）回空字串。 */
+export function kindChangeText(item: Pick<AreaChange, 'change' | 'old_kind' | 'new_kind'>): string {
+  if (item.change !== 'kind_changed' || !item.old_kind || !item.new_kind) return ''
+  return `${kindLabel(item.old_kind)} → ${kindLabel(item.new_kind)}`
+}
+
+export const changesSubtitle = (radiusKm: number, months: number): string => `近 ${months} 個月・${radiusKm} 公里內`
+export const changesEmptyText = (radiusKm: number, months: number): string =>
+  `近 ${months} 個月，${radiusKm} 公里內沒有新設、停辦或類型變動的園所。`
+
+const pad2 = (value: number): string => String(value).padStart(2, '0')
+/** now 往前推 months 個月、同日（那個月沒有這天取月底）的 ISO 日期。 */
+function monthsAgoIso(now: Date, months: number): string {
+  const target = new Date(now.getFullYear(), now.getMonth() - months, 1)
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
+  return `${target.getFullYear()}-${pad2(target.getMonth() + 1)}-${pad2(Math.min(now.getDate(), lastDay))}`
+}
+const monthDay = (iso: string): string => `${Number(iso.slice(5, 7))} 月 ${Number(iso.slice(8, 10))} 日`
+
+/**
+ * 變化區塊底下的小字（規格 7.3）：異動紀錄從基準日才開始累積，基準日離今天不到視窗長度時要老實說從哪天起記錄；
+ * 兩邊都還沒開始記錄寫「尚未開始記錄。」；都已滿視窗長度就不需要說明（回空字串）。
+ * 幼兒園的新設看設立日、不需要等紀錄，所以每種寫法都帶「新設的幼兒園以設立日為準」。
+ */
+export function trackingNote(tracking: AreaTrackingSince, months = 12, now: Date = new Date()): string {
+  const { kindergarten, babycare } = tracking
+  if (!kindergarten && !babycare) return '尚未開始記錄。'
+  const cutoff = monthsAgoIso(now, months)
+  if ((!kindergarten || kindergarten <= cutoff) && (!babycare || babycare <= cutoff)) return ''
+  const tail = '新設的幼兒園以設立日為準。'
+  if (kindergarten && babycare && kindergarten === babycare) return `停辦與類型變動從 ${monthDay(kindergarten)}起記錄；${tail}`
+  const parts = [
+    kindergarten ? `幼兒園的停辦與類型變動從 ${monthDay(kindergarten)}起記錄` : '幼兒園的停辦與類型變動尚未開始記錄',
+    babycare ? `托嬰從 ${monthDay(babycare)}起記錄` : '托嬰尚未開始記錄',
+  ]
+  return `${parts.join('；')}；${tail}`
+}
+
+/** 頁首狀態列的托嬰名單那一段。 */
+export const babycareStatusText = (syncedAt: string | null): string =>
+  syncedAt ? `托嬰名單 ${taipeiMonthDay(syncedAt)} 更新` : '托嬰名單尚未匯入'

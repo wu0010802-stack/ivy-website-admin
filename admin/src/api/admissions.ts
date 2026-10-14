@@ -1,9 +1,9 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaKindergartens, AreaOpportunity, ContactLog, ContactLogCreate,
+  AdmissionsArea, AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaKindergartens, AreaOpportunity, ContactLog, ContactLogCreate,
   ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
@@ -157,6 +157,16 @@ export function getArea(params: { campus_key: string; school_year: number | null
 /** 本校半徑內的幼兒園（規格 8.2），後端依距離排序；半徑只有 1、3、6 公里。 */
 export function getAreaKindergartens(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaKindergartens> {
   return api.get<AreaKindergartens>(`/admin/admissions/area/kindergartens?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
+}
+
+/** 附近托嬰中心（2026-10-14 規格 6）：半徑同 getAreaKindergartens（1、3、6 公里）。 */
+export function getAreaBabycare(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaBabycare> {
+  return api.get<AreaBabycare>(`/admin/admissions/area/babycare?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
+}
+
+/** 附近園所近 12 個月的變化（新設、停辦、類型變動），半徑同上。 */
+export function getAreaChanges(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaChanges> {
+  return api.get<AreaChanges>(`/admin/admissions/area/changes?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
 }
 
 /** 招生機會（2026-10-13 規格 6）：母體同 getArea，半徑同 getAreaKindergartens（1、3、6 公里）。 */

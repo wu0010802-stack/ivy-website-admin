@@ -7,7 +7,10 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
-import type { AdmissionsArea, AreaKindergarten, AreaKindergartens, AreaOpportunity, UserOut, VillageBoundaries } from '../api/types'
+import type {
+  AdmissionsArea, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaKindergarten, AreaKindergartens, AreaOpportunity, UserOut,
+  VillageBoundaries,
+} from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -142,7 +145,7 @@ const buildAreaStats = () => ({
   data_status: {
     doorplate_version: '115-10', doorplates_synced_at: '2026-10-06T18:00:00Z',
     kindergartens_synced_at: '2026-10-07T18:30:00Z', boundary_version: '115-08-17',
-    population_version: '115-09', population_synced_at: '2026-10-12T18:00:00Z',
+    population_version: '115-09', population_synced_at: '2026-10-12T18:00:00Z', babycare_synced_at: '2026-10-13T18:30:00Z',
   },
   campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
   totals: {
@@ -219,6 +222,52 @@ export const areaKindergartens = (items: AreaKindergarten[] = [
   source_note: '資料來源：全國教保資訊網（kiang 整理），月費為估計值',
   campus: areaStats().campus,
   radius_km: 3,
+  items,
+  ...changes,
+})
+
+// 托嬰（2026-10-14）：座標同樣由 distance_m 反推；核定、實際收托是官方回報的數字。
+export const babycareItem = (changes: Partial<AreaBabycareItem> = {}): AreaBabycareItem => {
+  const distance_m = changes.distance_m ?? 520
+  return {
+    source_id: 'bc-center', name: '高雄市私立小星星托嬰中心', kind: 'center', address: '高雄市三民區義華路20號',
+    ...northOfCampus(distance_m), distance_m, approved_capacity: 40, enrolled: 32, phone: '07-3801000', ...changes,
+  } satisfies AreaBabycareItem
+}
+
+export const areaBabycare = (items: AreaBabycareItem[] = [
+  babycareItem({ source_id: 'bc-public', name: '高雄市政府社會局委託辦理高雄市三民公共托嬰中心', distance_m: 165, approved_capacity: 52, enrolled: 52 }),
+  babycareItem({ source_id: 'bc-center', distance_m: 520 }),
+  // 核定與實際收托未知（null）：畫面寫「—」，總結不計入。
+  babycareItem({ source_id: 'bc-home', name: '高雄市鳥松社區公共托育家園', kind: 'home', distance_m: 1297, approved_capacity: null, enrolled: null, phone: null }),
+], changes: Partial<AreaBabycare> = {}): AreaBabycare => ({
+  synced_at: '2026-10-13T18:30:00Z',
+  source_note: '資料來源：衛生福利部社會及家庭署公開資料（kiang 整理）；實際收托為官方資料',
+  campus: areaStats().campus,
+  radius_km: 3,
+  summary: {
+    count: items.length,
+    approved_total: items.reduce((sum, item) => sum + (item.approved_capacity ?? 0), 0),
+    enrolled_total: items.reduce((sum, item) => sum + (item.enrolled ?? 0), 0),
+  },
+  items,
+  ...changes,
+})
+
+export const providerChange = (changes: Partial<AreaChange> = {}): AreaChange => ({
+  provider: 'kindergarten', source_id: 'kg-new', name: '高雄市私立三多哈波特幼兒園', kind: 'private', change: 'opened',
+  date: '2026-09-03', date_basis: 'registered', distance_m: 780, old_kind: null, new_kind: null, ...changes,
+})
+
+export const areaChanges = (items: AreaChange[] = [
+  providerChange({ provider: 'babycare', source_id: 'bc-closed', name: '高雄市私立頂尖小子托嬰中心', kind: 'center', change: 'closed', date: '2026-10-09', date_basis: 'observed', distance_m: 435 }),
+  providerChange({ source_id: 'kg-kind', name: '高雄市私立保羅幼兒園', kind: 'quasi_public', change: 'kind_changed', date: '2026-10-04', date_basis: 'observed', distance_m: 513, old_kind: 'private', new_kind: 'quasi_public' }),
+  providerChange(),
+], changes: Partial<AreaChanges> = {}): AreaChanges => ({
+  campus: areaStats().campus,
+  radius_km: 3,
+  window_months: 12,
+  tracking_since: { kindergarten: '2026-10-14', babycare: '2026-10-14' },
   items,
   ...changes,
 })

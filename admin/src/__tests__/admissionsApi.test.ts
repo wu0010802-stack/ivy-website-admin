@@ -67,6 +67,16 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     ])
   })
 
+  it('getAreaBabycare、getAreaChanges 帶校區與半徑', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
+    await admissions.getAreaBabycare('yihua', 6)
+    await admissions.getAreaChanges('yihua', 1)
+    expect(get.mock.calls.map((call) => call[0])).toEqual([
+      '/admin/admissions/area/babycare?campus_key=yihua&radius_km=6',
+      '/admin/admissions/area/changes?campus_key=yihua&radius_km=1',
+    ])
+  })
+
   it('招生機會：口徑同區域分析（學年學期沒選不帶），帶半徑', async () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue({} as never)
     await admissions.getAreaOpportunity({ campus_key: 'yihua', school_year: null, semester: 2, radius_km: 1 })
