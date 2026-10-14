@@ -7,7 +7,8 @@
 - 托嬰名單裡新出現的（資料表原本有列）→ opened 事件；幼兒園的新設看設立日（registered_on，讀的時候算），
   不靠事件——來源晚收錄的老園所不是新園（P3）；
 - 幼兒園類型變了 → kind_changed 事件。舊的類型用這次同步當下的學年重算（P7）：準公共期間是學年區間，
-  學年更替時沒改過資料的園所類型會自己變，直接比會冒出一批假異動。
+  學年更替時沒改過資料的園所類型會自己變，直接比會冒出一批假異動；
+  新舊都是私立基底且都有準公共期間時視為續約，不算（加入、退出、公立／非營利／私立之間的改變才算）。
 資料表原本是空的（托嬰第一次）只建立基準，不寫任何事件（P8）。新名單營業中的數量比上次少太多視為
 殘缺檔，不換版（P9）。事件靠唯一約束冪等；同一個交易做完，由呼叫端 commit。"""
 
@@ -188,7 +189,18 @@ async def apply_kindergartens(
 ) -> ChangeReport:
     """幼兒園名單換新並記錄異動（不 commit）。school_year：這一輪解析名單用的學年，舊列的類型用它重算（P7）。"""
 
+    private_base = ("private", "quasi_public")
+
     def kind_change(old: GeoKindergarten, values: dict[str, Any]) -> tuple[str, str] | None:
+        # 舊、新都是私立基底而且兩邊都有準公共期間：這是續約或換期間（例如 113-115 → 116-118），不是類型變動。
+        # 否則高雄 735 所裡約 268 所「113-115」在 116 學年續約那一輪，三公里內會冒出一串假異動
+        # （來源在學年更替前先公布 → 寫成「準公共 → 私立」，之後才公布 → 寫成「私立 → 準公共」，都是假的）。
+        # 加入（舊列沒有期間）、退出（新期間為空）、公立／非營利／私立之間的改變，仍然照算。
+        if (
+            old.kind in private_base and values["kind"] in private_base
+            and old.pre_public_period and values["pre_public_period"]
+        ):
+            return None
         before = kind_as_of(old.kind, old.pre_public_period, school_year)
         return (before, values["kind"]) if before != values["kind"] else None
 

@@ -228,6 +228,38 @@ async def test_a_changed_quasi_public_period_is_a_kind_change(db_session):
     assert await events(db_session) == [("kindergarten", "k1", "kind_changed", date(2026, 10, 21), "private", "quasi_public")]
 
 
+async def test_renewing_the_quasi_public_period_before_the_year_turns_is_not_a_kind_change(db_session):
+    """113-115 續約成 116-118，來源在學年更替前先公布（學年 115，新列解析成私立）：續約不是類型變動。"""
+    await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="113-115")], school_year=115)
+    report = await put_kindergartens(db_session, [kg("k1", kind="private", period="116-118")], now=later(7), school_year=115)
+    assert report.kind_changed == 0 and await events(db_session) == []
+    row = await db_session.get(GeoKindergarten, "k1")
+    assert (row.kind, row.pre_public_period) == ("private", "116-118")  # 資料表照新的更新
+
+
+async def test_renewing_the_quasi_public_period_after_the_year_turns_is_not_a_kind_change(db_session):
+    """續約在學年更替之後才進來（學年 116，舊列是 115 學年存的準公共，新列解析成準公共）：也不算。"""
+    await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="113-115")], school_year=115)
+    report = await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="116-118")], now=later(300), school_year=116)
+    assert report.kind_changed == 0 and await events(db_session) == []
+
+
+async def test_dropping_the_quasi_public_period_is_a_kind_change(db_session):
+    """退出：舊期間涵蓋當學年、新期間為空。"""
+    await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="113-115")], school_year=115)
+    report = await put_kindergartens(db_session, [kg("k1", kind="private")], now=later(7), school_year=115)
+    assert report.kind_changed == 1
+    assert await events(db_session) == [("kindergarten", "k1", "kind_changed", date(2026, 10, 21), "quasi_public", "private")]
+
+
+async def test_joining_the_quasi_public_program_is_a_kind_change(db_session):
+    """加入：舊列沒有期間，新期間涵蓋當學年。"""
+    await put_kindergartens(db_session, [kg("k1", kind="private")], school_year=115)
+    report = await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="115-115")], now=later(7), school_year=115)
+    assert report.kind_changed == 1
+    assert await events(db_session) == [("kindergarten", "k1", "kind_changed", date(2026, 10, 21), "private", "quasi_public")]
+
+
 async def test_a_changed_school_type_is_a_kind_change(db_session):
     await put_kindergartens(db_session, [kg("k1", kind="nonprofit")])
     await put_kindergartens(db_session, [kg("k1", kind="public")], now=later(7))
