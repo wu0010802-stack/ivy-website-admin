@@ -1,24 +1,26 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, shallowRef, watch } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
-import NearbyKindergartens from './NearbyKindergartens.vue'
+import NearbyPanel from './NearbyPanel.vue'
 import OpportunityPanel from './OpportunityPanel.vue'
-import { getArea, getAreaBoundaries, getAreaKindergartens, getAreaOpportunity } from '../../../api/admissions'
+import ProviderChanges from './ProviderChanges.vue'
+import { getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaKindergartens, getAreaOpportunity } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaVillageRow, VillageBoundaries,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaVillageRow, VillageBoundaries,
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  bandLabel, campusNotLocatedReason, doorplateVersionLabel, opportunityUnavailable, populationVersionLabel, reasonLabel, taipeiMonthDay,
-  type RadiusKm,
+  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, opportunityUnavailable, populationVersionLabel, reasonLabel,
+  taipeiMonthDay, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
 // 2026-10-13 招生機會：地圖可改依 2–5 歲孩子或招生機會著色，地圖下方多一張「招生機會」表（半徑跟附近幼兒園同一個）。
+// 2026-10-14：右欄多托嬰中心切換與「附近園所的變化」。
 // 口徑同其他子分頁（頁首校區＋入學學年學期）；家長地址在後端以公開門牌資料比對，不送任何外部服務。
 // 地圖（Leaflet）另切一個 chunk，點開這個子分頁才下載。
 // chunk 載入失敗（常見於剛部署完、舊的 hash 檔已不存在）：重抓同一個檔救不回來，只能整頁重新載入；
@@ -101,6 +103,43 @@ async function loadKindergartens() {
 }
 watch([() => props.campusKey, radiusKm], () => void loadKindergartens(), { immediate: true })
 
+// 附近托嬰中心與附近園所的變化（2026-10-14 規格 7）：半徑跟附近幼兒園同一個；換校區或半徑都先清空再讀、
+// 只採用最後一次的回應。兩份各自成敗，互不牽連。
+const nearbyKind = ref<NearbyKind>('kindergarten')
+const babycare = ref<AreaBabycare | null>(null)
+const babycareFailed = ref(false)
+const babycareRequests = useRequestSequence()
+async function loadBabycare() {
+  const request = babycareRequests.begin()
+  babycare.value = null
+  babycareFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaBabycare(props.campusKey, radiusKm.value)
+    if (babycareRequests.isCurrent(request)) babycare.value = result
+  } catch {
+    if (babycareRequests.isCurrent(request)) babycareFailed.value = true
+  }
+}
+watch([() => props.campusKey, radiusKm], () => void loadBabycare(), { immediate: true })
+
+const changes = ref<AreaChanges | null>(null)
+const changesFailed = ref(false)
+const changesRequests = useRequestSequence()
+async function loadChanges() {
+  const request = changesRequests.begin()
+  changes.value = null
+  changesFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaChanges(props.campusKey, radiusKm.value)
+    if (changesRequests.isCurrent(request)) changes.value = result
+  } catch {
+    if (changesRequests.isCurrent(request)) changesFailed.value = true
+  }
+}
+watch([() => props.campusKey, radiusKm], () => void loadChanges(), { immediate: true })
+
 // 招生機會（2026-10-13 規格 7）：母體同區域分析，半徑同附近幼兒園；換任何一個都清空再讀、只採用最後一次的回應。
 const opportunity = ref<AreaOpportunity | null>(null)
 const opportunityFailed = ref(false)
@@ -127,10 +166,17 @@ const opportunityNote = computed(() => {
   return opportunity.value ? (opportunityUnavailable(opportunity.value) ?? '') : ''
 })
 
-const map = ref<{ focusKindergarten: (id: string) => void } | null>(null)
+const map = ref<{ focusKindergarten: (id: string) => void; focusBabycare: (id: string) => void; revealBabycare: () => void } | null>(null)
 function focusKindergarten(id: string) {
   map.value?.focusKindergarten(id)
 }
+function focusBabycare(id: string) {
+  map.value?.focusBabycare(id)
+}
+// 卡片切到托嬰中心就打開地圖上的托嬰圖層（預設不勾，維持現有畫面）。
+watch(nearbyKind, (kind) => {
+  if (kind === 'babycare') map.value?.revealBabycare()
+})
 
 // 狀態列（主控裁定 R5）：以「有地址」為母數——「有地址 N 筆：到里 a 筆、未定位到里 b 筆（只到區 c、查無門牌 d、
 // 非高雄市 e、待比對 f）」，括號只列非零項；沒填地址的另外寫，已匿名化不放在這裡。
@@ -152,6 +198,7 @@ const status = computed(() => {
       : '門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。',
     doorplateImported: Boolean(dataStatus.doorplate_version),
     kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${taipeiMonthDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
+    babycare: babycareStatusText(dataStatus.babycare_synced_at),
     population: dataStatus.population_version ? `各里人口 ${populationVersionLabel(dataStatus.population_version)}` : '各里人口尚未匯入',
     noVillage: totals.with_address - totals.village_level,
     breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
@@ -227,7 +274,7 @@ function openNoVillage() {
       <div class="area-head">
         <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
         <p class="hint area-status">
-          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}・{{ status.population }}</span>
+          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}・{{ status.babycare }}・{{ status.population }}</span>
         </p>
         <p v-if="area.totals.with_address" class="area-summary">
           有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>
@@ -254,6 +301,7 @@ function openNoVillage() {
             :campus="area.campus"
             :campus-name="campusLabel(campusKey)"
             :kindergartens="kindergartens?.items ?? []"
+            :babycare="babycare?.items ?? []"
             :radius-km="radiusKm"
             :narrow="narrow"
             :opportunity="opportunity"
@@ -261,13 +309,21 @@ function openNoVillage() {
             @open-area="openPlace"
           />
         </div>
-        <NearbyKindergartens
-          v-model:radius-km="radiusKm"
-          :data="kindergartens"
-          :failed="kindergartensFailed"
-          @select="focusKindergarten"
-          @retry="loadKindergartens()"
-        />
+        <div class="area-top__side">
+          <NearbyPanel
+            v-model:kind="nearbyKind"
+            v-model:radius-km="radiusKm"
+            :kindergartens="kindergartens"
+            :kindergartens-failed="kindergartensFailed"
+            :babycare="babycare"
+            :babycare-failed="babycareFailed"
+            @select-kindergarten="focusKindergarten"
+            @select-babycare="focusBabycare"
+            @retry-kindergartens="loadKindergartens()"
+            @retry-babycare="loadBabycare()"
+          />
+          <ProviderChanges :data="changes" :failed="changesFailed" :radius-km="radiusKm" @retry="loadChanges()" />
+        </div>
       </div>
 
       <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
@@ -342,6 +398,13 @@ function openNoVillage() {
 }
 
 .area-top > * {
+  min-width: 0;
+}
+
+.area-top__side {
+  display: grid;
+  align-content: start;
+  gap: 16px;
   min-width: 0;
 }
 

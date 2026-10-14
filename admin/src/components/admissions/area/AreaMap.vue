@@ -2,12 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type * as Leaflet from 'leaflet'
 import type {
-  AdmissionsArea, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaVillageRow, VillageBoundaries, VillageProperties,
+  AdmissionsArea, AreaBabycareItem, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaVillageRow, VillageBoundaries,
+  VillageProperties,
 } from '../../../api/types'
 import { formatRate } from '../../../admissions/statsFormat'
 import {
-  KIND_LABELS, KIND_ORDER, MAP_MODES, campusNotLocatedReason, districtBounds, expectedText, formatCount, formatDistance, kindLabel,
-  legendRanges, levelOf, shortName, signalText, signalTone, villageKey, type MapMode, type RadiusKm,
+  KIND_LABELS, KIND_ORDER, MAP_MODES, babycareKindLabel, babycareMeta, babycareShortName, campusNotLocatedReason, districtBounds,
+  expectedText, formatCount, formatDistance, kindLabel, legendRanges, levelOf, shortName, signalText, signalTone, villageKey,
+  type MapMode, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
@@ -19,6 +21,7 @@ import {
 // 2026-10-13 招生機會：著色可以切成「2–5 歲孩子」（半徑內依孩子數分 5 級）或「招生機會」（明顯偏少／差不多／
 // 比附近多三色，孩子少與不判斷不上色），半徑外的里這兩種都不上色。招生機會資料用不了時（讀取中、人口沒匯入、
 // 本校沒座標、讀取失敗）後兩種停用，opportunityNote 寫原因；讀取中（opportunity 是 null、沒有原因）照常可選，先不上色。
+// 2026-10-14：托嬰中心用菱形標點、獨立圖層（預設不勾）。
 const props = withDefaults(
   defineProps<{
     boundaries: VillageBoundaries
@@ -26,13 +29,14 @@ const props = withDefaults(
     campus: AdmissionsArea['campus']
     campusName: string
     kindergartens: readonly AreaKindergarten[]
+    babycare?: readonly AreaBabycareItem[]
     radiusKm: RadiusKm
     narrow: boolean
     opportunity?: AreaOpportunity | null
     /** 招生機會用不了的原因；空字串＝可以用。 */
     opportunityNote?: string
   }>(),
-  { opportunity: null, opportunityNote: '' },
+  { babycare: () => [], opportunity: null, opportunityNote: '' },
 )
 const emit = defineEmits<{ 'open-area': [filter: { district: string; village: string }] }>()
 
@@ -44,6 +48,7 @@ const VIEW_PADDING: [number, number] = [24, 24]
 const TILE_FAILURE_LIMIT = 4
 const STAR_SVG =
   '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>'
+const DIAMOND_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1l7 7-7 7-7-7z"/></svg>'
 
 type LeafletModule = typeof Leaflet
 
@@ -59,9 +64,13 @@ let campusMarker: Leaflet.Marker | null = null
 let radiusCircle: Leaflet.Circle | null = null
 let kindergartenGroup: Leaflet.LayerGroup | null = null
 const kindergartenMarkers = new Map<string, Leaflet.CircleMarker>()
+let babycareGroup: Leaflet.LayerGroup | null = null
+const babycareMarkers = new Map<string, Leaflet.Marker>()
 let resizeObserver: ResizeObserver | null = null
 
 const showKindergartens = ref(true)
+// 托嬰中心圖層預設不勾（維持現有畫面）；卡片切到托嬰中心或點清單某一列時自動打開。
+const showBabycare = ref(false)
 // 手機上地圖能不能拖曳縮放；桌機一直可以。
 const interactive = ref(!props.narrow)
 // loading：Leaflet 還在下載；library：下載或建立地圖失敗；tiles：底圖圖磚一直載不到。
@@ -184,6 +193,16 @@ function kindergartenPopup(item: AreaKindergarten): HTMLElement {
   return root
 }
 
+function babycarePopup(item: AreaBabycareItem): HTMLElement {
+  const root = document.createElement('div')
+  root.className = 'area-popup'
+  const title = document.createElement('strong')
+  title.textContent = babycareShortName(item.name)
+  root.append(title, popupLine(`${babycareKindLabel(item.kind)}・${babycareMeta(item)}`))
+  if (item.phone) root.append(popupLine(item.phone))
+  return root
+}
+
 function drawVillages() {
   if (!L || !map) return
   villageLayer?.remove()
@@ -276,7 +295,46 @@ function focusKindergarten(id: string) {
   map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15))
   marker.openPopup()
 }
-defineExpose({ focusKindergarten })
+
+function drawBabycare() {
+  const group = babycareGroup
+  if (!L || !group) return
+  group.clearLayers()
+  babycareMarkers.clear()
+  for (const item of props.babycare) {
+    const marker = L.marker([item.lat, item.lng], {
+      icon: L.divIcon({ className: 'area-bc', html: DIAMOND_SVG, iconSize: [16, 16], iconAnchor: [8, 8] }),
+      title: item.name,
+      alt: item.name,
+      keyboard: false,
+    })
+    marker.bindPopup(() => babycarePopup(item))
+    group.addLayer(marker)
+    babycareMarkers.set(item.source_id, marker)
+  }
+}
+
+function setShowBabycare(value: boolean) {
+  showBabycare.value = value
+  if (!map || !babycareGroup) return
+  if (value) map.addLayer(babycareGroup)
+  else map.removeLayer(babycareGroup)
+}
+
+/** 卡片切到托嬰中心：打開圖層（已經開著就不動）。 */
+function revealBabycare() {
+  if (!showBabycare.value) setShowBabycare(true)
+}
+
+/** 托嬰清單點一列：地圖移到該點並打開資訊（圖層沒開就先打開）。 */
+function focusBabycare(id: string) {
+  const marker = babycareMarkers.get(id)
+  if (!map || !marker) return
+  revealBabycare()
+  map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15))
+  marker.openPopup()
+}
+defineExpose({ focusKindergarten, focusBabycare, revealBabycare })
 
 function setInteractive(value: boolean) {
   interactive.value = value
@@ -322,6 +380,8 @@ function destroyMap() {
   radiusCircle = null
   kindergartenGroup = null
   kindergartenMarkers.clear()
+  babycareGroup = null
+  babycareMarkers.clear()
   try {
     current?.remove()
   } catch (error) {
@@ -360,9 +420,12 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   tiles.on('tileerror', onTileError)
   tiles.addTo(map)
   kindergartenGroup = leaflet.layerGroup().addTo(map)
+  babycareGroup = leaflet.layerGroup()
+  if (showBabycare.value) babycareGroup.addTo(map)
   drawVillages()
   drawCampus()
   drawKindergartens()
+  drawBabycare()
   if (!viewFirst) fitInitialView()
   // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。子分頁切走是 v-show 藏起來（容器 0×0），
   // 藏著的時候重建的地圖 fitBounds 是在 0×0 裡算的（縮到最小級）：容器從沒尺寸變回有尺寸，視野要重取。
@@ -429,6 +492,7 @@ watch(() => props.radiusKm, (km) => {
   fitInitialView()
 })
 watch(() => props.kindergartens, drawKindergartens)
+watch(() => props.babycare, drawBabycare)
 watch(() => props.narrow, (narrow) => {
   setInteractive(!narrow)
   // 里名的 hover 提示只在桌機綁，換版面要重綁。
@@ -491,6 +555,17 @@ onBeforeUnmount(destroyMap)
         <ul v-if="showKindergartens" class="area-legend" aria-label="幼兒園類型圖例">
           <li v-for="item in kindLegend" :key="item.kind"><span class="area-dot" :class="`area-dot--${item.kind}`" aria-hidden="true" />{{ item.label }}</li>
           <li><span class="area-dot area-dot--own" aria-hidden="true" />本機構</li>
+        </ul>
+      </div>
+      <div class="area-legend area-legend--kinds">
+        <el-switch
+          :model-value="showBabycare"
+          aria-label="在地圖上顯示托嬰中心"
+          active-text="托嬰中心"
+          @update:model-value="setShowBabycare(Boolean($event))"
+        />
+        <ul v-if="showBabycare" class="area-legend" aria-label="托嬰中心圖例">
+          <li><span class="area-dot area-dot--babycare" aria-hidden="true" />托嬰中心與托育家園</li>
         </ul>
       </div>
       <p v-if="campusNote" class="area-map__campus-note">{{ campusNote }}</p>
@@ -630,6 +705,14 @@ onBeforeUnmount(destroyMap)
 .area-dot--private { background: var(--area-kind-private); }
 .area-dot--own { background: var(--area-kind-own); border-color: var(--area-kind-own-ink); }
 
+.area-dot--babycare {
+  width: 9px;
+  height: 9px;
+  border-radius: 0;
+  background: var(--area-kind-babycare);
+  transform: rotate(45deg);
+}
+
 /* Leaflet 畫的 SVG：CSS 屬性蓋過 Leaflet 寫的 presentation attribute。
    0 級填透明但仍有 fill（visiblePainted），點得到、看得到 hover 里名。 */
 .area-map :deep(.area-village) {
@@ -664,6 +747,12 @@ onBeforeUnmount(destroyMap)
 .area-map :deep(.area-kg--quasi_public) { fill: var(--area-kind-quasi-public); }
 .area-map :deep(.area-kg--private) { fill: var(--area-kind-private); }
 .area-map :deep(.area-kg--own) { fill: var(--area-kind-own); stroke: var(--area-kind-own-ink); }
+
+.area-map :deep(.area-bc svg path) {
+  fill: var(--area-kind-babycare);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
 
 .area-map :deep(.area-campus svg path) {
   fill: var(--area-kind-own);

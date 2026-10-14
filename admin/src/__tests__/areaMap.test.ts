@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
-import { areaKindergartens, areaOpportunity, areaStats, button, villageBoundaries } from './admissionsTestKit'
+import { areaBabycare, areaKindergartens, areaOpportunity, areaStats, babycareItem, button, villageBoundaries } from './admissionsTestKit'
 
 // any 只出現在 Leaflet 的 mock 物件上。
 const leaflet = vi.hoisted(() => {
@@ -805,5 +805,77 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     expect(source).toContain('fill: var(--area-chance)')
     const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
     expect(style).toMatch(/--area-chance: oklch\(/)
+  })
+})
+
+describe('托嬰中心圖層（2026-10-14）', () => {
+  const items = () => areaBabycare().items
+  // 第一個 marker 是本校星號。
+  const babycareMarkers = () => leaflet.created.marker!.slice(1)
+
+  it('標點用菱形（divIcon）、帶機構名稱；圖層預設不勾，所以沒有加到地圖上', async () => {
+    const wrapper = await mountMap({ babycare: items() })
+    expect(babycareMarkers().map((marker) => marker.options.title)).toEqual(items().map((item) => item.name))
+    expect(leaflet.module.divIcon).toHaveBeenCalledWith(expect.objectContaining({ className: 'area-bc', iconSize: [16, 16] }))
+    const group = leaflet.created.layerGroup![1]
+    expect(group.addLayer).toHaveBeenCalledTimes(3)
+    expect(group.addTo).not.toHaveBeenCalled()
+    expect(wrapper.find('[aria-label="在地圖上顯示托嬰中心"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('托嬰中心與托育家園')
+  })
+
+  it('勾選打開圖層、取消收起；圖例跟著出現與收起；幼兒園的開關不受影響', async () => {
+    const wrapper = await mountMap({ babycare: items() })
+    const group = leaflet.created.layerGroup![1]
+    const switches = wrapper.findAllComponents({ name: 'ElSwitch' })
+    switches[1]!.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    expect(one('map').addLayer).toHaveBeenCalledWith(group)
+    expect(wrapper.text()).toContain('托嬰中心與托育家園')
+    switches[1]!.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    expect(one('map').removeLayer).toHaveBeenCalledWith(group)
+    expect(wrapper.text()).not.toContain('托嬰中心與托育家園')
+    expect(wrapper.text()).toContain('非營利') // 幼兒園的類型圖例還在
+  })
+
+  it('focusBabycare：圖層沒開就先打開，地圖移到該點並打開資訊；已經開著不重複加', async () => {
+    const wrapper = await mountMap({ babycare: items() })
+    const vm = wrapper.vm as unknown as { focusBabycare: (id: string) => void; revealBabycare: () => void }
+    vm.focusBabycare('bc-center')
+    await flushPromises()
+    const group = leaflet.created.layerGroup![1]
+    expect(one('map').addLayer).toHaveBeenCalledWith(group)
+    expect(one('map').setView).toHaveBeenCalledWith({ lat: 22.6, lng: 120.3 }, 15)
+    expect(babycareMarkers()[1]!.openPopup).toHaveBeenCalled()
+    one('map').addLayer.mockClear()
+    vm.focusBabycare('bc-public')
+    vm.revealBabycare()
+    expect(one('map').addLayer).not.toHaveBeenCalled()
+    vm.focusBabycare('不存在的代碼') // 找不到就什麼都不做
+  })
+
+  it('revealBabycare：卡片切到托嬰中心時打開圖層', async () => {
+    const wrapper = await mountMap({ babycare: items() })
+    ;(wrapper.vm as unknown as { revealBabycare: () => void }).revealBabycare()
+    await flushPromises()
+    expect(one('map').addLayer).toHaveBeenCalledWith(leaflet.created.layerGroup![1])
+    expect(wrapper.text()).toContain('托嬰中心與托育家園')
+  })
+
+  it('資訊框：簡稱、類型、距離、核定、實際收托與電話；名稱當文字不當標籤', async () => {
+    await mountMap({ babycare: [babycareItem({ name: '<b>高雄市私立怪名字托嬰中心</b>' })] })
+    const content = babycareMarkers()[0]!.bindPopup.mock.calls[0]![0]() as HTMLElement
+    expect(content.textContent).toContain('托嬰中心・520 m・核定 40 人・實際收托 32 人')
+    expect(content.textContent).toContain('07-3801000')
+    expect(content.querySelector('b')).toBeNull()
+  })
+
+  it('換了托嬰清單整組重畫；沒有托嬰時只有本校星號', async () => {
+    const wrapper = await mountMap()
+    expect(leaflet.created.marker).toHaveLength(1)
+    await wrapper.setProps({ babycare: items().slice(0, 2) })
+    expect(leaflet.created.layerGroup![1].clearLayers).toHaveBeenCalled()
+    expect(babycareMarkers()).toHaveLength(2)
   })
 })

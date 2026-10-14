@@ -7,12 +7,15 @@ import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils
 import AreaTab from '../components/admissions/area/AreaTab.vue'
 import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
 import statsTabSource from '../components/admissions/StatsTab.vue?raw'
+import NearbyBabycare from '../components/admissions/area/NearbyBabycare.vue'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
+import NearbyPanel from '../components/admissions/area/NearbyPanel.vue'
 import {
-  areaKindergartens, areaOpportunity, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
+  areaBabycare, areaChanges, areaKindergartens, areaOpportunity, areaStats, button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf,
+  villageBoundaries,
 } from './admissionsTestKit'
 
-const mapStub = vi.hoisted(() => ({ focus: vi.fn() }))
+const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn() }))
 vi.mock('../components/admissions/area/AreaMap.vue', async () => {
   const { defineComponent, h } = await import('vue')
   // __esModule：AreaTab 用 defineAsyncComponent 載入，Vue 靠它判斷要取 default（真的模組是 ES module namespace，mock 工廠的回傳值不是）。
@@ -20,10 +23,10 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
     __esModule: true,
     default: defineComponent({
       name: 'AreaMap',
-      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote'],
+      props: ['boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote', 'babycare'],
       emits: ['open-area'],
       setup(_, { expose }) {
-        expose({ focusKindergarten: mapStub.focus })
+        expose({ focusKindergarten: mapStub.focus, focusBabycare: mapStub.focusBabycare, revealBabycare: mapStub.reveal })
         return () => h('div', { class: 'area-map-stub' })
       },
     }),
@@ -34,6 +37,8 @@ import { downloadCsv } from '../utils/csv'
 
 afterEach(() => {
   mapStub.focus.mockClear()
+  mapStub.focusBabycare.mockClear()
+  mapStub.reveal.mockClear()
   cleanup()
 })
 
@@ -44,6 +49,8 @@ const props = (changes: Record<string, unknown> = {}) => ({
 const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) => ({
   '/admin/admissions/area/boundaries': villageBoundaries(),
   '/admin/admissions/area/kindergartens': areaKindergartens(),
+  '/admin/admissions/area/babycare': areaBabycare(),
+  '/admin/admissions/area/changes': areaChanges(),
   '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area': area,
 })
@@ -66,7 +73,7 @@ describe('區域分析：讀取與三張表', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area?')[0]!))).toEqual({ campus_key: 'yihua', school_year: '115' })
     expect(pathsTo(get, '/admin/admissions/area/boundaries')).toHaveLength(1)
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・各里人口 115 年 9 月')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・托嬰名單 10/14 更新・各里人口 115 年 9 月')
   })
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
@@ -242,14 +249,14 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
   it('門牌資料還沒匯入：狀態列寫出來；句號後的幼兒園更新日另成一段，不接「。・」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新・各里人口 115 年 9 月'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單 10/08 更新・托嬰名單 10/14 更新・各里人口 115 年 9 月'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
   })
 
   it('門牌資料已匯入但幼兒園還沒匯入：狀態列補「幼兒園名單尚未匯入」，不是整句消失', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, kindergartens_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入・各里人口 115 年 9 月')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單尚未匯入・托嬰名單 10/14 更新・各里人口 115 年 9 月')
   })
 
   it('門牌與幼兒園資料都還沒匯入：兩句各自成段，不接「。・」', async () => {
@@ -257,7 +264,7 @@ describe('區域分析：空狀態與錯誤（規格 9.5）', () => {
       data_status: { ...areaStats().data_status, doorplate_version: null, doorplates_synced_at: null, kindergartens_synced_at: null },
     })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入・各里人口 115 年 9 月'])
+    expect(wrapper.findAll('.area-status span').map((span) => span.text())).toEqual(['門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。', '幼兒園名單尚未匯入・托嬰名單 10/14 更新・各里人口 115 年 9 月'])
     expect(wrapper.get('.area-status').text()).not.toContain('。・')
   })
 
@@ -455,7 +462,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
   it('狀態列寫人口月份；人口還沒匯入寫「各里人口尚未匯入」', async () => {
     const area = areaStats({ data_status: { ...areaStats().data_status, population_version: null, population_synced_at: null } })
     const { wrapper } = await mountTab({}, area)
-    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・各里人口尚未匯入')
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・托嬰名單 10/14 更新・各里人口尚未匯入')
   })
 
   it('總結：半徑內合計、明顯偏少的里與合計少了幾位、不算在內的人數', async () => {
@@ -590,5 +597,125 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunity')).toMatchObject({ radius_km: 6 })
     expect(block(wrapper, '招生機會（本校 6 公里內）')).toBeDefined()
+  })
+})
+
+describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
+  it('依頁首校區與半徑讀托嬰與變化；狀態列多一段托嬰名單更新日', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/babycare')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/changes')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
+    expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・托嬰名單 10/14 更新・各里人口 115 年 9 月')
+  })
+
+  it('托嬰名單還沒匯入：狀態列寫尚未匯入', async () => {
+    const area = areaStats({ data_status: { ...areaStats().data_status, babycare_synced_at: null } })
+    const { wrapper } = await mountTab({}, area)
+    expect(wrapper.get('.area-status').text()).toContain('幼兒園名單 10/08 更新・托嬰名單尚未匯入・各里人口 115 年 9 月')
+  })
+
+  it('預設是幼兒園清單；切到托嬰中心才顯示托嬰清單，並請地圖打開托嬰圖層；地圖一直拿得到托嬰點', async () => {
+    const { wrapper } = await mountTab()
+    expect(wrapper.find('.nearby--babycare').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('babycare')).toHaveLength(3)
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    expect(wrapper.find('.nearby--babycare').exists()).toBe(true)
+    expect(wrapper.find('.nearby__title').text()).toBe('附近托嬰中心')
+    expect(wrapper.get('.nearby__summary').text()).toBe('3 公里內托嬰中心 3 所，核定 92 位，實際收托 84 位。')
+    expect(mapStub.reveal).toHaveBeenCalledTimes(1)
+  })
+
+  it('托嬰清單點一列：地圖移到該點', async () => {
+    const { wrapper } = await mountTab()
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    wrapper.findComponent(NearbyBabycare).vm.$emit('select', 'bc-public')
+    expect(mapStub.focusBabycare).toHaveBeenCalledWith('bc-public')
+    expect(mapStub.focus).not.toHaveBeenCalled()
+  })
+
+  it('換半徑：幼兒園、托嬰、變化一起重讀並帶 radius_km，地圖半徑跟著變', async () => {
+    const { wrapper, get } = await mountTab()
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    for (const path of ['/admin/admissions/area/kindergartens', '/admin/admissions/area/babycare', '/admin/admissions/area/changes']) {
+      expect(queryOf(pathsTo(get, path).at(-1)!).get('radius_km')).toBe('6')
+    }
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(6)
+  })
+
+  it('半徑在托嬰清單上換也一樣（兩份清單共用同一個半徑）', async () => {
+    const { wrapper, get } = await mountTab()
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    wrapper.findComponent(NearbyBabycare).vm.$emit('update:radiusKm', 1)
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/babycare').at(-1)!).get('radius_km')).toBe('1')
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens').at(-1)!).get('radius_km')).toBe('1')
+  })
+
+  it('托嬰讀取失敗：切到托嬰才看得到錯誤；幼兒園清單、變化、地圖照常；重試成功恢復', async () => {
+    let fail = true
+    mockGet({ ...routes(), '/admin/admissions/area/babycare': () => { if (fail) throw new Error('boom'); return areaBabycare() } })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    expect(wrapper.text()).not.toContain('無法讀取附近托嬰中心。')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+    expect(wrapper.findAll('.changes__item')).toHaveLength(3)
+    wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
+    await flushPromises()
+    expect(wrapper.text()).toContain('無法讀取附近托嬰中心。')
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('babycare')).toEqual([])
+    fail = false
+    await button(wrapper, '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('無法讀取附近托嬰中心。')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(3)
+  })
+
+  it('變化區塊在「附近幼兒園」卡片正下方，列出近 12 個月的變化', async () => {
+    const { wrapper } = await mountTab()
+    const side = wrapper.get('.area-top__side')
+    expect(side.element.children[0]!.classList.contains('nearby-panel')).toBe(true)
+    expect(side.element.children[1]!.classList.contains('changes')).toBe(true)
+    expect(wrapper.findAll('.changes__item').map((row) => row.get('.changes__name').text())).toEqual(['頂尖小子托嬰中心', '保羅幼兒園', '三多哈波特幼兒園'])
+  })
+
+  it('變化讀取失敗：只有這一塊寫錯誤與重試，清單、三張表、地圖照常；重試成功恢復', async () => {
+    let fail = true
+    mockGet({ ...routes(), '/admin/admissions/area/changes': () => { if (fail) throw new Error('boom'); return areaChanges() } })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    expect(wrapper.text()).toContain('無法讀取附近園所的變化。')
+    expect(wrapper.text()).not.toContain('無法讀取區域分析')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+    expect(bodyRows(block(wrapper, '里排行'))).toHaveLength(3)
+    fail = false
+    await wrapper.get('.changes').findAll('button').find((item) => item.text() === '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.changes__item')).toHaveLength(3)
+  })
+
+  it('連續換半徑：變化只採用最後一次（先送出的晚回不蓋掉）', async () => {
+    const slow = deferred<unknown>()
+    let first = true
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/changes': () => {
+        if (first) { first = false; return areaChanges() }
+        return slow.promise
+      },
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    await vi.waitFor(() => expect(wrapper.findAll('.changes__item')).toHaveLength(3))
+    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await flushPromises()
+    expect(wrapper.find('.changes .el-skeleton').exists()).toBe(true) // 換半徑先清空再讀
+    slow.resolve(areaChanges([], { radius_km: 6 }))
+    await flushPromises()
+    expect(wrapper.findAll('.changes__item')).toHaveLength(0)
+    expect(wrapper.get('.changes__empty').text()).toBe('近 12 個月，6 公里內沒有新設、停辦或類型變動的園所。')
   })
 })
