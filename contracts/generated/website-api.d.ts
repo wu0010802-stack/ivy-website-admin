@@ -4027,7 +4027,7 @@ export interface components {
          * AreaTrendsBaselineOut
          * @description 本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。
          *     children＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；
-         *     births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。
+         *     births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年可比的出生不到 20 位時 null。
          */
         AreaTrendsBaselineOut: {
             /** Births 12M */
@@ -4038,6 +4038,8 @@ export interface components {
             births_compared_months: number;
             /** Births Months */
             births_months: number;
+            /** Births Series */
+            births_series: components["schemas"]["AreaTrendsBirthPeriodOut"][];
             /** Children */
             children: number | null;
             /** Kids Base */
@@ -4050,6 +4052,26 @@ export interface components {
             migration_net_12m: number | null;
             /** Villages */
             villages: number;
+        };
+        /**
+         * AreaTrendsBirthPeriodOut
+         * @description 半徑合計每 12 個月一期的出生數（2026-10-14 出生走勢規格 §4.2）。starts／ends 是「114-10」「115-09」；
+         *     months 是這一期有資料的月數、missing 是這一期裡沒有資料的月份（舊到新）；change_pct 和前一期（更舊的）
+         *     只比兩期都有資料的同月份（小數一位），比較的月份不到 6 個、前一期可比的出生不到 20 位、或沒有前一期時 null。
+         */
+        AreaTrendsBirthPeriodOut: {
+            /** Births */
+            births: number;
+            /** Change Pct */
+            change_pct: number | null;
+            /** Ends */
+            ends: string;
+            /** Missing */
+            missing: string[];
+            /** Months */
+            months: number;
+            /** Starts */
+            starts: string;
         };
         /**
          * AreaTrendsIncomeSourceOut

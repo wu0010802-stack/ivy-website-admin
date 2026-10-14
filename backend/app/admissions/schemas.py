@@ -1160,10 +1160,23 @@ class AreaTrendsSourcesOut(BaseModel):
     school_districts: AreaTrendsSchoolDistrictSourceOut
 
 
+class AreaTrendsBirthPeriodOut(BaseModel):
+    """半徑合計每 12 個月一期的出生數（2026-10-14 出生走勢規格 §4.2）。starts／ends 是「114-10」「115-09」；
+    months 是這一期有資料的月數、missing 是這一期裡沒有資料的月份（舊到新）；change_pct 和前一期（更舊的）
+    只比兩期都有資料的同月份（小數一位），比較的月份不到 6 個、前一期可比的出生不到 20 位、或沒有前一期時 null。"""
+
+    starts: str
+    ends: str
+    months: int
+    missing: list[str]
+    births: int
+    change_pct: float | None
+
+
 class AreaTrendsBaselineOut(BaseModel):
     """本校半徑內（里界面積重心在圈內）的合計；里界調整合併的組整組算進來（含半徑外的組員）。
     children＝本月 2–5 歲；kids_net＝這一年淨增、kids_base＝一年前 1–4 歲（只加算得出的列）；
-    births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年是 0 時 null。"""
+    births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年可比的出生不到 20 位時 null。"""
 
     villages: int
     children: int | None
@@ -1173,6 +1186,8 @@ class AreaTrendsBaselineOut(BaseModel):
     births_months: int
     births_compared_months: int
     births_change_pct: float | None
+    # 每 12 個月一期，最新一期在前；沒有出生資料或湊不滿 10 個月時是空陣列。
+    births_series: list[AreaTrendsBirthPeriodOut]
     migration_net_12m: int | None
     migration_months: int
 

@@ -6,7 +6,8 @@
 - 這一年淨增（V1）：本月 M 的 2–5 歲 − 一年前 M−12 的 1–4 歲（同一批孩子）＝這一年搬進來減搬出去的
   幼兒園年紀孩子。要有兩個月份的年齡歷史，以及 M 往回 12 個月內至少 10 個月的遷入遷出（判斷里界調整）。
 - 近 12 個月出生、全年齡淨遷入（V2）：各自以表裡最新的月份往回 12 個月，有資料的月份相加。
-- 出生和前一年同月份比只在半徑合計（V3、V4），只比兩段都有資料的月份，不到 6 個月不比。
+- 出生和前一年同月份比只在半徑合計（V3、V4），只比兩段都有資料的月份，不到 6 個月、或前一年可比的出生不到 20 位不比；
+  另有每 12 個月一期、最多 6 期的出生數（births_series，出生走勢規格）。
 - 里界調整（V5）：上面三個期間內代碼頭尾不齊，或某個月行政區域調整人數（增或減取大）≥ 該里人口 1% 且
   ≥ 20 人的里，同一區的合併成一組（含已廢止的舊代碼），數字整組相加；組裡只要有一個里在半徑內，整組列一列。
 - 分級（V6）：戶籍是全數登記不是抽樣，不做統計檢定，用固定門檻。
@@ -52,6 +53,10 @@ PERIOD_MONTHS = 12
 # 判斷里界調整至少要有幾個月的遷入遷出；出生和前一年比至少要比幾個月。
 MIN_MIGRATION_MONTHS = 10
 MIN_COMPARE_MONTHS = 6
+# 出生走勢（2026-10-14 規格 S3、S5）：最多幾期、一期至少有幾個月的資料才列、前一年可比的出生至少幾位才算增減。
+BIRTH_PERIODS = 6
+MIN_PERIOD_MONTHS = 10
+MIN_CHANGE_BASE = 20
 # 一年前 1–4 歲不到這個數字：「孩子少」，不分級。
 FEW_BASE = 20
 # 里界調整的門檻：調整人數（增或減取大）≥ 該里人口的這個比例，而且 ≥ 這個人數。
@@ -164,6 +169,44 @@ async def _load(
             data.districts.setdefault(code, row.district)
             data.names.setdefault(code, row.village)
     return data
+
+
+def _birth_total(births: dict[str, dict[str, int]], months: list[str], codes: list[str]) -> int:
+    return sum(births[month][code] for month in months for code in codes if code in births.get(month, {}))
+
+
+def births_change(births: dict[str, dict[str, int]], present: list[str], codes: list[str]) -> tuple[float | None, int]:
+    """present（這一段有資料的月份）裡「前一年同月份也有資料」的月份拿來比（只比兩段都有的月份）。
+    回傳 (增減百分比, 比較的月份數)；比較的月份不到 6 個、或前一年可比的出生不到 20 位（半徑太小，比例會亂跳）時
+    百分比是 None。"""
+    compared = [month for month in present if series_io.shift(month, -PERIOD_MONTHS) in births]
+    before = _birth_total(births, [series_io.shift(month, -PERIOD_MONTHS) for month in compared], codes)
+    now = _birth_total(births, compared, codes)
+    if len(compared) < MIN_COMPARE_MONTHS or before < MIN_CHANGE_BASE:
+        return None, len(compared)
+    return round((now / before - 1) * 100, 1), len(compared)
+
+
+def birth_series(births: dict[str, dict[str, int]], latest: str, codes: list[str]) -> list[dict[str, Any]]:
+    """最新月份往回每 12 個月一期、最多 6 期，最新在前；一期有資料的月份不到 10 個月不列。缺月不估算。"""
+    periods: list[dict[str, Any]] = []
+    for index in range(BIRTH_PERIODS):
+        months = series_io.window(series_io.shift(latest, -PERIOD_MONTHS * index), PERIOD_MONTHS)
+        present = [month for month in months if month in births]
+        if len(present) < MIN_PERIOD_MONTHS:
+            continue
+        change, _ = births_change(births, present, codes)
+        periods.append(
+            {
+                "starts": months[0],
+                "ends": months[-1],
+                "months": len(present),
+                "missing": [month for month in months if month not in births],
+                "births": _birth_total(births, present, codes),
+                "change_pct": change,
+            }
+        )
+    return periods
 
 
 def _ends_differ(rows_by_month: dict[str, dict[str, Any]], months: list[str]) -> set[str]:
@@ -293,7 +336,6 @@ async def query_trends(
     births_latest = await _label(db, "births")
     migration_latest = await _label(db, "migration")
     births_window = series_io.window(births_latest, PERIOD_MONTHS) if births_latest else []
-    births_previous = [series_io.shift(month, -PERIOD_MONTHS) for month in births_window]
     migration_window = series_io.window(migration_latest, PERIOD_MONTHS) if migration_latest else []
     kids_window = series_io.window(current, PERIOD_MONTHS) if current else []
     kids_months = [series_io.shift(current, -PERIOD_MONTHS), current] if current else []
@@ -334,7 +376,7 @@ async def query_trends(
         db,
         districts,
         current=current,
-        births_months=sorted({*births_window, *births_previous}),
+        births_months=series_io.window(births_latest, series_io.BIRTHS.keep_months) if births_latest else [],
         migration_months=sorted({*migration_window, *kids_window}),
     )
 
@@ -453,16 +495,7 @@ async def query_trends(
     )
 
     all_codes = [code for row in villages for code in row["codes"]]
-    compared = [
-        month for month in births_present if series_io.shift(month, -PERIOD_MONTHS) in data.births
-    ]
-    births_now = total(data.births, compared, all_codes, lambda births: births)
-    births_before = total(data.births, [series_io.shift(month, -PERIOD_MONTHS) for month in compared], all_codes, lambda births: births)
-    change = (
-        round((births_now / births_before - 1) * 100, 1)
-        if len(compared) >= MIN_COMPARE_MONTHS and births_before > 0
-        else None
-    )
+    change, compared_months = births_change(data.births, births_present, all_codes)
     with_kids = [row for row in villages if row["kids_net"] is not None]
     with_children = [row for row in villages if row["children"] is not None]
     result["baseline"] = {
@@ -472,8 +505,9 @@ async def query_trends(
         "kids_base": sum(row["kids_base"] for row in with_kids) if with_kids else None,
         "births_12m": sum(row["births_12m"] or 0 for row in villages) if births_present else None,
         "births_months": len(births_present),
-        "births_compared_months": len(compared),
+        "births_compared_months": compared_months,
         "births_change_pct": change,
+        "births_series": birth_series(data.births, births_latest, all_codes) if births_latest else [],
         "migration_net_12m": sum(row["migration_net_12m"] or 0 for row in villages) if migration_present else None,
         "migration_months": len(migration_present),
     }

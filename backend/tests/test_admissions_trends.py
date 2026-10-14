@@ -127,6 +127,29 @@ async def _seed(
     await db.commit()
 
 
+async def _seed_births(db, months: list[str], count_of) -> None:
+    """出生表：本揚里每月 count_of(month) 位、其他里 0；月份裡沒列出的就是缺月。"""
+    for month in months:
+        for code in AGES:
+            if code == OLD_CODE:
+                continue
+            district, village = _name(code)
+            count = count_of(month) if code == BENYANG else 0
+            db.add(GeoVillageBirths(month=month, village_code=code, district=district, village=village, births=count))
+    db.add(GeoDatasetStatus(dataset="births", active_version=CURRENT, label=CURRENT, synced_at=NOW))
+    await db.commit()
+
+
+def _per_period(counts: list[int]):
+    """第 k 期（從最新往回，每期 12 個月）每月 counts[k] 位。"""
+
+    def count_of(month: str) -> int:
+        index = (int(CURRENT[:3]) * 12 + int(CURRENT[4:]) - (int(month[:3]) * 12 + int(month[4:]))) // 12
+        return counts[index]
+
+    return count_of
+
+
 async def _get(client, query: str = "radius_km=1") -> dict:
     response = await client.get(f"{TRENDS}?campus_key=yihua&{query}")
     assert response.status_code == 200, response.text
@@ -228,6 +251,10 @@ async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin
         "kids_base": 100 + 100 + 100 + 44,
         # 本揚里近 12 個月每月 2 位、前一年每月 3 位：少 33.3%。
         "births_12m": 24, "births_months": 12, "births_compared_months": 12, "births_change_pct": -33.3,
+        "births_series": [
+            {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
+            {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 36, "change_pct": None},
+        ],
         "migration_net_12m": 84, "migration_months": 12,
     }
 
@@ -245,6 +272,50 @@ async def test_birth_gaps_are_listed_and_too_few_compared_months_are_not_compare
     assert (body["baseline"]["births_months"], body["baseline"]["births_compared_months"]) == (11, 5)
     assert body["baseline"]["births_change_pct"] is None
     assert body["baseline"]["births_12m"] == 22
+
+
+async def test_births_series_lists_the_periods_newest_first(admin_client, db_session, located_campus):
+    """每月出生（每期）：2、2、3、3、4、4；111-03 來源查無，那一期 11 個月、增減只比兩期都有的月份。"""
+    await _seed(db_session, births=False)
+    months = [month for month in series_io.window(CURRENT, 72) if month != "111-03"]
+    await _seed_births(db_session, months, _per_period([2, 2, 3, 3, 4, 4]))
+    baseline = (await _get(admin_client))["baseline"]
+    assert baseline["births_series"] == [
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": 0.0},
+        {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
+        {"starts": "112-10", "ends": "113-09", "months": 12, "missing": [], "births": 36, "change_pct": 0.0},
+        # 112-03 的前一年同月份是缺月 111-03，只比 11 個月：33 對 44，是 −25.0，不是 36 對 44 的 −18.2。
+        {"starts": "111-10", "ends": "112-09", "months": 12, "missing": [], "births": 36, "change_pct": -25.0},
+        {"starts": "110-10", "ends": "111-09", "months": 11, "missing": ["111-03"], "births": 44, "change_pct": 0.0},
+        # 最舊一期沒有前一期（表裡沒有 108-10 以前）。
+        {"starts": "109-10", "ends": "110-09", "months": 12, "missing": [], "births": 48, "change_pct": None},
+    ]
+    assert (baseline["births_12m"], baseline["births_compared_months"], baseline["births_change_pct"]) == (24, 12, 0.0)
+
+
+async def test_a_period_with_fewer_than_ten_months_is_not_listed(admin_client, db_session, located_campus):
+    """回補到一半：只有 20 個月。第一期湊滿 12 個月；第二期只有 8 個月（< 10）不列；增減只比有前一年同月份的 8 個月。"""
+    await _seed(db_session, births=False)
+    await _seed_births(db_session, series_io.window(CURRENT, 20), lambda month: 2 if month > YEAR_AGO else 3)
+    series = (await _get(admin_client))["baseline"]["births_series"]
+    assert series == [
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3}
+    ]
+
+
+async def test_a_change_needs_twenty_births_in_the_previous_period(admin_client, db_session, located_campus):
+    """前一年同月份合計只有 12 位（< 20）：不給百分比（含 baseline），月份數照實寫。"""
+    await _seed(db_session, births=False)
+    await _seed_births(db_session, series_io.window(CURRENT, 24), lambda month: 2 if month > YEAR_AGO else 1)
+    baseline = (await _get(admin_client))["baseline"]
+    assert (baseline["births_compared_months"], baseline["births_change_pct"]) == (12, None)
+    assert baseline["births_series"][0]["change_pct"] is None
+
+
+async def test_without_births_the_series_is_empty(admin_client, db_session, located_campus):
+    await _seed(db_session, births=False)
+    baseline = (await _get(admin_client))["baseline"]
+    assert baseline["births_series"] == [] and baseline["births_12m"] is None
 
 
 async def _seed_income(db) -> None:
