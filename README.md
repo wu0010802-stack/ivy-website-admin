@@ -27,6 +27,7 @@ Codex 對 `8c4ec20a` 做深度掃描（3 項 medium、11 項 low）。每項先�
 - **後台草稿（第 6 項）**：草稿的主人也記在 sessionStorage（`claimVisitNoteDrafts`），逾時後重新整理、`previousUserId` 沒了，另一位登入時照樣清掉前一位的草稿；同一個人登回來保留。
 - **沒改：第 14 項**（內容編輯可直接改已發布素材的替代文字與裁切）。現行行為有測試與後台操作畫面支持（`test_media_slots.py` 斷言 metadata 變動「本文要立刻換」），規格第 4 節卻寫「編輯不直接影響官網」「內容編輯只能送審」，兩者矛盾，等業主決定。
 - 新測試：`test_booking_access_races.py`、`test_auth_credential_races.py`、`test_retention_races.py`、`test_libpq_dsn.py`、`test_geo_limits.py`，另在 `test_google_oauth.py`、`test_line_oauth.py`、`authGuardSwitchUser.test.ts` 各補案例。
+- **部署後補修（10-14）**：main CI 的 stack e2e 有 1 條失敗——`editor-live-preview.spec.ts` 的資安測試要求 `sessionStorage` 全空，第 6 項新增的 `ivy-visit-note-draft-owner`（只存登入者編號）讓它多一個 key。斷言改成排除這個 key；本機重建 stack 後單跑該條通過。應用程式碼沒動。
 
 ## 2026-10-14 參觀場次：國定假日匯入、停班停課；操作紀錄搜尋、站內通知翻頁（`feature/holiday-closure-20261014`）
 
