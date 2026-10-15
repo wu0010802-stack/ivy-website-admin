@@ -1,7 +1,7 @@
 # 在籍學生分布（2026-10-15）設計
 
 日期：2026-10-15
-狀態：使用者 10-15 在對話中逐段同意（資料與匯入、API 與畫面）；本檔待使用者審閱
+狀態：10-15 實作完成、本機驗證通過（含真實清冊本機比對），待部署。設計經使用者 10-15 在對話中逐段同意（資料與匯入、API 與畫面）；實作時依真實清冊的比對結果補強的部分已回寫本檔（§3.2、§3.4）
 基準：`origin/main` `aae0debc`
 分支：`feature/enrolled-map-20261015`（worktree `~/Repositories/ivy-website-wt/enrolled-map-20261015`）
 
@@ -58,7 +58,7 @@
 - **列印日期**決定學年：`academic.current_term(列印日期)[0]`，例如 2026/10/15 → 115 學年。找不到列印日期時，CLI 要求用 `--roster-date` 指定，不自己猜。
 - 地址的實際樣態（2026/10/15 這份，只記統計，不記內容）：
   - 165 筆以「〇〇里〇鄰」開頭，沒有縣市與區；6 筆以「〇〇里」開頭、沒有鄰；19 筆直接從路名開始。
-  - 只有 2 筆寫了完整縣市區，其中 1 筆在臺北市。
+  - 只有 2 筆寫了完整縣市區（含外縣市）。
   - 另有 10 筆地址和別筆完全相同，推測是手足。
 - 現有 `parse_address()` 要求地址以區開頭，這份清冊有 190 筆會整筆解析失敗。所以要先補行政區（§3.2）。
 
@@ -88,6 +88,7 @@
    3. 優先接受「比對到的里＝地址寫的里」的結果。
    4. 只有一個候選區時，補區方式記為 `village_unique`；有多個時依「挑選規則」取其一，記為 `village_nearest`。
    5. 所有候選區比對到的里都和地址寫的不同時（例如里界調整過），依「挑選規則」取其一，補區方式記為 `village_mismatch`。
+   6. 門牌表沒有這個里名（找不到候選區）時，拿掉里與鄰，改走第 3 步用街路找。
 3. **沒有里、直接從路名開始**：
    1. `parse_address()` 要有區才會切街路，所以先在地址前面暫時接上任一區名，只取它切出的街路名。再找出門牌表裡有這條街路的區，作為候選區。
    2. 對每個候選區，比照第 2 步比對。
@@ -105,7 +106,7 @@
 
 也就是有點的候選區之間，到本校的距離四捨五入到整數公里後相同時，精確門牌（`exact`）優先；否則選近的。理由：幼兒園學生多住在附近，同名路遠處的精確門牌不如近處的鄰近門牌可信（例：只寫一條多區都有的路名時，不選十幾公里外的精確門牌，而選幾公里內的鄰近門牌）。
 
-- 候選區不限三民區、鳳山區，但「離本校最近」用的是本校座標。本校沒座標時，比對指令直接失敗，不輸出結果。
+- 候選區不限單一區，但「離本校最近」用的是本校座標。本校沒座標時，比對指令直接失敗，不輸出結果。
 - `village_nearest`、`village_mismatch` 與 `street_nearest` 是推定結果，報告會分開計數，方便人工判斷。
 
 ### 3.3 輸出檔（去識別 JSON）
@@ -118,22 +119,23 @@
   "school_year": 115,
   "doorplate_version": "115-10",
   "students": [
-    {"grade": "小班", "district": "三民區", "village": "寶業里", "match_level": "exact", "lat": 22.651, "lng": 120.345}
+    {"grade": "小班", "district": "三民區", "village": "測試里", "match_level": "exact", "unlocated_reason": null, "lat": 22.651, "lng": 120.345}
   ]
 }
 ```
 
 - 每位學生一筆。只有 `exact`／`nearby` 有 `lat`／`lng`（先取整再寫檔）；其他等級兩欄都是 `null`。
 - `district`／`village` 可以是 `null`（外縣市、對不到）。外縣市記 `match_level: "unlocated"`，同時記 `unlocated_reason: "outside_kaohsiung"`。
-- `students` 依（班別順序、區、里、lat、lng）排序，列的順序對不回清冊編號。
+- `unlocated_reason` 每位學生都有這個欄位，值是 `no_address`、`outside_kaohsiung`、`no_doorplate`、`ambiguous_village` 其中之一，或 `null`（有點的學生都是 `null`）。
+- `students` 依（班別順序、區、里、lat、lng、match_level、unlocated_reason）排序：排序鍵涵蓋每個輸出欄位，同一班別、同一區里、同一座標的學生不會因為原因不同而留下清冊的先後順序，列的順序對不回清冊編號。
 - **不含**地址、編號、生日、性別、入學日期、補區方式。
 - 檔案寫到 session 的 scratchpad（不進 repo、不放 worktree）。
 
 ### 3.4 比對報告（終端機輸出）
 
-- 總數；各比對等級人數；各補區方式人數；各班別人數；有點的人數與比例。
-- 沒有點的學生，每筆只印「等級、原因、遮罩地址」。遮罩地址只保留到街路名，巷、弄、號、樓一律換成 `…`；沒有街路的只印原因。這是讓 agent 能修比對規則，又不把完整地址印進對話。
-- 有點比例不到 90% 時印出警告，並以非 0 結束碼結束（`--allow-low-hit` 可放行）。
+- 第一行是清冊日期、學年、門牌版本與總數；接著依序是有點的人數與比例、各比對等級人數、各補區方式人數（含「推定」小計）、各班別人數。
+- 沒有點的學生，每筆印一行「等級／原因」，不印區、里。只有解析出來的街路是純中文路名（路、街、大道，可接「〇〇段」）時，才在後面接「路名…」；社區、大樓、棟、樓之類不是純路名的字樣一律不印，該筆只剩「等級／原因」。巷、弄、號、樓都不印。這是讓 agent 能修比對規則，又不把完整地址印進對話。
+- 有點比例不到 90% 時，報告照印，但**不寫出檔案**，錯誤訊息寫到 stderr，**結束碼 2**；確認後加 `--allow-low-hit` 才寫檔。其他失敗（清冊讀不了、找不到列印日期又沒給 `--roster-date`、門牌沒匯入、本校沒座標）結束碼 1，也不寫檔。
 
 ### 3.5 CLI
 
@@ -150,9 +152,12 @@ python -m app.cli enrolled-import --clear --campus yihua
     - `campus_key` 必須存在；
     - `grade` 只能是「幼幼班、小班、中班、大班、其他」；
     - `match_level` 只能是 `exact、nearby、street、district、unlocated`；
+    - `unlocated_reason` 只能是 `no_address、outside_kaohsiung、no_doorplate、ambiguous_village` 或 `null`；
     - 有座標時等級必須是 `exact`／`nearby`；
-    - 座標必須落在高雄市範圍框內，且最多 3 位小數。
-  - **寫入**：在單一交易裡刪掉該校舊資料、寫入新資料。印出「匯入 N 位（有點 M 位）」。
+    - 座標必須落在高雄市範圍框內，且最多 3 位小數；
+    - 學生數至少 1 位、最多 5000 位。
+    - 驗證失敗時，訊息只列欄位位置與錯誤種類（最多前 5 個），不印任何輸入值（檔案裡可能混進地址）。
+  - **寫入**：在單一交易裡刪掉該校舊資料、寫入新資料。印出「匯入 yihua：N 位（有點 M 位），清冊日期 YYYY-MM-DD」。
   - **紀錄**：log 只記校區、人數與清冊日期。
 - `--clear` 刪除該校的清冊與所有點。
 
@@ -197,7 +202,7 @@ python -m app.cli enrolled-import --clear --campus yihua
 - 回應加 `Cache-Control: private, no-store`。
 - service 放在 `backend/app/admissions/enrolled/query.py`。
 
-**沒匯入**：`{"status": "not_imported"}`（其餘欄位為 null 或空陣列）。
+**沒匯入**：`{"status": "not_imported"}`（日期與版本欄位為 null，`total` 為 0，其餘為空陣列）。
 
 **有資料**：
 
@@ -208,18 +213,18 @@ python -m app.cli enrolled-import --clear --campus yihua
   "school_year": 115,
   "doorplate_version": "115-10",
   "imported_at": "…",
-  "total": 192,
-  "grades": [{"grade": "幼幼班", "total": 32, "placed": 30}],
+  "total": 10,
+  "grades": [{"grade": "幼幼班", "total": 2, "placed": 2}],
   "points": [{"lat": 22.651, "lng": 120.345, "counts": {"幼幼班": 0, "小班": 1, "中班": 1, "大班": 0, "其他": 0}}],
-  "unplaced": [{"reason": "street", "count": 3}],
-  "distance_bands": [{"band": "0-1", "counts": {"幼幼班": 10, "小班": 12, "中班": 20, "大班": 18, "其他": 0}}],
-  "villages": [{"district": "三民區", "village": "寶業里", "village_code": "…", "counts": {…}, "total": 16}]
+  "unplaced": [{"reason": "street", "counts": {"幼幼班": 0, "小班": 2, "中班": 1, "大班": 0, "其他": 0}}],
+  "distance_bands": [{"band": "0-1", "counts": {"幼幼班": 1, "小班": 2, "中班": 1, "大班": 0, "其他": 0}}],
+  "villages": [{"district": "三民區", "village": "測試里", "village_code": "…", "counts": {"幼幼班": 1, "小班": 1, "中班": 1, "大班": 0, "其他": 0}, "total": 3}]
 }
 ```
 
 - **`grades`**：依 `constants.GRADES` 的順序，最後接「其他」，只在人數大於 0 時出現。
 - **`points`**：依取整座標分組加總。
-- **`unplaced`**：沒有點的學生依原因分組。原因有四種：
+- **`unplaced`**：沒有點的學生依原因分組，每項是 `{reason, counts}`，`counts` 是各班別人數（五個班別的鍵都有），讓前端依班別篩選加總。原因有四種，依下列順序排列：
   - `street`：只對到里；
   - `district`：只對到區；
   - `outside_kaohsiung`：外縣市；
@@ -245,7 +250,7 @@ python -m app.cli enrolled-import --clear --campus yihua
   - **點的彈出框**：「這附近 N 位：小班 1、中班 1」（只列大於 0 的班別）。
   - **圖例**：
     - 第一行：點的樣例＋「清冊 2026/10/15・115 學年班別・地圖上 N 位」。
-    - 有沒有點的學生時，再接「沒有點 M 位（只對到里 a、只對到區 b、外縣市 c、對不到 d）」，人數為 0 的項目不列。
+    - 有沒有點的學生時，再接「沒有點 M 位（只對到里 a、只對到區 b、外縣市 c、對不到 d）」，人數為 0 的項目不列；人數跟著班別篩選加總。
   - **地圖 `aria-label`**：加上「依在籍學生住處標點；同樣的資料在下方的在籍學生表」。
 - **「在籍學生」表（新元件 `EnrolledPanel.vue`）**：
   - 只在 `status === "ready"` 時出現，放在地圖下方、`OpportunityPanel` 之前。
@@ -275,12 +280,15 @@ python -m app.cli enrolled-import --clear --campus yihua
   - 里名只在一區；
   - 里名在兩區，用里一致與最近距離選；
   - 里名和門牌表對不上（`village_mismatch`）；
+  - 異體字（徳→德）：單獨寫街路、與帶里名的地址都比對得到；
   - 只有路名、一區；
   - 只有路名、兩區取最近；
+  - 遠處有精確門牌、近處只有鄰近門牌時選近處；兩區距離四捨五入到整數公里後相同時精確門牌優先；
   - 外縣市；
   - 對不到；
   - 本校沒座標時指令失敗。
-- **輸出 JSON**：只有規定的欄位、排序正確、座標已取整、沒有點的等級座標是 null。
+- **輸出 JSON**：只有規定的欄位、排序正確（含只差 `unlocated_reason` 的兩筆，順序與清冊順序無關）、座標已取整、沒有點的等級座標是 null。
+- **比對報告與 CLI**：報告只印等級、原因與純路名（社區、大樓、樓棟字樣不印）；有點比例不到 90% 時不寫檔、結束碼 2，加 `--allow-low-hit` 才寫；沒有列印日期又沒給 `--roster-date` 時失敗。
 - **`enrolled-import`**：
   - 整批取代；
   - `--clear`；
@@ -305,8 +313,8 @@ python -m app.cli enrolled-import --clear --campus yihua
 - `EnrolledPanel` 新測試：距離分布、里排行的排序與篩選、匯出 CSV。
 - `areaTab.test.ts`：載入、換校區、失敗。
 
-**stack e2e**：在 `admissions-area.spec.ts` 加一段：
-1. 用 `enrolled-import` 匯入一份合成的 JSON；
+**stack e2e**：在 `admissions-area.spec.ts` 加一段（stack 不跑 CLI，CLI 由後端測試涵蓋）：
+1. 用 `tests/stack/db.ts` 的 `seedEnrolled` 直接寫兩張表（合成資料，重複執行先清掉）；
 2. 切到「在籍學生」，點的數量正確；
 3. 切班別後點的數量會變；
 4. 表格的數字正確；

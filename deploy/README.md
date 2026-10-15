@@ -851,6 +851,19 @@ update recruitment_visit_geo g
 
 **關閉**：把 `WEBSITE_GEO_AUTO_SYNC` 改回 `false`（或移除）並重新部署。已匯入的門牌與幼兒園、已寫好的比對結果都保留，不會刪除；要釋放空間得另外處理。
 
+### 在籍學生匯入（2026-10-15）
+
+清冊地址只在本機比對，正式站只收去識別 JSON（規格 `docs/specs/2026-10-15-admissions-enrolled-map-design.md`）。
+
+1. 本機：照規格 §3.1 建比對庫（門牌版本要和正式站使用中的一樣），跑
+   `python -m app.cli enrolled-match --roster <清冊 xls> --campus <key> --out <JSON>`；有點比例不到 90% 不會寫檔（結束碼 2，報告仍會印出；確認後才加 `--allow-low-hit`）。
+2. `! railway volume -p <project> -e <env> files -v api-volume upload <JSON> /enrolled-<key>-<日期>.json`
+3. `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --file /data/enrolled-<key>-<日期>.json`
+   （輸出「匯入 <key>：N 位（有點 M 位），清冊日期 …」；同一校整批取代）
+4. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了；檔內有取整座標）。
+
+刪除整校：`python -m app.cli enrolled-import --clear --campus <key>`。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
+
 ## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 
 migration `e5b9c3a7d214`（接在參觀後追蹤的 `b8e3f1a6c4d7` 之後）只新增 `media_jobs` 表與 `media_variant_kind` 的 enum 值，不改既有資料。API 啟動時自動 upgrade。
