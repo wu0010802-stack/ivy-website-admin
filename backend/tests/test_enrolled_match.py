@@ -38,6 +38,7 @@ def test_masked_address_keeps_only_the_street():
     assert masked_address("高雄市三民區義華路12巷3號") == "義華路…"
     assert masked_address("臺北市內湖區文德路1號") == ""
     assert masked_address("") == ""
+    assert masked_address("試徳街5號3樓") == "試德街…"
 
 
 @pytest.mark.parametrize("raw", ["某某社區A棟5樓之3", "三民區某某新村5棟3樓", "XX大樓12F義華路"])

@@ -13,7 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic
-from app.admissions.enrolled.locate import PROBE_DISTRICT, locate_roster_address, rest_text
+from app.admissions.enrolled.locate import PROBE_DISTRICT, canonical, locate_roster_address, rest_text
 from app.admissions.enrolled.models import ENROLLED_GRADES, ENROLLED_LEVELS, POINT_LEVELS
 from app.admissions.enrolled.roster import Roster, roster_grade
 from app.admissions.geo import matcher
@@ -46,6 +46,7 @@ def round_coord(value: float) -> float:
 def masked_address(raw: str) -> str:
     """報告用：只留純中文的街路名（巷、弄、號、樓、棟都不印）；外縣市、切不出街路、
     或「街路」其實是社區／大樓名（含數字、英文字母、樓棟號）都回空字串。"""
+    raw = canonical(raw)
     parsed = parse_address(raw)
     if parsed is not None and parsed.district is None and not parsed.outside_kaohsiung:
         parsed = parse_address(f"{PROBE_DISTRICT}{rest_text(raw)}")
