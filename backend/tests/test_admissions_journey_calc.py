@@ -66,9 +66,10 @@ def scenario() -> list[CaseInfo]:
         case("awaiting_attendance", created=d(10, 1), visited=d(10, 10)),
         # 12 到場、預繳過但沒有預繳事件（缺預繳日）
         case("completed", source="walk_in", created=d(9, 25), visited=d(9, 26), linked=visit(d(9, 26), deposit=True)),
-        # 13 改過期、到場、預繳、註冊、之後退註冊
+        # 13 改過期、到場、預繳、註冊、之後退註冊。funnel.transition 退出時會把 has_deposit、enrolled、
+        # enrolled_on 全部清掉（只留 deposit_added 事件的預繳日與 withdrawn_*），所以真實資料長這樣。
         case("completed", created=d(9, 28), visited=d(10, 1), rescheduled=True,
-             linked=visit(d(10, 1), deposit=True, deposit_on=d(10, 3), enrolled=True, enrolled_on=d(10, 5),
+             linked=visit(d(10, 1), deposit=False, deposit_on=d(10, 3), enrolled=False, enrolled_on=None,
                           withdrawn_on=d(10, 10), withdrawn_from="enrolled")),
     ]
 
@@ -115,8 +116,8 @@ def test_scenario_timing():
     }
     # 參觀→預繳：1 是 12、2 是 5、13 是 2（12 沒有預繳事件，另列 1 筆）。
     assert timing["visit_to_deposit"] == {"median": 5.0, "n": 3, "excluded": 1}
-    # 預繳→註冊：1 是 11、13 是 2 → 中位數 6.5。
-    assert timing["deposit_to_enrolled"] == {"median": 6.5, "n": 2, "excluded": 0}
+    # 預繳→註冊：只剩 1 是 11；13 退註冊時註冊日已被清掉，缺註冊日算不納入。
+    assert timing["deposit_to_enrolled"] == {"median": 11.0, "n": 1, "excluded": 1}
     # 預繳→退出：2 是 15、13 是 7 → 11.0。
     assert timing["deposit_to_withdrawn"] == {"median": 11.0, "n": 2, "excluded": 0}
 

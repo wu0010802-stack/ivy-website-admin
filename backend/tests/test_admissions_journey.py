@@ -198,6 +198,23 @@ async def test_funnel_through_linked_visits(db_session):
     assert result["timing"]["deposit_to_withdrawn"] == {"median": 15.0, "n": 1, "excluded": 0}
 
 
+async def test_withdrawn_from_enrolled_has_no_enrolled_day(db_session):
+    """funnel.transition 退註冊時會清掉 has_deposit、enrolled、enrolled_on，只留 deposit_added 事件與 withdrawn_*。
+    這種家庭算預繳過、註冊過，預繳到退出有天數，預繳到註冊因缺註冊日列在不納入。"""
+    request = await add_case(db_session, slot_day=d(9, 8), created=at(d(9, 1)))
+    await add_visit(
+        db_session, request_id=request, visit_date=d(9, 8), deposit=False, deposit_event=at(d(9, 20)),
+        enrolled=False, enrolled_on=None, withdrawn_at=at(d(10, 5)), withdrawn_from="enrolled",
+    )
+    await db_session.commit()
+    result = await run(db_session)
+    assert result["admissions"]["enrolled"] == 1
+    assert result["admissions"]["deposited"] == 1
+    assert result["admissions"]["withdrawn"] == {"total": 1, "from_deposit": 0, "from_enrolled": 1}
+    assert result["timing"]["deposit_to_enrolled"] == {"median": None, "n": 0, "excluded": 1}
+    assert result["timing"]["deposit_to_withdrawn"]["n"] == 1
+
+
 async def test_deposit_day_is_the_last_deposit_event(db_session):
     """同一個訪視有兩筆 deposit_added（先收一次、補收一次）：預繳日取最後一筆的台北日。"""
     request = await add_case(db_session, slot_day=d(9, 8), created=at(d(9, 1)))
@@ -342,5 +359,6 @@ async def test_hidden_when_admissions_disabled(admin_client):
 
 async def test_never_writes_audit_entries(admin_client, db_session):
     before = await db_session.scalar(select(func.count()).select_from(AuditLogEntry))
-    await admin_client.get(f"{JOURNEY}?campus_key=yihua&{api_range()}")
+    response = await admin_client.get(f"{JOURNEY}?campus_key=yihua&{api_range()}")
+    assert response.status_code == 200
     assert await db_session.scalar(select(func.count()).select_from(AuditLogEntry)) == before
