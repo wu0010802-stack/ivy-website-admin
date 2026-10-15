@@ -10,7 +10,7 @@
 
 **Spec:**
 - `docs/specs/2026-10-15-visit-expected-start-design.md`（已核可）
-- `docs/specs/2026-10-15-visit-exclusion-design.md`（內容照寫；**狀態行仍寫「待使用者審閱」、§3.3「本週五校」那一列標「待使用者確認」**——寫規格的 session 想替使用者標記核可時被分類器擋下。**排除規格 §3.3 本週五校一列待使用者明確確認**：本計畫照規格現況「不套用」，決定集中在 Task 8 Step 6，使用者改主意只要翻那一步。）
+- `docs/specs/2026-10-15-visit-exclusion-design.md`（**§3.3「本週五校」不套用排除，使用者 10-16 確認**：本計畫照規格現況「不套用」，決定集中在 Task 8 Step 6，使用者改主意只要翻那一步。）
 
 基準 `origin/main` `aae0debc`（migration head `c6a9e3f15d27`）。兩份規格的「分支」欄各寫自己的分支（`feature/visit-expected-start-20261015`、`feature/visit-exclusion-20261015`），**本計畫合為一支 `feature/admin-wave3-20261015`**。
 
@@ -77,7 +77,7 @@
 | P7 | 規格 §3.4「處理區的『更多』選單」在明細頁不存在（`VisitCaseSettings.vue` 只在預約正常時出現，沒有更多選單）：入口做成右欄最下方獨立一列 `VisitExclusionAction.vue`（所有狀態都有，只給 `booking.manage`）；已排除的橫幅 `VisitExclusionBanner.vue` 放在頁首（`VisitCaseHero`）下方 | 已到場、已取消的測試案件也要能排除 |
 | P8 | 總覽連到案件列表的三個連結（到期待追蹤、尚未確認到場、待人工處理）加 `excluded=hide` | 總覽數字已排除；既有原則是「總覽數字點進去是同一批」（`pending_kinds` 模組說明） |
 | P9 | 參觀預約統計每校與合計都回 `excluded_cases`（期間內送出、已排除的案件數）；班別分布、場次使用情況、預約全程 coverage 也叫 `excluded_cases`；0 筆畫面不顯示 | 規格寫 `excluded_count`；四處用同一個名字，且預約全程已有 `excluded`（不納入天數）不能撞名 |
-| P10 | **本週五校「已約／可約」不套用**（排除規格 §3.3，待使用者明確確認）；集中在 Task 8 Step 6，含一條測試釘住現況 | 這兩個數字講名額；排除不釋出名額，只扣已約會和可約對不起來 |
+| P10 | **本週五校「已約／可約」不套用**（排除規格 §3.3，使用者 10-16 確認）；集中在 Task 8 Step 6，含一條測試釘住現況 | 這兩個數字講名額；排除不釋出名額，只扣已約會和可約對不起來 |
 | P11 | 預約全程的新欄位是 `coverage.excluded_cases`，和各段天數裡的 `excluded`（不納入天數的筆數）是兩回事，程式註解寫明 | 同一個回應裡兩種「排除」 |
 | P12 | 列表回應把 `exclude_note` 設為 `None`（`model_copy`），明細才有 | 規格 §3.2「列表不回說明」 |
 | P13 | migration revision：預計入學 `b7e3c1a9d5f2`（down＝Task 0 Step 4 查到的 head，基準時是 `c6a9e3f15d27`）、排除 `d4a8f2c6e913`（down＝`b7e3c1a9d5f2`） | 兩支依序接；合併前的改接見 Task 13 Step 5 |
@@ -87,7 +87,7 @@
 
 ## 規格疑點（不改規格，列給使用者）
 
-1. **排除規格 §3.3「本週五校」**：規格現況寫「否」但標「待使用者確認」，狀態行也還是「待使用者審閱」。本計畫照「否」做（P10），集中在 Task 8 Step 6。
+1. **排除規格 §3.3「本週五校」**：規格寫「否」，使用者 10-16 確認。本計畫照「否」做（P10），集中在 Task 8 Step 6。
 2. **排除規格 §3.4「更多選單」不存在**：改成獨立一列與橫幅（P7）。
 3. **總覽點進列表的筆數**：規格只說總覽要排除、列表預設不隱藏，兩者會差幾筆；本計畫讓總覽的三個連結帶 `excluded=hide`（P8）。
 4. **預計入學 X7「公開端」是否含家長管理頁**：本計畫含（P4）。
@@ -1954,7 +1954,7 @@ Run: `MIGRATE`，再查 `alembic heads`。Expected：單一 head `d4a8f2c6e913`�
 
 刻意「不」套用（§3.3 表「否」）：
 - 名額占用（slot_service.occupying_condition：送單容量、接待月曆、場次產生）——排除不釋出名額。
-- 營運總覽「本週五校」的已約／可約——講的是名額；扣掉已約會和可約對不起來（待使用者明確確認，計畫 P10）。
+- 營運總覽「本週五校」的已約／可約——講的是名額；扣掉已約會和可約對不起來（使用者 10-16 確認，計畫 P10）。
 - 案件列表、頁籤數字、CSV——改用 excluded 篩選（hide／only）。
 - 停用分校的未結案件、切換預約方式前的確認數——營運安全檢查，看實際狀態。
 
@@ -2270,7 +2270,7 @@ async def test_include_restores_the_counts(admin_client, db_session):
 
 @pytest.mark.asyncio
 async def test_week_campuses_still_count_excluded_cases(admin_client, db_session):
-    """計畫裁定 P10（排除規格 §3.3「本週五校」，待使用者明確確認）：已約／可約講的是名額，排除不扣。"""
+    """計畫裁定 P10（排除規格 §3.3「本週五校」，使用者 10-16 確認）：已約／可約講的是名額，排除不扣。"""
     slot_id = await create_slot(admin_client, days_ahead=1, capacity=3)
     assert (await set_booking_mode(admin_client, "yihua", mode="slots")).status_code == 200
     await legacy_request(db_session, status="confirmed", slot_id=slot_id, phone="0912000111")
@@ -3172,7 +3172,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - **誰、怎麼標**：總管理者與校區管理者（`booking.manage`）在案件明細右欄最下方「標記為排除（測試或重複）…」，原因三選一（其他要寫說明）；已排除時頁首下方有橫幅與「取消排除」。時間線記 `excluded`／`exclusion_removed`，操作紀錄只記原因類別。
 - **套用位置**（`backend/app/booking/exclusion.py` 的 `not_excluded()`，模組說明列出全部）：總覽今天參觀、待標記到場、追蹤到期、要處理；參觀預約統計（結果、班別、現在待處理）；預約全程；場次使用情況；員工與家長提醒。各統計說明寫「已排除 N 筆」。
-- **不套用**：名額占用（排除不釋出名額，要釋出請取消）；總覽本週五校已約／可約（講名額；待使用者明確確認）；案件列表、頁籤數字、CSV（用 `excluded=hide|only` 篩選，總覽與統計的連結帶 `excluded=hide`）；停用分校與切換預約方式前的計數。
+- **不套用**：名額占用（排除不釋出名額，要釋出請取消）；總覽本週五校已約／可約（講名額；使用者 10-16 確認）；案件列表、頁籤數字、CSV（用 `excluded=hide|only` 篩選，總覽與統計的連結帶 `excluded=hide`）；停用分校與切換預約方式前的計數。
 - **匿名化**：原因保留、說明清掉；已匿名化的案件可以排除但不存說明。
 - **不做**：招生訪視的排除、依電話自動判定重複、刪除預約、批次排除、排除時自動取消。
 ```
@@ -3188,7 +3188,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - **預計入學時間**：官網預約表單多一題選填單選（盡快、接下來四個學期的開學月份、還不確定），家長管理頁與後台都能改，到場建招生訪視時帶進入學學期。migration `b7e3c1a9d5f2`（加可空欄位，不改既有資料）。
 - **排除標記**：總管理者與校區管理者可以把測試或重複的預約案件標為排除，不再算進總覽、參觀預約統計、預約全程、場次使用情況與提醒；不釋出名額；列表可隱藏。migration `d4a8f2c6e913`。
-- **待使用者確認**：總覽「本週五校」的已約／可約目前不扣排除的案件（排除規格 §3.3）。
+- **使用者 10-16 確認**：總覽「本週五校」的已約／可約不扣排除的案件（排除規格 §3.3）。
 - **正式站要做的事**：已發布的隱私權政策要請園方在後台補「預計入學時間」一項（後台草稿已補）。
 ```
 
