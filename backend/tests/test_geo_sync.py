@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 import pytest
@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo.closure_backfill import BackfillFormatError, ClosureBackfill
 from app.admissions.geo import providers, sync
 from app.admissions.geo.doorplates import DoorplateParser
 from app.admissions.geo.models import (
@@ -32,6 +33,7 @@ from app.admissions.geo import population as population_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
+from app.common.timezones import today_local
 from tests.geo_helpers import (
     FIXTURES,
     REGISTRY_SAMPLE,
@@ -611,6 +613,70 @@ async def test_a_registry_file_with_a_bom_is_read(app, tmp_path):
     )
     assert result.kindergartens == "updated"
     assert (await _counts(app))[1] == 10
+
+
+async def test_the_sync_applies_the_closure_backfill(app, monkeypatch):
+    """要下架的園所在回補檔裡：停辦寫在離開名單那天（2026-10-15 規格 §5）。"""
+    left_on = today_local() - timedelta(days=40)
+    monkeypatch.setattr(sync, "load_closure_backfill", lambda: {"ghost": ClosureBackfill("closed", left_on)})
+    async with app.state.session_factory() as db:
+        db.add(
+            GeoKindergarten(
+                source_id="ghost", name="高雄市私立已停辦幼兒園", kind="private", district="三民區", address="某路9號",
+                lat=22.64, lng=120.34, is_active=True, synced_at=datetime.now(timezone.utc),
+            )
+        )
+        await db.commit()
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
+    assert result.kindergartens == "updated"
+    async with app.state.session_factory() as db:
+        rows = (await db.execute(select(GeoProviderEvent.source_id, GeoProviderEvent.change, GeoProviderEvent.occurred_on))).all()
+    assert [tuple(row) for row in rows] == [("ghost", "closed", left_on)]
+
+
+async def test_a_broken_backfill_file_fails_the_kindergarten_sync(app, monkeypatch):
+    def broken():
+        raise BackfillFormatError("kindergarten-closures-20261015.csv 第 3 列不對")
+
+    monkeypatch.setattr(sync, "load_closure_backfill", broken)
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
+    assert result.kindergartens == "failed"
+    assert (await _status(app, "kindergartens")).last_error == "kindergarten-closures-20261015.csv 第 3 列不對"
+    assert (await _counts(app))[1] == 0
+
+
+async def test_a_rename_is_recognised_from_the_registry_during_sync(app, monkeypatch, tmp_path):
+    """新名稱在教育部名單上、但 JSON 沒有它（還沒有座標）：同地址同設立日的舊筆是改名，只下架、不記停辦（規格 §4）。"""
+    monkeypatch.setattr(sync, "load_closure_backfill", lambda: {})
+    async with app.state.session_factory() as db:
+        db.add(
+            GeoKindergarten(
+                source_id="old", name="高雄市私立舊名幼兒園", kind="private", district="三民區", address="堅如路46號",
+                registered_on=date(1996, 10, 14), lat=22.65, lng=120.33, is_active=True,
+                synced_at=datetime.now(timezone.utc),
+            )
+        )
+        await db.commit()
+    registry = tmp_path / "registry.csv"
+    registry.write_text(
+        REGISTRY_SAMPLE.read_text(encoding="utf-8")
+        + "x,府教字第7號,1996/10/14,高雄市私立新名幼兒園,,高雄市,三民區,私立,[807]堅如路46號\n",
+        encoding="utf-8",
+    )
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=registry,
+    )
+    assert result.kindergartens == "updated"
+    async with app.state.session_factory() as db:
+        assert (await db.get(GeoKindergarten, "old")).is_active is False
+        assert await db.scalar(select(func.count()).select_from(GeoProviderEvent)) == 0
 
 
 @pytest.mark.parametrize(

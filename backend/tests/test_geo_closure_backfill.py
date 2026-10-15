@@ -45,3 +45,12 @@ def test_bad_rows_are_rejected(tmp_path, body):
 def test_a_different_header_is_rejected(tmp_path):
     with pytest.raises(BackfillFormatError):
         load_closure_backfill(_write(tmp_path, "a,甲,2026-09-15,closed\n", header="id,name,date,reason\n"))
+
+
+def test_the_shipped_backfill_file_is_well_formed():
+    """隨程式提交的那份（scripts/build_kindergarten_closures.py 產生）：讀得進來、日期不在未來、兩個已知案例對得上。"""
+    entries = load_closure_backfill()
+    assert len(entries) >= 40  # 2026-10-15 產生時 47 筆
+    assert all(entry.left_on is None or entry.left_on <= date.today() for entry in entries.values())
+    assert entries["a77948d8-5d25-4af9-8d0d-5d82e6c41c13"] == ClosureBackfill("closed", date(2026, 9, 15))  # 童年綠地
+    assert entries["e517b294-6109-4c89-a847-07a260585e6c"] == ClosureBackfill("closed", date(2026, 10, 13))  # 愛爾蘭

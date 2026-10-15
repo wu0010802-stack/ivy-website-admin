@@ -74,6 +74,7 @@ from app.admissions.geo import population as population_io
 from app.admissions.geo import providers
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
+from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
@@ -460,6 +461,7 @@ def _error_text(exc: Exception) -> str:
         doorplate_io.DoorplateFormatError,
         doorplate_io.DoorplateTooManyRows,
         KindergartenFormatError,
+        BackfillFormatError,
         BabycareFormatError,
         providers.ProviderShrunk,
         population_io.PopulationFormatError,
@@ -558,12 +560,14 @@ async def sync_kindergartens(
             # 全國名單有好幾 MB：解析 JSON 與篩選都在執行緒裡做，不占住事件迴圈。
             data = await asyncio.to_thread(json.loads, body)
         registry = parse_registry(registry_text)
+        backfill = load_closure_backfill()  # 2026-10-15 規格 §5：檔案不對就整輪失敗，不靠猜
         school_year, _ = current_term(today_local())
         report = ParseReport()
         rows = await asyncio.to_thread(parse_preschools, data, registry=registry, school_year=school_year, report=report)
         async with session_factory() as db:
             changes = await providers.apply_kindergartens(
-                db, rows, synced_at=now, school_year=school_year, force=force, listed_places=registry.places,
+                db, rows, synced_at=now, school_year=school_year, force=force, backfill=backfill,
+                listed_places=registry.places,
             )
             await db.commit()
         logger.info(
