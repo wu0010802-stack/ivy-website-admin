@@ -746,6 +746,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_GEO_AUTO_SYNC` | `false`（所有環境） | 自動同步總開關。`true` **且** `WEBSITE_ADMISSIONS_ENABLED` 也是 `true` 時，api 啟動約 30 秒後開始背景同步迴圈；關著時迴圈不啟動，後台區域分析（從未匯入過資料時）顯示「門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。」，本校沒有座標，地圖先框住校址所在的行政區。手動指令 `geo-sync` 不看這個開關 |
 | `WEBSITE_GEO_DOORPLATE_URL` | 空 | 空＝自動在高雄市政府資料開放平台找最新年度、最新月份的門牌檔。指定時必須是 `https://` 的檔案直連網址（平台改版、自動找不到時的退路），月份標籤改用同步當天的民國年月 |
 | `WEBSITE_GEO_KINDERGARTENS_URL` | `https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json` | 幼兒園資料（kiang 每日整理全國教保資訊網）。必須是 `https://` |
+| `WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL` | `https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv` | 教育部高雄市幼兒園名單（kiang 每日從全國教保資訊網爬下，約 200KB）。營業中以它為準；抓不到時幼兒園整輪不換版。必須是 `https://` |
 | `WEBSITE_GEO_BABYCARE_URL` | `https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json` | 托嬰名單（kiang 每日整理衛福部社家署公開資料，約 1.4MB）。必須是 `https://` |
 | `WEBSITE_GEO_SYNC_CHECK_SECONDS` | `86400` | 背景迴圈多久醒來檢查一次，允許 300 到 604800 秒。醒來後門牌、各里人口距上次確認超過 30 天、幼兒園與托嬰超過 7 天才真的去看來源（門牌先找最新月份，和使用中的一樣就不下載） |
 
@@ -770,13 +771,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 **手動退路**（平台改版抓不到、想立刻更新、或想離線匯入）：
 
 ```bash
-python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] [--babycare-file <JSON>] [--population-file <JSON> ...]
+python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] [--babycare-file <JSON>] [--population-file <JSON> ...]
 ```
 
 Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終端機執行）：`! railway ssh --service api --environment production -- python -m app.cli geo-sync`。
 
 - 不帶參數＝和背景迴圈同一套（門牌、各里人口超過 30 天、幼兒園與托嬰超過 7 天才下載），結束時檢查「各校已發布校址＋使用中門牌批次」有沒有變、有變才重算訪視。`--force` 略過到期天數（30／7 天）與「月份相同」的判斷，立刻重抓；對幼兒園與托嬰也同時略過殘缺檔檢查（見下方「托嬰名單與園所異動」）。
-- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。只帶一種檔案時另一種不會匯入：同時帶 `--kindergartens-file`（或 `--doorplates-file`），或之後再跑一次不帶檔案的 `geo-sync`；幼兒園資料沒匯入前，後台附近幼兒園清單寫「幼兒園資料尚未匯入」，不是附近沒有園所；托嬰同理，沒匯入前寫「托嬰名單尚未匯入」。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
+- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。幼兒園檔案要和名單檔（kiang `docs/data/高雄市.csv`）一起給，只給一個會報錯。只帶一種檔案時另一種不會匯入：同時帶 `--kindergartens-file`（或 `--doorplates-file`），或之後再跑一次不帶檔案的 `geo-sync`；幼兒園資料沒匯入前，後台附近幼兒園清單寫「幼兒園資料尚未匯入」，不是附近沒有園所；托嬰同理，沒匯入前寫「托嬰名單尚未匯入」。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
 - 自動找不到門牌檔時：設 `WEBSITE_GEO_DOORPLATE_URL` 指到直連網址，或下載 CSV 後用 `--doorplates-file`。
 - **正式站連不到高雄市資料平台**（2026-10-12 實測：api 自動下載兩次都 `ConnectTimeout`，同時間從台灣連 0.19 秒；判斷是擋境外 IP）：門牌的背景同步每次都會失敗（幼兒園與托嬰來源在 GitHub Pages，照常更新），畫面繼續用已匯入的版本；上次成功滿 30 天後，每一輪都會記一次「門牌資料同步失敗」WARNING。要換新月份就手動：在本機下載當月 CSV（資料平台搜尋「門牌坐標資料」，或用 `app.admissions.geo.sync.discover_doorplate_source` 找 `File/DirectDownload/<guid>`）→ `! railway volume -p <project> -e <env> files -v api-volume upload <本機 CSV> /doorplates-115-11.csv`（volume 根目錄＝容器 `/data`；檔名帶月份，`--doorplates-version` 就能省略）→ `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --doorplates-file /data/doorplates-115-11.csv` → 刪掉 CSV：`railway volume -p <project> -e <env> files -v api-volume delete /doorplates-115-11.csv`。auto 模式會擋前兩條，用 `!` 由使用者執行；刪檔連 `!` 都會被 Railway CLI 拒絕（偵測到 agent 環境），要在自己的終端機視窗或 Railway 網頁版的 volume 檔案頁刪。
 - **結束碼 1**：另一個同步正在進行（會印「另一個公開資料同步正在進行，稍後再試」，什麼都沒做），或門牌、幼兒園、托嬰、各里人口、里的變化各種資料（出生、遷入遷出、所得、新成屋）任一種同步失敗（原因在 `geo_dataset_status.last_error`）。同一時間只允許一個同步，背景迴圈、CLI、多個副本共用同一把資料庫 advisory lock。
@@ -823,7 +824,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 自動：和門牌、幼兒園同一個背景迴圈與開關（`WEBSITE_GEO_AUTO_SYNC`）。**幼兒園與托嬰每 7 天看一次來源**（門牌、各里人口與里的變化各種資料仍是 30 天）；`geo_dataset_status.baseline_on` 還是空的（還沒用異動比對的程式同步過）也算到期，所以部署後第一輪背景同步就會補上幼兒園設立日、建立托嬰名單與基準日。
 - 異動：同步不再刪光重寫，改成依 `source_id` 比對；名單裡不見的標停辦（`is_active` 假、列留著），新設、停辦、類型變動寫進 `geo_provider_events`。第一次同步只建立基準、不寫事件。停辦後 30 天內又出現的視為來源漏收，撤掉停辦事件。新名單營業中的數量少於上次的 80%（上次 ≥ 20 所才檢查）不換版，原因寫進 `last_error`；確定來源真的大幅縮減才用 `geo-sync --force`。
 - 手動退路（正式站連不到時）：本機下載 `curl -sSLo babycare.json https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json`，上傳到 api volume 後 `python -m app.cli geo-sync --babycare-file /data/babycare.json`（刪檔用自己的終端機，agent 不能刪 volume 檔）。
-- **放行殘缺檔檢查要用檔案模式**：單獨 `geo-sync --force` 會同時強制重抓門牌、各里人口與里的變化各種資料（Railway 連不到高雄市資料平台時門牌會 failed、結束碼 1），而且 `--force` 同時也是略過殘缺檔檢查。只想放行托嬰或幼兒園（確定來源真的縮小）時，先把 JSON 下載到本機、上傳到 api volume，再跑 `geo-sync --babycare-file <檔> --force`（或 `--kindergartens-file <檔> --force`）——單一種資料、不連外。
+- **放行殘缺檔檢查要用檔案模式**：單獨 `geo-sync --force` 會同時強制重抓門牌、各里人口與里的變化各種資料（Railway 連不到高雄市資料平台時門牌會 failed、結束碼 1），而且 `--force` 同時也是略過殘缺檔檢查。只想放行托嬰或幼兒園（確定來源真的縮小）時，先把檔案下載到本機、上傳到 api volume，再跑 `geo-sync --babycare-file <JSON> --force`（或 `--kindergartens-file <JSON> --kindergartens-registry-file <名單 CSV> --force`；幼兒園的 JSON 和名單 CSV 要成對給，名單也要先下載、上傳）——單一種資料、不連外。
 - 看狀態：`select dataset, label, synced_at, baseline_on, last_error from geo_dataset_status where dataset in ('kindergartens', 'babycare');`；看異動：`select provider, change, occurred_on, count(*) from geo_provider_events group by 1, 2, 3 order by 3 desc limit 20;`。後台區域分析狀態列會寫「托嬰名單 MM/DD 更新」或「托嬰名單尚未匯入」。
 - 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade e4f1a8c6b203`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像。不 downgrade 就切舊映像會被 `check_schema.py` 擋下（停站）；若有人繞過檢查硬啟動舊版，舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒（畫面讀取時 join 不到、直接忽略），之後再上線新版也補不回來，要重新建立基準與事件就先 downgrade 再 upgrade。
 
@@ -1247,7 +1248,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
 | api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」） |
-| api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
+| api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
