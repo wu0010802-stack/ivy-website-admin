@@ -2,7 +2,7 @@
 import { computed, ref, useId, watch } from 'vue'
 import type { AreaBabycare } from '../../../api/types'
 import {
-  RADIUS_OPTIONS, babycareKindLabel, babycareMeta, babycareShortName, babycareSummaryText, campusNotLocatedReason, taipeiMonthDay,
+  RADIUS_OPTIONS, babycareFeeText, babycareKindLabel, babycareMeta, babycareShortName, babycareSummaryText, campusNotLocatedReason, taipeiMonthDay,
   type RadiusKm,
 } from './areaFormat'
 
@@ -35,6 +35,8 @@ const notLocated = computed(() => {
 // 名單從未匯入（後端 synced_at 為 null）：空清單不代表附近沒有托嬰中心，寫原因。校區位置沒標出來的原因優先。
 const notImported = computed(() => props.data?.synced_at === null)
 const summary = computed(() => (props.data ? babycareSummaryText(props.data.summary, props.radiusKm) : ''))
+// 月費對照：公告月費少於 3 所就沒有（空字串），整段不畫。
+const feeText = computed(() => (props.data ? babycareFeeText(props.data.summary) : ''))
 
 function choose(id: string) {
   const opening = expanded.value !== id
@@ -64,6 +66,10 @@ function setRadius(value: string | number | boolean | undefined) {
     <p v-else-if="notImported" class="nearby__empty">托嬰名單尚未匯入。</p>
     <template v-else>
       <p class="nearby__summary num">{{ summary }}</p>
+      <template v-if="feeText">
+        <p class="nearby__fees num">{{ feeText }}</p>
+        <p class="hint nearby__fees-note">準公共托育的家長另有政府補助，這裡是機構公告的平均月費。</p>
+      </template>
       <ul v-if="visible.length" class="nearby__list">
         <li v-for="(item, index) in visible" :key="item.source_id" class="nearby__item">
           <button
@@ -76,12 +82,16 @@ function setRadius(value: string | number | boolean | undefined) {
             <span class="nearby__line">
               <span class="nearby__name">{{ babycareShortName(item.name) }}</span>
               <el-tag size="small" type="info" effect="plain" round>{{ babycareKindLabel(item.kind) }}</el-tag>
+              <el-tag v-if="item.quasi_public" size="small" type="success" effect="plain" round>準公共</el-tag>
+              <el-tag v-if="item.evaluation_grade" size="small" type="info" effect="plain" round>評鑑 {{ item.evaluation_grade }}</el-tag>
             </span>
             <span class="nearby__meta num">{{ babycareMeta(item) }}</span>
           </button>
           <dl v-if="expanded === item.source_id" :id="detailId(index)" class="nearby__detail">
             <div><dt>地址</dt><dd>{{ item.address }}</dd></div>
             <div v-if="item.phone"><dt>電話</dt><dd>{{ item.phone }}</dd></div>
+            <div v-if="item.fee_note"><dt>費用說明</dt><dd>{{ item.fee_note }}</dd></div>
+            <div v-if="item.evaluation_year"><dt>評鑑</dt><dd>{{ item.evaluation_year }} 年評鑑</dd></div>
           </dl>
         </li>
       </ul>
@@ -114,6 +124,15 @@ function setRadius(value: string | number | boolean | undefined) {
 
 .nearby__summary {
   margin: 0;
+  color: var(--ink);
+}
+
+.nearby__fees,
+.nearby__fees-note {
+  margin: 0;
+}
+
+.nearby__fees {
   color: var(--ink);
 }
 

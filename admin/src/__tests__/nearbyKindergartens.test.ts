@@ -4,7 +4,7 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import source from '../components/admissions/area/NearbyKindergartens.vue?raw'
-import { areaKindergartens, areaStats, button, kindergarten } from './admissionsTestKit'
+import { areaKindergartens, areaPeerFees, areaStats, button, kindergarten } from './admissionsTestKit'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -24,18 +24,66 @@ const unlocated = (locate_error: string) =>
   areaKindergartens([], { campus: { ...areaStats().campus, lat: null, lng: null, locate_error } })
 
 describe('附近幼兒園清單', () => {
-  it('依後端順序列出：去掉「高雄市私立／市立」前綴、類型、距離、核定人數、月費（估）、裁罰、本機構', () => {
+  it('依後端順序列出：去掉「高雄市私立／市立」前綴、類型、距離、核定人數、裁罰、本機構；沒傳收費時列尾寫「—」', () => {
     const wrapper = mountList()
     expect(names(wrapper)).toEqual(['常春藤幼兒園', '大樹幼兒園', '小草幼兒園', '三民區小芽非營利幼兒園'])
     const rows = wrapper.findAll('.nearby__row').map((row) => row.text().replace(/\s+/g, ''))
     expect(rows[0]).toContain('本機構')
     expect(rows[0]).not.toContain('私立')
     expect(rows[1]).toContain('公立')
-    expect(rows[1]).toContain('380m・核定90人・月費（估）2,500元')
+    expect(rows[1]).toContain('380m・核定90人・—')
     expect(rows[2]).toContain('準公共')
     expect(rows[2]).toContain('有裁罰紀錄')
-    expect(rows[3]).toContain('1.8km・核定120人・月費（估）—')
-    expect(wrapper.text()).toContain('資料來源：全國教保資訊網（kiang 整理），月費為估計值・10/08 更新')
+    expect(rows[3]).toContain('1.8km・核定120人・—')
+    expect(wrapper.text()).toContain('資料來源：全國教保資訊網（kiang 整理）・10/08 更新')
+  })
+
+  it('收費：列上寫該年齡的學期收費，沒公布寫「未公布收費」；來源小字帶收費學年', () => {
+    const wrapper = mountList({ fees: areaPeerFees(), feeAge: 3 })
+    expect(wrapper.findAll('.nearby__meta').map((meta) => meta.text())).toEqual([
+      '0 m・核定 210 人・3 歲學期 89,750',
+      '380 m・核定 90 人・3 歲學期 17,965',
+      '950 m・核定 — 人・3 歲學期 63,190',
+      '1.8 km・核定 120 人・未公布收費',
+    ])
+    expect(wrapper.get('.nearby__source').text()).toBe(
+      '資料來源：全國教保資訊網（kiang 整理）・收費為 114 學年公告・10/08 更新　目前是 115 學年，最新公開收費是 114 學年。',
+    )
+  })
+
+  it('展開詳情：每位幼生面積、幼童專用車、兼辦國小課後、逐項收費、交通費', async () => {
+    const data = areaKindergartens([
+      kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', distance_m: 0, is_own: true, indoor_m2_per_child: 3.4, outdoor_m2_per_child: 2.6, has_shuttle: true, after_school_capacity: 0 }),
+    ])
+    const wrapper = mountList({ data, fees: areaPeerFees(), feeAge: 3 })
+    await wrapper.get('.nearby__row').trigger('click')
+    const detail = wrapper.get('.nearby__detail').text()
+    expect(detail).toContain('每位幼生面積室內 3.4 m²・戶外 2.6 m²')
+    expect(detail).toContain('幼童專用車有')
+    expect(detail).toContain('兼辦國小課後無')
+    expect(detail).toContain('3 歲收費學費 19,900 元・雜費 5,500 元・材料費 24,750 元・活動費 23,100 元・午餐費 8,250 元・點心費 8,250 元；課後延托每月 1,200 元')
+    expect(detail).toContain('交通費單 770 雙 1540')
+  })
+
+  it('沒有的值整行不顯示', async () => {
+    const wrapper = mountList({ fees: areaPeerFees(), feeAge: 3 })
+    await wrapper.findAll('.nearby__row')[3]!.trigger('click')
+    const detail = wrapper.get('.nearby__detail').text()
+    expect(detail).not.toContain('每位幼生面積')
+    expect(detail).not.toContain('幼童專用車')
+    expect(detail).not.toContain('歲收費')
+  })
+
+  it('收費沒回來（fees 為 null）：列尾寫「—」；選填欄位沒送（undefined）當沒有值，整行不顯示', async () => {
+    const bare = { ...kindergarten({ source_id: 'kg-bare', name: '高雄市私立無欄位幼兒園' }) } as Record<string, unknown>
+    for (const key of ['indoor_m2_per_child', 'outdoor_m2_per_child', 'has_shuttle', 'after_school_capacity']) delete bare[key]
+    const wrapper = mountList({ data: areaKindergartens([bare as never]), fees: null, feeAge: 3 })
+    expect(wrapper.get('.nearby__meta').text()).toBe('420 m・核定 120 人・—')
+    await wrapper.get('.nearby__row').trigger('click')
+    const detail = wrapper.get('.nearby__detail').text()
+    expect(detail).not.toContain('每位幼生面積')
+    expect(detail).not.toContain('幼童專用車')
+    expect(detail).not.toContain('兼辦國小課後')
   })
 
   it('搜尋名稱與地址；類型 chip 可複選，選了就不列本機構', async () => {
@@ -290,7 +338,7 @@ describe('附近幼兒園清單', () => {
   it('核定人數未知（null）：寫「—」，不寫 0', () => {
     const wrapper = mountList()
     const quasi = wrapper.findAll('.nearby__row')[2]!.text().replace(/\s+/g, '')
-    expect(quasi).toContain('950m・核定—人・月費（估）9,800元')
+    expect(quasi).toContain('950m・核定—人・—')
     expect(quasi).not.toContain('核定0人')
   })
 

@@ -409,6 +409,8 @@ function openNoVillage() {
             :kindergartens-failed="kindergartensFailed"
             :babycare="babycare"
             :babycare-failed="babycareFailed"
+            :peer-fees="peerFees"
+            :peer-age="peerAge"
             @select-kindergarten="focusKindergarten"
             @select-babycare="focusBabycare"
             @retry-kindergartens="loadKindergartens()"

@@ -1101,6 +1101,19 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
     expect(pathsTo(get, '/admin/admissions/area/kindergartens')).toHaveLength(before)
   })
 
+  it('附近幼兒園清單用同一份收費與年齡：列尾寫該年齡的學期收費，換年齡跟著換', async () => {
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/fees': (path: string) => areaPeerFees({ age: Number(queryOf(path).get('age')) as 2 | 3 | 4 | 5 }),
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.peer-fees__summary').exists()).toBe(true))
+    const meta = () => wrapper.findAll('.nearby__meta').map((item) => item.text())
+    expect(meta()[0]).toBe('0 m・核定 210 人・3 歲學期 89,750')
+    wrapper.findComponent(PeerFeesPanel).vm.$emit('update:age', 5)
+    await vi.waitFor(() => expect(meta()[0]).toBe('0 m・核定 210 人・5 歲學期 89,750'))
+  })
+
   it('舊年齡的回應晚到不會蓋掉新的', async () => {
     const slow = deferred<unknown>()
     mockGet({
@@ -1126,6 +1139,7 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     expect(wrapper.text()).toContain('無法讀取附近同業收費。')
     expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+    expect(wrapper.findAll('.nearby__meta')[0]!.text()).toBe('0 m・核定 210 人・—')
     fail = false
     await wrapper.get('.peer-fees .el-alert .el-button').trigger('click')
     await flushPromises()
