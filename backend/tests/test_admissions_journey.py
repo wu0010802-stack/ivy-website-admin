@@ -244,13 +244,21 @@ async def test_coverage_lists_what_the_funnel_does_not_contain(db_session):
     assert result["coverage"] == {"visits_without_request": 2, "completed_without_visit": 1, "undated_cases": 1}
 
 
-async def test_coverage_ignores_the_source_filter(db_session):
+async def test_coverage_follows_the_source_filter_except_visits_without_request(db_session):
+    """沒有預約案件的訪視沒有來源，不受篩選；已到場無訪視、預定參觀日算不出來都是批次內的案件，跟著來源走。"""
     await add_visit(db_session, request_id=None, visit_date=d(9, 5))
-    await add_case(db_session, source="phone", slot_day=d(9, 10), created=at(d(9, 1)))
+    await add_case(db_session, source="web", slot_day=d(9, 10), created=at(d(9, 1)))  # 已到場、無訪視
+    await add_case(db_session, source="web", slot_day=None, created=at(d(9, 3)))  # 預定參觀日算不出來
+    await add_case(db_session, source="phone", slot_day=d(9, 11), created=at(d(9, 1)))  # 已到場、無訪視
+    await add_case(db_session, source="phone", slot_day=None, created=at(d(9, 3)))  # 預定參觀日算不出來
+    await add_case(db_session, source="phone", slot_day=None, created=at(d(9, 4)))  # 預定參觀日算不出來
     await db_session.commit()
-    result = await run(db_session, source="web")
-    assert result["cases"]["total"] == 0
-    assert result["coverage"]["visits_without_request"] == 1
+    web = {"visits_without_request": 1, "completed_without_visit": 1, "undated_cases": 1}
+    assisted = {"visits_without_request": 1, "completed_without_visit": 1, "undated_cases": 2}
+    everything = {"visits_without_request": 1, "completed_without_visit": 2, "undated_cases": 3}
+    for source, expected in (("web", web), ("assisted", assisted), ("all", everything)):
+        result = await run(db_session, date_from=d(9, 1), date_to=d(9, 30), source=source)
+        assert result["coverage"] == expected, source
 
 
 async def test_anonymized_cases_are_counted(db_session):
