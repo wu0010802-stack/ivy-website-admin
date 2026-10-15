@@ -22,7 +22,7 @@ import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissi
 const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
 const StatsTab = lazyComponent(() => import('../components/admissions/StatsTab.vue'))
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, area, sub, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, area, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
 const route = useRoute()
 const router = useRouter()
@@ -60,8 +60,8 @@ async function checkAvailability() {
 watch(campus, () => void checkAvailability(), { immediate: true })
 
 // 統計分析的「參觀預約」看預約案件的送出日或事件日，不分入學學年學期：兩個下拉停用（值保留，
-// 切回其他子分頁還在），期間在子分頁裡選。同 2026-10-05「待追蹤」的做法。
-const termless = computed(() => tab.value === 'stats' && sub.value === 'booking')
+// 切回其他子分頁還在），期間在子分頁裡選。同 2026-10-05「待追蹤」的做法。預約全程同理（看預定參觀日）。
+const termless = computed(() => tab.value === 'stats' && (sub.value === 'booking' || sub.value === 'journey'))
 // 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
 const narrow = useNarrowScreen()
 const filtersOpen = ref(false)
@@ -163,6 +163,7 @@ function showUnscoped() {
         <StatsTab
           v-if="tab === 'stats'"
           v-model:sub="sub"
+          v-model:journey="journey"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"

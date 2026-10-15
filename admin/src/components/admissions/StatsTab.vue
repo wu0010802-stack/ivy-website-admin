@@ -5,6 +5,7 @@ import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
+import JourneyTab from './JourneyTab.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import BookingStatsPane from '../analytics/BookingStatsPane.vue'
 import { getCompare, getStats } from '../../api/admissions'
@@ -12,6 +13,7 @@ import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
 import { currentTerm, taipeiToday, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS } from '../../admissions/constants'
+import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/journeyFormat'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -25,6 +27,7 @@ import { csvFilename } from '../../utils/csv'
 // 「參觀預約」（2026-10-13 從成效統計搬來，BookingStatsPane）讀自己的 API、不用招生統計：招生統計還在讀或
 // 讀失敗時，子分頁列照樣出現，切得過去；招生的子分頁和以前一樣等招生統計回來才畫（讀失敗只有錯誤與
 // 重新載入）。上方的統計範圍與說明只屬於招生統計，在參觀預約不顯示。
+// 「預約全程」（2026-10-15，JourneyTab）同樣讀自己的 API，期間與來源由頁面放在網址（journey）。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string }] }>()
 
@@ -39,8 +42,10 @@ const csvName = (title: string) => csvFilename('招生統計', title, campusLabe
 // 子分頁由頁面放在網址（sub，見 useAdmissionsFilters）；單獨掛載（測試）時沒有父層就用元件自己的值。
 const sub = defineModel<StatsSub>('sub', { default: 'overview' })
 const subTab = computed(() => `stats-${sub.value}`)
+const journey = defineModel<JourneyFilter>('journey', { default: () => ({ ...DEFAULT_JOURNEY_FILTER }) })
 
-const bookingSub = computed(() => sub.value === 'booking')
+// 「參觀預約」與「預約全程」讀自己的 API、不用招生統計：兩個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
+const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey')
 
 function setSubTab(name: string | number) {
   const value = String(name).replace(/^stats-/, '')
@@ -272,7 +277,7 @@ const noDepositKpis = computed(() => {
 
 <template>
   <section class="stats" aria-label="統計分析">
-    <template v-if="!bookingSub">
+    <template v-if="!ownDataSub">
       <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取統計資料，請重新載入。" class="inline-error">
         <el-button size="small" @click="load()">重新載入</el-button>
       </el-alert>
@@ -289,7 +294,7 @@ const noDepositKpis = computed(() => {
       </div>
     </template>
 
-    <el-tabs v-if="stats || failed || bookingSub" v-loading="loading && !bookingSub" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
+    <el-tabs v-if="stats || failed || ownDataSub" v-loading="loading && !ownDataSub":model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
       <el-tab-pane label="總覽" name="stats-overview">
         <template v-if="stats">
           <StatsOverview v-if="hasData" :stats="stats" :csv-name="csvName" @navigate="navigate">
@@ -454,6 +459,10 @@ const noDepositKpis = computed(() => {
 
       <el-tab-pane label="參觀預約" name="stats-booking" lazy>
         <BookingStatsPane :campus-key="campusKey" :campus-keys="campusKeys" />
+      </el-tab-pane>
+
+      <el-tab-pane label="預約全程" name="stats-journey" lazy>
+        <JourneyTab v-model:filter="journey" :campus-key="campusKey" :csv-name="csvName" />
       </el-tab-pane>
     </el-tabs>
   </section>

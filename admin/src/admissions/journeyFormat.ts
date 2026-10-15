@@ -82,7 +82,7 @@ export function rateText(label: string, rate: Rate): string {
 
 const rateOf = (data: AdmissionsJourney, key: Rate['key']): Rate => data.rates.find((rate) => rate.key === key)!
 
-export interface FunnelRow {
+export type FunnelRow = {
   key: string
   stage: string
   count: number
@@ -101,7 +101,7 @@ export function funnelRows(data: AdmissionsJourney): FunnelRow[] {
   ]
 }
 
-export interface ExitRow {
+export type ExitRow = {
   key: string
   kind: string
   count: number
@@ -109,7 +109,7 @@ export interface ExitRow {
 }
 
 const CANCEL_NOTE = '距參觀日見下表'
-/** 取消時點整張表沒有資料（每筆取消都缺取消時間）時，取消列不能再指向它。 */
+/** 取消時點整張表沒有資料、但有取消缺取消時間時，取消列不能再指向它。 */
 const CANCEL_NOTE_EMPTY = '沒有取消時間可比對'
 const WITHDRAW_NOTE = '天數見「各段要花多久」'
 
@@ -117,7 +117,9 @@ const WITHDRAW_NOTE = '天數見「各段要花多久」'
 export function exitRows(data: AdmissionsJourney): ExitRow[] {
   const { cancelled, no_show: noShow, unmarked } = data.visit_outcomes
   const { completed_without_visit: noVisit, not_deposited: waiting, withdrawn } = data.admissions
-  const cancelTiming = data.timing.cancel_before_visit.n > 0 ? CANCEL_NOTE : CANCEL_NOTE_EMPTY
+  const { n: cancelTimed, excluded: cancelUntimed } = data.timing.cancel_before_visit
+  // 有取消時點 → 指向下表；取消都缺取消時間 → 寫明比對不了；根本沒有取消 → 「—」。
+  const cancelTiming = cancelTimed > 0 ? CANCEL_NOTE : cancelUntimed > 0 ? CANCEL_NOTE_EMPTY : NO_VALUE
   return [
     { key: 'cancel_parent', kind: '已取消・家長', count: cancelled.parent, timing: cancelTiming },
     { key: 'cancel_staff', kind: '已取消・園方', count: cancelled.staff, timing: cancelTiming },
@@ -142,7 +144,7 @@ const BUCKET_LABELS = [
   ['days_8_plus', '8 天以上'],
 ] as const
 
-export interface CancelRow {
+export type CancelRow = {
   key: string
   bucket: string
   parent: number
@@ -165,7 +167,7 @@ export function cancelNote(data: AdmissionsJourney): string {
   return excluded > 0 ? `另有 ${excluded} 筆沒有取消時間，不納入` : ''
 }
 
-export interface TimingRow {
+export type TimingRow = {
   key: string
   metric: string
   median: string

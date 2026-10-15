@@ -88,6 +88,15 @@ describe('各表的列', () => {
     expect(others(rows)).toEqual(others(exitRows(data)))
   })
 
+  it('家庭在哪裡離開：完全沒有取消時間（n=0 且 excluded=0）時，三個取消列寫「—」，不說「沒有取消時間可比對」', () => {
+    const none = journeyData({ timing: { ...data.timing, cancel_before_visit: { ...data.timing.cancel_before_visit, n: 0, excluded: 0 } } })
+    expect(exitRows(none).filter((row) => row.key.startsWith('cancel_')).map((row) => [row.kind, row.timing])).toEqual([
+      ['已取消・家長', '—'],
+      ['已取消・園方', '—'],
+      ['已取消・其他或沒記', '—'],
+    ])
+  })
+
   it('取消時點：缺取消時間而不納入的筆數另寫；沒有就是空字串', () => {
     const withExcluded = (excluded: number) =>
       journeyData({ timing: { ...data.timing, cancel_before_visit: { ...data.timing.cancel_before_visit, excluded } } })
