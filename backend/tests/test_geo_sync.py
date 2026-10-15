@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.admissions.geo import doorplates as doorplate_io
-from app.admissions.geo import sync
+from app.admissions.geo import providers, sync
 from app.admissions.geo.doorplates import DoorplateParser
-from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten, RecruitmentVisitGeo
+from app.admissions.geo.models import (
+    GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoProviderEvent, RecruitmentVisitGeo,
+)
 from app.admissions.geo.sync import (
     DoorplateSource,
     GeoSyncBusy,
@@ -32,6 +34,7 @@ from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
 from tests.geo_helpers import (
     FIXTURES,
+    REGISTRY_SAMPLE,
     add_visit,
     income_response,
     lock_is_free,
@@ -45,6 +48,7 @@ DATASET_115 = "https://data.kcg.gov.tw/DataSet/Detail/1d7e3a54-6884-4cb0-b07c-c7
 DATASET_114 = "https://data.kcg.gov.tw/DataSet/Detail/1e015103-320c-45e7-927b-70a3c0be87c3"
 KIANG_URL = "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
 BABYCARE_URL = "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
+REGISTRY_URL = "https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv"
 
 
 def _site(
@@ -52,12 +56,14 @@ def _site(
     csv: bytes | None = None,
     csv_status: int = 200,
     kiang: bytes | None = None,
+    registry: bytes | None = None,
+    registry_status: int = 200,
     babycare: bytes | None = None,
     dataset_115: str | None = None,
     dataset_115_status: int = 200,
     population_months: set[str] | None = None,
 ):
-    """假的高雄市資料平台＋kiang＋托嬰名單＋內政部 ODRP061／011／014＋data.gov.tw 與財政資訊中心（各里所得）＋
+    """假的高雄市資料平台＋kiang（幼兒園 JSON 與教育部名單）＋托嬰名單＋內政部 ODRP061／011／014＋data.gov.tw 與財政資訊中心（各里所得）＋
     實價登錄季檔（新成屋）；回傳 (transport, 請求過的網址清單)。"""
     seen: list[str] = []
 
@@ -74,6 +80,9 @@ def _site(
         if url == CSV_URL or url == "https://example.org/doorplates.csv":
             body = csv if csv is not None else (FIXTURES / "doorplates-sample.csv").read_bytes()
             return httpx.Response(csv_status, content=body, headers={"content-type": "text/csv"})
+        if url == REGISTRY_URL:
+            body = registry if registry is not None else REGISTRY_SAMPLE.read_bytes()
+            return httpx.Response(registry_status, content=body, headers={"content-type": "text/csv; charset=utf-8"})
         if url == KIANG_URL:
             body = kiang if kiang is not None else (FIXTURES / "preschools-sample.json").read_bytes()
             return httpx.Response(200, content=body, headers={"content-type": "application/json"})
@@ -375,7 +384,7 @@ async def test_files_never_touch_the_network(app):
         assert (result.doorplates, result.kindergartens, result.doorplate_version) == ("updated", "skipped", "115-10")
         result = await run_geo_sync(
             app.state.session_factory, app.state.settings, client=client,
-            kindergartens_file=FIXTURES / "preschools-sample.json",
+            kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
         )
         assert (result.doorplates, result.kindergartens) == ("skipped", "updated")
     assert await _counts(app) == (73, 10)
@@ -411,7 +420,10 @@ async def test_visits_are_rematched_when_doorplates_or_campus_address_change(app
 async def test_kindergarten_file_with_bom(app, tmp_path):
     bom_json = tmp_path / "preschools.json"
     bom_json.write_bytes(b"\xef\xbb\xbf" + (FIXTURES / "preschools-sample.json").read_bytes())
-    result = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=bom_json)
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=bom_json, kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
     assert (result.doorplates, result.kindergartens) == ("skipped", "updated")
     assert (await _counts(app))[1] == 10
 
@@ -489,7 +501,7 @@ async def test_clean_sample_skips_nothing(app):
     result = await run_geo_sync(
         app.state.session_factory, app.state.settings,
         doorplates_file=FIXTURES / "doorplates-sample.csv", doorplates_version="115-10",
-        kindergartens_file=FIXTURES / "preschools-sample.json",
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
     )
     assert (result.doorplates, result.kindergartens) == ("updated", "updated")
     assert (result.doorplate_rows_skipped, result.kindergarten_rows_skipped) == (0, 0)
@@ -507,18 +519,108 @@ async def test_bad_kindergarten_entries_are_skipped_and_counted(app, tmp_path):
 
     data = json.loads((FIXTURES / "preschools-sample.json").read_text(encoding="utf-8"))
     data["features"].append(
-        {"properties": {"id": "long", "title": "園" * 121, "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
+        {"properties": {"id": "long", "title": "園" * 121, "reg_docno": "府教字第8號", "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
          "geometry": {"coordinates": [120.3, 22.6]}}
     )
     data["features"].append(
-        {"properties": {"id": "far", "title": "遠方", "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
+        {"properties": {"id": "far", "title": "遠方", "reg_docno": "府教字第9號", "city": "高雄市", "town": "三民區", "type": "私立", "is_active": 1},
          "geometry": {"coordinates": [0, 0]}}
     )
     path = tmp_path / "preschools.json"
     path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    result = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=path)
+    registry = tmp_path / "registry.csv"
+    long_title = "園" * 121
+    registry.write_text(
+        REGISTRY_SAMPLE.read_text(encoding="utf-8")
+        + f"x,府教字第8號,,{long_title},,高雄市,三民區,私立,[807]某路1號\n"
+        + "x,府教字第9號,,遠方,,高雄市,三民區,私立,[807]某路2號\n",
+        encoding="utf-8",
+    )
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings, kindergartens_file=path, kindergartens_registry_file=registry
+    )
     assert (result.kindergartens, result.kindergarten_rows_skipped, result.doorplate_rows_skipped) == ("updated", 2, 0)
     assert (await _counts(app))[1] == 10
+
+
+# ---- 教育部名單（2026-10-15 規格 §3） ----
+
+
+async def test_the_registry_decides_which_kindergartens_are_open(app, small_minimum):
+    """名單沒有的（即使 kiang 標營業中）不收；名單與 JSON 都從網路抓。"""
+    trimmed = "".join(
+        line for line in REGISTRY_SAMPLE.read_text(encoding="utf-8").splitlines(keepends=True) if "愛爾蘭" not in line
+    )
+    transport, seen = _site(registry=trimmed.encode())
+    result = await _sync(app, transport)
+    assert result.kindergartens == "updated"
+    assert REGISTRY_URL in seen and KIANG_URL in seen
+    assert (await _counts(app))[1] == 9
+
+
+@pytest.mark.parametrize(
+    ("body", "status", "error"),
+    [
+        (b"<!DOCTYPE html><html><body>error</body></html>", 200, "教育部幼兒園名單格式不對"),
+        (b"", 200, "教育部幼兒園名單格式不對"),
+        (b"not found", 404, "下載失敗：HTTP 404"),
+    ],
+    ids=["錯誤頁", "空檔", "404"],
+)
+async def test_a_broken_registry_fails_the_kindergarten_sync_and_keeps_the_data(app, small_minimum, body, status, error):
+    good, _ = _site()
+    await _sync(app, good)
+    broken, _ = _site(registry=body, registry_status=status)
+    result = await _sync(app, broken, force=True)
+    assert result.kindergartens == "failed"
+    assert (await _status(app, "kindergartens")).last_error == error
+    async with app.state.session_factory() as db:
+        open_now = select(func.count()).select_from(GeoKindergarten).where(GeoKindergarten.is_active.is_(True))
+        assert await db.scalar(open_now) == 10
+        assert await db.scalar(select(func.count()).select_from(GeoProviderEvent)) == 0
+
+
+async def test_a_truncated_registry_is_refused_by_the_truncation_guard(app, monkeypatch, tmp_path):
+    """名單只剩 3 所：營業中少於上次 80%，不換版、沒有一所被標停辦。"""
+    monkeypatch.setattr(providers, "TRUNCATION_MIN_PREVIOUS", 5)
+    sample_json = FIXTURES / "preschools-sample.json"
+    first = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=sample_json, kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
+    assert first.kindergartens == "updated"
+    short = tmp_path / "registry.csv"
+    short.write_text("".join(REGISTRY_SAMPLE.read_text(encoding="utf-8").splitlines(keepends=True)[:4]), encoding="utf-8")
+    second = await run_geo_sync(
+        app.state.session_factory, app.state.settings, kindergartens_file=sample_json, kindergartens_registry_file=short,
+    )
+    assert second.kindergartens == "failed"
+    assert (await _status(app, "kindergartens")).last_error == providers.SHRUNK_MESSAGE
+    async with app.state.session_factory() as db:
+        open_now = select(func.count()).select_from(GeoKindergarten).where(GeoKindergarten.is_active.is_(True))
+        assert await db.scalar(open_now) == 10
+        assert await db.scalar(select(func.count()).select_from(GeoProviderEvent)) == 0
+
+
+async def test_a_registry_file_with_a_bom_is_read(app, tmp_path):
+    bom = tmp_path / "registry.csv"
+    bom.write_bytes(b"\xef\xbb\xbf" + REGISTRY_SAMPLE.read_bytes())
+    result = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=bom,
+    )
+    assert result.kindergartens == "updated"
+    assert (await _counts(app))[1] == 10
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"kindergartens_file": FIXTURES / "preschools-sample.json"}, {"kindergartens_registry_file": REGISTRY_SAMPLE}],
+    ids=["只有 JSON", "只有名單"],
+)
+async def test_kindergarten_files_must_come_in_pairs(app, kwargs):
+    with pytest.raises(ValueError, match="要一起給"):
+        await run_geo_sync(app.state.session_factory, app.state.settings, **kwargs)
 
 
 # ---- 延後項目 D2：轉址、年度退回、log、解鎖、解析、檔案讀取 ----

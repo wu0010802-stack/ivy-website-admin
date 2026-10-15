@@ -22,10 +22,11 @@ from app.workers import geo_loop
 from app.workers.geo_loop import GeoSyncLoop
 from app.workers.media_loop import MediaJobLoop
 from tests.conftest import _test_settings
-from tests.geo_helpers import FIXTURES, lock_is_free
+from tests.geo_helpers import FIXTURES, REGISTRY_SAMPLE, lock_is_free
 
 SAMPLE_CSV = FIXTURES / "doorplates-sample.csv"
 SAMPLE_JSON = FIXTURES / "preschools-sample.json"
+REGISTRY_CSV = REGISTRY_SAMPLE
 
 
 async def _try_lock(conn) -> bool:
@@ -50,7 +51,8 @@ def offline_sync(monkeypatch):
     async def run_from_files(session_factory, settings, **kwargs):
         calls.append(1)
         return await real(
-            session_factory, settings, doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON, **kwargs
+            session_factory, settings, doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON,
+            kindergartens_registry_file=REGISTRY_CSV, **kwargs,
         )
 
     monkeypatch.setattr(geo_loop, "run_geo_sync", run_from_files)
@@ -269,6 +271,7 @@ def test_geo_settings_defaults():
     assert settings.geo_doorplate_url is None
     assert settings.geo_kindergartens_url == "https://kiang.github.io/ap.ece.moe.edu.tw/preschools.json"
     assert settings.geo_babycare_url == "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
+    assert settings.geo_kindergartens_registry_url == "https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv"
     assert settings.geo_sync_check_seconds == 86400
 
 
@@ -284,6 +287,7 @@ def test_geo_settings_read_environment(monkeypatch):
     [
         {"geo_doorplate_url": "http://data.kcg.gov.tw/x.csv"},
         {"geo_kindergartens_url": "ftp://example.org/x.json"},
+        {"geo_kindergartens_registry_url": "http://example.org/r.csv"},
         {"geo_babycare_url": "http://example.org/b.json"},
         {"geo_sync_check_seconds": 10},
     ],
@@ -325,7 +329,7 @@ def cli_on_test_app(app, monkeypatch):
 
 
 async def test_cli_geo_sync_with_files_imports_and_exits_zero(app, cli_on_test_app, capsys):
-    await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON)
+    await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON, kindergartens_registry_file=REGISTRY_CSV)
     output = capsys.readouterr().out
     assert "門牌：updated" in output and "幼兒園：updated" in output
     assert "略過" not in output  # 樣本沒有壞資料，不多印一行
@@ -337,7 +341,7 @@ async def test_cli_geo_sync_prints_how_many_rows_were_skipped(app, cli_on_test_a
     lines = SAMPLE_CSV.read_text(encoding="utf-8-sig").splitlines()
     lines.insert(1, "64,6400500,本揚里,001," + "甲" * 41 + ",,,,１號,176205.163,2503011.609")
     csv.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    await geo_sync_command(doorplates_file=csv, kindergartens_file=SAMPLE_JSON)
+    await geo_sync_command(doorplates_file=csv, kindergartens_file=SAMPLE_JSON, kindergartens_registry_file=REGISTRY_CSV)
     output = capsys.readouterr().out
     assert "門牌：updated" in output
     assert "略過：門牌 1 列、幼兒園 0 筆" in output
@@ -347,7 +351,7 @@ async def test_cli_geo_sync_exits_one_when_a_dataset_fails(app, cli_on_test_app,
     bad = tmp_path / "doorplates.csv"
     bad.write_text("x,y\n1,2\n", encoding="utf-8")
     with pytest.raises(SystemExit) as exit_info:
-        await geo_sync_command(doorplates_file=bad, kindergartens_file=SAMPLE_JSON)
+        await geo_sync_command(doorplates_file=bad, kindergartens_file=SAMPLE_JSON, kindergartens_registry_file=REGISTRY_CSV)
     assert exit_info.value.code == 1
     captured = capsys.readouterr()
     assert "門牌：failed" in captured.out
@@ -364,7 +368,7 @@ async def test_cli_geo_sync_exits_one_when_another_sync_is_running(app, cli_on_t
         assert await _try_lock(holder)
         try:
             with pytest.raises(SystemExit) as exit_info:
-                await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON)
+                await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON, kindergartens_registry_file=REGISTRY_CSV)
         finally:
             await _unlock(holder)
     assert exit_info.value.code == 1
