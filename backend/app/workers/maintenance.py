@@ -276,10 +276,13 @@ class MaintenanceLoop:
         self.last_completed_at: datetime | None = None
         self.last_clean_at: datetime | None = None
         self.last_failed_steps: list[str] = []
+        # 程序啟動時間：還沒跑完第一輪時，系統狀態頁用它判斷是否停擺（2026-10-15 規格 S8）。
+        self.started_at: datetime | None = None
         self._stopping = asyncio.Event()
         self._task: asyncio.Task | None = None
 
     def start(self) -> None:
+        self.started_at = datetime.now(timezone.utc)
         self._task = asyncio.create_task(self._run(), name="maintenance-loop")
 
     async def stop(self, *, timeout: float = 30.0) -> None:
