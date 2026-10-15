@@ -437,7 +437,7 @@ function openNoVillage() {
           :columns="DISTANCE_COLUMNS"
           row-key="band"
           :empty-text="distanceEmptyText"
-          :caption="campusLocated ? '從家長地址的門牌量到本校的直線距離；只到區、未定位的訪視算在「無距離」。' : ''"
+          :caption="campusLocated ? '從家長地址的門牌量到本校的直線距離；沒填地址、只到區、未定位的訪視算在「無距離」。' : ''"
           :export-filename="csvName('距離分布')"
         />
       </div>

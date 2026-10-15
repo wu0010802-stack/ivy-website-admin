@@ -11,7 +11,8 @@
   這是拿實際參觀和公開人口做描述性比較，不預測、不對任何一戶打分（規格 1.3）。
 
 只算比對到里、未匿名化的訪視；只到區、未定位、待比對、沒填地址、已匿名化的合計成
-unplaced_visit，到了里但在半徑外的合計成 outside_visit，兩者都不進附近平均。
+unplaced_visit（其中沒填地址的另回 no_address_visit，畫面分開寫），到了里但在半徑外的合計成
+outside_visit，兩者都不進附近平均。
 在半徑內、但人口表沒有那個里（人口批次只要 850 個里就能換版）的里列在 no_population_villages：
 沒有孩子數可除，參觀同樣不進附近平均，也不算半徑外。"""
 
@@ -23,7 +24,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import estimation
+from app.admissions import estimation, records
 from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
 from app.admissions.geo import population as population_io
@@ -78,20 +79,25 @@ async def population_status(db: AsyncSession) -> dict[str, Any]:
 
 async def visits_by_village(
     db: AsyncSession, campus_key: str, school_year: int | None, semester: int | None
-) -> tuple[dict[str, int], int]:
-    """(里代碼 → 參觀人數, 沒對到里的參觀人數)。到里的訪視以 (區, 里) 轉代碼；里界檔裡沒有
-    那個 (區, 里)（理論上不會發生，門牌與里界的里名已對齊）也算沒對到里。"""
+) -> tuple[dict[str, int], int, int]:
+    """(里代碼 → 參觀人數, 沒對到里的參觀人數, 其中沒填地址的)。到里的訪視以 (區, 里) 轉代碼；里界檔裡沒有
+    那個 (區, 里)（理論上不會發生，門牌與里界的里名已對齊）也算沒對到里。沒填地址的判斷同區域分析的
+    totals.no_address（未匿名化、records.has_address 為假；已匿名化的地址也清掉了，但不算在這裡）。"""
     v, g = RecruitmentVisit, RecruitmentVisitGeo
     active = v.anonymized_at.is_(None)
+    addressed = records.has_address()
     stmt = (
-        select(v.district, g.village, g.match_level, active.label("active"), func.count(v.id).label("visit"))
+        select(
+            v.district, g.village, g.match_level, active.label("active"), addressed.label("has_address"),
+            func.count(v.id).label("visit"),
+        )
         .select_from(v)
         .outerjoin(g, g.visit_id == v.id)
         .where(*_base_filters(campus_key, school_year, semester))
-        .group_by(v.district, g.village, g.match_level, active)
+        .group_by(v.district, g.village, g.match_level, active, addressed)
     )
     by_code: dict[str, int] = {}
-    unplaced = 0
+    unplaced = no_address = 0
     for row in (await db.execute(stmt)).all():
         count = int(row.visit or 0)
         code = (
@@ -101,9 +107,11 @@ async def visits_by_village(
         )
         if code is None:
             unplaced += count
+            if row.active and not row.has_address:
+                no_address += count
         else:
             by_code[code] = by_code.get(code, 0) + count
-    return by_code, unplaced
+    return by_code, unplaced, no_address
 
 
 async def query_opportunity(
@@ -126,11 +134,13 @@ async def query_opportunity(
         "baseline": None,
         "outside_visit": 0,
         "unplaced_visit": 0,
+        "no_address_visit": 0,
         "no_population_villages": [],
         "villages": [],
     }
-    visits, unplaced = await visits_by_village(db, campus_key, school_year, semester)
+    visits, unplaced, no_address = await visits_by_village(db, campus_key, school_year, semester)
     result["unplaced_visit"] = unplaced
+    result["no_address_visit"] = no_address
     if status["version"] is None or campus["lat"] is None or campus["lng"] is None:
         # 沒有人口或本校沒座標：算不出附近有哪些里。到里的參觀全部算在半徑外沒有意義，照實放進 outside_visit
         # 會讓畫面寫出「N 位來自 3 公里外」的錯話，所以留 0，由畫面寫原因。

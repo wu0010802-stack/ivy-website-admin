@@ -475,7 +475,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     const section = block(wrapper, '招生機會（本校 3 公里內）')
     expect(section.findAll('.opportunity-summary p').map((line) => line.text())).toEqual([
       '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 20 位（參觀率 2.0%）。明顯偏少的里 1 個，照附近的參觀率合計少了約 7 位。',
-      '另有 2 位來自 3 公里外、3 位沒對到里，不算在內。',
+      '另有 2 位來自 3 公里外、1 位沒填地址、2 位沒對到里，不算在內。',
     ])
   })
 
@@ -528,7 +528,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
   it('附近參觀不到 10 位：總結寫先不判斷；沒有偏少的里寫「沒有明顯偏少的里」；不算在內的都是 0 就不寫', async () => {
     const quiet = areaOpportunity({
       baseline: { ...areaOpportunity().baseline!, visit: 6, judged: false },
-      outside_visit: 0, unplaced_visit: 0,
+      outside_visit: 0, unplaced_visit: 0, no_address_visit: 0,
       villages: areaOpportunity().villages.map((row) => ({ ...row, signal: 'not_judged' as const })),
     })
     const { wrapper } = await mountTab({}, areaStats(), quiet)

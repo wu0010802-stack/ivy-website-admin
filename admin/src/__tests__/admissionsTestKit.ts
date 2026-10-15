@@ -182,7 +182,9 @@ const buildAreaOpportunity = () => ({
   campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
   baseline: { villages: 3, children: 1000, infants: 300, visit: 20, rate: 2, judged: true },
   outside_visit: 2,
+  // 沒對到里 3 位，其中沒填地址 1 位。
   unplaced_visit: 3,
+  no_address_visit: 1,
   no_population_villages: [],
   villages: [
     { district: '三民區', village: '鼎金里', village_code: '64000050001', distance_m: 800, children: 500, infants: 150, visit: 3, rate: 0.6, expected: 10, shortfall: 7, signal: 'below' },

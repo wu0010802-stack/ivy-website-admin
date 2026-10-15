@@ -3499,6 +3499,10 @@
           "filters": {
             "$ref": "#/components/schemas/AreaFiltersOut"
           },
+          "no_address_visit": {
+            "title": "No Address Visit",
+            "type": "integer"
+          },
           "no_population_villages": {
             "items": {
               "$ref": "#/components/schemas/AreaOpportunityMissingOut"
@@ -3538,6 +3542,7 @@
           "baseline",
           "outside_visit",
           "unplaced_visit",
+          "no_address_visit",
           "no_population_villages",
           "villages"
         ],

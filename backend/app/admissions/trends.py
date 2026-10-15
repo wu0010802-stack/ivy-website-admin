@@ -319,7 +319,7 @@ async def _schools(
     另標 kids_partial）；kids_months 是空的（全部算不出來）時是 null。"""
     if not touched:
         return []
-    visits, _ = await visits_by_village(db, campus_key, school_year, semester)
+    visits, _, _ = await visits_by_village(db, campus_key, school_year, semester)
     rows = []
     for school_code in touched:
         school = sd.schools()[school_code]

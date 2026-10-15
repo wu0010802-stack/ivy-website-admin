@@ -222,15 +222,17 @@ function missingPopulationNote(villages: readonly AreaOpportunityMissing[]): str
 
 /**
  * 招生機會的總結（規格 7.3）：第一句是半徑內的合計，第二句是判讀；note 是不算在內的人數（都是 0 就空字串），
- * 之後接半徑內但人口表沒有的里（它們不是半徑外，要另外交代）。
+ * 之後接半徑內但人口表沒有的里（它們不是半徑外，要另外交代）。沒填地址的參觀和其他沒對到里的分開寫。
+ * 有參觀、但參觀率四捨五入到 0.0%（1 位 ÷ 9,788 位）寫「不到 0.1%」，不寫成 0.0%。
  * 沒有合計（人口未匯入、本校沒座標）回 null，由呼叫端寫 opportunityUnavailable 的原因。
  */
 export function opportunitySummary(data: AreaOpportunity): { lead: string; verdict: string; note: string } | null {
   const { baseline, radius_km: radius } = data
   if (!baseline) return null
+  const rate = baseline.visit > 0 && baseline.rate === 0 ? '參觀率不到 0.1%' : `參觀率 ${formatRate(baseline.rate)}`
   const lead =
     `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位，` +
-    `參觀 ${formatCount(baseline.visit)} 位（參觀率 ${formatRate(baseline.rate)}）。`
+    `參觀 ${formatCount(baseline.visit)} 位（${rate}）。`
   const below = data.villages.filter((row) => row.signal === 'below')
   const missing = Math.round(below.reduce((sum, row) => sum + (row.shortfall ?? 0), 0))
   const verdict = !baseline.judged
@@ -238,9 +240,11 @@ export function opportunitySummary(data: AreaOpportunity): { lead: string; verdi
     : below.length
       ? `明顯偏少的里 ${below.length} 個，照附近的參觀率合計少了約 ${formatCount(Math.max(1, missing))} 位。`
       : '沒有明顯偏少的里。'
+  const unmatched = data.unplaced_visit - data.no_address_visit
   const parts = [
     data.outside_visit ? `${formatCount(data.outside_visit)} 位來自 ${radius} 公里外` : '',
-    data.unplaced_visit ? `${formatCount(data.unplaced_visit)} 位沒對到里` : '',
+    data.no_address_visit ? `${formatCount(data.no_address_visit)} 位沒填地址` : '',
+    unmatched > 0 ? `${formatCount(unmatched)} 位沒對到里` : '',
   ].filter(Boolean)
   const excluded = parts.length ? `另有 ${parts.join('、')}，不算在內。` : ''
   return { lead, verdict, note: excluded + missingPopulationNote(data.no_population_villages) }

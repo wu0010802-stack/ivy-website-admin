@@ -50,12 +50,18 @@ npx -y mapshaper@0.7.80 VILLAGE_NLSC_*.shp encoding=utf8 \
   `https://stats.moe.gov.tw/files/school/115/e1_new.csv`（data.gov.tw 6087），高雄市公立 238 所。
 - `school-districts-115.csv`：一列一個（里、學校），1,120 列、893 個里全有學校。欄位 `village_code`、`district`、
   `village`、`school_code`（教育部代碼；分校是「本校代碼-分校名」）、`coverage`（`full` 整里／`partial` 部分鄰）、
-  `neighborhoods`（一覽表原文的鄰範圍，只當說明、不拿來算）、`free_zone`（和別校自由學區）、`note`。
-  一個里對到 1 所 700 個、2 所 169、3 所 17、4 所 4、5 所 3。
+  `neighborhoods`（一覽表原文的鄰範圍，只當說明）、`free_zone`（和別校自由學區）、`note`。
+  一個里對到 1 所 700 個、2 所 169、3 所 17、4 所 4、5 所 3；整里 809 列、部分 311 列。
+- 整里／部分（2026-10-15 更正）：一覽表常把整個里拆成幾段鄰寫（灣中里鼎金國小「1-8、10-24、26 鄰」＋「9、25 鄰與
+  民族國小自由學區」），腳本原本只認「全里」或沒寫鄰才算整里，這類 47 列被標成部分（含只有一所學校的前峰里「1-34 鄰」）；
+  另外「1-8鄰與忠孝國小自由學區」這種鄰和「與」中間沒有標點的段落被整段當成整里，隆昌里、興邦里、西燕里 4 列反過來
+  標錯。現在一所學校列的鄰涵蓋一覽表為這個里列出的所有鄰就算整里（已經有學校整里、或夾了路段社區條件的里不判斷），
+  並用門牌 115-10 的「鄰」核對過全部 302 個只寫鄰的（里、學校）：只剩自助里（只有永清國小，一覽表寫 1-23 鄰、門牌
+  另有 24 鄰；沒有別校，照整里）。
 - `elementary-schools-115.csv`：241 個學校單位（238 所＋岡山國小灣裡分校、阿蓮國小峰山分校、廣興國小新威分校），
   `enrollment` 取一覽表備註：實驗教育 7 校大學區（`open`）、空間充裕 38 校（`spacious`）、總量管制 13 校（`capped`），
   其餘一般學區（`district`）。分校的區寫一覽表上分校那一列的區、地址留空（名錄只有本校地址）。
-- `school-districts-115-overrides.csv`：人工處理的 34 列，逐列寫原因：
+- `school-districts-115-overrides.csv`：人工處理的 35 列，逐列寫原因：
   - 改名、改制：新威國小 114 學年起是廣興國小新威分校；興中國小名錄改名興中原住民族小學。
   - 不是里的條件：油廠國小的台灣中油、台積電員工子女，山頂國小的「內厝路以北、水源路以南」。
   - 寫法：「崎漏區(崎漏里)」、峰山／峯山異體字。
@@ -67,8 +73,10 @@ npx -y mapshaper@0.7.80 VILLAGE_NLSC_*.shp encoding=utf8 \
     名字沒變、界線改了的五個里（福山、菜公、新上、清豐、八卦）加註「鄰範圍是調整前的編組」。
     併進既有里的舊里（中南→中北、祥和→屏山、宏南→宏毅、縣口→成功）和併入的里同一所學校整里，不必處理。
   - 灣內里：表格寫「2、8 鄰」、備註寫「2 至 8 鄰」，鄰範圍只存原文、加註。
+  - 一覽表跳號、腳本判斷不了的整里（`full`）：光明里大東國小沒寫 7、24 鄰（曹公國小寫 1-15 鄰），門牌也沒有這兩鄰。
 - 守門：`tests/test_school_districts.py`——里界檔每個里至少一所、代碼與里名和里界檔一致、每個學校代碼都在學校檔、
-  同一（里、學校）只一列、兩所以上整里一定是自由學區、115 學年版的筆數。里界換版時這裡會擋下沒更新的對照檔。
+  同一（里、學校）只一列、兩所以上整里一定是自由學區、只有一所學校的里是整里、115 學年版的筆數（含整里／部分列數）。
+  里界換版時這裡會擋下沒更新的對照檔。
 
 ## 換學年
 
@@ -81,8 +89,10 @@ curl -sSLo /tmp/sd/districts-116.pdf '<教育局公告的 PDF 網址>'
 curl -sSLo /tmp/sd/e1_new.csv 'https://stats.moe.gov.tw/files/school/116/e1_new.csv'
 # 2. 複製 overrides 成新學年的檔，刪掉已不適用的列（腳本會列出「overrides 沒用到」）
 cp app/admissions/geo_data/school-districts-115-overrides.csv app/admissions/geo_data/school-districts-116-overrides.csv
-# 3. 轉換（pdfplumber 只在這支腳本用）；看報告：對不到里界、看不懂的項目、和上一學年比多出或少掉的對應
-uv run --with pdfplumber==0.11.4 python scripts/build_school_districts.py --pdf /tmp/sd/districts-116.pdf --schools /tmp/sd/e1_new.csv --year 116
+# 3. 轉換（pdfplumber 只在這支腳本用）；看報告：對不到里界、看不懂的項目、鄰合起來算整里的、和上一學年比多出或少掉的對應。
+#    --doorplates 給當月的門牌坐標 CSV（資料平台的 File/DirectDownload/<guid>，見 deploy/README.md「公開地理資料同步」），
+#    報告多「門牌核對」：標部分但門牌的鄰都在範圍內（確認後加 full）、判成整里但門牌有鄰不在範圍內（人工看）
+uv run --with pdfplumber==0.11.4 python scripts/build_school_districts.py --pdf /tmp/sd/districts-116.pdf --schools /tmp/sd/e1_new.csv --year 116 --doorplates /tmp/sd/doorplates.csv
 # 4. 補 overrides、重跑到報告乾淨；改 school_districts.py 的 SCHOOL_DISTRICT_YEAR、tests/test_school_districts.py 的筆數
 uv run pytest tests/test_school_districts.py
 ```
