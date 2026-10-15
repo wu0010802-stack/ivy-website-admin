@@ -223,3 +223,25 @@ export function seedJourney(): number {
   psql(journeyStatements(), {})
   return Number(others)
 }
+
+export type EnrolledSeed = readonly [lat: number, lng: number, grade: '幼幼班' | '小班' | '中班' | '大班', district: string, village: string]
+
+/**
+ * 在籍學生（2026-10-15）：正式站由 CLI 匯入本機比對的 JSON；e2e 不跑 CLI，直接寫兩張表（重複執行先清掉）。
+ * points 的座標在這裡取到小數 3 位；streetOnly 位只對到里（沒有點）的小班。
+ */
+export function seedEnrolled(campus: string, points: readonly EnrolledSeed[], streetOnly: number): void {
+  const rows = [
+    ...points.map(([lat, lng, grade, district, village]) =>
+      `(gen_random_uuid(), :'campus', '${grade}', '${district}', '${village}', 'exact', NULL, ${lat.toFixed(3)}, ${lng.toFixed(3)})`),
+    ...Array.from({ length: streetOnly }, () => `(gen_random_uuid(), :'campus', '小班', '左營區', '新上里', 'street', NULL, NULL, NULL)`),
+  ]
+  psql(
+    `DELETE FROM enrolled_rosters WHERE campus_key = :'campus';
+     INSERT INTO enrolled_rosters (campus_key, roster_date, school_year, doorplate_version, total)
+     VALUES (:'campus', DATE '2026-10-15', 115, '115-10', ${rows.length});
+     INSERT INTO enrolled_student_points (id, campus_key, grade, district, village, match_level, unlocated_reason, lat, lng)
+     VALUES ${rows.join(',\n')};`,
+    { campus },
+  )
+}
