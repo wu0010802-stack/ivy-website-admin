@@ -1019,6 +1019,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(map.props('enrolledNote')).toBe('')
     expect(map.props('gradeFilter')).toBe('all')
     expect(bodyRows(block(wrapper, '在籍學生距離分布'))[0]).toEqual(['1 公里內', '0', '1', '1', '0', '2'])
+    expect(bodyRows(block(wrapper, '在籍學生距離分布')).at(-1)![0]).toBe('無距離')
     expect(bodyRows(block(wrapper, '在籍學生里排行（全部）')).map((row) => row.slice(0, 3))).toEqual([
       ['1', '三民區本揚里', '3'], ['2', '三民區寶業里', '1'], ['3', '左營區新上里', '1'],
     ])

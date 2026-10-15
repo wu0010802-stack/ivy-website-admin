@@ -523,12 +523,18 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(pointPopupText(counts, '中班')).toBe('這附近 1 位：中班 1')
   })
 
-  it('圖例：清冊日期、學年、地圖上幾位；沒有點的依篩選加總，0 就不寫', () => {
+  it('圖例：清冊日期、學年、門牌版本、地圖上幾位；沒有點的依篩選加總，0 就不寫', () => {
     expect(enrolledLegendText(areaEnrolled(), 'all')).toEqual({
-      lead: '清冊 2026/10/15・115 學年班別・地圖上 4 位', unplaced: '沒有點 1 位（只對到里 1）',
+      lead: '清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 4 位', unplaced: '沒有點 1 位（只對到里 1）',
     })
-    expect(enrolledLegendText(areaEnrolled(), '大班')).toEqual({ lead: '清冊 2026/10/15・115 學年班別・地圖上 1 位', unplaced: '' })
-    expect(enrolledLegendText(areaEnrolled(), '其他').lead).toBe('清冊 2026/10/15・115 學年班別・地圖上 0 位')
+    expect(enrolledLegendText(areaEnrolled(), '大班')).toEqual({
+      lead: '清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 1 位', unplaced: '',
+    })
+    expect(enrolledLegendText(areaEnrolled(), '其他').lead).toBe('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 0 位')
+  })
+
+  it('圖例：沒有門牌版本（null）就省略那一段', () => {
+    expect(enrolledLegendText(areaEnrolled({ doorplate_version: null }), 'all').lead).toBe('清冊 2026/10/15・115 學年班別・地圖上 4 位')
   })
 
   it('停用原因：讀取失敗、尚未匯入；讀取中與有資料都可以用', () => {
@@ -538,9 +544,9 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(enrolledMapNote(areaEnrolled(), false)).toBe('')
   })
 
-  it('距離分布列：每帶一列，各班與合計；沒有座標寫出來', () => {
+  it('距離分布列：每帶一列，各班與合計；沒有距離的那列叫「無距離」（本校沒座標時全部歸這列）', () => {
     const rows = enrolledBandRows(areaEnrolled())
-    expect(rows.map((row) => row.band_label)).toEqual(['1 公里內', '1–3 公里', '3–6 公里', '6 公里以上', '沒有座標'])
+    expect(rows.map((row) => row.band_label)).toEqual(['1 公里內', '1–3 公里', '3–6 公里', '6 公里以上', '無距離'])
     expect(rows[0]).toMatchObject({ 小班: 1, 中班: 1, total: 2 })
   })
 

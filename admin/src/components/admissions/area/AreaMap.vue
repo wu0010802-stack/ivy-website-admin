@@ -258,9 +258,13 @@ function homesLines(properties: VillageProperties): HTMLParagraphElement[] {
   return lines
 }
 
-// 在籍學生模式的里彈出框：這個里依目前篩選的在籍人數。
+// 在籍學生模式的里彈出框：這個里依目前篩選的在籍人數。先用里代碼找；對不到代碼（後端對不到里界時
+// village_code 是 null）改用區名＋里名。
 function enrolledVillageLines(properties: VillageProperties): HTMLParagraphElement[] {
-  const row = props.enrolled?.villages.find((item) => item.village_code === properties.VILLCODE)
+  const villages = props.enrolled?.villages ?? []
+  const row =
+    villages.find((item) => item.village_code === properties.VILLCODE) ??
+    villages.find((item) => item.district === properties.TOWNNAME && item.village === properties.VILLNAME)
   const count = row ? pointCount(row.counts, props.gradeFilter) : 0
   return [popupLine(count ? `在籍 ${formatCount(count)} 位` : '這個里沒有在籍學生')]
 }

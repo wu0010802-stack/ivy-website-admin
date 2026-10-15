@@ -591,11 +591,13 @@ const UNPLACED_LABELS: Record<AreaEnrolled['unplaced'][number]['reason'], string
   unlocated: '對不到',
 }
 
-/** 圖例：「清冊 2026/10/15・115 學年班別・地圖上 180 位」，沒有點的另起一句（依篩選加總；0 就空字串）。 */
+/** 圖例：「清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 180 位」（沒有門牌版本就省略那一段），
+ * 沒有點的另起一句（依篩選加總；0 就空字串）。 */
 export function enrolledLegendText(data: AreaEnrolled, filter: GradeFilter): { lead: string; unplaced: string } {
   const date = (data.roster_date ?? '').replaceAll('-', '/')
   const onMap = data.points.reduce((sum, point) => sum + pointCount(point.counts, filter), 0)
-  const lead = `清冊 ${date}・${data.school_year} 學年班別・地圖上 ${formatCount(onMap)} 位`
+  const doorplate = data.doorplate_version ? `・門牌 ${doorplateVersionLabel(data.doorplate_version)}版` : ''
+  const lead = `清冊 ${date}・${data.school_year} 學年班別${doorplate}・地圖上 ${formatCount(onMap)} 位`
   const parts = data.unplaced
     .map((item) => ({ label: UNPLACED_LABELS[item.reason], count: pointCount(item.counts, filter) }))
     .filter((item) => item.count > 0)
@@ -612,19 +614,11 @@ export function enrolledMapNote(data: AreaEnrolled | null, failed: boolean): str
   return data?.status === 'not_imported' ? '尚未匯入在籍名冊。' : ''
 }
 
-const ENROLLED_BAND_LABELS: Record<string, string> = {
-  '0-1': '1 公里內',
-  '1-3': '1–3 公里',
-  '3-6': '3–6 公里',
-  '6+': '6 公里以上',
-  none: '沒有座標',
-}
-
 /** 距離分布表的列：每個距離帶一列，各班人數與合計。 */
 export function enrolledBandRows(data: AreaEnrolled): Record<string, string | number>[] {
   return data.distance_bands.map((item) => ({
     band: item.band,
-    band_label: ENROLLED_BAND_LABELS[item.band] ?? item.band,
+    band_label: bandLabel(item.band),
     ...Object.fromEntries(ENROLLED_GRADE_ORDER.map((grade) => [grade, item.counts[grade] ?? 0])),
     total: pointCount(item.counts, 'all'),
   }))

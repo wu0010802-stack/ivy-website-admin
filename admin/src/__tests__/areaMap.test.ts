@@ -1194,7 +1194,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     groups[1]!.vm.$emit('update:modelValue', '中班')
     expect(wrapper.emitted('update:gradeFilter')).toEqual([['中班']])
     const legend = wrapper.get('.area-legend--enrolled').text()
-    expect(legend).toContain('清冊 2026/10/15・115 學年班別・地圖上 4 位')
+    expect(legend).toContain('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 4 位')
     expect(legend).toContain('沒有點 1 位（只對到里 1）')
   })
 
@@ -1208,6 +1208,22 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     latest.options.onEachFeature({ properties: { TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' } }, village)
     const popup = village.bindPopup.mock.calls[0]![0]() as HTMLElement
     expect([...popup.children].map((node) => node.textContent)).toEqual(['三民區本揚里', '在籍 3 位'])
+  })
+
+  it('里的彈出框對不到代碼（village_code 是 null）時改用區名與里名找', async () => {
+    const base = areaEnrolled()
+    const villages = base.villages.map((row) => ({ ...row, village_code: null }))
+    const wrapper = await mountMap({ enrolled: areaEnrolled({ villages }) })
+    await choose(wrapper, 'enrolled')
+    const latest: any = leaflet.created.geoJSON!.at(-1)
+    const popupOf = (properties: Record<string, string>) => {
+      const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+      latest.options.onEachFeature({ properties }, village)
+      return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
+    }
+    expect(popupOf({ TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' })).toEqual(['三民區本揚里', '在籍 3 位'])
+    // 區名相同、里名不同，或里名相同、區名不同，都不算同一個里。
+    expect(popupOf({ TOWNNAME: '左營區', VILLNAME: '本揚里', VILLCODE: '64000030099' })).toEqual(['左營區本揚里', '這個里沒有在籍學生'])
   })
 
   it('顏色走 token（style.css 的 --area-enrolled），元件裡不寫色碼', () => {
