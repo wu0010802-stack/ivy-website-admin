@@ -12,11 +12,14 @@ import {
 } from '../../admissions/journeyFormat'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { csvFilename } from '../../utils/csv'
 
 // 預約全程（2026-10-15 規格 §3.3）：同一批預約案件（預定參觀日在期間內、已過參觀時間）從預約到預繳、註冊的人數與
 // 各段天數，以及家庭離開的時點。校區跟頁首；期間不看入學學年學期，所以學年學期下拉在這頁停用、期間在這裡選；
 // 期間與來源由父層放在網址（filter）。只呈現後端算好的數字，不預測。
-const props = defineProps<{ campusKey: string; csvName: (title: string) => string }>()
+// 匯出檔名自己組（不用招生統計共用的：那個帶入學學年學期，這頁不分學年學期）：招生統計-預約全程-表名-校區-起至迄[-來源]，
+// 起迄與來源取回應的 filters（資料實際涵蓋的日期，迄日可能被截到今天），不取畫面上的篩選值。
+const props = defineProps<{ campusKey: string }>()
 const filter = defineModel<JourneyFilter>('filter', { default: () => ({ ...DEFAULT_JOURNEY_FILTER }) })
 
 const data = ref<AdmissionsJourney | null>(null)
@@ -92,6 +95,16 @@ const coverage = computed(() => {
   ].filter(Boolean).join('')
 })
 
+function csvName(table: string): string {
+  const filters = data.value?.filters
+  const source = filters ? JOURNEY_SOURCES.find((option) => option.value === filters.source) : undefined
+  return csvFilename(
+    '招生統計', '預約全程', table, campusLabel(props.campusKey),
+    filters ? `${filters.date_from}至${filters.date_to}` : '',
+    source && source.value !== 'all' ? source.label : '',
+  )
+}
+
 function setPeriod(value: string | number | boolean | undefined) {
   const period = JOURNEY_PERIODS.find((option) => option.value === value)?.value
   if (period) filter.value = { ...filter.value, period, ...(period === 'custom' ? {} : { from: '', to: '' }) }
@@ -111,7 +124,7 @@ function setSource(value: string | number | boolean | undefined) {
           <el-option v-for="option in JOURNEY_PERIODS" :key="option.value" :label="option.label" :value="option.value" />
         </el-select>
       </label>
-      <label v-if="filter.period === 'custom'" class="filter-field">
+      <label v-if="filter.period === 'custom'" class="filter-field journey-range">
         <span>自訂區間</span>
         <el-date-picker
           v-model="customRange" type="daterange" value-format="YYYY-MM-DD" format="YYYY/MM/DD" unlink-panels :single-panel="narrow"
@@ -151,6 +164,12 @@ function setSource(value: string | number | boolean | undefined) {
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
+  min-width: 0;
+}
+
+/* 日期區間選單預設固定 350px（--el-date-editor-daterange-width），窄螢幕要自己讓它縮。 */
+.journey-range :deep(.el-date-editor) {
+  max-width: 100%;
 }
 
 .journey-body {
@@ -175,6 +194,15 @@ function setSource(value: string | number | boolean | undefined) {
 @media (max-width: 720px) {
   .journey-controls > * {
     max-width: 100%;
+  }
+
+  .journey-controls .filter-field {
+    flex-basis: 100%;
+  }
+
+  .journey-controls .filter-field :deep(.el-select),
+  .journey-controls .filter-field :deep(.el-date-editor) {
+    width: 100%;
   }
 }
 </style>

@@ -33,7 +33,7 @@ vi.mock('../components/admissions/JourneyTab.vue', async () => {
   return {
     default: defineComponent({
       name: 'JourneyTab',
-      props: ['campusKey', 'filter', 'csvName'],
+      props: ['campusKey', 'filter'],
       emits: ['update:filter'],
       setup: () => () => h('div', { class: 'journey-tab-stub' }),
     }),

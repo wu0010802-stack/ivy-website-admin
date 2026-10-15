@@ -24,7 +24,7 @@ async function mountJourney(changes: Record<string, unknown> = {}, data: unknown
   vi.setSystemTime(new Date(FROZEN))
   const get = mockGet({ '/admin/admissions/journey': data })
   const mounted = await mountWith(JourneyTab, {
-    props: { campusKey: 'yihua', filter: { ...DEFAULT_JOURNEY_FILTER }, csvName: (title: string) => `招生統計-${title}.csv`, ...changes },
+    props: { campusKey: 'yihua', filter: { ...DEFAULT_JOURNEY_FILTER }, ...changes },
   })
   await flushPromises()
   return { ...mounted, get }
@@ -118,7 +118,7 @@ describe('預約全程', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(FROZEN))
     mockGet({ '/admin/admissions/journey': () => { throw new Error('boom') } })
-    const { wrapper } = await mountWith(JourneyTab, { props: { campusKey: 'yihua', filter: { ...DEFAULT_JOURNEY_FILTER }, csvName: (t: string) => t } })
+    const { wrapper } = await mountWith(JourneyTab, { props: { campusKey: 'yihua', filter: { ...DEFAULT_JOURNEY_FILTER } } })
     await flushPromises()
     expect(wrapper.text()).toContain('無法讀取預約全程，請重新載入')
     expect(wrapper.findAll('.stats-block')).toHaveLength(0)
@@ -140,11 +140,23 @@ describe('預約全程', () => {
     expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(0)
   })
 
-  it('匯出 CSV：每張表一個檔名，只有聚合數字', async () => {
+  it('匯出 CSV：每張表一個檔名，只有聚合數字；檔名帶校區與資料涵蓋的起訖日，不帶入學學年學期', async () => {
     const { wrapper } = await mountJourney()
     await block(wrapper, '全程漏斗').get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
-    expect(filename).toBe('招生統計-全程漏斗.csv')
+    expect(filename).toBe('招生統計-預約全程-全程漏斗-義華-2026-07-17至2026-10-15.csv')
     expect(csv.slice(1).split('\r\n')[0]).toBe('階段,人數,比率')
+    await block(wrapper, '取消時點（距參觀日）').get('[data-test="stats-csv"]').trigger('click')
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![0]).toBe('招生統計-預約全程-取消時點（距參觀日）-義華-2026-07-17至2026-10-15.csv')
+  })
+
+  it('匯出 CSV：起訖日取回應的 filters（迄日被截到今天時以截過的為準）；來源不是全部時檔名最後加來源', async () => {
+    const data = journeyData()
+    const { wrapper } = await mountJourney(
+      { filter: { period: '90', from: '', to: '', source: 'web' } },
+      journeyData({ filters: { ...data.filters, date_to: '2026-10-14', source: 'web' } }),
+    )
+    await block(wrapper, '全程漏斗').get('[data-test="stats-csv"]').trigger('click')
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![0]).toBe('招生統計-預約全程-全程漏斗-義華-2026-07-17至2026-10-14-官網預約.csv')
   })
 })

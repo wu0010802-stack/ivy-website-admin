@@ -294,7 +294,7 @@ const noDepositKpis = computed(() => {
       </div>
     </template>
 
-    <el-tabs v-if="stats || failed || ownDataSub" v-loading="loading && !ownDataSub":model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
+    <el-tabs v-if="stats || failed || ownDataSub" v-loading="loading && !ownDataSub" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
       <el-tab-pane label="總覽" name="stats-overview">
         <template v-if="stats">
           <StatsOverview v-if="hasData" :stats="stats" :csv-name="csvName" @navigate="navigate">
@@ -462,7 +462,7 @@ const noDepositKpis = computed(() => {
       </el-tab-pane>
 
       <el-tab-pane label="預約全程" name="stats-journey" lazy>
-        <JourneyTab v-model:filter="journey" :campus-key="campusKey" :csv-name="csvName" />
+        <JourneyTab v-model:filter="journey" :campus-key="campusKey" />
       </el-tab-pane>
     </el-tabs>
   </section>
