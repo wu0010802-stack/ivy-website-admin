@@ -8,7 +8,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import type {
-  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaTrends,
   UserOut, VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -304,7 +304,8 @@ export const kindergarten = (changes: Partial<AreaKindergarten> = {}): AreaKinde
   return {
     source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', pre_public_period: null, address: '義華路12號',
     ...northOfCampus(distance_m), distance_m, approved_capacity: 120, monthly_fee_estimate: 9800, has_penalty: false,
-    phone: '(07)3800000', is_own: false, ...changes,
+    phone: '(07)3800000', is_own: false,
+    indoor_m2_per_child: null, outdoor_m2_per_child: null, has_shuttle: null, after_school_capacity: null, ...changes,
   } satisfies AreaKindergarten
 }
 
@@ -316,7 +317,7 @@ export const areaKindergartens = (items: AreaKindergarten[] = [
   kindergarten({ source_id: 'kg-nonprofit', name: '高雄市三民區小芽非營利幼兒園', kind: 'nonprofit', distance_m: 1800, monthly_fee_estimate: null }),
 ], changes: Partial<AreaKindergartens> = {}): AreaKindergartens => ({
   synced_at: '2026-10-07T18:30:00Z',
-  source_note: '資料來源：全國教保資訊網（kiang 整理），月費為估計值',
+  source_note: '資料來源：全國教保資訊網（kiang 整理）',
   campus: areaStats().campus,
   radius_km: 3,
   items,
@@ -328,7 +329,8 @@ export const babycareItem = (changes: Partial<AreaBabycareItem> = {}): AreaBabyc
   const distance_m = changes.distance_m ?? 520
   return {
     source_id: 'bc-center', name: '高雄市私立小星星托嬰中心', kind: 'center', address: '高雄市三民區義華路20號',
-    ...northOfCampus(distance_m), distance_m, approved_capacity: 40, enrolled: 32, phone: '07-3801000', ...changes,
+    ...northOfCampus(distance_m), distance_m, approved_capacity: 40, enrolled: 32, phone: '07-3801000',
+    monthly_fee: null, fee_note: null, evaluation_grade: null, evaluation_year: null, quasi_public: null, ...changes,
   } satisfies AreaBabycareItem
 }
 
@@ -346,6 +348,7 @@ export const areaBabycare = (items: AreaBabycareItem[] = [
     count: items.length,
     approved_total: items.reduce((sum, item) => sum + (item.approved_capacity ?? 0), 0),
     enrolled_total: items.reduce((sum, item) => sum + (item.enrolled ?? 0), 0),
+    fee_count: 0, fee_median: null, fee_min: null, fee_max: null, own_age2_monthly: null, fee_school_year: null,
   },
   items,
   ...changes,
@@ -424,3 +427,58 @@ export function areaEnrolled(changes: Partial<AreaEnrolled> = {}): AreaEnrolled 
     ...changes,
   }
 }
+
+export const feeItems = (changes: Partial<AreaFeeItems> = {}): AreaFeeItems => ({
+  tuition: null, misc_fee: null, materials: null, activities: null, lunch: null, snack: null, after_care_monthly: null, ...changes,
+})
+
+export const peerFeeSchool = (changes: Partial<AreaPeerFeeSchool> = {}): AreaPeerFeeSchool => ({
+  source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', distance_m: 420, is_own: false,
+  semester_total: 75000, monthly_average: 13636, items: feeItems({ tuition: 15000 }), transport_note: null, ...changes,
+})
+
+/** 和 areaKindergartens() 同一批園所（kg-own、kg-public、kg-quasi 有收費，kg-nonprofit 沒有），再加三所私立同業。 */
+export const areaPeerFees = (changes: Partial<AreaPeerFees> = {}): AreaPeerFees => ({
+  campus: areaStats().campus,
+  radius_km: 3,
+  age: 3,
+  school_year: 114,
+  current_school_year: 115,
+  synced_at: '2026-10-15T03:00:00Z',
+  source_note: '資料來源：全國教保資訊網（kiang 整理），園所公告收費',
+  own: {
+    source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', semester_total: 89750, months: 5.5, monthly_average: 16318,
+    items: feeItems({ tuition: 19900, misc_fee: 5500, materials: 24750, activities: 23100, lunch: 8250, snack: 8250, after_care_monthly: 1200 }),
+    transport_note: '單 770 雙 1540',
+  },
+  own_missing: null,
+  groups: [
+    { kind: 'private', schools: 4, with_fee: 3, median: 75000, lowest: 40200, highest: 93000, own_rank: 2, rank_total: 4 },
+    { kind: 'quasi_public', schools: 1, with_fee: 1, median: null, lowest: 63190, highest: 63190, own_rank: null, rank_total: null },
+    { kind: 'public', schools: 1, with_fee: 1, median: null, lowest: 17965, highest: 17965, own_rank: null, rank_total: null },
+    { kind: 'nonprofit', schools: 1, with_fee: 0, median: null, lowest: null, highest: null, own_rank: null, rank_total: null },
+  ],
+  items: [
+    { key: 'tuition', own: 19900, peer_median: 15000, peer_count: 3 },
+    { key: 'misc_fee', own: 5500, peer_median: 21300, peer_count: 3 },
+    { key: 'materials', own: 24750, peer_median: 11000, peer_count: 3 },
+    { key: 'activities', own: 23100, peer_median: 9900, peer_count: 3 },
+    { key: 'lunch', own: 8250, peer_median: 7500, peer_count: 3 },
+    { key: 'snack', own: 8250, peer_median: null, peer_count: 2 },
+    { key: 'after_care_monthly', own: 1200, peer_median: 1200, peer_count: 3 },
+  ],
+  schools: [
+    peerFeeSchool({
+      source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', distance_m: 0, is_own: true, semester_total: 89750, monthly_average: 16318,
+      items: feeItems({ tuition: 19900, misc_fee: 5500, materials: 24750, activities: 23100, lunch: 8250, snack: 8250, after_care_monthly: 1200 }),
+      transport_note: '單 770 雙 1540',
+    }),
+    peerFeeSchool({ source_id: 'kg-p1', name: '高雄市私立甲幼兒園', distance_m: 300, semester_total: 75000, monthly_average: 13636 }),
+    peerFeeSchool({ source_id: 'kg-public', name: '高雄市立大樹幼兒園', kind: 'public', distance_m: 380, semester_total: 17965, monthly_average: 3266 }),
+    peerFeeSchool({ source_id: 'kg-p2', name: '高雄市私立乙幼兒園', distance_m: 600, semester_total: 93000, monthly_average: 16909 }),
+    peerFeeSchool({ source_id: 'kg-p3', name: '高雄市私立丙幼兒園', distance_m: 900, semester_total: 40200, monthly_average: null }),
+    peerFeeSchool({ source_id: 'kg-quasi', name: '高雄市私立小草幼兒園', kind: 'quasi_public', distance_m: 950, semester_total: 63190, monthly_average: 11489 }),
+    peerFeeSchool({ source_id: 'kg-p4', name: '高雄市私立丁幼兒園', distance_m: 1200, semester_total: null, monthly_average: null, items: feeItems() }),
+  ],
+  ...changes,
+})
