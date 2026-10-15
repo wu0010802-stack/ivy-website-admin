@@ -308,3 +308,44 @@ async def lock_is_free(app) -> bool:
             return bool(got)
     finally:
         await fresh.dispose()
+
+
+# ---- 幼兒園收費檔（2026-10-15 附近同業比較）----
+# 鍵與 kiang 的 slip{學年}/高雄市/<園名>.json 相同；數字取自本校（常春藤幼兒園）114 學年的真實檔，
+# 檔頭只留園名（真實檔頭有負責人姓名，程式本來就不讀）。各項都放小計，延托放每月單價。
+SLIP_ITEMS = {"學費": "學期", "雜費": "學期", "材料費": "月", "活動費": "月", "午餐費": "月", "點心費": "月"}
+SAMPLE_TRANSPORT = "單\r\n\t\t\t\t\t\t\t        770\r\n\t\t\t\t\t\t\t        雙\r\n\t\t\t\t\t\t\t        1540"
+YIHUA_FEES = {
+    2: (105950, {"學費": 21800, "雜費": 5500, "材料費": 31900, "活動費": 30250, "午餐費": 8250, "點心費": 8250}),
+    3: (89750, {"學費": 19900, "雜費": 5500, "材料費": 24750, "活動費": 23100, "午餐費": 8250, "點心費": 8250}),
+    4: (89750, {"學費": 19900, "雜費": 5500, "材料費": 24750, "活動費": 23100, "午餐費": 8250, "點心費": 8250}),
+    5: (74650, {"學費": 19000, "雜費": 4500, "材料費": 19800, "活動費": 18150, "午餐費": 6600, "點心費": 6600}),
+}
+
+
+def slip_class(*, total: object, items: dict[str, object] | None = None, after_care: object = 1200, transport: str = "") -> dict:
+    """一個班別的收費表。沒給的項目留空字串（真實檔沒有開的班別就是整張空白）。"""
+
+    def entry(period: str, price: object, subtotal: object) -> dict:
+        return {"收費期間": period, "單價": "" if price is None else str(price), "小計": "" if subtotal is None else str(subtotal)}
+
+    table = {name: entry(period, (items or {}).get(name), (items or {}).get(name)) for name, period in SLIP_ITEMS.items()}
+    table["全學期總收費"] = entry("學期", total, total)
+    table["交通費"] = {"收費期間": "單趟\r\n                                            雙趟", "單價": transport, "小計": ""}
+    table["課後延托費"] = entry("月", after_care, None)
+    table["家長會費"] = entry("", None, None)
+    return table
+
+
+def sample_slip(*, blank_first_term: tuple[int, ...] = (5,), totals: dict[int, int] | None = None) -> dict:
+    """本校收費檔的形狀。blank_first_term 的年齡上學期全空、只有下學期有（測試退回下學期）；totals 可以改各年齡總價。"""
+    slip: dict[str, dict] = {}
+    for age, (total, items) in YIHUA_FEES.items():
+        total = (totals or {}).get(age, total)
+        full = slip_class(total=total, items=items, after_care=1500 if age == 5 else 1200, transport=SAMPLE_TRANSPORT)
+        empty = slip_class(total=None, after_care=None)
+        slip[str(age)] = {
+            "上學期": {"months": "5.5", "class": {"半日班": empty, "全日班": empty if age in blank_first_term else full}},
+            "下學期": {"months": "5.5", "class": {"半日班": empty, "全日班": full}},
+        }
+    return {"meta": {"title": "高雄市私立常春藤幼兒園"}, "slip": slip}
