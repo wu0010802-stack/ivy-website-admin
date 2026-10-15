@@ -4,18 +4,28 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import smtplib
+import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import select, text
 
 from app.admissions.geo.models import DATASETS, GeoDatasetStatus
+from app.auth.models import Role
 from app.booking.models import OutboxMessage, OutboxStatus
 from app.content.models import ContentItem, ContentRevision, PublishJob
 from app.media.models import MediaJob, MediaStatus
-from app.operations import system_status
-from tests.conftest import legacy_request
+from app.notifications.email_adapter import EmailNotConfigured
+from app.common import ratelimit
+from app.operations import audit_service, system_status
+from app.operations.models import AuditLogEntry
+from tests.conftest import _create_user, _logged_in_client, freeze_rate_limit_clock, legacy_request
 from tests.test_media_list_paging import _asset
 
 NOW = datetime(2026, 10, 15, 4, 0, tzinfo=timezone.utc)
@@ -181,6 +191,9 @@ async def test_geo_loop_levels(app):
     # 剛啟動、第一輪還沒跑完（30 秒後才開始）：不算停擺。
     fresh = system_status.geo_loop_item(settings, _geo_loop(started=NOW - timedelta(minutes=1)), NOW)
     assert fresh.level == "ok"
+    # 對照：啟動已超過門檻（3 天）卻還沒有任何一輪結果，不能一直當「剛啟動」放過。
+    never_ran = system_status.geo_loop_item(settings, _geo_loop(started=NOW - timedelta(days=3)), NOW)
+    assert never_ran.level == "attention" and never_ran.detail["stalled"] is True
 
 
 async def test_media_failed_assets_are_attention_but_deleted_ones_are_not(app, db_session):
@@ -358,12 +371,17 @@ async def test_build_status_counts_attention_and_hides_datasets_when_admissions_
     off = _settings(
         app, environment="production", smtp_host=None, notification_email_sink_dir=None,
         background_jobs_interval_seconds=0, media_video_processing="inline", admissions_enabled=False,
+        geo_auto_sync=False,
     )
     status = await system_status.build_status(db_session, state, off, NOW)
     assert status.datasets is None
     assert status.attention_count == 1  # 只有寄信沒設
     on = await system_status.build_status(
-        db_session, state, _settings(app, admissions_enabled=True, background_jobs_interval_seconds=0, media_video_processing="inline"), NOW,
+        db_session, state,
+        _settings(
+            app, admissions_enabled=True, geo_auto_sync=False, background_jobs_interval_seconds=0, media_video_processing="inline",
+        ),
+        NOW,
     )
     assert on.datasets is not None and len(on.datasets) == len(DATASETS) - 1
     assert on.generated_at == NOW
@@ -381,3 +399,249 @@ async def test_build_status_downgrades_stale_datasets_when_auto_sync_is_off(app,
     assert _by_key(off.datasets)["population"].level == "info"
     on = await system_status.build_status(db_session, state, _settings(app, geo_auto_sync=True, **quiet), NOW)
     assert _by_key(on.datasets)["population"].level == "attention"
+
+
+# --- API、權限、測試信、總覽（Task 2） --------------------------------------------
+
+STATUS = "/api/website/v1/admin/system-status"
+TEST_EMAIL = f"{STATUS}/test-email"
+DASHBOARD = "/api/website/v1/admin/dashboard"
+
+
+async def test_only_super_admin_can_read_system_status(app, admin_client, minghua_client, public_client, db_session):
+    ok = await admin_client.get(STATUS)
+    assert ok.status_code == 200, ok.text
+    assert {"generated_at", "attention_count", "services", "background", "datasets", "notifications"} <= ok.json().keys()
+    assert (await minghua_client.get(STATUS)).status_code == 403
+    assert (await minghua_client.post(TEST_EMAIL)).status_code == 403
+    await _create_user(db_session, "desk-status@ivy.example", "desk-status-password-1", Role.RECEPTION, ["yihua"])
+    desk = await _logged_in_client(app, "desk-status@ivy.example", "desk-status-password-1")
+    try:
+        assert (await desk.get(STATUS)).status_code == 403
+        assert (await desk.post(TEST_EMAIL)).status_code == 403
+    finally:
+        await desk.aclose()
+    assert (await public_client.get(STATUS)).status_code == 401
+
+
+async def test_status_response_never_contains_secrets(app, admin_client):
+    secrets = {
+        "smtp_username": "smtp-user-should-not-leak",
+        "smtp_password": "smtp-pass-should-not-leak",
+        "line_messaging_channel_secret": "line-secret-should-not-leak",
+        "line_messaging_access_token": "line-token-should-not-leak",
+        "turnstile_secret_key": "turnstile-secret-should-not-leak",
+        "google_client_secret": "google-secret-should-not-leak",
+        "line_channel_secret": "line-login-secret-should-not-leak",
+        "s3_secret_access_key": "s3-secret-should-not-leak",
+    }
+    app.state.settings = _settings(app, **{
+        **secrets,
+        "smtp_host": "smtp.example.com",
+        "smtp_from": "noreply@ivy.example",
+        "turnstile_site_key": "site-key",
+        "google_client_id": "google-id",
+        "google_redirect_uri": "https://admin.example/api/website/v1/auth/google/callback",
+    })
+    response = await admin_client.get(STATUS)
+    assert response.status_code == 200, response.text
+    for value in secrets.values():
+        assert value not in response.text
+    smtp = next(item for item in response.json()["services"] if item["key"] == "smtp")
+    assert smtp == {"key": "smtp", "level": "ok", "detail": {"host": "smtp.example.com", "port": 587, "security": "starttls", "sender": "noreply@ivy.example"}}
+
+
+async def test_dashboard_has_system_attention_only_for_super_admin(admin_client, minghua_client):
+    mine = await admin_client.get(DASHBOARD)
+    assert mine.status_code == 200, mine.text
+    assert isinstance(mine.json()["system_attention"], int)
+    theirs = await minghua_client.get(DASHBOARD)
+    assert theirs.json()["system_attention"] is None
+
+
+async def test_dashboard_survives_a_failing_system_status(admin_client, monkeypatch):
+    # 對照：沒壞的時候總管理者拿得到數字，下面壞掉之後才有「None 是因為查詢失敗」的意義。
+    assert isinstance((await admin_client.get(DASHBOARD)).json()["system_attention"], int)
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("模擬系統狀態查詢失敗")
+
+    monkeypatch.setattr(system_status, "build_status", broken)
+    response = await admin_client.get(DASHBOARD)
+    assert response.status_code == 200, response.text
+    assert response.json()["system_attention"] is None
+    assert "today_visits" in response.json()
+
+
+@pytest.fixture
+def mailer(monkeypatch, recording_mail_adapter):
+    monkeypatch.setattr(system_status, "mail_adapter", lambda settings: recording_mail_adapter)
+    return recording_mail_adapter
+
+
+async def _test_email_audits(db_session) -> list[AuditLogEntry]:
+    rows = await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "system.test_email"))
+    return list(rows.scalars())
+
+
+async def test_test_email_goes_to_my_own_address_and_is_audited(admin_client, db_session, mailer):
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True, "error": None}
+    [mail] = mailer.sent
+    assert mail["to"] == "admin@ivy.example"
+    assert mail["subject"] == "【常春藤官網後台】測試信"
+    assert "寄出時間" in mail["body"]
+    [entry] = await _test_email_audits(db_session)
+    assert entry.metadata_json == {"result": "sent"}
+    assert entry.target_type == "user"
+
+
+@pytest.mark.parametrize(
+    ("make_error", "kind"),
+    [
+        (lambda: smtplib.SMTPAuthenticationError(535, b"bad credentials"), "auth_failed"),
+        (lambda: smtplib.SMTPRecipientsRefused({"admin@ivy.example": (550, b"no such user")}), "rejected"),
+        (lambda: smtplib.SMTPSenderRefused(553, b"sender", "noreply@ivy.example"), "rejected"),
+        (lambda: smtplib.SMTPConnectError(421, b"busy"), "connect_failed"),
+        (lambda: ConnectionRefusedError(), "connect_failed"),
+        (lambda: TimeoutError(), "timeout"),
+        (lambda: RuntimeError("?"), "other"),
+    ],
+)
+async def test_test_email_failure_reports_a_kind_not_the_raw_error(admin_client, db_session, monkeypatch, make_error, kind):
+    error = make_error()
+
+    class _Failing:
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            raise error
+
+    monkeypatch.setattr(system_status, "mail_adapter", lambda settings: _Failing())
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": False, "error": kind}
+    [entry] = await _test_email_audits(db_session)
+    assert entry.metadata_json == {"result": "failed", "error_code": type(error).__name__}
+    assert "admin@ivy.example" not in str(entry.metadata_json)
+
+
+async def test_test_email_times_out(admin_client, db_session, monkeypatch):
+    class _Slow:
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            time.sleep(0.5)
+
+    monkeypatch.setattr(system_status, "mail_adapter", lambda settings: _Slow())
+    monkeypatch.setattr(system_status, "TEST_EMAIL_TIMEOUT_SECONDS", 0.05)
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.json() == {"ok": False, "error": "timeout"}
+    [entry] = await _test_email_audits(db_session)
+    assert entry.metadata_json == {"result": "failed", "error_code": "TimeoutError"}
+
+
+async def test_test_email_without_any_mail_channel_is_409(admin_client, monkeypatch):
+    def _none(settings):
+        raise EmailNotConfigured("沒有寄信管道")
+
+    monkeypatch.setattr(system_status, "mail_adapter", _none)
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "EMAIL_NOT_CONFIGURED"
+
+
+async def test_test_email_outside_production_can_use_the_local_sink(app, admin_client, tmp_path):
+    sink = tmp_path / "sink"
+    app.state.settings = _settings(app, environment="development", smtp_host=None, notification_email_sink_dir=str(sink))
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True, "error": None}
+    [written] = sink.glob("*.json")
+    assert json.loads(written.read_text(encoding="utf-8"))["to"] == "admin@ivy.example"
+
+
+async def test_test_email_in_production_without_smtp_is_409_even_with_a_sink(app, admin_client, tmp_path):
+    # 正式站沒設 SMTP 時，信不能默默寫進本機資料夾卻回「已寄出」（對照：上一個測試，非 production 可以用 sink）。
+    sink = tmp_path / "sink"
+    app.state.settings = _settings(app, environment="production", smtp_host=None, notification_email_sink_dir=str(sink))
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["code"] == "EMAIL_NOT_CONFIGURED"
+    assert not sink.exists()
+
+
+async def test_test_email_outside_production_without_smtp_or_sink_is_409(app, admin_client):
+    app.state.settings = _settings(app, environment="development", smtp_host=None, notification_email_sink_dir=None)
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"]["code"] == "EMAIL_NOT_CONFIGURED"
+
+
+async def test_test_email_is_limited_to_three_per_ten_minutes(app, admin_client, mailer):
+    freeze_rate_limit_clock(app)
+    for _ in range(3):
+        assert (await admin_client.post(TEST_EMAIL)).status_code == 200
+    blocked = await admin_client.post(TEST_EMAIL)
+    assert blocked.status_code == 429
+    assert int(blocked.headers["retry-after"]) > 0
+    # 錯誤本文的 detail 另帶 request_id（main.py _error_body），只比對 code 與 message。
+    detail = blocked.json()["detail"]
+    assert (detail["code"], detail["message"]) == ("TEST_EMAIL_RATE_LIMITED", "測試信寄太多次了，請 10 分鐘後再試")
+    assert len(mailer.sent) == 3
+
+
+async def test_test_email_says_busy_when_the_rate_limiter_has_no_connection(app, admin_client, mailer, monkeypatch):
+    async def unavailable(limit, key):
+        raise ratelimit.RateLimiterUnavailable(5)
+
+    monkeypatch.setattr(app.state.rate_limiter, "check", unavailable)
+    response = await admin_client.post(TEST_EMAIL)
+    assert response.status_code == 429
+    assert response.json()["detail"]["code"] == "TEST_EMAIL_BUSY"
+    assert response.headers["retry-after"] == "5"
+    assert mailer.sent == []
+
+
+async def test_test_email_does_not_hold_a_db_transaction_while_smtp_is_slow(admin_client, db_session, monkeypatch):
+    # 寄信可以等 20 秒；這段時間請求的資料庫連線不能卡在「交易中」。寄信執行緒卡住時，從另一條連線看
+    # pg_stat_activity 有沒有 idle in transaction。
+    started, release = threading.Event(), threading.Event()
+
+    class _Blocking:
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            started.set()
+            release.wait(timeout=10)
+
+    monkeypatch.setattr(system_status, "mail_adapter", lambda settings: _Blocking())
+
+    async def idle_in_transaction() -> list[str]:
+        try:
+            while not started.is_set():
+                await asyncio.sleep(0.01)
+            rows = await db_session.execute(text(
+                "SELECT state FROM pg_stat_activity WHERE datname = current_database() "
+                "AND pid <> pg_backend_pid() AND state LIKE 'idle in transaction%'"
+            ))
+            return list(rows.scalars())
+        finally:
+            release.set()
+
+    response, held = await asyncio.wait_for(asyncio.gather(admin_client.post(TEST_EMAIL), idle_in_transaction()), timeout=30)
+    assert response.json() == {"ok": True, "error": None}
+    assert started.is_set()
+    assert held == []
+
+
+async def test_test_email_result_survives_an_audit_write_failure(admin_client, db_session, mailer, monkeypatch):
+    # 對照：正常寄一封有一筆紀錄。
+    assert (await admin_client.post(TEST_EMAIL)).json() == {"ok": True, "error": None}
+    assert len(await _test_email_audits(db_session)) == 1
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("模擬操作紀錄寫入失敗")
+
+    monkeypatch.setattr(audit_service, "log_action", broken)
+    response = await admin_client.post(TEST_EMAIL)
+    # 信已經寄出，紀錄寫不進去不能讓畫面說「沒寄成功」。
+    assert response.status_code == 200, response.text
+    assert response.json() == {"ok": True, "error": None}
+    assert len(mailer.sent) == 2
+    assert len(await _test_email_audits(db_session)) == 1

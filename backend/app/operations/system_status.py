@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import smtplib
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
@@ -21,11 +22,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.geo import providers
 from app.admissions.geo.models import DATASETS, GeoDatasetStatus
 from app.admissions.geo.sync import REFRESH_AFTER
+from app.common import ratelimit
+from app.common.timezones import OPERATING_TZ
 from app.config import Settings
 from app.content.models import ContentItem, PublishJob
 from app.content.publish_jobs import unresolved_condition
 from app.media.models import MediaAsset, MediaJob, MediaStatus
 from app.notifications import outbox_admin
+from app.notifications.email_adapter import EmailAdapter, EmailNotConfigured, get_email_adapter
 from app.operations.models import RetentionPolicy
 
 Level = Literal["ok", "attention", "info", "off"]
@@ -274,3 +278,61 @@ async def build_status(db: AsyncSession, state: Any, settings: Settings, now: da
         datasets=datasets,
         notifications=notifications,
     )
+
+
+# --- 測試信（規格 §3.4） -------------------------------------------------------------
+
+# 每位使用者 10 分鐘 3 封。
+TEST_EMAIL_LIMIT = ratelimit.Limit("system_test_email", 600, 3)
+TEST_EMAIL_TIMEOUT_SECONDS = 20.0
+TEST_EMAIL_SUBJECT = "【常春藤官網後台】測試信"
+SystemEmailTestError = Literal["not_configured", "auth_failed", "connect_failed", "rejected", "timeout", "other"]
+
+
+class SystemEmailTestOut(BaseModel):
+    ok: bool
+    error: SystemEmailTestError | None = None
+
+
+def mail_adapter(settings: Settings) -> EmailAdapter:
+    """寄測試信用的 adapter；沒有可用的寄信管道時丟 EmailNotConfigured。測試以 monkeypatch 換掉
+    （比照 auth/password_reset.mail_adapter）。
+
+    正式環境只認 SMTP：沒設 SMTP 時就算有 sink 資料夾也不寫檔，否則畫面會說「已寄出」，信卻只是
+    躺在伺服器的資料夾裡（比照 password_reset.email_enabled）。"""
+    if settings.environment == "production" and not settings.smtp_host:
+        raise EmailNotConfigured("正式環境沒有設定 SMTP")
+    return get_email_adapter(settings.notification_email_sink_dir, settings)
+
+
+def build_test_email(settings: Settings, now: datetime) -> tuple[str, str]:
+    local = now.astimezone(OPERATING_TZ)
+    body = "\n".join(
+        [
+            "這是從官網後台「系統狀態」寄出的測試信。",
+            f"寄出時間：{local:%Y-%m-%d %H:%M}（台北）",
+            f"環境：{settings.environment}",
+            "",
+            "收到這封信，代表後台的寄信設定可以把信寄出去。",
+            "這封信由系統自動寄出，請勿直接回覆。",
+        ]
+    )
+    return TEST_EMAIL_SUBJECT, body
+
+
+def classify_email_error(exc: BaseException) -> SystemEmailTestError:
+    """例外類型 → 給畫面看的原因；不回傳原始錯誤訊息（可能含伺服器回應與地址）。
+    smtplib 的例外都是 OSError 的子類別，所以先判斷 SMTP 專屬的，再判斷一般連線錯誤。"""
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return "auth_failed"
+    if isinstance(exc, (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError)):
+        return "rejected"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    if isinstance(exc, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected)):
+        return "connect_failed"
+    if isinstance(exc, smtplib.SMTPException):
+        return "other"
+    if isinstance(exc, OSError):
+        return "connect_failed"
+    return "other"

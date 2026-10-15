@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import uuid
 from datetime import date, datetime, timezone
 from typing import Literal
@@ -25,6 +27,7 @@ from app.auth.permissions import (
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.common.timezones import local_day_bounds_utc, now_utc, today_local
+from app.notifications.email_adapter import EmailNotConfigured
 from app.notifications.models import UserNotification
 from app.operations import (
     analytics_service,
@@ -33,6 +36,7 @@ from app.operations import (
     dashboard_service,
     public_caps,
     retention_service,
+    system_status,
     traffic_service,
 )
 from app.operations.models import (
@@ -42,6 +46,8 @@ from app.operations.models import (
     RetentionPolicy,
     RetentionRunTrigger,
 )
+
+logger = logging.getLogger("app.operations")
 
 router = APIRouter(prefix="/api/website/v1", tags=["operations"])
 
@@ -219,6 +225,18 @@ async def get_dashboard(
         by_campus = await admissions_follow_up.due_counts(db, campus_keys)
         summary["admissions_follow_up_due"] = sum(by_campus.values())
         summary["admissions_follow_up_due_by_campus"] = by_campus
+    # 系統狀態（2026-10-15）：只有總管理者有這個數字，其他人一律 None。查詢失敗不能拖垮總覽
+    # （後台切回這個分頁、距上次讀取超過 30 秒就會重讀，計畫裁定 P10）：記下錯誤、回 None。
+    # 放在最後，前面的數字都已經算好。
+    summary["system_attention"] = None
+    if has_capability(current_user, "system.status"):
+        try:
+            status_now = await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+        except Exception:  # noqa: BLE001
+            logger.exception("營運總覽：系統狀態查詢失敗")
+            await db.rollback()
+        else:
+            summary["system_attention"] = status_now.attention_count
     return summary
 
 
@@ -836,3 +854,79 @@ async def list_retention_runs(
         )
         for run in runs
     ]
+
+
+@router.get("/admin/system-status", response_model=system_status.SystemStatusOut)
+async def get_system_status(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> system_status.SystemStatusOut:
+    """總管理者的系統狀態（2026-10-15 規格）：設定有沒有設、背景工作、公開資料、寄送與發布失敗。唯讀。"""
+    require_scope(current_user, "system.status")
+    return await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+
+
+@router.post("/admin/system-status/test-email", response_model=system_status.SystemEmailTestOut)
+async def send_system_test_email(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> system_status.SystemEmailTestOut:
+    """寄一封測試信到自己帳號的 Email（規格 §3.4）：不走 outbox，結果當場回傳；不回原始錯誤訊息。"""
+    require_scope(current_user, "system.status")
+    settings = request.app.state.settings
+    try:
+        adapter = system_status.mail_adapter(settings)
+    except EmailNotConfigured as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "EMAIL_NOT_CONFIGURED", "message": "尚未設定寄信，無法寄出測試信"},
+        ) from exc
+    try:
+        await ratelimit.limiter(request).check(system_status.TEST_EMAIL_LIMIT, str(current_user.id))
+    except ratelimit.RateLimiterUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "TEST_EMAIL_BUSY", "message": "系統忙碌，請稍候再試"},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "TEST_EMAIL_RATE_LIMITED", "message": "測試信寄太多次了，請 10 分鐘後再試"},
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    # 寄信最久等 20 秒，不能讓 SMTP 佔著資料庫連線：先結束登入驗證時開的交易。rollback 會讓 ORM 物件過期，
+    # 所以要用的值先取出來。
+    user_id, to = current_user.id, current_user.email
+    subject, body = system_status.build_test_email(settings, now_utc())
+    await db.rollback()
+    error: Exception | None = None
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(adapter.send, to=to, subject=subject, body=body),
+            timeout=system_status.TEST_EMAIL_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001 —— 任何寄送失敗都如實回報
+        error = exc
+    # 信已經寄出（或確定失敗）：操作紀錄寫不進去只記 log，不改變回應內容。
+    try:
+        await audit_service.log_action(
+            db,
+            actor_user_id=user_id,
+            action="system.test_email",
+            target_type="user",
+            target_id=str(user_id),
+            metadata={
+                "result": "sent" if error is None else "failed",
+                **({"error_code": type(error).__name__} if error is not None else {}),
+            },
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("系統狀態：測試信的操作紀錄寫入失敗")
+        await db.rollback()
+    if error is not None:
+        return system_status.SystemEmailTestOut(ok=False, error=system_status.classify_email_error(error))
+    return system_status.SystemEmailTestOut(ok=True)
