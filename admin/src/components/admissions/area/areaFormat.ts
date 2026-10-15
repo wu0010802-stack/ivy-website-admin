@@ -1,7 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AreaBabycare, AreaBabycareItem, AreaChange, AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrackingSince,
-  AreaTrends, AreaTrendsSchool, AreaTrendsVillage, KidsLevel,
+  AreaBabycare, AreaBabycareItem, AreaChange, AreaEnrolled, AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrackingSince,
+  AreaTrends, AreaTrendsSchool, AreaTrendsVillage, EnrolledGrade, KidsLevel,
   OpportunitySignal, VillageBoundaries, VisitGeo,
 } from '../../../api/types'
 
@@ -154,14 +154,15 @@ export function visitGeoText(geo: VisitGeo | null | undefined, district: string 
 
 // ---- 招生機會（2026-10-13 規格 7）----
 
-/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會；孩子增減、新屋交屋（2026-10-14 里的變化）。 */
-export type MapMode = 'visits' | 'children' | 'opportunity' | 'trend' | 'homes'
+/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會；孩子增減、新屋交屋（2026-10-14 里的變化）；在籍學生（2026-10-15）。 */
+export type MapMode = 'visits' | 'children' | 'opportunity' | 'trend' | 'homes' | 'enrolled'
 export const MAP_MODES: readonly { value: MapMode; label: string }[] = [
   { value: 'visits', label: '參觀人數' },
   { value: 'children', label: '2–5 歲孩子' },
   { value: 'opportunity', label: '招生機會' },
   { value: 'trend', label: '孩子增減' },
   { value: 'homes', label: '新屋交屋' },
+  { value: 'enrolled', label: '在籍學生' },
 ]
 
 /** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
@@ -553,4 +554,90 @@ export function trendsSummary(data: AreaTrends): { lines: string[]; note: string
       : '',
   ].filter(Boolean)
   return { lines, note: notes.join('') }
+}
+
+// ---- 在籍學生（2026-10-15 規格 §6）----
+
+/** 班別篩選：全部或某一班（AreaTab 持有，地圖與下方表格同步）。 */
+export type GradeFilter = 'all' | EnrolledGrade
+export const ENROLLED_GRADE_ORDER: readonly EnrolledGrade[] = ['幼幼班', '小班', '中班', '大班', '其他']
+type GradeCounts = Readonly<Record<string, number>>
+
+/** 一格（或一列）依篩選的人數：全部＝各班加總。 */
+export function pointCount(counts: GradeCounts, filter: GradeFilter): number {
+  if (filter === 'all') return ENROLLED_GRADE_ORDER.reduce((sum, grade) => sum + (counts[grade] ?? 0), 0)
+  return counts[filter] ?? 0
+}
+
+/** 篩選選項：「全部 192」＋各班（「其他」只在有人時出現，後端 grades 已照這個規則給）。 */
+export function gradeOptions(data: AreaEnrolled): { value: GradeFilter; label: string }[] {
+  return [
+    { value: 'all', label: `全部 ${formatCount(data.total)}` },
+    ...data.grades.map((item) => ({ value: item.grade, label: `${item.grade} ${formatCount(item.total)}` })),
+  ]
+}
+
+/** 點的彈出框：「這附近 2 位：小班 1、中班 1」；只列大於 0 的班別，選一班時只寫那班。 */
+export function pointPopupText(counts: GradeCounts, filter: GradeFilter): string {
+  const grades = filter === 'all' ? ENROLLED_GRADE_ORDER : [filter]
+  const parts = grades.filter((grade) => (counts[grade] ?? 0) > 0).map((grade) => `${grade} ${counts[grade]}`)
+  return `這附近 ${formatCount(pointCount(counts, filter))} 位：${parts.join('、')}`
+}
+
+const UNPLACED_LABELS: Record<AreaEnrolled['unplaced'][number]['reason'], string> = {
+  street: '只對到里',
+  district: '只對到區',
+  outside_kaohsiung: '外縣市',
+  unlocated: '對不到',
+}
+
+/** 圖例：「清冊 2026/10/15・115 學年班別・地圖上 180 位」，沒有點的另起一句（依篩選加總；0 就空字串）。 */
+export function enrolledLegendText(data: AreaEnrolled, filter: GradeFilter): { lead: string; unplaced: string } {
+  const date = (data.roster_date ?? '').replaceAll('-', '/')
+  const onMap = data.points.reduce((sum, point) => sum + pointCount(point.counts, filter), 0)
+  const lead = `清冊 ${date}・${data.school_year} 學年班別・地圖上 ${formatCount(onMap)} 位`
+  const parts = data.unplaced
+    .map((item) => ({ label: UNPLACED_LABELS[item.reason], count: pointCount(item.counts, filter) }))
+    .filter((item) => item.count > 0)
+  const missing = parts.reduce((sum, item) => sum + item.count, 0)
+  const unplaced = missing
+    ? `沒有點 ${formatCount(missing)} 位（${parts.map((item) => `${item.label} ${formatCount(item.count)}`).join('、')}）`
+    : ''
+  return { lead, unplaced }
+}
+
+/** 地圖「在籍學生」停用的原因：讀取失敗或還沒匯入；可以用回空字串（讀取中也可以用，同其他模式）。 */
+export function enrolledMapNote(data: AreaEnrolled | null, failed: boolean): string {
+  if (failed) return '在籍學生讀取失敗。'
+  return data?.status === 'not_imported' ? '尚未匯入在籍名冊。' : ''
+}
+
+const ENROLLED_BAND_LABELS: Record<string, string> = {
+  '0-1': '1 公里內',
+  '1-3': '1–3 公里',
+  '3-6': '3–6 公里',
+  '6+': '6 公里以上',
+  none: '沒有座標',
+}
+
+/** 距離分布表的列：每個距離帶一列，各班人數與合計。 */
+export function enrolledBandRows(data: AreaEnrolled): Record<string, string | number>[] {
+  return data.distance_bands.map((item) => ({
+    band: item.band,
+    band_label: ENROLLED_BAND_LABELS[item.band] ?? item.band,
+    ...Object.fromEntries(ENROLLED_GRADE_ORDER.map((grade) => [grade, item.counts[grade] ?? 0])),
+    total: pointCount(item.counts, 'all'),
+  }))
+}
+
+/** 里排行的列：依篩選算人數，0 人的里不列；人數多的在前，同數依名稱。 */
+export function enrolledVillageRows(data: AreaEnrolled, filter: GradeFilter): { key: string; place: string; count: number }[] {
+  return data.villages
+    .map((row) => ({
+      key: row.village_code ?? `${row.district}/${row.village}`,
+      place: `${row.district}${row.village}`,
+      count: pointCount(row.counts, filter),
+    }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count || (a.place < b.place ? -1 : a.place > b.place ? 1 : 0))
 }

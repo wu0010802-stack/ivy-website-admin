@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAP_MODES, NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
-  changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, expectedText, formatDistance,
+  changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, enrolledBandRows, enrolledLegendText, enrolledMapNote,
+  enrolledVillageRows, expectedText, formatDistance, gradeOptions,
   homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
-  providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
+  pointCount, pointPopupText, providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
 import {
-  areaBabycare, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, providerChange, villageBoundaries,
+  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, providerChange, villageBoundaries,
 } from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
@@ -468,9 +469,9 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect(homesMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 
-  it('地圖著色多一個「新屋交屋」，排在孩子增減後面', () => {
-    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['visits', 'children', 'opportunity', 'trend', 'homes'])
-    expect(MAP_MODES.at(-1)!.label).toBe('新屋交屋')
+  it('地圖著色多一個「在籍學生」，排在新屋交屋後面', () => {
+    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['visits', 'children', 'opportunity', 'trend', 'homes', 'enrolled'])
+    expect(MAP_MODES.at(-1)!.label).toBe('在籍學生')
   })
 
   it('總結：不滿 4 季寫有幾季的資料；沒有交屋不寫「最多的是」；沒對到里的筆數是 0 就不寫；沒匯入或沒有任何一季不寫這一句', () => {
@@ -500,5 +501,54 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
       villages: [village('a', '甲里', 5), village('b', '乙、丙里', 90, true), village('c', '丁里', 30), village('d', '戊里', 12)],
     }))!
     expect(summary.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆，最多的是三民區乙、丙里（90 筆）、三民區丁里（30 筆）、三民區戊里（12 筆）。')
+  })
+})
+
+describe('在籍學生（2026-10-15 規格 §6）', () => {
+  const counts = { 幼幼班: 0, 小班: 1, 中班: 1, 大班: 0, 其他: 0 }
+
+  it('一格的人數：全部是各班加總，選一班只算那班', () => {
+    expect(pointCount(counts, 'all')).toBe(2)
+    expect(pointCount(counts, '小班')).toBe(1)
+    expect(pointCount(counts, '大班')).toBe(0)
+  })
+
+  it('篩選選項：全部＋後端給的各班，標人數', () => {
+    expect(gradeOptions(areaEnrolled()).map((option) => option.label)).toEqual(['全部 5', '幼幼班 1', '小班 2', '中班 1', '大班 1'])
+    expect(gradeOptions(areaEnrolled())[0]!.value).toBe('all')
+  })
+
+  it('點的彈出框：只列大於 0 的班別；選一班只寫那班', () => {
+    expect(pointPopupText(counts, 'all')).toBe('這附近 2 位：小班 1、中班 1')
+    expect(pointPopupText(counts, '中班')).toBe('這附近 1 位：中班 1')
+  })
+
+  it('圖例：清冊日期、學年、地圖上幾位；沒有點的依篩選加總，0 就不寫', () => {
+    expect(enrolledLegendText(areaEnrolled(), 'all')).toEqual({
+      lead: '清冊 2026/10/15・115 學年班別・地圖上 4 位', unplaced: '沒有點 1 位（只對到里 1）',
+    })
+    expect(enrolledLegendText(areaEnrolled(), '大班')).toEqual({ lead: '清冊 2026/10/15・115 學年班別・地圖上 1 位', unplaced: '' })
+    expect(enrolledLegendText(areaEnrolled(), '其他').lead).toBe('清冊 2026/10/15・115 學年班別・地圖上 0 位')
+  })
+
+  it('停用原因：讀取失敗、尚未匯入；讀取中與有資料都可以用', () => {
+    expect(enrolledMapNote(null, true)).toBe('在籍學生讀取失敗。')
+    expect(enrolledMapNote(areaEnrolled({ status: 'not_imported' }), false)).toBe('尚未匯入在籍名冊。')
+    expect(enrolledMapNote(null, false)).toBe('')
+    expect(enrolledMapNote(areaEnrolled(), false)).toBe('')
+  })
+
+  it('距離分布列：每帶一列，各班與合計；沒有座標寫出來', () => {
+    const rows = enrolledBandRows(areaEnrolled())
+    expect(rows.map((row) => row.band_label)).toEqual(['1 公里內', '1–3 公里', '3–6 公里', '6 公里以上', '沒有座標'])
+    expect(rows[0]).toMatchObject({ 小班: 1, 中班: 1, total: 2 })
+  })
+
+  it('里排行列：依篩選算人數、0 人的里拿掉，多的排前面', () => {
+    expect(enrolledVillageRows(areaEnrolled(), 'all').map((row) => [row.place, row.count])).toEqual([
+      ['三民區本揚里', 3], ['三民區寶業里', 1], ['左營區新上里', 1],
+    ])
+    expect(enrolledVillageRows(areaEnrolled(), '小班').map((row) => [row.place, row.count])).toEqual([['三民區本揚里', 2]])
+    expect(enrolledVillageRows(areaEnrolled(), '其他')).toEqual([])
   })
 })

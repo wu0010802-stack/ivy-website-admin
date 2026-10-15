@@ -8,7 +8,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import type {
-  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
   UserOut, VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -384,3 +384,41 @@ export const villageBoundaries = (): VillageBoundaries => ({
     villageFeature('鼓山區', '龍子里', '64000020015'),
   ],
 })
+
+/** 在籍學生（2026-10-15 規格 §5）：義華 5 位；第一格兩位（小班、中班），一位只對到里（小班）。 */
+export function areaEnrolled(changes: Partial<AreaEnrolled> = {}): AreaEnrolled {
+  const zero = { 幼幼班: 0, 小班: 0, 中班: 0, 大班: 0, 其他: 0 }
+  return {
+    status: 'ready',
+    roster_date: '2026-10-15',
+    school_year: 115,
+    doorplate_version: '115-10',
+    imported_at: '2026-10-15T08:00:00Z',
+    total: 5,
+    grades: [
+      { grade: '幼幼班', total: 1, placed: 1 },
+      { grade: '小班', total: 2, placed: 1 },
+      { grade: '中班', total: 1, placed: 1 },
+      { grade: '大班', total: 1, placed: 1 },
+    ],
+    points: [
+      { lat: 22.642, lng: 120.344, counts: { ...zero, 小班: 1, 中班: 1 } },
+      { lat: 22.65, lng: 120.35, counts: { ...zero, 幼幼班: 1 } },
+      { lat: 22.7, lng: 120.3, counts: { ...zero, 大班: 1 } },
+    ],
+    unplaced: [{ reason: 'street', counts: { ...zero, 小班: 1 } }],
+    distance_bands: [
+      { band: '0-1', counts: { ...zero, 小班: 1, 中班: 1 } },
+      { band: '1-3', counts: { ...zero, 幼幼班: 1 } },
+      { band: '3-6', counts: { ...zero } },
+      { band: '6+', counts: { ...zero, 大班: 1 } },
+      { band: 'none', counts: { ...zero, 小班: 1 } },
+    ],
+    villages: [
+      { district: '三民區', village: '本揚里', village_code: '64000050015', counts: { ...zero, 小班: 2, 中班: 1 }, total: 3 },
+      { district: '三民區', village: '寶業里', village_code: '64000050025', counts: { ...zero, 幼幼班: 1 }, total: 1 },
+      { district: '左營區', village: '新上里', village_code: '64000030020', counts: { ...zero, 大班: 1 }, total: 1 },
+    ],
+    ...changes,
+  }
+}
