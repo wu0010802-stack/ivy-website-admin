@@ -112,3 +112,103 @@ export function seedBirthSeries(): void {
     {},
   )
 }
+
+// 預約全程（2026-10-15）：用 renwu 校區寫一批預約案件、場次、事件與招生訪視，日期相對台北今天。
+// 標記：家長姓名與幼生姓名都以「E2E旅程」開頭，clearJourney 靠它清；每筆預約送出日＝場次日 − 7。
+const JOURNEY_CAMPUS = 'renwu'
+const JOURNEY_MARK = 'E2E旅程'
+
+/** 民國月份「115.09」（recruitment_visits.month）：同後端 academic.roc_month。 */
+const rocMonth = (dayExpr: string): string => `((extract(year from ${dayExpr})::int - 1911)::text || '.' || to_char(${dayExpr}, 'MM'))`
+
+/** 台北今天往前推 n 天的日期運算式（SQL）。 */
+const day = (n: number): string => `((now() AT TIME ZONE 'Asia/Taipei')::date - ${n})`
+/** 台北某天的牆上時間（timestamptz，SQL）。 */
+const at = (n: number, time = '12:00'): string => `((${day(n)} + time '${time}') AT TIME ZONE 'Asia/Taipei')`
+
+interface JourneyCase {
+  tag: string
+  status: 'completed' | 'no_show' | 'cancelled'
+  slotDays: number
+  cancelledDays?: number
+  cancelReason?: 'parent' | 'staff'
+  visit?: { deposited?: boolean; depositEventDays?: number; enrolledDays?: number; withdrawnDays?: number }
+}
+
+const JOURNEY_CASES: JourneyCase[] = [
+  { tag: 'A', status: 'completed', slotDays: 30, visit: { deposited: true, depositEventDays: 20, enrolledDays: 10 } },
+  { tag: 'B', status: 'completed', slotDays: 25, visit: {} },
+  { tag: 'C', status: 'completed', slotDays: 5, visit: {} },
+  { tag: 'D', status: 'completed', slotDays: 15 },
+  { tag: 'E', status: 'no_show', slotDays: 12 },
+  { tag: 'F', status: 'cancelled', slotDays: 9, cancelledDays: 9, cancelReason: 'parent' },
+  { tag: 'G', status: 'cancelled', slotDays: 8, cancelledDays: 12, cancelReason: 'staff' },
+  { tag: 'H', status: 'completed', slotDays: 40, visit: { deposited: true, depositEventDays: 35, withdrawnDays: 20 } },
+]
+
+function journeyStatements(): string {
+  const parts: string[] = []
+  for (const item of JOURNEY_CASES) {
+    const name = `${JOURNEY_MARK}${item.tag}`
+    parts.push(`
+      WITH slot AS (
+        INSERT INTO visit_slots (id, campus_key, slot_date, start_time, end_time, capacity, closed, version, from_rule, created_at)
+        VALUES (gen_random_uuid(), '${JOURNEY_CAMPUS}', ${day(item.slotDays)}, time '10:00', time '11:00', 99, false, 1, false, now())
+        RETURNING id
+      ), request AS (
+        INSERT INTO visit_requests (id, campus_key, idempotency_key, payload_hash, config_version, parent_name, phone,
+                                    consent_given, status, source, slot_id, created_at, cancelled_at, cancel_reason, version)
+        SELECT gen_random_uuid(), '${JOURNEY_CAMPUS}', 'e2e-journey-${item.tag}-' || gen_random_uuid()::text, repeat('0', 64), 0,
+               '${name}', '0911000444', true, '${item.status}', 'web', slot.id, ${at(item.slotDays + 7, '09:00')},
+               ${item.cancelledDays === undefined ? 'NULL' : at(item.cancelledDays, '08:00')},
+               ${item.cancelReason ? `'${item.cancelReason}'` : 'NULL'}, 1
+          FROM slot
+        RETURNING id
+      )
+      ${
+        item.visit
+          ? `, visit AS (
+        INSERT INTO recruitment_visits (id, campus_key, visit_request_id, month, visit_date, child_name, has_deposit, rides_bus, enrolled,
+                                        enrolled_on, withdrawn_at, withdrawn_from, withdraw_reason, transfer_term, version, created_at, updated_at)
+        SELECT gen_random_uuid(), '${JOURNEY_CAMPUS}', request.id, ${rocMonth(day(item.slotDays))}, ${day(item.slotDays)},
+               '${name}', ${item.visit.deposited ? 'true' : 'false'}, false, ${item.visit.enrolledDays === undefined ? 'false' : 'true'},
+               ${item.visit.enrolledDays === undefined ? 'NULL' : day(item.visit.enrolledDays)},
+               ${item.visit.withdrawnDays === undefined ? 'NULL' : at(item.visit.withdrawnDays)},
+               ${item.visit.withdrawnDays === undefined ? 'NULL' : `'deposited'`},
+               ${item.visit.withdrawnDays === undefined ? 'NULL' : `'E2E旅程退出'`}, false, 1, now(), now()
+          FROM request
+        RETURNING id
+      )
+      ${
+        item.visit.depositEventDays === undefined
+          ? 'SELECT 1'
+          : `INSERT INTO recruitment_event_log (id, recruitment_visit_id, event_type, to_stage, created_at)
+      SELECT gen_random_uuid(), visit.id, 'deposit_added', 'deposited', ${at(item.visit.depositEventDays)} FROM visit`
+      }`
+          : 'SELECT 1'
+      };`)
+  }
+  // 沒有預約案件的訪視（現場參觀）：參觀日 D−3。
+  parts.push(`
+    INSERT INTO recruitment_visits (id, campus_key, month, visit_date, child_name, has_deposit, rides_bus, enrolled, transfer_term, version, created_at, updated_at)
+    VALUES (gen_random_uuid(), '${JOURNEY_CAMPUS}', ${rocMonth(day(3))}, ${day(3)}, '${JOURNEY_MARK}現場', false, false, false, false, 1, now(), now());`)
+  return parts.join('\n')
+}
+
+/** 清除預約全程的種子（重複執行無害）。順序：訪視（連事件）→ 預約（連事件）→ 場次。 */
+export function clearJourney(): void {
+  psql(
+    `CREATE TEMP TABLE journey_slots AS
+       SELECT DISTINCT slot_id FROM visit_requests WHERE parent_name LIKE '${JOURNEY_MARK}%' AND slot_id IS NOT NULL;
+     DELETE FROM recruitment_visits WHERE child_name LIKE '${JOURNEY_MARK}%';
+     DELETE FROM visit_requests WHERE parent_name LIKE '${JOURNEY_MARK}%';
+     DELETE FROM visit_slots WHERE id IN (SELECT slot_id FROM journey_slots);`,
+    {},
+  )
+}
+
+/** 先清再寫，所以重複執行不會重複。 */
+export function seedJourney(): void {
+  clearJourney()
+  psql(journeyStatements(), {})
+}
