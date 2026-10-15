@@ -299,8 +299,10 @@ def test_geo_settings_reject_unsafe_values(overrides):
 
 def test_cli_options_with_files():
     csv, data = SAMPLE_CSV, SAMPLE_JSON
-    assert geo_sync_options(["--doorplates-file", str(csv), "--kindergartens-file", str(data)]) == {
+    args = ["--doorplates-file", str(csv), "--kindergartens-file", str(data), "--kindergartens-registry-file", str(REGISTRY_CSV)]
+    assert geo_sync_options(args) == {
         "force": False, "doorplates_file": csv, "doorplates_version": None, "kindergartens_file": data,
+        "kindergartens_registry_file": REGISTRY_CSV,
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
     }
@@ -462,6 +464,7 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
     assert received == [
         {
             "force": True, "doorplates_file": SAMPLE_CSV, "doorplates_version": "115-10", "kindergartens_file": None,
+            "kindergartens_registry_file": None,
             "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
             "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         }
@@ -476,3 +479,18 @@ def test_cli_main_rejects_bad_geo_sync_arguments_before_running_anything(monkeyp
     monkeypatch.setattr(sys, "argv", ["app.cli", "geo-sync", "--unknown"])
     with pytest.raises(SystemExit):
         cli.main()
+
+
+@pytest.mark.parametrize(
+    "args",
+    [["--kindergartens-file", str(SAMPLE_JSON)], ["--kindergartens-registry-file", str(REGISTRY_CSV)]],
+    ids=["只有 JSON", "只有名單"],
+)
+def test_cli_kindergarten_files_come_in_pairs(args):
+    with pytest.raises(SystemExit, match="要一起給"):
+        geo_sync_options(args)
+
+
+def test_cli_rejects_a_missing_registry_file():
+    with pytest.raises(SystemExit, match="找不到檔案"):
+        geo_sync_options(["--kindergartens-file", str(SAMPLE_JSON), "--kindergartens-registry-file", "/no/such/registry.csv"])

@@ -576,23 +576,28 @@ def geo_sync_options(args: list[str]) -> dict:
     比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
     （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--bundle 是 scripts/fetch_geo_bundle.py
     打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的檔各自用 --…-file 指定。
+    --kindergartens-file（kiang preschools.json）要和 --kindergartens-registry-file（kiang docs/data/高雄市.csv，教育部名單）
+    一起給：營業中以名單為準（2026-10-15），只給一個就報錯。
     --force 一個旗標同時代表「立刻重抓」與「略過殘缺檔檢查」：幼兒園與托嬰（--babycare-file）的檔案一樣會檢查
     （上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error 並印出，exit 1），
     確定要換就加 --force。"""
     usage = (
         "用法：python -m app.cli geo-sync [--force（立刻重抓，也略過幼兒園與托嬰的殘缺檔檢查）] "
-        "[--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
+        "[--doorplates-file <CSV>] [--doorplates-version 115-10] "
+        "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
         "[--babycare-file <JSON>] [--population-file <JSON> ...] "
         "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
         "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
+        "kindergartens_registry_file": None,
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
-              "--kindergartens-file": "kindergartens_file", "--babycare-file": "babycare_file",
+              "--kindergartens-file": "kindergartens_file",
+              "--kindergartens-registry-file": "kindergartens_registry_file", "--babycare-file": "babycare_file",
               "--income-file": "income_file", "--income-year": "income_year",
               "--new-homes-season": "new_homes_season", "--bundle": "bundle"}
     texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
@@ -615,12 +620,14 @@ def geo_sync_options(args: list[str]) -> dict:
         else:
             raise SystemExit(usage)
     singles = (
-        options["doorplates_file"], options["kindergartens_file"], options["babycare_file"], options["income_file"],
-        options["bundle"],
+        options["doorplates_file"], options["kindergartens_file"], options["kindergartens_registry_file"],
+        options["babycare_file"], options["income_file"], options["bundle"],
     )
     for path in (*singles, *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
             raise SystemExit(f"找不到檔案：{path}")
+    if (options["kindergartens_file"] is None) != (options["kindergartens_registry_file"] is None):
+        raise SystemExit("--kindergartens-file 與 --kindergartens-registry-file 要一起給（營業中以教育部名單為準）")
     if options["doorplates_version"] is not None and options["doorplates_file"] is None:
         raise SystemExit(usage)
     if options["income_year"] is not None:
@@ -739,7 +746,8 @@ def main() -> None:
             "requeue-notifications [--campus <key>] [--dry-run]|media-copy-to-s3 [--dry-run]|"
             "import-site-assets [--web-root <web 目錄>] [--apply] [--write-drafts]|"
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
-            "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
+            "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] "
+            "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
             "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
             "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]>",
             file=sys.stderr,
