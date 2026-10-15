@@ -10,7 +10,8 @@
   - 後端單檔：`test_system_status.py` 在 Task 1 時 35 passed，Task 2 加上權限、測試信與總覽後，與 `test_permission_table.py`、`test_dashboard_today_board.py`、`test_operations.py`、`test_audit_coverage.py`、`test_audit_actions.py` 合跑 94 passed；`test_parent_visit_reminder.py` 27 passed，與提醒、寄信、維護排程相關檔合跑 81 passed。
   - admin 單檔：`systemStatus.test.ts` 22 passed、`labelCoverage.test.ts` 15 passed；`typecheck` 無錯誤；契約檢查（`export_openapi.py --check` 加 `check-contract-types.mjs`）一致。
   - stack：`system-status.spec.ts` 1 passed（連 setup 共 2 passed）；1440 與 390 截圖看過，四區載入、手機無橫向溢出。
-  - 全套驗證：見下一個 commit。
+  - 全套驗證：後端全套 3220 passed、1 skipped、0 failed（25.5 分鐘，在 `fa2b49cc`）；最終審查修正（`1e65245b`..`4ee1612e`）後重跑 `test_system_status.py` 59 passed；admin 全套在 `4ee1612e` 162 個檔案 2528 passed、1 skipped（其中 5 個檔案因機器負載 worker 啟動逾時，單獨重跑 20 passed）；admin、web `typecheck` 與兩項契約檢查通過；stack 全套在 `4ee1612e` 重新 build 後 141 passed、0 failed（5.4 分鐘）。
+  - 合併 `origin/main` `9dbf413f`（在籍學生分布與區域分析修正，只有 README.md 衝突，新 migration `f2a7c1e9d4b3`）後，在 `2133b463`：契約重新產生與合併結果一致；後端受影響的 21 個檔案（系統狀態、維護排程、提醒、家長信、權限表與所有用到 `app.cli` 的測試）517 passed；admin `typecheck` 通過、相關 7 個檔案 273 passed。合併後沒有再跑三套全套。
   - **未驗證／沒做**：沒有登入正式後台看過系統狀態頁；正式站寄信（SMTP）是否已設未確認，測試信沒有對真的 SMTP 按過；提醒信沒有真的寄出過（只在測試用的 recording adapter 驗內容與寄送流程）；手機版沒量測試信結果段落展開後的寬度。
 
 ## 2026-10-15 在籍學生分布（`feature/enrolled-map-20261015`）

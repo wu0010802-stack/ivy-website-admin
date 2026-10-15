@@ -726,7 +726,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - admin：`systemStatus.test.ts`（22 passed：後端清單都有中文、文案與連結、頁面各 level 渲染、測試信成功與被後端擋下、側欄與權限、總覽一行）；`labelCoverage.test.ts` 15 passed；`typecheck` 無錯誤。
 - 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致（不經 `uv run`）；本案不新增 migration。
 - stack：`system-status.spec.ts`（四區、測試信寫進 sink、手機 390 不溢出、櫃台看不到）1 passed。
-- 全套閘門：見下一個 commit。
+- 全套閘門：後端全套 3220 passed、1 skipped、0 failed（`fa2b49cc`）；admin 全套 162 個檔案 2528 passed、1 skipped（`4ee1612e`；5 個檔案因負載 worker 啟動逾時，單獨重跑通過）；admin、web `typecheck` 與契約檢查通過；stack 全套 141 passed、0 failed（`4ee1612e`）。合併 `origin/main` `9dbf413f` 後（`2133b463`）只重跑受影響的後端 21 個檔案（517 passed）與 admin `typecheck`、相關 7 個檔案（273 passed），沒有再跑三套全套。
 
 ### 未驗證
 - 正式站：沒有登入正式後台看系統狀態頁；正式站寄信（SMTP）是否已設未確認，寄信若已設定，測試信要由使用者自己按（會寄真信到自己的帳號）。
