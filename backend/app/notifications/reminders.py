@@ -16,6 +16,9 @@
   確認或改期到這個時段時就已經在這個範圍內的（例如當天才確認、改到明天上午）
   不另外提醒——「新的參觀預約」「已確認」「已改期」那則通知就是提醒。改期不會更新
   confirmed_at，換到這個時段的時間看最後一筆 `rescheduled` 歷程。
+- 家長參觀提醒（2026-10-15，kind 在 booking/outbox.py 的 PARENT_VISIT_REMINDER，走家長信管線）：
+  與即將參觀同一個到點判斷，只排有 Email 的案件；去重鍵含場次 id，寄送當下由
+  notifications/service.py 的家長信分派再判斷一次（改期、停課、取消都不寄）。
 - 逾期未處理（visit_request_overdue：新需求放太久、待確認占位快到期）是舊流程的
   提醒，2026-10-06 隨舊狀態一起拿掉。
 """
@@ -37,6 +40,7 @@ from app.booking.models import (
     VisitRequestStatus,
     VisitSlot,
 )
+from app.booking.outbox import PARENT_VISIT_REMINDER
 from app.common.timezones import now_utc, slot_start_utc, today_local
 
 UPCOMING_VISIT_KIND = "visit_upcoming"
@@ -90,18 +94,20 @@ def upcoming_key(visit_request_id: uuid.UUID, slot_id: uuid.UUID) -> str:
     return f"{UPCOMING_VISIT_KIND}:{visit_request_id}:{slot_id}"
 
 
-async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -> int:
-    """掃描到點的提醒寫進 outbox，回傳新寫入的則數。呼叫端負責 commit。
-    `now` 是判斷「到點了沒」的時間點，預設現在（測試可以指定）。"""
-    now = now or now_utc()
-    created = 0
+def parent_reminder_key(visit_request_id: uuid.UUID, slot_id: uuid.UUID) -> str:
+    return f"{PARENT_VISIT_REMINDER}:{visit_request_id}:{slot_id}"
 
-    # 即將參觀。slot_date 是營運時區的日期，先用日期粗篩再逐筆算開始時間。
+
+async def _due_upcoming(db: AsyncSession, now: datetime) -> list[tuple[uuid.UUID, str, str | None, VisitSlot]]:
+    """到點的即將參觀：已確認、未匿名化、`remind_at <= now < 開始`，且確認或改期到這個時段時
+    還沒進提醒範圍。員工與家長提醒共用這個判斷（2026-10-15 規格 R4）。回傳（案件 id、校區、Email、場次）。"""
+    # slot_date 是營運時區的日期，先用日期粗篩再逐筆算開始時間。
     today = today_local(now)
     upcoming = await db.execute(
         select(
             VisitRequest.id,
             VisitRequest.campus_key,
+            VisitRequest.email,
             VisitRequest.confirmed_at,
             _last_rescheduled_at(),
             VisitSlot,
@@ -114,7 +120,8 @@ async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -
             VisitSlot.slot_date <= today + timedelta(days=2),
         )
     )
-    for visit_id, campus_key, confirmed_at, rescheduled_at, slot in upcoming.all():
+    due = []
+    for visit_id, campus_key, email, confirmed_at, rescheduled_at, slot in upcoming.all():
         starts = slot_start_utc(slot.slot_date, slot.start_time)
         remind_at = starts - UPCOMING_VISIT_LEAD
         if not remind_at <= now < starts:
@@ -123,9 +130,31 @@ async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -
         on_this_slot_since = max((t for t in (confirmed_at, rescheduled_at) if t is not None), default=None)
         if on_this_slot_since is not None and on_this_slot_since > remind_at:
             continue
+        due.append((visit_id, campus_key, email, slot))
+    return due
+
+
+async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -> int:
+    """掃描到點的員工提醒寫進 outbox，回傳新寫入的則數。呼叫端負責 commit。
+    `now` 是判斷「到點了沒」的時間點，預設現在（測試可以指定）。"""
+    now = now or now_utc()
+    created = 0
+    for visit_id, campus_key, _email, slot in await _due_upcoming(db, now):
         payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot.id)}
         created += await _enqueue(db, visit_id, UPCOMING_VISIT_KIND, payload, upcoming_key(visit_id, slot.id))
+    return created
 
+
+async def enqueue_due_parent_reminders(db: AsyncSession, now: datetime | None = None) -> int:
+    """家長參觀提醒（2026-10-15 規格）：同一個到點判斷，只排有 Email 的案件；回傳新寫入的則數。
+    呼叫端負責 commit。"""
+    now = now or now_utc()
+    created = 0
+    for visit_id, campus_key, email, slot in await _due_upcoming(db, now):
+        if not email:
+            continue
+        payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot.id)}
+        created += await _enqueue(db, visit_id, PARENT_VISIT_REMINDER, payload, parent_reminder_key(visit_id, slot.id))
     return created
 
 

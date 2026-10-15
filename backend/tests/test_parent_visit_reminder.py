@@ -10,14 +10,19 @@ from datetime import date, datetime, time, timedelta, timezone
 import pytest
 from sqlalchemy import select, update
 
+from app import cli
 from app.booking.models import BookingConfig, OutboxMessage, VisitException, VisitRequest, VisitSlot
 from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_REMINDER, enqueue_parent_email
 from app.common.timezones import OPERATING_TZ, today_local
+from app.notifications import reminders
 from app.notifications import service as notification_service
+from app.notifications.models import NotificationInboxItem
 from app.notifications.parent_email import ParentEmail, build_parent_email
 from app.notifications.service import notification_label
+from app.workers import maintenance
+from app.workers.maintenance import run_cycle
 from app.workers.runner import process_outbox_batch
-from tests.conftest import book_slot, create_slot
+from tests.conftest import book_slot, create_slot, legacy_request
 from tests.test_notification_retry_reminders import _fail_until_given_up
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
@@ -108,6 +113,16 @@ async def _move_slot_start(db_session, slot_id: str, *, hours: float) -> datetim
     return starts
 
 
+async def _confirmed_days_ago(db_session, receipt_id: str) -> None:
+    """確認時間改成 5 天前：確認時還沒進提醒範圍，到點才需要提醒。"""
+    await db_session.execute(
+        update(VisitRequest)
+        .where(VisitRequest.id == uuid.UUID(receipt_id))
+        .values(confirmed_at=datetime.now(timezone.utc) - timedelta(days=5))
+    )
+    await db_session.commit()
+
+
 async def _visit_starting_in(
     admin_client, public_client, db_session, hours: float, *, email: str = PARENT_EMAIL
 ) -> tuple[str, str, datetime]:
@@ -115,17 +130,13 @@ async def _visit_starting_in(
     （確認時還沒進提醒範圍）。回傳（案件 id、場次 id、場次開始的台北時間）。"""
     booked = await book_slot(admin_client, public_client, email=email)
     starts = await _move_slot_start(db_session, booked["slot_id"], hours=hours)
-    await db_session.execute(
-        update(VisitRequest)
-        .where(VisitRequest.id == uuid.UUID(booked["receipt_id"]))
-        .values(confirmed_at=datetime.now(timezone.utc) - timedelta(days=5))
-    )
-    await db_session.commit()
+    await _confirmed_days_ago(db_session, booked["receipt_id"])
     return booked["receipt_id"], booked["slot_id"], starts
 
 
 async def _queue_reminder(db_session, receipt_id: str, slot_id: str, *, queued_ago: timedelta = timedelta()) -> uuid.UUID:
-    """Task 5 之前沒有排入函式：直接寫一列，形狀與 enqueue_due_parent_reminders 相同。"""
+    """直接寫一列，形狀與 enqueue_due_parent_reminders 相同；要指定「排進佇列多久了」才用它
+    （排入函式只在到點時寫、時間固定是現在）。"""
     queued_at = datetime.now(timezone.utc) - queued_ago
     message_id = uuid.uuid4()
     db_session.add(OutboxMessage(
@@ -137,7 +148,7 @@ async def _queue_reminder(db_session, receipt_id: str, slot_id: str, *, queued_a
         next_attempt_at=datetime.now(timezone.utc),
         status="pending",
         attempts=0,
-        dedupe_key=f"{PARENT_VISIT_REMINDER}:{receipt_id}:{slot_id}",
+        dedupe_key=reminders.parent_reminder_key(uuid.UUID(receipt_id), uuid.UUID(slot_id)),
     ))
     await db_session.commit()
     return message_id
@@ -211,6 +222,19 @@ async def test_reminder_inside_the_deadline_without_admin_origin_asks_to_call(ap
     mail, _ = await _send_one_reminder(
         app, admin_client, public_client, db_session, recording_mail_adapter, deadline_hours=12, origin=None
     )
+    assert "#token=" not in mail["body"]
+    assert "前使用這個連結" not in mail["body"]
+    assert "要改期或取消，請來電" in mail["body"]
+
+
+async def test_reminder_inside_the_deadline_without_a_derivable_link_asks_to_call(
+    app, admin_client, public_client, db_session, recording_mail_adapter, monkeypatch
+):
+    async def _no_link(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(notification_service.access_service, "current_manage_path", _no_link)
+    mail, _ = await _send_one_reminder(app, admin_client, public_client, db_session, recording_mail_adapter, deadline_hours=12)
     assert "#token=" not in mail["body"]
     assert "前使用這個連結" not in mail["body"]
     assert "要改期或取消，請來電" in mail["body"]
@@ -314,11 +338,183 @@ async def test_reminder_without_mail_settings_is_skipped_and_not_sent_later(
     assert await _status(db_session, unsent_id) == "skipped"
 
 
-async def test_failed_reminder_lands_in_the_failed_list(app, admin_client, public_client, db_session, failing_mail_adapter):
-    receipt, slot, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=23)
-    message_id = await _queue_reminder(db_session, receipt, slot)
-    message = await _fail_until_given_up(db_session, message_id, failing_mail_adapter, None)
+async def test_scanned_reminder_that_keeps_failing_lands_in_the_failed_list_with_its_label(
+    app, admin_client, public_client, db_session, failing_mail_adapter
+):
+    await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+    assert await reminders.enqueue_due_parent_reminders(db_session) == 1
+    await db_session.commit()
+    [queued] = await _queued(db_session)
+    message = await _fail_until_given_up(db_session, queued.id, failing_mail_adapter, None)
     assert message.status == "failed"
     listed = await admin_client.get("/api/website/v1/admin/notification-outbox")
     assert listed.status_code == 200, listed.text
-    assert PARENT_VISIT_REMINDER in {item["kind"] for item in listed.json()["items"]}
+    [item] = [item for item in listed.json()["items"] if item["kind"] == PARENT_VISIT_REMINDER]
+    assert item["id"] == str(queued.id)
+    assert notification_label(item["kind"]) == "參觀提醒（家長）"
+
+
+# --- 排入（Task 5） ------------------------------------------------------------------
+
+
+async def _queued(db_session) -> list[OutboxMessage]:
+    """已排入的家長提醒，依排入順序。"""
+    rows = await db_session.execute(
+        select(OutboxMessage).where(OutboxMessage.kind == PARENT_VISIT_REMINDER).order_by(OutboxMessage.created_at)
+    )
+    return list(rows.scalars())
+
+
+async def _manual_visit_starting_in(admin_client, db_session, hours: float, *, email: str | None) -> str:
+    """後台補登一筆已確認的案件（補登不發修改連結），場次挪到 hours 小時後開始、確認時間改成 5 天前。
+    回傳案件 id。"""
+    slot = await create_slot(admin_client, capacity=2)
+    receipt = await legacy_request(db_session, status="confirmed", slot_id=slot, email=email)
+    await _move_slot_start(db_session, slot, hours=hours)
+    await _confirmed_days_ago(db_session, receipt)
+    return receipt
+
+
+def _settings_without_mail(app):
+    return app.state.settings.model_copy(update={"notification_email_sink_dir": None, "smtp_host": None})
+
+
+async def test_parent_reminder_queued_once_at_24_hours(admin_client, public_client, db_session):
+    receipt, slot, starts = await _visit_starting_in(admin_client, public_client, db_session, hours=48)
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=starts - timedelta(hours=24, minutes=1)) == 0
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=starts - timedelta(hours=24)) == 1
+    # 同一個場次重跑掃描不重複寫；開始之後也不排。
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=starts - timedelta(hours=23)) == 0
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=starts) == 0
+    await db_session.commit()
+    [row] = await _queued(db_session)
+    assert row.payload == {"campus_key": "yihua", "receipt_id": receipt, "slot_id": slot}
+    assert row.dedupe_key == f"parent_visit_reminder:{receipt}:{slot}"
+    # 員工提醒不受影響：同一個時間點照樣一則（P6）。
+    assert await reminders.enqueue_due_reminders(db_session, now=starts - timedelta(hours=23)) == 1
+
+
+async def test_visit_without_an_email_gets_no_parent_reminder(admin_client, public_client, db_session):
+    # 官網預約一定有 Email，後台補登可以沒有：沒收件人就不排。同一刻到點、有 Email 的那位照排。
+    await _manual_visit_starting_in(admin_client, db_session, hours=23, email=None)
+    with_email, _, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+    assert await reminders.enqueue_due_parent_reminders(db_session) == 1
+    await db_session.commit()
+    [row] = await _queued(db_session)
+    assert str(row.visit_request_id) == with_email
+    # 員工提醒不看 Email：兩筆都排，證明沒有 Email 的那筆確實到點了。
+    assert await reminders.enqueue_due_reminders(db_session) == 2
+
+
+async def test_anonymized_visit_gets_no_parent_reminder(admin_client, public_client, db_session):
+    anonymized, _, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == uuid.UUID(anonymized)).values(anonymized_at=datetime.now(timezone.utc))
+    )
+    await db_session.commit()
+    control, _, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=23, email=CONTROL_EMAIL)
+    assert await reminders.enqueue_due_parent_reminders(db_session) == 1
+    await db_session.commit()
+    [row] = await _queued(db_session)
+    assert str(row.visit_request_id) == control
+
+
+async def test_confirmed_or_rescheduled_inside_the_window_gets_no_parent_reminder(admin_client, public_client, db_session):
+    # 三筆都在參觀前 20 小時、都有 Email。只有早就確認、之後沒動過的那筆（對照）會排。
+    control, _, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=20, email=CONTROL_EMAIL)
+    # 補登臨時約：確認時間（現在）晚於開始前 24 小時，確認那封就是提醒（R4）。
+    late_slot = await create_slot(admin_client, capacity=2)
+    await legacy_request(db_session, status="confirmed", slot_id=late_slot, email=PARENT_EMAIL)
+    await _move_slot_start(db_session, late_slot, hours=20)
+    # 早就確認、參觀前才改期到這一場：改期那封就是提醒（確認時間還是當初的，不能拿它判斷）。
+    moved, _, _ = await _visit_starting_in(admin_client, public_client, db_session, hours=72, email="moved@example.com")
+    new_slot = await create_slot(admin_client, capacity=2, days_ahead=5)
+    await _move_slot_start(db_session, new_slot, hours=20)
+    rescheduled = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{moved}/reschedule", json={"new_slot_id": new_slot}
+    )
+    assert rescheduled.status_code == 200, rescheduled.text
+
+    assert await reminders.enqueue_due_parent_reminders(db_session) == 1
+    await db_session.commit()
+    [row] = await _queued(db_session)
+    assert str(row.visit_request_id) == control
+
+
+async def test_reschedule_gives_the_new_slot_its_own_reminder(admin_client, public_client, db_session):
+    receipt, old_slot, first = await _visit_starting_in(admin_client, public_client, db_session, hours=48)
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=first - timedelta(hours=23)) == 1
+    await db_session.commit()
+    new_slot = await create_slot(admin_client, capacity=2, days_ahead=5)
+    second = await _move_slot_start(db_session, new_slot, hours=96)
+    moved = await admin_client.post(
+        f"/api/website/v1/admin/visit-requests/{receipt}/reschedule", json={"new_slot_id": new_slot}
+    )
+    assert moved.status_code == 200, moved.text
+    # 改期在新場次開始前 4 天完成，到點照常提醒（新的去重鍵）。
+    assert await reminders.enqueue_due_parent_reminders(db_session, now=second - timedelta(hours=23)) == 1
+    await db_session.commit()
+    assert [row.payload["slot_id"] for row in await _queued(db_session)] == [old_slot, new_slot]
+
+
+async def test_maintenance_cycle_queues_the_parent_reminder_even_without_mail_settings(app, admin_client, db_session):
+    await _manual_visit_starting_in(admin_client, db_session, hours=23, email=PARENT_EMAIL)
+    settings = _settings_without_mail(app)
+    result = await run_cycle(app.state.session_factory, settings, worker_id="test")
+    assert result.failed_steps == []
+    assert (result.reminders_enqueued, result.parent_reminders_enqueued) == (1, 1)
+    # 沒有寄信管道：家長提醒照排、寄送時 skipped（不報錯、不重試）。
+    [row] = await _queued(db_session)
+    assert await _status(db_session, row.id) == "skipped"
+    again = await run_cycle(app.state.session_factory, settings, worker_id="test")
+    assert again.parent_reminders_enqueued == 0
+
+
+async def test_maintenance_cycle_mails_the_parent_reminder_and_the_staff_reminder(
+    app, admin_client, public_client, db_session, recording_mail_adapter, monkeypatch
+):
+    monkeypatch.setattr(maintenance, "get_email_adapter", lambda *_args: recording_mail_adapter)
+    await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+    result = await run_cycle(app.state.session_factory, app.state.settings, worker_id="test")
+    assert result.failed_steps == []
+    assert (result.reminders_enqueued, result.parent_reminders_enqueued) == (1, 1)
+    assert result.notifications_failed == 0
+    [mail] = _reminder_mails(recording_mail_adapter)
+    assert mail["to"] == PARENT_EMAIL
+    assert mail["subject"].startswith("【常春藤義華】參觀提醒：")
+    # 同一輪裡員工的即將參觀提醒也寄出。
+    assert "[常春藤官網] 義華校｜即將參觀（24 小時內）" in [sent["subject"] for sent in recording_mail_adapter.sent]
+    [row] = await _queued(db_session)
+    assert await _status(db_session, row.id) == "sent"
+
+
+async def test_parent_reminder_failure_keeps_the_staff_reminder(app, admin_client, public_client, db_session, monkeypatch):
+    async def _broken(*_args, **_kwargs):
+        raise RuntimeError("模擬家長提醒排入失敗")
+
+    monkeypatch.setattr(reminders, "enqueue_due_parent_reminders", _broken)
+    await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+    result = await run_cycle(app.state.session_factory, _settings_without_mail(app), worker_id="test")
+    # 只把「提醒」步驟記成失敗（不新增步驟名）；員工提醒已先寫入、計數照實。
+    assert result.failed_steps == ["reminders"]
+    assert (result.reminders_enqueued, result.parent_reminders_enqueued) == (1, 0)
+    kinds = set((await db_session.execute(select(NotificationInboxItem.kind))).scalars())
+    assert reminders.UPCOMING_VISIT_KIND in kinds
+    assert await _queued(db_session) == []
+
+
+async def test_cli_reports_how_many_parent_reminders_were_queued(
+    app, admin_client, public_client, db_session, monkeypatch, capsys
+):
+    async def _factory():
+        return app.state.session_factory
+
+    monkeypatch.setattr(cli, "get_settings", lambda: _settings_without_mail(app))
+    monkeypatch.setattr(cli, "_session_factory", _factory)
+    await _visit_starting_in(admin_client, public_client, db_session, hours=23)
+
+    await cli.process_notifications_once()
+    assert "已排 1 封家長參觀提醒信。" in capsys.readouterr().out
+
+    await cli.process_notifications_once()
+    assert "家長參觀提醒信" not in capsys.readouterr().out

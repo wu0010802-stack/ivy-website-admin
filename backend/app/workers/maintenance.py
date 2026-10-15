@@ -1,5 +1,5 @@
 """API 內建的定期工作：排程發布、依每週規則補時段、產生提醒
-（即將參觀）、處理通知 outbox、清過期限流計數、清理刪除超過
+（員工的即將參觀、家長的參觀提醒）、處理通知 outbox、清過期限流計數、清理刪除超過
 保留天數的素材、依個資保存政策每天清理一次。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
@@ -50,6 +50,7 @@ class CycleResult:
     publish_skipped: int = 0
     slots_generated: int = 0
     reminders_enqueued: int = 0
+    parent_reminders_enqueued: int = 0
     email_configured: bool = False
     line_configured: bool = False
     notifications_sent: int = 0
@@ -71,6 +72,7 @@ class CycleResult:
                 self.publish_skipped,
                 self.slots_generated,
                 self.reminders_enqueued,
+                self.parent_reminders_enqueued,
                 self.notifications_sent,
                 self.notifications_failed,
                 self.notifications_skipped,
@@ -155,8 +157,9 @@ async def _run_steps(
         logger.exception("定期工作：依規則補時段失敗")
         result.failed_steps.append("extend_slots")
 
-    # 到點的提醒（即將參觀、逾期未處理）寫進 outbox，這一輪就會一起送出。
-    # 以 dedupe_key 去重，重跑不會重複寫。
+    # 到點的提醒寫進 outbox，這一輪就會一起送出。以 dedupe_key 去重，重跑不會重複寫。
+    # 員工的即將參觀先排、先 commit；家長的參觀提醒另開 session，失敗只把「提醒」記成失敗步驟，
+    # 不回滾已經寫好的員工提醒（員工計數照實）。
     try:
         async with session_factory() as db:
             result.reminders_enqueued = await reminders.enqueue_due_reminders(db)
@@ -164,6 +167,14 @@ async def _run_steps(
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：產生提醒失敗")
         result.failed_steps.append("reminders")
+    try:
+        async with session_factory() as db:
+            result.parent_reminders_enqueued = await reminders.enqueue_due_parent_reminders(db)
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：產生家長參觀提醒失敗")
+        if "reminders" not in result.failed_steps:
+            result.failed_steps.append("reminders")
 
     try:
         adapter = get_email_adapter(settings.notification_email_sink_dir, settings)
