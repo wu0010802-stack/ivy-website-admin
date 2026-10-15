@@ -28,7 +28,7 @@ _PLAIN_STREET = re.compile(r"[\u4e00-\u9fff]+(?:大道|路|街)(?:[\u4e00-\u9fff
 
 
 class MatchError(RuntimeError):
-    """比對前提不成立（門牌沒匯入、本校沒座標）；訊息直接印給操作的人。"""
+    """比對前提不成立（門牌沒匯入、本校沒座標）或某位比對失敗；訊息直接印給操作的人，不含地址。"""
 
 
 @dataclass(frozen=True)
@@ -74,8 +74,12 @@ async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, ros
     methods: Counter = Counter()
     grades: Counter = Counter()
     unplaced_lines: list[str] = []
-    for row in roster.rows:
-        result = await locate_roster_address(db, row.address, version=version, campus=campus)
+    for index, row in enumerate(roster.rows, start=1):
+        try:
+            result = await locate_roster_address(db, row.address, version=version, campus=campus)
+        except Exception as error:
+            # 原錯誤的訊息可能帶著 SQL 參數（含地址），所以只留位置與例外種類，也不串接原例外。
+            raise MatchError(f"第 {index} 位比對失敗（{type(error).__name__}）") from None
         match = result.match
         grade = roster_grade(row.birthday, school_year)
         placed = match.match_level in POINT_LEVELS and match.lat is not None and match.lng is not None

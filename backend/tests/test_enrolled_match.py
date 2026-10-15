@@ -7,6 +7,7 @@ from datetime import date
 import pytest
 
 from app import cli
+from app.admissions.enrolled import match as match_module
 from app.admissions.enrolled.match import MatchError, masked_address, match_roster, round_coord
 from app.admissions.enrolled.roster import parse_roster
 from app.cli import enrolled_match_command, enrolled_match_options
@@ -102,6 +103,27 @@ async def test_needs_doorplates_and_a_located_campus(db_session):
     await load_geo_samples(db_session)
     with pytest.raises(MatchError, match="本校沒有座標"):
         await match_roster(db_session, roster, campus_key="yihua", roster_date=date(2026, 10, 15))
+
+
+async def test_a_failing_lookup_names_only_the_position(db_session, monkeypatch):
+    await _ready(db_session)
+    real = match_module.locate_roster_address
+    calls = 0
+
+    async def flaky(db, raw, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("秘密路9號")  # 資料庫錯誤的訊息可能帶著 SQL 參數
+        return await real(db, raw, **kwargs)
+
+    monkeypatch.setattr(match_module, "locate_roster_address", flaky)
+    with pytest.raises(MatchError) as caught:
+        await match_roster(db_session, parse_roster(roster_html(ROWS)), campus_key="yihua", roster_date=date(2026, 10, 15))
+    error = caught.value
+    assert "第 2 位" in str(error)
+    assert "秘密路" not in str(error)
+    assert error.__cause__ is None and error.__suppress_context__ is True
 
 
 def test_cli_options(tmp_path):

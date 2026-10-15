@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from html.parser import HTMLParser
 
@@ -23,7 +23,8 @@ class RosterError(ValueError):
 @dataclass(frozen=True)
 class RosterRow:
     birthday: date
-    address: str
+    # repr 不印地址：例外追蹤與除錯輸出可能帶出 dataclass 的 repr。
+    address: str = field(repr=False)
 
 
 @dataclass(frozen=True)

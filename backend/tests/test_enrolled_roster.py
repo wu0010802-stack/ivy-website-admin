@@ -28,6 +28,10 @@ def test_html_entities_in_the_address_are_decoded():
     assert roster.rows[0].address == "測試里1鄰\xa0測試路1號"
 
 
+def test_row_repr_never_shows_the_address():
+    assert "測試路" not in repr(RosterRow(date(2022, 1, 1), "測試路1號"))
+
+
 def test_missing_print_date_is_none():
     assert parse_roster(roster_html([("2022/02/11", "測試路1號")], printed=None)).printed_on is None
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -13,10 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import constants
 from app.admissions.enrolled.models import POINT_LEVELS, EnrolledRoster, EnrolledStudentPoint
-from app.admissions.geo.kaohsiung import in_kaohsiung
+from app.admissions.geo.kaohsiung import DISTRICTS, in_kaohsiung
 from app.campuses.models import CAMPUS_KEYS
 
 logger = logging.getLogger("app.admissions.enrolled")
+
+# 最後一道關：district、village 是自由文字欄位，白名單擋下不小心帶進來的地址或其他字串。
+_VILLAGE = re.compile(r"[一-鿿]{1,6}[里村]")
 
 
 class EnrolledStudentIn(BaseModel):
@@ -29,6 +33,20 @@ class EnrolledStudentIn(BaseModel):
     unlocated_reason: Literal["no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village"] | None = None
     lat: Decimal | None = Field(default=None, max_digits=6, decimal_places=3)
     lng: Decimal | None = Field(default=None, max_digits=7, decimal_places=3)
+
+    @field_validator("district")
+    @classmethod
+    def _known_district(cls, value: str | None) -> str | None:
+        if value is not None and value not in DISTRICTS:
+            raise ValueError("不是高雄市的行政區")
+        return value
+
+    @field_validator("village")
+    @classmethod
+    def _village_name(cls, value: str | None) -> str | None:
+        if value is not None and _VILLAGE.fullmatch(value) is None:
+            raise ValueError("不是里名")
+        return value
 
     @model_validator(mode="after")
     def _point_rules(self) -> EnrolledStudentIn:

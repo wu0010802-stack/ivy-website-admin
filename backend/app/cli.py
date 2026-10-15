@@ -823,6 +823,7 @@ async def enrolled_import_command(*, file: Path | None, clear: str | None) -> No
     from pydantic import ValidationError
 
     from app.admissions.enrolled.importer import clear_roster, describe_error, load_payload, replace_roster
+    from app.admissions.geo import matcher
 
     factory = await _session_factory()
     if clear is not None:
@@ -843,7 +844,14 @@ async def enrolled_import_command(*, file: Path | None, clear: str | None) -> No
     async with factory() as db:
         total, placed = await replace_roster(db, payload)
         await db.commit()
+        active = await matcher.doorplate_label(db)
     print(f"匯入 {payload.campus_key}：{total} 位（有點 {placed} 位），清冊日期 {payload.roster_date.isoformat()}")
+    if active is not None and active != payload.doorplate_version:
+        # 只提醒、不阻止：點的位置是比對時定下的，換版只會讓里名和現行門牌不一致。
+        print(
+            f"注意：比對用的門牌版本（{payload.doorplate_version}）和正式站使用中的版本（{active}）不同，"
+            "點的位置以比對時為準，里名可能和現行門牌不一致。"
+        )
 
 
 def main() -> None:

@@ -10,6 +10,7 @@ from app.admissions.enrolled.importer import clear_roster, describe_error, load_
 from app.admissions.enrolled.models import ENROLLED_GRADES, ENROLLED_LEVELS, ENROLLED_REASONS, EnrolledRoster, EnrolledStudentPoint
 from app.cli import enrolled_import_command, enrolled_import_options
 from tests.enrolled_helpers import payload_text, points_payload, student
+from tests.geo_helpers import load_geo_samples
 
 
 async def _count(db) -> int:
@@ -64,6 +65,10 @@ async def test_clear_roster(db_session):
         points_payload([student(lat=25.033, lng=121.565)]),
         points_payload([student(lat=22.6424)]),
         points_payload([student(unlocated_reason="anonymized")]),
+        points_payload([student(district="義華路68號")]),
+        points_payload([student(village="義華路68號")]),
+        points_payload([student(district="台北市")]),
+        points_payload([student(village="本揚")]),
         points_payload(campus_key="nowhere"),
         points_payload(format="ivy-enrolled-points/2"),
         points_payload([]),
@@ -80,6 +85,29 @@ def test_error_description_never_echoes_input_values():
     text = describe_error(caught.value)
     assert "students.0.address" in text
     assert "秘密路" not in text
+
+
+@pytest.mark.parametrize(
+    ("changes", "field"),
+    [
+        ({"district": "義華路68號"}, "district"),
+        ({"village": "義華路68號"}, "village"),
+        ({"district": "台北市"}, "district"),
+    ],
+)
+def test_district_and_village_whitelist_errors_name_the_field_but_not_the_value(changes, field):
+    with pytest.raises(ValidationError) as caught:
+        load_payload(payload_text(points_payload([student(**changes)])))
+    text = describe_error(caught.value)
+    assert f"students.0.{field}" in text
+    assert "義華路" not in text and "台北" not in text
+
+
+def test_a_village_or_district_that_is_none_is_allowed():
+    load_payload(payload_text(points_payload([
+        student(district=None, village=None, match_level="unlocated", unlocated_reason="no_address", lat=None, lng=None),
+        student(village="大寮村"),
+    ])))
 
 
 def test_cli_options(tmp_path):
@@ -123,3 +151,20 @@ async def test_cli_clear(db_session, cli_db, tmp_path, capsys):
     await enrolled_import_command(file=None, clear="yihua")
     assert "已刪除 yihua 的在籍學生資料" in capsys.readouterr().out
     assert await _count(db_session) == 0
+
+
+@pytest.mark.parametrize(
+    ("loaded", "version", "warned"),
+    [(True, "115-09", True), (True, "115-10", False), (False, "115-09", False)],
+)
+async def test_cli_import_warns_when_the_doorplate_version_differs(db_session, cli_db, tmp_path, capsys, loaded, version, warned):
+    if loaded:
+        await load_geo_samples(db_session)  # 使用中的門牌版本標籤是 115-10
+    file = tmp_path / "points.json"
+    file.write_text(payload_text(points_payload(doorplate_version=version)), encoding="utf-8")
+    await enrolled_import_command(file=file, clear=None)
+    out = capsys.readouterr().out
+    assert "匯入 yihua：1 位" in out  # 只警告、不阻止匯入
+    assert ("注意：比對用的門牌版本" in out) is warned
+    if warned:
+        assert "注意：比對用的門牌版本（115-09）和正式站使用中的版本（115-10）不同，點的位置以比對時為準，里名可能和現行門牌不一致。" in out
