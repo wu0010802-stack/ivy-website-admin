@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, shallowRef, watch } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
+import EnrolledPanel from './EnrolledPanel.vue'
 import NearbyPanel from './NearbyPanel.vue'
 import OpportunityPanel from './OpportunityPanel.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import VillageTrendsPanel from './VillageTrendsPanel.vue'
 import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
 import {
-  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaKindergartens, getAreaOpportunity, getAreaTrends,
+  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaTrends,
 } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaKindergartens, AreaOpportunity, AreaTrends, AreaVillageRow,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaTrends, AreaVillageRow,
   VillageBoundaries,
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
@@ -19,8 +20,8 @@ import { areaQuery } from '../../../admissions/areaFilter'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, homesMapNote, opportunityUnavailable,
-  populationVersionLabel, reasonLabel, taipeiMonthDay, trendMapNote, type NearbyKind, type RadiusKm,
+  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, enrolledMapNote, homesMapNote, opportunityUnavailable,
+  populationVersionLabel, reasonLabel, taipeiMonthDay, trendMapNote, type GradeFilter, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
@@ -202,6 +203,30 @@ const homesNote = computed(() => {
   return trends.value ? homesMapNote(trends.value) : ''
 })
 
+// 在籍學生（2026-10-15 規格 §6）：只依校區讀（清冊是某一天的快照，和學年學期、半徑無關）。
+// 班別篩選放這裡：地圖與下方表格同步；換校區回到全部（新校不一定有同一班）。
+const gradeFilter = ref<GradeFilter>('all')
+const enrolled = ref<AreaEnrolled | null>(null)
+const enrolledFailed = ref(false)
+const enrolledRequests = useRequestSequence()
+async function loadEnrolled() {
+  const request = enrolledRequests.begin()
+  enrolled.value = null
+  enrolledFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaEnrolled(props.campusKey)
+    if (enrolledRequests.isCurrent(request)) enrolled.value = result
+  } catch {
+    if (enrolledRequests.isCurrent(request)) enrolledFailed.value = true
+  }
+}
+watch(() => props.campusKey, () => {
+  gradeFilter.value = 'all'
+  void loadEnrolled()
+}, { immediate: true })
+const enrolledNote = computed(() => enrolledMapNote(enrolled.value, enrolledFailed.value))
+
 const map = ref<{ focusKindergarten: (id: string) => void; focusBabycare: (id: string) => void; revealBabycare: () => void } | null>(null)
 function focusKindergarten(id: string) {
   map.value?.focusKindergarten(id)
@@ -347,6 +372,9 @@ function openNoVillage() {
             :trends="trends"
             :trend-note="trendNote"
             :homes-note="homesNote"
+            :enrolled="enrolled"
+            :enrolled-note="enrolledNote"
+            v-model:grade-filter="gradeFilter"
             @open-area="openPlace"
           />
         </div>
@@ -367,6 +395,13 @@ function openNoVillage() {
         </div>
       </div>
 
+      <EnrolledPanel
+        :data="enrolled"
+        :failed="enrolledFailed"
+        :grade-filter="gradeFilter"
+        :csv-name="csvName"
+        @retry="loadEnrolled()"
+      />
       <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
       <VillageTrendsPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" @retry="loadTrends()" />
       <SchoolDistrictPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" />
