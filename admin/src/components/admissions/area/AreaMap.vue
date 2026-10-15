@@ -398,6 +398,7 @@ function drawKindergartens() {
     group.addLayer(marker)
     kindergartenMarkers.set(item.source_id, marker)
   }
+  raiseEnrolled()
 }
 
 function setShowKindergartens(value: boolean) {
@@ -405,6 +406,7 @@ function setShowKindergartens(value: boolean) {
   if (!map || !kindergartenGroup) return
   if (value) map.addLayer(kindergartenGroup)
   else map.removeLayer(kindergartenGroup)
+  raiseEnrolled()
 }
 
 /** 清單點一列：地圖移到該園並打開資訊。 */
@@ -459,10 +461,18 @@ function drawEnrolled() {
   }
 }
 
+// 規格 §6：學生的點要在最上層。Leaflet 的 SVG 依加入順序疊（後加的在上面），幼兒園圖層重畫或重新加回地圖
+// （換半徑、開關、清單點一列）就會蓋過學生的點，所以在「在籍學生」模式下每次都把學生的點再拉到最前面。
+function raiseEnrolled() {
+  if (mode.value !== 'enrolled' || !enrolledGroup) return
+  enrolledGroup.eachLayer((layer) => (layer as Leaflet.CircleMarker).bringToFront())
+}
+
 function syncEnrolledLayer() {
   if (!map || !enrolledGroup) return
   if (mode.value === 'enrolled') map.addLayer(enrolledGroup)
   else map.removeLayer(enrolledGroup)
+  raiseEnrolled()
 }
 
 function setShowBabycare(value: boolean) {
