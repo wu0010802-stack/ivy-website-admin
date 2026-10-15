@@ -1,3 +1,18 @@
+## 2026-10-15 後台第 1 波：系統狀態頁＋家長參觀提醒信（`feature/admin-wave1-20261015`）
+
+10-15 後台功能盤點選出的六項之第 1 波。規則見 DESIGN.md「後台：系統狀態頁」「預約：參觀前 24 小時家長提醒信」；規格 `docs/specs/2026-10-15-admin-system-status-design.md`、`docs/specs/2026-10-15-parent-visit-reminder-design.md`（各自 §7 列與規格的差異）；計畫 `docs/superpowers/plans/2026-10-15-admin-wave1-status-reminder.md`。
+
+- **系統狀態頁**（只有總管理者）：寄信、LINE 推播、Turnstile、Google／LINE 登入、素材儲存、招生與同步開關、個資自動清理有沒有設；維護排程、轉檔、公開資料同步是否在跑；各項公開資料的版本與是否過期（門牌 35 天）；寄送與排程發布失敗筆數。可寄測試信給自己；營運總覽在有「要注意」時多一行。自動同步沒開時，非門牌資料的過期只算資訊。
+- **家長參觀提醒信**：參觀前 24 小時寄 Email；期限內附修改連結，過了請家長來電；改期、停課、取消、匿名化後不寄。正式站設好寄信之前一律 skipped。
+- **資料**：不新增 migration、不新增環境變數；`/health` 不變。
+- **已知限制**：參觀改期後又改回原場次，不會再寄第二封提醒；背景迴圈狀態只反映回應請求的那個程序（正式站目前單一副本）。
+- **驗證**（Node 22、PostgreSQL 獨立測試庫；程式碼在 `d5e79924`..`fa2b49cc`；**未 push、未部署**）：
+  - 後端單檔：`test_system_status.py` 在 Task 1 時 35 passed，Task 2 加上權限、測試信與總覽後，與 `test_permission_table.py`、`test_dashboard_today_board.py`、`test_operations.py`、`test_audit_coverage.py`、`test_audit_actions.py` 合跑 94 passed；`test_parent_visit_reminder.py` 27 passed，與提醒、寄信、維護排程相關檔合跑 81 passed。
+  - admin 單檔：`systemStatus.test.ts` 22 passed、`labelCoverage.test.ts` 15 passed；`typecheck` 無錯誤；契約檢查（`export_openapi.py --check` 加 `check-contract-types.mjs`）一致。
+  - stack：`system-status.spec.ts` 1 passed（連 setup 共 2 passed）；1440 與 390 截圖看過，四區載入、手機無橫向溢出。
+  - 全套驗證：見下一個 commit。
+  - **未驗證／沒做**：沒有登入正式後台看過系統狀態頁；正式站寄信（SMTP）是否已設未確認，測試信沒有對真的 SMTP 按過；提醒信沒有真的寄出過（只在測試用的 recording adapter 驗內容與寄送流程）；手機版沒量測試信結果段落展開後的寬度。
+
 ## 2026-10-15 預約全程漏斗與退出時點（`feature/booking-journey-20261015`）
 
 招生判讀四個子專案的第四個（最後一個）。統計分析多一個子分頁「預約全程」：官網預約與後台補登的同一批預約案件，從預約、到場、有招生訪視、預繳、註冊各階段的人數與比率（附分子分母），各段花多久（預約提前量、參觀到預繳、預繳到註冊、預繳到退出，中位數與筆數），以及家庭離開的時點（取消距參觀日幾天、沒來、時間已過未標記、已到場但沒有訪視、參觀後未預繳的觀察中／逾期／冷名單、預繳後退出）。規格 `docs/specs/2026-10-15-booking-journey-design.md`（§8 列與規格的差異），規則見 DESIGN.md「招生入學：預約全程漏斗與退出時點」。

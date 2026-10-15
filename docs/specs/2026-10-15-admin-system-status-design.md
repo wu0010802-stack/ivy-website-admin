@@ -143,3 +143,24 @@ generated_at, attention_count
 
 - 「參觀提醒信」：狀態頁的寄信列可以確認提醒信寄不寄得出去；兩案不共用檔案。
 - 不碰招生、預約資料，與第 2、3 波無衝突。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave1-status-reminder.md`；與「參觀提醒信」合為一支分支 `feature/admin-wave1-20261015`（上方「分支」欄寫的是原本的分開命名）。實作時 §6 說「兩案不共用檔案」不成立：實際共用 `admin/src/api/labels.ts`（本案補 `system.test_email` 與 `result`／`error_code` 中文，提醒信補 kind 中文）與 `backend/app/workers/maintenance.py`（本案加 `started_at`，提醒信在「提醒」步驟多排家長提醒）；`notifications/service.py` 只有提醒信那邊改。
+- 與規格的差異（計畫裁定）：
+  - P2：`MaintenanceLoop`、`GeoSyncLoop` 各加 `started_at`（`start()` 時記錄），S8「程序啟動超過該時間仍沒有完成過一輪」才算得出；兩個迴圈原本都沒有。
+  - P3：轉檔失敗看素材狀態（`media_assets.status = 'failed'` 且未刪除），不看 §3.2 寫的 `media_jobs` 失敗列——「重新處理」會另建新工作、舊失敗列不會消失，會讓這一列永遠紅。
+  - P4：門牌 `last_error` 也算要注意（正式站自動下載必定失敗，約 30 天後一定留下 `last_error`）；畫面兩種情況（過期、失敗）都寫「請到電腦上用匯入指令更新門牌（每月一次）」。
+  - P5：測試信操作紀錄 metadata 是 `{"result": "sent"}` 或 `{"result": "failed", "error_code": <例外類別名>}`（規格寫 `{result: 'ok'|<error>}`），沿用後台已有的 `error_code` 中文；實作是單一 `log_action` 條件式展開，不是兩個分支各一份字面值。
+  - P10：總覽算 `system_attention` 失敗時記 log、`rollback`、回 `None`，總覽照常 200。計畫該條理由寫「總覽每 30 秒背景重讀」，實際是切回分頁且距上次超過 30 秒才重讀（`openRequests.ts` 的 `STALE_MS`）。
+  - P11：公開資料清單動態取後端 `DATASETS`（扣掉 `campuses`），未知 dataset 的更新週期用 30 天；`systemStatus.test.ts` 解析後端 `DATASETS`、維護排程步驟名與列 key，要求每項都有中文。
+  - P12：公開資料同步迴圈停擺門檻＝檢查間隔（`geo_sync_check_seconds`）＋2 小時（預設 26 小時），不是固定 26 小時（檢查間隔可設到 7 天）。
+- 與規格的差異（實作中的控制者裁定）：
+  - P-3（補充 S7）：自動同步沒開時，非門牌資料的「過期」降為資訊（`detail.auto_sync_off`，畫面寫「自動同步沒開，資料不會自己更新」、沒有連結）；`last_error` 非空仍是要注意；門牌照 S6／P4 不變。S7 的理由（每天檢查、過期代表停擺）以同步開著為前提。
+  - P-4：列沒有規格寫的 `action` 欄位（處理連結在前端 `systemStatusFormat.ts` 的 `itemLink`）；沒有獨立的 `attention_count(status)` 函式，只有回應欄位 `attention_count`（`build_status` 內計算）；模型名是 `SystemStatusOut`、`SystemStatusItem`、`SystemEmailTestOut`（規格寫 `SystemStatus`、`StatusItem`、`TestEmailOut`）；寄信列細節的寄件地址鍵是 `sender`；轉檔背景程式沒在跑也算要注意（規格只寫有失敗列）；`geo_auto_sync` 列與同步迴圈判斷，要招生開關與同步開關兩個都開才算開（招生關閉時同步程式不會啟動，`main.py` lifespan）。
+  - P-8a：production 沒設 SMTP 時，測試信一律 409 `EMAIL_NOT_CONFIGURED`，不管有沒有 sink 資料夾（規格只寫「沒有 adapter → 409」，sink 也算 adapter）；非 production 才可用 sink（stack e2e 靠它）。避免正式站狀態列寫「尚未設定」、測試信卻回「已寄到」。
+  - P-8b：寄信前先結束資料庫交易（讀完收件人、過了限流就 `rollback`），寄完再開新交易寫操作紀錄；操作紀錄寫不進去只記 log、回應照實回寄信結果。
+  - 規格沒寫：限流後端連不上時回 429 `TEST_EMAIL_BUSY`「系統忙碌，請稍候再試」、不寄信；409 在限流之前判斷，不耗額度。
+  - P-5：文案照規格逐字（sink 顯示「寫入本機資料夾（測試用）」、頁首「資料時間 HH:MM」，台北時間、只有時分）。
+- 與規格的差異（落地位置）：中文對照（列名、步驟名、公開資料名、level、文案）放 `admin/src/utils/systemStatusFormat.ts`，不是 §3.3 寫的 `labels.ts`；比對後端常數的是 `systemStatus.test.ts`，不是 `labelCoverage.test.ts`（後者只負責測試信的操作紀錄動作與 metadata 中文）。營運總覽的條件是 `DashboardView.vue` 的 `hasTodo`（規格寫 `hasTasks`）。
+- 已知限制：sink 模式（非 production）測試信成功仍顯示規格原文「已寄到 a***@…，請到信箱確認」，信其實寫進本機資料夾；正式站沒有這個模式，不影響。測試信等超過 20 秒就回 `timeout`，但 thread 裡的寄信動作不會被中斷，要靠 SMTP 連線自己的 20 秒逾時與每人 10 分鐘 3 封的限流兜底。
