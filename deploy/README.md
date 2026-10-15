@@ -13,6 +13,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-15 區域分析驗證後的修正：國小學區整里／部分、招生機會沒填地址（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `fix/area-data-fixes-20261015` 到 main（fast-forward `aae0debc..15a81e60`，3 個 commit：`1cebdae8` 學區、`c8b42478` 招生機會文案、`15a81e60` 文件，沒有開 PR）。內容見 README 頂部「區域分析驗證後的修正」、`backend/app/admissions/geo_data/README.md`、兩份規格的 10-15 更正。
+- **migration**：無；alembic head 仍是 `c6a9e3f15d27`；沒有依賴檔變動；沒有備份。學區對照檔隨程式提交，部署後就生效。
+- **回退**：可直接切回前一個映像（API 只多一個回應欄位 `no_address_visit`，沒有新表、新欄位）。
+- **推送前閘門**（本機，Node 22）：後端全套 3,158 passed／1 skipped；admin vitest 全套 161 檔 2,507 passed／1 skipped；admin typecheck、契約檢查一致；stack `admissions-area.spec.ts` 13 passed。
+- **CI**：main run 38766809138（`15a81e60`）16:10:58Z 開跑，16:28:52Z 完成（17.9 分），全綠：Frontend web 2.0 分、admin 6.2 分；Backend 三組 12.5／12.2／11.3 分；E2E／Playwright 12.5 分；Deploy Railway production 5.2 分（16:23:37Z 開始）。
+- **正式 `release.json`**：base commit `15a81e603378c67d596d261bf13cfb71364caae9`，snapshot `4b00863c…`，created `2026-10-15T16:24:02Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`；首頁、`/admission`、`/visit`、`/admin/` 都回 200；`/area/opportunity` 未登入回 401；後台 lazy chunk（121 個）裡 `areaFormat-*.js` 有「參觀率不到 0.1%」與 `no_address_visit`、`StatsTab-*.js` 有「沒填地址、只到區、未定位的訪視」。
+- **同日的正式資料操作**（不依賴這次部署）：使用者重匯 114S4–115S3 新成屋，七賢一路 63 筆重比，`unplaced` 63 → 0（見下方「公開地理資料同步」的跨區界道段落）。
+- **未在線上驗證**：登入後的畫面與 `/area/opportunity`、`/area/trends` 的新值（推送後讀時登入 session 已過期，被導到登入頁）。預期：義華招生機會寫「另有 3 位沒填地址」、「參觀率不到 0.1%」；依國小學區新甲國小「9 里＋部分 1 里」、大東國小「5 里」。
+
 ## 2026-10-15 預約全程漏斗與退出時點（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機直接推 `feature/booking-journey-20261015` 到 main（fast-forward `7ae6de45..59f4d2a1`，17 個 commit，沒有開 PR）。feature 分支先推過一次，CI run 38675440483 六個 job 全 success，Deploy 照預期 skipped。內容見 README 頂部「預約全程漏斗與退出時點」、DESIGN.md「招生入學：預約全程漏斗與退出時點」、規格 `docs/specs/2026-10-15-booking-journey-design.md`（§8 是實作中的裁定）、計畫 `docs/superpowers/plans/2026-10-15-booking-journey.md`。
