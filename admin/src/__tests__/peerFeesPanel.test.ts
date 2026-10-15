@@ -6,7 +6,7 @@ import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import { areaPeerFees, areaStats } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
-import { downloadCsv } from '../utils/csv'
+import { CSV_BOM, downloadCsv } from '../utils/csv'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -80,7 +80,7 @@ describe('附近同業收費', () => {
     // 丙幼兒園沒有月均：CSV 那格是空白（不是 0、不是「—」）；學期總收費寫原始數字。
     const line = csv.split('\r\n').find((row) => row.includes('丙幼兒園'))!
     const cells = line.split(',')
-    const header = csv.split('\r\n')[0]!.replace(/^﻿/, '').split(',')
+    const header = csv.replace(CSV_BOM, '').split('\r\n')[0]!.split(',')
     expect(cells[header.indexOf('學期總收費（元）')]).toBe('40200')
     expect(cells[header.indexOf('月均（元）')]).toBe('')
   })
