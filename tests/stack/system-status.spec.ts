@@ -10,6 +10,9 @@ const mine = () => readMail((mail) => mail.to === USERS.super_admin.email && mai
 test('總管理者看系統狀態、寄測試信；櫃台看不到這一頁', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'super_admin')
   await gotoAdmin(page, '/system-status', '系統狀態')
+  // 正向對照：總管理者的側欄看得到「系統狀態」，底下櫃台那段的 toHaveCount(0) 才不是因為側欄沒渲染而空過。
+  const superNav = page.getByRole('navigation', { name: '主選單' })
+  await expect(superNav.getByRole('link', { name: '系統狀態' })).toBeVisible()
   for (const title of ['對外服務設定', '背景工作', '公開資料', '通知與發布']) {
     await expect(page.getByRole('heading', { level: 2, name: title })).toBeVisible()
   }
@@ -21,7 +24,13 @@ test('總管理者看系統狀態、寄測試信；櫃台看不到這一頁', as
   await expect(page.getByRole('status').filter({ hasText: '已寄到' })).toBeVisible()
   await expect.poll(async () => (await mine()).length).toBe(before + 1)
 
+  // 等「重新整理」真的打了一次 GET 並回來，再看畫面；資料時間在點擊前就已經看得到，不能只靠它。
+  const refreshed = page.waitForResponse(
+    (response) => response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith('/admin/system-status'),
+  )
   await page.getByRole('button', { name: '重新整理' }).click()
+  expect((await refreshed).status()).toBe(200)
+  await expect(page.getByRole('button', { name: '重新整理' })).toBeEnabled()
   await expect(page.getByText(/資料時間/)).toBeVisible()
   await page.screenshot({ path: 'output/playwright/system-status-1440.png', fullPage: true })
   await context.close()
@@ -40,6 +49,9 @@ test('總管理者看系統狀態、寄測試信；櫃台看不到這一頁', as
   const desk = await openAs(browser, 'reception')
   await desk.page.goto('/admin/system-status')
   await expect(desk.page).toHaveURL(/\/admin\/$/)
-  await expect(desk.page.getByRole('navigation', { name: '主選單' }).getByRole('link', { name: '系統狀態' })).toHaveCount(0)
+  // 先等側欄渲染出櫃台看得到的連結，再斷言看不到「系統狀態」，否則側欄還沒出來時 count 也是 0。
+  const deskNav = desk.page.getByRole('navigation', { name: '主選單' })
+  await expect(deskNav.getByRole('link', { name: '營運總覽' })).toBeVisible()
+  await expect(deskNav.getByRole('link', { name: '系統狀態' })).toHaveCount(0)
   await desk.context.close()
 })
