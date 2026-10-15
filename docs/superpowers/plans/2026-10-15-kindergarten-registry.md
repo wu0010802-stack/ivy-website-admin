@@ -40,7 +40,7 @@ cd ~/Repositories/ivy-website-wt/kindergarten-registry-20261015
 git sparse-checkout add web/server/data web/public web/app web/app/generated web/server deploy
 cd backend && uv sync --frozen
 createdb ivy_website_kgreg1015_test
-WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_SESSION_SECRET=ci-only-session-secret-not-for-production uv run --frozen alembic upgrade head
+WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_SESSION_SECRET=ci-only-session-secret-not-for-production uv run --frozen alembic upgrade head
 ```
 
 後端指令前綴（下文記為 `PY`；整段放在同一行，在 `backend/` 目錄下執行）：
@@ -1327,7 +1327,7 @@ Modify `tests/stack/start-api.sh`：
 驗證 stack 匯入指令能跑（不起整個 stack，只跑匯入那一步；用測試庫）：
 
 ```bash
-cd backend; WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_SESSION_SECRET=ci-only-session-secret-not-for-production uv run --frozen python -m app.cli geo-sync --kindergartens-file ../tests/stack/fixtures/geo-preschools.json --kindergartens-registry-file ../tests/stack/fixtures/geo-kindergarten-registry.csv
+cd backend; WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_kgreg1015_test WEBSITE_SESSION_SECRET=ci-only-session-secret-not-for-production uv run --frozen python -m app.cli geo-sync --kindergartens-file ../tests/stack/fixtures/geo-preschools.json --kindergartens-registry-file ../tests/stack/fixtures/geo-kindergarten-registry.csv
 ```
 
 Expected: 輸出含 `幼兒園：updated`（門牌等其他項目 `skipped`）。跑完這個庫裡會留下 5 所 e2e 幼兒園；pytest 每個測試自己清表，不受影響。
@@ -1797,8 +1797,8 @@ git commit -m "fix(admin): 附近園所的變化小字只說類型變動與托�
 - [ ] **Step 3: 全套驗證（主 session 背景跑，一次只跑一組）**
 
 ```bash
-cd backend; PY ruff check app tests scripts
-cd backend; PY pytest -q -p no:cacheprovider -x --timeout=600   # 全套；背景跑，等通知
+cd backend; uvx ruff check app tests scripts   # venv 裡沒有 ruff
+cd backend; PY pytest -q -p no:cacheprovider   # 全套；背景跑，等通知（沒有 pytest-timeout，不要加 --timeout）
 source ~/.nvm/nvm.sh; nvm use 22; cd admin; npx vitest run      # admin 全套
 npm --prefix admin run typecheck
 git grep -n "roster" -- backend/app/admissions/geo backend/app/cli.py   # 應該沒有結果（R9）
