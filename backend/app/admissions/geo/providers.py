@@ -2,6 +2,7 @@
 
 同步下載到的名單不再「刪光重寫」，而是依 source_id 和資料表比對：
 - 這次名單沒有、上次營業中的 → 標成停辦（is_active 假，列留著）並寫 closed 事件；
+  幼兒園另有兩個例外（2026-10-15）：回補檔指定的依檔處理；同地址同設立日的另一筆在新名單上＝改名或換承辦，只下架；
 - 這次有、上次是停辦的 → 重新營業；但 30 天內才寫了 closed 事件的，視為來源漏收，撤掉那筆事件、
   不寫 opened（P6）；
 - 托嬰名單裡新出現的（資料表原本有列）→ opened 事件；幼兒園的新設看設立日（registered_on，讀的時候算），
@@ -16,7 +17,8 @@ from __future__ import annotations
 
 import calendar
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -26,6 +28,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo.babycare import BabycareRow
+from app.admissions.geo.closure_backfill import ClosureBackfill
 from app.admissions.geo.kindergartens import KindergartenRow, kind_as_of
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKindergarten, GeoProviderEvent
 from app.admissions.geo.projection import haversine_m
@@ -53,6 +56,8 @@ class ChangeReport:
     closed: int = 0
     kind_changed: int = 0
     cancelled_closures: int = 0  # 30 天內回來而撤掉的停辦事件
+    renamed: int = 0  # 幼兒園改名或換承辦：下架、不寫停辦（2026-10-15）
+    backfilled: int = 0  # 幼兒園依回補檔處理的下架（有日期的寫停辦事件，沒日期的只下架）
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,11 @@ class _Spec:
     model: type
     dataset: str  # geo_dataset_status.dataset
     new_row_is_event: bool  # 資料表已有列時，新出現的算 opened（托嬰）；幼兒園看設立日，不靠事件
+
+
+# 一所要下架時的判斷（2026-10-15 規格 §4）：None＝一般停辦（寫在同步當天）；
+# 否則 (計數名稱 "renamed"／"backfilled", 停辦事件的日期或 None＝只下架)。
+Retire = Callable[[Any], tuple[str, date | None] | None]
 
 
 _KINDERGARTEN = _Spec("kindergarten", GeoKindergarten, "kindergartens", False)
@@ -130,6 +140,7 @@ async def _apply(
     synced_at: datetime,
     force: bool,
     kind_change: Callable[[Any, dict[str, Any]], tuple[str, str] | None] | None = None,
+    retire: Retire | None = None,
 ) -> ChangeReport:
     today = today_local(synced_at)
     existing = {row.source_id: row for row in (await db.execute(select(spec.model))).scalars()}
@@ -140,11 +151,13 @@ async def _apply(
     pending: list[dict] = []
     cancelled = 0
 
-    def add_event(source_id: str, change: str, old: str | None = None, new: str | None = None) -> None:
+    def add_event(
+        source_id: str, change: str, old: str | None = None, new: str | None = None, *, on: date | None = None
+    ) -> None:
         pending.append(
             {
                 "provider": spec.provider, "source_id": source_id, "change": change,
-                "occurred_on": today, "old_value": old, "new_value": new,
+                "occurred_on": on or today, "old_value": old, "new_value": new,
             }
         )
 
@@ -169,10 +182,18 @@ async def _apply(
                 add_event(source_id, "opened")
         if changed_kind is not None:
             add_event(source_id, "kind_changed", *changed_kind)
+    retired = {"renamed": 0, "backfilled": 0}
     for source_id, row in existing.items():
         if row.is_active and source_id not in incoming:
             row.is_active = False
-            add_event(source_id, "closed")
+            decision = retire(row) if retire is not None else None
+            if decision is None:
+                add_event(source_id, "closed")
+                continue
+            counter, closed_on = decision
+            retired[counter] += 1
+            if closed_on is not None:
+                add_event(source_id, "closed", on=closed_on)
     await db.flush()
     counts = await _insert_events(db, pending)
     await db.execute(
@@ -200,15 +221,31 @@ async def _apply(
         closed=counts.get("closed", 0),
         kind_changed=counts.get("kind_changed", 0),
         cancelled_closures=cancelled,
+        renamed=retired["renamed"],
+        backfilled=retired["backfilled"],
     )
 
 
 async def apply_kindergartens(
-    db: AsyncSession, rows: list[KindergartenRow], *, synced_at: datetime, school_year: int, force: bool = False
+    db: AsyncSession,
+    rows: list[KindergartenRow],
+    *,
+    synced_at: datetime,
+    school_year: int,
+    force: bool = False,
+    backfill: Mapping[str, ClosureBackfill] | None = None,
+    listed_places: AbstractSet[tuple[str, date]] | None = None,
 ) -> ChangeReport:
-    """幼兒園名單換新並記錄異動（不 commit）。school_year：這一輪解析名單用的學年，舊列的類型用它重算（P7）。"""
+    """幼兒園名單換新並記錄異動（不 commit）。school_year：這一輪解析名單用的學年，舊列的類型用它重算（P7）。
+    backfill：回補檔（2026-10-15 規格 §5），只在某所這一輪要下架時查。listed_places：教育部名單上的（地址、設立日），
+    新名稱還沒有座標、不在 rows 裡時也認得出改名（規格 §4）；rows 本身的（地址、設立日）一律算進去。"""
 
     private_base = ("private", "quasi_public")
+    incoming = {row.source_id: asdict(row) for row in rows}
+    same_place = {
+        (values["address"], values["registered_on"]) for values in incoming.values() if values["registered_on"] is not None
+    }
+    same_place |= set(listed_places or ())
 
     def kind_change(old: GeoKindergarten, values: dict[str, Any]) -> tuple[str, str] | None:
         # 舊、新都是私立基底而且兩邊都有準公共期間：這是續約或換期間（例如 113-115 → 116-118），不是類型變動。
@@ -223,9 +260,18 @@ async def apply_kindergartens(
         before = kind_as_of(old.kind, old.pre_public_period, school_year)
         return (before, values["kind"]) if before != values["kind"] else None
 
+    def retire(old: GeoKindergarten) -> tuple[str, date | None] | None:
+        # 回補檔優先，其次同地址同設立日＝改名或換承辦（設立日不明不比），最後一般停辦。
+        entry = (backfill or {}).get(old.source_id)
+        if entry is not None:
+            return ("renamed", None) if entry.reason == "renamed" else ("backfilled", entry.left_on)
+        if old.registered_on is not None and (old.address, old.registered_on) in same_place:
+            return ("renamed", None)
+        return None
+
     return await _apply(
-        db, _KINDERGARTEN, {row.source_id: asdict(row) for row in rows},
-        synced_at=synced_at, force=force, kind_change=kind_change,
+        db, _KINDERGARTEN, incoming,
+        synced_at=synced_at, force=force, kind_change=kind_change, retire=retire,
     )
 
 
