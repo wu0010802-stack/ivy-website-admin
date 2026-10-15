@@ -13,6 +13,27 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-15 預約全程漏斗與退出時點（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機直接推 `feature/booking-journey-20261015` 到 main（fast-forward `7ae6de45..59f4d2a1`，17 個 commit，沒有開 PR）。feature 分支先推過一次，CI run 38675440483 六個 job 全 success，Deploy 照預期 skipped。內容見 README 頂部「預約全程漏斗與退出時點」、DESIGN.md「招生入學：預約全程漏斗與退出時點」、規格 `docs/specs/2026-10-15-booking-journey-design.md`（§8 是實作中的裁定）、計畫 `docs/superpowers/plans/2026-10-15-booking-journey.md`。
+- **migration**：無；alembic head 仍是 `c6a9e3f15d27`；沒有依賴檔變動；沒有備份。
+- **回退**：可直接切回前一個映像（新增的是唯讀 API 端點與後台畫面，沒有新表、新欄位）。
+- **推送前閘門**（本機，Node 22）：
+  - 後端全套 3,136 passed／1 skipped（跑在 `975bad7a`；其後 `backend/app` 與契約沒有變動，只改兩個預約全程測試檔，那兩檔在 `6e040835` 另跑 44 passed）；`ruff` 無錯誤。
+  - 後台 vitest 全套 161 檔 2,506 passed／1 skipped；admin 與 web typecheck、契約檢查（不經 `uv run`）一致。
+  - 完整 stack 套件（重新 build）140 passed，含新增的 2 個預約全程案例。
+- **CI**：main run 38677552289（`59f4d2a1`）03:41:14Z 開跑，04:01:54Z 完成（20.7 分），全綠：
+  - Frontend web 1.5 分、admin 6.6 分；Backend 三組 15.2／12.5／10.5 分；E2E／Playwright 10.6 分；Deploy Railway production 5.3 分（03:56:36Z 開始）。
+- **正式 `release.json`**：base commit `59f4d2a1bdbbf52a2a01d87a0a9dd04cb6e1e603`，snapshot `5f6aa0a6…`，created `2026-10-15T03:56:58Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-15T04:03Z）：
+  - `/api/website/v1/health` 回 `status: ok`，`fixture_enabled: false`，`last_failed_steps` 為空（背景工作 04:01:30Z 完成一輪）。
+  - 首頁、`/admission`、`/visit`、`/about`、`/anniversary`、`/admin/` 都回 200（0.15–0.60 秒）。
+  - `GET /api/website/v1/admin/admissions/journey` 未登入回 401（路由已掛）。
+- **未在線上驗證**：
+  - **登入後的畫面**（招生入學 → 統計分析 → 預約全程）：只有本機 Playwright 截圖與 CI 的 E2E，沒有登入正式後台看過，也沒看手機 390px 的正式畫面。
+  - **正式資料的連結率**：招生訪視連到預約的比例沒查，所以漏斗後半段的數字在正式資料上是否可信未驗證（招生功能關閉期間到場、事後沒補建的案件會讓後半段偏低）。查法（Railway Postgres 的 Database 分頁，尚未執行）：`select count(*) filter (where visit_request_id is not null) as linked, count(*) as total from recruitment_visits where visit_date >= current_date - 90;`；已到場的預約有幾成有訪視：`select count(*) filter (where exists (select 1 from recruitment_visits v where v.visit_request_id = r.id)) as with_visit, count(*) as completed from visit_requests r where r.status = 'completed' and r.created_at >= now() - interval '90 days';`。
+  - 這裡沒有讀 Railway 的權限，沒看 Railway 日誌。
+
 ## 2026-10-14 多年出生數走勢（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機直接推 `feature/birth-series-20261014` 到 main（fast-forward `c13f2c88..ad7352d5`，16 個 commit，沒有開 PR），其中 `2054facd` 是併入 main 當時「里的變化 B2」的 merge commit。內容見 README 頂部「多年出生數走勢」、DESIGN.md「招生入學：多年出生數走勢」、規格 `docs/specs/2026-10-14-birth-series-design.md`。
