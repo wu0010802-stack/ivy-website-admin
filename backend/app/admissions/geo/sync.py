@@ -12,6 +12,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
   --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
   --new-homes-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
   同時代表「立刻重抓」與「略過殘缺檔檢查」。
@@ -571,8 +572,8 @@ async def sync_kindergartens(
             )
             await db.commit()
         logger.info(
-            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆；停辦 %s（依回補檔 %s）、改名下架 %s、"
-            "重新營業 %s、類型變動 %s",
+            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆；停辦事件 %s、依回補檔下架 %s、"
+            "改名下架 %s、重新營業 %s、類型變動 %s",
             changes.active, report.skipped, report.unplaced, changes.closed, changes.backfilled, changes.renamed,
             changes.opened, changes.kind_changed,
         )

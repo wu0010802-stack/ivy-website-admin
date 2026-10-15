@@ -828,6 +828,18 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 看狀態：`select dataset, label, synced_at, baseline_on, last_error from geo_dataset_status where dataset in ('kindergartens', 'babycare');`；看異動：`select provider, change, occurred_on, count(*) from geo_provider_events group by 1, 2, 3 order by 3 desc limit 20;`。後台區域分析狀態列會寫「托嬰名單 MM/DD 更新」或「托嬰名單尚未匯入」。
 - 回退：舊映像不認得新 revision，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade e4f1a8c6b203`（刪新表與新欄位、約束改回，已記的異動一併消失）再切舊映像。不 downgrade 就切舊映像會被 `check_schema.py` 擋下（停站）；若有人繞過檢查硬啟動舊版，舊版同步是「刪光重寫」，會把已停辦（`is_active` 假）的列一併刪掉，已記的 `closed` 事件變成孤兒（畫面讀取時 join 不到、直接忽略），之後再上線新版也補不回來，要重新建立基準與事件就先 downgrade 再 upgrade。
 
+**幼兒園營業中改以教育部名單判斷（2026-10-15）**：幼兒園的營業中不再看 kiang `preschools.json` 的 `is_active`（一旦是 1 就不會變回 0），改以教育部名單（`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`，kiang `docs/data/高雄市.csv`）為準；規格 `docs/specs/2026-10-15-kindergarten-registry-design.md`。名單抓不到或格式不對，幼兒園整輪不換版。不新增 migration、不需要新環境變數（名單網址有預設值）。
+
+- **回補檔（同步每一輪都會讀，不要刪）**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv` 隨程式提交，47 筆；檔不在或格式不對時幼兒園整輪不換版、原因寫進 `last_error`。只有某所「這一輪要下架」時才用到其中一列。說明與重產指令在 `backend/app/admissions/geo_data/README.md`。
+- **轉換輪的預期值**（部署後第一輪幼兒園同步，把 kiang 還標營業中、但已不在名單的 47 所一次下架）：api 日誌（背景同步迴圈才印 INFO，手動 `geo-sync` 不印；Railway 日誌 auto 模式會擋，要使用者用 `!` 跑：`railway logs -p <project> -e production -s api -d --since 3h -n 3000 -f 'admissions.geo'`）會有一行「幼兒園資料已更新：689 所，略過 … 筆、名單有但沒有座標 … 筆；停辦事件 16、依回補檔下架 33、改名下架 14、重新營業 0、類型變動 0」，以 2026-10-15 的回補檔為準：
+  - 營業中約 **689**（名單 689 所，之後名單增減會跟著變）。
+  - 停辦事件＝回補檔有日期的停辦 **16**（日期介於 2025-08-22 與 2026-10-13），另加 10-15 之後才離開名單的（不在回補檔裡，日期記同步當天）。
+  - 依回補檔下架＝回補檔 `closed` 列數 **33**（其中 17 筆沒日期，只下架不寫事件）。
+  - 改名下架＝回補檔 `renamed` 列數 **14**，另加規則（同地址、同設立日）認出的新改名。
+  - 重新營業、類型變動通常是 0，不是 0 就逐筆看。
+  - 以資料庫為準（Railway Postgres 的 Database 分頁）：`select change, occurred_on, count(*) from geo_provider_events where provider = 'kindergarten' group by 1, 2 order by 2;` 與 `select count(*) from geo_kindergartens where is_active;`。
+- **立刻生效要手動 `geo-sync --force`**：它會同時略過 80% 殘缺護欄，跑之前先確認名單筆數正常（`curl -s 'https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv' | wc -l` 約 690 行，含標頭）；名單歷史出現過只有一半的殘缺版本（2025-07-09 只有 351 列）。不想等也可以用成對的檔案模式（見上方「放行殘缺檔檢查要用檔案模式」）。
+
 **本校改址後**：不存家長座標，距離無法即時重算。校區地址在後台改過並發布後，已存的距離仍是以舊校址算的，要等下一次同步發現校址指紋變了才會重算（自動同步開著時最久約等一個 `WEBSITE_GEO_SYNC_CHECK_SECONDS`，預設一天），要立刻更新就手動跑一次 `geo-sync`（不必加 `--force`）。新校址比對不到門牌時，區域分析的距離分組會立刻全部歸「無距離」。
 
 **上線前就存在的訪視**：這些訪視沒有 `recruitment_visit_geo` 列，`recruitment_visits.district` 也是空的。`district` 只在新建訪視、改地址、或重算時寫入，而重算只在 `geo-sync`（背景迴圈或 CLI）結束時觸發，沒有別的入口。在第一次同步之前，它們在區域分析歸「待比對」，**不會出現在行政區排行**。第一次同步時資料庫沒有 `campuses` 那一列指紋，程式視為「有變」，會重算所有未匿名化的訪視；不論是背景迴圈第一輪（api 啟動約 30 秒後）、不帶參數的 CLI、或檔案模式的 CLI 都一樣，下載失敗的那一輪也一樣，不需要 `--force`。所以啟用自動同步後第一輪結束，行政區排行就會含舊訪視；想在啟用前先補，就在 api 容器內跑一次 `geo-sync`（`! railway ssh --service api --environment production -- python -m app.cli geo-sync`）。若那時門牌還沒匯入成功，舊訪視先得到行政區與 `pending`，等門牌匯入完成（指紋含使用中門牌批次，會變）會自動再重算一次補上里與距離。已匿名化的舊訪視不補建。重算每 100 筆一個交易。
