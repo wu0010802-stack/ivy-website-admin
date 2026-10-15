@@ -5,8 +5,8 @@
 - **系統狀態頁**（只有總管理者）：寄信、LINE 推播、Turnstile、Google／LINE 登入、素材儲存、招生與同步開關、個資自動清理有沒有設；維護排程、轉檔、公開資料同步是否在跑；各項公開資料的版本與是否過期（門牌 35 天）；寄送與排程發布失敗筆數。可寄測試信給自己；營運總覽在有「要注意」時多一行。自動同步沒開時，非門牌資料的過期只算資訊。
 - **家長參觀提醒信**：參觀前 24 小時寄 Email；期限內附修改連結，過了請家長來電；改期、停課、取消、匿名化後不寄。正式站設好寄信之前一律 skipped。
 - **資料**：不新增 migration、不新增環境變數；`/health` 不變。
-- **已知限制**：參觀改期後又改回原場次，不會再寄第二封提醒；背景迴圈狀態只反映回應請求的那個程序（正式站目前單一副本）。
-- **驗證**（Node 22、PostgreSQL 獨立測試庫；程式碼在 `d5e79924`..`fa2b49cc`；**未 push、未部署**）：
+- **已知限制**：參觀改期後又改回原場次，不會再寄第二封提醒；提醒到點時當天是停課日會照樣排入、寄送時 skipped，園方之後（24 小時內）取消停課，家長不會再收到提醒；背景迴圈狀態只反映回應請求的那個程序（正式站目前單一副本）。
+- **驗證**（Node 22、PostgreSQL 獨立測試庫；程式碼從 `d5e79924` 起至 `fa2b49cc`；**未 push、未部署**）：
   - 後端單檔：`test_system_status.py` 在 Task 1 時 35 passed，Task 2 加上權限、測試信與總覽後，與 `test_permission_table.py`、`test_dashboard_today_board.py`、`test_operations.py`、`test_audit_coverage.py`、`test_audit_actions.py` 合跑 94 passed；`test_parent_visit_reminder.py` 27 passed，與提醒、寄信、維護排程相關檔合跑 81 passed。
   - admin 單檔：`systemStatus.test.ts` 22 passed、`labelCoverage.test.ts` 15 passed；`typecheck` 無錯誤；契約檢查（`export_openapi.py --check` 加 `check-contract-types.mjs`）一致。
   - stack：`system-status.spec.ts` 1 passed（連 setup 共 2 passed）；1440 與 390 截圖看過，四區載入、手機無橫向溢出。

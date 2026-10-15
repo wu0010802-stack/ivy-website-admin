@@ -152,7 +152,7 @@ generated_at, attention_count
   - P3：轉檔失敗看素材狀態（`media_assets.status = 'failed'` 且未刪除），不看 §3.2 寫的 `media_jobs` 失敗列——「重新處理」會另建新工作、舊失敗列不會消失，會讓這一列永遠紅。
   - P4：門牌 `last_error` 也算要注意（正式站自動下載必定失敗，約 30 天後一定留下 `last_error`）；畫面兩種情況（過期、失敗）都寫「請到電腦上用匯入指令更新門牌（每月一次）」。
   - P5：測試信操作紀錄 metadata 是 `{"result": "sent"}` 或 `{"result": "failed", "error_code": <例外類別名>}`（規格寫 `{result: 'ok'|<error>}`），沿用後台已有的 `error_code` 中文；實作是單一 `log_action` 條件式展開，不是兩個分支各一份字面值。
-  - P10：總覽算 `system_attention` 失敗時記 log、`rollback`、回 `None`，總覽照常 200。計畫該條理由寫「總覽每 30 秒背景重讀」，實際是切回分頁且距上次超過 30 秒才重讀（`openRequests.ts` 的 `STALE_MS`）。
+  - P10：總覽算 `system_attention` 失敗時記 log、`rollback`、回 `None`，總覽照常 200。計畫該條理由寫「總覽每 30 秒背景重讀」，實際是：後台每次換頁都會呼叫 `openRequests.refresh()`（`admin/src/layouts/AdminLayout.vue:71`），停在總覽頁時切回分頁也會重讀（`DashboardView.vue:173-178`）；30 秒內不重複打 `/admin/dashboard`（`openRequests.ts` 的 `STALE_MS`），案件狀態變了、通知操作則強制重讀。總管理者因此每次換頁（距上次超過 30 秒）會跑一次系統狀態彙整（約 6 個查詢）。
   - P11：公開資料清單動態取後端 `DATASETS`（扣掉 `campuses`），未知 dataset 的更新週期用 30 天；`systemStatus.test.ts` 解析後端 `DATASETS`、維護排程步驟名與列 key，要求每項都有中文。
   - P12：公開資料同步迴圈停擺門檻＝檢查間隔（`geo_sync_check_seconds`）＋2 小時（預設 26 小時），不是固定 26 小時（檢查間隔可設到 7 天）。
 - 與規格的差異（實作中的控制者裁定）：
