@@ -197,6 +197,7 @@
 - 載入：`app/admissions/geo/school_districts.py`，`lru_cache` 讀一次；常數 `SCHOOL_DISTRICT_YEAR = 115`。
 - 產生：`backend/scripts/build_school_districts.py`（pdfplumber 只在這支腳本用，`uv run --with pdfplumber==<固定版本>`，不加進執行期依賴），讀一覽表 PDF、教育部名錄、`school-districts-115-overrides.csv`（人工處理那約 100 列，逐列寫原因），輸出上面兩個檔與一份差異報告（對不到的里、人工列、和上一學年比多出或少掉的對應）。
 - 不存學校座標（名錄沒有；不接外部地址服務）。
+- 整里／部分（2026-10-15 更正）：一所學校列的鄰涵蓋一覽表為這個里列出的所有鄰也算整里（「灣中里(1-8、10-24、26鄰)，(9、25鄰與民族國小自由學區)」的鼎金國小）；「1-8鄰與忠孝國小自由學區」只去掉自由學區那句、不把整段當整里。重轉後 47 列部分→整里、4 列整里→部分，門牌 115-10 的鄰核對過，規則與例外見 `geo_data/README.md`。
 
 ## 4. 同步
 

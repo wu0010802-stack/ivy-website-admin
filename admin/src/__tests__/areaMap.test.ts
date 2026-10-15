@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import {
-  areaBabycare, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, button, villageBoundaries,
+  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, button, villageBoundaries,
 } from './admissionsTestKit'
 
 // any 只出現在 Leaflet 的 mock 物件上。
@@ -29,6 +29,7 @@ const leaflet = vi.hoisted(() => {
       setRadius: vi.fn(() => self),
       redraw: vi.fn(() => self),
       bringToBack: vi.fn(() => self),
+      bringToFront: vi.fn(() => self),
       addLayer: vi.fn(() => self),
       removeLayer: vi.fn(() => self),
       clearLayers: vi.fn(() => self),
@@ -67,7 +68,15 @@ const leaflet = vi.hoisted(() => {
     marker: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('marker', { latlng, options })),
     circle: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('circle', { latlng, options })),
     circleMarker: vi.fn((latlng: unknown, options: Record<string, unknown>) => layer('circleMarker', { latlng, options })),
-    layerGroup: vi.fn(() => layer('layerGroup')),
+    // 圖層群組記住加進來的子圖層（eachLayer 逐一走過），clearLayers 清空；呼叫次數照舊記在 vi.fn 上。
+    layerGroup: vi.fn(() => {
+      const group = layer('layerGroup')
+      const members: unknown[] = []
+      group.addLayer = vi.fn((child: unknown) => { members.push(child); return group })
+      group.clearLayers = vi.fn(() => { members.length = 0; return group })
+      group.eachLayer = vi.fn((fn: (child: unknown) => void) => { members.forEach(fn); return group })
+      return group
+    }),
     divIcon: vi.fn((options: Record<string, unknown>) => ({ divIcon: options })),
     latLng: vi.fn((lat: number, lng: number) => ({ lat, lng, toBounds: (meters: number) => ({ center: [lat, lng], meters }) })),
   }
@@ -704,9 +713,9 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await flushPromises()
   }
 
-  it('五種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
+  it('六種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
     const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
-    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減', '新屋交屋'])
+    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減', '新屋交屋', '在籍學生'])
     expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
     expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
     expect(ready.find('.area-map__mode-note').exists()).toBe(false)
@@ -1060,5 +1069,167 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     expect(wrapper.findAll('.el-radio-button')[4]!.classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
     expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
+  })
+})
+
+describe('在籍學生（2026-10-15 規格 §6）', () => {
+  const enrolledGroup = (): any => leaflet.created.layerGroup![2]
+  const enrolledMarkers = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => String(marker.options.className).startsWith('area-enrolled'))
+  async function choose(wrapper: VueWrapper, mode: string) {
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await flushPromises()
+  }
+
+  it('沒匯入時按鈕停用並寫原因；在籍學生模式中原因出現就退回參觀人數', async () => {
+    const missing = await mountMap({ enrolled: areaEnrolled({ status: 'not_imported' }), enrolledNote: '尚未匯入在籍名冊。' })
+    expect(missing.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['在籍學生'])
+    expect(missing.get('.area-map__mode-note').text()).toBe('尚未匯入在籍名冊。')
+
+    const ready = await mountMap({ enrolled: areaEnrolled() })
+    await choose(ready, 'enrolled')
+    await ready.setProps({ enrolledNote: '在籍學生讀取失敗。' })
+    await flushPromises()
+    expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+  })
+
+  it('切到在籍學生：里不上色、點圖層加到地圖；兩位以上的格畫大一級；切走就收起', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled() })
+    expect(one('map').addLayer).not.toHaveBeenCalledWith(enrolledGroup())
+    // buildMap 在參觀人數模式下就呼叫過一次 removeLayer：清掉再看，才分得出是「切模式」造成的呼叫。
+    one('map').addLayer.mockClear()
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'enrolled')
+    const latest: any = leaflet.created.geoJSON!.at(-1)
+    expect(latest.options.style(feature('三民區', '本揚里')).className).toBe('area-village area-village--l0')
+    expect(one('map').addLayer).toHaveBeenCalledWith(enrolledGroup())
+    expect(enrolledMarkers().map((marker) => [marker.latlng, marker.options.className, marker.options.radius])).toEqual([
+      [[22.642, 120.344], 'area-enrolled area-enrolled--multi', 7],
+      [[22.65, 120.35], 'area-enrolled', 5],
+      [[22.7, 120.3], 'area-enrolled', 5],
+    ])
+    expect(one('map').removeLayer).not.toHaveBeenCalledWith(enrolledGroup())
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'visits')
+    expect(one('map').removeLayer).toHaveBeenCalledWith(enrolledGroup())
+  })
+
+  it('地圖在「在籍學生」模式下重建（程式碼檔載入失敗後重試）：新地圖加上新的點圖層並畫好點', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await chunkFails()
+      const wrapper = await mountMap({ enrolled: areaEnrolled() })
+      expect(leaflet.created.map).toBeUndefined()
+      // 沒有地圖時切換列照常可用：先選好在籍學生，再重試。
+      await choose(wrapper, 'enrolled')
+      await chunkLoads()
+      await button(wrapper, '重試')!.trigger('click')
+      await settle()
+      expect(leaflet.created.map).toHaveLength(1)
+      expect(leaflet.created.layerGroup).toHaveLength(3)
+      expect(one('map').addLayer).toHaveBeenCalledWith(enrolledGroup())
+      expect(enrolledMarkers()).toHaveLength(3)
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it('班別篩選：只畫有那班的格；0 人的班別地圖上沒有點、圖例寫 0 位', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled(), gradeFilter: '小班' })
+    await choose(wrapper, 'enrolled')
+    expect(enrolledMarkers().map((marker) => marker.options.className)).toEqual(['area-enrolled'])
+    // buildMap 的第一次畫點已經清過一次：記下次數，換班別後要再增加。
+    const cleared = enrolledGroup().clearLayers.mock.calls.length
+    await wrapper.setProps({ gradeFilter: '其他' })
+    await flushPromises()
+    expect(enrolledGroup().clearLayers.mock.calls.length).toBeGreaterThan(cleared)
+    expect(enrolledMarkers()).toHaveLength(1) // 先前畫的那一個；其他沒有新增
+    expect(wrapper.get('.area-legend--enrolled').text()).toContain('地圖上 0 位')
+  })
+
+  it('換班別或換了在籍資料就整組重畫：新畫的點正好是有那班的格，彈出框也照新的篩選', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled(), gradeFilter: 'all' })
+    await choose(wrapper, 'enrolled')
+    const drawn = enrolledMarkers().length
+    expect(drawn).toBe(3)
+    await wrapper.setProps({ gradeFilter: '小班' })
+    await flushPromises()
+    const afterFilter = enrolledMarkers().slice(drawn)
+    expect(afterFilter.map((marker) => [marker.latlng, marker.options.className])).toEqual([[[22.642, 120.344], 'area-enrolled']])
+    expect((afterFilter[0].bindPopup.mock.calls[0]![0]() as HTMLElement).textContent).toBe('這附近 1 位：小班 1')
+    const base = areaEnrolled()
+    await wrapper.setProps({ enrolled: areaEnrolled({ points: base.points.slice(0, 1).map((point) => ({ ...point, counts: { ...point.counts, 小班: 3 } })) }) })
+    await flushPromises()
+    expect(enrolledMarkers().slice(drawn + afterFilter.length).map((marker) => [marker.options.className, marker.options.radius])).toEqual([
+      ['area-enrolled area-enrolled--multi', 7],
+    ])
+  })
+
+  it('學生的點在最上層：在籍學生模式下，幼兒園重畫或開關重新加回地圖，點都再拉到最前面；別的模式不動', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled() })
+    const frontCalls = () => enrolledMarkers().map((marker) => marker.bringToFront.mock.calls.length)
+    await wrapper.setProps({ kindergartens: areaKindergartens().items.slice(0, 2) })
+    expect(frontCalls()).toEqual([0, 0, 0])
+
+    await choose(wrapper, 'enrolled')
+    expect(frontCalls()).toEqual([1, 1, 1]) // 切進來時圖層加到地圖後也拉一次
+    enrolledMarkers().forEach((marker) => marker.bringToFront.mockClear())
+    await wrapper.setProps({ kindergartens: areaKindergartens().items.slice(0, 3) })
+    expect(frontCalls()).toEqual([1, 1, 1])
+
+    enrolledMarkers().forEach((marker) => marker.bringToFront.mockClear())
+    const kindergartenSwitch = wrapper.findAllComponents({ name: 'ElSwitch' })[0]!
+    kindergartenSwitch.vm.$emit('update:modelValue', false)
+    await flushPromises()
+    kindergartenSwitch.vm.$emit('update:modelValue', true)
+    await flushPromises()
+    expect(one('map').addLayer).toHaveBeenLastCalledWith(one('layerGroup'))
+    expect(frontCalls()).toEqual([2, 2, 2])
+  })
+
+  it('篩選鈕回報 update:gradeFilter；圖例寫清冊日期與沒有點的人數', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled() })
+    await choose(wrapper, 'enrolled')
+    const groups = wrapper.findAllComponents({ name: 'ElRadioGroup' })
+    expect(groups[1]!.findAll('.el-radio-button').map((item) => item.text())).toEqual(['全部 5', '幼幼班 1', '小班 2', '中班 1', '大班 1'])
+    groups[1]!.vm.$emit('update:modelValue', '中班')
+    expect(wrapper.emitted('update:gradeFilter')).toEqual([['中班']])
+    const legend = wrapper.get('.area-legend--enrolled').text()
+    expect(legend).toContain('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 4 位')
+    expect(legend).toContain('沒有點 1 位（只對到里 1）')
+  })
+
+  it('點的彈出框寫這附近幾位、各班；里的彈出框寫在籍人數', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled() })
+    await choose(wrapper, 'enrolled')
+    const marker = enrolledMarkers()[0]
+    expect((marker.bindPopup.mock.calls[0]![0]() as HTMLElement).textContent).toBe('這附近 2 位：小班 1、中班 1')
+    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    const latest: any = leaflet.created.geoJSON!.at(-1)
+    latest.options.onEachFeature({ properties: { TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' } }, village)
+    const popup = village.bindPopup.mock.calls[0]![0]() as HTMLElement
+    expect([...popup.children].map((node) => node.textContent)).toEqual(['三民區本揚里', '在籍 3 位'])
+  })
+
+  it('里的彈出框對不到代碼（village_code 是 null）時改用區名與里名找', async () => {
+    const base = areaEnrolled()
+    const villages = base.villages.map((row) => ({ ...row, village_code: null }))
+    const wrapper = await mountMap({ enrolled: areaEnrolled({ villages }) })
+    await choose(wrapper, 'enrolled')
+    const latest: any = leaflet.created.geoJSON!.at(-1)
+    const popupOf = (properties: Record<string, string>) => {
+      const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+      latest.options.onEachFeature({ properties }, village)
+      return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
+    }
+    expect(popupOf({ TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' })).toEqual(['三民區本揚里', '在籍 3 位'])
+    // 區名相同、里名不同，或里名相同、區名不同，都不算同一個里。
+    expect(popupOf({ TOWNNAME: '左營區', VILLNAME: '本揚里', VILLCODE: '64000030099' })).toEqual(['左營區本揚里', '這個里沒有在籍學生'])
+  })
+
+  it('顏色走 token（style.css 的 --area-enrolled），元件裡不寫色碼', () => {
+    const source = readFileSync(join(__dirname, '..', 'components', 'admissions', 'area', 'AreaMap.vue'), 'utf8')
+    expect(source).toContain('fill: var(--area-enrolled)')
+    const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
+    expect(style).toMatch(/--area-enrolled: var\(--admin-accent\)/)
   })
 })

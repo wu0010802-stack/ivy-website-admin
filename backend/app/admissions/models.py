@@ -261,3 +261,4 @@ class GradeIntakeTarget(Base):
 
 # relationship 目標要在 mapper 設定前註冊；放檔尾，geo.models 就算之後要匯入本檔也不會循環。
 from app.admissions.geo import models as _geo_models  # noqa: E402,F401
+from app.admissions.enrolled import models as _enrolled_models  # noqa: E402,F401

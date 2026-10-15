@@ -2907,6 +2907,308 @@
         "title": "AreaDistrictRowOut",
         "type": "object"
       },
+      "AreaEnrolledBandOut": {
+        "properties": {
+          "band": {
+            "enum": [
+              "0-1",
+              "1-3",
+              "3-6",
+              "6+",
+              "none"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班",
+                "其他"
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          }
+        },
+        "required": [
+          "band",
+          "counts"
+        ],
+        "title": "AreaEnrolledBandOut",
+        "type": "object"
+      },
+      "AreaEnrolledGradeOut": {
+        "properties": {
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班",
+              "其他"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "placed": {
+            "title": "Placed",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grade",
+          "total",
+          "placed"
+        ],
+        "title": "AreaEnrolledGradeOut",
+        "type": "object"
+      },
+      "AreaEnrolledOut": {
+        "properties": {
+          "distance_bands": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEnrolledBandOut"
+            },
+            "title": "Distance Bands",
+            "type": "array"
+          },
+          "doorplate_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doorplate Version"
+          },
+          "grades": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEnrolledGradeOut"
+            },
+            "title": "Grades",
+            "type": "array"
+          },
+          "imported_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imported At"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEnrolledPointOut"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "roster_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roster Date"
+          },
+          "school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Year"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_imported"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unplaced": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEnrolledUnplacedOut"
+            },
+            "title": "Unplaced",
+            "type": "array"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEnrolledVillageOut"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "roster_date",
+          "school_year",
+          "doorplate_version",
+          "imported_at",
+          "total",
+          "grades",
+          "points",
+          "unplaced",
+          "distance_bands",
+          "villages"
+        ],
+        "title": "AreaEnrolledOut",
+        "type": "object"
+      },
+      "AreaEnrolledPointOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班",
+                "其他"
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "counts"
+        ],
+        "title": "AreaEnrolledPointOut",
+        "type": "object"
+      },
+      "AreaEnrolledUnplacedOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班",
+                "其他"
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "reason": {
+            "enum": [
+              "street",
+              "district",
+              "outside_kaohsiung",
+              "unlocated"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "counts"
+        ],
+        "title": "AreaEnrolledUnplacedOut",
+        "type": "object"
+      },
+      "AreaEnrolledVillageOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "幼幼班",
+                "小班",
+                "中班",
+                "大班",
+                "其他"
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Code"
+          }
+        },
+        "required": [
+          "district",
+          "village",
+          "village_code",
+          "counts",
+          "total"
+        ],
+        "title": "AreaEnrolledVillageOut",
+        "type": "object"
+      },
       "AreaFiltersOut": {
         "properties": {
           "campus_key": {
@@ -3197,6 +3499,10 @@
           "filters": {
             "$ref": "#/components/schemas/AreaFiltersOut"
           },
+          "no_address_visit": {
+            "title": "No Address Visit",
+            "type": "integer"
+          },
           "no_population_villages": {
             "items": {
               "$ref": "#/components/schemas/AreaOpportunityMissingOut"
@@ -3236,6 +3542,7 @@
           "baseline",
           "outside_visit",
           "unplaced_visit",
+          "no_address_visit",
           "no_population_villages",
           "villages"
         ],
@@ -15753,6 +16060,81 @@
           }
         },
         "summary": "Get Admissions Area Changes",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/enrolled": {
+      "get": {
+        "description": "在籍學生分布（2026-10-15 規格 §5）：本機比對後匯入的去識別點（取整約 100 m）、各班人數、沒有點的原因、\n距離帶與各里人數。和學年學期、半徑無關（清冊是某一天的快照）。只讀，不寫稽核；回應由中介層補 no-store。",
+        "operationId": "get_admissions_area_enrolled_api_website_v1_admin_admissions_area_enrolled_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaEnrolledOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Enrolled",
         "tags": [
           "admissions"
         ]

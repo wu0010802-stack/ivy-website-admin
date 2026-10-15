@@ -6,7 +6,8 @@ overrides，再提交新的兩個檔並改 `app/admissions/geo/school_districts.
 
 用法（在 backend/；pdfplumber 只在這支腳本用，不是執行期依賴）：
   uv run --with pdfplumber==0.11.4 python scripts/build_school_districts.py \\
-      --pdf 115學年度國民小學學區劃分一覽表.pdf --schools e1_new.csv --year 115
+      --pdf 115學年度國民小學學區劃分一覽表.pdf --schools e1_new.csv --year 115 \\
+      --doorplates 門牌坐標.csv   # 選用：拿門牌的鄰核對整里／部分，只出報告
 
 輸入：
 - 一覽表 PDF：一列一所學校（編號／學校名稱／行政區／學區），跨區的學校分段續列、跨頁的儲存格接在下一頁第一列，
@@ -17,13 +18,16 @@ overrides，再提交新的兩個檔並改 `app/admissions/geo/school_districts.
 輸出（`app/admissions/geo_data/`）：
 - `school-districts-<學年>.csv`：一列一個（里、學校）；
 - `elementary-schools-<學年>.csv`：一列一所學校（含分校）；
-- 差異報告（stdout）：對不到里界的里、自動改區、人工列、和上一學年比多出或少掉的對應。
+- 差異報告（stdout）：對不到里界的里、自動改區、人工列、鄰合起來算整里的（里、學校）、和上一學年比多出或少掉的
+  對應；給了 --doorplates 再加門牌核對（見 check_doorplates）。
 
 學區文字的規則（逐項以頂層的「、」「，」「；」切開，括號裡的不切）：
 - 「X里」整里；「X里(…鄰…)」部分鄰；緊接的「(…鄰…)」是前一個里的另一段；
 - 任何一段寫「自由學區」，那個（里、學校）標 free_zone；
 - 「全里」或括號裡只有「與…自由學區」算整里；同一所學校同一個里只要有一段是整里，就是整里；
-- 鄰範圍只存原文（不拿來算），訪視只比到里。"""
+- 一覽表常把整個里拆成幾段鄰寫（「灣中里(1-8、10-24、26鄰)，(9、25鄰與民族國小自由學區)」）：一所學校列的鄰
+  涵蓋一覽表為這個里列出的所有鄰，也算整里（見 whole_by_neighborhoods）；
+- 除此之外鄰範圍只存原文，訪視只比到里。"""
 
 from __future__ import annotations
 
@@ -53,6 +57,11 @@ _FULLWIDTH = str.maketrans({"（": "(", "）": ")", "～": "-", "~": "-", "－":
 _VILLAGE = re.compile(r"^([^()]+里)(.*)$")
 _WHOLE = re.compile(r"^([^()]+里)全里$")
 _DISTRICT_PREFIX = re.compile(r"^([^區]{1,4}區)(.+)$")
+# 段落裡「與…自由學區」那一句。不能跨過「鄰」：「1-8鄰與忠孝國小自由學區」只去掉「與忠孝國小自由學區」，
+# 留下「1-8鄰」（2026-10-15 前跨過去，整段被當成整里）。
+_FREE_CLAUSE = re.compile(r"[，、]?(為|與|和)?[^，、()鄰]*自由學區")
+# 去掉自由學區那句、再去掉「鄰」字之後只剩鄰的範圍：「1-6、8-15」「9-14、21-22」「1-4，另7」。
+_NEIGHBORHOOD_LIST = re.compile(r"\d+(?:-\d+)?(?:(?:、|，另?)\d+(?:-\d+)?)*")
 
 
 @dataclass
@@ -108,11 +117,29 @@ def split_items(text: str) -> list[str]:
     return [item for item in items if item]
 
 
+def _without_free_clause(segment: str) -> str:
+    return _FREE_CLAUSE.sub("", re.sub(r"^\(|\)$", "", segment))
+
+
 def segment_is_full(segment: str) -> bool:
     """這一段是不是整里：空的、「全里」、或只有「與…自由學區」。"""
-    rest = re.sub(r"^\(|\)$", "", segment)
-    rest = re.sub(r"[，、]?(為|與|和)?[^，、()]*自由學區", "", rest)
-    return rest in ("", "全里")
+    return _without_free_clause(segment) in ("", "全里")
+
+
+def neighborhoods_of(segment: str) -> set[int] | None:
+    """這一段列的鄰：「(1-6、8-15鄰，與鳳山國小自由學區)」→ {1..6, 8..15}。整里、或夾了路段、社區
+    這類不是鄰的條件（「公園路以北(1-2鄰)」「公館社區、1-3鄰」）回 None。"""
+    rest = _without_free_clause(segment)
+    if "鄰" not in rest:
+        return None
+    rest = rest.replace("鄰", "")
+    if not _NEIGHBORHOOD_LIST.fullmatch(rest):
+        return None
+    result: set[int] = set()
+    for part in re.split(r"、|，另?", rest):
+        low, _, high = part.partition("-")
+        result.update(range(int(low), int(high or low) + 1))
+    return result
 
 
 def parse_items(items: list[str]) -> tuple[list[tuple[str, str]], list[str]]:
@@ -245,7 +272,7 @@ def read_overrides(path: Path) -> list[Override]:
     result = []
     for row in rows:
         override = Override(**{key: (row.get(key) or "").strip() for key in Override.__dataclass_fields__})
-        if override.kind not in ("item", "district", "inherit", "add", "note", "school", "free"):
+        if override.kind not in ("item", "district", "inherit", "add", "note", "school", "free", "full"):
             raise SystemExit(f"overrides 有不認得的 kind：{override.kind}")
         if not override.reason:
             raise SystemExit(f"overrides 每一列都要寫原因：{override}")
@@ -265,6 +292,7 @@ def build(records: list[Record], overrides: list[Override], report: list[str]) -
     numbers = {(r.school, r.district): r.number for r in records}
     for record in records:
         _SCHOOL_NUMBERS[record.school].add(record.number)
+        _SCHOOL_NAMES[record.number] = record.school
     extra = []
     for o in (o for o in overrides if o.kind == "add"):
         if (o.school, o.district) not in numbers:
@@ -298,10 +326,50 @@ def build(records: list[Record], overrides: list[Override], report: list[str]) -
             report.append(f"overrides 沒用到（一覽表可能改了）：{override}")
         if override.kind == "district" and (override.school, override.district, override.item) not in used:
             report.append(f"overrides 沒用到（一覽表可能改了）：{override}")
+    whole_by_neighborhoods(entries, report)
+    for override in (o for o in overrides if o.kind == "full"):
+        targets = [
+            entry for (number, district, village), entry in entries.items()
+            if (district, village) == (override.district, override.item) and number in override_numbers(override.school)
+        ]
+        if not targets:
+            raise SystemExit(f"full 找不到（學校、里）：{override}")
+        if all(entry.full for entry in targets):
+            report.append(f"overrides 沒用到（已經是整里）：{override}")
+        for entry in targets:
+            entry.full = True
+        report.append(f"人工：{override.school}「{override.district}{override.item}」標整里：{override.reason}")
     return entries
 
 
+def whole_by_neighborhoods(entries: dict[tuple[str, str, str], Entry], report: list[str]) -> None:
+    """一所學校列的鄰涵蓋一覽表為這個里列出的所有鄰（別校列的鄰都在這所的範圍內）→ 整里。
+    「灣中里」鼎金國小(1-8、10-24、26鄰)，(9、25鄰與民族國小自由學區)、民族國小(9、25鄰…)：鼎金整里、民族部分。
+    只有一所學校列這個里、而且只寫鄰（「前峰里(1-34鄰)」）也是整里。
+    不判斷的里：已經有學校整里（沒列鄰，不知道全里有哪些鄰），或有一段夾了路段、社區這類不是鄰的條件。
+    一覽表跳號的鄰（光明里大東國小沒寫 7 鄰，曹公國小寫 1-15 鄰）判斷不了，用 overrides 的 full 處理。"""
+    villages: dict[tuple[str, str], list[Entry]] = defaultdict(list)
+    for (_, district, village), entry in entries.items():
+        villages[(district, village)].append(entry)
+    for (district, village), group in sorted(villages.items()):
+        if any(entry.full for entry in group):
+            continue
+        own = {}
+        for entry in group:
+            sets = [neighborhoods_of(segment) for segment in entry.segments]
+            if not sets or any(item is None for item in sets):
+                break
+            own[entry.school] = set().union(*sets)
+        else:
+            listed = set().union(*own.values())
+            for entry in group:
+                if own[entry.school] >= listed:
+                    entry.full = True
+                    report.append(f"鄰合起來是整里：{_SCHOOL_NAMES[entry.school]}「{district}{village}」{'；'.join(entry.segments)}")
+
+
 _SCHOOL_NUMBERS: dict[str, set[str]] = defaultdict(set)
+_SCHOOL_NAMES: dict[str, str] = {}
 
 
 def override_numbers(school: str) -> set[str]:
@@ -431,6 +499,55 @@ def write_outputs(
     return rows, schools
 
 
+def check_doorplates(path: Path, entries: dict[tuple[str, str, str], Entry], report: list[str]) -> None:
+    """（選用）拿高雄市門牌坐標 CSV 的「鄰」核對整里／部分，只出報告、不改輸出（輸出只由 PDF＋overrides 決定）：
+    - 標部分、但門牌上這個里所有的鄰都在這所學校列的鄰裡 → 多半是整里，確認後加 overrides 的 full；
+    - 鄰合起來判成整里（或 full）、但門牌有鄰不在列的範圍 → 一覽表沒把鄰列完或跳號，要人工看。
+    有 note 的（115-07 里鄰調整的里、沿用調整前的里）鄰的編號和門牌對不上，不核對。"""
+    from app.admissions.geo.doorplates import EXPECTED_HEADER
+    from app.admissions.geo.kaohsiung import TOWN_CODES, fix_village_name
+
+    neighborhoods: dict[str, set[int]] = defaultdict(set)
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames != EXPECTED_HEADER:
+            raise SystemExit(f"門牌檔欄位和預期不同：{reader.fieldnames}")
+        for row in reader:
+            district = TOWN_CODES.get(row["鄉鎮市區代碼"].strip())
+            code = boundaries.village_code(district, fix_village_name(row["村里"])) if district else None
+            number = row["鄰"].strip().translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+            if code is not None and number.isdigit():
+                neighborhoods[code].add(int(number))
+    checked = 0
+    for (school, district, village), entry in sorted(entries.items(), key=lambda item: item[0][1:]):
+        code = boundaries.village_code(district, village)
+        sets = [neighborhoods_of(segment) for segment in entry.segments]
+        if entry.note or code is None or not neighborhoods.get(code) or not sets or any(item is None for item in sets):
+            continue
+        checked += 1
+        listed, plates = set().union(*sets), neighborhoods[code]
+        label = f"{_SCHOOL_NAMES[school]}「{district}{village}」{'；'.join(entry.segments)}"
+        if not entry.full and plates <= listed:
+            report.append(f"門牌核對：標部分、但門牌的鄰都在範圍內（多半是整里）：{label}")
+        if entry.full and not plates <= listed:
+            report.append(f"門牌核對：標整里、但門牌有 {_ranges(plates - listed)} 鄰不在範圍內：{label}")
+    report.append(f"門牌核對：只寫鄰的（里、學校）{checked} 個")
+
+
+def _ranges(numbers: set[int]) -> str:
+    """{1, 2, 3, 7} → 「1-3、7」。"""
+    parts, ordered = [], sorted(numbers)
+    start = previous = ordered[0]
+    for number in [*ordered[1:], None]:
+        if number is not None and number == previous + 1:
+            previous = number
+            continue
+        parts.append(f"{start}-{previous}" if previous > start else str(start))
+        if number is not None:
+            start = previous = number
+    return "、".join(parts)
+
+
 def _write_csv(path: Path, rows: list[dict]) -> None:
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=list(rows[0]), lineterminator="\n")
@@ -459,6 +576,7 @@ def main() -> None:
     parser.add_argument("--year", type=int, required=True, help="學年度（民國），例如 115")
     parser.add_argument("--out", type=Path, default=GEO_DATA)
     parser.add_argument("--dump", type=Path, default=None, help="另存表格原始列（JSON），方便寫 overrides")
+    parser.add_argument("--doorplates", type=Path, default=None, help="高雄市門牌坐標 CSV：拿鄰核對整里／部分（只出報告）")
     args = parser.parse_args()
 
     rows = read_pdf(args.pdf)
@@ -469,6 +587,8 @@ def main() -> None:
     report: list[str] = []
     entries = build(records, overrides, report)
     inherit(entries, overrides, report)
+    if args.doorplates:
+        check_doorplates(args.doorplates, entries, report)
     resolved = resolve_schools(records, read_schools(args.schools), enrollment_of(notes), overrides, report)
     district_rows, school_rows = write_outputs(entries, resolved, args.year, report)
     _diff(args.out / f"school-districts-{args.year - 1}.csv", district_rows, report)

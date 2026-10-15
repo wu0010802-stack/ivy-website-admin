@@ -11,7 +11,7 @@ import NearbyBabycare from '../components/admissions/area/NearbyBabycare.vue'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import NearbyPanel from '../components/admissions/area/NearbyPanel.vue'
 import {
-  areaBabycare, areaChanges, areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, deferred, mockGet, mountWith,
+  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, deferred, mockGet, mountWith,
   pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
@@ -25,9 +25,9 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote', 'babycare',
-        'trends', 'trendNote', 'homesNote',
+        'trends', 'trendNote', 'homesNote', 'enrolled', 'enrolledNote', 'gradeFilter',
       ],
-      emits: ['open-area'],
+      emits: ['open-area', 'update:gradeFilter'],
       setup(_, { expose }) {
         expose({ focusKindergarten: mapStub.focus, focusBabycare: mapStub.focusBabycare, revealBabycare: mapStub.reveal })
         return () => h('div', { class: 'area-map-stub' })
@@ -49,13 +49,14 @@ const EMPTY_TEXT = '義華在 115 學年還沒有招生訪視。新增訪視，�
 const props = (changes: Record<string, unknown> = {}) => ({
   campusKey: 'yihua', schoolYear: 115, semester: null, csvName: (title: string) => `招生統計-${title}.csv`, emptyText: EMPTY_TEXT, ...changes,
 })
-const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) => ({
+const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportunity(), enrolled: unknown = areaEnrolled()) => ({
   '/admin/admissions/area/boundaries': villageBoundaries(),
   '/admin/admissions/area/kindergartens': areaKindergartens(),
   '/admin/admissions/area/babycare': areaBabycare(),
   '/admin/admissions/area/changes': areaChanges(),
   '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area/trends': areaTrends(),
+  '/admin/admissions/area/enrolled': enrolled,
   '/admin/admissions/area': area,
 })
 async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) {
@@ -474,7 +475,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     const section = block(wrapper, '招生機會（本校 3 公里內）')
     expect(section.findAll('.opportunity-summary p').map((line) => line.text())).toEqual([
       '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 20 位（參觀率 2.0%）。明顯偏少的里 1 個，照附近的參觀率合計少了約 7 位。',
-      '另有 2 位來自 3 公里外、3 位沒對到里，不算在內。',
+      '另有 2 位來自 3 公里外、1 位沒填地址、2 位沒對到里，不算在內。',
     ])
   })
 
@@ -527,7 +528,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
   it('附近參觀不到 10 位：總結寫先不判斷；沒有偏少的里寫「沒有明顯偏少的里」；不算在內的都是 0 就不寫', async () => {
     const quiet = areaOpportunity({
       baseline: { ...areaOpportunity().baseline!, visit: 6, judged: false },
-      outside_visit: 0, unplaced_visit: 0,
+      outside_visit: 0, unplaced_visit: 0, no_address_visit: 0,
       villages: areaOpportunity().villages.map((row) => ({ ...row, signal: 'not_judged' as const })),
     })
     const { wrapper } = await mountTab({}, areaStats(), quiet)
@@ -1006,5 +1007,74 @@ describe('依國小學區（2026-10-14 規格 7.3）', () => {
     const base = areaTrends()
     const { wrapper } = await mountTrends(areaTrends({ schools: base.schools.map((row) => ({ ...row, children: null, kids_net: null, rate: null })) }))
     expect(bodyRows(block(wrapper, TITLE))[0]).toEqual(['1', '三民區東光國小', '3 里＋部分 1 里', '—', '—', '12', '—', '—'])
+  })
+})
+
+describe('在籍學生（2026-10-15 規格 §6）', () => {
+  it('依校區讀在籍學生（不帶學年學期）；資料與停用原因傳給地圖；表格出現', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/enrolled')[0]!))).toEqual({ campus_key: 'yihua' })
+    const map = wrapper.findComponent({ name: 'AreaMap' })
+    expect(map.props('enrolled')).toMatchObject({ status: 'ready', total: 5 })
+    expect(map.props('enrolledNote')).toBe('')
+    expect(map.props('gradeFilter')).toBe('all')
+    expect(bodyRows(block(wrapper, '在籍學生距離分布'))[0]).toEqual(['1 公里內', '0', '1', '1', '0', '2'])
+    expect(bodyRows(block(wrapper, '在籍學生距離分布')).at(-1)![0]).toBe('無距離')
+    expect(bodyRows(block(wrapper, '在籍學生里排行（全部）')).map((row) => row.slice(0, 3))).toEqual([
+      ['1', '三民區本揚里', '3'], ['2', '三民區寶業里', '1'], ['3', '左營區新上里', '1'],
+    ])
+  })
+
+  it('沒匯入：地圖寫尚未匯入，沒有在籍學生表', async () => {
+    mockGet(routes(areaStats(), areaOpportunity(), areaEnrolled({ status: 'not_imported' })))
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('enrolledNote')).toBe('尚未匯入在籍名冊。')
+    expect(wrapper.findAll('.stats-block__title').map((title) => title.text())).not.toContain('在籍學生距離分布')
+  })
+
+  it('地圖換班別：里排行跟著換；篩到 0 人的班別寫空狀態', async () => {
+    const { wrapper } = await mountTab()
+    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '小班')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('gradeFilter')).toBe('小班')
+    expect(bodyRows(block(wrapper, '在籍學生里排行（小班）')).map((row) => row.slice(1, 3))).toEqual([['三民區本揚里', '2']])
+    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '其他')
+    await flushPromises()
+    expect(block(wrapper, '在籍學生里排行（其他）').text()).toContain('這個班別沒有比對到里的學生')
+  })
+
+  it('換校區：篩選回到全部並重讀', async () => {
+    const { wrapper, get } = await mountTab()
+    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '小班')
+    await flushPromises()
+    await wrapper.setProps({ campusKey: 'minghua' })
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/enrolled').at(-1)!).get('campus_key')).toBe('minghua')
+    await vi.waitFor(() => expect(wrapper.findComponent({ name: 'AreaMap' }).props('gradeFilter')).toBe('all'))
+  })
+
+  it('讀取失敗：寫錯誤與重試，地圖按鈕停用；重試成功恢復', async () => {
+    let fail = true
+    mockGet(routes(areaStats(), areaOpportunity(), () => {
+      if (fail) throw new Error('boom')
+      return areaEnrolled()
+    }))
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.enrolled-error').exists()).toBe(true))
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('enrolledNote')).toBe('在籍學生讀取失敗。')
+    fail = false
+    await button(wrapper.get('.enrolled-error') as never, '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(block(wrapper, '在籍學生距離分布')).toBeDefined()
+  })
+
+  it('匯出距離分布 CSV：只有聚合數字', async () => {
+    const { wrapper } = await mountTab()
+    await block(wrapper, '在籍學生距離分布').get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-在籍學生距離分布.csv')
+    expect(csv.slice(1).split('\r\n')[0]).toBe('距本校,幼幼班,小班,中班,大班,合計')
   })
 })
