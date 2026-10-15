@@ -2,18 +2,26 @@
 
 預約案件 → 到場 → 有招生訪視 → 預繳 → 註冊，以及家庭離開的時點。本檔分兩層：
 - `compute_journey` 只吃整理好的案件列（`CaseInfo`／`VisitInfo`，日期都是台北日），純函式、不碰資料庫；
-- 查庫與整理案件列在檔案後半（Task 2 加）。
+- 查庫與整理案件列在檔案後半（`query_journey`）。
 一批家庭＝預定參觀日落在期間內、已過參觀時間的預約案件，一案一筆；所有階段都從同一批往下數，所以數字
 只會遞減。只描述過去，不預測。"""
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from statistics import median
 from typing import Any
 
+from sqlalchemy import Date, and_, cast, exists, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.stats import COLD_LEAD_DAYS, DEFAULT_OVERDUE_DAYS, pct
+from app.booking.models import VisitRequest, VisitRequestEvent, VisitRequestStatus, VisitSlot
+from app.common.timezones import OPERATING_TZ, now_utc, today_local
+from app.operations.booking_outcomes_service import _outcome  # 與「預約結果」同一份分類（計畫裁定 P4）
 
 SOURCES = ("web", "phone", "line", "walk_in", "external")
 # 預約結果的四類（尚未到參觀時間的 upcoming 在查庫時就丟掉，不會進來）。
@@ -186,4 +194,142 @@ def compute_journey(
             "completed_without_visit": without_visit,
             "undated_cases": undated_cases,
         },
+    }
+
+
+CHUNK = 1000
+
+
+def _taipei_day(column):
+    return cast(func.timezone(OPERATING_TZ.key, column), Date)
+
+
+def _chunks(items: list[uuid.UUID]):
+    for start in range(0, len(items), CHUNK):
+        yield items[start : start + CHUNK]
+
+
+def _visited_on():
+    """預定參觀日：同單案列表（booking/routes.py `_visited_on_column`）。有場次用場次日期；提早到場、約之後日子
+    的案件釋出了場次，沒有場次、而且已完成，改取最後一筆 completed 歷程的台北日；其餘是 None。"""
+    slot_date = (
+        select(VisitSlot.slot_date).where(VisitSlot.id == VisitRequest.slot_id).correlate(VisitRequest).scalar_subquery()
+    )
+    completed_on = (
+        select(func.max(_taipei_day(VisitRequestEvent.created_at)))
+        .where(
+            VisitRequestEvent.visit_request_id == VisitRequest.id,
+            VisitRequestEvent.event_type == "completed",
+            VisitRequest.status == VisitRequestStatus.COMPLETED.value,
+        )
+        .correlate(VisitRequest)
+        .scalar_subquery()
+    )
+    return func.coalesce(slot_date, completed_on)
+
+
+async def load_cases(
+    db: AsyncSession, campus_key: str, date_from: date, date_to: date, source: str, now: datetime
+) -> tuple[list[CaseInfo], int]:
+    """批次案件（含連到的招生訪視）與「預定參觀日算不出來」的筆數（P2：以送出日在期間內計入）。"""
+    visited_on = _visited_on()
+    created_on = _taipei_day(VisitRequest.created_at)
+    rescheduled = exists().where(
+        VisitRequestEvent.visit_request_id == VisitRequest.id, VisitRequestEvent.event_type == "rescheduled"
+    ).correlate(VisitRequest)
+    stmt = select(
+        VisitRequest.id,
+        VisitRequest.source,
+        _outcome(now).label("outcome"),
+        created_on.label("created_on"),
+        _taipei_day(VisitRequest.cancelled_at).label("cancelled_on"),
+        VisitRequest.cancel_reason,
+        visited_on.label("visited_on"),
+        rescheduled.label("rescheduled"),
+    ).where(
+        VisitRequest.campus_key == campus_key,
+        or_(visited_on.between(date_from, date_to), and_(visited_on.is_(None), created_on.between(date_from, date_to))),
+    )
+    if source == "web":
+        stmt = stmt.where(VisitRequest.source == "web")
+    elif source == "assisted":
+        stmt = stmt.where(VisitRequest.source != "web")
+    rows = (await db.execute(stmt)).all()
+
+    undated = sum(1 for row in rows if row.visited_on is None and row.outcome != "upcoming")
+    kept = [row for row in rows if row.visited_on is not None and row.outcome != "upcoming"]
+    completed_ids = [row.id for row in kept if row.outcome == "completed"]
+    visits = await _load_visits(db, completed_ids)
+    cases = [
+        CaseInfo(
+            source=row.source, outcome=row.outcome, created_on=row.created_on, visited_on=row.visited_on,
+            cancelled_on=row.cancelled_on, cancel_reason=row.cancel_reason, rescheduled=bool(row.rescheduled),
+            visit=visits.get(row.id),
+        )
+        for row in kept
+    ]
+    return cases, undated
+
+
+async def _load_visits(db: AsyncSession, request_ids: list[uuid.UUID]) -> dict[uuid.UUID, VisitInfo]:
+    """連到這些預約的招生訪視；預繳日＝最後一筆 deposit_added 的台北日（同預繳速度，已匿名化的照算）。"""
+    v, e = RecruitmentVisit, RecruitmentEventLog
+    found: dict[uuid.UUID, VisitInfo] = {}
+    for chunk in _chunks(request_ids):
+        last_deposit = (
+            select(e.recruitment_visit_id.label("visit_id"), func.max(e.created_at).label("deposit_at"))
+            .join(v, v.id == e.recruitment_visit_id)
+            .where(e.event_type == "deposit_added", v.visit_request_id.in_(chunk))
+            .group_by(e.recruitment_visit_id)
+            .subquery()
+        )
+        rows = await db.execute(
+            select(
+                v.visit_request_id, v.visit_date, v.has_deposit, v.enrolled, v.enrolled_on, v.withdrawn_at,
+                v.withdrawn_from, last_deposit.c.deposit_at,
+            )
+            .select_from(v)
+            .outerjoin(last_deposit, last_deposit.c.visit_id == v.id)
+            .where(v.visit_request_id.in_(chunk))
+        )
+        for row in rows.all():
+            found[row.visit_request_id] = VisitInfo(
+                visit_date=row.visit_date,
+                has_deposit=row.has_deposit,
+                enrolled=row.enrolled,
+                enrolled_on=row.enrolled_on,
+                withdrawn_on=row.withdrawn_at.astimezone(OPERATING_TZ).date() if row.withdrawn_at is not None else None,
+                withdrawn_from=row.withdrawn_from,
+                deposit_on=row.deposit_at.astimezone(OPERATING_TZ).date() if row.deposit_at is not None else None,
+            )
+    return found
+
+
+async def count_visits_without_request(db: AsyncSession, campus_key: str, date_from: date, date_to: date) -> int:
+    """期間內（參觀日）沒有預約案件的招生訪視：手動新增的現場參觀、舊名單補登、連結被刪的。"""
+    v = RecruitmentVisit
+    return int(
+        await db.scalar(
+            select(func.count())
+            .select_from(v)
+            .where(v.campus_key == campus_key, v.visit_request_id.is_(None), v.visit_date.between(date_from, date_to))
+        )
+        or 0
+    )
+
+
+async def query_journey(
+    db: AsyncSession, campus_key: str, date_from: date, date_to: date, source: str, now: datetime | None = None
+) -> dict[str, Any]:
+    """唯讀：不 flush、不 commit。date_from／date_to 是台北日（含），呼叫端已驗證並把 date_to 截到今天。"""
+    current = now or now_utc()
+    cases, undated = await load_cases(db, campus_key, date_from, date_to, source, current)
+    without_request = await count_visits_without_request(db, campus_key, date_from, date_to)
+    result = compute_journey(
+        cases, today=today_local(current), visits_without_request=without_request, undated_cases=undated
+    )
+    return {
+        "filters": {"campus_key": campus_key, "date_from": date_from, "date_to": date_to, "source": source},
+        "as_of": current,
+        **result,
     }

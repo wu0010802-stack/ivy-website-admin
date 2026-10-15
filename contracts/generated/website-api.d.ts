@@ -270,6 +270,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Journey
+         * @description 預約全程漏斗與退出時點（2026-10-15 預約全程規格 §3）：預定參觀日在期間內、已過參觀時間的預約案件，
+         *     從預約到到場、有招生訪視、預繳、註冊的人數與各段天數，以及家庭離開的時點。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_journey_api_website_v1_admin_admissions_journey_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/no-deposit-records": {
         parameters: {
             query?: never;
@@ -5257,6 +5278,182 @@ export interface components {
                 [key: string]: number | null;
             };
         };
+        /** JourneyAdmissionsOut */
+        JourneyAdmissionsOut: {
+            /** Completed Without Visit */
+            completed_without_visit: number;
+            /** Deposited */
+            deposited: number;
+            /** Enrolled */
+            enrolled: number;
+            not_deposited: components["schemas"]["JourneyWaitingOut"];
+            /** With Visit */
+            with_visit: number;
+            withdrawn: components["schemas"]["JourneyWithdrawnOut"];
+        };
+        /** JourneyCancelBucketsOut */
+        JourneyCancelBucketsOut: {
+            /** After Visit */
+            after_visit: number;
+            /** Day 1 */
+            day_1: number;
+            /** Days 2 3 */
+            days_2_3: number;
+            /** Days 4 7 */
+            days_4_7: number;
+            /** Days 8 Plus */
+            days_8_plus: number;
+            /** Same Day */
+            same_day: number;
+        };
+        /** JourneyCancelTimingOut */
+        JourneyCancelTimingOut: {
+            /** Excluded */
+            excluded: number;
+            /** N */
+            n: number;
+            other: components["schemas"]["JourneyCancelBucketsOut"];
+            parent: components["schemas"]["JourneyCancelBucketsOut"];
+            staff: components["schemas"]["JourneyCancelBucketsOut"];
+        };
+        /** JourneyCancelledOut */
+        JourneyCancelledOut: {
+            /** Other */
+            other: number;
+            /** Parent */
+            parent: number;
+            /** Staff */
+            staff: number;
+            /** Total */
+            total: number;
+        };
+        /** JourneyCasesOut */
+        JourneyCasesOut: {
+            /** By Source */
+            by_source: {
+                [key: string]: number;
+            };
+            /** Total */
+            total: number;
+        };
+        /** JourneyCoverageOut */
+        JourneyCoverageOut: {
+            /** Completed Without Visit */
+            completed_without_visit: number;
+            /** Undated Cases */
+            undated_cases: number;
+            /** Visits Without Request */
+            visits_without_request: number;
+        };
+        /**
+         * JourneyDaysOut
+         * @description 天數的中位數（小數一位）與筆數；excluded＝缺時間或負值而不納入的筆數。
+         */
+        JourneyDaysOut: {
+            /** Excluded */
+            excluded: number;
+            /** Median */
+            median: number | null;
+            /** N */
+            n: number;
+        };
+        /** JourneyFiltersOut */
+        JourneyFiltersOut: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Date From
+             * Format: date
+             */
+            date_from: string;
+            /**
+             * Date To
+             * Format: date
+             */
+            date_to: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "all" | "web" | "assisted";
+        };
+        /** JourneyOut */
+        JourneyOut: {
+            admissions: components["schemas"]["JourneyAdmissionsOut"];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            cases: components["schemas"]["JourneyCasesOut"];
+            coverage: components["schemas"]["JourneyCoverageOut"];
+            filters: components["schemas"]["JourneyFiltersOut"];
+            /** Rates */
+            rates: components["schemas"]["JourneyRateOut"][];
+            rescheduled: components["schemas"]["JourneyRescheduledOut"];
+            timing: components["schemas"]["JourneyTimingOut"];
+            visit_outcomes: components["schemas"]["JourneyOutcomesOut"];
+        };
+        /** JourneyOutcomesOut */
+        JourneyOutcomesOut: {
+            cancelled: components["schemas"]["JourneyCancelledOut"];
+            /** Completed */
+            completed: number;
+            /** No Show */
+            no_show: number;
+            /** Unmarked */
+            unmarked: number;
+        };
+        /** JourneyRateOut */
+        JourneyRateOut: {
+            /** Denominator */
+            denominator: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "attendance" | "cancel" | "with_visit" | "deposit" | "enrolled" | "withdrawn";
+            /** Numerator */
+            numerator: number;
+            /** Pct */
+            pct: number | null;
+        };
+        /** JourneyRescheduledOut */
+        JourneyRescheduledOut: {
+            /** Cases */
+            cases: number;
+            /** Total */
+            total: number;
+        };
+        /** JourneyTimingOut */
+        JourneyTimingOut: {
+            cancel_before_visit: components["schemas"]["JourneyCancelTimingOut"];
+            deposit_to_enrolled: components["schemas"]["JourneyDaysOut"];
+            deposit_to_withdrawn: components["schemas"]["JourneyDaysOut"];
+            lead_days: components["schemas"]["JourneyDaysOut"];
+            visit_to_deposit: components["schemas"]["JourneyDaysOut"];
+        };
+        /**
+         * JourneyWaitingOut
+         * @description 參觀後未預繳：觀察中（0–13 天）、逾期（14–89 天）、冷名單（90 天以上）。
+         */
+        JourneyWaitingOut: {
+            /** Cold */
+            cold: number;
+            /** Observing */
+            observing: number;
+            /** Overdue */
+            overdue: number;
+        };
+        /** JourneyWithdrawnOut */
+        JourneyWithdrawnOut: {
+            /** From Deposit */
+            from_deposit: number;
+            /** From Enrolled */
+            from_enrolled: number;
+            /** Total */
+            total: number;
+        };
         /** LineCampusTargetOut */
         LineCampusTargetOut: {
             /** Campus Key */
@@ -8356,6 +8553,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IntakePlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_journey_api_website_v1_admin_admissions_journey_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 預定參觀日起（台北，含） */
+                from: string;
+                /** @description 預定參觀日迄（台北，含）；超過今天會截到今天 */
+                to: string;
+                /** @description all 全部、web 官網、assisted 後台補登 */
+                source?: "all" | "web" | "assisted";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JourneyOut"];
                 };
             };
             /** @description Validation Error */

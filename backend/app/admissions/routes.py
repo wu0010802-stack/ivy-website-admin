@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -20,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import area as area_service
+from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
@@ -45,6 +47,7 @@ from app.admissions.schemas import (
     FunnelBoardOut,
     IntakePlanOut,
     IntakeTargetsRequest,
+    JourneyOut,
     NoDepositRecordsOut,
     RecruitmentEventOut,
     RecruitmentVisitCreate,
@@ -928,6 +931,36 @@ async def get_admissions_area_trends(
         db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
     )
     return AreaTrendsOut.model_validate(result)
+
+
+JOURNEY_MAX_DAYS = 400
+
+
+@router.get("/admin/admissions/journey", response_model=JourneyOut)
+async def get_admissions_journey(
+    campus_key: str,
+    date_from: date = Query(alias="from", description="預定參觀日起（台北，含）"),
+    date_to: date = Query(alias="to", description="預定參觀日迄（台北，含）；超過今天會截到今天"),
+    source: Literal["all", "web", "assisted"] = Query(default="all", description="all 全部、web 官網、assisted 後台補登"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> JourneyOut:
+    """預約全程漏斗與退出時點（2026-10-15 預約全程規格 §3）：預定參觀日在期間內、已過參觀時間的預約案件，
+    從預約到到場、有招生訪視、預繳、註冊的人數與各段天數，以及家庭離開的時點。只讀，不寫稽核。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    end = min(date_to, today_local())
+    if date_from > end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期（結束日期最晚是今天）"},
+        )
+    if (end - date_from).days + 1 > JOURNEY_MAX_DAYS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_DATE_RANGE", "message": f"日期區間最長 {JOURNEY_MAX_DAYS} 天"},
+        )
+    result = await journey_service.query_journey(db, campus_key, date_from, end, source)
+    return JourneyOut.model_validate(result)
 
 
 @router.get(

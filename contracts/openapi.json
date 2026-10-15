@@ -7035,6 +7035,461 @@
         "title": "IntakeTargetsRequest",
         "type": "object"
       },
+      "JourneyAdmissionsOut": {
+        "properties": {
+          "completed_without_visit": {
+            "title": "Completed Without Visit",
+            "type": "integer"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "not_deposited": {
+            "$ref": "#/components/schemas/JourneyWaitingOut"
+          },
+          "with_visit": {
+            "title": "With Visit",
+            "type": "integer"
+          },
+          "withdrawn": {
+            "$ref": "#/components/schemas/JourneyWithdrawnOut"
+          }
+        },
+        "required": [
+          "with_visit",
+          "completed_without_visit",
+          "deposited",
+          "enrolled",
+          "withdrawn",
+          "not_deposited"
+        ],
+        "title": "JourneyAdmissionsOut",
+        "type": "object"
+      },
+      "JourneyCancelBucketsOut": {
+        "properties": {
+          "after_visit": {
+            "title": "After Visit",
+            "type": "integer"
+          },
+          "day_1": {
+            "title": "Day 1",
+            "type": "integer"
+          },
+          "days_2_3": {
+            "title": "Days 2 3",
+            "type": "integer"
+          },
+          "days_4_7": {
+            "title": "Days 4 7",
+            "type": "integer"
+          },
+          "days_8_plus": {
+            "title": "Days 8 Plus",
+            "type": "integer"
+          },
+          "same_day": {
+            "title": "Same Day",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "after_visit",
+          "same_day",
+          "day_1",
+          "days_2_3",
+          "days_4_7",
+          "days_8_plus"
+        ],
+        "title": "JourneyCancelBucketsOut",
+        "type": "object"
+      },
+      "JourneyCancelTimingOut": {
+        "properties": {
+          "excluded": {
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "other": {
+            "$ref": "#/components/schemas/JourneyCancelBucketsOut"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/JourneyCancelBucketsOut"
+          },
+          "staff": {
+            "$ref": "#/components/schemas/JourneyCancelBucketsOut"
+          }
+        },
+        "required": [
+          "n",
+          "excluded",
+          "parent",
+          "staff",
+          "other"
+        ],
+        "title": "JourneyCancelTimingOut",
+        "type": "object"
+      },
+      "JourneyCancelledOut": {
+        "properties": {
+          "other": {
+            "title": "Other",
+            "type": "integer"
+          },
+          "parent": {
+            "title": "Parent",
+            "type": "integer"
+          },
+          "staff": {
+            "title": "Staff",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "parent",
+          "staff",
+          "other"
+        ],
+        "title": "JourneyCancelledOut",
+        "type": "object"
+      },
+      "JourneyCasesOut": {
+        "properties": {
+          "by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Source",
+            "type": "object"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "by_source"
+        ],
+        "title": "JourneyCasesOut",
+        "type": "object"
+      },
+      "JourneyCoverageOut": {
+        "properties": {
+          "completed_without_visit": {
+            "title": "Completed Without Visit",
+            "type": "integer"
+          },
+          "undated_cases": {
+            "title": "Undated Cases",
+            "type": "integer"
+          },
+          "visits_without_request": {
+            "title": "Visits Without Request",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visits_without_request",
+          "completed_without_visit",
+          "undated_cases"
+        ],
+        "title": "JourneyCoverageOut",
+        "type": "object"
+      },
+      "JourneyDaysOut": {
+        "description": "天數的中位數（小數一位）與筆數；excluded＝缺時間或負值而不納入的筆數。",
+        "properties": {
+          "excluded": {
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "median",
+          "n",
+          "excluded"
+        ],
+        "title": "JourneyDaysOut",
+        "type": "object"
+      },
+      "JourneyFiltersOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "date_from": {
+            "format": "date",
+            "title": "Date From",
+            "type": "string"
+          },
+          "date_to": {
+            "format": "date",
+            "title": "Date To",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "all",
+              "web",
+              "assisted"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "date_from",
+          "date_to",
+          "source"
+        ],
+        "title": "JourneyFiltersOut",
+        "type": "object"
+      },
+      "JourneyOut": {
+        "properties": {
+          "admissions": {
+            "$ref": "#/components/schemas/JourneyAdmissionsOut"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "cases": {
+            "$ref": "#/components/schemas/JourneyCasesOut"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/JourneyCoverageOut"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/JourneyFiltersOut"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyRateOut"
+            },
+            "title": "Rates",
+            "type": "array"
+          },
+          "rescheduled": {
+            "$ref": "#/components/schemas/JourneyRescheduledOut"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/JourneyTimingOut"
+          },
+          "visit_outcomes": {
+            "$ref": "#/components/schemas/JourneyOutcomesOut"
+          }
+        },
+        "required": [
+          "filters",
+          "as_of",
+          "cases",
+          "visit_outcomes",
+          "admissions",
+          "rates",
+          "timing",
+          "rescheduled",
+          "coverage"
+        ],
+        "title": "JourneyOut",
+        "type": "object"
+      },
+      "JourneyOutcomesOut": {
+        "properties": {
+          "cancelled": {
+            "$ref": "#/components/schemas/JourneyCancelledOut"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "unmarked": {
+            "title": "Unmarked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "completed",
+          "no_show",
+          "cancelled",
+          "unmarked"
+        ],
+        "title": "JourneyOutcomesOut",
+        "type": "object"
+      },
+      "JourneyRateOut": {
+        "properties": {
+          "denominator": {
+            "title": "Denominator",
+            "type": "integer"
+          },
+          "key": {
+            "enum": [
+              "attendance",
+              "cancel",
+              "with_visit",
+              "deposit",
+              "enrolled",
+              "withdrawn"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "numerator": {
+            "title": "Numerator",
+            "type": "integer"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct"
+          }
+        },
+        "required": [
+          "key",
+          "numerator",
+          "denominator",
+          "pct"
+        ],
+        "title": "JourneyRateOut",
+        "type": "object"
+      },
+      "JourneyRescheduledOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "total"
+        ],
+        "title": "JourneyRescheduledOut",
+        "type": "object"
+      },
+      "JourneyTimingOut": {
+        "properties": {
+          "cancel_before_visit": {
+            "$ref": "#/components/schemas/JourneyCancelTimingOut"
+          },
+          "deposit_to_enrolled": {
+            "$ref": "#/components/schemas/JourneyDaysOut"
+          },
+          "deposit_to_withdrawn": {
+            "$ref": "#/components/schemas/JourneyDaysOut"
+          },
+          "lead_days": {
+            "$ref": "#/components/schemas/JourneyDaysOut"
+          },
+          "visit_to_deposit": {
+            "$ref": "#/components/schemas/JourneyDaysOut"
+          }
+        },
+        "required": [
+          "lead_days",
+          "cancel_before_visit",
+          "visit_to_deposit",
+          "deposit_to_enrolled",
+          "deposit_to_withdrawn"
+        ],
+        "title": "JourneyTimingOut",
+        "type": "object"
+      },
+      "JourneyWaitingOut": {
+        "description": "參觀後未預繳：觀察中（0–13 天）、逾期（14–89 天）、冷名單（90 天以上）。",
+        "properties": {
+          "cold": {
+            "title": "Cold",
+            "type": "integer"
+          },
+          "observing": {
+            "title": "Observing",
+            "type": "integer"
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observing",
+          "overdue",
+          "cold"
+        ],
+        "title": "JourneyWaitingOut",
+        "type": "object"
+      },
+      "JourneyWithdrawnOut": {
+        "properties": {
+          "from_deposit": {
+            "title": "From Deposit",
+            "type": "integer"
+          },
+          "from_enrolled": {
+            "title": "From Enrolled",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "from_deposit",
+          "from_enrolled"
+        ],
+        "title": "JourneyWithdrawnOut",
+        "type": "object"
+      },
       "LineCampusTargetOut": {
         "properties": {
           "campus_key": {
@@ -16236,6 +16691,122 @@
           }
         },
         "summary": "Save Intake Targets",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/journey": {
+      "get": {
+        "description": "預約全程漏斗與退出時點（2026-10-15 預約全程規格 §3）：預定參觀日在期間內、已過參觀時間的預約案件，\n從預約到到場、有招生訪視、預繳、註冊的人數與各段天數，以及家庭離開的時點。只讀，不寫稽核。",
+        "operationId": "get_admissions_journey_api_website_v1_admin_admissions_journey_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "預定參觀日起（台北，含）",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "預定參觀日起（台北，含）",
+              "format": "date",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "預定參觀日迄（台北，含）；超過今天會截到今天",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "預定參觀日迄（台北，含）；超過今天會截到今天",
+              "format": "date",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "all 全部、web 官網、assisted 後台補登",
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "description": "all 全部、web 官網、assisted 後台補登",
+              "enum": [
+                "all",
+                "web",
+                "assisted"
+              ],
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JourneyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Journey",
         "tags": [
           "admissions"
         ]
