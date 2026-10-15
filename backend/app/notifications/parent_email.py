@@ -11,6 +11,7 @@ from app.booking.outbox import (
     PARENT_VISIT_CANCELLED,
     PARENT_VISIT_CHANGED,
     PARENT_VISIT_DAY_CLOSED,
+    PARENT_VISIT_REMINDER,
 )
 from app.common.timezones import OPERATING_TZ
 
@@ -20,6 +21,7 @@ _TITLES = {
     PARENT_VISIT_CHANGED: "參觀預約已變更",
     PARENT_VISIT_CANCELLED: "參觀預約已取消",
     PARENT_VISIT_DAY_CLOSED: "參觀日停課，請改約時間",
+    PARENT_VISIT_REMINDER: "參觀提醒",
 }
 
 
@@ -53,12 +55,15 @@ class ParentEmail:
     rebook_url: str | None
     # 停課通知的原因（園方填給家長看的，例如「颱風停班停課」）；其他種類為 None。
     closure_reason: str | None = None
+    # 參觀提醒寫「明天」或「今天」（寄出當下的台北日期，規格 R8）；其他種類為 None。
+    day_word: str | None = None
 
 
 def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
     short_name = mail.campus_name[:-1] if mail.campus_name.endswith("校") else mail.campus_name
     when = visit_when(mail.slot_date, mail.start_time) if mail.slot_date and mail.start_time else None
-    subject = f"【常春藤{short_name}】{_TITLES[mail.kind]}" + (f"：{when}" if when else "")
+    day = f"{mail.day_word} " if mail.kind == PARENT_VISIT_REMINDER and mail.day_word else ""
+    subject = f"【常春藤{short_name}】{_TITLES[mail.kind]}" + (f"：{day}{when}" if when else "")
 
     if mail.kind == PARENT_VISIT_BOOKED:
         intro = f"您已完成常春藤{mail.campus_name}的參觀預約，期待與您見面。"
@@ -67,6 +72,8 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
         intro = f"{because}常春藤{mail.campus_name}這天停課，原本約好的參觀無法進行，很抱歉。"
     elif mail.kind == PARENT_VISIT_CHANGED:
         intro = "您的參觀預約已更新，以下是最新內容。"
+    elif mail.kind == PARENT_VISIT_REMINDER:
+        intro = f"提醒您，{day}{when} 在常春藤{mail.campus_name}參觀。" if when else f"提醒您，記得到常春藤{mail.campus_name}參觀。"
     elif mail.cancel_reason == "parent":
         intro = "您已取消這次參觀預約。"
     elif mail.cancel_reason == "staff":
@@ -94,6 +101,18 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
             lines += ["請開啟這個連結改約其他時間，或取消這次預約：", mail.manage_url, "請勿把這個連結轉給他人。"]
         else:
             lines.append("請來電改約其他時間，或告訴我們要取消這次預約。")
+    elif mail.kind == PARENT_VISIT_REMINDER:
+        # 提醒時多半已過線上修改期限（預設參觀前 24 小時）：期限內才附連結，否則請家長來電（規格 R7）。
+        if mail.manage_url and mail.change_deadline:
+            lines += [
+                f"要改期或取消，請在 {_deadline_text(mail.change_deadline)} 前使用這個連結：",
+                mail.manage_url,
+                "請勿把這個連結轉給他人。",
+            ]
+        elif mail.campus_phone:
+            lines.append(f"要改期或取消，請來電 {mail.campus_phone}。")
+        else:
+            lines.append("要改期或取消，請來電洽詢。")
     elif mail.manage_url:
         deadline = f"（{_deadline_text(mail.change_deadline)}前可以線上修改）" if mail.change_deadline else ""
         lines += [f"要改時間、修改資料或取消，請開啟這個連結{deadline}：", mail.manage_url, "請勿把這個連結轉給他人。"]

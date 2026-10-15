@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 from sqlalchemy import select
@@ -15,10 +15,10 @@ from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
 from app.booking import access_service
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED
-from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline
+from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER
+from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline, parent_change_open
 from app.campuses.models import Campus
-from app.common.timezones import slot_start_utc
+from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import reminders
@@ -40,6 +40,8 @@ _KIND_LABELS = {
     "parent_visit_cancelled": "家長確認信（預約已取消）",
     # 停班停課（2026-10-14）：請家長用修改連結改約或取消。
     "parent_visit_day_closed": "家長停課通知（請改約）",
+    # 參觀前 24 小時提醒家長（2026-10-15）。
+    "parent_visit_reminder": "參觀提醒（家長）",
     # 舊流程（家長送出改期申請、等園方核准，2026-10-08 刪除）留下的通知，
     # 站內通知列與寄送失敗清單重寄時仍要有標題。
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
@@ -252,6 +254,11 @@ async def email_content(
     return f"[常春藤官網] {campus_name}｜{label}", "\n".join(lines)
 
 
+def _day_word(slot_date: date) -> str | None:
+    """參觀提醒的「明天／今天」依寄出當下的台北日期（規格 R8）；其他天數不寫。"""
+    return {0: "今天", 1: "明天"}.get((slot_date - today_local()).days)
+
+
 async def _dispatch_parent_email(
     db: AsyncSession,
     *,
@@ -264,8 +271,8 @@ async def _dispatch_parent_email(
     access_secret: str | None,
 ) -> bool:
     """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
-    沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立），runner
-    會標成 skipped、不重試。"""
+    沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立、參觀提醒寄出前
+    場次已換或那天停課），runner 會標成 skipped、不重試。"""
     if adapter is None:
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
@@ -295,12 +302,22 @@ async def _dispatch_parent_email(
         or not await day_closed(db, visit_request)
     ):
         return False
+    # 參觀提醒（2026-10-15 規格 R6）：場次換了（改期）或那天停課（另有停課信）就不寄。
+    if kind == PARENT_VISIT_REMINDER and (
+        slot is None or str(slot.id) != str(payload.get("slot_id")) or await day_closed(db, visit_request)
+    ):
+        return False
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):
         return True
     origin = admin_origin.rstrip("/") if admin_origin else None
+    deadline_hours = await change_deadline_hours(db, visit_request.campus_key)
+    # 參觀提醒只在線上修改期限還沒過時附連結（R7）；其他家長信照舊（取消信不附）。
+    link_allowed = kind != PARENT_VISIT_CANCELLED and (
+        kind != PARENT_VISIT_REMINDER or parent_change_open(visit_request, deadline_hours)
+    )
     manage_url = None
-    if kind != PARENT_VISIT_CANCELLED and origin and access_secret:
+    if link_allowed and origin and access_secret:
         path = await access_service.current_manage_path(db, visit_request.id, secret=access_secret)
         manage_url = f"{origin}{path}" if path else None
     profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
@@ -317,13 +334,12 @@ async def _dispatch_parent_email(
             campus_phone=str(profile.get("phone") or "").strip() or None,
             manage_url=manage_url,
             change_deadline=parent_change_deadline(
-                visit_request,
-                await change_deadline_hours(db, visit_request.campus_key),
-                day_closed=kind == PARENT_VISIT_DAY_CLOSED,
+                visit_request, deadline_hours, day_closed=kind == PARENT_VISIT_DAY_CLOSED
             ),
             cancel_reason=visit_request.cancel_reason,
             rebook_url=f"{origin}/visit/{visit_request.campus_key}" if origin else None,
             closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
+            day_word=_day_word(slot.slot_date) if kind == PARENT_VISIT_REMINDER and slot else None,
         )
     )
     recipient = _header_safe(visit_request.email)
