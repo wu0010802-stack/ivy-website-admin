@@ -501,7 +501,7 @@ test('在籍學生：切模式畫出學生點 → 篩班別點跟著變 → 表�
     await expect(page.locator('.area-map path.area-enrolled')).toHaveCount(2)
     await expect(page.locator('.area-map path.area-enrolled--multi')).toHaveCount(1)
     const legend = page.locator('.area-legend--enrolled')
-    await expect(legend).toContainText('地圖上 3 位')
+    await expect(legend).toContainText('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 3 位')
     await expect(legend).toContainText('沒有點 1 位（只對到里 1）')
     await page.locator('.area-top').screenshot({ path: path.join(SHOTS, 'admissions-enrolled-1440.png') })
   })
@@ -512,11 +512,21 @@ test('在籍學生：切模式畫出學生點 → 篩班別點跟著變 → 表�
     await expect(statsBlock(page, '在籍學生里排行（大班）').locator('tbody tr')).toHaveCount(1)
   })
 
-  await test.step('距離分布：1 公里內 3 位、沒有座標 1 位', async () => {
+  await test.step('距離分布：1 公里內 3 位、無距離 1 位', async () => {
     const rows = statsBlock(page, '在籍學生距離分布').locator('tbody tr')
     await expect(rows.first().locator('th, td').last()).toHaveText('3')
-    await expect(rows.last().locator('th, td').first()).toHaveText('沒有座標')
+    await expect(rows.last().locator('th, td').first()).toHaveText('無距離')
     await expect(rows.last().locator('th, td').last()).toHaveText('1')
+  })
+
+  await test.step('在籍學生的圖例與表格沒有 serious／critical 的無障礙問題', async () => {
+    const results = await new AxeBuilder({ page })
+      .include('.area-legend--enrolled')
+      .include('.enrolled-panel')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+    const serious = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    expect(serious.map((violation) => `${violation.id}：${violation.nodes.map((node) => node.target.join(' ')).join('；')}`)).toEqual([])
   })
 
   await test.step('沒匯入的校：在籍學生按鈕停用並寫原因', async () => {
