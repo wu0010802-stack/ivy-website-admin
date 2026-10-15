@@ -1,13 +1,14 @@
 """招生區域分析的公開地理資料與訪視比對結果（docs/specs/2026-10-08-admissions-area-design.md 第 5 節；
 各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節；各里出生、遷入遷出、
 年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節，新成屋見第 3.2 節，各里所得見第 3.3 節；
-托嬰與園所異動見 docs/specs/2026-10-14-provider-changes-design.md 第 3 節）。
+托嬰與園所異動見 docs/specs/2026-10-14-provider-changes-design.md 第 3 節；
+幼兒園收費見 docs/specs/2026-10-15-peer-comparison-design.md 第 3 節）。
 
-這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_babycare／geo_provider_events／
+這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_babycare／geo_provider_events／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
 geo_village_income／geo_new_home_sales／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset、geo_babycare、geo_provider_events 是 c6a9e3f15d27，geo_new_home_sales 的 match_level 是 e4f1a8c6b203，
+geo_dataset_status 的 dataset、geo_kindergarten_fees 是 f2b8c4d1e7a9，geo_babycare、geo_provider_events 是 c6a9e3f15d27，geo_new_home_sales 的 match_level 是 e4f1a8c6b203，
 其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
@@ -30,6 +32,8 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    Numeric,
+    SmallInteger,
     String,
     UniqueConstraint,
 )
@@ -48,6 +52,7 @@ STREET_KINDS = ("road", "area")
 # income：各里綜合所得（2026-10-14 里的變化 C 段），migration d8b3f6a2c914 加進約束。
 # new_homes：新成屋交屋（2026-10-14 里的變化 B 段），migration e4f1a8c6b203 加進約束。
 # babycare：托嬰名單（2026-10-14 托嬰與園所異動），migration c6a9e3f15d27 加進約束。
+# kindergarten_fees：幼兒園公告收費（2026-10-15 附近同業比較），migration f2b8c4d1e7a9 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -58,10 +63,12 @@ DATASETS = (
     "income",
     "new_homes",
     "babycare",
+    "kindergarten_fees",
 )
 BABYCARE_KINDS = ("center", "home")
 PROVIDERS = ("kindergarten", "babycare")
 PROVIDER_CHANGES = ("opened", "closed", "kind_changed")
+FEE_AGES = (2, 3, 4, 5)  # 收費只存 2–5 歲全日班（2026-10-15 規格 F4）
 
 
 def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
@@ -124,6 +131,12 @@ class GeoKindergarten(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # 設立日（來源 reg_date）；解析不出來存 NULL。近 12 個月內設立的營業中園所算「新設」（規格 P3）。
     registered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # 2026-10-15 附近同業比較：室內／戶外面積（m²）、幼童專用車（有／無）、兼辦國小課後人數（「無」＝0）。
+    # 來源沒有或格式不對存 NULL；畫面用面積 ÷ 核定人數。
+    indoor_m2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    outdoor_m2: Mapped[float | None] = mapped_column(Float, nullable=True)
+    has_shuttle: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    after_school_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -147,7 +160,40 @@ class GeoBabycare(Base):
     approved_capacity: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enrolled: Mapped[int | None] = mapped_column(Integer, nullable=True)
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # 2026-10-15 附近同業比較：逐所明細的日間托育平均月費與說明、評鑑等級與年度（民國）、準公共資格。
+    # 抓不到的那一所保留上次的值；從沒抓到是 NULL。
+    monthly_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fee_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    evaluation_grade: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    evaluation_year: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    quasi_public: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoKindergartenFee(Base):
+    """幼兒園公告收費（kiang 整理的全國教保資訊網收費明細，2026-10-15 規格 §3）：每所每個年齡一列，
+    最新學年、全日班、一學期。不設外鍵，讀的時候 join geo_kindergartens。來源檔頭（含負責人姓名）整段不讀。
+    學期項目是小計、課後延托是每月單價；交通費只存公告原文。學年換新時整表替換。"""
+
+    __tablename__ = "geo_kindergarten_fees"
+    __table_args__ = (
+        CheckConstraint(f"age BETWEEN {FEE_AGES[0]} AND {FEE_AGES[-1]}", name="ck_geo_kindergarten_fees_age"),
+    )
+
+    source_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    age: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    school_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    months: Mapped[Decimal | None] = mapped_column(Numeric(3, 1), nullable=True)
+    tuition: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    misc_fee: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    materials: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    activities: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    lunch: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    snack: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    semester_total: Mapped[int] = mapped_column(Integer, nullable=False)
+    after_care_monthly: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    transport_note: Mapped[str | None] = mapped_column(String(40), nullable=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -185,6 +231,7 @@ class GeoDatasetStatus(Base):
     - income：active_version、label 都是所得年度（民國）「112」；
     - new_homes：active_version、label 都是表裡最新的季「115S3」；
     - babycare：active_version、label 都是同步日期（同 kindergartens）；
+    - kindergarten_fees：active_version、label 都是收費學年「114」；synced_at＝上次全量完成、checked_at＝上次確認學年；
     baseline_on 是第一次用「依 source_id 比對」的程式同步成功的台北日期（kindergartens、babycare 才有；規格 P8），畫面靠它寫「從 N 月 N 日起記錄」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 

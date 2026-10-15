@@ -144,7 +144,7 @@ async def _clean_tables(app):
                 "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
                 "retention_policies, retention_runs, "
                 "enrolled_student_points, enrolled_rosters, "
-                "recruitment_visit_geo, geo_doorplates, geo_kindergartens, geo_babycare, geo_provider_events, "
+                "recruitment_visit_geo, geo_doorplates, geo_kindergartens, geo_babycare, geo_provider_events, geo_kindergarten_fees, "
                 "geo_village_population, geo_dataset_status, "
                 "geo_village_births, geo_village_migration, geo_village_ages, geo_village_income, geo_new_home_sales, "
                 "recruitment_contact_logs, recruitment_event_log, recruitment_visits, grade_intake_targets "
