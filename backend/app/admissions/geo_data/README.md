@@ -91,7 +91,7 @@ uv run pytest tests/test_school_districts.py
 
 ## 幼兒園停辦回補（`kindergarten-closures-20261015.csv`）
 
-幼兒園的營業中改以教育部名單（kiang `docs/data/高雄市.csv`）判斷後，第一次同步會一次下架 47 所 kiang 還標營業中、
+幼兒園的營業中改以教育部名單（kiang `docs/data/高雄市.csv`）判斷後，第一次同步會一次下架 47 所（10-15 實測）kiang 還標營業中、
 但已不在名單的舊筆。這份檔告訴同步每一所該怎麼處理，讓近 12 個月的停辦寫在它實際離開名單的那天，而不是同步當天。
 規格 `docs/specs/2026-10-15-kindergarten-registry-design.md` §5。
 

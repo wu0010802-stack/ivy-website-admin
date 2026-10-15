@@ -739,7 +739,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要多種公開資料（以下四種是起頭的，「里的變化」另有出生、遷入遷出、所得、新成屋，各段在下方）：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）、內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）與托嬰中心名單（2026-10-14，見下方「托嬰名單與園所異動」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。
 
-**五個環境變數**（api 服務，全部選填；沒設就用預設）：
+**六個環境變數**（api 服務，全部選填；沒設就用預設）：
 
 | 變數 | 預設 | 作用 |
 | --- | --- | --- |
@@ -777,7 +777,7 @@ python -m app.cli geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-ver
 Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終端機執行）：`! railway ssh --service api --environment production -- python -m app.cli geo-sync`。
 
 - 不帶參數＝和背景迴圈同一套（門牌、各里人口超過 30 天、幼兒園與托嬰超過 7 天才下載），結束時檢查「各校已發布校址＋使用中門牌批次」有沒有變、有變才重算訪視。`--force` 略過到期天數（30／7 天）與「月份相同」的判斷，立刻重抓；對幼兒園與托嬰也同時略過殘缺檔檢查（見下方「托嬰名單與園所異動」）。
-- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。幼兒園檔案要和名單檔（kiang `docs/data/高雄市.csv`）一起給，只給一個會報錯。只帶一種檔案時另一種不會匯入：同時帶 `--kindergartens-file`（或 `--doorplates-file`），或之後再跑一次不帶檔案的 `geo-sync`；幼兒園資料沒匯入前，後台附近幼兒園清單寫「幼兒園資料尚未匯入」，不是附近沒有園所；托嬰同理，沒匯入前寫「托嬰名單尚未匯入」。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
+- 指定任一個檔案＝完全不連外，沒指定檔案的那一種跳過，也不檢查門牌筆數下限。幼兒園檔案要和名單檔（kiang `docs/data/高雄市.csv`）一起給，只給一個會報錯。只帶一種檔案時另一種不會匯入：同時帶 `--kindergartens-file` 與 `--kindergartens-registry-file`（或 `--doorplates-file`），或之後再跑一次不帶檔案的 `geo-sync`；幼兒園資料沒匯入前，後台附近幼兒園清單寫「幼兒園資料尚未匯入」，不是附近沒有園所；托嬰同理，沒匯入前寫「托嬰名單尚未匯入」。檔案路徑是執行指令的那個容器裡的路徑（例如先放到 `/data` volume）。`--doorplates-version` 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
 - 自動找不到門牌檔時：設 `WEBSITE_GEO_DOORPLATE_URL` 指到直連網址，或下載 CSV 後用 `--doorplates-file`。
 - **正式站連不到高雄市資料平台**（2026-10-12 實測：api 自動下載兩次都 `ConnectTimeout`，同時間從台灣連 0.19 秒；判斷是擋境外 IP）：門牌的背景同步每次都會失敗（幼兒園與托嬰來源在 GitHub Pages，照常更新），畫面繼續用已匯入的版本；上次成功滿 30 天後，每一輪都會記一次「門牌資料同步失敗」WARNING。要換新月份就手動：在本機下載當月 CSV（資料平台搜尋「門牌坐標資料」，或用 `app.admissions.geo.sync.discover_doorplate_source` 找 `File/DirectDownload/<guid>`）→ `! railway volume -p <project> -e <env> files -v api-volume upload <本機 CSV> /doorplates-115-11.csv`（volume 根目錄＝容器 `/data`；檔名帶月份，`--doorplates-version` 就能省略）→ `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --doorplates-file /data/doorplates-115-11.csv` → 刪掉 CSV：`railway volume -p <project> -e <env> files -v api-volume delete /doorplates-115-11.csv`。auto 模式會擋前兩條，用 `!` 由使用者執行；刪檔連 `!` 都會被 Railway CLI 拒絕（偵測到 agent 環境），要在自己的終端機視窗或 Railway 網頁版的 volume 檔案頁刪。
 - **結束碼 1**：另一個同步正在進行（會印「另一個公開資料同步正在進行，稍後再試」，什麼都沒做），或門牌、幼兒園、托嬰、各里人口、里的變化各種資料（出生、遷入遷出、所得、新成屋）任一種同步失敗（原因在 `geo_dataset_status.last_error`）。同一時間只允許一個同步，背景迴圈、CLI、多個副本共用同一把資料庫 advisory lock。

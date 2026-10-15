@@ -4,7 +4,7 @@
 
 - **判斷**：同步多抓 kiang `docs/data/高雄市.csv`（教育部名單），（立案文號、名稱）在名單上才算營業中；抓不到或格式不對，幼兒園整輪不換版。
 - **改名**：同地址、同設立日的另一筆在名單上＝改名或換承辦，只下架、不記停辦。
-- **回補**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv`（`scripts/build_kindergarten_closures.py` 從名單歷史算出，47 筆）：有離開日的停辦 16 所（其中近 12 個月 14 所）寫在實際離開名單那天；更早的停辦 17 所與改名 14 所只下架。
+- **回補**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv`（`scripts/build_kindergarten_closures.py` 從名單歷史算出，47 筆）：有離開日的停辦 16 所（其中近 12 個月 14 所）寫在實際離開名單那天；2025-06 前就離開名單、沒有日期的停辦 17 所與改名 14 所只下架。
 - **畫面**：版面不變；「附近幼兒園」清單與數字少掉幽靈園所（各校見下表）；變化區塊小字改成只說類型變動與托嬰從哪天起記錄。
 - **各校影響**：離線用 2026-10-15 的 kiang `preschools.json` 與教育部名單，以各校校址（門牌座標）算直線距離；「少」指 kiang 標營業中、但不在名單的園所數（高雄全市 736 → 689，少 47）。右欄是 3 公里內、會出現在「附近園所的變化」的近 12 個月停辦（來自回補檔，離開日 2025-10-16 之後；喬美等改名的不出現）。
 
@@ -17,7 +17,13 @@
   | 仁武 | 0 | 2 | 12 | 無 |
 
 - **上線**：不新增 migration；推 main 後下一輪幼兒園同步（每 7 天）自動套用。要立刻生效得手動 `geo-sync --force`（會連門牌一起強制重抓，Railway 連不到高雄市資料平台時門牌 failed、結束碼 1，幼兒園照樣更新）。
-- **驗證**：待全套驗證後補上。
+- **驗證**（2026-10-16，Node 22、本機 PostgreSQL；程式在 `94379745`，之後只改文件；**未 push、未部署**）：
+  - 後端全套 3180 passed、1 skipped、0 failed（32 分 57 秒，獨立測試庫 `ivy_website_kgreg1015_test`）。
+  - admin 全套 161 檔：一次跑 143 檔通過，18 檔 71 個失敗，其中 70 個是 5 秒逾時、1 個是 `openRequestsUx` 的計數斷言（當時機器 load average 36–48，被其他 session 壓著）。這 18 檔加 `--testTimeout=60000` 重跑 428 passed。admin `typecheck` 無錯誤。
+  - stack：只跑 `tests/stack/admissions-area.spec.ts`（含成對匯入與新的小字）13 passed（1.5 分，自訂 `E2E_DB_NAME`、埠 8751／3751）；沒跑 stack 整套。
+  - 回補檔用 `scripts/build_kindergarten_closures.py` 實跑產生（10-15 名單 689 所、回補 47 筆），近 12 個月停辦 14 所、改名 4 組與規格附錄 A 一致。
+  - API 與契約沒變，沒跑契約產生。repo 沒有 ruff 設定、CI 也不跑；改動檔案裡新增的提示（UP017、I001 之類）與既有寫法同類，沒有處理。
+  - 沒有登入正式後台看畫面；正式站要等推 main 後下一輪幼兒園同步才生效。
 
 ## 2026-10-15 預約全程漏斗與退出時點（`feature/booking-journey-20261015`）
 
