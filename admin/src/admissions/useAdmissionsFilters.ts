@@ -3,6 +3,7 @@ import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { useCampusScope } from '../composables/useCampusScope'
 import { currentTerm } from './academic'
 import { parseAreaQuery } from './areaFilter'
+import { DEFAULT_JOURNEY_FILTER, journeyQuery, parseJourneyQuery, type JourneyFilter } from './journeyFormat'
 
 // 名額規劃（intake）與官網預約（arrivals）2026-10-05 拿掉、待追蹤（followups）2026-10-06 拿掉，
 // 舊連結的 tab=intake、tab=arrivals、tab=followups 退回漏斗看板。
@@ -11,8 +12,8 @@ export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 統計分析的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
 // 順序同園務：區域分析在接待之後、未預繳之前（2026-10-08 起官網也做）。官網延伸的「參觀預約」
-// （2026-10-13 從成效統計搬來）排最後，園務有的子分頁順序不動。
-export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking'] as const
+// （2026-10-13 從成效統計搬來）與「預約全程」（2026-10-15）排最後，園務有的子分頁順序不動。
+export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey'] as const
 export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -47,6 +48,8 @@ function queryKey(query: LocationQuery | Record<string, string>): string {
  *   離開訪視明細就拿掉，手改成認不得的值就當沒篩。
  * - sub：統計分頁的子分頁，只在 tab=stats 時有意義，總覽不寫進網址；切子分頁用 replace，
  *   「查看」明細用 push，所以上一頁回到離開時的子分頁。
+ * - jp／jf／jt／js：統計分頁「預約全程」的期間、自訂起訖與來源（journeyFormat.ts），只在 tab=stats&sub=journey 有意義，
+ *   離開就拿掉，手改成認不得的值就退回預設。
  * 畫面改條件用 replace 寫回網址，不堆瀏覽紀錄；網址被改（上一頁、連結）時讀回畫面。
  */
 export function useAdmissionsFilters() {
@@ -64,6 +67,7 @@ export function useAdmissionsFilters() {
   const month = ref('')
   const area = ref('')
   const sub = ref<StatsSub>('overview')
+  const journey = ref<JourneyFilter>({ ...DEFAULT_JOURNEY_FILTER })
 
   function pickCampus(wanted: string): string {
     const keys = visibleCampusKeys.value
@@ -86,6 +90,7 @@ export function useAdmissionsFilters() {
     const areaValue = text(query.area)
     area.value = tab.value === 'records' && parseAreaQuery(areaValue) ? areaValue : ''
     sub.value = tab.value === 'stats' && isStatsSub(query.sub) ? query.sub : 'overview'
+    journey.value = tab.value === 'stats' && sub.value === 'journey' ? parseJourneyQuery(query) : { ...DEFAULT_JOURNEY_FILTER }
   }
 
   function stateQuery(): Record<string, string> {
@@ -99,6 +104,7 @@ export function useAdmissionsFilters() {
     if (month.value) query.month = month.value
     if (tab.value === 'records' && area.value) query.area = area.value
     if (tab.value === 'stats' && sub.value !== 'overview') query.sub = sub.value
+    if (tab.value === 'stats' && sub.value === 'journey') Object.assign(query, journeyQuery(journey.value))
     return query
   }
 
@@ -118,9 +124,11 @@ export function useAdmissionsFilters() {
   // 離開統計分頁就把子分頁收回總覽，下次進來從總覽開始；離開訪視明細就放掉區域篩選。
   watch(tab, (value) => {
     if (value !== 'stats') sub.value = 'overview'
+    if (value !== 'stats') journey.value = { ...DEFAULT_JOURNEY_FILTER }
     if (value !== 'records') area.value = ''
   })
-  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, sub], syncUrl, { immediate: true })
+  watch(sub, (value) => { if (value !== 'journey') journey.value = { ...DEFAULT_JOURNEY_FILTER } })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, sub, journey], syncUrl, { immediate: true, deep: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -137,6 +145,6 @@ export function useAdmissionsFilters() {
   }
 
   return {
-    campus, schoolYear, semester, tab, visitRequestId, month, area, sub, visibleCampusKeys, defaultYear, clearTerm,
+    campus, schoolYear, semester, tab, visitRequestId, month, area, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
   }
 }

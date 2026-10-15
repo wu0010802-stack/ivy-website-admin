@@ -558,6 +558,9 @@ export type AdmissionsRateRange = components['schemas']['AdmissionsRateRange']
 export type AdmissionsDepositTiming = components['schemas']['AdmissionsDepositTiming']
 export type AdmissionsDepositPace = components['schemas']['AdmissionsDepositPace']
 
+// 預約全程（2026-10-15 規格 §3.2）。
+export type AdmissionsJourney = components['schemas']['JourneyOut']
+
 // 區域分析（2026-10-08 規格 8）。
 export type AdmissionsArea = components['schemas']['AdmissionsAreaOut']
 export type AreaDistrictRow = components['schemas']['AreaDistrictRowOut']

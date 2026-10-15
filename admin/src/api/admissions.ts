@@ -1,13 +1,14 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaKindergartens, AreaOpportunity, AreaTrends, ContactLog, ContactLogCreate,
+  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaKindergartens, AreaOpportunity, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
 import type { Stage } from '../admissions/constants'
+import type { JourneySource } from '../admissions/journeyFormat'
 
 /** 訪視明細的篩選（後端 RecruitmentVisitFilters）。空字串與 null 不送。 */
 export type RecordFilters = {
@@ -208,4 +209,9 @@ export function createContactLog(id: string, body: ContactLogCreate): Promise<Co
 /** 只改下次聯絡或負責人：沒帶的鍵不動，帶 null＝清除。 */
 export function updateFollowUp(id: string, body: FollowUpUpdate): Promise<RecruitmentVisit> {
   return api.patch<RecruitmentVisit>(`/admin/admissions/records/${id}/follow-up`, body)
+}
+
+/** 預約全程漏斗與退出時點（2026-10-15 規格 §3.2）：預定參觀日在 from～to（台北日，含）的預約案件。 */
+export function getJourney(params: { campus_key: string; from: string; to: string; source: JourneySource }): Promise<AdmissionsJourney> {
+  return api.get<AdmissionsJourney>(`/admin/admissions/journey?${toQuery(params)}`)
 }

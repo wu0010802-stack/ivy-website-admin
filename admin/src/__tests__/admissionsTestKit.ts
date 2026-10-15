@@ -8,7 +8,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import type {
-  AdmissionsArea, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
   UserOut, VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -249,6 +249,43 @@ const buildAreaTrends = () => ({
 } satisfies AreaTrends)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaTrends = (changes: Partial<AreaTrends> = {}): AreaTrends => ({ ...buildAreaTrends(), ...changes })
+
+// 預約全程（2026-10-15）：後端 test_admissions_journey_calc 的 13 筆情境。
+const buildJourney = () => ({
+  filters: { campus_key: 'yihua', date_from: '2026-07-17', date_to: '2026-10-15', source: 'all' },
+  as_of: '2026-10-15T04:00:00Z',
+  cases: { total: 13, by_source: { web: 9, phone: 2, line: 1, walk_in: 1, external: 0 } },
+  visit_outcomes: { completed: 8, no_show: 1, cancelled: { total: 3, parent: 1, staff: 1, other: 1 }, unmarked: 1 },
+  admissions: {
+    with_visit: 7, completed_without_visit: 1, deposited: 4, enrolled: 2,
+    withdrawn: { total: 2, from_deposit: 1, from_enrolled: 1 },
+    not_deposited: { observing: 1, overdue: 1, cold: 1 },
+  },
+  rates: [
+    { key: 'attendance', numerator: 8, denominator: 9, pct: 88.9 },
+    { key: 'cancel', numerator: 3, denominator: 13, pct: 23.1 },
+    { key: 'with_visit', numerator: 7, denominator: 8, pct: 87.5 },
+    { key: 'deposit', numerator: 4, denominator: 7, pct: 57.1 },
+    { key: 'enrolled', numerator: 2, denominator: 4, pct: 50 },
+    { key: 'withdrawn', numerator: 2, denominator: 4, pct: 50 },
+  ],
+  timing: {
+    lead_days: { median: 7, n: 13, excluded: 0 },
+    cancel_before_visit: {
+      n: 3, excluded: 0,
+      parent: { after_visit: 0, same_day: 1, day_1: 0, days_2_3: 0, days_4_7: 0, days_8_plus: 0 },
+      staff: { after_visit: 0, same_day: 0, day_1: 0, days_2_3: 0, days_4_7: 1, days_8_plus: 0 },
+      other: { after_visit: 1, same_day: 0, day_1: 0, days_2_3: 0, days_4_7: 0, days_8_plus: 0 },
+    },
+    visit_to_deposit: { median: 5, n: 3, excluded: 1 },
+    deposit_to_enrolled: { median: 6.5, n: 2, excluded: 0 },
+    deposit_to_withdrawn: { median: 11, n: 2, excluded: 0 },
+  },
+  rescheduled: { cases: 1, total: 13 },
+  coverage: { visits_without_request: 4, completed_without_visit: 1, undated_cases: 2 },
+} satisfies AdmissionsJourney)
+/** 每次呼叫都是一份新的；changes 整欄換掉。 */
+export const journeyData = (changes: Partial<AdmissionsJourney> = {}): AdmissionsJourney => ({ ...buildJourney(), ...changes })
 
 // 座標由 distance_m 反推（從校區正北方量出去），所以座標和 distance_m 一致、本機構（0 m）落在校區 50 m 內，
 // 競爭園所都在 50 m 外（後端 OWN_CAMPUS_RADIUS_M）；areaFormat.test.ts 的守門測試用 haversine 驗。
