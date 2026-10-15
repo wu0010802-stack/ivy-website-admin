@@ -1,5 +1,6 @@
 import { NO_VALUE, type StatsColumn } from '../../../admissions/statsFormat'
 import type { AreaFeeItems, AreaPeerFees } from '../../../api/types'
+import type { CsvCell } from '../../../utils/csv'
 import { formatCount, formatDistance, kindLabel, shortName, signedCount } from './areaFormat'
 
 // 附近同業收費（2026-10-15 規格 7.1、7.2）：排名、中位數、項目對照只和私立一般比（規格 F2）。
@@ -110,21 +111,34 @@ export function schoolRows(data: AreaPeerFees) {
       distance: formatDistance(school.distance_m),
       semester_total: school.semester_total,
       monthly_average: school.monthly_average,
+      // 畫面用文字欄：沒有就寫「—」（StatsDimensionTable 的 count 欄會把 null 顯示成 0，也沒有千分位）。
+      semester_total_text: school.semester_total === null ? NO_VALUE : formatCount(school.semester_total),
+      monthly_average_text: school.monthly_average === null ? NO_VALUE : formatCount(school.monthly_average),
       ...school.items,
     }))
 }
+
+export type SchoolRow = ReturnType<typeof schoolRows>[number]
 
 export const SCHOOL_COLUMNS: StatsColumn[] = [
   { key: 'name', label: '園所', sticky: true },
   { key: 'kind', label: '類型' },
   { key: 'distance', label: '距本校' },
-  { key: 'semester_total', label: '學期總收費（元）', kind: 'count' },
-  { key: 'monthly_average', label: '月均（元）', kind: 'count' },
+  { key: 'semester_total_text', label: '學期總收費（元）' },
+  { key: 'monthly_average_text', label: '月均（元）' },
 ]
 export const SCHOOL_CSV_COLUMNS: StatsColumn[] = [
   ...SCHOOL_COLUMNS,
-  ...FEE_ITEM_KEYS.map((key) => ({ key, label: `${FEE_ITEM_LABELS[key]}（元）`, kind: 'count' as const })),
+  ...FEE_ITEM_KEYS.map((key) => ({ key, label: `${FEE_ITEM_LABELS[key]}（元）` })),
 ]
+
+/** 匯出 CSV 的收費格：寫原始數字，沒有就空白（不寫 0、不寫「—」）；其他欄回 undefined 照欄位規則。 */
+export function schoolCsvCell(row: SchoolRow, column: StatsColumn): CsvCell | undefined {
+  if (column.key === 'semester_total_text') return row.semester_total ?? ''
+  if (column.key === 'monthly_average_text') return row.monthly_average ?? ''
+  const itemKey = FEE_ITEM_KEYS.find((key) => key === column.key)
+  return itemKey ? (row[itemKey] ?? '') : undefined
+}
 
 /** 附近幼兒園清單的來源小字（規格 7.2）：收費學年接在來源後面，學年落後再接一句。 */
 export function feeSourceLine(sourceNote: string, updated: string, fees: AreaPeerFees | null): string {

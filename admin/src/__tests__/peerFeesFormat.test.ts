@@ -1,7 +1,8 @@
 // 附近同業收費的格式函式（2026-10-15 規格 7.1）。
 import { describe, expect, it } from 'vitest'
 import {
-  feeLagNote, feeSourceLine, formatYuan, groupRows, itemRows, peerFeesSubtitle, peerSummaryText, schoolRows, stripScale,
+  FEE_ITEM_KEYS, SCHOOL_COLUMNS, SCHOOL_CSV_COLUMNS, feeLagNote, feeSourceLine, formatYuan, groupRows, itemRows, peerFeesSubtitle, peerSummaryText,
+  schoolCsvCell, schoolRows, stripScale,
 } from '../components/admissions/area/peerFeesFormat'
 import { areaPeerFees, feeItems, peerFeeSchool } from './admissionsTestKit'
 
@@ -96,6 +97,37 @@ describe('附近同業收費格式', () => {
     ])
     expect(rows[0].tuition).toBe(15000)
     expect(schoolRows({ ...areaPeerFees(), schools: [peerFeeSchool({ semester_total: null })] })).toEqual([])
+  })
+
+  it('各所收費表：未公布寫「—」、有值有千分位，原始數字另留給排序與 CSV', () => {
+    const rows = schoolRows(areaPeerFees())
+    const p2 = rows.find((row) => row.source_id === 'kg-p2')!
+    const p3 = rows.find((row) => row.source_id === 'kg-p3')!
+    expect([p2.semester_total_text, p2.monthly_average_text]).toEqual(['93,000', '16,909'])
+    expect([p3.semester_total_text, p3.monthly_average_text]).toEqual(['40,200', '—'])
+    expect([p3.semester_total, p3.monthly_average]).toEqual([40200, null])
+  })
+
+  it('各所收費表的欄位：文字欄、不用 count（null 會被顯示成 0）', () => {
+    expect(SCHOOL_COLUMNS.map((column) => column.key)).toEqual(['name', 'kind', 'distance', 'semester_total_text', 'monthly_average_text'])
+    expect(SCHOOL_CSV_COLUMNS.map((column) => column.key)).toEqual([
+      'name', 'kind', 'distance', 'semester_total_text', 'monthly_average_text',
+      'tuition', 'misc_fee', 'materials', 'activities', 'lunch', 'snack', 'after_care_monthly',
+    ])
+    expect(SCHOOL_CSV_COLUMNS.slice(5).map((column) => column.key)).toEqual([...FEE_ITEM_KEYS])
+    expect([...SCHOOL_COLUMNS, ...SCHOOL_CSV_COLUMNS].some((column) => column.kind === 'count')).toBe(false)
+  })
+
+  it('各所收費表匯出：寫原始數字，沒有就空白，不寫 0 或「—」', () => {
+    const rows = schoolRows(areaPeerFees())
+    const p3 = rows.find((row) => row.source_id === 'kg-p3')!
+    const cell = (row: (typeof rows)[number], key: string) => schoolCsvCell(row, SCHOOL_CSV_COLUMNS.find((column) => column.key === key)!)
+    expect(cell(p3, 'semester_total_text')).toBe(40200)
+    expect(cell(p3, 'monthly_average_text')).toBe('')
+    expect(cell(p3, 'tuition')).toBe(15000)
+    expect(cell(p3, 'misc_fee')).toBe('')
+    expect(cell(p3, 'name')).toBeUndefined()
+    expect(SCHOOL_CSV_COLUMNS.filter((column) => cell(p3, column.key) === undefined).map((column) => column.key)).toEqual(['name', 'kind', 'distance'])
   })
 
   it('清單來源小字', () => {
