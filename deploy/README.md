@@ -13,6 +13,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-15 區域分析驗證後的修正：國小學區整里／部分、招生機會沒填地址（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `fix/area-data-fixes-20261015` 到 main（fast-forward `aae0debc..15a81e60`，3 個 commit：`1cebdae8` 學區、`c8b42478` 招生機會文案、`15a81e60` 文件，沒有開 PR）。內容見 README 頂部「區域分析驗證後的修正」、`backend/app/admissions/geo_data/README.md`、兩份規格的 10-15 更正。
+- **migration**：無；alembic head 仍是 `c6a9e3f15d27`；沒有依賴檔變動；沒有備份。學區對照檔隨程式提交，部署後就生效。
+- **回退**：可直接切回前一個映像（API 只多一個回應欄位 `no_address_visit`，沒有新表、新欄位）。
+- **推送前閘門**（本機，Node 22）：後端全套 3,158 passed／1 skipped；admin vitest 全套 161 檔 2,507 passed／1 skipped；admin typecheck、契約檢查一致；stack `admissions-area.spec.ts` 13 passed。
+- **CI**：main run 38766809138（`15a81e60`）16:10:58Z 開跑，16:28:52Z 完成（17.9 分），全綠：Frontend web 2.0 分、admin 6.2 分；Backend 三組 12.5／12.2／11.3 分；E2E／Playwright 12.5 分；Deploy Railway production 5.2 分（16:23:37Z 開始）。
+- **正式 `release.json`**：base commit `15a81e603378c67d596d261bf13cfb71364caae9`，snapshot `4b00863c…`，created `2026-10-15T16:24:02Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`；首頁、`/admission`、`/visit`、`/admin/` 都回 200；`/area/opportunity` 未登入回 401；後台 lazy chunk（121 個）裡 `areaFormat-*.js` 有「參觀率不到 0.1%」與 `no_address_visit`、`StatsTab-*.js` 有「沒填地址、只到區、未定位的訪視」。
+- **同日的正式資料操作**（不依賴這次部署）：使用者重匯 114S4–115S3 新成屋，七賢一路 63 筆重比，`unplaced` 63 → 0（見下方「公開地理資料同步」的跨區界道段落）。
+- **未在線上驗證**：登入後的畫面與 `/area/opportunity`、`/area/trends` 的新值（推送後讀時登入 session 已過期，被導到登入頁）。預期：義華招生機會寫「另有 3 位沒填地址」、「參觀率不到 0.1%」；依國小學區新甲國小「9 里＋部分 1 里」、大東國小「5 里」。
+
 ## 2026-10-15 預約全程漏斗與退出時點（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機直接推 `feature/booking-journey-20261015` 到 main（fast-forward `7ae6de45..59f4d2a1`，17 個 commit，沒有開 PR）。feature 分支先推過一次，CI run 38675440483 六個 job 全 success，Deploy 照預期 skipped。內容見 README 頂部「預約全程漏斗與退出時點」、DESIGN.md「招生入學：預約全程漏斗與退出時點」、規格 `docs/specs/2026-10-15-booking-journey-design.md`（§8 是實作中的裁定）、計畫 `docs/superpowers/plans/2026-10-15-booking-journey.md`。
@@ -813,6 +825,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 手動：`--new-homes-file 115S3_e_lvr_land_a.csv`（可重複，季別取檔名；檔名沒有季別時配 `--new-homes-season 115S3`，只能一個檔）；打包檔也帶 8 季。
 - **命中率報告（B2 閘門，2026-10-14 已量、已過）**：在台灣網路下載門牌後跑（雲端與正式站連不到 `data.kcg.gov.tw`）：`WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=… WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<庫名要含 geo 與 test> WEBSITE_SESSION_SECRET=… uv run python scripts/geo_match_report.py <門牌.csv> <preschools.json> --new-homes 115S3_e_lvr_land_a.csv --season 115S3`（腳本自己匯入門牌，不必先 `geo-sync`；不會自動下載，三個檔案要先備好；庫要先 `alembic upgrade head`、用完 `dropdb`）。到里（exact＋nearby＋street）≥ 90% 才做 B2。**結果：98.9%（3,805 筆裡 exact 3,765），補跨區界道後 99.9%（exact 3,801）**，寫在規格 §2.2；幼兒園地址 97.6%。
 - **跨區界道修正的部署注意（B2 分支）**：不需要 migration、不需要備份。已存在表裡的新成屋列與訪視是用舊規則比對的，要等下一次門牌換版（每月手動匯入 115-11 之後的 `geo-sync` 結尾會重比）才會補上；七賢一路 61–95 號那 63 筆目前存的是「苓雅區、只到區」。想立刻補：用打包檔或 `--new-homes-file` 重匯新成屋（檔案模式會整季重比，不連外）。
+  - **2026-10-15 已補**：使用者在本機下載 114S4–115S3 四季 `e_lvr_land_a.csv`、上傳到 api volume 根目錄，跑 `geo-sync --new-homes-file /data/114S4_e_lvr_land_a.csv …（四個）`，輸出「新成屋：updated（最新 115S3，這次寫入 4 季，重比 0 筆）」（重比 0 是結尾「門牌月份不同」那一段；四季本身由檔案匯入重新比對），其他資料全部 skipped。之後讀義華 `/area/trends`（3 公里）：`sources.new_homes.unplaced` 63 → 0，有新屋的里仍 17 個、近 4 季 1,524 筆、最新季 469 筆；里的變化不再寫「範圍內的區另有…只到區」。volume 上的四個 CSV 要由使用者在自己的終端機刪（Railway CLI 拒絕 agent 刪檔）。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
 
 **國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
@@ -850,6 +863,25 @@ update recruitment_visit_geo g
 **資料來源更新頻率**：高雄市資料平台每年一個新資料集（「高雄市115年門牌坐標資料-TWD97」）、每月一個新檔案（檔案網址的 guid 每月不同），所以網址不能寫死，程式每次找最新月份；年初新資料集還沒有資源時會退回前一年度。頁面格式改版時會失敗並保留舊版（`last_error`：「找不到高雄市門牌坐標資料的下載檔」）。kiang 的幼兒園與托嬰資料每日更新，官網每 7 天抓一次。里界檔隨程式提交、不同步，換版見 `backend/app/admissions/geo_data/README.md`。
 
 **關閉**：把 `WEBSITE_GEO_AUTO_SYNC` 改回 `false`（或移除）並重新部署。已匯入的門牌與幼兒園、已寫好的比對結果都保留，不會刪除；要釋放空間得另外處理。
+
+### 在籍學生匯入（2026-10-15）
+
+清冊地址只在本機比對，正式站只收去識別 JSON（規格 `docs/specs/2026-10-15-admissions-enrolled-map-design.md`）。
+
+1. 本機：照規格 §3.1 建比對庫（門牌版本要和正式站使用中的一樣；庫名要含 `test`），先 `cd backend`，再用下面這組環境變數跑（兩行都是一般的 shell 指令，不加 `!`；`WEBSITE_ENVIRONMENT=test` 時，兩個資料庫連線都要指向名稱含 `test` 的本機庫）：
+
+   ```
+   cd backend
+   WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/<比對庫，名稱含 test> WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<同一個庫> WEBSITE_SESSION_SECRET=<隨機字串，至少 16 字元> uv run python -m app.cli enrolled-match --roster <清冊 xls> --campus <key> --out <JSON>
+   ```
+
+   有點比例不到 90% 不會寫檔（結束碼 2，報告仍會印出；確認後才加 `--allow-low-hit`）。
+2. `! railway volume -p <project> -e <env> files -v api-volume upload <JSON> /enrolled-<key>-<日期>.json`
+3. `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --file /data/enrolled-<key>-<日期>.json`
+   （輸出「匯入 <key>：N 位（有點 M 位），清冊日期 …」；同一校整批取代。如果多印一行「注意：比對用的門牌版本…」，代表正式站的門牌已經換版：點的位置不受影響，只有里名可能和現行門牌不一致；要完全一致，就用新門牌重跑一次本機比對再匯入。）
+4. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了；檔內有取整座標）。
+
+刪除整校（正式站）：`! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --clear --campus <key>`。在本機跑只會清本機庫。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
 
 ## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 

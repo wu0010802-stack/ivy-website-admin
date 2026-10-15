@@ -295,6 +295,7 @@
 - 家長地址只在官網資料庫內比對；比對與同步的 log 不記地址，只記等級與原因。
 - 唯一的外部請求是地圖圖磚（只含視野範圍，不含家長資料）與同步工作下載公開資料。
 - `recruitment_visit_geo` 不存家長座標，距離取整到 100 m。
+- （2026-10-15）在籍學生分布另存取整到約 100 m 的學生座標，是使用者的裁定，只限在籍資料、訪視仍不存座標；見 `docs/specs/2026-10-15-admissions-enrolled-map-design.md` E3。
 - 匿名化（`retention.py` `anonymize_visit`）：既有清 `address`；新增把 `recruitment_visit_geo` 的 `village`、`distance_m` 清空、`match_level` 改為 `district`（有行政區時）或 `unlocated`（沒有時）、`unlocated_reason=anonymized`；`recruitment_visits.district` 保留（同園務、同既有行為）。沒有比對列的舊訪視不補建。鎖定順序與重算一致：兩邊都先鎖訪視列（依 id 由小到大；匿名化的 `SELECT … FOR UPDATE` 依 `recruitment_visits.id` 排序）、再動 geo 列。
 - 地圖與表格只呈現里層級聚合；後台人員本來就看得到明細地址，不另做小數量抑制。
 - 區域分析頁的統計：已匿名化的訪視不算有地址（`totals.anonymized`），但行政區表仍含它們（`district` 保留）；整個範圍都是已匿名化時，畫面寫「地址都已依保存期限清除，無法比對」（見 9.5）。

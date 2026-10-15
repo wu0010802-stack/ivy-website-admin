@@ -72,6 +72,10 @@
   --area-down-1: color-mix(in oklab, var(--area-chance), var(--surface) 55%);
   --area-down-2: var(--area-chance);
 
+  /* 在籍學生（2026-10-15）：每格學生一個點，一律用操作藍（白邊、畫在最上層），班別用篩選切換、不另挑四色——
+     地圖上已有四種幼兒園類型色、本機構金、托嬰洋紅、招生機會玫瑰，再加四色會和幼兒園圓點混在一起。 */
+  --area-enrolled: var(--admin-accent);
+
   --side-w: 260px;
   /* 桌機側欄收起後的圖示欄寬（同園務系統）。 */
   --side-w-collapsed: 64px;

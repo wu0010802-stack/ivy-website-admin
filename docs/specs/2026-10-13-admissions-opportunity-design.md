@@ -101,7 +101,7 @@
 4. 附近的里：重心到本校的直線距離 ≤ 半徑。距離取整到 100 m。**只看里界重心，不看人口表有沒有那個里**（O2；2026-10-13 修正）：人口批次有 850 個里就能換版，附近的里可能沒有人口列，它的參觀不能被當成半徑外。這種里沒有孩子數可除，不進表格、不進附近平均，列在 `no_population_villages`（見 5.7）。
 5. 附近平均 `r`＝附近各里參觀合計 ÷ 2–5 歲孩子合計；孩子合計為 0 時沒有平均。
 6. 每個附近的里：`expected = children × r`；`shortfall = expected − visit`；判讀依 1.2 的 O5、O6。
-7. 另外算兩個數字，畫面寫在總結下面：範圍內**到里但在半徑外**的參觀人數（`outside_visit`）、**沒對到里**的參觀人數（只到區、未定位、待比對、沒填地址、已匿名化；`unplaced_visit`）。它們不算進附近平均。**半徑內但人口表沒有的里**另列 `no_population_villages`（里名、代碼、距離、參觀人數）：畫面在總結下面多寫一句「某里沒有人口資料，孩子數與其中的 N 位參觀都沒算進去」，地圖彈出框寫沒有人口資料，不寫成不在半徑內。加總恆等式：`baseline.visit + outside_visit + Σ no_population_villages.visit + unplaced_visit` ＝ 範圍內全部參觀（和 `/stats` 同母體）。
+7. 另外算兩個數字，畫面寫在總結下面：範圍內**到里但在半徑外**的參觀人數（`outside_visit`）、**沒對到里**的參觀人數（只到區、未定位、待比對、沒填地址、已匿名化；`unplaced_visit`），其中沒填地址的另回 `no_address_visit`（2026-10-15 補：畫面分開寫，不把沒填地址說成沒對到里）。它們不算進附近平均。**半徑內但人口表沒有的里**另列 `no_population_villages`（里名、代碼、距離、參觀人數）：畫面在總結下面多寫一句「某里沒有人口資料，孩子數與其中的 N 位參觀都沒算進去」，地圖彈出框寫沒有人口資料，不寫成不在半徑內。加總恆等式：`baseline.visit + outside_visit + Σ no_population_villages.visit + unplaced_visit` ＝ 範圍內全部參觀（和 `/stats` 同母體）。
 
 Poisson 累積機率用標準函式庫自己算（`estimation.poisson_cdf`／`poisson_sf`，對數空間逐項加總），不新增套件，和 `estimation.py` 其他函式一樣將來可以整支搬進園務。
 
@@ -119,7 +119,7 @@ Poisson 累積機率用標準函式庫自己算（`estimation.poisson_cdf`／`po
 | `population` | `version`（「115-09」，未匯入為 null）、`synced_at`、`age_band`（固定 `"2-5"`）、`source_note`（「資料來源：內政部戶政司…」） |
 | `campus` | 同 `/area` 的 `AreaCampusOut` |
 | `baseline` | 沒有人口資料或本校沒座標時為 null；否則 `villages`、`children`、`infants`、`visit`、`rate`（百分比，分母 0 為 null）、`judged`（參觀合計 ≥ 10） |
-| `outside_visit`、`unplaced_visit` | 見 5.7 |
+| `outside_visit`、`unplaced_visit`、`no_address_visit` | 見 5.7 |
 | `no_population_villages[]` | 半徑內但人口表沒有的里（通常是空的）：`district`、`village`、`village_code`、`distance_m`、`visit`；參觀多的在前，再依距離、區、里名。沒有人口資料或本校沒座標時是空的 |
 | `villages[]` | `district`、`village`、`village_code`、`distance_m`、`children`（2–5 歲）、`infants`（0–1 歲）、`visit`、`rate`、`expected`（小數一位，沒有平均時 null）、`shortfall`（小數一位）、`signal`：`below`／`typical`／`above`／`few_children`／`not_judged`；依 O7 排序 |
 
@@ -143,7 +143,7 @@ Poisson 累積機率用標準函式庫自己算（`estimation.poisson_cdf`／`po
 
 - 標題「招生機會」，副標「本校 3 公里內」（跟半徑走）。
 - 總結：「本校 3 公里內 130 個里，2–5 歲孩子 12,883 位，參觀 96 位（參觀率 0.7%）。明顯偏少的里 5 個，照附近的參觀率合計少了約 31 位。」沒有明顯偏少的里時後半句改「沒有明顯偏少的里。」；不判斷時改「附近參觀還不到 10 位，先不判斷哪些里偏少。」
-- 小字：「另有 N 位來自 3 公里外、M 位沒對到里，不算在內。」（兩者為 0 的部分不寫）。接著有缺人口的里才再寫一句：「三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。」（那些里沒有參觀就只寫「孩子數沒算進去」；超過 3 個里只列前 3 個，後面寫「等 N 個里」）
+- 小字：「另有 N 位來自 3 公里外、K 位沒填地址、M 位沒對到里，不算在內。」（為 0 的部分不寫；M＝`unplaced_visit − no_address_visit`，2026-10-15 起沒填地址分開寫）。合計句的參觀率四捨五入到 0.0% 但有參觀時寫「參觀率不到 0.1%」。接著有缺人口的里才再寫一句：「三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。」（那些里沒有參觀就只寫「孩子數沒算進去」；超過 3 個里只列前 3 個，後面寫「等 N 個里」）
 - 表格（`StatsDimensionTable`，可匯出 CSV）：里（固定欄）、距本校、2–5 歲（長條）、0–1 歲、參觀人數、參觀率、照附近應有、判讀。判讀文字：「少了約 N 位」（明顯偏少）／「比附近多」／「差不多」／「孩子少，看不出來」／「還不判斷」。CSV 的「照附近應有」寫數字（小數一位），不寫「約」。
 - 表格說明（caption）：「2–5 歲、0–1 歲取自內政部戶政司 115 年 9 月各里人口；參觀率＝參觀人數 ÷ 2–5 歲孩子數；照附近應有＝孩子數 × 本校附近的參觀率。明顯偏少的判斷約有一成機率是誤報。」
 - 空狀態：人口未匯入「各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。」；本校沒座標「本校位置未標示（原因），算不出附近有哪些里。」；讀取失敗顯示錯誤與重試，不影響地圖與其他表。

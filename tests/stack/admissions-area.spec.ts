@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
-import { seedBirthSeries, seedProviderChanges } from './db'
+import { seedBirthSeries, seedEnrolled, seedProviderChanges } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
@@ -478,6 +478,79 @@ test('390px：近幾年的出生數不撐出頁面', async ({ browser }) => {
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: path.join(SHOTS, 'admissions-birth-series-390.png'), fullPage: true })
   await context.close()
+})
+
+test('在籍學生：切模式畫出學生點 → 篩班別點跟著變 → 表格數字；沒匯入的校按鈕停用', async ({ browser }) => {
+  test.setTimeout(90_000)
+  mkdirSync(SHOTS, { recursive: true })
+  const api = await adminApi('super_admin')
+  const area = await api.get<{ campus: { lat: number; lng: number } }>(`/admin/admissions/area?campus_key=${CAMPUS}`)
+  const { lat, lng } = area.campus
+  seedEnrolled(CAMPUS, [
+    [lat + 0.001, lng, '小班', '左營區', '新上里'],
+    [lat + 0.001, lng, '中班', '左營區', '新上里'],
+    [lat - 0.004, lng + 0.002, '大班', '左營區', '新上里'],
+  ], 1)
+  const { context, page } = await openAs(browser, 'super_admin')
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+
+  await test.step('切到在籍學生：兩個點（一個兩位、畫大一級），圖例寫地圖上 3 位、沒有點 1 位', async () => {
+    await page.locator('.area-map__modes .el-radio-button', { hasText: '在籍學生' }).click()
+    await expect(page.locator('.area-map path.area-enrolled')).toHaveCount(2)
+    await expect(page.locator('.area-map path.area-enrolled--multi')).toHaveCount(1)
+    const legend = page.locator('.area-legend--enrolled')
+    await expect(legend).toContainText('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 3 位')
+    await expect(legend).toContainText('沒有點 1 位（只對到里 1）')
+    await page.locator('.area-top').screenshot({ path: path.join(SHOTS, 'admissions-enrolled-1440.png') })
+  })
+
+  await test.step('篩大班：只剩一個點；里排行跟著換', async () => {
+    await page.locator('.area-legend--enrolled .el-radio-button', { hasText: '大班' }).click()
+    await expect(page.locator('.area-map path.area-enrolled')).toHaveCount(1)
+    await expect(statsBlock(page, '在籍學生里排行（大班）').locator('tbody tr')).toHaveCount(1)
+  })
+
+  await test.step('距離分布：1 公里內 3 位、無距離 1 位', async () => {
+    const rows = statsBlock(page, '在籍學生距離分布').locator('tbody tr')
+    await expect(rows.first().locator('th, td').last()).toHaveText('3')
+    await expect(rows.last().locator('th, td').first()).toHaveText('無距離')
+    await expect(rows.last().locator('th, td').last()).toHaveText('1')
+  })
+
+  await test.step('在籍學生的圖例與表格沒有 serious／critical 的無障礙問題', async () => {
+    const results = await new AxeBuilder({ page })
+      .include('.area-legend--enrolled')
+      .include('.enrolled-panel')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze()
+    const serious = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    expect(serious.map((violation) => `${violation.id}：${violation.nodes.map((node) => node.target.join(' ')).join('；')}`)).toEqual([])
+  })
+
+  await test.step('沒匯入的校：在籍學生按鈕停用並寫原因', async () => {
+    await openArea(page, UNLOCATED_CAMPUS)
+    await expect(page.locator('.area-map__modes .el-radio-button.is-disabled', { hasText: '在籍學生' })).toHaveCount(1)
+    await expect(page.locator('.area-map__modes')).toContainText('尚未匯入在籍名冊。')
+  })
+
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await Promise.all([context.close(), api.dispose()])
+})
+
+test('390px：在籍學生的模式鈕與班別篩選換行，不撐出頁面', async ({ browser }) => {
+  mkdirSync(SHOTS, { recursive: true })
+  const api = await adminApi('super_admin')
+  const area = await api.get<{ campus: { lat: number; lng: number } }>(`/admin/admissions/area?campus_key=${CAMPUS}`)
+  seedEnrolled(CAMPUS, [[area.campus.lat + 0.001, area.campus.lng, '小班', '左營區', '新上里']], 0)
+  const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await openArea(page)
+  await page.locator('.area-map__modes .el-radio-button', { hasText: '在籍學生' }).click()
+  await expect(page.locator('.area-legend--enrolled .el-radio-button').first()).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-enrolled-390.png'), fullPage: true })
+  await Promise.all([context.close(), api.dispose()])
 })
 
 test('390px：地圖手機預設不攔單指，按「移動地圖」才接手，按「完成移動地圖」還給頁面捲動', async ({ browser }) => {

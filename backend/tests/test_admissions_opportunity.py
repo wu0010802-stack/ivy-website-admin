@@ -114,7 +114,8 @@ async def test_opportunity_three_km(admin_client, db_session, located_campus):
     assert "內政部戶政司" in body["population"]["source_note"]
     # 3 公里內五個里：參觀 0＋12＋4＋0＋4＝20，2–5 歲 400＋400＋200＋40＋160＝1,200，參觀率 1.7%。
     assert body["baseline"] == {"villages": 5, "children": 1200, "infants": 180, "visit": 20, "rate": 1.7, "judged": True}
-    assert (body["outside_visit"], body["unplaced_visit"]) == (2, 3)
+    # 沒對到里 3 位（只到區、沒填地址、已匿名化），其中沒填地址 1 位（畫面分開寫）。
+    assert (body["outside_visit"], body["unplaced_visit"], body["no_address_visit"]) == (2, 3, 1)
     rows = _by_village(body)
     assert rows["本揚里"] == {
         "district": "三民區", "village": "本揚里", "village_code": "64000050015", "distance_m": 300,
@@ -171,7 +172,7 @@ async def test_opportunity_without_population(admin_client, db_session, located_
     body = (await admin_client.get(f"{OPPORTUNITY}?campus_key=yihua&{TERM}")).json()
     assert body["population"]["version"] is None and body["population"]["synced_at"] is None
     assert body["baseline"] is None and body["villages"] == [] and body["no_population_villages"] == []
-    assert (body["outside_visit"], body["unplaced_visit"]) == (0, 3)
+    assert (body["outside_visit"], body["unplaced_visit"], body["no_address_visit"]) == (0, 3, 1)
     area = (await admin_client.get(f"{AREA}?campus_key=yihua&{TERM}")).json()
     assert area["data_status"]["population_version"] is None
 

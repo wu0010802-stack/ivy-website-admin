@@ -595,6 +595,12 @@ export type AreaTrendsSchool = components['schemas']['AreaTrendsSchoolOut']
 /** 本校半徑每 12 個月一期的出生數（2026-10-14 出生走勢規格）。 */
 export type AreaTrendsBirthPeriod = components['schemas']['AreaTrendsBirthPeriodOut']
 
+// 在籍學生分布（2026-10-15 規格 §5）：每格（取整約 100 m）各班人數、沒有點的原因、距離帶與各里人數。
+export type AreaEnrolled = components['schemas']['AreaEnrolledOut']
+export type AreaEnrolledPoint = components['schemas']['AreaEnrolledPointOut']
+export type AreaEnrolledVillage = components['schemas']['AreaEnrolledVillageOut']
+export type EnrolledGrade = components['schemas']['AreaEnrolledGradeOut']['grade']
+
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {
   TOWNNAME: string

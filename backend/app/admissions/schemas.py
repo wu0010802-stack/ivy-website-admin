@@ -1112,9 +1112,11 @@ class AreaOpportunityOut(BaseModel):
     campus: AreaCampusOut
     # 沒有人口資料或本校沒座標時是 null（villages 也是空的）。
     baseline: AreaOpportunityBaselineOut | None
-    # 比對到里、但里在半徑外的參觀人數；沒對到里的（只到區、未定位、待比對、沒填地址、已匿名化）參觀人數。
+    # 比對到里、但里在半徑外的參觀人數；沒對到里的（只到區、未定位、待比對、沒填地址、已匿名化）參觀人數，
+    # 和其中沒填地址的（未匿名化；畫面把它和「沒對到里」分開寫）。
     outside_visit: int
     unplaced_visit: int
+    no_address_visit: int
     # 半徑內但人口表沒有的里（通常是空的）；參觀多的在前、再依距離、區、里名。
     no_population_villages: list[AreaOpportunityMissingOut]
     # 依「應有 − 實際」由大到小；同值依孩子數、區、里名。
@@ -1404,3 +1406,54 @@ class JourneyOut(BaseModel):
     timing: JourneyTimingOut
     rescheduled: JourneyRescheduledOut
     coverage: JourneyCoverageOut
+
+
+# ---- 在籍學生分布（2026-10-15 規格 §5）----
+
+EnrolledGrade = Literal["幼幼班", "小班", "中班", "大班", "其他"]
+EnrolledUnplacedReason = Literal["street", "district", "outside_kaohsiung", "unlocated"]
+
+
+class AreaEnrolledGradeOut(BaseModel):
+    grade: EnrolledGrade
+    total: int
+    placed: int
+
+
+class AreaEnrolledPointOut(BaseModel):
+    # 取到小數 3 位（約 100 m）的格子；同一格的學生合在一起，依班別計數。
+    lat: float
+    lng: float
+    counts: dict[EnrolledGrade, int]
+
+
+class AreaEnrolledUnplacedOut(BaseModel):
+    reason: EnrolledUnplacedReason
+    counts: dict[EnrolledGrade, int]
+
+
+class AreaEnrolledBandOut(BaseModel):
+    band: DistanceBandKey
+    counts: dict[EnrolledGrade, int]
+
+
+class AreaEnrolledVillageOut(BaseModel):
+    district: str
+    village: str
+    village_code: str | None
+    counts: dict[EnrolledGrade, int]
+    total: int
+
+
+class AreaEnrolledOut(BaseModel):
+    status: Literal["ready", "not_imported"]
+    roster_date: date | None
+    school_year: int | None
+    doorplate_version: str | None
+    imported_at: datetime | None
+    total: int
+    grades: list[AreaEnrolledGradeOut]
+    points: list[AreaEnrolledPointOut]
+    unplaced: list[AreaEnrolledUnplacedOut]
+    distance_bands: list[AreaEnrolledBandOut]
+    villages: list[AreaEnrolledVillageOut]

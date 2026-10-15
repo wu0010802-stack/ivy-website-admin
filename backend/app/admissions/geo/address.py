@@ -149,19 +149,34 @@ def bounded_number(token: str | None) -> int | None:
     return value if value is not None and value <= MAX_NUMBER else None
 
 
+def strip_county(text: str) -> tuple[str, bool]:
+    """已正規化的地址 → (拿掉郵遞區號、國名與「高雄市」字首後的文字, 是否外縣市)。"""
+    text = _POSTAL.sub("", text)
+    text = re.sub(r"^(?:中華民國)?(?:台灣省?)?", "", text)
+    if text.startswith(("高雄市", "高雄縣")):
+        return text[3:], False
+    if text.startswith("高雄"):
+        return text[2:], False
+    return text, text.startswith(OTHER_COUNTIES)
+
+
+def leading_village(text: str) -> tuple[str, str] | None:
+    """開頭是「〇〇里〇鄰」或「〇〇里」接街路時，回 (里名, 里鄰之後的文字)。「五里路」「大里街」這種
+    街名本身帶里字的不算：拿掉之後剩下的必須還是「兩個字以上＋路／街／大道」。"""
+    village = _VILLAGE.match(text)
+    if village and (village.group(2) or _STARTS_WITH_ROAD.match(village.group(3))):
+        return village.group(1), village.group(3)
+    return None
+
+
 def parse_address(raw: str | None) -> ParsedAddress | None:
     if raw is None:
         return None
     text = normalize_text(raw)
     if not text:
         return None
-    text = _POSTAL.sub("", text)
-    text = re.sub(r"^(?:中華民國)?(?:台灣省?)?", "", text)
-    if text.startswith(("高雄市", "高雄縣")):
-        text = text[3:]
-    elif text.startswith("高雄"):
-        text = text[2:]
-    elif text.startswith(OTHER_COUNTIES):
+    text, outside = strip_county(text)
+    if outside:
         return ParsedAddress(None, None, None, None, None, 0, True)
 
     matched = _DISTRICT.match(text)
@@ -172,9 +187,9 @@ def parse_address(raw: str | None) -> ParsedAddress | None:
 
     # 使用者寫的里鄰不採信（里以門牌表為準），只是要拿掉。「五里路」「大里街」這種
     # 街名本身帶里字的不能誤刪：拿掉之後剩下的必須還是「兩個字以上＋路／街／大道」。
-    village = _VILLAGE.match(text)
-    if village and (village.group(2) or _STARTS_WITH_ROAD.match(village.group(3))):
-        text = village.group(3)
+    village = leading_village(text)
+    if village is not None:
+        text = village[1]
     text = re.sub(r"^\d+鄰", "", text)
 
     number: int | None = None
