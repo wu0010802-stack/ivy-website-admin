@@ -109,16 +109,19 @@ export interface ExitRow {
 }
 
 const CANCEL_NOTE = '距參觀日見下表'
+/** 取消時點整張表沒有資料（每筆取消都缺取消時間）時，取消列不能再指向它。 */
+const CANCEL_NOTE_EMPTY = '沒有取消時間可比對'
 const WITHDRAW_NOTE = '天數見「各段要花多久」'
 
 /** 沒走到「預繳過」的家庭恰好分成前九類；預繳後退出是預繳過的子集，另外兩列。 */
 export function exitRows(data: AdmissionsJourney): ExitRow[] {
   const { cancelled, no_show: noShow, unmarked } = data.visit_outcomes
   const { completed_without_visit: noVisit, not_deposited: waiting, withdrawn } = data.admissions
+  const cancelTiming = data.timing.cancel_before_visit.n > 0 ? CANCEL_NOTE : CANCEL_NOTE_EMPTY
   return [
-    { key: 'cancel_parent', kind: '已取消・家長', count: cancelled.parent, timing: CANCEL_NOTE },
-    { key: 'cancel_staff', kind: '已取消・園方', count: cancelled.staff, timing: CANCEL_NOTE },
-    { key: 'cancel_other', kind: '已取消・其他或沒記', count: cancelled.other, timing: CANCEL_NOTE },
+    { key: 'cancel_parent', kind: '已取消・家長', count: cancelled.parent, timing: cancelTiming },
+    { key: 'cancel_staff', kind: '已取消・園方', count: cancelled.staff, timing: cancelTiming },
+    { key: 'cancel_other', kind: '已取消・其他或沒記', count: cancelled.other, timing: cancelTiming },
     { key: 'no_show', kind: '沒來', count: noShow, timing: '參觀當天，人工標記' },
     { key: 'unmarked', kind: '時間已過未標記', count: unmarked, timing: '場次已過、還沒標記到場或沒來' },
     { key: 'no_visit', kind: '已到場但沒有招生訪視', count: noVisit, timing: '沒有連到招生紀錄' },
@@ -154,6 +157,12 @@ export function cancelRows(data: AdmissionsJourney): CancelRow[] {
   return BUCKET_LABELS.map(([key, bucket]) => ({
     key, bucket, parent: timing.parent[key], staff: timing.staff[key], other: timing.other[key],
   }))
+}
+
+/** 取消時點表沒納入的筆數（缺取消時間；負值落在「參觀日之後才取消」，不會被排除）；沒有就是空字串。 */
+export function cancelNote(data: AdmissionsJourney): string {
+  const { excluded } = data.timing.cancel_before_visit
+  return excluded > 0 ? `另有 ${excluded} 筆沒有取消時間，不納入` : ''
 }
 
 export interface TimingRow {

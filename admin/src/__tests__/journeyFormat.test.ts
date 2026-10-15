@@ -1,7 +1,7 @@
 // 預約全程（2026-10-15 規格 §3.3）：篩選的網址編解碼、各表的列、摘要句。
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_JOURNEY_FILTER, cancelRows, exitRows, funnelRows, journeyQuery, journeyRange, journeySummary, parseJourneyQuery,
+  DEFAULT_JOURNEY_FILTER, cancelNote, cancelRows, exitRows, funnelRows, journeyQuery, journeyRange, journeySummary, parseJourneyQuery,
   rateText, timingRows,
 } from '../admissions/journeyFormat'
 import { journeyData } from './admissionsTestKit'
@@ -73,6 +73,28 @@ describe('各表的列', () => {
       ['預繳後退出・退預繳', 1, '天數見「各段要花多久」'],
       ['預繳後退出・退註冊', 1, '天數見「各段要花多久」'],
     ])
+  })
+
+  it('家庭在哪裡離開：取消時點整張表沒有資料（n=0）時，三個取消列不再指向那張表', () => {
+    const noTiming = journeyData({ timing: { ...data.timing, cancel_before_visit: { ...data.timing.cancel_before_visit, n: 0, excluded: 1 } } })
+    const rows = exitRows(noTiming)
+    expect(rows.filter((row) => row.key.startsWith('cancel_')).map((row) => [row.kind, row.timing])).toEqual([
+      ['已取消・家長', '沒有取消時間可比對'],
+      ['已取消・園方', '沒有取消時間可比對'],
+      ['已取消・其他或沒記', '沒有取消時間可比對'],
+    ])
+    // 其他列的說明和有取消時點的資料一樣。
+    const others = (list: typeof rows) => list.filter((row) => !row.key.startsWith('cancel_')).map((row) => [row.key, row.timing])
+    expect(others(rows)).toEqual(others(exitRows(data)))
+  })
+
+  it('取消時點：缺取消時間而不納入的筆數另寫；沒有就是空字串', () => {
+    const withExcluded = (excluded: number) =>
+      journeyData({ timing: { ...data.timing, cancel_before_visit: { ...data.timing.cancel_before_visit, excluded } } })
+    expect(cancelNote(data)).toBe('')
+    expect(cancelNote(withExcluded(0))).toBe('')
+    expect(cancelNote(withExcluded(1))).toBe('另有 1 筆沒有取消時間，不納入')
+    expect(cancelNote(withExcluded(3))).toBe('另有 3 筆沒有取消時間，不納入')
   })
 
   it('取消時點：六個區間，家長、園方、其他各一欄；沒有取消回空陣列', () => {
