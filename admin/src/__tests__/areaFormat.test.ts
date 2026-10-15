@@ -304,38 +304,44 @@ describe('托嬰與園所異動的文字（2026-10-14）', () => {
     it('兩邊都還沒開始記錄', () => {
       expect(trackingNote({ kindergarten: null, babycare: null }, 12, now)).toBe('尚未開始記錄。')
     })
-    it('基準日同一天、不到 12 個月：說從哪天起記錄，新設以設立日為準（規格 7.3 逐字）', () => {
+    it('基準日同一天、不到 12 個月：只說類型變動與托嬰從哪天起記錄（2026-10-15 規格 §6 逐字）', () => {
       expect(trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-14' }, 12, now)).toBe(
-        '停辦與類型變動從 10 月 14 日起記錄；新設以設立日為準（托嬰從 10 月 14 日起記錄）。',
+        '幼兒園的類型變動與托嬰從 10 月 14 日起記錄。',
       )
     })
     it('基準日不同天：分開寫', () => {
       expect(trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-20' }, 12, now)).toBe(
-        '幼兒園的停辦與類型變動從 10 月 14 日起記錄；托嬰從 10 月 20 日起記錄；新設的幼兒園以設立日為準。',
+        '幼兒園的類型變動從 10 月 14 日起記錄；托嬰從 10 月 20 日起記錄。',
       )
     })
     it('只有一邊開始記錄', () => {
       expect(trackingNote({ kindergarten: '2026-10-14', babycare: null }, 12, now)).toBe(
-        '幼兒園的停辦與類型變動從 10 月 14 日起記錄；托嬰尚未開始記錄；新設的幼兒園以設立日為準。',
+        '幼兒園的類型變動從 10 月 14 日起記錄；托嬰尚未開始記錄。',
       )
     })
     it('幼兒園已滿 12 個月、托嬰從未匯入：仍要說托嬰尚未開始記錄', () => {
-      expect(trackingNote({ kindergarten: '2025-10-14', babycare: null }, 12, now)).toBe(
-        '托嬰尚未開始記錄；新設的幼兒園以設立日為準。',
-      )
+      expect(trackingNote({ kindergarten: '2025-10-14', babycare: null }, 12, now)).toBe('托嬰尚未開始記錄。')
     })
-    it('幼兒園從未記錄、托嬰已滿 12 個月：仍要說幼兒園尚未開始記錄', () => {
+    it('幼兒園從未同步（沒有回補）、托嬰已滿 12 個月：停辦與類型變動都還沒開始記錄', () => {
       expect(trackingNote({ kindergarten: null, babycare: '2025-10-14' }, 12, now)).toBe(
-        '幼兒園的停辦與類型變動尚未開始記錄；新設的幼兒園以設立日為準。',
+        '幼兒園的停辦與類型變動尚未開始記錄。',
       )
     })
     it('一邊已滿 12 個月、另一邊還近：已滿那一側不印日期（一年後讀起來會像今年）', () => {
       expect(trackingNote({ kindergarten: '2025-10-14', babycare: '2026-10-20' }, 12, now)).toBe(
-        '托嬰從 10 月 20 日起記錄；新設的幼兒園以設立日為準。',
+        '托嬰從 10 月 20 日起記錄。',
       )
       expect(trackingNote({ kindergarten: '2026-10-20', babycare: '2025-10-14' }, 12, now)).toBe(
-        '幼兒園的停辦與類型變動從 10 月 20 日起記錄；新設的幼兒園以設立日為準。',
+        '幼兒園的類型變動從 10 月 20 日起記錄。',
       )
+    })
+    it('不再寫「新設以設立日為準」：幼兒園的新設與停辦都涵蓋整個視窗', () => {
+      const all = [
+        trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-14' }, 12, now),
+        trackingNote({ kindergarten: '2026-10-14', babycare: '2026-10-20' }, 12, now),
+        trackingNote({ kindergarten: null, babycare: '2026-10-20' }, 12, now),
+      ]
+      for (const text of all) expect(text).not.toContain('設立日')
     })
     it('基準日已滿 12 個月（剛好 12 個月前那天也算滿）：不需要說明', () => {
       expect(trackingNote({ kindergarten: '2025-10-14', babycare: '2025-09-01' }, 12, now)).toBe('')
