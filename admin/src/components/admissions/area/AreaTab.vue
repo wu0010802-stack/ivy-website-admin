@@ -4,16 +4,18 @@ import StatsDimensionTable from '../StatsDimensionTable.vue'
 import EnrolledPanel from './EnrolledPanel.vue'
 import NearbyPanel from './NearbyPanel.vue'
 import OpportunityPanel from './OpportunityPanel.vue'
+import PeerFeesPanel from './PeerFeesPanel.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import VillageTrendsPanel from './VillageTrendsPanel.vue'
 import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
 import {
-  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaTrends,
+  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
+  getAreaTrends,
 } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaTrends, AreaVillageRow,
-  VillageBoundaries,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaTrends,
+  AreaVillageRow, VillageBoundaries,
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
@@ -23,6 +25,7 @@ import {
   babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, enrolledMapNote, homesMapNote, opportunityUnavailable,
   populationVersionLabel, reasonLabel, taipeiMonthDay, trendMapNote, type GradeFilter, type NearbyKind, type RadiusKm,
 } from './areaFormat'
+import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
 // 2026-10-13 招生機會：地圖可改依 2–5 歲孩子或招生機會著色，地圖下方多一張「招生機會」表（半徑跟附近幼兒園同一個）。
@@ -146,6 +149,26 @@ async function loadChanges() {
   }
 }
 watch([() => props.campusKey, radiusKm], () => void loadChanges(), { immediate: true })
+
+// 附近同業收費（2026-10-15 規格 7.1）：年齡放這裡（換校區、半徑都保留）；換校區、半徑、年齡都清空再讀，
+// 只採用最後一次的回應。清單的公告收費也用這份（同半徑、同年齡）。
+const peerAge = ref<PeerAge>(DEFAULT_PEER_AGE)
+const peerFees = ref<AreaPeerFees | null>(null)
+const peerFeesFailed = ref(false)
+const peerFeesRequests = useRequestSequence()
+async function loadPeerFees() {
+  const request = peerFeesRequests.begin()
+  peerFees.value = null
+  peerFeesFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaPeerFees(props.campusKey, radiusKm.value, peerAge.value)
+    if (peerFeesRequests.isCurrent(request)) peerFees.value = result
+  } catch {
+    if (peerFeesRequests.isCurrent(request)) peerFeesFailed.value = true
+  }
+}
+watch([() => props.campusKey, radiusKm, peerAge], () => void loadPeerFees(), { immediate: true })
 
 // 招生機會（2026-10-13 規格 7）：母體同區域分析，半徑同附近幼兒園；換任何一個都清空再讀、只採用最後一次的回應。
 const opportunity = ref<AreaOpportunity | null>(null)
@@ -402,6 +425,7 @@ function openNoVillage() {
         :csv-name="csvName"
         @retry="loadEnrolled()"
       />
+      <PeerFeesPanel v-model:age="peerAge" :data="peerFees" :failed="peerFeesFailed" :csv-name="csvName" @retry="loadPeerFees()" />
       <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
       <VillageTrendsPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" @retry="loadTrends()" />
       <SchoolDistrictPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" />
