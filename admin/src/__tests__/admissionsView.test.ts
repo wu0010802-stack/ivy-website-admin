@@ -372,6 +372,20 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     expect(wrapper.findComponent(StatsTab).props('sub')).toBe('source')
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats', sub: 'source' })
   })
+
+  it('(l) 看過預約全程後換子分頁、離開統計分頁：預約全程不在背景重讀', async () => {
+    freezeToday()
+    const get = mockGet({ ...routesOn, '/admin/admissions/journey': journeyData() })
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=journey' })
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
+    await flushPromises()
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
+    await flushPromises()
+    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'records')
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+  })
 })
 
 describe('頁首篩選的作用範圍與手機摘要', () => {

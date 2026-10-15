@@ -120,14 +120,21 @@ export function useAdmissionsFilters() {
     void router.replace({ query }).catch(() => {}).finally(() => writing.delete(key))
   }
 
+  // 離開預約全程就放掉期間與來源；已經是預設就不重新指派，免得還掛著的預約全程 pane 收到新物件。
+  function resetJourney() {
+    const { period, from, to, source } = journey.value
+    const fresh = DEFAULT_JOURNEY_FILTER
+    if (period === fresh.period && from === fresh.from && to === fresh.to && source === fresh.source) return
+    journey.value = { ...fresh }
+  }
+
   apply(route.query)
   // 離開統計分頁就把子分頁收回總覽，下次進來從總覽開始；離開訪視明細就放掉區域篩選。
   watch(tab, (value) => {
     if (value !== 'stats') sub.value = 'overview'
-    if (value !== 'stats') journey.value = { ...DEFAULT_JOURNEY_FILTER }
     if (value !== 'records') area.value = ''
   })
-  watch(sub, (value) => { if (value !== 'journey') journey.value = { ...DEFAULT_JOURNEY_FILTER } })
+  watch([tab, sub], ([tabValue, subValue]) => { if (tabValue !== 'stats' || subValue !== 'journey') resetJourney() })
   watch([campus, schoolYear, semester, tab, visitRequestId, month, area, sub, journey], syncUrl, { immediate: true, deep: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return

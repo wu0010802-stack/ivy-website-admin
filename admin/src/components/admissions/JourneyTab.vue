@@ -79,7 +79,11 @@ async function load() {
 
 // 換校區：先清空再讀（不留別校的數字）；換期間或來源：保留上一次的數字、淡一點，讀完換掉。
 watch(() => props.campusKey, () => { data.value = null; void load() })
-watch(() => [filter.value.period, filter.value.from, filter.value.to, filter.value.source], () => void load(), { immediate: true })
+watch(
+  [() => filter.value.period, () => filter.value.from, () => filter.value.to, () => filter.value.source],
+  () => void load(),
+  { immediate: true },
+)
 
 const summary = computed(() => (data.value ? journeySummary(data.value, campusLabel(props.campusKey)) : ''))
 const empty = computed(() => data.value !== null && data.value.cases.total === 0)

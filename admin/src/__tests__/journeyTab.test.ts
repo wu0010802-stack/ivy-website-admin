@@ -135,6 +135,15 @@ describe('預約全程', () => {
     expect(Object.fromEntries(queryOf(paths.at(-1)!)).source).toBe('web')
   })
 
+  it('父層用值相同的新物件重設篩選：不重讀', async () => {
+    // 離開預約全程時父層會把篩選指派成預設值；pane 還掛著，值沒變就不該在背景多打一次。
+    const { wrapper, get } = await mountJourney()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+    await wrapper.setProps({ filter: { ...DEFAULT_JOURNEY_FILTER } })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+  })
+
   it('自訂區間沒選好不讀；選好才讀', async () => {
     const { get } = await mountJourney({ filter: { period: 'custom', from: '', to: '', source: 'all' } })
     expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(0)

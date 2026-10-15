@@ -25,6 +25,6 @@ const rows = computed(() => funnelRows(props.data))
     row-key="key"
     empty-text="這段期間沒有預約案件"
     :export-filename="csvName(TITLE)"
-    caption="每個階段是「曾經到達」：預繳過包含之後退出的，註冊過包含之後退註冊的；預繳後退出另列在最後。"
+    caption="每個階段是「曾經到達」：預繳過包含之後退出的，註冊過包含之後退註冊的；預繳後退出另列在最後。人數是預約案件數，同一個家庭重新預約會算成兩筆。"
   />
 </template>

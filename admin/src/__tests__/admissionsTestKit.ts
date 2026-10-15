@@ -250,7 +250,8 @@ const buildAreaTrends = () => ({
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaTrends = (changes: Partial<AreaTrends> = {}): AreaTrends => ({ ...buildAreaTrends(), ...changes })
 
-// 預約全程（2026-10-15）：後端 test_admissions_journey_calc 的 13 筆情境。
+// 預約全程（2026-10-15）：後端 test_admissions_journey_calc 的 13 筆情境（情境 13 是退註冊、註冊日已被清掉的真實形狀，
+// 所以預繳到註冊只剩情境 1 的 11 天，另有 1 筆不納入）。
 const buildJourney = () => ({
   filters: { campus_key: 'yihua', date_from: '2026-07-17', date_to: '2026-10-15', source: 'all' },
   as_of: '2026-10-15T04:00:00Z',
@@ -278,7 +279,7 @@ const buildJourney = () => ({
       other: { after_visit: 1, same_day: 0, day_1: 0, days_2_3: 0, days_4_7: 0, days_8_plus: 0 },
     },
     visit_to_deposit: { median: 5, n: 3, excluded: 1 },
-    deposit_to_enrolled: { median: 6.5, n: 2, excluded: 0 },
+    deposit_to_enrolled: { median: 11, n: 1, excluded: 1 },
     deposit_to_withdrawn: { median: 11, n: 2, excluded: 0 },
   },
   rescheduled: { cases: 1, total: 13 },

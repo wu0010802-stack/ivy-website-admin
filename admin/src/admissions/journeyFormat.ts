@@ -194,7 +194,7 @@ export function timingRows(data: AdmissionsJourney): TimingRow[] {
   return [
     row('lead_days', '預約提前量（預約送出到預定參觀日）', timing.lead_days, '日期倒置'),
     row('visit_to_deposit', '參觀到預繳', timing.visit_to_deposit, '沒有預繳日或日期倒置'),
-    row('deposit_to_enrolled', '預繳到註冊', timing.deposit_to_enrolled, '缺預繳日或註冊日，或日期倒置'),
+    row('deposit_to_enrolled', '預繳到註冊', timing.deposit_to_enrolled, '退註冊（註冊日已清除）、缺預繳日或日期倒置'),
     row('deposit_to_withdrawn', '預繳到退出', timing.deposit_to_withdrawn, '缺預繳日，或日期倒置'),
   ]
 }

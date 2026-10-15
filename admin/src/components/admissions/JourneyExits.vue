@@ -38,7 +38,7 @@ const cancelCaption = computed(() => (note.value ? `${CANCEL_CAPTION} ${note.val
       row-key="key"
       empty-text="這段期間沒有預約案件"
       :export-filename="csvName(EXIT_TITLE)"
-      caption="沒走到「預繳過」的家庭恰好分成前九類；預繳後退出是預繳過裡的一部分，另外列在最後。觀察中的家庭只是還沒到逾期，不預測他們會不會預繳。"
+      caption="沒走到「預繳過」的家庭恰好分成前九類；預繳後退出是預繳過裡的一部分，另外列在最後。觀察中的家庭只是還沒到逾期，不預測他們會不會預繳。單位是預約案件：取消或沒來後重新預約的家庭，舊案仍算在這裡，新案另算一筆。"
     />
     <p v-if="!cancels.length && note" class="hint journey-exits__note">{{ note }}</p>
     <StatsDimensionTable
