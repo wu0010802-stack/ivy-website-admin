@@ -27,7 +27,7 @@ from app.admissions.geo.kaohsiung import in_kaohsiung
 from app.admissions.geo.models import GeoKindergarten
 from app.admissions.geo.projection import haversine_m
 
-SOURCE_NOTE = "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
+SOURCE_NOTE = "資料來源：全國教保資訊網（kiang 整理）"
 _KIND_BY_TYPE = {"公立": "public", "非營利": "nonprofit", "私立": "private"}
 _PRE_PUBLIC = re.compile(r"(\d{3})-(\d{3})")
 _POSTAL_PREFIX = re.compile(r"^\[\d+\]")

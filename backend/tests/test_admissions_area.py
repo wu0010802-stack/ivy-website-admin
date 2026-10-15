@@ -330,7 +330,7 @@ async def test_kindergartens_mark_own_and_pass_radius(admin_client, monkeypatch)
     body = response.json()
     assert calls == [(22.65, 120.32, 6000)]
     assert body["radius_km"] == 6
-    assert body["source_note"] == "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
+    assert body["source_note"] == "資料來源：全國教保資訊網（kiang 整理）"
     assert [(item["source_id"], item["is_own"]) for item in body["items"]] == [
         ("own", True), ("near", False), ("far", False), ("sister", True),
     ]
