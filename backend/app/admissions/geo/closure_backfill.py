@@ -24,13 +24,17 @@ class BackfillFormatError(ValueError):
 @dataclass(frozen=True)
 class ClosureBackfill:
     reason: str  # "closed" | "renamed"
-    left_on: date | None  # 離開教育部名單的台北日期；2025-06 前就消失的是 None
+    left_on: date | None  # 離開教育部名單的台北日期；2025-06 前就消失的是 None（renamed 的日期只是紀錄，同步用不到）
 
 
 def load_closure_backfill(path: Path = BACKFILL_FILE) -> dict[str, ClosureBackfill]:
-    """回補檔 → {source_id: ClosureBackfill}。欄位、reason、日期、source_id 重複任一不對就丟 BackfillFormatError。"""
+    """回補檔 → {source_id: ClosureBackfill}。檔案不在、欄位、reason、日期、source_id 重複任一不對就丟 BackfillFormatError。"""
     entries: dict[str, ClosureBackfill] = {}
-    with path.open(encoding="utf-8", newline="") as handle:
+    try:
+        handle = path.open(encoding="utf-8", newline="")
+    except FileNotFoundError as exc:
+        raise BackfillFormatError(f"找不到 {path.name}") from exc
+    with handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames != COLUMNS:
             raise BackfillFormatError(f"{path.name} 的欄位不對")

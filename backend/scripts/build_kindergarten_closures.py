@@ -1,10 +1,13 @@
 """產生 app/admissions/geo_data/kindergarten-closures-<日期>.csv（2026-10-15 幼兒園名單規格 §5.3）。
 
 kiang preschools.json 標營業中（is_active＝1）、但已不在教育部名單（docs/data/高雄市.csv）的高雄幼兒園，
-各自離開名單的日期（名單歷史裡第一個不含它的版本，台北日期）與處理方式：
+各自離開名單的日期與處理方式：
+- left_on：名單歷史（--since 起的每一版，新到舊逐版掃描）裡最新一個含它的版本，它的下一個較新版本的日期（台北日期）；
+  --since 之後從沒出現過的（更早就離開）留空。不用二分搜尋：名單歷史有殘缺版本（例如 2025-07-09 只有 351 列），
+  「最舊版本裡沒有它」也不代表它更早就消失（有些是 --since 之後才出現、之後又離開）。
 - renamed：名單上有同地址、同設立日的另一所（改名或換承辦），只下架；
-- closed：停辦；離開日期在 --since 之前的 left_on 留空（只下架、不寫事件）。
-開發用，不進執行期。需要已登入的 gh CLI（約 60 個 GitHub API 請求）。
+- closed：停辦；left_on 有日期的寫停辦事件，留空的只下架、不寫事件。
+開發用，不進執行期。需要已登入的 gh CLI（約 190 個 GitHub API 請求，每個歷史版本一個）。
 
 用法（在 backend/）：
   uv run --frozen python scripts/build_kindergarten_closures.py --since 2025-06-01 \\
@@ -18,6 +21,7 @@ import csv
 import json
 import subprocess
 import sys
+import time
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -35,7 +39,9 @@ SCHOOL_YEAR = 115  # 只用來把 JSON 轉成資料列；類型不影響這裡�
 
 
 def gh(*args: str) -> str:
-    for _ in range(3):
+    for attempt in range(3):
+        if attempt:
+            time.sleep(2)  # 重試前等一下，連續失敗多半是 GitHub 的暫時限流
         done = subprocess.run(["gh", "api", *args], capture_output=True, text=True)
         if done.returncode == 0:
             return done.stdout
@@ -80,32 +86,29 @@ def main() -> None:
     ghosts = parse_preschools(data, registry=Registry(frozenset(ghost_keys), frozenset()), school_year=SCHOOL_YEAR)
     same_place = set(registry.places) | {(row.address, row.registered_on) for row in open_rows if row.registered_on}
 
-    commits = history(args.since)
-    cache: dict[str, frozenset[tuple[str, str]]] = {}
+    commits = history(args.since)  # 新到舊
+    if not commits:
+        raise SystemExit("名單歷史是空的")
 
-    def listed(index: int) -> frozenset[tuple[str, str]]:
-        sha = commits[index][0]
-        if sha not in cache:
-            cache[sha] = parse_registry(raw(REGISTRY_PATH, sha)).keys
-        return cache[sha]
+    # 逐版掃描：只留幽靈園所的 key（其餘用不到），每個歷史版本抓一次。
+    left_on: dict[tuple[str, str], date | None] = {key: None for key in ghost_keys}
+    unresolved = set(ghost_keys)
+    for index, (sha, _) in enumerate(commits):
+        found = parse_registry(raw(REGISTRY_PATH, sha)).keys & unresolved
+        if found and index == 0:
+            raise SystemExit(f"{len(found)} 所幽靈園所還在最新一版名單裡，名單與 JSON 抓到的版本對不上")
+        for key in found:
+            left_on[key] = commits[index - 1][1]  # 最新一個含它的版本的下一個（較新）版本
+        unresolved -= found
+        print(f"  掃描 {index + 1}/{len(commits)}（{commits[index][1]}）", file=sys.stderr, flush=True)
 
     out_rows = []
-    oldest = len(commits) - 1
     for row in ghosts:
         key = key_of[row.source_id]
-        left_on: date | None = None
-        if key in listed(oldest):
-            lo, hi = 0, oldest  # lo 不含、hi 含
-            while hi - lo > 1:
-                mid = (lo + hi) // 2
-                if key in listed(mid):
-                    hi = mid
-                else:
-                    lo = mid
-            left_on = commits[lo][1]
+        day = left_on[key]
         renamed = row.registered_on is not None and (row.address, row.registered_on) in same_place
         out_rows.append(
-            {"source_id": row.source_id, "name": row.name, "left_on": left_on.isoformat() if left_on else "",
+            {"source_id": row.source_id, "name": row.name, "left_on": day.isoformat() if day else "",
              "reason": "renamed" if renamed else "closed"}
         )
     out_rows.sort(key=lambda item: (item["left_on"] or "0000-00-00", item["name"]))
@@ -116,14 +119,19 @@ def main() -> None:
 
     window = months_ago(datetime.now(TAIPEI).date(), 12).isoformat()
     closed = [item for item in out_rows if item["reason"] == "closed"]
-    recent = [item for item in closed if item["left_on"] >= window]
+    renamed_rows = [item for item in out_rows if item["reason"] == "renamed"]
+    dated = [item for item in closed if item["left_on"]]
+    recent = [item for item in dated if item["left_on"] >= window]
+    recent_renamed = [item for item in renamed_rows if item["left_on"] and item["left_on"] >= window]
     print(
         f"head {head[:10]}：名單 {len(registry.keys)} 所、營業中有座標 {len(open_rows)} 所；"
-        f"回補 {len(out_rows)} 筆＝停辦 {len(closed)}（近 12 個月 {len(recent)}）、改名 {len(out_rows) - len(closed)}；"
-        f"抓了 {len(cache)} 個歷史版本"
+        f"回補 {len(out_rows)} 筆＝停辦 {len(closed)}（有日期 {len(dated)}、近 12 個月 {len(recent)}）、"
+        f"改名 {len(renamed_rows)}（有日期 {len([i for i in renamed_rows if i['left_on']])}、近 12 個月 {len(recent_renamed)}）；"
+        f"掃描了 {len(commits)} 個歷史版本"
     )
-    for item in recent:
-        print(f"  {item['left_on']} {item['name']}")
+    for label, items in (("停辦", recent), ("改名", recent_renamed)):
+        for item in items:
+            print(f"  {item['left_on']} {label} {item['name']}")
 
 
 if __name__ == "__main__":
