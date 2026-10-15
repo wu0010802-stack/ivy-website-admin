@@ -855,14 +855,20 @@ update recruitment_visit_geo g
 
 清冊地址只在本機比對，正式站只收去識別 JSON（規格 `docs/specs/2026-10-15-admissions-enrolled-map-design.md`）。
 
-1. 本機：照規格 §3.1 建比對庫（門牌版本要和正式站使用中的一樣），跑
-   `python -m app.cli enrolled-match --roster <清冊 xls> --campus <key> --out <JSON>`；有點比例不到 90% 不會寫檔（結束碼 2，報告仍會印出；確認後才加 `--allow-low-hit`）。
+1. 本機：照規格 §3.1 建比對庫（門牌版本要和正式站使用中的一樣；庫名要含 `test`），先 `cd backend`，再用下面這組環境變數跑（兩行都是一般的 shell 指令，不加 `!`；`WEBSITE_ENVIRONMENT=test` 時，兩個資料庫連線都要指向名稱含 `test` 的本機庫）：
+
+   ```
+   cd backend
+   WEBSITE_ENVIRONMENT=test WEBSITE_DATABASE_URL=postgresql+asyncpg://localhost/<比對庫，名稱含 test> WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<同一個庫> WEBSITE_SESSION_SECRET=<隨機字串，至少 16 字元> uv run python -m app.cli enrolled-match --roster <清冊 xls> --campus <key> --out <JSON>
+   ```
+
+   有點比例不到 90% 不會寫檔（結束碼 2，報告仍會印出；確認後才加 `--allow-low-hit`）。
 2. `! railway volume -p <project> -e <env> files -v api-volume upload <JSON> /enrolled-<key>-<日期>.json`
 3. `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --file /data/enrolled-<key>-<日期>.json`
-   （輸出「匯入 <key>：N 位（有點 M 位），清冊日期 …」；同一校整批取代）
+   （輸出「匯入 <key>：N 位（有點 M 位），清冊日期 …」；同一校整批取代。如果多印一行「注意：比對用的門牌版本…」，代表正式站的門牌已經換版：點的位置不受影響，只有里名可能和現行門牌不一致；要完全一致，就用新門牌重跑一次本機比對再匯入。）
 4. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了；檔內有取整座標）。
 
-刪除整校：`python -m app.cli enrolled-import --clear --campus <key>`。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
+刪除整校（正式站）：`! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --clear --campus <key>`。在本機跑只會清本機庫。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
 
 ## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 
