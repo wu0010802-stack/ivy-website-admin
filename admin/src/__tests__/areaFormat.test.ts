@@ -206,34 +206,46 @@ describe('招生機會的文字（2026-10-13 規格 7）', () => {
     expect(opportunityUnavailable(unknown)).toBe('本校位置未標示，算不出附近有哪些里。')
   })
 
-  it('總結：合計句、判讀句（合計少了幾位四捨五入、至少 1 位）、不算在內的人數只寫非零項', () => {
+  it('總結：合計句、判讀句（合計少了幾位四捨五入、至少 1 位）、不算在內的人數只寫非零項、沒填地址分開寫', () => {
     expect(opportunitySummary(areaOpportunity({ baseline: null }))).toBeNull()
     expect(opportunitySummary(areaOpportunity())).toEqual({
       lead: '本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 20 位（參觀率 2.0%）。',
       verdict: '明顯偏少的里 1 個，照附近的參觀率合計少了約 7 位。',
-      note: '另有 2 位來自 3 公里外、3 位沒對到里，不算在內。',
+      note: '另有 2 位來自 3 公里外、1 位沒填地址、2 位沒對到里，不算在內。',
     })
     const rows = areaOpportunity().villages
     const twoSmall = areaOpportunity({
       villages: [{ ...rows[0]!, shortfall: 0.2 }, { ...rows[1]!, signal: 'below', shortfall: 0.1 }, rows[2]!],
       outside_visit: 0,
     })
-    expect(opportunitySummary(twoSmall)).toMatchObject({ verdict: '明顯偏少的里 2 個，照附近的參觀率合計少了約 1 位。', note: '另有 3 位沒對到里，不算在內。' })
-    const none = areaOpportunity({ villages: rows.map((row) => ({ ...row, signal: 'typical' as const })), unplaced_visit: 0 })
+    expect(opportunitySummary(twoSmall)).toMatchObject({ verdict: '明顯偏少的里 2 個，照附近的參觀率合計少了約 1 位。', note: '另有 1 位沒填地址、2 位沒對到里，不算在內。' })
+    // 沒對到里的全是沒填地址（10-15 義華正式站：3 位都沒填地址，原本寫成「3 位沒對到里」）。
+    const allNoAddress = areaOpportunity({ outside_visit: 0, unplaced_visit: 3, no_address_visit: 3 })
+    expect(opportunitySummary(allNoAddress)!.note).toBe('另有 3 位沒填地址，不算在內。')
+    const none = areaOpportunity({ villages: rows.map((row) => ({ ...row, signal: 'typical' as const })), unplaced_visit: 0, no_address_visit: 0 })
     expect(opportunitySummary(none)).toMatchObject({ verdict: '沒有明顯偏少的里。', note: '另有 2 位來自 3 公里外，不算在內。' })
+  })
+
+  it('總結：有參觀但參觀率四捨五入到 0.0% 時寫「不到 0.1%」；沒有參觀照寫 0.0%', () => {
+    const base = areaOpportunity().baseline!
+    // 10-15 義華正式站：1 位 ÷ 9,788 位＝0.01%，後端回 0.0。
+    const tiny = areaOpportunity({ baseline: { ...base, children: 9788, visit: 1, rate: 0, judged: false } })
+    expect(opportunitySummary(tiny)!.lead).toBe('本校 3 公里內 3 個里，2–5 歲孩子 9,788 位，參觀 1 位（參觀率不到 0.1%）。')
+    const zero = areaOpportunity({ baseline: { ...base, visit: 0, rate: 0, judged: false } })
+    expect(opportunitySummary(zero)!.lead).toBe('本校 3 公里內 3 個里，2–5 歲孩子 1,000 位，參觀 0 位（參觀率 0.0%）。')
   })
 
   it('總結：附近的里沒有人口資料時多寫一句（不是半徑外）：有參觀寫人數、沒有只寫孩子數、超過 3 個里只列前 3 個', () => {
     const missing = (village: string, visit: number) => ({ district: '三民區', village, village_code: `code-${village}`, distance_m: 300, visit })
-    const only = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_population_villages: [missing('本揚里', 20)] })
+    const only = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_address_visit: 0, no_population_villages: [missing('本揚里', 20)] })
     expect(opportunitySummary(only)!.note).toBe('三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。')
     // 和既有的「不算在內」並存：先寫半徑外與沒對到里，再寫缺人口的里。
-    const both = areaOpportunity({ unplaced_visit: 0, no_population_villages: [missing('本揚里', 20)] })
+    const both = areaOpportunity({ unplaced_visit: 0, no_address_visit: 0, no_population_villages: [missing('本揚里', 20)] })
     expect(opportunitySummary(both)!.note).toBe('另有 2 位來自 3 公里外，不算在內。三民區本揚里沒有人口資料，孩子數與其中的 20 位參觀都沒算進去。')
-    const noVisit = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_population_villages: [missing('本揚里', 0)] })
+    const noVisit = areaOpportunity({ outside_visit: 0, unplaced_visit: 0, no_address_visit: 0, no_population_villages: [missing('本揚里', 0)] })
     expect(opportunitySummary(noVisit)!.note).toBe('三民區本揚里沒有人口資料，孩子數沒算進去。')
     const many = areaOpportunity({
-      outside_visit: 0, unplaced_visit: 0,
+      outside_visit: 0, unplaced_visit: 0, no_address_visit: 0,
       no_population_villages: ['本揚里', '寶業里', '鼎金里', '寶國里', '本上里'].map((village, index) => missing(village, 10 - index)),
     })
     expect(opportunitySummary(many)!.note).toBe(

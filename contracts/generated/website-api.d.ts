@@ -3932,6 +3932,8 @@ export interface components {
             baseline: components["schemas"]["AreaOpportunityBaselineOut"] | null;
             campus: components["schemas"]["AreaCampusOut"];
             filters: components["schemas"]["AreaFiltersOut"];
+            /** No Address Visit */
+            no_address_visit: number;
             /** No Population Villages */
             no_population_villages: components["schemas"]["AreaOpportunityMissingOut"][];
             /** Outside Visit */
