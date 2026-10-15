@@ -163,7 +163,7 @@ async def process_notifications_once() -> None:
     if result.slots_generated:
         print(f"已依每週規則補上 {result.slots_generated} 場時段。")
     if result.reminders_enqueued:
-        print(f"已產生 {result.reminders_enqueued} 則提醒（即將參觀、逾期未處理）。")
+        print(f"已產生 {result.reminders_enqueued} 則提醒（即將參觀）。")
     if result.parent_reminders_enqueued:
         print(f"已排 {result.parent_reminders_enqueued} 封家長參觀提醒信。")
     if not result.email_configured:

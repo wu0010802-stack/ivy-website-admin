@@ -55,7 +55,7 @@ export const STEP_LABELS: Record<string, string> = {
 export const TEST_EMAIL_ERROR_TEXT: Record<string, string> = {
   not_configured: '還沒設定寄信',
   auth_failed: '寄信伺服器帳號或密碼錯誤',
-  connect_failed: '連不上寄信伺服器，請檢查主機與 port',
+  connect_failed: '連不上寄信伺服器，請檢查主機、port 或加密設定',
   rejected: '寄信伺服器拒收（寄件或收件地址被擋）',
   timeout: '寄信伺服器太久沒有回應',
   other: '寄信伺服器回了其他錯誤',

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import smtplib
+import ssl
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
@@ -322,17 +323,19 @@ def build_test_email(settings: Settings, now: datetime) -> tuple[str, str]:
 
 def classify_email_error(exc: BaseException) -> SystemEmailTestError:
     """例外類型 → 給畫面看的原因；不回傳原始錯誤訊息（可能含伺服器回應與地址）。
-    smtplib 的例外都是 OSError 的子類別，所以先判斷 SMTP 專屬的，再判斷一般連線錯誤。"""
+    smtplib 的例外都是 OSError 的子類別，所以先判斷 SMTP 專屬的，再判斷一般連線錯誤。
+    伺服器不支援 STARTTLS（SMTPNotSupportedError）與憑證或加密錯（ssl.SSLError）都是主機、port 或
+    加密方式設錯，歸 connect_failed，畫面叫人檢查這三項。"""
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         return "auth_failed"
     if isinstance(exc, (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError)):
         return "rejected"
     if isinstance(exc, TimeoutError):
         return "timeout"
-    if isinstance(exc, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected)):
+    if isinstance(exc, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, smtplib.SMTPNotSupportedError)):
         return "connect_failed"
     if isinstance(exc, smtplib.SMTPException):
         return "other"
-    if isinstance(exc, OSError):
+    if isinstance(exc, (ssl.SSLError, OSError)):
         return "connect_failed"
     return "other"

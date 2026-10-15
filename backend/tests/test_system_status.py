@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import json
 import smtplib
+import ssl
 import threading
 import time
 import uuid
@@ -504,6 +505,8 @@ async def test_test_email_goes_to_my_own_address_and_is_audited(admin_client, db
         (lambda: smtplib.SMTPRecipientsRefused({"admin@ivy.example": (550, b"no such user")}), "rejected"),
         (lambda: smtplib.SMTPSenderRefused(553, b"sender", "noreply@ivy.example"), "rejected"),
         (lambda: smtplib.SMTPConnectError(421, b"busy"), "connect_failed"),
+        (lambda: smtplib.SMTPNotSupportedError("STARTTLS extension not supported by server."), "connect_failed"),
+        (lambda: ssl.SSLError("certificate verify failed"), "connect_failed"),
         (lambda: ConnectionRefusedError(), "connect_failed"),
         (lambda: TimeoutError(), "timeout"),
         (lambda: RuntimeError("?"), "other"),
@@ -588,6 +591,22 @@ async def test_test_email_is_limited_to_three_per_ten_minutes(app, admin_client,
     assert len(mailer.sent) == 3
 
 
+async def test_test_email_409_does_not_use_up_the_rate_limit(app, admin_client, tmp_path):
+    # 沒設寄信的 409 在限流之前就回了，不耗額度：同一位使用者先碰到 3 次 409，之後設好寄信仍能寄 3 封、第 4 封才 429。
+    freeze_rate_limit_clock(app)
+    app.state.settings = _settings(app, environment="production", smtp_host=None, notification_email_sink_dir=None)
+    for _ in range(3):
+        assert (await admin_client.post(TEST_EMAIL)).status_code == 409
+    sink = tmp_path / "sink"
+    app.state.settings = _settings(app, environment="development", smtp_host=None, notification_email_sink_dir=str(sink))
+    for _ in range(3):
+        assert (await admin_client.post(TEST_EMAIL)).status_code == 200
+    blocked = await admin_client.post(TEST_EMAIL)
+    assert blocked.status_code == 429
+    assert blocked.json()["detail"]["code"] == "TEST_EMAIL_RATE_LIMITED"
+    assert len(list(sink.glob("*.json"))) == 3
+
+
 async def test_test_email_says_busy_when_the_rate_limiter_has_no_connection(app, admin_client, mailer, monkeypatch):
     async def unavailable(limit, key):
         raise ratelimit.RateLimiterUnavailable(5)
@@ -600,9 +619,26 @@ async def test_test_email_says_busy_when_the_rate_limiter_has_no_connection(app,
     assert mailer.sent == []
 
 
-async def test_test_email_does_not_hold_a_db_transaction_while_smtp_is_slow(admin_client, db_session, monkeypatch):
+async def _idle_in_transaction(app) -> list[str]:
+    # 每次用新連線查：pg_stat_activity 的內容在同一個交易內會被快取，沿用同一條連線會看到舊的結果。
+    async with app.state.session_factory() as probe:
+        rows = await probe.execute(text(
+            "SELECT state FROM pg_stat_activity WHERE datname = current_database() "
+            "AND pid <> pg_backend_pid() AND state LIKE 'idle in transaction%'"
+        ))
+        return list(rows.scalars())
+
+
+async def test_test_email_does_not_hold_a_db_transaction_while_smtp_is_slow(app, admin_client, monkeypatch):
     # 寄信可以等 20 秒；這段時間請求的資料庫連線不能卡在「交易中」。寄信執行緒卡住時，從另一條連線看
     # pg_stat_activity 有沒有 idle in transaction。
+    # 正向對照：同一個探測查詢，對一條刻意停在交易中的連線要查得到，下面的 `== []` 才不是空過。
+    async with app.state.session_factory() as holder:
+        await holder.execute(text("SELECT 1"))
+        assert any(state.startswith("idle in transaction") for state in await _idle_in_transaction(app))
+        await holder.rollback()
+    assert await _idle_in_transaction(app) == []
+
     started, release = threading.Event(), threading.Event()
 
     class _Blocking:
@@ -612,19 +648,15 @@ async def test_test_email_does_not_hold_a_db_transaction_while_smtp_is_slow(admi
 
     monkeypatch.setattr(system_status, "mail_adapter", lambda settings: _Blocking())
 
-    async def idle_in_transaction() -> list[str]:
+    async def probe_while_sending() -> list[str]:
         try:
             while not started.is_set():
                 await asyncio.sleep(0.01)
-            rows = await db_session.execute(text(
-                "SELECT state FROM pg_stat_activity WHERE datname = current_database() "
-                "AND pid <> pg_backend_pid() AND state LIKE 'idle in transaction%'"
-            ))
-            return list(rows.scalars())
+            return await _idle_in_transaction(app)
         finally:
             release.set()
 
-    response, held = await asyncio.wait_for(asyncio.gather(admin_client.post(TEST_EMAIL), idle_in_transaction()), timeout=30)
+    response, held = await asyncio.wait_for(asyncio.gather(admin_client.post(TEST_EMAIL), probe_while_sending()), timeout=30)
     assert response.json() == {"ok": True, "error": None}
     assert started.is_set()
     assert held == []
