@@ -34,6 +34,7 @@
   - API 與契約沒變，沒跑契約產生。repo 沒有 ruff 設定、CI 也不跑；改動檔案裡新增的提示（UP017、I001 之類）與既有寫法同類，沒有處理。
   - 沒有登入正式後台看畫面；正式站要等推 main 後下一輪幼兒園同步才生效。
   - 總審查修正（2026-10-16）：`scripts/build_kindergarten_closures.py` 改成由新到舊逐版掃描；重跑（kiang head `b9188e98e7`、187 版，約 2 分 20 秒）後 33 筆停辦的 `source_id`、`left_on` 與舊檔逐筆相同，改名 14 筆裡 7 筆補上日期（陽光沐夏 2025-09-12、八方 2025-09-17、中芸辦理 2025-12-31、中芸國小代管與王公國小代管 2026-01-19、碩苗代管 2026-01-31、林園郵局 2026-07-23），並用另一支獨立的逐版線性掃描對過 47 筆全部一致。同批改日誌文字、缺檔改丟 `BackfillFormatError`、文件數字。跑了 `tests/test_geo_closure_backfill.py` 25 passed、`tests/test_geo_providers.py` 44 passed、`tests/test_geo_sync.py` 72 passed、admin `nearbyProviders.test.ts` 17 passed；上面的後端全套、admin 全套與 stack 數字是這次修正前的，沒有重跑（這次動到的是回補檔 `renamed` 列的日期，同步不讀）。
+  - 合併 `origin/main` `9dbf413f`（在籍學生分布、區域分析驗證後的修正；只有 README.md 衝突）後，在 `51bd6710` 重跑：後端全套 3316 passed、1 skipped、0 failed（20.9 分，測試庫升到 `f2a7c1e9d4b3`）；admin 全套 161 個檔案、2532 passed、1 skipped；admin `typecheck` 無錯誤；重新 `e2e:build` 後 stack `admissions-area.spec.ts` 15 passed。
 
 ## 2026-10-15 在籍學生分布（`feature/enrolled-map-20261015`）
 
