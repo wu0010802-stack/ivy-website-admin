@@ -802,6 +802,50 @@ async def enrolled_match_command(*, roster: Path, campus_key: str, out: Path, ro
     print(f"已寫出 {out}")
 
 
+def enrolled_import_options(args: list[str]) -> dict:
+    """`enrolled-import` 的參數（2026-10-15 在籍學生規格 §3.5）。"""
+    from app.campuses.models import CAMPUS_KEYS
+
+    usage = "用法：python -m app.cli enrolled-import --file <JSON>｜enrolled-import --clear --campus <校區>"
+    if len(args) == 2 and args[0] == "--file":
+        path = Path(args[1])
+        if not path.is_file():
+            raise SystemExit(f"找不到檔案：{path}")
+        return {"file": path, "clear": None}
+    if len(args) == 3 and args[0] == "--clear" and args[1] == "--campus":
+        if args[2] not in CAMPUS_KEYS:
+            raise SystemExit(f"沒有這個校區：{args[2]}")
+        return {"file": None, "clear": args[2]}
+    raise SystemExit(usage)
+
+
+async def enrolled_import_command(*, file: Path | None, clear: str | None) -> None:
+    from pydantic import ValidationError
+
+    from app.admissions.enrolled.importer import clear_roster, describe_error, load_payload, replace_roster
+
+    factory = await _session_factory()
+    if clear is not None:
+        async with factory() as db:
+            removed = await clear_roster(db, clear)
+            await db.commit()
+        print(f"已刪除 {clear} 的在籍學生資料" if removed else f"{clear} 本來就沒有在籍學生資料")
+        return
+    assert file is not None
+    try:
+        payload = load_payload(file.read_text(encoding="utf-8"))
+    except ValidationError as error:
+        print(f"檔案格式不對，沒有匯入：{describe_error(error)}", file=sys.stderr)
+        raise SystemExit(1) from None
+    except UnicodeDecodeError:
+        print("檔案不是 UTF-8，沒有匯入", file=sys.stderr)
+        raise SystemExit(1) from None
+    async with factory() as db:
+        total, placed = await replace_roster(db, payload)
+        await db.commit()
+    print(f"匯入 {payload.campus_key}：{total} 位（有點 {placed} 位），清冊日期 {payload.roster_date.isoformat()}")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -814,7 +858,8 @@ def main() -> None:
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] [--kindergartens-file <JSON>] "
             "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
             "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]|"
-            "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]>",
+            "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
+            "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -885,6 +930,8 @@ def main() -> None:
         asyncio.run(geo_sync_command(**geo_sync_options(sys.argv[2:])))
     elif command == "enrolled-match":
         asyncio.run(enrolled_match_command(**enrolled_match_options(sys.argv[2:])))
+    elif command == "enrolled-import":
+        asyncio.run(enrolled_import_command(**enrolled_import_options(sys.argv[2:])))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)
