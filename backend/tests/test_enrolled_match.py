@@ -40,6 +40,12 @@ def test_masked_address_keeps_only_the_street():
     assert masked_address("") == ""
 
 
+@pytest.mark.parametrize("raw", ["某某社區A棟5樓之3", "三民區某某新村5棟3樓", "XX大樓12F義華路"])
+def test_masked_address_drops_building_and_floor_text(raw):
+    # 沒有純中文的路／街／大道名時，parse_address 會把整段當 street；報告不能印出棟、樓、單位。
+    assert masked_address(raw) == ""
+
+
 async def test_payload_is_deidentified_and_sorted(db_session):
     await _ready(db_session)
     outcome = await match_roster(db_session, parse_roster(roster_html(ROWS)), campus_key="yihua", roster_date=date(2026, 10, 15))
@@ -67,6 +73,25 @@ async def test_report_counts_and_masks_unplaced_addresses(db_session):
     assert "班別：小班 3、大班 1" in report
     assert "義華路…" in report
     assert "999" not in report and "文德路" not in report
+
+
+async def test_report_prints_only_level_and_reason_without_a_plain_street(db_session):
+    await _ready(db_session)
+    rows = [("2023/03/01", "某某社區A棟5樓之3"), ("2023/03/01", "三民區某某新村5棟3樓"), ("2023/03/01", "XX大樓12F義華路")]
+    outcome = await match_roster(db_session, parse_roster(roster_html(rows)), campus_key="yihua", roster_date=date(2026, 10, 15))
+    report = "\n".join(outcome.report)
+    assert "某某" not in report and "5棟" not in report and "5樓" not in report and "12F" not in report
+    assert "  unlocated／no_doorplate" in outcome.report  # 只有等級與原因，後面沒有街路欄
+
+
+async def test_row_order_cannot_be_traced_back_to_the_roster(db_session):
+    await _ready(db_session)
+    # 班別、區、里、等級、座標都相同，只差 unlocated_reason：排序也要把它算進去，列序才不會留著清冊順序。
+    rows = [("2023/03/01", "臺北市內湖區文德路1號"), ("2023/03/01", "沒有這條路99號")]
+    forward = await match_roster(db_session, parse_roster(roster_html(rows)), campus_key="yihua", roster_date=date(2026, 10, 15))
+    backward = await match_roster(db_session, parse_roster(roster_html(rows[::-1])), campus_key="yihua", roster_date=date(2026, 10, 15))
+    assert {item["unlocated_reason"] for item in forward.payload["students"]} == {"outside_kaohsiung", "no_doorplate"}
+    assert forward.payload == backward.payload
 
 
 async def test_needs_doorplates_and_a_located_campus(db_session):

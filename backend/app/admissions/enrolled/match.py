@@ -3,6 +3,7 @@
 沒有點的學生在報告裡只印到街路名。"""
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import date
@@ -22,6 +23,8 @@ FORMAT = "ivy-enrolled-points/1"
 MIN_PLACED_RATIO = 0.9
 _METHOD_ORDER = ("written", "village_unique", "village_nearest", "village_mismatch", "street_unique", "street_nearest", "none")
 _INFERRED = ("village_nearest", "village_mismatch", "street_nearest")
+# 報告只印純中文的路／街／大道名（可接段）；沒有路名時 parse_address 會把整段社區、棟、樓當 street，不能印。
+_PLAIN_STREET = re.compile(r"[\u4e00-\u9fff]+(?:大道|路|街)(?:[\u4e00-\u9fff]{1,2}段)?")
 
 
 class MatchError(RuntimeError):
@@ -41,11 +44,14 @@ def round_coord(value: float) -> float:
 
 
 def masked_address(raw: str) -> str:
-    """報告用：只留街路名（巷、弄、號、樓都不印）；外縣市或切不出街路回空字串。"""
+    """報告用：只留純中文的街路名（巷、弄、號、樓、棟都不印）；外縣市、切不出街路、
+    或「街路」其實是社區／大樓名（含數字、英文字母、樓棟號）都回空字串。"""
     parsed = parse_address(raw)
     if parsed is not None and parsed.district is None and not parsed.outside_kaohsiung:
         parsed = parse_address(f"{PROBE_DISTRICT}{rest_text(raw)}")
-    return f"{parsed.street}…" if parsed is not None and parsed.street else ""
+    if parsed is None or not parsed.street or _PLAIN_STREET.fullmatch(parsed.street) is None:
+        return ""
+    return f"{parsed.street}…"
 
 
 def _joined(counter: Counter, order: tuple[str, ...]) -> str:
@@ -85,12 +91,13 @@ async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, ros
         methods[result.method] += 1
         grades[grade] += 1
         if not placed:
-            unplaced_lines.append(f"  {match.match_level}／{match.unlocated_reason or '-'}　{masked_address(row.address)}")
+            street = masked_address(row.address)
+            unplaced_lines.append(f"  {match.match_level}／{match.unlocated_reason or '-'}" + (f"　{street}" if street else ""))
 
     students.sort(key=lambda item: (
         ENROLLED_GRADES.index(item["grade"]), item["district"] or "", item["village"] or "",
         item["lat"] if item["lat"] is not None else 0.0, item["lng"] if item["lng"] is not None else 0.0,
-        item["match_level"],
+        item["match_level"], item["unlocated_reason"] or "",
     ))
     total = len(students)
     placed_count = sum(1 for item in students if item["lat"] is not None)
