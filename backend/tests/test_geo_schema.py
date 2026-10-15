@@ -152,7 +152,7 @@ def test_provider_migration_follows_new_homes_and_only_adds():
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision("c6a9e3f15d27").down_revision == "e4f1a8c6b203"
-    assert script.get_heads() == ["c6a9e3f15d27"]
+    assert script.get_heads() == ["f2a7c1e9d4b3"]
     upgrade = PROVIDER_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade
 
