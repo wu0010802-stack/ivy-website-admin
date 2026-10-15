@@ -89,6 +89,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/enrolled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Enrolled
+         * @description 在籍學生分布（2026-10-15 規格 §5）：本機比對後匯入的去識別點（取整約 100 m）、各班人數、沒有點的原因、
+         *     距離帶與各里人數。和學年學期、半徑無關（清冊是某一天的快照）。只讀，不寫稽核；回應由中介層補 no-store。
+         */
+        get: operations["get_admissions_area_enrolled_api_website_v1_admin_admissions_area_enrolled_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/kindergartens": {
         parameters: {
             query?: never;
@@ -3832,6 +3853,96 @@ export interface components {
             visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
+        };
+        /** AreaEnrolledBandOut */
+        AreaEnrolledBandOut: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "0-1" | "1-3" | "3-6" | "6+" | "none";
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+        };
+        /** AreaEnrolledGradeOut */
+        AreaEnrolledGradeOut: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班" | "其他";
+            /** Placed */
+            placed: number;
+            /** Total */
+            total: number;
+        };
+        /** AreaEnrolledOut */
+        AreaEnrolledOut: {
+            /** Distance Bands */
+            distance_bands: components["schemas"]["AreaEnrolledBandOut"][];
+            /** Doorplate Version */
+            doorplate_version: string | null;
+            /** Grades */
+            grades: components["schemas"]["AreaEnrolledGradeOut"][];
+            /** Imported At */
+            imported_at: string | null;
+            /** Points */
+            points: components["schemas"]["AreaEnrolledPointOut"][];
+            /** Roster Date */
+            roster_date: string | null;
+            /** School Year */
+            school_year: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "not_imported";
+            /** Total */
+            total: number;
+            /** Unplaced */
+            unplaced: components["schemas"]["AreaEnrolledUnplacedOut"][];
+            /** Villages */
+            villages: components["schemas"]["AreaEnrolledVillageOut"][];
+        };
+        /** AreaEnrolledPointOut */
+        AreaEnrolledPointOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+        };
+        /** AreaEnrolledUnplacedOut */
+        AreaEnrolledUnplacedOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "street" | "district" | "outside_kaohsiung" | "unlocated";
+        };
+        /** AreaEnrolledVillageOut */
+        AreaEnrolledVillageOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** District */
+            district: string;
+            /** Total */
+            total: number;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string | null;
         };
         /** AreaFiltersOut */
         AreaFiltersOut: {
@@ -8209,6 +8320,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaChangesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_enrolled_api_website_v1_admin_admissions_area_enrolled_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaEnrolledOut"];
                 };
             };
             /** @description Validation Error */

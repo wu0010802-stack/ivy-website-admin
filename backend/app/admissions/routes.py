@@ -25,6 +25,7 @@ from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
+from app.admissions.enrolled import query as enrolled_query
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
@@ -35,6 +36,7 @@ from app.admissions.schemas import (
     AdmissionsStatsOut,
     AreaBabycareOut,
     AreaChangesOut,
+    AreaEnrolledOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
     AreaTrendsOut,
@@ -961,6 +963,18 @@ async def get_admissions_journey(
         )
     result = await journey_service.query_journey(db, campus_key, date_from, end, source)
     return JourneyOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area/enrolled", response_model=AreaEnrolledOut)
+async def get_admissions_area_enrolled(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaEnrolledOut:
+    """在籍學生分布（2026-10-15 規格 §5）：本機比對後匯入的去識別點（取整約 100 m）、各班人數、沒有點的原因、
+    距離帶與各里人數。和學年學期、半徑無關（清冊是某一天的快照）。只讀，不寫稽核；回應由中介層補 no-store。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    return AreaEnrolledOut.model_validate(await enrolled_query.query_enrolled(db, campus_key))
 
 
 @router.get(
