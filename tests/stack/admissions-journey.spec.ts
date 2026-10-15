@@ -2,13 +2,13 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { clearJourney, seedJourney } from './db'
+import { JOURNEY_CAMPUS, clearJourney, seedJourney } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
 // 預約全程（2026-10-15 規格 §4）：用 db.ts 在 renwu 校區寫一批案件（8 筆預約＋1 筆現場訪視），日期相對今天；
 // 驗證漏斗、離開、取消時點與各段天數的數字，1440／390 不橫向溢出與 axe，再給人看截圖。測試結束一律清除種子。
-const CAMPUS = 'renwu'
+const CAMPUS = JOURNEY_CAMPUS
 const SHOTS = path.join(ROOT, 'output/playwright')
 const journeyPath = `/admissions?campus=${CAMPUS}&tab=stats&sub=journey`
 
@@ -17,7 +17,11 @@ const block = (page: Page, title: string): Locator =>
 const rowTexts = async (section: Locator): Promise<string[][]> =>
   section.locator('tbody tr').evaluateAll((rows) => rows.map((row) => [...row.querySelectorAll('th, td')].map((cell) => (cell.textContent ?? '').trim())))
 
-test.beforeEach(() => seedJourney())
+// 種子之外、同一校已經有的「沒有預約案件的訪視」筆數（別的 spec 留下的，例如 admissions-area 在 renwu 建的一筆）。
+let otherUnlinkedVisits = 0
+test.beforeEach(() => {
+  otherUnlinkedVisits = seedJourney()
+})
 test.afterEach(() => clearJourney())
 
 test('預約全程：漏斗、離開、取消時點、各段天數與涵蓋說明', async ({ browser }) => {
@@ -76,7 +80,7 @@ test('預約全程：漏斗、離開、取消時點、各段天數與涵蓋說�
 
   await test.step('涵蓋說明：現場訪視不在漏斗裡', async () => {
     const text = await page.locator('.journey-coverage').innerText()
-    expect(text).toContain('另有 1 筆招生訪視沒有預約案件')
+    expect(text).toContain(`另有 ${otherUnlinkedVisits + 1} 筆招生訪視沒有預約案件`) // 種子的現場訪視 1 筆＋別的 spec 留下的
     expect(text).toContain('已到場但沒有招生訪視 1 筆')
   })
 

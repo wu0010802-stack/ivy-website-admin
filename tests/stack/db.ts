@@ -115,7 +115,7 @@ export function seedBirthSeries(): void {
 
 // 預約全程（2026-10-15）：用 renwu 校區寫一批預約案件、場次、事件與招生訪視，日期相對台北今天。
 // 標記：家長姓名與幼生姓名都以「E2E旅程」開頭，clearJourney 靠它清；每筆預約送出日＝場次日 − 7。
-const JOURNEY_CAMPUS = 'renwu'
+export const JOURNEY_CAMPUS = 'renwu'
 const JOURNEY_MARK = 'E2E旅程'
 
 /** 民國月份「115.09」（recruitment_visits.month）：同後端 academic.roc_month。 */
@@ -207,8 +207,19 @@ export function clearJourney(): void {
   )
 }
 
-/** 先清再寫，所以重複執行不會重複。 */
-export function seedJourney(): void {
+/**
+ * 先清再寫，所以重複執行不會重複。回傳寫入前這一校已經存在的「沒有預約案件的招生訪視」筆數（參觀日在最近 90 天，
+ * 也就是頁面預設期間，不含種子自己）：別的 spec 可能在同一校留下訪視（例如 admissions-area 在 renwu 建的），
+ * 涵蓋說明的筆數要以它為基準。
+ */
+export function seedJourney(): number {
   clearJourney()
+  const others = psql(
+    `SELECT count(*) FROM recruitment_visits
+      WHERE campus_key = '${JOURNEY_CAMPUS}' AND visit_request_id IS NULL
+        AND visit_date BETWEEN ${day(89)} AND ${day(0)} AND child_name NOT LIKE '${JOURNEY_MARK}%';`,
+    {},
+  )
   psql(journeyStatements(), {})
+  return Number(others)
 }
