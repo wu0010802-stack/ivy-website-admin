@@ -13,6 +13,28 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-14 多年出生數走勢（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機直接推 `feature/birth-series-20261014` 到 main（fast-forward `c13f2c88..ad7352d5`，16 個 commit，沒有開 PR），其中 `2054facd` 是併入 main 當時「里的變化 B2」的 merge commit。內容見 README 頂部「多年出生數走勢」、DESIGN.md「招生入學：多年出生數走勢」、規格 `docs/specs/2026-10-14-birth-series-design.md`。
+- **migration**：無。`geo_village_births` 結構不變，只改保留月數；alembic head 仍是 `c6a9e3f15d27`。沒有備份。
+- **回退**：可直接切回前一個映像（沒有 migration）。舊程式下一次寫入出生時會把多出的月份裁回 25 個月，資料不會壞；舊程式仍抓 ODRP010，ODRP010 缺的月份照舊缺。
+- **推送前閘門**（本機，合併 main 之後）：
+  - 後端全套 3,093 passed／1 skipped；後台 vitest 全套 159 檔 2,468 passed／1 skipped；admin 與 web typecheck、`contract:check` 一致。
+  - 完整 stack 套件（重新 build）138 passed，含新增的 2 個出生走勢案例。
+- **CI**：main run 38653363933（`ad7352d5`）2026-10-14T23:19:34Z 開跑，23:37:20Z 部署完成（17.8 分），全綠：
+  - Frontend web 1.4 分、admin 6.0 分；Backend 三組 10.8／8.7／13.8 分；E2E／Playwright 10.6 分；Deploy Railway production 3.9 分（23:33:28Z 開始）。
+- **正式 `release.json`**：base commit `ad7352d5dc26dddc888741d3980d98afb25b1401`，snapshot `3705095a…`，created `2026-10-14T23:33:56Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-15 00:25Z）：
+  - `/api/website/v1/health` 回 `status: ok`，`last_failed_steps` 為空（背景工作 00:25:31Z 完成一輪）。
+  - 首頁、入學、預約、`/admin/` 都回 200（0.17–0.79 秒）。
+  - `GET /api/website/v1/admin/admissions/area/trends` 未登入回 401（路由已掛）。
+- **未在線上驗證**：
+  - **出生回補第一輪**：正式站出生表原本 21 個月（見上一段紀錄），`WEBSITE_GEO_AUTO_SYNC=true` 已開，部署後第一輪應回補到視窗起點 109-10（預估約 50 個請求、5～8 分鐘、約 55 MB，**實際沒看到**：這裡沒有讀 Railway 的權限）。Railway 連得到 ris.gov.tw 已在 10-14 第一輪同步實測；72 個月回補的請求數、時間與用量沒實測。
+  - 查法（Railway Postgres 的 Database 分頁）：`select min(month), max(month), count(distinct month) from geo_village_births;`，補完後預期 `109-10`／最新月份／`71`（111-03 兩個資料集都查無，是永久缺月）；`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset in ('births', 'migration');`，births 的 `checked_at` 在補完那一輪才更新、`last_error` 應為空。第一輪若 `last_error` 寫「同步超過 20 分鐘」或「可能被來源擋下」，隔天看 `min(month)` 有往前推就不必手動介入。
+  - 另查 `select min(month) from geo_village_migration;`：確認正式站遷入遷出是 25 個月齊全；若比視窗短，每天會多問缺的月份（每個月份一個請求）。
+  - 登入後的畫面（「近幾年的出生數」）：只有本機 Playwright 截圖與 CI 的 E2E。
+  - 20 位門檻同時套到「比前一年同期」那句：1 公里這類小半徑原本顯示的百分比可能變成不顯示，沒有正式資料可算會不會發生。
+
 ## 2026-10-14 里的變化 B2：新屋交屋上畫面與跨區界道比對（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `feature/village-new-homes-b2-20261014` 到 main（fast-forward `03eaa872..eb5779bf`，5 個 commit）：`e1b058f1` 跨區界道比對、`34bc5084` B2 本體、`69cca639` 合併組在地圖上依各里自己的筆數上色（和規格 §5.6 的刻意差異，可單獨還原）、`314492a9` 文件、`eb5779bf` 併入 main 當時的托嬰部署紀錄 `03eaa872`。內容見 README 頂部 10-14「B2 段」、DESIGN.md「招生入學：里的變化」、規格 §18。
