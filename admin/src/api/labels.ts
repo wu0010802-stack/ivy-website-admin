@@ -464,6 +464,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.complete': '標記已到場',
   'visit_request.complete_early': '提早標記已到場',
   'visit_request.update_details': '修改家長資料',
+  'visit_request.exclude': '標記為排除',
+  'visit_request.include': '取消排除',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊紀錄。
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',
@@ -597,6 +599,9 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   details_updated: '家長修改資料',
   // 停班停課（2026-10-14）：排了一封停課通知，請家長改約或取消；原因在歷程的 reason。
   closure_notice: '寄停課通知',
+  // 排除標記（2026-10-15）：測試或重複的案件不算進統計；原因類別在 after.reason，說明在歷程的 reason。
+  excluded: '標記為排除',
+  exclusion_removed: '取消排除',
 }
 
 export function visitEventLabel(eventType: string): string {
@@ -615,6 +620,9 @@ export const VISIT_DETAIL_FIELD_LABELS: Record<string, string> = {
   parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
   child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事', expected_start: '預計入學時間',
 }
+
+// 預約案件的排除原因（2026-10-15）；後端 booking/export_labels.py 的 EXCLUDE_REASON_LABELS 同一組字。
+export const VISIT_EXCLUDE_REASON_LABELS: Record<string, string> = { test: '測試', duplicate: '重複', other: '其他' }
 
 // 預計入學時間（2026-10-15）：和後端 app/booking/expected_start.py 的 display_label 同一套規則與案例
 // （contracts/expected-start-cases.json 的 labels）。值是 asap、unsure 或「民國學年-學期」。
@@ -1327,6 +1335,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 系統狀態頁的測試信（system.test_email）：寄出或沒寄出；沒寄出時另有 error_code 寫原因。
   result: (v, action) => (action === 'system.test_email' ? (v === 'sent' ? '測試信已寄出' : '測試信沒有寄出') : `結果：${String(v)}`),
   reason: (v) => `原因：${auditReasonLabel(String(v))}`,
+  // 預約案件排除（2026-10-15）：只記原因類別，說明不進操作紀錄（計畫裁定 P6）。
+  exclude_reason: (v) => (v ? `排除原因：${VISIT_EXCLUDE_REASON_LABELS[String(v)] ?? String(v)}` : null),
   // 帳密登入失敗發生在哪裡（user.login_password_failed：登入頁、重新驗證或改密碼）。
   context: (v) => `發生在：${AUDIT_CONTEXT_LABELS[String(v)] ?? String(v)}`,
   // 帳號鎖（user.login_locked）與停權／解除綁定並登出時解除了哪些外部登入（2026-09-29）。

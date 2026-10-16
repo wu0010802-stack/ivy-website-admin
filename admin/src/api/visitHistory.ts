@@ -10,6 +10,7 @@ import {
   staffOf,
   visitEventLabel,
   VISIT_DETAIL_FIELD_LABELS,
+  VISIT_EXCLUDE_REASON_LABELS,
   VISIT_EVENT_SOURCE_LABELS,
   visitSourceLabel,
   visitStatus,
@@ -49,6 +50,11 @@ export function visitEventTitle(event: VisitHistoryOut): string {
   if (event.event_type === 'completed' && event.after?.early === true) return '提早標記已到場'
   // 家長修改資料（修改連結）與園方修改家長資料（2026-10-12）共用 details_updated：依誰改的分開寫。
   if (event.event_type === 'details_updated' && event.source === 'staff') return '修改家長資料'
+  // 排除標記（2026-10-15）：標題帶原因；說明在 reason（照一般歷程顯示）。
+  if (event.event_type === 'excluded') {
+    const reason = text(event.after, 'reason')
+    return reason ? `標記為排除：${VISIT_EXCLUDE_REASON_LABELS[reason] ?? reason}` : visitEventLabel('excluded')
+  }
   return visitEventLabel(event.event_type)
 }
 
