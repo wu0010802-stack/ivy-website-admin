@@ -7,14 +7,14 @@ import { apiErrorCode, apiErrorMessage } from '../../api/errors'
 import type { RecruitmentVisit } from '../../api/types'
 import { currentTerm, outsideRocRange, schoolYearOptions, taipeiToday } from '../../admissions/academic'
 import {
-  ANONYMIZED_CONFLICT_TEXT, GRADES, SEMESTER_LABELS, STAGE_LABELS, WITHDRAWN_FROM_LABELS, transitionMode, transitionWarning,
-  type Grade, type Stage, type TransitionCard, type TransitionTarget,
+  ANONYMIZED_CONFLICT_TEXT, GRADES, SEMESTER_LABELS, STAGE_LABELS, WITHDRAW_REASON_CATEGORIES, WITHDRAWN_FROM_LABELS, transitionMode, transitionWarning,
+  type Grade, type Stage, type TransitionCard, type TransitionTarget, type WithdrawReasonCategory,
 } from '../../admissions/constants'
 import { notifyError, notifyWarning } from '../../composables/notify'
 
 // 狀態轉換確認框（園務 TransitionConfirmDialog）。標題「{起} → {迄}」、首行幼生姓名、四種模式：
 // 預繳記收預繳人員；註冊填註冊日期、年級、入學學年學期（官網沒有班級，取代園務的選班）；
-// 退出與從已註冊往回要原因；其餘只確認。提到學費管理、學生檔的文案改寫（本檔調整第 9 條）。
+// 退出要選退出原因分類、說明選填（2026-10-15），從已註冊往回要寫原因；其餘只確認。提到學費管理、學生檔的文案改寫（本檔調整第 9 條）。
 // 退出欄標題寫具體的退預繳或退註冊；確認鍵寫出這一步做什麼，不只寫「確認」。
 const props = defineProps<{ target: TransitionTarget | null }>()
 const open = defineModel<boolean>({ required: true })
@@ -22,6 +22,7 @@ const emit = defineEmits<{ done: [visit: RecruitmentVisit]; stale: [] }>()
 
 const collector = ref('')
 const reason = ref('')
+const category = ref<WithdrawReasonCategory | null>(null)
 const enrolledOn = ref<string | null>(null)
 const grade = ref<Grade | null>(null)
 const year = ref<number | null>(null)
@@ -30,6 +31,7 @@ const submitting = ref(false)
 
 const mode = computed(() => (props.target ? transitionMode(props.target.from, props.target.to) : 'confirm'))
 const warning = computed(() => (props.target ? transitionWarning(props.target.from, props.target.to) : ''))
+const withdrawing = computed(() => props.target?.to === 'withdrawn')
 
 // 看板卡片與訪視資料都帶 withdrawn_from；確認框的介面只要求 TransitionCard，讀得到才用。
 type CardWithWithdrawal = TransitionCard & { withdrawn_from?: string | null }
@@ -70,6 +72,7 @@ watch(open, (value) => {
   if (!value || !card) return
   collector.value = ''
   reason.value = ''
+  category.value = null
   enrolledOn.value = taipeiToday()
   // 註冊年級預設保留座位的年級，沒有就用適讀班級。
   grade.value = ((card.provisional_grade ?? card.grade) as Grade | null | undefined) ?? null
@@ -82,18 +85,19 @@ watch(open, (value) => {
 const collectorInput = ref<{ focus: () => void } | null>(null)
 const enrolledOnPicker = ref<{ focus: () => void } | null>(null)
 const reasonInput = ref<{ focus: () => void } | null>(null)
+const categorySelect = ref<{ focus: () => void } | null>(null)
 const confirmButton = ref<{ ref?: HTMLButtonElement } | null>(null)
 
 function focusFirst() {
   if (mode.value === 'deposit') collectorInput.value?.focus()
   else if (mode.value === 'enroll') enrolledOnPicker.value?.focus()
-  else if (mode.value === 'destructive') reasonInput.value?.focus()
+  else if (mode.value === 'destructive') (withdrawing.value ? categorySelect.value : reasonInput.value)?.focus()
   else confirmButton.value?.ref?.focus()
 }
 
 const ready = computed(() => {
   if (mode.value === 'enroll') return Boolean(enrolledOn.value && grade.value && year.value)
-  if (mode.value === 'destructive') return reason.value.trim() !== ''
+  if (mode.value === 'destructive') return withdrawing.value ? category.value !== null : reason.value.trim() !== ''
   return true
 })
 
@@ -102,7 +106,11 @@ function fields() {
   if (mode.value === 'enroll') {
     return { enrolled_on: enrolledOn.value, grade: grade.value, target_school_year: year.value, target_semester: semester.value }
   }
-  if (mode.value === 'destructive') return { reason: reason.value.trim() }
+  if (mode.value === 'destructive') {
+    return withdrawing.value
+      ? { withdraw_reason_category: category.value, reason: reason.value.trim() || null }
+      : { reason: reason.value.trim() }
+  }
   return {}
 }
 
@@ -188,6 +196,16 @@ async function submit() {
             </el-radio-group>
           </div>
           <span class="field-help">學號與編班照園內原本的方式處理。</span>
+        </el-form-item>
+      </template>
+      <template v-else-if="mode === 'destructive' && withdrawing">
+        <el-form-item label="退出原因" required>
+          <el-select ref="categorySelect" v-model="category" placeholder="請選擇退出原因" aria-label="退出原因" style="width: 100%">
+            <el-option v-for="item in WITHDRAW_REASON_CATEGORIES" :key="item" :label="item" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="說明（選填）">
+          <el-input v-model="reason" type="textarea" :rows="3" maxlength="2000" placeholder="補充說明" aria-label="說明" />
         </el-form-item>
       </template>
       <el-form-item v-else-if="mode === 'destructive'" label="原因（必填）">

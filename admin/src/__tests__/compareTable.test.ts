@@ -3,7 +3,7 @@ import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils
 import CompareTable from '../components/admissions/CompareTable.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import type { AdmissionsCompare, AdmissionsCompareRow, AdmissionsStats } from '../api/types'
-import { button, cleanup, deferred, mockGet, mountWith, pathsTo } from './admissionsTestKit'
+import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -79,6 +79,7 @@ function quietStats(): AdmissionsStats {
     tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [], no_deposit_total: 0,
     no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
+    withdraw_reasons: emptyWithdrawReasons(), withdraw_total: 0,
     deposit_timing: { status: 'insufficient', visits: 1, deposited: 0, missing_time: 0, min_events: 10, checkpoints: [], half_by_day: null },
     deposit_pace: { evaluable: false, reason: 'insufficient_baseline', month: '115.09', visits: 1, expected: null, observed: 0, slow: false },
   }

@@ -248,6 +248,33 @@ describe('編輯訪視（規格 6.6）', () => {
     expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { notes: '補一句', expected_version: 3 })
   })
 
+  it('已退出的訪視可以補退出原因分類，只送這一欄；其他階段沒有這個欄位（2026-10-15）', async () => {
+    const record = visit({ stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited', withdraw_reason: '改送他校', version: 6 })
+    const patch = mockPatch({ '/admin/admissions/records/v-1': visit({ version: 7 }) })
+    const { wrapper } = await openDialog({ mode: 'edit', record })
+    expect(bodyText()).toContain('退出時的說明：改送他校')
+    byPlaceholder(wrapper, 'ElSelect', '請選擇退出原因').vm.$emit('update:modelValue', '費用考量')
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { withdraw_reason_category: '費用考量', expected_version: 6 })
+    cleanup()
+    const visited = await openDialog({ mode: 'edit', record: visit() })
+    expect(visited.wrapper.findAllComponents({ name: 'ElSelect' }).some((select) => select.props('placeholder') === '請選擇退出原因')).toBe(false)
+  })
+
+  it('已退出但還沒有分類的舊資料：只改備註時不送分類（送 null 後端會擋）', async () => {
+    const record = visit({ stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited', withdraw_reason_category: null, version: 6 })
+    const patch = mockPatch({ '/admin/admissions/records/v-1': visit({ version: 7 }) })
+    const { wrapper } = await openDialog({ mode: 'edit', record })
+    expect(byPlaceholder(wrapper, 'ElSelect', '請選擇退出原因').props('modelValue')).toBeNull()
+    typeInto(field('textarea[aria-label="備註"]'), '補一句')
+    await flushPromises()
+    bodyButton('儲存')!.click()
+    await flushPromises()
+    expect(patch).toHaveBeenCalledWith('/admin/admissions/records/v-1', { notes: '補一句', expected_version: 6 })
+  })
+
   it('原因說明在選了未預繳原因後才出現；以前填過說明的照常顯示', async () => {
     const { wrapper } = await openDialog({ mode: 'edit', record: visit({ no_deposit_reason: null, no_deposit_reason_detail: null }) })
     expect(document.body.querySelector('textarea[aria-label="原因說明"]')).toBeNull()

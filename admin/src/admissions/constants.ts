@@ -68,6 +68,31 @@ export const NO_DEPOSIT_REASONS = [
   '家庭照顧安排考量', '特殊需求／名額限制', '課程／環境仍在評估', '費用考量',
 ] as const
 
+// 退出原因分類（2026-10-15，後端 constants.py WITHDRAW_REASON_CATEGORIES，順序同畫面；admissionsConstants.test.ts 逐字比對）。
+export const WITHDRAW_REASON_CATEGORIES = [
+  '抽中公幼／非營利', '改讀其他私立幼兒園', '搬家／距離因素', '費用考量',
+  '家庭照顧安排改變', '孩子健康／適應因素', '課程／環境有疑慮', '未註明／聯絡不上',
+] as const
+export type WithdrawReasonCategory = (typeof WITHDRAW_REASON_CATEGORIES)[number]
+// 訪視明細篩選的特別值：已退出但沒有分類（後端 WITHDRAW_UNCLASSIFIED）；統計表的列名是「未分類」（stats.py UNCLASSIFIED_REASON）。
+export const UNCLASSIFIED_WITHDRAW = 'unclassified'
+export const UNCLASSIFIED_LABEL = '未分類'
+
+export function isWithdrawFilter(value: string): boolean {
+  return value === UNCLASSIFIED_WITHDRAW || (WITHDRAW_REASON_CATEGORIES as readonly string[]).includes(value)
+}
+
+export function withdrawFilterLabel(value: string): string {
+  return value === UNCLASSIFIED_WITHDRAW ? `${UNCLASSIFIED_LABEL}（改版前退出）` : value
+}
+
+/** 退出原因的顯示文字：「費用考量（說明）」；沒有說明只寫分類；改版前的舊資料只有說明就寫說明；都沒有是空字串。 */
+export function withdrawReasonText(visit: { withdraw_reason_category?: string | null; withdraw_reason?: string | null }): string {
+  const { withdraw_reason_category: category, withdraw_reason: detail } = visit
+  if (category) return detail ? `${category}（${detail}）` : category
+  return detail ?? ''
+}
+
 // 歷程事件（園務 FUNNEL_EVENT_LABELS）。官網沒有學生檔：converted／revert_converted
 // 拿掉「轉學生／刪學生」；園務漏掉的 seat_reserved／seat_released 在這裡補上。
 export const EVENT_LABELS: Record<string, string> = {

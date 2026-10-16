@@ -185,6 +185,22 @@ describe('欄位（2026-10-05：1280 寬不橫捲）', () => {
     expect(info.findAll('dt').map((dt) => dt.text())).toEqual(['英文名字', '父親職業', '母親職業', '來源分類', '家長介紹', '帶參觀老師', '搭娃娃車'])
     expect(info.findAll('dd').map((dd) => dd.text())).toEqual(['Celeste', '軍', '教師', '在校生弟妹', '林老師', 'Marvyna', '要搭'])
   })
+
+  it('退出原因在展開列：有分類寫「分類（說明）」，只有分類寫分類，改版前只有說明就寫說明（2026-10-15）', async () => {
+    const withdrawn = { stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited' }
+    mockGet({
+      '/admin/admissions/records': [
+        visit({ ...withdrawn, withdraw_reason_category: '費用考量', withdraw_reason: '學費比預期高' }),
+        visit({ ...withdrawn, id: 'v-2', child_name: '李小樂', withdraw_reason_category: '搬家／距離因素' }),
+        visit({ ...withdrawn, id: 'v-3', child_name: '陳小美', withdraw_reason: '改送他校' }),
+      ],
+    })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    for (const icon of wrapper.findAll('.records-table .el-table__expand-icon')) await icon.trigger('click')
+    await flushPromises()
+    const reasons = wrapper.findAll('.records__info').map((info) => info.findAll('div').find((item) => item.get('dt').text() === '退出原因')?.get('dd').text())
+    expect(reasons).toEqual(['費用考量（學費比預期高）', '搬家／距離因素', '改送他校'])
+  })
 })
 
 describe('篩選收合（比照第九輪案件列表）', () => {

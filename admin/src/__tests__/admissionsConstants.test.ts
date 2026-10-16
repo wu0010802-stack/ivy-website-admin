@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  EVENT_LABELS, GRADES, NO_DEPOSIT_REASONS, STAGES, STAGE_LABELS, STAGE_TOKENS, canDragFrom, eventLabel, moveTargets,
-  stageLabel, ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME, transitionBlockedText, transitionCapability, transitionMode, transitionWarning, type Stage,
+  EVENT_LABELS, GRADES, NO_DEPOSIT_REASONS, STAGES, STAGE_LABELS, STAGE_TOKENS, WITHDRAW_REASON_CATEGORIES, canDragFrom, eventLabel, moveTargets,
+  stageLabel, ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME, isWithdrawFilter, transitionBlockedText, transitionCapability, transitionMode,
+  transitionWarning, withdrawFilterLabel, withdrawReasonText, type Stage,
 } from '../admissions/constants'
 
 // 後端列舉值的唯一來源是 backend/app/admissions/constants.py（A1）；前端的文案表要對得上。
@@ -25,6 +26,7 @@ describe('與後端 constants.py 對齊', () => {
     expect([...GRADES]).toEqual(tuple('GRADES'))
     expect([...STAGES]).toEqual(tuple('STAGES'))
     expect([...NO_DEPOSIT_REASONS]).toEqual(tuple('NO_DEPOSIT_REASONS'))
+    expect([...WITHDRAW_REASON_CATEGORIES]).toEqual(tuple('WITHDRAW_REASON_CATEGORIES'))
   })
 
   it('每一種事件都有中文，歷程不會露英文代碼', () => {
@@ -47,6 +49,23 @@ describe('與後端 constants.py 對齊', () => {
     expect(eventLabel('details_updated', { origin: 'manual' })).toBe('修改招生資料')
     expect(eventLabel('follow_up_updated', { origin: 'visit_request_sync' })).toBe('排下次聯絡')
     expect(eventLabel('details_updated', { origin: 'visit_request_sync' })).toBe('修改招生資料（從預約同步）')
+  })
+})
+
+describe('退出原因分類（2026-10-15）', () => {
+  it('顯示文字：分類（說明）；沒有說明只寫分類；舊資料只有說明就寫說明；都沒有是空字串', () => {
+    expect(withdrawReasonText({ withdraw_reason_category: '費用考量', withdraw_reason: '學費比預期高' })).toBe('費用考量（學費比預期高）')
+    expect(withdrawReasonText({ withdraw_reason_category: '費用考量', withdraw_reason: null })).toBe('費用考量')
+    expect(withdrawReasonText({ withdraw_reason_category: null, withdraw_reason: '改送他校' })).toBe('改送他校')
+    expect(withdrawReasonText({})).toBe('')
+  })
+
+  it('篩選值：八項與 unclassified 才算數；未分類有說明', () => {
+    expect(isWithdrawFilter('費用考量')).toBe(true)
+    expect(isWithdrawFilter('unclassified')).toBe(true)
+    expect(isWithdrawFilter('其他')).toBe(false)
+    expect(withdrawFilterLabel('unclassified')).toBe('未分類（改版前退出）')
+    expect(withdrawFilterLabel('費用考量')).toBe('費用考量')
   })
 })
 

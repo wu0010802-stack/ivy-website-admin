@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import type { AdmissionsOptions, RecruitmentVisit } from '../../api/types'
 import { termLabel } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME } from '../../admissions/constants'
+import { ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME, withdrawReasonText } from '../../admissions/constants'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import RecordDialog from '../admissions/RecordDialog.vue'
@@ -40,7 +40,7 @@ const rows = computed<Row[]>(() => {
   const optional: [string, string | null | undefined][] = [
     ['收預繳人員', v.has_deposit ? v.deposit_collector : null],
     ['未預繳原因', v.stage === 'visited' ? [v.no_deposit_reason, v.no_deposit_reason_detail].filter(Boolean).join('：') : null],
-    ['退出原因', v.stage === 'withdrawn' ? v.withdraw_reason : null],
+    ['退出原因', v.stage === 'withdrawn' ? withdrawReasonText(v) : null],
     ['地址', v.address || v.district],
     ['父親職業', v.father_occupation],
     ['母親職業', v.mother_occupation],

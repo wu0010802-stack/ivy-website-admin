@@ -7,7 +7,9 @@ import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, RecruitmentVisit, RecruitmentVisitCreate, RecruitmentVisitUpdate } from '../../api/types'
 import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Grade } from '../../admissions/constants'
+import {
+  ANONYMIZED_CONFLICT_TEXT, GRADES, NO_DEPOSIT_REASONS, SEMESTER_LABELS, WITHDRAW_REASON_CATEGORIES, stageMeta, type Grade, type WithdrawReasonCategory,
+} from '../../admissions/constants'
 import { joinTourGuides, splitTourGuides, TOUR_GUIDE_MAX_LENGTH, TOUR_GUIDE_SEPARATOR } from '../../admissions/tourGuides'
 import { sourceCategoryOptions } from '../../admissions/sourceCategories'
 
@@ -57,6 +59,7 @@ interface FormState {
   transfer_term: boolean
   no_deposit_reason: NoDepositReason | null
   no_deposit_reason_detail: string
+  withdraw_reason_category: WithdrawReasonCategory | null
   notes: string
   parent_response: string
 }
@@ -71,7 +74,7 @@ function blank(term?: { year: number | null; semester: Semester | null }): FormS
     target_semester: term ? term.semester : now.semester,
     rides_bus: false, grade: null, address: '', father_occupation: '', mother_occupation: '', source_category: null,
     source: '', referrer: '', deposit_collector: '', transfer_term: false,
-    no_deposit_reason: null, no_deposit_reason_detail: '', notes: '', parent_response: '',
+    no_deposit_reason: null, no_deposit_reason_detail: '', withdraw_reason_category: null, notes: '', parent_response: '',
   }
 }
 
@@ -98,6 +101,7 @@ function fromRecord(record: RecruitmentVisit): FormState {
     transfer_term: record.transfer_term,
     no_deposit_reason: (record.no_deposit_reason as NoDepositReason | null | undefined) ?? null,
     no_deposit_reason_detail: record.no_deposit_reason_detail ?? '',
+    withdraw_reason_category: (record.withdraw_reason_category as WithdrawReasonCategory | null | undefined) ?? null,
     notes: record.notes ?? '',
     parent_response: record.parent_response ?? '',
   }
@@ -246,6 +250,11 @@ function changes(record: RecruitmentVisit): Record<string, unknown> {
     delete before.no_deposit_reason_detail
     delete after.no_deposit_reason
     delete after.no_deposit_reason_detail
+  }
+  // 退出原因分類只在已退出時能改（2026-10-15 規格 W7），不放進 payload()：新增訪視不收這欄。
+  if (record.stage === 'withdrawn') {
+    before.withdraw_reason_category = record.withdraw_reason_category ?? null
+    after.withdraw_reason_category = form.withdraw_reason_category
   }
   return Object.fromEntries(Object.entries(after).filter(([key, value]) => (before[key] ?? null) !== (value ?? null)))
 }
@@ -506,6 +515,12 @@ function suggest(list: readonly string[] | undefined) {
             <el-switch v-model="form.transfer_term" active-text="是" inactive-text="否" aria-label="轉其他學期" />
           </el-form-item>
         </div>
+        <el-form-item v-if="current?.stage === 'withdrawn'" label="退出原因分類">
+          <el-select v-model="form.withdraw_reason_category" placeholder="請選擇退出原因" aria-label="退出原因分類" style="width: 100%">
+            <el-option v-for="item in WITHDRAW_REASON_CATEGORIES" :key="item" :label="item" :value="item" />
+          </el-select>
+          <span v-if="current?.withdraw_reason" class="field-help">退出時的說明：{{ current.withdraw_reason }}</span>
+        </el-form-item>
         <el-form-item v-if="!hasDeposit && showReasonDetail" label="原因說明">
           <el-input v-model="form.no_deposit_reason_detail" type="textarea" :rows="2" maxlength="2000" placeholder="詳細說明（選填）" aria-label="原因說明" />
         </el-form-item>

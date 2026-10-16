@@ -45,7 +45,7 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     await admissions.transition('v-1', admissions.transitionRequest('deposited', 2, { deposit_collector: '林老師' }))
     expect(post).toHaveBeenLastCalledWith('/admin/admissions/records/v-1/transition', {
       to_stage: 'deposited', expected_version: 2, reason: null, deposit_collector: '林老師',
-      enrolled_on: null, grade: null, target_school_year: null, target_semester: null,
+      enrolled_on: null, grade: null, target_school_year: null, target_semester: null, withdraw_reason_category: null,
     })
     await admissions.setSeat('v-1', { grade: '小班', target_school_year: 115, target_semester: 1, expected_version: 2 } as never)
     expect(post).toHaveBeenLastCalledWith('/admin/admissions/records/v-1/seat', expect.objectContaining({ grade: '小班' }))

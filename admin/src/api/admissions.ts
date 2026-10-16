@@ -92,6 +92,7 @@ export function transitionRequest(toStage: Stage, expectedVersion: number, field
     grade: null,
     target_school_year: null,
     target_semester: null,
+    withdraw_reason_category: null,
     ...fields,
   }
 }

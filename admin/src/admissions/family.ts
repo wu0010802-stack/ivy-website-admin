@@ -101,8 +101,8 @@ export function familyHistory(history: readonly VisitHistoryOut[], events: reado
 }
 
 /**
- * 招生事件的變更行：階段變化（「已訪視 → 已預繳」）、保留座位的年級學期、修改招生資料的欄位（只有
- * 欄位中文，不含內容）、排下次聯絡的時間（2026-10-15）。歷程抽屜與預約明細共用。
+ * 招生事件的變更行：階段變化（「已訪視 → 已預繳」）、保留座位的年級學期、退出的原因分類、修改招生資料的
+ * 欄位（只有欄位中文，不含內容）、排下次聯絡的時間（2026-10-15）。歷程抽屜與預約明細共用。
  */
 export function recruitmentEventChanges(event: RecruitmentEvent): string[] {
   const lines: string[] = []
@@ -116,6 +116,9 @@ export function recruitmentEventChanges(event: RecruitmentEvent): string[] {
     const semester = typeof metadata.semester === 'number' ? metadata.semester : null
     const seat = [grade, year ? termLabel(year, semester) : ''].filter(Boolean).join('・')
     if (seat) lines.push(seat)
+  }
+  if (event.event_type === 'withdrawn' && typeof metadata.withdraw_reason_category === 'string') {
+    lines.push(`原因：${metadata.withdraw_reason_category}`)
   }
   if (event.event_type === 'details_updated' && Array.isArray(metadata.fields)) {
     // 帶參觀老師的帳號與姓名是兩個欄位、同一個中文，只列一次。

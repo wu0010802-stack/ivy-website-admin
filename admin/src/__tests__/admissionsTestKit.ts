@@ -7,6 +7,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, type Router } from 'vue-router'
 import ElementPlus from 'element-plus'
 import { api } from '../api/client'
+import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
   AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaTrends,
   UserOut, VillageBoundaries,
@@ -15,6 +16,10 @@ import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
 export const wrappers: VueWrapper[] = []
+
+/** /stats 的退出原因分佈：後端一定回八項＋「未分類」共 9 列（W1 順序），沒有人退出時全是 0。 */
+export const emptyWithdrawReasons = () =>
+  [...WITHDRAW_REASON_CATEGORIES, UNCLASSIFIED_LABEL].map((reason) => ({ reason, deposited: 0, enrolled: 0, total: 0 }))
 
 /** afterEach 用：卸載、還原 mock 與計時器、清掉掛在 body 的彈出層。 */
 export function cleanup(): void {
@@ -116,7 +121,7 @@ export const visit = (changes: Record<string, unknown> = {}) => ({
   source_category: null, has_deposit: false, rides_bus: false, notes: null, parent_response: null, geocoding_consent_at: null,
   no_deposit_reason: null, no_deposit_reason_detail: null, enrolled: false, enrolled_on: null, transfer_term: false,
   provisional_grade: null, target_school_year: 115, target_semester: 1, withdrawn_at: null, withdrawn_from: null,
-  withdraw_reason: null, version: 1, created_at: '2026-09-08T02:00:00Z', updated_at: '2026-09-08T02:00:00Z',
+  withdraw_reason: null, withdraw_reason_category: null, version: 1, created_at: '2026-09-08T02:00:00Z', updated_at: '2026-09-08T02:00:00Z',
   stage: 'visited', has_visit_request: false, anonymized_at: null, geo: null, ...changes,
 })
 

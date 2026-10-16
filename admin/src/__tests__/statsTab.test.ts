@@ -5,7 +5,7 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { AdmissionsStats } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
-import { button, cleanup, deferred, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
+import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaTab.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -129,6 +129,12 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
     no_deposit_total: 3,
     no_deposit_priority: { high: 2, medium: 0, low: 0, other: 1 },
     no_deposit_summary: { high_potential_count: 2, overdue_followup_count: 3, cold_count: 0, high_potential_backlog_count: 2 },
+    withdraw_reasons: [
+      { reason: '費用考量', deposited: 1, enrolled: 1, total: 2 },
+      { reason: '搬家／距離因素', deposited: 0, enrolled: 0, total: 0 },
+      { reason: '未分類', deposited: 1, enrolled: 0, total: 1 },
+    ],
+    withdraw_total: 3,
     deposit_timing: { status: 'insufficient', visits: 3, deposited: 0, missing_time: 6, min_events: 10, checkpoints: [], half_by_day: null },
     deposit_pace: { evaluable: false, reason: 'insufficient_baseline', month: '115.09', visits: 3, expected: null, observed: 0, slow: false },
     ...changes,
@@ -151,6 +157,7 @@ function emptyStats(): AdmissionsStats {
     top_source_names: [], by_tour_guide: [], tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [],
     no_deposit_total: 0, no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
+    withdraw_reasons: emptyWithdrawReasons(), withdraw_total: 0,
   })
 }
 

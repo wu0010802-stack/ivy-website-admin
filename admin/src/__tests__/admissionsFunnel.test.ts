@@ -155,7 +155,7 @@ describe('換欄：拖曳與確認框（規格 6.3）', () => {
     await flushPromises()
     expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toEqual({
       to_stage: 'deposited', expected_version: 2, reason: null, deposit_collector: '林老師',
-      enrolled_on: null, grade: null, target_school_year: null, target_semester: null,
+      enrolled_on: null, grade: null, target_school_year: null, target_semester: null, withdraw_reason_category: null,
     })
     expect(success).toHaveBeenCalledWith('已更新階段')
     expect(pathsTo(get, '/admin/admissions/board')).toHaveLength(2)
@@ -197,7 +197,7 @@ describe('換欄：拖曳與確認框（規格 6.3）', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('鍵盤「移到…」：櫃台只列有權限的目的欄；標題寫「已預繳 → 退預繳」，要填原因才能標記退預繳', async () => {
+  it('鍵盤「移到…」：櫃台只列有權限的目的欄；標題寫「已預繳 → 退預繳」，要選退出原因才能標記退預繳', async () => {
     mockGet({ '/admin/admissions/board': board({ deposited: [card({ version: 4 })] }) })
     const post = mockPost({ '/admin/admissions/records/v-1/transition': visit({ stage: 'withdrawn' }) })
     const { wrapper } = await mountWith(FunnelBoard, { props: boardProps(), user: reception() })
@@ -207,13 +207,19 @@ describe('換欄：拖曳與確認框（規格 6.3）', () => {
     expect(bodyText()).toContain('將標記退預繳。若已實際收款，退款要另外處理')
     expect(dialogButton('標記退預繳')!.disabled).toBe(true)
     expect(dialogButton('先不要')).toBeDefined()
-    const reason = document.body.querySelector<HTMLTextAreaElement>('textarea[aria-label="原因"]')!
-    reason.value = '家長決定不讀'
-    reason.dispatchEvent(new Event('input'))
+    expect(document.body.querySelector('textarea[aria-label="原因"]')).toBeNull()
+    const note = document.body.querySelector<HTMLTextAreaElement>('textarea[aria-label="說明"]')!
+    note.value = '家長決定不讀'
+    note.dispatchEvent(new Event('input'))
+    await flushPromises()
+    expect(dialogButton('標記退預繳')!.disabled).toBe(true) // 只寫說明不夠，要選分類
+    wrapper.getComponent(TransitionDialog).findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', '費用考量')
     await flushPromises()
     dialogButton('標記退預繳')!.click()
     await flushPromises()
-    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toMatchObject({ to_stage: 'withdrawn', expected_version: 4, reason: '家長決定不讀' })
+    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toMatchObject({
+      to_stage: 'withdrawn', expected_version: 4, withdraw_reason_category: '費用考量', reason: '家長決定不讀',
+    })
   })
 
   it('標記註冊：預設今天、卡片的保留年級與入學學期，可改', async () => {
@@ -231,7 +237,7 @@ describe('換欄：拖曳與確認框（規格 6.3）', () => {
     await flushPromises()
     expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toEqual({
       to_stage: 'enrolled', expected_version: 5, reason: null, deposit_collector: null,
-      enrolled_on: '2026-10-01', grade: '中班', target_school_year: 115, target_semester: 2,
+      enrolled_on: '2026-10-01', grade: '中班', target_school_year: 115, target_semester: 2, withdraw_reason_category: null,
     })
   })
 })
@@ -532,13 +538,17 @@ describe('歷程抽屜：聯絡人、電話與換階段（2026-10-05 招生入�
     items.find((item) => item.textContent?.trim() === '退預繳／退註冊')!.click()
     await flushPromises()
     expect(document.body.querySelector('.transition-dialog .el-dialog__title')?.textContent).toBe('已預繳 → 退預繳')
-    const reason = document.body.querySelector<HTMLTextAreaElement>('textarea[aria-label="原因"]')!
-    reason.value = '家長決定不讀'
-    reason.dispatchEvent(new Event('input'))
+    const note = document.body.querySelector<HTMLTextAreaElement>('textarea[aria-label="說明"]')!
+    note.value = '家長決定不讀'
+    note.dispatchEvent(new Event('input'))
+    await flushPromises()
+    wrapper.getComponent(TransitionDialog).findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', '費用考量')
     await flushPromises()
     dialogButton('標記退預繳')!.click()
     await flushPromises()
-    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toMatchObject({ to_stage: 'withdrawn', expected_version: 4, reason: '家長決定不讀' })
+    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toMatchObject({
+      to_stage: 'withdrawn', expected_version: 4, withdraw_reason_category: '費用考量', reason: '家長決定不讀',
+    })
     expect(wrapper.emitted('changed')?.[0]).toEqual([moved])
     expect(pathsTo(get, '/admin/admissions/records/v-1').filter((path) => path === '/admin/admissions/records/v-1')).toHaveLength(2)
   })
@@ -585,13 +595,45 @@ describe('轉換確認框：確認鍵寫出動作、退出寫具體來源、開�
   it.each([
     ['visited', 'deposited', 'input[aria-label="收預繳人員"]'],
     ['deposited', 'enrolled', 'input[aria-label="註冊日期"]'],
-    ['deposited', 'withdrawn', 'textarea[aria-label="原因"]'],
+    ['deposited', 'withdrawn', '.transition-dialog input[aria-label="退出原因"]'],
+    ['enrolled', 'withdrawn', '.transition-dialog input[aria-label="退出原因"]'],
     ['enrolled', 'deposited', 'textarea[aria-label="原因"]'],
+    ['enrolled', 'visited', 'textarea[aria-label="原因"]'],
   ])('%s → %s：開啟後焦點在第一個輸入框', async (from, to, selector) => {
     const wrapper = await openDialog(from, to)
     wrapper.findComponent({ name: 'ElDialog' }).vm.$emit('opened')
     await flushPromises()
     expect(document.activeElement).toBe(document.body.querySelector(selector))
+  })
+
+  it('退出只選分類、不寫說明也能送（說明送 null）；退回已預繳仍要寫原因、沒有分類下拉', async () => {
+    const post = mockPost({ '/admin/admissions/records/v-1/transition': visit({ stage: 'withdrawn' }) })
+    const wrapper = await openDialog('deposited', 'withdrawn', { version: 3 })
+    expect(dialogButton('標記退預繳')!.disabled).toBe(true)
+    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', '搬家／距離因素')
+    await flushPromises()
+    expect(dialogButton('標記退預繳')!.disabled).toBe(false)
+    dialogButton('標記退預繳')!.click()
+    await flushPromises()
+    expect(bodyOf(post, '/admin/admissions/records/v-1/transition')).toMatchObject({
+      to_stage: 'withdrawn', expected_version: 3, withdraw_reason_category: '搬家／距離因素', reason: null,
+    })
+    cleanup()
+    const revert = await openDialog('enrolled', 'deposited')
+    expect(revert.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
+    expect(document.body.querySelector('textarea[aria-label="原因"]')).not.toBeNull()
+    expect(dialogButton('退回已預繳')!.disabled).toBe(true)
+  })
+
+  it('再次打開退出對話框，上一次選的分類與說明不會殘留', async () => {
+    const wrapper = await openDialog('deposited', 'withdrawn')
+    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', '費用考量')
+    await flushPromises()
+    expect(dialogButton('標記退預繳')!.disabled).toBe(false)
+    await wrapper.setProps({ modelValue: false })
+    await wrapper.setProps({ modelValue: true })
+    await flushPromises()
+    expect(dialogButton('標記退預繳')!.disabled).toBe(true)
   })
 
   it('註冊日期聚焦時不自動彈出月曆（已預設今天）', async () => {

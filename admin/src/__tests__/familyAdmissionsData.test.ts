@@ -54,6 +54,12 @@ describe('招生資料面板', () => {
     cleanup()
     const withdrawn = await mountWith(FamilyAdmissionsData, { props: { visit: visit({ ...paper, stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited', withdraw_reason: '改送他校' }), options, editable: true } })
     expect(valueOf(withdrawn.wrapper, '退出原因')).toBe('改送他校')
+    cleanup()
+    const classified = await mountWith(FamilyAdmissionsData, { props: { visit: visit({ ...paper, stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited', withdraw_reason_category: '費用考量', withdraw_reason: '學費' }), options, editable: true } })
+    expect(valueOf(classified.wrapper, '退出原因')).toBe('費用考量（學費）')
+    cleanup()
+    const categoryOnly = await mountWith(FamilyAdmissionsData, { props: { visit: visit({ ...paper, stage: 'withdrawn', withdrawn_at: '2026-10-09T00:00:00Z', withdrawn_from: 'deposited', withdraw_reason_category: '費用考量' }), options, editable: true } })
+    expect(valueOf(categoryOnly.wrapper, '退出原因')).toBe('費用考量')
   })
 
   it('沒填姓名寫「待補」', async () => {

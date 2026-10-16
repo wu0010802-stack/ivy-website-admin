@@ -9,7 +9,9 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/erro
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
 import { campusLabel } from '../../api/labels'
 import { rocDate, taipeiToday, termLabel } from '../../admissions/academic'
-import { ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, type Stage, type TransitionTarget } from '../../admissions/constants'
+import {
+  ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, withdrawReasonText, type Stage, type TransitionTarget,
+} from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
@@ -272,7 +274,7 @@ function extraInfo(row: RecruitmentVisit): InfoItem[] {
     { label: '註冊日期', value: rocDate(row.enrolled_on) },
     { label: '轉學期', value: row.transfer_term ? '是' : '' },
     { label: '未預繳原因', value: [row.no_deposit_reason, row.no_deposit_reason_detail].filter(Boolean).join('：') },
-    { label: '退出原因', value: row.withdraw_reason ?? '', wide: true },
+    { label: '退出原因', value: withdrawReasonText(row), wide: true },
     { label: '電訪回應', value: row.parent_response ?? '', wide: true },
     { label: '備註', value: row.notes ?? '', wide: true },
   ]
