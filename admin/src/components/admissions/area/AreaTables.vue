@@ -13,6 +13,7 @@ import EnrolledPanel from './EnrolledPanel.vue'
 import PeerFeesPanel from './PeerFeesPanel.vue'
 import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
 import { bandLabel, campusNotLocatedReason, trendsUnavailable, type GradeFilter } from './areaFormat'
+import { addressSummary } from './areaPane'
 import type { PeerAge } from './peerFeesFormat'
 import { villageTableRows } from './villageTable'
 
@@ -123,6 +124,8 @@ const distanceRows = computed(() =>
 const distanceEmptyText = computed(
   () => `${campusNotLocatedReason(props.area.campus.locate_error ?? null) ?? '本校位置尚未確定'}，無法計算距離。`,
 )
+// 有訪視、但沒有任何可比對的地址（沒填或已依保存期限清除）：三張表全是 0 只會誤導，改寫原因（同頁尾那句）。
+const noAddressText = computed(() => addressSummary(props.area).noAddress)
 
 // StatsDimensionTable 是泛型：action 回傳的就是 rows 那一列的型別（後端列型別加上畫面用的欄位），不需要轉型。
 function openDistrict({ district }: AreaDistrictRow) {
@@ -197,6 +200,7 @@ function openVillage({ district, village }: AreaVillageRow) {
 
           <template v-else>
             <p v-if="area.totals.visit === 0" class="empty-note">{{ emptyText }}</p>
+            <p v-else-if="noAddressText" class="empty-note">{{ noAddressText }}</p>
             <div v-else class="area-full-tables__visits">
               <StatsDimensionTable
                 title="行政區排行"

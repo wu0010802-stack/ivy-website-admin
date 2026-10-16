@@ -469,3 +469,75 @@ const HEADER_LINE = [
   '近 4 季新屋', '最近一季新屋', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班', '在籍小班',
   '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
 ].join(',')
+
+// 下面幾條原本在 areaTab.test.ts 測招生機會、里的變化兩個面板（2026-10-16 兩個面板併進各里表後搬過來）。
+describe('各里表：從兩個舊面板搬來的說明與狀態', () => {
+  it('說明：資料來源與月份、判讀的誤報率、新屋與所得的定義與出處', () => {
+    const text = villageHowText(areaTrends(), areaOpportunity())
+    expect(text).toContain('資料來源：內政部戶政司 村里戶數、單一年齡人口，115 年 9 月。')
+    expect(text).toContain('約有一成機率是誤報')
+    expect(text).toContain('（人口 115 年 9 月與 114 年 9 月、出生 114 年 10 月到 115 年 9 月、遷入遷出 114 年 10 月到 115 年 9 月、新成屋 114S4–115S3）')
+    expect(text).toContain('新屋交屋是完工一年內的住宅過戶（含預售屋交屋），不等於已入住、也不等於有孩子。')
+    expect(text).toContain('資料來源：內政部不動產交易實價查詢服務網')
+    expect(text).toContain('所得是 112 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過')
+    expect(text).toContain('財政部財政資訊中心（2026）綜稅綜合所得總額各縣市鄉鎮村里統計分析表-高雄市（112年度）')
+    expect(text).toContain('不宜逕作為衡量所得差距之參據')
+  })
+
+  it('說明：所得、新成屋還沒匯入時寫尚未匯入，不寫出處', () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      sources: { ...base.sources, income: { year: null, note: '' }, new_homes: { latest: null, seasons: [], unplaced: 0, note: '' } },
+      villages: base.villages.map((row) => ({ ...row, income_median: null, income_boundary_changed: false, new_homes: null, new_homes_latest: null })),
+    })
+    const text = villageHowText(trends, areaOpportunity())
+    expect(text).toContain('各里所得資料尚未匯入。')
+    expect(text).not.toContain('財政部')
+    expect(text).toContain('新成屋資料尚未匯入。')
+    expect(text).not.toContain('不動產交易實價查詢服務網')
+  })
+
+  it('里很多時先列前 10 個，「顯示全部」展開、再按收合；匯出 CSV 一律是全部；不到 10 個沒有「顯示全部」', async () => {
+    const base = areaOpportunity().villages[1]!
+    const many = areaOpportunity({
+      villages: Array.from({ length: 12 }, (_, index) => ({ ...base, village: `第${index + 1}里`, village_code: `6400005${String(index).padStart(4, '0')}` })),
+    })
+    const wrapper = mountTable({ trends: null, trendsFailed: true, opportunity: many })
+    const more = () => wrapper.findAll('button').find((button) => /^(顯示全部|只顯示前)/.test(button.text()))
+    expect(wrapper.findAll('tbody tr')).toHaveLength(10)
+    expect(more()!.text()).toBe('顯示全部 12 列')
+    expect(more()!.attributes('aria-expanded')).toBe('false')
+    await more()!.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(12)
+    expect(more()!.text()).toBe('只顯示前 10 列')
+    await more()!.trigger('click')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(10)
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![1].slice(1).split('\r\n').filter(Boolean)).toHaveLength(13)
+    wrapper.unmount()
+    const few = mountTable()
+    expect(few.text()).not.toContain('顯示全部')
+    few.unmount()
+  })
+
+  it('整塊用不了：寫里的變化或招生機會不可用的原因（不是「沒有里的資料」）', () => {
+    const base = areaTrends()
+    const unlocated = mountTable({ trends: areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [] }) })
+    expect(unlocated.get('.stats-block__empty').text()).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+    unlocated.unmount()
+    const nothing = mountTable({
+      trends: areaTrends({
+        kids_unavailable: 'no_population', baseline: null, villages: [],
+        sources: { ...base.sources, population: { month: null, year_ago_month: null }, births: { latest: null, months: [], missing: [] }, migration: { latest: null, months: [], missing: [] } },
+      }),
+    })
+    expect(nothing.get('.stats-block__empty').text()).toBe('各里出生、遷入遷出資料尚未匯入；匯入後就能看哪些里孩子變多。')
+    nothing.unmount()
+    const noPopulation = mountTable({
+      trends: null, trendsFailed: true,
+      opportunity: areaOpportunity({ population: { ...areaOpportunity().population, version: null, synced_at: null }, baseline: null, villages: [] }),
+    })
+    expect(noPopulation.get('.stats-block__empty').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+    noPopulation.unmount()
+  })
+})

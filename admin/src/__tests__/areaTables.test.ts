@@ -333,3 +333,131 @@ describe('完整表格：樣式與標記', () => {
     expect(tablesSource).not.toContain('as unknown as')
   })
 })
+
+// 下面幾條原本在 areaTab.test.ts 測頁底三張表、依國小學區與在籍學生面板（2026-10-16 收進完整表格的分頁後搬過來）。
+describe('完整表格：參觀來源的表頭、各列與狀態', () => {
+  const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, ...changes })
+
+  it('三張表的表頭同其他子分頁；各列的預繳率與可能範圍；距離表沒有「查看明細」欄', () => {
+    const wrapper = mountTables({ tab: 'visits' })
+    expect(block(wrapper, '行政區排行').findAll('thead th').map((th) => th.text())).toEqual(['#', '行政區', '參觀人數', '預繳人數', '預繳率', '可能範圍', '操作'])
+    expect(bodyRows(block(wrapper, '行政區排行'))).toEqual([
+      ['1', '三民區', '5', '2', '40.0%', '17–47%', '查看明細'],
+      ['2', '鼓山區', '1', '0', '0.0%', '10–42%', '查看明細'],
+    ])
+    expect(bodyRows(block(wrapper, '里排行'))).toEqual([
+      ['1', '三民區本揚里', '3', '1', '33.3%', '14–45%', '查看明細'],
+      ['2', '三民區寶業里', '1', '1', '100.0%', '17–53%', '查看明細'],
+      ['3', '鼓山區龍子里', '1', '0', '0.0%', '10–42%', '查看明細'],
+    ])
+    expect(block(wrapper, '距離分布').findAll('thead th').map((th) => th.text())).toEqual(['距本校', '參觀人數', '預繳人數', '預繳率', '可能範圍'])
+    expect(bodyRows(block(wrapper, '距離分布'))).toEqual([
+      ['1 公里內', '4', '2', '50.0%', '18–50%'],
+      ['1–3 公里', '0', '0', '—', '—'],
+      ['3–6 公里', '1', '0', '0.0%', '10–42%'],
+      ['6 公里以上', '0', '0', '—', '—'],
+      ['無距離', '4', '0', '0.0%', '8–34%'],
+    ])
+    expect(block(wrapper, '距離分布').find('tbody button').exists()).toBe(false)
+  })
+
+  it('里依參觀人數多到少排；同數保留後端的順序', () => {
+    const area = areaStats({
+      villages: [
+        { district: '三民區', village: '本揚里', village_code: '64000050015', visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+        { district: '三民區', village: '寶業里', village_code: '64000050025', visit: 4, deposit: 1, visit_to_deposit_rate: 25 },
+        { district: '鼓山區', village: '龍子里', village_code: null, visit: 1, deposit: 0, visit_to_deposit_rate: 0 },
+      ],
+    }) as unknown as AdmissionsArea
+    const wrapper = mountTables({ tab: 'visits', area })
+    expect(bodyRows(block(wrapper, '里排行')).map((row) => row[1])).toEqual(['三民區寶業里', '三民區本揚里', '鼓山區龍子里'])
+  })
+
+  it('匯出 CSV：檔名用頁面給的格式；不含「查看明細」欄', async () => {
+    const wrapper = mountTables({ tab: 'visits' })
+    await block(wrapper, '行政區排行').get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-行政區排行.csv')
+    expect(csv.slice(1).split('\r\n')[0]).toBe('#,行政區,參觀人數,預繳人數,預繳率,可能範圍下限,可能範圍上限')
+  })
+
+  it.each([
+    ['no_doorplate', '本校地址比對不到門牌，無法計算距離。'],
+    ['no_address', '找不到本校地址，無法計算距離。'],
+    ['pending', '門牌資料尚未匯入，無法計算距離。'],
+    ['mystery', '本校位置尚未確定，無法計算距離。'],
+  ])('本校沒有座標（%s）：距離表不列數字，改寫原因', (locate_error, text) => {
+    const area = areaStats({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error } }) as unknown as AdmissionsArea
+    const distance = block(mountTables({ tab: 'visits', area }), '距離分布')
+    expect(distance.text()).toContain(text)
+    expect(distance.findAll('tbody tr')).toHaveLength(0)
+    expect(distance.find('.stats-block__caption').exists()).toBe(false)
+  })
+
+  it.each([
+    [{ no_address: 3, anonymized: 0 }, '這個範圍的訪視都還沒填地址。'],
+    [{ no_address: 0, anonymized: 4 }, '這個範圍的訪視地址都已依保存期限清除，無法比對。'],
+    [{ no_address: 3, anonymized: 2 }, '這個範圍的訪視沒有可比對的地址：3 筆沒填地址、2 筆已依保存期限清除。'],
+  ])('有訪視但沒有可比對的地址（%o）：不列三張表（不顯示假的 0），改寫原因', (counts, text) => {
+    const area = areaStats({
+      totals: totals({ visit: counts.no_address + counts.anonymized, with_address: 0, village_level: 0, district_level: 0, unlocated: 0, pending: 0, unlocated_reasons: [], ...counts }),
+      districts: [], villages: [],
+    }) as unknown as AdmissionsArea
+    const wrapper = mountTables({ tab: 'visits', area })
+    expect(wrapper.find('.stats-block').exists()).toBe(false)
+    expect(wrapper.get('.empty-note').text()).toBe(text)
+    expect(wrapper.text()).not.toContain(EMPTY_TEXT)
+  })
+})
+
+describe('完整表格：國小學區的表頭、各列與狀態', () => {
+  const TITLE = '依國小學區（本校 3 公里內）'
+
+  it('參觀人數多的在前，校名前加區，備註寫招生方式', () => {
+    const section = block(mountTables({ tab: 'school' }), TITLE)
+    expect(section.findAll('thead th').map((th) => th.text())).toEqual(['#', '國小', '學區里數', '2–5 歲', '這一年淨增', '參觀人數', '參觀率', '備註'])
+    expect(bodyRows(section)).toEqual([
+      ['1', '三民區東光國小', '3 里＋部分 1 里', '927', '+93', '12', '1.3%', '—'],
+      ['2', '三民區光武國小', '4 里＋部分 6 里', '1287', '−19*', '5', '0.4%', '—'],
+      ['3', '鳳山區文華國小', '部分 2 里', '756', '—', '0', '0.0%', '總量管制'],
+    ])
+  })
+
+  it('匯出 CSV：學區里數拆整里、部分里，淨增寫數字並另標有里沒算進去', async () => {
+    await block(mountTables({ tab: 'school' }), TITLE).get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-依國小學區.csv')
+    const lines = csv.slice(1).split('\r\n')
+    expect(lines[0]).toBe('#,國小,學區整里數,學區部分里數,2–5 歲,這一年淨增,淨增有里沒算進去,參觀人數,參觀率,備註')
+    expect(lines[2]).toBe('2,三民區光武國小,4,6,1287,-19,是,5,0.4%,')
+    expect(lines[3]).toBe('3,鳳山區文華國小,0,2,756,,,0,0.0%,總量管制')
+  })
+
+  it('本校沒座標：寫原因', () => {
+    const base = areaTrends()
+    const unlocated = areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [], schools: [] })
+    expect(block(mountTables({ tab: 'school', trends: unlocated }), TITLE).get('.stats-block__empty').text())
+      .toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+  })
+
+  it('人口還沒匯入：2–5 歲寫「—」不畫長條', () => {
+    const base = areaTrends()
+    const trends = areaTrends({ schools: base.schools.map((row) => ({ ...row, children: null, kids_net: null, rate: null })) })
+    expect(bodyRows(block(mountTables({ tab: 'school', trends }), TITLE))[0]).toEqual(['1', '三民區東光國小', '3 里＋部分 1 里', '—', '—', '12', '—', '—'])
+  })
+})
+
+describe('完整表格：在籍學生的各列與 CSV', () => {
+  it('距離分布每帶一列（最後是無距離）、里排行人數多到少；匯出距離分布 CSV 只有聚合數字', async () => {
+    const wrapper = mountTables({ tab: 'enrolled' })
+    expect(bodyRows(block(wrapper, '在籍學生距離分布'))[0]).toEqual(['1 公里內', '0', '1', '1', '0', '2'])
+    expect(bodyRows(block(wrapper, '在籍學生距離分布')).at(-1)![0]).toBe('無距離')
+    expect(bodyRows(block(wrapper, '在籍學生里排行（全部）')).map((row) => row.slice(0, 3))).toEqual([
+      ['1', '三民區本揚里', '3'], ['2', '三民區寶業里', '1'], ['3', '左營區新上里', '1'],
+    ])
+    await block(wrapper, '在籍學生距離分布').get('[data-test="stats-csv"]').trigger('click')
+    const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(filename).toBe('招生統計-在籍學生距離分布.csv')
+    expect(csv.slice(1).split('\r\n')[0]).toBe('距本校,幼幼班,小班,中班,大班,合計')
+  })
+})
