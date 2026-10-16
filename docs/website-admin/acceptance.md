@@ -27,7 +27,7 @@
 | A15 | D | 審核、排程、到期下架、併發編輯與權限失效正確 | 通過（2026-09-25／26 更新） | 消息／活動上下架（`test_home_news.py`）之外，**內容送審／核准／退回已完成**（過期待審版自動標記 `superseded`，送審通知可核准的人、核准或退回通知送審者）；**整份內容排程發布已完成**，到期時若官網已是更新版本會標成「已略過」而不蓋回舊內容，失敗或略過都通知排程者並列在總覽；全站 release 還原見 A03 |
 | A14 | D | 點擊和預約分開；Dashboard 與分析不漏校或 PII | 通過（2026-09-25 更新） | `test_operations.py`：偽造成效事件拒絕、點擊不影響 request_created 計數、dashboard/匯出跨校隔離、稽核紀錄不含個資；成效漏斗新增 `visit_cancelled`（含原因）、日期區間、依來源／「從哪裡知道我們」分組；公開點擊事件改用 `event_id` 去重＋入口代碼白名單 |
 | A17 | D | 保存政策 dry-run／匿名化、備份還原有實測 | 通過（2026-09-25／26 更新） | dry-run 不改資料、真正執行預設關閉、對真實隔離測試 DB + 測試媒體做過備份/還原演練；**保存政策已改為後台可設定天數並持久化**（`retention_policies`，依結案時間起算，未結案案件一律不清），有清理紀錄與定期工作自動清理開關（兩個開關都要開才會自動跑） |
-| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 部分（2026-10-12 重寫；缺「hydrate 不重複讀取」的測試） | **已有**——(1) 新鮮度：`tests/e2e/release-freshness.spec.ts` 真的發布一版 `home_hero`，驗證新 HTTP 請求（在 3 秒快取 TTL 內輪詢）／重新整理／站內換頁都讀到新內容；`tests/stack/content-flow.spec.ts`（CI 跑的 stack 套件）驗證核准發布後 `/api/public-site` 在 TTL 內出現新內容；快取行為：`web/tests/published-site.spec.ts`（TTL 內共用、過期帶 `If-None-Match` 重新驗證、並發只打一次、失敗不快取、API 暫時失敗退回上一份）。CMS content kind 目前 15 種（見 A01 與 `backend/app/content/schemas.py` 開頭註解），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`），沒有逐 kind 的新鮮度測試。(2) 無跨 request 私密資料：`web/server/utils/published-site.ts` 的程序內快取只放已發布內容（API `/public/site` 不看 cookie）；`/preview` 走獨立 client-only 殼，`tests/e2e/private-preview.spec.ts` 與 `web/tests/preview-headers.spec.ts` 驗證未登入拒絕、private/no-store＋noindex、公開首頁看不到草稿。(3) hydration 不出錯：`tests/stack/hydration.spec.ts`（見 A24）。**還缺**——「hydrate 不重複讀取」：`usePublishedSite()` 用固定 key `published-site` 的 `useAsyncData` 讓 SSR payload 與 hydrate 共用，但 `tests/` 與 `web/tests/` 沒有任何測試計算瀏覽器首次載入時對 `/api/published-site` 的請求數，所以這一條只有程式設計、沒有驗證；補一支 stack e2e 記錄首次載入的請求、斷言 hydrate 後沒有再打 `/api/published-site`，即可改通過。另外 `release-freshness.spec.ts` 屬 `tests/e2e/`，CI 只跑 `npm run test:e2e:stack`，所以它不在 CI 內，2026-10-12 也未重跑 |
+| A23 | C | 發布後新 SSR／刷新／站內換頁讀新 release；hydrate 不重複讀取；無跨 request 私密資料 | 通過（2026-10-16：補上「hydrate 不重複讀取」的 stack e2e；`release-freshness.spec.ts` 仍不在 CI，見證據欄最後） | **已有**——(1) 新鮮度：`tests/e2e/release-freshness.spec.ts` 真的發布一版 `home_hero`，驗證新 HTTP 請求（在 3 秒快取 TTL 內輪詢）／重新整理／站內換頁都讀到新內容；`tests/stack/content-flow.spec.ts`（CI 跑的 stack 套件）驗證核准發布後 `/api/public-site` 在 TTL 內出現新內容；快取行為：`web/tests/published-site.spec.ts`（TTL 內共用、過期帶 `If-None-Match` 重新驗證、並發只打一次、失敗不快取、API 暫時失敗退回上一份）。CMS content kind 目前 15 種（見 A01 與 `backend/app/content/schemas.py` 開頭註解），新鮮度機制對所有 kind 一致（同一個 `usePublishedSite`／`applyContentOverlay`），沒有逐 kind 的新鮮度測試。(2) 無跨 request 私密資料：`web/server/utils/published-site.ts` 的程序內快取只放已發布內容（API `/public/site` 不看 cookie）；`/preview` 走獨立 client-only 殼，`tests/e2e/private-preview.spec.ts` 與 `web/tests/preview-headers.spec.ts` 驗證未登入拒絕、private/no-store＋noindex、公開首頁看不到草稿。(3) hydration 不出錯：`tests/stack/hydration.spec.ts`（見 A24）。(4) hydrate 不重複讀取（2026-10-16 補）：`tests/stack/hydration.spec.ts` 對 8 個公開頁記錄瀏覽器發出的請求，斷言首次載入到 hydration 結束都沒有打 `/api/published-site`；同檔另一則在頁面裡自己打一次、斷言監聽記得到，證明空陣列不是漏抓（本機 stack 10 passed）。站內 NuxtLink 換頁同 key 沿用資料，實測也是 0 次請求（同 DESIGN「效能第四輪」）。**仍待查**—— `release-freshness.spec.ts` 屬 `tests/e2e/`，CI 只跑 `npm run test:e2e:stack`，所以它不在 CI 內，2026-10-12 也未重跑；它斷言「站內換頁讀到新內容」，和換頁不重讀 `/api/published-site` 的實測看起來不一致，要重跑才知道是哪一邊需要更正 |
 
 ## 階段 A 小結（2026-09-19）
 
@@ -376,12 +376,12 @@ npm run e2e:build && npm run test:e2e:stack
 - 需要使用者處理、本分支明確沒做（不可逆或需登入正式環境）：簡訊驗證（付費）、正式庫與媒體備份／PITR（需登入 Railway，可能付費）、斷開 Railway 原生部署、正式站執行 `initialize-content`（2026-10-08 起不再建立 FAQ）、SMTP／Google／LINE／S3 正式環境變數、四校正式內容（園方提供）、CI 的 `e2e` job 是否要擋部署（目前只檢查）。
 - 各批次 followups 累積的細項（例如：接待人員能否標記通知已讀、個資匯出能否授予櫃台、`booking_configs.version` 因為改家長異動期限也會跳號等；「待核准改期不會自己過期」隨改期申請 2026-10-08 刪除而不存在，「Google 解除綁定後同 Email 自動重綁」10-06 改成自行綁定後也不成立）散在各 commit 訊息，尚未整併成單一清單，需要時可以逐一搜尋 commit log。
 
-## 家長自選場次預約（2026-09-30 業主裁定，2026-10-01 實作，尚未部署）
+## 家長自選場次預約（2026-09-30 業主裁定，2026-10-01 實作，10-01 已部署 main `b216133`）
 
 預約語意改為「官網只有自選場次、送出即預約成功」，A 表中與預約語意相關的驗收項（待確認、人工確認、inquiry、時段與容量頁）以新規格 `docs/specs/2026-09-30-parent-self-booking-design.md` 為準。對應驗證：後端 pytest（含真 PostgreSQL 最後名額並發）、`web` 與 `admin` 單元測試、`tests/stack`（真 API＋官網＋後台，確認信寫進 sink）。未驗證：Safari／iOS 實機、真實 SMTP 投遞。上線前人工步驟見 `deploy/README.md`「家長自選場次（未部署，草稿）」。
 
 
-## 招生入學（2026-10-01 實作，階段 A–C 完成，尚未部署）
+## 招生入學（2026-10-01 實作，階段 A–C 完成，10-02 已部署 main `2eafc1b`、後續修正隨 `a2ed829`）
 
 規格 `docs/specs/2026-09-30-website-admissions-design.md`；計畫 `docs/superpowers/plans/2026-10-01-admissions*.md`（A 後端、B 後台、C 統計）。分支 `feature/admissions-20261001` 疊在家長自選場次預約（`0be93ea`）上。後端驗證都用真 PostgreSQL（隔離測試庫 `ivy_website_test_admissions`）。
 
@@ -442,7 +442,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 未驗證：stack e2e 全套（只跑了招生兩支）、Safari／iOS 實機、正式庫 migration。上線前提同招生入學：規格 Q1（擬稿見追蹤規格附錄 A）。
 
-## 隱私權政策頁（2026-10-03 實作，尚未部署）
+## 隱私權政策頁（2026-10-03 實作，10-03 已部署 main `a749480`；園方未發布，正式站 `/privacy` 仍 404）
 
 規格 `docs/specs/2026-10-03-privacy-policy-page-design.md`，計畫 `docs/superpowers/plans/2026-10-03-privacy-policy-page.md`。
 
@@ -494,7 +494,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | 我承辦的未結案、承辦人已停用 | 通過 | `uxRound8Cases.test.ts`、`test_dashboard_my_cases.py` |
 | 登入逾時接續、12 小時前提醒 | 通過（單元測試）；兩分頁換帳號的已知限制已修（2026-10-12），實機雙分頁待驗 | `uxRound8Session.test.ts`、`sessionExpiry.test.ts`、`test_auth_session_limit.py`；換帳號修正（`1fdc209a`）：被登出導來時先記住原帳號，登入頁比對 `/auth/me`，不同人就停在登入頁、不拿對方的 session，同一人才恢復並導回原頁，測試 `authGuardSwitchUser.test.ts` |
 
-未驗證：Safari／iOS 實機；正式站（未部署）；兩分頁換帳號只有單元測試，沒有真的開兩個瀏覽器分頁操作過。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
+未驗證：Safari／iOS 實機；正式站（10-04 已部署，未登入實測）；兩分頁換帳號只有單元測試，沒有真的開兩個瀏覽器分頁操作過。BroadcastChannel 在 LINE 內建瀏覽器是否可用未查（沒有時退回手動按「我已重新登入」）。
 
 ## 總管理者寄重設密碼連結（2026-10-04 實作，10-04 已部署 main `d559cae`）
 
@@ -553,7 +553,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 未驗證：實機 iOS／Android、正式站；後台草稿預覽沒在瀏覽器實測；後台換照片後在已發布頁面的實際裁切只有單元測試。30 週年頁與 `llms.txt` 的 1997 寫死、不跟沿革年份。
 
-## 素材背景轉檔（2026-10-04 實作，尚未部署）
+## 素材背景轉檔（2026-10-04 實作，10-05 已部署 main `11ccc8e`）
 
 | 項目 | 狀態 | 證據 |
 |---|---|---|
@@ -583,7 +583,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | F4 | 開關關閉、沒有招生權限、已到場但沒有訪視三種情況，畫面與改版前相同 | `visitFamilyPage.test.ts`「不是家庭版面的情況維持原樣」、`admissionsVisitDetail.test.ts` |
 | F5 | 後端新欄位、契約一致；沒有 migration | `test_admissions_family_page_fields.py`、`npm run contract:check` |
 
-## 後台匯出擴充（2026-10-06 實作，`feature/admin-exports-20261006`，尚未部署）
+## 後台匯出擴充（2026-10-06 實作，`feature/admin-exports-20261006`，10-07 已部署 main `6408063d`）
 
 計畫 `docs/superpowers/plans/2026-10-03-admin-exports.md`（10-06 對 main 修訂）；規則見 DESIGN.md「後台匯出擴充（2026-10-06）」。使用者 10-06 裁定：招生明細與未預繳名單開放含個資匯出（取代招生規格 3.2）、沿用 `booking.export`、操作紀錄匯出不另寫稽核。編號用 X 開頭，避免和「招生分析階段 1」的 E01–E27 撞號（計畫原本寫的 E11「成效統計匯出」在這份文件裡不存在，改成 X12）。
 
@@ -617,7 +617,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - **正式資料量**：接近 10,000 筆時訪視明細與未預繳名單的匯出時間與記憶體（後端一次把最多 10,001 筆讀進記憶體；`stats.no_deposit_records` 先全讀再切頁，是既有設計）；操作紀錄 5,000 筆逐頁讀的耗時。
 - **成效統計各按鈕的版面**（含各頁瀏覽）只有單元測試，沒有在桌機與手機目視（`依來源` 標題列在 1400px 以下窄欄時按鈕是否換行尚不明）；每日數字的按鈕要先展開 `<details>` 才看得到。
 - 對真後端的前端下載只由 `exports.spec.ts` 涵蓋；單元測試都 mock `downloadServerCsv`。
-- 未部署、正式站未驗證；招生開關在正式站仍關閉。
+- 10-07 已部署 main `6408063d`，正式站未登入驗證。（10-16 更正：原寫「招生開關在正式站仍關閉」有誤，`deploy/README.md`「招生入學」記 10-04 唯讀實測正式站招生路由已掛、開關是開的。）
 
 ### 已知待補（最終審查後留下、不影響正確性）
 
@@ -630,7 +630,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - 授權說明文字：使用者頁「可以匯出負責校區的家長個資（CSV）」與 `EXPORT_HELP` 沒提到地址、父母職業與招生名單；既有被授權者會自動多拿到兩份名單。招生開關在正式站關閉，暫無實害，**開開關前請使用者確認要不要補一句**。
 - **2026-10-08 以上五項都已處理**（`chore/admin-cleanup-20261008`）：`exports.spec.ts` 改用 role／文字定位、`USERS.super_admin.email`、公式開頭規則對齊 `safe_cell`（開頭空白或控制字元也算）、日期以開跑那天起算並接受跨午夜；`serial` 保留（`beforeAll` 建資料不冪等、操作紀錄測試要讀前兩個測試的稽核，理由寫在檔案註解）。每日數字表頭與 CSV 第二欄改成「瀏覽次數」「已到場次數」等（`DailyBars` 必填 `valueLabel`）；操作紀錄搜尋欄改「搜尋紀錄」，有搜尋且還有未載入時筆數句註明「更早的紀錄未載入」，`role="status"` 只包筆數。比率空白收成 `admissions/statsFormat.ts` 的 `rateCsvCell`、伺服器匯出收成 `composables/useServerCsvExport.ts`、`taipeiToday` 只留 `admissions/academic.ts` 一份。招生兩支匯出改成先組好 CSV 再寫稽核並 commit（組檔丟錯不留稽核，有測試）；參觀案件匯出是串流、沒有「先組好整份」這一步，維持原順序並在註解說明。前端補後端同一組民國月份邊界測資。三支匯出的 OpenAPI 改宣告 `text/csv`（`response_class=Response`＋`csv_export.CSV_RESPONSES`）。授權勾選改「可以匯出負責校區的參觀案件與招生名單（CSV）」，`EXPORT_HELP` 寫明含孩子與家長的姓名、電話、Email、地址、父母職業。
 
-## 案件明細時間線（C）與案件列表行程清單（B）（2026-10-06，`feature/admin-visit-ux-20261006`，未部署）
+## 案件明細時間線（C）與案件列表行程清單（B）（2026-10-06，`feature/admin-visit-ux-20261006`，10-07 已部署 main `6408063d`）
 
 計畫：`docs/superpowers/plans/2026-10-06-admin-visit-ux.md`；規則見 DESIGN.md「案件明細：一條時間線＋一個主動作」「參觀案件：照參觀日排的行程清單」。下表的「通過（逐檔）」是各 task 在拋棄式測試庫上逐檔前景跑 vitest／pytest 的結果（數字是該檔當時的測試數），「通過（stack）」是 Task 10 修正輪在拋棄式庫跑 `playwright test -c playwright.stack.config.ts` 整套 81 passed 的結果；全套閘門另列在表後。
 
@@ -663,7 +663,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 未驗證：iOS Safari、Android 實機（觸控、sticky 預覽面板、地址列伸縮）；Chrome 以外的瀏覽器（Playwright 只用 Chrome，`@container` 與 `:has()` 版面沒在 Safari、Firefox 看過）；螢幕閱讀器實際報讀（只有 axe 與測試斷言 `aria-*`）；視覺基準只有 macOS Chrome；正式站與真資料量（跨頁分組、`view-counts` 與依場次排序的 join 查詢在正式資料量下的成本沒量過）；真的開著列表跨過台北午夜（只有 fake timer 測試）。已知限制：1440＋批次勾選＋預覽時長名字換行後第二行以「・」開頭；⌘／Ctrl 點列空白處是同分頁開；家庭階段帳號沒有 `admissions.write` 時頁首主動作區是空的（2026-10-08 三項都已修，見 DESIGN.md「後台工程清理」）。待使用者確認：第五個頁籤「全部」是否保留（目前保留）。
 
-## 2026-10-06 內容編輯三欄＋即時預覽（方向 D，`feature/admin-editor-preview-20261006`，未 push、未部署）
+## 2026-10-06 內容編輯三欄＋即時預覽（方向 D，`feature/admin-editor-preview-20261006`，10-07 已部署 main `6408063d`）
 
 計畫：`docs/superpowers/plans/2026-10-06-admin-editor-preview.md`。規則見 DESIGN.md「官網後台內容編輯：三欄＋即時預覽」。沒有 API 變更（`backend/`、`contracts/` 沒動）。
 

@@ -2230,9 +2230,9 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 線上核對（唯讀）：`/`、`/about`、`/environment`、`/visit`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health`、`/sitemap.xml` 皆 200；`/campuses/yihua`、`/campuses/renwu`、不存在的校區皆 301 轉 `/`；首頁 HTML 沒有 `/campuses` 連結，JSON-LD 只有 EducationalOrganization 與 WebSite。未做瀏覽器檢查。
 - 後台分校簡介、常見問題、環境導覽、預約橫幅文案仍可編輯，但公開站已沒有頁面顯示。
 
-## 家長自選場次（未部署，草稿）
+## 家長自選場次（上線前草稿；10-01 已部署 main `b216133`，下列人工步驟仍適用）
 
-`feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。**尚未 push、尚未部署**；B–D 完成後由使用者決定何時合併上線（push main＝正式部署）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
+`feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。2026-10-01 已隨 main `b216133` 上線（10-16 補註）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
 
 上線前人工步驟：
 1. **寄信帳號**：Railway api 設 `WEBSITE_SMTP_HOST／PORT／SECURITY／USERNAME／PASSWORD／FROM`（Gmail／Google Workspace 應用程式密碼最省事；用學校網域寄件要先設 SPF／DKIM）。不設也能上線，家長只在畫面上看到修改連結（`parent_email_enabled=false`）。
