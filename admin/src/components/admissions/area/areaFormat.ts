@@ -163,6 +163,11 @@ export function visitGeoText(geo: VisitGeo | null | undefined, district: string 
 // 地圖模式（2026-10-16 工作台）：定義移到 admissions/areaView.ts（網址參數也用它），這裡轉出讓既有 import 不用改。
 export { MAP_MODES, type MapMode } from '../../../admissions/areaView'
 
+// 地圖與右欄在某個模式沒有東西可畫、可排時的一句（AreaMap 的圖例與右欄標題區共用，字不改）。
+export const NO_CHILDREN_DATA_TEXT = '半徑內的里沒有 2–5 歲孩子的資料。'
+export const NO_NEW_HOMES_TEXT = '半徑內近 4 季沒有新屋交屋。'
+export const NO_LOCATED_VISITS_TEXT = '這個範圍還沒有定位到里的參觀。'
+
 /** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
 export const populationVersionLabel = doorplateVersionLabel
 
@@ -514,14 +519,31 @@ export function homesMax(villages: readonly HomesRow[]): number {
   )
 }
 
+/** 里的變化總結：`lines`／`note` 是整塊面板的寫法；其餘是同樣的句子依類別拆開（右欄標題區各模式只取自己的）。 */
+export interface TrendsSummary {
+  lines: string[]
+  note: string
+  /** 孩子數與這一年淨增那句；沒有孩子數時沒有。 */
+  kids: string[]
+  /** 近 12 個月出生那句；沒有出生資料時沒有。 */
+  births: string[]
+  /** 近 4 季新屋交屋那句；新成屋沒匯入或沒有任何一季時沒有。 */
+  homes: string[]
+  /** note 的三段（依序直接相接就是 note）：里界調整合併、淨增算不出的原因、新屋只到區沒算進去。 */
+  notes: { merged: string; kids: string; homes: string }
+}
+
 /**
  * 里的變化的總結（規格 7.2）：每一句只在有資料時出現；note 是合併組與算不出來的原因。
  * 本校沒座標（baseline 是 null）回 null，由呼叫端寫 trendsUnavailable 的原因。
  */
-export function trendsSummary(data: AreaTrends): { lines: string[]; note: string } | null {
+export function trendsSummary(data: AreaTrends): TrendsSummary | null {
   const { baseline, radius_km: radius } = data
   if (!baseline) return null
-  const lines: string[] = []
+  const kids: string[] = []
+  const births: string[] = []
+  const migration: string[] = []
+  const homesLines: string[] = []
   if (baseline.children !== null) {
     let lead = `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位`
     if (baseline.kids_net !== null && baseline.kids_base) {
@@ -529,7 +551,7 @@ export function trendsSummary(data: AreaTrends): { lines: string[]; note: string
       const net = baseline.kids_net
       lead += `；和一年前同一批孩子比，${net < 0 ? '淨減' : '淨增'} ${formatCount(Math.abs(net))} 位（${share}）`
     }
-    lines.push(`${lead}。`)
+    kids.push(`${lead}。`)
   }
   if (baseline.births_12m !== null) {
     const partial = baseline.births_months < 12 ? `（有 ${baseline.births_months} 個月的資料）` : ''
@@ -538,11 +560,11 @@ export function trendsSummary(data: AreaTrends): { lines: string[]; note: string
       change === null
         ? ''
         : `，比前一年同期${change < 0 ? '少' : '多'} ${Math.abs(change).toFixed(1)}%（比 ${baseline.births_compared_months} 個月）`
-    lines.push(`近 12 個月出生 ${formatCount(baseline.births_12m)} 位${partial}${compare}。`)
+    births.push(`近 12 個月出生 ${formatCount(baseline.births_12m)} 位${partial}${compare}。`)
   }
   if (baseline.migration_net_12m !== null) {
     const net = baseline.migration_net_12m
-    lines.push(`近 12 個月全年齡${net < 0 ? '淨遷出' : '淨遷入'} ${formatCount(Math.abs(net))} 人。`)
+    migration.push(`近 12 個月全年齡${net < 0 ? '淨遷出' : '淨遷入'} ${formatCount(Math.abs(net))} 人。`)
   }
   const homes = baseline.new_homes_seasons > 0 ? baseline.new_homes : null
   if (homes !== null) {
@@ -553,17 +575,25 @@ export function trendsSummary(data: AreaTrends): { lines: string[]; note: string
       .sort((a, b) => b.new_homes! - a.new_homes! || a.distance_m - b.distance_m)
       .slice(0, 3)
       .map((row) => `${trendsPlaceName(row).replace('（里界調整，合併）', '')}（${formatCount(row.new_homes!)} 筆）`)
-    lines.push(`近 4 季新屋交屋 ${formatCount(homes)} 筆${partial}${top.length ? `，最多的是${top.join('、')}` : ''}。`)
+    homesLines.push(`近 4 季新屋交屋 ${formatCount(homes)} 筆${partial}${top.length ? `，最多的是${top.join('、')}` : ''}。`)
   }
   const merged = data.villages.filter((row) => row.merged).map((row) => trendsPlaceName(row).replace('（里界調整，合併）', ''))
-  const notes = [
-    merged.length ? `${merged.join('；')}的里界調整過，${merged.length > 1 ? '各自' : ''}合併成一列計算。` : '',
-    kidsUnavailableText(data),
-    homes !== null && data.sources.new_homes.unplaced
-      ? `範圍內的區另有 ${formatCount(data.sources.new_homes.unplaced)} 筆新屋交屋只到區、沒對到里，沒算進去。`
-      : '',
-  ].filter(Boolean)
-  return { lines, note: notes.join('') }
+  const notes = {
+    merged: merged.length ? `${merged.join('；')}的里界調整過，${merged.length > 1 ? '各自' : ''}合併成一列計算。` : '',
+    kids: kidsUnavailableText(data),
+    homes:
+      homes !== null && data.sources.new_homes.unplaced
+        ? `範圍內的區另有 ${formatCount(data.sources.new_homes.unplaced)} 筆新屋交屋只到區、沒對到里，沒算進去。`
+        : '',
+  }
+  return {
+    lines: [...kids, ...births, ...migration, ...homesLines],
+    note: notes.merged + notes.kids + notes.homes,
+    kids,
+    births,
+    homes: homesLines,
+    notes,
+  }
 }
 
 // ---- 在籍學生（2026-10-15 規格 §6）----
@@ -634,13 +664,19 @@ export function enrolledBandRows(data: AreaEnrolled): Record<string, string | nu
   }))
 }
 
-/** 里排行的列：依篩選算人數，0 人的里不列；人數多的在前，同數依名稱。 */
-export function enrolledVillageRows(data: AreaEnrolled, filter: GradeFilter): { key: string; place: string; count: number }[] {
+/** 里排行的列：依篩選算人數，0 人的里不列；人數多的在前，同數依名稱。帶著後端的里代碼（可能是 null）與區、里名，讓排行能點選。 */
+export function enrolledVillageRows(
+  data: AreaEnrolled,
+  filter: GradeFilter,
+): { key: string; place: string; count: number; village_code: string | null; district: string; village: string }[] {
   return data.villages
     .map((row) => ({
       key: row.village_code ?? `${row.district}/${row.village}`,
       place: `${row.district}${row.village}`,
       count: pointCount(row.counts, filter),
+      village_code: row.village_code,
+      district: row.district,
+      village: row.village,
     }))
     .filter((row) => row.count > 0)
     .sort((a, b) => b.count - a.count || (a.place < b.place ? -1 : a.place > b.place ? 1 : 0))

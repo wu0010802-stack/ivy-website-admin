@@ -6,6 +6,7 @@ import {
   homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
   pointCount, pointPopupText, providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
+  NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
 import {
@@ -533,6 +534,24 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect(withHomes({ new_homes_seasons: 0 }, 9).note).not.toContain('新屋交屋')
   })
 
+  it('總結：同樣的句子依類別拆開（淨增、出生、新屋；note 的三段），lines 與 note 就是它們相接', () => {
+    const summary = trendsSummary(areaTrends({ kids_unavailable: 'no_year_ago' }))!
+    expect(summary.kids).toEqual(['本校 3 公里內 4 個里，2–5 歲孩子 1,400 位；和一年前同一批孩子比，淨增 26 位（+1.9%）。'])
+    expect(summary.births).toEqual(['近 12 個月出生 180 位，比前一年同期少 20.7%（比 9 個月）。'])
+    expect(summary.homes).toEqual(['近 4 季新屋交屋 130 筆，最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。'])
+    expect(summary.notes).toEqual({
+      merged: '三民區寶業里、龍子里的里界調整過，合併成一列計算。',
+      kids: '一年前的各里人口還沒匯入，這一年淨增先不算。',
+      homes: '範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。',
+    })
+    expect(summary.lines).toEqual([
+      ...summary.kids, ...summary.births, '近 12 個月全年齡淨遷出 160 人。', ...summary.homes,
+    ])
+    expect(summary.note).toBe(summary.notes.merged + summary.notes.kids + summary.notes.homes)
+    const bare = trendsSummary(areaTrends({ baseline: { ...areaTrends().baseline!, children: null, births_12m: null, new_homes_seasons: 0 } }))!
+    expect([bare.kids, bare.births, bare.homes, bare.notes.homes]).toEqual([[], [], [], ''])
+  })
+
   it('總結：最多的里只列前 3 個，合併組寫里名不寫「里界調整，合併」', () => {
     const base = areaTrends()
     const village = (key: string, name: string, homes: number, merged = false) =>
@@ -541,6 +560,14 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
       villages: [village('a', '甲里', 5), village('b', '乙、丙里', 90, true), village('c', '丁里', 30), village('d', '戊里', 12)],
     }))!
     expect(summary.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆，最多的是三民區乙、丙里（90 筆）、三民區丁里（30 筆）、三民區戊里（12 筆）。')
+  })
+})
+
+describe('地圖與右欄的無資料句', () => {
+  it('三句共用常數，字不改', () => {
+    expect([NO_CHILDREN_DATA_TEXT, NO_NEW_HOMES_TEXT, NO_LOCATED_VISITS_TEXT]).toEqual([
+      '半徑內的里沒有 2–5 歲孩子的資料。', '半徑內近 4 季沒有新屋交屋。', '這個範圍還沒有定位到里的參觀。',
+    ])
   })
 })
 
@@ -596,5 +623,15 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     ])
     expect(enrolledVillageRows(areaEnrolled(), '小班').map((row) => [row.place, row.count])).toEqual([['三民區本揚里', 2]])
     expect(enrolledVillageRows(areaEnrolled(), '其他')).toEqual([])
+  })
+
+  it('里排行列帶著里代碼（可能是 null）、區與里名，排行才能點選', () => {
+    const enrolled = areaEnrolled()
+    enrolled.villages[1]!.village_code = null
+    expect(enrolledVillageRows(enrolled, 'all').map((row) => [row.key, row.village_code, row.district, row.village])).toEqual([
+      ['64000050015', '64000050015', '三民區', '本揚里'],
+      ['三民區/寶業里', null, '三民區', '寶業里'],
+      ['64000030020', '64000030020', '左營區', '新上里'],
+    ])
   })
 })

@@ -3,9 +3,10 @@ import type {
   AdmissionsArea, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
 } from '../../../api/types'
 import {
-  NOT_JUDGED_NOTE, babycareStatusText, doorplateVersionLabel, enrolledMapNote, enrolledVillageRows, expectedText, formatCount,
-  formatDistance, homesMapNote, opportunitySummary, opportunityUnavailable, populationVersionLabel, reasonLabel, signedCount,
-  signedPercent, taipeiMonthDay, trendMapNote, trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
+  NOT_JUDGED_NOTE, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, babycareStatusText, doorplateVersionLabel,
+  enrolledMapNote, enrolledVillageRows, expectedText, formatCount, formatDistance, homesMapNote, opportunitySummary,
+  opportunityUnavailable, populationVersionLabel, reasonLabel, signedCount, signedPercent, taipeiMonthDay, trendMapNote,
+  trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
 } from './areaFormat'
 import { feeLagNote, peerSummaryText } from './peerFeesFormat'
 import { featureCode, findFeature } from './villageFacts'
@@ -108,10 +109,20 @@ function trendCode(data: PaneData, codes: readonly string[]): string | null {
   return found ?? codes[0] ?? null
 }
 
-/** 招生機會的列對里代碼的距離（其他模式的列沒有距離，借這份；半徑內人口表沒有的里沒有）。 */
+/**
+ * 里代碼對本校距離（參觀、在籍的列沒有距離，借這兩份）：招生機會的列優先，沒有再看里的變化（合併組的 codes 裡有這個代碼就用
+ * 那一列的距離）；兩份都沒有的里沒有距離。
+ */
 function distanceByCode(data: PaneData): ReadonlyMap<string, number> {
-  return new Map((data.opportunity?.villages ?? []).map((row) => [row.village_code, row.distance_m]))
+  const distances = new Map<string, number>()
+  for (const row of data.opportunity?.villages ?? []) distances.set(row.village_code, row.distance_m)
+  for (const row of data.trends?.villages ?? []) {
+    for (const code of row.codes) if (!distances.has(code)) distances.set(code, row.distance_m)
+  }
+  return distances
 }
+const distanceText = (distances: ReadonlyMap<string, number>, code: string | null): string =>
+  code !== null && distances.has(code) ? formatDistance(distances.get(code)) : ''
 
 function trendItem(data: PaneData, row: AreaTrendsVillage, value: string, detail: string, tone?: 'up' | 'down'): RankingItem {
   const item: RankingItem = {
@@ -149,15 +160,10 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
     case 'enrolled': {
       if (!data.enrolled) return one([])
       const distances = distanceByCode(data)
-      const byKey = new Map(data.enrolled.villages.map((row) => [row.village_code ?? `${row.district}/${row.village}`, row]))
       return one(
         enrolledVillageRows(data.enrolled, data.gradeFilter).map((row) => {
-          const source = byKey.get(row.key)!
-          const code = codeOf(data, source.village_code, source.district, source.village)
-          return {
-            code, name: row.place, distance: code && distances.has(code) ? formatDistance(distances.get(code)) : '',
-            value: `${formatCount(row.count)} 位`, detail: '',
-          }
+          const code = codeOf(data, row.village_code, row.district, row.village)
+          return { code, name: row.place, distance: distanceText(distances, code), value: `${formatCount(row.count)} 位`, detail: '' }
         }),
       )
     }
@@ -189,7 +195,7 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
           .map((row) => {
             const code = codeOf(data, row.village_code, row.district, row.village)
             return {
-              code, name: placeName(row.district, row.village), distance: code && distances.has(code) ? formatDistance(distances.get(code)) : '',
+              code, name: placeName(row.district, row.village), distance: distanceText(distances, code),
               value: `${formatCount(row.visit)} 位`, detail: `預繳 ${formatCount(row.deposit)}`,
             }
           }),
@@ -221,15 +227,8 @@ export function enrolledSummary(data: AreaEnrolled): string {
   return `${formatCount(data.total)} 位，${formatCount(within1)} 位（${share(within1)}%）住 1 公里內、${formatCount(within3)} 位（${share(within3)}%）住 3 公里內。`
 }
 
-// 里的變化總結的句子沒有分類欄位，只能認開頭（areaPane.test.ts 守住，句子改了測試會紅）。
-const isKidsLine = (line: string): boolean => line.startsWith('本校 ') || line.startsWith('近 12 個月出生')
-const isHomesLine = (line: string): boolean => line.startsWith('近 4 季新屋交屋')
-// 總結的 note 是「里界調整合併」「淨增算不出的原因」「新屋只到區」三段直接相接，新屋那段屬於新屋交屋模式。
-const HOMES_NOTE_START = '範圍內的區另有'
-function splitTrendsNote(note: string): { kids: string; homes: string } {
-  const index = note.indexOf(HOMES_NOTE_START)
-  return index < 0 ? { kids: note, homes: '' } : { kids: note.slice(0, index), homes: note.slice(index) }
-}
+// 孩子增減排行沒有任何一個里可排（資料正常，但每個里都是孩子少或算不出增減）時的一句。
+const NO_TREND_VILLAGES_TEXT = '半徑內沒有算得出增減的里。'
 
 const noVisits = (data: PaneData): boolean => data.area.totals.visit === 0
 const modeTitle = (mode: MapMode): string => MAP_MODES.find((item) => item.value === mode)!.label
@@ -251,18 +250,16 @@ export function paneHead(mode: MapMode, data: PaneData): PaneHead {
       if (unavailable) return { ...head, empty: unavailable }
       const summary = opportunitySummary(opportunity)
       const noKids = !opportunity.villages.some((row) => row.children > 0)
-      return { ...head, lines: summary ? [summary.lead] : [], empty: noKids ? '半徑內的里沒有 2–5 歲孩子的資料。' : '' }
+      return { ...head, lines: summary ? [summary.lead] : [], empty: noKids ? NO_CHILDREN_DATA_TEXT : '' }
     }
     case 'trend': {
       const trends = data.trends
       if (!trends) return head
       const summary = trendsSummary(trends)
-      return {
-        ...head,
-        lines: summary ? summary.lines.filter(isKidsLine) : [],
-        note: summary ? splitTrendsNote(summary.note).kids : '',
-        empty: trendMapNote(trends),
-      }
+      const empty = trendMapNote(trends) || (trendSections(data).length ? '' : NO_TREND_VILLAGES_TEXT)
+      // 當成 empty 的那句（淨增算不出的原因）不再重複放進 note。
+      const note = [summary?.notes.merged ?? '', summary?.notes.kids ?? ''].filter((text) => text && text !== empty).join('')
+      return { ...head, lines: summary ? [...summary.kids, ...summary.births] : [], note, empty }
     }
     case 'homes': {
       const trends = data.trends
@@ -272,16 +269,16 @@ export function paneHead(mode: MapMode, data: PaneData): PaneHead {
       const noHomes = !trends.villages.some((row) => (row.new_homes ?? 0) > 0)
       return {
         ...head,
-        lines: summary ? summary.lines.filter(isHomesLine) : [],
-        note: summary ? splitTrendsNote(summary.note).homes : '',
-        empty: unavailable || (noHomes ? '半徑內近 4 季沒有新屋交屋。' : ''),
+        lines: summary?.homes ?? [],
+        note: summary?.notes.homes ?? '',
+        empty: unavailable || (noHomes ? NO_NEW_HOMES_TEXT : ''),
       }
     }
     case 'visits': {
       const address = addressSummary(data.area)
       const line = address.text ? `${address.text}${address.tail}` : ''
       const noRows = !data.area.villages.some((row) => row.visit > 0)
-      const empty = noVisits(data) ? data.emptyText : address.noAddress || (noRows ? '這個範圍還沒有定位到里的參觀。' : '')
+      const empty = noVisits(data) ? data.emptyText : address.noAddress || (noRows ? NO_LOCATED_VISITS_TEXT : '')
       return { ...head, lines: line ? [line] : [], empty }
     }
     case 'opportunity': {

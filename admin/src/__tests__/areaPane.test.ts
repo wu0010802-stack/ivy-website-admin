@@ -156,7 +156,7 @@ describe('右欄：排行（規格 §2.3）', () => {
     expect(names(rankingFor('homes', data({ trends })))).toEqual([['三民區鼎金里']])
   })
 
-  it('參觀：只列有參觀的里、距離借招生機會的列；對不到代碼的是 null', () => {
+  it('參觀：只列有參觀的里；對不到代碼的是 null', () => {
     const area = stats({
       villages: [
         ...areaStats().villages,
@@ -165,12 +165,35 @@ describe('右欄：排行（規格 §2.3）', () => {
       ],
     })
     const [section] = rankingFor('visits', data({ area }))
-    expect(section!.items.map((i) => [i.name, i.distance, i.code])).toEqual([
-      ['三民區本揚里', '300 m', '64000050015'],
-      ['左營區不明里', '', null],
-      ['三民區寶業里', '300 m', '64000050025'],
-      ['鼓山區龍子里', '', '64000020015'],
+    expect(section!.items.map((i) => [i.name, i.code])).toEqual([
+      ['三民區本揚里', '64000050015'],
+      ['左營區不明里', null],
+      ['三民區寶業里', '64000050025'],
+      ['鼓山區龍子里', '64000020015'],
     ])
+  })
+
+  it('參觀與在籍的距離：先看招生機會的列，沒有再看里的變化（合併組的 codes 含這個代碼），兩邊都沒有才是空字串', () => {
+    const area = stats({
+      villages: [
+        ...areaStats().villages,
+        { district: '左營區', village: '新上里', village_code: '64000030020', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: null },
+      ],
+    })
+    const trends = areaTrends()
+    trends.villages[0]!.distance_m = 999 // 本揚里：招生機會的 300 m 優先於里的變化
+    const visits = rankingFor('visits', data({ area, trends }))[0]!.items
+    expect(visits.map((i) => [i.name, i.distance])).toEqual([
+      ['三民區本揚里', '300 m'], // 招生機會
+      ['三民區寶業里', '300 m'], // 招生機會
+      ['鼓山區龍子里', '300 m'], // 招生機會沒有，里的變化的合併組（寶業里、龍子里）有
+      ['左營區新上里', ''], // 兩份都沒有
+    ])
+    const enrolled = rankingFor('enrolled', data({ trends }))[0]!.items
+    expect(enrolled.map((i) => [i.name, i.distance])).toEqual([
+      ['三民區本揚里', '300 m'], ['三民區寶業里', '300 m'], ['左營區新上里', ''],
+    ])
+    expect(rankingFor('visits', data({ area, opportunity: null, trends: null }))[0]!.items.map((i) => i.distance)).toEqual(['', '', '', ''])
   })
 
   it('招生機會：只列偏少的里、少最多的在前；沒有判讀（參觀不到門檻）就不列', () => {
@@ -354,6 +377,23 @@ describe('右欄：標題區（規格 §2.3）', () => {
       note: '三民區寶業里、龍子里的里界調整過，合併成一列計算。',
       empty: '',
     })
+  })
+
+  it('孩子增減：淨增算不出來的原因只寫在 empty，不再重複放進 note（只留里界調整合併那句）', () => {
+    const trends = areaTrends({ kids_unavailable: 'no_year_ago' })
+    const head = paneHead('trend', data({ trends }))
+    expect(head.empty).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
+    expect(head.note).toBe('三民區寶業里、龍子里的里界調整過，合併成一列計算。')
+    expect(head.note).not.toContain(head.empty)
+    expect(head.lines).toHaveLength(2)
+  })
+
+  it('孩子增減：資料正常但沒有任何一個里算得出增減，empty 寫一句（排行是空的）', () => {
+    const trends = areaTrends()
+    trends.villages = trends.villages.map((row) => ({ ...row, kids_level: 'few' as const }))
+    expect(rankingFor('trend', data({ trends }))).toEqual([])
+    expect(paneHead('trend', data({ trends })).empty).toBe('半徑內沒有算得出增減的里。')
+    expect(paneHead('trend', data()).empty).toBe('')
   })
 
   it('孩子增減：算不出來的原因寫在 empty', () => {

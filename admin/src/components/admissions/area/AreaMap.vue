@@ -10,7 +10,7 @@ import {
   KIDS_LEVEL_LABELS, KIND_LABELS, KIND_ORDER, MAP_MODES, babycareKindLabel, babycareMeta, babycareShortName,
   campusNotLocatedReason, districtBounds, enrolledLegendText, expectedText, formatCount, formatDistance, gradeOptions, homesCount, homesMax,
   kidsLevelTone, kidsNetText, kindLabel, legendRanges, levelOf, pointCount, pointPopupText, shortName, signalText, signalTone, signedCount,
-  trendsPlaceName, villageKey,
+  trendsPlaceName, villageKey, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT,
   type GradeFilter, type MapMode, type RadiusKm,
 } from './areaFormat'
 
@@ -153,11 +153,7 @@ const legend = computed(() =>
 )
 const legendUnit = computed(() => (mode.value === 'children' ? '位' : mode.value === 'homes' ? '筆' : '人'))
 const noneText = computed(() =>
-  mode.value === 'children'
-    ? '半徑內的里沒有 2–5 歲孩子的資料。'
-    : mode.value === 'homes'
-      ? '半徑內近 4 季沒有新屋交屋。'
-      : '這個範圍還沒有定位到里的參觀。',
+  mode.value === 'children' ? NO_CHILDREN_DATA_TEXT : mode.value === 'homes' ? NO_NEW_HOMES_TEXT : NO_LOCATED_VISITS_TEXT,
 )
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
 const campusLocated = computed(() => props.campus.lat !== null && props.campus.lng !== null)
