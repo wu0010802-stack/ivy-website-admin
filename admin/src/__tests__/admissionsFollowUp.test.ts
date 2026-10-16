@@ -74,7 +74,7 @@ describe('待追蹤分頁已拿掉（2026-10-06）', () => {
     const get = mockGet({})
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?tab=followups&fu=unscheduled&owner=me' })
     const tabs = wrapper.findAll('.el-tabs__item').map((item) => item.text())
-    expect(tabs).toEqual(['漏斗看板', '訪視明細', '統計分析'])
+    expect(tabs).toEqual(['漏斗看板', '訪視明細'])
     expect(router.currentRoute.value.query).not.toHaveProperty('tab')
     expect(router.currentRoute.value.query).not.toHaveProperty('fu')
     expect(router.currentRoute.value.query).not.toHaveProperty('owner')

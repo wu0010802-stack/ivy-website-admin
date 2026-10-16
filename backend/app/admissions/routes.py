@@ -767,8 +767,8 @@ async def get_admissions_stats(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdmissionsStatsOut:
-    """統計分析（規格第 9 節）。只讀，不寫稽核。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    """統計分析（規格第 9 節；2026-10-16 起是獨立的招生統計頁，限總管理者）。只讀，不寫稽核。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
     try:
         result = await stats_service.query_stats(
             db, campus_key, school_year=school_year, semester=semester, reference_month=reference_month
@@ -790,7 +790,7 @@ async def get_admissions_compare(
 ) -> AdmissionsCompareOut:
     """五校比較：只列使用者授權範圍內的校區（super_admin 為五校）。只讀，不寫稽核。
     semester 沒帶＝件數算整學年；名額剩餘用上學期（回應 seat_semester 標明）。"""
-    require_scope(current_user, "admissions.read")
+    require_scope(current_user, "admissions.stats")
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     result = await stats_service.compare(db, campus_keys, school_year=school_year, semester=semester)
     return AdmissionsCompareOut.model_validate(result)
@@ -808,7 +808,7 @@ async def get_admissions_area(
 ) -> AdmissionsAreaOut:
     """區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。
     母體同 /stats。只讀，不寫稽核；不含家長個資。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     result = await area_service.query_area(db, campus_key, school_year=school_year, semester=semester)
     return AdmissionsAreaOut.model_validate(result)
 
@@ -860,7 +860,7 @@ async def get_admissions_area_kindergartens(
     """本校附近的幼兒園（2026-10-08 區域分析規格 §8.2）：公開資料，依距離排序。只讀，不寫稽核。
     radius_km 用 int 收再自己檢查：FastAPI 0.136.1 的 Literal[1, 3, 6] 不會把 query 字串轉成整數。
     不在 1、3、6，或根本不是整數（abc、3.5、空字串）都回 INVALID_RADIUS。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
@@ -880,7 +880,7 @@ async def get_admissions_area_babycare(
 ) -> AreaBabycareOut:
     """本校附近的托嬰中心與公共托育家園（2026-10-14 規格 §6）：公開資料，依距離排序。只讀，不寫稽核。
     半徑規則同 /area/kindergartens。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     result = await area_service.query_babycare(db, campus_key, radius_km=radius_km)
@@ -901,7 +901,7 @@ async def get_admissions_area_fees(
 ) -> AreaPeerFeesOut:
     """附近同業收費（2026-10-15 規格 §6）：本校這個年齡全日班一學期的公告收費，在半徑內私立一般園所裡的位置；
     其他類型只當背景。公開資料，只讀，不寫稽核。半徑規則同 /area/kindergartens；年齡不是 2–5 的整數回 INVALID_AGE。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     if age not in peer_fees_service.AGE_CHOICES:
@@ -923,7 +923,7 @@ async def get_admissions_area_changes(
 ) -> AreaChangesOut:
     """本校附近近 12 個月的園所變化（2026-10-14 規格 §6）：新設、停辦、類型變動，幼兒園與托嬰都涵蓋。
     只讀，不寫稽核；半徑規則同 /area/kindergartens。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     result = await area_service.query_changes(db, campus_key, radius_km=radius_km)
@@ -947,7 +947,7 @@ async def get_admissions_area_opportunity(
 ) -> AreaOpportunityOut:
     """招生機會（2026-10-13 招生機會規格 §6）：本校半徑內各里的 2–5 歲孩子數、參觀率，以及和附近平均比
     明顯偏少的里。母體同 /area；半徑規則同 /area/kindergartens。只讀，不寫稽核；只有里層級的聚合數字。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     result = await opportunity_service.query_opportunity(
@@ -974,7 +974,7 @@ async def get_admissions_area_trends(
     """里的變化（2026-10-14 里的變化規格 §5、§6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與
     淨遷入。參數同 /area/opportunity（學年學期目前只回在 filters，之後的「依國小學區」才用到參觀人數）。
     只讀，不寫稽核；只有里層級的公開資料與加總。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     if radius_km not in area_service.RADIUS_CHOICES:
         raise _invalid_radius()
     result = await trends_service.query_trends(
@@ -997,7 +997,7 @@ async def get_admissions_journey(
 ) -> JourneyOut:
     """預約全程漏斗與退出時點（2026-10-15 預約全程規格 §3）：預定參觀日在期間內、已過參觀時間的預約案件，
     從預約到到場、有招生訪視、預繳、註冊的人數與各段天數，以及家庭離開的時點。只讀，不寫稽核。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     end = min(date_to, today_local())
     if date_from > end:
         raise HTTPException(
@@ -1021,7 +1021,7 @@ async def get_admissions_area_enrolled(
 ) -> AreaEnrolledOut:
     """在籍學生分布（2026-10-15 規格 §5）：本機比對後匯入的去識別點（取整約 100 m）、各班人數、沒有點的原因、
     距離帶與各里人數。和學年學期、半徑無關（清冊是某一天的快照）。只讀，不寫稽核；回應由中介層補 no-store。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     return AreaEnrolledOut.model_validate(await enrolled_query.query_enrolled(db, campus_key))
 
 
@@ -1037,10 +1037,10 @@ async def get_admissions_area_boundaries(
     request: Request,
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    """里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。
+    """里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生統計權限（admissions.stats）。
     檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，
     main.py 的 no-store 中介層會尊重）。"""
-    require_scope(current_user, "admissions.read")
+    require_scope(current_user, "admissions.stats")
     etag = geo_boundaries.boundary_etag()
     headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
     if etag_matches(request.headers.get("if-none-match"), etag):
@@ -1064,7 +1064,7 @@ async def get_admissions_no_deposit_records(
     db: AsyncSession = Depends(get_db_session),
 ) -> NoDepositRecordsOut:
     """未預繳明細（園務 /no-deposit-analysis）。含孩子姓名，權限同統計；只讀，不寫稽核。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     result = await stats_service.no_deposit_records(
         db,
         campus_key,
@@ -1095,9 +1095,9 @@ async def export_admissions_no_deposit_records(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """未預繳名單 CSV（2026-10-03）：篩選與排序同 /no-deposit-records，不分頁。含孩子姓名與電訪回應，
-    除了 admissions.read 還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
+    除了招生統計權限（admissions.stats）還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
     不默默截斷。"""
-    _require_campus(current_user, "admissions.read", campus_key)
+    _require_campus(current_user, "admissions.stats", campus_key)
     require_scope(current_user, BOOKING_EXPORT, campus_keys=[campus_key])
     result = await stats_service.no_deposit_records(
         db,

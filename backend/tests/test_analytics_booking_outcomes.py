@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
+from tests.admissions_helpers import readonly_yihua_client  # noqa: F401
 from tests.analytics_fixtures import add_case, add_slot, taipei
 from tests.conftest import set_booking_mode
 
@@ -74,7 +75,8 @@ async def test_period_uses_taipei_days_of_created_at(admin_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_only_campuses_in_scope_are_listed(admin_client, minghua_client, db_session):
+async def test_only_super_admin_sees_all_five_campuses(admin_client, minghua_client, db_session):
+    """2026-10-16 起限總管理者（admissions.stats）：總管理者看五校並排；分校帳號 403，加校區參數也一樣。"""
     await add_case(db_session, campus_key="yihua", status="confirmed")
     await add_case(db_session, campus_key="minghua", status="confirmed")
     await db_session.commit()
@@ -83,21 +85,22 @@ async def test_only_campuses_in_scope_are_listed(admin_client, minghua_client, d
     assert [row["campus_key"] for row in everyone["campuses"]] == ["yihua", "minghua", "chongde", "international", "renwu"]
     assert everyone["totals"]["cases"] == 2
 
-    minghua = await _get(minghua_client)
-    assert [row["campus_key"] for row in minghua["campuses"]] == ["minghua"]
-    assert minghua["totals"]["cases"] == 1
-    assert minghua["open_now_totals"] == {"awaiting_attendance": 0, "follow_up_due": 0}
-    # 這支 API 沒有校區參數；自己加上別校也不會擴大範圍。
-    tampered = await _get(minghua_client, "?campus_key=yihua")
-    assert [row["campus_key"] for row in tampered["campuses"]] == ["minghua"]
+    assert (await minghua_client.get(URL)).status_code == 403
+    assert (await minghua_client.get(f"{URL}?campus_key=yihua")).status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_analytics_only_role_sees_counts_without_personal_data(editor_client, db_session):
+async def test_stats_are_super_admin_only_and_carry_no_personal_data(
+    admin_client, editor_client, readonly_yihua_client, db_session  # noqa: F811
+):
+    """analytics.read 已刪（2026-10-16），editor／readonly 不再看得到這份數字；總管理者的回應仍只有去識別的件數。"""
     await add_case(db_session, status="confirmed")
     await db_session.commit()
-    body = await _get(editor_client)
-    assert [row["campus_key"] for row in body["campuses"]] == ["yihua"]
+    assert (await editor_client.get(URL)).status_code == 403
+    assert (await readonly_yihua_client.get(URL)).status_code == 403
+    body = await _get(admin_client)
+    assert [row["campus_key"] for row in body["campuses"]][0] == "yihua"
+    assert _row(body)["cases"] == 1
     text = str(body)
     for personal in ("測試家長", "0911000222", "parent_name", "phone", "email", "birthdate"):
         assert personal not in text

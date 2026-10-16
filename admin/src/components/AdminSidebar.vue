@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
+  ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataAnalysis, DataLine,
   Document as DocumentIcon, EditPen, Expand, Files, Film, Fold, House, Location as LocationIcon, Lock, Memo, Monitor,
   Notebook, Notification as NotificationIcon, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
@@ -78,7 +78,7 @@ watch(expanded, value => {
 // 側欄一律用線條圖示（2026-10-05）：Element Plus 的 HomeFilled、Grid、TrendCharts、
 // List 是實心色塊，混在線條圖示裡很重，看起來像被選取。
 const icons: Record<string, Component> = {
-  Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
+  Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataAnalysis, DataLine, Document: DocumentIcon,
   EditPen, Files, Film, House, Location: LocationIcon, Lock, Memo, Monitor, Notebook, Notification: NotificationIcon, Phone, Picture,
   PieChart, Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, User,
 }

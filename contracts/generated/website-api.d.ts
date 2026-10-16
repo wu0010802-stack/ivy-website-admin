@@ -55,7 +55,7 @@ export interface paths {
         };
         /**
          * Get Admissions Area Boundaries
-         * @description 里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生讀取權限。
+         * @description 里界 GeoJSON（2026-10-08 區域分析規格 §8.3）：不分校區，只要有招生統計權限（admissions.stats）。
          *     檔案隨程式部署、內容不變，帶 ETag 與一天的私有快取（路由自己設 Cache-Control，
          *     main.py 的 no-store 中介層會尊重）。
          */
@@ -363,7 +363,7 @@ export interface paths {
         /**
          * Export Admissions No Deposit Records
          * @description 未預繳名單 CSV（2026-10-03）：篩選與排序同 /no-deposit-records，不分頁。含孩子姓名與電訪回應，
-         *     除了 admissions.read 還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
+         *     除了招生統計權限（admissions.stats）還要「匯出個資」授權（booking.export，與訪視明細匯出同一項）。超過上限回 422，
          *     不默默截斷。
          */
         get: operations["export_admissions_no_deposit_records_api_website_v1_admin_admissions_no_deposit_records_export_get"];
@@ -609,7 +609,7 @@ export interface paths {
         };
         /**
          * Get Admissions Stats
-         * @description 統計分析（規格第 9 節）。只讀，不寫稽核。
+         * @description 統計分析（規格第 9 節；2026-10-16 起是獨立的招生統計頁，限總管理者）。只讀，不寫稽核。
          */
         get: operations["get_admissions_stats_api_website_v1_admin_admissions_stats_get"];
         put?: never;

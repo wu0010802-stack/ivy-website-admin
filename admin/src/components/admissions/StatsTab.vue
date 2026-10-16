@@ -19,7 +19,7 @@ import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import { csvFilename } from '../../utils/csv'
 
-// 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
+// 統計分析（規格 9、10；2026-10-16 起是獨立的招生統計頁）。頁首的校區與入學學年學期由 AdmissionsStatsView 傳進來；這裡管參考月份、
 // 子分頁與讀取。換校區或學期時先清空畫面再讀，只採用最後一次的回應（R15：不殘留別校的數字）。
 // 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、區域分析（2026-10-08 起官網也做，見區域分析規格）、未預繳與退出原因。
 // 警示與行動入口指到統計內的子分頁就直接切；指到訪視明細就交給頁面（open-records）。

@@ -10,7 +10,7 @@ import { ROOT } from './stack-env'
 // 驗證漏斗、離開、取消時點與各段天數的數字，1440／390 不橫向溢出與 axe，再給人看截圖。測試結束一律清除種子。
 const CAMPUS = JOURNEY_CAMPUS
 const SHOTS = path.join(ROOT, 'output/playwright')
-const journeyPath = `/admissions?campus=${CAMPUS}&tab=stats&sub=journey`
+const journeyPath = `/admissions-stats?campus=${CAMPUS}&sub=journey`
 
 const block = (page: Page, title: string): Locator =>
   page.locator('.stats-block', { has: page.locator('.stats-block__title', { hasText: title }) }).first()
@@ -30,7 +30,7 @@ test('預約全程：漏斗、離開、取消時點、各段天數與涵蓋說�
   const { context, page } = await openAs(browser, 'super_admin')
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
-  await gotoAdmin(page, journeyPath, '招生入學')
+  await gotoAdmin(page, journeyPath, '招生統計')
 
   await test.step('摘要句與漏斗表', async () => {
     await expect(page.locator('.journey-summary')).toContainText('預定參觀的預約 8 筆：到場 5（到場率 83.3%）、取消 2、沒來 1、時間已過未標記 0。')
@@ -107,7 +107,7 @@ test('預約全程：漏斗、離開、取消時點、各段天數與涵蓋說�
 test('390px：預約全程不撐出頁面', async ({ browser }) => {
   mkdirSync(SHOTS, { recursive: true })
   const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
-  await gotoAdmin(page, journeyPath, '招生入學')
+  await gotoAdmin(page, journeyPath, '招生統計')
   await expect(page.locator('.journey-summary')).toBeVisible()
   await expect(block(page, '全程漏斗')).toBeVisible()
   await expectNoHorizontalOverflow(page)

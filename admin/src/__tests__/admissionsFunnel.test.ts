@@ -64,7 +64,7 @@ describe('看板：四欄、摘要列、卡片（規格第 10 節）', () => {
     expect(rates).toContain('退費率 —')
     expect(rates).not.toContain('退費率 —（')
     // 算法寫在畫面上（觸控看不到 title），公式照舊留在 title。
-    expect(wrapper.get('.funnel__toolbar').text()).toContain('依各欄目前張數相除，和「統計分析」的轉換率算法不同。')
+    expect(wrapper.get('.funnel__toolbar').text()).toContain('依各欄目前張數相除，和「招生統計」的轉換率算法不同。')
     expect(wrapper.get('.funnel__rate').attributes('title')).toBe('已預繳 ÷ 已訪視（各欄目前張數）')
     // 空欄寫園務原文，不是空白。
     expect(column(wrapper, 'enrolled').text()).toContain('家長完成註冊後，把「已預繳」的卡片拖到這一欄。')

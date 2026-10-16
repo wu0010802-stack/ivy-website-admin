@@ -198,10 +198,10 @@ test('訪視明細：依畫面篩選下載，欄位、月份、公式注入防�
   }
 })
 
-test('未預繳名單：統計分析的未預繳原因頁下載', async ({ browser }) => {
+test('未預繳名單：招生統計的未預繳原因頁下載', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'super_admin')
   try {
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=nodeposit`, '招生入學')
+    await gotoAdmin(page, `/admissions-stats?campus=${SLOTS_CAMPUS}&sy=all&sub=nodeposit`, '招生統計')
     const list = page.getByRole('region', { name: '未預繳明細', exact: true })
     await expect(list.getByRole('heading', { name: '未預繳明細' })).toBeVisible()
     await expect(list.getByText(CHILD)).toBeVisible()
@@ -229,7 +229,7 @@ test('未預繳名單：統計分析的未預繳原因頁下載', async ({ brows
 test('統計表：每張表自己的「匯出 CSV」，月份寫成 115年10月、缺值不寫「—」', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'super_admin')
   try {
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=class`, '招生入學')
+    await gotoAdmin(page, `/admissions-stats?campus=${SLOTS_CAMPUS}&sy=all&sub=class`, '招生統計')
     const block = page.getByRole('region', { name: '月份 × 班別分布', exact: true })
     // 第 0 列是表頭，第 1 列起是資料。
     await expect(block.getByRole('row').nth(1)).toBeVisible()
@@ -305,9 +305,7 @@ test('權限：分校管理者沒有名單匯出鈕，操作紀錄匯出沒有 I
     await expect(page.getByRole('button', { name: '新增訪視' })).toBeVisible()
     await expect(page.getByRole('button', { name: '匯出 CSV' })).toHaveCount(0)
 
-    // 去識別的統計表不受這個授權限制。
-    await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=class`, '招生入學')
-    await expect(page.getByRole('button', { name: '把「班別統計」匯出 CSV' })).toBeVisible()
+    // 統計表（含匯出）在招生統計頁，2026-10-16 起只有總管理者看得到，見 admissions-flow.spec.ts。
 
     await gotoAdmin(page, '/audit', '操作紀錄')
     await expect(page.getByRole('status').filter({ hasText: /已載入 \d+ 筆/ })).toBeVisible()
@@ -398,7 +396,7 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
       })
 
       await test.step(`未預繳名單匯出鈕列 ${device.name}`, async () => {
-        await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=nodeposit`, '招生入學')
+        await gotoAdmin(page, `/admissions-stats?campus=${SLOTS_CAMPUS}&sy=all&sub=nodeposit`, '招生統計')
         const list = page.getByRole('region', { name: '未預繳明細', exact: true })
         await expect(list.getByText(CHILD)).toBeVisible()
         const button = list.getByRole('button', { name: '匯出 CSV' })
@@ -424,7 +422,7 @@ test('版面：訪視明細標題列、未預繳名單與操作紀錄篩選列�
       await test.step(`統計表標題列 ${device.name}`, async () => {
         // 每張統計表標題右邊都有「匯出 CSV」：標題不被擠成直排、按鈕不超出視窗。
         for (const sub of ['class', 'staff']) {
-          await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&sy=all&tab=stats&sub=${sub}`, '招生入學')
+          await gotoAdmin(page, `/admissions-stats?campus=${SLOTS_CAMPUS}&sy=all&sub=${sub}`, '招生統計')
           // 每張表的匯出鈕名稱是「把「表名」匯出 CSV」；標題列是鈕的父層，標題是裡面的 h3。
           const buttons = page.getByRole('button', { name: /^把「.+」匯出 CSV$/ })
           await expect(buttons.first()).toBeVisible()

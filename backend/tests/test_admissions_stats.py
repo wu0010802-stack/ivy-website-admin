@@ -482,17 +482,16 @@ async def test_stats_empty_campus(admin_client, db_session):
 
 
 async def test_stats_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）：統計含接待人員名字，分校管理者、接待人員、editor、readonly
+    不論本校或他校一律 403（沒有 capability，不會走到校區 404）。"""
     path = f"{API}/admin/admissions/stats?campus_key="
-    # 接待人員有 admissions.read，只有義華。
-    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
-    # 明華分校管理者看義華 → 404（不洩漏存在）。
-    assert (await minghua_client.get(path + "yihua")).status_code == 404
-    assert (await minghua_client.get(path + "minghua")).status_code == 200
-    # editor、readonly 沒有招生權限 → 403（規格 7：統計含接待人員名字，不開給只有 analytics.read 的角色）。
-    assert (await editor_client.get(path + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
-    # 不存在的校區：總管理者也是 404。
+    for client in (reception_yihua_client, minghua_client, editor_client, readonly_yihua_client):
+        assert (await client.get(path + "yihua")).status_code == 403
+        assert (await client.get(path + "minghua")).status_code == 403
+    # 總管理者看得到任一校。
+    assert (await admin_client.get(path + "yihua")).status_code == 200
+    assert (await admin_client.get(path + "minghua")).status_code == 200
+    # 不存在的校區：總管理者是 404。
     assert (await admin_client.get(path + "nowhere")).status_code == 404
 
 
@@ -635,10 +634,9 @@ async def test_compare_endpoint_scope(admin_client, minghua_client, reception_yi
     assert [row["campus_key"] for row in body["rows"]] == ["yihua", "minghua", "chongde", "international", "renwu"]
     assert body["rows"][0]["remaining_seats"] == 8
 
-    # 分校帳號只看到自己的校區（規格 9.3、第 7 節）。
-    assert [row["campus_key"] for row in (await minghua_client.get(path)).json()["rows"]] == ["minghua"]
-    assert [row["campus_key"] for row in (await reception_yihua_client.get(path)).json()["rows"]] == ["yihua"]
-    assert (await editor_client.get(path)).status_code == 403
+    # 2026-10-16 起限總管理者（admissions.stats）：分校帳號、接待人員、editor 一律 403，看不到任何校區。
+    for client in (minghua_client, reception_yihua_client, editor_client):
+        assert (await client.get(path)).status_code == 403
     assert body["seat_semester"] == 1
 
     # 學期選填：只帶學年＝件數整學年（上下學期都算）、名額用上學期、seat_semester 標 1。
@@ -876,12 +874,11 @@ async def test_no_deposit_records_endpoint(admin_client, db_session):
 
 
 async def test_no_deposit_records_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
-    """名單含孩子姓名：權限同統計（admissions.read＋校區範圍；越權 404、editor／readonly 403）。"""
+    """名單含孩子姓名：權限同統計（2026-10-16 起限總管理者 admissions.stats；其他角色不論本校或他校一律 403）。"""
     path = f"{API}/admin/admissions/no-deposit-records?campus_key="
-    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
-    assert (await minghua_client.get(path + "yihua")).status_code == 404
-    assert (await minghua_client.get(path + "minghua")).status_code == 200
-    assert (await editor_client.get(path + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
+    for client in (reception_yihua_client, minghua_client, editor_client, readonly_yihua_client):
+        assert (await client.get(path + "yihua")).status_code == 403
+        assert (await client.get(path + "minghua")).status_code == 403
+    assert (await admin_client.get(path + "yihua")).status_code == 200
+    assert (await admin_client.get(path + "minghua")).status_code == 200
     assert (await admin_client.get(path + "nowhere")).status_code == 404

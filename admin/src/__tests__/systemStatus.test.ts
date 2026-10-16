@@ -104,7 +104,7 @@ describe('處理連結', () => {
     expect(itemLink(item('failed_publish_jobs', 'ok', { count: 0 }), 'notifications')).toBeNull()
     expect(itemLink(item('media_jobs', 'attention', { mode: 'background', loop_running: true, failed_assets: 2, pending: 0, running: 0 }), 'background')).toEqual({ to: '/media', label: '前往素材庫' })
     expect(itemLink(item('media_jobs', 'ok', { mode: 'background', loop_running: true, failed_assets: 0, pending: 0, running: 0 }), 'background')).toBeNull()
-    expect(itemLink(item('income', 'attention', { imported: true, error: 'x', stale: false }), 'datasets')).toEqual({ to: '/admissions?tab=stats&sub=area', label: '看區域分析' })
+    expect(itemLink(item('income', 'attention', { imported: true, error: 'x', stale: false }), 'datasets')).toEqual({ to: '/admissions-stats?sub=area', label: '看區域分析' })
     expect(itemLink(item('income', 'ok', { imported: true, error: null, stale: false }), 'datasets')).toBeNull()
     expect(itemLink(item('births', 'info', { imported: true, error: null, stale: true, auto_sync_off: true }), 'datasets')).toBeNull()
   })

@@ -34,8 +34,6 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 案件含家長與孩子個資。規格「權限」表：內容編輯不讀家長個資，唯讀
     # 不自動擁有案件個資權限——所以只給總管理、分校管理與接待。
     "booking.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
-    # 去識別的成效統計（漏斗數字），唯讀角色依規格可以看。
-    "analytics.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.RECEPTION, Role.READONLY},
     # 處理案件（2026-09-25 業主裁定，接待人員也可以）：記聯絡紀錄、
     # 人工補登、取消、標記未到場、完成參觀、後台改期、產生／撤銷
     # 家長管理連結。
@@ -75,6 +73,10 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     "contact_phrases.manage": {Role.SUPER_ADMIN},
     # 系統狀態頁（2026-10-15）：寄信、推播、背景排程與公開資料的設定現況與測試信，限總管理者。
     "system.status": {Role.SUPER_ADMIN},
+    # 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽成獨立頁，連同參觀預約
+    # 統計（/admin/analytics/funnel 等四支，原 analytics.read）、區域分析、預約全程與未預繳名單，
+    # 只給總管理者。分校管理者與接待仍用 admissions.read 看漏斗看板與訪視明細。
+    "admissions.stats": {Role.SUPER_ADMIN},
     # 讀取＝規格寫的「有 booking.read 或 admissions.read 任一」。權限表沒有「任一
     # capability」的寫法，所以另開一項，讓後台只看一個鍵就知道要不要顯示片語；角色
     # 集合刻意等於兩項的聯集（test_contact_phrases.py 比對，兩項日後改了會失敗）。

@@ -61,5 +61,7 @@ async def test_period_scope_and_school_year_bounds(admin_client, minghua_client,
     await db_session.commit()
     body = await _get(admin_client, "campus_key=yihua&school_year=115&from=2026-10-01&to=2026-10-31")
     assert body["total"] == 1
-    assert (await minghua_client.get(f"{URL}?campus_key=yihua&school_year=115")).status_code == 404
+    # 2026-10-16 起限總管理者（admissions.stats）：分校帳號不論本校或他校都 403。
+    assert (await minghua_client.get(f"{URL}?campus_key=yihua&school_year=115")).status_code == 403
+    assert (await minghua_client.get(f"{URL}?campus_key=minghua&school_year=115")).status_code == 403
     assert (await admin_client.get(f"{URL}?campus_key=yihua&school_year=99")).status_code == 422

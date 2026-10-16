@@ -9,7 +9,7 @@
   和總覽、案件列表同一份。
 - 標記排除的測試／重複案件（2026-10-15，booking/exclusion.py）不算進 cases、各結果、班別與待處理；
   期間內送出的已排除筆數另回 excluded_cases，畫面註明「另有 N 筆已排除」。
-- 不回傳任何個資；只有 analytics.read 的角色也能看。"""
+- 不回傳任何個資。2026-10-16 起和招生統計一起限總管理者（admissions.stats）。"""
 
 from __future__ import annotations
 

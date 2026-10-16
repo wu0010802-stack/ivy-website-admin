@@ -36,6 +36,16 @@ function page(path: string, name: string, component: RouteRecordSingleView['comp
   return { path, name, component, meta: { title: item?.title, roles: item?.roles, shared: item?.shared } }
 }
 
+/** 統計分析 2026-10-16 從招生入學抽成獨立的招生統計頁：舊連結（書籤、文件）的 /admissions?tab=stats
+ * 帶著其他條件轉過去。看不到招生統計的人照常進招生入學，tab=stats 在那裡退回漏斗看板。
+ * 全域的 authGuard 先跑完（session 已恢復）才輪到這裡。 */
+function legacyStatsTab(to: RouteLocationNormalized): true | RouteLocationRaw {
+  const stats = navItem('admissions-stats')
+  if (to.query.tab !== 'stats' || !stats || !canSeeNavItem(stats, useAuthStore().user)) return true
+  const { tab: _, ...query } = to.query
+  return { path: stats.path, query, replace: true }
+}
+
 export const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登入' } },
   // 總管理者寄的重設密碼連結（2026-10-03）。不用登入，也不在側欄；靜態打包：網址帶 #token=，
@@ -72,7 +82,8 @@ export const routes: RouteRecordRaw[] = [
       { path: 'slots', redirect: to => ({ path: '/visit-calendar', query: to.query }) },
       page('visit-requests', 'visit-requests', () => import('../views/VisitRequestsView.vue')),
       page('visit-calendar', 'visit-calendar', () => import('../views/VisitCalendarView.vue')),
-      page('admissions', 'admissions', () => import('../views/AdmissionsView.vue')),
+      { ...page('admissions', 'admissions', () => import('../views/AdmissionsView.vue')), beforeEnter: legacyStatsTab },
+      page('admissions-stats', 'admissions-stats', () => import('../views/AdmissionsStatsView.vue')),
       {
         path: 'visit-requests/:id',
         name: 'visit-detail',

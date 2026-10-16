@@ -1,3 +1,14 @@
+## 後台：招生統計抽成獨立頁、只給總管理者（2026-10-16 業主裁定，`feature/admissions-stats-page-20261016`）
+
+使用者 10-16 要把招生入學的「統計分析」分頁抽成獨立的側欄項目，並且只有最高權限（總管理者）看得到。取代 10-13「參觀預約統計搬到招生入學」裡「招生入學 → 統計分析」的入口，以及當時待裁定的「編輯、唯讀看不到參觀預約數字」（現在連分校管理者、接待也看不到）。統計的內容、口徑、子分頁與 API 路徑都不變。
+
+- **側欄**：「參觀預約」組、「招生入學」之後新增「招生統計」（`/admissions-stats`，圖示 DataAnalysis），`roles: ['super_admin']`、`feature: 'admissions'`（招生開關關閉時同招生入學不列出，直接開網址顯示「招生入學尚未啟用」）。側欄搜尋的統計說法（轉換率以外的「預約統計、到場率、取消率、五校比較、班別」等）改指招生統計；「轉換率」兩邊都留（看板也有比率）。
+- **頁面**：`AdmissionsStatsView` 頁首同招生入學（校區、入學學年、入學學期；手機收成摘要鈕），下面直接是原本的九個子分頁（`StatsTab` 不動）。網址 `campus`／`sy`／`sem` 和招生入學同名，`sub` 與預約全程的 `jp`／`jf`／`jt`／`js` 照舊；招生入學才有的 `tab`、`vr`、`month`、`area`、`wr` 出現在這頁就拿掉。參觀預約、預約全程仍停用學年學期下拉。兩頁共用的頁首抽成 `AdmissionsFilterBar`、招生開關判定抽成 `useAdmissionsAvailability`；`useAdmissionsFilters(page)` 依頁面只讀寫自己的參數。
+- **查看明細**：統計的「查看本月明細」、區域分析與退出原因分佈的「查看明細」改成 push 到 `/admissions?tab=records`，帶校區、學年學期與 `month`／`area`／`wr` 其中一個；上一頁回到招生統計離開時的子分頁。
+- **招生入學**：只剩漏斗看板、訪視明細兩個分頁，頁首說明改「家長參觀之後的預繳與註冊追蹤。」。舊連結 `/admissions?tab=stats…`：總管理者由路由（`admissions` 的 `beforeEnter`）轉到招生統計，其他條件照帶、`tab` 拿掉；其他角色留在招生入學，`tab=stats` 退回漏斗看板並從網址清掉。漏斗看板的口徑說明改寫「和『招生統計』的轉換率算法不同」。
+- **後端（真正的權限）**：新 capability `admissions.stats` 只給 `super_admin`；這 18 支改用它（非總管理者一律 403，不再是越權 404）：`/admin/admissions/stats`、`/compare`、`/area` 與 `/area/kindergartens`／`babycare`／`fees`／`changes`／`opportunity`／`trends`／`enrolled`／`boundaries`、`/journey`、`/no-deposit-records` 與其 `/export`（另要 `booking.export`），以及參觀預約統計的 `/admin/analytics/funnel`、`/booking-outcomes`、`/event-trend`、`/class-distribution`。原本給五個角色的 `analytics.read` 已沒有路由使用，刪掉（`/auth/me` 的 `effective_capabilities` 少這一項）。漏斗看板、訪視明細、家庭頁等其他招生 API 仍是 `admissions.read`，不變。
+- **影響（使用者已知並同意）**：分校管理者與接待看不到本校的統計，包括「未預繳與退出原因」裡追蹤家長用的未預繳名單；成效統計頁的說明改寫「在『招生統計 → 參觀預約』（限總管理者）」。參觀預約面板裡「只能看統計數字、看不到案件」的分支（給沒有 `booking.read` 的人）現在碰不到，保留不刪。
+
 ## 後台：系統狀態頁（2026-10-15，`feature/admin-wave1-20261015`）
 
 正式站「功能做好、靠環境變數才會動」的服務（寄信、LINE 推播、Turnstile、Google／LINE 登入、S3、公開資料自動同步、個資自動清理）與三條背景迴圈（維護排程、轉檔、公開資料同步），以前沒有任何後台畫面看得到；連「正式站設好寄信了沒」都要翻部署紀錄。規格 `docs/specs/2026-10-15-admin-system-status-design.md`（§7 列與規格的差異）。
@@ -20,7 +31,7 @@
   - 操作紀錄 `system.test_email`：`result`（`sent`／`failed`）與失敗時的 `error_code`（例外類別名），不記 Email。
 - **限制**：背景迴圈的狀態是回應這次請求的程序記憶體裡的；正式站目前單一副本，改多副本要重新設計這一區。進頁讀一次、按「重新整理」才更新，不自動輪詢。
 - **不做**：在後台改設定或顯示原值、異常推播或寄信、歷史紀錄、多副本彙整、LINE 測試推播（「LINE 通知」頁已有）、改 `/health`。
-- **處理連結**：LINE 推播 → `/line-notifications`、個資自動清理 → `/policies`（兩列不看狀態一律給）；有失敗素材 → `/media`；寄送失敗 → `/notifications`；排程發布失敗 → `/releases?tab=schedules`；公開資料要注意 → `/admissions?tab=stats&sub=area`。其餘列沒有連結。
+- **處理連結**：LINE 推播 → `/line-notifications`、個資自動清理 → `/policies`（兩列不看狀態一律給）；有失敗素材 → `/media`；寄送失敗 → `/notifications`；排程發布失敗 → `/releases?tab=schedules`；公開資料要注意 → `/admissions-stats?sub=area`（2026-10-16 起招生統計是獨立頁）。其餘列沒有連結。
 
 ## 預約：參觀前 24 小時家長提醒信（2026-10-15，`feature/admin-wave1-20261015`）
 
@@ -1866,7 +1877,7 @@ Nuxt 共用頁尾不再顯示「標題字型 LINE Seed TW」及「機構原官�
 - **選單就是手機的導覽**：首頁在 900px 以下，頁首的漢堡與膠囊的漢堡開的是同一張卡，不再用 `.navigation.open` 展開列；兩顆漢堡打開時都變成 ✕。其他頁面仍用展開列。
 - **無障礙**：兩顆漢堡共用 `aria-expanded`／`aria-controls="menu-panel"`；打開時焦點進第一個連結，Esc、點外面、點連結、回到首屏都會關閉並把焦點還給按鈕。隱藏的那一組（首屏的膠囊、收合後的頁首）用 `visibility:hidden`，不會被 Tab 到。收合後 `.header` 設 `pointer-events:none`，只有膠囊與選單卡接收點擊，看不見的頁首不會擋住內容。
 - **選單鈕的特異性陷阱**：站內既有 `body:has(.studio-hero) .menu-toggle span{height:2px;width:22px}`（特異性 0,2,2）會把膠囊裡的 `.menu-lines`、`.menu-word` 一起壓成 22×2 的白條；膠囊內任何 `span` 的規則都要明確寫出 `width`／`height`／`background`，光靠加前綴不夠。
-- **位置：靠右（2026-09-18 定案）**。膠囊右緣貼內容欄右緣，和原本頁首的預約鈕同一條線；`--pill-gutter` 跟著 `.container` 走（1101px 以上 `max(48px,(100%-1280)/2)`、1100px 以下 32px，斷點取自 studio.css 第 16 行而非 styles.css 的 1150）。選單卡與膠囊同寬、右緣對齊。900px 以下不受影響，仍是左右各留 16 的滿版膠囊。
+- **位置：靠右（2026-09-18 定案）**。膠囊右緣貼內容欄右緣，和原本頁首的預約鈕同一條線；`--pill-gutter` 跟著 `.container` 走（1101px 以上 `max(48px,(100%-1280)/2)`、1100px 以下 32px，斷點取自 studio.css 開頭的 `.container` 斷點而非 styles.css 的 1150）。選單卡與膠囊同寬、右緣對齊。900px 以下不受影響，仍是左右各留 16 的滿版膠囊。
   先前的置中版與其他擺法留作比較，用 `html[data-pill]` 切換（`index.html?pill=center|left|split|split-mini#/home`），比較頁 `design/header-collapse-directions/placement.html`。
 - **向下捲收起、向上捲出現**：預覽參數 `index.html?autohide=1#/home`，mock-up 與對照動畫在 `design/header-collapse-directions/autohide.html`。只在收合狀態作用，方向門檻 6px，一次跳超過 240px（錨點跳轉、按 End）只更新基準不改狀態；選單開著、焦點在膠囊裡、接近頁首、捲到底、減少動態時一律維持顯示。**尚未套成預設**，站上仍是一直顯示。
 - **驗證（2026-09-18）**：桌機 1440／手機 390 的首屏→收合→開選單→Esc→回首屏全數正確；1920 到 320 共 12 種視口無水平溢出、膠囊完整在畫面內、觸控目標 ≥44px；減少動態下膠囊與選單卡直接出現；分校頁與預約頁沒有膠囊、手機仍是原本的展開列；`preview.html` 單檔同步。Safari 與 Firefox 尚未實機。

@@ -1,7 +1,7 @@
 // 成效統計匯出（2026-10-03 計畫 Task 12，2026-10-06 依三頁籤改版後的畫面重做）：
 // 畫面上每張表都有「匯出 CSV」，欄名同畫面；比率沒有值寫空白（畫面的「—」不進檔案）、計數缺值寫 0、
 // 沒有資料的表不顯示按鈕；檔名是「成效統計-表名-範圍-期間-今天（台北）」。2026-10-13 起參觀預約的表
-// 搬到招生入學 → 統計分析 → 參觀預約，檔名改「招生統計-參觀預約-表名-範圍-期間-今天」，官網瀏覽照舊。
+// 搬到招生入學 → 統計分析 → 參觀預約（2026-10-16 起是招生統計頁），檔名改「招生統計-參觀預約-表名-範圍-期間-今天」，官網瀏覽照舊。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -83,7 +83,7 @@ async function mountAnalytics(data: AnalyticsFunnelOut = funnel) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/admissions?tab=stats&sub=booking')
+  await router.push('/admissions-stats?sub=booking')
   await router.isReady()
   // 後端把查詢的期間原樣寫回 date_from／date_to（沒選期間是 null）。
   vi.spyOn(api, 'get').mockImplementation((url) => {
@@ -195,7 +195,7 @@ async function mountOutcomes(data: BookingOutcomesOut) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { campus_keys: ['yihua', 'minghua'] })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/admissions?tab=stats&sub=booking')
+  await router.push('/admissions-stats?sub=booking')
   await router.isReady()
   vi.spyOn(api, 'get').mockResolvedValue(data as never)
   const wrapper = mount(BookingOutcomesSection, {

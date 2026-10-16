@@ -31,7 +31,7 @@ const TRANSPARENT_PNG = Buffer.from(
   'base64',
 )
 const TILE_URL = /^https:\/\/wmts\.nlsc\.gov\.tw\/wmts\/EMAP\/default\/GoogleMapsCompatible\/\d+\/\d+\/\d+$/
-const areaPath = (campus: string) => `/admissions?campus=${campus}&tab=stats&sub=area`
+const areaPath = (campus: string) => `/admissions-stats?campus=${campus}&sub=area`
 
 /** 攔下底圖圖磚並回透明圖；回傳被攔到的圖磚網址，給 expectTilesLoaded 做正向斷言。 */
 async function blockTiles(page: Page): Promise<string[]> {
@@ -53,7 +53,7 @@ async function expectTilesLoaded(page: Page, requested: string[]): Promise<void>
 /** 打開某校的區域分析，等到地圖畫好（里界、圖磚都在）、骨架消失、沒有地圖錯誤提示。 */
 async function openArea(page: Page, campus: string = CAMPUS): Promise<void> {
   const tiles = await blockTiles(page)
-  await gotoAdmin(page, areaPath(campus), '招生入學')
+  await gotoAdmin(page, areaPath(campus), '招生統計')
   await expect(page.locator('.area-map .leaflet-container')).toBeVisible()
   // 地圖真的建起來了（里界畫出來），不只是容器在。
   await expect(page.locator('.area-map path.area-village').first()).toBeAttached()
@@ -105,8 +105,8 @@ test('區域分析：門牌比對到里 → 三張表 → 附近幼兒園 → �
   const { context, page } = await openAs(browser, 'super_admin')
   const tiles = await blockTiles(page)
 
-  await test.step('統計分析 → 區域分析：狀態列與三張表', async () => {
-    await gotoAdmin(page, areaPath(CAMPUS), '招生入學')
+  await test.step('招生統計 → 區域分析：狀態列與三張表', async () => {
+    await gotoAdmin(page, areaPath(CAMPUS), '招生統計')
     await expect(page.locator('.area-status')).toContainText('門牌資料')
     await expect(page.locator('.area-status')).not.toContainText('尚未匯入')
     // 狀態列以有地址為母數（R5）：兩筆都填了地址，一筆到里、一筆是非高雄市。
@@ -157,7 +157,7 @@ test('里界 GeoJSON：官網代理壓成 gzip 後送出，用 ETag 重驗回 30
   const loaded = page.waitForResponse(
     (response) => response.request().method() === 'GET' && new URL(response.url()).pathname.endsWith('/admin/admissions/area/boundaries'),
   )
-  await gotoAdmin(page, areaPath(CAMPUS), '招生入學')
+  await gotoAdmin(page, areaPath(CAMPUS), '招生統計')
   const response = await loaded
 
   expect(response.status()).toBe(200)

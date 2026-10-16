@@ -165,7 +165,7 @@ export function describeItem(item: SystemStatusItem, section: StatusSection): st
 
 export function itemLink(item: SystemStatusItem, section: StatusSection): { to: string; label: string } | null {
   const d = (item.detail ?? {}) as Detail
-  if (section === 'datasets') return item.level === 'attention' ? { to: '/admissions?tab=stats&sub=area', label: '看區域分析' } : null
+  if (section === 'datasets') return item.level === 'attention' ? { to: '/admissions-stats?sub=area', label: '看區域分析' } : null
   switch (item.key) {
     case 'line_messaging':
       return { to: '/line-notifications', label: '前往 LINE 通知' }

@@ -47,10 +47,12 @@ async def test_bad_radius(admin_client, peers, radius):
     assert response.status_code == 422 and response.json()["detail"]["code"] == "INVALID_RADIUS"
 
 
-async def test_permissions(reception_yihua_client, editor_client, minghua_client, public_client, peers):
-    assert (await reception_yihua_client.get(f"{FEES}?campus_key=yihua")).status_code == 200
-    assert (await editor_client.get(f"{FEES}?campus_key=yihua")).status_code == 403
-    assert (await minghua_client.get(f"{FEES}?campus_key=yihua")).status_code == 404
+async def test_permissions(reception_yihua_client, editor_client, minghua_client, public_client, admin_client, peers):
+    """2026-10-16 起限總管理者（admissions.stats）：其他角色不論本校或他校一律 403。"""
+    for client in (reception_yihua_client, editor_client, minghua_client):
+        assert (await client.get(f"{FEES}?campus_key=yihua")).status_code == 403
+        assert (await client.get(f"{FEES}?campus_key=minghua")).status_code == 403
+    assert (await admin_client.get(f"{FEES}?campus_key=yihua")).status_code == 200
     assert (await public_client.get(f"{FEES}?campus_key=yihua&age=abc")).status_code == 401  # 登入檢查在年齡檢查之前
 
 

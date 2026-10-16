@@ -471,8 +471,8 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 | 編號 | 案例 | 狀態 | 證據 |
 |---|---|---|---|
-| E01 | 全區與單校帳號查同一張報表 | 通過 | `test_analytics_booking_outcomes.py::test_only_campuses_in_scope_are_listed`、`test_analytics_event_trend.py::test_other_campus_is_hidden`、`test_analytics_class_distribution.py::test_period_scope_and_school_year_bounds` |
-| E02 | 只有 analytics.read | 通過 | `test_analytics_only_role_sees_counts_without_personal_data`；`analyticsOutcomes.test.ts`「只有統計權限的人只看數字」 |
+| E01 | 全區與單校帳號查同一張報表 | 通過（2026-10-16 起單校帳號一律 403，見 DESIGN.md「招生統計抽成獨立頁」） | `test_analytics_booking_outcomes.py::test_only_super_admin_sees_all_five_campuses`、`test_analytics_event_trend.py::test_event_trend_is_super_admin_only`、`test_analytics_class_distribution.py::test_period_scope_and_school_year_bounds` |
+| E02 | 只有 analytics.read | 已不適用（2026-10-16 刪除 `analytics.read`，參觀預約統計改限總管理者 `admissions.stats`） | `test_stats_are_super_admin_only_and_carry_no_personal_data`；`analyticsOutcomes.test.ts`「只有統計權限的人只看數字」（元件分支保留，正式站碰不到） |
 | E03 | 台北午夜、月底、跨年 | 通過 | `test_period_uses_taipei_days_of_created_at`、`test_days_are_taipei_dates_and_zero_filled` |
 | E04 | 每日資料有空白日期、查詢失敗 | 通過 | `test_days_are_taipei_dates_and_zero_filled`、`test_no_events_gives_one_zero_day`；各面板「讀取失敗顯示錯誤」 |
 | E05 | 生日 9/1、9/2；學年 7/31、8/1 | 通過 | `test_analytics_class_distribution.py::test_shared_grade_cases`（共用 `grade-cases.json`） |

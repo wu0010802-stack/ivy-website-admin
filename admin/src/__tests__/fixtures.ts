@@ -2,10 +2,10 @@ import type { MediaAssetOut, MediaAssetPageOut, Role, UserOut } from '../api/typ
 
 // 測試用的登入者。effective_capabilities 照 backend/app/auth/permissions.py
 // 的角色表（不含逐人授權）；畫面本身一律讀後端回傳的值，這份只給測試組資料。
-const CAMPUS_READ = ['analytics.read', 'campuses.read', 'content.read', 'media.read']
+const CAMPUS_READ = ['campuses.read', 'content.read', 'media.read']
 export const ROLE_CAPABILITIES: Record<Role, string[]> = {
   super_admin: [
-    ...CAMPUS_READ, 'admissions.convert', 'admissions.read', 'admissions.write', 'audit.read_all', 'booking.cross_campus',
+    ...CAMPUS_READ, 'admissions.convert', 'admissions.read', 'admissions.stats', 'admissions.write', 'audit.read_all', 'booking.cross_campus',
     'booking.export', 'booking.handle', 'booking.manage', 'booking.read', 'campuses.activate', 'campuses.manage',
     'contact_phrases.manage', 'contact_phrases.read',
     'content.manage', 'content.publish', 'content.release_restore', 'content.shared', 'media.manage',

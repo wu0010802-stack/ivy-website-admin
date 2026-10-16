@@ -61,7 +61,10 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
       { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
-      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率', '預約統計', '到場率', '取消率', '五校比較', '班別'] },
+      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
+      // 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽出來，限總管理者（後端 admissions.stats）。
+      // 招生開關關閉時同招生入學不列出。
+      { name: 'admissions-stats', path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', roles: ['super_admin'], feature: 'admissions', keywords: ['統計分析', '轉換率', '預約統計', '到場率', '取消率', '五校比較', '班別', '來源分析', '區域分析', '未預繳', '預約全程'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
