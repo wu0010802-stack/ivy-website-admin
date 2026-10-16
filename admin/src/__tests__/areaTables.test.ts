@@ -1,5 +1,5 @@
 // 區域分析的「完整表格」六個分頁（2026-10-16 規格 §2.7、W9、W12、D13、D14）。AreaTables 單獨掛載，
-// 還沒接進 AreaTab（Task 9），資料用 admissionsTestKit 的種子。
+// 資料用 admissionsTestKit 的種子（接進 AreaTab 後的組裝見 areaTab.test.ts）。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'

@@ -1,5 +1,5 @@
 // 區域分析工作台右欄的排行、里卡片與容器（2026-10-16 規格 §2.3、§2.4、§2.5）。元件各自獨立掛載，
-// 還沒接進 AreaTab（Task 9），資料用手寫的 RankingSection／VillageFacts。
+// 資料用手寫的 RankingSection／VillageFacts（接進 AreaTab 後的組裝見 areaTab.test.ts）。
 import { afterEach, describe, expect, it } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'

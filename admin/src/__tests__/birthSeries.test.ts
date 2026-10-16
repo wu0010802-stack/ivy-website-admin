@@ -18,9 +18,10 @@ const mountIt = (props: Record<string, unknown> = {}) =>
   mount(BirthSeries, { props: { periods, radiusKm: 3, csvName: '招生統計-近幾年的出生數.csv', ...props }, global: { plugins: [ElementPlus] } })
 
 describe('BirthSeries', () => {
-  it('標題寫半徑；一期一列：期間、缺月小字、出生數、和前一期', () => {
+  it('標題寫半徑（h3：出生走勢分頁裡直接接在「完整表格」h2 下面）；一期一列：期間、缺月小字、出生數、和前一期', () => {
     const wrapper = mountIt()
     expect(wrapper.get('.birth-series__title').text()).toBe('近幾年的出生數（本校 3 公里內）')
+    expect(wrapper.get('.birth-series__title').element.tagName).toBe('H3')
     const rows = wrapper.findAll('.birth-series__row:not(.birth-series__row--head)')
     expect(rows).toHaveLength(2)
     expect(rows[0]!.get('.birth-series__label').text()).toBe('114 年 10 月～115 年 9 月')

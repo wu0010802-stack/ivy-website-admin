@@ -1,42 +1,40 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, shallowRef, watch } from 'vue'
-import StatsDimensionTable from '../StatsDimensionTable.vue'
-import EnrolledPanel from './EnrolledPanel.vue'
+import { computed, defineAsyncComponent, nextTick, ref, shallowRef, watch } from 'vue'
+import AreaSidePane from './AreaSidePane.vue'
+import AreaTables from './AreaTables.vue'
 import NearbyPanel from './NearbyPanel.vue'
-import OpportunityPanel from './OpportunityPanel.vue'
-import PeerFeesPanel from './PeerFeesPanel.vue'
 import ProviderChanges from './ProviderChanges.vue'
-import VillageTrendsPanel from './VillageTrendsPanel.vue'
-import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
 import {
   getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
   getAreaTrends,
 } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaDistrictRow, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaTrends,
-  AreaVillageRow, VillageBoundaries,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaTrends, VillageBoundaries,
 } from '../../../api/types'
-import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
-import { DEFAULT_AREA_VIEW, type AreaView } from '../../../admissions/areaView'
+import { DEFAULT_AREA_VIEW, isMapMode, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  RADIUS_OPTIONS, bandLabel, campusNotLocatedReason, enrolledMapNote, homesMapNote, opportunityUnavailable, trendMapNote,
+  MAP_MODES, RADIUS_OPTIONS, enrolledMapNote, gradeOptions, homesMapNote, opportunityUnavailable, trendMapNote,
   type GradeFilter, type MapMode, type NearbyKind, type RadiusKm,
 } from './areaFormat'
-import { addressSummary, dataStatusSegments } from './areaPane'
+import {
+  addressSummary, dataStatusText, defaultMapMode, modeNote, paneHead, rankingFor, resolveMapMode, type ModeNotes, type PaneData,
+} from './areaPane'
 import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
+import { findFeature, villageFacts } from './villageFacts'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
-// 2026-10-13 招生機會：地圖可改依 2–5 歲孩子或招生機會著色，地圖下方多一張「招生機會」表（半徑跟附近幼兒園同一個）。
-// 2026-10-14 里的變化：地圖多「孩子增減」著色，招生機會下面多一張「里的變化」表（半徑同上）。
-// 2026-10-14 托嬰與園所異動：右欄多托嬰中心切換與「附近園所的變化」。
+// 2026-10-13 招生機會、2026-10-14 里的變化／托嬰與園所異動、2026-10-15 在籍學生與附近同業收費陸續加進來。
+// 2026-10-16 改成地圖工作台（規格 docs/specs/2026-10-16-admissions-area-workbench-design.md）：由上而下是工具列（看什麼、範圍）→
+// 工作台（地圖＋右欄：該模式的排行、選了里就是里卡片、同業模式是附近清單）→ 完整表格（六個分頁）→ 頁尾（地址摘要與資料版本）。
+// 看什麼、選取的里、表格分頁放在 view（經 StatsTab 接網址）；範圍、名單種類、同業年齡、班別是畫面狀態，重掛回預設。
 // 口徑同其他子分頁（頁首校區＋入學學年學期）；家長地址在後端以公開門牌資料比對，不送任何外部服務。
 // 地圖（Leaflet）另切一個 chunk，點開這個子分頁才下載。
 // chunk 載入失敗（常見於剛部署完、舊的 hash 檔已不存在）：重抓同一個檔救不回來，只能整頁重新載入；
-// 三張表與幼兒園清單不受影響。給 errorComponent（空元件）開發模式才不會把載入錯誤再丟出去；
+// 工具列、右欄與表格不受影響（模式狀態因此放在這裡，不在地圖裡）。給 errorComponent（空元件）開發模式才不會把載入錯誤再丟出去；
 // 旗標一翻畫面就換成說明，Vue 不會再替已卸載的元件記錄錯誤，所以這裡自己記。
 const mapChunkFailed = ref(false)
 const NoMap = () => null
@@ -61,8 +59,13 @@ const props = defineProps<{
   emptyText: string
 }>()
 const emit = defineEmits<{ 'open-records': [filter: { area: string }] }>()
-// 地圖模式、選取的里與表格分頁（頁面放在網址，2026-10-16）。先宣告 model，工作台改版時再取用（現在還沒讀寫，所以不接變數）。
-defineModel<AreaView>('view', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
+// 地圖看什麼、選取的里、表格分頁（2026-10-16 規格 §5）：StatsTab 以 v-model:view 接到網址。
+const view = defineModel<AreaView>('view', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
+
+// view 一律整個換掉（上層拿它寫網址，不能就地改上層的物件）。
+function patchView(patch: Partial<AreaView>) {
+  view.value = { ...view.value, ...patch }
+}
 
 const narrow = useNarrowScreen()
 
@@ -159,8 +162,8 @@ async function loadChanges() {
 }
 watch([() => props.campusKey, radiusKm], () => void loadChanges(), { immediate: true })
 
-// 附近同業收費（2026-10-15 規格 7.1）：年齡放這裡（換校區、半徑都保留）；換校區、半徑、年齡都清空再讀，
-// 只採用最後一次的回應。清單的公告收費也用這份（同半徑、同年齡）。
+// 附近同業收費（2026-10-15 規格 7.1）：換校區、半徑、年齡都清空再讀，只採用最後一次的回應。清單的公告收費也用這份
+// （同半徑、同年齡）。年齡存在這裡，換半徑時保留；換校區或學年學期時 StatsTab 整塊重掛（v-if），年齡回預設 3 歲。
 const peerAge = ref<PeerAge>(DEFAULT_PEER_AGE)
 const peerFees = ref<AreaPeerFees | null>(null)
 const peerFeesFailed = ref(false)
@@ -198,8 +201,8 @@ async function loadOpportunity() {
   }
 }
 watch([() => props.campusKey, () => props.schoolYear, () => props.semester, radiusKm], () => void loadOpportunity(), { immediate: true })
-// 地圖後兩種著色停用時的原因；空字串＝可以用。讀取中不算用不了：換半徑時正在看招生機會的人，
-// 地圖不該跳回參觀人數（地圖在資料回來前先不上色）。
+// 「2–5 歲孩子」與「招生機會」停用時的原因；空字串＝可以用。讀取中不算用不了：換半徑時正在看招生機會的人，
+// 不該跳回預設模式（地圖在資料回來前先不上色）。
 const opportunityNote = computed(() => {
   if (opportunityFailed.value) return '招生機會讀取失敗。'
   return opportunity.value ? (opportunityUnavailable(opportunity.value) ?? '') : ''
@@ -236,7 +239,7 @@ const homesNote = computed(() => {
 })
 
 // 在籍學生（2026-10-15 規格 §6）：只依校區讀（清冊是某一天的快照，和學年學期、半徑無關）。
-// 班別篩選放這裡：地圖與下方表格同步；換校區回到全部（新校不一定有同一班）。
+// 班別篩選放這裡：地圖、右欄排行與在籍學生分頁同步；換校區回到全部（新校不一定有同一班）。
 const gradeFilter = ref<GradeFilter>('all')
 const enrolled = ref<AreaEnrolled | null>(null)
 const enrolledFailed = ref(false)
@@ -258,76 +261,170 @@ watch(() => props.campusKey, () => {
   void loadEnrolled()
 }, { immediate: true })
 const enrolledNote = computed(() => enrolledMapNote(enrolled.value, enrolledFailed.value))
-// 四個停用原因不再傳給 AreaMap（模式鈕搬到 AreaTab 的工具列）。Task 9 用它們決定模式停用與退回；在那之前沒有人讀，
-// 這行只為了讓 noUnusedLocals 過關。
-void [opportunityNote, trendNote, homesNote, enrolledNote]
 
-// 地圖著色與選取的里：Task 9 改由工具列與網址決定，這裡先固定，讓 AreaMap 的新 props 有值。
-const mapMode = ref<MapMode>('visits')
-const selectedCode = ref('')
+// ---- 看什麼（規格 §2.1、D15）----
 
-const map = ref<{ focusKindergarten: (id: string) => void; focusBabycare: (id: string) => void; revealBabycare: () => void } | null>(null)
+const notes = computed<ModeNotes>(() => ({
+  enrolled: enrolledNote.value,
+  opportunity: opportunityNote.value,
+  trend: trendNote.value,
+  homes: homesNote.value,
+  judged: opportunity.value?.baseline?.judged ?? null,
+}))
+const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
+const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: Boolean(modeNote(option.value, notes.value)) })))
+// 工具列下一行寫停用的原因：招生機會那兩種的原因排第一（同一個原因只寫一次，例如里的變化讀取失敗同時停用孩子增減與新屋交屋）。
+const modeReasons = computed(() => [
+  ...new Set([notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.enrolled].filter(Boolean)),
+])
+// 選的模式和這個校區當下的預設一樣就不寫進網址（view.map 為 null）；停用的模式點不到，handler 再擋一次。
+function setMode(value: string | number | boolean | undefined) {
+  if (!isMapMode(value) || modeNote(value, notes.value)) return
+  patchView({ map: value === defaultMapMode(notes.value) ? null : value })
+}
+// 正在看的模式（含網址帶進來的）變成停用：退回預設，網址拿掉 map。讀取中不算停用，所以要等資料回來才會退。
+watch(notes, (current) => {
+  if (view.value.map !== null && modeNote(view.value.map, current)) patchView({ map: null })
+}, { immediate: true })
+
+// ---- 選取的里（規格 §2.4、§4、D7）----
+
+// 網址帶來的里代碼：里界到了、裡面真的沒有這個代碼才從網址拿掉；里界還在讀（或讀取失敗）時不動，否則重新整理就會弄丟選取。
+watch([boundaries, () => view.value.village], ([loaded, code]) => {
+  if (loaded && code && !findFeature(loaded, code)) patchView({ village: '' })
+}, { immediate: true })
+
+const facts = computed(() => {
+  const code = view.value.village
+  if (!code || !boundaries.value || !area.value) return null
+  return villageFacts(code, {
+    boundaries: boundaries.value,
+    area: area.value,
+    opportunity: opportunity.value,
+    opportunityFailed: opportunityFailed.value,
+    trends: trends.value,
+    trendsFailed: trendsFailed.value,
+    enrolled: enrolled.value,
+    enrolledFailed: enrolledFailed.value,
+    kindergartens: kindergartens.value,
+    radiusKm: radiusKm.value,
+  })
+})
+
+type MapApi = {
+  focusKindergarten: (id: string) => void
+  focusBabycare: (id: string) => void
+  revealBabycare: () => void
+  focusVillage: (code: string) => void
+}
+const map = ref<MapApi | null>(null)
+// 地圖 chunk 載入失敗時，ref 可能接到的是空元件（不是地圖實例）：一律當成沒有地圖，不呼叫它（規格 §4）。
+const mapApi = computed(() => (mapChunkFailed.value ? null : map.value))
+const sidePane = ref<InstanceType<typeof AreaSidePane> | null>(null)
+const sideEl = ref<HTMLElement | null>(null)
+// 從地圖點的里才由右欄的 aria-live 報「已選取…」；從排行或表格選的是把焦點移到卡片標題，不重複報。
+const announce = ref(false)
+
+/** 點地圖上的里：寫進 view，右欄換成里卡片；不搶焦點、不移地圖。 */
+function selectFromMap({ code }: { code: string }) {
+  announce.value = true
+  patchView({ village: code })
+}
+/** 從右欄排行或各里表選里：地圖移到那個里（不在視野裡才移），焦點移到卡片標題；手機把卡片捲上來（卡片在地圖下方）。 */
+async function selectFromList(code: string) {
+  announce.value = false
+  patchView({ village: code })
+  mapApi.value?.focusVillage(code)
+  await sidePane.value?.focusCard()
+  if (narrow.value) sideEl.value?.scrollIntoView({ block: 'start' })
+}
+/** 關掉里卡片（×、Esc）：回到排行；焦點留在右欄（卡片卸載後焦點不掉到 body）。 */
+async function closeCard() {
+  patchView({ village: '' })
+  await nextTick()
+  sideEl.value?.focus()
+}
+
 function focusKindergarten(id: string) {
-  map.value?.focusKindergarten(id)
+  mapApi.value?.focusKindergarten(id)
 }
 function focusBabycare(id: string) {
-  map.value?.focusBabycare(id)
+  mapApi.value?.focusBabycare(id)
 }
-// 卡片切到托嬰中心就打開地圖上的托嬰圖層（預設不勾，維持現有畫面）。同時盯著地圖實例：圖層開關存在 AreaMap 裡，
+// 同業清單切到托嬰中心就打開地圖上的托嬰圖層（預設不勾，維持現有畫面）。同時盯著地圖實例：圖層開關存在 AreaMap 裡，
 // 換校區或學年學期時整塊換成骨架、AreaMap 卸載再重掛，新實例的開關回到預設；地圖還沒掛上（里界或 Leaflet 還在下載）
 // 就切到托嬰時，那次呼叫也沒有對象。實例一出現就補一次；只有種類或實例改變才觸發，使用者手動關掉圖層後不會被反覆打開。
-watch([nearbyKind, map], ([kind, instance]) => {
+watch([nearbyKind, mapApi], ([kind, instance]) => {
   if (kind === 'babycare') instance?.revealBabycare()
 })
 
-// 頁首的地址摘要與資料版本（組字在 areaPane.ts，工作台改版後搬到頁尾）。在籍清冊日期與收費學年先不放（傳 null），
-// 畫面只差「有地址」→「參觀有地址」。
-const summary = computed(() => (area.value ? addressSummary(area.value) : null))
-const status = computed(() => (area.value ? dataStatusSegments(area.value, null, null) : null))
+// ---- 右欄（規格 §2.3、§2.5、D13）----
 
-const placeColumns = (label: string): StatsColumn[] => [
-  { key: 'place', label, sticky: true },
-  { key: 'visit', label: '參觀人數', kind: 'bar' },
-  { key: 'deposit', label: '預繳人數', kind: 'count' },
-  { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
-  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
-]
-const DISTRICT_COLUMNS = placeColumns('行政區')
-const VILLAGE_COLUMNS = placeColumns('里')
-const DISTANCE_COLUMNS: StatsColumn[] = [
-  { key: 'band_label', label: '距本校', sticky: true },
-  { key: 'visit', label: '參觀人數', kind: 'bar' },
-  { key: 'deposit', label: '預繳人數', kind: 'count' },
-  { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
-  { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range' },
-]
+const paneData = computed<PaneData | null>(() =>
+  area.value
+    ? {
+        boundaries: boundaries.value, area: area.value, opportunity: opportunity.value, trends: trends.value, enrolled: enrolled.value,
+        gradeFilter: gradeFilter.value, peerFees: peerFees.value, emptyText: props.emptyText, radiusKm: radiusKm.value,
+      }
+    : null,
+)
+const head = computed(() => (paneData.value ? paneHead(mapMode.value, paneData.value) : null))
+const sections = computed(() => (paneData.value && mapMode.value !== 'peers' ? rankingFor(mapMode.value, paneData.value) : []))
 
-const districtRows = computed(() => (area.value?.districts ?? []).map((row) => ({ ...row, place: row.district })))
-// 依參觀人數多到少；同數保留後端的順序（Array.sort 是穩定排序）。
-const villageRows = computed(() =>
-  [...(area.value?.villages ?? [])]
-    .sort((a, b) => b.visit - a.visit)
-    .map((row) => ({ ...row, place: `${row.district}${row.village}`, key: `${row.district}/${row.village}` })),
-)
-// 後端以本校有沒有座標決定距離分組（沒有座標時全歸「無距離」），這裡跟著同一個判準。
-const campusLocated = computed(() => area.value?.campus.lat != null && area.value.campus.lng != null)
-const distanceRows = computed(() =>
-  campusLocated.value ? (area.value?.distance_bands ?? []).map((row) => ({ ...row, band_label: bandLabel(row.band) })) : [],
-)
-const distanceEmptyText = computed(
-  () => `${campusNotLocatedReason(area.value?.campus.locate_error ?? null) ?? '本校位置尚未確定'}，無法計算距離。`,
-)
+// 表格分頁的重試（AreaTables 的 retry 帶來源）。
+const loaders = { opportunity: loadOpportunity, trends: loadTrends, enrolled: loadEnrolled, peerFees: loadPeerFees }
 
-// StatsDimensionTable 是泛型：action 回傳的就是 rows 那一列的型別（後端列型別加上畫面用的欄位），不需要轉型。
-function openDistrict({ district }: AreaDistrictRow) {
-  emit('open-records', { area: areaQuery({ kind: 'place', district, village: null }) })
+// 各模式的排行靠哪一份資料：讀取中畫骨架、讀取失敗寫那份資料原本的失敗句與重試。參觀用的是頁面一開始就讀到的區域分析，
+// 同業的內容是清單（各自有狀態）。那份資料讀取失敗時模式本身會停用、退回預設，失敗句只是保底。
+const paneSources = {
+  enrolled: { data: enrolled, failed: enrolledFailed, load: loadEnrolled, text: '無法讀取在籍學生，請重新載入。' },
+  opportunity: { data: opportunity, failed: opportunityFailed, load: loadOpportunity, text: '無法讀取招生機會，請重新載入。' },
+  trends: { data: trends, failed: trendsFailed, load: loadTrends, text: '無法讀取里的變化，請重新載入。' },
 }
-function openVillage({ district, village }: AreaVillageRow) {
-  emit('open-records', { area: areaQuery({ kind: 'place', district, village }) })
+const PANE_SOURCE: Record<MapMode, keyof typeof paneSources | null> = {
+  enrolled: 'enrolled', children: 'opportunity', opportunity: 'opportunity', trend: 'trends', homes: 'trends', visits: null, peers: null,
+}
+const paneSource = computed(() => {
+  const source = PANE_SOURCE[mapMode.value]
+  return source ? paneSources[source] : null
+})
+const paneLoading = computed(() => Boolean(paneSource.value && !paneSource.value.data.value && !paneSource.value.failed.value))
+const paneFailed = computed(() => (paneSource.value?.failed.value ? paneSource.value.text : ''))
+function retryPane() {
+  void paneSource.value?.load()
+}
+// 卡片某一段讀取失敗的重試：只重讀失敗的那份（成功的那份重讀會讓排行與表格白閃一次）。我們段的參觀來自區域分析，
+// 它讀不到時整頁是錯誤畫面、不會有卡片，所以只需要重讀在籍。
+function retryFacts(section: 'kids' | 'ours') {
+  if (section === 'ours') {
+    void loadEnrolled()
+    return
+  }
+  if (opportunityFailed.value) void loadOpportunity()
+  if (trendsFailed.value) void loadTrends()
+}
+
+const gradeChoices = computed(() => (enrolled.value?.status === 'ready' ? gradeOptions(enrolled.value) : []))
+// el-radio-group 回報的是 string | number | boolean：只收選項裡的班別。
+function setGrade(value: string | number | boolean | undefined) {
+  const choice = gradeChoices.value.find((option) => option.value === value)
+  if (choice) gradeFilter.value = choice.value
+}
+
+// ---- 表格分頁與頁尾（規格 §2.7、§2.9）----
+
+function setTable(tab: AreaTableTab) {
+  patchView({ table: tab })
+}
+function openPlace(placeArea: string) {
+  emit('open-records', { area: placeArea })
 }
 function openNoVillage() {
   emit('open-records', { area: areaQuery({ kind: 'no_village' }) })
 }
+const footer = computed(() =>
+  area.value ? { summary: addressSummary(area.value), status: dataStatusText(area.value, enrolled.value, peerFees.value) } : null,
+)
 </script>
 
 <template>
@@ -335,32 +432,32 @@ function openNoVillage() {
     <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取區域分析，請重新載入。">
       <el-button size="small" @click="load()">重新載入</el-button>
     </el-alert>
-    <el-skeleton v-else-if="!area || !status || !summary" :rows="6" animated />
+    <el-skeleton v-else-if="!area || !head || !footer" :rows="6" animated />
     <template v-else>
-      <div class="area-head">
-        <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
-        <p class="hint area-status">
-          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.rest }}</span>
-        </p>
-        <p v-if="summary.text" class="area-summary">
-          {{ summary.text }}<template v-if="summary.showLink">
-            <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template>{{ summary.tail }}
-        </p>
-        <p v-if="!area.totals.visit" class="empty-note area-empty">{{ emptyText }}</p>
-        <p v-else-if="summary.noAddress" class="empty-note area-empty">{{ summary.noAddress }}</p>
-      </div>
-
-      <!-- 工具列（2026-10-16）：範圍是整頁共用的條件（地圖半徑圈、各份清單與表格都跟著它），所以放在地圖上方；
-           看什麼（地圖模式）下一個任務加進同一列。 -->
+      <!-- 工具列：看什麼（地圖著色與右欄的模式）在左、範圍（全頁共用：地圖半徑圈、清單、表格都跟著它）在右；
+           停用的模式寫原因在下一行。兩組的可見標籤 aria-hidden，名稱由 radiogroup 的 aria-label 給，讀屏不重複。 -->
       <div class="area-toolbar">
-        <span class="area-toolbar__label" aria-hidden="true">範圍</span>
-        <el-radio-group :model-value="radiusKm" size="small" aria-label="範圍" @update:model-value="setRadius">
-          <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
-        </el-radio-group>
+        <div class="area-toolbar__group area-toolbar__modes">
+          <span class="area-toolbar__label" aria-hidden="true">看什麼</span>
+          <el-radio-group class="area-toolbar__mode-group" :model-value="mapMode" size="small" aria-label="看什麼" @update:model-value="setMode">
+            <el-radio-button v-for="option in modeOptions" :key="option.value" :value="option.value" :disabled="option.disabled">
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </div>
+        <div class="area-toolbar__group area-toolbar__range">
+          <span class="area-toolbar__label" aria-hidden="true">範圍</span>
+          <el-radio-group :model-value="radiusKm" size="small" aria-label="範圍" @update:model-value="setRadius">
+            <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
+          </el-radio-group>
+        </div>
+        <p v-if="modeReasons.length" class="area-toolbar__note">
+          <span v-for="reason in modeReasons" :key="reason">{{ reason }}</span>
+        </p>
       </div>
 
-      <div class="area-top">
-        <div class="area-top__map">
+      <div class="area-workbench">
+        <div class="area-workbench__map">
           <el-alert v-if="mapChunkFailed" class="area-map-error" type="error" :closable="false" show-icon title="地圖沒有載入成功，請重新整理這一頁。">
             <el-button size="small" @click="reloadPage">重新整理</el-button>
           </el-alert>
@@ -380,78 +477,95 @@ function openNoVillage() {
             :radius-km="radiusKm"
             :narrow="narrow"
             :mode="mapMode"
-            :selected-code="selectedCode"
+            :selected-code="view.village"
             :opportunity="opportunity"
             :trends="trends"
             :enrolled="enrolled"
             :grade-filter="gradeFilter"
+            @select-village="selectFromMap"
           />
         </div>
-        <div class="area-top__side">
-          <NearbyPanel
-            v-model:kind="nearbyKind"
-            :radius-km="radiusKm"
-            :kindergartens="kindergartens"
-            :kindergartens-failed="kindergartensFailed"
-            :babycare="babycare"
-            :babycare-failed="babycareFailed"
-            :peer-fees="peerFees"
-            :peer-age="peerAge"
-            @select-kindergarten="focusKindergarten"
-            @select-babycare="focusBabycare"
-            @retry-kindergartens="loadKindergartens()"
-            @retry-babycare="loadBabycare()"
-          />
-          <ProviderChanges :data="changes" :failed="changesFailed" :radius-km="radiusKm" @retry="loadChanges()" />
+        <!-- 右欄容器可程式聚焦（tabindex -1）：關掉里卡片後焦點落在這裡，不掉到 body；手機選了里捲到這裡（卡片在最上面）。 -->
+        <div ref="sideEl" class="area-workbench__side" tabindex="-1">
+          <AreaSidePane
+            ref="sidePane"
+            :head="head"
+            :sections="sections"
+            :loading="paneLoading"
+            :failed="paneFailed"
+            :facts="facts"
+            :peers="mapMode === 'peers'"
+            :narrow="narrow"
+            :announce="announce"
+            @select="selectFromList"
+            @close="closeCard"
+            @open-records="openPlace"
+            @retry="retryPane"
+            @retry-facts="retryFacts"
+          >
+            <template #head-extra>
+              <el-radio-group
+                v-if="mapMode === 'enrolled' && gradeChoices.length"
+                class="area-grade"
+                :model-value="gradeFilter"
+                size="small"
+                aria-label="在籍學生班別"
+                @update:model-value="setGrade"
+              >
+                <el-radio-button v-for="option in gradeChoices" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button>
+              </el-radio-group>
+            </template>
+            <div class="area-peers">
+              <NearbyPanel
+                v-model:kind="nearbyKind"
+                :radius-km="radiusKm"
+                :kindergartens="kindergartens"
+                :kindergartens-failed="kindergartensFailed"
+                :babycare="babycare"
+                :babycare-failed="babycareFailed"
+                :peer-fees="peerFees"
+                :peer-age="peerAge"
+                @select-kindergarten="focusKindergarten"
+                @select-babycare="focusBabycare"
+                @retry-kindergartens="loadKindergartens()"
+                @retry-babycare="loadBabycare()"
+              />
+              <ProviderChanges :data="changes" :failed="changesFailed" :radius-km="radiusKm" @retry="loadChanges()" />
+            </div>
+          </AreaSidePane>
         </div>
       </div>
 
-      <EnrolledPanel
-        :data="enrolled"
-        :failed="enrolledFailed"
+      <AreaTables
+        v-model:peer-age="peerAge"
+        :tab="view.table"
+        :area="area"
+        :trends="trends"
+        :trends-failed="trendsFailed"
+        :opportunity="opportunity"
+        :opportunity-failed="opportunityFailed"
+        :enrolled="enrolled"
+        :enrolled-failed="enrolledFailed"
         :grade-filter="gradeFilter"
+        :peer-fees="peerFees"
+        :peer-fees-failed="peerFeesFailed"
         :csv-name="csvName"
-        @retry="loadEnrolled()"
+        :empty-text="emptyText"
+        :boundaries="boundaries"
+        @update:tab="setTable"
+        @select-village="selectFromList"
+        @open-records="emit('open-records', $event)"
+        @retry="loaders[$event]()"
       />
-      <PeerFeesPanel v-model:age="peerAge" :data="peerFees" :failed="peerFeesFailed" :csv-name="csvName" @retry="loadPeerFees()" />
-      <OpportunityPanel :data="opportunity" :failed="opportunityFailed" :csv-name="csvName" @retry="loadOpportunity()" />
-      <VillageTrendsPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" @retry="loadTrends()" />
-      <SchoolDistrictPanel :data="trends" :failed="trendsFailed" :csv-name="csvName" />
 
-      <div v-if="area.totals.with_address" class="area-tables">
-        <StatsDimensionTable
-          title="行政區排行"
-          :rows="districtRows"
-          :columns="DISTRICT_COLUMNS"
-          row-key="district"
-          numbered
-          empty-text="這個範圍還沒有比對到行政區的地址"
-          :export-filename="csvName('行政區排行')"
-          action-label="查看明細"
-          @action="openDistrict"
-        />
-        <StatsDimensionTable
-          title="里排行"
-          :rows="villageRows"
-          :columns="VILLAGE_COLUMNS"
-          row-key="key"
-          numbered
-          empty-text="這個範圍還沒有定位到里的地址"
-          caption="里以門牌資料為準；只到區、未定位的訪視不在這張表。"
-          :export-filename="csvName('里排行')"
-          action-label="查看明細"
-          @action="openVillage"
-        />
-        <!-- 距離分布沒有對應的明細篩選，不給「查看明細」（R13）。 -->
-        <StatsDimensionTable
-          title="距離分布"
-          :rows="distanceRows"
-          :columns="DISTANCE_COLUMNS"
-          row-key="band"
-          :empty-text="distanceEmptyText"
-          :caption="campusLocated ? '從家長地址的門牌量到本校的直線距離；沒填地址、只到區、未定位的訪視算在「無距離」。' : ''"
-          :export-filename="csvName('距離分布')"
-        />
+      <!-- 頁尾（規格 §2.9）：參觀的地址摘要與資料版本，只當出處說明，不再放在頁首像所有數字都依學年。 -->
+      <div class="area-footer">
+        <p v-if="footer.summary.text" class="hint area-footer__summary">
+          {{ footer.summary.text }}<template v-if="footer.summary.showLink">
+            <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template>{{ footer.summary.tail }}
+        </p>
+        <p v-else-if="footer.summary.noAddress" class="hint area-footer__summary">{{ footer.summary.noAddress }}</p>
+        <p class="hint area-footer__status">{{ footer.status }}</p>
       </div>
     </template>
   </div>
@@ -464,23 +578,6 @@ function openNoVillage() {
   min-width: 0;
 }
 
-.area-head {
-  display: grid;
-  gap: 4px;
-}
-
-.area-head p {
-  margin: 0;
-}
-
-.area-summary {
-  color: var(--ink);
-}
-
-.area-status__next {
-  margin-inline-start: 1em;
-}
-
 .area-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -489,42 +586,111 @@ function openNoVillage() {
   min-width: 0;
 }
 
+.area-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.area-toolbar__range {
+  margin-inline-start: auto;
+}
+
 .area-toolbar__label {
+  flex: none;
   color: var(--ink-3);
   font-size: var(--text-sm);
 }
 
-.area-top {
+.area-toolbar__note {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+/* 工作台：1200px 以下單欄（地圖在上、右欄在下，右欄高度 auto 不內捲）；寬螢幕地圖與 380px 右欄並排（見下方 @media）。 */
+.area-workbench {
   display: grid;
   gap: 16px;
   min-width: 0;
 }
 
-.area-top > * {
+.area-workbench > * {
   min-width: 0;
 }
 
-.area-top__side {
+.area-workbench__side {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  /* 手機選了里捲到這裡：留出後台頂端列的高度，卡片標題不被蓋住。 */
+  scroll-margin-top: calc(var(--top-h) + 16px);
+}
+
+.area-grade {
+  margin: 4px 0;
+}
+
+.area-peers {
   display: grid;
-  align-content: start;
-  gap: 16px;
+  gap: 20px;
+  padding: 4px 12px 0;
   min-width: 0;
 }
 
-/* 一欄至少 36rem：里排行加上「可能範圍」與「查看明細」欄，1440 實測約 562px（2026-10-12），窄過這個寬度寧可換列、不要把欄擠出表框。
-   1440 螢幕（側欄之外約 1124px）放不下兩欄，三張表各占一列；更寬的螢幕才兩張並排。min(100%, …) 讓窄螢幕自然變單欄，
-   表格在自己的框內橫捲。 */
-.area-tables {
+.area-footer {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr));
-  gap: 24px;
-  min-width: 0;
+  gap: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
 }
 
+.area-footer p {
+  margin: 0;
+}
+
+/* 寬螢幕：地圖與右欄並排，看起來是同一個框——地圖框拿掉右邊框與右側圓角，右欄的左邊框就是中間那一條線。
+   右欄固定 622px（地圖畫布 620px＋地圖框上下各 1px 邊框），內容超出時欄內捲動（AreaSidePane 在這個寬度設 height:100%）。
+   圖例在 AreaMap 裡，留在地圖框正下方。 */
 @media (min-width: 1200px) {
-  .area-top {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  .area-workbench {
+    grid-template-columns: minmax(0, 1fr) 380px;
     align-items: start;
+    gap: 0;
+  }
+
+  .area-workbench__map :deep(.area-map__frame) {
+    border-inline-end: 0;
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  }
+
+  .area-workbench__side {
+    height: 622px;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  }
+}
+
+/* 手機：看什麼一列橫捲、不換行也不縮字；範圍換到下一行（radio-button 最小高 44px 是全域規則）。 */
+@media (max-width: 720px) {
+  .area-toolbar__modes {
+    flex: 1 1 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .area-toolbar__mode-group {
+    flex-wrap: nowrap;
+  }
+
+  .area-toolbar__range {
+    margin-inline-start: 0;
   }
 }
 </style>

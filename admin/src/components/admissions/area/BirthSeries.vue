@@ -34,7 +34,7 @@ function exportCsv() {
 <template>
   <section v-if="rows.length" class="birth-series" :aria-labelledby="headingId">
     <div class="birth-series__head">
-      <h4 :id="headingId" class="birth-series__title">{{ title }}</h4>
+      <h3 :id="headingId" class="birth-series__title">{{ title }}</h3>
       <el-button size="small" text data-test="birth-series-csv" :aria-label="`把「${title}」匯出 CSV`" @click="exportCsv">
         匯出 CSV
       </el-button>

@@ -12,7 +12,7 @@ import { findFeature } from './villageFacts'
 
 // 區域分析「各里」表（2026-10-16 規格 §2.8、D11、D15–D17）：把招生機會、里的變化、在籍學生合成一張表的純函式。
 // 列以 trends 為底（含里界調整合併的組），用 codes[] 對 opportunity 與 enrolled；trends 讀不到時改以 opportunity 為底。
-// 欄位格式沿用 OpportunityPanel 與 VillageTrendsPanel（Task 9 刪掉那兩個面板後這裡是唯一的來源）。
+// 欄位格式沿用原本的招生機會與里的變化兩個面板（2026-10-16 兩個面板已刪，這裡是唯一的來源）。
 
 export type VillageSort = 'shortfall' | 'children' | 'up' | 'down' | 'homes' | 'enrolled'
 
