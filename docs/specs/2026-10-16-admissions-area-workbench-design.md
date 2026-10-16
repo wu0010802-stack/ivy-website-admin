@@ -1,7 +1,7 @@
 # 區域分析：地圖工作台（2026-10-16）設計
 
 日期：2026-10-16
-狀態：設計經使用者 10-16 在對話中逐段同意（版面與主要互動、表格與頁尾、手機與狀態）；10-16 規格審查後補 §1.3 D15–D20 並更正現況描述，尚未實作
+狀態：設計經使用者 10-16 在對話中逐段同意（版面與主要互動、表格與頁尾、手機與狀態）；10-16 規格審查後補 §1.3 D15–D20 並更正現況描述；2026-10-17 實作完成、本機驗證中，待部署
 基準：`origin/main` `c4524ed5`
 分支：`feature/area-workbench-20261016`（worktree `~/Repositories/ivy-website-wt/area-workbench-20261016`，sparse）
 比稿：`~/Desktop/ivy-website-admin/design/admissions-area-directions-20261016/`（未進版控）。使用者選 **B 地圖工作台**，可點的 mock 是 `b-workbench.html`；mock 的數字與里界都是虛構的。
