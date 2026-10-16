@@ -5,6 +5,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, Suspense, watch } from 'vue'
 import Manage from '../app/pages/visit/manage.vue'
+import { expectedStartOptions, taipeiDate } from '../app/utils/visit-form'
 
 // 2026-10-15 家長管理頁的預計入學時間：直接把 manage.vue 掛起來測（真的 useParentVisit，$fetch 換成依呼叫順序回應的替身）。
 // Nuxt 的自動匯入與區塊元件換成最小的替身。
@@ -129,18 +130,47 @@ describe('家長管理頁：預計入學時間', () => {
     expect(patch.options.body).toMatchObject({ visit_request_id: 'visit-1', expected_version: 3, expected_start: null })
   })
 
-  it('改選另一個月份，儲存時只送這一欄的新值', async () => {
-    fetchReplies(visit, { ...visit, version: 4, expected_start: '116-1' })
+  it('改選另一個月份，儲存時只送這一欄的新值（月份取自今天的選項，不寫死學期）', async () => {
+    const option = expectedStartOptions(taipeiDate()).find(item => item.value !== 'asap' && item.value !== 'unsure')!
+    fetchReplies(visit, { ...visit, version: 4, expected_start: option.value })
     const page = await mountPage()
     await openEdit(page)
-    const target = startRadios(page).find(radio => radio.element.value === '116-1')!
+    const target = startRadios(page).find(radio => radio.element.value === option.value)!
     await target.trigger('click')
     await nextTick()
-    expect(checkedLabel(page)).toBe('2027 年 9 月')
+    expect(checkedLabel(page)).toBe(option.label)
     await page.find('form.parent-visit-edit').trigger('submit')
     await flushPromises()
     const patch = calls.find(call => call.options.method === 'PATCH')!
-    expect(patch.options.body).toEqual({ visit_request_id: 'visit-1', expected_version: 3, expected_start: '116-1' })
+    expect(patch.options.body).toEqual({ visit_request_id: 'visit-1', expected_version: 3, expected_start: option.value })
+  })
+
+  it('鍵盤：已選的那個按 Space 取消，未選的按 Space 選取（已勾選的 radio 按 Space 不會觸發 click）', async () => {
+    fetchReplies(visit)
+    const page = await mountPage()
+    await openEdit(page)
+    const original = startRadios(page)[0]!
+    const other = startRadios(page).find(radio => radio.element.value === 'unsure')!
+    expect(checkedLabel(page)).toBe('2021 年 9 月')
+    await original.trigger('keydown', { key: ' ' })
+    await nextTick()
+    expect(checkedLabel(page)).toBeUndefined()
+    await original.trigger('keydown', { key: ' ' })
+    await nextTick()
+    expect(checkedLabel(page)).toBe('2021 年 9 月')
+    await other.trigger('keydown', { key: ' ' })
+    await nextTick()
+    expect(checkedLabel(page)).toBe('還不確定')
+    expect(startRadios(page).filter(radio => radio.element.checked)).toHaveLength(1)
+  })
+
+  it('鍵盤：按其他鍵不會改選取', async () => {
+    fetchReplies(visit)
+    const page = await mountPage()
+    await openEdit(page)
+    await startRadios(page)[0]!.trigger('keydown', { key: 'Enter' })
+    await nextTick()
+    expect(checkedLabel(page)).toBe('2021 年 9 月')
   })
 
   it('什麼都不改直接儲存：不送這個欄位', async () => {

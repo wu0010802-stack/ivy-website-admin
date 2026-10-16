@@ -61,6 +61,12 @@ describe('預約表單放這一題的方式（規格 X3）', () => {
     expect(form).toMatch(/form\.expectedStart = form\.expectedStart === value \? '' : value/)
   })
 
+  it('鍵盤也能取消：radio 另掛 @keydown.space.prevent（已勾選的 radio 按 Space 不會觸發 click）', () => {
+    const radio = form.match(/<input type="radio" name="expectedStart"[^>]*>/)?.[0]
+    expect(radio).toContain('@click="toggleExpectedStart(option.value)"')
+    expect(radio).toContain('@keydown.space.prevent="toggleExpectedStart(option.value)"')
+  })
+
   it('成功頁在有選時列出「預計入學」，沒選不列', () => {
     expect(form).toContain('<div v-if="form.expectedStart"><dt>預計入學</dt>')
   })
