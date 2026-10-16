@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 清掉 web 的死 CSS 與比稿殘留（main CI 部署，沒有 migration）
+
+- **提交**：`feature/web-deadcode-20261016` 四個 commit（`c21c8e92`..`fcf4a1b0`），推之前 rebase 到 main `d196036b`（招生統計獨立頁先上；衝突只有 README.md 頂部；那個提交沒有動 `web/`），使用者推 main（fast-forward `d196036b..fcf4a1b0`，沒有開 PR）。內容見 README 頂部「清掉 web 的死 CSS 與比稿殘留」。
+- **migration**：沒有。只刪 CSS、死函式、兩個沒用的測試套件（`web/package-lock.json` 變動）與後台兩個範本 SVG；沒有新環境變數，沒有備份。回退可直接切回上一個映像。
+- **推送前閘門**：feature 分支 CI run 38879238782（`0bf3e44d`）Frontend web／admin、Backend 三組、E2E 全部 success；最後一次 rebase 後 `web/` 與它完全相同。本機：web vitest 101 檔 1227 passed、web／admin typecheck 0 錯、admin vitest 165 檔 2599 passed／1 skipped、`nuxt build` 成功；dev server 75 個狀態的 computed style 刪前刪後一致（方法見 README）。
+- **CI**：main run 38881531499（`fcf4a1b0`）09:35:45Z 開跑（前一個 run 38879353923 剛結束），全部 success；Deploy Railway production 09:42:02Z–09:49:14Z。
+- **正式 `release.json`**：base commit `fcf4a1b0`，snapshot `3419ddb9970b…`，created `2026-10-16T09:42:24Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-16T09:49Z）：health `status: ok`、`environment: production`、`fixture_enabled: false`、`last_failed_steps` 為空；`/`、`/about`、`/admission`、`/visit`、`/environment`、`/curriculum`、`/anniversary`、`/news`、`/admin/login` 都回 200。每頁內嵌 CSS（`<style>` 合計）：`/` 169→138.3 KB、`/about` 164→133.0、`/admission` 162→131.0、`/visit` 162→130.9；gzip 後首頁 HTML 66→60.5 KB。首頁與常春藤環境頁桌機、手機首屏與捲動後截圖目視正常（頁首、膠囊、手繪版面）。
+- **未在線上驗證**：沒有逐頁做 computed style 比對（正式站是 CMS 內容，fixture 上做過）；選單打開、對話框等互動狀態只在 dev server 比過。
+
 ## 2026-10-16 招生統計抽成獨立側欄頁、只給總管理者（main CI 部署，沒有 migration）
 
 - **提交**：`feature/admissions-stats-page-20261016` 一個 commit `d196036b`，使用者推 main（fast-forward `c4524ed5..d196036b`，沒有開 PR）。內容見 README 頂部「招生統計抽成獨立側欄頁、只給總管理者」、DESIGN.md「後台：招生統計抽成獨立頁、只給總管理者」。
