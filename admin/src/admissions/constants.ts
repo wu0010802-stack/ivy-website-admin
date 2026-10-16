@@ -80,16 +80,22 @@ export const EVENT_LABELS: Record<string, string> = {
   withdraw_cancelled: '取消退費',
   seat_reserved: '保留座位',
   seat_released: '釋放保留',
+  // 2026-10-15 官網專用事件（後端 WEBSITE_ONLY_EVENT_TYPES）：只記欄位名與日期。
+  details_updated: '修改招生資料',
+  follow_up_updated: '排下次聯絡',
 }
 
 const CREATED_ORIGIN_LABELS: Record<string, string> = { visit_request: '官網預約到場', manual: '手動新增' }
+// details_updated 的 metadata.origin（後端 DETAILS_ORIGIN_SYNC）：預約改家長資料時同步過來的。
+const DETAILS_ORIGIN_LABELS: Record<string, string> = { visit_request_sync: '從預約同步' }
 
-/** 查不到的事件顯示原字串（園務同樣做法），建立訪視依 metadata.origin 補來源。 */
+/** 查不到的事件顯示原字串（園務同樣做法）；建立訪視、預約同步過來的修改依 metadata.origin 補來源。 */
 export function eventLabel(eventType: string, metadata?: unknown): string {
   const label = EVENT_LABELS[eventType] ?? eventType
-  if (eventType !== 'created' || !metadata || typeof metadata !== 'object') return label
-  const origin = CREATED_ORIGIN_LABELS[String((metadata as { origin?: unknown }).origin)]
-  return origin ? `${label}（${origin}）` : label
+  if (!metadata || typeof metadata !== 'object') return label
+  const origin = String((metadata as { origin?: unknown }).origin)
+  const source = eventType === 'created' ? CREATED_ORIGIN_LABELS[origin] : eventType === 'details_updated' ? DETAILS_ORIGIN_LABELS[origin] : undefined
+  return source ? `${label}（${source}）` : label
 }
 
 export type TransitionCapability = 'admissions.write' | 'admissions.convert'

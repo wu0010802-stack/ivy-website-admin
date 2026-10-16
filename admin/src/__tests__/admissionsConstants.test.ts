@@ -32,6 +32,22 @@ describe('與後端 constants.py 對齊', () => {
     expect(types).toContain('seat_reserved')
     expect(types.filter((type) => !EVENT_LABELS[type])).toEqual([])
   })
+
+  it('官網專用的歷程事件（2026-10-15）有中文，預約同步的另標來源；查不到的顯示原字串', () => {
+    expect(EVENT_LABELS.details_updated).toBe('修改招生資料')
+    expect(EVENT_LABELS.follow_up_updated).toBe('排下次聯絡')
+    expect(eventLabel('details_updated', { fields: ['phone'] })).toBe('修改招生資料')
+    expect(eventLabel('details_updated', { fields: ['phone'], origin: 'visit_request_sync' })).toBe('修改招生資料（從預約同步）')
+    expect(eventLabel('created', { origin: 'manual' })).toBe('建立訪視（手動新增）')
+    expect(eventLabel('something_new', null)).toBe('something_new')
+  })
+
+  it('來源只標在自己的事件上：建立訪視不吃預約同步，排下次聯絡也不標', () => {
+    expect(eventLabel('created', { origin: 'visit_request_sync' })).toBe('建立訪視')
+    expect(eventLabel('details_updated', { origin: 'manual' })).toBe('修改招生資料')
+    expect(eventLabel('follow_up_updated', { origin: 'visit_request_sync' })).toBe('排下次聯絡')
+    expect(eventLabel('details_updated', { origin: 'visit_request_sync' })).toBe('修改招生資料（從預約同步）')
+  })
 })
 
 describe('已匿名化與待補姓名（R4、R10）', () => {

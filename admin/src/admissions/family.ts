@@ -1,7 +1,7 @@
 // 預約明細當家庭頁（docs/specs/2026-10-05-visit-family-page-design.md）的純函式：合併參觀前後的
 // 聯絡紀錄與歷程、頁首「最後處理」、招生入學點列時要去哪、返回鍵的來源。
 import type { ContactLog, RecruitmentEvent, VisitContactNoteOut, VisitHistoryOut } from '../api/types'
-import { staffLabel, staffOf } from '../api/labels'
+import { RECRUITMENT_FIELD_LABELS, formatDateTime, staffLabel, staffOf } from '../api/labels'
 import { lastHandled, type LastHandled } from '../api/visitHistory'
 import { termLabel } from './academic'
 import { eventLabel, stageLabel } from './constants'
@@ -100,19 +100,34 @@ export function familyHistory(history: readonly VisitHistoryOut[], events: reado
     .map(({ row }) => row)
 }
 
-/** 招生事件的變更行：階段變化（「已訪視 → 已預繳」）與保留座位的年級學期。歷程抽屜與預約明細共用。 */
+/**
+ * 招生事件的變更行：階段變化（「已訪視 → 已預繳」）、保留座位的年級學期、修改招生資料的欄位（只有
+ * 欄位中文，不含內容）、排下次聯絡的時間（2026-10-15）。歷程抽屜與預約明細共用。
+ */
 export function recruitmentEventChanges(event: RecruitmentEvent): string[] {
   const lines: string[] = []
+  const metadata = (event.metadata_json && typeof event.metadata_json === 'object' ? event.metadata_json : {}) as Record<string, unknown>
   if (event.from_stage && event.to_stage && event.from_stage !== event.to_stage) {
     lines.push(`${stageLabel(event.from_stage)} → ${stageLabel(event.to_stage)}`)
   }
   if (event.event_type === 'seat_reserved' || event.event_type === 'seat_released') {
-    const metadata = (event.metadata_json && typeof event.metadata_json === 'object' ? event.metadata_json : {}) as Record<string, unknown>
     const grade = typeof metadata.grade === 'string' ? metadata.grade : ''
     const year = typeof metadata.school_year === 'number' ? metadata.school_year : null
     const semester = typeof metadata.semester === 'number' ? metadata.semester : null
     const seat = [grade, year ? termLabel(year, semester) : ''].filter(Boolean).join('・')
     if (seat) lines.push(seat)
+  }
+  if (event.event_type === 'details_updated' && Array.isArray(metadata.fields)) {
+    // 帶參觀老師的帳號與姓名是兩個欄位、同一個中文，只列一次。
+    const names = Array.from(new Set(metadata.fields.map((field) => RECRUITMENT_FIELD_LABELS[String(field)] ?? String(field))))
+    if (names.length) lines.push(`改了：${names.join('、')}`)
+  }
+  if (event.event_type === 'follow_up_updated') {
+    const at = typeof metadata.follow_up_at === 'string' ? metadata.follow_up_at : null
+    const before = typeof metadata.previous_follow_up_at === 'string' ? metadata.previous_follow_up_at : null
+    // 只換負責人時前後時間相同（W2-12），不寫時間那一行；時間真的變了才寫新時間或「不用再追」。
+    if (at !== before) lines.push(at ? `下次聯絡：${formatDateTime(at)}` : '改為不用再追')
+    if (metadata.owner_changed === true) lines.push('負責人已變更')
   }
   return lines
 }

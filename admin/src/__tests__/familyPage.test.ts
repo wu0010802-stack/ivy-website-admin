@@ -76,6 +76,50 @@ describe('案件歷程合併（5.5）', () => {
     }))).toEqual(['小班・115 上學期'])
     expect(recruitmentEventChanges(recruitmentEvent())).toEqual([])
   })
+
+  it('招生事件的變更行：修改招生資料只列欄位中文、排下次聯絡寫時間或不用再追（2026-10-15）', () => {
+    expect(recruitmentEventChanges(recruitmentEvent({
+      event_type: 'details_updated', from_stage: 'visited', to_stage: 'visited',
+      metadata_json: { fields: ['phone', 'tour_guide_name', 'tour_guide_user_id', 'mystery'] },
+    }))).toEqual(['改了：電話、帶參觀老師、mystery'])
+    expect(recruitmentEventChanges(recruitmentEvent({
+      event_type: 'follow_up_updated', from_stage: 'deposited', to_stage: 'deposited',
+      metadata_json: { follow_up_at: '2026-10-20T02:00:00Z', previous_follow_up_at: null, owner_changed: true },
+    }))).toEqual(['下次聯絡：2026/10/20 10:00', '負責人已變更'])
+    expect(recruitmentEventChanges(recruitmentEvent({
+      event_type: 'follow_up_updated', from_stage: 'visited', to_stage: 'visited',
+      metadata_json: { follow_up_at: null, previous_follow_up_at: '2026-10-20T02:00:00Z', owner_changed: false },
+    }))).toEqual(['改為不用再追'])
+  })
+
+  it('排下次聯絡：只換負責人（前後時間相同）時不寫下次聯絡那一行；時間真的改了才寫（W2-12）', () => {
+    const followUp = (metadata: Record<string, unknown>) => recruitmentEvent({
+      event_type: 'follow_up_updated', from_stage: 'visited', to_stage: 'visited', metadata_json: metadata,
+    })
+    // 只換負責人：兩個時間相同，只有「負責人已變更」。
+    expect(recruitmentEventChanges(followUp({
+      follow_up_at: '2026-10-20T02:00:00Z', previous_follow_up_at: '2026-10-20T02:00:00Z', owner_changed: true,
+    }))).toEqual(['負責人已變更'])
+    // 本來就沒排、只換負責人：兩個都是 null，一樣只有「負責人已變更」，不會寫成「改為不用再追」。
+    expect(recruitmentEventChanges(followUp({
+      follow_up_at: null, previous_follow_up_at: null, owner_changed: true,
+    }))).toEqual(['負責人已變更'])
+    // 正向對照：同一個時間欄位只要前後不同就會寫出來，舊值有值、新值也有值時寫新值。
+    expect(recruitmentEventChanges(followUp({
+      follow_up_at: '2026-10-22T02:00:00Z', previous_follow_up_at: '2026-10-20T02:00:00Z', owner_changed: false,
+    }))).toEqual(['下次聯絡：2026/10/22 10:00'])
+    expect(recruitmentEventChanges(followUp({
+      follow_up_at: '2026-10-22T02:00:00Z', previous_follow_up_at: '2026-10-20T02:00:00Z', owner_changed: true,
+    }))).toEqual(['下次聯絡：2026/10/22 10:00', '負責人已變更'])
+  })
+
+  it('修改招生資料也算家庭頁的「最後處理」（H8）', () => {
+    const edited = recruitmentEvent({
+      id: 'e9', event_type: 'details_updated', from_stage: 'visited', to_stage: 'visited',
+      metadata_json: { fields: ['phone'] }, created_at: '2026-10-15T03:00:00Z',
+    })
+    expect(familyLastHandled([], [recruitmentEvent(), edited], [], null)).toMatchObject({ what: '修改招生資料', at: '2026-10-15T03:00:00Z' })
+  })
 })
 
 describe('最後處理與最近聯絡', () => {
