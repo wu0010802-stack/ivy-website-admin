@@ -1004,7 +1004,9 @@ describe('依國小學區（2026-10-14 規格 7.3）', () => {
       ['2', '三民區光武國小', '4 里＋部分 6 里', '1287', '−19*', '5', '0.4%', '—'],
       ['3', '鳳山區文華國小', '部分 2 里', '756', '—', '0', '0.0%', '總量管制'],
     ])
-    const caption = section.get('.stats-block__caption').text()
+    // 長說明收在預設收起的「這些數字怎麼算」（2026-10-16 工作台規格 W12），不再是表格上方的 hint 文字。
+    expect(section.find('.stats-block__caption').exists()).toBe(false)
+    const caption = section.get('details.explainer').text()
     expect(caption).toContain('列出學區碰到本校 3 公里內任一個里的國小；整里、部分里都算整個學區（含 3 公里外的里）')
     expect(caption).toContain('各列不能相加')
     expect(caption).toContain('115 學年度國民小學學區劃分一覽表')

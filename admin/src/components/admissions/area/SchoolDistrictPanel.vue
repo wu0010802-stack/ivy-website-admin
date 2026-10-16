@@ -100,6 +100,7 @@ const csvColumns = computed<StatsColumn[]>(() => {
       numbered
       :empty-text="emptyText"
       :caption="caption"
+      caption-collapsed
       :export-filename="csvName('依國小學區')"
       :csv-cell="csvCell"
       :collapsed-rows="COLLAPSED_ROWS"
