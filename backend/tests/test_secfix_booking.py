@@ -574,6 +574,43 @@ async def test_public_slots_uses_constant_number_of_queries(app, admin_client, p
 
 
 @pytest.mark.asyncio
+async def test_admin_slots_uses_constant_number_of_queries(app, admin_client, public_client):
+    # 後台場次列表（月曆）原本每個場次各查一次已占名額，和上面的公開查詢同一個問題。
+    first = await _slot(admin_client, days_ahead=3, capacity=2)
+    version = await _enable(admin_client, "slots")
+    booked = await public_client.post(
+        SUBMIT, json=_payload(version, first, phone="0912345651"), headers={"Idempotency-Key": "admin-n1"}
+    )
+    assert booked.status_code == 201, booked.text
+    date_from = today_local().isoformat()
+    date_to = (today_local() + timedelta(days=30)).isoformat()
+    url = f"{API}/admin/slots?campus_key=yihua&date_from={date_from}&date_to={date_to}"
+
+    statements: list[str] = []
+
+    def _count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(app.state.engine.sync_engine, "before_cursor_execute", _count)
+    try:
+        one = await admin_client.get(url)
+        with_one = len(statements)
+        for i in range(5):
+            await _slot(admin_client, days_ahead=4 + i)
+        statements.clear()
+        many = await admin_client.get(url)
+        with_many = len(statements)
+    finally:
+        event.remove(app.state.engine.sync_engine, "before_cursor_execute", _count)
+
+    assert one.status_code == 200 and len(one.json()) == 1
+    assert many.status_code == 200 and len(many.json()) == 6
+    assert with_many == with_one, (with_one, with_many)
+    assert {slot["id"]: slot["booked_count"] for slot in many.json()}[first] == 1
+    assert sum(slot["booked_count"] for slot in many.json()) == 1
+
+
+@pytest.mark.asyncio
 async def test_public_slots_remaining_counts_occupying_requests(admin_client, public_client):
     busy = await _slot(admin_client, days_ahead=3, capacity=2)
     full = await _slot(admin_client, days_ahead=4, capacity=1)

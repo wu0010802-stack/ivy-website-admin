@@ -13,6 +13,19 @@
   - 再合併已上線的第 1 波（`4f1e0603`）與 small-fixes（`2d56b439`）、第 1 波部署紀錄（`b20ef763`）後：在 `26fd6f4a` 後端全套 3566 passed、admin 全套 165 個檔案 2617 passed、stack 全套 146 passed；在 `068ee7a0` 後端全套 3567 passed、1 skipped、0 failed（21.4 分鐘），admin 全套 165 個檔案 2623 passed、1 skipped（`--testTimeout=60000`），admin、web `typecheck` 通過，契約檢查一致，stack 全套重新 build 後 147 passed、0 failed（5.6 分鐘）。
 - **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；桌機篩選列與 390px 版面由 stack e2e 量過不溢出並截圖人工看過（`output/playwright/withdraw-*.png`，不進版控）。
 
+## 2026-10-16 後端測試提速、後台場次 N+1、文件更正（`feature/ci-speed-20261016`）
+
+使用者要盤點「還有哪裡可以優化」，同意先做 CI 提速＋小修正＋文件更正。從 push 到部署約 18–21 分鐘，關鍵路徑是 Backend 最慢那一組 pytest（12.5–15 分鐘）。
+
+- **測試準備**（`backend/tests/conftest.py`、新增 `backend/tests/route_cache.py`）：本機抽 92 項實測，準備階段佔 74%（平均 394 ms，本體 141 ms）。原因是每個測試都 `create_app` 一次，FastAPI 把 850 條路由重建一遍（約 130 ms，幾乎都是 pydantic 驗證器），以及 TRUNCATE 56 張表（44 ms）。改成路由只建一次、之後的 app 重用（`dependency_overrides` 對共用路由無效，app fixture 收尾會檢查）；清表改從 `Base.metadata` 取名單，superuser 時用 `session_replication_role=replica` 的 DELETE（1.4 ms），否則照舊 TRUNCATE。同一批 92 項改前 36–40 秒、改後 16–19 秒。
+- **連線外洩**：提速後全套第一次跑出 35 個 `TooManyConnectionsError`。conftest 從來沒有 dispose 每個測試的 engine，連線原本靠 GC 回收 app 才關；建 app 變快、垃圾變少後 GC 跑得少，舊連線累積。`tests/test_admissions_*.py` 548 項的連線峰值：main 11、提速未 dispose 51、加 dispose 後 3。
+- **`.test_durations`**：舊檔是 10-05 的 1532 項（缺 65 個檔），CI 三組實跑 853／637／760 秒。重產後 3448 筆，pytest-split 預估三組平均。
+- **後台場次列表 N+1**：`GET /admin/slots` 原本每個場次各查一次已占名額，改用公開查詢已在用的 `count_booked_by_slot`；新測試確認 1 個與 6 個場次的查詢數相同（修正前 5 對 10）。
+- **CI**：同一個分支的 push 與 PR 改成同一個 concurrency 群組（分支名），後到的取消先到的；來源分支叫 `main` 的 PR（例如 fork）改用 PR 編號，不會和正式部署同組。
+- **文件**：`docs/website-admin/operations.md`（逾期提醒、承辦人、舊狀態、停用分校回 404 的頁面）、`deploy/README.md`（家長自選場次已部署）、`deploy/CICD.md`（e2e 不擋部署、smoke 不檢查五校頁）、`CLAUDE.md`（README 長度、待追蹤分頁與 inquiry 已拿掉、stack e2e 與 durations 指令）等仍把已拿掉的功能寫成現況的地方。
+- **驗證**（Node 22、本機 PostgreSQL 14、獨立測試庫 `ivy_website_cispeed1016_test`，**未 push、未部署**）：後端全套 3447 passed、1 skipped，本機單一程序 5 分 9 秒。沒改 API 契約、web、admin，沒跑前端與 stack e2e。CI 上實際省多少要等推上去看三組 pytest 的時間。
+- **沒做、待使用者決定**：e2e 要不要擋部署；repo 是公開的（私有化會讓 Actions 計費、runner 降到 2 vCPU）；沒有前端呼叫的端點（招生 follow-ups、使用者 scope、校區清單、名額規劃兩支）要不要刪；`tests/e2e`（`playwright.config.ts`）沒有任何 workflow 在跑、還在打已 301 的 `/campuses/*`。
+
 ## 2026-10-16 延後小問題一批修正＋文件校正（`fix/small-fixes-20261016`）
 
 使用者 10-16 要盤點「還有什麼可以做」後說「先做你可以做的」。從各次紀錄的「延後」清單挑出在 main（`263fea2a`）上仍存在、不需要業主決定的幾條，各自先寫失敗測試再改。規則寫進 DESIGN.md「招生入學：預約全程漏斗」與「參觀場次」兩節。
