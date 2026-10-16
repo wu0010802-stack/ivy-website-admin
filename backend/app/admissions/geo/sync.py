@@ -637,34 +637,50 @@ async def babycare_details_missing(session_factory: async_sessionmaker[AsyncSess
 
 
 async def sync_babycare_details(
-    session_factory: async_sessionmaker[AsyncSession], client: httpx.AsyncClient, *, now: datetime
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient,
+    *,
+    now: datetime,
+    only_if_missing: bool = False,
 ) -> int:
-    """托嬰逐所明細（2026-10-15 規格 §4.3）：回傳更新了幾所。單所失敗保留舊值；超過時間上限就停，
-    還沒抓的下一輪再抓。不改 babycare 的同步結果與狀態列。"""
-    deadline = time.monotonic() + BABYCARE_DETAIL_TIME_BUDGET.total_seconds()
-    async with session_factory() as db:
-        ids = (
-            await db.execute(
-                select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True)).order_by(GeoBabycare.source_id)
-            )
-        ).scalars().all()
+    """托嬰逐所明細（2026-10-15 規格 §4.3）：回傳更新了幾所。這一段怎麼失敗都不丟例外、不改 babycare 的
+    同步結果與狀態列，只寫 WARNING 日誌與計數：單所失敗（含回應解析不出任何欄位）保留舊值、繼續下一所；
+    資料庫出錯就中止這一段；整段有硬性時間上限（到了直接取消進行中的請求），沒抓的下一輪再抓。
+    only_if_missing：名單這一輪沒更新時用，只有營業中的托嬰一所明細都沒抓過才做。"""
     updated = failed = 0
-    for source_id in ids:
-        if time.monotonic() > deadline:
-            logger.warning("托嬰明細超過時間上限，這一輪先停：還有 %s 所沒抓", len(ids) - updated - failed)
-            break
-        try:
-            body, _ = await _fetch_capped(client, babycare_io.detail_url(source_id), max_bytes=BABYCARE_DETAIL_MAX_BYTES)
-            detail = babycare_io.parse_babycare_detail(json.loads(body))
-        except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋其他
-            failed += 1
-            logger.warning("托嬰明細下載或解析失敗：%s", _error_text(exc))
-        else:
+    limit = asyncio.timeout(BABYCARE_DETAIL_TIME_BUDGET.total_seconds())
+    try:
+        async with limit:
+            if only_if_missing and not await babycare_details_missing(session_factory):
+                return 0
             async with session_factory() as db:
-                await db.execute(update(GeoBabycare).where(GeoBabycare.source_id == source_id).values(**asdict(detail)))
-                await db.commit()
-            updated += 1
-        await _sleep(BABYCARE_DETAIL_GAP_SECONDS)
+                ids = (
+                    await db.execute(
+                        select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True)).order_by(GeoBabycare.source_id)
+                    )
+                ).scalars().all()
+            for source_id in ids:
+                try:
+                    body, _ = await _fetch_capped(client, babycare_io.detail_url(source_id), max_bytes=BABYCARE_DETAIL_MAX_BYTES)
+                    values = asdict(babycare_io.parse_babycare_detail(json.loads(body)))
+                    if all(value is None for value in values.values()):
+                        raise BabycareFormatError("明細沒有任何可用欄位")  # 上游改版回空內容：保留舊值
+                except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋其他
+                    failed += 1
+                    logger.warning("托嬰明細下載或解析失敗（%s）：%s", source_id, _error_text(exc))
+                else:
+                    async with session_factory() as db:
+                        await db.execute(update(GeoBabycare).where(GeoBabycare.source_id == source_id).values(**values))
+                        await db.commit()
+                    updated += 1
+                await _sleep(BABYCARE_DETAIL_GAP_SECONDS)
+    except Exception as exc:  # noqa: BLE001 - 這一段失敗不影響 babycare 的結果與後面的資料種類
+        if isinstance(exc, TimeoutError) and limit.expired():
+            seconds = int(BABYCARE_DETAIL_TIME_BUDGET.total_seconds())
+            after = f"{seconds // 60} 分鐘" if seconds >= 60 else f"{seconds} 秒"
+            logger.warning("托嬰明細超過 %s，這一輪先停：已更新 %s 所，其餘下一輪再抓", after, updated)
+        else:
+            logger.warning("托嬰明細同步中止：%s", _error_text(exc), exc_info=True)
     logger.info("托嬰明細已更新：%s 所，失敗 %s 所", updated, failed)
     return updated
 
@@ -1363,10 +1379,10 @@ async def run_geo_sync(
                 work=sync_babycare(session_factory, settings, network, now=now, force=force, file=babycare_file),
             )
             babycare_details = 0
-            if network is not None and babycare != "failed" and (
-                babycare == "updated" or await babycare_details_missing(session_factory)
-            ):
-                babycare_details = await sync_babycare_details(session_factory, network, now=now)
+            if network is not None and babycare != "failed":
+                babycare_details = await sync_babycare_details(
+                    session_factory, network, now=now, only_if_missing=babycare != "updated"
+                )
             population, population_skipped = await _within_budget(
                 session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                 work=sync_population(session_factory, network, now=now, force=force, files=population_files),
