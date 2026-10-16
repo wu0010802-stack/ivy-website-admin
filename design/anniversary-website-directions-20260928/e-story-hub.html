@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>故事彙整頁</title>
+<meta name="description" content="30 週年比稿 E：延後、條件式的 /story 彙整頁（/30 永久轉址），比較「只有已知事實」和「有 6 篇故事加 1 場活動」兩種狀態差多少。">
+<link rel="icon" href="data:,">
+<script>
+  // 依 ?v= 決定內容狀態；沒帶或帶錯就用建議的上線門檻狀態（full：6 篇故事＋1 場活動）。
+  // 兩種狀態的差異只用 [data-only] 切換，沒有動畫。
+  (function () {
+    var v = new URLSearchParams(location.search).get('v')
+    document.documentElement.dataset.v = (v === 'facts' || v === 'full') ? v : 'full'
+  })()
+</script>
+<link rel="stylesheet" href="shared/site.css">
+<!-- 正式站 /about、/admission 共用的 adm-* 版型，直接讀 web/ 的原檔（只用 token，沒有色碼） -->
+<link rel="stylesheet" href="../../web/app/assets/css/admission.css">
+<link rel="stylesheet" href="e-story-hub.css">
+</head>
+<body>
+<a class="skip-link" href="#main">跳到主要內容</a>
+<p class="mock-flag">方向 <b>page＋together</b> · /story 彙整頁（/30 永久轉址）· <span class="nw">虛線框＝示意</span></p>
+<div data-chrome="head"></div>
+
+<!-- ⓪ 說明列：比稿說明與狀態切換（這一段是說明，不是網站內容） -->
+<aside class="brief" aria-label="比稿說明">
+  <div class="container brief-grid">
+    <div class="brief-copy">
+      <p class="brief-kicker"><span class="chip">說明</span>比稿 E · 延後、條件式 · <code>/story</code>（<code>/30</code> 永久轉址）</p>
+      <p class="brief-title">彙整頁：只有事實，和有故事＋活動，差多少？</p>
+      <p class="brief-lede">先比兩種狀態，再決定上線門檻，或乾脆不做專頁。建議 <span class="nw">2027-06-30</span> 評估：系列真實文章 ≥6 篇、至少 3 校才開工；未達門檻，程式直接回 404、不進 sitemap。</p>
+      <ul class="legend" aria-label="圖例">
+        <li><span class="lg-ph">虛線框</span>示意，待園方提供或待裁定</li>
+        <li><span class="tag">示意</span>整段是示意</li>
+        <li><span class="chip">註記</span>藍灰色是設計說明，不是網站內容</li>
+      </ul>
+    </div>
+    <div class="brief-ctrl">
+      <p class="ctrl-label" id="v-label">切換內容狀態</p>
+      <nav class="switch" aria-labelledby="v-label">
+        <a href="?v=full" data-v="full"><span class="sw-top"><span class="sw-name">有故事＋活動</span><span class="sw-badge">上線門檻</span></span><span class="sw-hint">6 篇故事＋1 場活動，全部示意</span></a>
+        <a href="?v=facts" data-v="facts"><span class="sw-top"><span class="sw-name">只有事實</span><span class="sw-badge">對照</span></span><span class="sw-hint">沒有故事也沒有活動時的樣子</span></a>
+      </nav>
+      <p class="brief-state">
+        <span data-only="full"><b>多出 2 區：</b>故事、活動，都讀自消息後台；其餘 5 區 /about 已經有。</span>
+        <span data-only="facts"><b>5 區都是 /about 已有的內容：</b>照片、沿革、五校、理念句、結尾同一句。</span>
+      </p>
+    </div>
+  </div>
+</aside>
+
+<main id="main" tabindex="-1" class="adm sh">
+
+  <!-- ① 麵包屑＋② hero：薄荷帶、左字右照片（adm-process 的版型），左下淡字「1997–2027」 -->
+  <section class="sh-hero" aria-labelledby="sh-title">
+    <div class="container">
+      <nav class="sh-crumb" aria-label="麵包屑"><a href="#">首頁</a><span aria-hidden="true">/</span><span aria-current="page"><span class="ph">常春藤的故事</span><span class="tag">示意</span></span></nav>
+      <div class="sh-hero-grid">
+        <div class="sh-hero-copy">
+          <p class="sh-eyebrow">常春藤教育機構 · 高雄五校</p>
+          <p class="sh-ghost sh-ghost-m" aria-hidden="true">1997–2027</p>
+          <h1 id="sh-title"><span class="ph"><span class="sh-h1-years">1997–2027，<br></span>常春藤的故事<span class="sh-h1-end">。</span></span><span class="tag">示意</span></h1>
+          <p class="sh-lede">1997 年，第一間常春藤在三民區義華路成立。<span class="ph" data-only="full">五所校園的年份、老師和家長親口說的故事，都收在這一頁。</span><span class="ph" data-only="facts">五所校園的年份與地址，都收在這一頁。</span><span class="tag">示意</span></p>
+          <div class="sh-actions">
+            <a class="adm-pill-button" href="#">預約校園參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+            <a class="adm-text-link" href="#campuses">五所校園<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
+          </div>
+        </div>
+        <figure class="sh-hero-photo">
+          <img src="../../web/public/assets/responsive/about-hero-5036036202de-1200.webp" srcset="../../web/public/assets/responsive/about-hero-5036036202de-800.webp 800w, ../../web/public/assets/responsive/about-hero-5036036202de-1200.webp 1200w, ../../web/public/assets/about-hero.webp 2000w" sizes="(max-width: 760px) 100vw, 42vw" width="1200" height="482" alt="孩子們笑著圍在戴眼鏡的長輩身邊，大家擠在一起" loading="eager" fetchpriority="high">
+        </figure>
+      </div>
+      <p class="anno sh-anno-hero"><b class="chip">註記</b><span><span class="dup">同 /about</span>照片和第一句沿革都和 /about 開場一樣。h1 只用查得到的 1997–2027，2027 前不預熱週年字樣。全頁只有這張照片 eager。</span></p>
+    </div>
+    <p class="sh-ghost sh-ghost-d" aria-hidden="true">1997–2027</p>
+  </section>
+
+  <!-- 手機：hero 之後直接放五校清單和全寬預約鈕（桌機不畫） -->
+  <section class="sh-mlist" aria-labelledby="sh-mlist-title">
+    <div class="container">
+      <h2 id="sh-mlist-title" class="sh-mlist-title">五所校園</h2>
+      <ul class="sh-rows">
+        <li><a href="#"><b>義華校</b><span>三民區 · 1997 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+        <li><a href="#"><b>明華校</b><span>左營區 · 2001 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+        <li><a href="#"><b>崇德校</b><span>左營區 · 2005 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+        <li><a href="#"><b>國際校</b><span>鳥松區 · 2020 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+        <li><a href="#"><b>仁武校</b><span>仁武區 · 2021 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+      </ul>
+      <a class="adm-pill-button sh-book-wide" href="#">預約校園參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+      <p class="anno"><b class="chip">註記</b><span>手機把五校清單提到 hero 正下方（每列 ≥56px），接全寬預約鈕；下方的五校卡不畫。捲動後頁首收成膠囊，要把 /story 加進 PILL_PAGES。</span></p>
+    </div>
+  </section>
+
+  <!-- ③ 比例時間尺（桌機）／年份文字清單（手機）：刻度照真實年份比例，只有 2027 是金色實心點 -->
+  <section class="sh-years" aria-labelledby="sh-years-title">
+    <div class="container">
+      <h2 id="sh-years-title" class="sr-only">五所校園的成立年份</h2>
+      <p class="anno"><b class="chip">註記</b><span><span class="dup">同 /about</span>就是 /about「一路走來」的五個年份，改成照真實比例的刻度（1997 在 0%、2021 在 80%、2027 在 100%）。2005 到 2020 的空白照實留著，不放字也不放圖。線本身 aria-hidden，每個刻度是一個錨點連結，點擊區 ≥44px；2020、2021 上下錯開。</span></p>
+      <nav class="sh-ruler" aria-label="成立年份，跳到各校">
+        <span class="sh-ruler-line" aria-hidden="true"></span>
+        <ol>
+          <li style="--at: 0%" class="is-start"><a href="#campus-yihua"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">1997</span><span class="rl-name">義華校</span><span class="rl-roc">民國 86 年</span></a></li>
+          <li style="--at: 13.333%"><a href="#campus-minghua"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2001</span><span class="rl-name">明華校</span><span class="rl-roc">民國 90 年</span></a></li>
+          <li style="--at: 26.667%"><a href="#campus-chongde"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2005</span><span class="rl-name">崇德校</span><span class="rl-roc">民國 94 年</span></a></li>
+          <li style="--at: 76.667%" class="is-up"><a href="#campus-international"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2020</span><span class="rl-name">國際校</span><span class="rl-roc">民國 109 年</span></a></li>
+          <li style="--at: 80%"><a href="#campus-renwu"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2021</span><span class="rl-name">仁武校</span><span class="rl-roc">民國 110 年</span></a></li>
+          <li style="--at: 100%" class="is-end is-now" data-only="full"><a href="#stories"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2027</span><span class="rl-roc">民國 116 年</span></a></li>
+          <li style="--at: 100%" class="is-end is-now" data-only="facts"><a href="#visit"><span class="rl-dot" aria-hidden="true"></span><span class="rl-year">2027</span><span class="rl-roc">民國 116 年</span></a></li>
+        </ol>
+      </nav>
+      <ol class="sh-yearlist">
+        <li><p class="yl-year">1997 · 民國 86 年</p><p>第一間常春藤，在三民區義華路成立。</p></li>
+        <li><p class="yl-year">2001 · 民國 90 年</p><p>走進左營區，有了第二所校園。</p></li>
+        <li><p class="yl-year">2005 · 民國 94 年</p><p>左營區的第二所校園。</p></li>
+        <li><p class="yl-year">2020 · 民國 109 年</p><p>在鳥松區球場路成立。</p></li>
+        <li><p class="yl-year">2021 · 民國 110 年</p><p>第五所校園，在仁武區成立。</p></li>
+        <li class="is-now"><p class="yl-year">2027 · 民國 116 年</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ④ 五所校園：米底，五張等寬卡；只寫「YYYY 年成立」 -->
+  <section id="campuses" class="sh-campuses" aria-labelledby="sh-campuses-title">
+    <div class="container">
+      <div class="sh-head">
+        <p class="adm-kicker"><span lang="en">Our campuses</span></p>
+        <h2 id="sh-campuses-title" class="adm-title">五所校園</h2>
+      </div>
+      <p class="anno"><b class="chip">註記</b><span><span class="dup">同 /about＋首頁五校</span>五張卡字級一樣，只寫「YYYY 年成立」，不寫「本校第 N 年」，也不和週年數字並排。義華多一個小標籤，只放在照片角落，不放大數字。</span></p>
+      <ul class="sh-cards">
+        <li id="campus-yihua" class="sh-card">
+          <div class="sh-card-photo">
+            <img src="../../web/public/assets/responsive/yihua-exterior-87edb1595b78-480.webp" srcset="../../web/public/assets/responsive/yihua-exterior-87edb1595b78-480.webp 480w, ../../web/public/assets/yihua-exterior.webp 590w" sizes="(max-width: 1100px) 30vw, 240px" width="480" height="316" alt="兩層樓的校舍，一端是圓形塔樓，前面有草地和溜滑梯" loading="lazy">
+            <span class="sh-first"><span class="ph">第一間常春藤</span><span class="tag">示意</span></span>
+          </div>
+          <div class="sh-card-body">
+            <h3>義華校</h3>
+            <p class="sh-card-year">1997 年成立 · 民國 86 年</p>
+            <p class="sh-card-addr">三民區義華路68號</p>
+            <div class="sh-card-links"><a class="sh-more" href="#">認識義華校<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a><a class="sh-book" href="#">預約參觀<span class="sr-only">義華校</span></a></div>
+          </div>
+        </li>
+        <li id="campus-minghua" class="sh-card">
+          <div class="sh-card-photo">
+            <img src="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp" srcset="../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp 480w, ../../web/public/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp 800w" sizes="(max-width: 1100px) 30vw, 240px" width="480" height="300" alt="紅磚圍牆內的廣場，角落擺著幾台小車" loading="lazy">
+          </div>
+          <div class="sh-card-body">
+            <h3>明華校</h3>
+            <p class="sh-card-year">2001 年成立 · 民國 90 年</p>
+            <p class="sh-card-addr">左營區明華一路176號</p>
+            <div class="sh-card-links"><a class="sh-more" href="#">認識明華校<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a><a class="sh-book" href="#">預約參觀<span class="sr-only">明華校</span></a></div>
+          </div>
+        </li>
+        <li id="campus-chongde" class="sh-card">
+          <div class="sh-card-photo">
+            <img src="../../web/public/assets/responsive/tour-chongde-field-e920d8d3a9a6-480.webp" srcset="../../web/public/assets/responsive/tour-chongde-field-e920d8d3a9a6-480.webp 480w, ../../web/public/assets/responsive/tour-chongde-field-e920d8d3a9a6-800.webp 800w" sizes="(max-width: 1100px) 30vw, 240px" width="480" height="300" alt="穿運動服的孩子們在草地旁的紅色跑道上奔跑" loading="lazy">
+          </div>
+          <div class="sh-card-body">
+            <h3>崇德校</h3>
+            <p class="sh-card-year">2005 年成立 · 民國 94 年</p>
+            <p class="sh-card-addr">左營區崇德路87號</p>
+            <div class="sh-card-links"><a class="sh-more" href="#">認識崇德校<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a><a class="sh-book" href="#">預約參觀<span class="sr-only">崇德校</span></a></div>
+          </div>
+        </li>
+        <li id="campus-international" class="sh-card">
+          <div class="sh-card-photo">
+            <img src="../../web/public/assets/responsive/tour-international-gate-3425c482c253-480.webp" srcset="../../web/public/assets/responsive/tour-international-gate-3425c482c253-480.webp 480w, ../../web/public/assets/responsive/tour-international-gate-3425c482c253-800.webp 800w" sizes="(max-width: 1100px) 30vw, 240px" width="480" height="300" alt="紅磚校舍前的一道鏤空鐵門" loading="lazy">
+          </div>
+          <div class="sh-card-body">
+            <h3>國際校</h3>
+            <p class="sh-card-year">2020 年成立 · 民國 109 年</p>
+            <p class="sh-card-addr">鳥松區球場路59號</p>
+            <div class="sh-card-links"><a class="sh-more" href="#">認識國際校<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a><a class="sh-book" href="#">預約參觀<span class="sr-only">國際校</span></a></div>
+          </div>
+        </li>
+        <li id="campus-renwu" class="sh-card">
+          <div class="sh-card-photo">
+            <img src="../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp" srcset="../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp 480w, ../../web/public/assets/responsive/tour-renwu-exterior-f5fe711defdc-800.webp 800w" sizes="(max-width: 1100px) 30vw, 240px" width="480" height="300" alt="紅磚校舍圍著一片綠色操場，前面擺著木頭桌椅" loading="lazy">
+          </div>
+          <div class="sh-card-body">
+            <h3>仁武校</h3>
+            <p class="sh-card-year">2021 年成立 · 民國 110 年</p>
+            <p class="sh-card-addr">仁武區京吉一路102號</p>
+            <div class="sh-card-links"><a class="sh-more" href="#">認識仁武校<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a><a class="sh-book" href="#">預約參觀<span class="sr-only">仁武校</span></a></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ⑤ 故事（只在 full）：一大兩小，讀第 3 層的故事系列；內容全部示意 -->
+  <section id="stories" class="sh-stories" aria-labelledby="sh-stories-title" data-only="full">
+    <div class="container">
+      <div class="sh-head sh-head-row">
+        <div>
+          <p class="adm-kicker"><span lang="en">Stories</span></p>
+          <h2 id="sh-stories-title" class="adm-title"><span class="ph">記得常春藤的人</span><span class="tag">示意</span></h2>
+        </div>
+        <a class="adm-text-link" href="#">看全部故事<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+      </div>
+      <p class="anno"><b class="chip">註記</b><span><span class="new">新內容</span>讀第 3 層的故事系列（消息分類欄），放最新 3 篇，「看全部故事」連到 /news?series=story。不寫篇數，也不寫「第 N 個故事」。封面只用確定校別的實拍，沒有就不放圖。</span></p>
+      <div class="sh-story-grid">
+        <article class="sh-story sh-story-lg" aria-labelledby="st1">
+          <img src="../../web/public/assets/campus-film-speech.webp" width="720" height="405" alt="女孩一手比 YA、一手舉著獎盃，對著鏡頭笑" loading="lazy">
+          <div class="sh-story-body">
+            <p class="sh-story-meta"><span class="ph meta-ph"><span class="series">常春藤的故事</span><span>義華校</span><span>活動回顧</span></span><span class="tag">示意</span></p>
+            <h3 id="st1"><a href="#"><span class="ph">站上台說英語的那一天</span></a></h3>
+            <p><span class="ph">摘要放受訪者本人確認過的一段話，約 60 到 80 字；刊出前要有書面同意，同意書編號只記在素材庫。</span></p>
+          </div>
+        </article>
+        <article class="sh-story" aria-labelledby="st2">
+          <div class="sh-story-body">
+            <p class="sh-story-meta"><span class="ph meta-ph"><span class="series">常春藤的故事</span><span>明華校</span><span>老師的話</span></span><span class="tag">示意</span></p>
+            <h3 id="st2"><a href="#"><span class="ph">每天早上，在門口說早安</span></a></h3>
+            <p><span class="ph">第一人稱內容，由老師本人確認。</span></p>
+          </div>
+        </article>
+        <article class="sh-story" aria-labelledby="st3">
+          <div class="sh-story-body">
+            <p class="sh-story-meta"><span class="ph meta-ph"><span class="series">常春藤的故事</span><span>崇德校</span><span>家長的回憶</span></span><span class="tag">示意</span></p>
+            <h3 id="st3"><a href="#"><span class="ph">接送路上的那段對話</span></a></h3>
+            <p><span class="ph">由紙本回憶卡整理，只寫稱謂。</span></p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ⑤ 對照（只在 facts）：故事門檻說明框，這是說明，不是網站內容 -->
+  <aside class="sh-gate" data-only="facts" aria-label="比稿註記：故事與活動區">
+    <div class="container">
+      <div class="gate-box">
+        <p class="gate-title"><b class="chip">註記</b>故事區：有 ≥6 篇真實故事才出現</p>
+        <p>系列真實文章 ≥6 篇、至少 3 校之前，這一區整段不渲染。現在只剩事實，所以整頁都能在 /about 找到，差別只是版面。</p>
+      </div>
+      <div class="gate-box gate-small">
+        <p class="gate-title"><b class="chip">註記</b>活動區：有真實活動日期才出現</p>
+        <p>沒有園方確認的日期，就不排活動、不寫日期、不放倒數。</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ⑥ 活動（只在 full）：接下來／辦過了，每列接該校的預約參觀 -->
+  <section id="events" class="sh-events" aria-labelledby="sh-events-title" data-only="full">
+    <div class="container">
+      <div class="sh-head">
+        <p class="adm-kicker"><span lang="en">Events</span></p>
+        <h2 id="sh-events-title" class="adm-title"><span class="ph">來學校走走</span><span class="tag">示意</span></h2>
+      </div>
+      <p class="anno"><b class="chip">註記</b><span><span class="new">新內容</span>園方確認有真實活動才出現。每列放既有的 BookingCta，依該校預約模式變成表單、LINE、電話或暫停，入口記為 anniversary。不做報名、RSVP、付款。</span></p>
+      <div class="sh-ev-cols">
+        <div class="sh-ev-col">
+          <h3>接下來</h3>
+          <ul class="sh-ev-list">
+            <li class="sh-ev">
+              <p class="sh-ev-date">示意／日期未定</p>
+              <div class="sh-ev-copy">
+                <p class="sh-ev-campus">義華校<span class="tag">示意</span></p>
+                <h4><span class="ph">義華校開放日</span></h4>
+                <p class="sh-ev-where">三民區義華路68號 · <a href="tel:07-392-8366">07-392-8366</a></p>
+              </div>
+              <a class="sh-ev-cta" href="#" data-cta-entry="anniversary"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calendar-check" /></svg>預約參觀義華校</a>
+            </li>
+          </ul>
+        </div>
+        <div class="sh-ev-col">
+          <h3>辦過了</h3>
+          <p class="anno anno-box"><b class="chip">註記</b><span>活動日一過，同一列依台北日期移到這一欄，預約鈕保留，改成預約平常的參觀。</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 深綠舞台：理念句（/about 03 的原文），收尾的紙從這裡升起 -->
+  <section class="sh-stage" aria-labelledby="sh-stage-title">
+    <div class="container">
+      <p class="adm-kicker"><span lang="en">Our hope</span></p>
+      <h2 id="sh-stage-title" class="adm-title">孩子的第一所學校，<br>也是第二個家。</h2>
+      <blockquote class="sh-quote"><p>在名為全世界的舞台，展現自我、發光發熱。</p></blockquote>
+      <p class="anno anno-dark"><b class="chip">註記</b><span><span class="dup">同 /about</span>兩句都是機構站原文，也是 /about 03「我們的期許」。不另造主題標語。</span></p>
+    </div>
+  </section>
+
+  <!-- ⑦ 收尾：adm-sheet，預約膠囊＋五校文字連結附成立年份 -->
+  <section id="visit" class="adm-sheet sh-end" aria-labelledby="sh-end-title">
+    <div class="adm-sheet-wrap">
+      <div class="sh-visit">
+        <div class="sh-visit-copy">
+          <p class="adm-kicker"><span lang="en">Book a visit</span></p>
+          <h2 id="sh-end-title" class="adm-title">五所校園，<br>歡迎你來走走。</h2>
+          <a class="adm-pill-button" href="#">預約校園參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+        </div>
+        <ul class="sh-visit-list" aria-label="五所校園">
+          <li><a href="#"><b>義華校</b><span>1997 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+          <li><a href="#"><b>明華校</b><span>2001 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+          <li><a href="#"><b>崇德校</b><span>2005 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+          <li><a href="#"><b>國際校</b><span>2020 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+          <li><a href="#"><b>仁武校</b><span>2021 年成立</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a></li>
+        </ul>
+      </div>
+      <p class="anno"><b class="chip">註記</b><span><span class="dup">同 /about</span>結尾同一句「五所校園，歡迎你來走走。」，多了五校成立年份的文字連結。主選單不加第 5 項；入口放頁尾、首頁推薦消息、/about 結尾和分校頁「本校的故事」。</span></p>
+    </div>
+  </section>
+</main>
+
+<div data-chrome="foot"></div>
+
+<script>
+  // 比稿截圖用：shoot.cjs 拍整頁時不會捲動，下方的 lazy 圖不會載入。頁面載完後才把 lazy 圖改成 eager，
+  // 首屏仍只有 hero 照片先載；正式站維持 loading="lazy"，不要照抄這段。
+  window.addEventListener('load', function () {
+    document.querySelectorAll('img[loading="lazy"]').forEach(function (img) { img.loading = 'eager' })
+  });
+  // 切換列標出目前狀態（aria-current），其餘照一般連結換頁。
+  (function () {
+    var v = document.documentElement.dataset.v
+    document.querySelectorAll('.switch a').forEach(function (a) {
+      if (a.dataset.v === v) a.setAttribute('aria-current', 'page')
+    })
+  })()
+</script>
+<script src="shared/chrome.js"></script>
+</body>
+</html>

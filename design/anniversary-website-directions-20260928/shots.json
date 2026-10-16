@@ -1,0 +1,7 @@
+[
+  { "id": "a-header-mark", "variants": ["none", "sign", "sign-noto", "c", "b", "a"], "full": true },
+  { "id": "b-weave-facts", "variants": ["before", "during", "full", "after"], "full": true },
+  { "id": "c-story-series", "variants": ["manual", "pinned", "early"], "full": true },
+  { "id": "d-events-booking", "variants": ["news", "wall"], "full": true },
+  { "id": "e-story-hub", "variants": ["facts", "full"], "full": true }
+]

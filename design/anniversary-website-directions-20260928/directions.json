@@ -1,0 +1,2483 @@
+{
+ "directions": [
+  {
+   "key": "mark",
+   "name": "週年簽名與三段檔期",
+   "one_liner": "一組只在 2027 年出現的文字簽名「30 週年／1997–2027」，放在頁首字標旁和膠囊裡。上下架由台北日期時間閘和後台排程自動處理；前後用「近三十年 → 三十年 → 三十多年」串起節奏。",
+   "concept": "家長不會看到新頁面或新動畫，只會在 2027 年注意到幾處安靜、彼此一致的簽名：頁首字標旁一道細線，後面寫「30 週年／1997–2027」；捲動後的膠囊在校徽旁寫「30 週年」；首屏小標從「近三十年」變成「三十年」；頁尾寫「© 1997–2027」。規則是記號用阿拉伯數字、句子用國字，字標本體一個像素都不動，屬於「並列、不取代」主標的週年標記。上下架交給兩個開關：程式裡的台北日期時間閘管頁首、膠囊和布幕緞帶，後台既有的排程發布管首屏小標、關於、頁尾和分享圖；兩邊都在 2027-01-01 00:00 換上，2028-01-01 00:00 收回。常春藤目前能確定的只有 1997 和 2027 兩個年份，這個方向只用這兩個事實：不需要新素材、不新增後台、隨時可撤，也替之後的週年消息或專頁先定好共用的簽名和檔期。",
+   "parent_value": "正在找幼兒園的高雄家長會一眼看到這是在高雄辦了 30 年的園所，而且這個信任訊號剛好落在 116 學年度招生季（2027 上半年）。所以建議用 2027 曆年，不用 116 學年度（2027-08 才開始）。簽名不佔選單格、不增加 Tab 停留點、不擠預約鈕、不加動畫，不會打斷「找校區 → 預約參觀」這條動線。手機捲動後膠囊裡也看得到。同時也收掉現在「布幕寫 30th Anniversary、內文寫近三十年」這種前後說法不一的地方。",
+   "surfaces": [
+    {
+     "where": "全站週年時間閘（程式）",
+     "what": "新增 util：依台北日期回傳 before／during／after（字串比對 YYYY-MM-DD），另有 yearsPhrase(phase) 回傳「近三十年／三十年／三十多年」。composable 用 useState 把 SSR 算出的期間帶到瀏覽器，避免午夜前後 hydration 不一致。開發環境可用伺服器端 runtimeConfig（NUXT_ANNIVERSARY_TODAY）模擬日期，production 忽略這個設定。後台預覽頁的 ?date= 也一併套用，業主可以先看 2027-01-01 的樣子。期間常數集中一處（預設 2027-01-01～2027-12-31），不做 ?anni= 比稿參數。",
+     "via": "改 web 程式",
+     "files": "新增 web/app/utils/anniversary.ts、web/app/composables/useAnniversary.ts、web/tests/anniversary.spec.ts；web/nuxt.config.ts:91（runtimeConfig）；web/app/pages/preview.vue:31（沿用 taipeiToday，web/app/utils/news-content.ts:11）；定案後改寫 DESIGN.md:687、docs/brand/brand-guidelines.md:25、CLAUDE.md:70（?anni= 敘述已過時），並在 docs/website-admin/operations.md 加週年排程清單"
+    },
+    {
+     "where": "頁首字標（展開頁首，全站）",
+     "what": "在 .brand-copy 後面加一組 .brand-anni：先是 1px 細直線（用 border 畫，強制色彩模式下看得到），再放兩行字：「30」（LINE Seed 800，與中文字標同大）＋「週年」（Noto Sans TC 600，0.6em，anni 子集已上線），下行「1997–2027」（LINE Seed 700，max(.44em,12px)）。放在影片或照片上時「30」用 --gold、其餘白字；米白頁首時「30」改 --green，年份沿用字標色，細線用 --line。依實測決定顯示寬度：≥1181 顯示；1101–1180 收；941–1100 顯示；901–940 收；761–900 顯示；≤760 收。後台若把選單加到 5 項以上，就用 .header-top:has(.nav-inner>a:nth-child(5)) 在 ≥901px 收起。無障礙：不寫 aria-label，可見文字直接進可及名稱；前面放 sr-only「，」斷句；年份用 aria-hidden 的可見字加 sr-only「1997 到 2027 年」；結尾維持 sr-only「，回首頁」。收起的寬度連 sr-only 一起不見，所以聽到的和看到的一致。不加任何動態。",
+     "via": "改 web 程式",
+     "files": "web/app/components/SiteHeader.vue:237-249；web/app/assets/css/studio.css:328-346（.brand 段落之後新增 .brand-anni 區塊）"
+    },
+    {
+     "where": "捲動後膠囊（首頁、關於、入學、特色教學全寬；其他頁 ≤900px）",
+     "what": "校徽右側加文字籤「30 週年」（30 用 --gold LINE Seed 800 17px，週年用 --pill-fg 13px），取代舊提案「校徽右下角金色 30 小點」。依規則，膠囊內 span 明寫 width／height／background。可及名稱改成 sr-only「常春藤教育機構」＋可見「30 週年」＋sr-only「，回首頁」。實測：桌機膠囊寬 266→335px；390px 手機校徽與漢堡之間原本空 131px，放籤後還剩 74px；320px 會把預約鈕推出膠囊 5px，所以 ≤359px 收籤。44px 觸控範圍不變。",
+     "via": "改 web 程式",
+     "files": "web/app/components/SiteHeader.vue:287-297；web/app/assets/css/studio.css:776-810、1075-1095"
+    },
+    {
+     "where": "首頁開場布幕",
+     "what": "依期間切換緞帶和可及文字。2026 年底前與 2028 起只投校徽不投緞帶，dialog 名稱「常春藤開場動畫」、狀態播報「常春藤」「開幕倒數 N」；2027 年投緞帶，文字維持現行「常春藤 30 週年開場動畫」「30 週年開幕倒數 N」。做法是在 shader 加一個 ribbonOn uniform，把 goldRibbon 區的 slide 乘掉。校徽本來就以原圖 y=114..876 置中（緞帶是掛在下面的），所以不需要另做無緞帶投影圖。海報是 progress 0 的畫面（logoOpacity 與 iris 為 0，看不到校徽），也不必重產。時序、倒數、略過、Esc、減少動態全部不動。",
+     "via": "改 web 程式",
+     "files": "web/app/components/EntranceCurtain.vue:121,126；web/app/utils/entranceCurtain.ts:309-312（ribbonOn）、:654（options.ribbon）、:699（uniforms）；web/tests/entrance-policy.spec.ts"
+    },
+    {
+     "where": "首頁首屏小標",
+     "what": "home_hero.eyebrow 分三段：「常春藤幼兒園 · 陪高雄孩子近三十年」→「常春藤幼兒園 · 陪高雄孩子三十年」→「常春藤幼兒園 · 陪高雄孩子三十多年」（待裁定）。字數不變或更短，1440／390／320px 仍是一行。先把正式站仍是「高雄五校」的小標更新成已定案文案，12 月中存週年版並排程 2027-01-01 00:00。",
+     "via": "後台即可",
+     "files": "admin/src/views/HomeHeroView.vue:52；backend/app/content/schemas.py:147；排程 backend/app/content/routes.py:746-805、admin/src/components/ContentEditor.vue:316-344"
+    },
+    {
+     "where": "首頁「關於」區",
+     "what": "since_label 從「SINCE 1997」換成「1997–2027」，2028 起換回「SINCE 1997」。只用數字，因為 AboutSection.vue:43 寫死 lang=\"en\"，放中文會用英文語音朗讀。body_text 第二句開頭「近三十年來」在同一版一起換成「三十年來」。",
+     "via": "後台即可",
+     "files": "admin/src/views/HomeAboutView.vue:37；web/app/components/AboutSection.vue:43；web/server/data/site-fixture.json:34,37"
+    },
+    {
+     "where": "頁尾版權",
+     "what": "site_footer.copyright：「© 2026 常春藤教育機構」→「© 1997–2027 常春藤教育機構」→「© 2028 常春藤教育機構」。只改白字文字，不加金色、不加校徽。反正每年一月本來就要改這行。",
+     "via": "後台即可",
+     "files": "web/app/utils/content-overlay.ts:441-452；web/app/components/SiteFooter.vue:46"
+    },
+    {
+     "where": "全站分享圖",
+     "what": "site_meta.share_image 和 share_image_alt 換成 1200×630 JPG 週年版（真實校園照片＋「常春藤 30 週年 · 1997–2027 · 高雄」文字），首頁、關於、入學、環境、特色教學、消息列表都會跟著換。site_meta 還包含選單、電話、社群，所以換回版要到 2027-12 中才從線上版建。",
+     "via": "後台即可",
+     "files": "web/app/utils/seo.ts:27-35；web/app/utils/content-overlay.ts:466-467；後台 site_meta"
+    },
+    {
+     "where": "/about 用語",
+     "what": "兩處寫死的「近三十年」改讀 yearsPhrase(phase)：lede「近三十年來」與 h2「近三十年，／長出五所校園。」，手機仍在 8 字內。版型、adm-* 畫風、時間軸都不動，和首頁小標同一刻換字。",
+     "via": "改 web 程式",
+     "files": "web/app/components/AboutContent.vue:46,67；web/tests/about.spec.ts:47-50（保留模板禁字，另加 yearsPhrase 三態測試）"
+    },
+    {
+     "where": "結構化資料",
+     "what": "EducationalOrganization 補 foundingDate \"1997\"（年精度），不分期、畫面不變，現在就能上。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/seo.ts:177；web/tests/seo.spec.ts"
+    }
+   ],
+   "content_needs": [
+    {
+     "item": "事實：第一間常春藤 1997 年創立，2027 年滿 30 年（只有義華滿 30 年）",
+     "status": "已有",
+     "note": "AboutContent.vue:16-22；簽名只寫機構層級「30 週年／1997–2027」，不替其他四校寫週年"
+    },
+    {
+     "item": "週年期間：2027 曆年（建議）或 116 學年度",
+     "status": "園方需提供",
+     "note": "業主裁定。只影響 anniversary.ts 常數和兩輪排程時間；建議用曆年，才能涵蓋 116 學年度招生季"
+    },
+    {
+     "item": "開場布幕 2026 年底前先收緞帶",
+     "status": "園方需提供",
+     "note": "業主裁定，因為會改到 09-23 已定案上線的外觀。若要保留預熱，改一個常數即可：before 期投緞帶，aria 改「邁向 30 週年」"
+    },
+    {
+     "item": "頁首簽名與膠囊文字籤定案，取代 a／b／c 與金色小點",
+     "status": "園方需提供",
+     "note": "業主拍板後寫進 DESIGN.md:687 與品牌規範"
+    },
+    {
+     "item": "首屏小標與 /about 用語三段（近三十年／三十年／三十多年）",
+     "status": "園方需提供",
+     "note": "業主裁定。2028 起寫「三十多年」要推翻 DESIGN.md:85 的舊理由（當時未滿 30 年）"
+    },
+    {
+     "item": "正式中文說法「30 週年」（建議）或「三十週年」",
+     "status": "園方需提供",
+     "note": "「週年」已有 Noto 600 子集；要用國字「三十」得另切品牌字子集"
+    },
+    {
+     "item": "創校月日",
+     "status": "園方需提供",
+     "note": "時間閘不需要；只用在週年日當天發一則推薦消息"
+    },
+    {
+     "item": "週年分享圖用的真實照片",
+     "status": "園方需提供",
+     "note": "可以先用現有 og/hero-campus-restored-v1-still.jpg 加文字，由園方確認選圖"
+    },
+    {
+     "item": "分享圖若要放 30 週年校徽",
+     "status": "需授權",
+     "note": "DESIGN.md:447 只授權布幕使用；沒授權就不放校徽"
+    },
+    {
+     "item": "週年日推薦消息內文",
+     "status": "園方需提供",
+     "note": "分類填「30 週年」，show_from 設成當天；沒有內容就不發"
+    },
+    {
+     "item": "字型：「30」與年份用 LINE Seed、「週年」用 Noto Sans TC 600",
+     "status": "已有",
+     "note": "web/app/assets/css/styles.css:11；Source Sans 3 品牌子集沒有 en dash（U+2013），所以年份改用 LINE Seed"
+    }
+   ],
+   "effort": "S",
+   "effort_breakdown": "程式約 2–2.5 人日：時間閘 util、composable 與三態測試 0.5；頁首簽名、膠囊籤、CSS，加上 320–1440 寬度掃描（米白與影片兩種頁首、4／5 項選單）1；布幕 ribbonOn uniform、aria 三態、2026／2027／2028 截圖比對 0.5；/about 用語、foundingDate、預覽 ?date= 接線與文件 0.5。後台操作每輪約 1 小時（4 個 kind 各存一版、排程、預覽檢查），共兩輪（2026-12 中、2027-12 中）。分享圖另計約半天，看園方選圖。不需要 migration，也不動後端、契約和後台頁。",
+   "phases": [
+    {
+     "when": "2026-10（拍板後）",
+     "what": "業主先拍板三件事：週年期間、布幕預熱做法、簽名樣式。之後在 feature 分支做時間閘、頁首簽名、膠囊籤、布幕開關、/about 用語、foundingDate。合進 main 後，站上唯一看得到的變化是布幕不投緞帶、aria 改成「常春藤開場動畫」；簽名在 2027 前不會出現。後台先把正式站首屏小標更新成已定案的「近三十年」（deploy/README.md:545 顯示線上仍是「高雄五校」）。"
+    },
+    {
+     "when": "2026-12-15～12-20",
+     "what": "後台為首屏、關於、頁尾、分享圖各存一版週年版，排程在 2027-01-01 00:00 發布，並用預覽 ?date=2027-01-01 檢查頁首、膠囊與小標。這四個 kind 進入凍結：如果要改，改完要重建週年版並重排，否則排程會因為「版本不比線上新」被略過。"
+    },
+    {
+     "when": "2027-01-01 00:00",
+     "what": "程式時間閘與排程在約 60 秒內一起切換。當天早上巡檢：1440／1181／1100／941／820／390／320px 頁首與膠囊、布幕緞帶、LINE 分享預覽，並在「查看全站排程」確認沒有 skipped。"
+    },
+    {
+     "when": "2027 週年日（月日待園方）",
+     "what": "只發一則分類「30 週年」的首頁推薦消息（show_from 設當天），記號不動。"
+    },
+    {
+     "when": "2027-12-15",
+     "what": "從當時的線上版建換回版：小標改「三十多年」（待裁定）、since 改回 SINCE 1997、版權改 © 2028、分享圖換回原圖，排程 2028-01-01 00:00。"
+    },
+    {
+     "when": "2028-01-01 起（回到常設）",
+     "what": "程式自動收起簽名、膠囊籤和布幕緞帶，就算沒人記得也會收。週年消息留作典藏；foundingDate 保留。2028 第一季刪掉簽名程式碼與 CSS，在 DESIGN.md 和 README 記錄。"
+    }
+   ],
+   "rule_conflicts": [
+    {
+     "rule": "頁首 30 週年版（a／b／c）待拍板，不能順便上線",
+     "source": "DESIGN.md:687；CLAUDE.md「現況容易搞錯的事」；docs/brand/brand-guidelines.md:25",
+     "resolution": "本案就是拍板用的提案，拍板前不合併。就算合進 main，時間閘也要到 2027-01-01 才會顯示。定案後改寫 DESIGN.md:687 與品牌規範。"
+    },
+    {
+     "rule": "膠囊與手機三版共用校徽右下角的金色「30」小點",
+     "source": "DESIGN.md:687；design/anniversary-directions/README.md:16",
+     "resolution": "改成校徽旁的文字籤。小點會壓住 IVY KIDS 緞帶，等於改了 Logo 外觀；圓形頭像加數字會被讀成「30 則通知」；約 9px 的字也看不清。手機膠囊校徽與漢堡之間本來就空 131px。"
+    },
+    {
+     "rule": "`.brand` 的 aria-label 加上「創校 30 週年」",
+     "source": "design/anniversary-directions/README.md:17；與 web/app/components/SiteHeader.vue:237 衝突",
+     "resolution": "依 SiteHeader.vue:237 的慣例不寫 aria-label：可見文字進可及名稱，sr-only 補斷句與「1997 到 2027 年」。"
+    },
+    {
+     "rule": "首屏小標不放「30 週年」；文案一律寫「近三十年」、不綁週年",
+     "source": "DESIGN.md:941；DESIGN.md:85；web/app/components/AboutContent.vue:9",
+     "resolution": "小標仍然不放「30 週年」，記號留給頁首。只依日期拿掉「近」或改成「多」，這是到期的事實更新。需要業主確認後，把 DESIGN.md:85、941 改寫成有期限的規則；about.spec 的模板禁字保留。"
+    },
+    {
+     "rule": "開場布幕投影 30 週年校徽（含暖金緞帶），已定案上線",
+     "source": "DESIGN.md:445-447；deploy/README.md:480-490",
+     "resolution": "建議 2026 年底前只投校徽、不投緞帶，這和否決「三十多個春夏秋冬」是同一個原則：未滿 30 年就不說滿 30 年。2027 年投緞帶，1/1 當天就是布幕的揭幕時刻。這項需要業主同意；若要保留預熱，before 期改回投緞帶、aria 寫「邁向 30 週年」，只改一個常數。"
+    },
+    {
+     "rule": "30 週年校徽的授權只用在開場布幕",
+     "source": "DESIGN.md:447",
+     "resolution": "頁首、膠囊、分享圖都不用校徽圖。簽名是純文字，分享圖預設用真實照片加文字；要放校徽就另外取得授權。"
+    },
+    {
+     "rule": "不新增週年後台、不啟用週年提案",
+     "source": "docs/specs/2026-09-19-website-admin.md:79,445",
+     "resolution": "不新增 content kind，也不新增後台頁。期間常數寫在程式裡，後台只用現有欄位和排程發布。"
+    },
+    {
+     "rule": "主選單加項會把預約鈕擠出視窗",
+     "source": "DESIGN.md:136,190",
+     "resolution": "週年期間主選單維持 4 項，週年入口走推薦消息或頁尾連結。實測 5 項時，1245px 就算沒有簽名也已溢出 10px。CSS 用 :has(.nav-inner>a:nth-child(5)) 在 ≥901px 收起簽名。"
+    },
+    {
+     "rule": "金色只用 --gold、不當大面積背景；頁尾不加金色",
+     "source": "docs/brand/brand-guidelines.md:39,73；DESIGN.md:165",
+     "resolution": "金色只用在深底上的「30」字形（影片頁首、膠囊）。米白頁首的「30」改用 --green，因為金字對米白只有約 1.7:1。頁尾只改文字。"
+    },
+    {
+     "rule": "英文只留 lang=\"en\" 副標，不讓英文搶中文",
+     "source": "CLAUDE.md 設計硬規則；PRODUCT.md:16",
+     "resolution": "簽名只用中文和數字，不新增「30th Anniversary」字樣。SINCE 標籤在週年期間只放數字「1997–2027」。"
+    },
+    {
+     "rule": "比稿參數定案後要從程式移除",
+     "source": "CLAUDE.md 流程第 5 步",
+     "resolution": "web 不加 ?anni=。驗證改用開發環境變數和後台預覽的 ?date=。"
+    }
+   ],
+   "risks": [
+    {
+     "risk": "2027 年中有人發布首屏、關於、頁尾或 site_meta 的較新版本，2028-01-01 的換回排程會被略過，週年文案就留在站上",
+     "mitigation": "換回版到 2027-12-15 才從線上版建。operations.md 加清單，當天在「查看全站排程」確認；分享圖所在的 site_meta 最容易變動，特別列出來。"
+    },
+    {
+     "risk": "12-15 到 01-01 之間有人直接發布這四個 kind，週年版排程會因為「版本不比線上新」被略過",
+     "mitigation": "這段期間凍結這四個 kind，必須改的話改完重建週年版並重排；01-01 早上巡檢排程狀態。程式閘管的頁首與布幕不受影響。"
+    },
+    {
+     "risk": "影片亮幀讓金色「30」看不清楚",
+     "mitigation": "單一影格估算金字約 5.1:1、白字 9.5:1。依 CLAUDE.md 用 ffmpeg 抽整支首屏影片和 /about 照片頂部的幀離線量，低於 3:1 就在影片上改用白字（本機沒有 ffmpeg，還沒量）。"
+    },
+    {
+     "risk": "後台把選單加到 5 項，簽名和選單相撞、預約鈕被擠出",
+     "mitigation": ":has 守門自動收起簽名；Playwright 寬度掃描加一組 5 項選單的案例。"
+    },
+    {
+     "risk": "午夜前後 SSR 和瀏覽器算出的期間不同，造成 hydration 錯誤",
+     "mitigation": "期間只在 SSR 算一次，用 useState 帶到瀏覽器；HTML 本來就沒有快取規則（nuxt.config.ts 的 routeRules 只快取 /assets/**）。"
+    },
+    {
+     "risk": "業主把週年期間改成學年度，或確認的創校日期不同",
+     "mitigation": "日期集中在 anniversary.ts 一處，測試用參數化日期；兩輪排程時間跟著改，其餘不動。"
+    },
+    {
+     "risk": "ribbonOn 可能影響 IVY KIDS 橫條下緣（長焦混合帶）",
+     "mitigation": "只在 goldRibbon 區（logoUv.y < 200/964）乘掉；2026、2027、2028 三態各截圖比對校徽邊緣。"
+    },
+    {
+     "risk": "2027 年全站只有簽名，家長看了想知道更多，卻沒有入口",
+     "mitigation": "這一層只負責簽名和檔期；週年內容走「30 週年」分類的推薦消息，或其他方向的專頁，入口放頁尾連結，不放主選單。"
+    }
+   ],
+   "mockup_brief": {
+    "title": "週年簽名與三段檔期",
+    "desktop": "1440 寬的一頁比較板，由上到下：\n① 標題列：「週年簽名與三段檔期」加一行說明。右側是三段切換（radio group，每格 44px 高，可用方向鍵切換）：預熱（至 2026-12-31）／週年（2027）／常設（2028 起），預設停在週年。切換只換下面各區的狀態，沒有動畫。\n② 首頁首屏（1440×620 裁切）：背景用 hero-campus-restored-v1-still.webp 加現行頂部遮罩。頁首照正式站畫：校徽、白字「常春藤教育機構／Ivy Educational Institution」、四個選單（中文加英文小字）、右緣金色滿高「預約參觀 Book a Visit」。週年態在字標右側加 1px 白色 45% 細直線，後面兩行：「30」（LINE Seed 800 30px --gold）＋「週年」（Noto Sans TC 600 18px 白），下行「1997–2027」（LINE Seed 700 13px 白，字距 .06em）。整組約 109×54px，和字標垂直置中。預熱與常設態沒有這組。下方小標依狀態顯示三段文字；h1「在常春藤，每一天都有新發現。」和兩行副文照舊。頁首用 design/anniversary-website-directions-20260928/shared/chrome.js 的 data-brand-extra 插槽畫，但要註明正式實作不用 aria-label。\n③ 內頁米白頁首（1440×92，分校頁）：同一組簽名，「30」改 --green，「週年」和年份用字標色，細線用 --line。下方一行註記：米白底不用金色（金對米白約 1.7:1）。\n④ 捲動後膠囊（右上裁切 480×90，壓在首屏照片上）：白圓校徽 →「30 週年」（30 金 17px、週年白 13px）→ 細分隔 →「選單 Menu」→ 金色「預約參觀」。旁邊並排舊提案「校徽右下角金色 30 小點」的對照小圖，標出三個問題：壓住 IVY KIDS、像通知數、約 9px 看不清。\n⑤ 首頁「關於」區（薄荷底 1440×360 裁切）：左邊 34px 細線加 since 標籤（週年態「1997–2027」，其他態「SINCE 1997」）、h2「把每個孩子，放在心上。」、內文前兩句，第二句開頭依狀態是「近三十年來／三十年來／三十多年來」。右邊放 about-together.webp 圓角照。\n⑥ 頁尾底列（深綠 1440×72）：左側版權依狀態顯示「© 2026／© 1997–2027／© 2028 常春藤教育機構」，白字、沒有金色。\n⑦ 開場布幕卡（1280×360）：背景 entrance-poster-desktop.webp，上面疊一張用 token 遮罩的說明卡，列出該狀態的投影內容（校徽／校徽＋緞帶）、dialog 名稱和三句狀態播報。註明時序 2.5＋3＋3.4 秒與手機 3.8 秒短版都不變、不必重產海報。\n⑧ 頁首記號比稿對照（2 列 × 4 格，每格 600×100；第一列影片底、第二列米白底）：a 印章、b 第三行、c 上標小籤、本案。每格下面兩行實測：a 字標區 280→350px、米白底金字約 1.7:1；b 字標高 59→91px，塞滿 92px 頁首；c 小籤壓到「育機」字頂；本案 280→408px、字標本體不動。\n⑨ 顯示寬度尺（320–1440 橫向刻度）：≥1181 顯示／1101–1180 收（1120 實測預約鈕被擠出 15px；1141 時與選單只距 38px，會被讀成第五個選單項）／941–1100 顯示／901–940 收（920 只剩 30px）／761–900 顯示／≤760 收，改由膠囊籤接手；另一行寫「選單 ≥5 項時 ≥901px 全收」。\n⑩ 檔期時間軸（橫向 6 個節點）：2026-10 拍板合併 → 2026-12-15 建週年版並排程 → 2027-01-01 00:00 自動上線 → 週年日（月日待園方）推薦消息 → 2027-12-15 建換回版 → 2028-01-01 00:00 回到常設。每個節點用兩種標籤分「程式時間閘」和「後台排程」，圖示只用 Phosphor Regular。\n⑪ 後台操作表：列是首屏 eyebrow、關於 since_label＋body_text、頁尾 copyright、分享圖 share_image；欄是預熱值、週年值、常設值、排程時間。",
+    "mobile": "390 寬：\n① 三段切換改成滿版三格分段控制，每格至少 44px。\n② 首屏：頁首維持現況（校徽＋字標、金色膠囊預約鈕、漢堡），不加簽名，並標註實測 390px 時字標與預約鈕之間只剩 19px。影片靜幀下方米白區的小標依狀態換字，h1 照舊。\n③ 膠囊：滿版墨綠膠囊，依序是白圓校徽、「30 週年」、留白、漢堡、金色「預約參觀」。附一張 320px 小圖，註明 ≤359px 收籤（不收的話預約鈕會溢出 5px）。\n④ 關於：since 標籤、h2、第一句、「閱讀完整介紹」。\n⑤ 頁尾底列版權。\n⑥ 布幕卡：用 entrance-poster-phone.webp，註明手機走短版、沒有倒數、校徽只出現 1.5 秒，緞帶依狀態。\n⑦ 比稿只比膠囊：舊的「30」小點和本案文字籤上下排。\n⑧ 寬度尺改成直向清單。\n⑨ 時間軸改成直向。\n⑩ 後台操作表改成每個 kind 一張卡。\n所有觸控目標至少 44px，沒有水平捲動。",
+    "real_copy": [
+     "常春藤教育機構",
+     "Ivy Educational Institution",
+     "關於常春藤 About／特色教學 Curriculum／常春藤環境 Environment／入學資訊 Admission",
+     "預約參觀",
+     "Book a Visit",
+     "選單",
+     "Menu",
+     "常春藤幼兒園 · 陪高雄孩子近三十年",
+     "在常春藤，每一天都有新發現。",
+     "一起讀故事、做作品，也到戶外探索。",
+     "在老師的陪伴下，動手試試，說出自己的想法。",
+     "SINCE 1997",
+     "把每個孩子，放在心上。",
+     "自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。",
+     "近三十年來，我們始終相信，幼兒園不只是上學的地方，更是孩子第一次離開家、認識世界的起點。",
+     "陪伴每一個孩子，長成自己喜歡的樣子。",
+     "© 2026 常春藤教育機構",
+     "常春藤 30 週年開場動畫",
+     "常春藤 30 週年",
+     "30 週年開幕倒數 3",
+     "略過動畫",
+     "30 週年",
+     "1997–2027"
+    ],
+    "placeholder_copy": [
+     "常春藤幼兒園 · 陪高雄孩子三十年（週年期小標，示意，待業主裁定）",
+     "常春藤幼兒園 · 陪高雄孩子三十多年（2028 起小標，示意，待業主裁定）",
+     "三十年來／三十多年來（關於內文第二句開頭，示意）",
+     "三十年，長出五所校園。（/about h2 週年期，示意）",
+     "© 1997–2027 常春藤教育機構（示意）",
+     "© 2028 常春藤教育機構（示意）",
+     "常春藤開場動畫（非週年期布幕可及名稱，示意）",
+     "開幕倒數 3（非週年期狀態播報，示意）",
+     "週年日（月日待園方提供）",
+     "常春藤 30 週年 · 1997–2027 · 高雄（分享圖文字，示意）",
+     "週年日推薦消息標題（示意，內容待園方提供）"
+    ],
+    "assets": [
+     "logo.webp",
+     "hero-campus-restored-v1-still.webp",
+     "about-together.webp",
+     "entrance-poster-desktop.webp",
+     "entrance-poster-phone.webp",
+     "og/hero-campus-restored-v1-still.jpg",
+     "fonts/noto-sans-tc-600-brand.woff",
+     "fonts/noto-sans-tc-600-anni.woff",
+     "fonts/source-sans-3-400-brand.woff"
+    ]
+   }
+  },
+  {
+   "key": "page",
+   "name": "常春藤的三十年",
+   "one_liner": "在主站開一頁 /30「常春藤的三十年」，當所有週年入口的終點。頁面用五個真實建校年份撐起相簿式的時光迴廊；故事、今昔、活動、影片要等園方給了真內容才出現。週年結束後，這一頁轉成常設的「常春藤的故事」。",
+   "concept": "把週年做成主站裡的一本「家庭相簿」：米白相簿頁、白邊沖洗相片、很大的年份數字，再加一條照真實比例畫的 30 年時間尺。尺上 1997、2001、2005 三格靠得很近，2005 到 2020 空了一大段，2020、2021 又緊挨著；這個節奏本身就是常春藤的歷史，不必編里程碑。頁面只寫查得到的事：五個建校年份、地址、沿革原句、每校「本校第 N 年」。故事、今昔、活動、影片都要園方給真素材，沒有就整段不渲染，所以提早上線也不會露出空格或示意字。它是主選單、分校頁小標、/about、首頁推薦消息、頁尾這些入口的共同終點，每一段最後都能回到預約參觀和五所校園。大器靠大照片、大數字和留白，溫暖靠真人照片和相簿標籤的語氣，不靠裝飾。",
+   "parent_value": "找幼兒園的高雄家長最想確認兩件事：這間學校可不可靠、會不會一直在。這一頁可以直接看到 1997 年起五所校園的真實年份和地址，也看得到離家最近的那一校開了幾年。老師、早期畢業生、二代生家庭的真實回憶，比任何數字都更好判斷。看完可以直接進分校頁，或預約參觀並預選校區。標題和描述都寫明「高雄」，搜尋時不會和台中的同名園所混在一起。",
+   "surfaces": [
+    {
+     "where": "新路由 /30",
+     "what": "週年主頁，由上到下是：開場＋30 年時間尺、時光迴廊、今昔對照、本校第 N 年、週年故事、週年活動、影片、收尾路線。每個區塊有真內容才渲染，沒有就不出現。頁首用淺色版（同 /news），不加進 PILL_PAGES。視覺語言是 /30 專屬的「家庭相簿」：區域變數 --anni-page:var(--cream)、--anni-sheet:var(--paper)、--anni-print:var(--white)、--anni-ink:var(--green)、--anni-rule:var(--line)、--anni-mark:var(--gold)、--anni-stage:var(--ivy-forest)，不新增 token。",
+     "via": "改 web 程式",
+     "files": "web/app/pages/30.vue（新）、web/app/components/AnniversaryContent.vue、AnniversaryRuler.vue、AnniversaryThenNow.vue（新）、web/app/assets/css/anniversary.css（新）；SiteHeader.vue:14 PILL_PAGES 不動"
+    },
+    {
+     "where": "共用沿革資料",
+     "what": "把 /about 的 MILESTONES 抽成共用常數 CAMPUS_FOUNDING（key、西元、民國、沿革原句），加上 campusYearIn(key, 2027)。/about、/30、分校頁小標、JSON-LD 都讀同一份，不再各寫一份。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/founding.ts（新）；web/app/components/AboutContent.vue:16-22 改為匯入；web/app/utils/seo.ts:177,181-184 補 foundingDate"
+    },
+    {
+     "where": "週年時間閘",
+     "what": "ANNIVERSARY = { year: 2027, start: null, celebrationDate: null, archiveAfter: null }，日期等園方給。anniversaryPhase(taipeiToday()) 回傳 preheat／during／archive，用來決定 h1、倒數（只在 celebrationDate 有值時顯示靜態天數）和活動區塊。SSR 與 hydration 用同一個日期。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/anniversary.ts（新，沿用 web/app/utils/news-content.ts:11 taipeiToday）"
+    },
+    {
+     "where": "SEO、sitemap、llms.txt",
+     "what": "StaticPage 加 anniversary，新增 anniversarySeo：標題「常春藤的三十年｜1997–2027 高雄常春藤幼兒園 30 週年｜{brandName}」，WebPage＋麵包屑兩層。sitemap 固定頁加 /30，llms.txt 加一行。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/seo.ts:43,105-120（仿 aboutSeo）、:237-241、:262-268；web/app/composables/usePageSeo.ts"
+    },
+    {
+     "where": "預約點擊入口",
+     "what": "/30 的 main 標 data-cta-entry=\"anniversary\"，才看得到從週年頁來的預約點擊。web、後端常數、後台標籤三處都要改；不需要 migration。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/cta-analytics.ts:10-28、backend/app/operations/models.py:39-57、admin/src/api/labels.ts:883、web/tests/cta-analytics.spec.ts:25-36"
+    },
+    {
+     "where": "週年故事來源",
+     "what": "全站或各校消息的分類填「30 週年」，首篇勾首頁推薦。/30 讀這些消息，排除示意，取最新 3 篇，連到 /news/<id>。",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:667（既有 category）、:747-750（featured）；/30 讀取寫在 AnniversaryContent.vue，用 news-content.ts:43 isSampleNews"
+    },
+    {
+     "where": "/news 依系列篩選",
+     "what": "/news?series=30 只列分類「30 週年」的消息（寫死對照表 { '30': '30 週年' }），當作「看全部週年故事」的落點。",
+     "via": "改 web 程式",
+     "files": "web/app/components/NewsIndexContent.vue:3-19、web/app/utils/news-content.ts"
+    },
+    {
+     "where": "活動與消息的 series 欄位",
+     "what": "文章和活動各加一個選填欄位 series（預設空字串），/30 才能挑出週年活動（NewsEvent 目前沒有分類）。payload 是 JSON，不需要 migration；改完要重產契約。",
+     "via": "新後端",
+     "files": "backend/app/content/schemas.py（_NewsArticleFields 與活動 schema :696-744）、admin/src/components/NewsEntriesEditor.vue、web/app/types/site-content.ts:177-215、web/app/utils/content-overlay.ts、contracts/openapi.json"
+    },
+    {
+     "where": "入口：主選單與頁尾",
+     "what": "週年期間在主選單加第 5 項「30 週年／30 Years」，頁尾連結加「常春藤的三十年」。上線前要實測 901–1000px 和 1101–1245px 兩段寬度，確認預約鈕沒被擠出視窗。",
+     "via": "後台即可",
+     "files": "後台 site_meta.primary_nav、site_footer.links；間距若要調整在 web/app/assets/css/studio.css:16"
+    },
+    {
+     "where": "入口：分校頁小標",
+     "what": "hero 小標從「常春藤幼兒園 · 高雄{區}」改成「常春藤 30 週年 · 本校第 N 年」，連到 /30#campus-<key>；只在週年期間顯示。",
+     "via": "改 web 程式",
+     "files": "web/app/components/CampusPageMain.vue:20"
+    },
+    {
+     "where": "入口：/about 與 /environment",
+     "what": "/about「一路走來」時間軸加一個 2027 終點，章節提示改成「1997 到 2027」，並加連結「看常春藤的三十年」（連結用字避開「週年」）。/environment 結尾的 NEXT 加一項。",
+     "via": "改 web 程式",
+     "files": "web/app/components/AboutContent.vue:31,67,75-84；web/tests/about.spec.ts:47-50；web/app/components/EnvironmentContent.vue:50-54"
+    },
+    {
+     "where": "入口：首頁",
+     "what": "since_label 改成「1997–2027」，發一則首頁推薦消息連到 /30。用排程發布在週年起始日換上，結束日再換回；首頁不新增章節。",
+     "via": "後台即可",
+     "files": "後台 home_about.since_label（admin/src/views/HomeAboutView.vue:37）、home_news featured；PublishJob 排程"
+    },
+    {
+     "where": "頁面瀏覽統計（選做）",
+     "what": "page 加 anniversary，才能看到 /30 的瀏覽量和 Web Vitals。",
+     "via": "改 web 程式",
+     "files": "web/shared/telemetry.ts:2,10-17、backend/app/operations/routes.py:97-99"
+    },
+    {
+     "where": "測試",
+     "what": "stack 頁面清單加 /30。單元測試驗四件事：年資計算、沒有真內容的區塊不渲染、模板不出現 founding.ts 以外的年份與數字、2020 和 2021 的刻度點擊區 ≥44px。",
+     "via": "改 web 程式",
+     "files": "tests/stack/hydration.spec.ts:10-20、tests/stack/a11y.spec.ts:44-52、web/tests/anniversary.spec.ts（新）"
+    },
+    {
+     "where": "Phase C 週年內容 kind（需業主解除規格）",
+     "what": "新增 anniversary kind，欄位都是固定型別：celebration_date、intro；video{youtube_id 或 media_id、poster、caption}；then_now[≤6]{label、then_media、then_year_text、now_media、caption}；extra_milestones[≤12]{year、campus_key、text、media}；featured_story_ids[≤6]；voices[≤30]{稱呼、身分、campus_key、年份、120 字內、media、consent_note 只在後台}。publish_blocker 擋示意字。/30 也要加進草稿預覽。",
+     "via": "新 content kind",
+     "files": "backend/app/content/schemas.py、registry.py:308-365、admin/src/views/AnniversaryView.vue（新）、admin/src/router/index.ts、nav.ts、admin/src/api/labels.ts:590、web/app/utils/content-overlay.ts:245-261、web/app/utils/draft-preview.ts:25-28、contracts/"
+    },
+    {
+     "where": "週年結束後",
+     "what": "頁面本體移到 /story「常春藤的故事」，/30 永久 301 過去，印過 /30 的傳單和 QR code 仍然有效。sitemap 與 llms.txt 同步更新，主選單拿掉第 5 項。",
+     "via": "改 web 程式",
+     "files": "web/nuxt.config.ts routeRules、web/app/pages/story.vue（沿用同一個元件）、web/app/utils/seo.ts"
+    }
+   ],
+   "content_needs": [
+    {
+     "item": "五校成立年份（西元／民國）與沿革原句",
+     "status": "已有",
+     "note": "AboutContent.vue:16-22，出自機構站 /about。抽成 founding.ts 後，迴廊、本校第 N 年、JSON-LD 都讀這一份。"
+    },
+    {
+     "item": "五校地址、行政區、電話",
+     "status": "已有",
+     "note": "site-fixture campuses。迴廊、老照片徵集卡（電話可點撥）、收尾清單會用到。"
+    },
+    {
+     "item": "教育理念原文（第二個家、發光發熱、生命影響生命）",
+     "status": "已有",
+     "note": "AboutContent.vue:123-126、CurriculumContent.vue:58；收尾或開場引言可以用。"
+    },
+    {
+     "item": "迴廊與校園卡用的現況實拍",
+     "status": "已有",
+     "note": "yihua-exterior、minghua、tour-chongde-field、tour-international-gate、tour-renwu-exterior。不用 *-enhanced-v1（AI 修復），也不用 chongde／international／renwu.webp（建築透視圖）。"
+    },
+    {
+     "item": "開場大相片 about-together",
+     "status": "已有",
+     "note": "真實照片，但長輩身分未確認：alt 只描述畫面，不寫圖說身分。"
+    },
+    {
+     "item": "義華校外觀高解析原檔",
+     "status": "園方需提供",
+     "note": "現有檔案只有 590×388，當迴廊首張大圖會糊；招牌「常春藤幼稚園」這個時代細節要保留。"
+    },
+    {
+     "item": "創校月日、週年期間起訖、起算口徑",
+     "status": "園方需提供",
+     "note": "決定上線日、排程發布、倒數天數、2027 節點文案，以及寫「第 N 年」還是「滿 N 年」。舊站 27／30／三十多年的說法要一起統一。"
+    },
+    {
+     "item": "各校當年照片（開園、校舍、第一屆、舊制服、畢業典禮）與年份",
+     "status": "園方需提供",
+     "note": "用來把迴廊的現況照換成當年照，也是今昔對照的「當年」。含幼兒的照片要有家長書面同意。"
+    },
+    {
+     "item": "今昔對照的同角度「現在」照",
+     "status": "園方需提供",
+     "note": "拿到舊照後，到原地照同一個角度補拍。"
+    },
+    {
+     "item": "chongde／international／renwu.webp 的來源",
+     "status": "園方需提供",
+     "note": "這三張看起來是建築透視圖。若確認是建校前的設計圖，可以當「蓋好之前」放進今昔，圖說寫明是透視圖。"
+    },
+    {
+     "item": "故事受訪者與公開同意（園長、資深老師、早期畢業生、二代生家庭）",
+     "status": "園方需提供",
+     "note": "用既有消息 CMS 發布，分類「30 週年」，小編撰稿後送審；引言只寫本人說過、同意公開的話。"
+    },
+    {
+     "item": "週年活動的日期、地點、形式、洽詢方式",
+     "status": "園方需提供",
+     "note": "沒有真活動就不顯示活動區塊。不做線上報名，可連到園方自有管道或寫「洽各校」。"
+    },
+    {
+     "item": "週年紀錄短片（中文字幕、無燒字幕原檔）",
+     "status": "園方需提供",
+     "note": "影片區塊只有拿到片子才開，點了才載入播放器，不自動播放。"
+    },
+    {
+     "item": "2006–2019 年間可公開的史實里程碑",
+     "status": "園方需提供",
+     "note": "沒有就維持留白，這段放老照片徵集；不湊節點。"
+    },
+    {
+     "item": "主題標語與中文正式說法（30 週年／三十週年）",
+     "status": "園方需提供",
+     "note": "放在開場小標；不用奇美已經用過的「三十而立 · 感謝相伴」。"
+    },
+    {
+     "item": "30 週年校徽用在專頁與分享圖",
+     "status": "需授權",
+     "note": "DESIGN.md:447 只授權開場布幕。要用在別處要另外同意，並提供透明底或向量檔；沒授權時 /30 完全不放校徽。"
+    },
+    {
+     "item": "兒少肖像公開同意書格式與保存方式",
+     "status": "需授權",
+     "note": "老照片與故事照片刊登前要先確認；條款由園方或法務提供。"
+    },
+    {
+     "item": "週年分享圖 1200×630 JPG",
+     "status": "園方需提供",
+     "note": "/30 專用。畫面若含校徽，要先完成上一項授權。"
+    }
+   ],
+   "effort": "M",
+   "effort_breakdown": "整體算 M（不含 Phase C）。Phase A 寫死版頁面＋整合是 M，約 4–5 人日：新頁與 3 個元件、anniversary.css 的桌機與手機版、founding.ts 和 anniversary.ts、SEO／sitemap／llms、CTA 三處、4 個入口、單元與 stack 測試，再用 Playwright 驗桌機、手機和減少動態。Phase B 是 S，約 1–2 人日：series 欄位、/news?series=30、瀏覽統計；不需要 migration，但要跑 contract:generate／check。Phase C 的 anniversary content kind 是 M，約 4–5 人日，而且要業主先解除「不新增週年後台」。週年後轉 /story 加 301 是 S，約半天。不做 Phase C 的話，2026 年底前可以把 A、B 做完放在 feature 分支，等裁定。",
+   "phases": [
+    {
+     "when": "2026-10（現在）",
+     "what": "請業主裁定四件事：起算口徑與期間、布幕提早一年顯示週年怎麼處理、是否放寬「不新增週年後台」、正式中文說法。園方同時開始找老照片和受訪者。我們在 feature/anniversary-page 分支做 Phase A 寫死版和比稿 mock，不合併。可以先獨立上線的只有 founding.ts 共用沿革和 JSON-LD foundingDate，兩者都不含週年字樣。"
+    },
+    {
+     "when": "2026-11～12",
+     "what": "做 Phase B：series 欄位、/news?series=30、CTA 與瀏覽統計入口；園方完成第一批故事採訪、老照片數位化和同意書。業主若要預熱，/30 可以先上預熱版（開場、時間尺、迴廊、本校第 N 年、老照片徵集），只從首頁推薦消息連進來，不進主選單。"
+    },
+    {
+     "when": "週年起始日（園方定，例如 2027-01-01 或 116 學年度開學）",
+     "what": "/30 正式版上線。主選單第 5 項、分校頁小標、/about 的 2027 節點與連結、頁尾連結、首頁 since_label，用排程發布在同一天換上。故事每月發 2–3 篇。"
+    },
+    {
+     "when": "2027 週年期間",
+     "what": "今昔、活動、影片等素材到位就逐段開啟。園慶日確定後顯示每日更新的靜態倒數天數。業主若解除限制，就做 Phase C，讓園方在後台自己管理今昔、影片和回憶語錄。"
+    },
+    {
+     "when": "週年結束（約一學年後）",
+     "what": "/30 永久 301 到 /story「常春藤的故事」。拿掉倒數、活動、主選單入口和「30 週年」字樣，迴廊、今昔、故事、影片留下當典藏；/about 01 保留常設連結，分校頁小標回到原樣。布幕換無緞帶版另案處理。"
+    }
+   ],
+   "rule_conflicts": [
+    {
+     "rule": "文案一律寫「近三十年」、不綁 30 週年；/about 測試擋「週年」字樣；週年版未拍板不能順便上線",
+     "source": "DESIGN.md:85、:941；web/tests/about.spec.ts:47-50；AboutContent.vue:9；CLAUDE.md「現況容易搞錯的事」",
+     "resolution": "/30 本身可以寫「30 週年／三十年」，但要等業主裁定起始日才上線。/about 的連結文字用「常春藤的三十年」，不碰禁字。DESIGN.md 要改寫這條規則：週年期起，/30 和各入口可寫 30 週年，其他頁在起始日前仍寫近三十年。"
+    },
+    {
+     "rule": "不新增週年後台、不啟用週年提案；不做任意頁面建構器",
+     "source": "docs/specs/2026-09-19-website-admin.md:79,94,445；docs/handoff/2026-09-19-claude-website-admin.md:65,123",
+     "resolution": "Phase A 全部寫死，加上既有消息 CMS。Phase B 只在消息 schema 加一個通用的 series 欄位，仍要請業主點頭。Phase C 的 anniversary kind 用固定型別區塊，要業主明確解除限制才開工。"
+    },
+    {
+     "rule": "30 週年校徽只授權用在開場布幕",
+     "source": "DESIGN.md:447",
+     "resolution": "/30 不放校徽，開場用真照片加時間尺。園方擴大授權、提供透明底檔之後，才把校徽當一張小相片加進開場。"
+    },
+    {
+     "rule": "頁首 30 週年記號 a／b／c 待拍板",
+     "source": "DESIGN.md:687；docs/brand/brand-guidelines.md:25",
+     "resolution": "/30 不動頁首品牌區，入口只用後台主選單的文字項目。"
+    },
+    {
+     "rule": "主選單 6 項會把預約鈕擠出視窗，加第 5 項要調窄間距",
+     "source": "DESIGN.md:136,190",
+     "resolution": "只加到第 5 項。上線前在 901–1000px 和 1101–1245px 實測，必要時調 studio.css 的間距。"
+    },
+    {
+     "rule": "各內頁畫風不外移：水彩只在 /curriculum，手繪、圓體、手寫只在 /environment",
+     "source": "DESIGN.md:7,21,45",
+     "resolution": "/30 用自己的「家庭相簿」語言（沖洗相片、大年份、比例時間尺），也不借 adm-* 的薄荷帶和巨大淡字；在 DESIGN.md 記為 /30 專屬，不外移。"
+    },
+    {
+     "rule": "金色只用 --gold，不當大面積背景",
+     "source": "docs/brand/brand-guidelines.md:39,73",
+     "resolution": "金色只出現在兩處：時間尺終點 2027 的實心圓點，和預約鈕。"
+    },
+    {
+     "rule": "英文不搶中文",
+     "source": "PRODUCT.md:16；CLAUDE.md 設計硬規則",
+     "resolution": "頁面不寫「30th Anniversary」，除了年份數字全部中文；只有主選單照既有格式放 lang=\"en\" 副標「30 Years」。"
+    },
+    {
+     "rule": "示意內容要標示、示意活動不顯示具體日期",
+     "source": "docs/brand/brand-guidelines.md:108；DESIGN.md:57、:72",
+     "resolution": "正式站上沒有真內容的區塊直接不渲染，示意只出現在比稿 mock，並用虛線框標出。"
+    },
+    {
+     "rule": "照片 alt 只描述畫面，不寫人物身分",
+     "source": "README.md:866",
+     "resolution": "about-together 的 alt 只寫畫面；故事照片的身分寫在消息內文，前提是本人同意。"
+    },
+    {
+     "rule": "草稿預覽只支援首頁、入學、分校、預約頁",
+     "source": "web/app/utils/draft-preview.ts:25-28",
+     "resolution": "Phase A 是寫死的，不需要預覽；故事在 /news 預覽。到 Phase C 才把 /30 加進預覽。"
+    },
+    {
+     "rule": "頁面瀏覽統計只收 home／campus／visit",
+     "source": "web/shared/telemetry.ts:2；backend/app/operations/routes.py:97-99",
+     "resolution": "列為 Phase B 選做；沒做之前，只用 CTA 入口 anniversary 看轉換。"
+    }
+   ],
+   "risks": [
+    {
+     "risk": "園方素材一直沒到，週年頁變得很薄",
+     "mitigation": "只靠已知事實也能成立一整頁：開場、時間尺、迴廊、本校第 N 年、收尾。其他區塊有真內容才出現，正式站永遠不放占位格。"
+    },
+    {
+     "risk": "「本校第 N 年」差一年：2027−1997=30 其實是滿 30 年，照「1997 是第 1 年」的算法，2027 是第 31 年",
+     "mitigation": "先照簡報寫第 30／26／22／7／6 年。園方確認創校月日和口徑後，改寫成「滿 N 年」或依月日計算，只需改 founding.ts 一處。"
+    },
+    {
+     "risk": "國際 7 年、仁武 6 年，在家長眼中顯得資歷淺",
+     "mitigation": "五張卡同尺寸，不做年資長條圖，共同標題「每一所，都是常春藤」，強調守著同一份理念。"
+    },
+    {
+     "risk": "老照片的兒少肖像，以及原檔 EXIF／GPS 被公開",
+     "mitigation": "線下收件並取得書面同意。照片由我們用腳本轉成 WebP、去掉 metadata 後寫進 web/public/assets，不走素材庫公開原檔；或先做素材庫的 EXIF 剝除（S）。"
+    },
+    {
+     "risk": "AI 修復圖或建築透視圖被當成歷史照片",
+     "mitigation": "迴廊只用實拍。*-enhanced-v1 不用；chongde／international／renwu.webp 要園方確認來源，才能放進今昔並註明是透視圖。"
+    },
+    {
+     "risk": "故事篇數撞上消息上限（全站 30、各校 12）",
+     "mitigation": "跨校故事放全站消息，各校故事放各校消息。年中再評估要不要調高上限（後端常數，需要裁定）。"
+    },
+    {
+     "risk": "搜尋「常春藤幼兒園」撞名台中同名園",
+     "mitigation": "title、description 和開場小標都寫「高雄」，JSON-LD 補地址與 foundingDate。"
+    },
+    {
+     "risk": "大照片多，拖慢載入",
+     "mitigation": "只有開場大相片 eager＋fetchpriority，其餘 lazy，走既有響應式尺寸管線。影片點了才載入播放器，桌機和手機都要量 LCP。"
+    },
+    {
+     "risk": "布幕寫「30th Anniversary」、頁面寫中文，說法不一致",
+     "mitigation": "和布幕上線時機放在同一次裁定裡處理。頁面一律用中文，布幕的 aria 文字也對齊。"
+    },
+    {
+     "risk": "週年後網址失效，或頁面變成過時的活動頁",
+     "mitigation": "時間閘在 archive 階段自動拿掉倒數和活動；轉 /story 時 /30 永久 301，傳單和 QR code 仍然可用。"
+    }
+   ],
+   "mockup_brief": {
+    "title": "常春藤的三十年（/30）",
+    "desktop": "1440×900，container 1280，由上到下：\n① 頁首：正式站淺色頁首（同 /news，白底深綠字、金色滿高預約鈕）。主選單 4 項，外加一個虛線框示意的第 5 項「30 週年／30 Years」，標 aria-current。\n② 開場（--cream，約 780px 高）。左 6 欄：小標「高雄 · 常春藤幼兒園　1997–2027」；h1 兩行「常春藤的／三十年」，LINE Seed ExtraBold 約 96px、--green；lede 兩行；動作列是金色膠囊「預約參觀 →」加文字連結「沿著時光迴廊走 ↓」；再一行靜態倒數「距離 30 週年園慶還有 ○○ 天」（示意）。右 6 欄是兩張疊放的沖洗相片：大張 about-together 約 560px 寬、--white 白邊 12px、旋轉 -0.6°；小張 yihua-exterior 約 280px、+0.8°，壓在大張右上角，下方相簿標籤「義華校，第一間常春藤」。開場底部橫跨 1280px 的是 30 年時間尺：1px --green 線，刻度照真實比例落在 1997（0%）、2001（13.3%）、2005（26.7%）、2020（76.7%）、2021（80%），2027（100%）是全頁唯一的 --gold 實心圓點。每個刻度是錨點連結，標年份＋校名；2020 和 2021 上下錯開，點擊區各 ≥44px。2005→2020 那段線上不放任何東西。\n③ 時光迴廊（--paper）。kicker「時光迴廊」，h2「五所校園，／一年一年長出來。」。每一站是一個跨頁，照片 7 欄＋文字 5 欄，左右交替。文字欄：年份 168px LINE Seed ExtraBold --green、民國年小字、h3 校名、沿革原句、地址、「看義華校 →」。照片是白邊沖洗相片，下方一行相簿標籤（--muted、0.8125rem）：義華 yihua-exterior（「招牌上還是『常春藤幼稚園』的舊稱」）、明華 minghua（「招牌上還是『幼稚園』的舊稱」）、崇德 tour-chongde-field、國際 tour-international-gate、仁武 tour-renwu-exterior，後三張標「今天的○○校」。2020 和 2021 並排成同一個跨頁，兩張半寬相片，表現連續兩年。2005 和 2020 之間是約 320px 的長廊：縱向延續的細線只標「2006 — 2019」，中間一張 --cream 卡片「這些年的照片，也許在你家。」加說明和五校電話（示意文案，電話是真的）。最後是 2027 終點：置中的金點、「2027 · 民國 116 年」、「常春藤滿三十年。」（示意），加「看週年活動 ↓」。\n④ 今昔對照（--cream，整段標示意）。h2「同一個地方，／不同的年代。」。1100×620 白邊相框內左右對照，中間是可拖的把手，上緣標「當年」「現在」。下方分頁「義華校舍／畢業典禮／教室」（示意）。「當年」側是虛線空相框，寫「1997 年的義華校（待園方提供）」；「現在」用 yihua-exterior。畫面上要看得出底下是 range input，方向鍵可以操作。\n⑤ 本校第 N 年（--paper）。kicker「本校第 N 年」，h2「每一所，／都是常春藤。」，lede「年紀不同，守著同一份教育理念與專業保育。」（示意）。五張等寬卡排成一列，每張有：小相片、校名、「2001 年成立 · 民國 90 年」、大字「第 26 年」（前面一個小字「本校」）、兩個文字連結「認識明華校 →」「預約參觀」（連到 /visit/minghua）。義華卡多一個小標籤「第一間常春藤」；五張卡的數字一樣大。\n⑥ 週年故事（--cream，整段標示意）。kicker「週年故事」，h2「三十年，／是很多人的記憶。」。左邊一張 7 欄大卡：相片、類型標籤「老師」、標題、兩行摘要、「讀這篇 →」；右邊兩張小卡，標籤是「畢業生」「家長」。卡片都不放引言，只寫示意標題。右上角「看全部週年故事 →」連到 /news?series=30。\n⑦ 週年活動（--paper，整段標示意）。kicker「週年活動」，h2「2027，／歡迎回來。」。「接下來」「辦過了」兩欄列表，不用卡片。每列有：日期格「○月○日」、活動名、校區、地點、「活動說明 →」。底部一行「不開放線上報名，詳情請洽各校」。\n⑧ 影片（--anni-stage 深森林綠放映帶，白字）。約 1100px 寬的 16:9 海報（campus-film-speech，標示意），中央 72px 白色圓形播放鈕，下方片名「常春藤 30 年紀錄短片」（示意），並註明有中文字幕、點了才播放。\n⑨ 收尾（--cream）。左 7 欄是預約面板：tour-minghua-plaza 相片、h2「來看看，／今天的常春藤。」、金色膠囊「預約校園參觀 →」。右 5 欄是「五所校園」清單：五列「校名 · 行政區 →」，每列 ≥56px 高，連到 /campuses/<key>。底部一行「還想多認識：關於常春藤 · 特色教學 · 常春藤環境」。\n⑩ 正式站頁尾：深綠白字，不改。\n左下角放比稿旗標：「方向 page · /30 常春藤的三十年；虛線框＝示意」。整頁不用水彩、手繪、巨大淡字，也沒有任何自動播放。",
+    "mobile": "390 寬，左右 20px gutter，不能出現水平捲動，標題每行 ≤8 字。\n頁首照現行 900px 以下的行為退成膠囊。\n開場：單欄。h1 一行「常春藤的三十年」約 40px，接著 lede。相片只留 about-together 一張，白邊 6px、不傾斜。預約金色膠囊和「時光迴廊 ↓」並排，高度都 ≥44px。時間尺改成不可點的橫向小圖（aria-hidden），下面放 6 個年份膠囊，排成兩列、每列 3 個（1997 義華……2027），每個 ≥44px 高，當錨點。\n時光迴廊：每站直排，依序是年份 72px（民國年在同一行）、全寬 3:2 相片、相簿標籤、校名、沿革句、地址、連結。2020 和 2021 上下排，但間距縮小。長廊卡改成全寬，五校電話做成 tel: 連結；2027 終點置中。\n今昔：全寬 4:3。圖下方另放一條看得見的 range 滑桿（拇指 44px），以及「看當年」「看現在」兩顆按鈕。\n本校第 N 年：改成五列清單，不做橫向捲動。每列左邊是校名＋成立年，右邊是大字「第 N 年」，整列連到分校頁，下方小字「預約參觀」。\n故事：三張卡直排。活動：列表。影片：全寬。收尾：預約面板在上、五校清單在下。\n減少動態時，相片進場的淡入全部關閉。",
+    "real_copy": [
+     "第一間常春藤，在三民區義華路成立。",
+     "走進左營區，有了第二所校園。",
+     "左營區的第二所校園。",
+     "在鳥松區球場路成立。",
+     "第五所校園，在仁武區成立。",
+     "1997 · 民國 86 年／2001 · 民國 90 年／2005 · 民國 94 年／2020 · 民國 109 年／2021 · 民國 110 年",
+     "1997–2027",
+     "2027 · 民國 116 年",
+     "義華校 本校第 30 年／明華校 第 26 年／崇德校 第 22 年／國際校 第 7 年／仁武校 第 6 年",
+     "一萬多個日子",
+     "五所校園",
+     "義華校 · 三民區義華路68號 · 07-392-8366",
+     "明華校 · 左營區明華一路176號 · 07-556-6796",
+     "崇德校 · 左營區崇德路87號 · 07-341-6286",
+     "國際校 · 鳥松區球場路59號 · 07-370-8001",
+     "仁武校 · 仁武區京吉一路102號 · 07-375-7081",
+     "孩子的第一所學校，也是第二個家。",
+     "在名為全世界的舞台，展現自我、發光發熱。",
+     "教育是『生命影響生命』的使命",
+     "招牌上還是『常春藤幼稚園』的舊稱（義華外觀原照可見）"
+    ],
+    "placeholder_copy": [
+     "主選單第 5 項「30 週年／30 Years」",
+     "距離 30 週年園慶還有 ○○ 天",
+     "常春藤滿三十年。（起算口徑待園方確認）",
+     "五所校園，一年一年長出來。",
+     "這些年的照片，也許在你家。帶到任一校園，或打電話告訴我們；刊登前會先取得你的同意。",
+     "同一個地方，不同的年代。",
+     "1997 年的義華校（待園方提供）",
+     "今昔分頁：義華校舍／畢業典禮／教室",
+     "每一所，都是常春藤。",
+     "年紀不同，守著同一份教育理念與專業保育。",
+     "三十年，是很多人的記憶。",
+     "故事卡：老師｜我在常春藤的第一年；畢業生｜我記得的幼兒園；家長｜換我送孩子來；園長的話",
+     "2027，歡迎回來。",
+     "活動：30 週年園慶／校園開放日／校友回娘家／時光膠囊（日期一律寫 ○月○日）",
+     "不開放線上報名，詳情請洽各校",
+     "常春藤 30 年紀錄短片",
+     "來看看，今天的常春藤。",
+     "（主題標語待園方拍板）"
+    ],
+    "assets": [
+     "about-together.webp",
+     "yihua-exterior.webp",
+     "minghua.webp",
+     "tour-chongde-field.webp",
+     "tour-international-gate.webp",
+     "tour-renwu-exterior.webp",
+     "tour-minghua-plaza.webp",
+     "campus-film-speech.webp",
+     "graduation.webp",
+     "env-hero-hug.webp",
+     "about-curious.webp",
+     "logo.webp"
+    ]
+   }
+  },
+  {
+   "key": "stories",
+   "name": "常春藤的三十個故事",
+   "one_liner": "只用現有的消息後台，從 2026-11 起每月 1 日、15 日各刊一篇，共三十篇，由老師、畢業生和兩代家庭親口講常春藤近三十年的事。",
+   "concept": "家長看到的不是週年慶典，而是每月更新兩次的專欄：一位老師講她在義華校帶的第一班，一位長大的畢業生講出童年的具體細節，一對父母講為什麼把孩子送回自己讀過的學校（以上是題型舉例，不是已收到的內容）。三十年不用數字證明，而是一篇一篇由人講出來。每篇都有自己的 /news/<id> 網址，可以轉傳、會被搜尋到，文末直接接到那一校的「預約參觀」。整個系列只用既有的消息、素材庫與送審流程，不新增週年後台，也不必等「30 週年」用語拍板：預熱期照規定寫「近三十年」，業主拍板後只要改一行導言。這個做法特別適合常春藤，因為現在最缺的正是有出處的歷史素材。這個系列把收素材、取得同意、核對年份變成每個月固定的工作，一年後會留下三十篇有授權的故事，可以直接用在週年專頁、沿革時間軸和紀念特刊。",
+   "parent_value": "正在找幼兒園的高雄家長，最想知道的是老師會不會留下來、孩子長大後還記得什麼。資深老師的第一人稱故事和早期畢業生的具體回憶，回答的就是穩定度與口碑，比宣傳語可信；兩代常春藤家庭更是最直接的信任證明。每篇都標明校區，文末有「預約○○校參觀」，讀完一步就能預約。/news 可以依校區篩選，只考慮左營、鳥松或仁武的家長也能看到自家附近那一校的故事，不會只看到義華校。",
+   "surfaces": [
+    {
+     "where": "後台「最新消息與活動」（home_news）",
+     "what": "全站篇 10 則：年年都有 6 則、義華兩代 2 則、週年特刊 2 則。分類填「三十個故事・<章>」；日期填上架日，show_from 同一天；不填 show_until（填了到期整篇會 404）；不勾首頁推薦，由官網自動置頂；適用範圍依園方確認的校區設定（活動影片都是義華校的，沒確認前只設義華）。",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:484-512（show_from／show_until）、:747-750（featured）、_NewsArticleFields.category；admin/src/components/NewsEntriesEditor.vue:134-167"
+    },
+    {
+     "where": "後台「各校消息與活動」（campus_news）",
+     "what": "分校篇 20 則，由各校自己寫、分校管理者核准：義華 6、明華 6、崇德 4、國際 2、仁武 2，每校上限 12 則。分校消息一律不是示意，可以比全站篇先上線。官網合併顯示，id 會加上校區前綴。",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:854-880（CampusNewsPayload）；web/app/utils/content-overlay.ts:640-645"
+    },
+    {
+     "where": "後台素材庫",
+     "what": "故事照片標籤填「三十個故事」和篇號。license_note 寫同意書編號與同意範圍、source_attribution 寫提供者稱謂，這兩欄不會對外公開。家長用手機翻拍的舊照，先在電腦重新匯出、拿掉位置資訊再上傳。",
+     "via": "後台即可",
+     "files": "backend/app/media/models.py:62-67；backend/app/media/schemas.py:106-121（PublicMediaOut 不含 license_note）；backend/app/media/service.py:155-166（原檔不去 EXIF）"
+    },
+    {
+     "where": "/news 列表",
+     "what": "1. 篩選列尾端加一顆「三十個故事」chip。2. 篩選列下方加「系列帶」，放最新三篇，有選校區時只放該校的故事。3. 網址帶 ?series=stories 時列出全部故事，依刊出順序由舊到新，並顯示章節 chip。4. 校區 chip 要保留 series 參數。5. canonical 維持 /news。",
+     "via": "改 web 程式",
+     "files": "web/app/components/NewsIndexContent.vue、web/app/utils/news-series.ts（新：isStory／storyChapter／依日期編號，示意項目不算）、web/app/assets/css/news-page.css、web/tests/news-page.spec.ts"
+    },
+    {
+     "where": "/news/<id> 單篇",
+     "what": "meta 行顯示「三十個故事・<章>」與「第 N 個故事」，N 由官網依日期排序算出，不手打。文末自動加上一個／下一個故事和「依順序讀全部故事」。原有的「回消息列表」「預約○○校參觀」不動。",
+     "via": "改 web 程式",
+     "files": "web/app/components/NewsArticleContent.vue、web/app/assets/css/news-page.css"
+    },
+    {
+     "where": "首頁「最新消息」輪播",
+     "what": "最新一篇故事（全站或分校都算）固定在第一格，舊故事退出輪播，其他消息沿用原規則（有推薦只播推薦，否則依日期）。故事卡加系列記號。同一個改動順手補一顆看得見的暫停鍵。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/news-content.ts:19-23（homeArticles）、web/app/components/NewsDialog.vue:133-135、web/tests/news-content.spec.ts、web/tests/news-rotation.spec.ts"
+    },
+    {
+     "where": "頁尾連結",
+     "what": "加一項「三十個故事」連到 /news?series=stories（站內路徑的正規式允許 ?=）。主選單不加。",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:170-173（_SITE_PATH_RE、FOOTER_LINKS_MAX）"
+    },
+    {
+     "where": "手機首頁「活動影片」",
+     "what": "刊出年年都有篇的那個月，把對應的義華活動影片調到第一支。",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:766-812（home_news.films）"
+    },
+    {
+     "where": "/about「一路走來」",
+     "what": "某一校的開校篇刊出後，在該年份節點卡片下方加一個獨立連結「讀開校那一年」，不能包進原本的卡片連結裡。文字不能含「週年」。",
+     "via": "改 web 程式",
+     "files": "web/app/components/AboutContent.vue:75-84、web/tests/about.spec.ts:47-49"
+    },
+    {
+     "where": "分校頁",
+     "what": "在家長分享的位置之後加「本校的故事」文字列，最多 3 篇，另附一個連結到 /news?series=stories&campus=<key>，沿用分校頁 .section 樣式。",
+     "via": "改 web 程式",
+     "files": "web/app/components/CampusPageMain.vue:59 附近"
+    },
+    {
+     "where": "後台分類欄（選配）",
+     "what": "消息分類改成可下拉選章節（admin 前端，不動 API），避免打錯字把系列拆散。",
+     "via": "改 web 程式",
+     "files": "admin/src/components/NewsEntriesEditor.vue:134-135"
+    },
+    {
+     "where": "草稿預覽（選配）",
+     "what": "預覽加 page=news，讓小編發布前能看單篇版面。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/draft-preview.ts:12,25-28、web/app/pages/preview.vue"
+    }
+   ],
+   "content_needs": [
+    {
+     "item": "五校沿革年份與地點（1997 義華路、2001 明華、2005 崇德、2020 鳥松球場路、2021 仁武）",
+     "status": "已有",
+     "note": "web/app/components/AboutContent.vue:16-22；開校篇只用這五個機構年份"
+    },
+    {
+     "item": "年年都有的影片：義華迎財神、放風箏、大班英語演講、IVY 盃足球 YouTube，以及遊藝表演影片與海報",
+     "status": "已有",
+     "note": "web/app/utils/campusFilms.ts:15-18、day-film／day-poster；都是義華校、都是近年"
+    },
+    {
+     "item": "各項傳統活動從哪一年開始、辦過幾屆、哪幾校有辦、每年在哪個月",
+     "status": "園方需提供",
+     "note": "沒提供就不寫「第 N 屆」，也不寫五校都辦；活動篇的刊出月份依這份資料對齊"
+    },
+    {
+     "item": "資深老師 7 位（義華 2、明華 2、崇德 1、國際 1、仁武 1）的訪談與本人確認稿",
+     "status": "園方需提供",
+     "note": "第一人稱內容必須是本人確認過的文字，小編只能整理，不能代寫"
+    },
+    {
+     "item": "早期畢業生 6 位（義華 3、明華 2、崇德 1）的聯絡與訪談",
+     "status": "園方需提供",
+     "note": "國際、仁武成立時間短，不硬湊畢業生篇"
+    },
+    {
+     "item": "兩代常春藤家庭 4 組（義華 2、明華 1、崇德 1）",
+     "status": "需授權",
+     "note": "父母當年就讀須由園方核對；在學幼兒須有法定代理人書面同意，照片只拍背影或手"
+    },
+    {
+     "item": "各校開校當年的照片與回憶（老師或第一屆家長）",
+     "status": "園方需提供",
+     "note": "找不到舊照就只放今日照；不用 *-enhanced-v1 或線稿頂替「當年」"
+    },
+    {
+     "item": "舊照片的拍攝年份、校別、提供者",
+     "status": "需授權",
+     "note": "年份不確定就不寫在圖說；照片中其他可辨識的人要另外同意，或裁切到認不出"
+    },
+    {
+     "item": "肖像與姓名同意書的正式文字（姓名呈現方式、本人肖像、童年照、撤回方式分項勾選）",
+     "status": "園方需提供",
+     "note": "由園方或法務定稿，本方向不構成法律意見；紙本由各校保存"
+    },
+    {
+     "item": "全站消息去示意化：真實的一般消息與活動，或接受暫時留空",
+     "status": "園方需提供",
+     "note": "第一則全站篇（#03）上線前要清空 sample_note"
+    },
+    {
+     "item": "系列名稱與導言定稿；2027 年是否改用「30 週年」用語",
+     "status": "園方需提供",
+     "note": "業主裁定；在那之前一律寫「近三十年」"
+    },
+    {
+     "item": "創校月日（決定週年特刊篇 #29、#30 的刊出月）",
+     "status": "園方需提供",
+     "note": "缺口 1；舊站同時有 27 年、30 年、三十多年三種說法"
+    },
+    {
+     "item": "徵稿與撤回窗口：五校電話",
+     "status": "已有",
+     "note": "fixture 的五校電話；其他四校沒有 LINE／FB，不能拿義華的代替"
+    },
+    {
+     "item": "about-hero、about-together 人物的身分與授權",
+     "status": "需授權",
+     "note": "確認之前不能當任何故事的主角照"
+    }
+   ],
+   "effort": "S",
+   "effort_breakdown": "工程只動 web（後端、migration、契約都是 0）。第一階段約 2 人日：news-series.ts（辨識故事、章節、依日期編號，示意項目排除）、/news 系列帶與 ?series=stories、單篇系列記號與上下篇、首頁「最新故事置頂」規則與暫停鍵、news-page.css（只用 --ivy-news-* 與 --gold 短線），另補單元測試，並用 Playwright 驗 1440 與 390。第二階段約 1 人日：/about 開校節點連結、分校頁「本校的故事」。選配兩項各約 0.5 人日：後台分類下拉、草稿預覽單篇。真正的成本在內容營運：三十篇都要經過訪談、本人確認、同意書、找照片和審核，粗估每篇要園方一個工作天，由各校小編（EDITOR 只能送審）分攤，總部負責核准全站篇。",
+   "phases": [
+    {
+     "when": "2026-10（籌備，不上架）",
+     "what": "業主確認系列名、首頁「最新故事置頂」規則，以及預熱期可以上線。園方定同意書文字，列出受訪名單（老師 7、畢業生 6、兩代 4 家）。web 改動在 feature 分支完成並驗過桌機和手機；未經要求不合進 main。先存好 #01–#04 四篇稿。"
+    },
+    {
+     "when": "2026-11-01 至 2026-12（預熱）",
+     "what": "每月 1 日、15 日各刊一篇。#01 開校那一年・義華（1997，三民區義華路；分校篇）、#02 老師說・義華、#03 年年都有・遊藝表演（第一則全站篇，同一次發布要清空 sample_note，並刪掉所有示意的全站消息與活動）、#04 長大以後・義華。頁尾加「三十個故事」連結。"
+    },
+    {
+     "when": "2027-01 至 2027-06",
+     "what": "#05 開校・明華（2001）、#06 老師說・明華、#07 年年都有・迎財神、#08 兩代・義華、#09 開校・崇德（2005）、#10 長大・明華、#11 年年都有・放風箏、#12 老師說・崇德、#13 年年都有・大班英語演講、#14 兩代・明華、#15 年年都有・畢業典禮、#16 長大・義華。活動篇的月份是暫排，依園方行事曆對齊活動當月。同期上線第二階段 web（/about 連結、分校頁「本校的故事」）。"
+    },
+    {
+     "when": "2027-07 至 2027-12",
+     "what": "#17 開校・國際（2020）、#18 老師說・國際、#19 開校・仁武（2021）、#20 老師說・仁武、#21 年年都有・IVY 盃校際足球聯賽、#22 長大・崇德、#23 兩代・崇德、#24 老師說・義華、#25 長大・明華、#26 老師說・明華、#27 兩代・義華、#28 長大・義華。"
+    },
+    {
+     "when": "週年月（創校月日由園方確認）",
+     "what": "加刊週年特刊篇兩則，題目由園方定，例如園長的話，需提供本人授權。實際篇號依刊出日期自動排序。如果業主已核准週年用語，就改系列導言，分校篇另加「本校第 N 年」（依沿革年份計算）。三十篇的 id 交給週年專頁或紀念特刊引用。"
+    },
+    {
+     "when": "2028 起（典藏）",
+     "what": "系列改名「常春藤的故事」，留在 /news 當常設典藏。首頁置頂規則關閉。全站消息 30 則上限若擠不下，再議調高上限，或把故事移到週年專頁 kind。"
+    }
+   ],
+   "rule_conflicts": [
+    {
+     "rule": "文案一律「近三十年」、不綁 30 週年；/about 測試擋「週年」",
+     "source": "DESIGN.md:85；web/tests/about.spec.ts:47-49",
+     "resolution": "系列名只數故事，不寫年數；預熱導言用「近三十年」。「30 週年」字樣等業主裁定後，改 news-series.ts 的一行常數即可。/about 連結文字寫「讀開校那一年」。"
+    },
+    {
+     "rule": "不新增週年後台、本輪不含週年提案",
+     "source": "docs/specs/2026-09-19-website-admin.md:79,445",
+     "resolution": "不新增 content kind，不動 API 與 migration，只用既有消息與素材庫，官網只加顯示邏輯。但這仍屬週年呈現，開工前要業主確認預熱期可以上線。"
+    },
+    {
+     "rule": "首頁輪播有推薦時只播推薦的，依後台順序（2026-09-25 業主裁定）",
+     "source": "web/app/utils/news-content.ts:15-23",
+     "resolution": "新規則是最新一篇故事固定第一格、舊故事退出輪播，其餘照原規則，要業主同意。不同意就退回手動：故事勾推薦，每月取消上一篇。"
+    },
+    {
+     "rule": "home_news 有 sample_note 時，全站消息整份都算示意、noindex",
+     "source": "web/app/utils/content-overlay.ts:632-634；DESIGN.md:72",
+     "resolution": "先上分校篇（分校消息一律不是示意）。第一則全站篇 #03 要和清空 sample_note、刪除示意消息在同一次發布，否則真故事會被標成示意，也不會被搜尋引擎收錄。系列帶另外排除示意項目。"
+    },
+    {
+     "rule": "/news 不做滿版 hero，顏色用 --ivy-news-*",
+     "source": "DESIGN.md:76",
+     "resolution": "系列帶只是版面中的一個區塊，底色 --ivy-news-note。金色只用在 2px 的 --gold 短線。"
+    },
+    {
+     "rule": "30 週年校徽只授權用在開場布幕",
+     "source": "DESIGN.md:445-447",
+     "resolution": "系列不放校徽，也不做「30」數字圖章。"
+    },
+    {
+     "rule": "最新消息不加進主選單（頁尾改指 /news）",
+     "source": "DESIGN.md「最新消息開放獨立網址（2026-09-26）」",
+     "resolution": "入口放在頁尾連結（後台 site_footer.links），不動主選單與預約鈕。"
+    },
+    {
+     "rule": "只有義華滿 30 年，其他校不能稱 30 週年",
+     "source": "anniversary-brief.md 事實第 2 條",
+     "resolution": "分校篇不寫「30 週年」；「本校第 N 年」等週年期間拍板後，依 MILESTONES 年份計算，不手打。"
+    },
+    {
+     "rule": "照片 alt 只描述畫面，不寫人物身分",
+     "source": "README.md:866",
+     "resolution": "名字只出現在內文，而且要有書面同意；alt 只寫畫面。"
+    },
+    {
+     "rule": "只有義華有 LINE／FB，不能代填",
+     "source": "CLAUDE.md:72",
+     "resolution": "徵稿與撤回窗口寫「孩子讀過的校區電話」，不寫義華 LINE。"
+    },
+    {
+     "rule": "AI 線稿與修復版不能當歷史證據",
+     "source": "DESIGN.md:574-578；PRODUCT.md:19",
+     "resolution": "「當年」的圖只用園方提供的真實照片；沒有舊照就只放今日照。"
+    }
+   ],
+   "risks": [
+    {
+     "risk": "稿源斷炊：兩週一篇，每篇都要訪談和同意書",
+     "mitigation": "10 月先存 4 篇，之後維持刊出前一個月定稿。年年都有 6 篇可以先用現有影片寫，缺稿時當備援。"
+    },
+    {
+     "risk": "受訪者記憶的年份或細節和史實對不上",
+     "mitigation": "機構年份只用沿革五個年份；個人回憶寫成「○○記得」。年份以本人確認的為準，對不上就不寫。"
+    },
+    {
+     "risk": "兒少肖像與舊團體照中其他人的臉",
+     "mitigation": "同意書分項勾選；舊團體照只用所有可辨識者都同意的，否則裁成背影、手或物件；在學幼兒只拍背影或手，不寫名字。"
+    },
+    {
+     "risk": "上傳原檔不去 EXIF／GPS，被引用後會公開長快取",
+     "mitigation": "小編先在電腦重新匯出、拿掉位置資訊再上傳；後端剝除 EXIF 另外排 S 級工作。"
+    },
+    {
+     "risk": "撤回：刪文後編號重排，已分享的連結變 404",
+     "mitigation": "優先換圖或去名，不整篇刪。真的要刪就接受編號重排；受理撤回後的處理時限由園方定（建議 2 個工作天）。"
+    },
+    {
+     "risk": "分類打錯字把系列拆散",
+     "mitigation": "官網比對時忽略空白和各種中點寫法；選配把後台分類改成下拉；核准檢查清單加一項「分類」。"
+    },
+    {
+     "risk": "全站 30 則、各校 12 則上限（尚未上架的排程稿也算）",
+     "mitigation": "故事分散在全站 10 則、各校 2–6 則；排程稿最多預放兩個月；過期的一般消息直接刪。2028 年擠不下時再議。"
+    },
+    {
+     "risk": "義華比重過高（影片、畢業生都集中在義華）",
+     "mitigation": "月曆寫死各校篇數：明華 6、崇德 4、國際 2、仁武 2；分校頁與 /news 校區篩選讓四校的故事有自己的入口。"
+    },
+    {
+     "risk": "首頁輪播沒有看得見的暫停鍵，只有滑鼠停留或鍵盤焦點時會暫停",
+     "mitigation": "在同一個 S 改動裡補暫停鍵（WCAG 2.2.2）。"
+    },
+    {
+     "risk": "成效分不出是故事還是一般消息：CTA 入口都是 news，內頁也不記瀏覽",
+     "mitigation": "先看 news 入口預約點擊的月變化；要分開統計，再議新增 CTA entry（要動後端常數）。"
+    },
+    {
+     "risk": "草稿預覽不支援單篇頁",
+     "mitigation": "受訪者用文字稿確認；選配 S 讓預覽支援 page=news。"
+    }
+   ],
+   "mockup_brief": {
+    "title": "三十個故事：消息系列",
+    "desktop": "用共用頁框（shared/chrome.js 頁首與頁尾、site.css、--ivy-news-* token），由上到下三個畫面，每個畫面前加一條細的說明列，寫「畫面 N」和「示意」。\n\n【畫面 1：首頁「最新消息」區】--ivy-news-paper 底。左欄是近期活動，放一張示意卡，日期格寫「示意／日期未定」。右欄是「最新消息」標題加「所有最新消息」連結，下面三張卡：\n- 第 1 張是故事卡：封面 yihua-exterior.webp（4:3）。文字區第一行是系列記號：12×2px --gold 短線，接「三十個故事・開校那一年」（--ivy-news-green，--fs-xs）；下一行是「義華校」和「2026.11.01」；再下面是標題。\n- 第 2、3 張是一般消息，用 env-space-classroom.webp、tour-minghua-plaza.webp，帶「示意」標籤。\n- 右上角加一顆 44px 的暫停鍵。\n\n【畫面 2：/news】np 版型，內容寬 1080。\n- 上方：麵包屑、h1「最新消息」、lede。\n- 篩選列：「全部」加五校 chip，後面一條 1px --ivy-news-line 直線，再接一顆「三十個故事」chip（44px 高）。\n- 系列帶（緊接篩選列）：全寬，--ivy-news-note 底，圓角 16px，padding 40px。左 5 欄放小字「系列」、h2「常春藤的三十個故事」、兩行導言、「已刊出 4 篇・每月 1 日與 15 日更新」，以及文字連結「依順序讀全部故事 →」。右 7 欄放三張直式小卡（新到舊）：\n  - #04 長大以後・義華校，封面 env-space-corner.webp\n  - #03 年年都有・遊藝表演，封面 day-poster.webp\n  - #02 老師說・義華校，封面 env-space-classroom.webp\n  每張卡有大號編號（--font-date、--fs-4xl，數字下方一條 2px --gold 短線）、章名、標題、校區。\n- 下方畫第二個狀態 ?series=stories：h2「常春藤的三十個故事」，章節 chip（全部／開校那一年／老師說／長大以後／兩代常春藤／年年都有），列表由舊到新 #01–#04。每列依序是 72px 編號欄、220px 4:3 縮圖、meta（校區・日期）、標題、摘要；整列可點，但只有標題是連結。\n\n【畫面 3：單篇 /news/<id>（#01）】np-narrow 760。\n- 開頭：麵包屑；meta「義華校 · 三十個故事・開校那一年 · 2026.11.01」；記號「第 1 個故事」加 --gold 短線；h1。\n- 封面：yihua-exterior.webp 以原尺寸 590 寬置中，不放大。圖說寫「義華校外觀，招牌是舊稱『常春藤幼稚園』，拍攝年份待園方確認」。\n- 內文依模板排：\n  1. 摘要 lead\n  2. 段落：1997（民國 86 年），第一間常春藤在三民區義華路成立\n  3. 小標：受訪者原話\n  4. 第一人稱兩段\n  5. 圖片區塊：day-poster.webp，圖說「義華校遊藝表演（近年）」\n  6. 小標「現在的義華校」\n  7. 一段文字\n  8. 清單「三件小事」3 項\n  9. 連結區塊「看義華校活動影片 ↗」\n  10. 結尾徵稿句\n- 系列導覽：#01 沒有上一篇，只放一張整格可點的「下一個故事：老師說・義華校」卡（≥ 72px 高），下面是文字連結「依順序讀全部故事」。\n- 最後沿用現有的「回義華校的消息」與「預約義華校參觀」。",
+    "mobile": "390 寬，20px gutter，不可以橫向溢出，可點區域都至少 44px。\n\n【畫面 1】首頁消息改成縮圖列表（108px 4:3）。故事列放第一列，系列記號放在標題上方一行；活動影片帶不畫。\n\n【畫面 2】\n- 篩選 chip 自動換行：「全部」加五校排成兩行；「三十個故事」chip 自成第三行，前面加小字「系列」。\n- 系列帶改成單欄：文字在上；三篇改成 np-row 樣式（96px 縮圖、編號、標題），不做橫向捲動。\n- ?series=stories 的章節 chip 換行；編號移到 meta 行，寫成「01・義華校・2026.11.01」。\n\n【畫面 3】\n- 編號記號放在 h1 上方，h1 控制在兩行內。\n- 封面滿寬（590 原圖在 390 寬不需放大）。\n- 內文圖片滿寬。\n- 下一篇卡改成滿寬。\n- 「回義華校的消息」和「預約義華校參觀」上下排。",
+    "real_copy": [
+     "最新消息",
+     "五所校園的消息與近期活動。",
+     "所有消息",
+     "1997（民國 86 年）第一間常春藤，在三民區義華路成立。",
+     "2001（民國 90 年）明華校：走進左營區，有了第二所校園。",
+     "2005（民國 94 年）崇德校",
+     "2020（民國 109 年）國際校：在鳥松區球場路成立。",
+     "2021（民國 110 年）仁武校：第五所校園，在仁武區成立。",
+     "近三十年",
+     "孩子的第一所學校，也是第二個家",
+     "生命影響生命",
+     "義華校：歡喜迎財神",
+     "義華校：果嶺公園親子放風箏",
+     "義華校：大班英語演講比賽",
+     "義華校：IVY 盃校際足球聯賽",
+     "義華校 07-392-8366｜明華校 07-556-6796｜崇德校 07-341-6286｜國際校 07-370-8001｜仁武校 07-375-7081",
+     "回義華校的消息",
+     "預約義華校參觀"
+    ],
+    "placeholder_copy": [
+     "系列導言：近三十年，五所校園裡的人和事，由老師、畢業生和家長親口說。",
+     "已刊出 4 篇・每月 1 日與 15 日更新",
+     "#01 標題：第一間常春藤，從義華路開始",
+     "#02 標題：我在義華校教的第一班",
+     "#03 標題：遊藝表演的後台",
+     "#04 標題：長大以後，我還記得那座城堡",
+     "受訪者原話小標與第一人稱段落",
+     "「三件小事」清單三項",
+     "上架日期 2026.11.01／11.15／12.01／12.15（排程計畫，不是已發生的事）",
+     "兩張一般消息卡與一張近期活動卡",
+     "徵稿句：你也有常春藤的故事嗎？打電話給孩子讀過的校區，告訴我們。",
+     "下一個故事：老師說・義華校"
+    ],
+    "assets": [
+     "yihua-exterior.webp",
+     "day-poster.webp",
+     "env-space-classroom.webp",
+     "env-space-corner.webp",
+     "tour-minghua-plaza.webp",
+     "campus-film-new-year.webp",
+     "logo.webp"
+    ]
+   }
+  },
+  {
+   "key": "together",
+   "name": "一起寫下第三十年",
+   "one_liner": "第三十年交給在常春藤長大的人來寫。各校用紙本回憶卡收稿、附書面同意書，小編輸入、審核後才上牆。園慶與開放日接回各校既有的預約參觀，網站不開線上投稿、也不做報名。",
+   "concept": "家長進到 /30，看到的不是機構的成就清單，而是一面回憶牆：由校友、家長、老師和二代生家庭寫下，可以只看自己在考慮的那一校。每一則都來自各校櫃台的紙本回憶卡或電話，卡片背面就是書面同意書。小編輸入後，由分校管理者對照紙卡審核才刊出，網站本身不收任何人的聯絡方式或照片。大班時光膠囊「給 2037 年的自己」只公開「封存了」這件事，孩子寫的內容不上網；園慶與開放日的按鈕直接接到該校現有的預約參觀流程。「第三十年」和定案的「近三十年」不衝突：若義華是 86 學年度開園，115 學年度（2026-08～2027-07）正好是第 30 個學年，待園方確認創校月份。所以收稿可以在滿 30 週年前就開始，不必提早宣稱 30 週年，也貼合「孩子的第一所學校，也是第二個家」和「沒有資料不虛構」——牆上沒有一則是我們寫的。",
+   "parent_value": "正在比較高雄幼兒園的家長，最想知道孩子在這裡會被怎麼對待。回憶牆用真人第一人稱回答這件事。其中最有說服力的是二代生家庭：家長自己小時候讀常春藤，現在又把孩子送回來，這比任何數字都可信（外部研究的共識）。牆可以依校區篩選，家長只看自己考慮的那一校；國際、仁武這兩所新校也不會被義華 30 年的份量蓋過。頁面公開寫明照片與姓名怎麼取得同意、怎麼撤下，家長直接看到學校如何處理孩子的肖像。開放日按鈕進的是該校既有的預約參觀（已預選校區），送出後照樣是「已收到需求」、由園所確認時間，不會讓家長誤以為報名成功。",
+   "surfaces": [
+    {
+     "where": "後台「最新消息與活動」與各校消息 → 首頁消息輪播、/news、/news/<id>",
+     "what": "階段一零程式：發「一起寫下第三十年」徵集公告（勾首頁推薦），之後每月一篇回憶整理、時光膠囊封存紀錄、園慶或回娘家活動。分類統一填「30 週年」，用 show_from／show_until 自動上下架。標題用「第三十年」，不寫「30 週年」，不必等用語拍板",
+     "via": "後台即可",
+     "files": "backend/app/content/schemas.py:667（category 自由文字）、:750（featured）、:484-512（上下架）；admin/src/components/NewsEntriesEditor.vue:134"
+    },
+    {
+     "where": "消息與活動的「系列」欄位、/news 篩選",
+     "what": "articles 與 events 各加 series 欄位（\"\"｜\"ivy30\"，預設 \"\"），後台顯示成勾選框「列入 30 週年專區」。/news 多一顆「30 週年」篩選鈕（?series=ivy30），/30 也靠這個欄位取故事與活動，避免自由文字分類打錯而把系列拆散。不需要 migration",
+     "via": "改 web 程式",
+     "files": "backend/app/content/schemas.py（_NewsArticleFields、_NewsEventFields）；admin/src/components/NewsEntriesEditor.vue；web/app/utils/content-overlay.ts:143,341；web/app/types/site-content.ts:211；web/app/utils/news-content.ts；web/app/components/NewsIndexContent.vue:12-19；contracts（npm run contract:generate）"
+    },
+    {
+     "where": "活動卡上的預約按鈕（/news 近期活動、首頁活動、/30 園慶與開放日）",
+     "what": "活動加一個 visit_campus_key 欄位（空白或五校 key 之一），官網在活動卡上直接放既有的 BookingCta（依該校預約模式自動變成表單、LINE、電話或暫停，標籤「預約參觀{校名}」），外層標 data-cta-entry=\"anniversary\"。現行的活動 link_url 只收 http(s) 絕對網址、而且一律另開分頁加 ↗，不能拿來指 /visit/<key>，所以另開欄位。不新增報名功能",
+     "via": "改 web 程式",
+     "files": "backend/app/content/schemas.py:696-744（活動欄位與 link 驗證）；web/app/components/BookingCta.vue；web/app/components/NewsIndexContent.vue:54；web/app/components/NewsDialog.vue:176；admin NewsEntriesEditor.vue；CTA 入口加 anniversary：web/app/utils/cta-analytics.ts:10、backend/app/operations/models.py:39、admin/src/api/labels.ts:883"
+    },
+    {
+     "where": "素材庫上傳（後端小改）",
+     "what": "上傳時剝除 EXIF／GPS（重新編碼原檔或清掉 metadata）。現在原檔原樣保存、被引用後公開提供，家長提供的手機照片可能帶住址座標；這項做完之前，回憶牆一律不放家長照片",
+     "via": "改 web 程式",
+     "files": "backend/app/media/service.py:155-166；backend/app/media/processing.py:55-72；backend/tests/test_media_*.py"
+    },
+    {
+     "where": "新內容 kind anniversary_memories（後台「30 週年回憶牆」，每校一份，shared_only=False）",
+     "what": "每校最多 12 則（五校合計 60 則）。每則欄位：role（校友／家長／老師／二代生家庭）、display_name ≤20 字（預設只寫稱謂）、memory_year（不得早於該校成立年、不得晚於今年）、prompt（回答哪一題）、text ≤200 字、photo（素材庫 UUID，選填）＋alt、consent_ref（同意書編號，例：MH-2027-014）、consent_scope（只有文字／含照片）、received_on，以及沿用 _ScheduledPayload 的 show_from／show_until。public_view 拿掉 consent_ref、consent_scope、received_on 和上架日；publish_blocker 擋下這幾種情況：缺同意書編號、內文像電話或 email、放了照片但同意範圍不含照片。權限走既有的 campus_scope：分校管理者只能管本校，EDITOR 只能送審。不需要 migration；網站和後台都不存任何投稿者的聯絡方式",
+     "via": "新 content kind",
+     "files": "backend/app/content/schemas.py（AnniversaryMemoriesPayload）；backend/app/content/registry.py:309-358（註冊、extract_media_refs、public_view、publish_blocker）；backend/tests；admin/src/views/AnniversaryMemoriesView.vue（新，含卡片預覽）；admin/src/router/index.ts、router/nav.ts、api/labels.ts:590；contracts/generated；web/app/utils/content-overlay.ts:245-261；web/app/types/site-content.ts"
+    },
+    {
+     "where": "新頁 /30「一起寫下第三十年」",
+     "what": "淺色 hero 接四章（01 三種參與方式、02 回憶牆、03 時光膠囊、04 園慶與開放日），再接 30 週年故事，最後是參觀卡。版型沿用 /about 與 /admission 共用的 adm-*（薄荷帶加巨大淡字、米底、深綠舞台、adm-chapters），不引進水彩、手繪或手寫字，也沒有自動播放。回憶牆從共用的站台 payload 剝掉，改用獨立的 web server route 讀，免得每一頁 SSR 都多帶約 40KB。hero 是淺色，所以不加進 PILL_PAGES",
+     "via": "改 web 程式",
+     "files": "web/app/pages/30.vue（新）；web/app/components/AnniversaryTogether.vue、MemoryWall.vue、MemoryCard.vue（新）；web/app/assets/css/anniversary.css（新，只引用 tokens.css）；web/app/components/IconSprite.vue（加 Phosphor Regular note-pencil、hourglass、shield-check）；web/app/utils/seo.ts（anniversarySeo、sitemap、llms.txt、Organization 補 foundingDate \"1997\"）；web/shared/telemetry.ts＋backend/app/operations/routes.py:97-99（page 加 anniversary）；web/server/utils/published-site.ts＋web/server/api/anniversary-memories.get.ts（新）；web/app/utils/draft-preview.ts:25-28；tests/stack/hydration.spec.ts、a11y.spec.ts"
+    },
+    {
+     "where": "分校頁「這所校園的回憶」",
+     "what": "放在 CampusTestimonials 之後。小標寫「常春藤 30 週年 · 明華校 2001 年成立」（義華寫「常春藤的第一所校園 · 1997 年成立」），下面列該校最多 3 則回憶，再接「看五所校園的回憶 →」連到 /30#memories。該校沒有已發布的回憶時，整段不出現，不放「募集中」空框",
+     "via": "改 web 程式",
+     "files": "web/app/components/CampusPageMain.vue:59；web/app/components/CampusMemories.vue（新）"
+    },
+    {
+     "where": "頁首主選單、頁尾連結",
+     "what": "主選單第 5 項放「30 週年」（英文小字 30 Years）連 /30，頁尾連結也加一條。只能是第 5 項，第 6 項會把預約鈕擠出視窗；901–1000px 要實測選單間距。週年期結束後從後台拿掉",
+     "via": "後台即可",
+     "files": "site_meta.primary_nav（web/app/components/SiteHeader.vue:257-270）；site_footer.links（SiteFooter.vue:46-49）"
+    },
+    {
+     "where": "/about「一路走來」章節結尾",
+     "what": "時間軸後面加一條文字連結「看大家寫下的常春藤 →」連 /30。連結文字不含「週年」，about.spec.ts 不必改；沿革節點與「近三十年」都不動",
+     "via": "改 web 程式",
+     "files": "web/app/components/AboutContent.vue:61-86"
+    },
+    {
+     "where": "預約表單「如何知道常春藤幼兒園？」（選做）",
+     "what": "加一個選項「30 週年活動」，衡量開放日帶來多少參觀需求。欄位是沒有 CHECK 的 JSON，不需要 migration，但要重產契約",
+     "via": "改 web 程式",
+     "files": "web/app/utils/visit-form.ts:15；backend/app/booking/schemas.py:19-20；admin/src/api/labels.ts；contracts"
+    }
+   ],
+   "content_needs": [
+    {
+     "item": "五校成立年份、行政區、電話",
+     "status": "已有",
+     "note": "AboutContent.vue:16-22；site-fixture.json 的 campuses。回憶年份驗證、分校頁小標、電話收稿都靠這份"
+    },
+    {
+     "item": "創校月日與週年起算方式（義華創校，還是機構成立）",
+     "status": "園方需提供",
+     "note": "決定「第三十年」是否從 115 學年度起成立、週年日排程，以及分校頁「本校第 N 年」要算週年數還是第幾年（兩者差一年）"
+    },
+    {
+     "item": "是否解除規格「不新增週年後台」、可否寫「30 週年」",
+     "status": "園方需提供",
+     "note": "業主要有日期的裁定。沒有的話只做階段一、二，回憶改用消息發布（每篇收 3–5 則）"
+    },
+    {
+     "item": "回憶卡與公開同意書定稿（含未成年人由法定代理人簽名、具名／只寫稱謂、放不放照片、撤回方式、紙本保存期限）",
+     "status": "園方需提供",
+     "note": "正式法律文字由園方或法務提供，本案只給欄位結構；同意書要有版本號與編號規則（例：MH-2027-014）"
+    },
+    {
+     "item": "收稿 email（一個機構信箱）",
+     "status": "園方需提供",
+     "note": "fixture 沒有任何校區 email。不能拿義華的 LINE 當五校共用管道"
+    },
+    {
+     "item": "第一批真實回憶，至少 12 則、至少來自 3 校",
+     "status": "需授權",
+     "note": "建議先從老師與二代生家庭開始（最容易當面取得同意）。沒達到門檻，/30 的回憶牆就不上線"
+    },
+    {
+     "item": "二代生家庭、資深老師第一人稱故事",
+     "status": "需授權",
+     "note": "由各校老師當面訪談、代寫再給本人確認；提到其他老師全名要先問本人"
+    },
+    {
+     "item": "家長或校友提供的照片",
+     "status": "需授權",
+     "note": "只收提供者本人為主角、或沒有可辨識孩子臉孔的照片；舊照中其他孩子的臉要裁掉或另外取得同意。必須在 EXIF 剝除上線之後才能放"
+    },
+    {
+     "item": "各校園慶、開放日、校友回娘家的日期、時間、地點、形式",
+     "status": "園方需提供",
+     "note": "每校自辦或聯合；開放日當天那校用 slots 還是 inquiry 模式（slots 要在後台先開當天時段，官網只列 60 天內的場次）"
+    },
+    {
+     "item": "時光膠囊：參與校區與班級、封存日、保管人、開封年份與方式",
+     "status": "園方需提供",
+     "note": "2037 是本方向的提案（2037 年義華滿 40 年），園方要能承諾；也要決定 2037 年怎麼聯絡家庭（線下名單，不進網站）"
+    },
+    {
+     "item": "時光膠囊封存照（盒子、封條、孩子的手，不露臉、不露姓名）",
+     "status": "需授權",
+     "note": "作品照若要公開，另外取得家長同意，並遮住作品上的名字"
+    },
+    {
+     "item": "/30 分享圖 1200×630 JPG",
+     "status": "園方需提供",
+     "note": "建議用各校回憶卡牆的實拍；30 週年校徽目前只授權用在布幕，要用得另外同意"
+    },
+    {
+     "item": "義華家長分享 4 支影片與引言",
+     "status": "已有",
+     "note": "留在義華分校頁，不搬上回憶牆湊數：它們的同意範圍是舊站影片，不是這次的回憶卡"
+    }
+   ],
+   "effort": "M",
+   "effort_breakdown": "全程不需要 migration，也不新增公開 API 端點（公開投稿與線上 RSVP 都排除）。階段一零程式：只用消息、活動、素材庫標籤與小編帳號。階段二 S，約 2 人天：EXIF 剝除 0.5；series 欄位＋/news 篩選 0.5；活動 visit_campus_key＋BookingCta＋anniversary 入口 0.75；預約來源選項 0.25（選做）；另重產契約並跑 contract:check。階段三 M，約 5–6 人天：anniversary_memories 後端 schema、registry、publish_blocker 與測試 1；後台編輯頁（清單、同意檢查、卡片預覽）1.5；/30 頁與元件 2；路由同步（seo、sitemap、llms.txt、telemetry、stack 測試、草稿預覽）0.75；分校頁區塊 0.5。程式合計約 7–8 人天。園方人力（估計、未經園方確認）：每校每月約 2–3 小時整理紙卡、輸入、審核。",
+   "phases": [
+    {
+     "when": "2026-10～12（準備與開始收卡）",
+     "what": "業主裁定：創校月日、週年起訖、是否解除「不新增週年後台」、可否寫「30 週年」。園方定稿回憶卡與同意書，各校櫃台開始收卡，先從老師與二代生家庭開始。後台發「一起寫下第三十年」徵集消息（首頁推薦）。程式做階段二的 S 項，EXIF 剝除排第一"
+    },
+    {
+     "when": "2027-01～03（/30 上線）",
+     "what": "業主裁定後做 anniversary_memories 與 /30。第一批至少 12 則、至少 3 校才上線。主選單加第 5 項、頁尾加連結、/about 加文字連結、分校頁回憶區塊上線；每則用 show_from 分月上架，免得一次用完"
+    },
+    {
+     "when": "2027 春～畢業季（活動）",
+     "what": "各校園慶與開放日排進活動（勾 30 週年系列、選預約校區）；slots 模式的學校在後台開當天時段。校友回娘家只列時間地點和該校電話，不收報名。大班時光膠囊在畢業季封存，發一篇消息附封存照，/30 時光膠囊段換上真實日期"
+    },
+    {
+     "when": "週年日（日期待園方提供）",
+     "what": "用排程發布（PublishJob）在當天自動上架一篇推薦消息；回憶牆照常，不另做首頁章節、倒數或動畫"
+    },
+    {
+     "when": "2028 起（典藏）",
+     "what": "從主選單拿掉，/30 網址保留成常設典藏，/about 的連結保留。回憶牆停止新增或改成常設「常春藤的人」（由業主決定）；時光膠囊段保留到 2037 年開封，開封消息發在最新消息"
+    }
+   ],
+   "rule_conflicts": [
+    {
+     "rule": "30 週年只是設計提案，不新增週年後台、不啟用該提案；本輪不含週年改版",
+     "source": "docs/specs/2026-09-19-website-admin.md:79,445；docs/handoff/2026-09-19-claude-website-admin.md:65,123",
+     "resolution": "階段一只用既有消息與活動。階段二的 series、visit_campus_key 是通用欄位，不是週年後台，但仍要業主同意開工。anniversary_memories 與 /30 要業主有日期的新裁定；不同意就退回用消息發布回憶，每篇收 3–5 則，受全站 30 則、各校 12 則上限約束"
+    },
+    {
+     "rule": "活動報名、付款、票券不在範圍",
+     "source": "docs/specs/2026-09-19-website-admin.md:131,445",
+     "resolution": "不做 RSVP。開放日走既有的預約參觀，語意照舊：inquiry 是「已收到需求」、slots 是「待確認」、確認後才叫「預約成立」。校友回娘家只列時間地點和電話，不收名單"
+    },
+    {
+     "rule": "文案一律「近三十年」、不綁 30 週年；/about 測試擋「週年」；首屏小標不放 30 週年",
+     "source": "DESIGN.md:85,941；web/tests/about.spec.ts:47-50",
+     "resolution": "主標用「第三十年」（待確認學年起算），和「近三十年」並存。/about 只加不含「週年」的連結，首屏小標不動。「30 週年」只出現在 /30 的 SEO 標題、主選單與分校頁小標，而且要等業主拍板"
+    },
+    {
+     "rule": "30 週年校徽的授權只用在開場布幕",
+     "source": "DESIGN.md:447",
+     "resolution": "/30、分校頁、分享圖都不用校徽，只用文字與真實照片"
+    },
+    {
+     "rule": "沒有資料不虛構；示意要標示；示意活動不顯示具體日期",
+     "source": "PRODUCT.md:19；docs/brand/brand-guidelines.md:108；DESIGN.md:57",
+     "resolution": "回憶牆沒有真實稿件就不上線，不用範例填版面。mockup 每張卡都掛「示意內容」；活動日期寫「示意／日期未定」"
+    },
+    {
+     "rule": "只有義華有 LINE／FB，其他四校不能代填",
+     "source": "CLAUDE.md（現況 2026-09-24）；docs/brand/brand-guidelines.md:109",
+     "resolution": "收稿管道只用紙卡、五校各自的電話、一個園方提供的 email，不以任何一校的 LINE 當共用入口"
+    },
+    {
+     "rule": "不發真實通知、不建外部資源",
+     "source": "CLAUDE.md 官網後台；docs/handoff/2026-09-19-claude-website-admin.md:121",
+     "resolution": "不回信給投稿者、不串表單服務；刊出或撤下由各校老師線下告知"
+    },
+    {
+     "rule": "Rough.js、圓體、手寫字只在 /environment；水彩只在 /curriculum；各內頁畫風不外移",
+     "source": "DESIGN.md:7,21,45",
+     "resolution": "/30 沿用 adm-*（/about、/admission 同一家族），回憶卡用 LINE Seed 加系統內文字，紙卡感只靠 tokens 顏色與細橫線，不用手寫字，也不傾斜、不加膠帶"
+    },
+    {
+     "rule": "主選單 6 項會擠掉預約鈕",
+     "source": "DESIGN.md:136,190",
+     "resolution": "只加成第 5 項，901–1000px、1101–1245px 用 Playwright 實測"
+    },
+    {
+     "rule": "上傳原檔不剝 EXIF、被引用後公開提供；公開幼兒照片需家長同意",
+     "source": "backend/app/media/service.py:155-166；外部研究（個資法）",
+     "resolution": "EXIF 剝除排在階段二第一項，沒做完之前不收家長照片；在學孩子的臉一律不上牆"
+    },
+    {
+     "rule": "權限一律走 capability 表與 campus_scope，不在路由寫角色判斷",
+     "source": "CLAUDE.md 官網後台；backend/tests/test_permission_table.py",
+     "resolution": "anniversary_memories 設成每校一份的 kind，直接沿用 content.manage／content.publish 與 campus_scope，不另寫權限"
+    }
+   ],
+   "risks": [
+    {
+     "risk": "收不到稿，回憶牆空或幾乎只有義華",
+     "mitigation": "至少 12 則、至少 3 校才上線；每校上限 12 則，保持五校均衡；空的校區整段不顯示。先由老師訪談二代生家庭與資深老師，不靠被動等稿"
+    },
+    {
+     "risk": "同意範圍不清，或刊出後有人要求撤下",
+     "mitigation": "紙卡背面的同意書勾選具名與照片，發布前 publish_blocker 檢查同意書編號與範圍。撤回流程：刪除該則、當天重新發布、在紙卡上註記日期；/30 公開寫明撤回方式"
+    },
+    {
+     "risk": "照片洩漏住址座標，或露出沒同意的孩子臉",
+     "mitigation": "EXIF 剝除上線前不收照片；只收提供者本人為主角的照片，其他孩子的臉要裁掉；後台照片欄位在同意範圍不含照片時直接停用"
+    },
+    {
+     "risk": "內文不小心露出電話、全名或老師個資",
+     "mitigation": "publish_blocker 擋電話與 email 格式；編修守則：只修錯字與去識別化，孩子只寫小名，在職老師的全名先問本人"
+    },
+    {
+     "risk": "每頁 SSR 都帶著整面牆，手機變慢",
+     "mitigation": "在 web server 的共用 payload 剝掉 anniversary_memories，/30 與分校頁另走 route 讀；內文限 200 字、照片 lazy 載入"
+    },
+    {
+     "risk": "「第三十年」或「本校第 N 年」算錯一年",
+     "mitigation": "等園方給創校月日與學年起算；分校頁預設寫「2001 年成立」這類不會錯的年份，第 N 年等確認計算方式再改"
+    },
+    {
+     "risk": "時光膠囊的 2037 承諾十年後沒有兌現",
+     "mitigation": "網站只寫園方確認過的封存日與保管人，開封日寫「預計」；孩子的內容不上網，保管與聯絡名單都留在線下"
+    },
+    {
+     "risk": "之後又被要求開公開投稿表單（L）",
+     "mitigation": "先評估過：要新表、migration（合進 main 就套到正式 DB）、審核佇列、保存政策擴充；outbox 不能沿用；沒有家長通知管道；照片還會多出匿名大檔攻擊面。建議至少跑滿一年策展牆，確認審核人力夠，再重議純文字版"
+    }
+   ],
+   "mockup_brief": {
+    "title": "/30「一起寫下第三十年」＋分校頁回憶區塊＋幕後流程（桌機 1440、手機 390）",
+    "desktop": "1）頁首沿用現行淺色版（米白底、左側品牌、選單 4 項加第 5 項「30 週年」並標目前頁、右側金色滿高預約鈕），下接麵包屑「首頁 / 一起寫下第三十年」。\n2）Hero：滿版薄荷帶 --ivy-forest-mist，約 620 高；左側用 --ivy-forest-ghost 放巨大淡字「第三十年」（同 /visit 的淡字做法）。左欄（6/12）：小標「常春藤幼兒園 · 高雄五校 · 1997—2027」；H1 兩行「一起寫下／第三十年。」，LINE Seed ExtraBold 約 72px、--ivy-forest，「第三十年」下方用 adm-underline 細金線（--gold）；lede「1997 年，第一間常春藤在三民區義華路成立。」接示意句；兩個動作：深綠膠囊鈕「寫一張回憶卡」（#join）、文字連結「看大家寫了什麼 ↓」（#memories）。下方 adm-chapters 四格：01 三種參與方式／02 回憶牆・五所校園／03 時光膠囊・給 2037 年／04 園慶與開放日・預約參觀。右欄（5/12）：用 HTML 畫的回憶卡實物（aria-hidden，另有 sr-only 描述），白卡、1px --line 框、淺橫線，左上「常春藤回憶卡」、右上「No. ____」，印著提問「你記得常春藤的哪一個角落？」，底列「義華・明華・崇德・國際・仁武」。後面疊一張錯開 12px、不傾斜的卡，只露出「背面：公開同意書」。\n3）01 三種參與方式（米底 --cream，#join）：H2「三種方式，／一起寫下來。」。三欄白卡：a「寫一張回憶卡」（note-pencil）：「到任一校櫃台拿卡，寫好交回；也可以打電話請老師記下來」，卡內五列可點電話（校名＋號碼，每列 48px，tel: 連結），再加「或寄 email 到 ＿＿＿（園方提供）」。b「回娘家、來園慶」（house-line）：時間會公布在本頁與最新消息，附「看園慶與開放日 ↓」。c「大班時光膠囊」（hourglass）：「2027 年的大班孩子，寫給 2037 年的自己」，附「看時光膠囊 ↓」。三欄下方一條隱私說明（shield-check）：卡片背面是同意書，可選只寫稱謂、要不要放照片；刊出後想撤下，打給該校就會移除；網站不收你的電話或地址。\n4）02 回憶牆（米白 --paper，#memories）：H2「大家寫下的／常春藤。」，旁邊是即時計數「目前 N 則 · 來自 N 所校園」（role=status）。篩選兩列：身分鈕（全部／校友／家長／老師／二代生家庭），校區鈕（全部校區／義華校…仁武校），都用 aria-pressed，樣式比照 /news 的圓角篩選鈕。三欄格線、上緣對齊，畫 9 張卡。卡片結構：頂列小字「明華校 · 2003」加身分膠囊（--mint 底、--green 字）；內文 17px、行高 1.8，用 blockquote；署名「— 2003 年從明華畢業的校友」用 figcaption；其中 2 張上方有 4:3 照片（以校舍照代，標示意）。每張卡右上角掛「示意內容」徽章。底部「再看 12 則」次要按鈕（48px，按下後焦點移到第一張新卡），加一行「每一則都經本人或監護人書面同意後才刊出」。\n5）03 時光膠囊（深綠舞台 --ivy-forest、白字，#capsule）：左欄 H2「給 2037 年／的自己。」，說明三句，其中一句寫「信和畫不會放上網站，只有孩子自己打開」。右欄兩點橫向時間線「2027 · 封存」——「2037 · 開封」，下方 16:9 照片框，寫「封存照（園方提供，不露臉、不露姓名）」。\n6）04 園慶與開放日（米底，#events）：H2「回來走走，／或第一次來看看。」。三張活動卡，版型照 /news 近期活動（左側日期塊改寫「示意／日期未定」）：『義華校 · 園慶』有「預約參觀義華校 →」深綠鈕（BookingCta）和「打電話給義華校」次要鈕；『明華校 · 開放日』同上；『全校 · 校友回娘家』只有電話鈕。卡下一行：「開放日也是預約參觀：送出後園所會跟你確認時間，確認後才算預約成立。」\n7）05 30 週年故事：三張消息卡（圖、校名、日期、標題，都標示意），加「看所有 30 週年消息 →」連 /news?series=ivy30。\n8）收尾用 adm-sheet 參觀卡：「五所校園，／歡迎你來走走。」，「預約校園參觀」膠囊鈕，下面五校文字連結附成立年份。接現行深綠頁尾。\n9）mockup 另外兩塊，用分隔標題隔開。〈分校頁插圖〉明華校頁的一段：小標「常春藤 30 週年 · 明華校 2001 年成立」，三張橫排回憶卡，附「看五所校園的回憶 →」。〈幕後：園方怎麼做〉四格流程：①紙卡正反面，背面有勾選項「寫我的名字／只寫稱謂」「放照片／不放照片」「同意刊在官網」、法定代理人簽名、同意書編號；②後台表單（Element Plus 風），欄位依序是校區、身分、顯示名稱、回憶年份（錯誤提示「明華校 2001 年成立，年份不能更早」）、內文字數 86/200、照片（同意範圍不含照片時停用）、同意書編號、收件日、上架日，按鈕「存草稿／送審」；③分校管理者審核，旁邊是「已對照紙卡」核取清單，按鈕「發布／排程」；④刊出後的牆上卡片。另附一行撤回流程。",
+    "mobile": "頁首換成品牌＋金色預約膠囊＋選單。Hero 薄荷帶的淡字裁切不外溢；H1「一起寫下／第三十年。」約 40px，每行 ≤8 字；兩個動作鈕全寬直排（48px）；回憶卡實物移到 lede 下方，全寬、只畫一張、不疊卡；章節改成 2×2。三種參與方式改單欄，電話列全寬、點了直接撥號。回憶牆 H2 斷成「大家寫下的／常春藤。」；身分鈕換行成兩列，校區改成原生 select「所有校區」，省一列；卡片單欄，先顯示 6 張，「再看 6 則」。時光膠囊時間線改直向兩點。活動卡照手機版 /news 疊放，預約鈕在上、電話鈕在下，都全寬。故事改成三列（左 96px 縮圖）。全頁沒有橫向捲動，觸控區 ≥44px，沒有任何自動播放或動畫，減少動態時不需要另外處理。分校頁區塊在手機改成單欄三張。幕後流程四格改直排。",
+    "real_copy": [
+     "1997 年，第一間常春藤在三民區義華路成立。",
+     "義華校 1997／明華校 2001／崇德校 2005／國際校 2020／仁武校 2021",
+     "義華校 07-392-8366、明華校 07-556-6796、崇德校 07-341-6286、國際校 07-370-8001、仁武校 07-375-7081",
+     "孩子的第一所學校，也是第二個家。",
+     "五所校園，歡迎你來走走。",
+     "常春藤幼兒園 · 陪高雄孩子近三十年",
+     "預約參觀明華校（BookingCta 既有標籤格式「預約參觀{校名}」）",
+     "送出參觀需求／參觀時間以園所確認為準。",
+     "示意／日期未定"
+    ],
+    "placeholder_copy": [
+     "H1「一起寫下第三十年。」與各段 H2（方向提案，待業主定稿）",
+     "lede 後半：「第三十年，想請在這裡長大的孩子、陪孩子長大的家長和老師，一起把記得的事寫下來。」",
+     "回憶卡提問：「你記得常春藤的哪一個角落？」「那一年，老師對你說過哪一句話？」「送孩子進校門的第一天」",
+     "回憶牆所有卡片的內文、署名與年份（例：「— 2003 年從明華畢業的校友」），全部掛「示意內容」",
+     "「目前 N 則 · 來自 N 所校園」的數字",
+     "時光膠囊「2027 · 封存」「2037 · 開封」與說明文字",
+     "活動卡「義華校 · 園慶」「明華校 · 開放日」「全校 · 校友回娘家」",
+     "隱私與撤回說明（正式條款由園方提供）",
+     "收稿 email 地址",
+     "30 週年故事三張消息卡",
+     "分校頁小標與選單的「30 週年」字樣（待業主拍板）",
+     "後台表單的同意書編號格式「MH-2027-014」"
+    ],
+    "assets": [
+     "yihua-exterior.webp",
+     "minghua.webp",
+     "chongde.webp",
+     "international.webp",
+     "renwu.webp",
+     "graduation.webp",
+     "campus-film-kite.webp",
+     "about-together.webp"
+    ]
+   }
+  },
+  {
+   "key": "weave",
+   "name": "織進現有頁面",
+   "one_liner": "不開新頁也不加新圖：拿掉「近三十年」的「近」字，讓「1997–2027」和「30 週年系列」在原本的每一頁出現一次。",
+   "concept": "家長不會看到一個「週年專區」，而是在原本要看的地方，發現每一頁都多了一句準確的話：首屏小標變成「陪高雄孩子三十年」，/about 的時間軸多走一格到 2027，分校頁寫出本校哪一年成立，頁尾寫 1997–2027。全站統一的是說法和日期，不是圖案。頁首 Logo 不動，週年校徽只留在已上線的開場布幕，其他頁面沒有新的裝飾和動畫，所以不會撞到「過量裝飾」「英文搶中文」和各內頁不外移的畫風。串起這些改動的是三條線：「字」是拿掉「近」，「數」是 1997 和 2027 兩個年份，「線」是所有入口都連到 /news?series=30 的 30 週年系列。所有改動用同一個台北日期閘同時上架、同時收回。常春藤最有說服力的資產是真實的人和五所校園，不是一個新的視覺系統，所以這個做法適合它：以大器、節制的方式慶祝，並且完全不用新後台。",
+   "parent_value": "高雄家長大多從搜尋進分校頁，或從社群分享進首頁、/about，很少特地去找週年頁。這個方向讓他們不用多點一頁，就在原本要看的資訊旁邊看到能查證的事實：常春藤 1997 年從義華路開始，2027 年滿 30 週年，五校各自的成立年份也寫在分校頁上（國際 2020、仁武 2021 不會被誤認成老校，義華是唯一滿 30 年的一校）。30 週年系列用資深老師、早期畢業生、二代生家庭的真實故事，出現在首頁輪播和 /news。這比堆數字更能回答「這間幼兒園可不可靠」。預約參觀的動線和按鈕完全不變。",
+   "surfaces": [
+    {
+     "where": "共用（所有程式落點的開關）",
+     "what": "新增週年時間閘：FOUNDED=1997、ANNIVERSARY_YEAR=2027、start/end（待園方定：2027 曆年或 116 學年度）、SERIES={category:'30 週年', query:'30'}、anniversaryActive(today)。今天由 useState 共用 taipeiToday()，讓 SSR 和 hydration 用同一個日期；在 /preview 改讀 ?date=，首頁和分校頁就能在後台預覽 2027 的樣子。同時把沿革年份抽成單一來源，/about、分校頁、SEO 共用。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/anniversary.ts（新）、web/app/utils/milestones.ts（新，自 web/app/components/AboutContent.vue:16-22 抽出）、web/app/composables/useAnniversary.ts（新）、web/app/pages/preview.vue:31、web/tests/anniversary.spec.ts（新：2026-12-31／2027-01-01／2027-12-31／2028-01-01 與 UTC 16:00 跨日邊界）"
+    },
+    {
+     "where": "首頁首屏小標",
+     "what": "home_hero.eyebrow 從「常春藤幼兒園 · 陪高雄孩子近三十年」改成「常春藤幼兒園 · 陪高雄孩子三十年」，只拿掉「近」，仍不寫「30 週年」。字數比現在少一字，320px 仍是一行。用 PublishJob 排在 2027-01-01 00:00（台北）。",
+     "via": "後台即可",
+     "files": "admin/src/views/HomeHeroView.vue:52；web/server/data/site-fixture.json:12（fixture 同步）"
+    },
+    {
+     "where": "首頁「關於」",
+     "what": "since_label 從「SINCE 1997」改成「1997 — 2027」（元素是 lang=\"en\"，純數字不衝突，也少一個英文字）；body_text 的「近三十年來」改成「三十年來」。浮水印「關於／常春藤」和接力效果不動，同一時間排程上架。",
+     "via": "後台即可",
+     "files": "admin/src/views/HomeAboutView.vue:37；web/app/components/AboutSection.vue:43；web/server/data/site-fixture.json:34,37"
+    },
+    {
+     "where": "首頁最新消息輪播",
+     "what": "系列消息的分類統一填「30 週年」，勾選首頁推薦，用 show_from 逐月上架。卡片 hn-meta 在分類符合時多一個小籤「30 週年」（6px --gold 圓點加文字），校區和日期照舊。沿用 useNewsRotation 在 hover／focus 暫停的既有規則，不新增任何動態。手機活動影片只在有真實週年影片時才加。",
+     "via": "改 web 程式",
+     "files": "web/app/components/NewsDialog.vue:131（hn-meta）；web/app/utils/news-content.ts（isSeriesArticle）；後台 home_news／campus_news 的 category、featured、show_from、films"
+    },
+    {
+     "where": "/news 列表與單篇",
+     "what": "校區膠囊後加一條細分隔線和「30 週年」膠囊，連到 /news?series=30（ASCII，符合 site-links.ts:11；canonical 仍是 /news）。只有真的有系列文章時膠囊才出現。選中時 lede 換成一句系列說明，不做 hero。單篇分類是 30 週年時，文末加「看 30 週年系列全部」。這是系列唯一的聚合處，但不是新路由。",
+     "via": "改 web 程式",
+     "files": "web/app/components/NewsIndexContent.vue:12-19,36-39；web/app/components/NewsArticleContent.vue:20；web/app/utils/news-content.ts；web/tests/news-page.spec.ts"
+    },
+    {
+     "where": "/about 01 一路走來",
+     "what": "期間內：hero lede 和 01 標題拿掉「近」（「三十年，／長出五所校園。」，手機每行 ≤8 字）；章節提示「1997 到 2021」改成「1997 到 2027」；時間軸加第 6 個節點「2027／民國 116 年」。卡片不放校舍照，改用本頁 03 的深綠舞台語彙（--ivy-forest 底、白字）：h3「30 週年」、一句話、文字連結「看 30 週年系列」（44px）。手機直向時間軸只有這一點改用 --gold 圓點。≥1240px 排 6 欄，1100–1239px 改 3 欄 ×2 列（剛好整齊），760px 以下直向。",
+     "via": "改 web 程式",
+     "files": "web/app/components/AboutContent.vue:31,46,67,75-84；web/app/assets/css/about.css:9-12,57-61,70-80；web/tests/about.spec.ts:36-50"
+    },
+    {
+     "where": "分校頁 hero 與聯絡卡",
+     "what": "期間內 hero eyebrow：義華是「常春藤 30 週年 · 1997 年從這裡開始」，其他四校是「常春藤 30 週年 · 本校 2001 年成立」（依校代入年份），只有義華的語意是 30 年。聯絡卡 dl 永久加一列「創立｜民國 90 年（2001）」，這是事實、不隨週年撤。行政區仍在 title（seo.ts:165）和地址裡。",
+     "via": "改 web 程式",
+     "files": "web/app/components/CampusPageMain.vue:20,40-44；web/app/utils/milestones.ts；web/tests/campus-*.spec.ts（非義華的 eyebrow 不得同時出現校名和「30」）"
+    },
+    {
+     "where": "/curriculum 03 兒童美術館（有條件）",
+     "what": "只有園方交付附校別、年份、家長同意的週年作品時才出現：現有 cur-art-wall 下方多一面「30 週年特展」牆，沿用水彩 wash 和沙龍式掛法，作品標籤寫「校別 · 年份」，章節提示改成「30 週年特展」。作品清單獨立存放，空清單就不渲染；既有 8 件不改標為特展。",
+     "via": "改 web 程式",
+     "files": "web/app/components/CurriculumContent.vue:37-46,70,160-180；web/tests/curriculum.spec.ts"
+    },
+    {
+     "where": "/environment 結尾 NEXT",
+     "what": "期間內多第 4 張 Rough.js 手繪卡：b「30 週年」、small「五校的週年消息」，連到 /news?series=30。種子接 451+i，旋轉沿用 --r，不放預約。版面 ≥1100px 四欄、760–1099px 2×2、手機一欄。手寫字新字要進 critical 分片時，重跑 scripts/subset-environment-fonts.py。",
+     "via": "改 web 程式",
+     "files": "web/app/components/EnvironmentContent.vue:50-54,320；web/app/assets/css/environment.css:209-212,240；web/tests/environment.spec.ts"
+    },
+    {
+     "where": "頁尾",
+     "what": "site_footer.copyright 從「© 2026 常春藤教育機構」改成「© 1997–2027 常春藤教育機構」，其餘不動（深綠、全白、無金色、無校徽）。排程上架，2027-12 再排還原。",
+     "via": "後台即可",
+     "files": "web/app/components/SiteFooter.vue:47；web/server/data/site-fixture.json:950"
+    },
+    {
+     "where": "SEO、結構化資料、llms.txt",
+     "what": "永久：EducationalOrganization 加 foundingDate \"1997\"，五校 Preschool 各加自己的 foundingDate（取 milestones）。期間內：aboutSeo 的 title 和 description 帶出「高雄」和「2027 年 30 週年」（避開台中同名）；llms.txt 的「關於」一行補週年，最新消息段落加系列網址。不增加 sitemap 路由。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/seo.ts:105-108,177-184,262-266；web/tests/seo.spec.ts、web/tests/about.spec.ts:21-28"
+    },
+    {
+     "where": "全站分享圖",
+     "what": "site_meta.share_image 換成 1200×630 JPG：用 about-hero 真實照片裁切，下方一條深綠文字帶「常春藤 30 週年｜1997–2027｜高雄五所校園」，金色只當細線。不用週年校徽。會同時套到首頁、關於、入學、環境、特色教學和消息列表；分校頁仍用各校封面。",
+     "via": "後台即可",
+     "files": "web/app/utils/seo.ts:27-40；素材庫（tags「30週年」、license_note、source_attribution）"
+    },
+    {
+     "where": "開場布幕（已上線，只對齊開關）",
+     "what": "布幕投影和 aria 文字改讀同一個時間閘。業主選「預熱」就維持緞帶版到期間結束；選「嚴格」就在期間外改用無緞帶投影、aria 改成不含 30 週年，並依規定重產無損 WebP、更新 ?v=、重產五張首屏海報。時序（倒數不截短、手機整段不放）不動。",
+     "via": "改 web 程式",
+     "files": "web/app/utils/entrance-policy.ts:21；web/app/components/EntranceCurtain.vue:121,126；scripts/optimize-entrance-projection.py；web/tests/entrance-policy.spec.ts:91-96"
+    }
+   ],
+   "content_needs": [
+    {
+     "item": "五校沿革年份與民國年（義華 1997／明華 2001／崇德 2005／國際 2020／仁武 2021）",
+     "status": "已有",
+     "note": "AboutContent.vue:16-22，出自機構站原文；抽成 milestones.ts 共用，分校頁和 JSON-LD 都讀這一份"
+    },
+    {
+     "item": "1997→2027 共 30 年、2027＝民國 116 年",
+     "status": "已有",
+     "note": "純推算；只用「30 週年」「三十年」，不寫畢業生、師生或班級數"
+    },
+    {
+     "item": "現行「近三十年」四處文案（首屏小標、首頁關於內文、/about lede、/about 01 標題）",
+     "status": "已有",
+     "note": "期間內只拿掉「近」，其他字不動"
+    },
+    {
+     "item": "about-hero.webp（2000×803，真實照片）",
+     "status": "已有",
+     "note": "分享圖底圖；長輩身分未確認，分享圖文字不提人物"
+    },
+    {
+     "item": "週年期間起訖（2027 曆年或 116 學年度）與創校月日",
+     "status": "園方需提供",
+     "note": "時間閘的 start／end 和排程時間都等這個；沒給就先用 2027-01-01～2027-12-31 當工作假設"
+    },
+    {
+     "item": "正式中文說法（30 週年／三十週年）",
+     "status": "園方需提供",
+     "note": "本方向用「30 週年」，和布幕的「30th」一致；拍板後全站一起換"
+    },
+    {
+     "item": "30 週年系列文章：開跑前至少 3 篇，全年 12 篇以內",
+     "status": "園方需提供",
+     "note": "資深老師第一人稱、早期畢業生的童年細節、二代生家庭、各校自己的故事；具名、引言和照片都要本人或法定代理人同意；小編（EDITOR）撰稿送審"
+    },
+    {
+     "item": "真實週年活動（園慶、開放日、回娘家）的日期、地點、形式",
+     "status": "園方需提供",
+     "note": "有才排進 events，沒有就不排；報名只能連園方自有管道"
+    },
+    {
+     "item": "2027 節點照片（園慶當天或五校合照）",
+     "status": "園方需提供",
+     "note": "沒有照片就維持純文字深綠卡；有照片且活動真的辦了，2028 起才轉成常設節點"
+    },
+    {
+     "item": "兒童美術館週年作品（校別、年份、年齡）",
+     "status": "需授權",
+     "note": "作品和作者資訊公開前要家長同意；沒有就不開特展，既有 8 件不改標"
+    },
+    {
+     "item": "系列文章裡的幼兒肖像與家長照片",
+     "status": "需授權",
+     "note": "要家長書面同意；素材庫原檔不會剝 EXIF／GPS，請園方匯出去掉定位的檔案，或另做 S 級剝除"
+    },
+    {
+     "item": "無緞帶的布幕投影圖",
+     "status": "需授權",
+     "note": "只有業主選「嚴格」或 2028 收回時才需要；同一個校徽的衍生檔，授權範圍要一併確認"
+    },
+    {
+     "item": "週年校徽用在布幕以外",
+     "status": "需授權",
+     "note": "本方向刻意不用；列出來是提醒分享圖、頁首、內頁都不能順手拿去用"
+    }
+   ],
+   "effort": "M",
+   "effort_breakdown": "每個落點都是 S，加起來約 5 個開發日，所以算 M。時間閘＋milestones 抽出＋useState 日期＋預覽讀 ?date=：0.5 天。/about（文案切換、2027 節點、6 欄／3 欄 CSS、about.spec 改寫成依日期渲染的測試）：1 天。分校頁 eyebrow＋永久「創立」列＋測試：0.5 天。/news 系列膠囊、單篇回系列連結、首頁輪播小籤＋測試：1 天。/environment 第 4 張卡、/curriculum 條件式特展骨架：0.5 天。JSON-LD foundingDate、aboutSeo／llms.txt 期間文案＋seo.spec：0.5 天。Playwright 桌機 1440、手機 390／320，用開發環境日期覆寫看 2026-09-28／2027-03-01／2028-01-02 三個日期，並跑 a11y：0.5 天。DESIGN／README／CLAUDE／brand-guidelines／operations 的規則更新：0.5 天。後台排程由園方操作，約半天。不含：布幕無緞帶版（等素材，0.5 天加海報重產）、2028 第一季清理 PR（約 1 天）。沒有後端、migration、新 content kind，也沒有新路由。",
+   "phases": [
+    {
+     "when": "2026-10（決策）",
+     "what": "業主拍板：週年期間和創校月日、正式說法、布幕要「預熱」還是「嚴格」、是否開放 web-only 的週年範圍（解除 DESIGN.md:85 和規格 :79/:445 在期間內的限制）、系列分類名稱「30 週年」。同時可以先上兩項和週年無關的永久事實：JSON-LD foundingDate、分校頁聯絡卡「創立」列。"
+    },
+    {
+     "when": "2026-11～12（開發，期間外看不見）",
+     "what": "在 feature/** 分支做時間閘和各落點，測試用假日期驗三種狀態。經業主同意才合進 main；因為有閘，2027 前正式站看不到任何變化。小編開始寫系列前 3 篇，show_from 設 2027-01-01。"
+    },
+    {
+     "when": "2026-12 最後一週（排程）",
+     "what": "用 PublishJob 把 home_hero、home_about、site_footer、site_meta（分享圖）排在 2027-01-01 00:00（台北），和程式閘同一刻翻面，60 秒內完成。先在 /preview?date=2027-01-01 檢查首頁和分校頁。"
+    },
+    {
+     "when": "2027 全年",
+     "what": "每月 1～2 篇系列（全站消息上限 30、各校 12，系列文用 show_until 輪替）。有真實活動才排 events；作品到位才開美術館特展；園慶後補 2027 節點照片和一篇回顧文。12 月才排還原版 PublishJob，不要年初就排，否則年中有人發布較新的版本，到期會被 skipped。"
+    },
+    {
+     "when": "2028-01-01～2028 第一季（收回）",
+     "what": "時間閘自動關掉程式落點，CMS 還原版上架。清理 PR：拆掉閘的分支；2027 節點有真實照片就轉成常設，連到回顧文，否則刪掉；/news 的 ?series= 保留成通用篩選或刪除；foundingDate 和「創立」列保留。文案規則要重新裁定：2028 起「近三十年」變成錯的，「三十多年」反而成立，about.spec 的「三十多」禁字要翻轉。同步更新 DESIGN／CLAUDE／brand-guidelines，布幕換無緞帶版。"
+    }
+   ],
+   "rule_conflicts": [
+    {
+     "rule": "文案一律寫「近三十年」、不綁 30 週年",
+     "source": "DESIGN.md:85；web/app/components/AboutContent.vue:4,9",
+     "resolution": "只在時間閘期間內改成「三十年」並出現「30 週年」，期間外自動回到原文；DESIGN.md 加一段有日期的業主裁定，寫明起訖。"
+    },
+    {
+     "rule": "/about 模板不可出現「週年」（單元測試擋）",
+     "source": "web/tests/about.spec.ts:47-50",
+     "resolution": "改成依日期的渲染測試：today=2026-09-28 時不得出現「週年」和「2027」，today=2027-03-01 時一定要有 2027 節點和「1997 到 2027」。「三十多」「美語部」「補習班」照擋；沿革 regex 改讀 milestones.ts。"
+    },
+    {
+     "rule": "首屏小標定案「陪高雄孩子近三十年」，不放「30 週年」",
+     "source": "DESIGN.md:941；README.md:771",
+     "resolution": "小標仍不寫「30 週年」，只拿掉「近」；320px 一行的限制不受影響。仍要業主重新裁定。"
+    },
+    {
+     "rule": "不新增週年後台、不啟用週年提案、本輪不做週年改版",
+     "source": "docs/specs/2026-09-19-website-admin.md:79,445；docs/handoff/2026-09-19-claude-website-admin.md:65,123",
+     "resolution": "不加 content kind、後端、後台頁或 migration，後台只用既有欄位和排程。但在公開站啟用週年本身，仍要業主明確開一個只限 web/ 的新範圍。"
+    },
+    {
+     "rule": "30 週年校徽只授權開場布幕",
+     "source": "DESIGN.md:447",
+     "resolution": "本方向在布幕以外完全不用校徽；分享圖改用真實照片加文字帶。"
+    },
+    {
+     "rule": "頁首 30 週年版（a／b／c）待拍板，不能順便上線",
+     "source": "DESIGN.md:687；CLAUDE.md:70；docs/brand/brand-guidelines.md:25",
+     "resolution": "頁首和膠囊一律不動。日後若另案拍板 c 上標小籤，也能和本方向共用同一個時間閘，不衝突。"
+    },
+    {
+     "rule": "頁尾深綠全白、不加金色點綴、不加回校徽",
+     "source": "DESIGN.md:165,542",
+     "resolution": "只改後台的版權文字，不加任何圖形或色彩。"
+    },
+    {
+     "rule": "各內頁畫風不外移；不開全站換頁動畫；/news 不做滿版 hero",
+     "source": "DESIGN.md:7,21,34,45,76",
+     "resolution": "每個落點只用該頁既有元件：adm-* 深綠卡、cur-art-wall 水彩、renv Rough.js 手繪卡、np-filter 膠囊、hn-meta 小籤。全方向不新增動畫。"
+    },
+    {
+     "rule": "題目原文「2027『第 30 年』節點」「本校第 N 年」",
+     "source": "本次 angle 說明；anniversary-brief.md:7",
+     "resolution": "改寫成「30 週年」和「本校 YYYY 年成立」。2027−創校年算出的是「滿 N 年」，序數「第 N 年」會差一年（義華的第 30 年是 2026，或 115 學年度）。園方沒給各校月日之前，寫創立年份最不會錯。"
+    },
+    {
+     "rule": "開場布幕 2026 年已顯示「30th Anniversary」，和「近三十年」不一致",
+     "source": "deploy/README.md:480-490；web/app/components/EntranceCurtain.vue:121,126；DESIGN.md:85",
+     "resolution": "布幕改讀同一個時間閘，由業主二選一：預熱（保留到期間結束）或嚴格（期間外換無緞帶版，需要素材和授權）。"
+    },
+    {
+     "rule": "站內連結只收 ASCII 路徑；新路由要同步 seo／sitemap／PILL_PAGES／CTA 白名單",
+     "source": "web/app/utils/site-links.ts:11；anniversary-brief.md:33",
+     "resolution": "不開新路由；系列入口是既有頁的查詢參數 /news?series=30，符合 SITE_PATH，canonical 仍是 /news，不必動白名單和 sitemap。"
+    }
+   ],
+   "risks": [
+    {
+     "risk": "太安靜，家長沒意識到在慶祝 30 週年",
+     "mitigation": "首頁有三處看得到：布幕、首屏小標、輪播的「30 週年」小籤，而且系列要真的有人和故事。上線一個月後若仍嫌不夠，再另案評估頁首 c 小籤，不在本方向硬加。"
+    },
+    {
+     "risk": "程式落點和後台排程不同時翻面，出現半週年半舊版",
+     "mitigation": "兩邊都對齊台北 2027-01-01 00:00；程式閘用 useState 共用一個日期；PublishJob 會在同一輪 60 秒內跑完。上線前用 /preview?date= 檢查首頁和分校頁。"
+    },
+    {
+     "risk": "年中有人發布首頁關於或頁尾，年底的還原排程被 skipped",
+     "mitigation": "還原版到 2027-12 才排；在 docs/website-admin/operations.md 加週年排程檢查表，年底由總管理者核對現行版本。"
+    },
+    {
+     "risk": "系列斷炊，或擠爆全站 30 則消息上限",
+     "mitigation": "開跑前先備 3 篇、全年 12 篇以內，用 show_until 輪替；膠囊和小籤都依資料出現，沒文章就自動不見，不會留下空殼。"
+    },
+    {
+     "risk": "年資數字差一年，或讓非義華校看起來也是 30 年",
+     "mitigation": "分校頁一律寫創立年份，不寫第 N 年；加測試：非義華的 eyebrow 不得同時出現校名和「30」。"
+    },
+    {
+     "risk": "系列照片的幼兒肖像同意與定位資訊外洩",
+     "mitigation": "只收家長書面同意過的照片，由小編上傳；原檔不會剝 EXIF，請園方先去掉 GPS，或另做 S 級上傳剝除。不開放公開投稿。"
+    },
+    {
+     "risk": "把現有 8 件美術館作品誤標成週年特展",
+     "mitigation": "特展作品獨立一份清單，空的就不渲染；加測試確認既有 GALLERY 的標籤不含「週年」。"
+    },
+    {
+     "risk": "2028 忘記收尾，或「近三十年」規則過期變成錯字",
+     "mitigation": "時間閘到期自動收；2028 第一季排清理 PR，並在 DESIGN.md 寫明收尾日期。不寫會在未來某天突然讓 CI 失敗的定時測試，免得擋住無關的部署。"
+    },
+    {
+     "risk": "看不到成效：/about、/news 等內頁瀏覽目前不記",
+     "mitigation": "先接受，只看預約表單「從哪裡知道我們」的變化；需要時另案 S 擴充 telemetry 的 page 列舉。"
+    }
+   ],
+   "mockup_brief": {
+    "title": "30 週年，不開新頁：七個頁面各改一句",
+    "desktop": "1440 寬，單頁直向「落點巡覽」，頁框用 design/anniversary-website-directions-20260928/shared/chrome.js，頁首品牌區不加 data-brand-extra，證明頁首不動。\n0. 頂部說明帶（米底）：大標「30 週年，不開新頁」；三條線圖例：字（近三十年 → 三十年）、數（1997 · 2027）、線（30 週年系列 → /news?series=30）。右側一組可鍵盤操作的日期切換（radio group，44px）：2026-09-28 今天／2027-03-01 週年期間／2028-01-02 收回。以下每個片段都依選到的日期重畫，另有「顯示差異」開關，把被拿掉的「近」字標成刪除線。\n1. 首頁首屏片段（高約 560）：hero-campus-restored-v1-still 當底圖，現行遮罩；小標「常春藤幼兒園 · 陪高雄孩子三十年」，h1 和 copy 不動；頁首金色滿高預約鈕照舊。左側註記欄：來源後台 home_hero.eyebrow、排程 00:00。\n2. 首頁「關於」片段：薄荷帶、浮水印「常春藤」不動，小標「1997 — 2027」，內文把「近三十年來」改成「三十年來」，照片 about-together。\n3. 首頁最新消息片段：三張卡（圖用 campus-film-*），meta 列是「全校 · 30 週年」加 6px 金點，標題都標「示意」；右上保留「01 / 03」被動進度和「所有最新消息」。註記：hover／focus 暫停沿用既有規則。\n4. /about 一路走來：h2「三十年，／長出五所校園。」，章節提示「1997 到 2027」；時間軸六欄，1997～2021 五張校園卡用現有校舍圖，第六欄「2027／民國 116 年」是深綠卡：h3「30 週年」、一句示意文案、連結「看 30 週年系列 →」。另附一個 1180 寬的小縮圖，示範 3 欄 ×2 列。\n5. 分校頁並排兩個半寬 hero：義華（yihua-exterior）eyebrow「常春藤 30 週年 · 1997 年從這裡開始」；明華（minghua）eyebrow「常春藤 30 週年 · 本校 2001 年成立」。下方各一張聯絡卡，dl 第一列是「創立｜民國 86 年（1997）」／「創立｜民國 90 年（2001）」，並標「永久，不隨週年撤」。\n6. /news 片段：麵包屑、h1「最新消息」，膠囊列「全部／義華校…仁武校｜30 週年」（選中），lede 換成系列說明（示意），下方三則系列清單（示意）。\n7. /curriculum 美術館片段：水彩底的標題不動，下方是虛線框的「30 週年特展」空畫框三格（只有 wash、沒有作品），框內寫「園方提供作品與家長同意後才出現」。旁邊把既有 8 件縮小、淡化，標「不改標」。\n8. /environment 結尾：手寫標題「環境看完了，還可以看看這幾頁」，四張 Rough.js 手繪卡，第一張是「30 週年／五校的週年消息」。\n9. 頁尾片段：深綠全白，只有版權行變成「© 1997–2027 常春藤教育機構」。\n10. 看不見的部分：一張 Google 搜尋結果卡（/about 期間內 title 含「高雄」「30 週年」）、JSON-LD 片段（foundingDate \"1997\" 和五校各自年份）、1200×630 分享圖預覽（about-hero 裁切加深綠文字帶）。\n11. 收回清單表：列出每個落點「2028-01-01 自動消失」「後台還原（2027-12 排）」「清理 PR」「永久保留」四欄。\n選 2026-09-28 時所有片段回到現況；選 2028-01-02 時只剩永久項，2027 節點顯示「有照片才留」的灰框。",
+    "mobile": "390 寬同樣由上往下，日期切換改成貼底的三段式控制（44px 高，可鍵盤操作），註記欄收成每個片段下方的 <details>「改了什麼」。首屏小標要單行，另附 320 寬的一行驗證截圖。/about 時間軸直向，2027 在最底，金色圓點只給這一點，卡片是 104px 方塊版型改成純文字深綠卡。分校頁兩個 hero 上下排，eyebrow 各自一行。/news 膠囊折行，分隔線在「30 週年」前換行。美術館和 NEXT 都改一欄。頁尾版權行單獨一行。所有連結和控制 ≥44px，勾選減少動態時整頁沒有任何動畫（本方向本來就不新增動畫）。",
+    "real_copy": [
+     "常春藤幼兒園 · 陪高雄孩子近三十年",
+     "在常春藤，每一天都有新發現。",
+     "一起讀故事、做作品，也到戶外探索。",
+     "SINCE 1997",
+     "把每個孩子，放在心上。",
+     "自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。近三十年來，……",
+     "從一間幼兒園，長成五所校園。",
+     "1997 年，第一間常春藤在高雄義華路成立。近三十年來，我們守著同一份教育理念與專業保育，陪孩子過一段獨一無二的童年。",
+     "近三十年，長出五所校園。",
+     "1997 到 2021",
+     "第一間常春藤，在三民區義華路成立。",
+     "走進左營區，有了第二所校園。",
+     "左營區的第二所校園。",
+     "在鳥松區球場路成立。",
+     "第五所校園，在仁武區成立。",
+     "民國 86／90／94／109／110 年",
+     "孩子的第一所學校，也是第二個家。",
+     "最新消息",
+     "五所校園的消息與近期活動。",
+     "每一件作品，都從動手做開始。",
+     "環境看完了，還可以看看這幾頁",
+     "陪伴每一個孩子，長成自己喜歡的樣子。",
+     "© 2026 常春藤教育機構",
+     "義華校 三民區 07-392-8366／明華校 左營區 07-556-6796／崇德校 左營區 07-341-6286／國際校 鳥松區 07-370-8001／仁武校 仁武區 07-375-7081",
+     "改寫（依事實推算，待定稿）：常春藤幼兒園 · 陪高雄孩子三十年",
+     "改寫：三十年，長出五所校園。／三十年來",
+     "改寫：1997 — 2027／1997 到 2027／2027 · 民國 116 年",
+     "改寫：常春藤 30 週年 · 1997 年從這裡開始（僅義華）",
+     "改寫：常春藤 30 週年 · 本校 2001 年成立（依校代入 2005／2020／2021）",
+     "改寫：創立｜民國 90 年（2001）",
+     "改寫：© 1997–2027 常春藤教育機構"
+    ],
+    "placeholder_copy": [
+     "2027 節點內文：從義華路的第一間，到五所校園。（示意）",
+     "2027 節點連結：看 30 週年系列 →（示意）",
+     "/news 系列 lede：30 週年系列，常春藤老師、畢業生與家庭的故事。（示意）",
+     "系列文章標題三則（示意，由園方提供真實人物與內容）",
+     "首頁輪播卡片標題與日期（示意）",
+     "/environment NEXT 卡 small：五校的週年消息（示意）",
+     "美術館特展說明：五校孩子為 30 週年創作的作品。（示意，需作品與家長同意）",
+     "分享圖文字帶：常春藤 30 週年｜1997–2027｜高雄五所校園（示意，待正式說法定稿）",
+     "/about SEO title：關於常春藤｜高雄 1997 年創立、2027 年 30 週年｜常春藤教育機構（示意）"
+    ],
+    "assets": [
+     "hero-campus-restored-v1-still.webp",
+     "about-together.webp",
+     "about-hero.webp",
+     "yihua-exterior.webp",
+     "minghua.webp",
+     "chongde.webp",
+     "international.webp",
+     "renwu.webp",
+     "campus-film-football.webp",
+     "campus-film-speech.webp",
+     "campus-film-kite.webp",
+     "cur-gallery-canvas-yellow.webp",
+     "cur-gallery-clay-ball.webp",
+     "cur-gallery-tote.webp",
+     "cur-gallery-plane-pink.webp",
+     "cur-gallery-tee.webp",
+     "cur-gallery-canvas-blue.webp",
+     "cur-gallery-tape.webp",
+     "cur-gallery-plane-dots.webp",
+     "logo.webp"
+    ]
+   }
+  }
+ ],
+ "judgements": [
+  {
+   "lens": "parents",
+   "scores": [
+    {
+     "key": "mark",
+     "score": 6,
+     "strengths": "成本最低，也最不會擋路。只加文字，不加路由、選單項、動畫或圖檔，載入成本幾乎是零（「週年」用已上線的 anni 子集）。手機首屏唯一會變的是小標「陪高雄孩子三十年」，實際截圖在 390px 首屏約 540px 處看得到（phone-home-top.png），不佔預約鈕和「找校區 →」的位置。2026 年底前把布幕緞帶收掉，家長就不會在 2026 看到「30th Anniversary」、內文卻寫「近三十年」（EntranceCurtain.vue:121,126；DESIGN.md:85）。檔期對準 2027 上半年的招生季，分享圖用真實校園照片加「高雄」，對 LINE 家長群轉傳有利。",
+     "weaknesses": "這個方向只有「宣稱」，沒有「證據」：家長看到 30 週年，卻找不到任何真人、真故事可以查證，方向自己的風險表也承認「想知道更多卻沒有入口」。手機展開頁首完全沒有簽名（390px 只剩 19px），手機家長要捲動後才會在膠囊看到「30 週年」。膠囊在 900px 以下的分校頁和 /visit 也會出現（SiteHeader.vue:14,16 的 isNarrow），手機家長讀仁武校、國際校頁面時，校徽旁寫著「30 週年」，容易誤以為這兩校也滿 30 年。大部分工時花在頁首 6 段寬度的顯示／收起和像素實測，對選校幾乎沒有幫助。",
+     "must_fix": [
+      "膠囊籤只在 PILL_PAGES（/、/about、/admission、/curriculum）顯示。分校頁與 /visit 在 ≤900px 不放「30 週年」，或至少非義華分校頁不放，避免國際、仁武被讀成 30 年老校（SiteHeader.vue:14,16）",
+      "先處理正式站首屏小標：目前仍是「高雄五校」（deploy/README.md:545），而它是手機首屏唯一的週年訊號。這一步要先上，週年版才有意義",
+      "簽名要有可以去的地方：頁尾連結或首頁推薦消息，接到真人故事（週年系列）。只有記號、沒有內容，會讓人覺得在自誇",
+      "寬度掃描要把「預約鈕永不被擠出」當硬性驗收條件。方向自己量到 1120px 會溢出 15px，所有顯示區間都要用 Playwright 驗過（studio.css:16 的 1100 斷點）"
+     ]
+    },
+    {
+     "key": "page",
+     "score": 5,
+     "strengths": "/30 的 SEO 標題寫明「高雄」，可以處理和台中同名園所的搜尋撞名。每一段最後都接回預約參觀和五所校園；「本校第 N 年」卡片直接連到 /visit/<key>，校區已預選。沒有真內容的區塊直接不渲染，不會露出空格。CTA 入口 anniversary 可以量轉換；週年後 301 到 /story，印過的 QR code 也不會失效。",
+     "weaknesses": "這是家長不會主動去找的目的地頁，手機上要滑過 8 段、很多大照片，才到收尾的五校清單。時間尺刻意把 2005→2020 的 15 年空白畫出來，對正在選校的家長，這段空白比較容易讀成「停滯」，不會讀成「歷史節奏」。它把分校頁 hero 小標「常春藤幼兒園 · 高雄{區}」換成「常春藤 30 週年 · 本校第 N 年」（CampusPageMain.vue:20），等於在家長從搜尋進來的頁面上：拿掉行政區這個在地線索、把「30」和「第 6 年」並排，而且序數會差一年。主選單加第 5 項，會擠壓預約鈕（DESIGN.md:136；mark 方向實測 5 項在 1245px 溢出 10px）。最有感情的故事、今昔、影片都要等園方素材；沒有素材時，只剩和 /about「一路走來」重複的年份加現況照。義華外觀只有 590×388，當迴廊首圖會糊。倒數天數和「園慶」對新家長沒有意義。",
+     "must_fix": [
+      "分校頁 hero 小標保留「常春藤幼兒園 · 高雄{區}」，不改成「本校第 N 年」（CampusPageMain.vue:20）",
+      "不加主選單第 5 項，入口改走頁尾和首頁推薦消息（DESIGN.md:136,190）",
+      "手機版把五校清單和預約面板提到開場下方，不要只放在第 8 段之後；只有開場一張圖 eager，並設 LCP 預算",
+      "時間尺不要把 2005–2020 的空白當視覺重點，手機版直接不畫比例尺",
+      "至少要有真實故事才上線，否則只是 /about 沿革的重複；拿掉倒數，除非有真實活動加預約"
+     ]
+    },
+    {
+     "key": "stories",
+     "score": 7,
+     "strengths": "情感可信度五個方向裡最高：資深老師、早期畢業生、兩代家庭第一人稱講，正好回答家長最在意的「老師會不會留下來、孩子長大還記得什麼」。各校篇數寫死（明華 6、崇德 4、國際 2、仁武 2），新校也有自己的故事，不會被義華的 30 年蓋過，也不必寫 30 週年。每篇有 /news/<id> 網址，可以轉傳到 LINE 群組，文末是既有的「預約○○校參觀」。它要求在第一篇全站故事上線時清掉 sample_note：現在 /news 對家長整頁掛著「示意內容」（phone-news-top.png；content-overlay.ts:632-634），這本身就在傷信任，清掉就是加分。同時補上首頁輪播看得見的暫停鍵（WCAG 2.2.2）。不動後端。",
+     "weaknesses": "家長很少主動進 /news；最有效的落點是分校頁「本校的故事」，卻排到第二階段（2027 上半年）。兩週一篇、每篇約園方一個工作天、需要 17 位受訪者加同意書，對幼兒園人力很重。系列名「三十個故事」加上公開的「已刊出 N 篇」「第 N 個故事」，一旦停在 #8，斷炊就公開給家長看，反而扣分。單篇 SEO 標題是「標題｜校名｜常春藤教育機構」（seo.ts:147），沒有「高雄」，轉傳或搜尋時會和台中同名園撞名。首頁「最新故事置頂」推翻了 2026-09-25 的業主裁定（news-content.ts:15-23）。老師篇的主角若離職，文章會變成反效果。",
+     "must_fix": [
+      "系列名不要承諾數量：不寫「三十個」，不公開「已刊出 N 篇」和序號；或至少存滿 20 篇再公開編號",
+      "分校頁「本校的故事」移到第一階段（CampusPageMain.vue:59 附近），因為分校頁才是家長從搜尋進來的地方",
+      "系列單篇的 title 或 description 必須含「高雄」和行政區（seo.ts:147 目前沒有），處理台中撞名",
+      "清空 sample_note 和刪除示意消息，要在第一篇全站故事前、同一次發布完成（content-overlay.ts:632-634）",
+      "EXIF／GPS 剝除上線前，不收家長或校友提供的手機照片（backend/app/media/service.py:155-166）",
+      "輪播置頂規則要業主重新裁定；不同意就退回手動推薦"
+     ]
+    },
+    {
+     "key": "together",
+     "score": 5,
+     "strengths": "唯一把週年活動接回預約動線的方向：活動卡加 visit_campus_key，直接放既有的 BookingCta，校區預選、預約模式自動套用，語意維持「已收到需求／待確認」，開放日就是預約參觀，對招生最實際。回憶牆可以依校區篩選，新校不會被義華蓋過。頁面公開寫出同意、撤回和兒少肖像的處理方式，家長直接看到學校怎麼保護孩子，這本身就是信任訊號。效能上有考慮：回憶牆不放進每頁 SSR 共用的 payload；某校沒有回憶時整段不出現，不放「募集中」空框。",
+     "weaknesses": "/30 的主要按鈕是「寫一張回憶卡」，服務的是校友和在校家庭，不是正在選校的家長。H1「一起寫下第三十年」對新家長語意不清，又建立在尚未確認的 115 學年度起算上。時光膠囊和新家長無關，還要承諾 10 年。工程量最大（約 7–8 人日），而且新 content kind 要業主先解除規格（docs/specs/2026-09-19-website-admin.md:79,445）。上線門檻是 12 則、至少 3 校，很可能遲遲達不到，最後什麼都沒出現。「目前 N 則」計數在數字小的時候看起來很弱。一樣加主選單第 5 項。每則 200 字、只寫稱謂的短回憶，說服力不如具名的完整故事。",
+     "must_fix": [
+      "/30 的主要動作改成「預約參觀」或「五所校園」，「寫回憶卡」退為次要",
+      "H1 不用「第三十年」這個還沒確認的序數，改寫可以查證的「1997–2027」",
+      "時光膠囊移出公開頁的範圍，最多發一則消息",
+      "不加主選單第 5 項（DESIGN.md:136）",
+      "拿掉「目前 N 則 · 來自 N 所校園」計數",
+      "EXIF 剝除必須先於任何照片上牆，這一點方向已列，要維持"
+     ]
+    },
+    {
+     "key": "weave",
+     "score": 7,
+     "strengths": "在家長本來就會看的地方補一句準確的話，不需要多點一頁：手機首屏小標、/about、分校頁、頁尾、SEO。分校頁聯絡卡永久加一列「創立｜民國 90 年（2001）」，是家長比較五校時真正用得到的事實，也從根本避免新校被誤認成 30 年。aboutSeo 補上「高雄」（seo.ts:107 目前標題沒有），五校 JSON-LD 各自補 foundingDate。沒有新路由、沒有主選單項，預約按鈕和動線完全不動，載入成本為零。系列膠囊和小籤只在真的有文章時才出現，沒有內容就自動不見，不會留下空殼。",
+     "weaknesses": "分校頁 hero 小標把「常春藤幼兒園 · 高雄{區}」換成「常春藤 30 週年 · 本校 2021 年成立」（CampusPageMain.vue:20），拿掉了行政區這個在地線索，還把「30 週年」直接壓在「仁武校」h1 上方。方向寫的測試只擋 eyebrow 字串，擋不住視覺上的誤讀。/curriculum 特展和 /environment 第 4 張手繪卡對選校幾乎沒有價值，卻多了範圍和字型子集重切的工。情感可信度只靠一個最少 3 篇、最多 12 篇的系列，力道比 stories 弱，內容流程也沒有規劃。/news 手機篩選列多一顆膠囊，會變成第三行。",
+     "must_fix": [
+      "分校頁 hero 保留「常春藤幼兒園 · 高雄{區}」，只在後面加「· YYYY 年成立」；「30 週年」只放義華 hero（CampusPageMain.vue:20）",
+      "刪掉 /curriculum 特展和 /environment NEXT 卡，範圍集中在首頁、/about、分校頁、/news",
+      "系列入口（2027 節點、/news 膠囊）要等到至少 3 篇真實故事、sample_note 清空之後才出現",
+      "/about 2027 節點卡的連結，只在系列有真文章時渲染"
+     ]
+    }
+   ],
+   "best_combination": "以 weave 為骨架，stories 當內容引擎，together 只取「活動接回預約」，mark 只取時間閘與一致性修正，page 暫緩。\n1) weave 的就地事實層，但分校頁小標保留「高雄{區}」，後面加「· YYYY 年成立」。聯絡卡永久加「創立」列。aboutSeo 和系列單篇標題補「高雄」，五校 JSON-LD 補 foundingDate。刪掉 /curriculum 和 /environment 兩處。\n2) mark 的台北日期時間閘（useState 帶日期、預覽 ?date=）、首屏小標三段換字、頁尾版權、布幕緞帶和 aria 依期間對齊（2027 前不宣稱滿 30）。頁首簽名等業主拍板 a／b／c 再說；膠囊籤只放在 PILL_PAGES。\n3) stories 的真人故事，但系列名不承諾「三十」、不公開序號。先清空 sample_note，分校頁「本校的故事」第一階段就上，五校篇數配額保留，補上輪播暫停鍵。\n4) together 的 visit_campus_key 加 BookingCta：真實開放日或園慶直接進該校預約，並記錄 CTA 入口 anniversary。EXIF 剝除和公開同意說明當作收照片的前提。\n5) page 的 /30 延後到故事累積足夠之後，做成故事彙整頁；不進主選單，收尾沿用「五校清單加預約」。",
+   "notes": "依據：已讀 brief、maps.json，並看過 phone-home-top／pill、phone-news-top、phone-visit-top、phone-home-footer、desktop-home-top、desktop-about-story、desktop-curtain-3600 截圖，另外讀了 CampusPageMain.vue:20、seo.ts:105-108,145-150、DESIGN.md:136,255-266,940-942、SiteHeader.vue:14-16。\n關鍵觀察：\n(a) 正式站 /news 對家長整頁都是「示意內容」（phone-news-top.png），任何以消息為載體的週年內容都要先清掉 sample_note，否則真故事會被標成示意，而且 noindex。\n(b) 手機首屏唯一能放週年訊號的地方是首屏小標（約 y=540px），展開頁首已經沒有空間。\n(c) page 和 weave 都去改分校頁 hero 小標，會把「高雄{區}」這個對在地家長和台中撞名最關鍵的線索換掉，兩者都必須修。\n(d) 系列單篇的 SEO 標題目前沒有「高雄」（seo.ts:147）。\n(e) 布幕在手機 3.8 秒、桌機 8.9 秒，是現存最大的週年載入成本；已定案，本次不重開，只有 mark 和 weave 處理它和用語不一致的問題。\n未驗證：\n- mark 所稱 5 項選單在 1245px 溢出 10px、膠囊 390px 剩 131px，我沒有重測。從截圖估計，校徽到漢堡約 150px。\n- 主選單現在是 fixture 管還是後台 site_meta 管，DESIGN.md:136 和 brief 說法不一，page 和 together 標成「後台即可」要再確認。"
+  },
+  {
+   "lens": "brand",
+   "scores": [
+    {
+     "key": "mark",
+     "score": 8,
+     "strengths": "五案中品牌系統感最強，也是唯一和已上線布幕共用同一套規則的一案。頁首記號、膠囊、布幕緞帶、頁尾都由同一個台北日期閘控制，布幕的金緞帶和頁首的金色「30」在同一天出現、同一天收回。用字規則寫得清楚：記號用阿拉伯數字「30 週年／1997–2027」，句子用國字，全案只用 en dash、不加空格，沒有新增任何英文。金色處理有依據：金字只放在深底（影片、膠囊）上；米白頁首實測只有 1.7:1，所以改用別的顏色，符合 brand-guidelines:39、73。頁尾維持全白、不加金色（DESIGN.md:165），校徽不離開布幕（DESIGN.md:447）。無障礙沿用 SiteHeader.vue:237 不寫 aria-label 的慣例，另用 sr-only 補斷句和年份；沒有新增動態，44px 觸控範圍不變。膠囊裡捨棄舊提案的金色小點（DESIGN.md:687），理由站得住：會壓到 IVY KIDS 緞帶、看起來像通知數字、字太小。每一處和定案衝突的地方都列出了出處，也說明要等業主裁定。",
+     "weaknesses": "改動落在品牌最敏感的位置，也就是字標旁邊（brand-guidelines:25-26「Logo 旁不加沒定案的標語或裝飾」）。三種字型並排：Noto 600 字標、LINE Seed 800 的「30」、LINE Seed 700 的年份；「30」和中文字標一樣大，在影片頁首上可能比品牌名更搶眼。米白頁首的「30」改用 --green，但字標本身用的是 --ivy-logo-chinese（studio.css:328、331），兩種綠色會並排出現。顯示寬度切成 6 段，記號會一下出現、一下消失，和字標只有單向縮字級的規則（brand-guidelines:21）不一致。2027 年前收掉布幕緞帶，等於推翻 09-23 已上線的定案（DESIGN.md:355-357、445-447）；用 shader 遮掉緞帶也是改變授權圖的呈現方式（原授權寫明「不重畫…緞帶或字樣」），但授權範圍沒有列入待確認。仁武、國際校的分校頁頁首同樣會出現「30 週年」，沒有「本校 YYYY 年成立」之類的說明來區分。影片上用實心金，偏離 DESIGN.md:687 原本「影片上鏤空」的做法，而且還沒量過整支影片。",
+     "must_fix": [
+      "米白頁首上的「30」和年份改用 var(--brand-chinese)／var(--brand-english)，也就是 --ivy-logo-*（studio.css:328、331），不用 --green，避免兩種綠色並排",
+      "顯示寬度改成單向：例如 ≥1181px 顯示、其餘交給膠囊文字籤；或把 6 段規則逐條寫進 DESIGN.md，不能讓記號在不同寬度來回出現",
+      "在現行 web 頁首上把本案和 a／b／c 並排比稿，另外比一版「30」改用 Noto 600 數字；拍板前不合併，拍板後改寫 DESIGN.md:687 和 brand-guidelines:25",
+      "布幕 ribbonOn 預設維持現況，要等業主有日期的裁定；另外請業主確認「遮掉緞帶」仍在授權範圍內（DESIGN.md:447）",
+      "依 CLAUDE.md 用 ffmpeg 抽整支首屏影片的幀，離線量金色「30」的對比；決定用實心金或白字後，把偏離「影片上鏤空」的原因記錄下來",
+      "「三十年」（2027-01-01 起）和「三十多年」（2028 起）的切換日要等園方確認創校月日；若創校月在 1 月之後，1/1 寫滿三十年會早幾個月（DESIGN.md:85）"
+     ]
+    },
+    {
+     "key": "weave",
+     "score": 7,
+     "strengths": "最尊重各頁既有畫風：每個落點都用該頁原本的元件，包括 adm-* 深綠卡、cur-art-wall 水彩、Rough.js 手繪卡、np-filter 膠囊、hn-meta 小籤，全案不新增動畫，頁首和 Logo 完全不動（DESIGN.md:687 仍待拍板）。分校頁寫「本校 YYYY 年成立」，避開「第 N 年」差一年的問題，也不會讓非義華校看起來像滿 30 年；這是五案裡事實最精確的說法，還附上「非義華的小標不得同時出現校名和 30」的測試。「創立」列和 foundingDate 是永久事實，不綁週年。分享圖用真實照片，金色只當細線，布幕以外不用校徽。/news?series=30 不新增路由，canonical 仍是 /news，不用動白名單。布幕接上同一個時間閘，並把「預熱或嚴格」交給業主決定。",
+     "weaknesses": "/about 時間軸從 5 欄改成 6 欄，1100–1239px 改成 3×2，改到 09-26 的版面定案（DESIGN.md:83「桌機五欄；1100 以下三欄」），但 rule_conflicts 沒有列出來。多出來的 2027 節點不是一所校園，打破「每個節點＝一校＋連結」的結構。週年元素要放進 /environment（手寫字、Rough.js）和 /curriculum（水彩）這兩個畫風獨有的頁面（DESIGN.md:21、45），還要重切 Iansui 手寫字分片；七頁都要改，加起來容易變成「每頁都貼一點」的過量裝飾。首頁輪播靠「30 週年」小籤推系列，但現行輪播只在滑鼠停留或鍵盤焦點時暫停（useNewsRotation.ts:29-30），沒有看得見的暫停鍵，本案也沒補（WCAG 2.2.2）。年份寫法不一致：since_label 寫「1997 — 2027」（有空格），頁尾和分享圖寫「1997–2027」。分校頁小標拿掉了「高雄{區}」。",
+     "must_fix": [
+      "把 /about 時間軸 6 欄、3×2 的改版列為和 DESIGN.md:83 衝突、需要業主裁定；或者 2027 節點不進時間軸，改成時間軸後方的一行深綠結語",
+      "首頁輪播加一顆看得見的暫停鍵（44px，符合 WCAG 2.2.2），因為本案要靠輪播推系列",
+      "全案年份統一寫成「1997–2027」（U+2013、不加空格），since_label 也一樣",
+      "/environment 第 4 張卡和 /curriculum 特展改成選配、最後才做；做 /environment 時要重跑 scripts/subset-environment-fonts.py，確認「週年」不會退回系統字",
+      "分校頁小標保留行政區，例如「常春藤 30 週年 · 高雄{區} · 2001 年成立」，並驗證 320px 仍是一行",
+      "布幕在業主裁定前維持現況；選「嚴格」要先取得無緞帶衍生圖的授權"
+     ]
+    },
+    {
+     "key": "stories",
+     "score": 7,
+     "strengths": "視覺上最節制、最不可能違規：只用 --ivy-news-* token，金色只有 2px 短線，不用校徽、不做「30」圖章，也沒有新增英文；/news 不做 hero（DESIGN.md:76），系列帶只是頁面中的一個區塊。用語守規矩：在業主裁定前一律寫「近三十年」，/about 的連結寫「讀開校那一年」，不碰 about.spec 擋的字。真實性最嚴格：第一人稱內容要本人確認，小編不代寫；年份只用沿革的五個年份；不寫第 N 屆，也不寫五校都辦；AI 修復圖不能當「當年」照片（DESIGN.md:574-578）；照片 alt 不寫身分。唯一主動補上首頁輪播可見暫停鍵的一案（WCAG 2.2.2），也照顧到四校比重和「不能拿義華的 LINE 代填」。",
+     "weaknesses": "以週年呈現來說，品牌訊號偏弱：一直到 2027 年，站上唯一的週年視覺仍是寫著「30th Anniversary」的布幕，系列卻寫「近三十年」。用語不一致的問題本案沒有處理（缺口 2），也沒有和布幕共用時間閘。系列名「三十個故事」在 2026 年容易被讀成「三十年」，實際上是在暗示週年。mockup 用 env-space-classroom、env-space-corner 當「老師說・義華校」「長大以後・義華校」的封面，但環境照除了明華廣場，其他都沒標校別（DESIGN.md:134），會變成校區誤植。首頁「最新故事固定第一格」推翻了 09-25 的業主裁定（news-content.ts:15-23）。「#04」大號編號用 --fs-4xl 還算可以，但系列帶和單篇的編號記號在品牌規範裡沒有前例。",
+     "must_fix": [
+      "故事封面只用確定是該校的照片；env-space-* 等沒標校別的環境照，不能當成某一校故事的封面（DESIGN.md:134）",
+      "「最新故事置頂」要有業主的日期裁定；可見暫停鍵不管裁定結果都要做（useNewsRotation.ts:29-30）",
+      "系列導言和 2027 年的用語切換要接上全站同一個時間閘，並說明系列和布幕「30th Anniversary」怎麼對齊（缺口 2）",
+      "2026 年的導言和系列帶不要把「三十」和「年」寫在一起，避免被讀成提早宣稱 30 年（DESIGN.md:85）",
+      "系列帶的底色維持 --ivy-news-note、金色只用 2px 短線，編號記號的樣式寫進 DESIGN.md「最新消息」章節"
+     ]
+    },
+    {
+     "key": "page",
+     "score": 6,
+     "strengths": "「比例時間尺」是五案裡最大器、也最誠實的視覺概念：用 1997、2001、2005、2020、2021 的真實間距當節奏，2005 到 2020 刻意留白不湊節點，全頁唯一的 --gold 就是 2027 那一點。不用校徽（DESIGN.md:447），不寫「30th Anniversary」。沒有真內容的區塊直接不渲染，示意只出現在 mockup 裡，並用虛線框標出。只用實拍，排除 *-enhanced-v1 和透視圖。無障礙設計完整：今昔滑桿用 range input、可用鍵盤操作，2020／2021 刻度點擊區 ≥44px，影片點了才載入，全頁不自動播放，減少動態時關掉淡入。標題寫明「高雄」，避開台中同名園所。局部變數都對應既有 token，沒有新增顏色。",
+     "weaknesses": "另外發明了第七套頁面語言「家庭相簿」：白邊沖洗相片傾斜 -0.6°／+0.8°、加相簿標籤，和首頁「孩子的一天」的拍立得（--ivy-print-*）以及 /environment 的傾斜便條非常接近，等於把兩頁獨有的語彙搬過來（DESIGN.md:17-25、45），和布幕的紅絨舞台也沒有任何呼應。h1 96px、年份 168px，超出 12 階字級（brand-guidelines:93）；五個 168px 的深綠大年份，視覺重量接近裝飾。2026-11～12 的預熱版就用 h1「常春藤的三十年」、2027 節點寫「常春藤滿三十年。」，和「未滿三十年就寫近三十年」的原則相牴觸（DESIGN.md:85、941）。「本校第 30／26／22／7／6 年」列在 real_copy 裡，但本案自己也承認序數可能差一年，等於把未確認的數字當成事實。主選單「30 Years」和布幕的「30th Anniversary」英文說法不一致。mockup 裡示意區塊很多（今昔、故事、活動、影片），版面的份量大半靠還不存在的內容撐起來。",
+     "must_fix": [
+      "拿掉相片傾斜，也不要用拍立得式白邊；若要保留「相簿」語言，須請業主裁定，並在 DESIGN.md 寫明這是 /30 專屬、不外移，且和 --ivy-print-* 區隔",
+      "不做 2027 年前的預熱版 h1「常春藤的三十年」；預熱期若要上線，改用「近三十年」或不寫年數",
+      "「本校第 N 年」改成「YYYY 年成立」或「滿 N 年」，等園方確認計算方式後才寫序數；從 real_copy 移到待確認",
+      "h1 和年份字級改用有紀錄的流體例外，或上限設在 --fs-8xl，年份不要做成滿版裝飾字",
+      "主選單英文副標要和布幕說法一致，或不加；第 5 項須在 901–1000px、1101–1245px 實測（DESIGN.md:136、190）",
+      "倒數只在有真實園慶日期時才渲染，mockup 裡的倒數要標示意"
+     ]
+    },
+    {
+     "key": "together",
+     "score": 5.5,
+     "strengths": "/30 沿用 /about、/admission 共用的 adm-* 家族，包括薄荷帶、巨大淡字、米底和深綠舞台，沒有另創畫風，也明寫不用手寫字、不傾斜、不貼膠帶（DESIGN.md:7、21、45）。公開說明肖像同意和撤回流程，publish_blocker 會擋電話和 email，EXIF 剝除完成前不收照片，隱私處理是五案中最完整的。開放日直接接既有的 BookingCta，預約語意照舊：「已收到需求」「待確認」「預約成立」。篩選鈕用 aria-pressed，「再看 12 則」後焦點移到第一張新卡，全頁沒有動態。不用校徽，也不拿義華的 LINE 當五校共用管道。",
+     "weaknesses": "hero 用 HTML 畫的「回憶卡實物」加上錯開的疊卡取代照片，偏離 adm-* 家族「照片在右」的 hero（見 /visit、/about 截圖），也違反「真實影像優先」（PRODUCT.md:19）；這是擬物裝飾。mockup 的回憶卡用 chongde、international、renwu.webp 充當校舍照，這三張是建築透視圖，放在「回憶」情境裡等於暗示歷史（DESIGN.md:572-578；brief）。「第三十年」是假設 86 學年度創校推出來的，卻打算在 2026-10 就發徵集消息，而且放進 H1。年份寫法不一致：hero 用 em dash「1997—2027」。三欄卡各配一個圖示，容易變成「標題上方一顆大圖示」（brand-guidelines:101）。「時光膠囊 2037」是本案自己提的新計畫，不是事實，一旦上頁面就成了對家長的承諾。「30 週年」同時出現在主選單、分校頁小標和 SEO，而且完全沒談和布幕怎麼一致。",
+     "must_fix": [
+      "hero 改用真實照片（沿用 adm-* 的照片 hero 構圖），回憶卡實物移到「01 三種參與方式」當說明插圖，而且不做疊卡",
+      "mockup 和正式版都不用 chongde、international、renwu.webp 當回憶照片，改用 tour-* 實拍，或不放照片",
+      "園方確認創校月份和學年起算方式之前，徵集消息和 H1 都不用「第三十年」，改寫「近三十年」（DESIGN.md:85）",
+      "年份一律寫「1997–2027」（en dash、不加空格）",
+      "三欄卡的 Phosphor 圖示放在標題旁、1.1em，不做卡片頂部的大圖示（brand-guidelines:100-101）",
+      "時光膠囊要等園方書面承諾封存日、保管人和開封方式後才出現在頁面，mockup 裡整段標示意",
+      "主選單第 5 項、分校頁小標的「30 週年」列為待裁定，並和布幕的時間閘、用語對齊"
+     ]
+    }
+   ],
+   "best_combination": "以 mark 當骨架，建立全站唯一的週年視覺與時間系統：\n- 同一個台北日期閘，控制頁首純文字記號、膠囊的「30 週年」文字籤、布幕緞帶、頁尾「© 1997–2027」、since_label「1997–2027」和首屏小標拿掉「近」字。\n- 用字規則照 mark：記號用阿拉伯數字，句子用國字，全站只用 en dash、不加空格。\n- 膠囊的金色小點改成文字籤。米白頁首的記號改用 --ivy-logo-* 顏色；顯示寬度改成單向。\n\n再接 weave 的事實層：\n- 分校頁寫「常春藤 30 週年 · 本校 YYYY 年成立」，保留行政區。\n- 聯絡卡加永久的「創立」列，JSON-LD 補 foundingDate，/news?series=30 當唯一的聚合入口（不開新路由）。\n- /about 的 2027 節點等業主裁定 DESIGN.md:83 的版面後再決定；/environment、/curriculum 的插入列為選配。\n\n內容由 stories 負責：\n- 故事經本人確認並取得書面同意，放在 /news 系列、分校頁「本校的故事」和 /about「讀開校那一年」連結。\n- 同時補上首頁輪播的可見暫停鍵。\n\npage 只取「比例時間尺」：日後若業主同意開 /30，放進 /30 或 /about；不要相簿傾斜，也不預熱「三十年」。\n\ntogether 只取營運機制：紙本回憶卡、同意書編號、publish_blocker、EXIF 剝除優先。不採它的擬物 hero、透視圖照片和時光膠囊承諾。\n\n各方向都不要做：\n- 在布幕以外用校徽。\n- 把金色當大面積底色。\n- 新增「30th／30 Years」英文。\n- 2027 年前寫「三十年」。\n- 把 AI 修復圖或建築透視圖當歷史照片。",
+   "notes": "以下幾件事跨方向都成立，請業主一併裁定：\n1. 全站年份寫法統一為「1997–2027」（U+2013、不加空格）。目前各方向混用 en dash、em dash 和有空格的寫法；since_label 是 lang=\"en\" 元素，也適用。\n2. 膠囊的金色「30」小點（DESIGN.md:687）建議正式否決，採 mark 的文字籤。理由是小點會壓住 IVY KIDS 緞帶、像通知數字、字太小。\n3. 布幕「30th Anniversary」2026-09-23 起已上線，所有方向都要和它對齊：同一個時間閘、同一種中文說法。預熱或收緞帶必須由業主裁定；若收緞帶，要另外確認「遮掉緞帶」仍在 DESIGN.md:447 的授權範圍內。\n4. 現行首頁消息輪播只在滑鼠停留或鍵盤焦點時暫停（web/app/composables/useNewsRotation.ts:29-30），沒有可見的暫停鍵，本來就不符合 WCAG 2.2.2。任何要靠輪播推週年內容的方向都應該先補上。\n5. 所有「三十年」「30 週年」的上線日都要等園方確認創校月日；DESIGN.md:85 的理由是「未滿三十年」，所以曆年 1/1 就切換可能早了幾個月。\n6. 已查證的事項：\n   - minghua.webp 招牌確實寫「高雄市私立明華幼稚園」，page 的圖說成立。\n   - chongde.webp 確認是建築透視圖。\n   - 米白頁首字標用 --ivy-logo-chinese／--ivy-logo-english，不是 --green（web/app/assets/css/studio.css:328、331）。\n   - 主選單後台可以編輯（backend/app/content/schemas.py:280、admin/src/views/SiteMetaView.vue）。\n7. 未驗證：各方向的寬度實測數字（例如 mark 的 266→335px、1120px 擠出 15px），以及金字在整支影片上的對比。我沒有重跑 Playwright，本機也沒有 ffmpeg。"
+  },
+  {
+   "lens": "feasibility",
+   "scores": [
+    {
+     "key": "mark",
+     "score": 8,
+     "strengths": "只用 1997、2027 兩個已知事實，園方不必交任何素材，內容債幾乎是零。程式約 2–2.5 人日，不動後端、migration、契約，也不改後台頁。時間閘到 2028-01-01 會自動收掉，是五案裡最容易收回的。排程語意抓得對：建立排程時會擋「版本不比線上新」（已核 backend/app/content/routes.py:765-779），到期時也會略過（publish_jobs.py:107-132），所以換回版等 2027-12-15 再從線上版建是正確做法。布幕的 ribbonOn 只把既有的 goldRibbon 遮罩乘掉（entranceCurtain.ts:311-312），不用重產投影圖和五張海報，比 weave 的「嚴格」路線省事。foundingDate 現在就能上。順便收掉正式站小標仍是「高雄五校」的落差（deploy/README.md:545 已核）。",
+     "weaknesses": "頁首簽名靠 6 段寬度帶切換顯示和收起，但 brandName 和 primary_nav 都能在後台改（schemas.py:280）。:has() 只數選單項數、不管字長，後台一改字就可能溢出，長期維護很脆弱。1120、1141、920、320px 這些「實測」數字本機核不到；金字對比也還沒量（方向自己承認沒有 ffmpeg）。兩輪排程要換 4 個 kind，12-15 到 01-01 之間還要凍結 site_meta，但 site_meta 同時管選單、電話和社群，營運上容易出錯。2026 先把布幕緞帶收掉，等於推翻 09-23 已上線的定案。/about 靠 yearsPhrase 繞過 about.spec.ts:47-50 的「三十多」禁字，測試會變空殼。後台預覽只支援首頁、入學、分校、預約四頁（draft-preview.ts:25-28），/about 和頁尾都預覽不到。單獨上線時家長能得到的資訊很少，也沒有「想多知道一點」的入口。",
+     "must_fix": [
+      "6 段寬度帶改成不依賴像素實測的保守門檻（例如只在 ≥1281px 顯示），並用 Playwright 測最長 brandName、5 項選單、長標籤三種情況；否則後台一改字就壞",
+      "12 月排程前要業主書面裁定三件事：期間用曆年還是 116 學年度、布幕 2026 是否先收緞帶、簽名樣式是否取代 DESIGN.md:687 的 a／b／c",
+      "docs/website-admin/operations.md 加排程清單：4 個 kind、凍結期、2027-01-01 與 2028-01-01 當天在「查看全站排程」確認沒有 skipped",
+      "about.spec.ts 的模板禁字改成依日期渲染的三態測試；DESIGN.md:85、941 改成寫明起訖的規則",
+      "用 ffmpeg 抽整支首屏影片和 /about 照片頂部的幀量金字對比，低於 3:1 就改白字"
+     ]
+    },
+    {
+     "key": "weave",
+     "score": 6,
+     "strengths": "不動後端、不開新路由、不加 content kind，只用既有欄位加時間閘就能完成。分校頁寫「本校 YYYY 年成立」，避開「第 N 年」差一年的問題。聯絡卡的「創立」列和各校 foundingDate 是不會過期的事實，現在就能上。/news?series=30 符合 site-links.ts:11 的 SITE_PATH，canonical 不變，也不用動 sitemap 和 CTA 白名單。系列膠囊和小籤跟著資料出現，沒文章就不會留空殼。有寫 2028 清理 PR，也記得「三十多年」禁字到時要翻轉。",
+     "weaknesses": "12 個落點橫跨 7 頁，about、campus、news、curriculum、environment、seo、entrance-policy 各頁測試都要改，2028 清理 PR 也一樣大，估 5 人日偏樂觀。「系列文用 show_until 輪替」行不通：過期項目會在 public_view 被濾掉（registry.py:212-228），/news/<id> 直接 404；而且項目還留在 payload 裡，照樣佔 30／12 則上限（schemas.py:858-871）。結果既不能典藏，也騰不出空間。/curriculum 特展要作品加家長同意，很可能一直是死碼。/environment 第 4 張手繪卡有新的手寫字，要重跑 scripts/subset-environment-fonts.py。布幕「嚴格」路線估了重產 WebP 和五張海報，其實 mark 的 uniform 就能做到。分校 hero eyebrow 寫死在 CampusPageMain.vue:20，換成週年句會拿掉「高雄{district}」。2027 節點如果沒有真實照片，只能放一張深綠文字卡。",
+     "must_fix": [
+      "刪掉 show_until 輪替：系列文不設下架日，上限不夠時刪舊的一般消息，或請業主裁定調高上限",
+      "砍掉 /curriculum 特展和 /environment 第 4 張卡，落點縮到首頁小標／關於、/about、分校頁、/news、頁尾、SEO 六處",
+      "布幕改用 mark 的 ribbonOn uniform，不重產投影圖和海報",
+      "about.spec.ts 目前用 regex 讀元件原始碼（:36），把 milestones 抽出去時要一起改成依日期渲染的測試",
+      "開工前業主要明確開一個「只限 web/」的週年範圍（規格 :79／:445、DESIGN.md:85／941）"
+     ]
+    },
+    {
+     "key": "stories",
+     "score": 5,
+     "strengths": "工程只動 web，約 3 人日，不動後端、migration、契約。每篇都有自己的 /news/<id>，可以分享，也會被搜尋到。sample_note 的陷阱處理正確：全站消息只要 sample_note 有值就整份算示意，分校消息一律 sample:false（content-overlay.ts:632-645 已核）。故意不設 show_until，避開過期 404（registry.py:212-228 已核）。收素材、簽同意書變成每月固定的工作，產出的授權素材之後 /30 或紀念特刊都能直接用。不必等週年用語拍板。",
+     "weaknesses": "真正的成本落在園方：30 篇每篇約 1 工作天，兩週一篇連跑 14 個月，要找 7 位老師、6 位畢業生、4 組兩代家庭並取得書面同意。同意書還沒定稿，就排 5 週後（2026-11-01）刊第一篇，時程不實際。從現況看園方操作後台的人手有限：正式站小標到現在還是「高雄五校」（deploy/README.md:545），home_news 也還是示意。系列名直接寫「三十」，寫不滿就等於公開食言。義華、明華各排 6 篇，長期佔掉分校消息 12 則上限的一半（schemas.py:866-871），2028 以後沒有解法。篇號依日期即時計算，撤稿後整串會重排。首頁「最新故事置頂」推翻 2026-09-25 的業主裁定（news-content.ts:15-23）。這個方向本身也沒處理布幕「30th」和「近三十年」說法不一的問題。",
+     "must_fix": [
+      "系列名不綁篇數（例如「常春藤的故事」），改成每月一篇、全年 ≤12 篇，先存 4 篇再開跑",
+      "同意書定稿後再開跑，第一篇延到 2027-01 以後；第一則全站篇要和清空 sample_note、刪掉示意消息在同一次發布",
+      "事先定好 2028 的上限策略（移到專頁，或請業主調上限），免得義華、明華的分校消息被故事長期卡住",
+      "篇號改成穩定欄位（例如 id 帶序號），不要依日期即時計算",
+      "首頁置頂規則要業主重新裁定；同一個改動補上看得見的輪播暫停鍵"
+     ]
+    },
+    {
+     "key": "page",
+     "score": 5,
+     "strengths": "核心段落只靠已知事實就能成立：五個建校年份、地址、沿革原句。沒有真內容的區塊不渲染，正式站不會露出空格。比例時間尺把「2005 到 2020 沒資料」直接做成版面，不必湊里程碑。週年後 301 到 /story，印過的傳單和 QR code 仍然有效。founding.ts 共用沿革和 foundingDate 可以先獨立上。新路由要同步的地方都列出來了：seo、sitemap、llms、CTA 三處、telemetry、stack 測試。",
+     "weaknesses": "總工時 Phase A 4–5、B 1–2、C 4–5 人日，是偏大的 M。Phase A 全部寫死：不做 Phase C 的話，每張今昔照、每支影片、每個活動都要工程師改碼再 push main（等於正式部署），營運負擔落在開發端。Phase C 要業主解除規格 :79／:445。series 欄位要改後端 schema、重產契約、改後台編輯器。主選單第 5 項已知在 901–1000px 和 1101–1245px 會擠到預約鈕（DESIGN.md:190）。分校 eyebrow 改成「常春藤 30 週年 · 本校第 N 年」會拿掉行政區；國際校寫「30 週年 · 第 7 年」語意混淆，方向自己也承認第 N 年可能差一年。今昔、故事、活動、影片、老照片都要園方交付，最可能的結果是這一頁很薄。布幕用語不一致的問題推給另一次裁定。",
+     "must_fix": [
+      "分校頁寫「本校 YYYY 年成立」並保留「高雄{district}」；起算口徑確認前不寫第 N 年",
+      "沒有 Phase C 時，今昔、影片、活動改走既有消息 CMS，或乾脆不做，免得每次換素材都要部署",
+      "series 改成純 web 比對自由文字 category，省掉後端 schema 和契約改動",
+      "/30 要有程式層的上線閘（期間＋最低內容門檻），閘開之前不進 sitemap、不進選單",
+      "抽出 founding.ts 時同步改 about.spec.ts:36 的 regex 來源；第 5 項選單上線前用 Playwright 驗 901–1000px 和 1101–1245px"
+     ]
+    },
+    {
+     "key": "together",
+     "score": 3,
+     "strengths": "同意流程是五案裡最嚴謹的：紙本同意書有編號；publish_blocker 擋缺編號、擋內文出現電話或 email；public_view 會把同意相關欄位拿掉。不做 RSVP、不收家長聯絡資料，符合規格 :131／:445。「第三十年＝115 學年度」算法正確（86 到 115 學年共 30 個學年），也標了待園方確認。回憶牆另走 route，不讓每一頁 SSR 都多帶約 40KB。沒有回憶的校區整段不出現。正確指出活動 link_url 只收 http(s) 絕對網址（schemas.py:731-734 已核）。",
+     "weaknesses": "五案裡最重的：新 content kind（要業主解除規格）、改素材管線剝 EXIF、活動加 visit_campus_key、series 欄位、新的 web server route、CTA 與 telemetry、/30 頁、分校頁區塊、後台編輯頁。估 7–8 人日明顯偏低，新 kind 的後台頁、權限表測試、stack 測試和草稿預覽都還沒算進去。園方要設計紙卡、請法務寫同意書、提供收件 email（fixture 裡沒有）、五校櫃台收件、小編輸入、分校管理者對照紙卡審核。「至少 12 則、3 校」的上線門檻沒有對應的程式機制。時光膠囊把承諾拉到 2037，是最難收回的一項；回憶牆 2028 以後要不要繼續也沒定。投稿量無法控制，最可能出現空牆，或幾乎只有義華。",
+     "must_fix": [
+      "業主解除「不新增週年後台」之前只做階段一（用消息發回憶），不開 anniversary_memories，也不開 /30",
+      "時光膠囊移出網站，或只在封存當天發一則消息，不在頁面上承諾 2037",
+      "EXIF／GPS 剝除要在收任何家長照片之前完成並有測試（media/service.py 目前原檔原樣保存）",
+      "/30 的 12 則／3 校門檻要寫成程式閘，不能靠人記得不要放連結",
+      "重估工時；visit_campus_key 延後，活動先用既有欄位加「洽各校」"
+     ]
+    }
+   ],
+   "best_combination": "以 mark 當骨架：時間閘 util 加 useAnniversary（useState、開發環境日期覆寫、預覽 ?date=），配上 4 個 kind 的兩輪排程清單；布幕用 mark 的 ribbonOn uniform。\n\n現在就能上、不隨週年撤的事實：founding.ts 共用沿革（page／weave）、Organization 與五校的 foundingDate、分校聯絡卡「創立」列（weave）。\n\n週年期落點只取 weave 的低風險子集：首屏小標拿掉「近」、首頁關於的 since 標籤和內文、/about 的 lede、h2 與章節提示、分校頁 eyebrow（寫「本校 YYYY 年成立」並保留行政區）、頁尾版權、分享圖（真實照片）。\n\n系列內容用 stories 的機制：純 web 依 category 辨識、/news?series=30、單篇上一篇／下一篇、第一則全站篇和清空 sample_note 同步、不設 show_until。但量改用 weave 的標準：全年 ≤12、每月一篇、名稱不綁篇數。\n\n頁首簽名等業主拍板後才做，並改成單一保守門檻。/30 專頁（page 的時間尺、迴廊、本校 YYYY 年成立）只在 2027 上半年園方真的交出至少約 6 篇故事或活動時才做，而且直接做成常設的 /story。\n\n這一年不做：together 的新 kind、時光膠囊、visit_campus_key、series 後端欄位；weave 的 /curriculum 特展與 /environment 卡。EXIF 剝除只在決定收家長照片時，列為前置的 S 級工作。",
+   "notes": "已在 repo 核對：\n- 排程建立時擋「不比線上新」、到期時略過：backend/app/content/routes.py:765-779、publish_jobs.py:107-132\n- 消息 public_view 依 show_from／show_until 過濾，過期的 /news/<id> 會 404，而且項目仍佔上限：registry.py:212-228；上限 30／12／12 在 schemas.py:858-880\n- 全站消息依 sample_note 整份算示意，分校消息一律 sample:false：web/app/utils/content-overlay.ts:632-645\n- 活動沒有 category，link_url 只收網址：schemas.py:696-744\n- CTA 白名單在 web、backend、admin 三處；telemetry 的 page 是 Literal（operations/routes.py:97-99）。DB 沒有 CHECK，page 欄是 String(16)，加 anniversary 不需要 migration\n- 草稿預覽只支援四頁：draft-preview.ts:25-28\n- SiteHeader 可及名稱慣例在 :237，PILL_PAGES 在 :14\n- 布幕 goldRibbon 遮罩在 entranceCurtain.ts:311-312；aria 文字在 EntranceCurtain.vue:121,126\n- anni 字型子集已上線：styles.css:11\n- 正式站小標仍是「高雄五校」：deploy/README.md:545\n- 分校 eyebrow 寫死：CampusPageMain.vue:20\n- 各方向引用的 CSS token 都存在\n- 素材原檔不剝 EXIF：processing.py 只對衍生檔做 exif_transpose\n- about.spec.ts:36 用 regex 讀元件內的 MILESTONES，抽出共用檔會讓測試壞掉\n\n另外發現：minghua.webp 的招牌確實寫「明華幼稚園」，但同一張也印著「Ivy Bilingual Kindergarten」。用在時光迴廊時要注意「雙語」字樣，因為目前規則不放雙語／美語。\n\n沒有核對到：mark 的各寬度像素實測、金字對比、膠囊寬度；各方向的園方人力估計都是方向自己估的。\n\n通則：push main 就是正式部署。有時間閘的程式可以提早合併；/30 這類新路由一合併就公開，必須自帶上線閘。"
+  }
+ ],
+ "synthesis": {
+  "headline": "先把 2027 年每一處說法改準確，再用有書面同意的真人故事證明這三十年：以 mark 的台北日期閘加 weave 的就地事實當基礎，stories 的故事系列當主場；頁首記號和週年專頁，等業主拍板、真內容到位再做。",
+  "recommendation": "建議的做法是一個時間閘加三層內容。mark 的台北日期閘當全站唯一的上下架開關，weave 的就地事實當基礎，stories 的真人故事當主場。together 只取兩樣：紙本同意流程，以及把活動接回預約參觀。page 的專頁延到 2027 年中，真故事夠了才做。三位評審的平均分：mark 7.33 最穩，weave 6.67 最貼近家長動線，stories 6.33 情感可信度最高但人力最重。三者互補，組合起來不需要新的 content kind、migration，也不需要新路由（專頁除外）。第一步是不含週年字樣的常設修正（第 0 層）：正式站小標改回已定案的「近三十年」、補 foundingDate、分校聯絡卡加「創立」列、SEO 補「高雄」、首頁輪播加看得見的暫停鍵。這些現在就對家長有用，也不碰任何待拍板的規則。第 1 層只要業主裁定期間、用語和布幕：記號（30 週年、1997–2027）走 2027 曆年；句子裡拿掉「近」，要等創校月日，免得重演「三十多個春夏秋冬」那次錯誤。分校頁保留「高雄{區}」，加寫「YYYY 年成立」，只有義華寫「30 週年」，不用可能差一年的「本校第 N 年」。布幕程式在裁定前維持現況。我建議業主選「2026 年內不投緞帶、2027-01-01 揭幕」，只要加一個 uniform，但要先確認「遮掉緞帶」仍在校徽授權範圍內。頁首記號獨立成第 2 層：用 mock A 在現行頁首把文字簽名、a／b／c 和「不加」並排比，業主選定才做；膠囊上的金色小點建議正式否決。故事系列的名稱不綁數字，每月 1 篇、全年最多 12 篇；先存 4 篇、同意書定稿後，2027-01 才開跑，第一則全站篇要和清空 sample_note 在同一次發布。故事最有效的落點是分校頁「本校的故事」和 /news 系列帶，所以兩者和系列同時上；首頁輪播維持 09-25 手動推薦的裁定。園方確認有真實開放日，才把活動卡接到既有的預約參觀；RSVP、公開投稿、回憶牆和時光膠囊都不做。下一步先做 5 張 mock，讓業主在 10 月上旬看圖回答 12 個問題。裁定後，10–11 月在 feature 分支完成第 0、1、3 層；因為有時間閘，合進 main 後到 2027 前站上只看得到第 0 層。12 月中排好後台排程，2027-01-01 00:00 程式和後台一起翻面；2028-01-01 時間閘自動收回，故事系列和沿革資料留作常設典藏。",
+  "layers": [
+   {
+    "layer": "第 0 層｜常設事實與體質修正（不含週年字樣）",
+    "from_directions": [
+     "weave",
+     "page",
+     "stories",
+     "mark",
+     "together"
+    ],
+    "contents": "這一層沒有週年字樣，現在就對家長有用，也不碰待拍板的規則。①後台：正式站首屏小標仍是「常春藤幼兒園 · 高雄五校」（deploy/README.md:545）。先改成 09-23 已定案的「常春藤幼兒園 · 陪高雄孩子近三十年」並發布。手機首屏唯一能放週年訊號的就是這一行，後面的換字要從這裡開始。②把 AboutContent.vue:16-22 的沿革抽成 web/app/utils/founding.ts（key、西元、民國、沿革原句），/about、分校頁、JSON-LD 共用。about.spec.ts:36 現在用 regex 讀元件原始碼，要一起改成讀 founding.ts。③seo.ts:177-184 的 EducationalOrganization 補 foundingDate 1997，五校 Preschool 也各補自己的成立年份，都只寫到年。④分校頁聯絡卡 dl（CampusPageMain.vue:40-44）加一列常設的「創立｜民國 90 年（2001）」。hero 小標保留「常春藤幼兒園 · 高雄{區}」，後面加「· 2001 年成立」；320px 要實測是否一行，放不下就在 ≤359px 收掉前段。⑤aboutSeo（seo.ts:107）標題補「高雄」；newsArticleSeo（seo.ts:147）的 description 補「高雄{區}」，避免和台中同名園所撞名。⑥首頁消息輪播加一顆看得見的 44px 暫停鍵。useNewsRotation.ts:29-30 目前只在 hover／focus 時暫停，不符合 WCAG 2.2.2；之後故事系列要靠輪播曝光，所以先補。⑦前置選項：要收家長或校友的手機照片之前，素材庫上傳必須先剝除 EXIF／GPS 並補測試（backend/app/media/service.py:155-166、processing.py:55-72）。不收照片就不做。",
+    "effort": "S。web 約 1.5 人日：founding.ts＋about.spec 0.25、JSON-LD 0.25、創立列與小標 0.25、SEO 補高雄 0.25、輪播暫停鍵＋測試 0.5。後台操作約 10 分鐘。EXIF 剝除另計約 0.5 人日，只有要收家長照片時才做。",
+    "needs_owner_ruling": false
+   },
+   {
+    "layer": "第 1 層｜基礎層：週年時間閘與用語一致",
+    "from_directions": [
+     "mark",
+     "weave"
+    ],
+    "contents": "這一層不新增後台、content kind、migration 或路由，但業主要先開一個「只限 web/ 的週年範圍」，並裁定期間、用語和布幕。①時間閘：新增 web/app/utils/anniversary.ts 與 composables/useAnniversary.ts，依台北日期（沿用 news-content.ts:11 的 taipeiToday）回傳 before／during／after，預設期間 2027-01-01～2027-12-31；另有 FOUNDING_DATE（園方提供前為 null）和 yearsPhrase()。日期只在 SSR 算一次，用 useState 帶到瀏覽器。NUXT_ANNIVERSARY_TODAY 只在開發環境有效；/preview 讀 ?date=，業主可以先看 2027 的樣子。web 不加 ?anni=。②用語分兩段：記號（30 週年、1997–2027）走曆年，1/1 換上；句子裡拿掉「近」要等創校月日，FOUNDING_DATE 是 null 就整年維持「近三十年」（DESIGN.md:85 的理由是當時未滿三十年）。全站年份一律寫 1997–2027（U+2013、不加空格），since_label 也一樣。③後台排程 2027-01-01 00:00：home_about.since_label 改「1997–2027」；site_footer.copyright 改「© 1997–2027 常春藤教育機構」；site_meta 分享圖換成 1200×630 的真實照片加文字帶，不放校徽。創校月日另排一次：home_hero.eyebrow 改「…陪高雄孩子三十年」、home_about 內文改「三十年來」。④/about：AboutContent.vue:46 的 lede 和 :67 的 h2 改讀 yearsPhrase。時間軸維持五欄（不動 DESIGN.md:83 的版面），期間內在時間軸後面加一行深綠結語；結語的連結只在系列有 ≥3 篇真文章時才出現，連結文字不含「週年」。⑤分校頁：期間內只有義華的小標前段換成「常春藤 30 週年」，其他四校不出現「30」，加測試擋。⑥布幕：EntranceCurtain.vue:121,126 的 aria，和 entranceCurtain.ts:311-312 的緞帶遮罩，都讀同一個閘，另加 ribbonOn uniform。程式預設維持現況（全程投緞帶）；業主選「嚴格」才改成 2026 年內只投校徽、aria 改「常春藤開場動畫」，前提是確認遮掉緞帶仍在 DESIGN.md:447 的授權內。不重產投影圖和海報。⑦文件：operations.md 加週年排程清單（2026-12-15 建版；12-15～01-01 凍結相關 kind；2027-12-15 從線上版建換回版；1/1 當天到「查看全站排程」確認沒有 skipped）。DESIGN.md:85、941 改寫成有起訖的規則。about.spec 的模板禁字改成依日期三態渲染的測試，「三十多」「美語部」「補習班」照樣擋。",
+    "effort": "S。web 約 2 人日：時間閘＋useState＋預覽 ?date=＋三態測試 0.5、布幕 ribbonOn＋aria 0.5、/about 用語與結語列 0.5、義華小標＋測試＋文件 0.5。後台每輪約 1 小時，共 2–3 輪（2026-12 中、創校月日、2027-12 中）。分享圖另計約半天。",
+    "needs_owner_ruling": true
+   },
+   {
+    "layer": "第 2 層｜頁首週年記號（選配，待拍板）",
+    "from_directions": [
+     "mark"
+    ],
+    "contents": "業主在 mock A 選定哪一種就只做哪一種；選「不加」就整層跳過。建議樣式是 mark 的文字簽名：字標後一道 1px 細線，接兩行「30」「週年」／「1997–2027」。字標本體不動，不加動畫。修正如下。①只用單一門檻：≥1281px 顯示，1280 以下交給膠囊籤，不做 6 段寬度來回顯示；選單 ≥5 項（:has）時全收。②米白頁首的「30」「週年」用 --ivy-logo-chinese，年份用 --ivy-logo-english（studio.css:328,331），細線用 --line。金色只放在影片頁首和膠囊的深底上。先用 ffmpeg 抽整支首屏影片的幀離線量對比，低於 3:1 就改白字，並記下偏離 DESIGN.md:687「影片上鏤空」的原因。③膠囊籤「30 週年」只出現在 PILL_PAGES（/、/about、/admission、/curriculum，SiteHeader.vue:14）；分校頁和預約頁在 ≤900px 不出現，免得國際、仁武被讀成 30 年老校。≤359px 收籤；膠囊內的 span 明寫 width／height／background。④可及名稱沿用 SiteHeader.vue:237 的慣例：可見文字直接進名稱，sr-only 補斷句和「1997 到 2027 年」，不寫 aria-label。⑤驗收：Playwright 掃 901–1440px，涵蓋米白與影片兩種頁首、最長的 brandName、5 項選單、長選單標籤；預約鈕在任何寬度都不能被擠出。⑥膠囊校徽右下角的金色「30」小點正式否決。定案後改寫 DESIGN.md:687 和 docs/brand/brand-guidelines.md:25。上下架由第 1 層的閘控制，2028-01-01 自動收回。",
+    "effort": "S。約 1 人日：簽名＋膠囊籤 CSS 0.5、Playwright 寬度掃描＋ffmpeg 對比 0.5。前提是業主先選好樣式。",
+    "needs_owner_ruling": true
+   },
+   {
+    "layer": "第 3 層｜主場：真人故事系列（名稱建議「常春藤的故事」）",
+    "from_directions": [
+     "stories",
+     "weave",
+     "together"
+    ],
+    "contents": "只用既有的消息後台（home_news、campus_news、素材庫、EDITOR 送審），不動後端、schema 和契約。①系列名不綁數字（建議「常春藤的故事」，2028 起不必改名），分類欄填固定字串。web 新增 web/app/utils/news-series.ts 比對分類（忽略空白和各種中點寫法），示意項目排除。不公開「第 N 個故事」「已刊出 N 篇」。②節奏：每月 1 篇、全年最多 12 篇。同意書定稿、先存 4 篇（至少 3 校）才開跑，第一篇在 2027-01。五校都有篇數配額，新校不會被義華蓋過。③上架規則：填 show_from，不填 show_until；過期的項目會 404，卻仍佔全站 30 則、各校 12 則的上限（registry.py:212-228、schemas.py:858-880）。分校篇可以先上，因為分校消息一律不是示意。第一則全站篇要和清空 home_news 的 sample_note、刪除示意消息在同一次發布（content-overlay.ts:632-645），否則真故事會被標成示意並 noindex。④落點：分校頁「本校的故事」（CampusPageMain.vue:59 附近，最多 3 篇，沒有就整段不渲染）和系列同時上。/news 加系列膠囊和系列帶：底色 --ivy-news-note，金色只用 2px 的 --gold 短線；系列有 ≥3 篇真文章才出現，網址 /news?series=story，canonical 維持 /news。單篇 meta 顯示系列名，文末加上一篇／下一篇，保留既有的「預約○○校參觀」。頁尾加連結（後台 site_footer.links）。/about 結尾的連結由第 1 層負責渲染。⑤首頁輪播維持 2026-09-25「有推薦只播推薦」的裁定，故事靠勾選推薦進輪播；業主改裁定才做「最新故事置頂」。⑥系列導言讀第 1 層的閘：2026 年內不把「三十」和「年」寫在一起，2027 起可以寫「30 週年」。⑦內容紀律：第一人稱內容由本人確認，並有書面同意；同意書編號寫在素材庫的 license_note，不對外公開。封面只用確定校別的實拍，env-space-* 沒標校別，不能當某一校的封面。不用 *-enhanced-v1、線稿，或 chongde／international／renwu.webp 當「當年」的照片。收家長手機照片之前，先完成第 0 層的 EXIF 剝除。alt 只描述畫面。",
+    "effort": "工程 S，另有持續的內容營運。web 約 2.5 人日：news-series.ts、/news 膠囊與系列帶、單篇上下篇、分校頁「本校的故事」、單元測試，並用 Playwright 驗 1440 和 390。園方每篇約 1 個工作天（訪談、本人確認、同意書、照片、審核），全年最多 12 篇。",
+    "needs_owner_ruling": true
+   },
+   {
+    "layer": "第 4 層｜參與：紙本回憶卡與活動接回預約",
+    "from_directions": [
+     "together",
+     "stories"
+    ],
+    "contents": "階段一不用寫程式：各校櫃台放紙本回憶卡，背面就是書面同意書，有編號，可以選只寫稱謂、要不要放照片；也可以打電話請老師記下來。小編整理成第 3 層的故事，或整理成「回憶選輯」消息（每篇 3–5 則），由分校管理者對照紙卡核准。撤下流程：刪除該則、當天重新發布、在紙卡上註記日期。收稿管道只用紙卡、五校各自的電話，和園方提供的一個 email，不用義華的 LINE。階段二只在園方確認有真實開放日或園慶時才做：活動加 visit_campus_key 欄位（空白或五校 key 之一；後端 schema 的 JSON 欄位，不需要 migration，要重產契約）。活動卡直接放既有的 BookingCta，依該校的預約模式自動變成表單、LINE、電話或暫停，語意維持「已收到需求／待確認／預約成立」；外層的 data-cta-entry 設為 anniversary，要改 web（cta-analytics.ts:10-28）、backend（operations/models.py:39-57）、admin（labels.ts:883）三處。現行活動的 link_url 只收 http(s) 絕對網址（schemas.py:731-734），不能指到 /visit/<key>，所以另開欄位。在那之前，活動只列時間、地點和「洽各校」的電話。不做：RSVP、公開投稿、回憶牆 kind、時光膠囊的 2037 承諾、「目前 N 則」計數。",
+    "effort": "階段一：0 人日（紙本加消息）。階段二：S，約 1 人日（visit_campus_key、BookingCta、CTA 入口三處、contract:generate／check），只在有真實活動時做。",
+    "needs_owner_ruling": true
+   },
+   {
+    "layer": "第 5 層｜延後：彙整頁 /story（/30 永久轉址）",
+    "from_directions": [
+     "page",
+     "together",
+     "stories"
+    ],
+    "contents": "條件式：2027-06-30 評估，系列真實文章 ≥6 篇、至少 3 校才開工。直接做常設路由 /story「常春藤的故事」，/30 永久 301 過去；印刷品和 QR code 用 /30，2028 以後仍然有效。上線閘寫在程式裡：未達門檻就回 404，不進 sitemap 和 llms.txt。版型沿用 /about、/admission 的 adm-* 家族（照片 hero、薄荷帶、米底、深綠舞台），不另創相簿語言，不傾斜，不用拍立得白邊；字級上限 --fs-8xl，不做 168px 的年份裝飾字。頁面結構：hero（真實照片，h1 用可查證的 1997–2027，2027 前不預熱「三十年」）→ 手機在 hero 後直接放五校清單和預約 → 比例時間尺（只在桌機，刻度點擊區 ≥44px，不把 2005–2020 的空白當視覺重點）→ 五校卡寫「YYYY 年成立」，附分校連結和預約 → 故事（讀第 3 層的系列）→ 真實活動（有才出現，接第 4 層的預約）→ 收尾預約卡。不加主選單第 5 項，入口放在頁尾、首頁推薦消息、/about 結尾連結、分校頁「本校的故事」。新路由要同步 seo.ts、sitemap、llms.txt、CTA 白名單三處、telemetry 的 page（web/shared/telemetry.ts:2、operations/routes.py:97-99）和 stack 測試清單。只有開場大圖 eager，桌機和手機都要量 LCP。今昔對照和影片，要等園方交出同角度的舊照或成片再另案處理。如果要讓園方在後台自己管理，需要業主解除「不新增週年後台」，另計 M。",
+    "effort": "M，約 3–4 人日：頁面與元件、上線閘、seo／sitemap／llms、CTA 與 telemetry、stack 測試、Playwright。只在 2027-06 評估過門檻後才開工。後台 kind 另計 M，而且要業主先解除規格。",
+    "needs_owner_ruling": true
+   }
+  ],
+  "ranking": [
+   {
+    "key": "mark",
+    "avg_score": 7.33,
+    "verdict": "採為骨架：時間閘、排程清單、布幕 ribbonOn、記號用數字與句子用國字的規則。頁首簽名另列第 2 層，待拍板。要修的地方：米白頁首改用 --ivy-logo-*；顯示寬度改成 ≥1281px 單一門檻；膠囊籤只放在 PILL_PAGES；用 ffmpeg 量金字對比；句子換字要等創校月日。這個方向單獨上線，只有宣稱、沒有證據，所以要接上故事系列當落點。"
+   },
+   {
+    "key": "weave",
+    "avg_score": 6.67,
+    "verdict": "採為就地事實層，範圍縮到首頁、/about、分校頁、/news、頁尾、SEO 六處。刪掉 /curriculum 特展和 /environment 第 4 張卡；不用 show_until 輪替；/about 不加第 6 欄，改成時間軸後的一行結語；分校頁保留「高雄{區}」，加寫「YYYY 年成立」；布幕改用 ribbonOn，不重產圖。"
+   },
+   {
+    "key": "stories",
+    "avg_score": 6.33,
+    "verdict": "採為主場的內容引擎，但要修：系列名不綁數字；每月 1 篇、全年最多 12 篇；不公開序號；同意書定稿後 2027-01 才開跑；分校頁「本校的故事」在第一階段就上；首頁輪播維持 09-25 手動推薦；封面只用確定校別的照片；單篇 SEO 補「高雄」。"
+   },
+   {
+    "key": "page",
+    "avg_score": 5.33,
+    "verdict": "延後，改成條件式的第 5 層：2027-06 時故事 ≥6 篇才做，直接做常設 /story，/30 永久轉址。改用 adm-* 家族，不做傾斜相簿；不預熱「三十年」；不加主選單；寫「YYYY 年成立」；手機把五校清單和預約提到 hero 後面；比例尺只放桌機。"
+   },
+   {
+    "key": "together",
+    "avg_score": 4.5,
+    "verdict": "只取兩樣：營運機制（紙本回憶卡、同意書編號、EXIF 剝除優先），以及真實開放日接到預約參觀。新 content kind、回憶牆、時光膠囊、H1「第三十年」、「目前 N 則」計數、擬物疊卡 hero 都不採用，除非業主解除規格。"
+   }
+  ],
+  "timeline": [
+   {
+    "when": "2026-09-28～10-09",
+    "milestone": "依本案做 5 張 mock（A 頁首記號、B 時間閘三態、C 故事系列、D 參與與預約、E 彙整頁），業主看圖回答 12 個問題。園方同時查創校月日、請法務定稿回憶卡和同意書，並列出受訪名單（資深老師、早期畢業生、兩代家庭）。"
+   },
+   {
+    "when": "2026-10（裁定後）",
+    "milestone": "第 0 層在 feature 分支完成，驗過桌機和手機，經使用者同意才合進 main。後台先把正式站小標從「高雄五校」改成「陪高雄孩子近三十年」並發布。"
+   },
+   {
+    "when": "2026-10～11",
+    "milestone": "在 feature 分支完成第 1 層（時間閘、布幕開關、/about 用語、義華小標、排程清單）和第 3 層 web（news-series、/news 系列帶、單篇上下篇、分校頁「本校的故事」）。業主若選了頁首樣式，第 2 層一起做。三層都有時間閘或資料門檻，合進 main 後到 2027 前站上看不到。要收家長照片的話，先做 EXIF 剝除。"
+   },
+   {
+    "when": "2026-11～12",
+    "milestone": "各校櫃台開始收紙本回憶卡，同時進行老師訪談。存稿至少 4 篇、至少 3 校，show_from 設在 2027-01；第一則全站篇要和清空 sample_note 綁在同一次發布。"
+   },
+   {
+    "when": "2026-12-15～12-20",
+    "milestone": "後台為 home_about、site_footer、site_meta 各存一版週年版，排程在 2027-01-01 00:00。創校月日若已知，另外排 home_hero 和 home_about 內文拿掉「近」的版本。用 /preview?date=2027-01-01 檢查。這幾個 kind 從此凍結；如果要改，改完要重建週年版並重新排程。"
+   },
+   {
+    "when": "2027-01-01 00:00",
+    "milestone": "程式閘和排程在約 60 秒內一起切換：since 標籤變「1997–2027」、頁尾變「© 1997–2027」、分享圖換新、義華小標加「30 週年」；頁首記號與膠囊籤（若已拍板）、布幕緞帶揭幕（若選嚴格）也在同一刻上線。第一篇故事同時上架。當天巡檢 1440／1281／1100／901／390／320px 和 LINE 分享預覽，並確認排程沒有 skipped。"
+   },
+   {
+    "when": "2027-01～06（116 學年度招生季）",
+    "milestone": "每月 1 篇故事；系列滿 3 篇真文章後，/news 系列膠囊和 /about 結尾連結會自動出現。園方確認有真實開放日或園慶，才做第 4 層的活動接預約（約 1 人日，加重產契約）。"
+   },
+   {
+    "when": "創校月日（待園方提供）",
+    "milestone": "句子拿掉「近」，程式閘和後台排程同時生效；另發一則首頁推薦消息。記號不動。"
+   },
+   {
+    "when": "2027-06-30 評估",
+    "milestone": "系列真實文章 ≥6 篇、至少 3 校，就開做第 5 層 /story，目標在 2027-08～09（116 學年度開學）上線。未達門檻就不做專頁，系列留在 /news 和分校頁。"
+   },
+   {
+    "when": "2027-12-15",
+    "milestone": "從當時的線上版建換回版：since 改回 SINCE 1997、版權改 © 2028、分享圖換回原圖；首屏小標依業主再裁定（「三十年」或「三十多年」）。排程在 2028-01-01 00:00。"
+   },
+   {
+    "when": "2028-01-01",
+    "milestone": "程式閘自動收起頁首記號、膠囊籤、義華小標前段和期間用語，後台換回版同時上架；當天巡檢，確認排程沒有 skipped。"
+   },
+   {
+    "when": "2028 第一季（轉常設）",
+    "milestone": "清理 PR：刪掉期間分支和簽名 CSS，布幕 aria 改成常設文字。「常春藤的故事」系列留在 /news 當常設典藏；/story 若有做，拿掉週年字樣轉成常設，/30 轉址永久保留。founding.ts、foundingDate、分校頁「創立」列都保留；文件同步更新。"
+   }
+  ],
+  "mockups": [
+   {
+    "id": "a-header-mark",
+    "label": "A／頁首週年記號比稿",
+    "based_on": [
+     "mark"
+    ],
+    "purpose": "讓業主在現行頁首上（影片首屏、米白內頁、捲動後膠囊、手機）直接比較：不加記號、文字簽名、c 上標小籤、b 第三行、a 印章。業主據此決定第 2 層做不做、做哪一種，並正式否決或保留膠囊上的金色「30」小點。",
+    "desktop": "1440 寬，由上到下共 7 區。①說明列（--cream）：標題「頁首 30 週年記號比稿」加一行說明。右側是方案切換，用連結切換 ?v=，每個 ≥44px，以 aria-current 標目前方案：不加／文字簽名（建議）／30 改 Noto／c 上標小籤／b 第三行／a 印章。②首頁首屏裁切 1440×620：底圖 hero-campus-restored-v1-still.webp，遮罩用 token（rgb(var(--shadow-rgb)／α) 的寫法，不寫字面值）。頁首用 chrome.js 的 data-over-photo，記號由 data-brand-extra 插入。文字簽名的畫法：1px 細直線（rgb(var(--on-dark)／.45)），接兩行：「30」（LINE Seed 800，與中文字標同高，--gold）＋「週年」（Noto Sans TC 600，0.6em，白）；下行「1997–2027」（LINE Seed 700，max(.44em,12px)，白）。下方小標、h1 兩行、副文兩行都照正式站。③內頁米白頁首 1440×160（頁首加麵包屑「首頁 / 預約校園參觀」）：同一方案，「30」「週年」改用 --ivy-logo-chinese，年份用 --ivy-logo-english，細線用 --line；不用 --green，也不用金色。④捲動後膠囊（右上 480×90，壓在首屏照片上）：?v=sign 是校徽右側的文字籤「30 週年」（30 用 --gold LINE Seed 800 17px，週年白字 13px）；?v=a|b|c 是舊提案校徽右下角的金色「30」小點；?v=none 是現況。旁邊寫三行註記：小點壓住 IVY KIDS 緞帶、像通知數、約 9px 看不清。⑤顯示寬度：放 3 個 iframe（寬 1280、1100、901，高 92），載入本頁 ?v=<目前>&frame=head（frame=head 時只畫頁首）。旁邊寫規則：≥1281px 顯示；1280 以下只靠膠囊籤；選單 ≥5 項時全收；預約鈕在任何寬度都不能被擠出。⑥總表 2 列 × 5 格（上列影片底、下列米白底，每格 560×100 靜態重畫）：不加／簽名／c／b／a。每格下面兩行寫方向自測的數字，並標「方向自測，未複驗」。⑦底部說明：正式實作的可及名稱沿用 SiteHeader.vue:237 的慣例（可見文字加 sr-only 斷句），chrome.js 的 aria-label 只是比稿框架，所以這裡的記號對螢幕閱讀器是隱藏的。",
+    "mobile": "390 寬。①方案切換改成可換行的膠囊按鈕列，每顆 ≥44px。②首屏：頁首維持現況（校徽＋字標、金色預約膠囊、漢堡），所有方案都不在展開頁首加記號，並註明「≤760px 展開頁首沒有空間」。小標和 h1 照正式站放在影片下方的米白區。③膠囊滿版：白圓校徽 →（sign）「30 週年」→ 留白 → 漢堡 → 金色「預約參觀」；a／b／c 方案是小點。④放一個 320 寬的 iframe（本頁 ?v=<目前>&frame=pill），註明 ≤359px 收籤。⑤註記：膠囊籤只出現在首頁、關於、入學、特色教學；分校頁和預約頁在手機不出現。⑥總表改成直向清單。不能有水平捲動。",
+    "variants": "?v=none 不加記號（現況）／?v=sign 文字簽名＋膠囊文字籤（建議，預設）／?v=sign-noto 同 sign，但「30」改用 Noto Sans TC 600（先檢查 noto-sans-tc-600-brand／anni 子集有沒有 0–9；沒有就只顯示說明卡「需另切子集」，不用別的字型冒充）／?v=c 上標小籤＋膠囊小點／?v=b 第三行「30 週年 · 1997–2027」＋膠囊小點／?v=a 印章＋膠囊小點",
+    "real_copy": [
+     "常春藤教育機構",
+     "Ivy Educational Institution",
+     "關於常春藤 About／特色教學 Curriculum／常春藤環境 Environment／入學資訊 Admission",
+     "預約參觀",
+     "Book a Visit",
+     "選單",
+     "Menu",
+     "常春藤幼兒園 · 陪高雄孩子近三十年",
+     "在常春藤，每一天都有新發現。",
+     "一起讀故事、做作品，也到戶外探索。",
+     "在老師的陪伴下，動手試試，說出自己的想法。",
+     "首頁 / 預約校園參觀",
+     "30 週年（由 1997→2027 推算的記號文字）",
+     "1997–2027"
+    ],
+    "placeholder_copy": [
+     "各方案的寬度與對比數字（方向自測，未複驗，標示意）",
+     "a 印章、b 第三行、c 上標小籤的重畫（依 design/anniversary-directions/ 2026-09-18 截圖用 HTML＋CSS 重畫，標示意）",
+     "「30」改 Noto Sans TC 600 的比較版（若需另切子集，標示意）"
+    ],
+    "assets": [
+     "hero-campus-restored-v1-still.webp",
+     "logo.webp",
+     "fonts/noto-sans-tc-600-brand.woff",
+     "fonts/noto-sans-tc-600-anni.woff",
+     "fonts/source-sans-3-400-brand.woff"
+    ],
+    "rules": [
+     "shared/fonts.css 只載 LINE Seed；本頁要自己加三個品牌字型的 @font-face（路徑 ../../web/public/assets/fonts/，unicode-range 照 web/app/assets/css/styles.css:10-12），否則字標會退回系統字，比較就不準",
+     "字標本體（校徽、中文、英文）不動一個像素；記號只能放在 data-brand-extra 插槽",
+     "年份一律寫 1997–2027（U+2013、不加空格），舊方案 b 原本用的「──」也改掉",
+     "金色只用 --gold，只放在影片和膠囊的深底上；米白頁首用 --ivy-logo-*",
+     "不用 30 週年校徽圖（ivy-30th-anniversary-projection.*），a 印章也只用文字加 CSS 圓框",
+     "不加任何動畫；切換方案時畫面直接換，沒有過場",
+     "不新增 30th Anniversary 之類的英文",
+     "左下角 .mock-flag 寫「方向 mark · 頁首記號比稿 · 虛線框＝示意」",
+     "在 shots.json 列出每個 ?v=，用 shoot.cjs 拍桌機和手機，確認沒有水平溢出"
+    ]
+   },
+   {
+    "id": "b-weave-facts",
+    "label": "B／就地事實與時間閘三態",
+    "based_on": [
+     "weave",
+     "mark"
+    ],
+    "purpose": "讓業主看同一批現有頁面，在 2026 今天、2027 週年期間（創校月日前與後）、2028 收回這幾個日期各自長什麼樣。業主據此裁定週年期間、「近三十年」規則怎麼改、分校頁寫法（YYYY 年成立或本校第 N 年），以及布幕要預熱還是嚴格。",
+    "desktop": "1440 寬的單頁巡覽，頁首用 chrome.js，不加 data-brand-extra，證明頁首不動。⓪頂部說明帶（--cream）：大標「週年，就寫在原本的地方」（示意）。右側是日期切換（連結到 ?v=，每格 ≥44px）：2026-09-28 今天／2027-03-01 週年期間／創校月日之後／2028-01-02 收回。另有一個「顯示差異」開關，把被拿掉的「近」字標成刪除線。以下每個片段都依選到的日期重畫，片段左側有一欄註記，寫明來源（後台哪個欄位或哪個程式檔）和排程時間。①首頁首屏片段（高約 560）：底圖 hero-campus-restored-v1-still.webp，只有小標依日期換字，h1 和副文不動。②首頁「關於」片段（薄荷帶）：since 標籤是 SINCE 1997 或 1997–2027；內文第二句開頭是「近三十年來」或「三十年來」；照片用 about-together.webp。③/about 01 片段：h2「近三十年，／長出五所校園。」依日期換字；時間軸只畫五欄的年份列、民國年和校名文字（不放校舍圖）。週年期間，時間軸後面多一行深綠結語，它的連結用虛線框標「系列有 ≥3 篇真文章才出現」。④分校頁：兩個半寬 hero 並排，左邊義華（yihua-exterior.webp），右邊仁武（tour-renwu-exterior.webp），各放小標、h1 和「預約參觀○○校」按鈕。下面各一張聯絡卡，第一列是「創立」，標「常設，不隨週年撤」。旁邊一個對照框：「本校 2021 年成立（建議）」和「本校第 N 年（不採用：起算未定，可能差一年）」。⑤頁尾片段：深綠白字，只有版權行依日期變。⑥布幕狀態卡：每個日期並排兩欄「預熱」和「嚴格」，分別寫投影內容（校徽／校徽＋緞帶）、dialog 名稱和倒數播報。可以在仿布幕的框內顯示 ivy-30th-anniversary-projection.webp，並標「布幕畫面（已授權範圍）」；無緞帶版用 CSS 裁掉緞帶，標「示意：遮掉緞帶，授權待確認」。⑦看不見的部分：一張 Google 搜尋結果卡（/about 標題補「高雄」）、一段 JSON-LD（foundingDate 1997 和五校各自的年份）、一張 1200×630 分享圖預覽（hero-campus-restored-v1-still 或 about-hero 裁切，加深綠文字帶，不放校徽）。⑧後台操作表：列是 home_hero.eyebrow、home_about.since_label 與 body、site_footer.copyright、site_meta.share_image；欄是今天值、週年值、創校月日後的值、2028 值和排程時間。⑨收回清單：四欄分別是「2028-01-01 自動消失」「後台換回（2027-12-15 建）」「清理 PR」「常設保留」。",
+    "mobile": "390 寬，由上往下。日期切換改成貼在畫面底部的四段式控制，每格 ≥44px、可以用鍵盤操作。每個片段下面的註記收成 <details>「改了什麼」。首屏小標要是一行，另外放一個 320 寬的 iframe（本頁 ?v=<目前>&frame=eyebrow），驗證首頁小標和分校小標在 320px 仍是一行。/about 時間軸改直向，結語列放在最底。兩個分校 hero 上下排。布幕卡改用 entrance-poster-phone.webp，並註明手機走 3.8 秒短版、沒有倒數。後台操作表改成每個 kind 一張卡。不能有水平捲動，所有連結和控制項 ≥44px。",
+    "variants": "?v=before 2026-09-28（現況）／?v=during 2027-03-01（記號已換；創校月日未到或未知時，句子仍寫「近三十年」）／?v=full 創校月日之後（日期以「2027-○○-○○」示意：句子拿掉「近」）／?v=after 2028-01-02（只剩常設項，首屏小標標「待 2028 再裁定」）",
+    "real_copy": [
+     "常春藤幼兒園 · 陪高雄孩子近三十年",
+     "在常春藤，每一天都有新發現。",
+     "一起讀故事、做作品，也到戶外探索。",
+     "SINCE 1997",
+     "把每個孩子，放在心上。",
+     "自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。",
+     "近三十年來，我們始終相信，幼兒園不只是上學的地方，更是孩子第一次離開家、認識世界的起點。",
+     "1997 年，第一間常春藤在高雄義華路成立。近三十年來，我們守著同一份教育理念與專業保育，陪孩子過一段獨一無二的童年。",
+     "近三十年，／長出五所校園。",
+     "1997／2001／2005／2020／2021；民國 86／90／94／109／110 年",
+     "第一間常春藤，在三民區義華路成立。／走進左營區，有了第二所校園。／左營區的第二所校園。／在鳥松區球場路成立。／第五所校園，在仁武區成立。",
+     "常春藤幼兒園 · 高雄{區}（現行分校頁小標格式）",
+     "義華校／仁武校",
+     "所在地／參觀專線／到園參觀；請事先聯絡園所確認接待時間。",
+     "三民區義華路68號 · 07-392-8366；仁武區京吉一路102號 · 07-375-7081",
+     "預約參觀義華校／預約參觀仁武校",
+     "陪伴每一個孩子，長成自己喜歡的樣子。",
+     "© 2026 常春藤教育機構",
+     "常春藤 30 週年開場動畫／30 週年開幕倒數 3／略過動畫",
+     "關於常春藤｜1997 年創立、五所校園與全人教育｜常春藤教育機構"
+    ],
+    "placeholder_copy": [
+     "頂部大標「週年，就寫在原本的地方」（示意）",
+     "常春藤幼兒園 · 陪高雄孩子三十年（創校月日後，待裁定）",
+     "三十年來／三十年，長出五所校園。（改寫，待裁定）",
+     "1997–2027（since 標籤週年版）",
+     "© 1997–2027 常春藤教育機構／© 2028 常春藤教育機構",
+     "常春藤 30 週年 · 高雄三民區 · 1997 年成立（義華期間小標，示意）",
+     "常春藤幼兒園 · 高雄仁武區 · 2021 年成立（常設小標，需驗 320px 一行）",
+     "創立｜民國 86 年（1997）／創立｜民國 110 年（2021）",
+     "/about 結語列「2027，常春藤 30 週年。」與連結「讀一路走來的人和事 →」",
+     "創校月日「○月○日」",
+     "分享圖文字帶「常春藤 30 週年｜1997–2027｜高雄」",
+     "/about SEO 標題補「高雄」的寫法",
+     "常春藤開場動畫／開幕倒數 3（嚴格路線 2026 年內的可及文字）",
+     "本校第 N 年（對照用，不採用）"
+    ],
+    "assets": [
+     "hero-campus-restored-v1-still.webp",
+     "about-together.webp",
+     "about-hero.webp",
+     "yihua-exterior.webp",
+     "tour-renwu-exterior.webp",
+     "entrance-poster-desktop.webp",
+     "entrance-poster-phone.webp",
+     "ivy-30th-anniversary-projection.webp（只放在仿布幕框內）",
+     "og/hero-campus-restored-v1-still.jpg",
+     "logo.webp"
+    ],
+    "rules": [
+     "30 週年校徽圖只能出現在仿布幕框內，並標「布幕畫面（已授權範圍）」；分享圖、頁首、內頁一律不用",
+     "非義華校的片段不能同時出現校名和「30」",
+     "時間軸不放 chongde／international／renwu.webp（透視圖），只畫年份和校名文字",
+     "/about 時間軸維持五欄，不示範第 6 欄",
+     "年份一律寫 1997–2027（U+2013、不加空格）",
+     "每個改寫過的句子都標「改寫，待裁定」；被刪的「近」字只在「顯示差異」開啟時用刪除線呈現",
+     "頁尾維持深綠全白，不加金色、不加校徽",
+     "沒有動畫；切換日期時直接重畫",
+     "左下角 .mock-flag 寫「方向 weave＋mark · 時間閘三態 · 虛線框＝示意」",
+     "shots.json 列出四個 ?v=，每個都拍 full"
+    ]
+   },
+   {
+    "id": "c-story-series",
+    "label": "C／真人故事系列（首頁輪播＋/news＋單篇＋分校頁）",
+    "based_on": [
+     "stories",
+     "weave"
+    ],
+    "purpose": "讓業主看故事系列落在首頁輪播、/news、單篇頁和分校頁的樣子，以及系列文章不到 3 篇時「什麼都不出現」的樣子。業主據此裁定系列名、首頁輪播規則和發文節奏。",
+    "desktop": "用共用頁框（chrome.js 頁首和頁尾、--ivy-news-* token），由上到下四個畫面，每個畫面前加一條細說明列，寫「畫面 N」和「示意」。【畫面 1：首頁最新消息區】底色 --ivy-news-paper。左欄是近期活動，放一張示意卡，日期格寫「示意／日期未定」。右欄是「最新消息」標題加「所有最新消息」連結，下面三張卡。第 1 張是故事卡：封面 yihua-exterior.webp（4:3）；系列記號是一條 12×2px 的 --gold 短線，接系列名（示意）；下一行「義華校 · 2027.01.○○」（示意），再下面是標題（示意）。第 2、3 張是一般消息，封面用 campus-film-kite.webp（義華校）和 tour-minghua-plaza.webp（明華校），都掛「示意」標籤。右上角有一顆 44px 的暫停鍵，加被動進度「01 / 03」。【畫面 2：/news】np 版型，內容寬 1080。上方是麵包屑「首頁 / 最新消息」、h1「最新消息」、lede。篩選列：「全部」加五校膠囊，後面一條 1px --ivy-news-line 直線，再接系列膠囊（44px 高，示意名稱）。系列帶緊接在篩選列下面：全寬，底色 --ivy-news-note，圓角 16px。左 5 欄放小字「系列」、h2 系列名、兩行導言（示意）和文字連結「依順序讀全部 →」；右 7 欄放三張直式小卡，不編號，封面只用確定校別的照片：yihua-exterior（義華）、tour-minghua-plaza（明華）、tour-chongde-field（崇德）。每張卡寫校名、標題（示意）和日期（示意）。【畫面 3：單篇】np-narrow 760。依序是：麵包屑；meta「義華校 · 系列名 · 2027.01.○○」（示意）；h1（示意）；封面 yihua-exterior.webp 以原尺寸 590 寬置中，不放大，圖說「義華校外觀，招牌是舊稱『常春藤幼稚園』，拍攝年份待園方確認」。內文：真實段落「1997（民國 86 年），第一間常春藤在三民區義華路成立。」；受訪者原話兩段用虛線框標示意；一張 day-poster.webp 圖片區塊，圖說「義華校遊藝表演（近年）」。文末是上一篇／下一篇兩張整格可點的卡（≥72px），再接既有的「回義華校的消息」和「預約義華校參觀」。【畫面 4：分校頁「本校的故事」】明華校頁的一段，沿用分校頁 .section 樣式：h2「本校的故事」（示意），下面三列文字（示意標題＋日期），再接連結「看明華校的全部故事 →」（示意）。旁邊一張營運小卡：每月 1 篇、全年 ≤12 篇、先存 4 篇、五校配額（建議，示意）。",
+    "mobile": "390 寬，20px gutter，所有可點區 ≥44px，不能有水平溢出。畫面 1：首頁消息改成縮圖列表（108px 4:3），故事列放第一列，系列記號放在標題上面一行；暫停鍵仍然看得見。畫面 2：篩選膠囊自動換行，系列膠囊自成一行，前面加小字「系列」；系列帶改成單欄，三篇改成 np-row 樣式（96px 縮圖、標題、校區），不做橫向捲動。畫面 3：h1 控制在兩行內，封面滿寬，上一篇和下一篇上下排，「回義華校的消息」和「預約義華校參觀」也上下排。畫面 4：三列文字加一個連結。",
+    "variants": "?v=manual 首頁輪播維持 09-25 手動推薦＋可見暫停鍵（建議）／?v=pinned 最新一篇故事固定在第一格（需要推翻 09-25 的裁定）／?v=early 系列真文章不到 3 篇：/news 系列膠囊、系列帶和 /about 結尾連結都不出現，只剩單篇和分校頁",
+    "real_copy": [
+     "最新消息",
+     "近期活動",
+     "所有最新消息",
+     "首頁 / 最新消息",
+     "五所校園的消息與近期活動。",
+     "所有消息",
+     "全部／義華校／明華校／崇德校／國際校／仁武校",
+     "示意／日期未定",
+     "1997（民國 86 年），第一間常春藤在三民區義華路成立。",
+     "義華校外觀，招牌是舊稱「常春藤幼稚園」（年份待園方確認；依簡報事實寫成的圖說）",
+     "回義華校的消息",
+     "預約義華校參觀",
+     "孩子的第一所學校，也是第二個家。",
+     "義華校 07-392-8366｜明華校 07-556-6796｜崇德校 07-341-6286｜國際校 07-370-8001｜仁武校 07-375-7081"
+    ],
+    "placeholder_copy": [
+     "系列名「常春藤的故事」（待裁定，示意）",
+     "系列導言兩行（示意）",
+     "所有故事標題、摘要、受訪者原話與內文（示意，內容待園方提供並經本人確認）",
+     "上架日期「2027.01.○○」（排程計畫，不是已發生的事）",
+     "兩張一般消息卡與一張近期活動卡（示意）",
+     "分校頁區塊標題「本校的故事」與「看明華校的全部故事 →」（示意）",
+     "上一篇／下一篇卡片標題（示意）",
+     "節奏與五校配額表（建議，示意）",
+     "義華校遊藝表演（近年）圖說"
+    ],
+    "assets": [
+     "yihua-exterior.webp",
+     "tour-minghua-plaza.webp",
+     "tour-chongde-field.webp",
+     "campus-film-kite.webp",
+     "day-poster.webp",
+     "logo.webp"
+    ],
+    "rules": [
+     "故事封面只用確定校別的照片；不用 env-space-*、*-enhanced-v1、線稿，也不用 chongde／international／renwu.webp",
+     "不出現「第 N 個故事」「已刊出 N 篇」或大號編號",
+     "顏色只用 --ivy-news-* 和 tokens；金色只用 2px 的 --gold 短線",
+     "暫停鍵必須看得見、可以用鍵盤操作；減少動態時輪播不自動播",
+     "畫面上的日期都在 2027 之後，故事卡不寫「三十年」",
+     "照片 alt 只描述畫面，不寫人物身分",
+     "每張故事卡和一般消息卡都掛「示意」標籤",
+     "/news 不做滿版 hero",
+     "左下角 .mock-flag 寫「方向 stories＋weave · 故事系列 · 虛線框＝示意」"
+    ]
+   },
+   {
+    "id": "d-events-booking",
+    "label": "D／參與：紙本回憶卡與活動接預約",
+    "based_on": [
+     "together",
+     "stories"
+    ],
+    "purpose": "讓業主判斷參與要做到哪裡：只用紙本回憶卡加消息發布（不需解除規格），還是開一面獨立的回憶牆（需要解除「不新增週年後台」）。同時讓業主看到，真實開放日可以直接接到該校的預約參觀，不必做報名。",
+    "desktop": "共用頁框，/news 風格（--ivy-news-*），由上到下 4 區。①近期活動（對照）：左邊是現行活動卡，只能放一個外部連結 ↗；右邊是建議的活動卡「明華校 · 開放日」（示意），日期格寫「示意／日期未定」，卡內有深綠主按鈕「預約參觀明華校」（BookingCta 既有標籤格式）和次要按鈕「打電話給明華校 07-556-6796」。卡片下方一行寫「參觀時間以園所確認為準。」，並用小字說明送出後的狀態依序是已收到需求、待確認、預約成立。②徵集消息單篇（v=news）：標題「徵集常春藤的回憶」（示意）；說明兩種參與方式：到任一校櫃台拿回憶卡寫好交回，或打電話請老師記下來（示意）；接著五列可以直接撥號的電話（校名＋號碼，每列 48px，tel: 連結）；「或寄 email 到 ＿＿＿（園方提供）」；再一段隱私說明（背面同意書、可只寫稱謂、要撤下打給該校），標「正式條款待園方提供，示意」。③回憶卡實物（HTML 畫的平面卡，不疊、不傾斜）：正面左上「常春藤回憶卡」、右上「No. ____」，印一個提問（示意），底列「義華・明華・崇德・國際・仁武」；旁邊並排背面，是同意書勾選項（寫我的名字／只寫稱謂、放照片／不放照片、同意刊在官網、法定代理人簽名、同意書編號），標示意。④依變體顯示：v=news 是一篇「回憶選輯」消息，3 則短回憶用 blockquote，署名寫「— ○○ 年從明華校畢業的校友」，全部示意；v=wall 是 together 的回憶牆區塊（身分和校區篩選、9 張卡，全部示意，不顯示計數），上方橫幅寫「需要業主解除『不新增週年後台』才能做」。最後是幕後流程 4 格：紙卡收件 → 素材庫 license_note 寫同意書編號 → 小編送審 → 分校管理者對照紙卡核准，另附一行撤下流程。每格標題旁放 1.1em 的 Phosphor Regular 圖示（note-pencil、shield-check 等；sprite 裡沒有就先從 IconSprite.vue 補）。",
+    "mobile": "390 寬。活動卡疊放：預約按鈕在上、電話按鈕在下，都全寬、≥48px。徵集單篇的電話列全寬，點了直接撥號。回憶卡正面和背面上下排，不疊卡。v=wall 的校區篩選改成原生 select，卡片單欄。幕後流程改直排。不能有水平捲動，沒有動畫。",
+    "variants": "?v=news 回憶以消息發布＋活動接預約（建議，不需解除規格）／?v=wall 對照：獨立回憶牆區塊（需解除「不新增週年後台」）",
+    "real_copy": [
+     "近期活動",
+     "示意／日期未定",
+     "預約參觀明華校（BookingCta 既有標籤格式「預約參觀{校名}」）",
+     "送出參觀需求",
+     "參觀時間以園所確認為準。",
+     "義華校 07-392-8366、明華校 07-556-6796、崇德校 07-341-6286、國際校 07-370-8001、仁武校 07-375-7081",
+     "義華・明華・崇德・國際・仁武",
+     "孩子的第一所學校，也是第二個家。",
+     "回明華校的消息"
+    ],
+    "placeholder_copy": [
+     "活動名稱「明華校 · 開放日」（示意，需園方確認真實活動）",
+     "徵集消息標題「徵集常春藤的回憶」與內文（示意）",
+     "回憶卡提問，例如「你記得常春藤的哪一個角落？」（示意）",
+     "回憶選輯的三則短回憶與署名「— ○○ 年從明華校畢業的校友」（示意）",
+     "同意書勾選項與隱私、撤下說明（正式條款待園方提供，示意）",
+     "收稿 email（待園方提供）",
+     "v=wall 回憶牆的全部卡片內容（示意）"
+    ],
+    "assets": [
+     "tour-minghua-plaza.webp",
+     "yihua-exterior.webp",
+     "tour-chongde-field.webp",
+     "tour-international-gate.webp",
+     "tour-renwu-exterior.webp",
+     "logo.webp"
+    ],
+    "rules": [
+     "不做報名表、RSVP、付款，也不放收集家長聯絡方式的欄位",
+     "不用 chongde／international／renwu.webp（建築透視圖）或 *-enhanced-v1 當回憶照片",
+     "回憶卡是平面插圖，不疊卡、不傾斜、不用膠帶或手寫字",
+     "不顯示「目前 N 則 · 來自 N 所校園」之類的計數",
+     "不出現時光膠囊",
+     "收稿管道不用義華的 LINE／FB",
+     "圖示只用 Phosphor Regular，放在標題旁邊、1.1em，不做卡片頂部的大圖示",
+     "年份一律寫 en dash、不加空格",
+     "左下角 .mock-flag 寫「方向 together＋stories · 參與 · 虛線框＝示意」"
+    ]
+   },
+   {
+    "id": "e-story-hub",
+    "label": "E／彙整頁 /story（/30 永久轉址）",
+    "based_on": [
+     "page",
+     "together",
+     "stories"
+    ],
+    "purpose": "讓業主判斷 2027 年中值不值得開一頁彙整：比較「只有已知事實」和「有 6 篇真故事加 1 場真實活動」兩種狀態差多少，據此決定上線門檻，或乾脆不做專頁。",
+    "desktop": "1440 寬，淺色頁首（同 /news；主選單仍是 4 項，不加第 5 項）。由上到下：①麵包屑「首頁 / 常春藤的故事」（示意頁名）。②hero（adm-* 家族，薄荷帶 --ivy-forest-mist，約 620 高）：左側用 --ivy-forest-ghost 放巨大淡字「1997–2027」。左欄 6/12：h1 兩行「1997–2027，／常春藤的故事。」（示意，LINE Seed 800，≤ --fs-7xl）；lede 第一句用真實的「1997 年，第一間常春藤在三民區義華路成立。」，第二句示意；動作列是金色膠囊「預約校園參觀」加文字連結「五所校園 ↓」。右欄 5/12 放 about-hero.webp 圓角照片，alt 只描述畫面。③比例時間尺（只在桌機；圖本身 aria-hidden，另附 6 個錨點連結）：一條 1px --green 線，刻度照真實比例放在 1997 0%、2001 13.3%、2005 26.7%、2020 76.7%、2021 80%、2027 100%；只有 2027 是 --gold 實心點。2020 和 2021 上下錯開，點擊區各 ≥44px。2005 到 2020 之間不放任何字或圖。④五所校園（米底 --cream）：五張等寬卡，照片依序是 yihua-exterior、tour-minghua-plaza、tour-chongde-field、tour-international-gate、tour-renwu-exterior。每張卡寫校名、「2001 年成立 · 民國 90 年」、地址、兩個連結「認識明華校 →」和「預約參觀」。義華卡多一個小標籤「第一間常春藤」。五張卡的數字一樣大。⑤故事（只在 v=full）：一張大卡加兩張小卡，全部示意；封面只用確定校別的照片（campus-film-speech 標義華校）；右上角「看全部故事 →」。在 v=facts 這一區是一個虛線框：「有 ≥6 篇真實故事才出現」。⑥活動（只在 v=full）：兩欄列表「接下來」「辦過了」，日期寫「示意／日期未定」，每列有 BookingCta。⑦收尾（adm-sheet）：h2「五所校園，／歡迎你來走走。」，加「預約校園參觀」膠囊，下面五校文字連結附成立年份。⑧正式站頁尾，不改。",
+    "mobile": "390 寬，左右 20px gutter，標題每行 ≤8 字，不能有水平捲動。頁首照現行 900px 以下的行為退成膠囊。hero 單欄：h1「常春藤的故事」約 40px，接 lede，照片放在 lede 下面。hero 之後直接放「五所校園」清單（五列「校名 · 行政區 · YYYY 年成立 →」，每列 ≥56px）和全寬的預約按鈕。不畫比例時間尺，改成年份文字清單。五校卡改成清單；故事和活動直排；收尾照舊。只有 hero 照片 eager，其他都 lazy。",
+    "variants": "?v=facts 只有已知事實（沒有故事或活動時的樣子，可以看出和 /about 重複多少）／?v=full 有 6 篇故事＋1 場真實活動（內容全部示意）",
+    "real_copy": [
+     "1997 年，第一間常春藤在三民區義華路成立。",
+     "第一間常春藤，在三民區義華路成立。／走進左營區，有了第二所校園。／左營區的第二所校園。／在鳥松區球場路成立。／第五所校園，在仁武區成立。",
+     "1997 · 民國 86 年／2001 · 民國 90 年／2005 · 民國 94 年／2020 · 民國 109 年／2021 · 民國 110 年",
+     "2027 · 民國 116 年",
+     "義華校 · 三民區義華路68號 · 07-392-8366",
+     "明華校 · 左營區明華一路176號 · 07-556-6796",
+     "崇德校 · 左營區崇德路87號 · 07-341-6286",
+     "國際校 · 鳥松區球場路59號 · 07-370-8001",
+     "仁武校 · 仁武區京吉一路102號 · 07-375-7081",
+     "五所校園，／歡迎你來走走。",
+     "預約校園參觀",
+     "孩子的第一所學校，也是第二個家。",
+     "在名為全世界的舞台，展現自我、發光發熱。",
+     "示意／日期未定"
+    ],
+    "placeholder_copy": [
+     "頁名與麵包屑「常春藤的故事」（待裁定）",
+     "h1「1997–2027，／常春藤的故事。」（示意）",
+     "lede 第二句（示意）",
+     "五校卡上的「第一間常春藤」小標籤寫法（依事實，版面示意）",
+     "故事卡的標題、摘要、類型標籤（示意）",
+     "活動名稱與列表（示意）",
+     "「有 ≥6 篇真實故事才出現」門檻說明框"
+    ],
+    "assets": [
+     "about-hero.webp",
+     "yihua-exterior.webp",
+     "tour-minghua-plaza.webp",
+     "tour-chongde-field.webp",
+     "tour-international-gate.webp",
+     "tour-renwu-exterior.webp",
+     "campus-film-speech.webp",
+     "logo.webp"
+    ],
+    "rules": [
+     "版型只用 adm-* 家族（照片 hero、薄荷帶、米底、深綠舞台），不做相簿白邊、拍立得或傾斜",
+     "字級上限 --fs-7xl（mock 的 site.css 最高就到這一階），不做 168px 的年份裝飾字",
+     "寫「YYYY 年成立」，不寫「本校第 N 年」",
+     "不放倒數；主選單不加第 5 項；不寫 30th Anniversary 或 30 Years",
+     "不用 30 週年校徽",
+     "2005–2020 那段不做成視覺重點；手機不畫比例尺",
+     "沒有自動播放、沒有進場動畫",
+     "左下角 .mock-flag 寫「方向 page＋together · /story 彙整頁（/30 永久轉址）· 虛線框＝示意」"
+    ]
+   }
+  ],
+  "owner_questions": [
+   {
+    "question": "創校確切月日是哪一天？週年期間用哪一種？",
+    "why": "這會決定時間閘的預設期間、兩輪排程日期，以及「近三十年」什麼時候可以拿掉「近」。舊站同時有 27 年、30 年、三十多年三種說法；如果還沒滿 30 年就寫「三十年」，會重演「三十多個春夏秋冬」那次錯誤（DESIGN.md:85）。",
+    "options": [
+     "A. 記號（30 週年、1997–2027）走 2027 曆年；句子要等創校月日才拿掉「近」",
+     "B. 2027-01-01 全部一起換，接受創校月日前的幾個月就寫「三十年」",
+     "C. 用 116 學年度（2027-08-01～2028-07-31），但會錯過 2027 上半年的招生季",
+     "D. 用 115 學年度當「第三十個學年」（2026-08 起），前提是園方確認 86 學年度開園"
+    ],
+    "recommended": "A。可以涵蓋 116 學年度的招生季（2027 上半年），又不會提前宣稱滿三十年。園方如果給不出月日，就整年維持「近三十年」，週年只靠記號表達。"
+   },
+   {
+    "question": "開場布幕從 2026-09-23 起已經投出「30th Anniversary」緞帶，2027 年前要怎麼處理？",
+    "why": "現在站上布幕寫 30 週年，內文卻寫「近三十年」，說法不一致。布幕是已上線的定案，要改需要業主有日期的裁定。",
+    "options": [
+     "A. 嚴格：2026 年內只投校徽，aria 改成「常春藤開場動畫」；2027-01-01 才投緞帶，當天就是揭幕。只加一個 ribbonOn uniform，不重產圖",
+     "B. 預熱：緞帶保留到 2027-12-31，但 aria 改成「邁向 30 週年」",
+     "C. 完全維持現況，到 2028 再另案處理"
+    ],
+    "recommended": "A，前提是確認「用程式遮掉緞帶」仍在校徽授權範圍內；授權不確定就選 B。業主裁定前，程式維持現況。"
+   },
+   {
+    "question": "30 週年校徽的授權要不要擴大？",
+    "why": "DESIGN.md:447 只授權用在開場布幕，而且手上只有 1254×1254 米白底的 PNG，沒有透明底或向量檔。頁首、分享圖、專頁、印刷品都不能順手拿去用。",
+    "options": [
+     "A. 維持只用在布幕，網站其他地方一律用純文字和真實照片",
+     "B. 擴大到分享圖和印刷品，由園方提供透明底或向量檔並書面同意",
+     "C. 擴大到頁首、膠囊或專頁"
+    ],
+    "recommended": "A。本案所有層都用不到校徽；要做印刷品時再個別談 B。C 會改變 Logo 的外觀，不建議。另外請一併確認：布幕「遮掉緞帶」算不算在現有授權內。"
+   },
+   {
+    "question": "頁首要不要加 30 週年記號？要的話選哪一種？",
+    "why": "DESIGN.md:687 的 a／b／c 從 2026-09-18 起待拍板，而且當時比的是舊頁首；現在預約鈕已經是金色滿高色塊，必須在現行頁首重比。品牌規範也規定 Logo 旁不加沒定案的裝飾（brand-guidelines:25）。",
+    "options": [
+     "A. 文字簽名「30 週年／1997–2027」，加膠囊文字籤（≥1281px 才顯示）",
+     "B. c 上標小籤",
+     "C. b 第三行",
+     "D. a 印章",
+     "E. 不加頁首記號，只靠布幕、首屏小標、since 標籤、頁尾和故事系列"
+    ],
+    "recommended": "看過 mock A 後，在 A 和 E 之間選。本案推薦 A：字標不動、只用文字、單一門檻，膠囊籤只出現在首頁等四頁。不論選哪一種，膠囊校徽右下角的金色「30」小點都建議正式否決。"
+   },
+   {
+    "question": "規格「不新增週年後台、不啟用週年提案」要怎麼調？",
+    "why": "docs/specs/2026-09-19-website-admin.md:79,445 讓任何週年呈現都要重新裁定。新增 content kind（週年專頁、回憶牆）還會多出後台頁和長期維護成本。",
+    "options": [
+     "A. 開一個只限 web/ 的週年範圍：可以用既有後台欄位和排程，不新增 content kind、後台頁或 migration",
+     "B. A 加上允許新增週年專頁 kind，讓園方在後台自己管理專頁內容",
+     "C. A 加上允許新增回憶牆 kind（每校最多 12 則，檢查同意書編號）",
+     "D. 維持原規格：只做第 0 層，除了布幕以外週年都不做"
+    ],
+    "recommended": "A。第 0～4 層都不需要新 kind。到 2027-06 評估時，如果故事量超過消息上限，再議 B。"
+   },
+   {
+    "question": "「近三十年」規則怎麼改？正式中文說法用哪一種？",
+    "why": "DESIGN.md:85、941 規定一律寫「近三十年」，首屏小標不放 30 週年，/about 的測試也擋「週年」。週年要上線，這些都得改寫成有起訖的規則。",
+    "options": [
+     "A. 記號用「30 週年」和「1997–2027」（阿拉伯數字、en dash、不加空格），句子用國字；首屏小標只拿掉「近」，不放「30 週年」",
+     "B. 記號改用國字「三十週年」（需要另切品牌字子集）",
+     "C. 首屏小標也寫「30 週年」"
+    ],
+    "recommended": "A。「週年」已經有 Noto 600 子集，也和布幕的 30th 一致；小標只少一個字，320px 仍是一行。2028 起要寫「三十年」還是「三十多年」，屆時再裁。"
+   },
+   {
+    "question": "要不要訂主題標語？",
+    "why": "外部慣例常用四加四字的標語，但園方沒定稿之前我們不能自己創；奇美已經用過「三十而立 · 感謝相伴」。",
+    "options": [
+     "A. 不設標語，只用「1997–2027」和既有的理念句「孩子的第一所學校，也是第二個家。」",
+     "B. 園方自擬標語，定稿後放進分享圖和專頁",
+     "C. 由我們提 3 組候選（標示意）給園方挑"
+    ],
+    "recommended": "A。既有理念句有真實出處，不必另外造；園方如果有想法再走 B。"
+   },
+   {
+    "question": "真人故事的來源、節奏和人力怎麼安排？",
+    "why": "這次能證明三十年的真實內容只有故事。每篇大約要園方一個工作天（訪談、本人確認、同意書、找照片、審核），一旦停更，家長也看得見。",
+    "options": [
+     "A. 紙本回憶卡加老師訪談，每月 1 篇、全年最多 12 篇；總部 1 位總編加各校 1 位小編",
+     "B. 兩週一篇、共 30 篇（stories 原案）",
+     "C. 開放網站線上投稿",
+     "D. 不做系列"
+    ],
+    "recommended": "A，先存 4 篇再開跑。C 需要新資料表、審核佇列、個資保存政策，還要處理照片上傳的攻擊面，是 L 級工程，不建議。"
+   },
+   {
+    "question": "系列名稱和首頁輪播規則怎麼定？",
+    "why": "系列名如果綁數字（例如「三十個故事」），寫不滿就等於公開食言。首頁輪播「有推薦時只播推薦」是 2026-09-25 的業主裁定。",
+    "options": [
+     "A. 系列名「常春藤的故事」，輪播維持手動推薦",
+     "B. 系列名「一路走來」（呼應 /about 01 章），輪播維持手動推薦",
+     "C. 系列名「三十個故事」，最新一篇故事自動置頂"
+    ],
+    "recommended": "A。這個名稱 2028 起不必改，可以直接轉成常設；輪播規則不動，但看得見的暫停鍵照樣要做。"
+   },
+   {
+    "question": "主選單要不要加「30 週年」第 5 項？",
+    "why": "選單到 6 項會把預約鈕擠出視窗（DESIGN.md:136,190）；方向自測 5 項在 1245px 就會溢出，頁首記號也會跟著被擠。",
+    "options": [
+     "A. 不加；入口放在頁尾連結、首頁推薦消息、/about 結尾、分校頁「本校的故事」",
+     "B. 週年期間加第 5 項，上線前實測 901–1000px 和 1101–1245px"
+    ],
+    "recommended": "A。"
+   },
+   {
+    "question": "2027 年有沒有真實的園慶、開放日或校友回娘家？",
+    "why": "沒有真活動，網站就不排活動、不寫日期。如果有開放日，可以直接接到該校的預約參觀，這是週年最直接的招生動線。",
+    "options": [
+     "A. 有開放日：活動卡接到既有的預約參觀（visit_campus_key 加 BookingCta），約 1 人日",
+     "B. 有活動但不開放參觀：只列時間、地點和「洽各校」電話",
+     "C. 今年不辦，或不放上網站"
+    ],
+    "recommended": "這題由園方回答；有開放日就選 A。不做線上報名、付款或 RSVP。"
+   },
+   {
+    "question": "要不要做週年彙整頁？",
+    "why": "專頁是家長不會主動去找的頁面，沒有真內容時只會和 /about 的沿革重複；而新路由一合進 main 就公開了。",
+    "options": [
+     "A. 2027-06 評估，真故事 ≥6 篇才做常設的 /story，/30 永久轉址過去",
+     "B. 2027-01 就上 /30 專頁",
+     "C. 不做專頁，系列留在 /news 和分校頁"
+    ],
+    "recommended": "A。先看 mock E「只有事實」和「有故事」兩種狀態差多少，再決定門檻。"
+   }
+  ],
+  "do_not": [
+   "不在開場布幕以外使用 30 週年校徽（頁首、膠囊、分享圖、專頁、消息封面都不行），除非園方書面擴大授權並提供透明底或向量檔",
+   "2027 年前（或創校月日前），句子裡不寫「三十年」「滿三十年」「第三十年」；2026 年不預熱 h1「常春藤的三十年」",
+   "非義華校不寫「30 週年」，也不和「30」並排；起算方式沒定之前，不寫「本校第 N 年」這種序數",
+   "主選單不加第 5 項，預約鈕在任何寬度都不能被擠出",
+   "不新增「30th Anniversary」「30 Years」之類的英文；年份不混用 em dash 或有空格的寫法",
+   "金色只用 --gold 小面積，不當大面積背景；頁尾不加金色，也不加校徽",
+   "膠囊校徽右下角不放金色「30」小點",
+   "不做公開線上投稿、即時留言牆、線上 RSVP、報名或付款，也不收家長的聯絡方式",
+   "網站上不承諾時光膠囊 2037 年開封，也不放「目前 N 則」「已刊出 N 篇」「第 N 個故事」這類公開計數",
+   "系列名不綁數字（例如「三十個故事」）；系列消息不設 show_until 來輪替",
+   "不把 *-enhanced-v1、線稿、chongde／international／renwu.webp（建築透視圖）當成歷史或回憶照片；env-space-* 不能當某一校的故事封面",
+   "EXIF／GPS 剝除上線之前，不收家長或校友的手機照片",
+   "不做 /curriculum 週年特展，也不加 /environment 第 4 張手繪卡；不為 /30 發明相簿、拍立得、傾斜的新視覺語言",
+   "不做逐秒倒數；沒有真實活動日期，就不顯示倒數天數",
+   "不在 web/ 加 ?anni= 比稿參數，也不把凍結原型的舊 a／b／c 程式搬回來",
+   "首頁不新增週年章節或動畫；分校頁 hero 不拿掉「高雄{區}」",
+   "業主推翻 2026-09-25 的裁定之前，不改成「最新故事置頂」",
+   "不代寫引言，不把個人回憶寫成機構史實；不寫畢業生數、師生數、班級數",
+   "不拿義華的 LINE／FB 當五校共用的收稿或聯絡管道",
+   "未經使用者要求不 push main（等於正式部署）；新路由沒有自帶上線閘就不合併"
+  ],
+  "unwind_list": [
+   "DESIGN.md:85（一律「近三十年」）與 :941（首屏小標不放 30 週年）改寫成有起訖的業主裁定；2028 起用「三十年」還是「三十多年」再裁一次",
+   "DESIGN.md:687 記下頁首 30 週年版的定案結果與膠囊金色小點的否決；docs/brand/brand-guidelines.md:25 同步更新",
+   "DESIGN.md:445-447 布幕段落補上 ribbonOn 三態（before／during／after）和授權確認結果；2028 起 aria 文字「常春藤 30 週年開場動畫」「30 週年開幕倒數」改成常設文字",
+   "CLAUDE.md「現況容易搞錯的事」中「30 週年版尚未拍板」和 ?anni= 的敘述（約 :70）更新",
+   "docs/specs/2026-09-19-website-admin.md:79,445 加註業主裁定（只限 web/ 的週年範圍）",
+   "web/tests/about.spec.ts:36 從 regex 讀 MILESTONES 改成讀 founding.ts；:47-50 的模板禁字改成依日期三態渲染的測試（「三十多」「美語部」「補習班」照樣擋），2028 再依新規則調整",
+   "web/tests/entrance-policy.spec.ts 補 aria 三態；web/tests/seo.spec.ts 補 foundingDate 和 aboutSeo「高雄」；news-page、news-content、news-rotation 三支 spec 補系列辨識與暫停鍵；分校頁測試加「非義華小標不得含 30」",
+   "docs/website-admin/operations.md 加週年排程清單：2026-12-15 建週年版、凍結期、2027-01-01 巡檢、2027-12-15 從線上版建換回版、2028-01-01 確認沒有 skipped",
+   "README.md 頂部每一層上線時加一段日期紀錄；每次部署在 deploy/README.md 補紀錄",
+   "若做 /story：同步 seo.ts 的 sitemap 與 llms.txt、cta-analytics.ts、backend/app/operations/models.py、admin/src/api/labels.ts、web/shared/telemetry.ts、backend/app/operations/routes.py:97-99、tests/stack/hydration.spec.ts 和 a11y.spec.ts 清單",
+   "若做第 4 層：重產 contracts（npm run contract:generate，CI 跑 contract:check），並在 CTA 標籤三處加 anniversary",
+   "2028-01-01 後台換回版上架（since_label 改回 SINCE 1997、版權 © 2028、分享圖換回原圖、首屏小標依再裁定）；時間閘自動收回",
+   "2028 第一季清理 PR：刪 anniversary.ts 的期間分支、.brand-anni 簽名 CSS、膠囊籤、義華小標前段、/about 結語列，ribbonOn 改成常設值；保留 founding.ts、foundingDate、分校頁「創立」列、故事系列和 /story，/30 轉址永久保留",
+   "design/anniversary-website-directions-20260928/ 各 mock 定案後在頁首標注結論；web/ 不留任何比稿參數"
+  ]
+ }
+}
