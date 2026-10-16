@@ -47,6 +47,7 @@ def test_super_admin_only_capabilities():
         "retention.manage",
         "content.release_restore",
         "contact_phrases.manage",
+        "system.status",
     ):
         assert roles_with(capability) == {Role.SUPER_ADMIN}, capability
 

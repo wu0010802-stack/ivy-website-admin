@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDown, Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, Close, DataLine,
-  Document as DocumentIcon, EditPen, Expand, Files, Film, Fold, House, Location as LocationIcon, Lock, Memo,
+  Document as DocumentIcon, EditPen, Expand, Files, Film, Fold, House, Location as LocationIcon, Lock, Memo, Monitor,
   Notebook, Notification as NotificationIcon, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
@@ -79,7 +79,7 @@ watch(expanded, value => {
 // List 是實心色塊，混在線條圖示裡很重，看起來像被選取。
 const icons: Record<string, Component> = {
   Avatar, Bell, Bottom, Brush, Calendar, ChatDotRound, ChatDotSquare, ChatLineSquare, Clock, DataLine, Document: DocumentIcon,
-  EditPen, Files, Film, House, Location: LocationIcon, Lock, Memo, Notebook, Notification: NotificationIcon, Phone, Picture,
+  EditPen, Files, Film, House, Location: LocationIcon, Lock, Memo, Monitor, Notebook, Notification: NotificationIcon, Phone, Picture,
   PieChart, Postcard, Reading, School, Setting, Sunny, Switch, Tickets, Timer, User,
 }
 const activePath = computed(() => route.name === 'visit-detail' ? '/visit-requests' : route.path)

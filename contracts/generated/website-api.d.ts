@@ -1868,6 +1868,46 @@ export interface paths {
         patch: operations["update_admin_slot_api_website_v1_admin_slots__slot_id__patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/system-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get System Status
+         * @description 總管理者的系統狀態（2026-10-15 規格）：設定有沒有設、背景工作、公開資料、寄送與發布失敗。唯讀。
+         */
+        get: operations["get_system_status_api_website_v1_admin_system_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/system-status/test-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send System Test Email
+         * @description 寄一封測試信到自己帳號的 Email（規格 §3.4）：不走 outbox，結果當場回傳；不回原始錯誤訊息。
+         */
+        post: operations["send_system_test_email_api_website_v1_admin_system_status_test_email_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/users": {
         parameters: {
             query?: never;
@@ -7457,6 +7497,45 @@ export interface components {
              */
             revision_id: string;
         };
+        /** SystemEmailTestOut */
+        SystemEmailTestOut: {
+            /** Error */
+            error?: ("not_configured" | "auth_failed" | "connect_failed" | "rejected" | "timeout" | "other") | null;
+            /** Ok */
+            ok: boolean;
+        };
+        /** SystemStatusItem */
+        SystemStatusItem: {
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Key */
+            key: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "ok" | "attention" | "info" | "off";
+        };
+        /** SystemStatusOut */
+        SystemStatusOut: {
+            /** Attention Count */
+            attention_count: number;
+            /** Background */
+            background: components["schemas"]["SystemStatusItem"][];
+            /** Datasets */
+            datasets: components["schemas"]["SystemStatusItem"][] | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Notifications */
+            notifications: components["schemas"]["SystemStatusItem"][];
+            /** Services */
+            services: components["schemas"]["SystemStatusItem"][];
+        };
         /**
          * TelemetryIn
          * @description 與 web/shared/telemetry.ts 的 validateTelemetry 同一套規則：web 端先驗過、
@@ -12320,6 +12399,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VisitSlotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_system_status_api_website_v1_admin_system_status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_system_test_email_api_website_v1_admin_system_status_test_email_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemEmailTestOut"];
                 };
             };
             /** @description Validation Error */

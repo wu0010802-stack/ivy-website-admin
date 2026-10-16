@@ -125,6 +125,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽'] },
       { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'Memo', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
+      // 系統狀態（2026-10-15）：寄信、推播、背景排程、公開資料的設定現況與測試信，限總管理者（system.status）。
+      { name: 'system-status', path: '/system-status', title: '系統狀態', icon: 'Monitor', roles: ['super_admin'], keywords: ['寄信', 'SMTP', '排程', '同步', '設定', '健康', '測試信'] },
       // 2026-09-29 由「全站設定」改名（內容主要是個資保存，另列官網搜尋與分享的設定）；
       // 舊名留在關鍵字，習慣搜「全站設定」的人還找得到。
       { name: 'policies', path: '/policies', title: '個資與搜尋設定', icon: 'Setting', roles: ['super_admin'], keywords: ['全站設定', '個資', '保存期限', '清理'] },

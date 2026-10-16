@@ -9,7 +9,7 @@ export const ROLE_CAPABILITIES: Record<Role, string[]> = {
     'booking.export', 'booking.handle', 'booking.manage', 'booking.read', 'campuses.activate', 'campuses.manage',
     'contact_phrases.manage', 'contact_phrases.read',
     'content.manage', 'content.publish', 'content.release_restore', 'content.shared', 'media.manage',
-    'notifications.manage', 'retention.manage', 'users.manage',
+    'notifications.manage', 'retention.manage', 'system.status', 'users.manage',
   ],
   campus_admin: [
     ...CAMPUS_READ, 'admissions.convert', 'admissions.read', 'admissions.write', 'booking.handle', 'booking.manage',

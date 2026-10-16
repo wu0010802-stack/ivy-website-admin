@@ -32,7 +32,12 @@ PARENT_VISIT_CANCELLED = "parent_visit_cancelled"
 # 停班停課通知（2026-10-14 規格 §3.3）：那天園方停課，請家長用修改連結改約或取消。
 # 只由 enqueue_day_closed_email 排（帶去重鍵與原因），不走 enqueue_parent_email。
 PARENT_VISIT_DAY_CLOSED = "parent_visit_day_closed"
-PARENT_KINDS = frozenset({PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED})
+# 參觀前 24 小時提醒家長（2026-10-15 規格 docs/specs/2026-10-15-parent-visit-reminder-design.md）。
+# 只由 notifications/reminders.enqueue_due_parent_reminders 排（帶去重鍵與場次），不走 enqueue_parent_email。
+PARENT_VISIT_REMINDER = "parent_visit_reminder"
+PARENT_KINDS = frozenset(
+    {PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER}
+)
 
 
 async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> None:
@@ -41,7 +46,7 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
     已被認領（leased）的不算：worker 可能已經讀完案件、組好內容，這次的變更要另外寄。"""
-    if kind not in PARENT_KINDS or kind == PARENT_VISIT_DAY_CLOSED:
+    if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER):
         raise ValueError(kind)
     if not visit_request.email:
         return
