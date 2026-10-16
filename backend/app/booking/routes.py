@@ -604,11 +604,8 @@ async def list_admin_slots(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
         ) from exc
-    result = []
-    for slot in slots:
-        booked = await slot_service.count_booked(db, slot.id)
-        result.append(_slot_out(slot, booked))
-    return result
+    booked = await slot_service.count_booked_by_slot(db, [slot.id for slot in slots])
+    return [_slot_out(slot, booked.get(slot.id, 0)) for slot in slots]
 
 
 @router.post("/admin/slots", response_model=VisitSlotOut, status_code=status.HTTP_201_CREATED)
