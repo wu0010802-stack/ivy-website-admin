@@ -1,7 +1,7 @@
 # 附近同業比較（2026-10-15）設計
 
 日期：2026-10-15
-狀態：設計經使用者 10-15 逐段核可（範圍 B、資料與同步、API 與比較口徑、後台畫面、測試部署風險五項）；寫規格時發現「現存名單修正」已由另一案處理，從本案移出（F3）；本規格待使用者核可後才寫實作計畫
+狀態：已實作（分支 `feature/peer-fees-20261015`），未部署。設計經使用者 10-15 逐段核可（範圍 B、資料與同步、API 與比較口徑、後台畫面、測試部署風險五項）；「現存名單修正」由另一案處理（F3）；實作時的決定見 §12 最後幾條
 基準：`origin/main` `aae0debc`
 分支：`feature/peer-fees-20261015`（worktree `~/Repositories/ivy-website-wt/peer-fees-20261015`）
 上游：區域分析（`docs/specs/2026-10-08-admissions-area-design.md`）、托嬰與園所異動（`docs/specs/2026-10-14-provider-changes-design.md`）
@@ -228,7 +228,7 @@
 
 - 前置案先上 main；本案從之後的 main 開分支（或 rebase 上去）。
 - push main＝部署，由使用者用 `!` 執行；migration 只新增，不需要備份。
-- 上線後下一輪背景同步：幼兒園名單（7 天到期才跑）→ 收費全量（約 5 分鐘）→ 托嬰明細 160 檔。要立刻生效：使用者以 `!` 執行 `geo-sync --force`。agent 沒有讀 Railway 的權限，驗收 SQL 給使用者跑：
+- 上線後第一輪背景同步：收費從沒匯入過，不等幼兒園名單的 7 天就做全量（約 5 分鐘）；托嬰明細一所都沒抓過，同樣第一輪就抓（約 150 檔）。之後收費跟著名單每 7 天補缺、每 30 天全量。要立刻生效：使用者以 `!` 執行 `geo-sync --force`。agent 沒有讀 Railway 的權限，驗收 SQL 給使用者跑：
   - `select dataset, active_version, label, synced_at, checked_at, last_error from geo_dataset_status where dataset in ('kindergartens','kindergarten_fees','babycare');`
   - `select age, count(*) from geo_kindergarten_fees group by age order by age;`
   - `select count(*) filter (where indoor_m2 is not null), count(*) filter (where has_shuttle) from geo_kindergartens where is_active;`
@@ -249,3 +249,11 @@
 - **公告收費不等於實收**：園所可能另有優惠、才藝費、註冊費攤提方式不同；項目歸類也不一致，畫面已註明。
 - **依賴前置案**：前置案沒上 main 之前，同業統計會混進停業園所；所以本案不在它之前上線。
 - **與「在籍學生」並行**：兩邊都會改 `AreaTab.vue`、同步、migration；合併時解衝突並重接 `down_revision`。
+- **實作時的決定（2026-10-16）**：
+  - 收費與托嬰明細在「從沒匯入過」時不等名單到期（上線第一輪就有資料，不必 `--force`；`--force` 會連門牌一起重抓）。托嬰明細在名單沒更新的輪次只補還沒有明細的那幾所。
+  - 群組範圍欄位叫 `lowest`／`highest`（§6 範例寫 `min`／`max`）。
+  - 同業分組（私立一般／準公共）用**收費學年**的準公共期間判斷，不用目前學年：收費是 114 學年的公告，就用 114 學年的類型分組（真實資料有 2 所 115 學年才轉準公共）。附近幼兒園清單的類型仍是目前學年。
+  - 找到的收費學年比使用中的舊時整輪不換版（和門牌的月份倒退護欄同一個道理）；`--force` 不略過 F9 的兩道門檻與這道護欄，人工放行見 `deploy/README.md`。
+  - 收費與托嬰明細的同步都有硬性逾時；托嬰明細這一段任何失敗只寫 WARNING，不中斷後面的資料種類。
+  - 收費從沒匯入過時，附近幼兒園列尾寫「—」，匯入過但這所沒公布才寫「未公布收費」。
+  - 匯出 CSV 的檔名帶年齡（「附近同業收費-3 歲」）。
