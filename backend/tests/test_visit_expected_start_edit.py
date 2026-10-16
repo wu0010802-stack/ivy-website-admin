@@ -241,13 +241,14 @@ async def test_later_booking_edits_do_not_move_the_admissions_term(admin_client,
         admin_client, public_client, db_session, expected_start=_month_choice(3), parent_name="陳媽媽"
     )
     assert (await complete(admin_client, booking["id"])).status_code == 200
-    before = await _visit_for(db_session, booking["id"])
-    term = _term_of(before)
+    visit = await _visit_for(db_session, booking["id"])
+    # 先存成數值：_visit_for 重讀同一主鍵會刷新同一個 ORM 物件，之後拿物件屬性比對等於跟自己比。
+    visit_id, version, term = visit.id, visit.version, _term_of(visit)
 
     async def history() -> list[RecruitmentEventLog]:
         result = await db_session.execute(
             select(RecruitmentEventLog)
-            .where(RecruitmentEventLog.recruitment_visit_id == before.id, RecruitmentEventLog.event_type == "details_updated")
+            .where(RecruitmentEventLog.recruitment_visit_id == visit_id, RecruitmentEventLog.event_type == "details_updated")
             .execution_options(populate_existing=True)
         )
         return list(result.scalars())
@@ -257,7 +258,7 @@ async def test_later_booking_edits_do_not_move_the_admissions_term(admin_client,
     assert response.json()["changed_fields"] == ["expected_start"]
     after = await _visit_for(db_session, booking["id"])
     assert _term_of(after) == term
-    assert after.version == before.version
+    assert after.version == version
     assert await history() == []
 
     # 正向對照：改家長稱呼會同步到招生，也寫 details_updated；所以上面沒有事件是因為入學學期不同步，不是同步壞了。
@@ -265,6 +266,7 @@ async def test_later_booking_edits_do_not_move_the_admissions_term(admin_client,
     assert renamed.status_code == 200, renamed.text
     synced = await _visit_for(db_session, booking["id"])
     assert synced.contact_name == "林媽媽"
+    assert synced.version == version + 1
     assert _term_of(synced) == term
     [event] = await history()
     assert event.metadata_json["fields"] == ["contact_name"]
