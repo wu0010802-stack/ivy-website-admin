@@ -106,6 +106,13 @@ describe('總覽的今日參觀（dashboard-1、dashboard-4）', () => {
     expect(empty.get('a').attributes('href')).toBe('/visit-requests?group=upcoming')
   })
 
+  it('有參觀但名單是空的：數字已排除，連結也帶 excluded=hide，點進去是同一批（2026-10-15）', async () => {
+    const wrapper = await mountDashboard(summary({ today_visits: 2 }))
+    const link = wrapper.get('.today__empty a')
+    expect(wrapper.get('.today__empty').text()).toContain('今天有 2 組參觀')
+    expect(link.attributes('href')).toBe('/visit-requests?group=upcoming&excluded=hide')
+  })
+
   it('依台北現在時間標示已結束與進行中，狀態寫在時間旁', async () => {
     // 台北 12:00
     vi.useFakeTimers({ now: new Date('2026-10-02T04:00:00Z'), toFake: ['Date'] })
@@ -124,7 +131,7 @@ describe('總覽待辦：參觀時間過了還沒標記到場（dashboard-1）',
   it('有 awaiting_attendance 就列一項，連到時間已過、已確認的案件', async () => {
     const wrapper = await mountDashboard(summary({ awaiting_attendance: 2 }))
     const task = wrapper.findAll('a.task').find(a => a.text().includes('參觀時間過了，還沒標記到場'))!
-    expect(task.attributes('href')).toBe('/visit-requests?group=past&status=confirmed')
+    expect(task.attributes('href')).toBe('/visit-requests?group=past&status=confirmed&excluded=hide')
     expect(task.get('.task__number').text()).toBe('2')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
   })

@@ -22,8 +22,8 @@ describe('成效統計的比率、樣本與連結', () => {
 
   it('待處理兩種連到案件列表，參數和總覽一樣；順序是待標記到場、到期追蹤，沒有舊資料待處理', () => {
     expect(PENDING_KINDS).toEqual(['awaiting_attendance', 'follow_up_due'])
-    expect(pendingLink('awaiting_attendance', 'yihua')).toBe('/visit-requests?campus=yihua&group=past&status=confirmed')
-    expect(pendingLink('follow_up_due', 'yihua')).toBe('/visit-requests?campus=yihua&due=1')
+    expect(pendingLink('awaiting_attendance', 'yihua')).toBe('/visit-requests?campus=yihua&group=past&status=confirmed&excluded=hide')
+    expect(pendingLink('follow_up_due', 'yihua')).toBe('/visit-requests?campus=yihua&due=1&excluded=hide')
   })
 
   it('rangeKey 把同一段期間算成同一個鍵，開站至今是 all', () => {

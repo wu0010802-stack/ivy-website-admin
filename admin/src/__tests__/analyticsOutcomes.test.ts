@@ -76,12 +76,12 @@ describe('預約結果', () => {
     const { wrapper } = await mountSection('reception')
     // 五校比較表「現在」兩欄的數字也連到該校的案件列表（2026-10-06），再來是選定校區的現在待處理。
     expect(caseLinks(wrapper)).toEqual([
-      '/visit-requests?campus=yihua&group=past&status=confirmed',
-      '/visit-requests?campus=yihua&due=1',
-      '/visit-requests?campus=minghua&group=past&status=confirmed',
-      '/visit-requests?campus=minghua&due=1',
-      '/visit-requests?campus=yihua&group=past&status=confirmed',
-      '/visit-requests?campus=yihua&due=1',
+      '/visit-requests?campus=yihua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=yihua&due=1&excluded=hide',
+      '/visit-requests?campus=minghua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=minghua&due=1&excluded=hide',
+      '/visit-requests?campus=yihua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=yihua&due=1&excluded=hide',
     ])
     // 2026-10-05：舊資料的待處理已拿掉，統計與連結都不再出現。
     expect(wrapper.text()).not.toContain('舊資料')

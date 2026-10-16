@@ -78,8 +78,8 @@ describe('總覽的主按鈕與待辦（2026-10-05 拿掉待處理狀態後）',
 
   it('主按鈕依序：家長還要來 → 到期追蹤 → 查看參觀案件，字講的是點進去那一批', async () => {
     const cases: [Record<string, number>, string, string][] = [
-      [{ needs_attention: 2, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1'],
-      [{ pending_follow_up: 5 }, '追蹤到期案件5', '/visit-requests?due=1'],
+      [{ needs_attention: 2, pending_follow_up: 5 }, '聯絡要改期的家長2', '/visit-requests?attention=1&excluded=hide'],
+      [{ pending_follow_up: 5 }, '追蹤到期案件5', '/visit-requests?due=1&excluded=hide'],
       [{}, '查看參觀案件', '/visit-requests'],
     ]
     for (const [changes, label, href] of cases) {

@@ -13093,6 +13093,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13185,6 +13187,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13239,6 +13243,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

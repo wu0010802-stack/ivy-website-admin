@@ -56,6 +56,8 @@ const createdRange = ref<[string, string] | null>(null)
 const narrow = useNarrowScreen()
 // 待人工處理：場次已關閉（含休假日）但家長仍要來，或分校已停用但尚未結案。
 const attentionOnly = ref(false)
+// 隱藏已排除的測試／重複案件（2026-10-15）；總覽與統計的連結會帶 excluded=hide。
+const hideExcluded = ref(false)
 // 「時間已過」裡還沒標記到場的（status=confirmed）。後端 status 與 view 可以疊加，
 // 網址寫成 ?group=past&status=confirmed；切到其他頁籤就自動取消。
 const attendanceOnly = ref(false)
@@ -73,7 +75,7 @@ const search = ref('')
 const listState = computed<ListState>(() => ({
   tab: activeTab.value, attendanceOnly: attendanceOnly.value, q: search.value, campus: campusFilter.value,
   open: openOnly.value, source: sourceFilter.value, created: createdRange.value, due: dueOnly.value,
-  attention: attentionOnly.value, order: order.value, page: page.value,
+  attention: attentionOnly.value, hideExcluded: hideExcluded.value, order: order.value, page: page.value,
 }))
 
 // 時鐘每 30 秒更新：列上的接待狀態（進行中、還沒標記）、「到了／沒來」按鈕與日期分組都跟著它走。
@@ -106,6 +108,7 @@ function applyQuery(query: LocationQuery) {
   sourceFilter.value = next.source
   if (next.created?.join() !== createdRange.value?.join()) createdRange.value = next.created
   attentionOnly.value = next.attention
+  hideExcluded.value = next.hideExcluded
   order.value = next.order
   page.value = next.page
 }
@@ -139,7 +142,7 @@ let appliedQuery = stateQuery()
 let reverting = false
 
 // 頁籤是導覽、不算篩選；「只看尚未確認到場」會多送 status=confirmed，算篩選。
-const hasFilters = computed(() => Boolean(campusFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value || attendanceOnly.value))
+const hasFilters = computed(() => Boolean(campusFilter.value || search.value.trim() || dueOnly.value || sourceFilter.value || createdRange.value || attentionOnly.value || openOnly.value || attendanceOnly.value || hideExcluded.value))
 function clearFilters() {
   campusFilter.value = ''
   attendanceOnly.value = false
@@ -149,6 +152,7 @@ function clearFilters() {
   sourceFilter.value = ''
   createdRange.value = null
   attentionOnly.value = false
+  hideExcluded.value = false
 }
 
 // 頁籤上的數字（GET view-counts，套用頁籤以外的條件）：接下來寫全部件數；時間已過只寫還沒標記到場的，
@@ -174,6 +178,7 @@ const hiddenFilters = computed<ActiveFilter[]>(() => {
   if (dueOnly.value) list.push({ key: 'due', label: '到期待追蹤', clear: () => { dueOnly.value = false } })
   if (attentionOnly.value) list.push({ key: 'attention', label: '待人工處理', clear: () => { attentionOnly.value = false } })
   if (openOnly.value) list.push({ key: 'open', label: '未結案', clear: () => { openOnly.value = false } })
+  if (hideExcluded.value) list.push({ key: 'excluded', label: '隱藏已排除', clear: () => { hideExcluded.value = false } })
   if (sourceFilter.value) list.push({ key: 'source', label: `來源：${VISIT_SOURCE_LABELS[sourceFilter.value] ?? sourceFilter.value}`, clear: () => { sourceFilter.value = '' } })
   if (createdRange.value) list.push({ key: 'created', label: `送出 ${createdRange.value[0].slice(5).replace('-', '/')}–${createdRange.value[1].slice(5).replace('-', '/')}`, clear: () => { createdRange.value = null } })
   if (order.value !== 'visit') list.push({ key: 'order', label: order.value === 'oldest' ? '最早送出在前' : '最新送出在前', clear: () => { order.value = 'visit' } })
@@ -292,7 +297,7 @@ function toggleAttendance(on: boolean) {
   if (on) activeTab.value = 'past'
 }
 
-watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly], () => {
+watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, attentionOnly, attendanceOnly, openOnly, hideExcluded], () => {
   if (reverting) return
   // 畫面上改條件回第一頁；網址帶來的條件（連結、返回列表）連頁數原樣套用。
   if (!matchesRoute()) page.value = 1
@@ -603,6 +608,7 @@ onMounted(() => {
         <el-checkbox v-model="dueOnly" class="filter-due">只看到期待追蹤</el-checkbox>
         <el-checkbox v-model="attentionOnly" class="filter-due">只看待人工處理</el-checkbox>
         <el-checkbox v-model="openOnly" class="filter-due">只看未結案</el-checkbox>
+        <el-checkbox v-model="hideExcluded" class="filter-due">隱藏已排除</el-checkbox>
       </div>
     </div>
     <ul v-if="!moreFiltersOpen && hiddenFilters.length" class="filter-chips" aria-label="已套用的篩選">

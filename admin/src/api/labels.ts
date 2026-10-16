@@ -1337,6 +1337,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   reason: (v) => `原因：${auditReasonLabel(String(v))}`,
   // 預約案件排除（2026-10-15）：只記原因類別，說明不進操作紀錄（計畫裁定 P6）。
   exclude_reason: (v) => (v ? `排除原因：${VISIT_EXCLUDE_REASON_LABELS[String(v)] ?? String(v)}` : null),
+  // 案件匯出的「排除」篩選（2026-10-15）。
+  excluded: (v) => (v === 'hide' ? '隱藏已排除' : v === 'only' ? '只看已排除' : null),
   // 帳密登入失敗發生在哪裡（user.login_password_failed：登入頁、重新驗證或改密碼）。
   context: (v) => `發生在：${AUDIT_CONTEXT_LABELS[String(v)] ?? String(v)}`,
   // 帳號鎖（user.login_locked）與停權／解除綁定並登出時解除了哪些外部登入（2026-09-29）。

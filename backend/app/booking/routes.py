@@ -938,6 +938,11 @@ class VisitRequestFilters:
             pattern="^(upcoming|past|arrived|cancelled)$",
             description="接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
         ),
+        excluded: str | None = Query(
+            default=None,
+            pattern="^(hide|only)$",
+            description="排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15）",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -950,6 +955,7 @@ class VisitRequestFilters:
         self.group = group
         self.open_only = open_only
         self.view = view
+        self.excluded = excluded
         # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422。
         if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, source)):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
@@ -974,6 +980,10 @@ class VisitRequestFilters:
             stmt = stmt.where(status_groups.open_condition())
         if self.view:
             stmt = stmt.where(status_groups.view_condition(self.view))
+        if self.excluded == "hide":
+            stmt = stmt.where(exclusion.not_excluded())
+        elif self.excluded == "only":
+            stmt = stmt.where(exclusion.excluded())
         if self.source:
             stmt = stmt.where(VisitRequest.source == self.source)
         if self.created_from is not None:
@@ -1002,6 +1012,7 @@ class VisitRequestFilters:
             "status": self.status,
             "group": self.group,
             "view": self.view,
+            "excluded": self.excluded,
             "open": True if self.open_only else None,
             "source": self.source,
             "created_from": self.created_from.isoformat() if self.created_from else None,
@@ -1119,6 +1130,7 @@ def _export_row(r: VisitRequest) -> list[str]:
         r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
         r.slot.start_time.strftime("%H:%M") if r.slot else "",
         r.slot.end_time.strftime("%H:%M") if r.slot else "",
+        export_labels.exclude_label(r.exclude_reason),
     ]
 
 

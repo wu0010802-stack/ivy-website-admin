@@ -25,6 +25,8 @@ export interface ListState {
   created: [string, string] | null
   due: boolean
   attention: boolean
+  /** 隱藏已排除的測試／重複案件（網址 excluded=hide；總覽與統計的連結會帶，2026-10-15） */
+  hideExcluded: boolean
   order: ListOrder
   page: number
 }
@@ -58,6 +60,7 @@ export function parseListQuery(query: LocationQuery, scope: { campusKeys: readon
     created: DATE_RE.test(from) && DATE_RE.test(to) ? [from, to] : null,
     due: query.due === '1',
     attention: query.attention === '1',
+    hideExcluded: query.excluded === 'hide',
     order: order === 'newest' || order === 'oldest' ? order : 'visit',
     page: Number.isInteger(page) && page > 1 ? page : 1,
   }
@@ -76,6 +79,7 @@ export function listStateQuery(s: ListState): Record<string, string> {
   }
   if (s.due) query.due = '1'
   if (s.attention) query.attention = '1'
+  if (s.hideExcluded) query.excluded = 'hide'
   if (s.order !== 'visit') query.order = s.order
   if (s.page > 1) query.page = String(s.page)
   if (s.tab !== DEFAULT_TAB || Object.keys(query).length > 0) query.group = s.tab
@@ -115,6 +119,7 @@ export function listApiParams(s: ListState, options: { counts?: boolean } = {}):
     params.set('created_to', s.created[1])
   }
   if (s.attention) params.set('needs_attention', 'true')
+  if (s.hideExcluded) params.set('excluded', 'hide')
   return params
 }
 

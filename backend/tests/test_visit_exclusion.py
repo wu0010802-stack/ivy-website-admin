@@ -4,15 +4,18 @@
 from __future__ import annotations
 
 import asyncio
+import csv
+import io
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import pytest
 from sqlalchemy import select, text, update
 
 from app.booking import exclusion
 from app.booking.history import Actor
-from app.booking.models import VisitRequest
+from app.booking.models import VisitRequest, VisitSlot
+from app.common.timezones import today_local
 from app.operations import retention_service
 from app.operations.models import AuditLogEntry, RetentionRunTrigger
 from tests.admissions_helpers import (  # noqa: F401
@@ -412,3 +415,57 @@ async def test_service_raises_for_a_second_exclude_and_for_include_when_not_excl
     visit = await fresh()
     await exclusion.exclude(db_session, visit, reason="duplicate", note=None, actor=actor)
     assert await exclusion.include(db_session, visit, actor=actor) == "duplicate"
+
+
+# --- 列表與 CSV 的 excluded 篩選（Task 9） -----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_and_export_filters(admin_client, db_session):
+    keep = await legacy_request(db_session, status="cancelled", parent_name="篩選留著", phone="0912000201")
+    drop = await legacy_request(db_session, status="cancelled", parent_name="篩選排除", phone="0912000202")
+    await admin_client.post(f"{CASES}/{drop}/exclude", json={"reason": "duplicate"})
+    names = lambda rows: sorted(r["parent_name"] for r in rows)  # noqa: E731
+    assert names((await admin_client.get(f"{CASES}?q=篩選")).json()) == ["篩選排除", "篩選留著"]
+    assert names((await admin_client.get(f"{CASES}?q=篩選&excluded=hide")).json()) == ["篩選留著"]
+    assert names((await admin_client.get(f"{CASES}?q=篩選&excluded=only")).json()) == ["篩選排除"]
+    assert (await admin_client.get(f"{CASES}?excluded=nope")).status_code == 422
+    export = await admin_client.get(f"{CASES}/export?campus_key=yihua&q=篩選")
+    rows = list(csv.DictReader(io.StringIO(export.content.decode("utf-8-sig"))))
+    assert sorted((r["家長"], r["已排除"]) for r in rows) == [("篩選排除", "重複"), ("篩選留著", "")]
+    assert keep
+
+
+@pytest.mark.asyncio
+async def test_export_follows_the_excluded_filter_and_audit_records_it(admin_client, db_session):
+    await legacy_request(db_session, status="cancelled", parent_name="匯出留著", phone="0912000203")
+    drop = await legacy_request(db_session, status="cancelled", parent_name="匯出排除", phone="0912000204")
+    await admin_client.post(f"{CASES}/{drop}/exclude", json={"reason": "other", "note": "家長說打錯"})
+
+    async def exported(query: str) -> list[dict]:
+        response = await admin_client.get(f"{CASES}/export?campus_key=yihua&q=匯出{query}")
+        assert response.status_code == 200, response.text
+        return list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+
+    assert [r["家長"] for r in await exported("&excluded=hide")] == ["匯出留著"]
+    only = await exported("&excluded=only")
+    assert [(r["家長"], r["已排除"]) for r in only] == [("匯出排除", "其他")]
+    assert (await _audit(db_session, "visit_request.export"))[-1]["excluded"] == "only"
+
+
+@pytest.mark.asyncio
+async def test_hide_filter_matches_dashboard_counts(admin_client, db_session):
+    """總覽數字已排除；總覽連結帶 excluded=hide，點進去是同一批（計畫裁定 P8）。"""
+    slot = VisitSlot(
+        id=uuid.uuid4(), campus_key="yihua", slot_date=today_local() - timedelta(days=1), start_time=time(10, 0),
+        end_time=time(11, 0), capacity=5, closed=False, created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(slot)
+    await db_session.commit()
+    past = slot.id
+    await legacy_request(db_session, status="confirmed", slot_id=past, phone="0912000211")
+    drop = await legacy_request(db_session, status="confirmed", slot_id=past, phone="0912000212")
+    await admin_client.post(f"{CASES}/{drop}/exclude", json={"reason": "test"})
+    count = (await admin_client.get(f"{API}/admin/dashboard")).json()["awaiting_attendance"]
+    listed = (await admin_client.get(f"{CASES}?view=past&status=confirmed&excluded=hide")).json()
+    assert count == len(listed) == 1

@@ -11,4 +11,10 @@ describe('時間線與操作紀錄的中文', () => {
     expect(AUDIT_ACTION_LABELS['visit_request.include']).toBe('取消排除')
     expect(auditMetadataDetails({ exclude_reason: 'test' }, 'visit_request.exclude').lines).toContain('排除原因：測試')
   })
+
+  it('案件匯出的「排除」篩選有中文；不認得的值不顯示', () => {
+    expect(auditMetadataDetails({ excluded: 'hide', row_count: 3 }, 'visit_request.export').lines).toContain('隱藏已排除')
+    expect(auditMetadataDetails({ excluded: 'only' }, 'visit_request.export').lines).toContain('只看已排除')
+    expect(auditMetadataDetails({ excluded: 'nope' }, 'visit_request.export').lines.join()).not.toContain('nope')
+  })
 })
