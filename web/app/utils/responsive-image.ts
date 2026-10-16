@@ -73,23 +73,6 @@ export const ABOUT_HERO_IMAGE = 'about-hero'
  */
 export const ABOUT_HERO_SIZES = '(max-width: 900px) calc((100vw - 88px) * 1.65), 800px'
 
-/**
- * 內頁 hero（入學資訊、常春藤環境、特色教學；admission.css 的 `.adm-hero-photo`）。
- * 760px 以下照片是一條帶、object-fit: cover，高度 clamp(300px, 56svh, 500px)：跟著視窗高度縮，
- * 最高 500px（PAGE_HERO_MOBILE_HEIGHT，2026-09-29 以前固定 500px）。sizes 照最高的帶算，矮螢幕
- * 只會多下載一點、不會變糊。橫幅照片
- * 實際顯示寬度 = 高度 × 寬高比（2000×803 是 1245px），遠大於 100vw。sizes 照實寫，手機
- * 才會挑到夠大的候選；2026-09-26 以前一律 100vw，390 寬手機只拿 800w，有效解析度只有
- * 0.3–0.7（實測）。761px 以上照片鋪滿 hero，維持 100vw（實測已選到最大候選）。
- * 頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
- */
-export const PAGE_HERO_MOBILE_HEIGHT = 500
-export function pageHeroImage(name: string) {
-  const info = Object.hasOwn(manifest, name) ? (manifest as Record<string, ImageInfo>)[name] : undefined
-  const mobileWidth = info ? Math.round(PAGE_HERO_MOBILE_HEIGHT * info.width / info.height) : 0
-  return responsiveImage(name, mobileWidth ? `(max-width: 760px) ${mobileWidth}px, 100vw` : '100vw')
-}
-
 export function responsiveImage(name: string, sizes = '100vw') {
   // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，
   // 一般物件會查到原型，接著 candidates.map 丟例外讓整頁渲染失敗。
