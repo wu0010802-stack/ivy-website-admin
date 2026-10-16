@@ -85,7 +85,7 @@ describe('區域分析：讀取與三張表', () => {
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
     const { wrapper } = await mountTab()
-    expect(squash(wrapper.get('.area-summary').text())).toBe('有地址7筆：到里5筆、未定位到里2筆（只到區1、查無門牌1）查看；另有2筆沒填地址')
+    expect(squash(wrapper.get('.area-summary').text())).toBe('參觀有地址7筆：到里5筆、未定位到里2筆（只到區1、查無門牌1）查看；另有2筆沒填地址')
     expect(wrapper.find('.area-reasons').exists()).toBe(false)
   })
 
@@ -103,7 +103,7 @@ describe('區域分析：讀取與三張表', () => {
       }),
     })
     const { wrapper } = await mountTab({}, area)
-    expect(squash(wrapper.get('.area-summary').text())).toBe('有地址9筆：到里4筆、未定位到里5筆（只到區2、非高雄市2、待比對1）查看')
+    expect(squash(wrapper.get('.area-summary').text())).toBe('參觀有地址9筆：到里4筆、未定位到里5筆（只到區2、非高雄市2、待比對1）查看')
   })
 
   it('全部到里：不寫未定位、沒有「查看」；沒有沒填地址的就不寫「另有」；已匿名化不在狀態列', async () => {
@@ -113,7 +113,7 @@ describe('區域分析：讀取與三張表', () => {
       }),
     })
     const { wrapper } = await mountTab({}, area)
-    expect(squash(wrapper.get('.area-summary').text())).toBe('有地址5筆：到里5筆')
+    expect(squash(wrapper.get('.area-summary').text())).toBe('參觀有地址5筆：到里5筆')
     expect(button(wrapper, '查看')).toBeUndefined()
     expect(wrapper.get('.area-head').text()).not.toContain('匿名')
   })
@@ -446,7 +446,7 @@ describe('區域分析：各區塊互不牽連（2026-10-12）', () => {
     })
     const { wrapper } = await mountTab({}, area)
     expect(wrapper.get('.area-status').text()).toContain('門牌資料尚未匯入')
-    expect(squash(wrapper.get('.area-summary').text())).toBe('有地址7筆：到里0筆、未定位到里7筆（待比對7）查看；另有2筆沒填地址')
+    expect(squash(wrapper.get('.area-summary').text())).toBe('參觀有地址7筆：到里0筆、未定位到里7筆（待比對7）查看；另有2筆沒填地址')
     expect(wrapper.findAll('.area-tables .stats-block')).toHaveLength(3)
     expect(block(wrapper, '行政區排行').text()).toContain('這個範圍還沒有比對到行政區的地址')
     expect(block(wrapper, '里排行').text()).toContain('這個範圍還沒有定位到里的地址')

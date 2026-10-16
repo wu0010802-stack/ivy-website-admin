@@ -23,9 +23,10 @@ import { DEFAULT_AREA_VIEW, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  babycareStatusText, bandLabel, campusNotLocatedReason, doorplateVersionLabel, enrolledMapNote, homesMapNote, opportunityUnavailable,
-  populationVersionLabel, reasonLabel, taipeiMonthDay, trendMapNote, type GradeFilter, type NearbyKind, type RadiusKm,
+  bandLabel, campusNotLocatedReason, enrolledMapNote, homesMapNote, opportunityUnavailable, trendMapNote,
+  type GradeFilter, type NearbyKind, type RadiusKm,
 } from './areaFormat'
+import { addressSummary, dataStatusSegments } from './areaPane'
 import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
 
 // 區域分析（2026-10-08 規格 9）：家長來源依行政區／里統計、里界地圖、附近幼兒園、距離分布。
@@ -267,43 +268,10 @@ watch([nearbyKind, map], ([kind, instance]) => {
   if (kind === 'babycare') instance?.revealBabycare()
 })
 
-// 狀態列（主控裁定 R5）：以「有地址」為母數——「有地址 N 筆：到里 a 筆、未定位到里 b 筆（只到區 c、查無門牌 d、
-// 非高雄市 e、待比對 f）」，括號只列非零項；沒填地址的另外寫，已匿名化不放在這裡。
-// c、f 用後端合計欄位（只到區、待比對的列不一定有原因），d、e 取自未定位原因。
-const status = computed(() => {
-  const data = area.value
-  if (!data) return null
-  const { totals, data_status: dataStatus } = data
-  const reasonCount = (reason: string) => totals.unlocated_reasons.find((item) => item.reason === reason)?.count ?? 0
-  const parts: [string, number][] = [
-    ['只到區', totals.district_level],
-    [reasonLabel('no_doorplate'), reasonCount('no_doorplate')],
-    ['非高雄市', reasonCount('outside_kaohsiung')],
-    ['待比對', totals.pending],
-  ]
-  return {
-    doorplate: dataStatus.doorplate_version
-      ? `門牌資料 ${doorplateVersionLabel(dataStatus.doorplate_version)}版`
-      : '門牌資料尚未匯入，家長地址暫時對不到里、算不出距離；匯入後自動補上。',
-    doorplateImported: Boolean(dataStatus.doorplate_version),
-    kindergarten: dataStatus.kindergartens_synced_at ? `幼兒園名單 ${taipeiMonthDay(dataStatus.kindergartens_synced_at)} 更新` : '幼兒園名單尚未匯入',
-    babycare: babycareStatusText(dataStatus.babycare_synced_at),
-    population: dataStatus.population_version ? `各里人口 ${populationVersionLabel(dataStatus.population_version)}` : '各里人口尚未匯入',
-    noVillage: totals.with_address - totals.village_level,
-    breakdown: parts.filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('、'),
-  }
-})
-
-// 有訪視但沒有任何可比對的地址時的說明。此時 visit ＝ no_address ＋ anonymized：
-// 只有沒填地址、只有已匿名化（地址已依保存期限清除）、兩者都有，各寫各的，不把匿名化說成「沒填」。
-const noAddressText = computed(() => {
-  const totals = area.value?.totals
-  if (!totals || !totals.visit || totals.with_address) return ''
-  const { no_address: noAddress, anonymized } = totals
-  if (!anonymized) return '這個範圍的訪視都還沒填地址。'
-  if (!noAddress) return '這個範圍的訪視地址都已依保存期限清除，無法比對。'
-  return `這個範圍的訪視沒有可比對的地址：${noAddress} 筆沒填地址、${anonymized} 筆已依保存期限清除。`
-})
+// 頁首的地址摘要與資料版本（組字在 areaPane.ts，工作台改版後搬到頁尾）。在籍清冊日期與收費學年先不放（傳 null），
+// 畫面只差「有地址」→「參觀有地址」。
+const summary = computed(() => (area.value ? addressSummary(area.value) : null))
+const status = computed(() => (area.value ? dataStatusSegments(area.value, null, null) : null))
 
 const placeColumns = (label: string): StatsColumn[] => [
   { key: 'place', label, sticky: true },
@@ -358,19 +326,19 @@ function openNoVillage() {
     <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取區域分析，請重新載入。">
       <el-button size="small" @click="load()">重新載入</el-button>
     </el-alert>
-    <el-skeleton v-else-if="!area || !status" :rows="6" animated />
+    <el-skeleton v-else-if="!area || !status || !summary" :rows="6" animated />
     <template v-else>
       <div class="area-head">
         <!-- 門牌資料還沒匯入時那句已經以句號結尾，兩段分開排，不接「。・」。 -->
         <p class="hint area-status">
-          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.kindergarten }}・{{ status.babycare }}・{{ status.population }}</span>
+          <span>{{ status.doorplate }}</span><span :class="{ 'area-status__next': !status.doorplateImported }">{{ status.doorplateImported ? '・' : '' }}{{ status.rest }}</span>
         </p>
-        <p v-if="area.totals.with_address" class="area-summary">
-          有地址 <strong class="num">{{ area.totals.with_address }}</strong> 筆：到里 <span class="num">{{ area.totals.village_level }}</span> 筆<template v-if="status.noVillage">、未定位到里 <span class="num">{{ status.noVillage }}</span> 筆<template v-if="status.breakdown">（{{ status.breakdown }}）</template>
-            <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template><template v-if="area.totals.no_address">；另有 <span class="num">{{ area.totals.no_address }}</span> 筆沒填地址</template>
+        <p v-if="summary.text" class="area-summary">
+          {{ summary.text }}<template v-if="summary.showLink">
+            <el-button text size="small" aria-label="查看未定位到里的訪視明細" @click="openNoVillage">查看</el-button></template>{{ summary.tail }}
         </p>
         <p v-if="!area.totals.visit" class="empty-note area-empty">{{ emptyText }}</p>
-        <p v-else-if="noAddressText" class="empty-note area-empty">{{ noAddressText }}</p>
+        <p v-else-if="summary.noAddress" class="empty-note area-empty">{{ summary.noAddress }}</p>
       </div>
 
       <div class="area-top">
