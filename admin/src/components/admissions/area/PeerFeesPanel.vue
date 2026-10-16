@@ -25,7 +25,7 @@ const notLocated = computed(() => {
 const notImported = computed(() => props.data?.synced_at === null)
 const subtitle = computed(() => {
   if (!props.data) return ''
-  return [peerFeesSubtitle(props.data), feeLagNote(props.data.school_year, props.data.current_school_year)].filter(Boolean).join(' ')
+  return [peerFeesSubtitle(props.data), feeLagNote(props.data.school_year, props.data.current_school_year)].filter(Boolean).join('。')
 })
 const summary = computed(() => (props.data ? peerSummaryText(props.data) : ''))
 const strip = computed(() => (props.data ? stripScale(props.data) : null))
@@ -76,7 +76,13 @@ function setAge(value: string | number | boolean | undefined) {
         <table class="peer-table">
           <caption class="visually-hidden">各類型園所的公告收費</caption>
           <thead>
-            <tr><th scope="col">類型</th><th scope="col">附近園所</th><th scope="col">有公布收費</th><th scope="col">中位數</th><th scope="col">範圍</th></tr>
+            <tr>
+              <th scope="col">類型</th>
+              <th scope="col" class="num">附近園所</th>
+              <th scope="col" class="num">有公布收費</th>
+              <th scope="col" class="num">中位數</th>
+              <th scope="col" class="num">範圍</th>
+            </tr>
           </thead>
           <tbody>
             <tr v-for="row in groups" :key="row.kind">
@@ -96,7 +102,12 @@ function setAge(value: string | number | boolean | undefined) {
           <table class="peer-table">
             <caption class="visually-hidden">本校與私立同業中位數的逐項收費</caption>
             <thead>
-              <tr><th scope="col">項目</th><th scope="col">本校</th><th scope="col">私立中位數</th><th scope="col">差額</th></tr>
+              <tr>
+                <th scope="col">項目</th>
+                <th scope="col" class="num">本校</th>
+                <th scope="col" class="num">私立中位數</th>
+                <th scope="col" class="num">差額</th>
+              </tr>
             </thead>
             <tbody>
               <tr v-for="row in items" :key="row.key">
@@ -119,7 +130,7 @@ function setAge(value: string | number | boolean | undefined) {
         :csv-cell="schoolCsvCell"
         row-key="source_id"
         empty-text="附近沒有公布收費的私立或準公共幼兒園。"
-        :export-filename="csvName('附近同業收費')"
+        :export-filename="csvName(`附近同業收費-${age} 歲`)"
         :collapsed-rows="COLLAPSED_ROWS"
       />
     </template>
@@ -157,14 +168,18 @@ function setAge(value: string | number | boolean | undefined) {
 }
 
 .peer-strip {
+  --peer-own-dot: 14px;
+
   display: grid;
   gap: 4px;
-  padding: 8px 6px 0;
+  padding: 8px 0 0;
 }
 
+/* 軌道左右各縮一個本校點的半徑：兩端的點（最低、最高）整顆落在內容邊內，端點標籤也對齊點的外緣。 */
 .peer-strip__track {
   position: relative;
   height: 20px;
+  margin: 0 calc(var(--peer-own-dot) / 2);
   border-bottom: 1px solid var(--line-strong);
 }
 
@@ -184,8 +199,8 @@ function setAge(value: string | number | boolean | undefined) {
 
 .peer-strip__dot.is-own {
   z-index: 1;
-  width: 14px;
-  height: 14px;
+  width: var(--peer-own-dot);
+  height: var(--peer-own-dot);
   bottom: -7px;
   border: 2px solid var(--area-kind-own-ink);
   background: var(--area-kind-own);
@@ -224,6 +239,7 @@ function setAge(value: string | number | boolean | undefined) {
   white-space: nowrap;
 }
 
+.peer-table th.num,
 .peer-table td.num {
   text-align: right;
 }

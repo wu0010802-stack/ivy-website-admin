@@ -27,7 +27,7 @@ describe('附近同業收費', () => {
   it('標題、學年、總結、落點條、兩張表與註記', () => {
     const wrapper = mountPanel({ data: areaPeerFees() })
     expect(wrapper.get('.peer-fees__title').text()).toBe('附近同業收費')
-    expect(wrapper.get('.peer-fees__subtitle').text()).toBe('114 學年・全日班・一學期公告收費 目前是 115 學年，最新公開收費是 114 學年。')
+    expect(wrapper.get('.peer-fees__subtitle').text()).toBe('114 學年・全日班・一學期公告收費。目前是 115 學年，最新公開收費是 114 學年。')
     expect(wrapper.get('.peer-fees__summary').text()).toBe('3 公里內私立幼兒園（不含準公共）有 3 所公布收費，3 歲班一學期中位數 75,000 元；本校 89,750 元，第 2 高。')
     expect(wrapper.get('.peer-strip').attributes('aria-hidden')).toBe('true')
     expect(wrapper.findAll('.peer-strip__dot')).toHaveLength(4)
@@ -39,6 +39,25 @@ describe('附近同業收費', () => {
     expect(wrapper.text()).toContain('準公共、公立、非營利的家長另有政府補助，這裡是園所公告收費，不是家長實付。')
     expect(wrapper.text()).toContain('各園項目歸類不一，總價比較較準。')
     expect(wrapper.find('.stats-block__title').text()).toBe('各所收費')
+  })
+
+  it('收費學年就是目前學年：小字只有第一句、結尾不加句號', () => {
+    const wrapper = mountPanel({ data: areaPeerFees({ school_year: 115, current_school_year: 115 }) })
+    expect(wrapper.get('.peer-fees__subtitle').text()).toBe('115 學年・全日班・一學期公告收費')
+  })
+
+  it('數字欄的表頭靠右（加 num），第一欄維持靠左', () => {
+    const wrapper = mountPanel()
+    const [groupsTable, itemsTable] = wrapper.findAll('table.peer-table')
+    const headers = (table: typeof groupsTable) => table.findAll('thead th').map((th) => [th.text(), th.classes('num')])
+    expect(headers(groupsTable)).toEqual([['類型', false], ['附近園所', true], ['有公布收費', true], ['中位數', true], ['範圍', true]])
+    expect(headers(itemsTable)).toEqual([['項目', false], ['本校', true], ['私立中位數', true], ['差額', true]])
+  })
+
+  it('匯出檔名帶年齡', async () => {
+    const wrapper = mountPanel({ age: 4 })
+    await wrapper.get('[data-test="stats-csv"]').trigger('click')
+    expect(vi.mocked(downloadCsv).mock.calls.at(-1)![0]).toBe('招生統計-附近同業收費-4 歲.csv')
   })
 
   it('切換年齡發出 update:age', async () => {
@@ -74,7 +93,7 @@ describe('附近同業收費', () => {
     const wrapper = mountPanel()
     await wrapper.get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
-    expect(filename).toBe('招生統計-附近同業收費.csv')
+    expect(filename).toBe('招生統計-附近同業收費-3 歲.csv')
     expect(csv).toContain('學費（元）')
     expect(csv).toContain('乙幼兒園')
     // 丙幼兒園沒有月均：CSV 那格是空白（不是 0、不是「—」）；學期總收費寫原始數字。
