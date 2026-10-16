@@ -24,7 +24,9 @@ from app.campuses.models import Campus
 from app.common.ratelimit import RateLimiter
 from app.common.timezones import today_local
 from app.config import Settings
+from app.db import Base
 from app.main import create_app
+from tests.route_cache import install as install_route_cache
 
 
 # 建帳號、登入都要跑 bcrypt；正式強度（rounds 12，約 250 ms）讓全套 pytest 一半時間
@@ -33,6 +35,9 @@ from app.main import create_app
 # app/auth/service.py 的預設。查無帳號時比對的假雜湊跟著重算，兩條路徑成本一致。
 service._pwd_context.update(bcrypt__rounds=4)
 service._DUMMY_PASSWORD_HASH = service._pwd_context.hash(secrets.token_urlsafe(32))
+
+# 每個測試都建一次 app；路由只建第一次，之後重用（理由與限制見 tests/route_cache.py）。
+install_route_cache()
 
 
 MEDIA_FIXTURE_DIR = Path("/tmp/media-fixtures")
@@ -108,7 +113,18 @@ def _test_settings() -> Settings:
 
 @pytest_asyncio.fixture
 async def app():
-    return create_app(_test_settings())
+    application = create_app(_test_settings())
+    yield application
+    # ASGITransport 不跑 lifespan，app 自己的 dispose 不會執行；不收的話連線要等 GC
+    # 回收 app 才關。2026-10-16 建 app 變快後 GC 跑得少，全套曾累積到 PostgreSQL
+    # 連線上限（max_connections 100、本機各 session 共用），出現 TooManyConnectionsError。
+    await application.state.rate_limit_engine.dispose()
+    await application.state.engine.dispose()
+    # 路由是各個 app 共用的（tests/route_cache.py），覆寫只會套在第一個 app 上。
+    assert not application.dependency_overrides, (
+        "共用的路由看不到這個 app 的 dependency_overrides；"
+        "這個測試改用 tests.route_cache.uncached_create_app(create_app, settings) 建 app"
+    )
 
 
 def freeze_rate_limit_clock(app) -> None:
@@ -124,41 +140,54 @@ def freeze_rate_limit_clock(app) -> None:
     )
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def _clean_tables(app):
-    """每個測試前清空 users/sessions/user_campus_scopes（保留五校 seed），
-    確保情境 fixture 彼此隔離，不共用交易假測併發。"""
-    async with app.state.engine.begin() as conn:
-        await conn.execute(
-            text(
-                "TRUNCATE TABLE password_reset_tokens, sessions, user_campus_scopes, users, contact_phrase_sets, "
-                "media_jobs, media_usages, media_variants, media_assets, "
-                "site_release_entries, site_releases, site_state, "
-                "content_revisions, content_items, "
-                "audit_log_entries, analytics_events, "
-                "page_view_daily, web_vital_samples, slot_lookup_daily, "
-                "notification_deliveries, notification_inbox_items, user_notifications, "
-                "parent_sessions, parent_access_tokens, "
-                "outbox_messages, visit_request_events, visit_contact_notes, "
-                "visit_requests, visit_slots, visit_rules, visit_exceptions, publish_jobs, "
-                "booking_configs, rate_limit_counters, line_campus_targets, line_groups, "
-                "retention_policies, retention_runs, "
-                "enrolled_student_points, enrolled_rosters, "
-                "recruitment_visit_geo, geo_doorplates, geo_kindergartens, geo_babycare, geo_provider_events, geo_kindergarten_fees, "
-                "geo_village_population, geo_dataset_status, "
-                "geo_village_births, geo_village_migration, geo_village_ages, geo_village_income, geo_new_home_sales, "
-                "recruitment_contact_logs, recruitment_event_log, recruitment_visits, grade_intake_targets "
-                "RESTART IDENTITY CASCADE"
+# 每個測試前清空的表：ORM 的全部資料表，只留五校 seed。直接取自 metadata，新增資料表
+# 不必回來補名單（以前是手寫名單，漏了資料就會跨測試殘留）。
+_CLEAN_TABLES = sorted(set(Base.metadata.tables) - {"campuses"})
+_cleanup_sql: str | None = None
+
+
+async def _cleanup_statements(raw) -> str:
+    """整串清表指令，第一次用時組好（測試過程中 schema 不變）。
+
+    用 DELETE 不用 TRUNCATE：表幾乎都是空的或只有幾列，TRUNCATE 卻要替 50 多張表
+    換新檔案，2026-10-16 本機實測一次 44 ms、DELETE 1.4 ms，每個測試都要付一次。
+    `session_replication_role = replica` 讓 DELETE 不必照外鍵順序（有循環參照）；
+    這要 superuser（CI 與本機都是），不是的話照舊用 TRUNCATE。"""
+    global _cleanup_sql
+    if _cleanup_sql is None:
+        if await raw.fetchval("SELECT current_setting('is_superuser') = 'on'"):
+            # TRUNCATE 的 RESTART IDENTITY 改成逐一重設這些表擁有的序列。
+            sequences = await raw.fetch(
+                "SELECT DISTINCT seq.relname FROM pg_depend d "
+                "JOIN pg_class seq ON seq.oid = d.objid AND seq.relkind = 'S' "
+                "JOIN pg_class tbl ON tbl.oid = d.refobjid "
+                "WHERE tbl.relname = ANY($1::text[])",
+                _CLEAN_TABLES,
             )
-        )
+            sql = "SET LOCAL session_replication_role = replica; "
+            sql += "".join(f'DELETE FROM "{name}"; ' for name in _CLEAN_TABLES)
+            sql += "".join(f'ALTER SEQUENCE "{row[0]}" RESTART; ' for row in sequences)
+        else:
+            tables = ", ".join(f'"{name}"' for name in _CLEAN_TABLES)
+            sql = f"TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE; "
         # 五校 seed 不清，但停用狀態要還原：停用分校的測試（或中途失敗的測試）
         # 不會讓後面的測試拿到停用中的校區。
-        await conn.execute(
-            text(
-                "UPDATE campuses SET active = true, deactivated_at = NULL, deactivated_reason = NULL "
-                "WHERE active IS NOT true"
-            )
+        sql += (
+            "UPDATE campuses SET active = true, deactivated_at = NULL, deactivated_reason = NULL "
+            "WHERE active IS NOT true"
         )
+        _cleanup_sql = sql
+    return _cleanup_sql
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_tables(app):
+    """每個測試前清空資料表（保留五校 seed），確保情境 fixture 彼此隔離，不共用交易假測併發。"""
+    async with app.state.engine.begin() as conn:
+        # 先經 SQLAlchemy 送一句讓這條連線進入交易，整串清表指令再用 asyncpg 一次送完。
+        await conn.execute(text("SELECT 1"))
+        raw = (await conn.get_raw_connection()).driver_connection
+        await raw.execute(await _cleanup_statements(raw))
     yield
 
 
