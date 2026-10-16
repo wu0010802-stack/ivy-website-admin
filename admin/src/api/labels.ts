@@ -613,7 +613,51 @@ export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
 // 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。
 export const VISIT_DETAIL_FIELD_LABELS: Record<string, string> = {
   parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
-  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事',
+  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事', expected_start: '預計入學時間',
+}
+
+// 預計入學時間（2026-10-15）：和後端 app/booking/expected_start.py 的 display_label 同一套規則與案例
+// （contracts/expected-start-cases.json 的 labels）。值是 asap、unsure 或「民國學年-學期」。
+type Term = [number, number]
+function termOfDay(day: string): Term {
+  const [year, month] = day.split('-').map(Number) as [number, number]
+  if (month >= 8) return [year - 1911, 1]
+  if (month >= 2) return [year - 1912, 2]
+  return [year - 1912, 1]
+}
+const termIndex = ([year, semester]: Term): number => year * 2 + semester - 1
+const termAt = (index: number): Term => [Math.floor(index / 2), (index % 2) + 1]
+const termText = ([year, semester]: Term): string => `${year} 學年${semester === 1 ? '上' : '下'}學期`
+const termMonthText = ([year, semester]: Term): string => (semester === 1 ? `${year + 1911} 年 9 月` : `${year + 1912} 年 2 月`)
+function parseTerm(value: string): Term | null {
+  const match = /^(1\d{2})-([12])$/.exec(value)
+  return match ? [Number(match[1]), Number(match[2])] : null
+}
+
+/** 明細的文字；submittedOn 是送單的台北日期（YYYY-MM-DD），「盡快」換算當時的學期。 */
+export function expectedStartLabel(value: string | null | undefined, submittedOn: string): string {
+  if (!value) return ''
+  if (value === 'unsure') return '還不確定'
+  if (value === 'asap') return `盡快（送單時是 ${termText(termOfDay(submittedOn))}）`
+  const term = parseTerm(value)
+  return term ? `${termMonthText(term)}（${termText(term)}）` : value
+}
+
+/** 後台補登與修改家長資料的下拉：盡快、前兩個學期到之後六個學期、還不確定（規格 X8：後台可填過去的學期）；
+ * 目前的值不在範圍內時也列出來，打開表單不會把它弄丟。 */
+export function expectedStartStaffOptions(today: string, current?: string | null): { value: string; label: string }[] {
+  const now = termIndex(termOfDay(today))
+  const terms = Array.from({ length: 9 }, (_, i) => termAt(now - 2 + i))
+  const options = [
+    { value: 'asap', label: '盡快' },
+    ...terms.map((term) => ({ value: `${term[0]}-${term[1]}`, label: `${termMonthText(term)}（${termText(term)}）` })),
+    { value: 'unsure', label: '還不確定' },
+  ]
+  const kept = current ? parseTerm(current) : null
+  if (current && kept && !options.some((option) => option.value === current)) {
+    options.splice(1, 0, { value: current, label: `${termMonthText(kept)}（${termText(kept)}）` })
+  }
+  return options
 }
 
 // 與後端 log_action 的 target_type 同一組（labels.test.ts 會比對）。

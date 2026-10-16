@@ -4,8 +4,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
-import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, formatSlotWhen, slotStarted } from '../api/labels'
+import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, expectedStartStaffOptions, formatSlotWhen, slotStarted } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
+import { taipeiDay } from '../utils/visitSchedule'
 import CampusSelect from './CampusSelect.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
 
@@ -33,6 +34,8 @@ function blank() {
     email: '',
     // 參觀人數 1–10；電話裡沒問到可以留空（明細顯示「未填寫」）。
     party_size: null as number | null,
+    // 預計入學時間（2026-10-15，選填）：asap、unsure 或「民國學年-學期」；空字串是沒選，送出時換成 null。
+    expected_start: '',
     questions: '',
     note: '',
     slot_id: '',
@@ -70,6 +73,7 @@ watch(open, (value) => {
     form.child_birthdate = from.child_birthdate ?? null
     form.email = from.email ?? ''
     form.party_size = from.party_size ?? null
+    form.expected_start = from.expected_start ?? ''
   }
   initial.value = JSON.stringify(form)
   error.value = null
@@ -107,6 +111,8 @@ const emailHelp = computed(() => {
 
 // 選好後在選單下面整行寫出完整場次，選單收起來時被截斷也看得到。
 const chosenSlot = computed(() => openSlots.value.find((s) => s.id === form.slot_id) ?? null)
+// 預計入學時間的選項依台北今天算；重新預約帶入的舊值不在範圍內也列出來，不會被悄悄換掉。
+const startOptions = computed(() => expectedStartStaffOptions(taipeiDay(Date.now()), form.expected_start))
 const slotOptionLabel = (slot: VisitSlotOut) => `${formatSlotWhen(slot)}，剩 ${slot.capacity - slot.booked_count} 組`
 
 // 內容一改就換 key：改過的表單是新的一次送出，不能被當成重播而撞 409。
@@ -226,6 +232,7 @@ async function submit() {
     // 家長自選場次之後不再問方便接電話時段（DESIGN.md 2026-09-30）；欄位仍在 API 上，一律不送值。
     preferred_time: null,
     party_size: form.party_size,
+    expected_start: form.expected_start || null,
     questions: form.questions.trim() || null,
     note: form.note.trim() || null,
     slot_id: form.slot_id,
@@ -321,6 +328,12 @@ async function submit() {
           </el-select>
         </el-form-item>
       </div>
+
+      <el-form-item label="預計入學時間">
+        <el-select v-model="form.expected_start" clearable value-on-clear="" placeholder="選填，家長預計什麼時候入學" style="width: 100%">
+          <el-option v-for="option in startOptions" :key="option.value" :label="option.label" :value="option.value" />
+        </el-select>
+      </el-form-item>
 
       <el-form-item label="家長想了解的事">
         <el-input v-model="form.questions" type="textarea" maxlength="500" show-word-limit :autosize="{ minRows: 2, maxRows: 5 }" />
