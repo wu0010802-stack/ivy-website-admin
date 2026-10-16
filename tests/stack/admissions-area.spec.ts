@@ -150,6 +150,15 @@ async function pickRange(page: Page, label: string): Promise<void> {
   await expect(rangeButton(page, label)).toHaveClass(/is-active/)
 }
 
+/**
+ * 招生統計的子分頁「區域分析」是選取狀態。不能用 `.stats-subtabs .el-tabs__item.is-active`：區域分析裡的「完整表格」
+ * 也是 el-tabs（巢狀在 .stats-subtabs 底下），畫出來之後選取的分頁項會有兩個，strict mode 會報錯；
+ * 這裡用角色與名稱指到子分頁本身（名稱完全相同，完整表格的分頁項名稱都帶其他字）。
+ */
+async function expectAreaSubTabSelected(page: Page): Promise<void> {
+  await expect(page.getByRole('tab', { name: '區域分析', exact: true })).toHaveAttribute('aria-selected', 'true')
+}
+
 /** 完整表格換分頁：該頁成為選取、網址的 table 變成 value（預設的「各里」不寫進網址，傳 null）。 */
 async function openTableTab(page: Page, label: string, value: string | null): Promise<void> {
   const tab = tableTab(page, label)
@@ -316,7 +325,7 @@ test('區域分析：門牌比對到里 → 頁尾與參觀來源三張表 → �
     await expect(page.locator('.records-table .el-table__row', { hasText: CHILD_NEAR })).toHaveCount(1)
     await expect(page.locator('.records-table .el-table__row', { hasText: CHILD_TAINAN })).toHaveCount(0)
     await page.goBack()
-    await expect(page.locator('.stats-subtabs .el-tabs__item.is-active')).toHaveText('區域分析')
+    await expectAreaSubTabSelected(page)
     await expect(tableTab(page, '參觀來源')).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -567,7 +576,7 @@ test('工作台：點地圖上的里 → 右欄里卡片、網址 village=、重
     expect(queryParam(page, 'area')).toBe('左營區/新上里')
     await expect(page.getByText('只顯示左營區新上里的訪視。')).toBeVisible()
     await page.goBack()
-    await expect(page.locator('.stats-subtabs .el-tabs__item.is-active')).toHaveText('區域分析')
+    await expectAreaSubTabSelected(page)
     await expect(title).toHaveText('左營區新上里')
   })
 
