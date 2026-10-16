@@ -101,7 +101,7 @@ describe('captionCollapsed：caption 收進「這些數字怎麼算」', () => {
     const details = wrapper.get('details.stats-block__how')
     expect(details.attributes('open')).toBeUndefined()
     expect(details.get('summary').text()).toBe('這些數字怎麼算')
-    expect(details.get('p.hint').text()).toBe(caption)
+    expect(details.get('p').text()).toBe(caption)
     expect(wrapper.find('p.stats-block__caption').exists()).toBe(false)
     wrapper.unmount()
   })

@@ -89,16 +89,21 @@ interface RowSource {
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0)
 
-/** 這一列在在籍名冊裡的人數：先比里代碼，名冊對不到里界的列（village_code 是 null）再比區＋里名（同里卡片）。 */
+/**
+ * 這一列在在籍名冊裡的人數：先比里代碼（合併組是組內任一代碼）；沒有任何名冊列對到代碼，才比區＋里名
+ * （同里卡片 villageFacts 的 `find(code) ?? find(name)`：名冊對不到里界的列 village_code 是 null）。
+ * 合併組的名稱後備只看和組同區的成員。
+ */
 function enrolledFor(
   enrolled: AreaEnrolled | null, codes: readonly string[], district: string, names: readonly string[],
 ): { total: number; counts: Record<string, number> } | null {
   if (!enrolled) return null
   const counts: Record<string, number> = Object.fromEntries(ENROLLED_GRADE_ORDER.map((grade) => [grade, 0]))
-  for (const item of enrolled.villages) {
-    const hit =
-      (item.village_code !== null && codes.includes(item.village_code)) || (item.district === district && names.includes(item.village))
-    if (!hit) continue
+  const byCode = enrolled.villages.filter((item) => item.village_code !== null && codes.includes(item.village_code))
+  const matched = byCode.length
+    ? byCode
+    : enrolled.villages.filter((item) => item.district === district && names.includes(item.village))
+  for (const item of matched) {
     for (const grade of ENROLLED_GRADE_ORDER) counts[grade] = counts[grade]! + (item.counts[grade] ?? 0)
   }
   return { total: pointCount(counts, 'all'), counts }
@@ -121,7 +126,11 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
       : sum(opportunity.no_population_villages.filter((item) => codes.includes(item.village_code)).map((item) => item.visit))
   // 合併組（D16）：參觀率＝加總參觀 ÷ 組的 2–5 歲；照附近應有要涵蓋同一批里，有一個沒有附近平均就整格不寫（同里卡片）。
   const rate = single ? single.rate : merged && oppRows.length && children ? ((visit ?? 0) / children) * 100 : null
-  const expected = oppRows.length && oppRows.every((row) => row.expected !== null) ? sum(oppRows.map((row) => row.expected!)) : null
+  // 後端每一列的 expected 已四捨五入到小數一位：加總會冒浮點雜訊（4.3 + 2.9＝7.199999999999999），加完再收回一位。
+  const expected =
+    oppRows.length && oppRows.every((row) => row.expected !== null)
+      ? Math.round(sum(oppRows.map((row) => row.expected!)) * 10) / 10
+      : null
   const verdict = judged && single ? single : null
 
   const enrolledRowNames = merged ? source.village.split('、').filter(Boolean) : [source.village]
@@ -367,9 +376,10 @@ function monthRange(months: readonly string[]): string {
   return first === last ? first : `${first}到 ${last}`
 }
 
-/** 招生機會面板原本的 caption（不含「附近」那句）；人口沒匯入或本校沒座標時沒有。 */
+/** 招生機會面板原本的 caption（不含「附近」那句）；人口沒匯入、本校沒座標、附近參觀沒到門檻時沒有。 */
 function opportunityHow(data: AreaOpportunity | null): string {
-  if (!data?.population.version || opportunityUnavailable(data)) return ''
+  // 沒到門檻（D15）表上沒有參觀欄與判讀，不解釋參觀率、照附近應有、少了約 N 位。
+  if (!data?.population.version || opportunityUnavailable(data) || data.baseline?.judged !== true) return ''
   return (
     '參觀率＝參觀人數 ÷ 2–5 歲孩子數；照附近應有＝孩子數 × 本校附近的參觀率。' +
     '「少了約 N 位」只標和附近比明顯偏少的里，約有一成機率是誤報。' +

@@ -58,8 +58,9 @@ const notes = computed(() =>
   ].filter((note): note is string => Boolean(note)),
 )
 
-// 里的變化是表的底：它還在讀、或讀不到但招生機會還沒回來時沒有東西可畫，先顯示骨架；兩份都讀不到只剩失敗句。
-const waiting = computed(() => !props.trends && (!props.trendsFailed || (!props.opportunity && !props.opportunityFailed)))
+// 兩份任何一份還在讀（沒資料也沒失敗）就顯示骨架，同里卡片：只有一份到時畫出來的表，欄位與預設排序會在另一份到時跳動。
+// 讀取失敗的那份不等；兩份都讀不到只剩失敗句。
+const waiting = computed(() => (!props.trends && !props.trendsFailed) || (!props.opportunity && !props.opportunityFailed))
 const hasBase = computed(() => props.trends !== null || props.opportunity !== null)
 
 const choose = (value: unknown) => {

@@ -109,17 +109,49 @@ describe('各里表的列與排序', () => {
     expect(group.signal_text).toBe('—')
   })
 
+  it('合併組：照附近應有加總後收回小數一位（4.3 + 2.9＝7.2，不是 7.199999999999999），畫面與 CSV 都一樣', () => {
+    const opportunity = withLongzi(2.9)
+    opportunity.villages[0] = { ...opportunity.villages[0]!, expected: 10.4 }
+    opportunity.villages[2] = { ...opportunity.villages[2]!, expected: 4.3 }
+    const rows = villageTableRows(areaTrends(), opportunity, null)
+    const expectedColumn = { key: 'expected_text', label: '照附近應有' }
+    const group = rowOf(rows, GROUP)
+    expect(group.expected).toBe(7.2)
+    expect(group.expected_text).toBe('約 7 位')
+    expect(villageCsvCell(group, expectedColumn)).toBe(7.2)
+    // 一般的里照後端的一位小數原樣
+    expect(villageCsvCell(rowOf(rows, '三民區鼎金里'), expectedColumn)).toBe(10.4)
+  })
+
   it('合併組：有一個里沒有附近平均，照附近應有整個寫「—」', () => {
     const group = rowOf(villageTableRows(areaTrends(), withLongzi(null), null), GROUP)
     expect([group.visit, group.expected, group.expected_text]).toEqual([13, null, '—'])
   })
 
-  it('合併組在籍：組內各里加總；沒有代碼的在籍列用區＋里名對', () => {
+  it('合併組在籍：組內各里（任一代碼）加總', () => {
     const enrolled = areaEnrolled()
-    enrolled.villages.push({ district: '三民區', village: '龍子里', village_code: null, counts: { 幼幼班: 0, 小班: 0, 中班: 1, 大班: 0, 其他: 0 }, total: 1 })
+    enrolled.villages.push({ district: '鼓山區', village: '龍子里', village_code: '64000020015', counts: { 幼幼班: 0, 小班: 0, 中班: 1, 大班: 0, 其他: 0 }, total: 1 })
     const group = rowOf(villageTableRows(areaTrends(), areaOpportunity(), enrolled), GROUP)
     expect(group.enrolled).toBe(2)
     expect(group.enrolled_counts).toEqual({ 幼幼班: 1, 小班: 0, 中班: 1, 大班: 0, 其他: 0 })
+  })
+
+  it('在籍：先比里代碼，沒有任何列對到代碼才比區＋里名（同里卡片）', () => {
+    const counts = (小班: number) => ({ 幼幼班: 0, 小班, 中班: 0, 大班: 0, 其他: 0 })
+    // 名冊對不到里界的列 village_code 是 null：本揚里沒有代碼相同的列，改用區＋里名
+    const fallback = areaEnrolled()
+    fallback.villages = [{ district: '三民區', village: '本揚里', village_code: null, counts: counts(4), total: 4 }]
+    expect(rowOf(villageTableRows(areaTrends(), areaOpportunity(), fallback), '三民區本揚里').enrolled).toBe(4)
+    // 有列對到代碼就只用代碼：另一列同區同名、代碼不同（或沒有代碼）的不再加進來
+    const both = areaEnrolled()
+    both.villages = [
+      { district: '三民區', village: '本揚里', village_code: '64000050015', counts: counts(3), total: 3 },
+      { district: '三民區', village: '本揚里', village_code: null, counts: counts(5), total: 5 },
+      { district: '三民區', village: '本揚里', village_code: '64000059998', counts: counts(7), total: 7 },
+    ]
+    expect(rowOf(villageTableRows(areaTrends(), areaOpportunity(), both), '三民區本揚里').enrolled).toBe(3)
+    // 名冊裡完全沒有這個里：0（名冊已就緒），不是 null
+    expect(rowOf(villageTableRows(areaTrends(), areaOpportunity(), fallback), '三民區鼎金里').enrolled).toBe(0)
   })
 
   it('不在招生機會裡的里（沒有人口資料）：參觀用 no_population_villages 的人數，其餘寫「—」', () => {
@@ -181,6 +213,13 @@ describe('各里表的欄與說明', () => {
     expect(villageColumns(true, true)).toHaveLength(16)
   })
 
+  it('說明：沒到門檻不解釋參觀率、照附近應有、少了約 N 位，里的變化那段照舊', () => {
+    const text = villageHowText(areaTrends(), notJudged())
+    expect(text).toBe(villageHowText(areaTrends(), null))
+    expect(text).toContain('這一年淨增＝')
+    for (const phrase of ['參觀率＝', '照附近應有＝', '少了約 N 位']) expect(text).not.toContain(phrase)
+  })
+
   it('說明：兩個舊面板的 caption 接起來，「附近」那句只寫一次；沒有資料時是空字串', () => {
     const text = villageHowText(areaTrends(), areaOpportunity())
     expect(text.startsWith('「附近」是里的中心點在半徑內的里。')).toBe(true)
@@ -189,6 +228,7 @@ describe('各里表的欄與說明', () => {
     expect(text).toContain('這一年淨增＝本月 2–5 歲減一年前 1–4 歲')
     expect(text).toContain('國小學區依 115 學年度一覽表')
     expect(villageHowText(null, null)).toBe('')
+    expect(villageHowText(null, notJudged())).toBe('')
     const onlyTrends = villageHowText(areaTrends(), null)
     expect(onlyTrends).toContain('這一年淨增＝')
     expect(onlyTrends).not.toContain('參觀率＝')
@@ -291,12 +331,44 @@ describe('AreaVillageTable', () => {
     wrapper.unmount()
   })
 
-  it('沒挑過排序時，預設跟著門檻走（招生機會晚到也一樣）', async () => {
+  it('招生機會晚到：先骨架，到了才畫表，沒挑過排序就是參觀偏少', async () => {
     const wrapper = mountTable({ opportunity: null })
-    expect(wrapper.get('.el-radio-button.is-active').text()).toBe('孩子最多')
+    expect(wrapper.find('.el-skeleton').exists()).toBe(true)
+    expect(wrapper.find('table').exists()).toBe(false)
     await wrapper.setProps({ opportunity: areaOpportunity() })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
     expect(wrapper.get('.el-radio-button.is-active').text()).toBe('參觀偏少')
     expect(places(wrapper)).toEqual(['三民區鼎金里', '三民區本揚里', GROUP])
+    wrapper.unmount()
+  })
+
+  it('里的變化晚到（招生機會已到）也先骨架', async () => {
+    const wrapper = mountTable({ trends: null })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(true)
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.find('.el-alert').exists()).toBe(false)
+    await wrapper.setProps({ trends: areaTrends() })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
+    expect(places(wrapper)).toEqual(['三民區鼎金里', '三民區本揚里', GROUP])
+    wrapper.unmount()
+  })
+
+  it('里的變化讀不到、招生機會還在讀：骨架＋里的變化失敗句；招生機會到了就畫表', async () => {
+    const wrapper = mountTable({ trends: null, trendsFailed: true, opportunity: null })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(true)
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.findAll('.el-alert').map((alert) => alert.text())).toEqual([expect.stringContaining('無法讀取里的變化，請重新載入。')])
+    await wrapper.setProps({ opportunity: areaOpportunity() })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
+    expect(places(wrapper)).toEqual(['三民區鼎金里', '三民區本揚里', '三民區寶業里'])
+    expect(wrapper.findAll('.el-alert')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('招生機會讀不到、里的變化還在讀：骨架＋招生機會失敗句', () => {
+    const wrapper = mountTable({ trends: null, opportunity: null, opportunityFailed: true })
+    expect(wrapper.find('.el-skeleton').exists()).toBe(true)
+    expect(wrapper.findAll('.el-alert').map((alert) => alert.text())).toEqual([expect.stringContaining('無法讀取招生機會，請重新載入。')])
     wrapper.unmount()
   })
 

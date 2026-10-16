@@ -1,6 +1,7 @@
 <script setup lang="ts" generic="Row extends Record<string, unknown>">
 import { computed, ref, useId } from 'vue'
 import { NO_VALUE, barWidth, formatRange, formatRate, rateCsvCell, toRange, type StatsColumn } from '../../admissions/statsFormat'
+import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import { notifyError } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/csv'
@@ -151,10 +152,9 @@ function exportCsv() {
     </div>
     <!-- 標題與表格之間的說明（招生機會的總結，2026-10-13）；caption 是小字，intro 是正文。 -->
     <slot name="intro" />
-    <details v-if="caption && captionCollapsed" class="stats-block__how">
-      <summary>這些數字怎麼算</summary>
-      <p class="hint">{{ caption }}</p>
-    </details>
+    <AnalyticsExplainer v-if="caption && captionCollapsed" class="stats-block__how" summary="這些數字怎麼算">
+      <p>{{ caption }}</p>
+    </AnalyticsExplainer>
     <p v-else-if="caption" class="hint stats-block__caption">{{ caption }}</p>
     <p v-if="!rows.length" class="stats-block__empty">{{ emptyText }}</p>
     <div v-else class="stats-block__scroll" role="region" tabindex="0" :aria-label="`${title}（可左右捲動）`">
@@ -238,49 +238,6 @@ function exportCsv() {
 
 .stats-block__how {
   margin: -4px 0 8px;
-  color: var(--ink-2);
-  font-size: var(--text-sm);
-}
-
-.stats-block__how summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  color: var(--admin-accent-strong);
-  cursor: pointer;
-  list-style: none;
-}
-
-.stats-block__how summary::-webkit-details-marker {
-  display: none;
-}
-
-/* 摘要前的 ›：展開時轉向下（同 AnalyticsExplainer）。 */
-.stats-block__how summary::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform 150ms var(--ease-out);
-}
-
-.stats-block__how[open] summary::before {
-  transform: rotate(45deg);
-}
-
-.stats-block__how summary:focus-visible {
-  outline: 2px solid var(--admin-accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.stats-block__how .hint {
-  max-width: 72ch;
-  margin: 4px 0 0;
-  line-height: 1.6;
 }
 
 .stats-block__empty {
@@ -402,14 +359,6 @@ function exportCsv() {
 }
 
 @media (max-width: 720px) {
-  .stats-block__how {
-    font-size: var(--text-base);
-  }
-
-  .stats-block__how summary {
-    min-height: 44px;
-  }
-
   .stats-table th,
   .stats-table td {
     padding: 8px 10px;
