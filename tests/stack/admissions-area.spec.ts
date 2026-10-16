@@ -22,6 +22,9 @@ import { ROOT } from './stack-env'
 // （map／village／table）。附近幼兒園、托嬰、園所變化在「同業」模式的右欄；三張參觀表在「參觀來源」分頁。
 // 預設模式：該校有在籍清冊是「在籍學生」，沒有是「2–5 歲孩子」；用到特定模式的測試一律明寫（點工具列或帶 map=），
 // 不靠預設，因為在籍測試會替崇德校匯入清冊、改變後面測試的預設。
+// 訪視數耦合：「招生機會」測試斷言崇德校附近參觀不到 10 位（模式停用、各里表沒有參觀欄）。工作台的新測試（甲／乙／丙童）
+// 各替崇德校的新上里再加一筆訪視，所以它們一律排在「招生機會」之後，累計（第一則 1、招生機會 1、新測試 3）要一直 < 10；
+// 以後再加會建訪視的測試，先算這個數，不要把它們移到「招生機會」前面。
 
 const CAMPUS = 'chongde'
 // 本校位置未定位的測試對象：admissions-flow 等其他 spec 都不碰仁武校。
@@ -201,6 +204,43 @@ function insideCanvas(page: Page, selector: string): Promise<boolean> {
     const box = element.getBoundingClientRect()
     return box.width > 0 && box.height > 0 && box.left >= canvas.left && box.right <= canvas.right && box.top >= canvas.top && box.bottom <= canvas.bottom
   }, selector)
+}
+
+/**
+ * 選取外框（規格 D6）：畫在專用 pane（area-selected）、顏色是 --ink 而不是 Leaflet 預設的 #3388ff、pane 疊在里界（overlay 400）之上、
+ * 幼兒園與在籍點（area-points 420）之下，而且不收滑鼠事件。--ink 的計算值用一個暫時的元素解析 var(--ink)，
+ * 跟外框 stroke 的計算值同為 rgb() 字串，直接比。
+ */
+async function expectSelectedOutlineStyle(page: Page): Promise<void> {
+  const style = await page.evaluate(() => {
+    const outline = document.querySelector('.leaflet-area-selected-pane path.area-village-selected')
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--ink)'
+    document.body.appendChild(probe)
+    const ink = getComputedStyle(probe).color
+    probe.remove()
+    const paneStyle = (selector: string) => {
+      const element = document.querySelector(selector)
+      return element ? getComputedStyle(element) : null
+    }
+    const selected = paneStyle('.leaflet-area-selected-pane')
+    return {
+      inPane: outline !== null,
+      stroke: outline ? getComputedStyle(outline).stroke : '',
+      ink,
+      overlayZ: Number(paneStyle('.leaflet-overlay-pane')?.zIndex),
+      selectedZ: Number(selected?.zIndex),
+      selectedEvents: selected?.pointerEvents ?? '',
+      pointsZ: Number(paneStyle('.leaflet-area-points-pane')?.zIndex),
+    }
+  })
+  expect(style.inPane, '外框應該畫在 area-selected pane 裡').toBe(true)
+  expect(style.stroke, '外框顏色應該是 --ink').toBe(style.ink)
+  expect(style.stroke).not.toBe('none')
+  expect(style.stroke, '外框不該是 Leaflet 預設的藍').not.toBe('rgb(51, 136, 255)')
+  expect(style.selectedZ, '外框 pane 要在里界 pane 之上').toBeGreaterThan(style.overlayZ)
+  expect(style.selectedZ, '外框 pane 要在幼兒園與在籍點 pane 之下').toBeLessThan(style.pointsZ)
+  expect(style.selectedEvents, '外框 pane 不收滑鼠事件').toBe('none')
 }
 
 /** 掃指定區塊，沒有 serious／critical 的無障礙問題。 */
@@ -487,6 +527,7 @@ test('工作台：點地圖上的里 → 右欄里卡片、網址 village=、重
     await expect(outline).toHaveCount(1)
     await expect(outline).toBeVisible()
     await expect(outline).toHaveAttribute('stroke-width', '2.5')
+    await expectSelectedOutlineStyle(page)
     await page.screenshot({ path: path.join(SHOTS, 'area-workbench-1440-village.png') })
     await expectNoSeriousA11y(page, '.area-workbench__side')
   })
@@ -656,12 +697,16 @@ test('390px：選里後卡片在地圖下方並捲到標題、移動地圖照舊
       return cardBox.top >= canvasBox.bottom - 1
     })
     expect(below, '卡片應該接在地圖下方').toBe(true)
-    // 標題捲到視窗上緣附近（後台頂端列之下），不是留在畫面外。
+    // 標題捲到視窗上緣附近，不是留在畫面外，也沒有被黏在頂端的後台頂端列蓋住：
+    // 標題中心點上最上層的元素就是標題（或它的子孫）。
     await expect
-      .poll(async () => {
-        const box = await title.boundingBox()
-        return box !== null && box.y >= 0 && box.y < 300
-      })
+      .poll(async () =>
+        title.evaluate((element) => {
+          const box = element.getBoundingClientRect()
+          const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+          return box.top >= 0 && box.top < 300 && hit !== null && (hit === element || element.contains(hit))
+        }),
+      )
       .toBe(true)
     await expectNoHorizontalOverflow(page)
     await page.screenshot({ path: path.join(SHOTS, 'area-workbench-390-village.png') })
@@ -847,7 +892,7 @@ test('390px：近幾年的出生數不撐出頁面', async ({ browser }) => {
   await context.close()
 })
 
-test('在籍學生：預設模式畫出學生點 → 右欄班別篩選點跟著變 → 表格數字；沒匯入的校按鈕停用', async ({ browser }) => {
+test('在籍學生：預設模式畫出學生點 → 右欄班別篩選點跟著變 → 表格數字；沒匯入的校按鈕停用、預設 2–5 歲孩子', async ({ browser }) => {
   test.setTimeout(90_000)
   mkdirSync(SHOTS, { recursive: true })
   const api = await adminApi('super_admin')
@@ -899,6 +944,9 @@ test('在籍學生：預設模式畫出學生點 → 右欄班別篩選點跟著
     await openArea(page, UNLOCATED_CAMPUS)
     await expect(page.locator(`${MODE_GROUP} .el-radio-button.is-disabled`, { hasText: '在籍學生' })).toHaveCount(1)
     await expect(page.locator('.area-toolbar__note')).toContainText('尚未匯入在籍名冊。')
+    // 規格 §1.1 第 1 點：沒有在籍清冊的校預設「2–5 歲孩子」（沒帶 map=，網址也不寫預設）。
+    await expect(modeButton(page, '2–5 歲孩子')).toHaveClass(/is-active/)
+    expect(queryParam(page, 'map')).toBeNull()
   })
 
   expect(errors, '頁面不該有未處理的錯誤').toEqual([])

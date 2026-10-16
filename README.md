@@ -4,7 +4,7 @@
 
 - **後台**（純前端，後端、API、資料表、契約都沒動）：工具列「看什麼」七項（在籍學生、2–5 歲孩子、孩子增減、新屋交屋、參觀、招生機會、同業）與「範圍」1／3／6 公里；有在籍清冊的校預設在籍學生，沒有的預設 2–5 歲孩子。工作台是 620px 地圖＋380px 右欄（排行、里卡片、同業清單），點里不再開 popup、改選取並畫 `--ink` 外框。「完整表格」六個分頁：各里（招生機會＋里的變化＋在籍合成一張）、國小學區、在籍學生、同業收費、出生走勢、參觀來源。頁首狀態列與摘要搬到頁尾。模式、選取的里、表格分頁寫進網址（`map`、`village`、`table`），換校區或學年學期清掉 `village`。招生機會模式在附近參觀不到 10 位時停用並寫原因。手機：看什麼橫捲、地圖半個螢幕＋「移動地圖」、選了里卡片出現在地圖下方並捲到標題。
 - **測試**：新增與改寫單元測試（`villageFacts`、`areaPane`、`villageTable`、`areaView`、`admissionsStatsView` 等）；stack e2e `tests/stack/admissions-area.spec.ts` 改成新版面的選擇器，新增四則（點里＋重新整理還原＋外框＋幼兒園點仍可點、排行 `panTo`＋分頁網址＋各里表點里名＋換校區清 `village`、頁長 ≤ 1,800px、390px 卡片位置），Axe 加掃右欄與里卡片。
-- **驗證**（2026-10-17，Node 22、本機 PostgreSQL，**未 push、未部署**）：實作各階段 `vue-tsc` 通過；admin 全套在 `9e4f436b` 為 168 個檔案 2837 passed、6 個逾時（機器負載高，另外重跑那 5 個檔 133 passed、1 skipped）。stack e2e（含新的四則與改寫的既有案例）與整套重跑：本機驗證中，通過後再補數字。
+- **驗證**（2026-10-17，Node 22、本機 PostgreSQL，**未 push、未部署**）：實作各階段 `vue-tsc` 通過；admin 全套在 `9e4f436b` 為 168 個檔案 2837 passed、6 個逾時（機器負載高，另外重跑那 5 個檔 133 passed、1 skipped）。stack e2e `tests/stack/admissions-area.spec.ts`（含新的四則與改寫的既有案例）21 passed（setup＋20 則）、1.0 分鐘（2026-10-17，在 `0ec7bb42` 由主控跑）。admin 全套、`npm run test:website`、整套 stack：待在最終版本重跑。
 - **未驗證**：沒有登入正式後台看畫面（正式站的在籍學生住處不拍、不進測試，截圖只拍 stack 測試庫，存 `output/playwright/area-workbench-*.png`，不進版控）；頁長 1,800px 是種子資料的回歸防線，不代表正式站實際高度。
 
 ## 2026-10-16 招生統計抽成獨立側欄頁、只給總管理者（`feature/admissions-stats-page-20261016`）
