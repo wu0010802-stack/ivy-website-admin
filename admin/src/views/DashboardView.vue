@@ -80,6 +80,8 @@ interface DashboardSummary {
   // 開放家長選時段，但官網現在沒有任何可預約的場次（2026-09-25 起）。
   campuses_slots_without_openings?: string[]
   week_campuses?: WeekCampus[]
+  // 系統狀態「要注意」的項數（2026-10-15）：只有總管理者有，其他人是 null。
+  system_attention?: number | null
   // 開放線上表單，但「預約文案」沒有發布中的同意文字：官網對家長顯示暫停（2026-09-26 起）。
   failed_notifications: number
 }
@@ -380,6 +382,8 @@ function taskAria(key: string) {
   }
 }
 
+const systemAttention = computed(() => summary.value?.system_attention ?? 0)
+
 const hasTodo = computed(() => {
   const s = summary.value
   if (!s) return false
@@ -392,6 +396,7 @@ const hasTodo = computed(() => {
     visibleReviews.value.length > 0 ||
     reviewsFailed.value ||
     s.failed_notifications > 0 ||
+    systemAttention.value > 0 ||
     mediaIssues.value.length > 0 ||
     failedJobs.value.length > 0 ||
     campusesWithoutBooking.value.length > 0 ||
@@ -506,6 +511,10 @@ const hasTodo = computed(() => {
               <router-link v-if="summary.failed_notifications > 0" class="task" to="/notifications" v-bind="taskAria('notify')">
                 <span id="task-notify-n" class="task__number">{{ summary.failed_notifications }}</span>
                 <div><h3 id="task-notify-t">通知寄送失敗</h3><span id="task-notify-d" class="visually-hidden">自動重試後仍沒送出的 Email 或 LINE 通知</span><span id="task-notify-a" class="task__action">重新寄送</span></div>
+              </router-link>
+              <router-link v-if="systemAttention > 0" class="task task--urgent" to="/system-status" v-bind="taskAria('system')">
+                <span id="task-system-n" class="task__number">{{ systemAttention }}</span>
+                <div><h3 id="task-system-t">系統狀態有 {{ systemAttention }} 項要注意</h3><span id="task-system-d" class="visually-hidden">寄信設定、背景排程、轉檔或公開資料同步需要處理</span><span id="task-system-a" class="task__action">查看</span></div>
               </router-link>
               <div v-if="failedJobs.length > 0" class="task task--urgent">
                 <span class="task__number">{{ failedJobs.length }}</span>

@@ -73,6 +73,8 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 聯絡片語（2026-10-12 規格 4.2）：總部統一維護，全站同一份，存檔立即生效，所以
     # 只有總管理者能改。
     "contact_phrases.manage": {Role.SUPER_ADMIN},
+    # 系統狀態頁（2026-10-15）：寄信、推播、背景排程與公開資料的設定現況與測試信，限總管理者。
+    "system.status": {Role.SUPER_ADMIN},
     # 讀取＝規格寫的「有 booking.read 或 admissions.read 任一」。權限表沒有「任一
     # capability」的寫法，所以另開一項，讓後台只看一個鍵就知道要不要顯示片語；角色
     # 集合刻意等於兩項的聯集（test_contact_phrases.py 比對，兩項日後改了會失敗）。

@@ -16,6 +16,10 @@ export type CampusOut = components['schemas']['CampusOut']
 export type PasswordResetLinkOut = components['schemas']['PasswordResetLinkOut']
 export type PasswordResetVerifyOut = components['schemas']['PasswordResetVerifyOut']
 export type ContactPhrasesOut = components['schemas']['ContactPhrasesOut']
+// 系統狀態頁（2026-10-15）：detail 是各列自己的結構化欄位，文案在 utils/systemStatusFormat.ts。
+export type SystemStatusOut = components['schemas']['SystemStatusOut']
+export type SystemStatusItem = components['schemas']['SystemStatusItem']
+export type SystemEmailTestOut = components['schemas']['SystemEmailTestOut']
 export type ContactPhrasesUpdate = components['schemas']['ContactPhrasesUpdate']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const

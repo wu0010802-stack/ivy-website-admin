@@ -717,6 +717,28 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 待使用者確認：發布要不要完全不跳確認框（計畫預設保留、只寫改了哪些欄位）。
 
+## 後台第 1 波：系統狀態頁＋家長參觀提醒信（2026-10-15，`feature/admin-wave1-20261015`，未 push、未部署）
+
+與規格的差異見兩份規格各自的「§7 實作紀錄」。
+
+### 已驗證
+- 後端：`test_system_status.py`（各列判斷、自動同步關閉時公開資料過期降為資訊、權限、回應不含秘密、測試信、總覽數字、總覽不被系統狀態拖垮）、`test_parent_visit_reminder.py`（27 支：信件內容、寄送判斷、排入、維護排程、家長段失敗不影響員工提醒）。單檔結果：`test_system_status.py` 在 Task 1 時 35 passed，Task 2 後與權限表、總覽、操作紀錄相關五檔合跑 94 passed；`test_parent_visit_reminder.py` 27 passed。
+- admin：`systemStatus.test.ts`（22 passed：後端清單都有中文、文案與連結、頁面各 level 渲染、測試信成功與被後端擋下、側欄與權限、總覽一行）；`labelCoverage.test.ts` 15 passed；`typecheck` 無錯誤。
+- 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致（不經 `uv run`）；本案不新增 migration。
+- stack：`system-status.spec.ts`（四區、測試信寫進 sink、手機 390 不溢出、櫃台看不到）1 passed。
+- 全套閘門：後端全套 3220 passed、1 skipped、0 failed（`fa2b49cc`）；admin 全套 162 個檔案 2528 passed、1 skipped（`4ee1612e`；5 個檔案因負載 worker 啟動逾時，單獨重跑通過）；admin、web `typecheck` 與契約檢查通過；stack 全套 141 passed、0 failed（`4ee1612e`）。合併 `origin/main` `9dbf413f` 後（`2133b463`）只重跑受影響的後端 21 個檔案（517 passed）與 admin `typecheck`、相關 7 個檔案（273 passed），沒有再跑三套全套。
+
+### 未驗證
+- 正式站：沒有登入正式後台看系統狀態頁；正式站寄信（SMTP）是否已設未確認，寄信若已設定，測試信要由使用者自己按（會寄真信到自己的帳號）。
+- 提醒信只在後端測試（recording adapter）驗過寄出內容與流程，沒有真的寄出過；正式站要等設好 SMTP 才會真的寄。
+- 手機 390 只量了載入完成的畫面，沒有量測試信結果段落展開後的寬度。
+- 背景迴圈的停擺判斷在多副本下只反映回應請求的那個程序（正式站目前單一副本）。
+
+### 已知限制
+- 參觀改期後又改回原本那一場，該場的去重鍵已用過，不會再寄第二次提醒。
+- 提醒到點時那天若已是停課日，提醒照樣排入、寄送時 skipped、去重鍵已用掉；園方之後（開始前 24 小時內）取消停課，家長不會再收到這場的提醒。
+- sink 模式（非 production）下測試信成功仍顯示「已寄到 a***@…，請到信箱確認」，信其實是寫進本機資料夾；正式站沒有 sink 模式，不影響。
+
 ## 招生歷程兩種事件與退出原因分類（2026-10-15，`feature/admin-wave2-20261015`，未部署）
 
 計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，規格 `docs/specs/2026-10-15-admissions-history-events-design.md`、`docs/specs/2026-10-15-withdraw-reason-category-design.md`（兩份的 §7 列與規格的差異）；規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」。後端測試用獨立測試庫 `ivy_website_wave2_1015_test`，每個 Task 在自己的 commit 後以單檔、前景執行；下表「通過（單檔）」的數字是各 Task 當時的結果，不是全套。

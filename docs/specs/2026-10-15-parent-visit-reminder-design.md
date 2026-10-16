@@ -107,3 +107,19 @@
 
 - 「預約案件排除」（第 3 波）：被排除的案件不排、不寄提醒。哪一案後合併，就由它補上這個條件與測試。
 - 與「系統狀態頁」不共用檔案。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave1-status-reminder.md`；與「系統狀態頁」合為一支分支 `feature/admin-wave1-20261015`（上方「分支」欄寫的是原本的分開命名）。實作時 §6 說「與系統狀態頁不共用檔案」不成立：實際共用 `admin/src/api/labels.ts`（kind 中文與測試信操作紀錄中文）與 `backend/app/workers/maintenance.py`（`started_at` 與「提醒」步驟）。
+- 與規格的差異（計畫裁定）：
+  - P6：排入是新函式 `reminders.enqueue_due_parent_reminders(db, now)`，與員工提醒共用私有的到點判斷 `_due_upcoming`，在維護排程「提醒」步驟內依序呼叫（`enqueue_due_reminders` 的回傳不變，仍是員工則數）；`CycleResult` 多 `parent_reminders_enqueued`，CLI `process-notifications` 多印一行。規格 §3.1 寫的是在 `enqueue_due_reminders` 同一次掃描裡再寫一筆，計數分開記。
+  - P7：kind 常數 `PARENT_VISIT_REMINDER` 放 `booking/outbox.py`（和其他家長信一起，加進 `PARENT_KINDS`、`enqueue_parent_email` 不接受），不放 `reminders.py`；`REMINDER_KINDS` 不變。
+  - P8：實作順序先做寄送端（kind、信件內容、寄送判斷），再做排入端，每個 commit 都可運作。
+- 與規格的差異（實作中的控制者裁定）：
+  - **outbox payload 是 `{campus_key, receipt_id, slot_id}`**，和其他家長信、員工提醒一致（`_dispatch_parent_email` 讀 `receipt_id`），不是 §3.1 寫的 `{visit_request_id, slot_id}`；去重鍵照 R5。
+  - P-7：家長提醒排入放在「提醒」步驟內**另一個 try 與 session**，員工提醒先 commit；家長段失敗只把 `reminders` 記進失敗步驟，不回滾已寫好的員工提醒、員工計數照實；不新增步驟名。
+  - P-6：R7 的期限判斷用 `booking.parent_policy.parent_change_open`／`parent_change_deadline`（以該校 `change_deadline_hours` 計），不自寫比較。
+  - P-4：提醒信內文比 §3.2 範例多「校區：〇〇校」「日期與場次：…（起迄時間）」兩行（沿用家長信共用的內文組法，有參觀人數時另列一行）；沒有電話時改寫「要改期或取消，請來電洽詢」。
+  - 規格沒寫：沒設寄信時排入照常發生（排進佇列），寄送當下 skipped；「明天／今天」只認這兩種日數，其他日數不寫字（主旨與內文省略）；家長提醒不走員工提醒的 `still_applies`（kind 不在 `REMINDER_KINDS`），寄出前判斷全在 `_dispatch_parent_email`。
+- 已知限制：改期後又改回原本那一場，該場的去重鍵 `parent_visit_reminder:{案件 id}:{場次 id}` 已用過，不會再寄第二次提醒。
+- 已知限制：提醒到點時那天若已是停課日，提醒照樣排入（`_due_upcoming` 不看停課）、寄送時 `day_closed` 判斷後標成 skipped（停課另有停課信），去重鍵已經用掉；園方之後（在開始前 24 小時內）取消停課，家長不會再收到這場的提醒。

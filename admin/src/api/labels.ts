@@ -360,6 +360,8 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   parent_visit_cancelled: '家長確認信（預約已取消）',
   // 停班停課（2026-10-14）：請家長用修改連結改約或取消。
   parent_visit_day_closed: '家長停課通知（請改約）',
+  // 參觀前 24 小時提醒家長（2026-10-15）。
+  parent_visit_reminder: '參觀提醒（家長）',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊的站內通知列與寄送失敗重寄。
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。
@@ -428,6 +430,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'notification_outbox.retry': '重新寄送通知',
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
+  'system.test_email': '寄測試信',
   'line.campus_target.update': '更新 LINE 通知群組',
   'line.test_push': '送出 LINE 測試訊息',
   'line.verification_code.create': '產生 LINE 群組驗證碼',
@@ -1277,6 +1280,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   revoked_sessions: (v) => (countOf(v) ? `同時登出 ${countOf(v)} 個已登入的裝置` : '對方原本沒有登入中的裝置'),
   // 重設密碼連結沒有寄出時的錯誤類別（SMTP 例外名稱），翻成大概原因。
   error_code: (v) => `寄送失敗原因：${outboxErrorLabel(String(v))}`,
+  // 系統狀態頁的測試信（system.test_email）：寄出或沒寄出；沒寄出時另有 error_code 寫原因。
+  result: (v, action) => (action === 'system.test_email' ? (v === 'sent' ? '測試信已寄出' : '測試信沒有寄出') : `結果：${String(v)}`),
   reason: (v) => `原因：${auditReasonLabel(String(v))}`,
   // 帳密登入失敗發生在哪裡（user.login_password_failed：登入頁、重新驗證或改密碼）。
   context: (v) => `發生在：${AUDIT_CONTEXT_LABELS[String(v)] ?? String(v)}`,

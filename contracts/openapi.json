@@ -13704,6 +13704,125 @@
         "title": "SubmitReviewRequest",
         "type": "object"
       },
+      "SystemEmailTestOut": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_configured",
+                  "auth_failed",
+                  "connect_failed",
+                  "rejected",
+                  "timeout",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "SystemEmailTestOut",
+        "type": "object"
+      },
+      "SystemStatusItem": {
+        "properties": {
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "ok",
+              "attention",
+              "info",
+              "off"
+            ],
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "level"
+        ],
+        "title": "SystemStatusItem",
+        "type": "object"
+      },
+      "SystemStatusOut": {
+        "properties": {
+          "attention_count": {
+            "title": "Attention Count",
+            "type": "integer"
+          },
+          "background": {
+            "items": {
+              "$ref": "#/components/schemas/SystemStatusItem"
+            },
+            "title": "Background",
+            "type": "array"
+          },
+          "datasets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SystemStatusItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Datasets"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "notifications": {
+            "items": {
+              "$ref": "#/components/schemas/SystemStatusItem"
+            },
+            "title": "Notifications",
+            "type": "array"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/SystemStatusItem"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "attention_count",
+          "services",
+          "background",
+          "datasets",
+          "notifications"
+        ],
+        "title": "SystemStatusOut",
+        "type": "object"
+      },
       "TelemetryIn": {
         "additionalProperties": false,
         "description": "與 web/shared/telemetry.ts 的 validateTelemetry 同一套規則：web 端先驗過、\n這裡再驗一次，因為同源代理讓任何人都能直接打到這支公開端點。",
@@ -26710,6 +26829,138 @@
         "summary": "Update Admin Slot",
         "tags": [
           "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/system-status": {
+      "get": {
+        "description": "總管理者的系統狀態（2026-10-15 規格）：設定有沒有設、背景工作、公開資料、寄送與發布失敗。唯讀。",
+        "operationId": "get_system_status_api_website_v1_admin_system_status_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get System Status",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/system-status/test-email": {
+      "post": {
+        "description": "寄一封測試信到自己帳號的 Email（規格 §3.4）：不走 outbox，結果當場回傳；不回原始錯誤訊息。",
+        "operationId": "send_system_test_email_api_website_v1_admin_system_status_test_email_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemEmailTestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send System Test Email",
+        "tags": [
+          "operations"
         ]
       }
     },

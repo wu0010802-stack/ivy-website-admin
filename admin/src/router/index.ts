@@ -82,6 +82,7 @@ export const routes: RouteRecordRaw[] = [
       page('notifications', 'notifications', () => import('../views/NotificationsView.vue')),
       page('analytics', 'analytics', () => import('../views/AnalyticsView.vue')),
       page('audit', 'audit', () => import('../views/AuditView.vue')),
+      page('system-status', 'system-status', () => import('../views/SystemStatusView.vue')),
       page('policies', 'policies', () => import('../views/PoliciesView.vue')),
       page('line-notifications', 'line-notifications', () => import('../views/LineNotificationsView.vue')),
       page('contact-phrases', 'contact-phrases', () => import('../views/ContactPhrasesView.vue')),

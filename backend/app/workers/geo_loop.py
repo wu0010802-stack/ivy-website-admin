@@ -40,10 +40,13 @@ class GeoSyncLoop:
         self.first_delay_seconds = first_delay_seconds
         self.last_result: GeoSyncResult | None = None
         self.last_run_at: datetime | None = None
+        # 系統狀態頁判斷第一輪還沒跑完時是否停擺。
+        self.started_at: datetime | None = None
         self._stopping = asyncio.Event()
         self._task: asyncio.Task | None = None
 
     def start(self) -> None:
+        self.started_at = datetime.now(timezone.utc)
         self._task = asyncio.create_task(self._run(), name="geo-sync-loop")
 
     @property
