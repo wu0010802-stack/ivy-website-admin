@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 後台第 2 波：招生歷程兩種事件＋退出原因分類（main CI 部署，migration 只新增）
+
+- **提交**：使用者在本機推 `feature/admin-wave2-20261015` 到 main（fast-forward `5a08b3dc..c3c6498d`，沒有開 PR）。內容見 README 頂部「招生歷程兩種事件＋退出原因分類」、DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」、規格 `docs/specs/2026-10-15-admissions-history-events-design.md`、`docs/specs/2026-10-15-withdraw-reason-category-design.md`（各有 §7 實作紀錄）。
+- **migration**：`5c8e1f3a9d27`（接在 `f2b8c4d1e7a9` 附近同業比較之後）只在 `recruitment_visits` 加可空欄位 `withdraw_reason_category` 與兩條 CHECK（值在八項內、有分類必須已退出），升級不改既有資料，所以沒有備份。沒有新環境變數、沒有依賴檔變動。轉給園務的 JSONL：`columns` 鍵集合不變，`withdraw_reason` 組成「分類」或「分類：說明」，分類另放 `extensions.withdraw_reason_category`；兩種新歷程事件是官網專用、不轉。
+- **回退**：舊映像不認得 `5c8e1f3a9d27`，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade f2b8c4d1e7a9`（分類欄位會一起刪掉），再切舊映像。
+- **推送前閘門**（本機，Node 22）：合併第 1 波、small-fixes、ci-speed 後，`bafcf434` 後端全套 3,568 passed／1 skipped、stack 全套 147 passed；`068ee7a0` admin vitest 全套 165 檔 2,623 passed／1 skipped；admin、web typecheck 無錯誤；契約 `--check` 兩項與園務漂移檢查（`dfd230c3`）一致；alembic 單一 head。
+- **CI**：main run 38857284556（`c3c6498d`）05:43:45Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production success，整個 run 05:58:35Z 結束。
+- **正式 `release.json`**：base commit `c3c6498d5f619df35b576a574367bd27ad52fc7e`，snapshot `a57022a2…`，created `2026-10-16T05:49:38Z`。
+- **線上唯讀檢查**（未登入，2026-10-16T05:59Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（`last_completed_at` 05:58:50Z；API 有起來代表 schema 已到 `5c8e1f3a9d27`）；首頁、`/admin/`、`/visit` 都回 200；`/api/website/v1/admin/admissions/stats` 未登入回 401；後台 lazy chunk 裡 `StatsTab-*.js` 有「未預繳與退出原因」「退出原因分佈」、`constants-*.js` 有八項分類、`TransitionDialog-*.js` 有「退出原因」。
+- **待使用者／園方**：既有的退出紀錄全部是「未分類」，請到招生入學 → 訪視明細篩「未分類（舊資料）」逐筆補分類；登入正式後台看一次退出對話框與「未預繳與退出原因」分頁。
+
 ## 2026-10-16 後端測試提速、後台場次 N+1、文件更正（main CI 部署，沒有 migration）
 
 - **提交**：`feature/ci-speed-20261016` 六個 commit（`0e57b9d1`..`702e5178`），途中兩次 rebase 到 main（第 1 波、延後小問題一批與兩筆部署紀錄先上；衝突只有 README.md 頂部、`deploy/README.md` 家長自選場次標題、`docs/website-admin/operations.md` 提醒段，都是文件），使用者推 main（fast-forward `a908d815..702e5178`，沒有開 PR）。內容見 README 頂部「後端測試提速、後台場次 N+1、文件更正」。
