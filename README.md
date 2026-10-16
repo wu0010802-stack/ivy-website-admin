@@ -1,3 +1,14 @@
+## 2026-10-16 清掉 web 的死 CSS 與比稿殘留（`feature/web-deadcode-20261016`）
+
+優化盤點第二批。全域 CSS（tokens／styles／studio／typography）因為 `inlineStyles` 會內嵌進每一頁，線上每頁 HTML 帶 162–169 KB 的 CSS，佔六成。
+
+- **判斷方式**：postcss 解析每條選擇器，class 在 `web/app`、`server`、`shared`（不含純註解行）找不到、也不是 `` `前綴-${}` ``／`'前綴-' +` 動態組出來的，或依賴程式從不設的屬性（`data-pill`、`data-peek`、`[data-seam="1"]`），才算不可能匹配；`:is`／`:where`／`:has` 有一個分支可能就保留，`:not` 不算。只出現在 `classList.contains` 的 `hero-quiet` 手動判定。
+- **刪掉的**：`studio.css` 85.2→70.4 KB（八種膠囊擺法、捲動收起、seam=1、relay 研究面板、hero-quiet、選單 beside／above、舊分校頁線稿與聯絡區、舊新聞清單），`styles.css` 56.9→38.6 KB（原型時期 hero、新聞格、表單面板、舊 e3 五校底板卡），`typography.css` 少 0.4 KB；整個沒載入的 `admission.css`（30 KB）；只剩測試在用的 `pageHeroImage`、沒有呼叫端的 `campusHeroAttrs`；web 沒用到的 `@nuxt/test-utils`、`@vue/test-utils`；後台 Vite 範本殘留的兩個 SVG。
+- **效果**：production build 每頁內嵌 CSS 少約 31 KB（`/` 169→138 KB、`/about` 164→133 KB），gzip 後每頁 HTML 少約 6 KB。
+- **畫面沒變的證據**：dev server（fixture）1440／1024／390、10 頁、首屏＋捲動＋選單打開共 75 個狀態，抓每個元素含 `::before`／`::after` 的 computed style，main 與這版同時開兩個 server 交錯各跑兩次：排除自訂屬性列舉順序（Chrome 每次不同）、`blob:` 網址、兩邊埠號與路徑後 0 個屬性不同。
+- **驗證**（Node 22，**未 push、未部署**）：web vitest 101 檔 1227 passed（少的 2 項是測死碼的）、web／admin typecheck 0 錯、admin vitest 165 檔 2599 passed／1 skipped、`nuxt build` 成功。build 的 `[vite:css][postcss] Lexical error`（studio.css 巢狀 `calc(clamp())`）main 本來就有。沒有跑 stack e2e。
+- **沒做**：只看 class 與屬性；元素選擇器、`@keyframes` 是否還有人用沒有清。分析與比對腳本留在 session scratchpad，沒進 repo。
+
 ## 2026-10-15 招生歷程兩種事件＋退出原因分類（`feature/admin-wave2-20261015`）
 
 後台第 2 波（10-15 盤點選定的六項之二、三）。招生歷程多記「修改招生資料」（只記欄位名）與「排下次聯絡」（只記從追蹤直接改的），兩者都是官網專用、不轉給園務；退預繳、退註冊改成必選八項退出原因分類、說明選填，舊資料歸「未分類」並可補分類，訪視明細可依分類篩選與匯出，統計分析「未預繳與退出原因」多一張退出原因分佈。規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」，計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，兩份規格的 §7 列實作與規格的差異。
