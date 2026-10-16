@@ -2349,6 +2349,47 @@ export interface paths {
         patch: operations["update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch"];
         trace?: never;
     };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/exclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exclude Visit Request
+         * @description 標記為排除（2026-10-15 規格 §3.2）：booking.manage＋校區範圍。不改狀態、不釋出名額；
+         *     操作紀錄只記原因類別（說明可能有人名）。
+         */
+        post: operations["exclude_visit_request_api_website_v1_admin_visit_requests__visit_request_id__exclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/include": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Visit Request
+         * @description 取消排除，回到原本的統計（規格 E4）。
+         */
+        post: operations["include_visit_request_api_website_v1_admin_visit_requests__visit_request_id__include_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
         parameters: {
             query?: never;
@@ -3123,6 +3164,12 @@ export interface components {
             email?: string | null;
             /** Email Notified */
             email_notified: boolean;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
             /** Follow Up At */
@@ -8046,6 +8093,12 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
             /** Follow Up At */
@@ -8084,6 +8137,19 @@ export interface components {
             version: number;
             /** Visited On */
             visited_on?: string | null;
+        };
+        /**
+         * VisitRequestExcludeRequest
+         * @description 標記為排除（2026-10-15 規格 E3）：原因三選一；「其他」要寫說明（≤200 字）。
+         */
+        VisitRequestExcludeRequest: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "test" | "duplicate" | "other";
         };
         /**
          * VisitRequestFullOut
@@ -8135,6 +8201,12 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
             /** Follow Up At */
@@ -13452,6 +13524,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDetailsUpdateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exclude_visit_request_api_website_v1_admin_visit_requests__visit_request_id__exclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestExcludeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    include_visit_request_api_website_v1_admin_visit_requests__visit_request_id__include_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
                 };
             };
             /** @description Validation Error */

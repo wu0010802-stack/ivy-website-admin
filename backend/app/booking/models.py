@@ -116,6 +116,12 @@ class VisitRequest(Base):
             "expected_start IS NULL OR expected_start IN ('asap', 'unsure') OR expected_start ~ '^1[0-9]{2}-[12]$'",
             name="ck_visit_requests_expected_start",
         ),
+        # 2026-10-15 排除標記（app/booking/exclusion.py）：原因三選一，excluded_at 與原因同有同無。
+        CheckConstraint(
+            "exclude_reason IS NULL OR exclude_reason IN ('test', 'duplicate', 'other')",
+            name="ck_visit_requests_exclude_reason",
+        ),
+        CheckConstraint("(excluded_at IS NULL) = (exclude_reason IS NULL)", name="ck_visit_requests_excluded_pair"),
         # 後台列表、CSV 匯出依 created_at 由新到舊排序。
         Index("ix_visit_requests_created_at", "created_at"),
         # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。
@@ -192,6 +198,15 @@ class VisitRequest(Base):
     # 可編輯欄位（下次聯絡時間）的樂觀鎖。狀態轉換靠列鎖與狀態機，
     # 不動這個欄位——否則家長取消一次，園方開著的頁面每個按鈕都要重新整理。
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    # 2026-10-15 排除標記（規格 docs/specs/2026-10-15-visit-exclusion-design.md）：測試或重複的案件標記後，
+    # 不算進統計與待辦（套用位置見 app/booking/exclusion.py）；不改狀態、不釋出名額。
+    excluded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    excluded_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_visit_requests_excluded_by_users"), nullable=True
+    )
+    exclude_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 說明（「其他」必填）；自由文字，保存政策匿名化時清掉（E11）。
+    exclude_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     events: Mapped[list["VisitRequestEvent"]] = relationship(

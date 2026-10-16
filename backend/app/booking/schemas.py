@@ -481,6 +481,10 @@ class VisitRequestDetailOut(BaseModel):
     party_size: int | None = None
     # 預計入學時間（2026-10-15）；舊案件與沒選的為 None。
     expected_start: str | None = None
+    # 排除標記（2026-10-15）：測試或重複的案件；列表不回說明（計畫裁定 P12）。
+    excluded_at: datetime | None = None
+    exclude_reason: str | None = None
+    exclude_note: str | None = None
     # 同意紀錄（規格 L196）：官網送單記錄家長看到的同意說明版本與伺服器接受
     # 時間；補登由人員代勾，沒有版本。
     consent_given: bool = True
@@ -791,6 +795,28 @@ class VisitRequestRescheduleRequest(BaseModel):
 
 class VisitRequestCancelRequest(BaseModel):
     reason: ReasonText = None
+
+
+VisitExcludeReason = Literal["test", "duplicate", "other"]
+
+
+class VisitRequestExcludeRequest(BaseModel):
+    """標記為排除（2026-10-15 規格 E3）：原因三選一；「其他」要寫說明（≤200 字）。"""
+
+    model_config = {"extra": "forbid"}
+
+    reason: VisitExcludeReason
+    # validate_default：沒帶說明時也要跑下面的檢查，「其他」才擋得到；422 指到 note（計畫裁定 P16）。
+    note: str | None = Field(default=None, max_length=200, validate_default=True)
+
+    @field_validator("note")
+    @classmethod
+    def _note(cls, value: str | None, info: ValidationInfo) -> str | None:
+        value = _reject_control_chars(value)
+        cleaned = value.strip() if isinstance(value, str) else None
+        if info.data.get("reason") == "other" and not cleaned:
+            raise ValueError("選「其他」要寫說明")
+        return cleaned or None
 
 
 class VisitHistoryOut(BaseModel):

@@ -24,6 +24,7 @@ from app.booking import (
     access_service,
     attention,
     consent,
+    exclusion,
     export_labels,
     pending_kinds,
     presenters,
@@ -69,6 +70,7 @@ from app.booking.schemas import (
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
     VisitRequestCancelRequest,
+    VisitRequestExcludeRequest,
     VisitRequestCreate,
     VisitRequestDetailOut,
     VisitRequestFullOut,
@@ -1031,7 +1033,11 @@ async def list_visit_requests(
     )
     stmt = _apply_list_order(stmt, order, visited_on).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
-    return [VisitRequestDetailOut.model_validate(r).model_copy(update={"visited_on": day}) for r, day in result.all()]
+    # 排除的說明只在明細回（計畫裁定 P12）。
+    return [
+        VisitRequestDetailOut.model_validate(r).model_copy(update={"visited_on": day, "exclude_note": None})
+        for r, day in result.all()
+    ]
 
 
 def _visited_on_column():
@@ -1532,6 +1538,68 @@ async def cancel_visit_request(
         before_status,
         action="visit_request.cancel",
         has_reason=bool(reason and reason.strip()),
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/exclude", response_model=VisitRequestDetailOut)
+async def exclude_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestExcludeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """標記為排除（2026-10-15 規格 §3.2）：booking.manage＋校區範圍。不改狀態、不釋出名額；
+    操作紀錄只記原因類別（說明可能有人名）。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await exclusion.exclude(
+            db, visit_request, reason=payload.reason, note=payload.note, actor=Actor.staff(current_user.id)
+        )
+    except exclusion.AlreadyExcluded as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "ALREADY_EXCLUDED", "message": "這筆案件已經排除了"}
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.exclude",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={"exclude_reason": payload.reason},
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/include", response_model=VisitRequestDetailOut)
+async def include_visit_request(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """取消排除，回到原本的統計（規格 E4）。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        previous = await exclusion.include(db, visit_request, actor=Actor.staff(current_user.id))
+    except exclusion.NotExcluded as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "NOT_EXCLUDED", "message": "這筆案件沒有排除"}
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.include",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={"exclude_reason": previous},
     )
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)

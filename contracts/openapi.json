@@ -287,6 +287,40 @@
             "title": "Email Notified",
             "type": "boolean"
           },
+          "exclude_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Note"
+          },
+          "exclude_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Reason"
+          },
+          "excluded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded At"
+          },
           "expected_start": {
             "anyOf": [
               {
@@ -15402,6 +15436,40 @@
             ],
             "title": "Email"
           },
+          "exclude_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Note"
+          },
+          "exclude_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Reason"
+          },
+          "excluded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded At"
+          },
           "expected_start": {
             "anyOf": [
               {
@@ -15576,6 +15644,38 @@
         "title": "VisitRequestDetailOut",
         "type": "object"
       },
+      "VisitRequestExcludeRequest": {
+        "additionalProperties": false,
+        "description": "標記為排除（2026-10-15 規格 E3）：原因三選一；「其他」要寫說明（≤200 字）。",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "enum": [
+              "test",
+              "duplicate",
+              "other"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "VisitRequestExcludeRequest",
+        "type": "object"
+      },
       "VisitRequestFullOut": {
         "description": "案件明細頁用：案件本身＋歷程、家長連結狀態。\n列表與各個轉換端點仍回 VisitRequestDetailOut，不必每列都查歷程。",
         "properties": {
@@ -15743,6 +15843,40 @@
               }
             ],
             "title": "Email"
+          },
+          "exclude_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Note"
+          },
+          "exclude_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exclude Reason"
+          },
+          "excluded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded At"
           },
           "expected_start": {
             "anyOf": [
@@ -29543,6 +29677,168 @@
           }
         },
         "summary": "Update Visit Request Details",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/exclude": {
+      "post": {
+        "description": "標記為排除（2026-10-15 規格 §3.2）：booking.manage＋校區範圍。不改狀態、不釋出名額；\n操作紀錄只記原因類別（說明可能有人名）。",
+        "operationId": "exclude_visit_request_api_website_v1_admin_visit_requests__visit_request_id__exclude_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VisitRequestExcludeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exclude Visit Request",
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/include": {
+      "post": {
+        "description": "取消排除，回到原本的統計（規格 E4）。",
+        "operationId": "include_visit_request_api_website_v1_admin_visit_requests__visit_request_id__include_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "visit_request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Visit Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisitRequestDetailOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Include Visit Request",
         "tags": [
           "booking"
         ]
