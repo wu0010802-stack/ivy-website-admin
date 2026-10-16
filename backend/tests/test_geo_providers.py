@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app.admissions.geo.babycare import BabycareRow
+from app.admissions.geo.closure_backfill import ClosureBackfill
 from app.admissions.geo.kindergartens import KindergartenRow
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKindergarten, GeoProviderEvent
 from app.admissions.geo.providers import (
@@ -36,11 +37,11 @@ def bc(source_id: str, *, enrolled: int | None = 10, name: str | None = None) ->
 
 def kg(
     source_id: str, *, kind: str = "private", period: str | None = None, registered_on: date | None = None,
-    capacity: int | None = 100, name: str | None = None,
+    capacity: int | None = 100, name: str | None = None, address: str = "某路1號",
 ) -> KindergartenRow:
     return KindergartenRow(
         source_id=source_id, reg_no=None, name=name or f"幼兒園{source_id}", kind=kind, pre_public_period=period,
-        district="三民區", address="某路1號", lat=22.64, lng=120.34, approved_capacity=capacity,
+        district="三民區", address=address, lat=22.64, lng=120.34, approved_capacity=capacity,
         monthly_fee_estimate=None, has_penalty=False, phone=None, registered_on=registered_on,
     )
 
@@ -55,8 +56,10 @@ async def put_babycare(db, rows, *, now=NOW, force=False):
     return report
 
 
-async def put_kindergartens(db, rows, *, now=NOW, school_year=115, force=False):
-    report = await apply_kindergartens(db, rows, synced_at=now, school_year=school_year, force=force)
+async def put_kindergartens(db, rows, *, now=NOW, school_year=115, force=False, backfill=None, listed_places=None):
+    report = await apply_kindergartens(
+        db, rows, synced_at=now, school_year=school_year, force=force, backfill=backfill, listed_places=listed_places,
+    )
     await db.commit()
     return report
 
@@ -211,6 +214,115 @@ async def test_existing_rows_are_updated_in_place(db_session):
     row = await db_session.get(GeoKindergarten, "k1")
     assert (row.name, row.approved_capacity, row.registered_on, row.synced_at) == ("新名", 120, date(2026, 2, 13), later(7))
     assert await events(db_session) == []
+
+
+# ---- 幼兒園：改名與換承辦（2026-10-15 規格 §4） ----
+
+OPENED = date(1996, 10, 14)
+
+
+async def test_a_renamed_kindergarten_is_retired_without_a_closure(db_session):
+    """同地址、同設立日的另一筆出現：舊名下架、不寫停辦；新名的設立日很舊，也不算新設。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("old", address="堅如路46號", registered_on=OPENED)])
+    report = await put_kindergartens(
+        db_session, [kg("k1"), kg("new", address="堅如路46號", registered_on=OPENED)], now=later(7)
+    )
+    assert (report.closed, report.renamed, report.backfilled) == (0, 1, 0)
+    assert await events(db_session) == []
+    assert await active_ids(db_session, GeoKindergarten) == ["k1", "new"]
+
+
+async def test_same_address_with_a_different_opening_date_is_a_closure(db_session):
+    """同地址換了一所新立案的園（設立日不同）：舊的照記停辦。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("old", address="堅如路46號", registered_on=OPENED)])
+    report = await put_kindergartens(
+        db_session, [kg("k1"), kg("new", address="堅如路46號", registered_on=date(2026, 9, 1))], now=later(7)
+    )
+    assert (report.closed, report.renamed) == (1, 0)
+    assert await events(db_session) == [("kindergarten", "old", "closed", date(2026, 10, 21), None, None)]
+
+
+async def test_without_an_opening_date_the_rename_rule_does_not_apply(db_session):
+    await put_kindergartens(db_session, [kg("k1"), kg("old", address="堅如路46號")])
+    report = await put_kindergartens(db_session, [kg("k1"), kg("new", address="堅如路46號")], now=later(7))
+    assert (report.closed, report.renamed) == (1, 0)
+
+
+async def test_a_rename_is_recognised_from_the_registry_before_the_new_entry_has_coordinates(db_session):
+    """新名在名單上、但 kiang 還沒算座標（這一輪 rows 沒有它）：用名單的（地址、設立日）認出改名，不寫假停辦。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("old", address="堅如路46號", registered_on=OPENED)])
+    report = await put_kindergartens(
+        db_session, [kg("k1")], now=later(7), listed_places=frozenset({("堅如路46號", OPENED)})
+    )
+    assert (report.closed, report.renamed) == (0, 1)
+    assert await events(db_session) == []
+    assert await active_ids(db_session, GeoKindergarten) == ["k1"]
+
+
+# ---- 幼兒園：回補（2026-10-15 規格 §5） ----
+
+
+async def test_a_backfilled_closure_is_dated_when_it_left_the_list(db_session):
+    await put_kindergartens(db_session, [kg("k1"), kg("k2")])
+    backfill = {"k2": ClosureBackfill("closed", date(2026, 9, 15))}
+    report = await put_kindergartens(db_session, [kg("k1")], now=later(7), backfill=backfill)
+    assert (report.closed, report.backfilled, report.renamed) == (1, 1, 0)
+    assert await events(db_session) == [("kindergarten", "k2", "closed", date(2026, 9, 15), None, None)]
+    await put_kindergartens(db_session, [kg("k1")], now=later(7), backfill=backfill)  # 同一天重跑
+    await put_kindergartens(db_session, [kg("k1")], now=later(14), backfill=backfill)  # 下一輪
+    assert len(await events(db_session)) == 1
+
+
+async def test_a_backfilled_closure_without_a_date_is_retired_quietly(db_session):
+    """2025-06 前就離開名單的：只下架，不在 2026 年冒出一筆停辦。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("k2")])
+    report = await put_kindergartens(db_session, [kg("k1")], now=later(7), backfill={"k2": ClosureBackfill("closed", None)})
+    assert (report.closed, report.backfilled) == (0, 1)
+    assert await events(db_session) == []
+    assert await active_ids(db_session, GeoKindergarten) == ["k1"]
+
+
+async def test_a_backfilled_rename_is_retired_quietly(db_session):
+    await put_kindergartens(db_session, [kg("k1"), kg("k2")])
+    report = await put_kindergartens(
+        db_session, [kg("k1")], now=later(7), backfill={"k2": ClosureBackfill("renamed", date(2026, 3, 25))}
+    )
+    assert (report.closed, report.renamed, report.backfilled) == (0, 1, 0)
+    assert await events(db_session) == []
+
+
+async def test_the_backfill_file_wins_over_the_rename_rule(db_session):
+    await put_kindergartens(db_session, [kg("k1"), kg("old", address="堅如路46號", registered_on=OPENED)])
+    report = await put_kindergartens(
+        db_session, [kg("k1"), kg("new", address="堅如路46號", registered_on=OPENED)], now=later(7),
+        backfill={"old": ClosureBackfill("closed", date(2026, 9, 15))},
+    )
+    assert (report.closed, report.renamed, report.backfilled) == (1, 0, 1)
+    assert await events(db_session) == [("kindergarten", "old", "closed", date(2026, 9, 15), None, None)]
+
+
+async def test_backfill_entries_only_matter_when_a_kindergarten_leaves(db_session):
+    """檔裡的園所還在名單上、或資料表根本沒有它：什麼都不做。"""
+    backfill = {"k1": ClosureBackfill("closed", date(2026, 9, 15)), "ghost": ClosureBackfill("closed", date(2026, 9, 1))}
+    await put_kindergartens(db_session, [kg("k1")])
+    report = await put_kindergartens(db_session, [kg("k1")], now=later(7), backfill=backfill)
+    assert (report.closed, report.backfilled) == (0, 0)
+    assert await events(db_session) == []
+    assert await active_ids(db_session, GeoKindergarten) == ["k1"]
+
+
+async def test_a_backfilled_kindergarten_that_comes_back_later_reopens(db_session):
+    """回補日期 09-15 離回來那天 10-28 超過 30 天：不是漏收，停辦留著、另寫重新營業。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("k2")])
+    await put_kindergartens(
+        db_session, [kg("k1")], now=later(7), backfill={"k2": ClosureBackfill("closed", date(2026, 9, 15))}
+    )
+    report = await put_kindergartens(db_session, [kg("k1"), kg("k2")], now=later(14))
+    assert (report.opened, report.cancelled_closures) == (1, 0)
+    assert await events(db_session) == [
+        ("kindergarten", "k2", "closed", date(2026, 9, 15), None, None),
+        ("kindergarten", "k2", "opened", date(2026, 10, 28), None, None),
+    ]
 
 
 async def test_a_school_year_rollover_alone_is_not_a_kind_change(db_session):

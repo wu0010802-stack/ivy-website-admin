@@ -16,7 +16,8 @@
     "penalty": "有",
     "id": "016cc701-ac12-4f88-9457-5eb6431ed449",
     "monthly": 15073,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教三字第01446號"
    },
    "geometry": {
     "type": "Point",
@@ -41,7 +42,8 @@
     "penalty": "有",
     "id": "e464ae13-0cbc-4a8e-9289-de0c18abc263",
     "monthly": 15501,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教三字第0920025091號"
    },
    "geometry": {
     "type": "Point",
@@ -66,7 +68,8 @@
     "penalty": "有",
     "id": "0f26d968-d574-4e8f-bbdd-2b88a65efaf1",
     "monthly": 3750,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市社局五字第0970029528號"
    },
    "geometry": {
     "type": "Point",
@@ -91,7 +94,8 @@
     "penalty": "有",
     "id": "f52ff84f-335d-472e-955c-d441c562255f",
     "monthly": 3750,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教育三字第22053號"
    },
    "geometry": {
     "type": "Point",
@@ -116,7 +120,8 @@
     "penalty": "有",
     "id": "e517b294-6109-4c89-a847-07a260585e6c",
     "monthly": 11267,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "85府教國字第182908號"
    },
    "geometry": {
     "type": "Point",
@@ -141,7 +146,8 @@
     "penalty": "無",
     "id": "52c587f0-8993-46f2-b518-4b42f2e5941f",
     "monthly": 15758,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "府教特字第0940223874號"
    },
    "geometry": {
     "type": "Point",
@@ -166,7 +172,8 @@
     "penalty": "無",
     "id": "e7c0d4ca-ade9-4f31-84a1-f33764179e24",
     "monthly": 2000,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教幼字第11336452400號"
    },
    "geometry": {
     "type": "Point",
@@ -191,7 +198,8 @@
     "penalty": "無",
     "id": "008b76eb-8e63-4089-ae9b-5a0b6c7b7d0e",
     "monthly": 5183,
-    "is_active": 0
+    "is_active": 0,
+    "reg_docno": "82府社福字第146481號"
    },
    "geometry": {
     "type": "Point",
@@ -216,7 +224,8 @@
     "penalty": "無",
     "id": "5a2708ce-9f97-4793-82fd-247c00de16e9",
     "monthly": 2000,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教幼字第10634859100號"
    },
    "geometry": {
     "type": "Point",
@@ -241,7 +250,8 @@
     "penalty": "無",
     "id": "cff4213c-c1f6-4269-8e12-aa015c4248b0",
     "monthly": 4014,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教三字第0980018358號"
    },
    "geometry": {
     "type": "Point",
@@ -266,7 +276,8 @@
     "penalty": "無",
     "id": "1bf1a3ed-bf89-44dc-bf1a-06e8dca40808",
     "monthly": "",
-    "is_active": 0
+    "is_active": 0,
+    "reg_docno": "高市教幼字第10935866800號"
    },
    "geometry": {
     "type": "Point",
@@ -291,7 +302,8 @@
     "penalty": "有",
     "id": "bc460930-0f69-42d1-bf99-976c5199e2f5",
     "monthly": 19227,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "高市教幼字第11034819200號"
    },
    "geometry": {
     "type": "Point",
@@ -316,7 +328,8 @@
     "penalty": "無",
     "id": "00089c75-4393-42f9-ac95-a3e922878004",
     "monthly": 3000,
-    "is_active": 1
+    "is_active": 1,
+    "reg_docno": "南市教國字第28710號"
    },
    "geometry": {
     "type": "Point",

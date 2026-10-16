@@ -11,51 +11,65 @@ from sqlalchemy import func, select
 from app.admissions.geo.kindergartens import (
     KindergartenFormatError,
     ParseReport,
+    Registry,
     _int_or_none,
     kind_as_of,
     nearby,
     parse_preschools,
+    parse_registry,
 )
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoKindergarten
 from app.admissions.geo.providers import apply_kindergartens
 from app.common.timezones import today_local
-from tests.geo_helpers import SAMPLE_LABEL, SAMPLE_TAG, YIHUA_POINT, load_geo_samples, sample_preschools
+from tests.geo_helpers import (
+    SAMPLE_LABEL, SAMPLE_TAG, YIHUA_POINT, load_geo_samples, registry_of, sample_preschools, sample_registry,
+)
 
 
 def _by_name(rows):
     return {row.name: row for row in rows}
 
 
-def test_only_active_kaohsiung_kindergartens_are_kept():
-    rows = parse_preschools(sample_preschools(), school_year=115)
+def _sample(school_year: int = 115, report: ParseReport | None = None):
+    return parse_preschools(sample_preschools(), registry=sample_registry(), school_year=school_year, report=report)
+
+
+def _parse(data, *, school_year: int = 115, report: ParseReport | None = None):
+    """合成資料：每一筆都在名單上（名單的取捨另有測試）。"""
+    return parse_preschools(data, registry=registry_of(data), school_year=school_year, report=report)
+
+
+def test_only_kaohsiung_kindergartens_on_the_registry_are_kept():
+    report = ParseReport()
+    rows = _sample(report=report)
     names = {row.name for row in rows}
     assert len(rows) == 10
     assert "臺南市私立耶魯幼兒園" not in names  # 非高雄市
-    assert "高雄市私立小太陽哈佛幼兒園" not in names  # is_active 0
-    assert "高雄市英明非營利幼兒園" not in names  # is_active 0
+    assert "高雄市私立小太陽哈佛幼兒園" not in names  # 不在名單
+    assert "高雄市英明非營利幼兒園" not in names  # 不在名單
+    assert (report.skipped, report.unplaced) == (0, 0)
 
 
-def test_inactive_as_string_and_other_city_are_dropped():
-    data = {"type": "FeatureCollection", "features": [
-        {"properties": {"id": "a", "title": "甲", "city": "高雄市", "type": "公立", "is_active": "0"},
-         "geometry": {"coordinates": [120.3, 22.6]}},
-        {"properties": {"id": "b", "title": "乙", "city": "臺南市", "type": "公立", "is_active": 1},
-         "geometry": {"coordinates": [120.2, 22.9]}},
-        {"properties": {"id": "c", "title": "丙", "city": "高雄市", "type": "公立", "is_active": "1"},
-         "geometry": {"coordinates": [120.3, 22.6]}},
-    ]}
-    assert [row.name for row in parse_preschools(data, school_year=115)] == ["丙"]
+def test_membership_in_the_registry_decides_not_is_active():
+    """kiang 的 is_active 不會變回 0（2026-10-15 規格 §1）：只看在不在名單，is_active 不管。"""
+    data = _collection(
+        _feature(id="listed-but-0", title="甲", is_active=0),
+        _feature(id="gone-but-1", title="乙", is_active=1),
+        _feature(id="tainan", title="丙", city="臺南市"),
+    )
+    rows = parse_preschools(data, registry=registry_of(data, without=("gone-but-1",)), school_year=115)
+    assert [row.source_id for row in rows] == ["listed-but-0"]
 
 
 def test_kinds_and_quasi_public_period():
-    rows = _by_name(parse_preschools(sample_preschools(), school_year=115))
+    rows = _by_name(_sample())
     assert rows["高雄市私立保羅幼兒園"].kind == "quasi_public"  # pre_public 113-115
     assert rows["高雄市私立保羅幼兒園"].pre_public_period == "113-115"
     assert rows["高雄市私立常春藤幼兒園"].kind == "private"
     assert rows["高雄市私立常春藤幼兒園"].pre_public_period is None  # 「無」當成沒有
     assert rows["高雄市灣內非營利幼兒園"].kind == "nonprofit"
     assert rows["高雄市三民區東光國民小學附設幼兒園"].kind == "public"
-    later = _by_name(parse_preschools(sample_preschools(), school_year=116))
+    later = _by_name(_sample(116))
     assert later["高雄市私立保羅幼兒園"].kind == "private"  # 準公共期間已過
 
 
@@ -101,12 +115,12 @@ def test_int_or_none(raw, expected):
     ],
 )
 def test_registered_on_is_parsed_or_unknown(raw, expected):
-    (row,) = parse_preschools(_collection(_feature(id="x", reg_date=raw)), school_year=115)
+    (row,) = _parse(_collection(_feature(id="x", reg_date=raw)))
     assert row.registered_on == expected
 
 
 def test_registered_on_is_unknown_when_the_source_has_no_such_field():
-    (row,) = parse_preschools(_collection(_feature(id="x")), school_year=115)
+    (row,) = _parse(_collection(_feature(id="x")))
     assert row.registered_on is None
 
 
@@ -126,7 +140,7 @@ def test_kind_as_of_recomputes_the_private_and_quasi_public_kinds(kind, period, 
 
 
 def test_fields_are_cleaned():
-    rows = _by_name(parse_preschools(sample_preschools(), school_year=115))
+    rows = _by_name(_sample())
     wannei = rows["高雄市灣內非營利幼兒園"]  # 原始座標是字串
     assert (wannei.lat, wannei.lng) == (22.687159, 120.347932)
     ivy = rows["高雄市私立常春藤幼兒園"]
@@ -142,7 +156,7 @@ def test_capacity_and_monthly_parsing():
                         "penalty": "無", "tel": "", "is_active": 1},
          "geometry": {"coordinates": [120.3, 22.6]}},
     ]}
-    (row,) = parse_preschools(data, school_year=115)
+    (row,) = _parse(data)
     assert (row.approved_capacity, row.monthly_fee_estimate, row.phone, row.address) == (1200, None, None, "某路1號")
 
 
@@ -154,11 +168,11 @@ def test_capacity_and_monthly_parsing():
 )
 def test_unexpected_shape_is_rejected(data):
     with pytest.raises(KindergartenFormatError):
-        parse_preschools(data, school_year=115)
+        _parse(data)
 
 
 async def test_apply_and_nearby(db_session):
-    rows = parse_preschools(sample_preschools(), school_year=115)
+    rows = _sample()
     now = datetime.now(timezone.utc)
     assert (await apply_kindergartens(db_session, rows, synced_at=now, school_year=115)).active == 10
     await db_session.commit()
@@ -217,7 +231,7 @@ async def test_nearby_is_sorted_by_distance_then_name(db_session):
 )
 async def test_version_label_is_the_taipei_date(db_session, synced_at, label):
     """台北凌晨 0–8 點 UTC 日期還停在前一天；畫面上的「資料日期」要照園方所在時區。"""
-    rows = parse_preschools(sample_preschools(), school_year=115)
+    rows = _sample()
     await apply_kindergartens(db_session, rows, synced_at=synced_at, school_year=115)
     await db_session.commit()
     status = await db_session.get(GeoDatasetStatus, "kindergartens")
@@ -242,7 +256,7 @@ def _feature(**overrides):
     props = {
         "id": "x1", "title": "測試幼兒園", "city": "高雄市", "town": "三民區", "type": "私立",
         "address": "[807]某路1號", "count_approved": "100", "monthly": 10000, "pre_public": "無",
-        "penalty": "無", "tel": "(07)1234567", "reg_no": "高市教幼字第1號", "is_active": 1,
+        "penalty": "無", "tel": "(07)1234567", "reg_no": "高市教幼字第1號", "reg_docno": "府教字第1號", "is_active": 1,
     }
     coordinates = overrides.pop("coordinates", [120.3, 22.6])
     props.update(overrides)
@@ -254,17 +268,18 @@ def _collection(*features):
 
 
 def test_report_counts_only_rows_that_were_meant_to_be_kept():
-    """高雄市以外或停業的不算「略過」（本來就不要）；高雄市營業中卻不能用的才計數。"""
+    """高雄市以外或不在名單的不算「略過」（本來就不要）；在名單上卻不能用的才計數。"""
     report = ParseReport()
     data = _collection(
         _feature(id="ok"),
         _feature(id="tainan", city="臺南市"),
-        _feature(id="closed", is_active=0),
+        _feature(id="closed", title="已停辦幼兒園"),
         _feature(id="no-name", title=""),
         _feature(id="odd-type", type="其他"),
         _feature(id="no-coordinates", coordinates=None),
     )
-    assert [row.source_id for row in parse_preschools(data, school_year=115, report=report)] == ["ok"]
+    rows = parse_preschools(data, registry=registry_of(data, without=("closed",)), school_year=115, report=report)
+    assert [row.source_id for row in rows] == ["ok"]
     assert report.skipped == 3
 
 
@@ -283,9 +298,7 @@ def test_report_counts_only_rows_that_were_meant_to_be_kept():
 )
 def test_overlong_fields_skip_the_row_and_are_counted(overrides):
     report = ParseReport()
-    rows = parse_preschools(
-        _collection(_feature(id="ok"), _feature(**{"id": "long", **overrides})), school_year=115, report=report
-    )
+    rows = _parse(_collection(_feature(id="ok"), _feature(**{"id": "long", **overrides})), report=report)
     assert [row.source_id for row in rows] == ["ok"]
     assert report.skipped == 1
 
@@ -295,7 +308,7 @@ def test_fields_exactly_at_column_width_are_kept():
         id="a" * 64, title="園" * 120, address="路" * 200, tel="1" * 40, reg_no="字" * 80, pre_public="1" * 16, town="三民" + "區" * 6,
     ))
     report = ParseReport()
-    (row,) = parse_preschools(data, school_year=115, report=report)
+    (row,) = _parse(data, report=report)
     assert report.skipped == 0
     assert (len(row.source_id), len(row.name), len(row.address), len(row.phone), len(row.reg_no)) == (64, 120, 200, 40, 80)
     assert (len(row.pre_public_period), len(row.district)) == (16, 8)
@@ -312,7 +325,7 @@ def test_fields_exactly_at_column_width_are_kept():
 )
 def test_bad_or_out_of_range_coordinates_skip_the_row(coordinates):
     report = ParseReport()
-    rows = parse_preschools(_collection(_feature(id="ok"), _feature(id="bad", coordinates=coordinates)), school_year=115, report=report)
+    rows = _parse(_collection(_feature(id="ok"), _feature(id="bad", coordinates=coordinates)), report=report)
     assert [row.source_id for row in rows] == ["ok"]
     assert report.skipped == 1
 
@@ -320,9 +333,9 @@ def test_bad_or_out_of_range_coordinates_skip_the_row(coordinates):
 def test_duplicate_source_id_keeps_the_first_and_counts_the_rest():
     """source_id 是主鍵；重複會讓整批 INSERT 失敗。"""
     report = ParseReport()
-    rows = parse_preschools(
+    rows = _parse(
         _collection(_feature(id="dup", title="甲"), _feature(id="dup", title="乙"), _feature(id="other", title="丙")),
-        school_year=115, report=report,
+        report=report,
     )
     assert [(row.source_id, row.name) for row in rows] == [("dup", "甲"), ("other", "丙")]
     assert report.skipped == 1
@@ -331,17 +344,17 @@ def test_duplicate_source_id_keeps_the_first_and_counts_the_rest():
 def test_malformed_feature_entries_are_skipped_not_raised():
     report = ParseReport()
     data = _collection(_feature(id="ok"), None, "x", 5, {"properties": "oops"})
-    assert [row.source_id for row in parse_preschools(data, school_year=115, report=report)] == ["ok"]
+    assert [row.source_id for row in _parse(data, report=report)] == ["ok"]
     assert report.skipped == 4
 
 
 def test_report_is_optional_and_does_not_change_the_result():
     data = _collection(_feature(id="ok"), _feature(id="bad", title="園" * 121))
-    assert [row.source_id for row in parse_preschools(copy.deepcopy(data), school_year=115)] == ["ok"]
+    assert [row.source_id for row in _parse(copy.deepcopy(data))] == ["ok"]
 
 
 def test_huge_capacity_becomes_unknown_instead_of_failing_the_insert():
-    (row,) = parse_preschools(_collection(_feature(count_approved="99999999999", monthly=1e20)), school_year=115)
+    (row,) = _parse(_collection(_feature(count_approved="99999999999", monthly=1e20)))
     assert (row.approved_capacity, row.monthly_fee_estimate) == (None, None)
 
 
@@ -349,8 +362,62 @@ async def test_a_row_that_would_not_fit_never_reaches_the_database(db_session):
     """解析端擋下超長列之後，整批才寫得進去（一列超長以前會讓整個交易失敗）。"""
     data = _collection(_feature(id="ok"), _feature(id="long", title="園" * 121), _feature(id="far", coordinates=[0, 0]))
     report = ParseReport()
-    rows = parse_preschools(data, school_year=115, report=report)
+    rows = _parse(data, report=report)
     assert (await apply_kindergartens(db_session, rows, synced_at=datetime.now(timezone.utc), school_year=115)).active == 1
     await db_session.commit()
     assert report.skipped == 2
     assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 1
+
+
+# ---- 教育部名單（2026-10-15 規格 §3.1） ----
+
+REGISTRY_HEADER = "reg_no,reg_docno,reg_date,title,owner,city,town,type,address\n"
+
+
+def test_registry_keys_and_places():
+    text = (
+        REGISTRY_HEADER
+        + "x,府教字第1號,1996/10/14,甲幼兒園,某人,高雄市,三民區,私立,[807]堅如路46號\n"
+        + ",府教字第2號,,乙幼兒園,,高雄市,三民區,私立,[807]某路2號\n"
+    )
+    registry = parse_registry(text)
+    assert registry.keys == {("府教字第1號", "甲幼兒園"), ("府教字第2號", "乙幼兒園")}
+    assert registry.places == {("堅如路46號", date(1996, 10, 14))}  # 設立日不明的不能拿來認改名
+
+
+def test_registry_tolerates_crlf_quotes_and_spaces():
+    text = REGISTRY_HEADER.replace("\n", "\r\n") + 'x," 府教字第1號 ",1996/10/14," 甲幼兒園 ",,高雄市,三民區,私立,"[807]瑞孝街77號、79號"\r\n'
+    registry = parse_registry(text)
+    assert registry.keys == {("府教字第1號", "甲幼兒園")}
+    assert registry.places == {("瑞孝街77號、79號", date(1996, 10, 14))}
+
+
+def test_registry_rows_without_a_docno_or_title_are_ignored():
+    text = REGISTRY_HEADER + ",,,甲,,高雄市,,,\n,府教字第2號,,,,高雄市,,,\n,府教字第3號,,丙,,高雄市,,,\n"
+    assert parse_registry(text).keys == {("府教字第3號", "丙")}
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["", "<!DOCTYPE html><html><body>錯誤頁</body></html>\n", "reg_no,title\nx,甲\n", REGISTRY_HEADER],
+    ids=["empty", "html", "missing-columns", "header-only"],
+)
+def test_a_registry_that_is_not_the_moe_list_is_rejected(text):
+    with pytest.raises(KindergartenFormatError, match="教育部幼兒園名單格式不對"):
+        parse_registry(text)
+
+
+def test_keys_are_matched_after_trimming_spaces():
+    data = _collection(_feature(id="a", title=" 甲幼兒園 ", reg_docno=" 府教字第1號"))
+    registry = Registry(keys=frozenset({("府教字第1號", "甲幼兒園")}), places=frozenset())
+    assert [row.source_id for row in parse_preschools(data, registry=registry, school_year=115)] == ["a"]
+
+
+def test_registry_entries_without_a_feature_are_counted_as_unplaced():
+    """名單有、kiang 還沒算座標的：不收，另外計數（不算略過）。"""
+    data = _collection(_feature(id="a", title="甲"))
+    listed = registry_of(data)
+    registry = Registry(keys=listed.keys | {("府教字第9號", "還沒有座標的幼兒園")}, places=listed.places)
+    report = ParseReport()
+    assert [row.source_id for row in parse_preschools(data, registry=registry, school_year=115, report=report)] == ["a"]
+    assert (report.unplaced, report.skipped) == (1, 0)

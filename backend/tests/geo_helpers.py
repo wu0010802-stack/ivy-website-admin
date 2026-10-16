@@ -7,6 +7,8 @@
   憲政路（整條同一里）、府北路 25 號四樓之 3 附 1（附號寫在樓層後）。
 - preschools-sample.json：kiang preschools.json 的 13 筆（去掉負責人等欄位），含停業、
   臺南市、座標是字串、準公共、非營利、公立、本機構。
+- kindergarten-registry-sample.csv：上面那份樣本對應的教育部名單（kiang docs/data/高雄市.csv 的格式），
+  高雄營業中 10 所；兩筆停業與臺南市那筆不在名單（2026-10-15 起營業中以名單為準）。
 - babycare-sample.json：kiang babycare.json 的 9 筆（2026-10-14 下載），高雄營業中 6 筆（離義華 165／435／
   939／1297／1657／8307 公尺，含一筆托育家園、一筆地址有重複「高雄市…區…里」前綴）、高雄停業 2 筆、新北市 1 筆。
 - kcg-search.html、kcg-dataset.html：高雄市資料開放平台搜尋頁與資料集頁的連結片段。
@@ -39,7 +41,7 @@ from sqlalchemy.pool import NullPool
 
 from app.admissions.geo.doorplates import DoorplateParser, DoorplateRow, copy_doorplates
 from app.admissions.geo.babycare import parse_babycare
-from app.admissions.geo.kindergartens import parse_preschools
+from app.admissions.geo.kindergartens import Registry, parse_preschools, parse_registry, place_key, registry_key
 from app.admissions.geo import population as population_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoProviderEvent
@@ -48,6 +50,7 @@ from app.admissions.geo.sync import LOCK_KEY
 from app.admissions.models import RecruitmentVisit
 
 FIXTURES = Path(__file__).parent / "fixtures" / "geo"
+REGISTRY_SAMPLE = FIXTURES / "kindergarten-registry-sample.csv"
 SAMPLE_TAG = "115-10#sample"
 SAMPLE_LABEL = "115-10"
 SAMPLE_SCHOOL_YEAR = 115
@@ -209,6 +212,22 @@ def sample_preschools() -> dict:
     return json.loads((FIXTURES / "preschools-sample.json").read_text(encoding="utf-8"))
 
 
+def sample_registry() -> Registry:
+    return parse_registry(REGISTRY_SAMPLE.read_text(encoding="utf-8"))
+
+
+def registry_of(data: dict, *, without: tuple[str, ...] = ()) -> Registry:
+    """測試用：把 data 裡每一筆（id 不在 without 的）都當成在教育部名單上。鍵照原樣（空的文號、名稱也收）。"""
+    features = data.get("features") if isinstance(data, dict) else None
+    props = [feature.get("properties") or {} for feature in (features if isinstance(features, list) else []) if isinstance(feature, dict)]
+    kept = [item for item in props if isinstance(item, dict) and item.get("id") not in without]
+    places = (place_key(item.get("address"), item.get("reg_date")) for item in kept)
+    return Registry(
+        keys=frozenset(registry_key(item.get("reg_docno"), item.get("title")) for item in kept),
+        places=frozenset(place for place in places if place is not None),
+    )
+
+
 def sample_babycare() -> dict:
     return json.loads((FIXTURES / "babycare-sample.json").read_text(encoding="utf-8"))
 
@@ -228,7 +247,7 @@ async def load_geo_samples(db: AsyncSession) -> None:
         )
     )
     await db.flush()
-    rows = parse_preschools(sample_preschools(), school_year=SAMPLE_SCHOOL_YEAR)
+    rows = parse_preschools(sample_preschools(), registry=sample_registry(), school_year=SAMPLE_SCHOOL_YEAR)
     await apply_kindergartens(db, rows, synced_at=now, school_year=SAMPLE_SCHOOL_YEAR)
     await db.commit()
 

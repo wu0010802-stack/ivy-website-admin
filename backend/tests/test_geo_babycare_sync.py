@@ -23,7 +23,7 @@ from app.cli import geo_sync_command, geo_sync_options
 from app.common.timezones import today_local
 from app.workers import geo_loop
 from app.workers.geo_loop import GeoSyncLoop
-from tests.geo_helpers import FIXTURES
+from tests.geo_helpers import FIXTURES, REGISTRY_SAMPLE
 from tests.test_geo_limits import _wrap
 from tests.test_geo_providers import kg, many_babycare
 from tests.test_geo_sync import BABYCARE_URL, KIANG_URL, _site, _status, _sync, small_minimum  # noqa: F401
@@ -199,7 +199,10 @@ async def test_a_shrunken_babycare_file_is_refused_and_force_lets_it_through(app
 async def test_a_shrunken_kindergarten_file_is_refused_and_force_lets_it_through(app):
     apply = partial(providers.apply_kindergartens, school_year=115)
     before = await _seed(app, "kindergartens", apply, [kg(f"k{index:02d}") for index in range(25)])
-    refused = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=KINDERGARTEN_SAMPLE)
+    refused = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=KINDERGARTEN_SAMPLE, kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
     assert refused.kindergartens == "failed"
     status = await _status(app, "kindergartens")
     assert status.last_error == providers.SHRUNK_MESSAGE
@@ -207,7 +210,10 @@ async def test_a_shrunken_kindergarten_file_is_refused_and_force_lets_it_through
     assert await _active(app, GeoKindergarten) == 25
     assert await _count(app, GeoProviderEvent) == 0
 
-    forced = await run_geo_sync(app.state.session_factory, app.state.settings, kindergartens_file=KINDERGARTEN_SAMPLE, force=True)
+    forced = await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=KINDERGARTEN_SAMPLE, kindergartens_registry_file=REGISTRY_SAMPLE, force=True,
+    )
     assert forced.kindergartens == "updated"
     status = await _status(app, "kindergartens")
     assert status.last_error is None and status.active_version != before[0]

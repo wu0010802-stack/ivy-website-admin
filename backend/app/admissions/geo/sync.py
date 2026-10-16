@@ -12,6 +12,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
   --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
   --new-homes-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
   同時代表「立刻重抓」與「略過殘缺檔檢查」。
@@ -74,7 +75,8 @@ from app.admissions.geo import population as population_io
 from app.admissions.geo import providers
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
-from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools
+from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
+from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
 from app.campuses.models import CAMPUS_KEYS
@@ -112,6 +114,7 @@ RIS_REQUEST_GAP_SECONDS = 3.0
 # 位元組數以解壓縮後計（壓縮炸彈也擋）。
 HTML_MAX_BYTES = 2 * 1024 * 1024  # 高雄市資料平台的搜尋頁與資料集頁（正常約數百 KB）
 KINDERGARTENS_MAX_BYTES = 64 * 1024 * 1024  # 全國幼兒園名單（正常約十 MB）
+KINDERGARTEN_REGISTRY_MAX_BYTES = 4 * 1024 * 1024  # 教育部高雄市幼兒園名單（正常約 200 KB）
 BABYCARE_MAX_BYTES = 8 * 1024 * 1024  # 托嬰名單（正常約 1.4 MB）
 POPULATION_PAGE_MAX_BYTES = 32 * 1024 * 1024  # 各里人口每一頁（正常約 10 MB）
 DOORPLATE_MAX_BYTES = 400 * 1024 * 1024  # 門牌 CSV（正常約 102 MB）
@@ -459,6 +462,7 @@ def _error_text(exc: Exception) -> str:
         doorplate_io.DoorplateFormatError,
         doorplate_io.DoorplateTooManyRows,
         KindergartenFormatError,
+        BackfillFormatError,
         BabycareFormatError,
         providers.ProviderShrunk,
         population_io.PopulationFormatError,
@@ -535,28 +539,43 @@ async def sync_kindergartens(
     now: datetime,
     force: bool,
     file: Path | None,
+    registry_file: Path | None,
 ) -> tuple[str, int]:
-    """回傳 (結果, 略過的筆數)。"""
+    """回傳 (結果, 略過的筆數)。營業中以教育部名單為準（2026-10-15 規格 §3）：名單與 preschools.json
+    任一抓不到或格式不對，整輪失敗、資料不動。file 與 registry_file 由 run_geo_sync 保證成對。"""
     status = await _status(session_factory, "kindergartens")
     if file is None and (client is None or (not force and not _provider_due(status, now))):
         return "skipped", 0
     try:
         if file is not None:
+            assert registry_file is not None
+            registry_text = registry_file.read_text(encoding="utf-8-sig")
             data = json.loads(file.read_text(encoding="utf-8-sig"))
         else:
             assert client is not None
+            registry_body, _ = await _fetch_capped(
+                client, settings.geo_kindergartens_registry_url, max_bytes=KINDERGARTEN_REGISTRY_MAX_BYTES
+            )
+            registry_text = registry_body.decode("utf-8-sig")
             body, _ = await _fetch_capped(client, settings.geo_kindergartens_url, max_bytes=KINDERGARTENS_MAX_BYTES)
             # 全國名單有好幾 MB：解析 JSON 與篩選都在執行緒裡做，不占住事件迴圈。
             data = await asyncio.to_thread(json.loads, body)
+        registry = parse_registry(registry_text)
+        backfill = load_closure_backfill()  # 2026-10-15 規格 §5：檔案不對就整輪失敗，不靠猜
         school_year, _ = current_term(today_local())
         report = ParseReport()
-        rows = await asyncio.to_thread(parse_preschools, data, school_year=school_year, report=report)
+        rows = await asyncio.to_thread(parse_preschools, data, registry=registry, school_year=school_year, report=report)
         async with session_factory() as db:
-            changes = await providers.apply_kindergartens(db, rows, synced_at=now, school_year=school_year, force=force)
+            changes = await providers.apply_kindergartens(
+                db, rows, synced_at=now, school_year=school_year, force=force, backfill=backfill,
+                listed_places=registry.places,
+            )
             await db.commit()
         logger.info(
-            "幼兒園資料已更新：%s 所，略過 %s 筆；停辦 %s、重新營業 %s、類型變動 %s",
-            changes.active, report.skipped, changes.closed, changes.opened, changes.kind_changed,
+            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆；停辦事件 %s、依回補檔下架 %s、"
+            "改名下架 %s、重新營業 %s、類型變動 %s",
+            changes.active, report.skipped, report.unplaced, changes.closed, changes.backfilled, changes.renamed,
+            changes.opened, changes.kind_changed,
         )
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001
@@ -1246,6 +1265,7 @@ async def run_geo_sync(
     doorplates_file: Path | None = None,
     doorplates_version: str | None = None,
     kindergartens_file: Path | None = None,
+    kindergartens_registry_file: Path | None = None,
     babycare_file: Path | None = None,
     population_files: list[Path] | None = None,
     births_files: list[Path] | None = None,
@@ -1256,6 +1276,8 @@ async def run_geo_sync(
     new_homes_season: str | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
+    if (kindergartens_file is None) != (kindergartens_registry_file is None):
+        raise ValueError("幼兒園檔案與教育部名單檔要一起給（--kindergartens-file、--kindergartens-registry-file）")
     async with _exclusive(session_factory):
         now = datetime.now(timezone.utc)
         file_mode = (
@@ -1282,7 +1304,10 @@ async def run_geo_sync(
             )
             kindergartens, kindergarten_skipped = await _within_budget(
                 session_factory, "kindergartens", KINDERGARTENS_TIME_BUDGET, now=now,
-                work=sync_kindergartens(session_factory, settings, network, now=now, force=force, file=kindergartens_file),
+                work=sync_kindergartens(
+                    session_factory, settings, network,
+                    now=now, force=force, file=kindergartens_file, registry_file=kindergartens_registry_file,
+                ),
             )
             babycare, babycare_skipped = await _within_budget(
                 session_factory, "babycare", BABYCARE_TIME_BUDGET, now=now,

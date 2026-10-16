@@ -74,6 +74,21 @@ async def test_oversized_kindergarten_list_is_refused(app, small_minimum, monkey
     assert result.doorplates == "updated", "一種資料失敗不擋其他"
 
 
+async def test_oversized_kindergarten_registry_is_refused(app, small_minimum, monkeypatch):
+    good, _ = _site()
+    await _sync(app, good)
+    assert await _counts(app) == (73, 10)
+    monkeypatch.setattr(sync, "KINDERGARTEN_REGISTRY_MAX_BYTES", 100)
+    assert len((FIXTURES / "kindergarten-registry-sample.csv").read_bytes()) > 100
+
+    result = await _sync(app, good, force=True)
+
+    assert result.kindergartens == "failed"
+    assert "超過大小上限" in (await _last_error(app, "kindergartens") or "")
+    assert (await _counts(app))[1] == 10, "名單被拒絕時幼兒園資料不動"
+    assert result.doorplates == "updated", "一種資料失敗不擋其他"
+
+
 async def test_oversized_population_page_is_refused(app, small_minimum, monkeypatch):
     monkeypatch.setattr(sync, "POPULATION_PAGE_MAX_BYTES", 100)
     good, _ = _site(population_months={"11509"})

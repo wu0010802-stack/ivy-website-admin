@@ -1,16 +1,20 @@
 """幼兒園公開資料：kiang 整理的全國教保資訊網 preschools.json（規格 §4、§5.2）。
 
-只留高雄市、營業中（is_active＝1）的園所；不存負責人姓名（owner），也不讀
+只留高雄市、**在教育部名單上**的園所（2026-10-15：名單是 kiang 每天從全國教保資訊網爬下的
+docs/data/高雄市.csv；preschools.json 的 is_active 一旦是 1 就不會變回 0，停辦的會一直留著，不能用）；
+不存負責人姓名（owner），也不讀
 punish_all.json（以行為人姓名為鍵）。類型對照：公立→public、非營利→nonprofit、
 私立且 pre_public 學年區間涵蓋目前學年→quasi_public、其餘私立→private。月費是
 kiang 依收費明細估算的值，畫面上要標「估」。kiang 的資料有一筆座標是字串，一律轉 float。名單換新與異動紀錄見 providers.py（2026-10-14）。
 
-高雄市營業中的園所若缺必要欄位、欄位超過資料表欄寬、座標不是有限數或不在高雄市外框內、
-source_id 重複，整筆略過並計入 ParseReport.skipped（高雄市以外、停業的本來就不要，不算）；
+高雄市在名單上的園所若缺必要欄位、欄位超過資料表欄寬、座標不是有限數或不在高雄市外框內、
+source_id 重複，整筆略過並計入 ParseReport.skipped（高雄市以外、不在名單的本來就不要，不算）；
 不讓一筆壞資料使整批寫入失敗。數量欄位（核定人數、月費）超出 int4 當成未知。"""
 
 from __future__ import annotations
 
+import csv
+import io
 import math
 import re
 from dataclasses import dataclass
@@ -29,6 +33,8 @@ _PRE_PUBLIC = re.compile(r"(\d{3})-(\d{3})")
 _POSTAL_PREFIX = re.compile(r"^\[\d+\]")
 _METERS_PER_DEGREE = 111_320.0
 _INT4_MAX = 2_147_483_647
+REGISTRY_COLUMNS = ("reg_docno", "title", "address", "reg_date")
+REGISTRY_FORMAT_MESSAGE = "教育部幼兒園名單格式不對"
 # 文字欄位上限，以資料表欄寬為準。
 _WIDTHS = {
     name: GeoKindergarten.__table__.c[name].type.length
@@ -37,7 +43,7 @@ _WIDTHS = {
 
 
 class KindergartenFormatError(ValueError):
-    """preschools.json 不是預期的格式（或一所高雄市營業中的園所都沒有）。"""
+    """preschools.json 或教育部名單不是預期的格式（或一所高雄市營業中的園所都沒有）。"""
 
 
 @dataclass
@@ -45,6 +51,7 @@ class ParseReport:
     """parse_preschools 的略過數（給同步摘要用）。"""
 
     skipped: int = 0
+    unplaced: int = 0  # 名單有、preschools.json 沒有對應的園所（kiang 還沒算座標）；只進日誌，不算 skipped
 
 
 @dataclass(frozen=True)
@@ -115,6 +122,48 @@ def _registered_on(value: object) -> date | None:
         return None
 
 
+@dataclass(frozen=True)
+class Registry:
+    """教育部名單（2026-10-15 規格 §3.1）。keys：營業中的（立案文號、名稱），就是 kiang 產生 uuid 的鍵；
+    places：（地址、設立日），新名稱還沒有座標時也認得出改名（規格 §4）。"""
+
+    keys: frozenset[tuple[str, str]]
+    places: frozenset[tuple[str, date]]
+
+
+def registry_key(reg_docno: object, title: object) -> tuple[str, str]:
+    """名單與 preschools.json 兩邊用同一個寫法比對：去頭尾空白。"""
+    return str(reg_docno or "").strip(), str(title or "").strip()
+
+
+def place_key(address: object, reg_date: object) -> tuple[str, date] | None:
+    """改名判斷用的（地址、設立日）：地址去掉郵遞區號（和 KindergartenRow.address 同一個寫法）；設立日不明或沒地址回 None。"""
+    opened = _registered_on(reg_date)
+    text = _POSTAL_PREFIX.sub("", str(address or "").strip())
+    return (text, opened) if opened is not None and text else None
+
+
+def parse_registry(text: str) -> Registry:
+    """kiang docs/data/高雄市.csv（呼叫端已用 utf-8-sig 解碼）→ Registry。只讀立案文號、名稱、地址、設立日四欄，
+    負責人不讀。沒有這四欄（例如抓到 HTML 錯誤頁）或一列可用的都沒有 → KindergartenFormatError。"""
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames or not set(REGISTRY_COLUMNS) <= set(reader.fieldnames):
+        raise KindergartenFormatError(REGISTRY_FORMAT_MESSAGE)
+    keys: set[tuple[str, str]] = set()
+    places: set[tuple[str, date]] = set()
+    for row in reader:
+        key = registry_key(row.get("reg_docno"), row.get("title"))
+        if not all(key):
+            continue
+        keys.add(key)
+        place = place_key(row.get("address"), row.get("reg_date"))
+        if place is not None:
+            places.add(place)
+    if not keys:
+        raise KindergartenFormatError(REGISTRY_FORMAT_MESSAGE)
+    return Registry(frozenset(keys), frozenset(places))
+
+
 def _kind(type_name: str, pre_public: str | None, school_year: int) -> str | None:
     kind = _KIND_BY_TYPE.get(type_name)
     if kind == "private" and pre_public:
@@ -133,33 +182,41 @@ def kind_as_of(kind: str, pre_public_period: str | None, school_year: int) -> st
     return kind
 
 
-def parse_preschools(data: dict, *, school_year: int, report: ParseReport | None = None) -> list[KindergartenRow]:
+def parse_preschools(
+    data: dict, *, registry: Registry, school_year: int, report: ParseReport | None = None
+) -> list[KindergartenRow]:
     features = data.get("features") if isinstance(data, dict) else None
     if not isinstance(features, list):
         raise KindergartenFormatError("幼兒園資料不是 GeoJSON FeatureCollection")
     report = report if report is not None else ParseReport()
     rows: list[KindergartenRow] = []
     seen: set[str] = set()
+    listed: set[tuple[str, str]] = set()
     for feature in features:
         props = (feature.get("properties") or {}) if isinstance(feature, dict) else None
         if not isinstance(props, dict):
             report.skipped += 1
             continue
-        if str(props.get("city") or "").replace("臺", "台") != "高雄市" or str(props.get("is_active")) != "1":
+        if str(props.get("city") or "").replace("臺", "台") != "高雄市":
             continue
+        key = registry_key(props.get("reg_docno"), props.get("title"))
+        if key not in registry.keys:
+            continue  # 不在教育部名單＝停辦或改名（kiang 的 is_active 不會變回 0，不看它）
+        listed.add(key)
         row = _row(feature, props, school_year)
         if row is None or row.source_id in seen:
             report.skipped += 1
             continue
         seen.add(row.source_id)
         rows.append(row)
+    report.unplaced = len(registry.keys - listed)
     if not rows:
         raise KindergartenFormatError("幼兒園資料裡沒有高雄市營業中的園所")
     return rows
 
 
 def _row(feature: dict, props: dict, school_year: int) -> KindergartenRow | None:
-    """一筆高雄市營業中的園所 → 資料列；缺必要欄位、欄位放不進資料表、座標不合格回 None。"""
+    """一筆高雄市、在名單上的園所 → 資料列；缺必要欄位、欄位放不進資料表、座標不合格回 None。"""
     try:
         lng, lat = (float(value) for value in feature["geometry"]["coordinates"][:2])
     except (KeyError, TypeError, ValueError):

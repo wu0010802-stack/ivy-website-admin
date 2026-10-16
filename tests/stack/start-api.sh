@@ -47,7 +47,8 @@ unset WEBSITE_SMTP_HOST WEBSITE_LINE_MESSAGING_CHANNEL_SECRET WEBSITE_LINE_MESSA
   WEBSITE_GOOGLE_CLIENT_ID WEBSITE_GOOGLE_CLIENT_SECRET WEBSITE_GOOGLE_REDIRECT_URI \
   WEBSITE_LINE_CHANNEL_ID WEBSITE_LINE_CHANNEL_SECRET WEBSITE_LINE_REDIRECT_URI \
   WEBSITE_MEDIA_STORAGE WEBSITE_S3_BUCKET WEBSITE_S3_ACCESS_KEY_ID WEBSITE_S3_SECRET_ACCESS_KEY \
-  WEBSITE_GEO_AUTO_SYNC WEBSITE_GEO_DOORPLATE_URL WEBSITE_GEO_KINDERGARTENS_URL WEBSITE_GEO_BABYCARE_URL
+  WEBSITE_GEO_AUTO_SYNC WEBSITE_GEO_DOORPLATE_URL WEBSITE_GEO_KINDERGARTENS_URL WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL \
+  WEBSITE_GEO_BABYCARE_URL
 
 rm -rf "$E2E_STATE_DIR/media" "$E2E_STATE_DIR/mail"
 mkdir -p "$E2E_STATE_DIR/media" "$E2E_STATE_DIR/mail"
@@ -67,6 +68,7 @@ cd "$root/backend"
   uv run --frozen python -m app.cli geo-sync \
     --doorplates-file ../tests/stack/fixtures/geo-doorplates.csv \
     --kindergartens-file ../tests/stack/fixtures/geo-preschools.json \
+    --kindergartens-registry-file ../tests/stack/fixtures/geo-kindergarten-registry.csv \
     --babycare-file ../tests/stack/fixtures/geo-babycare.json \
     --population-file ../tests/stack/fixtures/geo-population-11509.json
   # bootstrap-admin 刻意只從 stdin 讀密碼（不接受命令列參數、不寫 log）。
