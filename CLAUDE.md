@@ -15,7 +15,7 @@
 | `web/app/assets/css/studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔開頭的 `@media(max-width:1100px){.container{…}}` 為準（1100），不是同目錄 `styles.css` 的 1150 |
 | `preview.html` | `package_preview.py` 打包出的原型單檔，**刻意進版控**、可離線開 | 改根目錄原型檔後必重打包，見下 |
 | `DESIGN.md` | 設計規則與每輪定案／否決紀錄 | 改版前先讀相關章節，否決過的方案不要再主動提 |
-| `README.md` | 日期 changelog（新的在最上面；整份已 3,700 多行，日期段落一路排到 3,500 行附近）＋檔尾的原型時期預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄；找現況只讀頂部幾段 |
+| `README.md` | 當月起的日期 changelog（新的在最上面）＋檔尾的原型時期預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄；上個月以前的段落在 `docs/changelog/README-YYYY-MM.md` |
 | `design/<主題>-directions|mockup|demo[-YYYYMMDD]/` | 比稿工作檔、截圖、對照頁 | 只在需要追溯來源時讀；**不要把舊方案套回主站** |
 | `versions/before-<主題>-YYYYMMDD-HHMMSS/` | 改版前快照 | 大改前先建一份 |
 | `output/` `.playwright-*` `.impeccable/` `.codex/` | 本機截圖與工具狀態，已 gitignore | 暫存物放這裡，不要散在根目錄 |
@@ -23,8 +23,9 @@
 | `admin/` | 後台 SPA（Vue 3＋Element Plus），build 後併進 web 的 `/admin/` | 型別取自 `contracts/generated`；`npm --prefix admin run typecheck`、`test:unit` |
 | `backend/` | FastAPI API＋Alembic migration | 合進 `main` 的 migration 部署時自動套到正式 DB，撰寫規則見 `deploy/CICD.md` |
 | `contracts/` | `openapi.json` 與產生的 TS 型別 | 改 API 後 `npm run contract:generate`；CI 跑 `contract:check` |
-| `deploy/` | Dockerfile、api 啟動腳本、Railway CI、部署紀錄 | 正式站變數、上線步驟、歷次部署記在 `deploy/README.md` |
+| `deploy/` | Dockerfile、api 啟動腳本、Railway CI、部署紀錄 | 正式站變數、上線步驟、當月起的部署記在 `deploy/README.md`，更早的在 `docs/changelog/deploy-YYYY-MM.md` |
 | `docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`、`docs/website-admin/` | 官網後台規格、計畫、執行提示（已實作）、驗收表與維運手冊 | 見「官網後台」 |
+| `docs/changelog/` | README 與 deploy/README 的過往月份日期段落（2026-10-16 起每月封存） | 每到新的月份，把 `README.md`、`deploy/README.md` 裡上個月的 `## YYYY-MM-…` 段落整段移過來（參考章節留在原檔），連結補 `../../` |
 
 ## 每次改版必做的流程
 
