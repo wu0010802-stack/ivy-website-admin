@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 招生統計抽成獨立側欄頁、只給總管理者（main CI 部署，沒有 migration）
+
+- **提交**：`feature/admissions-stats-page-20261016` 一個 commit `d196036b`，使用者推 main（fast-forward `c4524ed5..d196036b`，沒有開 PR）。內容見 README 頂部「招生統計抽成獨立側欄頁、只給總管理者」、DESIGN.md「後台：招生統計抽成獨立頁、只給總管理者」。
+- **migration**：沒有。權限改在 `backend/app/auth/permissions.py`：新增 `admissions.stats`（只給 super_admin），18 支統計 API 改用它；刪除 `analytics.read`（`/auth/me` 的 `effective_capabilities` 少這一項）。沒有新環境變數、沒有依賴檔變動，沒有備份。回退可直接切回上一個映像（分校管理者、接待會重新看得到統計）。
+- **推送前閘門**（本機，Node 22，從 main `c4524ed5` 開、推送前 main 沒有新提交）：後端全套 3,568 passed／1 skipped（獨立測試庫 `ivy_website_admstats1016_test`）；admin `vue-tsc` 無錯誤、vitest 全套 166 檔 2,634 passed／1 skipped；契約 `--check` 兩項一致；stack 全套 147 passed（含視覺基準）。web 沒有改動，沒跑 web 測試。
+- **CI**：main run 38879353923（`d196036b`）09:16:42Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 09:22:45Z–09:29:23Z。
+- **正式 `release.json`**：base commit `d196036b49a65ce246af0bb30a92060047500bac`，snapshot `652b040b…`，created `2026-10-16T09:23:31Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-16T09:30Z）：`/api/website/v1/health` 回 `status: ok`、`environment: production`、`fixture_enabled: false`、`last_failed_steps` 為空；`/admin/admissions-stats` 回 200；`/api/website/v1/admin/admissions/stats` 未登入回 401；後台入口 bundle `index-r-YYHJt9.js` 有 `admissions-stats` 路由與舊連結 `tab=stats` 的轉址，lazy chunk `AdmissionsStatsView-DFdKGD98.js` 存在。
+- **待使用者**：登入正式後台看側欄「招生統計」與舊連結轉址；分校管理者、接待帳號會看不到統計（含未預繳名單），這是這次的裁定。
+
 ## 2026-10-16 後台第 2 波：招生歷程兩種事件＋退出原因分類（main CI 部署，migration 只新增）
 
 - **提交**：使用者在本機推 `feature/admin-wave2-20261015` 到 main（fast-forward `5a08b3dc..c3c6498d`，沒有開 PR）。內容見 README 頂部「招生歷程兩種事件＋退出原因分類」、DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」、規格 `docs/specs/2026-10-15-admissions-history-events-design.md`、`docs/specs/2026-10-15-withdraw-reason-category-design.md`（各有 §7 實作紀錄）。
