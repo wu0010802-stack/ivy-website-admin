@@ -212,6 +212,9 @@ function missingPopulationNote(villages: readonly AreaOpportunityMissing[]): str
   return `${where}沒有人口資料，${visit ? `孩子數與其中的 ${formatCount(visit)} 位參觀都沒算進去。` : '孩子數沒算進去。'}`
 }
 
+/** 附近參觀不到門檻（後端 baseline.judged 為 false）時的判讀句；招生機會總結與里卡片、模式停用原因共用同一句。 */
+export const NOT_JUDGED_NOTE = '附近參觀還不到 10 位，先不判斷哪些里偏少。'
+
 /**
  * 招生機會的總結（規格 7.3）：第一句是半徑內的合計，第二句是判讀；note 是不算在內的人數（都是 0 就空字串），
  * 之後接半徑內但人口表沒有的里（它們不是半徑外，要另外交代）。沒填地址的參觀和其他沒對到里的分開寫。
@@ -228,7 +231,7 @@ export function opportunitySummary(data: AreaOpportunity): { lead: string; verdi
   const below = data.villages.filter((row) => row.signal === 'below')
   const missing = Math.round(below.reduce((sum, row) => sum + (row.shortfall ?? 0), 0))
   const verdict = !baseline.judged
-    ? '附近參觀還不到 10 位，先不判斷哪些里偏少。'
+    ? NOT_JUDGED_NOTE
     : below.length
       ? `明顯偏少的里 ${below.length} 個，照附近的參觀率合計少了約 ${formatCount(Math.max(1, missing))} 位。`
       : '沒有明顯偏少的里。'
