@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-17 入學頁拿掉過時的補助券（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `fix/admission-subsidy-20261017` 到 main（`9db0fe48..877c9453`，fast-forward、沒有開 PR）。內容見 README 頂部「入學頁拿掉過時的補助券」：只改 `web/server/data/site-fixture.json` 的入學頁文案（清空三張補助券、收退費說明拿掉「補助款撥到園再轉發」）和對應的測試資料。沒有 migration、沒有新環境變數、依賴檔沒有變動。
+- **回退**：直接切回上一版映像即可（只差 fixture 文案）。
+- **推送前閘門**（本機，Node 22，獨立測試庫 `ivy_website_admsub_test`／`_e2e_test`，跑完已刪）：讀 fixture 的後端測試 272 passed；web typecheck 0 錯、vitest 103 檔 1,258 passed；`e2e:build` 後 stack 的 `hydration`、`a11y`、`keyboard` 三支（涵蓋 `/admission`）49 passed，stack 全套沒跑。
+- **CI**：main run 38983323139（`877c9453`）23:48:21Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 23:54:25Z–23:58:38Z success。
+- **正式 `release.json`**：base commit `877c9453b50b26c3836c39b945bc63d6cf3cbfb5`，snapshot `b7cc7b2e…`，created `2026-10-16T23:54:47Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；`/admission` 回 200，HTML 裡「教育部補助」「15,000」「高雄市政府補助」「特殊家庭」「撥款到園」「補助券」「政府補助」都是 0 次、`ap-coupon` 0 個；「私立幼兒園 2–6 歲育兒津貼」表、新的收退費說明、退費規定都在。
+- **待使用者／園方**：同頁「預先繳交訂位金 5,000 元」超過「高雄市教保服務機構收退費辦法」預收學費 1,500 元上限，這次沒動。
+
 ## 2026-10-17 後台第 3 波：預約表單預計入學時間＋預約案件排除標記（main CI 部署，migration 只新增）
 
 - **提交**：使用者在本機推 `feature/admin-wave3-20261015` 到 main，兩次都是 fast-forward、沒有開 PR。內容見 README 頂部「預約表單預計入學時間、預約案件排除標記」、DESIGN.md 同名兩節、規格 `docs/specs/2026-10-15-visit-expected-start-design.md`、`docs/specs/2026-10-15-visit-exclusion-design.md`（各有 §7 實作紀錄）。
