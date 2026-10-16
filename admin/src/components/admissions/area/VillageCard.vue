@@ -9,8 +9,6 @@ import type { NearbyKindergarten, VillageFacts } from './villageFacts'
 const props = defineProps<{ facts: VillageFacts }>()
 const emit = defineEmits<{ close: []; 'open-records': [area: string]; retry: [section: 'kids' | 'ours'] }>()
 
-// 本機構在 villageFacts 裡只用類型文字區分（kindLabel），地圖上本機構是金色點，卡片的點跟著用同一個色。
-const OWN_LABEL = '本機構'
 const id = useId()
 const titleId = `${id}-title`
 const kidsId = `${id}-kids`
@@ -27,8 +25,8 @@ const kids = computed(() => props.facts.kids)
 const ours = computed(() => props.facts.ours)
 // null（幼兒園名單沒到、沒座標、半徑外或靠近邊界）與 []（查過、500 m 內沒有）都不畫這一段。
 const nearby = computed(() => props.facts.nearby ?? [])
-const dotClass = (item: NearbyKindergarten): string =>
-  `village-card__dot--${item.kindLabel === OWN_LABEL ? 'own' : item.kind}`
+// 地圖上本機構是金色點，卡片的點跟著用同一個色。
+const dotClass = (item: NearbyKindergarten): string => `village-card__dot--${item.isOwn ? 'own' : item.kind}`
 const toneClass = (tone: 'up' | 'down' | undefined): string => (tone ? `village-card__value--${tone}` : '')
 
 function openRecords() {
@@ -81,9 +79,11 @@ function openRecords() {
         </div>
         <div v-else-if="ours.state === 'failed'" class="village-card__row">
           <dt>在籍</dt>
-          <dd class="village-card__failed">
-            <span>讀取失敗</span>
-            <el-button size="small" @click="emit('retry', 'ours')">重試</el-button>
+          <dd>
+            <div class="village-card__failed">
+              <span>讀取失敗</span>
+              <el-button size="small" @click="emit('retry', 'ours')">重試</el-button>
+            </div>
           </dd>
         </div>
         <div v-for="row in ours.rows" :key="row.label" class="village-card__row">
@@ -123,9 +123,6 @@ function openRecords() {
 }
 
 .village-card__head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -296,5 +293,22 @@ function openRecords() {
 .village-card__nearby-kind,
 .village-card__nearby-distance {
   color: var(--ink-3);
+}
+
+/* 桌機右欄在欄內捲動，標題區（含 ×）黏在欄頂；1200px 以下右欄不內捲、後台頂端列本來就 sticky，不再黏第二層。 */
+@media (min-width: 1200px) {
+  .village-card__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+}
+
+/* 觸控：× 至少 44×44。 */
+@media (max-width: 720px) {
+  .village-card__close {
+    width: 44px;
+    height: 44px;
+  }
 }
 </style>

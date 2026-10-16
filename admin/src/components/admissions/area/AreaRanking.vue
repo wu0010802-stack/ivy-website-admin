@@ -35,7 +35,7 @@ const hasMore = computed(() => !expanded.value && props.sections.some((section) 
             <span class="area-ranking__rank num">{{ index + 1 }}</span>
             <span class="area-ranking__place">
               <span class="area-ranking__name">{{ item.name }}</span>
-              <span class="area-ranking__distance num">{{ item.distance }}</span>
+              <span v-if="item.distance" class="area-ranking__distance num">{{ item.distance }}</span>
             </span>
             <span class="area-ranking__figure">
               <span class="area-ranking__value num" :class="item.tone ? `area-ranking__value--${item.tone}` : ''">{{ item.value }}</span>
@@ -148,5 +148,13 @@ button.area-ranking__item:focus-visible {
 
 .area-ranking__more {
   justify-self: start;
+}
+
+/* 觸控：整列至少 44px 高（距離與小字都是空的單行列也一樣），內容垂直置中。 */
+@media (max-width: 720px) {
+  .area-ranking__item {
+    align-content: center;
+    min-height: 44px;
+  }
 }
 </style>

@@ -103,6 +103,8 @@ export interface NearbyKindergarten {
   name: string
   kind: string
   kindLabel: string
+  /** 本機構（後端 is_own）：卡片的色點用它判斷，不比對 kindLabel 的字串。 */
+  isOwn: boolean
   distance: string
 }
 export interface VillageFacts {
@@ -272,6 +274,7 @@ function nearbyKindergartens(
       name: shortName(item.name),
       kind: item.kind,
       kindLabel: item.is_own ? '本機構' : kindLabel(item.kind),
+      isOwn: item.is_own,
       distance: formatDistance(distance),
     }))
 }

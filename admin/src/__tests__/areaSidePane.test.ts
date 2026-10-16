@@ -6,6 +6,9 @@ import ElementPlus from 'element-plus'
 import AreaRanking from '../components/admissions/area/AreaRanking.vue'
 import AreaSidePane from '../components/admissions/area/AreaSidePane.vue'
 import VillageCard from '../components/admissions/area/VillageCard.vue'
+import rankingSource from '../components/admissions/area/AreaRanking.vue?raw'
+import paneSource from '../components/admissions/area/AreaSidePane.vue?raw'
+import cardSource from '../components/admissions/area/VillageCard.vue?raw'
 import type { PaneHead, RankingItem, RankingSection } from '../components/admissions/area/areaPane'
 import type { VillageFacts } from '../components/admissions/area/villageFacts'
 
@@ -54,12 +57,32 @@ const FACTS: VillageFacts = {
     openRecordsArea: '三民區/本揚里',
   },
   nearby: [
-    { name: '大樹幼兒園', kind: 'private', kindLabel: '私立', distance: '320 m' },
-    { name: '常春藤幼兒園', kind: 'private', kindLabel: '本機構', distance: '450 m' },
+    { name: '大樹幼兒園', kind: 'private', kindLabel: '私立', isOwn: false, distance: '320 m' },
+    { name: '常春藤幼兒園', kind: 'private', kindLabel: '本機構', isOwn: true, distance: '450 m' },
   ],
 }
 const facts = (changes: Partial<VillageFacts> = {}): VillageFacts => ({ ...FACTS, ...changes })
 const sectionTitles = (wrapper: VueWrapper) => wrapper.findAll('.village-card__section-title').map((title) => title.text())
+
+// 讀樣式原始碼的小工具：取出某個 @media 區塊（依大括號配對），以及拿掉所有 @media 之後剩下的規則。
+function mediaBlock(source: string, query: string): string {
+  const start = source.indexOf(`@media (${query}) {`)
+  if (start === -1) return ''
+  let depth = 0
+  for (let index = source.indexOf('{', start); index < source.length; index++) {
+    if (source[index] === '{') depth++
+    if (source[index] === '}' && --depth === 0) return source.slice(start, index + 1)
+  }
+  return source.slice(start)
+}
+function outsideMedia(source: string): string {
+  let rest = source
+  for (let at = rest.indexOf('@media ('); at !== -1; at = rest.indexOf('@media (')) {
+    const query = rest.slice(at + '@media ('.length, rest.indexOf(')', at))
+    rest = rest.replace(mediaBlock(rest, query), '')
+  }
+  return rest
+}
 
 describe('排行（AreaRanking）', () => {
   it('列是按鈕、點了 emit select(code)，code 為 null 不可點；名次、里名、距離、數值與小字都在', async () => {
@@ -116,10 +139,16 @@ describe('排行（AreaRanking）', () => {
     ])
   })
 
-  it('只有一段（標題是空字串）不畫段標題；detail 是空字串不畫小字', () => {
-    const wrapper = mountIt(AreaRanking, { sections: [{ title: '', items: [item(0, { detail: '' })] }], limit: 10 })
+  it('只有一段（標題是空字串）不畫段標題；detail 是空字串不畫小字；distance 是空字串不畫距離', () => {
+    const wrapper = mountIt(AreaRanking, { sections: [{ title: '', items: [item(0, { detail: '', distance: '' })] }], limit: 10 })
     expect(wrapper.find('.area-ranking__title').exists()).toBe(false)
     expect(wrapper.find('.area-ranking__detail').exists()).toBe(false)
+    expect(wrapper.find('.area-ranking__distance').exists()).toBe(false)
+    expect(mountIt(AreaRanking, { sections: [section(1)], limit: 10 }).find('.area-ranking__distance').exists()).toBe(true)
+  })
+
+  it('≤720px 觸控：排行列至少 44px 高（距離與小字都是空的那種單行列也一樣）', () => {
+    expect(mediaBlock(rankingSource, 'max-width: 720px')).toMatch(/\.area-ranking__item \{[^}]*min-height: 44px;/)
   })
 })
 
@@ -158,6 +187,19 @@ describe('里卡片（VillageCard）', () => {
     expect(wrapper.get('.village-card__row').text()).toContain('0 位')
   })
 
+  it('附近的幼兒園：本機構色點看 isOwn，不看類型文字', () => {
+    const wrapper = mountIt(VillageCard, {
+      facts: facts({
+        nearby: [
+          { name: '甲幼兒園', kind: 'public', kindLabel: '本機構', isOwn: false, distance: '100 m' },
+          { name: '乙幼兒園', kind: 'private', kindLabel: '私立', isOwn: true, distance: '200 m' },
+        ],
+      }),
+    })
+    const dots = wrapper.findAll('.village-card__dot').map((dot) => dot.classes().find((name) => name.includes('--')))
+    expect(dots).toEqual(['village-card__dot--public', 'village-card__dot--own'])
+  })
+
   it('附近的幼兒園：類型色點、短名、類型、距離；本機構用本機構色', () => {
     const wrapper = mountIt(VillageCard, { facts: facts() })
     const rows = wrapper.findAll('.village-card__nearby li')
@@ -174,6 +216,17 @@ describe('里卡片（VillageCard）', () => {
     await wrapper.get('h2').trigger('keydown', { key: 'Escape' }) // 焦點在標題上（鍵盤事件冒泡到卡片）
     await wrapper.trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('close')).toHaveLength(3)
+  })
+
+  it('≤720px 觸控：× 是 44×44', () => {
+    expect(mediaBlock(cardSource, 'max-width: 720px')).toMatch(/\.village-card__close \{[^}]*width: 44px;[^}]*height: 44px;/)
+  })
+
+  it('標題區黏頂只在 ≥1200px（1200px 以下沒有內捲，後台頂端列本來就 sticky）', () => {
+    for (const source of [cardSource, paneSource]) {
+      expect(outsideMedia(source)).not.toContain('position: sticky')
+      expect(mediaBlock(source, 'min-width: 1200px')).toContain('position: sticky')
+    }
   })
 
   it('focusHeading 把焦點移到標題', () => {
@@ -219,6 +272,8 @@ describe('里卡片（VillageCard）', () => {
     const failedRows = failed.findAll('.village-card__section')[1]!.findAll('.village-card__row')
     expect(failedRows.map((row) => row.get('dt').text())).toEqual(['在籍', '參觀'])
     expect(failedRows[0]!.text()).toContain('讀取失敗')
+    // 「讀取失敗」與「重試」包在 dd 裡的一個 flex 容器，不被 dd 自己的 grid 排成兩列。
+    expect(failedRows[0]!.find('dd > .village-card__failed').findAll('button, span').length).toBeGreaterThanOrEqual(2)
     expect(failedRows[1]!.text()).toContain('5 位')
     await failedRows[0]!.findAll('button').find((button) => button.text() === '重試')!.trigger('click')
     expect(failed.emitted('retry')).toEqual([['ours']])
@@ -308,14 +363,17 @@ describe('右欄容器（AreaSidePane）', () => {
     expect(document.activeElement).toBe(wrapper.get('h2').element)
   })
 
-  it('選了里時 aria-live polite 報「已選取三民區本揚里」；沒選時是空的', async () => {
+  it('aria-live polite 的區域一直在；announce（地圖點選）時才報「已選取三民區本揚里」，排行／表格選里不報（焦點會移到標題）', async () => {
     const wrapper = mountIt(AreaSidePane, paneProps())
     const live = wrapper.get('[aria-live="polite"]')
     expect(live.classes()).toContain('visually-hidden')
     expect(live.text()).toBe('')
     await wrapper.setProps({ facts: facts() })
+    expect(wrapper.get('[aria-live="polite"]').text()).toBe('')
+    await wrapper.setProps({ announce: true })
     expect(wrapper.get('[aria-live="polite"]').text()).toBe('已選取三民區本揚里')
     await wrapper.setProps({ facts: null })
     expect(wrapper.get('[aria-live="polite"]').text()).toBe('')
+    expect(wrapper.find('[aria-live="polite"]').exists()).toBe(true)
   })
 })

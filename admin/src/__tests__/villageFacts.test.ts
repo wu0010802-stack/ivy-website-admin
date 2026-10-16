@@ -77,6 +77,7 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     expect(f.nearby![0]!.kindLabel).toBe('本機構')
     expect(f.nearby![1]!.kindLabel).toBe('公立')
     expect(f.nearby![0]!.kind).toBe('private')
+    expect(f.nearby!.map((k) => k.isOwn)).toEqual([true, false]) // 卡片的本機構色點看這個旗標，不看 kindLabel 的字串
     // 距離是到里中心（三角形頂點平均），不是到本校：本機構在本校 0 m，離里中心 318 m
     expect(f.nearby!.map((k) => k.distance)).toEqual(['318 m', '414 m'])
   })

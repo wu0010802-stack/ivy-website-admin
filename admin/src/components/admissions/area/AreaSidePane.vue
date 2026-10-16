@@ -7,8 +7,8 @@ import type { VillageFacts } from './villageFacts'
 
 // 區域分析右欄的容器（2026-10-16 規格 §2.3～2.5）：選了里（facts 有值）就只畫里卡片；沒選時，同業模式畫 slot
 // （AreaTab 放附近同業清單與園所異動），其他模式畫「標題＋摘要＋排行」，排行資料讀取中畫骨架、讀取失敗寫原因加重試。
-// 標題區黏在右欄頂端；右欄的寬高與內捲由外層工作台決定（桌機高度同地圖，內容超出時欄內捲動）。
-const props = defineProps<{
+// 標題區黏在右欄頂端（只在 ≥1200px，那時右欄才內捲）；右欄的寬高由外層工作台決定（桌機高度同地圖，內容超出時欄內捲動）。
+const props = withDefaults(defineProps<{
   head: PaneHead
   sections: RankingSection[]
   loading: boolean
@@ -18,7 +18,9 @@ const props = defineProps<{
   /** 同業模式：內容是 default slot，不畫排行。 */
   peers: boolean
   narrow: boolean
-}>()
+  /** 從地圖點選的里：aria-live 才報「已選取…」。排行或表格選里是焦點移到卡片標題，不重複報讀（規格 §2.4）。 */
+  announce?: boolean
+}>(), { announce: false })
 const emit = defineEmits<{
   select: [code: string]
   close: []
@@ -39,7 +41,7 @@ async function focusCard() {
 }
 defineExpose({ focusCard })
 
-const announcement = computed(() => (props.facts ? `已選取${props.facts.title}` : ''))
+const announcement = computed(() => (props.facts && props.announce ? `已選取${props.facts.title}` : ''))
 </script>
 
 <template>
@@ -81,9 +83,6 @@ const announcement = computed(() => (props.facts ? `已選取${props.facts.title
 }
 
 .area-pane__head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   display: grid;
   gap: 4px;
   padding: 12px 16px 8px;
@@ -123,6 +122,12 @@ const announcement = computed(() => (props.facts ? `已選取${props.facts.title
     height: 100%;
     overflow-y: auto;
     overscroll-behavior: contain;
+  }
+
+  .area-pane__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
 }
 </style>
