@@ -259,6 +259,17 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     await flushPromises()
     expect(view.value).toEqual({ map: null, village: '', table: 'school' })
   })
+
+  it('同一個畫面裡網址換到停用的模式（上一頁／下一頁）：也退回預設、map 寫回 null，不來回觸發', async () => {
+    mockGet(routes(areaStats(), areaOpportunity(), areaEnrolled({ status: 'not_imported' })))
+    const { wrapper } = await mountReady()
+    expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+    expect(wrapper.emitted('update:view')).toBeUndefined()
+    await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'enrolled' } })
+    await flushPromises()
+    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village' }]])
+    expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+  })
 })
 
 describe('區域分析：選取的里', () => {
@@ -274,6 +285,19 @@ describe('區域分析：選取的里', () => {
     expect(document.activeElement).not.toBe(cardTitle(wrapper).element)
     expect(mapStub.focusVillage).not.toHaveBeenCalled()
     expect(wrapper.findAll('[aria-live="polite"]')).toHaveLength(1)
+  })
+
+  it('已選取的里在地圖上再點一次：不取消、不再 emit update:view；從排行選的再從地圖點，報讀改成已選取', async () => {
+    const { wrapper } = await mountTab()
+    await rankingItems(wrapper)[0]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('update:view')).toHaveLength(1)
+    expect(side(wrapper).get('[aria-live="polite"]').text()).toBe('')
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    expect(wrapper.emitted('update:view')).toHaveLength(1)
+    expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+    expect(side(wrapper).get('[aria-live="polite"]').text()).toBe('已選取三民區本揚里')
   })
 
   it('從排行選里：focusVillage 被呼叫、焦點到卡片標題；Esc 關卡片、village 清空', async () => {
@@ -320,6 +344,41 @@ describe('區域分析：選取的里', () => {
       expect(scroll.mock.contexts.at(-1)).toBe(side(wrapper).element)
     } finally {
       vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('手機：點地圖的里也捲到卡片、焦點不動', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const { wrapper } = await mountTab()
+      const before = document.activeElement
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+      expect(scroll).toHaveBeenCalledTimes(1)
+      expect(scroll).toHaveBeenCalledWith({ block: 'start' })
+      expect(scroll.mock.contexts[0]).toBe(side(wrapper).element)
+      expect(document.activeElement).toBe(before)
+      expect(mapStub.focusVillage).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  })
+
+  it('桌機：點地圖的里不捲動頁面', async () => {
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const { wrapper } = await mountTab()
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+      expect(scroll).not.toHaveBeenCalled()
+    } finally {
       delete (Element.prototype as Partial<Element>).scrollIntoView
     }
   })
@@ -459,14 +518,26 @@ describe('區域分析：選取的里', () => {
     expect(panels.filter((path) => /OpportunityPanel|VillageTrendsPanel/.test(path))).toEqual([])
   })
 
-  it('版面：工作台 ≥1200px 兩欄（地圖＋380px 右欄）、右欄固定高同地圖；≤720px 看什麼橫捲不換行', () => {
+  it('版面：工作台 ≥1200px 兩欄（地圖＋380px 右欄）、右欄高度跟著地圖畫布的自訂屬性；圓角兩邊一致；≤720px 看什麼橫捲不換行、留細捲軸', () => {
     const style = /<style scoped>([\s\S]*)<\/style>/.exec(areaTabSource)![1]!
     const wide = /@media \(min-width: 1200px\) \{([\s\S]*?)\n\}/.exec(style)![1]!
-    expect(wide).toMatch(/\.area-workbench \{[^}]*grid-template-columns: minmax\(0, 1fr\) 380px/)
-    expect(wide).toMatch(/\.area-workbench__side \{[^}]*height: 622px/)
-    expect(style).toMatch(/\.area-workbench__side \{[^}]*border: 1px solid var\(--line\)[^}]*border-radius: var\(--radius-lg\)/)
+    const outside = style.replace(/\n@media \([^)]*\) \{[\s\S]*?\n\}/g, '')
+    // 畫布高度只寫一次（工作台的 --area-map-canvas），AreaMap 的畫布與右欄都讀它；不再覆寫 AreaMap 的內部樣式。
+    expect(outside).toMatch(/\.area-workbench \{[^}]*--area-map-canvas: 620px;[^}]*--area-map-radius: var\(--radius-lg\);/)
+    expect(wide).toMatch(/\.area-workbench \{[^}]*--area-map-radius: var\(--radius-lg\) 0 0 var\(--radius-lg\);[^}]*grid-template-columns: minmax\(0, 1fr\) 380px/)
+    expect(wide).toMatch(/\.area-workbench__side \{[^}]*height: calc\(var\(--area-map-canvas\) \+ 2px\);[^}]*border-inline-start: 0;/)
+    expect(wide).toMatch(/\.area-workbench__placeholder \{[^}]*min-height: calc\(var\(--area-map-canvas\) \+ 2px\)/)
+    expect(style).not.toMatch(/:deep\(|622px/)
+    // 1200px 以下地圖框、佔位框與右欄同一個圓角。
+    expect(outside).toMatch(/\.area-workbench__side \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--radius-lg\);/)
+    expect(outside).toMatch(/\.area-workbench__placeholder \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: var\(--area-map-radius\);/)
+    const mapSource = readFileSync(join(__dirname, '..', 'components', 'admissions', 'area', 'AreaMap.vue'), 'utf8')
+    expect(mapSource).toMatch(/\.area-map__frame \{[^}]*border-radius: var\(--area-map-radius, var\(--radius\)\);/)
+    expect(mapSource).toMatch(/\.area-map__canvas \{[^}]*height: var\(--area-map-canvas, 620px\);/)
+    expect(mapSource).toMatch(/@media \(max-width: 720px\) \{\s*\.area-map__canvas \{\s*height: 50vh;\s*min-height: 280px;/)
     const narrow = /@media \(max-width: 720px\) \{([\s\S]*?)\n\}/.exec(style)![1]!
-    expect(narrow).toMatch(/\.area-toolbar__modes \{[^}]*overflow-x: auto/)
+    expect(narrow).toMatch(/\.area-toolbar__modes \{[^}]*overflow-x: auto;[^}]*scrollbar-width: thin;/)
+    expect(narrow).not.toContain('scrollbar-width: none')
     expect(narrow).toMatch(/\.area-toolbar__mode-group \{[^}]*flex-wrap: nowrap/)
     expect(style).not.toMatch(/rgba?\(|oklch\(|hsla?\(|#[0-9a-fA-F]{3,8}\b/)
   })
@@ -588,6 +659,7 @@ describe('區域分析：各份資料各自成敗', () => {
     await vi.waitFor(() => expect(wrapper.find('.area-map-error').exists()).toBe(true))
     await flushPromises()
     expect(wrapper.get('.area-map-error').text()).toContain('里界載入失敗，地圖無法顯示。')
+    expect(wrapper.find('.area-workbench__placeholder .area-map-error').exists()).toBe(true)
     expect(modeButtons(wrapper)).toHaveLength(7)
     expect(paneTitle(wrapper)).toBe('在籍學生')
     expect(wrapper.find('.area-full-tables').exists()).toBe(true)
@@ -602,7 +674,7 @@ describe('區域分析：各份資料各自成敗', () => {
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-toolbar').exists()).toBe(true))
     await flushPromises()
-    expect(wrapper.find('.area-workbench__map .el-skeleton').exists()).toBe(true)
+    expect(wrapper.find('.area-workbench__map .area-workbench__placeholder .el-skeleton').exists()).toBe(true)
     expect(rankingItems(wrapper).length).toBeGreaterThan(0)
     slow.resolve(villageBoundaries())
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))

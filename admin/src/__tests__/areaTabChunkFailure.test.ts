@@ -52,6 +52,7 @@ describe('區域分析：地圖元件載入失敗', () => {
 
     const notice = wrapper.get('.area-map-error')
     expect(notice.text()).toContain('地圖沒有載入成功，請重新整理這一頁。')
+    expect(wrapper.find('.area-workbench__placeholder .area-map-error').exists()).toBe(true) // 錯誤放在同樣的框裡，不是半個工作台
     expect(wrapper.text()).not.toContain('里界載入失敗')
     expect(logged).toHaveBeenCalledWith('[AreaTab] 地圖元件載入失敗', expect.any(Error))
 

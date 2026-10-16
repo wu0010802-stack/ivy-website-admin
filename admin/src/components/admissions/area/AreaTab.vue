@@ -62,9 +62,13 @@ const emit = defineEmits<{ 'open-records': [filter: { area: string }] }>()
 // 地圖看什麼、選取的里、表格分頁（2026-10-16 規格 §5）：StatsTab 以 v-model:view 接到網址。
 const view = defineModel<AreaView>('view', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
 
-// view 一律整個換掉（上層拿它寫網址，不能就地改上層的物件）。
+// view 一律整個換掉（上層拿它寫網址，不能就地改上層的物件）；值都沒變就不寫（不多 emit 一次、不多寫一次網址）。
+// v-model 由上層持有時，寫回去之後要等上層重畫，view.value 才是新的值：這裡靠的是每條程式路徑在同一個同步區段裡只寫一次
+// （watcher 之間 Vue 會先跑上層的更新）。若有一個 handler 要連寫兩次，先把兩個改動合成一個 patch。
 function patchView(patch: Partial<AreaView>) {
-  view.value = { ...view.value, ...patch }
+  const current = view.value
+  if ((Object.keys(patch) as (keyof AreaView)[]).every((key) => patch[key] === current[key])) return
+  view.value = { ...current, ...patch }
 }
 
 const narrow = useNarrowScreen()
@@ -282,9 +286,10 @@ function setMode(value: string | number | boolean | undefined) {
   if (!isMapMode(value) || modeNote(value, notes.value)) return
   patchView({ map: value === defaultMapMode(notes.value) ? null : value })
 }
-// 正在看的模式（含網址帶進來的）變成停用：退回預設，網址拿掉 map。讀取中不算停用，所以要等資料回來才會退。
-watch(notes, (current) => {
-  if (view.value.map !== null && modeNote(view.value.map, current)) patchView({ map: null })
+// 正在看的模式變成停用，或網址帶來（含同一個畫面裡上一頁／下一頁換到）一個停用的模式：退回預設，網址拿掉 map。
+// 讀取中不算停用，所以要等資料回來才會退。寫成 null 之後條件不再成立，不會來回觸發。
+watch([notes, () => view.value.map], ([current, requested]) => {
+  if (requested !== null && modeNote(requested, current)) patchView({ map: null })
 }, { immediate: true })
 
 // ---- 選取的里（規格 §2.4、§4、D7）----
@@ -325,10 +330,17 @@ const sideEl = ref<HTMLElement | null>(null)
 // 從地圖點的里才由右欄的 aria-live 報「已選取…」；從排行或表格選的是把焦點移到卡片標題，不重複報。
 const announce = ref(false)
 
-/** 點地圖上的里：寫進 view，右欄換成里卡片；不搶焦點、不移地圖。 */
-function selectFromMap({ code }: { code: string }) {
+/**
+ * 點地圖上的里：寫進 view，右欄換成里卡片；不搶焦點、不移地圖。手機的卡片在地圖下方，畫出來後捲過去（規格 §3.2、W14）。
+ * 已選取的里再點一次不取消、也不重寫網址，只讓報讀改成從地圖選的。
+ */
+async function selectFromMap({ code }: { code: string }) {
   announce.value = true
+  if (code === view.value.village) return
   patchView({ village: code })
+  if (!narrow.value) return
+  await nextTick()
+  sideEl.value?.scrollIntoView({ block: 'start' })
 }
 /** 從右欄排行或各里表選里：地圖移到那個里（不在視野裡才移），焦點移到卡片標題；手機把卡片捲上來（卡片在地圖下方）。 */
 async function selectFromList(code: string) {
@@ -458,13 +470,16 @@ const footer = computed(() =>
 
       <div class="area-workbench">
         <div class="area-workbench__map">
-          <el-alert v-if="mapChunkFailed" class="area-map-error" type="error" :closable="false" show-icon title="地圖沒有載入成功，請重新整理這一頁。">
-            <el-button size="small" @click="reloadPage">重新整理</el-button>
-          </el-alert>
-          <el-alert v-else-if="boundariesFailed" class="area-map-error" type="error" :closable="false" show-icon title="里界載入失敗，地圖無法顯示。">
-            <el-button size="small" @click="loadBoundaries()">重試</el-button>
-          </el-alert>
-          <el-skeleton v-else-if="!boundaries" :rows="8" animated />
+          <!-- 地圖還沒出來（里界在讀、讀取失敗、地圖 chunk 載不下來）：放在同樣的框裡，工作台不會只剩右欄半個框。 -->
+          <div v-if="mapChunkFailed || boundariesFailed || !boundaries" class="area-workbench__placeholder">
+            <el-alert v-if="mapChunkFailed" class="area-map-error" type="error" :closable="false" show-icon title="地圖沒有載入成功，請重新整理這一頁。">
+              <el-button size="small" @click="reloadPage">重新整理</el-button>
+            </el-alert>
+            <el-alert v-else-if="boundariesFailed" class="area-map-error" type="error" :closable="false" show-icon title="里界載入失敗，地圖無法顯示。">
+              <el-button size="small" @click="loadBoundaries()">重試</el-button>
+            </el-alert>
+            <el-skeleton v-else :rows="8" animated />
+          </div>
           <AreaMap
             v-else
             ref="map"
@@ -613,8 +628,12 @@ const footer = computed(() =>
   font-size: var(--text-sm);
 }
 
-/* 工作台：1200px 以下單欄（地圖在上、右欄在下，右欄高度 auto 不內捲）；寬螢幕地圖與 380px 右欄並排（見下方 @media）。 */
+/* 工作台：1200px 以下單欄（地圖在上、右欄在下，右欄高度 auto 不內捲）；寬螢幕地圖與 380px 右欄並排（見下方 @media）。
+   --area-map-canvas 是地圖畫布的高度（AreaMap 的畫布讀它；手機 AreaMap 自己改成 50vh），寬螢幕右欄跟著它算高度；
+   --area-map-radius 是地圖框的圓角，和右欄用同一個圓角。 */
 .area-workbench {
+  --area-map-canvas: 620px;
+  --area-map-radius: var(--radius-lg);
   display: grid;
   gap: 16px;
   min-width: 0;
@@ -622,6 +641,13 @@ const footer = computed(() =>
 
 .area-workbench > * {
   min-width: 0;
+}
+
+.area-workbench__placeholder {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--area-map-radius);
+  background: var(--surface);
 }
 
 .area-workbench__side {
@@ -656,23 +682,24 @@ const footer = computed(() =>
   margin: 0;
 }
 
-/* 寬螢幕：地圖與右欄並排，看起來是同一個框——地圖框拿掉右邊框與右側圓角，右欄的左邊框就是中間那一條線。
-   右欄固定 622px（地圖畫布 620px＋地圖框上下各 1px 邊框），內容超出時欄內捲動（AreaSidePane 在這個寬度設 height:100%）。
-   圖例在 AreaMap 裡，留在地圖框正下方。 */
+/* 寬螢幕：地圖與右欄並排，看起來是同一個框——地圖框（或還沒有地圖時的佔位框）保留四邊框、只有左側圓角，
+   右欄拿掉左邊框，地圖框的右邊框就是中間那一條線。右欄高度＝畫布＋地圖框上下各 1px 邊框，內容超出時欄內捲動
+   （AreaSidePane 在這個寬度設 height:100%）。圖例在 AreaMap 裡，留在地圖框正下方。 */
 @media (min-width: 1200px) {
   .area-workbench {
+    --area-map-radius: var(--radius-lg) 0 0 var(--radius-lg);
     grid-template-columns: minmax(0, 1fr) 380px;
     align-items: start;
     gap: 0;
   }
 
-  .area-workbench__map :deep(.area-map__frame) {
-    border-inline-end: 0;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  .area-workbench__placeholder {
+    min-height: calc(var(--area-map-canvas) + 2px);
   }
 
   .area-workbench__side {
-    height: 622px;
+    height: calc(var(--area-map-canvas) + 2px);
+    border-inline-start: 0;
     border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   }
 }
@@ -682,7 +709,8 @@ const footer = computed(() =>
   .area-toolbar__modes {
     flex: 1 1 100%;
     overflow-x: auto;
-    scrollbar-width: none;
+    /* 留一條細捲軸：看得出右邊還有模式。 */
+    scrollbar-width: thin;
   }
 
   .area-toolbar__mode-group {

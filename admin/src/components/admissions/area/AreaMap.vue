@@ -706,15 +706,16 @@ onBeforeUnmount(destroyMap)
   min-width: 0;
 }
 
+/* 畫布高度與框的圓角可由外層用自訂屬性決定（區域分析工作台讓右欄跟地圖同高、兩欄看起來是同一個框）；沒給就是預設值。 */
 .area-map__frame {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--area-map-radius, var(--radius));
 }
 
 .area-map__canvas {
-  height: 620px;
+  height: var(--area-map-canvas, 620px);
   background: var(--surface-2);
   /* Leaflet 預設用 Helvetica，里名與彈出框的中文要跟後台一致。 */
   font-family: inherit;
