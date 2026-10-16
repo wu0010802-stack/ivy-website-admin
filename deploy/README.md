@@ -13,6 +13,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-15 在籍學生分布（main CI 部署，migration 只新增兩張表）
+
+- **提交**：使用者在本機推 `feature/enrolled-map-20261015` 到 main（fast-forward `1ca98981..9dbf413f`，24 個 commit，含合併 origin/main `1ca98981` 的 merge `42984079`，沒有開 PR）。內容見 README 頂部「在籍學生分布」、規格 `docs/specs/2026-10-15-admissions-enrolled-map-design.md`、DESIGN.md「招生入學：區域分析」。
+- **migration**：`f2a7c1e9d4b3`（接在 `c6a9e3f15d27` 後），只新增 `enrolled_rosters`、`enrolled_student_points` 兩張表，不改既有資料，沒有備份；API 啟動時自動套用。
+- **回退**：可直接切回前一個映像（舊程式不讀新表）；要連資料一起拿掉就 `enrolled-import --clear --campus yihua`，或 `alembic downgrade c6a9e3f15d27`（刪兩張表）。
+- **推送前閘門**（本機，Node 22；合併 origin/main 後的 `42984079`）：後端全套 3,256 passed／1 skipped；admin vitest 全套 161 檔 2,531 passed／1 skipped；admin 與 web typecheck 無錯誤；契約檢查一致；完整 stack 套件（重新 build）142 passed。
+- **CI**：main run 38821712749（`9dbf413f`）23:08:10Z 開跑，23:27:36Z 完成（19.4 分），全綠：Frontend web 1.6 分、admin 5.9 分；Backend 三組 14.1／12.2／15.0 分；E2E／Playwright 9.9 分；Deploy Railway production 4.3 分（23:23:16Z 開始）。
+- **正式 `release.json`**：base commit `9dbf413ff27e296ca4c46132502117e0127d8494`，snapshot `1804b6b9…`，created `2026-10-15T23:23:39Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；首頁與 `/admin/` 回 200；`/admin/admissions/area/enrolled` 未登入回 401（路由已掛）。
+- **在籍學生匯入**（照上方「在籍學生匯入」步驟，2026-10-16 台北時間）：義華清冊在本機比對（門牌 115-10）產生去識別 JSON（34,322 bytes），agent 用 `railway volume -p d606df61-… -e production files -v api-volume upload` 上傳到 `/enrolled-yihua-20261015.json`（`-p` 要用專案 ID，寫專案名稱會回 Project not found）；使用者用 `!` 執行 `railway ssh … --service api -- python -m app.cli enrolled-import --file /data/enrolled-yihua-20261015.json`，輸出「匯入 yihua：192 位（有點 180 位），清冊日期 2026-10-15」，沒有門牌版本提醒（正式站仍是 115-10）。volume 上的 JSON 由使用者自行刪除。
+- **未在線上驗證**：登入後的「在籍學生」畫面（本機用真資料與真底圖看過 1440／390）。其他四校尚未匯入，按鈕停用並寫「尚未匯入在籍名冊。」。
+
 ## 2026-10-15 區域分析驗證後的修正：國小學區整里／部分、招生機會沒填地址（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `fix/area-data-fixes-20261015` 到 main（fast-forward `aae0debc..15a81e60`，3 個 commit：`1cebdae8` 學區、`c8b42478` 招生機會文案、`15a81e60` 文件，沒有開 PR）。內容見 README 頂部「區域分析驗證後的修正」、`backend/app/admissions/geo_data/README.md`、兩份規格的 10-15 更正。
