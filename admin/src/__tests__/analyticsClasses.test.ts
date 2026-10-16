@@ -42,6 +42,17 @@ describe('預約孩子的班別', () => {
     expect(wrapper.text()).toContain('單位：預約案件數（含已取消）')
   })
 
+  it('有已排除的測試或重複預約才多寫一句；全部都被排除時，沒有案件的說明和排除筆數並存（2026-10-15）', async () => {
+    const { wrapper } = await mountPanel(dist({ excluded_cases: 2 }))
+    expect(wrapper.text()).toContain('另有 2 筆測試或重複的預約已排除，不在這張表裡。')
+    expect(wrapper.find('.stats-table').exists()).toBe(true)
+    const all = await mountPanel(dist({ total: 0, grades: dist().grades.map((row) => ({ ...row, count: 0 })), out_of_range: 0, unrecorded: 0, excluded_cases: 3 }))
+    expect(all.wrapper.text()).toContain('這段期間沒有預約案件。')
+    expect(all.wrapper.text()).toContain('另有 3 筆測試或重複的預約已排除，不在這張表裡。')
+    const none = await mountPanel()
+    expect(none.wrapper.text()).not.toContain('已排除')
+  })
+
   it('換學年重抓', async () => {
     const { wrapper, get } = await mountPanel()
     const next = currentTerm().schoolYear + 1

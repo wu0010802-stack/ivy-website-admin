@@ -122,6 +122,13 @@ describe('SlotUsagePane', () => {
     expect(wrapper.text()).toContain('到接待月曆改規則')
   })
 
+  it('已排除的測試或重複預約寫在時段表後面；0 筆不寫（2026-10-15）', async () => {
+    const withExcluded = await mountPane(usage({}, {}, { excluded_cases: 4 }))
+    expect(withExcluded.wrapper.text()).toContain('已排除的測試或重複預約 4 筆，不算進已約。')
+    const none = await mountPane(usage())
+    expect(none.wrapper.text()).not.toContain('已排除')
+  })
+
   it('切換週數會重讀', async () => {
     const { wrapper, get } = await mountPane(usage())
     await wrapper.get('[data-test="weeks-26"]').trigger('click')

@@ -72,6 +72,13 @@ describe('預約結果', () => {
     expect(text).toContain('單位：預約案件數')
   })
 
+  it('有已排除的測試或重複預約才多寫一句；0 筆不寫（2026-10-15）', async () => {
+    const withExcluded = await mountSection('reception', {}, outcomes([row('yihua', { excluded_cases: 3 }), row('minghua', EMPTY, 'phone')]))
+    expect(withExcluded.wrapper.get('.outcomes').text()).toContain('另有 3 筆測試或重複的預約已排除，不在上面的數字裡。')
+    const none = await mountSection('reception')
+    expect(none.wrapper.text()).not.toContain('已排除')
+  })
+
   it('有案件權限的人點得進已套好篩選的案件列表', async () => {
     const { wrapper } = await mountSection('reception')
     // 五校比較表「現在」兩欄的數字也連到該校的案件列表（2026-10-06），再來是選定校區的現在待處理。

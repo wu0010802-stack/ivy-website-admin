@@ -103,11 +103,11 @@ describe('明細版面（方向 C）', () => {
     expect(family.get('.case-facts').text()).toContain('展開')
   })
 
-  it('1100px 以下一欄，順序：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列', () => {
+  it('1100px 以下一欄，順序：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列 → 排除入口', () => {
     const source = readFileSync(join(__dirname, '..', 'views/VisitDetailView.vue'), 'utf8')
     const narrow = source.slice(source.indexOf('@media (max-width: 1100px)'))
     expect(narrow).toMatch(/\.detail__main,\s*\.detail__side\s*{\s*display: contents;/)
     const order = (cls: string) => Number(new RegExp(`\\.${cls} {\\s*order: (\\d+);`).exec(narrow)?.[1])
-    expect([order('detail__family-actions'), order('detail__family-data'), order('detail__notes'), order('case-facts'), order('case-settings')]).toEqual([1, 2, 3, 4, 5])
+    expect([order('detail__family-actions'), order('detail__family-data'), order('detail__notes'), order('case-facts'), order('case-settings'), order('exclusion-action')]).toEqual([1, 2, 3, 4, 5, 6])
   })
 })

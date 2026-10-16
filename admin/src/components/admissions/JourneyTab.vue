@@ -105,6 +105,8 @@ const coverage = computed(() => {
     `另有 ${cover.visits_without_request} 筆招生訪視沒有預約案件（現場參觀、舊名單補登、預約案件已刪除），不在這個漏斗裡。`,
     `已到場但沒有招生訪視 ${cover.completed_without_visit} 筆（招生功能關閉期間到場、事後沒補建，或訪視被刪）。`,
     cover.undated_cases ? `預定參觀日算不出來而未納入的案件 ${cover.undated_cases} 筆。` : '',
+    // 這裡的 excluded_cases 是被標記排除的測試／重複預約；各段天數裡的 excluded 是不納入天數計算的筆數，兩回事（計畫 P11）。
+    cover.excluded_cases ? `已排除的測試或重複預約 ${cover.excluded_cases} 筆，不在這個漏斗裡。` : '',
     `改期過的案件 ${rescheduled.cases}／${rescheduled.total}。`,
   ].filter(Boolean).join('')
 })

@@ -16,6 +16,8 @@ import VisitCaseFacts from '../components/visit/VisitCaseFacts.vue'
 import VisitCaseHero from '../components/visit/VisitCaseHero.vue'
 import VisitCaseSettings from '../components/visit/VisitCaseSettings.vue'
 import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
+import VisitExclusionAction from '../components/visit/VisitExclusionAction.vue'
+import VisitExclusionBanner from '../components/visit/VisitExclusionBanner.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -216,6 +218,7 @@ watch(id, () => {
 
     <template v-else-if="detail">
       <VisitCaseHero />
+      <VisitExclusionBanner />
 
       <div class="detail__grid">
         <div class="detail__main">
@@ -253,6 +256,7 @@ watch(id, () => {
           </section>
           <VisitCaseFacts v-if="!familyPending" />
           <VisitCaseSettings />
+          <VisitExclusionAction />
         </div>
       </div>
 
@@ -300,7 +304,7 @@ watch(id, () => {
   margin-top: 0;
 }
 
-/* 1100px 以下一欄：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列。兩欄的外框拆掉
+/* 1100px 以下一欄：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列 → 排除入口。兩欄的外框拆掉
    （display: contents），子元素直接排進 grid 才能交錯排序。 */
 @media (max-width: 1100px) {
   .detail__grid {
@@ -331,6 +335,10 @@ watch(id, () => {
 
   .case-settings {
     order: 5;
+  }
+
+  .exclusion-action {
+    order: 6;
   }
 }
 

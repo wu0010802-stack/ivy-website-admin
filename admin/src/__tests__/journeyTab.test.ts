@@ -69,6 +69,13 @@ describe('預約全程', () => {
     expect(text).toContain('改期過的案件 1／13')
   })
 
+  it('已排除的測試或重複預約寫進涵蓋說明；0 筆不寫（2026-10-15）', async () => {
+    const withExcluded = await mountJourney({}, journeyData({ coverage: { ...journeyData().coverage, excluded_cases: 3 } }))
+    expect(withExcluded.wrapper.get('.journey-coverage').text()).toContain('已排除的測試或重複預約 3 筆，不在這個漏斗裡。')
+    const none = await mountJourney()
+    expect(none.wrapper.get('.journey-coverage').text()).not.toContain('已排除')
+  })
+
   it('沒有取消就不顯示取消時點表', async () => {
     const data = journeyData()
     const { wrapper } = await mountJourney({}, journeyData({ timing: { ...data.timing, cancel_before_visit: { ...data.timing.cancel_before_visit, n: 0 } } }))

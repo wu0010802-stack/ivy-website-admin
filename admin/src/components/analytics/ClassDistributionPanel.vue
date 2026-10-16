@@ -91,6 +91,7 @@ const rows = computed(() =>
           empty-text="沒有資料"
           :export-filename="bookingCsvName('預約孩子的班別', `${campusLabel(loadedCampus)}-${data.school_year}學年度`, loadedPeriod)"
         />
+        <p v-if="data.excluded_cases" class="hint">另有 {{ data.excluded_cases }} 筆測試或重複的預約已排除，不在這張表裡。</p>
         <AnalyticsMeta :period="loadedPeriod" unit="預約案件數（含已取消）" :as-of="data.as_of" />
         <AnalyticsExplainer>
           <p>依孩子生日換算：民國 Y/9/2～Y+1/9/1 出生為同一屆，8/1 起算新學年。這是年齡對照，不代表已報名或入學。</p>
