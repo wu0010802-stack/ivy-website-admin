@@ -17,4 +17,14 @@ describe('送出結果', () => {
     expect(off.body).toContain('收藏')
     expect(visitResultCopy('closed', { emailEnabled: true, email: 'a@b.co' }).eyebrow).toBe('預約已取消')
   })
+
+  it('重送拿不到修改連結（連結已重新產生過）時，不叫家長看「下方的連結」', () => {
+    const mailed = visitResultCopy('booked', { emailEnabled: true, email: 'wang.mama@gmail.com', hasLink: false })
+    expect(mailed.body).toContain('確認信已寄到 w***@gmail.com')
+    expect(mailed.body).not.toContain('下方')
+    const unmailed = visitResultCopy('booked', { emailEnabled: false, email: 'wang.mama@gmail.com', hasLink: false })
+    expect(unmailed.body).not.toContain('下方')
+    expect(unmailed.body).not.toContain('收藏')
+    expect(unmailed.body).toContain('聯絡園所')
+  })
 })
