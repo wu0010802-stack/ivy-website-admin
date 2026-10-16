@@ -36,6 +36,8 @@ test('校區管理者標記排除與取消排除', async ({ browser }) => {
     await dialog.getByRole('button', { name: '標記為排除' }).click()
     await expect(page.locator('.exclusion-banner')).toContainText('已排除：測試')
     await expect(dialog).toBeHidden()
+    // 入口那一列收起後焦點不能掉到頁面最上面（跳到主要內容）：移到橫幅；對話框關閉的焦點歸還也不會再搶走。
+    await expect(page.locator('.exclusion-banner')).toBeFocused()
   })
   expect(await counts()).toEqual({ cases: before.cases - 1, excluded: before.excluded + 1 })
 
@@ -64,6 +66,8 @@ test('校區管理者標記排除與取消排除', async ({ browser }) => {
     await page.locator('.exclusion-banner').getByRole('button', { name: '取消排除' }).click()
     await expect(page.locator('.exclusion-banner')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /標記為排除/ })).toBeVisible()
+    // 橫幅收起後焦點移到回來的入口。
+    await expect(page.getByRole('button', { name: /標記為排除/ })).toBeFocused()
   })
   expect(await counts()).toEqual(before)
   await Promise.all([context.close(), api.dispose()])
