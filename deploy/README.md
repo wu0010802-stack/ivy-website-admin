@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 區域分析：附近同業收費（main CI 部署，migration 只新增）
+
+- **提交**：使用者在本機先推 `feature/peer-fees-20261015`（CI run 38841989719 全綠、部署照設計跳過），再推到 main（fast-forward `303df4bf..e420e9f2`，24 個 commit，沒有開 PR）。內容見 README 頂部「區域分析：附近同業收費」、DESIGN.md「附近同業收費」、規格 `docs/specs/2026-10-15-peer-comparison-design.md`。
+- **migration**：`f2b8c4d1e7a9`（接在 `f2a7c1e9d4b3` 之後）只新增 `geo_kindergarten_fees` 表、`geo_kindergartens` 四欄、`geo_babycare` 五欄，並放寬 `ck_geo_dataset_status_dataset` 多收 `kindergarten_fees`；升級不改既有資料，所以沒有備份。沒有依賴檔變動、沒有新環境變數。
+- **回退**：舊映像不認得 `f2b8c4d1e7a9`，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade f2a7c1e9d4b3`，再切舊映像（見下方「幼兒園收費與托嬰明細」）。
+- **推送前閘門**（本機，Node 22，`db80b1f5`；rebase 到 `303df4bf` 後和測過的版本只差 main 那份 `deploy/README.md`）：後端全套 3,446 passed／1 skipped；admin vitest 全套 164 檔 2,571 passed／1 skipped；admin typecheck 無錯誤；契約 `--check` 兩項一致；alembic 單一 head；重新 `e2e:build` 後 stack 整套 144 passed。真實資料閘門（本機完整網路同步）：收費 114 學年 603 所、托嬰明細 152 所，義華 3 公里數字和規格 §2 一致，五校都對到本校。
+- **CI**：main run 38842036783（`e420e9f2`）02:45:13Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 03:01:11Z–03:07:33Z success。
+- **正式 `release.json`**：base commit `e420e9f28676436f6c29a7bf678f96800eb5af25`，snapshot `203a14a9…`，created `2026-10-16T03:01:34Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-16T03:08Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；首頁、`/admission`、`/visit`、`/admin/` 都回 200；新端點 `/api/website/v1/admin/admissions/area/fees` 未登入回 401「未登入」。
+- **還沒確認**：第一輪背景同步的結果。收費與托嬰明細「從沒匯入過」，api 重新部署後的第一輪背景同步就會抓（不用 `--force`），全域同步鎖內多約 5–6 分鐘。請在 Railway Postgres 的 Database 分頁跑：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset in ('kindergartens','kindergarten_fees','babycare');`、`select age, count(*) from geo_kindergarten_fees group by age order by age;`、`select count(*), count(monthly_fee), count(evaluation_grade), count(quasi_public) from geo_babycare where is_active;`。預期 `kindergarten_fees` 的 label 是 `114`、各年齡約 600 列（2 歲約 490）、托嬰營業中幾乎每所都有 `quasi_public`。
+- **幽靈園所**：上一筆的名單修正要等下一輪幼兒園同步（約 10-21）才下架 47 所；在那之前同業統計可能混進那幾所停辦園所，名單同步後自動消失。
+- **未在線上驗證**：登入後的「附近同業收費」區塊、附近清單的收費與托嬰月費。這裡沒有讀 Railway 的權限，沒看 Railway 日誌。
+
 ## 2026-10-16 幼兒園營業中改以教育部名單判斷（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `fix/kindergarten-registry-20261015` 到 main（fast-forward `9dbf413f..54031d7c`，14 個 commit，含併入當時 main「在籍學生分布」的 merge `51bd6710`，沒有開 PR）。內容見 README 頂部「幼兒園營業中改以教育部名單判斷」、DESIGN.md「停辦怎麼知道」、規格 `docs/specs/2026-10-15-kindergarten-registry-design.md`、`backend/app/admissions/geo_data/README.md`「幼兒園停辦回補」。
