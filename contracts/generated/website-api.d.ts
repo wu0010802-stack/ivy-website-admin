@@ -6850,6 +6850,8 @@ export interface components {
             visit_request_id: string | null;
             /** Withdraw Reason */
             withdraw_reason: string | null;
+            /** Withdraw Reason Category */
+            withdraw_reason_category: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上") | null;
             /** Withdrawn At */
             withdrawn_at: string | null;
             /** Withdrawn From */
@@ -6917,6 +6919,8 @@ export interface components {
             transfer_term: boolean;
             /** Visit Date */
             visit_date?: string | null;
+            /** Withdraw Reason Category */
+            withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上") | null;
         };
         /** ReleaseChangeOut */
         ReleaseChangeOut: {
@@ -7308,7 +7312,7 @@ export interface components {
         };
         /**
          * TransitionRequest
-         * @description 狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀
+         * @description 狀態轉換（規格 6.3）。後台一律送齊九個欄位，用不到的送 null；各轉換只讀
          *     自己需要的欄位。
          */
         TransitionRequest: {
@@ -7331,6 +7335,8 @@ export interface components {
              * @enum {string}
              */
             to_stage: "visited" | "deposited" | "enrolled" | "withdrawn";
+            /** Withdraw Reason Category */
+            withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上") | null;
         };
         /** UserCapabilitiesRequest */
         UserCapabilitiesRequest: {

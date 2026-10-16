@@ -11633,6 +11633,27 @@
             ],
             "title": "Withdraw Reason"
           },
+          "withdraw_reason_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "抽中公幼／非營利",
+                  "改讀其他私立幼兒園",
+                  "搬家／距離因素",
+                  "費用考量",
+                  "家庭照顧安排改變",
+                  "孩子健康／適應因素",
+                  "課程／環境有疑慮",
+                  "未註明／聯絡不上"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdraw Reason Category"
+          },
           "withdrawn_at": {
             "anyOf": [
               {
@@ -11700,6 +11721,7 @@
           "withdrawn_at",
           "withdrawn_from",
           "withdraw_reason",
+          "withdraw_reason_category",
           "anonymized_at",
           "version",
           "created_at",
@@ -12022,6 +12044,27 @@
               }
             ],
             "title": "Visit Date"
+          },
+          "withdraw_reason_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "抽中公幼／非營利",
+                  "改讀其他私立幼兒園",
+                  "搬家／距離因素",
+                  "費用考量",
+                  "家庭照顧安排改變",
+                  "孩子健康／適應因素",
+                  "課程／環境有疑慮",
+                  "未註明／聯絡不上"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdraw Reason Category"
           }
         },
         "required": [
@@ -13079,7 +13122,7 @@
       },
       "TransitionRequest": {
         "additionalProperties": false,
-        "description": "狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀\n自己需要的欄位。",
+        "description": "狀態轉換（規格 6.3）。後台一律送齊九個欄位，用不到的送 null；各轉換只讀\n自己需要的欄位。",
         "properties": {
           "deposit_collector": {
             "anyOf": [
@@ -13174,6 +13217,27 @@
             ],
             "title": "To Stage",
             "type": "string"
+          },
+          "withdraw_reason_category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "抽中公幼／非營利",
+                  "改讀其他私立幼兒園",
+                  "搬家／距離因素",
+                  "費用考量",
+                  "家庭照顧安排改變",
+                  "孩子健康／適應因素",
+                  "課程／環境有疑慮",
+                  "未註明／聯絡不上"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Withdraw Reason Category"
           }
         },
         "required": [

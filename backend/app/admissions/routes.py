@@ -268,6 +268,12 @@ async def update_recruitment_visit(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail={"code": exc.code, "message": exc.message}
         ) from exc
+    except records.NotWithdrawn as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "RECRUITMENT_NOT_WITHDRAWN", "message": "只有已退出的訪視可以設定退出原因分類"},
+        ) from exc
     if changed:
         await audit_service.log_action(
             db,
@@ -357,7 +363,7 @@ async def list_recruitment_events(
     ]
 
 
-_FIELD_NAMES = {"reason": "原因", "grade": "年級", "target_school_year": "入學學年"}
+_FIELD_NAMES = {"reason": "原因", "grade": "年級", "target_school_year": "入學學年", "withdraw_reason_category": "退出原因"}
 
 
 @router.post("/admin/admissions/records/{visit_id}/transition", response_model=RecruitmentVisitOut)
@@ -398,6 +404,7 @@ async def transition_recruitment_visit(
             grade=payload.grade,
             target_school_year=payload.target_school_year,
             target_semester=payload.target_semester,
+            withdraw_reason_category=payload.withdraw_reason_category,
         )
     except records.VersionConflict as exc:
         await db.rollback()

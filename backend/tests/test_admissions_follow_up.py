@@ -356,7 +356,7 @@ async def test_transitions_clear_follow_up_and_keep_owner(admin_client, db_sessi
 
     other = (await _log(admin_client, await create_record(admin_client, child_name="另一位"))).json()["visit"]
     other = await transition(admin_client, other, "deposited")
-    withdrawn = await transition(admin_client, other, "withdrawn", reason="改送他校")
+    withdrawn = await transition(admin_client, other, "withdrawn", reason="改送他校", withdraw_reason_category="改讀其他私立幼兒園")
     assert withdrawn["follow_up_at"] is None and withdrawn["last_contacted_at"] is not None
 
 

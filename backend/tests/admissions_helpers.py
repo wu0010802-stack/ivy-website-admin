@@ -92,7 +92,7 @@ async def record_at_stage(
     client, stage: str, *, withdrawn_from: str = "deposited", campus_key: str = "yihua", **overrides
 ) -> dict:
     """用 API 建一筆訪視並推到指定階段。已註冊一律是 115 學年上學期小班；
-    withdrawn 依 withdrawn_from 從已預繳或已註冊退出，原因「家長改送他校」。"""
+    withdrawn 依 withdrawn_from 從已預繳或已註冊退出，原因「家長改送他校」、分類「改讀其他私立幼兒園」。"""
     record = await create_record(client, campus_key, **overrides)
     if stage == "visited":
         return record
@@ -105,7 +105,7 @@ async def record_at_stage(
         )
         if stage == "enrolled":
             return record
-    return await transition(client, record, "withdrawn", reason="家長改送他校")
+    return await transition(client, record, "withdrawn", reason="家長改送他校", withdraw_reason_category="改讀其他私立幼兒園")
 
 
 async def move_slot(

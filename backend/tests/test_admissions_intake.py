@@ -159,7 +159,7 @@ async def test_intake_plan_counts_match_spec(admin_client, db_session):
     # 不該算進來的：保留後退預繳、下學期的保留、他校的保留、沒保留的已預繳與已訪視。
     gone = await record_at_stage(admin_client, "deposited", child_name="退預繳")
     gone = (await _seat(admin_client, gone, "小班")).json()["visit"]
-    await transition(admin_client, gone, "withdrawn", reason="改送他校")
+    await transition(admin_client, gone, "withdrawn", reason="改送他校", withdraw_reason_category="改讀其他私立幼兒園")
     spring = await record_at_stage(admin_client, "deposited", child_name="下學期")
     await _seat(admin_client, spring, "小班", target_semester=2)
     minghua = await record_at_stage(admin_client, "deposited", campus_key="minghua", child_name="明華")
@@ -218,7 +218,7 @@ async def test_cancel_withdraw_restores_reserved_seat(admin_client):
     seated = (await _seat(admin_client, record, "小班")).json()["visit"]
     enrolled = await transition(admin_client, seated, "enrolled")
     assert _rows(await _plan(admin_client))["小班"][1:3] == (0, 1)
-    withdrawn = await transition(admin_client, enrolled, "withdrawn", reason="搬家")
+    withdrawn = await transition(admin_client, enrolled, "withdrawn", reason="搬家", withdraw_reason_category="改讀其他私立幼兒園")
     assert _rows(await _plan(admin_client))["小班"][1:3] == (0, 0)
     back = await transition(admin_client, withdrawn, "deposited")
     assert (back["stage"], back["has_deposit"], back["enrolled_on"], back["provisional_grade"]) == ("deposited", True, None, "小班")
@@ -226,7 +226,7 @@ async def test_cancel_withdraw_restores_reserved_seat(admin_client):
 
     other = await record_at_stage(admin_client, "deposited", child_name="退預繳")
     other = (await _seat(admin_client, other, "中班")).json()["visit"]
-    other = await transition(admin_client, other, "withdrawn", reason="改送他校")
+    other = await transition(admin_client, other, "withdrawn", reason="改送他校", withdraw_reason_category="改讀其他私立幼兒園")
     visited = await transition(admin_client, other, "visited")
     assert (visited["stage"], visited["has_deposit"]) == ("visited", False)
     rows = _rows(await _plan(admin_client))

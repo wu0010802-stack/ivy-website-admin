@@ -39,8 +39,9 @@ _CAPABILITY: dict[tuple[str, str], str] = {
     ("withdrawn", "visited"): "admissions.write",
     ("withdrawn", "deposited"): "admissions.write",
 }
-# 原因必填：退出，以及從已註冊往前退（園務 is_destructive）。
-_REASON_REQUIRED = {("enrolled", "deposited"), ("enrolled", "visited"), ("deposited", "withdrawn"), ("enrolled", "withdrawn")}
+# 原因必填：從已註冊往前退（園務 is_destructive）。退出改成必選分類、說明選填（2026-10-15 規格 W2）。
+_REASON_REQUIRED = {("enrolled", "deposited"), ("enrolled", "visited")}
+_CATEGORY_REQUIRED = {("deposited", "withdrawn"), ("enrolled", "withdrawn")}
 
 
 class TransitionNotAllowed(Exception):
@@ -127,6 +128,7 @@ async def transition(
     grade: str | None = None,
     target_school_year: int | None = None,
     target_semester: int | None = None,
+    withdraw_reason_category: str | None = None,
 ) -> Stage:
     """依規格 6.3 改狀態欄位並寫歷程；回傳轉換前的階段。呼叫前已用
     records.get_visit_for_update 鎖列，路由已檢查這個轉換的 capability。
@@ -138,7 +140,9 @@ async def transition(
     - 取消註冊、退註冊不動 provisional_grade：之後取消退出回已預繳，保留座位還在
       （Review Focus 4）。
     - 標記註冊、退出時清掉下次聯絡（2026-10-04 規格 6.5）；往回轉不會自動恢復，落在
-      「未排定」。負責人與最近聯絡時間保留。"""
+      「未排定」。負責人與最近聯絡時間保留。
+    - 退出（退預繳、退註冊）時退出原因分類必選、說明（reason）選填；分類寫進訪視與 withdrawn
+      事件的 metadata（2026-10-15 規格 W2、W10）。取消退出時分類與說明一起清掉（W9）。"""
     if visit.version != expected_version:
         raise records.VersionConflict(visit.version)
     from_stage = derive_stage(visit)
@@ -147,6 +151,8 @@ async def transition(
     reason = reason.strip() if reason and reason.strip() else None
     if (from_stage, to_stage) in _REASON_REQUIRED and reason is None:
         raise TransitionFieldsMissing(["reason"])
+    if (from_stage, to_stage) in _CATEGORY_REQUIRED and withdraw_reason_category is None:
+        raise TransitionFieldsMissing(["withdraw_reason_category"])
     if (from_stage, to_stage) == ("deposited", "enrolled"):
         seat_grade = grade or visit.provisional_grade
         school_year = target_school_year or visit.target_school_year
@@ -200,12 +206,14 @@ async def transition(
         visit.withdrawn_at = now
         visit.withdrawn_from = from_stage
         visit.withdraw_reason = reason
-        event("withdrawn", from_stage, "withdrawn")
+        visit.withdraw_reason_category = withdraw_reason_category
+        event("withdrawn", from_stage, "withdrawn", metadata={"withdraw_reason_category": withdraw_reason_category})
     else:
         # 取消退出：withdrawn → visited／deposited（規格 6.3 最後一列）。
         visit.withdrawn_at = None
         visit.withdrawn_from = None
         visit.withdraw_reason = None
+        visit.withdraw_reason_category = None
         visit.has_deposit = to_stage == "deposited"
         event("withdraw_cancelled", "withdrawn", to_stage)
     visit.version += 1

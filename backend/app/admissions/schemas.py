@@ -24,6 +24,7 @@ Grade = Literal[constants.GRADES]
 NoDepositReason = Literal[constants.NO_DEPOSIT_REASONS]
 SourceCategory = Literal[tuple(constants.SOURCE_CATEGORIES)]
 WithdrawnFrom = Literal[constants.WITHDRAWN_FROM]
+WithdrawReasonCategory = Literal[constants.WITHDRAW_REASON_CATEGORIES]
 EventType = Literal[constants.EVENT_TYPES]
 Priority = Literal[tuple(constants.NO_DEPOSIT_PRIORITY)]
 SchoolYear = Annotated[int, Field(ge=constants.SCHOOL_YEAR_MIN, le=constants.SCHOOL_YEAR_MAX)]
@@ -134,13 +135,16 @@ class RecruitmentVisitUpdate(_VisitEditable):
     birthday: date | None = None
     target_school_year: SchoolYear | None = None
     target_semester: Semester | None = None
+    # 退出原因分類（2026-10-15 規格 W7）：只有已退出的訪視能改（不是 422 RECRUITMENT_NOT_WITHDRAWN），
+    # 不能清空；說明仍只在退出那一刻填。
+    withdraw_reason_category: WithdrawReasonCategory | None = None
 
     @field_validator("child_name")
     @classmethod
     def _child_name(cls, value: str | None) -> str:
         return _required_text(value, "幼生姓名不能清空")
 
-    @field_validator("visit_date", "target_school_year", "target_semester")
+    @field_validator("visit_date", "target_school_year", "target_semester", "withdraw_reason_category")
     @classmethod
     def _not_cleared(cls, value):
         if value is None:
@@ -222,6 +226,7 @@ class RecruitmentVisitOut(BaseModel):
     withdrawn_at: datetime | None
     withdrawn_from: WithdrawnFrom | None
     withdraw_reason: str | None
+    withdraw_reason_category: WithdrawReasonCategory | None
     anonymized_at: datetime | None
     version: int
     created_at: datetime
@@ -287,15 +292,17 @@ class AdmissionsOptionsOut(BaseModel):
 
 
 class TransitionRequest(BaseModel):
-    """狀態轉換（規格 6.3）。後台一律送齊八個欄位，用不到的送 null；各轉換只讀
+    """狀態轉換（規格 6.3）。後台一律送齊九個欄位，用不到的送 null；各轉換只讀
     自己需要的欄位。"""
 
     model_config = ConfigDict(extra="forbid")
 
     to_stage: Stage
     expected_version: int = Field(ge=1)
-    # 退預繳、退註冊、取消註冊必填；其他轉換可以附註。
+    # 取消註冊（已註冊往回退）必填；退預繳、退註冊選填（2026-10-15 規格 W2）；其他轉換可以附註。
     reason: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+    # 退預繳、退註冊必選（2026-10-15 規格 W2）；其他轉換不讀。
+    withdraw_reason_category: WithdrawReasonCategory | None = None
     # 標記預繳時選填。
     deposit_collector: OptionalText = Field(default=None, max_length=constants.LEN_COLLECTOR)
     # 標記註冊：註冊日期（沒給用台北今天；民國年同參觀日期要在 100～200）、年級與

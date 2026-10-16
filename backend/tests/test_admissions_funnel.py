@@ -79,18 +79,21 @@ CASES = [
      {"enrolled": False, "enrolled_on": None, "has_deposit": False},
      [("revert_converted", "enrolled", "deposited", "家長延後入學"),
       ("deposit_removed", "deposited", "visited", "家長延後入學")]),
-    ("deposited", None, "withdrawn", {"reason": "改送他校"},
-     {"withdrawn_from": "deposited", "withdraw_reason": "改送他校", "has_deposit": False},
+    ("deposited", None, "withdrawn", {"reason": "改送他校", "withdraw_reason_category": "改讀其他私立幼兒園"},
+     {"withdrawn_from": "deposited", "withdraw_reason": "改送他校", "withdraw_reason_category": "改讀其他私立幼兒園",
+      "has_deposit": False},
      [("withdrawn", "deposited", "withdrawn", "改送他校")]),
-    ("enrolled", None, "withdrawn", {"reason": "搬家"},
-     {"withdrawn_from": "enrolled", "withdraw_reason": "搬家", "has_deposit": False, "enrolled": False, "enrolled_on": None},
+    ("enrolled", None, "withdrawn", {"reason": "搬家", "withdraw_reason_category": "搬家／距離因素"},
+     {"withdrawn_from": "enrolled", "withdraw_reason": "搬家", "withdraw_reason_category": "搬家／距離因素",
+      "has_deposit": False, "enrolled": False, "enrolled_on": None},
      [("withdrawn", "enrolled", "withdrawn", "搬家")]),
     ("withdrawn", "deposited", "visited", {},
-     {"withdrawn_at": None, "withdrawn_from": None, "withdraw_reason": None, "has_deposit": False},
+     {"withdrawn_at": None, "withdrawn_from": None, "withdraw_reason": None, "withdraw_reason_category": None,
+      "has_deposit": False},
      [("withdraw_cancelled", "withdrawn", "visited", None)]),
     ("withdrawn", "enrolled", "deposited", {},
-     {"withdrawn_at": None, "withdrawn_from": None, "withdraw_reason": None, "has_deposit": True,
-      "enrolled": False, "enrolled_on": None},
+     {"withdrawn_at": None, "withdrawn_from": None, "withdraw_reason": None, "withdraw_reason_category": None,
+      "has_deposit": True, "enrolled": False, "enrolled_on": None},
      [("withdraw_cancelled", "withdrawn", "deposited", None)]),
 ]
 
@@ -166,8 +169,8 @@ async def test_disallowed_transitions_return_422(admin_client, start, to_stage, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(("start", "to_stage"), [("enrolled", "deposited"), ("enrolled", "visited"), ("deposited", "withdrawn"), ("enrolled", "withdrawn")])
-async def test_withdraw_and_revert_require_reason(admin_client, start, to_stage):
+@pytest.mark.parametrize(("start", "to_stage"), [("enrolled", "deposited"), ("enrolled", "visited")])
+async def test_revert_requires_reason(admin_client, start, to_stage):
     record = await record_at_stage(admin_client, start)
     for reason in (None, "   "):
         response = await _post(admin_client, record, to_stage, reason=reason)
@@ -187,7 +190,9 @@ async def test_reception_writes_but_cannot_convert(admin_client, reception_yihua
     for to_stage in ("deposited", "visited", "withdrawn"):
         assert (await _post(reception_yihua_client, enrolled, to_stage, reason="家長延後")).status_code == 403, to_stage
     other = await record_at_stage(admin_client, "deposited", child_name="另一位")
-    withdrawn = await transition(reception_yihua_client, other, "withdrawn", reason="改送他校")
+    withdrawn = await transition(
+        reception_yihua_client, other, "withdrawn", reason="改送他校", withdraw_reason_category="改讀其他私立幼兒園"
+    )
     assert (await transition(reception_yihua_client, withdrawn, "deposited"))["stage"] == "deposited"
     assert (await _post(editor_client, enrolled, "withdrawn", reason="x")).status_code == 403
 
@@ -212,7 +217,7 @@ async def test_concurrent_transition_conflict(admin_client, campus_admin_yihua_c
     record = await record_at_stage(admin_client, "deposited")
     first, second = await asyncio.gather(
         _post(admin_client, record, "enrolled", **ENROLL),
-        _post(campus_admin_yihua_client, record, "withdrawn", reason="改送他校"),
+        _post(campus_admin_yihua_client, record, "withdrawn", reason="改送他校", withdraw_reason_category="改讀其他私立幼兒園"),
     )
     assert sorted([first.status_code, second.status_code]) == [200, 409], (first.text, second.text)
     winner, loser = (first, second) if first.status_code == 200 else (second, first)
@@ -267,7 +272,9 @@ async def test_board_groups_cards_by_stage_and_term(admin_client, minghua_client
 @pytest.mark.asyncio
 async def test_transition_audit_has_no_free_text(admin_client, db_session):
     record = await record_at_stage(admin_client, "deposited")
-    await transition(admin_client, record, "withdrawn", reason="家長說孩子叫小明，住中正路")
+    await transition(
+        admin_client, record, "withdrawn", reason="家長說孩子叫小明，住中正路", withdraw_reason_category="搬家／距離因素"
+    )
     entries = (
         await db_session.execute(
             select(AuditLogEntry)

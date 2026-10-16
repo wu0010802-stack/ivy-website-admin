@@ -221,6 +221,10 @@ async def get_visit_for_update(db: AsyncSession, visit_id: uuid.UUID) -> Recruit
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
+class NotWithdrawn(Exception):
+    """只有已退出的訪視可以設定退出原因分類（2026-10-15 規格 W7；路由回 422 RECRUITMENT_NOT_WITHDRAWN）。"""
+
+
 class TermLocked(Exception):
     """已註冊或保留座位的訪視不能從編輯表單改入學學年學期（路由回 409）。"""
 
@@ -274,6 +278,8 @@ async def update_visit(
         raise VersionConflict(visit.version)
     values = dict(changes)
     _check_term_editable(visit, values)
+    if "withdraw_reason_category" in values and visit.withdrawn_at is None:
+        raise NotWithdrawn()
     if values.get("tour_guide_user_id") is not None and values["tour_guide_user_id"] != visit.tour_guide_user_id:
         await _resolve_tour_guide(db, values)
     changed = [key for key, value in values.items() if getattr(visit, key) != value]
