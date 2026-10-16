@@ -83,7 +83,7 @@ export function isWithdrawFilter(value: string): boolean {
 }
 
 export function withdrawFilterLabel(value: string): string {
-  return value === UNCLASSIFIED_WITHDRAW ? `${UNCLASSIFIED_LABEL}（改版前退出）` : value
+  return value === UNCLASSIFIED_WITHDRAW ? `${UNCLASSIFIED_LABEL}（舊資料）` : value
 }
 
 /** 退出原因的顯示文字：「費用考量（說明）」；沒有說明只寫分類；改版前的舊資料只有說明就寫說明；都沒有是空字串。 */

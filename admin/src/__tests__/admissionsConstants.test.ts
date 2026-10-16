@@ -67,7 +67,7 @@ describe('退出原因分類（2026-10-15）', () => {
     expect(isWithdrawFilter('費用考量')).toBe(true)
     expect(isWithdrawFilter('unclassified')).toBe(true)
     expect(isWithdrawFilter('其他')).toBe(false)
-    expect(withdrawFilterLabel('unclassified')).toBe('未分類（改版前退出）')
+    expect(withdrawFilterLabel('unclassified')).toBe('未分類（舊資料）')
     expect(withdrawFilterLabel('費用考量')).toBe('費用考量')
   })
 

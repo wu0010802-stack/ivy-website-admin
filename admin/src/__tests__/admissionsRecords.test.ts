@@ -304,7 +304,7 @@ describe('篩選、分頁與權限', () => {
     const { wrapper } = await mountWith(RecordsTab, { props: props({ withdrawCategory: 'unclassified' }) })
     expect(lastQuery(get).get('withdraw_reason_category')).toBe('unclassified')
     const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '退出原因')!
-    expect(select.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label')).at(-1)).toBe('未分類（改版前退出）')
+    expect(select.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label')).at(-1)).toBe('未分類（舊資料）')
     select.vm.$emit('update:modelValue', '費用考量')
     expect(wrapper.emitted('update:withdrawCategory')).toEqual([['費用考量']])
   })
@@ -317,7 +317,7 @@ describe('篩選、分頁與權限', () => {
     await wrapper.setProps({ withdrawCategory: 'unclassified' })
     await flushPromises()
     expect(lastQuery(get).get('withdraw_reason_category')).toBe('unclassified')
-    expect(wrapper.findAll('.filter-chips li').map((chip) => chip.text())).toEqual(['退出原因：未分類（改版前退出）×，拿掉這個條件', '清除篩選'])
+    expect(wrapper.findAll('.filter-chips li').map((chip) => chip.text())).toEqual(['退出原因：未分類（舊資料）×，拿掉這個條件', '清除篩選'])
     expect(wrapper.text()).toContain('目前篩選條件下沒有訪視紀錄。')
     await wrapper.get('.filter-chips li button').trigger('click')
     expect(wrapper.emitted('update:withdrawCategory')).toEqual([['']])
