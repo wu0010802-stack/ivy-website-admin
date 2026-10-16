@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import update
 
-from app.admissions.geo.models import GeoBabycare
+from app.admissions.geo import kindergartens as geo_kindergartens
+from app.admissions.geo.models import GeoBabycare, GeoKindergarten
 from tests.admissions_area_helpers import AREA
 from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
 from tests.geo_helpers import load_babycare_sample
@@ -61,3 +62,14 @@ async def test_babycare_endpoint_has_fees(admin_client, db_session, peers):
     first = body["items"][0]
     assert (first["monthly_fee"], first["evaluation_grade"], first["evaluation_year"], first["quasi_public"]) == (17900, "優等", 114, True)
     assert (body["summary"]["fee_median"], body["summary"]["own_age2_monthly"], body["summary"]["fee_school_year"]) == (17900, 19264, 114)
+
+
+async def test_kindergartens_endpoint_has_space_and_services(admin_client, db_session, peers):
+    await db_session.execute(
+        update(GeoKindergarten).where(GeoKindergarten.source_id == "p1").values(indoor_m2=470.0, outdoor_m2=250.0, has_shuttle=True, after_school_capacity=0)
+    )
+    await db_session.commit()
+    body = (await admin_client.get(f"{AREA}/kindergartens?campus_key=yihua")).json()
+    p1 = next(item for item in body["items"] if item["source_id"] == "p1")
+    assert (p1["indoor_m2_per_child"], p1["outdoor_m2_per_child"], p1["has_shuttle"], p1["after_school_capacity"]) == (4.7, 2.5, True, 0)
+    assert body["source_note"] == geo_kindergartens.SOURCE_NOTE == "資料來源：全國教保資訊網（kiang 整理）"
