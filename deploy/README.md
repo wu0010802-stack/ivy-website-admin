@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog（main CI 部署，沒有 migration）
+
+- **提交**：`feature/passlib-docs-20261016` 三個 commit（`17382f43`..`f411c53a`），從 main `585d3fc2` 開出、期間 main 沒有前進，使用者推 main（fast-forward `585d3fc2..f411c53a`，沒有開 PR）。內容見 README 頂部「密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog」。
+- **migration**：沒有。依賴變動：拿掉 `passlib`、`bcrypt` 4.0.1→5.0.0（`backend/uv.lock` 用 uv 0.8.22 重產）。雜湊格式相同，既有帳號不用重設密碼；沒有新環境變數，沒有備份。回退可直接切回上一個映像（舊映像的 passlib 讀得了新程式產生的雜湊）。
+- **推送前閘門**：本機後端全套 3579 passed／1 skipped（`ivy_website_passlib1016_test`）、`deploy/tests` 22 項通過；feature 分支 CI run 38910202999（`f411c53a`）Frontend web／admin、Backend 三組、E2E 全部 success，pip-audit「No known vulnerabilities found」。
+- **CI**：main run 38911854207（`f411c53a`）13:57:09Z 開跑，全部 success；Deploy Railway production 14:02:24Z–14:07:17Z。
+- **正式 `release.json`**：base commit `f411c53a`，snapshot `666bb7c88c3e…`，created `2026-10-16T14:02:47Z`，`web+api`。
+- **線上檢查**（2026-10-16T14:09Z）：health `status: ok`、`environment: production`、`fixture_enabled: false`、`last_failed_steps` 為空（API 能啟動代表 import 時的 bcrypt `hashpw` 正常）；`/`、`/admin/login` 回 200；以不存在的帳號 `smoke-test-20261016@example.com` 打一次 `POST /api/website/v1/auth/login` 回 401「帳號或密碼錯誤」、0.68 秒（走過一次 rounds 12 的 `checkpw`），操作紀錄因此多一筆登入失敗（日常登入預設不顯示）。
+- **未在線上驗證**：沒有用真實帳號登入（沒有帳密）；請使用者登入後台一次確認既有密碼照常可用。Google／LINE 登入不經密碼雜湊，沒有影響。
+
 ## 2026-10-16 清掉 web 的死 CSS 與比稿殘留（main CI 部署，沒有 migration）
 
 - **提交**：`feature/web-deadcode-20261016` 四個 commit（`c21c8e92`..`fcf4a1b0`），推之前 rebase 到 main `d196036b`（招生統計獨立頁先上；衝突只有 README.md 頂部；那個提交沒有動 `web/`），使用者推 main（fast-forward `d196036b..fcf4a1b0`，沒有開 PR）。內容見 README 頂部「清掉 web 的死 CSS 與比稿殘留」。
