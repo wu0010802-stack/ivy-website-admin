@@ -130,6 +130,8 @@ const today = ref(taipeiDate())
 const expectedStartChoices = computed(() => expectedStartOptions(today.value))
 // 預計入學時間是單選、選填：再點一次已選的那一個就取消（規格 X3）。已勾選的 radio 按 Space 不會觸發 click，
 // 鍵盤要靠 radio 上另掛的 @keydown.space.prevent 才取消得掉（prevent 擋掉瀏覽器自己的 click，避免連觸發兩次）。
+// Gecko 在 keyup 才合成 click，keydown 的 prevent 不一定擋得住（未選的會先選上、再被 click 取消），
+// 所以 @keyup.space.prevent 也要掛，只擋預設行為、不呼叫 toggle（否則一次按鍵切換兩次）。
 function toggleExpectedStart(value: string) {
   form.expectedStart = form.expectedStart === value ? '' : value
   clearFieldError('expectedStart')
@@ -611,7 +613,7 @@ async function onSubmit() {
                       <div class="visit-field"><label for="child-name">孩子姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" enterkeyhint="next" required placeholder="請填寫孩子姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkFieldOnBlur('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
                       <div class="visit-field"><label for="child-birthdate">孩子出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkFieldOnBlur('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依孩子生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
                     </div>
-                    <fieldset class="visit-referrals visit-expected-start" aria-describedby="visit-expected-start-error"><legend>預計入學時間<small>選填</small></legend><div><label v-for="option in expectedStartChoices" :key="option.value"><input type="radio" name="expectedStart" :value="option.value" :checked="form.expectedStart === option.value" @click="toggleExpectedStart(option.value)" @keydown.space.prevent="toggleExpectedStart(option.value)"><span>{{ option.label }}</span></label></div><p id="visit-expected-start-error" class="visit-field-error">{{ fieldErrors.expectedStart }}</p></fieldset>
+                    <fieldset class="visit-referrals visit-expected-start" aria-describedby="visit-expected-start-error"><legend>預計入學時間<small>選填</small></legend><div><label v-for="option in expectedStartChoices" :key="option.value"><input type="radio" name="expectedStart" :value="option.value" :checked="form.expectedStart === option.value" @click="toggleExpectedStart(option.value)" @keydown.space.prevent="toggleExpectedStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div><p id="visit-expected-start-error" class="visit-field-error">{{ fieldErrors.expectedStart }}</p></fieldset>
                   </section>
 
                   <section class="visit-form-section" aria-labelledby="visit-parent-title">

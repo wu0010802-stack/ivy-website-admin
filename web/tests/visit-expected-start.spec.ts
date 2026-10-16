@@ -67,6 +67,12 @@ describe('預約表單放這一題的方式（規格 X3）', () => {
     expect(radio).toContain('@keydown.space.prevent="toggleExpectedStart(option.value)"')
   })
 
+  // Gecko 在 keyup 才合成 click：keyup 也要 preventDefault，而且只 prevent、不呼叫 toggle（否則一次按鍵切換兩次）。
+  it('鍵盤：keyup 的 Space 也被擋（只 prevent、不 toggle），Gecko 才不會把剛選上的又取消', () => {
+    const radio = form.match(/<input type="radio" name="expectedStart"[^>]*>/)?.[0]
+    expect(radio).toMatch(/@keyup\.space\.prevent(?![.=\w])/)
+  })
+
   it('成功頁在有選時列出「預計入學」，沒選不列', () => {
     expect(form).toContain('<div v-if="form.expectedStart"><dt>預計入學</dt>')
   })

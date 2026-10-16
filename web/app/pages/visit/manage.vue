@@ -144,6 +144,7 @@ const editStartChoices = computed(() => {
   return current && !options.some(option => option.value === current) ? [{ value: current, label: expectedStartText(current) }, ...options] : options
 })
 // 滑鼠點已選的取消靠 @click；已勾選的 radio 按 Space 不會觸發 click，鍵盤靠 @keydown.space.prevent（同預約表單）。
+// Gecko 在 keyup 才合成 click，所以 @keyup.space.prevent 也要掛（只擋預設行為、不呼叫 toggle，細節同預約表單）。
 function toggleEditStart(value: string) {
   editForm.expectedStart = editForm.expectedStart === value ? '' : value
 }
@@ -282,7 +283,7 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
                 <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
-                <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)"><span>{{ option.label }}</span></label></div></fieldset>
+                <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
                 <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>
               </div>
               <div class="parent-visit-actions">

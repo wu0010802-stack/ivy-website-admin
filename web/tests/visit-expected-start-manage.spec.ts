@@ -164,6 +164,23 @@ describe('家長管理頁：預計入學時間', () => {
     expect(startRadios(page).filter(radio => radio.element.checked)).toHaveLength(1)
   })
 
+  // Gecko 在 keyup 才合成 click，只在 keydown 擋不住：未選的選項會先被 keydown 選上、再被 keyup 的 click 取消。
+  // keyup 也要 preventDefault（只擋預設行為，不呼叫 toggle，否則一次按鍵會切換兩次）。
+  it('鍵盤：Space 的 keyup 被 preventDefault，選取狀態不變', async () => {
+    fetchReplies(visit)
+    const page = await mountPage()
+    await openEdit(page)
+    const other = startRadios(page).find(radio => radio.element.value === 'unsure')!
+    const keyup = new KeyboardEvent('keyup', { key: ' ', cancelable: true, bubbles: true })
+    other.element.dispatchEvent(keyup)
+    await nextTick()
+    expect(keyup.defaultPrevented).toBe(true)
+    expect(checkedLabel(page)).toBe('2021 年 9 月')
+    const enterUp = new KeyboardEvent('keyup', { key: 'Enter', cancelable: true, bubbles: true })
+    other.element.dispatchEvent(enterUp)
+    expect(enterUp.defaultPrevented).toBe(false)
+  })
+
   it('鍵盤：按其他鍵不會改選取', async () => {
     fetchReplies(visit)
     const page = await mountPage()
