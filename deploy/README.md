@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-17 後台第 3 波：預約表單預計入學時間＋預約案件排除標記（main CI 部署，migration 只新增）
+
+- **提交**：使用者在本機推 `feature/admin-wave3-20261015` 到 main，兩次都是 fast-forward、沒有開 PR。內容見 README 頂部「預約表單預計入學時間、預約案件排除標記」、DESIGN.md 同名兩節、規格 `docs/specs/2026-10-15-visit-expected-start-design.md`、`docs/specs/2026-10-15-visit-exclusion-design.md`（各有 §7 實作紀錄）。
+  - 第一次 `f80c304c..df8cf21c`（10-16 15:39Z）：run 38925681075 的 Frontend (web) 紅，Deploy 被跳過，正式站留在 `f411c53a`。原因是第 3 波新增的 `web/tests/visit-expected-start-manage.spec.ts` import `@vue/test-utils`，main 同一天在 `fecb3b33` 已把它從 web 依賴拿掉；worktree 的 `web/node_modules` 還留著舊套件，所以本機全套是綠的。
+  - 第二次 `df8cf21c..718a127b`：`718a127b` 把那支測試改成 `createApp` 掛載（斷言不變，突變驗證過），web 重新 `npm ci` 後全套 103 檔通過。
+- **migration**：`b7e3c1a9d5f2`（接 `5c8e1f3a9d27` 第 2 波退出原因分類）在 `visit_requests` 加可空欄位 `expected_start` 與格式 CHECK；`d4a8f2c6e913` 加 `excluded_at`、`excluded_by`（→ users，SET NULL）、`exclude_reason`、`exclude_note` 與兩條 CHECK。只加可空欄位，升級不改既有資料，所以沒有備份。沒有新環境變數；依賴檔沒有變動。
+- **回退**：舊映像不認得 `d4a8f2c6e913`，`check_schema.py` 會擋；要退先用新映像跑 `alembic downgrade 5c8e1f3a9d27`（預計入學時間與排除標記的欄位會一起刪掉），再切舊映像。
+- **推送前閘門**（本機，Node 22，獨立測試庫 `ivy_website_wave3_1015_test`／`_e2e_test`）：`707951e2` 後端全套 3,736 passed／1 skipped、admin vitest 168 檔 2,704 passed／1 skipped、web vitest 103 檔 1,258 passed、admin 與 web typecheck 無錯誤、契約 `--check` 兩項一致、stack 全套 151 passed（視覺基準不用更新）；alembic 單一 head `d4a8f2c6e913`。之後 `a2db0f98` 重跑排除相關的後端 54 項與 admin 24 項；`718a127b` web 重新 `npm ci` 後全套 1,258 passed、typecheck 0 錯。
+- **CI**：main run 38978661677（`718a127b`）22:56:23Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 23:01:48Z–23:06:29Z success，E2E 23:07:26Z 結束。
+- **正式 `release.json`**：base commit `718a127b8dedf9ec8bc726c0f3332eff1714ebfa`，snapshot `6252e220…`，created `2026-10-16T23:02:14Z`。
+- **線上唯讀檢查**（未登入，2026-10-16T23:08Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（`last_completed_at` 23:07:17Z；API 有起來代表 schema 已到 `d4a8f2c6e913`）；首頁、`/admin/`、`/visit`、`/visit/manage` 都回 200；`POST /admin/visit-requests/{id}/exclude` 與 `GET /admin/visit-requests?excluded=hide` 未登入回 401；官網 `/visit` 的 chunk 有「預計入學時間」；後台 lazy chunk 裡 `VisitDetailView-*.js` 有「標記為排除（測試或重複）」與匿名化案件的提示、`VisitRequestsView-*.js` 有「已排除・」「隱藏已排除」、`AdmissionsStatsView-*.js` 有「筆測試或重複的預約已排除」、`PrivacyPolicyView-*.js` 有「預計入學時間」。
+- **待使用者／園方**：登入正式後台看一次案件明細的排除入口與橫幅、列表的「隱藏已排除」；已發布的隱私權政策要在後台補「預計入學時間」一項再發布（後台草稿已補）；家長只改預計入學時間也會寄「預約已變更」信（目前和改其他欄位一致，可推翻）。
+
 ## 2026-10-16 密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog（main CI 部署，沒有 migration）
 
 - **提交**：`feature/passlib-docs-20261016` 三個 commit（`17382f43`..`f411c53a`），從 main `585d3fc2` 開出、期間 main 沒有前進，使用者推 main（fast-forward `585d3fc2..f411c53a`，沒有開 PR）。內容見 README 頂部「密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog」。
