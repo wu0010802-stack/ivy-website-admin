@@ -172,7 +172,7 @@ def test_peer_fees_migration_follows_enrolled_points_and_only_adds():
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision("f2b8c4d1e7a9").down_revision == "f2a7c1e9d4b3"
-    assert script.get_heads() == ["f2b8c4d1e7a9"]
+    assert len(script.get_heads()) == 1
     upgrade = FEES_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade
 

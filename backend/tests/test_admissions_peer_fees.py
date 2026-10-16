@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import delete, select, update
 
 from app.admissions import area, peer_fees
 from app.admissions.academic import current_term
+from app.admissions.geo import matcher
 from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKindergarten, GeoKindergartenFee
 from app.common.timezones import today_local
-from tests.geo_helpers import load_babycare_sample
-from tests.peer_fees_helpers import OWN_ITEMS, peers  # noqa: F401
+from tests.geo_helpers import load_babycare_sample, publish_campus_address
+from tests.peer_fees_helpers import OWN_ITEMS, add_fee, add_kindergarten, peers  # noqa: F401
 
 
 def _group(result, kind):
@@ -75,11 +78,85 @@ async def test_own_school_without_this_age_or_not_found(db_session, peers):
 
 
 async def test_quasi_public_own_school_is_not_ranked(db_session, peers):
-    await db_session.execute(update(GeoKindergarten).where(GeoKindergarten.source_id == "own").values(kind="quasi_public"))
+    await db_session.execute(
+        update(GeoKindergarten).where(GeoKindergarten.source_id == "own").values(kind="quasi_public", pre_public_period="113-115")
+    )
     await db_session.commit()
     result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
     assert result["own"]["semester_total"] == 89750
     assert (_group(result, "private")["own_rank"], _group(result, "private")["rank_total"]) == (None, None)
+
+
+async def test_groups_use_the_kind_of_the_fee_school_year(db_session, peers):
+    # 收費是 114 學年的公告：準公共期間 115-115 的園所在 114 學年還是私立一般，不能照目前學年（115）分進準公共。
+    add_kindergarten(db_session, "late", "高雄市私立晚幼兒園", "quasi_public", 450, pre_public_period="115-115")
+    await db_session.flush()
+    add_fee(db_session, "late", 3, 50000)
+    await db_session.commit()
+    result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
+    assert _group(result, "private") == {
+        "kind": "private", "schools": 5, "with_fee": 4, "median": 62500, "lowest": 40200, "highest": 93000,
+        "own_rank": 2, "rank_total": 5,
+    }
+    assert (_group(result, "quasi_public")["schools"], _group(result, "quasi_public")["with_fee"]) == (1, 1)
+    schools = {school["source_id"]: school for school in result["schools"]}
+    assert (schools["late"]["kind"], schools["q1"]["kind"]) == ("private", "quasi_public")
+    items = {item["key"]: item for item in result["items"]}
+    assert items["tuition"]["peer_count"] == 3  # late 沒有分項，不影響項目對照
+
+
+async def test_a_pre_public_period_covering_the_fee_year_stays_quasi_public(db_session, peers):
+    add_kindergarten(db_session, "long", "高雄市私立久幼兒園", "quasi_public", 450, pre_public_period="114-120")
+    await db_session.flush()
+    add_fee(db_session, "long", 3, 50000)
+    await db_session.commit()
+    result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
+    assert (_group(result, "private")["schools"], _group(result, "private")["median"]) == (4, 75000)
+    assert (_group(result, "quasi_public")["schools"], _group(result, "quasi_public")["with_fee"]) == (2, 2)
+    assert next(school for school in result["schools"] if school["source_id"] == "long")["kind"] == "quasi_public"
+
+
+async def test_own_school_is_ranked_by_the_kind_of_the_fee_school_year(db_session, peers):
+    await db_session.execute(
+        update(GeoKindergarten).where(GeoKindergarten.source_id == "own").values(kind="quasi_public", pre_public_period="115-115")
+    )
+    await db_session.commit()
+    result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
+    assert (_group(result, "private")["own_rank"], _group(result, "private")["rank_total"]) == (2, 4)
+    assert next(school for school in result["schools"] if school["source_id"] == "own")["kind"] == "private"
+
+
+async def test_without_a_fee_school_year_the_stored_kind_is_used(db_session, peers):
+    add_kindergarten(db_session, "late", "高雄市私立晚幼兒園", "quasi_public", 450, pre_public_period="115-115")
+    await db_session.execute(delete(GeoDatasetStatus).where(GeoDatasetStatus.dataset == "kindergarten_fees"))
+    await db_session.commit()
+    result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
+    assert result["school_year"] is None
+    assert next(school for school in result["schools"] if school["source_id"] == "late")["kind"] == "quasi_public"
+    assert (_group(result, "quasi_public")["schools"], _group(result, "private")["schools"]) == (2, 4)
+
+
+async def test_another_campuss_neighbour_is_our_own_institution_not_a_peer(db_session, peers):
+    # 明華校址（明華一路 176 號，距義華約 4.5 km）旁 20 m 有一所私立：在義華的結果裡是本機構（F13），不進任何分組。
+    await publish_campus_address(db_session, "minghua", "高雄市三民區明華一路176號")
+    point = (await matcher.campus_points(db_session))["minghua"]
+    now = datetime.now(timezone.utc)
+    db_session.add(GeoKindergarten(
+        source_id="mh", name="高雄市私立明華幼兒園", kind="private", district="三民區", address="明華一路176號",
+        lat=point.lat + 20 / 111_320.0, lng=point.lng, approved_capacity=100, has_penalty=False, is_active=True, synced_at=now,
+    ))
+    await db_session.flush()
+    add_fee(db_session, "mh", 3, 200000)
+    await db_session.commit()
+    result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=6, age=3)
+    schools = {school["source_id"]: school for school in result["schools"]}
+    assert schools["mh"]["is_own"] is True and schools["p1"]["is_own"] is False
+    # 和沒有明華那所時（test_the_radius_decides_who_counts）完全一樣：4 公里外的 far 算，mh 不算。
+    assert _group(result, "private") == {
+        "kind": "private", "schools": 5, "with_fee": 4, "median": 84000, "lowest": 40200, "highest": 120000,
+        "own_rank": 3, "rank_total": 5,
+    }
+    assert 200000 not in [school["semester_total"] for school in result["schools"] if not school["is_own"]]
 
 
 async def test_campus_without_coordinates_returns_empty_lists(db_session, peers):

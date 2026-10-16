@@ -10,7 +10,7 @@ from urllib.parse import quote
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.admissions.geo import babycare, sync
 from app.admissions.geo.models import GeoBabycare
@@ -173,6 +173,24 @@ async def test_missing_details_are_fetched_again_even_when_the_list_is_not_due(a
     site.requests.clear()
     await _sync(app, site.transport)
     assert site.requests == []  # 抓到之後名單沒到期就不再抓
+
+
+async def test_only_the_centers_still_missing_are_fetched_when_the_list_is_not_due(app, small_minimum):
+    # 第一輪中途被重啟（每所各自 commit）：剩下沒抓的下一輪就補，不用等名單 7 天到期，也不重抓已經有的。
+    site = DetailSite()
+    await _sync(app, site.transport)
+    gap_id = "CW10203013"
+    async with app.state.session_factory() as db:
+        await db.execute(update(GeoBabycare).where(GeoBabycare.source_id == gap_id).values(quasi_public=None, monthly_fee=None))
+        await db.commit()
+    site.requests.clear()
+    result = await _sync(app, site.transport)
+    assert (result.babycare, result.babycare_details, site.requests) == ("skipped", 1, [gap_id])
+    assert (await _rows(app))[gap_id].monthly_fee == 18375
+
+    site.requests.clear()
+    await _sync(app, site.transport)
+    assert site.requests == []  # 補回之後名單沒到期就不再抓
 
 
 async def test_details_are_not_fetched_when_the_list_failed(app, small_minimum):

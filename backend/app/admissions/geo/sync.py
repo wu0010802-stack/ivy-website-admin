@@ -650,16 +650,6 @@ async def sync_babycare(
         return "failed", 0
 
 
-async def babycare_details_missing(session_factory: async_sessionmaker[AsyncSession]) -> bool:
-    """有營業中的托嬰、卻沒有一所抓過明細（上線第一輪）。"""
-    async with session_factory() as db:
-        active = await db.scalar(select(func.count()).select_from(GeoBabycare).where(GeoBabycare.is_active.is_(True)))
-        filled = await db.scalar(
-            select(func.count()).select_from(GeoBabycare).where(GeoBabycare.is_active.is_(True), GeoBabycare.quasi_public.is_not(None))
-        )
-    return bool(active) and not filled
-
-
 async def sync_babycare_details(
     session_factory: async_sessionmaker[AsyncSession],
     client: httpx.AsyncClient,
@@ -670,19 +660,19 @@ async def sync_babycare_details(
     """托嬰逐所明細（2026-10-15 規格 §4.3）：回傳更新了幾所。這一段怎麼失敗都不丟例外、不改 babycare 的
     同步結果與狀態列，只寫 WARNING 日誌與計數：單所失敗（含回應解析不出任何欄位）保留舊值、繼續下一所；
     資料庫出錯就中止這一段；整段有硬性時間上限（到了直接取消進行中的請求），沒抓的下一輪再抓。
-    only_if_missing：名單這一輪沒更新時用，只有營業中的托嬰一所明細都沒抓過才做。"""
+    only_if_missing：名單這一輪沒更新時用，只抓營業中、明細還沒抓到（quasi_public 是 NULL）的托嬰，沒有就不連外；
+    第一輪被重啟或單所失敗時，剩下的下一輪就補，不用等名單到期。名單這一輪更新了就抓全部營業中的。"""
     updated = failed = 0
     limit = asyncio.timeout(BABYCARE_DETAIL_TIME_BUDGET.total_seconds())
     try:
         async with limit:
-            if only_if_missing and not await babycare_details_missing(session_factory):
-                return 0
+            query = select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True))
+            if only_if_missing:
+                query = query.where(GeoBabycare.quasi_public.is_(None))
             async with session_factory() as db:
-                ids = (
-                    await db.execute(
-                        select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True)).order_by(GeoBabycare.source_id)
-                    )
-                ).scalars().all()
+                ids = (await db.execute(query.order_by(GeoBabycare.source_id))).scalars().all()
+            if only_if_missing and not ids:
+                return 0
             for source_id in ids:
                 try:
                     body, _ = await _fetch_capped(client, babycare_io.detail_url(source_id), max_bytes=BABYCARE_DETAIL_MAX_BYTES)

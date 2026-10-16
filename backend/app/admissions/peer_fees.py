@@ -1,7 +1,9 @@
 """附近同業收費（2026-10-15 附近同業比較規格 §5）：本校一學期公告收費在半徑內私立一般園所裡的位置。只讀。
 
 排名、中位數、項目對照只用私立一般（F2）；準公共、公立、非營利只列家數與公告收費當背景。
-本機構（任一校 50 公尺內）不算同業；本校＝距本校 50 公尺內最近的營業中園所（F12、F13）。"""
+本機構（任一校 50 公尺內）不算同業；本校＝距本校 50 公尺內最近的營業中園所（F12、F13）。
+收費是哪一學年的公告，園所類型就用那一學年的（kind_as_of）：名單同步存的是當時目前學年的類型，
+準公共期間剛好從下一學年才開始的園所，在公告收費的學年還是私立一般，不能和準公共混在一起分組。"""
 
 from __future__ import annotations
 
@@ -92,14 +94,21 @@ async def query_peer_fees(db: AsyncSession, campus_key: str, *, radius_km: int, 
             "items": _items(own_fee),
             "transport_note": own_fee.transport_note,
         }
+    fee_year = result["school_year"]
+
+    def kind_of(kind: str, pre_public_period: str | None) -> str:
+        return kind if fee_year is None else geo_kindergartens.kind_as_of(kind, pre_public_period, fee_year)
+
+    kinds = {item.source_id: kind_of(item.kind, item.pre_public_period) for item in found}
     peers = [item for item in found if not own_flags[item.source_id]]
     # 本校本身是私立一般才排名（F14）：不同類型的公告收費不能互相排名。
-    rank_against = own_fee.semester_total if own_fee is not None and own_school.kind == "private" else None
+    own_is_private = own_fee is not None and kind_of(own_school.kind, own_school.pre_public_period) == "private"
+    rank_against = own_fee.semester_total if own_fee is not None and own_is_private else None
     result["groups"] = [
-        _group(kind, [item for item in peers if item.kind == kind], fees, rank_against if kind == "private" else None)
+        _group(kind, [item for item in peers if kinds[item.source_id] == kind], fees, rank_against if kind == "private" else None)
         for kind in GROUP_ORDER
     ]
-    private_fees = [fees[item.source_id] for item in peers if item.kind == "private" and item.source_id in fees]
+    private_fees = [fees[item.source_id] for item in peers if kinds[item.source_id] == "private" and item.source_id in fees]
     items = []
     for key in geo_fees.ITEM_KEYS:
         values = [value for fee in private_fees if (value := getattr(fee, key)) is not None]
@@ -112,7 +121,7 @@ async def query_peer_fees(db: AsyncSession, campus_key: str, *, radius_km: int, 
         {
             "source_id": item.source_id,
             "name": item.name,
-            "kind": item.kind,
+            "kind": kinds[item.source_id],
             "distance_m": item.distance_m,
             "is_own": own_flags[item.source_id],
             "semester_total": fees[item.source_id].semester_total if item.source_id in fees else None,

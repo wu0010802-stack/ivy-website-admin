@@ -119,3 +119,18 @@ async def test_own_fee_finds_the_nearest_active_school_within_the_radius(db_sess
     await db_session.execute(delete(GeoKindergarten).where(GeoKindergarten.source_id == "near"))
     await db_session.commit()
     assert await fees.own_fee(db_session, lat, lng, age=3, radius_m=50) == (None, None)
+
+
+async def test_own_fee_takes_the_nearest_of_several_schools_within_the_radius(db_session):
+    now = datetime.now(timezone.utc)
+    lat, lng = 22.6424556, 120.3437133
+    # 遠的那所 source_id 排在前面，免得是靠同距離時的 source_id 排序碰巧選對。
+    for source_id, north_m, total in (("a-30m", 30, 70000), ("z-10m", 10, 89750)):
+        db_session.add(GeoKindergarten(
+            source_id=source_id, name=source_id, kind="private", district="三民區", address="某路1號",
+            lat=lat + north_m / 111_320.0, lng=lng, has_penalty=False, is_active=True, synced_at=now,
+        ))
+        db_session.add(GeoKindergartenFee(source_id=source_id, age=3, school_year=114, months=Decimal("5.5"), semester_total=total, synced_at=now))
+    await db_session.commit()
+    school, fee = await fees.own_fee(db_session, lat, lng, age=3, radius_m=50)
+    assert (school.source_id, fee.semester_total) == ("z-10m", 89750)
