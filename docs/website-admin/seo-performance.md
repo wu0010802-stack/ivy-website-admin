@@ -77,7 +77,7 @@ node scripts/check-public-seo.mjs https://正式網域
 | 國際 | international | 校名、行政區、地址、電話、既有介紹 | 同上；專屬 LINE／FB、實拍巡覽 |
 | 仁武 | renwu | 校名、行政區、地址、電話、既有介紹 | 同上；專屬 LINE／FB、實拍巡覽 |
 
-每項內容記錄核定人與確認日期，放入既有「分校介紹／FAQ」編輯流程。不要填推測數字。實際聯絡／參觀流程以各校目前 booking mode 為準，送出需求不等於預約成立。
+每項內容記錄核定人與確認日期，放入後台「五校介紹」（`/content/campus-profile`）編輯流程（FAQ 內容類型 2026-10-08 已刪除）。不要填推測數字。實際聯絡／參觀流程以各校目前 booking mode 為準，送出需求不等於預約成立。
 
 GEO 以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主。本輪不新增 llms.txt、虛構 FAQ rich result 或大量近似關鍵字文章。新聞原本維持 dialog；2026-09-26 使用者拍板開放獨立網址 `/news`、`/news/<id>`（示意消息 noindex、不進 sitemap），活動仍用 dialog。
 

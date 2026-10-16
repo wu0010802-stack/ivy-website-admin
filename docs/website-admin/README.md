@@ -117,7 +117,7 @@ WEBSITE_ENVIRONMENT=test uv run python scripts/restore_website.py ./var/backups/
 - 個資保存政策改為可在後台設定天數並持久化（`retention_policies`），依結案時間起算，有清理紀錄與定期工作開關。
 - 素材庫：引用記錄版本與欄位路徑、批次替換、封存與待清理（不再上傳就立即硬刪檔）、批次上傳、影片 metadata、縮圖／大圖／poster 衍生檔路由、版位裁切焦點（0–100）。
 - 首屏影片／關於照片／孩子的一天照片與影片／分校封面與線稿／手機版活動影片等素材版位已接進 CMS（選填，未設定時官網用內建素材）。
-- 樂觀鎖（`expected_version`）涵蓋時段、案件承辦人與下次聯絡時間、每週規則、全站設定、素材說明；統一錯誤碼（`X-Request-ID`、`SLOT_CLOSED`／`SLOT_NOT_FOUND`／`MEDIA_NOT_READY` 等）。
+- 樂觀鎖（`expected_version`）涵蓋時段、案件承辦人與下次聯絡時間、每週規則、全站設定、素材說明（2026-10 後續：承辦人 10-06、全站設定 10-08 已拿掉；之後加上的預約設定、家長資料、內容草稿、招生紀錄、片語、保存政策也都有，以各 schema 的 `expected_version` 為準）；統一錯誤碼（`X-Request-ID`、`SLOT_CLOSED`／`SLOT_NOT_FOUND`／`MEDIA_NOT_READY` 等）。
 - 端到端測試（`tests/stack/`）、無障礙（axe）與鍵盤操作自動化檢查、像素回歸，CI 新增 `e2e` job（不擋部署）。
 - `web/` 標題字型已換上完整 LINE Seed TW（見 `web/public/assets/fonts/README.md`），CMS 開放編輯標題不再受子集缺字限制。
 

@@ -327,8 +327,8 @@ async def get_public_content(db: AsyncSession) -> tuple[str | None, dict]:
     呼叫端（public route）應視為「尚無可用內容」回 503，不得回假資料。
 
     停用的分校（規格 3.2、9.2）不出現在公開內容裡：那一校的介紹、
-    探索與消息都不輸出，官網因此不列這一校（首頁五校、頁尾、sitemap），分校頁
-    回 404；只適用那一校的全站消息與活動也一起拿掉。發布紀錄不動，重新
+    探索與消息都不輸出，官網因此不列這一校（首頁五校、頁尾、sitemap），該校
+    預約頁回 404；只適用那一校的全站消息與活動也一起拿掉。發布紀錄不動，重新
     啟用後原本已發布的內容直接恢復。草稿預覽走後台 API，不受影響。"""
     result = await db.execute(select(SiteState).where(SiteState.id == 1))
     state = result.scalar_one_or_none()
