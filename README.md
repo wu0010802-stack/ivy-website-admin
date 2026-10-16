@@ -11,6 +11,7 @@
   - admin：歷程中文與變更行 80 passed（另 19）；退出對話框、補分類、明細顯示 217 passed（另 47）；篩選與統計表 246 passed；`vue-tsc` 無錯誤。
   - 全套驗證：合併 `origin/main` `e420e9f2`（附近同業比較；migration `5c8e1f3a9d27` 改接 `f2b8c4d1e7a9`，測試庫重建）後在 `1577276a`：後端全套 3480 passed、1 skipped、0 failed（21.5 分鐘）；admin 全套 164 個檔案 2595 passed、1 skipped（`--testTimeout=60000`，機器負載高）；admin、web `typecheck` 通過；`export_openapi.py --check`、`check-contract-types.mjs`、`check_ivy_recruitment_contract.py`（對齊 `dfd230c3`）一致；stack 全套重新 build 後 145 passed、0 failed（5.6 分鐘），含 `admissions-withdraw.spec.ts`（退出選分類、歷程、明細篩選、統計表、桌機與 390px 不溢出）與更新後的 `exports.spec.ts`（38 欄）。合併前在 `ffc7eaf7`／`49dae8e7`／`dd527c7c` 也各跑過一輪（後端 3349 passed＋1 個 PostgreSQL 連線數滿的環境錯誤、單檔重跑通過；admin 2556 passed；stack 143 passed）。
   - 再合併已上線的第 1 波（`4f1e0603`）與 small-fixes（`2d56b439`）、第 1 波部署紀錄（`b20ef763`）後：在 `26fd6f4a` 後端全套 3566 passed、admin 全套 165 個檔案 2617 passed、stack 全套 146 passed；在 `068ee7a0` 後端全套 3567 passed、1 skipped、0 failed（21.4 分鐘），admin 全套 165 個檔案 2623 passed、1 skipped（`--testTimeout=60000`），admin、web `typecheck` 通過，契約檢查一致，stack 全套重新 build 後 147 passed、0 failed（5.6 分鐘）。
+  - 再合併 ci-speed（`702e5178`，測試準備改成路由只建一次、清表改 DELETE）後在 `bafcf434`：後端全套 3568 passed、1 skipped、0 failed（5.6 分鐘），stack 全套重新 build 後 147 passed、0 failed；admin 這次沒有被 main 動到，沿用 `068ee7a0` 的 2623 passed。
 - **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；桌機篩選列與 390px 版面由 stack e2e 量過不溢出並截圖人工看過（`output/playwright/withdraw-*.png`，不進版控）。
 
 ## 2026-10-16 後端測試提速、後台場次 N+1、文件更正（`feature/ci-speed-20261016`）
