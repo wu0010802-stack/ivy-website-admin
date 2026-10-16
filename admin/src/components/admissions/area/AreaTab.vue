@@ -19,6 +19,7 @@ import type {
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
+import { DEFAULT_AREA_VIEW, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
@@ -59,6 +60,8 @@ const props = defineProps<{
   emptyText: string
 }>()
 const emit = defineEmits<{ 'open-records': [filter: { area: string }] }>()
+// 地圖模式、選取的里與表格分頁（頁面放在網址，2026-10-16）。先宣告 model，工作台改版時再取用（現在還沒讀寫，所以不接變數）。
+defineModel<AreaView>('view', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
 
 const narrow = useNarrowScreen()
 

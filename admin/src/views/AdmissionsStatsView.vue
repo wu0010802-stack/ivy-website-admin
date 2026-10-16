@@ -10,8 +10,9 @@ import { useAdmissionsFilters } from '../admissions/useAdmissionsFilters'
 // 招生統計（2026-10-16 業主裁定）：原本是招生入學的「統計分析」分頁，抽成獨立的側欄頁，只有總管理者
 // 看得到（側欄與路由 roles；後端 admissions.stats 才是真正的檢查）。內容不變，頁首的校區與入學學年學期
 // 同招生入學，網址參數也同名（campus／sy／sem），兩頁之間帶得過去；子分頁與預約全程的篩選也寫在網址。
+// 區域分析的地圖模式、選取的里與表格分頁（areaView）同樣寫在網址。
 // 招生開關關閉時同招生入學，顯示「尚未啟用」。
-const { campus, schoolYear, semester, sub, journey, visibleCampusKeys, defaultYear } = useAdmissionsFilters('stats')
+const { campus, schoolYear, semester, sub, journey, areaView, visibleCampusKeys, defaultYear } = useAdmissionsFilters('stats')
 const availability = useAdmissionsAvailability(campus)
 const route = useRoute()
 const router = useRouter()
@@ -54,6 +55,7 @@ function openRecords(filter: { month?: string; area?: string; withdraw?: string 
         <StatsTab
           v-model:sub="sub"
           v-model:journey="journey"
+          v-model:area-view="areaView"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"

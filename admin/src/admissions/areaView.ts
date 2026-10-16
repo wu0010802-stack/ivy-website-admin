@@ -27,11 +27,11 @@ export interface AreaView {
   table: AreaTableTab
 }
 
-export const DEFAULT_AREA_VIEW: AreaView = { map: null, village: '', table: 'village' }
+/** 預設畫面；凍結，要新值（model 預設、重設）一律 `{ ...DEFAULT_AREA_VIEW }`。 */
+export const DEFAULT_AREA_VIEW: Readonly<AreaView> = Object.freeze({ map: null, village: '', table: 'village' })
 
 // VILLCODE：縣市 2 碼＋鄉鎮 3 碼＋里 6 碼，例 64000050015。
 const VILLAGE_CODE = /^\d{11}$/
-const DEFAULT_TABLE: AreaTableTab = 'village'
 
 // 網址參數重複時取第一個；非字串（null、巢狀）當沒帶。
 const text = (value: unknown): string => {
@@ -54,7 +54,7 @@ export function parseAreaViewQuery(query: LocationQuery): AreaView {
   return {
     map: isMapMode(map) ? map : DEFAULT_AREA_VIEW.map,
     village: VILLAGE_CODE.test(village) ? village : DEFAULT_AREA_VIEW.village,
-    table: isTableTab(table) ? table : DEFAULT_TABLE,
+    table: isTableTab(table) ? table : DEFAULT_AREA_VIEW.table,
   }
 }
 
@@ -62,7 +62,7 @@ export function parseAreaViewQuery(query: LocationQuery): AreaView {
 export function areaViewQuery(view: AreaView): Record<string, string> {
   const query: Record<string, string> = {}
   if (view.map !== null) query.map = view.map
-  if (view.village !== '') query.village = view.village
-  if (view.table !== DEFAULT_TABLE) query.table = view.table
+  if (view.village !== DEFAULT_AREA_VIEW.village) query.village = view.village
+  if (view.table !== DEFAULT_AREA_VIEW.table) query.table = view.table
   return query
 }

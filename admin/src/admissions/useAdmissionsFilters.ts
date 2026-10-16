@@ -2,6 +2,7 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { useCampusScope } from '../composables/useCampusScope'
 import { currentTerm } from './academic'
+import { DEFAULT_AREA_VIEW, areaViewQuery, parseAreaViewQuery, type AreaView } from './areaView'
 import { parseAreaQuery } from './areaFilter'
 import { isWithdrawFilter } from './constants'
 import { DEFAULT_JOURNEY_FILTER, journeyQuery, parseJourneyQuery, type JourneyFilter } from './journeyFormat'
@@ -59,6 +60,9 @@ export type AdmissionsPage = 'admissions' | 'stats'
  *   所以上一頁回到離開時的子分頁。
  * - jp／jf／jt／js：「預約全程」的期間、自訂起訖與來源（journeyFormat.ts），只在 sub=journey 有意義，
  *   離開就拿掉，手改成認不得的值就退回預設。
+ * - map／village／table：「區域分析」的地圖模式、選取的里與表格分頁（areaView.ts，2026-10-16），只在 sub=area
+ *   有意義，離開就拿掉，認不得的值退回預設。畫面上換校區、學年或學期時清掉 village（那個里在新條件下
+ *   不一定有意義）；網址讀進來的（初次掛載、上一頁）不清。
  * 兩頁共用校區、學年、學期；另一頁的參數出現在網址上就拿掉。
  * 畫面改條件用 replace 寫回網址，不堆瀏覽紀錄；網址被改（上一頁、連結）時讀回畫面。
  */
@@ -80,6 +84,7 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
   const withdraw = ref('')
   const sub = ref<StatsSub>('overview')
   const journey = ref<JourneyFilter>({ ...DEFAULT_JOURNEY_FILTER })
+  const areaView = ref<AreaView>({ ...DEFAULT_AREA_VIEW })
 
   function pickCampus(wanted: string): string {
     const keys = visibleCampusKeys.value
@@ -106,6 +111,9 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     withdraw.value = tab.value === 'records' && isWithdrawFilter(wr) ? wr : ''
     sub.value = onStats && isStatsSub(query.sub) ? query.sub : 'overview'
     journey.value = onStats && sub.value === 'journey' ? parseJourneyQuery(query) : { ...DEFAULT_JOURNEY_FILTER }
+    // 排在校區、學年、學期之後：下面「使用者換條件就清 village」的 watch 是 sync 的，apply 改校區也會觸發，
+    // 最後才指派 areaView，網址帶進來的 village 才蓋得過那一次清除（初次掛載、上一頁都保留）。
+    areaView.value = onStats && sub.value === 'area' ? parseAreaViewQuery(query) : { ...DEFAULT_AREA_VIEW }
   }
 
   function stateQuery(): Record<string, string> {
@@ -121,6 +129,7 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     if (tab.value === 'records' && withdraw.value) query.wr = withdraw.value
     if (onStats && sub.value !== 'overview') query.sub = sub.value
     if (onStats && sub.value === 'journey') Object.assign(query, journeyQuery(journey.value))
+    if (onStats && sub.value === 'area') Object.assign(query, areaViewQuery(areaView.value))
     return query
   }
 
@@ -144,7 +153,22 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     journey.value = { ...fresh }
   }
 
+  // 離開區域分析就放掉模式、里與表格分頁；已經是預設就不重新指派（同 resetJourney）。
+  function resetAreaView() {
+    const { map, village, table } = areaView.value
+    const fresh = DEFAULT_AREA_VIEW
+    if (map === fresh.map && village === fresh.village && table === fresh.table) return
+    areaView.value = { ...fresh }
+  }
+
   apply(route.query)
+  // 換校區、學年或學期：選取的里清掉（網址 village 一起拿掉），模式與表格分頁保留。
+  // sync：校區等一變就清，不等到下一輪 flush，syncUrl 寫出去的網址才不帶舊的里；apply() 讀網址時也會經過這裡，
+  // 靠它最後才指派 areaView 把網址的 village 放回來（見 apply）。排在 syncUrl 的 watch 前面。
+  watch([campus, schoolYear, semester], () => {
+    if (areaView.value.village === DEFAULT_AREA_VIEW.village) return
+    areaView.value = { ...areaView.value, village: DEFAULT_AREA_VIEW.village }
+  }, { flush: 'sync' })
   // 離開訪視明細就放掉區域與退出原因篩選。
   watch(tab, (value) => {
     if (value !== 'records') {
@@ -152,8 +176,11 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
       withdraw.value = ''
     }
   })
-  watch(sub, (value) => { if (value !== 'journey') resetJourney() })
-  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey], syncUrl, { immediate: true, deep: true })
+  watch(sub, (value) => {
+    if (value !== 'journey') resetJourney()
+    if (value !== 'area') resetAreaView()
+  })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, areaView], syncUrl, { immediate: true, deep: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -170,6 +197,6 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
   }
 
   return {
-    campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
+    campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, areaView, visibleCampusKeys, defaultYear, clearTerm,
   }
 }

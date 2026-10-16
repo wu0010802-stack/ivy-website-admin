@@ -13,6 +13,7 @@ import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
 import { currentTerm, taipeiToday, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS, UNCLASSIFIED_LABEL, UNCLASSIFIED_WITHDRAW } from '../../admissions/constants'
+import { DEFAULT_AREA_VIEW, type AreaView } from '../../admissions/areaView'
 import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/journeyFormat'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
@@ -44,6 +45,8 @@ const csvName = (title: string) => csvFilename('招生統計', title, campusLabe
 const sub = defineModel<StatsSub>('sub', { default: 'overview' })
 const subTab = computed(() => `stats-${sub.value}`)
 const journey = defineModel<JourneyFilter>('journey', { default: () => ({ ...DEFAULT_JOURNEY_FILTER }) })
+// 區域分析的地圖模式、選取的里與表格分頁（2026-10-16），同樣由頁面放在網址。
+const areaView = defineModel<AreaView>('areaView', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
 
 // 「參觀預約」與「預約全程」讀自己的 API、不用招生統計：兩個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
 const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey')
@@ -415,6 +418,7 @@ function openWithdrawRecords(row: { code: string }) {
       <el-tab-pane label="區域分析" name="stats-area" lazy>
         <AreaTab
           v-if="stats"
+          v-model:view="areaView"
           :campus-key="campusKey"
           :school-year="schoolYear"
           :semester="semester"

@@ -42,6 +42,11 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
     expect(parseAreaViewQuery(areaViewQuery(DEFAULT_AREA_VIEW))).toEqual(DEFAULT_AREA_VIEW)
   })
 
+  it('DEFAULT_AREA_VIEW 凍結，要新值一律展開複製', () => {
+    expect(Object.isFrozen(DEFAULT_AREA_VIEW)).toBe(true)
+    expect({ ...DEFAULT_AREA_VIEW }).toEqual({ map: null, village: '', table: 'village' })
+  })
+
   it('isMapMode 只認七個模式值', () => {
     for (const mode of MAP_MODES) expect(isMapMode(mode.value)).toBe(true)
     for (const value of ['', 'heat', 'Peers', 'constructor', null, undefined, 1, ['peers']]) expect(isMapMode(value)).toBe(false)
