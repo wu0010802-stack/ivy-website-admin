@@ -517,7 +517,8 @@ test('工作台：點地圖上的里 → 右欄里卡片、網址 village=、重
     await expect(side.locator('.area-ranking__item').first()).toContainText('左營區新上里')
     await expect(card).toHaveCount(0)
     await expect(outline).toHaveCount(0)
-    await expectNoSeriousA11y(page, '.area-workbench__side')
+    // 工具列（兩組 radiogroup）與完整表格（預設的「各里」分頁）一起掃。
+    await expectNoSeriousA11y(page, '.area-workbench__side', '.area-toolbar', '.area-full-tables')
   })
 
   await test.step('點地圖上的新上里：卡片寫里名與數字、網址 village=、沒有 popup、外框畫出來', async () => {
@@ -653,10 +654,15 @@ test('工作台：從排行選里地圖 panTo；切表格分頁網址 table=；�
     await page.locator('.el-select-dropdown__item:visible', { hasText: '仁武' }).click()
     await expect.poll(() => queryParam(page, 'campus')).toBe(UNLOCATED_CAMPUS)
     await expect.poll(() => queryParam(page, 'village')).toBeNull()
+    // 換校區只清 village，看什麼（map）保留：仁武的預設剛好也是參觀，但只有停用才會被拿掉，所以網址還是 map=visits。
+    await expect.poll(() => queryParam(page, 'map')).toBe('visits')
     await expect(page.locator('.area-map path.area-village').first()).toBeAttached()
     await expect(page.locator('.village-card')).toHaveCount(0)
     await expect(page.locator('.area-map path.area-village-selected')).toHaveCount(0)
     await expect(page.locator('.area-workbench__side .area-pane__title')).toHaveText('參觀')
+    // 這個校沒有座標、沒有清冊：好幾個模式停用，工具列要帶停用原因那一行（aria-describedby）也沒有 serious／critical 問題。
+    await expect(page.locator('.area-toolbar__note')).toBeVisible()
+    await expectNoSeriousA11y(page, '.area-toolbar')
   })
 
   expect(errors, '頁面不該有未處理的錯誤').toEqual([])
