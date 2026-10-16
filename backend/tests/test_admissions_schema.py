@@ -54,11 +54,14 @@ def test_migration_follows_parent_self_booking_without_branching():
 
 # 參觀後追蹤（2026-10-04）另一個 migration 加的約束，在 test_admissions_follow_up_schema.py 檢查。
 FOLLOW_UP_CHECKS = {"ck_recruitment_visits_follow_up_open"}
+# 退出原因分類（2026-10-15）另一個 migration 加的約束，在 test_withdraw_reason_category_schema.py 檢查。
+WITHDRAW_CATEGORY_CHECKS = {"ck_recruitment_visits_withdraw_reason_category", "ck_recruitment_visits_withdraw_category_withdrawn"}
 
 
 def test_check_conditions_are_identical_in_model_and_migration():
     source = MIGRATION.read_text(encoding="utf-8")
-    visit_checks = {name: sql for name, sql in _checks(RecruitmentVisit).items() if name not in FOLLOW_UP_CHECKS}
+    later = FOLLOW_UP_CHECKS | WITHDRAW_CATEGORY_CHECKS
+    visit_checks = {name: sql for name, sql in _checks(RecruitmentVisit).items() if name not in later}
     conditions = {
         **visit_checks,
         **_checks(GradeIntakeTarget),

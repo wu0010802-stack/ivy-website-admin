@@ -28,7 +28,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.admissions.constants import CONTACT_CHANNELS, GRADES, NO_DEPOSIT_REASONS, SOURCE_CATEGORIES, WITHDRAWN_FROM
+from app.admissions.constants import (
+    CONTACT_CHANNELS,
+    GRADES,
+    NO_DEPOSIT_REASONS,
+    SOURCE_CATEGORIES,
+    WITHDRAW_REASON_CATEGORIES,
+    WITHDRAWN_FROM,
+)
 from app.db import Base
 
 if TYPE_CHECKING:
@@ -37,6 +44,9 @@ if TYPE_CHECKING:
 # 參觀後追蹤（2026-10-04 規格 5.1）：已註冊、已退出、已匿名化的訪視一定沒有下次聯絡。
 # 與 migration b8e3f1a6c4d7 的字面值逐字相同。
 FOLLOW_UP_OPEN_CHECK = "follow_up_at IS NULL OR (enrolled = false AND withdrawn_at IS NULL AND anonymized_at IS NULL)"
+# 退出原因分類（2026-10-15）：有分類就一定已退出。與 migration 5c8e1f3a9d27 的字面值逐字相同
+# （tests/test_withdraw_reason_category_schema.py 檢查）。
+WITHDRAW_CATEGORY_WITHDRAWN_CHECK = "withdraw_reason_category IS NULL OR withdrawn_at IS NOT NULL"
 
 
 def _sql_in(column: str, values: Iterable[str], *, nullable: bool = True) -> str:
@@ -59,6 +69,11 @@ class RecruitmentVisit(Base):
         CheckConstraint(_sql_in("source_category", SOURCE_CATEGORIES), name="ck_recruitment_visits_source_category"),
         CheckConstraint(_sql_in("no_deposit_reason", NO_DEPOSIT_REASONS), name="ck_recruitment_visits_no_deposit_reason"),
         CheckConstraint(_sql_in("withdrawn_from", WITHDRAWN_FROM), name="ck_recruitment_visits_withdrawn_from"),
+        CheckConstraint(
+            _sql_in("withdraw_reason_category", WITHDRAW_REASON_CATEGORIES),
+            name="ck_recruitment_visits_withdraw_reason_category",
+        ),
+        CheckConstraint(WITHDRAW_CATEGORY_WITHDRAWN_CHECK, name="ck_recruitment_visits_withdraw_category_withdrawn"),
         CheckConstraint("target_semester IS NULL OR target_semester IN (1, 2)", name="ck_recruitment_visits_target_semester"),
         CheckConstraint("enrolled = false OR enrolled_on IS NOT NULL", name="ck_recruitment_visits_enrolled_on"),
         Index("ix_recruitment_visits_campus_month", "campus_key", "month"),
@@ -140,6 +155,9 @@ class RecruitmentVisit(Base):
     withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     withdrawn_from: Mapped[str | None] = mapped_column(String(20), nullable=True)
     withdraw_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 退出原因分類（2026-10-15 規格 W1）：退預繳、退註冊時必選；說明仍是 withdraw_reason（選填）。
+    # 取消退出時與說明一起清掉；匿名化只清說明、保留分類（W4）。
+    withdraw_reason_category: Mapped[str | None] = mapped_column(String(40), nullable=True)
     # 樂觀鎖：每次編輯、狀態轉換、保留座位、匿名化都加一。
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

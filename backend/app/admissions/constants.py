@@ -73,6 +73,22 @@ DETAILS_ORIGIN_SYNC = "visit_request_sync"
 # withdrawn_from：從哪一欄退出（退預繳／退註冊）。
 WITHDRAWN_FROM: tuple[str, ...] = ("deposited", "enrolled")
 
+# 退出原因分類（2026-10-15 規格 W1，官網延伸）：園務的退出原因是自由文字、沒有代碼。順序即畫面順序，
+# 字串即代碼（同未預繳原因）；說明仍寫在 withdraw_reason。與 migration 5c8e1f3a9d27 的字面值逐字相同。
+WITHDRAW_REASON_CATEGORIES: tuple[str, ...] = (
+    "抽中公幼／非營利",
+    "改讀其他私立幼兒園",
+    "搬家／距離因素",
+    "費用考量",
+    "家庭照顧安排改變",
+    "孩子健康／適應因素",
+    "課程／環境有疑慮",
+    "未註明／聯絡不上",
+)
+# 訪視明細篩選用的特別值：已退出但沒有分類（改版前退出的舊資料）。
+WITHDRAW_UNCLASSIFIED = "unclassified"
+LEN_WITHDRAW_CATEGORY = 40
+
 # created 事件的 metadata_json.origin：手動新增，或由官網預約（已到場／補建）建立。
 ORIGINS: tuple[str, ...] = ("manual", "visit_request")
 
