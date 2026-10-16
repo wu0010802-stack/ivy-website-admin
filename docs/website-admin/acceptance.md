@@ -736,7 +736,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | 轉移契約與園務一致 | OpenAPI／型別檢查：`export_openapi.py --check` 與 `check-contract-types.mjs`；園務漂移檢查：`backend/scripts/check_ivy_recruitment_contract.py --ivy-backend ~/Desktop/ivy-backend`（對齊 `dfd230c3`） | 通過（OpenAPI／型別 Task 1、4、5 跑過；園務漂移只有 Task 1、5 跑過，Task 10 由控制者再跑一次並回填） |
 | 畫面：退出對話框、補分類、明細與家庭頁顯示、篩選與網址 `wr`（亂碼當沒篩）、統計表與「查看明細」 | admin vitest `admissionsFunnel`、`admissionsRecordDialog`、`admissionsRecords`、`admissionsView`、`statsTab`、`compareTable`、`familyAdmissionsData`；`vue-tsc` | 通過（單檔） |
 | 前端手抄的八項與「未分類」字面值同後端 | `admissionsConstants.test.ts`（讀 `constants.py`、`stats.py` 原始碼逐字比對） | 通過（單檔） |
-| 真實瀏覽器流程、390px 不溢出 | `tests/stack/admissions-withdraw.spec.ts` | 未跑，見下一個 commit |
+| 真實瀏覽器流程、390px 不溢出 | `tests/stack/admissions-withdraw.spec.ts`（另更新 `exports.spec.ts` 為 38 欄） | 通過（stack 全套 145 passed，`1577276a`） |
 
 驗證（2026-10-16，Node 22、本機 PostgreSQL；程式在 `ffc7eaf7`；各 Task 單檔結果）：
 
@@ -744,12 +744,12 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - 退出分類：schema 相關四檔 48 passed、`test_admissions_contract.py` 7 passed；API 八檔 163 passed、相鄰五檔 76 passed；篩選、CSV、統計、契約、匿名化五檔 94 passed，相鄰四檔 114 passed、引用統計與匯出四檔 115 passed。
 - admin vitest：歷程事件（`admissionsConstants`、`familyPage`、`admissionsFunnel` 三檔 80 passed，`visitTimeline`、`labelCoverage` 19 passed）；退出對話框與顯示（九檔 217 passed，另四檔 47 passed）；篩選與統計表（十二檔 246 passed）；`npm run typecheck` 無錯誤。
 - 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致（未用 `npm run contract:check`，它內含 `uv run`，會改到共用 venv）。
-- 全套驗證：見下一個 commit。
+- 全套驗證：合併 `origin/main` `e420e9f2`（附近同業比較；migration `5c8e1f3a9d27` 改接 `f2b8c4d1e7a9`，測試庫重建）後在 `1577276a`：後端全套 3480 passed、1 skipped、0 failed（21.5 分鐘）；admin 全套 164 個檔案 2595 passed、1 skipped（`--testTimeout=60000`，機器負載高）；admin、web `typecheck` 通過；`export_openapi.py --check`、`check-contract-types.mjs`、`check_ivy_recruitment_contract.py`（對齊 `dfd230c3`）一致；stack 全套重新 build 後 145 passed、0 failed（5.6 分鐘），含 `admissions-withdraw.spec.ts`（退出選分類、歷程、明細篩選、統計表、桌機與 390px 不溢出）與更新後的 `exports.spec.ts`（38 欄）。合併前在 `ffc7eaf7`／`49dae8e7`／`dd527c7c` 也各跑過一輪（後端 3349 passed＋1 個 PostgreSQL 連線數滿的環境錯誤、單檔重跑通過；admin 2556 passed；stack 143 passed）。
 
 未驗證／沒做：
 
 - 沒有登入正式後台看過畫面，沒有部署、沒有 push；正式站沒有跑過這支 migration。
-- 篩選列多一欄後桌機寬度是否換行、390px 時子分頁標籤變長，單元與元件測試量不到。
+- （已驗證）篩選列多一欄後桌機換行與 390px 版面：stack e2e 量過不溢出，1440／390 截圖人工看過。
 - 歷程抽屜與家庭頁沒有另寫元件渲染測試，兩處共用的 `eventLabel`、`recruitmentEventChanges` 有測試。
 
 已知事項（接受、不擋合併）：

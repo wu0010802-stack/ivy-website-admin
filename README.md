@@ -9,8 +9,8 @@
   - 後端：歷程事件 `test_admissions_history_events.py` 加預約同步 1 條，12 passed；歷程相關指定檔 150、契約／保存／學期 41、其餘招生 169 passed；schema 與 geo 48、契約 7 passed，測試庫 `alembic upgrade`、`downgrade -1`、再 `upgrade` 來回成功（單一 head `5c8e1f3a9d27`）；退出分類 API 與相關檔 163、再加相鄰 76 passed；篩選、CSV、統計、匯出、匿名化 94 passed，相鄰 114、引用統計與匯出的 115 passed。
   - 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致；`check_ivy_recruitment_contract.py` 與園務一致（對齊 `dfd230c3`）。
   - admin：歷程中文與變更行 80 passed（另 19）；退出對話框、補分類、明細顯示 217 passed（另 47）；篩選與統計表 246 passed；`vue-tsc` 無錯誤。
-  - 全套驗證：見下一個 commit。
-- **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；篩選列多一欄後桌機是否換行、390px 子分頁標籤變長，單元與元件測試量不到，stack e2e 的結果見下一個 commit。
+  - 全套驗證：合併 `origin/main` `e420e9f2`（附近同業比較；migration `5c8e1f3a9d27` 改接 `f2b8c4d1e7a9`，測試庫重建）後在 `1577276a`：後端全套 3480 passed、1 skipped、0 failed（21.5 分鐘）；admin 全套 164 個檔案 2595 passed、1 skipped（`--testTimeout=60000`，機器負載高）；admin、web `typecheck` 通過；`export_openapi.py --check`、`check-contract-types.mjs`、`check_ivy_recruitment_contract.py`（對齊 `dfd230c3`）一致；stack 全套重新 build 後 145 passed、0 failed（5.6 分鐘），含 `admissions-withdraw.spec.ts`（退出選分類、歷程、明細篩選、統計表、桌機與 390px 不溢出）與更新後的 `exports.spec.ts`（38 欄）。合併前在 `ffc7eaf7`／`49dae8e7`／`dd527c7c` 也各跑過一輪（後端 3349 passed＋1 個 PostgreSQL 連線數滿的環境錯誤、單檔重跑通過；admin 2556 passed；stack 143 passed）。
+- **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；桌機篩選列與 390px 版面由 stack e2e 量過不溢出並截圖人工看過（`output/playwright/withdraw-*.png`，不進版控）。
 
 ## 2026-10-16 區域分析：附近同業收費（`feature/peer-fees-20261015`）
 
