@@ -76,10 +76,17 @@ function setTab(name: string | number) {
 
 const birthPeriods = computed(() => props.trends?.baseline?.births_series ?? [])
 const radiusKm = computed(() => props.trends?.radius_km ?? 3)
-// 整塊用不了寫原因（本校沒座標、各里資料沒匯入）；沒有期別沿用「里的變化」的無資料句。
+// 沒有期別可畫時依原因寫，不能一律說「沒有里的資料」（各里頁籤明明列著里）：整塊用不了寫 trendsUnavailable 的原因；
+// 有期別就畫；出生資料沒匯入；範圍內沒有里（沿用「里的變化」的無資料句）；其餘是每一期都不到最少月數。
 const birthsEmptyText = computed(() => {
-  if (!props.trends) return ''
-  return trendsUnavailable(props.trends) ?? (birthPeriods.value.length ? '' : `本校 ${radiusKm.value} 公里內沒有里的資料。`)
+  const trends = props.trends
+  if (!trends) return ''
+  const unavailable = trendsUnavailable(trends)
+  if (unavailable) return unavailable
+  if (birthPeriods.value.length) return ''
+  if (trends.sources.births.latest === null) return '各里出生資料尚未匯入。'
+  if (trends.villages.length === 0) return `本校 ${radiusKm.value} 公里內沒有里的資料。`
+  return '出生資料的月份還不夠一期，先不列近幾年的出生數。'
 })
 
 // ---- 參觀來源 ----
@@ -127,13 +134,13 @@ function openVillage({ district, village }: AreaVillageRow) {
 </script>
 
 <template>
-  <section class="area-tables" :aria-labelledby="headingId">
-    <h2 :id="headingId" class="area-tables__title">完整表格</h2>
-    <el-tabs :model-value="tab" class="area-tables__tabs" @update:model-value="setTab">
+  <section class="area-full-tables" :aria-labelledby="headingId">
+    <h2 :id="headingId" class="area-full-tables__title">完整表格</h2>
+    <el-tabs :model-value="tab" class="area-full-tables__tabs" @update:model-value="setTab">
       <el-tab-pane v-for="item in tabs" :key="item.name" :name="item.name">
         <template #label>
           <span>{{ item.label }}</span>
-          <span v-if="item.count !== null" class="area-tables__count">{{ item.count }}</span>
+          <span v-if="item.count !== null" class="area-full-tables__count">{{ item.count }}</span>
         </template>
 
         <!-- 只畫目前那一頁：其他頁的面板不掛（el-tab-pane 的外框留著，aria-controls 才接得上）。 -->
@@ -190,7 +197,7 @@ function openVillage({ district, village }: AreaVillageRow) {
 
           <template v-else>
             <p v-if="area.totals.visit === 0" class="empty-note">{{ emptyText }}</p>
-            <div v-else class="area-tables__visits">
+            <div v-else class="area-full-tables__visits">
               <StatsDimensionTable
                 title="行政區排行"
                 :rows="districtRows"
@@ -233,23 +240,23 @@ function openVillage({ district, village }: AreaVillageRow) {
 </template>
 
 <style scoped>
-.area-tables {
+.area-full-tables {
   display: grid;
   gap: 8px;
   min-width: 0;
 }
 
-.area-tables__title {
+.area-full-tables__title {
   font-size: var(--text-xl);
   line-height: 1.35;
 }
 
-.area-tables__tabs {
+.area-full-tables__tabs {
   min-width: 0;
 }
 
 /* 標籤後的數字比標籤淡一階；和標籤之間的空隙用邊距，不靠空白字元（標籤文字才是「各里3」連著讀）。 */
-.area-tables__count {
+.area-full-tables__count {
   margin-inline-start: 6px;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
@@ -258,7 +265,7 @@ function openVillage({ district, village }: AreaVillageRow) {
 /* 一欄至少 36rem：里排行加上「可能範圍」與「查看明細」欄 1440 實測約 562px（2026-10-12），窄過這個寬度寧可換列、不要把欄擠出表框。
    1440 螢幕（側欄之外約 1124px）放不下兩欄，三張表各占一列；更寬的螢幕才兩張並排。min(100%, …) 讓窄螢幕自然變單欄，
    表格在自己的框內橫捲。 */
-.area-tables__visits {
+.area-full-tables__visits {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr));
   gap: 24px;

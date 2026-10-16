@@ -52,7 +52,7 @@ describe('完整表格：分頁與數字', () => {
     expect(pricedSchools()).toBeGreaterThan(0)
     expect(tabLabels(wrapper)).toEqual(['各里3', '國小學區3', '在籍學生5', `同業收費${pricedSchools()}`, '出生走勢', '參觀來源7'])
     expect(wrapper.findAll('.el-tabs__item').map((item) => item.attributes('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false'])
-    expect(wrapper.findAll('.area-tables__count').map((count) => count.text())).toEqual(['3', '3', '5', String(pricedSchools()), '7'])
+    expect(wrapper.findAll('.area-full-tables__count').map((count) => count.text())).toEqual(['3', '3', '5', String(pricedSchools()), '7'])
   })
 
   it('資料還沒回來的頁籤不帶數字（各里、國小學區、在籍學生、同業收費）；參觀來源的數字來自 area', () => {
@@ -83,7 +83,7 @@ describe('完整表格：分頁與數字', () => {
   it('只畫目前那頁：換頁其他五頁的面板不在 DOM', async () => {
     const markers: Record<AreaTableTab, string> = {
       village: '.village-table', school: '.school-districts', enrolled: '.enrolled-panel', fees: '.peer-fees',
-      births: '.birth-series', visits: '.area-tables__visits',
+      births: '.birth-series', visits: '.area-full-tables__visits',
     }
     const wrapper = mountTables()
     for (const tab of AREA_TABLE_TABS) {
@@ -114,6 +114,9 @@ describe('完整表格：各里', () => {
 
   it('兩份讀取失敗各自重試：emit retry 帶來源', async () => {
     const wrapper = mountTables({ trendsFailed: true, opportunityFailed: true, trends: null, opportunity: null })
+    // 失敗句只有各里表自己寫的那一份（AreaTables 在這一頁不重複）。
+    expect(wrapper.findAll('.trends-error')).toHaveLength(1)
+    expect(wrapper.findAll('.opportunity-error')).toHaveLength(1)
     await wrapper.get('.trends-error button').trigger('click')
     await wrapper.get('.opportunity-error button').trigger('click')
     expect(wrapper.emitted('retry')).toEqual([['trends'], ['opportunity']])
@@ -136,6 +139,7 @@ describe('完整表格：國小學區', () => {
 
   it('里的變化讀取失敗：這一頁自己寫失敗句與重試（沒有各里表可以代勞）', async () => {
     const wrapper = mountTables({ tab: 'school', trends: null, trendsFailed: true })
+    expect(wrapper.findAll('.trends-error')).toHaveLength(1)
     expect(wrapper.get('.trends-error').text()).toContain('無法讀取里的變化，請重新載入。')
     expect(wrapper.find('.school-districts').exists()).toBe(false)
     await wrapper.get('.trends-error button').trigger('click')
@@ -214,12 +218,50 @@ describe('完整表格：出生走勢', () => {
     expect(mountTables({ tab: 'births', trends: null }).find('.el-skeleton').exists()).toBe(true)
   })
 
-  it('整塊用不了寫原因；沒有期別寫沒有里的資料', () => {
+  // 沒有期別的四種原因各寫各的，不能都說「沒有里的資料」：各里頁籤明明列著里（出生走勢規格 §4.3：缺資料就寫缺，不補值）。
+  it('整塊用不了（本校沒座標）：寫 trendsUnavailable 的原因', () => {
     const base = areaTrends()
     const unlocated = areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [], schools: [] })
-    expect(mountTables({ tab: 'births', trends: unlocated }).get('.empty-note').text()).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
-    const noSeries = areaTrends({ baseline: { ...base.baseline!, births_series: [] } })
-    expect(mountTables({ tab: 'births', trends: noSeries }).get('.empty-note').text()).toBe('本校 3 公里內沒有里的資料。')
+    const wrapper = mountTables({ tab: 'births', trends: unlocated })
+    expect(wrapper.get('.empty-note').text()).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+    expect(wrapper.find('.birth-series').exists()).toBe(false)
+  })
+
+  it('出生資料沒匯入但里有資料：寫「各里出生資料尚未匯入。」，不說沒有里', () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      sources: { ...base.sources, births: { latest: null, months: [], missing: [] } },
+      baseline: { ...base.baseline!, births_series: [] },
+    })
+    expect(trends.villages.length).toBeGreaterThan(0)
+    const wrapper = mountTables({ tab: 'births', trends })
+    expect(wrapper.get('.empty-note').text()).toBe('各里出生資料尚未匯入。')
+    expect(wrapper.find('.birth-series').exists()).toBe(false)
+  })
+
+  it('出生有匯入、月份還不夠一期且里有資料：寫「出生資料的月份還不夠一期…」', () => {
+    const base = areaTrends()
+    const trends = areaTrends({ baseline: { ...base.baseline!, births_series: [] } })
+    expect(trends.villages.length).toBeGreaterThan(0)
+    expect(trends.sources.births.latest).not.toBeNull()
+    const wrapper = mountTables({ tab: 'births', trends })
+    expect(wrapper.get('.empty-note').text()).toBe('出生資料的月份還不夠一期，先不列近幾年的出生數。')
+    expect(wrapper.find('.birth-series').exists()).toBe(false)
+  })
+
+  it('本校範圍內真的沒有里：寫「本校 N 公里內沒有里的資料。」（N 跟著 radius_km）', () => {
+    const base = areaTrends()
+    const trends = areaTrends({ radius_km: 1, villages: [], schools: [], baseline: { ...base.baseline!, births_series: [] } })
+    const wrapper = mountTables({ tab: 'births', trends })
+    expect(wrapper.get('.empty-note').text()).toBe('本校 1 公里內沒有里的資料。')
+  })
+
+  it('有期別就畫出生數，不論其他欄位（出生資料沒匯入的判斷排在期別之後）', () => {
+    const base = areaTrends()
+    const trends = areaTrends({ sources: { ...base.sources, births: { ...base.sources.births, latest: null } } })
+    const wrapper = mountTables({ tab: 'births', trends })
+    expect(wrapper.find('.empty-note').exists()).toBe(false)
+    expect(wrapper.find('.birth-series').exists()).toBe(true)
   })
 })
 
@@ -273,15 +315,15 @@ describe('完整表格：樣式與標記', () => {
   const rule = (selector: string) => new RegExp(`${selector.replace('.', '\\.')} \\{([^}]*)\\}`).exec(tablesSource)![1]!
 
   it('標題 --text-xl、數字淺色走 token、不寫色碼字面值', () => {
-    expect(rule('.area-tables__title')).toContain('font-size: var(--text-xl)')
-    expect(rule('.area-tables__count')).toContain('color: var(--ink-3)')
+    expect(rule('.area-full-tables__title')).toContain('font-size: var(--text-xl)')
+    expect(rule('.area-full-tables__count')).toContain('color: var(--ink-3)')
     const style = /<style scoped>([\s\S]*)<\/style>/.exec(tablesSource)![1]!
     expect(style).not.toMatch(/rgba?\(|oklch\(|hsla?\(|#[0-9a-fA-F]{3,8}\b/)
   })
 
   // 里排行加「可能範圍」「查看明細」欄 1440 實測約 562px，一欄至少 36rem 才不會把欄擠出表框（2026-10-12）。
   it('參觀來源三張表：一欄至少 36rem、窄螢幕靠 min(100%, …) 變單欄', () => {
-    const body = rule('.area-tables__visits')
+    const body = rule('.area-full-tables__visits')
     expect(body).toContain('grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr))')
     expect(body).not.toContain('300px')
   })
