@@ -19,7 +19,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select, update
 
 from app.admissions import academic, constants
-from app.admissions.models import RecruitmentVisit
+from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.auth.models import Role
 from app.auth.permissions import _CAPABILITY_ROLES
 from app.booking import workflow_service
@@ -845,3 +845,31 @@ async def test_permissions(
     )
     # 案件不存在 → 404。
     assert (await _patch(admin_client, uuid.uuid4(), expected_version=1, phone=OLD_PHONE)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_synced_fields_are_recorded_in_admissions_history(admin_client, public_client, db_session):
+    """2026-10-15 招生歷程（H4）：從預約同步過來的變更寫 details_updated，只記欄位名並標 origin；沒同步就不寫。"""
+    booking = await _completed_with_recruitment(admin_client, public_client, db_session, phone=OLD_PHONE)
+    case_id = booking["id"]
+    response = await _patch(admin_client, case_id, expected_version=await _version(admin_client, case_id), phone=NEW_PHONE)
+    assert response.status_code == 200, response.text
+    visit = await _recruitment(db_session, case_id)
+
+    async def history() -> list[RecruitmentEventLog]:
+        result = await db_session.execute(
+            select(RecruitmentEventLog)
+            .where(RecruitmentEventLog.recruitment_visit_id == visit.id, RecruitmentEventLog.event_type == "details_updated")
+            .execution_options(populate_existing=True)
+        )
+        return list(result.scalars())
+
+    [event] = await history()
+    assert event.metadata_json == {"fields": ["phone"], "origin": "visit_request_sync"}
+    assert (event.from_stage, event.to_stage, event.reason) == ("visited", "visited", None)
+    assert event.actor_user_id is not None
+    assert NEW_PHONE not in json.dumps(event.metadata_json)
+
+    email_only = await _patch(admin_client, case_id, expected_version=await _version(admin_client, case_id), email=NEW_EMAIL)
+    assert email_only.status_code == 200, email_only.text
+    assert len(await history()) == 1  # Email 不同步到招生，不寫歷程

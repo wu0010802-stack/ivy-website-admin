@@ -80,5 +80,5 @@
     "event_types": ["converted", "deposit_added", "deposit_removed", "revert_converted", "seat_released", "seat_reserved", "withdraw_cancelled", "withdrawn"],
     "withdrawn_from": ["deposited", "enrolled"]
   },
-  "website_only": {"event_types": ["created"]}
+  "website_only": {"event_types": ["created", "details_updated", "follow_up_updated"]}
 }

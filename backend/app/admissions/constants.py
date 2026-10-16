@@ -51,6 +51,8 @@ STAGE_LABELS: dict[str, str] = {
 }
 
 # recruitment_event_log.event_type。created 是官網延伸（園務不寫），匯出時不轉。
+# 2026-10-15 招生歷程：details_updated（修改招生資料）、follow_up_updated（排下次聯絡）也是官網延伸，
+# 只記欄位名與日期（metadata 不放個資），匯出時同樣不轉。
 EVENT_TYPES: tuple[str, ...] = (
     "created",
     "deposit_added",
@@ -61,8 +63,12 @@ EVENT_TYPES: tuple[str, ...] = (
     "withdraw_cancelled",
     "seat_reserved",
     "seat_released",
+    "details_updated",
+    "follow_up_updated",
 )
-WEBSITE_ONLY_EVENT_TYPES: tuple[str, ...] = ("created",)
+WEBSITE_ONLY_EVENT_TYPES: tuple[str, ...] = ("created", "details_updated", "follow_up_updated")
+# details_updated 的 metadata_json.origin：預約改家長資料時同步過來的（一般編輯不帶 origin）。
+DETAILS_ORIGIN_SYNC = "visit_request_sync"
 
 # withdrawn_from：從哪一欄退出（退預繳／退註冊）。
 WITHDRAWN_FROM: tuple[str, ...] = ("deposited", "enrolled")

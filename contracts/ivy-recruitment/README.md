@@ -63,7 +63,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 | 歷程 `actor_user_id` | `metadata_json.website_actor` | `{"user_id": 官網帳號 uuid, "name": 顯示名稱}`（沒設顯示名稱時 `name` 為 `null`，匯出檔不帶同事 Email）；`actor_user_id` 留空 |
 | `visit_request_id` | （沒有對應欄位） | 放在 `extensions`；官網預約模組併入時再對應新 id |
 | `enrolled` | 同名 | 園務以學生檔為準：`enrolled=true` 的依「姓名＋生日」唯一比對學生，設 `students.recruitment_visit_id`；比對不到或多筆的列入人工清單，不自動建學生 |
-| `version`、`anonymized_at`、`created` 事件 | — | 不轉（`created` 是官網延伸，建立時間以 `recruitment_visits.created_at` 為準） |
+| `version`、`anonymized_at`、`created`／`details_updated`／`follow_up_updated` 事件 | — | 不轉（`created` 是官網延伸，建立時間以 `recruitment_visits.created_at` 為準） |
 | `grade_intake_targets.updated_by` | — | 不匯出：官網延伸（最後修改計畫名額的官網帳號），園務 `grade_intake_targets` 沒有對應欄位 |
 | `follow_up_at`、`follow_up_owner_id`、`last_contacted_at` | — | 官網延伸（參觀後追蹤，2026-10-04），只放在 `extensions`；園務沒有對應欄位，下次聯絡與負責人不轉 |
 | `english_name`、`father_occupation`、`mother_occupation` | — | 官網延伸（2026-10-05 照紙本補），只放在 `extensions`；園務招生沒有這些欄位（學生檔也沒有英文名、職業），併入時再決定放哪 |
@@ -89,7 +89,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 3. 主鍵是 uuid、時間存 UTC（匯出時才轉台北時間 naive）。
 4. 「已註冊」只有 `enrolled` 旗標與註冊日期 `enrolled_on`，沒有學生檔；退註冊、取消註冊只要 `admissions.convert`，不刪學生檔。
 5. 年級固定四個名稱（幼幼班、小班、中班、大班），存名稱不存 `class_grades.id`。
-6. 官網多寫 `created` 事件（`metadata_json.origin` 為 `manual` 或 `visit_request`）；園務不寫，匯出時略過。
+6. 官網多寫三種歷程事件，園務不寫，匯出時略過：`created`（`metadata_json.origin` 為 `manual` 或 `visit_request`）；2026-10-15 起的 `details_updated`（修改招生資料，`metadata_json` 是 `{"fields": [欄位名]}`，從預約同步的另有 `"origin": "visit_request_sync"`）與 `follow_up_updated`（排下次聯絡，`{"follow_up_at", "previous_follow_up_at", "owner_changed"}`）。三者都列在 `ivy-schema.json` 的 `website_only.event_types`。
 7. 狀態不允許的轉換回 422 `TRANSITION_NOT_ALLOWED`；園務回 400。
 8. 月比（本月對上月）任一邊是 `null`，差值也是 `null`；園務會算成 100.0－0，上月沒資料就誤報。「本月漏斗轉換下滑」警示 2026-10-12 起不再看月比，改由第 19 點判斷。
 9. 同票排序：園務的班別、接待人員、介紹者 × 來源、未預繳原因只有單鍵降序，同票順序看資料庫；官網一律加第二鍵「標籤字串升序（Python 字碼順序）」。來源分析照園務三鍵（參觀降、預繳降、來源升）。來源失衡同占比時取標籤升序的第一個（園務取 SQL 回傳順序）。

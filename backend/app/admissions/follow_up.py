@@ -207,9 +207,13 @@ async def update_follow_up(
     changes: dict,
     expected_version: int,
     now: datetime | None = None,
+    actor_user_id: uuid.UUID | None = None,
 ) -> list[str]:
     """只改下次聯絡或負責人（規格 6.4）。changes 只含請求有送的鍵（follow_up_at、
-    follow_up_owner_id），值 None＝清除。回傳真的有變的欄位；沒變就不加版本。"""
+    follow_up_owner_id），值 None＝清除。回傳真的有變的欄位；沒變就不加版本、不寫歷程。
+
+    有變時同一個交易寫一筆 follow_up_updated 歷程（2026-10-15 規格 H5、H6）：前後的下次聯絡
+    時間與「負責人有沒有換」，不記負責人是誰。記錄聯絡（add_contact_log）順便排的不走這裡。"""
     current = now or _now()
     if visit.version != expected_version:
         raise records.VersionConflict(visit.version)
@@ -224,10 +228,22 @@ async def update_follow_up(
     changed = [key for key, value in changes.items() if getattr(visit, key) != value]
     if not changed:
         return []
+    previous = visit.follow_up_at
     for key in changed:
         setattr(visit, key, changes[key])
     visit.version += 1
     visit.updated_at = current
+    stage = derive_stage(visit)
+    records.write_event(
+        db, visit, event_type="follow_up_updated", from_stage=stage, to_stage=stage,
+        actor_user_id=actor_user_id,
+        metadata={
+            "follow_up_at": visit.follow_up_at.isoformat() if visit.follow_up_at else None,
+            "previous_follow_up_at": previous.isoformat() if previous else None,
+            "owner_changed": "follow_up_owner_id" in changed,
+        },
+        created_at=current,
+    )
     await db.flush()
     return changed
 

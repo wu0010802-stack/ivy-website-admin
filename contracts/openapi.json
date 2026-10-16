@@ -10812,7 +10812,9 @@
               "withdrawn",
               "withdraw_cancelled",
               "seat_reserved",
-              "seat_released"
+              "seat_released",
+              "details_updated",
+              "follow_up_updated"
             ],
             "title": "Event Type",
             "type": "string"

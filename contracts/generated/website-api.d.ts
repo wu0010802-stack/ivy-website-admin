@@ -6650,7 +6650,7 @@ export interface components {
              * Event Type
              * @enum {string}
              */
-            event_type: "created" | "deposit_added" | "deposit_removed" | "converted" | "revert_converted" | "withdrawn" | "withdraw_cancelled" | "seat_reserved" | "seat_released";
+            event_type: "created" | "deposit_added" | "deposit_removed" | "converted" | "revert_converted" | "withdrawn" | "withdraw_cancelled" | "seat_reserved" | "seat_released" | "details_updated" | "follow_up_updated";
             /** From Stage */
             from_stage: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
             /**

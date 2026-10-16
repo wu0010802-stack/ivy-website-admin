@@ -254,7 +254,9 @@ async def update_recruitment_visit(
     visit = await _writable_visit_for(db, current_user, visit_id, "admissions.write")
     changes = payload.model_dump(exclude_unset=True, exclude={"expected_version"})
     try:
-        changed = await records.update_visit(db, visit, changes=changes, expected_version=payload.expected_version)
+        changed = await records.update_visit(
+            db, visit, changes=changes, expected_version=payload.expected_version, actor_user_id=current_user.id
+        )
     except records.VersionConflict as exc:
         await db.rollback()
         raise _version_conflict(exc) from exc
@@ -719,7 +721,7 @@ async def update_follow_up(
     changes = payload.model_dump(include=payload.model_fields_set - {"expected_version"})
     try:
         changed = await follow_up.update_follow_up(
-            db, visit, changes=changes, expected_version=payload.expected_version
+            db, visit, changes=changes, expected_version=payload.expected_version, actor_user_id=current_user.id
         )
     except records.VersionConflict as exc:
         await db.rollback()

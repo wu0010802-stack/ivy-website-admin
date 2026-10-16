@@ -20,7 +20,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions import academic, constants, follow_up, records
+from app.admissions import academic, constants, follow_up, funnel, records
 from app.admissions.models import RecruitmentVisit
 from app.booking import history
 from app.booking.models import VisitRequest
@@ -197,6 +197,12 @@ async def sync_from_visit_request(
     if synced:
         visit.version += 1
         visit.updated_at = datetime.now(timezone.utc)
+        # 2026-10-15 招生歷程（H4）：同步過來的也寫一筆 details_updated，只記欄位名並標 origin。
+        stage = funnel.derive_stage(visit)
+        records.write_event(
+            db, visit, event_type="details_updated", from_stage=stage, to_stage=stage,
+            actor_user_id=actor_user_id, metadata={"fields": list(synced), "origin": constants.DETAILS_ORIGIN_SYNC},
+        )
         await audit_service.log_action(
             db,
             actor_user_id=actor_user_id,
