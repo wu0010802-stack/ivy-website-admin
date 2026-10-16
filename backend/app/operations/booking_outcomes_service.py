@@ -7,6 +7,8 @@
   awaiting_attendance，不算進分母，也不當成到場（3.2：不能用預定日期已過判定已到場）。
 - 待處理兩種（open_now）是現在的狀態，不受期間影響，條件在 booking/pending_kinds.py，
   和總覽、案件列表同一份。
+- 標記排除的測試／重複案件（2026-10-15，booking/exclusion.py）不算進 cases、各結果、班別與待處理；
+  期間內送出的已排除筆數另回 excluded_cases，畫面註明「另有 N 筆已排除」。
 - 不回傳任何個資；只有 analytics.read 的角色也能看。"""
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions import academic
 from app.admissions.constants import GRADES
 from app.admissions.stats import pct
-from app.booking import pending_kinds
+from app.booking import exclusion, pending_kinds
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestSource, VisitRequestStatus
 from app.campuses.models import Campus
 from app.common.timezones import now_utc
@@ -50,6 +52,8 @@ def _empty_counts() -> dict:
     return {
         "cases": 0,
         "web_cases": 0,
+        # 期間內送出、已排除的測試／重複案件（2026-10-15），不在 cases 裡。
+        "excluded_cases": 0,
         **{outcome: 0 for outcome in OUTCOMES},
         "cancelled_by_reason": {reason: 0 for reason in CANCEL_REASON_KEYS},
     }
@@ -66,7 +70,7 @@ def _with_rates(counts: dict) -> dict:
 
 
 def _add_into(total: dict, counts: dict) -> None:
-    for key in ("cases", "web_cases", *OUTCOMES):
+    for key in ("cases", "web_cases", "excluded_cases", *OUTCOMES):
         total[key] += counts[key]
     for reason, value in counts["cancelled_by_reason"].items():
         total["cancelled_by_reason"][reason] += value
@@ -87,7 +91,7 @@ async def booking_outcomes(
             VisitRequest.cancel_reason.label("cancel_reason"),
             (VisitRequest.source == VisitRequestSource.WEB.value).label("is_web"),
         )
-        .where(VisitRequest.campus_key.in_(campus_keys), *period.on(VisitRequest.created_at))
+        .where(VisitRequest.campus_key.in_(campus_keys), *period.on(VisitRequest.created_at), exclusion.not_excluded())
         .subquery()
     )
     rows = (
@@ -105,6 +109,15 @@ async def booking_outcomes(
             bucket["web_cases"] += count
         if outcome == "cancelled":
             bucket["cancelled_by_reason"][reason if reason in CANCEL_REASONS else UNKNOWN] += count
+    excluded_rows = (
+        await db.execute(
+            select(VisitRequest.campus_key, func.count())
+            .where(VisitRequest.campus_key.in_(campus_keys), *period.on(VisitRequest.created_at), exclusion.excluded())
+            .group_by(VisitRequest.campus_key)
+        )
+    ).all()
+    for campus_key, count in excluded_rows:
+        counts[campus_key]["excluded_cases"] = count
 
     open_rows = (
         await db.execute(
@@ -112,7 +125,7 @@ async def booking_outcomes(
                 VisitRequest.campus_key,
                 *[func.count().filter(pending_kinds.condition(kind, current)) for kind in pending_kinds.PENDING_KINDS],
             )
-            .where(VisitRequest.campus_key.in_(campus_keys))
+            .where(VisitRequest.campus_key.in_(campus_keys), exclusion.not_excluded())
             .group_by(VisitRequest.campus_key)
         )
     ).all()
@@ -161,7 +174,7 @@ async def class_distribution(
     rows = (
         await db.execute(
             select(VisitRequest.child_birthdate, func.count())
-            .where(VisitRequest.campus_key == campus_key, *period.on(VisitRequest.created_at))
+            .where(VisitRequest.campus_key == campus_key, *period.on(VisitRequest.created_at), exclusion.not_excluded())
             .group_by(VisitRequest.child_birthdate)
         )
     ).all()
@@ -177,6 +190,11 @@ async def class_distribution(
             out_of_range += count
         else:
             grades[grade] += count
+    excluded_cases = await db.scalar(
+        select(func.count())
+        .select_from(VisitRequest)
+        .where(VisitRequest.campus_key == campus_key, *period.on(VisitRequest.created_at), exclusion.excluded())
+    )
     return {
         "as_of": now or now_utc(),
         "campus_key": campus_key,
@@ -188,4 +206,5 @@ async def class_distribution(
         "grades": [{"grade": grade, "count": count} for grade, count in grades.items()],
         "out_of_range": out_of_range,
         "unrecorded": unrecorded,
+        "excluded_cases": int(excluded_cases or 0),
     }

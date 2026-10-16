@@ -6195,6 +6195,11 @@
             "title": "Completed",
             "type": "integer"
           },
+          "excluded_cases": {
+            "default": 0,
+            "title": "Excluded Cases",
+            "type": "integer"
+          },
           "no_show": {
             "title": "No Show",
             "type": "integer"
@@ -6344,6 +6349,11 @@
               }
             ],
             "title": "Date To"
+          },
+          "excluded_cases": {
+            "default": 0,
+            "title": "Excluded Cases",
+            "type": "integer"
           },
           "grades": {
             "items": {
@@ -8242,6 +8252,11 @@
         "properties": {
           "completed_without_visit": {
             "title": "Completed Without Visit",
+            "type": "integer"
+          },
+          "excluded_cases": {
+            "default": 0,
+            "title": "Excluded Cases",
             "type": "integer"
           },
           "undated_cases": {
@@ -10263,6 +10278,11 @@
           },
           "completed": {
             "title": "Completed",
+            "type": "integer"
+          },
+          "excluded_cases": {
+            "default": 0,
+            "title": "Excluded Cases",
             "type": "integer"
           },
           "no_show": {
@@ -13721,6 +13741,11 @@
             "format": "date",
             "title": "Date To",
             "type": "string"
+          },
+          "excluded_cases": {
+            "default": 0,
+            "title": "Excluded Cases",
+            "type": "integer"
           },
           "rows": {
             "items": {

@@ -323,6 +323,8 @@ class OutcomeCountsOut(BaseModel):
     cases: int
     # 官網表單送出的；其餘是後台補登（電話、LINE、親自到園、外部網站）。
     web_cases: int
+    # 期間內送出、已標記排除的測試／重複案件（2026-10-15）；不在 cases 與各結果裡。
+    excluded_cases: int = 0
     # 已確認、場次還沒開始。
     upcoming: int
     # 已確認、場次已開始，還沒標記到場或未到場。
@@ -438,6 +440,8 @@ class ClassDistributionOut(BaseModel):
     out_of_range: int
     # 沒有生日：舊案只有年齡文字、補登沒問，或已匿名化。
     unrecorded: int
+    # 已排除的測試／重複案件，不在 total 裡。
+    excluded_cases: int = 0
 
 
 @router.get("/admin/analytics/class-distribution", response_model=ClassDistributionOut)

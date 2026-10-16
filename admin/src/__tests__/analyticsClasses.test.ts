@@ -12,7 +12,7 @@ afterEach(() => { wrappers.forEach((wrapper) => wrapper.unmount()); wrappers.len
 const dist = (over: Partial<ClassDistributionOut> = {}): ClassDistributionOut => ({
   as_of: '2026-10-03T06:05:00Z', campus_key: 'yihua', date_from: null, date_to: null, school_year: 115, unit: 'visit_request',
   total: 9, grades: [{ grade: '幼幼班', count: 2 }, { grade: '小班', count: 3 }, { grade: '中班', count: 1 }, { grade: '大班', count: 0 }],
-  out_of_range: 1, unrecorded: 2, ...over,
+  out_of_range: 1, unrecorded: 2, excluded_cases: 0, ...over,
 })
 
 const mountOnly = (props: Record<string, unknown> = {}) => {

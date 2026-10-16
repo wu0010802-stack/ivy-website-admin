@@ -5005,6 +5005,11 @@ export interface components {
             cases: number;
             /** Completed */
             completed: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
@@ -5052,6 +5057,11 @@ export interface components {
             date_from: string | null;
             /** Date To */
             date_to: string | null;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Grades */
             grades: components["schemas"]["GradeCountOut"][];
             /** Out Of Range */
@@ -5747,6 +5757,11 @@ export interface components {
         JourneyCoverageOut: {
             /** Completed Without Visit */
             completed_without_visit: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Undated Cases */
             undated_cases: number;
             /** Visits Without Request */
@@ -6450,6 +6465,11 @@ export interface components {
             cases: number;
             /** Completed */
             completed: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
@@ -7552,6 +7572,11 @@ export interface components {
              * Format: date
              */
             date_to: string;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Rows */
             rows: components["schemas"]["SlotUsageRowOut"][];
             thresholds: components["schemas"]["SlotUsageThresholdsOut"];

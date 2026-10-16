@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
-from app.booking import access_service
+from app.booking import access_service, exclusion
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER
 from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline, parent_change_open
@@ -272,7 +272,7 @@ async def _dispatch_parent_email(
 ) -> bool:
     """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
     沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立、參觀提醒寄出前
-    場次已換或那天停課），runner 會標成 skipped、不重試。"""
+    場次已換、那天停課或案件已標記排除），runner 會標成 skipped、不重試。"""
     if adapter is None:
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
@@ -306,6 +306,9 @@ async def _dispatch_parent_email(
     if kind == PARENT_VISIT_REMINDER and (
         slot is None or str(slot.id) != str(payload.get("slot_id")) or await day_closed(db, visit_request)
     ):
+        return False
+    # 排除的測試／重複案件不寄參觀提醒（2026-10-15 排除規格 E8）；排入之後才排除的在這裡擋下。
+    if kind == PARENT_VISIT_REMINDER and exclusion.is_excluded(visit_request):
         return False
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):

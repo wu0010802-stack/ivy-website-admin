@@ -1059,6 +1059,8 @@ class SlotUsageSlotsOut(BaseModel):
     date_to: date
     thresholds: SlotUsageThresholdsOut
     rows: list[SlotUsageRowOut]
+    # 期間內這些場次上已標記排除的測試／重複案件（2026-10-15）；不算進已約。
+    excluded_cases: int = 0
 
 
 class SlotUsageOut(BaseModel):

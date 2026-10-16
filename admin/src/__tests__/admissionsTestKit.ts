@@ -290,7 +290,7 @@ const buildJourney = () => ({
     deposit_to_withdrawn: { median: 11, n: 2, excluded: 0 },
   },
   rescheduled: { cases: 1, total: 13 },
-  coverage: { visits_without_request: 4, completed_without_visit: 1, undated_cases: 2 },
+  coverage: { visits_without_request: 4, completed_without_visit: 1, undated_cases: 2, excluded_cases: 0 },
 } satisfies AdmissionsJourney)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const journeyData = (changes: Partial<AdmissionsJourney> = {}): AdmissionsJourney => ({ ...buildJourney(), ...changes })
