@@ -568,6 +568,7 @@ test('390px：地圖手機預設不攔單指，按「移動地圖」才接手，
   await context.close()
 })
 
+// 種子會多三所幼兒園且不清掉：這兩則必須留在檔尾。
 test('附近同業收費：總結、落點條、切換年齡、清單收費、托嬰月費', async ({ browser }) => {
   test.setTimeout(90_000)
   mkdirSync(SHOTS, { recursive: true })
@@ -624,10 +625,13 @@ test('390px：附近同業收費不撐出頁面', async ({ browser }) => {
   mkdirSync(SHOTS, { recursive: true })
   seedPeerFees()
   const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
   await openArea(page)
   await page.locator('.peer-fees').scrollIntoViewIfNeeded()
   await expect(page.locator('.peer-fees__summary')).toBeVisible()
   await expectNoHorizontalOverflow(page)
   await page.screenshot({ path: path.join(SHOTS, 'admissions-peer-fees-390.png'), fullPage: true })
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
   await context.close()
 })
