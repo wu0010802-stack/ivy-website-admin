@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 後台第 1 波：系統狀態頁＋家長參觀提醒信（main CI 部署，無 migration）
+
+- **提交**：使用者在本機推 `feature/admin-wave1-20261015` 到 main（fast-forward `263fea2a..4f1e0603`，沒有開 PR）。內容見 README 頂部「後台第 1 波」、DESIGN.md「後台：系統狀態頁」「預約：參觀前 24 小時家長提醒信」、規格 `docs/specs/2026-10-15-admin-system-status-design.md`、`docs/specs/2026-10-15-parent-visit-reminder-design.md`（各有 §7 實作紀錄）。同一次推送也帶進第 2、3 波的規格與計畫（只有文件）。
+- **migration**：無；沒有新環境變數、沒有依賴檔變動。新權限 `system.status` 只給總管理者。
+- **回退**：沒有 schema 變動，可直接切回上一個映像。
+- **推送前閘門**（本機，Node 22；合併 `origin/main` `e420e9f2`／`263fea2a` 後在 `4205463d`）：後端全套 3,518 passed／1 skipped，另 14 個 error 全是本機 PostgreSQL「too many clients」（同時間別的 session 在用），所在 12 個檔案單獨重跑 247 passed；admin vitest 全套 165 檔 2,593 passed／1 skipped；admin、web typecheck 無錯誤；契約 `--check` 兩項一致；stack 全套 145 passed。
+- **CI**：main run 38850358405（`4f1e0603`）04:23:20Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production success，整個 run 04:47:11Z 結束。
+- **正式 `release.json`**：base commit `4f1e060381c2c2d9f9284752daed46ee3aabcedc`，snapshot `c29c58eb…`，created `2026-10-16T04:40:54Z`。
+- **線上唯讀檢查**（未登入，2026-10-16T04:48Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（`last_completed_at` 04:47:51Z）；首頁、`/admin/`、`/visit` 都回 200；新端點 `/api/website/v1/admin/system-status` 未登入回 401（路由已掛）。
+- **待使用者**：登入正式後台看「系統 → 系統狀態」，確認寄信（SMTP）、Turnstile 等列的實況；寄信已設定的話自己按一次「寄一封測試信給我」（會寄真信到自己的帳號）。正式站沒設 SMTP 之前，家長提醒信一律 skipped。
+
 ## 2026-10-16 區域分析：附近同業收費（main CI 部署，migration 只新增）
 
 - **提交**：使用者在本機先推 `feature/peer-fees-20261015`（CI run 38841989719 全綠、部署照設計跳過），再推到 main（fast-forward `303df4bf..e420e9f2`，24 個 commit，沒有開 PR）。內容見 README 頂部「區域分析：附近同業收費」、DESIGN.md「附近同業收費」、規格 `docs/specs/2026-10-15-peer-comparison-design.md`。
