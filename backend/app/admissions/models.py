@@ -202,7 +202,11 @@ class RecruitmentVisit(Base):
 
 class RecruitmentEventLog(Base):
     """招生歷程（規格 5.2）：階段變化、保留座位與建立。reason 是人員填的自由
-    文字，保存政策匿名化時清掉；metadata_json 不放個資。"""
+    文字，保存政策匿名化時清掉；metadata_json 不放個資。
+
+    官網專用事件（園務沒有，匯出時略過，見 constants.WEBSITE_ONLY_EVENT_TYPES）：
+    created，以及 2026-10-15 起的 details_updated（修改招生資料，metadata_json 是
+    {"fields": [欄位名]}）與 follow_up_updated（排下次聯絡）。"""
 
     __tablename__ = "recruitment_event_log"
     __table_args__ = (

@@ -273,7 +273,7 @@ async def update_visit(
     跟著換，並在新月份重新配號（舊序號在新月份可能已被用掉）。
 
     有變時同一個交易寫一筆 details_updated 歷程（2026-10-15 規格 H3）：只記排序後的欄位名，
-    不記舊值與新值。"""
+    不記舊值與新值。withdraw_reason_category 只限已退出的訪視，否則丟 NotWithdrawn。"""
     from app.admissions.funnel import derive_stage
 
     if visit.version != expected_version:
