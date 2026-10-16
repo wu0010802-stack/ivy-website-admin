@@ -3,6 +3,7 @@
 只讀 visit_slots 與 visit_requests，不改資料表。場次＝校區相符、日期在 [今天−週數×7, 昨天]、
 沒有關閉；已約＝排在該場次、占名額的案件數（已確認、已完成、未到場，取消不算，沿用
 slot_service.occupying_condition；標記排除的測試／重複案件不算，筆數另放 excluded_cases）。
+excluded_cases 只數占名額的排除案件（已取消的本來就不在已約裡，不重複算進去）。
 依（星期, 開始時間, 結束時間）分組，規則改過後新舊時段各成一列。"""
 from __future__ import annotations
 

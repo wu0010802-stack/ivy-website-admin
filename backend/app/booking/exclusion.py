@@ -13,6 +13,7 @@ not_excluded()／is_excluded()，不各自寫 excluded_at IS NULL）：
   只扣已約會和可約對不起來（計畫 P10）。
 - 名額占用（slot_service.occupying_condition：送單容量、接待月曆、場次產生）——排除不釋出名額。
 - 案件列表、頁籤數字、CSV——不用 not_excluded()，改用 excluded 篩選（hide／only）。
+- 成效事件（預約流程、每日變化、依來源、預約鈕點擊）：依去識別事件計數、沒有案件連結，無法回溯排除。
 - 停用分校的未結案件、切換預約方式前的確認數——營運安全檢查，看實際狀態。
 
 各統計說明裡的「已排除 N 筆」用 excluded() 數（同一批期間、校區條件下的已排除案件）。
@@ -31,7 +32,8 @@ from app.booking.models import VisitRequest
 
 REASONS = ("test", "duplicate", "other")
 NOTE_MAX = 200
-_FIELDS = ["excluded_at", "excluded_by", "exclude_reason", "exclude_note", "anonymized_at"]
+# 鎖內重讀：除了排除欄位，status／slot_id 也一起更新，等鎖的空檔別人改了狀態或場次時，回應不會帶鎖前的舊值。
+_FIELDS = ["excluded_at", "excluded_by", "exclude_reason", "exclude_note", "anonymized_at", "status", "slot_id"]
 
 
 class AlreadyExcluded(Exception):

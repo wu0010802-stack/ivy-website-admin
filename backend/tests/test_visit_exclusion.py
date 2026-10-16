@@ -283,6 +283,25 @@ async def test_a_second_include_waits_for_the_first_and_then_conflicts(app, admi
     assert [e["event_type"] for e in detail["history"] if e["event_type"] == "exclusion_removed"] == ["exclusion_removed"]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["exclude", "include"])
+async def test_response_carries_the_status_read_under_the_lock(app, admin_client, db_session, action):
+    """等鎖的空檔另一個人把案件標成已到場：回應帶鎖內重讀的狀態，不是鎖前讀到的舊狀態（_FIELDS 含 status）。"""
+    case_id = await legacy_request(db_session, status="confirmed")
+    if action == "include":
+        assert (await admin_client.post(f"{CASES}/{case_id}/exclude", json={"reason": "test"})).status_code == 200
+    async with app.state.session_factory() as other:
+        # 還沒提交：案件列被這個交易鎖住，請求讀完案件後會卡在 FOR UPDATE。
+        await other.execute(update(VisitRequest).where(VisitRequest.id == uuid.UUID(case_id)).values(status="completed"))
+        body = {"json": {"reason": "test"}} if action == "exclude" else {}
+        task = asyncio.create_task(admin_client.post(f"{CASES}/{case_id}/{action}", **body))
+        await _wait_until_blocked(app, task)
+        await other.commit()
+    response = await asyncio.wait_for(task, 15)
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "completed"
+
+
 # --- 列表與明細 ------------------------------------------------------------------------------
 
 

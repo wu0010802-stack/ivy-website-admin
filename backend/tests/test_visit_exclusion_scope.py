@@ -180,15 +180,42 @@ async def test_slot_usage_skips_excluded_and_reports_the_count(db_session):
 
 
 @pytest.mark.asyncio
+async def test_slot_usage_excluded_cases_counts_only_seat_holding_cases(db_session):
+    """excluded_cases 只數占名額的排除案件：已取消的本來就不在已約裡，不算進去。"""
+    day = today_local() - timedelta(weeks=2)
+    slot_id = await _slot(db_session, day=day, capacity=5)
+    await _exclude(db_session, await legacy_request(db_session, status="confirmed", slot_id=slot_id, phone="0912000133"))
+    await _exclude(db_session, await legacy_request(db_session, status="cancelled", slot_id=slot_id, phone="0912000134"))
+    out = await slot_usage.slot_rows(db_session, "yihua", 4, today_local())
+    [row] = out["rows"]
+    assert row["booked"] == 0
+    assert out["excluded_cases"] == 1
+
+
+@pytest.mark.asyncio
 async def test_excluding_does_not_release_the_seat(admin_client, public_client, db_session):
-    """Review Focus 5：排除不釋出名額（E6），公開剩餘名額不變。"""
-    slot_id = await create_slot(admin_client, days_ahead=3, capacity=1)
+    """Review Focus 5：排除不釋出名額（E6）。容量 2、一筆已確認：排除前後公開剩餘名額都是 1（場次一直列著，
+    不是因為別的原因才不列），後台接待月曆的已約數也都是 1。"""
+    slot_id = await create_slot(admin_client, days_ahead=3, capacity=2)
     assert (await set_booking_mode(admin_client, "yihua", mode="slots")).status_code == 200
-    await _exclude(db_session, await legacy_request(db_session, status="confirmed", slot_id=slot_id))
+    case_id = await legacy_request(db_session, status="confirmed", slot_id=slot_id)
     day = (today_local() + timedelta(days=3)).isoformat()
-    slots = (await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={day}&date_to={day}")).json()
-    # 公開場次不列額滿的場次（routes.py list_public_slots：remaining <= 0 就略過）：排除後仍額滿，所以還是不列。
-    assert slot_id not in [s["id"] for s in slots]
+
+    async def public_remaining() -> list[int]:
+        response = await public_client.get(f"{API}/public/slots?campus_key=yihua&date_from={day}&date_to={day}")
+        assert response.status_code == 200, response.text
+        return [s["remaining"] for s in response.json() if s["id"] == slot_id]
+
+    async def calendar_booked() -> list[int]:
+        response = await admin_client.get(f"{API}/admin/visit-calendar?campus_key=yihua&date_from={day}&date_to={day}")
+        assert response.status_code == 200, response.text
+        return [s["booked_count"] for s in response.json() if s["id"] == slot_id]
+
+    assert await public_remaining() == [1]
+    assert await calendar_booked() == [1]
+    await _exclude(db_session, case_id)
+    assert await public_remaining() == [1]
+    assert await calendar_booked() == [1]
 
 
 @pytest.mark.asyncio
