@@ -179,8 +179,12 @@ def _reset_process_caches():
     geo_sync._ris_last_request = None
     original_gap = geo_sync.RIS_REQUEST_GAP_SECONDS
     geo_sync.RIS_REQUEST_GAP_SECONDS = 0.0
+    # 托嬰逐所明細的請求間隔（2026-10-15）：同理歸零。
+    original_detail_gap = geo_sync.BABYCARE_DETAIL_GAP_SECONDS
+    geo_sync.BABYCARE_DETAIL_GAP_SECONDS = 0.0
     yield
     geo_sync.RIS_REQUEST_GAP_SECONDS = original_gap
+    geo_sync.BABYCARE_DETAIL_GAP_SECONDS = original_detail_gap
 
 
 @pytest_asyncio.fixture

@@ -57,17 +57,18 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
 import httpx
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
+from app.admissions.geo import babycare as babycare_io
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
@@ -78,7 +79,7 @@ from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
-from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
+from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
 from app.config import Settings
@@ -108,6 +109,8 @@ FILE_CHUNK_LINES = 5000
 POPULATION_LOOKBACK_MONTHS = 4
 # ris.gov.tw 不間斷連抓約 70 次後回了 HTML 擋頁、間隔 3 秒的都正常（2026-10-14 實測）：每個請求之間至少隔這麼久。
 RIS_REQUEST_GAP_SECONDS = 3.0
+# 托嬰逐所明細（2026-10-15）：一所一個請求，對 GitHub Pages 客氣一點，請求之間隔這麼久。
+BABYCARE_DETAIL_GAP_SECONDS = 0.2
 
 # 上游回應的大小與同步時間上限（2026-10-13 深度掃描 12、13）：同步在 API 同一支程序裡跑，上游內容的
 # 發布者不該能用超大回應耗盡記憶體、或用超量的列數填滿共用資料庫。都是正常值的好幾倍，只擋失控的來源。
@@ -116,6 +119,7 @@ HTML_MAX_BYTES = 2 * 1024 * 1024  # 高雄市資料平台的搜尋頁與資料�
 KINDERGARTENS_MAX_BYTES = 64 * 1024 * 1024  # 全國幼兒園名單（正常約十 MB）
 KINDERGARTEN_REGISTRY_MAX_BYTES = 4 * 1024 * 1024  # 教育部高雄市幼兒園名單（正常約 200 KB）
 BABYCARE_MAX_BYTES = 8 * 1024 * 1024  # 托嬰名單（正常約 1.4 MB）
+BABYCARE_DETAIL_MAX_BYTES = 256 * 1024  # 托嬰逐所明細（正常約 5 KB）
 POPULATION_PAGE_MAX_BYTES = 32 * 1024 * 1024  # 各里人口每一頁（正常約 10 MB）
 DOORPLATE_MAX_BYTES = 400 * 1024 * 1024  # 門牌 CSV（正常約 102 MB）
 DOORPLATE_MAX_ROWS = 1_500_000  # 匯入資料庫的門牌列數（全市正常約 76 萬）
@@ -123,6 +127,7 @@ DOORPLATE_MAX_LINE_CHARS = 64 * 1024  # 單行長度：沒有換行的串流不�
 # 單一資料種類從開始到結束的時間上限（逾時中止、寫進狀態列）。
 DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
 KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
+BABYCARE_DETAIL_TIME_BUDGET = timedelta(minutes=5)
 BABYCARE_TIME_BUDGET = timedelta(minutes=5)
 POPULATION_TIME_BUDGET = timedelta(minutes=30)
 # 各里出生、遷入遷出（2026-10-14）：高雄一個月一頁約 0.2–1.2 MB（全國一頁約 3 MB）；出生 72 個月、遷入遷出
@@ -227,6 +232,7 @@ class GeoSyncResult:
     # 托嬰名單（2026-10-14）：結果、解析時略過的筆數。
     babycare: str = "skipped"
     babycare_rows_skipped: int = 0
+    babycare_details: int = 0  # 這一輪更新了明細的托嬰數（2026-10-15）
     # 各里出生、遷入遷出（2026-10-14）：結果、表裡最新的月份、這一輪寫入的月份數；一年前的年齡回補結果。
     births: str = "skipped"
     births_version: str | None = None
@@ -618,6 +624,49 @@ async def sync_babycare(
         logger.warning("托嬰名單同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "babycare", now=now, error=_error_text(exc))
         return "failed", 0
+
+
+async def babycare_details_missing(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    """有營業中的托嬰、卻沒有一所抓過明細（上線第一輪）。"""
+    async with session_factory() as db:
+        active = await db.scalar(select(func.count()).select_from(GeoBabycare).where(GeoBabycare.is_active.is_(True)))
+        filled = await db.scalar(
+            select(func.count()).select_from(GeoBabycare).where(GeoBabycare.is_active.is_(True), GeoBabycare.quasi_public.is_not(None))
+        )
+    return bool(active) and not filled
+
+
+async def sync_babycare_details(
+    session_factory: async_sessionmaker[AsyncSession], client: httpx.AsyncClient, *, now: datetime
+) -> int:
+    """托嬰逐所明細（2026-10-15 規格 §4.3）：回傳更新了幾所。單所失敗保留舊值；超過時間上限就停，
+    還沒抓的下一輪再抓。不改 babycare 的同步結果與狀態列。"""
+    deadline = time.monotonic() + BABYCARE_DETAIL_TIME_BUDGET.total_seconds()
+    async with session_factory() as db:
+        ids = (
+            await db.execute(
+                select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True)).order_by(GeoBabycare.source_id)
+            )
+        ).scalars().all()
+    updated = failed = 0
+    for source_id in ids:
+        if time.monotonic() > deadline:
+            logger.warning("托嬰明細超過時間上限，這一輪先停：還有 %s 所沒抓", len(ids) - updated - failed)
+            break
+        try:
+            body, _ = await _fetch_capped(client, babycare_io.detail_url(source_id), max_bytes=BABYCARE_DETAIL_MAX_BYTES)
+            detail = babycare_io.parse_babycare_detail(json.loads(body))
+        except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋其他
+            failed += 1
+            logger.warning("托嬰明細下載或解析失敗：%s", _error_text(exc))
+        else:
+            async with session_factory() as db:
+                await db.execute(update(GeoBabycare).where(GeoBabycare.source_id == source_id).values(**asdict(detail)))
+                await db.commit()
+            updated += 1
+        await _sleep(BABYCARE_DETAIL_GAP_SECONDS)
+    logger.info("托嬰明細已更新：%s 所，失敗 %s 所", updated, failed)
+    return updated
 
 
 def recent_months(count: int = POPULATION_LOOKBACK_MONTHS) -> list[str]:
@@ -1313,6 +1362,11 @@ async def run_geo_sync(
                 session_factory, "babycare", BABYCARE_TIME_BUDGET, now=now,
                 work=sync_babycare(session_factory, settings, network, now=now, force=force, file=babycare_file),
             )
+            babycare_details = 0
+            if network is not None and babycare != "failed" and (
+                babycare == "updated" or await babycare_details_missing(session_factory)
+            ):
+                babycare_details = await sync_babycare_details(session_factory, network, now=now)
             population, population_skipped = await _within_budget(
                 session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                 work=sync_population(session_factory, network, now=now, force=force, files=population_files),
@@ -1365,7 +1419,7 @@ async def run_geo_sync(
             population=population,
             population_version=population_status.label if population_status and population_status.active_version else None,
             population_rows_skipped=population_skipped,
-            babycare=babycare, babycare_rows_skipped=babycare_skipped,
+            babycare=babycare, babycare_rows_skipped=babycare_skipped, babycare_details=babycare_details,
             births=births,
             births_version=births_status.label if births_status and births_status.active_version else None,
             births_months=births_months,

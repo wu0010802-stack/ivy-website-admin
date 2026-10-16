@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import copy
 import json
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
+import httpx
 import pytest
+from sqlalchemy import select
 
-from app.admissions.geo import babycare
+from app.admissions.geo import babycare, sync
 from app.admissions.geo.models import GeoBabycare
 from tests.geo_helpers import FIXTURES
+from tests.test_geo_sync import _site, _sync, small_minimum  # noqa: F401
 
 DETAIL = json.loads((FIXTURES / "babycare-detail-sample.json").read_text(encoding="utf-8"))
 
@@ -58,7 +62,68 @@ def test_detail_url():
     assert babycare.detail_url("CW10112243") == f"{babycare.DETAIL_ROOT}/{quote('高雄市')}/CW10112243.json"
 
 
-# （DetailSite 與同步測試屬於 5b，本任務不寫。）
+class DetailSite:
+    def __init__(self, *, errors=(), fee: str = "18375"):
+        self.errors, self.fee = set(errors), fee
+        self.requests: list[str] = []
+        self._base, _ = _site()
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if not url.startswith(babycare.DETAIL_ROOT):
+            return self._base.handler(request)
+        source_id = url.rsplit("/", 1)[1].removesuffix(".json")
+        self.requests.append(source_id)
+        if source_id in self.errors:
+            return httpx.Response(500)
+        data = copy.deepcopy(DETAIL)
+        data["id"] = source_id
+        data["收費情形"]["日間托育"][0]["費用金額"] = self.fee
+        return httpx.Response(200, json=data)
+
+    @property
+    def transport(self) -> httpx.MockTransport:
+        return httpx.MockTransport(self.handle)
+
+
+async def _rows(app) -> dict[str, GeoBabycare]:
+    async with app.state.session_factory() as db:
+        return {row.source_id: row for row in (await db.execute(select(GeoBabycare).where(GeoBabycare.is_active.is_(True)))).scalars()}
+
+
+async def test_first_sync_fills_every_active_center_and_a_failure_keeps_the_rest(app, small_minimum):
+    first_id = "CW10203013"  # 樣本裡營業中的三民公共托嬰中心
+    site = DetailSite(errors={first_id})
+    result = await _sync(app, site.transport)
+    assert result.babycare == "updated"
+    rows = await _rows(app)
+    assert result.babycare_details == len(rows) - 1
+    assert rows[first_id].monthly_fee is None
+    assert all(row.monthly_fee == 18375 and row.quasi_public is True for key, row in rows.items() if key != first_id)
+
+
+async def test_details_are_not_fetched_again_until_the_list_is_due(app, small_minimum):
+    site = DetailSite()
+    await _sync(app, site.transport)
+    site.requests.clear()
+    result = await _sync(app, site.transport)
+    assert (result.babycare, result.babycare_details, site.requests) == ("skipped", 0, [])
+
+
+async def test_a_failed_detail_keeps_the_old_value(app, small_minimum):
+    site = DetailSite()
+    await _sync(app, site.transport)
+    site.errors = set((await _rows(app)).keys())
+    async with httpx.AsyncClient(transport=site.transport) as client:
+        updated = await sync.sync_babycare_details(app.state.session_factory, client, now=datetime.now(timezone.utc))
+    assert updated == 0
+    assert all(row.monthly_fee == 18375 for row in (await _rows(app)).values())
+
+
+async def test_running_out_of_time_stops_quietly(app, small_minimum, monkeypatch):
+    monkeypatch.setattr(sync, "BABYCARE_DETAIL_TIME_BUDGET", timedelta(0))
+    result = await _sync(app, DetailSite().transport)
+    assert (result.babycare, result.babycare_details) == ("updated", 0)
 
 
 async def test_nearby_returns_the_details(db_session):
