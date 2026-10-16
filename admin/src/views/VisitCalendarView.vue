@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
@@ -157,6 +157,14 @@ watch(() => route.query.campus, value => {
   if (route.path !== CALENDAR_PATH) return
   const campus = campusFromQuery(value)
   if (campus && campus !== campusFilter.value) campusFilter.value = campus
+})
+// 已經在這一頁時網址換校（上一頁、帶 ?campus= 的連結）：卡片換校會丟掉沒存的場次修改，先問；
+// 選擇留下就取消這次換頁，網址與畫面都留在原校（同 useCampusContent）。從校區選單換的已經在 switchCampus 問過，
+// 走到這裡時 campusFilter 已是新校，不會再問一次。
+onBeforeRouteUpdate(async (to) => {
+  const campus = campusFromQuery(to.query.campus)
+  if (to.path !== CALENDAR_PATH || !campus || campus === campusFilter.value) return true
+  return (await sessionsCard.value?.confirmLeave()) !== false
 })
 // 有沒存的場次修改時切換校區前先問（離開頁面的詢問由卡片自己的離頁保護處理）。
 async function switchCampus(campus: string) {
