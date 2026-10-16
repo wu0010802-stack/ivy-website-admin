@@ -99,3 +99,22 @@
 
 - 「招生歷程兩種事件」先做；本案的補分類會自動產生 `details_updated`。
 - 與「預計入學時間」「預約案件排除」只有 migration 串接的關係。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，與招生歷程兩種事件合為一支 `feature/admin-wave2-20261015`（開頭寫的分支 `feature/withdraw-reason-20261015` 沒有用）。migration `5c8e1f3a9d27`，`down_revision` 接 `f2a7c1e9d4b3`（在籍學生分布），不是開頭基準寫的 `c6a9e3f15d27`（`aae0debc` 當時的 head；之後在籍學生分布進了 main，§5 本來就說要接實作當下的 head）；`backend/tests/test_geo_schema.py` 原本寫死 head 是 `f2a7c1e9d4b3`，改成斷言只有一個 head（W2-1、W2-2），之後再有 migration 進來不會紅。
+- 與規格的差異：
+  - `GET /options` 不加分類清單，前端照未預繳原因手抄常數，並用 `admissionsConstants.test.ts` 對 Python 原始碼逐字比對（P7；§3.2 那一句沒做）。
+  - 補分類不能清空（送 `null` 回標準驗證 422）、新增訪視不收這欄；階段不是已退出時送分類回 422 `RECRUITMENT_NOT_WITHDRAWN`（P5；W7 沒寫能不能清空）。
+  - 退出沒有分類回 422 `TRANSITION_FIELDS_REQUIRED`，`fields` 是 `["withdraw_reason_category"]`、訊息「請填寫：退出原因」（P4），快取的舊版後台頁面看得懂。
+  - 轉換的稽核 metadata 不加分類（P6）；訪視明細匯出的稽核 metadata 多 `withdraw_reason_category`（固定選項或 `unclassified`，不會有人名）。
+  - 統計 API 回 9 列、含 0 筆，畫面只列合計大於 0 的，全部 0 筆時顯示空狀態（P8、W2-9）。W8 的「附未分類 N 筆」以表格的「未分類」列呈現（有筆數才出現），沒有另寫一句文字。
+  - 訪視明細篩選的網址參數是 `wr`，只在 `tab=records` 有意義；統計表「查看明細」用 `open-records` 帶 `{ withdraw }` 過去（P9）。
+  - 畫面顯示退出原因：§3.3 示意「退出：費用考量（說明…）」，實作在有「退出原因」標籤的欄位（訪視明細展開列、家庭頁招生資料）寫「{分類}（{說明}）」，沒有說明只寫分類、舊資料（沒分類）只寫說明，不加「退出：」前綴，免得變成「退出原因　退出：…」；現況沒有沒標籤的單行摘要（W2-11、W2-11a）。匯出的 `columns.withdraw_reason` 照 W5 寫「分類：說明」，兩者各自照規格、格式不同。
+  - 歷程的 `withdrawn` 變更行寫「分類：費用考量」，不是 §3.3 的「原因：費用考量」：家庭頁時間線另有一行「原因：{說明}」，同一個事件出現兩行「原因：」會混淆（W2-15）。
+  - CSV 的「退出原因」欄只剩說明，分類在新的「退出原因分類」欄（放在它前面，共 38 欄）。
+  - 編輯訪視的「退出原因分類」下拉只在已退出時出現，沒動就不送，舊資料的 `null` 不會被當成要清空。
+  - 測試 helper `record_at_stage(..., "withdrawn")` 一律帶「改讀其他私立幼兒園」，其他直接退出的既有測試逐一補分類（P10）；`test_admissions_funnel.py` 原本「退出與退回都要原因」的測試改成只剩 `enrolled→deposited／visited` 要文字原因，「退出沒分類回 422」只在 `test_admissions_withdraw_reason.py` 測一次（W2-10）。
+  - §4 的 stack e2e：既有 stack spec 沒有走退出對話框的流程（`admissions-journey.spec.ts` 只讀旅程種子的退預繳筆數，`exports.spec.ts` 只比對 CSV 欄名），所以沒有「既有退出流程的 spec」要改，新增 `tests/stack/admissions-withdraw.spec.ts`。計畫 P11 說「其他 stack spec 都沒用國際校」不正確：`booking-modes.spec.ts` 有用，只改預約方式、不碰招生資料，不影響這支 e2e（W2-13）。
+- 推論寫明：匿名化後匯出的 `columns.withdraw_reason` 是分類本身（不再是 null）；`withdrawn` 事件開始帶 metadata，契約 README 已改（`contracts/ivy-recruitment/README.md` 的欄位轉換表、歷程 metadata 一節與第 20 點）。契約 README 另補了一個既有缺口：園務退註冊的 `withdrawn` 與 `revert_converted` 事件會寫 `metadata_json = {"deleted_student_id": …}`（`ivy-backend/services/recruitment_funnel.py` 的 `_do_withdraw_enrolled`、`_do_revert_convert`），官網沒有學生檔、沒有這個鍵。
+- 已知事項：stack 旅程種子（`tests/stack/db.ts`，renwu、案例 H）有一筆退預繳只有說明、沒有分類，renwu 的統計「未分類」會算到它，e2e 若在 renwu 斷言要用相對基準。驗證與未驗證項目見 `docs/website-admin/acceptance.md`「招生歷程兩種事件與退出原因分類」。

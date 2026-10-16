@@ -595,7 +595,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | X02 | 參觀案件匯出改用共用模組，輸出不變、仍是串流與快照 | 通過（單檔） | `test_visit_attention_export.py` 6 passed（含 `test_export_streams_in_batches_and_audit_count_matches_output`）、`test_security_hardening.py::test_csv_export_neutralises_formula_after_leading_control_chars`（該檔 20 passed）、`test_export_grant.py` 8 passed |
 | X03 | 前端共用 CSV 工具：BOM、公式注入、引號與換行、檔名、`rocMonthCsv`、伺服器匯出錯誤原樣拋出 | 通過（單檔） | `admin/src/__tests__/csvUtil.test.ts`（Task 2 時 17 項，Task 3 補 `rocMonthCsv`；與統計三檔合跑 67 passed；修正波後單檔 24 項）；修正波起 `CSV_BOM` 寫跳脫，`noLiteralBom.test.ts` 用位元組（EF BB BF）掃 `admin/src/**/*.{ts,vue}`，放一個含實體 BOM 的檔案實測會轉紅 |
 | X04 | 招生統計每張表可匯出：欄名同畫面、比率空白、五校比較零分母空白、月份「115年09月」、無資料不顯示按鈕、檔名 | 通過（單檔） | `statsDimensionCsv.test.ts`、`statsTab.test.ts`「統計表匯出 CSV」、`compareTable.test.ts`；四檔（含 `csvUtil`）67 passed，另 `noDepositList`、`analyticsClasses`、`analyticsOutcomes`、`analyticsFunnel`、`admissionsView` 64 passed；修正波補「下載失敗用 `notifyError` 提示」（`statsDimensionCsv.test.ts` 7 passed） |
-| X05 | 訪視明細匯出：37 欄順序、篩選與排序同列表（含追蹤、負責人）、每欄值、台北日界、公式注入、一列一筆、授權與越權、上限、稽核 | 通過（單檔） | `backend/tests/test_admissions_download.py` 28 passed（`test_headers_are_the_37_screen_columns_in_order`、`test_records_export_follows_list_filters`、`test_records_export_applies_follow_up_and_owner_filters`、`test_records_export_needs_export_grant_and_campus_scope`、`test_records_export_refuses_more_than_the_limit` 等）；變異驗證：拿掉路由的 `current_user_id=` 後 owner 篩選測試轉紅 |
+| X05 | 訪視明細匯出：37 欄順序（2026-10-15 起 38 欄、多「退出原因分類」，見「招生歷程兩種事件與退出原因分類」）、篩選與排序同列表（含追蹤、負責人）、每欄值、台北日界、公式注入、一列一筆、授權與越權、上限、稽核 | 通過（單檔） | `backend/tests/test_admissions_download.py` 28 passed（`test_headers_are_the_38_screen_columns_in_order`，10-15 由 37 欄版本改名、`test_records_export_follows_list_filters`、`test_records_export_applies_follow_up_and_owner_filters`、`test_records_export_needs_export_grant_and_campus_scope`、`test_records_export_refuses_more_than_the_limit` 等）；變異驗證：拿掉路由的 `current_user_id=` 後 owner 篩選測試轉紅 |
 | X06 | 未預繳名單匯出：篩選同畫面、冷名單依參觀日（相對日期，不寫死）、原因分類「未分類」、0 筆只有表頭、授權、上限 | 通過（單檔） | 同檔 `test_no_deposit_export_*`（`follows_screen_filters_and_audits_them`、`cold_flag_flips_on_the_visit_date_not_a_fixed_date`、`needs_export_grant_and_campus_scope`、`refuses_more_than_the_limit`） |
 | X07 | 招生開關關閉時兩個匯出端點 404 | 通過（單檔） | `test_admissions_booking_link.py::test_admissions_disabled_skips_visit_and_hides_endpoints`（該檔 14 passed，清單含 `records/export`、`no-deposit-records/export`） |
 | X08 | 稽核 metadata：只記套用了哪些篩選；搜尋字、介紹者、來源只記「有篩選」；`owner` 只記 me／none／staff、不記帳號 id；未預繳的原因與班別只記已知選項、其餘 `other`；新動作與鍵有中文 | 通過（單檔） | `test_records_export_audits_filters_without_search_text`、`test_records_export_audits_follow_up_and_owner_category_never_an_id`、`test_audit_metadata_*`、`test_no_deposit_export_audit_never_records_free_text_filters`；後台 `labelCoverage.test.ts`＋`admissionsDownloadLabels.test.ts` 17 passed |
@@ -716,3 +716,44 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 已知限制（接受、不擋合併）：預覽欄下緣在沒捲動時被黏底動作列蓋 30–105px、捲到底時頂端被頂欄蓋約 24px；桌機預覽縮到約三成看不清字（預設手機）；官網版讀取失敗不重試；隱私權政策刪中間一段時後面段落都標成不同；本機 `npm run dev`（不同源）看不到預覽欄，要用 `npm run e2e:build` 的同源建置（2026-10-08：上下被蓋住、讀取失敗不重試、隱私權政策刪段誤標三項已修；桌機縮小與本機 dev 不同源是刻意取捨／環境限制，不改）。
 
 待使用者確認：發布要不要完全不跳確認框（計畫預設保留、只寫改了哪些欄位）。
+
+## 招生歷程兩種事件與退出原因分類（2026-10-15，`feature/admin-wave2-20261015`，未部署）
+
+計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，規格 `docs/specs/2026-10-15-admissions-history-events-design.md`、`docs/specs/2026-10-15-withdraw-reason-category-design.md`（兩份的 §7 列與規格的差異）；規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」。後端測試用獨立測試庫 `ivy_website_wave2_1015_test`，每個 Task 在自己的 commit 後以單檔、前景執行；下表「通過（單檔）」的數字是各 Task 當時的結果，不是全套。
+
+| 項目 | 驗收方式 | 狀態 |
+|---|---|---|
+| 修改招生資料寫歷程、只記欄位名（不含個資）、沒變不寫 | `backend/tests/test_admissions_history_events.py`（`test_details_updated_records_only_field_names`、`test_unchanged_patch_writes_no_event_but_a_real_change_does`） | 通過（單檔） |
+| 預約同步寫歷程並標 origin、沒同步到欄位不寫 | `backend/tests/test_admin_visit_details.py::test_synced_fields_are_recorded_in_admissions_history` | 通過（單檔） |
+| 排下次聯絡只記直接改的：記錄聯絡順便排的、註冊或退出清掉的都不寫；只換負責人只標 `owner_changed` | `test_admissions_history_events.py`（`test_contact_log_does_not_write_follow_up_event_but_a_direct_change_does`、`test_stage_change_clearing_follow_up_writes_no_follow_up_event`、`test_owner_change_only_marks_owner_changed`） | 通過（單檔） |
+| 兩種事件不匯出、契約 `website_only` 一致、匿名化後保留 | `test_admissions_contract.py`、`test_admissions_history_events.py::test_export_skips_both_types`、`test_anonymization_keeps_history_events_and_their_metadata` | 通過（單檔） |
+| 歷程中文、變更行（欄位中文去重、時間、負責人已變更、只換負責人不寫時間行）、家庭頁「最後處理」、舊版遇新事件類型顯示原字串 | admin vitest `admissionsConstants`、`familyPage` | 通過（單檔） |
+| 退出必選分類（沒帶 422「請填寫：退出原因」、訪視不變）、說明選填、未知分類 422、退回已預繳／已訪視仍要文字原因 | `backend/tests/test_admissions_withdraw_reason.py`（`test_withdraw_requires_category_and_reason_is_optional`、`test_unknown_category_is_422`、`test_revert_from_enrolled_still_requires_text_reason`） | 通過（單檔） |
+| 取消退出清掉分類與說明、再退一次要重選 | `test_admissions_withdraw_reason.py::test_cancel_withdrawal_clears_category_and_withdrawing_again_needs_a_new_one` | 通過（單檔） |
+| 補分類只限已退出、不能清空、新增訪視不收；補分類寫一筆 `details_updated`、歷程沒有電話原文 | `test_admissions_withdraw_reason.py`（`test_patch_can_classify_a_withdrawn_visit_and_records_history`、`test_patch_category_on_a_visit_that_has_not_withdrawn_is_422`、`test_patch_cannot_clear_category`、`test_create_does_not_accept_category`） | 通過（單檔） |
+| migration 單一 head、兩條 CHECK（值在八項內、有分類必須已退出）擋下的是哪一條、model 與 migration 字面值相同 | `backend/tests/test_withdraw_reason_category_schema.py`、`test_admissions_schema.py`、`test_geo_schema.py`（斷言單一 head）；測試庫 `upgrade`、`downgrade -1`、再 `upgrade` 來回成功 | 通過（單檔） |
+| 篩選（含 `unclassified`）、CSV 多一欄與稽核、統計 9 列與範圍、匯出組字、匿名化保留分類 | `test_admissions_withdraw_reason.py`、`test_admissions_download.py`、`test_admissions_stats.py`、`test_admissions_contract.py`、`test_admissions_retention.py` | 通過（單檔） |
+| 轉移契約與園務一致 | `backend/scripts/check_ivy_recruitment_contract.py --ivy-backend ~/Desktop/ivy-backend`（對齊 `dfd230c3`）；契約檢查 `export_openapi.py --check` 與 `check-contract-types.mjs` | 通過（Task 1、4、5 各跑一次） |
+| 畫面：退出對話框、補分類、明細與家庭頁顯示、篩選與網址 `wr`（亂碼當沒篩）、統計表與「查看明細」 | admin vitest `admissionsFunnel`、`admissionsRecordDialog`、`admissionsRecords`、`admissionsView`、`statsTab`、`compareTable`、`familyAdmissionsData`；`vue-tsc` | 通過（單檔） |
+| 前端手抄的八項與「未分類」字面值同後端 | `admissionsConstants.test.ts`（讀 `constants.py`、`stats.py` 原始碼逐字比對） | 通過（單檔） |
+| 真實瀏覽器流程、390px 不溢出 | `tests/stack/admissions-withdraw.spec.ts` | 未跑，見下一個 commit |
+
+驗證（2026-10-16，Node 22、本機 PostgreSQL；程式在 `ffc7eaf7`；各 Task 單檔結果）：
+
+- 歷程事件：`test_admissions_history_events.py` 加預約同步 1 條，12 passed；加上 `test_admin_visit_details`、`test_admissions_records`、`test_admissions_follow_up`、`test_admissions_booking_link`、`test_admissions_academic` 共 150 passed；契約、保存、學期三檔 41 passed；其餘讀歷程或打 PATCH 的招生測試 10 檔 169 passed。
+- 退出分類：schema 相關四檔 48 passed、`test_admissions_contract.py` 7 passed；API 八檔 163 passed、相鄰五檔 76 passed；篩選、CSV、統計、契約、匿名化五檔 94 passed，相鄰四檔 114 passed、引用統計與匯出四檔 115 passed。
+- admin vitest：歷程事件（`admissionsConstants`、`familyPage`、`admissionsFunnel` 三檔 80 passed，`visitTimeline`、`labelCoverage` 19 passed）；退出對話框與顯示（九檔 217 passed，另四檔 47 passed）；篩選與統計表（十二檔 246 passed）；`npm run typecheck` 無錯誤。
+- 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致（未用 `npm run contract:check`，它內含 `uv run`，會改到共用 venv）。
+- 全套驗證：見下一個 commit。
+
+未驗證／沒做：
+
+- 沒有登入正式後台看過畫面，沒有部署、沒有 push；正式站沒有跑過這支 migration。
+- 篩選列多一欄後桌機寬度是否換行、390px 時子分頁標籤變長，單元與元件測試量不到。
+- 歷程抽屜與家庭頁沒有另寫元件渲染測試，兩處共用的 `eventLabel`、`recruitmentEventChanges` 有測試。
+
+已知事項（接受、不擋合併）：
+
+- `tests/stack/db.ts` 的旅程種子（`JOURNEY_CAMPUS` 是 renwu、案例 H）有一筆退預繳、只有說明沒有分類，renwu 的統計「未分類」會算到它；e2e 若在 renwu 斷言「未分類」筆數，要用相對基準（新 spec 照計畫用沒有這筆種子的國際校）。
+- 舊版快取的後台頁面退出時沒帶分類會被 422 擋下、歷程遇到新事件類型顯示原字串，重新整理即可。
+- migration `5c8e1f3a9d27` 的 `down_revision` 寫死接 `f2a7c1e9d4b3`，測試 `DOWN_REVISION` 也寫死；合併前若別支 migration 先進 main，要一起改 `down_revision`、docstring 的 `Revises:`、測試的 `DOWN_REVISION`，確保只有一個 head（`test_geo_schema.py` 斷言的是「只有一個 head」，不用跟著改）。

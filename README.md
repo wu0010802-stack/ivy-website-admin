@@ -1,3 +1,17 @@
+## 2026-10-15 招生歷程兩種事件＋退出原因分類（`feature/admin-wave2-20261015`）
+
+後台第 2 波（10-15 盤點選定的六項之二、三）。招生歷程多記「修改招生資料」（只記欄位名）與「排下次聯絡」（只記從追蹤直接改的），兩者都是官網專用、不轉給園務；退預繳、退註冊改成必選八項退出原因分類、說明選填，舊資料歸「未分類」並可補分類，訪視明細可依分類篩選與匯出，統計分析「未預繳與退出原因」多一張退出原因分佈。規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」，計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，兩份規格的 §7 列實作與規格的差異。
+
+- **資料**：一支 migration `5c8e1f3a9d27`（接在 `f2a7c1e9d4b3` 後面；`recruitment_visits.withdraw_reason_category`，只加可空欄位與兩條 CHECK，不改既有資料，不需先備份）；歷程事件不動資料表。
+- **轉移契約**：`website_only.event_types` 多兩種；`columns.withdraw_reason` 改成「分類：說明」（匿名化後是分類本身）；延伸檔多 `withdraw_reason_category`；歷程 metadata 表補上園務 `withdrawn`／`revert_converted` 的 `deleted_student_id`（`contracts/ivy-recruitment/README.md` 第 6、20 點與歷程 metadata 一節）。
+- **不做**：記欄位前後值、自動歸類、預測、「其他」選項、園務端改動。
+- **驗證**（2026-10-16，Node 22、本機 PostgreSQL、獨立測試庫；程式在 `ffc7eaf7`，**未 push、未部署**）：以下是各 Task 實作時的單檔結果。
+  - 後端：歷程事件 `test_admissions_history_events.py` 加預約同步 1 條，12 passed；歷程相關指定檔 150、契約／保存／學期 41、其餘招生 169 passed；schema 與 geo 48、契約 7 passed，測試庫 `alembic upgrade`、`downgrade -1`、再 `upgrade` 來回成功（單一 head `5c8e1f3a9d27`）；退出分類 API 與相關檔 163、再加相鄰 76 passed；篩選、CSV、統計、匯出、匿名化 94 passed，相鄰 114、引用統計與匯出的 115 passed。
+  - 契約：`export_openapi.py --check` 與 `check-contract-types.mjs` 一致；`check_ivy_recruitment_contract.py` 與園務一致（對齊 `dfd230c3`）。
+  - admin：歷程中文與變更行 80 passed（另 19）；退出對話框、補分類、明細顯示 217 passed（另 47）；篩選與統計表 246 passed；`vue-tsc` 無錯誤。
+  - 全套驗證：見下一個 commit。
+- **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；篩選列多一欄後桌機是否換行、390px 子分頁標籤變長，單元與元件測試量不到，stack e2e 的結果見下一個 commit。
+
 ## 2026-10-15 幼兒園營業中改以教育部名單判斷（`fix/kindergarten-registry-20261015`）
 
 使用者問區域分析「附近園所的變化」會不會出現最近停業的園所（三民區的愛爾蘭、童年綠地）。查證發現 kiang `preschools.json` 的 `is_active` 一旦是 1 就不會變回 0，高雄有 47 所已不在教育部名單仍標營業中，幼兒園停辦因此從沒記過。規格 `docs/specs/2026-10-15-kindergarten-registry-design.md`。

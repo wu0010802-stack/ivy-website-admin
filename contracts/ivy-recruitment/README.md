@@ -81,7 +81,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 | `seat_reserved`、`seat_released` | `metadata_json` 是 `{"grade": 年級名稱, "school_year", "semester"}`；`from_stage`／`to_stage` 寫事件當下的階段（保留只會是 `deposited`；釋放也可能發生在 `visited`、`withdrawn`，保留座位在退預繳、取消預繳後不會自動清掉） | `{"grade_id": class_grades.id, "school_year", "semester"}`；`from_stage`／`to_stage` 固定 `deposited` | `grade` 依該租戶 `class_grades` 換成 `grade_id`（對不上留 null 並列入報告）；`from_stage`／`to_stage` 改寫成 `deposited` 與園務一致 |
 | `converted` | `{"website_manual": true, "grade": 年級名稱, "school_year", "semester"}`；`student_id` 為 null（官網沒有學生檔） | `{"enrollment_seq", "enrollment_school_year", "classroom_id"}`；`student_id` 指向轉化建立的學生 | `enrollment_school_year` 取 `school_year`；`enrollment_seq`、`classroom_id` 官網沒有，留 null；`student_id` 用上面「`enrolled`」那列比對到的學生填，比對不到留 null；`website_manual` 保留，標示這是官網手動標記的註冊、不是園務轉化流程產生的 |
 
-`withdrawn` 自 2026-10-15 起 `metadata_json` 有 `{"withdraw_reason_category": 分類}`（官網延伸，園務不寫，匯入端可原樣保留或略過）。其他事件（`deposit_added`、`deposit_removed`、`revert_converted`、`withdraw_cancelled`）官網不寫 metadata（只有 `website_actor`）。
+`withdrawn` 自 2026-10-15 起 `metadata_json` 有 `{"withdraw_reason_category": 分類}`（官網延伸，園務不寫，匯入端可原樣保留或略過）。其他事件（`deposit_added`、`deposit_removed`、`revert_converted`、`withdraw_cancelled`）官網不寫 metadata（只有 `website_actor`）。園務的 `withdrawn`（退註冊，`enrolled→withdrawn`）與 `revert_converted` 另有 `{"deleted_student_id": 被刪的學生 id}`（園務退回、退註冊時硬刪學生檔；退預繳的 `withdrawn` 沒有 metadata；見園務 `services/recruitment_funnel.py` 的 `_do_withdraw_enrolled`、`_do_revert_convert`）。官網沒有學生檔，所以沒有這個鍵，匯入後這兩種事件不會有它，匯入端不用補（既有差異，2026-10-15 補記）。
 
 ## 刻意與園務不同的地方（併入時由園務決定要不要跟進）
 

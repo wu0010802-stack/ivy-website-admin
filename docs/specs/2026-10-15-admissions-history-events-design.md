@@ -96,3 +96,17 @@
 
 - 「退出原因代碼」：它的「補分類」若改用 PATCH records，會自動產生 `details_updated`；兩案同波，本案先做。
 - 與第 1、3 波不共用檔案（第 3 波「預計入學時間」會動 `booking_link.fields_from_visit_request`，與本案動的 `sync_from_visit_request` 同檔不同函式，合併時注意）。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，與退出原因分類合為一支 `feature/admin-wave2-20261015`（計畫裁定 P1；開頭寫的分支 `feature/admissions-history-events-20261015` 沒有用）。實作時 rebase 在 `origin/main` `54031d7c` 上（規格基準是 `aae0debc`）；本案不新增 migration，alembic head 是 `f2a7c1e9d4b3`（在籍學生分布），同一支分支的退出原因 migration 接在它後面。
+- 與規格的差異：
+  - 「排下次聯絡」變更行沿用歷程抽屜既有的 `formatDateTime`（「下次聯絡：2026/10/20 10:00」），不另做 §3.3 的「10/20（一）」格式（P2）；清掉寫「改為不用再追」。
+  - 只換負責人（前後時間相同）時不顯示「下次聯絡」那一行，只寫「負責人已變更」；§3.3 沒排除這種情況，照字面會像改了日期（W2-12）。時間有變又換了負責人時兩行都有。
+  - 預約同步的 `fields` 用同步順序（`_SYNCED_FIELDS`：聯絡人、電話、幼生姓名、生日、年級），不是排序後的（P3；H3 只規範一般編輯，一般編輯仍是 `sorted(changed)`）。
+  - `details_updated` 的變更行把帶參觀老師的帳號與姓名兩個欄位（同一個中文）去重、只列一次；查不到中文的欄位名顯示原欄位名。
+  - §4 的「歷程抽屜與家庭頁渲染」沒有另寫元件測試：兩處共用 `eventLabel`、`recruitmentEventChanges`（`admin/src/components/admissions/EventsDrawer.vue:246-247`、`admin/src/api/visitTimeline.ts:107`），測試測這兩個函式。
+  - 每個「沒變就不寫」的後端測試都配了同測試內「真的改了就寫」的正向對照；匿名化測試連 `follow_up_updated` 的 metadata 一起比對（W2-8）。
+- 規格疑點：H4 的「家長在管理頁改的為空」不會發生——現況只有後台改家長資料會同步到招生（`backend/app/booking/workflow_service.py:515`），家長端改資料不同步到招生，所以同步事件的 `actor_user_id` 一定有值；程式仍允許 `None`，測試只驗後台路徑。
+- 與退出原因分類的關係（§6）：補分類走 PATCH records，會自動產生 `details_updated`，`fields` 含 `withdraw_reason_category`（畫面寫「退出原因分類」）。
+- 驗證與未驗證項目見 `docs/website-admin/acceptance.md`「招生歷程兩種事件與退出原因分類」。
