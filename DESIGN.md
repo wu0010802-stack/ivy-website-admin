@@ -1866,7 +1866,7 @@ Nuxt 共用頁尾不再顯示「標題字型 LINE Seed TW」及「機構原官�
 - **選單就是手機的導覽**：首頁在 900px 以下，頁首的漢堡與膠囊的漢堡開的是同一張卡，不再用 `.navigation.open` 展開列；兩顆漢堡打開時都變成 ✕。其他頁面仍用展開列。
 - **無障礙**：兩顆漢堡共用 `aria-expanded`／`aria-controls="menu-panel"`；打開時焦點進第一個連結，Esc、點外面、點連結、回到首屏都會關閉並把焦點還給按鈕。隱藏的那一組（首屏的膠囊、收合後的頁首）用 `visibility:hidden`，不會被 Tab 到。收合後 `.header` 設 `pointer-events:none`，只有膠囊與選單卡接收點擊，看不見的頁首不會擋住內容。
 - **選單鈕的特異性陷阱**：站內既有 `body:has(.studio-hero) .menu-toggle span{height:2px;width:22px}`（特異性 0,2,2）會把膠囊裡的 `.menu-lines`、`.menu-word` 一起壓成 22×2 的白條；膠囊內任何 `span` 的規則都要明確寫出 `width`／`height`／`background`，光靠加前綴不夠。
-- **位置：靠右（2026-09-18 定案）**。膠囊右緣貼內容欄右緣，和原本頁首的預約鈕同一條線；`--pill-gutter` 跟著 `.container` 走（1101px 以上 `max(48px,(100%-1280)/2)`、1100px 以下 32px，斷點取自 studio.css 第 16 行而非 styles.css 的 1150）。選單卡與膠囊同寬、右緣對齊。900px 以下不受影響，仍是左右各留 16 的滿版膠囊。
+- **位置：靠右（2026-09-18 定案）**。膠囊右緣貼內容欄右緣，和原本頁首的預約鈕同一條線；`--pill-gutter` 跟著 `.container` 走（1101px 以上 `max(48px,(100%-1280)/2)`、1100px 以下 32px，斷點取自 studio.css 開頭的 `.container` 斷點而非 styles.css 的 1150）。選單卡與膠囊同寬、右緣對齊。900px 以下不受影響，仍是左右各留 16 的滿版膠囊。
   先前的置中版與其他擺法留作比較，用 `html[data-pill]` 切換（`index.html?pill=center|left|split|split-mini#/home`），比較頁 `design/header-collapse-directions/placement.html`。
 - **向下捲收起、向上捲出現**：預覽參數 `index.html?autohide=1#/home`，mock-up 與對照動畫在 `design/header-collapse-directions/autohide.html`。只在收合狀態作用，方向門檻 6px，一次跳超過 240px（錨點跳轉、按 End）只更新基準不改狀態；選單開著、焦點在膠囊裡、接近頁首、捲到底、減少動態時一律維持顯示。**尚未套成預設**，站上仍是一直顯示。
 - **驗證（2026-09-18）**：桌機 1440／手機 390 的首屏→收合→開選單→Esc→回首屏全數正確；1920 到 320 共 12 種視口無水平溢出、膠囊完整在畫面內、觸控目標 ≥44px；減少動態下膠囊與選單卡直接出現；分校頁與預約頁沒有膠囊、手機仍是原本的展開列；`preview.html` 單檔同步。Safari 與 Firefox 尚未實機。

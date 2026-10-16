@@ -82,10 +82,9 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     copyRise = mobile ? height * 0.2 : 0
     // 只有內容真的超出可視高度才需要退回 fallback。
     const fits = hero.value.getBoundingClientRect().height <= height + 1
-    const quiet = document.documentElement.classList.contains('hero-quiet')
     // 與 performance.css 的首屏預留條件一致。手機加高影片後自然捲動，
     // 讓影片下方的完整文案與按鈕都能讀到，不在閱讀中啟動揭幕淡出。
-    root.value.dataset.motion = reduceQuery?.matches || !fits || quiet || mobile ? 'still' : native ? 'native' : 'fallback'
+    root.value.dataset.motion = reduceQuery?.matches || !fits || mobile ? 'still' : native ? 'native' : 'fallback'
     const rect = track.value.getBoundingClientRect()
     start = rect.top + window.scrollY
     distance = Math.max(1, rect.height - height)
