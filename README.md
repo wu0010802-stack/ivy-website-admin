@@ -13,6 +13,7 @@
   - 全套驗證：後端全套 3220 passed、1 skipped、0 failed（25.5 分鐘，在 `fa2b49cc`）；最終審查修正（`1e65245b`..`4ee1612e`）後重跑 `test_system_status.py` 59 passed；admin 全套在 `4ee1612e` 162 個檔案 2528 passed、1 skipped（其中 5 個檔案因機器負載 worker 啟動逾時，單獨重跑 20 passed）；admin、web `typecheck` 與兩項契約檢查通過；stack 全套在 `4ee1612e` 重新 build 後 141 passed、0 failed（5.4 分鐘）。
   - 合併 `origin/main` `9dbf413f`（在籍學生分布與區域分析修正，只有 README.md 衝突，新 migration `f2a7c1e9d4b3`）後，在 `2133b463`：契約重新產生與合併結果一致；後端受影響的 21 個檔案（系統狀態、維護排程、提醒、家長信、權限表與所有用到 `app.cli` 的測試）517 passed；admin `typecheck` 通過、相關 7 個檔案 273 passed。合併後沒有再跑三套全套。
   - 再合併 `origin/main` `54031d7c`（幼兒園名單改版，只有 README.md 衝突、沒有新 migration、`DATASETS` 不變）後，在 `425a490c`：契約檢查一致；後端受影響的 23 個檔案（加上公開資料同步與幼兒園名單相關測試）647 passed；admin `typecheck` 通過、相關 4 個檔案 181 passed。
+  - 再合併 `origin/main` `e420e9f2`／`263fea2a`（附近同業比較，`DATASETS` 多 `kindergarten_fees`，系統狀態頁補中文「幼兒園收費」，週期沿用預設 30 天＝同步程式的 `FEES_REFRESH_AFTER`；新 migration `f2b8c4d1e7a9`）後，在 `4205463d` 重跑三套全套：後端 3518 passed、1 skipped，另 14 個 error 全是 PostgreSQL「too many clients」（同時間別的 session 在用本機 PG），所在 12 個檔案單獨重跑 247 passed；admin 全套 165 個檔案 2593 passed、1 skipped（`--testTimeout=60000`）；admin、web `typecheck` 通過；契約檢查一致；stack 全套重新 build 後 145 passed、0 failed（6.8 分鐘）。
   - **未驗證／沒做**：沒有登入正式後台看過系統狀態頁；正式站寄信（SMTP）是否已設未確認，測試信沒有對真的 SMTP 按過；提醒信沒有真的寄出過（只在測試用的 recording adapter 驗內容與寄送流程）；手機版沒量測試信結果段落展開後的寬度。
 
 ## 2026-10-16 區域分析：附近同業收費（`feature/peer-fees-20261015`）
