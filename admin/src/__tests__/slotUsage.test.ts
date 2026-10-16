@@ -331,6 +331,27 @@ describe('參觀場次頁：頁籤', () => {
     expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('場次使用情況')
   })
 
+  it('接待月曆有沒存的修改時，網址換校（上一頁、帶 ?campus= 的連結）先問；取消就留在原校、網址不動、不讀別校', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => false }
+    get.mockClear()
+    await router.push({ query: { campus: 'minghua' } }).catch(() => {})
+    await flushPromises()
+    expect(router.currentRoute.value.query.campus).toBe('yihua')
+    expect(get.mock.calls.map(c => String(c[0])).filter(path => path.includes('minghua'))).toEqual([])
+  })
+
+  it('接待月曆有沒存的修改時網址換校，按確定就照常換校', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => true }
+    await router.push({ query: { campus: 'minghua' } })
+    await flushPromises()
+    expect(router.currentRoute.value.query.campus).toBe('minghua')
+    expect(get.mock.calls.map(c => String(c[0])).some(path => path.includes('minghua'))).toBe(true)
+  })
+
   it('網址改成 tab=usage（例如瀏覽器上一頁）時直接跟著切，不再問，頁籤列與內容一致', async () => {
     const get = vi.spyOn(api, 'get'); route(get)
     const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')

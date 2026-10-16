@@ -80,6 +80,12 @@ describe('場次：帶版本送出，別人先改過就重新讀取', () => {
     expect(wrapper.emitted('changed')).toHaveLength(1)
   })
 
+  it('改每週場次後停用的場次寫「不在開放規則內」，不寫「已停止申請」', async () => {
+    const wrapper = await mountAt(DayPanel, '/', { ...panelProps, slots: [{ ...slot, closed: true, closed_source: 'rule' }] })
+    expect(wrapper.text()).toContain('不在開放規則內')
+    expect(wrapper.text()).not.toContain('已停止申請')
+  })
+
   it('調整名額遇到版本衝突也提示並請父層重讀', async () => {
     const patch = vi.spyOn(api, 'patch').mockRejectedValue(conflict('SLOT_VERSION_CONFLICT', 'x'))
     const warning = vi.spyOn(ElMessage, 'warning')

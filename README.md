@@ -2,7 +2,7 @@
 
 後台第 2 波（10-15 盤點選定的六項之二、三）。招生歷程多記「修改招生資料」（只記欄位名）與「排下次聯絡」（只記從追蹤直接改的），兩者都是官網專用、不轉給園務；退預繳、退註冊改成必選八項退出原因分類、說明選填，舊資料歸「未分類」並可補分類，訪視明細可依分類篩選與匯出，統計分析「未預繳與退出原因」多一張退出原因分佈。規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」，計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，兩份規格的 §7 列實作與規格的差異。
 
-- **資料**：一支 migration `5c8e1f3a9d27`（接在 `f2a7c1e9d4b3` 後面；`recruitment_visits.withdraw_reason_category`，只加可空欄位與兩條 CHECK，不改既有資料，不需先備份）；歷程事件不動資料表。
+- **資料**：一支 migration `5c8e1f3a9d27`（接在附近同業比較的 `f2b8c4d1e7a9` 後面；`recruitment_visits.withdraw_reason_category`，只加可空欄位與兩條 CHECK，不改既有資料，不需先備份）；歷程事件不動資料表。
 - **轉移契約**：`website_only.event_types` 多兩種；`columns.withdraw_reason` 改成「分類：說明」（匿名化後是分類本身）；延伸檔多 `withdraw_reason_category`；歷程 metadata 表補上園務 `withdrawn`／`revert_converted` 的 `deleted_student_id`（`contracts/ivy-recruitment/README.md` 第 6、20 點與歷程 metadata 一節）。
 - **不做**：記欄位前後值、自動歸類、預測、「其他」選項、園務端改動。
 - **驗證**（2026-10-16，Node 22、本機 PostgreSQL、獨立測試庫；程式在 `ffc7eaf7`，**未 push、未部署**）：以下是各 Task 實作時的單檔結果。
@@ -11,6 +11,18 @@
   - admin：歷程中文與變更行 80 passed（另 19）；退出對話框、補分類、明細顯示 217 passed（另 47）；篩選與統計表 246 passed；`vue-tsc` 無錯誤。
   - 全套驗證：合併 `origin/main` `e420e9f2`（附近同業比較；migration `5c8e1f3a9d27` 改接 `f2b8c4d1e7a9`，測試庫重建）後在 `1577276a`：後端全套 3480 passed、1 skipped、0 failed（21.5 分鐘）；admin 全套 164 個檔案 2595 passed、1 skipped（`--testTimeout=60000`，機器負載高）；admin、web `typecheck` 通過；`export_openapi.py --check`、`check-contract-types.mjs`、`check_ivy_recruitment_contract.py`（對齊 `dfd230c3`）一致；stack 全套重新 build 後 145 passed、0 failed（5.6 分鐘），含 `admissions-withdraw.spec.ts`（退出選分類、歷程、明細篩選、統計表、桌機與 390px 不溢出）與更新後的 `exports.spec.ts`（38 欄）。合併前在 `ffc7eaf7`／`49dae8e7`／`dd527c7c` 也各跑過一輪（後端 3349 passed＋1 個 PostgreSQL 連線數滿的環境錯誤、單檔重跑通過；admin 2556 passed；stack 143 passed）。
 - **未驗證／沒做**：沒有登入正式後台看畫面；沒有部署、沒有 push；桌機篩選列與 390px 版面由 stack e2e 量過不溢出並截圖人工看過（`output/playwright/withdraw-*.png`，不進版控）。
+
+## 2026-10-16 延後小問題一批修正＋文件校正（`fix/small-fixes-20261016`）
+
+使用者 10-16 要盤點「還有什麼可以做」後說「先做你可以做的」。從各次紀錄的「延後」清單挑出在 main（`263fea2a`）上仍存在、不需要業主決定的幾條，各自先寫失敗測試再改。規則寫進 DESIGN.md「招生入學：預約全程漏斗」與「參觀場次」兩節。
+
+- **預約全程**：今天稍晚的場次被取消、還沒到參觀時間的不進批次（`journey.py`）；摘要句在來源不是全部時寫「（只看官網預約／後台補登）」；涵蓋說明補「預約案件已刪除」；匯出 CSV 時漏斗比率拆成指標、比率、分子、分母四欄，各段天數的中位數寫數字；離開預約全程後頁面收回篩選或換校區，不在背景重讀（`JourneyTab` 的 `active`）。
+- **參觀場次**：改每週場次後停用的場次（`closed_source='rule'`）不再畫成紅色「停止申請」，當天清單寫「不在開放規則內」；已在接待月曆時網址換校（上一頁、帶 `?campus=` 的連結），場次卡有沒存的修改要先問，選擇留下就不換校。
+- **官網預約完成頁**：重送同一筆時拿不到修改連結（`manage_path` 為 null），說明不再叫家長看「下方的連結」，沒寄信時改寫「請直接聯絡園所」。
+- **驗收 A23**：`tests/stack/hydration.spec.ts` 加斷言：8 個公開頁 hydrate 時都沒有在瀏覽器再讀 `/api/published-site`，另一則反向對照證明監聽抓得到；A23 改通過。`usePublishedSite.ts` 的註解原寫「換頁重新讀」，和實測（同 key 沿用、0 次請求）不符，已更正。
+- **文件校正**：`acceptance.md` 七個段落標題與一句寫「尚未部署」的已補部署 commit（都有 `deploy/README.md` 紀錄）；「招生開關在正式站仍關閉」更正為 10-04 實測已開；`deploy/README.md`「家長自選場次（未部署，草稿）」補註 10-01 已上線。
+- **沒做、待決定**：加開一場不檢查和既有場次重疊（後端只擋同一開始時間；要擋重疊、只提醒還是不管，需要業主決定）；「重寄確認信」在寄信設定還沒讀到時仍顯示（讀到 SMTP 沒設就會隱藏；讀取失敗時不保證，是原設計的取捨）；結果頁 `visitResultKind` 把 completed／no_show 也當已取消（只有重送才看得到，實際幾乎碰不到）。
+- **驗證**（2026-10-16，Node 22、本機 PostgreSQL、獨立測試庫 `ivy_website_smallfix_test`）：先看到新測試失敗再改。後端 `test_admissions_journey.py`、`test_admissions_journey_calc.py`、`test_analytics_booking_outcomes.py` 53 passed（期間其他 session 的測試把 PostgreSQL 連線佔滿，偶爾有一則 setup `TooManyConnectionsError`，重跑通過）；admin `vue-tsc` 通過、vitest 164 檔 2570 passed、1 skipped、7 則 5 秒逾時（系統負載 52–59；逾時的都不是這次新增或改到的測試，負載降下來後那五個檔單獨重跑全過）；web `nuxt typecheck` 通過、vitest 101 檔 1229 passed；`npm run e2e:build` 後 stack（`E2E_DB_NAME=ivy_website_smallfix_e2e_test`）hydration、admissions-journey、slot-usage、visit-schedule、schedule-flow、booking-flow 通過（hydration 改完反向對照後單獨重跑 10 passed）。API 形狀沒變，沒跑契約檢查。未驗：後端全套、stack 全套、瀏覽器目視。未 commit、未 push。
 
 ## 2026-10-15 後台第 1 波：系統狀態頁＋家長參觀提醒信（`feature/admin-wave1-20261015`）
 

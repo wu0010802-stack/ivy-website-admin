@@ -15,6 +15,8 @@ const COLUMNS: StatsColumn[] = [
   { key: 'n', label: '筆數', kind: 'count' },
   { key: 'note', label: '說明' },
 ]
+// 匯出時中位數寫天數的數字（Excel 才能排序），不寫畫面上的「5 天」。
+const CSV_COLUMNS: StatsColumn[] = [COLUMNS[0]!, { key: 'median_days', label: '中位數（天）' }, COLUMNS[2]!, COLUMNS[3]!]
 const rows = computed(() => timingRows(props.data))
 </script>
 
@@ -23,6 +25,7 @@ const rows = computed(() => timingRows(props.data))
     :title="TITLE"
     :rows="rows"
     :columns="COLUMNS"
+    :csv-columns="CSV_COLUMNS"
     row-key="key"
     empty-text="這段期間沒有預約案件"
     :export-filename="csvName(TITLE)"

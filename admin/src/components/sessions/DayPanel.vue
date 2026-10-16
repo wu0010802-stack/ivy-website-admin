@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { api } from '../../api/client'
 import { isVersionConflict, apiErrorMessage } from '../../api/errors'
-import { formatDate, formatTime, formatWeekday, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
+import { formatDate, formatTime, formatWeekday, slotClosedLabel, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
 import StatusTag from '../StatusTag.vue'
 import { slotEnded, type CalendarSlot } from '../../utils/calendarChips'
 import { sessionName } from '../../utils/sessions'
@@ -128,7 +128,7 @@ async function addSlot() {
     <div v-for="slot in sorted" :key="slot.id" class="panel calendar__slot" :class="{ 'is-ended': slotEnded(slot) }">
       <div class="panel__head">
         <h3 class="num">{{ sessionName(slot.start_time) }}–{{ formatTime(slot.end_time) }}</h3>
-        <span class="hint"><template v-if="slotEnded(slot)">已結束 · </template>{{ slot.closed ? (slot.closed_source === 'exception' ? '休假' : '已停止申請') : `已約 ${slot.booked_count}／${slot.capacity} 組` }}</span>
+        <span class="hint"><template v-if="slotEnded(slot)">已結束 · </template>{{ slot.closed ? (slot.closed_source === 'exception' ? '休假' : slot.closed_source === 'rule' ? slotClosedLabel('rule') : '已停止申請') : `已約 ${slot.booked_count}／${slot.capacity} 組` }}</span>
         <div v-if="canManage && !slotEnded(slot)" class="day-panel__actions">
           <el-select v-if="!slot.closed" :model-value="slot.capacity" size="small" class="day-panel__capacity" :aria-label="`${sessionName(slot.start_time)}名額`" :disabled="busyId === slot.id" @update:model-value="(n: number) => setCapacity(slot, n)">
             <el-option v-for="n in Array.from({ length: 10 }, (_, i) => i + 1).filter(n => n >= slot.booked_count)" :key="n" :label="`${n} 組`" :value="n" />

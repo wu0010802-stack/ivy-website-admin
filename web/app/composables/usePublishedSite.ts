@@ -2,7 +2,8 @@ import type { PublishedSite } from '~/utils/published-content'
 
 export function usePublishedSite() {
   const route = useRoute()
-  // SSR payload 與 hydrate 共用一份 release；換頁重新讀當前發布版本。
+  // SSR payload 與 hydrate 共用一份 release，瀏覽器接手時不再讀（stack hydration.spec 驗）。站內 NuxtLink
+  // 換頁同 key 沿用資料，DESIGN「效能第四輪」與 10-16 stack 實測都是 0 次請求。
   return useAsyncData<PublishedSite>(
     'published-site',
     () => $fetch<PublishedSite>('/api/published-site'),

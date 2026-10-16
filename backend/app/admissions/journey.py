@@ -228,6 +228,19 @@ def _visited_on():
     return func.coalesce(slot_date, completed_on)
 
 
+def _slot_not_started(now: datetime):
+    """案件的場次還沒開始（台北現在之後）。已取消的案件 `_outcome` 一律歸 cancelled、不會變 upcoming，
+    今天稍晚的場次被取消時要靠這個條件擋在批次外（J3：已過參觀時間才進批次）。"""
+    local = now.astimezone(OPERATING_TZ)
+    return exists().where(
+        VisitSlot.id == VisitRequest.slot_id,
+        or_(
+            VisitSlot.slot_date > local.date(),
+            and_(VisitSlot.slot_date == local.date(), VisitSlot.start_time > local.time().replace(tzinfo=None)),
+        ),
+    ).correlate(VisitRequest)
+
+
 async def load_cases(
     db: AsyncSession, campus_key: str, date_from: date, date_to: date, source: str, now: datetime
 ) -> tuple[list[CaseInfo], int]:
@@ -246,6 +259,7 @@ async def load_cases(
         VisitRequest.cancel_reason,
         visited_on.label("visited_on"),
         rescheduled.label("rescheduled"),
+        _slot_not_started(now).label("not_started"),
     ).where(
         VisitRequest.campus_key == campus_key,
         or_(visited_on.between(date_from, date_to), and_(visited_on.is_(None), created_on.between(date_from, date_to))),
@@ -256,8 +270,10 @@ async def load_cases(
         stmt = stmt.where(VisitRequest.source != "web")
     rows = (await db.execute(stmt)).all()
 
-    undated = sum(1 for row in rows if row.visited_on is None and row.outcome != "upcoming")
-    kept = [row for row in rows if row.visited_on is not None and row.outcome != "upcoming"]
+    # 還沒到參觀時間的不進批次：還沒結案的（upcoming），以及場次還沒開始就取消的。
+    rows = [row for row in rows if row.outcome != "upcoming" and not (row.outcome == "cancelled" and row.not_started)]
+    undated = sum(1 for row in rows if row.visited_on is None)
+    kept = [row for row in rows if row.visited_on is not None]
     completed_ids = [row.id for row in kept if row.outcome == "completed"]
     visits = await _load_visits(db, completed_ids)
     cases = [

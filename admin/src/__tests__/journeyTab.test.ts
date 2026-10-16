@@ -63,7 +63,7 @@ describe('預約全程', () => {
   it('涵蓋說明與改期數：沒有預約案件的訪視、已到場但沒有訪視、算不出參觀日的案件', async () => {
     const { wrapper } = await mountJourney()
     const text = wrapper.get('.journey-coverage').text()
-    expect(text).toContain('另有 4 筆招生訪視沒有預約案件（現場參觀、舊名單補登），不在這個漏斗裡')
+    expect(text).toContain('另有 4 筆招生訪視沒有預約案件（現場參觀、舊名單補登、預約案件已刪除），不在這個漏斗裡')
     expect(text).toContain('已到場但沒有招生訪視 1 筆')
     expect(text).toContain('預定參觀日算不出來而未納入的案件 2 筆')
     expect(text).toContain('改期過的案件 1／13')
@@ -154,7 +154,16 @@ describe('預約全程', () => {
     await block(wrapper, '全程漏斗').get('[data-test="stats-csv"]').trigger('click')
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-預約全程-全程漏斗-義華-2026-07-17至2026-10-15.csv')
-    expect(csv.slice(1).split('\r\n')[0]).toBe('階段,人數,比率')
+    // 比率拆成指標、百分比、分子、分母四欄（數字欄 Excel 才能排序、加總），不寫畫面上的整句。
+    expect(csv.slice(1).split('\r\n').slice(0, 2)).toEqual(['階段,人數,比率指標,比率,分子,分母', '預約案件,13,取消率,23.1%,3,13'])
+    await block(wrapper, '各段要花多久').get('[data-test="stats-csv"]').trigger('click')
+    const timing = vi.mocked(downloadCsv).mock.calls.at(-1)![1].slice(1).split('\r\n')
+    // 中位數寫天數的數字，不寫「5 天」。
+    expect(timing.slice(0, 3)).toEqual([
+      '指標,中位數（天）,筆數,說明',
+      '預約提前量（預約送出到預定參觀日）,7,13,樣本較少',
+      '參觀到預繳,5,3,樣本較少；另有 1 筆沒有預繳日或日期倒置，不納入',
+    ])
     await block(wrapper, '取消時點（距參觀日）').get('[data-test="stats-csv"]').trigger('click')
     expect(vi.mocked(downloadCsv).mock.calls.at(-1)![0]).toBe('招生統計-預約全程-取消時點（距參觀日）-義華-2026-07-17至2026-10-15.csv')
   })

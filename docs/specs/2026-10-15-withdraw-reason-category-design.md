@@ -102,7 +102,7 @@
 
 ## 7. 實作紀錄
 
-- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，與招生歷程兩種事件合為一支 `feature/admin-wave2-20261015`（開頭寫的分支 `feature/withdraw-reason-20261015` 沒有用）。migration `5c8e1f3a9d27`，`down_revision` 接 `f2a7c1e9d4b3`（在籍學生分布），不是開頭基準寫的 `c6a9e3f15d27`（`aae0debc` 當時的 head；之後在籍學生分布進了 main，§5 本來就說要接實作當下的 head）；`backend/tests/test_geo_schema.py` 原本寫死 head 是 `f2a7c1e9d4b3`，改成斷言只有一個 head（W2-1、W2-2），之後再有 migration 進來不會紅。
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，與招生歷程兩種事件合為一支 `feature/admin-wave2-20261015`（開頭寫的分支 `feature/withdraw-reason-20261015` 沒有用）。migration `5c8e1f3a9d27`，`down_revision` 接 `f2b8c4d1e7a9`（附近同業比較；實作時先接 `f2a7c1e9d4b3` 在籍學生分布，10-16 附近同業比較先進 main，合併時改接），不是開頭基準寫的 `c6a9e3f15d27`（`aae0debc` 當時的 head；之後在籍學生分布進了 main，§5 本來就說要接實作當下的 head）；`backend/tests/test_geo_schema.py` 原本寫死 head 是 `f2a7c1e9d4b3`，改成斷言只有一個 head（W2-1、W2-2），之後再有 migration 進來不會紅。
 - 與規格的差異：
   - `GET /options` 不加分類清單，前端照未預繳原因手抄常數，並用 `admissionsConstants.test.ts` 對 Python 原始碼逐字比對（P7；§3.2 那一句沒做）。
   - 補分類不能清空（送 `null` 回標準驗證 422）、新增訪視不收這欄；階段不是已退出時送分類回 422 `RECRUITMENT_NOT_WITHDRAWN`（P5；W7 沒寫能不能清空）。

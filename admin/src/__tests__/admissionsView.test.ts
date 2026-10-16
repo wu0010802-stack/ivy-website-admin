@@ -7,7 +7,7 @@ import { STATS_SUBS } from '../admissions/useAdmissionsFilters'
 import { routes } from '../router'
 import { canSeeNavItem, NAV_GROUPS, navItem } from '../router/nav'
 import { testUser } from './fixtures'
-import { cleanup, journeyData, mockGet, mountWith, options, pathsTo, VR_ID } from './admissionsTestKit'
+import { cleanup, journeyData, mockGet, mountWith, options, pathsTo, queryOf, VR_ID } from './admissionsTestKit'
 
 vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -425,6 +425,21 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'records')
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+  })
+
+  it('(m) 預約全程選了非預設期間後換子分頁：重設篩選不在背景重讀；回來才用預設篩選讀一次', async () => {
+    freezeToday()
+    const get = mockGet({ ...routesOn, '/admin/admissions/journey': journeyData() })
+    const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=journey&jp=365&js=web' })
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'journey')
+    await flushPromises()
+    const paths = pathsTo(get, '/admin/admissions/journey')
+    expect(paths).toHaveLength(2)
+    expect(Object.fromEntries(queryOf(paths[1]!))).toMatchObject({ source: 'all', from: '2026-07-04', to: '2026-10-01' })
   })
 })
 

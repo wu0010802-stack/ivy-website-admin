@@ -181,7 +181,8 @@ const manageUrl = computed(() => managePath.value && import.meta.client ? new UR
 const resultKind = computed(() => visitResultKind(resultStatus.value))
 const resultCopy = computed(() => visitResultCopy(resultKind.value, {
   emailEnabled: Boolean(bookingConfig.value?.parent_email_enabled),
-  email: form.email
+  email: form.email,
+  hasLink: Boolean(managePath.value)
 }))
 
 async function copyManageLink() {

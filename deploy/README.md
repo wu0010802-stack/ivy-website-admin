@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 後台第 1 波：系統狀態頁＋家長參觀提醒信（main CI 部署，無 migration）
+
+- **提交**：使用者在本機推 `feature/admin-wave1-20261015` 到 main（fast-forward `263fea2a..4f1e0603`，沒有開 PR）。內容見 README 頂部「後台第 1 波」、DESIGN.md「後台：系統狀態頁」「預約：參觀前 24 小時家長提醒信」、規格 `docs/specs/2026-10-15-admin-system-status-design.md`、`docs/specs/2026-10-15-parent-visit-reminder-design.md`（各有 §7 實作紀錄）。同一次推送也帶進第 2、3 波的規格與計畫（只有文件）。
+- **migration**：無；沒有新環境變數、沒有依賴檔變動。新權限 `system.status` 只給總管理者。
+- **回退**：沒有 schema 變動，可直接切回上一個映像。
+- **推送前閘門**（本機，Node 22；合併 `origin/main` `e420e9f2`／`263fea2a` 後在 `4205463d`）：後端全套 3,518 passed／1 skipped，另 14 個 error 全是本機 PostgreSQL「too many clients」（同時間別的 session 在用），所在 12 個檔案單獨重跑 247 passed；admin vitest 全套 165 檔 2,593 passed／1 skipped；admin、web typecheck 無錯誤；契約 `--check` 兩項一致；stack 全套 145 passed。
+- **CI**：main run 38850358405（`4f1e0603`）04:23:20Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production success，整個 run 04:47:11Z 結束。
+- **正式 `release.json`**：base commit `4f1e060381c2c2d9f9284752daed46ee3aabcedc`，snapshot `c29c58eb…`，created `2026-10-16T04:40:54Z`。
+- **線上唯讀檢查**（未登入，2026-10-16T04:48Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（`last_completed_at` 04:47:51Z）；首頁、`/admin/`、`/visit` 都回 200；新端點 `/api/website/v1/admin/system-status` 未登入回 401（路由已掛）。
+- **待使用者**：登入正式後台看「系統 → 系統狀態」，確認寄信（SMTP）、Turnstile 等列的實況；寄信已設定的話自己按一次「寄一封測試信給我」（會寄真信到自己的帳號）。正式站沒設 SMTP 之前，家長提醒信一律 skipped。
+
 ## 2026-10-16 區域分析：附近同業收費（main CI 部署，migration 只新增）
 
 - **提交**：使用者在本機先推 `feature/peer-fees-20261015`（CI run 38841989719 全綠、部署照設計跳過），再推到 main（fast-forward `303df4bf..e420e9f2`，24 個 commit，沒有開 PR）。內容見 README 頂部「區域分析：附近同業收費」、DESIGN.md「附近同業收費」、規格 `docs/specs/2026-10-15-peer-comparison-design.md`。
@@ -2230,9 +2241,9 @@ CLI 上傳部署包含工作目錄變更，不等於 Git commit 部署；記錄�
 - 線上核對（唯讀）：`/`、`/about`、`/environment`、`/visit`、`/visit/yihua`、`/admin/login`、`/api/website/v1/health`、`/sitemap.xml` 皆 200；`/campuses/yihua`、`/campuses/renwu`、不存在的校區皆 301 轉 `/`；首頁 HTML 沒有 `/campuses` 連結，JSON-LD 只有 EducationalOrganization 與 WebSite。未做瀏覽器檢查。
 - 後台分校簡介、常見問題、環境導覽、預約橫幅文案仍可編輯，但公開站已沒有頁面顯示。
 
-## 家長自選場次（未部署，草稿）
+## 家長自選場次（上線前草稿；10-01 已部署 main `b216133`，下列人工步驟仍適用）
 
-`feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。**尚未 push、尚未部署**；B–D 完成後由使用者決定何時合併上線（push main＝正式部署）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
+`feature/parent-self-booking-20260930`：官網預約只剩自選場次、送出即預約成功。2026-10-01 已隨 main `b216133` 上線（10-16 補註）。規格 `docs/specs/2026-09-30-parent-self-booking-design.md` §7。
 
 上線前人工步驟：
 1. **寄信帳號**：Railway api 設 `WEBSITE_SMTP_HOST／PORT／SECURITY／USERNAME／PASSWORD／FROM`（Gmail／Google Workspace 應用程式密碼最省事；用學校網域寄件要先設 SPF／DKIM）。不設也能上線，家長只在畫面上看到修改連結（`parent_email_enabled=false`）。

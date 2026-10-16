@@ -10,6 +10,10 @@ export interface Chip { key: string; kind: ChipKind; text: string; ended: boolea
 // 10:30 兩個上午場）改寫完整名稱「上午場 09:30」，才分得出是哪一場。
 const shortName = (start: string) => sessionName(start).split(' ')[0]!
 
+// 只有園方手動關的才是「停止申請」：休假日關閉（exception）另有休假標示；改每週場次後停用、
+// 因為有舊案件刪不掉的（rule）其實已經不是場次，不畫色塊、不算停止申請。舊資料沒有來源一律當手動。
+const stoppedByStaff = (slot: CalendarSlot) => slot.closed && slot.closed_source !== 'exception' && slot.closed_source !== 'rule'
+
 export function slotEnded(slot: CalendarSlot, now = Date.now()): boolean {
   return new Date(`${slot.slot_date}T${slot.end_time.slice(0, 8)}+08:00`).getTime() <= now
 }
@@ -17,7 +21,7 @@ export function slotEnded(slot: CalendarSlot, now = Date.now()): boolean {
 export function dayChips(slots: CalendarSlot[], now = Date.now()): Chip[] {
   const chips: Chip[] = []
   // 只算真的會畫出色塊的場次：已結束又沒人約的場次不畫，不會跟別場混淆。
-  const drawn = (slot: CalendarSlot) => slot.visits.length > 0 || (slot.closed ? slot.closed_source !== 'exception' : !slotEnded(slot, now) && slot.capacity > slot.booked_count)
+  const drawn = (slot: CalendarSlot) => slot.visits.length > 0 || (slot.closed ? stoppedByStaff(slot) : !slotEnded(slot, now) && slot.capacity > slot.booked_count)
   const nameCount = new Map<string, number>()
   for (const slot of slots.filter(drawn)) nameCount.set(shortName(slot.start_time), (nameCount.get(shortName(slot.start_time)) ?? 0) + 1)
   for (const slot of [...slots].sort((a, b) => a.start_time.localeCompare(b.start_time))) {
@@ -25,7 +29,7 @@ export function dayChips(slots: CalendarSlot[], now = Date.now()): Chip[] {
     const name = (nameCount.get(shortName(slot.start_time)) ?? 0) > 1 ? sessionName(slot.start_time) : shortName(slot.start_time)
     // 休假日關閉的場次若還有家長預約（不會自動取消），預約色塊照畫，才看得出哪天要處理。
     for (const v of slot.visits) chips.push({ key: v.id, kind: 'visit', text: `${name} ${v.parent_name}`, ended, status: v.status })
-    if (slot.closed && slot.closed_source === 'exception') continue
+    if (slot.closed && !stoppedByStaff(slot)) continue
     if (slot.closed) chips.push({ key: `${slot.id}-stopped`, kind: 'stopped', text: name.includes(' ') ? `${name} 停止申請` : `${name}停止申請`, ended })
     else if (!ended && !slot.visits.length && slot.capacity > slot.booked_count) {
       chips.push({ key: `${slot.id}-open`, kind: 'open', text: `${name} 可約 ${slot.capacity - slot.booked_count}`, ended })
@@ -39,7 +43,7 @@ export function dayAriaLabel(day: string, slots: CalendarSlot[], holidayReason: 
   if (holidayReason !== null) parts.push(`休假：${holidayReason || '未填原因'}`)
   const booked = slots.reduce((sum, s) => sum + s.visits.length, 0)
   const seats = slots.filter(s => !s.closed && !slotEnded(s, now)).reduce((sum, s) => sum + Math.max(s.capacity - s.booked_count, 0), 0)
-  const stopped = slots.filter(s => s.closed && s.closed_source !== 'exception').length
+  const stopped = slots.filter(stoppedByStaff).length
   parts.push(booked ? `排入 ${booked} 組` : '沒有排入的家長')
   if (seats) parts[parts.length - 1] += `，可約 ${seats} 組`
   if (stopped) parts.push(`${stopped} 場停止申請`)
