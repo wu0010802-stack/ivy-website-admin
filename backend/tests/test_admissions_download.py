@@ -738,19 +738,23 @@ async def test_no_deposit_export_needs_export_grant_and_campus_scope(
 ):
     await create_record(admin_client, child_name="授權測試寶貝", visit_date=_days_ago(5), no_deposit_reason="費用考量")
     url = f"{NO_DEPOSIT_EXPORT}?campus_key=yihua"
-    # 名單有孩子姓名與電訪回應：看得到名單不等於可以批次匯出，要總管理者另外授權。
+    # 名單有孩子姓名與電訪回應：2026-10-16 起限總管理者（admissions.stats），分校管理者、接待人員一律 403。
     assert (await campus_admin_yihua_client.get(url)).status_code == 403
     assert (await reception_yihua_client.get(url)).status_code == 403
 
-    me = (await reception_yihua_client.get(f"{API}/auth/me")).json()["user"]
-    granted = await admin_client.patch(
-        f"{API}/admin/users/{me['id']}/capabilities", json={"capabilities": ["booking.export"]}
-    )
-    assert granted.status_code == 200, granted.text
-    _, rows = _csv(await reception_yihua_client.get(url))
+    # 就算總管理者另外授予 booking.export，沒有 admissions.stats 還是 403（授權不擴大成統計權限）；本校、他校都一樣。
+    for client in (campus_admin_yihua_client, reception_yihua_client):
+        me = (await client.get(f"{API}/auth/me")).json()["user"]
+        granted = await admin_client.patch(
+            f"{API}/admin/users/{me['id']}/capabilities", json={"capabilities": ["booking.export"]}
+        )
+        assert granted.status_code == 200, granted.text
+        assert (await client.get(url)).status_code == 403
+        assert (await client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=minghua")).status_code == 403
+
+    # 總管理者（自帶 booking.export）可以匯出；不存在的校區 404。
+    _, rows = _csv(await admin_client.get(url))
     assert [row["姓名"] for row in rows] == ["授權測試寶貝"]
-    # 授權不擴大校區範圍；不存在的校區一樣 404。
-    assert (await reception_yihua_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=minghua")).status_code == 404
     assert (await admin_client.get(f"{NO_DEPOSIT_EXPORT}?campus_key=nowhere")).status_code == 404
     # 篩選參數不合法（轉換潛力只有高／中／低）和列表端點一樣 422。
     assert (await admin_client.get(f"{url}&priority=urgent")).status_code == 422

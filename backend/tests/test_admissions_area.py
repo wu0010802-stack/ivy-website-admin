@@ -266,12 +266,13 @@ async def test_area_campus_district_before_doorplates(admin_client, db_session):
 
 
 async def test_area_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）：分校、接待、editor、readonly 一律 403，不論本校或他校。"""
     path = f"{AREA}?campus_key="
-    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
-    assert (await minghua_client.get(path + "yihua")).status_code == 404
-    assert (await editor_client.get(path + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
+    for client in (reception_yihua_client, minghua_client, editor_client, readonly_yihua_client):
+        assert (await client.get(path + "yihua")).status_code == 403
+        assert (await client.get(path + "minghua")).status_code == 403
+    assert (await admin_client.get(path + "yihua")).status_code == 200
+    assert (await admin_client.get(path + "minghua")).status_code == 200
     assert (await admin_client.get(path + "nowhere")).status_code == 404
 
 
@@ -404,12 +405,13 @@ async def test_kindergartens_from_samples_are_sorted(admin_client, db_session):
 async def test_kindergartens_permissions(
     reception_yihua_client, readonly_yihua_client, editor_client, minghua_client, admin_client
 ):
+    """2026-10-16 起限總管理者（admissions.stats）：其他角色不論本校或他校一律 403。"""
     path = f"{AREA}/kindergartens?campus_key="
-    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
-    assert (await editor_client.get(path + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
-    assert (await minghua_client.get(path + "yihua")).status_code == 404
+    for client in (reception_yihua_client, editor_client, readonly_yihua_client, minghua_client):
+        assert (await client.get(path + "yihua")).status_code == 403
+        assert (await client.get(path + "minghua")).status_code == 403
+    assert (await admin_client.get(path + "yihua")).status_code == 200
+    assert (await admin_client.get(path + "minghua")).status_code == 200
     assert (await admin_client.get(path + "nowhere")).status_code == 404
 
 
@@ -501,8 +503,10 @@ async def test_boundaries_if_none_match_forms(admin_client, header, not_modified
     assert response.headers["etag"] == etag
 
 
-async def test_boundaries_permissions(reception_yihua_client, editor_client, readonly_yihua_client):
+async def test_boundaries_permissions(reception_yihua_client, editor_client, readonly_yihua_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）。"""
     path = f"{AREA}/boundaries"
-    assert (await reception_yihua_client.get(path)).status_code == 200
+    assert (await admin_client.get(path)).status_code == 200
+    assert (await reception_yihua_client.get(path)).status_code == 403
     assert (await editor_client.get(path)).status_code == 403
     assert (await readonly_yihua_client.get(path)).status_code == 403

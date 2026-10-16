@@ -1,79 +1,22 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { campusLabel } from '../api/labels'
-import { useNarrowScreen } from '../composables/useNarrowScreen'
 import PageHeader from '../components/PageHeader.vue'
-import CampusSelect from '../components/CampusSelect.vue'
+import AdmissionsFilterBar from '../components/admissions/AdmissionsFilterBar.vue'
 import FunnelBoard from '../components/admissions/FunnelBoard.vue'
 import { lazyComponent } from '../composables/lazyComponent'
-import { useRoute, useRouter, type LocationQuery } from 'vue-router'
-import { getOptions } from '../api/admissions'
-import { ApiError } from '../api/client'
-import { useRequestSequence } from '../composables/useRequestSequence'
-import { schoolYearOptions } from '../admissions/academic'
-import { SEMESTER_LABELS } from '../admissions/constants'
-import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissions/useAdmissionsFilters'
+import { useAdmissionsAvailability } from '../admissions/useAdmissionsAvailability'
+import { isAdmissionsTab, useAdmissionsFilters } from '../admissions/useAdmissionsFilters'
 
 // 招生入學（規格第 10 節）：頁首放校區與入學學年學期，分頁順序比照園務。2026-10-05 拿掉名額規劃與
 // 官網預約兩個分頁（和園務分歧）：確認到場改在案件列表的「只看尚未確認到場」。2026-10-06 拿掉
 // 官網延伸的「待追蹤」分頁：下次聯絡、負責人改在訪視明細的「追蹤」「負責人」篩選看。
+// 2026-10-16 統計分析抽成獨立的「招生統計」頁（AdmissionsStatsView，限總管理者），這裡只剩漏斗看板與訪視明細。
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
-// 預設是漏斗看板：訪視明細與統計分析（表格、地圖、參觀預約統計）切過去才下載。
+// 預設是漏斗看板：訪視明細切過去才下載。
 const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
-const StatsTab = lazyComponent(() => import('../components/admissions/StatsTab.vue'))
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
-const route = useRoute()
-const router = useRouter()
-
-// 統計的警示與行動入口「查看本月明細」、區域分析與退出原因分佈的「查看明細」：切到訪視明細並帶月份、區域或
-// 退出原因。三者擇一：帶一個就拿掉另外兩個，免得疊成更窄的範圍。用 push 不用 replace：看完明細按上一頁回到統計。
-function openRecords(filter: { month?: string; area?: string; withdraw?: string }) {
-  const query: LocationQuery = { ...route.query, tab: 'records' }
-  delete query.month
-  delete query.area
-  delete query.wr
-  if (filter.month) query.month = filter.month
-  if (filter.area) query.area = filter.area
-  if (filter.withdraw) query.wr = filter.withdraw
-  void router.push({ query })
-}
-const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
-// 學年選項取新增／編輯表單（+3…−1）與原本頁首（+1…−2）的聯集：入學學年填到後年、大後年的訪視也選得到。
-const yearOptions = computed(() => schoolYearOptions(defaultYear, [3, 2, 1, 0, -1, -2]))
-
-// 招生開關（WEBSITE_ADMISSIONS_ENABLED）：關閉時後端整組 /admin/admissions/* 回 404。
-// 選定校區後先讀 options 判定：404 顯示「尚未啟用」空狀態，其他錯誤照常掛分頁
-// （各分頁自己處理錯誤）。換校區重新判定，舊回應用 useRequestSequence 擋掉。
-const availability = ref<'checking' | 'on' | 'off'>('checking')
-const availabilityRequests = useRequestSequence()
-async function checkAvailability() {
-  if (!campus.value) return
-  const request = availabilityRequests.begin()
-  try {
-    await getOptions(campus.value)
-    if (availabilityRequests.isCurrent(request)) availability.value = 'on'
-  } catch (err) {
-    if (availabilityRequests.isCurrent(request)) availability.value = err instanceof ApiError && err.status === 404 ? 'off' : 'on'
-  }
-}
-
-watch(campus, () => void checkAvailability(), { immediate: true })
-
-// 統計分析的「參觀預約」看預約案件的送出日或事件日，不分入學學年學期：兩個下拉停用（值保留，
-// 切回其他子分頁還在），期間在子分頁裡選。同 2026-10-05「待追蹤」的做法。預約全程同理（看預定參觀日）。
-const termless = computed(() => tab.value === 'stats' && (sub.value === 'booking' || sub.value === 'journey'))
-// 手機：三個篩選收成一顆摘要鈕，點開才出現（390px 疊起來會占掉半個首屏）。
-const narrow = useNarrowScreen()
-const filtersOpen = ref(false)
-const filterSummary = computed(() => {
-  const parts: string[] = []
-  if (multiCampus.value) parts.push(campusLabel(campus.value))
-  if (termless.value) parts.push('不分學年學期')
-  else parts.push(schoolYear.value === null ? '不限學年' : `${schoolYear.value} 學年`, semester.value ? SEMESTER_LABELS[semester.value] : '整學年')
-  return parts.join('・')
-})
+const availability = useAdmissionsAvailability(campus)
 
 function setTab(name: string | number) {
   if (isAdmissionsTab(name)) tab.value = name
@@ -84,12 +27,6 @@ function setCampus(value: string) {
   if (value !== campus.value) visitRequestId.value = ''
   campus.value = value
 }
-function setYear(value: number | null | undefined) {
-  schoolYear.value = value ?? null
-}
-function setSemester(value: Semester | null | undefined) {
-  semester.value = value ?? null
-}
 // 看板「另有 N 筆沒有填入學學期」→ 到訪視明細，並清掉學年學期篩選（園務 showUnscopedVisits）。
 function showUnscoped() {
   clearTerm()
@@ -99,49 +36,25 @@ function showUnscoped() {
 
 <template>
   <div class="page admissions">
-    <PageHeader lead="家長參觀之後的預繳、註冊追蹤與統計。" />
+    <PageHeader lead="家長參觀之後的預繳與註冊追蹤。" />
 
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號還沒有負責的校區，請總管理者到「使用者」設定負責校區。" />
     <el-empty v-else-if="availability === 'off'" description="招生入學尚未啟用">
-      <p class="admissions__off">開啟後這裡會出現漏斗看板、訪視明細與統計分析（含參觀預約的統計）。</p>
+      <p class="admissions__off">開啟後這裡會出現漏斗看板與訪視明細。</p>
     </el-empty>
     <template v-else-if="availability === 'on'">
-      <button
-        v-if="narrow"
-        type="button"
-        class="admissions__summary"
-        :aria-expanded="filtersOpen"
-        aria-controls="admissions-filters"
-        @click="filtersOpen = !filtersOpen"
-      >
-        <span class="admissions__summary-text">{{ filterSummary }}</span>
-        <span class="admissions__summary-action">{{ filtersOpen ? '收起' : '更改條件' }}</span>
-      </button>
-      <div v-if="!narrow || filtersOpen" id="admissions-filters" class="toolbar admissions__filters">
-        <div class="filter-field">
-          <span v-if="multiCampus">校區</span>
-          <CampusSelect :model-value="campus" :keys="visibleCampusKeys" @update:model-value="setCampus" />
-        </div>
-        <div class="filter-field">
-          <span>入學學年</span>
-          <el-select :model-value="schoolYear ?? undefined" clearable placeholder="不限學年" aria-label="入學學年" :disabled="termless" @update:model-value="setYear">
-            <el-option v-for="year in yearOptions" :key="year" :label="`${year} 學年`" :value="year" />
-          </el-select>
-        </div>
-        <div class="filter-field">
-          <span>入學學期</span>
-          <el-select :model-value="semester ?? undefined" clearable placeholder="整學年" aria-label="入學學期" :disabled="termless" @update:model-value="setSemester">
-            <el-option :value="1" :label="SEMESTER_LABELS[1]" />
-            <el-option :value="2" :label="SEMESTER_LABELS[2]" />
-          </el-select>
-        </div>
-        <p v-if="termless" class="admissions__scope-note hint">這個分頁不分入學學年學期</p>
-      </div>
+      <AdmissionsFilterBar
+        v-model:school-year="schoolYear"
+        v-model:semester="semester"
+        :campus="campus"
+        :campus-keys="visibleCampusKeys"
+        :default-year="defaultYear"
+        @update:campus="setCampus"
+      />
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
         <el-tab-pane label="漏斗看板" name="funnel" />
         <el-tab-pane label="訪視明細" name="records" />
-        <el-tab-pane label="統計分析" name="stats" />
       </el-tabs>
 
       <div class="admissions__body">
@@ -163,63 +76,12 @@ function showUnscoped() {
           :semester="semester"
           @clear-term="clearTerm"
         />
-        <StatsTab
-          v-if="tab === 'stats'"
-          v-model:sub="sub"
-          v-model:journey="journey"
-          :campus-key="campus"
-          :school-year="schoolYear"
-          :semester="semester"
-          :campus-keys="visibleCampusKeys"
-          @open-records="openRecords"
-        />
       </div>
     </template>
   </div>
 </template>
 
 <style scoped>
-.admissions__filters .el-select {
-  width: 140px;
-}
-
-.admissions__scope-note {
-  align-self: flex-end;
-  margin: 0;
-  padding-bottom: 6px;
-}
-
-.admissions__summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  min-height: 44px;
-  margin-bottom: 8px;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-base);
-  text-align: left;
-  cursor: pointer;
-}
-
-.admissions__summary-text {
-  min-width: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.admissions__summary-action {
-  flex: none;
-  color: var(--el-color-primary);
-  font-size: var(--text-sm);
-}
-
 .admissions__tabs {
   margin-bottom: 8px;
 }

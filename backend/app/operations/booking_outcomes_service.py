@@ -7,7 +7,7 @@
   awaiting_attendance，不算進分母，也不當成到場（3.2：不能用預定日期已過判定已到場）。
 - 待處理兩種（open_now）是現在的狀態，不受期間影響，條件在 booking/pending_kinds.py，
   和總覽、案件列表同一份。
-- 不回傳任何個資；只有 analytics.read 的角色也能看。"""
+- 不回傳任何個資。2026-10-16 起和招生統計一起限總管理者（admissions.stats）。"""
 
 from __future__ import annotations
 

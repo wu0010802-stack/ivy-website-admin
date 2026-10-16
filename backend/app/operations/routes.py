@@ -306,7 +306,7 @@ async def get_analytics_funnel(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    require_scope(current_user, "admissions.stats", campus_keys=[campus_key])
     _validate_range(date_from, date_to)
     period = analytics_service.FunnelRange(date_from, date_to)
     funnel = await analytics_service.get_campus_funnel(db, campus_key, period)
@@ -373,7 +373,7 @@ async def get_booking_outcomes(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """五校並排與各校的預約結果（去識別統計）。只列授權範圍內的校區，沒有校區參數。"""
-    require_scope(current_user, "analytics.read")
+    require_scope(current_user, "admissions.stats")
     _validate_range(date_from, date_to)
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     return await booking_outcomes_service.booking_outcomes(
@@ -411,7 +411,7 @@ async def get_event_trend(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    require_scope(current_user, "admissions.stats", campus_keys=[campus_key])
     _validate_range(date_from, date_to)
     trend = await analytics_service.get_event_trend(
         db, campus_key, analytics_service.FunnelRange(date_from, date_to), today_local()
@@ -449,7 +449,7 @@ async def get_class_distribution(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    require_scope(current_user, "analytics.read", campus_keys=[campus_key])
+    require_scope(current_user, "admissions.stats", campus_keys=[campus_key])
     _validate_range(date_from, date_to)
     return await booking_outcomes_service.class_distribution(
         db, campus_key, analytics_service.FunnelRange(date_from, date_to), school_year

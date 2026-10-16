@@ -591,12 +591,13 @@ async def test_rejects_bad_radius(admin_client, radius):
 
 
 async def test_permissions(reception_yihua_client, readonly_yihua_client, minghua_client, editor_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）：其他角色不論本校或他校一律 403。"""
     path = f"{TRENDS}?campus_key="
-    assert (await reception_yihua_client.get(path + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(path + "minghua")).status_code == 404
-    assert (await minghua_client.get(path + "yihua")).status_code == 404
-    assert (await editor_client.get(path + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(path + "yihua")).status_code == 403
+    for client in (reception_yihua_client, minghua_client, editor_client, readonly_yihua_client):
+        assert (await client.get(path + "yihua")).status_code == 403
+        assert (await client.get(path + "minghua")).status_code == 403
+    assert (await admin_client.get(path + "yihua")).status_code == 200
+    assert (await admin_client.get(path + "minghua")).status_code == 200
     assert (await admin_client.get(path + "nowhere")).status_code == 404
 
 

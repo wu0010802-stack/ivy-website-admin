@@ -10,7 +10,7 @@ export function analyticsCsvName(title: string, scope: string, period: string): 
 }
 
 /**
- * 「招生統計-參觀預約-表名-範圍-期間-今天（台北）」：2026-10-13 起參觀預約的統計在招生入學 → 統計分析，
+ * 「招生統計-參觀預約-表名-範圍-期間-今天（台北）」：2026-10-13 起參觀預約的統計在招生入學 → 統計分析（2026-10-16 起是招生統計頁），
  * 檔名跟著寫招生統計；多一段「參觀預約」，和招生自己的五校比較（依入學學期）分得開。
  */
 export function bookingCsvName(title: string, scope: string, period: string): string {

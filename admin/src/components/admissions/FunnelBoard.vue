@@ -220,7 +220,7 @@ function openEvents(card: BoardCard) {
               {{ item.label }} <strong class="num">{{ item.value }}</strong><span v-if="item.fraction" class="num">{{ item.fraction }}</span>
             </span>
           </p>
-          <p class="hint funnel__note">依各欄目前張數相除，和「統計分析」的轉換率算法不同。</p>
+          <p class="hint funnel__note">依各欄目前張數相除，和「招生統計」的轉換率算法不同。</p>
         </template>
         <p v-if="schoolYear === null" class="hint funnel__note">看板一次看一個學年：頁首選了「不限學年」，這裡先顯示 {{ defaultYear }} 學年。</p>
       </div>

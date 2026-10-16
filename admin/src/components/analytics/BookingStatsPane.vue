@@ -14,9 +14,9 @@ import ClassDistributionPanel from './ClassDistributionPanel.vue'
 import EventTrendPanel from './EventTrendPanel.vue'
 import { bookingCsvName, saveAnalyticsCsv } from './csvExport'
 
-// 參觀預約的統計（2026-10-13 從成效統計搬到招生入學 → 統計分析 → 參觀預約）：原本成效統計的
+// 參觀預約的統計（2026-10-13 從成效統計搬到招生入學 → 統計分析 → 參觀預約，2026-10-16 隨統計分析搬到招生統計頁）：原本成效統計的
 // 「各校預約」與「預約孩子的班別」兩個頁籤併成一個子分頁，口徑與算法不變（DESIGN.md「成效統計補強」）。
-// 校區跟招生入學的頁首；期間看案件送出日或事件發生日，不看入學學年學期，所以期間在這裡自己選。
+// 校區跟招生統計的頁首；期間看案件送出日或事件發生日，不看入學學年學期，所以期間在這裡自己選。
 // 成效統計只留官網瀏覽與速度（SiteTrafficPanel）。
 const props = defineProps<{ campusKey: string; campusKeys: readonly string[] }>()
 

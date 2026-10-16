@@ -16,7 +16,7 @@ const CATEGORY = '費用考量'
 const DETAIL = '學費比預期高'
 const TERM = currentTerm(taipeiDate(0))
 const SHOTS = path.join(ROOT, 'output/playwright')
-const STATS_PATH = `/admissions?campus=${CAMPUS}&sy=all&tab=stats&sub=nodeposit`
+const STATS_PATH = `/admissions-stats?campus=${CAMPUS}&sy=all&sub=nodeposit`
 
 interface VisitOut { id: string; version: number }
 interface WithdrawRow { reason: string; deposited: number; enrolled: number; total: number }
@@ -81,7 +81,7 @@ test('修改招生資料進歷程 → 退預繳選原因 → 統計分佈 → �
     })
 
     await test.step('統計「未預繳與退出原因」：費用考量多一筆退預繳、未分類不變', async () => {
-      await gotoAdmin(page, STATS_PATH, '招生入學')
+      await gotoAdmin(page, STATS_PATH, '招生統計')
       await expect(page.getByRole('tab', { name: '未預繳與退出原因' })).toHaveAttribute('aria-selected', 'true')
       const table = withdrawBlock(page)
       await expect(table).toBeVisible()
@@ -130,7 +130,7 @@ test('修改招生資料進歷程 → 退預繳選原因 → 統計分佈 → �
       await filters.screenshot({ path: path.join(SHOTS, 'withdraw-records-filters-390.png') })
       await page.screenshot({ path: path.join(SHOTS, 'withdraw-records-390.png'), fullPage: true })
 
-      await gotoAdmin(page, STATS_PATH, '招生入學')
+      await gotoAdmin(page, STATS_PATH, '招生統計')
       await expect(withdrawBlock(page)).toBeVisible()
       await expectNoHorizontalOverflow(page)
       await withdrawBlock(page).scrollIntoViewIfNeeded()

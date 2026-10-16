@@ -104,7 +104,7 @@ test('批次標記到場 → 排下次聯絡 → 到期 → 記錄聯絡 → 預
 
   await test.step('甲到期：訪視明細「追蹤：已到期」看得到，招生入學沒有待追蹤分頁', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=records&sy=all`, '招生入學')
-    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細', '統計分析'])
+    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細'])
     // 點下拉外框：輸入框上疊著佔位文字，直接點 input 會被它擋住。
     await page.locator('.records-filters .el-select', { has: page.getByLabel('追蹤狀態') }).click()
     await page.locator('.el-select-dropdown__item:visible', { hasText: '已到期' }).click()

@@ -69,14 +69,14 @@ async def test_click_requires_event_id_and_known_entry(public_client):
 
 
 @pytest.mark.asyncio
-async def test_click_without_campus_is_shown_only_to_all_campus_viewers(public_client, admin_client, minghua_client):
+async def test_click_without_campus_is_shown_only_to_super_admin(public_client, admin_client, minghua_client):
+    """2026-10-16 起漏斗限總管理者（admissions.stats）：未分校點擊只有總管理者看得到，分校帳號連漏斗都 403。"""
     await public_client.post(f"{API}/public/analytics-events", json=_click(campus_key=None, entry="header"))
     funnel = await _funnel(admin_client)
     assert funnel["counts"]["booking_cta_clicked"] == 0
     assert funnel["unassigned_clicks"]["booking_cta_clicked"] == 1
     minghua = await minghua_client.get(f"{BASE}/analytics/funnel?campus_key=minghua")
-    assert minghua.status_code == 200
-    assert minghua.json()["unassigned_clicks"] is None
+    assert minghua.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -221,6 +221,9 @@ async def test_funnel_date_range_uses_taipei_day_boundaries(admin_client, db_ses
 
 
 @pytest.mark.asyncio
-async def test_funnel_other_campus_is_hidden(minghua_client):
-    response = await minghua_client.get(f"{BASE}/analytics/funnel?campus_key=yihua")
-    assert response.status_code == 404
+async def test_funnel_is_super_admin_only(minghua_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）：分校帳號不論本校或他校都 403；總管理者看得到任一校。"""
+    for campus_key in ("yihua", "minghua"):
+        response = await minghua_client.get(f"{BASE}/analytics/funnel?campus_key={campus_key}")
+        assert response.status_code == 403
+        assert (await admin_client.get(f"{BASE}/analytics/funnel?campus_key={campus_key}")).status_code == 200

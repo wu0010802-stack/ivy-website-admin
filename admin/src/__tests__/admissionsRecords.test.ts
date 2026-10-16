@@ -606,9 +606,9 @@ describe('月份篩選與網址（C3 統計分頁跳到明細的接縫，本檔�
     expect(router.currentRoute.value.query.month).toBeUndefined()
   })
 
-  it('統計分頁用 router.push 帶 month 切過來（C3 的做法）；清除篩選連月份、學年學期一起清', async () => {
+  it('招生統計用 router.push 帶 month 切過來（C3 的做法）；清除篩選連月份、學年學期一起清', async () => {
     const get = mockGet(pageRoutes())
-    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?tab=stats&sem=1' })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?sem=1' })
     await router.push({ query: { ...router.currentRoute.value.query, tab: 'records', month: '115.08' } })
     await flushPromises()
     expect(lastQuery(get).get('month')).toBe('115.08')

@@ -6,11 +6,11 @@ import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 2026-10-13：成效統計的「各校預約」「預約孩子的班別」搬到招生入學 → 統計分析 → 參觀預約；
-// 成效統計只留官網瀏覽與速度。家長在官網送出一筆預約後，參觀預約子分頁的各面板都在、
+// 成效統計只留官網瀏覽與速度。2026-10-16 統計分析抽成獨立的招生統計頁，只有總管理者看得到。家長在官網送出一筆預約後，參觀預約子分頁的各面板都在、
 // 入學學年學期停用，1440／390 不橫向溢出；截圖存 output/playwright/（給人看，不比對像素）。
 
 const SHOTS = path.join(ROOT, 'output/playwright')
-const BOOKING_PATH = `/admissions?campus=${SLOTS_CAMPUS}&tab=stats&sub=booking`
+const BOOKING_PATH = `/admissions-stats?campus=${SLOTS_CAMPUS}&sub=booking`
 const VIEWPORTS = [
   { name: '1440', device: { viewport: { width: 1440, height: 900 } } },
   { name: '390', device: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
@@ -23,14 +23,14 @@ test.beforeAll(async () => {
 })
 
 async function openBookingStats(page: Page): Promise<void> {
-  await gotoAdmin(page, BOOKING_PATH, '招生入學')
+  await gotoAdmin(page, BOOKING_PATH, '招生統計')
   await expect(page.getByRole('tab', { name: '參觀預約', selected: true })).toBeVisible()
   await expect(page.locator('.funnel__row').first()).toBeVisible()
   await page.waitForLoadState('networkidle')
 }
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：招生入學 → 統計分析 → 參觀預約有原本各校預約與班別的面板`, async ({ browser }) => {
+  test(`${name}px：招生統計 → 參觀預約有原本各校預約與班別的面板`, async ({ browser }) => {
     const { context, page } = await openAs(browser, 'super_admin', device)
     await openBookingStats(page)
     for (const heading of [/^五校比較/, /^預約結果・義華校/, /^預約流程/, /^每日變化・義華校/, /^預約孩子的班別・義華校/, /^依來源/, /^預約鈕點擊/]) {
@@ -53,12 +53,17 @@ for (const { name, device } of VIEWPORTS) {
   })
 }
 
-test('分校管理者只看得到自己的校：參觀預約沒有五校比較，也沒有招生的五校比較子分頁', async ({ browser }) => {
+test('分校管理者看不到招生統計：側欄沒有，直接開網址被導回營運總覽，參觀預約統計的 API 回 403', async ({ browser }) => {
   const { context, page } = await openAs(browser, 'campus_admin')
-  await openBookingStats(page)
-  await expect(page.getByRole('heading', { level: 2, name: /^預約結果・義華校/ })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 2, name: /^五校比較/ })).toHaveCount(0)
-  await expect(page.getByRole('tab', { name: '五校比較' })).toHaveCount(0)
+  await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}`, '招生入學')
+  const nav = page.getByRole('navigation', { name: '主選單' })
+  await expect(nav.getByRole('link', { name: '招生入學' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '招生統計' })).toHaveCount(0)
+  await page.goto(`/admin${BOOKING_PATH}`)
+  await expect(page.getByRole('heading', { level: 1, name: '營運總覽' })).toBeVisible()
+  await expect(page.getByText('你的帳號沒有「招生統計」的權限', { exact: false })).toBeVisible()
+  const response = await page.request.get(`/api/website/v1/admin/analytics/booking-outcomes`)
+  expect(response.status()).toBe(403)
   await context.close()
 })
 

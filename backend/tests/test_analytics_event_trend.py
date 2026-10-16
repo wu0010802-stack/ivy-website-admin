@@ -71,9 +71,12 @@ async def test_no_events_gives_one_zero_day(admin_client):
 
 
 @pytest.mark.asyncio
-async def test_other_campus_is_hidden(minghua_client):
-    response = await minghua_client.get(f"{BASE}/event-trend?campus_key=yihua")
-    assert response.status_code == 404
+async def test_event_trend_is_super_admin_only(minghua_client, admin_client):
+    """2026-10-16 起限總管理者（admissions.stats）：分校帳號不論本校或他校都 403；總管理者看得到任一校。"""
+    for campus_key in ("yihua", "minghua"):
+        response = await minghua_client.get(f"{BASE}/event-trend?campus_key={campus_key}")
+        assert response.status_code == 403
+        assert (await admin_client.get(f"{BASE}/event-trend?campus_key={campus_key}")).status_code == 200
 
 
 @pytest.mark.asyncio

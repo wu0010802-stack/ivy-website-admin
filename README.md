@@ -1,3 +1,17 @@
+## 2026-10-16 招生統計抽成獨立側欄頁、只給總管理者（`feature/admissions-stats-page-20261016`）
+
+使用者要把招生入學的「統計分析」分頁（`/admissions?tab=stats`）抽成獨立的側欄項目，並且只有最高權限看得到；確認過分校管理者、接待會連未預繳名單一起看不到。規則見 DESIGN.md「後台：招生統計抽成獨立頁、只給總管理者」。
+
+- **後台**：側欄「參觀預約」組、「招生入學」之後新增「招生統計」（`/admin/admissions-stats`，限總管理者、招生開關關閉時不列出）。新頁 `AdmissionsStatsView` 頁首同招生入學，九個子分頁（`StatsTab`）原封不動；「查看明細」push 到招生入學的訪視明細，上一頁回到統計。招生入學只剩漏斗看板、訪視明細；舊連結 `?tab=stats` 總管理者轉到新頁、其他人退回漏斗看板。兩頁共用的頁首抽成 `AdmissionsFilterBar`、開關判定抽成 `useAdmissionsAvailability`，`useAdmissionsFilters(page)` 依頁面讀寫自己的網址參數。系統狀態「看區域分析」、成效統計說明、漏斗看板口徑說明改指招生統計。
+- **後端**：新 capability `admissions.stats`（只給 `super_admin`），統計用的 18 支 API（招生統計、五校比較、區域分析整組、預約全程、未預繳名單與匯出、參觀預約統計四支）改用它，其他角色 403；`analytics.read` 已無路由使用、刪除。漏斗看板、訪視明細的 API 不變。沒有 migration；契約只有 docstring 變（已重新產生）。
+- **驗證**（2026-10-16，Node 22、本機 PostgreSQL、獨立測試庫 `ivy_website_admstats1016_test`／`_e2e_test`，從 main `c4524ed5` 開，**未 commit、未 push、未部署**）：
+  - 後端全套 3568 passed、1 skipped、0 failed（7 分 47 秒）；權限相關 14 個測試檔的期望值改成「總管理者 200、其他角色 403」，原本的期間、學年邊界、不含個資等斷言保留。
+  - admin `vue-tsc` 通過；admin 全套 166 個檔案 2634 passed、1 skipped（`--testTimeout=60000`，機器負載高）；統計頁的網址同步、子分頁、查看明細、舊連結轉址、側欄與路由權限搬到新檔 `admissionsStatsView.test.ts`。
+  - `export_openapi.py --check` 與 `check-contract-types.mjs` 一致。
+  - stack 全套重新 build 後 147 passed、0 failed（含視覺基準）；新頁 1440／390 截圖人工看過（`output/playwright/admissions-stats-*.png`，不進版控）。
+  - web 沒有改動，沒跑 web 測試。
+- **未驗證**：沒有登入正式後台看畫面。
+
 ## 2026-10-15 招生歷程兩種事件＋退出原因分類（`feature/admin-wave2-20261015`）
 
 後台第 2 波（10-15 盤點選定的六項之二、三）。招生歷程多記「修改招生資料」（只記欄位名）與「排下次聯絡」（只記從追蹤直接改的），兩者都是官網專用、不轉給園務；退預繳、退註冊改成必選八項退出原因分類、說明選填，舊資料歸「未分類」並可補分類，訪視明細可依分類篩選與匯出，統計分析「未預繳與退出原因」多一張退出原因分佈。規則見 DESIGN.md「招生入學：招生歷程兩種事件與退出原因分類」，計畫 `docs/superpowers/plans/2026-10-15-admin-wave2-history-withdraw.md`，兩份規格的 §7 列實作與規格的差異。

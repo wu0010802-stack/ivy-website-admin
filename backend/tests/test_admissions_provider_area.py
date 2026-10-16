@@ -216,12 +216,13 @@ async def test_bad_radius_does_not_skip_the_login_check(public_client, reception
 async def test_permissions(
     reception_yihua_client, readonly_yihua_client, editor_client, minghua_client, admin_client, path
 ):
+    """2026-10-16 起限總管理者（admissions.stats）：其他角色不論本校或他校一律 403。"""
     url = f"{path}?campus_key="
-    assert (await reception_yihua_client.get(url + "yihua")).status_code == 200
-    assert (await reception_yihua_client.get(url + "minghua")).status_code == 404
-    assert (await editor_client.get(url + "yihua")).status_code == 403
-    assert (await readonly_yihua_client.get(url + "yihua")).status_code == 403
-    assert (await minghua_client.get(url + "yihua")).status_code == 404
+    for client in (reception_yihua_client, editor_client, readonly_yihua_client, minghua_client):
+        assert (await client.get(url + "yihua")).status_code == 403
+        assert (await client.get(url + "minghua")).status_code == 403
+    assert (await admin_client.get(url + "yihua")).status_code == 200
+    assert (await admin_client.get(url + "minghua")).status_code == 200
     assert (await admin_client.get(url + "nowhere")).status_code == 404
 
 

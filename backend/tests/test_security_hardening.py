@@ -123,9 +123,9 @@ async def test_editor_and_readonly_cannot_list_visit_requests(app, db_session, r
     try:
         listing = await client.get("/api/website/v1/admin/visit-requests?campus_key=yihua")
         assert listing.status_code == 403
-        # 去識別的漏斗統計仍可看。
+        # 漏斗統計已限總管理者（2026-10-16 admissions.stats；analytics.read 已刪），預留角色也看不到。
         funnel = await client.get("/api/website/v1/admin/analytics/funnel?campus_key=yihua")
-        assert funnel.status_code == 200
+        assert funnel.status_code == 403
         dashboard = await client.get("/api/website/v1/admin/dashboard")
         assert dashboard.status_code == 200
         assert dashboard.json()["today_visit_list"] == []

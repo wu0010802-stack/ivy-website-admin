@@ -22,7 +22,7 @@ const EMAIL = 'admissions-flow@example.com'
 const GUIDE = '招生流程老師'
 const GUIDE_2 = '招生流程助教'
 const SHOTS = path.join(ROOT, 'output/playwright')
-const TABS = ['funnel', 'records', 'stats'] as const
+const TABS = ['funnel', 'records'] as const
 
 // B 階段畫面的文案（Step 1 核對過）。B 改文案時只改這裡。
 const UI = {
@@ -151,12 +151,25 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
 
   // 下面統計的絕對值斷言：stack 每次重建資料庫（start-api.sh dropdb／createdb），且只有本 spec
   // 建招生訪視；之後若有別的 spec 建招生訪視，改成比對差值。
-  await test.step('統計分析：本月 1 人次、預繳 1・註冊 1', async () => {
+  // 統計分析 2026-10-16 抽成獨立的招生統計頁，只有總管理者看得到。
+  await test.step('分校管理者開舊連結 tab=stats：留在招生入學的漏斗看板，沒有統計分頁', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=stats`, '招生入學')
-    await expect(page.locator('.decision__visit').first()).toHaveText('1 人次')
-    await expect(page.locator('.decision__foot').first()).toHaveText('預繳 1 · 註冊 1')
-    // 2026-10-12 預繳速度：只有這一筆預繳，資料不夠。
-    await expect(page.locator('[data-test="deposit-timing"]')).toContainText('預繳過的家長還不到 10 位（目前 1 位）')
+    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細'])
+    await expect(page.getByRole('tab', { name: '漏斗看板', selected: true })).toBeVisible()
+  })
+
+  await test.step('招生統計（總管理者從舊連結轉過去）：本月 1 人次、預繳 1・註冊 1', async () => {
+    const boss = await openAs(browser, 'super_admin')
+    try {
+      await gotoAdmin(boss.page, `/admissions?campus=${SLOTS_CAMPUS}&tab=stats`, '招生統計')
+      await expect(boss.page).toHaveURL(new RegExp(`/admin/admissions-stats\\?campus=${SLOTS_CAMPUS}$`))
+      await expect(boss.page.locator('.decision__visit').first()).toHaveText('1 人次')
+      await expect(boss.page.locator('.decision__foot').first()).toHaveText('預繳 1 · 註冊 1')
+      // 2026-10-12 預繳速度：只有這一筆預繳，資料不夠。
+      await expect(boss.page.locator('[data-test="deposit-timing"]')).toContainText('預繳過的家長還不到 10 位（目前 1 位）')
+    } finally {
+      await boss.context.close()
+    }
   })
 
   await Promise.all([staff.context.close(), api.dispose()])
@@ -168,7 +181,7 @@ const VIEWPORTS = [
 ]
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：招生入學三個分頁與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
+  test(`${name}px：招生入學兩個分頁、招生統計與五校比較截圖，頁面不橫向溢出`, async ({ browser }) => {
     mkdirSync(SHOTS, { recursive: true })
     const { context, page } = await openAs(browser, 'super_admin', device)
     for (const tab of TABS) {
@@ -178,7 +191,12 @@ for (const { name, device } of VIEWPORTS) {
       await test.step(tab, () => expectNoHorizontalOverflow(page))
       await page.screenshot({ path: path.join(SHOTS, `admissions-${tab}-${name}.png`), fullPage: true })
     }
-    // 目前停在統計分析；總管理者看得到五校比較。
+    await gotoAdmin(page, `/admissions-stats?campus=${SLOTS_CAMPUS}`, '招生統計')
+    await page.waitForLoadState('networkidle')
+    await expect(page.locator('.el-skeleton')).toHaveCount(0)
+    await test.step('stats', () => expectNoHorizontalOverflow(page))
+    await page.screenshot({ path: path.join(SHOTS, `admissions-stats-${name}.png`), fullPage: true })
+    // 總管理者看得到五校比較。
     await page.getByRole('tab', { name: '五校比較' }).click()
     await page.waitForLoadState('networkidle')
     await expect(page.locator('.el-skeleton')).toHaveCount(0)

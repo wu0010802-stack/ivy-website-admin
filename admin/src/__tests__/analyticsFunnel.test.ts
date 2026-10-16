@@ -49,7 +49,7 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
   const pinia = createPinia()
   useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
-  await router.push('/admissions?tab=stats&sub=booking')
+  await router.push('/admissions-stats?sub=booking')
   await router.isReady()
   const get = vi.spyOn(api, 'get').mockResolvedValue(data as never)
   const wrapper = mount(BookingStatsPane, {
