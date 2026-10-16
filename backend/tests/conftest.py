@@ -182,9 +182,13 @@ def _reset_process_caches():
     # 托嬰逐所明細的請求間隔（2026-10-15）：同理歸零。
     original_detail_gap = geo_sync.BABYCARE_DETAIL_GAP_SECONDS
     geo_sync.BABYCARE_DETAIL_GAP_SECONDS = 0.0
+    # 幼兒園收費逐所請求的間隔（2026-10-15）：同理歸零。
+    original_fees_gap = geo_sync.FEES_REQUEST_GAP_SECONDS
+    geo_sync.FEES_REQUEST_GAP_SECONDS = 0.0
     yield
     geo_sync.RIS_REQUEST_GAP_SECONDS = original_gap
     geo_sync.BABYCARE_DETAIL_GAP_SECONDS = original_detail_gap
+    geo_sync.FEES_REQUEST_GAP_SECONDS = original_fees_gap
 
 
 @pytest_asyncio.fixture
