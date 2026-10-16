@@ -13,6 +13,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 幼兒園營業中改以教育部名單判斷（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `fix/kindergarten-registry-20261015` 到 main（fast-forward `9dbf413f..54031d7c`，14 個 commit，含併入當時 main「在籍學生分布」的 merge `51bd6710`，沒有開 PR）。內容見 README 頂部「幼兒園營業中改以教育部名單判斷」、DESIGN.md「停辦怎麼知道」、規格 `docs/specs/2026-10-15-kindergarten-registry-design.md`、`backend/app/admissions/geo_data/README.md`「幼兒園停辦回補」。
+- **migration**：無；alembic head 仍是 `f2a7c1e9d4b3`（在籍學生那一輪帶進來的）；沒有依賴檔變動；沒有備份。新增設定 `WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`（有預設值，正式站不用設）。
+- **回退**：可直接切回前一個映像（只改同步邏輯、CLI 參數與後台小字，沒有新表、新欄位）。但第一輪新邏輯同步之後寫進 `geo_provider_events` 的停辦事件與下架的 `is_active` 不會因回退而復原。
+- **推送前閘門**（本機，Node 22，合併 main 後在 `51bd6710`）：後端全套 3,316 passed／1 skipped；admin vitest 全套 161 檔 2,532 passed／1 skipped；admin typecheck 無錯誤；重新 `e2e:build` 後 stack `admissions-area.spec.ts` 15 passed。
+- **CI**：main run 38825639162（`54031d7c`）23:47:12Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `54031d7ce571fe0e398cfaf87a4f1d924c13c07e`，snapshot `3ce5715a…`，created `2026-10-16T00:03:07Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-16T00:31Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；首頁、`/admission`、`/visit`、`/admin/` 都回 200；`/api/website/v1/admin/admissions/area/changes` 未登入回 401。
+- **還沒生效**：新判斷要等下一輪幼兒園同步（每 7 天；上一輪推測 10-14，所以約 10-21，未查正式庫確認）。要立刻生效：先確認名單筆數正常（`curl -s https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv | wc -l` 約 690），再在 api 跑 `python -m app.cli geo-sync --force`（會連門牌一起強制重抓，連不到高雄市資料平台時門牌 failed、結束碼 1，幼兒園照樣更新）。預期與查法見上方 README 與本檔「公開地理資料同步」的轉換輪說明：營業中約 689、停辦事件 16、依回補檔下架 33、改名下架 14。
+- **未在線上驗證**：登入後的區域分析畫面（附近幼兒園少掉幽靈園所、變化列表出現停辦、新小字）；第一輪同步結果。這裡沒有讀 Railway 的權限，沒看 Railway 日誌。
+
+## 2026-10-15 在籍學生分布（main CI 部署，migration 只新增兩張表）
+
+- **提交**：使用者在本機推 `feature/enrolled-map-20261015` 到 main（fast-forward `1ca98981..9dbf413f`，24 個 commit，含合併 origin/main `1ca98981` 的 merge `42984079`，沒有開 PR）。內容見 README 頂部「在籍學生分布」、規格 `docs/specs/2026-10-15-admissions-enrolled-map-design.md`、DESIGN.md「招生入學：區域分析」。
+- **migration**：`f2a7c1e9d4b3`（接在 `c6a9e3f15d27` 後），只新增 `enrolled_rosters`、`enrolled_student_points` 兩張表，不改既有資料，沒有備份；API 啟動時自動套用。
+- **回退**：可直接切回前一個映像（舊程式不讀新表）；要連資料一起拿掉就 `enrolled-import --clear --campus yihua`，或 `alembic downgrade c6a9e3f15d27`（刪兩張表）。
+- **推送前閘門**（本機，Node 22；合併 origin/main 後的 `42984079`）：後端全套 3,256 passed／1 skipped；admin vitest 全套 161 檔 2,531 passed／1 skipped；admin 與 web typecheck 無錯誤；契約檢查一致；完整 stack 套件（重新 build）142 passed。
+- **CI**：main run 38821712749（`9dbf413f`）23:08:10Z 開跑，23:27:36Z 完成（19.4 分），全綠：Frontend web 1.6 分、admin 5.9 分；Backend 三組 14.1／12.2／15.0 分；E2E／Playwright 9.9 分；Deploy Railway production 4.3 分（23:23:16Z 開始）。
+- **正式 `release.json`**：base commit `9dbf413ff27e296ca4c46132502117e0127d8494`，snapshot `1804b6b9…`，created `2026-10-15T23:23:39Z`，`web+api`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；首頁與 `/admin/` 回 200；`/admin/admissions/area/enrolled` 未登入回 401（路由已掛）。
+- **在籍學生匯入**（照上方「在籍學生匯入」步驟，2026-10-16 台北時間）：義華清冊在本機比對（門牌 115-10）產生去識別 JSON（34,322 bytes），agent 用 `railway volume -p d606df61-… -e production files -v api-volume upload` 上傳到 `/enrolled-yihua-20261015.json`（`-p` 要用專案 ID，寫專案名稱會回 Project not found）；使用者用 `!` 執行 `railway ssh … --service api -- python -m app.cli enrolled-import --file /data/enrolled-yihua-20261015.json`，輸出「匯入 yihua：192 位（有點 180 位），清冊日期 2026-10-15」，沒有門牌版本提醒（正式站仍是 115-10）。volume 上的 JSON 由使用者自行刪除。
+- **未在線上驗證**：登入後的「在籍學生」畫面（本機用真資料與真底圖看過 1440／390）。其他四校尚未匯入，按鈕停用並寫「尚未匯入在籍名冊。」。
+
 ## 2026-10-15 區域分析驗證後的修正：國小學區整里／部分、招生機會沒填地址（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `fix/area-data-fixes-20261015` 到 main（fast-forward `aae0debc..15a81e60`，3 個 commit：`1cebdae8` 學區、`c8b42478` 招生機會文案、`15a81e60` 文件，沒有開 PR）。內容見 README 頂部「區域分析驗證後的修正」、`backend/app/admissions/geo_data/README.md`、兩份規格的 10-15 更正。
