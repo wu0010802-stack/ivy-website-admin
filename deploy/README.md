@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 延後小問題一批修正（預約全程、參觀場次、預約完成頁、驗收 A23）（main CI 部署，沒有 migration）
+
+- **提交**：`fix/small-fixes-20261016` 五個 commit（`f0ef179f`..`23ab4a5c`）從 `263fea2a` 開出；第一次推 main 時第 1 波剛好先上（`4f1e0603`），被拒後合併 main 成 `2d56b439`（只有 README.md 衝突、兩段都留，程式檔不重疊），使用者推 main（fast-forward `4f1e0603..2d56b439`，沒有開 PR）。內容見 README 頂部「延後小問題一批修正＋文件校正」、DESIGN.md「招生入學：預約全程漏斗」與「參觀場次」兩節。
+- **migration**：沒有。API 回應形狀沒變（只改 `journey.py` 的批次條件），沒有新環境變數、沒有依賴檔變動，沒有備份。
+- **推送前閘門**（本機，Node 22）：合併 main 前在 `23ab4a5c` 跑 stack 整套 145 passed；合併後在 `2d56b439` 重跑：admin、web typecheck 無錯誤，admin vitest 165 檔 2,599 passed／1 skipped，web vitest 101 檔 1,229 passed，重新 `e2e:build` 後 stack 整套 146 passed。後端只跑了受影響的三檔 53 passed，全套交給 CI。
+- **CI**：main run 38851560588（`2d56b439`）04:37:16Z 排進、等第 1 波的 run 38850358405 跑完，04:47:14Z 開跑；Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 05:03:46Z–05:09:12Z success。
+- **正式 `release.json`**：base commit `2d56b4390981059f09adcb95f8f5a41f0ed20955`，snapshot `31b6977e…`，created `2026-10-16T05:04:10Z`，`web+api`。這一版也一起帶上第 1 波（`4f1e0603` 之前的提交）。
+- **線上唯讀檢查**（未登入，2026-10-16T05:10Z）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`background_jobs.last_failed_steps` 為空；首頁、`/admission`、`/visit`、`/about`、`/admin/` 都回 200；`/api/website/v1/admin/admissions/journey` 未登入回 401。
+- **未在線上驗證**：沒有登入後台看預約全程的摘要、匯出 CSV、接待月曆的「不在開放規則內」與網址換校的詢問；沒有在正式站重送預約看完成頁文案。
+
 ## 2026-10-16 後台第 1 波：系統狀態頁＋家長參觀提醒信（main CI 部署，無 migration）
 
 - **提交**：使用者在本機推 `feature/admin-wave1-20261015` 到 main（fast-forward `263fea2a..4f1e0603`，沒有開 PR）。內容見 README 頂部「後台第 1 波」、DESIGN.md「後台：系統狀態頁」「預約：參觀前 24 小時家長提醒信」、規格 `docs/specs/2026-10-15-admin-system-status-design.md`、`docs/specs/2026-10-15-parent-visit-reminder-design.md`（各有 §7 實作紀錄）。同一次推送也帶進第 2、3 波的規格與計畫（只有文件）。
