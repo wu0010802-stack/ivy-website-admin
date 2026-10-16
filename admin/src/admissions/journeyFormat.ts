@@ -87,17 +87,29 @@ export type FunnelRow = {
   stage: string
   count: number
   rate: string
+  /** 匯出用：比率拆成指標、百分比、分子、分母，Excel 才能排序加總（畫面仍是 rate 那一句）。 */
+  rate_label: string
+  rate_pct: number | null
+  numerator: number
+  denominator: number
 }
 
 export function funnelRows(data: AdmissionsJourney): FunnelRow[] {
   const { cases, visit_outcomes: outcomes, admissions } = data
+  const row = (key: string, stage: string, count: number, label: string, rateKey: Rate['key']): FunnelRow => {
+    const rate = rateOf(data, rateKey)
+    return {
+      key, stage, count, rate: rateText(label, rate),
+      rate_label: label, rate_pct: rate.pct, numerator: rate.numerator, denominator: rate.denominator,
+    }
+  }
   return [
-    { key: 'cases', stage: '預約案件', count: cases.total, rate: rateText('取消率', rateOf(data, 'cancel')) },
-    { key: 'completed', stage: '已到場', count: outcomes.completed, rate: rateText('到場率', rateOf(data, 'attendance')) },
-    { key: 'with_visit', stage: '有招生訪視', count: admissions.with_visit, rate: rateText('有訪視比例', rateOf(data, 'with_visit')) },
-    { key: 'deposited', stage: '預繳過', count: admissions.deposited, rate: rateText('預繳率', rateOf(data, 'deposit')) },
-    { key: 'enrolled', stage: '註冊過', count: admissions.enrolled, rate: rateText('註冊率', rateOf(data, 'enrolled')) },
-    { key: 'withdrawn', stage: '預繳後退出', count: admissions.withdrawn.total, rate: rateText('退出比例', rateOf(data, 'withdrawn')) },
+    row('cases', '預約案件', cases.total, '取消率', 'cancel'),
+    row('completed', '已到場', outcomes.completed, '到場率', 'attendance'),
+    row('with_visit', '有招生訪視', admissions.with_visit, '有訪視比例', 'with_visit'),
+    row('deposited', '預繳過', admissions.deposited, '預繳率', 'deposit'),
+    row('enrolled', '註冊過', admissions.enrolled, '註冊率', 'enrolled'),
+    row('withdrawn', '預繳後退出', admissions.withdrawn.total, '退出比例', 'withdrawn'),
   ]
 }
 
@@ -171,6 +183,8 @@ export type TimingRow = {
   key: string
   metric: string
   median: string
+  /** 匯出用：中位數天數（沒有值是 null）；畫面寫 median 的「5 天」。 */
+  median_days: number | null
   n: number
   /** 「樣本較少」（筆數 1–19）與「另有 N 筆…不納入」，用「；」接起來。 */
   note: string
@@ -185,7 +199,7 @@ export function daysText(median: number | null): string {
 export function timingRows(data: AdmissionsJourney): TimingRow[] {
   const { timing } = data
   const row = (key: string, metric: string, days: { median: number | null; n: number; excluded: number }, excludedWhy: string): TimingRow => ({
-    key, metric, median: daysText(days.median), n: days.n,
+    key, metric, median: daysText(days.median), median_days: days.median, n: days.n,
     note: [
       days.n > 0 && days.n < SMALL_SAMPLE ? '樣本較少' : '',
       days.excluded ? `另有 ${days.excluded} 筆${excludedWhy}，不納入` : '',
@@ -201,14 +215,17 @@ export function timingRows(data: AdmissionsJourney): TimingRow[] {
 
 const slashed = (day: string): string => day.replaceAll('-', '/')
 
-/** 摘要句（只描述）：期間、預約案件、各結局；有到場的再接招生紀錄、預繳、註冊、預繳後退出。 */
+/** 摘要句（只描述）：期間、預約案件、各結局；有到場的再接招生紀錄、預繳、註冊、預繳後退出。
+ *  來源不是全部時寫出只看哪一種（取回應的 filters，和匯出檔名同一個依據）。 */
 export function journeySummary(data: AdmissionsJourney, campusName: string): string {
   const range = `${slashed(data.filters.date_from)}–${slashed(data.filters.date_to)}`
-  if (data.cases.total === 0) return `${range}，${campusName}這段期間沒有預約案件。`
+  const source = JOURNEY_SOURCES.find((option) => option.value === data.filters.source)
+  const only = source && source.value !== 'all' ? `（只看${source.label}）` : ''
+  if (data.cases.total === 0) return `${range}，${campusName}這段期間沒有預約案件${only}。`
   const { completed, no_show: noShow, cancelled, unmarked } = data.visit_outcomes
   const attendance = rateOf(data, 'attendance').pct
   const head =
-    `${range}，${campusName}預定參觀的預約 ${data.cases.total} 筆：到場 ${completed}` +
+    `${range}，${campusName}預定參觀的預約 ${data.cases.total} 筆${only}：到場 ${completed}` +
     `（到場率 ${attendance === null ? NO_VALUE : `${attendance.toFixed(1)}%`}）、取消 ${cancelled.total}、沒來 ${noShow}、時間已過未標記 ${unmarked}。`
   if (completed === 0) return head
   const { admissions } = data

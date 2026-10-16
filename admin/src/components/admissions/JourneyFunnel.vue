@@ -14,6 +14,15 @@ const COLUMNS: StatsColumn[] = [
   { key: 'count', label: '人數', kind: 'bar' },
   { key: 'rate', label: '比率' },
 ]
+// 匯出時比率拆成四欄（指標、百分比、分子、分母），不輸出畫面上的整句；「樣本較少」看分母就知道。
+const CSV_COLUMNS: StatsColumn[] = [
+  COLUMNS[0]!,
+  COLUMNS[1]!,
+  { key: 'rate_label', label: '比率指標' },
+  { key: 'rate_pct', label: '比率', kind: 'rate' },
+  { key: 'numerator', label: '分子', kind: 'count' },
+  { key: 'denominator', label: '分母', kind: 'count' },
+]
 const rows = computed(() => funnelRows(props.data))
 </script>
 
@@ -22,6 +31,7 @@ const rows = computed(() => funnelRows(props.data))
     :title="TITLE"
     :rows="rows"
     :columns="COLUMNS"
+    :csv-columns="CSV_COLUMNS"
     row-key="key"
     empty-text="這段期間沒有預約案件"
     :export-filename="csvName(TITLE)"

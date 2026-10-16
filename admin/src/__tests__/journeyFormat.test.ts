@@ -142,6 +142,14 @@ describe('摘要句', () => {
     )
   })
 
+  it('來源不是全部時寫出只看哪一種來源（取回應的 filters），沒有案件時也寫', () => {
+    const data = journeyData()
+    const web = journeyData({ filters: { ...data.filters, source: 'web' } })
+    expect(journeySummary(web, '義華')).toContain('義華預定參觀的預約 13 筆（只看官網預約）：到場 8')
+    const assisted = journeyData({ filters: { ...data.filters, source: 'assisted' }, cases: { total: 0, by_source: {} } })
+    expect(journeySummary(assisted, '義華')).toBe('2026/07/17–2026/10/15，義華這段期間沒有預約案件（只看後台補登）。')
+  })
+
   it('沒有案件、沒有到場時句子跟著縮短', () => {
     const none = journeyData({ cases: { total: 0, by_source: {} } })
     expect(journeySummary(none, '義華')).toBe('2026/07/17–2026/10/15，義華這段期間沒有預約案件。')

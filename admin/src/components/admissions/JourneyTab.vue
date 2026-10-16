@@ -19,7 +19,9 @@ import { csvFilename } from '../../utils/csv'
 // 期間與來源由父層放在網址（filter）。只呈現後端算好的數字，不預測。
 // 匯出檔名自己組（不用招生統計共用的：那個帶入學學年學期，這頁不分學年學期）：招生統計-預約全程-表名-校區-起至迄[-來源]，
 // 起迄與來源取回應的 filters（資料實際涵蓋的日期，迄日可能被截到今天），不取畫面上的篩選值。
-const props = defineProps<{ campusKey: string }>()
+// active：預約全程是不是目前的子分頁。pane 看過之後一直掛著，離開時頁面把篩選收回預設、換校區也會傳進來，
+// 不在這頁時只記下要重讀，回來才讀（不在背景打 API）。
+const props = withDefaults(defineProps<{ campusKey: string; active?: boolean }>(), { active: true })
 const filter = defineModel<JourneyFilter>('filter', { default: () => ({ ...DEFAULT_JOURNEY_FILTER }) })
 
 const data = ref<AdmissionsJourney | null>(null)
@@ -53,7 +55,10 @@ const customRange = computed<[string, string] | null>({
   set: (value: [string, string] | null) => { filter.value = { ...filter.value, from: value?.[0] ?? '', to: value?.[1] ?? '' } },
 })
 
+let pending = false
+
 async function load() {
+  pending = false
   const request = requests.begin()
   const current = range.value
   if (!props.campusKey || !current || rangeMessage.value) {
@@ -78,12 +83,17 @@ async function load() {
 }
 
 // 換校區：先清空再讀（不留別校的數字）；換期間或來源：保留上一次的數字、淡一點，讀完換掉。
-watch(() => props.campusKey, () => { data.value = null; void load() })
+function refresh() {
+  if (props.active) void load()
+  else pending = true
+}
+watch(() => props.campusKey, () => { data.value = null; refresh() })
 watch(
   [() => filter.value.period, () => filter.value.from, () => filter.value.to, () => filter.value.source],
-  () => void load(),
+  refresh,
   { immediate: true },
 )
+watch(() => props.active, (active) => { if (active && pending) void load() })
 
 const summary = computed(() => (data.value ? journeySummary(data.value, campusLabel(props.campusKey)) : ''))
 const empty = computed(() => data.value !== null && data.value.cases.total === 0)
@@ -92,7 +102,7 @@ const coverage = computed(() => {
   if (!found) return ''
   const { coverage: cover, rescheduled } = found
   return [
-    `另有 ${cover.visits_without_request} 筆招生訪視沒有預約案件（現場參觀、舊名單補登），不在這個漏斗裡。`,
+    `另有 ${cover.visits_without_request} 筆招生訪視沒有預約案件（現場參觀、舊名單補登、預約案件已刪除），不在這個漏斗裡。`,
     `已到場但沒有招生訪視 ${cover.completed_without_visit} 筆（招生功能關閉期間到場、事後沒補建，或訪視被刪）。`,
     cover.undated_cases ? `預定參觀日算不出來而未納入的案件 ${cover.undated_cases} 筆。` : '',
     `改期過的案件 ${rescheduled.cases}／${rescheduled.total}。`,

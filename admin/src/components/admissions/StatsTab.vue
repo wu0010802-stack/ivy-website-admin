@@ -462,7 +462,7 @@ const noDepositKpis = computed(() => {
       </el-tab-pane>
 
       <el-tab-pane label="預約全程" name="stats-journey" lazy>
-        <JourneyTab v-model:filter="journey" :campus-key="campusKey" />
+        <JourneyTab v-model:filter="journey" :campus-key="campusKey" :active="sub === 'journey'" />
       </el-tab-pane>
     </el-tabs>
   </section>

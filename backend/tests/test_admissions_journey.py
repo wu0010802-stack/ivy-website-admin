@@ -110,6 +110,18 @@ async def test_unmarked_today_and_upcoming_today(db_session):
     assert result["visit_outcomes"]["unmarked"] == 1
 
 
+async def test_cancelled_later_today_waits_for_the_visit_time(db_session):
+    """今天 15:00 的場次現在（12:00）還沒開始：取消了也還沒到參觀時間，不進批次（J3）；今天 10:00 已開始的取消照算。"""
+    await add_case(db_session, status="cancelled", slot_day=TODAY, slot_hour=15, created=at(d(10, 1)), cancelled_at=at(d(10, 14)))
+    await add_case(db_session, status="cancelled", slot_day=TODAY, slot_hour=10, created=at(d(10, 1)), cancelled_at=at(d(10, 14)))
+    await db_session.commit()
+    result = await run(db_session, date_from=d(10, 1), date_to=TODAY)
+    assert result["cases"]["total"] == 1
+    assert result["visit_outcomes"]["cancelled"]["total"] == 1
+    later = await run(db_session, date_from=d(10, 1), date_to=TODAY, now=at(TODAY, 15))
+    assert later["cases"]["total"] == 2
+
+
 async def test_early_complete_uses_the_completion_day(db_session):
     """提早到場、約之後的日子：場次被釋出（沒有場次），預定參觀日取最後一次 completed 事件的台北日（UTC 16:30＝隔天）。"""
     await add_case(
