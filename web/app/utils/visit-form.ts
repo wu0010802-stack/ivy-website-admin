@@ -6,7 +6,7 @@ export interface VisitContact {
   email?: string
 }
 
-export type VisitField = keyof VisitContact | 'visitDate' | 'slotId'
+export type VisitField = keyof VisitContact | 'visitDate' | 'slotId' | 'expectedStart'
 export type VisitErrors = Partial<Record<VisitField, string>>
 
 export const REFERRAL_OPTIONS = [
@@ -20,6 +20,45 @@ export const REFERRAL_OPTIONS = [
   { value: 'online', label: '網路上看到' },
   { value: 'other', label: '其他' }
 ] as const
+
+// 2026-10-15 預計入學時間（選填）：盡快、接下來四個學期的開學月份、還不確定。學期規則同後端
+// app/admissions/academic.py 的 current_term（8/1 起上學期、2/1 起下學期、1 月仍屬上學期）；值是「民國學年-學期」，
+// 和後端 app/booking/expected_start.py 讀同一份案例 contracts/expected-start-cases.json。
+export interface ExpectedStartOption { value: string; label: string }
+
+function currentTerm(today: string): [number, number] {
+  const [year, month] = today.split('-').map(Number) as [number, number]
+  if (month >= 8) return [year - 1911, 1]
+  if (month >= 2) return [year - 1912, 2]
+  return [year - 1912, 1]
+}
+
+function termMonthText(schoolYear: number, semester: number): string {
+  return semester === 1 ? `${schoolYear + 1911} 年 9 月` : `${schoolYear + 1912} 年 2 月`
+}
+
+/** today 是台北日期（YYYY-MM-DD，taipeiDate()）。 */
+export function expectedStartOptions(today: string): ExpectedStartOption[] {
+  const [schoolYear, semester] = currentTerm(today)
+  const current = schoolYear * 2 + semester - 1
+  const options: ExpectedStartOption[] = [{ value: 'asap', label: '盡快（這學期）' }]
+  for (let offset = 1; offset <= 4; offset++) {
+    const index = current + offset
+    const termYear = Math.floor(index / 2)
+    const termSemester = (index % 2) + 1
+    options.push({ value: `${termYear}-${termSemester}`, label: termMonthText(termYear, termSemester) })
+  }
+  options.push({ value: 'unsure', label: '還不確定' })
+  return options
+}
+
+/** 家長管理頁顯示已選的值（原值可能已不在今天的選項裡）。 */
+export function expectedStartText(value: string): string {
+  if (value === 'asap') return '盡快'
+  if (value === 'unsure') return '還不確定'
+  const match = /^(1\d{2})-([12])$/.exec(value)
+  return match ? termMonthText(Number(match[1]), Number(match[2])) : value
+}
 
 // 規格 190：方便聯絡時段是固定選項，送代碼、顯示中文。API 也接受舊的
 // 中文標籤（已快取的舊頁面），但新頁面一律送代碼。
@@ -109,7 +148,7 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
 
 const API_FIELDS: Record<string, VisitField> = {
   slot_id: 'slotId', email: 'email', phone: 'phone', parent_name: 'parentName', child_name: 'childName',
-  child_birthdate: 'childBirthdate'
+  child_birthdate: 'childBirthdate', expected_start: 'expectedStart'
 }
 const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   slotId: '請選擇這一天的參觀場次。',
@@ -117,7 +156,8 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
   childName: '請填寫孩子姓名。',
-  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。'
+  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
+  expectedStart: '這個入學時間已過期，請重新選擇。'
 }
 
 // 後端 422 是 FastAPI 的標準格式：detail 是陣列，loc[1] 是欄位名稱。
