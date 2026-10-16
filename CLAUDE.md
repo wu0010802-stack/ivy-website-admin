@@ -15,7 +15,7 @@
 | `web/app/assets/css/studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔第 16 行為準（1100），不是同目錄 `styles.css` 的 1150 |
 | `preview.html` | `package_preview.py` 打包出的原型單檔，**刻意進版控**、可離線開 | 改根目錄原型檔後必重打包，見下 |
 | `DESIGN.md` | 設計規則與每輪定案／否決紀錄 | 改版前先讀相關章節，否決過的方案不要再主動提 |
-| `README.md` | 日期 changelog（前 200 行）＋預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄 |
+| `README.md` | 日期 changelog（新的在最上面；整份已 3,700 多行，日期段落一路排到 3,500 行附近）＋檔尾的原型時期預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄；找現況只讀頂部幾段 |
 | `design/<主題>-directions|mockup|demo[-YYYYMMDD]/` | 比稿工作檔、截圖、對照頁 | 只在需要追溯來源時讀；**不要把舊方案套回主站** |
 | `versions/before-<主題>-YYYYMMDD-HHMMSS/` | 改版前快照 | 大改前先建一份 |
 | `output/` `.playwright-*` `.impeccable/` `.codex/` | 本機截圖與工具狀態，已 gitignore | 暫存物放這裡，不要散在根目錄 |
@@ -70,7 +70,7 @@
 - 頁首捲過 40px 收成靠右的深綠膠囊：首頁、入學資訊、特色教學、關於常春藤、週年頁（`/anniversary`）這五頁任何寬度都收；900px 以下全站各頁也收；其餘桌機內頁（環境、消息、預約、隱私權政策等）不收（以 `SiteHeader.vue` 的 `PILL_PAGES` 為準）。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
-- 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。
+- 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁〔10-06 已拿掉〕、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。
 
 ## 驗證工具的本機繞法
 
@@ -87,10 +87,10 @@
 - **技術棧**（不要再重開選型，背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。
 - **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`；部署後在 `deploy/README.md` 補紀錄。
 - 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
-- 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 必填、確認信與修改連結寄給家長；舊的 inquiry／待確認只剩舊資料）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
+- 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 必填、確認信與修改連結寄給家長；舊的 inquiry／待確認 10-06 連同資料刪除，案件狀態只剩已確認、已取消、未到場、已完成）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
-- 排程發布、逾期占位、通知 outbox、清限流計數由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
-- **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相 TRUNCATE。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
+- 排程發布、延展場次、即將參觀提醒、通知 outbox、清限流計數、素材清理、個資保存清理由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
+- **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相清表。conftest 的 app 共用同一批路由（`backend/tests/route_cache.py`），測試要用 `dependency_overrides` 時改用 `uncached_create_app`；新增很多測試後用 `uv run pytest --store-durations` 重產 `backend/.test_durations`，CI 三組才會平均。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；全站 e2e `npm run e2e:build` 後 `npm run test:e2e:stack`（`tests/stack`，CI 跑的是這組；`npm run test:e2e` 的 `tests/e2e` 沒有在 CI 跑）；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
 - 根目錄 vanilla 原型已在 `63a0c05` 凍結（階段 A 閘門，使用者同意）；設計迭代一律在 `web/`，不回寫根目錄。`preview.html` 保留為原型離線快照。
 - 標題字型：`web/` 已改用完整 LINE Seed TW（見上「字型子集」），CMS 開放編輯標題已不受子集缺字限制；只有根目錄凍結原型與明體（`chars-serif.txt`）仍是子集。品牌字型（頁首品牌名／英文／「週年」）仍各自是獨立子集，補字規則見 `web/public/assets/fonts/README.md`。
 

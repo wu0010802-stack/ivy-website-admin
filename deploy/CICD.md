@@ -6,9 +6,9 @@
 
 | 事件 | CI | 正式部署 |
 | --- | --- | --- |
-| 任意 PR | web/admin 型別、測試、建置；backend 真 PostgreSQL 測試；API 契約檢查 | 不部署 |
+| 任意 PR | web/admin 型別、測試、建置；backend 真 PostgreSQL 測試（pytest-split 分 3 組，依 `backend/.test_durations`）；API 契約檢查；全站 e2e（`tests/stack`） | 不部署 |
 | push `feature/**`、`production` | 同上 | 不部署 |
-| push `main` | 同上 | 全部成功才部署 |
+| push `main` | 同上 | frontend 與 backend 都成功才部署；e2e 同時跑，**目前不擋部署**（`website.yml` 的 deploy `needs: [frontend, backend]`） |
 | 手動 Run workflow | 同上 | 只在選擇 `main` 時部署 |
 
 **只改文件不觸發（2026-10-03 起）**：PR 與 push 都設了 `paths-ignore`（`**.md`、`docs/**`、`design/**`、`versions/**`），整次變更都落在這些路徑時不跑 CI、也不部署，所以 `deploy/README.md` 的部署紀錄提交不再重新部署正式站、也不會讓下一次部署排隊。混有其他檔案就照常全跑。副作用：`web/public/` 底下的 `.md`（字型 README）單獨修改時不會上線，要等下一次程式部署；需要強制重跑時用手動 Run workflow。
@@ -53,7 +53,7 @@ GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `m
 - **api 掛著 `/data` volume，Railway 會先停舊容器再起新容器**：候選 API 啟動失敗時舊版不會留著服務，正式 API 直接停擺（2026-09-24 PR #9 實例：DB 未升級，19:23 起首頁 503）。所以 migration 本身出錯＝停站，務必先在 CI 與本機驗過。
 - 每次只接受本次上傳回傳的 deployment ID 到達 `SUCCESS`；FAILED、CRASHED、SKIPPED、被移除或逾時皆使 job 失敗。
 - `main` 同時只執行一條 pipeline，後續 push 不取消正在執行的部署。若 API 成功而 web 失敗，API 與 schema 都已更新，不能視為原子部署；發布版本需維持前後相容。
-- 最後只用公開 GET 核對 release、production/live health、已發布 CMS、首頁、五校頁與後台登入入口。這不取代真實登入、預約、素材持久化或裝置驗收。
+- 最後只用公開 GET 核對 release、production/live health、已發布 CMS、首頁與後台登入入口（`deploy/railway_ci.py` 的 `smoke`；五校頁 2026-10-03 拿掉後不再檢查）。這不取代真實登入、預約、素材持久化或裝置驗收。
 
 ## 啟用後日常操作
 
