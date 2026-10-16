@@ -6,6 +6,11 @@
 - **排除標記**：總管理者與校區管理者可以把測試或重複的預約案件標為排除，不再算進總覽、參觀預約的結果與班別、預約全程、場次使用情況與提醒（預約流程、每日變化、依來源、預約鈕點擊讀去識別事件，扣不掉）；不釋出名額；列表可隱藏。migration `d4a8f2c6e913`。
 - **使用者 10-16 確認**：總覽「本週五校」的已約／可約不扣排除的案件（排除規格 §3.3）。
 - **正式站要做的事**：已發布的隱私權政策要請園方在後台補「預計入學時間」一項（後台草稿已補）。
+- **驗證**（2026-10-16，Node 22、本機 PostgreSQL、獨立測試庫 `ivy_website_wave3_1015_test`／`_e2e_test`，分支從 main `c4524ed5` 開、併入 main 到 `f80c304c`，**未 push、未部署**）：
+  - 最終修正後在 `707951e2`：後端全套 3736 passed、1 skipped（6 分 14 秒）；admin 168 檔 2704 passed、1 skipped；web 103 檔 1258 passed；admin、web `typecheck` 通過；`export_openapi.py --check`、`check-contract-types.mjs` 一致；`npm run e2e:build` 後 stack 全套 151 passed（含 `visit-expected-start.spec.ts`、`visit-exclusion.spec.ts`，視覺基準「案件明細」在 1% 門檻內，不用更新）。最終修正前在 `a4cf4060` 也全套跑過一輪（後端 3733、admin 2696、web 1256、stack 151，全綠）。之後的 `a2db0f98`（排除鎖內重讀拿掉 `slot_id`、一條焦點測試改成實際斷言）重跑 `test_visit_exclusion*.py` 54 passed、`visitExclusion.test.ts` 24 passed、admin `typecheck` 通過。
+  - 人工看圖（`output/playwright/visit-expected-start-*.png`、`output/playwright/wave3-exclusion/*.png`，不進版控）：表單的預計入學時間膠囊在 1440／390 都整齊、不橫向捲動；排除對話框、名額提示、已排除橫幅、右欄最下方的入口（手機排在最後）、列表「已排除・重複」標籤與「隱藏已排除」、統計的「另有 N 筆已排除」都正常。
+  - 鍵盤：預計入學時間按 Space 選取／再按取消，在 Chromium 與 WebKit 實測；Firefox 沒實測（`@keyup.space.prevent` 是依 Gecko 行為加的防禦）。
+- **未驗證／沒做**：沒有登入正式後台看畫面；正式資料上沒有實際排除過；家長只改預計入學時間也會寄「預約已變更」信（和改其他欄位一致，使用者可推翻）。
 
 ## 2026-10-16 密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog（`feature/passlib-docs-20261016`）
 
