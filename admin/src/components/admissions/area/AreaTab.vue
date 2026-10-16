@@ -23,7 +23,7 @@ import { DEFAULT_AREA_VIEW, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  bandLabel, campusNotLocatedReason, enrolledMapNote, homesMapNote, opportunityUnavailable, trendMapNote,
+  RADIUS_OPTIONS, bandLabel, campusNotLocatedReason, enrolledMapNote, homesMapNote, opportunityUnavailable, trendMapNote,
   type GradeFilter, type MapMode, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 import { addressSummary, dataStatusSegments } from './areaPane'
@@ -99,6 +99,11 @@ async function loadBoundaries() {
 void loadBoundaries()
 
 const radiusKm = ref<RadiusKm>(3)
+// 工具列的「範圍」：el-radio-group 回報的是 string | number | boolean，只收 1、3、6，其他值不改半徑（不會變成對後端的 radius_km 請求）。
+function setRadius(value: string | number | boolean | undefined) {
+  const km = Number(value)
+  if (km === 1 || km === 3 || km === 6) radiusKm.value = km
+}
 const kindergartens = ref<AreaKindergartens | null>(null)
 const kindergartensFailed = ref(false)
 const kindergartenRequests = useRequestSequence()
@@ -345,6 +350,15 @@ function openNoVillage() {
         <p v-else-if="summary.noAddress" class="empty-note area-empty">{{ summary.noAddress }}</p>
       </div>
 
+      <!-- 工具列（2026-10-16）：範圍是整頁共用的條件（地圖半徑圈、各份清單與表格都跟著它），所以放在地圖上方；
+           看什麼（地圖模式）下一個任務加進同一列。 -->
+      <div class="area-toolbar">
+        <span class="area-toolbar__label" aria-hidden="true">範圍</span>
+        <el-radio-group :model-value="radiusKm" size="small" aria-label="範圍" @update:model-value="setRadius">
+          <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
+        </el-radio-group>
+      </div>
+
       <div class="area-top">
         <div class="area-top__map">
           <el-alert v-if="mapChunkFailed" class="area-map-error" type="error" :closable="false" show-icon title="地圖沒有載入成功，請重新整理這一頁。">
@@ -376,7 +390,7 @@ function openNoVillage() {
         <div class="area-top__side">
           <NearbyPanel
             v-model:kind="nearbyKind"
-            v-model:radius-km="radiusKm"
+            :radius-km="radiusKm"
             :kindergartens="kindergartens"
             :kindergartens-failed="kindergartensFailed"
             :babycare="babycare"
@@ -465,6 +479,19 @@ function openNoVillage() {
 
 .area-status__next {
   margin-inline-start: 1em;
+}
+
+.area-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.area-toolbar__label {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
 .area-top {

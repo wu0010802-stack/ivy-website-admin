@@ -177,25 +177,15 @@ describe('附近幼兒園清單', () => {
     expect(detail.text()).not.toContain('準公共')
   })
 
-  it('半徑 1／3／6 公里：真的點選項（不是直接發事件），選了回報 update:radiusKm；目前的半徑是選取狀態', async () => {
-    const wrapper = mountList()
-    expect(wrapper.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
-    const radios = wrapper.findAll('input.el-radio-button__original-radio')
-    expect(radios.map((radio) => (radio.element as HTMLInputElement).checked)).toEqual([false, true, false])
-    await radios[2]!.setValue()
-    expect(wrapper.emitted('update:radiusKm')).toEqual([[6]])
-    await radios[0]!.setValue()
-    expect(wrapper.emitted('update:radiusKm')).toEqual([[6], [1]])
-  })
-
-  // 畫面上點不出這幾個值（選項只有 1／3／6），這條直接呼叫元件的 handler 保底：以後有人加了別的選項或從別處發事件，
-  // 不合法的半徑不會往外送、更不會變成對後端的 radius_km 請求。
-  it('半徑只接受 1／3／6，其他值不往外送（handler 的保底）', () => {
-    const wrapper = mountList()
-    const group = wrapper.findComponent({ name: 'ElRadioGroup' })
-    group.vm.$emit('update:modelValue', 2)
-    group.vm.$emit('update:modelValue', 'abc')
+  // 範圍（1／3／6 公里）搬到工作台工具列（2026-10-16），清單不再自己放半徑鈕；radiusKm 只留給「N 公里內沒有…」這類文案。
+  it('沒有搜尋半徑的 radio、也不送 update:radiusKm；文案仍依 radiusKm 寫「N 公里內…」', () => {
+    const wrapper = mountList({ data: areaKindergartens([], { radius_km: 6 }), radiusKm: 6 })
+    expect(wrapper.find('.el-radio-group').exists()).toBe(false)
+    expect(wrapper.find('.el-radio-button').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="搜尋半徑"]').exists()).toBe(false)
     expect(wrapper.emitted('update:radiusKm')).toBeUndefined()
+    expect(wrapper.text()).toContain('6 公里內沒有其他幼兒園。')
+    expect(mountList({ data: areaKindergartens([], { radius_km: 3 }) }).text()).toContain('3 公里內沒有其他幼兒園。')
   })
 
   it('狀態：讀取中骨架、失敗可重試、只有本機構、校址比對不到', async () => {

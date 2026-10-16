@@ -77,6 +77,12 @@ const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, .
 const note = (wrapper: VueWrapper, key: 'opportunityNote' | 'trendNote' | 'homesNote' | 'enrolledNote') =>
   (wrapper.vm as unknown as Record<string, string>)[key]
 
+// 範圍（1／3／6 公里）在 AreaTab 的工具列（2026-10-16，附近清單不再自己放半徑鈕）；真的點選項，不直接發事件。
+const RADIUS_CHOICES = [1, 3, 6]
+async function chooseRadius(wrapper: VueWrapper, km: 1 | 3 | 6) {
+  await wrapper.findAll('.area-toolbar input.el-radio-button__original-radio')[RADIUS_CHOICES.indexOf(km)]!.setValue()
+}
+
 describe('區域分析：讀取與三張表', () => {
   it('依頁首校區與學期讀區域、里界、附近幼兒園（半徑預設 3 公里）；狀態列寫資料版本', async () => {
     const { wrapper, get } = await mountTab()
@@ -84,6 +90,31 @@ describe('區域分析：讀取與三張表', () => {
     expect(pathsTo(get, '/admin/admissions/area/boundaries')).toHaveLength(1)
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
     expect(wrapper.get('.area-status').text()).toBe('門牌資料 115 年 10 月版・幼兒園名單 10/08 更新・托嬰名單 10/14 更新・各里人口 115 年 9 月')
+  })
+
+  it('工具列的「範圍」：1／3／6 公里三個選項、預設 3 公里，在地圖上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
+    const { wrapper } = await mountTab()
+    const toolbar = wrapper.get('.area-toolbar')
+    expect(toolbar.text()).toContain('範圍')
+    expect(toolbar.get('[aria-label="範圍"]').attributes('role')).toBe('radiogroup')
+    expect(toolbar.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
+    expect(toolbar.findAll('input.el-radio-button__original-radio').map((radio) => (radio.element as HTMLInputElement).checked)).toEqual([false, true, false])
+    expect(wrapper.find('.area-top').element.compareDocumentPosition(toolbar.element) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()
+    expect(wrapper.find('[aria-label="搜尋半徑"]').exists()).toBe(false)
+    await chooseRadius(wrapper, 1)
+    expect(toolbar.findAll('input.el-radio-button__original-radio').map((radio) => (radio.element as HTMLInputElement).checked)).toEqual([true, false, false])
+  })
+
+  // 畫面上點不出這幾個值（選項只有 1／3／6），這條直接呼叫元件的 handler 保底：不合法的半徑不會變成對後端的 radius_km 請求。
+  it('範圍只接受 1／3／6，其他值不改半徑也不重讀（handler 的保底）', async () => {
+    const { wrapper, get } = await mountTab()
+    const before = pathsTo(get, '/admin/admissions/area/kindergartens').length
+    const group = wrapper.get('.area-toolbar').findComponent({ name: 'ElRadioGroup' })
+    group.vm.$emit('update:modelValue', 2)
+    group.vm.$emit('update:modelValue', 'abc')
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/area/kindergartens')).toHaveLength(before)
+    expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(3)
   })
 
   it('狀態列以有地址為母數：到里、未定位到里（只到區、查無門牌）、「查看」、另有沒填地址', async () => {
@@ -194,7 +225,7 @@ describe('區域分析：讀取與三張表', () => {
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await vi.waitFor(() => expect(wrapper.findComponent(NearbyKindergartens).props('data')).not.toBeNull())
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     expect(wrapper.findComponent(NearbyKindergartens).props('data')).toBeNull()
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('kindergartens')).toEqual([])
@@ -207,7 +238,7 @@ describe('區域分析：讀取與三張表', () => {
 
   it('換半徑會重讀幼兒園並帶 radius_km', async () => {
     const { wrapper, get } = await mountTab()
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens').at(-1)!).get('radius_km')).toBe('6')
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(6)
@@ -407,7 +438,7 @@ describe('區域分析：各區塊互不牽連（2026-10-12）', () => {
     })
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     expect(wrapper.findComponent(NearbyKindergartens).props('data')).toMatchObject({ radius_km: 6 })
     slow3.resolve(areaKindergartens(undefined, { radius_km: 3 }))
@@ -426,7 +457,7 @@ describe('區域分析：各區塊互不牽連（2026-10-12）', () => {
     })
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     slow3.reject(new Error('timeout'))
     await flushPromises()
@@ -461,7 +492,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     const { wrapper, get } = await mountTab()
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/opportunity')[0]!)))
       .toEqual({ campus_key: 'yihua', school_year: '115', radius_km: '3' })
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 1)
+    await chooseRadius(wrapper, 1)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/opportunity').at(-1)!).get('radius_km')).toBe('1')
   })
@@ -598,7 +629,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     ))
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     slow3.resolve(areaOpportunity())
     await flushPromises()
@@ -644,7 +675,7 @@ describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
 
   it('換半徑：幼兒園、托嬰、變化、收費一起重讀並帶 radius_km，地圖半徑跟著變', async () => {
     const { wrapper, get } = await mountTab()
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     for (const path of ['/admin/admissions/area/kindergartens', '/admin/admissions/area/babycare', '/admin/admissions/area/changes', '/admin/admissions/area/fees']) {
       expect(queryOf(pathsTo(get, path).at(-1)!).get('radius_km')).toBe('6')
@@ -652,11 +683,11 @@ describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(6)
   })
 
-  it('半徑在托嬰清單上換也一樣（兩份清單共用同一個半徑）', async () => {
+  it('切到托嬰清單時換範圍也一樣（兩份清單共用工具列的同一個範圍）', async () => {
     const { wrapper, get } = await mountTab()
     wrapper.findComponent(NearbyPanel).vm.$emit('update:kind', 'babycare')
     await flushPromises()
-    wrapper.findComponent(NearbyBabycare).vm.$emit('update:radiusKm', 1)
+    await chooseRadius(wrapper, 1)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/babycare').at(-1)!).get('radius_km')).toBe('1')
     expect(queryOf(pathsTo(get, '/admin/admissions/area/kindergartens').at(-1)!).get('radius_km')).toBe('1')
@@ -717,7 +748,7 @@ describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await vi.waitFor(() => expect(wrapper.findAll('.changes__item')).toHaveLength(3))
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     expect(wrapper.find('.changes .el-skeleton').exists()).toBe(true) // 換半徑先清空再讀
     slow.resolve(areaChanges([], { radius_km: 6 }))
@@ -780,7 +811,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trends')).toMatchObject({ radius_km: 3 })
     expect(note(wrapper, 'trendNote')).toBe('')
     expect(note(wrapper, 'homesNote')).toBe('')
-    wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    await chooseRadius(wrapper, 6)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/trends').at(-1)!).get('radius_km')).toBe('6')
   })

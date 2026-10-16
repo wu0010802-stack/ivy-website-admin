@@ -2,16 +2,17 @@
 import { computed, ref, useId, watch } from 'vue'
 import type { AreaKindergartens, AreaPeerFees } from '../../../api/types'
 import { NO_VALUE } from '../../../admissions/statsFormat'
-import { KIND_LABELS, KIND_ORDER, RADIUS_OPTIONS, campusNotLocatedReason, formatCount, formatDistance, kindLabel, shortName, taipeiMonthDay, type RadiusKm } from './areaFormat'
+import { KIND_LABELS, KIND_ORDER, campusNotLocatedReason, formatCount, formatDistance, kindLabel, shortName, taipeiMonthDay, type RadiusKm } from './areaFormat'
 import { FEE_ITEM_KEYS, FEE_ITEM_LABELS, feeSourceLine, formatYuan, type PeerAge } from './peerFeesFormat'
 
 // 附近幼兒園（2026-10-08 規格 9.4）：本校半徑內的公開園所資料，後端已依距離排序。
 // 點一列：地圖移過去並打開該園資訊（select），同時展開這一列的詳情；再點一次只收合，不再請地圖定位。
 // 本機構（is_own）只標示，不算競爭園所，也不列入「沒有其他幼兒園」的判斷；除了本機構沒有別的園所時沒東西可篩，不顯示搜尋與類型 chip。
 // 列上的收費是 /area/fees 的公告收費（2026-10-15），不再顯示 kiang 估計的月費。
+// 範圍（半徑）在區域分析工具列選，這裡的 radiusKm 只用來寫「N 公里內沒有其他幼兒園」。
 // 搜尋比對的是列表上看到的短名（去掉「高雄市私立／市立」前綴）與地址，全形半形（NFKC）與大小寫視為相同。
 const props = defineProps<{ data: AreaKindergartens | null; failed: boolean; radiusKm: RadiusKm; fees?: AreaPeerFees | null; feeAge?: PeerAge }>()
-const emit = defineEmits<{ 'update:radiusKm': [value: RadiusKm]; select: [id: string]; retry: [] }>()
+const emit = defineEmits<{ select: [id: string]; retry: [] }>()
 
 const PAGE = 20
 // 教保資訊網沒有單一園所的固定網址，連到查詢頁。
@@ -68,10 +69,6 @@ function choose(id: string) {
   expanded.value = opening ? id : null
   if (opening) emit('select', id)
 }
-function setRadius(value: string | number | boolean | undefined) {
-  const km = Number(value)
-  if (km === 1 || km === 3 || km === 6) emit('update:radiusKm', km)
-}
 // 公告收費（2026-10-15 規格 7.2）：來自 AreaTab 的 /area/fees（同半徑、同年齡），依 source_id 對應。
 // 收費還沒回來、讀取失敗或從沒匯入過寫「—」；匯入過但這所沒有收費寫「未公布收費」。
 const feeBySchool = computed(() => new Map((props.fees?.schools ?? []).map((school) => [school.source_id, school])))
@@ -97,12 +94,7 @@ const sourceLine = computed(() => (props.data ? feeSourceLine(props.data.source_
 
 <template>
   <section class="nearby" :aria-labelledby="headingId">
-    <div class="nearby__head">
-      <h3 :id="headingId" class="nearby__title">附近幼兒園</h3>
-      <el-radio-group :model-value="radiusKm" size="small" aria-label="搜尋半徑" @update:model-value="setRadius">
-        <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
-      </el-radio-group>
-    </div>
+    <h3 :id="headingId" class="nearby__title">附近幼兒園</h3>
 
     <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取附近幼兒園。">
       <el-button size="small" @click="emit('retry')">重新載入</el-button>
@@ -175,14 +167,6 @@ const sourceLine = computed(() => (props.data ? feeSourceLine(props.data.source_
   align-content: start;
   gap: 10px;
   min-width: 0;
-}
-
-.nearby__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .nearby__title {

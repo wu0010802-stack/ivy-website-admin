@@ -2,16 +2,17 @@
 import { computed, ref, useId, watch } from 'vue'
 import type { AreaBabycare } from '../../../api/types'
 import {
-  RADIUS_OPTIONS, babycareFeeText, babycareKindLabel, babycareMeta, babycareShortName, babycareSummaryText, campusNotLocatedReason, taipeiMonthDay,
+  babycareFeeText, babycareKindLabel, babycareMeta, babycareShortName, babycareSummaryText, campusNotLocatedReason, taipeiMonthDay,
   type RadiusKm,
 } from './areaFormat'
 
 // 附近托嬰中心（2026-10-14 規格 7.1）：本校半徑內營業中的托嬰中心與公共托育家園，後端已依距離排序。
 // 行為同附近幼兒園：點一列展開地址與電話，同時請地圖移過去並打開該機構資訊（select）；再點一次只收合。
+// 範圍（半徑）在區域分析工具列選，這裡的 radiusKm 只用來寫總結句的「N 公里內」。
 // 核定與實際收托是官方回報的數字，來源沒給寫「—」。樣式照 NearbyKindergartens.vue 複製需要的部分
 // （兩個元件各自 scoped，不為這幾十行抽共用檔）。
 const props = defineProps<{ data: AreaBabycare | null; failed: boolean; radiusKm: RadiusKm }>()
-const emit = defineEmits<{ 'update:radiusKm': [value: RadiusKm]; select: [id: string]; retry: [] }>()
+const emit = defineEmits<{ select: [id: string]; retry: [] }>()
 
 const PAGE = 20
 const headingId = useId()
@@ -43,20 +44,11 @@ function choose(id: string) {
   expanded.value = opening ? id : null
   if (opening) emit('select', id)
 }
-function setRadius(value: string | number | boolean | undefined) {
-  const km = Number(value)
-  if (km === 1 || km === 3 || km === 6) emit('update:radiusKm', km)
-}
 </script>
 
 <template>
   <section class="nearby nearby--babycare" :aria-labelledby="headingId">
-    <div class="nearby__head">
-      <h3 :id="headingId" class="nearby__title">附近托嬰中心</h3>
-      <el-radio-group :model-value="radiusKm" size="small" aria-label="搜尋半徑" @update:model-value="setRadius">
-        <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
-      </el-radio-group>
-    </div>
+    <h3 :id="headingId" class="nearby__title">附近托嬰中心</h3>
 
     <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取附近托嬰中心。">
       <el-button size="small" @click="emit('retry')">重新載入</el-button>
@@ -107,14 +99,6 @@ function setRadius(value: string | number | boolean | undefined) {
   align-content: start;
   gap: 10px;
   min-width: 0;
-}
-
-.nearby__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .nearby__title {

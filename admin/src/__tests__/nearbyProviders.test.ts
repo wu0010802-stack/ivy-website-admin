@@ -98,11 +98,12 @@ describe('附近托嬰中心', () => {
     expect(wrapper.findAll('.nearby__item')).toHaveLength(25)
   })
 
-  it('換半徑交給外面（update:radiusKm）；只收 1、3、6', async () => {
+  it('沒有搜尋半徑的 radio（範圍搬到工作台工具列）；總結與空狀態仍依 radiusKm 寫文案', () => {
     const wrapper = mountIt(NearbyBabycare, babycareProps())
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 6)
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 4)
-    expect(wrapper.emitted('update:radiusKm')).toEqual([[6]])
+    expect(wrapper.find('.el-radio-group').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="搜尋半徑"]').exists()).toBe(false)
+    expect(wrapper.emitted('update:radiusKm')).toBeUndefined()
+    expect(wrapper.get('.nearby__summary').text()).toContain('3 公里內')
   })
 
   it('半徑內沒有托嬰中心：總結寫沒有，不列清單', () => {
@@ -219,20 +220,20 @@ describe('名單種類切換', () => {
     expect(wrapper.findComponent(NearbyBabycare).exists()).toBe(true)
   })
 
-  it('兩份清單的半徑、選取、重試都轉送出去', () => {
+  it('兩份清單的選取、重試都轉送出去；不再有半徑的轉送（範圍在工具列）', () => {
     const kindergarten = mountIt(NearbyPanel, panelProps())
-    kindergarten.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
+    expect(kindergarten.find('[aria-label="搜尋半徑"]').exists()).toBe(false)
     kindergarten.findComponent(NearbyKindergartens).vm.$emit('select', 'kg-public')
     kindergarten.findComponent(NearbyKindergartens).vm.$emit('retry')
-    expect(kindergarten.emitted('update:radiusKm')).toEqual([[6]])
     expect(kindergarten.emitted('select-kindergarten')).toEqual([['kg-public']])
     expect(kindergarten.emitted('retry-kindergartens')).toHaveLength(1)
+    expect(kindergarten.emitted('update:radiusKm')).toBeUndefined()
     const babycare = mountIt(NearbyPanel, panelProps({ kind: 'babycare' }))
-    babycare.findComponent(NearbyBabycare).vm.$emit('update:radiusKm', 1)
+    expect(babycare.find('[aria-label="搜尋半徑"]').exists()).toBe(false)
     babycare.findComponent(NearbyBabycare).vm.$emit('select', 'bc-center')
     babycare.findComponent(NearbyBabycare).vm.$emit('retry')
-    expect(babycare.emitted('update:radiusKm')).toEqual([[1]])
     expect(babycare.emitted('select-babycare')).toEqual([['bc-center']])
     expect(babycare.emitted('retry-babycare')).toHaveLength(1)
+    expect(babycare.emitted('update:radiusKm')).toBeUndefined()
   })
 })
