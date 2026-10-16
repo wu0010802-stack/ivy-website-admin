@@ -48,7 +48,7 @@ def test_shuttle_unknown_when_the_field_is_missing():
     assert row.has_shuttle is None
 
 
-@pytest.mark.parametrize(("raw", "expected"), [("無", 0), ("有，人數：20", 20), ("有", None), ("", None), (None, None)])
+@pytest.mark.parametrize(("raw", "expected"), [("無", 0), ("有，人數：20", 20), ("有，人數：0", 0), ("有，人數：99999999999", None), ("有", None), ("", None), (None, None)])
 def test_after_school_capacity(raw, expected):
     (row,) = _parse(_feature(is_after=raw))
     assert row.after_school_capacity == expected

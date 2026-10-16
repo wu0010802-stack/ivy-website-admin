@@ -572,10 +572,10 @@ async def sync_kindergartens(
             )
             await db.commit()
         logger.info(
-            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆；停辦事件 %s、依回補檔下架 %s、"
-            "改名下架 %s、重新營業 %s、類型變動 %s",
-            changes.active, report.skipped, report.unplaced, changes.closed, changes.backfilled, changes.renamed,
-            changes.opened, changes.kind_changed,
+            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆、有幼童專用車 %s 所；停辦事件 %s、"
+            "依回補檔下架 %s、改名下架 %s、重新營業 %s、類型變動 %s",
+            changes.active, report.skipped, report.unplaced, sum(1 for row in rows if row.has_shuttle is True),
+            changes.closed, changes.backfilled, changes.renamed, changes.opened, changes.kind_changed,
         )
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001

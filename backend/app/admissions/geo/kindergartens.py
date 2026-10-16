@@ -151,12 +151,12 @@ def _has_shuttle(props: dict) -> bool | None:
 
 
 def _after_school_capacity(value: object) -> int | None:
-    """兼辦國小課後：「無」→ 0、「有，人數：20」→ 20；只寫「有」或其他 → None。"""
+    """兼辦國小課後：「無」→ 0、「有，人數：20」→ 20；只寫「有」、其他、超出 int4 → None。"""
     text = str(value or "").strip()
     if text == "無":
         return 0
     matched = _AFTER_SCHOOL.fullmatch(text)
-    return int(matched.group(1)) if matched else None
+    return _int_or_none(matched.group(1)) if matched else None
 
 
 def per_child(area_m2: float | None, capacity: int | None) -> float | None:
