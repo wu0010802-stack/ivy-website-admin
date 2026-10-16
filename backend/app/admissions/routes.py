@@ -23,6 +23,7 @@ from app.admissions import academic, booking_link, constants, download, follow_u
 from app.admissions import area as area_service
 from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
+from app.admissions import peer_fees as peer_fees_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
 from app.admissions.enrolled import query as enrolled_query
@@ -39,6 +40,7 @@ from app.admissions.schemas import (
     AreaEnrolledOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
+    AreaPeerFeesOut,
     AreaTrendsOut,
     ContactLogCreate,
     ContactLogOut,
@@ -830,6 +832,20 @@ async def _require_integer_radius(request: Request, _user: User = Depends(get_cu
         raise _invalid_radius()
 
 
+def _invalid_age() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "INVALID_AGE", "message": "年齡只能是 2 到 5 歲"},
+    )
+
+
+async def _require_integer_age(request: Request, _user: User = Depends(get_current_user)) -> None:
+    """age 不是整數時先擋下，改回 INVALID_AGE（同 _require_integer_radius 的理由）。登入檢查仍在最前面。"""
+    raw = request.query_params.get("age")
+    if raw is not None and not _PLAIN_INTEGER.fullmatch(raw):
+        raise _invalid_age()
+
+
 @router.get(
     "/admin/admissions/area/kindergartens",
     response_model=AreaKindergartensOut,
@@ -869,6 +885,29 @@ async def get_admissions_area_babycare(
         raise _invalid_radius()
     result = await area_service.query_babycare(db, campus_key, radius_km=radius_km)
     return AreaBabycareOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/fees",
+    response_model=AreaPeerFeesOut,
+    dependencies=[Depends(_require_integer_radius), Depends(_require_integer_age)],
+)
+async def get_admissions_area_fees(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    age: int = Query(default=3, description="年齡：2 到 5 歲"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaPeerFeesOut:
+    """附近同業收費（2026-10-15 規格 §6）：本校這個年齡全日班一學期的公告收費，在半徑內私立一般園所裡的位置；
+    其他類型只當背景。公開資料，只讀，不寫稽核。半徑規則同 /area/kindergartens；年齡不是 2–5 的整數回 INVALID_AGE。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    if age not in peer_fees_service.AGE_CHOICES:
+        raise _invalid_age()
+    result = await peer_fees_service.query_peer_fees(db, campus_key, radius_km=radius_km, age=age)
+    return AreaPeerFeesOut.model_validate(result)
 
 
 @router.get(

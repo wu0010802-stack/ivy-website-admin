@@ -24,6 +24,8 @@ CHANGES = f"{AREA}/changes"
 # tests/fixtures/geo/preschools-sample.json 的兩所：何嘉仁（距義華 300 m）、保羅（513 m）。
 HOJIAREN = "e464ae13-0cbc-4a8e-9289-de0c18abc263"
 PAUL = "0f26d968-d574-4e8f-bbdd-2b88a65efaf1"
+# 托嬰樣本沒有月費、收費檔也沒匯入：summary 的月費那六個鍵都是空的。
+NO_FEES = {"fee_count": 0, "fee_median": None, "fee_min": None, "fee_max": None, "own_age2_monthly": None, "fee_school_year": None}
 
 
 @pytest.fixture
@@ -52,7 +54,7 @@ async def test_babycare_lists_the_nearby_ones_by_distance_with_a_summary(admin_c
     assert [(item["source_id"], item["distance_m"]) for item in body["items"]] == [
         ("CW10203013", 165), ("CW10112502", 435), ("CW11507009", 939), ("CW10808013", 1297), ("CW10112245", 1657),
     ]
-    assert body["summary"] == {"count": 5, "approved_total": 157, "enrolled_total": 107}
+    assert body["summary"] == {"count": 5, "approved_total": 157, "enrolled_total": 107, **NO_FEES}
     home = body["items"][3]
     assert (home["kind"], home["approved_capacity"], home["enrolled"], home["phone"]) == ("home", 12, 4, "073705166")
     assert body["items"][4]["address"] == "高雄市鳥松區大埤路123之4號1樓、123之6號1-2樓"
@@ -63,7 +65,7 @@ async def test_babycare_lists_the_nearby_ones_by_distance_with_a_summary(admin_c
 async def test_babycare_follows_the_radius(admin_client, located, radius, count, approved, enrolled):
     body = (await admin_client.get(f"{BABYCARE}?campus_key=yihua&radius_km={radius}")).json()
     assert body["radius_km"] == radius
-    assert body["summary"] == {"count": count, "approved_total": approved, "enrolled_total": enrolled}
+    assert body["summary"] == {"count": count, "approved_total": approved, "enrolled_total": enrolled, **NO_FEES}
     assert len(body["items"]) == count  # 8.3 公里外的那一所連 6 公里都進不來
 
 
@@ -73,7 +75,7 @@ async def test_babycare_unknown_numbers_are_null_and_not_counted(admin_client, d
     body = (await admin_client.get(f"{BABYCARE}?campus_key=yihua")).json()
     first = body["items"][0]
     assert (first["source_id"], first["approved_capacity"], first["enrolled"]) == ("CW10203013", None, None)
-    assert body["summary"] == {"count": 5, "approved_total": 105, "enrolled_total": 55}
+    assert body["summary"] == {"count": 5, "approved_total": 105, "enrolled_total": 55, **NO_FEES}
 
 
 async def test_babycare_closed_ones_are_not_listed(admin_client, db_session, located):
@@ -89,7 +91,7 @@ async def test_babycare_not_imported_says_so_instead_of_pretending_there_is_none
     await publish_campus_address(db_session, "yihua", "高雄市三民區義華路68號")
     body = (await admin_client.get(f"{BABYCARE}?campus_key=yihua")).json()
     assert body["synced_at"] is None and body["items"] == []
-    assert body["summary"] == {"count": 0, "approved_total": 0, "enrolled_total": 0}
+    assert body["summary"] == {"count": 0, "approved_total": 0, "enrolled_total": 0, **NO_FEES}
 
 
 async def test_babycare_when_campus_not_located(admin_client, unlocated_campus, monkeypatch):

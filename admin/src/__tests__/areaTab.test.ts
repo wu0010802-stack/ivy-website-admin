@@ -10,9 +10,10 @@ import statsTabSource from '../components/admissions/StatsTab.vue?raw'
 import NearbyBabycare from '../components/admissions/area/NearbyBabycare.vue'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
 import NearbyPanel from '../components/admissions/area/NearbyPanel.vue'
+import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import {
-  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, deferred, mockGet, mountWith,
-  pathsTo, queryOf, villageBoundaries,
+  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaStats, areaTrends, button, cleanup, deferred,
+  mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
 const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn() }))
@@ -53,6 +54,7 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/boundaries': villageBoundaries(),
   '/admin/admissions/area/kindergartens': areaKindergartens(),
   '/admin/admissions/area/babycare': areaBabycare(),
+  '/admin/admissions/area/fees': areaPeerFees(),
   '/admin/admissions/area/changes': areaChanges(),
   '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area/trends': areaTrends(),
@@ -640,11 +642,11 @@ describe('托嬰與園所變化（2026-10-14 規格 7）', () => {
     expect(mapStub.focus).not.toHaveBeenCalled()
   })
 
-  it('換半徑：幼兒園、托嬰、變化一起重讀並帶 radius_km，地圖半徑跟著變', async () => {
+  it('換半徑：幼兒園、托嬰、變化、收費一起重讀並帶 radius_km，地圖半徑跟著變', async () => {
     const { wrapper, get } = await mountTab()
     wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
     await flushPromises()
-    for (const path of ['/admin/admissions/area/kindergartens', '/admin/admissions/area/babycare', '/admin/admissions/area/changes']) {
+    for (const path of ['/admin/admissions/area/kindergartens', '/admin/admissions/area/babycare', '/admin/admissions/area/changes', '/admin/admissions/area/fees']) {
       expect(queryOf(pathsTo(get, path).at(-1)!).get('radius_km')).toBe('6')
     }
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('radiusKm')).toBe(6)
@@ -1076,5 +1078,71 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-在籍學生距離分布.csv')
     expect(csv.slice(1).split('\r\n')[0]).toBe('距本校,幼幼班,小班,中班,大班,合計')
+  })
+})
+
+describe('附近同業收費（2026-10-15 規格 7.1）', () => {
+  it('區塊在地圖下方、招生機會上方，用目前的半徑與預設 3 歲', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(wrapper.find('.peer-fees').exists()).toBe(true)
+    const html = wrapper.html()
+    expect(html.indexOf('peer-fees')).toBeGreaterThan(html.indexOf('area-top'))
+    expect(html.indexOf('peer-fees')).toBeLessThan(html.indexOf('opportunity'))
+    // queryOf 回 URLSearchParams。
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/fees').at(-1)!))).toEqual({ campus_key: 'yihua', radius_km: '3', age: '3' })
+  })
+
+  it('換年齡只重讀收費；換半徑也重讀收費', async () => {
+    const { wrapper, get } = await mountTab()
+    const before = pathsTo(get, '/admin/admissions/area/kindergartens').length
+    wrapper.findComponent(PeerFeesPanel).vm.$emit('update:age', 5)
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/fees').at(-1)!).get('age')).toBe('5')
+    expect(pathsTo(get, '/admin/admissions/area/kindergartens')).toHaveLength(before)
+  })
+
+  it('附近幼兒園清單用同一份收費與年齡：列尾寫該年齡的學期收費，換年齡跟著換', async () => {
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/fees': (path: string) => areaPeerFees({ age: Number(queryOf(path).get('age')) as 2 | 3 | 4 | 5 }),
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.peer-fees__summary').exists()).toBe(true))
+    const meta = () => wrapper.findAll('.nearby__meta').map((item) => item.text())
+    expect(meta()[0]).toBe('0 m・核定 210 人・3 歲學期 89,750')
+    wrapper.findComponent(PeerFeesPanel).vm.$emit('update:age', 5)
+    await vi.waitFor(() => expect(meta()[0]).toBe('0 m・核定 210 人・5 歲學期 89,750'))
+  })
+
+  it('舊年齡的回應晚到不會蓋掉新的', async () => {
+    const slow = deferred<unknown>()
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/fees': (path: string) => (queryOf(path).get('age') === '4' ? slow.promise : areaPeerFees({ age: 5 })),
+    })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    const panel = wrapper.findComponent(PeerFeesPanel)
+    panel.vm.$emit('update:age', 4)
+    await flushPromises()
+    panel.vm.$emit('update:age', 5)
+    await flushPromises()
+    slow.resolve(areaPeerFees({ age: 4 }))
+    await flushPromises()
+    expect(wrapper.get('.peer-fees__summary').text()).toContain('5 歲班')
+  })
+
+  it('收費讀取失敗只影響這一塊，重試成功恢復', async () => {
+    let fail = true
+    mockGet({ ...routes(), '/admin/admissions/area/fees': () => { if (fail) throw new Error('boom'); return areaPeerFees() } })
+    const { wrapper } = await mountWith(AreaTab, { props: props() })
+    await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
+    expect(wrapper.text()).toContain('無法讀取附近同業收費。')
+    expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
+    expect(wrapper.findAll('.nearby__meta')[0]!.text()).toBe('0 m・核定 210 人・—')
+    fail = false
+    await wrapper.get('.peer-fees .el-alert .el-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.peer-fees__summary').exists()).toBe(true)
   })
 })

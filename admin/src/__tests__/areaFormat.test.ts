@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MAP_MODES, NEARBY_KINDS, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
+  MAP_MODES, NEARBY_KINDS, babycareFeeText, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
   changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, enrolledBandRows, enrolledLegendText, enrolledMapNote,
   enrolledVillageRows, expectedText, formatDistance, gradeOptions,
   homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
@@ -279,14 +279,34 @@ describe('托嬰與園所異動的文字（2026-10-14）', () => {
   it('托嬰清單的總結：核定與實際收托合計；未知的不計入；沒有托嬰中心寫沒有', () => {
     const data = areaBabycare()
     expect(babycareSummaryText(data.summary, 3)).toBe('3 公里內托嬰中心 3 所，核定 92 位，實際收托 84 位。')
-    expect(babycareSummaryText({ count: 0, approved_total: 0, enrolled_total: 0 }, 1)).toBe('1 公里內沒有托嬰中心。')
-    expect(babycareSummaryText({ count: 1200, approved_total: 31000, enrolled_total: 29500 }, 6)).toBe('6 公里內托嬰中心 1,200 所，核定 31,000 位，實際收托 29,500 位。')
+    expect(babycareSummaryText({ count: 0, approved_total: 0, enrolled_total: 0, fee_count: 0 }, 1)).toBe('1 公里內沒有托嬰中心。')
+    expect(babycareSummaryText({ count: 1200, approved_total: 31000, enrolled_total: 29500, fee_count: 0 }, 6)).toBe('6 公里內托嬰中心 1,200 所，核定 31,000 位，實際收托 29,500 位。')
   })
 
   it('每列第二行：距離・核定・實際收托；未知寫「—」不寫 0', () => {
     expect(babycareMeta(babycareItem({ distance_m: 520 }))).toBe('520 m・核定 40 人・實際收托 32 人')
     expect(babycareMeta(babycareItem({ distance_m: 1297, approved_capacity: null, enrolled: null }))).toBe('1.3 km・核定 — 人・實際收托 — 人')
     expect(babycareMeta(babycareItem({ approved_capacity: 12, enrolled: 0 }))).toContain('實際收托 0 人') // 真的是 0 就寫 0
+  })
+
+  it('每列第二行：有月費就接「・月費 N」；沒有（null 或沒送）就不寫', () => {
+    expect(babycareMeta(babycareItem({ distance_m: 165, monthly_fee: 17900 }))).toBe('165 m・核定 40 人・實際收托 32 人・月費 17,900')
+    expect(babycareMeta(babycareItem({ distance_m: 165, monthly_fee: null }))).toBe('165 m・核定 40 人・實際收托 32 人')
+    expect(babycareMeta({ distance_m: 165, approved_capacity: 40, enrolled: 32 })).toBe('165 m・核定 40 人・實際收托 32 人')
+  })
+
+  it('babycareFeeText：中位數與範圍，有本校 2 歲班才接後半句；少於 3 所回空字串', () => {
+    const summary = { ...areaBabycare().summary, fee_count: 3, fee_median: 17900, fee_min: 15000, fee_max: 21000, own_age2_monthly: null }
+    expect(babycareFeeText(summary)).toBe('日間托育月費中位數 17,900 元（15,000–21,000）。')
+    expect(babycareFeeText({ ...summary, own_age2_monthly: 19264 })).toBe('日間托育月費中位數 17,900 元（15,000–21,000）；本校 2 歲班月均 19,264 元。')
+    expect(babycareFeeText({ ...summary, fee_median: null })).toBe('')
+    // 型別允許沒送這幾個鍵：undefined 當 null。
+    const bare = { ...summary } as Record<string, unknown>
+    delete bare.fee_median
+    delete bare.fee_min
+    delete bare.fee_max
+    delete bare.own_age2_monthly
+    expect(babycareFeeText(bare as never)).toBe('')
   })
 
   it('變化的種類與對象標籤', () => {

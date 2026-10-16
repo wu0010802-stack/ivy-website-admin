@@ -16,7 +16,7 @@ from app.admissions.models import RecruitmentVisit
 BACKEND = Path(__file__).resolve().parents[1]
 REVISION = "5c8e1f3a9d27"
 # 實作當下 origin/main 的 head；合併前別的 migration 先進 main，就改這裡和 migration 的 down_revision。
-DOWN_REVISION = "f2a7c1e9d4b3"
+DOWN_REVISION = "f2b8c4d1e7a9"
 MIGRATION = BACKEND / "migrations" / "versions" / f"{REVISION}_withdraw_reason_category.py"
 CATEGORY_CHECK = "ck_recruitment_visits_withdraw_reason_category"
 WITHDRAWN_CHECK = "ck_recruitment_visits_withdraw_category_withdrawn"

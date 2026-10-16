@@ -8,7 +8,7 @@ recruitment_visits 加可空欄位 withdraw_reason_category（八項分類）與
 降級直接刪約束與欄位（已填的分類一併消失）。
 
 Revision ID: 5c8e1f3a9d27
-Revises: f2a7c1e9d4b3
+Revises: f2b8c4d1e7a9
 Create Date: 2026-10-15
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "5c8e1f3a9d27"
-down_revision = "f2a7c1e9d4b3"
+down_revision = "f2b8c4d1e7a9"
 branch_labels = None
 depends_on = None
 

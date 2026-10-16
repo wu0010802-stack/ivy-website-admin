@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from app.admissions.geo.models import (
     BABYCARE_KINDS,
     DATASETS,
+    FEE_AGES,
     KINDERGARTEN_KINDS,
     MATCH_LEVELS,
     PROVIDER_CHANGES,
@@ -24,6 +25,7 @@ from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoDoorplate,
     GeoKindergarten,
+    GeoKindergartenFee,
     GeoNewHomeSale,
     GeoProviderEvent,
     GeoVillageAges,
@@ -43,19 +45,23 @@ HISTORY_MIGRATION = BACKEND / "migrations" / "versions" / "c5e9a1f3b7d2_admissio
 INCOME_MIGRATION = BACKEND / "migrations" / "versions" / "d8b3f6a2c914_admissions_village_income.py"
 NEW_HOMES_MIGRATION = BACKEND / "migrations" / "versions" / "e4f1a8c6b203_admissions_new_home_sales.py"
 PROVIDER_MIGRATION = BACKEND / "migrations" / "versions" / "c6a9e3f15d27_provider_changes.py"
+FEES_MIGRATION = BACKEND / "migrations" / "versions" / "f2b8c4d1e7a9_peer_fees.py"
 # 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population、10-14 再多收 births、
 # migration，同日 C 段多收 income、B 段多收 new_homes，托嬰與異動最後再多收 babycare；新成屋的比對等級在 B 段；
 # 托嬰與異動紀錄的約束在 c6a9e3f15d27；其餘仍是 e7a1c4d9b2f6。
+# 10-15 附近同業比較再多收 kindergarten_fees，並新增收費年齡約束。
 CONSTRAINT_MIGRATIONS = {
-    "ck_geo_dataset_status_dataset": PROVIDER_MIGRATION,
+    "ck_geo_dataset_status_dataset": FEES_MIGRATION,
     "ck_geo_new_home_sales_match_level": NEW_HOMES_MIGRATION,
     "ck_geo_babycare_kind": PROVIDER_MIGRATION,
     "ck_geo_provider_events_provider": PROVIDER_MIGRATION,
     "ck_geo_provider_events_change": PROVIDER_MIGRATION,
+    "ck_geo_kindergarten_fees_age": FEES_MIGRATION,
 }
 MODELS = (
     GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoVillageBirths, GeoVillageMigration, GeoVillageAges,
     GeoVillageIncome, GeoNewHomeSale, GeoDatasetStatus, RecruitmentVisitGeo, GeoBabycare, GeoProviderEvent,
+    GeoKindergartenFee,
 )
 # 加減約束要改這裡，同時改 models.py 與 migration。
 CHECK_NAMES = {
@@ -68,6 +74,7 @@ CHECK_NAMES = {
     "ck_geo_babycare_kind",
     "ck_geo_provider_events_provider",
     "ck_geo_provider_events_change",
+    "ck_geo_kindergarten_fees_age",
 }
 
 
@@ -144,7 +151,7 @@ def test_new_homes_migration_follows_income_and_only_adds():
 
 
 def test_provider_migration_follows_new_homes_and_only_adds():
-    """托嬰與異動：接在新成屋（B 段）之後、是唯一的 head；升級只建表、加欄位與放寬約束，不動既有資料。"""
+    """托嬰與異動：接在新成屋（B 段）之後；升級只建表、加欄位與放寬約束，不動既有資料。"""
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -152,8 +159,21 @@ def test_provider_migration_follows_new_homes_and_only_adds():
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision("c6a9e3f15d27").down_revision == "e4f1a8c6b203"
-    assert len(script.get_heads()) == 1
     upgrade = PROVIDER_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade
+
+
+def test_peer_fees_migration_follows_enrolled_points_and_only_adds():
+    """附近同業比較：接在在籍學生分布之後、是唯一的 head；升級只建表、加欄位與放寬約束，不動既有資料。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert script.get_revision("f2b8c4d1e7a9").down_revision == "f2a7c1e9d4b3"
+    assert len(script.get_heads()) == 1
+    upgrade = FEES_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade
 
 
@@ -168,6 +188,34 @@ async def test_new_columns_exist(db_session):
         )
     ).all()
     assert sorted(tuple(row) for row in found) == [("geo_dataset_status", "baseline_on"), ("geo_kindergartens", "registered_on")]
+
+
+async def test_peer_fee_columns_exist(db_session):
+    found = (
+        await db_session.execute(
+            text(
+                "SELECT table_name, column_name FROM information_schema.columns WHERE "
+                "(table_name = 'geo_kindergartens' AND column_name IN "
+                "('indoor_m2', 'outdoor_m2', 'has_shuttle', 'after_school_capacity')) OR "
+                "(table_name = 'geo_babycare' AND column_name IN "
+                "('monthly_fee', 'fee_note', 'evaluation_grade', 'evaluation_year', 'quasi_public'))"
+            )
+        )
+    ).all()
+    assert len(found) == 9
+
+
+async def test_fee_age_accepts_two_to_five_and_rejects_others(db_session):
+    def fee(source_id: str, age: int) -> GeoKindergartenFee:
+        return GeoKindergartenFee(
+            source_id=source_id, age=age, school_year=114, semester_total=89750, synced_at=datetime.now(timezone.utc)
+        )
+
+    for age in FEE_AGES:
+        db_session.add(fee("k1", age))
+    await db_session.commit()
+    await _expect_rejected(db_session, fee("k1", 6))
+    await _expect_rejected(db_session, fee("k2", 1))
 
 
 async def test_babycare_kind_accepts_declared_values_and_rejects_others(db_session):
@@ -208,7 +256,7 @@ async def test_check_constraint_names_in_database_are_the_locked_set(db_session)
                 "SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid IN "
                 "('geo_doorplates'::regclass, 'geo_kindergartens'::regclass, "
                 "'geo_dataset_status'::regclass, 'recruitment_visit_geo'::regclass, 'geo_new_home_sales'::regclass, "
-                "'geo_babycare'::regclass, 'geo_provider_events'::regclass)"
+                "'geo_babycare'::regclass, 'geo_provider_events'::regclass, 'geo_kindergarten_fees'::regclass)"
             )
         )
     ).scalars().all()
@@ -234,7 +282,7 @@ async def test_tables_exist(db_session):
     assert set(names) == {
         "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
         "geo_village_births", "geo_village_migration", "geo_village_ages", "geo_village_income", "geo_new_home_sales",
-        "geo_babycare", "geo_provider_events",
+        "geo_babycare", "geo_provider_events", "geo_kindergarten_fees",
     }
 
 

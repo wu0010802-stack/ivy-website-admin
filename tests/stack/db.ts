@@ -75,6 +75,38 @@ export function seedProviderChanges(): void {
   )
 }
 
+/** 附近同業收費（2026-10-15）：stack 用檔案匯入，不會抓收費檔，這裡直接寫。崇德北方加三所私立同業；
+ *  本校 2–4 歲、準公共、公立各一筆收費；收費狀態列 114 學年；三所托嬰補月費、評鑑、準公共。可以重跑。 */
+export function seedPeerFees(): void {
+  psql(
+    `INSERT INTO geo_kindergartens (source_id, name, kind, district, address, lat, lng, approved_capacity, has_penalty, is_active, synced_at)
+     VALUES ('e2e-kg-p1', '高雄市私立測試己幼兒園', 'private', '左營區', '測試路11號', 22.676662, 120.307197, 100, false, true, now()),
+            ('e2e-kg-p2', '高雄市私立測試庚幼兒園', 'private', '左營區', '測試路12號', 22.678662, 120.307197, 100, false, true, now()),
+            ('e2e-kg-p3', '高雄市私立測試辛幼兒園', 'private', '左營區', '測試路13號', 22.680662, 120.307197, 100, false, true, now())
+     ON CONFLICT (source_id) DO NOTHING;
+     INSERT INTO geo_kindergarten_fees (source_id, age, school_year, months, tuition, misc_fee, materials, activities, lunch, snack, semester_total, after_care_monthly, transport_note, synced_at)
+     VALUES ('e2e-kg-own', 2, 114, 5.5, 21800, 5500, 31900, 30250, 8250, 8250, 105950, 1200, '單 770 雙 1540', now()),
+            ('e2e-kg-own', 3, 114, 5.5, 19900, 5500, 24750, 23100, 8250, 8250, 89750, 1200, '單 770 雙 1540', now()),
+            ('e2e-kg-own', 4, 114, 5.5, 19900, 5500, 20000, 23100, 8250, 8250, 85000, 1200, NULL, now()),
+            ('e2e-kg-p1', 3, 114, 5.5, 15000, 20000, 11000, 9900, 7500, 6600, 70000, 1200, NULL, now()),
+            ('e2e-kg-p2', 3, 114, 5.5, 16000, 21300, 15000, 12000, 8000, 7700, 80000, 1500, NULL, now()),
+            ('e2e-kg-p3', 3, 114, 5.5, 20000, 25000, 20000, 15000, 8000, 7000, 95000, 1800, NULL, now()),
+            ('e2e-kg-p1', 4, 114, 5.5, NULL, NULL, NULL, NULL, NULL, NULL, 60000, NULL, NULL, now()),
+            ('e2e-kg-p2', 4, 114, 5.5, NULL, NULL, NULL, NULL, NULL, NULL, 65000, NULL, NULL, now()),
+            ('e2e-kg-p3', 4, 114, 5.5, NULL, NULL, NULL, NULL, NULL, NULL, 70000, NULL, NULL, now()),
+            ('e2e-kg-quasi', 3, 114, 5.5, NULL, NULL, NULL, NULL, NULL, NULL, 63190, NULL, NULL, now()),
+            ('e2e-kg-public', 3, 114, 5.5, NULL, NULL, NULL, NULL, NULL, NULL, 17965, NULL, NULL, now())
+     ON CONFLICT DO NOTHING;
+     INSERT INTO geo_dataset_status (dataset, active_version, label, synced_at, checked_at)
+     VALUES ('kindergarten_fees', '114', '114', now(), now())
+     ON CONFLICT (dataset) DO UPDATE SET active_version = '114', label = '114', synced_at = now(), checked_at = now(), last_error = NULL;
+     UPDATE geo_babycare SET monthly_fee = 17900, evaluation_grade = '優等', evaluation_year = 114, quasi_public = true, fee_note = '平均月費: 17,900元' WHERE source_id = 'e2e-bc-near';
+     UPDATE geo_babycare SET monthly_fee = 15000, quasi_public = true WHERE source_id = 'e2e-bc-home';
+     UPDATE geo_babycare SET monthly_fee = 21000, evaluation_grade = '乙等', quasi_public = false WHERE source_id = 'e2e-bc-mid';`,
+    {},
+  )
+}
+
 // 每個里每月出生數，從最新一期往回：2、2、3、3、4、4（出生走勢 e2e，2026-10-14）。
 const BIRTH_PERIOD_COUNTS = [2, 2, 3, 3, 4, 4]
 

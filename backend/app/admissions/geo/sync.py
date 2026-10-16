@@ -1,6 +1,7 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
 幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
-各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）；
+各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）、
+幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）；
 門牌換版或校址變更後重算訪視與新成屋。
 
 只下載公開資料，不送出任何家長資料。每種資料各自成敗：失敗只寫
@@ -16,6 +17,8 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
   同時代表「立刻重抓」與「略過殘缺檔檢查」。
+  幼兒園收費（fees.py）只在連網時做、沒有對應的檔案選項：名單同一輪更新成功才接著抓（從沒匯入成功過的
+  不等 7 天），先探測最新學年，再全量（30 天一次、學年換新、--force）或只補缺。
 
 高雄市資料開放平台（data.kcg.gov.tw，2026 年改版後不是 CKAN，/api/3 回 404）：
 - 搜尋頁 /dataset?keyword=門牌坐標資料：每年一個資料集，連結 title「高雄市115年門牌坐標資料-TWD97」；
@@ -57,18 +60,21 @@ import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import quote
 
 import httpx
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.admissions.academic import current_term
+from app.admissions.geo import babycare as babycare_io
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import population as population_io
@@ -78,7 +84,9 @@ from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
-from app.admissions.geo.models import GeoDatasetStatus, GeoDoorplate, GeoVillagePopulation
+from app.admissions.geo.models import (
+    GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoKindergartenFee, GeoVillagePopulation,
+)
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
 from app.config import Settings
@@ -108,6 +116,8 @@ FILE_CHUNK_LINES = 5000
 POPULATION_LOOKBACK_MONTHS = 4
 # ris.gov.tw 不間斷連抓約 70 次後回了 HTML 擋頁、間隔 3 秒的都正常（2026-10-14 實測）：每個請求之間至少隔這麼久。
 RIS_REQUEST_GAP_SECONDS = 3.0
+# 托嬰逐所明細（2026-10-15）：一所一個請求，對 GitHub Pages 客氣一點，請求之間隔這麼久。
+BABYCARE_DETAIL_GAP_SECONDS = 0.2
 
 # 上游回應的大小與同步時間上限（2026-10-13 深度掃描 12、13）：同步在 API 同一支程序裡跑，上游內容的
 # 發布者不該能用超大回應耗盡記憶體、或用超量的列數填滿共用資料庫。都是正常值的好幾倍，只擋失控的來源。
@@ -116,6 +126,7 @@ HTML_MAX_BYTES = 2 * 1024 * 1024  # 高雄市資料平台的搜尋頁與資料�
 KINDERGARTENS_MAX_BYTES = 64 * 1024 * 1024  # 全國幼兒園名單（正常約十 MB）
 KINDERGARTEN_REGISTRY_MAX_BYTES = 4 * 1024 * 1024  # 教育部高雄市幼兒園名單（正常約 200 KB）
 BABYCARE_MAX_BYTES = 8 * 1024 * 1024  # 托嬰名單（正常約 1.4 MB）
+BABYCARE_DETAIL_MAX_BYTES = 256 * 1024  # 托嬰逐所明細（正常約 5 KB）
 POPULATION_PAGE_MAX_BYTES = 32 * 1024 * 1024  # 各里人口每一頁（正常約 10 MB）
 DOORPLATE_MAX_BYTES = 400 * 1024 * 1024  # 門牌 CSV（正常約 102 MB）
 DOORPLATE_MAX_ROWS = 1_500_000  # 匯入資料庫的門牌列數（全市正常約 76 萬）
@@ -123,7 +134,20 @@ DOORPLATE_MAX_LINE_CHARS = 64 * 1024  # 單行長度：沒有換行的串流不�
 # 單一資料種類從開始到結束的時間上限（逾時中止、寫進狀態列）。
 DOORPLATE_TIME_BUDGET = timedelta(minutes=45)
 KINDERGARTENS_TIME_BUDGET = timedelta(minutes=10)
+BABYCARE_DETAIL_TIME_BUDGET = timedelta(minutes=5)
 BABYCARE_TIME_BUDGET = timedelta(minutes=5)
+# 幼兒園收費（2026-10-15 附近同業比較 §4.2）：一所一檔，正常 37 KB；全量約 624 檔，每個請求隔 0.2 秒。
+FEES_MAX_BYTES = 512 * 1024
+FEES_TIME_BUDGET = timedelta(minutes=20)
+FEES_REQUEST_GAP_SECONDS = 0.2
+FEES_REFRESH_AFTER = timedelta(days=30)  # 規格 F7：距上次全量 30 天就全量重抓
+FEES_LOOKBACK_YEARS = 3  # 規格 F6：從目前學年往回試三年
+FEES_PROBES = 5
+FEES_TRUNCATION_RATIO = 0.8  # 規格 F9
+FEES_TRUNCATION_MIN = 20
+FEES_MAX_ERROR_RATIO = 0.1
+FEES_INSERT_CHUNK = 1000  # 一列 14 個參數；asyncpg 單一語句上限 32,767 個
+FEES_SHRUNK_MESSAGE = "有收費的園所比上次少了兩成以上，疑似殘缺，未更新"
 POPULATION_TIME_BUDGET = timedelta(minutes=30)
 # 各里出生、遷入遷出（2026-10-14）：高雄一個月一頁約 0.2–1.2 MB（全國一頁約 3 MB）；出生 72 個月、遷入遷出
 # 25 個月，每個請求隔 3 秒；SERIES_TIME_BUDGET 為每個資料集整輪的時間上限。
@@ -227,6 +251,11 @@ class GeoSyncResult:
     # 托嬰名單（2026-10-14）：結果、解析時略過的筆數。
     babycare: str = "skipped"
     babycare_rows_skipped: int = 0
+    babycare_details: int = 0  # 這一輪更新了明細的托嬰數（2026-10-15）
+    # 幼兒園收費（2026-10-15）：結果、這一輪抓到收費的園所數、使用中的收費學年。
+    kindergarten_fees: str = "skipped"
+    kindergarten_fee_schools: int = 0
+    kindergarten_fees_version: str | None = None
     # 各里出生、遷入遷出（2026-10-14）：結果、表裡最新的月份、這一輪寫入的月份數；一年前的年齡回補結果。
     births: str = "skipped"
     births_version: str | None = None
@@ -464,6 +493,7 @@ def _error_text(exc: Exception) -> str:
         KindergartenFormatError,
         BackfillFormatError,
         BabycareFormatError,
+        fees_io.FeeFormatError,
         providers.ProviderShrunk,
         population_io.PopulationFormatError,
         series_io.SeriesFormatError,
@@ -572,10 +602,10 @@ async def sync_kindergartens(
             )
             await db.commit()
         logger.info(
-            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆；停辦事件 %s、依回補檔下架 %s、"
-            "改名下架 %s、重新營業 %s、類型變動 %s",
-            changes.active, report.skipped, report.unplaced, changes.closed, changes.backfilled, changes.renamed,
-            changes.opened, changes.kind_changed,
+            "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆、有幼童專用車 %s 所；停辦事件 %s、"
+            "依回補檔下架 %s、改名下架 %s、重新營業 %s、類型變動 %s",
+            changes.active, report.skipped, report.unplaced, sum(1 for row in rows if row.has_shuttle is True),
+            changes.closed, changes.backfilled, changes.renamed, changes.opened, changes.kind_changed,
         )
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001
@@ -617,6 +647,201 @@ async def sync_babycare(
     except Exception as exc:  # noqa: BLE001
         logger.warning("托嬰名單同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "babycare", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
+async def sync_babycare_details(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient,
+    *,
+    now: datetime,
+    only_if_missing: bool = False,
+) -> int:
+    """托嬰逐所明細（2026-10-15 規格 §4.3）：回傳更新了幾所。這一段怎麼失敗都不丟例外、不改 babycare 的
+    同步結果與狀態列，只寫 WARNING 日誌與計數：單所失敗（含回應解析不出任何欄位）保留舊值、繼續下一所；
+    資料庫出錯就中止這一段；整段有硬性時間上限（到了直接取消進行中的請求），沒抓的下一輪再抓。
+    only_if_missing：名單這一輪沒更新時用，只抓營業中、明細還沒抓到（quasi_public 是 NULL）的托嬰，沒有就不連外；
+    第一輪被重啟或單所失敗時，剩下的下一輪就補，不用等名單到期。名單這一輪更新了就抓全部營業中的。"""
+    updated = failed = 0
+    limit = asyncio.timeout(BABYCARE_DETAIL_TIME_BUDGET.total_seconds())
+    try:
+        async with limit:
+            query = select(GeoBabycare.source_id).where(GeoBabycare.is_active.is_(True))
+            if only_if_missing:
+                query = query.where(GeoBabycare.quasi_public.is_(None))
+            async with session_factory() as db:
+                ids = (await db.execute(query.order_by(GeoBabycare.source_id))).scalars().all()
+            if only_if_missing and not ids:
+                return 0
+            for source_id in ids:
+                try:
+                    body, _ = await _fetch_capped(client, babycare_io.detail_url(source_id), max_bytes=BABYCARE_DETAIL_MAX_BYTES)
+                    values = asdict(babycare_io.parse_babycare_detail(json.loads(body)))
+                    if all(value is None for value in values.values()):
+                        raise BabycareFormatError("明細沒有任何可用欄位")  # 上游改版回空內容：保留舊值
+                except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋其他
+                    failed += 1
+                    logger.warning("托嬰明細下載或解析失敗（%s）：%s", source_id, _error_text(exc))
+                else:
+                    async with session_factory() as db:
+                        await db.execute(update(GeoBabycare).where(GeoBabycare.source_id == source_id).values(**values))
+                        await db.commit()
+                    updated += 1
+                await _sleep(BABYCARE_DETAIL_GAP_SECONDS)
+    except Exception as exc:  # noqa: BLE001 - 這一段失敗不影響 babycare 的結果與後面的資料種類
+        if isinstance(exc, TimeoutError) and limit.expired():
+            seconds = int(BABYCARE_DETAIL_TIME_BUDGET.total_seconds())
+            after = f"{seconds // 60} 分鐘" if seconds >= 60 else f"{seconds} 秒"
+            logger.warning("托嬰明細超過 %s，這一輪先停：已更新 %s 所，其餘下一輪再抓", after, updated)
+        else:
+            logger.warning("托嬰明細同步中止：%s", _error_text(exc), exc_info=True)
+    logger.info("托嬰明細已更新：%s 所，失敗 %s 所", updated, failed)
+    return updated
+
+
+async def _fetch_slip(client: httpx.AsyncClient, url: str) -> dict | None:
+    """一所的收費檔：404 回 None（沒有公布收費）；其他錯誤照丟。"""
+    try:
+        body, _ = await _fetch_capped(client, url, max_bytes=FEES_MAX_BYTES)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return None
+        raise
+    return json.loads(body)
+
+
+async def _latest_fee_year(client: httpx.AsyncClient, titles: list[str], current_year: int) -> tuple[int | None, int]:
+    """規格 F6：從目前學年往回試，探測園所裡有一所的檔案存在，那一年就是最新學年。回傳 (學年, 探測時的下載錯誤次數)；
+    探測時的網路錯誤當作這所沒有、換下一所再試，找不到學年時次數會寫進原因，分得出「真的沒有」和「連線有問題」。"""
+    errors = 0
+    for year in range(current_year, current_year - FEES_LOOKBACK_YEARS, -1):
+        for title in titles:
+            try:
+                found = await _fetch_slip(client, fees_io.slip_url(year, title))
+            except Exception:  # noqa: BLE001 - 換下一所再試
+                found = None
+                errors += 1
+            await _sleep(FEES_REQUEST_GAP_SECONDS)
+            if found is not None:
+                return year, errors
+    return None, errors
+
+
+async def fees_never_imported(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    """收費從沒成功匯入過（上線第一輪，或之前每輪都失敗）：不等名單的 7 天，下一輪就再試。"""
+    status = await _status(session_factory, "kindergarten_fees")
+    return status is None or status.active_version is None
+
+
+async def sync_kindergarten_fees(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient,
+    *,
+    now: datetime,
+    force: bool,
+    only_if_never_imported: bool = False,
+) -> tuple[str, int]:
+    """幼兒園收費（2026-10-15 規格 §4.2）。回傳 (結果, 這一輪抓到收費的園所數)。
+    全量（學年換新、距上次全量 30 天、--force、從沒匯入）通過門檻才整表替換；補缺只新增沒有收費列的園所。
+    only_if_never_imported：名單這一輪沒更新時用，只有收費從沒匯入成功過才做（判斷在 try 裡，資料庫出錯也只算這一段失敗）。"""
+    deadline = time.monotonic() + FEES_TIME_BUDGET.total_seconds()
+    try:
+        if only_if_never_imported and not await fees_never_imported(session_factory):
+            return "skipped", 0
+        async with session_factory() as db:
+            schools = (
+                await db.execute(
+                    select(GeoKindergarten.source_id, GeoKindergarten.name, GeoKindergarten.kind)
+                    .where(GeoKindergarten.is_active.is_(True))
+                    .order_by(GeoKindergarten.source_id)
+                )
+            ).all()
+            existing = set((await db.execute(select(GeoKindergartenFee.source_id).distinct())).scalars())
+            status = await db.get(GeoDatasetStatus, "kindergarten_fees")
+            stored_year = int(status.active_version) if status is not None and status.active_version else None
+            last_full = status.synced_at if status is not None else None
+        probes = [name for source_id, name, _ in schools if source_id in existing][:FEES_PROBES] or [
+            name for _, name, kind in schools if kind in ("private", "quasi_public")
+        ][:FEES_PROBES]
+        current_year, _ = current_term(today_local(now))
+        year, probe_errors = await _latest_fee_year(client, probes, current_year)
+        if year is None:
+            raise GeoSyncError("找不到任何學年的收費檔" + (f"（探測時 {probe_errors} 次下載錯誤）" if probe_errors else ""))
+        if stored_year is not None and year < stored_year:
+            # 規格 F4 只存最新學年：探測退到舊學年時，補缺不能把舊學年的列插進新學年的表，全量也不能把學年倒退。
+            raise GeoSyncError(f"找到的收費學年（{year}）比使用中的（{stored_year}）舊，未更新")
+        full = (
+            force or stored_year is None or year > stored_year
+            or last_full is None or now - last_full >= FEES_REFRESH_AFTER
+        )
+        targets = schools if full else [school for school in schools if school[0] not in existing]
+        fetched: dict[str, list[fees_io.FeeRow]] = {}
+        errors = 0
+        timed_out = False
+        for source_id, name, _ in targets:
+            if time.monotonic() > deadline:
+                timed_out = True
+                break
+            try:
+                data = await _fetch_slip(client, fees_io.slip_url(year, name))
+                rows = fees_io.parse_slip(data) if data is not None else []
+            except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋整輪，只計數
+                errors += 1
+                logger.warning("收費檔下載或解析失敗（%s）：%s", source_id, _error_text(exc))
+            else:
+                if rows:
+                    fetched[source_id] = rows
+            await _sleep(FEES_REQUEST_GAP_SECONDS)
+        minutes = int(FEES_TIME_BUDGET.total_seconds() // 60)
+        timeout_message = f"收費同步超過 {minutes} 分鐘，已中止"
+        if full:
+            if timed_out:
+                raise GeoSyncError(timeout_message)
+            if errors > len(targets) * FEES_MAX_ERROR_RATIO:
+                raise GeoSyncError("收費檔下載錯誤太多，未更新")
+            if len(existing) >= FEES_TRUNCATION_MIN and len(fetched) < len(existing) * FEES_TRUNCATION_RATIO:
+                raise GeoSyncError(FEES_SHRUNK_MESSAGE)
+        values = [
+            {
+                "source_id": source_id, "age": row.age, "school_year": year, "months": row.months,
+                "tuition": row.tuition, "misc_fee": row.misc_fee, "materials": row.materials,
+                "activities": row.activities, "lunch": row.lunch, "snack": row.snack,
+                "semester_total": row.semester_total, "after_care_monthly": row.after_care_monthly,
+                "transport_note": row.transport_note, "synced_at": now,
+            }
+            for source_id, rows in fetched.items()
+            for row in rows
+        ]
+        async with session_factory() as db:
+            if full:
+                await db.execute(delete(GeoKindergartenFee))
+            for start in range(0, len(values), FEES_INSERT_CHUNK):
+                await db.execute(
+                    pg_insert(GeoKindergartenFee).values(values[start:start + FEES_INSERT_CHUNK]).on_conflict_do_nothing()
+                )
+            record = await db.get(GeoDatasetStatus, "kindergarten_fees", with_for_update=True)
+            if record is None:
+                record = GeoDatasetStatus(dataset="kindergarten_fees")
+                db.add(record)
+            record.last_attempt_at = now
+            record.checked_at = now
+            record.last_error = timeout_message if timed_out else None  # 補缺逾時：已抓到的照寫，原因同一個交易寫進去
+            if full:
+                record.active_version = str(year)
+                record.label = str(year)
+                record.synced_at = now
+            await db.commit()
+        if timed_out:  # 補缺：抓到的已經寫入，但這一輪算失敗
+            logger.warning("幼兒園收費補缺超過 %s 分鐘，這一輪先停：已寫入 %s 所，其餘下一輪再補", minutes, len(fetched))
+            return "failed", len(fetched)
+        logger.info(
+            "幼兒園收費已更新：%s 學年，%s，這次抓到 %s 所、下載錯誤 %s 所",
+            year, "全量" if full else "補缺", len(fetched), errors,
+        )
+        return "updated", len(fetched)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("幼兒園收費同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "kindergarten_fees", now=now, error=_error_text(exc))
         return "failed", 0
 
 
@@ -1309,10 +1534,25 @@ async def run_geo_sync(
                     now=now, force=force, file=kindergartens_file, registry_file=kindergartens_registry_file,
                 ),
             )
+            kindergarten_fees, kindergarten_fee_schools = "skipped", 0
+            # 收費只在名單沒失敗時做：名單這一輪更新了就接著做，沒更新（還沒到 7 天）只在從沒匯入成功過才補（計畫 Task 4）。
+            # 外層再包一道硬性時間上限，上游慢慢吐資料也不會讓單一請求長期占住全域同步鎖。
+            if network is not None and kindergartens != "failed":
+                kindergarten_fees, kindergarten_fee_schools = await _within_budget(
+                    session_factory, "kindergarten_fees", FEES_TIME_BUDGET + timedelta(minutes=2), now=now,
+                    work=sync_kindergarten_fees(
+                        session_factory, network, now=now, force=force, only_if_never_imported=kindergartens != "updated"
+                    ),
+                )
             babycare, babycare_skipped = await _within_budget(
                 session_factory, "babycare", BABYCARE_TIME_BUDGET, now=now,
                 work=sync_babycare(session_factory, settings, network, now=now, force=force, file=babycare_file),
             )
+            babycare_details = 0
+            if network is not None and babycare != "failed":
+                babycare_details = await sync_babycare_details(
+                    session_factory, network, now=now, only_if_missing=babycare != "updated"
+                )
             population, population_skipped = await _within_budget(
                 session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                 work=sync_population(session_factory, network, now=now, force=force, files=population_files),
@@ -1359,13 +1599,16 @@ async def run_geo_sync(
         migration_status = await _status(session_factory, "migration")
         income_status = await _status(session_factory, "income")
         new_homes_status = await _status(session_factory, "new_homes")
+        fees_status = await _status(session_factory, "kindergarten_fees")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
             population=population,
             population_version=population_status.label if population_status and population_status.active_version else None,
             population_rows_skipped=population_skipped,
-            babycare=babycare, babycare_rows_skipped=babycare_skipped,
+            babycare=babycare, babycare_rows_skipped=babycare_skipped, babycare_details=babycare_details,
+            kindergarten_fees=kindergarten_fees, kindergarten_fee_schools=kindergarten_fee_schools,
+            kindergarten_fees_version=fees_status.label if fees_status is not None else None,
             births=births,
             births_version=births_status.label if births_status and births_status.active_version else None,
             births_months=births_months,

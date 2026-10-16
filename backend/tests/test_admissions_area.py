@@ -330,14 +330,16 @@ async def test_kindergartens_mark_own_and_pass_radius(admin_client, monkeypatch)
     body = response.json()
     assert calls == [(22.65, 120.32, 6000)]
     assert body["radius_km"] == 6
-    assert body["source_note"] == "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
+    assert body["source_note"] == "資料來源：全國教保資訊網（kiang 整理）"
     assert [(item["source_id"], item["is_own"]) for item in body["items"]] == [
         ("own", True), ("near", False), ("far", False), ("sister", True),
     ]
-    # 公開資料的欄位原樣透傳（不只 source_id）：整筆比對，只多一個 is_own。
+    # 公開資料的欄位原樣透傳（不只 source_id）：NearbyKindergarten 有的欄位整筆比對，
+    # 回應只多 is_own 與 2026-10-15 的四個同業比較欄位（解析端還沒給時是 null，給了就一併透傳）。
     expected = [asdict(item) for item in await fake_nearby(None, 0, 0, 0)]
-    assert [{key: value for key, value in item.items() if key != "is_own"} for item in body["items"]] == expected
-    assert set(body["items"][0]) == set(expected[0]) | {"is_own"}
+    assert [{key: item[key] for key in want} for item, want in zip(body["items"], expected, strict=True)] == expected
+    peer_keys = {"indoor_m2_per_child", "outdoor_m2_per_child", "has_shuttle", "after_school_capacity"}
+    assert set(body["items"][0]) == set(expected[0]) | {"is_own"} | peer_keys
 
 
 async def test_kindergartens_default_radius_is_three(admin_client, monkeypatch):

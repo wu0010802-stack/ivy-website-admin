@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
 import {
-  areaBabycare, areaChanges, areaKindergartens, areaOpportunity, areaStats, areaTrends, button, cleanup, mockGet, mountWith,
-  villageBoundaries,
+  areaBabycare, areaChanges, areaKindergartens, areaOpportunity, areaPeerFees, areaStats, areaTrends, button, cleanup, mockGet,
+  mountWith, villageBoundaries,
 } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaMap.vue', () => {
@@ -29,6 +29,7 @@ describe('區域分析：地圖元件載入失敗', () => {
     mockGet({
       '/admin/admissions/area/boundaries': villageBoundaries(),
       '/admin/admissions/area/kindergartens': areaKindergartens(),
+      '/admin/admissions/area/fees': areaPeerFees(),
       '/admin/admissions/area/babycare': areaBabycare(),
       '/admin/admissions/area/changes': areaChanges(),
       '/admin/admissions/area/opportunity': areaOpportunity(),

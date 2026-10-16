@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions import estimation, records
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo import babycare as geo_babycare
+from app.admissions.geo import fees as geo_fees
 from app.admissions.geo import kindergartens as geo_kindergartens
 from app.admissions.geo import providers as geo_providers
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, RecruitmentVisitGeo
@@ -245,22 +246,36 @@ async def query_babycare(db: AsyncSession, campus_key: str, *, radius_km: int) -
     原因在 campus.locate_error；名單從未匯入時 synced_at 是 null（畫面寫尚未匯入，不寫附近沒有）。"""
     campus = await campus_out(db, campus_key)
     status = await db.get(GeoDatasetStatus, "babycare")
+    fee_status = await db.get(GeoDatasetStatus, "kindergarten_fees")
+    fee_school_year = int(fee_status.active_version) if fee_status is not None and fee_status.active_version else None
     result: dict[str, Any] = {
         "synced_at": status.synced_at if status is not None else None,
         "source_note": BABYCARE_SOURCE_NOTE,
         "campus": campus,
         "radius_km": radius_km,
-        "summary": {"count": 0, "approved_total": 0, "enrolled_total": 0},
+        "summary": {
+            "count": 0, "approved_total": 0, "enrolled_total": 0, "fee_count": 0, "fee_median": None,
+            "fee_min": None, "fee_max": None, "own_age2_monthly": None, "fee_school_year": fee_school_year,
+        },
         "items": [],
     }
     if campus["lat"] is None or campus["lng"] is None:
         return result
     found = await geo_babycare.nearby(db, campus["lat"], campus["lng"], radius_km * 1000)
     result["items"] = [asdict(item) for item in found]
+    monthly = [item.monthly_fee for item in found if item.monthly_fee is not None]
+    # 本校 2 歲班月均（規格 §5）：和托嬰月費擺在一起對照，兩邊都不含延托。
+    _, own_fee = await geo_fees.own_fee(db, campus["lat"], campus["lng"], age=2, radius_m=OWN_CAMPUS_RADIUS_M)
     result["summary"] = {
         "count": len(found),
         "approved_total": sum(item.approved_capacity or 0 for item in found),
         "enrolled_total": sum(item.enrolled or 0 for item in found),
+        "fee_count": len(monthly),
+        "fee_median": geo_fees.median(monthly),
+        "fee_min": min(monthly, default=None),
+        "fee_max": max(monthly, default=None),
+        "own_age2_monthly": geo_fees.monthly_average(own_fee.semester_total, own_fee.months) if own_fee is not None else None,
+        "fee_school_year": fee_school_year,
     }
     return result
 

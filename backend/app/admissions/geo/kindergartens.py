@@ -9,7 +9,8 @@ kiang 依收費明細估算的值，畫面上要標「估」。kiang 的資料�
 
 高雄市在名單上的園所若缺必要欄位、欄位超過資料表欄寬、座標不是有限數或不在高雄市外框內、
 source_id 重複，整筆略過並計入 ParseReport.skipped（高雄市以外、不在名單的本來就不要，不算）；
-不讓一筆壞資料使整批寫入失敗。數量欄位（核定人數、月費）超出 int4 當成未知。"""
+不讓一筆壞資料使整批寫入失敗。數量欄位（核定人數、月費）超出 int4 當成未知。
+2026-10-15 起另存室內／戶外面積、幼童專用車、兼辦國小課後人數（附近同業比較規格 §4.1）。"""
 
 from __future__ import annotations
 
@@ -27,10 +28,11 @@ from app.admissions.geo.kaohsiung import in_kaohsiung
 from app.admissions.geo.models import GeoKindergarten
 from app.admissions.geo.projection import haversine_m
 
-SOURCE_NOTE = "資料來源：全國教保資訊網（kiang 整理），月費為估計值"
+SOURCE_NOTE = "資料來源：全國教保資訊網（kiang 整理）"
 _KIND_BY_TYPE = {"公立": "public", "非營利": "nonprofit", "私立": "private"}
 _PRE_PUBLIC = re.compile(r"(\d{3})-(\d{3})")
 _POSTAL_PREFIX = re.compile(r"^\[\d+\]")
+_AFTER_SCHOOL = re.compile(r"有[，,]\s*人數[：:]\s*([0-9]+)")
 _METERS_PER_DEGREE = 111_320.0
 _INT4_MAX = 2_147_483_647
 REGISTRY_COLUMNS = ("reg_docno", "title", "address", "reg_date")
@@ -70,6 +72,10 @@ class KindergartenRow:
     has_penalty: bool
     phone: str | None
     registered_on: date | None = None
+    indoor_m2: float | None = None
+    outdoor_m2: float | None = None
+    has_shuttle: bool | None = None
+    after_school_capacity: int | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +92,10 @@ class NearbyKindergarten:
     monthly_fee_estimate: int | None
     has_penalty: bool
     phone: str | None
+    indoor_m2_per_child: float | None = None
+    outdoor_m2_per_child: float | None = None
+    has_shuttle: bool | None = None
+    after_school_capacity: int | None = None
 
 
 def _int_or_none(value: object) -> int | None:
@@ -120,6 +130,40 @@ def _registered_on(value: object) -> date | None:
         return date(year, month, day)
     except (ValueError, OverflowError):  # 段數不對、不是數字、不存在的日期；年份大到超出 C int 是 OverflowError
         return None
+
+
+def _area_m2(value: object) -> float | None:
+    """面積「1,534.78平方公尺」→ 1534.78；空、0、不是數字都是 None。"""
+    text = str(value or "").replace("平方公尺", "").replace(",", "").strip()
+    try:
+        number = float(text)
+    except ValueError:
+        return None
+    return number if math.isfinite(number) and number > 0 else None
+
+
+def _has_shuttle(props: dict) -> bool | None:
+    """幼童專用車：kiang 把原站的車牌表存成空白字元（有車），沒有車是空字串；沒有這個欄位＝不知道。
+    用原始字串判斷，不能先 strip。"""
+    if "shuttle" not in props or props["shuttle"] is None:
+        return None
+    return str(props["shuttle"]) != ""
+
+
+def _after_school_capacity(value: object) -> int | None:
+    """兼辦國小課後：「無」→ 0、「有，人數：20」→ 20；只寫「有」、其他、超出 int4 → None。"""
+    text = str(value or "").strip()
+    if text == "無":
+        return 0
+    matched = _AFTER_SCHOOL.fullmatch(text)
+    return _int_or_none(matched.group(1)) if matched else None
+
+
+def per_child(area_m2: float | None, capacity: int | None) -> float | None:
+    """每位核定幼生的面積（m²，四捨五入到 0.1）；核定是 0 或不知道、面積不知道都是 None（規格 F15）。"""
+    if area_m2 is None or capacity is None or capacity <= 0:
+        return None
+    return math.floor(area_m2 / capacity * 10 + 0.5) / 10
 
 
 @dataclass(frozen=True)
@@ -245,6 +289,10 @@ def _row(feature: dict, props: dict, school_year: int) -> KindergartenRow | None
         has_penalty=str(props.get("penalty") or "") == "有",
         phone=_text_or_none(props.get("tel")),
         registered_on=_registered_on(props.get("reg_date")),
+        indoor_m2=_area_m2(props.get("size_in")),
+        outdoor_m2=_area_m2(props.get("size_out")),
+        has_shuttle=_has_shuttle(props),
+        after_school_capacity=_after_school_capacity(props.get("is_after")),
     )
     if any(len(getattr(row, column) or "") > width for column, width in _WIDTHS.items()):
         return None
@@ -282,6 +330,10 @@ async def nearby(db: AsyncSession, lat: float, lng: float, radius_m: int) -> lis
                 monthly_fee_estimate=row.monthly_fee_estimate,
                 has_penalty=row.has_penalty,
                 phone=row.phone,
+                indoor_m2_per_child=per_child(row.indoor_m2, row.approved_capacity),
+                outdoor_m2_per_child=per_child(row.outdoor_m2, row.approved_capacity),
+                has_shuttle=row.has_shuttle,
+                after_school_capacity=row.after_school_capacity,
             )
         )
     items.sort(key=lambda item: (item.distance_m, item.name))
