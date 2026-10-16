@@ -1,3 +1,4 @@
+import { areaQuery } from '../../../admissions/areaFilter'
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
   AdmissionsArea, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaOpportunityRow, AreaTrends, AreaTrendsVillage,
@@ -252,7 +253,7 @@ function oursFacts(sources: FactsSources, code: string, district: string, villag
   return {
     state: enrolled ? 'ok' : enrolledFailed ? 'failed' : 'loading',
     rows,
-    openRecordsArea: visit && visit.visit > 0 ? key : null,
+    openRecordsArea: visit && visit.visit > 0 ? areaQuery({ kind: 'place', district, village }) : null,
   }
 }
 

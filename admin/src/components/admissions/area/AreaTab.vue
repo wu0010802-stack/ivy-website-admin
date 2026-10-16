@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, ref, shallowRef, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, shallowRef, useId, watch } from 'vue'
 import AreaSidePane from './AreaSidePane.vue'
 import AreaTables from './AreaTables.vue'
 import NearbyPanel from './NearbyPanel.vue'
@@ -72,6 +72,8 @@ function patchView(patch: Partial<AreaView>) {
 }
 
 const narrow = useNarrowScreen()
+// 工作台單欄（卡片在地圖下方）的斷點，和下面 .area-workbench 的 @media (min-width: 1200px) 互補：1199px 以下單欄。
+const stacked = useNarrowScreen('(max-width: 1199px)')
 
 const area = ref<AdmissionsArea | null>(null)
 const failed = ref(false)
@@ -278,6 +280,8 @@ const notes = computed<ModeNotes>(() => ({
 const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
 const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: Boolean(modeNote(option.value, notes.value)) })))
 // 工具列下一行寫停用的原因：招生機會那兩種的原因排第一（同一個原因只寫一次，例如里的變化讀取失敗同時停用孩子增減與新屋交屋）。
+// 原因那一行的 id：「看什麼」用 aria-describedby 指過去，讀屏聽到停用的選項時也聽得到為什麼（只有真的有原因才帶）。
+const reasonId = useId()
 const modeReasons = computed(() => [
   ...new Set([notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.enrolled].filter(Boolean)),
 ])
@@ -331,16 +335,16 @@ const sideEl = ref<HTMLElement | null>(null)
 const announce = ref(false)
 
 /**
- * 點地圖上的里：寫進 view，右欄換成里卡片；不搶焦點、不移地圖。手機的卡片在地圖下方，畫出來後捲過去（規格 §3.2、W14）。
- * 已選取的里再點一次不取消、也不重寫網址，只讓報讀改成從地圖選的。
+ * 點地圖上的里：寫進 view，右欄換成里卡片；不搶焦點、不移地圖。單欄時（≤1199px）卡片在地圖下方，畫出來後捲過去（規格 §3.2、W14）：
+ * 手機（≤720px）捲到卡片頂端（block start）；721–1199px 地圖還佔著大半個畫面，只在卡片不在視野裡時才捲（block nearest），地圖留在視野裡。
+ * 已選取的里再點一次不取消、也不重寫網址，卡片可能已被捲出視野，所以照樣捲；另外讓報讀改成從地圖選的。
  */
 async function selectFromMap({ code }: { code: string }) {
   announce.value = true
-  if (code === view.value.village) return
-  patchView({ village: code })
-  if (!narrow.value) return
+  if (code !== view.value.village) patchView({ village: code })
+  if (!stacked.value) return
   await nextTick()
-  sideEl.value?.scrollIntoView({ block: 'start' })
+  sideEl.value?.scrollIntoView({ block: narrow.value ? 'start' : 'nearest' })
 }
 /** 從右欄排行或各里表選里：地圖移到那個里（不在視野裡才移），焦點移到卡片標題；手機把卡片捲上來（卡片在地圖下方）。 */
 async function selectFromList(code: string) {
@@ -451,7 +455,14 @@ const footer = computed(() =>
       <div class="area-toolbar">
         <div class="area-toolbar__group area-toolbar__modes">
           <span class="area-toolbar__label" aria-hidden="true">看什麼</span>
-          <el-radio-group class="area-toolbar__mode-group" :model-value="mapMode" size="small" aria-label="看什麼" @update:model-value="setMode">
+          <el-radio-group
+            class="area-toolbar__mode-group"
+            :model-value="mapMode"
+            size="small"
+            aria-label="看什麼"
+            :aria-describedby="modeReasons.length ? reasonId : undefined"
+            @update:model-value="setMode"
+          >
             <el-radio-button v-for="option in modeOptions" :key="option.value" :value="option.value" :disabled="option.disabled">
               {{ option.label }}
             </el-radio-button>
@@ -463,7 +474,7 @@ const footer = computed(() =>
             <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
           </el-radio-group>
         </div>
-        <p v-if="modeReasons.length" class="area-toolbar__note">
+        <p v-if="modeReasons.length" :id="reasonId" class="area-toolbar__note">
           <span v-for="reason in modeReasons" :key="reason">{{ reason }}</span>
         </p>
       </div>

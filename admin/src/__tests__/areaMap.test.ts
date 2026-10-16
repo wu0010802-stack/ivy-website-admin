@@ -492,7 +492,7 @@ describe('區域分析地圖（2026-10-08）', () => {
     wrappers.push(wrapper)
     const canvas = wrapper.get('.area-map__canvas')
     expect(canvas.attributes('role')).toBe('group')
-    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀著色）；同樣的資料在下方的參觀來源表與幼兒園清單')
+    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀著色）；同樣的資料在右欄與完整表格的「參觀來源」分頁')
     const status = wrapper.get('[role="status"]')
     expect(status.text()).toBe('地圖載入中…')
     const element = status.element
@@ -894,7 +894,7 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
     ])
     expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
       .toEqual(['增加多', '增加', '差不多', '減少', '減少多', '孩子少、里界調整、在半徑外或沒有資料'])
-    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依孩子增減著色）；同樣的資料在下方的各里表')
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依孩子增減著色）；同樣的資料在右欄與完整表格的「各里」分頁')
   })
 
   it('讀取中（換半徑，trends 變 null）：先不上色，資料回來再上色，不重建圖層', async () => {
@@ -935,7 +935,7 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     ])
     expect(wrapper.findAll('.area-legend--levels li').map((item) => item.text()))
       .toEqual(['1–21 筆', '22–42 筆', '43–63 筆', '64–84 筆', '85–106 筆', '0 筆或在半徑外'])
-    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在下方的各里表')
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在右欄與完整表格的「各里」分頁')
   })
 
   it('里界調整合併的組：列上是整組的數字，組內各里依自己的筆數上色', async () => {
@@ -1306,13 +1306,13 @@ describe('地圖工作台：模式由外層決定、點里選取、選取外框�
   })
 
   it.each([
-    ['visits', '義華周邊里界地圖（依參觀著色）；同樣的資料在下方的參觀來源表與幼兒園清單'],
-    ['children', '義華周邊里界地圖（依2–5 歲孩子著色）；同樣的資料在下方的各里表與幼兒園清單'],
-    ['trend', '義華周邊里界地圖（依孩子增減著色）；同樣的資料在下方的各里表與幼兒園清單'],
-    ['homes', '義華周邊里界地圖（依新屋交屋著色）；同樣的資料在下方的各里表與幼兒園清單'],
-    ['opportunity', '義華周邊里界地圖（依招生機會著色）；同樣的資料在下方的各里表與幼兒園清單'],
-    ['enrolled', '義華周邊在籍學生住處地圖（每格約 100 公尺標一點）；同樣的資料在下方的在籍學生表'],
-    ['peers', '義華周邊里界地圖（里不上色，標出附近的幼兒園）；同樣的資料在下方的同業收費表與幼兒園清單'],
+    ['visits', '義華周邊里界地圖（依參觀著色）；同樣的資料在右欄與完整表格的「參觀來源」分頁'],
+    ['children', '義華周邊里界地圖（依2–5 歲孩子著色）；同樣的資料在右欄與完整表格的「各里」分頁'],
+    ['trend', '義華周邊里界地圖（依孩子增減著色）；同樣的資料在右欄與完整表格的「各里」分頁'],
+    ['homes', '義華周邊里界地圖（依新屋交屋著色）；同樣的資料在右欄與完整表格的「各里」分頁'],
+    ['opportunity', '義華周邊里界地圖（依招生機會著色）；同樣的資料在右欄與完整表格的「各里」分頁'],
+    ['enrolled', '義華周邊在籍學生住處地圖（每格約 100 公尺標一點）；同樣的資料在右欄與完整表格的「在籍學生」分頁'],
+    ['peers', '義華周邊里界地圖（里不上色，標出附近的幼兒園）；幼兒園清單在右欄，收費在完整表格的「同業收費」分頁'],
   ])('地圖名稱：%s 模式指到對應的表格分頁', async (mode, label) => {
     const wrapper = await mountMap({ mode })
     expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toBe(label)

@@ -125,15 +125,17 @@ const modeLabel = computed(() => MAP_MODES.find((option) => option.value === pro
 const enrolledLegend = computed(() =>
   props.enrolled?.status === 'ready' ? enrolledLegendText(props.enrolled, props.gradeFilter) : null,
 )
-// 地圖下方的表格分頁（同樣的資料在哪看）：參觀→參觀來源，孩子增減、新屋、招生機會、2–5 歲→各里，在籍→在籍學生，同業→同業收費。
+// 完整表格裡對應的分頁（同樣的資料在哪看）：參觀→參觀來源，孩子增減、新屋、招生機會、2–5 歲→各里，在籍→在籍學生，同業→同業收費。
 const TABLE_NAMES: Record<MapMode, string> = {
   visits: '參觀來源', children: '各里', trend: '各里', homes: '各里', opportunity: '各里', enrolled: '在籍學生', peers: '同業收費',
 }
+// 畫布的名稱：資料的出處只寫真的有的地方。排行在右欄；幼兒園清單只有同業模式的右欄有，其他模式的地圖上雖然可以開幼兒園圖層，
+// 但沒有對應的清單，所以不能說「與幼兒園清單」。
 const canvasLabel = computed(() => {
   const table = TABLE_NAMES[props.mode]
-  if (props.mode === 'enrolled') return `${props.campusName}周邊在籍學生住處地圖（每格約 100 公尺標一點）；同樣的資料在下方的${table}表`
-  const tail = `；同樣的資料在下方的${table}表與幼兒園清單`
-  if (props.mode === 'peers') return `${props.campusName}周邊里界地圖（里不上色，標出附近的幼兒園）${tail}`
+  if (props.mode === 'peers') return `${props.campusName}周邊里界地圖（里不上色，標出附近的幼兒園）；幼兒園清單在右欄，收費在完整表格的「${table}」分頁`
+  const tail = `；同樣的資料在右欄與完整表格的「${table}」分頁`
+  if (props.mode === 'enrolled') return `${props.campusName}周邊在籍學生住處地圖（每格約 100 公尺標一點）${tail}`
   return `${props.campusName}周邊里界地圖（依${modeLabel.value}著色）${tail}`
 })
 const legend = computed(() =>
@@ -622,7 +624,7 @@ onBeforeUnmount(destroyMap)
 <template>
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
-      <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在下方的表格與清單。 -->
+      <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在右欄與完整表格（同業模式的幼兒園清單在右欄）。 -->
       <div ref="container" class="area-map__canvas" role="group" :aria-label="canvasLabel" />
       <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
       <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>

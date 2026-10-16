@@ -227,6 +227,22 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(areaMap(wrapper).props('mode')).toBe('visits')
   })
 
+  it('停用原因那一行有 id，「看什麼」radiogroup 用 aria-describedby 指過去；沒有原因就不帶', async () => {
+    const quiet = await mountTab()
+    expect(modeNotes(quiet.wrapper)).toEqual([])
+    expect(quiet.wrapper.find('.area-toolbar__note').exists()).toBe(false)
+    expect(radioGroup(quiet.wrapper, '看什麼').attributes('aria-describedby')).toBeUndefined()
+    cleanup()
+
+    mockGet(routes(areaStats(), areaOpportunity(), areaEnrolled({ status: 'not_imported' })))
+    const { wrapper } = await mountReady()
+    expect(modeNotes(wrapper)).toEqual(['尚未匯入在籍名冊。'])
+    const note = wrapper.get('.area-toolbar__note')
+    expect(note.attributes('id')).toBeTruthy()
+    expect(radioGroup(wrapper, '看什麼').attributes('aria-describedby')).toBe(note.attributes('id'))
+    expect(radioGroup(wrapper, '範圍').attributes('aria-describedby')).toBeUndefined()
+  })
+
   it('falls back when map is disabled：網址 map=enrolled、清冊未匯入 → 工具列選 2–5 歲孩子、emit update:view 的 map 是 null', async () => {
     const slow = deferred<unknown>()
     mockGet(routes(areaStats(), areaOpportunity(), () => slow.promise))
@@ -369,7 +385,7 @@ describe('區域分析：選取的里', () => {
     }
   })
 
-  it('桌機：點地圖的里不捲動頁面', async () => {
+  it('桌機（沒有 matchMedia）：點地圖的里不捲動頁面', async () => {
     const scroll = vi.fn()
     Element.prototype.scrollIntoView = scroll
     try {
@@ -381,6 +397,96 @@ describe('區域分析：選取的里', () => {
     } finally {
       delete (Element.prototype as Partial<Element>).scrollIntoView
     }
+  })
+
+  // 視窗寬度：只回答 max-width 查詢（AreaTab 用 720px 判斷手機、1199px 判斷工作台是否單欄）。
+  function stubViewport(width: number) {
+    vi.stubGlobal('matchMedia', (query: string) => {
+      const max = /max-width:\s*(\d+)px/.exec(query)?.[1]
+      return { matches: max ? width <= Number(max) : false, media: query, addEventListener: () => {}, removeEventListener: () => {} }
+    })
+  }
+  async function withViewport(width: number, run: (scroll: ReturnType<typeof vi.fn>) => Promise<void>) {
+    stubViewport(width)
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      await run(scroll)
+    } finally {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  }
+
+  it('721–1199px（單欄、地圖在上）：點地圖的里把卡片捲進視野，block nearest（地圖留在視野裡），焦點不動', async () => {
+    await withViewport(1024, async (scroll) => {
+      const { wrapper } = await mountTab()
+      expect(areaMap(wrapper).props('narrow')).toBe(false)
+      const before = document.activeElement
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+      expect(scroll).toHaveBeenCalledTimes(1)
+      expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(scroll.mock.contexts[0]).toBe(side(wrapper).element)
+      expect(document.activeElement).toBe(before)
+      expect(mapStub.focusVillage).not.toHaveBeenCalled()
+    })
+  })
+
+  it('剛好 720px 是手機（block start）、1199px 仍是單欄（nearest）、1200px 並排不捲', async () => {
+    await withViewport(720, async (scroll) => {
+      const { wrapper } = await mountTab()
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(scroll).toHaveBeenCalledWith({ block: 'start' })
+    })
+    cleanup()
+    await withViewport(1199, async (scroll) => {
+      const { wrapper } = await mountTab()
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+    })
+    cleanup()
+    await withViewport(1200, async (scroll) => {
+      const { wrapper } = await mountTab()
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+      expect(scroll).not.toHaveBeenCalled()
+    })
+  })
+
+  it.each([[390, 'start'], [1024, 'nearest']] as const)(
+    '%ipx：已選取的里在地圖上再點一次：照樣捲到卡片（%s），但不重寫網址、不搶焦點',
+    async (width, block) => {
+      await withViewport(width, async (scroll) => {
+        const { wrapper } = await mountTab()
+        areaMap(wrapper).vm.$emit('select-village', PB)
+        await flushPromises()
+        expect(scroll).toHaveBeenCalledTimes(1)
+        const updates = wrapper.emitted('update:view')!.length
+        const before = document.activeElement
+        areaMap(wrapper).vm.$emit('select-village', PB)
+        await flushPromises()
+        expect(scroll).toHaveBeenCalledTimes(2)
+        expect(scroll).toHaveBeenLastCalledWith({ block })
+        expect(wrapper.emitted('update:view')).toHaveLength(updates)
+        expect(document.activeElement).toBe(before)
+        expect(mapStub.focusVillage).not.toHaveBeenCalled()
+      })
+    },
+  )
+
+  it('桌機（1200px 以上）：已選取的里再點一次也不捲', async () => {
+    await withViewport(1440, async (scroll) => {
+      const { wrapper } = await mountTab()
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      areaMap(wrapper).vm.$emit('select-village', PB)
+      await flushPromises()
+      expect(scroll).not.toHaveBeenCalled()
+    })
   })
 
   it('keeps village until boundaries arrive：里界讀取中不清 village；里界到了沒有這個代碼才清', async () => {
@@ -490,10 +596,25 @@ describe('區域分析：選取的里', () => {
     // 同業模式選了里照樣顯示卡片，關掉回到清單。
     areaMap(wrapper).vm.$emit('select-village', PB)
     await flushPromises()
-    expect(side(wrapper).find('.nearby-panel').exists()).toBe(false)
+    expect(side(wrapper).get('.nearby-panel').isVisible()).toBe(false)
     await side(wrapper).get('button[aria-label="關閉里卡片"]').trigger('click')
     await flushPromises()
-    expect(side(wrapper).find('.nearby-panel').exists()).toBe(true)
+    expect(side(wrapper).get('.nearby-panel').isVisible()).toBe(true)
+  })
+
+  it('同業模式：搜尋字、選了里再關掉卡片之後還在（附近清單沒有被卸載重掛）', async () => {
+    const { wrapper } = await mountTab()
+    await chooseMode(wrapper, '同業')
+    const search = () => side(wrapper).get('input[aria-label="搜尋幼兒園"]')
+    await search().setValue('保羅')
+    expect((search().element as HTMLInputElement).value).toBe('保羅')
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+    await side(wrapper).get('button[aria-label="關閉里卡片"]').trigger('click')
+    await flushPromises()
+    expect(search().isVisible()).toBe(true)
+    expect((search().element as HTMLInputElement).value).toBe('保羅')
   })
 
   it('頁尾：參觀有地址那句＋查看、資料版本一行；頁首不再有狀態列', async () => {

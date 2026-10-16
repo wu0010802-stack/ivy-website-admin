@@ -1,6 +1,7 @@
 // 區域分析工作台右欄的排行、里卡片與容器（2026-10-16 規格 §2.3、§2.4、§2.5）。元件各自獨立掛載，
 // 資料用手寫的 RankingSection／VillageFacts（接進 AreaTab 後的組裝見 areaTab.test.ts）。
 import { afterEach, describe, expect, it } from 'vitest'
+import { defineComponent, h, ref } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import AreaRanking from '../components/admissions/area/AreaRanking.vue'
@@ -339,10 +340,11 @@ describe('右欄容器（AreaSidePane）', () => {
     expect(wrapper.find('.area-ranking').exists()).toBe(false)
   })
 
-  it('選了里時卡片優先：只畫卡片（連同業 slot 也不畫）；事件往外送；關掉回到原本的內容', async () => {
+  it('選了里時卡片優先：只看得到卡片（同業 slot 還掛著但藏起來）；事件往外送；關掉回到原本的內容', async () => {
     const wrapper = mountIt(AreaSidePane, paneProps({ peers: true, facts: facts() }), { default: '<div class="peers-slot">附近幼兒園</div>' })
     expect(wrapper.find('.village-card').exists()).toBe(true)
-    expect(wrapper.find('.peers-slot').exists()).toBe(false)
+    expect(wrapper.find('.peers-slot').exists()).toBe(true)
+    expect(wrapper.get('.peers-slot').isVisible()).toBe(false)
     expect(wrapper.find('.area-ranking').exists()).toBe(false)
     expect(wrapper.find('.area-pane__head').exists()).toBe(false)
     await wrapper.get('button[aria-label="關閉里卡片"]').trigger('click')
@@ -353,7 +355,30 @@ describe('右欄容器（AreaSidePane）', () => {
     expect(wrapper.emitted('retry-facts')).toEqual([['ours']])
     await wrapper.setProps({ facts: null })
     expect(wrapper.find('.village-card').exists()).toBe(false)
-    expect(wrapper.find('.peers-slot').exists()).toBe(true)
+    expect(wrapper.get('.peers-slot').isVisible()).toBe(true)
+  })
+
+  it('同業模式選里再關卡片：slot 裡的狀態（搜尋字）留著，不重掛', async () => {
+    // slot 內容自己持有狀態（和 NearbyPanel 的搜尋字、種類、展開列一樣）：v-if 會讓它卸載再重掛、狀態歸零。
+    const Stateful = defineComponent({
+      setup() {
+        const text = ref('')
+        return () => h('input', { class: 'peers-search', value: text.value, onInput: (event: Event) => { text.value = (event.target as HTMLInputElement).value } })
+      },
+    })
+    const wrapper = mountIt(AreaSidePane, paneProps({ peers: true }), { default: Stateful } as never)
+    await wrapper.get('.peers-search').setValue('大樹')
+    await wrapper.setProps({ facts: facts() })
+    expect(wrapper.get('.peers-search').isVisible()).toBe(false)
+    await wrapper.setProps({ facts: null })
+    expect(wrapper.get('.peers-search').isVisible()).toBe(true)
+    expect((wrapper.get('.peers-search').element as HTMLInputElement).value).toBe('大樹')
+  })
+
+  it('不是同業模式：選了里時排行不留在 DOM（卡片優先，沒有要保留的狀態）', async () => {
+    const wrapper = mountIt(AreaSidePane, paneProps({ facts: facts() }))
+    expect(wrapper.find('.area-ranking').exists()).toBe(false)
+    expect(wrapper.find('.area-pane__body').exists()).toBe(false)
   })
 
   it('focusCard 等卡片畫出來後把焦點移到卡片標題', async () => {
