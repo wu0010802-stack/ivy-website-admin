@@ -51,6 +51,14 @@ describe('附近幼兒園清單', () => {
     )
   })
 
+  it('收費從沒匯入過：列尾寫「—」，不寫「未公布收費」', () => {
+    const fees = areaPeerFees({ synced_at: null, school_year: null, own: null, own_missing: 'no_fee', schools: [] })
+    const wrapper = mountList({ fees, feeAge: 3 })
+    const metas = wrapper.findAll('.nearby__meta').map((meta) => meta.text())
+    expect(metas.every((meta) => meta.endsWith('・—'))).toBe(true)
+    expect(wrapper.text()).not.toContain('未公布收費')
+  })
+
   it('展開詳情：每位幼生面積、幼童專用車、兼辦國小課後、逐項收費、交通費', async () => {
     const data = areaKindergartens([
       kindergarten({ source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', distance_m: 0, is_own: true, indoor_m2_per_child: 3.4, outdoor_m2_per_child: 2.6, has_shuttle: true, after_school_capacity: 0 }),

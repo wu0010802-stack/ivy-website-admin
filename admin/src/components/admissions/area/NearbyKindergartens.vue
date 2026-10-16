@@ -73,10 +73,10 @@ function setRadius(value: string | number | boolean | undefined) {
   if (km === 1 || km === 3 || km === 6) emit('update:radiusKm', km)
 }
 // 公告收費（2026-10-15 規格 7.2）：來自 AreaTab 的 /area/fees（同半徑、同年齡），依 source_id 對應。
-// 收費還沒回來或讀取失敗寫「—」；回來了但這所沒有收費寫「未公布收費」。
+// 收費還沒回來、讀取失敗或從沒匯入過寫「—」；匯入過但這所沒有收費寫「未公布收費」。
 const feeBySchool = computed(() => new Map((props.fees?.schools ?? []).map((school) => [school.source_id, school])))
 function feeMeta(id: string): string {
-  if (!props.fees) return NO_VALUE
+  if (!props.fees || props.fees.synced_at === null) return NO_VALUE
   const school = feeBySchool.value.get(id)
   return school?.semester_total ? `${props.feeAge} 歲學期 ${formatCount(school.semester_total)}` : '未公布收費'
 }
