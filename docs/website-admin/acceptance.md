@@ -781,3 +781,9 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - migration `5c8e1f3a9d27` 的 `down_revision` 寫死接 `f2b8c4d1e7a9`（附近同業比較 10-16 先進 main，合併時由 `f2a7c1e9d4b3` 改接），測試 `DOWN_REVISION` 也寫死；合併前若別支 migration 先進 main，要一起改 `down_revision`、docstring 的 `Revises:`、測試的 `DOWN_REVISION`，確保只有一個 head（`test_geo_schema.py` 斷言的是「只有一個 head」，不用跟著改）。
 - 部署時若 API 成功、web 失敗，舊後台頁面退出時沒帶分類會被 422 擋下，修好 web 部署前無法退出（規格 §5 接受的例外；`deploy/CICD.md:55` 說明 API 成功 web 失敗不是原子部署、`:64-67` 要求 migration 與上一版程式相容，這是其中已知、接受的一個例外）。
 - 上線後既有的退出全部是「未分類」：請園方到訪視明細篩選「未分類（舊資料）」，逐筆補分類（新的退出一定要選分類）。
+
+## 預約表單預計入學時間、預約案件排除標記（2026-10-15，`feature/admin-wave3-20261015`，未部署）
+
+- 預計入學時間：官網送單（選填、範圍）、補登、後台與家長修改、明細、CSV、到場帶進入學學期——後端 `test_expected_start.py`、`test_visit_expected_start.py`、`test_visit_expected_start_edit.py`（資料庫約束另在 `test_visit_expected_start_schema.py`）；web `visit-expected-start.spec.ts`、`visit-edit.spec.ts`；admin `expectedStart.test.ts`；stack `visit-expected-start.spec.ts`（含 1440／390 截圖）。
+- 排除標記：權限、時間線、操作紀錄、匿名化——`test_visit_exclusion.py`（資料庫約束另在 `test_visit_exclusion_schema.py`）；§3.3 每一處——`test_visit_exclusion_scope.py`；列表篩選與總覽連結——`visitListQuery.test.ts` 等；明細入口與橫幅——`visitExclusion.test.ts`；stack `visit-exclusion.spec.ts`。
+- 未驗證：正式站登入後的畫面；正式資料上的排除操作。
