@@ -1,14 +1,13 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, Suspense, watch } from 'vue'
+import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onMounted, reactive, ref, Suspense, watch, type App } from 'vue'
 import Manage from '../app/pages/visit/manage.vue'
 import { expectedStartOptions, taipeiDate } from '../app/utils/visit-form'
 
 // 2026-10-15 家長管理頁的預計入學時間：直接把 manage.vue 掛起來測（真的 useParentVisit，$fetch 換成依呼叫順序回應的替身）。
-// Nuxt 的自動匯入與區塊元件換成最小的替身。
+// Nuxt 的自動匯入與區塊元件換成最小的替身。web 不裝 @vue/test-utils（2026-10-16 拿掉），用 createApp 掛載、下面的 El 包一層 DOM 操作。
 vi.stubGlobal('usePublishedSite', async () => ({ data: ref(null) }))
 vi.stubGlobal('useRoute', () => ({ path: '/visit/manage', query: {}, hash: '' }))
 vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
@@ -29,8 +28,37 @@ const conflict = { response: { status: 409 }, data: { detail: { code: 'VISIT_REQ
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
 type Reply = Record<string, unknown> | { fail: unknown }
-let wrapper: VueWrapper | null = null
+let app: App | null = null
 let calls: { url: string; options: { method?: string; body?: Record<string, unknown> } }[] = []
+
+/** 最小的 DOM 包裝：find／findAll／text／trigger／setValue，觸發事件後等一次 nextTick。 */
+class El<T extends Element = Element> {
+  constructor(readonly element: T) {}
+  find<U extends Element = Element>(selector: string): El<U> {
+    const found = this.element.querySelector<U>(selector)
+    if (!found) throw new Error(`找不到 ${selector}`)
+    return new El(found)
+  }
+  findAll<U extends Element = Element>(selector: string): El<U>[] {
+    return [...this.element.querySelectorAll<U>(selector)].map(item => new El(item))
+  }
+  text() {
+    return (this.element.textContent ?? '').trim()
+  }
+  async trigger(type: string, init: KeyboardEventInit = {}) {
+    const options = { bubbles: true, cancelable: true, ...init }
+    const event = type.startsWith('key') ? new KeyboardEvent(type, options) : type === 'click' ? new MouseEvent(type, options) : new Event(type, options)
+    this.element.dispatchEvent(event)
+    await nextTick()
+  }
+  async setValue(value: string) {
+    (this.element as unknown as HTMLInputElement).value = value
+    this.element.dispatchEvent(new Event('input', { bubbles: true }))
+    await nextTick()
+  }
+}
+const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0))
+const Stub = defineComponent({ render: () => null })
 
 // replies 依 $fetch 呼叫順序回應；第一個一定是頁面載入時讀 /me。
 function fetchReplies(...replies: Reply[]) {
@@ -46,32 +74,36 @@ function fetchReplies(...replies: Reply[]) {
 }
 
 async function mountPage() {
-  wrapper = mount(defineComponent({ render: () => h(Suspense, null, { default: () => h(Manage) }) }), {
-    global: { stubs: { NuxtLink: true, SiteHeader: true, SiteFooter: true, VisitCalendarActions: true, VisitDatePicker: true } }
-  })
+  const host = document.createElement('div')
+  document.body.append(host)
+  app = createApp({ render: () => h(Suspense, null, { default: () => h(Manage) }) })
+  for (const name of ['NuxtLink', 'SiteHeader', 'SiteFooter', 'VisitCalendarActions', 'VisitDatePicker']) app.component(name, Stub)
+  app.mount(host)
   await flushPromises()
-  return wrapper
+  return new El(host)
 }
-const button = (page: VueWrapper, text: string) => page.findAll('button').find(item => item.text() === text)!
-async function openEdit(page: VueWrapper) {
+function unmountPage() {
+  app?.unmount()
+  app = null
+  document.body.innerHTML = ''
+}
+const button = (page: El, text: string) => page.findAll('button').find(item => item.text() === text)!
+async function openEdit(page: El) {
   await button(page, '修改資料').trigger('click')
   await flushPromises()
 }
-const startLabels = (page: VueWrapper) => page.findAll('.parent-visit-start label').map(item => item.text())
-const startRadios = (page: VueWrapper) => page.findAll<HTMLInputElement>('input[name="editExpectedStart"]')
-const checkedLabel = (page: VueWrapper) => page.findAll('.parent-visit-start label').find(item => item.find<HTMLInputElement>('input').element.checked)?.text()
+const startLabels = (page: El) => page.findAll('.parent-visit-start label').map(item => item.text())
+const startRadios = (page: El) => page.findAll<HTMLInputElement>('input[name="editExpectedStart"]')
+const checkedLabel = (page: El) => page.findAll('.parent-visit-start label').find(item => item.find<HTMLInputElement>('input').element.checked)?.text()
 
-afterEach(() => {
-  wrapper?.unmount()
-  wrapper = null
-})
+afterEach(unmountPage)
 
 describe('家長管理頁：預計入學時間', () => {
   it('明細顯示已選的值（學期換成月份）；沒選的案件不列這一行', async () => {
     fetchReplies(visit)
     const page = await mountPage()
     expect(page.find('.parent-visit-details').text()).toContain('預計入學2021 年 9 月')
-    wrapper!.unmount()
+    unmountPage()
     fetchReplies({ ...visit, expected_start: null })
     const blank = await mountPage()
     expect(blank.find('.parent-visit-details').text()).toContain('家長稱呼')
