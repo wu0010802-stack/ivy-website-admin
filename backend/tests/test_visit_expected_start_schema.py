@@ -34,7 +34,8 @@ def test_migration_follows_head_without_branching_and_keeps_data():
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision(REVISION).down_revision == DOWN_REVISION
-    assert script.get_heads() == [REVISION]
+    # head 不寫死：之後接在這支後面的 migration（或合併前先進 main 的）不能讓這條轉紅，只要求沒有分叉。
+    assert len(script.get_heads()) == 1
     source = MIGRATION.read_text(encoding="utf-8")
     # 只加可空欄位與約束，不改既有資料：與上一版程式相容（deploy/CICD.md）。
     assert "op.execute" not in source and "UPDATE " not in source
