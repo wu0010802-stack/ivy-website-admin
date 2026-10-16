@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-16 後端測試提速、後台場次 N+1、文件更正（main CI 部署，沒有 migration）
+
+- **提交**：`feature/ci-speed-20261016` 六個 commit（`0e57b9d1`..`702e5178`），途中兩次 rebase 到 main（第 1 波、延後小問題一批與兩筆部署紀錄先上；衝突只有 README.md 頂部、`deploy/README.md` 家長自選場次標題、`docs/website-admin/operations.md` 提醒段，都是文件），使用者推 main（fast-forward `a908d815..702e5178`，沒有開 PR）。內容見 README 頂部「後端測試提速、後台場次 N+1、文件更正」。
+- **migration**：沒有。正式程式只改 `GET /admin/slots` 的已占名額查法（回應形狀不變）與一行註解；其餘是測試、CI 設定與文件。沒有新環境變數、沒有依賴檔變動，沒有備份。回退可直接切回上一個映像。
+- **推送前閘門**：本機後端全套在合併第 1 波後 3533 passed／1 skipped（5 分 23 秒，獨立測試庫 `ivy_website_cispeed1016_test`），之後只多了延後小問題的 `journey.py`，受影響兩檔 69 passed。feature 分支 CI run 38853918244（`de5fd51e`）Frontend web／admin、Backend 三組、E2E 全部 success；最後一次 rebase 與它只差 `deploy/README.md`。沒有在本機跑前端與 stack e2e（沒改 web、admin）。
+- **CI**：main run 38854910359（`702e5178`）05:16:24Z 開跑，全部 success；Backend 三組 pytest 235／232／174 秒（前幾次 main 是 554–853 秒），Deploy Railway production 05:21:37Z–05:26:40Z。push 到開始部署 5.2 分鐘（以前 12.7–15.5）、到部署完成 10.3 分鐘（以前 18–21）；現在最長的是 E2E（11.1 分鐘，不擋部署），擋部署的是 Frontend（admin）約 4 分鐘與 Backend 約 5 分鐘。
+- **正式 `release.json`**：base commit `702e5178bc6b7f76cf801506220d20737523997a`，snapshot `37ccd1152f50…`，created `2026-10-16T05:21:59Z`，`web+api`。
+- **線上唯讀檢查**（未登入，2026-10-16T05:29Z）：`/api/website/v1/health` 回 `status: ok`、`environment: production`、`fixture_enabled: false`、`background_jobs.last_failed_steps` 為空；`/`、`/admission`、`/about`、`/visit/yihua`、`/admin/`、`/admin/login` 都回 200；`/api/website/v1/admin/slots` 未登入回 401。
+- **未在線上驗證**：沒有登入後台看接待月曆的已占名額數字（行為由新測試 `test_admin_slots_uses_constant_number_of_queries` 驗）；concurrency 群組要等下一次同分支 push＋PR 才看得到效果。
+
 ## 2026-10-16 延後小問題一批修正（預約全程、參觀場次、預約完成頁、驗收 A23）（main CI 部署，沒有 migration）
 
 - **提交**：`fix/small-fixes-20261016` 五個 commit（`f0ef179f`..`23ab4a5c`）從 `263fea2a` 開出；第一次推 main 時第 1 波剛好先上（`4f1e0603`），被拒後合併 main 成 `2d56b439`（只有 README.md 衝突、兩段都留，程式檔不重疊），使用者推 main（fast-forward `4f1e0603..2d56b439`，沒有開 PR）。內容見 README 頂部「延後小問題一批修正＋文件校正」、DESIGN.md「招生入學：預約全程漏斗」與「參觀場次」兩節。
