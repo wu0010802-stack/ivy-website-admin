@@ -111,6 +111,11 @@ class VisitRequest(Base):
             name="ck_visit_requests_status",
         ),
         CheckConstraint("status <> 'confirmed' OR slot_id IS NOT NULL", name="ck_visit_requests_confirmed_slot"),
+        # 2026-10-15 預計入學時間：asap、unsure，或「民國學年-學期」（app/booking/expected_start.py）。
+        CheckConstraint(
+            "expected_start IS NULL OR expected_start IN ('asap', 'unsure') OR expected_start ~ '^1[0-9]{2}-[12]$'",
+            name="ck_visit_requests_expected_start",
+        ),
         # 後台列表、CSV 匯出依 created_at 由新到舊排序。
         Index("ix_visit_requests_created_at", "created_at"),
         # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。
@@ -151,6 +156,9 @@ class VisitRequest(Base):
     # 規格 L194、L221：參觀人數（含家長與孩子）1–10。名額仍以家庭組數計，
     # 人數另存給接待準備用。舊案件與沒問到人數的補登為 NULL。
     party_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 2026-10-15 預計入學時間（選填）：asap（盡快）、unsure（還不確定），或「民國學年-學期」如 115-2。
+    # 到場建招生訪視時換成入學學期（expected_start.resolve_term）；匿名化不清（規格 X10）。
+    expected_start: Mapped[str | None] = mapped_column(String(8), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     # 規格 6.2：結案後重新預約（含換校）另建新案，指回舊案。
     related_request_id: Mapped[uuid.UUID | None] = mapped_column(

@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.booking import expected_start as start_rules
 from app.booking import status_groups
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
@@ -247,6 +248,9 @@ class _VisitRequestFields(BaseModel):
     questions: str | None = Field(default=None, max_length=500)
     # 規格 L194：參觀人數 1–10，選填。2026-10-03 起官網表單不問，只剩後台補登與舊案件會有。
     party_size: int | None = Field(default=None, ge=1, le=10)
+    # 2026-10-15 預計入學時間（選填）：asap、unsure 或「民國學年-學期」（app/booking/expected_start.py）。
+    # 這裡只驗格式；官網送單另驗範圍（VisitRequestCreate），後台補登可以填過去的學期（規格 X8）。
+    expected_start: str | None = Field(default=None, max_length=8)
     # 2026-10-02 業主裁定官網預約與後台補登都不用勾選同意：不送就是 False。
     # 更新前快取的舊頁面、舊版後台仍會送 True，照實記下勾選時間。
     consent_given: bool = False
@@ -297,6 +301,14 @@ class _VisitRequestFields(BaseModel):
     def _validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_format(cls, value: str | None) -> str | None:
+        # 選填欄位明確送 null 也會進來（取消選取後送出）；parse 不收 None，要先放行。
+        if value is not None:
+            start_rules.parse(value)
+        return value
+
 
 class VisitRequestCreate(_VisitRequestFields):
     # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
@@ -312,6 +324,13 @@ class VisitRequestCreate(_VisitRequestFields):
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_public_range(cls, value: str | None) -> str | None:
+        # 官網只列今天之後的學期（規格 X7）；格式由父類別先驗。
+        if value is not None:
+            start_rules.validate_public(value, today_local())
+        return value
 
 
 class VisitRequestManualCreate(_VisitRequestFields):
@@ -460,6 +479,8 @@ class VisitRequestDetailOut(BaseModel):
     questions: str | None
     # 參觀人數；舊案件與沒問到人數的補登為 None（畫面顯示「未填」）。
     party_size: int | None = None
+    # 預計入學時間（2026-10-15）；舊案件與沒選的為 None。
+    expected_start: str | None = None
     # 同意紀錄（規格 L196）：官網送單記錄家長看到的同意說明版本與伺服器接受
     # 時間；補登由人員代勾，沒有版本。
     consent_given: bool = True

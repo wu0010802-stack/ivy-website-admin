@@ -275,6 +275,17 @@
             "title": "Email Notified",
             "type": "boolean"
           },
+          "expected_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -15106,6 +15117,18 @@
             "title": "Email",
             "type": "string"
           },
+          "expected_start": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
+          },
           "parent_name": {
             "maxLength": 64,
             "minLength": 1,
@@ -15343,6 +15366,17 @@
               }
             ],
             "title": "Email"
+          },
+          "expected_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
           },
           "follow_up_at": {
             "anyOf": [
@@ -15675,6 +15709,17 @@
             ],
             "title": "Email"
           },
+          "expected_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -15922,6 +15967,18 @@
               }
             ],
             "title": "Email"
+          },
+          "expected_start": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
           },
           "note": {
             "anyOf": [

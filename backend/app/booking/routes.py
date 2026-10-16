@@ -19,6 +19,7 @@ from sqlalchemy.orm import aliased, selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
+from app.booking import expected_start as start_rules
 from app.booking import (
     access_service,
     attention,
@@ -1107,6 +1108,8 @@ def _export_row(r: VisitRequest) -> list[str]:
         csv_export.safe_cell(export_labels.referral_label(r.referral_sources)),
         # 舊案件沒有人數，留空。
         str(r.party_size) if r.party_size is not None else "",
+        # 預計入學時間（2026-10-15）：沒選留空；「盡快」換算送單當時的學期。
+        start_rules.display_label(r.expected_start, r.created_at.astimezone(OPERATING_TZ).date()) if r.expected_start else "",
         r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
         r.slot.start_time.strftime("%H:%M") if r.slot else "",
         r.slot.end_time.strftime("%H:%M") if r.slot else "",

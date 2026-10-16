@@ -3120,6 +3120,8 @@ export interface components {
             email?: string | null;
             /** Email Notified */
             email_notified: boolean;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -7976,6 +7978,8 @@ export interface components {
              * Format: email
              */
             email: string;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -8035,6 +8039,8 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /**
@@ -8122,6 +8128,8 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -8186,6 +8194,8 @@ export interface components {
             consent_given: boolean;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Note */
             note?: string | null;
             /** Parent Name */

@@ -13,7 +13,7 @@ from app.campuses.models import CAMPUS_NAMES
 
 EXPORT_HEADERS = (
     "校區", "狀態", "來源", "家長", "手機", "送出時間",
-    "孩子姓名", "孩子生日", "Email", "得知管道", "人數",
+    "孩子姓名", "孩子生日", "Email", "得知管道", "人數", "預計入學",
     "參觀日期", "開始", "結束",
 )
 

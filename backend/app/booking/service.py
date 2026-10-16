@@ -158,8 +158,9 @@ def _canonical_payload(payload: dict) -> bytes:
     # 空欄位，保留既有 age/preferred_time/questions/slot_id 的序列化規則。
     canonical_payload = payload.copy()
     # 參觀人數是家長填的內容，同一把 key 改了人數就是不同的送單（回 409）；
-    # 舊的重試請求沒有這個欄位，空值不進 hash，舊 hash 不變。
-    for field in ("child_name", "child_birthdate", "email", "referral_sources", "party_size"):
+    # 舊的重試請求沒有這個欄位，空值不進 hash，舊 hash 不變。預計入學時間（2026-10-15）同理：
+    # 沒選不進 hash，更新前的舊頁面送的單與重送的 hash 不變。
+    for field in ("child_name", "child_birthdate", "email", "referral_sources", "party_size", "expected_start"):
         if canonical_payload.get(field) in (None, []):
             canonical_payload.pop(field, None)
     # 同意說明版本與 Turnstile token 不是家長填的資料：重送時只要內容相同就是
@@ -376,6 +377,7 @@ async def submit_visit_request(
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
         party_size=payload.get("party_size"),
+        expected_start=payload.get("expected_start"),
         # 官網表單 2026-10-02 起不用勾選同意（consent_given 預設 False、不記版本）；
         # 更新前快取的舊頁面仍會送 True，照實記下勾選時間。
         consent_given=payload["consent_given"],
@@ -485,6 +487,7 @@ async def create_manual_visit_request(
         preferred_time=payload.get("preferred_time"),
         questions=payload.get("questions"),
         party_size=payload.get("party_size"),
+        expected_start=payload.get("expected_start"),
         # 2026-10-02 起補登不用勾選同意；舊版後台送 True 時照實記下時間。沒有官網同意說明版本。
         consent_given=payload["consent_given"],
         consent_accepted_at=now if payload["consent_given"] else None,
