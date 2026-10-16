@@ -26,7 +26,8 @@ RUN = f"{API}/admin/retention/run"
 STAT_COLUMNS = (
     "campus_key", "visit_request_id", "month", "seq_no", "visit_date", "grade", "source", "referrer",
     "has_deposit", "enrolled", "enrolled_on", "transfer_term", "no_deposit_reason", "provisional_grade",
-    "target_school_year", "target_semester", "withdrawn_at", "withdrawn_from", "created_at", "updated_at",
+    "target_school_year", "target_semester", "withdrawn_at", "withdrawn_from", "withdraw_reason_category",
+    "created_at", "updated_at",
 )
 # 規格 11 列出要清的欄位（姓名另外換成固定文字）；英文名、父母職業是 2026-10-05 照紙本補的。
 CLEARED = (

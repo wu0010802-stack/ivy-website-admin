@@ -79,4 +79,10 @@ describe('稽核紀錄裡的區域篩選', () => {
     expect(body).toContain('("district", filters.district), ("village", filters.village), ("no_village", filters.geo)')
     expect(body).toContain('"+".join(')
   })
+
+  it('退出原因分類篩選：固定選項照字顯示，unclassified 顯示「未分類」', () => {
+    const action = 'recruitment_visit.export'
+    expect(auditMetadataSummary({ withdraw_reason_category: '費用考量' }, action)).toBe('篩選退出原因：費用考量')
+    expect(auditMetadataSummary({ withdraw_reason_category: 'unclassified' }, action)).toBe('篩選退出原因：未分類')
+  })
 })

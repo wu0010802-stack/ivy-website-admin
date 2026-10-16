@@ -43,7 +43,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 - `recruitment_visits.columns.tenant_id` 用命令列給的租戶編號；`mapping.campus_key` 是官網校區。
 - `student_id`、`actor_user_id`、`expected_start_label` 一律 `null`：官網沒有學生檔；官網帳號沒有對應的園務帳號（改記在 `metadata_json.website_actor`，見下）；`expected_start_label` 由園務依備註重算。
 
-`extensions.jsonl` 每筆訪視一列：`{"website_id", "visit_request_id", "enrolled_on", "tour_guide_user_id", "tour_guide_name", "english_name", "father_occupation", "mother_occupation", "follow_up_at", "last_contacted_at", "follow_up_owner_user_id", "follow_up_owner_name"}`。`english_name`、`father_occupation`、`mother_occupation` 是 2026-10-05 照園方紙本「幼兒基本資料」補的（英文名字、父親職業、母親職業），依保存政策匿名化後為 `null`。後四個是參觀後追蹤（2026-10-04）：時間是台北時間 naive；負責人名稱只放顯示名稱，沒設時為 `null`，不帶 Email。
+`extensions.jsonl` 每筆訪視一列：`{"website_id", "visit_request_id", "enrolled_on", "tour_guide_user_id", "tour_guide_name", "english_name", "father_occupation", "mother_occupation", "withdraw_reason_category", "follow_up_at", "last_contacted_at", "follow_up_owner_user_id", "follow_up_owner_name"}`。`english_name`、`father_occupation`、`mother_occupation` 是 2026-10-05 照園方紙本「幼兒基本資料」補的（英文名字、父親職業、母親職業），依保存政策匿名化後為 `null`。後四個是參觀後追蹤（2026-10-04）：時間是台北時間 naive；負責人名稱只放顯示名稱，沒設時為 `null`，不帶 Email。`withdraw_reason_category` 是 2026-10-15 起的退出原因分類（八項之一，改版前退出的為 `null`），匿名化後保留。
 
 `recruitment_contact_logs.jsonl` 每筆參觀後聯絡一列（官網延伸，園務沒有對應的表）：`{"website_id", "recruitment_visit_website_id", "contacted_at", "channel", "reached", "note", "next_follow_up_at", "created_by"}`。`channel` 是 `phone`／`line`／`in_person`／`revisit`／`other`（電話、LINE、當面、再參觀、其他；`revisit` 是 2026-10-05 加的）；`note` 依保存政策匿名化後為 `null`；`created_by` 是 `{"user_id", "name"}`（同歷程的 `website_actor`，沒有記錄者時為 `null`）。
 
@@ -67,20 +67,21 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
 | `grade_intake_targets.updated_by` | — | 不匯出：官網延伸（最後修改計畫名額的官網帳號），園務 `grade_intake_targets` 沒有對應欄位 |
 | `follow_up_at`、`follow_up_owner_id`、`last_contacted_at` | — | 官網延伸（參觀後追蹤，2026-10-04），只放在 `extensions`；園務沒有對應欄位，下次聯絡與負責人不轉 |
 | `english_name`、`father_occupation`、`mother_occupation` | — | 官網延伸（2026-10-05 照紙本補），只放在 `extensions`；園務招生沒有這些欄位（學生檔也沒有英文名、職業），併入時再決定放哪 |
+| `withdraw_reason_category`、`withdraw_reason` | `withdraw_reason`；`extensions` | 2026-10-15 起官網的退出原因分成「分類」（八項）與「說明」（選填）。園務只有自由文字欄，`columns.withdraw_reason` 寫「分類：說明」，只有其中一個就寫那一個，兩者都沒有才是 `null`；匿名化會清說明、保留分類，所以匿名化後是分類本身。分類另放 `extensions.withdraw_reason_category` |
 | `recruitment_contact_logs` | `notes` 末尾 | 2026-10-04 使用者裁定（追蹤規格 F-Q2）：園務沒有對應表時，匯入端把同一筆訪視的聯絡紀錄依 `contacted_at` 舊到新串成「115.10.05 電話 聯絡到：內容」（沒聯絡到寫「沒聯絡到」；`note` 為 `null` 時只寫前半），一筆一行附加在 `notes` 末尾 |
 
 其餘欄位名稱、型別、長度與園務相同，原樣轉。
 
 ## 歷程 metadata 與園務不同的地方（匯入端要對應）
 
-`recruitment_event_log.metadata_json` 原樣匯出（只多 `website_actor`），下列事件的形狀與園務不同，匯入端要轉：
+`recruitment_event_log.metadata_json` 原樣匯出（只多 `website_actor`；`withdrawn` 另有分類，見表後），下列事件的形狀與園務不同，匯入端要轉：
 
 | 事件 | 官網寫法 | 園務寫法 | 匯入時 |
 |---|---|---|---|
 | `seat_reserved`、`seat_released` | `metadata_json` 是 `{"grade": 年級名稱, "school_year", "semester"}`；`from_stage`／`to_stage` 寫事件當下的階段（保留只會是 `deposited`；釋放也可能發生在 `visited`、`withdrawn`，保留座位在退預繳、取消預繳後不會自動清掉） | `{"grade_id": class_grades.id, "school_year", "semester"}`；`from_stage`／`to_stage` 固定 `deposited` | `grade` 依該租戶 `class_grades` 換成 `grade_id`（對不上留 null 並列入報告）；`from_stage`／`to_stage` 改寫成 `deposited` 與園務一致 |
 | `converted` | `{"website_manual": true, "grade": 年級名稱, "school_year", "semester"}`；`student_id` 為 null（官網沒有學生檔） | `{"enrollment_seq", "enrollment_school_year", "classroom_id"}`；`student_id` 指向轉化建立的學生 | `enrollment_school_year` 取 `school_year`；`enrollment_seq`、`classroom_id` 官網沒有，留 null；`student_id` 用上面「`enrolled`」那列比對到的學生填，比對不到留 null；`website_manual` 保留，標示這是官網手動標記的註冊、不是園務轉化流程產生的 |
 
-其他事件（`deposit_added`、`deposit_removed`、`revert_converted`、`withdrawn`、`withdraw_cancelled`）官網不寫 metadata（只有 `website_actor`）。
+`withdrawn` 自 2026-10-15 起 `metadata_json` 有 `{"withdraw_reason_category": 分類}`（官網延伸，園務不寫，匯入端可原樣保留或略過）。其他事件（`deposit_added`、`deposit_removed`、`revert_converted`、`withdraw_cancelled`）官網不寫 metadata（只有 `website_actor`）。
 
 ## 刻意與園務不同的地方（併入時由園務決定要不要跟進）
 
@@ -109,6 +110,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
     - `SOURCE_IMBALANCE`：占比 ≥ 40% 不變；判斷從「預繳率低於整體」改成「這個來源近 90 天的家長，依同一個 90 天窗口內其他來源的預繳速度明顯偏少」，新來源剛投放、或這一季大家都慢都不會誤報。訊息改寫為「{來源} 近 90 天占比 {x}%，依其他來源的預繳速度應有約 {E} 筆預繳，實際預繳過 {O} 筆（含之後退出）。」，行動入口 `REVIEW_SOURCE` 描述改為「{來源} 近 90 天占比 {x}%，預繳比其他來源慢，先看這個來源的後續追蹤。」（第 9、10 點的排序與 target 規則不變）。
     - 班別、來源、帶參觀老師、行政區、里、距離帶、五校比較每列多 `visit_to_deposit_range`：Beta 收縮（事前強度 10、全體 (預繳+1)/(參觀+2)）的 80% 範圍。
     - 算法集中在 `backend/app/admissions/estimation.py`（只用標準函式庫），併入時由園務決定要不要跟進。
+20. 退出原因分類（2026-10-15，`docs/specs/2026-10-15-withdraw-reason-category-design.md`）：退預繳、退註冊時必選八項之一、說明選填；園務是必填的自由文字。官網的取消註冊（已註冊往回退）照舊必填文字。`/stats` 多 `withdraw_reasons`（分退預繳、退註冊，「未分類」＝改版前退出）與 `withdraw_total`。
 
 ## 漂移檢查（手動，不進 CI）
 

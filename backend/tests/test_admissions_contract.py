@@ -196,8 +196,11 @@ async def test_export_rows_match_ivy_snapshot(admin_client, db_session, tmp_path
     assert by_id[deposited["id"]]["mapping"]["provisional_grade"] == "小班"
     assert by_id[deposited["id"]]["columns"]["provisional_grade_id"] is None
     assert by_id[withdrawn["id"]]["columns"]["withdrawn_from"] == "enrolled"
+    # 2026-10-15 退出原因分類：園務的退出原因欄寫「分類：說明」，分類另放延伸檔。
+    assert by_id[withdrawn["id"]]["columns"]["withdraw_reason"] == "改讀其他私立幼兒園：家長改送他校"
     extensions = {row["website_id"]: row for row in result["extensions"]}
     assert set(extensions) == visit_ids
+    assert extensions[withdrawn["id"]]["withdraw_reason_category"] == "改讀其他私立幼兒園"
     assert extensions[from_booking.json()["id"]]["visit_request_id"] == request_id
     assert extensions[enrolled["id"]]["enrolled_on"] == "2026-09-30"
     # 2026-10-05 照紙本補的欄位園務沒有，放延伸檔；園務的 columns 不能多出來。

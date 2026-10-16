@@ -676,6 +676,7 @@ export const RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   no_deposit_reason_detail: '未預繳原因說明',
   target_school_year: '入學學年',
   target_semester: '入學學期',
+  withdraw_reason_category: '退出原因分類',
 }
 
 // 個資保存政策會清理的類別（後端 retention_service.CATEGORIES 與 ADMISSIONS）。
@@ -1426,6 +1427,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   has_referrer: (v) => (v ? '有篩選家長介紹' : null),
   has_deposit: (v) => `篩選預繳：${v ? '是' : '否'}`,
   no_deposit_reason: (v) => `篩選未預繳原因：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`,
+  withdraw_reason_category: (v) => `篩選退出原因：${v === 'unclassified' ? '未分類' : String(v)}`,
   funnel_stage: (v) => `篩選階段：${RECRUITMENT_STAGE_LABELS[String(v)] ?? String(v)}`,
   has_visit_request: (v) => (v ? '只匯出由官網預約建立的訪視' : null),
   follow_up: (v) => `篩選追蹤狀態：${({ due: '已到期', upcoming: '7 天內', unscheduled: '未排定' } as Record<string, string>)[String(v)] ?? String(v)}`,

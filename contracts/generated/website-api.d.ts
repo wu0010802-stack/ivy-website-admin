@@ -3572,6 +3572,10 @@ export interface components {
             /** Top Source Names */
             top_source_names: string[];
             tour_guide_source_cross: components["schemas"]["AdmissionsTourGuideSourceCross"];
+            /** Withdraw Reasons */
+            withdraw_reasons: components["schemas"]["AdmissionsWithdrawReason"][];
+            /** Withdraw Total */
+            withdraw_total: number;
         };
         /** AdmissionsTimingCheckpoint */
         AdmissionsTimingCheckpoint: {
@@ -3615,6 +3619,20 @@ export interface components {
             sources: string[];
             /** Tour Guides */
             tour_guides: components["schemas"]["AdmissionsTourGuideCrossRow"][];
+        };
+        /**
+         * AdmissionsWithdrawReason
+         * @description 退出原因分佈一列（2026-10-15 規格 W8）：八項依清單順序，「未分類」排最後；0 筆的列也回。
+         */
+        AdmissionsWithdrawReason: {
+            /** Deposited */
+            deposited: number;
+            /** Enrolled */
+            enrolled: number;
+            /** Reason */
+            reason: string;
+            /** Total */
+            total: number;
         };
         /** AdmissionsYearlyRow */
         AdmissionsYearlyRow: {
@@ -8900,6 +8918,8 @@ export interface operations {
                 referrer?: string | null;
                 has_deposit?: boolean | null;
                 no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+                /** @description 退出原因分類；unclassified＝已退出但沒有分類（2026-10-15） */
+                withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上" | "unclassified") | null;
                 /** @description 漏斗階段（由狀態欄位推導） */
                 stage?: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
                 /** @description 連結的官網預約 */
@@ -9002,6 +9022,8 @@ export interface operations {
                 referrer?: string | null;
                 has_deposit?: boolean | null;
                 no_deposit_reason?: ("時程未到／仍在觀望" | "已有其他就學選項／比較他校" | "未註明／待追蹤" | "距離／地點因素" | "家庭照顧安排考量" | "特殊需求／名額限制" | "課程／環境仍在評估" | "費用考量") | null;
+                /** @description 退出原因分類；unclassified＝已退出但沒有分類（2026-10-15） */
+                withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上" | "unclassified") | null;
                 /** @description 漏斗階段（由狀態欄位推導） */
                 stage?: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
                 /** @description 連結的官網預約 */

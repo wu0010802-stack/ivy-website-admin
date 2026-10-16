@@ -6,12 +6,14 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 
+from app.admissions import constants, export, retention
 from app.admissions.models import RecruitmentVisit
-from tests.admissions_helpers import ADMISSIONS, manual_fields, record_at_stage, transition
+from tests.admissions_helpers import ADMISSIONS, create_record, manual_fields, record_at_stage, transition
 
 RECORDS = f"{ADMISSIONS}/records"
 FEE = "費用考量"
@@ -149,3 +151,125 @@ async def test_create_does_not_accept_category(admin_client):
     accepted = await admin_client.post(f"{RECORDS}?campus_key=yihua", json=manual_fields())
     assert accepted.status_code == 201, accepted.text
     assert accepted.json()["withdraw_reason_category"] is None
+
+
+# ---- Task 5：篩選、統計、匯出、匿名化 ----
+
+
+@pytest.mark.asyncio
+async def test_records_filter_by_category_and_unclassified(admin_client, db_session):
+    fee = await record_at_stage(admin_client, "deposited", child_name="費用")
+    await transition(admin_client, fee, "withdrawn", withdraw_reason_category=FEE)
+    await record_at_stage(admin_client, "withdrawn", child_name="改讀")
+    legacy = await record_at_stage(admin_client, "withdrawn", child_name="舊資料")
+    await _unclassify(db_session, legacy)
+    await create_record(admin_client, child_name="還在")
+
+    async def names(value: str) -> set[str]:
+        response = await admin_client.get(RECORDS, params={"campus_key": "yihua", "withdraw_reason_category": value})
+        assert response.status_code == 200, response.text
+        return {row["child_name"] for row in response.json()}
+
+    assert await names(FEE) == {"費用"}
+    assert await names(HELPER_CATEGORY) == {"改讀"}
+    assert await names(constants.WITHDRAW_UNCLASSIFIED) == {"舊資料"}
+    # 正向對照：沒帶篩選時四筆都在，上面三個結果才是篩出來的。
+    everyone = await admin_client.get(RECORDS, params={"campus_key": "yihua"})
+    assert {row["child_name"] for row in everyone.json()} == {"費用", "改讀", "舊資料", "還在"}
+    bad = await admin_client.get(RECORDS, params={"campus_key": "yihua", "withdraw_reason_category": "其他"})
+    assert bad.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_stats_withdraw_reasons_by_category_and_side(admin_client, db_session):
+    deposited = await record_at_stage(admin_client, "deposited", child_name="甲")
+    await transition(admin_client, deposited, "withdrawn", withdraw_reason_category=FEE)
+    await record_at_stage(admin_client, "withdrawn", withdrawn_from="enrolled", child_name="乙")
+    legacy = await record_at_stage(admin_client, "withdrawn", child_name="丙")
+    await _unclassify(db_session, legacy)
+    await record_at_stage(admin_client, "withdrawn", child_name="下學期", target_semester=2)  # 頁首選上學期時不算
+    await record_at_stage(admin_client, "withdrawn", child_name="下學年", target_school_year=116)  # 頁首選 115 時不算
+    await record_at_stage(admin_client, "withdrawn", campus_key="minghua", child_name="明華的")
+    await create_record(admin_client, child_name="沒退出")
+
+    async def body(**scope) -> dict:
+        response = await admin_client.get(f"{ADMISSIONS}/stats", params={"campus_key": "yihua", **scope})
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    first_term = await body(school_year=115, semester=1)
+    assert [row["reason"] for row in first_term["withdraw_reasons"]] == [*constants.WITHDRAW_REASON_CATEGORIES, "未分類"]
+    rows = {row["reason"]: row for row in first_term["withdraw_reasons"]}
+    assert rows[FEE] == {"reason": FEE, "deposited": 1, "enrolled": 0, "total": 1}
+    assert rows[HELPER_CATEGORY] == {"reason": HELPER_CATEGORY, "deposited": 0, "enrolled": 1, "total": 1}
+    assert rows["未分類"] == {"reason": "未分類", "deposited": 1, "enrolled": 0, "total": 1}
+    # 其餘六項沒有人退，但列還在（0 筆）。
+    zero_rows = [row for name, row in rows.items() if name not in (FEE, HELPER_CATEGORY, "未分類")]
+    assert len(zero_rows) == 6
+    assert all((row["deposited"], row["enrolled"], row["total"]) == (0, 0, 0) for row in zero_rows)
+    assert first_term["withdraw_total"] == 3
+
+    # 正向對照：換成下學期、116 學年就會看到剛才被擋在範圍外的那一筆，其他校的退出始終不算。
+    second_term = await body(school_year=115, semester=2)
+    assert second_term["withdraw_total"] == 1
+    assert {row["reason"]: row["total"] for row in second_term["withdraw_reasons"]}[HELPER_CATEGORY] == 1
+    next_year = await body(school_year=116, semester=1)
+    assert next_year["withdraw_total"] == 1
+    minghua = await admin_client.get(f"{ADMISSIONS}/stats", params={"campus_key": "minghua", "school_year": 115, "semester": 1})
+    assert minghua.json()["withdraw_total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_export_composes_withdraw_reason_and_extension(admin_client, db_session):
+    only_category = await record_at_stage(admin_client, "deposited", child_name="只有分類")
+    await transition(admin_client, only_category, "withdrawn", withdraw_reason_category=FEE)
+    both = await record_at_stage(admin_client, "withdrawn", child_name="兩者都有")
+    legacy = await record_at_stage(admin_client, "withdrawn", child_name="舊資料")
+    await _unclassify(db_session, legacy)
+    stay = await create_record(admin_client, child_name="沒退出")
+
+    result = await export.export_campus(db_session, "yihua", tenant_id=1)
+    columns = {row["website_id"]: row["columns"] for row in result["recruitment_visits"]}
+    extensions = {row["website_id"]: row for row in result["extensions"]}
+    assert columns[only_category["id"]]["withdraw_reason"] == FEE
+    assert columns[both["id"]]["withdraw_reason"] == f"{HELPER_CATEGORY}：家長改送他校"
+    assert columns[legacy["id"]]["withdraw_reason"] == "家長改送他校"
+    assert columns[stay["id"]]["withdraw_reason"] is None
+    assert "withdraw_reason_category" not in columns[both["id"]]  # 園務欄位不能多
+    assert extensions[only_category["id"]]["withdraw_reason_category"] == FEE
+    assert extensions[both["id"]]["withdraw_reason_category"] == HELPER_CATEGORY
+    assert extensions[legacy["id"]]["withdraw_reason_category"] is None
+    assert extensions[stay["id"]]["withdraw_reason_category"] is None
+    [withdrawn] = [
+        row for row in result["recruitment_event_log"]
+        if row["mapping"]["recruitment_visit_website_id"] == only_category["id"] and row["columns"]["event_type"] == "withdrawn"
+    ]
+    assert withdrawn["columns"]["metadata_json"]["withdraw_reason_category"] == FEE
+
+
+def test_withdraw_reason_text_composes_category_and_detail():
+    assert export.withdraw_reason_text(FEE, "太貴") == f"{FEE}：太貴"
+    assert export.withdraw_reason_text(FEE, None) == FEE
+    assert export.withdraw_reason_text(None, "太貴") == "太貴"
+    assert export.withdraw_reason_text(None, None) is None
+    # 空字串視同沒有（說明欄不會存空字串，但別在匯出組出「分類：」）。
+    assert export.withdraw_reason_text(FEE, "") == FEE
+    assert export.withdraw_reason_text("", "") is None
+
+
+@pytest.mark.asyncio
+async def test_anonymization_keeps_category_and_clears_detail(admin_client, db_session):
+    record = await record_at_stage(admin_client, "withdrawn", child_name="王小明")
+    before = await export.export_campus(db_session, "yihua", tenant_id=1)
+    [exported_before] = [r for r in before["recruitment_visits"] if r["website_id"] == record["id"]]
+    assert exported_before["columns"]["withdraw_reason"] == f"{HELPER_CATEGORY}：家長改送他校"
+
+    assert await retention.anonymize_due(db_session, 1, now=datetime.now(timezone.utc) + timedelta(days=2)) >= 1
+    await db_session.commit()
+    visit = await db_session.scalar(
+        select(RecruitmentVisit).where(RecruitmentVisit.id == uuid.UUID(record["id"])).execution_options(populate_existing=True)
+    )
+    assert (visit.withdraw_reason_category, visit.withdraw_reason) == (HELPER_CATEGORY, None)
+    result = await export.export_campus(db_session, "yihua", tenant_id=1)
+    [row] = [r for r in result["recruitment_visits"] if r["website_id"] == record["id"]]
+    assert row["columns"]["withdraw_reason"] == HELPER_CATEGORY

@@ -40,6 +40,14 @@ def _taipei_naive(value: datetime | None) -> str | None:
     return value.astimezone(OPERATING_TZ).replace(tzinfo=None).isoformat()
 
 
+def withdraw_reason_text(category: str | None, detail: str | None) -> str | None:
+    """轉給園務的退出原因文字（2026-10-15 規格 W5）：園務只有自由文字欄（轉換時還必填），分類與說明
+    組成「分類：說明」；只有其中一個就是那一個；兩者都沒有才是 None。匿名化後只剩分類。"""
+    if category and detail:
+        return f"{category}：{detail}"
+    return category or detail or None
+
+
 def ivy_visit_row(visit: RecruitmentVisit, *, tenant_id: int | None = None) -> dict:
     """園務 recruitment_visits 的形狀（不含 id）。"""
     return {
@@ -76,7 +84,7 @@ def ivy_visit_row(visit: RecruitmentVisit, *, tenant_id: int | None = None) -> d
             "target_semester": visit.target_semester,
             "withdrawn_at": _taipei_naive(visit.withdrawn_at),
             "withdrawn_from": visit.withdrawn_from,
-            "withdraw_reason": visit.withdraw_reason,
+            "withdraw_reason": withdraw_reason_text(visit.withdraw_reason_category, visit.withdraw_reason),
             "created_at": _taipei_naive(visit.created_at),
             "updated_at": _taipei_naive(visit.updated_at),
         },
@@ -143,6 +151,8 @@ def extension_row(visit: RecruitmentVisit, *, follow_up_owner_name: str | None =
         "english_name": visit.english_name,
         "father_occupation": visit.father_occupation,
         "mother_occupation": visit.mother_occupation,
+        # 2026-10-15 退出原因分類（園務沒有對應欄位；columns.withdraw_reason 已組成文字）。
+        "withdraw_reason_category": visit.withdraw_reason_category,
         "follow_up_at": _taipei_naive(visit.follow_up_at),
         "last_contacted_at": _taipei_naive(visit.last_contacted_at),
         "follow_up_owner_user_id": str(visit.follow_up_owner_id) if visit.follow_up_owner_id else None,

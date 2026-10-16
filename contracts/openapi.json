@@ -1941,6 +1941,17 @@
           },
           "tour_guide_source_cross": {
             "$ref": "#/components/schemas/AdmissionsTourGuideSourceCross"
+          },
+          "withdraw_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsWithdrawReason"
+            },
+            "title": "Withdraw Reasons",
+            "type": "array"
+          },
+          "withdraw_total": {
+            "title": "Withdraw Total",
+            "type": "integer"
           }
         },
         "required": [
@@ -1965,6 +1976,8 @@
           "no_deposit_total",
           "no_deposit_priority",
           "no_deposit_summary",
+          "withdraw_reasons",
+          "withdraw_total",
           "deposit_timing",
           "deposit_pace"
         ],
@@ -2103,6 +2116,35 @@
           "sources"
         ],
         "title": "AdmissionsTourGuideSourceCross",
+        "type": "object"
+      },
+      "AdmissionsWithdrawReason": {
+        "description": "退出原因分佈一列（2026-10-15 規格 W8）：八項依清單順序，「未分類」排最後；0 筆的列也回。",
+        "properties": {
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "deposited",
+          "enrolled",
+          "total"
+        ],
+        "title": "AdmissionsWithdrawReason",
         "type": "object"
       },
       "AdmissionsYearlyRow": {
@@ -17954,6 +17996,35 @@
             }
           },
           {
+            "description": "退出原因分類；unclassified＝已退出但沒有分類（2026-10-15）",
+            "in": "query",
+            "name": "withdraw_reason_category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "抽中公幼／非營利",
+                    "改讀其他私立幼兒園",
+                    "搬家／距離因素",
+                    "費用考量",
+                    "家庭照顧安排改變",
+                    "孩子健康／適應因素",
+                    "課程／環境有疑慮",
+                    "未註明／聯絡不上",
+                    "unclassified"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "退出原因分類；unclassified＝已退出但沒有分類（2026-10-15）",
+              "title": "Withdraw Reason Category"
+            }
+          },
+          {
             "description": "漏斗階段（由狀態欄位推導）",
             "in": "query",
             "name": "stage",
@@ -18433,6 +18504,35 @@
                 }
               ],
               "title": "No Deposit Reason"
+            }
+          },
+          {
+            "description": "退出原因分類；unclassified＝已退出但沒有分類（2026-10-15）",
+            "in": "query",
+            "name": "withdraw_reason_category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "抽中公幼／非營利",
+                    "改讀其他私立幼兒園",
+                    "搬家／距離因素",
+                    "費用考量",
+                    "家庭照顧安排改變",
+                    "孩子健康／適應因素",
+                    "課程／環境有疑慮",
+                    "未註明／聯絡不上",
+                    "unclassified"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "退出原因分類；unclassified＝已退出但沒有分類（2026-10-15）",
+              "title": "Withdraw Reason Category"
             }
           },
           {

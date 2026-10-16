@@ -38,7 +38,7 @@ RECORD_HEADERS: tuple[str, ...] = (
     "校區", "月份", "序號", "參觀日期", "幼生姓名", "英文名字", "生日", "班別", "入學學年", "入學學期",
     "階段", "預繳", "已註冊", "聯絡人", "電話", "地址", "父親職業", "母親職業", "來源", "來源分類",
     "家長介紹", "帶參觀老師", "搭娃娃車", "收預繳人員", "未預繳原因", "未預繳說明", "保留座位", "註冊日期",
-    "轉學期", "退出原因", "下次聯絡", "負責人", "最近聯絡", "官網預約", "電訪回應", "備註", "建檔時間",
+    "轉學期", "退出原因分類", "退出原因", "下次聯絡", "負責人", "最近聯絡", "官網預約", "電訪回應", "備註", "建檔時間",
 )
 
 NO_DEPOSIT_HEADERS: tuple[str, ...] = (
@@ -144,6 +144,7 @@ def record_row(visit: RecruitmentVisit, owner_names: Mapping[uuid.UUID, str] | N
         visit.provisional_grade or "",
         _day(visit.enrolled_on),
         _yes_no(visit.transfer_term),
+        visit.withdraw_reason_category or "",
         visit.withdraw_reason or "",
         _when(visit.follow_up_at),
         owner,
@@ -184,6 +185,8 @@ def records_audit_metadata(filters: RecruitmentVisitFilters) -> dict:
         "has_referrer": True if filters.referrer else None,
         "has_deposit": filters.has_deposit,
         "no_deposit_reason": filters.no_deposit_reason,
+        # 退出原因分類只會是固定選項或 unclassified（端點以 Literal 驗證），記值本身。
+        "withdraw_reason_category": filters.withdraw_reason_category,
         "funnel_stage": filters.stage,
         "has_visit_request": True if filters.visit_request_id else None,
         "has_search": True if filters.q else None,

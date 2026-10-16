@@ -573,6 +573,15 @@ class AdmissionsNoDepositReason(BaseModel):
     priority: Literal["high", "medium", "low"] | None
 
 
+class AdmissionsWithdrawReason(BaseModel):
+    """退出原因分佈一列（2026-10-15 規格 W8）：八項依清單順序，「未分類」排最後；0 筆的列也回。"""
+
+    reason: str
+    deposited: int
+    enrolled: int
+    total: int
+
+
 class AdmissionsNoDepositPriority(BaseModel):
     high: int
     medium: int
@@ -649,6 +658,8 @@ class AdmissionsStatsOut(BaseModel):
     no_deposit_total: int
     no_deposit_priority: AdmissionsNoDepositPriority
     no_deposit_summary: AdmissionsNoDepositSummary
+    withdraw_reasons: list[AdmissionsWithdrawReason]
+    withdraw_total: int
     deposit_timing: AdmissionsDepositTiming
     deposit_pace: AdmissionsDepositPace
 

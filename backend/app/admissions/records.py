@@ -31,6 +31,8 @@ _FollowUpKind = Literal[constants.FOLLOW_UP_KINDS]
 _Stage = Literal[constants.STAGES]
 _NoDepositReason = Literal[constants.NO_DEPOSIT_REASONS]
 _GeoFilter = Literal["no_village"]
+# 退出原因分類篩選（2026-10-15）：八項，或 unclassified＝已退出但沒有分類。
+_WithdrawFilter = Literal[(*constants.WITHDRAW_REASON_CATEGORIES, constants.WITHDRAW_UNCLASSIFIED)]
 _PRIORITY_OF = {reason: level for level, reasons in constants.NO_DEPOSIT_PRIORITY.items() for reason in reasons}
 
 
@@ -332,6 +334,9 @@ class RecruitmentVisitFilters:
         referrer: str | None = Query(default=None, max_length=constants.LEN_REFERRER),
         has_deposit: bool | None = Query(default=None),
         no_deposit_reason: _NoDepositReason | None = Query(default=None),
+        withdraw_reason_category: _WithdrawFilter | None = Query(
+            default=None, description="退出原因分類；unclassified＝已退出但沒有分類（2026-10-15）"
+        ),
         stage: _Stage | None = Query(default=None, description="漏斗階段（由狀態欄位推導）"),
         visit_request_id: uuid.UUID | None = Query(default=None, description="連結的官網預約"),
         q: str | None = Query(default=None, max_length=100, description="幼生姓名、聯絡人、電話、地址、備註、電訪回應"),
@@ -359,6 +364,7 @@ class RecruitmentVisitFilters:
         self.referrer = referrer
         self.has_deposit = has_deposit
         self.no_deposit_reason = no_deposit_reason
+        self.withdraw_reason_category = withdraw_reason_category
         self.stage = stage
         self.visit_request_id = visit_request_id
         self.q = q.strip() if q and q.strip() else None
@@ -400,6 +406,12 @@ class RecruitmentVisitFilters:
                 stmt = stmt.where(RecruitmentVisit.withdrawn_at.is_(None))
         if self.no_deposit_reason:
             stmt = stmt.where(RecruitmentVisit.no_deposit_reason == self.no_deposit_reason)
+        if self.withdraw_reason_category == constants.WITHDRAW_UNCLASSIFIED:
+            stmt = stmt.where(
+                RecruitmentVisit.withdrawn_at.is_not(None), RecruitmentVisit.withdraw_reason_category.is_(None)
+            )
+        elif self.withdraw_reason_category:
+            stmt = stmt.where(RecruitmentVisit.withdraw_reason_category == self.withdraw_reason_category)
         if self.stage:
             stmt = stmt.where(stage_condition(self.stage))
         if self.visit_request_id is not None:

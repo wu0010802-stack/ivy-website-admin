@@ -459,6 +459,9 @@ async def test_stats_empty_campus(admin_client, db_session):
     assert result["month_grade"] == {}
     assert result["tour_guide_source_cross"] == {"tour_guides": [], "sources": []}
     assert result["no_deposit_total"] == 0
+    assert [row["total"] for row in result["withdraw_reasons"]] == [0] * 9
+    assert result["withdraw_reasons"][-1]["reason"] == "未分類"
+    assert result["withdraw_total"] == 0
     assert result["no_deposit_priority"] == {"high": 0, "medium": 0, "low": 0, "other": 0}
     assert result["no_deposit_summary"] == dict.fromkeys(
         ("high_potential_count", "overdue_followup_count", "cold_count", "high_potential_backlog_count"), 0

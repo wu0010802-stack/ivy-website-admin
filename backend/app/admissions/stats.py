@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import deposit_pace, estimation, intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
-from app.admissions.constants import NO_DEPOSIT_PRIORITY, split_tour_guides
+from app.admissions.constants import NO_DEPOSIT_PRIORITY, WITHDRAW_REASON_CATEGORIES, split_tour_guides
 from app.admissions.models import RecruitmentVisit
 from app.common.timezones import now_utc, today_local
 
@@ -334,6 +334,21 @@ def _no_deposit_reasons(rows: list[Any]) -> list[dict[str, Any]]:
     return sorted(reasons.values(), key=lambda item: (-item["count"], item["reason"]))
 
 
+def _withdraw_reasons(rows: Iterable[Any]) -> list[dict[str, Any]]:
+    """退出原因分佈（2026-10-15 規格 W8）：rows 是 (分類, withdrawn_from, 筆數)。八項依清單順序、
+    沒有分類的歸「未分類」排最後；0 筆的列也回（畫面自己決定要不要列）。"""
+    buckets = {
+        reason: {"reason": reason, "deposited": 0, "enrolled": 0, "total": 0}
+        for reason in (*WITHDRAW_REASON_CATEGORIES, UNCLASSIFIED_REASON)
+    }
+    for category, withdrawn_from, count in rows:
+        bucket = buckets.get(category or UNCLASSIFIED_REASON, buckets[UNCLASSIFIED_REASON])
+        side = "enrolled" if withdrawn_from == "enrolled" else "deposited"
+        bucket[side] += int(count)
+        bucket["total"] += int(count)
+    return list(buckets.values())
+
+
 def _priority_totals(reasons: list[dict[str, Any]]) -> dict[str, int]:
     totals = {"high": 0, "medium": 0, "low": 0, "other": 0}
     for row in reasons:
@@ -542,6 +557,16 @@ async def query_stats(
     no_deposit_filters = [*filters, v.has_deposit.is_(False), v.withdrawn_at.is_(None)]
     no_deposit_reasons = _no_deposit_reasons(await _grouped(db, no_deposit_filters, v.no_deposit_reason, v.grade))
     summary = await _no_deposit_summary(db, no_deposit_filters, now)
+    # 退出原因分佈（2026-10-15）：同一個頁首範圍內已退出的訪視，分退預繳、退註冊。
+    withdraw_reasons = _withdraw_reasons(
+        (
+            await db.execute(
+                select(v.withdraw_reason_category, v.withdrawn_from, func.count())
+                .where(*filters, v.withdrawn_at.is_not(None))
+                .group_by(v.withdraw_reason_category, v.withdrawn_from)
+            )
+        ).all()
+    )
 
     monthly_map = {(_safe_normalize(row["month"]) or row["month"]): row for row in monthly}
     resolved_month = requested_month or (_safe_normalize(monthly[-1]["month"]) if monthly else None)
@@ -585,6 +610,8 @@ async def query_stats(
         "no_deposit_total": sum(row["count"] for row in no_deposit_reasons),
         "no_deposit_priority": _priority_totals(no_deposit_reasons),
         "no_deposit_summary": summary,
+        "withdraw_reasons": withdraw_reasons,
+        "withdraw_total": sum(row["total"] for row in withdraw_reasons),
         "deposit_timing": deposit_pace.deposit_timing(pace_visits, today),
         "deposit_pace": funnel_pace,
     }

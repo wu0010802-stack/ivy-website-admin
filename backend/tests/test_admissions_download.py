@@ -2,7 +2,7 @@
 
 含孩子姓名、電話、地址：要 admissions.read＋校區範圍＋「匯出個資」授權（booking.export），
 每次寫稽核，metadata 只記套用了哪些篩選。開關關閉時 404（test_admissions_booking_link.py）。
-欄位和畫面一致（37 欄，含來源分類、帶參觀老師、娃娃車、追蹤與負責人）；只有地址分析同意不進 CSV。"""
+欄位和畫面一致（38 欄，含來源分類、帶參觀老師、娃娃車、追蹤與負責人）；只有地址分析同意不進 CSV。"""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ EXPECTED_HEADERS = [
     "校區", "月份", "序號", "參觀日期", "幼生姓名", "英文名字", "生日", "班別", "入學學年", "入學學期",
     "階段", "預繳", "已註冊", "聯絡人", "電話", "地址", "父親職業", "母親職業", "來源", "來源分類",
     "家長介紹", "帶參觀老師", "搭娃娃車", "收預繳人員", "未預繳原因", "未預繳說明", "保留座位", "註冊日期",
-    "轉學期", "退出原因", "下次聯絡", "負責人", "最近聯絡", "官網預約", "電訪回應", "備註", "建檔時間",
+    "轉學期", "退出原因分類", "退出原因", "下次聯絡", "負責人", "最近聯絡", "官網預約", "電訪回應", "備註", "建檔時間",
 ]
 
 
@@ -65,10 +65,10 @@ async def _set(db_session, record: dict, **values) -> None:
     await db_session.commit()
 
 
-def test_headers_are_the_37_screen_columns_in_order():
+def test_headers_are_the_38_screen_columns_in_order():
     assert list(download.RECORD_HEADERS) == EXPECTED_HEADERS
-    assert len(EXPECTED_HEADERS) == 37
-    assert len(set(EXPECTED_HEADERS)) == 37
+    assert len(EXPECTED_HEADERS) == 38
+    assert len(set(EXPECTED_HEADERS)) == 38
 
 
 @pytest.mark.asyncio
@@ -80,7 +80,7 @@ async def test_records_export_follows_list_filters(admin_client):
     resp = await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua")
     header, rows = _csv(resp)
     assert header == EXPECTED_HEADERS
-    assert all(len(row) == 37 for row in csv.reader(io.StringIO(resp.content.decode("utf-8-sig"))))
+    assert all(len(row) == 38 for row in csv.reader(io.StringIO(resp.content.decode("utf-8-sig"))))
     assert f'filename="admissions-records-yihua-{today_local():%Y%m%d}.csv"' in resp.headers["content-disposition"]
     assert set(_names(rows)) == {"王小明", "李小華", "陳小美"}
 
@@ -175,6 +175,7 @@ async def test_records_export_values_match_the_screen(admin_client, db_session):
         "保留座位": "中班",
         "註冊日期": "",
         "轉學期": "是",
+        "退出原因分類": "",
         "退出原因": "",
         # 台北時間，跨日的邊界不能差一天。
         "下次聯絡": "2026/10/06 23:59",
@@ -187,7 +188,7 @@ async def test_records_export_values_match_the_screen(admin_client, db_session):
     }
     blank = by_name["空白寶貝"]
     for column in ("英文名字", "班別", "電話", "地址", "來源", "來源分類", "家長介紹", "帶參觀老師", "收預繳人員",
-                   "未預繳原因", "保留座位", "註冊日期", "退出原因", "下次聯絡", "最近聯絡", "備註"):
+                   "未預繳原因", "保留座位", "註冊日期", "退出原因分類", "退出原因", "下次聯絡", "最近聯絡", "備註"):
         assert blank[column] == "", column
     assert blank["搭娃娃車"] == "不搭"
     assert blank["轉學期"] == "否"
@@ -409,7 +410,7 @@ async def test_records_export_keeps_one_row_per_record_with_hostile_text(admin_c
     text = (await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua")).content.decode("utf-8-sig")
     parsed = list(csv.reader(io.StringIO(text)))
     assert len(parsed) == 3  # 表頭＋兩筆；備註裡的換行、逗號、雙引號不會拆成多列多欄
-    assert all(len(row) == 37 for row in parsed)
+    assert all(len(row) == 38 for row in parsed)
 
 
 @pytest.mark.asyncio
@@ -561,7 +562,7 @@ def test_audit_metadata_only_records_which_filters_were_applied():
     filters = SimpleNamespace(
         month=None, grade="中班", target_school_year=115, target_semester=1, source="親友介紹", referrer=None,
         has_deposit=False, no_deposit_reason=None, stage=None, visit_request_id=None, q="王小明",
-        follow_up="due", owner=str(uuid.uuid4()), district=None, village=None, geo=None,
+        follow_up="due", owner=str(uuid.uuid4()), district=None, village=None, geo=None, withdraw_reason_category=None,
     )
     assert download.records_audit_metadata(filters) == {
         "grade": "中班", "school_year": 115, "semester": 1, "has_source": True, "has_deposit": False,
@@ -585,7 +586,7 @@ def test_audit_metadata_records_only_the_kind_of_area_filter():
         values = dict(
             month=None, grade=None, target_school_year=None, target_semester=None, source=None, referrer=None,
             has_deposit=None, no_deposit_reason=None, stage=None, visit_request_id=None, q=None, follow_up=None,
-            owner=None, district=None, village=None, geo=None,
+            owner=None, district=None, village=None, geo=None, withdraw_reason_category=None,
         )
         values.update(overrides)
         return download.records_audit_metadata(SimpleNamespace(**values))
@@ -799,3 +800,56 @@ async def test_no_deposit_export_writes_no_audit_when_building_the_csv_fails(adm
         )
     ).scalars().all()
     assert [entry.metadata_json["row_count"] for entry in entries] == [1]
+
+
+@pytest.mark.asyncio
+async def test_records_export_has_withdraw_category_column_and_audits_the_filter(admin_client, db_session):
+    """2026-10-15 退出原因分類：CSV 在「退出原因」前多一欄分類；依分類篩選時稽核記篩選值。"""
+    await record_at_stage(admin_client, "withdrawn", child_name="退預繳寶貝")
+    legacy = await record_at_stage(admin_client, "withdrawn", child_name="舊資料寶貝")
+    await _set(db_session, legacy, withdraw_reason_category=None)
+    await create_record(admin_client, child_name="還在寶貝")
+
+    _, rows = _csv(await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua"))
+    by_name = {row["幼生姓名"]: row for row in rows}
+    assert (by_name["退預繳寶貝"]["退出原因分類"], by_name["退預繳寶貝"]["退出原因"]) == ("改讀其他私立幼兒園", "家長改送他校")
+    # 舊資料沒有分類（欄位空白、說明照舊）；沒退出的兩欄都空。
+    assert (by_name["舊資料寶貝"]["退出原因分類"], by_name["舊資料寶貝"]["退出原因"]) == ("", "家長改送他校")
+    assert (by_name["還在寶貝"]["退出原因分類"], by_name["還在寶貝"]["退出原因"]) == ("", "")
+
+    by_category = _csv(
+        await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua&withdraw_reason_category=改讀其他私立幼兒園")
+    )[1]
+    assert _names(by_category) == ["退預繳寶貝"]
+    unclassified = _csv(await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua&withdraw_reason_category=unclassified"))[1]
+    assert _names(unclassified) == ["舊資料寶貝"]
+    nobody = _csv(await admin_client.get(f"{RECORDS_EXPORT}?campus_key=yihua&withdraw_reason_category=費用考量"))[1]
+    assert nobody == []
+
+    entries = (
+        await db_session.execute(
+            select(AuditLogEntry.metadata_json)
+            .where(AuditLogEntry.action == "recruitment_visit.export")
+            .order_by(AuditLogEntry.created_at)
+        )
+    ).scalars().all()
+    assert [entry.get("withdraw_reason_category") for entry in entries] == [
+        None, "改讀其他私立幼兒園", "unclassified", "費用考量",
+    ]
+
+
+def test_audit_metadata_records_the_withdraw_category_filter():
+    """分類只會是固定選項或 unclassified（端點以 Literal 驗證），記值本身；沒篩就沒有這個鍵。"""
+
+    def metadata(**overrides):
+        values = dict(
+            month=None, grade=None, target_school_year=None, target_semester=None, source=None, referrer=None,
+            has_deposit=None, no_deposit_reason=None, stage=None, visit_request_id=None, q=None, follow_up=None,
+            owner=None, district=None, village=None, geo=None, withdraw_reason_category=None,
+        )
+        values.update(overrides)
+        return download.records_audit_metadata(SimpleNamespace(**values))
+
+    assert metadata() == {}
+    assert metadata(withdraw_reason_category="費用考量") == {"withdraw_reason_category": "費用考量"}
+    assert metadata(withdraw_reason_category="unclassified") == {"withdraw_reason_category": "unclassified"}
