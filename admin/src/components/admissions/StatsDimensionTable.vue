@@ -11,6 +11,8 @@ import { buildCsv, downloadCsv, rocMonthCsv, type CsvCell } from '../../utils/cs
 // 有 actionLabel 時最後多一欄按鈕（區域分析的「查看明細」，2026-10-08）；不做整列可點（列不是按鈕，鍵盤與讀屏不好用）。按鈕欄不匯出。
 // 手機（≤720px）不多那一欄：按鈕欄在最右邊，一打開只露幾 px、看不出能橫捲（2026-10-12），改成名稱本身是連結。
 // 桌機（721px 以上）按鈕欄固定在表格右緣（sticky right）：表格比框寬、要橫捲時操作還是看得到，不必捲到最右邊才找得到按鈕。
+// 有 nameAction 時（區域分析各里表的「在地圖上選取」，2026-10-16）sticky 名稱欄在所有寬度都是原生按鈕，按下 emit('name-action')；
+// 和 actionLabel 各管各的：兩個都給時名稱走 nameAction，actionLabel 的按鈕欄在手機也保留（名稱已經被 nameAction 佔了）。
 // 泛型 Row：rows 是什麼型別，action 事件就回同一個型別，呼叫端不用自己轉型。
 const props = withDefaults(
   defineProps<{
@@ -21,10 +23,14 @@ const props = withDefaults(
     emptyText: string
     numbered?: boolean
     caption?: string
+    /** caption 改收進預設收起的「這些數字怎麼算」（details），表格上方只留一行摘要的版面用（2026-10-16）。 */
+    captionCollapsed?: boolean
     /** 有值且有資料才顯示「匯出 CSV」；檔名由呼叫端決定（校區、學期、日期）。 */
     exportFilename?: string
     /** 有值時每列最後多一顆這個字的按鈕，按下 emit('action', row)。 */
     actionLabel?: string
+    /** 有值時 sticky 名稱欄在所有寬度都是原生按鈕（aria-label 為「${值}：名稱」），按下 emit('name-action', row)；不多一欄。 */
+    nameAction?: string
     /** 匯出專用的格值：回傳值優先於畫面值（含 ''＝寫空白），回 undefined 就照欄位規則。 */
     csvCell?: (row: Row, column: StatsColumn) => CsvCell | undefined
     /** 有值時預設只列前 N 列，表格下一顆「顯示全部」（招生機會的各里排行，2026-10-13）；匯出 CSV 一律是全部。 */
@@ -32,10 +38,10 @@ const props = withDefaults(
     /** 匯出用的欄（只在 CSV 多幾欄時給，例如里的變化的「一年前 1–4 歲」，2026-10-14）；沒給就是 columns。 */
     csvColumns?: readonly StatsColumn[]
   }>(),
-  { numbered: false, caption: '', exportFilename: '', actionLabel: '', collapsedRows: 0 },
+  { numbered: false, caption: '', captionCollapsed: false, exportFilename: '', actionLabel: '', nameAction: '', collapsedRows: 0 },
 )
 
-const emit = defineEmits<{ action: [row: Row] }>()
+const emit = defineEmits<{ action: [row: Row]; 'name-action': [row: Row] }>()
 
 const headingId = useId()
 
@@ -71,15 +77,20 @@ const isNumeric = (column: StatsColumn) =>
 // 按鈕的 aria-label 帶這一列的名稱（第一個 sticky 欄，沒有就第一欄），讀屏才分得出是哪一列的「查看明細」。
 const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
 // 名稱缺值（畫面上寫「—」）或根本沒有欄位時不寫「查看明細：—」，改寫第幾列，讀屏才分得出是哪一列。
-const actionAria = (row: Row, index: number) => {
+const rowAria = (label: string, row: Row, index: number) => {
   const name = nameColumn.value ? display(row, nameColumn.value) : NO_VALUE
-  return name === NO_VALUE ? `${props.actionLabel}（第 ${index + 1} 列）` : `${props.actionLabel}：${name}`
+  return name === NO_VALUE ? `${label}（第 ${index + 1} 列）` : `${label}：${name}`
 }
+const actionAria = (row: Row, index: number) => rowAria(props.actionLabel, row, index)
+const nameActionAria = (row: Row, index: number) => rowAria(props.nameAction, row, index)
 // 名稱連結只放在 sticky 名稱欄（橫捲時一直看得到）；沒有 sticky 欄的表手機上照舊用按鈕欄。
 const narrow = useNarrowScreen()
-const nameLinks = computed(() => Boolean(props.actionLabel) && narrow.value && Boolean(nameColumn.value?.sticky))
+const stickyName = computed(() => Boolean(nameColumn.value?.sticky))
+const nameButtons = computed(() => Boolean(props.nameAction) && stickyName.value)
+const nameLinks = computed(() => Boolean(props.actionLabel) && narrow.value && stickyName.value && !nameButtons.value)
 const actionColumn = computed(() => Boolean(props.actionLabel) && !nameLinks.value)
 const nameAsAction = (column: StatsColumn) => nameLinks.value && column === nameColumn.value
+const nameAsNameAction = (column: StatsColumn) => nameButtons.value && column === nameColumn.value
 
 // 匯出（2026-10-03）：欄名、編號同畫面；計數缺值寫 0，比率沒有值寫空白（Excel 會把「—」
 // 當文字、算平均時出錯），文字欄畫面上的「—」缺值也寫空白，長條欄只輸出數字；
@@ -140,7 +151,11 @@ function exportCsv() {
     </div>
     <!-- 標題與表格之間的說明（招生機會的總結，2026-10-13）；caption 是小字，intro 是正文。 -->
     <slot name="intro" />
-    <p v-if="caption" class="hint stats-block__caption">{{ caption }}</p>
+    <details v-if="caption && captionCollapsed" class="stats-block__how">
+      <summary>這些數字怎麼算</summary>
+      <p class="hint">{{ caption }}</p>
+    </details>
+    <p v-else-if="caption" class="hint stats-block__caption">{{ caption }}</p>
     <p v-if="!rows.length" class="stats-block__empty">{{ emptyText }}</p>
     <div v-else class="stats-block__scroll" role="region" tabindex="0" :aria-label="`${title}（可左右捲動）`">
       <table class="stats-table">
@@ -163,7 +178,10 @@ function exportCsv() {
             <td v-if="numbered" class="stats-table__index num">{{ index + 1 }}</td>
             <template v-for="column in columns" :key="column.key">
               <th v-if="column.sticky" scope="row" class="stats-table__sticky">
-                <button v-if="nameAsAction(column)" type="button" class="stats-table__name-link" :aria-label="actionAria(row, index)" @click="emit('action', row)">
+                <button v-if="nameAsNameAction(column)" type="button" class="stats-table__name-link" :aria-label="nameActionAria(row, index)" @click="emit('name-action', row)">
+                  {{ display(row, column) }}
+                </button>
+                <button v-else-if="nameAsAction(column)" type="button" class="stats-table__name-link" :aria-label="actionAria(row, index)" @click="emit('action', row)">
                   {{ display(row, column) }}
                 </button>
                 <template v-else>{{ display(row, column) }}</template>
@@ -216,6 +234,53 @@ function exportCsv() {
 
 .stats-block__caption {
   margin: -4px 0 8px;
+}
+
+.stats-block__how {
+  margin: -4px 0 8px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.stats-block__how summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--admin-accent-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.stats-block__how summary::-webkit-details-marker {
+  display: none;
+}
+
+/* 摘要前的 ›：展開時轉向下（同 AnalyticsExplainer）。 */
+.stats-block__how summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 150ms var(--ease-out);
+}
+
+.stats-block__how[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.stats-block__how summary:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.stats-block__how .hint {
+  max-width: 72ch;
+  margin: 4px 0 0;
+  line-height: 1.6;
 }
 
 .stats-block__empty {
@@ -294,7 +359,7 @@ function exportCsv() {
   background: var(--surface-2);
 }
 
-/* 手機的名稱連結：不用 el-button（自帶 32px 高，整張表每列被撐高一倍）。 */
+/* 名稱按鈕（手機版 actionLabel 的名稱連結、各里表的 nameAction）：不用 el-button（自帶 32px 高，整張表每列被撐高一倍）。 */
 .stats-table__name-link {
   padding: 0;
   border: 0;
@@ -337,6 +402,14 @@ function exportCsv() {
 }
 
 @media (max-width: 720px) {
+  .stats-block__how {
+    font-size: var(--text-base);
+  }
+
+  .stats-block__how summary {
+    min-height: 44px;
+  }
+
   .stats-table th,
   .stats-table td {
     padding: 8px 10px;
