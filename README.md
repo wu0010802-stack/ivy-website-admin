@@ -1,3 +1,11 @@
+## 2026-10-16 密碼雜湊改直接用 bcrypt、九月的日期紀錄移到 docs/changelog（`feature/passlib-docs-20261016`）
+
+優化盤點第三批。
+
+- **passlib → bcrypt**：passlib 1.7.4 已停止維護，又把 bcrypt 卡在 4.0。`app/auth/service.py` 改用同介面的 `_BcryptContext`，bcrypt 升到 5.0.0（用 CI 同版 uv 0.8.22 重產 lock，只動這兩個套件）。既有雜湊格式相同：新測試 `tests/test_password_hashing.py` 用換掉前以 passlib 實際產生的 `$2b$04`、`$2b$12`、`$2a$04` 雜湊驗證。72 bytes 以上的舊密碼照 passlib 的做法截斷（bcrypt 5 本身會丟例外）；認不得的雜湊改成驗證失敗而不是 500。
+- **文件封存**：README.md 的 2026-09 日期段落（206 段）移到 `docs/changelog/README-2026-09.md`（README 687→329 KB），deploy/README.md 的 2026-09 部署紀錄（60 段）移到 `docs/changelog/deploy-2026-09.md`（414→261 KB）。參考章節與原型說明留在原檔，原位置留指標；逐行比對內容守恆。CLAUDE.md 檔案地圖寫下每月封存的做法。DESIGN.md 是依主題的定案規則，沒有拆。
+- **驗證**（本機，**未 push、未部署**）：後端全套 3579 passed、1 skipped（獨立測試庫 `ivy_website_passlib1016_test`）；`deploy/tests` 22 項通過。沒有改 web、admin、API 契約。
+
 ## 2026-10-16 清掉 web 的死 CSS 與比稿殘留（`feature/web-deadcode-20261016`）
 
 優化盤點第二批。全域 CSS（tokens／styles／studio／typography）因為 `inlineStyles` 會內嵌進每一頁，線上每頁 HTML 帶 162–169 KB 的 CSS，佔六成。
