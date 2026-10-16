@@ -25,10 +25,10 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
     default: defineComponent({
       name: 'AreaMap',
       props: [
-        'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'opportunity', 'opportunityNote', 'babycare',
-        'trends', 'trendNote', 'homesNote', 'enrolled', 'enrolledNote', 'gradeFilter',
+        'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
+        'babycare', 'trends', 'enrolled', 'gradeFilter',
       ],
-      emits: ['open-area', 'update:gradeFilter'],
+      emits: ['select-village'],
       setup(_, { expose }) {
         expose({ focusKindergarten: mapStub.focus, focusBabycare: mapStub.focusBabycare, revealBabycare: mapStub.reveal })
         return () => h('div', { class: 'area-map-stub' })
@@ -73,6 +73,9 @@ const block = (wrapper: VueWrapper, title: string): Dom =>
 const bodyRows = (section: Dom) => section.findAll('tbody tr').map((row) => row.findAll('th, td').map((cell) => cell.text()))
 const squash = (text: string) => text.replace(/\s+/g, '')
 const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, ...changes })
+// 地圖停用原因（opportunityNote 等）不再傳給 AreaMap：工具列搬到 AreaTab 之前（Task 9）直接讀 AreaTab 自己的計算值。
+const note = (wrapper: VueWrapper, key: 'opportunityNote' | 'trendNote' | 'homesNote' | 'enrolledNote') =>
+  (wrapper.vm as unknown as Record<string, string>)[key]
 
 describe('區域分析：讀取與三張表', () => {
   it('依頁首校區與學期讀區域、里界、附近幼兒園（半徑預設 3 公里）；狀態列寫資料版本', async () => {
@@ -153,15 +156,12 @@ describe('區域分析：讀取與三張表', () => {
     expect(bodyRows(block(wrapper, '里排行')).map((row) => row[1])).toEqual(['三民區寶業里', '三民區本揚里', '鼓山區龍子里'])
   })
 
-  it('「查看明細」與「查看」交給頁面帶區域（里一定帶行政區）；地圖點里同樣', async () => {
+  it('「查看明細」與「查看」交給頁面帶區域（里一定帶行政區）', async () => {
     const { wrapper } = await mountTab()
     await block(wrapper, '行政區排行').findAll('tbody button')[0]!.trigger('click')
     await block(wrapper, '里排行').findAll('tbody button')[0]!.trigger('click')
     await button(wrapper, '查看')!.trigger('click')
-    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('open-area', { district: '三民區', village: '寶業里' })
-    expect(wrapper.emitted('open-records')).toEqual([
-      [{ area: '三民區' }], [{ area: '三民區/本揚里' }], [{ area: 'no_village' }], [{ area: '三民區/寶業里' }],
-    ])
+    expect(wrapper.emitted('open-records')).toEqual([[{ area: '三民區' }], [{ area: '三民區/本揚里' }], [{ area: 'no_village' }]])
   })
 
   it('地圖拿到里界、各里數字、本校、幼兒園與半徑；清單點一列地圖跟著移過去', async () => {
@@ -548,7 +548,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     expect(section.get('.stats-block__empty').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
     expect(section.find('.opportunity-summary').exists()).toBe(false)
     expect(section.find('[data-test="stats-csv"]').exists()).toBe(false)
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
+    expect(note(wrapper, 'opportunityNote')).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
   })
 
   it('本校沒座標：區塊寫原因', async () => {
@@ -569,13 +569,13 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.opportunity-error').exists()).toBe(true))
     expect(block(wrapper, '里排行')).toBeDefined()
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('招生機會讀取失敗。')
+    expect(note(wrapper, 'opportunityNote')).toBe('招生機會讀取失敗。')
     fail = false
     await button(wrapper.get('.opportunity-error') as never, '重新載入')!.trigger('click')
     await flushPromises()
     expect(wrapper.find('.opportunity-error').exists()).toBe(false)
     expect(block(wrapper, '招生機會（本校 3 公里內）')).toBeDefined()
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('opportunityNote')).toBe('')
+    expect(note(wrapper, 'opportunityNote')).toBe('')
   })
 
   it('讀取中不算用不了：地圖的著色切換照常可選（換半徑時不跳回參觀人數）', async () => {
@@ -585,7 +585,7 @@ describe('招生機會（2026-10-13 規格 7）', () => {
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     const map = wrapper.findComponent({ name: 'AreaMap' })
     expect(map.props('opportunity')).toBeNull()
-    expect(map.props('opportunityNote')).toBe('')
+    expect(note(wrapper, 'opportunityNote')).toBe('')
     slow.resolve(areaOpportunity())
     await flushPromises()
     expect(map.props('opportunity')).toMatchObject({ radius_km: 3 })
@@ -778,8 +778,8 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/trends')[0]!)))
       .toEqual({ campus_key: 'yihua', school_year: '115', radius_km: '3' })
     expect(wrapper.findComponent({ name: 'AreaMap' }).props('trends')).toMatchObject({ radius_km: 3 })
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('')
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('homesNote')).toBe('')
+    expect(note(wrapper, 'trendNote')).toBe('')
+    expect(note(wrapper, 'homesNote')).toBe('')
     wrapper.findComponent(NearbyKindergartens).vm.$emit('update:radiusKm', 6)
     await flushPromises()
     expect(queryOf(pathsTo(get, '/admin/admissions/area/trends').at(-1)!).get('radius_km')).toBe('6')
@@ -897,7 +897,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(bodyRows(section)[0]).toEqual(['1', '三民區本揚里', '300 m', '317', '—', '—', '36', '−122', '24', '45.8 萬', '東光國小'])
     expect(section.get('.trends-summary .hint').text()).toContain('一年前的各里人口還沒匯入，這一年淨增先不算。')
     expect(section.findAll('.trends-summary p')[0]!.text()).toBe('本校 3 公里內 4 個里，2–5 歲孩子 1,400 位。')
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
+    expect(note(wrapper, 'trendNote')).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
   })
 
   it('新成屋還沒匯入：新屋欄整欄「—」、欄位不隱藏；總結沒有這一句；說明寫尚未匯入；只有「新屋交屋」停用，孩子增減照用', async () => {
@@ -915,9 +915,8 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     const caption = section.get('.stats-block__caption').text()
     expect(caption).toContain('新成屋資料尚未匯入。')
     expect(caption).not.toContain('不動產交易實價查詢服務網')
-    const map = wrapper.findComponent({ name: 'AreaMap' })
-    expect(map.props('homesNote')).toBe('新成屋資料尚未匯入。')
-    expect(map.props('trendNote')).toBe('')
+    expect(note(wrapper, 'homesNote')).toBe('新成屋資料尚未匯入。')
+    expect(note(wrapper, 'trendNote')).toBe('')
   })
 
   it('什麼都還沒匯入：區塊寫原因；本校沒座標：寫本校位置未標示', async () => {
@@ -932,7 +931,7 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     const unlocated = areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [] })
     const second = await mountTrends(unlocated)
     expect(block(second.wrapper, TITLE).get('.stats-block__empty').text()).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
-    expect(second.wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
+    expect(note(second.wrapper, 'trendNote')).toBe('本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。')
   })
 
   it('讀取失敗：只有這一塊寫錯誤與重試，地圖的孩子增減停用；重試成功恢復', async () => {
@@ -943,8 +942,8 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     })
     await vi.waitFor(() => expect(wrapper.find('.trends-error').exists()).toBe(true))
     expect(block(wrapper, '招生機會（本校 3 公里內）')).toBeDefined()
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('trendNote')).toBe('里的變化讀取失敗。')
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('homesNote')).toBe('里的變化讀取失敗。')
+    expect(note(wrapper, 'trendNote')).toBe('里的變化讀取失敗。')
+    expect(note(wrapper, 'homesNote')).toBe('里的變化讀取失敗。')
     fail = false
     await button(wrapper.get('.trends-error') as never, '重新載入')!.trigger('click')
     await flushPromises()
@@ -1018,7 +1017,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/enrolled')[0]!))).toEqual({ campus_key: 'yihua' })
     const map = wrapper.findComponent({ name: 'AreaMap' })
     expect(map.props('enrolled')).toMatchObject({ status: 'ready', total: 5 })
-    expect(map.props('enrolledNote')).toBe('')
+    expect(note(wrapper, 'enrolledNote')).toBe('')
     expect(map.props('gradeFilter')).toBe('all')
     expect(bodyRows(block(wrapper, '在籍學生距離分布'))[0]).toEqual(['1 公里內', '0', '1', '1', '0', '2'])
     expect(bodyRows(block(wrapper, '在籍學生距離分布')).at(-1)![0]).toBe('無距離')
@@ -1032,29 +1031,8 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('enrolledNote')).toBe('尚未匯入在籍名冊。')
+    expect(note(wrapper, 'enrolledNote')).toBe('尚未匯入在籍名冊。')
     expect(wrapper.findAll('.stats-block__title').map((title) => title.text())).not.toContain('在籍學生距離分布')
-  })
-
-  it('地圖換班別：里排行跟著換；篩到 0 人的班別寫空狀態', async () => {
-    const { wrapper } = await mountTab()
-    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '小班')
-    await flushPromises()
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('gradeFilter')).toBe('小班')
-    expect(bodyRows(block(wrapper, '在籍學生里排行（小班）')).map((row) => row.slice(1, 3))).toEqual([['三民區本揚里', '2']])
-    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '其他')
-    await flushPromises()
-    expect(block(wrapper, '在籍學生里排行（其他）').text()).toContain('這個班別沒有比對到里的學生')
-  })
-
-  it('換校區：篩選回到全部並重讀', async () => {
-    const { wrapper, get } = await mountTab()
-    wrapper.findComponent({ name: 'AreaMap' }).vm.$emit('update:gradeFilter', '小班')
-    await flushPromises()
-    await wrapper.setProps({ campusKey: 'minghua' })
-    await flushPromises()
-    expect(queryOf(pathsTo(get, '/admin/admissions/area/enrolled').at(-1)!).get('campus_key')).toBe('minghua')
-    await vi.waitFor(() => expect(wrapper.findComponent({ name: 'AreaMap' }).props('gradeFilter')).toBe('all'))
   })
 
   it('讀取失敗：寫錯誤與重試，地圖按鈕停用；重試成功恢復', async () => {
@@ -1065,7 +1043,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     }))
     const { wrapper } = await mountWith(AreaTab, { props: props() })
     await vi.waitFor(() => expect(wrapper.find('.enrolled-error').exists()).toBe(true))
-    expect(wrapper.findComponent({ name: 'AreaMap' }).props('enrolledNote')).toBe('在籍學生讀取失敗。')
+    expect(note(wrapper, 'enrolledNote')).toBe('在籍學生讀取失敗。')
     fail = false
     await button(wrapper.get('.enrolled-error') as never, '重新載入')!.trigger('click')
     await flushPromises()

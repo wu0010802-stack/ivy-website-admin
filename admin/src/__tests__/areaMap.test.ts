@@ -47,21 +47,39 @@ const leaflet = vi.hoisted(() => {
     map: vi.fn((element: HTMLElement & { _leaflet_id?: number }, options: Record<string, unknown>) => {
       if (element._leaflet_id) throw new Error('Map container is already initialized.')
       element._leaflet_id = ++containerCounter
+      // createPane 回傳的就是真 Leaflet 的 pane 元素：測試只看 style 與建立順序，記在 panes 上。
+      const panes: Record<string, { style: Record<string, string> }> = {}
       return layer('map', {
         element, options, fitBounds: vi.fn(), setView: vi.fn(), getZoom: vi.fn(() => 13), invalidateSize: vi.fn(),
         dragging: handler(), touchZoom: handler(), attributionControl: { setPrefix: vi.fn() },
+        panes,
+        createPane: vi.fn((name: string) => (panes[name] = { style: {} })),
+        // 可視範圍：預設什麼都不在裡面（focusVillage 要 panTo）；測試用 mockReturnValue 換成包含。
+        getBounds: vi.fn(() => ({ contains: vi.fn(() => false) })),
+        panTo: vi.fn(),
         remove: vi.fn(() => { delete element._leaflet_id }),
       })
     }),
     tileLayer: vi.fn((url: string, options: Record<string, unknown>) => layer('tileLayer', { url, options })),
     // 里界圖層：每個 feature 一個子圖形，像真 Leaflet 的 SVG renderer 一樣在建立時把 className 與 leaflet-interactive
     // 掛到 <path> 上（之後 setStyle 不會再動 class），eachLayer 逐一走過。
+    // style 可以是函式（里界：每個 feature 一個 class）或物件（選取外框）；單一 Feature（外框）沒有子圖形。
     geoJSON: vi.fn((data: { features?: unknown[] } | undefined, options: Record<string, any>) => {
-      const children = (data?.features ?? []).map((feature) => {
-        const className: string = options.style(feature).className
+      const children = (data?.features ?? []).map((feature: any) => {
+        const style = typeof options.style === 'function' ? options.style(feature) : options.style
+        const className: string = style?.className ?? ''
         const element = document.createElementNS('http://www.w3.org/2000/svg', 'path')
         element.setAttribute('class', `${className} leaflet-interactive`)
-        return { feature, options: { className }, getElement: () => element }
+        const handlers: Record<string, Handler[]> = {}
+        return {
+          feature,
+          options: { className },
+          getElement: () => element,
+          handlers,
+          on: vi.fn((event: string, fn: Handler) => { (handlers[event] ??= []).push(fn) }),
+          // 每個里一個範圍；getCenter 讓 panTo 的參數看得出是哪個里。
+          getBounds: vi.fn(() => ({ village: feature.properties.VILLCODE, getCenter: () => ({ centerOf: feature.properties.VILLCODE }) })),
+        }
       })
       return layer('geoJSON', { data, options, children, eachLayer: vi.fn((fn: (child: unknown) => void) => children.forEach(fn)) })
     }),
@@ -123,6 +141,7 @@ const baseProps = () => ({
   kindergartens: areaKindergartens().items,
   radiusKm: 3,
   narrow: false,
+  mode: 'visits',
 })
 async function mountMap(changes: Record<string, unknown> = {}): Promise<VueWrapper> {
   const wrapper = mount(AreaMap, { props: { ...baseProps(), ...changes } as never, attachTo: document.body, global: { plugins: [ElementPlus] } })
@@ -131,12 +150,17 @@ async function mountMap(changes: Record<string, unknown> = {}): Promise<VueWrapp
   return wrapper
 }
 const one = (kind: string): any => leaflet.created[kind]![0]
-// 模式鈕依標籤找，不依位置：MAP_MODES 順序改過一次（2026-10-16 工作台），以後再改也不用動這些斷言。
-const radioButton = (wrapper: VueWrapper, label: string) => wrapper.findAll('.el-radio-button').find((item) => item.text() === label)!
-// 停用的模式鈕。「同業」是 AreaMap 過渡期還留著的鈕（Task 6 拿掉；modeNote 現在把它歸到招生機會的原因），這裡不斷言它。
-const disabledLabels = (wrapper: VueWrapper) =>
-  wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text()).filter((label) => label !== '同業')
-const feature = (town: string, village: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: '' } })
+const feature = (town: string, village: string, code = '') => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code } })
+// onEachFeature 收到的圖層：記下 click 處理函式，測試手動觸發（真 Leaflet 的點擊走 layer.on('click')）。
+function villageLayerStub() {
+  const handlers: Record<string, Array<() => void>> = {}
+  return {
+    bindPopup: vi.fn(),
+    bindTooltip: vi.fn(),
+    on: vi.fn((event: string, fn: () => void) => { (handlers[event] ??= []).push(fn) }),
+    click: () => (handlers.click ?? []).forEach((fn) => fn()),
+  }
+}
 
 describe('區域分析地圖（2026-10-08）', () => {
   it('底圖是國土測繪電子地圖並標出處；滾輪不縮放；里界依參觀人數分 5 級（0 筆是 0 級）', async () => {
@@ -231,39 +255,33 @@ describe('區域分析地圖（2026-10-08）', () => {
     expect(leaflet.created.circleMarker).toHaveLength(6)
   })
 
-  it('點里：彈出框寫參觀、預繳與預繳率，「查看明細」回報該里；沒有參觀的里不給連結；桌機 hover 顯示里名', async () => {
+  it('點里：發出 select-village（代碼、區名、里名），不綁 popup；桌機 hover 顯示里名', async () => {
     const wrapper = await mountMap()
-    const { options } = one('geoJSON')
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    options.onEachFeature(feature('三民區', '本揚里'), village)
-    const content = village.bindPopup.mock.calls[0]![0]() as HTMLElement
-    expect(content.textContent).toContain('三民區本揚里')
-    expect(content.textContent).toContain('參觀 3・預繳 1（33.3%）')
-    content.querySelector('button')!.click()
-    expect(wrapper.emitted('open-area')).toEqual([[{ district: '三民區', village: '本揚里' }]])
+    const village = villageLayerStub()
+    one('geoJSON').options.onEachFeature(feature('三民區', '本揚里', '64000050015'), village)
+    expect(village.bindPopup).not.toHaveBeenCalled()
+    expect(wrapper.emitted('select-village')).toBeUndefined()
+    village.click()
+    expect(village.on).toHaveBeenCalledWith('click', expect.any(Function))
+    expect(wrapper.emitted('select-village')).toEqual([[{ code: '64000050015', district: '三民區', village: '本揚里' }]])
+    // 已選取的里再點一次不取消：照樣發出同一個事件。
+    village.click()
+    expect(wrapper.emitted('select-village')).toHaveLength(2)
     // Leaflet 的字串內容走 innerHTML，所以里名要給文字節點。
     const tooltip = village.bindTooltip.mock.calls[0]![0] as HTMLElement
     expect(tooltip).toBeInstanceOf(HTMLElement)
     expect(tooltip.textContent).toBe('三民區本揚里')
     expect(village.bindTooltip.mock.calls[0]![1]).toMatchObject({ sticky: true })
-    const empty = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    options.onEachFeature(feature('三民區', '鼎金里'), empty)
-    const emptyContent = empty.bindPopup.mock.calls[0]![0]() as HTMLElement
-    expect(emptyContent.textContent).toContain('這個範圍沒有參觀')
-    expect(emptyContent.querySelector('button')).toBeNull()
   })
 
-  it('里名含標籤字樣：提示與彈出框都當文字，不變成標記', async () => {
+  it('里名含標籤字樣：提示當文字，不變成標記', async () => {
     await mountMap()
     const hostile = feature('<img src=x onerror=alert(1)>區', '<b>里</b>')
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    const village = villageLayerStub()
     one('geoJSON').options.onEachFeature(hostile, village)
     const tooltip = village.bindTooltip.mock.calls[0]![0] as HTMLElement
     expect(tooltip.textContent).toBe('<img src=x onerror=alert(1)>區<b>里</b>')
     expect(tooltip.querySelector('img, b')).toBeNull()
-    const popup = village.bindPopup.mock.calls[0]![0]() as HTMLElement
-    expect(popup.textContent).toContain('<img src=x onerror=alert(1)>區<b>里</b>')
-    expect(popup.querySelector('img, b')).toBeNull()
   })
 
   // 圖形的 class：子圖形的 <path> 上除了 leaflet-interactive 以外的 class。
@@ -306,7 +324,7 @@ describe('區域分析地圖（2026-10-08）', () => {
   it('手機：預設不攔單指捲動（不能拖曳縮放、不綁 hover 里名），「移動地圖」才打開，「完成」收回', async () => {
     const wrapper = await mountMap({ narrow: true })
     expect(one('map').options).toMatchObject({ dragging: false, touchZoom: false })
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+    const village = villageLayerStub()
     one('geoJSON').options.onEachFeature(feature('三民區', '本揚里'), village)
     expect(village.bindTooltip).not.toHaveBeenCalled()
     await button(wrapper, '移動地圖')!.trigger('click')
@@ -474,7 +492,7 @@ describe('區域分析地圖（2026-10-08）', () => {
     wrappers.push(wrapper)
     const canvas = wrapper.get('.area-map__canvas')
     expect(canvas.attributes('role')).toBe('group')
-    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀著色）；同樣的資料在下方的里排行與幼兒園清單')
+    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀著色）；同樣的資料在下方的參觀來源表與幼兒園清單')
     const status = wrapper.get('[role="status"]')
     expect(status.text()).toBe('地圖載入中…')
     const element = status.element
@@ -497,7 +515,7 @@ describe('區域分析地圖（2026-10-08）', () => {
     const wrapper = await mountMap()
     const map = one('map')
     const bindTooltip = () => {
-      const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
+      const village = villageLayerStub()
       leaflet.created.geoJSON!.at(-1)!.options.onEachFeature(feature('三民區', '本揚里'), village)
       return village.bindTooltip
     }
@@ -708,27 +726,11 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
   const LONGZI = coded('鼓山區', '龍子里', '64000020015')
   const latest = (): any => leaflet.created.geoJSON!.at(-1)
   const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
-  const popupOf = (item: ReturnType<typeof coded>) => {
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    latest().options.onEachFeature(item, village)
-    return village.bindPopup.mock.calls[0]![0]() as HTMLElement
-  }
+  // 著色模式由外層（AreaTab）決定，AreaMap 只吃 mode prop。
   async function choose(wrapper: VueWrapper, mode: string) {
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await wrapper.setProps({ mode })
     await flushPromises()
   }
-
-  it('七種著色（規格 §2.1 的順序與標籤），預設參觀；招生機會用不了時那兩種停用並寫原因', async () => {
-    const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
-    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '參觀', '招生機會', '同業'])
-    expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
-    expect(radioButton(ready, '參觀').classes()).toContain('is-active')
-    expect(ready.find('.area-map__mode-note').exists()).toBe(false)
-
-    const missing = await mountMap({ opportunity: null, opportunityNote: '各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。' })
-    expect(disabledLabels(missing)).toEqual(['2–5 歲孩子', '招生機會'])
-    expect(missing.get('.area-map__mode-note').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
-  })
 
   // 子圖形 <path> 上實際掛的 class（換模式不重建圖層，畫面靠這個換色）。
   const pathOf = (item: ReturnType<typeof coded>) => {
@@ -749,8 +751,7 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
   })
 
   it('2–5 歲孩子：半徑內依孩子數分 5 級，半徑外不上色；圖例寫「位」；地圖名稱跟著換', async () => {
-    const wrapper = await mountMap({ opportunity: areaOpportunity() })
-    await choose(wrapper, 'children')
+    const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'children' })
     expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf)).toEqual([
       'area-village area-village--l5', 'area-village area-village--l3', 'area-village area-village--l2', 'area-village area-village--l0',
     ])
@@ -758,62 +759,40 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依2–5 歲孩子著色')
   })
 
-  it('招生機會：明顯偏少、差不多、比附近多三色，其餘不上色；圖例；彈出框寫孩子、參觀、應有與判讀', async () => {
-    const wrapper = await mountMap({ opportunity: areaOpportunity() })
-    await choose(wrapper, 'opportunity')
+  it('招生機會：明顯偏少、差不多、比附近多三色，其餘不上色；圖例', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'opportunity' })
     expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf)).toEqual([
       'area-village area-village--chance', 'area-village area-village--typical', 'area-village area-village--strong',
       'area-village area-village--l0',
     ])
     expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
       .toEqual(['明顯偏少', '差不多', '比附近多', '孩子少、還不判斷、在半徑外或沒有人口資料'])
-    expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual([
-      '三民區鼎金里', '2–5 歲 500 位・0–1 歲 150 位', '參觀 3 位（0.6%），照附近應有約 10 位', '少了約 7 位',
-    ])
-    // 有參觀的里照樣可以「查看明細」；不在半徑內的里寫出來，不留空白。
-    expect(popupOf(BENYANG).querySelector('button')?.textContent).toBe('查看明細')
-    expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
   })
 
-  it('半徑內但人口表沒有的里：不上色，彈出框寫沒有人口資料與參觀人數，不寫成不在半徑內', async () => {
+  it('半徑內但人口表沒有的里：不上色（不是半徑外，但也沒有可比的孩子數）', async () => {
     const base = areaOpportunity()
-    const wrapper = await mountMap({
+    await mountMap({
+      mode: 'opportunity',
       opportunity: {
         ...base,
         villages: base.villages.filter((row) => row.village_code !== BENYANG.properties.VILLCODE),
         no_population_villages: [{ district: '三民區', village: '本揚里', village_code: BENYANG.properties.VILLCODE, distance_m: 300, visit: 6 }],
       },
     })
-    await choose(wrapper, 'opportunity')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
-    expect([...popupOf(BENYANG).children].map((node) => node.textContent)).toEqual([
-      '三民區本揚里', '這個里沒有人口資料，沒有算進附近平均', '參觀 6 位', '查看明細',
-    ])
-    // 真的在半徑外的里照舊。
-    expect([...popupOf(LONGZI).children].map((node) => node.textContent)).toEqual(['鼓山區龍子里', '不在本校 3 公里內', '查看明細'])
+    expect(classOf(DINGJIN)).toBe('area-village area-village--chance')
   })
 
-  it('換半徑重讀中：留在招生機會、先不上色，彈出框寫讀取中；資料回來再上色', async () => {
-    const wrapper = await mountMap({ opportunity: areaOpportunity() })
-    await choose(wrapper, 'opportunity')
-    await wrapper.setProps({ opportunity: null, opportunityNote: '' })
+  it('換半徑重讀中（opportunity 變 null）：先不上色、不重建圖層；資料回來再上色', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'opportunity' })
+    await wrapper.setProps({ opportunity: null })
     await flushPromises()
-    expect(radioButton(wrapper, '招生機會').classes()).toContain('is-active')
     expect(classOf(DINGJIN)).toBe('area-village area-village--l0')
-    expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual(['三民區鼎金里', '招生機會讀取中…'])
+    expect(pathOf(DINGJIN)).toBe('area-village area-village--l0')
     await wrapper.setProps({ opportunity: areaOpportunity() })
     await flushPromises()
-    expect(classOf(DINGJIN)).toBe('area-village area-village--chance')
+    expect(pathOf(DINGJIN)).toBe('area-village area-village--chance')
     expect(leaflet.created.geoJSON).toHaveLength(1)
-  })
-
-  it('招生機會變得用不了（換校區後人口沒匯入、讀取失敗）：退回參觀人數著色', async () => {
-    const wrapper = await mountMap({ opportunity: areaOpportunity() })
-    await choose(wrapper, 'opportunity')
-    await wrapper.setProps({ opportunity: null, opportunityNote: '招生機會讀取失敗。' })
-    await flushPromises()
-    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
-    expect(classOf(BENYANG)).toBe('area-village area-village--l5')
   })
 
   it('招生機會的顏色走 token（style.css 的 --area-chance），元件裡不寫色碼', () => {
@@ -905,19 +884,9 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
   const OUTSIDE = coded('小港區', '青島里', '64000110001')
   const latest = (): any => leaflet.created.geoJSON!.at(-1)
   const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
-  const popupLines = (item: ReturnType<typeof coded>) => {
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    latest().options.onEachFeature(item, village)
-    return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
-  }
-  async function choose(wrapper: VueWrapper, mode: string) {
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
-    await flushPromises()
-  }
 
   it('增加多、減少依分級上色；里界調整合併的組、半徑外不上色；圖例；地圖名稱跟著換', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'trend')
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'trend' })
     expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
       'area-village area-village--up2', 'area-village area-village--down1',
       // 寶業里、龍子里是同一個合併組：數字是整組的，不替組內各里上色。
@@ -925,40 +894,18 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
     ])
     expect(wrapper.findAll('.area-legend--signals li').map((item) => item.text()))
       .toEqual(['增加多', '增加', '差不多', '減少', '減少多', '孩子少、里界調整、在半徑外或沒有資料'])
-    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依孩子增減著色）；同樣的資料在下方的里的變化表')
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依孩子增減著色）；同樣的資料在下方的各里表')
   })
 
-  it('彈出框：孩子與一年前、淨增與分級、出生與淨遷入；合併組先寫合併；半徑外寫不在範圍內', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'trend')
-    expect(popupLines(BENYANG)).toEqual([
-      '三民區本揚里', '2–5 歲 317 位（一年前 1–4 歲 281 位）', '這一年淨增 +36（+12.8%）・增加多', '近 12 個月出生 36 位・淨遷入 \u2212122 人', '查看明細',
-    ])
-    expect(popupLines(LONGZI)).toEqual([
-      '鼓山區龍子里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
-      '2–5 歲 583 位（一年前 1–4 歲 600 位）', '這一年淨增 +12（+2.0%）・差不多', '近 12 個月出生 90 位・淨遷入 +30 人', '查看明細',
-    ])
-    expect(popupLines(OUTSIDE)).toEqual(['小港區青島里', '不在本校 3 公里內'])
-  })
-
-  it('孩子增減用不了時停用並寫原因；正在看的人退回參觀人數', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'trend')
-    await wrapper.setProps({ trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
+  it('讀取中（換半徑，trends 變 null）：先不上色，資料回來再上色，不重建圖層', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'trend' })
+    await wrapper.setProps({ trends: null })
     await flushPromises()
-    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
-    expect(disabledLabels(wrapper)).toEqual(['孩子增減'])
-    expect(wrapper.get('.area-map__mode-note').text()).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
-  })
-
-  it('讀取中（換半徑）：留在孩子增減、先不上色，彈出框寫讀取中', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'trend')
-    await wrapper.setProps({ trends: null, trendNote: '' })
-    await flushPromises()
-    expect(radioButton(wrapper, '孩子增減').classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
-    expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
+    await wrapper.setProps({ trends: areaTrends() })
+    await flushPromises()
+    expect(classOf(BENYANG)).toBe('area-village area-village--up2')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
   })
 
   it('減少的顏色走 token（style.css 的 --area-down-*），元件裡不寫色碼', () => {
@@ -978,19 +925,9 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
   const OUTSIDE = coded('小港區', '青島里', '64000110001')
   const latest = (): any => leaflet.created.geoJSON!.at(-1)
   const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
-  const popupLines = (item: ReturnType<typeof coded>) => {
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    latest().options.onEachFeature(item, village)
-    return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
-  }
-  async function choose(wrapper: VueWrapper, mode: string) {
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
-    await flushPromises()
-  }
 
   it('近 4 季筆數依半徑內最多的里分 5 級（同參觀人數的切法）；0 筆、半徑外不上色；圖例寫「筆」；地圖名稱跟著換', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'homes')
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'homes' })
     // 本揚里 24 筆、鼎金里 106 筆（最多）；寶業里、龍子里是同一個合併組，組內沒有交屋（0 筆）：不上色。
     expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
       'area-village area-village--l2', 'area-village area-village--l5',
@@ -998,24 +935,18 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     ])
     expect(wrapper.findAll('.area-legend--levels li').map((item) => item.text()))
       .toEqual(['1–21 筆', '22–42 筆', '43–63 筆', '64–84 筆', '85–106 筆', '0 筆或在半徑外'])
-    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在下方的里的變化表')
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依新屋交屋著色）；同樣的資料在下方的各里表')
   })
 
-  it('里界調整合併的組：列上是整組的數字，組內各里依自己的筆數上色，彈出框寫自己的與整組的', async () => {
+  it('里界調整合併的組：列上是整組的數字，組內各里依自己的筆數上色', async () => {
     const base = areaTrends()
     // 寶業里 8 筆、龍子里 4 筆，整組 12 筆（分級的最大值仍是鼎金里的 106 筆）。
     const trends = areaTrends({
       villages: base.villages.map((row) =>
         row.merged ? { ...row, new_homes: 12, new_homes_latest: 5, new_homes_by_code: { '64000050025': 8, '64000020015': 4 } } : row),
     })
-    const wrapper = await mountMap({ trends })
-    await choose(wrapper, 'homes')
+    await mountMap({ trends, mode: 'homes' })
     expect([BAOYE, LONGZI].map(classOf)).toEqual(['area-village area-village--l1', 'area-village area-village--l1'])
-    expect(popupLines(BAOYE)).toEqual([
-      '三民區寶業里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
-      '近 4 季新屋交屋 8 筆（整組 12 筆）', '最近一季（115S3）整組 5 筆', '查看明細',
-    ])
-    expect(popupLines(LONGZI).at(2)).toBe('近 4 季新屋交屋 4 筆（整組 12 筆）')
   })
 
   it('合併組比任何一個單獨的里都多時，分級以組內最多的那一里為最大值（不是整組）', async () => {
@@ -1026,8 +957,7 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
           ? { ...row, new_homes: 639, new_homes_latest: 100, new_homes_by_code: { '64000050025': 500, '64000020015': 139 } }
           : { ...row, new_homes: 24, new_homes_by_code: row.new_homes_by_code }),
     })
-    const wrapper = await mountMap({ trends })
-    await choose(wrapper, 'homes')
+    await mountMap({ trends, mode: 'homes' })
     // 最大值是組內寶業里的 500：寶業里最深（l5），龍子里 139（l2）；鼎金里 24（l1）。
     expect([BAOYE, LONGZI, BENYANG].map(classOf)).toEqual([
       'area-village area-village--l5', 'area-village area-village--l2', 'area-village area-village--l1',
@@ -1036,44 +966,23 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
 
   it('半徑內都沒有交屋：圖例換成一句話，不留空圖例', async () => {
     const base = areaTrends()
-    const wrapper = await mountMap({ trends: areaTrends({ villages: base.villages.map((row) => ({ ...row, new_homes: 0, new_homes_latest: 0 })) }) })
-    await choose(wrapper, 'homes')
+    const wrapper = await mountMap({
+      trends: areaTrends({ villages: base.villages.map((row) => ({ ...row, new_homes: 0, new_homes_latest: 0 })) }),
+      mode: 'homes',
+    })
     expect(wrapper.find('.area-legend--levels').exists()).toBe(false)
     expect(wrapper.get('.area-map__none').text()).toBe('半徑內近 4 季沒有新屋交屋。')
   })
 
-  it('彈出框：近 4 季與最近一季；合併組先寫合併、數字是整組的；半徑外寫不在範圍內', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'homes')
-    expect(popupLines(BENYANG)).toEqual(['三民區本揚里', '近 4 季新屋交屋 24 筆', '最近一季（115S3）9 筆', '查看明細'])
-    expect(popupLines(LONGZI)).toEqual([
-      '鼓山區龍子里', '里界調整過，和同區的里合併計算：三民區寶業里、龍子里（里界調整，合併）',
-      '近 4 季新屋交屋 0 筆（整組 0 筆）', '最近一季（115S3）整組 0 筆', '查看明細',
-    ])
-    expect(popupLines(OUTSIDE)).toEqual(['小港區青島里', '不在本校 3 公里內'])
-  })
-
-  it('新屋交屋用不了時停用並寫原因（正在看的人退回參觀人數）；孩子增減停用不連帶它', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'homes')
-    await wrapper.setProps({ homesNote: '新成屋資料尚未匯入。' })
+  it('讀取中（換半徑，trends 變 null）：先不上色，資料回來再上色，不重建圖層', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'homes' })
+    await wrapper.setProps({ trends: null })
     await flushPromises()
-    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
-    expect(disabledLabels(wrapper)).toEqual(['新屋交屋'])
-    expect(wrapper.get('.area-map__mode-note').text()).toBe('新成屋資料尚未匯入。')
-
-    const other = await mountMap({ trends: areaTrends(), trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
-    expect(disabledLabels(other)).toEqual(['孩子增減'])
-  })
-
-  it('讀取中（換半徑）：留在新屋交屋、先不上色，彈出框寫讀取中', async () => {
-    const wrapper = await mountMap({ trends: areaTrends() })
-    await choose(wrapper, 'homes')
-    await wrapper.setProps({ trends: null, homesNote: '' })
-    await flushPromises()
-    expect(radioButton(wrapper, '新屋交屋').classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
-    expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
+    await wrapper.setProps({ trends: areaTrends() })
+    await flushPromises()
+    expect(classOf(BENYANG)).toBe('area-village area-village--l2')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
   })
 })
 
@@ -1081,21 +990,9 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
   const enrolledGroup = (): any => leaflet.created.layerGroup![2]
   const enrolledMarkers = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => String(marker.options.className).startsWith('area-enrolled'))
   async function choose(wrapper: VueWrapper, mode: string) {
-    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', mode)
+    await wrapper.setProps({ mode })
     await flushPromises()
   }
-
-  it('沒匯入時按鈕停用並寫原因；在籍學生模式中原因出現就退回參觀人數', async () => {
-    const missing = await mountMap({ enrolled: areaEnrolled({ status: 'not_imported' }), enrolledNote: '尚未匯入在籍名冊。' })
-    expect(disabledLabels(missing)).toEqual(['在籍學生'])
-    expect(missing.get('.area-map__mode-note').text()).toBe('尚未匯入在籍名冊。')
-
-    const ready = await mountMap({ enrolled: areaEnrolled() })
-    await choose(ready, 'enrolled')
-    await ready.setProps({ enrolledNote: '在籍學生讀取失敗。' })
-    await flushPromises()
-    expect(radioButton(ready, '參觀').classes()).toContain('is-active')
-  })
 
   it('切到在籍學生：里不上色、點圖層加到地圖；兩位以上的格畫大一級；切走就收起', async () => {
     const wrapper = await mountMap({ enrolled: areaEnrolled() })
@@ -1122,10 +1019,9 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       await chunkFails()
-      const wrapper = await mountMap({ enrolled: areaEnrolled() })
+      // 沒有地圖時模式照常由外層決定：先是在籍學生，再重試。
+      const wrapper = await mountMap({ enrolled: areaEnrolled(), mode: 'enrolled' })
       expect(leaflet.created.map).toBeUndefined()
-      // 沒有地圖時切換列照常可用：先選好在籍學生，再重試。
-      await choose(wrapper, 'enrolled')
       await chunkLoads()
       await button(wrapper, '重試')!.trigger('click')
       await settle()
@@ -1191,44 +1087,23 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(frontCalls()).toEqual([2, 2, 2])
   })
 
-  it('篩選鈕回報 update:gradeFilter；圖例寫清冊日期與沒有點的人數', async () => {
-    const wrapper = await mountMap({ enrolled: areaEnrolled() })
-    await choose(wrapper, 'enrolled')
-    const groups = wrapper.findAllComponents({ name: 'ElRadioGroup' })
-    expect(groups[1]!.findAll('.el-radio-button').map((item) => item.text())).toEqual(['全部 5', '幼幼班 1', '小班 2', '中班 1', '大班 1'])
-    groups[1]!.vm.$emit('update:modelValue', '中班')
-    expect(wrapper.emitted('update:gradeFilter')).toEqual([['中班']])
+  it('圖例寫清冊日期與沒有點的人數；班別篩選不在地圖上（移到右欄，規格 D13），地圖也不再發 update:gradeFilter', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled(), mode: 'enrolled' })
+    expect(wrapper.findAllComponents({ name: 'ElRadioGroup' })).toHaveLength(0)
     const legend = wrapper.get('.area-legend--enrolled').text()
     expect(legend).toContain('清冊 2026/10/15・115 學年班別・門牌 115 年 10 月版・地圖上 4 位')
     expect(legend).toContain('沒有點 1 位（只對到里 1）')
+    expect(wrapper.emitted('update:gradeFilter')).toBeUndefined()
   })
 
-  it('點的彈出框寫這附近幾位、各班；里的彈出框寫在籍人數', async () => {
-    const wrapper = await mountMap({ enrolled: areaEnrolled() })
-    await choose(wrapper, 'enrolled')
+  it('點的彈出框寫這附近幾位、各班；點里不開彈出框（在籍數寫在右欄的卡片）', async () => {
+    const wrapper = await mountMap({ enrolled: areaEnrolled(), mode: 'enrolled' })
     const marker = enrolledMarkers()[0]
     expect((marker.bindPopup.mock.calls[0]![0]() as HTMLElement).textContent).toBe('這附近 2 位：小班 1、中班 1')
-    const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-    const latest: any = leaflet.created.geoJSON!.at(-1)
-    latest.options.onEachFeature({ properties: { TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' } }, village)
-    const popup = village.bindPopup.mock.calls[0]![0]() as HTMLElement
-    expect([...popup.children].map((node) => node.textContent)).toEqual(['三民區本揚里', '在籍 3 位'])
-  })
-
-  it('里的彈出框對不到代碼（village_code 是 null）時改用區名與里名找', async () => {
-    const base = areaEnrolled()
-    const villages = base.villages.map((row) => ({ ...row, village_code: null }))
-    const wrapper = await mountMap({ enrolled: areaEnrolled({ villages }) })
-    await choose(wrapper, 'enrolled')
-    const latest: any = leaflet.created.geoJSON!.at(-1)
-    const popupOf = (properties: Record<string, string>) => {
-      const village = { bindPopup: vi.fn(), bindTooltip: vi.fn() }
-      latest.options.onEachFeature({ properties }, village)
-      return [...(village.bindPopup.mock.calls[0]![0]() as HTMLElement).children].map((node) => node.textContent)
-    }
-    expect(popupOf({ TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' })).toEqual(['三民區本揚里', '在籍 3 位'])
-    // 區名相同、里名不同，或里名相同、區名不同，都不算同一個里。
-    expect(popupOf({ TOWNNAME: '左營區', VILLNAME: '本揚里', VILLCODE: '64000030099' })).toEqual(['左營區本揚里', '這個里沒有在籍學生'])
+    const village = villageLayerStub()
+    one('geoJSON').options.onEachFeature(feature('三民區', '本揚里', '64000050015'), village)
+    expect(village.bindPopup).not.toHaveBeenCalled()
+    expect(wrapper.find('.leaflet-popup').exists()).toBe(false)
   })
 
   it('顏色走 token（style.css 的 --area-enrolled），元件裡不寫色碼', () => {
@@ -1236,5 +1111,217 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
     expect(source).toContain('fill: var(--area-enrolled)')
     const style = readFileSync(join(__dirname, '..', 'style.css'), 'utf8')
     expect(style).toMatch(/--area-enrolled: var\(--admin-accent\)/)
+  })
+})
+
+describe('地圖工作台：模式由外層決定、點里選取、選取外框（2026-10-16 規格 §2.2、D3、D6、D7）', () => {
+  const BENYANG = '64000050015'
+  const LONGZI = '64000020015'
+  const DINGJIN = feature('三民區', '鼎金里', '64000050001')
+  const villagesLayer = (): any => leaflet.created.geoJSON![0]
+  const outlines = (): any[] => leaflet.created.geoJSON!.filter((layer) => layer.options.pane === 'area-selected')
+  const pathClasses = () =>
+    villagesLayer().children.map((child: any) => [...child.getElement().classList].filter((name: string) => name !== 'leaflet-interactive').join(' '))
+
+  it('mode 是 prop：children 時鼎金里 l5；peers 時全部 l0，也不畫里的圖例', async () => {
+    const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'children' })
+    expect(villagesLayer().options.style(DINGJIN).className).toBe('area-village area-village--l5')
+    await wrapper.setProps({ mode: 'peers' })
+    expect(pathClasses()).toEqual(Array(4).fill('area-village area-village--l0'))
+    expect(villagesLayer().options.style(feature('三民區', '本揚里', BENYANG)).className).toBe('area-village area-village--l0')
+    expect(leaflet.created.geoJSON).toHaveLength(1) // 換模式不重建里界
+    expect(wrapper.find('.area-legend--levels').exists()).toBe(false)
+    expect(wrapper.find('.area-map__none').exists()).toBe(false)
+    expect(wrapper.find('.area-legend--signals').exists()).toBe(false)
+  })
+
+  it('peers：幼兒園圖層強制顯示、開關鎖住並寫「同業模式一律顯示」；離開 peers 回到使用者自己的選擇', async () => {
+    const wrapper = await mountMap()
+    const group = one('layerGroup')
+    const map = one('map')
+    const kindergartenSwitch = () => wrapper.findAll('.el-switch')[0]!
+    expect(kindergartenSwitch().classes()).not.toContain('is-disabled')
+    expect(wrapper.find('.area-legend--kinds .hint').exists()).toBe(false)
+    // 使用者先把幼兒園關掉。
+    wrapper.findComponent({ name: 'ElSwitch' }).vm.$emit('update:modelValue', false)
+    await flushPromises()
+    expect(map.removeLayer).toHaveBeenCalledWith(group)
+    expect(wrapper.text()).not.toContain('非營利')
+    map.addLayer.mockClear()
+    map.removeLayer.mockClear()
+
+    await wrapper.setProps({ mode: 'peers' })
+    expect(map.addLayer).toHaveBeenCalledWith(group)
+    expect(kindergartenSwitch().classes()).toEqual(expect.arrayContaining(['is-disabled', 'is-checked']))
+    expect(wrapper.get('.area-legend--kinds .hint').text()).toBe('同業模式一律顯示')
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('非營利') // 類型圖例跟著出現
+    map.removeLayer.mockClear()
+
+    await wrapper.setProps({ mode: 'visits' })
+    expect(map.removeLayer).toHaveBeenCalledWith(group)
+    expect(kindergartenSwitch().classes()).not.toContain('is-disabled')
+    expect(kindergartenSwitch().classes()).not.toContain('is-checked')
+    expect(wrapper.find('.area-legend--kinds .hint').exists()).toBe(false)
+  })
+
+  it('一進來就是 peers（網址 map=peers）：幼兒園圖層建圖時就加上；使用者開著的圖層離開 peers 後不動', async () => {
+    const wrapper = await mountMap({ mode: 'peers' })
+    expect(one('layerGroup').addTo).toHaveBeenCalledWith(one('map'))
+    one('map').removeLayer.mockClear()
+    await wrapper.setProps({ mode: 'visits' })
+    expect(one('map').removeLayer).not.toHaveBeenCalledWith(one('layerGroup'))
+  })
+
+  it('建圖後、加任何圖層之前先建兩個 pane：area-selected（410、不收滑鼠事件）與 area-points（420）', async () => {
+    await mountMap()
+    const map = one('map')
+    expect(map.createPane).toHaveBeenCalledTimes(2)
+    expect(map.panes['area-selected'].style).toEqual({ zIndex: '410', pointerEvents: 'none' })
+    expect(map.panes['area-points'].style).toEqual({ zIndex: '420' })
+    const lastPane = Math.max(...map.createPane.mock.invocationCallOrder)
+    expect(lastPane).toBeGreaterThan(leaflet.module.map.mock.invocationCallOrder[0]!)
+    for (const draw of [leaflet.module.tileLayer, leaflet.module.layerGroup, leaflet.module.geoJSON, leaflet.module.circle, leaflet.module.circleMarker]) {
+      expect(draw.mock.invocationCallOrder[0], '圖層在 pane 建好之前就加了').toBeGreaterThan(lastPane)
+    }
+  })
+
+  it('幼兒園與在籍點的圓點都畫在 area-points pane；托嬰菱形與本校星號留在預設的 marker pane', async () => {
+    await mountMap({ enrolled: areaEnrolled(), babycare: areaBabycare().items })
+    const dots = leaflet.created.circleMarker!
+    expect(dots).toHaveLength(7) // 幼兒園 4＋在籍 3 格
+    expect(dots.map((marker) => marker.options.pane)).toEqual(Array(7).fill('area-points'))
+    for (const marker of leaflet.created.marker!) expect(marker.options.pane).toBeUndefined()
+    // 里界與半徑圓留在預設的 overlay pane：里界不指定 pane。
+    expect(villagesLayer().options.pane).toBeUndefined()
+  })
+
+  it('selectedCode 改變：外框畫在 area-selected pane（不可點、只有線），不重建里界、不重畫 class', async () => {
+    const wrapper = await mountMap()
+    const classesBefore = pathClasses()
+    await wrapper.setProps({ selectedCode: BENYANG })
+    expect(leaflet.created.geoJSON).toHaveLength(2) // 里界 1＋外框 1
+    const [outline] = outlines()
+    expect(outline.options).toMatchObject({
+      pane: 'area-selected', interactive: false, style: { className: 'area-village-selected', fill: false, weight: 2.5 },
+    })
+    // 只框選到的那一個里（單一 feature，不是整個 FeatureCollection）。
+    expect(outline.data.type).toBe('Feature')
+    expect(outline.data.properties).toMatchObject({ VILLCODE: BENYANG, VILLNAME: '本揚里' })
+    expect(outline.addTo).toHaveBeenCalledWith(one('map'))
+    expect(villagesLayer().remove).not.toHaveBeenCalled()
+    expect(villagesLayer().bringToBack).toHaveBeenCalledTimes(1)
+    expect(pathClasses()).toEqual(classesBefore)
+  })
+
+  it('換選取：舊外框移除、畫新的（合併組裡的里也只框自己）；清掉選取就移除外框', async () => {
+    const wrapper = await mountMap({ selectedCode: BENYANG })
+    expect(outlines()).toHaveLength(1)
+    const first = outlines()[0]
+    await wrapper.setProps({ selectedCode: LONGZI })
+    expect(first.remove).toHaveBeenCalledTimes(1)
+    expect(outlines()).toHaveLength(2)
+    expect(outlines()[1].data.properties).toMatchObject({ VILLCODE: LONGZI, VILLNAME: '龍子里' })
+    const second = outlines()[1]
+    await wrapper.setProps({ selectedCode: '' })
+    expect(second.remove).toHaveBeenCalledTimes(1)
+    expect(outlines()).toHaveLength(2) // 沒有再畫新的
+    expect(villagesLayer().remove).not.toHaveBeenCalled()
+    expect(leaflet.created.geoJSON).toHaveLength(3)
+  })
+
+  it('selectedCode 在里界裡找不到：不畫外框也不丟錯（舊的外框要清掉）', async () => {
+    const wrapper = await mountMap({ selectedCode: BENYANG })
+    const first = outlines()[0]
+    await wrapper.setProps({ selectedCode: '64000099999' })
+    expect(first.remove).toHaveBeenCalledTimes(1)
+    expect(outlines()).toHaveLength(1)
+  })
+
+  it('一開始就帶著 selectedCode（網址有 village）：建圖時畫外框，且在取視野與里界之後', async () => {
+    await mountMap({ selectedCode: BENYANG })
+    const [outline] = outlines()
+    expect(outline.data.properties.VILLCODE).toBe(BENYANG)
+    expect(outline.addTo.mock.invocationCallOrder[0]).toBeGreaterThan(one('map').fitBounds.mock.invocationCallOrder[0])
+    expect(outline.addTo.mock.invocationCallOrder[0]).toBeGreaterThan(villagesLayer().addTo.mock.invocationCallOrder[0])
+  })
+
+  it('里界整層重畫（換版面、換里界檔）：外框跟著重畫在新里界之後，舊的移除', async () => {
+    const wrapper = await mountMap({ selectedCode: BENYANG })
+    const first = outlines()[0]
+    await wrapper.setProps({ narrow: true })
+    expect(villagesLayer().remove).toHaveBeenCalled()
+    expect(first.remove).toHaveBeenCalledTimes(1)
+    expect(outlines()).toHaveLength(2)
+    const redrawn = leaflet.created.geoJSON!.filter((layer) => layer.options.pane !== 'area-selected')[1]
+    expect(outlines()[1].addTo.mock.invocationCallOrder[0]).toBeGreaterThan(redrawn.addTo.mock.invocationCallOrder[0])
+    await wrapper.setProps({ boundaries: villageBoundaries() })
+    expect(outlines()).toHaveLength(3)
+    expect(outlines()[1].remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('換模式或換資料只換各里 class，不動選取外框', async () => {
+    const wrapper = await mountMap({ selectedCode: BENYANG, opportunity: areaOpportunity() })
+    const outline = outlines()[0]
+    await wrapper.setProps({ mode: 'opportunity' })
+    await wrapper.setProps({ villages: [] })
+    expect(outline.remove).not.toHaveBeenCalled()
+    expect(leaflet.created.geoJSON).toHaveLength(2)
+  })
+
+  it('外框的顏色走 token（--ink），元件裡不寫色碼；建圖失敗清半成品時外框不會殘留引用', () => {
+    const source = readFileSync(join(__dirname, '..', 'components', 'admissions', 'area', 'AreaMap.vue'), 'utf8')
+    expect(source).toMatch(/\.area-map :deep\(\.area-village-selected\)\s*\{\s*stroke: var\(--ink\);\s*\}/)
+    expect(source.slice(source.indexOf('<style'))).not.toMatch(/rgba?\(|oklch\(|hsla?\(|#[0-9a-f]{3,8}\b/i)
+  })
+
+  it('focusVillage：里不在視野才 panTo 該里的中心，不改縮放；已在視野或找不到代碼就不動', async () => {
+    const wrapper = await mountMap()
+    const vm = wrapper.vm as unknown as { focusVillage: (code: string) => void }
+    const map = one('map')
+    vm.focusVillage(LONGZI)
+    expect(map.panTo).toHaveBeenCalledTimes(1)
+    expect(map.panTo).toHaveBeenCalledWith({ centerOf: LONGZI })
+    expect(map.setView).not.toHaveBeenCalled()
+    expect(map.fitBounds).toHaveBeenCalledTimes(1) // 只有建圖時那次
+    map.panTo.mockClear()
+    map.getBounds.mockReturnValue({ contains: () => true })
+    vm.focusVillage(BENYANG)
+    expect(map.panTo).not.toHaveBeenCalled()
+    map.getBounds.mockReturnValue({ contains: () => false })
+    vm.focusVillage('64000099999')
+    expect(map.panTo).not.toHaveBeenCalled()
+  })
+
+  it('focusVillage：地圖沒建起來（Leaflet 載入失敗）時什麼都不做、不丟錯', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      await chunkFails()
+      const wrapper = await mountMap()
+      expect(leaflet.created.map).toBeUndefined()
+      expect(() => (wrapper.vm as unknown as { focusVillage: (code: string) => void }).focusVillage(BENYANG)).not.toThrow()
+    } finally {
+      logged.mockRestore()
+    }
+  })
+
+  it.each([
+    ['visits', '義華周邊里界地圖（依參觀著色）；同樣的資料在下方的參觀來源表與幼兒園清單'],
+    ['children', '義華周邊里界地圖（依2–5 歲孩子著色）；同樣的資料在下方的各里表與幼兒園清單'],
+    ['trend', '義華周邊里界地圖（依孩子增減著色）；同樣的資料在下方的各里表與幼兒園清單'],
+    ['homes', '義華周邊里界地圖（依新屋交屋著色）；同樣的資料在下方的各里表與幼兒園清單'],
+    ['opportunity', '義華周邊里界地圖（依招生機會著色）；同樣的資料在下方的各里表與幼兒園清單'],
+    ['enrolled', '義華周邊在籍學生住處地圖（每格約 100 公尺標一點）；同樣的資料在下方的在籍學生表'],
+    ['peers', '義華周邊里界地圖（里不上色，標出附近的幼兒園）；同樣的資料在下方的同業收費表與幼兒園清單'],
+  ])('地圖名稱：%s 模式指到對應的表格分頁', async (mode, label) => {
+    const wrapper = await mountMap({ mode })
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toBe(label)
+  })
+
+  it('地圖不再有著色模式鈕與停用原因（搬到 AreaTab 的工具列）', async () => {
+    const wrapper = await mountMap({ mode: 'opportunity' })
+    expect(wrapper.find('.area-map__modes').exists()).toBe(false)
+    expect(wrapper.find('.area-map__mode-note').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="地圖著色"]').exists()).toBe(false)
   })
 })

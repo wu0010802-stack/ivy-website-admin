@@ -24,7 +24,7 @@ import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
   bandLabel, campusNotLocatedReason, enrolledMapNote, homesMapNote, opportunityUnavailable, trendMapNote,
-  type GradeFilter, type NearbyKind, type RadiusKm,
+  type GradeFilter, type MapMode, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 import { addressSummary, dataStatusSegments } from './areaPane'
 import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
@@ -253,6 +253,13 @@ watch(() => props.campusKey, () => {
   void loadEnrolled()
 }, { immediate: true })
 const enrolledNote = computed(() => enrolledMapNote(enrolled.value, enrolledFailed.value))
+// 四個停用原因不再傳給 AreaMap（模式鈕搬到 AreaTab 的工具列）。Task 9 用它們決定模式停用與退回；在那之前沒有人讀，
+// 這行只為了讓 noUnusedLocals 過關。
+void [opportunityNote, trendNote, homesNote, enrolledNote]
+
+// 地圖著色與選取的里：Task 9 改由工具列與網址決定，這裡先固定，讓 AreaMap 的新 props 有值。
+const mapMode = ref<MapMode>('visits')
+const selectedCode = ref('')
 
 const map = ref<{ focusKindergarten: (id: string) => void; focusBabycare: (id: string) => void; revealBabycare: () => void } | null>(null)
 function focusKindergarten(id: string) {
@@ -313,9 +320,6 @@ function openDistrict({ district }: AreaDistrictRow) {
 function openVillage({ district, village }: AreaVillageRow) {
   emit('open-records', { area: areaQuery({ kind: 'place', district, village }) })
 }
-function openPlace(filter: { district: string; village: string }) {
-  emit('open-records', { area: areaQuery({ kind: 'place', ...filter }) })
-}
 function openNoVillage() {
   emit('open-records', { area: areaQuery({ kind: 'no_village' }) })
 }
@@ -361,15 +365,12 @@ function openNoVillage() {
             :babycare="babycare?.items ?? []"
             :radius-km="radiusKm"
             :narrow="narrow"
+            :mode="mapMode"
+            :selected-code="selectedCode"
             :opportunity="opportunity"
-            :opportunity-note="opportunityNote"
             :trends="trends"
-            :trend-note="trendNote"
-            :homes-note="homesNote"
             :enrolled="enrolled"
-            :enrolled-note="enrolledNote"
-            v-model:grade-filter="gradeFilter"
-            @open-area="openPlace"
+            :grade-filter="gradeFilter"
           />
         </div>
         <div class="area-top__side">
