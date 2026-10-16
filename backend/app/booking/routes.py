@@ -1457,7 +1457,8 @@ async def update_visit_request_details(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminDetailsUpdateOut:
-    """後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。
+    """後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日，
+    以及預計入學時間（2026-10-15，只改預約，不同步招生的入學學期）。
     任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的
     details_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是
     當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。"""

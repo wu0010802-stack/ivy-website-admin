@@ -329,7 +329,9 @@ async def lock_editable(db: AsyncSession, visit_request: VisitRequest, expected_
         raise VersionConflict(visit_request.version)
 
 
-EDITABLE_BY_PARENT = ("parent_name", "phone", "email", "child_name", "child_birthdate", "party_size", "questions")
+EDITABLE_BY_PARENT = (
+    "parent_name", "phone", "email", "child_name", "child_birthdate", "party_size", "questions", "expected_start",
+)
 
 
 async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
@@ -428,12 +430,12 @@ async def update_details_by_parent(
     return changed
 
 
-# 後台人員可以改的家長資料（2026-10-12 規格 3.1）：不含參觀人數與想了解的事。
-EDITABLE_BY_STAFF = ("parent_name", "phone", "email", "child_name", "child_birthdate")
-# 其中會同步到招生訪視的四欄（招生訪視沒有 Email）。
+# 後台人員可以改的家長資料（2026-10-12 規格 3.1）：不含參觀人數與想了解的事；2026-10-15 加預計入學時間。
+EDITABLE_BY_STAFF = ("parent_name", "phone", "email", "child_name", "child_birthdate", "expected_start")
+# 其中會同步到招生訪視的四欄（招生訪視沒有 Email；預計入學時間只在到場建立訪視時帶一次，之後不同步，規格 X4）。
 _ADMISSIONS_SOURCE_FIELDS = ("parent_name", "phone", "child_name", "child_birthdate")
 # 標記已到場建立招生訪視時讀的預約欄位（booking_link.fields_from_visit_request 與追蹤欄位）。
-_ADMISSIONS_CREATE_FIELDS = (*_ADMISSIONS_SOURCE_FIELDS, "referral_sources", "questions", "follow_up_at")
+_ADMISSIONS_CREATE_FIELDS = (*_ADMISSIONS_SOURCE_FIELDS, "referral_sources", "questions", "follow_up_at", "expected_start")
 
 
 class DetailsAnonymized(Exception):

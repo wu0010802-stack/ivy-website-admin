@@ -552,6 +552,8 @@ class ParentDetailsUpdate(BaseModel):
     child_birthdate: date | None = None
     party_size: int | None = Field(default=None, ge=1, le=10)
     questions: str | None = Field(default=None, max_length=500)
+    # 預計入學時間（2026-10-15）：家長可以改或清空（null 或空字串）；範圍同官網送單（計畫裁定 P4）。
+    expected_start: str | None = Field(default=None, max_length=8)
 
     @field_validator("parent_name", "child_name", mode="before")
     @classmethod
@@ -573,6 +575,19 @@ class ParentDetailsUpdate(BaseModel):
     def _birthdate_not_future(cls, value: date | None) -> date | None:
         if value is not None and value > today_local():
             raise ValueError("寶貝出生日期不能晚於今天")
+        return value
+
+    @field_validator("expected_start", mode="before")
+    @classmethod
+    def _expected_start_blank(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_public(cls, value: str | None) -> str | None:
+        # 沒動這一題的人不會送這個欄位（changes() 只看有送的欄位），送單後跨了學期、原值已過期也不擋其他欄位。
+        if value is not None:
+            start_rules.validate_public(value, today_local())
         return value
 
     @field_validator(*_PARENT_REQUIRED_MESSAGES, mode="before")
@@ -599,11 +614,11 @@ _STAFF_REQUIRED_MESSAGES = {
 
 
 class AdminDetailsUpdate(BaseModel):
-    """後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄
-    （人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
+    """後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
+    （2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
 
     驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空
-    （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。
+    （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。
     expected_version 是案件的 details_version，和家長端共用。"""
 
     model_config = {"extra": "forbid"}
@@ -614,13 +629,15 @@ class AdminDetailsUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=254)
     child_name: str | None = Field(default=None, max_length=64)
     child_birthdate: date | None = None
+    # 預計入學時間（2026-10-15 規格 X5、X8）：格式正確即可（可以填過去的學期）；空字串或 null 是清空。
+    expected_start: str | None = Field(default=None, max_length=8)
 
     @field_validator("parent_name", "child_name", mode="before")
     @classmethod
     def _strip(cls, value):
         return value.strip() if isinstance(value, str) else value
 
-    @field_validator("email", "child_name", "child_birthdate", mode="before")
+    @field_validator("email", "child_name", "child_birthdate", "expected_start", mode="before")
     @classmethod
     def _blank_means_cleared(cls, value):
         # 空字串（含只有空白）和 null 一樣是清空，存成 NULL。
@@ -643,6 +660,13 @@ class AdminDetailsUpdate(BaseModel):
             raise ValueError("寶貝出生日期不能晚於今天")
         return value
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_format(cls, value: str | None) -> str | None:
+        if value is not None:
+            start_rules.parse(value)
+        return value
+
     @field_validator(*_STAFF_REQUIRED_MESSAGES, mode="before")
     @classmethod
     def _required_stay_filled(cls, value, info: ValidationInfo):
@@ -659,7 +683,7 @@ class AdminDetailsUpdate(BaseModel):
 class ParentVisitRequestOut(BaseModel):
     """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
     含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
-    孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+    孩子姓名與生日、人數、提問、預計入學時間）要能在這裡修改，所以照原樣回傳（規格 3.3）——
     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。"""
 
     id: uuid.UUID
@@ -672,6 +696,7 @@ class ParentVisitRequestOut(BaseModel):
     child_birthdate: date | None = None
     party_size: int | None = None
     questions: str | None = None
+    expected_start: str | None = None
     # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。是 details_version，
     # 不是案件的 version（那是園方下次聯絡時間的鎖）。
     version: int
@@ -722,6 +747,7 @@ class ParentVisitRequestOut(BaseModel):
             child_birthdate=visit_request.child_birthdate,
             party_size=visit_request.party_size,
             questions=visit_request.questions,
+            expected_start=visit_request.expected_start,
             version=visit_request.version,
             slot=(
                 VisitSlotBriefOut.model_validate(visit_request.slot)

@@ -3,7 +3,7 @@
     "schemas": {
       "AdminDetailsUpdate": {
         "additionalProperties": false,
-        "description": "後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄\n（人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。\n\n驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空\n（送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。\nexpected_version 是案件的 details_version，和家長端共用。",
+        "description": "後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄\n（2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。\n\n驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空\n（送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。\nexpected_version 是案件的 details_version，和家長端共用。",
         "properties": {
           "child_birthdate": {
             "anyOf": [
@@ -41,6 +41,18 @@
               }
             ],
             "title": "Email"
+          },
+          "expected_start": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
           },
           "expected_version": {
             "minimum": 1.0,
@@ -10369,6 +10381,18 @@
             ],
             "title": "Email"
           },
+          "expected_start": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
+          },
           "expected_version": {
             "title": "Expected Version",
             "type": "integer"
@@ -10456,7 +10480,7 @@
         "type": "object"
       },
       "ParentVisitRequestOut": {
-        "description": "家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，\n含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、\n孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——\n修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。",
+        "description": "家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，\n含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、\n孩子姓名與生日、人數、提問、預計入學時間）要能在這裡修改，所以照原樣回傳（規格 3.3）——\n修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。",
         "properties": {
           "campus_active": {
             "title": "Campus Active",
@@ -10577,6 +10601,17 @@
               }
             ],
             "title": "Email"
+          },
+          "expected_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Start"
           },
           "id": {
             "format": "uuid",
@@ -29429,7 +29464,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/details": {
       "patch": {
-        "description": "後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。\n任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的\ndetails_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是\n當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。",
+        "description": "後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日，\n以及預計入學時間（2026-10-15，只改預約，不同步招生的入學學期）。\n任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的\ndetails_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是\n當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。",
         "operationId": "update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch",
         "parameters": [
           {
