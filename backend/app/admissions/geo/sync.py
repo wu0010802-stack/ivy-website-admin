@@ -720,18 +720,21 @@ async def _fetch_slip(client: httpx.AsyncClient, url: str) -> dict | None:
     return json.loads(body)
 
 
-async def _latest_fee_year(client: httpx.AsyncClient, titles: list[str], current_year: int) -> int | None:
-    """規格 F6：從目前學年往回試，探測園所裡有一所的檔案存在，那一年就是最新學年。探測時的網路錯誤當作這所沒有。"""
+async def _latest_fee_year(client: httpx.AsyncClient, titles: list[str], current_year: int) -> tuple[int | None, int]:
+    """規格 F6：從目前學年往回試，探測園所裡有一所的檔案存在，那一年就是最新學年。回傳 (學年, 探測時的下載錯誤次數)；
+    探測時的網路錯誤當作這所沒有、換下一所再試，找不到學年時次數會寫進原因，分得出「真的沒有」和「連線有問題」。"""
+    errors = 0
     for year in range(current_year, current_year - FEES_LOOKBACK_YEARS, -1):
         for title in titles:
             try:
                 found = await _fetch_slip(client, fees_io.slip_url(year, title))
             except Exception:  # noqa: BLE001 - 換下一所再試
                 found = None
+                errors += 1
             await _sleep(FEES_REQUEST_GAP_SECONDS)
             if found is not None:
-                return year
-    return None
+                return year, errors
+    return None, errors
 
 
 async def fees_never_imported(session_factory: async_sessionmaker[AsyncSession]) -> bool:
@@ -771,9 +774,12 @@ async def sync_kindergarten_fees(
             name for _, name, kind in schools if kind in ("private", "quasi_public")
         ][:FEES_PROBES]
         current_year, _ = current_term(today_local(now))
-        year = await _latest_fee_year(client, probes, current_year)
+        year, probe_errors = await _latest_fee_year(client, probes, current_year)
         if year is None:
-            raise GeoSyncError("找不到任何學年的收費檔")
+            raise GeoSyncError("找不到任何學年的收費檔" + (f"（探測時 {probe_errors} 次下載錯誤）" if probe_errors else ""))
+        if stored_year is not None and year < stored_year:
+            # 規格 F4 只存最新學年：探測退到舊學年時，補缺不能把舊學年的列插進新學年的表，全量也不能把學年倒退。
+            raise GeoSyncError(f"找到的收費學年（{year}）比使用中的（{stored_year}）舊，未更新")
         full = (
             force or stored_year is None or year > stored_year
             or last_full is None or now - last_full >= FEES_REFRESH_AFTER
@@ -791,15 +797,16 @@ async def sync_kindergarten_fees(
                 rows = fees_io.parse_slip(data) if data is not None else []
             except Exception as exc:  # noqa: BLE001 - 一所壞掉不擋整輪，只計數
                 errors += 1
-                logger.warning("收費檔下載或解析失敗：%s", _error_text(exc))
+                logger.warning("收費檔下載或解析失敗（%s）：%s", source_id, _error_text(exc))
             else:
                 if rows:
                     fetched[source_id] = rows
             await _sleep(FEES_REQUEST_GAP_SECONDS)
         minutes = int(FEES_TIME_BUDGET.total_seconds() // 60)
+        timeout_message = f"收費同步超過 {minutes} 分鐘，已中止"
         if full:
             if timed_out:
-                raise GeoSyncError(f"收費同步超過 {minutes} 分鐘，已中止")
+                raise GeoSyncError(timeout_message)
             if errors > len(targets) * FEES_MAX_ERROR_RATIO:
                 raise GeoSyncError("收費檔下載錯誤太多，未更新")
             if len(existing) >= FEES_TRUNCATION_MIN and len(fetched) < len(existing) * FEES_TRUNCATION_RATIO:
@@ -828,14 +835,14 @@ async def sync_kindergarten_fees(
                 db.add(record)
             record.last_attempt_at = now
             record.checked_at = now
-            record.last_error = None
+            record.last_error = timeout_message if timed_out else None  # 補缺逾時：已抓到的照寫，原因同一個交易寫進去
             if full:
                 record.active_version = str(year)
                 record.label = str(year)
                 record.synced_at = now
             await db.commit()
         if timed_out:  # 補缺：抓到的已經寫入，但這一輪算失敗
-            await _record(session_factory, "kindergarten_fees", now=now, error=f"收費同步超過 {minutes} 分鐘，已中止")
+            logger.warning("幼兒園收費補缺超過 %s 分鐘，這一輪先停：已寫入 %s 所，其餘下一輪再補", minutes, len(fetched))
             return "failed", len(fetched)
         logger.info(
             "幼兒園收費已更新：%s 學年，%s，這次抓到 %s 所、下載錯誤 %s 所",
