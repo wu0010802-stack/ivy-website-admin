@@ -131,6 +131,11 @@ async function mountMap(changes: Record<string, unknown> = {}): Promise<VueWrapp
   return wrapper
 }
 const one = (kind: string): any => leaflet.created[kind]![0]
+// 模式鈕依標籤找，不依位置：MAP_MODES 順序改過一次（2026-10-16 工作台），以後再改也不用動這些斷言。
+const radioButton = (wrapper: VueWrapper, label: string) => wrapper.findAll('.el-radio-button').find((item) => item.text() === label)!
+// 停用的模式鈕。「同業」是 AreaMap 過渡期還留著的鈕（Task 6 拿掉；modeNote 現在把它歸到招生機會的原因），這裡不斷言它。
+const disabledLabels = (wrapper: VueWrapper) =>
+  wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text()).filter((label) => label !== '同業')
 const feature = (town: string, village: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: '' } })
 
 describe('區域分析地圖（2026-10-08）', () => {
@@ -469,7 +474,7 @@ describe('區域分析地圖（2026-10-08）', () => {
     wrappers.push(wrapper)
     const canvas = wrapper.get('.area-map__canvas')
     expect(canvas.attributes('role')).toBe('group')
-    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀人數著色）；同樣的資料在下方的里排行與幼兒園清單')
+    expect(canvas.attributes('aria-label')).toBe('義華周邊里界地圖（依參觀著色）；同樣的資料在下方的里排行與幼兒園清單')
     const status = wrapper.get('[role="status"]')
     expect(status.text()).toBe('地圖載入中…')
     const element = status.element
@@ -713,15 +718,15 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await flushPromises()
   }
 
-  it('六種著色，預設參觀人數；招生機會用不了時那兩種停用並寫原因', async () => {
+  it('七種著色（規格 §2.1 的順序與標籤），預設參觀；招生機會用不了時那兩種停用並寫原因', async () => {
     const ready = await mountMap({ opportunity: areaOpportunity(), opportunityNote: '' })
-    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['參觀人數', '2–5 歲孩子', '招生機會', '孩子增減', '新屋交屋', '在籍學生'])
+    expect(ready.findAll('.el-radio-button').map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '參觀', '招生機會', '同業'])
     expect(ready.findAll('.el-radio-button.is-disabled')).toHaveLength(0)
-    expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(radioButton(ready, '參觀').classes()).toContain('is-active')
     expect(ready.find('.area-map__mode-note').exists()).toBe(false)
 
     const missing = await mountMap({ opportunity: null, opportunityNote: '各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。' })
-    expect(missing.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['2–5 歲孩子', '招生機會'])
+    expect(disabledLabels(missing)).toEqual(['2–5 歲孩子', '招生機會'])
     expect(missing.get('.area-map__mode-note').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
   })
 
@@ -793,7 +798,7 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await choose(wrapper, 'opportunity')
     await wrapper.setProps({ opportunity: null, opportunityNote: '' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[2]!.classes()).toContain('is-active')
+    expect(radioButton(wrapper, '招生機會').classes()).toContain('is-active')
     expect(classOf(DINGJIN)).toBe('area-village area-village--l0')
     expect([...popupOf(DINGJIN).children].map((node) => node.textContent)).toEqual(['三民區鼎金里', '招生機會讀取中…'])
     await wrapper.setProps({ opportunity: areaOpportunity() })
@@ -807,7 +812,7 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     await choose(wrapper, 'opportunity')
     await wrapper.setProps({ opportunity: null, opportunityNote: '招生機會讀取失敗。' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l5')
   })
 
@@ -941,8 +946,8 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
     await choose(wrapper, 'trend')
     await wrapper.setProps({ trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
-    expect(wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['孩子增減'])
+    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
+    expect(disabledLabels(wrapper)).toEqual(['孩子增減'])
     expect(wrapper.get('.area-map__mode-note').text()).toBe('一年前的各里人口還沒匯入，這一年淨增先不算。')
   })
 
@@ -951,7 +956,7 @@ describe('孩子增減著色（2026-10-14 里的變化規格 7.1）', () => {
     await choose(wrapper, 'trend')
     await wrapper.setProps({ trends: null, trendNote: '' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[3]!.classes()).toContain('is-active')
+    expect(radioButton(wrapper, '孩子增減').classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
     expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
   })
@@ -1053,12 +1058,12 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     await choose(wrapper, 'homes')
     await wrapper.setProps({ homesNote: '新成屋資料尚未匯入。' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
-    expect(wrapper.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['新屋交屋'])
+    expect(radioButton(wrapper, '參觀').classes()).toContain('is-active')
+    expect(disabledLabels(wrapper)).toEqual(['新屋交屋'])
     expect(wrapper.get('.area-map__mode-note').text()).toBe('新成屋資料尚未匯入。')
 
     const other = await mountMap({ trends: areaTrends(), trendNote: '一年前的各里人口還沒匯入，這一年淨增先不算。' })
-    expect(other.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['孩子增減'])
+    expect(disabledLabels(other)).toEqual(['孩子增減'])
   })
 
   it('讀取中（換半徑）：留在新屋交屋、先不上色，彈出框寫讀取中', async () => {
@@ -1066,7 +1071,7 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
     await choose(wrapper, 'homes')
     await wrapper.setProps({ trends: null, homesNote: '' })
     await flushPromises()
-    expect(wrapper.findAll('.el-radio-button')[4]!.classes()).toContain('is-active')
+    expect(radioButton(wrapper, '新屋交屋').classes()).toContain('is-active')
     expect(classOf(BENYANG)).toBe('area-village area-village--l0')
     expect(popupLines(DINGJIN)).toEqual(['三民區鼎金里', '里的變化讀取中…'])
   })
@@ -1082,14 +1087,14 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
 
   it('沒匯入時按鈕停用並寫原因；在籍學生模式中原因出現就退回參觀人數', async () => {
     const missing = await mountMap({ enrolled: areaEnrolled({ status: 'not_imported' }), enrolledNote: '尚未匯入在籍名冊。' })
-    expect(missing.findAll('.el-radio-button.is-disabled').map((item) => item.text())).toEqual(['在籍學生'])
+    expect(disabledLabels(missing)).toEqual(['在籍學生'])
     expect(missing.get('.area-map__mode-note').text()).toBe('尚未匯入在籍名冊。')
 
     const ready = await mountMap({ enrolled: areaEnrolled() })
     await choose(ready, 'enrolled')
     await ready.setProps({ enrolledNote: '在籍學生讀取失敗。' })
     await flushPromises()
-    expect(ready.findAll('.el-radio-button')[0]!.classes()).toContain('is-active')
+    expect(radioButton(ready, '參觀').classes()).toContain('is-active')
   })
 
   it('切到在籍學生：里不上色、點圖層加到地圖；兩位以上的格畫大一級；切走就收起', async () => {

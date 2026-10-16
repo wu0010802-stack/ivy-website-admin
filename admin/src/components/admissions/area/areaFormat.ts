@@ -154,16 +154,8 @@ export function visitGeoText(geo: VisitGeo | null | undefined, district: string 
 
 // ---- 招生機會（2026-10-13 規格 7）----
 
-/** 地圖著色：參觀人數（預設，現狀）、2–5 歲孩子、招生機會；孩子增減、新屋交屋（2026-10-14 里的變化）；在籍學生（2026-10-15）。 */
-export type MapMode = 'visits' | 'children' | 'opportunity' | 'trend' | 'homes' | 'enrolled'
-export const MAP_MODES: readonly { value: MapMode; label: string }[] = [
-  { value: 'visits', label: '參觀人數' },
-  { value: 'children', label: '2–5 歲孩子' },
-  { value: 'opportunity', label: '招生機會' },
-  { value: 'trend', label: '孩子增減' },
-  { value: 'homes', label: '新屋交屋' },
-  { value: 'enrolled', label: '在籍學生' },
-]
+// 地圖模式（2026-10-16 工作台）：定義移到 admissions/areaView.ts（網址參數也用它），這裡轉出讓既有 import 不用改。
+export { MAP_MODES, type MapMode } from '../../../admissions/areaView'
 
 /** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
 export const populationVersionLabel = doorplateVersionLabel

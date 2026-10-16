@@ -507,9 +507,11 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect(homesMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 
-  it('地圖著色多一個「在籍學生」，排在新屋交屋後面', () => {
-    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['visits', 'children', 'opportunity', 'trend', 'homes', 'enrolled'])
-    expect(MAP_MODES.at(-1)!.label).toBe('在籍學生')
+  it('地圖著色轉出 areaView 的七種模式：在籍學生排第一、參觀改叫「參觀」、多一個「同業」（2026-10-16 工作台）', () => {
+    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'visits', 'opportunity', 'peers'])
+    expect(MAP_MODES[0]!.label).toBe('在籍學生')
+    expect(MAP_MODES.find((mode) => mode.value === 'visits')!.label).toBe('參觀')
+    expect(MAP_MODES.at(-1)!.label).toBe('同業')
   })
 
   it('總結：不滿 4 季寫有幾季的資料；沒有交屋不寫「最多的是」；沒對到里的筆數是 0 就不寫；沒匯入或沒有任何一季不寫這一句', () => {
