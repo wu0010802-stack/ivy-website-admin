@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ApiError } from '../../api/client'
 import { apiErrorMessage } from '../../api/errors'
@@ -21,6 +21,13 @@ const byText = computed(() => {
   return parts.filter(Boolean).join(' ')
 })
 
+// 橫幅收起、按下的「取消排除」跟著消失，焦點會掉到頁面最上面（跳到主要內容）：移到回來的「標記為排除」入口
+// （VisitExclusionAction，同一頁右欄最下方）。
+async function focusEntry() {
+  await nextTick()
+  document.querySelector<HTMLElement>('.exclusion-action__start')?.focus()
+}
+
 async function include() {
   if (!detail.value || busy.value) return
   busy.value = true
@@ -28,10 +35,14 @@ async function include() {
     await includeVisit(detail.value.id)
     ElMessage.success('已取消排除')
     await vc.refreshDetail()
+    await focusEntry()
   } catch (err) {
     notifyError(apiErrorMessage(err, '取消排除失敗，請稍後再試'))
     // 409：另一個人已經先取消排除，重讀讓橫幅收起、入口回來。
-    if (err instanceof ApiError && err.status === 409) await vc.refreshDetail()
+    if (err instanceof ApiError && err.status === 409) {
+      await vc.refreshDetail()
+      await focusEntry()
+    }
   } finally {
     busy.value = false
   }
@@ -39,7 +50,7 @@ async function include() {
 </script>
 
 <template>
-  <div v-if="detail?.excluded_at" class="exclusion-banner" role="status">
+  <div v-if="detail?.excluded_at" class="exclusion-banner" role="status" tabindex="-1">
     <p>
       <strong>已排除：{{ reasonText }}</strong><span v-if="byText">（{{ byText }}）</span>
       <span v-if="detail.exclude_note">・{{ detail.exclude_note }}</span>

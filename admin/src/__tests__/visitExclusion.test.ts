@@ -200,6 +200,118 @@ describe('排除的入口與橫幅', () => {
   })
 })
 
+// 排除只扣案件資料：參觀預約的結果與班別、預約全程、場次使用情況、總覽。預約流程、每日變化、依來源、預約鈕點擊
+// 讀的是去識別的 analytics_events（沒有案件 id），扣不掉（規格 §3.3），說明不能講成整個統計頁都不算。
+describe('排除說明的範圍', () => {
+  it('對話框只寫真的會扣的數字；成功訊息不說「統計」', async () => {
+    mockGet(caseRoutes(visitCase()))
+    mockPost({ [EXCLUDE_PATH]: excludedCase() })
+    const dialog = await openDialog()
+    expect(dialog.text()).toContain('這筆不算進總覽、參觀預約的結果與班別、預約全程與場次使用情況，也不寄參觀提醒')
+    expect(dialog.text()).not.toContain('參觀預約統計')
+    await dialogSubmit(dialog).trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('已排除，這筆不再算進待辦與預約結果')
+    expect(document.body.textContent).not.toContain('不再算進統計與待辦')
+  })
+})
+
+// 後端對已匿名化的案件一律不存說明（計畫裁定 P15）：前端不給「其他」與說明欄，免得寫了說明、看到成功、橫幅卻沒有。
+describe('已匿名化案件的排除對話框', () => {
+  const anonymized = () => visitCase({ anonymized: true, parent_name: '已匿名', phone: '', email: null })
+
+  it('沒有「其他」與說明欄，改寫一行不保存說明的提示', async () => {
+    mockGet(caseRoutes(anonymized()))
+    const dialog = await openDialog()
+    const values = dialog.findAll('input[type="radio"]').map((r) => (r.element as HTMLInputElement).value)
+    expect(values).toEqual(['test', 'duplicate'])
+    expect(dialog.find('textarea').exists()).toBe(false)
+    expect(dialog.find('.hint.exclusion-dialog__anonymized').text()).toBe('這筆已匿名化：原因可選測試或重複，不保存說明。')
+    expect(dialogSubmit(dialog).attributes('disabled')).toBeUndefined()
+  })
+
+  it('送出的 body 只有原因，沒有 note', async () => {
+    mockGet(caseRoutes(anonymized()))
+    const post = mockPost({ [EXCLUDE_PATH]: excludedCase({ anonymized: true }) })
+    const dialog = await openDialog()
+    await dialog.findAll('input[type="radio"]').find((r) => (r.element as HTMLInputElement).value === 'duplicate')!.setValue(true)
+    await dialogSubmit(dialog).trigger('click')
+    await flushPromises()
+    const sent = bodyOf(post, EXCLUDE_PATH) as Record<string, unknown>
+    expect(sent).toEqual({ reason: 'duplicate' })
+    expect('note' in sent).toBe(false)
+  })
+
+  it('一般案件不受影響：三個原因、有說明欄、沒有這行提示', async () => {
+    mockGet(caseRoutes(visitCase()))
+    const dialog = await openDialog()
+    expect(dialog.findAll('input[type="radio"]')).toHaveLength(3)
+    expect(dialog.find('textarea').exists()).toBe(true)
+    expect(dialog.text()).not.toContain('已匿名化')
+  })
+})
+
+// 排除成功後入口那一列會收起、取消排除成功後橫幅會收起：被按的那顆按鈕消失，焦點會掉到頁面最上面（跳到主要內容）。
+describe('排除與取消排除之後的焦點', () => {
+  it('排除成功、明細重讀後，焦點移到已排除橫幅', async () => {
+    let current = visitCase()
+    mockGet({ ...caseRoutes(current), [CASE_PATH]: () => current })
+    mockPost({ [EXCLUDE_PATH]: () => { current = excludedCase(); return current } })
+    const wrapper = await mountCase()
+    await markButton(wrapper)!.trigger('click')
+    await flushPromises()
+    await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
+    await flushPromises()
+    const banner = wrapper.get('.exclusion-banner').element
+    expect(banner.getAttribute('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(banner)
+  })
+
+  it('取消排除成功、明細重讀後，焦點移到「標記為排除」入口', async () => {
+    let current = excludedCase()
+    mockGet({ ...caseRoutes(current), [CASE_PATH]: () => current })
+    mockPost({ [INCLUDE_PATH]: () => { current = visitCase(); return current } })
+    const wrapper = await mountCase()
+    await wrapper.get('.exclusion-banner').findAll('button').find((b) => b.text() === '取消排除')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.exclusion-banner').exists()).toBe(false)
+    expect(document.activeElement).toBe(markButton(wrapper)!.element)
+  })
+
+  it('排除失敗：焦點不搬（對話框還開著，留給對話框自己處理）', async () => {
+    mockGet(caseRoutes(visitCase()))
+    mockPost({ [EXCLUDE_PATH]: () => { throw new ApiError(500, { code: 'INTERNAL_ERROR', message: '系統錯誤' }) } })
+    const wrapper = await mountCase()
+    await markButton(wrapper)!.trigger('click')
+    await flushPromises()
+    await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.exclusion-banner').exists()).toBe(false)
+    expect(document.activeElement).not.toBe(document.body.querySelector('.exclusion-banner'))
+    expect(body().find('.exclusion-dialog').exists()).toBe(true)
+  })
+})
+
+describe('409 之後的送出鈕', () => {
+  it('另一個人先排除（409）、重讀後對話框還開著：「標記為排除」停用，不能再送第二次', async () => {
+    let current = visitCase()
+    mockGet({ ...caseRoutes(current), [CASE_PATH]: () => current })
+    const post = mockPost({ [EXCLUDE_PATH]: () => { current = excludedCase(); throw new ApiError(409, { code: 'ALREADY_EXCLUDED', message: '這筆案件已經被排除了' }) } })
+    const wrapper = await mountCase()
+    await markButton(wrapper)!.trigger('click')
+    await flushPromises()
+    const dialog = body().get('.exclusion-dialog')
+    expect(dialogSubmit(dialog).attributes('disabled')).toBeUndefined()
+    await dialogSubmit(dialog).trigger('click')
+    await flushPromises()
+    expect(body().find('.exclusion-dialog').exists()).toBe(true)
+    expect(dialogSubmit(body().get('.exclusion-dialog')).attributes('disabled')).toBeDefined()
+    await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('時間線與操作紀錄的中文', () => {
   it('excluded／exclusion_removed 有標題；操作紀錄動作與原因有中文', () => {
     const base = { id: 'e', source: 'staff', actor_user_id: null, actor_email: null, before: null, reason: null, created_at: '2026-10-15T02:00:00Z' }
