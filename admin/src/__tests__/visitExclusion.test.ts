@@ -3,7 +3,8 @@ import { DOMWrapper, flushPromises } from '@vue/test-utils'
 import { auditMetadataDetails, AUDIT_ACTION_LABELS } from '../api/labels'
 import { visitEventTitle } from '../api/visitHistory'
 import VisitDetailView from '../views/VisitDetailView.vue'
-import { bodyOf, cleanup, mockGet, mockPost, reception, visit as admissionsVisit } from './admissionsTestKit'
+import { ApiError } from '../api/client'
+import { bodyOf, campusAdmin, cleanup, mockGet, mockPost, reception, visit as admissionsVisit } from './admissionsTestKit'
 import { caseRoutes, mountRoutes, pastSlot, visitCase, VISIT_ID } from './visitCaseKit'
 
 // 2026-10-15 預約案件排除：入口在右欄最下方（計畫裁定 P7）、已排除時頁首下方有橫幅。
@@ -26,6 +27,8 @@ async function mountCase(user?: never) {
   await flushPromises()
   return wrapper
 }
+// 案件本身被讀了幾次（GET /admin/visit-requests/{id}，不含聯絡紀錄等子路徑）。
+const caseReads = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.filter((call) => String(call[0]) === CASE_PATH).length
 const markButton = (wrapper: Awaited<ReturnType<typeof mountCase>>) => wrapper.findAll('button').find((b) => b.text().includes('標記為排除'))
 
 async function openDialog() {
@@ -95,6 +98,20 @@ describe('排除的入口與橫幅', () => {
     expect(banner.closest('.detail__grid')).toBeNull()
   })
 
+  // 入口的權限閘（E2）要用「未排除」的案件測：已排除時入口本來就因 excluded_at 不顯示，分不出 canManage 有沒有擋。
+  it('櫃台（沒有 booking.manage）看不到排除入口；校區管理者看得到', async () => {
+    mockGet(caseRoutes(visitCase()))
+    const desk = await mountCase(reception() as never)
+    expect(desk.find('.case-facts').exists()).toBe(true)
+    expect(desk.find('.exclusion-action').exists()).toBe(false)
+    expect(markButton(desk)).toBeUndefined()
+    cleanup()
+    mockGet(caseRoutes(visitCase()))
+    const manager = await mountCase(campusAdmin() as never)
+    expect(markButton(manager)).toBeDefined()
+  })
+
+  // 這一條驗的是橫幅的「取消排除」按鈕只給 booking.manage（入口本來就不會在已排除案件出現）。
   it('已排除：橫幅寫原因與誰標的，有「取消排除」；櫃台看得到橫幅但沒有按鈕', async () => {
     mockGet(caseRoutes(excludedCase()))
     const wrapper = await mountCase(reception() as never)
@@ -113,12 +130,55 @@ describe('排除的入口與橫幅', () => {
     expect(banner.text()).toContain('已排除：其他')
     expect(banner.text()).toContain('櫃台練習')
     expect(markButton(wrapper)).toBeUndefined()
-    const reads = () => get.mock.calls.filter((call) => String(call[0]) === CASE_PATH).length
-    const before = reads()
+    const before = caseReads(get)
     await banner.findAll('button').find((b) => b.text() === '取消排除')!.trigger('click')
     await flushPromises()
     expect(post).toHaveBeenCalledWith(INCLUDE_PATH)
-    expect(reads()).toBe(before + 1)
+    expect(caseReads(get)).toBe(before + 1)
+  })
+
+  // 另一個人先動手（兩人同時開著同一筆）：後端回 409，顯示後端訊息，並重讀一次讓頁面跟上。
+  it('排除時另一個人已經先排除（409）：對話框留著顯示後端訊息，頁面重讀後出現橫幅、入口收起', async () => {
+    let current = visitCase()
+    const get = mockGet({ ...caseRoutes(current), [CASE_PATH]: () => current })
+    mockPost({ [EXCLUDE_PATH]: () => { current = excludedCase(); throw new ApiError(409, { code: 'ALREADY_EXCLUDED', message: '這筆案件已經被排除了' }) } })
+    const wrapper = await mountCase()
+    await markButton(wrapper)!.trigger('click')
+    await flushPromises()
+    const before = caseReads(get)
+    await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
+    await flushPromises()
+    expect(body().get('.exclusion-dialog .el-alert').text()).toContain('這筆案件已經被排除了')
+    expect(caseReads(get)).toBe(before + 1)
+    expect(wrapper.find('.exclusion-banner').exists()).toBe(true)
+    expect(wrapper.get('.exclusion-action').isVisible()).toBe(false)
+  })
+
+  it('取消排除時另一個人已經先取消（409）：顯示後端訊息，頁面重讀後橫幅收起、入口回來', async () => {
+    let current = excludedCase()
+    const get = mockGet({ ...caseRoutes(current), [CASE_PATH]: () => current })
+    mockPost({ [INCLUDE_PATH]: () => { current = visitCase(); throw new ApiError(409, { code: 'NOT_EXCLUDED', message: '這筆案件沒有被排除' }) } })
+    const wrapper = await mountCase()
+    const before = caseReads(get)
+    await wrapper.get('.exclusion-banner').findAll('button').find((b) => b.text() === '取消排除')!.trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('這筆案件沒有被排除')
+    expect(caseReads(get)).toBe(before + 1)
+    expect(wrapper.find('.exclusion-banner').exists()).toBe(false)
+    expect(markButton(wrapper)).toBeDefined()
+  })
+
+  it('排除失敗不是 409（例如系統錯誤）：只顯示錯誤，不重讀明細', async () => {
+    const get = mockGet(caseRoutes(visitCase()))
+    mockPost({ [EXCLUDE_PATH]: () => { throw new ApiError(500, { code: 'INTERNAL_ERROR', message: '系統錯誤' }) } })
+    const wrapper = await mountCase()
+    await markButton(wrapper)!.trigger('click')
+    await flushPromises()
+    const before = caseReads(get)
+    await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
+    await flushPromises()
+    expect(body().get('.exclusion-dialog .el-alert').text()).toContain('系統錯誤')
+    expect(caseReads(get)).toBe(before)
   })
 
   it('有關聯的招生訪視：橫幅多一句招生訪視仍會算進統計（E10）；沒有就不寫', async () => {

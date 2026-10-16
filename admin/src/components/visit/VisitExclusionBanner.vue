@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ApiError } from '../../api/client'
 import { apiErrorMessage } from '../../api/errors'
 import { formatDate, VISIT_EXCLUDE_REASON_LABELS } from '../../api/labels'
 import { includeVisit } from '../../api/visitExclusion'
@@ -29,6 +30,8 @@ async function include() {
     await vc.refreshDetail()
   } catch (err) {
     notifyError(apiErrorMessage(err, '取消排除失敗，請稍後再試'))
+    // 409：另一個人已經先取消排除，重讀讓橫幅收起、入口回來。
+    if (err instanceof ApiError && err.status === 409) await vc.refreshDetail()
   } finally {
     busy.value = false
   }

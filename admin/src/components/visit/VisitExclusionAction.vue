@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ApiError } from '../../api/client'
 import { apiErrorMessage } from '../../api/errors'
 import { VISIT_EXCLUDE_REASON_LABELS } from '../../api/labels'
 import { EXCLUDE_REASONS, excludeVisit, type ExcludeReason } from '../../api/visitExclusion'
@@ -14,6 +15,8 @@ const note = ref('')
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const show = computed(() => Boolean(vc.detail) && vc.canManage && !vc.detail?.excluded_at)
+// 另一個人先排除時（409）頁面重讀後 show 變 false；對話框還開著就先留著，讓錯誤訊息讀得到，關掉才收起。
+const visible = computed(() => show.value || open.value)
 // 預約正常、還沒到參觀時間：排除不釋出名額，提醒一併取消（E6）。
 const holdsSeat = computed(() => vc.detail?.status === 'confirmed' && !vc.visitStarted)
 // 選「其他」要寫說明（E3）；前兩者說明選填。
@@ -37,6 +40,8 @@ async function submit() {
     await vc.refreshDetail()
   } catch (err) {
     error.value = apiErrorMessage(err, '排除失敗，請稍後再試')
+    // 409：另一個人已經先排除，重讀讓橫幅出現、入口收起。
+    if (err instanceof ApiError && err.status === 409) await vc.refreshDetail()
   } finally {
     submitting.value = false
   }
@@ -44,7 +49,7 @@ async function submit() {
 </script>
 
 <template>
-  <section v-if="show" class="panel exclusion-action">
+  <section v-if="visible" v-show="show" class="panel exclusion-action">
     <el-button link type="primary" @click="start">標記為排除（測試或重複）…</el-button>
     <el-dialog
       v-model="open"
