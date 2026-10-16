@@ -247,6 +247,30 @@ describe('6. 案件頁「下一筆」照列表的「只看未結案」', () => {
     expect(new URLSearchParams(listCall.split('?')[1]).get('open')).toBe('true')
   })
 
+  it('列表勾了「隱藏已排除」：下一筆的清單也帶 excluded=hide，不會跳到已排除的測試案件（2026-10-15）', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/visit-requests/case-a') return visitCase() as never
+      return [] as never
+    })
+    const list = new URLSearchParams({ campus_key: 'yihua', view: 'past', excluded: 'hide' }).toString()
+    await mountRouted(VisitDetailView, `/visit-requests/case-a?list=${encodeURIComponent(list)}`, '/visit-requests/:id')
+    const listCall = get.mock.calls.map((call) => String(call[0])).find((path) => path.startsWith('/admin/visit-requests?'))!
+    const sent = new URLSearchParams(listCall.split('?')[1])
+    expect(sent.get('excluded')).toBe('hide')
+    expect(sent.get('view')).toBe('past')
+  })
+
+  it('列表沒勾：下一筆的清單不帶 excluded', async () => {
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+      if (path === '/admin/visit-requests/case-a') return visitCase() as never
+      return [] as never
+    })
+    const list = new URLSearchParams({ campus_key: 'yihua', view: 'past' }).toString()
+    await mountRouted(VisitDetailView, `/visit-requests/case-a?list=${encodeURIComponent(list)}`, '/visit-requests/:id')
+    const listCall = get.mock.calls.map((call) => String(call[0])).find((path) => path.startsWith('/admin/visit-requests?'))!
+    expect(new URLSearchParams(listCall.split('?')[1]).has('excluded')).toBe(false)
+  })
+
   it('舊連結殘留的 assignee（承辦人 2026-10-06 拿掉）不再帶進下一筆的清單', async () => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
       if (path === '/admin/visit-requests/case-a') return visitCase() as never

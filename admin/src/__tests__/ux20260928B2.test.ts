@@ -139,6 +139,16 @@ describe('未送出的聯絡紀錄', () => {
 
 describe('下一筆：沒有來源列表時，先待標記到場、再到期追蹤（沒有舊需求）', () => {
   const at = (date: string, time: string) => ({ id: `slot-${date}-${time}`, slot_date: date, start_time: `${time}:00`, end_time: '23:00:00' })
+  it('兩組預設佇列都帶 excluded=hide：和總覽「待標記到場」「到期追蹤」同一批，不帶出已排除的測試案件（2026-10-15）', async () => {
+    const get = mockApi((path) => request({ id: path.split('/').pop() }))
+    await mountDetail()
+    const sent = get.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/visit-requests?')).map((path) => new URLSearchParams(path.split('?')[1]))
+    const attendance = sent.find((params) => params.get('group') === 'past' && params.get('status') === 'confirmed')!
+    const due = sent.find((params) => params.get('follow_up_due') === 'true')!
+    expect(attendance.get('excluded')).toBe('hide')
+    expect(due.get('excluded')).toBe('hide')
+    expect(sent).toHaveLength(2)
+  })
   it('待標記到場依參觀時間由早到晚，到期追蹤重複的只算一次，按鈕寫出各幾件，換筆用 replace', async () => {
     const get = mockApi((path) => request({ id: path.split('/').pop() }), {
       attendance: [

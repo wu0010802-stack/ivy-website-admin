@@ -67,7 +67,7 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'excluded', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
@@ -115,9 +115,10 @@ async function loadNextCases(campusKey: string) {
     }
     return
   }
+  // 預設佇列就是總覽「待標記到場」「到期追蹤」的來源，總覽數字已排除測試／重複案件，這裡也不帶出（2026-10-15）。
   const fetchList = (params: Record<string, string>) =>
     api.get<VisitRequestDetailOut[]>(
-      `/admin/visit-requests?${new URLSearchParams({ ...params, campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
+      `/admin/visit-requests?${new URLSearchParams({ ...params, excluded: 'hide', campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
     )
   try {
     const [attendance, due] = await Promise.all([
