@@ -92,6 +92,12 @@ const CAMPUS_NOT_LOCATED = new Map([
 export const campusNotLocatedReason = (locateError: string | null): string | undefined =>
   locateError === null ? undefined : CAMPUS_NOT_LOCATED.get(locateError)
 
+/** 本校沒有座標時，招生機會、里的變化、里卡片共用的一句。 */
+export function campusUnlocatedNote(locateError: string | null): string {
+  const reason = campusNotLocatedReason(locateError)
+  return `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。`
+}
+
 /** 門牌資料版本「115-10」→「115 年 10 月」；其他寫法（手動匯入的版本名）照原文。 */
 export function doorplateVersionLabel(version: string): string {
   const match = /^(\d{3})-(\d{2})$/.exec(version)
@@ -196,10 +202,7 @@ export function signalTone(signal: OpportunitySignal): 'chance' | 'strong' | 'ty
 /** 招生機會用不了的原因（地圖切換停用、區塊空狀態共用）；可以用回 null。 */
 export function opportunityUnavailable(data: AreaOpportunity): string | null {
   if (data.population.version === null) return '各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。'
-  if (data.campus.lat === null || data.campus.lng === null) {
-    const reason = campusNotLocatedReason(data.campus.locate_error)
-    return `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。`
-  }
+  if (data.campus.lat === null || data.campus.lng === null) return campusUnlocatedNote(data.campus.locate_error)
   return null
 }
 
@@ -457,8 +460,7 @@ export const kidsUnavailableText = (data: AreaTrends): string =>
 /** 本校沒有座標時，里的變化各處共用的一句；有座標回 null。 */
 function campusUnlocatedText(data: AreaTrends): string | null {
   if (data.campus.lat !== null && data.campus.lng !== null) return null
-  const reason = campusNotLocatedReason(data.campus.locate_error)
-  return `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。`
+  return campusUnlocatedNote(data.campus.locate_error)
 }
 
 /** 里的變化整塊用不了的原因（區塊空狀態用）：本校沒座標，或出生、遷入遷出、人口都還沒匯入；可以用回 null。 */

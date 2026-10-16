@@ -4,7 +4,7 @@ import type {
   EnrolledGrade, VillageBoundaries,
 } from '../../../api/types'
 import {
-  KIDS_LEVEL_LABELS, campusNotLocatedReason, expectedText, formatCount, formatDistance, homesCount, incomeText,
+  KIDS_LEVEL_LABELS, campusUnlocatedNote, expectedText, formatCount, formatDistance, homesCount, incomeText,
   kidsNetText, kindLabel, opportunityUnavailable, pointCount, shortName, signalText, signedCount, villageKey, villageSchoolsText,
   type RadiusKm,
 } from './areaFormat'
@@ -152,10 +152,10 @@ function opportunityRow(rows: AreaOpportunityRow[], group: AreaTrendsVillage | u
     return factRow('招生機會', `參觀 ${formatCount(row.visit)} 位（${formatRate(row.rate)}）`, detail)
   }
   const visit = rows.reduce((sum, row) => sum + row.visit, 0)
-  const known = rows.filter((row) => row.expected !== null)
-  const expected = known.reduce((sum, row) => sum + row.expected!, 0)
+  // 參觀與照附近應有要涵蓋同一批里：有一個里沒有附近平均就整句不寫，不拿缺一塊的加總去對全組的參觀。
+  const expected = rows.every((row) => row.expected !== null) ? rows.reduce((sum, row) => sum + row.expected!, 0) : null
   const rate = group.children ? (visit / group.children) * 100 : null
-  return factRow('招生機會', `參觀 ${formatCount(visit)} 位（${formatRate(rate)}）`, known.length ? `照附近應有${expectedText(expected)}` : undefined)
+  return factRow('招生機會', `參觀 ${formatCount(visit)} 位（${formatRate(rate)}）`, expected === null ? undefined : `照附近應有${expectedText(expected)}`)
 }
 
 interface KidsContext {
@@ -167,6 +167,12 @@ interface KidsContext {
   noPopulation: boolean
   campus: LatLng | null
   centroid: LatLng
+}
+
+/** 近 4 季新屋交屋：合併組寫這個里自己的筆數，小字補整組的筆數（同地圖彈出框）；新成屋還沒匯入寫「—」。 */
+function homesRow(group: AreaTrendsVillage | undefined, code: string): FactRow {
+  if (!group || group.new_homes === null) return factRow('近 4 季新屋交屋', NO_VALUE)
+  return factRow('近 4 季新屋交屋', `${formatCount(homesCount(group, code))} 筆`, group.merged ? `整組 ${formatCount(group.new_homes)} 筆` : undefined)
 }
 
 function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
@@ -184,7 +190,7 @@ function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
     ),
     factRow('近 12 個月出生', countText(group?.births_12m, '位')),
     factRow('近 12 個月淨遷入', moves === null ? NO_VALUE : `${signedCount(moves)} 人`, undefined, toneOf(moves)),
-    factRow('近 4 季新屋交屋', group && group.new_homes !== null ? `${formatCount(homesCount(group, code))} 筆` : NO_VALUE),
+    homesRow(group, code),
     factRow('所得中位數', group ? incomeText(group) : NO_VALUE),
   ]
   if (sources.opportunity?.baseline?.judged === true) {
@@ -195,24 +201,25 @@ function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
 }
 
 /**
- * 孩子段的狀態：兩份都還沒回來 loading（都失敗才是 failed）；招生機會用不了 unavailable；沒有人口資料 no-population；
- * 兩份都沒有這個里才算半徑外 outside。有一份有資料就照列，缺的欄寫「—」。
+ * 孩子段的狀態：opportunity 或 trends 任何一份還在讀 → loading；沒有在讀、但有一份失敗 → failed；
+ * 兩份都載入了才判斷 unavailable／no-population／outside／ok。只有一份到時不能判半徑外
+ * （半徑內的里可能只出現在還沒到的那一份），所以不拿單邊資料湊數。
  */
 function kidsFacts(ctx: KidsContext): VillageFacts['kids'] {
   const { sources, group, oppRows, village, noPopulation, campus, centroid } = ctx
   const { opportunity, trends, area } = sources
   const empty = { rows: [], note: '', mergeNote: '' }
-  if (!opportunity && !trends) {
-    return { ...empty, state: sources.opportunityFailed && sources.trendsFailed ? 'failed' : 'loading' }
+  if (!opportunity || !trends) {
+    const loading = (!opportunity && !sources.opportunityFailed) || (!trends && !sources.trendsFailed)
+    return { ...empty, state: loading ? 'loading' : 'failed' }
   }
-  const unavailable = opportunity ? opportunityUnavailable(opportunity) : null
+  const unavailable = opportunityUnavailable(opportunity)
   if (unavailable) return { ...empty, state: 'unavailable', note: unavailable }
   if (noPopulation) return { ...empty, state: 'no-population', note: NO_POPULATION_NOTE }
   if (!group && !oppRows.length) {
-    if (campus) return { ...empty, state: 'outside', note: outsideRadiusText(distanceMeters(centroid, campus), sources.radiusKm) }
-    // 本校沒座標、招生機會又沒回來：算不出半徑外，不能寫成「在本校 N 公里外」。
-    const reason = campusNotLocatedReason(area.campus.locate_error)
-    return { ...empty, state: 'unavailable', note: `本校位置未標示${reason ? `（${reason}）` : ''}，算不出附近有哪些里。` }
+    // 兩份都沒有這個里＝半徑外；本校座標以 area 為準，它沒有（和 opportunity 不一致）就算不出距離，不能寫成半徑外。
+    if (!campus) return { ...empty, state: 'unavailable', note: campusUnlocatedNote(area.campus.locate_error) }
+    return { ...empty, state: 'outside', note: outsideRadiusText(distanceMeters(centroid, campus), sources.radiusKm) }
   }
   return { state: 'ok', rows: kidsRows(ctx), note: '', mergeNote: group?.merged ? mergeNote(group, village) : '' }
 }

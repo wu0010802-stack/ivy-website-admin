@@ -4,7 +4,7 @@ import {
   type FactRow, type FactsSources,
 } from '../components/admissions/area/villageFacts'
 import { opportunitySummary } from '../components/admissions/area/areaFormat'
-import type { AdmissionsArea, AreaKindergarten, VillageFeature } from '../api/types'
+import type { AdmissionsArea, AreaKindergarten, AreaOpportunityRow, VillageFeature } from '../api/types'
 import {
   areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, kindergarten, villageBoundaries,
 } from './admissionsTestKit'
@@ -109,7 +109,35 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     const f = villageFacts('64000050025', sources({ trends }))!
     expect(f.kids.mergeNote).toBe('里界調整，和龍子里合併計算')
     expect(value(f.kids, '近 4 季新屋交屋')).toBe('4 筆')
-    expect(value(villageFacts('64000020015', sources({ trends }))!.kids, '近 4 季新屋交屋')).toBe('5 筆')
+    expect(detail(f.kids, '近 4 季新屋交屋')).toBe('整組 9 筆')
+    const other = villageFacts('64000020015', sources({ trends }))!
+    expect(value(other.kids, '近 4 季新屋交屋')).toBe('5 筆')
+    expect(detail(other.kids, '近 4 季新屋交屋')).toBe('整組 9 筆')
+  })
+
+  it('合併組新屋交屋：共用 fixture 整組 0 筆；一般的里與新成屋未匯入沒有小字', () => {
+    const merged = villageFacts('64000020015', sources())!
+    expect(value(merged.kids, '近 4 季新屋交屋')).toBe('0 筆')
+    expect(detail(merged.kids, '近 4 季新屋交屋')).toBe('整組 0 筆')
+    expect(detail(villageFacts('64000050015', sources())!.kids, '近 4 季新屋交屋')).toBeUndefined()
+    const trends = areaTrends()
+    for (const row of trends.villages) row.new_homes = null
+    const notImported = villageFacts('64000020015', sources({ trends }))!
+    expect(find(notImported.kids, '近 4 季新屋交屋')).toEqual({ label: '近 4 季新屋交屋', value: '—' })
+  })
+
+  it('合併組照附近應有：組內有一個里沒有附近平均就不寫，兩個都有才加總', () => {
+    const opportunity = areaOpportunity()
+    const member: AreaOpportunityRow = { district: '鼓山區', village: '龍子里', village_code: '64000020015', distance_m: 400, children: 150, infants: 40, visit: 2, rate: 1.3, expected: 3, shortfall: 1, signal: 'typical' }
+    opportunity.villages.push(member)
+    const both = villageFacts('64000020015', sources({ opportunity }))!
+    expect(value(both.kids, '招生機會')).toBe('參觀 13 位（2.2%）') // 11 + 2 ÷ 583
+    expect(detail(both.kids, '招生機會')).toBe('照附近應有約 7 位') // 4 + 3
+    expect(value(both.kids, '0–1 歲')).toBe('100 位') // 60 + 40
+    member.expected = null
+    const partial = villageFacts('64000020015', sources({ opportunity }))!
+    expect(value(partial.kids, '招生機會')).toBe('參觀 13 位（2.2%）')
+    expect(detail(partial.kids, '招生機會')).toBeUndefined()
   })
 
   it('judged 為 false：卡片不列招生機會', () => {
@@ -185,22 +213,36 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
       expect(villageFacts('64000050015', sources({ opportunity: null, trends: null, trendsFailed: true }))!.kids.state).toBe('loading')
     })
 
-    it('一份失敗另一份有資料：照列，缺的欄寫「—」', () => {
-      const f = villageFacts('64000050015', sources({ trends: null, trendsFailed: true }))!
-      expect(f.kids.state).toBe('ok')
-      expect(value(f.kids, '2–5 歲')).toBe('300 位')
-      expect(value(f.kids, '0–1 歲')).toBe('90 位')
-      expect(value(f.kids, '這一年淨增')).toBe('—')
-      expect(find(f.kids, '這一年淨增')!.detail).toBeUndefined()
-      expect(value(f.kids, '近 4 季新屋交屋')).toBe('—')
-      expect(value(f.kids, '招生機會')).toBe('參觀 6 位（2.0%）')
-      expect(f.subtitle).toBe('距本校 300 m') // 學區來自 trends，沒有就只寫距離
-
-      const trendsOnly = villageFacts('64000050015', sources({ opportunity: null, opportunityFailed: true }))!
-      expect(trendsOnly.kids.state).toBe('ok')
-      expect(value(trendsOnly.kids, '2–5 歲')).toBe('317 位')
-      expect(value(trendsOnly.kids, '0–1 歲')).toBe('—')
-      expect(find(trendsOnly.kids, '招生機會')).toBeUndefined()
+    it('只有一份載入：任何一份還在讀 → loading，沒有在讀但有一份失敗 → failed，都不能判成半徑外', () => {
+      // trends 還在讀：龍子里不在 opportunity 的列裡，卻在 trends 的合併組裡，不能因此寫成半徑外
+      for (const code of ['64000020015', '64000050015']) {
+        const f = villageFacts(code, sources({ trends: null }))!
+        expect(f.kids).toMatchObject({ state: 'loading', rows: [], note: '', mergeNote: '' })
+        expect(f.subtitle).not.toContain('公里外')
+      }
+      const loadingMerged = villageFacts('64000020015', sources({ trends: null }))!
+      expect(loadingMerged.subtitle).toBe('')
+      expect(loadingMerged.nearby).not.toBeNull() // 里在半徑內，附近的幼兒園照列
+      // opportunity 還在讀：之後才會知道這個里有沒有人口，現在不判
+      expect(villageFacts('64000050015', sources({ opportunity: null }))!.kids.state).toBe('loading')
+      const noPopulation = areaOpportunity()
+      noPopulation.villages = noPopulation.villages.filter((row) => row.village_code !== '64000050015')
+      noPopulation.no_population_villages = [{ district: '三民區', village: '本揚里', village_code: '64000050015', distance_m: 300, visit: 3 }]
+      expect(villageFacts('64000050015', sources({ opportunity: noPopulation, trends: null }))!.kids.state).toBe('loading')
+      // 一份載入、另一份還在讀，里在已載入的那份沒有：仍是 loading，不是 outside
+      const far = withFeature(northVillage('64000030021', 2000))
+      for (const changes of [{ trends: null }, { opportunity: null }]) {
+        const f = villageFacts('64000030021', sources({ boundaries: far, ...changes }))!
+        expect(f.kids.state).toBe('loading')
+        expect(f.subtitle).toBe('')
+        expect(f.nearby).not.toBeNull() // 中心離本校 2 km，在 3 km 減 0.5 km 的門檻內：沒判半徑外，園所照列
+      }
+      // 有一份失敗、另一份已載入或失敗：failed（不是 outside、不是 ok）
+      for (const code of ['64000020015', '64000050015']) {
+        expect(villageFacts(code, sources({ trends: null, trendsFailed: true }))!.kids).toMatchObject({ state: 'failed', rows: [], note: '' })
+        expect(villageFacts(code, sources({ opportunity: null, opportunityFailed: true }))!.kids).toMatchObject({ state: 'failed', rows: [], note: '' })
+      }
+      expect(villageFacts('64000030021', sources({ boundaries: far, trends: null, trendsFailed: true }))!.kids.state).toBe('failed')
     })
 
     it('enrolled 讀取中／失敗只影響我們段', () => {
@@ -267,12 +309,10 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
       expect(f.ours.state).toBe('ok')
     })
 
-    it('本校沒座標而 opportunity 又沒回來：算不出半徑外也不會寫成半徑外', () => {
+    it('兩份都載入但 area 的本校沒座標（資料不一致）：算不出半徑外，孩子段寫共用的未標示句', () => {
       const campus = { ...areaStats().campus, lat: null, lng: null, locate_error: 'pending' }
       const boundaries = withFeature(northVillage('64000030021', 2000))
-      const f = villageFacts('64000030021', sources({
-        boundaries, area: areaStats({ campus }) as AdmissionsArea, opportunity: null, opportunityFailed: true,
-      }))!
+      const f = villageFacts('64000030021', sources({ boundaries, area: areaStats({ campus }) as AdmissionsArea }))!
       expect(f.kids).toMatchObject({ state: 'unavailable', note: '本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。' })
       expect(f.subtitle).toBe('')
       expect(f.nearby).toBeNull()
