@@ -211,8 +211,8 @@ describe('篩選收合（比照第九輪案件列表）', () => {
     expect(toggle.text()).toBe('更多篩選')
     expect(toggle.attributes('aria-expanded')).toBe('false')
     const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
-    expect(fieldLabels('#records-more-filters')).toEqual(['班別', '來源', '家長介紹', '未預繳原因', '負責人'])
-    expect(fieldLabels('.records-filters')).toEqual(['搜尋', '月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '負責人'])
+    expect(fieldLabels('#records-more-filters')).toEqual(['班別', '來源', '家長介紹', '未預繳原因', '退出原因', '負責人'])
+    expect(fieldLabels('.records-filters')).toEqual(['搜尋', '月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '退出原因', '負責人'])
     expect(wrapper.get('.records-filters').classes()).not.toContain('is-open')
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
@@ -297,6 +297,32 @@ describe('篩選、分頁與權限', () => {
     expect(wrapper.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))).toEqual(expect.arrayContaining(['115.09', '115.08']))
     month.vm.$emit('update:modelValue', '115.08')
     expect(wrapper.emitted('update:month')).toEqual([['115.08']])
+  })
+
+  it('退出原因篩選送給後端、未分類有說明；選了寫回父層（網址 wr，2026-10-15）', async () => {
+    const get = mockGet({ '/admin/admissions/records': [] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props({ withdrawCategory: 'unclassified' }) })
+    expect(lastQuery(get).get('withdraw_reason_category')).toBe('unclassified')
+    const select = wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '退出原因')!
+    expect(select.findAllComponents({ name: 'ElOption' }).map((option) => option.props('label')).at(-1)).toBe('未分類（改版前退出）')
+    select.vm.$emit('update:modelValue', '費用考量')
+    expect(wrapper.emitted('update:withdrawCategory')).toEqual([['費用考量']])
+  })
+
+  it('退出原因換了就重讀；標籤寫分類名，拿掉標籤與「清除篩選」都往上清掉', async () => {
+    const get = mockGet({ '/admin/admissions/records': [] })
+    const { wrapper } = await mountWith(RecordsTab, { props: props() })
+    expect(lastQuery(get).has('withdraw_reason_category')).toBe(false)
+    expect(wrapper.find('.filter-chips').exists()).toBe(false)
+    await wrapper.setProps({ withdrawCategory: 'unclassified' })
+    await flushPromises()
+    expect(lastQuery(get).get('withdraw_reason_category')).toBe('unclassified')
+    expect(wrapper.findAll('.filter-chips li').map((chip) => chip.text())).toEqual(['退出原因：未分類（改版前退出）×，拿掉這個條件', '清除篩選'])
+    expect(wrapper.text()).toContain('目前篩選條件下沒有訪視紀錄。')
+    await wrapper.get('.filter-chips li button').trigger('click')
+    expect(wrapper.emitted('update:withdrawCategory')).toEqual([['']])
+    await button(wrapper, '清除篩選')!.trigger('click')
+    expect(wrapper.emitted('update:withdrawCategory')).toEqual([[''], ['']])
   })
 
   it('從預約明細連進來（vr）只看那一筆；「不限這筆預約」清掉', async () => {
@@ -550,7 +576,7 @@ describe('手機（390）：卡片清單', () => {
     expect(toggle.text()).toContain('篩選')
     expect(toggle.text()).not.toContain('更多篩選')
     const fieldLabels = (selector: string) => wrapper.findAll(`${selector} .filter-field > span:first-child`).map((label) => label.text())
-    expect(fieldLabels('#records-more-filters')).toEqual(['月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '負責人'])
+    expect(fieldLabels('#records-more-filters')).toEqual(['月份', '預繳', '追蹤', '班別', '來源', '家長介紹', '未預繳原因', '退出原因', '負責人'])
     expect(fieldLabels('.records-filters')[0]).toBe('搜尋')
     expect(wrapper.findAll('.filter-chip').map((chip) => chip.text())).toEqual(['月份：115.09×，拿掉這個條件'])
     await wrapper.get('.filter-chip').trigger('click')

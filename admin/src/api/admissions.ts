@@ -21,6 +21,8 @@ export type RecordFilters = {
   referrer?: string | null
   has_deposit?: boolean | null
   no_deposit_reason?: string | null
+  // 退出原因分類（2026-10-15）：八項，或 unclassified＝已退出但沒有分類。
+  withdraw_reason_category?: string | null
   stage?: string | null
   visit_request_id?: string | null
   q?: string | null

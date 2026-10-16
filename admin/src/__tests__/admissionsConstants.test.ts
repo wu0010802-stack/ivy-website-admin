@@ -5,13 +5,16 @@ import { describe, expect, it } from 'vitest'
 import {
   EVENT_LABELS, GRADES, NO_DEPOSIT_REASONS, STAGES, STAGE_LABELS, STAGE_TOKENS, WITHDRAW_REASON_CATEGORIES, canDragFrom, eventLabel, moveTargets,
   stageLabel, ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME, isWithdrawFilter, transitionBlockedText, transitionCapability, transitionMode,
-  transitionWarning, withdrawFilterLabel, withdrawReasonText, type Stage,
+  transitionWarning, withdrawFilterLabel, withdrawReasonText, UNCLASSIFIED_LABEL, UNCLASSIFIED_WITHDRAW, type Stage,
 } from '../admissions/constants'
 
 // 後端列舉值的唯一來源是 backend/app/admissions/constants.py（A1）；前端的文案表要對得上。
 // vitest.config.ts 已放行 ../backend/app 的 ?raw 讀取（labelCoverage 同一招）。
 const backend = import.meta.glob('../../../backend/app/admissions/constants.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 const source = Object.values(backend)[0] ?? ''
+// 統計表「未分類」列名在 stats.py（UNCLASSIFIED_REASON），篩選值在 constants.py（WITHDRAW_UNCLASSIFIED）。
+const backendStats = import.meta.glob('../../../backend/app/admissions/stats.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
+const statsSource = Object.values(backendStats)[0] ?? ''
 
 function tuple(name: string): string[] {
   const start = source.indexOf(`${name}:`)
@@ -22,7 +25,7 @@ function tuple(name: string): string[] {
 }
 
 describe('與後端 constants.py 對齊', () => {
-  it('年級、階段、未預繳原因逐字相同', () => {
+  it('年級、階段、未預繳原因、退出原因分類逐字相同', () => {
     expect([...GRADES]).toEqual(tuple('GRADES'))
     expect([...STAGES]).toEqual(tuple('STAGES'))
     expect([...NO_DEPOSIT_REASONS]).toEqual(tuple('NO_DEPOSIT_REASONS'))
@@ -66,6 +69,11 @@ describe('退出原因分類（2026-10-15）', () => {
     expect(isWithdrawFilter('其他')).toBe(false)
     expect(withdrawFilterLabel('unclassified')).toBe('未分類（改版前退出）')
     expect(withdrawFilterLabel('費用考量')).toBe('費用考量')
+  })
+
+  it('未分類：篩選值與後端 WITHDRAW_UNCLASSIFIED、統計列名與 stats.py 的 UNCLASSIFIED_REASON 逐字相同', () => {
+    expect(/^WITHDRAW_UNCLASSIFIED\s*=\s*"([^"]+)"/m.exec(source)?.[1]).toBe(UNCLASSIFIED_WITHDRAW)
+    expect(/^UNCLASSIFIED_REASON\s*=\s*"([^"]+)"/m.exec(statsSource)?.[1]).toBe(UNCLASSIFIED_LABEL)
   })
 })
 

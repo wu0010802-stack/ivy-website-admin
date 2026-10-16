@@ -22,19 +22,21 @@ import { isAdmissionsTab, useAdmissionsFilters, type Semester } from '../admissi
 const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
 const StatsTab = lazyComponent(() => import('../components/admissions/StatsTab.vue'))
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, area, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
 const route = useRoute()
 const router = useRouter()
 
-// 統計的警示與行動入口「查看本月明細」、區域分析的「查看明細」：切到訪視明細並帶月份或區域。
-// 兩者擇一：帶一個就拿掉另一個，免得疊成更窄的範圍。用 push 不用 replace：看完明細按上一頁回到統計。
-function openRecords(filter: { month?: string; area?: string }) {
+// 統計的警示與行動入口「查看本月明細」、區域分析與退出原因分佈的「查看明細」：切到訪視明細並帶月份、區域或
+// 退出原因。三者擇一：帶一個就拿掉另外兩個，免得疊成更窄的範圍。用 push 不用 replace：看完明細按上一頁回到統計。
+function openRecords(filter: { month?: string; area?: string; withdraw?: string }) {
   const query: LocationQuery = { ...route.query, tab: 'records' }
   delete query.month
   delete query.area
+  delete query.wr
   if (filter.month) query.month = filter.month
   if (filter.area) query.area = filter.area
+  if (filter.withdraw) query.wr = filter.withdraw
   void router.push({ query })
 }
 const multiCampus = computed(() => visibleCampusKeys.value.length > 1)
@@ -155,6 +157,7 @@ function showUnscoped() {
           v-model:month="month"
           v-model:visitRequestId="visitRequestId"
           v-model:area="area"
+          v-model:withdrawCategory="withdraw"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"

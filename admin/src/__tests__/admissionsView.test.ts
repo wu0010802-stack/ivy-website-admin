@@ -345,6 +345,46 @@ describe('統計子分頁寫進網址（X2a 3A）', () => {
     expect(stats.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats' })
   })
 
+  it('(i2) 訪視明細的 wr（退出原因）：八項與 unclassified 讀得回來；亂碼清掉；統計「查看明細」帶 withdraw 過去並拿掉 month、area', async () => {
+    for (const wr of ['費用考量', 'unclassified']) {
+      mockGet({ ...routesOn, '/admin/admissions/records': [] })
+      const good = await mountWith(AdmissionsView, { path: `/admissions?campus=yihua&tab=records&wr=${encodeURIComponent(wr)}` })
+      expect(good.wrapper.findComponent(RecordsTab).props('withdrawCategory')).toBe(wr)
+      expect(good.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', wr })
+      cleanup()
+    }
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const bad = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=records&wr=hack' })
+    expect(bad.wrapper.findComponent(RecordsTab).props('withdrawCategory')).toBe('')
+    expect(bad.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records' })
+    cleanup()
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=nodeposit' })
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { withdraw: 'unclassified' })
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', wr: 'unclassified' })
+    wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'funnel')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
+  })
+
+  it('(i3) 退出原因帶進明細時拿掉 month、area；其他分頁的網址帶 wr 也被清掉，統計分頁不會把它帶進明細', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/records': [] })
+    const from = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&sub=nodeposit&month=115.09&area=%E4%B8%89%E6%B0%91%E5%8D%80' })
+    expect(from.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats', sub: 'nodeposit', month: '115.09' })
+    from.wrapper.findComponent(StatsTab).vm.$emit('open-records', { withdraw: '費用考量' })
+    await flushPromises()
+    expect(from.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'records', wr: '費用考量' })
+    cleanup()
+    mockGet(routesOn)
+    const stats = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=stats&wr=%E8%B2%BB%E7%94%A8%E8%80%83%E9%87%8F' })
+    expect(stats.router.currentRoute.value.query).toEqual({ campus: 'yihua', tab: 'stats' })
+    cleanup()
+    mockGet(routesOn)
+    const funnel = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&wr=unclassified' })
+    expect(funnel.router.currentRoute.value.query).toEqual({ campus: 'yihua' })
+  })
+
   // 預約全程（2026-10-15）：jp／jf／jt／js 只在 tab=stats&sub=journey 有意義。
   it('(j) sub=journey 的期間與來源讀得回來、改了寫回網址；離開統計分頁拿掉', async () => {
     freezeToday()

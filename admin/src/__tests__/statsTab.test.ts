@@ -275,7 +275,7 @@ describe('統計分頁：總覽', () => {
 
     await wrapper.findAll('.action-item')[0]!.trigger('click')
     await flushPromises()
-    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳原因')
+    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳與退出原因')
   })
 })
 
@@ -283,7 +283,7 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
   it('sub 決定現在的子分頁；點子分頁回報 update:sub，不自己改（父層放網址）', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'nodeposit' }) })
-    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳原因')
+    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳與退出原因')
     const tab = wrapper.findAll('.stats-subtabs .el-tabs__item').find((item) => item.text() === '來源分析')!
     await tab.trigger('click')
     expect(wrapper.emitted('update:sub')).toEqual([['source']])
@@ -299,7 +299,7 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因', '參觀預約', '預約全程'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程'])
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props()).toMatchObject({ campusKey: 'yihua', schoolYear: 115, semester: 1 })
     expect(tab.props('emptyText')).toContain('還沒有招生訪視')
@@ -320,7 +320,7 @@ describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', ()
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'booking', campusKeys: ['yihua', 'minghua'] }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因', '五校比較', '參觀預約', '預約全程'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程'])
     const pane = wrapper.findComponent({ name: 'BookingStatsPane' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', campusKeys: ['yihua', 'minghua'] })
     expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
@@ -447,7 +447,7 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
   it('未預繳原因：三張數字卡、優先度分組、原因 × 年級（名單不在 StatsTab 本身，由 C3b 的 NoDepositList 負責）', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
-    const pane = await openSubTab(wrapper, '未預繳原因')
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
 
     expect(pane.findAll('.nodeposit-kpi').map((n) => n.text().replace(/\s+/g, ''))).toEqual(['高潛力未預繳2', '逾14天待追3', '冷名單0'])
     expect(pane.get('.nodeposit-priority').text().replace(/\s+/g, '')).toBe('高潛力2・中潛力0・低潛力0・未歸類1（共3筆）')
@@ -457,6 +457,39 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
       ['未分類', '—', '1', '1', '0', '0', '0', '0'],
     ])
     expect(pane.text()).toContain('已退預繳、退註冊的不算未預繳；逾 14 天待追、冷名單＝參觀滿 14、90 天仍未預繳。')
+  })
+
+  it('退出原因分佈：只列有筆數的原因，「查看明細」帶分類（未分類帶 unclassified）回訪視明細', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
+    const section = block(pane, '退出原因分佈')
+    expect(headers(section)).toEqual(['原因', '退預繳', '退註冊', '合計', '操作'])
+    expect(bodyRows(section).map((row) => row.slice(0, 4))).toEqual([['費用考量', '1', '1', '2'], ['未分類', '1', '0', '1']])
+    expect(pane.text()).toContain('改版前退出、還沒補分類的歸「未分類」，可在訪視明細補上')
+    await section.get('button[aria-label="查看明細：費用考量"]').trigger('click')
+    await section.get('button[aria-label="查看明細：未分類"]').trigger('click')
+    expect(wrapper.emitted('open-records')).toEqual([[{ withdraw: '費用考量' }], [{ withdraw: 'unclassified' }]])
+  })
+
+  it('退出原因分佈：全部 0 筆時顯示空狀態', async () => {
+    mockGet({ '/admin/admissions/stats': emptyStats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
+    const section = block(pane, '退出原因分佈')
+    expect(section.text()).toContain('此區間沒有退預繳或退註冊的訪視')
+    expect(bodyRows(section)).toEqual([])
+    expect(section.find('button[aria-label^="查看明細"]').exists()).toBe(false)
+  })
+
+  it('退出原因分佈：後端回的 9 列（含 0 筆）只有合計大於 0 的才顯示，有人退出時不出空狀態', async () => {
+    const reasons = emptyWithdrawReasons().map((row) => (row.reason === '搬家／距離因素' ? { ...row, enrolled: 2, total: 2 } : row))
+    mockGet({ '/admin/admissions/stats': { ...emptyStats(), withdraw_reasons: reasons, withdraw_total: 2 } })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const section = block(await openSubTab(wrapper, '未預繳與退出原因'), '退出原因分佈')
+    expect(reasons).toHaveLength(9)
+    expect(bodyRows(section).map((row) => row.slice(0, 4))).toEqual([['搬家／距離因素', '0', '2', '2']])
+    expect(section.text()).not.toContain('此區間沒有退預繳或退註冊的訪視')
   })
 })
 
@@ -473,7 +506,7 @@ describe('統計分頁：狀態', () => {
     expect((await openSubTab(wrapper, '班別分析')).text()).toContain('此區間尚無班別資料')
     expect((await openSubTab(wrapper, '來源分析')).text()).toContain('此區間尚無來源資料')
     expect((await openSubTab(wrapper, '接待分析')).text()).toContain('此區間尚無接待資料')
-    expect((await openSubTab(wrapper, '未預繳原因')).text()).toContain('此區間尚無未預繳資料')
+    expect((await openSubTab(wrapper, '未預繳與退出原因')).text()).toContain('此區間尚無未預繳資料')
   })
 
   it('沒選學年：寫「所有學年」', async () => {
@@ -547,7 +580,7 @@ describe('統計分頁：狀態', () => {
   })
 })
 
-// ── C3b：未預繳明細掛進「未預繳原因」 ──
+// ── C3b：未預繳明細掛進「未預繳與退出原因」 ──
 const NO_DEPOSIT_PATH = '/admin/admissions/no-deposit-records'
 const noDepositRecords = {
   total: 1, page: 1, page_size: 50,
@@ -560,12 +593,12 @@ const noDepositRecords = {
 }
 
 describe('統計分頁：未預繳明細（C3b）', () => {
-  it('打開「未預繳原因」才掛 NoDepositList，帶頁首校區與學期；不再叫人到訪視明細篩；名單的「查看」交給頁面', async () => {
+  it('打開「未預繳與退出原因」才掛 NoDepositList，帶頁首校區與學期；不再叫人到訪視明細篩；名單的「查看」交給頁面', async () => {
     const get = mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
 
-    const pane = await openSubTab(wrapper, '未預繳原因')
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
     expect(wrapper.findComponent(NoDepositList).props()).toEqual({ campusKey: 'yihua', schoolYear: 115, semester: 1, preset: null, overallTotal: 3 })
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(1)
     expect(pane.text()).toContain('林小安')
@@ -591,7 +624,7 @@ describe('統計分頁：未預繳明細（C3b）', () => {
     const get = mockGet({ '/admin/admissions/stats': emptyStats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
-    const pane = await openSubTab(wrapper, '未預繳原因')
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
     expect(pane.text()).toContain('此區間尚無未預繳資料')
     expect(wrapper.findComponent(NoDepositList).exists()).toBe(false)
     expect(pathsTo(get, NO_DEPOSIT_PATH)).toHaveLength(0)
@@ -618,7 +651,7 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
     expect(lastDownload()[0]).toMatch(/^招生統計-月度明細表-義華-115 上學期-\d{4}-\d{2}-\d{2}\.csv$/)
   })
 
-  it('九張統計表（總覽 2、班別 2、來源 1、接待 3、未預繳原因 1）各用自己的表名當檔名', async () => {
+  it('十張統計表（總覽 2、班別 2、來源 1、接待 3、未預繳與退出原因 2）各用自己的表名當檔名', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const today = taipeiToday()
@@ -627,7 +660,7 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
       ['班別分析', ['班別統計', '月份 × 班別分布']],
       ['來源分析', ['來源排名明細']],
       ['接待分析', ['接待人員統計', '接待人員 × 各年級預繳率', '接待人員 × 來源 交叉分析']],
-      ['未預繳原因', ['未預繳原因分佈']],
+      ['未預繳與退出原因', ['未預繳原因分佈', '退出原因分佈']],
     ]
     for (const [label, titles] of panes) {
       const pane = await openSubTab(wrapper, label)

@@ -80,7 +80,7 @@ describe('案件歷程合併（5.5）', () => {
   it('退出事件寫出分類；沒有分類（改版前退出）就不多一行（2026-10-15）', () => {
     expect(recruitmentEventChanges(recruitmentEvent({
       event_type: 'withdrawn', from_stage: 'deposited', to_stage: 'withdrawn', metadata_json: { withdraw_reason_category: '費用考量' },
-    }))).toEqual(['已預繳 → 退預繳／退註冊', '原因：費用考量'])
+    }))).toEqual(['已預繳 → 退預繳／退註冊', '分類：費用考量'])
     expect(recruitmentEventChanges(recruitmentEvent({
       event_type: 'withdrawn', from_stage: 'deposited', to_stage: 'withdrawn', metadata_json: null,
     }))).toEqual(['已預繳 → 退預繳／退註冊'])

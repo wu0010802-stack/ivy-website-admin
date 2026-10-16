@@ -10,7 +10,8 @@ import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../..
 import { campusLabel } from '../../api/labels'
 import { rocDate, taipeiToday, termLabel } from '../../admissions/academic'
 import {
-  ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, stageMeta, withdrawReasonText, type Stage, type TransitionTarget,
+  ANONYMIZED_CONFLICT_TEXT, GRADES, MISSING_CHILD_NAME, NO_DEPOSIT_REASONS, SEMESTER_LABELS, UNCLASSIFIED_WITHDRAW, WITHDRAW_REASON_CATEGORIES, stageMeta, withdrawFilterLabel,
+  withdrawReasonText, type Stage, type TransitionTarget,
 } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
@@ -31,7 +32,7 @@ import TransitionDialog from './TransitionDialog.vue'
 import SeatDialog from './SeatDialog.vue'
 
 // 訪視明細（園務 RecruitmentDetailTab＋AdmissionsRecordsPanel）。入學學年學期用頁首的篩選，
-// 這裡不重複（本檔調整第 11 條）；月份、vr、區域（area，2026-10-08）由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
+// 這裡不重複（本檔調整第 11 條）；月份、vr、區域（area，2026-10-08）、退出原因（wr，2026-10-15）由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
 const props = defineProps<{
   campusKey: string
   schoolYear: number | null
@@ -40,11 +41,14 @@ const props = defineProps<{
   visitRequestId: string
   /** 區域分析「查看明細」帶來的區域（網址 area）；認不得的寫法當沒篩。 */
   area?: string
+  /** 統計「退出原因分佈」帶來的分類（網址 wr）；八項或 unclassified。 */
+  withdrawCategory?: string
 }>()
 const emit = defineEmits<{
   'update:month': [value: string]
   'update:visitRequestId': [value: string]
   'update:area': [value: string]
+  'update:withdrawCategory': [value: string]
   'clear-term': []
 }>()
 
@@ -87,7 +91,7 @@ const optionRequests = useRequestSequence()
 const filtered = computed(() =>
   Boolean(
     props.month || props.visitRequestId || areaFilter.value || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value
-    || keyword.value || followUp.value || owner.value,
+    || props.withdrawCategory || keyword.value || followUp.value || owner.value,
   ),
 )
 // 「清除篩選」連學年學期一起清（同園務），所以有選學年或學期也算有篩選。
@@ -122,6 +126,7 @@ function currentFilters(): RecordFilters {
     referrer: referrer.value || null,
     has_deposit: hasDeposit.value === 'yes' ? true : hasDeposit.value === 'no' ? false : null,
     no_deposit_reason: noDepositReason.value || null,
+    withdraw_reason_category: props.withdrawCategory || null,
     visit_request_id: props.visitRequestId || null,
     q: keyword.value || null,
     follow_up: followUp.value || null,
@@ -191,7 +196,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 // 區域用解析後的篩選：網址手改成認不得的寫法（視同沒篩）不會被當成條件變動而重讀、把頁碼拉回第一頁。
 const filterKey = computed(() => JSON.stringify([
   props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId, areaFilter.value ? areaQuery(areaFilter.value) : '',
-  grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, keyword.value, followUp.value, owner.value,
+  grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, props.withdrawCategory ?? '', keyword.value, followUp.value, owner.value,
 ]))
 watch(filterKey, () => {
   if (page.value !== 1) page.value = 1
@@ -202,6 +207,10 @@ onMounted(load)
 
 function setMonth(value: string | null | undefined) {
   emit('update:month', value ?? '')
+}
+
+function setWithdrawCategory(value: string | null | undefined) {
+  emit('update:withdrawCategory', value ?? '')
 }
 
 function clearFilters() {
@@ -218,6 +227,7 @@ function clearFilters() {
   emit('update:month', '')
   emit('update:visitRequestId', '')
   emit('update:area', '')
+  emit('update:withdrawCategory', '')
   emit('clear-term')
 }
 
@@ -239,6 +249,7 @@ const hiddenFilters = computed<ActiveFilter[]>(() => {
   if (source.value) list.push({ key: 'source', label: `來源：${source.value}`, clear: () => { source.value = '' } })
   if (referrer.value) list.push({ key: 'referrer', label: `家長介紹：${referrer.value}`, clear: () => { referrer.value = '' } })
   if (noDepositReason.value) list.push({ key: 'reason', label: `未預繳原因：${noDepositReason.value}`, clear: () => { noDepositReason.value = '' } })
+  if (props.withdrawCategory) list.push({ key: 'withdraw', label: `退出原因：${withdrawFilterLabel(props.withdrawCategory)}`, clear: () => setWithdrawCategory('') })
   if (owner.value) {
     const name = OWNER_FILTER_LABELS[owner.value] ?? ownerLabel(owner.value, staff.value)
     list.push({ key: 'owner', label: `負責人：${name}`, clear: () => { owner.value = '' } })
@@ -508,6 +519,13 @@ async function remove(row: RecruitmentVisit) {
           <span>未預繳原因</span>
           <el-select v-model="noDepositReason" clearable placeholder="全部原因" aria-label="未預繳原因" class="records-filters__wide">
             <el-option v-for="item in NO_DEPOSIT_REASONS" :key="item" :label="item" :value="item" />
+          </el-select>
+        </div>
+        <div class="filter-field">
+          <span>退出原因</span>
+          <el-select :model-value="withdrawCategory || undefined" clearable placeholder="全部原因" aria-label="退出原因" class="records-filters__wide" @update:model-value="setWithdrawCategory">
+            <el-option v-for="item in WITHDRAW_REASON_CATEGORIES" :key="item" :label="item" :value="item" />
+            <el-option :value="UNCLASSIFIED_WITHDRAW" :label="withdrawFilterLabel(UNCLASSIFIED_WITHDRAW)" />
           </el-select>
         </div>
         <div class="filter-field">

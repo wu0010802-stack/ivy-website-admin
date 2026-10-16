@@ -12,7 +12,7 @@ import { getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
 import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
 import { currentTerm, taipeiToday, termLabel } from '../../admissions/academic'
-import { SEMESTER_LABELS } from '../../admissions/constants'
+import { SEMESTER_LABELS, UNCLASSIFIED_LABEL, UNCLASSIFIED_WITHDRAW } from '../../admissions/constants'
 import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/journeyFormat'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
@@ -21,15 +21,16 @@ import { csvFilename } from '../../utils/csv'
 
 // 統計分析（規格 9、10）。頁首的校區與入學學年學期由 AdmissionsView 傳進來；這裡管參考月份、
 // 子分頁與讀取。換校區或學期時先清空畫面再讀，只採用最後一次的回應（R15：不殘留別校的數字）。
-// 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、區域分析（2026-10-08 起官網也做，見區域分析規格）、未預繳原因。
+// 子分頁順序同園務：總覽、班別分析、來源分析、接待分析、區域分析（2026-10-08 起官網也做，見區域分析規格）、未預繳與退出原因。
 // 警示與行動入口指到統計內的子分頁就直接切；指到訪視明細就交給頁面（open-records）。
-// 「未預繳原因」另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面。
+// 「未預繳與退出原因」（2026-10-15 由「未預繳原因」改名）另有未預繳明細（NoDepositList，C3b）：警示帶的篩選以 preset 傳下去，名單的「查看」同樣交給頁面；
+// 最下面的「退出原因分佈」，「查看明細」帶分類回訪視明細。
 // 「參觀預約」（2026-10-13 從成效統計搬來，BookingStatsPane）讀自己的 API、不用招生統計：招生統計還在讀或
 // 讀失敗時，子分頁列照樣出現，切得過去；招生的子分頁和以前一樣等招生統計回來才畫（讀失敗只有錯誤與
 // 重新載入）。上方的統計範圍與說明只屬於招生統計，在參觀預約不顯示。
 // 「預約全程」（2026-10-15，JourneyTab）同樣讀自己的 API，期間與來源由頁面放在網址（journey）。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
-const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string }] }>()
+const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string; withdraw?: string }] }>()
 
 // 統計表的匯出檔名：招生統計-表名-校區-學期-日期（沒選學年寫「全部學年」，只選學期就接上學期，
 // 檔名才不會把只有上學期的數字寫成全部）。
@@ -273,6 +274,28 @@ const noDepositKpis = computed(() => {
     { label: '冷名單', value: summary?.cold_count ?? 0 },
   ]
 })
+
+// 退出原因分佈（2026-10-15 規格 W6、W8）：後端回八項＋未分類（含 0 筆），畫面只列有筆數的。
+const withdrawColumns: StatsColumn[] = [
+  { key: 'reason', label: '原因', sticky: true },
+  { key: 'deposited', label: '退預繳', kind: 'count' },
+  { key: 'enrolled', label: '退註冊', kind: 'count' },
+  { key: 'total', label: '合計', kind: 'bar' },
+]
+const withdrawRows = computed(() =>
+  (stats.value?.withdraw_reasons ?? [])
+    .filter((row) => row.total > 0)
+    .map((row) => ({
+      reason: row.reason,
+      deposited: row.deposited,
+      enrolled: row.enrolled,
+      total: row.total,
+      code: row.reason === UNCLASSIFIED_LABEL ? UNCLASSIFIED_WITHDRAW : row.reason,
+    })),
+)
+function openWithdrawRecords(row: { code: string }) {
+  emit('open-records', { withdraw: row.code })
+}
 </script>
 
 <template>
@@ -401,7 +424,7 @@ const noDepositKpis = computed(() => {
         />
       </el-tab-pane>
 
-      <el-tab-pane label="未預繳原因" name="stats-nodeposit" lazy>
+      <el-tab-pane label="未預繳與退出原因" name="stats-nodeposit" lazy>
         <div v-if="stats" class="stats-pane">
           <template v-if="stats.no_deposit_total">
             <div class="nodeposit-summary">
@@ -437,6 +460,17 @@ const noDepositKpis = computed(() => {
             :overall-total="stats.no_deposit_total"
             @open-records="emit('open-records', $event)"
           />
+          <StatsDimensionTable
+            title="退出原因分佈"
+            :export-filename="csvName('退出原因分佈')"
+            :rows="withdrawRows"
+            :columns="withdrawColumns"
+            row-key="reason"
+            empty-text="此區間沒有退預繳或退註冊的訪視"
+            action-label="查看明細"
+            @action="openWithdrawRecords"
+          />
+          <p class="hint">依頁首的入學學年與學期；改版前退出、還沒補分類的歸「未分類」，可在訪視明細補上。</p>
         </div>
       </el-tab-pane>
 

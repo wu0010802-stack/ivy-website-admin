@@ -118,7 +118,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats() })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ campusKeys: ['yihua'] }) })
 
-    expect(tabTexts(wrapper)).toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳原因', '參觀預約', '預約全程'])
+    expect(tabTexts(wrapper)).toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程'])
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual([])
   })
 

@@ -118,7 +118,8 @@ export function recruitmentEventChanges(event: RecruitmentEvent): string[] {
     if (seat) lines.push(seat)
   }
   if (event.event_type === 'withdrawn' && typeof metadata.withdraw_reason_category === 'string') {
-    lines.push(`原因：${metadata.withdraw_reason_category}`)
+    // 同一個事件另有「原因：{說明}」那行（時間線的 reason），這行叫「分類」才不會兩行都叫原因。
+    lines.push(`分類：${metadata.withdraw_reason_category}`)
   }
   if (event.event_type === 'details_updated' && Array.isArray(metadata.fields)) {
     // 帶參觀老師的帳號與姓名是兩個欄位、同一個中文，只列一次。
