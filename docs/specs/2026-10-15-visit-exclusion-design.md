@@ -138,7 +138,7 @@
   - 已匿名化的案件，對話框不給「其他」與說明欄，改顯示「這筆已匿名化：原因可選測試或重複，不保存說明。」，送出只帶原因、不帶 note；後端照 P15 不變（最終修正 F4）。
   - 標記排除成功、明細重讀後，焦點移到頁首下方的橫幅（`tabindex="-1"`）；取消排除成功後移到「標記為排除」入口。否則入口那一列或橫幅收起時，被按的按鈕消失，焦點掉到「跳到主要內容」（最終修正 F7）。
   - 選了「其他」卻沒寫說明的 422 指到 `["body","note"]`（`note` 設 `validate_default=True`，在欄位驗證器讀 `info.data["reason"]`），後台才能把錯誤寫在說明欄下面（P16）。
-  - 跨校標記排除回 404（沿用 `permissions.ScopeDenied` 不洩漏案件是否存在的慣例），同校但沒有 `booking.manage` 回 403（櫃台、唯讀）。排除與取消排除先 `refresh(with_for_update=True)` 再判斷（連同 `status`、`slot_id` 一起重讀，等鎖的空檔別人改了狀態時回應不帶舊值），兩人同時操作時後到的拿 409，後台遇 409 重讀明細；對話框還開著時「標記為排除」停用，不能再送第二次。
+  - 跨校標記排除回 404（沿用 `permissions.ScopeDenied` 不洩漏案件是否存在的慣例），同校但沒有 `booking.manage` 回 403（櫃台、唯讀）。排除與取消排除先 `refresh(with_for_update=True)` 再判斷（連同 `status` 一起重讀，等鎖的空檔別人改了狀態時回應不帶舊值；`slot_id` 不重讀，只重讀欄位不會更新已載入的場次，回應會一新一舊，後台排除後一律重讀明細），兩人同時操作時後到的拿 409，後台遇 409 重讀明細；對話框還開著時「標記為排除」停用，不能再送第二次。
   - 家長參觀提醒：排入（共用的 `reminders._due_upcoming`，員工提醒一併排除）與寄出前（`service.py::_dispatch_parent_email`）都擋，員工提醒的 `still_applies` 也擋。
   - 列表 `excluded=hide|only` 也作用到頁籤件數與 CSV（共用 `VisitRequestFilters`）；CSV 加「已排除」欄。
   - 操作紀錄 `visit_request.exclude`／`visit_request.include` 與時間線 `excluded`／`exclusion_removed` 的中文在後端變更當下就補（admin `labelCoverage.test.ts` 會要求，否則中間的 commit 會紅；W3-18）。

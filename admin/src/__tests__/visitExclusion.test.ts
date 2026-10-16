@@ -287,8 +287,11 @@ describe('排除與取消排除之後的焦點', () => {
     await dialogSubmit(body().get('.exclusion-dialog')).trigger('click')
     await flushPromises()
     expect(wrapper.find('.exclusion-banner').exists()).toBe(false)
-    expect(document.activeElement).not.toBe(document.body.querySelector('.exclusion-banner'))
     expect(body().find('.exclusion-dialog').exists()).toBe(true)
+    // 焦點沒有被搬到排除入口（成功與取消排除才搬）。
+    const entry = document.body.querySelector('.exclusion-action__start')
+    expect(entry).not.toBeNull()
+    expect(document.activeElement).not.toBe(entry)
   })
 })
 

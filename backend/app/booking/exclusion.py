@@ -32,8 +32,9 @@ from app.booking.models import VisitRequest
 
 REASONS = ("test", "duplicate", "other")
 NOTE_MAX = 200
-# 鎖內重讀：除了排除欄位，status／slot_id 也一起更新，等鎖的空檔別人改了狀態或場次時，回應不會帶鎖前的舊值。
-_FIELDS = ["excluded_at", "excluded_by", "exclude_reason", "exclude_note", "anonymized_at", "status", "slot_id"]
+# 鎖內重讀：除了排除欄位，status 也一起更新，等鎖的空檔別人改了狀態時，回應不會帶鎖前的舊值。
+# slot_id 不在這裡：只重讀欄位不會更新已載入的 slot 關聯，回應會變成新 slot_id 配舊 slot；後台排除後一律重讀明細。
+_FIELDS = ["excluded_at", "excluded_by", "exclude_reason", "exclude_note", "anonymized_at", "status"]
 
 
 class AlreadyExcluded(Exception):
