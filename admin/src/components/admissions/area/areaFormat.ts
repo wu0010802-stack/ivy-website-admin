@@ -285,10 +285,19 @@ export function babycareSummaryText(summary: AreaBabycare['summary'], radiusKm: 
   )
 }
 
-/** 清單每列第二行：距離・核定 N 人・實際收托 M 人。來源沒給（null）寫「—」，不寫 0。 */
-export function babycareMeta(item: Pick<AreaBabycareItem, 'distance_m' | 'approved_capacity' | 'enrolled'>): string {
+/** 清單每列第二行：距離・核定 N 人・實際收托 M 人（・月費 X）。來源沒給（null）寫「—」，不寫 0；月費沒有（null 或沒送）就不寫。 */
+export function babycareMeta(item: Pick<AreaBabycareItem, 'distance_m' | 'approved_capacity' | 'enrolled' | 'monthly_fee'>): string {
   const count = (value: number | null): string => (value === null ? NO_VALUE : String(value))
-  return `${formatDistance(item.distance_m)}・核定 ${count(item.approved_capacity)} 人・實際收托 ${count(item.enrolled)} 人`
+  const fee = item.monthly_fee === null || item.monthly_fee === undefined ? '' : `・月費 ${formatCount(item.monthly_fee)}`
+  return `${formatDistance(item.distance_m)}・核定 ${count(item.approved_capacity)} 人・實際收托 ${count(item.enrolled)} 人${fee}`
+}
+
+/** 托嬰摘要下的月費對照（2026-10-15 規格 7.3）：少於 3 所（沒有中位數）回空字串；本校沒有 2 歲班收費就不寫後半句。 */
+export function babycareFeeText(summary: AreaBabycare['summary']): string {
+  const { fee_median: median, fee_min: lowest, fee_max: highest, own_age2_monthly: own } = summary
+  if (median === null || median === undefined || lowest === null || lowest === undefined || highest === null || highest === undefined) return ''
+  const head = `日間托育月費中位數 ${formatCount(median)} 元（${formatCount(lowest)}–${formatCount(highest)}）`
+  return own === null || own === undefined ? `${head}。` : `${head}；本校 2 歲班月均 ${formatCount(own)} 元。`
 }
 
 const CHANGE_LABELS: Record<string, string> = { opened: '新設', closed: '停辦', kind_changed: '類型變動' }

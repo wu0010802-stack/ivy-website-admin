@@ -974,6 +974,11 @@ class AreaKindergartenOut(BaseModel):
     phone: str | None
     # 與任一校區座標相距 50 公尺內：畫面標「本機構」，不算競爭園所。
     is_own: bool
+    # 2026-10-15 附近同業比較：每位核定幼生的室內／戶外面積（m²，一位小數）、幼童專用車、兼辦國小課後人數（0＝無）。
+    indoor_m2_per_child: float | None = None
+    outdoor_m2_per_child: float | None = None
+    has_shuttle: bool | None = None
+    after_school_capacity: int | None = None
 
 
 class AreaKindergartensOut(BaseModel):
@@ -999,14 +1004,27 @@ class AreaBabycareItemOut(BaseModel):
     approved_capacity: int | None
     enrolled: int | None
     phone: str | None
+    # 2026-10-15：逐所明細的日間托育平均月費與說明、評鑑等級與年度（民國）、準公共資格；沒抓到是 null。
+    monthly_fee: int | None = None
+    fee_note: str | None = None
+    evaluation_grade: str | None = None
+    evaluation_year: int | None = None
+    quasi_public: bool | None = None
 
 
 class AreaBabycareSummaryOut(BaseModel):
-    """營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。"""
+    """營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。
+    2026-10-15 起另有月費中位數與範圍（少於 3 所不算中位數）、本校 2 歲班月均、收費學年。"""
 
     count: int
     approved_total: int
     enrolled_total: int
+    fee_count: int = 0
+    fee_median: int | None = None
+    fee_min: int | None = None
+    fee_max: int | None = None
+    own_age2_monthly: int | None = None
+    fee_school_year: int | None = None
 
 
 class AreaBabycareOut(BaseModel):
@@ -1016,6 +1034,83 @@ class AreaBabycareOut(BaseModel):
     radius_km: int
     summary: AreaBabycareSummaryOut
     items: list[AreaBabycareItemOut]
+
+
+class AreaFeeItemsOut(BaseModel):
+    """一學期的逐項公告收費（元）；課後延托是每月。來源沒寫是 null，畫面寫「—」。"""
+
+    tuition: int | None
+    misc_fee: int | None
+    materials: int | None
+    activities: int | None
+    lunch: int | None
+    snack: int | None
+    after_care_monthly: int | None
+
+
+class AreaPeerFeeOwnOut(BaseModel):
+    source_id: str
+    name: str
+    semester_total: int
+    months: float | None
+    monthly_average: int | None
+    items: AreaFeeItemsOut
+    transport_note: str | None
+
+
+class AreaPeerFeeGroupOut(BaseModel):
+    """一種類型的半徑內家數（不含本機構）、有公布收費的家數、中位數（少於 3 所是 null）、最低、最高；
+    私立一般且本校也是私立一般時才有本校排名（第 own_rank 高，共 rank_total 所，含本校）。"""
+
+    kind: KindergartenKind
+    schools: int
+    with_fee: int
+    median: int | None
+    lowest: int | None
+    highest: int | None
+    own_rank: int | None
+    rank_total: int | None
+
+
+FeeItemKey = Literal["tuition", "misc_fee", "materials", "activities", "lunch", "snack", "after_care_monthly"]
+
+
+class AreaPeerFeeItemOut(BaseModel):
+    key: FeeItemKey
+    own: int | None
+    peer_median: int | None
+    peer_count: int
+
+
+class AreaPeerFeeSchoolOut(BaseModel):
+    source_id: str
+    name: str
+    kind: KindergartenKind
+    distance_m: int
+    is_own: bool
+    semester_total: int | None
+    monthly_average: int | None
+    items: AreaFeeItemsOut
+    transport_note: str | None
+
+
+class AreaPeerFeesOut(BaseModel):
+    """附近同業收費（2026-10-15 規格 §6）。synced_at 是 null＝收費從沒匯入；school_year 是資料學年，
+    比 current_school_year 舊時畫面要寫明。own_missing：not_found＝附近找不到本校的教保資訊網資料、
+    no_fee＝本校沒有公布這個年齡的收費；本校沒定位時兩者都是 null（原因在 campus.locate_error）。"""
+
+    campus: AreaCampusOut
+    radius_km: int
+    age: int
+    school_year: int | None
+    current_school_year: int
+    synced_at: datetime | None
+    source_note: str
+    own: AreaPeerFeeOwnOut | None
+    own_missing: Literal["not_found", "no_fee"] | None
+    groups: list[AreaPeerFeeGroupOut]
+    items: list[AreaPeerFeeItemOut]
+    schools: list[AreaPeerFeeSchoolOut]
 
 
 class AreaTrackingSinceOut(BaseModel):

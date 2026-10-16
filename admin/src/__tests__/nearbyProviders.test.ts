@@ -37,6 +37,44 @@ describe('附近托嬰中心', () => {
     expect(wrapper.get('.nearby__source').text()).toBe('資料來源：衛生福利部社會及家庭署公開資料（kiang 整理）；實際收托為官方資料・10/14 更新')
   })
 
+  it('月費、準公共與評鑑標籤；摘要下多一句月費對照；展開看費用說明與評鑑年度', async () => {
+    const items = [
+      babycareItem({ source_id: 'bc-a', distance_m: 165, monthly_fee: 17900, quasi_public: true, evaluation_grade: '優等', evaluation_year: 114, fee_note: '平均月費: 17,900元' }),
+      babycareItem({ source_id: 'bc-b', distance_m: 520, monthly_fee: 15000, quasi_public: false, evaluation_grade: null }),
+      babycareItem({ source_id: 'bc-c', distance_m: 900, monthly_fee: 21000 }),
+    ]
+    const data = areaBabycare(items)
+    data.summary = { ...data.summary, fee_count: 3, fee_median: 17900, fee_min: 15000, fee_max: 21000, own_age2_monthly: 19264, fee_school_year: 114 }
+    const wrapper = mountIt(NearbyBabycare, babycareProps({ data }))
+    expect(wrapper.get('.nearby__meta').text()).toBe('165 m・核定 40 人・實際收托 32 人・月費 17,900')
+    expect(wrapper.findAll('.nearby__item')[0]!.findAll('.el-tag').map((tag) => tag.text())).toEqual(['托嬰中心', '準公共', '評鑑 優等'])
+    expect(wrapper.get('.nearby__fees').text()).toBe('日間托育月費中位數 17,900 元（15,000–21,000）；本校 2 歲班月均 19,264 元。')
+    expect(wrapper.text()).toContain('準公共托育的家長另有政府補助，這裡是機構公告的平均月費。')
+    await wrapper.get('.nearby__row').trigger('click')
+    expect(wrapper.get('.nearby__detail').text()).toContain('費用說明平均月費: 17,900元')
+    expect(wrapper.get('.nearby__detail').text()).toContain('評鑑114 年評鑑')
+  })
+
+  it('月費少於 3 所：不寫月費對照', () => {
+    const wrapper = mountIt(NearbyBabycare, babycareProps())
+    expect(wrapper.find('.nearby__fees').exists()).toBe(false)
+  })
+
+  it('選填欄位沒送（undefined）當沒有值：不畫標籤、不寫月費、不列費用說明與評鑑，也不寫對照句', async () => {
+    const bare = babycareItem({ source_id: 'bc-bare' }) as Record<string, unknown>
+    for (const key of ['monthly_fee', 'fee_note', 'evaluation_grade', 'evaluation_year', 'quasi_public']) delete bare[key]
+    const data = areaBabycare([bare as never])
+    const summary = data.summary as Record<string, unknown>
+    for (const key of ['fee_median', 'fee_min', 'fee_max', 'own_age2_monthly', 'fee_school_year']) delete summary[key]
+    const wrapper = mountIt(NearbyBabycare, babycareProps({ data }))
+    expect(wrapper.get('.nearby__meta').text()).toBe('520 m・核定 40 人・實際收托 32 人')
+    expect(wrapper.findAll('.nearby__item')[0]!.findAll('.el-tag').map((tag) => tag.text())).toEqual(['托嬰中心'])
+    expect(wrapper.find('.nearby__fees').exists()).toBe(false)
+    await wrapper.get('.nearby__row').trigger('click')
+    expect(wrapper.get('.nearby__detail').text()).not.toContain('費用說明')
+    expect(wrapper.get('.nearby__detail').text()).not.toContain('評鑑')
+  })
+
   it('點一列：展開地址與電話並請地圖定位；再點一次只收合、不再定位；沒有電話就不列', async () => {
     const wrapper = mountIt(NearbyBabycare, babycareProps())
     const rows = wrapper.findAll('.nearby__row')

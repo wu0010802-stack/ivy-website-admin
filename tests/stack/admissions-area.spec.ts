@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
-import { seedBirthSeries, seedEnrolled, seedProviderChanges } from './db'
+import { seedBirthSeries, seedEnrolled, seedPeerFees, seedProviderChanges } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
@@ -565,5 +565,73 @@ test('390px：地圖手機預設不攔單指，按「移動地圖」才接手，
   await page.getByRole('button', { name: '完成移動地圖', exact: true }).click()
   await expect(leafletMap).toHaveCSS('touch-action', 'auto')
   await expect(page.getByRole('button', { name: '移動地圖', exact: true })).toBeVisible()
+  await context.close()
+})
+
+// 種子會多三所幼兒園且不清掉：這兩則必須留在檔尾。
+test('附近同業收費：總結、落點條、切換年齡、清單收費、托嬰月費', async ({ browser }) => {
+  test.setTimeout(90_000)
+  mkdirSync(SHOTS, { recursive: true })
+  seedPeerFees()
+  const { context, page } = await openAs(browser, 'super_admin')
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+  const panel = page.locator('.peer-fees')
+
+  await test.step('預設 3 歲：學年、總結、落點條四點、兩張表', async () => {
+    await expect(panel.locator('.peer-fees__title')).toHaveText('附近同業收費')
+    await expect(panel.locator('.peer-fees__subtitle')).toContainText('114 學年・全日班・一學期公告收費')
+    await expect(panel.locator('.peer-fees__summary')).toHaveText(
+      '3 公里內私立幼兒園（不含準公共）有 3 所公布收費，3 歲班一學期中位數 80,000 元；本校 89,750 元，第 2 高。',
+    )
+    await expect(panel.locator('.peer-strip__dot')).toHaveCount(4)
+    await expect(panel.locator('table.peer-table')).toHaveCount(2)
+    await expect(panel).toContainText('不是家長實付')
+  })
+
+  await test.step('附近幼兒園清單列上有 3 歲學期收費', async () => {
+    await expect(page.locator('.nearby .nearby__item', { hasText: '常春藤崇德幼兒園' }).locator('.nearby__meta')).toContainText('3 歲學期 89,750')
+    await expect(page.locator('.nearby .nearby__item', { hasText: '測試丙' }).locator('.nearby__meta')).toContainText('未公布收費')
+  })
+
+  await test.step('切到 4 歲：總結與清單一起變', async () => {
+    await panel.locator('.el-radio-button', { hasText: '4 歲' }).click()
+    await expect(panel.locator('.peer-fees__summary')).toHaveText(
+      '3 公里內私立幼兒園（不含準公共）有 3 所公布收費，4 歲班一學期中位數 65,000 元；本校 85,000 元，第 1 高。',
+    )
+    await expect(page.locator('.nearby .nearby__item', { hasText: '常春藤崇德幼兒園' }).locator('.nearby__meta')).toContainText('4 歲學期 85,000')
+  })
+
+  await test.step('托嬰：月費、標籤與月費對照', async () => {
+    await page.locator('.nearby-panel .el-radio-button', { hasText: '托嬰中心' }).click()
+    const list = page.locator('.nearby--babycare')
+    await expect(list.locator('.nearby__fees')).toHaveText('日間托育月費中位數 17,900 元（15,000–21,000）；本校 2 歲班月均 19,264 元。')
+    await expect(list.locator('.nearby__item', { hasText: '測試甲托嬰中心' })).toContainText('評鑑 優等')
+  })
+
+  await test.step('新區塊沒有 serious／critical 的無障礙問題', async () => {
+    const results = await new AxeBuilder({ page }).include('.peer-fees').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
+    const serious = results.violations.filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    expect(serious.map((violation) => `${violation.id}：${violation.nodes.map((node) => node.target.join(' ')).join('；')}`)).toEqual([])
+  })
+
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-peer-fees-1440.png'), fullPage: true })
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await context.close()
+})
+
+test('390px：附近同業收費不撐出頁面', async ({ browser }) => {
+  mkdirSync(SHOTS, { recursive: true })
+  seedPeerFees()
+  const { context, page } = await openAs(browser, 'super_admin', { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page)
+  await page.locator('.peer-fees').scrollIntoViewIfNeeded()
+  await expect(page.locator('.peer-fees__summary')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+  await page.screenshot({ path: path.join(SHOTS, 'admissions-peer-fees-390.png'), fullPage: true })
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
   await context.close()
 })

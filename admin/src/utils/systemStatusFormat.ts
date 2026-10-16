@@ -38,6 +38,7 @@ export const DATASET_LABELS: Record<string, string> = {
   migration: '各里遷入遷出',
   income: '村里所得',
   new_homes: '新成屋交屋',
+  kindergarten_fees: '幼兒園收費',
 }
 
 // 與 backend/app/workers/maintenance.py 的 failed_steps 同一組。

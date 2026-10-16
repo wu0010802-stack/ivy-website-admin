@@ -14,7 +14,8 @@ from sqlalchemy.pool import NullPool
 
 from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo.closure_backfill import BackfillFormatError, ClosureBackfill
-from app.admissions.geo import providers, sync
+from app.admissions.geo import babycare, providers, sync
+from app.admissions.geo import fees as fees_io
 from app.admissions.geo.doorplates import DoorplateParser
 from app.admissions.geo.models import (
     GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoProviderEvent, RecruitmentVisitGeo,
@@ -234,7 +235,10 @@ async def test_first_sync_imports_both_and_second_is_skipped(app, small_minimum)
     seen.clear()
     again = await _sync(app, transport)
     assert (again.doorplates, again.kindergartens, again.rematched) == ("skipped", "skipped", 0)
-    assert seen == []  # 30 天內不連外
+    # 30 天內不連外；只有托嬰明細與幼兒園收費例外：這個假網站沒有明細也沒有收費檔（404），第一輪一所都沒抓到，
+    # 下一輪照規格重抓（托嬰明細只補 quasi_public 是 NULL 的、fees_never_imported）。抓到之後不再重抓，
+    # 見 test_geo_babycare_details.py、test_geo_fees_sync.py。
+    assert [url for url in seen if not url.startswith((babycare.DETAIL_ROOT, f"{fees_io.SLIP_ROOT}/slip"))] == []
 
 
 async def test_same_month_is_not_downloaded_again(app, small_minimum):

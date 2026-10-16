@@ -110,6 +110,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Fees
+         * @description 附近同業收費（2026-10-15 規格 §6）：本校這個年齡全日班一學期的公告收費，在半徑內私立一般園所裡的位置；
+         *     其他類型只當背景。公開資料，只讀，不寫稽核。半徑規則同 /area/kindergartens；年齡不是 2–5 的整數回 INVALID_AGE。
+         */
+        get: operations["get_admissions_area_fees_api_website_v1_admin_admissions_area_fees_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/kindergartens": {
         parameters: {
             query?: never;
@@ -3741,6 +3762,12 @@ export interface components {
             distance_m: number;
             /** Enrolled */
             enrolled: number | null;
+            /** Evaluation Grade */
+            evaluation_grade?: string | null;
+            /** Evaluation Year */
+            evaluation_year?: number | null;
+            /** Fee Note */
+            fee_note?: string | null;
             /**
              * Kind
              * @enum {string}
@@ -3750,10 +3777,14 @@ export interface components {
             lat: number;
             /** Lng */
             lng: number;
+            /** Monthly Fee */
+            monthly_fee?: number | null;
             /** Name */
             name: string;
             /** Phone */
             phone: string | null;
+            /** Quasi Public */
+            quasi_public?: boolean | null;
             /** Source Id */
             source_id: string;
         };
@@ -3773,6 +3804,7 @@ export interface components {
         /**
          * AreaBabycareSummaryOut
          * @description 營業中的所數、核定合計、實際收托合計（null 不計入）。只放數量，不算任何比例。
+         *     2026-10-15 起另有月費中位數與範圍（少於 3 所不算中位數）、本校 2 歲班月均、收費學年。
          */
         AreaBabycareSummaryOut: {
             /** Approved Total */
@@ -3781,6 +3813,21 @@ export interface components {
             count: number;
             /** Enrolled Total */
             enrolled_total: number;
+            /**
+             * Fee Count
+             * @default 0
+             */
+            fee_count: number;
+            /** Fee Max */
+            fee_max?: number | null;
+            /** Fee Median */
+            fee_median?: number | null;
+            /** Fee Min */
+            fee_min?: number | null;
+            /** Fee School Year */
+            fee_school_year?: number | null;
+            /** Own Age2 Monthly */
+            own_age2_monthly?: number | null;
         };
         /** AreaCampusOut */
         AreaCampusOut: {
@@ -3984,6 +4031,26 @@ export interface components {
             /** Village Code */
             village_code: string | null;
         };
+        /**
+         * AreaFeeItemsOut
+         * @description 一學期的逐項公告收費（元）；課後延托是每月。來源沒寫是 null，畫面寫「—」。
+         */
+        AreaFeeItemsOut: {
+            /** Activities */
+            activities: number | null;
+            /** After Care Monthly */
+            after_care_monthly: number | null;
+            /** Lunch */
+            lunch: number | null;
+            /** Materials */
+            materials: number | null;
+            /** Misc Fee */
+            misc_fee: number | null;
+            /** Snack */
+            snack: number | null;
+            /** Tuition */
+            tuition: number | null;
+        };
         /** AreaFiltersOut */
         AreaFiltersOut: {
             /** Campus Key */
@@ -3997,12 +4064,18 @@ export interface components {
         AreaKindergartenOut: {
             /** Address */
             address: string;
+            /** After School Capacity */
+            after_school_capacity?: number | null;
             /** Approved Capacity */
             approved_capacity: number | null;
             /** Distance M */
             distance_m: number;
             /** Has Penalty */
             has_penalty: boolean;
+            /** Has Shuttle */
+            has_shuttle?: boolean | null;
+            /** Indoor M2 Per Child */
+            indoor_m2_per_child?: number | null;
             /** Is Own */
             is_own: boolean;
             /**
@@ -4018,6 +4091,8 @@ export interface components {
             monthly_fee_estimate: number | null;
             /** Name */
             name: string;
+            /** Outdoor M2 Per Child */
+            outdoor_m2_per_child?: number | null;
             /** Phone */
             phone: string | null;
             /** Pre Public Period */
@@ -4129,6 +4204,115 @@ export interface components {
             village_code: string;
             /** Visit */
             visit: number;
+        };
+        /**
+         * AreaPeerFeeGroupOut
+         * @description 一種類型的半徑內家數（不含本機構）、有公布收費的家數、中位數（少於 3 所是 null）、最低、最高；
+         *     私立一般且本校也是私立一般時才有本校排名（第 own_rank 高，共 rank_total 所，含本校）。
+         */
+        AreaPeerFeeGroupOut: {
+            /** Highest */
+            highest: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private";
+            /** Lowest */
+            lowest: number | null;
+            /** Median */
+            median: number | null;
+            /** Own Rank */
+            own_rank: number | null;
+            /** Rank Total */
+            rank_total: number | null;
+            /** Schools */
+            schools: number;
+            /** With Fee */
+            with_fee: number;
+        };
+        /** AreaPeerFeeItemOut */
+        AreaPeerFeeItemOut: {
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "tuition" | "misc_fee" | "materials" | "activities" | "lunch" | "snack" | "after_care_monthly";
+            /** Own */
+            own: number | null;
+            /** Peer Count */
+            peer_count: number;
+            /** Peer Median */
+            peer_median: number | null;
+        };
+        /** AreaPeerFeeOwnOut */
+        AreaPeerFeeOwnOut: {
+            items: components["schemas"]["AreaFeeItemsOut"];
+            /** Monthly Average */
+            monthly_average: number | null;
+            /** Months */
+            months: number | null;
+            /** Name */
+            name: string;
+            /** Semester Total */
+            semester_total: number;
+            /** Source Id */
+            source_id: string;
+            /** Transport Note */
+            transport_note: string | null;
+        };
+        /** AreaPeerFeeSchoolOut */
+        AreaPeerFeeSchoolOut: {
+            /** Distance M */
+            distance_m: number;
+            /** Is Own */
+            is_own: boolean;
+            items: components["schemas"]["AreaFeeItemsOut"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private";
+            /** Monthly Average */
+            monthly_average: number | null;
+            /** Name */
+            name: string;
+            /** Semester Total */
+            semester_total: number | null;
+            /** Source Id */
+            source_id: string;
+            /** Transport Note */
+            transport_note: string | null;
+        };
+        /**
+         * AreaPeerFeesOut
+         * @description 附近同業收費（2026-10-15 規格 §6）。synced_at 是 null＝收費從沒匯入；school_year 是資料學年，
+         *     比 current_school_year 舊時畫面要寫明。own_missing：not_found＝附近找不到本校的教保資訊網資料、
+         *     no_fee＝本校沒有公布這個年齡的收費；本校沒定位時兩者都是 null（原因在 campus.locate_error）。
+         */
+        AreaPeerFeesOut: {
+            /** Age */
+            age: number;
+            campus: components["schemas"]["AreaCampusOut"];
+            /** Current School Year */
+            current_school_year: number;
+            /** Groups */
+            groups: components["schemas"]["AreaPeerFeeGroupOut"][];
+            /** Items */
+            items: components["schemas"]["AreaPeerFeeItemOut"][];
+            own: components["schemas"]["AreaPeerFeeOwnOut"] | null;
+            /** Own Missing */
+            own_missing: ("not_found" | "no_fee") | null;
+            /** Radius Km */
+            radius_km: number;
+            /** School Year */
+            school_year: number | null;
+            /** Schools */
+            schools: components["schemas"]["AreaPeerFeeSchoolOut"][];
+            /** Source Note */
+            source_note: string;
+            /** Synced At */
+            synced_at: string | null;
         };
         /**
          * AreaPopulationOut
@@ -8436,6 +8620,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaEnrolledOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_fees_api_website_v1_admin_admissions_area_fees_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+                /** @description 年齡：2 到 5 歲 */
+                age?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaPeerFeesOut"];
                 };
             };
             /** @description Validation Error */

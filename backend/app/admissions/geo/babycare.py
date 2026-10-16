@@ -9,13 +9,17 @@ capacity（核定人數）、status（實際收托）、is_active；沒有設立
 只留高雄市、營業中（is_active 為真）的機構；缺必要欄位、欄位超過資料表欄寬、座標不是有限數或不在
 高雄市外框內、id 重複，整筆略過並計入 ParseReport.skipped（別的縣市、停業的本來就不要，不算）；
 不讓一筆壞資料使整批寫入失敗。數量欄位超出 int4 當成未知。停業的機構不收進來：同步比對時
-「名單沒有」就是停辦（providers.py）。"""
+「名單沒有」就是停辦（providers.py）。
+
+2026-10-15 起另抓逐所明細（`data/高雄市/<id>.json`）的月費、評鑑、準公共；負責人、電話、違反法令紀錄、
+退費說明不讀（附近同業比較規格 §4.3）。"""
 
 from __future__ import annotations
 
 import math
 import re
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +32,13 @@ from app.admissions.geo.projection import haversine_m
 SOURCE_NOTE = "資料來源：衛生福利部社會及家庭署公開資料（kiang 整理）；實際收托為官方資料"
 _POSTAL_PREFIX = re.compile(r"^\d{3,6}")
 _METERS_PER_DEGREE = 111_320.0
+DETAIL_ROOT = "https://kiang.github.io/ncwisweb.sfaa.gov.tw/data"
+_DETAIL_CITY = "高雄市"
+_FEE_NAME = "托育費"
+_NOTE_MAX = 200
+_GRADE_MAX = 8
+_YEAR = re.compile(r"[0-9]{2,3}")
+_SPACES = re.compile(r"\s+")
 # 文字欄位上限，以資料表欄寬為準。
 _WIDTHS = {
     name: GeoBabycare.__table__.c[name].type.length for name in ("source_id", "name", "address", "phone")
@@ -63,6 +74,20 @@ class NearbyBabycare:
     approved_capacity: int | None
     enrolled: int | None
     phone: str | None
+    monthly_fee: int | None = None
+    fee_note: str | None = None
+    evaluation_grade: str | None = None
+    evaluation_year: int | None = None
+    quasi_public: bool | None = None
+
+
+@dataclass(frozen=True)
+class BabycareDetail:
+    monthly_fee: int | None
+    fee_note: str | None
+    evaluation_grade: str | None
+    evaluation_year: int | None
+    quasi_public: bool | None
 
 
 def _address(raw: object) -> str:
@@ -151,7 +176,39 @@ async def nearby(db: AsyncSession, lat: float, lng: float, radius_m: int) -> lis
             NearbyBabycare(
                 source_id=row.source_id, name=row.name, kind=row.kind, address=row.address, lat=row.lat, lng=row.lng,
                 distance_m=round(distance), approved_capacity=row.approved_capacity, enrolled=row.enrolled, phone=row.phone,
+                monthly_fee=row.monthly_fee, fee_note=row.fee_note, evaluation_grade=row.evaluation_grade,
+                evaluation_year=row.evaluation_year, quasi_public=row.quasi_public,
             )
         )
     items.sort(key=lambda item: (item.distance_m, item.name))
     return items
+
+
+def detail_url(source_id: str) -> str:
+    return f"{DETAIL_ROOT}/{quote(_DETAIL_CITY)}/{quote(source_id, safe='')}.json"
+
+
+def parse_babycare_detail(data: object) -> BabycareDetail:
+    """逐所明細 → 五個欄位（規格 F11）。只讀收費情形、評鑑等級、最近一次評鑑年度、準公共資格。"""
+    if not isinstance(data, dict):
+        raise BabycareFormatError("托嬰明細不是預期的格式")
+    fee: int | None = None
+    note: str | None = None
+    charges = data.get("收費情形")
+    daytime = charges.get("日間托育") if isinstance(charges, dict) else None
+    for entry in daytime if isinstance(daytime, list) else []:
+        if isinstance(entry, dict) and str(entry.get("費用名稱") or "").strip() == _FEE_NAME:
+            amount = _int_or_none(entry.get("費用金額"))
+            fee = amount if amount is not None and amount > 0 else None
+            note = _SPACES.sub(" ", str(entry.get("費用說明") or "")).strip()[:_NOTE_MAX] or None
+            break
+    grade = str(data.get("評鑑等級") or "").strip()
+    year = str(data.get("最近一次評鑑年度") or "").strip()
+    quasi = str(data.get("準公共資格") or "").strip()
+    return BabycareDetail(
+        monthly_fee=fee,
+        fee_note=note,
+        evaluation_grade=grade if grade and len(grade) <= _GRADE_MAX else None,
+        evaluation_year=int(year) if _YEAR.fullmatch(year) else None,
+        quasi_public=True if quasi == "是" else False if quasi == "否" else None,
+    )

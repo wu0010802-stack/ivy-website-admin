@@ -691,6 +691,7 @@ async def geo_sync_command(**options) -> None:
     print(
         f"門牌：{result.doorplates}（使用中 {result.doorplate_version or '尚未匯入'}）；"
         f"幼兒園：{result.kindergartens}；"
+        f"幼兒園收費：{result.kindergarten_fees}（{result.kindergarten_fees_version + ' 學年' if result.kindergarten_fees_version else '尚未匯入'}，這次 {result.kindergarten_fee_schools} 所）；"
         f"托嬰：{result.babycare}；"
         f"各里人口：{result.population}（使用中 {result.population_version or '尚未匯入'}）；"
         f"重算訪視 {result.rematched} 筆"
@@ -719,6 +720,7 @@ async def geo_sync_command(**options) -> None:
         for dataset, label, outcome in (
             ("doorplates", "門牌", result.doorplates),
             ("kindergartens", "幼兒園", result.kindergartens),
+            ("kindergarten_fees", "幼兒園收費", result.kindergarten_fees),
             ("babycare", "托嬰", result.babycare),
             ("population", "各里人口", result.population),
             ("births", "各里出生", result.births),

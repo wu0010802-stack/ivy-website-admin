@@ -575,6 +575,13 @@ export type AreaKindergarten = components['schemas']['AreaKindergartenOut']
 export type AreaBabycare = components['schemas']['AreaBabycareOut']
 export type AreaBabycareItem = components['schemas']['AreaBabycareItemOut']
 export type AreaBabycareSummary = components['schemas']['AreaBabycareSummaryOut']
+
+// 附近同業收費（2026-10-15 規格 6）。
+export type AreaPeerFees = components['schemas']['AreaPeerFeesOut']
+export type AreaPeerFeeGroup = components['schemas']['AreaPeerFeeGroupOut']
+export type AreaPeerFeeItem = components['schemas']['AreaPeerFeeItemOut']
+export type AreaPeerFeeSchool = components['schemas']['AreaPeerFeeSchoolOut']
+export type AreaFeeItems = components['schemas']['AreaFeeItemsOut']
 export type AreaChanges = components['schemas']['AreaChangesOut']
 export type AreaChange = components['schemas']['AreaChangeItemOut']
 export type AreaTrackingSince = components['schemas']['AreaTrackingSinceOut']
