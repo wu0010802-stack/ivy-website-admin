@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-17 首頁近期活動與最新消息改版（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/news-next-20261017` 到 main（`4a2d4912..2668f61a`，fast-forward、沒有開 PR；分支先 rebase 到 `4a2d4912`，沒有衝突）。內容見 README 與 DESIGN.md 同日「首頁近期活動與最新消息」：桌機方向 1（活動放大、加入行事曆、校區篩選、不輪播）、手機方向 3（動態卡列取代活動影片色帶），這一區不放參觀入口；後台只改文案。
+- **回退**：直接切回上一版映像即可（純前端加後台文案）。
+- **推送前閘門**（本機，Node 22，rebase 後的 `2668f61a`，stack 用獨立庫 `ivy_website_news_e2e_test`、預設埠 8710／3710）：`e2e:build` 後 stack 全套 155 passed（5.9 分鐘）；web typecheck 0 錯、vitest 103 檔 1,272 passed；admin typecheck 0 錯、vitest 整套 3 項招生測試在本機負載 43 時逾時，兩檔單獨重跑 66 passed。
+- **CI**：main run 38988742565（`2668f61a`）00:57:38Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 01:03:21Z–01:07:43Z success。
+- **正式 `release.json`**：base commit `2668f61ab73da82c37e76c43dec924bc51557b7e`，snapshot `6ea1692b…`，created `2026-10-17T01:03:43Z`。
+- **線上唯讀檢查**（擋掉 POST 與遙測）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`；首頁 1440 顯示新版兩欄（活動卡、六個校區篩選、一大三列、沒有輪播倒數），390 顯示動態卡列 12 張與六個校區圈，點卡片打開全螢幕檢視；兩個尺寸都沒有頁面錯誤或 hydration 警告。
+- **正式內容現況**：後台示意說明欄仍有值，所以照樣標「示意內容」，唯一的活動（10/17）顯示「日期未定」、沒有倒數與加入行事曆；10/18 起這個活動過期，桌機左欄不出現、消息改整寬。清空示意說明欄、填真實活動後才會看到倒數與加入行事曆。
+
 ## 2026-10-17 區域分析改成地圖工作台（main CI 部署，沒有 migration）
 
 - **提交**：agent 經使用者同意，把 `feature/area-workbench-20261016` 推到 main（`60a9684c..6bf64d1c`，fast-forward、沒有開 PR）。分支先併入 main（merge `6bf64d1c`，只有 README 衝突、兩段都保留）。內容見 README「區域分析改成地圖工作台」與規格 `docs/specs/2026-10-16-admissions-area-workbench-design.md`：只改後台前端（`admin/src` 區域分析元件、`useAdmissionsFilters` 的 `map`／`village`／`table` 網址參數）與 stack e2e。沒有 migration、沒有後端或 API 改動、沒有新環境變數；admin 依賴檔沒變（web／backend 的鎖檔變動來自併入的 main）。
