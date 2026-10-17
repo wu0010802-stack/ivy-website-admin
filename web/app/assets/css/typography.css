@@ -35,8 +35,7 @@
   font-weight:400;
   line-height:1.95;
 }
-.belief-since,
-.hn-kicker[lang="en"] {
+.belief-since {
   font-family:var(--font-date);
   font-size:var(--fs-xs);
   font-weight:400;
@@ -46,14 +45,13 @@
 .home-belief .belief-copy-toggle {font-weight:var(--weight-action)}
 
 .home-news h2,
-.hn-card h3,
+.home-news h3,
 .hn-event-copy strong,
 .hn-dialog h2 {
   font-family:var(--font-information);
   font-weight:var(--weight-information);
 }
 .home-news h2 {font-size:var(--fs-4xl)}
-.hn-card h3 {font-size:var(--fs-xl)}
 .hn-event-copy strong {font-size:var(--fs-md)}
 .hn-event-copy small {font-size:var(--fs-xs);font-weight:400}
 .hn-date {width:auto;min-width:2.375rem}
@@ -64,9 +62,6 @@
   font-variant-numeric:tabular-nums;
 }
 .hn-date>span {font:400 var(--fs-xs)/1.4 var(--font-date);letter-spacing:.08em}
-.home-news .hn-meta,
-.hn-dialog .hn-meta {font-size:var(--fs-sm)}
-.hn-meta time,
 .hn-detail-date {
   font-family:var(--font-date);
   font-variant-numeric:tabular-nums;
@@ -74,7 +69,6 @@
 }
 .home-news .hn-more,
 .hn-dialog .hn-more {font-size:var(--fs-md);font-weight:var(--weight-action)}
-.hn-news-head .hn-more {font-size:var(--fs-sm)}
 .hn-sample-note {font-size:var(--fs-xs);line-height:1.8}
 
 .hn-dialog {font:400 var(--fs-md)/1.9 var(--font-information)}
@@ -86,14 +80,12 @@
 @media(max-width:1100px) {
   .home-belief {--belief-title-size:var(--fs-5xl)}
   .home-news h2 {font-size:var(--fs-4xl)}
-  .hn-card h3 {font-size:var(--fs-lg)}
   .hn-event-copy strong {font-size:var(--fs-sm)}
 }
 @media(max-width:760px) {
   .home-belief {--belief-title-size:var(--fs-4xl)}
   .belief-text {font-size:var(--fs-md)}
   .home-news h2 {font-size:var(--fs-3xl)}
-  .hn-card h3 {font-size:var(--fs-lg);line-height:1.65}
   .hn-event-copy strong {font-size:var(--fs-md)}
   .home-news .hn-more,
   .hn-dialog .hn-more {font-size:var(--fs-sm)}

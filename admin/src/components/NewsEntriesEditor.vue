@@ -95,8 +95,8 @@ function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
     <span class="hint">{{ articles.length }} / {{ maxArticles }} 則</span>
   </div>
   <p v-if="isGlobal" class="hint news-lead">
-    勾「首頁推薦」的消息會依這裡的順序在首頁輪播（可用上移、下移調整）；
-    一則都沒勾時，首頁照舊依日期新到舊輪播全部消息。
+    勾「首頁推薦」的消息會依這裡的順序放在首頁（可用上移、下移調整）；
+    一則都沒勾時，首頁照舊依日期新到舊放全部消息。
     <template v-if="featuredCount">目前推薦 {{ featuredCount }} 則。</template>
   </p>
   <div class="news-toolbar">
@@ -180,7 +180,7 @@ function onAllDayChange(event: CampusNewsEventPayload, allDay: boolean) {
           <ScopeField :entry="asGlobal(article)" />
           <el-form-item>
             <el-checkbox :model-value="asGlobal(article).featured" @update:model-value="asGlobal(article).featured = Boolean($event)">
-              首頁推薦（首頁只輪播推薦的消息）
+              首頁推薦（首頁只放推薦的消息）
             </el-checkbox>
           </el-form-item>
         </template>

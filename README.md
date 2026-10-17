@@ -1,3 +1,18 @@
+## 2026-10-17 首頁近期活動與最新消息改版：桌機方向 1、手機方向 3（`feature/news-next-20261017`）
+
+使用者看了比稿 `design/news-directions-20261017/`（在 Desktop 工作區）後選「桌機方向 1、手機方向 3」，並拿掉這一區所有參觀入口。規則與細節見 DESIGN.md 同日一節。
+
+- **桌機**：下一個活動放大（倒數、加入行事曆：Google 或 .ics），其他活動可展開；沒有活動時左欄不出現、消息整寬。消息不再自動輪播，一則大圖＋三列，可依校區篩（view transition），只看一校而不夠時補「其他校區最近」。
+- **手機**：活動、消息、活動影片排成一列直式卡，取代活動影片色帶；點開是限時動態式的全螢幕檢視（進度條、點按換則、按住暫停、下拖關閉、暫停鈕）。
+- **也改了**：拿掉英文眉標；`--ivy-news-muted` 調深到 5.2:1；後台「首頁最多輪播幾則」改「首頁最多放幾則」等文案；刪掉輪播、活動影片色帶的元件與測試。
+- **驗證**（Node 22，分支從 main `60a9684c` 開，**未 commit、未 push、未部署**）：
+  - web `typecheck` 通過、單元測試 103 檔 1272 passed（新增 `tests/news-home.spec.ts` 17 項：校區篩選、補其他校區、倒數、星期、Google 日曆 UTC 換算、.ics 跳脫與全天、動態排序與校區圈）；`nuxt build` 成功（3 個 postcss 警告是既有的首屏 calc，與這次無關）。
+  - admin `typecheck` 通過、單元測試 168 檔 2704 passed、1 skipped。
+  - dev server（fixture）Playwright：e2e `home-stories.spec.ts` 在 desktop-1440、mobile-390 三項通過（其餘為另一尺寸的 skip）；`nuxt-rendering.spec.ts` 通過；`public-site.spec.ts` 4 項失敗是 dev 模式沒有後端 booking-config 與索引開關，與這次無關。
+  - 人工看圖 1920／1440／1024／390：桌機活動卡頂端對齊照片、篩選轉場、加入行事曆選單位置、展開其他活動；手機卡片列、校區圈、動態檢視（照片、活動、YouTube 原地播放）、Esc 關閉後焦點回卡片、看完最後一則關閉後不會被補發的 click 重開。fixture 是示意內容，非示意狀態（倒數、時間地點、行事曆）是暫時改 fixture 驗完再還原。
+  - axe（`#latest-news`）：桌機、手機、動態檢視都沒有問題（修掉一個 landmark-unique）；dev console 沒有 hydration 警告。
+- **未驗證**：Safari、Firefox、iOS 實機；正式站資料（正式站示意說明欄仍有值，上線後照樣顯示「示意」與「日期未定」，清空後台示意說明欄才會出現倒數與加入行事曆）；stack e2e（`tests/stack` 的 a11y、hydration 掃 `/`）沒在本機跑。
+
 ## 2026-10-17 入學頁拿掉過時的補助券（`fix/admission-subsidy-20261017`）
 
 使用者回報 `/admission`「收退費辦法」的補助有錯誤或過時的內容。正式站後台的入學資訊頁從沒發布過（`/public/site` 沒有 `admission_content`），線上讀的是 `web/server/data/site-fixture.json`，所以改 fixture，不是改後台。

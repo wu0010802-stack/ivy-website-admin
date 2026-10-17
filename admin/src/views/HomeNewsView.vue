@@ -67,7 +67,7 @@ onMounted(editor.load)
       <el-form-item label="示意說明（有內容時，官網在標題旁標示「示意內容」，並在區塊底部顯示這段文字）">
         <el-input v-model="editor.form.value.sample_note" type="textarea" :autosize="{ minRows: 1, maxRows: 3 }" placeholder="真實消息請留空" />
       </el-form-item>
-      <el-form-item label="首頁最多輪播幾則消息（每次顯示 3 則）">
+      <el-form-item label="首頁最多放幾則消息">
         <el-input-number
           v-model="editor.form.value.home_display_count"
           :min="1"
@@ -76,7 +76,7 @@ onMounted(editor.load)
           placeholder="全部"
           controls-position="right"
         />
-        <span class="field-help">不填就輪播全部消息。「所有最新消息」清單不受這個限制。</span>
+        <span class="field-help">不填就放全部消息。桌機首頁一次顯示 4 則、可依校區篩選，手機排成一列可左右滑。「所有最新消息」清單不受這個限制。</span>
       </el-form-item>
 
       <NewsEntriesEditor
@@ -89,7 +89,7 @@ onMounted(editor.load)
       />
 
       <h3 id="section-news-films" class="films-section" data-section-anchor tabindex="-1">手機版活動影片</h3>
-      <p class="field-help">手機上「近期活動」的位置改放活動影片輪播（桌機不顯示）。影片靜音循環，只有正中間那支會播放。</p>
+      <p class="field-help">手機首頁把近期活動、最新消息與這些影片排成一列，點開可以一則接一則看（桌機不顯示）。檔案影片靜音播放，YouTube 影片點了才播。</p>
       <HomeFilmsEditor v-model:films="editor.form.value.films" :read-only="editor.readOnly.value" />
     </el-form>
   </ContentEditor>

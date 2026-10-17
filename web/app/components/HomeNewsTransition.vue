@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { NewsContent } from '~/types/site-content'
+import type { Campus, NewsContent } from '~/types/site-content'
 import { useNewsTransition } from '~/composables/useNewsTransition'
 
-defineProps<{ news: NewsContent }>()
+defineProps<{ news: NewsContent; campuses?: Campus[] }>()
 const root = ref<HTMLElement | null>(null)
 const previous = ref<HTMLElement | null>(null)
 const paper = ref<HTMLElement | null>(null)
@@ -15,7 +15,7 @@ useNewsTransition(root, previous, paper)
       <div class="news-transition-underlay"><slot /></div>
     </div>
     <div ref="paper" class="news-transition-paper">
-      <div class="news-transition-sheet"><NewsDialog :news="news" /></div>
+      <div class="news-transition-sheet"><NewsDialog :news="news" :campuses="campuses" /></div>
     </div>
   </div>
 </template>
@@ -118,7 +118,6 @@ useNewsTransition(root, previous, paper)
   opacity: var(--news-footer-fade);
   pointer-events: none;
 }
-.news-transition :deep(.home-news .hn-event) { background: var(--hn-swept-card); }
 .news-transition[data-news-motion]:not([data-news-motion="off"]) .news-transition-prior {
   position: sticky;
   top: var(--news-prior-stick, 0px);
@@ -161,6 +160,5 @@ useNewsTransition(root, previous, paper)
 @media(forced-colors: active) {
   .news-transition :deep(.home-news)::before,
   .news-transition :deep(.home-news)::after { display: none; }
-  .news-transition :deep(.home-news .hn-event) { background: Canvas; }
 }
 </style>

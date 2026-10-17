@@ -130,8 +130,8 @@ describe('全站消息編輯頁', () => {
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', legacy) as never)
     const wrapper = await mountAs(HomeNewsView, superAdmin(), '/content/home-news')
     expect(wrapper.text()).not.toContain('有未儲存的修改')
-    expect(wrapper.text()).toContain('首頁最多輪播幾則消息')
-    expect(wrapper.text()).toContain('首頁推薦（首頁只輪播推薦的消息）')
+    expect(wrapper.text()).toContain('首頁最多放幾則消息')
+    expect(wrapper.text()).toContain('首頁推薦（首頁只放推薦的消息）')
     const campusRadio = wrapper.findAll('input[type="radio"][value="campus"]')[0]!
     expect((campusRadio.element as HTMLInputElement).checked).toBe(true)
     expect(wrapper.text()).toContain('地點（選填）')

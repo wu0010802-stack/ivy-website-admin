@@ -48,10 +48,9 @@ describe('拍立得背面橫線對齊行距', () => {
 })
 
 describe('最新消息與五校', () => {
-  it('901–1180 兩欄標題區同高，活動標題平均分行（不加 keep-all）', () => {
-    const studio = read('app/assets/css/studio.css')
-    expect(studio).toContain('@media(min-width:901px) and (max-width:1180px){.home-news .hn-head{min-height:100px}}')
-    expect(studio).toContain('.hn-event-copy strong{text-wrap:balance}')
+  it('兩欄用 subgrid 對齊（2026-10-17 起活動卡頂端對齊消息照片頂端），對話框活動標題平均分行（不加 keep-all）', () => {
+    expect(read('app/components/NewsDialog.vue')).toContain('grid-template-rows: subgrid')
+    expect(read('app/assets/css/studio.css')).toContain('.hn-event-copy strong{text-wrap:balance}')
   })
   it('四個社群連結在窄欄排成 2×2', () => {
     expect(read('app/components/CampusBoard.vue')).toContain('@container (max-width:440px){.social-row:has(> :nth-child(4)){display:grid;grid-template-columns:repeat(2,minmax(0,max-content));column-gap:28px}}')

@@ -302,7 +302,7 @@ export interface CampusNewsArticlePayload {
 }
 
 export interface NewsArticlePayload extends CampusNewsArticlePayload, ScopedEntry {
-  /** 首頁推薦：有任何推薦時首頁只輪播推薦的，依清單順序 */
+  /** 首頁推薦：有任何推薦時首頁只放推薦的，依清單順序 */
   featured: boolean
 }
 
@@ -344,7 +344,7 @@ export interface HomeNewsPayload {
   sample_note: string
   articles: NewsArticlePayload[]
   events: NewsEventPayload[]
-  /** 首頁最多輪播幾則；null＝全部 */
+  /** 首頁最多放幾則；null＝全部 */
   home_display_count: number | null
   /** 手機版活動影片；null＝官網沿用內建的五支（一段校園影片＋四支義華校 YouTube） */
   films?: HomeFilmPayload[] | null

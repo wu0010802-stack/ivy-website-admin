@@ -22,7 +22,7 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
   },
   home_news: {
     sample_note: '示意說明',
-    home_display_count: '首頁最多輪播幾則消息',
+    home_display_count: '首頁最多放幾則消息',
   },
   site_footer: {
     tagline: '標語',

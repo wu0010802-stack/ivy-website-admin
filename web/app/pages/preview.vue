@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
           <AboutSection :about="draft.home.about" />
           <DayExperience :day="draft.dayExperience" />
           <CampusBoard :board="draft.home.campusBoard" :campuses="draft.campuses" />
-          <NewsDialog :news="draft.news" />
+          <NewsDialog :news="draft.news" :campuses="draft.campuses" :today="date" />
         </main>
         <SiteFooter :content="draft" />
       </template>

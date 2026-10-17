@@ -82,7 +82,7 @@
   --ivy-news-paper-blue: #dce7eb;
   --ivy-news-ink: #253d33;
   --ivy-news-green: #254b3c;
-  --ivy-news-muted: #5d6c61;
+  --ivy-news-muted: #526157;          /* 2026-10-17 由 #5d6c61 調深：舊值在霧藍底 #dce7eb 只有 4.4:1，現在 5.2:1 */
   --ivy-news-line: #d9ded3;
   --ivy-news-rule: oklch(84% .016 215);
   --ivy-news-date: #526d40;
@@ -96,9 +96,6 @@
   --ivy-news-swept-gold: #f3d581;
   --ivy-news-swept-sage: #d3e5b5;
   --ivy-news-swept-mist: #bfdedb;
-  --ivy-news-hover-gold: #f6cd68;
-  --ivy-news-hover-honey: #eabc74;
-  --ivy-news-hover-oat: #f5dda3;
 
   /* 6. 頁尾 A 深森林綠＋文字全白（2026-09-24 晚上定案，取代同日的 R） ---------- */
   --ivy-footer-bg: #24483f;
@@ -133,13 +130,6 @@
   --ivy-day-light-morning: oklch(86% .13 88);
   --ivy-day-light-noon: oklch(98% .015 95);
   --ivy-day-light-amber: oklch(72% .15 58);
-
-  /* 9. 手機活動影片輪播 ------------------------------------------------------- */
-  --ivy-film-band: #acbe9b;
-  --ivy-film-dot: oklch(99.5% .003 100);
-  --ivy-film-control: oklch(22% .02 160 / .55);
-  --ivy-film-mark: oklch(99% .004 100 / .92);
-  --ivy-film-frame: oklch(62% .035 140);
 
   /* 10. 開場布幕 -------------------------------------------------------------- */
   --ivy-curtain-cover: #2c0006;

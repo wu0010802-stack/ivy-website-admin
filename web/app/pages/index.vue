@@ -34,7 +34,7 @@ useChapterAnchors(chapters)
       <HeroVideo :hero="data.content.home.hero">
         <AboutSection :about="data.content.home.about">
           <DayExperience :day="data.content.dayExperience">
-            <HomeNewsTransition :news="data.content.news">
+            <HomeNewsTransition :news="data.content.news" :campuses="data.content.campuses">
               <CampusBoard :board="data.content.home.campusBoard" :campuses="data.content.campuses" />
             </HomeNewsTransition>
           </DayExperience>

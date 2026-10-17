@@ -38,7 +38,7 @@ const navSections = computed<EditorSection[]>(() => [
   >
     <template #lead>
       這一校自己的消息與活動，發布後和全站消息一起出現在官網首頁的「最新消息」「近期活動」，並標上校名。
-      要放上首頁輪播的推薦消息、或同時適用好幾校的消息，請總部在「首頁 → 最新消息與活動」發布。
+      要放上首頁的推薦消息、或同時適用好幾校的消息，請總部在「首頁 → 最新消息與活動」發布。
     </template>
     <template #toolbar>
       <CampusSelect v-model="campus" :keys="visibleCampusKeys" :disabled="campusLocked" />

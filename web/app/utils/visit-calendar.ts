@@ -72,11 +72,11 @@ export function directionsUrl(campus: VisitCalendarCampus): string | null {
 }
 
 // RFC 5545：文字值跳脫 \ ; , 與換行；每行不超過 75 位元組（UTF-8），續行以一個空白開頭。
-function escapeText(value: string): string {
+export function escapeText(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
 }
 
-function foldLine(line: string): string {
+export function foldLine(line: string): string {
   const encoder = new TextEncoder()
   const parts: string[] = []
   let current = ''
