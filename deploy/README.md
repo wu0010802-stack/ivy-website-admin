@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-17 區域分析改成地圖工作台（main CI 部署，沒有 migration）
+
+- **提交**：agent 經使用者同意，把 `feature/area-workbench-20261016` 推到 main（`60a9684c..6bf64d1c`，fast-forward、沒有開 PR）。分支先併入 main（merge `6bf64d1c`，只有 README 衝突、兩段都保留）。內容見 README「區域分析改成地圖工作台」與規格 `docs/specs/2026-10-16-admissions-area-workbench-design.md`：只改後台前端（`admin/src` 區域分析元件、`useAdmissionsFilters` 的 `map`／`village`／`table` 網址參數）與 stack e2e。沒有 migration、沒有後端或 API 改動、沒有新環境變數；admin 依賴檔沒變（web／backend 的鎖檔變動來自併入的 main）。
+- **回退**：直接切回上一版映像即可（純前端）。網址多出的 `map=`／`village=`／`table=` 在舊版會被當成認不得的參數拿掉，不影響其他頁。
+- **推送前閘門**（本機，Node 22，合併後的 `6bf64d1c`，stack 用獨立庫 `ivy_website_workbench1017_e2e_test`、埠 8731／3731）：admin typecheck 0 錯；`e2e:build` 後 stack 全套 155 passed（5.9 分鐘）；web vitest 103 檔 1,258 passed；admin vitest 174／175 檔、2,925 passed、1 skipped，唯一失敗是 `admissionsView` (h) 的 5 秒逾時（當時別的 session 在跑 pytest，load 10→91；和基準 `d196036b` 交替比較耗時沒有差別，單獨跑會過）。後端 pytest 本機沒跑（後端沒改，交給 CI）。
+- **CI**：main run 38985934548（`6bf64d1c`）00:20:43Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success（admin 那支在 CI 上也過了），Deploy Railway production 00:26:11Z–00:30:25Z success。
+- **正式 `release.json`**：base commit `6bf64d1ca067c6649d385c3ec853a554303f2498`，snapshot `3fddaa16…`，created `2026-10-17T00:26:32Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；`/api/website/v1/admin/admissions/area?campus_key=yihua` 回 401。
+- **待使用者**：登入正式後台看 `/admin/admissions-stats?campus=yihua&sub=area`（在籍學生點、里卡片、六個表格分頁；本機只拍測試庫）；「近 12 個月全範圍淨遷入」那句新版沒有顯示，要不要放回待決定。
+
 ## 2026-10-17 入學頁拿掉過時的補助券（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `fix/admission-subsidy-20261017` 到 main（`9db0fe48..877c9453`，fast-forward、沒有開 PR）。內容見 README 頂部「入學頁拿掉過時的補助券」：只改 `web/server/data/site-fixture.json` 的入學頁文案（清空三張補助券、收退費說明拿掉「補助款撥到園再轉發」）和對應的測試資料。沒有 migration、沒有新環境變數、依賴檔沒有變動。
