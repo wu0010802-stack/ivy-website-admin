@@ -63,6 +63,43 @@ describe('提早到場的案件（沒有場次、有 visited_on）', () => {
   })
 })
 
+describe('已排除的案件（2026-10-15）', () => {
+  const excluded = (extra: Record<string, unknown> = {}) =>
+    row('2026-10-12', '10:00', { excluded_at: '2026-10-14T02:00:00Z', exclude_reason: 'test', ...extra })
+
+  it('列上有灰色「已排除・原因」，沒排除的列沒有', async () => {
+    const { wrapper } = await mountList('/visit-requests', [excluded(), row('2026-10-13', '10:00', { id: 'plain' })])
+    const labels = wrapper.findAll('.visit-row').map((r) => (r.find('.visit-row__excluded').exists() ? r.get('.visit-row__excluded').text() : ''))
+    expect(labels).toEqual(['已排除・測試', ''])
+    const other = await mountList('/visit-requests', [excluded({ exclude_reason: 'duplicate' }), excluded({ id: 'x', exclude_reason: 'other' })])
+    expect(other.wrapper.findAll('.visit-row__excluded').map((e) => e.text())).toEqual(['已排除・重複', '已排除・其他'])
+  })
+
+  it('勾「隱藏已排除」：清單、件數都帶 excluded=hide，網址記著；取消勾選就不帶', async () => {
+    const { wrapper, router, get } = await mountList('/visit-requests', [excluded()])
+    expect(pathsTo(get, '/admin/visit-requests?').every((path) => !path.includes('excluded='))).toBe(true)
+    const checkbox = wrapper.findAll('.el-checkbox').find((box) => box.text() === '隱藏已排除')!
+    await checkbox.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.excluded).toBe('hide')
+    expect(pathsTo(get, '/admin/visit-requests?').at(-1)).toContain('excluded=hide')
+    expect(pathsTo(get, '/admin/visit-requests/view-counts').at(-1)).toContain('excluded=hide')
+    await wrapper.findAll('.el-checkbox').find((box) => box.text() === '隱藏已排除')!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.excluded).toBeUndefined()
+    expect(pathsTo(get, '/admin/visit-requests?').at(-1)).not.toContain('excluded=')
+  })
+
+  it('網址帶 excluded=hide 開啟：勾選框已勾、已套用的條件列得出來、點進明細的 list= 也帶著', async () => {
+    const { wrapper, router } = await mountList('/visit-requests?group=past&status=confirmed&excluded=hide', [row('2026-01-05', '10:00', { display_status: 'past' })])
+    const box = wrapper.findAll('.el-checkbox').find((el) => el.text() === '隱藏已排除')!
+    expect(box.classes()).toContain('is-checked')
+    await wrapper.get('a.visit-row__main').trigger('click')
+    await flushPromises()
+    expect(new URLSearchParams(String(router.currentRoute.value.query.list)).get('excluded')).toBe('hide')
+  })
+})
+
 describe('行程清單（2026-10-06 方向 B）', () => {
   it('依參觀日分組：今天置頂、明天、本週、之後；今天的列只寫幾點與狀態', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })

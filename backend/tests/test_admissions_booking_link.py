@@ -57,6 +57,7 @@ def _request(**overrides) -> SimpleNamespace:
         "parent_name": "王媽媽",
         "referral_sources": ["facebook", "friends_family"],
         "questions": "午睡怎麼安排？",
+        "expected_start": None,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -120,6 +121,42 @@ def test_target_term_follows_confirmation_date(today, term, grade):
     fields = booking_link.fields_from_visit_request(_request(child_birthdate=date(2023, 9, 1)), today=today)
     assert (fields["target_school_year"], fields["target_semester"]) == term
     assert fields["grade"] == grade
+
+
+@pytest.mark.parametrize(
+    ("expected_start", "today", "slot_date", "term"),
+    [
+        # 選了學期：就是那個學期，不看今天與參觀日。
+        ("116-1", date(2027, 2, 1), date(2027, 1, 31), (116, 1)),
+        # 盡快：參觀日所在學期（參觀日 1/31 仍是上學期，今天 2/1 已是下學期）。
+        ("asap", date(2027, 2, 1), date(2027, 1, 31), (115, 1)),
+        ("asap", date(2027, 2, 1), date(2027, 2, 1), (115, 2)),
+        # 沒填、還不確定：今天所在學期（參觀日 1/31、今天 2/1 時兩者不同）。
+        (None, date(2027, 2, 1), date(2027, 1, 31), (115, 2)),
+        ("unsure", date(2027, 2, 1), date(2027, 1, 31), (115, 2)),
+        # 選的學期比參觀日所在學期早：用參觀日所在學期。
+        ("115-1", date(2027, 2, 1), date(2027, 2, 1), (115, 2)),
+        ("110-1", date(2026, 9, 8), date(2026, 9, 5), (115, 1)),
+        # 選的學期剛好是參觀日所在學期：照選的。
+        ("115-1", date(2027, 2, 1), date(2027, 1, 31), (115, 1)),
+        # 沒有場次（舊案）：參觀日用 today。
+        ("asap", date(2027, 2, 1), None, (115, 2)),
+    ],
+)
+def test_target_term_follows_the_expected_start(expected_start, today, slot_date, term):
+    """2026-10-15 規格 X4：選的學期、盡快、沒填或還不確定、選的學期比參觀日還早，四種情況的入學學期。"""
+    fields = booking_link.fields_from_visit_request(
+        _request(expected_start=expected_start), today=today, slot_date=slot_date
+    )
+    assert (fields["target_school_year"], fields["target_semester"]) == term
+
+
+def test_unrecognised_expected_start_falls_back_to_the_current_term():
+    """計畫裁定 P5：建立訪視不丟資料檢查例外（標記已到場會整筆回滾）；資料庫 CHECK 已擋掉不合法值，這只是保險。"""
+    fields = booking_link.fields_from_visit_request(
+        _request(expected_start="soon"), today=date(2027, 2, 1), slot_date=date(2027, 1, 31)
+    )
+    assert (fields["target_school_year"], fields["target_semester"]) == (115, 2)
 
 
 def test_referral_text_matches_admin_labels():

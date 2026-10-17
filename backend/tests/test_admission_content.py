@@ -64,7 +64,7 @@ def test_notice_may_be_empty_to_hide_it():
         lambda d: d.update(steps=[]),
         lambda d: d.update(steps=d["steps"] * 2),
         lambda d: d["steps"][0].update(title="  "),
-        lambda d: d["subsidies"][0].update(amount=""),
+        lambda d: d.update(subsidies=[{"amount": "", "unit": "元／月", "who": "大班", "by": "教育部"}]),
         lambda d: d["refunds"][0].update(groups=[]),
         lambda d: d["refunds"][0]["groups"][0].update(lines=["", " "]),
         lambda d: d.update(uniform_week=d["uniform_week"] * 2),

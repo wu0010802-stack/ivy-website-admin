@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.booking import pending_kinds, slot_service
+from app.booking import exclusion, pending_kinds, slot_service
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, BookingMode, OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import Campus
@@ -67,6 +67,8 @@ async def get_dashboard_summary(
             VisitRequest.status.in_(_TODAY_STATUSES),
             # slot_date 是 naive 的日期欄位，直接跟營運時區的今天比對。
             VisitSlot.slot_date == today,
+            # 排除的測試／重複案件不列（2026-10-15 規格 §3.3）。
+            exclusion.not_excluded(),
         )
         .order_by(VisitSlot.start_time, VisitRequest.parent_name)
     )
@@ -89,13 +91,13 @@ async def get_dashboard_summary(
     # 參觀時間已過、還沒標記到場或未到場的案件（booking/pending_kinds.py，和案件列表
     # 「時間已過」那一組的已確認部分、成效統計同一個條件）。總覽提醒有人去補標記。
     awaiting_attendance_stmt = _scope(
-        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("awaiting_attendance", now)),
+        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("awaiting_attendance", now), exclusion.not_excluded()),
         VisitRequest.campus_key,
     )
     awaiting_attendance = (await db.execute(awaiting_attendance_stmt)).scalar_one()
 
     pending_follow_up_stmt = _scope(
-        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("follow_up_due", now)),
+        select(func.count()).select_from(VisitRequest).where(pending_kinds.condition("follow_up_due", now), exclusion.not_excluded()),
         VisitRequest.campus_key,
     )
     pending_follow_up = (await db.execute(pending_follow_up_stmt)).scalar_one()
@@ -103,7 +105,7 @@ async def get_dashboard_summary(
     # 關了時段、設了休假日或停用分校之後仍在進行中的案件（規格 L110、L227），
     # 要有人聯絡家長改期或取消。與案件清單 needs_attention 篩選同一個條件。
     needs_attention_stmt = _scope(
-        select(func.count()).select_from(VisitRequest).where(needs_attention_condition(now)),
+        select(func.count()).select_from(VisitRequest).where(needs_attention_condition(now), exclusion.not_excluded()),
         VisitRequest.campus_key,
     )
     needs_attention = (await db.execute(needs_attention_stmt)).scalar_one()
@@ -224,6 +226,7 @@ async def get_dashboard_summary(
 
 
 async def _week_campuses(db: AsyncSession, campus_keys: list[str], configs_by_campus: dict, today) -> list[dict]:
+    # 已約／可約講的是名額：排除不釋出名額，所以不扣排除的案件（2026-10-15 排除規格 §3.3，計畫裁定 P10）。
     week_end = today + timedelta(days=6)
     booked_sub = (
         select(func.count())

@@ -1507,6 +1507,8 @@ class JourneyCoverageOut(BaseModel):
     visits_without_request: int
     completed_without_visit: int
     undated_cases: int
+    # 已標記排除的測試／重複案件（2026-10-15）；不在批次裡。和各段天數裡「不納入」的 excluded 是兩回事。
+    excluded_cases: int = 0
 
 
 class JourneyOut(BaseModel):

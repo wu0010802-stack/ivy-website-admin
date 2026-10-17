@@ -90,7 +90,7 @@ def test_scenario_counts():
         "not_deposited": {"observing": 1, "overdue": 1, "cold": 1},
     }
     assert result["rescheduled"] == {"cases": 1, "total": 13}
-    assert result["coverage"] == {"visits_without_request": 4, "completed_without_visit": 1, "undated_cases": 2}
+    assert result["coverage"] == {"visits_without_request": 4, "completed_without_visit": 1, "undated_cases": 2, "excluded_cases": 0}
 
 
 def test_scenario_rates_carry_numerator_and_denominator():

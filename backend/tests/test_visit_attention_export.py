@@ -114,8 +114,8 @@ async def test_export_header_has_each_column_once(admin_client, db_session):
     header = next(csv.reader(io.StringIO(text)))
     assert header == [
         "校區", "狀態", "來源", "家長", "手機", "送出時間",
-        "孩子姓名", "孩子生日", "Email", "得知管道", "人數",
-        "參觀日期", "開始", "結束",
+        "孩子姓名", "孩子生日", "Email", "得知管道", "人數", "預計入學",
+        "參觀日期", "開始", "結束", "已排除",
     ]
     assert list(export_labels.EXPORT_HEADERS) == header
     assert len(set(header)) == len(header)

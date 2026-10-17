@@ -19,6 +19,8 @@
 - 家長參觀提醒（2026-10-15，kind 在 booking/outbox.py 的 PARENT_VISIT_REMINDER，走家長信管線）：
   與即將參觀同一個到點判斷，只排有 Email 的案件；去重鍵含場次 id，寄送當下由
   notifications/service.py 的家長信分派再判斷一次（改期、停課、取消都不寄）。
+- 標記排除的測試／重複案件（2026-10-15，booking/exclusion.py）兩種提醒都不排；排入之後才排除的，
+  寄送當下 `still_applies`（員工）與家長信分派（家長）判斷後標成 skipped。
 - 逾期未處理（visit_request_overdue：新需求放太久、待確認占位快到期）是舊流程的
   提醒，2026-10-06 隨舊狀態一起拿掉。
 """
@@ -32,6 +34,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.booking import exclusion
 from app.booking.models import (
     OutboxMessage,
     OutboxStatus,
@@ -99,7 +102,7 @@ def parent_reminder_key(visit_request_id: uuid.UUID, slot_id: uuid.UUID) -> str:
 
 
 async def _due_upcoming(db: AsyncSession, now: datetime) -> list[tuple[uuid.UUID, str, str | None, VisitSlot]]:
-    """到點的即將參觀：已確認、未匿名化、`remind_at <= now < 開始`，且確認或改期到這個時段時
+    """到點的即將參觀：已確認、未匿名化、未排除、`remind_at <= now < 開始`，且確認或改期到這個時段時
     還沒進提醒範圍。員工與家長提醒共用這個判斷（2026-10-15 規格 R4）。回傳（案件 id、校區、Email、場次）。"""
     # slot_date 是營運時區的日期，先用日期粗篩再逐筆算開始時間。
     today = today_local(now)
@@ -116,6 +119,8 @@ async def _due_upcoming(db: AsyncSession, now: datetime) -> list[tuple[uuid.UUID
         .where(
             VisitRequest.status == VisitRequestStatus.CONFIRMED.value,
             VisitRequest.anonymized_at.is_(None),
+            # 排除的測試／重複案件不提醒（2026-10-15 規格 E8）。
+            exclusion.not_excluded(),
             VisitSlot.slot_date >= today,
             VisitSlot.slot_date <= today + timedelta(days=2),
         )
@@ -167,7 +172,7 @@ def _parse_uuid(value: object) -> uuid.UUID | None:
 
 async def still_applies(db: AsyncSession, kind: str, payload: dict, now: datetime | None = None) -> bool:
     """寄送當下再判斷一次提醒是否仍然成立（規格 L272「更動時段後尚未發送的
-    提醒需重新判斷」）：改期、取消的都不再送。人工重新寄送失敗的提醒時也走這裡，
+    提醒需重新判斷」）：改期、取消、標記排除的都不再送。人工重新寄送失敗的提醒時也走這裡，
     已經過去的參觀不會補寄。"""
     now = now or now_utc()
     visit_id = _parse_uuid(payload.get("receipt_id"))
@@ -179,6 +184,9 @@ async def still_applies(db: AsyncSession, kind: str, payload: dict, now: datetim
         )
     ).scalar_one_or_none()
     if visit is None or visit.anonymized_at is not None:
+        return False
+    # 排入之後才被標記排除的：不寄（2026-10-15 規格 E8）。
+    if exclusion.is_excluded(visit):
         return False
 
     if kind == UPCOMING_VISIT_KIND:

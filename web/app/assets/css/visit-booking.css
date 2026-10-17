@@ -161,6 +161,8 @@
 .visit-referrals label {display:flex;align-items:center;gap:9px;min-height:46px;padding:8px 20px 8px 14px;border:1px solid var(--visit-line);border-radius:999px;background:var(--visit-surface);font-size:var(--fs-sm);cursor:pointer}
 .visit-referrals input {flex-shrink:0;width:18px;height:18px;margin:0;accent-color:var(--green)}
 .visit-referrals label:has(input:checked) {background:var(--visit-soft);border-color:var(--visit-ink)}
+/* 2026-10-15 預計入學時間：沿用得知管道的膠囊，放在孩子資料區塊裡，上下間距收小。 */
+.visit-expected-start {margin:24px 0 0}
 .visit-schedule-section {container-type:inline-size}
 .visit-slot-list {margin-top:22px}
 /* 右欄夠寬（桌機）時月曆在左、當天場次在右，選了日期不用往下找場次。 */

@@ -26,7 +26,7 @@ const usage = (changes: Partial<SlotUsage> = {}, lookups: Partial<SlotUsage['loo
     ...lookups,
   },
   slots: {
-    weeks: 12, date_from: '2026-07-21', date_to: '2026-10-12',
+    weeks: 12, date_from: '2026-07-21', date_to: '2026-10-12', excluded_cases: 0,
     thresholds: { min_slots: 4, often_full_share: 0.5, rarely_booked_rate: 0.2 },
     rows: [{ weekday: 5, start_time: '10:00:00', end_time: '11:00:00', slot_count: 12, capacity_total: 36, booked: 33, fill_rate: 0.917, full_count: 9, signal: 'often_full' }],
     ...slots,
@@ -120,6 +120,13 @@ describe('SlotUsagePane', () => {
     expect(wrapper.text()).toContain('週六 10:00–11:00')
     expect(wrapper.text()).toContain('常額滿，可以考慮加開')
     expect(wrapper.text()).toContain('到接待月曆改規則')
+  })
+
+  it('已排除的測試或重複預約寫在時段表後面；0 筆不寫（2026-10-15）', async () => {
+    const withExcluded = await mountPane(usage({}, {}, { excluded_cases: 4 }))
+    expect(withExcluded.wrapper.text()).toContain('已排除的測試或重複預約 4 筆，不算進已約。')
+    const none = await mountPane(usage())
+    expect(none.wrapper.text()).not.toContain('已排除')
   })
 
   it('切換週數會重讀', async () => {

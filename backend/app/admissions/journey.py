@@ -4,7 +4,7 @@
 - `compute_journey` 只吃整理好的案件列（`CaseInfo`／`VisitInfo`，日期都是台北日），純函式、不碰資料庫；
 - 查庫與整理案件列在檔案後半（`query_journey`）。
 一批家庭＝預定參觀日落在期間內、已過參觀時間的預約案件，一案一筆；所有階段都從同一批往下數，所以數字
-只會遞減。只描述過去，不預測。"""
+只會遞減。只描述過去，不預測。標記排除的測試／重複案件（booking/exclusion.py）不進批次，筆數另放 coverage.excluded_cases。"""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.stats import COLD_LEAD_DAYS, DEFAULT_OVERDUE_DAYS, pct
+from app.booking import exclusion
 from app.booking.models import VisitRequest, VisitRequestEvent, VisitRequestStatus, VisitSlot
 from app.common.timezones import OPERATING_TZ, now_utc, today_local
 from app.operations.booking_outcomes_service import _outcome  # 與「預約結果」同一份分類（計畫裁定 P4）
@@ -99,7 +100,7 @@ def _gap(start: date | None, end: date | None, values: list[int]) -> bool:
 
 
 def compute_journey(
-    cases: list[CaseInfo], *, today: date, visits_without_request: int, undated_cases: int
+    cases: list[CaseInfo], *, today: date, visits_without_request: int, undated_cases: int, excluded_cases: int = 0
 ) -> dict[str, Any]:
     by_source = dict.fromkeys(SOURCES, 0)
     outcomes = dict.fromkeys(OUTCOMES, 0)
@@ -193,6 +194,8 @@ def compute_journey(
             "visits_without_request": visits_without_request,
             "completed_without_visit": without_visit,
             "undated_cases": undated_cases,
+            # 標記排除的測試／重複案件（不是各段天數裡「不納入」的 excluded）。
+            "excluded_cases": excluded_cases,
         },
     }
 
@@ -243,8 +246,9 @@ def _slot_not_started(now: datetime):
 
 async def load_cases(
     db: AsyncSession, campus_key: str, date_from: date, date_to: date, source: str, now: datetime
-) -> tuple[list[CaseInfo], int]:
-    """批次案件（含連到的招生訪視）與「預定參觀日算不出來」的筆數（P2：以送出日在期間內計入）。"""
+) -> tuple[list[CaseInfo], int, int]:
+    """批次案件（含連到的招生訪視）、「預定參觀日算不出來」的筆數（P2：以送出日在期間內計入）與批次內
+    已排除的筆數（2026-10-15）。"""
     visited_on = _visited_on()
     created_on = _taipei_day(VisitRequest.created_at)
     rescheduled = exists().where(
@@ -260,6 +264,7 @@ async def load_cases(
         visited_on.label("visited_on"),
         rescheduled.label("rescheduled"),
         _slot_not_started(now).label("not_started"),
+        exclusion.excluded().label("excluded"),
     ).where(
         VisitRequest.campus_key == campus_key,
         or_(visited_on.between(date_from, date_to), and_(visited_on.is_(None), created_on.between(date_from, date_to))),
@@ -272,6 +277,10 @@ async def load_cases(
 
     # 還沒到參觀時間的不進批次：還沒結案的（upcoming），以及場次還沒開始就取消的。
     rows = [row for row in rows if row.outcome != "upcoming" and not (row.outcome == "cancelled" and row.not_started)]
+    # 排除的測試／重複案件（2026-10-15）不進批次，另回筆數給涵蓋說明（計畫裁定 P11：和各段天數的 excluded 不同）。
+    # 在上面的批次篩選之後才數：本來就不在批次的（還沒結案、場次沒開始就取消）不算；預定參觀日算不出來的算。
+    excluded_cases = sum(1 for row in rows if row.excluded)
+    rows = [row for row in rows if not row.excluded]
     undated = sum(1 for row in rows if row.visited_on is None)
     kept = [row for row in rows if row.visited_on is not None]
     completed_ids = [row.id for row in kept if row.outcome == "completed"]
@@ -284,7 +293,7 @@ async def load_cases(
         )
         for row in kept
     ]
-    return cases, undated
+    return cases, undated, excluded_cases
 
 
 async def _load_visits(db: AsyncSession, request_ids: list[uuid.UUID]) -> dict[uuid.UUID, VisitInfo]:
@@ -339,10 +348,14 @@ async def query_journey(
 ) -> dict[str, Any]:
     """唯讀：不 flush、不 commit。date_from／date_to 是台北日（含），呼叫端已驗證並把 date_to 截到今天。"""
     current = now or now_utc()
-    cases, undated = await load_cases(db, campus_key, date_from, date_to, source, current)
+    cases, undated, excluded_cases = await load_cases(db, campus_key, date_from, date_to, source, current)
     without_request = await count_visits_without_request(db, campus_key, date_from, date_to)
     result = compute_journey(
-        cases, today=today_local(current), visits_without_request=without_request, undated_cases=undated
+        cases,
+        today=today_local(current),
+        visits_without_request=without_request,
+        undated_cases=undated,
+        excluded_cases=excluded_cases,
     )
     return {
         "filters": {"campus_key": campus_key, "date_from": date_from, "date_to": date_to, "source": source},

@@ -126,12 +126,13 @@ export function markArrivedInOrder(
 
 // 「場次已過、還沒標記到場」＝案件列表的 ?group=past&status=confirmed（後端 pending_kinds
 // 的 awaiting_attendance，總覽卡片、成效統計同一個條件）。招生入學看板全空時用來提示。
+// 已排除的測試／重複案件不算（excluded=hide，和總覽「待標記到場」一致，2026-10-15）。
 export function awaitingAttendanceLink(campusKey: string) {
-  return { path: '/visit-requests', query: { campus: campusKey, group: 'past', status: 'confirmed' } }
+  return { path: '/visit-requests', query: { campus: campusKey, group: 'past', status: 'confirmed', excluded: 'hide' } }
 }
 
 export async function hasAwaitingAttendance(campusKey: string): Promise<boolean> {
-  const params = new URLSearchParams({ campus_key: campusKey, group: 'past', status: 'confirmed', page_size: '1' })
+  const params = new URLSearchParams({ campus_key: campusKey, group: 'past', status: 'confirmed', excluded: 'hide', page_size: '1' })
   const rows = await api.get<unknown[]>(`/admin/visit-requests?${params}`)
   return Array.isArray(rows) && rows.length > 0
 }

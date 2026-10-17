@@ -17,6 +17,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.booking import expected_start as start_rules
 from app.booking import status_groups
 from app.booking.models import BookingMode
 from app.booking.parent_policy import (
@@ -247,6 +248,9 @@ class _VisitRequestFields(BaseModel):
     questions: str | None = Field(default=None, max_length=500)
     # 規格 L194：參觀人數 1–10，選填。2026-10-03 起官網表單不問，只剩後台補登與舊案件會有。
     party_size: int | None = Field(default=None, ge=1, le=10)
+    # 2026-10-15 預計入學時間（選填）：asap、unsure 或「民國學年-學期」（app/booking/expected_start.py）。
+    # 這裡只驗格式；官網送單另驗範圍（VisitRequestCreate），後台補登可以填過去的學期（規格 X8）。
+    expected_start: str | None = Field(default=None, max_length=8)
     # 2026-10-02 業主裁定官網預約與後台補登都不用勾選同意：不送就是 False。
     # 更新前快取的舊頁面、舊版後台仍會送 True，照實記下勾選時間。
     consent_given: bool = False
@@ -297,6 +301,14 @@ class _VisitRequestFields(BaseModel):
     def _validate_phone(cls, value: str) -> str:
         return normalize_phone(value)
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_format(cls, value: str | None) -> str | None:
+        # 選填欄位明確送 null 也會進來（取消選取後送出）；parse 不收 None，要先放行。
+        if value is not None:
+            start_rules.parse(value)
+        return value
+
 
 class VisitRequestCreate(_VisitRequestFields):
     # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
@@ -312,6 +324,13 @@ class VisitRequestCreate(_VisitRequestFields):
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_public_range(cls, value: str | None) -> str | None:
+        # 官網只列今天之後的學期（規格 X7）；格式由父類別先驗。
+        if value is not None:
+            start_rules.validate_public(value, today_local())
+        return value
 
 
 class VisitRequestManualCreate(_VisitRequestFields):
@@ -460,6 +479,12 @@ class VisitRequestDetailOut(BaseModel):
     questions: str | None
     # 參觀人數；舊案件與沒問到人數的補登為 None（畫面顯示「未填」）。
     party_size: int | None = None
+    # 預計入學時間（2026-10-15）；舊案件與沒選的為 None。
+    expected_start: str | None = None
+    # 排除標記（2026-10-15）：測試或重複的案件；列表不回說明（計畫裁定 P12）。
+    excluded_at: datetime | None = None
+    exclude_reason: str | None = None
+    exclude_note: str | None = None
     # 同意紀錄（規格 L196）：官網送單記錄家長看到的同意說明版本與伺服器接受
     # 時間；補登由人員代勾，沒有版本。
     consent_given: bool = True
@@ -531,6 +556,8 @@ class ParentDetailsUpdate(BaseModel):
     child_birthdate: date | None = None
     party_size: int | None = Field(default=None, ge=1, le=10)
     questions: str | None = Field(default=None, max_length=500)
+    # 預計入學時間（2026-10-15）：家長可以改或清空（null 或空字串）；範圍同官網送單（計畫裁定 P4）。
+    expected_start: str | None = Field(default=None, max_length=8)
 
     @field_validator("parent_name", "child_name", mode="before")
     @classmethod
@@ -552,6 +579,19 @@ class ParentDetailsUpdate(BaseModel):
     def _birthdate_not_future(cls, value: date | None) -> date | None:
         if value is not None and value > today_local():
             raise ValueError("寶貝出生日期不能晚於今天")
+        return value
+
+    @field_validator("expected_start", mode="before")
+    @classmethod
+    def _expected_start_blank(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_public(cls, value: str | None) -> str | None:
+        # 沒動這一題的人不會送這個欄位（changes() 只看有送的欄位），送單後跨了學期、原值已過期也不擋其他欄位。
+        if value is not None:
+            start_rules.validate_public(value, today_local())
         return value
 
     @field_validator(*_PARENT_REQUIRED_MESSAGES, mode="before")
@@ -578,11 +618,11 @@ _STAFF_REQUIRED_MESSAGES = {
 
 
 class AdminDetailsUpdate(BaseModel):
-    """後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄
-    （人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
+    """後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
+    （2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
 
     驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空
-    （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。
+    （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。
     expected_version 是案件的 details_version，和家長端共用。"""
 
     model_config = {"extra": "forbid"}
@@ -593,13 +633,15 @@ class AdminDetailsUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=254)
     child_name: str | None = Field(default=None, max_length=64)
     child_birthdate: date | None = None
+    # 預計入學時間（2026-10-15 規格 X5、X8）：格式正確即可（可以填過去的學期）；空字串或 null 是清空。
+    expected_start: str | None = Field(default=None, max_length=8)
 
     @field_validator("parent_name", "child_name", mode="before")
     @classmethod
     def _strip(cls, value):
         return value.strip() if isinstance(value, str) else value
 
-    @field_validator("email", "child_name", "child_birthdate", mode="before")
+    @field_validator("email", "child_name", "child_birthdate", "expected_start", mode="before")
     @classmethod
     def _blank_means_cleared(cls, value):
         # 空字串（含只有空白）和 null 一樣是清空，存成 NULL。
@@ -622,6 +664,13 @@ class AdminDetailsUpdate(BaseModel):
             raise ValueError("寶貝出生日期不能晚於今天")
         return value
 
+    @field_validator("expected_start")
+    @classmethod
+    def _expected_start_format(cls, value: str | None) -> str | None:
+        if value is not None:
+            start_rules.parse(value)
+        return value
+
     @field_validator(*_STAFF_REQUIRED_MESSAGES, mode="before")
     @classmethod
     def _required_stay_filled(cls, value, info: ValidationInfo):
@@ -638,7 +687,7 @@ class AdminDetailsUpdate(BaseModel):
 class ParentVisitRequestOut(BaseModel):
     """家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
     含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
-    孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+    孩子姓名與生日、人數、提問、預計入學時間）要能在這裡修改，所以照原樣回傳（規格 3.3）——
     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。"""
 
     id: uuid.UUID
@@ -651,6 +700,7 @@ class ParentVisitRequestOut(BaseModel):
     child_birthdate: date | None = None
     party_size: int | None = None
     questions: str | None = None
+    expected_start: str | None = None
     # 家長改資料的樂觀鎖版本（PATCH me 帶回 expected_version）。是 details_version，
     # 不是案件的 version（那是園方下次聯絡時間的鎖）。
     version: int
@@ -701,6 +751,7 @@ class ParentVisitRequestOut(BaseModel):
             child_birthdate=visit_request.child_birthdate,
             party_size=visit_request.party_size,
             questions=visit_request.questions,
+            expected_start=visit_request.expected_start,
             version=visit_request.version,
             slot=(
                 VisitSlotBriefOut.model_validate(visit_request.slot)
@@ -744,6 +795,28 @@ class VisitRequestRescheduleRequest(BaseModel):
 
 class VisitRequestCancelRequest(BaseModel):
     reason: ReasonText = None
+
+
+VisitExcludeReason = Literal["test", "duplicate", "other"]
+
+
+class VisitRequestExcludeRequest(BaseModel):
+    """標記為排除（2026-10-15 規格 E3）：原因三選一；「其他」要寫說明（≤200 字）。"""
+
+    model_config = {"extra": "forbid"}
+
+    reason: VisitExcludeReason
+    # validate_default：沒帶說明時也要跑下面的檢查，「其他」才擋得到；422 指到 note（計畫裁定 P16）。
+    note: str | None = Field(default=None, max_length=200, validate_default=True)
+
+    @field_validator("note")
+    @classmethod
+    def _note(cls, value: str | None, info: ValidationInfo) -> str | None:
+        value = _reject_control_chars(value)
+        cleaned = value.strip() if isinstance(value, str) else None
+        if info.data.get("reason") == "other" and not cleaned:
+            raise ValueError("選「其他」要寫說明")
+        return cleaned or None
 
 
 class VisitHistoryOut(BaseModel):
@@ -986,6 +1059,9 @@ class SlotUsageSlotsOut(BaseModel):
     date_to: date
     thresholds: SlotUsageThresholdsOut
     rows: list[SlotUsageRowOut]
+    # 期間內這些場次上已標記排除的測試／重複案件（2026-10-15）；不算進已約。只數占名額的
+    # （已確認、已完成、未到場）；已取消的本來就不在已約裡，不算進這個數字。
+    excluded_cases: int = 0
 
 
 class SlotUsageOut(BaseModel):

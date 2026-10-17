@@ -183,6 +183,8 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> bool:
     visit_request.email = None
     visit_request.referral_sources = []
     visit_request.questions = None
+    # 排除的說明（2026-10-15）是人員寫的自由文字；原因類別保留（規格 E11）。
+    visit_request.exclude_note = None
     # payload_hash 是家長填寫內容的雜湊，舊資料是裸 SHA-256：稱呼＋手機這類
     # 低熵內容可以暴力還原。冪等比對只在送單當下有意義，結案到匿名化早就用
     # 不到，換成隨機值；idempotency_key 一起換掉。
@@ -279,9 +281,10 @@ async def _backfill_anonymized(db: AsyncSession) -> None:
                 VisitRequest.child_name.is_not(None),
                 VisitRequest.child_birthdate.is_not(None),
                 VisitRequest.questions.is_not(None),
+                VisitRequest.exclude_note.is_not(None),
             ),
         )
-        .values(email=None, child_name=None, child_birthdate=None, questions=None)
+        .values(email=None, child_name=None, child_birthdate=None, questions=None, exclude_note=None)
         .execution_options(synchronize_session=False)
     )
     anonymized = select(VisitRequest.id).where(VisitRequest.anonymized_at.is_not(None))

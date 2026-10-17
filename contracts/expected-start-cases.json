@@ -1,0 +1,27 @@
+{
+  "description": "預約表單「預計入學時間」的共用案例（2026-10-15 規格 docs/specs/2026-10-15-visit-expected-start-design.md 的 X2、X7 與 §3.3 顯示文字）。後端 pytest（backend/tests/test_expected_start.py）、web vitest（web/tests/visit-expected-start.spec.ts）、admin vitest（admin/src/__tests__/expectedStart.test.ts）都讀這份。today、submitted_on 是台北日期。",
+  "choices": [
+    {"name": "上學期中（10 月）", "today": "2026-10-15", "values": ["asap", "115-2", "116-1", "116-2", "117-1", "unsure"], "labels": ["盡快（這學期）", "2027 年 2 月", "2027 年 9 月", "2028 年 2 月", "2028 年 9 月", "還不確定"]},
+    {"name": "1/31 仍屬上學期", "today": "2027-01-31", "values": ["asap", "115-2", "116-1", "116-2", "117-1", "unsure"], "labels": ["盡快（這學期）", "2027 年 2 月", "2027 年 9 月", "2028 年 2 月", "2028 年 9 月", "還不確定"]},
+    {"name": "2/1 起下學期", "today": "2027-02-01", "values": ["asap", "116-1", "116-2", "117-1", "117-2", "unsure"], "labels": ["盡快（這學期）", "2027 年 9 月", "2028 年 2 月", "2028 年 9 月", "2029 年 2 月", "還不確定"]},
+    {"name": "7/31 仍屬下學期", "today": "2027-07-31", "values": ["asap", "116-1", "116-2", "117-1", "117-2", "unsure"], "labels": ["盡快（這學期）", "2027 年 9 月", "2028 年 2 月", "2028 年 9 月", "2029 年 2 月", "還不確定"]},
+    {"name": "8/1 起上學期", "today": "2027-08-01", "values": ["asap", "116-2", "117-1", "117-2", "118-1", "unsure"], "labels": ["盡快（這學期）", "2028 年 2 月", "2028 年 9 月", "2029 年 2 月", "2029 年 9 月", "還不確定"]}
+  ],
+  "public_range": [
+    {"today": "2026-10-15", "value": "asap", "ok": true},
+    {"today": "2026-10-15", "value": "unsure", "ok": true},
+    {"today": "2026-10-15", "value": "115-1", "ok": true},
+    {"today": "2026-10-15", "value": "114-2", "ok": false},
+    {"today": "2026-10-15", "value": "117-2", "ok": true},
+    {"today": "2026-10-15", "value": "118-1", "ok": false},
+    {"today": "2027-02-01", "value": "115-2", "ok": true},
+    {"today": "2027-02-01", "value": "115-1", "ok": false}
+  ],
+  "labels": [
+    {"value": "115-2", "submitted_on": "2026-10-15", "label": "2027 年 2 月（115 學年下學期）"},
+    {"value": "116-1", "submitted_on": "2026-10-15", "label": "2027 年 9 月（116 學年上學期）"},
+    {"value": "asap", "submitted_on": "2026-10-15", "label": "盡快（送單時是 115 學年上學期）"},
+    {"value": "asap", "submitted_on": "2027-02-01", "label": "盡快（送單時是 115 學年下學期）"},
+    {"value": "unsure", "submitted_on": "2026-10-15", "label": "還不確定"}
+  ]
+}

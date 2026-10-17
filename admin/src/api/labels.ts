@@ -464,6 +464,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'visit_request.complete': '標記已到場',
   'visit_request.complete_early': '提早標記已到場',
   'visit_request.update_details': '修改家長資料',
+  'visit_request.exclude': '標記為排除',
+  'visit_request.include': '取消排除',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊紀錄。
   'visit_request.approve_reschedule': '核准家長改期申請',
   'visit_request.reject_reschedule': '退回家長改期申請',
@@ -597,6 +599,9 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   details_updated: '家長修改資料',
   // 停班停課（2026-10-14）：排了一封停課通知，請家長改約或取消；原因在歷程的 reason。
   closure_notice: '寄停課通知',
+  // 排除標記（2026-10-15）：測試或重複的案件不算進統計；原因類別在 after.reason，說明在歷程的 reason。
+  excluded: '標記為排除',
+  exclusion_removed: '取消排除',
 }
 
 export function visitEventLabel(eventType: string): string {
@@ -613,7 +618,54 @@ export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
 // 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。
 export const VISIT_DETAIL_FIELD_LABELS: Record<string, string> = {
   parent_name: '家長稱呼', phone: '手機', email: 'Email', child_name: '孩子姓名',
-  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事',
+  child_birthdate: '孩子出生年月日', party_size: '參觀人數', questions: '想了解的事', expected_start: '預計入學時間',
+}
+
+// 預約案件的排除原因（2026-10-15）；後端 booking/export_labels.py 的 EXCLUDE_REASON_LABELS 同一組字。
+export const VISIT_EXCLUDE_REASON_LABELS: Record<string, string> = { test: '測試', duplicate: '重複', other: '其他' }
+
+// 預計入學時間（2026-10-15）：和後端 app/booking/expected_start.py 的 display_label 同一套規則與案例
+// （contracts/expected-start-cases.json 的 labels）。值是 asap、unsure 或「民國學年-學期」。
+type Term = [number, number]
+function termOfDay(day: string): Term {
+  const [year, month] = day.split('-').map(Number) as [number, number]
+  if (month >= 8) return [year - 1911, 1]
+  if (month >= 2) return [year - 1912, 2]
+  return [year - 1912, 1]
+}
+const termIndex = ([year, semester]: Term): number => year * 2 + semester - 1
+const termAt = (index: number): Term => [Math.floor(index / 2), (index % 2) + 1]
+const termText = ([year, semester]: Term): string => `${year} 學年${semester === 1 ? '上' : '下'}學期`
+const termMonthText = ([year, semester]: Term): string => (semester === 1 ? `${year + 1911} 年 9 月` : `${year + 1912} 年 2 月`)
+function parseTerm(value: string): Term | null {
+  const match = /^(1\d{2})-([12])$/.exec(value)
+  return match ? [Number(match[1]), Number(match[2])] : null
+}
+
+/** 明細的文字；submittedOn 是送單的台北日期（YYYY-MM-DD），「盡快」換算當時的學期。 */
+export function expectedStartLabel(value: string | null | undefined, submittedOn: string): string {
+  if (!value) return ''
+  if (value === 'unsure') return '還不確定'
+  if (value === 'asap') return `盡快（送單時是 ${termText(termOfDay(submittedOn))}）`
+  const term = parseTerm(value)
+  return term ? `${termMonthText(term)}（${termText(term)}）` : value
+}
+
+/** 後台補登與修改家長資料的下拉：盡快、前兩個學期到之後六個學期、還不確定（規格 X8：後台可填過去的學期）；
+ * 目前的值不在範圍內時也列出來，打開表單不會把它弄丟。 */
+export function expectedStartStaffOptions(today: string, current?: string | null): { value: string; label: string }[] {
+  const now = termIndex(termOfDay(today))
+  const terms = Array.from({ length: 9 }, (_, i) => termAt(now - 2 + i))
+  const options = [
+    { value: 'asap', label: '盡快' },
+    ...terms.map((term) => ({ value: `${term[0]}-${term[1]}`, label: `${termMonthText(term)}（${termText(term)}）` })),
+    { value: 'unsure', label: '還不確定' },
+  ]
+  const kept = current ? parseTerm(current) : null
+  if (current && kept && !options.some((option) => option.value === current)) {
+    options.splice(1, 0, { value: current, label: `${termMonthText(kept)}（${termText(kept)}）` })
+  }
+  return options
 }
 
 // 與後端 log_action 的 target_type 同一組（labels.test.ts 會比對）。
@@ -1283,6 +1335,10 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 系統狀態頁的測試信（system.test_email）：寄出或沒寄出；沒寄出時另有 error_code 寫原因。
   result: (v, action) => (action === 'system.test_email' ? (v === 'sent' ? '測試信已寄出' : '測試信沒有寄出') : `結果：${String(v)}`),
   reason: (v) => `原因：${auditReasonLabel(String(v))}`,
+  // 預約案件排除（2026-10-15）：只記原因類別，說明不進操作紀錄（計畫裁定 P6）。
+  exclude_reason: (v) => (v ? `排除原因：${VISIT_EXCLUDE_REASON_LABELS[String(v)] ?? String(v)}` : null),
+  // 案件匯出的「排除」篩選（2026-10-15）。
+  excluded: (v) => (v === 'hide' ? '隱藏已排除' : v === 'only' ? '只看已排除' : null),
   // 帳密登入失敗發生在哪裡（user.login_password_failed：登入頁、重新驗證或改密碼）。
   context: (v) => `發生在：${AUDIT_CONTEXT_LABELS[String(v)] ?? String(v)}`,
   // 帳號鎖（user.login_locked）與停權／解除綁定並登出時解除了哪些外部登入（2026-09-29）。

@@ -19,10 +19,12 @@ from sqlalchemy.orm import aliased, selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, campus_scope, has_capability, require_scope, roles_with
+from app.booking import expected_start as start_rules
 from app.booking import (
     access_service,
     attention,
     consent,
+    exclusion,
     export_labels,
     pending_kinds,
     presenters,
@@ -68,6 +70,7 @@ from app.booking.schemas import (
     VisitContactNoteCreateRequest,
     VisitContactNoteOut,
     VisitRequestCancelRequest,
+    VisitRequestExcludeRequest,
     VisitRequestCreate,
     VisitRequestDetailOut,
     VisitRequestFullOut,
@@ -935,6 +938,11 @@ class VisitRequestFilters:
             pattern="^(upcoming|past|arrived|cancelled)$",
             description="接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消",
         ),
+        excluded: str | None = Query(
+            default=None,
+            pattern="^(hide|only)$",
+            description="排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15）",
+        ),
     ) -> None:
         self.campus_key = campus_key
         self.status = status_filter
@@ -947,6 +955,7 @@ class VisitRequestFilters:
         self.group = group
         self.open_only = open_only
         self.view = view
+        self.excluded = excluded
         # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422。
         if any(isinstance(value, str) and has_control_chars(value) for value in (campus_key, status_filter, q, source)):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
@@ -971,6 +980,10 @@ class VisitRequestFilters:
             stmt = stmt.where(status_groups.open_condition())
         if self.view:
             stmt = stmt.where(status_groups.view_condition(self.view))
+        if self.excluded == "hide":
+            stmt = stmt.where(exclusion.not_excluded())
+        elif self.excluded == "only":
+            stmt = stmt.where(exclusion.excluded())
         if self.source:
             stmt = stmt.where(VisitRequest.source == self.source)
         if self.created_from is not None:
@@ -999,6 +1012,7 @@ class VisitRequestFilters:
             "status": self.status,
             "group": self.group,
             "view": self.view,
+            "excluded": self.excluded,
             "open": True if self.open_only else None,
             "source": self.source,
             "created_from": self.created_from.isoformat() if self.created_from else None,
@@ -1030,7 +1044,11 @@ async def list_visit_requests(
     )
     stmt = _apply_list_order(stmt, order, visited_on).offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
-    return [VisitRequestDetailOut.model_validate(r).model_copy(update={"visited_on": day}) for r, day in result.all()]
+    # 排除的說明只在明細回（計畫裁定 P12）。
+    return [
+        VisitRequestDetailOut.model_validate(r).model_copy(update={"visited_on": day, "exclude_note": None})
+        for r, day in result.all()
+    ]
 
 
 def _visited_on_column():
@@ -1107,9 +1125,12 @@ def _export_row(r: VisitRequest) -> list[str]:
         csv_export.safe_cell(export_labels.referral_label(r.referral_sources)),
         # 舊案件沒有人數，留空。
         str(r.party_size) if r.party_size is not None else "",
+        # 預計入學時間（2026-10-15）：沒選留空；「盡快」換算送單當時的學期。
+        start_rules.display_label(r.expected_start, r.created_at.astimezone(OPERATING_TZ).date()) if r.expected_start else "",
         r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
         r.slot.start_time.strftime("%H:%M") if r.slot else "",
         r.slot.end_time.strftime("%H:%M") if r.slot else "",
+        export_labels.exclude_label(r.exclude_reason),
     ]
 
 
@@ -1454,7 +1475,8 @@ async def update_visit_request_details(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> AdminDetailsUpdateOut:
-    """後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。
+    """後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日，
+    以及預計入學時間（2026-10-15，只改預約，不同步招生的入學學期）。
     任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的
     details_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是
     當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。"""
@@ -1528,6 +1550,68 @@ async def cancel_visit_request(
         before_status,
         action="visit_request.cancel",
         has_reason=bool(reason and reason.strip()),
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/exclude", response_model=VisitRequestDetailOut)
+async def exclude_visit_request(
+    visit_request_id: uuid.UUID,
+    payload: VisitRequestExcludeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """標記為排除（2026-10-15 規格 §3.2）：booking.manage＋校區範圍。不改狀態、不釋出名額；
+    操作紀錄只記原因類別（說明可能有人名）。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        await exclusion.exclude(
+            db, visit_request, reason=payload.reason, note=payload.note, actor=Actor.staff(current_user.id)
+        )
+    except exclusion.AlreadyExcluded as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "ALREADY_EXCLUDED", "message": "這筆案件已經排除了"}
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.exclude",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={"exclude_reason": payload.reason},
+    )
+    await db.commit()
+    return VisitRequestDetailOut.model_validate(visit_request)
+
+
+@router.post("/admin/visit-requests/{visit_request_id}/include", response_model=VisitRequestDetailOut)
+async def include_visit_request(
+    visit_request_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> VisitRequestDetailOut:
+    """取消排除，回到原本的統計（規格 E4）。"""
+    visit_request = await _get_owned_visit_request(db, current_user, visit_request_id)
+    require_scope(current_user, "booking.manage", campus_keys=[visit_request.campus_key])
+    try:
+        previous = await exclusion.include(db, visit_request, actor=Actor.staff(current_user.id))
+    except exclusion.NotExcluded as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail={"code": "NOT_EXCLUDED", "message": "這筆案件沒有排除"}
+        ) from exc
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="visit_request.include",
+        target_type="visit_request",
+        target_id=str(visit_request.id),
+        campus_key=visit_request.campus_key,
+        metadata={"exclude_reason": previous},
     )
     await db.commit()
     return VisitRequestDetailOut.model_validate(visit_request)

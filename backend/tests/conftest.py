@@ -33,7 +33,7 @@ from tests.route_cache import install as install_route_cache
 # 花在雜湊上（2026-10-03 實測 2060 次佔 510／1021 秒，CI 的 Backend job 因此卡住部署）。
 # 測試驗的是流程不是雜湊強度，降到 bcrypt 允許的最小值 4；正式環境照用
 # app/auth/service.py 的預設。查無帳號時比對的假雜湊跟著重算，兩條路徑成本一致。
-service._pwd_context.update(bcrypt__rounds=4)
+service._pwd_context.rounds = 4
 service._DUMMY_PASSWORD_HASH = service._pwd_context.hash(secrets.token_urlsafe(32))
 
 # 每個測試都建一次 app；路由只建第一次，之後重用（理由與限制見 tests/route_cache.py）。

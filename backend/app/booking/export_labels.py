@@ -13,8 +13,8 @@ from app.campuses.models import CAMPUS_NAMES
 
 EXPORT_HEADERS = (
     "校區", "狀態", "來源", "家長", "手機", "送出時間",
-    "孩子姓名", "孩子生日", "Email", "得知管道", "人數",
-    "參觀日期", "開始", "結束",
+    "孩子姓名", "孩子生日", "Email", "得知管道", "人數", "預計入學",
+    "參觀日期", "開始", "結束", "已排除",
 )
 
 STATUS_LABELS = {
@@ -31,6 +31,9 @@ SOURCE_LABELS = {
     VisitRequestSource.WALK_IN.value: "親自到園",
     VisitRequestSource.EXTERNAL.value: "外部預約網站",
 }
+
+# 排除標記的原因（2026-10-15）；後台 admin/src/api/labels.ts 的 VISIT_EXCLUDE_REASON_LABELS 同一組字。
+EXCLUDE_REASON_LABELS = {"test": "測試", "duplicate": "重複", "other": "其他"}
 
 REFERRAL_LABELS = {
     "friends_family": "親友介紹",
@@ -58,6 +61,10 @@ def status_label(value: str) -> str:
 
 def source_label(value: str) -> str:
     return SOURCE_LABELS.get(value, value)
+
+
+def exclude_label(reason: str | None) -> str:
+    return EXCLUDE_REASON_LABELS.get(reason, reason) if reason else ""
 
 
 def referral_label(values: list[str]) -> str:

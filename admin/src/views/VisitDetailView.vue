@@ -16,6 +16,8 @@ import VisitCaseFacts from '../components/visit/VisitCaseFacts.vue'
 import VisitCaseHero from '../components/visit/VisitCaseHero.vue'
 import VisitCaseSettings from '../components/visit/VisitCaseSettings.vue'
 import VisitCaseTimeline from '../components/visit/VisitCaseTimeline.vue'
+import VisitExclusionAction from '../components/visit/VisitExclusionAction.vue'
+import VisitExclusionBanner from '../components/visit/VisitExclusionBanner.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,7 +69,7 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'order', 'page', 'page_size']
+const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'excluded', 'order', 'page', 'page_size']
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
@@ -115,9 +117,10 @@ async function loadNextCases(campusKey: string) {
     }
     return
   }
+  // 預設佇列就是總覽「待標記到場」「到期追蹤」的來源，總覽數字已排除測試／重複案件，這裡也不帶出（2026-10-15）。
   const fetchList = (params: Record<string, string>) =>
     api.get<VisitRequestDetailOut[]>(
-      `/admin/visit-requests?${new URLSearchParams({ ...params, campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
+      `/admin/visit-requests?${new URLSearchParams({ ...params, excluded: 'hide', campus_key: campusKey, order: 'oldest', page_size: String(NEXT_LIMIT) })}`,
     )
   try {
     const [attendance, due] = await Promise.all([
@@ -215,6 +218,7 @@ watch(id, () => {
 
     <template v-else-if="detail">
       <VisitCaseHero />
+      <VisitExclusionBanner />
 
       <div class="detail__grid">
         <div class="detail__main">
@@ -252,6 +256,7 @@ watch(id, () => {
           </section>
           <VisitCaseFacts v-if="!familyPending" />
           <VisitCaseSettings />
+          <VisitExclusionAction />
         </div>
       </div>
 
@@ -299,7 +304,7 @@ watch(id, () => {
   margin-top: 0;
 }
 
-/* 1100px 以下一欄：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列。兩欄的外框拆掉
+/* 1100px 以下一欄：處理區 → 招生資料 → 時間線 → 家長資料 → 設定列 → 排除入口。兩欄的外框拆掉
    （display: contents），子元素直接排進 grid 才能交錯排序。 */
 @media (max-width: 1100px) {
   .detail__grid {
@@ -330,6 +335,10 @@ watch(id, () => {
 
   .case-settings {
     order: 5;
+  }
+
+  .exclusion-action {
+    order: 6;
   }
 }
 

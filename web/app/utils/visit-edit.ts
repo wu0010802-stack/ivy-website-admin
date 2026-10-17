@@ -1,23 +1,24 @@
 import { normalizeVisitPhone, validateVisitContact, type VisitErrors, type VisitField } from './visit-form'
 
-export interface EditForm { parentName: string; phone: string; email: string; childName: string; childBirthdate: string }
-interface EditRecord { parent_name: string; phone: string; email?: string | null; child_name?: string | null; child_birthdate?: string | null }
-export type EditChanges = Partial<{ parent_name: string; phone: string; email: string; child_name: string; child_birthdate: string }>
+export interface EditForm { parentName: string; phone: string; email: string; childName: string; childBirthdate: string; expectedStart: string }
+interface EditRecord { parent_name: string; phone: string; email?: string | null; child_name?: string | null; child_birthdate?: string | null; expected_start?: string | null }
+export type EditChanges = Partial<{ parent_name: string; phone: string; email: string; child_name: string; child_birthdate: string; expected_start: string | null }>
 
-const KEYS = ['parentName', 'phone', 'email', 'childName', 'childBirthdate'] as const
+const KEYS = ['parentName', 'phone', 'email', 'childName', 'childBirthdate', 'expectedStart'] as const
 
 export function editBaseFrom(record: EditRecord): EditForm {
   return {
     parentName: record.parent_name, phone: record.phone, email: record.email ?? '',
-    childName: record.child_name ?? '', childBirthdate: record.child_birthdate ?? ''
+    childName: record.child_name ?? '', childBirthdate: record.child_birthdate ?? '',
+    expectedStart: record.expected_start ?? ''
   }
 }
 
-// 後端送出前的正規化：前後空白、手機分隔符。
+// 後端送出前的正規化：前後空白、手機分隔符；預計入學時間清空送 null（2026-10-15）。
 function normalize(form: EditForm): Required<EditChanges> {
   return {
     parent_name: form.parentName.trim(), phone: normalizeVisitPhone(form.phone), email: form.email.trim(),
-    child_name: form.childName.trim(), child_birthdate: form.childBirthdate
+    child_name: form.childName.trim(), child_birthdate: form.childBirthdate, expected_start: form.expectedStart || null
   }
 }
 
@@ -42,7 +43,8 @@ export function rebaseEdit(form: EditForm, base: EditForm, fresh: EditRecord): {
 }
 
 const CHANGE_FIELD: Record<string, VisitField> = {
-  parent_name: 'parentName', phone: 'phone', email: 'email', child_name: 'childName', child_birthdate: 'childBirthdate'
+  parent_name: 'parentName', phone: 'phone', email: 'email', child_name: 'childName', child_birthdate: 'childBirthdate',
+  expected_start: 'expectedStart'
 }
 
 /**

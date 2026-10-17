@@ -52,10 +52,11 @@ describe('到期待追蹤有來源也有入口', () => {
     const wrapper = mount({ template: '<router-view />' }, { global: { plugins: [makePinia(), router, ElementPlus] } })
     wrappers.push(wrapper); await flushPromises()
     const link = wrapper.findAll('a.task').find(a => a.text().includes('到期待追蹤'))!
-    expect(link.attributes('href')).toBe('/visit-requests?due=1')
-    await router.push('/visit-requests?due=1'); await flushPromises()
+    expect(link.attributes('href')).toBe('/visit-requests?due=1&excluded=hide')
+    await router.push('/visit-requests?due=1&excluded=hide'); await flushPromises()
     const listCall = get.mock.calls.map(c => String(c[0])).find(p => p.startsWith('/admin/visit-requests?'))!
     expect(listCall).toContain('follow_up_due=true')
+    expect(listCall).toContain('excluded=hide')
     expect(wrapper.text()).toContain('到期待追蹤 2020/01/01')
     expect(wrapper.find('a[href="tel:0912345678"]').exists()).toBe(true)
   })

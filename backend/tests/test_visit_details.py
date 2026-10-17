@@ -77,7 +77,8 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     )
     # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。Email 現在必填、
     # 一定有值，所以進 hash；孩子姓名、生日、得知管道與人數沒填時仍不進 hash。
-    optional_when_empty = (_DETAIL_FIELDS - {"email"}) | {"party_size"}
+    # 預計入學時間（2026-10-15）也是之後才加的選填欄位：沒選時不進 hash，舊頁面與重送的 hash 不變。
+    optional_when_empty = (_DETAIL_FIELDS - {"email"}) | {"party_size", "expected_start"}
     legacy_body = {key: value for key, value in body.items() if key not in optional_when_empty}
     assert legacy_body["email"] == "parent@example.com"
     # 更新前存的 hash 用的是官網送來的中文標籤；現在欄位存代碼，hash 仍要一樣。
@@ -92,6 +93,8 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     assert _legacy_payload_hash({**body, "email": "other@example.com"}) != legacy_hash
     # 人數是家長填的內容：同一把 key 改了人數就是不同的送單。
     assert _legacy_payload_hash({**body, "party_size": 3}) != _legacy_payload_hash({**body, "party_size": 2})
+    # 選了就是家長填的內容：同一把 key 改了選擇就是不同的送單。
+    assert _legacy_payload_hash({**body, "expected_start": "asap"}) != legacy_hash
     # 同意說明版本不是家長填的資料，不影響 hash。
     assert _legacy_payload_hash({**body, "consent_revision_id": "x"}) == legacy_hash
 

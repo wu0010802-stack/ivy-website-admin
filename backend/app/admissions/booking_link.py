@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants, follow_up, funnel, records
 from app.admissions.models import RecruitmentVisit
+from app.booking import expected_start as start_rules
 from app.booking import history
 from app.booking.models import VisitRequest
 from app.common.timezones import today_local
@@ -81,13 +82,15 @@ def fields_from_visit_request(visit_request, *, today: date, slot_date: date | N
     - child_name、birthday、grade、phone、contact_name：見 contact_fields。
     - source：勾選的「從哪裡知道我們」照後台文案以「、」串接，截到 50 字。
     - notes：「家長想了解：」＋想了解的事；沒填為 None。
-    - target_school_year／target_semester：today 所在學期（同園務建立時補當前學期）。
+    - target_school_year／target_semester：家長在預約表單選的預計入學時間（2026-10-15 規格 X4，
+      expected_start.resolve_term）；沒選或「還不確定」是 today 所在學期（同園務建立時補當前學期）。
     家長 Email 不複製（園務招生沒有 Email 欄位）。"""
-    school_year, semester = academic.current_term(today)
+    visit_date = slot_date or today
+    school_year, semester = start_rules.resolve_term(visit_request.expected_start, visit_date=visit_date, today=today)
     sources = "、".join(REFERRAL_SOURCE_TEXT.get(str(code), str(code)) for code in (visit_request.referral_sources or []))
     questions = (visit_request.questions or "").strip()
     return {
-        "visit_date": slot_date or today,
+        "visit_date": visit_date,
         **contact_fields(
             visit_request.parent_name,
             visit_request.phone,

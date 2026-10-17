@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
 import type { VisitRequestDetailOut } from '../../api/types'
-import { campusLabel, contactTimeLabel, formatShortDateTime, formatTime, visitDisplay, visitSourceLabel } from '../../api/labels'
+import { VISIT_EXCLUDE_REASON_LABELS, campusLabel, contactTimeLabel, formatShortDateTime, formatTime, visitDisplay, visitSourceLabel } from '../../api/labels'
 import { attendanceDue, type AttendanceKind } from '../../composables/visitAttendance'
 import { followUpDue, shortDay, taipeiDay, VISIT_PHASE_LABELS, visitPhase } from '../../utils/visitSchedule'
 
@@ -106,6 +106,7 @@ function onRowAuxClick(event: MouseEvent) {
           <span v-if="multiCampus || manualSource" class="visit-row__meta">
             <span v-if="multiCampus" class="visit-row__campus-inline">{{ campusLabel(row.campus_key) }}校{{ manualSource ? ' · ' : '' }}</span>{{ manualSource }}
           </span>
+          <span v-if="row.excluded_at" class="visit-row__excluded">已排除・{{ VISIT_EXCLUDE_REASON_LABELS[row.exclude_reason ?? ''] ?? '其他' }}</span>
           <span v-if="row.follow_up_at" class="visit-row__follow num" :class="{ 'is-due': followDue }">{{ followDue ? '到期待追蹤' : '預定聯絡' }} {{ formatShortDateTime(row.follow_up_at) }}</span>
           <span v-if="row.preferred_time" class="visit-row__meta">方便接電話時段：{{ contactTimeLabel(row.preferred_time) }}</span>
           <span v-if="showCreated" class="visit-row__meta num">{{ formatShortDateTime(row.created_at) }} 送出</span>
@@ -229,6 +230,17 @@ function onRowAuxClick(event: MouseEvent) {
 
 .visit-row__campus-inline {
   display: none;
+}
+
+/* 列 hover 的底色是 --surface-2，標籤用再深一階的 --surface-3 才不會在 hover 時消失。 */
+.visit-row__excluded {
+  align-self: flex-start;
+  justify-self: start;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  background: var(--surface-3);
 }
 
 .visit-row__follow {

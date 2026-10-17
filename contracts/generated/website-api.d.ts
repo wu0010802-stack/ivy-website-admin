@@ -2340,12 +2340,54 @@ export interface paths {
         head?: never;
         /**
          * Update Visit Request Details
-         * @description 後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日。
+         * @description 後台人員修改家長資料（2026-10-12 規格 3.1、3.2）：稱呼、手機、Email、孩子姓名與生日，
+         *     以及預計入學時間（2026-10-15，只改預約，不同步招生的入學學期）。
          *     任何狀態都能改（已匿名化 409），不受家長端的異動期限限制；expected_version 是案件的
          *     details_version，和家長端共用，兩邊同時改後送者 409。招生入學開啟時，招生訪視上仍是
          *     當初帶過去的值一起改，招生端另外改過的不動。歷程與稽核只記欄位名。
          */
         patch: operations["update_visit_request_details_api_website_v1_admin_visit_requests__visit_request_id__details_patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/exclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exclude Visit Request
+         * @description 標記為排除（2026-10-15 規格 §3.2）：booking.manage＋校區範圍。不改狀態、不釋出名額；
+         *     操作紀錄只記原因類別（說明可能有人名）。
+         */
+        post: operations["exclude_visit_request_api_website_v1_admin_visit_requests__visit_request_id__exclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/visit-requests/{visit_request_id}/include": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Visit Request
+         * @description 取消排除，回到原本的統計（規格 E4）。
+         */
+        post: operations["include_visit_request_api_website_v1_admin_visit_requests__visit_request_id__include_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/website/v1/admin/visit-requests/{visit_request_id}/no-show": {
@@ -3038,11 +3080,11 @@ export interface components {
     schemas: {
         /**
          * AdminDetailsUpdate
-         * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這五欄
-         *     （人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
+         * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
+         *     （2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。
          *
          *     驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空
-         *     （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。
+         *     （送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。
          *     expected_version 是案件的 details_version，和家長端共用。
          */
         AdminDetailsUpdate: {
@@ -3052,6 +3094,8 @@ export interface components {
             child_name?: string | null;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Expected Version */
             expected_version: number;
             /** Parent Name */
@@ -3120,6 +3164,14 @@ export interface components {
             email?: string | null;
             /** Email Notified */
             email_notified: boolean;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -4953,6 +5005,11 @@ export interface components {
             cases: number;
             /** Completed */
             completed: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
@@ -5000,6 +5057,11 @@ export interface components {
             date_from: string | null;
             /** Date To */
             date_to: string | null;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Grades */
             grades: components["schemas"]["GradeCountOut"][];
             /** Out Of Range */
@@ -5695,6 +5757,11 @@ export interface components {
         JourneyCoverageOut: {
             /** Completed Without Visit */
             completed_without_visit: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Undated Cases */
             undated_cases: number;
             /** Visits Without Request */
@@ -6398,6 +6465,11 @@ export interface components {
             cases: number;
             /** Completed */
             completed: number;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** No Show */
             no_show: number;
             no_show_rate: components["schemas"]["AdmissionsRate"];
@@ -6467,6 +6539,8 @@ export interface components {
             child_name?: string | null;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Expected Version */
             expected_version: number;
             /** Parent Name */
@@ -6500,7 +6574,7 @@ export interface components {
          * ParentVisitRequestOut
          * @description 家長端（憑修改連結）看到的案件。刻意不沿用 VisitRequestDetailOut：那是後台用的，
          *     含聯絡紀錄、來源等內部欄位。家長自己填的資料（稱呼、完整手機、Email、
-         *     孩子姓名與生日、人數、提問）要能在這裡修改，所以照原樣回傳（規格 3.3）——
+         *     孩子姓名與生日、人數、提問、預計入學時間）要能在這裡修改，所以照原樣回傳（規格 3.3）——
          *     修改連結等同這份資料的鑰匙，外流時園方要能撤銷或重新產生。
          */
         ParentVisitRequestOut: {
@@ -6545,6 +6619,8 @@ export interface components {
             day_closed: boolean;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /**
              * Id
              * Format: uuid
@@ -7496,6 +7572,11 @@ export interface components {
              * Format: date
              */
             date_to: string;
+            /**
+             * Excluded Cases
+             * @default 0
+             */
+            excluded_cases: number;
             /** Rows */
             rows: components["schemas"]["SlotUsageRowOut"][];
             thresholds: components["schemas"]["SlotUsageThresholdsOut"];
@@ -7976,6 +8057,8 @@ export interface components {
              * Format: email
              */
             email: string;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -8035,6 +8118,14 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /**
@@ -8071,6 +8162,19 @@ export interface components {
             version: number;
             /** Visited On */
             visited_on?: string | null;
+        };
+        /**
+         * VisitRequestExcludeRequest
+         * @description 標記為排除（2026-10-15 規格 E3）：原因三選一；「其他」要寫說明（≤200 字）。
+         */
+        VisitRequestExcludeRequest: {
+            /** Note */
+            note?: string | null;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "test" | "duplicate" | "other";
         };
         /**
          * VisitRequestFullOut
@@ -8122,6 +8226,14 @@ export interface components {
             readonly display_status: string;
             /** Email */
             email?: string | null;
+            /** Exclude Note */
+            exclude_note?: string | null;
+            /** Exclude Reason */
+            exclude_reason?: string | null;
+            /** Excluded At */
+            excluded_at?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -8186,6 +8298,8 @@ export interface components {
             consent_given: boolean;
             /** Email */
             email?: string | null;
+            /** Expected Start */
+            expected_start?: string | null;
             /** Note */
             note?: string | null;
             /** Parent Name */
@@ -12979,6 +13093,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13071,6 +13187,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13125,6 +13243,8 @@ export interface operations {
                 open?: boolean;
                 /** @description 接待頁籤：upcoming 接下來（台北今天起、未取消）／past 時間已過（已開始、預約正常或未到場）／arrived 已到場／cancelled 已取消 */
                 view?: string | null;
+                /** @description 排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15） */
+                excluded?: string | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13435,6 +13555,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminDetailsUpdateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exclude_visit_request_api_website_v1_admin_visit_requests__visit_request_id__exclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VisitRequestExcludeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    include_visit_request_api_website_v1_admin_visit_requests__visit_request_id__include_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                visit_request_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisitRequestDetailOut"];
                 };
             };
             /** @description Validation Error */

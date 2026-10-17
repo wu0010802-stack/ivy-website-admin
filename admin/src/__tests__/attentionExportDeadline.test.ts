@@ -120,7 +120,7 @@ describe('待人工處理的入口', () => {
     const { wrapper } = await mountAt(DashboardView, '/')
     const task = wrapper.findAll('a.task').find(link => link.text().includes('家長還要來'))!
     expect(task.text()).toContain('2')
-    expect(task.attributes('href')).toBe('/visit-requests?attention=1')
+    expect(task.attributes('href')).toBe('/visit-requests?attention=1&excluded=hide')
     expect(wrapper.text()).not.toContain('目前沒有待處理事項')
   })
 

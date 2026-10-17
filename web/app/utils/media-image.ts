@@ -179,11 +179,6 @@ export function heroImageAttrs(hero: Pick<HeroContent, 'heroImage' | 'heroImageM
   return pickImage(hero.heroImage, hero.heroImageMedia, HOME_HERO_SIZES)
 }
 
-/** 分校頁首屏照片（sizes 100vw）：頁面與 preload 共用。 */
-export function campusHeroAttrs(campus: Pick<Campus, 'image' | 'imageMedia'>) {
-  return pickImage(campus.image, campus.imageMedia)
-}
-
 /** 特色教學頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用，才不會多下載一張。 */
 export function curriculumHeroAttrs(page: Pick<CurriculumPageContent, 'heroPhoto'>) {
   return pickImage(CURRICULUM_HERO_IMAGE, page.heroPhoto, CURRICULUM_HERO_SIZES)

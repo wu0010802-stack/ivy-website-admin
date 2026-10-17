@@ -75,5 +75,7 @@ export function pendingLink(kind: PendingKind, campusKey: string): string {
   } else {
     query.set('due', '1')
   }
+  // 統計的「現在待處理」數字已排除測試／重複案件，連結帶同一個篩選才是同一批（2026-10-15）。
+  query.set('excluded', 'hide')
   return `/visit-requests?${query}`
 }

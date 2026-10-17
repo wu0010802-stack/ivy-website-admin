@@ -121,3 +121,25 @@
 
 - 「參觀提醒信」（第 1 波）：若已合併，本案補上家長提醒的排除條件（E8）；若本案先合併，由提醒信那案補。
 - 「預計入學時間」：同表不同欄，先做它。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave3-start-exclusion.md`，與「預計入學時間」合為一支 `feature/admin-wave3-20261015`（開頭寫的分支 `feature/visit-exclusion-20261015` 沒有用；計畫裁定 P1）。migration `d4a8f2c6e913`（加 `excluded_at`、`excluded_by`（→ users，SET NULL）、`exclude_reason`、`exclude_note` 四欄＋兩條 CHECK `ck_visit_requests_exclude_reason`、`ck_visit_requests_excluded_pair`，不加索引），`down_revision` 接 `b7e3c1a9d5f2`（預計入學時間），不是開頭基準寫的 `c6a9e3f15d27`。
+- 與規格的差異：
+  - 操作紀錄 metadata 的鍵用 `exclude_reason`（不用既有的 `reason`，那個鍵的中文對照 `auditReasonLabel` 是另一組原因，同名會被翻成錯的中文；P6）。
+  - §3.4 的「更多選單」在明細頁不存在（`VisitCaseSettings.vue` 只在預約正常時出現、沒有更多選單）：入口做成右欄最下方獨立一列 `VisitExclusionAction.vue`（所有狀態都有，只給 `booking.manage`，已到場、已取消的測試案件也要能排除），已排除的橫幅 `VisitExclusionBanner.vue` 放在頁首下方；窄螢幕（1100px 以下）入口 `order: 6`（P7、W3-6）。樣式 token：列表標籤與明細橫幅底色用 `--surface-3`（`body` 與列 hover 都是 `--surface-2`，同階會看不見）。
+  - 總覽連到案件列表的連結（到期待追蹤、尚未確認到場、待人工處理）與統計的連結都帶 `excluded=hide`，讓「總覽數字點進去是同一批」（P8）；另外總覽「今天有 N 組參觀」的連結、招生看板「去標記到場」、案件明細「下一筆」（沿用列表的篩選；沒有來源列表時的兩組預設佇列也帶 `hide`）一併照辦（W3-17）。列表預設不帶時，頁籤數字照舊含排除案件。
+  - 回應欄位叫 `excluded_cases`，不叫規格寫的 `excluded_count`：參觀預約統計每校與合計、班別分布、場次使用情況、預約全程 coverage 四處同名，0 筆畫面不顯示（P9）。預約全程已有各段天數裡的 `excluded`（不納入天數的筆數）是另一回事，程式註解寫明（P11）；`excluded_cases` 在既有「場次還沒開始就取消」批次篩選之後才數。場次使用情況的 `excluded_cases` 只數占名額的排除案件（已取消的本來就不在已約裡）；參觀預約統計與班別的 `excluded_cases` 含各種狀態，`cases + excluded_cases`＝期間內送出的全部。
+  - 本週五校的已約／可約不套用排除（P10；使用者 10-16 確認，§3.3 該列與第 4 行狀態已照確認寫好）：這兩個數字講名額，排除不釋出名額，只扣已約會和可約對不起來；`test_visit_exclusion_scope.py` 有一條測試釘住現況。
+  - 列表回應把 `exclude_note` 設為 `None`，明細才有（P12，規格 §3.2「列表不回說明」）。
+  - 停用分校的未結案件、切換預約方式前的確認數不改程式（§3.3「否」），用一條測試同時釘住兩處「排除案件仍算」（P14）。
+  - 已匿名化的案件可以排除，但不存說明（`exclude_note` 一律 `None`）：規格沒寫；保存政策已清過自由文字，之後不會再清，不能讓新的自由文字留在匿名化案件上（P15）。
+  - 對話框與成功訊息只寫真的會扣的數字（總覽、參觀預約的結果與班別、預約全程、場次使用情況、提醒）：參觀預約統計頁的「預約流程」「每日變化」「依來源」「預約鈕點擊」讀的是去識別的成效事件，事件沒有案件 id，扣不掉（§3.3 只列結果與班別）；`exclusion.py` 模組說明的「不套用」清單也寫了這一項（最終修正 F1）。
+  - 已匿名化的案件，對話框不給「其他」與說明欄，改顯示「這筆已匿名化：原因可選測試或重複，不保存說明。」，送出只帶原因、不帶 note；後端照 P15 不變（最終修正 F4）。
+  - 標記排除成功、明細重讀後，焦點移到頁首下方的橫幅（`tabindex="-1"`）；取消排除成功後移到「標記為排除」入口。否則入口那一列或橫幅收起時，被按的按鈕消失，焦點掉到「跳到主要內容」（最終修正 F7）。
+  - 選了「其他」卻沒寫說明的 422 指到 `["body","note"]`（`note` 設 `validate_default=True`，在欄位驗證器讀 `info.data["reason"]`），後台才能把錯誤寫在說明欄下面（P16）。
+  - 跨校標記排除回 404（沿用 `permissions.ScopeDenied` 不洩漏案件是否存在的慣例），同校但沒有 `booking.manage` 回 403（櫃台、唯讀）。排除與取消排除先 `refresh(with_for_update=True)` 再判斷（連同 `status` 一起重讀，等鎖的空檔別人改了狀態時回應不帶舊值；`slot_id` 不重讀，只重讀欄位不會更新已載入的場次，回應會一新一舊，後台排除後一律重讀明細），兩人同時操作時後到的拿 409，後台遇 409 重讀明細；對話框還開著時「標記為排除」停用，不能再送第二次。
+  - 家長參觀提醒：排入（共用的 `reminders._due_upcoming`，員工提醒一併排除）與寄出前（`service.py::_dispatch_parent_email`）都擋，員工提醒的 `still_applies` 也擋。
+  - 列表 `excluded=hide|only` 也作用到頁籤件數與 CSV（共用 `VisitRequestFilters`）；CSV 加「已排除」欄。
+  - 操作紀錄 `visit_request.exclude`／`visit_request.include` 與時間線 `excluded`／`exclusion_removed` 的中文在後端變更當下就補（admin `labelCoverage.test.ts` 會要求，否則中間的 commit 會紅；W3-18）。
+- 已知事項：測試預約仍佔名額、仍會收到確認信，只在對話框提示「請一併取消」，不自動取消（規格「不做」）；招生訪視本身不能排除（規格「不做」）。驗證與未驗證項目見 `docs/website-admin/acceptance.md`「預約表單預計入學時間、預約案件排除標記」。

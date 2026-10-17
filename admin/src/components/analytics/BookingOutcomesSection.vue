@@ -92,6 +92,9 @@ const pendingNote = computed(() => {
   return parts.length ? `${parts.join('；')}。` : ''
 })
 
+// 排除的測試／重複案件（2026-10-15）不在上面的數字裡；0 筆不寫。
+const excludedNote = computed(() => (row.value?.excluded_cases ? `另有 ${row.value.excluded_cases} 筆測試或重複的預約已排除，不在上面的數字裡。` : ''))
+
 // 五校比較表：到場率畫小條（以 100% 為滿），分母少掛「樣本較少」。取消原因不進表，
 // 看選定校區的預約結果；待處理兩欄是此刻的數字，不受期間影響。
 interface CompareRow {
@@ -293,6 +296,7 @@ function exportCompare() {
               </div>
             </dl>
             <p v-if="pendingNote" class="hint">{{ pendingNote }}</p>
+            <p v-if="excludedNote" class="hint">{{ excludedNote }}</p>
 
             <div class="outcomes__now">
               <h3 class="outcomes__title">現在待處理<span class="outcomes__title-sub">此刻的狀態，不受期間影響</span></h3>

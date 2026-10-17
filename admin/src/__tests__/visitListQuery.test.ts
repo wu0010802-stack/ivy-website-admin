@@ -6,7 +6,7 @@ const scope = { campusKeys: ['yihua', 'minghua'], multiCampus: true }
 const query = (raw: string): LocationQuery => Object.fromEntries(new URLSearchParams(raw))
 const state = (changes: Partial<ListState> = {}): ListState => ({
   tab: 'upcoming', attendanceOnly: false, q: '', campus: '', open: false, source: '', created: null,
-  due: false, attention: false, order: 'visit', page: 1, ...changes,
+  due: false, attention: false, hideExcluded: false, order: 'visit', page: 1, ...changes,
 })
 
 describe('舊連結落在哪個頁籤（2026-10-06 方向 B）', () => {
@@ -91,5 +91,21 @@ describe('API 參數', () => {
     expect(searchTerm('+886 912 345 678')).toBe('0912345678')
     expect(searchTerm('09')).toBe('09')
     expect(searchTerm('陳媽媽')).toBe('陳媽媽')
+  })
+})
+
+describe('隱藏已排除（2026-10-15）', () => {
+  const scope = { campusKeys: ['yihua'], multiCampus: false }
+  it('網址 excluded=hide 讀回、寫回，清單與件數都帶 excluded=hide', () => {
+    const state = parseListQuery({ group: 'past', status: 'confirmed', excluded: 'hide' }, scope)
+    expect(state.hideExcluded).toBe(true)
+    expect(listStateQuery(state)).toMatchObject({ excluded: 'hide', group: 'past', status: 'confirmed' })
+    expect(listApiParams(state).get('excluded')).toBe('hide')
+    expect(listApiParams(state, { counts: true }).get('excluded')).toBe('hide')
+  })
+  it('預設不隱藏、網址不寫', () => {
+    const state = parseListQuery({}, scope)
+    expect(state.hideExcluded).toBe(false)
+    expect(listStateQuery(state).excluded).toBeUndefined()
   })
 })

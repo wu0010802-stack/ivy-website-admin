@@ -18,7 +18,7 @@ const rate = (numerator: number, denominator: number) =>
 
 function counts(over: Partial<OutcomeCountsOut> = {}): OutcomeCountsOut {
   const base = {
-    cases: 8, web_cases: 7, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2,
+    cases: 8, web_cases: 7, excluded_cases: 0, upcoming: 1, awaiting_attendance: 1, completed: 2, no_show: 1, cancelled: 2,
     cancelled_by_reason: { parent: 1, staff: 0, hold_expired: 0, unknown: 1 },
     ...over,
   }
@@ -72,16 +72,23 @@ describe('預約結果', () => {
     expect(text).toContain('單位：預約案件數')
   })
 
+  it('有已排除的測試或重複預約才多寫一句；0 筆不寫（2026-10-15）', async () => {
+    const withExcluded = await mountSection('reception', {}, outcomes([row('yihua', { excluded_cases: 3 }), row('minghua', EMPTY, 'phone')]))
+    expect(withExcluded.wrapper.get('.outcomes').text()).toContain('另有 3 筆測試或重複的預約已排除，不在上面的數字裡。')
+    const none = await mountSection('reception')
+    expect(none.wrapper.text()).not.toContain('已排除')
+  })
+
   it('有案件權限的人點得進已套好篩選的案件列表', async () => {
     const { wrapper } = await mountSection('reception')
     // 五校比較表「現在」兩欄的數字也連到該校的案件列表（2026-10-06），再來是選定校區的現在待處理。
     expect(caseLinks(wrapper)).toEqual([
-      '/visit-requests?campus=yihua&group=past&status=confirmed',
-      '/visit-requests?campus=yihua&due=1',
-      '/visit-requests?campus=minghua&group=past&status=confirmed',
-      '/visit-requests?campus=minghua&due=1',
-      '/visit-requests?campus=yihua&group=past&status=confirmed',
-      '/visit-requests?campus=yihua&due=1',
+      '/visit-requests?campus=yihua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=yihua&due=1&excluded=hide',
+      '/visit-requests?campus=minghua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=minghua&due=1&excluded=hide',
+      '/visit-requests?campus=yihua&group=past&status=confirmed&excluded=hide',
+      '/visit-requests?campus=yihua&due=1&excluded=hide',
     ])
     // 2026-10-05：舊資料的待處理已拿掉，統計與連結都不再出現。
     expect(wrapper.text()).not.toContain('舊資料')

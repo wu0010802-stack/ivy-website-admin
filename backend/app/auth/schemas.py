@@ -40,8 +40,8 @@ def normalize_display_name(value: str | None) -> str | None:
 
 DisplayName = Annotated[str | None, AfterValidator(normalize_display_name)]
 
-# 所有密碼欄位的字元上限。bcrypt 只看前 72 bytes；太長的輸入在 passlib 會丟
-# PasswordSizeError（>4096 bytes）變成 500，而且沒有任何合理用途。
+# 所有密碼欄位的字元上限。bcrypt 只看前 72 bytes（超過的部分在 app/auth/service.py 截掉）；
+# 更長的輸入沒有任何合理用途，只是讓每次驗證多編碼一堆字。
 PASSWORD_MAX_CHARS = 128
 BCRYPT_MAX_BYTES = 72
 

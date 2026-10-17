@@ -313,8 +313,8 @@ const awaitingAttendance = computed(() => summary.value?.awaiting_attendance ?? 
 // 點進去那一批，數字也只算那一批，不把幾批加總之後只帶去其中一批。
 const primary = computed(() => {
   // 待辦清單最上面那項：不聯絡的話家長會照原時間到園。
-  if (needsAttention.value > 0) return { to: attentionListPath(), label: '聯絡要改期的家長', count: needsAttention.value }
-  if (followUpDue.value > 0) return { to: '/visit-requests?due=1', label: '追蹤到期案件', count: followUpDue.value }
+  if (needsAttention.value > 0) return { to: `${attentionListPath()}&excluded=hide`, label: '聯絡要改期的家長', count: needsAttention.value }
+  if (followUpDue.value > 0) return { to: '/visit-requests?due=1&excluded=hide', label: '追蹤到期案件', count: followUpDue.value }
   return { to: '/visit-requests', label: '查看參觀案件', count: 0 }
 })
 const slotsWithoutOpenings = computed(() => summary.value?.campuses_slots_without_openings ?? [])
@@ -445,7 +445,7 @@ const hasTodo = computed(() => {
                 </li>
               </template>
             </ol>
-            <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming">查看案件</router-link></p>
+            <p v-else-if="summary.today_visits > 0" class="panel today__empty">今天有 {{ summary.today_visits }} 組參觀。<router-link to="/visit-requests?group=upcoming&excluded=hide">查看案件</router-link></p>
             <p v-else class="panel today__empty">今天沒有參觀。<router-link to="/visit-requests?group=upcoming">查看接下來的案件</router-link></p>
           </section>
         </div>
@@ -479,15 +479,15 @@ const hasTodo = computed(() => {
             </div>
             <!-- 背景重讀（切回分頁也會發生）只把待辦區標成忙碌，不讓整頁暫時不唸。 -->
             <div class="panel dash__task-list" :class="{ 'is-refreshing': refreshing }" :aria-busy="refreshing">
-              <router-link v-if="needsAttention > 0" class="task task--urgent" :to="attentionListPath()" v-bind="taskAria('attention')">
+              <router-link v-if="needsAttention > 0" class="task task--urgent" :to="`${attentionListPath()}&excluded=hide`" v-bind="taskAria('attention')">
                 <span id="task-attention-n" class="task__number">{{ needsAttention }}</span>
                 <div><h3 id="task-attention-t">場次已關閉或分校停用，家長還要來</h3><p id="task-attention-d">請聯絡家長改期或取消，避免家長照原時間到園。</p><span id="task-attention-a" class="task__action">查看</span></div>
               </router-link>
-              <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1" v-bind="taskAria('due')">
+              <router-link v-if="summary.pending_follow_up > 0" class="task" to="/visit-requests?due=1&excluded=hide" v-bind="taskAria('due')">
                 <span id="task-due-n" class="task__number">{{ summary.pending_follow_up }}</span>
                 <div><h3 id="task-due-t">到期待追蹤</h3><span id="task-due-d" class="visually-hidden">之前記下「下次聯絡」的案件到期了</span><span id="task-due-a" class="task__action">查看</span></div>
               </router-link>
-              <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed" v-bind="taskAria('arrival')">
+              <router-link v-if="awaitingAttendance > 0" class="task" to="/visit-requests?group=past&status=confirmed&excluded=hide" v-bind="taskAria('arrival')">
                 <span id="task-arrival-n" class="task__number">{{ awaitingAttendance }}</span>
                 <div><h3 id="task-arrival-t">參觀時間過了，還沒標記到場</h3><span id="task-arrival-d" class="visually-hidden">沒標記的話，參觀預約統計的到場數字會偏低</span><span id="task-arrival-a" class="task__action">查看</span></div>
               </router-link>

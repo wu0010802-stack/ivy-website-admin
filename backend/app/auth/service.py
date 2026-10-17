@@ -5,7 +5,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
@@ -15,7 +15,33 @@ from app.common import ratelimit
 from app.common.concurrency import SlotsBusy, ThreadSlots, run_in_thread
 from app.operations import audit_service
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+class _BcryptContext:
+    """密碼雜湊，直接用 bcrypt。2026-10-16 以前經 passlib，但 passlib 已停止維護，還把 bcrypt
+    卡在 4.0（4.1 起 passlib 讀版本號會壞）。格式相同（$2b$），passlib 產生的既有雜湊照樣驗得過。
+
+    bcrypt 只看前 72 bytes。passlib 會默默截斷，bcrypt 5 則直接丟 ValueError；這裡照 passlib
+    的做法截斷：新密碼在 schema 就擋掉 72 bytes 以上，但登入的既有密碼只限字元數（舊帳號
+    可能是更長的密碼），截斷才能照舊登入。"""
+
+    MAX_BYTES = 72
+
+    def __init__(self, rounds: int = 12) -> None:
+        self.rounds = rounds
+
+    def hash(self, password: str) -> str:
+        secret = password.encode("utf-8")[: self.MAX_BYTES]
+        return bcrypt.hashpw(secret, bcrypt.gensalt(rounds=self.rounds)).decode("ascii")
+
+    def verify(self, password: str, password_hash: str) -> bool:
+        secret = password.encode("utf-8")[: self.MAX_BYTES]
+        try:
+            return bcrypt.checkpw(secret, password_hash.encode("ascii"))
+        except ValueError:
+            # 認不得的雜湊（passlib 會丟例外變成 500）：當成驗證失敗。
+            return False
+
+
+_pwd_context = _BcryptContext()
 logger = logging.getLogger("app.auth")
 
 # 後台 session 的絕對上限：不管多活躍，登入滿 12 小時一律重新登入。

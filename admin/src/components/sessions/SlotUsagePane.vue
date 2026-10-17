@@ -109,6 +109,7 @@ const columns: StatsColumn[] = [
           v-else :title="`時段（${usage.slots.date_from} 至 ${usage.slots.date_to}）`" :rows="rows" :columns="columns" row-key="key"
           empty-text="" :export-filename="usageCsvFilename(campusName, usage.slots.weeks, usage.today)"
         />
+        <p v-if="usage.slots.excluded_cases" class="hint">已排除的測試或重複預約 {{ usage.slots.excluded_cases }} 筆，不算進已約。</p>
         <p v-if="hasOftenFull" class="usage__link">
           <el-button link type="primary" data-test="go-calendar" @click="$emit('go-calendar')">到接待月曆改規則</el-button>
         </p>

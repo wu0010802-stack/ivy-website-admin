@@ -102,3 +102,18 @@
 
 - 「預約案件排除」：同表不同欄，同波後做。
 - 「招生歷程兩種事件」動 `booking_link.sync_from_visit_request`，本案動同檔的 `fields_from_visit_request`，合併時注意。
+
+## 7. 實作紀錄
+
+- 實作計畫 `docs/superpowers/plans/2026-10-15-admin-wave3-start-exclusion.md`，與「預約案件排除」合為一支 `feature/admin-wave3-20261015`（開頭寫的分支 `feature/visit-expected-start-20261015` 沒有用；計畫裁定 P1）。migration `b7e3c1a9d5f2`（`visit_requests.expected_start` 可空欄位＋CHECK `ck_visit_requests_expected_start`，不改既有資料），`down_revision` 接 `5c8e1f3a9d27`（第 2 波退出原因分類），不是開頭基準寫的 `c6a9e3f15d27`（`aae0debc` 當時的 head；第 2 波退出原因分類在規格寫完之後先進了 main，§5 本來就說要接實作當下的 head；W3-1）。
+- 與規格的差異：
+  - 選項、公開範圍與顯示文字共用一份案例 `contracts/expected-start-cases.json`，後端 pytest、web vitest、admin vitest 都讀（P2）；§4 要的「前後端各有一組相同的日期邊界測試案例」用同一份檔案，不是各抄一份。
+  - 後台與 CSV 的顯示文字：`115-2`→「2027 年 2 月（115 學年下學期）」、`asap`→「盡快（送單時是 115 學年上學期）」、`unsure`→「還不確定」；後端 `expected_start.display_label`、admin `expectedStartLabel` 同規則，案例在共用檔的 `labels` 區塊（P3）。
+  - 家長管理頁改這一題也套公開範圍（規格 X7 只寫「公開端驗證」，管理頁也是公開端；P4）；家長修改別的欄位時，原值已不在新選項（送單後跨學期）則沒動這一題就不送、不擋其他欄位、顯示原值。
+  - `resolve_term` 遇到認不得的值不丟例外，退回今天所在學期（P5）：建立訪視與「標記已到場」同一個交易，丟例外整筆回滾；資料庫 CHECK 已擋掉不合法的值，這只是保險。
+  - 學期格式驗證用 `re.fullmatch(r"1[0-9]{2}-[12]")`，不用 `match` 加 `$`、不用 `\d`（避免 `"115-1\n"`、全形數字通過驗證後被資料庫 CHECK 擋成 500；W3-8）。學年只收 100–199（X8）；測試補了這兩種案例。
+  - 家長只改預計入學時間也寄「預約已變更」信，和改人數、改想了解的事一致（W3-16；使用者可推翻，推翻時把 `expected_start` 從 `workflow_service.py` 的 `EDITABLE_BY_PARENT` 觸發寄信的判斷排除）。
+  - 補登沒選時送 `expected_start: null`（不是省略鍵）：後端接受，`_canonical_payload` 丟掉 `None`，和同一個 body 裡的 `child_name`、`email` 一致。取消選取（空字串）一律改送 `null`，後端收到空字串會 422。
+  - 後台兩個預計入學時間的 `el-select`（修改家長資料、補登）加 `value-on-clear=""`：Element Plus 2.14.6 清除時發出 `undefined`（不是 `''`），不加的話原本沒填、選了又清掉會被當成改了一欄，補登則會誤判成有輸入。
+  - 官網選項的鍵盤：Space 再按一次可以取消選取（只掛 `@click` 時，鍵盤使用者選錯回不到沒填）。
+- 已知事項：「就托狀況」「分布統計」「必填」「寫進確認信」「園務 `expected_start_label`」都沒做（規格「不做」）。驗證與未驗證項目見 `docs/website-admin/acceptance.md`「預約表單預計入學時間、預約案件排除標記」。

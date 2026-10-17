@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, expectedStartOptions, expectedStartText, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotRange, slotWhen } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
@@ -132,15 +132,27 @@ async function submitReschedule() {
   await focusFeedback()
 }
 
-const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '' })
-let editBase: EditForm = { ...editForm }
+const editForm = reactive<EditForm>({ parentName: '', phone: '', email: '', childName: '', childBirthdate: '', expectedStart: '' })
+// ref：預計入學時間的選項依它算，重開表單或版本衝突重載後換了底，選項要跟著更新。
+const editBase = ref<EditForm>({ ...editForm })
 const editErrors = ref<VisitErrors>({})
 const editPanel = ref<HTMLElement | null>(null)
+// 預計入學時間的選項依今天重算；原值不在選項裡（送單後跨了學期）時保留顯示原值（規格 §3.2）。
+const editStartChoices = computed(() => {
+  const options = expectedStartOptions(taipeiDate())
+  const current = editBase.value.expectedStart
+  return current && !options.some(option => option.value === current) ? [{ value: current, label: expectedStartText(current) }, ...options] : options
+})
+// 滑鼠點已選的取消靠 @click；已勾選的 radio 按 Space 不會觸發 click，鍵盤靠 @keydown.space.prevent（同預約表單）。
+// Gecko 在 keyup 才合成 click，所以 @keyup.space.prevent 也要掛（只擋預設行為、不呼叫 toggle，細節同預約表單）。
+function toggleEditStart(value: string) {
+  editForm.expectedStart = editForm.expectedStart === value ? '' : value
+}
 
 async function openEdit() {
   if (!visit.value) return
-  editBase = editBaseFrom(visit.value)
-  Object.assign(editForm, editBase)
+  editBase.value = editBaseFrom(visit.value)
+  Object.assign(editForm, editBase.value)
   editErrors.value = {}
   showEdit.value = true
   showCancel.value = false
@@ -150,14 +162,14 @@ async function openEdit() {
 }
 
 async function submitEdit() {
-  editErrors.value = validateEdit(visit.value!, editForm, editBase, taipeiDate())
+  editErrors.value = validateEdit(visit.value!, editForm, editBase.value, taipeiDate())
   if (Object.keys(editErrors.value).length) {
     await nextTick()
     editPanel.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     return
   }
   const versionBefore = visit.value?.version
-  const done = await updateDetails(editedChanges(visit.value!, editForm, editBase))
+  const done = await updateDetails(editedChanges(visit.value!, editForm, editBase.value))
   if (done) showEdit.value = false
   else if (Object.keys(detailErrors.value).length) {
     editErrors.value = { ...detailErrors.value }
@@ -166,8 +178,8 @@ async function submitEdit() {
     return
   } else if (visit.value && visit.value.version !== versionBefore) {
     // 版本衝突：換成最新資料為底，保留家長自己改過的欄位，再次儲存不會把別人的修改改回去。
-    const next = rebaseEdit(editForm, editBase, visit.value)
-    editBase = next.base
+    const next = rebaseEdit(editForm, editBase.value, visit.value)
+    editBase.value = next.base
     Object.assign(editForm, next.form)
   }
   await focusFeedback()
@@ -205,6 +217,7 @@ async function submitEdit() {
               <div v-if="visit.email"><dt>Email</dt><dd>{{ visit.email }}</dd></div>
               <div v-if="visit.child_name"><dt>孩子姓名</dt><dd>{{ visit.child_name }}</dd></div>
               <div v-if="visit.child_birthdate"><dt>出生年月日</dt><dd>{{ visit.child_birthdate }}</dd></div>
+              <div v-if="visit.expected_start"><dt>預計入學</dt><dd>{{ expectedStartText(visit.expected_start) }}</dd></div>
               <div v-if="visit.questions"><dt>想了解的事</dt><dd>{{ visit.questions }}</dd></div>
             </dl>
             <p v-if="dayClosed" class="parent-visit-notice" role="status" data-test="day-closed">園方這天停課，原本的參觀無法進行。<template v-if="visit.can_reschedule">請選擇新的時間，或取消這次預約。</template></p>
@@ -270,6 +283,8 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
                 <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
+                <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
+                <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>
               </div>
               <div class="parent-visit-actions">
                 <button class="button primary" type="submit" :disabled="busy">{{ busy ? '正在儲存…' : '儲存修改' }}</button>
@@ -359,4 +374,13 @@ async function submitEdit() {
 .parent-visit-fields input:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
 .parent-visit-fields input[aria-invalid="true"]{border-color:var(--error)}
 .parent-visit-fields .parent-visit-error:empty{display:none}
+/* 2026-10-15 預計入學時間的單選膠囊：fieldset 在 .parent-visit-fields 裡，label（grid）、input（54px 高、全寬）都會被上面的規則套到，
+   這幾條多一層 .parent-visit-start 把它們壓回膠囊與一般單選鈕；邊框用這頁的 --line，選中換 --green／--cream；
+   上方間距 20px 同 .parent-visit-confirm label。 */
+.parent-visit-fields .parent-visit-start{border:0;padding:0;margin:20px 0 0;min-width:0}
+.parent-visit-fields .parent-visit-start legend{padding:0;margin-bottom:8px;font-weight:600}
+.parent-visit-fields .parent-visit-start>div{display:flex;flex-wrap:wrap;gap:8px}
+.parent-visit-fields .parent-visit-start label{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;padding:6px 16px 6px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer}
+.parent-visit-fields .parent-visit-start label:has(input:checked){border-color:var(--green);background:var(--cream)}
+.parent-visit-fields .parent-visit-start input[type="radio"]{flex-shrink:0;display:inline-block;width:18px;min-width:0;height:18px;min-height:0;margin:0;padding:0;border:0;accent-color:var(--green)}
 </style>

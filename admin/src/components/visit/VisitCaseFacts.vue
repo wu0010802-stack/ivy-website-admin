@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ageLabel, consentRecordLabel, contactTimeLabel, formatDate, formatDateTime, partySizeLabel, referralSourceLabels } from '../../api/labels'
+import { ageLabel, consentRecordLabel, contactTimeLabel, expectedStartLabel, formatDate, formatDateTime, partySizeLabel, referralSourceLabels } from '../../api/labels'
 import { injectVisitCase } from '../../composables/useVisitCase'
+import { taipeiDay } from '../../utils/visitSchedule'
 
 // 家長資料表（2026-10-06 方向 C）：壓成一張兩欄表，孩子姓名與生日併一行。官網沒有的欄位（參觀人數、年齡、
 // 方便時段、想了解的事、同意紀錄）只有舊資料或補登有值才列（第九輪）。家庭版面收合（家庭頁規格 5.3）。
@@ -24,6 +25,7 @@ const facts = computed<Fact[]>(() => {
   if (props.compact) return rows
   rows.push({ label: '得知管道', text: referralSourceLabels(d.referral_sources) })
   if (d.party_size) rows.push({ label: '參觀人數', text: partySizeLabel(d.party_size) })
+  if (d.expected_start) rows.push({ label: '預計入學', text: expectedStartLabel(d.expected_start, taipeiDay(Date.parse(d.created_at))) })
   if (d.age) rows.push({ label: '家長填的年齡', text: ageLabel(d.age) })
   if (d.preferred_time) rows.push({ label: '方便接電話時段', text: contactTimeLabel(d.preferred_time) })
   if (d.questions) rows.push({ label: '想了解的事', text: d.questions, pre: true })
