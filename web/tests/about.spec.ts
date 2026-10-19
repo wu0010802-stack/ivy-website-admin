@@ -199,9 +199,9 @@ describe('立體書精修：章節與目次', () => {
     expect(component).toContain("const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'")
     expect(template).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
   })
-  it('引言不用左側色條（側條），改用括號', () => {
+  it('引言不用左側色條（側條），改用括號（2026-10-19 起是橘色蠟筆畫的「」，見 about-crayon.spec.ts）', () => {
     expect(css).not.toMatch(/\.abk-quote\{[^}]*border-left/)
-    expect(css).toMatch(/\.abk-quote::before\{content:'「'/)
+    expect(css).toMatch(/\.abk-quote::before\{position:absolute;[^}]*mask-image:url\("data:image\/svg\+xml/)
   })
   it('頁緣厚度跟著跨頁位置：右邊是 --last − --n', () => {
     expect(css).toContain('--th:calc(4px + (var(--last,4) - var(--n)) * 3px)')

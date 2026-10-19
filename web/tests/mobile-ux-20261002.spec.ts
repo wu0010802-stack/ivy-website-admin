@@ -21,7 +21,8 @@ describe('關於頁立體書 900px 以下', () => {
     const narrow = css.slice(css.indexOf('@media (max-width:900px)'))
     expect(narrow).toContain('.abk-page.is-right{container-type:inline-size}')
     expect(narrow).toContain('.abk-stage{max-width:480px;margin-inline:auto}')
-    for (const stage of ['abk-hero', 'abk-story', 'abk-hope']) {
+    // 我們的期許 2026-10-19 改成蠟筆畫：舞台鋪滿右頁、右頁高度跟著 --v 算（about-crayon.spec.ts）
+    for (const stage of ['abk-hero', 'abk-story']) {
       expect(narrow).toMatch(new RegExp(`\\.${stage} \\.abk-stage\\{min-height:max\\(\\d+px,calc\\([^;]*min\\(100cqw,480px\\)`))
     }
   })

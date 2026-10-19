@@ -152,43 +152,43 @@
 .abk-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:6px;font-weight:700;color:var(--green);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:6px}
 .abk-link .icon{width:18px;height:18px}
 
-/* ---------- 第三章 我們的期許：括號引言（取代左側黃色粗條）、紙房子 ---------- */
-.abk-hope .abk-page.is-left{display:flex;flex-direction:column;justify-content:center;padding-bottom:clamp(96px,9vw,128px)}
+/* ---------- 第三章 我們的期許：孩子的蠟筆畫（2026-10-19，比稿 design/about-hope-picturebook-directions-20261019/ 選 B） ----------
+   書頁上印著孩子畫的天空色帶、太陽、草地（.abk-print，跨頁寬 1240 的同一張圖：左頁 xMin、右頁 xMax 各露一半），
+   房子和兩棵樹是剪下來的圖畫紙卡紙（.abk-scene），照片用紙膠帶貼在窗戶上。蠟筆路徑在 generated/about-crayon.json，
+   質感是 AboutContent 裡的 #abk-wax 濾鏡，顏色都在下面的 .is-<顏色>。
+   --v＝虛擬座標一個單位多寬（一頁寬 620）：桌機＝頁寬／620，手機頁面最多算到 480px（再寬就整組置中、色帶照樣鋪滿）。 */
+.abk-hope .abk-page.is-left{z-index:1;display:flex;flex-direction:column;justify-content:center;padding-bottom:clamp(96px,9vw,128px)}
+.abk-print,.abk-hope .abk-scene{position:absolute;inset:0;container-type:inline-size;pointer-events:none}
+.abk-print>*,.abk-hope .abk-scene>*{--v:calc(100cqw / 620)}
+.abk-print{overflow:hidden;border-radius:inherit}
+/* 左頁自成一層（z-index:1），印刷層放 -1：在紙面之上、字之下；右頁背面封面照樣蓋得住左頁 */
+.abk-page.is-left>.abk-print{z-index:-1}
+.abk-print>svg{position:absolute;left:0;width:100%;overflow:hidden}
+.abk-print>.is-top{top:0;height:calc(260 * var(--v))}
+.abk-print>.is-bottom{bottom:0;height:calc(300 * var(--v))}
+.abk-print>.abk-wax{position:absolute;width:0;height:0}
+/* 頁碼落在草地上：一圈紙色光暈，蠟筆線剛好壓在數字底下也看得清楚 */
+.abk-hope .abk-no{text-shadow:0 0 2px var(--abk-page),0 0 5px var(--abk-page)}
+/* 引言括號：橘色蠟筆畫的「」（形狀是遮罩，顏色走 token） */
 .abk-quote{position:relative;margin:34px 0 0;padding:0 0 0 30px}
-.abk-quote::before{content:'「';position:absolute;left:-8px;top:-14px;font:700 2.75rem/1 var(--font-head);color:var(--studio-orange)}
+.abk-quote::before,.abk-quote p:last-child::after{content:'';background:var(--studio-orange);-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.abk-quote::before{position:absolute;left:-6px;top:-10px;width:28px;height:44px;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 44'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='3' seed='4' result='t'/%3E%3CfeColorMatrix in='t' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4.2 0 0 0 -1.25' result='m'/%3E%3CfeComposite in='SourceGraphic' in2='m' operator='in'/%3E%3C/filter%3E%3Cpath d='M24 5L15 5.6L5.6 6.4L5.9 18L5.4 30L6 39.5' fill='none' stroke='black' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' filter='url(%23w)'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 44'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='3' seed='4' result='t'/%3E%3CfeColorMatrix in='t' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4.2 0 0 0 -1.25' result='m'/%3E%3CfeComposite in='SourceGraphic' in2='m' operator='in'/%3E%3C/filter%3E%3Cpath d='M24 5L15 5.6L5.6 6.4L5.9 18L5.4 30L6 39.5' fill='none' stroke='black' stroke-width='5' stroke-linecap='round' stroke-linejoin='round' filter='url(%23w)'/%3E%3C/svg%3E")}
 .abk-quote p{font-size:1.25rem;line-height:2;color:var(--text)}
 .abk-quote p+p{margin-top:14px}
-.abk-quote p:last-child::after{content:'」';margin-left:2px;font:700 1.25rem/1 var(--font-head);color:var(--studio-orange)}
-.abk-scene{min-height:460px}
-.abk-scene .abk-card{padding:0;background:none;box-shadow:none}
-.abk-scene .abk-pop::after{display:none}
-/* 草坡用 --mint（2026-10-13：--studio-sage 在米白紙上約 1.15:1，幾乎看不到，樹和房子像浮在空中） */
-.abk-ground .abk-card i{display:block;height:46px;border-radius:50% 50% 0 0/100% 100% 0 0;background:var(--mint);box-shadow:inset 0 2px 0 rgb(var(--on-dark)/.6),0 1px 0 rgb(var(--ink)/.12)}
-.abk-tree svg{display:block;width:100%;height:auto;overflow:visible;filter:drop-shadow(0 2px 0 rgb(var(--ink)/.16))}
-.abk-trunk{fill:var(--ivy-campus-accent)}
-.abk-tree.is-l .abk-crown{fill:var(--leaf)}
-.abk-tree.is-l .abk-crown-shade{fill:var(--green)}
-.abk-tree.is-r .abk-crown{fill:var(--trail)}
-.abk-tree.is-r .abk-crown-shade{fill:var(--leaf)}
-.abk-house .abk-card{filter:drop-shadow(0 2px 0 rgb(var(--ink)/.16)) drop-shadow(0 10px 12px rgb(var(--ink)/.12))}
-.abk-roof{position:relative;isolation:isolate;aspect-ratio:2.35/1}
-.abk-roof::before,.abk-roof::after{content:'';position:absolute;inset:0;clip-path:polygon(50% 0,100% 100%,0 100%)}
-.abk-roof::before{background:var(--studio-orange)}
-/* 瓦片：一排排比較暗的細線 */
-.abk-roof::after{background:repeating-linear-gradient(180deg,rgb(var(--ink)/0) 0 15px,rgb(var(--ink)/.1) 15px 17px)}
-.abk-chimney{position:absolute;right:21%;top:6%;z-index:-1;width:9%;height:44%;background:color-mix(in oklch,var(--studio-orange) 82%,rgb(var(--ink)));box-shadow:inset 0 5px 0 rgb(var(--ink)/.15)}
-.abk-wall{position:relative;display:grid;justify-items:center;align-content:start;margin:-1px 9% 0;padding-top:8%;aspect-ratio:1.18/1;background:var(--yellow)}
-.abk-window{display:block;width:60%;padding:5px;background:var(--abk-page);box-shadow:0 1px 0 rgb(var(--ink)/.18)}
+.abk-quote p:last-child::after{display:inline-block;width:18px;height:30px;margin-left:4px;vertical-align:-8px;-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 30'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='3' seed='7' result='t'/%3E%3CfeColorMatrix in='t' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4.2 0 0 0 -1.25' result='m'/%3E%3CfeComposite in='SourceGraphic' in2='m' operator='in'/%3E%3C/filter%3E%3Cpath d='M3 25.5L8.5 25L14.2 24.6L13.8 14L14.4 3.5' fill='none' stroke='black' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round' filter='url(%23w)'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 30'%3E%3Cfilter id='w' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='3' seed='7' result='t'/%3E%3CfeColorMatrix in='t' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 4.2 0 0 0 -1.25' result='m'/%3E%3CfeComposite in='SourceGraphic' in2='m' operator='in'/%3E%3C/filter%3E%3Cpath d='M3 25.5L8.5 25L14.2 24.6L13.8 14L14.4 3.5' fill='none' stroke='black' stroke-width='4.4' stroke-linecap='round' stroke-linejoin='round' filter='url(%23w)'/%3E%3C/svg%3E")}
+/* 蠟筆線的顏色與「塗上去／畫出來」在 AboutCrayon.vue（這支是 AboutContent 的 scoped 樣式，管不到子元件裡的 path） */
+/* 卡紙：剪下來的圖畫紙（白邊畫在 SVG 裡、會超出框一點），紙邊一道細影、底下一團落影 */
+.abk-hope .abk-scene{width:auto;max-width:none;height:auto;min-height:0;margin:0}
+.abk-scene .abk-card{aspect-ratio:var(--ar);padding:0;background:none;box-shadow:none;filter:drop-shadow(0 1px 0 rgb(var(--ink)/.18)) drop-shadow(0 6px 6px rgb(var(--ink)/.1))}
+.abk-scene .abk-card>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.abk-scene .abk-card>.abk-vine{z-index:2}
+.abk-smoke{position:absolute;left:var(--x);bottom:var(--y);width:var(--w);aspect-ratio:var(--ar);overflow:visible}
+/* 照片：洗出來的相片（白邊、歪一點），兩段藍色紙膠帶（同 30 週年頁的半透明顏料色） */
+.abk-window{position:absolute;z-index:1;left:28.5%;top:calc(150 / 340 * 100%);width:43%;padding:3.2% 3.2% 3.6%;background:var(--white);box-shadow:0 1px 2px rgb(var(--ink)/.22);rotate:-2.4deg}
 .abk-window img{outline:none}
-.abk-door{position:absolute;left:50%;bottom:0;width:17%;height:27%;border-radius:999px 999px 0 0;background:var(--leaf);transform:translateX(-50%)}
-.abk-door::after{content:'';position:absolute;right:18%;top:52%;width:5px;height:5px;border-radius:50%;background:var(--gold)}
-/* 常春藤沿著牆角爬上屋簷；房子站好後才長（is-grown，about-popup.ts） */
-.abk-ivy{position:absolute;left:2%;bottom:0;width:24%;height:auto;overflow:visible}
-.abk-ivy-stem{fill:none;stroke:var(--green);stroke-width:2.6;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset 1.6s var(--abk-ease)}
-.abk-ivy-leaf{fill:var(--leaf);stroke:var(--green);stroke-width:.6;transform-box:fill-box;transform-origin:center;transition:transform .7s cubic-bezier(.16,1,.3,1) calc(.35s + var(--d) * .18s)}
-.abk-ivy-leaf.is-b{fill:var(--trail)}
-.abk.is-live .abk-scene:not(.is-grown) .abk-ivy-stem{stroke-dashoffset:1}
-.abk.is-live .abk-scene:not(.is-grown) .abk-ivy-leaf{transform:scale(0)}
+.abk-tape{position:absolute;width:30%;height:13%;background:rgb(var(--ivy-paint-sky-rgb)/.62);box-shadow:inset 0 0 0 1px rgb(var(--on-dark)/.2);clip-path:polygon(4% 0,96% 0,100% 18%,95% 36%,100% 56%,94% 76%,98% 100%,3% 100%,0 80%,5% 60%,0 40%,6% 20%)}
+.abk-tape.is-l{left:-10%;top:-7%;rotate:-38deg}
+.abk-tape.is-r{right:-11%;top:-6%;rotate:34deg}
 
 /* ---------- 第四章 家長怎麼說：各校後台的家長分享影片 ---------- */
 .abk-cite{margin-top:12px;font-size:var(--fs-sm);font-weight:700;color:var(--muted)}
@@ -269,7 +269,12 @@
   /* 最長一行「孩子的第一所學校，」「老師把孩子放第一，」9 字：字級跟著頁面內寬縮（視窗 − 留白 16×2 − 內距 24×2），320 寬也不會把標點擠成一行 */
   .abk-title{font-size:min(2rem,calc((100vw - 80px) / 9.4))}
   .abk-list li{grid-template-columns:78px 1fr}
-  .abk-hope .abk-page.is-left{padding-bottom:60px}
+  /* 上方讓出天空色帶（最寬 480px 時約 54px 高） */
+  .abk-hope .abk-page.is-left{padding-top:60px;padding-bottom:60px}
+  /* 我們的期許：右頁高度跟著 --v（頁面最寬算到 480px），左頁不畫草地（會壓到引言） */
+  .abk-print>*,.abk-hope .abk-scene>*{--v:calc(min(100cqw,480px) / 620)}
+  .abk-hope .abk-face{height:calc(min(100cqw,480px) / 620 * 720);padding:0}
+  .abk-page.is-left>.abk-print>.is-bottom{display:none}
   /* 上下疊時頁面高度跟內容走：右頁正面、舞台不再用 height:100%（會被拉長、壓到紙槽） */
   .abk-face,.abk-stage{height:auto}
   /* 卡紙寬是舞台寬的百分比，舞台高原本固定：舞台寬過約 400px（橫拿手機、平板直拿）卡紙就比舞台高，往上壓到左頁文字
@@ -280,7 +285,6 @@
   .abk-face .abk-stage,.abk-hero .abk-stage{width:100%}
   .abk-hero .abk-stage{min-height:max(320px,calc(.74 * min(100cqw,480px) + 40px))}
   .abk-story .abk-stage{min-height:max(340px,calc(.62 * min(100cqw,480px) + 120px));flex:none;margin-bottom:12px}
-  .abk-hope .abk-stage{min-height:max(360px,calc(.84 * min(100cqw,480px) + 40px))}
   /* 第四章（2026-10-13 改）：原本大卡紙貼舞台底、後排用舞台高的百分比，舞台寬 248–480px 時大卡紙蓋掉後排名字 36–83%，舞台上方反而空一大塊。
      改成大卡紙跟著內容排（舞台高＝後排＋大卡紙，說詞變長也不會往上蓋），後排從舞台頂往下排、兩側比中間低 20px；
      大卡紙上緣＝兩側小卡底邊往上 4px，只蓋到底邊留白。margin 的 % 以舞台寬計：小卡高＝8 + (31% − 16px) × 9/16 + 6 + 名字一行 + 10。
@@ -315,6 +319,7 @@
   .abk *,.abk *::before,.abk *::after{transition:none!important}
 }
 @media (forced-colors:active){
+  .abk-print,.abk-crayon{display:none}
   .abk-page.is-right{transform:none}
   .abk-card{transform:none}
   .abk-cover{display:none}

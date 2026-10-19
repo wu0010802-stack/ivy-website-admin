@@ -22,6 +22,8 @@
 // 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
 // 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。手機章名和卡紙不在同一個畫面，
 // 紀念章改到右頁上緣接縫。義華創校年份 1997（業主 2026-10-03 裁定）。
+// 2026-10-19 我們的期許改成孩子的蠟筆畫（比稿 design/about-hope-picturebook-directions-20261019/，使用者選 B）：
+// 書頁上印著孩子畫的天空色帶、太陽、草地（跨過書脊），房子和兩棵樹是剪下來的圖畫紙卡紙，照片用紙膠帶貼在窗戶上（AboutCrayon）。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
 import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
 import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
@@ -67,12 +69,26 @@ const DOMAINS = [
 ]
 const LITERACIES = ['覺知辨識', '表達溝通', '關懷合作', '推理賞析', '想像創造', '自主管理']
 
-// 紙房子牆角的常春藤：一根藤＋七片三裂葉，房子站好後才長出來
-const IVY_LEAF = 'M0 -11 C 3 -8, 8 -10, 11 -5 C 8 -2, 10 3, 6 7 C 3 5, 2 8, 0 11 C -2 8, -3 5, -6 7 C -10 3, -8 -2, -11 -5 C -8 -10, -3 -8, 0 -11 Z'
-const IVY = [
-  { x: 30, y: 198, a: -30 }, { x: 52, y: 170, a: 25 }, { x: 24, y: 138, a: -40 }, { x: 50, y: 104, a: 30 },
-  { x: 28, y: 74, a: -25 }, { x: 56, y: 46, a: 35 }, { x: 40, y: 16, a: -10 }
-]
+// 我們的期許：卡紙與煙的位置（虛擬座標：一頁寬 620、從頁底往上量，同 scripts/about-crayon/build.mjs；
+// 一個單位多寬是 about.css 的 --v）。水平以頁面中線為準：桌機中線就是 310，手機頁面比 480px 寬時整組置中。
+// 煙的框（120×180，煙囪頂在框裡的 (90, 172)）要對準房子卡紙上的煙囪頂（房子座標 (218, 46)）。
+const SCENE = {
+  treeL: { x: 30, y: 94, w: 140, h: 210 },
+  treeR: { x: 494, y: 90, w: 116, h: 220 },
+  house: { x: 180, y: 102, w: 300, h: 340 },
+  smoke: { x: 180 + 218 - 90, y: 102 + 340 - 46 + 6 - 8, w: 120, h: 180 }
+}
+// 蠟筆濾鏡（整章共用 #abk-wax）：紙紋雜訊當遮罩（蠟跳過紙的凹處），再用低頻雜訊推一點線條（手抖）。
+// 用 v-html 放進去：fe* 元素寫在模板裡，vue-tsc 比對 SVG 屬性型別會比到 TS2321（連帶 server/api/public-site.get.ts 報錯，2026-10-19 實測）。
+const WAX_FILTER = '<filter id="abk-wax" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">'
+  + '<feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="3" seed="4" result="tooth"/>'
+  + '<feColorMatrix in="tooth" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4.2 0 0 0 -1.25" result="mask"/>'
+  + '<feComposite in="SourceGraphic" in2="mask" operator="in" result="waxed"/>'
+  + '<feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="9" result="wobble"/>'
+  + '<feDisplacementMap in="waxed" in2="wobble" scale="3" xChannelSelector="R" yChannelSelector="G"/></filter>'
+const sceneStyle = (item: { x: number, y: number, w: number, h: number }, z = 1) => ({
+  '--x': `calc(50% + ${item.x - 310} * var(--v))`, '--y': `calc(${item.y} * var(--v))`, '--w': `calc(${item.w} * var(--v))`, '--ar': `${item.w} / ${item.h}`, '--z': z
+})
 
 // 結尾緞帶：顏色同卡紙色序，長短不一
 const RIBBONS = [
@@ -295,9 +311,15 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
     </section>
 
-    <!-- 第三章 我們的期許：左頁引言（括號取代左側色條），右頁紙房子，常春藤沿牆爬上屋簷 -->
+    <!-- 第三章 我們的期許：孩子的蠟筆畫（2026-10-19）。上緣色帶與下緣草地是整個跨頁寬的同一張圖，左頁露左半、右頁露右半
+         （手機左頁不畫草地）；翻開時一筆筆塗上（is-opened）。房子和兩棵樹是剪下來的圖畫紙卡紙，站好後藤蔓和煙畫出來（is-grown）。 -->
     <section id="hope" class="abk-spread abk-hope" data-spread :style="chapterOf('hope').style" aria-labelledby="hope-title">
       <div class="abk-page is-left">
+        <div class="abk-print" aria-hidden="true">
+          <svg class="abk-wax" focusable="false" v-html="WAX_FILTER" />
+          <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMinYMin slice" />
+          <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMinYMax slice" />
+        </div>
         <p class="abk-chap">{{ chapterOf('hope').label }}<span>{{ chapterOf('hope').name }}</span></p>
         <h2 id="hope-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.hopeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
         <blockquote class="abk-quote">
@@ -309,27 +331,23 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
       <div class="abk-page is-right">
         <div class="abk-face">
+          <div class="abk-print" aria-hidden="true">
+            <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMaxYMin slice" />
+            <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMaxYMax slice" />
+          </div>
           <div class="abk-stage abk-scene">
-            <!-- 草坡高 46px、是半個橢圓：樹與房子的底邊對齊草坡在那個位置的高度（樹幹那裡約 30px、房子牆角約 41px），各陷進去 3px。
-                 原本一律 14%，桌機舞台高 620px 時樹浮在草坡上 14–19px（2026-10-13） -->
-            <div class="abk-pop abk-ground" data-pop aria-hidden="true" :style="{ '--x': '-2%', '--y': '6%', '--w': '104%', '--z': 1 }"><div class="abk-card"><i /></div></div>
-            <div class="abk-pop abk-tree is-l" data-pop aria-hidden="true" :style="{ '--x': '1%', '--y': 'calc(6% + 27px)', '--w': '21%', '--z': 2 }">
-              <div class="abk-card"><svg viewBox="0 0 100 160"><rect class="abk-trunk" x="46" y="96" width="8" height="64" rx="2" /><ellipse class="abk-crown" cx="50" cy="62" rx="40" ry="54" /><path class="abk-crown-shade" d="M50 8 A40 54 0 0 1 50 116 A26 54 0 0 0 50 8 Z" /></svg></div>
-            </div>
-            <div class="abk-pop abk-tree is-r" data-pop aria-hidden="true" :style="{ '--x': '80%', '--y': 'calc(6% + 27px)', '--w': '18%', '--z': 2 }">
-              <div class="abk-card"><svg viewBox="0 0 100 160"><rect class="abk-trunk" x="46" y="100" width="8" height="60" rx="2" /><ellipse class="abk-crown" cx="50" cy="60" rx="32" ry="58" /><path class="abk-crown-shade" d="M50 2 A32 58 0 0 1 50 118 A20 58 0 0 0 50 2 Z" /></svg></div>
-            </div>
-            <figure class="abk-pop abk-house" data-pop :style="{ '--x': '21%', '--y': 'calc(6% + 38px)', '--w': '58%', '--z': 3 }">
+            <div class="abk-pop abk-tree" data-pop aria-hidden="true" :style="sceneStyle(SCENE.treeL)"><div class="abk-card"><AboutCrayon name="treeL" view-box="0 0 140 210" /></div></div>
+            <div class="abk-pop abk-tree" data-pop aria-hidden="true" :style="sceneStyle(SCENE.treeR)"><div class="abk-card"><AboutCrayon name="treeR" view-box="0 0 116 220" /></div></div>
+            <AboutCrayon class="abk-smoke" name="smoke" view-box="0 0 120 180" :style="sceneStyle(SCENE.smoke)" />
+            <figure class="abk-pop abk-house" data-pop :style="sceneStyle(SCENE.house, 2)">
               <div class="abk-card">
-                <div class="abk-roof" aria-hidden="true"><span class="abk-chimney" /></div>
-                <div class="abk-wall">
-                  <span class="abk-window"><img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 200px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy"></span>
-                  <span class="abk-door" aria-hidden="true" />
-                </div>
-                <svg class="abk-ivy" viewBox="0 0 80 220" aria-hidden="true">
-                  <path class="abk-ivy-stem" pathLength="1" d="M40 220 C 22 190, 52 168, 34 140 S 18 92, 40 70 S 58 26, 44 4" />
-                  <g v-for="(leaf, i) in IVY" :key="i" :transform="`translate(${leaf.x} ${leaf.y}) rotate(${leaf.a})`"><path class="abk-ivy-leaf" :class="{ 'is-b': i % 2 }" :style="{ '--d': i }" :d="IVY_LEAF" /></g>
-                </svg>
+                <AboutCrayon name="house" view-box="0 0 300 340" />
+                <!-- 洗出來的相片（白邊、歪一點），兩段紙膠帶貼在窗戶上；後台換照片照樣裁 4:3 -->
+                <span class="abk-window">
+                  <img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 200px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy">
+                  <i class="abk-tape is-l" aria-hidden="true" /><i class="abk-tape is-r" aria-hidden="true" />
+                </span>
+                <AboutCrayon class="abk-vine" name="ivy" view-box="0 0 300 340" />
               </div>
             </figure>
           </div>

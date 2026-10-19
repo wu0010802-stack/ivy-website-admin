@@ -9,11 +9,12 @@
 //   左頁沿革那一列上色。放得下「紀念章頂端到沿革底」時跨頁釘住（手機釘右頁），多捲 2.4 個畫面；放不下就照常捲，
 //   跨頁經過時走完五站。每站中間 40% 停住讓人看清楚，兩站之間才轉；背對讀者的那一面先換成下一站。
 // - 全人教育：A2 六圈由 AboutWholePerson.vue 管理，收到 abk-open 後才播放。
-// - 我們的期許：房子站好後，牆角的常春藤長出來（.abk-scene 加 is-grown）。
+// - 我們的期許（2026-10-19 孩子的蠟筆畫）：翻開時天空色帶與草地一筆筆塗上（跨頁加 is-opened），
+//   房子站好後藤蔓和煙畫出來（.abk-scene 加 is-grown）。
 // - 家長怎麼說：swap() 讓大卡紙與後排小卡倒下、換內容、再站起來（AboutContent 換家長時呼叫）。
 // 沒有 JS（或還沒載入）時 CSS 預設 --open:1、--up:1：書是攤開的、卡紙是站好的，內容全部看得到。
 // 掛上時已經在視窗內的跨頁直接維持攤開，不闔上再翻（避免閃一下）。首屏跨頁（data-spread="static"）不翻。
-// 減少動態：書攤開、卡紙站好、紀念章停在校徽正面不釘住，六圈維持完成圖，常春藤直接長好，換家長直接換。
+// 減少動態：書攤開、卡紙站好、紀念章停在校徽正面不釘住，六圈維持完成圖，蠟筆畫與藤蔓直接畫好，換家長直接換。
 import type { animate as MotionAnimate, inView as MotionInView, scroll as MotionScroll } from 'motion'
 
 export interface AboutPopupDeps {
@@ -132,6 +133,7 @@ export function createAboutPopup(root: HTMLElement, { animate, scroll, inView }:
     const open = (instant: boolean) => {
       if (opened) return
       opened = true
+      spread.classList.add('is-opened')
       pops.forEach((pop, i) => (instant ? setUp(pop, 1) : stand(pop, true, i * 140)))
       if (scene) {
         if (instant || reducedMotion) scene.classList.add('is-grown')

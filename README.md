@@ -1,3 +1,12 @@
+## 2026-10-19 關於頁第三章改成孩子的蠟筆畫（`feature/about-crayon-20261019`）
+
+使用者要 /about 第三章「我們的期許」多一點繪本感，比稿 `design/about-hope-picturebook-directions-20261019/`（Desktop 工作區）選 B。規則見 DESIGN.md 同日一節。
+
+- 書頁上印著孩子畫的天空色帶、角落的太陽、草地（跨過書脊），房子和兩棵樹是剪下來的圖畫紙卡紙，照片用紙膠帶貼在窗上，引言「」是蠟筆畫的；翻開時色帶與草地一筆筆塗上，房子站好後藤蔓和煙畫出來。
+- 新增 `scripts/about-crayon/build.mjs`（產生 `web/app/generated/about-crayon.ts`）、`AboutCrayon.vue`；拿掉向量紙房子、樹、草坡與常春藤 SVG 的模板與樣式；`about-popup.ts` 翻開時加 `is-opened`。
+- **驗證**（Node 22，分支從 main `88bfd614` 開）：web `typecheck` 通過、單元測試 104 檔 1286 passed（新增 `tests/about-crayon.spec.ts` 14 項；改 `about.spec.ts` 括號、`mobile-ux-20261002.spec.ts` 舞台高度兩條斷言）；admin `aboutPage.test.ts` 20 passed。dev server（fixture）Playwright 1440×900、1366×650、1024×768、768×1024、390×844 看圖（捲動翻頁、卡紙站起、藤蔓與煙）；沒有 JS 與減少動態都是完成圖；axe（`#hope`，1440／390）沒有問題、dev console 沒有 hydration 警告；手機 CPU 降速 4 倍動畫期間 p95 16.7ms。
+- **未驗證**：Safari、Firefox、iOS 實機（SVG 濾鏡與 CSS 遮罩括號）；`nuxt build`；stack e2e（`tests/stack` 的 a11y、hydration 掃 `/about`）沒在本機跑。
+
 ## 2026-10-19 入學頁拿掉訂位金 5,000 元（`fix/admission-deposit-20261019`）
 
 使用者要求拿掉 `/admission` 入學流程第 3 格「保留名額」的「預先繳交訂位金 5,000 元，即可確定保留名額。」。10-16 招生判讀已查到這個金額超過《高雄市教保服務機構收退費辦法》第 8 條（114-04-29 修正）私立園每學期預收 1,500 元的上限，10-19 正式站仍顯示。入學頁線上讀 fixture（後台入學資訊頁從沒發布），所以改 fixture。
