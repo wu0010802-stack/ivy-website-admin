@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-19 常春藤環境頁加蠟筆塗鴉（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/environment-doodles-20261019` 到 main（`52e99730..140b52ad`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「常春藤環境頁加蠟筆塗鴉」：`/environment` 九個蠟筆塗鴉（aria-hidden、不可聚焦，手繪層畫完才動態載入 `utils/environment-doodles.ts`）、第四章校舍塗色（新增 `web/public/assets/tour-paint-<校>(-roof).png` 十張，由 `scripts/environment-tour-paint.py` 產生）、03 太陽改塗橘黃。沒有 migration、沒有新環境變數、依賴檔沒有變動。
+- **回退**：直接切回上一版映像即可（純前端加靜態遮罩圖）。
+- **推送前閘門**（本機，Node 22，分支從 main `52e99730` 開）：web typecheck 0 錯、vitest 105 檔 1,297 passed；stack 用獨立庫 `ivy_website_doodles1019_e2e_test`、埠 8761／3761，`e2e:build` 後全套 155 passed（7.0 分鐘），測試庫跑完已刪；dev server（fixture）Playwright 1440／390／減少動態都畫出九個塗鴉、沒有 console 錯誤與 hydration 警告。
+- **CI**：main run 39202462786（`140b52ad`）05:02:13Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 05:08:35Z–05:13:49Z success。
+- **正式 `release.json`**：base commit `140b52adf81b89b0898cc319faaa4b1ec3507df5`，snapshot `7f56925b…`，created `2026-10-19T05:08:59Z`。
+- **線上唯讀檢查**（擋掉 POST 與遙測）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；`/environment` 1440 與 390 九個塗鴉都畫出、選中的義華校舍塗上兩層、`/assets/tour-paint-yihua.png`／`-roof.png` 回 200、塗鴉不可聚焦，沒有頁面錯誤或 hydration 警告。
+- **未驗證**：Safari、Firefox、iOS 實機（SVG 濾鏡、CSS `mask`）。
+
 ## 2026-10-19 入學頁拿掉訂位金 5,000 元（main CI 部署，沒有 migration）
 
 - **提交**：agent 經使用者同意，把 `fix/admission-deposit-20261019` 推到 main（`7efc441a..ba4f9033`，fast-forward、沒有開 PR）。內容見 README 頂部「入學頁拿掉訂位金 5,000 元」：只改 `web/server/data/site-fixture.json` 入學流程第 3 格一句文案（改成「跟園所確認，就幫寶貝留下名額。」）和兩份 overlay 測試資料。沒有 migration、沒有新環境變數、依賴檔沒有變動。
