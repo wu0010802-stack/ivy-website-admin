@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-19 關於頁手機版改成上翻畫冊（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/about-mobile-flipbook-20261019` 到 main（`89b0f65b..72a6064c`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「關於頁手機版：上翻畫冊」：900px 以下 `/about` 換成頂端線圈裝訂的畫冊（`AboutFlipBook.vue`、`AboutFlipMap.vue`、`about-flipbook.css`、`utils/about-flipbook.ts`），第一章五校改成高雄立體地圖（`scripts/build-about-map.mjs` → `web/app/generated/about-map.ts`）；桌機立體書包在 `.abk`、`about-popup` 只在 901px 以上建立。沒有 migration、沒有新環境變數、依賴檔沒有變動。
+- **回退**：直接切回上一版映像即可（純前端）。
+- **推送前閘門**（本機，Node 22，分支從 main `89b0f65b` 開）：web typecheck 0 錯、vitest 106 檔 1,313 passed、`nuxt build` 通過；stack 用獨立庫 `ivy_website_e2e_flipbook_test`、埠 8710／3710，`e2e:build` 後全套 155 passed（6.1 分鐘），測試庫跑完已刪；dev server 與 build 產物（fixture）Playwright 多尺寸、axe 0 項、CLS 0、`page-copy-stress.cjs /about` 通過。
+- **CI**：main run 39210993053（`72a6064c`）06:37:32Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 06:43:01Z–06:49:14Z success。
+- **正式 `release.json`**：base commit `72a6064ce6140dbc5bd5984d5609f2331999e996`，snapshot `cff8c65a…`，created `2026-10-19T06:43:39Z`。
+- **線上唯讀檢查**（擋掉 POST 與遙測）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；`/about` 390×844 與 375×667 畫冊整本釘住（`.afb[data-fit]=pinned`、14 頁），封面、五校地圖（房子一頁多一間、虛線、紀念章一頁翻一年）、六圈、蠟筆畫、家長、封底書籤都正常；1440 立體書照舊（`is-live`）、畫冊隱藏；三個尺寸都沒有頁面錯誤、hydration 警告與橫向捲動。
+- **未驗證**：Safari、Firefox、iOS 實機（3D 翻頁、`backface-visibility`、`scroll-snap` 與 sticky、`svh`）。
+
 ## 2026-10-19 常春藤環境頁加蠟筆塗鴉（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `feature/environment-doodles-20261019` 到 main（`52e99730..140b52ad`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「常春藤環境頁加蠟筆塗鴉」：`/environment` 九個蠟筆塗鴉（aria-hidden、不可聚焦，手繪層畫完才動態載入 `utils/environment-doodles.ts`）、第四章校舍塗色（新增 `web/public/assets/tour-paint-<校>(-roof).png` 十張，由 `scripts/environment-tour-paint.py` 產生）、03 太陽改塗橘黃。沒有 migration、沒有新環境變數、依賴檔沒有變動。
