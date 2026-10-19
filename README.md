@@ -1,3 +1,12 @@
+## 2026-10-19 入學頁拿掉訂位金 5,000 元（`fix/admission-deposit-20261019`）
+
+使用者要求拿掉 `/admission` 入學流程第 3 格「保留名額」的「預先繳交訂位金 5,000 元，即可確定保留名額。」。10-16 招生判讀已查到這個金額超過《高雄市教保服務機構收退費辦法》第 8 條（114-04-29 修正）私立園每學期預收 1,500 元的上限，10-19 正式站仍顯示。入學頁線上讀 fixture（後台入學資訊頁從沒發布），所以改 fixture。
+
+- 第 3 格改成「跟園所確認，就幫寶貝留下名額。」：不寫金額，也不另外寫辦理程序；長度控制在桌機與手機 390 都一行放得下（先試的「跟園所確認後，就幫寶貝把名額留下來。」會把「留下來」斷成兩行）。
+- 同步 `web/tests/fixtures/overlay-initial-content.json`、`overlay-baseline-20260925.json`。全 repo 已沒有「訂位金」。
+- **驗證**（Node 22，分支從 main `7efc441a` 開）：web `typecheck` 通過、單元測試 103 檔 1272 passed；後端 `test_admission_content.py` 16 passed（獨立測試庫 `ivy_website_test_deposit1019`，先 `alembic upgrade head`）；dev server（fixture）1440／390 Playwright：第 3 格新字一行、頁面「訂位金」0 次、沒有 page error。
+- **沒有改**：第 1 格「以電話或親友介紹，確認名額並預約參觀時間。」和線上預約矛盾，仍等園方確認流程文字。
+
 ## 2026-10-17 首頁近期活動與最新消息改版：桌機方向 1、手機方向 3（`feature/news-next-20261017`）
 
 使用者看了比稿 `design/news-directions-20261017/`（在 Desktop 工作區）後選「桌機方向 1、手機方向 3」，並拿掉這一區所有參觀入口。規則與細節見 DESIGN.md 同日一節。
