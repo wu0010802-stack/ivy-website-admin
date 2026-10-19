@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-19 入學頁拿掉訂位金 5,000 元（main CI 部署，沒有 migration）
+
+- **提交**：agent 經使用者同意，把 `fix/admission-deposit-20261019` 推到 main（`7efc441a..ba4f9033`，fast-forward、沒有開 PR）。內容見 README 頂部「入學頁拿掉訂位金 5,000 元」：只改 `web/server/data/site-fixture.json` 入學流程第 3 格一句文案（改成「跟園所確認，就幫寶貝留下名額。」）和兩份 overlay 測試資料。沒有 migration、沒有新環境變數、依賴檔沒有變動。
+- **回退**：直接切回上一版映像即可（只差 fixture 文案）。
+- **推送前閘門**（本機，Node 22，獨立測試庫 `ivy_website_test_deposit1019`，跑完已刪）：web typecheck 0 錯、vitest 103 檔 1,272 passed；後端 `test_admission_content.py` 16 passed；dev server（fixture）1440／390 Playwright 看第 3 格。stack 沒跑：涵蓋 `/admission` 的只有 a11y／keyboard／hydration，不比對文字，視覺基準只有後台頁。
+- **CI**：main run 39192194259（`ba4f9033`）02:55:03Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 03:01:58Z–03:09:51Z success。
+- **正式 `release.json`**：base commit `ba4f9033f6b35708fdd08adc2a213c62dc6064e9`，snapshot `a557dc8c…`，created `2026-10-19T03:02:20Z`。
+- **線上唯讀檢查**（未登入）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；`/admission` HTML 裡「訂位金」0 次，新句出現。
+- **待園方**：同頁第 1 格「以電話或親友介紹，確認名額並預約參觀時間。」和線上預約矛盾，這次沒動。
+
 ## 2026-10-17 首頁近期活動與最新消息改版（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `feature/news-next-20261017` 到 main（`4a2d4912..2668f61a`，fast-forward、沒有開 PR；分支先 rebase 到 `4a2d4912`，沒有衝突）。內容見 README 與 DESIGN.md 同日「首頁近期活動與最新消息」：桌機方向 1（活動放大、加入行事曆、校區篩選、不輪播）、手機方向 3（動態卡列取代活動影片色帶），這一區不放參觀入口；後台只改文案。
