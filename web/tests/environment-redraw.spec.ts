@@ -30,6 +30,14 @@ vi.mock('../app/utils/rough-sketch', () => ({
   }
 }))
 vi.mock('../app/utils/environment-motion', () => ({ createEnvironmentMotion: () => null }))
+// 2026-10-19 蠟筆塗鴉層：手繪層畫完才建；預覽換內容後跟著手繪層 refresh（小鳥踩回曬衣繩、新分頁補塗色）
+const doodles = vi.hoisted(() => ({ refresh: vi.fn(), destroy: vi.fn(), create: vi.fn() }))
+vi.mock('../app/utils/environment-doodles', () => ({
+  createEnvironmentDoodles: (...args: unknown[]) => {
+    doodles.create(...args)
+    return { refresh: doodles.refresh, destroy: doodles.destroy }
+  }
+}))
 // 字型樣式表交給瀏覽器去抓；這裡不要讓 happy-dom 真的發請求
 vi.mock('../app/utils/environment-fonts', () => ({ ENVIRONMENT_FONT_PRELOAD: [], attachEnvironmentFontStylesheet: () => {} }))
 
@@ -47,6 +55,9 @@ afterEach(() => {
   sketch.refresh.mockClear()
   sketch.destroy.mockClear()
   sketch.create.mockClear()
+  doodles.refresh.mockClear()
+  doodles.destroy.mockClear()
+  doodles.create.mockClear()
 })
 
 /** 掛起來，等手繪層建好（onMounted 裡要動態載入幾支模組）。 */
@@ -61,7 +72,7 @@ async function mountEnvironment() {
   await vi.waitFor(() => expect(sketch.create).toHaveBeenCalledOnce())
   await vi.waitFor(() => expect(document.querySelector('main.renv')).not.toBeNull())
   // 建好之後 onMounted 還有 await sketch.ready：讓它跑完
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await vi.waitFor(() => expect(doodles.create).toHaveBeenCalledOnce())
   sketch.refresh.mockClear()
   return state
 }
@@ -77,6 +88,23 @@ describe('環境頁即時預覽換內容後重畫手繪線條', () => {
     expect(sketch.refresh).toHaveBeenCalledWith(root)
     // 呼叫的當下，新的文字已經在畫面上（先更新 DOM 再量版面）
     expect(root.textContent).toContain('預覽時多寫了一大段')
+  })
+
+  it('蠟筆塗鴉跟著手繪層：建在同一個 main、預覽換內容後在手繪層之後 refresh、卸載時拆掉', async () => {
+    const state = await mountEnvironment()
+    const root = document.querySelector('main.renv')!
+    expect(doodles.create).toHaveBeenCalledWith(root, { reducedMotion: false })
+    const order: string[] = []
+    sketch.refresh.mockImplementation(() => { order.push('sketch') })
+    doodles.refresh.mockImplementation(() => { order.push('doodles') })
+    state.page.mealsText = '換一段說明'
+    await vi.waitFor(() => expect(doodles.refresh).toHaveBeenCalledOnce())
+    expect(order).toEqual(['sketch', 'doodles'])
+    sketch.refresh.mockReset()
+    doodles.refresh.mockReset()
+    app!.unmount()
+    app = null
+    expect(doodles.destroy).toHaveBeenCalledOnce()
   })
 
   it('refresh 呼叫時 DOM 已經更新（不是更新前就量）', async () => {

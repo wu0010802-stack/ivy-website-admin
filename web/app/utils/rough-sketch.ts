@@ -41,7 +41,7 @@ function seeded(seed: number) {
   return () => ((s = (s * 9301 + 49297) % 233280) / 233280) - 0.5
 }
 
-type SketchColor = 'ink' | 'pen' | 'note' | 'tape' | 'yellow' | 'yellowDeep' | 'sky' | 'skyDeep' | 'leaf' | 'leafDeep' | 'peach' | 'peachDeep'
+type SketchColor = 'ink' | 'pen' | 'note' | 'tape' | 'yellow' | 'yellowDeep' | 'sky' | 'skyDeep' | 'leaf' | 'leafDeep' | 'peach' | 'peachDeep' | 'sun'
 
 /** 交給動態層的畫具：和這支畫線用的是同一套疊層、座標與顏色。 */
 export interface SketchTools {
@@ -80,7 +80,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   const C = {
     ink: token('--renv-ink'), pen: token('--renv-pen'), note: token('--renv-note'), tape: token('--renv-tape'),
     yellow: token('--renv-yellow'), yellowDeep: token('--renv-yellow-deep'), sky: token('--renv-sky'), skyDeep: token('--renv-sky-deep'),
-    leaf: token('--renv-leaf'), leafDeep: token('--renv-leaf-deep'), peach: token('--renv-peach'), peachDeep: token('--renv-peach-deep')
+    leaf: token('--renv-leaf'), leafDeep: token('--renv-leaf-deep'), peach: token('--renv-peach'), peachDeep: token('--renv-peach-deep'),
+    sun: token('--renv-sun')
   } satisfies Record<SketchColor, string>
   const CRAYONS = [C.yellow, C.sky, C.leaf, C.peach]
   // 各章節的色紙（沒列的章節是點格紙底）；照片底紙會避開所在章節的色紙顏色
@@ -422,7 +423,8 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     const rc = rough.svg(sun.ownerSVGElement)
     const r = 22
     const parts: SVGGElement[] = [
-      rc.circle(0, 0, r * 2, { fill: C.yellow, fillStyle: 'solid', stroke: 'none', roughness: 1.4, seed }),
+      // 2026-10-19 蠟筆塗鴉：太陽塗成橘黃（--renv-sun），原本的黃在 03 的黃色紙上看不出來
+      rc.circle(0, 0, r * 2, { fill: C.sun, fillStyle: 'solid', stroke: 'none', roughness: 1.4, seed }),
       rc.circle(0, 0, r * 2, { fill: C.yellowDeep, fillStyle: 'hachure', hachureGap: 4, fillWeight: 1.2, stroke: C.pen, strokeWidth: PEN.hand, roughness: 1.4, seed: seed + 1 })
     ]
     for (let i = 0; i < 8; i++) {

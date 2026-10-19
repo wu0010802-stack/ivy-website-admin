@@ -1,3 +1,12 @@
+## 2026-10-19 常春藤環境頁加蠟筆塗鴉（`feature/environment-doodles-20261019`）
+
+使用者要 /environment 多一點童趣，比稿 `design/environment-playful-directions-20261019/`（Desktop 工作區）選 A「蠟筆塗鴉」、優化第二版後做進 `web/`。規則見 DESIGN.md 同日一節。
+
+- 孩子在聯絡簿空白處畫的太陽、小鳥、彩虹、風箏、泡泡、兔子、香蕉蘋果、手印，捲到才一筆一筆畫出來，點了會動一下；第四章選到的學校把校舍塗上顏色。03 太陽弧上的太陽改塗橘黃。
+- 新增 `web/app/utils/environment-doodles.ts`、`scripts/environment-tour-paint.py`（產 `web/public/assets/tour-paint-<校>(-roof).png` 十張）、`web/tests/environment-doodles.spec.ts`（10 項）；`EnvironmentContent.vue` 加空的塗鴉位置與動態載入；`environment.css` 加 `--renv-sun`、`--renv-crayon-*` 與位置；`rough-sketch.ts` 太陽改色；`environment-redraw.spec.ts` 加一項（手繪層之後建、預覽換內容跟著 refresh、卸載拆掉）；`environment-render.spec.ts` 的 `<main>` 基準多了塗鴉的空位置（可見文字基準不變）。
+- **驗證**（Node 22，分支從 main `52e99730` 開）：web `typecheck` 通過、單元測試 105 檔 1297 passed。dev server（fixture）Playwright：1440／390／減少動態 9 個塗鴉都畫出、沒有 console 錯誤與 hydration 警告、塗鴉不可聚焦；小鳥的腳與曬衣繩高度差 1px（改寬到 1024 後也一樣）；方向鍵換過五所都塗上顏色；9 個塗鴉都點得到。效能數字見 DESIGN.md。mock 階段另看過 1024、820、360 寬不壓字。
+- **未驗證**：Safari、Firefox、iOS 實機（SVG 濾鏡、CSS `mask`）；`nuxt build`；stack e2e（`tests/stack` 的 a11y、keyboard、hydration 掃 `/environment`）沒在本機跑。
+
 ## 2026-10-19 關於頁第三章改成孩子的蠟筆畫（`feature/about-crayon-20261019`）
 
 使用者要 /about 第三章「我們的期許」多一點繪本感，比稿 `design/about-hope-picturebook-directions-20261019/`（Desktop 工作區）選 B。規則見 DESIGN.md 同日一節。

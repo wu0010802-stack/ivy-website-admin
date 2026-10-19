@@ -9,7 +9,8 @@ import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 // 環境頁文字逐字守門（2026-10-12）：前三章的文字從 EnvironmentContent.vue 搬進 fixture（environmentPage）、
 // 改由後台內容模型提供，用 fixture 渲染出來的可見文字（含 alt、aria-label）和整段 <main> 都要和搬家前一字不差。
 // 基準檔在元件還沒改之前存下（toMatchFileSnapshot）；唯一刻意的差異是第四章段落那一句
-// （原本寫「取自各分校頁」，分校頁已拿掉）。Nuxt 的自動匯入在單元測試裡沒有，這裡補上；
+// （原本寫「取自各分校頁」，分校頁已拿掉）。2026-10-19 起 <main> 多了蠟筆塗鴉的空位置（.renv-doodle、.renv-tour-paint、.renv-meal-name，
+// 都是 aria-hidden、沒有文字），可見文字照舊一字不差。Nuxt 的自動匯入在單元測試裡沒有，這裡補上；
 // 手繪線與 GSAP 只在瀏覽器掛載後才動，伺服器渲染不會碰。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)

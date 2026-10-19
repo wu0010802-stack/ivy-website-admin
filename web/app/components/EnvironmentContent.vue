@@ -10,6 +10,9 @@
 // 手繪線條由 utils/rough-sketch.ts 在瀏覽器畫上去，純裝飾；沒有 JS 時版面與文字照常。
 // 2026-09-28 加 GSAP 動態層（utils/environment-motion.ts；比稿 design/environment-gsap-mockup-20260928/）：
 // 小路改成小腳印、曬衣繩起風、太陽帶慣性、換校發牌。GSAP 跟 Rough.js 一樣只在這頁動態載入；載入失敗就照原本的虛線小路。
+// 2026-10-19 加蠟筆塗鴉層（utils/environment-doodles.ts；比稿 design/environment-playful-directions-20261019/ 選 A）：
+// 孩子在聯絡簿空白處畫的太陽、小鳥、彩虹、風箏、泡泡、兔子、香蕉蘋果、手印，選到的學校把校舍塗上顏色。
+// 位置是模板裡空的 [data-doodle]（aria-hidden），手繪層畫完後才動態載入那支來畫；載入失敗就沒有塗鴉，其餘照常。
 import type { Campus, EnvironmentPageContent, TourScene } from '~/types/site-content'
 import { environmentHeroAttrs } from '~/utils/media-image'
 import { responsiveImage } from '~/utils/responsive-image'
@@ -19,6 +22,7 @@ import { mealBookLink } from '~/utils/meal-book'
 import { attachEnvironmentFontStylesheet, ENVIRONMENT_FONT_PRELOAD } from '~/utils/environment-fonts'
 import type { SketchHandle } from '~/utils/rough-sketch'
 import type { EnvironmentMotion } from '~/utils/environment-motion'
+import type { EnvironmentDoodles } from '~/utils/environment-doodles'
 
 const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>()
 
@@ -37,24 +41,27 @@ const CARE = [
 
 // 便條（note）只標照片 alt 已經寫到的細節；to 是箭頭指到照片寬高的比例位置（照片不裁切），noteAt 是便條的位置，
 // 兩個都依格子序號固定（後台換照片後箭頭可能沒指準）。只有戶外廣場確定是明華校的照片（舊站檔名「明華戶外廣場」），
-// 其餘校別不明，不標（後台 campusLabel）。
+// 其餘校別不明，不標（後台 campusLabel）。doodle 是坐在那張照片上緣的蠟筆塗鴉（戶外廣場的風箏、洗手台的泡泡、
+// 可愛動物區抱紅蘿蔔的兔子），一樣依格子序號固定。
 const SPACES = [
   { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅', noteAt: 'is-n1', to: '0.42,0.74' },
   { image: 'env-space-materials', alt: '教室矮櫃上擺滿各式操作教具', noteAt: 'is-n2', to: '0.36,0.52' },
-  { image: 'env-space-plaza', alt: '明華校寬敞的戶外廣場', noteAt: 'is-n3', to: '0.58,0.76' },
+  { image: 'env-space-plaza', alt: '明華校寬敞的戶外廣場', noteAt: 'is-n3', to: '0.58,0.76', doodle: 'kite' },
   { image: 'env-space-corner', alt: '教室角落貼著厚軟墊，地上鋪著巧拼', noteAt: 'is-n4', to: '0.62,0.58' },
-  { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾', noteAt: 'is-n5', to: '0.52,0.44' },
-  { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子', noteAt: 'is-n6', to: '0.40,0.66' }
+  { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾', noteAt: 'is-n5', to: '0.52,0.44', doodle: 'bubbles' },
+  { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子', noteAt: 'is-n6', to: '0.40,0.66', doodle: 'bunny' }
 ]
 
 // 時間與說明取自舊站一日流程的早餐、蔬果、午餐、點心各段；t 是在太陽弧上的位置（0 早、1 晚），照序號固定，
 // 所以後台的餐點時間要由早到晚。
 const MEAL_T = [0, 0.25, 0.5, 0.75, 1]
+// 「每日兩蔬果」之一、之二旁邊畫的香蕉與蘋果（蠟筆塗鴉）
+const MEAL_DOODLES = ['', 'banana', '', 'apple', '']
 
 const heroLines = computed(() => pageMarkedLines(props.page.heroTitle, props.page.heroHighlight))
 const careItems = computed(() => props.page.careItems.map((item, i) => ({ ...CARE[i]!, ...item })))
 const spaces = computed(() => props.page.spaces.map((space, i) => ({ ...SPACES[i]!, ...space })))
-const meals = computed(() => props.page.meals.map((item, i) => ({ ...item, t: MEAL_T[i]! })))
+const meals = computed(() => props.page.meals.map((item, i) => ({ ...item, t: MEAL_T[i]!, doodle: MEAL_DOODLES[i] })))
 
 // 結尾不放預約，改成往站內其他分頁走；提示字取自各頁的章節名
 const NEXT = [
@@ -109,6 +116,7 @@ useHead({ link: ENVIRONMENT_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'f
 const root = ref<HTMLElement | null>(null)
 let sketch: SketchHandle | null = null
 let motion: EnvironmentMotion | null = null
+let doodles: EnvironmentDoodles | null = null
 let disposed = false
 // GSAP 三支與動態層一起載入；任何一支失敗就不用動態層（回傳 null），手繪線照常
 const loadMotion = (reducedMotion: boolean) => Promise.all([import('gsap'), import('gsap/ScrollTrigger'), import('gsap/MotionPathPlugin'), import('~/utils/environment-motion')])
@@ -117,6 +125,8 @@ const loadMotion = (reducedMotion: boolean) => Promise.all([import('gsap'), impo
 onMounted(async () => {
   attachEnvironmentFontStylesheet(document)
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  // 塗鴉層跟著一起下載，等手繪層畫完才畫（不跟首屏的手繪線搶主執行緒）；載入失敗就沒有塗鴉
+  const loadDoodles = import('~/utils/environment-doodles').then(({ createEnvironmentDoodles }) => createEnvironmentDoodles).catch(() => null)
   const [{ default: rough }, { createRoughSketch }, loaded] = await Promise.all([import('roughjs'), import('~/utils/rough-sketch'), loadMotion(reducedMotion)])
   if (disposed || !root.value) { loaded?.destroy(); return }
   motion = loaded
@@ -124,19 +134,23 @@ onMounted(async () => {
   // 手繪線首屏以外分批畫（見 rough-sketch 的 drawFirst）；小路與上面的便條、箭頭都畫好了，動態層才收起便條、接上捲動
   await sketch.ready
   if (!disposed && root.value) motion?.start(root.value)
+  const createDoodles = await loadDoodles
+  if (!disposed && root.value && createDoodles) doodles = createDoodles(root.value, { reducedMotion })
 })
-onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy() })
+onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy(); doodles?.destroy() })
 // 後台即時預覽（pages/preview.vue）會一直換 page／campuses：文字變長變短、照片換掉後版面高度跟著變，
 // 手繪的框、章節底紙、便條箭頭要依新版面重畫（rough-sketch 只在掛載與視窗改寬時自己重畫；
 // 文字被換掉時 Vue 也會順手清掉宿主裡的手繪層）。flush: 'post' 等畫面更新完再量，同一個 tick 內改好幾處只畫一次。
 // 正式頁的 props 不會再變，這裡不會觸發；手繪層還沒建好時略過，第一次渲染本來就量最新版面。
-watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.refresh(root.value) }, { deep: true, flush: 'post' })
+// 塗鴉跟著手繪層之後：小鳥踩回重畫過的曬衣繩，重建的校園分頁補上塗色。
+watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch?.refresh(root.value); doodles?.refresh() } }, { deep: true, flush: 'post' })
 </script>
 
 <template>
   <main id="main" ref="root" tabindex="-1" class="renv" data-cta-entry="environment">
     <!-- 首屏：一頁攤開的聯絡簿 -->
     <section class="renv-hero" aria-labelledby="environment-title">
+      <span class="renv-doodle is-sun" data-doodle="sun" aria-hidden="true" />
       <div class="renv-wrap renv-hero-grid">
         <div>
           <p class="renv-eyebrow">常春藤幼兒園 · 常春藤環境</p>
@@ -195,6 +209,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
               <p>{{ item.text }}</p>
             </li>
           </ol>
+          <span class="renv-doodle is-bird" data-doodle="bird" aria-hidden="true" />
         </div>
       </div>
     </section>
@@ -215,6 +230,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
             <span class="renv-note is-slide" aria-hidden="true" data-rough="note" data-seed="113" data-to="0.12,0.66">{{ page.feature.note }}</span>
           </figure>
           <div class="renv-feature-copy">
+            <span class="renv-doodle is-rainbow" data-doodle="rainbow" aria-hidden="true" />
             <p class="renv-tag" data-rough="tagfill" data-seed="114">{{ page.feature.tag }}</p>
             <h3><template v-for="(line, i) in pageTitleLines(page.feature.title)" :key="i"><br v-if="i">{{ line }}</template></h3>
             <p>{{ page.feature.text }}</p>
@@ -227,6 +243,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
               <img v-bind="withPhotoStyle(pagePhotoAttrs(space.image, space.photo, '(max-width: 760px) calc(100vw - 96px), (max-width: 1100px) 45vw, 530px'), space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy">
               <span v-if="space.campusLabel" class="renv-campus" data-rough="tagfill" data-seed="150">{{ space.campusLabel }}</span>
               <span class="renv-note" :class="space.noteAt" aria-hidden="true" data-rough="note" :data-seed="131 + i" :data-to="space.to">{{ space.note }}</span>
+              <span v-if="space.doodle" class="renv-doodle" :class="`is-${space.doodle}`" :data-doodle="space.doodle" aria-hidden="true" />
             </figure>
             <div class="renv-stop-copy">
               <span class="renv-stop-no" data-rough="stop" :data-seed="141 + i" lang="en">{{ i + 1 }}</span>
@@ -261,7 +278,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
           <p class="renv-hand renv-day-title">{{ page.mealsDayTitle }}</p>
           <ol class="renv-day-list">
             <li v-for="(item, i) in meals" :key="i" class="renv-meal" :data-t="item.t">
-              <time lang="en">{{ item.time }}</time><b>{{ item.name }}</b><small>{{ item.note }}</small>
+              <time lang="en">{{ item.time }}</time><b><span class="renv-meal-name">{{ item.name }}<span v-if="item.doodle" class="renv-doodle" :class="`is-${item.doodle}`" :data-doodle="item.doodle" aria-hidden="true" /></span></b><small>{{ item.note }}</small>
               <p>{{ item.text }}</p>
             </li>
           </ol>
@@ -296,7 +313,10 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
             @click="selectTab(tour.campus.key)"
             @keydown="onTabKey($event, i)"
           >
-            <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 170px')" alt="" loading="lazy" decoding="async">
+            <span class="renv-tour-art">
+              <span class="renv-tour-paint" data-tour-paint :data-campus="tour.campus.key" aria-hidden="true" />
+              <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 170px')" alt="" loading="lazy" decoding="async">
+            </span>
             <b>{{ tour.campus.name }}</b><small>{{ tour.campus.district }}・{{ tour.scenes.length }} 個角落</small>
           </button>
         </div>
@@ -330,6 +350,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) sketch?.
     <section class="renv-section renv-next" aria-labelledby="next-title">
       <div class="renv-wrap">
         <h2 id="next-title" class="renv-hand renv-next-title">環境看完了，還可以看看這幾頁</h2>
+        <span class="renv-doodle is-hand" data-doodle="hand" aria-hidden="true" />
         <ul class="renv-next-list">
           <li v-for="(item, i) in NEXT" :key="item.href">
             <NuxtLink class="renv-next-link" :to="item.href" data-rough="card" :data-seed="451 + i"><b>{{ item.title }}</b><small>{{ item.hint }}</small></NuxtLink>
