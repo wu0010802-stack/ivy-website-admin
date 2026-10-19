@@ -125,10 +125,9 @@
 
 .abk-story .abk-face{display:flex;flex-direction:column}
 .abk-story .abk-stage{flex:1;min-height:440px;margin-bottom:24px}
-/* 紀念章（AboutMedal，2026-10-03 取代拉紙條）：桌機在章名右邊、跟左頁內容右緣對齊；手機章名和卡紙不在同一個畫面，
-   改到右頁上緣、騎在兩頁的接縫上。不設 z-index：右頁翻過來時要蓋住它（左頁內容都一樣）。 */
+/* 紀念章（AboutMedal，2026-10-03 取代拉紙條）：在章名右邊、跟左頁內容右緣對齊（手機畫冊另有一個夾在線圈上，見 about-flipbook.css）。
+   不設 z-index：右頁翻過來時要蓋住它（左頁內容都一樣）。 */
 .abk .abk-medal.is-title{position:absolute;top:calc(clamp(36px,4vw,60px) + 12px);right:var(--abk-pad-x);--size:clamp(84px,8.9vw,128px);rotate:6deg}
-.abk .abk-medal.is-seam{display:none}
 /* 釘住（about-popup.ts 量過「紀念章頂端到沿革底」放得進視窗才加 is-pinned）：桌機整個跨頁貼在視窗裡，
    外層軌道多一列 --abk-pin-run 撐出捲動距離，捲完才放開。軌道接手跨頁原本的上邊距，翻頁的捲動進度改量軌道（不受 sticky 影響）。 */
 .abk-track{margin-top:clamp(64px,8vw,120px)}
@@ -166,7 +165,8 @@
 .abk-print>svg{position:absolute;left:0;width:100%;overflow:hidden}
 .abk-print>.is-top{top:0;height:calc(260 * var(--v))}
 .abk-print>.is-bottom{bottom:0;height:calc(300 * var(--v))}
-.abk-print>.abk-wax{position:absolute;width:0;height:0}
+/* 蠟筆濾鏡放在 main 底下（桌機第三章與手機畫冊共用），不佔位置 */
+.abk-wax{position:absolute;width:0;height:0;overflow:hidden}
 /* 頁碼落在草地上：一圈紙色光暈，蠟筆線剛好壓在數字底下也看得清楚 */
 .abk-hope .abk-no{text-shadow:0 0 2px var(--abk-page),0 0 5px var(--abk-page)}
 /* 引言括號：橘色蠟筆畫的「」（形狀是遮罩，顏色走 token） */
@@ -245,74 +245,10 @@
 /* 焦點框畫在緞帶內側：往外的框上緣會被書（z-index 較高）蓋住（2026-10-13） */
 .abk-ribbons a:focus-visible{--pull:12px;outline:3px solid var(--ivy-forest);outline-offset:-3px}
 
-/* ---------- 900px 以下：跨頁改成上下兩頁，不翻頁（卡紙照樣站起來） ---------- */
+/* ---------- 900px 以下：整本立體書隱藏，換成上翻畫冊（AboutFlipBook，about-flipbook.css；2026-10-19） ----------
+   原本手機把跨頁拆成上下兩頁、卡紙照樣站起來（2026-09-29～10-19），規則都拿掉了。 */
 @media (max-width:900px){
-  .abk{--abk-head:80px}
-  .abk-spread{grid-template-columns:minmax(0,1fr);margin-top:48px;perspective:none}
-  .abk-hero{grid-template-rows:auto;grid-template-areas:"text" "art" "toc";margin-top:0;min-height:0}
-  .abk-hero::after{display:none}
-  .abk-hero-text{padding:36px 24px 8px}
-  .abk-hero h1{font-size:clamp(2rem,8.6vw,2.4rem)}
-  .abk-lede{margin-top:18px}
-  .abk-hero-art{padding:20px 20px 12px}
-  .abk-toc{padding:12px 24px 60px}
-  .abk-ribbon{left:auto;right:20px;height:92px}
-  .abk-page{min-height:0;padding:36px 24px 60px}
-  .abk-page.is-left{border-radius:8px 8px 0 0}
-  /* 折痕改成橫的：上頁底、下頁頂 */
-  .abk-page.is-left::after{top:auto;left:0;right:0;width:auto;height:28px;background:linear-gradient(0deg,rgb(var(--ink)/.1),rgb(var(--ink)/0))}
-  .abk-face::after{left:0;right:0;width:auto;height:28px;background:linear-gradient(180deg,rgb(var(--ink)/.08),rgb(var(--ink)/0))}
-  .abk-page.is-right{transform:none}
-  .abk-face{padding:32px 20px 60px;border-radius:0 0 8px 8px}
-  .abk-cover,.abk-cast,.abk-shade,.abk-no.is-l,.abk-edge.is-l,.abk-page.is-left>.abk-edge{display:none}
-  .abk-face>.abk-edge,.abk-edge.is-r{left:5px;right:5px;border-radius:0 0 8px 8px}
-  /* 最長一行「孩子的第一所學校，」「老師把孩子放第一，」9 字：字級跟著頁面內寬縮（視窗 − 留白 16×2 − 內距 24×2），320 寬也不會把標點擠成一行 */
-  .abk-title{font-size:min(2rem,calc((100vw - 80px) / 9.4))}
-  .abk-list li{grid-template-columns:78px 1fr}
-  /* 上方讓出天空色帶（最寬 480px 時約 54px 高） */
-  .abk-hope .abk-page.is-left{padding-top:60px;padding-bottom:60px}
-  /* 我們的期許：右頁高度跟著 --v（頁面最寬算到 480px），左頁不畫草地（會壓到引言） */
-  .abk-print>*,.abk-hope .abk-scene>*{--v:calc(min(100cqw,480px) / 620)}
-  .abk-hope .abk-face{height:calc(min(100cqw,480px) / 620 * 720);padding:0}
-  .abk-page.is-left>.abk-print>.is-bottom{display:none}
-  /* 上下疊時頁面高度跟內容走：右頁正面、舞台不再用 height:100%（會被拉長、壓到紙槽） */
-  .abk-face,.abk-stage{height:auto}
-  /* 卡紙寬是舞台寬的百分比，舞台高原本固定：舞台寬過約 400px（橫拿手機、平板直拿）卡紙就比舞台高，往上壓到左頁文字
-     （2026-10-02 實測 844×390）。舞台最寬 480px 置中；高度下限跟著舞台寬長（cqw＝右頁寬，首屏是右欄寬），係數由各頁
-     卡紙實測反推。手機（舞台 ≤340px）是 max() 前面的固定高度。不支援 cqw 的瀏覽器整條宣告無效，退回上面的固定高度。 */
-  .abk-page.is-right{container-type:inline-size}
-  .abk-stage{max-width:480px;margin-inline:auto}
-  .abk-face .abk-stage,.abk-hero .abk-stage{width:100%}
-  .abk-hero .abk-stage{min-height:max(320px,calc(.74 * min(100cqw,480px) + 40px))}
-  .abk-story .abk-stage{min-height:max(340px,calc(.62 * min(100cqw,480px) + 120px));flex:none;margin-bottom:12px}
-  /* 第四章（2026-10-13 改）：原本大卡紙貼舞台底、後排用舞台高的百分比，舞台寬 248–480px 時大卡紙蓋掉後排名字 36–83%，舞台上方反而空一大塊。
-     改成大卡紙跟著內容排（舞台高＝後排＋大卡紙，說詞變長也不會往上蓋），後排從舞台頂往下排、兩側比中間低 20px；
-     大卡紙上緣＝兩側小卡底邊往上 4px，只蓋到底邊留白。margin 的 % 以舞台寬計：小卡高＝8 + (31% − 16px) × 9/16 + 6 + 名字一行 + 10。
-     名字不折行（折到第二行會被蓋住）。flow-root：大卡紙的上邊距不穿出舞台。 */
-  .abk-theater{display:flow-root;min-height:0}
-  .abk-theater .abk-pop.is-thumb{top:20px;bottom:auto}
-  .abk-theater .abk-pop.is-thumb:nth-child(2){top:0}
-  .abk-theater .abk-pop.is-thumb .abk-card>i{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .abk-theater .abk-pop.is-tv{position:relative;bottom:auto;margin:calc(31% * .5625 + 31px + 1.8 * var(--fs-sm)) 0 18px}
-  .abk .abk-medal.is-title{display:none}
-  .abk .abk-medal.is-seam{display:block;position:absolute;top:-46px;right:24px;--size:96px;rotate:6deg}
-  /* 手機釘右頁：右頁跨兩列（第三列 --abk-pin-run 撐出捲動距離），貼在頁首膠囊下方 */
-  .abk-track{margin-top:48px}
-  .abk-story.is-pinned{grid-template-rows:auto auto var(--abk-pin-run,0px)}
-  .abk-story.is-pinned>.abk-page.is-right{grid-row:2/4;align-self:start;position:sticky;top:var(--abk-pin-top,0px)}
-  .abk-outro{grid-template-columns:minmax(0,1fr)}
-  .abk-ribbons{order:-1;justify-content:center;gap:8px;padding:0 12px}
-  .abk-ribbons a{width:min(64px,calc((100vw - 2 * var(--abk-gutter) - 56px) / 5));height:calc(var(--len) * .8 + var(--pull));padding-bottom:26px}
-  .abk-ribbons b{font-size:var(--fs-sm)}
-  /* 左右內距同書頁文字欄（24px；2026-10-13 原本 8px，比上面的書頁文字往左凸 16px） */
-  .abk-outro-copy{padding:28px 24px 0}
-}
-@media (max-width:420px){
-  .abk-lists{grid-template-columns:minmax(0,1fr)}
-}
-/* 320 寬首屏大標第一行剛好滿 7 字，句尾「，」碰到緞帶 6px：窄螢幕緞帶往右靠（2026-10-13） */
-@media (max-width:380px){
-  .abk-ribbon{right:8px}
+  .abk{display:none}
 }
 
 @media (prefers-reduced-motion:reduce){

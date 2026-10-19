@@ -15,16 +15,16 @@ describe('首頁拍立得 WebGL 畫布不造成版面位移', () => {
   })
 })
 
-describe('關於頁立體書 900px 以下', () => {
-  const css = read('../app/assets/css/about.css')
-  it('舞台最寬 480px 置中，高度下限跟著舞台寬（cqw）長，卡紙不再壓到左頁', () => {
-    const narrow = css.slice(css.indexOf('@media (max-width:900px)'))
-    expect(narrow).toContain('.abk-page.is-right{container-type:inline-size}')
-    expect(narrow).toContain('.abk-stage{max-width:480px;margin-inline:auto}')
-    // 我們的期許 2026-10-19 改成蠟筆畫：舞台鋪滿右頁、右頁高度跟著 --v 算（about-crayon.spec.ts）
-    for (const stage of ['abk-hero', 'abk-story']) {
-      expect(narrow).toMatch(new RegExp(`\\.${stage} \\.abk-stage\\{min-height:max\\(\\d+px,calc\\([^;]*min\\(100cqw,480px\\)`))
-    }
+describe('關於頁 900px 以下：上翻畫冊（2026-10-19 取代上下兩頁的立體書）', () => {
+  const css = read('../app/assets/css/about-flipbook.css')
+  it('書最寬 520px 置中（平板直拿不會撐滿）；上下排開時卡紙寬用百分比，釘住（頁高固定）才用舞台高 cqh', () => {
+    expect(css).toContain('.afb-book{position:relative;display:grid;gap:22px;width:min(100% - 28px,520px);margin-inline:auto}')
+    expect(css).toContain('.is-cover .afb-pop{width:86%}')
+    expect(css).toContain('.afb.is-pinned .is-cover .afb-pop{width:min(86cqw,calc((92cqh - 44px) / .75))}')
+    // 頁高不固定時 cqh 算成 0（2026-10-19 實測卡紙變成一條線）：用到 cqh 的規則都要在 .afb.is-pinned 底下
+    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').filter((rule) => /\d+cqh|var\(--map-h\)/.test(rule))
+    expect(rules.length).toBeGreaterThan(5)
+    for (const rule of rules) expect(rule.trim()).toMatch(/^(@media[^{]*\{\s*)?\.afb\.is-pinned /)
   })
 })
 

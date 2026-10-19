@@ -1,3 +1,12 @@
+## 2026-10-19 關於頁手機版改成上翻畫冊（`feature/about-mobile-flipbook-20261019`）
+
+使用者覺得 /about 手機版「看起來怪怪的」（桌機立體書在手機被拆成上下兩張紙），比稿 `design/about-mobile-directions-20261019/`（Desktop 工作區）選 A「上翻畫冊」，第二版把五校改成高雄立體地圖後做進 `web/`。規則見 DESIGN.md 同日一節。只動 900px 以下，桌機立體書不變。
+
+- 手機整本換成頂端線圈裝訂的畫冊，往下捲一頁往上掀；第一章一頁一校，照片卡紙站在高雄立體地圖上，地圖一校一校長出來、虛線把五校依序連起來；封底書籤加各校小照片。放不下（小手機、橫拿）就上下排開。
+- 新增 `AboutFlipBook.vue`、`AboutFlipMap.vue`、`about-flipbook.css`、`utils/about-flipbook.ts`、`utils/about-content.ts`（桌機與手機共用常數）、`scripts/build-about-map.mjs`（產生 `generated/about-map.ts`）、`tests/about-flipbook.spec.ts`（16 項）；`AboutContent.vue` 包一層 `.abk`、立體書動畫只在寬螢幕建立、蠟筆濾鏡移到 main 底下、拿掉右頁接縫紀念章；`about.css` 拿掉舊手機規則；`AboutCrayon.vue` 加畫冊的塗上／長出規則；`page-copy-stress.cjs` 加畫冊欄位；改 `about.spec.ts`、`about-crayon.spec.ts`、`mobile-ux-20261002.spec.ts` 的手機斷言。
+- **驗證**（Node 22，分支從 main `89b0f65b` 開）：web `typecheck` 通過、單元測試 106 檔 1313 passed（新增 `about-flipbook.spec.ts` 16 項）；`nuxt build` 通過（postcss 的 Lexical 警告是首屏 hero 既有的）。dev server 與 build 產物（fixture）Playwright：430×932、390×844、375×812、375×667、360×740、820×1180 整本釘住翻頁，320×568、844×390 退回上下排開；1024、1440 桌機立體書照舊（`is-live`）、畫冊隱藏；各尺寸沒有橫向捲動。減少動態上下排開、`/about#voices` 翻到家長頁、平板 820↔1180 轉向互相拆建、手機首屏 CLS 0、axe（`main`，390 與 1440）0 項、Tab 每一步焦點都在最上面那頁看得到、換家長與播放影片正常、dev console 沒有錯誤與 hydration 警告。`page-copy-stress.cjs /about`（減少動態、`STRESS_MOTION=1`）全部通過，後台欄位填到上限時 390、820 仍釘住。
+- **未驗證**：Safari／iOS 實機（3D 翻頁、`backface-visibility`、`scroll-snap` 與 sticky、`svh`）、Firefox；stack e2e（`tests/stack` 掃 `/about`）沒在本機跑。
+
 ## 2026-10-19 常春藤環境頁加蠟筆塗鴉（`feature/environment-doodles-20261019`）
 
 使用者要 /environment 多一點童趣，比稿 `design/environment-playful-directions-20261019/`（Desktop 工作區）選 A「蠟筆塗鴉」、優化第二版後做進 `web/`。規則見 DESIGN.md 同日一節。

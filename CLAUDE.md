@@ -71,6 +71,7 @@
 - 頁首捲過 40px 收成靠右的深綠膠囊：首頁、入學資訊、特色教學、關於常春藤、週年頁（`/anniversary`）這五頁任何寬度都收；900px 以下全站各頁也收；其餘桌機內頁（環境、消息、預約、隱私權政策等）不收（以 `SiteHeader.vue` 的 `PILL_PAGES` 為準）。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
+- `/about` 900px 以下是**上翻畫冊**（`AboutFlipBook.vue`，2026-10-19），不是把立體書拆成上下兩頁；桌機立體書（`.abk`）在手機整本隱藏、反之亦然，兩邊同時在 SSR 輸出（手機 id 前綴 `about-m-`）。改 /about 的內容或版面要兩邊都看；畫冊放不下會自己退回上下排開（`.afb[data-fit]`）。
 - 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁〔10-06 已拿掉〕、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。
 
 ## 驗證工具的本機繞法

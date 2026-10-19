@@ -20,8 +20,11 @@
 // 每校先取第 1 支，再輪第 2 支，一校影片再多也不會占滿（utils/testimonials.ts 的 pickVoices）。
 // 首屏照片裡的長輩是創辦人（使用者 2026-10-02 確認；姓名未提供，頁面不寫名字）。
 // 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
-// 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。手機章名和卡紙不在同一個畫面，
-// 紀念章改到右頁上緣接縫。義華創校年份 1997（業主 2026-10-03 裁定）。
+// 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。
+// （手機原本另有一個紀念章在右頁上緣接縫，2026-10-19 手機改成上翻畫冊後拿掉。）義華創校年份 1997（業主 2026-10-03 裁定）。
+// 2026-10-19 手機（900px 以下）改成上翻畫冊 AboutFlipBook（比稿 design/about-mobile-directions-20261019/，使用者選 A、第二版）：
+// 這裡的立體書包在 .abk 裡、只在 901px 以上出現（about-popup 也只在寬螢幕建立），手機整本換成畫冊；兩邊讀同一份後台內容。
+// 共用的固定內容（照片說明、沿革卡紙色、核心素養、蠟筆畫位置與濾鏡）移到 utils/about-content.ts。
 // 2026-10-19 我們的期許改成孩子的蠟筆畫（比稿 design/about-hope-picturebook-directions-20261019/，使用者選 B）：
 // 書頁上印著孩子畫的天空色帶、太陽、草地（跨過書脊），房子和兩棵樹是剪下來的圖畫紙卡紙，照片用紙膠帶貼在窗戶上（AboutCrayon）。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
@@ -30,6 +33,7 @@ import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle }
 import { youtubeEmbed } from '~/utils/filmCarousel'
 import { pickVoices } from '~/utils/testimonials'
 import type { AboutPopup, AboutPopupDeps } from '~/utils/about-popup'
+import { HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, MILESTONE_LOOKS, SCENE, WAX_FILTER, sceneStyle } from '~/utils/about-content'
 
 const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
 
@@ -38,21 +42,15 @@ const milestones = computed(() => props.page.milestones.map((item) => ({ ...item
 // 紀念章背面：校名／年份（沒有 JS 時第二面先印第一所）
 const medalStops = computed(() => milestones.value.map((item) => ({ name: item.campus?.name ?? '', year: item.year })))
 
-// 內建照片的說明（不開放編輯；後台換了照片就用後台的說明，沒填用素材庫的說明）
-const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'
-const HERO_BACK_ALT = '孩子在教室裡開心地指向自己的發現'
-const HOPE_ALT = '孩子們笑著圍在戴眼鏡的長輩身邊，大家開心地擠在一起'
-
-// 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色，左頁沿革同一列用同色小方塊
-// 五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
-// tint＝左頁沿革那一列上色的濃度（%）：淡色卡紙要混多一點才看得出來，各列對米白都約 1.1–1.2:1（2026-10-13）
+// 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色（MILESTONE_LOOKS，手機畫冊同色），
+// 左頁沿革同一列用同色小方塊。五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
 const STAGE = [
-  { x: 0, y: 46, w: 31, r: -1.5, color: 'var(--yellow)', tint: 30 },
-  { x: 34.5, y: 52, w: 31, r: 0.8, color: 'var(--studio-blue)', tint: 36 },
-  { x: 69, y: 46, w: 31, r: 1.6, color: 'var(--studio-sage)', tint: 85 },
-  { x: 17.25, y: 4, w: 31, r: -1, color: 'var(--mint)', tint: 45 },
-  { x: 51.75, y: 4, w: 31, r: 1.2, color: 'var(--studio-orange)', tint: 20 }
-]
+  { x: 0, y: 46, w: 31, r: -1.5 },
+  { x: 34.5, y: 52, w: 31, r: 0.8 },
+  { x: 69, y: 46, w: 31, r: 1.6 },
+  { x: 17.25, y: 4, w: 31, r: -1 },
+  { x: 51.75, y: 4, w: 31, r: 1.2 }
+].map((pos, i) => ({ ...pos, ...MILESTONE_LOOKS[i]! }))
 const cardStyle = (i: number) => {
   const s = STAGE[i]!
   return { '--x': `${s.x}%`, '--y': `${s.y}%`, '--w': `${s.w}%`, '--r': `${s.r}deg`, '--c': s.color, '--z': i >= 3 ? 3 : 1 }
@@ -67,28 +65,6 @@ const DOMAINS = [
   { name: '情緒', color: 'var(--ivy-whole-emotion)' },
   { name: '美感', color: 'var(--ivy-whole-aesthetic)' }
 ]
-const LITERACIES = ['覺知辨識', '表達溝通', '關懷合作', '推理賞析', '想像創造', '自主管理']
-
-// 我們的期許：卡紙與煙的位置（虛擬座標：一頁寬 620、從頁底往上量，同 scripts/about-crayon/build.mjs；
-// 一個單位多寬是 about.css 的 --v）。水平以頁面中線為準：桌機中線就是 310，手機頁面比 480px 寬時整組置中。
-// 煙的框（120×180，煙囪頂在框裡的 (90, 172)）要對準房子卡紙上的煙囪頂（房子座標 (218, 46)）。
-const SCENE = {
-  treeL: { x: 30, y: 94, w: 140, h: 210 },
-  treeR: { x: 494, y: 90, w: 116, h: 220 },
-  house: { x: 180, y: 102, w: 300, h: 340 },
-  smoke: { x: 180 + 218 - 90, y: 102 + 340 - 46 + 6 - 8, w: 120, h: 180 }
-}
-// 蠟筆濾鏡（整章共用 #abk-wax）：紙紋雜訊當遮罩（蠟跳過紙的凹處），再用低頻雜訊推一點線條（手抖）。
-// 用 v-html 放進去：fe* 元素寫在模板裡，vue-tsc 比對 SVG 屬性型別會比到 TS2321（連帶 server/api/public-site.get.ts 報錯，2026-10-19 實測）。
-const WAX_FILTER = '<filter id="abk-wax" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">'
-  + '<feTurbulence type="fractalNoise" baseFrequency=".62" numOctaves="3" seed="4" result="tooth"/>'
-  + '<feColorMatrix in="tooth" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  4.2 0 0 0 -1.25" result="mask"/>'
-  + '<feComposite in="SourceGraphic" in2="mask" operator="in" result="waxed"/>'
-  + '<feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="2" seed="9" result="wobble"/>'
-  + '<feDisplacementMap in="waxed" in2="wobble" scale="3" xChannelSelector="R" yChannelSelector="G"/></filter>'
-const sceneStyle = (item: { x: number, y: number, w: number, h: number }, z = 1) => ({
-  '--x': `calc(50% + ${item.x - 310} * var(--v))`, '--y': `calc(${item.y} * var(--v))`, '--w': `calc(${item.w} * var(--v))`, '--ar': `${item.w} / ${item.h}`, '--z': z
-})
 
 // 結尾緞帶：顏色同卡紙色序，長短不一
 const RIBBONS = [
@@ -180,24 +156,42 @@ function pickVoice(index: number) {
   else apply()
 }
 
-onMounted(async () => {
+// 立體書只在 901px 以上（手機是 AboutFlipBook）：平板轉向跨過斷點時建立或拆掉
+let wide: MediaQueryList | null = null
+let loading = false
+async function startPopup() {
+  if (popup || loading || disposed || !wide?.matches || !root.value) return
   if (matchMedia('(forced-colors: active)').matches) return
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
+  loading = true
   // motion 在 .then 裡直接解構：打包時才看得出只用這三個、其餘 tree-shake 掉（包在 Promise.all 裡解構會整包打進來）。
   const loaded = await Promise.all([
     // 回傳型別標成 AboutPopupDeps：讓 TS 推導整個 motion 的型別會拖垮型別檢查（別支檔案跟著 TS2321）。
     import('motion').then(({ animate, scroll, inView }): AboutPopupDeps => ({ animate, scroll, inView })),
     import('~/utils/about-popup'),
   ]).catch(() => null)
-  if (!loaded || disposed || !root.value) return
+  loading = false
+  if (!loaded || disposed || popup || !wide.matches || !root.value) return
   const [motion, { createAboutPopup }] = loaded
   popup = createAboutPopup(root.value, motion, { reducedMotion })
+}
+const onBreakpoint = () => { if (wide?.matches) startPopup(); else { popup?.destroy(); popup = null } }
+onMounted(() => {
+  wide = matchMedia('(min-width: 901px)')
+  wide.addEventListener('change', onBreakpoint)
+  startPopup()
 })
-onBeforeUnmount(() => { disposed = true; popup?.destroy() })
+onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onBreakpoint); popup?.destroy() })
 </script>
 
 <template>
-  <main id="main" ref="root" tabindex="-1" class="abk" data-cta-entry="about" :style="{ '--last': chapters.length }">
+  <main id="main" tabindex="-1" data-cta-entry="about">
+    <!-- 蠟筆濾鏡：桌機第三章與手機畫冊共用（放在兩邊外面：display:none 裡的濾鏡有的瀏覽器不套） -->
+    <svg class="abk-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
+    <!-- 手機（900px 以下）：上翻畫冊；桌機整本隱藏 -->
+    <AboutFlipBook :page="page" :milestones="milestones" :chapters="chapters" :voices="voices" :voice-title="voiceTitle" :voice-campuses="voiceCampuses" :poster-attrs="posterAttrs" />
+    <!-- 桌機（901px 以上）：立體書；手機整本隱藏 -->
+    <div ref="root" class="abk" :style="{ '--last': chapters.length }">
     <!-- 首屏：一整張攤開的跨頁（不翻）。左頁標題＋目次，右頁兩張照片卡紙前後站 -->
     <section class="abk-spread abk-hero" data-spread="static" style="--n:0" aria-labelledby="about-page-title">
       <div class="abk-hero-text">
@@ -255,7 +249,6 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
       </div>
       <div class="abk-page is-right">
         <div class="abk-face">
-          <AboutMedal class="is-seam" :stops="medalStops" />
           <div class="abk-stage" aria-hidden="true">
             <div v-for="(item, i) in milestones" :key="item.key" class="abk-pop" :data-stop="item.campus?.name ?? ''" :data-year="item.year" :style="cardStyle(i)">
               <div class="abk-card">
@@ -316,7 +309,6 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
     <section id="hope" class="abk-spread abk-hope" data-spread :style="chapterOf('hope').style" aria-labelledby="hope-title">
       <div class="abk-page is-left">
         <div class="abk-print" aria-hidden="true">
-          <svg class="abk-wax" focusable="false" v-html="WAX_FILTER" />
           <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMinYMin slice" />
           <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMinYMax slice" />
         </div>
@@ -423,6 +415,7 @@ onBeforeUnmount(() => { disposed = true; popup?.destroy() })
         </template>
       </ul>
     </section>
+    </div>
   </main>
 </template>
 
