@@ -655,7 +655,7 @@ describe('在建預售的文字（2026-10-20 預售建案規格 P10–P13）', (
     expect(presaleUnplacedNote(areaPresale({ source: { ...data.source, unplaced: 0 } }))).toBe('')
     expect(NO_PRESALE_TEXT).toBe('半徑內沒有在建的預售建案。')
     expect(PRESALE_CAPTION).toBe(
-      '預售建案是內政部預售屋備查資料（110 年 7 月起）；戶數含店面以外的住宅單位、不等於已售出或已入住；預計交屋依建照日與規模粗估，誤差約半年到一年。',
+      '預售建案是內政部預售屋備查資料（110 年 7 月起）；戶數是備查的總戶數（可能含店面），不等於已售出或已入住；預計交屋依建照日與規模粗估，誤差約半年到一年。',
     )
   })
 })
