@@ -121,7 +121,9 @@ async function loadHolidays(campus: string): Promise<Holidays> {
   }
 }
 
+// 只有接待月曆頁籤才讀月曆與休假；使用情況頁籤背景不讀。在使用情況頁籤換校區、月份時先不讀，切回月曆時（下方 watch(tab)）一次讀最新的。
 async function load() {
+  if (tab.value !== 'calendar') return
   const request = requests.begin()
   loading.value = true
   error.value = null
@@ -146,6 +148,9 @@ async function load() {
 }
 
 watch([month, campusFilter], load)
+watch(tab, value => {
+  if (value === 'calendar') void load()
+})
 watch(campusFilter, campus => {
   if ((route.query.campus ?? '') === campus) return
   const query = { ...route.query }

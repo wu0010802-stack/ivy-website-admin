@@ -422,4 +422,40 @@ describe('參觀場次頁：頁籤', () => {
     expect(wrapper.text()).toContain('最早能約哪天')
     expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('場次使用情況')
   })
+
+  // 使用情況頁籤背景不讀接待月曆與休假（2026-10-20）。
+  const calendarCalls = (get: { mock: { calls: unknown[][] } }) =>
+    urlOf(get).filter(path => path.startsWith('/admin/visit-calendar') || path.startsWith('/admin/visit-schedule/'))
+
+  it('直接開 ?tab=usage：不讀接待月曆與休假；在這個頁籤換校區也不讀，切回月曆才讀（用目前的校區）', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    expect(calendarCalls(get)).toEqual([])
+    await router.replace({ query: { campus: 'minghua', tab: 'usage' } })
+    await flushPromises()
+    expect(urlOf(get)).toContain('/admin/visit-slot-usage?campus_key=minghua&weeks=12')
+    expect(calendarCalls(get)).toEqual([])
+    await wrapper.get('[data-test="go-calendar"]').trigger('click')
+    await flushPromises()
+    const calls = calendarCalls(get)
+    expect(calls.some(path => path.startsWith('/admin/visit-calendar') && path.includes('campus_key=minghua'))).toBe(true)
+    expect(calls).toContain('/admin/visit-schedule/minghua')
+    expect(calls.some(path => path.includes('yihua'))).toBe(false)
+  })
+
+  it('月曆 → 使用情況 → 月曆：離開月曆後不再讀月曆，回來時重讀一次', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    expect(calendarCalls(get).filter(path => path.startsWith('/admin/visit-calendar'))).toHaveLength(1)
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    get.mockClear()
+    await router.replace({ query: { campus: 'minghua', tab: 'usage' } })
+    await flushPromises()
+    expect(calendarCalls(get)).toEqual([])
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click')
+    await flushPromises()
+    expect(calendarCalls(get).filter(path => path.startsWith('/admin/visit-calendar'))).toHaveLength(1)
+    expect(calendarCalls(get).filter(path => path.startsWith('/admin/visit-calendar'))[0]).toContain('campus_key=minghua')
+  })
 })
