@@ -1011,6 +1011,19 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
   - **2026-10-15 已補**：使用者在本機下載 114S4–115S3 四季 `e_lvr_land_a.csv`、上傳到 api volume 根目錄，跑 `geo-sync --new-homes-file /data/114S4_e_lvr_land_a.csv …（四個）`，輸出「新成屋：updated（最新 115S3，這次寫入 4 季，重比 0 筆）」（重比 0 是結尾「門牌月份不同」那一段；四季本身由檔案匯入重新比對），其他資料全部 skipped。之後讀義華 `/area/trends`（3 公里）：`sources.new_homes.unplaced` 63 → 0，有新屋的里仍 17 個、近 4 季 1,524 筆、最新季 469 筆；里的變化不再寫「範圍內的區另有…只到區」。volume 上的四個 CSV 要由使用者在自己的終端機刪（Railway CLI 拒絕 agent 刪檔）。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
 
+**預售建案（2026-10-20，`feature/admissions-data-20261020`，尚未部署）**：同一套同步再多一種資料，給區域分析的「在建預售」模式、「各里」表的「在建預售（戶）」欄與「預售建案」分頁用。規格 `docs/specs/2026-10-20-admissions-presale-design.md`（§8 實作紀錄）。
+
+- 來源：內政部實價登錄「預售屋建案備查」高雄市單檔 `https://plvr.land.moi.gov.tw/Download?PayType=saleremark&fileName=e_lvr_buildcase.csv`（約 180 KB，每月 1 日重產、自 110-07 起累計）。寫進 `geo_presale_buildcases`（約 660 案）。**不存起造人**（整欄不讀）。不需要新的環境變數。
+- migration `a3d7f1c9b5e2`：只新增 `geo_presale_buildcases`、`geo_parcel_points` 兩張表、放寬 `ck_geo_dataset_status_dataset`（多收 `presale_buildcases`），不動既有資料，不需要先備份。回退：先用新映像跑 `alembic downgrade d4a8f2c6e913`（先刪 `presale_buildcases` 狀態列、再還原約束、刪兩張表），再切舊映像。
+- 自動：表空時立刻抓，之後 30 天一次；內容 sha256 沒變只記確認時間。換版以新檔為準（不在新檔裡的案刪掉）；高雄筆數少於上次的 80%（上次 ≥ 100 案）不換、原因寫進 `last_error`，確定來源真的縮小才用檔案模式加 `--force`。log：「預售建案已更新：N 案（115-10），壞行 …」、「預售建案同步失敗：…」。
+- **地號座標只能手動**（正式站同步不連國土測繪中心）。街名法本機實測只有約 6 成的案到里（真門牌 115-10 加真檔：到里 407／661，只到區 254），地號座標補上才準：
+  1. 在台灣的電腦：`cd backend && uv run python scripts/fetch_presale_parcels.py --out presale_parcels.csv`（不需要資料庫與環境變數；第一次約 660 次查詢、每次間隔 ≥ 1 秒、至少 11 分鐘，每 25 個存檔一次，中斷重跑會接著做；查無的寫空座標、下次不重查，要重查加 `--retry-missing`；`--limit 50` 可以先試跑）。國土測繪中心的地號查詢沒有公開文件與授權（使用者 10-20 選擇照用），只在本機、低頻、不帶任何帳號。
+  2. 打包：`uv run python scripts/fetch_geo_bundle.py --presale-parcels presale_parcels.csv --out geo-bundle-11510.zip`（會連同出生、遷入遷出、人口、所得、新成屋與預售建案檔一起抓）。只想補預售建案時也可以不打包，直接把兩個檔上傳。
+  3. 上傳匯入（同上面「一次打包」；agent 不能刪 volume 檔，刪檔用自己的終端機）：`! railway volume -p <project> -e <env> files -v api-volume upload geo-bundle-11510.zip /geo-bundle-11510.zip` → `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --bundle /data/geo-bundle-11510.zip`；單檔用 `--presale-file /data/presale-buildcases-115-10.csv --presale-parcels-file /data/presale_parcels.csv`（版本月份取檔名「115-10」，沒有就用今天）。輸出會有「預售建案：updated（使用中 115-10，這次寫入 N 案，重比改變 M 案）；地號座標：updated（匯入 K 列）」。
+  4. 匯入地號座標後整批重比；之後每月把新建案的地號補查一次（只查輸出檔裡還沒有的）。
+- 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'presale_buildcases';`、`select match_level, count(*) from geo_presale_buildcases group by 1;`、`select count(*), count(lon) from geo_parcel_points;`。後台「系統狀態」頁的資料集清單多「預售建案」。
+- 注意：已登記的建案不再算在建；建照超過 6 年還沒登記的歸「不明」，不進任何統計（規格 P3）。預計交屋是依建照日與規模的粗估（P4），畫面一律標「粗估」。
+
 **國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
 
 **托嬰名單與園所異動（2026-10-14）**：同一套同步再多一種資料，給「區域分析」的托嬰清單與「附近園所的變化」用。規格 `docs/specs/2026-10-14-provider-changes-design.md` §4。

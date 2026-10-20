@@ -80,3 +80,27 @@
 
 - migration 一支（兩張表＋dataset 約束）。
 - 部署後：本機跑 `fetch_presale_parcels.py` → `fetch_geo_bundle.py` 打包 → 使用者用 `!` 上傳匯入（同 `deploy/README.md`「公開地理資料同步」）。第一次約 660 次地號查詢（≥11 分鐘）。
+
+## 8. 實作紀錄（2026-10-20）
+
+分支 `feature/admissions-data-20261020`，migration `a3d7f1c9b5e2`（接 `d4a8f2c6e913`，一支、只建兩張表並放寬 `ck_geo_dataset_status_dataset`）。和上面規格不同、或規格沒寫清楚、以實作為準的地方：
+
+- **換版判斷用內容 sha256，不用 ETag**（P8）：單檔只有約 180 KB，一個月下載一次，內容雜湊存在 `geo_dataset_status.active_version`（`label`＝來源月份「115-10」，網路同步用今天的民國年月、檔案匯入取檔名）；雜湊沒變只記 `checked_at`，不重寫。`--force` 同時略過縮水檢查（同幼兒園、托嬰的規則）。
+- **多條路的比對**（P5）：「與／及／和／、」加逗號、斜線、`v.s` 只在前一個字是路名或號的結尾（路街道巷弄段號口旁邊側、數字）時才拆，免得切壞「和平路」「和隆街」；多條時沒有路名的片段（「…對面」）丟掉，最多取前三條。**全部的路都到里且同一個里**時算該里，座標取第一個有座標的那條；否則取第一條路的結果（所以不同里時等於第一條）。
+- **比對等級**：預售建案表自己的 `match_level` 多一級 `parcel`（`parcel`、`exact`、`nearby`、`street`、`district`、`pending`），沒有 `unlocated`（鄉鎮市區欄一定有值）。「段＋地號」格式的坐落街道判斷：含「地號」、含「等N筆」，或開頭是不含路街巷弄的段名接數字。
+- **坐落基地第一筆地號**：`presale.first_parcel` 一個函式，同步與本機腳本共用（地號座標表的鍵才對得起來）；段名取數字之前的文字（去掉「高雄市」、區名、「地號」），子號 0 不寫（「1137-0000」→「1137」）。腳本用國土測繪中心段清單「完全相同、再取最長前綴」對所碼與段碼。
+- **同步順序**：先換建案檔、再匯入地號座標、最後整批重比（地號座標匯入失敗的訊息也不會被建案換版成功清掉）；每一輪結尾另外重比「比對當時的門牌月份和使用中不同」的案。地號座標**只從檔案匯入**（`--presale-parcels-file` 或 bundle），正式站同步不連國土測繪中心（`nlsc.py` 只給腳本 import，有測試檢查）。匯入是 upsert，查無的新結果不蓋掉已有座標。
+- **bundle 種類**：`presale_buildcases`（檔名帶月份，如 `presale-buildcases-115-10.csv`）、`presale_parcels`，兩種各限一個檔；`fetch_geo_bundle.py` 一律附建案檔，地號座標用 `--presale-parcels <csv>` 指定。CLI 多 `--presale-file`、`--presale-parcels-file`。
+- **API 參數名**：`GET /admin/admissions/area/presale?campus_key=&radius_km=`（和其他區域分析端點一致，規格寫的 `campus=`、`radius=` 是簡寫）。回應 `items[]` 同時是清單與地圖點（`lat`／`lon` 為 null 的沒有點）：`name`、`district`、`village`、`village_code`、`households`、`permit_on`、`expected_year`、`expected_half`（1 上／2 下）、`overdue`、`distance_m`、`match_level`；`summary`（案數、戶數）、`source`（`version`、`unplaced`、`note`）。排序：預計交屋由近到遠（已過預計時間的最前），同值依距離、區、案名。
+- **「里的變化」與清單的範圍口徑不同**：`villages[]`／`baseline` 依「里界面積重心在半徑內」的里加總（合併組整組），清單有座標的案用座標到本校的直線距離、只到里的用里重心，所以兩邊的案數可能差一兩案（座標在半徑外但所在的里重心在圈內）。`sources.presale.unplaced` 與清單的 `source.unplaced` 都是半徑內有里的區裡，在建案只到區或待比對的案數。
+- **畫面**：地圖模式叫「在建預售」，排在「新屋交屋」之後（工作台現在有八個模式，規格寫的「第六種」是當時的數字）；完整表格多「預售建案」分頁（各里之後、國小學區之前；規格的「里的變化之後、依國小學區之前」）。預售建案沒匯入或本校沒座標只停用「在建預售」模式；清單讀取失敗只影響預售建案分頁與地圖上的點。點案名＝選取它所在的里。P13 的說明文字照規格逐字寫，其中「戶數含店面以外的住宅單位」和 §2「層棟戶數含店鋪」的說法互相對不上，待業主確認。
+- **新 token**：`--area-presale`（建案位置的點，墨色加白邊，`style.css`）。
+
+驗證（本機）：
+
+- 真檔 `e_lvr_buildcase.csv`（661 筆）解析 0 失敗、非高雄 0；住宅 637 案（在建 256 案 30,661 戶、已登記 359、不明 22）、非住宅 24 案。對真實國土測繪中心段清單（38 區）：659 案段名完全相同比對得到，2 案段名含缺字對不到。
+- 真門牌 115-10（775,772 筆）匯入本機示範庫後，只靠街名法（還沒有地號座標）：到里 407 案（exact 89、nearby 11、street 307）、只到區 254 案；義華 3 公里內在建 11 案、780 戶、另有 29 案只到區。地號座標查完後這 254 案預期大半會改成 `parcel`（10-20 的人工評估抽樣 60 筆地號——隨機 20、已登記 20、進行中 20——查詢全部有座標；**這次實作沒有實際查國土測繪中心**）。
+- 後端（最終程式單一次執行 1265 passed，**不是後端全套**：`test_geo_*.py`、`test_admissions_trends／presale_area／area*`、`test_admin_bug_audit_20261006.py`、系統狀態、權限表、稽核涵蓋、預約 readiness）；新增 `test_geo_presale.py`、`test_geo_presale_sync.py`、`test_geo_presale_nlsc.py`、`test_admissions_presale_area.py`，並更新 `test_admissions_trends.py`、`test_geo_schema.py`。契約已重產（`export_openapi.py --check`、`check-contract-types.mjs` 一致）。
+- 後台（Node 22，`--testTimeout=60000`）：全套 176 檔、2974 passed、1 skipped（`areaTabChunkFailure.test.ts` 補 presale 路由後重跑），`typecheck` 無錯誤。Playwright（Chrome，本機 API＋vite dev，真門牌與真建案檔）1440／390：地圖「在建預售」著色與建案點、彈出框、右欄排行、各里表新欄、預售建案分頁（桌機表格、手機卡片）都正常，手機沒有橫向溢出；console 只有登入前的 401。
+
+沒驗證：正式站（尚未部署）、實際向國土測繪中心查地號（規格要求測試不打真站，腳本只用假回應測過；真實回應格式以 2026-10-20 的人工評估為準）、地號座標查完後的命中率、Safari／iOS 實機。

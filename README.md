@@ -1,3 +1,13 @@
+## 2026-10-20 招生區域加預售建案、預約設定的校區代號含控制字元不再 500（`feature/admissions-data-20261020`）
+
+使用者要讓分校提早知道哪些里兩三年後會有一批新住戶：區域分析加內政部「預售屋建案備查」資料。規格 `docs/specs/2026-10-20-admissions-presale-design.md`（§8 實作紀錄），部署與手動匯入步驟在 `deploy/README.md`「公開地理資料同步 → 預售建案」。
+
+- 後端：新表 `geo_presale_buildcases`、`geo_parcel_points`（migration `a3d7f1c9b5e2`）；容錯解析單檔（銷售期間含換行與逗號）、不讀起造人；在建／已登記／不明狀態與預計交屋粗估；先用地號座標點入里界、再用坐落街道比對門牌；每 30 天同步、內容沒變只記確認；`trends` 多每里在建戶數，新端點 `GET /admin/admissions/area/presale`；`fetch_presale_parcels.py` 本機查地號座標（正式站不連國土測繪中心），打包與 CLI 多兩種資料。
+- 後台：「各里」表多「在建預售（戶）」欄與總結句、地圖多「在建預售」著色與建案點、完整表格多「預售建案」分頁（手機卡片、可匯出 CSV）、里卡片多一列。
+- 另修：`GET/PATCH /admin/booking-config/{campus_key}`、`/readiness`、`POST /admin/slots` 的校區代號含 `%00` 回 404、`GET /admin/slots?campus_key=` 回 422（原本 500）。
+- **驗證**（Node 22）：後端單一次執行 1265 passed（`test_geo_*.py`、區域分析相關 `test_admissions_*`、`test_admin_bug_audit_20261006.py`、系統狀態、權限表、稽核涵蓋、預約 readiness；不是後端全套）；後台全套 176 檔 2974 passed，`typecheck` 通過；契約一致。真檔解析 661 案 0 失敗；真門牌＋真檔本機示範庫加 Playwright 1440／390 看過畫面。
+- **未驗證**：正式站、真實向國土測繪中心查地號、地號座標補上後的命中率、Safari／iOS 實機。**尚未部署、尚未 push。**
+
 ## 2026-10-19 關於頁手機版改成上翻畫冊（`feature/about-mobile-flipbook-20261019`）
 
 使用者覺得 /about 手機版「看起來怪怪的」（桌機立體書在手機被拆成上下兩張紙），比稿 `design/about-mobile-directions-20261019/`（Desktop 工作區）選 A「上翻畫冊」，第二版把五校改成高雄立體地圖後做進 `web/`。規則見 DESIGN.md 同日一節。只動 900px 以下，桌機立體書不變。
