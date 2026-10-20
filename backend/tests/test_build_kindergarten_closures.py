@@ -341,6 +341,24 @@ def test_an_unreadable_old_version_counts_as_absent_instead_of_stopping_the_run(
     assert stats.unreadable == 1
 
 
+def test_a_truncated_latest_version_stops_the_run(script, monkeypatch):
+    """最新一版只剩零頭（kiang 剛好抓壞）：不然所有不在這版的園所都會被當成剛離開。"""
+    repo = FakeRepo(script)
+    repo.add("h1", "2026-08-31T04:00:00Z", [JIA], [JIA.feature()])
+    repo.add("h2", "2026-09-30T04:00:00Z", [JIA], [JIA.feature()])
+    repo.add("h3", "2026-10-10T04:00:00Z", [], [PAD[0].feature()], registry=registry_text(PAD[:5]))
+    with pytest.raises(SystemExit, match="最新一版.*疑似殘缺"):
+        build(script, monkeypatch, repo)
+
+
+def test_a_latest_version_that_lost_a_few_rows_is_fine(script, monkeypatch):
+    repo = FakeRepo(script)
+    repo.add("h1", "2026-08-31T04:00:00Z", [JIA, YI], [JIA.feature(), YI.feature()])
+    repo.add("h2", "2026-10-10T04:00:00Z", [JIA], [JIA.feature()])
+    rows, _ = build(script, monkeypatch, repo)
+    assert set(rows) == {YI.id}
+
+
 # ---- 合併舊檔 ----
 
 OLD_HEADER = "source_id,name,left_on,reason\n"
@@ -447,3 +465,51 @@ def test_a_gh_failure_becomes_a_clean_exit(script, monkeypatch, tmp_path):
     monkeypatch.setattr(script, "gh", broken)
     with pytest.raises(SystemExit, match="boom"):
         script.main(["--since", "2026-08-01", "--out", str(tmp_path / "x.csv")])
+
+
+# ---- 輸出自檢、負的核定、排序 ----
+
+
+def test_a_negative_approved_capacity_is_left_blank(script, monkeypatch, tmp_path):
+    """來源偶爾有負數（parse_preschools 收 int4 範圍內的整數），載入器不收；留空而不是整個檔讀不了。"""
+    repo = FakeRepo(script)
+    weird = Kg("負數", capacity="-5")
+    repo.add("n1", "2026-08-31T04:00:00Z", [JIA, weird], [JIA.feature(), weird.feature()])
+    repo.add("n2", "2026-09-15T04:00:00Z", [JIA], [JIA.feature()])
+    repo.install(monkeypatch)
+    out = tmp_path / "closures.csv"
+    script.main(["--since", "2026-08-01", "--out", str(out)])
+    entry = load_closure_backfill(out)[weird.id]
+    assert (entry.approved_capacity, entry.lat, entry.kind) == (None, 22.6, "private")
+
+
+def test_main_deletes_an_output_the_loader_cannot_read(script, monkeypatch, tmp_path):
+    """舊檔八欄裡有不合法的類型：腳本照抄會產生同步讀不了的檔，自檢要擋下並刪掉輸出。"""
+    repo = FakeRepo(script)
+    three_months(repo)
+    repo.install(monkeypatch)
+    merge = tmp_path / "old.csv"
+    merge.write_text(
+        "source_id,name,left_on,reason,approved_capacity,lat,lng,kind\n"
+        f"{BING.id},丙,2026-09-25,closed,33,22.65,120.31,charter\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "closures.csv"
+    with pytest.raises(SystemExit, match="載入器讀不了"):
+        script.main(["--since", "2026-08-01", "--merge", str(merge), "--out", str(out)])
+    assert not out.exists()
+
+
+def test_rows_with_the_same_date_and_name_are_ordered_by_source_id(script, monkeypatch):
+    """同一天離開、名稱相同的園所：順序由 source_id 決定，不隨雜湊順序變，輸出檔每次跑都一樣。"""
+    repo = FakeRepo(script)
+    twins = []
+    for suffix in "fcaebd":
+        kg = Kg("同名")
+        kg.docno, kg.id = f"文號-{suffix}", f"id-{suffix}"
+        twins.append(kg)
+    repo.add("s1", "2026-08-31T04:00:00Z", [JIA, *twins], [JIA.feature(), *[kg.feature() for kg in twins]])
+    repo.add("s2", "2026-09-15T04:00:00Z", [JIA], [JIA.feature()])
+    repo.install(monkeypatch)
+    rows, _ = script.build_rows(date(2026, 8, 1), None)
+    assert [row["source_id"] for row in rows] == [f"id-{suffix}" for suffix in "abcdef"]

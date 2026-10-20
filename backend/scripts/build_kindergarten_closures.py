@@ -3,7 +3,7 @@
 找出 --since 起、離開教育部名單（kiang docs/data/高雄市.csv）的高雄幼兒園，各自的離開日、處理方式與園所資料：
 - 取樣：名單歷史（--since 起的每一版）先取最舊一版與每月最後一版當樣本（月底那版列數掉到前一個樣本的 80% 以下＝殘缺版，
   名單歷史有過，例如 2025-07-09 只有 351 列，改用同月前一版），不逐版下載整個歷史。
-  最新一版沒有、但曾出現在樣本裡的園所就是「離開名單」的。不用二分搜尋：歷史有殘缺版本，「最舊版本裡沒有它」不代表更早就消失。
+  最新一版沒有、但曾出現在樣本裡的園所就是「離開名單」的；最新一版本身列數不到前一個樣本的 80% 就停下來（疑似殘缺版，晚點再跑）。不用二分搜尋：歷史有殘缺版本，「最舊版本裡沒有它」不代表更早就消失。
 - left_on：只對離開的園所，到「最後含它的樣本」與下一個樣本之間，新到舊逐版掃描，取最新一個含它的版本的下一個較新版本的日期
   （台北日期，定義同 10-15）；每個版本最多下載一次。--since 之前就離開的抓不到，留空（只會出現在 --merge 的舊檔裡）。
 - reason：renamed＝改名或換承辦，只下架；closed＝停辦。改名取兩個規則的聯集：
@@ -17,6 +17,7 @@
 - --merge 舊檔（10-15 的四欄檔，或八欄檔）：同 source_id 以舊檔的 left_on、reason、名稱與非空的新欄位為準；
   舊檔 left_on 空白、新掃描找到日期的補上；掃描不到的舊列照留，新欄位用最新版 preschools.json 補。
 - --cache 目錄：下載過的檔案（名單、preschools.json）依 commit 存起來，重跑不重抓。
+輸出寫完會用同步的載入程式（load_closure_backfill）讀一遍自檢，讀不了就刪掉輸出並結束。
 開發用，不進執行期。需要已登入的 gh CLI；請求數＝樣本數（約 50）＋離開區間內的掃描版本數＋preschools.json 的版本數。
 
 用法（在 backend/）：
@@ -44,7 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.admissions.academic import current_term  # noqa: E402
-from app.admissions.geo.closure_backfill import COLUMNS, REASONS  # noqa: E402
+from app.admissions.geo.closure_backfill import COLUMNS, REASONS, BackfillFormatError, load_closure_backfill  # noqa: E402
 from app.admissions.geo.kindergartens import (  # noqa: E402
     KindergartenFormatError, Registry, parse_preschools, parse_registry, place_key, registry_key,
 )
@@ -200,10 +201,16 @@ def pick_samples(versions: Versions) -> list[Sample]:
             if samples and samples[-1].pos == pos:
                 break  # 最舊一版剛好也是該月最後一版
             listing = versions.listing(pos, keep=True)
-            if pos == 0:  # 最新一版一定要；讀不出來就停，不然整批都會被當成離開
+            truncated = bool(samples) and len(listing) < MIN_SAMPLE_RATIO * len(samples[-1].listing)
+            if pos == 0:  # 最新一版一定要；讀不出來或殘缺就停，不然整批都會被當成離開
                 if not listing:
                     raise SystemExit("最新一版的教育部名單讀不出來")
-            elif not listing or (samples and len(listing) < MIN_SAMPLE_RATIO * len(samples[-1].listing)):
+                if truncated:
+                    raise SystemExit(
+                        f"最新一版的教育部名單只有 {len(listing)} 列，不到前一個樣本（{samples[-1].day}，"
+                        f"{len(samples[-1].listing)} 列）的 {MIN_SAMPLE_RATIO:.0%}，疑似殘缺版；晚點等 kiang 更新再跑"
+                    )
+            elif not listing or truncated:
                 continue  # 空的或殘缺的月底版：改用同月前一版
             samples.append(Sample(pos, commits[pos][1], listing))
             break
@@ -360,7 +367,11 @@ class Row:
     def render(self) -> dict[str, str]:
         found = self.found
         values = {
-            "approved_capacity": "" if found is None or found.approved_capacity is None else str(found.approved_capacity),
+            # 來源偶爾有負數的核定人數（int4 範圍內，parse_preschools 收），載入器不收，當成未知
+            "approved_capacity": (
+                "" if found is None or found.approved_capacity is None or found.approved_capacity < 0
+                else str(found.approved_capacity)
+            ),
             "lat": "" if found is None or found.lat is None else str(found.lat),
             "lng": "" if found is None or found.lng is None else str(found.lng),
             "kind": "" if found is None or found.kind is None else found.kind,
@@ -452,7 +463,7 @@ def build_rows(since: date, merge: Path | None = None) -> tuple[list[dict[str, s
         row.reason, row.name, row.old = old.reason, old.name or row.name, old
 
     out_rows = [row.render() for row in rows.values()]
-    out_rows.sort(key=lambda item: (item["left_on"] or "0000-00-00", item["name"]))
+    out_rows.sort(key=lambda item: (item["left_on"] or "0000-00-00", item["name"], item["source_id"]))  # 同日同名時順序固定
     return out_rows, stats
 
 
@@ -498,6 +509,11 @@ def main(argv: list[str] | None = None) -> None:
         writer = csv.DictWriter(handle, list(COLUMNS), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+    try:
+        load_closure_backfill(args.out)  # 自檢：同步會用同一支載入程式讀這個檔，現在讀不了就不留下壞檔
+    except BackfillFormatError as exc:
+        args.out.unlink()
+        raise SystemExit(f"輸出的檔案載入器讀不了，已刪除 {args.out.name}：{exc}") from exc
     print(summary(rows, stats))
 
 
