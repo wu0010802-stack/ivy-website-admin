@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 import pytest
+from sqlalchemy import delete
 
 from app.admissions.geo import boundaries, matcher, school_districts
 from app.admissions.geo.models import GeoElementaryGrade1, GeoVillageAgesSeptember
@@ -300,13 +301,14 @@ async def test_elementary_check_ratio_and_warn(db_session, two_schools, latest_g
 
     assert check == {
         "years": [
-            {"school_year": 112, "grade1": 400, "age6": 500.0, "ratio": 0.8},
-            {"school_year": 113, "grade1": 400, "age6": 500.0, "ratio": 0.8},
-            {"school_year": 114, "grade1": latest_grade1, "age6": 500.0, "ratio": latest_ratio},
+            {"school_year": 112, "grade1": 400, "age6": 500.0, "ratio": 0.8, "schools": 2},
+            {"school_year": 113, "grade1": 400, "age6": 500.0, "ratio": 0.8, "schools": 2},
+            {"school_year": 114, "grade1": latest_grade1, "age6": 500.0, "ratio": latest_ratio, "schools": 2},
         ],
         "mean": 0.8,
         "latest_ratio": latest_ratio,
         "warn": warn,
+        "schools": 2,
     }
 
 
@@ -317,6 +319,19 @@ async def test_elementary_check_mean_excludes_latest_year(db_session, two_school
     check = (await query_share(db_session, "yihua"))["elementary_check"]
 
     assert (check["mean"], check["latest_ratio"], check["warn"]) == (0.85, 1.0, True)
+
+
+async def test_elementary_check_counts_schools_with_data(db_session, two_schools):
+    """schools 是半徑內各里所屬的國小數（2）；某學年 S2 沒有一年級列，那一年的 schools 只有 1。"""
+    await _enroll(db_session, 114, {"大班": 10})
+    await _school_years(db_session, {112: 400, 113: 400, 114: 400})
+    await db_session.execute(delete(GeoElementaryGrade1).where(GeoElementaryGrade1.school_year == 113, GeoElementaryGrade1.school_code == S2))
+    await db_session.commit()
+
+    check = (await query_share(db_session, "yihua"))["elementary_check"]
+
+    assert check["schools"] == 2
+    assert [(year["school_year"], year["grade1"], year["schools"]) for year in check["years"]] == [(112, 400, 2), (113, 200, 1), (114, 400, 2)]
 
 
 async def test_elementary_check_needs_two_years(db_session, two_schools):

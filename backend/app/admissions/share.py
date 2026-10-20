@@ -7,7 +7,8 @@
 - 學年完全沒有九月列（ODRP014 從 107 年才有資料）→ 人口與市佔率都是 None，不寫 0。
 
 國小對帳不進市佔率：半徑內各里對到的國小，一年級人數 ÷ 這些學校整個學區同一年九月底的 6 歲戶籍人數
-（一個里對到 n 所學校，該里的 6 歲人數各算 1/n）。最新一年偏離之前各年的平均超過 RATIO_WARN 就提醒分母可能不準。"""
+（一個里對到 n 所學校，該里的 6 歲人數各算 1/n）。最新一年偏離之前各年的平均超過 RATIO_WARN 就提醒分母可能不準。
+回傳的 schools＝半徑內各里所屬的國小數（畫面寫「N 所國小」）；每個學年另有 schools＝那一年有一年級人數的學校數。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -147,22 +148,23 @@ async def _elementary_check(db: AsyncSession, near: frozenset[str], population: 
     if not schools:
         return None
     rows = await db.execute(
-        select(GeoElementaryGrade1.school_year, func.sum(GeoElementaryGrade1.grade1))
+        select(GeoElementaryGrade1.school_year, func.count(), func.sum(GeoElementaryGrade1.grade1))
         .where(GeoElementaryGrade1.school_code.in_(schools))
         .group_by(GeoElementaryGrade1.school_year)
     )
-    grade1 = {year: int(total) for year, total in rows}
+    grade1 = {year: (int(count), int(total)) for year, count, total in rows}
     entries: list[dict] = []
     ratios: list[float] = []
     for year in sorted(grade1.keys() & population.keys()):
         age_6 = sum(population[year][village].age_6 * weight for village, weight in weights if village in population[year])
         if age_6 <= 0:
             continue
-        ratios.append(grade1[year] / age_6)
+        counted, total = grade1[year]
+        ratios.append(total / age_6)
         entries.append(
             {
-                "school_year": year, "grade1": grade1[year], "age6": round(age_6, AGE6_DIGITS),
-                "ratio": round(ratios[-1], RATIO_DIGITS),
+                "school_year": year, "grade1": total, "age6": round(age_6, AGE6_DIGITS),
+                "ratio": round(ratios[-1], RATIO_DIGITS), "schools": counted,
             }
         )
     if len(entries) < MIN_CHECK_YEARS:
@@ -170,7 +172,7 @@ async def _elementary_check(db: AsyncSession, near: frozenset[str], population: 
     mean = round(sum(ratios[:-1]) / (len(ratios) - 1), RATIO_DIGITS)
     latest = entries[-1]["ratio"]
     warn = round(abs(latest - mean), RATIO_DIGITS) > RATIO_WARN
-    return {"years": entries, "mean": mean, "latest_ratio": latest, "warn": warn}
+    return {"years": entries, "mean": mean, "latest_ratio": latest, "warn": warn, "schools": len(schools)}
 
 
 # ---- 對外 ----
