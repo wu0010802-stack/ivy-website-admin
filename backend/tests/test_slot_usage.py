@@ -131,6 +131,20 @@ async def test_taipei_date_boundary_uses_given_today(db_session):
     assert [r["slot_count"] for r in out["rows"]] == [1]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("weeks", [4, 12, 26])
+async def test_window_lower_bound_is_inclusive_and_day_before_is_excluded(db_session, weeks):
+    """窗口是 [今天−週數×7, 昨天]：剛好在 date_from 的場次算進來，date_from 前一天不算。"""
+    today = date(2026, 10, 13)
+    date_from = today - timedelta(weeks=weeks)
+    # 用不同的起始時間分成兩列，才看得出哪一天被算進去。
+    await _slot(db_session, day=date_from, start=time(9, 0), end=time(10, 0))                              # 下界當天 → 算
+    await _slot(db_session, day=date_from - timedelta(days=1), start=time(15, 0), end=time(16, 0))         # 下界前一天 → 不算
+    out = await slot_usage.slot_rows(db_session, "yihua", weeks, today)
+    assert out["date_from"] == date_from
+    assert [(r["start_time"], r["slot_count"]) for r in out["rows"]] == [(time(9, 0), 1)]
+
+
 URL = f"{API}/admin/visit-slot-usage"
 
 
