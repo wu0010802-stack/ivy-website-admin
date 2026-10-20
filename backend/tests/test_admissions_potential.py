@@ -21,6 +21,7 @@ from app.admissions.potential import (
     band_weight,
     closure_inflow,
     closures_range,
+    first_window_start,
     load_closure_events,
     price_factor,
     school_year_window,
@@ -205,13 +206,49 @@ def test_no_full_window():
         assert details["skipped"]["outside_windows"] == len(three_windows())
 
 
-def test_no_events_at_all_is_no_data():
+def test_no_events_but_complete_windows_is_zero():
+    # 有完整窗口、窗口內沒有停辦：數字就是 0（資料齊的前提下附近沒人退場），不是 no_data
     result, details = closures_range([], today=TODAY)
-    assert result is None
+    assert result == Range(0, 0, 0)
     assert (details["events"], details["skipped"], details["price_unknown"]) == (
         [], {"no_capacity": 0, "outside_windows": 0}, 0
     )
-    assert [year["events"] for year in details["years"]] == [0, 0, 0]  # 窗口照列，只是沒有資料
+    assert [(year["school_year"], year["weighted"], year["events"]) for year in details["years"]] == [
+        (111, 0, 0), (112, 0, 0), (113, 0, 0)
+    ]
+
+
+def test_no_complete_window_is_none_even_without_events():
+    assert closures_range([], today=date(2023, 9, 30))[0] is None
+    assert closures_range([], today=date(2022, 10, 1))[1]["years"] == []
+
+
+@pytest.mark.parametrize(
+    ("today", "first_year", "start"),
+    [
+        (date(2026, 10, 20), 111, date(2022, 10, 1)),  # 保留期最舊的一天是 2020-10-20，早於 2022-10 回補檔的起點
+        (date(2028, 10, 1), 111, date(2022, 10, 1)),  # 保留期最舊 2022-10-01，111 窗口剛好完整
+        (date(2028, 10, 2), 112, date(2023, 10, 1)),  # 最舊 2022-10-02：111 窗口缺了第一天，不算
+        (date(2029, 9, 30), 112, date(2023, 10, 1)),
+        (date(2029, 10, 1), 112, date(2023, 10, 1)),
+        (date(2029, 10, 2), 113, date(2024, 10, 1)),
+    ],
+)
+def test_first_window_follows_the_retention_period(today, first_year, start):
+    assert first_window_start(today) == start
+    _, details = closures_range([event(date(2022, 11, 15), 100)], today=today)
+    assert details["years"][0]["school_year"] == first_year
+    assert details["years"][-1]["school_year"] == school_year_window(today) - 1
+
+
+def test_events_before_the_first_window_are_outside_windows():
+    # 2029-10-01：保留期只剩 2023-10-01 起，111 學年的事件（理論上已被清掉）不能再當完整的一年算
+    today = date(2029, 10, 1)
+    result, details = closures_range([event(date(2022, 11, 15), 9999), event(date(2024, 3, 1), 100)], today=today)
+    assert 111 not in [year["school_year"] for year in details["years"]]
+    assert details["skipped"]["outside_windows"] == 1
+    assert [item["school_year"] for item in details["events"]] == [112]
+    assert result.high == round(100 * UNIT * 0.173, 1)
 
 
 def test_closure_without_capacity_skipped():
@@ -362,3 +399,45 @@ async def test_load_closure_events_without_an_own_school_has_no_own_fee(db_sessi
     events = await load_closure_events(db_session, *YIHUA_POINT, since=SINCE, today=LOAD_TODAY)
 
     assert [(item.own_fee, item.their_fee) for item in events] == [(None, None)]
+
+
+async def test_the_same_school_closed_twice_counts_once_with_the_latest_date(db_session, campuses):
+    add_kindergarten(db_session, "twice", "停了兩次", "private", 600, is_active=False)
+    add_kindergarten(db_session, "once", "只停一次", "private", 700, is_active=False)
+    db_session.add_all(
+        [
+            closed("twice", date(2023, 2, 1)),
+            closed("twice", date(2025, 7, 31)),
+            closed("once", date(2024, 1, 1)),
+        ]
+    )
+    await db_session.commit()
+
+    events = await load_closure_events(db_session, *YIHUA_POINT, since=SINCE, today=LOAD_TODAY)
+
+    assert [(item.name, item.occurred_on) for item in events] == [
+        ("只停一次", date(2024, 1, 1)),
+        ("停了兩次", date(2025, 7, 31)),
+    ]
+
+
+async def test_the_latest_closure_is_taken_within_the_requested_period(db_session, campuses):
+    """較新的那筆在 today 之後或較舊的在 since 之前，各自被期間濾掉，不會讓同一所變成零筆或兩筆。"""
+    add_kindergarten(db_session, "late", "之後又停", "private", 600, is_active=False)
+    add_kindergarten(db_session, "early", "之前就停", "private", 700, is_active=False)
+    db_session.add_all(
+        [
+            closed("late", date(2024, 5, 1)),
+            closed("late", date(2026, 11, 1)),  # 在 LOAD_TODAY 之後
+            closed("early", date(2022, 9, 1)),  # 在 SINCE 之前
+            closed("early", date(2023, 5, 1)),
+        ]
+    )
+    await db_session.commit()
+
+    events = await load_closure_events(db_session, *YIHUA_POINT, since=SINCE, today=LOAD_TODAY)
+
+    assert [(item.name, item.occurred_on) for item in events] == [
+        ("之前就停", date(2023, 5, 1)),
+        ("之後又停", date(2024, 5, 1)),
+    ]

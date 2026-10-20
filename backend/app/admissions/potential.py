@@ -7,7 +7,8 @@
   流入＝核定名額 × 實收率 × (1 − 畢業比例) × 承接率 × 距離係數 × 價格係數（報告 A-07）。
   - 類型係數（連鎖園 0.6）與老師帶班不算：公開資料看不出是不是連鎖，老師帶班也無法預期（裁定 5）。
   - 本校與五校 50 m 內的園所不算（本機構）。
-  - 年度窗口是學年口徑：10/1 起算新學年，只算 2022-10 起「完整」的窗口（窗口最後一天 < 今天），進行中的不算。
+  - 年度窗口是學年口徑：10/1 起算新學年，只算「完整」的窗口（窗口最後一天 < 今天），進行中的不算；
+    起點是 2022-10（回補檔的起點），事件只保留 72 個月，所以之後的起點是保留期內第一個整個窗口（first_window_start）。
   - 低＝最低那年 × 承接率中值；中＝平均 × 承接率中值；高＝最高那年 × 承接率高值（裁定 4）。
     規格原寫「低 0%」，會讓低值恆為 0，所以改用中值。
   - 核定名額沒填的停辦園所算不出來，略過並計數；對方沒有收費資料時價格係數取 1，也計數。"""
@@ -22,7 +23,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import area
-from app.admissions.geo import fees, matcher
+from app.admissions.geo import fees, matcher, providers
 from app.admissions.geo.models import GeoKindergarten, GeoKindergartenFee, GeoProviderEvent
 from app.admissions.geo.projection import haversine_m
 
@@ -49,7 +50,7 @@ PRICE_FACTOR_FAR_ABOVE = 0.3
 # 公共化園所（公幼、非營利、準公共）：家長多半抽籤或看公共化價格，不看本校收費。
 PUBLIC_KINDS = ("public", "nonprofit", "quasi_public")
 PRICE_FACTOR_PUBLIC = 0.1
-# 學年窗口：10/1 起算新學年；只算 2022-10 起（停辦回補檔的起點），民國 111 學年的窗口。
+# 學年窗口：10/1 起算新學年；最早從 2022-10（停辦回補檔的起點，民國 111 學年）起算，之後隨事件保留期往後移。
 SCHOOL_YEAR_START_MONTH = 10
 FIRST_SCHOOL_YEAR = 111
 RANGE_DIGITS = 1
@@ -134,9 +135,29 @@ def closure_inflow(event: ClosureEvent, *, catch_rate: float) -> float:
     )
 
 
+def _window_start(school_year: int) -> date:
+    """學年窗口的第一天（10/1）。"""
+    return date(school_year + 1911, SCHOOL_YEAR_START_MONTH, 1)
+
+
+def _first_year(today: date) -> int:
+    """第一個算進來的學年：整個窗口都還在事件保留期內（起日 ≥ 保留期的最舊一天）的最早一年，且不早於 111 學年。
+    保留期滿 72 個月時，事件會從最舊的月份開始被清掉，這樣的窗口只剩一部分，不能當完整的一年算。"""
+    oldest = providers.months_ago(today, providers.EVENT_RETENTION_MONTHS)
+    year = school_year_window(oldest)
+    if _window_start(year) < oldest:
+        year += 1
+    return max(year, FIRST_SCHOOL_YEAR)
+
+
+def first_window_start(today: date) -> date:
+    """來源一第一個窗口的第一天；呼叫端用它當 load_closure_events 的 since。"""
+    return _window_start(_first_year(today))
+
+
 def _complete_years(today: date) -> list[int]:
     years: list[int] = []
-    year = FIRST_SCHOOL_YEAR
+    year = _first_year(today)
     while _window_end(year) < today:
         years.append(year)
         year += 1
@@ -146,10 +167,10 @@ def _complete_years(today: date) -> list[int]:
 def closures_range(events: list[ClosureEvent], *, today: date) -> tuple[Range | None, dict]:
     """來源一的低／中／高，以及畫面「怎麼算」要的明細。
 
-    沒有完整窗口、或一件停辦事件都沒有（資料根本沒回補）→ None，由呼叫端標 no_data。
+    沒有任何完整窗口 → None，由呼叫端標 no_data；有完整窗口但窗口內沒有事件，數字就是 0。
     details：
     - years：每個完整窗口一筆（沒停辦的窗口也列，值 0），weighted＝窗口內各事件承接率取 1 的流入加總；
-    - skipped：no_capacity＝窗口內但核定名額沒填的、outside_windows＝不在任何完整窗口（進行中或 2022-10 之前）的事件數；
+    - skipped：no_capacity＝窗口內但核定名額沒填的、outside_windows＝不在任何完整窗口（進行中，或早於第一個窗口）的事件數；
     - price_unknown：算進去的事件裡，價格係數因缺收費資料取 1 的事件數（公共化園所直接 0.1，不算在內）；
     - events：算進去的事件（日期、園名、核定、距離 m、學年、承接率取 1 的流入），依日期排序。"""
     years = _complete_years(today)
@@ -185,7 +206,7 @@ def closures_range(events: list[ClosureEvent], *, today: date) -> tuple[Range | 
         "price_unknown": price_unknown,
         "events": listed,
     }
-    if not years or not events:
+    if not years:
         return None, details
     values = list(weighted.values())
     return (
@@ -215,7 +236,7 @@ async def load_closure_events(
 
     停辦的園所列一直留在 geo_kindergartens（is_active 為假），事件 join 回去取名稱、類型、核定與座標。
     本校收費取座標 50 m 內最近營業中園所的 3 歲一學期收費（fees.own_fee）；對方收費取同一個年齡的 semester_total。
-    沒有核定名額或沒有收費的照樣載入，由 closures_range 略過或取中性係數。"""
+    同一所有多筆停辦事件只取最近一筆。沒有核定名額或沒有收費的照樣載入，由 closures_range 略過或取中性係數。"""
     south, north, west, east = _box(lat, lng, CLOSURE_RADIUS_M)
     rows = await db.execute(
         select(GeoProviderEvent.occurred_on, GeoKindergarten, GeoKindergartenFee.semester_total)
@@ -239,8 +260,13 @@ async def load_closure_events(
     ]
     _, own_fee_row = await fees.own_fee(db, lat, lng, age=PRICE_FEE_AGE, radius_m=area.OWN_CAMPUS_RADIUS_M)
     own_total = own_fee_row.semester_total if own_fee_row is not None else None
-    events: list[ClosureEvent] = []
+    # 同一所有好幾筆停辦事件（停辦、重新營業、再停辦）只取最近一筆：同一所不重複算。
+    latest: dict[str, tuple[date, GeoKindergarten, int | None]] = {}
     for occurred_on, school, their_fee in rows.all():
+        if school.source_id not in latest or occurred_on > latest[school.source_id][0]:
+            latest[school.source_id] = (occurred_on, school, their_fee)
+    events: list[ClosureEvent] = []
+    for occurred_on, school, their_fee in latest.values():
         distance = haversine_m(lat, lng, school.lat, school.lng)
         if distance > CLOSURE_RADIUS_M:
             continue
