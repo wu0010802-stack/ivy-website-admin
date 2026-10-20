@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 場次使用情況小修＋預售建案＋附近幼兒園裁罰與評鑑（main CI 部署，2 支 migration）
+
+- **提交**：agent 經使用者同意推 `feature/admissions-data-20261020` 到 main（`817d516d..a5ac4998`，fast-forward、沒有開 PR）。內容：場次使用情況審查延後 8 條＋手機判讀欄提前、預約設定／場次列表控制字元回 500 修正；預售建案（規格 `docs/specs/2026-10-20-admissions-presale-design.md`）；附近幼兒園裁罰明細與評鑑（`docs/specs/2026-10-20-peer-penalties-evaluations-design.md`）。migration `a3d7f1c9b5e2`（預售兩張表）→ `b8e2d6a4f931`（裁罰、評鑑兩張表；`geo_dataset_status.dataset` 放寬到 32 字），只新增、不改寫既有資料，沒有先備份。沒有新環境變數；新增評鑑用的公開中繼憑證 `backend/app/admissions/geo/certs/twca-secure-ssl-2023g3.pem`（到期 2030-10-16）。
+- **回退**：切回上一版映像前先 `alembic downgrade d4a8f2c6e913`（四張新表與 dataset 約束會刪掉，都是公開資料、可重抓）。
+- **推送前閘門**（本機，Node 22，從 main `817d516d` 開的 worktree）：後端全套 4019 passed／1 skipped（8 分 55 秒，獨立庫 `ivy_website_admdata1020_test`）；admin 全套 2988 passed／1 skipped、typecheck 0 錯；契約 `export_openapi.py --check`＋`check-contract-types.mjs` 一致；stack 用獨立庫 `ivy_website_e2e_admdata1020_test`、埠 8761／3761，`e2e:build` 後全套 155 passed（6.3 分鐘）。
+- **CI**：main run 39361821538（`a5ac4998`）02:58:43Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `a5ac499826cc262bcb7c47e9d175d14eb1acc7ee`，snapshot `15dce4bd…`，created `2026-10-20T03:05:10Z`。
+- **線上唯讀檢查**：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（背景工作 03:13:30Z 跑完一輪）；未登入 `GET /admin/admissions/area/presale`、`/admin/admissions/area/kindergartens/<id>/records` 回 401。
+- **地號座標**：使用者 10-20 在本機跑 `fetch_presale_parcels.py`（649 地號，646 有座標）；661 案 655 案（99.1%）可點入里。檔案在 worktree `output/presale/presale_parcels.csv`（gitignored），要上傳 api volume 後 `geo-sync --presale-parcels-file` 匯入（見下方「預售建案」段）。
+- **未驗證**：正式站第一輪預售、裁罰、評鑑同步結果（沒有讀 Railway DB 權限）；評鑑換頁第 2 頁起、GitHub API 在 Railway 會不會被限流；登入後的畫面。
+
 ## 2026-10-19 關於頁手機版改成上翻畫冊（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `feature/about-mobile-flipbook-20261019` 到 main（`89b0f65b..72a6064c`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「關於頁手機版：上翻畫冊」：900px 以下 `/about` 換成頂端線圈裝訂的畫冊（`AboutFlipBook.vue`、`AboutFlipMap.vue`、`about-flipbook.css`、`utils/about-flipbook.ts`），第一章五校改成高雄立體地圖（`scripts/build-about-map.mjs` → `web/app/generated/about-map.ts`）；桌機立體書包在 `.abk`、`about-popup` 只在 901px 以上建立。沒有 migration、沒有新環境變數、依賴檔沒有變動。
@@ -1011,7 +1022,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
   - **2026-10-15 已補**：使用者在本機下載 114S4–115S3 四季 `e_lvr_land_a.csv`、上傳到 api volume 根目錄，跑 `geo-sync --new-homes-file /data/114S4_e_lvr_land_a.csv …（四個）`，輸出「新成屋：updated（最新 115S3，這次寫入 4 季，重比 0 筆）」（重比 0 是結尾「門牌月份不同」那一段；四季本身由檔案匯入重新比對），其他資料全部 skipped。之後讀義華 `/area/trends`（3 公里）：`sources.new_homes.unplaced` 63 → 0，有新屋的里仍 17 個、近 4 季 1,524 筆、最新季 469 筆；里的變化不再寫「範圍內的區另有…只到區」。volume 上的四個 CSV 要由使用者在自己的終端機刪（Railway CLI 拒絕 agent 刪檔）。
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'new_homes';`、`select season, count(*) from geo_new_home_sales group by 1 order by 1;`、`select match_level, count(*) from geo_new_home_sales group by 1;`。
 
-**預售建案（2026-10-20，`feature/admissions-data-20261020`，尚未部署）**：同一套同步再多一種資料，給區域分析的「在建預售」模式、「各里」表的「在建預售（戶）」欄與「預售建案」分頁用。規格 `docs/specs/2026-10-20-admissions-presale-design.md`（§8 實作紀錄）。
+**預售建案（2026-10-20，`feature/admissions-data-20261020`，10-20 已部署 main `a5ac4998`）**：同一套同步再多一種資料，給區域分析的「在建預售」模式、「各里」表的「在建預售（戶）」欄與「預售建案」分頁用。規格 `docs/specs/2026-10-20-admissions-presale-design.md`（§8 實作紀錄）。
 
 - 來源：內政部實價登錄「預售屋建案備查」高雄市單檔 `https://plvr.land.moi.gov.tw/Download?PayType=saleremark&fileName=e_lvr_buildcase.csv`（約 180 KB，每月 1 日重產、自 110-07 起累計）。寫進 `geo_presale_buildcases`（約 660 案）。**不存起造人**（整欄不讀）。不需要新的環境變數。
 - migration `a3d7f1c9b5e2`：只新增 `geo_presale_buildcases`、`geo_parcel_points` 兩張表、放寬 `ck_geo_dataset_status_dataset`（多收 `presale_buildcases`），不動既有資料，不需要先備份。回退：先用新映像跑 `alembic downgrade d4a8f2c6e913`（先刪 `presale_buildcases` 狀態列、再還原約束、刪兩張表），再切舊映像。
@@ -1024,7 +1035,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 看狀態：`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'presale_buildcases';`、`select match_level, count(*) from geo_presale_buildcases group by 1;`、`select count(*), count(lon) from geo_parcel_points;`。後台「系統狀態」頁的資料集清單多「預售建案」。
 - 注意：已登記的建案不再算在建；建照超過 6 年還沒登記的歸「不明」，不進任何統計（規格 P3）。預計交屋是依建照日與規模的粗估（P4），畫面一律標「粗估」。
 
-**幼兒園裁罰與評鑑（2026-10-20，`feature/admissions-data-20261020`，尚未部署）**：同一套同步再多兩種資料，給「區域分析 → 附近幼兒園」清單的「近 3 年裁罰 N 件」、最近一次評鑑小字與展開的明細用。規格 `docs/specs/2026-10-20-peer-penalties-evaluations-design.md`（§8 實作紀錄）。
+**幼兒園裁罰與評鑑（2026-10-20，`feature/admissions-data-20261020`，10-20 已部署 main `a5ac4998`）**：同一套同步再多兩種資料，給「區域分析 → 附近幼兒園」清單的「近 3 年裁罰 N 件」、最近一次評鑑小字與展開的明細用。規格 `docs/specs/2026-10-20-peer-penalties-evaluations-design.md`（§8 實作紀錄）。
 
 - 裁罰來源：kiang 的 `ap.ece.moe.edu.tw` 整理（`kiang.github.io/ap.ece.moe.edu.tw/data/punish/高雄市/<園名>.json`，約 240 檔、570 筆），檔名清單走 GitHub API `contents/docs/data/punish/高雄市`。寫進 `geo_kindergarten_penalties`。**來源每筆的「負責人／行為人：姓名」只取標籤轉成對象類別（`operator`／`staff`），姓名不進資料庫、API、日誌與狀態列錯誤訊息。**評鑑來源：教保資訊網公開搜尋 `https://ap.ece.moe.edu.tw/webecems/pubSearch.aspx`（ASP.NET 表單，高雄約 689 所、69 頁、沒有驗證碼），只讀評鑑表的學年度、完成日、結果，同一區塊的負責人、電話一律不讀；寫進 `geo_kindergarten_evaluations`（只存名稱對得到園所的列）。不需要新的環境變數。
 - migration `b8e2d6a4f931`（接 `a3d7f1c9b5e2`）：只新增兩張表（各一個 `source_id` 索引）、放寬 `ck_geo_dataset_status_dataset`，並把 `geo_dataset_status.dataset` 欄由 20 字放寬到 32 字（新資料集名稱 22、24 字；PostgreSQL 放寬 varchar 長度不重寫資料表）。不動既有資料，不需要先備份。回退：先用新映像跑 `alembic downgrade a3d7f1c9b5e2`（先刪兩個新狀態列、還原約束與欄寬、刪兩張表），再切舊映像。
