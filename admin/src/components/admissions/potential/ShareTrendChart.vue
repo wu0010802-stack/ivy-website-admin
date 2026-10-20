@@ -114,7 +114,7 @@ const ariaLabel = computed(() => {
 .share-trend {
   display: block;
   height: auto;
-  max-width: 560px;
+  max-width: var(--potential-max, 1040px);
   overflow: visible;
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;

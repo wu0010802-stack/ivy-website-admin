@@ -151,7 +151,11 @@ function exportCsv() {
   min-width: 0;
 }
 
+/* 桌機上卡片列、走勢圖、來源表、各學年數字、國小對帳與來源說明共用同一個最大寬度（子元件也讀這個變數）；
+   --potential-pad 是卡片的左右內距，各學年數字的標題靠它和卡片內文對齊。 */
 .potential-body {
+  --potential-max: 1040px;
+  --potential-pad: 18px;
   display: grid;
   gap: 16px;
   min-width: 0;
@@ -162,7 +166,7 @@ function exportCsv() {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  max-width: 1040px;
+  max-width: var(--potential-max);
 }
 
 .potential-card,
@@ -170,7 +174,7 @@ function exportCsv() {
   display: grid;
   gap: 4px;
   min-width: 0;
-  padding: 16px 18px;
+  padding: 16px var(--potential-pad);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -200,7 +204,12 @@ function exportCsv() {
 }
 
 .potential-years {
-  max-width: 560px;
+  max-width: var(--potential-max);
+}
+
+/* 標題文字對齊上方卡片的內文左緣：卡片的 1px 框線加內距。 */
+.potential-years :deep(.el-collapse-item__header) {
+  padding-left: calc(var(--potential-pad) + 1px);
 }
 
 .potential-years__head {
@@ -243,7 +252,7 @@ function exportCsv() {
 }
 
 .potential-elementary {
-  max-width: 68ch;
+  max-width: var(--potential-max);
   margin: 0;
   color: var(--ink-2);
   font-size: var(--text-sm);
@@ -256,7 +265,7 @@ function exportCsv() {
 }
 
 .potential-source {
-  max-width: 68ch;
+  max-width: var(--potential-max);
   margin: 0;
 }
 

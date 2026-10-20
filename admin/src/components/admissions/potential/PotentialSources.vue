@@ -162,7 +162,7 @@ function hasHow(source: PotentialSource): boolean {
 <style scoped>
 .potential-sources {
   min-width: 0;
-  max-width: 760px;
+  max-width: var(--potential-max, 1040px);
 }
 
 .source-table {
@@ -263,6 +263,7 @@ function hasHow(source: PotentialSource): boolean {
 .source__note {
   margin: 8px 0 0;
   color: var(--ink-2);
+  text-wrap: pretty; /* 避免最後一行只剩一個字 */
 }
 
 .source__assumptions > div {
@@ -278,6 +279,7 @@ function hasHow(source: PotentialSource): boolean {
 .source__assumptions dd {
   margin: 0;
   overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .source-detail {
@@ -371,6 +373,11 @@ function hasHow(source: PotentialSource): boolean {
 
   .source__how {
     margin-top: 6px;
+  }
+
+  /* 展開後最後一列到卡片底緣原本只有約 13px，比上方（長條到「怎麼算」約 22px）擠：補到約 28px。 */
+  .source__how :deep(.explainer__body) {
+    padding-bottom: 16px;
   }
 
   .source__assumptions > div {
