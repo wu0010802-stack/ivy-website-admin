@@ -26,7 +26,7 @@ test.beforeAll(async () => {
 })
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：場次使用情況頁籤有最早能約哪天與各時段表，不橫向溢出`, async ({ browser }) => {
+  test(`${name}px：場次使用情況頁籤顯示最早能約哪天與各時段兩個區塊和總結句，不橫向溢出`, async ({ browser }) => {
     const { context, page } = await openAs(browser, 'super_admin', device)
     await gotoAdmin(page, USAGE_PATH, '參觀場次')
     await expect(page.getByRole('tab', { name: '場次使用情況', selected: true })).toBeVisible()
