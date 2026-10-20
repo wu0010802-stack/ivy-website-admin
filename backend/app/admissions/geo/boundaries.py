@@ -86,3 +86,41 @@ def village_centroids() -> dict[str, tuple[float, float]]:
         if total > 0:
             centroids[feature["properties"]["VILLCODE"]] = (lat / total, lng / total)
     return centroids
+
+
+@lru_cache(maxsize=1)
+def _village_shapes() -> tuple[tuple[str, tuple[float, float, float, float], tuple], ...]:
+    """每個里 (代碼, 外框 (最小經, 最小緯, 最大經, 最大緯), 多邊形們)；多邊形是 [外環, 洞, …]。"""
+    shapes = []
+    for feature in json.loads(boundary_bytes())["features"]:
+        geometry = feature["geometry"]
+        polygons = [geometry["coordinates"]] if geometry["type"] == "Polygon" else geometry["coordinates"]
+        points = [point for polygon in polygons for ring in polygon for point in ring]
+        xs, ys = [point[0] for point in points], [point[1] for point in points]
+        shapes.append((feature["properties"]["VILLCODE"], (min(xs), min(ys), max(xs), max(ys)), tuple(polygons)))
+    return tuple(shapes)
+
+
+def _in_ring(lng: float, lat: float, ring: list[list[float]]) -> bool:
+    """射線法：點在環內（邊上不保證）。"""
+    inside = False
+    previous = len(ring) - 1
+    for index in range(len(ring)):
+        x1, y1 = ring[index][0], ring[index][1]
+        x2, y2 = ring[previous][0], ring[previous][1]
+        if (y1 > lat) != (y2 > lat) and lng < (x2 - x1) * (lat - y1) / (y2 - y1) + x1:
+            inside = not inside
+        previous = index
+    return inside
+
+
+def village_at(lng: float, lat: float) -> str | None:
+    """經緯度落在哪個里 → 里代碼；不在任何里界內（海上、外縣市）回 None。座標剛好在兩個里的邊上時取檔案裡先出現的。
+    預售建案的地號座標（國土測繪中心）靠這個點入里（2026-10-20 預售建案規格 P5）。"""
+    for code, (min_x, min_y, max_x, max_y), polygons in _village_shapes():
+        if not (min_x <= lng <= max_x and min_y <= lat <= max_y):
+            continue
+        for polygon in polygons:
+            if _in_ring(lng, lat, polygon[0]) and not any(_in_ring(lng, lat, hole) for hole in polygon[1:]):
+                return code
+    return None

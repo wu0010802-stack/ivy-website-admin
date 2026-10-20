@@ -121,3 +121,44 @@ def test_same_name_in_two_districts_is_not_a_duplicate(fake_boundaries):
     assert village_code("三民區", "中正里") == "64000050001"
     assert village_code("鼓山區", "中正里") == "64000020001"
     assert village_code("左營區", "中正里") is None
+
+
+def test_village_at_finds_the_village_a_point_falls_in():
+    """經緯度 → 里代碼（預售建案的地號座標點入里，2026-10-20 規格 P5）：義華校址的門牌座標在三民區本揚里。"""
+    from tests.geo_helpers import YIHUA_POINT
+
+    code = boundaries.village_at(YIHUA_POINT[1], YIHUA_POINT[0])
+    assert code == village_code("三民區", "本揚里")
+    assert boundaries.village_names()[code] == ("三民區", "本揚里")
+
+
+def test_village_at_returns_none_outside_every_village():
+    assert boundaries.village_at(119.0, 22.0) is None  # 海上
+    assert boundaries.village_at(0.0, 0.0) is None
+    assert boundaries.village_at(121.5, 25.0) is None  # 台北
+
+
+def test_village_at_respects_holes_and_multipolygons(fake_boundaries):
+    outer = [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]
+    hole = [[4, 4], [6, 4], [6, 6], [4, 6], [4, 4]]
+    far = [[20, 0], [22, 0], [22, 2], [20, 2], [20, 0]]
+    data = json.dumps(
+        {
+            "type": "FeatureCollection",
+            "features": [
+                {"type": "Feature", "properties": {"TOWNNAME": "甲區", "VILLNAME": "環里", "VILLCODE": "1"},
+                 "geometry": {"type": "Polygon", "coordinates": [outer, hole]}},
+                {"type": "Feature", "properties": {"TOWNNAME": "甲區", "VILLNAME": "洞里", "VILLCODE": "2"},
+                 "geometry": {"type": "MultiPolygon", "coordinates": [[hole], [far]]}},
+            ],
+        }
+    ).encode()
+    fake_boundaries(data)
+    boundaries._village_shapes.cache_clear()
+    try:
+        assert boundaries.village_at(1, 1) == "1"
+        assert boundaries.village_at(5, 5) == "2"  # 外環的洞，剛好是另一個里
+        assert boundaries.village_at(21, 1) == "2"  # 多塊的另一塊
+        assert boundaries.village_at(15, 5) is None
+    finally:
+        boundaries._village_shapes.cache_clear()
