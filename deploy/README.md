@@ -22,6 +22,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `fa6759d6494675f566aacb6da8ff2b45df737864`，snapshot `7a3dc334…`，created `2026-10-20T15:51:02Z`。`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空。
 - **未驗證**：真機 iPhone／Android 上滑到孩子的一天停下時的換手畫面。
 
+## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（main CI 部署，沒有 migration）
+
+- **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`8f5a7a0c..7f5cba03`，fast-forward、沒有開 PR）。分支 `feature/brighten-20261020`（從 `87ec0d95` 開發、rebase 到 `8f5a7a0c`，README／DESIGN.md 頂部和首屏調亮、招生第二三波的段落並列）。內容見 README 與 DESIGN.md 同日「官網調亮第一層」：孩子的一天常駐紗減半、開場大標那一屏另疊一層並跟 `--word-fade` 淡掉、底部說明字帶加深；頁尾淡綠底＋深綠字；浮動膠囊米白毛玻璃；`--ivy-forest-mist` 提彩。只改 CSS 與 `DayExperience.vue` 一行（`--word-fade` 改寫在 section 上）。沒有 migration、沒有新環境變數、依賴檔沒有變動。
+- **回退**：直接切回上一版映像即可（純前端樣式）。
+- **推送前閘門**（本機，Node 22）：rebase 後 web typecheck 0 錯 0 警告、vitest 108 檔 1,321 passed；e2e 公開站 6 支打 dev server（fixture）54 passed、8 failed，失敗只有 `public-site.spec.ts` 的 booking-config 與 robots/sitemap 兩項 × 4 個寬度，未改動的 dev server 上同樣失敗；孩子的一天抽 12 幀量白字對比，1440／1280／1024／390 每一項都不低於舊版。只改公開站樣式，本機 stack e2e 沒跑。
+- **CI**：main run 39402735887（`7f5cba03`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `7f5cba030ce857bfbf9f34df4c1b2c5abe3ed4e3`，snapshot `055b22d5…`，created `2026-10-20T09:53:26Z`。
+- **線上唯讀檢查**（攔掉遙測）：`/api/website/v1/health` 回 200；首頁 1440 與 390 實際生效值都對：`.day-film-shade` `.34／.18 42%／.36`、`::before` `.39／.2 42%／.48`、頁尾底 `oklch(.92 .038 150)`＋字 `oklch(.37 .057 157)`、膠囊 `oklch(.99 .008 95 / .9)`、`--ivy-forest-mist` `oklch(90% .04 152)`。首頁逐屏平均 L*（含同日首屏影片調亮）：桌機 61.2 → 70.2、手機 62.5 → 75.5；暗部（L* < 35）桌機 23.9% → 8.4%、手機 27.4% → 9.0%。
+- **注意**：同日上線前，比對截圖（`shoot`／`shoot-sim`／`probe` 腳本）在正式首頁跑了約 9 次沒攔遙測，10-20 的首頁瀏覽數會多出這幾筆。
+- **未驗證**：Safari、Firefox、iOS 實機；/about 與預約頁只在 dev server 上看過。
+- **後續**：之後 main 又部署了效能整理與手機拍立得修正（到 `fa6759d6`）；10-21 確認 main 上的紗、開場層、頁尾、膠囊、薄荷色與 `--word-fade` 寫在 section 上都還在，沒有被覆蓋。
+
 ## 2026-10-20 招生潛力第二、三波：停辦釋出、現有的里、新建案（main CI 部署，沒有 migration）
 
 - **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`3358c0a0..8f5a7a0c`，fast-forward、沒有開 PR；第一次推送因另一個 session 剛推部署紀錄被拒，rebase 後重推）。分支 `feature/admissions-potential2-20261020` 33 個提交：停辦回補檔延伸到 2022-08（`kindergarten-closures-20261020.csv`，94 筆；移除 10-15 檔）、同步時補寫回補停辦事件、異動保留 24 → 72 個月、`backend/app/admissions/potential.py` 三個來源、`GET /admin/admissions/potential` 多 `potential`、後台卡片／來源表／停辦標記。規格 §11。沒有 migration、沒有新環境變數，沒有先備份（只新增停辦園所列與事件，不改寫既有資料）。
