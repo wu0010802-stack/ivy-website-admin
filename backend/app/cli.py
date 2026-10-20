@@ -576,7 +576,9 @@ def geo_sync_options(args: list[str]) -> dict:
     """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
     --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
-    統計月份。--income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
+    統計月份。--september-file 同樣可以給好幾次，是回補每年九月底的各里人口（2026-10-20 招生潛力規格 §3.2），
+    只收統計月份是九月的檔（其他月份整批不匯入、exit 1），只寫九月底人口表。
+    --income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
     比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
     （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--presale-file 是實價登錄的高雄市預售屋建案備查檔
     （e_lvr_buildcase.csv），版本月份取檔名（「115-10」）或今天；--presale-parcels-file 是本機腳本
@@ -597,7 +599,8 @@ def geo_sync_options(args: list[str]) -> dict:
         "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
         "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
         "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
-        "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] [--bundle <ZIP>]"
+        "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] "
+        "[--september-file <JSON> ...] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
@@ -605,7 +608,7 @@ def geo_sync_options(args: list[str]) -> dict:
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
-        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None,
+        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
               "--kindergartens-file": "kindergartens_file",
@@ -617,7 +620,8 @@ def geo_sync_options(args: list[str]) -> dict:
               "--kindergarten-evaluations-file": "kindergarten_evaluations_file"}
     texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
     repeated = {"--population-file": "population_files", "--births-file": "births_files",
-                "--migration-file": "migration_files", "--new-homes-file": "new_homes_files"}
+                "--migration-file": "migration_files", "--new-homes-file": "new_homes_files",
+                "--september-file": "september_files"}
     lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
     index = 0
     while index < len(args):
@@ -719,7 +723,8 @@ async def geo_sync_command(**options) -> None:
     )
     print(
         f"新成屋：{result.new_homes}（最新 {result.new_homes_version or '尚未匯入'}，這次寫入 {result.new_homes_seasons} 季，"
-        f"重比 {result.new_homes_rematched} 筆）"
+        f"重比 {result.new_homes_rematched} 筆）；"
+        f"九月底人口：{result.september}（這次寫入 {result.september_years} 年）"
     )
     print(
         f"預售建案：{result.presale_buildcases}（使用中 {result.presale_buildcases_version or '尚未匯入'}，這次寫入 {result.presale_cases} 案，"

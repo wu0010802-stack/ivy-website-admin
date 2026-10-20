@@ -95,6 +95,7 @@ from app.admissions.geo import population as population_io
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo import presale_parcels as parcels_io
 from app.admissions.geo import providers
+from app.admissions.geo import september as september_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
@@ -332,6 +333,9 @@ class GeoSyncResult:
     kindergarten_evaluations: str = "skipped"
     kindergarten_evaluation_rows: int = 0
     kindergarten_evaluations_version: str | None = None
+    # 九月底人口（2026-10-20，--september-file）：結果、這一輪寫入的年數。
+    september: str = "skipped"
+    september_years: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -1218,22 +1222,52 @@ async def _write_population(
     *,
     now: datetime,
 ) -> None:
-    """換上使用中的月份，同一個交易也把這個月寫進年齡歷史（2026-10-14 規格 §4.2）。"""
+    """換上使用中的月份，同一個交易也把這個月寫進年齡歷史（2026-10-14 規格 §4.2）；
+    是九月底的話也寫進九月底人口（2026-10-20 規格 §3.2，prune 不動它）。"""
     ages = series_io.collect(series_io.AGES, pages)
+    # 九月底人口連里界檔沒有的代碼也存（population_io.collect 的 keep_unknown）。
+    september = population_io.collect(pages, keep_unknown=True) if september_io.is_september(batch.label) else None
     async with session_factory() as db:
         await population_io.replace_population(db, batch, synced_at=now)
         await series_io.replace_month(db, series_io.AGES, ages)
         await series_io.prune(db, series_io.AGES, batch.label)
+        if september is not None:
+            await september_io.upsert_september(db, september_io.year_of(september.label), september.rows)
         await db.commit()
 
 
 async def _write_age_history(session_factory: async_sessionmaker[AsyncSession], pages: list[list[dict]]) -> str:
-    """只寫進年齡歷史（不動使用中的人口）；回傳寫入的月份。"""
+    """只寫進年齡歷史（不動使用中的人口）；回傳寫入的月份。是九月底的話同一個交易也寫進九月底人口。"""
     ages = series_io.collect(series_io.AGES, pages)
+    september = population_io.collect(pages, keep_unknown=True) if september_io.is_september(ages.label) else None
     async with session_factory() as db:
         await series_io.replace_month(db, series_io.AGES, ages)
+        if september is not None:
+            await september_io.upsert_september(db, september_io.year_of(september.label), september.rows)
         await db.commit()
     return ages.label
+
+
+async def sync_september_files(session_factory: async_sessionmaker[AsyncSession], files: list[Path]) -> list[int]:
+    """--september-file（2026-10-20 規格 §3.2）：把每年九月底的 ODRP014 回應（一頁一檔）寫進九月底人口，回傳寫入的
+    民國年。只寫這一張表，不動使用中的人口與年齡歷史。檔案的統計月份只收九月，其他月份、查無資料、不是 JSON
+    都 SystemExit，而且全部檢查完才寫（不會只匯入一部分）。"""
+    try:
+        grouped = await asyncio.to_thread(_population_file_pages, files)
+        if not grouped:
+            raise GeoSyncError("九月底人口檔裡沒有高雄市的資料")
+        not_september = sorted(label for label in grouped if not september_io.is_september(label))
+        if not_september:
+            raise GeoSyncError(f"--september-file 只收九月底的人口，收到 {'、'.join(not_september)}")
+        batches = {label: population_io.collect(grouped[label], keep_unknown=True) for label in sorted(grouped)}
+    except (GeoSyncError, ValueError, OSError) as exc:
+        raise SystemExit(f"九月底人口檔不匯入：{_error_text(exc)}") from exc
+    async with session_factory() as db:
+        for label, batch in batches.items():
+            written = await september_io.upsert_september(db, september_io.year_of(label), batch.rows)
+            logger.info("九月底人口已更新：%s，%s 個里", label, written)
+        await db.commit()
+    return [september_io.year_of(label) for label in batches]
 
 
 async def sync_population(
@@ -1847,6 +1881,7 @@ async def run_geo_sync(
     presale_parcels_file: Path | None = None,
     kindergarten_penalties_file: Path | None = None,
     kindergarten_evaluations_file: Path | None = None,
+    september_files: list[Path] | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     if (kindergartens_file is None) != (kindergartens_registry_file is None):
@@ -1858,6 +1893,7 @@ async def run_geo_sync(
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
             or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
             or kindergarten_penalties_file is not None or kindergarten_evaluations_file is not None
+            or bool(september_files)
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1946,6 +1982,10 @@ async def run_geo_sync(
                     session_factory, "population", POPULATION_TIME_BUDGET, now=now,
                     work=_paired(sync_age_history(session_factory, network, now=now)),
                 )
+            september, september_years = "skipped", 0
+            if september_files:
+                september_years = len(await sync_september_files(session_factory, september_files))
+                september = "updated"
             income, income_skipped = await _within_budget(
                 session_factory, "income", INCOME_TIME_BUDGET, now=now,
                 work=sync_income(session_factory, network, now=now, force=force, file=income_file, file_year=income_year),
@@ -2037,4 +2077,6 @@ async def run_geo_sync(
             kindergarten_evaluations_version=(
                 evaluations_status.label if evaluations_status and evaluations_status.active_version else None
             ),
+            september=september,
+            september_years=september_years,
         )

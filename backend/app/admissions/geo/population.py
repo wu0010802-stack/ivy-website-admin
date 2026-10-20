@@ -36,6 +36,8 @@ _KEEP_FIELDS = (
     *(f"people_age_{age:03d}_{sex}" for age in AGES for sex in "mf"),
 )
 SOURCE_NOTE = "資料來源：內政部戶政司 村里戶數、單一年齡人口"
+# U+FEFF（BOM）：API 在部分月份（例如 10809）把它放在每列第一個鍵 statistic_yyymm 前面，不剝掉鍵就對不上。
+BOM = chr(0xFEFF)
 _MONTH = re.compile(r"([0-9]{3})(0[1-9]|1[0-2])")
 # 只認 ASCII 數字：str.isdigit() 會放行「²」這類字，int() 卻轉不了。
 _COUNT = re.compile(r"[0-9]+")
@@ -94,9 +96,17 @@ def response_rows(data: object) -> list[dict] | None:
     return rows
 
 
+def strip_bom_keys(obj: dict) -> dict:
+    """鍵開頭的 BOM 剝掉（沒有就原物件回傳）；village_series.parse_page 的 object_hook 也用。"""
+    if not any(key.startswith(BOM) for key in obj):
+        return obj
+    return {key.lstrip(BOM): value for key, value in obj.items()}
+
+
 def _slim_row(obj: dict) -> dict | None:
     """json.loads 的 object_hook：每個 JSON 物件一解析出來就經過這裡。資料列（有 district_code）不是高雄市的
-    回 None、是高雄的只留用得到的欄位；其他物件（整頁的外層）原樣回傳。"""
+    回 None、是高雄的只留用得到的欄位；其他物件（整頁的外層）原樣回傳。鍵開頭的 BOM 先剝掉。"""
+    obj = strip_bom_keys(obj)
     if "district_code" not in obj:
         return obj
     if not str(obj["district_code"]).startswith(KAOHSIUNG_PREFIX):
@@ -132,13 +142,16 @@ def _count(row: dict, key: str) -> int:
     return int(value)
 
 
-def collect(pages: list[list[dict]]) -> PopulationBatch:
+def collect(pages: list[list[dict]], *, keep_unknown: bool = False) -> PopulationBatch:
     """把各頁的資料列篩成高雄市、驗證後組成一批（規格 §4 的驗證）。
 
     - 每一列的 statistic_yyymm 要一樣（同一個月份；經 parse_page 解析的頁只剩高雄的列，就只比高雄的列）；
     - 只留 district_code 以 64000 開頭的列，代碼不在里界檔的略過並計數；
     - 各歲與全里人口要是非負整數，同一個代碼不能出現兩次；
-    - 對到的里至少 MIN_VILLAGES 個。"""
+    - 對到的里至少 MIN_VILLAGES 個。
+    keep_unknown（九月底人口用，2026-10-20）：代碼不在里界檔的高雄列也照存、不計入 skipped，下限改看所有高雄列。
+    107、108 年的資料把三民、鳳山分成「三民一／三民二／鳳山一／鳳山二」，約 160 個里的代碼和現行里界檔不同
+    （2026-10-20 實測 10709、10809 只對得到 718 個），略過就會丟掉這些里的孩子。"""
     known = boundaries.village_codes()
     months: set[str] = set()
     batch_rows: dict[str, PopulationRow] = {}
@@ -151,7 +164,7 @@ def collect(pages: list[list[dict]]) -> PopulationBatch:
             code = str(row.get("district_code", ""))
             if not code.startswith(KAOHSIUNG_PREFIX):
                 continue
-            if code not in known:
+            if code not in known and not keep_unknown:
                 skipped += 1
                 continue
             if code in batch_rows:

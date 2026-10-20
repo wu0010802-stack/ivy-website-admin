@@ -143,6 +143,7 @@ def parse_page(series: Series, text: str) -> object:
     keep = (*_ID_KEYS, *series.source_keys)
 
     def slim(obj: dict) -> dict | None:
+        obj = population_io.strip_bom_keys(obj)
         if "district_code" not in obj:
             return obj
         if not str(obj["district_code"]).startswith(population_io.KAOHSIUNG_PREFIX):

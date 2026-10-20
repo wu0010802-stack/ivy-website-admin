@@ -306,7 +306,7 @@ def test_cli_options_with_files():
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
-        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None,
+        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None,
     }
     assert geo_sync_options(["--force"])["force"] is True
     assert geo_sync_options(["--doorplates-file", str(csv), "--doorplates-version", "115-10"])["doorplates_version"] == "115-10"
@@ -470,7 +470,7 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
             "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
             "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
             "presale_buildcases_file": None, "presale_parcels_file": None,
-            "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None,
+            "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None,
         }
     ]
 

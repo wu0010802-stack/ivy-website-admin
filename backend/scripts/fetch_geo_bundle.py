@@ -1,7 +1,7 @@
 """在台灣的電腦抓齊公開資料、打包成一個 zip（2026-10-14 里的變化規格 §4.6），給正式站連不到來源時用。
 
 照同步的規則抓：各里出生（ODRP061，往回 72 個月）、遷入遷出（ODRP011，往回 25 個月）各抓最新月份往回的視窗（來源查無資料的月份跳過），
-各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
+各里人口（ODRP014）最新月份與一年前、另加 107 年起每年九月底（ODRP014 最早只有 107-01），全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
 高雄市買賣季檔）最新季往回 8 季；預售建案（實價登錄預售屋建案備查單檔）一個；地號座標（--presale-parcels 指定本機腳本
 fetch_presale_parcels.py 的輸出，沒指定就不附）。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），出生抓 72 個月，要幾分鐘；實際大小打包時看 zip。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
@@ -33,6 +33,7 @@ from app.admissions.geo import penalties as penalties_io  # noqa: E402
 from app.admissions.geo import population as population_io  # noqa: E402
 from app.admissions.geo import presale as presale_io  # noqa: E402
 from app.admissions.geo import presale_parcels as parcels_io  # noqa: E402
+from app.admissions.geo import september as september_io  # noqa: E402
 from app.admissions.geo import sync  # noqa: E402
 from app.admissions.geo import village_series as series_io  # noqa: E402
 from app.admissions.geo.bundle import BundleFile, write_bundle  # noqa: E402
@@ -97,11 +98,13 @@ async def _collect_public(files: list[BundleFile], presale_parcels: Path | None)
                     files.append(BundleFile(f"{kind}-{yyymm}-{index}.json", kind, label, url_of(yyymm, index), content))
                 print(f"{series.name} {label}：{len(pages)} 頁")
         population_latest = await _latest(client, population_io.page_url, "各里人口")
+        population_pages: dict[str, list[bytes]] = {}
         for yyymm in (population_latest, series_io.yyymm_of(series_io.shift(series_io.label_of(population_latest), -12))):
             pages = await _month_pages(client, population_io.page_url, yyymm, "各里人口")
             if pages is None:
                 print(f"各里人口 {yyymm}：來源查無資料，跳過")
                 continue
+            population_pages[yyymm] = pages
             for index, content in enumerate(pages, start=1):
                 files.append(
                     BundleFile(
@@ -110,6 +113,20 @@ async def _collect_public(files: list[BundleFile], presale_parcels: Path | None)
                     )
                 )
             print(f"各里人口 {series_io.label_of(yyymm)}：{len(pages)} 頁")
+        # 每年九月底的各里人口（107 年起）：和上面已抓的月份重複的不再下載。
+        for yyymm in september_io.september_months(population_latest):
+            pages = population_pages.get(yyymm) or await _month_pages(client, population_io.page_url, yyymm, "九月底人口")
+            if pages is None:
+                print(f"九月底人口 {yyymm}：來源查無資料，跳過")
+                continue
+            for index, content in enumerate(pages, start=1):
+                files.append(
+                    BundleFile(
+                        f"september-{yyymm}-{index}.json", "september", series_io.label_of(yyymm),
+                        population_io.page_url(yyymm, index), content,
+                    )
+                )
+            print(f"九月底人口 {series_io.label_of(yyymm)}：{len(pages)} 頁")
         # 各里所得：同步的同一條路（data.gov.tw 找最新年度，讀不到就直接試財政資訊中心；連線被 reset 會重試）。
         found = await sync._discover_income(client, None, force=False)
         if found is None:  # pragma: no cover - active 是 None 時找不到會丟錯
@@ -200,7 +217,7 @@ async def build(out: Path | None, presale_parcels: Path | None = None, kindergar
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="抓齊各里出生、遷入遷出、人口、所得、新成屋、預售建案、幼兒園裁罰與評鑑，打包給 geo-sync --bundle"
+        description="抓齊各里出生、遷入遷出、人口、九月底人口、所得、新成屋、預售建案、幼兒園裁罰與評鑑，打包給 geo-sync --bundle"
     )
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
     parser.add_argument(
