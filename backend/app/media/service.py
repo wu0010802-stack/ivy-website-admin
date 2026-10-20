@@ -160,6 +160,20 @@ def s3_storage(settings: Settings) -> S3MediaStorage:
     )
 
 
+# media_assets.original_filename 是 String(255)：瀏覽器送來的檔名沒有長度限制，太長的直接寫入
+# 會在 flush 時變成 500。截到 255 字，保留副檔名，後台才看得出是什麼檔。
+FILENAME_MAX = 255
+
+
+def stored_filename(name: str) -> str:
+    if len(name) <= FILENAME_MAX:
+        return name
+    stem, dot, ext = name.rpartition(".")
+    if dot and stem and len(ext) < 16:
+        return stem[: FILENAME_MAX - len(ext) - 1] + "." + ext
+    return name[:FILENAME_MAX]
+
+
 def file_sha256(path: Path) -> str:
     """逐塊算，不把影片整份讀進記憶體。"""
     digest = hashlib.sha256()
@@ -268,7 +282,7 @@ async def create_media_asset(
             kind=declared_kind,
             status=MediaStatus.PROCESSING,
             storage_key=storage_key,
-            original_filename=original_filename,
+            original_filename=stored_filename(original_filename),
             content_type=content_type,
             size_bytes=size_bytes,
             sha256=sha256,

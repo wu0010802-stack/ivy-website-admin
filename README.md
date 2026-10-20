@@ -1,3 +1,18 @@
+## 2026-10-20 全專案 bug 與資安掃描：11 項修正（`feature/security-audit-fixes`）
+
+使用者要求「掃描專案的 bugs 以及資安」並全部處理。對 `95542b5` 分四路唯讀盤查（後端資安、後端正確性、web／admin、相依套件與部署）：沒有可直接利用的 Critical／High 漏洞，git 歷史（shallow，50 個 commit）沒有外洩密鑰，`pip-audit` 執行期套件 0 項。修正如下，每項都補了「修正前失敗、修正後通過」的回歸測試（切片測試只寫在後端與 web）。
+
+- **招生**：提早到場清掉未來場次、事後才補建的招生訪視，參觀日期改用最後一筆 `completed` 歷程的台北日期，不再是補建當天（`admissions/booking_link.py`）。`tour_guide_user_id` 只接受這個校區啟用中的帳號，別校或停用帳號一律回 `TOUR_GUIDE_INVALID`，不回對方的顯示名稱（`admissions/records.py`）。
+- **預約**：人工補登連點兩次、剛好搶最後一個名額時，拿到時段鎖後再查一次重播，回原收據而不是 `SLOT_FULL`（`booking/service.py`）。停課通知發連結前先鎖案件列重讀狀態，同時被家長取消的案件不再拿到新的修改連結（`booking/closure_service.py`）。
+- **排程發布**：一筆排程丟出非預期例外時回滾、標成 failed（`UNEXPECTED_ERROR`，照常通知排程的人），後面到期的排程照樣發布，不會每輪卡在第一筆（`content/publish_jobs.py`）。
+- **素材**：檔名超過 255 字截斷（保留副檔名），不再 500（`media/service.py`）。
+- **帳號**：CSRF token 改用 `hmac.compare_digest`。用重設連結設定新密碼時，比照停權一併解除 LINE／Google 綁定，稽核多記 `line_unlinked`／`google_unlinked`（後台自己改密碼不動綁定）。
+- **部署**：`deploy/api-start.py` 要求 `WEBSITE_ENVIRONMENT` 必須是 `production`（原本只檢查有沒有設，誤設 development 會少 Secure cookie、開 `/docs`）。
+- **web**：分校社群連結（FB／LINE／IG／YouTube）在 overlay 套 `safeWebUrl`，即時預覽的草稿不經後端驗證，`javascript:` 不會被綁進 href。
+- **相依套件**：web 以 `overrides` 拉高 `shell-quote` 1.12.0（Critical）、`source-map-js` 1.2.2、`serialize-javascript` 7.1.2；admin `npm audit fix` 後 0 項。內建 npm 10.9.4 的 `npm audit fix`／`npm update` 會在 peer set 當掉（`edgesOut`），npm 11 產生的 lockfile 又讓 npm 10 的 `npm ci` 報缺 `unplugin@3.4.0`，所以只用 npm 10 能處理的末端套件 overrides。**仍未修**：`simple-git`（Critical，`@nuxt/devtools` 3.4.2 帶進來，3.4.4 已拿掉，但升 devtools 會碰上同一個 npm 10 錯誤）、`braces`、`node-forge`（上游沒有修正版）；三者都只在 `nuxt dev`／建置時用，正式映像只複製 `.output`。
+- **沒做**：公開頁 CSP 沒有 `script-src`、後台與公開站同源（`web/server/utils/security-headers.ts` 註解已記）。要改成後台與 API 換獨立子網域，或公開站改用 nonce CSP，牽涉 Railway 網域與全站 inline script，另案處理。限流信任 `x-website-client-ip`，api 服務要維持沒有公開網域。
+- **驗證**（Node 22.22、npm 10.9.4、本機 PostgreSQL 16）：web `typecheck` 通過、`test:unit` 108 檔 1321 passed；admin `test:unit` 3097 passed、1 項逾時（`admissionsView.test.ts` (h)，與 web 測試同時跑時 5.2 秒超過 5 秒上限，單獨重跑 21 passed）；後端受影響的 18 檔 280 項＋新增測試全過，新增的 7 個回歸測試在舊程式碼上都失敗；`deploy/tests` 22 passed；`npm ci` 用新 lockfile 可安裝。後端全套見下一個 commit。
+
 ## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（`feature/brighten-20261020`）
 
 使用者覺得諾貝爾幼兒園官網比較明亮，看過比對與模擬後要求調亮。這次只拿掉不需要的暗面、版面不動；首屏影片調色另外上線（見同日「首屏影片調亮」一節），配色加入鮮豔色未做。規則與數字見 DESIGN.md「官網調亮第一層」。

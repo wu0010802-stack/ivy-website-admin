@@ -215,6 +215,24 @@ describe('applyLiveDraft：只蓋掉這一項內容', () => {
   })
 })
 
+describe('即時預覽的分校社群連結（2026-10-20 稽核）', () => {
+  it('草稿不經後端驗證：javascript:／data: 之類的社群網址不綁進 href，https 照常', () => {
+    const live = applyLiveDraft({}, {
+      kind: 'campus_profile', campusKey: 'yihua',
+      payload: {
+        name: '義華校（草稿）', district: '左營區', address: '高雄市左營區', phone: '07-0000000',
+        facebook: 'javascript:alert(1)', line: ' JaVaScRiPt:alert(1)', instagram: 'data:text/html,x', youtube: 'https://www.youtube.com/@ivy'
+      }
+    })
+    const yihua = previewOverlay(site, live, '2026-10-06').content.campuses.find((c) => c.key === 'yihua')!
+    expect(yihua.name).toBe('義華校（草稿）')
+    expect(yihua.facebook).toBe('')
+    expect(yihua.line).toBeNull()
+    expect(yihua.instagram).toBeNull()
+    expect(yihua.youtube).toBe('https://www.youtube.com/@ivy')
+  })
+})
+
 describe('createLiveReceiver', () => {
   function setup() {
     const parent = { postMessage: vi.fn() }

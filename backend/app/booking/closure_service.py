@@ -14,9 +14,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.booking import access_service, history, schedule_service, slot_service
+from app.booking import access_service, history, schedule_service, slot_service, workflow_service
 from app.booking.history import Actor
-from app.booking.models import OutboxMessage, VisitException, VisitRequest, VisitSlot
+from app.booking.models import OutboxMessage, VisitException, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import day_closed_dedupe_key, enqueue_day_closed_email
 
 CLOSURE_NOTICE_EVENT = "closure_notice"
@@ -112,6 +112,12 @@ async def close_day(
             continue
         if dry_run:
             out.notified += 1
+            continue
+        # 上面讀到的狀態沒上鎖：家長正好同時取消的話，取消會撤銷連結並先提交，這裡再發
+        # 連結就會讓已結案的案件留著一條有效的修改連結。鎖住案件列重讀，已不是已確認就跳過
+        # （visits 依 id 排序，鎖的順序固定）。
+        await workflow_service.lock_status(db, visit)
+        if visit.status != VisitRequestStatus.CONFIRMED.value:
             continue
         if not await enqueue_day_closed_email(db, visit, day=day, reason=reason):
             out.already_notified += 1

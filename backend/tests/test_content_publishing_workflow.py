@@ -668,3 +668,35 @@ async def test_failed_schedule_resolved_once_site_changes_version(admin_client, 
     listed = (await admin_client.get(f"{NEWS}/schedules{Q}")).json()
     assert listed[0]["status"] == "failed" and listed[0]["resolved"] is True
     assert (await admin_client.get(f"{API}/admin/dashboard")).json()["failed_publish_jobs"] == []
+
+
+@pytest.mark.asyncio
+async def test_unexpected_error_fails_that_job_and_does_not_block_the_next(admin_client, db_session, monkeypatch):
+    """2026-10-20 稽核：一筆排程丟出非預期例外時標成 failed，後面到期的排程照樣發布，不會每輪卡在第一筆。"""
+    from app.content import publish_jobs
+
+    news = await _draft(admin_client, q="會出錯的消息")
+    await _schedule(admin_client, news["id"])
+    about = await _about_draft(admin_client, 0, "照常上線的關於")
+    await _schedule(admin_client, about["id"], path=ABOUT, query="")
+    await _make_due(db_session)
+    # 讓消息那一筆先跑（publish_at 較早）。
+    await db_session.execute(
+        update(PublishJob).where(PublishJob.revision_id == uuid.UUID(news["id"])).values(publish_at=datetime.now(timezone.utc) - timedelta(hours=2))
+    )
+    await db_session.commit()
+
+    original = publish_jobs.check_publishable
+
+    async def broken(db, item, revision):
+        if revision.id == uuid.UUID(news["id"]):
+            raise KeyError("payload")
+        return await original(db, item, revision)
+
+    monkeypatch.setattr(publish_jobs, "check_publishable", broken)
+    assert await run_due_jobs(db_session) == {"published": 1, "failed": 1, "skipped": 0}
+    jobs = (await db_session.execute(select(PublishJob).execution_options(populate_existing=True))).scalars().all()
+    by_revision = {str(job.revision_id): job for job in jobs}
+    assert by_revision[news["id"]].status == "failed"
+    assert "UNEXPECTED_ERROR" in by_revision[news["id"]].error
+    assert by_revision[about["id"]].status == "done"

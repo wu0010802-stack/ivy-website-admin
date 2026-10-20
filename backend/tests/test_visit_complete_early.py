@@ -254,3 +254,26 @@ async def test_visited_on_is_the_taipei_day_of_the_last_completed_event(admin_cl
     [row] = [r for r in response.json() if r["id"] == case_id]
     assert row["slot"] is None
     assert row["visited_on"] == "2026-10-13"
+
+
+@pytest.mark.asyncio
+async def test_backfilled_recruitment_visit_uses_the_arrival_day_not_today(admin_client, db_session):
+    """2026-10-20 稽核：提早到場清掉了未來場次，招生開關晚點才開、事後補建的訪視，參觀日期是到場那天
+    （最後一筆 completed 歷程的台北日期），不是補建當天。"""
+    slot = await _slot(admin_client, days_ahead=3)
+    case_id = await _case(admin_client, "early-backfill", slot_id=slot["id"])
+    assert (await admin_client.post(f"{BASE}/visit-requests/{case_id}/complete-early")).status_code == 200
+
+    # 模擬當時招生開關關著：沒有招生訪視，到場是台北 2026-10-13 00:30。
+    await db_session.execute(RecruitmentVisit.__table__.delete().where(RecruitmentVisit.visit_request_id == uuid.UUID(case_id)))
+    arrived = datetime(2026, 10, 13, 0, 30, tzinfo=OPERATING_TZ)
+    await db_session.execute(
+        update(VisitRequestEvent)
+        .where(VisitRequestEvent.visit_request_id == uuid.UUID(case_id), VisitRequestEvent.event_type == "completed")
+        .values(created_at=arrived)
+    )
+    await db_session.commit()
+
+    backfill = await admin_client.post(f"{API}/admin/admissions/from-visit-request/{case_id}")
+    assert backfill.status_code == 200, backfill.text
+    assert (await _recruitment_visit(db_session, case_id)).visit_date == date(2026, 10, 13)

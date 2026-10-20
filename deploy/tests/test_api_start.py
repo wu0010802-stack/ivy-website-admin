@@ -67,7 +67,8 @@ class ApiStartSafetyTests(unittest.TestCase):
 
     def test_refuses_to_start_without_environment(self):
         for env in ({"WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"},
-                    {"WEBSITE_ENVIRONMENT": "  ", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"}):
+                    {"WEBSITE_ENVIRONMENT": "  ", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"},
+                    {"WEBSITE_ENVIRONMENT": "development", "WEBSITE_MEDIA_STORAGE": "s3", "PORT": "8000"}):
             with self.assertRaises(SystemExit) as ctx:
                 self.run_start(env)
             self.assertIn("WEBSITE_ENVIRONMENT", str(ctx.exception))

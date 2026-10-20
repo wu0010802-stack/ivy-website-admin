@@ -135,6 +135,21 @@ async def test_tour_guide_must_exist_and_name_is_snapshotted(admin_client, db_se
 
 
 @pytest.mark.asyncio
+async def test_tour_guide_must_be_active_staff_of_the_campus(admin_client, db_session):
+    """2026-10-20 稽核：別校同事或已停用的帳號不能當帶參觀老師，也不回顯示名稱（同找不到）。"""
+    other = await _create_user(db_session, "guide-other@ivy.example", "guide-other-password-123", Role.RECEPTION, ["minghua"])
+    other.display_name = "別校老師"
+    inactive = await _create_user(db_session, "guide-off@ivy.example", "guide-off-password-123", Role.RECEPTION, ["yihua"])
+    inactive.is_active = False
+    await db_session.commit()
+    for user in (other, inactive):
+        response = await admin_client.post(f"{RECORDS}?campus_key=yihua", json=manual_fields(tour_guide_user_id=str(user.id)))
+        assert response.status_code == 422, response.text
+        assert response.json()["detail"]["code"] == "TOUR_GUIDE_INVALID"
+        assert "別校老師" not in response.text
+
+
+@pytest.mark.asyncio
 async def test_paper_form_fields_round_trip_and_clear(admin_client):
     """2026-10-05 照園方紙本補的欄位：英文名、父母職業（官網延伸），以及畫面新放上來的
     帶參觀老師（只打名字）、來源分類、娃娃車。"""

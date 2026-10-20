@@ -9,9 +9,10 @@ from pathlib import Path
 # This image only runs the production API (deploy/README.md sets
 # WEBSITE_ENVIRONMENT=production). Settings default to "development" when the
 # variable is missing, which silently drops Secure cookies and production checks,
-# so refuse to start instead of migrating or serving in that state.
-if not os.environ.get("WEBSITE_ENVIRONMENT", "").strip():
-    raise SystemExit("WEBSITE_ENVIRONMENT must be set (production) before starting the API.")
+# so refuse to start instead of migrating or serving in that state. A typo'd or
+# non-production value (e.g. "development") is just as unsafe, so require it exactly.
+if os.environ.get("WEBSITE_ENVIRONMENT", "").strip().lower() != "production":
+    raise SystemExit("WEBSITE_ENVIRONMENT must be production before starting the API.")
 
 # WEBSITE_MEDIA_STORAGE=s3 keeps media in object storage, so the API no longer
 # needs (or is tied to) the Railway volume. Local storage still requires it.

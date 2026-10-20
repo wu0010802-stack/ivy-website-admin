@@ -20,10 +20,12 @@ from typing import Literal
 from fastapi import HTTPException, Query, status
 from sqlalchemy import ColumnElement, and_, func, literal_column, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.admissions import academic, constants
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.auth.models import User
+from app.auth.permissions import covers_campus
 from app.common.timezones import today_local
 
 # 篩選選項（來源、家長介紹、帶參觀老師）各列幾個。
@@ -108,14 +110,15 @@ async def _next_seq_no(db: AsyncSession, campus_key: str, month: str) -> str:
     return str(int(current or 0) + 1)
 
 
-async def _resolve_tour_guide(db: AsyncSession, values: dict) -> None:
-    """有帶帳號就確認帳號存在（不存在丟 TourGuideNotFound）。沒給姓名時只用帳號的
-    顯示名稱當快照（截到 LEN_TOUR_GUIDE）；沒設定顯示名稱就是 None，絕不用 Email。"""
+async def _resolve_tour_guide(db: AsyncSession, values: dict, campus_key: str) -> None:
+    """有帶帳號就確認是這個校區啟用中的同事（不存在、已停用或不涵蓋這個校區都丟
+    TourGuideNotFound，不分辨是哪一種，免得拿別校或停用帳號的 UUID 讀出顯示名稱）。
+    沒給姓名時只用帳號的顯示名稱當快照（截到 LEN_TOUR_GUIDE）；沒設定顯示名稱就是 None，絕不用 Email。"""
     user_id = values.get("tour_guide_user_id")
     if user_id is None:
         return
-    user = await db.get(User, user_id)
-    if user is None:
+    user = await db.scalar(select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id))
+    if user is None or not user.is_active or not covers_campus(user, campus_key):
         raise TourGuideNotFound()
     if not values.get("tour_guide_name"):
         # 只用顯示名稱；沒有就留空，不拿同事的 Email 當姓名快照（稽核也不寫 Email）。
@@ -223,7 +226,7 @@ async def create_visit(
     第一次聯絡，follow_up_at 只會是沿用預約的下次聯絡，所以 metadata 的 follow_up 是
     booking（有沿用）或 none。"""
     values = dict(fields)
-    await _resolve_tour_guide(db, values)
+    await _resolve_tour_guide(db, values, campus_key)
     if values.get("target_school_year") is None or values.get("target_semester") is None:
         school_year, semester = academic.current_term(today or today_local())
         if values.get("target_school_year") is None:
@@ -342,7 +345,7 @@ async def update_visit(
     if "withdraw_reason_category" in values and visit.withdrawn_at is None:
         raise NotWithdrawn()
     if values.get("tour_guide_user_id") is not None and values["tour_guide_user_id"] != visit.tour_guide_user_id:
-        await _resolve_tour_guide(db, values)
+        await _resolve_tour_guide(db, values, visit.campus_key)
     changed = [key for key, value in values.items() if getattr(visit, key) != value]
     if not changed:
         return []

@@ -1,5 +1,5 @@
 import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, AdmissionUniformDay, AdmissionSubsidy, AdmissionAllowance, CampusTestimonial, CurriculumPageContent, EnvironmentPageContent, HomeFilm, NewsArticle, NewsBlock, NewsEvent, PageSeoEntry, PageSeoKey, PagePhoto, SiteContent, SocialLink, SocialPlatform, TourScene } from '~/types/site-content'
-import { newsMonth } from './news-content'
+import { newsMonth, safeWebUrl } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
 import { PAGE_SEO_KEYS } from './seo'
@@ -921,12 +921,14 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
           district: profile.district,
           address: profile.address,
           phone: profile.phone,
-          facebook: profile.facebook,
-          line: profile.line || null,
+          // 社群連結直接綁進 href：已存檔的有後端允許清單擋，但即時預覽的草稿（preview-live）不經後端，
+          // 這裡再擋一次，只收 http(s)，和消息、機構社群連結一致。
+          facebook: safeWebUrl(profile.facebook),
+          line: safeWebUrl(profile.line) || null,
           mapUrl: profile.map_url || undefined,
           // 有這欄就以後台為準（空字串＝尚未提供）；舊版本沒有這欄才沿用 fixture
-          instagram: profile.instagram === undefined ? c.instagram : profile.instagram || null,
-          youtube: profile.youtube === undefined ? c.youtube : profile.youtube || null,
+          instagram: profile.instagram === undefined ? c.instagram : safeWebUrl(profile.instagram) || null,
+          youtube: profile.youtube === undefined ? c.youtube : safeWebUrl(profile.youtube) || null,
           // 陣列（含 []）整組取代；null／沒有這欄＝保留 fixture 的內建清單
           ...(Array.isArray(profile.testimonials) ? { testimonials: campusTestimonials(profile.testimonials, builtinPosters, media) } : {}),
           ...campusMedia(c, profile, media)

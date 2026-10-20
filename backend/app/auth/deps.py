@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +46,8 @@ def check_csrf_and_origin(request: Request, session: Session, csrf_header: str |
         origin = request.headers.get("origin")
         if origin is not None and origin != settings.admin_origin:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin 不符")
-    if csrf_header is None or csrf_header != session.csrf_token:
+    # 定時比對；轉 bytes 是因為 compare_digest 收到非 ASCII 的 str 會丟 TypeError。
+    if csrf_header is None or not hmac.compare_digest(csrf_header.encode(), session.csrf_token.encode()):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token 無效")
 
 
