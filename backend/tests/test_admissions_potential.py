@@ -262,6 +262,23 @@ def test_first_window_follows_the_retention_period(today, first_year, start):
     assert details["years"][-1]["school_year"] == school_year_window(today) - 1
 
 
+@pytest.mark.parametrize(
+    ("today", "since_text"),
+    [
+        (date(2026, 10, 20), "2022 年 10 月"),
+        (date(2028, 10, 1), "2022 年 10 月"),
+        (date(2028, 10, 2), "2023 年 10 月"),  # 保留期把 2022-10 的窗口切掉一角，第一個完整窗口往後一年
+        (date(2029, 10, 2), "2024 年 10 月"),
+    ],
+)
+def test_how_to_read_it_names_the_first_window_not_a_fixed_date(today, since_text):
+    """「怎麼看這個數字」的起點跟著 first_window_start 走，不寫死 2022 年 10 月（保留期 72 個月，起點會往後移）。"""
+    rows = {item["label"]: item["value"] for item in potential._closure_assumptions(today, None)}
+
+    assert rows["怎麼看這個數字"] == f"{since_text}以來各學年的平均，不是預測下一所會停辦"
+    assert f"{first_window_start(today).year} 年 {first_window_start(today).month} 月" == since_text
+
+
 def test_events_before_the_first_window_are_outside_windows():
     # 2029-10-01：保留期只剩 2023-10-01 起，111 學年的事件（理論上已被清掉）不能再當完整的一年算
     today = date(2029, 10, 1)

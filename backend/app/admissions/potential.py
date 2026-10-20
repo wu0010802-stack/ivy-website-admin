@@ -760,6 +760,7 @@ def _distance_text() -> str:
 def _closure_assumptions(today: date, details: dict | None) -> list[dict]:
     """來源一的「怎麼算」：參數與出處。details 只在算出數字時給，多列被略過與取中性係數的園所數。"""
     years = _complete_years(today)
+    since = first_window_start(today)  # 事件只保留 72 個月，起點會隨年份往後移
     low_price, high_price = (_num(percent / 100) for percent in PRICE_SIMILAR_PERCENT)
     window = (
         f"學年窗口（10/1 到隔年 9/30）：{years[0]}–{years[-1]} 學年共 {len(years)} 年，進行中的不算"
@@ -781,7 +782,7 @@ def _closure_assumptions(today: date, details: dict | None) -> list[dict]:
         ),
         ("統計窗口", window),
         ("停辦日期", "園所離開教育部名單的那天；名單消失日不等於實際停收日"),
-        ("怎麼看這個數字", "2022 年 10 月以來各學年的平均，不是預測下一所會停辦"),
+        ("怎麼看這個數字", f"{since.year} 年 {since.month} 月以來各學年的平均，不是預測下一所會停辦"),
         ("低、中、高", "低＝最低那年 × 承接率中值；中＝各年平均 × 承接率中值；高＝最高那年 × 承接率高值"),
         ("排除", f"本校與五校校址 {area.OWN_CAMPUS_RADIUS_M} m 內的園所"),
         ("沒有計入", "園所是否連鎖（類型係數）與老師帶班：公開資料看不出來，也無法預期"),
