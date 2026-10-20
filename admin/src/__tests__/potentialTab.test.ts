@@ -201,7 +201,7 @@ describe('走勢圖', () => {
     const svg = wrapper.get('svg.share-trend')
     expect(svg.attributes('role')).toBe('img')
     expect(svg.attributes('aria-label')).toBe('107 至 115 學年市佔率走勢')
-    expect(svg.attributes('viewBox')).toBe('0 0 520 160')
+    expect(svg.attributes('viewBox')).toBe('0 0 1000 220')
     expect(svg.attributes('width')).toBe('100%')
     expect(svg.findAll('polyline')).toHaveLength(1)
     const titles = svg.findAll('circle > title').map((title) => title.text())
@@ -222,9 +222,10 @@ describe('走勢圖', () => {
   })
 
   it('年份很多、最高緊貼最新（標籤會疊在一起）：最高讓位', async () => {
-    const years = Array.from({ length: 24 }, (_, index) => shareYear({ school_year: 107 + index, registered: index === 22 ? 400 : 100 }))
+    // 寬版繪圖區 928 寬、標籤至少隔 28：36 年時相鄰兩年隔約 26.5，疊在一起（24 年時隔約 40，不會疊）。
+    const years = Array.from({ length: 36 }, (_, index) => shareYear({ school_year: 107 + index, registered: index === 34 ? 400 : 100 }))
     const { wrapper } = await mountWith(ShareTrendChart, { props: { years } })
-    expect(wrapper.findAll('.share-trend__x').map((label) => label.text())).toEqual(['107', '130'])
+    expect(wrapper.findAll('.share-trend__x').map((label) => label.text())).toEqual(['107', '142'])
   })
 
   it('只有一個學年：畫一個點、不畫線', async () => {
@@ -258,10 +259,10 @@ describe('走勢圖', () => {
       expect(svg.findAll('.share-trend__x').map((label) => label.text())).toEqual(['107', '108', '115'])
     })
 
-    it('寬螢幕維持 0 0 520 160、圓點半徑 3.5', async () => {
+    it('寬螢幕用寬版 0 0 1000 220、圓點半徑 3.5', async () => {
       stubNarrow(false)
       const { wrapper } = await mountPotential()
-      expect(wrapper.get('svg.share-trend').attributes('viewBox')).toBe('0 0 520 160')
+      expect(wrapper.get('svg.share-trend').attributes('viewBox')).toBe('0 0 1000 220')
       expect(wrapper.get('svg.share-trend circle').attributes('r')).toBe('3.5')
     })
   })
