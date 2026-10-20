@@ -209,15 +209,19 @@ async function savePolicy() {
   }
 }
 
-// 重新試算（依已儲存的天數）；清理前一定先看過最新的筆數。
-async function refreshPreview(): Promise<boolean> {
+// 清理前重讀政策：版本與試算筆數出自同一次回應，確認框的筆數和送出的 expected_version
+// 才會對得上；頁面開著期間別人改過天數，這裡就直接換成新版，不會白吃一次 409。
+// 能按清理代表沒有未儲存的修改，applyPolicy 重設表單不會蓋掉使用者的輸入。
+async function refreshPolicyForRun(): Promise<RetentionPolicyOut | null> {
   try {
-    preview.value = await api.post<RetentionReportOut>('/admin/retention/dry-run')
-    return true
+    const result = await api.get<RetentionPolicyOut>('/admin/site-policies/retention')
+    if (!result || typeof result.version !== 'number' || !result.preview) throw new Error('unexpected response')
+    applyPolicy(result)
+    return result
   } catch {
     preview.value = null
     notifyError('試算失敗，請重新整理後再試')
-    return false
+    return null
   }
 }
 
@@ -250,10 +254,11 @@ async function runRetention() {
   if (!canRun.value || running.value) return
   running.value = true
   try {
-    if (!(await refreshPreview()) || !preview.value || preview.value.total === 0) return
+    const latest = await refreshPolicyForRun()
+    if (!latest || !latest.real_run_allowed || latest.preview.total === 0) return
     try {
       await ElMessageBox.confirm(
-        `將匿名化 ${preview.value.total} 筆案件（${countLines(preview.value)}）：姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字。無法復原。`,
+        `將匿名化 ${latest.preview.total} 筆案件（${countLines(latest.preview)}）：姓名、電話、孩子資料、問題與聯絡紀錄改成匿名文字。無法復原。`,
         '確定執行清理？',
         { confirmButtonText: '執行清理', cancelButtonText: '先不要', type: 'warning', confirmButtonClass: 'el-button--danger', autofocus: false },
       )
@@ -261,10 +266,16 @@ async function runRetention() {
       return
     }
     try {
-      const result = await api.post<RetentionReportOut>('/admin/retention/run')
+      // 帶確認框筆數所依的政策版本：確認框開著時別人改了天數，後端回 409、不清（匿名化無法復原）。
+      const result = await api.post<RetentionReportOut>('/admin/retention/run', { expected_version: latest.version })
       ElMessage.success(`已匿名化 ${result.total} 筆案件`)
     } catch (err) {
-      notifyError(apiErrorMessage(err, '無法確認清理結果，請看下方清理紀錄後再操作。'))
+      if (isVersionConflict(err)) {
+        // 下面的 loadPolicy 會帶回依新天數算的筆數，這裡不接後端「請重新試算」免得前後矛盾。
+        notifyWarning('保存政策剛被其他人修改，這次沒有清理；已依新的天數重新試算，請確認筆數後再執行')
+      } else {
+        notifyError(apiErrorMessage(err, '無法確認清理結果，請看下方清理紀錄後再操作。'))
+      }
     }
     await Promise.all([loadPolicy(), loadRuns()])
   } finally {

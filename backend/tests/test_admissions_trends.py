@@ -257,6 +257,7 @@ async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin
     baseline = (await _get(admin_client))["baseline"]
     assert baseline == {
         "villages": 12,
+        "villages_outside": 0,
         "children": 120 + 100 + 80 + 40,
         "kids_net": 20 + 0 - 20 - 4,
         "kids_base": 100 + 100 + 100 + 44,

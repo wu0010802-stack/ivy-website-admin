@@ -606,7 +606,10 @@ export function trendsSummary(data: AreaTrends): TrendsSummary | null {
   const homesLines: string[] = []
   const presaleLines: string[] = []
   if (baseline.children !== null) {
-    let lead = `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位`
+    // 合併組整組算，會帶進半徑外的組員，孩子數含它們：里數要寫明，才和人數對得上（2026-10-20 稽核）。
+    const outside = baseline.villages_outside
+    const pulledIn = outside > 0 ? `（另含里界調整合併進來、在 ${radius} 公里外的 ${formatCount(outside)} 個里）` : ''
+    let lead = `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里${pulledIn}，2–5 歲孩子 ${formatCount(baseline.children)} 位`
     if (baseline.kids_net !== null && baseline.kids_base) {
       const share = signedPercent((baseline.kids_net / baseline.kids_base) * 100)
       const net = baseline.kids_net

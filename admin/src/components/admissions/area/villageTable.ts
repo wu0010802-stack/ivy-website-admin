@@ -127,8 +127,11 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
     : oppRows.length
       ? sum(oppRows.map((row) => row.visit))
       : sum(opportunity.no_population_villages.filter((item) => codes.includes(item.village_code)).map((item) => item.visit))
-  // 合併組（D16）：參觀率＝加總參觀 ÷ 組的 2–5 歲；照附近應有要涵蓋同一批里，有一個沒有附近平均就整格不寫（同里卡片）。
-  const rate = single ? single.rate : merged && oppRows.length && children ? ((visit ?? 0) / children) * 100 : null
+  // 合併組（D16）：參觀率＝加總參觀 ÷ 同一批里的 2–5 歲。招生機會只列半徑內的里，組的 children 卻含半徑外的組員，
+  // 分母改用對到的招生機會列加總，分子分母才是同一批里（2026-10-20 稽核）。照附近應有要涵蓋同一批里，
+  // 有一個沒有附近平均就整格不寫（同里卡片）。
+  const oppChildren = sum(oppRows.map((row) => row.children))
+  const rate = single ? single.rate : merged && oppRows.length && oppChildren ? ((visit ?? 0) / oppChildren) * 100 : null
   // 後端每一列的 expected 已四捨五入到小數一位：加總會冒浮點雜訊（4.3 + 2.9＝7.199999999999999），加完再收回一位。
   const expected =
     oppRows.length && oppRows.every((row) => row.expected !== null)

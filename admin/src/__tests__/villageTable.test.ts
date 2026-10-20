@@ -102,10 +102,10 @@ describe('各里表的列與排序', () => {
     expect(notImported.map((row) => row.enrolled)).toEqual([null, null, null])
   })
 
-  it('合併組：參觀人數、照附近應有、0–1 歲加總，參觀率＝加總參觀 ÷ 組的 2–5 歲', () => {
+  it('合併組：參觀人數、照附近應有、0–1 歲加總，參觀率＝加總參觀 ÷ 對到的招生機會列的 2–5 歲（不含半徑外組員）', () => {
     const group = rowOf(villageTableRows(areaTrends(), withLongzi(3), null), GROUP)
     expect([group.visit, group.infants, group.expected, group.expected_text]).toEqual([13, 80, 7, '約 7 位'])
-    expect(group.rate).toBeCloseTo((13 / 583) * 100, 6)
+    expect(group.rate).toBeCloseTo((13 / (200 + 80)) * 100, 6)
     expect(group.signal_text).toBe('—')
   })
 
@@ -494,7 +494,7 @@ describe('AreaVillageTable', () => {
     expect(lines).toHaveLength(5)
     expect(lines[3]).toBe(
       '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,30,0,0,0,,,,' +
-        '光武國小（部分）；鼓山區龍華國小（部分）,1,1,0,0,0,0,11,1.9%,4,',
+        '光武國小（部分）；鼓山區龍華國小（部分）,1,1,0,0,0,0,11,5.5%,4,',
     )
     wrapper.unmount()
   })

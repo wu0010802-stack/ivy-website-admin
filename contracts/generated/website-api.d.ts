@@ -453,6 +453,9 @@ export interface paths {
          * Create Recruitment Visit
          * @description 手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。追蹤負責人預設是建立的人，
          *     不自動排下次聯絡（2026-10-04 規格 6.1）。
+         *
+         *     帶 Idempotency-Key 時，同一把 key 重送回原本那筆（200），內容不同回 409（2026-10-20 稽核：
+         *     已 commit 但回應遺失，接待再按一次儲存會多建一筆）。沒帶照舊建立，相容更新前的後台。
          */
         post: operations["create_recruitment_visit_api_website_v1_admin_admissions_records_post"];
         delete?: never;
@@ -1846,6 +1849,9 @@ export interface paths {
          * @description 依保存政策的天數立即匿名化，並留一筆清理紀錄。預設環境不允許真的
          *     清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確設為 true），避免意外把
          *     個資清掉。
+         *
+         *     帶 expected_version 時和鎖住的政策比對，不一致回 409、不清任何資料：確認框寫的筆數是依當時
+         *     天數試算的，確認框開著時別人把天數改短，執行範圍會比確認的大，而匿名化無法復原（2026-10-20 稽核）。
          */
         post: operations["retention_run_api_website_v1_admin_retention_run_post"];
         delete?: never;
@@ -4700,6 +4706,11 @@ export interface components {
             presale_households: number | null;
             /** Villages */
             villages: number;
+            /**
+             * Villages Outside
+             * @default 0
+             */
+            villages_outside: number;
         };
         /**
          * AreaTrendsBirthPeriodOut
@@ -7661,6 +7672,11 @@ export interface components {
             /** Trigger */
             trigger: string;
         };
+        /** RetentionRunRequest */
+        RetentionRunRequest: {
+            /** Expected Version */
+            expected_version?: number | null;
+        };
         /** ReviewDecisionRequest */
         ReviewDecisionRequest: {
             /**
@@ -9697,6 +9713,7 @@ export interface operations {
                 campus_key: string;
             };
             header?: {
+                "Idempotency-Key"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;
@@ -12655,7 +12672,11 @@ export interface operations {
                 ivy_admin_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RetentionRunRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

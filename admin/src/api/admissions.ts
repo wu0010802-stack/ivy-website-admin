@@ -57,8 +57,10 @@ export function recordsExportPath(params: RecordFilters): string {
   return `/admin/admissions/records/export?${toQuery(params)}`
 }
 
-export function createRecord(campusKey: string, body: RecruitmentVisitCreate): Promise<RecruitmentVisit> {
-  return api.post<RecruitmentVisit>(`/admin/admissions/records?${toQuery({ campus_key: campusKey })}`, body)
+/** idempotencyKey：同一張表單重送帶同一把，後端回原本那筆、不多建（2026-10-20 稽核）。 */
+export function createRecord(campusKey: string, body: RecruitmentVisitCreate, idempotencyKey?: string): Promise<RecruitmentVisit> {
+  const path = `/admin/admissions/records?${toQuery({ campus_key: campusKey })}`
+  return idempotencyKey ? api.post<RecruitmentVisit>(path, body, { headers: { 'Idempotency-Key': idempotencyKey } }) : api.post<RecruitmentVisit>(path, body)
 }
 
 export function getRecord(id: string): Promise<RecruitmentVisit> {

@@ -115,6 +115,15 @@ const submitting = ref(false)
 const error = ref<string | null>(null)
 const childInput = ref<InputInstance>()
 
+// 同一張新增表單共用同一把 key：已存好但回應遺失時重按儲存，後端回原本那筆、不多建一筆（同 ManualVisitDialog）。
+let idempotencyKey = ''
+
+function newKey(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
 function reset(state: FormState) {
   Object.assign(form, state)
   initial.value = JSON.stringify(form)
@@ -127,7 +136,11 @@ watch(open, (value) => {
   if (!value) return
   current.value = props.mode === 'edit' ? (props.record ?? null) : null
   reset(current.value ? fromRecord(current.value) : blank())
+  idempotencyKey = newKey()
 }, { immediate: true })
+
+// 內容一改就換 key：改過的表單是另一次送出，不能被當成重送而撞 409。
+watch(form, () => { if (!submitting.value) idempotencyKey = newKey() }, { deep: true })
 
 // 新增時游標直接停在幼生姓名（多半邊講電話邊填）；編輯時不搶焦點。
 function focusChild() {
@@ -269,7 +282,9 @@ async function save(next = false) {
       const body: RecruitmentVisitCreate = {
         ...payload(form), birthday: form.birthday!, target_school_year: form.target_school_year!, target_semester: form.target_semester!,
       }
-      const created = await createRecord(props.campusKey, body)
+      const created = await createRecord(props.campusKey, body, idempotencyKey)
+      // 存好了：下一筆（儲存並新增下一筆）是新的送出。
+      idempotencyKey = newKey()
       emit('saved', created)
       if (next) {
         // 儲存並新增下一筆：不關窗，換空白表單，沿用上一筆的入學學年學期（園務 FunnelAddVisit）。

@@ -119,7 +119,9 @@ describe('個資與搜尋設定：保存政策的保護', () => {
     const { wrapper, get } = await setup()
     await button(wrapper, '立即執行清理')!.trigger('click')
     await flushPromises()
-    expect(post.mock.calls.map(([url]) => url)).toEqual(['/admin/retention/dry-run', '/admin/retention/run'])
+    // 清理前重讀政策（版本與試算筆數同一次回應），不再另打 dry-run。
+    expect(post.mock.calls.map(([url]) => url)).toEqual(['/admin/retention/run'])
+    expect(get.mock.calls.filter(([url]) => String(url).startsWith('/admin/site-policies/retention'))).toHaveLength(3)
     expect(confirm).toHaveBeenCalledOnce()
     expect(String(confirm.mock.calls[0]![0])).toContain('將匿名化 3 筆案件')
     expect(success).toHaveBeenCalledWith('已匿名化 3 筆案件')

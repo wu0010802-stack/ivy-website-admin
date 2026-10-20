@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -339,12 +339,11 @@ async def update_user_active(
     if payload.is_active:
         # 停用是止血動作，不擋；重新啟用一個帳號（可能是被停掉的後門）要重新驗證。
         await _require_recent_auth(request, db, current_user, session, payload.current_password)
-    result = await db.execute(
-        select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個使用者")
+    if not payload.is_active:
+        # 停權總管理者時 set_user_active 會在帳號列鎖之後拿這把 advisory lock；降級總管理者的順序是
+        # 先 advisory 再寫帳號列。停權一律先拿 advisory 再鎖列，兩條路徑同一順序才不會互鎖。
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext('super-admin-invariant'))"))
+    user = await _load_user(db, user_id, lock=True)
     try:
         # 停權會一併解除 LINE／Google 綁定；稽核只記有沒有解除，不記 sub。
         unlinked = await service.set_user_active(db, user, payload.is_active)
@@ -405,10 +404,13 @@ async def update_user_scope(
     return _user_out(result.scalar_one())
 
 
-async def _load_user(db: AsyncSession, user_id: uuid.UUID) -> User:
-    result = await db.execute(
-        select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)
-    )
+async def _load_user(db: AsyncSession, user_id: uuid.UUID, *, lock: bool = False) -> User:
+    """lock=True：鎖住帳號列再讀（populate_existing，不沿用等鎖前的值）。清除綁定、停權要這樣讀，
+    綁定 callback 也在帳號列鎖內寫 sub；不鎖的話會拿舊的 None 去比，剛綁上的 sub 被當成沒變更而留下。"""
+    stmt = select(User).options(selectinload(User.campus_scopes)).where(User.id == user_id)
+    if lock:
+        stmt = stmt.with_for_update(of=User).execution_options(populate_existing=True)
+    result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個使用者")
@@ -574,7 +576,7 @@ async def clear_user_external_logins(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "USE_ACCOUNT_PAGE", "message": "要解除自己的綁定，請到「我的帳號」操作"},
         )
-    user = await _load_user(db, user_id)
+    user = await _load_user(db, user_id, lock=True)
     unlinked = service.clear_external_logins(user)
     await db.flush()
     revoked = await service.revoke_user_sessions(db, user.id)

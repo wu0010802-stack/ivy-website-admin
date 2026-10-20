@@ -15,7 +15,7 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -206,12 +206,40 @@ async def export_recruitment_visits(
 async def create_recruitment_visit(
     campus_key: str,
     payload: RecruitmentVisitCreate,
+    request: Request,
+    response: Response,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=1, max_length=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecruitmentVisitOut:
     """手動新增（規格 6.1 第 3 點）：沒有預約的現場參觀。追蹤負責人預設是建立的人，
-    不自動排下次聯絡（2026-10-04 規格 6.1）。"""
+    不自動排下次聯絡（2026-10-04 規格 6.1）。
+
+    帶 Idempotency-Key 時，同一把 key 重送回原本那筆（200），內容不同回 409（2026-10-20 稽核：
+    已 commit 但回應遺失，接待再按一次儲存會多建一筆）。沒帶照舊建立，相容更新前的後台。"""
     _require_campus(current_user, "admissions.write", campus_key)
+    idempotency = None
+    if idempotency_key is not None:
+        idempotency = {
+            "idempotency_key": idempotency_key,
+            "payload_hash": records.manual_create_hash(
+                payload.model_dump(mode="json"), request.app.state.settings.session_secret
+            ),
+        }
+        await records.lock_manual_create(db, campus_key, idempotency_key)
+        try:
+            existing = await records.find_manual_replay(db, campus_key=campus_key, **idempotency)
+        except records.IdempotencyConflict as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"code": "IDEMPOTENCY_CONFLICT", "message": "這張表單已經送出過不同的內容，請重新開啟新增"},
+            ) from exc
+        if existing is not None:
+            out = RecruitmentVisitOut.model_validate(existing)
+            await db.rollback()
+            response.status_code = status.HTTP_200_OK
+            return out
     tracking = await follow_up.initial_fields(
         db, campus_key=campus_key, booking_follow_up_at=None, owner_candidates=[current_user.id]
     )
@@ -222,6 +250,7 @@ async def create_recruitment_visit(
             fields=payload.model_dump(),
             actor_user_id=current_user.id,
             origin="manual",
+            idempotency=idempotency,
             **tracking,
         )
     except records.TourGuideNotFound as exc:

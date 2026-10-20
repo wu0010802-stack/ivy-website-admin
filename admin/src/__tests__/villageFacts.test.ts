@@ -94,10 +94,10 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     expect(value(f.kids, '近 12 個月出生')).toBe('90 位')
     expect(value(f.kids, '近 12 個月淨遷入')).toBe('+30 人')
     expect(value(f.kids, '所得中位數')).toBe('—')
-    expect(value(f.kids, '招生機會')).toBe('參觀 11 位（1.9%）') // 組內只有寶業里有列：11 ÷ 583
+    expect(value(f.kids, '招生機會')).toBe('參觀 11 位（5.5%）') // 組內只有寶業里有列：11 ÷ 寶業里 200（不除含半徑外組員的 583，2026-10-20 稽核）
     expect(detail(f.kids, '招生機會')).toBe('照附近應有約 4 位') // 合併組不寫判讀
-    // 副標用組的距離與學區
-    expect(f.subtitle).toBe('距本校 300 m・光武國小（部分）、鼓山區龍華國小（部分）學區') // 學校在別的區前面加區名
+    // 副標用這個里自己的距離（龍子里沒有招生機會列，用里中心算；不沿用組裡最近那個里的 300 m，2026-10-20 稽核）與組的學區
+    expect(f.subtitle).toBe('距本校 318 m・光武國小（部分）、鼓山區龍華國小（部分）學區') // 學校在別的區前面加區名
     // 我們：龍子里在 area.villages 的 village_code 是 null，靠區＋里名對；沒有在籍
     expect(rows(f.ours)).toEqual([['在籍', '0 位'], ['參觀', '1 位', '預繳 0']])
     expect(f.ours.openRecordsArea).toBe('鼓山區/龍子里')
@@ -150,12 +150,12 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     const member: AreaOpportunityRow = { district: '鼓山區', village: '龍子里', village_code: '64000020015', distance_m: 400, children: 150, infants: 40, visit: 2, rate: 1.3, expected: 3, shortfall: 1, signal: 'typical' }
     opportunity.villages.push(member)
     const both = villageFacts('64000020015', sources({ opportunity }))!
-    expect(value(both.kids, '招生機會')).toBe('參觀 13 位（2.2%）') // 11 + 2 ÷ 583
+    expect(value(both.kids, '招生機會')).toBe('參觀 13 位（3.7%）') // 11 + 2 ÷ 200 + 150
     expect(detail(both.kids, '招生機會')).toBe('照附近應有約 7 位') // 4 + 3
     expect(value(both.kids, '0–1 歲')).toBe('100 位') // 60 + 40
     member.expected = null
     const partial = villageFacts('64000020015', sources({ opportunity }))!
-    expect(value(partial.kids, '招生機會')).toBe('參觀 13 位（2.2%）')
+    expect(value(partial.kids, '招生機會')).toBe('參觀 13 位（3.7%）')
     expect(detail(partial.kids, '招生機會')).toBeUndefined()
   })
 

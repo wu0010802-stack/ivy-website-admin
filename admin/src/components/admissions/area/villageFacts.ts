@@ -146,7 +146,8 @@ function mergeNote(group: AreaTrendsVillage, village: string): string {
   return others.length ? `里界調整，和${others.join('、')}合併計算` : '里界調整，合併計算'
 }
 
-/** 招生機會那一列（只在 judged 為 true 且有列時出現）。合併組：組內各里加總，參觀率＝加總參觀 ÷ 組的 2–5 歲，不寫判讀（D16）。 */
+/** 招生機會那一列（只在 judged 為 true 且有列時出現）。合併組：組內各里加總，參觀率＝加總參觀 ÷ 這些列的 2–5 歲
+ * （招生機會只列半徑內的里，不能除整組含半徑外組員的 children，2026-10-20 稽核），不寫判讀（D16）。 */
 function opportunityRow(rows: AreaOpportunityRow[], group: AreaTrendsVillage | undefined): FactRow | null {
   if (!rows.length) return null
   if (!group?.merged) {
@@ -157,7 +158,8 @@ function opportunityRow(rows: AreaOpportunityRow[], group: AreaTrendsVillage | u
   const visit = rows.reduce((sum, row) => sum + row.visit, 0)
   // 參觀與照附近應有要涵蓋同一批里：有一個里沒有附近平均就整句不寫，不拿缺一塊的加總去對全組的參觀。
   const expected = rows.every((row) => row.expected !== null) ? rows.reduce((sum, row) => sum + row.expected!, 0) : null
-  const rate = group.children ? (visit / group.children) * 100 : null
+  const children = rows.reduce((sum, row) => sum + row.children, 0)
+  const rate = children ? (visit / children) * 100 : null
   return factRow('招生機會', `參觀 ${formatCount(visit)} 位（${formatRate(rate)}）`, expected === null ? undefined : `照附近應有${expectedText(expected)}`)
 }
 
@@ -307,10 +309,17 @@ export function villageFacts(code: string, sources: FactsSources): VillageFacts 
 
   const kids = kidsFacts({ code, village, sources, group, oppRows, noPopulation: missing !== undefined, campus, centroid })
 
-  const distance = group?.distance_m ?? oppRows[0]?.distance_m ?? missing?.distance_m
+  // 合併組的 distance_m 是半徑內最近那個組員的距離；組裡也可能有半徑外的里（2026-10-20 稽核）。
+  // 合併組先看這個里自己在招生機會的距離，沒有就用里中心算，超過半徑寫在半徑外。
+  const own = oppRows.find((row) => row.village_code === code)?.distance_m ?? missing?.distance_m
+  const memberDistance = own ?? (campus ? distanceMeters(centroid, campus) : undefined)
+  const distance = group?.merged ? memberDistance : (group?.distance_m ?? oppRows[0]?.distance_m ?? missing?.distance_m)
+  const memberOutside = group?.merged === true && own === undefined && distance !== undefined && distance > radiusKm * 1000
   const schools = group?.schools.length ? `・${villageSchoolsText(group)}學區` : ''
   const subtitle =
-    kids.state === 'outside' ? `在本校 ${radiusKm} 公里外` : distance === undefined ? '' : `距本校 ${formatDistance(distance)}${schools}`
+    kids.state === 'outside' || memberOutside
+      ? `在本校 ${radiusKm} 公里外`
+      : distance === undefined ? '' : `距本校 ${formatDistance(distance)}${schools}`
 
   return {
     code,

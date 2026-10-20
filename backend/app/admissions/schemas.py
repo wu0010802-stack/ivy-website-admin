@@ -1370,6 +1370,8 @@ class AreaTrendsBaselineOut(BaseModel):
     births_change_pct＝和前一年同月份比的增減百分比（小數一位），比較的月份不到 6 個或前一年可比的出生不到 20 位時 null。"""
 
     villages: int
+    # 里界調整合併組帶進來、在半徑外的里數（children、kids_net 等都含它們）；沒有是 0。
+    villages_outside: int = 0
     children: int | None
     kids_net: int | None
     kids_base: int | None

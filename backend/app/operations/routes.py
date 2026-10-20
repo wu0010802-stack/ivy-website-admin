@@ -785,18 +785,38 @@ async def retention_dry_run(
     return _report_out(report)
 
 
+class RetentionRunRequest(BaseModel):
+    # 使用者確認清理時看到的政策版本。沒帶（更新前的後台）照舊依當下政策執行。
+    expected_version: int | None = Field(default=None, ge=1)
+
+
 @router.post("/admin/retention/run", response_model=RetentionReportOut)
 async def retention_run(
     request: Request,
+    payload: RetentionRunRequest | None = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RetentionReportOut:
     """依保存政策的天數立即匿名化，並留一筆清理紀錄。預設環境不允許真的
     清理（WEBSITE_RETENTION_ALLOW_REAL_RUN 需明確設為 true），避免意外把
-    個資清掉。"""
+    個資清掉。
+
+    帶 expected_version 時和鎖住的政策比對，不一致回 409、不清任何資料：確認框寫的筆數是依當時
+    天數試算的，確認框開著時別人把天數改短，執行範圍會比確認的大，而匿名化無法復原（2026-10-20 稽核）。"""
     require_scope(current_user, "retention.manage")
     # 鎖政策列：兩個人同時按執行（或剛好碰上定期工作）時排隊，不會重複處理。
     policy = await retention_service.get_policy(db, for_update=True)
+    if payload is not None and payload.expected_version is not None and policy.version != payload.expected_version:
+        current = policy.version
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "RETENTION_POLICY_VERSION_CONFLICT",
+                "message": "保存政策剛被其他人修改，請重新試算後再執行清理",
+                "current_version": current,
+            },
+        )
     days = retention_service.policy_days(policy)
 
     settings = request.app.state.settings

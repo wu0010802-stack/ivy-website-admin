@@ -41,6 +41,7 @@ async def set_seat(
 
     - 只有已預繳（未註冊、未退出）的訪視可以保留；要指定目標學年，學期預設上學期。
     - 已註冊的訪視不能改、也不能清除保留：要改年級或學期先取消註冊。
+    - 已退出的訪視也不能釋放：座位要留給取消退出時恢復。
     - 釋放只清 provisional_grade、保留 target_*（園務 recruitment_intake_plan.py:220-226）。"""
     if visit.version != expected_version:
         raise records.VersionConflict(visit.version)
@@ -48,6 +49,10 @@ async def set_seat(
     if grade is None:
         if stage == "enrolled":
             raise SeatNotAllowed("已註冊的訪視不可清除保留，要改年級或學期請先取消註冊")
+        if stage == "withdrawn":
+            # 退出刻意留著 provisional_grade，取消退出才恢復得了；/seat 只要 write，退註冊的座位若能在
+            # 這裡清掉，就繞過「動到註冊紀錄要 convert」（2026-10-20 稽核）。保留本來就只給已預繳。
+            raise SeatNotAllowed("已退出的訪視不能變更座位，要調整請先取消退出")
         if visit.provisional_grade is None:
             raise SeatNotAllowed("這筆訪視目前沒有保留座位")
         metadata = {"grade": visit.provisional_grade, "school_year": visit.target_school_year, "semester": visit.target_semester}

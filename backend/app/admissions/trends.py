@@ -597,8 +597,12 @@ async def query_trends(
     change, compared_months = births_change(data.births, births_present, all_codes)
     with_kids = [row for row in villages if row["kids_net"] is not None]
     with_children = [row for row in villages if row["children"] is not None]
+    # 合併組整組算（調整過的里單獨和一年前比沒有意義），會帶進半徑外的組員；孩子數、淨增都含它們，
+    # 只寫半徑內的里數會和人數對不上（2026-10-20 稽核）。另列這些組員的里數，畫面寫明。
+    pulled_in = {code for row in villages if row["merged"] for code in row["codes"] if code in names and code not in near}
     result["baseline"] = {
         "villages": len(near),
+        "villages_outside": len(pulled_in),
         "children": sum(row["children"] for row in with_children) if with_children else None,
         "kids_net": sum(row["kids_net"] for row in with_kids) if with_kids else None,
         "kids_base": sum(row["kids_base"] for row in with_kids) if with_kids else None,

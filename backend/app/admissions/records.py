@@ -10,6 +10,9 @@ fields_from_visit_request 截斷並補好預設，也不帶帳號，這裡不做
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import uuid
 from datetime import date, datetime, timezone
 from typing import Literal
@@ -148,6 +151,56 @@ def write_event(
     return event
 
 
+class IdempotencyConflict(Exception):
+    """同一把 Idempotency-Key 已經用不同內容建過訪視。"""
+
+
+_CREATE_HASH_PURPOSE = b"recruitment-visit-manual-create"
+
+
+def manual_create_hash(fields: dict, secret: str) -> str:
+    """手動新增內容的 HMAC：記在 created 事件給重送比對，事件會顯示在歷程，所以不能放可暴力還原的裸雜湊。"""
+    key = hmac.new(secret.encode("utf-8"), _CREATE_HASH_PURPOSE, hashlib.sha256).digest()
+    body = json.dumps(fields, sort_keys=True, ensure_ascii=True, default=str).encode("utf-8")
+    return hmac.new(key, body, hashlib.sha256).hexdigest()
+
+
+async def find_manual_replay(
+    db: AsyncSession, *, campus_key: str, idempotency_key: str, payload_hash: str
+) -> RecruitmentVisit | None:
+    """手動新增的重送（2026-10-20 稽核）：回應遺失後接待再按一次儲存，同一把 key 回原本那筆。
+
+    key 記在 created 事件的 metadata，不另開欄位（不加 migration）。呼叫前先用 lock_manual_create
+    讓同一把 key 的併發重送排隊，查詢才看得到前一個已 commit 的結果。同 key 不同內容丟
+    IdempotencyConflict；原本那筆已被刪掉就當成沒送過。"""
+    row = (
+        await db.execute(
+            select(RecruitmentVisit, RecruitmentEventLog.metadata_json)
+            .join(RecruitmentEventLog, RecruitmentEventLog.recruitment_visit_id == RecruitmentVisit.id)
+            .where(
+                RecruitmentVisit.campus_key == campus_key,
+                RecruitmentEventLog.event_type == "created",
+                RecruitmentEventLog.metadata_json["idempotency_key"].as_string() == idempotency_key,
+            )
+            .limit(1)
+        )
+    ).first()
+    if row is None:
+        return None
+    visit, metadata = row
+    if not hmac.compare_digest(str((metadata or {}).get("payload_hash", "")), payload_hash):
+        raise IdempotencyConflict()
+    return visit
+
+
+async def lock_manual_create(db: AsyncSession, campus_key: str, idempotency_key: str) -> None:
+    """同校同一把 key 的手動新增排隊（交易結束自動釋放）。"""
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"recruitment_visits.manual_create:{campus_key}:{idempotency_key}"},
+    )
+
+
 async def create_visit(
     db: AsyncSession,
     *,
@@ -159,6 +212,7 @@ async def create_visit(
     today: date | None = None,
     follow_up_at: datetime | None = None,
     follow_up_owner_id: uuid.UUID | None = None,
+    idempotency: dict | None = None,
 ) -> RecruitmentVisit:
     """建立一筆招生訪視並寫 created 事件（metadata {"origin": origin, "follow_up": ...}，
     origin 是 constants.ORIGINS 之一）。fields 的鍵是 RecruitmentVisitCreate 的欄位名；month
@@ -204,7 +258,12 @@ async def create_visit(
     write_event(
         db, visit, event_type="created", from_stage=None, to_stage="visited",
         actor_user_id=actor_user_id,
-        metadata={"origin": origin, "follow_up": "booking" if follow_up_at is not None else "none"},
+        metadata={
+            "origin": origin,
+            "follow_up": "booking" if follow_up_at is not None else "none",
+            # 手動新增帶 Idempotency-Key 時記在 created 事件（見 find_manual_replay）。
+            **(idempotency or {}),
+        },
     )
     await db.flush()
     # 沒有地址也寫一列（no_address），區域分析的待比對只留給上線前的舊訪視。
