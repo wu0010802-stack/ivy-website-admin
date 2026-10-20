@@ -1,3 +1,12 @@
+## 2026-10-20 附近幼兒園加近 3 年裁罰與最近一次評鑑（`feature/admissions-data-20261020`）
+
+使用者要把「附近同業比較」留下的 C 案做出來：附近幼兒園清單不只有「有裁罰紀錄」旗標，要看得到近 3 年裁罰件數、處分與違規內容、最近一次評鑑結果。規格 `docs/specs/2026-10-20-peer-penalties-evaluations-design.md`（§8 實作紀錄），部署與手動退路在 `deploy/README.md`「公開地理資料同步 → 幼兒園裁罰與評鑑」。
+
+- 後端：新表 `geo_kindergarten_penalties`、`geo_kindergarten_evaluations`（migration `b8e2d6a4f931`，另把 `geo_dataset_status.dataset` 欄放寬到 32 字）；裁罰每 7 天讀 kiang 一所一檔（GitHub API 被限流時退回已知園所名稱逐一試），**「負責人／行為人：姓名」只取標籤轉成對象類別，姓名不進資料庫、API、日誌**；評鑑每 30 天走教保資訊網公開搜尋（ASP.NET 表單，約 69 頁，只用 id 白名單讀評鑑表三欄），**伺服器沒送中繼憑證，改帶 certifi 加隨程式提交的 TWCA 中繼憑證，不關閉憑證驗證**；整表替換、殘缺門檻與時間／大小上限；`fetch_geo_bundle.py --kindergarten-only` 與 `geo-sync --kindergarten-…-file`／`--bundle` 是手動退路；附近幼兒園端點每所多裁罰與評鑑摘要，新端點 `GET /admin/admissions/area/kindergartens/{source_id}/records`。
+- 後台：列上「近 3 年裁罰 N 件」（只有 3 年前的寫淡色「3 年前有裁罰」）、最近一次評鑑小字、展開讀明細（裁罰對象只寫「園方受罰」「教保人員個人受罰」），清單下方加資料來源與人名不顯示的說明。
+- **驗證**（Node 22）：真檔 238 檔 571 筆 0 筆略過，534 列、對到園所 441 列／194 所；教保資訊網對真站一次 GET 加一次 POST（第 1 頁：10 所、共 689 所、69 頁），內附中繼憑證驗證通過；後端單一次執行 1,445 passed（`test_geo_*.py` 全部、區域分析相關 `test_admissions_*`、系統狀態、權限表；不是後端全套）；後台全套 177 檔 2,988 passed，`typecheck` 通過；契約一致。
+- **未驗證**：正式站、評鑑換頁（第 2 頁起沒有對真站試）、GitHub API 對 Railway 出口 IP 會不會限流、真資料畫面、stack e2e。**尚未部署、尚未 push。**
+
 ## 2026-10-20 招生區域加預售建案、預約設定的校區代號含控制字元不再 500（`feature/admissions-data-20261020`）
 
 使用者要讓分校提早知道哪些里兩三年後會有一批新住戶：區域分析加內政部「預售屋建案備查」資料。規格 `docs/specs/2026-10-20-admissions-presale-design.md`（§8 實作紀錄），部署與手動匯入步驟在 `deploy/README.md`「公開地理資料同步 → 預售建案」。

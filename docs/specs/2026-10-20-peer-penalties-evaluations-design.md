@@ -1,7 +1,7 @@
 # 附近同業：裁罰明細與評鑑結果（C 案，2026-10-20）設計
 
 日期：2026-10-20
-狀態：使用者 10-20 要做（`docs/specs/2026-10-15-peer-comparison-design.md` §1.3 留下的 C 案；「裁罰明細放進後台要另外核可」＝使用者 10-20 這次的要求）。以下裁定是我的預設值，業主可改。
+狀態：已實作（分支 `feature/admissions-data-20261020`，未部署；§8 實作紀錄）。使用者 10-20 要做（`docs/specs/2026-10-15-peer-comparison-design.md` §1.3 留下的 C 案；「裁罰明細放進後台要另外核可」＝使用者 10-20 這次的要求）。以下裁定是我的預設值，業主可改。
 基準：`origin/main` `817d516d`
 分支：`feature/admissions-data-20261020`（與場次使用情況小修、預售建案同分支，各自分 commit；migration 接在預售建案之後）
 
@@ -66,3 +66,29 @@
 
 - migration 一支（兩張表＋兩個 dataset 約束）。
 - 部署後查正式站兩個 dataset 第一輪結果；評鑑若 TLS 失敗，本機打包上傳。
+
+## 8. 實作紀錄（2026-10-20）
+
+分支 `feature/admissions-data-20261020`，migration `b8e2d6a4f931`（接 `a3d7f1c9b5e2`，一支）。和上面規格不同、或規格沒寫清楚、以實作為準的地方：
+
+- **`geo_dataset_status.dataset` 欄放寬到 32 字**（C7）：`kindergarten_penalties` 22 字、`kindergarten_evaluations` 24 字，原本欄寬 20 寫不進去。同一支 migration 放寬（PostgreSQL 放寬 varchar 長度不重寫資料表），降級先刪兩個新狀態列再縮回 20。其餘是規格的「兩張表＋dataset 約束」：兩張表各一個 `source_id` 索引、裁罰多 `kind`／`subject` 兩個 CHECK。
+- **裁罰表欄位**（C1）：主鍵是自增 `id`，唯一鍵 `(school_name, occurred_on, doc_no, law, punishment_hash)`；`law` 160 字、`content` 300 字（C1 的上限）、`doc_no` 80 字；多一欄 `punishment_text`（120 字，**只有處分種類是 `other` 時才存**，其他種類用金額與期間表達）。`subject` 可空（來源沒標籤時）。人名欄只取冒號前面的標籤；文號、法條、其他處分、園所名稱這幾個會存的短欄位再保險一次，從「負責人」「行為人」起的字整段截掉（**不要求冒號**：真檔有一筆的裁處文號是「高市教幼字第負責人＋姓名＋號」，來源欄位錯置；截掉後文號變成「高市教幼字第」）；違規內容可能正常提到「負責人」這個詞，只截「負責人：…」或標籤緊接 2–4 個字就結束的（「…負責人王小明」）。
+- **同一件有幾位受罰人會合併成一列**：唯一鍵不含對象，真檔 571 筆解析成 534 列（37 筆是同一件、同一條法條、同一處分，只差受罰的人）。畫面看不到「幾個人」，這是規格 C1 的取捨（不存人名），不是遺漏。
+- **檔名清單讀不到時退回已知園所名稱**（規格沒寫）：GitHub API 對共用 IP 的未驗證請求限流（60 次／小時），Railway 的出口 IP 是共用的，很可能被限。清單回 HTTP 錯誤或連線失敗時，改成逐一試「營業中園所名稱＋表裡已有裁罰的園所名稱」（約 700 個請求、404 不算錯誤、同樣 0.2 秒間隔與 10 分鐘上限）；這時沒有檔名清單可比，C8 的「清單少於表內 80%」不檢查，下載錯誤門檻改用試過的名稱數算。日誌會寫「裁罰檔名清單讀不到（…），改用已知園所名稱逐一試」。
+- **換版門檻的細節**（C8）：沒抓成功（逾時以外的錯誤、單檔超過 256 KB、解析失敗）的園所保留它們的舊列，其他照常整表替換；404（清單還列著、檔案已經沒了）不算錯誤，那一所的舊列會被刪掉。`--force` 只略過「到期」的判斷，**不略過門檻**（同幼兒園收費）。檔案匯入（打包的 CSV）不檢查門檻。
+- **評鑑只存對得到園所的列**（C6），整表替換；同一個 `(名稱, 學年度, 結果)` 出現多次只留完成日最新的一筆。`completed_on` 可空（來源日期格式壞掉時），學年度要是 2–3 位數字、結果不是空字串才收，結果超過 100 字截斷。
+- **評鑑頁解析只認 id 白名單**：園所名稱 `GridView1_lblSchName_N`、評鑑表 `GridView1_GridView11_N_lbl{SYear,Date,Result}_K`、頁碼三個 `PageControl1_lbl…`、`__` 開頭的隱藏欄位與 `hY`、縣市下拉。結果區塊裡的負責人、電話、「檢視」連結參數根本不會進記憶體。**線上的表單頁另有 `__EVENTTARGET`、`__EVENTARGUMENT`、`__LASTFOCUS` 三個隱藏欄位**（先前存的樣本沒有），換頁時 `__EVENTTARGET`／`__EVENTARGUMENT` 由我們設值蓋過去。縣市代碼（高雄＝18）從表單頁的下拉選單找「高雄市」，不寫死。
+- **TLS**（C9、§2）：本機 Python 驗證失敗的原因確認是伺服器只送葉憑證。葉憑證 AIA 的 CA Issuers 是 `http://sslserver.twca.com.tw/cacert/secure_sha2_2023G3.crt`，取得 TWCA Secure SSL Certification Authority（簽發者 TWCA Global Root CA，在 certifi 裡），放 `backend/app/admissions/geo/certs/twca-secure-ssl-2023g3.pem`（檔頭註明來源、指紋、有效期間 **2023-10-16 至 2030-10-16**），`evaluations.ssl_context()` 用 certifi 加這張建 SSL context，驗證與主機名稱檢查都開著。`sync.new_client()` 多 `ssl_context` 參數，`run_geo_sync` 自己建客戶端時評鑑用專用的一個；測試注入的客戶端照用。`.gitignore` 的 `*.pem` 加這個公開憑證的例外。TLS 失敗時 `last_error` 寫「憑證驗證失敗（TLS）」。
+- **換頁防呆**：每頁回來要檢查頁碼等於預期，對不上（表單失效、伺服器忽略換頁）就中止並寫「換頁後頁碼對不上」，不原地打轉；頁數超過 150 也中止。
+- **打包退路**（C10）：bundle 多 `kindergarten_penalties`、`kindergarten_evaluations` 兩種（各限一個檔），`geo-sync` 多 `--kindergarten-penalties-file`、`--kindergarten-evaluations-file`；CSV 欄位見 `penalties.CSV_COLUMNS`、`evaluations.CSV_COLUMNS`（沒有姓名與電話欄）。`fetch_geo_bundle.py` 預設連同其他資料一起抓，另加 `--kindergarten-only` 只抓這兩項（不重抓人口、出生等）；下載有失敗或評鑑少於 600 所／60 頁就不打包，寫完再檢查 CSV 裡沒有「負責人：」「行為人：」。
+- **API**（§5）：附近幼兒園端點每所多 `penalties_recent`、`penalty_latest_on`（**不限 3 年內**的最近一次）、`has_older_penalty`、`evaluation_latest`（學年度最大，同學年取完成日新的），回應頂層多 `penalties_synced_at`、`evaluations_synced_at`（從沒匯入成功是 null）。「近 3 年」是裁處日 ≥ 今天往前三年的同月同日（含當天）。新端點 `GET /admin/admissions/area/kindergartens/{source_id}/records` 要帶 `campus_key`（只用來檢查 `admissions.stats` 與校區範圍），不認得的 `source_id` 回 404；每筆裁罰另有 `recent`（是否在近 3 年內，和清單同一個起算日）。
+- **畫面**（C11、C13）：明細用清單（日期＋處分＋對象，下一行是違規內容）而不是表格，窄螢幕不橫向溢出；3 年前的列淡色。評鑑小字把「全數指標通過追蹤評鑑」改寫成「追蹤評鑑 全數指標通過」，其他句型（「全數指標改善完畢」）原文照放。裁罰明細還沒匯入時，標籤維持名單上的「有裁罰紀錄」旗標（匯入後以明細為準，旗標不再顯示）。摘要說沒有裁罰也沒有評鑑的園所，展開時不打 API，直接寫「無公開紀錄」；沒匯入寫「尚未匯入」。C13 的說明文字在清單下方，裁罰、評鑑任一匯入過就顯示。C12：同業收費區塊沒有動。
+- **系統狀態頁**：資料集清單多「幼兒園裁罰」「幼兒園評鑑」；過期判斷裁罰同名單 7 天、評鑑 30 天（各加 3 天寬限）。
+
+驗證（本機，Node 22）：
+
+- **真檔（唯讀、不進 repo）**：kiang 高雄裁罰 238 檔、571 筆，0 筆略過；處分罰鍰 545、停止招生 14、減少招收人數 10、停辦 2；對象負責人 500、行為人 71。寫入乾淨資料庫（真 `preschools.json` 加教育部名單的營業中 689 所）：534 列、**對到園所 441 列／194 所**；件數（名稱、日期、文號）507 件，對到園所的 419 件；近 3 年（2023-10-20 起）對到園所的 195 件、94 所；近 12 個月 98 筆（和規格 §2 的 98 筆一致）。把真檔 267 個不重複的受罰人字串（2 字以上）逐一拿去比對輸出的文號、法條、違規內容、其他處分：**0 次命中**（第一版只截有冒號的標籤時，有 1 筆文號含人名，就是上面說的錯置，已修）；剩下命中的只有園所名稱／全名欄（1 個 5 字的字串，是受罰人欄寫了機構名稱、剛好是園所名稱的一部分，不是人名）。輸出裡也沒有任何「負責人」「行為人」字樣。
+- **教保資訊網（唯一一次 GET＋一次 POST）**：用內附中繼憑證驗證通過（只用 certifi 時 `CERTIFICATE_VERIFY_FAILED`）；GET 表單頁取得隱藏欄位與縣市下拉（高雄市＝18、共 23 個縣市）；POST 搜尋第一頁：10 所、共 689 所、第 1／69 頁、22 列評鑑（9 所有評鑑、1 所「無」），結果值是「全數指標通過基礎評鑑」「全數指標通過追蹤評鑑」「全數指標改善完畢」三種。
+- 後端（單一次執行，不是全套）：`test_geo_*.py` 全部、區域分析與同業相關 `test_admissions_*`、系統狀態、權限表共 1,445 passed，新增 `test_geo_penalties.py`（48）、`test_geo_penalties_sync.py`（25）、`test_geo_evaluations.py`（21）、`test_geo_evaluations_sync.py`（26）、`test_geo_penalty_bundle.py`（8）、`test_admissions_kindergarten_records.py`（13），並更新 `test_geo_schema.py`、`test_geo_loop.py`、`test_admissions_area.py`。後台全套 177 檔 2,988 passed、1 skipped，`typecheck` 無錯誤。契約已重產（`export_openapi.py --check`、`check-contract-types.mjs` 一致）。
+
+沒驗證：正式站（尚未部署）；**評鑑「換頁」那一步沒有對真站試**（只准一次 GET 加一次 POST，只驗到第 1 頁；換頁表單用假教保資訊網驗過隱藏欄位有帶回去、頁碼會前進，真站若行為不同會在第一輪以「換頁後頁碼對不上」失敗，不會寫壞資料）；GitHub API 對 Railway 出口 IP 會不會限流；畫面沒有用真資料在瀏覽器看過（只有 vitest 與型別檢查）；stack e2e 沒有補（`admissions-area.spec.ts` 還沒有裁罰與評鑑的斷言）。
