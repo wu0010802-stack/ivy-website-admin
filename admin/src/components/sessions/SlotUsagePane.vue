@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { api, ApiError } from '../../api/client'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { barWidth, type StatsColumn } from '../../admissions/statsFormat'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import StatsDimensionTable from '../admissions/StatsDimensionTable.vue'
@@ -61,7 +62,8 @@ const rows = computed<Row[]>(() => (usage.value?.slots.rows ?? []).map(r => ({
   fill: Math.round(r.fill_rate * 100),
   signalLabel: signalText(r.signal, usage.value?.slots.thresholds.min_slots ?? 4),
 })))
-const columns: StatsColumn[] = [
+// 桌機的欄序，也是匯出 CSV 的欄序（csvColumns 固定用它，不隨畫面變）。
+const DESKTOP_COLUMNS: StatsColumn[] = [
   { key: 'slot', label: '時段', kind: 'text', sticky: true },
   { key: 'slot_count', label: '場次數', kind: 'count' },
   { key: 'capacity_total', label: '總名額', kind: 'count' },
@@ -70,6 +72,13 @@ const columns: StatsColumn[] = [
   { key: 'full_count', label: '額滿場次', kind: 'count' },
   { key: 'signalLabel', label: '判讀', kind: 'text' },
 ]
+const narrow = useNarrowScreen()
+// 手機（≤720px）表格在框內橫捲，最右邊的「判讀」一打開看不到；把它提到「時段」後面，一眼就知道這個時段該不該動。
+const columns = computed<StatsColumn[]>(() => {
+  if (!narrow.value) return DESKTOP_COLUMNS
+  const [slot, ...rest] = DESKTOP_COLUMNS
+  return [slot!, ...rest.slice(-1), ...rest.slice(0, -1)]
+})
 </script>
 
 <template>
@@ -107,7 +116,7 @@ const columns: StatsColumn[] = [
         </div>
         <p v-if="slotsEmpty" class="empty-note">{{ slotsEmpty }}</p>
         <StatsDimensionTable
-          v-else :title="`時段（${usage.slots.date_from} 至 ${usage.slots.date_to}）`" :rows="rows" :columns="columns" row-key="key"
+          v-else :title="`時段（${usage.slots.date_from} 至 ${usage.slots.date_to}）`" :rows="rows" :columns="columns" :csv-columns="DESKTOP_COLUMNS" row-key="key"
           empty-text="" :export-filename="usageCsvFilename(campusName, usage.slots.weeks, usage.today)"
         />
         <p v-if="usage.slots.excluded_cases" class="hint">已排除的測試或重複預約 {{ usage.slots.excluded_cases }} 筆，不算進已約。</p>

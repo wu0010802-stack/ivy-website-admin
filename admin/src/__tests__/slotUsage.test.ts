@@ -14,6 +14,9 @@ import {
   BUCKET_LABELS, lookupEmptyText, lookupSummaryText, signalText, slotLabel, slotsEmptyText, usageCsvFilename,
 } from '../utils/slotUsage'
 import type { SlotUsage } from '../utils/slotUsage'
+import { CSV_BOM, downloadCsv } from '../utils/csv'
+
+vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 
 const usage = (changes: Partial<SlotUsage> = {}, lookups: Partial<SlotUsage['lookups']> = {}, slots: Partial<SlotUsage['slots']> = {}): SlotUsage => ({
   campus_key: 'yihua', booking_mode: 'slots', today: '2026-10-13',
@@ -97,6 +100,8 @@ afterEach(() => {
   wrappers.forEach(wrapper => wrapper.unmount())
   wrappers.length = 0
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+  vi.mocked(downloadCsv).mockClear()
 })
 
 async function mountPane(data: SlotUsage | Error) {
@@ -183,6 +188,49 @@ describe('SlotUsagePane', () => {
     const { wrapper } = await mountPane(new ApiError(404, 'Not Found'))
     expect(wrapper.text()).toContain('你沒有這個校區的權限。')
     expect(wrapper.text()).not.toContain('無法讀取場次使用情況')
+  })
+
+  describe('欄序：手機把「判讀」提到「時段」後面，桌機與 CSV 不變（2026-10-20）', () => {
+    const DESKTOP_ORDER = ['時段', '場次數', '總名額', '已約', '填滿率（%）', '額滿場次', '判讀']
+    const NARROW_ORDER = ['時段', '判讀', '場次數', '總名額', '已約', '填滿率（%）', '額滿場次']
+    const headers = (wrapper: VueWrapper) => wrapper.findAll('thead th').map(th => th.text())
+    const narrowScreen = () =>
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    const csvLines = () => {
+      const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+      return { filename, lines: csv.split('\r\n') }
+    }
+    const CSV_HEADER = `${CSV_BOM}時段,場次數,總名額,已約,填滿率（%）,額滿場次,判讀`
+
+    it('桌機：原本的欄序', async () => {
+      const { wrapper } = await mountPane(usage())
+      expect(headers(wrapper)).toEqual(DESKTOP_ORDER)
+    })
+
+    it('窄螢幕：判讀緊接在時段後面，儲存格也跟著換位置', async () => {
+      narrowScreen()
+      const { wrapper } = await mountPane(usage())
+      expect(headers(wrapper)).toEqual(NARROW_ORDER)
+      const cells = wrapper.findAll('tbody tr')[0]!.findAll('th, td').map(cell => cell.text())
+      expect(cells[0]).toBe('週六 10:00–11:00')
+      expect(cells[1]).toBe('常額滿，可以考慮加開')
+      expect(cells[2]).toBe('12')
+    })
+
+    it('匯出 CSV 的欄序固定，窄螢幕與桌機一樣', async () => {
+      const desktop = await mountPane(usage())
+      await desktop.wrapper.get('[data-test="stats-csv"]').trigger('click')
+      const fromDesktop = csvLines()
+      expect(fromDesktop.lines[0]).toBe(CSV_HEADER)
+      expect(fromDesktop.lines[1]).toBe('週六 10:00–11:00,12,36,33,92,9,常額滿，可以考慮加開')
+
+      vi.mocked(downloadCsv).mockClear()
+      narrowScreen()
+      const narrow = await mountPane(usage())
+      expect(headers(narrow.wrapper)).toEqual(NARROW_ORDER)
+      await narrow.wrapper.get('[data-test="stats-csv"]').trigger('click')
+      expect(csvLines().lines).toEqual(fromDesktop.lines)
+    })
   })
 
   it('換校區重讀，舊回應不會蓋掉新回應', async () => {
