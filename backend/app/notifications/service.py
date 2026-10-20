@@ -14,8 +14,16 @@ from sqlalchemy.orm import selectinload
 from app.auth.models import User
 from app.auth.permissions import covers_campus, roles_with
 from app.booking import access_service, exclusion
-from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
-from app.booking.outbox import PARENT_KINDS, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER
+from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.outbox import (
+    PARENT_KINDS,
+    PARENT_VISIT_BOOKED,
+    PARENT_VISIT_CANCELLED,
+    PARENT_VISIT_CHANGED,
+    PARENT_VISIT_DAY_CLOSED,
+    PARENT_VISIT_REMINDER,
+    day_closed_dedupe_key,
+)
 from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline, parent_change_open
 from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc, today_local
@@ -259,6 +267,25 @@ def _day_word(slot_date: date) -> str | None:
     return {0: "今天", 1: "明天"}.get((slot_date - today_local()).days)
 
 
+async def _superseded_by_day_closed_notice(
+    db: AsyncSession, outbox_message_id: uuid.UUID, visit_request_id: uuid.UUID, slot_date: date
+) -> bool:
+    """這封信排入之後，同一案件同一天另外排了停課通知（還沒放棄的）。"""
+    own_created_at = select(OutboxMessage.created_at).where(OutboxMessage.id == outbox_message_id).scalar_subquery()
+    found = await db.scalar(
+        select(OutboxMessage.id)
+        .where(
+            OutboxMessage.dedupe_key == day_closed_dedupe_key(visit_request_id, slot_date),
+            OutboxMessage.status.in_(
+                (OutboxStatus.PENDING.value, OutboxStatus.LEASED.value, OutboxStatus.SENT.value)
+            ),
+            OutboxMessage.created_at > own_created_at,
+        )
+        .limit(1)
+    )
+    return found is not None
+
+
 async def _dispatch_parent_email(
     db: AsyncSession,
     *,
@@ -295,18 +322,22 @@ async def _dispatch_parent_email(
     started = slot is not None and slot_start_utc(slot.slot_date, slot.start_time) <= datetime.now(timezone.utc)
     if kind != PARENT_VISIT_CANCELLED and started:
         return False
+    # 寄件當下那天是否停課（取消信用不到）。預約成功／已變更信在停課日改寫成停課內容（2026-10-20 稽核）：
+    # 停課後家長改資料、園方重寄確認信或重新產生連結都會排這兩種信，照原文寄等於說那天照常參觀。
+    closed = kind != PARENT_VISIT_CANCELLED and await day_closed(db, visit_request)
     # 停課通知寄出前：家長已經改約到別天、或園方取消了那天的休假，就不寄。
     if kind == PARENT_VISIT_DAY_CLOSED and (
-        slot is None
-        or slot.slot_date.isoformat() != payload.get("closure_date")
-        or not await day_closed(db, visit_request)
+        slot is None or slot.slot_date.isoformat() != payload.get("closure_date") or not closed
     ):
         return False
     # 參觀提醒（2026-10-15 規格 R6）：場次換了（改期）或那天停課（另有停課信）就不寄。
-    if kind == PARENT_VISIT_REMINDER and (
-        slot is None or str(slot.id) != str(payload.get("slot_id")) or await day_closed(db, visit_request)
-    ):
+    if kind == PARENT_VISIT_REMINDER and (slot is None or str(slot.id) != str(payload.get("slot_id")) or closed):
         return False
+    # 停課前就排著的預約成功／已變更信：這天有比它新的停課通知（排著或已寄），家長收那一封就好，
+    # 不再多一封同樣是停課內容的信。停課之後才排的（家長改資料、重寄確認信、重新產生連結）照寄。
+    if closed and kind in (PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED) and slot is not None:
+        if await _superseded_by_day_closed_notice(db, outbox_message_id, visit_request.id, slot.slot_date):
+            return False
     # 排除的測試／重複案件不寄參觀提醒（2026-10-15 排除規格 E8）；排入之後才排除的在這裡擋下。
     if kind == PARENT_VISIT_REMINDER and exclusion.is_excluded(visit_request):
         return False
@@ -315,10 +346,11 @@ async def _dispatch_parent_email(
         return True
     origin = admin_origin.rstrip("/") if admin_origin else None
     deadline_hours = await change_deadline_hours(db, visit_request.campus_key)
-    # 參觀提醒只在線上修改期限還沒過時附連結（R7）；其他家長信照舊（取消信不附）。
-    link_allowed = kind != PARENT_VISIT_CANCELLED and (
-        kind != PARENT_VISIT_REMINDER or parent_change_open(visit_request, deadline_hours)
-    )
+    # 線上修改期限還沒過才附連結（提醒信 R7；2026-10-20 稽核起預約成功／已變更信也一樣：最短提前時間
+    # 可以短於修改期限，送出當下期限就過了，連結點開也改不了）。停課日沒有期限。取消信不附。
+    change_deadline = parent_change_deadline(visit_request, deadline_hours, day_closed=closed)
+    change_open = parent_change_open(visit_request, deadline_hours, day_closed=closed)
+    link_allowed = kind != PARENT_VISIT_CANCELLED and change_open
     manage_url = None
     if link_allowed and origin and access_secret:
         path = await access_service.current_manage_path(db, visit_request.id, secret=access_secret)
@@ -336,9 +368,9 @@ async def _dispatch_parent_email(
             campus_address=str(profile.get("address") or "").strip() or None,
             campus_phone=str(profile.get("phone") or "").strip() or None,
             manage_url=manage_url,
-            change_deadline=parent_change_deadline(
-                visit_request, deadline_hours, day_closed=kind == PARENT_VISIT_DAY_CLOSED
-            ),
+            change_deadline=change_deadline,
+            change_window_passed=not change_open,
+            day_closed=closed,
             cancel_reason=visit_request.cancel_reason,
             rebook_url=f"{origin}/visit/{visit_request.campus_key}" if origin else None,
             closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,

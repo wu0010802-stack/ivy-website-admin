@@ -54,6 +54,30 @@ def is_publicly_bookable(
     return True
 
 
+def advance_days(config) -> int:
+    """該校的最遠開放天數；還沒有設定列的校區用預設值。"""
+    return config.max_advance_days if config is not None else MAX_ADVANCE_DAYS
+
+
+def query_range_end(date_from: date, date_to: date, *, today: date, max_advance_days: int) -> date:
+    """查場次的實際終點（2026-10-20 稽核）。最遠開放可以設到 62 天以上（後台有 90 天），
+    單次 62 天的查詢上限會讓 61 天以後的場次永遠查不到；所以超過 62 天的查詢放寬到
+    該校開放範圍的最後一天為止，更遠的部分截掉（公開端本來就不列開放範圍外的場次）。
+    62 天以內的查詢照舊不截，後台月曆看得到開放範圍外另外加開的場次。"""
+    allowed = max(date_from + timedelta(days=MAX_QUERY_RANGE_DAYS), today + timedelta(days=max_advance_days))
+    return min(date_to, allowed)
+
+
+# 前端用自己的「今天」當起點：跨午夜送出、或手機／後台電腦時鐘慢一點，date_from 會比伺服器
+# 的今天早一兩天。截短後的寬度是 (今天 - date_from) + 開放天數，不留這幾天就會整頁讀不到場次。
+QUERY_CLOCK_SLACK_DAYS = 2
+
+
+def query_range_limit(max_advance_days: int) -> int:
+    """搭配 query_range_end 的區間上限；從很久以前開始的寬區間仍然擋下。"""
+    return max(MAX_QUERY_RANGE_DAYS, max_advance_days + QUERY_CLOCK_SLACK_DAYS)
+
+
 def window_for(config) -> dict:
     """把該校設定轉成 is_publicly_bookable 的關鍵字參數；沒有設定列時用預設。"""
     if config is None:
@@ -223,9 +247,11 @@ async def lock_for_staff_booking(
 
 
 async def list_slots(
-    db: AsyncSession, campus_key: str, date_from: date, date_to: date
+    db: AsyncSession, campus_key: str, date_from: date, date_to: date, *, max_range_days: int = MAX_QUERY_RANGE_DAYS
 ) -> list[VisitSlot]:
-    if (date_to - date_from).days > MAX_QUERY_RANGE_DAYS:
+    """max_range_days：呼叫端已用 query_range_end 截到該校開放範圍時，傳
+    query_range_limit(該校最遠開放天數)。"""
+    if (date_to - date_from).days > max_range_days:
         raise SlotQueryRangeTooWide()
     result = await db.execute(
         select(VisitSlot)

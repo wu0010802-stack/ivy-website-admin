@@ -57,19 +57,34 @@ class ParentEmail:
     closure_reason: str | None = None
     # 參觀提醒寫「明天」或「今天」（寄出當下的台北日期，規格 R8）；其他種類為 None。
     day_word: str | None = None
+    # 寄件當下那天停課（parent_policy.day_closed）：預約成功／已變更信改寫成停課內容。
+    day_closed: bool = False
+    # 寄件當下已過線上修改期限：預約成功／已變更信不寫截止時間、請家長來電。
+    change_window_passed: bool = False
 
 
 def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
     short_name = mail.campus_name[:-1] if mail.campus_name.endswith("校") else mail.campus_name
     when = visit_when(mail.slot_date, mail.start_time) if mail.slot_date and mail.start_time else None
     day = f"{mail.day_word} " if mail.kind == PARENT_VISIT_REMINDER and mail.day_word else ""
-    subject = f"【常春藤{short_name}】{_TITLES[mail.kind]}" + (f"：{day}{when}" if when else "")
+    # 停課日的預約成功／已變更信（停課後家長改資料、園方重寄或換連結）不能寫成照常參觀，
+    # 標題、開頭與連結段落都比照停課通知（2026-10-20 稽核）。
+    closed_notice = mail.kind == PARENT_VISIT_DAY_CLOSED or (
+        mail.day_closed and mail.kind in (PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED)
+    )
+    title = _TITLES[PARENT_VISIT_DAY_CLOSED] if closed_notice else _TITLES[mail.kind]
+    subject = f"【常春藤{short_name}】{title}" + (f"：{day}{when}" if when else "")
+    closed_text = f"常春藤{mail.campus_name}這天停課，原本約好的參觀無法進行，很抱歉。"
 
-    if mail.kind == PARENT_VISIT_BOOKED:
-        intro = f"您已完成常春藤{mail.campus_name}的參觀預約，期待與您見面。"
-    elif mail.kind == PARENT_VISIT_DAY_CLOSED:
+    if mail.kind == PARENT_VISIT_DAY_CLOSED:
         because = f"因{mail.closure_reason}，" if mail.closure_reason else ""
-        intro = f"{because}常春藤{mail.campus_name}這天停課，原本約好的參觀無法進行，很抱歉。"
+        intro = f"{because}{closed_text}"
+    elif closed_notice and mail.kind == PARENT_VISIT_CHANGED:
+        intro = f"您的參觀預約已更新。{closed_text}"
+    elif closed_notice:
+        intro = closed_text
+    elif mail.kind == PARENT_VISIT_BOOKED:
+        intro = f"您已完成常春藤{mail.campus_name}的參觀預約，期待與您見面。"
     elif mail.kind == PARENT_VISIT_CHANGED:
         intro = "您的參觀預約已更新，以下是最新內容。"
     elif mail.kind == PARENT_VISIT_REMINDER:
@@ -95,7 +110,7 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
 
     if mail.kind == PARENT_VISIT_CANCELLED:
         lines.append(f"想再預約參觀，請到：{mail.rebook_url}" if mail.rebook_url else "想再預約參觀，歡迎來電洽詢。")
-    elif mail.kind == PARENT_VISIT_DAY_CLOSED:
+    elif closed_notice:
         # 停課日沒有線上修改期限（parent_policy.day_closed），不寫截止時間。
         if mail.manage_url:
             lines += ["請開啟這個連結改約其他時間，或取消這次預約：", mail.manage_url, "請勿把這個連結轉給他人。"]
@@ -113,6 +128,10 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
             lines.append(f"要改期或取消，請來電 {mail.campus_phone}。")
         else:
             lines.append("要改期或取消，請來電洽詢。")
+    elif mail.change_window_passed:
+        # 最短提前時間可以短於修改期限：送出當下期限就過了，不寫已過的截止時間（2026-10-20 稽核）。
+        call = f"請來電 {mail.campus_phone}" if mail.campus_phone else "請來電洽詢"
+        lines.append(f"已過線上修改期限，要改時間或取消，{call}。")
     elif mail.manage_url:
         deadline = f"（{_deadline_text(mail.change_deadline)}前可以線上修改）" if mail.change_deadline else ""
         lines += [f"要改時間、修改資料或取消，請開啟這個連結{deadline}：", mail.manage_url, "請勿把這個連結轉給他人。"]

@@ -368,6 +368,16 @@ _CLOSED_STATUSES = {
 }
 
 
+async def _lock_with_current_slot(db: AsyncSession, visit_request: VisitRequest) -> None:
+    """鎖住案件列，並把場次換成鎖內讀到的那一場（2026-10-20 稽核）。lock_status 只重讀 slot_id，
+    鎖外預先載入的場次物件不會跟著換：等鎖期間同事剛好改期的話，新連結的效期會照舊場次算、
+    在新場次之前就失效。同 routes._lock_for_transition。"""
+    await workflow_service.lock_status(db, visit_request)
+    loaded_slot_id = visit_request.slot.id if visit_request.slot is not None else None
+    if loaded_slot_id != visit_request.slot_id:
+        await db.refresh(visit_request, attribute_names=["slot"])
+
+
 @router.post("/admin/visit-requests/{visit_request_id}/access-link", response_model=ParentAccessLinkCreatedOut)
 async def create_parent_access_link(
     visit_request_id: uuid.UUID,
@@ -395,7 +405,7 @@ async def create_parent_access_link(
     # 與取消、結案同一把案件列鎖，鎖住後重讀狀態：同時按兩次「重新產生」時
     # 後到的一方才看得到前一方剛建的連結並撤銷它；取消先提交時，這裡讀到
     # 的是已取消，不會替結案的案件留下一條可兌換的連結。
-    await workflow_service.lock_status(db, visit_request)
+    await _lock_with_current_slot(db, visit_request)
     if visit_request.status in _CLOSED_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -459,7 +469,7 @@ async def resend_parent_confirmation(
     if visit_request is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
     require_scope(current_user, "booking.handle", campus_keys=[visit_request.campus_key])
-    await workflow_service.lock_status(db, visit_request)
+    await _lock_with_current_slot(db, visit_request)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value or not visit_request.email:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

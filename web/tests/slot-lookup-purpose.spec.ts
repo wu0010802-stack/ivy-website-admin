@@ -9,9 +9,9 @@ import { newBookingSlotsQuery, taipeiDate } from '../app/utils/visit-form'
 const read = (file: string) => readFileSync(path.resolve(__dirname, '..', file), 'utf8')
 
 describe('新預約表單讀場次的查詢', () => {
-  it('帶校區、今天到 60 天後與 purpose=new_booking', () => {
+  it('帶校區、今天到一年後（伺服器截到該校開放範圍）與 purpose=new_booking', () => {
     const query = newBookingSlotsQuery('yihua', '2026-10-13')
-    expect(query).toEqual({ campus_key: 'yihua', date_from: '2026-10-13', date_to: '2026-12-12', purpose: 'new_booking' })
+    expect(query).toEqual({ campus_key: 'yihua', date_from: '2026-10-13', date_to: '2027-10-13', purpose: 'new_booking' })
   })
 
   it('可以指定天數', () => {

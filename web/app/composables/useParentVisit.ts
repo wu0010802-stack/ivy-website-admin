@@ -1,6 +1,6 @@
 import { ref, shallowRef } from 'vue'
 import type { components } from '../../../contracts/generated/website-api'
-import { apiFieldErrors, taipeiDate, type VisitErrors } from '../utils/visit-form'
+import { apiFieldErrors, slotsQueryWindow, taipeiDate, type VisitErrors } from '../utils/visit-form'
 import { slotWhen } from '../utils/visit-session'
 
 export type ParentVisit = components['schemas']['ParentVisitRequestOut']
@@ -105,7 +105,7 @@ export function useParentVisit() {
       const result = await $fetch<ParentVisitSlot[]>('/api/website/v1/public/slots', {
         ...requestOptions,
         signal: controller.signal,
-        query: { campus_key: visit.value.campus_key, date_from: taipeiDate(), date_to: taipeiDate(new Date(Date.now() + 60 * 86400000)) }
+        query: { campus_key: visit.value.campus_key, ...slotsQueryWindow(taipeiDate()) }
       })
       if (disposed || unavailable.value || request !== revision) return
       slots.value = result.filter(slot => slot.remaining > 0 && slot.id !== visit.value?.slot?.id)

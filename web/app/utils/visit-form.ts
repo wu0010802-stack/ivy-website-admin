@@ -80,12 +80,21 @@ export function taipeiDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
 }
 
-/** 新預約表單讀公開場次的查詢（2026-10-13）：多帶 purpose=new_booking，伺服器據此記一次「最早能約哪天」。
- *  purpose 只決定記不記，不影響回傳的場次；改期管理頁讀同一支端點，不帶。 */
-export function newBookingSlotsQuery(campusKey: string, today: string, days = 60) {
+/** 讀公開場次查到幾天後：後台最遠開放可以設到一年（2026-10-20 稽核前寫死 60 天，61 天以後的場次
+ *  永遠看不到）。伺服器會截到各校設定的開放範圍，前端不必知道各校設幾天。 */
+export const SLOT_QUERY_DAYS = 365
+
+/** 官網新預約與家長改期共用的查詢區間：今天（台北）到 SLOT_QUERY_DAYS 天後。 */
+export function slotsQueryWindow(today: string, days = SLOT_QUERY_DAYS) {
   const end = new Date(`${today}T12:00:00+08:00`)
   end.setUTCDate(end.getUTCDate() + days)
-  return { campus_key: campusKey, date_from: today, date_to: taipeiDate(end), purpose: 'new_booking' as const }
+  return { date_from: today, date_to: taipeiDate(end) }
+}
+
+/** 新預約表單讀公開場次的查詢（2026-10-13）：多帶 purpose=new_booking，伺服器據此記一次「最早能約哪天」。
+ *  purpose 只決定記不記，不影響回傳的場次；改期管理頁讀同一支端點，不帶。 */
+export function newBookingSlotsQuery(campusKey: string, today: string, days = SLOT_QUERY_DAYS) {
+  return { campus_key: campusKey, ...slotsQueryWindow(today, days), purpose: 'new_booking' as const }
 }
 
 export function visitDateLabel(value: string) {

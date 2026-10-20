@@ -12,9 +12,29 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi import Request
+
 from app.booking.models import LOOKUP_BUCKETS, SlotLookupDaily
+from app.common import ratelimit
+from app.operations import public_caps
 
 LOOKUP_WINDOW_DAYS = 28
+
+# 匿名寫入的上限（2026-10-20 稽核，比照 telemetry 與點擊的 public_caps）：單一來源每分鐘 60 次的
+# 查場次限流擋不住多個來源一起灌。真實家長一天開預約頁的次數遠低於這些數字；超過只是不記，
+# 照樣回場次。每來源每日只在代理有帶訪客 IP 時套用（沒有時全站會共用一個桶）。
+LOOKUP_GLOBAL_PER_MINUTE = ratelimit.Limit("slot_lookup_global", 60, 120)
+LOOKUP_SOURCE_DAILY = ratelimit.Limit("slot_lookup_source_daily", public_caps.DAY_SECONDS, 30, sliding=False)
+LOOKUP_GLOBAL_DAILY = ratelimit.Limit("slot_lookup_daily", public_caps.DAY_SECONDS, 3_000, sliding=False)
+
+
+async def admit(request: Request) -> bool:
+    """這次查詢能不能記。上限滿了或限流池拿不到連線都回 False（不記），不丟錯。"""
+    caps: list[public_caps.Cap] = [(LOOKUP_GLOBAL_PER_MINUTE, public_caps.GLOBAL_KEY)]
+    if ratelimit.trusted_client_ip(request):
+        caps.append((LOOKUP_SOURCE_DAILY, ratelimit.client_key(request)))
+    caps.append((LOOKUP_GLOBAL_DAILY, public_caps.GLOBAL_KEY))
+    return await public_caps.admit(ratelimit.limiter(request), caps)
 
 
 def bucket_for(days: int | None) -> str:

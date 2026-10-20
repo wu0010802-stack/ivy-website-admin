@@ -6,7 +6,7 @@ import { api, ApiError } from '../api/client'
 import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
 import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, expectedStartStaffOptions, formatSlotWhen, slotStarted } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
-import { taipeiDay } from '../utils/visitSchedule'
+import { staffSlotsRange, taipeiDay } from '../utils/visitSchedule'
 import CampusSelect from './CampusSelect.vue'
 import { useRequestSequence } from '../composables/useRequestSequence'
 
@@ -129,9 +129,7 @@ async function loadSlots() {
   slotsLoading.value = true
   slotsError.value = false
   try {
-    const today = new Date().toISOString().slice(0, 10)
-    const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-    const params = new URLSearchParams({ campus_key: form.campus_key, date_from: today, date_to: future })
+    const params = new URLSearchParams({ campus_key: form.campus_key, ...staffSlotsRange() })
     const loaded = await api.get<VisitSlotOut[]>(`/admin/slots?${params}`)
     if (slotRequests.isCurrent(request)) slots.value = loaded
   } catch {
@@ -303,7 +301,7 @@ async function submit() {
         <span v-if="slotsError" class="field-help">
           讀不到這個校區的場次。<el-button link type="primary" @click="loadSlots">重新讀取</el-button>
         </span>
-        <span v-else-if="!slotsLoading && openSlots.length === 0" class="field-help">未來 60 天沒有可以排入的場次，請先到「參觀場次」開放場次。</span>
+        <span v-else-if="!slotsLoading && openSlots.length === 0" class="field-help">開放預約的期間內沒有可以排入的場次，請先到「參觀場次」開放場次。</span>
         <span v-else-if="chosenSlot" class="field-help">已選：{{ slotOptionLabel(chosenSlot) }}。送出後案件直接成為「預約正常」。</span>
         <span v-else class="field-help">送出後案件直接成為「預約正常」。</span>
       </el-form-item>

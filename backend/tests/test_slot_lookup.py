@@ -88,9 +88,11 @@ async def test_new_booking_purpose_records_one_lookup_with_earliest_bucket(admin
 
 @pytest.mark.asyncio
 async def test_no_slots_at_all_records_none(admin_client, public_client, db_session):
-    await create_slot(admin_client, days_ahead=58)  # 讓 slots 模式能啟用，但查詢範圍只到 +10 天
+    slot_id = await create_slot(admin_client, days_ahead=58)  # 讓 slots 模式能啟用，之後停止申請
     assert (await set_booking_mode(admin_client, mode="slots")).status_code == 200
-    response = await public_client.get(f"{API}/public/slots?campus_key=yihua&{_range(10)}&purpose=new_booking")
+    stopped = await admin_client.patch(f"{API}/admin/slots/{slot_id}", json={"closed": True, "expected_version": 1})
+    assert stopped.status_code == 200, stopped.text
+    response = await public_client.get(f"{API}/public/slots?campus_key=yihua&{_range()}&purpose=new_booking")
     assert response.status_code == 200 and response.json() == []
     assert await _lookups(db_session) == {("yihua", "none"): 1}
 
@@ -215,8 +217,10 @@ async def test_lookup_day_and_wait_come_from_the_routes_taipei_today(admin_clien
     # 假裝台北今天是「場次日期 − 1 天」→ 最早場次離今天 1 天，記在 within_1，記錄日期是假的今天。
     fake_today = slot_date - timedelta(days=1)
     monkeypatch.setattr(booking_routes, "today_local", lambda *a, **k: fake_today)
+    # 2026-10-20 稽核起只記從（路由的）今天查到開放範圍最後一天的查詢。
     response = await public_client.get(
-        f"{API}/public/slots?campus_key=yihua&date_from={today_local().isoformat()}&date_to={slot_date.isoformat()}&purpose=new_booking"
+        f"{API}/public/slots?campus_key=yihua&date_from={fake_today.isoformat()}"
+        f"&date_to={(fake_today + timedelta(days=60)).isoformat()}&purpose=new_booking"
     )
     assert response.status_code == 200
     rows = await db_session.scalars(select(SlotLookupDaily))

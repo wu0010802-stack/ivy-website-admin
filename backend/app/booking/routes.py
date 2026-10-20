@@ -603,8 +603,13 @@ async def list_admin_slots(
     # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；權限過了才擋（同 visit-calendar），沒權限的人照舊拿 404。
     if has_control_chars(campus_key):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
+    # 補登與改期一次讀到該校開放範圍的最後一天（最遠開放可以超過 62 天，2026-10-20 稽核）。
+    max_days = slot_service.advance_days(await db.get(BookingConfig, campus_key))
+    date_to = slot_service.query_range_end(date_from, date_to, today=today_local(), max_advance_days=max_days)
     try:
-        slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
+        slots = await slot_service.list_slots(
+            db, campus_key, date_from, date_to, max_range_days=slot_service.query_range_limit(max_days)
+        )
     except slot_service.SlotQueryRangeTooWide as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -831,14 +836,21 @@ async def list_public_slots(
     campus = await db.get(Campus, campus_key)
     if campus is not None and not campus.active:
         return []
+    config = await db.get(BookingConfig, campus_key)
+    today = today_local()
+    # 最遠開放可以超過 62 天（2026-10-20 稽核）：官網查到該校開放範圍的最後一天為止，
+    # 更遠的本來就訂不了（is_publicly_bookable），截掉不影響回傳。
+    max_days = slot_service.advance_days(config)
+    query_to = slot_service.query_range_end(date_from, date_to, today=today, max_advance_days=max_days)
     try:
-        slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
+        slots = await slot_service.list_slots(
+            db, campus_key, date_from, query_to, max_range_days=slot_service.query_range_limit(max_days)
+        )
     except slot_service.SlotQueryRangeTooWide as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "QUERY_RANGE_TOO_WIDE", "message": "查詢區間過長，請縮小範圍"},
         ) from exc
-    config = await db.get(BookingConfig, campus_key)
     window = slot_service.window_for(config)
     # 與送單共用同一份判斷（closed／已過去／未達最短提前時間／
     # 超過最遠開放天數），避免公開頁列出根本訂不了的時段。
@@ -861,8 +873,17 @@ async def list_public_slots(
         )
     # 場次使用情況（2026-10-13）：新預約表單讀場次時記一次「最早能約哪天」。只有校區存在且 active（停用的
     # 上面已回空清單）、預約方式是自選場次才記；失敗只記 log，不能讓家長讀不到場次。
-    if purpose == "new_booking" and campus is not None and config is not None and config.mode == BookingMode.SLOTS:
-        today = today_local()
+    # 2026-10-20 稽核：區間由呼叫端決定，給一段沒有場次的區間就能讓每次都記成「整段沒有場次」；
+    # 所以只記從台北今天查到該校開放範圍最後一天的查詢（官網表單就是這樣查），再過全站與每來源上限。
+    if (
+        purpose == "new_booking"
+        and campus is not None
+        and config is not None
+        and config.mode == BookingMode.SLOTS
+        and date_from == today
+        and query_to >= today + timedelta(days=max_days)
+        and await slot_lookup.admit(request)
+    ):
         earliest = min((s.slot_date for s in result), default=None)
         try:
             await slot_lookup.record_lookup(db, campus_key=campus_key, earliest=earliest, today=today)

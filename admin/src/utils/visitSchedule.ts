@@ -8,6 +8,15 @@ export function taipeiDay(time: number): string {
   return dayFormatter.format(new Date(time))
 }
 
+/** 補登與改期讀 /admin/slots 的區間（2026-10-20 稽核）：最遠開放可以設到一年，原本寫死 60 天會讓
+ *  61 天以後的場次排不進去。從台北今天查到一年後，伺服器截到該校設定的開放範圍為止。 */
+export function staffSlotsRange(now: number = Date.now()): { date_from: string; date_to: string } {
+  const today = taipeiDay(now)
+  const end = new Date(`${today}T12:00:00+08:00`)
+  end.setUTCDate(end.getUTCDate() + 365)
+  return { date_from: today, date_to: taipeiDay(end.getTime()) }
+}
+
 /** 兩個 YYYY-MM-DD 相差幾天（b − a）。 */
 export function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)

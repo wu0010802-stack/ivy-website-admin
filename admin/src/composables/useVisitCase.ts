@@ -18,7 +18,7 @@ import { useFamilyAdmissions } from './useFamilyAdmissions'
 import { arrivalFormLead } from './useArrivalAdmissionsForm'
 import { arrivalAdmissionsNote, earlyArrivalNote } from './visitAttendance'
 import { readVisitNoteDraft, writeVisitNoteDraft } from './visitNoteDraft'
-import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked, taipeiDay } from '../utils/visitSchedule'
+import { followUpDue as isFollowUpDue, followUpTracked as isFollowUpTracked, staffSlotsRange, taipeiDay } from '../utils/visitSchedule'
 
 // 哪一個動作正在處理：只有按下去的那顆按鈕轉圈，其他按鈕只停用，
 // 不會讓人以為自己按到了別顆。
@@ -150,13 +150,12 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       notes.value = notesResult.value
       syncFollowUp(loaded, options.quiet ? 'quiet' : 'reset')
       hooks.onLoaded?.(loaded)
-      // 改期（已確認）從同校未來 60 天的場次挑。
+      // 改期（已確認）從同校開放預約期間內的場次挑。
       let slots: VisitSlotOut[] = []
       if (loaded.status === 'confirmed') {
-        const today = new Date().toISOString().slice(0, 10)
-        const future = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        const range = staffSlotsRange()
         slots = await api.get<VisitSlotOut[]>(
-          `/admin/slots?campus_key=${loaded.campus_key}&date_from=${today}&date_to=${future}`,
+          `/admin/slots?campus_key=${loaded.campus_key}&date_from=${range.date_from}&date_to=${range.date_to}`,
         )
       }
       if (gen !== generation) return

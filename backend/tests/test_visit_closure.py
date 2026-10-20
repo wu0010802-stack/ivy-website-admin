@@ -194,10 +194,11 @@ async def test_notice_mail_has_reason_and_link_and_the_parent_can_move_past_the_
     assert patched.status_code == 200, patched.text
     before = await open_manage(public_client, booked["manage_path"])
     assert before["can_reschedule"] is False and before["day_closed"] is False
-
     await _close(admin_client, booked["slot_date"])
     await _run_outbox(db_session, app, recording_mail_adapter)
 
+    # 預約成功信還排著就停課：只寄停課通知，不再多一封改寫成停課內容的預約成功信（2026-10-20 稽核）。
+    assert len([m for m in recording_mail_adapter.sent if m["to"] == "parent@example.com"]) == 1
     mails = [m for m in recording_mail_adapter.sent if m["to"] == "parent@example.com" and "停課" in m["subject"]]
     assert len(mails) == 1
     assert mails[0]["subject"].startswith("【常春藤義華】參觀日停課，請改約時間：")

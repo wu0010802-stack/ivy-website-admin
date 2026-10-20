@@ -37,8 +37,8 @@ async function openManualReschedule() {
         </el-select>
         <p v-if="vc.chosenSlotText(vc.rescheduleSlots, vc.rescheduleSlotId)" class="hint slot-chosen">已選：{{ vc.chosenSlotText(vc.rescheduleSlots, vc.rescheduleSlotId) }}</p>
         <p v-if="vc.rescheduleSlots.length === 0" class="hint">
-          <template v-if="vc.canManage">未來 60 天沒有其他可用場次。先到 <router-link to="/visit-calendar">參觀場次</router-link> 新增。</template>
-          <template v-else>未來 60 天沒有其他可用場次，請校區管理者到「參觀場次」新增。</template>
+          <template v-if="vc.canManage">開放預約的期間內沒有其他可用場次。先到 <router-link to="/visit-calendar">參觀場次</router-link> 新增。</template>
+          <template v-else>開放預約的期間內沒有其他可用場次，請校區管理者到「參觀場次」新增。</template>
         </p>
         <el-input v-model="vc.rescheduleReason" maxlength="500" placeholder="改期原因（選填）" aria-label="改期原因" />
         <el-button :loading="vc.pendingAction === 'reschedule'" :disabled="!vc.rescheduleSlotId || vc.busy" style="width: 100%; margin-left: 0" @click="vc.reschedule()">改到這一場</el-button>
