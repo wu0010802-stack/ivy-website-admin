@@ -1694,3 +1694,55 @@ class AreaEnrolledOut(BaseModel):
     unplaced: list[AreaEnrolledUnplacedOut]
     distance_bands: list[AreaEnrolledBandOut]
     villages: list[AreaEnrolledVillageOut]
+
+
+# ---- 招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）----
+
+
+class PotentialShareYearOut(BaseModel):
+    school_year: int
+    # 上學期四個年級日期欄註冊人數相加（不含重讀保留生）。
+    registered: int
+    # 同學年九月底半徑內 2–5 歲戶籍人數；那一年沒有九月列時 children、villages、share 都是 null（不是 0）。
+    children: int | None
+    villages: int | None
+    share: float | None
+    # 里代碼變過的學年，把同區舊代碼一起計入分母（note 另有說明）。
+    merged: bool
+
+
+class PotentialElementaryYearOut(BaseModel):
+    school_year: int
+    grade1: int
+    # 學區內 6 歲戶籍人數（一個里對到 n 所學校各算 1/n，所以是小數）。
+    age6: float
+    ratio: float
+    # 那一年有一年級人數的學校數。
+    schools: int
+
+
+class PotentialElementaryCheckOut(BaseModel):
+    # 半徑內各里所屬的國小數。
+    schools: int
+    years: list[PotentialElementaryYearOut]
+    # 最新一年以前各年比值的平均；latest_ratio 偏離它超過門檻時 warn 為 true。
+    mean: float
+    latest_ratio: float
+    warn: bool
+
+
+class PotentialShareOut(BaseModel):
+    status: Literal["ready", "not_imported", "no_campus_point"]
+    radius_km: int
+    # 最新一個有市佔率的學年、市佔率最高的學年（同分取較新）；沒有任何學年算得出市佔率時是 null。
+    latest: PotentialShareYearOut | None
+    best: PotentialShareYearOut | None
+    years: list[PotentialShareYearOut]
+    elementary_check: PotentialElementaryCheckOut | None
+    notes: list[str]
+
+
+class PotentialOut(BaseModel):
+    campus: AreaCampusOut
+    share: PotentialShareOut
+    generated_at: datetime

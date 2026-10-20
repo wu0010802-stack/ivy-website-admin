@@ -435,6 +435,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/potential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Potential
+         * @description 招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底
+         *     2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。
+         */
+        get: operations["get_admissions_potential_api_website_v1_admin_admissions_potential_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/records": {
         parameters: {
             query?: never;
@@ -6975,6 +6996,74 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** PotentialElementaryCheckOut */
+        PotentialElementaryCheckOut: {
+            /** Latest Ratio */
+            latest_ratio: number;
+            /** Mean */
+            mean: number;
+            /** Schools */
+            schools: number;
+            /** Warn */
+            warn: boolean;
+            /** Years */
+            years: components["schemas"]["PotentialElementaryYearOut"][];
+        };
+        /** PotentialElementaryYearOut */
+        PotentialElementaryYearOut: {
+            /** Age6 */
+            age6: number;
+            /** Grade1 */
+            grade1: number;
+            /** Ratio */
+            ratio: number;
+            /** School Year */
+            school_year: number;
+            /** Schools */
+            schools: number;
+        };
+        /** PotentialOut */
+        PotentialOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            share: components["schemas"]["PotentialShareOut"];
+        };
+        /** PotentialShareOut */
+        PotentialShareOut: {
+            best: components["schemas"]["PotentialShareYearOut"] | null;
+            elementary_check: components["schemas"]["PotentialElementaryCheckOut"] | null;
+            latest: components["schemas"]["PotentialShareYearOut"] | null;
+            /** Notes */
+            notes: string[];
+            /** Radius Km */
+            radius_km: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "not_imported" | "no_campus_point";
+            /** Years */
+            years: components["schemas"]["PotentialShareYearOut"][];
+        };
+        /** PotentialShareYearOut */
+        PotentialShareYearOut: {
+            /** Children */
+            children: number | null;
+            /** Merged */
+            merged: boolean;
+            /** Registered */
+            registered: number;
+            /** School Year */
+            school_year: number;
+            /** Share */
+            share: number | null;
+            /** Villages */
+            villages: number | null;
+        };
         /** PrivacyNoticeOut */
         PrivacyNoticeOut: {
             /** Sections */
@@ -9627,6 +9716,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdmissionsOptionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_potential_api_website_v1_admin_admissions_potential_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PotentialOut"];
                 };
             };
             /** @description Validation Error */

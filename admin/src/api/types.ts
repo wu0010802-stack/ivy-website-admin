@@ -616,6 +616,11 @@ export type AreaEnrolledPoint = components['schemas']['AreaEnrolledPointOut']
 export type AreaEnrolledVillage = components['schemas']['AreaEnrolledVillageOut']
 export type EnrolledGrade = components['schemas']['AreaEnrolledGradeOut']['grade']
 
+// 招生潛力與市佔率（2026-10-20 規格 §5）：三公里內各學年的市佔率走勢與國小一年級對帳。
+export type Potential = components['schemas']['PotentialOut']
+export type PotentialShareYear = components['schemas']['PotentialShareYearOut']
+export type PotentialElementaryCheck = components['schemas']['PotentialElementaryCheckOut']
+
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {
   TOWNNAME: string

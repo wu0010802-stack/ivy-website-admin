@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
@@ -25,6 +25,7 @@ from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import peer_fees as peer_fees_service
 from app.admissions import presale_area as presale_area_service
+from app.admissions import share as share_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
 from app.admissions.enrolled import query as enrolled_query
@@ -57,6 +58,7 @@ from app.admissions.schemas import (
     IntakeTargetsRequest,
     JourneyOut,
     NoDepositRecordsOut,
+    PotentialOut,
     RecruitmentEventOut,
     RecruitmentVisitCreate,
     RecruitmentVisitOut,
@@ -1093,6 +1095,24 @@ async def get_admissions_area_enrolled(
     距離帶與各里人數。和學年學期、半徑無關（清冊是某一天的快照）。只讀，不寫稽核；回應由中介層補 no-store。"""
     _require_campus(current_user, "admissions.stats", campus_key)
     return AreaEnrolledOut.model_validate(await enrolled_query.query_enrolled(db, campus_key))
+
+
+@router.get("/admin/admissions/potential", response_model=PotentialOut)
+async def get_admissions_potential(
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> PotentialOut:
+    """招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底
+    2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    return PotentialOut.model_validate(
+        {
+            "campus": await area_service.campus_out(db, campus_key),
+            "share": await share_service.query_share(db, campus_key),
+            "generated_at": datetime.now(timezone.utc),
+        }
+    )
 
 
 @router.get(

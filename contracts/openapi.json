@@ -11533,6 +11533,228 @@
         "title": "PendingReviewOut",
         "type": "object"
       },
+      "PotentialElementaryCheckOut": {
+        "properties": {
+          "latest_ratio": {
+            "title": "Latest Ratio",
+            "type": "number"
+          },
+          "mean": {
+            "title": "Mean",
+            "type": "number"
+          },
+          "schools": {
+            "title": "Schools",
+            "type": "integer"
+          },
+          "warn": {
+            "title": "Warn",
+            "type": "boolean"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialElementaryYearOut"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schools",
+          "years",
+          "mean",
+          "latest_ratio",
+          "warn"
+        ],
+        "title": "PotentialElementaryCheckOut",
+        "type": "object"
+      },
+      "PotentialElementaryYearOut": {
+        "properties": {
+          "age6": {
+            "title": "Age6",
+            "type": "number"
+          },
+          "grade1": {
+            "title": "Grade1",
+            "type": "integer"
+          },
+          "ratio": {
+            "title": "Ratio",
+            "type": "number"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "schools": {
+            "title": "Schools",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "grade1",
+          "age6",
+          "ratio",
+          "schools"
+        ],
+        "title": "PotentialElementaryYearOut",
+        "type": "object"
+      },
+      "PotentialOut": {
+        "properties": {
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "share": {
+            "$ref": "#/components/schemas/PotentialShareOut"
+          }
+        },
+        "required": [
+          "campus",
+          "share",
+          "generated_at"
+        ],
+        "title": "PotentialOut",
+        "type": "object"
+      },
+      "PotentialShareOut": {
+        "properties": {
+          "best": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PotentialShareYearOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "elementary_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PotentialElementaryCheckOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PotentialShareYearOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "not_imported",
+              "no_campus_point"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialShareYearOut"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "radius_km",
+          "latest",
+          "best",
+          "years",
+          "elementary_check",
+          "notes"
+        ],
+        "title": "PotentialShareOut",
+        "type": "object"
+      },
+      "PotentialShareYearOut": {
+        "properties": {
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "merged": {
+            "title": "Merged",
+            "type": "boolean"
+          },
+          "registered": {
+            "title": "Registered",
+            "type": "integer"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share"
+          },
+          "villages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Villages"
+          }
+        },
+        "required": [
+          "school_year",
+          "registered",
+          "children",
+          "villages",
+          "share",
+          "merged"
+        ],
+        "title": "PotentialShareYearOut",
+        "type": "object"
+      },
       "PrivacyNoticeOut": {
         "properties": {
           "sections": {
@@ -19664,6 +19886,81 @@
           }
         },
         "summary": "Get Admissions Options",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/potential": {
+      "get": {
+        "description": "招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底\n2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。",
+        "operationId": "get_admissions_potential_api_website_v1_admin_admissions_potential_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PotentialOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Potential",
         "tags": [
           "admissions"
         ]

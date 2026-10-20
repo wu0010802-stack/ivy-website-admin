@@ -1,10 +1,10 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）、招生潛力與市佔率 getPotential（2026-10-20）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
   AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
-  ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
+  ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -209,6 +209,11 @@ export function getAreaPresale(campusKey: string, radiusKm: 1 | 3 | 6): Promise<
 /** 在籍學生分布（2026-10-15 規格 §5）：只看校區（清冊是某一天的快照）；沒匯入時 status 是 not_imported。 */
 export function getAreaEnrolled(campusKey: string): Promise<AreaEnrolled> {
   return api.get<AreaEnrolled>(`/admin/admissions/area/enrolled?${toQuery({ campus_key: campusKey })}`)
+}
+
+/** 招生潛力與市佔率（2026-10-20 規格 §5）：只看校區（半徑固定三公里）；沒匯入歷年註冊時 share.status 是 not_imported。 */
+export function getPotential(campusKey: string): Promise<Potential> {
+  return api.get<Potential>(`/admin/admissions/potential?${toQuery({ campus_key: campusKey })}`)
 }
 
 /** 高雄市里界（規格 8.3）。後端帶 ETag 與一天快取，304 由瀏覽器自己處理。 */
