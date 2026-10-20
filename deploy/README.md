@@ -1104,7 +1104,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 
 **幼兒園營業中改以教育部名單判斷（2026-10-15）**：幼兒園的營業中不再看 kiang `preschools.json` 的 `is_active`（一旦是 1 就不會變回 0），改以教育部名單（`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`，kiang `docs/data/高雄市.csv`）為準；規格 `docs/specs/2026-10-15-kindergarten-registry-design.md`。名單抓不到或格式不對，幼兒園整輪不換版。不新增 migration、不需要新環境變數（名單網址有預設值）。
 
-- **回補檔（同步每一輪都會讀，不要刪）**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv` 隨程式提交，47 筆；檔不在或格式不對時幼兒園整輪不換版、原因寫進 `last_error`。只有某所「這一輪要下架」時才用到其中一列。說明與重產指令在 `backend/app/admissions/geo_data/README.md`。
+- **回補檔（同步每一輪都會讀，不要刪）**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv` 隨程式提交，47 筆；檔不在或格式不對時幼兒園整輪不換版、原因寫進 `last_error`。只有某所「這一輪要下架」時才用到其中一列。說明與重產指令在 `backend/app/admissions/geo_data/README.md`。**（2026-10-20 起這份檔由 `kindergarten-closures-20261020.csv`（94 筆）取代並已移除，換版與預期值見下面「招生潛力第二、三波」一節；下面「轉換輪的預期值」以 10-15 檔為準，若轉換輪在換版之後才跑，停辦事件會是 33 而不是 16。）**
 - **轉換輪的預期值**（部署後第一輪幼兒園同步，把 kiang 還標營業中、但已不在名單的 47 所一次下架）：api 日誌（背景同步迴圈才印 INFO，手動 `geo-sync` 不印；Railway 日誌 auto 模式會擋，要使用者用 `!` 跑：`railway logs -p <project> -e production -s api -d --since 3h -n 3000 -f 'admissions.geo'`）會有一行「幼兒園資料已更新：689 所，略過 … 筆、名單有但沒有座標 … 筆；停辦事件 16、依回補檔下架 33、改名下架 14、重新營業 0、類型變動 0」，以 2026-10-15 的回補檔為準：
   - 營業中約 **689**（名單 689 所，之後名單增減會跟著變）。
   - 停辦事件＝回補檔有日期的停辦 **16**（日期介於 2025-08-22 與 2026-10-13），另加 10-15 之後才離開名單的（不在回補檔裡，日期記同步當天）。
@@ -1180,6 +1180,37 @@ update recruitment_visit_geo g
 6. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了）。
 
 每學期園方更新表（9/15、3/15 之後）重跑 2–6 即可整批取代。其他校區有同格式的表時改 `--campus`。公開資料（九月底人口、國小）要先匯入，後台才算得出市佔率；歷年註冊先匯入而人口還沒有時，各學年的市佔率寫「—」。
+
+### 招生潛力第二、三波：停辦回補檔換版與部署後檢查（2026-10-20，`feature/admissions-potential2-20261020`，尚未部署）
+
+規格 `docs/specs/2026-10-20-admissions-potential-share-design.md` §11。**沒有 migration、沒有新環境變數、沒有新依賴**，所以部署本身沒有人工步驟，也不需要先備份（資料上只有背景同步會新增停辦園所列與停辦事件，不改、不刪既有列）。推 main＝部署，要使用者同意。
+
+- **回補檔換版**：`backend/app/admissions/geo_data/kindergarten-closures-20261015.csv`（47 筆）→ `kindergarten-closures-20261020.csv`（**94 筆**：停辦 62、改名 32，全部有離開日 `left_on`，最早 2022-09-20、最晚 2026-10-13；欄位多了名稱、核定、座標、類型）。舊檔 47 筆全保留、有日期的 29 筆日期不變，原本沒日期的 18 筆現在都有日期。舊檔已從 repo 移除。這份檔**同步每一輪都會讀，不要刪**；檔不在或格式不對時幼兒園整輪不換版、原因寫進 `last_error`。
+- **事件保留期 24 → 72 個月**（`providers.EVENT_RETENTION_MONTHS`，幼兒園與托嬰共用），不然下一輪同步就會把 24 個月前的回補事件刪掉。畫面其他地方仍只看近 12 個月，不受影響。
+- **部署後第一次幼兒園同步會補寫停辦事件**：每輪幼兒園同步成功後，把檔裡 `closed` 且有離開日的園所補寫成停辦事件；資料表沒有的園所先補一列 `is_active=false`（名稱、核定、座標、類型取自檔；`district`、`address` 是空字串）。已有任何 `closed` 事件的園所略過，營業中的園所不碰，重跑不重複。
+  - 時機：幼兒園每 7 天看一次來源，部署後第一輪背景同步未必到期。要立刻補，用上面「立刻生效要手動 `geo-sync --force`」那段的做法與警語（`--force` 會同時略過殘缺檔檢查、重抓全部資料；不想全抓就用該段的檔案模式）。
+  - 日誌（背景同步才印 INFO；Railway 日誌 auto 模式會擋，要使用者用 `!` 跑，指令同上面轉換輪那段）會多一個「回補檔補寫停辦事件 N」。N 看正式站當下的狀態，**依程式推算、沒有在正式站驗證**：10-15 轉換輪已經跑過（已替 16 筆有日期的停辦寫過事件）約 **46**；轉換輪還沒跑（這一輪同時處理 10-15 的 47 所舊筆）約 **29**，此時前面那一段「幼兒園資料已更新」的停辦事件會是 33、依回補檔下架 33、改名下架 14。N 不是驗收數字，驗收看下面的 SQL。
+- **驗收 SQL**（Railway Postgres 的 Database 分頁）：
+  - `select count(*), min(occurred_on), max(occurred_on) from geo_provider_events where provider = 'kindergarten' and change = 'closed' and occurred_on >= '2022-09-01';`：至少 **62**（回補檔的停辦全數），最早 **2022-09-20**；10-13 之後又離開名單的停辦用同步當天的日期，會多出幾筆。
+  - `select count(*) from geo_kindergartens where not is_active and district = '';`：補進來的列（`district` 空字串），最多 62，約 29 上下。
+  - `select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'kindergartens';`：`synced_at` 是最近一次同步、`last_error` 空白。
+- **後台檢查**（總管理者，義華）：招生統計 → 招生潛力與市佔率（`/admin/admissions-stats?sub=potential`）。
+  1. 右邊那張卡「每年還能多招」有「約 N 位」「低～高 位」，下一行「目前空位 18 位」（核定 210 − 在籍 192）；三個來源都有數字時不寫「只含：…」。
+  2. 三個來源表都是「有數字」：來源一約 **5～55 位**（本機驗證庫 5.3／19.0／55.3，那個庫沒有收費資料，價格係數全為 1，正式站有收費資料的園所會被打折，可能略低）；來源二、三本機沒有真資料可比，**第一次在正式站看**，量級對報告 B-11 的 1.2／5.2／11.3 與 B-06 的 1.0／1.6／2.5（來源三只算一年內交屋，應更小）。某個來源是「沒有資料」就看畫面上的原因（沒有在籍清冊、在籍人數太少、附近有孩子的里太少、算不出距離曲線、沒有預售資料）。
+  3. 展開來源一「怎麼算」：參數照列，最下面「沒有收費資料 N 所」（本機 35 所）；事件表是 3 公里內的停辦（11 所、核定 1,578 席）。
+  4. 走勢圖 x 軸下方有停辦三角形（懸停看園名與核定）；停辦標在該停辦學年的**下一個**學年（童年綠地 2026-09 → 115 學年）。
+  5. 窄螢幕（≤720px）兩張卡上下排、來源表一個來源一張卡，沒有橫向捲動。
+- **系統狀態**：幼兒園名單那一列的同步時間是最近一次、沒有錯誤。回補檔讀不了時整輪不換版，`last_error` 會寫「kindergarten-closures-20261020.csv 第 N 列不對」之類的原因。
+- **回退**：沒有 migration，不需要 `alembic downgrade`，直接切回舊映像即可。舊映像的事件保留期是 24 個月，下一輪同步會刪掉 24 個月前的事件（2022～2024 年的回補事件）；再切回新映像後下一輪同步會補回來（補寫是冪等的）。這兩句是依程式推得，沒有實測。
+- **重產回補檔**（通常不必：kiang 的名單歷史不會改，之後的停辦由同步當下偵測）：只有要把窗口往前推、或發現某筆日期掃錯時才重產。需要已登入的 `gh`，在 `backend/`：
+
+```bash
+uv run --frozen python scripts/build_kindergarten_closures.py --since 2022-08-31 \
+    --merge app/admissions/geo_data/kindergarten-closures-20261020.csv \
+    --out app/admissions/geo_data/kindergarten-closures-<新日期>.csv --cache /tmp/closures-cache
+```
+
+  `--merge` 以舊檔的 `left_on`、`reason`、名稱為準，`--cache` 讓重跑不重抓（請求數依窗口內的離開區間而定）。產出後改 `closure_backfill.BACKFILL_FILE` 與 `tests/test_geo_closure_backfill.py` 裡的檔名斷言、刪掉舊檔再提交。欄位與規則見 `backend/app/admissions/geo_data/README.md`「幼兒園停辦回補」。
 
 ## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 

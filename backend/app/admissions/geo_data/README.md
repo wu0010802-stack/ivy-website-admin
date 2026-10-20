@@ -101,31 +101,35 @@ uv run pytest tests/test_school_districts.py
 
 ## 幼兒園停辦回補（`kindergarten-closures-20261020.csv`）
 
-2026-10-20（招生潛力第二、三波，`docs/superpowers/plans/2026-10-20-admissions-potential-share-wave23.md` Task 1）起，這份檔取代 10-15 的
-`kindergarten-closures-20261015.csv`：窗口從 2025-06-01 延伸到 2022-08-31，多了名稱以外的四個欄位（核定、座標、類型），讓資料表沒有的
-停辦園所也能補一列。10-15 的檔仍留在 repo 當 `--merge` 的輸入（兩份都有的園所以 10-15 的日期為準）。
-真資料由主 session 跑腳本產生（見下）；在那之前這個檔名是過渡檔＝10-15 的 47 筆加上四個空欄位。
+幼兒園的營業中改以教育部名單（kiang `docs/data/高雄市.csv`）判斷後，第一次同步會一次下架 47 所（10-15 實測）kiang 還標營業中、但已不在名單的舊筆。
+這份檔告訴同步每一所該怎麼處理，讓近 12 個月的停辦寫在它實際離開名單的那天，而不是同步當天（規格 `docs/specs/2026-10-15-kindergarten-registry-design.md` §5）。
 
-幼兒園的營業中改以教育部名單（kiang `docs/data/高雄市.csv`）判斷後，第一次同步會一次下架 47 所（10-15 實測）kiang 還標營業中、
-但已不在名單的舊筆。這份檔告訴同步每一所該怎麼處理，讓近 12 個月的停辦寫在它實際離開名單的那天，而不是同步當天。
-規格 `docs/specs/2026-10-15-kindergarten-registry-design.md` §5。
+2026-10-20（招生潛力第二、三波，規格 `docs/specs/2026-10-20-admissions-potential-share-design.md` §3.4、§11）起，這份檔**取代** 10-15 的
+`kindergarten-closures-20261015.csv`（47 筆，已移除）：窗口從 2025-06-01 延伸到 2022-08-31，多了名稱以外的四個欄位（核定、座標、類型），
+讓資料表沒有的停辦園所也能補一列；招生潛力「附近園所停辦釋出」靠它算 3 公里內歷年的停辦。
 
-- 來源：GitHub `kiang/ap.ece.moe.edu.tw` 的 `docs/data/高雄市.csv` 的 commit 歷史。10-15 版掃 2025-06-01 起的 187 版；
+- **現況：94 筆**——停辦（`closed`）62、改名或換承辦（`renamed`）32，**全部有 `left_on`**（停辦 2022-09-20～2026-10-13），名稱、核定、座標、類型 94 筆全填；停辦的類型私立 53、公立 6、準公共 3。
+  比 10-15 檔多 47 筆（停辦 29、改名 18）；10-15 的 47 筆全保留，有日期的 29 筆日期一個都沒變，原本沒日期的 18 筆（停辦 17、改名 1）現在都有日期。
+  3 公里內 2022-10 起停辦 11 所、核定 1,578 席，和報告 B-04 一致。
+- **來源**：GitHub `kiang/ap.ece.moe.edu.tw` 的 `docs/data/高雄市.csv` 的 commit 歷史。10-15 版掃 2025-06-01 起的 187 版；
   10-20 版自 2022-08-31 起：先取最舊一版與每月最後一版當樣本（月底版列數掉到前一個樣本 80% 以下＝殘缺版，改用同月前一版），
   最新一版沒有、但曾在樣本裡的園所才到那個區間逐版掃描，每所找出名單裡最新一個含它的版本，取下一個較新版本的日期
   （不用二分搜尋：歷史有殘缺版本，例如 2025-07-09 只有 351 列，也有些改名是後來才出現在名單、之後又離開）。
-- 欄位 `source_id,name,left_on,reason,approved_capacity,lat,lng,kind`：
+- **欄位** `source_id,name,left_on,reason,approved_capacity,lat,lng,kind`：
   - `source_id`：kiang 的 uuid，即 `geo_kindergartens.source_id`。
   - `name`：園所名稱（名單上的名稱）；載入器要求非空。
-  - `left_on`：離開教育部名單的日期（台北）＝名單歷史裡最新一個含這所的版本的下一個較新版本的日期；窗口（2022-08-31）前就消失的留空。`renamed` 的日期只是紀錄，同步不讀。
+  - `left_on`：離開教育部名單的日期（台北）＝名單歷史裡最新一個含這所的版本的下一個較新版本的日期；窗口（2022-08-31）前就消失的留空（目前沒有）。名單消失日不等於實際停收日。`renamed` 的日期只是紀錄，同步不讀。
   - `reason`：`closed`（停辦）或 `renamed`（改名或換承辦：現行名單有同地址、同設立日的另一所，或離開日前後 3 個月內同地址有一所新出現在名單）。
   - `approved_capacity`、`lat`、`lng`、`kind`：取自離開前最後一版的 `docs/preschools.json`（kind 是 `public`／`nonprofit`／`quasi_public`／`private`，準公共用離開日所在學年判斷）；
     那一版找不到就用最新版的那一筆，座標或類型不合格則留空。空字串＝未知；座標要在高雄市外框內，兩個都有或都沒有。
-- 同步怎麼用：只在某所**這一輪要從營業中變成下架**時查檔。`closed` 且有 `left_on` → 寫停辦事件，`occurred_on` 取 `left_on`；
-  `closed` 但 `left_on` 空、或 `renamed` → 只下架、不寫事件。檔裡沒有的園所照一般規則（改名判斷，否則記同步當天）。
-  事件靠既有唯一約束冪等，重跑不會重複。
-- 10-15 的內容 47 筆：停辦 33（有離開日 16，其中近 12 個月 14；離開日空 17）、改名或換承辦 14（有離開日 13，其中近 12 個月 9；離開日空 1）。
-- 產生指令（需要已登入的 `gh`；10-15 版約 190 個 GitHub API 請求、約 2 分鐘，10-20 版的請求數依窗口內的離開區間而定，`--cache` 讓重跑不重抓）：
+- **同步怎麼用**（兩條路，都在每輪幼兒園同步裡、同一個交易內）：
+  1. **這一輪要從營業中變成下架的園所**（`providers.retire`）：`closed` 且有 `left_on` → 寫停辦事件，`occurred_on` 取 `left_on`；`closed` 但 `left_on` 空、或 `renamed` → 只下架、不寫事件；檔裡沒有的園所照一般規則（改名判斷，否則記同步當天）。
+  2. **補寫更早的停辦**（2026-10-20 起，`providers.apply_closure_backfill`）：檔裡 `closed` 且有 `left_on` 的園所，資料表沒有就補一列 `is_active=false`（名稱、核定、座標、類型取自檔；檔裡沒有座標就不補列、也不寫事件；類型沒填取 `private`；`district`、`address` 是空字串），再寫停辦事件。
+     資料表裡已是停辦的只補事件；營業中的不碰（交給第 1 條）；`renamed`、沒有日期、日期比事件保留期（72 個月）更舊的略過；同一所已有任何 `closed` 事件（不論日期）就略過，避免同一次停辦記成兩筆。
+     用 SAVEPOINT 包住，失敗只記 warning、不擋名單；事件靠既有唯一約束冪等，重跑不會重複。
+  3. **新設不寫事件**（維持 P3 讀設立日）；事件保留期從 24 改成 72 個月（`providers.EVENT_RETENTION_MONTHS`），不然回補的事件下一輪就被清掉。
+- **產生指令**（需要已登入的 `gh`；10-15 版約 190 個 GitHub API 請求、約 2 分鐘，10-20 版的請求數依窗口內的離開區間而定，`--cache` 讓重跑不重抓）。下面是 10-20 產生現行檔時的指令（`--merge` 的 10-15 檔已移除，要看舊內容用 git 歷史）；
+  日後重產就 `--merge` 現行檔、`--out` 新檔名，並改 `closure_backfill.BACKFILL_FILE` 與 `tests/test_geo_closure_backfill.py` 的檔名斷言：
 
 ```bash
 cd backend
@@ -135,12 +139,11 @@ uv run --frozen python scripts/build_kindergarten_closures.py --since 2022-08-31
 ```
 
   `--merge` 讀舊檔：同 `source_id` 以舊檔的 `left_on`、`reason`、名稱為準，舊檔日期空白而新掃描找到的補上，掃描不到的舊列照留。
-  腳本的測試 `tests/test_build_kindergarten_closures.py` 用假的 GitHub，不連網。
-
-- **不要刪**：同步每一輪都會載入這份檔（檔不在或格式不對，幼兒園整輪不換版、原因寫進 `last_error`），只是其中一列要到「某所這一輪要下架」時才用到。
-  日後不用重產，除非要重做回補；檔名的日期是產生當天，不隨學年或月份換。
-- 守門：`tests/test_geo_closure_backfill.py` 用同步的載入程式（`app/admissions/geo/closure_backfill.py`）讀這份真檔，欄位、`reason`、日期格式、名稱、核定、座標、類型、`source_id` 重複任一不對就報錯；
-  另檢查日期不在未來、10-15 的 16 筆有日期的停辦（含童年綠地與愛爾蘭）日期仍對得上。
+  寫完用同步的載入程式讀一遍自檢，讀不了就刪掉輸出；最新一版名單列數不到前一個樣本 80% 時停下來（疑似殘缺版，晚點再跑）。腳本的測試 `tests/test_build_kindergarten_closures.py` 用假的 GitHub，不連網。
+- **不要刪**：同步每一輪都會載入這份檔（檔不在或格式不對，幼兒園整輪不換版、原因寫進 `last_error`）。
+  日後通常不用重產（kiang 的名單歷史不會改，之後的停辦由同步當下偵測）；檔名的日期是產生當天，不隨學年或月份換。
+- **守門**：`tests/test_geo_closure_backfill.py` 用同步的載入程式（`app/admissions/geo/closure_backfill.py`）讀這份真檔，欄位、`reason`、日期格式、名稱、核定、座標、類型、`source_id` 重複任一不對就報錯；
+  另檢查日期不在未來、10-15 的 16 筆有日期的停辦（含童年綠地與愛爾蘭）日期仍對得上。同步相關測試用 `tests/conftest.py` 的 autouse fixture 預設回補檔為空，不吃這份真檔（否則會替資料表補上 60 多列，弄亂各測試自己數的筆數）。
 
 # 每年九月底人口與國小一年級人數（招生潛力與市佔率，2026-10-20）
 
