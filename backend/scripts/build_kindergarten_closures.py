@@ -20,11 +20,11 @@
 輸出寫完會用同步的載入程式（load_closure_backfill）讀一遍自檢，讀不了就刪掉輸出並結束。
 開發用，不進執行期。需要已登入的 gh CLI；請求數＝樣本數（約 50）＋離開區間內的掃描版本數＋preschools.json 的版本數。
 
-用法（在 backend/）。下面是 2026-10-20 產生現行檔時的指令（--merge 的 10-15 檔已被取代而移除，要看舊內容用 git 歷史）；
-日後重產就 --merge 現行檔、--out 新檔名，並改 closure_backfill.BACKFILL_FILE 與 tests/test_geo_closure_backfill.py 的檔名斷言：
+用法（在 backend/）。日後重產就 --merge 現行檔、--out 新檔名，並改 closure_backfill.BACKFILL_FILE 與
+tests/test_geo_closure_backfill.py 的檔名斷言（2026-10-20 產生現行檔時 --merge 的是 10-15 檔，已被取代而移除，要看舊內容用 git 歷史）：
   uv run --frozen python scripts/build_kindergarten_closures.py --since 2022-08-31 \\
-      --merge app/admissions/geo_data/kindergarten-closures-20261015.csv \\
-      --out app/admissions/geo_data/kindergarten-closures-20261020.csv --cache /tmp/closures-cache
+      --merge app/admissions/geo_data/kindergarten-closures-20261020.csv \\
+      --out app/admissions/geo_data/kindergarten-closures-<新日期>.csv --cache /tmp/closures-cache
 """
 
 from __future__ import annotations

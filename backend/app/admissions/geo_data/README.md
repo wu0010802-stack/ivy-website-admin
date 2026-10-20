@@ -128,14 +128,14 @@ uv run pytest tests/test_school_districts.py
      資料表裡已是停辦的只補事件；營業中的不碰（交給第 1 條）；`renamed`、沒有日期、日期比事件保留期（72 個月）更舊的略過；同一所已有任何 `closed` 事件（不論日期）就略過，避免同一次停辦記成兩筆。
      用 SAVEPOINT 包住，失敗只記 warning、不擋名單；事件靠既有唯一約束冪等，重跑不會重複。
   3. **新設不寫事件**（維持 P3 讀設立日）；事件保留期從 24 改成 72 個月（`providers.EVENT_RETENTION_MONTHS`），不然回補的事件下一輪就被清掉。
-- **產生指令**（需要已登入的 `gh`；10-15 版約 190 個 GitHub API 請求、約 2 分鐘，10-20 版的請求數依窗口內的離開區間而定，`--cache` 讓重跑不重抓）。下面是 10-20 產生現行檔時的指令（`--merge` 的 10-15 檔已移除，要看舊內容用 git 歷史）；
-  日後重產就 `--merge` 現行檔、`--out` 新檔名，並改 `closure_backfill.BACKFILL_FILE` 與 `tests/test_geo_closure_backfill.py` 的檔名斷言：
+- **產生指令**（需要已登入的 `gh`；10-15 版約 190 個 GitHub API 請求、約 2 分鐘，10-20 版的請求數依窗口內的離開區間而定，`--cache` 讓重跑不重抓）。下面是日後重產的指令：`--merge` 現行檔、`--out` 新檔名，並改 `closure_backfill.BACKFILL_FILE` 與 `tests/test_geo_closure_backfill.py` 的檔名斷言
+  （10-20 產生現行檔時 `--merge` 的是 10-15 檔，已被取代而移除，要看舊內容用 git 歷史）：
 
 ```bash
 cd backend
 uv run --frozen python scripts/build_kindergarten_closures.py --since 2022-08-31 \
-    --merge app/admissions/geo_data/kindergarten-closures-20261015.csv \
-    --out app/admissions/geo_data/kindergarten-closures-20261020.csv --cache /tmp/closures-cache
+    --merge app/admissions/geo_data/kindergarten-closures-20261020.csv \
+    --out app/admissions/geo_data/kindergarten-closures-<新日期>.csv --cache /tmp/closures-cache
 ```
 
   `--merge` 讀舊檔：同 `source_id` 以舊檔的 `left_on`、`reason`、名稱為準，舊檔日期空白而新掃描找到的補上，掃描不到的舊列照留。
