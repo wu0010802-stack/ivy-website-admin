@@ -153,6 +153,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/kindergartens/{source_id}/records": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Kindergarten Records
+         * @description 一所附近幼兒園的全部裁罰明細與評鑑結果（2026-10-20 規格 §5），展開清單那一列時才讀。權限同區域分析
+         *     （admissions.stats＋校區；campus_key 只用來檢查權限，資料是公開的，與校區無關）。只讀，不寫稽核。
+         *     裁罰沒有任何姓名，對象只有類別；找不到這所園所回 404。
+         */
+        get: operations["get_admissions_area_kindergarten_records_api_website_v1_admin_admissions_area_kindergartens__source_id__records_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/opportunity": {
         parameters: {
             query?: never;
@@ -4122,6 +4144,24 @@ export interface components {
             /** Village Code */
             village_code: string | null;
         };
+        /** AreaEvaluationLatestOut */
+        AreaEvaluationLatestOut: {
+            /** Completed On */
+            completed_on: string | null;
+            /** Result */
+            result: string;
+            /** Year */
+            year: number;
+        };
+        /** AreaEvaluationRecordOut */
+        AreaEvaluationRecordOut: {
+            /** Completed On */
+            completed_on: string | null;
+            /** Result */
+            result: string;
+            /** School Year */
+            school_year: number;
+        };
         /**
          * AreaFeeItemsOut
          * @description 一學期的逐項公告收費（元）；課後延托是每月。來源沒寫是 null，畫面寫「—」。
@@ -4161,6 +4201,12 @@ export interface components {
             approved_capacity: number | null;
             /** Distance M */
             distance_m: number;
+            evaluation_latest?: components["schemas"]["AreaEvaluationLatestOut"] | null;
+            /**
+             * Has Older Penalty
+             * @default false
+             */
+            has_older_penalty: boolean;
             /** Has Penalty */
             has_penalty: boolean;
             /** Has Shuttle */
@@ -4184,6 +4230,13 @@ export interface components {
             name: string;
             /** Outdoor M2 Per Child */
             outdoor_m2_per_child?: number | null;
+            /**
+             * Penalties Recent
+             * @default 0
+             */
+            penalties_recent: number;
+            /** Penalty Latest On */
+            penalty_latest_on?: string | null;
             /** Phone */
             phone: string | null;
             /** Pre Public Period */
@@ -4191,11 +4244,35 @@ export interface components {
             /** Source Id */
             source_id: string;
         };
+        /**
+         * AreaKindergartenRecordsOut
+         * @description 展開一所園所時讀的全部裁罰與評鑑（2026-10-20 規格 §5）。
+         */
+        AreaKindergartenRecordsOut: {
+            /** Evaluations */
+            evaluations: components["schemas"]["AreaEvaluationRecordOut"][];
+            /** Evaluations Synced At */
+            evaluations_synced_at: string | null;
+            /** Name */
+            name: string;
+            /** Penalties */
+            penalties: components["schemas"]["AreaPenaltyRecordOut"][];
+            /** Penalties Synced At */
+            penalties_synced_at: string | null;
+            /** Source Id */
+            source_id: string;
+            /** Source Note */
+            source_note: string;
+        };
         /** AreaKindergartensOut */
         AreaKindergartensOut: {
             campus: components["schemas"]["AreaCampusOut"];
+            /** Evaluations Synced At */
+            evaluations_synced_at?: string | null;
             /** Items */
             items: components["schemas"]["AreaKindergartenOut"][];
+            /** Penalties Synced At */
+            penalties_synced_at?: string | null;
             /** Radius Km */
             radius_km: number;
             /** Source Note */
@@ -4404,6 +4481,40 @@ export interface components {
             source_note: string;
             /** Synced At */
             synced_at: string | null;
+        };
+        /**
+         * AreaPenaltyRecordOut
+         * @description 一筆處分。對象只有類別（operator＝園方〔負責人〕、staff＝教保人員個人〔行為人〕），沒有任何姓名。
+         */
+        AreaPenaltyRecordOut: {
+            /** Amount */
+            amount: number | null;
+            /** Content */
+            content: string;
+            /** Doc No */
+            doc_no: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "fine" | "stop_enrollment" | "reduce_enrollment" | "closure" | "other";
+            /** Law */
+            law: string;
+            /**
+             * Occurred On
+             * Format: date
+             */
+            occurred_on: string;
+            /** Period End */
+            period_end: string | null;
+            /** Period Start */
+            period_start: string | null;
+            /** Punishment Text */
+            punishment_text: string | null;
+            /** Recent */
+            recent: boolean;
+            /** Subject */
+            subject: ("operator" | "staff") | null;
         };
         /**
          * AreaPopulationOut
@@ -8957,6 +9068,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaKindergartensOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_kindergarten_records_api_website_v1_admin_admissions_area_kindergartens__source_id__records_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                source_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaKindergartenRecordsOut"];
                 };
             };
             /** @description Validation Error */

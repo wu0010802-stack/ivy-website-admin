@@ -340,7 +340,11 @@ async def test_kindergartens_mark_own_and_pass_radius(admin_client, monkeypatch)
     expected = [asdict(item) for item in await fake_nearby(None, 0, 0, 0)]
     assert [{key: item[key] for key in want} for item, want in zip(body["items"], expected, strict=True)] == expected
     peer_keys = {"indoor_m2_per_child", "outdoor_m2_per_child", "has_shuttle", "after_school_capacity"}
-    assert set(body["items"][0]) == set(expected[0]) | {"is_own"} | peer_keys
+    # 2026-10-20 裁罰與評鑑：每所多四個摘要欄位（沒有紀錄時是 0／null／false）。
+    record_keys = {"penalties_recent", "penalty_latest_on", "has_older_penalty", "evaluation_latest"}
+    assert set(body["items"][0]) == set(expected[0]) | {"is_own"} | peer_keys | record_keys
+    assert (body["items"][0]["penalties_recent"], body["items"][0]["has_older_penalty"]) == (0, False)
+    assert body["items"][0]["penalty_latest_on"] is None and body["items"][0]["evaluation_latest"] is None
 
 
 async def test_kindergartens_default_radius_is_three(admin_client, monkeypatch):

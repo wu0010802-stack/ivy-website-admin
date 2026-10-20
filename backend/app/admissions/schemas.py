@@ -976,6 +976,12 @@ class AdmissionsAreaOut(BaseModel):
     distance_bands: list[AreaDistanceBandOut]
 
 
+class AreaEvaluationLatestOut(BaseModel):
+    year: int
+    completed_on: date | None
+    result: str
+
+
 class AreaKindergartenOut(BaseModel):
     source_id: str
     name: str
@@ -997,14 +1003,63 @@ class AreaKindergartenOut(BaseModel):
     outdoor_m2_per_child: float | None = None
     has_shuttle: bool | None = None
     after_school_capacity: int | None = None
+    # 2026-10-20 裁罰與評鑑：近 3 年裁罰件數（同一裁處日＋文號為一件）、最近一次裁處日（不限 3 年內）、3 年前有沒有裁罰、
+    # 最近一次評鑑（學年度取最大，同學年取完成日最新）。沒有紀錄是 0／null／false。
+    penalties_recent: int = 0
+    penalty_latest_on: date | None = None
+    has_older_penalty: bool = False
+    evaluation_latest: AreaEvaluationLatestOut | None = None
 
 
 class AreaKindergartensOut(BaseModel):
     synced_at: datetime | None
+    # 裁罰、評鑑上次整表替換成功的時間；從沒匯入成功過是 null（畫面寫「尚未匯入」，不寫「沒有紀錄」）。
+    penalties_synced_at: datetime | None = None
+    evaluations_synced_at: datetime | None = None
     source_note: str
     campus: AreaCampusOut
     radius_km: int
     items: list[AreaKindergartenOut]
+
+
+PenaltyKind = Literal["fine", "stop_enrollment", "reduce_enrollment", "closure", "other"]
+PenaltySubject = Literal["operator", "staff"]
+
+
+class AreaPenaltyRecordOut(BaseModel):
+    """一筆處分。對象只有類別（operator＝園方〔負責人〕、staff＝教保人員個人〔行為人〕），沒有任何姓名。"""
+
+    occurred_on: date
+    doc_no: str
+    law: str
+    content: str
+    kind: PenaltyKind
+    amount: int | None
+    period_start: date | None
+    period_end: date | None
+    # 只有 kind 是 other 時才有：來源的處分原文。
+    punishment_text: str | None
+    subject: PenaltySubject | None
+    # 裁處日在近 3 年內（和清單的件數同一個起算日）。
+    recent: bool
+
+
+class AreaEvaluationRecordOut(BaseModel):
+    school_year: int
+    completed_on: date | None
+    result: str
+
+
+class AreaKindergartenRecordsOut(BaseModel):
+    """展開一所園所時讀的全部裁罰與評鑑（2026-10-20 規格 §5）。"""
+
+    source_id: str
+    name: str
+    penalties_synced_at: datetime | None
+    evaluations_synced_at: datetime | None
+    source_note: str
+    penalties: list[AreaPenaltyRecordOut]
+    evaluations: list[AreaEvaluationRecordOut]
 
 
 # ---- 托嬰與園所異動（2026-10-14 規格 §6）----

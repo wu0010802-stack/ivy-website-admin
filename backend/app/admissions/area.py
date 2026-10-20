@@ -29,6 +29,7 @@ from app.admissions import estimation, records
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo import babycare as geo_babycare
 from app.admissions.geo import fees as geo_fees
+from app.admissions.geo import kindergarten_records as geo_records
 from app.admissions.geo import kindergartens as geo_kindergartens
 from app.admissions.geo import providers as geo_providers
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, RecruitmentVisitGeo
@@ -219,8 +220,13 @@ async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: i
     points = await matcher.campus_points(db)
     campus = await campus_out(db, campus_key, points[campus_key])
     status = await db.get(GeoDatasetStatus, "kindergartens")
+    penalties_status = await db.get(GeoDatasetStatus, "kindergarten_penalties")
+    evaluations_status = await db.get(GeoDatasetStatus, "kindergarten_evaluations")
     result: dict[str, Any] = {
         "synced_at": status.synced_at if status is not None else None,
+        # 裁罰、評鑑（2026-10-20）：從沒匯入成功過是 null，畫面分得出「尚未匯入」和「沒有紀錄」。
+        "penalties_synced_at": penalties_status.synced_at if penalties_status is not None else None,
+        "evaluations_synced_at": evaluations_status.synced_at if evaluations_status is not None else None,
         "source_note": KINDERGARTEN_SOURCE_NOTE,
         "campus": campus,
         "radius_km": radius_km,
@@ -231,9 +237,12 @@ async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: i
     own_points = [(point.lat, point.lng) for point in points.values() if point.lat is not None and point.lng is not None]
     # nearby 已依距離、名稱排好序（排序鍵只在那裡定義一次）。
     found = await geo_kindergartens.nearby(db, campus["lat"], campus["lng"], radius_km * 1000)
+    # 每所的裁罰與評鑑摘要（2026-10-20 規格 §5）；本校與其他四校照常有（C14）。
+    records = await geo_records.summaries(db, [item.source_id for item in found], today_local())
     result["items"] = [
         {
             **asdict(item),
+            **asdict(records[item.source_id]),
             "is_own": any(haversine_m(item.lat, item.lng, lat, lng) <= OWN_CAMPUS_RADIUS_M for lat, lng in own_points),
         }
         for item in found

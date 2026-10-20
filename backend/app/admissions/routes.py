@@ -29,6 +29,7 @@ from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
 from app.admissions.enrolled import query as enrolled_query
 from app.admissions.geo import boundaries as geo_boundaries
+from app.admissions.geo import kindergarten_records as geo_records
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsAreaOut,
@@ -39,6 +40,7 @@ from app.admissions.schemas import (
     AreaBabycareOut,
     AreaChangesOut,
     AreaEnrolledOut,
+    AreaKindergartenRecordsOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
     AreaPeerFeesOut,
@@ -867,6 +869,23 @@ async def get_admissions_area_kindergartens(
         raise _invalid_radius()
     result = await area_service.query_kindergartens(db, campus_key, radius_km=radius_km)
     return AreaKindergartensOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area/kindergartens/{source_id}/records", response_model=AreaKindergartenRecordsOut)
+async def get_admissions_area_kindergarten_records(
+    source_id: str,
+    campus_key: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaKindergartenRecordsOut:
+    """一所附近幼兒園的全部裁罰明細與評鑑結果（2026-10-20 規格 §5），展開清單那一列時才讀。權限同區域分析
+    （admissions.stats＋校區；campus_key 只用來檢查權限，資料是公開的，與校區無關）。只讀，不寫稽核。
+    裁罰沒有任何姓名，對象只有類別；找不到這所園所回 404。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    found = await geo_records.records(db, source_id, today_local())
+    if found is None:
+        raise ScopeDenied()
+    return AreaKindergartenRecordsOut.model_validate(found)
 
 
 @router.get(

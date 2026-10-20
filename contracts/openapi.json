@@ -3423,6 +3423,68 @@
         "title": "AreaEnrolledVillageOut",
         "type": "object"
       },
+      "AreaEvaluationLatestOut": {
+        "properties": {
+          "completed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed On"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "completed_on",
+          "result"
+        ],
+        "title": "AreaEvaluationLatestOut",
+        "type": "object"
+      },
+      "AreaEvaluationRecordOut": {
+        "properties": {
+          "completed_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed On"
+          },
+          "result": {
+            "title": "Result",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "completed_on",
+          "result"
+        ],
+        "title": "AreaEvaluationRecordOut",
+        "type": "object"
+      },
       "AreaFeeItemsOut": {
         "description": "一學期的逐項公告收費（元）；課後延托是每月。來源沒寫是 null，畫面寫「—」。",
         "properties": {
@@ -3585,6 +3647,21 @@
             "title": "Distance M",
             "type": "integer"
           },
+          "evaluation_latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaEvaluationLatestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_older_penalty": {
+            "default": false,
+            "title": "Has Older Penalty",
+            "type": "boolean"
+          },
           "has_penalty": {
             "title": "Has Penalty",
             "type": "boolean"
@@ -3659,6 +3736,23 @@
             ],
             "title": "Outdoor M2 Per Child"
           },
+          "penalties_recent": {
+            "default": 0,
+            "title": "Penalties Recent",
+            "type": "integer"
+          },
+          "penalty_latest_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penalty Latest On"
+          },
           "phone": {
             "anyOf": [
               {
@@ -3704,10 +3798,88 @@
         "title": "AreaKindergartenOut",
         "type": "object"
       },
+      "AreaKindergartenRecordsOut": {
+        "description": "展開一所園所時讀的全部裁罰與評鑑（2026-10-20 規格 §5）。",
+        "properties": {
+          "evaluations": {
+            "items": {
+              "$ref": "#/components/schemas/AreaEvaluationRecordOut"
+            },
+            "title": "Evaluations",
+            "type": "array"
+          },
+          "evaluations_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluations Synced At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "penalties": {
+            "items": {
+              "$ref": "#/components/schemas/AreaPenaltyRecordOut"
+            },
+            "title": "Penalties",
+            "type": "array"
+          },
+          "penalties_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penalties Synced At"
+          },
+          "source_id": {
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_note": {
+            "title": "Source Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_id",
+          "name",
+          "penalties_synced_at",
+          "evaluations_synced_at",
+          "source_note",
+          "penalties",
+          "evaluations"
+        ],
+        "title": "AreaKindergartenRecordsOut",
+        "type": "object"
+      },
       "AreaKindergartensOut": {
         "properties": {
           "campus": {
             "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "evaluations_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluations Synced At"
           },
           "items": {
             "items": {
@@ -3715,6 +3887,18 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "penalties_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Penalties Synced At"
           },
           "radius_km": {
             "title": "Radius Km",
@@ -4382,6 +4566,119 @@
           "schools"
         ],
         "title": "AreaPeerFeesOut",
+        "type": "object"
+      },
+      "AreaPenaltyRecordOut": {
+        "description": "一筆處分。對象只有類別（operator＝園方〔負責人〕、staff＝教保人員個人〔行為人〕），沒有任何姓名。",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "doc_no": {
+            "title": "Doc No",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "fine",
+              "stop_enrollment",
+              "reduce_enrollment",
+              "closure",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "law": {
+            "title": "Law",
+            "type": "string"
+          },
+          "occurred_on": {
+            "format": "date",
+            "title": "Occurred On",
+            "type": "string"
+          },
+          "period_end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period End"
+          },
+          "period_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Start"
+          },
+          "punishment_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Punishment Text"
+          },
+          "recent": {
+            "title": "Recent",
+            "type": "boolean"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "enum": [
+                  "operator",
+                  "staff"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "occurred_on",
+          "doc_no",
+          "law",
+          "content",
+          "kind",
+          "amount",
+          "period_start",
+          "period_end",
+          "punishment_text",
+          "subject",
+          "recent"
+        ],
+        "title": "AreaPenaltyRecordOut",
         "type": "object"
       },
       "AreaPopulationOut": {
@@ -17709,6 +18006,90 @@
           }
         },
         "summary": "Get Admissions Area Kindergartens",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/kindergartens/{source_id}/records": {
+      "get": {
+        "description": "一所附近幼兒園的全部裁罰明細與評鑑結果（2026-10-20 規格 §5），展開清單那一列時才讀。權限同區域分析\n（admissions.stats＋校區；campus_key 只用來檢查權限，資料是公開的，與校區無關）。只讀，不寫稽核。\n裁罰沒有任何姓名，對象只有類別；找不到這所園所回 404。",
+        "operationId": "get_admissions_area_kindergarten_records_api_website_v1_admin_admissions_area_kindergartens__source_id__records_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaKindergartenRecordsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Kindergarten Records",
         "tags": [
           "admissions"
         ]
