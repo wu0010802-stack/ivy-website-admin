@@ -1,3 +1,13 @@
+## 2026-10-20 效能與維護整理（`feature/optimization-20261020`）
+
+使用者要求盤點「哪裡可以優化」後全部處理。分官網、後台、後端／CI 三塊，各自先驗證盤點說法再動手；行為與畫面不變。
+
+- **官網**：週年素材、有雜湊的字型 CSS 改一年 `immutable`（`*-OFL.txt` 維持 30 天）；與 `optimized/` 位元相同的影片母帶、投影原圖移到 `web/media-src/`（`.output/public` 139 → 120 MB，`assets/hero-campus.mp4` 等字串仍是查找鍵）；three.js 改從 `utils/three-lite.ts` 具名匯入（chunk 737 → 538 KB，gzip 184 → 132 KB）；品牌字預載改 woff2（三檔共 15.9 → 12.1 KB）；預約表單與 `useCampusBooking` 共用場次設定快取；`HomeStoryViewer` 影片顯示控制鈕時不再 `aria-hidden`；環境頁 20 個 oklch 移進 `tokens.css`（`--ivy-env-*`）。
+- **後台**：稽核與漏斗標籤拆成 `api/auditLabels.ts`、`api/analyticsLabels.ts`（首屏 labels chunk 47.7 → 34.4 KB）；Element Plus 改只載用到的 51 個元件樣式（入口 CSS 397 → 244 KB，24 頁桌機＋23 頁手機截圖相同，`elementPlusStyles.test.ts` 擋漏載）；三個對話框改延後載入；`useDebouncedFn` 取代五處手寫防抖；修跨年後場次日期少顯示年份；`RecordsTab.vue` 1117 → 954 行、`ContentEditor.vue` 1147 → 807 行；21 個以日期／輪次命名的測試檔併回功能測試（逐檔測試數相同）。
+- **後端／部署／CI**：migration `111d9d36cda7` 加兩個索引（案件歷程 `(visit_request_id, event_type, created_at)`、outbox `(status, next_attempt_at)`，只加不刪，**合進 main 會自動套到正式 DB**）；outbox 每輪改成清空或用完 30 秒預算（原本一輪 10 筆）；即將參觀提醒一輪只查一次；漏斗看板只取卡片欄位、追蹤統計三個 COUNT 合一；里界 GeoJSON 只解析一次並在啟動時預熱；API 映像建置時預編 bytecode、不再帶 `backend/tests`；CI 的 ffmpeg 改用快取的 .deb；`booking/routes.py` 拆成四個模組（1812 → 339 行）、`admissions/schemas.py` 拆成套件（OpenAPI 不變）。
+- **未做**：手機影片縮到 720p（DESIGN.md 定案保留 1440×810、首屏影片今天剛定案；試轉 day-mobile 7.5 → 1.8 MB、hero-mobile 2.2 → 0.9 MB，待業主決定）；後台登入徽章圖重壓（已接近最佳）；`geo/sync.py` 拆檔（約 70 處測試替換模組屬性，拆了會讓 patch 失效）；共用 csv mock（`vi.mock` 每檔各自 hoist）；BuildKit 快取掛載（不確定 Railway 支援）。
+- **驗證**（Node 22）：web `typecheck` 通過、108 檔 1323 passed，首頁與 /environment 1440／390 截圖前後零像素差；admin `typecheck` 通過、164 檔 3102 passed／1 skipped，`build` 通過；`contract:check` 一致；`deploy/tests` OK；後端全套見下。migration upgrade → downgrade → upgrade 通過，`test_schema_drift.py` 比對模型與 DB 無差異。**未驗證**：Docker 映像實際建置（拉 base image 被 Docker Hub 429）、CI 工作流程實跑、Safari／iOS、stack e2e。
+
 ## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（`feature/brighten-20261020`）
 
 使用者覺得諾貝爾幼兒園官網比較明亮，看過比對與模擬後要求調亮。這次只拿掉不需要的暗面、版面不動；首屏影片調色另外上線（見同日「首屏影片調亮」一節），配色加入鮮豔色未做。規則與數字見 DESIGN.md「官網調亮第一層」。
