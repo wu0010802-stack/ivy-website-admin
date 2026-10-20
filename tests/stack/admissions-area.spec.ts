@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
@@ -760,24 +760,83 @@ for (const { name, device } of VIEWPORTS) {
   })
 }
 
+// 停辦回補檔（隨程式提交，start-api.sh 的 geo-sync 每輪都會套用，2026-10-20 起 94 筆）裡，本校 3 公里內、近 12 個月
+// （同後端 months_ago(今天, 12)）的停辦會出現在「附近園所的變化」。這些不是 stack 自己的樣本，而且會隨日期移出視窗
+// （2025-10-22 的一二三幼兒園 2026-10-22 起就不在了），所以預期從檔案算，不寫死園名或筆數。
+const EARTH_RADIUS_M = 6371008.8
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const rad = (degrees: number) => (degrees * Math.PI) / 180
+  const h = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h))
+}
+
+/** 同後端 providers.months_ago：往前推 months 個月、同日；那個月沒有這一天取該月最後一天。 */
+function monthsAgo(day: string, months: number): string {
+  const [year, month, date] = day.split('-').map(Number) as [number, number, number]
+  const index = year * 12 + (month - 1) - months
+  const targetYear = Math.floor(index / 12)
+  const targetMonth = (index % 12) + 1
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate()
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(Math.min(date, lastDay)).padStart(2, '0')}`
+}
+
+/** 回補檔裡本校 radiusKm 公里內、近 12 個月、有座標的停辦園所名稱（去掉「高雄市私立」等前綴，和清單上的一樣）。 */
+async function backfilledClosuresNearby(api: AdminApi, radiusKm = 3): Promise<string[]> {
+  const dir = path.join(ROOT, 'backend/app/admissions/geo_data')
+  const files = readdirSync(dir).filter((file) => /^kindergarten-closures-\d{8}\.csv$/.test(file))
+  expect(files, '回補檔應該只有現行的一份').toHaveLength(1)
+  const { campus } = await api.get<{ campus: { lat: number | null; lng: number | null } }>(
+    `/admin/admissions/area/changes?campus_key=${CAMPUS}&radius_km=${radiusKm}`,
+  )
+  expect(campus.lat, '崇德校應該有座標').not.toBeNull()
+  const [header, ...lines] = readFileSync(path.join(dir, files[0]!), 'utf8').trim().split(/\r?\n/)
+  const columns = header!.split(',')
+  const since = monthsAgo(taipeiDate(0), 12)
+  const today = taipeiDate(0)
+  return lines
+    .map((line) => Object.fromEntries(line.split(',').map((value, index) => [columns[index]!, value])) as Record<string, string>)
+    .filter(
+      (row) =>
+        row.reason === 'closed' &&
+        row.left_on! >= since &&
+        row.left_on! <= today &&
+        row.lat !== '' &&
+        row.lng !== '' &&
+        haversineM(campus.lat!, campus.lng!, Number(row.lat), Number(row.lng)) <= radiusKm * 1000,
+    )
+    .map((row) => row.name!.replace(/^高雄市(?:私立|市立|立)?/, ''))
+}
+
 // 托嬰中心與園所變化（2026-10-14 規格 7）：start-api.sh 匯入 stack 專用的托嬰樣本（崇德校 3 公里內 3 所、
-// 3–6 公里 1 所）。同步只會建立基準、不會有異動，所以空狀態先看，再用 db.ts 寫入異動看有內容的畫面。
+// 3–6 公里 1 所）。托嬰同步只會建立基準、不會有異動；幼兒園則有上面的停辦回補檔，所以變化區塊先看回補來的停辦
+// （沒有就是空狀態），再用 db.ts 寫入異動看有新設與托嬰停辦的畫面。
 // 工作台後它們都在「同業」模式的右欄，範圍（公里）改由工具列決定。
 test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊', async ({ browser }) => {
   test.setTimeout(90_000)
   mkdirSync(SHOTS, { recursive: true })
   const { context, page } = await openAs(browser, 'super_admin')
+  const api = await adminApi('super_admin')
+  const backfilled = await backfilledClosuresNearby(api)
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await openArea(page, CAMPUS, 'map=peers')
   const changes = page.locator('.changes')
 
-  await test.step('預設是幼兒園清單，托嬰圖層沒有打開；變化區塊是空的並說明從哪天起記錄', async () => {
+  await test.step('預設是幼兒園清單，托嬰圖層沒有打開；變化區塊只有回補來的停辦（沒有就是空狀態），並說明從哪天起記錄', async () => {
     await expect(page.locator('.nearby .nearby__title')).toHaveText('附近幼兒園')
     await expect(page.locator('.nearby--babycare')).toHaveCount(0)
     await expect(page.locator('.area-map .area-bc')).toHaveCount(0)
     await expect(changes.locator('.changes__title')).toHaveText('附近園所的變化')
-    await expect(changes.locator('.changes__empty')).toHaveText('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
+    if (backfilled.length === 0) {
+      await expect(changes.locator('.changes__empty')).toHaveText('近 12 個月，3 公里內沒有新設、停辦或類型變動的園所。')
+      await expect(changes.locator('.changes__item')).toHaveCount(0)
+    } else {
+      // 每一筆都有「停辦」標籤，園名都在清單上，筆數和檔案算出來的一致；有清單就沒有空狀態句。
+      await expect(changes.locator('.changes__item .changes__line > .el-tag:first-child')).toHaveText(backfilled.map(() => '停辦'))
+      for (const name of backfilled) await expect(changes.locator('.changes__list')).toContainText(name)
+      await expect(changes.locator('.changes__empty')).toHaveCount(0)
+    }
     await expect(changes.locator('.changes__note')).toHaveText(/^幼兒園的類型變動與托嬰從 \d+ 月 \d+ 日起記錄。$/)
   })
 
@@ -814,11 +873,11 @@ test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊',
   })
 
   seedProviderChanges()
-  await test.step('寫入異動後重新整理（網址的 map=peers 還在、範圍回 3 公里）：停辦的托嬰與設立日在 40 天前的幼兒園，新到舊', async () => {
+  await test.step('寫入異動後重新整理（網址的 map=peers 還在、範圍回 3 公里）：停辦的托嬰與設立日在 40 天前的幼兒園，新到舊；回補來的停辦（至少一年前離開名單）排在後面', async () => {
     await page.reload()
     await expect(page.locator('.area-map .leaflet-container')).toBeVisible()
     const rows = page.locator('.changes .changes__item')
-    await expect(rows).toHaveCount(2)
+    await expect(rows).toHaveCount(2 + backfilled.length)
     await expect(rows.nth(0)).toContainText('停辦')
     await expect(rows.nth(0)).toContainText('托嬰')
     await expect(rows.nth(0)).toContainText('測試已停辦托嬰中心')
@@ -827,6 +886,7 @@ test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊',
     await expect(rows.nth(1)).toContainText('幼兒園')
     await expect(rows.nth(1)).toContainText('測試乙幼兒園')
     await expect(rows.nth(1)).toContainText('設立日')
+    for (const name of backfilled) await expect(page.locator('.changes__list')).toContainText(name)
     await expect(page.locator('.changes .changes__empty')).toHaveCount(0)
   })
 
@@ -836,7 +896,7 @@ test('托嬰中心與園所變化：切換名單、地圖圖層、變化區塊',
 
   await page.screenshot({ path: path.join(SHOTS, 'area-workbench-peers-1440-full.png'), fullPage: true })
   expect(errors, '頁面不該有未處理的錯誤').toEqual([])
-  await context.close()
+  await Promise.all([context.close(), api.dispose()])
 })
 
 test('390px：托嬰中心清單與園所變化不撐出頁面', async ({ browser }) => {
