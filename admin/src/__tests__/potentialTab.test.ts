@@ -272,12 +272,12 @@ describe('每年還能多招', () => {
   const estimateCard = (wrapper: VueWrapper) => wrapper.get('.potential-estimate')
   const withEstimate = (changes: Parameters<typeof potentialEstimate>[0]) => potentialData({ potential: potentialEstimate(changes) })
 
-  it('完整：標題、大字取整、區間（低取下限、高取上限）、目前空位；三個來源都算進去就不寫「只含」', async () => {
+  it('完整：標題、大字取整、區間（低、高也四捨五入）、目前空位；三個來源都算進去就不寫「只含」', async () => {
     const { wrapper } = await mountPotential()
     const card = estimateCard(wrapper)
     expect(card.get('h3').text()).toBe('每年還能多招')
     expect(card.get('.potential-estimate__value').text()).toBe('約 12 位')
-    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['8～20 位', '目前空位 18 位'])
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['9～19 位', '目前空位 18 位'])
     expect(card.text()).not.toContain('只含')
   })
 
@@ -295,7 +295,7 @@ describe('每年還能多招', () => {
     const { wrapper } = await mountPotential(withEstimate({ sources, total }))
     const card = estimateCard(wrapper)
     expect(card.get('.potential-estimate__value').text()).toBe('約 8 位')
-    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['6～11 位', '目前空位 18 位', '只含：附近園所停辦釋出'])
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['7～11 位', '目前空位 18 位', '只含：附近園所停辦釋出'])
   })
 
   it('沒有本校核定或清冊（capacity 是 null）：不寫目前空位', async () => {

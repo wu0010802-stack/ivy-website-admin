@@ -105,11 +105,12 @@ describe('detailSeats：怎麼算裡的逐項數字（小的也看得出來）',
 describe('每年還能多招的大數字卡', () => {
   const total: PotentialTotal = { low: 5.6, mid: 13.4, high: 23.4, included: ['closures', 'villages', 'presale'] }
 
-  it('大字取整；區間低取下限、高取上限（區間不比實際窄）', () => {
+  it('大字取整；區間低、高也四捨五入（和來源表的 seats 一致）', () => {
     expect(estimateHeadline(total)).toBe('約 13 位')
-    expect(estimateRange(total)).toBe('5～24 位')
-    expect(estimateRange({ ...total, low: 0, high: 0.2 })).toBe('0～1 位')
+    expect(estimateRange(total)).toBe('6～23 位')
+    expect(estimateRange({ ...total, low: 0, high: 0.6 })).toBe('0～1 位')
     expect(estimateRange({ ...total, low: 1200.2, high: 1300 })).toBe('1,200～1,300 位')
+    expect(estimateRange({ ...total, low: 5.4, high: 23.5 })).toBe('5～24 位')
   })
 
   it('目前空位', () => {

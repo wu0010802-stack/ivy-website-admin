@@ -102,9 +102,9 @@ export function detailSeats(value: number | null): string {
 /** 大字：「約 13 位」。 */
 export const estimateHeadline = (total: Pick<PotentialTotal, 'mid'>): string => `約 ${formatCount(Math.round(total.mid))} 位`
 
-/** 區間：低取下限、高取上限，區間不會比實際窄：「5～24 位」。 */
+/** 區間：低、高都四捨五入，和來源表的 seats 一致，卡片與來源表的數字對得上：「6～23 位」。 */
 export const estimateRange = (total: Pick<PotentialTotal, 'low' | 'high'>): string =>
-  `${formatCount(Math.floor(total.low))}～${formatCount(Math.ceil(total.high))} 位`
+  `${formatCount(Math.round(total.low))}～${formatCount(Math.round(total.high))} 位`
 
 export const openSeatsText = (capacity: Pick<PotentialCapacity, 'open'>): string => `目前空位 ${formatCount(capacity.open)} 位`
 
