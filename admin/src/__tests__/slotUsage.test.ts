@@ -458,4 +458,30 @@ describe('參觀場次頁：頁籤', () => {
     expect(calendarCalls(get).filter(path => path.startsWith('/admin/visit-calendar'))).toHaveLength(1)
     expect(calendarCalls(get).filter(path => path.startsWith('/admin/visit-calendar'))[0]).toContain('campus_key=minghua')
   })
+
+  // 兩個頁籤的內容各在自己的 el-tab-pane 裡，讀屏的 tab／tabpanel 才對得起來（2026-10-20）。
+  it('目前頁籤的 aria-controls 指到有內容的 tabpanel（aria-labelledby 指回頁籤）；另一個頁籤的內容不在裡面', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    const active = () => {
+      const tab = wrapper.get('[role="tab"][aria-selected="true"]')
+      const panel = wrapper.get(`#${tab.attributes('aria-controls')}`)
+      expect(panel.attributes('role')).toBe('tabpanel')
+      expect(panel.attributes('aria-labelledby')).toBe(tab.attributes('id'))
+      return { tab, panel }
+    }
+    const calendar = active()
+    expect(calendar.tab.text()).toBe('接待月曆')
+    expect(calendar.panel.find('.calendar__grid').exists()).toBe(true)
+    expect(calendar.panel.find('.usage').exists()).toBe(false)
+
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    const usagePane = active()
+    expect(usagePane.tab.text()).toBe('場次使用情況')
+    expect(usagePane.panel.text()).toContain('最早能約哪天（近 4 週）')
+    expect(usagePane.panel.find('.calendar__grid').exists()).toBe(false)
+    // 月曆面板還在（隱藏），但內容已卸載：沒存的修改的詢問就是為了這個。
+    expect(wrapper.get('#pane-calendar').find('.calendar__grid').exists()).toBe(false)
+  })
 })

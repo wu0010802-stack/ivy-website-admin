@@ -41,7 +41,9 @@ const campusFilter = ref(campusFromQuery(route.query.campus) || visibleCampusKey
 const sessionsCard = ref<InstanceType<typeof WeeklySessionsCard> | null>(null)
 
 // 頁籤（2026-10-13 場次使用情況）：預設接待月曆不帶網址；tab=usage 是場次使用情況。
-// 校區選擇器在頁籤外，兩個頁籤共用；切頁籤用 replace 寫回網址，不堆歷史。
+// 校區選擇器在頁籤列旁（頁籤外），兩個頁籤共用；切頁籤用 replace 寫回網址，不堆歷史。
+// 兩個頁籤的內容各放在自己的 el-tab-pane 裡（讀屏的 tab／tabpanel 才對得起來），並用 v-if 只在目前頁籤掛載：
+// 月曆內容離開就卸載（每週場次卡片沒存的修改會丟，所以離開前要問）、使用情況只在這個頁籤才讀 API。
 type VisitTab = 'calendar' | 'usage'
 const tabFromQuery = (value: unknown): VisitTab => (value === 'usage' ? 'usage' : 'calendar')
 const tab = ref<VisitTab>(tabFromQuery(route.query.tab))
@@ -240,90 +242,99 @@ function openDayNotice() {
   <div class="page">
     <PageHeader lead="月曆上點一天，看誰要來、調整那天的場次。" more="上方設定每週固定的參觀場次；點月曆上的某一天，可以停止或恢復某一場、設休假、加開，也看得到那天有誰要來。「場次使用情況」看家長最早能約哪天、各時段坐了幾成。" />
 
-    <div class="toolbar calendar__toolbar">
+    <div class="calendar__shell">
+      <!-- 校區選擇器在 DOM 裡放在頁籤前面：el-tabs 的內容（面板）都在它自己的元素裡，選擇器放後面鍵盤要先走完整個面板才到。
+           畫面上用 grid 把它排在頁籤列的右邊。 -->
+      <CampusSelect class="calendar__campus" :model-value="campusFilter" :keys="visibleCampusKeys" @update:model-value="switchCampus" />
       <el-tabs :model-value="tab" class="calendar__tabs" :before-leave="confirmLeaveCalendar" @update:model-value="setTab">
-        <el-tab-pane label="接待月曆" name="calendar" />
-        <el-tab-pane label="場次使用情況" name="usage" />
+        <el-tab-pane label="接待月曆" name="calendar" lazy>
+          <template v-if="tab === 'calendar'">
+            <div class="toolbar calendar__toolbar">
+              <div class="calendar__nav">
+                <el-button :icon="ArrowLeft" aria-label="上個月" @click="shiftMonth(-1)" />
+                <strong class="calendar__month" aria-live="polite">{{ monthLabel }}</strong>
+                <el-button :icon="ArrowRight" aria-label="下個月" @click="shiftMonth(1)" />
+                <el-button text @click="goToday">今天</el-button>
+              </div>
+              <div v-if="canManage && campusFilter" class="calendar__actions">
+                <el-button data-test="open-closure" @click="openClosure">停班停課</el-button>
+                <el-button data-test="open-holiday-import" @click="holidayOpen = true">匯入國定假日</el-button>
+              </div>
+            </div>
+
+            <WeeklySessionsCard v-if="campusFilter" ref="sessionsCard" :campus-key="campusFilter" :can-manage="canManage" :can-configure-booking="canConfigureBooking" @saved="load" />
+
+            <!-- 格子的顏色與手機的數字點各代表什麼；色塊與格內共用同一組樣式。 -->
+            <ul class="calendar__legend" aria-label="圖例">
+              <li><span class="calendar__swatch" data-kind="visit" aria-hidden="true" />有預約</li>
+              <li><span class="calendar__swatch" data-kind="stopped" aria-hidden="true" />停止申請</li>
+              <li><span class="calendar__swatch" data-kind="open" aria-hidden="true" />還可預約</li>
+              <li><span class="calendar__swatch is-holiday" aria-hidden="true" />休假</li>
+              <li class="calendar__legend-mobile"><span class="calendar__dot" aria-hidden="true">3</span>排入的組數</li>
+              <li class="calendar__legend-mobile"><span class="calendar__legend-date num" aria-hidden="true">15</span>還有名額可約</li>
+            </ul>
+
+            <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">
+              <el-button size="small" @click="load">重新載入</el-button>
+            </el-alert>
+
+            <div class="panel calendar" :aria-busy="loading" v-loading="loading">
+              <div class="calendar__grid" role="grid" :aria-label="monthLabel">
+                <div class="calendar__row" role="row">
+                  <div v-for="w in WEEKDAYS" :key="w" class="calendar__weekday" role="columnheader">{{ w }}</div>
+                </div>
+                <div v-for="(week, index) in gridWeeks" :key="index" class="calendar__row" role="row">
+                  <button
+                    v-for="day in week"
+                    :key="day"
+                    type="button"
+                    role="gridcell"
+                    class="calendar__day"
+                    :class="{
+                      'is-other': day.slice(0, 7) !== month,
+                      'is-today': day === today,
+                      'is-selected': day === selectedDay,
+                      'is-holiday': holidays.has(day),
+                      'has-seats': dayChips(slotsByDay.get(day) ?? []).some(chip => chip.kind === 'open'),
+                    }"
+                    :aria-selected="day === selectedDay"
+                    :aria-label="dayAriaLabel(day, slotsByDay.get(day) ?? [], holidays.get(day)?.reason ?? (holidays.has(day) ? '' : null))"
+                    @click="selectDay(day, $event)"
+                  >
+                    <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
+                    <span v-if="holidays.has(day)" class="calendar__holiday">休假</span>
+                    <span v-for="chip in dayChips(slotsByDay.get(day) ?? []).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-kind="chip.kind" :data-status="chip.status" :class="{ 'is-ended': chip.ended }">{{ chip.text }}</span>
+                    <span v-if="dayChips(slotsByDay.get(day) ?? []).length > MAX_CHIPS" class="calendar__more">＋{{ dayChips(slotsByDay.get(day) ?? []).length - MAX_CHIPS }}</span>
+                    <span v-if="dayChips(slotsByDay.get(day) ?? []).some(chip => chip.kind === 'visit')" class="calendar__dot" aria-hidden="true">{{ dayChips(slotsByDay.get(day) ?? []).filter(chip => chip.kind === 'visit').length }}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" @changed="load" @notify="openDayNotice" />
+            <ClosureDialog v-if="canManage" v-model="closureOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" :fixed="closureFixed" @done="load" />
+            <HolidayImportDialog v-if="canManage" v-model="holidayOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" @done="load" />
+          </template>
+        </el-tab-pane>
+        <el-tab-pane label="場次使用情況" name="usage" lazy>
+          <SlotUsagePane v-if="tab === 'usage' && campusFilter" :campus-key="campusFilter" :campus-name="campusName" @go-calendar="tab = 'calendar'" />
+        </el-tab-pane>
       </el-tabs>
-      <CampusSelect :model-value="campusFilter" :keys="visibleCampusKeys" @update:model-value="switchCampus" />
     </div>
-
-    <template v-if="tab === 'calendar'">
-      <div class="toolbar calendar__toolbar">
-        <div class="calendar__nav">
-          <el-button :icon="ArrowLeft" aria-label="上個月" @click="shiftMonth(-1)" />
-          <strong class="calendar__month" aria-live="polite">{{ monthLabel }}</strong>
-          <el-button :icon="ArrowRight" aria-label="下個月" @click="shiftMonth(1)" />
-          <el-button text @click="goToday">今天</el-button>
-        </div>
-        <div v-if="canManage && campusFilter" class="calendar__actions">
-          <el-button data-test="open-closure" @click="openClosure">停班停課</el-button>
-          <el-button data-test="open-holiday-import" @click="holidayOpen = true">匯入國定假日</el-button>
-        </div>
-      </div>
-
-      <WeeklySessionsCard v-if="campusFilter" ref="sessionsCard" :campus-key="campusFilter" :can-manage="canManage" :can-configure-booking="canConfigureBooking" @saved="load" />
-
-      <!-- 格子的顏色與手機的數字點各代表什麼；色塊與格內共用同一組樣式。 -->
-      <ul class="calendar__legend" aria-label="圖例">
-        <li><span class="calendar__swatch" data-kind="visit" aria-hidden="true" />有預約</li>
-        <li><span class="calendar__swatch" data-kind="stopped" aria-hidden="true" />停止申請</li>
-        <li><span class="calendar__swatch" data-kind="open" aria-hidden="true" />還可預約</li>
-        <li><span class="calendar__swatch is-holiday" aria-hidden="true" />休假</li>
-        <li class="calendar__legend-mobile"><span class="calendar__dot" aria-hidden="true">3</span>排入的組數</li>
-        <li class="calendar__legend-mobile"><span class="calendar__legend-date num" aria-hidden="true">15</span>還有名額可約</li>
-      </ul>
-
-      <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" style="margin-bottom: 16px">
-        <el-button size="small" @click="load">重新載入</el-button>
-      </el-alert>
-
-      <div class="panel calendar" :aria-busy="loading" v-loading="loading">
-        <div class="calendar__grid" role="grid" :aria-label="monthLabel">
-          <div class="calendar__row" role="row">
-            <div v-for="w in WEEKDAYS" :key="w" class="calendar__weekday" role="columnheader">{{ w }}</div>
-          </div>
-          <div v-for="(week, index) in gridWeeks" :key="index" class="calendar__row" role="row">
-            <button
-              v-for="day in week"
-              :key="day"
-              type="button"
-              role="gridcell"
-              class="calendar__day"
-              :class="{
-                'is-other': day.slice(0, 7) !== month,
-                'is-today': day === today,
-                'is-selected': day === selectedDay,
-                'is-holiday': holidays.has(day),
-                'has-seats': dayChips(slotsByDay.get(day) ?? []).some(chip => chip.kind === 'open'),
-              }"
-              :aria-selected="day === selectedDay"
-              :aria-label="dayAriaLabel(day, slotsByDay.get(day) ?? [], holidays.get(day)?.reason ?? (holidays.has(day) ? '' : null))"
-              @click="selectDay(day, $event)"
-            >
-              <span class="calendar__date num">{{ Number(day.slice(8)) }}</span>
-              <span v-if="holidays.has(day)" class="calendar__holiday">休假</span>
-              <span v-for="chip in dayChips(slotsByDay.get(day) ?? []).slice(0, MAX_CHIPS)" :key="chip.key" class="calendar__chip" :data-kind="chip.kind" :data-status="chip.status" :class="{ 'is-ended': chip.ended }">{{ chip.text }}</span>
-              <span v-if="dayChips(slotsByDay.get(day) ?? []).length > MAX_CHIPS" class="calendar__more">＋{{ dayChips(slotsByDay.get(day) ?? []).length - MAX_CHIPS }}</span>
-              <span v-if="dayChips(slotsByDay.get(day) ?? []).some(chip => chip.kind === 'visit')" class="calendar__dot" aria-hidden="true">{{ dayChips(slotsByDay.get(day) ?? []).filter(chip => chip.kind === 'visit').length }}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <DayPanel v-if="campusFilter" ref="dayPanel" class="calendar__detail" :day="selectedDay" :campus-key="campusFilter" :slots="selectedSlots" :holiday="holidays.get(selectedDay) ?? null" :can-manage="canManage" @changed="load" @notify="openDayNotice" />
-      <ClosureDialog v-if="canManage" v-model="closureOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" :fixed="closureFixed" @done="load" />
-      <HolidayImportDialog v-if="canManage" v-model="holidayOpen" :campus-keys="visibleCampusKeys" :default-campus="campusFilter" @done="load" />
-    </template>
-
-    <SlotUsagePane v-else-if="campusFilter" :campus-key="campusFilter" :campus-name="campusName" @go-calendar="tab = 'calendar'" />
   </div>
 </template>
 
 <style scoped>
 .calendar__toolbar { justify-content: space-between; align-items: center; }
-.calendar__tabs { flex: 1; min-width: 0; }
-.calendar__tabs :deep(.el-tabs__header) { margin-bottom: 0; }
+/* 頁籤列在左、校區選擇器在右，面板在下一整列：el-tabs 本身不排版（display: contents），
+   header 與 content 直接成為 .calendar__shell 這個 grid 的格子。列距就是原本頁籤列下方的 16px。 */
+.calendar__shell { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 16px 12px; }
+.calendar__campus { grid-column: 2; grid-row: 1; align-self: center; }
+.calendar__campus.el-select { width: 160px; }
+.calendar__tabs { display: contents; }
+.calendar__tabs :deep(.el-tabs__header) { grid-column: 1; grid-row: 1; min-width: 0; margin-bottom: 0; }
+/* el-tabs__content 預設 overflow: hidden，會把日期格的焦點框與陰影切掉；面板內容原本就在頁籤外，維持不裁切。 */
+.calendar__tabs :deep(.el-tabs__content) { grid-column: 1 / -1; grid-row: 2; min-width: 0; overflow: visible; }
 .calendar__legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: -4px 0 12px; padding: 0; list-style: none; color: var(--ink-2); font-size: var(--text-sm); }
 .calendar__legend li { display: inline-flex; align-items: center; gap: 6px; }
 /* 桌機看格內色塊，手機只剩數字點：兩邊各列自己看得到的那幾種。 */
@@ -401,6 +412,11 @@ function openDayNotice() {
 .calendar__dot { display: none; }
 .calendar__detail { margin-top: 24px; }
 @media (max-width: 720px) {
+  /* 手機：校區選擇器獨佔頁籤列下面一整列（和其他頁面的 .toolbar 一樣滿寬），面板再往下。 */
+  .calendar__shell { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  .calendar__campus { grid-column: 1; grid-row: 2; }
+  .calendar__campus.el-select { width: 100%; }
+  .calendar__tabs :deep(.el-tabs__content) { grid-row: 3; margin-top: 8px; }
   .calendar__legend li { display: none; }
   .calendar__legend li.calendar__legend-mobile { display: inline-flex; }
   .calendar__day { min-height: 52px; align-items: center; padding: 4px 2px; }
