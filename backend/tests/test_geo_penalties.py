@@ -116,6 +116,28 @@ def test_a_person_label_inside_a_text_field_cuts_everything_after_it():
     assert row.content == "第17條第7項" and row.law == "法條"
 
 
+def test_a_person_label_without_a_colon_in_the_document_number_is_cut_too():
+    """真檔有一筆的裁處文號是「高市教幼字第負責人＋姓名＋號」（來源欄位錯置、沒有冒號）：識別用的短欄位從標籤起整段截掉。"""
+    (row,) = _parse(_record(doc=f"高市教幼字第負責人{FAKE_PERSON_NAMES[0]}號", law=f"法條行為人{FAKE_PERSON_NAMES[1]}"))
+    assert row.doc_no == "高市教幼字第" and row.law == "法條"
+    (other,) = _parse(_record(punish=f"警告行為人{FAKE_PERSON_NAMES[2]}"))
+    assert other.punishment_text == "警告"
+    (named,) = pen.parse_penalty_file([_record() + [f"高雄市私立測試幼兒園負責人{FAKE_PERSON_NAMES[3]}"]], "高雄市私立測試幼兒園").rows
+    assert named.alt_name == "高雄市私立測試幼兒園"
+    for output in (repr(row), repr(other), repr(named)):
+        assert not any(person in output for person in FAKE_PERSON_NAMES)
+
+
+def test_content_that_merely_mentions_the_operator_is_kept_unless_a_name_follows():
+    kept, cut_colon, cut_name = _parse(
+        _record(content="第9條第2項負責人未依規定辦理保險，幼兒園應改善。"),
+        _record(content=f"第9條第2項 負責人：{FAKE_PERSON_NAMES[0]}"),
+        _record(content=f"第9條第2項 負責人{FAKE_PERSON_NAMES[1]}"),
+    )
+    assert kept.content == "第9條第2項負責人未依規定辦理保險，幼兒園應改善。"
+    assert cut_colon.content == "第9條第2項" and cut_name.content == "第9條第2項"
+
+
 def test_long_text_is_cut_to_the_column_widths_and_whitespace_collapsed():
     (row,) = _parse(_record(content="字  \n" * 400, law="法" * 500, doc="號" * 200))
     assert len(row.content) <= 300 and len(row.law) <= 160 and len(row.doc_no) <= 80

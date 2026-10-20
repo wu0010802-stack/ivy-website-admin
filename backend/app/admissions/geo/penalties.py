@@ -10,7 +10,9 @@
   [6] 選填的裁處當時園所全名。
 
 **姓名不進任何資料結構**：[4] 只取冒號前面的標籤轉成對象類別（operator＝負責人、staff＝行為人），標籤之後的字從不讀進 PenaltyRow；
-其他會存的文字欄位（法條、違規內容、其他處分）再保險一次，從「負責人：」「行為人：」起的字一律截掉。
+其他會存的文字欄位（文號、法條、違規內容、其他處分、園所名稱）再保險一次，從「負責人」「行為人」起的字一律截掉——
+真檔裡有一筆的裁處文號是「高市教幼字第負責人＋姓名＋號」（來源欄位錯置，沒有冒號），所以文號、法條、其他處分、園所名稱不要求冒號；
+違規內容可能正常提到「負責人」這個詞，只截「負責人：…」或結尾接 2–4 個字的樣子。
 `punish_all.json`（以人名為鍵）不讀（2026-10-08 規格已排除）。"""
 
 from __future__ import annotations
@@ -44,8 +46,10 @@ _SPACES = re.compile(r"\s+")
 # 負責人／行為人標籤：只取標籤，姓名在標籤後面，不讀。
 _SUBJECT_LABEL = re.compile(r"^\s*(負責人|行為人)\s*[：:]")
 _SUBJECT_BY_LABEL = {"負責人": "operator", "行為人": "staff"}
-# 其他文字欄位的再保險：標籤後面的字（姓名）一律截掉。
-_PERSON_MARK = re.compile(r"(?:負責人|行為人)\s*[：:].*$")
+# 其他文字欄位的再保險：標籤後面的字（姓名）一律截掉。識別用的短欄位（文號、法條、其他處分、園所名稱）從標籤起整段截掉，
+# 不要求冒號；違規內容只截有冒號的，或標籤緊接 2–4 個字就結束的（「…負責人王小明」）。
+_PERSON_MARK_STRICT = re.compile(r"(?:負責人|行為人).*$")
+_PERSON_MARK = re.compile(r"(?:負責人|行為人)\s*(?:[：:].*|[\u4e00-\u9fff]{2,4})$")
 _PUNISHMENT = re.compile(r"^\s*(罰鍰|停止招生|減少招收人數|停辦)\s*[：:]\s*(.*?)\s*$")
 _KIND_BY_LABEL = {"罰鍰": "fine", "停止招生": "stop_enrollment", "減少招收人數": "reduce_enrollment", "停辦": "closure"}
 _AMOUNT = re.compile(r"^([0-9][0-9,]*)\s*元")
@@ -106,10 +110,11 @@ def listing_names(data: object) -> list[str]:
     return sorted(names)
 
 
-def _clean(value: object, width: int) -> str:
-    """文字欄位：空白收成一個、去頭尾、截掉人名標籤之後的字、截到欄寬。"""
+def _clean(value: object, width: int, *, strict: bool = True) -> str:
+    """文字欄位：空白收成一個、去頭尾、截掉人名標籤之後的字、截到欄寬。strict（預設）從標籤起整段截掉；
+    違規內容傳 strict=False，只截有冒號的或標籤緊接 2–4 個字結尾的（正常內容可能提到「負責人」這個詞）。"""
     text = _SPACES.sub(" ", str(value if value is not None else "")).strip()
-    return _PERSON_MARK.sub("", text).strip()[:width]
+    return (_PERSON_MARK_STRICT if strict else _PERSON_MARK).sub("", text).strip()[:width]
 
 
 def _to_date(value: object) -> date | None:
@@ -183,7 +188,7 @@ def parse_penalty_file(data: object, school_name: str) -> PenaltyFile:
                 occurred_on=occurred_on,
                 doc_no=_clean(record[1], _WIDTHS["doc_no"]),
                 law=_clean(record[2], _WIDTHS["law"]),
-                content=_clean(record[3], _WIDTHS["content"]),
+                content=_clean(record[3], _WIDTHS["content"], strict=False),
                 kind=kind,
                 amount=amount,
                 period_start=start,
@@ -250,7 +255,7 @@ def parse_csv(text: str) -> list[PenaltyRow]:
                 occurred_on=occurred_on,
                 doc_no=_clean(record.get("doc_no"), _WIDTHS["doc_no"]),
                 law=_clean(record.get("law"), _WIDTHS["law"]),
-                content=_clean(record.get("content"), _WIDTHS["content"]),
+                content=_clean(record.get("content"), _WIDTHS["content"], strict=False),
                 kind=kind,
                 amount=int(amount_text) if amount_text and int(amount_text) <= INT4_MAX else None,
                 period_start=_iso_date(record.get("period_start")),
