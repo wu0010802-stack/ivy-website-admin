@@ -10,7 +10,7 @@ import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
   AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
-  UserOut, VillageBoundaries,
+  Potential, PotentialShareYear, UserOut, VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
@@ -523,3 +523,51 @@ export const areaPeerFees = (changes: Partial<AreaPeerFees> = {}): AreaPeerFees 
   ],
   ...changes,
 })
+
+// 招生潛力與市佔率（2026-10-20）：107–115 學年的秋季註冊與 3 公里內 2–5 歲人數用規格驗收對照值（報告 I-9 §7），
+// share 照後端取四位小數；115 學年是里界合併過的一年。國小對帳最新一年 114 學年 0.82、歷年 0.80–0.85，沒有提醒。
+const SHARE_REGISTERED = [245, 279, 210, 173, 108, 131, 118, 121, 189]
+const SHARE_CHILDREN = [14507, 14366, 14076, 13158, 12125, 11629, 10871, 10255, 9788]
+export const shareYear = (changes: Partial<PotentialShareYear> = {}): PotentialShareYear => {
+  const registered = changes.registered ?? 189
+  const children = changes.children === undefined ? 9788 : changes.children
+  return {
+    school_year: 115, registered, children, villages: children === null ? null : 21,
+    share: children === null ? null : Math.round((registered / children) * 10000) / 10000, merged: false, ...changes,
+  }
+}
+const buildPotential = (): Potential => ({
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
+  generated_at: '2026-10-20T04:00:00Z',
+  share: {
+    status: 'ready',
+    radius_km: 3,
+    latest: null,
+    best: null,
+    years: SHARE_REGISTERED.map((registered, index) =>
+      shareYear({ school_year: 107 + index, registered, children: SHARE_CHILDREN[index]!, merged: index === 8 })),
+    elementary_check: {
+      schools: 6, mean: 0.825, latest_ratio: 0.82, warn: false,
+      years: [
+        { school_year: 112, grade1: 1900, age6: 2375, ratio: 0.8, schools: 6 },
+        { school_year: 113, grade1: 2040, age6: 2400, ratio: 0.85, schools: 6 },
+        { school_year: 114, grade1: 2000, age6: 2439, ratio: 0.82, schools: 6 },
+      ],
+    },
+    notes: ['115 學年里界調整，三民區 1 里合併計入'],
+  },
+})
+/** 每次呼叫都是一份新的；latest、best 預設從 years 帶出（最新一個有市佔率的學年、市佔率最高且同分取較新的學年，同後端）。 */
+export function potentialData(changes: { share?: Partial<Potential['share']> } & Partial<Omit<Potential, 'share'>> = {}): Potential {
+  const base = buildPotential()
+  const { share: shareChanges, ...rest } = changes
+  const years = shareChanges?.years ?? base.share.years
+  const shared = years.filter((year) => year.share !== null)
+  const best = shared.reduce<PotentialShareYear | null>(
+    (top, year) => (top === null || year.share! >= top.share! ? year : top), null)
+  return {
+    ...base,
+    ...rest,
+    share: { ...base.share, latest: shared.at(-1) ?? null, best, ...shareChanges, years },
+  }
+}

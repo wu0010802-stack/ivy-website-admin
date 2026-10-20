@@ -6,6 +6,7 @@ import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
 import JourneyTab from './JourneyTab.vue'
+import PotentialTab from './potential/PotentialTab.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import BookingStatsPane from '../analytics/BookingStatsPane.vue'
 import { getCompare, getStats } from '../../api/admissions'
@@ -30,6 +31,7 @@ import { csvFilename } from '../../utils/csv'
 // 讀失敗時，子分頁列照樣出現，切得過去；招生的子分頁和以前一樣等招生統計回來才畫（讀失敗只有錯誤與
 // 重新載入）。上方的統計範圍與說明只屬於招生統計，在參觀預約不顯示。
 // 「預約全程」（2026-10-15，JourneyTab）同樣讀自己的 API，期間與來源由頁面放在網址（journey）。
+// 「招生潛力與市佔率」（2026-10-20，PotentialTab）也讀自己的 API，看所有學年，沒有要放網址的篩選。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string; withdraw?: string }] }>()
 
@@ -48,8 +50,8 @@ const journey = defineModel<JourneyFilter>('journey', { default: () => ({ ...DEF
 // 區域分析的地圖模式、選取的里與表格分頁（2026-10-16），同樣由頁面放在網址。
 const areaView = defineModel<AreaView>('areaView', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
 
-// 「參觀預約」與「預約全程」讀自己的 API、不用招生統計：兩個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
-const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey')
+// 「參觀預約」「預約全程」與「招生潛力與市佔率」讀自己的 API、不用招生統計：三個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
+const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey' || sub.value === 'potential')
 
 function setSubTab(name: string | number) {
   const value = String(name).replace(/^stats-/, '')
@@ -501,6 +503,10 @@ function openWithdrawRecords(row: { code: string }) {
 
       <el-tab-pane label="預約全程" name="stats-journey" lazy>
         <JourneyTab v-model:filter="journey" :campus-key="campusKey" :active="sub === 'journey'" />
+      </el-tab-pane>
+
+      <el-tab-pane label="招生潛力與市佔率" name="stats-potential" lazy>
+        <PotentialTab :campus-key="campusKey" :active="sub === 'potential'" />
       </el-tab-pane>
     </el-tabs>
   </section>

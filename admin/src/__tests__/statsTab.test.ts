@@ -5,7 +5,7 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { AdmissionsStats } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
-import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
+import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo, potentialData, queryOf } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaTab.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -299,7 +299,7 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程', '招生潛力與市佔率'])
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props()).toMatchObject({ campusKey: 'yihua', schoolYear: 115, semester: 1 })
     expect(tab.props('emptyText')).toContain('還沒有招生訪視')
@@ -335,7 +335,7 @@ describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', ()
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'booking', campusKeys: ['yihua', 'minghua'] }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程', '招生潛力與市佔率'])
     const pane = wrapper.findComponent({ name: 'BookingStatsPane' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', campusKeys: ['yihua', 'minghua'] })
     expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
@@ -377,7 +377,7 @@ describe('統計分頁：預約全程（2026-10-15）', () => {
     const filter = { period: '180', from: '', to: '', source: 'web' }
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'journey', journey: filter }) })
     const labels = wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text())
-    expect(labels.slice(-2)).toEqual(['參觀預約', '預約全程'])
+    expect(labels.slice(-3)).toEqual(['參觀預約', '預約全程', '招生潛力與市佔率'])
     const pane = wrapper.findComponent({ name: 'JourneyTab' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', filter })
     expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
@@ -418,6 +418,49 @@ describe('統計分頁：預約全程（2026-10-15）', () => {
     await flushPromises()
     expect(wrapper.find('.el-alert').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'JourneyTab' }).exists()).toBe(true)
+  })
+})
+
+describe('統計分頁：招生潛力與市佔率（2026-10-20）', () => {
+  it('排在預約全程之後；sub=potential 才讀，拿頁首校區；上方的招生統計範圍與說明不顯示', async () => {
+    const get = mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'potential' }) })
+    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()).at(-1)).toBe('招生潛力與市佔率')
+    expect(wrapper.findComponent({ name: 'PotentialTab' }).props()).toMatchObject({ campusKey: 'yihua', active: true })
+    expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
+    expect(queryOf(pathsTo(get, '/admin/admissions/potential')[0]!).get('campus_key')).toBe('yihua')
+    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.find('[data-test="stats-explainer"]').exists()).toBe(false)
+  })
+
+  it('招生統計還在讀或讀失敗時，招生潛力與市佔率照樣看得到、不等 /stats', async () => {
+    const pending = deferred<AdmissionsStats>()
+    mockGet({ '/admin/admissions/stats': () => pending.promise, '/admin/admissions/potential': potentialData() })
+    const loading = await mountWith(StatsTab, { props: props({ sub: 'potential' }) })
+    expect(loading.wrapper.get('.potential-card__value').text()).toBe('1.93%')
+    expect(loading.wrapper.find('.el-skeleton').exists()).toBe(false)
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': () => { throw new Error('network') }, '/admin/admissions/potential': potentialData() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'potential' }) })
+    expect(wrapper.find('.inline-error').exists()).toBe(false)
+    expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
+  })
+
+  it('沒點開不掛、不讀；點開寫 sub=potential；離開後回來不重讀', async () => {
+    const get = mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findComponent({ name: 'PotentialTab' }).exists()).toBe(false)
+    expect(pathsTo(get, '/admin/admissions/potential')).toEqual([])
+    await openSubTab(wrapper, '招生潛力與市佔率')
+    expect(wrapper.emitted('update:sub')?.at(-1)).toEqual(['potential'])
+    await wrapper.setProps({ sub: 'potential' })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
+    await wrapper.setProps({ sub: 'source' })
+    await wrapper.setProps({ sub: 'potential' })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
   })
 })
 

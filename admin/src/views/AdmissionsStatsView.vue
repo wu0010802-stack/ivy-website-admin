@@ -18,8 +18,8 @@ const route = useRoute()
 const router = useRouter()
 
 // 「參觀預約」看預約案件的送出日或事件日，不分入學學年學期：兩個下拉停用（值保留，切回其他子分頁
-// 還在），期間在子分頁裡選。預約全程同理（看預定參觀日）。
-const termless = computed(() => sub.value === 'booking' || sub.value === 'journey')
+// 還在），期間在子分頁裡選。預約全程同理（看預定參觀日）；招生潛力與市佔率列出所有學年，也不分。
+const termless = computed(() => sub.value === 'booking' || sub.value === 'journey' || sub.value === 'potential')
 
 // 統計的警示與行動入口「查看本月明細」、區域分析與退出原因分佈的「查看明細」：到招生入學的訪視明細，
 // 帶校區、學年學期，以及月份、區域或退出原因（呼叫端只給其中一個，不疊成更窄的範圍）。

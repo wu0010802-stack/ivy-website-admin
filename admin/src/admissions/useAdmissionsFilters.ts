@@ -15,8 +15,8 @@ export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 招生統計的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
 // 順序同園務：區域分析在接待之後、未預繳之前（2026-10-08 起官網也做）。官網延伸的「參觀預約」
-// （2026-10-13 從成效統計搬來）與「預約全程」（2026-10-15）排最後，園務有的子分頁順序不動。
-export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey'] as const
+// （2026-10-13 從成效統計搬來）、「預約全程」（2026-10-15）與「招生潛力與市佔率」（2026-10-20）排最後，園務有的子分頁順序不動。
+export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential'] as const
 export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

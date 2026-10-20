@@ -11,7 +11,7 @@ import { authGuard, routes } from '../router'
 import { canListNavItem, canOpenPath, canSeeNavItem, NAV_GROUPS, navItem, navItemMatchScore, normalizeSearch } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
-import { campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, queryOf, reception, superAdmin } from './admissionsTestKit'
+import { campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, potentialData, queryOf, reception, superAdmin } from './admissionsTestKit'
 
 vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -246,7 +246,7 @@ describe('子分頁寫進網址（X2a 3A）', () => {
   })
 
   it('(g) 區域分析排在接待之後、未預繳之前；sub=area 跟其他子分頁一樣用 replace 寫進網址', async () => {
-    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey'])
+    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential'])
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua') })
     const replace = vi.spyOn(router, 'replace')
@@ -412,6 +412,27 @@ describe('頁首篩選的作用範圍與手機摘要', () => {
     await flushPromises()
     expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([false, false])
     expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2', sub: 'source' })
+  })
+
+  // 招生潛力與市佔率（2026-10-20）：讀自己的 API，看所有學年；子分頁名 potential 只在網址的 sub 出現，沒有別的參數。
+  it('招生潛力與市佔率不分入學學年學期：兩個下拉停用並寫明；自己讀 /potential、不等招生統計；切到別的子分頁恢復', async () => {
+    freezeToday()
+    const get = mockGet({ ...routesOn, '/admin/admissions/potential': potentialData() })
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=2&sub=potential') })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('potential')
+    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([true, true])
+    expect(wrapper.get('.admissions__scope-note').text()).toBe('這個分頁不分入學學年學期')
+    expect(wrapper.find('section[aria-label="招生潛力與市佔率"]').exists()).toBe(true)
+    expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
+    expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
+    expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sy: '114', sem: '2', sub: 'potential' })
+
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
+    await flushPromises()
+    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([false, false])
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'potential')
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
   })
 
   it('手機摘要在參觀預約寫「不分學年學期」', async () => {
