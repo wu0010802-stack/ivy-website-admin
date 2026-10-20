@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { api } from '../../api/client'
+import { api, ApiError } from '../../api/client'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import { barWidth, type StatsColumn } from '../../admissions/statsFormat'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
@@ -29,10 +29,11 @@ async function load() {
   try {
     const result = await api.get<SlotUsage>(`/admin/visit-slot-usage?campus_key=${props.campusKey}&weeks=${weeks.value}`)
     if (requests.isCurrent(request)) usage.value = result
-  } catch {
+  } catch (err) {
     if (requests.isCurrent(request)) {
       usage.value = null
-      error.value = '無法讀取場次使用情況，請重新載入。'
+      // 範圍外的校區後端回 404（視為不存在），和接待月曆同一句，不要叫人「重新載入」一個永遠載不到的東西。
+      error.value = err instanceof ApiError && err.status === 404 ? '你沒有這個校區的權限。' : '無法讀取場次使用情況，請重新載入。'
     }
   } finally {
     if (requests.isCurrent(request)) loading.value = false

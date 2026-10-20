@@ -7,7 +7,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import SlotUsagePane from '../components/sessions/SlotUsagePane.vue'
 import StatsDimensionTable from '../components/admissions/StatsDimensionTable.vue'
 import VisitCalendarView from '../views/VisitCalendarView.vue'
-import { api } from '../api/client'
+import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 import {
@@ -177,6 +177,12 @@ describe('SlotUsagePane', () => {
     await wrapper.get('[data-test="reload"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('近 4 週家長打開義華校預約頁 10 次')
+  })
+
+  it('讀取失敗是 404（範圍外的校區）：寫「沒有權限」，和一般失敗的文字不同', async () => {
+    const { wrapper } = await mountPane(new ApiError(404, 'Not Found'))
+    expect(wrapper.text()).toContain('你沒有這個校區的權限。')
+    expect(wrapper.text()).not.toContain('無法讀取場次使用情況')
   })
 
   it('換校區重讀，舊回應不會蓋掉新回應', async () => {
