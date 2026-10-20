@@ -44,8 +44,9 @@ async function load() {
   }
 }
 
-// 換校區：先清空再讀（不留別校的數字）。
+// 換校區：先清空再讀（不留別校的數字）。不在這頁時也要讓進行中的舊請求作廢，否則舊校的回應晚到會寫回畫面。
 function refresh() {
+  requests.begin()
   data.value = null
   if (props.active) void load()
   else pending = true

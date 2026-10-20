@@ -145,6 +145,22 @@ describe('招生潛力與市佔率', () => {
     expect(wrapper.get('.potential-card__value').text()).toBe('1.00%')
   })
 
+  it('A 校請求進行中切離子分頁再換成 B 校：A 的回應晚到也不寫進畫面，回來前不殘留 A 校數字', async () => {
+    const first = deferred<ReturnType<typeof potentialData>>()
+    const renwu = potentialData({ share: { years: [shareYear({ school_year: 115, registered: 50, children: 5000 })] } })
+    mockGet({ [PATH]: (path: string) => (queryOf(path).get('campus_key') === 'yihua' ? first.promise : renwu) })
+    const { wrapper } = await mountWith(PotentialTab, { props: { campusKey: 'yihua', active: true } })
+    await wrapper.setProps({ active: false })
+    await wrapper.setProps({ campusKey: 'renwu' })
+    first.resolve(potentialData())
+    await flushPromises()
+    expect(wrapper.find('.potential-card').exists()).toBe(false)
+    expect(wrapper.find('.el-skeleton').exists()).toBe(true)
+    await wrapper.setProps({ active: true })
+    await flushPromises()
+    expect(wrapper.get('.potential-card__value').text()).toBe('1.00%')
+  })
+
   it('不在這個子分頁時不讀；回來才讀一次，期間換校區只讀最後一個', async () => {
     const get = mockGet({ [PATH]: potentialData() })
     const { wrapper } = await mountWith(PotentialTab, { props: { campusKey: 'yihua', active: false } })
