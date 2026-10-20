@@ -22,7 +22,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `a5ac499826cc262bcb7c47e9d175d14eb1acc7ee`，snapshot `15dce4bd…`，created `2026-10-20T03:05:10Z`。
 - **線上唯讀檢查**：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空（背景工作 03:13:30Z 跑完一輪）；未登入 `GET /admin/admissions/area/presale`、`/admin/admissions/area/kindergartens/<id>/records` 回 401。
 - **地號座標**：使用者 10-20 在本機跑 `fetch_presale_parcels.py`（649 地號，646 有座標）；661 案 655 案（99.1%）可點入里。檔案在 worktree `output/presale/presale_parcels.csv`（gitignored），要上傳 api volume 後 `geo-sync --presale-parcels-file` 匯入（見下方「預售建案」段）。
-- **未驗證**：正式站第一輪預售、裁罰、評鑑同步結果（沒有讀 Railway DB 權限）；評鑑換頁第 2 頁起、GitHub API 在 Railway 會不會被限流；登入後的畫面。
+- **部署後匯入（使用者用 `!` 跑）**：地號座標 `geo-sync --presale-parcels-file` → 匯入 654 列、預售建案重比改變 655 案；裁罰正式站自動同步已寫入（標籤 2026-10-20），評鑑仍「尚未匯入」。本機 `fetch_geo_bundle.py --kindergarten-only`（裁罰 571 筆／238 檔、評鑑 689 所／69 頁／1556 筆，換頁在真站正常）→ `geo-sync --bundle` → 裁罰 updated 534 筆、評鑑 updated 1556 筆。
+- **未驗證**：正式站評鑑自動同步為什麼沒寫入（看後台「系統狀態」該列 `last_error`；可能是 TLS、限時或還沒輪到）；GitHub API 在 Railway 會不會被限流；登入後的畫面。volume 上的 `/presale_parcels.csv`、`/geo-bundle-kindergartens.zip` 待使用者刪。
 
 ## 2026-10-19 關於頁手機版改成上翻畫冊（main CI 部署，沒有 migration）
 
