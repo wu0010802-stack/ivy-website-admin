@@ -46,7 +46,13 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 @media(min-aspect-ratio:7/5){.day-film-poster,.day-film-video{object-position:4% 0}}
 .day-film-video{opacity:0;transition:opacity .8s}
 .day-film-video.is-ready{opacity:1}
-.day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .6),rgb(var(--ink) / .34) 42%,rgb(var(--ink) / .6))}
+/* 2026-10-20 調亮：原本整段都蓋 .6／.34／.6 的墨綠紗，拍立得那四屏舞台影片被壓成灰濛濛一片。
+   常駐紗減到大約一半（.34／.18／.36；同日先試過只留上下緣，使用者覺得太亮）。
+   開場大標那一屏另疊 ::before，數值換算成和常駐層合起來等於舊的 .6／.34（大標、眉標對比不低於舊版），
+   底緣合起來 .67、比舊的 .6 深一點，讓左下圖說過 4.5（舊版只有 3.95–4.15）。
+   跟大標用同一個 --word-fade 淡掉（1 → .16 對應 opacity 1 → 0）。圖說只在大標那一屏出現，底部說明字另墊自己的帶。 */
+.day-film-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .34),rgb(var(--ink) / .18) 42%,rgb(var(--ink) / .36))}
+.day-film-shade::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgb(var(--ink) / .39),rgb(var(--ink) / .2) 42%,rgb(var(--ink) / .48));opacity:calc((var(--word-fade,1) - .16) / .84)}
 /* 時段光：三層色各自只動 opacity（合成層），由 DayExperience 的 data-light 決定哪層亮、亮多少。 */
 .day-film-light{position:absolute;inset:0;mix-blend-mode:soft-light;pointer-events:none}
 .day-film-light>span{position:absolute;inset:0;opacity:0;transition:opacity 1.6s ease}
@@ -165,8 +171,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 底部留白用 margin、不用 padding（2026-10-13）：說明字接指標，padding 會把底部的暫停圓鈕一起蓋住、點不到。 */
 .day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto 96px;color:rgb(var(--on-dark));font-size:var(--fs-xs);line-height:1.9}
 /* 說明字原本 74% 白，最低只有 3.3（2026-10-13）：改全白，字後墊一條上下淡出、左右收邊的淡墨綠帶；影片 12 幀最低 4.6（1440）、手機 7.4。 */
-/* 左右只伸到頁面邊距（--note-bleed：桌機 48、≤1100 32、手機 20），再多會撐出橫向捲動。 */
-.day-note::before{content:'';position:absolute;z-index:-1;inset:-20px calc(-1 * var(--note-bleed,48px));background:linear-gradient(rgb(var(--ink) / 0),rgb(var(--ink) / .35) 20px calc(100% - 20px),rgb(var(--ink) / 0));-webkit-mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);pointer-events:none}
+/* 左右只伸到頁面邊距（--note-bleed：桌機 48、≤1100 32、手機 20），再多會撐出橫向捲動。
+   2026-10-20 影片調亮後，底部的常駐紗從 .6 降到 .36，這條帶從 .35 加到 .6 補回來（說明字一定落在影片底部兩百多 px 內）。 */
+.day-note::before{content:'';position:absolute;z-index:-1;inset:-20px calc(-1 * var(--note-bleed,48px));background:linear-gradient(rgb(var(--ink) / 0),rgb(var(--ink) / .6) 20px calc(100% - 20px),rgb(var(--ink) / 0));-webkit-mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);mask:linear-gradient(90deg,transparent,rgb(var(--ink)) var(--note-bleed,48px) calc(100% - var(--note-bleed,48px)),transparent);pointer-events:none}
 @media(max-width:1100px){.day-prints{padding-inline:32px;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}.day-print:nth-child(n) .print-card{width:100%;margin-inline:0}.day-note{width:calc(100% - 64px);--note-bleed:32px}}
 @media(max-width:760px){
  .day-intro .eyebrow{gap:12px;margin-bottom:12px}

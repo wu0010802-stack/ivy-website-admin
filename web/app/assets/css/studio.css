@@ -584,18 +584,19 @@ body:has(.studio-hero) .header-top,
   .belief-since::before {background:CanvasText}
 }
 
-/* 離開首屏：整條頁首讓位，置頂居中的深綠膠囊接手（提案 design/header-collapse-directions，2026-09-18）。
+/* 離開首屏：整條頁首讓位，置頂居中的膠囊接手（提案 design/header-collapse-directions，2026-09-18）。
    2026-09-23 起分校頁與預約頁 900px 以下也用（SiteHeader 加 .is-pill-nav）；用 :is() 包單一 class，特異度與首頁原本相同。
-   膠囊底色用 --green，因為首頁捲過首屏後的五段背景都是淺色，米白膠囊與它們的邊界對比只有 1.0–1.4。 */
+   2026-10-20 調亮：墨綠毛玻璃改米白毛玻璃＋深綠字。首頁捲過首屏後多是淺色背景，米白膠囊與它們的邊界對比只有 1.0–1.4，
+   形狀改靠墨綠細框與投影撐住（下方 compact 狀態的變數）。 */
 .header-pill {display:none}
 body:has(:is(.studio-hero,.is-pill-nav)) .header {
   --pill-top:12px;--pill-pad:8px;--pill-ctrl:40px;--pill-crest:28px;
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
-  --pill-shadow:0 18px 40px -16px rgb(var(--ink) / .6),0 2px 6px -2px rgb(var(--ink) / .3);
+  --pill-shadow:0 12px 30px -14px rgb(var(--ink) / .45),0 1px 4px -1px rgb(var(--ink) / .22);
   --pill-gutter:max(48px,calc((100% - 1280px) / 2));
-  /* 膠囊保留墨綠毛玻璃；展開卡片採 2026-09-22 確認的米白目錄。 */
-  --pill-bg:rgb(var(--ink) / .74);--pill-solid:var(--green);--pill-fg:var(--paper);--pill-soft:var(--mint);
-  --pill-border:rgb(var(--on-dark) / .28);--pill-line:rgb(var(--on-dark) / .16);--pill-hover:rgb(var(--on-dark) / .12);
+  /* 膠囊用米白毛玻璃；展開卡片採 2026-09-22 確認的米白目錄。 */
+  --pill-bg:var(--ivy-pill-glass);--pill-solid:var(--paper);--pill-fg:var(--green);--pill-soft:var(--muted);
+  --pill-border:rgb(var(--ink) / .14);--pill-line:rgb(var(--ink) / .14);--pill-hover:rgb(var(--ink) / .06);
   --pill-ease:cubic-bezier(.22,1,.36,1);
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
@@ -665,6 +666,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {
   height:calc(var(--pill-ctrl) - 4px);
   border-radius:50%;
   background:var(--white);
+  box-shadow:0 0 0 1px var(--pill-line);
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
 /* 2026-09-18：膠囊只留圓形校徽，校名與英文字收掉（校名仍在 .pill-brand 的 aria-label）。
@@ -680,7 +682,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {
   color:var(--pill-soft);
 }
 body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {display:flex;align-items:center;gap:6px}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:rgb(var(--on-dark) / .22)}
+body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:var(--pill-line)}
 body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {
   display:inline-flex;
   align-items:center;
@@ -729,7 +731,8 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
   transition:background-color .2s ease,color .2s ease;
 }
 @media(hover:hover) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--paper);color:var(--deep)}
+  /* 膠囊改米白後（2026-10-20），hover 換米白會和膠囊融在一起，改深一階的品牌金。 */
+  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--gold);color:var(--deep)}
 }
 /* 桌機膠囊的控制只有 40px 高（手機 --pill-ctrl 已是 44px）：用透明 ::before 上下各補 2px，點擊範圍到 44px、外觀不變（2026-09-27）。 */
 body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle) {position:relative}
@@ -890,14 +893,14 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
   .pill-brand {padding-right:0}
 }
 /* 收合後頁首的白字已經不在照片上，首屏頂部那條為導覽而設的遮罩帶就收掉：照片更完整，
-   深綠膠囊也才浮得出來（壓在遮罩上時膠囊對背景只有 1.08 的對比）。 */
+   膠囊也才浮得出來（當初的深綠膠囊壓在遮罩上時對背景只有 1.08 的對比）。 */
 .studio-hero::before {transition:background-size .35s ease}
 .header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto,auto}
-/* 壓在首屏照片上時，膠囊的外框與陰影給重一點，讓形狀在任何一張照片上都站得住。
+/* 外框與陰影給重一點，讓形狀在照片和淺色區塊上都站得住（2026-10-20 米白膠囊：外框由白改墨綠細線）。
    只改變數，不直接寫 box-shadow，免得蓋掉左右分離版「膠囊本身不投影」的設定。 */
 body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
-  --pill-border:rgb(var(--on-dark) / .28);
-  --pill-shadow:0 18px 40px -14px rgb(var(--ink) / .7),0 2px 8px -2px rgb(var(--ink) / .4);
+  --pill-border:rgb(var(--ink) / .16);
+  --pill-shadow:0 14px 34px -14px rgb(var(--ink) / .5),0 2px 6px -2px rgb(var(--ink) / .26);
 }
 /* 手機滿版膠囊一路跟著捲，桌機那層 40px 大陰影在窄螢幕會把下方內容壓暗一整條；收成貼身的短陰影（2026-09-27）。 */
 @media(max-width:900px) {

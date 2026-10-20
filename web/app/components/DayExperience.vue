@@ -49,12 +49,15 @@ let hasScrolled = false
 // 對齊 app.js 的 fadeBehindContent()＋markActive()：大標先留在畫面上，
 // 拍立得列表靠近時淡成底紋（最低留 .16），並標出讀者停在哪一段，讓那
 // 張相片的時間戳再亮一階。
+// --word-fade 寫在 section 上：影片上「只護大標那一屏」的遮罩（styles.css
+// .day-film-shade::before）也跟著同一個值淡掉（2026-10-20 調亮）。
 const QUIET = 0.16
 function paintFade() {
   fadeFrame = 0
   const intro = introEl.value
   const list = printsEl.value
-  if (!intro || !list || !onScreen) return
+  const section = sectionEl.value
+  if (!intro || !list || !section || !onScreen) return
   const top = list.getBoundingClientRect().top
   const from = readingHeight * 0.62
   const to = readingHeight * 0.25
@@ -65,7 +68,7 @@ function paintFade() {
     if (offset <= line) active = i
   })
   const fade = (1 - progress * (1 - QUIET)).toFixed(3)
-  if (intro.style.getPropertyValue('--word-fade') !== fade) intro.style.setProperty('--word-fade', fade)
+  if (section.style.getPropertyValue('--word-fade') !== fade) section.style.setProperty('--word-fade', fade)
   // 第一張拍立得升到底部控制列（暫停鍵底緣離閱讀高度底部 14px，見 styles.css）就算蓋到：
   // 手機靠這個狀態讓圖說退場、暫停鍵收成圓鈕，不等卡片蓋到大標才讓位（progress >= 1 已包含在內）。
   const covered = top < readingHeight - 14 ? '1' : '0'
