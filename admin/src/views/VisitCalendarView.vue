@@ -168,9 +168,15 @@ watch(() => route.query.campus, value => {
 // 已經在這一頁時網址換校（上一頁、帶 ?campus= 的連結）：卡片換校會丟掉沒存的場次修改，先問；
 // 選擇留下就取消這次換頁，網址與畫面都留在原校（同 useCampusContent）。從校區選單換的已經在 switchCampus 問過，
 // 走到這裡時 campusFilter 已是新校，不會再問一次。
+// 網址直接切到使用情況（瀏覽器上一頁／前進、帶 ?tab=usage 的連結）不會經過頁籤的 before-leave，月曆卸載同樣會丟掉卡片沒存的修改，
+// 所以在這裡補問，取消就整次換頁作廢（頁籤與網址都留在月曆）。從頁籤點的已經在 before-leave 問過：tab 先變成 usage 才寫網址，
+// 走到這裡時 tab 已不是 calendar，不會再問一次。換校與切頁籤同時發生也只問一次。
 onBeforeRouteUpdate(async (to) => {
+  if (to.path !== CALENDAR_PATH) return true
   const campus = campusFromQuery(to.query.campus)
-  if (to.path !== CALENDAR_PATH || !campus || campus === campusFilter.value) return true
+  const changesCampus = Boolean(campus) && campus !== campusFilter.value
+  const leavesCalendar = tab.value === 'calendar' && tabFromQuery(to.query.tab) === 'usage'
+  if (!changesCampus && !leavesCalendar) return true
   return (await sessionsCard.value?.confirmLeave()) !== false
 })
 // 有沒存的場次修改時切換校區前先問（離開頁面的詢問由卡片自己的離頁保護處理）。

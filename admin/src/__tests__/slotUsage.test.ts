@@ -413,14 +413,68 @@ describe('參觀場次頁：頁籤', () => {
     expect(get.mock.calls.map(c => String(c[0])).some(path => path.includes('minghua'))).toBe(true)
   })
 
-  it('網址改成 tab=usage（例如瀏覽器上一頁）時直接跟著切，不再問，頁籤列與內容一致', async () => {
+  // 網址直接切到使用情況（瀏覽器上一頁／前進、帶 ?tab=usage 的連結）不經過頁籤的 before-leave，
+  // 月曆內容卸載會丟掉每週場次卡片沒存的修改，所以 onBeforeRouteUpdate 要補問（2026-10-20）。
+  it('網址改成 tab=usage（瀏覽器上一頁、連結）時，月曆有沒存的修改先問；取消就留在月曆，網址、頁籤列、內容都不動，也不讀使用情況', async () => {
     const get = vi.spyOn(api, 'get'); route(get)
     const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
-    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave: async () => false }
+    const confirmLeave = vi.fn(async () => false)
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave }
+    await router.replace({ query: { campus: 'yihua', tab: 'usage' } }).catch(() => {})
+    await flushPromises()
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(router.currentRoute.value.query.tab).toBeUndefined()
+    expect(wrapper.find('.calendar__grid').exists()).toBe(true)
+    expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('接待月曆')
+    expect(wrapper.find('.usage').exists()).toBe(false)
+    expect(urlOf(get).some(path => path.startsWith('/admin/visit-slot-usage'))).toBe(false)
+  })
+
+  it('網址改成 tab=usage 時按確定，照常切過去，頁籤列與內容一致', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    const confirmLeave = vi.fn(async () => true)
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave }
     await router.replace({ query: { campus: 'yihua', tab: 'usage' } })
     await flushPromises()
-    expect(wrapper.text()).toContain('最早能約哪天')
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(router.currentRoute.value.query.tab).toBe('usage')
     expect(wrapper.get('.el-tabs__item.is-active').text()).toBe('場次使用情況')
+    expect(wrapper.find('.usage').exists()).toBe(true)
+    expect(wrapper.find('.calendar__grid').exists()).toBe(false)
+  })
+
+  it('網址同時換校與切到使用情況，只問一次', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    const confirmLeave = vi.fn(async () => true)
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave }
+    await router.replace({ query: { campus: 'minghua', tab: 'usage' } })
+    await flushPromises()
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+    expect(urlOf(get)).toContain('/admin/visit-slot-usage?campus_key=minghua&weeks=12')
+  })
+
+  it('從頁籤點到使用情況只問一次：問過之後寫網址不會再問', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua')
+    const confirmLeave = vi.fn(async () => true)
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave }
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.tab).toBe('usage')
+    expect(confirmLeave).toHaveBeenCalledTimes(1)
+  })
+
+  it('在使用情況頁籤（沒有月曆卡片）網址切換不問', async () => {
+    const get = vi.spyOn(api, 'get'); route(get)
+    const { wrapper, router } = await mountCalendarAt('/visit-calendar?campus=yihua&tab=usage')
+    const confirmLeave = vi.fn(async () => false)
+    ;(wrapper.vm as unknown as { sessionsCard: unknown }).sessionsCard = { confirmLeave }
+    await router.replace({ query: { campus: 'yihua' } })
+    await flushPromises()
+    expect(confirmLeave).not.toHaveBeenCalled()
+    expect(wrapper.find('.calendar__grid').exists()).toBe(true)
   })
 
   // 使用情況頁籤背景不讀接待月曆與休假（2026-10-20）。
