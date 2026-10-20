@@ -4,7 +4,8 @@
 - 半徑內的里：現行里界的面積重心到校址 ≤ N×1000 m；和後台其他地方不同，這裡不四捨五入到 100 m（報告 B-04 L19）。
 - 里代碼在 111-06、115-07 各變過一次：某學年缺現行代碼的資料時，把那一年資料裡「不在現行里界、而且和缺漏代碼同區」
   的代碼一起計入（里的變化合併組的做法，trends.py），merged＝True 並寫一條 note。
-- 學年完全沒有九月列（ODRP014 從 107 年才有資料）→ 人口與市佔率都是 None，不寫 0。
+- 走勢從 september.FIRST_YEAR（107 學年，ODRP014 最早有資料的一年）畫起，更早的註冊不輸出；
+  之後的學年完全沒有九月列（例如還沒同步到）→ 人口與市佔率都是 None，不寫 0。
 
 國小對帳不進市佔率：半徑內各里對到的國小，一年級人數 ÷ 這些學校整個學區同一年九月底的 6 歲戶籍人數
 （一個里對到 n 所學校，該里的 6 歲人數各算 1/n）。最新一年偏離之前各年的平均超過 RATIO_WARN 就提醒分母可能不準。
@@ -16,7 +17,7 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.geo import boundaries, matcher, projection, school_districts
+from app.admissions.geo import boundaries, matcher, projection, school_districts, september
 from app.admissions.geo.models import GeoElementaryGrade1, GeoVillageAgesSeptember
 from app.admissions.history.models import CampusTermEnrollment
 
@@ -114,6 +115,8 @@ def _share_years(
     years: list[dict] = []
     notes: list[str] = []
     for year, count in registered.items():
+        if year < september.FIRST_YEAR:  # 走勢從九月底人口最早的學年畫起（規格 §1.3）；更早的註冊不輸出
+            continue
         denominator = _denominator(population[year], near) if year in population else None
         entry = {"school_year": year, "registered": count, "children": None, "villages": None, "share": None, "merged": False}
         if denominator is not None:
@@ -180,7 +183,7 @@ async def _elementary_check(db: AsyncSession, near: frozenset[str], population: 
 
 async def query_share(db: AsyncSession, campus_key: str, *, radius_km: int = DEFAULT_RADIUS_KM) -> dict:
     """某校的市佔率走勢與國小對帳。status：not_imported＝沒有任何上學期的註冊列；no_campus_point＝校址對不到座標；
-    ready 才有數字。years 依學年遞增、含所有有上學期註冊的學年（沒有分母的學年數字是 None）；
+    ready 才有數字。years 依學年遞增、含 107 學年（september.FIRST_YEAR）起所有有上學期註冊的學年（沒有分母的學年數字是 None）；
     latest＝最新一個有市佔率的學年，best＝市佔率最高的學年（同分取較新）。"""
     registered = await _registered_by_year(db, campus_key)
     if not registered:

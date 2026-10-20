@@ -9,7 +9,7 @@ from datetime import date, datetime, timezone
 import pytest
 from sqlalchemy import delete
 
-from app.admissions.geo import boundaries, matcher, school_districts
+from app.admissions.geo import boundaries, matcher, school_districts, september
 from app.admissions.geo.models import GeoElementaryGrade1, GeoVillageAgesSeptember
 from app.admissions.history.models import CampusTermEnrollment
 from app.admissions.share import query_share
@@ -95,7 +95,7 @@ async def test_share_formula_matches_report(db_session, year, registered, childr
 
 
 async def test_registered_excludes_repeat(db_session):
-    await _enroll(db_session, 104, {"大班": 56, "中班": 80, "小班": 41, "幼幼班": 11}, repeat_registered=5)
+    await _enroll(db_session, 109, {"大班": 56, "中班": 80, "小班": 41, "幼幼班": 11}, repeat_registered=5)
 
     result = await query_share(db_session, "yihua")
 
@@ -170,14 +170,31 @@ async def test_year_without_population_has_no_share(db_session):
     assert result["best"]["school_year"] == 107
 
 
-async def test_year_before_september_data_has_no_share(db_session):
-    """ODRP014 從 107 年才有資料：106 學年有註冊也沒有分母。"""
+async def test_years_start_at_first_september_year(db_session):
+    """走勢從 107 學年起（規格 §1.3）：註冊有 99–115，九月資料 107–115 → years 從 107 開始，99–106 不輸出；
+    latest／best 不受影響。"""
+    for year in range(99, 116):
+        await _enroll(db_session, year, {"大班": 100 + year})
+    for year in range(september.FIRST_YEAR, 116):
+        await _population(db_session, year, NEAR_A, 5000)
+
+    result = await query_share(db_session, "yihua")
+
+    assert [year["school_year"] for year in result["years"]] == list(range(september.FIRST_YEAR, 116))
+    assert all(year["share"] is not None for year in result["years"])
+    assert result["latest"]["school_year"] == 115
+    assert result["best"]["school_year"] == 115
+
+
+async def test_only_years_before_september_data_has_no_years(db_session):
+    """只有 107 學年以前的註冊：status 仍是 ready，但沒有任何一年可畫（不是 not_imported）。"""
     await _enroll(db_session, 106, {"大班": 77})
     await _population(db_session, 107, NEAR_A, 5000)
 
     result = await query_share(db_session, "yihua")
 
-    assert [(year["school_year"], year["registered"], year["share"]) for year in result["years"]] == [(106, 77, None)]
+    assert result["status"] == "ready"
+    assert result["years"] == []
     assert result["latest"] is None
     assert result["best"] is None
 
