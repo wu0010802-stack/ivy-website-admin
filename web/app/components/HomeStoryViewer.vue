@@ -372,7 +372,8 @@ defineExpose({ open })
         <div class="hsv-stage is-media">
           <video
             v-if="story.film.type === 'file'" :key="story.id" ref="videoEl" :src="`${story.film.src}#t=${story.film.start}`" :poster="story.film.poster"
-            muted playsinline preload="auto" disablepictureinpicture :controls="!autoplayOk || undefined" aria-hidden="true"
+            muted playsinline preload="auto" disablepictureinpicture :controls="!autoplayOk || undefined"
+            :aria-hidden="autoplayOk ? 'true' : undefined" :aria-label="autoplayOk ? undefined : story.film.title"
           />
           <template v-else>
             <iframe

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BookingContent, Campus } from '~/types/site-content'
-import { resolveBookingAction, type BookingActionKind, type BookingConfig } from '~/utils/booking-action'
+import { resolveBookingAction, type BookingActionKind } from '~/utils/booking-action'
+import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
 import { apiFieldErrors, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
@@ -235,14 +236,16 @@ const secondStepLabel = computed(() => selectedCampus.value && bookingConfig.val
 // 選校卡標出各校的參觀方式（2026-10-02）：五校不一定都開放線上選場次，家長在比較校區時
 // 就該知道，不必點進第二步才發現要來電。只在瀏覽器讀（SSR 與 hydration 首幀都是空的），
 // 文字行先保留高度，讀到之後不推動版面；讀不到的校就不標。
+// 讀到的設定放進 useCampusBooking 同一個快取 key（2026-10-20）：選定校區後第二步不再重抓同一校。
 const campusModes = ref<Record<string, BookingActionKind>>({})
+const nuxtApp = useNuxtApp()
 let campusModesRequested = false
 async function loadCampusModes() {
   if (campusModesRequested || !props.campuses.length) return
   campusModesRequested = true
   const entries = await Promise.all(props.campuses.map(async (campus) => {
     try {
-      const config = await $fetch<BookingConfig>(`/api/website/v1/public/booking-config/${campus.key}`)
+      const config = await loadCampusBooking(nuxtApp, campus.key)
       return [campus.key, resolveBookingAction(campus.key, config).kind] as const
     } catch {
       return [campus.key, null] as const

@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).parent
-SRC = ROOT / 'web/public/assets/ivy-30th-anniversary-projection.png'
+SRC = ROOT / 'web/media-src/ivy-30th-anniversary-projection.png'
 OUT = ROOT / 'web/public/assets/about-medal'
 CREST = HERE / '.crest.png'
 CROP_BOTTOM = 876  # IVY KIDS 緞帶與 30 週年緞帶之間的整列空白
