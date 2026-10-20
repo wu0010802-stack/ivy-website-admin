@@ -22,6 +22,7 @@ from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo.models import GeoDatasetStatus, GeoElementaryGrade1
+from app.common.csv_export import BOM
 
 DATASET = "elementary"
 URL_TEMPLATE = "https://stats.moe.gov.tw/files/detail/{year}/{year}_basec.csv"
@@ -78,7 +79,7 @@ def years_to_fetch(latest: int | None, current_year: int, *, force: bool = False
 
 
 def _clean(cell: str) -> str:
-    return cell.replace("﻿", "").strip().strip('"').strip()
+    return cell.replace(BOM, "").strip().strip('"').strip()
 
 
 def _count(value: str, column: str) -> int:
@@ -102,7 +103,7 @@ def parse_basec(text: str, *, school_year: int) -> list[Grade1Row]:
     - 有「學年度」欄時每一列都要等於 school_year（檔名和內容對不上就是抓錯檔）；
     - 一年級人數＝男＋女，兩欄都要是非負整數；學校代碼 6 碼以內的英數字，同一代碼不能出現兩次。
     筆數下限不在這裡檢查（require_rows）：自動同步要、人工指定的小樣本檔不要。"""
-    reader = csv.reader(io.StringIO(text.lstrip("﻿")))
+    reader = csv.reader(io.StringIO(text.lstrip(BOM)))
     try:
         header = [_clean(cell) for cell in next(reader)]
     except (StopIteration, csv.Error) as exc:
