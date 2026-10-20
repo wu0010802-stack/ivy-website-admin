@@ -495,6 +495,27 @@ async def test_control_characters_are_422_not_500(admin_client):
     assert patched.status_code == 422, patched.text
 
 
+@pytest.mark.asyncio
+async def test_calendar_and_visit_schedule_reject_control_characters_in_campus_key(admin_client, minghua_client):
+    """接待月曆與每週場次（visit-schedule）的校區代號含 %00 不能一路送到 PostgreSQL（拒收 NUL 會變 500）。
+    月曆比照 visit-slot-usage 回 422；visit-schedule 的校區在路徑上，和不存在的校區一樣回 404。"""
+    today = today_local()
+    window = f"date_from={today}&date_to={today + timedelta(days=7)}"
+    calendar = await admin_client.get(f"{API}/admin/visit-calendar?{window}&campus_key=yi%00hua")
+    assert calendar.status_code == 422, calendar.text
+    # 權限先於格式：只管明華的帳號拿到 404（範圍外的校區視為不存在），不是 422。
+    denied = await minghua_client.get(f"{API}/admin/visit-calendar?{window}&campus_key=yi%00hua")
+    assert denied.status_code == 404, denied.text
+
+    base = f"{API}/admin/visit-schedule/yi%00hua"
+    assert (await admin_client.get(base)).status_code == 404
+    put = await admin_client.put(base, json={"expected_version": 1, "min_lead_hours": 24, "max_advance_days": 14, "rules": []})
+    assert put.status_code == 404, put.text
+    created = await admin_client.post(f"{base}/exceptions", json={"exception_date": "2099-01-01", "reason": "颱風假"})
+    assert created.status_code == 404, created.text
+    assert (await admin_client.delete(f"{base}/exceptions/{uuid.uuid4()}")).status_code == 404
+
+
 # ---------------------------------------------------------------- 登入與帳號管理
 
 from app.auth import service as auth_service  # noqa: E402

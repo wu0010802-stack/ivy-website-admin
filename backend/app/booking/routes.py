@@ -731,6 +731,9 @@ async def get_visit_calendar(
     stmt = select(VisitSlot).where(VisitSlot.slot_date >= date_from, VisitSlot.slot_date <= date_to)
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；權限過了才擋（同 visit-slot-usage），沒權限的人照舊拿 404。
+        if has_control_chars(campus_key):
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
         stmt = stmt.where(VisitSlot.campus_key == campus_key)
     elif (scope := campus_scope(current_user)) is not None:
         stmt = stmt.where(VisitSlot.campus_key.in_(scope))

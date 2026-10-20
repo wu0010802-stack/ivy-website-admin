@@ -29,6 +29,7 @@ from app.booking.schemas import (
     VisitScheduleOut,
     VisitScheduleSlotSyncOut,
     VisitScheduleUpdate,
+    has_control_chars,
 )
 from app.campuses.models import Campus
 from app.common.timezones import today_local
@@ -43,7 +44,8 @@ CLOSURE_MAX_DAYS_AHEAD = 60
 
 
 async def _campus_or_404(db: AsyncSession, campus_key: str) -> None:
-    if await db.get(Campus, campus_key) is None:
+    # 含控制字元（例如網址上的 %00）的 key 不可能是校區；不擋的話 PostgreSQL 拒收 NUL，變成 500。
+    if has_control_chars(campus_key) or await db.get(Campus, campus_key) is None:
         raise ScopeDenied()
 
 
