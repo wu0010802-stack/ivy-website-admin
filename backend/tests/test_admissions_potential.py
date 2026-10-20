@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
 from datetime import date, datetime, timezone
 
 import pytest
@@ -601,6 +602,56 @@ def test_villages_range_needs_enough_successful_draws():
     assert details["model"] is not None  # 模型本身有估出來，只是區間抽樣的次數不夠
 
 
+def test_villages_range_survives_a_refit_that_overflows():
+    """重抽的里沒抽到某些距離時，重新擬合的斜率可能離譜，套回沒被抽到的里 exp 會溢位：這次抽樣當失敗略過，不丟例外。"""
+    obs = [
+        VillageObs("c0", 3122.6, 5000, 40), VillageObs("c1", 1911.3, 5000, 1), VillageObs("c2", 3460.4, 500, 40),
+        VillageObs("c3", 3857.1, 0, 300), VillageObs("c4", 4886.4, 0, 2), VillageObs("c5", 3903.7, 5000, 0),
+        VillageObs("c6", 3109.3, 5, 300), VillageObs("c7", 381.3, 1, 40),
+    ]
+
+    result, details = villages_range(obs, draws=60)
+
+    assert result is None or result.low <= result.mid <= result.high
+    assert set(details) == {"bands", "model"}
+
+
+@pytest.mark.parametrize("failure", [OverflowError("math range error"), math.nan, math.inf])
+def test_villages_range_without_a_usable_point_estimate_is_none(monkeypatch, failure):
+    """實際資料的缺口算不出來（溢位或不是有限數）：來源二 None，不丟例外。"""
+
+    def broken(*args, **kwargs):
+        if isinstance(failure, Exception):
+            raise failure
+        return failure
+
+    monkeypatch.setattr(potential, "village_gaps", broken)
+
+    assert villages_range(synthetic_obs()) == (None, {"bands": [], "model": None})
+
+
+@pytest.mark.parametrize("failure", [OverflowError("math range error"), math.nan, math.inf])
+def test_villages_range_skips_draws_whose_gap_is_unusable(monkeypatch, failure):
+    """某次抽樣的缺口溢位或不是有限數就略過；全部略過（成功 < 50 次）就沒有區間，但 details 仍在。"""
+    obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
+    a, b = fit_distance_model(obs)
+    real = potential.village_gaps
+
+    def broken_for_refits(sample, a_, b_, **kwargs):
+        if (a_, b_) == (a, b):
+            return real(sample, a_, b_, **kwargs)
+        if isinstance(failure, Exception):
+            raise failure
+        return failure
+
+    monkeypatch.setattr(potential, "village_gaps", broken_for_refits)
+
+    result, details = villages_range(obs)
+
+    assert result is None
+    assert details["model"] is not None and len(details["bands"]) == 3
+
+
 def test_details_have_no_village_codes():
     obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
     _, details = villages_range(obs)
@@ -628,29 +679,56 @@ def test_details_bands_are_aggregates_of_the_villages_in_range():
     assert all(band["expected"] >= 0 and band["gap"] >= 0 for band in bands)
 
 
-def test_details_hide_the_numbers_of_a_band_with_fewer_than_three_villages():
-    """一帶只有 1–2 個里時，在籍、期望、缺口就等於逐里數字：只回里數與孩子數。滿 3 個里才回。"""
+HIDDEN = {"enrolled": None, "expected": None, "gap": None}
+
+
+def test_details_hide_every_band_when_one_band_has_fewer_than_three_villages():
+    """一帶只有 1–2 個里，在籍、期望、缺口就等於逐里數字；只藏那一帶，總和減其他帶還是推得回來，所以三帶都只回里數與孩子數。"""
     everything = synthetic_obs(villages=40, wobble=(0.5, 1.5, 1.0))
-    far = [item for item in everything if item.distance_m > 1000]
+    outer = [item for item in everything if item.distance_m > 1000]  # 1–2、2–3 km 各 10 個里
     two = [item for item in everything if item.distance_m <= 200]  # 0–1 km 只有 2 個里
     three = [item for item in everything if item.distance_m <= 300]  # 剛好 3 個
+    thin_middle = [item for item in everything if item.distance_m <= 1000 or item.distance_m in (1100, 1200) or item.distance_m > 2000]
 
-    _, hidden = villages_range(far + two)
-    _, shown = villages_range(far + three)
+    _, hidden = villages_range(outer + two)
+    _, shown = villages_range(outer + three)
+    _, middle_hidden = villages_range(thin_middle)
 
-    near, middle, outer = hidden["bands"]
-    assert near == {
-        "band": "0-1", "villages": 2, "kids": sum(item.kids for item in two),
-        "enrolled": None, "expected": None, "gap": None,
-    }
-    assert all(middle[key] is not None and outer[key] is not None for key in ("enrolled", "expected", "gap"))
-    assert shown["bands"][0]["villages"] == 3
-    assert all(shown["bands"][0][key] is not None for key in ("enrolled", "expected", "gap"))
-    # 沒有里的帶也不回數字
-    _, empty = villages_range([item for item in everything if item.distance_m > 1000])
-    assert empty["bands"][0] == {
-        "band": "0-1", "villages": 0, "kids": 0, "enrolled": None, "expected": None, "gap": None,
-    }
+    assert [band["villages"] for band in hidden["bands"]] == [2, 10, 10]
+    for band in hidden["bands"]:
+        assert {key: band[key] for key in HIDDEN} == HIDDEN
+        assert band["kids"] > 0
+    assert hidden["bands"][0]["kids"] == sum(item.kids for item in two)
+    assert [band["villages"] for band in middle_hidden["bands"]] == [10, 2, 10]  # 中間那帶薄，另外兩帶也藏
+    assert all({key: band[key] for key in HIDDEN} == HIDDEN for band in middle_hidden["bands"])
+    assert [band["villages"] for band in shown["bands"]] == [3, 10, 10]
+    assert all(band[key] is not None for band in shown["bands"] for key in HIDDEN)
+
+
+def test_details_hide_every_band_when_a_band_has_no_village():
+    everything = synthetic_obs(villages=40, wobble=(0.5, 1.5, 1.0))
+
+    _, details = villages_range([item for item in everything if item.distance_m > 1000])
+
+    assert details["bands"][0] == {"band": "0-1", "villages": 0, "kids": 0, **HIDDEN}
+    assert all({key: band[key] for key in HIDDEN} == HIDDEN for band in details["bands"])
+
+
+def test_details_count_only_villages_with_children_toward_the_minimum():
+    """沒有 2–5 歲孩子的里不算一個里：一帶有 3 個里但只有 2 個有孩子，仍然藏；多出沒孩子的里也不能讓它過關。"""
+    everything = synthetic_obs(villages=40, wobble=(0.5, 1.5, 1.0))
+    outer = [item for item in everything if item.distance_m > 1000]
+    near = [item for item in everything if item.distance_m <= 300]
+    childless = replace(near[2], kids=0, enrolled=0)
+    extra_childless = [VillageObs("640extra0001", 150, 0, 0), VillageObs("640extra0002", 250, 0, 0)]
+
+    _, hidden = villages_range(outer + near[:2] + [childless])
+    _, shown = villages_range(outer + near + extra_childless)
+
+    assert [band["villages"] for band in hidden["bands"]] == [3, 10, 10]  # 里數照列，但只有 2 個有孩子
+    assert all({key: band[key] for key in HIDDEN} == HIDDEN for band in hidden["bands"])
+    assert [band["villages"] for band in shown["bands"]] == [5, 10, 10]  # 3 個有孩子的里就夠
+    assert all(band[key] is not None for band in shown["bands"] for key in HIDDEN)
 
 
 def test_model_degenerate():

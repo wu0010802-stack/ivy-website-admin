@@ -21,7 +21,7 @@
     有孩子的里有放回地抽出同樣數量的里、重新擬合，再用這組 (a, b) 對原本 3 公里內的里算缺口 ÷ 3。低／高向中值靠攏，區間永遠包住中值。
   - 不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是「模型為真時光靠雜訊會量到的缺口」，
     不是缺口的不確定性；實測區間又窄又常包不住實際缺口。
-  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；某一帶不到 3 個里時，那一帶只回里數與孩子數。"""
+  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；有一帶有孩子的里不到 3 個時，三帶都只回里數與孩子數。"""
 
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ BOOTSTRAP_MIN_SUCCESS = 50
 BOOTSTRAP_PERCENTILES = (10, 90)
 # 距離帶（上界 m，含上界；0 m 算第一帶）：畫面展開的彙總與給來源三的占有率（B-03）共用。
 VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
-# 一帶的里少於這個數字，彙總就等於逐里數字（報告 B-11：逐里小數能推回在籍人數），那一帶不回在籍、期望、缺口。
+# 有一帶「有 2–5 歲孩子的里」少於這個數字，彙總就等於逐里數字（報告 B-11：逐里小數能推回在籍人數），三帶都不回在籍、期望、缺口。
 BAND_MIN_VILLAGES = 3
 
 
@@ -337,7 +337,9 @@ class VillageObs:
 
 
 def _expected(item: VillageObs, a: float, b: float) -> float:
-    """模型給這個里的在籍期望值 μ。"""
+    """模型給這個里的在籍期望值 μ；沒有 2–5 歲孩子的里是 0（不算指數，也就不會溢位）。"""
+    if item.kids <= 0:
+        return 0.0
     return item.kids * math.exp(a + b * item.distance_m / 1000)
 
 
@@ -427,6 +429,16 @@ def village_gaps(
     return total
 
 
+def _checked_gap(obs: list[VillageObs], a: float, b: float) -> float | None:
+    """village_gaps 的安全版：指數溢位或結果不是有限數回 None。
+    重抽里擬合出的 (a, b) 套回沒被抽到的里可能離譜（例如只抽到近處的里，斜率估得很陡），exp 會溢位。"""
+    try:
+        gap = village_gaps(obs, a, b)
+    except OverflowError:
+        return None
+    return gap if math.isfinite(gap) else None
+
+
 def _percentile(ordered: list[float], percent: float) -> float:
     """已排序資料的線性內插百分位（同 numpy 預設）。"""
     position = (len(ordered) - 1) * percent / 100
@@ -444,20 +456,24 @@ def _band_of(distance_m: float, bands: tuple[tuple[str, int], ...]) -> str | Non
 
 def _village_bands(obs: list[VillageObs], a: float, b: float) -> list[dict]:
     """畫面展開的距離帶彙總：里數、2–5 歲、在籍、期望、在籍缺口（還沒 ÷ 3）。只彙總，不留逐里的值。
-    里數不到 BAND_MIN_VILLAGES 的帶，在籍、期望、缺口是 None（只剩里數與孩子數）。"""
+    只要有一帶「有 2–5 歲孩子的里」不到 BAND_MIN_VILLAGES 個，三帶的在籍、期望、缺口都是 None（只剩里數與孩子數）：
+    薄的那一帶等於逐里數字，只藏那一帶的話，用總和減其他帶還是推得回來。"""
     rows = {key: {"band": key, "villages": 0, "kids": 0, "enrolled": 0, "expected": 0.0, "gap": 0.0} for key, _ in VILLAGE_BANDS}
+    with_children = {key: 0 for key, _ in VILLAGE_BANDS}
     for item in obs:
         key = _band_of(item.distance_m, VILLAGE_BANDS)
         if key is None:
             continue
         row = rows[key]
         row["villages"] += 1
+        with_children[key] += item.kids > 0
         row["kids"] += item.kids
         row["enrolled"] += item.enrolled
         row["expected"] += _expected(item, a, b)
         row["gap"] += village_gaps([item], a, b, radius_m=VILLAGE_BANDS[-1][1])
+    hide = any(count < BAND_MIN_VILLAGES for count in with_children.values())
     for row in rows.values():
-        if row["villages"] < BAND_MIN_VILLAGES:
+        if hide:
             row["enrolled"] = row["expected"] = row["gap"] = None
         else:
             row["expected"] = round(row["expected"], RANGE_DIGITS)
@@ -471,30 +487,35 @@ def villages_range(
     """來源二的低／中／高，以及畫面「怎麼算」要的距離帶彙總。
 
     中＝實際資料擬合一次的缺口 ÷ 3。低／高＝以里為單位的非參數自助法的 10／90 百分位：每次從 obs 裡有孩子的里
-    有放回地抽出同樣數量的里，重新擬合（失敗就略過），再用這組 (a, b) 對原本的里算缺口 ÷ 3，共 draws 次，
-    亂數是 random.Random(seed)；成功不到 50 次不給區間。重抽里反映「換一批里會估出怎樣的距離曲線、缺口跟著變多少」。
+    有放回地抽出同樣數量的里，重新擬合，再用這組 (a, b) 對原本的里算缺口 ÷ 3，共 draws 次，
+    亂數是 random.Random(seed)；擬合失敗、缺口溢位或不是有限數的那一次略過，成功不到 50 次不給區間。重抽里反映「換一批里會估出怎樣的距離曲線、缺口跟著變多少」。
     不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是模型為真時光靠雜訊會量到的缺口，
     不是缺口的不確定性。低／高仍取 min(P10, 中)、max(P90, 中)，區間永遠包住中值。
-    模型擬合不出來（沒有在籍、全在同一個距離、估計值跑到無限遠…）回 (None, {"bands": [], "model": None})。
-    details 只有 bands（0-1、1-2、2-3 km 三個距離帶，不到 3 個里的帶只回里數與孩子數）與 model（a、b），
-    沒有里代碼，也沒有逐里的數字。"""
+    模型擬合不出來（沒有在籍、全在同一個距離、估計值跑到無限遠…），或實際資料的缺口算不出來（溢位），
+    回 (None, {"bands": [], "model": None})。
+    details 只有 bands（0-1、1-2、2-3 km 三個距離帶；有一帶有孩子的里不到 3 個，三帶都只回里數與孩子數）
+    與 model（a、b），沒有里代碼，也沒有逐里的數字。"""
     obs = sorted(obs, key=lambda item: item.code)  # 抽樣的順序不受資料列順序影響
     model = fit_distance_model(obs)
     if model is None:
         return None, {"bands": [], "model": None}
     a, b = model
+    point = _checked_gap(obs, a, b)
+    if point is None:
+        return None, {"bands": [], "model": None}
+    mid = point / VILLAGE_COHORT_YEARS
     details = {
         "bands": _village_bands(obs, a, b),
         "model": {"a": round(a, MODEL_DIGITS), "b": round(b, MODEL_DIGITS)},
     }
-    mid = village_gaps(obs, a, b) / VILLAGE_COHORT_YEARS
     rng = random.Random(seed)
     pool = [item for item in obs if item.kids > 0]
     gaps: list[float] = []
     for _ in range(draws):
         refit = fit_distance_model(rng.choices(pool, k=len(pool)))
-        if refit is not None:
-            gaps.append(village_gaps(obs, *refit) / VILLAGE_COHORT_YEARS)
+        gap = _checked_gap(obs, *refit) if refit is not None else None
+        if gap is not None:
+            gaps.append(gap / VILLAGE_COHORT_YEARS)
     if len(gaps) < BOOTSTRAP_MIN_SUCCESS:
         return None, details
     gaps.sort()
