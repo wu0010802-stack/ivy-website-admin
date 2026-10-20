@@ -116,8 +116,8 @@ uv run pytest tests/test_school_districts.py
   最新一版沒有、但曾在樣本裡的園所才到那個區間逐版掃描，每所找出名單裡最新一個含它的版本，取下一個較新版本的日期
   （不用二分搜尋：歷史有殘缺版本，例如 2025-07-09 只有 351 列，也有些改名是後來才出現在名單、之後又離開）。
 - **欄位** `source_id,name,left_on,reason,approved_capacity,lat,lng,kind`：
-  - `source_id`：kiang 的 uuid，即 `geo_kindergartens.source_id`。
-  - `name`：園所名稱（名單上的名稱）；載入器要求非空。
+  - `source_id`：kiang 的 uuid，即 `geo_kindergartens.source_id`；載入器要求不超過 64 字（欄寬）。
+  - `name`：園所名稱（名單上的名稱）；載入器要求非空、不超過 120 字（`geo_kindergartens.name` 的欄寬）。
   - `left_on`：離開教育部名單的日期（台北）＝名單歷史裡最新一個含這所的版本的下一個較新版本的日期；窗口（2022-08-31）前就消失的留空（目前沒有）。名單消失日不等於實際停收日。`renamed` 的日期只是紀錄，同步不讀。
   - `reason`：`closed`（停辦）或 `renamed`（改名或換承辦：現行名單有同地址、同設立日的另一所，或離開日前後 3 個月內同地址有一所新出現在名單）。
   - `approved_capacity`、`lat`、`lng`、`kind`：取自離開前最後一版的 `docs/preschools.json`（kind 是 `public`／`nonprofit`／`quasi_public`／`private`，準公共用離開日所在學年判斷）；
@@ -142,8 +142,12 @@ uv run --frozen python scripts/build_kindergarten_closures.py --since 2022-08-31
   寫完用同步的載入程式讀一遍自檢，讀不了就刪掉輸出；最新一版名單列數不到前一個樣本 80% 時停下來（疑似殘缺版，晚點再跑）。腳本的測試 `tests/test_build_kindergarten_closures.py` 用假的 GitHub，不連網。
 - **不要刪**：同步每一輪都會載入這份檔（檔不在或格式不對，幼兒園整輪不換版、原因寫進 `last_error`）。
   日後通常不用重產（kiang 的名單歷史不會改，之後的停辦由同步當下偵測）；檔名的日期是產生當天，不隨學年或月份換。
-- **守門**：`tests/test_geo_closure_backfill.py` 用同步的載入程式（`app/admissions/geo/closure_backfill.py`）讀這份真檔，欄位、`reason`、日期格式、名稱、核定、座標、類型、`source_id` 重複任一不對就報錯；
-  另檢查日期不在未來、10-15 的 16 筆有日期的停辦（含童年綠地與愛爾蘭）日期仍對得上。同步相關測試用 `tests/conftest.py` 的 autouse fixture 預設回補檔為空，不吃這份真檔（否則會替資料表補上 60 多列，弄亂各測試自己數的筆數）。
+- **守門**：兩支測試。
+  - `tests/test_geo_closure_backfill.py` 用同步的載入程式（`app/admissions/geo/closure_backfill.py`）讀這份真檔，欄位、`reason`、日期格式、名稱（≤ 120 字）、`source_id`（≤ 64 字）、核定、座標、類型、`source_id` 重複任一不對就報錯
+    （名稱或 `source_id` 超過欄寬，寫入資料表會失敗、整段回補每輪都退回，所以載入時就擋）；另檢查日期不在未來、10-15 的 16 筆有日期的停辦（含童年綠地與愛爾蘭）日期仍對得上。
+  - `tests/test_geo_closure_backfill_db.py` 用真檔、固定 `synced_at`（2026-10-20 台北）跑 `apply_closure_backfill` 寫進測試庫：寫入的停辦事件數等於檔裡「closed、有 `left_on`、在 72 個月保留期內、有座標」的筆數（直接讀 CSV 算）、重跑不再寫、
+    義華座標 3 公里內 2022-10 起停辦 11 所、核定合計 1,578 席。換檔或重產時這個數字變了要能解釋（報告 B-04 的對照值）。
+  同步相關測試用 `tests/conftest.py` 的 autouse fixture 預設回補檔為空（只替換 `sync` 模組裡的名稱），不吃這份真檔（否則會替資料表補上 60 多列，弄亂各測試自己數的筆數）。
 
 # 每年九月底人口與國小一年級人數（招生潛力與市佔率，2026-10-20）
 
