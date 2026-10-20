@@ -30,7 +30,8 @@
   - 孩子數＝戶數 × 每百戶 2–5 歲孩子（低 2.5、中 4.0、高 6.0）÷ 100 × 該案所在距離帶的占有率；占有率用來源二的
     band_shares（0–1、1–2、2–3 km：在籍 ÷ 2–5 歲），也就是新搬來的孩子跟附近現有的孩子一樣的機率進本校。
   - 距離：有座標用座標，否則用里重心（同預售建案那一案）；只算 3 km 內。
-  - 隱私：details 每案只列案名、戶數、預計交屋年與半年、距離（取整 100 m）與中值貢獻，不放占有率原值。"""
+  - 隱私：details 每案只列案名、戶數、預計交屋年與半年、距離（取整 100 m）、中值貢獻與是否已過預計交屋時間，不放占有率原值；
+    來源二把距離帶藏起來時，呼叫端傳 include_mid=False，連單案中值貢獻（可反推占有率）也不回。"""
 
 from __future__ import annotations
 
@@ -633,14 +634,18 @@ def _round_distance(meters: float) -> int:
     return int(round(meters / DISTANCE_ROUND_M) * DISTANCE_ROUND_M)
 
 
-def presale_range(deliveries: list[Delivery], shares: dict[str, float], *, today: date) -> tuple[Range, dict]:
+def presale_range(
+    deliveries: list[Delivery], shares: dict[str, float], *, today: date, include_mid: bool = True
+) -> tuple[Range, dict]:
     """來源三的低／中／高，以及畫面「怎麼算」要的逐案明細。
 
     只取預計交屋早於 next_school_year_start(today) 的案（含已過預計時間、還沒登記的）；距離超過 3 km 的案沒有占有率，不算。
     每案的孩子數＝戶數 × 每百戶孩子數（低 2.5、中 4.0、高 6.0）÷ 100 × 該案距離帶的占有率（shares 的鍵 "0-1"、"1-2"、"2-3"，缺的帶當 0）。
     沒有任何符合的案，數字就是 0（資料有沒有由呼叫端看 load_deliveries 是否為 None）。
     details.deliveries 每案只有 name、households、expected_year、expected_half（1 上半年／2 下半年）、distance_m（取整 100）、
-    mid（中值貢獻，2 位小數）；不放占有率原值，依預計交屋、距離、案名排序。"""
+    mid（中值貢獻，2 位小數）、overdue（預計交屋早於今天，還沒登記）；不放占有率原值，依預計交屋、距離、案名排序。
+    include_mid=False 時每案的 mid 是 None（數字照算）：單案 mid 加戶數可以反推該帶占有率，來源二把距離帶藏起來時
+    （里太少，帶的數字等於逐里數字），呼叫端要傳 False，不然占有率會從這裡洩出去。"""
     cutoff = next_school_year_start(today)
     totals = [0.0] * len(KIDS_PER_100_HOUSEHOLDS)
     listed: list[dict] = []
@@ -656,7 +661,9 @@ def presale_range(deliveries: list[Delivery], shares: dict[str, float], *, today
         listed.append(
             {
                 "name": item.name, "households": item.households, "expected_year": year, "expected_half": half,
-                "distance_m": _round_distance(item.distance_m), "mid": round(contributions[1], DELIVERY_DIGITS),
+                "distance_m": _round_distance(item.distance_m),
+                "mid": round(contributions[1], DELIVERY_DIGITS) if include_mid else None,
+                "overdue": item.expected < today,
             }
         )
     low, mid, high = totals

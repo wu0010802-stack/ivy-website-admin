@@ -932,7 +932,7 @@ async def test_load_village_obs_feeds_the_model(db_session):
 # 0-1 km 的占有率照報告 B-03 的量級（義華 0.0373）；1-2、2-3 km 各取一個不同的值，才分得出算到哪一帶。
 SHARES = {"0-1": 0.0373, "1-2": 0.02, "2-3": 0.01}
 OCTOBER = date(2026, 10, 20)  # 下一個 9/1 是 2027-09-01
-DELIVERY_KEYS = {"name", "households", "expected_year", "expected_half", "distance_m", "mid"}
+DELIVERY_KEYS = {"name", "households", "expected_year", "expected_half", "distance_m", "mid", "overdue"}
 
 
 def delivery(expected: date, households: int = 100, *, distance: float = 500.0, name: str = "測試建案") -> Delivery:
@@ -1040,6 +1040,45 @@ def test_presale_details_list_only_what_the_screen_needs():
         ("乙", 80, 2027, 2, 500),
     ]
     assert all(isinstance(item["distance_m"], int) for item in details["deliveries"])
+
+
+def test_overdue_flag_marks_cases_expected_before_today():
+    deliveries = [
+        delivery(date(2026, 10, 19), name="昨天"),
+        delivery(date(2026, 10, 20), name="今天"),
+        delivery(date(2027, 3, 1), name="明年"),
+        delivery(date(2024, 1, 1), name="早就過了"),
+    ]
+
+    _, details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    assert {item["name"]: item["overdue"] for item in details["deliveries"]} == {
+        "早就過了": True, "昨天": True, "今天": False, "明年": False,
+    }
+
+
+def test_include_mid_false_blanks_the_per_case_contribution_but_not_the_range():
+    deliveries = [
+        delivery(date(2027, 3, 1), 300, distance=500, name="近"),
+        delivery(date(2026, 6, 1), 120, distance=2500, name="遠"),
+    ]
+    with_mid, with_details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    hidden, details = presale_range(deliveries, SHARES, today=OCTOBER, include_mid=False)
+
+    assert hidden == with_mid and hidden.mid > 0  # 數字照算
+    assert [item["mid"] for item in with_details["deliveries"]] == [0.05, 0.45]  # 遠（2-3 km）、近（0-1 km）
+    assert [item["mid"] for item in details["deliveries"]] == [None, None]
+    assert all(set(item) == DELIVERY_KEYS for item in details["deliveries"])  # 鍵照舊，只有值是 None
+    assert [{k: v for k, v in item.items() if k != "mid"} for item in details["deliveries"]] == [
+        {k: v for k, v in item.items() if k != "mid"} for item in with_details["deliveries"]
+    ]
+
+
+def test_include_mid_defaults_to_true():
+    _, details = presale_range([delivery(date(2027, 3, 1), 100, distance=500)], SHARES, today=OCTOBER)
+
+    assert details["deliveries"][0]["mid"] == pytest.approx(0.15, abs=0.005)
 
 
 def test_presale_details_do_not_carry_the_band_shares():
