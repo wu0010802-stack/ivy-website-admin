@@ -578,7 +578,9 @@ def geo_sync_options(args: list[str]) -> dict:
     比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
     （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--presale-file 是實價登錄的高雄市預售屋建案備查檔
     （e_lvr_buildcase.csv），版本月份取檔名（「115-10」）或今天；--presale-parcels-file 是本機腳本
-    scripts/fetch_presale_parcels.py 查好的地號座標 CSV（2026-10-20 預售建案規格 P6）。--bundle 是 scripts/fetch_geo_bundle.py
+    scripts/fetch_presale_parcels.py 查好的地號座標 CSV（2026-10-20 預售建案規格 P6）。--kindergarten-penalties-file、
+    --kindergarten-evaluations-file 是 scripts/fetch_geo_bundle.py 轉出的幼兒園裁罰、評鑑 CSV（2026-10-20 裁罰與評鑑規格 C10，
+    沒有姓名與電話欄），整表替換、不檢查筆數下限。--bundle 是 scripts/fetch_geo_bundle.py
     打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的檔各自用 --…-file 指定。
     --kindergartens-file（kiang preschools.json）要和 --kindergartens-registry-file（kiang docs/data/高雄市.csv，教育部名單）
     一起給：營業中以名單為準（2026-10-15），只給一個就報錯。
@@ -592,7 +594,8 @@ def geo_sync_options(args: list[str]) -> dict:
         "[--babycare-file <JSON>] [--population-file <JSON> ...] "
         "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
         "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
-        "[--presale-file <CSV>] [--presale-parcels-file <CSV>] [--bundle <ZIP>]"
+        "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
+        "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
@@ -600,13 +603,16 @@ def geo_sync_options(args: list[str]) -> dict:
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
+        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
               "--kindergartens-file": "kindergartens_file",
               "--kindergartens-registry-file": "kindergartens_registry_file", "--babycare-file": "babycare_file",
               "--income-file": "income_file", "--income-year": "income_year",
               "--new-homes-season": "new_homes_season", "--bundle": "bundle",
-              "--presale-file": "presale_buildcases_file", "--presale-parcels-file": "presale_parcels_file"}
+              "--presale-file": "presale_buildcases_file", "--presale-parcels-file": "presale_parcels_file",
+              "--kindergarten-penalties-file": "kindergarten_penalties_file",
+              "--kindergarten-evaluations-file": "kindergarten_evaluations_file"}
     texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
     repeated = {"--population-file": "population_files", "--births-file": "births_files",
                 "--migration-file": "migration_files", "--new-homes-file": "new_homes_files"}
@@ -630,6 +636,7 @@ def geo_sync_options(args: list[str]) -> dict:
         options["doorplates_file"], options["kindergartens_file"], options["kindergartens_registry_file"],
         options["babycare_file"], options["income_file"], options["bundle"],
         options["presale_buildcases_file"], options["presale_parcels_file"],
+        options["kindergarten_penalties_file"], options["kindergarten_evaluations_file"],
     )
     for path in (*singles, *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
@@ -717,6 +724,10 @@ async def geo_sync_command(**options) -> None:
         f"重比改變 {result.presale_rematched} 案）；"
         f"地號座標：{result.presale_parcels}（匯入 {result.presale_parcel_rows} 列）"
     )
+    print(
+        f"幼兒園裁罰：{result.kindergarten_penalties}（{result.kindergarten_penalties_version or '尚未匯入'}，這次寫入 {result.kindergarten_penalty_rows} 筆）；"
+        f"幼兒園評鑑：{result.kindergarten_evaluations}（{result.kindergarten_evaluations_version or '尚未匯入'}，這次寫入 {result.kindergarten_evaluation_rows} 筆）"
+    )
     if (
         result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.babycare_rows_skipped
         or result.population_rows_skipped or result.income_rows_skipped
@@ -741,6 +752,8 @@ async def geo_sync_command(**options) -> None:
             ("new_homes", "新成屋", result.new_homes),
             ("presale_buildcases", "預售建案", result.presale_buildcases),
             ("presale_buildcases", "地號座標", result.presale_parcels),
+            ("kindergarten_penalties", "幼兒園裁罰", result.kindergarten_penalties),
+            ("kindergarten_evaluations", "幼兒園評鑑", result.kindergarten_evaluations),
         )
         if outcome == "failed"
     ]
@@ -891,7 +904,8 @@ def main() -> None:
             "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
             "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
             "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
-            "[--presale-file <CSV>] [--presale-parcels-file <CSV>] [--bundle <ZIP>]|"
+            "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
+            "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] [--bundle <ZIP>]|"
             "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>>",
             file=sys.stderr,

@@ -24,11 +24,18 @@ MANIFEST = "manifest.json"
 VERSION = 1
 # 收的資料種類（A 段人口、出生、遷入遷出；C 段所得；B 段新成屋，檔名「115S3_e_lvr_land_a.csv」帶季別；
 # 預售建案 presale_buildcases，檔名「presale-buildcases-115-10.csv」帶月份；地號座標 presale_parcels，
-# 本機腳本 fetch_presale_parcels.py 的輸出，2026-10-20 預售建案規格 P6）。
-KINDS = ("population", "births", "migration", "income", "new_homes", "presale_buildcases", "presale_parcels")
+# 本機腳本 fetch_presale_parcels.py 的輸出，2026-10-20 預售建案規格 P6；幼兒園裁罰 kindergarten_penalties 與評鑑
+# kindergarten_evaluations 是我們自己的 CSV（欄位見 penalties.py、evaluations.py 的 CSV_COLUMNS，**沒有姓名與電話欄**），
+# 2026-10-20 裁罰與評鑑規格 C10）。
+KINDS = (
+    "population", "births", "migration", "income", "new_homes", "presale_buildcases", "presale_parcels",
+    "kindergarten_penalties", "kindergarten_evaluations",
+)
 # 只能有一個檔的種類：所得只存最新一個年度，年度取檔名（「112_165-E.csv」，sync 的 income.year_of_filename）；
-# 預售建案檔是累計檔、地號座標是累積表，各只要一個。
-SINGLE_KINDS = ("income", "presale_buildcases", "presale_parcels")
+# 預售建案檔是累計檔、地號座標是累積表，裁罰與評鑑都是整表替換，各只要一個。
+SINGLE_KINDS = (
+    "income", "presale_buildcases", "presale_parcels", "kindergarten_penalties", "kindergarten_evaluations",
+)
 # 單檔上限（全國的人口一頁約 10 MB）與檔數上限（出生 72 個月、遷入遷出 25 個月＋人口兩個月份＋所得＋新成屋 8 季）。
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_FILES = 200

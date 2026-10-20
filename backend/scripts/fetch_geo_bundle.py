@@ -5,8 +5,13 @@
 高雄市買賣季檔）最新季往回 8 季；預售建案（實價登錄預售屋建案備查單檔）一個；地號座標（--presale-parcels 指定本機腳本
 fetch_presale_parcels.py 的輸出，沒指定就不附）。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），出生抓 72 個月，要幾分鐘；實際大小打包時看 zip。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
+幼兒園裁罰與評鑑（2026-10-20 規格 C10）：裁罰從 kiang 抓全部高雄裁罰檔（同步的同一條路，約 240 檔、每檔隔 0.2 秒）、評鑑從教保資訊網
+逐頁抓搜尋結果（約 69 頁、每頁隔 1 秒，TLS 帶隨程式提交的中繼憑證），各轉成我們自己的 CSV 放進同一個 zip。裁罰 CSV 的人名欄不寫出、
+評鑑 CSV 只有名稱、學年度、完成日、結果；寫完還會再檢查一次沒有「負責人：」「行為人：」字樣。下載有失敗、評鑑少於 600 所或 60 頁就不打包。
+只有這兩項連不到來源時，加 --kindergarten-only 只抓它們（不重抓人口、出生等）。
+
 用法（在 backend/）：
-  uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip] [--presale-parcels presale_parcels.csv]
+  uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip] [--presale-parcels presale_parcels.csv] [--kindergarten-only]
 
 接著上傳到 api volume，`python -m app.cli geo-sync --bundle /data/geo-bundle-11509.zip`，用完刪掉（步驟見
 deploy/README.md「公開地理資料同步」）。"""
@@ -21,8 +26,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.admissions.geo import evaluations as evaluations_io  # noqa: E402
 from app.admissions.geo import income as income_io  # noqa: E402
 from app.admissions.geo import new_homes as new_homes_io  # noqa: E402
+from app.admissions.geo import penalties as penalties_io  # noqa: E402
 from app.admissions.geo import population as population_io  # noqa: E402
 from app.admissions.geo import presale as presale_io  # noqa: E402
 from app.admissions.geo import presale_parcels as parcels_io  # noqa: E402
@@ -72,8 +79,8 @@ async def _latest(client, url_of, what: str) -> str:
     raise SystemExit(f"找不到最近幾個月的{what}")
 
 
-async def build(out: Path | None, presale_parcels: Path | None = None) -> Path:
-    files: list[BundleFile] = []
+async def _collect_public(files: list[BundleFile], presale_parcels: Path | None) -> str:
+    """人口、出生、遷入遷出、所得、新成屋、預售建案（與地號座標）；回傳人口最新月份（預設檔名用）。"""
     async with sync.new_client() as client:
         for kind, series in (("births", series_io.BIRTHS), ("migration", series_io.MIGRATION)):
             def url_of(yyymm: str, page: int, series=series) -> str:
@@ -141,20 +148,71 @@ async def build(out: Path | None, presale_parcels: Path | None = None) -> Path:
         located = parcels_io.parse_csv(raw.decode("utf-8-sig"))
         files.append(BundleFile("presale-parcels.csv", "presale_parcels", "parcels", "local:fetch_presale_parcels.py", raw))
         print(f"地號座標：{len(located)} 列（有座標 {sum(row.lon is not None for row in located)} 列）")
-    target = out or Path(f"geo-bundle-{population_latest}.zip")
+    return population_latest
+
+
+async def _collect_kindergarten(files: list[BundleFile]) -> str:
+    """幼兒園裁罰與評鑑（規格 C10）：同步的同一條路抓，轉成我們自己的 CSV；回傳今天的台北日期（檔名與期間用）。
+    有下載失敗、評鑑太少就不打包（打包檔是整表替換，殘缺的不能上傳）。"""
+    label = sync.today_local().isoformat()
+    async with sync.new_client() as client:
+        download = await sync.download_penalties(client)
+        if download.errors:
+            raise SystemExit(f"裁罰檔有 {len(download.errors)} 個下載失敗，稍後再跑")
+        penalties_csv = penalties_io.rows_to_csv(download.rows)
+        files.append(
+            BundleFile(
+                f"kindergarten-penalties-{label}.csv", "kindergarten_penalties", label, penalties_io.LISTING_URL,
+                penalties_csv.encode("utf-8"),
+            )
+        )
+        print(f"幼兒園裁罰：{len(download.rows)} 筆（{download.listed} 檔，略過 {download.skipped} 筆）")
+    async with sync.new_client(ssl_context=evaluations_io.ssl_context()) as client:
+        schools, pages = await sync.download_evaluations(client)
+        if len(schools) < sync.EVALUATIONS_MIN_SCHOOLS or pages < sync.EVALUATIONS_MIN_PAGES:
+            raise SystemExit(f"評鑑搜尋結果只有 {len(schools)} 所、{pages} 頁，疑似殘缺，不打包")
+        evaluations_csv = evaluations_io.rows_to_csv(schools)
+        files.append(
+            BundleFile(
+                f"kindergarten-evaluations-{label}.csv", "kindergarten_evaluations", label, evaluations_io.SEARCH_URL,
+                evaluations_csv.encode("utf-8"),
+            )
+        )
+        print(f"幼兒園評鑑：{sum(len(items) for items in schools.values())} 筆（{len(schools)} 所、{pages} 頁）")
+    for name, content in (("裁罰", penalties_csv), ("評鑑", evaluations_csv)):
+        if "負責人：" in content or "行為人：" in content:
+            raise SystemExit(f"{name} CSV 裡有人名標籤，不打包")
+    return label
+
+
+async def build(out: Path | None, presale_parcels: Path | None = None, kindergarten_only: bool = False) -> Path:
+    files: list[BundleFile] = []
+    if kindergarten_only:
+        latest = f"kindergartens-{await _collect_kindergarten(files)}"
+    else:
+        latest = await _collect_public(files, presale_parcels)
+        await _collect_kindergarten(files)
+    target = out or Path(f"geo-bundle-{latest}.zip")
     write_bundle(target, files)
     print(f"已寫入 {target}（{len(files)} 個檔，{target.stat().st_size / 1024 / 1024:.1f} MB）")
     return target
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口、所得、新成屋，打包給 geo-sync --bundle")
+    parser = argparse.ArgumentParser(
+        description="抓齊各里出生、遷入遷出、人口、所得、新成屋、預售建案、幼兒園裁罰與評鑑，打包給 geo-sync --bundle"
+    )
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
     parser.add_argument(
         "--presale-parcels", type=Path, default=None, help="fetch_presale_parcels.py 輸出的地號座標 CSV（沒給就不附）"
     )
+    parser.add_argument(
+        "--kindergarten-only", action="store_true", help="只抓幼兒園裁罰與評鑑（其他資料都不抓），輸出 geo-bundle-kindergartens-<日期>.zip"
+    )
     args = parser.parse_args()
-    asyncio.run(build(args.out, args.presale_parcels))
+    if args.kindergarten_only and args.presale_parcels is not None:
+        parser.error("--kindergarten-only 不能配 --presale-parcels")
+    asyncio.run(build(args.out, args.presale_parcels, args.kindergarten_only))
 
 
 if __name__ == "__main__":
