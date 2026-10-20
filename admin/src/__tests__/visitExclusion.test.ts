@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { DOMWrapper, flushPromises } from '@vue/test-utils'
-import { auditMetadataDetails, AUDIT_ACTION_LABELS } from '../api/labels'
+import { AUDIT_ACTION_LABELS } from '../api/labels'
+import { auditMetadataDetails } from '../api/auditLabels'
 import { visitEventTitle } from '../api/visitHistory'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import { ApiError } from '../api/client'

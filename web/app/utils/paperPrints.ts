@@ -23,7 +23,7 @@ import { createCurl, curlPoint, setCurl } from './cornerCurl'
 import { computeIndexedNormals } from './gridNormals'
 import { CORNER_REACH, CORNER_REST, REACH_REFERENCE_WIDTH, type CornerPose } from './cornerWind'
 
-type Three = typeof ThreeNS
+type Three = typeof import('./three-lite')
 
 export interface PaperCopy {
   kicker: string
@@ -53,6 +53,7 @@ const FLEX_GAIN = 0.024 // 每秒半圈的轉速 → 遠端落後紙寬的比例
 const FLEX_MAX = 0.09
 const SHADOW_OPACITY = 0.28
 const SHADOW_RADIUS = 6
+const KEY_LIGHT = 1.6
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
@@ -95,8 +96,8 @@ function canUseWebGL(): boolean {
 
 function loadThree(): Promise<Three | null> {
   if (!threePromise) {
-    threePromise = import('three').then(
-      (mod) => mod as unknown as Three,
+    threePromise = import('./three-lite').then(
+      (mod): Three => mod,
       () => null
     )
   }
@@ -139,7 +140,7 @@ function buildWarmScene(three: Three) {
   floor.receiveShadow = true
   scene.add(floor)
   scene.add(new three.AmbientLight(0xffffff, 1.35))
-  const key = new three.DirectionalLight(0xfff4e0, 1.6)
+  const key = new three.DirectionalLight(0xffffff, KEY_LIGHT)
   key.castShadow = true
   key.shadow.mapSize.set(512, 512)
   scene.add(key)
@@ -176,10 +177,11 @@ function fontOf(el: Element | null, fallback: string): string {
   return `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
 }
 
-function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', fallback: string): string {
-  if (!el) return fallback
-  const value = getComputedStyle(el)[prop]
-  return value && value !== 'rgba(0, 0, 0, 0)' ? value : fallback
+// 元素不在或是透明底時，改用 CSS 那條規則引用的 token（fallback 是 CSS 色彩式，例如 'var(--muted)'，
+// 在 host 底下解析）：顏色只有 tokens.css 一份，不在這裡另抄 hex（2026-10-20）。
+function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', host: Element, fallback: string): string {
+  const value = el ? getComputedStyle(el)[prop] : ''
+  return value && value !== 'rgba(0, 0, 0, 0)' ? value : resolveColor(host, fallback)
 }
 
 function pxOf(el: Element | null, prop: 'fontSize' | 'lineHeight', fallback: number): number {
@@ -218,16 +220,51 @@ function setFill(ctx: CanvasRenderingContext2D, value: string, fallback: string)
 // 相鄰標點（」，）canvas 跟 DOM 一樣會自動收，不用另外處理。
 const HALT_OPEN: Record<string, number> = { '「': 0.32, '（': 0.283 }
 
-function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number) {
+// CSS letter-spacing 的 px 值（normal 為 0）。
+function spacingOf(el: Element | null): number {
+  if (!el) return 0
+  const n = Number.parseFloat(getComputedStyle(el).letterSpacing)
+  return Number.isFinite(n) ? n : 0
+}
+
+// 照 CSS 字距畫字（2026-10-20）：canvas 預設不吃 letter-spacing，手機停下滑動、卡片在畫面上換成 WebGL 紙時，
+// 小標（.08em）、標題（.02em）、時間戳（.06em）會整排縮窄一下。支援 ctx.letterSpacing 就直接設；
+// 不支援的瀏覽器逐字畫（少了相鄰標點擠壓，只差在不支援的版本）。CSS 每個字後面都加字距，最後一個也算，靠右對齊照算。
+export function fillSpaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, spacing: number) {
+  if (!spacing) {
+    ctx.fillText(text, x, y)
+    return
+  }
+  // lib.dom 已宣告 letterSpacing，用 object 檢查才不會把下面的逐字分支收窄成 never
+  if ('letterSpacing' in (ctx as object)) {
+    ctx.letterSpacing = `${spacing}px`
+    ctx.fillText(text, x, y)
+    ctx.letterSpacing = '0px'
+    return
+  }
+  const chars = Array.from(text)
+  const widths = chars.map((ch) => ctx.measureText(ch).width)
+  const total = widths.reduce((sum, w) => sum + w + spacing, 0)
+  const align = ctx.textAlign
+  let cursor = align === 'right' || align === 'end' ? x - total : align === 'center' ? x - total / 2 : x
+  ctx.textAlign = 'left'
+  chars.forEach((ch, i) => {
+    ctx.fillText(ch, cursor, y)
+    cursor += widths[i]! + spacing
+  })
+  ctx.textAlign = align
+}
+
+function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number, spacing = 0) {
   const first = line[0] ?? ''
   const shift = HALT_OPEN[first]
   if (shift === undefined) {
-    ctx.fillText(line, 0, y)
+    fillSpaced(ctx, line, 0, y, spacing)
     return
   }
   const em = ctx.measureText(first).width // 全形括號寬 1em
   ctx.fillText(first, -shift * em, y)
-  ctx.fillText(line.slice(1), em * 0.5, y)
+  fillSpaced(ctx, line.slice(1), em * 0.5 + spacing, y, spacing)
 }
 
 interface Box {
@@ -270,13 +307,15 @@ function polygonOf(el: Element, w: number, h: number): Array<[number, number]> {
 }
 
 // 把 CSS 自訂屬性（可能是 color-mix）解析成 canvas 認得的顏色。
-function resolveColor(host: Element, value: string, fallback: string): string {
+// 把 CSS 色彩式（var()、color-mix()）解析成 canvas 認得的計算值。瀏覽器的 computed color 一定有值
+// （變數未定義時退回繼承的 color），不需要再備一份 hex。
+function resolveColor(host: Element, value: string): string {
   const probe = document.createElement('span')
   probe.style.color = value
   host.append(probe)
   const color = getComputedStyle(probe).color
   probe.remove()
-  return color || fallback
+  return color
 }
 
 // 第一個 box-shadow 的顏色。
@@ -406,30 +445,33 @@ export async function mountPaper(
       const backRect = back!.getBoundingClientRect()
 
       const style = {
-        frontBg: colorOf(front, 'backgroundColor', '#fffdf7'),
-        backBg: colorOf(back, 'backgroundColor', '#fff6df'),
-        figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
+        frontBg: colorOf(front, 'backgroundColor', wrap, 'var(--print-face-bg)'),
+        backBg: colorOf(back, 'backgroundColor', wrap, 'var(--print-back-bg)'),
+        figureBg: colorOf(figure, 'backgroundColor', wrap, 'var(--line)'),
         photoPosition: getComputedStyle(img!).objectPosition.trim().split(/\s+/),
-        lineColor: 'rgb(32 64 47 / .07)',
+        lineColor: resolveColor(wrap, 'rgb(var(--ink) / .07)'),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
-        stampColor: colorOf(stamp, 'color', '#ffb347'),
+        stampColor: colorOf(stamp, 'color', wrap, 'var(--ivy-print-spark)'),
+        stampSpacing: spacingOf(stamp),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
-        kickerColor: colorOf(kickerEl, 'color', '#7a8570'),
+        kickerColor: colorOf(kickerEl, 'color', wrap, 'var(--muted)'),
+        kickerSpacing: spacingOf(kickerEl),
         titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
-        titleColor: colorOf(titleEl, 'color', '#203f32'),
+        titleSpacing: spacingOf(titleEl),
+        titleColor: colorOf(titleEl, 'color', wrap, 'var(--green)'),
         titleLine: pxOf(titleEl, 'lineHeight', 32),
         storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
-        storyColor: colorOf(storyEl, 'color', '#3f5045'),
+        storyColor: colorOf(storyEl, 'color', wrap, 'var(--text)'),
         storyLine: pxOf(storyEl, 'lineHeight', 31),
         questionFont: fontOf(questionEl, "600 13px 'PingFang TC', sans-serif"),
-        questionColor: colorOf(questionEl, 'color', '#203f32'),
+        questionColor: colorOf(questionEl, 'color', wrap, 'var(--green)'),
         questionLine: pxOf(questionEl, 'lineHeight', 22),
         answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
-        answerColor: colorOf(answerEl, 'color', '#6e7c5b'),
+        answerColor: colorOf(answerEl, 'color', wrap, 'var(--muted)'),
         answerLine: pxOf(answerEl, 'lineHeight', 25),
-        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)', '#f6e7ae') : '',
-        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)', '#fbf3d6') : '',
-        tapeShadow: tapeEl ? shadowColorOf(tapeEl, 'rgba(32,64,47,.15)') : ''
+        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)') : '',
+        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)') : '',
+        tapeShadow: tapeEl ? shadowColorOf(tapeEl, resolveColor(tapeEl, 'rgb(var(--ink) / .15)')) : ''
       }
       const tapeBox = boxIn(tapeEl, frontRect, k)
       const box = {
@@ -504,7 +546,7 @@ export async function mountPaper(
       if (k) {
         setFill(ctx, style.kickerColor, '#7a8570')
         ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, k.x, k.y + k.h * 0.78)
+        fillSpaced(ctx, copy.kicker, k.x, k.y + k.h * 0.78, style.kickerSpacing)
       }
       const t = box.title
       if (t) {
@@ -517,7 +559,7 @@ export async function mountPaper(
         ctx.font = style.titleFont
         let y = style.titleLine * 0.76
         for (const line of copy.titleLines) {
-          fillTitleLine(ctx, line, y)
+          fillTitleLine(ctx, line, y, style.titleSpacing)
           y += style.titleLine
         }
         ctx.restore()
@@ -666,7 +708,7 @@ export async function mountPaper(
         ctx.shadowBlur = 6
         ctx.transform(1, 0, -0.105, 1, 0, 0)
         const baseline = st.y + st.h * 0.82
-        ctx.fillText(copy.time, st.x + st.w + baseline * 0.105, baseline)
+        fillSpaced(ctx, copy.time, st.x + st.w + baseline * 0.105, baseline, style.stampSpacing)
         ctx.restore()
       }
       ctx.restore()
@@ -697,7 +739,7 @@ export async function mountPaper(
       if (bk) {
         setFill(ctx, style.kickerColor, '#6e7c5b')
         ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, bk.x, baselineIn(ctx, bk.y, bk.h))
+        fillSpaced(ctx, copy.kicker, bk.x, baselineIn(ctx, bk.y, bk.h), style.kickerSpacing)
       }
       const s = box.story
       if (s) {
@@ -789,9 +831,13 @@ export async function mountPaper(
     floor.renderOrder = -1
     floor.receiveShadow = true
     sceneObj.add(floor)
-    sceneObj.add(new three.AmbientLight(0xffffff, 1.35))
-    const key = new three.DirectionalLight(0xfff4e0, 1.6)
+    // 紙平放、正對觀者時要跟 CSS 版同色（2026-10-20）：手機是停下滑動、卡片已在畫面上才換成 WebGL，
+    // 原本主光偏暖（0xfff4e0）、環境光 1.35，換手那一刻紙面從 247,237,217 暗成 234,219,193，整張黃一下。
+    // 漫射 BRDF 是 albedo／π，所以主光改白光、環境光補到「環境＋主光 × 平放時的 N·L ＝ π」，平放就是貼圖原色；
+    // 翻面、掀角時 N·L 變小照樣有明暗。
+    const key = new three.DirectionalLight(0xffffff, KEY_LIGHT)
     key.position.set(W * 0.6, H * 0.9, dist * 0.7)
+    sceneObj.add(new three.AmbientLight(0xffffff, Math.PI - KEY_LIGHT * (key.position.z / key.position.length())))
     key.castShadow = true
     // 影子只是紙後方一片柔邊（radius 6），512 與 1024 肉眼無差，記憶體與每幀 shadow pass 少四分之三。
     key.shadow.mapSize.set(512, 512)

@@ -46,6 +46,10 @@ const form = reactive(blank())
 const slots = ref<VisitSlotOut[]>([])
 const slotsLoading = ref(false)
 const slotsError = ref(false)
+// 快速切校時只採用最後一次讀取：先切走的那一校較晚回來，不能把別校的場次列進選單
+// （選了會把家長排進別校的場次）。換校當下先清空，讀到之前選單沒有舊校的場次可選。
+// 要宣告在 open 的 immediate watch 之前：對話框載入時已是打開的，watch 當下就會呼叫 loadSlots。
+const slotRequests = useRequestSequence()
 // 該校有沒有設定寄信（預約設定 parent_email_enabled）；null＝讀不到（例如沒有權限）或還在讀。
 const emailEnabled = ref<boolean | null>(null)
 const submitting = ref(false)
@@ -61,6 +65,7 @@ function newKey(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+// immediate：呼叫端另切 chunk（案件列表、案件頁），載入完成前就打開時，掛上當下 open 已是 true 也要帶入。
 watch(open, (value) => {
   if (!value) return
   Object.assign(form, blank())
@@ -80,7 +85,7 @@ watch(open, (value) => {
   idempotencyKey = newKey()
   void loadSlots()
   void loadEmailEnabled()
-})
+}, { immediate: true })
 
 watch(() => form.campus_key, () => {
   form.slot_id = ''
@@ -117,10 +122,6 @@ const slotOptionLabel = (slot: VisitSlotOut) => `${formatSlotWhen(slot)}，剩 $
 
 // 內容一改就換 key：改過的表單是新的一次送出，不能被當成重播而撞 409。
 watch(form, () => { if (!submitting.value) idempotencyKey = newKey() }, { deep: true })
-
-// 快速切校時只採用最後一次讀取：先切走的那一校較晚回來，不能把別校的場次列進選單
-// （選了會把家長排進別校的場次）。換校當下先清空，讀到之前選單沒有舊校的場次可選。
-const slotRequests = useRequestSequence()
 
 async function loadSlots() {
   const request = slotRequests.begin()

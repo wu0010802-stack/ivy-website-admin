@@ -35,7 +35,7 @@ PUBLIC_REPORTABLE_EVENT_TYPES = {
 
 # 公開點擊的入口代碼：按鈕在官網哪個區塊。白名單要和
 # web/app/utils/cta-analytics.ts 的 CTA_ENTRIES 一致（web 測試會比對），
-# 後台 labels.ts 的 CTA_ENTRY_LABELS 也要有中文（admin 測試會比對）。
+# 後台 analyticsLabels.ts 的 CTA_ENTRY_LABELS 也要有中文（admin 測試會比對）。
 CTA_ENTRIES = (
     "header",
     "menu",

@@ -1,0 +1,61 @@
+/* Element Plus 樣式：只載入後台用到的元件（2026-10-20 起，取代整包 element-plus/dist/index.css）。
+ *
+ * 1. 順序照 theme-chalk/src/index.scss（整包 index.css 的順序），同權重的規則誰蓋誰和整包時一樣；
+ *    main.ts 在 style.css 之前 import 這份，style.css 的覆寫照舊在後面。
+ * 2. 清單＝模板用到的 <el-*>、v-loading、ElMessage／ElMessageBox，沿 element-plus/es/components/〈元件〉/style/css.mjs
+ *    的依賴展開（select 帶 tag、option、popper、scrollbar 等）。el-spinner.css 不在任何依賴裡，但日期時間面板的
+ *    .el-time-spinner 基本樣式在這個檔（整包時有）。
+ * 3. 新用到一個元件（例如 <el-slider>）要在這裡補它的 CSS：elementPlusStyles.test.ts 會比對模板與這份清單。 */
+@import 'element-plus/theme-chalk/base.css';
+@import 'element-plus/theme-chalk/el-alert.css';
+@import 'element-plus/theme-chalk/el-autocomplete.css';
+@import 'element-plus/theme-chalk/el-badge.css';
+@import 'element-plus/theme-chalk/el-button-group.css';
+@import 'element-plus/theme-chalk/el-button.css';
+@import 'element-plus/theme-chalk/el-checkbox-group.css';
+@import 'element-plus/theme-chalk/el-checkbox.css';
+@import 'element-plus/theme-chalk/el-collapse-item.css';
+@import 'element-plus/theme-chalk/el-collapse.css';
+@import 'element-plus/theme-chalk/el-config-provider.css';
+@import 'element-plus/theme-chalk/el-date-picker-panel.css';
+@import 'element-plus/theme-chalk/el-date-picker.css';
+@import 'element-plus/theme-chalk/el-descriptions.css';
+@import 'element-plus/theme-chalk/el-descriptions-item.css';
+@import 'element-plus/theme-chalk/el-dialog.css';
+@import 'element-plus/theme-chalk/el-drawer.css';
+@import 'element-plus/theme-chalk/el-dropdown-item.css';
+@import 'element-plus/theme-chalk/el-dropdown-menu.css';
+@import 'element-plus/theme-chalk/el-dropdown.css';
+@import 'element-plus/theme-chalk/el-empty.css';
+@import 'element-plus/theme-chalk/el-form-item.css';
+@import 'element-plus/theme-chalk/el-form.css';
+@import 'element-plus/theme-chalk/el-input.css';
+@import 'element-plus/theme-chalk/el-input-number.css';
+@import 'element-plus/theme-chalk/el-loading.css';
+@import 'element-plus/theme-chalk/el-message-box.css';
+@import 'element-plus/theme-chalk/el-message.css';
+@import 'element-plus/theme-chalk/el-overlay.css';
+@import 'element-plus/theme-chalk/el-pagination.css';
+@import 'element-plus/theme-chalk/el-popconfirm.css';
+@import 'element-plus/theme-chalk/el-popover.css';
+@import 'element-plus/theme-chalk/el-radio-button.css';
+@import 'element-plus/theme-chalk/el-radio-group.css';
+@import 'element-plus/theme-chalk/el-radio.css';
+@import 'element-plus/theme-chalk/el-scrollbar.css';
+@import 'element-plus/theme-chalk/el-select.css';
+@import 'element-plus/theme-chalk/el-skeleton-item.css';
+@import 'element-plus/theme-chalk/el-skeleton.css';
+@import 'element-plus/theme-chalk/el-spinner.css';
+@import 'element-plus/theme-chalk/el-step.css';
+@import 'element-plus/theme-chalk/el-steps.css';
+@import 'element-plus/theme-chalk/el-switch.css';
+@import 'element-plus/theme-chalk/el-tab-pane.css';
+@import 'element-plus/theme-chalk/el-table-column.css';
+@import 'element-plus/theme-chalk/el-table.css';
+@import 'element-plus/theme-chalk/el-tabs.css';
+@import 'element-plus/theme-chalk/el-tag.css';
+@import 'element-plus/theme-chalk/el-time-select.css';
+@import 'element-plus/theme-chalk/el-tooltip.css';
+@import 'element-plus/theme-chalk/el-popper.css';
+@import 'element-plus/theme-chalk/el-option.css';
+@import 'element-plus/theme-chalk/el-option-group.css';

@@ -48,5 +48,19 @@ class DockerfilePinTests(unittest.TestCase):
             self.assertTrue((repo / name).exists(), f"SOURCE_PATHS 的 {name} 在 repo 裡不存在，git archive 會失敗")
 
 
+class ApiImageBytecodeTests(unittest.TestCase):
+    """執行期 uid 10001 寫不進映像、又設 PYTHONDONTWRITEBYTECODE：bytecode 只能在 build 時編好（2026-10-20）。"""
+
+    def test_api_image_compiles_bytecode_at_build_time(self):
+        text = (DEPLOY / "api.Dockerfile").read_text()
+        self.assertRegex(text, r"(?m)^ENV .*\bUV_COMPILE_BYTECODE=1\b")
+        self.assertRegex(text, r"compileall .*\bapp\b.*\bmigrations\b")
+
+    def test_backend_tests_stay_out_of_the_build_context(self):
+        ignored = (DEPLOY.parent / ".dockerignore").read_text().splitlines()
+        self.assertIn("backend/tests", ignored)
+        self.assertIn("backend/.test_durations", ignored)
+
+
 if __name__ == "__main__":
     unittest.main()

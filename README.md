@@ -13,6 +13,24 @@
 - **沒做**：公開頁 CSP 沒有 `script-src`、後台與公開站同源（`web/server/utils/security-headers.ts` 註解已記）。要改成後台與 API 換獨立子網域，或公開站改用 nonce CSP，牽涉 Railway 網域與全站 inline script，另案處理。限流信任 `x-website-client-ip`，api 服務要維持沒有公開網域。
 - **驗證**（Node 22.22、npm 10.9.4、本機 PostgreSQL 16）：後端全套 **4530 passed**；新增的 7 個回歸測試在舊程式碼上都失敗。web `typecheck` 通過、`test:unit` 108 檔 1321 passed、`nuxt build` 成功；`deploy/tests` 22 passed；`contract:check` 一致（重設密碼的說明文字改了，契約重新產生）。admin `typecheck` 通過，`test:unit` 3098 passed，但 `admissionsView.test.ts` 的 (h) 偶爾超過 5 秒上限：新 lockfile 連跑三次有兩次逾時（5.09–5.2 秒）、一次全過，main 的 lockfile 跑一次全過。這項在迴圈裡掛載整個招生頁 7 次，本來就貼著上限，判斷是時間抖動、不是這次的改動；PR CI 的 admin job 是綠的。PR #49 CI 七項全綠（正式部署 skipped）。
 
+## 2026-10-20 手機孩子的一天：拍立得換成 WebGL 紙那一刻不再跳（`feature/day-print-mobile-20261020`）
+
+使用者反映手機上「常春藤的一天」卡片渲染怪怪的。手機的 WebGL 紙要等停下滑動、卡片已經在畫面上才接手（桌機在卡片進畫面前就換好，所以只有手機看得到），換手那一刻有兩個跳動：
+
+- **字距縮窄**：canvas 不吃 CSS `letter-spacing`，小標（.08em）、標題（.02em）、時間戳（.06em）整排一下變窄。`utils/paperPrints.ts` 讀 computed 字距、新增 `fillSpaced`：支援 `ctx.letterSpacing` 就直接設，不支援的瀏覽器逐字畫。
+- **紙色變暗變黃**：主光偏暖（`0xfff4e0`）＋環境光 1.35，平放時紙面 247,237,217 → 234,219,193。主光改白光、環境光補到「環境＋主光 × 平放 N·L ＝ π」，平放就是貼圖原色（實測 245,236,216）；翻面、掀角時照樣有明暗。
+- **驗證**（Node 22，dev server fixture 模式、Playwright Chromium＋SwiftShader，390×844 觸控與 1440×900）：換手前後截圖比對字距一致、紙色差 1–2；手機與桌機翻面正常、無 pageerror；web `typecheck` 通過；web 全套 109 檔 1328 passed（rebase 到 main `1f00cc2` 後重跑；新增 `tests/day-print-swap-20261020.spec.ts` 5 支）。
+- **未驗證**：真機 iPhone／Android（尤其 Safari 是否支援 `ctx.letterSpacing`，不支援時走逐字畫）。
+## 2026-10-20 效能與維護整理（`feature/optimization-20261020`）
+
+使用者要求盤點「哪裡可以優化」後全部處理。分官網、後台、後端／CI 三塊，各自先驗證盤點說法再動手；行為與畫面不變。
+
+- **官網**：週年素材、有雜湊的字型 CSS 改一年 `immutable`（`*-OFL.txt` 維持 30 天）；與 `optimized/` 位元相同的影片母帶、投影原圖移到 `web/media-src/`（`.output/public` 139 → 120 MB，`assets/hero-campus.mp4` 等字串仍是查找鍵）；three.js 改從 `utils/three-lite.ts` 具名匯入（chunk 737 → 538 KB，gzip 184 → 132 KB）；品牌字預載改 woff2（三檔共 15.9 → 12.1 KB）；預約表單與 `useCampusBooking` 共用場次設定快取；`HomeStoryViewer` 影片顯示控制鈕時不再 `aria-hidden`；環境頁 20 個 oklch 移進 `tokens.css`（`--ivy-env-*`）。
+- **後台**：稽核與漏斗標籤拆成 `api/auditLabels.ts`、`api/analyticsLabels.ts`（首屏 labels chunk 47.7 → 34.4 KB）；Element Plus 改只載用到的 51 個元件樣式（入口 CSS 397 → 244 KB，24 頁桌機＋23 頁手機截圖相同，`elementPlusStyles.test.ts` 擋漏載）；三個對話框改延後載入；`useDebouncedFn` 取代五處手寫防抖；修跨年後場次日期少顯示年份；`RecordsTab.vue` 1117 → 954 行、`ContentEditor.vue` 1147 → 807 行；21 個以日期／輪次命名的測試檔併回功能測試（逐檔測試數相同）。
+- **後端／部署／CI**：migration `111d9d36cda7` 加兩個索引（案件歷程 `(visit_request_id, event_type, created_at)`、outbox `(status, next_attempt_at)`，只加不刪，**合進 main 會自動套到正式 DB**）；outbox 每輪改成清空或用完 30 秒預算（原本一輪 10 筆）；即將參觀提醒一輪只查一次；漏斗看板只取卡片欄位、追蹤統計三個 COUNT 合一；里界 GeoJSON 只解析一次並在啟動時預熱；API 映像建置時預編 bytecode、不再帶 `backend/tests`；CI 的 ffmpeg 改用快取的 .deb；`booking/routes.py` 拆成四個模組（1812 → 339 行）、`admissions/schemas.py` 拆成套件（OpenAPI 不變）。
+- **未做**：手機影片縮到 720p（DESIGN.md 定案保留 1440×810、首屏影片今天剛定案；試轉 day-mobile 7.5 → 1.8 MB、hero-mobile 2.2 → 0.9 MB，待業主決定）；後台登入徽章圖重壓（已接近最佳）；`geo/sync.py` 拆檔（約 70 處測試替換模組屬性，拆了會讓 patch 失效）；共用 csv mock（`vi.mock` 每檔各自 hoist）；BuildKit 快取掛載（不確定 Railway 支援）。
+- **驗證**（Node 22）：web `typecheck` 通過、108 檔 1323 passed，首頁與 /environment 1440／390 截圖前後零像素差；admin `typecheck` 通過、164 檔 3102 passed／1 skipped，`build` 通過；`contract:check` 一致；`deploy/tests` OK；後端全套 4,532 passed；stack e2e 148 passed、1 failed、6 未跑（`exports.spec.ts` 訪視明細下載檔名是 `download`，同一份測試換成改版前的後台 build 一樣失敗，是本機用 Playwright Chromium 頂替 Google Chrome 的差異；後面 6 項是同檔序列測試沒跑到）。e2e 抓到 `/visit` hydration mismatch（預約設定快取把 SSR 的 null 當成沒讀過），已修正並重跑通過。migration upgrade → downgrade → upgrade 通過，`test_schema_drift.py` 比對模型與 DB 無差異。**未驗證**：Docker 映像實際建置（拉 base image 被 Docker Hub 429）、CI 工作流程實跑、Safari／iOS、上述 7 項匯出 e2e（待 CI 的 Google Chrome）。
+
 ## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（`feature/brighten-20261020`）
 
 使用者覺得諾貝爾幼兒園官網比較明亮，看過比對與模擬後要求調亮。這次只拿掉不需要的暗面、版面不動；首屏影片調色另外上線（見同日「首屏影片調亮」一節），配色加入鮮豔色未做。規則與數字見 DESIGN.md「官網調亮第一層」。

@@ -20,7 +20,7 @@
 
 | 檔案 | 畫質 | 大小 |
 |---|---|---|
-| `hero-grade-master.mp4` | 1080×800、CRF 18，桌機用（同時是 `web/public/assets/hero-campus.mp4`） | 5,434,804 bytes（原 5,672,935） |
+| `hero-grade-master.mp4` | 1080×800、CRF 18，桌機用（同時是 `web/media-src/hero-campus.mp4`，2026-10-20 前在 `web/public/assets/`） | 5,434,804 bytes（原 5,672,935） |
 | `hero-grade-mobile-crf26.mp4` | 1080×800、CRF 26，手機用（也是消息裡「一起跑向前」的片源） | 2,152,348 bytes（原 2,255,989） |
 | `campus-film-run-ungraded.webp` | 「一起跑向前」封面的調色前原檔 | — |
 
@@ -30,7 +30,7 @@
 
 ```sh
 python3 design/hero-video-grade-20261020/build.py "$HOME/Downloads/常春藤廣告+配音 (1).mp4"
-cp design/hero-video-grade-20261020/hero-grade-master.mp4 web/public/assets/hero-campus.mp4
+cp design/hero-video-grade-20261020/hero-grade-master.mp4 web/media-src/hero-campus.mp4
 python3 scripts/optimize-site-videos.py
 python3 scripts/optimize-site-images.py --only hero-campus-restored-v1-still
 ```

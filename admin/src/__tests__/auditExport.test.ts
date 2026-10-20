@@ -10,7 +10,7 @@ import AuditView from '../views/AuditView.vue'
 import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { auditCsvHeader, auditCsvRow, auditCsvTime, auditSearchText, AUDIT_CSV_HEADER } from '../utils/auditFormat'
-import { auditMetadataDetails } from '../api/labels'
+import { auditMetadataDetails } from '../api/auditLabels'
 import { testUser } from './fixtures'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))

@@ -291,12 +291,15 @@ async def follow_up_list(
     參觀日新到舊（剛參觀的在最上面），同值再依建立時間與 id，排序可重現。"""
     current = now or _now()
     in_campus = RecruitmentVisit.campus_key == campus_key
-    totals = {}
-    for name in constants.FOLLOW_UP_KINDS:
-        totals[name] = int(
-            await db.scalar(select(func.count()).select_from(RecruitmentVisit).where(in_campus, condition(name, current)))
-            or 0
+    # 三種數量一次查完（count(*) FILTER (WHERE …)），不必依序跑三次 COUNT（2026-10-20）。
+    counts = (
+        await db.execute(
+            select(*(func.count().filter(condition(name, current)) for name in constants.FOLLOW_UP_KINDS))
+            .select_from(RecruitmentVisit)
+            .where(in_campus)
         )
+    ).one()
+    totals = {name: int(value or 0) for name, value in zip(constants.FOLLOW_UP_KINDS, counts)}
     filters = [in_campus, condition(kind, current)]
     owner_filter = owner_condition(owner, current_user_id)
     if owner_filter is not None:

@@ -19,3 +19,8 @@ assets
 .codex
 .agents
 .playwright-cli
+# 只有測試用、執行期不 import（2026-10-20 確認 app、migrations、check_schema、cli 都沒有引用）
+backend/tests
+backend/.test_durations
+# 影片與投影母帶只給轉檔腳本用，建置與執行期都不讀（2026-10-20）
+web/media-src

@@ -1,6 +1,7 @@
 // 2026-10-03 重設密碼連結：操作紀錄的動作、原因與寄送失敗原因都有中文。
 import { describe, expect, it } from 'vitest'
-import { auditActionLabel, auditMetadataSummary, auditReasonLabel } from '../api/labels'
+import { auditActionLabel, auditReasonLabel } from '../api/labels'
+import { auditMetadataSummary } from '../api/auditLabels'
 
 describe('重設密碼連結的操作紀錄', () => {
   it('四種動作都有中文', () => {

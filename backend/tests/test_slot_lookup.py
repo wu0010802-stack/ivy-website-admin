@@ -209,14 +209,14 @@ async def test_recording_and_rollback_both_failing_still_returns_the_slots(
 @pytest.mark.asyncio
 async def test_lookup_day_and_wait_come_from_the_routes_taipei_today(admin_client, public_client, db_session, monkeypatch):
     """記錄的日期與等待天數都取自路由的 today_local()（台北時間），不是 UTC 日期或 date.today()。"""
-    from app.booking import routes as booking_routes
+    from app.booking import slot_routes
 
     created = await create_slot_record(admin_client, days_ahead=3)
     assert (await set_booking_mode(admin_client, mode="slots")).status_code == 200
     slot_date = date.fromisoformat(created["slot_date"])
     # 假裝台北今天是「場次日期 − 1 天」→ 最早場次離今天 1 天，記在 within_1，記錄日期是假的今天。
     fake_today = slot_date - timedelta(days=1)
-    monkeypatch.setattr(booking_routes, "today_local", lambda *a, **k: fake_today)
+    monkeypatch.setattr(slot_routes, "today_local", lambda *a, **k: fake_today)
     # 2026-10-20 稽核起只記從（路由的）今天查到開放範圍最後一天的查詢。
     response = await public_client.get(
         f"{API}/public/slots?campus_key=yihua&date_from={fake_today.isoformat()}"

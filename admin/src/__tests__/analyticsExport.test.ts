@@ -14,7 +14,7 @@ import ClassDistributionPanel from '../components/analytics/ClassDistributionPan
 import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import { api } from '../api/client'
-import { funnelSourceLabel } from '../api/labels'
+import { funnelSourceLabel } from '../api/analyticsLabels'
 import {
   CAMPUS_KEYS,
   type AnalyticsFunnelOut, type BookingOutcomesOut, type CampusOutcomeOut, type ClassDistributionOut, type EventTrendOut, type OutcomeCountsOut,

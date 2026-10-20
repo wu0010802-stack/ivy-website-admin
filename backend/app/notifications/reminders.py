@@ -101,9 +101,15 @@ def parent_reminder_key(visit_request_id: uuid.UUID, slot_id: uuid.UUID) -> str:
     return f"{PARENT_VISIT_REMINDER}:{visit_request_id}:{slot_id}"
 
 
-async def _due_upcoming(db: AsyncSession, now: datetime) -> list[tuple[uuid.UUID, str, str | None, VisitSlot]]:
+DueUpcoming = tuple[uuid.UUID, str, str | None, uuid.UUID]
+"""到點的即將參觀一筆：（案件 id、校區、Email、場次 id）。"""
+
+
+async def due_upcoming(db: AsyncSession, now: datetime | None = None) -> list[DueUpcoming]:
     """到點的即將參觀：已確認、未匿名化、未排除、`remind_at <= now < 開始`，且確認或改期到這個時段時
-    還沒進提醒範圍。員工與家長提醒共用這個判斷（2026-10-15 規格 R4）。回傳（案件 id、校區、Email、場次）。"""
+    還沒進提醒範圍。員工與家長提醒共用這個判斷（2026-10-15 規格 R4）。回傳（案件 id、校區、Email、場次 id）。
+    定期工作每一輪只查一次，同一份結果交給員工與家長兩種提醒（2026-10-20），所以只回純值、不回 ORM 物件。"""
+    now = now or now_utc()
     # slot_date 是營運時區的日期，先用日期粗篩再逐筆算開始時間。
     today = today_local(now)
     upcoming = await db.execute(
@@ -135,31 +141,38 @@ async def _due_upcoming(db: AsyncSession, now: datetime) -> list[tuple[uuid.UUID
         on_this_slot_since = max((t for t in (confirmed_at, rescheduled_at) if t is not None), default=None)
         if on_this_slot_since is not None and on_this_slot_since > remind_at:
             continue
-        due.append((visit_id, campus_key, email, slot))
+        due.append((visit_id, campus_key, email, slot.id))
     return due
 
 
-async def enqueue_due_reminders(db: AsyncSession, now: datetime | None = None) -> int:
+async def enqueue_due_reminders(
+    db: AsyncSession, now: datetime | None = None, *, due: list[DueUpcoming] | None = None
+) -> int:
     """掃描到點的員工提醒寫進 outbox，回傳新寫入的則數。呼叫端負責 commit。
-    `now` 是判斷「到點了沒」的時間點，預設現在（測試可以指定）。"""
-    now = now or now_utc()
+    `now` 是判斷「到點了沒」的時間點，預設現在（測試可以指定）。`due` 是 `due_upcoming` 已查好的結果
+    （定期工作一輪只查一次）；沒給就自己查。"""
+    if due is None:
+        due = await due_upcoming(db, now)
     created = 0
-    for visit_id, campus_key, _email, slot in await _due_upcoming(db, now):
-        payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot.id)}
-        created += await _enqueue(db, visit_id, UPCOMING_VISIT_KIND, payload, upcoming_key(visit_id, slot.id))
+    for visit_id, campus_key, _email, slot_id in due:
+        payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot_id)}
+        created += await _enqueue(db, visit_id, UPCOMING_VISIT_KIND, payload, upcoming_key(visit_id, slot_id))
     return created
 
 
-async def enqueue_due_parent_reminders(db: AsyncSession, now: datetime | None = None) -> int:
+async def enqueue_due_parent_reminders(
+    db: AsyncSession, now: datetime | None = None, *, due: list[DueUpcoming] | None = None
+) -> int:
     """家長參觀提醒（2026-10-15 規格）：同一個到點判斷，只排有 Email 的案件；回傳新寫入的則數。
-    呼叫端負責 commit。"""
-    now = now or now_utc()
+    呼叫端負責 commit。`due` 同 `enqueue_due_reminders`。"""
+    if due is None:
+        due = await due_upcoming(db, now)
     created = 0
-    for visit_id, campus_key, email, slot in await _due_upcoming(db, now):
+    for visit_id, campus_key, email, slot_id in due:
         if not email:
             continue
-        payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot.id)}
-        created += await _enqueue(db, visit_id, PARENT_VISIT_REMINDER, payload, parent_reminder_key(visit_id, slot.id))
+        payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot_id)}
+        created += await _enqueue(db, visit_id, PARENT_VISIT_REMINDER, payload, parent_reminder_key(visit_id, slot_id))
     return created
 
 

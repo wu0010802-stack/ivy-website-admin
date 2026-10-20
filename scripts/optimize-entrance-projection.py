@@ -5,7 +5,7 @@
 """
 from PIL import Image
 import io, sys, numpy as np
-SRC='web/public/assets/ivy-30th-anniversary-projection.png'
+SRC='web/media-src/ivy-30th-anniversary-projection.png'
 DST='web/public/assets/ivy-30th-anniversary-projection.webp'
 
 def keyed(rgba):

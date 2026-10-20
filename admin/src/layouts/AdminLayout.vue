@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { TopRight } from '@element-plus/icons-vue'
 import { notifyError, notifyWarning } from '../composables/notify'
+import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { NAV_GROUPS, SEARCH_ONLY_GROUP, canOpenPath } from '../router/nav'
@@ -14,8 +15,7 @@ const auth = useAuthStore()
 const openRequests = useOpenRequestsStore()
 const router = useRouter()
 const route = useRoute()
-const mobileQuery = window.matchMedia('(max-width: 900px)')
-const isMobile = ref(mobileQuery.matches)
+const isMobile = useNarrowScreen('(max-width: 900px)')
 const drawerOpen = ref(false)
 // 桌機側欄可以收成圖示欄，多出來的寬度給內容；收合記在瀏覽器裡，下次進來照舊。
 // 私密視窗或封鎖 site data 時讀寫會丟例外，接住就好，收合只是便利。手機用抽屜，不收合。
@@ -61,12 +61,8 @@ const groupLabel = computed(() => {
   ))
   return group?.section ?? group?.label ?? ''
 })
-function updateViewport(event: MediaQueryListEvent) {
-  isMobile.value = event.matches
-  drawerOpen.value = false
-}
-onMounted(() => mobileQuery.addEventListener('change', updateViewport))
-onBeforeUnmount(() => mobileQuery.removeEventListener('change', updateViewport))
+// 跨過 900px 斷點（轉橫、拉寬視窗）就收起手機抽屜。
+watch(isMobile, () => { drawerOpen.value = false })
 // 換頁順便更新頁首的待辦數字（store 內 30 秒內不重抓）。
 watch(() => route.path, () => { openRequests.refresh() }, { immediate: true })
 watch(() => route.path, async () => {

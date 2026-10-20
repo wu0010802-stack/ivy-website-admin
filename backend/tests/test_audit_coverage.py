@@ -123,7 +123,7 @@ def test_exemptions_are_still_needed():
 
 @pytest.mark.parametrize(
     "func_path",
-    ["app.booking.routes.cancel_visit_request", "app.media.routes.archive_media"],
+    ["app.booking.admin_visit_routes.cancel_visit_request", "app.media.routes.archive_media"],
 )
 def test_checker_follows_direct_and_nested_calls(func_path):
     """自我檢查：直接呼叫（取消案件）與經過 service 層（封存）的都認得出來。"""

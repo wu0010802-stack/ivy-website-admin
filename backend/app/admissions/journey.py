@@ -213,7 +213,7 @@ def _chunks(items: list[uuid.UUID]):
 
 
 def _visited_on():
-    """預定參觀日：同單案列表（booking/routes.py `_visited_on_column`）。有場次用場次日期；提早到場、約之後日子
+    """預定參觀日：同單案列表（booking/admin_visit_routes.py `_visited_on_column`）。有場次用場次日期；提早到場、約之後日子
     的案件釋出了場次，沒有場次、而且已完成，改取最後一筆 completed 歷程的台北日；其餘是 None。"""
     slot_date = (
         select(VisitSlot.slot_date).where(VisitSlot.id == VisitRequest.slot_id).correlate(VisitRequest).scalar_subquery()

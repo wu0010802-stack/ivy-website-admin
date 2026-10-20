@@ -14,6 +14,7 @@ import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { canRetryProcessing, processingNote, useProcessingPoll } from '../composables/mediaProcessing'
 import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
+import { useDebouncedFn } from '../composables/useDebouncedFn'
 import PageHeader from '../components/PageHeader.vue'
 import StatusTag from '../components/StatusTag.vue'
 import MediaUploadList from '../components/MediaUploadList.vue'
@@ -48,7 +49,7 @@ const limits = ref<MediaUploadLimitsOut | null>(null)
 const hasFilters = computed(() => Boolean(query.value.trim() || campusFilter.value || kindFilter.value || tagFilter.value))
 function clearFilters() {
   query.value = ''
-  clearTimeout(searchTimer)
+  applySearch.cancel()
   keyword.value = ''
   campusFilter.value = ''
   kindFilter.value = ''
@@ -123,12 +124,8 @@ async function reloadPage() {
 }
 
 // 邊打字邊查會連發請求，停下來再送。
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { keyword.value = value.trim() }, 300)
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+const applySearch = useDebouncedFn((value: string) => { keyword.value = value.trim() }, 300)
+watch(query, (value) => applySearch(value))
 
 // 換篩選或切換素材／已封存／待清理都回第 1 頁；已經在第 1 頁就直接重讀（同一次變動不讀兩次）。
 const filterKey = computed(() => JSON.stringify([listState.value, campusFilter.value, kindFilter.value, tagFilter.value, keyword.value]))

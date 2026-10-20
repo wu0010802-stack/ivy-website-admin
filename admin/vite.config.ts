@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [
     vue(),
     // Element Plus 元件 JS 按需引入：模板裡的 <el-*> 元件與 v-loading 指令由 resolver 自動 import。
-    // 樣式不跟著元件走（importStyle: false），整包 CSS 由 main.ts 在 style.css 之前載入。
+    // 樣式不跟著元件走（importStyle: false），用到的元件 CSS 由 main.ts 經 src/element-plus.css 在 style.css 之前載入。
     Components({
       // 只處理 Element Plus；自家元件照舊在各檔明確 import，不掃 src/components 變成全域
       dirs: [],

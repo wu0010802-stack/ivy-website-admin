@@ -9,6 +9,8 @@ import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import VisitRequestsView from '../views/VisitRequestsView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
+// 表單在各頁另切 chunk（lazyComponent）：先載入一次，測試裡的動態 import 才不會晚於 flushPromises。
+import '../components/admissions/RecordDialog.vue'
 import { ApiError } from '../api/client'
 import type { UserOut } from '../api/types'
 import { useAuthStore } from '../stores/auth'

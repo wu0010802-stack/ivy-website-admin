@@ -270,3 +270,79 @@ async def test_stale_backlog_writes_inbox_but_does_not_email(
     assert result["sent"] >= 1
     assert recording_mail_adapter.sent == []
     assert (await db_session.execute(select(func.count()).select_from(NotificationInboxItem))).scalar_one() >= 1
+
+
+async def test_cycle_drains_more_than_one_batch_of_outbox(app, admin_client, public_client, db_session):
+    """一輪不再只處理 10 筆（2026-10-20）：積壓超過一批時，同一輪一批一批清到空。"""
+    import uuid
+
+    await _booking(admin_client, public_client)
+    [original] = (
+        await db_session.execute(select(OutboxMessage).where(OutboxMessage.kind == "visit_request_created"))
+    ).scalars().all()
+    for _ in range(14):
+        db_session.add(
+            OutboxMessage(
+                id=uuid.uuid4(), visit_request_id=original.visit_request_id, kind=original.kind,
+                payload=dict(original.payload), created_at=original.created_at,
+                next_attempt_at=original.next_attempt_at, status=OutboxStatus.PENDING.value, attempts=0,
+            )
+        )
+    await db_session.commit()
+    total = (await db_session.execute(select(func.count()).select_from(OutboxMessage))).scalar_one()
+    assert total > 10
+
+    result = await run_cycle(app.state.session_factory, _without_email(app), worker_id="test")
+
+    assert result.failed_steps == []
+    assert result.notifications_sent + result.notifications_skipped + result.notifications_failed == total
+    left = (
+        await db_session.execute(
+            select(func.count()).select_from(OutboxMessage).where(OutboxMessage.status == OutboxStatus.PENDING.value)
+        )
+    ).scalar_one()
+    assert left == 0
+
+
+async def test_drain_stops_at_a_short_batch_or_the_time_budget(monkeypatch):
+    from app.workers import runner
+
+    batches = [{"sent": 10, "failed": 0, "skipped": 0}, {"sent": 7, "failed": 2, "skipped": 1}, {"sent": 3, "failed": 0, "skipped": 0}]
+    calls = []
+
+    async def _fake_batch(db, adapter, *, worker_id, limit, **kwargs):
+        calls.append((worker_id, limit, kwargs))
+        return batches[len(calls) - 1]
+
+    monkeypatch.setattr(runner, "process_outbox_batch", _fake_batch)
+    totals = await runner.process_outbox_until_drained(None, None, worker_id="w", line=None)
+    # 前兩批都滿 10 筆，第三批不滿就停。
+    assert totals == {"sent": 20, "failed": 2, "skipped": 1}
+    assert [c[:2] for c in calls] == [("w", 10)] * 3
+    assert calls[0][2] == {"line": None}
+
+    # 一直有滿批的工作時，用完時間預算就停（批與批之間檢查）。
+    calls.clear()
+    batches[:] = [{"sent": 10, "failed": 0, "skipped": 0}] * 100
+    ticks = iter(range(0, 1000, 20))
+    totals = await runner.process_outbox_until_drained(
+        None, None, worker_id="w", time_budget_seconds=30, clock=lambda: next(ticks)
+    )
+    assert len(calls) == 2
+    assert totals["sent"] == 20
+
+
+async def test_cycle_queries_due_reminders_once_for_staff_and_parent(app, monkeypatch):
+    from app.notifications import reminders
+
+    real = reminders.due_upcoming
+    calls = []
+
+    async def _counting(db, now=None):
+        calls.append(now)
+        return await real(db, now)
+
+    monkeypatch.setattr(reminders, "due_upcoming", _counting)
+    result = await run_cycle(app.state.session_factory, _without_email(app), worker_id="test")
+    assert result.failed_steps == []
+    assert len(calls) == 1

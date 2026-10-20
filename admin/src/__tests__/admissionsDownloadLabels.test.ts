@@ -3,7 +3,7 @@
 // 這裡直接讀後端原始碼比對，不靠人記得同步（做法同 labelCoverage.test.ts）。
 import { describe, expect, it } from 'vitest'
 import { WITHDRAWN_FROM_LABELS, stageMeta } from '../admissions/constants'
-import { auditMetadataSummary } from '../api/labels'
+import { auditMetadataSummary } from '../api/auditLabels'
 import { SOURCE_CATEGORY_CHOICES, sourceCategoryLabel } from '../admissions/sourceCategories'
 
 const sources = import.meta.glob('../../../backend/app/admissions/download.py', {

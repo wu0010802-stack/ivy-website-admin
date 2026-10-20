@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { auditActionLabel, auditMetadataDetails, auditSearchTerms, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, type AuditDetails, staffEmail, staffLabel } from '../api/labels'
+import { auditActionLabel, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, staffEmail, staffLabel } from '../api/labels'
+import { auditMetadataDetails, auditSearchTerms, type AuditDetails } from '../api/auditLabels'
 import { apiErrorMessage } from '../api/errors'
 import type { AuditActorOut, AuditLogEntryOut } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { notifyError, notifyWarning } from '../composables/notify'
+import { useDebouncedFn } from '../composables/useDebouncedFn'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { Download } from '@element-plus/icons-vue'
@@ -32,7 +34,6 @@ const search = ref('')
 // 目前清單實際套用的搜尋字，清單、筆數說明與匯出都看它，打到一半時不會跟畫面對不上。
 const AUDIT_SEARCH_DEBOUNCE_MS = 300
 const appliedSearch = ref('')
-let searchTimer: ReturnType<typeof setTimeout> | undefined
 // 操作者篩選：''＝全部、'system'＝系統（排程發布、每天清理等），其他是帳號 id。選項是這個校區範圍內出現過的人。
 const actorFilter = ref('')
 const actorOptions = ref<AuditActorOut[]>([])
@@ -226,10 +227,8 @@ const accountOptions = computed(() =>
 )
 const hasSystemActor = computed(() => actorOptions.value.some(row => !row.actor_user_id))
 
-watch(search, value => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => { appliedSearch.value = value.trim() }, AUDIT_SEARCH_DEBOUNCE_MS)
-})
+const applySearch = useDebouncedFn((value: string) => { appliedSearch.value = value.trim() }, AUDIT_SEARCH_DEBOUNCE_MS)
+watch(search, value => applySearch(value))
 // 換校區：操作者選項跟著換；原本選的人不在新範圍就回到「全部」（否則會篩成空白）。
 watch(campusFilter, () => {
   void loadActors()
@@ -238,7 +237,6 @@ watch(actorOptions, options => {
   if (actorFilter.value && actorFilter.value !== 'system' && !options.some(row => row.actor_user_id === actorFilter.value)) actorFilter.value = ''
 })
 watch([campusFilter, hideLogins, period, actorFilter, appliedSearch], load)
-onBeforeUnmount(() => clearTimeout(searchTimer))
 
 onMounted(() => {
   if (!isSuperAdmin.value && visibleCampusKeys.value.length > 0) {

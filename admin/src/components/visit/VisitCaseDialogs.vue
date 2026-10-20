@@ -3,9 +3,13 @@ import { computed } from 'vue'
 import { ARRIVAL_FORM_CANCEL_TEXT } from '../../composables/useArrivalAdmissionsForm'
 import { useCampusScope } from '../../composables/useCampusScope'
 import { injectVisitCase } from '../../composables/useVisitCase'
-import ManualVisitDialog from '../ManualVisitDialog.vue'
-import RecordDialog from '../admissions/RecordDialog.vue'
 import VisitDetailsDialog from './VisitDetailsDialog.vue'
+import { lazyComponent } from '../../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const ManualVisitDialog = lazyComponent(() => import('../ManualVisitDialog.vue'))
+const RecordDialog = lazyComponent(() => import('../admissions/RecordDialog.vue'))
 
 // 案件的三個對話框：重新預約（另建新案）、修改家長資料（資料表的「修改」）與招生資料表單（標記到場後自動打開、或頁首「填招生資料」）。
 // RecordDialog 一直掛著：它在打開的那一刻（open 變 true）才把 record 帶進表單。
