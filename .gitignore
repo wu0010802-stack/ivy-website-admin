@@ -29,6 +29,8 @@ __pycache__/
 !.env.sample
 *.pem
 *.key
+# 例外：教保資訊網 TLS 用的 TWCA 中繼憑證（公開憑證，不是私鑰），見 backend/app/admissions/geo/certs/
+!backend/app/admissions/geo/certs/*.pem
 
 # preview.html、design/、versions/ 刻意納入版控。
 

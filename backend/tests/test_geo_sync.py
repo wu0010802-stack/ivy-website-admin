@@ -40,6 +40,7 @@ from tests.geo_helpers import (
     REGISTRY_SAMPLE,
     add_visit,
     income_response,
+    evaluation_response,
     lock_is_free,
     penalty_response,
     plvr_response,
@@ -69,7 +70,7 @@ def _site(
     population_months: set[str] | None = None,
 ):
     """假的高雄市資料平台＋kiang（幼兒園 JSON 與教育部名單）＋托嬰名單＋內政部 ODRP061／011／014＋data.gov.tw 與財政資訊中心（各里所得）＋
-    實價登錄季檔（新成屋）＋預售屋建案備查單檔＋kiang 裁罰檔（GitHub 目錄清單與 Pages）；回傳 (transport, 請求過的網址清單)。"""
+    實價登錄季檔（新成屋）＋預售屋建案備查單檔＋kiang 裁罰檔（GitHub 目錄清單與 Pages）＋教保資訊網評鑑搜尋；回傳 (transport, 請求過的網址清單)。"""
     seen: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -109,6 +110,9 @@ def _site(
         penalties = penalty_response(url)
         if penalties is not None:
             return penalties
+        evaluations = evaluation_response(request)
+        if evaluations is not None:
+            return evaluations
         return httpx.Response(404)
 
     return httpx.MockTransport(handle), seen
@@ -122,6 +126,9 @@ def small_minimum(monkeypatch):
     monkeypatch.setattr(series_io, "MIN_VILLAGES", 1)
     monkeypatch.setattr(income_io, "MIN_VILLAGES", 1)
     monkeypatch.setattr(new_homes_io, "MIN_ROWS", 1)
+    monkeypatch.setattr(sync, "EVALUATIONS_MIN_SCHOOLS", 1)
+    monkeypatch.setattr(sync, "EVALUATIONS_MIN_PAGES", 1)
+    monkeypatch.setattr(sync, "EVALUATIONS_REQUEST_GAP_SECONDS", 0)  # 真的是 1 秒；每次同步 3 頁，別讓每個測試多等 3 秒
 
 
 async def _sync(app, transport, **kwargs):

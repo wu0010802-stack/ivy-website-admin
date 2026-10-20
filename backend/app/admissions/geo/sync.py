@@ -67,6 +67,7 @@ import itertools
 import json
 import logging
 import re
+import ssl
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -85,6 +86,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.admissions.academic import current_term
 from app.admissions.geo import babycare as babycare_io
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import evaluations as evaluations_io
 from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
@@ -99,8 +101,8 @@ from app.admissions.geo.closure_backfill import BackfillFormatError, load_closur
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import (
-    GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoKindergartenFee, GeoKindergartenPenalty,
-    GeoVillagePopulation,
+    GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoKindergartenEvaluation, GeoKindergartenFee,
+    GeoKindergartenPenalty, GeoVillagePopulation,
 )
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
@@ -188,6 +190,13 @@ PENALTIES_REFRESH_AFTER = providers.PROVIDER_REFRESH_AFTER
 PENALTIES_LISTING_RATIO = 0.8  # 規格 C8：檔名清單少於表內園所數的這個比例（表內至少 50 所）就不換
 PENALTIES_LISTING_MIN_EXISTING = 50
 PENALTIES_MAX_ERROR_RATIO = 0.1  # 規格 C8：下載錯誤（非 404）超過一成就不換
+# 幼兒園評鑑（規格 C7–C9）：每 30 天；教保資訊網是政府站，放慢——請求間隔 1 秒、單頁 2 MB（正常約 300 KB）、整輪 15 分鐘。
+EVALUATIONS_MAX_BYTES = 2 * 1024 * 1024
+EVALUATIONS_TIME_BUDGET = timedelta(minutes=15)
+EVALUATIONS_REQUEST_GAP_SECONDS = 1.0
+EVALUATIONS_MIN_SCHOOLS = 600  # 規格 C8：抓到的園所數少於這個、或頁數少於下面這個就不換（高雄約 689 所、69 頁）
+EVALUATIONS_MIN_PAGES = 60
+EVALUATIONS_MAX_PAGES = 150  # 防呆：頁數大到不合理（表單壞掉、迴圈換不完）時中止
 
 
 class GeoSyncError(RuntimeError):
@@ -213,9 +222,13 @@ async def _require_https(request: httpx.Request) -> None:
         raise GeoSyncError("下載網址不是 https，已拒絕")
 
 
-def new_client(*, transport: httpx.AsyncBaseTransport | None = None) -> httpx.AsyncClient:
-    """同步用的 HTTP 客戶端：會跟轉址，但只跟 https。transport 給測試換成假網站。"""
+def new_client(
+    *, transport: httpx.AsyncBaseTransport | None = None, ssl_context: ssl.SSLContext | None = None
+) -> httpx.AsyncClient:
+    """同步用的 HTTP 客戶端：會跟轉址，但只跟 https。transport 給測試換成假網站；ssl_context 給需要額外中繼憑證的站台
+    （教保資訊網，evaluations.ssl_context()），不給就用 httpx 預設的 certifi 驗證。兩種都會驗證憑證與主機名稱。"""
     return httpx.AsyncClient(
+        verify=ssl_context if ssl_context is not None else True,
         timeout=httpx.Timeout(120.0, connect=15.0),
         headers={"User-Agent": USER_AGENT},
         follow_redirects=True,
@@ -233,9 +246,12 @@ def _declared_too_large(response: httpx.Response, max_bytes: int) -> bool:
     return declared.isdigit() and int(declared) > max_bytes
 
 
-async def _fetch_capped(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> tuple[bytes, str]:
-    """GET 並串流收本文，解壓縮後超過 max_bytes 就在收滿之前中止（回傳 (本文, 編碼)）。HTTP 錯誤照 raise_for_status 丟。"""
-    async with client.stream("GET", url) as response:
+async def _fetch_capped(
+    client: httpx.AsyncClient, url: str, *, max_bytes: int, data: dict[str, str] | None = None
+) -> tuple[bytes, str]:
+    """GET（有 data 時是表單 POST）並串流收本文，解壓縮後超過 max_bytes 就在收滿之前中止（回傳 (本文, 編碼)）。
+    HTTP 錯誤照 raise_for_status 丟。"""
+    async with client.stream("POST" if data is not None else "GET", url, data=data) as response:
         response.raise_for_status()
         if _declared_too_large(response, max_bytes):
             raise _too_large()
@@ -249,8 +265,10 @@ async def _fetch_capped(client: httpx.AsyncClient, url: str, *, max_bytes: int) 
         return b"".join(chunks), response.encoding or "utf-8"
 
 
-async def _fetch_text(client: httpx.AsyncClient, url: str, *, max_bytes: int) -> str:
-    body, encoding = await _fetch_capped(client, url, max_bytes=max_bytes)
+async def _fetch_text(
+    client: httpx.AsyncClient, url: str, *, max_bytes: int, data: dict[str, str] | None = None
+) -> str:
+    body, encoding = await _fetch_capped(client, url, max_bytes=max_bytes, data=data)
     return body.decode(encoding, errors="replace")
 
 
@@ -310,6 +328,10 @@ class GeoSyncResult:
     kindergarten_penalties: str = "skipped"
     kindergarten_penalty_rows: int = 0
     kindergarten_penalties_version: str | None = None
+    # 幼兒園評鑑（2026-10-20）：結果、這一輪寫入的筆數、使用中的版本。
+    kindergarten_evaluations: str = "skipped"
+    kindergarten_evaluation_rows: int = 0
+    kindergarten_evaluations_version: str | None = None
 
 
 class _AnchorCollector(HTMLParser):
@@ -539,11 +561,14 @@ def _error_text(exc: Exception) -> str:
         presale_io.PresaleFormatError,
         parcels_io.ParcelFormatError,
         penalties_io.PenaltyFormatError,
+        evaluations_io.EvaluationFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
     if isinstance(exc, httpx.HTTPStatusError):
         return f"下載失敗：HTTP {exc.response.status_code}"
+    if isinstance(exc, httpx.ConnectError) and "CERTIFICATE_VERIFY_FAILED" in str(exc):
+        return "憑證驗證失敗（TLS）"
     return f"下載或匯入失敗：{type(exc).__name__}"
 
 
@@ -1010,6 +1035,97 @@ async def sync_kindergarten_penalties(
     except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
         logger.warning("幼兒園裁罰同步失敗：%s", _error_text(exc), exc_info=not isinstance(exc, (GeoSyncError, penalties_io.PenaltyFormatError)))
         await _record(session_factory, "kindergarten_penalties", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
+async def download_evaluations(
+    client: httpx.AsyncClient, *, budget: timedelta | None = None
+) -> tuple[dict[str, list[evaluations_io.Evaluation]], int]:
+    """評鑑全量下載（規格 §2、C9）：GET 表單頁取隱藏欄位 → POST 搜尋（高雄市、關鍵字空白）→ 逐頁 POST 換頁。
+    回傳 (園所名稱 → 評鑑列表, 頁數)。請求之間隔 1 秒；整輪超過 budget 丟 GeoSyncError；換頁後頁碼對不上
+    （表單失效、伺服器忽略換頁）丟 EvaluationFormatError，不會原地打轉。日誌與錯誤只寫數字，不寫頁面內容。"""
+    budget = EVALUATIONS_TIME_BUDGET if budget is None else budget
+    deadline = time.monotonic() + budget.total_seconds()
+    url = evaluations_io.SEARCH_URL
+
+    async def page_of(data: dict[str, str] | None) -> evaluations_io.SearchPage:
+        html = await _fetch_text(client, url, max_bytes=EVALUATIONS_MAX_BYTES, data=data)
+        return await asyncio.to_thread(evaluations_io.parse_search_page, html)
+
+    form_page = await page_of(None)
+    city = form_page.city_value()
+    await _sleep(EVALUATIONS_REQUEST_GAP_SECONDS)
+    page = await page_of(evaluations_io.search_form(form_page, city))
+    if page.current_page != 1 or not page.total_pages:
+        raise evaluations_io.EvaluationFormatError("搜尋結果沒有頁碼")
+    if page.total_pages > EVALUATIONS_MAX_PAGES:
+        raise evaluations_io.EvaluationFormatError("搜尋結果的頁數大得不合理")
+    total_pages = page.total_pages
+    schools: dict[str, list[evaluations_io.Evaluation]] = {}
+    evaluations_io.merge_page(schools, page)
+    for number in range(2, total_pages + 1):
+        if time.monotonic() > deadline:
+            minutes = int(budget.total_seconds() // 60)
+            raise GeoSyncError(f"評鑑同步超過 {minutes} 分鐘，已中止")
+        await _sleep(EVALUATIONS_REQUEST_GAP_SECONDS)
+        page = await page_of(evaluations_io.next_page_form(page, city))
+        if page.current_page != number:
+            raise evaluations_io.EvaluationFormatError("換頁後頁碼對不上")
+        evaluations_io.merge_page(schools, page)
+    return schools, total_pages
+
+
+async def sync_kindergarten_evaluations(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None = None,
+) -> tuple[str, int]:
+    """幼兒園評鑑（2026-10-20 規格 C5–C9）。回傳 (結果, 這一輪寫入的筆數)。
+    網路：每 30 天整表替換。換版門檻（C8）：抓到的園所數少於 600 或頁數少於 60 就不換、寫 last_error、保留舊資料；
+    --force 只略過「到期」的判斷，不略過門檻。檔案（打包的 CSV，不連外）：不檢查門檻，整表替換。
+    只存名稱對得到營業中或停辦園所的列（C6）；搜尋頁的負責人、電話等欄位在解析時就沒有讀進來。"""
+    status = await _status(session_factory, "kindergarten_evaluations")
+    if file is None and (client is None or (not force and not _due(status, now))):
+        return "skipped", 0
+    try:
+        if file is not None:
+            schools = await asyncio.to_thread(lambda: evaluations_io.parse_csv(file.read_bytes().decode("utf-8-sig")))
+            pages = None
+        else:
+            assert client is not None
+            schools, pages = await download_evaluations(client)
+            if len(schools) < EVALUATIONS_MIN_SCHOOLS or pages < EVALUATIONS_MIN_PAGES:
+                raise GeoSyncError(
+                    f"評鑑搜尋結果只有 {len(schools)} 所、{pages} 頁，少於 {EVALUATIONS_MIN_SCHOOLS} 所或 {EVALUATIONS_MIN_PAGES} 頁，疑似殘缺，未更新"
+                )
+        label = today_local(now).isoformat()
+        async with session_factory() as db:
+            written, matched = await evaluations_io.replace_evaluations(db, schools, now=now)
+            record = await db.get(GeoDatasetStatus, "kindergarten_evaluations", with_for_update=True)
+            if record is None:
+                record = GeoDatasetStatus(dataset="kindergarten_evaluations")
+                db.add(record)
+            record.active_version = label
+            record.label = label
+            record.synced_at = now
+            record.checked_at = now
+            record.last_attempt_at = now
+            record.last_error = None
+            await db.commit()
+        logger.info(
+            "幼兒園評鑑已更新：%s 筆（對到園所 %s 所），搜尋結果 %s 所%s",
+            written, matched, len(schools), f"、{pages} 頁" if pages is not None else "",
+        )
+        return "updated", written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning(
+            "幼兒園評鑑同步失敗：%s", _error_text(exc),
+            exc_info=not isinstance(exc, (GeoSyncError, evaluations_io.EvaluationFormatError, httpx.HTTPError)),
+        )
+        await _record(session_factory, "kindergarten_evaluations", now=now, error=_error_text(exc))
         return "failed", 0
 
 
@@ -1730,6 +1846,7 @@ async def run_geo_sync(
     presale_buildcases_file: Path | None = None,
     presale_parcels_file: Path | None = None,
     kindergarten_penalties_file: Path | None = None,
+    kindergarten_evaluations_file: Path | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     if (kindergartens_file is None) != (kindergartens_registry_file is None):
@@ -1740,7 +1857,7 @@ async def run_geo_sync(
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
             or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
-            or kindergarten_penalties_file is not None
+            or kindergarten_penalties_file is not None or kindergarten_evaluations_file is not None
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1785,6 +1902,22 @@ async def run_geo_sync(
                         session_factory, network, now=now, force=force, file=kindergarten_penalties_file
                     ),
                 )
+            # 評鑑（教保資訊網，每 30 天）：該站要用中繼憑證，自己建連線時用專用的 TLS 設定；測試注入的客戶端照用。
+            kindergarten_evaluations, kindergarten_evaluation_rows = "skipped", 0
+            if (network is not None and kindergartens != "failed") or kindergarten_evaluations_file is not None:
+                evaluation_client = network
+                if own_client and network is not None:
+                    evaluation_client = new_client(ssl_context=evaluations_io.ssl_context())
+                try:
+                    kindergarten_evaluations, kindergarten_evaluation_rows = await _within_budget(
+                        session_factory, "kindergarten_evaluations", EVALUATIONS_TIME_BUDGET + timedelta(minutes=2), now=now,
+                        work=sync_kindergarten_evaluations(
+                            session_factory, evaluation_client, now=now, force=force, file=kindergarten_evaluations_file
+                        ),
+                    )
+                finally:
+                    if evaluation_client is not network and evaluation_client is not None:
+                        await evaluation_client.aclose()
             babycare, babycare_skipped = await _within_budget(
                 session_factory, "babycare", BABYCARE_TIME_BUDGET, now=now,
                 work=sync_babycare(session_factory, settings, network, now=now, force=force, file=babycare_file),
@@ -1862,6 +1995,7 @@ async def run_geo_sync(
         presale_status = await _status(session_factory, "presale_buildcases")
         fees_status = await _status(session_factory, "kindergarten_fees")
         penalties_status = await _status(session_factory, "kindergarten_penalties")
+        evaluations_status = await _status(session_factory, "kindergarten_evaluations")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -1897,5 +2031,10 @@ async def run_geo_sync(
             kindergarten_penalty_rows=kindergarten_penalty_rows,
             kindergarten_penalties_version=(
                 penalties_status.label if penalties_status and penalties_status.active_version else None
+            ),
+            kindergarten_evaluations=kindergarten_evaluations,
+            kindergarten_evaluation_rows=kindergarten_evaluation_rows,
+            kindergarten_evaluations_version=(
+                evaluations_status.label if evaluations_status and evaluations_status.active_version else None
             ),
         )

@@ -27,6 +27,9 @@
 - 幼兒園裁罰（2026-10-20 規格）：penalty_files() 在程式裡造的假裁罰檔，格式同 kiang punish/高雄市/<園名>.json
   （陣列的陣列、第 5 欄是「負責人：姓名」「行為人：姓名」），**姓名一律是 FAKE_PERSON_NAMES 裡的假值，測試用它們斷言
   不會出現在資料庫、API、日誌與錯誤訊息**；不放任何真檔內容。
+- 幼兒園評鑑（2026-10-20 規格）：EvaluationConfig／evaluation_response() 在程式裡造的假教保資訊網（ASP.NET 表單：GET 表單頁、
+  POST 搜尋、POST 換頁；隱藏欄位用 VS-<頁碼> 驗證客戶端有把上一頁的值帶回來），結果區塊裡有假的負責人姓名與電話
+  （FAKE_PERSON_NAMES、FAKE_PHONES），測試斷言它們不會被讀進來；不放任何真頁面內容。
 - plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：
   7 筆真實列（預售屋交屋、完工剛好 12 個月前、完工太久、只有土地、商業用、沒有完工日、只有車位），另 6 筆是拿真實列
   改成門牌樣本裡的門牌（編號 SAMPLE 開頭）：義華路 68 號（exact）、68 號之１三樓（之號接中文樓層）、80 號（nearby）、
@@ -36,6 +39,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -263,6 +267,125 @@ def penalty_response(url: str, *, files: dict[str, list] | None = None, listing:
     if name not in files:
         return httpx.Response(404)
     return httpx.Response(200, json=files[name])
+
+
+# 假教保資訊網搜尋頁裡的電話：全是編的，同 FAKE_PERSON_NAMES，測試拿來斷言評鑑解析不會讀進負責人與電話欄。
+FAKE_PHONES = ("07-0000111", "07-0000222")
+
+
+@dataclass
+class EvaluationConfig:
+    """假教保資訊網的設定。schools：[(園名, [(學年度, 完成日, 結果), ...])]；stuck：換頁時永遠回第 1 頁（模擬表單失效）；
+    drop_view_state：回應不帶隱藏欄位。"""
+
+    schools: list[tuple[str, list[tuple[str, str, str]]]] = field(default_factory=lambda: default_evaluation_schools())
+    page_size: int = 10
+    stuck: bool = False
+    drop_view_state: bool = False
+    posts: list[dict[str, str]] = field(default_factory=list)
+
+    @property
+    def total_pages(self) -> int:
+        return max(1, -(-len(self.schools) // self.page_size))
+
+
+def default_evaluation_schools(total: int = 25) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    """常春藤（兩筆）、義華（一筆）、保羅（沒有評鑑）、一所對不到園所的，再補到 total 所（補的都是對不到園所的假名）。"""
+    schools = [
+        ("高雄市私立常春藤幼兒園", [("112", "2025/05/16", "全數指標通過追蹤評鑑"), ("107", "2018/10/11", "全數指標通過基礎評鑑")]),
+        ("高雄市私立義華幼兒園", [("114", "2025/11/21", "部分指標通過基礎評鑑")]),
+        ("高雄市私立保羅幼兒園", []),
+        ("高雄市私立已改名幼兒園", [("110", "2021/11/04", "全數指標改善完畢")]),
+    ]
+    schools += [(f"高雄市私立假資料{index:02d}幼兒園", [("111", "2022/11/30", "全數指標通過基礎評鑑")]) for index in range(total - len(schools))]
+    return schools
+
+
+def _evaluation_page(config: EvaluationConfig, page: int | None) -> str:
+    """page 是 None＝GET 的表單頁（沒有結果）；否則是第 page 頁的結果。"""
+    hidden = ""
+    if not config.drop_view_state:
+        token = 0 if page is None else page
+        hidden = (
+            f'<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="VS-{token}" />'
+            '<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="1AE246C8" />'
+            '<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />'
+            f'<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="EV-{token}" />'
+        )
+    form = (
+        '<form method="post" action="./pubSearch.aspx" id="form1">' + hidden
+        + '<input type="text" name="txtKeyNameS" id="txtKeyNameS" />'
+        '<select name="ddlKey" id="ddlKey"><option value="school_name">校名</option></select>'
+        '<select name="ddlCityS" id="ddlCityS"><option value="">縣市</option><option value="17">基隆市</option>'
+        '<option value="18">高雄市</option><option value="19">臺南市</option></select>'
+        '<select name="ddlAreaS" id="ddlAreaS"><option value="">鄉鎮市區</option></select>'
+        '<input type="hidden" name="hY" id="hY" />'
+    )
+    if page is None:
+        return f"<html><body>{form}</form></body></html>"
+    start = (page - 1) * config.page_size
+    blocks = []
+    for offset, (name, evaluations) in enumerate(config.schools[start : start + config.page_size]):
+        if evaluations:
+            rows = "".join(
+                f'<tr><td><span id="GridView1_GridView11_{offset}_lblSYear_{row}">{year}</span></td>'
+                f'<td><span id="GridView1_GridView11_{offset}_lblDate_{row}">{day}</span></td>'
+                f'<td><span id="GridView1_GridView11_{offset}_lblResult_{row}">{result}</span></td>'
+                f'<td><a id="GridView1_lbView_{offset}" onclick="window.open(&#39;./dtl/eva_view.aspx?tp=0&amp;esid=SECRETSESSION{offset}&#39;)">檢視</a></td></tr>'
+                for row, (year, day, result) in enumerate(evaluations)
+            )
+            evaluation = (
+                f'<table id="GridView1_GridView11_{offset}"><tr><th>評鑑學年度</th><th>評鑑完成日</th><th>評鑑結果</th><th>評鑑報告</th></tr>{rows}</table>'
+            )
+        else:
+            evaluation = f'<span id="GridView1_lblEvaluation_{offset}">無</span>'
+        blocks.append(
+            f'<tr><td><h4><span id="GridView1_lblSchName_{offset}">{name}</span></h4>'
+            f'<div>縣市：<span id="GridView1_lblCity_{offset}">高雄市</span></div>'
+            f'<div>電話：<span id="GridView1_lblTel_{offset}">{FAKE_PHONES[offset % 2]}</span></div>'
+            f'<div>負責人：<span id="GridView1_lblCharge_{offset}">{FAKE_PERSON_NAMES[offset % 4]}</span></div>'
+            f'<div>評鑑情形：{evaluation}</div></td></tr>'
+        )
+    paging = (
+        f'<span id="lblRowCnt">{len(config.schools)}</span>'
+        f'<span id="PageControl1_lblTotalCount">{len(config.schools)}</span>'
+        f'<span id="PageControl1_lblCurrentPage"><b>{page}</b></span>'
+        f'<span id="PageControl1_lblTotalPage">{config.total_pages}</span>'
+    )
+    return f'<html><body>{form}<table id="GridView1">{"".join(blocks)}</table>{paging}</form></body></html>'
+
+
+def evaluation_response(request: httpx.Request, config: EvaluationConfig | None = None) -> httpx.Response | None:
+    """假的教保資訊網公開搜尋：網址不是它就回 None。GET 回表單頁；POST 要帶對的搜尋條件與上一頁的隱藏欄位，
+    否則回 500（真的 ASP.NET 對壞掉的 ViewState／EventValidation 也是報錯）。每個 POST 的欄位記在 config.posts。"""
+    from urllib.parse import parse_qsl
+
+    from app.admissions.geo import evaluations as evaluations_io
+
+    if str(request.url) != evaluations_io.SEARCH_URL:
+        return None
+    config = config if config is not None else EvaluationConfig()
+    html = {"content-type": "text/html; charset=utf-8"}
+    if request.method == "GET":
+        return httpx.Response(200, text=_evaluation_page(config, None), headers=html)
+    fields = dict(parse_qsl(request.content.decode("utf-8"), keep_blank_values=True))
+    config.posts.append(fields)
+    if fields.get("ddlCityS") != "18" or fields.get("ddlKey") != "school_name" or fields.get("txtKeyNameS", "") != "":
+        return httpx.Response(500, text="bad search conditions")
+    if "btnSearch" in fields:
+        if fields.get("__VIEWSTATE") != "VS-0" or fields.get("__EVENTVALIDATION") != "EV-0":
+            return httpx.Response(500, text="bad view state")
+        return httpx.Response(200, text=_evaluation_page(config, 1), headers=html)
+    current = fields.get("PageControl1$txtPages", "")
+    if (
+        fields.get("__EVENTTARGET") != "PageControl1$lbNextPage" or not current.isdigit()
+        or fields.get("__VIEWSTATE") != f"VS-{current}" or fields.get("__EVENTVALIDATION") != f"EV-{current}"
+    ):
+        return httpx.Response(500, text="bad view state")
+    following = 1 if config.stuck else int(current) + 1
+    if following > config.total_pages:
+        return httpx.Response(500, text="no such page")
+    return httpx.Response(200, text=_evaluation_page(config, following), headers=html)
 
 
 def income_response(url: str, *, years: tuple[int, ...] = (112,)) -> httpx.Response | None:
