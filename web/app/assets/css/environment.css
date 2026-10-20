@@ -3,41 +3,41 @@
    貼紙按鈕；字型是圓體 Chiron GoRound TC（標題 800、小標 700、內文 400）＋手寫芫荽 Iansui（environment-fonts.css）。
    線條全由 utils/rough-sketch.ts 用 Rough.js 畫在 svg.rough 疊層；這支只管版面與 token。
    這支不是 scoped：Rough.js 畫的 svg 沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。
-   顏色一律走下方 token（站內 token 或本頁的 --renv-*），規則裡不寫色彩字面值。 */
+   顏色一律走下方 token（站內 token 或本頁的 --renv-* 別名，色值在 tokens.css 第 15 節），規則裡不寫色彩字面值。 */
 
 .renv{
   --renv-paper:var(--ivy-ivory);
-  --renv-dot:oklch(87% .025 95);
+  --renv-dot:var(--ivy-env-dot);
   --renv-ink:var(--ivy-forest);
   --renv-ink-soft:var(--ivy-forest-soft);
-  --renv-muted:oklch(47% .03 150);
-  --renv-pen:oklch(55% .17 33);
+  --renv-muted:var(--ivy-env-muted);
+  --renv-pen:var(--ivy-env-pen);
   /* 深一階紅筆：色紙上的小字（章節編號、餐點書便條的月份）用。--renv-pen 在天藍 3.5:1、黃 3.7:1 不夠，
      --error 是 tokens.css 唯一更深的紅（天藍 4.8、黃 5.1）；只借色，不帶錯誤的語意（2026-10-13） */
   --renv-pen-deep:var(--error);
-  --renv-note:oklch(98.8% .014 95);
-  --renv-tape:oklch(90% .08 92 / .78);
-  --renv-yellow:oklch(88% .13 90);
-  --renv-yellow-deep:oklch(82% .15 82);
-  --renv-sky:oklch(86% .065 228);
-  --renv-sky-deep:oklch(76% .09 232);
-  --renv-leaf:oklch(83% .09 148);
-  --renv-leaf-deep:oklch(72% .11 148);
-  --renv-peach:oklch(88% .07 55);
-  --renv-peach-deep:oklch(80% .1 50);
+  --renv-note:var(--ivy-env-note);
+  --renv-tape:var(--ivy-env-tape);
+  --renv-yellow:var(--ivy-env-yellow);
+  --renv-yellow-deep:var(--ivy-env-yellow-deep);
+  --renv-sky:var(--ivy-env-sky);
+  --renv-sky-deep:var(--ivy-env-sky-deep);
+  --renv-leaf:var(--ivy-env-leaf);
+  --renv-leaf-deep:var(--ivy-env-leaf-deep);
+  --renv-peach:var(--ivy-env-peach);
+  --renv-peach-deep:var(--ivy-env-peach-deep);
   --renv-shadow:var(--shadow-rgb);
   /* 2026-10-19 蠟筆塗鴉（utils/environment-doodles.ts）的蠟筆色；餐點弧上的太陽改塗橘黃，黃色紙上原本的黃看不出來 */
-  --renv-sun:oklch(80% .15 66);
+  --renv-sun:var(--ivy-env-sun);
   --renv-crayon-red:var(--renv-pen);
   --renv-crayon-orange:var(--studio-orange);
   --renv-crayon-yellow:var(--yellow);
   --renv-crayon-gold:var(--gold);
-  --renv-crayon-green:oklch(66% .14 145);
-  --renv-crayon-blue:oklch(62% .12 240);
-  --renv-crayon-pink:oklch(80% .09 12);
-  --renv-crayon-lilac:oklch(68% .11 300);
-  --renv-crayon-gray:oklch(58% .02 250);
-  --renv-crayon-brown:oklch(50% .07 60);
+  --renv-crayon-green:var(--ivy-env-crayon-green);
+  --renv-crayon-blue:var(--ivy-env-crayon-blue);
+  --renv-crayon-pink:var(--ivy-env-crayon-pink);
+  --renv-crayon-lilac:var(--ivy-env-crayon-lilac);
+  --renv-crayon-gray:var(--ivy-env-crayon-gray);
+  --renv-crayon-brown:var(--ivy-env-crayon-brown);
   --renv-round:"Chiron GoRound TC",var(--font);
   --renv-hand:"Iansui",var(--font);
   --renv-ease:cubic-bezier(.22,1,.36,1);

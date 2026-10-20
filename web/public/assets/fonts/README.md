@@ -141,3 +141,15 @@ curl -fL -o iansui-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/iansui/
 - 原始授權：[Noto Sans TC](https://github.com/google/fonts/tree/main/ofl/notosanstc)、[Source Sans 3](https://github.com/google/fonts/tree/main/ofl/sourcesans3)。OFL 授權全文保存在各字型旁的 `*-OFL.txt`。
 - `python3 package_preview.py` 會將這兩個子集內嵌到 `brand-fonts.css`，供 `index.html` 使用，並一併內嵌到單檔預覽。這能避免直接開啟本機 HTML 時，字型檔請求受到 file URL 的跨來源限制。
 - 中文字型只用於 `.brand-name`；英文字型用於 `.brand-english` 與 `.header-en`，其他標題繼續使用 LINE Seed TW。中文品牌文案或英文非 ASCII 用字更動時需重新產生對應子集。
+- **woff2（2026-10-20 起）**：三個品牌子集各有同名 `.woff2`，`styles.css` 的 `@font-face` 先給 woff2、woff 留作退路，`nuxt.config.ts` 預載的是 woff2（brand 3,580 → 2,700、anni 1,852 → 1,228、Source Sans 10,512 → 8,164 bytes）。woff2 只是由 woff 換殼（字形與 cmap 不變），補字時照上面的步驟先產 woff，再轉 woff2，並把兩種檔各自的 sha256 前 8 碼更新到 `?v=`：
+
+  ```sh
+  uv run --with fonttools --with brotli python -c "
+  import sys; from fontTools.ttLib import TTFont
+  for n in sys.argv[1:]:
+      f = TTFont(n); f.flavor = 'woff2'; f.save(n[:-5] + '.woff2')
+  " noto-sans-tc-600-brand.woff noto-sans-tc-600-anni.woff source-sans-3-400-brand.woff
+  shasum -a 256 *-brand.woff2 *-anni.woff2 | cut -c1-8
+  ```
+
+  轉完用 fontTools 比對 woff 與 woff2 的 `getBestCmap()` 與 `getGlyphOrder()` 相同。凍結原型與 `package_preview.py` 仍只用 woff。

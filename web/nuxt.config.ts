@@ -64,6 +64,16 @@ export default defineNuxtConfig({
     '/assets/fonts/**': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
     '/assets/responsive/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/optimized/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    // 2026-10-20：以下目錄裡的檔名都帶內容雜湊（build-anniversary-media.py、subset-*-fonts.py 產生），
+    // 換內容就換網址，可以 immutable。只有授權說明 *-OFL.txt 沒有雜湊，逐檔退回字型目錄的一個月。
+    // 新增沒有雜湊的檔案到這些目錄時，要在這裡補一條例外。
+    '/assets/anniversary/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/fonts/subsets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/fonts/admission/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/fonts/environment/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    '/assets/fonts/admission/noto-serif-tc-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
+    '/assets/fonts/environment/chiron-goround-tc-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
+    '/assets/fonts/environment/iansui-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
     '/favicon.ico': { headers: { 'cache-control': 'public, max-age=86400, stale-while-revalidate=604800' } }
   },
 
@@ -84,7 +94,7 @@ export default defineNuxtConfig({
       // styles.css，不再另載一支阻塞渲染的 brand-fonts.css。只預載首屏
       // 一定會用到的小檔：LINE Seed TW 首屏 critical 分片（Bold 約 14 KB；
       // scripts/subset-critical-fonts.py 產生，URL 取自 font-manifest.json 的
-      // preload。ExtraBold 目前沒有首屏文字，不預載）與兩個品牌子集（合計 14 KB）；
+      // preload。ExtraBold 目前沒有首屏文字，不預載）與兩個品牌子集（woff2 合計 11 KB，2026-10-20 前是 woff 14 KB）；
       // 其餘 unicode-range 分片（font-subsets.css 與執行時才掛上的 lineseed-extended-*.css，
       // 見 plugins/title-font-slices.client.ts）等頁面用到那些字才下載，不跟 LCP 圖片搶手機頻寬。
       link: [
@@ -93,8 +103,8 @@ export default defineNuxtConfig({
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png?v=ivy-20260922' },
         ...fontManifest.preload.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: 'anonymous' }) as const),
         // ?v= 必須與 styles.css 的 @font-face URL 完全相同（重切子集時兩邊一起改，值是 sha256 前 8 碼）。
-        { rel: 'preload', as: 'font', type: 'font/woff', href: '/assets/fonts/noto-sans-tc-600-brand.woff?v=d220f83c', crossorigin: 'anonymous' },
-        { rel: 'preload', as: 'font', type: 'font/woff', href: '/assets/fonts/source-sans-3-400-brand.woff?v=c98aaee6', crossorigin: 'anonymous' }
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/noto-sans-tc-600-brand.woff2?v=cf444611', crossorigin: 'anonymous' },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/source-sans-3-400-brand.woff2?v=1675fc92', crossorigin: 'anonymous' }
       ]
     }
   },

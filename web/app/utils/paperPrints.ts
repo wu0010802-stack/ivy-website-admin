@@ -23,7 +23,7 @@ import { createCurl, curlPoint, setCurl } from './cornerCurl'
 import { computeIndexedNormals } from './gridNormals'
 import { CORNER_REACH, CORNER_REST, REACH_REFERENCE_WIDTH, type CornerPose } from './cornerWind'
 
-type Three = typeof ThreeNS
+type Three = typeof import('./three-lite')
 
 export interface PaperCopy {
   kicker: string
@@ -95,8 +95,8 @@ function canUseWebGL(): boolean {
 
 function loadThree(): Promise<Three | null> {
   if (!threePromise) {
-    threePromise = import('three').then(
-      (mod) => mod as unknown as Three,
+    threePromise = import('./three-lite').then(
+      (mod): Three => mod,
       () => null
     )
   }
@@ -176,10 +176,11 @@ function fontOf(el: Element | null, fallback: string): string {
   return `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
 }
 
-function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', fallback: string): string {
-  if (!el) return fallback
-  const value = getComputedStyle(el)[prop]
-  return value && value !== 'rgba(0, 0, 0, 0)' ? value : fallback
+// 元素不在或是透明底時，改用 CSS 那條規則引用的 token（fallback 是 CSS 色彩式，例如 'var(--muted)'，
+// 在 host 底下解析）：顏色只有 tokens.css 一份，不在這裡另抄 hex（2026-10-20）。
+function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', host: Element, fallback: string): string {
+  const value = el ? getComputedStyle(el)[prop] : ''
+  return value && value !== 'rgba(0, 0, 0, 0)' ? value : resolveColor(host, fallback)
 }
 
 function pxOf(el: Element | null, prop: 'fontSize' | 'lineHeight', fallback: number): number {
@@ -270,13 +271,15 @@ function polygonOf(el: Element, w: number, h: number): Array<[number, number]> {
 }
 
 // 把 CSS 自訂屬性（可能是 color-mix）解析成 canvas 認得的顏色。
-function resolveColor(host: Element, value: string, fallback: string): string {
+// 把 CSS 色彩式（var()、color-mix()）解析成 canvas 認得的計算值。瀏覽器的 computed color 一定有值
+// （變數未定義時退回繼承的 color），不需要再備一份 hex。
+function resolveColor(host: Element, value: string): string {
   const probe = document.createElement('span')
   probe.style.color = value
   host.append(probe)
   const color = getComputedStyle(probe).color
   probe.remove()
-  return color || fallback
+  return color
 }
 
 // 第一個 box-shadow 的顏色。
@@ -406,30 +409,30 @@ export async function mountPaper(
       const backRect = back!.getBoundingClientRect()
 
       const style = {
-        frontBg: colorOf(front, 'backgroundColor', '#fffdf7'),
-        backBg: colorOf(back, 'backgroundColor', '#fff6df'),
-        figureBg: colorOf(figure, 'backgroundColor', '#e8e2d2'),
+        frontBg: colorOf(front, 'backgroundColor', wrap, 'var(--print-face-bg)'),
+        backBg: colorOf(back, 'backgroundColor', wrap, 'var(--print-back-bg)'),
+        figureBg: colorOf(figure, 'backgroundColor', wrap, 'var(--line)'),
         photoPosition: getComputedStyle(img!).objectPosition.trim().split(/\s+/),
-        lineColor: 'rgb(32 64 47 / .07)',
+        lineColor: resolveColor(wrap, 'rgb(var(--ink) / .07)'),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
-        stampColor: colorOf(stamp, 'color', '#ffb347'),
+        stampColor: colorOf(stamp, 'color', wrap, 'var(--ivy-print-spark)'),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
-        kickerColor: colorOf(kickerEl, 'color', '#7a8570'),
+        kickerColor: colorOf(kickerEl, 'color', wrap, 'var(--muted)'),
         titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
-        titleColor: colorOf(titleEl, 'color', '#203f32'),
+        titleColor: colorOf(titleEl, 'color', wrap, 'var(--green)'),
         titleLine: pxOf(titleEl, 'lineHeight', 32),
         storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
-        storyColor: colorOf(storyEl, 'color', '#3f5045'),
+        storyColor: colorOf(storyEl, 'color', wrap, 'var(--text)'),
         storyLine: pxOf(storyEl, 'lineHeight', 31),
         questionFont: fontOf(questionEl, "600 13px 'PingFang TC', sans-serif"),
-        questionColor: colorOf(questionEl, 'color', '#203f32'),
+        questionColor: colorOf(questionEl, 'color', wrap, 'var(--green)'),
         questionLine: pxOf(questionEl, 'lineHeight', 22),
         answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
-        answerColor: colorOf(answerEl, 'color', '#6e7c5b'),
+        answerColor: colorOf(answerEl, 'color', wrap, 'var(--muted)'),
         answerLine: pxOf(answerEl, 'lineHeight', 25),
-        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)', '#f6e7ae') : '',
-        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)', '#fbf3d6') : '',
-        tapeShadow: tapeEl ? shadowColorOf(tapeEl, 'rgba(32,64,47,.15)') : ''
+        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)') : '',
+        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)') : '',
+        tapeShadow: tapeEl ? shadowColorOf(tapeEl, resolveColor(tapeEl, 'rgb(var(--ink) / .15)')) : ''
       }
       const tapeBox = boxIn(tapeEl, frontRect, k)
       const box = {

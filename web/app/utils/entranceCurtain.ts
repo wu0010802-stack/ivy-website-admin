@@ -1,4 +1,4 @@
-import * as THREE from 'three'
+import * as THREE from './three-lite'
 import { entranceTimeline, ENTRANCE_DURATION } from './entrance-timeline'
 import { ENTRANCE_DIGIT_FONT, ENTRANCE_PROJECTION } from './entrance-policy'
 

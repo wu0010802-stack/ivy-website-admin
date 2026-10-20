@@ -1,6 +1,6 @@
 """404 頁立體書校徽的五張紙片：從開場布幕的高解析校徽拆層，每層加米白紙邊，輸出 WebP。
 
-來源 web/public/assets/ivy-30th-anniversary-projection.png 只取 y<876（IVY KIDS 緞帶以上，不含 30 週年緞帶）。
+來源 web/media-src/ivy-30th-anniversary-projection.png 只取 y<876（IVY KIDS 緞帶以上，不含 30 週年緞帶）。
 執行（repo 根目錄）：python3 scripts/build-crest-popup.py
 輸出 web/public/assets/crest-popup/{base,wreath,top,kids,banner}.webp（480px，對應 web/app/utils/crest-popup.ts 的 CREST_LAYERS）。
 比稿與原理：design/logo-3d-directions-20261003/（本機工作檔）。需 Pillow、numpy。
@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / 'web/public/assets/ivy-30th-anniversary-projection.png'
+SRC = ROOT / 'web/media-src/ivy-30th-anniversary-projection.png'
 OUT = ROOT / 'web/public/assets/crest-popup'
 CROP_BOTTOM = 876  # IVY KIDS 緞帶與 30 週年緞帶之間的整列空白
 BG = np.array([253, 254, 247], np.float32)  # 原圖底色（四角中位數）

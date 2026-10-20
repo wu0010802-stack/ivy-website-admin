@@ -7,6 +7,9 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / 'web/public/assets'
+# 母帶只給這支腳本讀、不直接對外提供（2026-10-20 從 public/assets 搬出，免得映像與網站多帶 19 MB）。
+# 內容與後台仍以 'assets/hero-campus.mp4' 等字串當鍵，由 media-policy.ts 對到 video-manifest.json。
+SOURCES = ROOT / 'web/media-src'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
@@ -30,7 +33,7 @@ for name, source, width, crf in [
     ('day-desktop', 'day-film.mp4', 1440, None),
     ('day-mobile', 'day-film.mp4', 1440, 25),
 ]:
-    original = ASSETS / source
+    original = SOURCES / source
     if crf is None:
         digest = sha256(original.read_bytes()).hexdigest()[:12]
         target = OUT / f'{name}-{digest}.mp4'
