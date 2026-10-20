@@ -702,7 +702,7 @@ async def test_a_failing_closure_backfill_does_not_fail_the_kindergarten_sync(ap
 
 async def test_a_broken_backfill_file_fails_the_kindergarten_sync(app, monkeypatch):
     def broken():
-        raise BackfillFormatError("kindergarten-closures-20261015.csv 第 3 列不對")
+        raise BackfillFormatError("kindergarten-closures-20261020.csv 第 3 列不對")
 
     monkeypatch.setattr(sync, "load_closure_backfill", broken)
     result = await run_geo_sync(
@@ -710,7 +710,7 @@ async def test_a_broken_backfill_file_fails_the_kindergarten_sync(app, monkeypat
         kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
     )
     assert result.kindergartens == "failed"
-    assert (await _status(app, "kindergartens")).last_error == "kindergarten-closures-20261015.csv 第 3 列不對"
+    assert (await _status(app, "kindergartens")).last_error == "kindergarten-closures-20261020.csv 第 3 列不對"
     assert (await _counts(app))[1] == 0
 
 

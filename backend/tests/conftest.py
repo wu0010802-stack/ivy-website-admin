@@ -220,6 +220,16 @@ def _reset_process_caches():
     geo_sync.FEES_REQUEST_GAP_SECONDS = original_fees_gap
 
 
+@pytest.fixture(autouse=True)
+def _no_shipped_closure_backfill(monkeypatch):
+    """幼兒園同步測試不吃隨程式提交的真回補檔（2026-10-20 起 94 筆，會替資料表補上 60 多列停辦園所，弄亂各測試自己數的筆數）。
+    要驗回補的測試（test_geo_sync.py 等）自己 monkeypatch sync.load_closure_backfill，後設的蓋掉這裡；真檔本身由
+    tests/test_geo_closure_backfill.py 直接用載入程式守門。"""
+    from app.admissions.geo import sync as geo_sync
+
+    monkeypatch.setattr(geo_sync, "load_closure_backfill", lambda: {})
+
+
 @pytest_asyncio.fixture
 async def db_session(app):
     async with app.state.session_factory() as session:
