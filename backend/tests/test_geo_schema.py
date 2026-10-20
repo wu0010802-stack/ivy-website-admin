@@ -56,14 +56,15 @@ PROVIDER_MIGRATION = BACKEND / "migrations" / "versions" / "c6a9e3f15d27_provide
 FEES_MIGRATION = BACKEND / "migrations" / "versions" / "f2b8c4d1e7a9_peer_fees.py"
 PRESALE_MIGRATION = BACKEND / "migrations" / "versions" / "a3d7f1c9b5e2_admissions_presale.py"
 PENALTIES_MIGRATION = BACKEND / "migrations" / "versions" / "b8e2d6a4f931_peer_penalties_evaluations.py"
+POTENTIAL_MIGRATION = BACKEND / "migrations" / "versions" / "76c4bf84b907_admissions_potential_share.py"
 # 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population、10-14 再多收 births、
 # migration，同日 C 段多收 income、B 段多收 new_homes，托嬰與異動最後再多收 babycare；新成屋的比對等級在 B 段；
 # 托嬰與異動紀錄的約束在 c6a9e3f15d27；其餘仍是 e7a1c4d9b2f6。
 # 10-15 附近同業比較再多收 kindergarten_fees，並新增收費年齡約束；10-20 預售建案再多收 presale_buildcases，
 # 並新增預售建案的比對等級約束；同日裁罰與評鑑再多收 kindergarten_penalties、kindergarten_evaluations，並新增裁罰的
-# 處分種類與對象類別約束。
+# 處分種類與對象類別約束；10-20 招生潛力與市佔率再多收 elementary（接在裁罰與評鑑之後）。
 CONSTRAINT_MIGRATIONS = {
-    "ck_geo_dataset_status_dataset": PENALTIES_MIGRATION,
+    "ck_geo_dataset_status_dataset": POTENTIAL_MIGRATION,
     "ck_geo_kindergarten_penalties_kind": PENALTIES_MIGRATION,
     "ck_geo_kindergarten_penalties_subject": PENALTIES_MIGRATION,
     "ck_geo_presale_buildcases_match_level": PRESALE_MIGRATION,
@@ -402,7 +403,7 @@ async def test_tables_exist(db_session):
         "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
         "geo_village_births", "geo_village_migration", "geo_village_ages", "geo_village_income", "geo_new_home_sales",
         "geo_babycare", "geo_provider_events", "geo_kindergarten_fees", "geo_presale_buildcases", "geo_parcel_points",
-        "geo_kindergarten_penalties", "geo_kindergarten_evaluations",
+        "geo_kindergarten_penalties", "geo_kindergarten_evaluations", "geo_village_ages_september", "geo_elementary_grade1",
     }
 
 

@@ -4,13 +4,15 @@
 托嬰與園所異動見 docs/specs/2026-10-14-provider-changes-design.md 第 3 節；
 幼兒園收費見 docs/specs/2026-10-15-peer-comparison-design.md 第 3 節；
 預售建案見 docs/specs/2026-10-20-admissions-presale-design.md 第 5 節；
-幼兒園裁罰與評鑑見 docs/specs/2026-10-20-peer-penalties-evaluations-design.md 第 3 節）。
+幼兒園裁罰與評鑑見 docs/specs/2026-10-20-peer-penalties-evaluations-design.md 第 3 節；
+每年九月底各里年齡與國小一年級人數見 docs/specs/2026-10-20-admissions-potential-share-design.md 第 3.2、3.3 節）。
 
 這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_kindergarten_penalties／geo_kindergarten_evaluations／geo_babycare／geo_provider_events／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
+geo_village_ages_september／geo_elementary_grade1／
 geo_village_income／geo_new_home_sales／geo_presale_buildcases／geo_parcel_points／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset 是 b8e2d6a4f931（裁罰與評鑑），geo_kindergarten_fees 是 f2b8c4d1e7a9，
+geo_dataset_status 的 dataset 最後改寫在 76c4bf84b907（多收 elementary），geo_kindergarten_fees 是 f2b8c4d1e7a9，
 geo_kindergarten_penalties 的 kind、subject 是 b8e2d6a4f931，geo_babycare、geo_provider_events 是 c6a9e3f15d27，
 geo_new_home_sales 的 match_level 是 e4f1a8c6b203，geo_presale_buildcases 的 match_level 是 a3d7f1c9b5e2，
 其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
@@ -60,6 +62,7 @@ STREET_KINDS = ("road", "area")
 # presale_buildcases：預售建案（2026-10-20 預售建案），migration a3d7f1c9b5e2 加進約束。
 # kindergarten_penalties、kindergarten_evaluations：幼兒園裁罰與評鑑（2026-10-20），migration b8e2d6a4f931 加進約束
 # （名稱超過原本的 20 字，同一支 migration 把 dataset 欄放寬到 32 字）。
+# elementary：教育部國民小學各校一年級人數（2026-10-20 招生潛力與市佔率），migration 76c4bf84b907 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -74,6 +77,7 @@ DATASETS = (
     "presale_buildcases",
     "kindergarten_penalties",
     "kindergarten_evaluations",
+    "elementary",
 )
 # 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
 # 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
@@ -305,6 +309,7 @@ class GeoDatasetStatus(Base):
     - babycare：active_version、label 都是同步日期（同 kindergartens）；
     - kindergarten_fees：active_version、label 都是收費學年「114」；synced_at＝上次全量完成、checked_at＝上次確認學年；
     - kindergarten_penalties、kindergarten_evaluations：active_version、label 都是上次整表替換成功的台北日期「2026-10-20」；
+    - elementary：active_version、label 都是表裡最新的學年「114」；
     baseline_on 是第一次用「依 source_id 比對」的程式同步成功的台北日期（kindergartens、babycare 才有；規格 P8），畫面靠它寫「從 N 月 N 日起記錄」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 
@@ -388,6 +393,39 @@ class GeoVillageAges(_VillageMonth, Base):
     age_5: Mapped[int] = mapped_column(Integer, nullable=False)
     age_6: Mapped[int] = mapped_column(Integer, nullable=False)
     people_total: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoVillageAgesSeptember(Base):
+    """各里每年九月底的 0–6 歲人數與全里人口（內政部戶政司 ODRP014，2026-10-20 招生潛力與市佔率規格 §3.2）。
+    year 是民國年（「115」＝115-09 的統計），不刪舊年，給市佔率分母（2–5 歲）與走勢；ODRP014 從 107-01 才有資料。
+    geo_village_ages 只留 25 個月的月份歷史，兩張表並存。"""
+
+    __tablename__ = "geo_village_ages_september"
+
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    village_code: Mapped[str] = mapped_column(String(11), primary_key=True)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    village: Mapped[str] = mapped_column(String(16), nullable=False)
+    age_0: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_1: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_2: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_3: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_4: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_5: Mapped[int] = mapped_column(Integer, nullable=False)
+    age_6: Mapped[int] = mapped_column(Integer, nullable=False)
+    people_total: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoElementaryGrade1(Base):
+    """各國民小學每學年的一年級人數（教育部統計處「國民小學校別學生數」，2026-10-20 規格 §3.3）：男女相加，
+    給「一年級 ÷ 6 歲戶籍」對帳市佔率分母。school_code 同 elementary-schools-115.csv 的 school_code。"""
+
+    __tablename__ = "geo_elementary_grade1"
+
+    school_year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    school_code: Mapped[str] = mapped_column(String(6), primary_key=True)
+    grade1: Mapped[int] = mapped_column(Integer, nullable=False)
+    school_name: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
 class GeoVillageIncome(Base):

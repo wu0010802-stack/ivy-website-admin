@@ -42,6 +42,7 @@ export const DATASET_LABELS: Record<string, string> = {
   presale_buildcases: '預售建案',
   kindergarten_penalties: '幼兒園裁罰',
   kindergarten_evaluations: '幼兒園評鑑',
+  elementary: '國小一年級人數',
 }
 
 // 與 backend/app/workers/maintenance.py 的 failed_steps 同一組。
