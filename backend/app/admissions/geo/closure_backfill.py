@@ -17,12 +17,15 @@ from datetime import date
 from pathlib import Path
 
 from app.admissions.geo.kaohsiung import in_kaohsiung
-from app.admissions.geo.models import KINDERGARTEN_KINDS
+from app.admissions.geo.models import KINDERGARTEN_KINDS, GeoKindergarten
 
 BACKFILL_FILE = Path(__file__).resolve().parent.parent / "geo_data" / "kindergarten-closures-20261020.csv"
 COLUMNS = ("source_id", "name", "left_on", "reason", "approved_capacity", "lat", "lng", "kind")
 REASONS = ("closed", "renamed")
 _INT4_MAX = 2_147_483_647
+# 對應 geo_kindergartens 的欄位寬度：超過寫入會失敗，整段回補（SAVEPOINT）每輪都退回，所以載入時就擋。
+_NAME_MAX = GeoKindergarten.__table__.c.name.type.length
+_SOURCE_ID_MAX = GeoKindergarten.__table__.c.source_id.type.length
 
 
 class BackfillFormatError(ValueError):
@@ -72,8 +75,8 @@ def _parse_coordinates(lat_text: str, lng_text: str, where: str) -> tuple[float 
 
 
 def load_closure_backfill(path: Path = BACKFILL_FILE) -> dict[str, ClosureBackfill]:
-    """回補檔 → {source_id: ClosureBackfill}。檔案不在、欄位、reason、日期、名稱、核定、座標、類型、source_id 重複
-    任一不對就丟 BackfillFormatError；核定、座標、類型三欄可以空（空字串＝None）。"""
+    """回補檔 → {source_id: ClosureBackfill}。檔案不在、欄位、reason、日期、名稱、核定、座標、類型、source_id 重複，
+    或名稱（≤ 120 字）、source_id（≤ 64 字）超過欄位寬度，任一不對就丟 BackfillFormatError；核定、座標、類型三欄可以空（空字串＝None）。"""
     entries: dict[str, ClosureBackfill] = {}
     try:
         handle = path.open(encoding="utf-8", newline="")
@@ -91,6 +94,10 @@ def load_closure_backfill(path: Path = BACKFILL_FILE) -> dict[str, ClosureBackfi
             kind = (row["kind"] or "").strip()
             if not source_id or not name or reason not in REASONS or source_id in entries:
                 raise BackfillFormatError(f"{where}不對")
+            if len(source_id) > _SOURCE_ID_MAX:
+                raise BackfillFormatError(f"{where}的 source_id 太長（上限 {_SOURCE_ID_MAX} 字）")
+            if len(name) > _NAME_MAX:
+                raise BackfillFormatError(f"{where}的名稱太長（上限 {_NAME_MAX} 字）")
             if kind and kind not in KINDERGARTEN_KINDS:
                 raise BackfillFormatError(f"{where}的類型不對")
             lat, lng = _parse_coordinates((row["lat"] or "").strip(), (row["lng"] or "").strip(), where)

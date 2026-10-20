@@ -88,6 +88,16 @@ def test_bad_rows_are_rejected(tmp_path, body):
         load_closure_backfill(_write(tmp_path, body))
 
 
+def test_a_name_or_id_longer_than_the_column_is_rejected(tmp_path):
+    """geo_kindergartens 的 name 是 String(120)、source_id 是 String(64)；超過會讓回補寫入整段失敗。"""
+    edge = load_closure_backfill(_write(tmp_path, f"{'i' * 64},{'甲' * 120},2026-09-15,closed,,,,\n"))
+    assert (len(next(iter(edge))), len(next(iter(edge.values())).name)) == (64, 120)
+    with pytest.raises(BackfillFormatError, match="名稱"):
+        load_closure_backfill(_write(tmp_path, f"a,{'甲' * 121},2026-09-15,closed,,,,\n"))
+    with pytest.raises(BackfillFormatError, match="source_id"):
+        load_closure_backfill(_write(tmp_path, f"{'i' * 65},甲,2026-09-15,closed,,,,\n"))
+
+
 @pytest.mark.parametrize(
     "header",
     ["source_id,name,left_on,reason\n", "id,name,date,reason,approved_capacity,lat,lng,kind\n"],
