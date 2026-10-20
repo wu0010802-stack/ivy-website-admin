@@ -263,7 +263,8 @@ function hasHow(source: PotentialSource): boolean {
 .source__note {
   margin: 8px 0 0;
   color: var(--ink-2);
-  text-wrap: pretty; /* 避免最後一行只剩一個字 */
+  /* pretty 對中文只擋得住最後一行剩一個字（這段桌機實測仍剩「多招。」三個字），兩行的短段落改用 balance 讓兩行等長 */
+  text-wrap: balance;
 }
 
 .source__assumptions > div {
