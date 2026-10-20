@@ -53,6 +53,7 @@ const FLEX_GAIN = 0.024 // 每秒半圈的轉速 → 遠端落後紙寬的比例
 const FLEX_MAX = 0.09
 const SHADOW_OPACITY = 0.28
 const SHADOW_RADIUS = 6
+const KEY_LIGHT = 1.6
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
 const DEVELOP_MS_MOBILE = 900
@@ -139,7 +140,7 @@ function buildWarmScene(three: Three) {
   floor.receiveShadow = true
   scene.add(floor)
   scene.add(new three.AmbientLight(0xffffff, 1.35))
-  const key = new three.DirectionalLight(0xfff4e0, 1.6)
+  const key = new three.DirectionalLight(0xffffff, KEY_LIGHT)
   key.castShadow = true
   key.shadow.mapSize.set(512, 512)
   scene.add(key)
@@ -219,16 +220,51 @@ function setFill(ctx: CanvasRenderingContext2D, value: string, fallback: string)
 // 相鄰標點（」，）canvas 跟 DOM 一樣會自動收，不用另外處理。
 const HALT_OPEN: Record<string, number> = { '「': 0.32, '（': 0.283 }
 
-function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number) {
+// CSS letter-spacing 的 px 值（normal 為 0）。
+function spacingOf(el: Element | null): number {
+  if (!el) return 0
+  const n = Number.parseFloat(getComputedStyle(el).letterSpacing)
+  return Number.isFinite(n) ? n : 0
+}
+
+// 照 CSS 字距畫字（2026-10-20）：canvas 預設不吃 letter-spacing，手機停下滑動、卡片在畫面上換成 WebGL 紙時，
+// 小標（.08em）、標題（.02em）、時間戳（.06em）會整排縮窄一下。支援 ctx.letterSpacing 就直接設；
+// 不支援的瀏覽器逐字畫（少了相鄰標點擠壓，只差在不支援的版本）。CSS 每個字後面都加字距，最後一個也算，靠右對齊照算。
+export function fillSpaced(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, spacing: number) {
+  if (!spacing) {
+    ctx.fillText(text, x, y)
+    return
+  }
+  // lib.dom 已宣告 letterSpacing，用 object 檢查才不會把下面的逐字分支收窄成 never
+  if ('letterSpacing' in (ctx as object)) {
+    ctx.letterSpacing = `${spacing}px`
+    ctx.fillText(text, x, y)
+    ctx.letterSpacing = '0px'
+    return
+  }
+  const chars = Array.from(text)
+  const widths = chars.map((ch) => ctx.measureText(ch).width)
+  const total = widths.reduce((sum, w) => sum + w + spacing, 0)
+  const align = ctx.textAlign
+  let cursor = align === 'right' || align === 'end' ? x - total : align === 'center' ? x - total / 2 : x
+  ctx.textAlign = 'left'
+  chars.forEach((ch, i) => {
+    ctx.fillText(ch, cursor, y)
+    cursor += widths[i]! + spacing
+  })
+  ctx.textAlign = align
+}
+
+function fillTitleLine(ctx: CanvasRenderingContext2D, line: string, y: number, spacing = 0) {
   const first = line[0] ?? ''
   const shift = HALT_OPEN[first]
   if (shift === undefined) {
-    ctx.fillText(line, 0, y)
+    fillSpaced(ctx, line, 0, y, spacing)
     return
   }
   const em = ctx.measureText(first).width // 全形括號寬 1em
   ctx.fillText(first, -shift * em, y)
-  ctx.fillText(line.slice(1), em * 0.5, y)
+  fillSpaced(ctx, line.slice(1), em * 0.5 + spacing, y, spacing)
 }
 
 interface Box {
@@ -416,9 +452,12 @@ export async function mountPaper(
         lineColor: resolveColor(wrap, 'rgb(var(--ink) / .07)'),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
         stampColor: colorOf(stamp, 'color', wrap, 'var(--ivy-print-spark)'),
+        stampSpacing: spacingOf(stamp),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
         kickerColor: colorOf(kickerEl, 'color', wrap, 'var(--muted)'),
+        kickerSpacing: spacingOf(kickerEl),
         titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
+        titleSpacing: spacingOf(titleEl),
         titleColor: colorOf(titleEl, 'color', wrap, 'var(--green)'),
         titleLine: pxOf(titleEl, 'lineHeight', 32),
         storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
@@ -507,7 +546,7 @@ export async function mountPaper(
       if (k) {
         setFill(ctx, style.kickerColor, '#7a8570')
         ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, k.x, k.y + k.h * 0.78)
+        fillSpaced(ctx, copy.kicker, k.x, k.y + k.h * 0.78, style.kickerSpacing)
       }
       const t = box.title
       if (t) {
@@ -520,7 +559,7 @@ export async function mountPaper(
         ctx.font = style.titleFont
         let y = style.titleLine * 0.76
         for (const line of copy.titleLines) {
-          fillTitleLine(ctx, line, y)
+          fillTitleLine(ctx, line, y, style.titleSpacing)
           y += style.titleLine
         }
         ctx.restore()
@@ -669,7 +708,7 @@ export async function mountPaper(
         ctx.shadowBlur = 6
         ctx.transform(1, 0, -0.105, 1, 0, 0)
         const baseline = st.y + st.h * 0.82
-        ctx.fillText(copy.time, st.x + st.w + baseline * 0.105, baseline)
+        fillSpaced(ctx, copy.time, st.x + st.w + baseline * 0.105, baseline, style.stampSpacing)
         ctx.restore()
       }
       ctx.restore()
@@ -700,7 +739,7 @@ export async function mountPaper(
       if (bk) {
         setFill(ctx, style.kickerColor, '#6e7c5b')
         ctx.font = style.kickerFont
-        ctx.fillText(copy.kicker, bk.x, baselineIn(ctx, bk.y, bk.h))
+        fillSpaced(ctx, copy.kicker, bk.x, baselineIn(ctx, bk.y, bk.h), style.kickerSpacing)
       }
       const s = box.story
       if (s) {
@@ -792,9 +831,13 @@ export async function mountPaper(
     floor.renderOrder = -1
     floor.receiveShadow = true
     sceneObj.add(floor)
-    sceneObj.add(new three.AmbientLight(0xffffff, 1.35))
-    const key = new three.DirectionalLight(0xfff4e0, 1.6)
+    // 紙平放、正對觀者時要跟 CSS 版同色（2026-10-20）：手機是停下滑動、卡片已在畫面上才換成 WebGL，
+    // 原本主光偏暖（0xfff4e0）、環境光 1.35，換手那一刻紙面從 247,237,217 暗成 234,219,193，整張黃一下。
+    // 漫射 BRDF 是 albedo／π，所以主光改白光、環境光補到「環境＋主光 × 平放時的 N·L ＝ π」，平放就是貼圖原色；
+    // 翻面、掀角時 N·L 變小照樣有明暗。
+    const key = new three.DirectionalLight(0xffffff, KEY_LIGHT)
     key.position.set(W * 0.6, H * 0.9, dist * 0.7)
+    sceneObj.add(new three.AmbientLight(0xffffff, Math.PI - KEY_LIGHT * (key.position.z / key.position.length())))
     key.castShadow = true
     // 影子只是紙後方一片柔邊（radius 6），512 與 1024 肉眼無差，記憶體與每幀 shadow pass 少四分之三。
     key.shadow.mapSize.set(512, 512)

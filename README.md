@@ -1,3 +1,11 @@
+## 2026-10-20 手機孩子的一天：拍立得換成 WebGL 紙那一刻不再跳（`feature/day-print-mobile-20261020`）
+
+使用者反映手機上「常春藤的一天」卡片渲染怪怪的。手機的 WebGL 紙要等停下滑動、卡片已經在畫面上才接手（桌機在卡片進畫面前就換好，所以只有手機看得到），換手那一刻有兩個跳動：
+
+- **字距縮窄**：canvas 不吃 CSS `letter-spacing`，小標（.08em）、標題（.02em）、時間戳（.06em）整排一下變窄。`utils/paperPrints.ts` 讀 computed 字距、新增 `fillSpaced`：支援 `ctx.letterSpacing` 就直接設，不支援的瀏覽器逐字畫。
+- **紙色變暗變黃**：主光偏暖（`0xfff4e0`）＋環境光 1.35，平放時紙面 247,237,217 → 234,219,193。主光改白光、環境光補到「環境＋主光 × 平放 N·L ＝ π」，平放就是貼圖原色（實測 245,236,216）；翻面、掀角時照樣有明暗。
+- **驗證**（Node 22，dev server fixture 模式、Playwright Chromium＋SwiftShader，390×844 觸控與 1440×900）：換手前後截圖比對字距一致、紙色差 1–2；手機與桌機翻面正常、無 pageerror；web `typecheck` 通過；web 全套 109 檔 1328 passed（rebase 到 main `1f00cc2` 後重跑；新增 `tests/day-print-swap-20261020.spec.ts` 5 支）。
+- **未驗證**：真機 iPhone／Android（尤其 Safari 是否支援 `ctx.letterSpacing`，不支援時走逐字畫）。
 ## 2026-10-20 效能與維護整理（`feature/optimization-20261020`）
 
 使用者要求盤點「哪裡可以優化」後全部處理。分官網、後台、後端／CI 三塊，各自先驗證盤點說法再動手；行為與畫面不變。
