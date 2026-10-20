@@ -171,6 +171,37 @@ async def test_potential_estimate_is_serialized(admin_client, db_session):
     assert [item["distance_m"] for item in estimate["events"]] == pytest.approx([607, 2000], abs=3)
 
 
+async def test_potential_failure_degrades_to_no_data_and_keeps_the_share(admin_client, db_session, monkeypatch, caplog):
+    """第二、三波的推估出任何錯：記 exception，推估降級成三個來源都沒有資料，市佔率（第一波）照常回。"""
+    await _seed(db_session)
+    await _seed_potential(db_session)
+    expected = await query_share(db_session, "yihua")
+
+    async def broken(db, campus_key, **kwargs):
+        raise RuntimeError("推估壞了")
+
+    monkeypatch.setattr(potential, "query_potential", broken)
+
+    with caplog.at_level("ERROR", logger="app.admissions.routes"):
+        response = await admin_client.get(f"{POTENTIAL}?campus_key=yihua")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["share"]["status"] == "ready" and body["share"]["years"] == expected["years"]
+    estimate = body["potential"]
+    assert estimate["status"] == "ready"
+    assert [(source["key"], source["status"], source["reason"]) for source in estimate["sources"]] == [
+        ("closures", "no_data", "這一項暫時算不出來"),
+        ("villages", "no_data", "這一項暫時算不出來"),
+        ("presale", "no_data", "這一項暫時算不出來"),
+    ]
+    assert all((source["low"], source["mid"], source["high"]) == (None, None, None) for source in estimate["sources"])
+    assert all(source["assumptions"] for source in estimate["sources"])
+    assert (estimate["total"], estimate["capacity"], estimate["events"]) == (None, None, [])
+    errors = [record for record in caplog.records if record.name == "app.admissions.routes" and record.exc_info]
+    assert len(errors) == 1 and "推估壞了" in str(errors[0].exc_info[1])
+
+
 async def test_potential_never_returns_the_band_shares(admin_client, db_session, monkeypatch):
     """三個來源都有數字：距離帶彙總與逐案貢獻都在，占有率（在籍 ÷ 2–5 歲）的原值不在回應裡。"""
     await _seed_potential(db_session)

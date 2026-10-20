@@ -10,6 +10,7 @@ metadata 不放個資。
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from datetime import date, datetime, timezone
@@ -78,6 +79,7 @@ from app.common.http_cache import etag_matches
 from app.common.timezones import today_local
 from app.operations import audit_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/website/v1", tags=["admissions"])
 
 
@@ -1108,13 +1110,15 @@ async def get_admissions_potential(
     2–5 歲戶籍人數）與國小一年級對帳；potential 是每年還能多招的人數（三個來源、總數、本校空位與停辦事件，第二、三波）。
     只有加總與里層級的公開資料，來源二只回距離帶彙總；只讀，不寫稽核；回應由中介層補 no-store。"""
     _require_campus(current_user, "admissions.stats", campus_key)
+    campus = await area_service.campus_out(db, campus_key)
+    share = await share_service.query_share(db, campus_key)
+    try:
+        potential = await potential_service.query_potential(db, campus_key)
+    except Exception:  # noqa: BLE001 - 第二、三波的推估出任何錯，市佔率（第一波）照常回，這一塊降級成「暫時算不出來」
+        logger.exception("招生潛力推估失敗，降級成三個來源都沒有資料：campus_key=%s", campus_key)
+        potential = potential_service.degraded_potential()
     return PotentialOut.model_validate(
-        {
-            "campus": await area_service.campus_out(db, campus_key),
-            "share": await share_service.query_share(db, campus_key),
-            "potential": await potential_service.query_potential(db, campus_key),
-            "generated_at": datetime.now(timezone.utc),
-        }
+        {"campus": campus, "share": share, "potential": potential, "generated_at": datetime.now(timezone.utc)}
     )
 
 

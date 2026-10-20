@@ -42,7 +42,8 @@ query_potential。所有參數都在下面的常數，畫面「怎麼算」照�
   - 隱私：band_shares 的原值絕不放進回應（assumptions 只描述怎麼來，不寫數值）；來源二把距離帶藏起來時，來源三逐案的中值貢獻也不回。
   - 本校空位＝本校核定名額（座標 50 m 內最近營業中園所，同 fees.own_fee）− 最近一次在籍清冊人數，不小於 0；
     沒有清冊或沒有核定名額就是 None。
-  - events＝本校 3 km 內、起點（first_window_start）以來的停辦園所，供走勢圖標記；school_year 是來源一的學年窗口（10 月到隔年 9 月）。"""
+  - events＝本校 3 km 內、起點（first_window_start）以來的停辦園所，供走勢圖標記；school_year 是來源一的學年窗口（10 月到隔年 9 月）。
+  - query_potential 任何例外由路由記錄後改用 degraded_potential：三個來源都 no_data、沒有總數與空位、沒有事件，市佔率不受影響。"""
 
 from __future__ import annotations
 
@@ -149,6 +150,7 @@ REASON_FEW_VILLAGES = "附近有孩子的里太少"
 REASON_FEW_ENROLLED = "在籍人數太少"
 REASON_NO_MODEL = "算不出距離曲線"
 REASON_NO_POINT = "校址還沒定位"
+REASON_UNAVAILABLE = "這一項暫時算不出來"  # query_potential 出錯的降級回應（degraded_potential）
 
 
 @dataclass(frozen=True)
@@ -719,10 +721,10 @@ async def load_deliveries(
     for case in await building_cases(db, districts, today):
         if case.match_level not in PRESALE_VILLAGE_LEVELS or case.village_code not in names:
             continue
-        if case.lat is not None and case.lon is not None:
-            distance = haversine_m(lat, lng, case.lat, case.lon)
-        else:
-            distance = haversine_m(lat, lng, *centroids[case.village_code])
+        point = (case.lat, case.lon) if case.lat is not None and case.lon is not None else centroids.get(case.village_code)
+        if point is None:  # 里名單有這個里、里界重心沒有（兩份資料不同步）：沒有位置可量距離，不列
+            continue
+        distance = haversine_m(lat, lng, *point)
         if distance > radius_m:
             continue
         deliveries.append(
@@ -942,6 +944,16 @@ def _total(sources: list[dict]) -> dict | None:
     total: dict = {name: round(sum(source[name] for source in counted), RANGE_DIGITS) for name in ("low", "mid", "high")}
     total["included"] = [source["key"] for source in counted]
     return total
+
+
+def degraded_potential(today: date | None = None) -> dict:
+    """query_potential 出錯時的降級回應（路由記錄例外後改用這個）：三個來源都 no_data、沒有總數與空位、沒有停辦事件，
+    讓同一個 API 的市佔率照常顯示；status 仍是 ready，原因寫在每個來源的 reason。"""
+    today = today or today_local()
+    return {
+        "status": "ready", "sources": [_no_data(key, REASON_UNAVAILABLE, today) for key in SOURCE_KEYS],
+        "total": None, "capacity": None, "events": [],
+    }
 
 
 async def query_potential(db: AsyncSession, campus_key: str, *, today: date | None = None) -> dict:

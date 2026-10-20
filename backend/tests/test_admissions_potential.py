@@ -1174,6 +1174,18 @@ async def test_load_deliveries_with_no_case_in_range_is_empty_not_none(db_sessio
     assert await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY) == []  # 有資料、只是半徑內沒有在建案
 
 
+async def test_load_deliveries_skips_a_street_case_whose_village_has_no_centroid(db_session, monkeypatch):
+    """里名單有這個里、里界重心沒有（兩份資料不同步）：只到里的案沒有位置可量，略過；有座標的案不受影響。"""
+    await seed_buildcases(db_session)
+    centroids = dict(boundaries.village_centroids())
+    centroids.pop(BENYANG)
+    monkeypatch.setattr(boundaries, "village_centroids", lambda: centroids)
+
+    deliveries = await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY)
+
+    assert [item.name for item in deliveries] == ["遠點案", "座標案"]
+
+
 async def test_load_deliveries_feeds_presale_range(db_session):
     await seed_buildcases(db_session)
 
