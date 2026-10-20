@@ -1,7 +1,8 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
 幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
 各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）、
-幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）、預售建案與地號座標（2026-10-20 預售建案規格 P6–P9）；
+幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）、預售建案與地號座標（2026-10-20 預售建案規格 P6–P9）、
+幼兒園裁罰明細與評鑑結果（2026-10-20 規格 C7–C10）；
 門牌換版或校址變更後重算訪視、新成屋與預售建案。
 
 只下載公開資料，不送出任何家長資料。每種資料各自成敗：失敗只寫
@@ -12,7 +13,8 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
   （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
   --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
-  --new-homes-file／--presale-file／--presale-parcels-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  --new-homes-file／--presale-file／--presale-parcels-file／--kindergarten-penalties-file／--kindergarten-evaluations-file
+  （或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
@@ -44,6 +46,11 @@ www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線
 內政部實價登錄的預售屋建案備查（presale.py）：單檔 e_lvr_buildcase.csv（約 180 KB，每月 1 日重產、自 110-07 起累計），
 每 30 天抓一次；檔案內容的 sha256 沒變就只記確認時間，換版以新檔為準（高雄筆數少於上次的 80% 不換）。地號座標由本機腳本
 向國土測繪中心查好、隨打包匯入（presale_parcels.py）——**這個迴圈不連國土測繪中心**。
+
+幼兒園裁罰明細（penalties.py）：kiang Pages 一所一檔（檔名清單走 GitHub API，讀不到時退回已知園所名稱逐一試），每 7 天整表替換；
+**來源每筆的「負責人／行為人」姓名欄只取標籤轉成對象類別，姓名不進資料庫、API、日誌與錯誤訊息**。幼兒園評鑑結果（evaluations.py）：
+教保資訊網公開搜尋（ASP.NET 表單，約 69 頁）每 30 天整表替換，只讀評鑑表三欄；該站伺服器沒送中繼憑證，用 certifi 加上隨程式提交的
+TWCA 中繼憑證驗證（geo/certs/），**不關閉憑證驗證**。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -81,6 +88,7 @@ from app.admissions.geo import doorplates as doorplate_io
 from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
+from app.admissions.geo import penalties as penalties_io
 from app.admissions.geo import population as population_io
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo import presale_parcels as parcels_io
@@ -91,7 +99,8 @@ from app.admissions.geo.closure_backfill import BackfillFormatError, load_closur
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import (
-    GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoKindergartenFee, GeoVillagePopulation,
+    GeoBabycare, GeoDatasetStatus, GeoDoorplate, GeoKindergarten, GeoKindergartenFee, GeoKindergartenPenalty,
+    GeoVillagePopulation,
 )
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import today_local
@@ -170,6 +179,15 @@ NEW_HOMES_MAX_BYTES = 32 * 1024 * 1024
 NEW_HOMES_TIME_BUDGET = timedelta(minutes=20)
 NEW_HOMES_LOOKAHEAD = 2
 PRESALE_TIME_BUDGET = timedelta(minutes=10)
+# 幼兒園裁罰（2026-10-20 規格 C7–C9）：每 7 天；一所一檔，正常約 1 KB；整輪 10 分鐘，請求間隔 0.2 秒。
+PENALTIES_MAX_BYTES = 256 * 1024
+PENALTIES_LISTING_MAX_BYTES = 2 * 1024 * 1024  # GitHub API 的目錄回應（正常約 380 KB，含每檔的各種網址）
+PENALTIES_TIME_BUDGET = timedelta(minutes=10)
+PENALTIES_REQUEST_GAP_SECONDS = 0.2
+PENALTIES_REFRESH_AFTER = providers.PROVIDER_REFRESH_AFTER
+PENALTIES_LISTING_RATIO = 0.8  # 規格 C8：檔名清單少於表內園所數的這個比例（表內至少 50 所）就不換
+PENALTIES_LISTING_MIN_EXISTING = 50
+PENALTIES_MAX_ERROR_RATIO = 0.1  # 規格 C8：下載錯誤（非 404）超過一成就不換
 
 
 class GeoSyncError(RuntimeError):
@@ -288,6 +306,10 @@ class GeoSyncResult:
     presale_rematched: int = 0
     presale_parcels: str = "skipped"
     presale_parcel_rows: int = 0
+    # 幼兒園裁罰（2026-10-20）：結果、這一輪寫入的筆數、使用中的版本（上次整表替換成功的台北日期）。
+    kindergarten_penalties: str = "skipped"
+    kindergarten_penalty_rows: int = 0
+    kindergarten_penalties_version: str | None = None
 
 
 class _AnchorCollector(HTMLParser):
@@ -516,6 +538,7 @@ def _error_text(exc: Exception) -> str:
         new_homes_io.NewHomesFormatError,
         presale_io.PresaleFormatError,
         parcels_io.ParcelFormatError,
+        penalties_io.PenaltyFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -859,6 +882,134 @@ async def sync_kindergarten_fees(
     except Exception as exc:  # noqa: BLE001
         logger.warning("幼兒園收費同步失敗：%s", _error_text(exc), exc_info=True)
         await _record(session_factory, "kindergarten_fees", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
+@dataclass
+class PenaltyDownload:
+    """下載整輪的結果。rows 是解析成功的各筆；errors 是下載或解析失敗（非 404）的園所名稱，這些園所保留舊列；
+    listed 是檔名清單的檔數（退回已知園所名稱時為 None）；skipped 是欄位不夠或日期壞掉而略過的筆數。"""
+
+    rows: list[penalties_io.PenaltyRow]
+    errors: set[str]
+    listed: int | None
+    skipped: int = 0
+
+
+async def _known_penalty_names(session_factory: async_sessionmaker[AsyncSession]) -> list[str]:
+    """檔名清單讀不到時的替代：營業中園所名稱加上表裡已有裁罰的園所名稱。"""
+    async with session_factory() as db:
+        active = (await db.execute(select(GeoKindergarten.name).where(GeoKindergarten.is_active.is_(True)))).scalars()
+        known = (await db.execute(select(GeoKindergartenPenalty.school_name).distinct())).scalars()
+        return sorted({*active, *known})
+
+
+async def download_penalties(
+    client: httpx.AsyncClient,
+    session_factory: async_sessionmaker[AsyncSession] | None = None,
+    *,
+    budget: timedelta | None = None,
+) -> PenaltyDownload:
+    """裁罰全量下載（規格 §2、C9）：GitHub API 取檔名清單，再逐檔抓 Pages 上的 JSON。404＝這個檔已經不在（不算錯誤），
+    其他錯誤只計數、不中斷。整輪超過 budget 丟 GeoSyncError。檔名清單讀不到（常是 GitHub 對共用 IP 的未驗證限流）時，
+    有 session_factory 就退回已知園所名稱逐一試（營業中園所＋表裡已有的），沒有就把原本的錯誤丟出去。
+    日誌與錯誤只寫筆數，不寫檔案內容。"""
+    budget = PENALTIES_TIME_BUDGET if budget is None else budget
+    deadline = time.monotonic() + budget.total_seconds()
+    listed: int | None
+    try:
+        body, _ = await _fetch_capped(client, penalties_io.LISTING_URL, max_bytes=PENALTIES_LISTING_MAX_BYTES)
+        names = penalties_io.listing_names(json.loads(body))
+        if not names:
+            raise penalties_io.PenaltyFormatError("裁罰檔名清單是空的")
+        listed = len(names)
+    except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+        if session_factory is None:
+            raise
+        logger.warning("裁罰檔名清單讀不到（%s），改用已知園所名稱逐一試", _error_text(exc))
+        names, listed = await _known_penalty_names(session_factory), None
+        if not names:
+            raise
+    rows: list[penalties_io.PenaltyRow] = []
+    errors: set[str] = set()
+    skipped = 0
+    for name in names:
+        if time.monotonic() > deadline:
+            minutes = int(budget.total_seconds() // 60)
+            raise GeoSyncError(f"裁罰同步超過 {minutes} 分鐘，已中止")
+        try:
+            body, _ = await _fetch_capped(client, penalties_io.punish_url(name), max_bytes=PENALTIES_MAX_BYTES)
+            parsed = penalties_io.parse_penalty_file(json.loads(body), name)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                errors.add(name)
+                logger.warning("裁罰檔下載失敗：%s", _error_text(exc))
+        except Exception as exc:  # noqa: BLE001 - 一檔壞掉不擋整輪，只計數
+            errors.add(name)
+            logger.warning("裁罰檔下載或解析失敗：%s", _error_text(exc))
+        else:
+            rows.extend(parsed.rows)
+            skipped += parsed.skipped
+        await _sleep(PENALTIES_REQUEST_GAP_SECONDS)
+    return PenaltyDownload(rows=rows, errors=errors, listed=listed, skipped=skipped)
+
+
+async def sync_kindergarten_penalties(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None = None,
+) -> tuple[str, int]:
+    """幼兒園裁罰（2026-10-20 規格 C7–C9）。回傳 (結果, 這一輪寫入的筆數)。
+    網路：每 7 天整表替換。換版門檻（C8）：這輪檔名清單少於表內園所數的 80%（表內至少 50 所）、或下載錯誤（非 404）超過一成就不換、
+    寫 last_error、保留舊資料；沒抓成功的那幾所保留它們的舊列。--force 只略過「到期」的判斷，不略過門檻。
+    檔案（打包的 CSV，不連外）：不檢查門檻，整表替換。"""
+    status = await _status(session_factory, "kindergarten_penalties")
+    if file is None and (client is None or (not force and not _due(status, now, PENALTIES_REFRESH_AFTER))):
+        return "skipped", 0
+    try:
+        errors: set[str] = set()
+        skipped = 0
+        if file is not None:
+            rows = await asyncio.to_thread(lambda: penalties_io.parse_csv(file.read_bytes().decode("utf-8-sig")))
+        else:
+            assert client is not None
+            download = await download_penalties(client, session_factory)
+            rows, errors, skipped = download.rows, download.errors, download.skipped
+            async with session_factory() as db:
+                existing = await db.scalar(select(func.count(func.distinct(GeoKindergartenPenalty.school_name)))) or 0
+            if (
+                download.listed is not None and existing >= PENALTIES_LISTING_MIN_EXISTING
+                and download.listed < existing * PENALTIES_LISTING_RATIO
+            ):
+                raise GeoSyncError("裁罰檔名清單比上次少了兩成以上，疑似殘缺，未更新")
+            attempted = download.listed if download.listed is not None else len(await _known_penalty_names(session_factory))
+            if len(errors) > attempted * PENALTIES_MAX_ERROR_RATIO:
+                raise GeoSyncError("裁罰檔下載錯誤太多，未更新")
+        label = today_local(now).isoformat()
+        async with session_factory() as db:
+            written = await penalties_io.replace_penalties(db, rows, keep_names=errors, now=now)
+            record = await db.get(GeoDatasetStatus, "kindergarten_penalties", with_for_update=True)
+            if record is None:
+                record = GeoDatasetStatus(dataset="kindergarten_penalties")
+                db.add(record)
+            record.active_version = label
+            record.label = label
+            record.synced_at = now
+            record.checked_at = now
+            record.last_attempt_at = now
+            record.last_error = None
+            await db.commit()
+        logger.info(
+            "幼兒園裁罰已更新：%s 筆（%s 所），略過 %s 筆、下載錯誤 %s 檔（保留舊列）",
+            written, len({row.school_name for row in rows}), skipped, len(errors),
+        )
+        return "updated", written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("幼兒園裁罰同步失敗：%s", _error_text(exc), exc_info=not isinstance(exc, (GeoSyncError, penalties_io.PenaltyFormatError)))
+        await _record(session_factory, "kindergarten_penalties", now=now, error=_error_text(exc))
         return "failed", 0
 
 
@@ -1578,6 +1729,7 @@ async def run_geo_sync(
     new_homes_season: str | None = None,
     presale_buildcases_file: Path | None = None,
     presale_parcels_file: Path | None = None,
+    kindergarten_penalties_file: Path | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     if (kindergartens_file is None) != (kindergartens_registry_file is None):
@@ -1588,6 +1740,7 @@ async def run_geo_sync(
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
             or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
+            or kindergarten_penalties_file is not None
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1621,6 +1774,15 @@ async def run_geo_sync(
                     session_factory, "kindergarten_fees", FEES_TIME_BUDGET + timedelta(minutes=2), now=now,
                     work=sync_kindergarten_fees(
                         session_factory, network, now=now, force=force, only_if_never_imported=kindergartens != "updated"
+                    ),
+                )
+            # 裁罰（跟在幼兒園同步之後，規格 C7）：名單沒失敗才做；各自到期（7 天）才連外。外層加兩分鐘的硬性逾時。
+            kindergarten_penalties, kindergarten_penalty_rows = "skipped", 0
+            if (network is not None and kindergartens != "failed") or kindergarten_penalties_file is not None:
+                kindergarten_penalties, kindergarten_penalty_rows = await _within_budget(
+                    session_factory, "kindergarten_penalties", PENALTIES_TIME_BUDGET + timedelta(minutes=2), now=now,
+                    work=sync_kindergarten_penalties(
+                        session_factory, network, now=now, force=force, file=kindergarten_penalties_file
                     ),
                 )
             babycare, babycare_skipped = await _within_budget(
@@ -1699,6 +1861,7 @@ async def run_geo_sync(
         new_homes_status = await _status(session_factory, "new_homes")
         presale_status = await _status(session_factory, "presale_buildcases")
         fees_status = await _status(session_factory, "kindergarten_fees")
+        penalties_status = await _status(session_factory, "kindergarten_penalties")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -1730,4 +1893,9 @@ async def run_geo_sync(
             presale_rematched=presale_rematched,
             presale_parcels=presale_parcels,
             presale_parcel_rows=presale_parcel_rows,
+            kindergarten_penalties=kindergarten_penalties,
+            kindergarten_penalty_rows=kindergarten_penalty_rows,
+            kindergarten_penalties_version=(
+                penalties_status.label if penalties_status and penalties_status.active_version else None
+            ),
         )

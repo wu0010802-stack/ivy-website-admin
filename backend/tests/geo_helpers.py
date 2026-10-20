@@ -24,6 +24,9 @@
 - presale-buildcase-sample.csv：預售屋建案備查單檔（2026-10-20 預售建案規格）的原檔格式（BOM、兩列表頭、CRLF、15 欄），
   **全是自己造的假資料**（案名「測試一號」…、起造人是假公司名，不放真檔的任何列）：10 筆記錄（9 案，一案再出現、一案的銷售期間
   含逗號並換行），涵蓋在建、已過預計交屋、已登記、非住宅、建照超過 6 年、申報備查日期格式錯、坐落街道是「段＋地號」格式。
+- 幼兒園裁罰（2026-10-20 規格）：penalty_files() 在程式裡造的假裁罰檔，格式同 kiang punish/高雄市/<園名>.json
+  （陣列的陣列、第 5 欄是「負責人：姓名」「行為人：姓名」），**姓名一律是 FAKE_PERSON_NAMES 裡的假值，測試用它們斷言
+  不會出現在資料庫、API、日誌與錯誤訊息**；不放任何真檔內容。
 - plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：
   7 筆真實列（預售屋交屋、完工剛好 12 個月前、完工太久、只有土地、商業用、沒有完工日、只有車位），另 6 筆是拿真實列
   改成門牌樣本裡的門牌（編號 SAMPLE 開頭）：義華路 68 號（exact）、68 號之１三樓（之號接中文樓層）、80 號（nearby）、
@@ -208,6 +211,58 @@ def presale_response(url: str) -> httpx.Response | None:
     if url != presale_io.SOURCE_URL:
         return None
     return httpx.Response(200, content=PRESALE_SAMPLE.read_bytes(), headers={"content-type": "text/csv"})
+
+
+# 假裁罰檔裡的人名與電話：全是編的，測試拿來斷言「姓名不進資料庫、API、日誌」。
+FAKE_PERSON_NAMES = ("陳假甲", "林假乙", "黃假丙", "吳假丁")
+
+
+def penalty_files() -> dict[str, list]:
+    """假的 kiang 裁罰檔（檔名＝園名去掉 .json）。對得到樣本園所的：常春藤（同一件兩筆法條、另一件罰鍰）、保羅（行為人受罰的
+    停止招生、只有條號的違規內容）；舊名那檔靠第 7 欄的園所全名對到義華；最後一檔是已停辦的園所（對不到）。"""
+    return {
+        "高雄市私立常春藤幼兒園": [
+            ["2026/01/27", "高市教幼字第11530761100號", "幼兒教育及照顧法第58條第1項第7款(111/6/29修正公布)",
+             "第17條第7項幼兒園未依規定配置廚工。", f"負責人：{FAKE_PERSON_NAMES[0]}", "罰鍰：6,000元"],
+            ["2026/01/27", "高市教幼字第11530761100號", "幼兒教育及照顧法第53條第4款(111/6/29修正公布)",
+             "第43條第3項-收費備查", f"負責人：{FAKE_PERSON_NAMES[0]}", "罰鍰：60,000元"],
+            ["2024/05/02", "高市教幼字第11331234500號", "幼兒教育及照顧法第49條(107/6/27修正公布)",
+             "第38條第2項", f"負責人：{FAKE_PERSON_NAMES[0]}", "罰鍰：30,000元"],
+        ],
+        "高雄市私立保羅幼兒園": [
+            ["2025/03/10", "高市教幼字第11430001100號", "幼兒教育及照顧法第52條第6款(111/6/29修正公布)",
+             "第43條第3項-費用超收", f"行為人：{FAKE_PERSON_NAMES[1]}", "停止招生：2025/04/01~2025/06/30"],
+            ["2018/10/23", "高市教幼字第10734567800號", "幼兒教育及照顧法第45條(107/6/27修正公布)",
+             "第43條第2項", f"負責人：{FAKE_PERSON_NAMES[2]}", "減少招收人數：2018/11/01~2019/07/31"],
+        ],
+        "高雄市私立舊名幼兒園": [
+            ["2023/08/15", "高市教幼字第11230009900號", "幼兒教育及照顧法第47條第1項(107/6/27修正公布)",
+             "第15條第3項", f"行為人：{FAKE_PERSON_NAMES[3]}", "罰鍰：6,000元", "高雄市私立義華幼兒園"],
+        ],
+        "高雄市私立已停辦幼兒園": [
+            ["2020/09/01", "高市教幼字第10930002200號", "幼兒教育及照顧法第45條(107/6/27修正公布)",
+             "第43條第2項", f"負責人：{FAKE_PERSON_NAMES[2]}", "停辦：2020/10/01~2021/09/30"],
+        ],
+    }
+
+
+def penalty_response(url: str, *, files: dict[str, list] | None = None, listing: list[str] | None = None) -> httpx.Response | None:
+    """假的 GitHub 目錄清單與 kiang Pages 裁罰檔：網址不是它們就回 None。files 預設 penalty_files()；listing 預設列出 files 的全部檔名。"""
+    from urllib.parse import unquote
+
+    from app.admissions.geo import penalties as penalties_io
+
+    files = penalty_files() if files is None else files
+    if url == penalties_io.LISTING_URL:
+        names = list(files) if listing is None else listing
+        return httpx.Response(200, json=[{"name": f"{name}.json", "type": "file", "size": 500} for name in names])
+    prefix = f"{penalties_io.FILE_ROOT}/"
+    if not url.startswith(prefix):
+        return None
+    name = unquote(url[len(prefix):]).removesuffix(".json")
+    if name not in files:
+        return httpx.Response(404)
+    return httpx.Response(200, json=files[name])
 
 
 def income_response(url: str, *, years: tuple[int, ...] = (112,)) -> httpx.Response | None:
