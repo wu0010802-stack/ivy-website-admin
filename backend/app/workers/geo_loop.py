@@ -94,7 +94,7 @@ class GeoSyncLoop:
                 if result is not None and {
                     result.doorplates, result.kindergartens, result.kindergarten_fees, result.babycare, result.population, result.births,
                     result.migration, result.age_history, result.income, result.new_homes, result.presale_buildcases,
-                    result.kindergarten_penalties, result.kindergarten_evaluations,
+                    result.kindergarten_penalties, result.kindergarten_evaluations, result.elementary,
                 } != {"skipped"}:
                     logger.info("公開地理資料同步：%s", result)
             except Exception:  # noqa: BLE001 - 連線失敗等，下一輪再試

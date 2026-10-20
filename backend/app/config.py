@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     geo_kindergartens_registry_url: str = "https://kiang.github.io/ap.ece.moe.edu.tw/data/%E9%AB%98%E9%9B%84%E5%B8%82.csv"
     # 托嬰名單（2026-10-14）：kiang 每天整理的衛福部社家署公開資料。
     geo_babycare_url: str = "https://kiang.github.io/ncwisweb.sfaa.gov.tw/babycare.json"
+    # 教育部統計處國民小學校別資料（2026-10-20 招生潛力與市佔率）：一學年一個 CSV，{year} 換成民國學年，只收 https。
+    geo_elementary_url_template: str = "https://stats.moe.gov.tw/files/detail/{year}/{year}_basec.csv"
     # 背景迴圈多久醒來檢查一次（秒）；真的下載與否由「超過 30 天沒確認過」決定。
     geo_sync_check_seconds: int = Field(default=86400, ge=300, le=7 * 86400)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
@@ -176,6 +178,14 @@ class Settings(BaseSettings):
         value = value.strip()
         if not value.startswith("https://"):
             raise ValueError("WEBSITE_GEO_BABYCARE_URL 必須是 https:// 網址")
+        return value
+
+    @field_validator("geo_elementary_url_template")
+    @classmethod
+    def _geo_elementary_url_template(cls, value: str) -> str:
+        value = value.strip()
+        if not value.startswith("https://") or "{year}" not in value:
+            raise ValueError("WEBSITE_GEO_ELEMENTARY_URL_TEMPLATE 必須是含 {year} 的 https:// 網址")
         return value
 
     @field_validator("background_jobs_interval_seconds")

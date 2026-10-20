@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.geo import providers
+from app.admissions.geo import elementary, providers
 from app.admissions.geo.models import DATASETS, GeoDatasetStatus
 from app.admissions.geo.sync import REFRESH_AFTER
 from app.common import ratelimit
@@ -48,6 +48,8 @@ _DATASET_REFRESH = {
     "kindergartens": providers.PROVIDER_REFRESH_AFTER,
     "babycare": providers.PROVIDER_REFRESH_AFTER,
     "kindergarten_penalties": providers.PROVIDER_REFRESH_AFTER,  # 裁罰同名單每 7 天；評鑑每 30 天（預設）
+    # 國小一年級人數每學年才有新檔（2026-10-20），用一年多，不然每次空窗都被誤報過期。
+    "elementary": elementary.STALE_AFTER,
 }
 # 同步工作內部用的指紋，畫面不讀（GeoDatasetStatus 的說明）。
 HIDDEN_DATASETS = frozenset({"campuses"})

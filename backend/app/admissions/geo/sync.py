@@ -2,7 +2,7 @@
 幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
 各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）、
 幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）、預售建案與地號座標（2026-10-20 預售建案規格 P6–P9）、
-幼兒園裁罰明細與評鑑結果（2026-10-20 規格 C7–C10）；
+幼兒園裁罰明細與評鑑結果（2026-10-20 規格 C7–C10）、國小各校一年級人數（2026-10-20 招生潛力與市佔率規格 §3.3）；
 門牌換版或校址變更後重算訪視、新成屋與預售建案。
 
 只下載公開資料，不送出任何家長資料。每種資料各自成敗：失敗只寫
@@ -13,8 +13,8 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
   （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
   --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
-  --new-homes-file／--presale-file／--presale-parcels-file／--kindergarten-penalties-file／--kindergarten-evaluations-file
-  （或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  --new-homes-file／--presale-file／--presale-parcels-file／--kindergarten-penalties-file／--kindergarten-evaluations-file／
+  --september-file／--elementary-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
@@ -52,6 +52,10 @@ www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線
 教保資訊網公開搜尋（ASP.NET 表單，約 69 頁）每 30 天整表替換，只讀評鑑表三欄；該站伺服器沒送中繼憑證，用 certifi 加上隨程式提交的
 TWCA 中繼憑證驗證（geo/certs/），**不關閉憑證驗證**。
 
+教育部統計處的國小校別資料（elementary.py）：每學年一個 CSV（{學年}_basec.csv），30 天看一次；表裡最新學年已經是當前
+學年的前一學年就只記確認，否則從最新的下一學年抓到前一學年，還沒公布的學年回 404、不算錯；高雄市的學校少於
+elementary.MIN_ROWS 所就不換版。指定檔案（--elementary-file，學年取檔名）不檢查這個下限。
+
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
 同一時間只允許一個同步（CLI、背景迴圈、多個副本都一樣）：run_geo_sync 開頭取 session 級
@@ -86,6 +90,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.admissions.academic import current_term
 from app.admissions.geo import babycare as babycare_io
 from app.admissions.geo import doorplates as doorplate_io
+from app.admissions.geo import elementary as elementary_io
 from app.admissions.geo import evaluations as evaluations_io
 from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
@@ -198,6 +203,9 @@ EVALUATIONS_REQUEST_GAP_SECONDS = 1.0
 EVALUATIONS_MIN_SCHOOLS = 600  # 規格 C8：抓到的園所數少於這個、或頁數少於下面這個就不換（高雄約 689 所、69 頁）
 EVALUATIONS_MIN_PAGES = 60
 EVALUATIONS_MAX_PAGES = 150  # 防呆：頁數大到不合理（表單壞掉、迴圈換不完）時中止
+# 國小校別資料（2026-10-20）：全國一學年約 300 KB。
+ELEMENTARY_MAX_BYTES = 4 * 1024 * 1024
+ELEMENTARY_TIME_BUDGET = timedelta(minutes=5)
 
 
 class GeoSyncError(RuntimeError):
@@ -336,6 +344,10 @@ class GeoSyncResult:
     # 九月底人口（2026-10-20，--september-file）：結果、這一輪寫入的年數。
     september: str = "skipped"
     september_years: int = 0
+    # 國小一年級人數（2026-10-20）：結果、表裡最新的學年、這一輪寫入的學年數。
+    elementary: str = "skipped"
+    elementary_version: str | None = None
+    elementary_years: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -566,6 +578,7 @@ def _error_text(exc: Exception) -> str:
         parcels_io.ParcelFormatError,
         penalties_io.PenaltyFormatError,
         evaluations_io.EvaluationFormatError,
+        elementary_io.ElementaryFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -1779,6 +1792,81 @@ async def sync_presale(
         return "failed", 0
 
 
+def _elementary_files(files: list[Path]) -> list[tuple[int, list[elementary_io.Grade1Row]]]:
+    """指定的檔案 → [(學年, 列)]，學年由小到大。學年取檔名（「114_basec.csv」），同一學年給兩個檔、檔名不對、
+    內容對不上、沒有高雄市的學校都丟 ElementaryFormatError；全部解析好才回傳（呼叫端不會只匯入一部分）。"""
+    parsed: dict[int, list[elementary_io.Grade1Row]] = {}
+    for path in files:
+        year = elementary_io.year_of_filename(path.name)
+        if year in parsed:
+            raise elementary_io.ElementaryFormatError(f"{year} 學年給了兩個檔")
+        rows = elementary_io.parse_basec(elementary_io.decode(path.read_bytes()), school_year=year)
+        elementary_io.require_rows(rows)
+        parsed[year] = rows
+    return sorted(parsed.items())
+
+
+async def _write_elementary_year(
+    session_factory: async_sessionmaker[AsyncSession], year: int, rows: list[elementary_io.Grade1Row], *, now: datetime
+) -> None:
+    """一個學年一個交易：整學年換新並更新狀態列。"""
+    async with session_factory() as db:
+        await elementary_io.replace_year(db, year, rows)
+        await elementary_io.mark_synced(db, now=now)
+        await db.commit()
+
+
+async def sync_elementary(
+    session_factory: async_sessionmaker[AsyncSession],
+    settings: Settings,
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+) -> tuple[str, int]:
+    """國小各校一年級人數（2026-10-20 招生潛力與市佔率規格 §3.3）。回傳 (結果, 這一輪寫入的學年數)。
+    網路：30 天看一次（比照出生，只看 checked_at）；從表裡最新學年的下一學年抓到當前學年的前一學年（空表從 107 學年），
+    表裡已經有前一學年就只記確認；force 時表裡最新的學年也重抓。教育部還沒公布的學年回 404，不算錯、跳過。
+    每學年各一個交易，高雄市的學校少於 elementary.MIN_ROWS 所不換版；中途失敗已寫的學年保留，確認時間沒記，
+    隔天接著補。檔案：學年取檔名，全部驗證過才寫，不連外、不檢查筆數下限。"""
+    status = await _status(session_factory, "elementary")
+    if not files and (client is None or (not force and not _series_due(status, now))):
+        return "skipped", 0
+    written = 0
+    try:
+        if files:
+            for year, rows in await asyncio.to_thread(_elementary_files, files):
+                await _write_elementary_year(session_factory, year, rows, now=now)
+                written += 1
+            await _record(session_factory, "elementary", now=now, checked=True)
+            return "updated", written
+        assert client is not None
+        async with session_factory() as db:
+            latest = await elementary_io.latest_year(db)
+        current_year, _ = current_term(today_local())
+        for year in elementary_io.years_to_fetch(latest, current_year, force=force):
+            url = elementary_io.url_for(settings.geo_elementary_url_template, year)
+            try:
+                body = await _fetch_retrying(client, url, max_bytes=ELEMENTARY_MAX_BYTES)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404:
+                    continue  # 教育部還沒公布那一學年
+                raise
+            rows = await asyncio.to_thread(elementary_io.parse_basec, elementary_io.decode(body), school_year=year)
+            elementary_io.require_rows(rows, minimum=elementary_io.MIN_ROWS)
+            await _write_elementary_year(session_factory, year, rows, now=now)
+            written += 1
+        await _record(session_factory, "elementary", now=now, checked=True)
+        if written:
+            logger.info("國小一年級人數已更新：這一輪寫入 %s 個學年", written)
+        return ("updated" if written else "skipped"), written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("國小一年級人數同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "elementary", now=now, error=_error_text(exc))
+        return "failed", written
+
+
 async def _within_budget(
     session_factory: async_sessionmaker[AsyncSession],
     dataset: str,
@@ -1882,6 +1970,7 @@ async def run_geo_sync(
     kindergarten_penalties_file: Path | None = None,
     kindergarten_evaluations_file: Path | None = None,
     september_files: list[Path] | None = None,
+    elementary_files: list[Path] | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     if (kindergartens_file is None) != (kindergartens_registry_file is None):
@@ -1893,7 +1982,7 @@ async def run_geo_sync(
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
             or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
             or kindergarten_penalties_file is not None or kindergarten_evaluations_file is not None
-            or bool(september_files)
+            or bool(september_files) or bool(elementary_files)
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -2008,6 +2097,12 @@ async def run_geo_sync(
                     session_factory, "presale_buildcases", PRESALE_TIME_BUDGET, now=now,
                     work=sync_presale_parcels(session_factory, now=now, file=presale_parcels_file),
                 )
+            elementary, elementary_years = await _within_budget(
+                session_factory, "elementary", ELEMENTARY_TIME_BUDGET, now=now,
+                work=sync_elementary(
+                    session_factory, settings, network, now=now, force=force, files=elementary_files
+                ),
+            )
         finally:
             if own_client and client is not None:
                 await client.aclose()
@@ -2036,6 +2131,7 @@ async def run_geo_sync(
         fees_status = await _status(session_factory, "kindergarten_fees")
         penalties_status = await _status(session_factory, "kindergarten_penalties")
         evaluations_status = await _status(session_factory, "kindergarten_evaluations")
+        elementary_status = await _status(session_factory, "elementary")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
             doorplate_rows_skipped=doorplate_skipped, kindergarten_rows_skipped=kindergarten_skipped,
@@ -2079,4 +2175,9 @@ async def run_geo_sync(
             ),
             september=september,
             september_years=september_years,
+            elementary=elementary,
+            elementary_version=(
+                elementary_status.label if elementary_status and elementary_status.active_version else None
+            ),
+            elementary_years=elementary_years,
         )

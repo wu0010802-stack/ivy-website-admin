@@ -290,6 +290,16 @@ async def test_other_datasets_use_refresh_plus_three_days(dataset, ok_days, stal
     assert stale.level == "attention" and stale.detail["stale"] is True
 
 
+async def test_elementary_is_a_yearly_dataset_so_it_is_stale_after_400_plus_3_days():
+    """國小一年級人數每學年才有新檔：用 400 天（不是其他資料的 30 天）再加 3 天寬限。"""
+    for days, level in ((100, "ok"), (403, "ok"), (404, "attention")):
+        row = _status("elementary", label="114", synced_at=NOW - timedelta(days=days), checked_at=NOW - timedelta(days=days))
+        item = system_status.dataset_item("elementary", row, NOW, auto_sync=True)
+        assert (item.level, item.detail["stale_days"]) == (level, 403)
+    # 同樣是 100 天前，30 天週期的資料已經過期。
+    assert system_status.dataset_item("income", _status("income", label="112", synced_at=NOW - timedelta(days=100)), NOW, auto_sync=True).level == "attention"
+
+
 async def test_stale_dataset_is_only_info_when_auto_sync_is_off():
     row = _checked_days_ago("population", 34)
     off = system_status.dataset_item("population", row, NOW, auto_sync=False)

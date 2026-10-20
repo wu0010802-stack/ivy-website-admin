@@ -2,7 +2,8 @@
 
 照同步的規則抓：各里出生（ODRP061，往回 72 個月）、遷入遷出（ODRP011，往回 25 個月）各抓最新月份往回的視窗（來源查無資料的月份跳過），
 各里人口（ODRP014）最新月份與一年前、另加 107 年起每年九月底（ODRP014 最早只有 107-01），全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
-高雄市買賣季檔）最新季往回 8 季；預售建案（實價登錄預售屋建案備查單檔）一個；地號座標（--presale-parcels 指定本機腳本
+高雄市買賣季檔）最新季往回 8 季；國小各校一年級人數（教育部統計處校別資料）107 學年起到當前學年的前一學年，每學年一個檔
+（還沒公布的跳過）；預售建案（實價登錄預售屋建案備查單檔）一個；地號座標（--presale-parcels 指定本機腳本
 fetch_presale_parcels.py 的輸出，沒指定就不附）。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），出生抓 72 個月，要幾分鐘；實際大小打包時看 zip。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
 幼兒園裁罰與評鑑（2026-10-20 規格 C10）：裁罰從 kiang 抓全部高雄裁罰檔（同步的同一條路，約 240 檔、每檔隔 0.2 秒）、評鑑從教保資訊網
@@ -24,8 +25,12 @@ import json
 import sys
 from pathlib import Path
 
+import httpx
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.admissions.academic import current_term  # noqa: E402
+from app.admissions.geo import elementary as elementary_io  # noqa: E402
 from app.admissions.geo import evaluations as evaluations_io  # noqa: E402
 from app.admissions.geo import income as income_io  # noqa: E402
 from app.admissions.geo import new_homes as new_homes_io  # noqa: E402
@@ -37,6 +42,7 @@ from app.admissions.geo import september as september_io  # noqa: E402
 from app.admissions.geo import sync  # noqa: E402
 from app.admissions.geo import village_series as series_io  # noqa: E402
 from app.admissions.geo.bundle import BundleFile, write_bundle  # noqa: E402
+from app.common.timezones import today_local  # noqa: E402
 
 
 def _check(text: str, what: str) -> dict | None:
@@ -80,8 +86,29 @@ async def _latest(client, url_of, what: str) -> str:
     raise SystemExit(f"找不到最近幾個月的{what}")
 
 
+async def elementary_files(client: httpx.AsyncClient) -> list[BundleFile]:
+    """教育部統計處各學年的國小校別資料：同步的同一條路（107 學年起到當前學年的前一學年，連線被 reset 會重試）。
+    還沒公布（404）的學年跳過；先驗證再打包，壞檔（缺欄位、學年度對不上、高雄市的學校太少）不打包。"""
+    files: list[BundleFile] = []
+    current_year, _ = current_term(today_local())
+    for year in elementary_io.years_to_fetch(None, current_year):
+        url = elementary_io.url_for(elementary_io.URL_TEMPLATE, year)
+        try:
+            body = await sync._fetch_retrying(client, url, max_bytes=sync.ELEMENTARY_MAX_BYTES)
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                raise
+            print(f"國小一年級人數 {year} 學年：尚未公布，跳過")
+            continue
+        rows = elementary_io.parse_basec(elementary_io.decode(body), school_year=year)
+        elementary_io.require_rows(rows, minimum=elementary_io.MIN_ROWS)
+        files.append(BundleFile(f"{year}_basec.csv", "elementary", str(year), url, body))
+        print(f"國小一年級人數 {year} 學年：{len(rows)} 所")
+    return files
+
+
 async def _collect_public(files: list[BundleFile], presale_parcels: Path | None) -> str:
-    """人口、出生、遷入遷出、所得、新成屋、預售建案（與地號座標）；回傳人口最新月份（預設檔名用）。"""
+    """人口、九月底人口、出生、遷入遷出、所得、新成屋、國小一年級人數、預售建案（與地號座標）；回傳人口最新月份（預設檔名用）。"""
     async with sync.new_client() as client:
         for kind, series in (("births", series_io.BIRTHS), ("migration", series_io.MIGRATION)):
             def url_of(yyymm: str, page: int, series=series) -> str:
@@ -159,6 +186,7 @@ async def _collect_public(files: list[BundleFile], presale_parcels: Path | None)
         label = sync.current_label()
         files.append(BundleFile(f"presale-buildcases-{label}.csv", "presale_buildcases", label, presale_io.SOURCE_URL, body))
         print(f"預售建案：{len(cases.rows)} 案（壞行 {cases.failed}）")
+        files.extend(await elementary_files(client))
     if presale_parcels is not None:
         # 地號座標：本機腳本查好的檔，先驗證再打包。
         raw = presale_parcels.read_bytes()
@@ -217,7 +245,7 @@ async def build(out: Path | None, presale_parcels: Path | None = None, kindergar
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="抓齊各里出生、遷入遷出、人口、九月底人口、所得、新成屋、預售建案、幼兒園裁罰與評鑑，打包給 geo-sync --bundle"
+        description="抓齊各里出生、遷入遷出、人口、九月底人口、所得、新成屋、國小一年級人數、預售建案、幼兒園裁罰與評鑑，打包給 geo-sync --bundle"
     )
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
     parser.add_argument(

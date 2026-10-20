@@ -224,7 +224,7 @@ async def test_loop_summarises_a_round_unless_both_were_skipped(app, monkeypatch
     assert bool(lines) is summarised, lines
 
 
-@pytest.mark.parametrize("dataset", ["population", "babycare", "births", "migration", "age_history", "income", "new_homes"])
+@pytest.mark.parametrize("dataset", ["population", "babycare", "births", "migration", "age_history", "income", "new_homes", "elementary"])
 async def test_loop_summarises_a_round_in_which_only_a_later_dataset_did_something(app, monkeypatch, caplog, dataset):
     """門牌與幼兒園都沒到期、只有後來加的某一種資料做了事（或失敗）時，也要記摘要，不能因為前兩項是 skipped 就靜音。"""
     ran = asyncio.Event()
@@ -306,7 +306,7 @@ def test_cli_options_with_files():
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
-        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None,
+        "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None, "elementary_files": None,
     }
     assert geo_sync_options(["--force"])["force"] is True
     assert geo_sync_options(["--doorplates-file", str(csv), "--doorplates-version", "115-10"])["doorplates_version"] == "115-10"
@@ -470,7 +470,7 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
             "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
             "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
             "presale_buildcases_file": None, "presale_parcels_file": None,
-            "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None,
+            "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None, "elementary_files": None,
         }
     ]
 
