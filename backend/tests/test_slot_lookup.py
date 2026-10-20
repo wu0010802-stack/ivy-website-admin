@@ -127,17 +127,33 @@ async def test_non_slots_campus_is_not_recorded(admin_client, public_client, db_
 
 
 @pytest.mark.asyncio
-async def test_unknown_and_deactivated_campus_are_not_recorded(admin_client, public_client, db_session):
+async def test_unknown_campus_is_not_recorded(public_client, db_session):
     unknown = await public_client.get(f"{API}/public/slots?campus_key=nowhere&{_range()}&purpose=new_booking")
     assert unknown.status_code == 200 and unknown.json() == []
+    assert await _lookups(db_session) == {}
+
+
+@pytest.mark.asyncio
+async def test_deactivated_campus_returns_no_slots_and_is_not_recorded(admin_client, public_client, db_session):
+    """停用的分校不開放公開預約（routes.py 的 `not campus.active` 守衛）。
+    先讓 renwu 是自選場次、有未來場次，確認啟用時真的會回場次、會記錄；停用後才斷言回空且不記錄，
+    否則「沒設場次本來就回空」會讓守衛被拿掉也看不出來。"""
     from sqlalchemy import update
     from app.campuses.models import Campus
 
+    await create_slot(admin_client, "renwu", days_ahead=5)
+    assert (await set_booking_mode(admin_client, "renwu", mode="slots")).status_code == 200
+    url = f"{API}/public/slots?campus_key=renwu&{_range()}&purpose=new_booking"
+
+    active = await public_client.get(url)
+    assert active.status_code == 200 and len(active.json()) == 1
+    assert await _lookups(db_session) == {("renwu", "days_4_7"): 1}
+
     await db_session.execute(update(Campus).where(Campus.key == "renwu").values(active=False))
     await db_session.commit()
-    stopped = await public_client.get(f"{API}/public/slots?campus_key=renwu&{_range()}&purpose=new_booking")
+    stopped = await public_client.get(url)
     assert stopped.status_code == 200 and stopped.json() == []
-    assert await _lookups(db_session) == {}
+    assert await _lookups(db_session) == {("renwu", "days_4_7"): 1}   # 還是 1：停用後沒有再記
 
 
 @pytest.mark.asyncio
