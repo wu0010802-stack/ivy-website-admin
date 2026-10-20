@@ -91,6 +91,18 @@ def test_extract_writes_numbers_only(tmp_path, capsys):
     assert load_payload(text).campus_key == "yihua"  # 寫出的檔案 import 一定收得下
 
 
+def test_extract_keeps_a_negative_new_target(tmp_path):
+    rows = modern_rows()
+    rows["小班"]["new_target"] = -3  # 表上的新生目標＝目標−舊生在籍，在籍多過目標就是負的
+    path = write_workbook(tmp_path, {"114上": SheetSpec(MODERN, rows=rows)})
+    out = tmp_path / "history.json"
+
+    enrollment_history_extract_command(file=path, campus_key="yihua", out=out, headers_only=False)
+
+    written = json.loads(out.read_text(encoding="utf-8"))
+    assert [r["new_target"] for r in written["rows"]] == [30, 22, -3, 30]
+
+
 def test_extract_prints_the_workbook_warnings(tmp_path, capsys):
     rows = modern_rows()
     path = write_workbook(tmp_path, {"115上": SheetSpec(MODERN, rows=rows, total={"registered": 1})})
@@ -226,6 +238,10 @@ BAD_PAYLOADS = [
     (history_payload([term_row(registered=-1)]), None),
     (history_payload([term_row(registered=1000)]), None),
     (history_payload([term_row(new_visits=1000)]), None),
+    (history_payload([term_row(new_visits=-1)]), None),
+    (history_payload([term_row(target=-1)]), None),
+    (history_payload([term_row(new_target=-1000)]), None),
+    (history_payload([term_row(new_target=1000)]), None),
     (history_payload([term_row(registered=None)]), None),
     (history_payload([term_row(registered=40.5)]), None),
     (history_payload([term_row(as_of="秘密日期")]), "秘密日期"),
@@ -304,6 +320,17 @@ async def test_import_replaces_campus_only(db_session):
     row = await db_session.get(CampusTermEnrollment, ("minghua", 115, 1, "中班"))
     assert row.registered == 7 and row.as_of == date(2026, 9, 15) and row.imported_at is not None
     assert (row.target, row.returning_enrolled, row.repeat_registered) == (70, 43, 6)
+
+
+async def test_import_accepts_a_negative_new_target_only(db_session):
+    payload = load_payload(history_text(history_payload([term_row(114, 1, "小班", new_target=-3)])))
+    await replace_history(db_session, payload)
+    await db_session.commit()
+
+    row = await db_session.get(CampusTermEnrollment, ("yihua", 114, 1, "小班"))
+
+    assert row.new_target == -3
+    assert load_payload(history_text(history_payload([term_row(new_target=-999)]))).rows[0].new_target == -999
 
 
 async def test_import_keeps_missing_columns_as_null(db_session):

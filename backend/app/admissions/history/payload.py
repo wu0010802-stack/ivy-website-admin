@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 FORMAT = "ivy-enrollment-history/1"
 FIRST_SCHOOL_YEAR = 99  # 園方的歷年註冊表從 99 上開始
 Count = Annotated[int, Field(ge=0, le=999)]
+# 表上的新生目標＝目標−舊生在籍，在籍多過目標時是負的（真檔有 −2～−5），所以只有這一欄允許負值。
+SignedCount = Annotated[int, Field(ge=-999, le=999)]
 
 
 class TermRowIn(BaseModel):
@@ -34,7 +36,7 @@ class TermRowIn(BaseModel):
     returning_enrolled: Count | None = None
     returning_deposit: Count | None = None
     returning_registered: Count | None = None
-    new_target: Count | None = None
+    new_target: SignedCount | None = None
     new_visits: Count | None = None
     new_deposits: Count | None = None
     new_registered: Count | None = None
