@@ -422,15 +422,15 @@
     "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-480.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-d4f9f61b23bf-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-800.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-d4f9f61b23bf-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-652a69ac791e-1080.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-d4f9f61b23bf-1080.webp",
         "width": 1080
       }
     ]

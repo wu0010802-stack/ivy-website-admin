@@ -1,0 +1,94 @@
+{
+  "source_filename": "常春藤廣告+配音 (1).mp4",
+  "source_sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b",
+  "crop": "1080:800:0:0",
+  "denoise": "hqdn3d=0.6:0.45:0.9:0.7",
+  "detail": "cas=strength=0.18:planes=1",
+  "grade": {
+    "strength": 0.6,
+    "chroma": 1.06,
+    "filter": "lutyuv=y='if(between(val,16,235),st(0,(val-16)/219);16+219*(ld(0)+0.6*(if(lte(ld(0),0.25),((16*ld(0)-12)*ld(0)+4)*ld(0),sqrt(ld(0)))-ld(0))),val)':u='clip(128+(val-128)*1.06,16,240)':v='clip(128+(val-128)*1.06,16,240)'"
+  },
+  "shots": [
+    {
+      "shot": 1,
+      "source_start": 29.9,
+      "source_end": 30.64,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.433000"
+    },
+    {
+      "shot": 2,
+      "source_start": 30.7,
+      "source_end": 31.55,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.633000"
+    },
+    {
+      "shot": 3,
+      "source_start": 0.15,
+      "source_end": 1.0,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.566000"
+    },
+    {
+      "shot": 4,
+      "source_start": 1.0,
+      "source_end": 1.7,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.300000"
+    },
+    {
+      "shot": 5,
+      "source_start": 2.333,
+      "source_end": 3.6,
+      "speed": 1,
+      "motion": "fps=30",
+      "duration": "1.266000"
+    },
+    {
+      "shot": 6,
+      "source_start": 4.833,
+      "source_end": 5.767,
+      "speed": 0.5,
+      "motion": "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
+      "duration": "1.833000"
+    },
+    {
+      "shot": 7,
+      "source_start": 5.767,
+      "source_end": 6.567,
+      "speed": 1,
+      "motion": "fps=30",
+      "duration": "0.800000"
+    }
+  ],
+  "variants": [
+    {
+      "file": "hero-grade-master.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 5434804,
+      "crf": 18,
+      "sha256": "a29a608cdd4d926db57e0444b09a6440d39199ee03109cff09bdd0e4d9a6fd1e"
+    },
+    {
+      "file": "hero-grade-mobile-crf26.mp4",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 2152348,
+      "crf": 26,
+      "sha256": "01773132b829a221d041bc0f13075f35fab4861a48bf8f8cb85bc2cd05c4dd2e"
+    }
+  ]
+}

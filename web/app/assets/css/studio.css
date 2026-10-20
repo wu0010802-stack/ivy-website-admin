@@ -266,7 +266,8 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 }
 /* 2026-09-24 調亮：遮罩只墊在文字後面。頂部導覽帶收短，左側滿高直欄降到原本三成，
    文字塊後方另加橢圓光暈（中心對齊文字塊 24% 49%）；文字上下與左下角的照片因此亮回來。
-   12 幀＋封面最差值：內文 4.79、導覽 4.66、大標 5.76。改數值要重量，見 DESIGN.md。 */
+   12 幀＋封面最差值：內文 4.79、導覽 4.66、大標 5.76。改數值要重量，見 DESIGN.md。
+   2026-10-20 影片本身調亮（design/hero-video-grade-20261020）後重量：內文 5.50、導覽 4.67、大標 4.86（1280 寬）。 */
 .studio-hero::before {
   content:"";
   position:absolute;

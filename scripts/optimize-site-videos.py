@@ -10,14 +10,15 @@ ASSETS = ROOT / 'web/public/assets'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
-restoration = ROOT / 'design/hero-video-smooth-20260923'
+# 2026-10-20 起採調亮版：同一套鏡頭與畫質處理，壓縮前多一道調色（見該目錄 build.py）。
+restoration = ROOT / 'design/hero-video-grade-20261020'
 restored = json.loads((restoration / 'manifest.json').read_text())
 approved = {item['file']: item for item in restored['variants']}
 hero_deliveries = {
     # 滿版桌機保留母帶細節；高密度手機裁切後也需要完整 1080px。
     # 手機改用 CRF 26（2026-09-23 晚）：手機模型 VMAF 99.88，3.79 MB → 2.15 MB。
-    'hero-desktop': 'hero-smooth-master.mp4',
-    'hero-mobile': 'hero-smooth-mobile-crf26.mp4',
+    'hero-desktop': 'hero-grade-master.mp4',
+    'hero-mobile': 'hero-grade-mobile-crf26.mp4',
 }
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片保留母檔解析度（進入視窗才載入）。
@@ -38,7 +39,7 @@ for name, source, width, crf in [
         print(f'{name}: 保留母檔 {target.stat().st_size:,} bytes', flush=True)
         continue
     # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
-    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-smooth-master.mp4']['sha256']:
+    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-grade-master.mp4']['sha256']:
         prepared = restoration / hero_deliveries[name]
         digest = sha256(prepared.read_bytes()).hexdigest()
         if digest != approved[prepared.name]['sha256']:
