@@ -61,6 +61,7 @@ function newKey(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+// immediate：呼叫端另切 chunk（案件列表、案件頁），載入完成前就打開時，掛上當下 open 已是 true 也要帶入。
 watch(open, (value) => {
   if (!value) return
   Object.assign(form, blank())
@@ -80,7 +81,7 @@ watch(open, (value) => {
   idempotencyKey = newKey()
   void loadSlots()
   void loadEmailEnabled()
-})
+}, { immediate: true })
 
 watch(() => form.campus_key, () => {
   form.slot_id = ''

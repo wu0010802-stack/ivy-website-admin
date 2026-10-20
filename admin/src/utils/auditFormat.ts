@@ -1,6 +1,7 @@
 // 操作紀錄一筆的文字（2026-10-06 從 AuditView.vue 抽出）：畫面、搜尋與 CSV 匯出共用，
-// 中文只維護在 labels.ts 一份。
-import { auditActionLabel, auditTargetLabel, campusLabel, type AuditDetails, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
+// 中文只維護在 labels.ts／auditLabels.ts 一份。
+import { auditActionLabel, auditTargetLabel, campusLabel, type StaffPerson, staffEmail, staffLabel, staffOf } from '../api/labels'
+import type { AuditDetails } from '../api/auditLabels'
 import type { AuditLogEntryOut } from '../api/types'
 import type { CsvCell } from './csv'
 import { describeUserAgent } from './userAgent'

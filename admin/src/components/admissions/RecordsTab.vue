@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
-import { ArrowDown, ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
-import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExportPath, type FollowUpScope, type RecordFilters } from '../../api/admissions'
+import { ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
+import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExportPath } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
@@ -15,8 +15,9 @@ import {
 } from '../../admissions/constants'
 import type { Semester } from '../../admissions/useAdmissionsFilters'
 import { FOLLOW_UP_SCOPES, FOLLOW_UP_SCOPE_LABELS, followUpText, isDue, ownerLabel } from '../../admissions/followUp'
+import { useRecordsFilters } from '../../admissions/useRecordsFilters'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
-import { areaApiParams, areaNotice, areaQuery, parseAreaQuery } from '../../admissions/areaFilter'
+import { areaNotice } from '../../admissions/areaFilter'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import { usePermissions } from '../../composables/usePermissions'
@@ -26,10 +27,16 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import { csvFilename } from '../../utils/csv'
 import { useServerCsvExport } from '../../composables/useServerCsvExport'
 import { visitGeoText } from './area/areaFormat'
-import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
 import TransitionDialog from './TransitionDialog.vue'
 import SeatDialog from './SeatDialog.vue'
+import RecordRowActions from './RecordRowActions.vue'
+import type { MoreCommand } from './recordRowActions'
+import { lazyComponent } from '../../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const RecordDialog = lazyComponent(() => import('./RecordDialog.vue'))
 
 // 訪視明細（園務 RecruitmentDetailTab＋AdmissionsRecordsPanel）。入學學年學期用頁首的篩選，
 // 這裡不重複（本檔調整第 11 條）；月份、vr、區域（area，2026-10-08）、退出原因（wr，2026-10-15）由頁面寫進網址（第 15、16 條），其餘篩選只在分頁內。
@@ -58,44 +65,35 @@ const CONFLICT_TEXT = '這筆招生訪視剛被其他人修改，已重新載入
 const { can } = usePermissions()
 const router = useRouter()
 const canWrite = computed(() => can('admissions.write'))
-const canConvert = computed(() => can('admissions.convert'))
 // 含孩子姓名、電話、地址的名單：要「匯出個資」授權（後端另外擋，這裡只是不顯示按鈕）。
 const canExport = computed(() => can('booking.export'))
 // 手機（2026-10-05）改成卡片清單，不再整張表橫捲；篩選只常駐搜尋。
 const narrow = useNarrowScreen()
 
-const grade = ref('')
-const source = ref('')
-const referrer = ref('')
-const hasDeposit = ref('')
-const noDepositReason = ref('')
-// 參觀後追蹤（2026-10-04 規格 7.4）：追蹤狀態與負責人篩選。
-const followUp = ref<FollowUpScope | ''>('')
-const owner = ref('')
 const staff = ref<AdmissionsStaff[]>([])
-const search = ref('')
-const keyword = ref('')
 const page = ref(1)
+// 篩選、匯出條件、收合標籤與清除篩選：見 admissions/useRecordsFilters.ts。
+const {
+  grade, source, referrer, hasDeposit, noDepositReason, followUp, owner, search, areaFilter,
+  filtered, hasFilters, currentFilters, filterKey, setMonth, setWithdrawCategory, clearFilters,
+  moreFiltersOpen, hiddenFilters, showChips,
+} = useRecordsFilters(props, {
+  month: (value) => emit('update:month', value),
+  visitRequestId: (value) => emit('update:visitRequestId', value),
+  area: (value) => emit('update:area', value),
+  withdrawCategory: (value) => emit('update:withdrawCategory', value),
+  clearTerm: () => emit('clear-term'),
+}, { narrow, staff })
 
 const rows = ref<RecruitmentVisit[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)
 const pendingId = ref<string | null>(null)
 const requests = useRequestSequence()
-const areaFilter = computed(() => parseAreaQuery(props.area))
 
 const options = ref<AdmissionsOptions | null>(null)
 const optionRequests = useRequestSequence()
 
-// 分頁內的篩選（不含頁首學年學期）：決定空狀態的說法。
-const filtered = computed(() =>
-  Boolean(
-    props.month || props.visitRequestId || areaFilter.value || grade.value || source.value || referrer.value || hasDeposit.value || noDepositReason.value
-    || props.withdrawCategory || keyword.value || followUp.value || owner.value,
-  ),
-)
-// 「清除篩選」連學年學期一起清（同園務），所以有選學年或學期也算有篩選。
-const hasFilters = computed(() => filtered.value || props.schoolYear !== null || props.semester !== null || Boolean(search.value))
 const hasNext = computed(() => rows.value.length === PAGE_SIZE)
 
 const monthOptions = computed(() => {
@@ -112,28 +110,6 @@ const emptyText = computed(() => {
   if (props.semester) return `${campus}在各學年的${SEMESTER_LABELS[props.semester]}還沒有招生訪視。`
   return `${campus}還沒有招生訪視。`
 })
-
-// 列表與 CSV 匯出送同一組篩選：畫面上篩好什麼，匯出的就是那一批（同參觀案件）。
-// 新增篩選只改這裡，兩邊才不會各寫一份而漏掉（追蹤、負責人就差點漏）。
-function currentFilters(): RecordFilters {
-  return {
-    campus_key: props.campusKey,
-    month: props.month || null,
-    grade: grade.value || null,
-    target_school_year: props.schoolYear,
-    target_semester: props.semester,
-    source: source.value || null,
-    referrer: referrer.value || null,
-    has_deposit: hasDeposit.value === 'yes' ? true : hasDeposit.value === 'no' ? false : null,
-    no_deposit_reason: noDepositReason.value || null,
-    withdraw_reason_category: props.withdrawCategory || null,
-    visit_request_id: props.visitRequestId || null,
-    q: keyword.value || null,
-    follow_up: followUp.value || null,
-    owner: owner.value || null,
-    ...areaApiParams(areaFilter.value),
-  }
-}
 
 async function load() {
   if (!props.campusKey) return
@@ -182,81 +158,13 @@ watch(() => props.campusKey, () => {
   void loadOptions()
 }, { immediate: true })
 
-// 搜尋 300ms 防抖（同參觀案件列表）。
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(search, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    keyword.value = value.trim()
-  }, 300)
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
-
 // 條件一變就回第一頁；已經在第一頁就直接重讀（避免同一次變動讀兩次）。
-// 區域用解析後的篩選：網址手改成認不得的寫法（視同沒篩）不會被當成條件變動而重讀、把頁碼拉回第一頁。
-const filterKey = computed(() => JSON.stringify([
-  props.campusKey, props.schoolYear, props.semester, props.month, props.visitRequestId, areaFilter.value ? areaQuery(areaFilter.value) : '',
-  grade.value, source.value, referrer.value, hasDeposit.value, noDepositReason.value, props.withdrawCategory ?? '', keyword.value, followUp.value, owner.value,
-]))
 watch(filterKey, () => {
   if (page.value !== 1) page.value = 1
   else void load()
 })
 watch(page, () => void load())
 onMounted(load)
-
-function setMonth(value: string | null | undefined) {
-  emit('update:month', value ?? '')
-}
-
-function setWithdrawCategory(value: string | null | undefined) {
-  emit('update:withdrawCategory', value ?? '')
-}
-
-function clearFilters() {
-  grade.value = ''
-  source.value = ''
-  referrer.value = ''
-  hasDeposit.value = ''
-  noDepositReason.value = ''
-  followUp.value = ''
-  owner.value = ''
-  clearTimeout(searchTimer)
-  search.value = ''
-  keyword.value = ''
-  emit('update:month', '')
-  emit('update:visitRequestId', '')
-  emit('update:area', '')
-  emit('update:withdrawCategory', '')
-  emit('clear-term')
-}
-
-// ---- 篩選收合（2026-10-05，比照第九輪案件列表）----
-// 九個篩選攤開會把表格推到很下面：桌機常駐搜尋、月份、預繳、追蹤，其餘收進「更多篩選」；
-// 手機只常駐搜尋。收起時把收進去、已套用的條件列成可以逐一拿掉的標籤，展開時不重複列。
-const moreFiltersOpen = ref(false)
-const DEPOSIT_LABELS: Record<string, string> = { yes: '是', no: '否' }
-const OWNER_FILTER_LABELS: Record<string, string> = { me: '我負責的', none: '未指派' }
-interface ActiveFilter { key: string; label: string; clear: () => void }
-const hiddenFilters = computed<ActiveFilter[]>(() => {
-  const list: ActiveFilter[] = []
-  if (narrow.value) {
-    if (props.month) list.push({ key: 'month', label: `月份：${props.month}`, clear: () => setMonth('') })
-    if (hasDeposit.value) list.push({ key: 'deposit', label: `預繳：${DEPOSIT_LABELS[hasDeposit.value] ?? hasDeposit.value}`, clear: () => { hasDeposit.value = '' } })
-    if (followUp.value) list.push({ key: 'followUp', label: `追蹤：${FOLLOW_UP_SCOPE_LABELS[followUp.value]}`, clear: () => { followUp.value = '' } })
-  }
-  if (grade.value) list.push({ key: 'grade', label: `班別：${grade.value}`, clear: () => { grade.value = '' } })
-  if (source.value) list.push({ key: 'source', label: `來源：${source.value}`, clear: () => { source.value = '' } })
-  if (referrer.value) list.push({ key: 'referrer', label: `家長介紹：${referrer.value}`, clear: () => { referrer.value = '' } })
-  if (noDepositReason.value) list.push({ key: 'reason', label: `未預繳原因：${noDepositReason.value}`, clear: () => { noDepositReason.value = '' } })
-  if (props.withdrawCategory) list.push({ key: 'withdraw', label: `退出原因：${withdrawFilterLabel(props.withdrawCategory)}`, clear: () => setWithdrawCategory('') })
-  if (owner.value) {
-    const name = OWNER_FILTER_LABELS[owner.value] ?? ownerLabel(owner.value, staff.value)
-    list.push({ key: 'owner', label: `負責人：${name}`, clear: () => { owner.value = '' } })
-  }
-  return list
-})
-const showChips = computed(() => !moreFiltersOpen.value && hiddenFilters.value.length > 0)
 
 // ---- 列的呈現 ----
 // 「階段」欄取代原本的「預繳」「已註冊」兩欄：預繳欄連已註冊的也寫「是」，看不出走到哪一步。
@@ -338,49 +246,13 @@ function openTransition(row: RecruitmentVisit, from: Stage, to: Stage) {
   transitionOpen.value = true
 }
 
-// 依階段的主要動作：已訪視 → 標記預繳（admissions.write）、已預繳 → 標記註冊（admissions.convert，
-// 園務「轉為學生」的位置）。已匿名化的列不能再變更。
-function stageAction(row: RecruitmentVisit): { label: string; from: Stage; to: Stage } | null {
-  if (row.anonymized_at) return null
-  if (row.stage === 'visited' && canWrite.value) return { label: '標記預繳', from: 'visited', to: 'deposited' }
-  if (row.stage === 'deposited' && canConvert.value) return { label: '標記註冊', from: 'deposited', to: 'enrolled' }
-  return null
-}
-
-function runStageAction(row: RecruitmentVisit) {
-  const action = stageAction(row)
-  if (action) openTransition(row, action.from, action.to)
-}
-
 function onSaved() {
   void load()
   // 新的月份、來源、家長介紹要出現在篩選選項裡。
   void loadOptions()
 }
 
-// ---- 列操作：更多 ----
-type MoreCommand = 'edit' | 'seat' | 'withdraw' | 'delete'
-
-function needsConvert(row: RecruitmentVisit): boolean {
-  return row.stage === 'enrolled' || (row.stage === 'withdrawn' && row.withdrawn_from === 'enrolled')
-}
-
-function moreCommands(row: RecruitmentVisit): { command: MoreCommand; label: string }[] {
-  const items: { command: MoreCommand; label: string }[] = []
-  // 已匿名化的列不能再變更（編輯、退出）；刪除與歷程照常。
-  if (!row.anonymized_at) {
-    if (canWrite.value) items.push({ command: 'edit', label: '編輯' })
-    // 保留座位只給已預繳、未註冊、未退出（規格 6.5）；已註冊不能清除保留，要改年級請先取消註冊。
-    if (row.stage === 'deposited' && canWrite.value) items.push({ command: 'seat', label: row.provisional_grade ? '變更座位' : '保留座位' })
-    // 退預繳要 write、退註冊要 convert（規格 6.3）；已訪視沒有可退的款項（園務 :610）。
-    if (row.stage === 'deposited' && canWrite.value) items.push({ command: 'withdraw', label: '退預繳' })
-    if (row.stage === 'enrolled' && canConvert.value) items.push({ command: 'withdraw', label: '退註冊' })
-  }
-  // 官網沒有學生檔，刪除已註冊或從已註冊退出的訪視等於退註冊，要 admissions.convert（後端 403，調整第 34 條）。
-  if (canWrite.value && (!needsConvert(row) || canConvert.value)) items.push({ command: 'delete', label: '刪除' })
-  return items
-}
-
+// ---- 列操作：更多（主要動作與選單內容見 RecordRowActions.vue／recordRowActions.ts）----
 const seatOpen = ref(false)
 const seatFor = ref<RecruitmentVisit | null>(null)
 
@@ -602,30 +474,12 @@ async function remove(row: RecruitmentVisit) {
               </details>
               <div class="record-card__actions">
                 <el-button @click="openEvents(row)">歷程</el-button>
-                <el-button v-if="stageAction(row)" type="primary" plain :disabled="pendingId === row.id" @click="runStageAction(row)">{{ stageAction(row)!.label }}</el-button>
-                <el-dropdown
-                  v-if="moreCommands(row).length"
-                  trigger="click"
-                  placement="bottom-end"
-                  :persistent="false"
-                  :popper-class="`records-more-menu records-more-menu--${row.id}`"
+                <RecordRowActions
+                  :row="row"
+                  :disabled="pendingId === row.id"
+                  @stage="(from: Stage, to: Stage) => openTransition(row, from, to)"
                   @command="(command: MoreCommand) => onMore(row, command)"
-                >
-                  <el-button :data-more="row.id" :disabled="pendingId === row.id" :aria-label="`${row.child_name} 的更多動作`">
-                    更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item
-                        v-for="item in moreCommands(row)"
-                        :key="item.command"
-                        :command="item.command"
-                        :divided="item.command === 'delete' && moreCommands(row).length > 1"
-                        :class="{ 'records-more__danger': item.command === 'delete' }"
-                      >{{ item.label }}</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+                />
               </div>
             </li>
           </ul>
@@ -695,30 +549,13 @@ async function remove(row: RecruitmentVisit) {
           <el-table-column label="操作" width="164" fixed="right">
             <template #default="{ row }: { row: RecruitmentVisit }">
               <div class="cell-actions records__actions">
-                <el-button v-if="stageAction(row)" size="small" type="primary" plain :disabled="pendingId === row.id" @click="runStageAction(row)">{{ stageAction(row)!.label }}</el-button>
-                <el-dropdown
-                  v-if="moreCommands(row).length"
-                  trigger="click"
-                  placement="bottom-end"
-                  :persistent="false"
-                  :popper-class="`records-more-menu records-more-menu--${row.id}`"
+                <RecordRowActions
+                  :row="row"
+                  :disabled="pendingId === row.id"
+                  compact
+                  @stage="(from: Stage, to: Stage) => openTransition(row, from, to)"
                   @command="(command: MoreCommand) => onMore(row, command)"
-                >
-                  <el-button size="small" text :data-more="row.id" :disabled="pendingId === row.id" :aria-label="`${row.child_name} 的更多動作`">
-                    更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item
-                        v-for="item in moreCommands(row)"
-                        :key="item.command"
-                        :command="item.command"
-                        :divided="item.command === 'delete' && moreCommands(row).length > 1"
-                        :class="{ 'records-more__danger': item.command === 'delete' }"
-                      >{{ item.label }}</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+                />
               </div>
             </template>
           </el-table-column>
@@ -900,7 +737,7 @@ async function remove(row: RecruitmentVisit) {
   white-space: nowrap;
 }
 
-.records__actions .el-button + .el-button {
+.records__actions :deep(.el-button + .el-button) {
   margin-left: 0;
 }
 
@@ -1052,16 +889,16 @@ async function remove(row: RecruitmentVisit) {
   margin-top: 6px;
 }
 
-.record-card__actions .el-button + .el-button {
+.record-card__actions :deep(.el-button + .el-button) {
   margin-left: 0;
 }
 
-.record-card__actions > .el-button,
-.record-card__actions > .el-dropdown {
+.record-card__actions > :deep(.el-button),
+.record-card__actions > :deep(.el-dropdown) {
   flex: 1 1 0;
 }
 
-.record-card__actions > .el-dropdown .el-button {
+.record-card__actions > :deep(.el-dropdown .el-button) {
   width: 100%;
 }
 

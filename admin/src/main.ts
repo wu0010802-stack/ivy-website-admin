@@ -2,11 +2,12 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { ElMessage, ElMessageBox, provideGlobalConfig } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
-// Element Plus 的元件 JS 按需引入（見 vite.config.ts），樣式仍整包、而且要在 style.css 之前載入：
+// Element Plus 的元件 JS 按需引入（見 vite.config.ts），樣式在入口一次載入、而且要在 style.css 之前：
 // 按需帶樣式的話，元件 CSS 會跟著各頁 chunk 晚到、同權重下蓋掉 style.css 的覆寫（表格列高、
-// 輸入框邊框都會變，2026-10-05 stack 視覺基準實測）。語系用 provideGlobalConfig 設成全域
+// 輸入框邊框都會變，2026-10-05 stack 視覺基準實測）。2026-10-20 起不再整包 index.css，只載入用到的
+// 元件（element-plus.css，順序同整包）。語系用 provideGlobalConfig 設成全域
 // （等同過去 app.use(ElementPlus, { locale })）。
-import 'element-plus/dist/index.css'
+import './element-plus.css'
 import './style.css'
 import App from './App.vue'
 import router from './router'

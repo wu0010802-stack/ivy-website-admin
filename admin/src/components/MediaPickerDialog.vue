@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { api, mediaPreviewUrl } from '../api/client'
@@ -7,6 +7,7 @@ import type { MediaAssetOut, MediaAssetPageOut, MediaUploadLimitsOut } from '../
 import { campusLabel, contentItemLabel } from '../api/labels'
 import { loadUploadLimits, uploadKindHint, useMediaUploadQueue } from '../composables/mediaUpload'
 import { useRequestSequence } from '../composables/useRequestSequence'
+import { useDebouncedFn } from '../composables/useDebouncedFn'
 import MediaUploadList from './MediaUploadList.vue'
 
 const props = withDefaults(defineProps<{
@@ -112,20 +113,16 @@ async function loadMore() {
   }
 }
 
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  searchTimer = setTimeout(() => {
-    if (value.trim() === keyword.value) return
-    keyword.value = value.trim()
-    void load()
-  }, 300)
-})
-onBeforeUnmount(() => clearTimeout(searchTimer))
+const applySearch = useDebouncedFn((value: string) => {
+  if (value.trim() === keyword.value) return
+  keyword.value = value.trim()
+  void load()
+}, 300)
+watch(query, (value) => applySearch(value))
 
 function clearSearch() {
   query.value = ''
-  clearTimeout(searchTimer)
+  applySearch.cancel()
   if (!keyword.value) return
   keyword.value = ''
   void load()
@@ -134,7 +131,7 @@ function clearSearch() {
 watch(visible, (v) => {
   if (v) {
     query.value = ''
-    clearTimeout(searchTimer)
+    applySearch.cancel()
     keyword.value = ''
     assets.value = []
     total.value = 0

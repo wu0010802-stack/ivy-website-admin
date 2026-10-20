@@ -2,7 +2,8 @@
 import { computed, ref, watch } from 'vue'
 import { ApiError } from '../../api/client'
 import type { AdmissionsRate, BookingOutcomesOut, CampusOutcomeOut } from '../../api/types'
-import { BOOKING_MODE_LABELS, campusLabel, cancelReasonLabel } from '../../api/labels'
+import { BOOKING_MODE_LABELS, campusLabel } from '../../api/labels'
+import { cancelReasonLabel } from '../../api/analyticsLabels'
 import {
   PENDING_KINDS, PENDING_KIND_LABELS, getBookingOutcomes, isSmallSample, pendingLink, rangeKey, rateCsv, rateText, type DateRange,
 } from '../../api/analytics'

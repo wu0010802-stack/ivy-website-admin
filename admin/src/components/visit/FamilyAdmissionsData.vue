@@ -5,7 +5,11 @@ import { termLabel } from '../../admissions/academic'
 import { ANONYMIZED_CONFLICT_TEXT, MISSING_CHILD_NAME, withdrawReasonText } from '../../admissions/constants'
 import { sourceCategoryLabel } from '../../admissions/sourceCategories'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
-import RecordDialog from '../admissions/RecordDialog.vue'
+import { lazyComponent } from '../../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const RecordDialog = lazyComponent(() => import('../admissions/RecordDialog.vue'))
 
 // 家庭版面的招生資料（2026-10-05 家庭頁規格 5.3）：園方維護的那份。固定列一律列（沒填寫「—」），
 // 依階段或有值才列的放後面；欄位與文字同「招生訪視照紙本補欄位」之後的 RecordDialog。

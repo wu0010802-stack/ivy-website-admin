@@ -17,8 +17,12 @@ import { visitRequestPath } from '../../admissions/family'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import FunnelCard from './FunnelCard.vue'
 import TransitionDialog from './TransitionDialog.vue'
-import RecordDialog from './RecordDialog.vue'
 import EventsDrawer from './EventsDrawer.vue'
+import { lazyComponent } from '../../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const RecordDialog = lazyComponent(() => import('./RecordDialog.vue'))
 
 // 漏斗看板（園務 FunnelBoard／FunnelColumn／FunnelSummaryBar）。以入學學年學期圈範圍：
 // 學年必填（API 需要），頁首選「不限學年」時用目前學年並說明（本檔調整第 18 條）；學期不選＝整學年。

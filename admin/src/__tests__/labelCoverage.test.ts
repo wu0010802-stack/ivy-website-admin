@@ -7,14 +7,9 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   AUDIT_ACTION_LABELS,
-  AUDIT_HIDDEN_METADATA_KEYS,
-  AUDIT_METADATA_KEYS,
   AUDIT_TARGET_LABELS,
-  auditChangeSummary,
-  CANCEL_REASON_LABELS,
   CONTENT_KIND_LABELS,
   contentEditorPath,
-  CTA_ENTRY_LABELS,
   REFERRAL_SOURCE_LABELS,
   RETENTION_CATEGORY_LABELS,
   SLOT_CLOSED_SOURCE_LABELS,
@@ -24,6 +19,8 @@ import {
   notificationLabel,
   outboxErrorLabel,
 } from '../api/labels'
+import { AUDIT_HIDDEN_METADATA_KEYS, AUDIT_METADATA_KEYS, auditChangeSummary } from '../api/auditLabels'
+import { CANCEL_REASON_LABELS, CTA_ENTRY_LABELS } from '../api/analyticsLabels'
 
 const backendSources = import.meta.glob('../../../backend/app/**/*.py', {
   query: '?raw',
@@ -40,7 +37,7 @@ function source(path: string): string {
 // 每個 audit_service.log_action(...) 呼叫的參數區段（到下一個右括號收尾為止
 // 的第一層），從裡面取 action= 與 target_type= 的字串字面值；條件式
 // `"a" if x else "b"` 兩邊都算。
-// booking/routes.py 的 _audit_transition(...) 也是在呼叫端寫 action 字面值。
+// booking/admin_visit_routes.py 的 _audit_transition(...) 也是在呼叫端寫 action 字面值。
 const AUDIT_CALLS = ['log_action(', '_audit_transition(']
 
 function logActionCalls(): string[] {
@@ -330,7 +327,7 @@ function transitionExtras(): string[] {
 const METADATA_HELPERS: [RegExp, () => string[]][] = [
   [/^_media_audit\(/, () => returnedKeys(functionBody(source('media/routes.py'), 'def _media_audit('))],
   [/^retention_service\.audit_metadata\(/, () => returnedKeys(functionBody(source('operations/retention_service.py'), 'def audit_metadata('))],
-  [/^filters\.audit_metadata\(\)$/, () => returnedKeys(functionBody(source('booking/routes.py'), 'def audit_metadata('))],
+  [/^filters\.audit_metadata\(\)$/, () => returnedKeys(functionBody(source('booking/admin_visit_routes.py'), 'def audit_metadata('))],
   // 手動「依規則產生時段」的 API（visit_slots.generate）2026-10-08 已刪，只剩取消休假日回傳的結果。
   [/^result$/, () => returnedKeys(functionBody(source('booking/schedule_service.py'), 'async def remove_exception('))],
   [/^metadata$/, () => {

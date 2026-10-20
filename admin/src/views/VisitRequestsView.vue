@@ -19,13 +19,18 @@ import {
   type AttendanceKind, type BatchFailure, type BatchMarkKind,
 } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
+import { useDebouncedFn } from '../composables/useDebouncedFn'
 import { groupVisitsByDay, nextInList, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
-import ManualVisitDialog from '../components/ManualVisitDialog.vue'
-import RecordDialog from '../components/admissions/RecordDialog.vue'
 import VisitListRow from '../components/visit/VisitListRow.vue'
 import VisitPreviewPanel from '../components/visit/VisitPreviewPanel.vue'
+import { lazyComponent } from '../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const ManualVisitDialog = lazyComponent(() => import('../components/ManualVisitDialog.vue'))
+const RecordDialog = lazyComponent(() => import('../components/admissions/RecordDialog.vue'))
 
 const router = useRouter()
 const route = useRoute()
@@ -284,7 +289,7 @@ async function releasePreviewThenLoad() {
 function revertConditions() {
   reverting = true
   pagedForward = false
-  clearTimeout(searchTimer)
+  searchLater.cancel()
   applyQuery(appliedQuery)
   syncUrl()
   // 條件改回去會觸發監聽器，等它們跑完再放行。
@@ -304,18 +309,18 @@ watch([campusFilter, activeTab, dueOnly, order, sourceFilter, createdRange, atte
   queueLoad()
 })
 // 邊打字邊查會連發請求，停下來再送；過時的回應由 loadVersion 擋掉。
-let searchTimer: ReturnType<typeof setTimeout> | undefined
+const searchLater = useDebouncedFn(() => {
+  page.value = 1
+  queueLoad()
+}, 300)
 watch(search, () => {
   if (reverting) return
-  clearTimeout(searchTimer)
+  searchLater.cancel()
   if (matchesRoute()) {
     queueLoad()
     return
   }
-  searchTimer = setTimeout(() => {
-    page.value = 1
-    queueLoad()
-  }, 300)
+  searchLater()
 })
 watch(page, queueLoad)
 // 開著過台北午夜：今天／明天換了，「接下來」的內容也換了，重讀一次（同總覽的換日重讀）。
@@ -339,7 +344,6 @@ function refreshIfStale() {
 onBeforeUnmount(() => {
   unmounted = true
   window.clearInterval(clock)
-  clearTimeout(searchTimer)
   loadVersion++
   document.removeEventListener('visibilitychange', refreshIfStale)
   window.removeEventListener('focus', refreshIfStale)
