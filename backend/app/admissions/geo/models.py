@@ -3,13 +3,15 @@
 年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節，新成屋見第 3.2 節，各里所得見第 3.3 節；
 托嬰與園所異動見 docs/specs/2026-10-14-provider-changes-design.md 第 3 節；
 幼兒園收費見 docs/specs/2026-10-15-peer-comparison-design.md 第 3 節；
-預售建案見 docs/specs/2026-10-20-admissions-presale-design.md 第 5 節）。
+預售建案見 docs/specs/2026-10-20-admissions-presale-design.md 第 5 節；
+幼兒園裁罰與評鑑見 docs/specs/2026-10-20-peer-penalties-evaluations-design.md 第 3 節）。
 
-這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_babycare／geo_provider_events／
+這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_kindergarten_penalties／geo_kindergarten_evaluations／geo_babycare／geo_provider_events／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
 geo_village_income／geo_new_home_sales／geo_presale_buildcases／geo_parcel_points／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset 是 a3d7f1c9b5e2（預售建案），geo_kindergarten_fees 是 f2b8c4d1e7a9，geo_babycare、geo_provider_events 是 c6a9e3f15d27，
+geo_dataset_status 的 dataset 是 b8e2d6a4f931（裁罰與評鑑），geo_kindergarten_fees 是 f2b8c4d1e7a9，
+geo_kindergarten_penalties 的 kind、subject 是 b8e2d6a4f931，geo_babycare、geo_provider_events 是 c6a9e3f15d27，
 geo_new_home_sales 的 match_level 是 e4f1a8c6b203，geo_presale_buildcases 的 match_level 是 a3d7f1c9b5e2，
 其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
@@ -56,6 +58,8 @@ STREET_KINDS = ("road", "area")
 # babycare：托嬰名單（2026-10-14 托嬰與園所異動），migration c6a9e3f15d27 加進約束。
 # kindergarten_fees：幼兒園公告收費（2026-10-15 附近同業比較），migration f2b8c4d1e7a9 加進約束。
 # presale_buildcases：預售建案（2026-10-20 預售建案），migration a3d7f1c9b5e2 加進約束。
+# kindergarten_penalties、kindergarten_evaluations：幼兒園裁罰與評鑑（2026-10-20），migration b8e2d6a4f931 加進約束
+# （名稱超過原本的 20 字，同一支 migration 把 dataset 欄放寬到 32 字）。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -68,6 +72,8 @@ DATASETS = (
     "babycare",
     "kindergarten_fees",
     "presale_buildcases",
+    "kindergarten_penalties",
+    "kindergarten_evaluations",
 )
 # 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
 # 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
@@ -78,6 +84,10 @@ BABYCARE_KINDS = ("center", "home")
 PROVIDERS = ("kindergarten", "babycare")
 PROVIDER_CHANGES = ("opened", "closed", "kind_changed")
 FEE_AGES = (2, 3, 4, 5)  # 收費只存 2–5 歲全日班（2026-10-15 規格 F4）
+# 裁罰的處分種類（2026-10-20 規格 C1）：罰鍰、停止招生、減少招收人數、停辦，其他格式都歸 other。
+PENALTY_KINDS = ("fine", "stop_enrollment", "reduce_enrollment", "closure", "other")
+# 裁罰對象類別（C1、C4）：operator＝來源標「負責人」、staff＝標「行為人」。只存類別，不存姓名。
+PENALTY_SUBJECTS = ("operator", "staff")
 
 
 def _in(column: str, values: tuple[str, ...], *, nullable: bool = False) -> str:
@@ -206,6 +216,59 @@ class GeoKindergartenFee(Base):
     synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class GeoKindergartenPenalty(Base):
+    """幼兒園裁罰明細（kiang 整理的全國教保資訊網裁罰，2026-10-20 規格 C1）：一筆處分一列。source_id 對不到園所
+    （已停辦或改名）時是空，列照樣保留。**來源每筆有一欄「負責人：姓名」或「行為人：姓名」，整欄只取前面的標籤
+    轉成 subject（operator／staff），姓名不進任何欄位**。同一個 (園所, 日期, 文號) 是一件，件數由查詢算（C3）。
+    punishment_hash 是處分原文的雜湊（同一件有多筆處分時分得開）；punishment_text 只有 kind 為 other 時才存。"""
+
+    __tablename__ = "geo_kindergarten_penalties"
+    __table_args__ = (
+        CheckConstraint(_in("kind", PENALTY_KINDS), name="ck_geo_kindergarten_penalties_kind"),
+        CheckConstraint(_in("subject", PENALTY_SUBJECTS, nullable=True), name="ck_geo_kindergarten_penalties_subject"),
+        UniqueConstraint(
+            "school_name", "occurred_on", "doc_no", "law", "punishment_hash", name="uq_geo_kindergarten_penalties_record"
+        ),
+        Index("ix_geo_kindergarten_penalties_source", "source_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    source_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    school_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    occurred_on: Mapped[date] = mapped_column(Date, nullable=False)
+    doc_no: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    law: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    content: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    punishment_text: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    subject: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    punishment_hash: Mapped[str] = mapped_column(String(16), nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoKindergartenEvaluation(Base):
+    """幼兒園評鑑結果（教保資訊網公開搜尋的「評鑑情形」表，2026-10-20 規格 C5）：學年度（民國）、評鑑完成日、結果原文。
+    只存對得到園所的列（名稱精確比對 geo_kindergartens）。同一個搜尋結果區塊裡的負責人、電話等欄位一律不讀；
+    「檢視」連結的參數是 session 加密值，不存。"""
+
+    __tablename__ = "geo_kindergarten_evaluations"
+    __table_args__ = (
+        UniqueConstraint("school_name", "school_year", "result", name="uq_geo_kindergarten_evaluations_record"),
+        Index("ix_geo_kindergarten_evaluations_source", "source_id"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    school_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    school_year: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    completed_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    result: Mapped[str] = mapped_column(String(100), nullable=False)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class GeoProviderEvent(Base):
     """幼兒園與托嬰的異動紀錄（opened＝新出現或重新營業、closed＝停辦、kind_changed＝類型變了）。
     不存名稱與座標，讀的時候 join 對應的園所表（列不刪，只標停辦）。occurred_on 是同步到的台北日期，
@@ -241,13 +304,14 @@ class GeoDatasetStatus(Base):
     - new_homes：active_version、label 都是表裡最新的季「115S3」；
     - babycare：active_version、label 都是同步日期（同 kindergartens）；
     - kindergarten_fees：active_version、label 都是收費學年「114」；synced_at＝上次全量完成、checked_at＝上次確認學年；
+    - kindergarten_penalties、kindergarten_evaluations：active_version、label 都是上次整表替換成功的台北日期「2026-10-20」；
     baseline_on 是第一次用「依 source_id 比對」的程式同步成功的台北日期（kindergartens、babycare 才有；規格 P8），畫面靠它寫「從 N 月 N 日起記錄」。
     last_error 是最近一次失敗的原因，不含任何地址；成功或確認來源沒變時清掉。"""
 
     __tablename__ = "geo_dataset_status"
     __table_args__ = (CheckConstraint(_in("dataset", DATASETS), name="ck_geo_dataset_status_dataset"),)
 
-    dataset: Mapped[str] = mapped_column(String(20), primary_key=True)
+    dataset: Mapped[str] = mapped_column(String(32), primary_key=True)
     active_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     label: Mapped[str | None] = mapped_column(String(16), nullable=True)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,6 +1,7 @@
 """招生區域分析各表的 migration 與約束（2026-10-08 規格 §5；各里人口 2026-10-13 招生機會規格 §3；
 各里出生、遷入遷出、年齡歷史 2026-10-14 里的變化規格 §3.1；新成屋 §3.2；各里所得 §3.3；
-托嬰與異動 2026-10-14 托嬰與園所異動規格 §3；預售建案與地號座標 2026-10-20 預售建案規格 §5）。"""
+托嬰與異動 2026-10-14 托嬰與園所異動規格 §3；預售建案與地號座標 2026-10-20 預售建案規格 §5；
+幼兒園裁罰與評鑑 2026-10-20 規格 §3）。"""
 
 from __future__ import annotations
 
@@ -17,6 +18,8 @@ from app.admissions.geo.models import (
     FEE_AGES,
     KINDERGARTEN_KINDS,
     MATCH_LEVELS,
+    PENALTY_KINDS,
+    PENALTY_SUBJECTS,
     PRESALE_MATCH_LEVELS,
     PROVIDER_CHANGES,
     PROVIDERS,
@@ -26,7 +29,9 @@ from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoDoorplate,
     GeoKindergarten,
+    GeoKindergartenEvaluation,
     GeoKindergartenFee,
+    GeoKindergartenPenalty,
     GeoNewHomeSale,
     GeoParcelPoint,
     GeoPresaleBuildcase,
@@ -50,13 +55,17 @@ NEW_HOMES_MIGRATION = BACKEND / "migrations" / "versions" / "e4f1a8c6b203_admiss
 PROVIDER_MIGRATION = BACKEND / "migrations" / "versions" / "c6a9e3f15d27_provider_changes.py"
 FEES_MIGRATION = BACKEND / "migrations" / "versions" / "f2b8c4d1e7a9_peer_fees.py"
 PRESALE_MIGRATION = BACKEND / "migrations" / "versions" / "a3d7f1c9b5e2_admissions_presale.py"
+PENALTIES_MIGRATION = BACKEND / "migrations" / "versions" / "b8e2d6a4f931_peer_penalties_evaluations.py"
 # 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population、10-14 再多收 births、
 # migration，同日 C 段多收 income、B 段多收 new_homes，托嬰與異動最後再多收 babycare；新成屋的比對等級在 B 段；
 # 托嬰與異動紀錄的約束在 c6a9e3f15d27；其餘仍是 e7a1c4d9b2f6。
 # 10-15 附近同業比較再多收 kindergarten_fees，並新增收費年齡約束；10-20 預售建案再多收 presale_buildcases，
-# 並新增預售建案的比對等級約束。
+# 並新增預售建案的比對等級約束；同日裁罰與評鑑再多收 kindergarten_penalties、kindergarten_evaluations，並新增裁罰的
+# 處分種類與對象類別約束。
 CONSTRAINT_MIGRATIONS = {
-    "ck_geo_dataset_status_dataset": PRESALE_MIGRATION,
+    "ck_geo_dataset_status_dataset": PENALTIES_MIGRATION,
+    "ck_geo_kindergarten_penalties_kind": PENALTIES_MIGRATION,
+    "ck_geo_kindergarten_penalties_subject": PENALTIES_MIGRATION,
     "ck_geo_presale_buildcases_match_level": PRESALE_MIGRATION,
     "ck_geo_new_home_sales_match_level": NEW_HOMES_MIGRATION,
     "ck_geo_babycare_kind": PROVIDER_MIGRATION,
@@ -67,7 +76,7 @@ CONSTRAINT_MIGRATIONS = {
 MODELS = (
     GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoVillageBirths, GeoVillageMigration, GeoVillageAges,
     GeoVillageIncome, GeoNewHomeSale, GeoDatasetStatus, RecruitmentVisitGeo, GeoBabycare, GeoProviderEvent,
-    GeoKindergartenFee, GeoPresaleBuildcase, GeoParcelPoint,
+    GeoKindergartenFee, GeoPresaleBuildcase, GeoParcelPoint, GeoKindergartenPenalty, GeoKindergartenEvaluation,
 )
 # 加減約束要改這裡，同時改 models.py 與 migration。
 CHECK_NAMES = {
@@ -82,6 +91,8 @@ CHECK_NAMES = {
     "ck_geo_provider_events_change",
     "ck_geo_kindergarten_fees_age",
     "ck_geo_presale_buildcases_match_level",
+    "ck_geo_kindergarten_penalties_kind",
+    "ck_geo_kindergarten_penalties_subject",
 }
 
 
@@ -184,7 +195,7 @@ def test_peer_fees_migration_follows_enrolled_points_and_only_adds():
 
 
 def test_presale_migration_follows_visit_exclusion_and_only_adds():
-    """預售建案：接在參觀排除之後、是唯一的 head；升級只建表、索引與放寬約束，不動既有資料（降級才刪 presale_buildcases 狀態列）。"""
+    """預售建案：接在參觀排除之後；升級只建表、索引與放寬約束，不動既有資料（降級才刪 presale_buildcases 狀態列）。"""
     from alembic.config import Config
     from alembic.script import ScriptDirectory
 
@@ -192,7 +203,6 @@ def test_presale_migration_follows_visit_exclusion_and_only_adds():
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
     assert script.get_revision("a3d7f1c9b5e2").down_revision == "d4a8f2c6e913"
-    assert len(script.get_heads()) == 1
     upgrade = PRESALE_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
     assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
 
@@ -220,6 +230,68 @@ async def test_parcel_point_key_is_district_section_and_landno(db_session):
     db_session.add(point(district="鳳山區"))
     await db_session.commit()
     await _expect_rejected(db_session, point())
+
+
+def test_penalties_migration_follows_presale_and_only_adds():
+    """幼兒園裁罰與評鑑：接在預售建案之後、是唯一的 head；升級只建表、索引、放寬約束與 dataset 欄寬，不動既有資料
+    （降級才刪兩個新狀態列）。"""
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    config = Config(str(BACKEND / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    script = ScriptDirectory.from_config(config)
+    assert script.get_revision("b8e2d6a4f931").down_revision == "a3d7f1c9b5e2"
+    assert len(script.get_heads()) == 1
+    upgrade = PENALTIES_MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]
+    assert "op.execute" not in upgrade and "UPDATE " not in upgrade and "DELETE " not in upgrade and "add_column" not in upgrade
+
+
+async def test_dataset_column_fits_the_longest_dataset_name(db_session):
+    """kindergarten_evaluations 有 24 個字，超過原本的 20 字：欄寬要放寬到 32，狀態列才寫得進去。"""
+    width = (
+        await db_session.execute(
+            text(
+                "SELECT character_maximum_length FROM information_schema.columns "
+                "WHERE table_name = 'geo_dataset_status' AND column_name = 'dataset'"
+            )
+        )
+    ).scalar_one()
+    assert width == 32 and max(len(name) for name in DATASETS) <= width
+    db_session.add(GeoDatasetStatus(dataset="kindergarten_evaluations"))
+    db_session.add(GeoDatasetStatus(dataset="kindergarten_penalties"))
+    await db_session.commit()
+
+
+async def test_penalty_kind_and_subject_accept_declared_values_and_rejects_others(db_session):
+    def penalty(index: int, *, kind: str = "fine", subject: str | None = "operator") -> GeoKindergartenPenalty:
+        return GeoKindergartenPenalty(
+            school_name="測試幼兒園", occurred_on=date(2026, 1, 1 + index), doc_no="高市教幼字第1號", law="幼兒教育及照顧法第58條",
+            content="未依規定配置廚工。", kind=kind, subject=subject, punishment_hash=f"h{index}", synced_at=datetime.now(timezone.utc),
+        )
+
+    for index, kind in enumerate(PENALTY_KINDS):
+        db_session.add(penalty(index, kind=kind))
+    for offset, subject in enumerate((*PENALTY_SUBJECTS, None)):
+        db_session.add(penalty(10 + offset, subject=subject))
+    await db_session.commit()
+    await _expect_rejected(db_session, penalty(20, kind="warning"))
+    await _expect_rejected(db_session, penalty(21, subject="boss"))
+    await _expect_rejected(db_session, penalty(0))  # 同園所、日期、文號、法條、處分雜湊 → 同一筆
+
+
+async def test_evaluation_key_is_name_year_and_result(db_session):
+    def evaluation(result: str = "全數指標通過基礎評鑑", year: int = 111) -> GeoKindergartenEvaluation:
+        return GeoKindergartenEvaluation(
+            source_id="k1", school_name="測試幼兒園", school_year=year, completed_on=date(2022, 11, 30), result=result,
+            synced_at=datetime.now(timezone.utc),
+        )
+
+    db_session.add(evaluation())
+    db_session.add(evaluation(year=112))
+    db_session.add(evaluation(result="部分指標通過基礎評鑑"))
+    await db_session.commit()
+    await _expect_rejected(db_session, evaluation())
 
 
 async def test_new_columns_exist(db_session):
@@ -302,7 +374,8 @@ async def test_check_constraint_names_in_database_are_the_locked_set(db_session)
                 "('geo_doorplates'::regclass, 'geo_kindergartens'::regclass, "
                 "'geo_dataset_status'::regclass, 'recruitment_visit_geo'::regclass, 'geo_new_home_sales'::regclass, "
                 "'geo_babycare'::regclass, 'geo_provider_events'::regclass, 'geo_kindergarten_fees'::regclass, "
-                "'geo_presale_buildcases'::regclass)"
+                "'geo_presale_buildcases'::regclass, 'geo_kindergarten_penalties'::regclass, "
+                "'geo_kindergarten_evaluations'::regclass)"
             )
         )
     ).scalars().all()
@@ -329,6 +402,7 @@ async def test_tables_exist(db_session):
         "geo_doorplates", "geo_kindergartens", "geo_village_population", "geo_dataset_status", "recruitment_visit_geo",
         "geo_village_births", "geo_village_migration", "geo_village_ages", "geo_village_income", "geo_new_home_sales",
         "geo_babycare", "geo_provider_events", "geo_kindergarten_fees", "geo_presale_buildcases", "geo_parcel_points",
+        "geo_kindergarten_penalties", "geo_kindergarten_evaluations",
     }
 
 

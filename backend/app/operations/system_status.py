@@ -47,6 +47,7 @@ DATASET_GRACE = timedelta(days=3)
 _DATASET_REFRESH = {
     "kindergartens": providers.PROVIDER_REFRESH_AFTER,
     "babycare": providers.PROVIDER_REFRESH_AFTER,
+    "kindergarten_penalties": providers.PROVIDER_REFRESH_AFTER,  # 裁罰同名單每 7 天；評鑑每 30 天（預設）
 }
 # 同步工作內部用的指紋，畫面不讀（GeoDatasetStatus 的說明）。
 HIDDEN_DATASETS = frozenset({"campuses"})
