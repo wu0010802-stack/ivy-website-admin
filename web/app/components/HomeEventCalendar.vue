@@ -16,13 +16,14 @@ const icsHref = ref('#')
 const google = computed(() => eventGoogleCalendarUrl(props.event))
 let objectUrl = ''
 
+function makeIcs() {
+  objectUrl = URL.createObjectURL(new Blob([eventIcs(props.event)], { type: 'text/calendar;charset=utf-8' }))
+  icsHref.value = objectUrl
+}
 // .ics 在第一次打開選單時才產生（產生後沿用，卸載時釋放）。
 function onToggle(event: Event) {
   if ((event as ToggleEvent).newState !== 'open') return
-  if (!objectUrl) {
-    objectUrl = URL.createObjectURL(new Blob([eventIcs(props.event)], { type: 'text/calendar;charset=utf-8' }))
-    icsHref.value = objectUrl
-  }
+  if (!objectUrl) makeIcs()
   if (!CSS.supports('position-anchor', '--a') && menu.value && button.value) {
     const rect = button.value.getBoundingClientRect()
     Object.assign(menu.value.style, {
@@ -33,6 +34,13 @@ function onToggle(event: Event) {
     })
   }
 }
+// 首頁動態連看活動、後台預覽改日期時，元件沿用、只換 props：檔名會跟著換，
+// 已產生的 .ics 不會，家長會把上一則的日期加進行事曆。換了就釋放舊檔重產。
+watch(() => props.event, () => {
+  if (!objectUrl) return
+  URL.revokeObjectURL(objectUrl)
+  makeIcs()
+}, { deep: true })
 function close() {
   menu.value?.hidePopover?.()
 }

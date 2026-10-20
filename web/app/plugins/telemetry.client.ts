@@ -1,5 +1,6 @@
 import { publicPage, type TelemetryEvent } from '#shared/telemetry'
 import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
+import { newIdempotencyKey } from '../utils/idempotency-key'
 
 export default defineNuxtPlugin((app) => {
   const config = useRuntimeConfig()
@@ -26,7 +27,7 @@ export default defineNuxtPlugin((app) => {
       const ids = new Map<string, string>()
       const report = (metric: { name: 'LCP' | 'INP' | 'CLS'; value: number; id: string }) => {
         if (!publicPage(location.pathname)) return
-        if (!ids.has(metric.id)) ids.set(metric.id, crypto.randomUUID())
+        if (!ids.has(metric.id)) ids.set(metric.id, newIdempotencyKey())
         send({ ...entryPage, event: metric.name, value: metric.value, id: ids.get(metric.id)! })
       }
       onLCP(report); onINP(report); onCLS(report)

@@ -1,4 +1,5 @@
 import { campusKeys, publicPage } from '#shared/telemetry'
+import { newIdempotencyKey } from './idempotency-key'
 
 // 預約鈕與聯絡連結的點擊統計（POST /public/analytics-events）。只送事件類型、
 // 校區、入口代碼與一個隨機 event id：不帶網址、query、hash 或任何家長資料。
@@ -89,7 +90,7 @@ export function isCampusKey(value: unknown): value is string {
   return campusKeys.some((key) => key === value)
 }
 
-export function ctaEvent(eventType: CtaEventType, campusKey: string | null, entry: CtaEntry, id: string = crypto.randomUUID()): CtaEvent {
+export function ctaEvent(eventType: CtaEventType, campusKey: string | null, entry: CtaEntry, id: string = newIdempotencyKey()): CtaEvent {
   return { event_id: id, event_type: eventType, campus_key: isCampusKey(campusKey) ? campusKey : null, entry }
 }
 

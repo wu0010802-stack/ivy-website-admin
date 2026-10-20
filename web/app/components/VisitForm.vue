@@ -8,6 +8,7 @@ import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
@@ -218,7 +219,7 @@ const submitRetryHint = ref(false)
 const submitButtonRef = ref<HTMLButtonElement | null>(null)
 // 同一次填寫用同一個 idempotency key；重送（例如網路重試）會安全地
 // 回到同一筆案件，不會建立第二筆。只有成功後才換新的 key。
-const idempotencyKey = ref(crypto.randomUUID())
+const idempotencyKey = ref(newIdempotencyKey())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
 // 選校卡寫短地址（去掉「高雄市」）：第一步請家長「依生活圈與接送路線選擇」，只給區名比不出來（2026-09-29 評析）。
@@ -419,7 +420,7 @@ async function onSubmit() {
     linkCopied.value = false
     linkCopyFailed.value = false
     submitted.value = true
-    idempotencyKey.value = crypto.randomUUID()
+    idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
     // 比照 focusStage，先不捲動地聚焦，再把頂端對齊到頁首下方（.visit-result 手機不另加 scroll-margin）。
@@ -439,7 +440,7 @@ async function onSubmit() {
     } else if (code === 'IDEMPOTENCY_CONFLICT') {
       // 同一把 key 但內容不同：代表前一次其實已經送出成功了。叫使用者
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
-      idempotencyKey.value = crypto.randomUUID()
+      idempotencyKey.value = newIdempotencyKey()
       submitError.value =
         (bookingConfig.value?.parent_email_enabled
           ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'

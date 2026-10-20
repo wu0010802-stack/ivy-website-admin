@@ -351,7 +351,7 @@ defineExpose({ open })
             </div>
             <p>{{ story.event.description }}</p>
             <div v-if="!isSample(story.event) || safeWebUrl(story.event.linkUrl)" class="hsv-actions">
-              <HomeEventCalendar v-if="!isSample(story.event)" :event="story.event" />
+              <HomeEventCalendar v-if="!isSample(story.event)" :key="story.id" :event="story.event" />
               <a v-if="safeWebUrl(story.event.linkUrl)" class="hsv-link" :href="safeWebUrl(story.event.linkUrl)" target="_blank" rel="noopener noreferrer">{{ story.event.linkLabel || '活動詳情' }} ↗<span class="sr-only">（另開分頁）</span></a>
             </div>
           </div>

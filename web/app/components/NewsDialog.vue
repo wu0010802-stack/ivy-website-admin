@@ -257,7 +257,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
           </dl>
           <p class="hn-detail-copy">{{ view.item.description }}</p>
           <div v-if="!isSample(view.item) || safeWebUrl(view.item.linkUrl)" class="hn-actions">
-            <HomeEventCalendar v-if="!isSample(view.item)" :event="view.item" />
+            <HomeEventCalendar v-if="!isSample(view.item)" :key="view.item.id" :event="view.item" />
             <a
               v-if="safeWebUrl(view.item.linkUrl)" class="hn-more hn-event-link"
               :href="safeWebUrl(view.item.linkUrl)" target="_blank" rel="noopener noreferrer"
