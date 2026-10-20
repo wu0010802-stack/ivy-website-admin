@@ -1,9 +1,9 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
+  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
@@ -161,6 +161,13 @@ export function getArea(params: { campus_key: string; school_year: number | null
 /** 本校半徑內的幼兒園（規格 8.2），後端依距離排序；半徑只有 1、3、6 公里。 */
 export function getAreaKindergartens(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaKindergartens> {
   return api.get<AreaKindergartens>(`/admin/admissions/area/kindergartens?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
+}
+
+/** 一所附近幼兒園的全部裁罰與評鑑（2026-10-20 規格 5），展開那一列時才讀；裁罰沒有姓名，對象只有類別。 */
+export function getAreaKindergartenRecords(campusKey: string, sourceId: string): Promise<AreaKindergartenRecords> {
+  return api.get<AreaKindergartenRecords>(
+    `/admin/admissions/area/kindergartens/${encodeURIComponent(sourceId)}/records?${toQuery({ campus_key: campusKey })}`,
+  )
 }
 
 /** 附近托嬰中心（2026-10-14 規格 6）：半徑同 getAreaKindergartens（1、3、6 公里）。 */

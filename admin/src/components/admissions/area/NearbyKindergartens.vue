@@ -3,12 +3,16 @@ import { computed, ref, useId, watch } from 'vue'
 import type { AreaKindergartens, AreaPeerFees } from '../../../api/types'
 import { NO_VALUE } from '../../../admissions/statsFormat'
 import { KIND_LABELS, KIND_ORDER, campusNotLocatedReason, formatCount, formatDistance, kindLabel, shortName, taipeiMonthDay, type RadiusKm } from './areaFormat'
+import KindergartenRecords from './KindergartenRecords.vue'
+import { RECORDS_NOTE, evaluationLine, penaltyBadge } from './kindergartenRecordsFormat'
 import { FEE_ITEM_KEYS, FEE_ITEM_LABELS, feeSourceLine, formatYuan, type PeerAge } from './peerFeesFormat'
 
 // 附近幼兒園（2026-10-08 規格 9.4）：本校半徑內的公開園所資料，後端已依距離排序。
 // 點一列：地圖移過去並打開該園資訊（select），同時展開這一列的詳情；再點一次只收合，不再請地圖定位。
 // 本機構（is_own）只標示，不算競爭園所，也不列入「沒有其他幼兒園」的判斷；除了本機構沒有別的園所時沒東西可篩，不顯示搜尋與類型 chip。
 // 列上的收費是 /area/fees 的公告收費（2026-10-15），不再顯示 kiang 估計的月費。
+// 裁罰與評鑑（2026-10-20 規格 C11、C13）：列上寫「近 3 年裁罰 N 件」（只有 3 年前的寫淡色的「3 年前有裁罰」）和最近一次評鑑小字；
+// 展開才讀該所的全部明細（KindergartenRecords）。裁罰明細還沒匯入時，維持原本名單上的「有裁罰紀錄」旗標。
 // 範圍（半徑）在區域分析工具列選，這裡的 radiusKm 只用來寫「N 公里內沒有其他幼兒園」。
 // 搜尋比對的是列表上看到的短名（去掉「高雄市私立／市立」前綴）與地址，全形半形（NFKC）與大小寫視為相同。
 const props = defineProps<{ data: AreaKindergartens | null; failed: boolean; radiusKm: RadiusKm; fees?: AreaPeerFees | null; feeAge?: PeerAge }>()
@@ -60,6 +64,11 @@ const notLocated = computed(() => {
 // 幼兒園資料從未匯入（後端 synced_at 為 null）：空清單不代表附近沒有園所，寫原因、不顯示假的「沒有其他幼兒園」。
 // 校區位置沒標出來的原因優先（上一個分支先攔下）。
 const notImported = computed(() => props.data?.synced_at === null)
+// 裁罰、評鑑各自有沒有匯入成功過（欄位沒送當沒匯入）；兩個都沒有就不顯示說明文字與明細區塊。
+const penaltiesImported = computed(() => (props.data?.penalties_synced_at ?? null) !== null)
+const evaluationsImported = computed(() => (props.data?.evaluations_synced_at ?? null) !== null)
+const recordsAvailable = computed(() => penaltiesImported.value || evaluationsImported.value)
+const campusKey = computed(() => props.data?.campus.key ?? '')
 
 function toggleKind(kind: string) {
   kinds.value = kinds.value.includes(kind) ? kinds.value.filter((value) => value !== kind) : [...kinds.value, kind]
@@ -133,9 +142,16 @@ const sourceLine = computed(() => (props.data ? feeSourceLine(props.data.source_
               <span class="nearby__name">{{ shortName(item.name) }}</span>
               <el-tag v-if="item.is_own" size="small" effect="plain" round>本機構</el-tag>
               <el-tag v-else size="small" type="info" effect="plain" round>{{ kindLabel(item.kind) }}</el-tag>
-              <el-tag v-if="item.has_penalty" size="small" type="danger" effect="plain" round>有裁罰紀錄</el-tag>
+              <el-tag
+                v-if="penaltyBadge(item, penaltiesImported)"
+                size="small"
+                :type="penaltyBadge(item, penaltiesImported)?.tone === 'older' ? 'info' : 'danger'"
+                effect="plain"
+                round
+              >{{ penaltyBadge(item, penaltiesImported)?.text }}</el-tag>
             </span>
             <span class="nearby__meta num">{{ formatDistance(item.distance_m) }}・核定 {{ item.approved_capacity ?? NO_VALUE }} 人・{{ feeMeta(item.source_id) }}</span>
+            <span v-if="evaluationLine(item.evaluation_latest)" class="nearby__eval num">{{ evaluationLine(item.evaluation_latest) }}</span>
           </button>
           <dl v-if="expanded === item.source_id" :id="detailId(index)" class="nearby__detail">
             <div><dt>地址</dt><dd>{{ item.address }}</dd></div>
@@ -152,11 +168,19 @@ const sourceLine = computed(() => (props.data ? feeSourceLine(props.data.source_
             <div v-if="transport(item.source_id)"><dt>交通費</dt><dd>{{ transport(item.source_id) }}</dd></div>
             <div><dt>官方資料</dt><dd><a :href="MOE_SEARCH" target="_blank" rel="noopener noreferrer">全國教保資訊網查詢 <span aria-hidden="true">↗</span><span class="visually-hidden">（另開新視窗）</span></a></dd></div>
           </dl>
+          <KindergartenRecords
+            v-if="expanded === item.source_id && recordsAvailable"
+            :campus-key="campusKey"
+            :item="item"
+            :penalties-imported="penaltiesImported"
+            :evaluations-imported="evaluationsImported"
+          />
         </li>
       </ul>
       <p v-if="emptyText" class="nearby__empty">{{ emptyText }}</p>
       <el-button v-if="!showAll && filtered.length > PAGE" text @click="showAll = true">顯示更多（還有 {{ filtered.length - PAGE }} 所）</el-button>
       <p class="hint nearby__source">{{ sourceLine }}</p>
+      <p v-if="recordsAvailable" class="hint nearby__source">{{ RECORDS_NOTE }}</p>
     </template>
   </section>
 </template>
@@ -263,6 +287,11 @@ const sourceLine = computed(() => (props.data ? feeSourceLine(props.data.source_
 
 .nearby__meta {
   color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.nearby__eval {
+  color: var(--ink-3);
   font-size: var(--text-sm);
 }
 

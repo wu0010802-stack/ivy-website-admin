@@ -342,7 +342,8 @@ export const kindergarten = (changes: Partial<AreaKindergarten> = {}): AreaKinde
     source_id: 'kg-private', name: '高雄市私立小樹幼兒園', kind: 'private', pre_public_period: null, address: '義華路12號',
     ...northOfCampus(distance_m), distance_m, approved_capacity: 120, monthly_fee_estimate: 9800, has_penalty: false,
     phone: '(07)3800000', is_own: false,
-    indoor_m2_per_child: null, outdoor_m2_per_child: null, has_shuttle: null, after_school_capacity: null, ...changes,
+    indoor_m2_per_child: null, outdoor_m2_per_child: null, has_shuttle: null, after_school_capacity: null,
+    penalties_recent: 0, penalty_latest_on: null, has_older_penalty: false, evaluation_latest: null, ...changes,
   } satisfies AreaKindergarten
 }
 
@@ -354,6 +355,9 @@ export const areaKindergartens = (items: AreaKindergarten[] = [
   kindergarten({ source_id: 'kg-nonprofit', name: '高雄市三民區小芽非營利幼兒園', kind: 'nonprofit', distance_m: 1800, monthly_fee_estimate: null }),
 ], changes: Partial<AreaKindergartens> = {}): AreaKindergartens => ({
   synced_at: '2026-10-07T18:30:00Z',
+  // 裁罰、評鑑（2026-10-20）：預設還沒匯入（null）；要測匯入後的畫面時用 changes 帶時間。
+  penalties_synced_at: null,
+  evaluations_synced_at: null,
   source_note: '資料來源：全國教保資訊網（kiang 整理）',
   campus: areaStats().campus,
   radius_km: 3,
