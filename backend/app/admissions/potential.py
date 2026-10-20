@@ -46,6 +46,7 @@ query_potential。所有參數都在下面的常數，畫面「怎麼算」照�
 
 from __future__ import annotations
 
+import asyncio
 import math
 import random
 from dataclasses import dataclass
@@ -900,7 +901,8 @@ async def _villages_source(
     obs = await load_village_obs(db, campus_key, lat, lng)
     if obs is None:
         return _no_data("villages", REASON_NO_ROSTER, today), None, False
-    result, details = villages_range(obs)
+    # 兩參數牛頓法加 200 次重抽擬合是純 CPU 計算，放進執行緒，不卡住事件迴圈上的其他請求
+    result, details = await asyncio.to_thread(villages_range, obs)
     if result is None:
         return _no_data("villages", _villages_reason(obs), today), None, False
     hidden = any(band["enrolled"] is None for band in details["bands"])

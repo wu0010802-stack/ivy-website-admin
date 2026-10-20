@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
@@ -1543,6 +1544,24 @@ async def test_assumptions_list_the_parameters_each_source_used(db_session, loca
     presale = {item["label"]: item["value"] for item in sources["presale"]["assumptions"]}
     assert "2.5" in presale["每百戶 2–5 歲孩子"] and "6.0" in presale["每百戶 2–5 歲孩子"]
     assert "2027-08-31" in presale["算進哪些案"]
+
+
+async def test_the_village_model_runs_off_the_event_loop_thread(db_session, located, monkeypatch):
+    """來源二的擬合與重抽是純 CPU 計算，放進執行緒，不卡住事件迴圈。"""
+    loop_thread = threading.get_ident()
+    threads: list[int] = []
+
+    def spy(obs):
+        threads.append(threading.get_ident())
+        return villages_range(obs)
+
+    monkeypatch.setattr(potential, "villages_range", spy)
+    patch_village_obs(monkeypatch, synthetic_obs(wobble=(0.5, 1.0)))
+
+    sources = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))
+
+    assert sources["villages"]["status"] == "ok"
+    assert threads and loop_thread not in threads
 
 
 async def test_no_campus_point(db_session, monkeypatch):
