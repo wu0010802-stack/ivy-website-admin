@@ -138,7 +138,7 @@ describe('來源表', () => {
   })
 
   it('刻度上限取有數字的來源最大的 high；都沒有數字是 0', () => {
-    expect(rangeScale([closureSource(), villageSource(), presaleSource()])).toBe(14.8)
+    expect(rangeScale([closureSource(), villageSource(), presaleSource()])).toBe(10.7)
     expect(rangeScale([...noDataSources()])).toBe(0)
     expect(rangeScale([closureSource({ status: 'no_data', low: null, mid: null, high: null }), presaleSource()])).toBe(2.5)
   })

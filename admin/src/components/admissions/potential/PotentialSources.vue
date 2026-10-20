@@ -5,7 +5,8 @@ import { NO_VALUE } from '../../../admissions/statsFormat'
 import AnalyticsExplainer from '../../analytics/AnalyticsExplainer.vue'
 import { formatCount } from '../area/areaFormat'
 import {
-  bandLabel, deliveryText, detailSeats, distanceKm, noDataText, periodText, rangeBar, rangeScale, seats, sourceName,
+  CLOSURE_DETAIL_NOTE, MOVE_IN_LABEL, OUTFLOW_LABEL, bandLabel, deliveryText, detailSeats, distanceKm, noDataText, periodText, rangeBar,
+  rangeScale, seats, sourceName,
 } from './potentialFormat'
 
 // 每年還能多招的三個來源（2026-10-20 第二、三波，版面 A）：來源、低／中／高、區間條；每列可展開「怎麼算」：
@@ -83,22 +84,23 @@ function hasHow(source: PotentialSource): boolean {
               </dl>
 
               <template v-if="row.source.key === 'closures'">
+                <p v-if="row.source.details.years.length || row.source.details.events.length" class="source__note">{{ CLOSURE_DETAIL_NOTE }}</p>
                 <table v-if="row.source.details.years.length" class="source-detail source__years">
                   <thead>
-                    <tr><th scope="col">統計窗口</th><th scope="col">所數</th><th scope="col">每年可多招（位）</th></tr>
+                    <tr><th scope="col">統計窗口</th><th scope="col">所數</th><th scope="col">{{ OUTFLOW_LABEL }}</th></tr>
                   </thead>
                   <tbody>
                     <tr v-for="year in row.source.details.years" :key="year.school_year">
                       <th scope="row" data-label="統計窗口">{{ periodText(year.school_year) }}</th>
                       <td class="num" data-label="所數">{{ formatCount(year.events) }}</td>
-                      <td class="num" data-label="每年可多招（位）">{{ detailSeats(year.weighted) }}</td>
+                      <td class="num" :data-label="OUTFLOW_LABEL">{{ detailSeats(year.weighted) }}</td>
                     </tr>
                   </tbody>
                 </table>
                 <table v-if="row.source.details.events.length" class="source-detail source__events">
                   <thead>
                     <tr>
-                      <th scope="col">日期</th><th scope="col" class="text">園名</th><th scope="col">核定</th><th scope="col">距離</th><th scope="col">每年可多招（位）</th>
+                      <th scope="col">日期</th><th scope="col" class="text">園名</th><th scope="col">核定</th><th scope="col">距離</th><th scope="col">{{ OUTFLOW_LABEL }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -107,7 +109,7 @@ function hasHow(source: PotentialSource): boolean {
                       <td class="text" data-label="園名">{{ event.name }}</td>
                       <td class="num" data-label="核定">{{ formatCount(event.approved_capacity) }}</td>
                       <td class="num" data-label="距離">{{ distanceKm(event.distance_m) }}</td>
-                      <td class="num" data-label="每年可多招（位）">{{ detailSeats(event.weighted) }}</td>
+                      <td class="num" :data-label="OUTFLOW_LABEL">{{ detailSeats(event.weighted) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -136,7 +138,7 @@ function hasHow(source: PotentialSource): boolean {
                 <thead>
                   <tr>
                     <th scope="col">案名</th><th scope="col">戶數</th><th scope="col" class="text">預計交屋</th><th scope="col">距離</th>
-                    <th scope="col">每年可多招（位）</th>
+                    <th scope="col">{{ MOVE_IN_LABEL }}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -145,7 +147,7 @@ function hasHow(source: PotentialSource): boolean {
                     <td class="num" data-label="戶數">{{ formatCount(delivery.households) }}</td>
                     <td class="text" data-label="預計交屋">{{ deliveryText(delivery) }}</td>
                     <td class="num" data-label="距離">{{ distanceKm(delivery.distance_m) }}</td>
-                    <td class="num" data-label="每年可多招（位）">{{ detailSeats(delivery.mid) }}</td>
+                    <td class="num" :data-label="MOVE_IN_LABEL">{{ detailSeats(delivery.mid) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -196,7 +198,7 @@ function hasHow(source: PotentialSource): boolean {
   vertical-align: middle;
 }
 
-.source__how > td {
+.source > .source__how > td {
   padding-top: 0;
 }
 
@@ -256,6 +258,11 @@ function hasHow(source: PotentialSource): boolean {
   display: grid;
   gap: 4px;
   margin: 0;
+}
+
+.source__note {
+  margin: 8px 0 0;
+  color: var(--ink-2);
 }
 
 .source__assumptions > div {

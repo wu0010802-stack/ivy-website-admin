@@ -23,7 +23,7 @@ describe('來源表：有數字的列', () => {
     const { wrapper } = await mountSources()
     expect(wrapper.findAll('tbody[data-source]').map((body) => body.attributes('data-source'))).toEqual(['closures', 'villages', 'presale'])
     expect(wrapper.findAll('.source__row').map((row) => row.findAll('th, td').slice(0, 4).map((cell) => cell.text()))).toEqual([
-      ['附近園所停辦釋出', '4', '9', '15'],
+      ['附近園所停辦釋出', '7', '8', '11'],
       ['現有的里還沒招到', '1', '3', '6'],
       ['新建案搬進來', '1', '1', '3'],
     ])
@@ -42,17 +42,17 @@ describe('來源表：有數字的列', () => {
     expect(rowOf(wrapper, 'villages').findAll('td').map((cell) => cell.attributes('data-label'))).toEqual(['低', '中', '高', '區間'])
   })
 
-  it('區間條：刻度上限是三個來源最大的 high（14.8）；low–high 一段、mid 一條線', async () => {
+  it('區間條：刻度上限是三個來源最大的 high（10.7）；low–high 一段、mid 一條線', async () => {
     const { wrapper } = await mountSources()
     const closures = barOf(wrapper, 'closures')
-    expect(closures.left).toBeCloseTo((3.9 / 14.8) * 100, 1)
-    expect(closures.width).toBeCloseTo(((14.8 - 3.9) / 14.8) * 100, 1)
-    expect(closures.mid).toBeCloseTo((8.6 / 14.8) * 100, 1)
+    expect(closures.left).toBeCloseTo((6.6 / 10.7) * 100, 1)
+    expect(closures.width).toBeCloseTo(((10.7 - 6.6) / 10.7) * 100, 1)
+    expect(closures.mid).toBeCloseTo((7.6 / 10.7) * 100, 1)
     const presale = barOf(wrapper, 'presale')
-    expect(presale.left).toBeCloseTo((0.6 / 14.8) * 100, 1)
-    expect(presale.mid).toBeCloseTo((1.4 / 14.8) * 100, 1)
+    expect(presale.left).toBeCloseTo((0.6 / 10.7) * 100, 1)
+    expect(presale.mid).toBeCloseTo((1.4 / 10.7) * 100, 1)
     expect(closures.bar.attributes('role')).toBe('img')
-    expect(closures.bar.attributes('aria-label')).toBe('附近園所停辦釋出：約 9 位，4～15 位')
+    expect(closures.bar.attributes('aria-label')).toBe('附近園所停辦釋出：約 8 位，7～11 位')
   })
 
   it('三個來源的 high 都是 0：區間條不除以 0，也不出現 NaN', async () => {
@@ -119,17 +119,32 @@ describe('怎麼算', () => {
   it('停辦：各學年窗口的值與事件清單（日期、園名、核定、距離 km）', async () => {
     const { wrapper } = await mountSources()
     expect(cells(wrapper, '.source__years')).toEqual([
-      ['2022 年 10 月～2023 年 9 月', '1', '7.4'],
-      ['2023 年 10 月～2024 年 9 月', '2', '9.8'],
+      ['2022 年 10 月～2023 年 9 月', '1', '48.0'],
+      ['2023 年 10 月～2024 年 9 月', '2', '62.0'],
     ])
     expect(cells(wrapper, '.source__events')).toEqual([
-      ['2023-07-31', '高雄市私立甲幼兒園', '60', '0.9 km', '7.4'],
-      ['2024-08-10', '高雄市私立乙幼兒園', '90', '1.5 km', '6.1'],
-      ['2024-09-30', '高雄市私立丙幼兒園', '45', '2.1 km', '3.7'],
+      ['2023-07-31', '高雄市私立甲幼兒園', '60', '0.9 km', '48.0'],
+      ['2024-08-10', '高雄市私立乙幼兒園', '90', '1.5 km', '40.0'],
+      ['2024-09-30', '高雄市私立丙幼兒園', '45', '2.1 km', '22.0'],
     ])
+  })
+
+  // 窗口與事件的值是承接率取 1 的轉出人數，比主列的「每年可多招」大約 7 倍：標頭不能叫「每年可多招」，並要說明還沒乘承接率。
+  it('停辦的窗口表與事件表：標頭是「附近轉出的孩子（位）」，上方說明還沒乘承接率', async () => {
+    const { wrapper } = await mountSources()
     expect(wrapper.findAll('.source__years thead th, .source__events thead th').map((cell) => cell.text())).toEqual([
-      '統計窗口', '所數', '每年可多招（位）', '日期', '園名', '核定', '距離', '每年可多招（位）',
+      '統計窗口', '所數', '附近轉出的孩子（位）', '日期', '園名', '核定', '距離', '附近轉出的孩子（位）',
     ])
+    const how = wrapper.get('tbody[data-source="closures"] .source__how')
+    expect(how.get('.source__note').text()).toBe('這是這一年（或這一所）轉出的孩子數，還沒乘承接率；各年平均再乘承接率，才是上面的每年可多招。')
+    expect(how.text().match(/每年可多招/g)).toHaveLength(1)
+    expect(wrapper.find('tbody[data-source="villages"] .source__note').exists()).toBe(false)
+    expect(wrapper.find('tbody[data-source="presale"] .source__note').exists()).toBe(false)
+  })
+
+  it('停辦沒有窗口也沒有事件：不寫說明', async () => {
+    const { wrapper } = await mountSources([closureSource({ details: { years: [], skipped: { no_capacity: 0, outside_windows: 0 }, price_unknown: 0, events: [] } }), villageSource(), presaleSource()])
+    expect(wrapper.find('.source__note').exists()).toBe(false)
   })
 
   it('現有的里：距離帶表（里數、孩子數、在籍、照附近應有、缺口）', async () => {
@@ -147,15 +162,16 @@ describe('怎麼算', () => {
     expect(cells(wrapper, '.source__bands')[0]).toEqual(['0–1 km', '6', '1,300', '—', '—', '—'])
   })
 
-  it('新建案：案名、戶數、預計交屋、距離、每年可多招；已過預計時間寫「已過預計時間（尚未登記）」', async () => {
+  it('新建案：案名、戶數、預計交屋、距離、預計搬進來；已過預計時間寫「已過預計時間（尚未登記）」', async () => {
     const { wrapper } = await mountSources()
+    expect(wrapper.findAll('.source__deliveries thead th').map((cell) => cell.text())).toEqual(['案名', '戶數', '預計交屋', '距離', '預計搬進來（位）'])
     expect(cells(wrapper, '.source__deliveries')).toEqual([
       ['某某大院', '240', '已過預計時間（尚未登記）', '0.6 km', '0.9'],
       ['某某花園', '180', '約 2027 下半年', '1.2 km', '0.5'],
     ])
   })
 
-  it('每案 mid 是 null（距離帶被隱藏）：該欄「—」', async () => {
+  it('每案 mid 是 null（距離帶被隱藏）：預計搬進來欄「—」', async () => {
     const deliveries = presaleSource().details.deliveries.map((delivery) => ({ ...delivery, mid: null }))
     const { wrapper } = await mountSources([closureSource(), villageSource(), presaleSource({ details: { deliveries } })])
     expect(cells(wrapper, '.source__deliveries').map((row) => row.at(-1))).toEqual(['—', '—'])

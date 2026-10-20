@@ -276,8 +276,8 @@ describe('每年還能多招', () => {
     const { wrapper } = await mountPotential()
     const card = estimateCard(wrapper)
     expect(card.get('h3').text()).toBe('每年還能多招')
-    expect(card.get('.potential-estimate__value').text()).toBe('約 13 位')
-    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['5～24 位', '目前空位 18 位'])
+    expect(card.get('.potential-estimate__value').text()).toBe('約 12 位')
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['8～20 位', '目前空位 18 位'])
     expect(card.text()).not.toContain('只含')
   })
 
@@ -291,17 +291,17 @@ describe('每年還能多招', () => {
   it('只含部分來源：多一行「只含：…」', async () => {
     const [, villages, presale] = noDataSources()
     const sources = [potentialEstimate().sources[0]!, villages!, presale!]
-    const total = { low: 3.9, mid: 8.6, high: 14.8, included: ['closures' as const] }
+    const total = { low: 6.6, mid: 7.6, high: 10.7, included: ['closures' as const] }
     const { wrapper } = await mountPotential(withEstimate({ sources, total }))
     const card = estimateCard(wrapper)
-    expect(card.get('.potential-estimate__value').text()).toBe('約 9 位')
-    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['3～15 位', '目前空位 18 位', '只含：附近園所停辦釋出'])
+    expect(card.get('.potential-estimate__value').text()).toBe('約 8 位')
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['6～11 位', '目前空位 18 位', '只含：附近園所停辦釋出'])
   })
 
   it('沒有本校核定或清冊（capacity 是 null）：不寫目前空位', async () => {
     const { wrapper } = await mountPotential(withEstimate({ capacity: null }))
     expect(estimateCard(wrapper).text()).not.toContain('目前空位')
-    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 13 位')
+    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 12 位')
   })
 
   it('在籍超過核定：空位是 0', async () => {
@@ -321,7 +321,7 @@ describe('每年還能多招', () => {
     const years = [shareYear({ school_year: 115, registered: 189, children: null })]
     const { wrapper } = await mountPotential(potentialData({ share: { years } }))
     expect(wrapper.find('.potential-card').exists()).toBe(false)
-    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 13 位')
+    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 12 位')
   })
 
   it('來源表在走勢圖下方、各學年數字上方', async () => {
@@ -343,7 +343,7 @@ describe('每年還能多招', () => {
     mockGet({ [PATH]: (path: string) => (queryOf(path).get('campus_key') === 'yihua' ? potentialData() : renwu) })
     const { wrapper } = await mountWith(PotentialTab, { props: { campusKey: 'yihua', active: true } })
     await flushPromises()
-    expect(wrapper.get('.potential-estimate__value').text()).toBe('約 13 位')
+    expect(wrapper.get('.potential-estimate__value').text()).toBe('約 12 位')
     await wrapper.setProps({ campusKey: 'renwu' })
     await flushPromises()
     expect(wrapper.get('.potential-estimate__value').text()).toBe('約 2 位')
@@ -353,6 +353,7 @@ describe('每年還能多招', () => {
 
 // 走勢圖的停辦標記：event.school_year 是 10 月到隔年 9 月的窗口，標在下一個學年。
 describe('走勢圖的停辦標記', () => {
+  afterEach(() => vi.unstubAllGlobals())
   const marks = (wrapper: VueWrapper) => wrapper.findAll('svg.share-trend .share-trend__closure')
   // 三角形的尖端（第三個點）在 x 軸正下方；回傳尖端的 x。
   const apexX = (mark: ReturnType<typeof marks>[number]) => Number(mark.attributes('points')!.split(' ')[2]!.split(',')[0])
@@ -429,6 +430,5 @@ describe('走勢圖的停辦標記', () => {
     const xs = marks(wrapper).flatMap((mark) => mark.attributes('points')!.split(' ').map((point) => Number(point.split(',')[0])))
     expect(Math.min(...xs)).toBeGreaterThanOrEqual(0)
     expect(Math.max(...xs)).toBeLessThanOrEqual(340)
-    vi.unstubAllGlobals()
   })
 })

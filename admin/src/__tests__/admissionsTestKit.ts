@@ -537,11 +537,13 @@ export const shareYear = (changes: Partial<PotentialShareYear> = {}): PotentialS
     share: children === null ? null : Math.round((registered / children) * 10000) / 10000, merged: false, ...changes,
   }
 }
-// 每年還能多招（2026-10-20 第二、三波）：預設三個來源都有數字。low／mid／high 逐項相加＝total（5.6／13.4／23.4），
-// 卡片「約 13 位」「5～24 位」才分得出取整（四捨五入）與區間（低取下限、高取上限）；核定 210、在籍 192，空位 18。
+// 每年還能多招（2026-10-20 第二、三波）：預設三個來源都有數字。low／mid／high 逐項相加＝total（8.6／12.4／19.3），
+// 卡片「約 12 位」「8～20 位」才分得出取整（四捨五入）與區間（低取下限、高取上限）；核定 210、在籍 192，空位 18。
+// 停辦來源貼近後端：窗口與事件的 weighted 是承接率取 1 的轉出人數（還沒乘承接率），主列＝窗口平均 × 0.138（中）、
+// 最低窗口 × 0.138（低）、最高窗口 × 0.173（高）：(48.0 + 62.0) ÷ 2 × 0.138 ＝ 7.6、48.0 × 0.138 ＝ 6.6、62.0 × 0.173 ＝ 10.7。
 // 事件：school_year 是來源一的學年窗口（10 月到隔年 9 月），走勢圖標在 school_year + 1。
 export const closureSource = (changes: Partial<PotentialClosureSource> = {}): PotentialClosureSource => ({
-  key: 'closures', status: 'ok', low: 3.9, mid: 8.6, high: 14.8, reason: null,
+  key: 'closures', status: 'ok', low: 6.6, mid: 7.6, high: 10.7, reason: null,
   assumptions: [
     { label: '承接率', value: '中 13.8%、高 17.3%（童年綠地、愛爾蘭回測）' },
     { label: '實收率', value: '0.67（全市 114 學年核定與幼生比）' },
@@ -549,19 +551,19 @@ export const closureSource = (changes: Partial<PotentialClosureSource> = {}): Po
     { label: '核定名額沒填', value: '1 所（算不出來，略過）' },
   ],
   details: {
-    years: [{ school_year: 111, weighted: 7.4, events: 1 }, { school_year: 112, weighted: 9.8, events: 2 }],
+    years: [{ school_year: 111, weighted: 48, events: 1 }, { school_year: 112, weighted: 62, events: 2 }],
     skipped: { no_capacity: 1, outside_windows: 1 },
     price_unknown: 2,
     events: [
-      { occurred_on: '2023-07-31', name: '高雄市私立甲幼兒園', approved_capacity: 60, distance_m: 850, school_year: 111, weighted: 7.4 },
-      { occurred_on: '2024-08-10', name: '高雄市私立乙幼兒園', approved_capacity: 90, distance_m: 1500, school_year: 112, weighted: 6.1 },
-      { occurred_on: '2024-09-30', name: '高雄市私立丙幼兒園', approved_capacity: 45, distance_m: 2100, school_year: 112, weighted: 3.7 },
+      { occurred_on: '2023-07-31', name: '高雄市私立甲幼兒園', approved_capacity: 60, distance_m: 850, school_year: 111, weighted: 48 },
+      { occurred_on: '2024-08-10', name: '高雄市私立乙幼兒園', approved_capacity: 90, distance_m: 1500, school_year: 112, weighted: 40 },
+      { occurred_on: '2024-09-30', name: '高雄市私立丙幼兒園', approved_capacity: 45, distance_m: 2100, school_year: 112, weighted: 22 },
     ],
   },
   ...changes,
 })
 export const villageSource = (changes: Partial<PotentialVillageSource> = {}): PotentialVillageSource => ({
-  key: 'villages', status: 'ok', low: 1.1, mid: 3.4, high: 6.1, reason: null,
+  key: 'villages', status: 'ok', low: 1.4, mid: 3.4, high: 6.1, reason: null,
   assumptions: [
     { label: '模型', value: '在籍 ~ Poisson(μ)，log μ = a + b × 距離（km）+ log(2–5 歲人數)' },
     { label: '每年新生', value: '在籍缺口 ÷ 3（在籍約是每年新生的 3 倍）' },
@@ -602,7 +604,7 @@ export const noDataSources = (): PotentialEstimate['sources'] => [
 export const potentialEstimate = (changes: Partial<PotentialEstimate> = {}): PotentialEstimate => ({
   status: 'ready',
   sources: [closureSource(), villageSource(), presaleSource()],
-  total: { low: 5.6, mid: 13.4, high: 23.4, included: ['closures', 'villages', 'presale'] },
+  total: { low: 8.6, mid: 12.4, high: 19.3, included: ['closures', 'villages', 'presale'] },
   capacity: { approved: 210, enrolled: 192, open: 18 },
   events: [
     { occurred_on: '2023-07-31', name: '高雄市私立甲幼兒園', approved_capacity: 60, distance_m: 850, school_year: 111 },

@@ -75,6 +75,12 @@ export function shareCsv(years: readonly PotentialShareYear[], radiusKm: number)
 export const ESTIMATE_TITLE = '每年還能多招'
 export const NO_ESTIMATE_TEXT = '三個來源都沒有資料，算不出每年還能多招幾位。'
 
+// 「怎麼算」的小表標頭：停辦的窗口與事件值是承接率取 1 的轉出人數（還沒乘承接率），不是主列的每年可多招；
+// 新建案逐案的值已經乘過占有率，是這一案預計搬進來、進本校的孩子數。
+export const OUTFLOW_LABEL = '附近轉出的孩子（位）'
+export const MOVE_IN_LABEL = '預計搬進來（位）'
+export const CLOSURE_DETAIL_NOTE = '這是這一年（或這一所）轉出的孩子數，還沒乘承接率；各年平均再乘承接率，才是上面的每年可多招。'
+
 export const SOURCE_NAMES: Record<PotentialSourceKey, string> = {
   closures: '附近園所停辦釋出',
   villages: '現有的里還沒招到',
