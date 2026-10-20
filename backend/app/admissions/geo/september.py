@@ -18,6 +18,7 @@ from sqlalchemy import delete, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo import boundaries
+from app.admissions.geo import population as population_io
 from app.admissions.geo.models import GeoVillageAges, GeoVillageAgesSeptember
 from app.admissions.geo.population import PopulationRow
 
@@ -162,3 +163,31 @@ async def backfill_from_ages(db: AsyncSession) -> list[int]:
         await upsert_september(db, year, rows)
         filled.append(year)
     return filled
+
+
+# ---- 接在人口／年齡歷史寫入後面的 hook ----
+# 九月表是附加的資料：這兩個函式在呼叫端的交易裡用 SAVEPOINT 包住，失敗只退回自己、記 warning，
+# 不拖累同一個交易裡的使用中人口、年齡歷史與 prune（backfill_from_ages 下一輪會把漏掉的補回來）。
+
+
+async def safe_backfill(db: AsyncSession) -> list[int]:
+    """backfill_from_ages 包 SAVEPOINT：失敗回空清單並記 warning。"""
+    try:
+        async with db.begin_nested():
+            return await backfill_from_ages(db)
+    except Exception:  # noqa: BLE001 - 附加資料失敗不擋人口與年齡歷史
+        logger.warning("九月底人口從年齡歷史補漏失敗，下一輪再補", exc_info=True)
+        return []
+
+
+async def record_month(db: AsyncSession, label: str, pages: list[list[dict]]) -> None:
+    """年齡歷史寫完 label 這個月之後呼叫（不 commit）：是九月底就連里界檔沒有的代碼一起寫進九月表，
+    再把年齡歷史裡漏掉的九月補上。兩步各自一個 SAVEPOINT：直接寫失敗，補漏仍會從剛寫好的年齡歷史補上同一年。"""
+    if is_september(label):
+        try:
+            async with db.begin_nested():
+                batch = population_io.collect(pages, keep_unknown=True)
+                await upsert_september(db, year_of(batch.label), batch.rows)
+        except Exception:  # noqa: BLE001
+            logger.warning("九月底人口 %s 寫入失敗，不影響人口與年齡歷史", label, exc_info=True)
+    await safe_backfill(db)

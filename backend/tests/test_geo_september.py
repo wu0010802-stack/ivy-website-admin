@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -386,6 +387,78 @@ async def test_a_population_sync_also_fills_the_missing_september_before_it_prun
     await _write_ages(app, "11409")
     assert await _sync_files(app, _sample_files(tmp_path, "11510")) == ("updated", 0)
     assert await _september(app) == {114: RIS_SAMPLE_VILLAGES}
+
+
+# ---- 九月表失敗不拖累人口與年齡歷史 ----
+
+
+async def _boom(*args, **kwargs):
+    raise RuntimeError("九月表壞了")
+
+
+def _september_warnings(caplog) -> list[logging.LogRecord]:
+    return [record for record in caplog.records if record.levelno == logging.WARNING and "九月底人口" in record.getMessage()]
+
+
+async def _ages_months(app) -> set[str]:
+    async with app.state.session_factory() as db:
+        return set((await db.execute(select(GeoVillageAges.month).distinct())).scalars())
+
+
+async def test_a_failing_september_write_keeps_the_population_and_heals_next_round(
+    app, few_villages, monkeypatch, caplog, tmp_path: Path
+):
+    """九月的 upsert 拋錯：使用中的人口照樣換版、年齡歷史照樣寫入、同步結果不是 failed，記 warning；
+    下一輪年齡歷史同步（沒有新月份）從年齡歷史把九月補回來。"""
+    with monkeypatch.context() as patched, caplog.at_level(logging.WARNING):
+        patched.setattr(september_io, "upsert_september", _boom)
+        assert await _sync_files(app, _sample_files(tmp_path, "11509")) == ("updated", 0)
+    assert await _population_label(app) == "115-09"
+    assert await _count(app, GeoVillagePopulation) == RIS_SAMPLE_VILLAGES
+    assert await _ages_months(app) == {"115-09"}
+    assert await _september(app) == {}
+    assert len(_september_warnings(caplog)) >= 1 and all(record.exc_info for record in _september_warnings(caplog))
+    async with app.state.session_factory() as db:
+        assert (await db.get(GeoDatasetStatus, "population")).last_error is None
+    result = await sync.sync_age_history(app.state.session_factory, None, now=datetime.now(timezone.utc))
+    assert result == "updated"
+    assert await _september(app) == {115: RIS_SAMPLE_VILLAGES}
+
+
+async def test_a_failing_september_backfill_keeps_the_new_population_month(
+    app, few_villages, monkeypatch, caplog, tmp_path: Path
+):
+    await _write_ages(app, "11409")
+    with monkeypatch.context() as patched, caplog.at_level(logging.WARNING):
+        patched.setattr(september_io, "backfill_from_ages", _boom)
+        assert await _sync_files(app, _sample_files(tmp_path, "11510")) == ("updated", 0)
+    assert await _population_label(app) == "115-10"
+    assert await _ages_months(app) == {"114-09", "115-10"}
+    assert await _september(app) == {}
+    assert len(_september_warnings(caplog)) == 1
+
+
+async def test_a_failing_september_backfill_does_not_stop_the_age_history_sync(
+    app, few_villages, monkeypatch, caplog
+):
+    """sync_age_history：複製使用中的月份、一年前的下載與 prune 都照做，補漏失敗只記 warning。"""
+    async with app.state.session_factory() as db:
+        batch = population_io.collect([page["responseData"] for page in ris_sample_pages("11509")])
+        await population_io.replace_population(db, batch, synced_at=datetime.now(timezone.utc))
+        await db.commit()
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        return ris_response(str(request.url), months={"11409"}) or httpx.Response(404)
+
+    with monkeypatch.context() as patched, caplog.at_level(logging.WARNING):
+        patched.setattr(september_io, "backfill_from_ages", _boom)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
+            result = await sync.sync_age_history(app.state.session_factory, client, now=datetime.now(timezone.utc))
+    assert result == "updated"
+    assert await _ages_months(app) == {"114-09", "115-09"}
+    assert len(_september_warnings(caplog)) >= 1
+    async with app.state.session_factory() as db:
+        assert (await db.get(GeoDatasetStatus, "population")).last_error is None
 
 
 # ---- 正常的人口同步順手寫入 ----
