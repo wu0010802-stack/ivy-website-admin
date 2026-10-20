@@ -11,7 +11,7 @@
 - **web**：分校社群連結（FB／LINE／IG／YouTube）在 overlay 套 `safeWebUrl`，即時預覽的草稿不經後端驗證，`javascript:` 不會被綁進 href。
 - **相依套件**：web 以 `overrides` 拉高 `shell-quote` 1.12.0（Critical）、`source-map-js` 1.2.2、`serialize-javascript` 7.1.2；admin `npm audit fix` 後 0 項。內建 npm 10.9.4 的 `npm audit fix`／`npm update` 會在 peer set 當掉（`edgesOut`），npm 11 產生的 lockfile 又讓 npm 10 的 `npm ci` 報缺 `unplugin@3.4.0`，所以只用 npm 10 能處理的末端套件 overrides。**仍未修**：`simple-git`（Critical，`@nuxt/devtools` 3.4.2 帶進來，3.4.4 已拿掉，但升 devtools 會碰上同一個 npm 10 錯誤）、`braces`、`node-forge`（上游沒有修正版）；三者都只在 `nuxt dev`／建置時用，正式映像只複製 `.output`。
 - **沒做**：公開頁 CSP 沒有 `script-src`、後台與公開站同源（`web/server/utils/security-headers.ts` 註解已記）。要改成後台與 API 換獨立子網域，或公開站改用 nonce CSP，牽涉 Railway 網域與全站 inline script，另案處理。限流信任 `x-website-client-ip`，api 服務要維持沒有公開網域。
-- **驗證**（Node 22.22、npm 10.9.4、本機 PostgreSQL 16）：web `typecheck` 通過、`test:unit` 108 檔 1321 passed；admin `test:unit` 3097 passed、1 項逾時（`admissionsView.test.ts` (h)，與 web 測試同時跑時 5.2 秒超過 5 秒上限，單獨重跑 21 passed）；後端受影響的 18 檔 280 項＋新增測試全過，新增的 7 個回歸測試在舊程式碼上都失敗；`deploy/tests` 22 passed；`npm ci` 用新 lockfile 可安裝。後端全套見下一個 commit。
+- **驗證**（Node 22.22、npm 10.9.4、本機 PostgreSQL 16）：後端全套 **4530 passed**；新增的 7 個回歸測試在舊程式碼上都失敗。web `typecheck` 通過、`test:unit` 108 檔 1321 passed、`nuxt build` 成功；`deploy/tests` 22 passed；`contract:check` 一致（重設密碼的說明文字改了，契約重新產生）。admin `typecheck` 通過，`test:unit` 3098 passed，但 `admissionsView.test.ts` 的 (h) 偶爾超過 5 秒上限：新 lockfile 連跑三次有兩次逾時（5.09–5.2 秒）、一次全過，main 的 lockfile 跑一次全過。這項在迴圈裡掛載整個招生頁 7 次，本來就貼著上限，判斷是時間抖動、不是這次的改動；PR CI 的 admin job 是綠的。PR #49 CI 七項全綠（正式部署 skipped）。
 
 ## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（`feature/brighten-20261020`）
 
