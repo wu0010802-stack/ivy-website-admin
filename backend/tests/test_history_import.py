@@ -227,6 +227,8 @@ def cli_db(app, monkeypatch):
 BAD_PAYLOADS = [
     (history_payload(names=["王小明"]), "王小明"),
     (history_payload([term_row(name="王小明")]), "王小明"),
+    (history_payload(**{"王小明": 1}), "王小明"),
+    (history_payload([term_row(**{"王小明": 1})]), "王小明"),
     (history_payload(campus_key="秘密校"), "秘密校"),
     (history_payload([term_row(grade="其他")]), "其他"),
     (history_payload([term_row(), term_row()]), None),
@@ -291,6 +293,24 @@ def test_duplicate_term_error_names_the_field_but_not_the_values():
 
     assert "rows" in text and "duplicate_term" in text
     assert "115" not in text and "大班" not in text
+
+
+@pytest.mark.parametrize(
+    ("payload", "position"),
+    [
+        (history_payload(**{"王小明": 1}), "（多餘欄位）"),
+        (history_payload([term_row(**{"王小明": 1})]), "rows.0.（多餘欄位）"),
+    ],
+)
+def test_extra_field_error_does_not_echo_the_key(payload, position):
+    """鍵名也可能是姓名：extra_forbidden 的 loc 最後一段是多出來的鍵，不能印出來。"""
+    with pytest.raises(ValidationError) as caught:
+        load_payload(history_text(payload))
+
+    text = describe_error(caught.value)
+
+    assert "王小明" not in text
+    assert f"{position}：extra_forbidden" in text
 
 
 def test_error_description_lists_five_errors_at_most():

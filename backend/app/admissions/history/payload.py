@@ -79,8 +79,16 @@ def load_payload(text: str) -> EnrollmentHistoryIn:
     return EnrollmentHistoryIn.model_validate_json(text)
 
 
+def _position(item: dict) -> str:
+    """欄位位置；extra_forbidden 的最後一段是檔案裡多出來的鍵名（可能就是姓名），不印，改寫「（多餘欄位）」。"""
+    loc = [str(part) for part in item["loc"]]
+    if item["type"] == "extra_forbidden" and loc:
+        loc[-1] = "（多餘欄位）"
+    return ".".join(loc) or "(整份)"
+
+
 def describe_error(error: ValidationError) -> str:
-    """只列欄位位置與錯誤種類（前 5 個），不印輸入值：檔案裡可能混進姓名。"""
-    parts = [f"{'.'.join(str(part) for part in item['loc']) or '(整份)'}：{item['type']}" for item in error.errors()[:5]]
+    """只列欄位位置與錯誤種類（前 5 個），不印輸入值，多餘欄位的鍵名也不印：檔案裡可能混進姓名。"""
+    parts = [f"{_position(item)}：{item['type']}" for item in error.errors()[:5]]
     more = len(error.errors()) - len(parts)
     return "；".join(parts) + (f"；另有 {more} 個錯誤" if more > 0 else "")
