@@ -105,6 +105,8 @@ class MediaVariant(Base):
     content_type: Mapped[str] = mapped_column(String(100), nullable=False)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 寫入儲存體的位元組數，配額要算（2026-10-20 起）；之前的衍生檔為 NULL，配額當 0。
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     asset: Mapped[MediaAsset] = relationship(back_populates="variants")
 

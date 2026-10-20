@@ -561,7 +561,9 @@ async def transcode_media_videos(*, apply: bool) -> None:
         async with factory() as db:
             job = await db.get(MediaJob, job_id)
             asset = await db.get(MediaAsset, job.media_id)
-            outcome = await media_jobs.process_now(db, storage, asset, job)
+            outcome = await media_jobs.process_now(
+                db, storage, asset, job, quota_bytes=settings.media_quota_bytes_per_campus
+            )
             await db.commit()
             failed += outcome == "failed"
             print(f"  [{'完成' if outcome == 'done' else '失敗'}] {asset.original_filename}" + (f"（{job.error}）" if job.error else ""))

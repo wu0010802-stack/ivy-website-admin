@@ -85,35 +85,51 @@ QUOTA_STATEMENT_TIMEOUT = "330s"
 _LOCK_NOT_AVAILABLE = "55P03"
 
 
+async def lock_quota(db: AsyncSession, campus_key: str | None) -> None:
+    """同一校區（或共用素材）的配額鎖，到交易結束才放。上傳與背景轉檔寫入衍生檔
+    都在這把鎖內算用量，兩邊並行時才不會都看到「還有空間」而一起超過。"""
+    bind = db.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    # 前一筆上傳可能還在鎖內寫檔、跑 ffmpeg，排隊可以超過連線預設的逾時（見
+    # QUOTA_LOCK_TIMEOUT）。SET LOCAL 只到這個交易結束，連線還回池後恢復預設。
+    await db.execute(text(f"SET LOCAL statement_timeout = '{QUOTA_STATEMENT_TIMEOUT}'"))
+    await db.execute(text(f"SET LOCAL lock_timeout = '{QUOTA_LOCK_TIMEOUT}'"))
+    try:
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+            {"key": f"media-quota:{campus_key or '__shared__'}"},
+        )
+    except DBAPIError as exc:
+        if getattr(exc.orig, "sqlstate", None) == _LOCK_NOT_AVAILABLE:
+            raise MediaBusy() from exc
+        raise
+
+
+async def quota_used_bytes(db: AsyncSession, campus_key: str | None) -> int:
+    """原檔加衍生檔（縮圖、poster、桌機／手機版影片）的總大小。衍生檔以前不算，
+    HEVC 這類一律採用轉檔輸出的影片可以讓實際用量超過配額好幾倍（2026-10-20 稽核）；
+    2026-10-20 以前寫入、沒有記大小的衍生檔當 0。"""
+    scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
+    # 處理失敗的圖片當下就刪檔，不算；背景轉檔失敗的影片原檔還留著（重新處理要用），
+    # 要算——否則失敗的影片不佔配額，再按「重新處理」就能超過配額（2026-10-06 稽核）。
+    counted = (scope, or_(MediaAsset.status != MediaStatus.FAILED, MediaAsset.kind == MediaKind.VIDEO))
+    originals = await db.scalar(select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(*counted))
+    derived = await db.scalar(
+        select(func.coalesce(func.sum(MediaVariant.size_bytes), 0))
+        .join(MediaAsset, MediaVariant.media_id == MediaAsset.id)
+        .where(*counted)
+    )
+    return int(originals) + int(derived)
+
+
 async def _ensure_quota(
     db: AsyncSession, campus_key: str | None, incoming_bytes: int, quota_bytes: int
 ) -> None:
     """同一校區的上傳用 advisory lock 排隊，才不會兩個並行請求都看到
     「還有空間」而一起超過。處理失敗的素材原檔會被刪掉，不計入。"""
-    bind = db.get_bind()
-    if bind.dialect.name == "postgresql":
-        # 前一筆上傳可能還在鎖內寫檔、跑 ffmpeg，排隊可以超過連線預設的逾時（見
-        # QUOTA_LOCK_TIMEOUT）。SET LOCAL 只到這個交易結束，連線還回池後恢復預設。
-        await db.execute(text(f"SET LOCAL statement_timeout = '{QUOTA_STATEMENT_TIMEOUT}'"))
-        await db.execute(text(f"SET LOCAL lock_timeout = '{QUOTA_LOCK_TIMEOUT}'"))
-        try:
-            await db.execute(
-                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
-                {"key": f"media-quota:{campus_key or '__shared__'}"},
-            )
-        except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) == _LOCK_NOT_AVAILABLE:
-                raise MediaBusy() from exc
-            raise
-    scope = MediaAsset.campus_key.is_(None) if campus_key is None else MediaAsset.campus_key == campus_key
-    # 處理失敗的圖片當下就刪檔，不算；背景轉檔失敗的影片原檔還留著（重新處理要用），
-    # 要算——否則失敗的影片不佔配額，再按「重新處理」就能超過配額（2026-10-06 稽核）。
-    used = await db.execute(
-        select(func.coalesce(func.sum(MediaAsset.size_bytes), 0)).where(
-            scope, or_(MediaAsset.status != MediaStatus.FAILED, MediaAsset.kind == MediaKind.VIDEO)
-        )
-    )
-    if used.scalar_one() + incoming_bytes > quota_bytes:
+    await lock_quota(db, campus_key)
+    if await quota_used_bytes(db, campus_key) + incoming_bytes > quota_bytes:
         raise MediaQuotaExceeded()
 
 
@@ -271,7 +287,7 @@ async def create_media_asset(
             if declared_kind == MediaKind.VIDEO:
                 job = await media_jobs.enqueue(db, asset, MediaJobKind.PROCESS, created_by=created_by)
                 if video_processing == "inline":
-                    await media_jobs.process_now(db, storage, asset, job)
+                    await media_jobs.process_now(db, storage, asset, job, quota_bytes=quota_bytes)
                 await db.flush()
                 return asset
             await _write_image_variants(db, storage, asset, clean_path, written)
@@ -317,6 +333,7 @@ async def _write_image_variants(
                     content_type="image/webp",
                     width=rendition.width,
                     height=rendition.height,
+                    size_bytes=len(rendition.data),
                 )
             )
         asset.status = MediaStatus.READY

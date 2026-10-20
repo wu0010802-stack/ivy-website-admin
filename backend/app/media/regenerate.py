@@ -171,6 +171,7 @@ async def regenerate_image_variants(db: AsyncSession, storage: MediaStorage, ass
                     content_type="image/webp",
                     width=rendition.width,
                     height=rendition.height,
+                    size_bytes=len(rendition.data),
                 )
             )
         old = [v for v in asset.variants if v.kind in _IMAGE_VARIANTS]

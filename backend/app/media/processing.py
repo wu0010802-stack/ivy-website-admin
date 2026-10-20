@@ -330,6 +330,12 @@ class TranscodeInterrupted(ProcessingError):
         super().__init__("轉檔因為程式停止而中斷，稍後會重新處理", retryable=True)
 
 
+class _FfmpegRunFailed(ProcessingError):
+    """ffmpeg 跑完卻沒有產出可用的檔案：回傳非 0（濾鏡或參數不支援）、被訊號砍掉
+    （多半是 zscale 浮點影格吃太多記憶體）或輸出是空的。這幾種換成不轉色調可能就過，
+    值得退回再轉一次；逾時、ffmpeg 無法執行換參數也一樣，不屬於這一類。"""
+
+
 @dataclass(frozen=True)
 class VideoColor:
     transfer: str | None = None
@@ -536,15 +542,17 @@ def _transcode_once(
         target.unlink(missing_ok=True)
         if returncode < 0:
             # 被訊號砍掉（多半是記憶體不足被系統收掉）：重試多半一樣，不排重試。
-            raise ProcessingError("影片轉檔時記憶體不足或被系統中止，請剪短或降低解析度後重新上傳")
-        raise ProcessingError(f"影片轉檔失敗：{stderr[-300:]}")
+            raise _FfmpegRunFailed("影片轉檔時記憶體不足或被系統中止，請剪短或降低解析度後重新上傳")
+        raise _FfmpegRunFailed(f"影片轉檔失敗：{stderr[-300:]}")
     return probe_video(target)
 
 
 def transcode_video(source: Path, target: Path, edition: str, color: VideoColor, duration: float | None) -> VideoProbe:
     """轉成 H.264 MP4 寫到 target，回傳輸出檔的寬高與時長。不裁切、不改時間軸：
-    活動影片的開始／結束秒數是對原片算的。HDR 轉 SDR 失敗時退回不轉色調再轉一次
-    （顏色可能偏灰，但影片可以用）。"""
+    活動影片的開始／結束秒數是對原片算的。HDR 轉 SDR 時 ffmpeg 跑完卻失敗（濾鏡不支援、
+    記憶體不足被系統中止）就退回不轉色調再轉一次（顏色可能偏灰，但影片可以用）；逾時、
+    ffmpeg 無法執行則直接往外丟，交給背景工作重試或標成失敗——轉色調只是慢，不該
+    因此默默換成偏灰版，還讓這支影片佔用唯一的轉檔名額兩倍時間（2026-10-20 稽核）。"""
     if duration is not None and duration > TRANSCODE_MAX_SECONDS:
         raise ProcessingError(f"影片超過 {TRANSCODE_MAX_SECONDS // 60} 分鐘，請剪短後重新上傳")
     tonemap = color.is_hdr and tonemap_available()
@@ -553,8 +561,6 @@ def transcode_video(source: Path, target: Path, edition: str, color: VideoColor,
     if tonemap:
         try:
             return _transcode_once(source, target, edition, color, duration, tonemap=True)
-        except TranscodeInterrupted:
-            raise
-        except ProcessingError as exc:
+        except _FfmpegRunFailed as exc:
             logger.warning("HDR 轉 SDR 失敗，改成不轉色調再轉一次：%s", exc)
     return _transcode_once(source, target, edition, color, duration, tonemap=False)

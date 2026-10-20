@@ -133,7 +133,13 @@ class MediaJobLoop:
                 # 認領途中收到停止訊號：不開始轉檔，直接放回。
                 await self._release(job_id)
                 return None
-            return await media_jobs.run_claimed(self._session_factory, storage, job_id, worker_id=self.worker_id)
+            return await media_jobs.run_claimed(
+                self._session_factory,
+                storage,
+                job_id,
+                worker_id=self.worker_id,
+                quota_bytes=self._settings.media_quota_bytes_per_campus,
+            )
         finally:
             self._current_job_id = None
 

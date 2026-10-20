@@ -53,6 +53,8 @@ INLINE_WORKER = "inline"
 INTERRUPTED_MESSAGE = "處理中斷太多次（影片可能太大或太長），請剪短或降低解析度後重新上傳"
 MISSING_ORIGINAL_MESSAGE = "儲存空間裡找不到原檔，請刪除這支影片後重新上傳"
 INLINE_ERROR_MESSAGE = "處理時發生錯誤，請重新處理或換一支影片"
+QUOTA_EXCEEDED_MESSAGE = "轉出的影片會讓素材空間超過上限，請先刪除用不到的素材再重新處理"
+QUOTA_BUSY_MESSAGE = "素材空間忙碌，這次沒有處理完成，請稍後按重新處理"
 _EDITIONS = (("desktop", VariantKind.VIDEO_DESKTOP), ("mobile", VariantKind.VIDEO_MOBILE))
 _ACTIVE = (MediaJobStatus.PENDING.value, MediaJobStatus.RUNNING.value)
 
@@ -68,6 +70,7 @@ class StoredVariant:
     content_type: str
     width: int | None
     height: int | None
+    size_bytes: int
 
 
 @dataclass(frozen=True)
@@ -86,6 +89,7 @@ class _Snapshot:
     storage_key: str
     duration: float | None
     existing: frozenset[VariantKind]
+    campus_key: str | None = None
 
 
 def _now() -> datetime:
@@ -94,7 +98,12 @@ def _now() -> datetime:
 
 def _snapshot(asset: MediaAsset) -> _Snapshot:
     return _Snapshot(
-        asset.id, asset.kind, asset.storage_key, asset.duration_seconds, frozenset(v.kind for v in asset.variants)
+        asset.id,
+        asset.kind,
+        asset.storage_key,
+        asset.duration_seconds,
+        frozenset(v.kind for v in asset.variants),
+        campus_key=asset.campus_key,
     )
 
 
@@ -169,6 +178,7 @@ def _apply(asset: MediaAsset, job: MediaJob, outputs: list[StoredVariant], now: 
                 content_type=out.content_type,
                 width=out.width,
                 height=out.height,
+                size_bytes=out.size_bytes,
             )
         )
     if job.kind == MediaJobKind.PROCESS.value:
@@ -180,6 +190,28 @@ def _apply(asset: MediaAsset, job: MediaJob, outputs: list[StoredVariant], now: 
     job.leased_by = None
     job.leased_until = None
     return unused
+
+
+async def _over_quota(
+    db: AsyncSession, campus_key: str | None, asset: MediaAsset, outputs: list[StoredVariant], quota_bytes: int | None
+) -> bool:
+    """衍生檔寫進記錄前，在上傳用的同一把配額鎖內重算：上傳只擋得住原檔，轉出來的
+    版本（非 H.264 來源一律採用，常比原檔大）要在這裡算（2026-10-20 稽核）。呼叫端
+    要先拿配額鎖、再鎖素材列，順序跟上傳一致才不會互等。"""
+    if quota_bytes is None:
+        return False
+    have = {v.kind for v in asset.variants}
+    incoming = sum(out.size_bytes for out in outputs if out.kind not in have)
+    if incoming == 0:
+        return False
+    return await _media_service().quota_used_bytes(db, campus_key) + incoming > quota_bytes
+
+
+def _media_service():
+    # service 在模組載入時就引用 jobs（上傳時排工作），這裡延後載入避免循環引用。
+    from app.media import service
+
+    return service
 
 
 async def _delete_files(storage: MediaStorage, keys: list[str]) -> None:
@@ -208,7 +240,9 @@ async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKin
                 poster = await processing.run_media_job(processing.extract_video_poster, source)
                 key = storage.generate_key(".webp")
                 # 先記下再寫：寫到一半被取消也刪得到（thread 會等寫完才讓取消往上丟）。
-                written.append(StoredVariant(VariantKind.POSTER, key, "image/webp", poster.width, poster.height))
+                written.append(
+                    StoredVariant(VariantKind.POSTER, key, "image/webp", poster.width, poster.height, len(poster.data))
+                )
                 await run_in_thread(storage.write_bytes, key, poster.data)
             stream = await processing.run_media_job(processing.probe_video_stream, source)
             source_bytes = source.stat().st_size
@@ -229,7 +263,7 @@ async def _produce(storage: MediaStorage, snap: _Snapshot, job_kind: MediaJobKin
                     )
                     continue
                 key = storage.generate_key(".mp4")
-                written.append(StoredVariant(variant_kind, key, "video/mp4", video.width, video.height))
+                written.append(StoredVariant(variant_kind, key, "video/mp4", video.width, video.height, output_bytes))
                 await run_in_thread(storage.write_file, key, target)
     except BaseException:
         await _delete_files(storage, [v.storage_key for v in written])
@@ -315,7 +349,16 @@ async def _locked_job(db: AsyncSession, job_id: uuid.UUID, worker_id: str) -> Me
     return job
 
 
-async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, worker_id: str, outputs: list[StoredVariant]) -> str:
+async def _finish(
+    session_factory,
+    storage: MediaStorage,
+    job_id: uuid.UUID,
+    worker_id: str,
+    outputs: list[StoredVariant],
+    *,
+    campus_key: str | None = None,
+    quota_bytes: int | None = None,
+) -> str:
     keys = [o.storage_key for o in outputs]
     unused: list[str] = []
     committed = False
@@ -326,6 +369,8 @@ async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, wor
                 await db.rollback()
                 await _delete_files(storage, keys)
                 return "lost"
+            if quota_bytes is not None and outputs:
+                await _media_service().lock_quota(db, campus_key)
             result = await db.execute(
                 select(MediaAsset)
                 .options(selectinload(MediaAsset.variants))
@@ -337,6 +382,10 @@ async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, wor
                 unused = keys
                 job.status = MediaJobStatus.DONE.value
                 job.finished_at = _now()
+            elif await _over_quota(db, campus_key, asset, outputs, quota_bytes):
+                # 不採用任何版本：檔案全刪，工作直接失敗（重試也一樣超過）。
+                unused = keys
+                _record_failure(asset, job, QUOTA_EXCEEDED_MESSAGE, retryable=False, now=_now())
             else:
                 unused = _apply(asset, job, outputs, _now())
             # commit 不能被取消打斷到不知道成沒成：等它結束，再判斷檔案要不要留。
@@ -354,12 +403,15 @@ async def _finish(session_factory, storage: MediaStorage, job_id: uuid.UUID, wor
                 committed = not commit.cancelled() and commit.exception() is None
                 raise
             committed = True
+            outcome = "done" if job.status == MediaJobStatus.DONE.value else "failed"
     except BaseException:
         # 取消與例外都一樣：沒提交就刪光這次寫的；已提交只刪沒用到的。
         await _delete_files(storage, unused if committed else keys)
         raise
     await _delete_files(storage, unused)
-    return "done"
+    if outcome == "failed":
+        logger.warning("背景處理：工作 %s 失敗：%s", job_id, QUOTA_EXCEEDED_MESSAGE)
+    return outcome
 
 
 async def _fail(session_factory, job_id: uuid.UUID, worker_id: str, message: str, *, retryable: bool) -> str:
@@ -376,7 +428,9 @@ async def _fail(session_factory, job_id: uuid.UUID, worker_id: str, message: str
     return outcome
 
 
-async def run_claimed(session_factory, storage: MediaStorage, job_id: uuid.UUID, *, worker_id: str) -> str:
+async def run_claimed(
+    session_factory, storage: MediaStorage, job_id: uuid.UUID, *, worker_id: str, quota_bytes: int | None = None
+) -> str:
     async with session_factory() as db:
         job = await db.get(MediaJob, job_id)
         if job is None:  # 素材被實體刪除，CASCADE 帶走了工作
@@ -402,22 +456,36 @@ async def run_claimed(session_factory, storage: MediaStorage, job_id: uuid.UUID,
     finally:
         heartbeat.cancel()
         await asyncio.gather(heartbeat, return_exceptions=True)
-    return await _finish(session_factory, storage, job_id, worker_id, outputs)
+    try:
+        return await _finish(
+            session_factory, storage, job_id, worker_id, outputs, campus_key=snap.campus_key, quota_bytes=quota_bytes
+        )
+    except Exception as exc:
+        if not isinstance(exc, _media_service().MediaBusy):
+            raise
+        # 等配額鎖逾時：這次轉好的檔案 _finish 已經刪了，晚點整支重轉。
+        # 訊息在最後一次也會寫到素材上（之後不再自動重做），所以不說「稍後會重新處理」。
+        return await _fail(session_factory, job_id, worker_id, QUOTA_BUSY_MESSAGE, retryable=True)
 
 
-async def process_next(session_factory, storage: MediaStorage, *, worker_id: str) -> str | None:
+async def process_next(
+    session_factory, storage: MediaStorage, *, worker_id: str, quota_bytes: int | None = None
+) -> str | None:
     async with session_factory() as db:
         job = await claim_next(db, worker_id)
         job_id = job.id if job is not None else None
         await db.commit()
     if job_id is None:
         return None
-    return await run_claimed(session_factory, storage, job_id, worker_id=worker_id)
+    return await run_claimed(session_factory, storage, job_id, worker_id=worker_id, quota_bytes=quota_bytes)
 
 
-async def process_now(db: AsyncSession, storage: MediaStorage, asset: MediaAsset, job: MediaJob) -> str:
+async def process_now(
+    db: AsyncSession, storage: MediaStorage, asset: MediaAsset, job: MediaJob, *, quota_bytes: int | None = None
+) -> str:
     """在呼叫端交易裡做完（本機開發、測試、指令列匯入；正式站走背景）。上傳的人
-    正在等結果，失敗不排重試，直接標成處理失敗（原檔留著，可以重新處理）。"""
+    正在等結果，失敗不排重試，直接標成處理失敗（原檔留著，可以重新處理）。
+    quota_bytes 有值時，衍生檔超過配額也標成失敗（配額鎖在同一交易內可重入）。"""
     # 呼叫端的物件可能已被 expire：整個重讀，async 下不能靠隱式 lazy load。
     await db.flush()  # refresh 會先 expire：呼叫端還沒 flush 的修改要先寫出去
     await db.refresh(asset)
@@ -434,6 +502,18 @@ async def process_now(db: AsyncSession, storage: MediaStorage, asset: MediaAsset
     except Exception:  # 其他例外也不能讓工作卡在 running／素材卡在 processing
         logger.exception("背景處理：素材 %s 就地處理發生未預期錯誤", asset.id)
         _record_failure(asset, job, INLINE_ERROR_MESSAGE, retryable=False, now=_now())
+        await db.flush()
+        return "failed"
+    try:
+        if quota_bytes is not None and outputs:
+            await _media_service().lock_quota(db, asset.campus_key)
+        over = await _over_quota(db, asset.campus_key, asset, outputs, quota_bytes)
+    except BaseException:
+        await _delete_files(storage, [o.storage_key for o in outputs])
+        raise
+    if over:
+        await _delete_files(storage, [o.storage_key for o in outputs])
+        _record_failure(asset, job, QUOTA_EXCEEDED_MESSAGE, retryable=False, now=_now())
         await db.flush()
         return "failed"
     unused = _apply(asset, job, outputs, _now())

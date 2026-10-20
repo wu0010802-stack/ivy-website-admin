@@ -757,7 +757,13 @@ async def retry_media_processing(
             detail={"code": "MEDIA_ALREADY_PROCESSING", "message": "這支影片已經在處理了"},
         ) from exc
     if request.app.state.settings.media_video_processing_mode == "inline":
-        await media_jobs.process_now(db, service.get_storage(request.app.state.settings), asset, job)
+        await media_jobs.process_now(
+            db,
+            service.get_storage(request.app.state.settings),
+            asset,
+            job,
+            quota_bytes=request.app.state.settings.media_quota_bytes_per_campus,
+        )
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
