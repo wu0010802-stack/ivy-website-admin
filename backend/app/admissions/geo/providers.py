@@ -10,17 +10,20 @@
 - 幼兒園類型變了 → kind_changed 事件。舊的類型用這次同步當下的學年重算（P7）：準公共期間是學年區間，
   學年更替時沒改過資料的園所類型會自己變，直接比會冒出一批假異動；
   新舊都是私立基底且都有準公共期間時視為續約，不算（加入、退出、公立／非營利／私立之間的改變才算）。
+回補檔裡更早停辦、資料表沒有或早已停辦的園所，每輪同步另由 apply_closure_backfill 補一列並補停辦事件（2026-10-20，
+可重跑、SAVEPOINT 包住）；事件保留 72 個月。
 資料表原本是空的（托嬰第一次）只建立基準，不寫任何事件（P8）。新名單營業中的數量比上次少太多視為
 殘缺檔，不換版（P9）。事件靠唯一約束冪等；同一個交易做完，由呼叫端 commit。"""
 
 from __future__ import annotations
 
 import calendar
+import logging
 import math
 from collections.abc import Callable, Mapping
 from collections.abc import Set as AbstractSet
 from dataclasses import asdict, dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -34,10 +37,12 @@ from app.admissions.geo.models import GeoBabycare, GeoDatasetStatus, GeoKinderga
 from app.admissions.geo.projection import haversine_m
 from app.common.timezones import today_local
 
+logger = logging.getLogger(__name__)
+
 # 幼兒園、托嬰每 7 天看一次來源（P10）；門牌、人口維持 sync.REFRESH_AFTER 的 30 天。
 PROVIDER_REFRESH_AFTER = timedelta(days=7)
 CHANGE_WINDOW_MONTHS = 12  # 畫面與 API 看近 12 個月（P11）
-EVENT_RETENTION_MONTHS = 24  # 事件保留 24 個月
+EVENT_RETENTION_MONTHS = 72  # 事件保留 72 個月（六年）：停辦回補檔從 2022-08 起，畫面仍只看近 12 個月
 REOPEN_CANCELS_CLOSURE = timedelta(days=30)  # P6
 TRUNCATION_RATIO = 0.8  # P9
 TRUNCATION_MIN_PREVIOUS = 20
@@ -273,6 +278,81 @@ async def apply_kindergartens(
         db, _KINDERGARTEN, incoming,
         synced_at=synced_at, force=force, kind_change=kind_change, retire=retire,
     )
+
+
+async def apply_closure_backfill(
+    db: AsyncSession, backfill: Mapping[str, ClosureBackfill], *, synced_at: datetime | None = None
+) -> int:
+    """把回補檔裡「closed 且有 left_on」的停辦補進資料庫（2026-10-20 招生潛力第二、三波）；回傳新寫的事件數，不 commit。
+
+    和 retire() 是兩條獨立的路：retire() 只在某所「這一輪才下架」時查檔，更早停辦的園所在表裡早已是停辦、
+    甚至根本沒有那一列，只能靠這裡每輪檢查一次補上，所以可重跑：
+    - 表裡沒有這一所 → 補一列停辦的（名稱、核定、座標、類型取自檔；地址、行政區檔裡沒有存空字串；
+      類型沒填取 private，價格係數查不到收費時是中性的）。檔裡沒有座標就不補列、不寫事件（lat、lng 非空）；
+    - 表裡已是停辦 → 只補事件；
+    - 營業中的不碰，真的還在營業的交給 retire() 那條路處理；
+    - 同一所已經有停辦事件（不論日期）就略過，免得先前一般停辦寫在同步當天、這裡又用檔裡的日期補第二筆；
+    - 離開日比事件保留期還舊的略過（寫了下一輪也會被清掉）。
+    renamed 與沒有日期的 closed 不寫事件。事件靠唯一約束冪等；新設不寫事件（維持 P3 讀設立日）。"""
+    synced_at = synced_at or datetime.now(timezone.utc)
+    oldest = months_ago(today_local(synced_at), EVENT_RETENTION_MONTHS)
+    wanted = {
+        source_id: entry for source_id, entry in backfill.items()
+        if entry.reason == "closed" and entry.left_on is not None and entry.left_on >= oldest
+    }
+    if not wanted:
+        return 0
+    known = dict(
+        (await db.execute(
+            select(GeoKindergarten.source_id, GeoKindergarten.is_active).where(GeoKindergarten.source_id.in_(wanted))
+        )).all()
+    )
+    recorded = set(
+        (await db.execute(
+            select(GeoProviderEvent.source_id).where(
+                GeoProviderEvent.provider == _KINDERGARTEN.provider,
+                GeoProviderEvent.change == "closed",
+                GeoProviderEvent.source_id.in_(wanted),
+            )
+        )).scalars()
+    )
+    new_rows: list[dict] = []
+    pending: list[dict] = []
+    for source_id, entry in wanted.items():
+        if known.get(source_id) or source_id in recorded:
+            continue
+        if source_id not in known:
+            if entry.lat is None or entry.lng is None:
+                continue
+            new_rows.append(
+                {
+                    "source_id": source_id, "name": entry.name, "kind": entry.kind or "private", "district": "",
+                    "address": "", "lat": entry.lat, "lng": entry.lng, "approved_capacity": entry.approved_capacity,
+                    "has_penalty": False, "is_active": False, "synced_at": synced_at,
+                }
+            )
+        pending.append(
+            {
+                "provider": _KINDERGARTEN.provider, "source_id": source_id, "change": "closed",
+                "occurred_on": entry.left_on, "old_value": None, "new_value": None,
+            }
+        )
+    if new_rows:
+        await db.execute(pg_insert(GeoKindergarten).values(new_rows).on_conflict_do_nothing(index_elements=["source_id"]))
+    return (await _insert_events(db, pending)).get("closed", 0)
+
+
+async def safe_apply_closure_backfill(
+    db: AsyncSession, backfill: Mapping[str, ClosureBackfill], *, synced_at: datetime | None = None
+) -> int:
+    """apply_closure_backfill 包 SAVEPOINT：失敗只退回自己、記 warning 並回 0，不拖累同一個交易裡的名單同步
+    （比照 september.safe_backfill；回補是附加資料，下一輪同步會再補）。"""
+    try:
+        async with db.begin_nested():
+            return await apply_closure_backfill(db, backfill, synced_at=synced_at)
+    except Exception:  # noqa: BLE001 - 附加資料失敗不擋名單同步
+        logger.warning("幼兒園停辦回補寫入失敗，名單照常更新，下一輪再補", exc_info=True)
+        return 0
 
 
 async def apply_babycare(

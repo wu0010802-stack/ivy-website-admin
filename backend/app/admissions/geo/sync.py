@@ -682,12 +682,14 @@ async def sync_kindergartens(
                 db, rows, synced_at=now, school_year=school_year, force=force, backfill=backfill,
                 listed_places=registry.places,
             )
+            # 2026-10-20：回補檔裡更早停辦、資料表沒有的園所補一列再寫停辦事件；附加資料，SAVEPOINT 包住，失敗不擋名單。
+            added = await providers.safe_apply_closure_backfill(db, backfill, synced_at=now)
             await db.commit()
         logger.info(
             "幼兒園資料已更新：%s 所，略過 %s 筆、名單有但沒有座標 %s 筆、有幼童專用車 %s 所；停辦事件 %s、"
-            "依回補檔下架 %s、改名下架 %s、重新營業 %s、類型變動 %s",
+            "依回補檔下架 %s、改名下架 %s、重新營業 %s、類型變動 %s、回補檔補寫停辦事件 %s",
             changes.active, report.skipped, report.unplaced, sum(1 for row in rows if row.has_shuttle is True),
-            changes.closed, changes.backfilled, changes.renamed, changes.opened, changes.kind_changed,
+            changes.closed, changes.backfilled, changes.renamed, changes.opened, changes.kind_changed, added,
         )
         return "updated", report.skipped
     except Exception as exc:  # noqa: BLE001

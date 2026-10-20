@@ -15,8 +15,11 @@ from app.admissions.geo.providers import (
     SHRUNK_MESSAGE,
     ProviderShrunk,
     apply_babycare,
+    apply_closure_backfill,
     apply_kindergartens,
     months_ago,
+    nearby_changes,
+    safe_apply_closure_backfill,
 )
 
 # 台北 2026-10-14 12:00（UTC 04:00，兩邊同一天）。
@@ -325,6 +328,120 @@ async def test_a_backfilled_kindergarten_that_comes_back_later_reopens(db_sessio
     ]
 
 
+# ---- 幼兒園：回補檔補列與停辦事件（2026-10-20 招生潛力第二、三波） ----
+
+LEFT = date(2026, 3, 1)  # 離 TODAY 近 12 個月內：nearby_changes 看得到
+
+
+def gone(left_on: date | None = LEFT, **overrides) -> ClosureBackfill:
+    values = {"name": "高雄市私立舊幼兒園", "approved_capacity": 90, "lat": 22.64, "lng": 120.34, "kind": "nonprofit"}
+    return ClosureBackfill("closed", left_on, **{**values, **overrides})
+
+
+async def put_backfill(db, backfill, *, now=NOW):
+    count = await apply_closure_backfill(db, backfill, synced_at=now)
+    await db.commit()
+    return count
+
+
+async def test_backfill_inserts_missing_kindergarten_and_event(db_session):
+    """資料表沒有的停辦園所：補一列停辦的，名稱、核定、座標、類型取自檔，停辦事件寫在離開名單那天。"""
+    assert await put_backfill(db_session, {"gone": gone()}) == 1
+    row = await db_session.get(GeoKindergarten, "gone")
+    assert (row.is_active, row.name, row.approved_capacity, row.kind) == (False, "高雄市私立舊幼兒園", 90, "nonprofit")
+    assert (row.lat, row.lng, row.synced_at, row.has_penalty) == (22.64, 120.34, NOW, False)
+    assert await events(db_session) == [("kindergarten", "gone", "closed", LEFT, None, None)]
+    # 補的列 join 得到名稱與座標：三公里內的近 12 個月變化看得到它
+    changes = await nearby_changes(db_session, 22.64, 120.34, 3000, today=TODAY)
+    assert [(c.source_id, c.name, c.change, c.date) for c in changes] == [("gone", "高雄市私立舊幼兒園", "closed", LEFT)]
+
+
+async def test_backfill_writes_the_event_for_a_row_that_is_already_closed(db_session):
+    """表裡已有這一所、而且是停辦的：不動那一列，只補事件。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("old", name="表裡的名字")])
+    await put_kindergartens(db_session, [kg("k1")], now=later(7), backfill={"old": ClosureBackfill("renamed", None)})
+    assert await events(db_session) == []
+    assert await put_backfill(db_session, {"old": gone(name="檔裡的名字")}, now=later(14)) == 1
+    row = await db_session.get(GeoKindergarten, "old")
+    assert (row.is_active, row.name) == (False, "表裡的名字")
+    assert await events(db_session) == [("kindergarten", "old", "closed", LEFT, None, None)]
+
+
+async def test_backfill_idempotent(db_session):
+    backfill = {"gone": gone()}
+    assert await put_backfill(db_session, backfill) == 1
+    assert await put_backfill(db_session, backfill, now=later(7)) == 0
+    assert await put_backfill(db_session, backfill, now=later(14)) == 0
+    assert len(await events(db_session)) == 1
+    assert await db_session.scalar(select(func.count()).select_from(GeoKindergarten)) == 1
+    assert (await db_session.get(GeoKindergarten, "gone")).synced_at == NOW  # 第二輪沒有碰那一列
+
+
+async def test_backfill_does_not_double_count_a_closure_that_was_already_recorded(db_session):
+    """同一所已經有停辦事件（例如先前一般停辦寫在同步當天）：不再用檔裡的日期補第二筆。"""
+    await put_kindergartens(db_session, [kg("k1"), kg("k2")])
+    await put_kindergartens(db_session, [kg("k1")], now=later(7))  # k2 一般停辦，事件 2026-10-21
+    assert await put_backfill(db_session, {"k2": gone()}, now=later(14)) == 0
+    assert await events(db_session) == [("kindergarten", "k2", "closed", date(2026, 10, 21), None, None)]
+
+
+async def test_backfill_skips_active_and_no_coords(db_session):
+    await put_kindergartens(db_session, [kg("k1")])
+    backfill = {
+        "k1": gone(),  # 營業中：交給 retire 流程，這裡不碰
+        "no-lat": gone(lat=None, lng=None),  # 表裡沒有、檔裡也沒有座標：欄位非空，不補列
+        "half": gone(lat=22.64, lng=None),
+        "renamed": ClosureBackfill("renamed", LEFT, name="改名", lat=22.64, lng=120.34, kind="private"),
+        "no-date": gone(left_on=None),  # 回補窗口前就消失：沒有日期，不寫事件也不補列
+        "ok": gone(),
+    }
+    assert await put_backfill(db_session, backfill) == 1
+    assert await events(db_session) == [("kindergarten", "ok", "closed", LEFT, None, None)]
+    assert sorted((await db_session.scalars(select(GeoKindergarten.source_id))).all()) == ["k1", "ok"]
+    assert await active_ids(db_session, GeoKindergarten) == ["k1"]
+
+
+async def test_backfill_fills_in_defaults_for_a_missing_kind_and_capacity(db_session):
+    await put_backfill(db_session, {"gone": gone(kind=None, approved_capacity=None)})
+    row = await db_session.get(GeoKindergarten, "gone")
+    assert (row.kind, row.approved_capacity, row.is_active) == ("private", None, False)
+
+
+async def test_backfill_ignores_closures_older_than_the_retention(db_session):
+    """比保留期還舊的不寫（寫了下一輪也會被刪掉，列也不必補）。"""
+    old = months_ago(TODAY, 73)
+    assert await put_backfill(db_session, {"gone": gone(left_on=old)}) == 0
+    assert await events(db_session) == []
+    assert await db_session.get(GeoKindergarten, "gone") is None
+
+
+async def test_backfill_survives_the_next_sync_and_the_retention_sweep(db_session):
+    """補上的停辦（2022 年）不被同一輪的保留期清掃刪掉，下一輪同步也不會改動它。"""
+    left = date(2022, 10, 1)  # 約 48 個月前
+    await put_kindergartens(db_session, [kg("k1")])
+    await put_backfill(db_session, {"gone": gone(left_on=left)})
+    await put_kindergartens(db_session, [kg("k1")], now=later(7))
+    assert await events(db_session) == [("kindergarten", "gone", "closed", left, None, None)]
+    assert await active_ids(db_session, GeoKindergarten) == ["k1"]
+
+
+async def test_backfill_failure_does_not_block_sync(db_session, caplog):
+    """回補寫入出錯（這裡是類型違反約束）：只退回自己的 SAVEPOINT 並記 warning，同一個交易裡的名單同步照常提交。"""
+    await put_kindergartens(db_session, [kg("k1")])
+    await apply_kindergartens(db_session, [kg("k1"), kg("k2")], synced_at=later(7), school_year=115)  # 還沒 commit
+    broken = {"bad": gone(kind="bogus"), "ok": gone()}
+    with caplog.at_level("WARNING"):
+        assert await safe_apply_closure_backfill(db_session, broken, synced_at=later(7)) == 0
+    assert "回補" in caplog.text
+    await db_session.commit()
+    assert await active_ids(db_session, GeoKindergarten) == ["k1", "k2"]
+    assert await db_session.get(GeoKindergarten, "bad") is None
+    assert await db_session.get(GeoKindergarten, "ok") is None  # 同一個 SAVEPOINT 全退回
+    assert await events(db_session) == []
+    # 修好之後下一輪補得上
+    assert await safe_apply_closure_backfill(db_session, {"ok": gone()}, synced_at=later(14)) == 1
+
+
 async def test_a_school_year_rollover_alone_is_not_a_kind_change(db_session):
     """8 月學年更替：準公共期間沒改（113-115），116 學年解析出來自然變成私立。舊的類型用 116 學年重算，所以不算變動。"""
     await put_kindergartens(db_session, [kg("k1", kind="quasi_public", period="113-115")], school_year=115)
@@ -411,18 +528,32 @@ async def test_force_skips_the_truncation_check(db_session):
 # ---- 事件保留期 ----
 
 
-async def test_events_older_than_24_months_are_pruned_per_provider(db_session):
+async def test_events_older_than_72_months_are_pruned_per_provider(db_session):
     await put_babycare(db_session, [bc("b1")])
     db_session.add_all(
         [
-            GeoProviderEvent(provider="babycare", source_id="old", change="closed", occurred_on=date(2024, 10, 13)),
-            GeoProviderEvent(provider="babycare", source_id="edge", change="closed", occurred_on=date(2024, 10, 14)),
-            GeoProviderEvent(provider="kindergarten", source_id="kold", change="closed", occurred_on=date(2020, 1, 1)),
+            GeoProviderEvent(provider="babycare", source_id="old", change="closed", occurred_on=date(2020, 10, 13)),
+            GeoProviderEvent(provider="babycare", source_id="edge", change="closed", occurred_on=date(2020, 10, 14)),
+            GeoProviderEvent(provider="kindergarten", source_id="kold", change="closed", occurred_on=date(2015, 1, 1)),
         ]
     )
     await db_session.commit()
-    await put_babycare(db_session, [bc("b1")])  # 同一天再跑：今天 2026-10-14，保留期從 2024-10-14 起
+    await put_babycare(db_session, [bc("b1")])  # 同一天再跑：今天 2026-10-14，保留期從 2020-10-14 起
     assert {(event[0], event[1]) for event in await events(db_session)} == {("babycare", "edge"), ("kindergarten", "kold")}
+
+
+async def test_retention_keeps_72_months(db_session):
+    """回補檔從 2022-08 起：60 個月前的停辦同步後仍在，80 個月前的才被刪（保留期原本 24 個月）。"""
+    await put_kindergartens(db_session, [kg("k1")])
+    db_session.add_all(
+        [
+            GeoProviderEvent(provider="kindergarten", source_id="k60", change="closed", occurred_on=months_ago(TODAY, 60)),
+            GeoProviderEvent(provider="kindergarten", source_id="k80", change="closed", occurred_on=months_ago(TODAY, 80)),
+        ]
+    )
+    await db_session.commit()
+    await put_kindergartens(db_session, [kg("k1")], now=later(7))
+    assert [(event[1], event[3]) for event in await events(db_session)] == [("k60", months_ago(TODAY, 60))]
 
 
 @pytest.mark.parametrize(

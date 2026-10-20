@@ -656,6 +656,50 @@ async def test_the_sync_applies_the_closure_backfill(app, monkeypatch):
     assert [tuple(row) for row in rows] == [("ghost", "closed", left_on)]
 
 
+def _gone_entry(**overrides) -> ClosureBackfill:
+    values = {"name": "高雄市私立舊幼兒園", "approved_capacity": 90, "lat": 22.64, "lng": 120.34, "kind": "private"}
+    return ClosureBackfill("closed", today_local() - timedelta(days=200), **{**values, **overrides})
+
+
+async def _sync_with_backfill(app, monkeypatch, backfill):
+    monkeypatch.setattr(sync, "load_closure_backfill", lambda: backfill)
+    return await run_geo_sync(
+        app.state.session_factory, app.state.settings,
+        kindergartens_file=FIXTURES / "preschools-sample.json", kindergartens_registry_file=REGISTRY_SAMPLE,
+    )
+
+
+async def test_the_sync_adds_closures_the_table_never_had(app, monkeypatch):
+    """資料表沒有的停辦園所（更早就消失、kiang 已沒有它）：同步補一列停辦的，再寫停辦事件，下一輪不重複。"""
+    entry = _gone_entry()
+    for _ in range(2):
+        result = await _sync_with_backfill(app, monkeypatch, {"gone": entry})
+        assert result.kindergartens == "updated"
+    async with app.state.session_factory() as db:
+        row = await db.get(GeoKindergarten, "gone")
+        assert (row.is_active, row.name, row.approved_capacity) == (False, "高雄市私立舊幼兒園", 90)
+        events = (await db.execute(select(GeoProviderEvent.source_id, GeoProviderEvent.change, GeoProviderEvent.occurred_on))).all()
+    assert [tuple(event) for event in events] == [("gone", "closed", entry.left_on)]
+    assert (await _counts(app))[1] == 11
+
+
+@pytest.mark.parametrize("failure", ["raises", "database-error"])
+async def test_a_failing_closure_backfill_does_not_fail_the_kindergarten_sync(app, monkeypatch, failure):
+    """回補是附加的：寫入丟例外、或資料庫拒絕（類型違反約束）都只記 warning，名單照常更新、狀態列不記錯誤。"""
+    if failure == "raises":
+        async def explode(*args, **kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(providers, "apply_closure_backfill", explode)
+    result = await _sync_with_backfill(app, monkeypatch, {"gone": _gone_entry(kind="bogus" if failure == "database-error" else "private")})
+    assert result.kindergartens == "updated"
+    assert (await _status(app, "kindergartens")).last_error is None
+    assert (await _counts(app))[1] == 10
+    async with app.state.session_factory() as db:
+        assert await db.get(GeoKindergarten, "gone") is None
+        assert await db.scalar(select(func.count()).select_from(GeoProviderEvent)) == 0
+
+
 async def test_a_broken_backfill_file_fails_the_kindergarten_sync(app, monkeypatch):
     def broken():
         raise BackfillFormatError("kindergarten-closures-20261015.csv 第 3 列不對")
