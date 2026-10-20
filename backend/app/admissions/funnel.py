@@ -222,7 +222,18 @@ async def transition(
     return from_stage
 
 
-def _card(visit: RecruitmentVisit) -> dict:
+_CARD_FIELDS = (
+    "id", "child_name", "grade", "provisional_grade", "target_school_year", "target_semester", "visit_date",
+    "visit_request_id", "withdrawn_from", "follow_up_at", "version",
+)
+# 看板查詢只取這些欄位：卡片欄位加上 derive_stage 要的三個。
+_BOARD_COLUMNS = tuple(
+    getattr(RecruitmentVisit, name) for name in (*_CARD_FIELDS, "withdrawn_at", "enrolled", "has_deposit")
+)
+
+
+def _card(visit) -> dict:
+    """visit 是 RecruitmentVisit，或有 _CARD_FIELDS 同名屬性的查詢列。"""
     return {
         "id": visit.id,
         "child_name": visit.child_name,
@@ -248,13 +259,15 @@ async def board(db: AsyncSession, campus_key: str, school_year: int, semester: i
     conditions = [RecruitmentVisit.campus_key == campus_key, RecruitmentVisit.target_school_year == school_year]
     if semester is not None:
         conditions.append(RecruitmentVisit.target_semester == semester)
+    # 只查卡片與階段要的欄位（2026-10-20）：整個 RecruitmentVisit 會連帶 selectin 載入看板用不到的 geo，
+    # 也多讀聯絡資料等欄位。回傳的 Row 有同名屬性，derive_stage 與 _card 照用。
     result = await db.execute(
-        select(RecruitmentVisit)
+        select(*_BOARD_COLUMNS)
         .where(*conditions)
         .order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc())
     )
     columns: dict[str, list[dict]] = {stage: [] for stage in STAGE_VALUES}
-    for visit in result.scalars():
+    for visit in result:
         columns[derive_stage(visit)].append(_card(visit))
     unscoped = await db.scalar(
         select(func.count())

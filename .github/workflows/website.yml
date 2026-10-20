@@ -109,10 +109,29 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
-      - name: Install media test dependency
+      # ffmpeg 原本每次（後端 3 組＋e2e）都 apt-get update 再下載安裝約百個套件（2026-10-20 改）：
+      # 下載的 .deb 以 runner 映像版本為鍵存進 Actions 快取；先不 update、直接用快取裝，
+      # 套件清單不在或快取對不上才照舊 update 後安裝，最差就是原本的速度。man-db 的手冊索引觸發 CI 用不到，先關掉。
+      - name: ffmpeg package cache key
+        id: ffmpeg-key
+        run: echo "key=apt-ffmpeg-${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/apt-ffmpeg
+          key: ${{ steps.ffmpeg-key.outputs.key }}
+      - name: Install ffmpeg (media test dependency)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          archives="$HOME/.cache/apt-ffmpeg"
+          mkdir -p "$archives/partial"
+          sudo rm -f /var/lib/man-db/auto-update
+          opts=(-y --no-install-recommends -o "Dir::Cache::Archives=$archives" -o APT::Keep-Downloaded-Packages=true)
+          if ! sudo apt-get install "${opts[@]}" ffmpeg; then
+            sudo apt-get update
+            sudo apt-get install "${opts[@]}" ffmpeg
+          fi
+          sudo rm -rf "$archives/partial" "$archives/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$archives"
+          ffmpeg -version
       - run: uv sync --frozen
         working-directory: backend
       # 執行期相依套件的已知漏洞（PyPI／OSV 公告，稽核 pillow-outdated-native-decoder-memcorrupt
@@ -197,10 +216,29 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       # 影片上傳要 ffprobe、背景轉檔要 ffmpeg（tests/stack/media-video.spec.ts 也用它產生樣本）。
+      # ffmpeg 原本每次（後端 3 組＋e2e）都 apt-get update 再下載安裝約百個套件（2026-10-20 改）：
+      # 下載的 .deb 以 runner 映像版本為鍵存進 Actions 快取；先不 update、直接用快取裝，
+      # 套件清單不在或快取對不上才照舊 update 後安裝，最差就是原本的速度。man-db 的手冊索引觸發 CI 用不到，先關掉。
+      - name: ffmpeg package cache key
+        id: ffmpeg-key
+        run: echo "key=apt-ffmpeg-${ImageOS:-unknown}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/apt-ffmpeg
+          key: ${{ steps.ffmpeg-key.outputs.key }}
       - name: Install ffmpeg
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          archives="$HOME/.cache/apt-ffmpeg"
+          mkdir -p "$archives/partial"
+          sudo rm -f /var/lib/man-db/auto-update
+          opts=(-y --no-install-recommends -o "Dir::Cache::Archives=$archives" -o APT::Keep-Downloaded-Packages=true)
+          if ! sudo apt-get install "${opts[@]}" ffmpeg; then
+            sudo apt-get update
+            sudo apt-get install "${opts[@]}" ffmpeg
+          fi
+          sudo rm -rf "$archives/partial" "$archives/lock"
+          sudo chown -R "$(id -u):$(id -g)" "$archives"
+          ffmpeg -version
       - run: uv sync --frozen
         working-directory: backend
       - name: Install Node dependencies

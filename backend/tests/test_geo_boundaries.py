@@ -101,12 +101,17 @@ def _geojson(*villages: tuple[str, str, str]) -> bytes:
 def fake_boundaries(monkeypatch):
     """換掉界圖檔案內容，並在前後清掉 (區, 里) 對照表的快取，不污染其他測試。"""
 
+    def _clear() -> None:
+        # 各對照共用 _features() 解析的同一份資料（2026-10-20），要一起清。
+        for cached in (boundaries._features, boundaries._village_codes, boundaries.village_names, boundaries.village_centroids):
+            cached.cache_clear()
+
     def use(data: bytes) -> None:
         monkeypatch.setattr(boundaries, "boundary_bytes", lambda: data)
-        boundaries._village_codes.cache_clear()
+        _clear()
 
     yield use
-    boundaries._village_codes.cache_clear()
+    _clear()
 
 
 def test_duplicate_district_village_in_the_file_raises(fake_boundaries):
@@ -162,3 +167,44 @@ def test_village_at_respects_holes_and_multipolygons(fake_boundaries):
         assert boundaries.village_at(15, 5) is None
     finally:
         boundaries._village_shapes.cache_clear()
+
+
+def test_file_is_parsed_once_for_every_lookup(monkeypatch):
+    """里代碼、名稱、重心、外框共用一次解析（2026-10-20）：原本三個快取各自 json.loads 同一份 605 KB 檔。"""
+    caches = (
+        boundaries._features, boundaries._village_codes, boundaries.village_names,
+        boundaries.village_centroids, boundaries._village_shapes,
+    )
+    real = json.loads
+    calls = []
+
+    def _counting(*args, **kwargs):
+        calls.append(1)
+        return real(*args, **kwargs)
+
+    for cached in caches:
+        cached.cache_clear()
+    monkeypatch.setattr(boundaries.json, "loads", _counting)
+    try:
+        boundaries.warm()
+        assert village_code("三民區", "本揚里") is not None
+        assert boundaries.village_centroids() and boundaries.village_names()
+        assert boundaries.village_at(119.0, 22.0) is None
+        assert len(calls) == 1
+    finally:
+        monkeypatch.undo()
+        for cached in caches:
+            cached.cache_clear()
+
+
+async def test_lifespan_warms_boundaries_only_with_admissions(monkeypatch):
+    from app.main import create_app
+    from tests.conftest import _test_settings
+
+    calls = []
+    monkeypatch.setattr(boundaries, "warm", lambda: calls.append(1))
+    for enabled in (True, False):
+        application = create_app(_test_settings().model_copy(update={"admissions_enabled": enabled}))
+        async with application.router.lifespan_context(application):
+            pass
+    assert calls == [1]

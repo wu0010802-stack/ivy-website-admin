@@ -196,9 +196,9 @@ async def test_export_applies_screen_filters_and_audits_them(admin_client, db_se
 @pytest.mark.asyncio
 async def test_export_streams_in_batches_and_audit_count_matches_output(admin_client, db_session, monkeypatch):
     """跨多個批次：BOM 只在開頭一次、列數與排序（新到舊）正確，稽核筆數等於實際輸出筆數。"""
-    from app.booking import routes as booking_routes
+    from app.booking import admin_visit_routes
 
-    monkeypatch.setattr(booking_routes, "_EXPORT_BATCH", 2)
+    monkeypatch.setattr(admin_visit_routes, "_EXPORT_BATCH", 2)
     slot_id = await create_slot(admin_client, capacity=10)
     for n in range(5):
         await _manual(admin_client, slot_id=slot_id, parent_name=f"家長{n}", phone=f"09123456{n:02d}")

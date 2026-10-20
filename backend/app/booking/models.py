@@ -380,6 +380,10 @@ class VisitRequestEvent(Base):
     自由文字，匿名化時會清掉。2026-09-25 以前的舊歷程沒有操作人與前後值。"""
 
     __tablename__ = "visit_request_events"
+    __table_args__ = (
+        # 「某案件某種歷程的最後一筆」相關子查詢（列表參觀日期、即將參觀提醒）用；2026-10-20 migration 111d9d36cda7。
+        Index("ix_visit_request_events_request_type_created", "visit_request_id", "event_type", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     visit_request_id: Mapped[uuid.UUID] = mapped_column(
@@ -420,6 +424,8 @@ class OutboxMessage(Base):
     __table_args__ = (
         Index("uq_outbox_messages_dedupe_key", "dedupe_key", unique=True),
         Index("ix_outbox_messages_status", "status"),
+        # worker 認領（workers/lease_service.py）依狀態與到期時間篩、排序，比照 ix_media_jobs_due。
+        Index("ix_outbox_messages_due", "status", "next_attempt_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

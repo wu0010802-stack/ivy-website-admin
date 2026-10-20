@@ -24,6 +24,7 @@ from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
 from app.booking.access_routes import router as booking_access_router
+from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.routes import router as admissions_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
@@ -144,6 +145,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, poll_seconds=settings.media_jobs_poll_seconds
             )
             app.state.media_jobs.start()
+        # 里界 GeoJSON 解析與對照表先在執行緒裡算好（約 0.1 秒），不佔事件迴圈、也不讓第一個招生請求等
+        # （2026-10-20）。失敗不擋啟動：用到時照舊在請求裡解析，錯誤會在那裡如實拋出。
+        if settings.admissions_enabled:
+            try:
+                await asyncio.to_thread(geo_boundaries.warm)
+            except Exception:  # noqa: BLE001
+                logger.exception("里界資料預先載入失敗")
         # 招生區域分析的公開地理資料（app/workers/geo_loop.py）；兩個開關都開才跑。
         if settings.admissions_enabled and settings.geo_auto_sync:
             app.state.geo_sync = GeoSyncLoop(

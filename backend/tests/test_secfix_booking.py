@@ -24,7 +24,7 @@ import pytest
 from sqlalchemy import event, select, text, update
 from sqlalchemy.exc import DBAPIError
 
-from app.booking import routes as booking_routes
+from app.booking import slot_routes
 from app.booking import service
 from app.booking.models import VisitRequest
 from app.booking.schemas import VisitRequestCreate, VisitRequestManualCreate
@@ -629,7 +629,7 @@ async def test_public_slots_remaining_counts_occupying_requests(admin_client, pu
 
 @pytest.mark.asyncio
 async def test_public_slots_is_rate_limited_per_source(admin_client, public_client, monkeypatch):
-    monkeypatch.setattr(booking_routes, "PUBLIC_SLOTS_LIMIT", ratelimit.Limit("public_slots_test", 60, 2))
+    monkeypatch.setattr(slot_routes, "PUBLIC_SLOTS_LIMIT", ratelimit.Limit("public_slots_test", 60, 2))
     date_from = today_local().isoformat()
     url = f"{API}/public/slots?campus_key=yihua&date_from={date_from}&date_to={date_from}"
     source = {CLIENT_IP_HEADER: "203.0.113.70"}

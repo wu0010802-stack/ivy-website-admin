@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,11 @@ from app.notifications.line import LineMessagingClient
 from app.workers import lease_service
 
 logger = logging.getLogger("app.outbox")
+
+# 定期工作每一輪處理 outbox 的時間預算（秒）。原本一輪只認領 10 筆、60 秒一輪，
+# 一小時最多約 600 則；大量通知（例如批次操作）會一路積壓。改成一批一批認領到清空或用完預算，
+# 預算留得比 60 秒的間隔短，一輪不會拖到下一輪（2026-10-20）。
+DRAIN_TIME_BUDGET_SECONDS = 30.0
 
 
 async def process_outbox_batch(
@@ -78,3 +84,26 @@ async def process_outbox_batch(
         sent += 1
 
     return {"sent": sent, "failed": failed, "skipped": skipped}
+
+
+async def process_outbox_until_drained(
+    db: AsyncSession,
+    adapter: EmailAdapter | None,
+    *,
+    worker_id: str = "worker-1",
+    batch_size: int = 10,
+    time_budget_seconds: float = DRAIN_TIME_BUDGET_SECONDS,
+    clock=time.monotonic,
+    **kwargs,
+) -> dict[str, int]:
+    """一批一批呼叫 `process_outbox_batch`，直到沒有到期的工作（某一批不滿 `batch_size`）
+    或用完 `time_budget_seconds`。每筆工作照舊各自 commit；預算只在批與批之間檢查，
+    所以最多超出一批的時間。回傳各批加總。"""
+    totals = {"sent": 0, "failed": 0, "skipped": 0}
+    deadline = clock() + time_budget_seconds
+    while True:
+        batch = await process_outbox_batch(db, adapter, worker_id=worker_id, limit=batch_size, **kwargs)
+        for key in totals:
+            totals[key] += batch[key]
+        if sum(batch.values()) < batch_size or clock() >= deadline:
+            return totals

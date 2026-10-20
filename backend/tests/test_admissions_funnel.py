@@ -347,3 +347,26 @@ async def test_board_card_order_is_stable_when_date_and_created_at_tie(admin_cli
     await db_session.commit()
     body = (await admin_client.get(f"{ADMISSIONS}/board?campus_key=yihua&school_year=115&semester=1")).json()
     assert [card["id"] for card in body["columns"]["visited"]] == [str(visit.id) for visit in reversed(visits)]
+
+
+async def test_board_reads_only_card_columns_without_geo(app, admin_client):
+    """看板只查卡片要的欄位（2026-10-20）：不再整列載入 RecruitmentVisit、連帶 selectin 查 geo。"""
+    from sqlalchemy import event
+
+    await create_record(admin_client, child_name="訪", visit_date="2026-09-01")
+    statements: list[str] = []
+
+    def _record(_conn, _cursor, statement, *_args):
+        statements.append(statement)
+
+    engine = app.state.engine.sync_engine
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        response = await admin_client.get(f"{ADMISSIONS}/board?campus_key=yihua&school_year=115&semester=1")
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    assert response.status_code == 200, response.text
+    assert [card["child_name"] for card in response.json()["columns"]["visited"]] == ["訪"]
+    assert not [s for s in statements if "recruitment_visit_geo" in s]
+    board_query = [s for s in statements if "FROM recruitment_visits" in s and "ORDER BY" in s]
+    assert board_query and "recruitment_visits.phone" not in board_query[0]

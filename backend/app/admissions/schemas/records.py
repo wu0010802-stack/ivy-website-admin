@@ -1,0 +1,381 @@
+"""訪視紀錄：建立、編輯、輸出、歷程、狀態轉換、漏斗看板、座位與名額（規格 5、6、10）。"""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date, datetime
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+
+from app.admissions import constants
+from app.admissions.funnel import Stage, derive_stage
+from app.admissions.schemas._common import (
+    EventType,
+    Grade,
+    NoDepositReason,
+    OptionalText,
+    Priority,
+    SchoolYear,
+    Semester,
+    SourceCategory,
+    WithdrawReasonCategory,
+    WithdrawnFrom,
+    _not_future,
+    _required_text,
+    _roc_date,
+    _roc_visit_date,
+)
+
+
+class _VisitEditable(BaseModel):
+    """新增與編輯共用、表單可以直接填的欄位。預繳、註冊、退出、保留座位只能
+    走狀態轉換與保留座位（規格 6.1 第 3 點、6.6），不在這裡。district 由伺服器依
+    地址比對填寫（2026-10-08 區域分析規格 §5.5）、geocoding_consent_at 不填（規格 5.1），
+    兩者都不收。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grade: Grade | None = None
+    english_name: OptionalText = Field(default=None, max_length=constants.LEN_ENGLISH_NAME)
+    phone: OptionalText = Field(default=None, max_length=constants.LEN_PHONE)
+    contact_name: OptionalText = Field(default=None, max_length=constants.LEN_CONTACT)
+    father_occupation: OptionalText = Field(default=None, max_length=constants.LEN_OCCUPATION)
+    mother_occupation: OptionalText = Field(default=None, max_length=constants.LEN_OCCUPATION)
+    address: OptionalText = Field(default=None, max_length=constants.LEN_ADDRESS)
+    source: OptionalText = Field(default=None, max_length=constants.LEN_SOURCE)
+    referrer: OptionalText = Field(default=None, max_length=constants.LEN_REFERRER)
+    deposit_collector: OptionalText = Field(default=None, max_length=constants.LEN_COLLECTOR)
+    # 帶參觀老師：後台帳號；沒給 tour_guide_name 時用該帳號的顯示名稱當姓名快照。
+    tour_guide_user_id: uuid.UUID | None = None
+    tour_guide_name: OptionalText = Field(default=None, max_length=constants.LEN_TOUR_GUIDE)
+    source_category: SourceCategory | None = None
+    rides_bus: bool = False
+    transfer_term: bool = False
+    notes: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+    parent_response: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+    no_deposit_reason: NoDepositReason | None = None
+    no_deposit_reason_detail: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+
+
+class RecruitmentVisitCreate(_VisitEditable):
+    """手動新增（規格 6.1 第 3 點）。必填同園務表單：參觀日期、幼生姓名、生日、
+    入學學年學期。campus_key 放 query（同 POST /admin/slots）。"""
+
+    visit_date: date
+    child_name: str = Field(min_length=1, max_length=constants.LEN_CHILD_NAME)
+    birthday: date
+    target_school_year: SchoolYear
+    target_semester: Semester
+
+    @field_validator("child_name")
+    @classmethod
+    def _child_name(cls, value: str) -> str:
+        return _required_text(value, "請填寫幼生姓名")
+
+    @field_validator("visit_date")
+    @classmethod
+    def _visit_date(cls, value: date) -> date:
+        return _roc_visit_date(value)
+
+    @field_validator("birthday")
+    @classmethod
+    def _birthday(cls, value: date) -> date:
+        return _not_future(value)
+
+
+class RecruitmentVisitUpdate(_VisitEditable):
+    """編輯（規格 6.6）。只改有送的欄位；送 null 代表清空，但姓名、參觀日期、
+    入學學年學期不能清空。"""
+
+    # 畫面載入時的 version；不符回 409 RECRUITMENT_VISIT_VERSION_CONFLICT。
+    expected_version: int = Field(ge=1)
+    visit_date: date | None = None
+    child_name: str | None = Field(default=None, min_length=1, max_length=constants.LEN_CHILD_NAME)
+    birthday: date | None = None
+    target_school_year: SchoolYear | None = None
+    target_semester: Semester | None = None
+    # 退出原因分類（2026-10-15 規格 W7）：只有已退出的訪視能改（不是 422 RECRUITMENT_NOT_WITHDRAWN），
+    # 不能清空；說明仍只在退出那一刻填。
+    withdraw_reason_category: WithdrawReasonCategory | None = None
+
+    @field_validator("child_name")
+    @classmethod
+    def _child_name(cls, value: str | None) -> str:
+        return _required_text(value, "幼生姓名不能清空")
+
+    @field_validator("visit_date", "target_school_year", "target_semester", "withdraw_reason_category")
+    @classmethod
+    def _not_cleared(cls, value):
+        if value is None:
+            raise ValueError("這個欄位不能清空")
+        return value
+
+    @field_validator("visit_date")
+    @classmethod
+    def _visit_date(cls, value: date | None) -> date | None:
+        return _roc_visit_date(value)
+
+    @field_validator("birthday")
+    @classmethod
+    def _birthday(cls, value: date | None) -> date | None:
+        return _not_future(value)
+
+
+# 區域分析（2026-10-08 規格 §5.4）：比對等級與未定位原因，與 app/admissions/geo/models.py 的
+# MATCH_LEVELS、UNLOCATED_REASONS 相同。
+MatchLevel = Literal["exact", "nearby", "street", "district", "unlocated", "pending"]
+UnlocatedReason = Literal["no_address", "outside_kaohsiung", "no_doorplate", "ambiguous_village", "anonymized"]
+# 統計裡列出的「有地址卻沒到里」原因，同時是這幾種原因在畫面上的固定順序（area.REASON_ORDER 取自這裡）；
+# no_address、anonymized 各有自己的層級與筆數，不在其中。
+AreaUnlocatedReason = Literal["outside_kaohsiung", "no_doorplate", "ambiguous_village"]
+
+
+class VisitGeoOut(BaseModel):
+    """一筆訪視的區域比對結果（規格 §8.5）。不含家長座標；distance_m 是到本校的直線距離，
+    取整到 100 公尺，只有比對到門牌（exact／nearby）且本校座標已知時才有。"""
+
+    village: str | None
+    match_level: MatchLevel
+    unlocated_reason: UnlocatedReason | None
+    distance_m: int | None
+
+    model_config = {"from_attributes": True}
+
+
+class RecruitmentVisitOut(BaseModel):
+    """規格 5.1 全部欄位，另加推導的 stage 與 has_visit_request。anonymized_at 有值＝
+    已依保存政策匿名化：不能再編輯、轉換或保留座位（409 RECRUITMENT_VISIT_ANONYMIZED），
+    可以刪除。"""
+
+    id: uuid.UUID
+    campus_key: str
+    visit_request_id: uuid.UUID | None
+    month: str
+    seq_no: str | None
+    visit_date: date
+    child_name: str
+    english_name: str | None
+    birthday: date | None
+    grade: Grade | None
+    phone: str | None
+    contact_name: str | None
+    father_occupation: str | None
+    mother_occupation: str | None
+    address: str | None
+    district: str | None
+    source: str | None
+    referrer: str | None
+    deposit_collector: str | None
+    tour_guide_user_id: uuid.UUID | None
+    tour_guide_name: str | None
+    source_category: SourceCategory | None
+    has_deposit: bool
+    rides_bus: bool
+    notes: str | None
+    parent_response: str | None
+    geocoding_consent_at: datetime | None
+    no_deposit_reason: NoDepositReason | None
+    no_deposit_reason_detail: str | None
+    enrolled: bool
+    enrolled_on: date | None
+    transfer_term: bool
+    provisional_grade: Grade | None
+    target_school_year: int | None
+    target_semester: int | None
+    withdrawn_at: datetime | None
+    withdrawn_from: WithdrawnFrom | None
+    withdraw_reason: str | None
+    withdraw_reason_category: WithdrawReasonCategory | None
+    anonymized_at: datetime | None
+    version: int
+    created_at: datetime
+    updated_at: datetime
+    # 參觀後追蹤（官網延伸，2026-10-04 規格 5.1）：下次聯絡（null＝未排定）、追蹤負責人、
+    # 最近一次聯絡時間。負責人名稱由後台用 GET /staff 對照。
+    follow_up_at: datetime | None
+    follow_up_owner_id: uuid.UUID | None
+    last_contacted_at: datetime | None
+    # 區域分析（2026-10-08 規格 §8.5）：上線前的舊訪視在背景重算前是 None。
+    geo: VisitGeoOut | None = None
+
+    model_config = {"from_attributes": True}
+
+    @computed_field
+    @property
+    def stage(self) -> Stage:
+        return derive_stage(self)
+
+    @computed_field
+    @property
+    def has_visit_request(self) -> bool:
+        return self.visit_request_id is not None
+
+
+class RecruitmentEventOut(BaseModel):
+    """招生歷程一筆（規格 5.2），舊到新排序。"""
+
+    id: uuid.UUID
+    event_type: EventType
+    from_stage: Stage | None
+    to_stage: Stage
+    reason: str | None
+    metadata_json: dict | None
+    actor_user_id: uuid.UUID | None
+    # 操作者的顯示名稱，沒設定時是 Email；自動建立、帳號已刪除時為 None。
+    actor_name: str | None = None
+    created_at: datetime
+
+
+class NoDepositReasonOption(BaseModel):
+    value: NoDepositReason
+    # 轉換潛力（園務 shared.py:59-75）；「未註明／待追蹤」不屬於任何一組，為 None。
+    priority: Priority | None
+
+
+class AdmissionsOptionsOut(BaseModel):
+    """篩選與表單選項（規格 13 GET /options）：該校已用過的月份、來源、家長介紹、
+    帶參觀老師，以及園務的固定列舉與文案。"""
+
+    # 民國月份，新到舊。
+    months: list[str]
+    # 次數多的在前，各最多 50 個。
+    sources: list[str]
+    referrers: list[str]
+    tour_guides: list[str]
+    grades: list[Grade]
+    no_deposit_reasons: list[NoDepositReasonOption]
+    # 來源分類代碼 → 園務文案，順序同園務（A 計畫調整第 17 條）。
+    source_categories: dict[str, str]
+    # 聯絡方式代碼 → 後台文案（參觀後追蹤，2026-10-04 規格 9）。
+    contact_channels: dict[str, str]
+
+
+class TransitionRequest(BaseModel):
+    """狀態轉換（規格 6.3）。後台一律送齊九個欄位，用不到的送 null；各轉換只讀
+    自己需要的欄位。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    to_stage: Stage
+    expected_version: int = Field(ge=1)
+    # 取消註冊（已註冊往回退）必填；退預繳、退註冊選填（2026-10-15 規格 W2）；其他轉換可以附註。
+    reason: OptionalText = Field(default=None, max_length=constants.TEXT_MAX)
+    # 退預繳、退註冊必選（2026-10-15 規格 W2）；其他轉換不讀。
+    withdraw_reason_category: WithdrawReasonCategory | None = None
+    # 標記預繳時選填。
+    deposit_collector: OptionalText = Field(default=None, max_length=constants.LEN_COLLECTOR)
+    # 標記註冊：註冊日期（沒給用台北今天；民國年同參觀日期要在 100～200）、年級與
+    # 入學學年學期（沒保留座位時必填）。
+    enrolled_on: date | None = None
+    grade: Grade | None = None
+    target_school_year: SchoolYear | None = None
+    target_semester: Semester | None = None
+
+    @field_validator("enrolled_on")
+    @classmethod
+    def _enrolled_on(cls, value: date | None) -> date | None:
+        return _roc_date(value, "註冊日期")
+
+
+class FunnelCardOut(BaseModel):
+    id: uuid.UUID
+    child_name: str
+    grade: Grade | None
+    # 保留座位或註冊的年級。
+    provisional_grade: Grade | None
+    target_school_year: int | None
+    target_semester: int | None
+    visit_date: date
+    # 由官網預約建立（卡片上的標記）。
+    has_visit_request: bool
+    # 由哪一筆官網預約建立；招生入學點卡片時開那筆預約明細（2026-10-05 家庭頁規格 6.1）。
+    visit_request_id: uuid.UUID | None
+    # 在退出欄時是退預繳（deposited）還是退註冊（enrolled）。
+    withdrawn_from: WithdrawnFrom | None
+    # 下次聯絡（2026-10-04 規格 7.4）：卡片標「下次聯絡 10/08」或「該聯絡了」；null 不標。
+    follow_up_at: datetime | None = None
+    version: int
+
+
+class FunnelColumnsOut(BaseModel):
+    """四欄各自一個 list（A 計畫調整第 8 條：產生的 TS 型別不是索引簽章）。"""
+
+    visited: list[FunnelCardOut]
+    deposited: list[FunnelCardOut]
+    enrolled: list[FunnelCardOut]
+    withdrawn: list[FunnelCardOut]
+
+
+class FunnelBoardOut(BaseModel):
+    columns: FunnelColumnsOut
+    # 這一校沒填入學學年的訪視數（不受學年篩選影響）。
+    unscoped_count: int
+    # 實際套用的篩選：校區、入學學年（沒帶時是目前學年）、學期（None＝整學年）。
+    campus_key: str
+    school_year: int
+    semester: int | None
+    # 資料讀取時間（UTC）。
+    as_of: datetime
+
+
+class SeatRequest(BaseModel):
+    """保留座位（grade 有值）或釋放保留（grade 為 null）（規格 6.5）。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    grade: Grade | None
+    # 保留時必填（缺了回 422 SEAT_NOT_ALLOWED「保留座位需指定目標學年」）。
+    target_school_year: SchoolYear | None = None
+    # 沒給用上學期。
+    target_semester: Semester | None = None
+    expected_version: int = Field(ge=1)
+
+
+class SeatOut(BaseModel):
+    """A 計畫調整第 12 條：超額只警示，警示代碼放在回應，不是錯誤。"""
+
+    visit: RecruitmentVisitOut
+    capacity_warning: bool
+    warning_code: Literal["SEAT_CAPACITY_WARNING"] | None
+
+
+class IntakePlanRowOut(BaseModel):
+    grade: Grade
+    # None＝未設定（沒有計畫列），與「計畫名額 0」分開。
+    target_seats: int | None
+    reserved: int
+    enrolled: int
+    # 計畫−已保留−已註冊，可以是負數；未設定時 None。
+    remaining: int | None
+    over_capacity: bool
+
+
+class IntakePlanTotalsOut(BaseModel):
+    # 計畫名額與剩餘只加總有設定的年級；一個都沒設定時 None。
+    target_seats: int | None
+    reserved: int
+    enrolled: int
+    remaining: int | None
+
+
+class IntakePlanOut(BaseModel):
+    # 實際套用的篩選。
+    campus_key: str
+    school_year: int
+    semester: int
+    # 資料讀取時間（UTC）。
+    as_of: datetime
+    rows: list[IntakePlanRowOut]
+    totals: IntakePlanTotalsOut
+
+
+class IntakeTargetsRequest(BaseModel):
+    """同校同學期一次送多個年級（規格 13 PUT /intake-targets）。值是 null＝刪除
+    該年級的計畫（回到「未設定」）；沒送的年級不動。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    school_year: SchoolYear
+    semester: Semester
+    targets: dict[Grade, Annotated[int, Field(ge=0, le=999)] | None]
