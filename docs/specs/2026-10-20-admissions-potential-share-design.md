@@ -1,7 +1,7 @@
 # 招生統計：招生潛力與市佔率（2026-10-20）設計
 
 日期：2026-10-20
-狀態：**第一波已實作**（分支 `feature/admissions-potential-20261020`，rebase 到 main `ba1030b5` 之上；commits `f523712e`（本規格與計畫）到 `1110c6bb`（最後一個程式 commit），其後只有文件紀錄 commit），**未部署、未 push**；波 2、3 設計待使用者核可。第一波的實作紀錄見 §10。逐段與使用者確認過的標 ✔，其餘是我的預設值，標「預設」或「我的決定」，業主可改。
+狀態：**第一波已實作，10-20 已部署 main `4c90ef58`**（分支 `feature/admissions-potential-20261020`，rebase 到 main `ba1030b5` 之上；commits `f523712e`（本規格與計畫）到 `1110c6bb`（最後一個程式 commit），其後只有文件紀錄 commit），**未部署、未 push**；波 2、3 設計待使用者核可。第一波的實作紀錄見 §10。逐段與使用者確認過的標 ✔，其餘是我的預設值，標「預設」或「我的決定」，業主可改。
 基準：`origin/main` `817d516d`（實作時為了接上另一案的 migration，rebase 到 `ba1030b5`）
 分支：`feature/admissions-potential-20261020`（worktree `~/Repositories/ivy-website-wt/admissions-potential-20261020`）
 上游：

@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 招生統計新分頁「招生潛力與市佔率」第一波（main CI 部署，1 支 migration）
+
+- **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`dfd0a195..4c90ef58`，fast-forward、沒有開 PR）。分支 `feature/admissions-potential-20261020`，24 個提交：規格與計畫、三張新表、目標執行統計表解析與 extract／import 指令、每年九月底人口（舊里代碼換碼、九月補漏）、國小一年級人數同步、市佔率與國小對帳服務、`GET /admin/admissions/potential`、後台新子分頁與總審查修正。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 實作紀錄）。migration `76c4bf84b907`（接 `a6c2e9f4b8d1`）只新增 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1` 三張表並讓 `ck_geo_dataset_status_dataset` 多收 `elementary`，沒有先備份。沒有新環境變數（`WEBSITE_GEO_ELEMENTARY_URL_TEMPLATE` 有預設值）。
+- **回退**：切回上一版映像前先 `alembic downgrade a6c2e9f4b8d1`（刪 `elementary` 狀態列、還原約束、刪三張表；歷年註冊與兩種公開資料要重新匯入）。
+- **推送前閘門**（本機，Node 22，worktree `admissions-potential-20261020`）：後端全套 4307 passed／1 skipped（11 分 10 秒，獨立庫 `ivy_website_test_potential`）；admin 全套 183 檔 3042 passed／1 skipped、typecheck 通過；契約一致；stack 用獨立庫 `ivy_website_e2e_test_potential`、埠 8731／3731，`e2e:build` 後全套 155 passed（5.5 分鐘）。
+- **CI**：main run 39374305069（`4c90ef58`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `4c90ef58d924706533c45dada9aa68c090902534`，snapshot `69fe5a94…`，created `2026-10-20T05:27:23Z`。
+- **部署後匯入**：agent 用 `railway volume … upload` 上傳 18 個檔到 api volume（歷年註冊 JSON 1、九月底人口 `september-10709-1.json`～`september-11509-1.json` 9、國小 `107_basec.csv`～`114_basec.csv` 8）；使用者用 `!` 跑 `geo-sync --september-file …×9 --elementary-file …×8` → 「九月底人口：updated（這次寫入 9 年）；國小一年級人數：updated（最新 114 學年，這次寫入 8 學年）」；`enrollment-history-import --file /data/enrollment-history-yihua-20261020.json` → 「匯入 yihua：132 列（99上～115上）」加 3 條總人數注意（104下、105上、114下）。歷年註冊 JSON 是本機 extract 產生（原始 xls 沒上傳）。
+- **線上檢查**：`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空；未登入 `GET /admin/admissions/potential?campus_key=yihua` 回 401；使用者已登入的瀏覽器開義華新分頁：115 學年市佔率 1.93%（189 ÷ 9,788 位）、歷年最高 1.94%（108 學年）、走勢 107～115 學年、國小對帳 29 所 3,869 位、比值 0.94（歷年 0.92–0.98），和本機驗證一致。
+- **未驗證**：Railway 自動同步連不連得到 `stats.moe.gov.tw`（下一學年才會抓）；手機實機畫面。volume 上 18 個匯入檔待使用者刪。
+
 ## 2026-10-20 資安與 bug 稽核 14 條修正（main CI 部署，1 支 migration）
 
 - **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`ba1030b5..c8424306`，fast-forward、沒有開 PR）。五個提交：`998fab53` 預約與通知、`fb40c86e` 認證／招生／個資清理、`e96ada04` 素材、`f8d9210b` 官網、`c8424306` README。內容見 README 同日一節。migration `a6c2e9f4b8d1`（`media_variants.size_bytes`，接 `b8e2d6a4f931`）只加可為空的欄位、不回填，沒有先備份。沒有新環境變數。
@@ -1059,7 +1070,7 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 人工放行殘缺門檻（`--force` 不會略過）：裁罰在資料庫 `delete from geo_kindergarten_penalties; delete from geo_dataset_status where dataset = 'kindergarten_penalties';` 下一輪當作從沒匯入、整批重抓；評鑑同理（表與 `kindergarten_evaluations`）。
 - 注意：表裡的同一件（同園所、裁處日、文號）在畫面算一件，件數是「近 3 年」（含三年前的同月同日）；3 年前的另外標「3 年前有裁罰」。裁罰對象為教保人員個人（行為人）時畫面寫「教保人員個人受罰」，不代表園方受罰。
 
-**每年九月底人口與國小一年級人數（2026-10-20，`feature/admissions-potential-20261020`，尚未部署）**：同一套同步再多兩種資料，給招生統計新分頁「招生潛力與市佔率」算市佔率的分母與國小對帳。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 是第一波實作紀錄），來源與檔案細節在 `backend/app/admissions/geo_data/README.md` 最後一節。
+**每年九月底人口與國小一年級人數（2026-10-20，`feature/admissions-potential-20261020`，10-20 已部署 main `4c90ef58`）**：同一套同步再多兩種資料，給招生統計新分頁「招生潛力與市佔率」算市佔率的分母與國小對帳。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 是第一波實作紀錄），來源與檔案細節在 `backend/app/admissions/geo_data/README.md` 最後一節。
 
 - migration `76c4bf84b907`（接 `a6c2e9f4b8d1`）：新增 `campus_term_enrollment`（歷年註冊，見下方「歷年註冊匯入」）、`geo_village_ages_september`、`geo_elementary_grade1` 三張表，放寬 `ck_geo_dataset_status_dataset`（多收 `elementary`）。只新增表與放寬約束，不動既有資料，**不需要先備份**；上一版程式不讀新表也不寫 `elementary` 狀態列，先跑 migration 再換程式也相容。回退：先用新映像跑 `alembic downgrade a6c2e9f4b8d1`（先刪 `elementary` 狀態列、再還原約束、刪三張表；已匯入的歷年註冊與這兩種公開資料一併消失），再切舊映像。
 - 來源：九月底人口是內政部戶政司 ODRP014（和各里人口同一支 API，**107 年起**每年九月底一批，不刪舊年）；國小一年級人數是教育部統計處「國民小學校別學生數」`https://stats.moe.gov.tw/files/detail/<學年>/<學年>_basec.csv`（一學年一檔，107～114 學年；115 學年 2026-10-20 實測還沒公布）。唯一的新環境變數是選填的 `WEBSITE_GEO_ELEMENTARY_URL_TEMPLATE`（預設就是上面的網址，必須是含 `{year}` 的 `https://`）。
@@ -1147,7 +1158,7 @@ update recruitment_visit_geo g
 
 刪除整校（正式站）：`! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --clear --campus <key>`。在本機跑只會清本機庫。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
 
-### 歷年註冊匯入（2026-10-20，尚未部署）
+### 歷年註冊匯入（2026-10-20，10-20 已部署，義華已匯入）
 
 園方「目標執行統計表」xls 只在本機讀，正式站只收只有數字的 JSON（格式名 `ivy-enrollment-history/1`；規格 `docs/specs/2026-10-20-admissions-potential-share-design.md` §3.1）。**原始 xls 的第 9 列以後是寫著幼生姓名的備註：不進 repo、不上傳、不交給 subagent。** extract 只讀第 0 欄是「大班／中班／小班／幼幼班／總人數」的年級列，備註列不讀、不存、不印。migration 見上面「每年九月底人口與國小一年級人數」（`76c4bf84b907`，要先跑）。
 
