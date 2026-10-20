@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 招生潛力第二、三波：停辦釋出、現有的里、新建案（main CI 部署，沒有 migration）
+
+- **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`3358c0a0..8f5a7a0c`，fast-forward、沒有開 PR；第一次推送因另一個 session 剛推部署紀錄被拒，rebase 後重推）。分支 `feature/admissions-potential2-20261020` 33 個提交：停辦回補檔延伸到 2022-08（`kindergarten-closures-20261020.csv`，94 筆；移除 10-15 檔）、同步時補寫回補停辦事件、異動保留 24 → 72 個月、`backend/app/admissions/potential.py` 三個來源、`GET /admin/admissions/potential` 多 `potential`、後台卡片／來源表／停辦標記。規格 §11。沒有 migration、沒有新環境變數，沒有先備份（只新增停辦園所列與事件，不改寫既有資料）。
+- **回退**：直接切回上一版映像。舊映像保留 24 個月，下一輪幼兒園同步會清掉 24 個月前的回補事件；再切回新映像會由回補檔補回。
+- **推送前閘門**（本機，Node 22，worktree `admissions-potential2-20261020`）：後端全套 4518 passed／1 skipped（獨立庫 `ivy_website_test_potential2`）；admin 全套 184 檔 3098 passed／1 skipped（另兩次全套各有 3 個與本分支無關的招生入學頁測試在機器負載 38 時逾時，單獨重跑 66 passed）、typecheck 通過；契約一致；stack 用獨立庫 `ivy_website_e2e_test_potential2`、埠 8732／3732，全套 155 passed。rebase 到 `3358c0a0` 後聚焦測試 294 passed、admin potential 92 passed、契約一致。
+- **CI**：main run 39401354610（`8f5a7a0c`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `8f5a7a0cc2786a01490ee00a140eb48e0164b2d6`，snapshot `b927e019…`，created `2026-10-20T09:39:34Z`。`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空。
+- **部署後**：剛部署時來源一是 0（回補事件只在幼兒園名單同步時寫入，正式站每 7 天一輪）。使用者用 `!` 跑 `railway ssh … --service api -- python -m app.cli geo-sync --force`：門牌 ConnectTimeout（已知，高雄市資料平台擋境外 IP）、幼兒園評鑑 ConnectTimeout，總結行沒印出、結束碼 255；但幼兒園名單那一步已完成並補寫停辦事件。
+- **線上檢查**（使用者已登入的瀏覽器，義華）：市佔率 1.93%；每年還能多招約 24 位（8～63），目前空位 18 位；附近園所停辦釋出 5／19／55（和本機驗證一致）、現有的里還沒招到 3／4／7（報告 B-11 是 1.2／5.2／11.3）、新建案搬進來 1／1／1；走勢圖 112–115 學年有停辦標記。
+- **未驗證**：評鑑 ConnectTimeout 是偶發還是被擋（下一輪自動同步再看系統狀態）；手機實機畫面。
+
 ## 2026-10-20 首屏影片與封面調亮（main CI 部署，沒有 migration）
 
 - **提交**：使用者在本機推 `feature/hero-brighten-20261020` 到 main（`87ec0d95..1c0475eb`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「首屏影片調亮」：從園方原片重做首屏影片，壓縮前加白色 soft-light 亮度曲線（強度 .6）＋色度 ×1.06；首屏封面與消息「一起跑向前」封面套同一條曲線。影片雜湊網址換成 `hero-desktop-a29a608cdd4d.mp4`（5,434,804 bytes）／`hero-mobile-01773132b829.mp4`（2,152,348 bytes），封面衍生圖換成 `-d4f9f61b23bf-*`，舊檔刪除。重製腳本與說明在 `design/hero-video-grade-20261020/`。沒有 migration、沒有新環境變數、依賴檔沒有變動、遮罩與版面沒改。
