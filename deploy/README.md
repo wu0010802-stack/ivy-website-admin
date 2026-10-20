@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 資安與 bug 稽核 14 條修正（main CI 部署，1 支 migration）
+
+- **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`ba1030b5..c8424306`，fast-forward、沒有開 PR）。五個提交：`998fab53` 預約與通知、`fb40c86e` 認證／招生／個資清理、`e96ada04` 素材、`f8d9210b` 官網、`c8424306` README。內容見 README 同日一節。migration `a6c2e9f4b8d1`（`media_variants.size_bytes`，接 `b8e2d6a4f931`）只加可為空的欄位、不回填，沒有先備份。沒有新環境變數。
+- **回退**：切回上一版映像前先 `alembic downgrade b8e2d6a4f931`（只刪 `size_bytes` 欄位）。
+- **推送前閘門**（本機，Node 22，worktree `audit-fixes-20261020`）：後端全套 4062 passed／1 skipped（9 分 4 秒，獨立庫 `ivy_website_auditfix_test`）；admin 全套 3002 passed、typecheck 與 build 通過；web 全套 1321 passed、typecheck 與 build 通過；契約一致；`check_schema.py` 通過；`deploy/tests` 22 項 OK；stack 用獨立庫 `ivy_website_e2e_auditfix_test`、埠 8731／3731，全套 155 passed（5.8 分鐘）。
+- **CI**：main run 39370492539（`c8424306`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **正式 `release.json`**：base commit `c84243061974dbf14164fd633ca777c3824d4489`，snapshot `328cde23…`，created `2026-10-20T04:44:00Z`。
+- **線上唯讀檢查**：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`；`/`、`/visit` 200；義華 `GET /public/slots` 從今天查到 365 天後回 200（伺服器截到開放範圍，82 場）；未登入 `POST /admin/retention/run` 回 401；後台 `PoliciesView` chunk 含新的版本衝突文案。
+- **未驗證**：登入後的畫面、停課日家長信實際寄送、轉檔配額（要等下一支影片上傳）、場次使用情況上限是否影響真實統計。
+
 ## 2026-10-20 場次使用情況小修＋預售建案＋附近幼兒園裁罰與評鑑（main CI 部署，2 支 migration）
 
 - **提交**：agent 經使用者同意推 `feature/admissions-data-20261020` 到 main（`817d516d..a5ac4998`，fast-forward、沒有開 PR）。內容：場次使用情況審查延後 8 條＋手機判讀欄提前、預約設定／場次列表控制字元回 500 修正；預售建案（規格 `docs/specs/2026-10-20-admissions-presale-design.md`）；附近幼兒園裁罰明細與評鑑（`docs/specs/2026-10-20-peer-penalties-evaluations-design.md`）。migration `a3d7f1c9b5e2`（預售兩張表）→ `b8e2d6a4f931`（裁罰、評鑑兩張表；`geo_dataset_status.dataset` 放寬到 32 字），只新增、不改寫既有資料，沒有先備份。沒有新環境變數；新增評鑑用的公開中繼憑證 `backend/app/admissions/geo/certs/twca-secure-ssl-2023g3.pem`（到期 2030-10-16）。
