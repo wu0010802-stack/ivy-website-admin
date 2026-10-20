@@ -93,7 +93,7 @@ class GeoSyncLoop:
                 # 只要有一項真的做了事（更新或失敗）就記摘要；每一項都是 skipped（還沒到期，不看來源）才不吵。
                 if result is not None and {
                     result.doorplates, result.kindergartens, result.kindergarten_fees, result.babycare, result.population, result.births,
-                    result.migration, result.age_history, result.income, result.new_homes,
+                    result.migration, result.age_history, result.income, result.new_homes, result.presale_buildcases,
                 } != {"skipped"}:
                     logger.info("公開地理資料同步：%s", result)
             except Exception:  # noqa: BLE001 - 連線失敗等，下一輪再試

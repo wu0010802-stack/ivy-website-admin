@@ -2,10 +2,11 @@
 
 照同步的規則抓：各里出生（ODRP061，往回 72 個月）、遷入遷出（ODRP011，往回 25 個月）各抓最新月份往回的視窗（來源查無資料的月份跳過），
 各里人口（ODRP014）最新月份與一年前，全部帶 COUNTY=高雄市；各里所得（財政資訊中心）最新年度；新成屋（實價登錄
-高雄市買賣季檔）最新季往回 8 季。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），出生抓 72 個月，要幾分鐘；實際大小打包時看 zip。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
+高雄市買賣季檔）最新季往回 8 季；預售建案（實價登錄預售屋建案備查單檔）一個；地號座標（--presale-parcels 指定本機腳本
+fetch_presale_parcels.py 的輸出，沒指定就不附）。ris.gov.tw 每個請求之間隔 3 秒（連續快速請求會回擋頁），出生抓 72 個月，要幾分鐘；實際大小打包時看 zip。不需要資料庫、不需要任何環境變數，不送出任何家長資料。
 
 用法（在 backend/）：
-  uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip]
+  uv run python scripts/fetch_geo_bundle.py [--out geo-bundle-11509.zip] [--presale-parcels presale_parcels.csv]
 
 接著上傳到 api volume，`python -m app.cli geo-sync --bundle /data/geo-bundle-11509.zip`，用完刪掉（步驟見
 deploy/README.md「公開地理資料同步」）。"""
@@ -23,6 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.admissions.geo import income as income_io  # noqa: E402
 from app.admissions.geo import new_homes as new_homes_io  # noqa: E402
 from app.admissions.geo import population as population_io  # noqa: E402
+from app.admissions.geo import presale as presale_io  # noqa: E402
+from app.admissions.geo import presale_parcels as parcels_io  # noqa: E402
 from app.admissions.geo import sync  # noqa: E402
 from app.admissions.geo import village_series as series_io  # noqa: E402
 from app.admissions.geo.bundle import BundleFile, write_bundle  # noqa: E402
@@ -69,7 +72,7 @@ async def _latest(client, url_of, what: str) -> str:
     raise SystemExit(f"找不到最近幾個月的{what}")
 
 
-async def build(out: Path | None) -> Path:
+async def build(out: Path | None, presale_parcels: Path | None = None) -> Path:
     files: list[BundleFile] = []
     async with sync.new_client() as client:
         for kind, series in (("births", series_io.BIRTHS), ("migration", series_io.MIGRATION)):
@@ -123,6 +126,21 @@ async def build(out: Path | None) -> Path:
                 )
             )
             print(f"新成屋 {season}：{len(batch.rows)} 筆")
+        # 預售建案：同步的同一條路（單檔，約 180 KB；壞檔不打包）。檔名帶月份，匯入時版本月份取檔名。
+        body = await sync._fetch_retrying(client, presale_io.SOURCE_URL, max_bytes=presale_io.MAX_BYTES)
+        text_ = presale_io.decode(body)
+        if text_ is None:
+            raise SystemExit("預售建案：下載到的不是預售建案檔（可能是錯誤頁）")
+        cases = presale_io.parse_csv(text_)
+        label = sync.current_label()
+        files.append(BundleFile(f"presale-buildcases-{label}.csv", "presale_buildcases", label, presale_io.SOURCE_URL, body))
+        print(f"預售建案：{len(cases.rows)} 案（壞行 {cases.failed}）")
+    if presale_parcels is not None:
+        # 地號座標：本機腳本查好的檔，先驗證再打包。
+        raw = presale_parcels.read_bytes()
+        located = parcels_io.parse_csv(raw.decode("utf-8-sig"))
+        files.append(BundleFile("presale-parcels.csv", "presale_parcels", "parcels", "local:fetch_presale_parcels.py", raw))
+        print(f"地號座標：{len(located)} 列（有座標 {sum(row.lon is not None for row in located)} 列）")
     target = out or Path(f"geo-bundle-{population_latest}.zip")
     write_bundle(target, files)
     print(f"已寫入 {target}（{len(files)} 個檔，{target.stat().st_size / 1024 / 1024:.1f} MB）")
@@ -132,8 +150,11 @@ async def build(out: Path | None) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description="抓齊各里出生、遷入遷出、人口、所得、新成屋，打包給 geo-sync --bundle")
     parser.add_argument("--out", type=Path, default=None, help="輸出的 zip（預設 geo-bundle-<人口月份>.zip）")
+    parser.add_argument(
+        "--presale-parcels", type=Path, default=None, help="fetch_presale_parcels.py 輸出的地號座標 CSV（沒給就不附）"
+    )
     args = parser.parse_args()
-    asyncio.run(build(args.out))
+    asyncio.run(build(args.out, args.presale_parcels))
 
 
 if __name__ == "__main__":

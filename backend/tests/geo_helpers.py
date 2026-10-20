@@ -21,6 +21,9 @@
   twinborn_child_m／f、birth_legal_m／f 七個欄位，不是真實的 ODRP061 下載（程式只用 birth_total，其餘解析時丟掉）。
 - fia-112_165-E-sample.csv：財政資訊中心 112 年度各里所得（2026-10-14 下載）同樣那 24 個里，加三民區「其他」「合計」、
   「高雄市其他」兩列、115-07 已廢止的鹽埕區慈愛里（對不到里界）；原檔格式（引號裡的 BOM、欄名「縣市別」、CRLF）。
+- presale-buildcase-sample.csv：預售屋建案備查單檔（2026-10-20 預售建案規格）的原檔格式（BOM、兩列表頭、CRLF、15 欄），
+  **全是自己造的假資料**（案名「測試一號」…、起造人是假公司名，不放真檔的任何列）：10 筆記錄（9 案，一案再出現、一案的銷售期間
+  含逗號並換行），涵蓋在建、已過預計交屋、已登記、非住宅、建照超過 6 年、申報備查日期格式錯、坐落街道是「段＋地號」格式。
 - plvr-115S3_e_lvr_land_a-sample.csv：實價登錄 115S3 高雄市買賣檔（2026-10-14 下載）原檔格式（BOM、兩列表頭、CRLF）：
   7 筆真實列（預售屋交屋、完工剛好 12 個月前、完工太久、只有土地、商業用、沒有完工日、只有車位），另 6 筆是拿真實列
   改成門牌樣本裡的門牌（編號 SAMPLE 開頭）：義華路 68 號（exact）、68 號之１三樓（之號接中文樓層）、80 號（nearby）、
@@ -191,6 +194,20 @@ def plvr_response(url: str, *, seasons: set[str] | None = None) -> httpx.Respons
     if parsed.params.get("fileName") != "e_lvr_land_a.csv" or (seasons is not None and season not in seasons):
         return httpx.Response(200, text=PLVR_ERROR_PAGE, headers={"content-type": "text/html"})
     return httpx.Response(200, content=plvr_sample(season), headers={"content-type": "application/octet-stream"})
+
+
+PRESALE_SAMPLE = FIXTURES / "presale-buildcase-sample.csv"
+# 樣本裡的建案數（10 筆記錄，其中一筆是同案再出現）。
+PRESALE_SAMPLE_CASES = 9
+
+
+def presale_response(url: str) -> httpx.Response | None:
+    """假的內政部預售屋建案備查單檔（2026-10-20）：網址不是它就回 None。內容是自造的假資料樣本（起造人是假公司名）。"""
+    from app.admissions.geo import presale as presale_io
+
+    if url != presale_io.SOURCE_URL:
+        return None
+    return httpx.Response(200, content=PRESALE_SAMPLE.read_bytes(), headers={"content-type": "text/csv"})
 
 
 def income_response(url: str, *, years: tuple[int, ...] = (112,)) -> httpx.Response | None:

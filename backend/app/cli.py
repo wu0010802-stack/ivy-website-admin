@@ -576,7 +576,9 @@ def geo_sync_options(args: list[str]) -> dict:
     --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
     統計月份。--income-file 是財政資訊中心的各里所得 CSV，年度取 --income-year 或檔名（「112_165-E.csv」）；
     比使用中舊的年度要加 --force。--new-homes-file 是實價登錄的高雄市買賣季檔（可以給好幾次），季別取檔名
-    （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--bundle 是 scripts/fetch_geo_bundle.py
+    （「115S3_e_lvr_land_a.csv」）或 --new-homes-season（只能配一個檔）。--presale-file 是實價登錄的高雄市預售屋建案備查檔
+    （e_lvr_buildcase.csv），版本月份取檔名（「115-10」）或今天；--presale-parcels-file 是本機腳本
+    scripts/fetch_presale_parcels.py 查好的地號座標 CSV（2026-10-20 預售建案規格 P6）。--bundle 是 scripts/fetch_geo_bundle.py
     打包的 zip（2026-10-14 里的變化規格 §4.6），等於把裡面的檔各自用 --…-file 指定。
     --kindergartens-file（kiang preschools.json）要和 --kindergartens-registry-file（kiang docs/data/高雄市.csv，教育部名單）
     一起給：營業中以名單為準（2026-10-15），只給一個就報錯。
@@ -589,19 +591,22 @@ def geo_sync_options(args: list[str]) -> dict:
         "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
         "[--babycare-file <JSON>] [--population-file <JSON> ...] "
         "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
-        "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]"
+        "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
+        "[--presale-file <CSV>] [--presale-parcels-file <CSV>] [--bundle <ZIP>]"
     )
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
         "kindergartens_registry_file": None,
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
+        "presale_buildcases_file": None, "presale_parcels_file": None,
     }
     valued = {"--doorplates-file": "doorplates_file", "--doorplates-version": "doorplates_version",
               "--kindergartens-file": "kindergartens_file",
               "--kindergartens-registry-file": "kindergartens_registry_file", "--babycare-file": "babycare_file",
               "--income-file": "income_file", "--income-year": "income_year",
-              "--new-homes-season": "new_homes_season", "--bundle": "bundle"}
+              "--new-homes-season": "new_homes_season", "--bundle": "bundle",
+              "--presale-file": "presale_buildcases_file", "--presale-parcels-file": "presale_parcels_file"}
     texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
     repeated = {"--population-file": "population_files", "--births-file": "births_files",
                 "--migration-file": "migration_files", "--new-homes-file": "new_homes_files"}
@@ -624,6 +629,7 @@ def geo_sync_options(args: list[str]) -> dict:
     singles = (
         options["doorplates_file"], options["kindergartens_file"], options["kindergartens_registry_file"],
         options["babycare_file"], options["income_file"], options["bundle"],
+        options["presale_buildcases_file"], options["presale_parcels_file"],
     )
     for path in (*singles, *(p for files in lists.values() for p in files)):
         if path is not None and not path.is_file():
@@ -662,7 +668,7 @@ async def geo_sync_command(**options) -> None:
     CLI）正在進行時什麼都不做，exit 1。--bundle 先驗證整包（sha256 等），不對就什麼都不匯入、exit 1。"""
     import tempfile
 
-    from app.admissions.geo.bundle import BundleError, open_bundle
+    from app.admissions.geo.bundle import SINGLE_KINDS, BundleError, open_bundle
     from app.admissions.geo.models import GeoDatasetStatus
     from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
 
@@ -677,9 +683,9 @@ async def geo_sync_command(**options) -> None:
                 print(f"打包檔不匯入：{exc}", file=sys.stderr)
                 raise SystemExit(1)
             for kind, files in unpacked.items():
-                if kind == "income":
-                    # 打包檔裡的所得只有一個年度（bundle.py 驗證過），年度取檔名「112_165-E.csv」。
-                    options["income_file"] = files[0]
+                if kind in SINGLE_KINDS:
+                    # 這幾種在打包檔裡只有一個檔（bundle.py 驗證過）；所得的年度取檔名「112_165-E.csv」，預售建案的版本取檔名。
+                    options[f"{kind}_file"] = files[0]
                     continue
                 key = f"{kind}_files"
                 options[key] = [*(options.get(key) or []), *files]
@@ -706,6 +712,11 @@ async def geo_sync_command(**options) -> None:
         f"新成屋：{result.new_homes}（最新 {result.new_homes_version or '尚未匯入'}，這次寫入 {result.new_homes_seasons} 季，"
         f"重比 {result.new_homes_rematched} 筆）"
     )
+    print(
+        f"預售建案：{result.presale_buildcases}（使用中 {result.presale_buildcases_version or '尚未匯入'}，這次寫入 {result.presale_cases} 案，"
+        f"重比改變 {result.presale_rematched} 案）；"
+        f"地號座標：{result.presale_parcels}（匯入 {result.presale_parcel_rows} 列）"
+    )
     if (
         result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.babycare_rows_skipped
         or result.population_rows_skipped or result.income_rows_skipped
@@ -728,6 +739,8 @@ async def geo_sync_command(**options) -> None:
             ("population", "一年前的年齡", result.age_history),
             ("income", "各里所得", result.income),
             ("new_homes", "新成屋", result.new_homes),
+            ("presale_buildcases", "預售建案", result.presale_buildcases),
+            ("presale_buildcases", "地號座標", result.presale_parcels),
         )
         if outcome == "failed"
     ]
@@ -877,7 +890,8 @@ def main() -> None:
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] "
             "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
             "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
-            "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] [--bundle <ZIP>]|"
+            "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
+            "[--presale-file <CSV>] [--presale-parcels-file <CSV>] [--bundle <ZIP>]|"
             "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>>",
             file=sys.stderr,

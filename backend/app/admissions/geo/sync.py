@@ -1,8 +1,8 @@
 """公開地理資料同步（docs/specs/2026-10-08-admissions-area-design.md §7）：高雄市門牌、
 幼兒園、各里人口（2026-10-13 招生機會規格 §4）、各里出生與遷入遷出的月份歷史與一年前的年齡、
 各里綜合所得、新成屋交屋（2026-10-14 里的變化規格 §4）、托嬰名單（2026-10-14 托嬰與園所異動規格 §4）、
-幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）；
-門牌換版或校址變更後重算訪視與新成屋。
+幼兒園公告收費（2026-10-15 附近同業比較規格 §4.2）、預售建案與地號座標（2026-10-20 預售建案規格 P6–P9）；
+門牌換版或校址變更後重算訪視、新成屋與預售建案。
 
 只下載公開資料，不送出任何家長資料。每種資料各自成敗：失敗只寫
 geo_dataset_status.last_error（不含地址）並保留使用中的版本。
@@ -12,7 +12,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
   （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
   --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
-  --new-homes-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
+  --new-homes-file／--presale-file／--presale-parcels-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
   指定檔案不檢查筆數下限（人工指定的檔案，含 stack 測試用的小樣本）；但幼兒園與托嬰的檔案一樣過殘缺檔檢查
   （P9：上次營業中至少 20 所，新檔營業中少於上次的 80% 就不換版，原因寫進 last_error），--force 一個旗標
@@ -40,6 +40,10 @@ www.fia.gov.tw 約一半的請求被 reset（2026-10-14 實測），下載連線
 內政部實價登錄的新成屋（new_homes.py）：季檔依登記日切季，從使用中的下一季往後試（表空時從今天所在的季往回試），
 回 HTML 錯誤頁（HTTP 200）＝那一季還沒出；最新季往回 8 季內表裡沒有的逐季補，每季一個交易。約一成請求被 reset，
 同樣重試。門牌換版後同步結束時整表重比（只重比比對當時門牌月份和使用中不同的列）。
+
+內政部實價登錄的預售屋建案備查（presale.py）：單檔 e_lvr_buildcase.csv（約 180 KB，每月 1 日重產、自 110-07 起累計），
+每 30 天抓一次；檔案內容的 sha256 沒變就只記確認時間，換版以新檔為準（高雄筆數少於上次的 80% 不換）。地號座標由本機腳本
+向國土測繪中心查好、隨打包匯入（presale_parcels.py）——**這個迴圈不連國土測繪中心**。
 
 網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
 
@@ -78,6 +82,8 @@ from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import population as population_io
+from app.admissions.geo import presale as presale_io
+from app.admissions.geo import presale_parcels as parcels_io
 from app.admissions.geo import providers
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
@@ -163,6 +169,7 @@ FETCH_RETRY_WAITS = (2.0, 4.0, 8.0)
 NEW_HOMES_MAX_BYTES = 32 * 1024 * 1024
 NEW_HOMES_TIME_BUDGET = timedelta(minutes=20)
 NEW_HOMES_LOOKAHEAD = 2
+PRESALE_TIME_BUDGET = timedelta(minutes=10)
 
 
 class GeoSyncError(RuntimeError):
@@ -273,6 +280,14 @@ class GeoSyncResult:
     new_homes_version: str | None = None
     new_homes_seasons: int = 0
     new_homes_rematched: int = 0
+    # 預售建案（2026-10-20）：結果、使用中的版本（label）、這一輪寫入的案數、這一輪重比改變的案數；
+    # 地號座標（只有指定檔案時才匯入）：結果與匯入的列數。
+    presale_buildcases: str = "skipped"
+    presale_buildcases_version: str | None = None
+    presale_cases: int = 0
+    presale_rematched: int = 0
+    presale_parcels: str = "skipped"
+    presale_parcel_rows: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -499,6 +514,8 @@ def _error_text(exc: Exception) -> str:
         series_io.SeriesFormatError,
         income_io.IncomeFormatError,
         new_homes_io.NewHomesFormatError,
+        presale_io.PresaleFormatError,
+        parcels_io.ParcelFormatError,
     )
     if isinstance(exc, own):
         return str(exc)
@@ -1401,6 +1418,66 @@ async def sync_new_homes(
         return "failed", written
 
 
+async def sync_presale_parcels(
+    session_factory: async_sessionmaker[AsyncSession], *, now: datetime, file: Path
+) -> tuple[str, int]:
+    """地號座標表（2026-10-20 預售建案規格 P7）：只從指定的檔案匯入（本機腳本查好的 presale_parcels.csv），不連外。
+    upsert、不刪舊列。回傳 (結果, 匯入的列數)；失敗寫在 presale_buildcases 的 last_error。"""
+    try:
+        rows = await asyncio.to_thread(lambda: parcels_io.parse_csv(file.read_bytes().decode("utf-8-sig")))
+        async with session_factory() as db:
+            await parcels_io.import_points(db, rows)
+            await db.commit()
+        located = sum(row.lon is not None for row in rows)
+        logger.info("地號座標已匯入：%s 列（有座標 %s 列）", len(rows), located)
+        return "updated", len(rows)
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("地號座標匯入失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "presale_buildcases", now=now, error=f"地號座標：{_error_text(exc)}")
+        return "failed", 0
+
+
+async def sync_presale(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    file: Path | None,
+) -> tuple[str, int]:
+    """預售建案（2026-10-20 預售建案規格 P8）。回傳 (結果, 這一輪寫入的案數)。
+    網路：每 30 天抓一次單檔；內容的 sha256 和使用中的一樣只記確認時間。換版以新檔為準；高雄筆數比表內少兩成以上
+    （表內至少 100 案）不換、寫 last_error，--force 略過這個檢查。檔案：不連外，版本月份取檔名（「115-10」）或今天。"""
+    status = await _status(session_factory, "presale_buildcases")
+    if file is None and (client is None or (not force and not _due(status, now))):
+        return "skipped", 0
+    try:
+        if file is not None:
+            body = file.read_bytes()
+            label = label_for_file(file, None)
+        else:
+            assert client is not None
+            body = await _fetch_retrying(client, presale_io.SOURCE_URL, max_bytes=presale_io.MAX_BYTES)
+            label = current_label()
+        text_ = presale_io.decode(body)
+        if text_ is None:
+            raise GeoSyncError("下載到的不是預售建案檔（可能是錯誤頁）")
+        digest = hashlib.sha256(body).hexdigest()
+        if file is None and not force and status is not None and status.active_version == digest:
+            await _record(session_factory, "presale_buildcases", now=now, checked=True)
+            return "skipped", 0
+        batch = await asyncio.to_thread(presale_io.parse_csv, text_)
+        written = await presale_io.write_batch(
+            session_factory, batch, source_version=label, digest=digest, now=now, check_shrink=not force
+        )
+        logger.info("預售建案已更新：%s 案（%s），壞行 %s、非高雄 %s", written, label, batch.failed, batch.skipped)
+        return "updated", written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("預售建案同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "presale_buildcases", now=now, error=_error_text(exc))
+        return "failed", 0
+
+
 async def _within_budget(
     session_factory: async_sessionmaker[AsyncSession],
     dataset: str,
@@ -1499,6 +1576,8 @@ async def run_geo_sync(
     income_year: int | None = None,
     new_homes_files: list[Path] | None = None,
     new_homes_season: str | None = None,
+    presale_buildcases_file: Path | None = None,
+    presale_parcels_file: Path | None = None,
     client: httpx.AsyncClient | None = None,
 ) -> GeoSyncResult:
     if (kindergartens_file is None) != (kindergartens_registry_file is None):
@@ -1508,7 +1587,7 @@ async def run_geo_sync(
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
             or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
-            or bool(new_homes_files)
+            or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
         )
         own_client = client is None and not file_mode
         if own_client:
@@ -1582,6 +1661,18 @@ async def run_geo_sync(
                     session_factory, network, now=now, force=force, files=new_homes_files, season=new_homes_season
                 ),
             )
+            # 預售建案：先換建案檔，再匯入地號座標（匯入後下面整批重比，座標才派上用場；地號座標匯入失敗的訊息也才不會被
+            # 建案換版成功清掉）。
+            presale, presale_cases = await _within_budget(
+                session_factory, "presale_buildcases", PRESALE_TIME_BUDGET, now=now,
+                work=sync_presale(session_factory, network, now=now, force=force, file=presale_buildcases_file),
+            )
+            presale_parcels, presale_parcel_rows = "skipped", 0
+            if presale_parcels_file is not None:
+                presale_parcels, presale_parcel_rows = await _within_budget(
+                    session_factory, "presale_buildcases", PRESALE_TIME_BUDGET, now=now,
+                    work=sync_presale_parcels(session_factory, now=now, file=presale_parcels_file),
+                )
         finally:
             if own_client and client is not None:
                 await client.aclose()
@@ -1593,12 +1684,20 @@ async def run_geo_sync(
             logger.warning("新成屋重比失敗：%s", _error_text(exc), exc_info=True)
             await _record(session_factory, "new_homes", now=now, error=f"重比失敗：{_error_text(exc)}")
             new_homes_rematched = 0
+        # 預售建案：門牌換版的案重比；這一輪匯入了地號座標就全部重比（P9）。失敗只記在 presale_buildcases。
+        try:
+            presale_rematched = await presale_io.rematch(session_factory, everything=presale_parcels == "updated")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("預售建案重比失敗：%s", _error_text(exc), exc_info=True)
+            await _record(session_factory, "presale_buildcases", now=now, error=f"重比失敗：{_error_text(exc)}")
+            presale_rematched = 0
         status = await _status(session_factory, "doorplates")
         population_status = await _status(session_factory, "population")
         births_status = await _status(session_factory, "births")
         migration_status = await _status(session_factory, "migration")
         income_status = await _status(session_factory, "income")
         new_homes_status = await _status(session_factory, "new_homes")
+        presale_status = await _status(session_factory, "presale_buildcases")
         fees_status = await _status(session_factory, "kindergarten_fees")
         return GeoSyncResult(
             doorplates, kindergartens, status.label if status else None, rematched,
@@ -1623,4 +1722,12 @@ async def run_geo_sync(
             new_homes_version=new_homes_status.label if new_homes_status and new_homes_status.active_version else None,
             new_homes_seasons=new_homes_seasons,
             new_homes_rematched=new_homes_rematched,
+            presale_buildcases=presale,
+            presale_buildcases_version=(
+                presale_status.label if presale_status and presale_status.active_version else None
+            ),
+            presale_cases=presale_cases,
+            presale_rematched=presale_rematched,
+            presale_parcels=presale_parcels,
+            presale_parcel_rows=presale_parcel_rows,
         )

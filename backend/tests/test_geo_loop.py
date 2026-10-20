@@ -305,6 +305,7 @@ def test_cli_options_with_files():
         "kindergartens_registry_file": REGISTRY_CSV,
         "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
+        "presale_buildcases_file": None, "presale_parcels_file": None,
     }
     assert geo_sync_options(["--force"])["force"] is True
     assert geo_sync_options(["--doorplates-file", str(csv), "--doorplates-version", "115-10"])["doorplates_version"] == "115-10"
@@ -467,6 +468,7 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
             "kindergartens_registry_file": None,
             "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
             "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
+            "presale_buildcases_file": None, "presale_parcels_file": None,
         }
     ]
 
