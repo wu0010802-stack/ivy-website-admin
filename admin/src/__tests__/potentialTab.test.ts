@@ -221,4 +221,31 @@ describe('走勢圖', () => {
     const { wrapper } = await mountWith(ShareTrendChart, { props: { years: [shareYear({ children: null })] } })
     expect(wrapper.find('svg').exists()).toBe(false)
   })
+
+  // 手機（≤720px）：viewBox 縮成窄版，SVG 在 360–390px 螢幕上縮放接近 1，軸線文字與圓點不會縮到看不清。
+  describe('窄螢幕', () => {
+    const stubNarrow = (matches: boolean) =>
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('窄螢幕用窄版 viewBox、圓點放大；點的位置與標籤仍在範圍內', async () => {
+      stubNarrow(true)
+      const { wrapper } = await mountPotential()
+      const svg = wrapper.get('svg.share-trend')
+      expect(svg.attributes('viewBox')).toBe('0 0 340 170')
+      expect(svg.attributes('width')).toBe('100%')
+      expect(svg.get('circle').attributes('r')).toBe('5')
+      const xs = svg.findAll('circle').map((dot) => Number(dot.attributes('cx')))
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(0)
+      expect(Math.max(...xs)).toBeLessThanOrEqual(340)
+      expect(svg.findAll('.share-trend__x').map((label) => label.text())).toEqual(['107', '108', '115'])
+    })
+
+    it('寬螢幕維持 0 0 520 160、圓點半徑 3.5', async () => {
+      stubNarrow(false)
+      const { wrapper } = await mountPotential()
+      expect(wrapper.get('svg.share-trend').attributes('viewBox')).toBe('0 0 520 160')
+      expect(wrapper.get('svg.share-trend circle').attributes('r')).toBe('3.5')
+    })
+  })
 })

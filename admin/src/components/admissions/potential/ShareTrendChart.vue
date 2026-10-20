@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { PotentialShareYear } from '../../../api/types'
+import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { yearTitle } from './potentialFormat'
 
 // 市佔率走勢（2026-10-20）：admin 沒有圖表套件，手寫 SVG。縱軸從 0 起、頂端取 0.5% 的倍數；橫軸依學年排，缺的學年留空；
 // 那一年沒有市佔率（沒有九月底的孩子數）就不畫點，線在那裡斷開。橫軸只標第一、最高、最新三個學年，數字在每個點的提示與
 // 「各學年數字」表裡；兩個標籤貼太近時最高讓位。
+// 幾何分寬窄兩套：窄螢幕（≤720px）的 viewBox 縮成 340 寬，SVG 在 360–390px 的手機上縮放接近 1，軸線文字與圓點才讀得到
+// （寬版 520 擠進 358px 會縮到 0.69，字級剩約 9px）。
 const props = defineProps<{ years: readonly PotentialShareYear[] }>()
 
-const WIDTH = 520
-const HEIGHT = 160
-const LEFT = 44
-const RIGHT = 28
-const TOP = 14
-const BOTTOM = 30
+const WIDE = { width: 520, height: 160, left: 44, right: 28, top: 14, bottom: 30, radius: 3.5 }
+const NARROW = { width: 340, height: 170, left: 42, right: 22, top: 14, bottom: 30, radius: 5 }
 const MIN_LABEL_GAP = 28
+
+const narrow = useNarrowScreen()
+const geo = computed(() => (narrow.value ? NARROW : WIDE))
 
 interface Point {
   year: number
@@ -29,9 +31,11 @@ const top = computed(() => Math.max(0.5, Math.ceil(Math.max(0, ...shared.value.m
 const firstYear = computed(() => props.years[0]?.school_year ?? 0)
 const span = computed(() => (props.years.at(-1)?.school_year ?? 0) - firstYear.value)
 
-const xOf = (year: number) => LEFT + (span.value === 0 ? (WIDTH - LEFT - RIGHT) / 2 : ((year - firstYear.value) / span.value) * (WIDTH - LEFT - RIGHT))
-const yOf = (share: number) => TOP + (HEIGHT - TOP - BOTTOM) * (1 - (share * 100) / top.value)
-const baseline = HEIGHT - BOTTOM
+const plotWidth = computed(() => geo.value.width - geo.value.left - geo.value.right)
+const xOf = (year: number) =>
+  geo.value.left + (span.value === 0 ? plotWidth.value / 2 : ((year - firstYear.value) / span.value) * plotWidth.value)
+const yOf = (share: number) => geo.value.top + (geo.value.height - geo.value.top - geo.value.bottom) * (1 - (share * 100) / top.value)
+const baseline = computed(() => geo.value.height - geo.value.bottom)
 
 const toPoint = (year: PotentialShareYear): Point => ({ year: year.school_year, x: xOf(year.school_year), y: yOf(year.share!), title: yearTitle(year) })
 const points = computed(() => shared.value.map(toPoint))
@@ -74,17 +78,17 @@ const ariaLabel = computed(() => {
 </script>
 
 <template>
-  <svg v-if="points.length" class="share-trend" role="img" :aria-label="ariaLabel" :viewBox="`0 0 ${WIDTH} ${HEIGHT}`" width="100%">
-    <line class="share-trend__grid" :x1="LEFT" :x2="WIDTH - RIGHT" :y1="TOP" :y2="TOP" />
-    <line class="share-trend__axis" :x1="LEFT" :x2="WIDTH - RIGHT" :y1="baseline" :y2="baseline" />
-    <text class="share-trend__y" :x="LEFT - 6" :y="TOP + 4" text-anchor="end">{{ top.toFixed(1) }}%</text>
-    <text class="share-trend__y" :x="LEFT - 6" :y="baseline + 4" text-anchor="end">0%</text>
+  <svg v-if="points.length" class="share-trend" role="img" :aria-label="ariaLabel" :viewBox="`0 0 ${geo.width} ${geo.height}`" width="100%">
+    <line class="share-trend__grid" :x1="geo.left" :x2="geo.width - geo.right" :y1="geo.top" :y2="geo.top" />
+    <line class="share-trend__axis" :x1="geo.left" :x2="geo.width - geo.right" :y1="baseline" :y2="baseline" />
+    <text class="share-trend__y" :x="geo.left - 6" :y="geo.top + 4" text-anchor="end">{{ top.toFixed(1) }}%</text>
+    <text class="share-trend__y" :x="geo.left - 6" :y="baseline + 4" text-anchor="end">0%</text>
     <polyline v-for="line in lines" :key="line" class="share-trend__line" :points="line" />
-    <circle v-for="point in points" :key="point.year" class="share-trend__dot" :cx="point.x" :cy="point.y" r="3.5">
+    <circle v-for="point in points" :key="point.year" class="share-trend__dot" :cx="point.x" :cy="point.y" :r="geo.radius">
       <title>{{ point.title }}</title>
     </circle>
-    <text class="share-trend__axis-title" x="2" :y="HEIGHT - 8">學年</text>
-    <text v-for="label in labels" :key="label.year" class="share-trend__x" :x="label.x" :y="HEIGHT - 8" text-anchor="middle">{{ label.year }}</text>
+    <text class="share-trend__axis-title" x="2" :y="geo.height - 8">學年</text>
+    <text v-for="label in labels" :key="label.year" class="share-trend__x" :x="label.x" :y="geo.height - 8" text-anchor="middle">{{ label.year }}</text>
   </svg>
 </template>
 
