@@ -1,7 +1,7 @@
 """招生潛力：每年還能多招幾位新生的三個來源（2026-10-20 招生潛力第二、三波規格 §5，報告 A-07、B-03、B-06、B-11、I-4）。
 
-這個檔先放常數、Range 與來源一「附近園所停辦釋出」；來源二、三接在後面。所有參數都在下面的常數，
-畫面「怎麼算」照列；這一版不開放後台修改。
+這個檔先放常數、Range、來源一「附近園所停辦釋出」與來源二「現有的里還沒招到」；來源三接在後面。所有參數都在
+下面的常數，畫面「怎麼算」照列；這一版不開放後台修改。
 
 來源一：附近 8 公里內幼兒園停辦，家長轉來本校的孩子數。
   流入＝核定名額 × 實收率 × (1 − 畢業比例) × 承接率 × 距離係數 × 價格係數（報告 A-07）。
@@ -11,20 +11,36 @@
     起點是 2022-10（回補檔的起點），事件只保留 72 個月，所以之後的起點是保留期內第一個整個窗口（first_window_start）。
   - 低＝最低那年 × 承接率中值；中＝平均 × 承接率中值；高＝最高那年 × 承接率高值（裁定 4）。
     規格原寫「低 0%」，會讓低值恆為 0，所以改用中值。
-  - 核定名額沒填的停辦園所算不出來，略過並計數；對方沒有收費資料時價格係數取 1，也計數。"""
+  - 核定名額沒填的停辦園所算不出來，略過並計數；對方沒有收費資料時價格係數取 1，也計數。
+
+來源二：本校 6 公里內各里的在籍人數，對照距離模型「應有的人數」，3 公里內招得比應有少的部分就是還能招的空間。
+  - 模型（報告 B-03 的 M1）：在籍 ~ Poisson(μ)，log μ = a + b·距離（km）+ log(2–5 歲人數)，自己寫兩參數牛頓法，不加依賴。
+  - 缺口（報告 B-11）：每個 3 公里內的里 max(0, μ − θ·μ)，θ = (實際 + 5.1) ÷ (μ + 5.1)，經驗貝氏收縮讓小里的缺口不被雜訊放大。
+  - 每年新生＝在籍缺口 ÷ 3（在籍約是每年新生的三倍）。
+  - 低／高＝參數化自助法的 10／90 百分位：固定種子 20261020，200 次，每次依擬合出的 μ 重抽各里在籍、重新擬合、再算缺口 ÷ 3；
+    中＝實際資料的缺口 ÷ 3。抽樣的區間若沒包住中值（實際缺口遠大於只靠雜訊產生的缺口），低／高向中值靠攏，區間永遠包住中值。
+  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）。"""
 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+import random
+from dataclasses import dataclass, replace
 from datetime import date
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import area
-from app.admissions.geo import fees, matcher, providers
-from app.admissions.geo.models import GeoKindergarten, GeoKindergartenFee, GeoProviderEvent
+from app.admissions.enrolled.models import EnrolledRoster, EnrolledStudentPoint
+from app.admissions.geo import boundaries, fees, matcher, providers
+from app.admissions.geo.models import (
+    VILLAGE_LEVELS,
+    GeoKindergarten,
+    GeoKindergartenFee,
+    GeoProviderEvent,
+    GeoVillagePopulation,
+)
 from app.admissions.geo.projection import haversine_m
 
 # ---- 參數（報告 A-07、B-03、B-04、B-06、B-11、I-4）----
@@ -54,6 +70,30 @@ PRICE_FACTOR_PUBLIC = 0.1
 SCHOOL_YEAR_START_MONTH = 10
 FIRST_SCHOOL_YEAR = 111
 RANGE_DIGITS = 1
+
+# ---- 來源二參數（報告 B-03 M1、B-11）----
+
+# 距離模型 log μ = a + b·距離（km）+ log(2–5 歲)；報告估計值 a ≈ −2.613、b ≈ −1.067。
+KIDS_AGES = (2, 5)
+VILLAGE_FIT_RADIUS_M = 6000  # 擬合用 6 km 內的里
+VILLAGE_GAP_RADIUS_M = 3000  # 缺口只算 3 km 內的里
+VILLAGE_SHRINK = 5.1  # 經驗貝氏收縮參數（B-11）
+VILLAGE_COHORT_YEARS = 3  # 每年新生＝在籍缺口 ÷ 3（B-11 假設：每年新生約為在籍的三分之一）
+# 牛頓法：最多迭代次數、步長小於這個值就算收斂、一步沒改善時最多對折幾次。
+MODEL_MAX_ITERATIONS = 50
+MODEL_TOLERANCE = 1e-8
+MODEL_MAX_HALVINGS = 30
+MODEL_DIGITS = 3  # details.model 的 a、b 四捨五入位數
+# 參數化自助法：固定種子、抽樣次數、成功次數至少要有幾次才給區間、低／高取的百分位。
+BOOTSTRAP_SEED = 20261020
+BOOTSTRAP_DRAWS = 200
+BOOTSTRAP_MIN_SUCCESS = 50
+BOOTSTRAP_PERCENTILES = (10, 90)
+# Poisson 期望值超過這個數字改用常態近似（Knuth 演算法的 e^-μ 會下溢，連乘次數也隨 μ 增加）。
+POISSON_NORMAL_ABOVE = 30
+# 距離帶（上界 m，含上界；0 m 算第一帶）。畫面展開用四帶；給來源三的占有率（B-03）用 1 km 三帶。
+VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-0.5", 500), ("0.5-1", 1000), ("1-2", 2000), ("2-3", 3000))
+SHARE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
 
 
 @dataclass(frozen=True)
@@ -280,3 +320,248 @@ async def load_closure_events(
         )
     events.sort(key=lambda item: (item.occurred_on, item.distance_m, item.name))
     return events
+
+
+# ---- 來源二：現有的里還沒招到 ----
+
+
+@dataclass(frozen=True)
+class VillageObs:
+    """一個里的觀測：code 里代碼、distance_m 里重心到本校的直線距離（不四捨五入）、kids 2–5 歲人數、enrolled 本校在籍人數。"""
+
+    code: str
+    distance_m: float
+    kids: int
+    enrolled: int
+
+
+def _expected(item: VillageObs, a: float, b: float) -> float:
+    """模型給這個里的在籍期望值 μ。"""
+    return item.kids * math.exp(a + b * item.distance_m / 1000)
+
+
+# 擬合用的一列：(距離 km, 2–5 歲, log(2–5 歲), 在籍)。
+_FitRow = tuple[float, int, float, int]
+
+
+def _poisson_loglik(rows: list[_FitRow], a: float, b: float) -> float | None:
+    """Poisson 對數概似（略去與參數無關的常數項）；指數溢位或結果不是有限數回 None。"""
+    total = 0.0
+    try:
+        for x, kids, log_kids, y in rows:
+            total += y * (log_kids + a + b * x) - kids * math.exp(a + b * x)
+    except OverflowError:
+        return None
+    return total if math.isfinite(total) else None
+
+
+def _newton_step(rows: list[_FitRow], a: float, b: float) -> tuple[float, float] | None:
+    """牛頓法一步：2×2 Hessian（Fisher 資訊）直接解。所有里在同一個距離（或只有一個里）時斜率估不出來，回 None。"""
+    score_a = score_b = h_aa = h_ab = h_bb = 0.0
+    for x, kids, _, y in rows:
+        mu = kids * math.exp(a + b * x)
+        residual = y - mu
+        score_a += residual
+        score_b += x * residual
+        h_aa += mu
+        h_ab += x * mu
+        h_bb += x * x * mu
+    det = h_aa * h_bb - h_ab * h_ab
+    if not det > 1e-12 * h_aa * h_bb:  # 也擋掉 NaN
+        return None
+    return (h_bb * score_a - h_ab * score_b) / det, (h_aa * score_b - h_ab * score_a) / det
+
+
+def fit_distance_model(obs: list[VillageObs]) -> tuple[float, float] | None:
+    """Poisson 牛頓法估 (a, b)：log μ = a + b·距離（km）+ log(2–5 歲)。
+
+    2–5 歲是 0 的里不參與。初值是 (log(總在籍 ÷ 總孩子), 0)；每步先試完整牛頓步，概似變差就對折（最多 30 次）；
+    步長小於 1e-8 算收斂，50 次還沒收斂（例如在籍全擠在一個里，估計值要跑到無限遠才擬合得上）、概似溢位或
+    出現 NaN 都回 None；總在籍 0 或沒有任何里也是 None。"""
+    rows: list[_FitRow] = [
+        (item.distance_m / 1000, item.kids, math.log(item.kids), item.enrolled) for item in obs if item.kids > 0
+    ]
+    total_enrolled = sum(row[3] for row in rows)
+    if total_enrolled <= 0:
+        return None
+    a, b = math.log(total_enrolled / sum(row[1] for row in rows)), 0.0
+    loglik = _poisson_loglik(rows, a, b)
+    for _ in range(MODEL_MAX_ITERATIONS):
+        step = _newton_step(rows, a, b) if loglik is not None else None
+        if step is None:
+            return None
+        da, db = step
+        if max(abs(da), abs(db)) < MODEL_TOLERANCE:
+            a, b = a + da, b + db
+            return (a, b) if math.isfinite(a) and math.isfinite(b) else None
+        scale = 1.0
+        for _ in range(MODEL_MAX_HALVINGS):
+            candidate = _poisson_loglik(rows, a + scale * da, b + scale * db)
+            # 容許浮點誤差等級的退步：接近最佳解時概似的變化小於浮點精度，嚴格要求進步會誤判成失敗。
+            if candidate is not None and candidate >= loglik - 1e-9 * max(1.0, abs(loglik)):
+                break
+            scale /= 2
+        else:
+            return None
+        a, b, loglik = a + scale * da, b + scale * db, candidate
+    return None
+
+
+def village_gaps(
+    obs: list[VillageObs], a: float, b: float, *, radius_m: float = VILLAGE_GAP_RADIUS_M, shrink: float = VILLAGE_SHRINK
+) -> float:
+    """半徑內在籍缺口的總和：每個里 max(0, μ − θ·μ)，θ = (實際 + shrink) ÷ (μ + shrink)（報告 B-11 經驗貝氏收縮）。
+
+    期望值小的里，實際只差一兩位就是雜訊，θ 被拉向 1、缺口縮小；期望值大的里幾乎不受影響。
+    招得比期望多的里缺口是 0，不抵銷別的里。"""
+    total = 0.0
+    for item in obs:
+        if item.kids <= 0 or item.distance_m > radius_m:
+            continue
+        mu = _expected(item, a, b)
+        if mu <= 0:
+            continue
+        theta = (item.enrolled + shrink) / (mu + shrink)
+        total += max(0.0, mu - theta * mu)
+    return total
+
+
+def _poisson(rng: random.Random, mu: float) -> int:
+    """Poisson(mu) 抽樣：mu ≤ 30 用 Knuth 演算法（連乘均勻亂數到小於 e^-mu，連乘的次數就是抽到的值）；
+    mu 大時 e^-mu 會下溢、連乘也要很多次，改用常態近似 N(mu, mu) 取整、最小 0。"""
+    if mu <= 0:
+        return 0
+    if mu > POISSON_NORMAL_ABOVE:
+        return max(0, round(rng.gauss(mu, math.sqrt(mu))))
+    limit = math.exp(-mu)
+    count = 0
+    product = rng.random()
+    while product > limit:
+        count += 1
+        product *= rng.random()
+    return count
+
+
+def _percentile(ordered: list[float], percent: float) -> float:
+    """已排序資料的線性內插百分位（同 numpy 預設）。"""
+    position = (len(ordered) - 1) * percent / 100
+    lower, upper = math.floor(position), math.ceil(position)
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * (position - lower)
+
+
+def _band_of(distance_m: float, bands: tuple[tuple[str, int], ...]) -> str | None:
+    """距離落在哪一帶；帶界含上界，超過最後一帶是 None。"""
+    for key, upper in bands:
+        if distance_m <= upper:
+            return key
+    return None
+
+
+def _village_bands(obs: list[VillageObs], a: float, b: float) -> list[dict]:
+    """畫面展開的距離帶彙總：里數、2–5 歲、在籍、期望、在籍缺口（還沒 ÷ 3）。只彙總，不留逐里的值。"""
+    rows = {key: {"band": key, "villages": 0, "kids": 0, "enrolled": 0, "expected": 0.0, "gap": 0.0} for key, _ in VILLAGE_BANDS}
+    for item in obs:
+        key = _band_of(item.distance_m, VILLAGE_BANDS)
+        if key is None:
+            continue
+        row = rows[key]
+        row["villages"] += 1
+        row["kids"] += item.kids
+        row["enrolled"] += item.enrolled
+        row["expected"] += _expected(item, a, b)
+        row["gap"] += village_gaps([item], a, b, radius_m=VILLAGE_BANDS[-1][1])
+    for row in rows.values():
+        row["expected"] = round(row["expected"], RANGE_DIGITS)
+        row["gap"] = round(row["gap"], RANGE_DIGITS)
+    return list(rows.values())
+
+
+def villages_range(
+    obs: list[VillageObs], *, seed: int = BOOTSTRAP_SEED, draws: int = BOOTSTRAP_DRAWS
+) -> tuple[Range | None, dict]:
+    """來源二的低／中／高，以及畫面「怎麼算」要的距離帶彙總。
+
+    中＝實際資料擬合一次的缺口 ÷ 3。低／高＝參數化自助法的 10／90 百分位：依擬合出的 μ 重抽各里在籍
+    （y* ~ Poisson(μ)），重新擬合、算缺口 ÷ 3，共 draws 次，亂數是 random.Random(seed)；某次擬合失敗就略過，
+    成功不到 50 次不給區間。抽樣的缺口反映「模型為真時光靠雜訊會量到的缺口」，不一定包住實際缺口；
+    低／高因此取 min(P10, 中)、max(P90, 中)，區間永遠包住中值。
+    模型擬合不出來（沒有在籍、全在同一個距離、估計值跑到無限遠…）回 (None, {"bands": [], "model": None})。
+    details 只有 bands（四個距離帶）與 model（a、b），沒有里代碼，也沒有逐里的數字。"""
+    obs = sorted(obs, key=lambda item: item.code)  # 抽樣的順序不受資料列順序影響
+    model = fit_distance_model(obs)
+    if model is None:
+        return None, {"bands": [], "model": None}
+    a, b = model
+    details = {
+        "bands": _village_bands(obs, a, b),
+        "model": {"a": round(a, MODEL_DIGITS), "b": round(b, MODEL_DIGITS)},
+    }
+    mid = village_gaps(obs, a, b) / VILLAGE_COHORT_YEARS
+    rng = random.Random(seed)
+    expected = [_expected(item, a, b) for item in obs]
+    gaps: list[float] = []
+    for _ in range(draws):
+        drawn = [replace(item, enrolled=_poisson(rng, mu)) for item, mu in zip(obs, expected)]
+        refit = fit_distance_model(drawn)
+        if refit is not None:
+            gaps.append(village_gaps(drawn, *refit) / VILLAGE_COHORT_YEARS)
+    if len(gaps) < BOOTSTRAP_MIN_SUCCESS:
+        return None, details
+    gaps.sort()
+    low, high = (_percentile(gaps, percent) for percent in BOOTSTRAP_PERCENTILES)
+    return Range(low=min(low, mid), mid=mid, high=max(high, mid)), details
+
+
+def band_shares(obs: list[VillageObs]) -> dict[str, float]:
+    """0–1、1–2、2–3 km 三帶各自的占有率＝在籍 ÷ 2–5 歲（報告 B-03），給來源三用。
+    帶界含上界；3 km 外不算；那一帶沒有孩子（或沒有里）是 0.0。"""
+    kids = {key: 0 for key, _ in SHARE_BANDS}
+    enrolled = {key: 0 for key, _ in SHARE_BANDS}
+    for item in obs:
+        key = _band_of(item.distance_m, SHARE_BANDS)
+        if key is not None:
+            kids[key] += item.kids
+            enrolled[key] += item.enrolled
+    return {key: enrolled[key] / kids[key] if kids[key] > 0 else 0.0 for key in kids}
+
+
+async def load_village_obs(
+    db: AsyncSession, campus_key: str, lat: float, lng: float, *, radius_m: float = VILLAGE_FIT_RADIUS_M
+) -> list[VillageObs] | None:
+    """(lat, lng) radius_m 內各里的觀測；這一校沒有匯入過在籍清冊回 None。
+
+    孩子數取 geo_village_population（只存使用中的月份）的 2–5 歲加總，距離是里重心到 (lat, lng) 的直線距離。
+    在籍數沿用在籍分布的口徑：比對到里的點（exact／nearby／street）依 (區, 里) 計數，再用里界檔對到里代碼，
+    對不到的不算。人口表有的里都列出，沒有在籍的里在籍是 0（擬合需要這些 0）；人口表沒有的里沒有孩子數可除，不列。
+    結果依里代碼排序。"""
+    if await db.get(EnrolledRoster, campus_key) is None:
+        return None
+    counted = await db.execute(
+        select(EnrolledStudentPoint.district, EnrolledStudentPoint.village, func.count())
+        .where(
+            EnrolledStudentPoint.campus_key == campus_key,
+            EnrolledStudentPoint.match_level.in_(VILLAGE_LEVELS),
+            EnrolledStudentPoint.district.is_not(None),
+            EnrolledStudentPoint.village.is_not(None),
+        )
+        .group_by(EnrolledStudentPoint.district, EnrolledStudentPoint.village)
+    )
+    enrolled: dict[str, int] = {}
+    for district, village, count in counted.all():
+        code = boundaries.village_code(district, village) if district and village else None
+        if code is not None:
+            enrolled[code] = enrolled.get(code, 0) + count
+    centroids = boundaries.village_centroids()
+    population = (await db.execute(select(GeoVillagePopulation))).scalars().all()
+    obs: list[VillageObs] = []
+    for row in population:
+        centroid = centroids.get(row.village_code)
+        if centroid is None:
+            continue
+        distance = haversine_m(lat, lng, *centroid)
+        if distance > radius_m:
+            continue
+        kids = sum(getattr(row, f"age_{age}") for age in range(KIDS_AGES[0], KIDS_AGES[1] + 1))
+        obs.append(VillageObs(row.village_code, distance, kids, enrolled.get(row.village_code, 0)))
+    obs.sort(key=lambda item: item.code)
+    return obs

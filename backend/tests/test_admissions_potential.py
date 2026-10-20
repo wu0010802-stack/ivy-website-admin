@@ -4,13 +4,16 @@
 回測兩例照報告：愛爾蘭（核定 136、607 m）與童年綠地（480、676 m），收費相近、私立，承接率 13.8%。"""
 from __future__ import annotations
 
+import json
+import math
 from datetime import date, datetime, timezone
 
 import pytest
 
 from app.admissions import area
-from app.admissions.geo import matcher
-from app.admissions.geo.models import GeoProviderEvent
+from app.admissions.enrolled.importer import load_payload, replace_roster
+from app.admissions.geo import boundaries, matcher
+from app.admissions.geo.models import GeoProviderEvent, GeoVillagePopulation
 from app.admissions.potential import (
     CATCH_RATE_HIGH,
     CATCH_RATE_MID,
@@ -18,14 +21,21 @@ from app.admissions.potential import (
     OCCUPANCY_RATE,
     ClosureEvent,
     Range,
+    VillageObs,
+    band_shares,
     band_weight,
     closure_inflow,
     closures_range,
     first_window_start,
+    fit_distance_model,
     load_closure_events,
+    load_village_obs,
     price_factor,
     school_year_window,
+    village_gaps,
+    villages_range,
 )
+from tests.enrolled_helpers import payload_text, points_payload, student
 from tests.geo_helpers import YIHUA_POINT
 from tests.peer_fees_helpers import add_fee, add_kindergarten
 
@@ -441,3 +451,271 @@ async def test_the_latest_closure_is_taken_within_the_requested_period(db_sessio
         ("之前就停", date(2023, 5, 1)),
         ("之後又停", date(2024, 5, 1)),
     ]
+
+
+# ---- 來源二：現有的里還沒招到 ----
+
+REPORT_A, REPORT_B = -2.6, -1.07
+
+
+def synthetic_obs(*, villages: int = 60, wobble: tuple[float, ...] = (1.0,)) -> list[VillageObs]:
+    """100 m 起每 100 m 一個里，2–5 歲 2000–2900 位；在籍是 a＝-2.6、b＝-1.07 的期望值乘上 wobble（輪流）後取整。"""
+    obs = []
+    for index in range(villages):
+        distance = 100 + index * 100
+        kids = 2000 + (index * 37) % 900
+        expected = kids * math.exp(REPORT_A + REPORT_B * distance / 1000) * wobble[index % len(wobble)]
+        obs.append(VillageObs(f"640{index:08d}", distance, kids, round(expected)))
+    return obs
+
+
+def test_fit_recovers_parameters():
+    fitted = fit_distance_model(synthetic_obs())
+
+    assert fitted is not None
+    a, b = fitted
+    assert a == pytest.approx(REPORT_A, abs=0.05)
+    assert b == pytest.approx(REPORT_B, abs=0.05)
+
+
+def test_fit_ignores_villages_without_children():
+    obs = synthetic_obs() + [VillageObs("640ghost0001", 400, 0, 50), VillageObs("640ghost0002", 4000, 0, 0)]
+
+    assert fit_distance_model(obs) == fit_distance_model(synthetic_obs())
+
+
+def test_gap_shrinks_small_villages():
+    a, b = math.log(0.02), 0.0  # 每 100 位孩子期望 2 位在籍，與距離無關
+    small = village_gaps([VillageObs("s", 500, 100, 0)], a, b)
+    large = village_gaps([VillageObs("l", 500, 10_000, 0)], a, b)  # 期望 200 位
+
+    assert 0 < small < 2
+    assert small == pytest.approx(2 * 2 / (2 + 5.1))  # μ·(μ − y) ÷ (μ + 收縮參數)
+    assert large == pytest.approx(200 * 200 / (200 + 5.1))
+    assert large > 190  # 大里幾乎不被收縮
+
+
+def test_gap_counts_shortfalls_inside_the_radius_only():
+    a, b = math.log(0.02), 0.0
+    short = VillageObs("a", 500, 100, 0)
+    over = VillageObs("b", 600, 100, 9)  # 招得比期望多：缺口 0，也不抵銷別的里
+    edge = VillageObs("c", 3000, 100, 0)  # 剛好 3 km 算半徑內
+    outside = VillageObs("d", 3001, 100, 0)
+
+    assert village_gaps([over], a, b) == 0
+    assert village_gaps([short, over], a, b) == village_gaps([short], a, b)
+    assert village_gaps([edge], a, b) > 0
+    assert village_gaps([outside], a, b) == 0
+    assert village_gaps([outside], a, b, radius_m=4000) > 0
+    assert village_gaps([short], a, b, shrink=0) == pytest.approx(2)  # 不收縮就是期望減實際
+
+
+def test_villages_range_deterministic():
+    obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
+    first, details = villages_range(obs)
+    second, details_again = villages_range(obs)
+
+    assert first is not None
+    assert first == second and details == details_again
+    assert first.low <= first.mid <= first.high
+    assert first.high > first.low
+    assert villages_range(list(reversed(obs)))[0] == first  # 資料列順序不影響
+    assert villages_range(obs, seed=1)[0] != first  # 種子真的有用到
+
+
+def test_villages_range_mid_is_the_observed_gap_over_three_years():
+    obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
+    result, _ = villages_range(obs)
+
+    a, b = fit_distance_model(obs)
+    assert result.mid == pytest.approx(village_gaps(obs, a, b) / 3, abs=0.05)
+
+
+def test_villages_range_never_excludes_the_observed_gap():
+    """近處（3 km 內）幾乎沒招到、遠處招得多：實際缺口遠大於抽樣只靠雜訊產生的缺口，區間仍包住中值。"""
+    obs = [
+        VillageObs(f"640{index:08d}", 100 + index * 100, 2000, 0 if index < 30 else 40)
+        for index in range(60)
+    ]
+    result, _ = villages_range(obs)
+
+    assert result is not None
+    assert result.low < result.mid  # 抽樣的 90 百分位遠低於實際缺口，高值向中值靠攏
+    assert result.high == result.mid
+
+
+def test_villages_range_never_goes_above_the_observed_gap_on_the_low_side():
+    """在籍剛好等於期望值（實際缺口幾乎是 0）時，光靠雜訊抽出來的缺口都比它大：低值向中值靠攏。"""
+    result, _ = villages_range(synthetic_obs())
+
+    assert result is not None
+    assert result.low == result.mid
+    assert result.high > result.mid
+
+
+def test_villages_range_needs_enough_successful_draws():
+    result, details = villages_range(synthetic_obs(), draws=10)
+
+    assert result is None
+    assert details["model"] is not None  # 模型本身有估出來，只是區間抽樣的次數不夠
+
+
+def test_details_have_no_village_codes():
+    obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
+    _, details = villages_range(obs)
+
+    text = json.dumps(details, ensure_ascii=False, default=str)
+    assert not any(item.code in text for item in obs)
+    assert set(details) == {"bands", "model"}
+    assert all(set(band) == {"band", "villages", "kids", "enrolled", "expected", "gap"} for band in details["bands"])
+
+
+def test_details_bands_are_aggregates_of_the_villages_in_range():
+    obs = synthetic_obs(villages=40, wobble=(0.5, 1.5, 1.0))
+    result, details = villages_range(obs)
+
+    bands = details["bands"]
+    assert [band["band"] for band in bands] == ["0-0.5", "0.5-1", "1-2", "2-3"]
+    # 100 m 一個里；帶界含上界：500 m 在第一帶、3000 m 在最後一帶、3100 m 起不在任何一帶
+    assert [band["villages"] for band in bands] == [5, 5, 10, 10]
+    inside = [item for item in obs if item.distance_m <= 3000]
+    assert sum(band["kids"] for band in bands) == sum(item.kids for item in inside)
+    assert sum(band["enrolled"] for band in bands) == sum(item.enrolled for item in inside)
+    a, b = fit_distance_model(obs)
+    assert details["model"] == {"a": pytest.approx(a, abs=0.001), "b": pytest.approx(b, abs=0.001)}
+    assert sum(band["gap"] for band in bands) == pytest.approx(result.mid * 3, abs=0.5)  # 各帶缺口加起來就是總缺口
+    assert all(band["expected"] >= 0 and band["gap"] >= 0 for band in bands)
+
+
+def test_model_degenerate():
+    kids = 500
+    nobody_enrolled = [VillageObs(f"v{i}", 500 + i * 700, kids, 0) for i in range(8)]
+    same_distance = [VillageObs(f"v{i}", 1000, kids, 5 + i) for i in range(8)]
+    no_children = [VillageObs(f"v{i}", 500 + i * 700, 0, 3) for i in range(8)]
+    runs_away = [VillageObs("near", 1000, kids, 5), VillageObs("far", 2000, kids, 0)]  # 估計值要跑到無限遠才擬合得上
+    single = [VillageObs("only", 1000, kids, 5)]
+
+    for obs in (nobody_enrolled, same_distance, no_children, runs_away, single, []):
+        assert fit_distance_model(obs) is None
+        result, details = villages_range(obs)  # 不丟例外
+        assert result is None
+        assert details == {"bands": [], "model": None}
+
+
+def test_band_shares():
+    obs = [
+        VillageObs("a", 0, 100, 4),
+        VillageObs("b", 1000, 100, 2),  # 含 1 km：仍在 0–1
+        VillageObs("c", 1001, 200, 4),
+        VillageObs("d", 2500, 400, 2),
+        VillageObs("e", 3000, 100, 3),  # 含 3 km
+        VillageObs("f", 3001, 100, 50),  # 3 km 外不算
+    ]
+
+    shares = band_shares(obs)
+
+    assert list(shares) == ["0-1", "1-2", "2-3"]
+    assert shares["0-1"] == pytest.approx(6 / 200)
+    assert shares["1-2"] == pytest.approx(4 / 200)
+    assert shares["2-3"] == pytest.approx(5 / 500)
+
+
+def test_band_shares_without_children_in_a_band_is_zero():
+    shares = band_shares([VillageObs("a", 500, 100, 4), VillageObs("b", 2500, 0, 2)])
+
+    assert shares == {"0-1": pytest.approx(0.04), "1-2": 0.0, "2-3": 0.0}
+    assert band_shares([]) == {"0-1": 0.0, "1-2": 0.0, "2-3": 0.0}
+
+
+# ---- 來源二：載入 ----
+
+POPULATION_NOW = datetime(2026, 10, 20, 4, 0, tzinfo=timezone.utc)
+# (區, 里) → (2、3、4、5 歲每一歲人數)；本揚里 287 m、寶業里 329 m、本武里 1530 m、新上里 4065 m、青島里 7864 m
+VILLAGE_KIDS = {
+    ("三民區", "本揚里"): 100,
+    ("三民區", "寶業里"): 50,
+    ("三民區", "本武里"): 40,
+    ("左營區", "新上里"): 20,
+    ("小港區", "青島里"): 200,
+}
+
+
+async def add_population(db, rows=VILLAGE_KIDS) -> None:
+    for (district, village), per_age in rows.items():
+        db.add(
+            GeoVillagePopulation(
+                village_code=boundaries.village_code(district, village), district=district, village=village,
+                age_0=7, age_1=8, age_2=per_age, age_3=per_age + 1, age_4=per_age + 2, age_5=per_age + 3, age_6=9,
+                people_total=per_age * 30,
+            )
+        )
+    await db.flush()
+
+
+async def import_roster(db, students: list[dict]) -> None:
+    await replace_roster(db, load_payload(payload_text(points_payload(students))))
+    await db.commit()
+
+
+async def test_load_village_obs_without_a_roster_is_none(db_session):
+    await add_population(db_session)
+    await db_session.commit()
+
+    assert await load_village_obs(db_session, "yihua", *YIHUA_POINT) is None
+
+
+async def test_load_village_obs_counts_enrolled_per_village_within_the_radius(db_session):
+    await add_population(db_session)
+    await import_roster(
+        db_session,
+        [
+            student(),  # 本揚里 exact
+            student(village="本揚里", match_level="nearby"),
+            student(village="寶業里", match_level="street", lat=None, lng=None),  # street 只到里：算
+            student(district="左營區", village="新上里", lat=22.700, lng=120.300),
+            student(district="三民區", village=None, match_level="district", lat=None, lng=None),  # 只到區：不算
+            student(match_level="unlocated", unlocated_reason="no_address", district=None, village=None, lat=None, lng=None),
+            student(district="三民區", village="不存在里"),  # 里界檔對不到：不算
+            student(district="小港區", village="青島里", lat=22.55, lng=120.35),  # 7.9 km：半徑外
+        ],
+    )
+
+    obs = await load_village_obs(db_session, "yihua", *YIHUA_POINT)
+
+    assert obs is not None
+    by_code = {item.code: item for item in obs}
+    code = boundaries.village_code
+    # 2–5 歲孩子數是 age_2..age_5 加總（age_0、age_1、age_6 不算）；沒有在籍的里照樣列出，在籍 0
+    assert set(by_code) == {code("三民區", "本揚里"), code("三民區", "寶業里"), code("三民區", "本武里"), code("左營區", "新上里")}
+    assert (by_code[code("三民區", "本揚里")].kids, by_code[code("三民區", "本揚里")].enrolled) == (4 * 100 + 6, 2)
+    assert (by_code[code("三民區", "寶業里")].kids, by_code[code("三民區", "寶業里")].enrolled) == (4 * 50 + 6, 1)
+    assert (by_code[code("三民區", "本武里")].kids, by_code[code("三民區", "本武里")].enrolled) == (4 * 40 + 6, 0)
+    assert (by_code[code("左營區", "新上里")].kids, by_code[code("左營區", "新上里")].enrolled) == (4 * 20 + 6, 1)
+    assert by_code[code("三民區", "本揚里")].distance_m == pytest.approx(287, abs=3)
+    assert by_code[code("三民區", "本武里")].distance_m == pytest.approx(1530, abs=3)
+    assert by_code[code("左營區", "新上里")].distance_m == pytest.approx(4065, abs=3)
+
+
+async def test_load_village_obs_radius_is_adjustable_and_other_campuses_are_ignored(db_session):
+    await add_population(db_session)
+    await import_roster(db_session, [student()])
+
+    near = await load_village_obs(db_session, "yihua", *YIHUA_POINT, radius_m=1000)
+    assert near is not None
+    assert {item.distance_m < 1000 for item in near} == {True} and len(near) == 2
+    assert await load_village_obs(db_session, "minghua", *YIHUA_POINT) is None  # 明華沒有清冊
+
+
+async def test_load_village_obs_feeds_the_model(db_session):
+    """端到端：一份只有近處有人的清冊，載入後可以直接擬合；缺口與距離帶都算得出來。"""
+    await add_population(db_session)
+    await import_roster(
+        db_session, [student() for _ in range(30)] + [student(village="寶業里") for _ in range(15)]
+        + [student(village="本武里", lat=22.650, lng=120.350) for _ in range(5)]
+    )
+
+    obs = await load_village_obs(db_session, "yihua", *YIHUA_POINT)
+
+    assert obs is not None and sum(item.enrolled for item in obs) == 50
+    assert fit_distance_model(obs) is not None
+    assert band_shares(obs)["0-1"] > band_shares(obs)["1-2"]
