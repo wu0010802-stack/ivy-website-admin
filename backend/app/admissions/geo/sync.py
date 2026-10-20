@@ -1223,27 +1223,31 @@ async def _write_population(
     now: datetime,
 ) -> None:
     """換上使用中的月份，同一個交易也把這個月寫進年齡歷史（2026-10-14 規格 §4.2）；
-    是九月底的話也寫進九月底人口（2026-10-20 規格 §3.2，prune 不動它）。"""
+    是九月底的話也寫進九月底人口（2026-10-20 規格 §3.2，prune 不動它），年齡歷史裡漏掉的九月順便補上。"""
     ages = series_io.collect(series_io.AGES, pages)
     # 九月底人口連里界檔沒有的代碼也存（population_io.collect 的 keep_unknown）。
     september = population_io.collect(pages, keep_unknown=True) if september_io.is_september(batch.label) else None
     async with session_factory() as db:
         await population_io.replace_population(db, batch, synced_at=now)
         await series_io.replace_month(db, series_io.AGES, ages)
-        await series_io.prune(db, series_io.AGES, batch.label)
         if september is not None:
             await september_io.upsert_september(db, september_io.year_of(september.label), september.rows)
+        # 年齡歷史裡九月表還沒有的九月補進去（要在 prune 之前，否則快被刪掉的九月就補不到了）。
+        await september_io.backfill_from_ages(db)
+        await series_io.prune(db, series_io.AGES, batch.label)
         await db.commit()
 
 
 async def _write_age_history(session_factory: async_sessionmaker[AsyncSession], pages: list[list[dict]]) -> str:
-    """只寫進年齡歷史（不動使用中的人口）；回傳寫入的月份。是九月底的話同一個交易也寫進九月底人口。"""
+    """只寫進年齡歷史（不動使用中的人口）；回傳寫入的月份。是九月底的話同一個交易也寫進九月底人口，
+    年齡歷史裡漏掉的九月順便補上。"""
     ages = series_io.collect(series_io.AGES, pages)
     september = population_io.collect(pages, keep_unknown=True) if september_io.is_september(ages.label) else None
     async with session_factory() as db:
         await series_io.replace_month(db, series_io.AGES, ages)
         if september is not None:
             await september_io.upsert_september(db, september_io.year_of(september.label), september.rows)
+        await september_io.backfill_from_ages(db)
         await db.commit()
     return ages.label
 
@@ -1345,6 +1349,9 @@ async def sync_age_history(
             changed = False
             if current not in present:
                 await _copy_population_to_history(db, current)
+                changed = True
+            # 九月表還沒有的九月（部署後第一輪、同步跳過九月、九月已是使用中月份）從年齡歷史補（先補再 prune）。
+            if await september_io.backfill_from_ages(db):
                 changed = True
             await series_io.prune(db, series_io.AGES, current)
             await db.commit()

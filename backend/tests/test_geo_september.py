@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -12,17 +13,31 @@ import pytest
 from sqlalchemy import func, select
 
 from app import cli
+from app.admissions.geo import boundaries
 from app.admissions.geo import population as population_io
+from app.admissions.geo import september as september_io
 from app.admissions.geo import sync
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.bundle import BundleFile, open_bundle, write_bundle
 from app.admissions.geo.models import GeoDatasetStatus, GeoVillageAges, GeoVillageAgesSeptember, GeoVillagePopulation
-from app.admissions.geo.september import september_months, september_years, upsert_september
+from app.admissions.geo.september import (
+    backfill_from_ages,
+    current_code,
+    normalize,
+    september_months,
+    september_years,
+    upsert_september,
+)
 from app.cli import geo_sync_command, geo_sync_options
 from tests.geo_helpers import FIXTURES, RIS_SAMPLE_VILLAGES, ris_response, ris_sample_pages
 
 BOM = chr(0xFEFF)  # U+FEFF：內政部 API 在部分月份（例如 10809）把它放在每列第一個鍵前面
 BOM_FIXTURE = FIXTURES / "ris-odrp014-10809-bom.json"
+# 真實 10709 回應裁出的 6 列（數字是真值，只有人口數）：三民一 2 里、三民二 2 里、鹽埕區 2 里（藍橋里現行、
+# 慈愛里 115-07 廢止，換不到現行代碼）。
+LEGACY_FIXTURE = FIXTURES / "ris-odrp014-10709-legacy.json"
+LEGACY_AGE_2_TO_5 = 103 + 83 + 162 + 331 + 36 + 5
+LEGACY_PEOPLE_TOTAL = 3295 + 2817 + 4423 + 9068 + 1500 + 403
 # fixture 裡高雄 4 個里（另有 1 筆新北市要被篩掉）的 2–5 歲男女加總。
 BOM_FIXTURE_VILLAGES = 4
 BOM_FIXTURE_AGE_2_TO_5 = 317 + 258 + 242 + 236
@@ -201,30 +216,30 @@ async def test_unusable_september_files_exit_without_writing(app, few_villages, 
     assert await _september(app) == {}
 
 
-def _legacy_code_files(tmp_path: Path, month: str, legacy: dict[str, str]) -> list[Path]:
-    """樣本頁把 legacy 裡的代碼換成里界檔沒有的舊代碼（107、108 年三民、鳳山的分區代碼）。"""
+def _unmatched_code_files(tmp_path: Path, month: str, unmatched: dict[str, tuple[str, str]]) -> list[Path]:
+    """樣本頁把 unmatched 裡的 (代碼, 里名) 換成里界檔沒有、也換不到現行代碼的里（像 115-07 廢止的里）。"""
     files = []
     for index, page in enumerate(ris_sample_pages(month), start=1):
         for row in page["responseData"]:
-            row["district_code"] = legacy.get(row["district_code"], row["district_code"])
-        path = tmp_path / f"{month}-legacy-{index}.json"
+            row["district_code"], row["village"] = unmatched.get(row["district_code"], (row["district_code"], row["village"]))
+        path = tmp_path / f"{month}-unmatched-{index}.json"
         path.write_text(json.dumps(page, ensure_ascii=False), encoding="utf-8")
         files.append(path)
     return files
 
 
 async def test_september_keeps_codes_the_boundary_file_does_not_have(app, few_villages, tmp_path: Path):
-    """10709、10809 的三民、鳳山用分區代碼（約 160 個里和現行里界檔不同）：九月底人口照存，不能像使用中的人口一樣略過。"""
-    legacy = {"64000050015": "64000051046", "64000050025": "64000052047"}
-    files = _legacy_code_files(tmp_path, "10809", legacy)
+    """換不到現行代碼的里（例如 115-07 廢止的里）九月底人口照原代碼存，不能像使用中的人口一樣略過。"""
+    unmatched = {"64000050015": ("64000059901", "舊一里"), "64000050025": ("64000059902", "舊二里")}
+    files = _unmatched_code_files(tmp_path, "10809", unmatched)
     await sync.run_geo_sync(app.state.session_factory, app.state.settings, september_files=files)
     assert await _september(app) == {108: RIS_SAMPLE_VILLAGES}
     async with app.state.session_factory() as db:
-        kept = await db.get(GeoVillageAgesSeptember, (108, "64000051046"))
-    assert kept is not None and kept.village == "本揚里"
+        kept = await db.get(GeoVillageAgesSeptember, (108, "64000059901"))
+    assert kept is not None and (kept.village, kept.district) == ("舊一里", "三民區")
     # 使用中的人口仍只收里界檔有的代碼。
-    assert await _sync_files(app, _legacy_code_files(tmp_path, "11509", legacy)) == ("updated", len(legacy))
-    assert await _count(app, GeoVillagePopulation) == RIS_SAMPLE_VILLAGES - len(legacy)
+    assert await _sync_files(app, _unmatched_code_files(tmp_path, "11509", unmatched)) == ("updated", len(unmatched))
+    assert await _count(app, GeoVillagePopulation) == RIS_SAMPLE_VILLAGES - len(unmatched)
     assert (await _september(app))[115] == RIS_SAMPLE_VILLAGES
 
 
@@ -237,6 +252,140 @@ async def test_september_file_with_too_few_villages_is_rejected(app, few_village
         )
     assert "少於" in str(raised.value)
     assert await _september(app) == {}
+
+
+# ---- 舊代碼換成現行代碼 ----
+
+
+def _legacy_rows() -> list[population_io.PopulationRow]:
+    """用到 collect，呼叫的測試要帶 few_villages（fixture 只有 6 個里）。"""
+    rows = population_io.response_rows(population_io.parse_page(LEGACY_FIXTURE.read_text(encoding="utf-8")))
+    return population_io.collect([rows], keep_unknown=True).rows
+
+
+def _legacy_row(village: str) -> population_io.PopulationRow:
+    return next(row for row in _legacy_rows() if row.village == village)
+
+
+def test_current_code_maps_legacy_codes_by_district_prefix_and_village_name():
+    expected = boundaries.village_code("三民區", "安東里")
+    assert expected is not None and expected != "64000051046"
+    assert current_code("64000051046", "安東里") == expected  # 三民一
+    assert current_code("64000052001", "鼎金里") == boundaries.village_code("三民區", "鼎金里")  # 三民二
+    assert current_code(expected, "任何名稱") == expected  # 本來就是現行代碼：原樣
+    assert current_code("64000010002", "慈愛里") is None  # 廢止的里：對不到
+    assert current_code("64000051046", "沒有這個里") is None
+
+
+def test_current_code_gives_up_when_the_match_is_not_unique(few_villages, monkeypatch):
+    monkeypatch.setattr(september_io, "_index", lambda: {("6400005", "安東里"): ["64000050001", "64000050002"]})
+    assert current_code("64000051046", "安東里") is None
+    rows = [_legacy_row("安東里")]
+    result = normalize(rows)
+    assert (result.remapped, result.merged, result.unmatched) == (0, 0, 1)
+    assert result.rows == rows  # 不唯一就照原代碼、原名稱存
+
+
+def test_normalize_replaces_legacy_codes_and_counts(few_villages):
+    rows = _legacy_rows()
+    assert {row.village_code for row in rows} >= {"64000051046", "64000051047", "64000052001", "64000052002"}
+    result = normalize(rows)
+    assert (result.remapped, result.merged, result.unmatched) == (4, 0, 1)
+    by_village = {row.village: row for row in result.rows}
+    assert len(result.rows) == len(rows)
+    for village in ("安東里", "安和里", "鼎金里", "鼎盛里"):
+        row = by_village[village]
+        assert row.village_code == boundaries.village_code("三民區", village) and row.district == "三民區"
+    assert by_village["藍橋里"].village_code == "64000010001"  # 本來就是現行代碼
+    assert by_village["慈愛里"].village_code == "64000010002"  # 換不到：照原代碼
+    assert sum(row.age_2 + row.age_3 + row.age_4 + row.age_5 for row in result.rows) == LEGACY_AGE_2_TO_5
+    assert sum(row.people_total for row in result.rows) == LEGACY_PEOPLE_TOTAL
+
+
+def test_normalize_sums_rows_that_land_on_the_same_current_code(few_villages):
+    old = _legacy_row("安東里")  # 三民一（舊代碼）
+    current = boundaries.village_code("三民區", "安東里")
+    other = replace(old, village_code=current, district="三民區", age_2=5, age_3=1, people_total=10)
+    result = normalize([old, other])
+    assert (result.remapped, result.merged, result.unmatched) == (1, 1, 0)
+    (row,) = result.rows
+    assert (row.village_code, row.district, row.village) == (current, "三民區", "安東里")
+    assert (row.age_2, row.age_3, row.people_total) == (old.age_2 + 5, old.age_3 + 1, old.people_total + 10)
+
+
+async def test_september_file_writes_current_codes_and_keeps_the_totals(app, few_villages):
+    result = await sync.run_geo_sync(app.state.session_factory, app.state.settings, september_files=[LEGACY_FIXTURE])
+    assert (result.september, result.september_years) == ("updated", 1)
+    async with app.state.session_factory() as db:
+        rows = (await db.execute(select(GeoVillageAgesSeptember).where(GeoVillageAgesSeptember.year == 107))).scalars().all()
+    assert len(rows) == 6
+    sanmin = [row for row in rows if row.village in ("安東里", "安和里", "鼎金里", "鼎盛里")]
+    assert len(sanmin) == 4
+    assert all(row.village_code == boundaries.village_code("三民區", row.village) and row.district == "三民區" for row in sanmin)
+    assert all(row.village_code in boundaries.village_codes() for row in rows if row.village != "慈愛里")
+    assert sum(row.age_2 + row.age_3 + row.age_4 + row.age_5 for row in rows) == LEGACY_AGE_2_TO_5
+    assert sum(row.people_total for row in rows) == LEGACY_PEOPLE_TOTAL
+    old = [row for row in rows if row.village == "慈愛里"]
+    assert [(row.village_code, row.district) for row in old] == [("64000010002", "鹽埕區")]
+
+
+# ---- 年齡歷史裡漏掉的九月補進來 ----
+
+
+async def _write_ages(app, month: str) -> None:
+    async with app.state.session_factory() as db:
+        batch = series_io.collect(series_io.AGES, [page["responseData"] for page in ris_sample_pages(month)])
+        await series_io.replace_month(db, series_io.AGES, batch)
+        await db.commit()
+
+
+async def test_backfill_from_ages_fills_every_missing_september(app, few_villages):
+    for month in ("11409", "11508", "11509"):
+        await _write_ages(app, month)
+    async with app.state.session_factory() as db:
+        # 114 年九月表已經有（只有 3 列）：不覆蓋。
+        rows = population_io.collect([page["responseData"] for page in ris_sample_pages("11409")]).rows
+        await upsert_september(db, 114, rows[:3])
+        assert await backfill_from_ages(db) == [115]
+        await db.commit()
+    assert await _september(app) == {114: 3, 115: RIS_SAMPLE_VILLAGES}
+    async with app.state.session_factory() as db:
+        assert await backfill_from_ages(db) == []
+
+
+async def test_backfill_from_ages_replaces_legacy_codes(app, few_villages):
+    async with app.state.session_factory() as db:
+        db.add(GeoVillageAges(
+            month="107-09", village_code="64000051046", district="三民一", village="安東里",
+            age_0=1, age_1=2, age_2=3, age_3=4, age_4=5, age_5=6, age_6=7, people_total=100,
+        ))
+        await db.commit()
+        assert await backfill_from_ages(db) == [107]
+        await db.commit()
+        row = await db.get(GeoVillageAgesSeptember, (107, boundaries.village_code("三民區", "安東里")))
+    assert (row.district, row.village, row.age_3, row.people_total) == ("三民區", "安東里", 4, 100)
+
+
+async def test_age_history_sync_fills_septembers_missing_from_the_september_table(app, few_villages):
+    """年齡歷史有 11409、11509、九月表是空的（部署前就同步過、或同步跳過九月）：下一輪年齡歷史同步補上兩年。"""
+    async with app.state.session_factory() as db:
+        batch = population_io.collect([page["responseData"] for page in ris_sample_pages("11509")])
+        await population_io.replace_population(db, batch, synced_at=datetime.now(timezone.utc))
+        await db.commit()
+    for month in ("11409", "11509"):
+        await _write_ages(app, month)
+    assert await _september(app) == {}
+    result = await sync.sync_age_history(app.state.session_factory, None, now=datetime.now(timezone.utc))
+    assert result == "updated"
+    assert await _september(app) == {114: RIS_SAMPLE_VILLAGES, 115: RIS_SAMPLE_VILLAGES}
+    assert await sync.sync_age_history(app.state.session_factory, None, now=datetime.now(timezone.utc)) == "skipped"
+
+
+async def test_a_population_sync_also_fills_the_missing_september_before_it_prunes(app, few_villages, tmp_path: Path):
+    """十月的月份不是九月，但年齡歷史裡漏掉的 114 年九月要在 prune 之前補上。"""
+    await _write_ages(app, "11409")
+    assert await _sync_files(app, _sample_files(tmp_path, "11510")) == ("updated", 0)
+    assert await _september(app) == {114: RIS_SAMPLE_VILLAGES}
 
 
 # ---- 正常的人口同步順手寫入 ----
@@ -280,7 +429,7 @@ async def test_older_population_files_only_go_into_the_history_but_a_september_i
 
 
 async def test_a_year_ago_download_in_a_september_month_writes_september(app, few_villages):
-    """sync_age_history 下載一年前的月份（114-09）走 _write_age_history：九月表也要有 114。"""
+    """sync_age_history 下載一年前的月份（114-09）走 _write_age_history：九月表也要有 114（115 是從使用中的人口複製進年齡歷史後補的）。"""
     async with app.state.session_factory() as db:
         batch = population_io.collect([page["responseData"] for page in ris_sample_pages("11509")])
         await population_io.replace_population(db, batch, synced_at=datetime.now(timezone.utc))
@@ -291,7 +440,8 @@ async def test_a_year_ago_download_in_a_september_month_writes_september(app, fe
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as client:
         assert await sync.sync_age_history(app.state.session_factory, client, now=datetime.now(timezone.utc)) == "updated"
-    assert await _september(app) == {114: RIS_SAMPLE_VILLAGES}
+    # 年齡歷史同步會把 115-09（從使用中的人口複製進來的）一起補進九月表。
+    assert await _september(app) == {114: RIS_SAMPLE_VILLAGES, 115: RIS_SAMPLE_VILLAGES}
 
 
 # ---- 年齡歷史 prune ----
