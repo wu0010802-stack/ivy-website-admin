@@ -556,6 +556,21 @@ const buildPotential = (): Potential => ({
     },
     notes: ['115 學年里界調整，三民區 1 里合併計入'],
   },
+  // 每年還能多招（第二、三波）：預設三個來源都沒有資料（畫面的卡片與來源表在下一個任務補夾具）。
+  potential: {
+    status: 'ready',
+    sources: [
+      {
+        key: 'closures', status: 'no_data', low: null, mid: null, high: null, reason: '沒有停辦紀錄', assumptions: [],
+        details: { years: [], skipped: { no_capacity: 0, outside_windows: 0 }, price_unknown: 0, events: [] },
+      },
+      { key: 'villages', status: 'no_data', low: null, mid: null, high: null, reason: '沒有在籍清冊', assumptions: [], details: { bands: [], model: null } },
+      { key: 'presale', status: 'no_data', low: null, mid: null, high: null, reason: '沒有在籍清冊', assumptions: [], details: { deliveries: [] } },
+    ],
+    total: null,
+    capacity: null,
+    events: [],
+  },
 })
 /** 每次呼叫都是一份新的；latest、best 預設從 years 帶出（最新一個有市佔率的學年、市佔率最高且同分取較新的學年，同後端）。 */
 export function potentialData(changes: { share?: Partial<Potential['share']> } & Partial<Omit<Potential, 'share'>> = {}): Potential {

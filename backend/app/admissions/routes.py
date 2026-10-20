@@ -24,6 +24,7 @@ from app.admissions import area as area_service
 from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import peer_fees as peer_fees_service
+from app.admissions import potential as potential_service
 from app.admissions import presale_area as presale_area_service
 from app.admissions import share as share_service
 from app.admissions import stats as stats_service
@@ -1104,12 +1105,14 @@ async def get_admissions_potential(
     db: AsyncSession = Depends(get_db_session),
 ) -> PotentialOut:
     """招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底
-    2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。"""
+    2–5 歲戶籍人數）與國小一年級對帳；potential 是每年還能多招的人數（三個來源、總數、本校空位與停辦事件，第二、三波）。
+    只有加總與里層級的公開資料，來源二只回距離帶彙總；只讀，不寫稽核；回應由中介層補 no-store。"""
     _require_campus(current_user, "admissions.stats", campus_key)
     return PotentialOut.model_validate(
         {
             "campus": await area_service.campus_out(db, campus_key),
             "share": await share_service.query_share(db, campus_key),
+            "potential": await potential_service.query_potential(db, campus_key),
             "generated_at": datetime.now(timezone.utc),
         }
     )

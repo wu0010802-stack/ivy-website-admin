@@ -13,9 +13,10 @@ import pytest
 
 from app.admissions import area, potential
 from app.admissions.enrolled.importer import load_payload, replace_roster
+from app.admissions.enrolled.models import EnrolledRoster
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo import presale as presale_io
-from app.admissions.geo.models import GeoPresaleBuildcase, GeoProviderEvent, GeoVillagePopulation
+from app.admissions.geo.models import GeoDatasetStatus, GeoPresaleBuildcase, GeoProviderEvent, GeoVillagePopulation
 from app.admissions.potential import (
     CATCH_RATE_HIGH,
     CATCH_RATE_MID,
@@ -39,6 +40,7 @@ from app.admissions.potential import (
     next_school_year_start,
     presale_range,
     price_factor,
+    query_potential,
     school_year_window,
     village_gaps,
     villages_range,
@@ -1181,3 +1183,374 @@ async def test_load_deliveries_feeds_presale_range(db_session):
     assert [item["name"] for item in details["deliveries"]] == ["重心案", "遠點案"]
     assert [item["distance_m"] for item in details["deliveries"]] == [300, 2200]
     assert result.mid == round(36 * 0.04 * 0.0373 + 60 * 0.04 * 0.01, 1)
+
+
+# ---- 組裝：query_potential ----
+
+ASSEMBLE_TODAY = date(2026, 10, 20)
+SOURCE_KEYS = ["closures", "villages", "presale"]
+YIHUA_ROSTER_TOTAL = 192
+
+
+@pytest.fixture
+def located(monkeypatch, campuses):
+    """校址在 YIHUA_POINT（query_potential 用 matcher.campus_point；campuses 另外給五校座標）。"""
+
+    async def point(db, campus_key):
+        return matcher.CampusPoint(campus_key, *YIHUA_POINT, None, "三民區")
+
+    monkeypatch.setattr(matcher, "campus_point", point)
+
+
+def patch_village_obs(monkeypatch, obs: list[VillageObs] | None) -> None:
+    async def fake(db, campus_key, lat, lng, *, radius_m=potential.VILLAGE_FIT_RADIUS_M):
+        return obs
+
+    monkeypatch.setattr(potential, "load_village_obs", fake)
+
+
+def add_roster(db, total: int = YIHUA_ROSTER_TOTAL) -> None:
+    db.add(
+        EnrolledRoster(
+            campus_key="yihua", roster_date=date(2026, 10, 15), school_year=115, doorplate_version="115-10", total=total
+        )
+    )
+
+
+def mark_kindergartens_synced(db) -> None:
+    db.add(GeoDatasetStatus(dataset="kindergartens", active_version="2026-10-20", label="2026-10-20", synced_at=NOW))
+
+
+async def seed_closures(db, *, own_capacity: int | None = 210) -> None:
+    """本校（營業中，3 歲收費 89,750）加幾所停辦的園所。回測用的日期落在 111～114 學年窗口：
+    ire 607 m、核定 136、2023-07-31（111 學年）；far 4 km、核定 100、2025-07-31（113 學年，距離係數 0.12）；
+    nocap 往南 2 km（正北 2 km 是明華）、沒有核定、2024-08-01（112 學年）；recent 1 km、核定 60、2026-10-05（進行中的 115 學年）。
+    old（2022-09-30，早於起點）與 toofar（9 km）不會被載入。"""
+    add_kindergarten(db, "own", "高雄市私立常春藤幼兒園", "private", 0, approved_capacity=own_capacity)
+    add_kindergarten(db, "ire", "高雄市私立愛爾蘭幼兒園", "private", 607, approved_capacity=136, is_active=False)
+    add_kindergarten(db, "far", "高雄市私立遠幼兒園", "private", 4000, approved_capacity=100, is_active=False)
+    add_kindergarten(db, "nocap", "高雄市私立無核定幼兒園", "private", -2000, approved_capacity=None, is_active=False)
+    add_kindergarten(db, "recent", "高雄市私立新近幼兒園", "private", 1000, approved_capacity=60, is_active=False)
+    add_kindergarten(db, "old", "高雄市私立舊幼兒園", "private", 1000, approved_capacity=50, is_active=False)
+    add_kindergarten(db, "toofar", "高雄市私立太遠幼兒園", "private", 9000, approved_capacity=50, is_active=False)
+    await db.flush()
+    add_fee(db, "own", 3, 89_750)
+    add_fee(db, "ire", 3, 80_000)
+    add_fee(db, "far", 3, 89_750)
+    db.add_all(
+        [
+            closed("ire", date(2023, 7, 31)), closed("far", date(2025, 7, 31)), closed("nocap", date(2024, 8, 1)),
+            closed("recent", date(2026, 10, 5)), closed("old", date(2022, 9, 30)), closed("toofar", date(2024, 1, 1)),
+        ]
+    )
+    mark_kindergartens_synced(db)
+    await db.commit()
+
+
+def by_key(result: dict) -> dict[str, dict]:
+    return {source["key"]: source for source in result["sources"]}
+
+
+async def test_sources_fixed_order(db_session, located, monkeypatch):
+    """什麼資料都沒有：三個來源固定順序、都 no_data，總數與空位是 None；today 不給就取台北今天。"""
+    monkeypatch.setattr(potential, "today_local", lambda: ASSEMBLE_TODAY)
+
+    result = await query_potential(db_session, "yihua")
+
+    assert result["status"] == "ready"
+    assert [source["key"] for source in result["sources"]] == SOURCE_KEYS
+    for source in result["sources"]:
+        assert source["status"] == "no_data"
+        assert (source["low"], source["mid"], source["high"]) == (None, None, None)
+        assert source["reason"]
+        assert source["assumptions"] and all(set(item) == {"label", "value"} for item in source["assumptions"])
+    assert [source["reason"] for source in result["sources"]] == ["沒有停辦紀錄", "沒有在籍清冊", "沒有在籍清冊"]
+    assert result["total"] is None and result["capacity"] is None and result["events"] == []
+    # no_data 的 details 是空的同一種形狀，畫面不必另外判斷
+    assert by_key(result)["closures"]["details"] == {
+        "years": [], "skipped": {"no_capacity": 0, "outside_windows": 0}, "price_unknown": 0, "events": []
+    }
+    assert by_key(result)["villages"]["details"] == {"bands": [], "model": None}
+    assert by_key(result)["presale"]["details"] == {"deliveries": []}
+
+
+async def test_no_roster_partial_total(db_session, located):
+    """沒有在籍清冊：來源二、三 no_data，來源一照算，總數只含來源一。"""
+    await seed_closures(db_session)
+    await seed_buildcases(db_session)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    sources = by_key(result)
+    first = (136 * UNIT, 100 * UNIT * 0.12)
+    expected = Range(low=0.0, mid=sum(first) / 4 * CATCH_RATE_MID, high=first[0] * CATCH_RATE_HIGH)
+    assert sources["closures"]["status"] == "ok" and sources["closures"]["reason"] is None
+    assert (sources["closures"]["low"], sources["closures"]["mid"], sources["closures"]["high"]) == (
+        expected.low, expected.mid, expected.high
+    )
+    assert (sources["villages"]["status"], sources["villages"]["reason"]) == ("no_data", "沒有在籍清冊")
+    # 來源三沒有占有率可用（占有率來自來源二）
+    assert (sources["presale"]["status"], sources["presale"]["reason"]) == ("no_data", "沒有在籍清冊")
+    assert result["total"] == {"low": expected.low, "mid": expected.mid, "high": expected.high, "included": ["closures"]}
+
+
+async def test_closures_details_and_counts(db_session, located):
+    await seed_closures(db_session)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    details = by_key(result)["closures"]["details"]
+    assert [(year["school_year"], year["events"]) for year in details["years"]] == [(111, 1), (112, 0), (113, 1), (114, 0)]
+    assert details["skipped"] == {"no_capacity": 1, "outside_windows": 1}
+    assert details["price_unknown"] == 0
+    assert [(item["name"], item["school_year"]) for item in details["events"]] == [
+        ("高雄市私立愛爾蘭幼兒園", 111), ("高雄市私立遠幼兒園", 113),
+    ]
+
+
+async def test_capacity_open_seats(db_session, located):
+    """核定 210、在籍 192 → 目前空位 18。"""
+    await seed_closures(db_session)
+    add_roster(db_session)
+    await db_session.commit()
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    assert result["capacity"] == {"approved": 210, "enrolled": 192, "open": 18}
+
+
+async def test_capacity_is_none_without_a_roster_or_an_approved_capacity(db_session, located):
+    await seed_closures(db_session)
+    assert (await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))["capacity"] is None  # 沒有清冊
+
+    add_roster(db_session)
+    await db_session.commit()
+    own = await db_session.get(potential.GeoKindergarten, "own")
+    own.approved_capacity = None
+    await db_session.commit()
+    assert (await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))["capacity"] is None  # 沒有核定
+
+    own.approved_capacity = 0
+    await db_session.commit()
+    assert (await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))["capacity"] is None  # 核定 0 當作沒有
+
+
+async def test_capacity_open_seats_never_negative(db_session, located):
+    await seed_closures(db_session, own_capacity=180)
+    add_roster(db_session)
+    await db_session.commit()
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    assert result["capacity"] == {"approved": 180, "enrolled": 192, "open": 0}
+
+
+async def test_capacity_without_an_own_school_is_none(db_session, located):
+    add_roster(db_session)
+    await db_session.commit()
+
+    assert (await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))["capacity"] is None
+
+
+async def test_events_within_3km_since_2022(db_session, located):
+    """停辦事件清單（畫走勢圖標記用）：3 km 內、2022-10 起、含進行中的學年；4 km 的、9 km 的、2022-09-30 的都不列。"""
+    await seed_closures(db_session)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    assert [(item["occurred_on"], item["name"], item["approved_capacity"], item["school_year"]) for item in result["events"]] == [
+        (date(2023, 7, 31), "高雄市私立愛爾蘭幼兒園", 136, 111),
+        (date(2024, 8, 1), "高雄市私立無核定幼兒園", None, 112),
+        (date(2026, 10, 5), "高雄市私立新近幼兒園", 60, 115),
+    ]
+    assert [item["distance_m"] for item in result["events"]] == pytest.approx([607, 2000, 1000], abs=3)
+    assert all(isinstance(item["distance_m"], int) for item in result["events"])
+    assert all(set(item) == {"occurred_on", "name", "approved_capacity", "distance_m", "school_year"} for item in result["events"])
+
+
+async def test_closures_need_a_synced_dataset_and_a_full_window(db_session, located):
+    await seed_closures(db_session)
+    await db_session.delete(await db_session.get(GeoDatasetStatus, "kindergartens"))
+    await db_session.commit()
+
+    never_synced = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+    assert (by_key(never_synced)["closures"]["status"], by_key(never_synced)["closures"]["reason"]) == ("no_data", "沒有停辦紀錄")
+
+    mark_kindergartens_synced(db_session)
+    await db_session.commit()
+    early = await query_potential(db_session, "yihua", today=date(2023, 3, 1))  # 還沒有任何完整窗口
+    assert (by_key(early)["closures"]["status"], by_key(early)["closures"]["reason"]) == ("no_data", "沒有停辦紀錄")
+
+
+async def test_a_quiet_market_is_zero_not_no_data(db_session, located):
+    """同步過、有完整窗口、只是附近沒有停辦：ok 且是 0。"""
+    add_kindergarten(db_session, "own", "高雄市私立常春藤幼兒園", "private", 0, approved_capacity=210)
+    mark_kindergartens_synced(db_session)
+    await db_session.commit()
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    closures = by_key(result)["closures"]
+    assert (closures["status"], closures["low"], closures["mid"], closures["high"]) == ("ok", 0.0, 0.0, 0.0)
+    assert result["total"]["included"] == ["closures"]
+
+
+async def test_every_source_ok_adds_up(db_session, located, monkeypatch):
+    await seed_closures(db_session)
+    await seed_buildcases(db_session)
+    obs = synthetic_obs(wobble=(0.5, 1.0))
+    patch_village_obs(monkeypatch, obs)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    sources = by_key(result)
+    assert [source["status"] for source in result["sources"]] == ["ok", "ok", "ok"]
+    assert all(source["reason"] is None for source in result["sources"])
+    village_range, village_details = villages_range(obs)
+    assert (sources["villages"]["low"], sources["villages"]["mid"], sources["villages"]["high"]) == (
+        village_range.low, village_range.mid, village_range.high
+    )
+    assert [band["band"] for band in sources["villages"]["details"]["bands"]] == ["0-1", "1-2", "2-3"]
+    assert sources["villages"]["details"]["model"] == village_details["model"]
+    deliveries = await load_deliveries(db_session, *YIHUA_POINT, today=ASSEMBLE_TODAY)
+    presale, presale_details = presale_range(deliveries, band_shares(obs), today=ASSEMBLE_TODAY)
+    assert (sources["presale"]["low"], sources["presale"]["mid"], sources["presale"]["high"]) == (
+        presale.low, presale.mid, presale.high
+    )
+    assert sources["presale"]["details"] == presale_details
+    assert all(item["mid"] is not None for item in sources["presale"]["details"]["deliveries"])
+    total = result["total"]
+    assert total["included"] == SOURCE_KEYS
+    for name in ("low", "mid", "high"):
+        assert total[name] == round(sum(source[name] for source in result["sources"]), 1)
+
+
+async def test_total_only_adds_the_sources_that_are_ok(db_session, located, monkeypatch):
+    """來源三沒有預售資料（表是空的）：總數只含來源一與二。"""
+    await seed_closures(db_session)
+    patch_village_obs(monkeypatch, synthetic_obs(wobble=(0.5, 1.0)))
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    sources = by_key(result)
+    assert (sources["presale"]["status"], sources["presale"]["reason"]) == ("no_data", "沒有預售資料")
+    assert [source["status"] for source in result["sources"]] == ["ok", "ok", "no_data"]
+    assert result["total"]["included"] == ["closures", "villages"]
+    assert result["total"]["mid"] == round(sources["closures"]["mid"] + sources["villages"]["mid"], 1)
+
+
+async def test_presale_with_no_case_in_range_is_zero_not_no_data(db_session, located, monkeypatch):
+    patch_village_obs(monkeypatch, synthetic_obs(wobble=(0.5, 1.0)))
+    db_session.add(buildcase("岡山案", "street", BENYANG, first_registered_on=date(2026, 1, 1)))  # 已登記：不算在建
+    await db_session.commit()
+
+    presale = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))["presale"]
+
+    assert (presale["status"], presale["low"], presale["mid"], presale["high"]) == ("ok", 0.0, 0.0, 0.0)
+    assert presale["details"] == {"deliveries": []}
+
+
+async def test_too_few_villages_has_no_village_or_presale_number(db_session, located):
+    """有清冊但附近有孩子的里太少：來源二 no_data，來源三沒有占有率，也 no_data。"""
+    add_roster(db_session)
+    await seed_buildcases(db_session)
+
+    sources = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))
+
+    for key in ("villages", "presale"):
+        assert (sources[key]["status"], sources[key]["reason"]) == ("no_data", "附近有孩子的里太少")
+
+
+@pytest.mark.parametrize(
+    ("obs", "reason"),
+    [
+        ([VillageObs(f"640{index:08d}", 100.0 * (index + 1), 100, 3) for index in range(19)], "附近有孩子的里太少"),
+        ([VillageObs(f"640{index:08d}", 100.0 * (index + 1), 100, 1) for index in range(25)], "在籍人數太少"),
+        ([VillageObs(f"640{index:08d}", 500.0, 100, 2) for index in range(25)], "算不出距離曲線"),  # 全在同一個距離
+    ],
+)
+async def test_villages_without_a_number_says_why(db_session, located, monkeypatch, obs, reason):
+    patch_village_obs(monkeypatch, obs)
+
+    sources = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))
+
+    assert (sources["villages"]["status"], sources["villages"]["reason"]) == ("no_data", reason)
+    assert sources["villages"]["details"] == {"bands": [], "model": None}  # 算不出來時不留半成品
+    assert (sources["presale"]["status"], sources["presale"]["reason"]) == ("no_data", reason)
+
+
+def thin_near_band(obs: list[VillageObs]) -> list[VillageObs]:
+    """0–1 km 只留 2 個有孩子的里（<3）：距離帶的在籍、期望、缺口會被藏起來。"""
+    return [item for item in obs if item.distance_m > 1000 or item.distance_m <= 200]
+
+
+async def test_hidden_bands_also_hide_each_cases_contribution(db_session, located, monkeypatch):
+    """來源二把距離帶藏起來時，來源三每案的中值貢獻也不回（單案貢獻÷戶數÷0.04 就是占有率）；加總的低／中／高照回。"""
+    await seed_buildcases(db_session)
+    obs = thin_near_band(synthetic_obs(wobble=(0.5, 1.0)))
+    patch_village_obs(monkeypatch, obs)
+
+    sources = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))
+
+    assert sources["villages"]["status"] == "ok"
+    assert all(band["enrolled"] is None and band["expected"] is None and band["gap"] is None for band in sources["villages"]["details"]["bands"])
+    assert sources["presale"]["status"] == "ok"
+    deliveries = sources["presale"]["details"]["deliveries"]
+    assert deliveries and all(item["mid"] is None for item in deliveries)
+    assert sources["presale"]["mid"] > 0
+
+
+@pytest.mark.parametrize("hide", [False, True])
+async def test_band_shares_never_appear_in_the_result(db_session, located, monkeypatch, hide):
+    await seed_closures(db_session)
+    await seed_buildcases(db_session)
+    obs = synthetic_obs(wobble=(0.5, 1.0))
+    obs = thin_near_band(obs) if hide else obs
+    patch_village_obs(monkeypatch, obs)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    blob = json.dumps(result, ensure_ascii=False, default=str)
+    shares = band_shares(obs)
+    assert min(shares.values()) > 0
+    for band, share in shares.items():
+        assert str(share)[:6] not in blob, band
+
+
+async def test_assumptions_list_the_parameters_each_source_used(db_session, located, monkeypatch):
+    await seed_closures(db_session)
+    await seed_buildcases(db_session)
+    patch_village_obs(monkeypatch, synthetic_obs(wobble=(0.5, 1.0)))
+
+    sources = by_key(await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY))
+
+    for source in sources.values():
+        labels = [item["label"] for item in source["assumptions"]]
+        assert len(labels) == len(set(labels)) and labels
+        assert all(isinstance(item["value"], str) and item["value"] for item in source["assumptions"])
+    closures = {item["label"]: item["value"] for item in sources["closures"]["assumptions"]}
+    assert closures["實收率"] == "0.67（全市 114 學年核定與幼生比）"
+    assert "0.29" in closures["畢業比例"] and "13.8%" in closures["承接率"] and "17.3%" in closures["承接率"]
+    assert "連鎖" in closures["沒有計入"] and "老師帶班" in closures["沒有計入"]
+    assert closures["核定名額沒填"].startswith("1 所") and closures["不在完整窗口"].startswith("1 所")
+    assert closures["沒有收費資料"].startswith("0 所")
+    assert "111" in closures["統計窗口"] and "114" in closures["統計窗口"]
+    villages = {item["label"]: item["value"] for item in sources["villages"]["assumptions"]}
+    assert "5.1" in villages["缺口"] and "3" in villages["每年新生"] and "20261020" in villages["低、高"]
+    presale = {item["label"]: item["value"] for item in sources["presale"]["assumptions"]}
+    assert "2.5" in presale["每百戶 2–5 歲孩子"] and "6.0" in presale["每百戶 2–5 歲孩子"]
+    assert "2027-08-31" in presale["算進哪些案"]
+
+
+async def test_no_campus_point(db_session, monkeypatch):
+    async def unlocated(db, campus_key):
+        return matcher.CampusPoint(campus_key, None, None, "no_doorplate", "三民區")
+
+    monkeypatch.setattr(matcher, "campus_point", unlocated)
+
+    result = await query_potential(db_session, "yihua", today=ASSEMBLE_TODAY)
+
+    assert result["status"] == "no_campus_point"
+    assert [(source["key"], source["status"]) for source in result["sources"]] == [(key, "no_data") for key in SOURCE_KEYS]
+    assert all(source["reason"] for source in result["sources"])
+    assert result["total"] is None and result["capacity"] is None and result["events"] == []

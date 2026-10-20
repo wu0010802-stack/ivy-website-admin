@@ -6967,6 +6967,119 @@
         "title": "ClassDistributionOut",
         "type": "object"
       },
+      "ClosureCountedEventOut": {
+        "properties": {
+          "approved_capacity": {
+            "title": "Approved Capacity",
+            "type": "integer"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occurred_on": {
+            "format": "date",
+            "title": "Occurred On",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "weighted": {
+            "title": "Weighted",
+            "type": "number"
+          }
+        },
+        "required": [
+          "occurred_on",
+          "name",
+          "approved_capacity",
+          "distance_m",
+          "school_year",
+          "weighted"
+        ],
+        "title": "ClosureCountedEventOut",
+        "type": "object"
+      },
+      "ClosureDetailsOut": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureCountedEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "price_unknown": {
+            "title": "Price Unknown",
+            "type": "integer"
+          },
+          "skipped": {
+            "$ref": "#/components/schemas/ClosureSkippedOut"
+          },
+          "years": {
+            "items": {
+              "$ref": "#/components/schemas/ClosureYearOut"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "years",
+          "skipped",
+          "price_unknown",
+          "events"
+        ],
+        "title": "ClosureDetailsOut",
+        "type": "object"
+      },
+      "ClosureSkippedOut": {
+        "properties": {
+          "no_capacity": {
+            "title": "No Capacity",
+            "type": "integer"
+          },
+          "outside_windows": {
+            "title": "Outside Windows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "no_capacity",
+          "outside_windows"
+        ],
+        "title": "ClosureSkippedOut",
+        "type": "object"
+      },
+      "ClosureYearOut": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "weighted": {
+            "title": "Weighted",
+            "type": "number"
+          }
+        },
+        "required": [
+          "school_year",
+          "weighted",
+          "events"
+        ],
+        "title": "ClosureYearOut",
+        "type": "object"
+      },
       "ContactLogCreate": {
         "additionalProperties": false,
         "description": "記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的\n時間或「不用再追」，已到期的訪視記完才會離開清單。",
@@ -11533,6 +11646,131 @@
         "title": "PendingReviewOut",
         "type": "object"
       },
+      "PotentialAssumptionOut": {
+        "description": "「怎麼算」的一列：用到的參數與出處，值一律是字串（單位與出處寫在裡面）。不放任何占有率的原值。",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "PotentialAssumptionOut",
+        "type": "object"
+      },
+      "PotentialCapacityOut": {
+        "properties": {
+          "approved": {
+            "title": "Approved",
+            "type": "integer"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "open": {
+            "title": "Open",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approved",
+          "enrolled",
+          "open"
+        ],
+        "title": "PotentialCapacityOut",
+        "type": "object"
+      },
+      "PotentialClosureSourceOut": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialAssumptionOut"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/ClosureDetailsOut"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "key": {
+            "const": "closures",
+            "title": "Key",
+            "type": "string"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "mid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mid"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "low",
+          "mid",
+          "high",
+          "reason",
+          "assumptions",
+          "key",
+          "details"
+        ],
+        "title": "PotentialClosureSourceOut",
+        "type": "object"
+      },
       "PotentialElementaryCheckOut": {
         "properties": {
           "latest_ratio": {
@@ -11602,6 +11840,120 @@
         "title": "PotentialElementaryYearOut",
         "type": "object"
       },
+      "PotentialEstimateOut": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PotentialCapacityOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "closures": "#/components/schemas/PotentialClosureSourceOut",
+                  "presale": "#/components/schemas/PotentialPresaleSourceOut",
+                  "villages": "#/components/schemas/PotentialVillageSourceOut"
+                },
+                "propertyName": "key"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/PotentialClosureSourceOut"
+                },
+                {
+                  "$ref": "#/components/schemas/PotentialVillageSourceOut"
+                },
+                {
+                  "$ref": "#/components/schemas/PotentialPresaleSourceOut"
+                }
+              ]
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ready",
+              "no_campus_point"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PotentialTotalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "sources",
+          "total",
+          "capacity",
+          "events"
+        ],
+        "title": "PotentialEstimateOut",
+        "type": "object"
+      },
+      "PotentialEventOut": {
+        "properties": {
+          "approved_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Capacity"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "occurred_on": {
+            "format": "date",
+            "title": "Occurred On",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "occurred_on",
+          "name",
+          "approved_capacity",
+          "distance_m",
+          "school_year"
+        ],
+        "title": "PotentialEventOut",
+        "type": "object"
+      },
       "PotentialOut": {
         "properties": {
           "campus": {
@@ -11612,6 +11964,9 @@
             "title": "Generated At",
             "type": "string"
           },
+          "potential": {
+            "$ref": "#/components/schemas/PotentialEstimateOut"
+          },
           "share": {
             "$ref": "#/components/schemas/PotentialShareOut"
           }
@@ -11619,9 +11974,93 @@
         "required": [
           "campus",
           "share",
+          "potential",
           "generated_at"
         ],
         "title": "PotentialOut",
+        "type": "object"
+      },
+      "PotentialPresaleSourceOut": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialAssumptionOut"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/PresaleDetailsOut"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "key": {
+            "const": "presale",
+            "title": "Key",
+            "type": "string"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "mid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mid"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "low",
+          "mid",
+          "high",
+          "reason",
+          "assumptions",
+          "key",
+          "details"
+        ],
+        "title": "PotentialPresaleSourceOut",
         "type": "object"
       },
       "PotentialShareOut": {
@@ -11753,6 +12192,195 @@
           "merged"
         ],
         "title": "PotentialShareYearOut",
+        "type": "object"
+      },
+      "PotentialTotalOut": {
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "number"
+          },
+          "included": {
+            "items": {
+              "enum": [
+                "closures",
+                "villages",
+                "presale"
+              ],
+              "type": "string"
+            },
+            "title": "Included",
+            "type": "array"
+          },
+          "low": {
+            "title": "Low",
+            "type": "number"
+          },
+          "mid": {
+            "title": "Mid",
+            "type": "number"
+          }
+        },
+        "required": [
+          "low",
+          "mid",
+          "high",
+          "included"
+        ],
+        "title": "PotentialTotalOut",
+        "type": "object"
+      },
+      "PotentialVillageSourceOut": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "$ref": "#/components/schemas/PotentialAssumptionOut"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "details": {
+            "$ref": "#/components/schemas/VillageDetailsOut"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "key": {
+            "const": "villages",
+            "title": "Key",
+            "type": "string"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "mid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mid"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "low",
+          "mid",
+          "high",
+          "reason",
+          "assumptions",
+          "key",
+          "details"
+        ],
+        "title": "PotentialVillageSourceOut",
+        "type": "object"
+      },
+      "PresaleDeliveryOut": {
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "expected_half": {
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Expected Half",
+            "type": "integer"
+          },
+          "expected_year": {
+            "title": "Expected Year",
+            "type": "integer"
+          },
+          "households": {
+            "title": "Households",
+            "type": "integer"
+          },
+          "mid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mid"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overdue": {
+            "title": "Overdue",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "households",
+          "expected_year",
+          "expected_half",
+          "distance_m",
+          "mid",
+          "overdue"
+        ],
+        "title": "PresaleDeliveryOut",
+        "type": "object"
+      },
+      "PresaleDetailsOut": {
+        "properties": {
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/PresaleDeliveryOut"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "deliveries"
+        ],
+        "title": "PresaleDetailsOut",
         "type": "object"
       },
       "PrivacyNoticeOut": {
@@ -15409,6 +16037,115 @@
         ],
         "title": "VariantKind",
         "type": "string"
+      },
+      "VillageBandOut": {
+        "properties": {
+          "band": {
+            "enum": [
+              "0-1",
+              "1-2",
+              "2-3"
+            ],
+            "title": "Band",
+            "type": "string"
+          },
+          "enrolled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrolled"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap"
+          },
+          "kids": {
+            "title": "Kids",
+            "type": "integer"
+          },
+          "villages": {
+            "title": "Villages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "band",
+          "villages",
+          "kids",
+          "enrolled",
+          "expected",
+          "gap"
+        ],
+        "title": "VillageBandOut",
+        "type": "object"
+      },
+      "VillageDetailsOut": {
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/VillageBandOut"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VillageModelOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "bands",
+          "model"
+        ],
+        "title": "VillageDetailsOut",
+        "type": "object"
+      },
+      "VillageModelOut": {
+        "properties": {
+          "a": {
+            "title": "A",
+            "type": "number"
+          },
+          "b": {
+            "title": "B",
+            "type": "number"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ],
+        "title": "VillageModelOut",
+        "type": "object"
       },
       "VisitClosureCampusOut": {
         "properties": {
@@ -19893,7 +20630,7 @@
     },
     "/api/website/v1/admin/admissions/potential": {
       "get": {
-        "description": "招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底\n2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。",
+        "description": "招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底\n2–5 歲戶籍人數）與國小一年級對帳；potential 是每年還能多招的人數（三個來源、總數、本校空位與停辦事件，第二、三波）。\n只有加總與里層級的公開資料，來源二只回距離帶彙總；只讀，不寫稽核；回應由中介層補 no-store。",
         "operationId": "get_admissions_potential_api_website_v1_admin_admissions_potential_get",
         "parameters": [
           {

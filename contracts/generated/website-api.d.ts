@@ -445,7 +445,8 @@ export interface paths {
         /**
          * Get Admissions Potential
          * @description 招生潛力與市佔率（2026-10-20 招生潛力與市佔率規格 §5）：本校三公里內各學年的市佔率走勢（上學期註冊 ÷ 九月底
-         *     2–5 歲戶籍人數）與國小一年級對帳。只有加總與里層級的公開資料；只讀，不寫稽核；回應由中介層補 no-store。
+         *     2–5 歲戶籍人數）與國小一年級對帳；potential 是每年還能多招的人數（三個來源、總數、本校空位與停辦事件，第二、三波）。
+         *     只有加總與里層級的公開資料，來源二只回距離帶彙總；只讀，不寫稽核；回應由中介層補 no-store。
          */
         get: operations["get_admissions_potential_api_website_v1_admin_admissions_potential_get"];
         put?: never;
@@ -5344,6 +5345,50 @@ export interface components {
             /** Unrecorded */
             unrecorded: number;
         };
+        /** ClosureCountedEventOut */
+        ClosureCountedEventOut: {
+            /** Approved Capacity */
+            approved_capacity: number;
+            /** Distance M */
+            distance_m: number;
+            /** Name */
+            name: string;
+            /**
+             * Occurred On
+             * Format: date
+             */
+            occurred_on: string;
+            /** School Year */
+            school_year: number;
+            /** Weighted */
+            weighted: number;
+        };
+        /** ClosureDetailsOut */
+        ClosureDetailsOut: {
+            /** Events */
+            events: components["schemas"]["ClosureCountedEventOut"][];
+            /** Price Unknown */
+            price_unknown: number;
+            skipped: components["schemas"]["ClosureSkippedOut"];
+            /** Years */
+            years: components["schemas"]["ClosureYearOut"][];
+        };
+        /** ClosureSkippedOut */
+        ClosureSkippedOut: {
+            /** No Capacity */
+            no_capacity: number;
+            /** Outside Windows */
+            outside_windows: number;
+        };
+        /** ClosureYearOut */
+        ClosureYearOut: {
+            /** Events */
+            events: number;
+            /** School Year */
+            school_year: number;
+            /** Weighted */
+            weighted: number;
+        };
         /**
          * ContactLogCreate
          * @description 記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的
@@ -6996,6 +7041,49 @@ export interface components {
             /** Version */
             version: number;
         };
+        /**
+         * PotentialAssumptionOut
+         * @description 「怎麼算」的一列：用到的參數與出處，值一律是字串（單位與出處寫在裡面）。不放任何占有率的原值。
+         */
+        PotentialAssumptionOut: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** PotentialCapacityOut */
+        PotentialCapacityOut: {
+            /** Approved */
+            approved: number;
+            /** Enrolled */
+            enrolled: number;
+            /** Open */
+            open: number;
+        };
+        /** PotentialClosureSourceOut */
+        PotentialClosureSourceOut: {
+            /** Assumptions */
+            assumptions: components["schemas"]["PotentialAssumptionOut"][];
+            details: components["schemas"]["ClosureDetailsOut"];
+            /** High */
+            high: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            key: "closures";
+            /** Low */
+            low: number | null;
+            /** Mid */
+            mid: number | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "no_data";
+        };
         /** PotentialElementaryCheckOut */
         PotentialElementaryCheckOut: {
             /** Latest Ratio */
@@ -7022,6 +7110,36 @@ export interface components {
             /** Schools */
             schools: number;
         };
+        /** PotentialEstimateOut */
+        PotentialEstimateOut: {
+            capacity: components["schemas"]["PotentialCapacityOut"] | null;
+            /** Events */
+            events: components["schemas"]["PotentialEventOut"][];
+            /** Sources */
+            sources: (components["schemas"]["PotentialClosureSourceOut"] | components["schemas"]["PotentialVillageSourceOut"] | components["schemas"]["PotentialPresaleSourceOut"])[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ready" | "no_campus_point";
+            total: components["schemas"]["PotentialTotalOut"] | null;
+        };
+        /** PotentialEventOut */
+        PotentialEventOut: {
+            /** Approved Capacity */
+            approved_capacity: number | null;
+            /** Distance M */
+            distance_m: number;
+            /** Name */
+            name: string;
+            /**
+             * Occurred On
+             * Format: date
+             */
+            occurred_on: string;
+            /** School Year */
+            school_year: number;
+        };
         /** PotentialOut */
         PotentialOut: {
             campus: components["schemas"]["AreaCampusOut"];
@@ -7030,7 +7148,32 @@ export interface components {
              * Format: date-time
              */
             generated_at: string;
+            potential: components["schemas"]["PotentialEstimateOut"];
             share: components["schemas"]["PotentialShareOut"];
+        };
+        /** PotentialPresaleSourceOut */
+        PotentialPresaleSourceOut: {
+            /** Assumptions */
+            assumptions: components["schemas"]["PotentialAssumptionOut"][];
+            details: components["schemas"]["PresaleDetailsOut"];
+            /** High */
+            high: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            key: "presale";
+            /** Low */
+            low: number | null;
+            /** Mid */
+            mid: number | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "no_data";
         };
         /** PotentialShareOut */
         PotentialShareOut: {
@@ -7063,6 +7206,66 @@ export interface components {
             share: number | null;
             /** Villages */
             villages: number | null;
+        };
+        /** PotentialTotalOut */
+        PotentialTotalOut: {
+            /** High */
+            high: number;
+            /** Included */
+            included: ("closures" | "villages" | "presale")[];
+            /** Low */
+            low: number;
+            /** Mid */
+            mid: number;
+        };
+        /** PotentialVillageSourceOut */
+        PotentialVillageSourceOut: {
+            /** Assumptions */
+            assumptions: components["schemas"]["PotentialAssumptionOut"][];
+            details: components["schemas"]["VillageDetailsOut"];
+            /** High */
+            high: number | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            key: "villages";
+            /** Low */
+            low: number | null;
+            /** Mid */
+            mid: number | null;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "no_data";
+        };
+        /** PresaleDeliveryOut */
+        PresaleDeliveryOut: {
+            /** Distance M */
+            distance_m: number;
+            /**
+             * Expected Half
+             * @enum {integer}
+             */
+            expected_half: 1 | 2;
+            /** Expected Year */
+            expected_year: number;
+            /** Households */
+            households: number;
+            /** Mid */
+            mid: number | null;
+            /** Name */
+            name: string;
+            /** Overdue */
+            overdue: boolean;
+        };
+        /** PresaleDetailsOut */
+        PresaleDetailsOut: {
+            /** Deliveries */
+            deliveries: components["schemas"]["PresaleDeliveryOut"][];
         };
         /** PrivacyNoticeOut */
         PrivacyNoticeOut: {
@@ -8174,6 +8377,37 @@ export interface components {
          * @enum {string}
          */
         VariantKind: "thumbnail" | "poster" | "large" | "medium" | "video_desktop" | "video_mobile";
+        /** VillageBandOut */
+        VillageBandOut: {
+            /**
+             * Band
+             * @enum {string}
+             */
+            band: "0-1" | "1-2" | "2-3";
+            /** Enrolled */
+            enrolled: number | null;
+            /** Expected */
+            expected: number | null;
+            /** Gap */
+            gap: number | null;
+            /** Kids */
+            kids: number;
+            /** Villages */
+            villages: number;
+        };
+        /** VillageDetailsOut */
+        VillageDetailsOut: {
+            /** Bands */
+            bands: components["schemas"]["VillageBandOut"][];
+            model: components["schemas"]["VillageModelOut"] | null;
+        };
+        /** VillageModelOut */
+        VillageModelOut: {
+            /** A */
+            a: number;
+            /** B */
+            b: number;
+        };
         /** VisitClosureCampusOut */
         VisitClosureCampusOut: {
             /** Already Closed */

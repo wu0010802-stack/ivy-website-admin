@@ -1,7 +1,7 @@
 """招生潛力：每年還能多招幾位新生的三個來源（2026-10-20 招生潛力第二、三波規格 §5，報告 A-07、B-03、B-06、B-11、I-4）。
 
-這個檔放常數、Range、來源一「附近園所停辦釋出」、來源二「現有的里還沒招到」與來源三「新建案搬進來」。所有參數都在
-下面的常數，畫面「怎麼算」照列；這一版不開放後台修改。
+這個檔放常數、Range、來源一「附近園所停辦釋出」、來源二「現有的里還沒招到」、來源三「新建案搬進來」，以及把三個來源組成 API 回應的
+query_potential。所有參數都在下面的常數，畫面「怎麼算」照列；這一版不開放後台修改。
 
 來源一：附近 8 公里內幼兒園停辦，家長轉來本校的孩子數。
   流入＝核定名額 × 實收率 × (1 − 畢業比例) × 承接率 × 距離係數 × 價格係數（報告 A-07）。
@@ -31,14 +31,25 @@
     band_shares（0–1、1–2、2–3 km：在籍 ÷ 2–5 歲），也就是新搬來的孩子跟附近現有的孩子一樣的機率進本校。
   - 距離：有座標用座標，否則用里重心（同預售建案那一案）；只算 3 km 內。
   - 隱私：details 每案只列案名、戶數、預計交屋年與半年、距離（取整 100 m）、中值貢獻與是否已過預計交屋時間，不放占有率原值；
-    來源二把距離帶藏起來時，呼叫端傳 include_mid=False，連單案中值貢獻（可反推占有率）也不回。"""
+    來源二把距離帶藏起來時，呼叫端傳 include_mid=False，連單案中值貢獻（可反推占有率）也不回。
+
+組裝（query_potential）：
+  - 三個來源固定順序（closures、villages、presale），各自 ok／no_data：沒有資料的來源不給數字，附一句原因 reason；
+    總數只加 ok 的來源，included 列出加了哪些，三個都 no_data 則 total 是 None。
+  - 來源一 no_data＝幼兒園資料集從沒同步過，或沒有任何完整的學年窗口（同步過、窗口也完整、只是附近沒停辦＝ok 且是 0）。
+  - 來源二 no_data＝沒有在籍清冊，或資料太少／擬合不出距離模型。來源三的占有率來自來源二，所以來源二 no_data 時來源三也 no_data；
+    預售建案表是空的（沒匯入過）也 no_data，匯入了但 3 km 內沒有在建案＝ok 且是 0。
+  - 隱私：band_shares 的原值絕不放進回應（assumptions 只描述怎麼來，不寫數值）；來源二把距離帶藏起來時，來源三逐案的中值貢獻也不回。
+  - 本校空位＝本校核定名額（座標 50 m 內最近營業中園所，同 fees.own_fee）− 最近一次在籍清冊人數，不小於 0；
+    沒有清冊或沒有核定名額就是 None。
+  - events＝本校 3 km 內、起點（first_window_start）以來的停辦園所，供走勢圖標記；school_year 是來源一的學年窗口（10 月到隔年 9 月）。"""
 
 from __future__ import annotations
 
 import math
 import random
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,6 +61,7 @@ from app.admissions.geo import presale as presale_io
 from app.admissions.geo.models import (
     PRESALE_VILLAGE_LEVELS,
     VILLAGE_LEVELS,
+    GeoDatasetStatus,
     GeoKindergarten,
     GeoKindergartenFee,
     GeoPresaleBuildcase,
@@ -59,6 +71,7 @@ from app.admissions.geo.models import (
 from app.admissions.geo.projection import haversine_m
 from app.admissions.presale_area import DISTANCE_ROUND_M
 from app.admissions.trends import building_cases
+from app.common.timezones import today_local
 
 # ---- 參數（報告 A-07、B-03、B-04、B-06、B-11、I-4）----
 
@@ -121,6 +134,20 @@ KIDS_PER_100_HOUSEHOLDS = (2.5, 4.0, 6.0)
 DELIVERY_RADIUS_M = VILLAGE_BANDS[-1][1]  # 只算 3 km 內（占有率只有到 3 km 的三帶）
 INTAKE_START_MONTH = 9  # 新學年 9/1 開學：交屋在下一個 9/1 之前的案，這一年內有機會入學
 DELIVERY_DIGITS = 2  # details 每案中值貢獻的小數位數（單案常小於 0.1）
+
+# ---- 組裝參數 ----
+
+SOURCE_KEYS = ("closures", "villages", "presale")  # API 回應固定三筆、固定順序
+EVENT_LIST_RADIUS_M = VILLAGE_BANDS[-1][1]  # 走勢圖的停辦標記只列 3 km 內
+CLOSURE_DATASET = "kindergartens"
+# no_data 的原因（畫面直接顯示）。
+REASON_NO_CLOSURES = "沒有停辦紀錄"
+REASON_NO_ROSTER = "沒有在籍清冊"
+REASON_NO_PRESALE = "沒有預售資料"
+REASON_FEW_VILLAGES = "附近有孩子的里太少"
+REASON_FEW_ENROLLED = "在籍人數太少"
+REASON_NO_MODEL = "算不出距離曲線"
+REASON_NO_POINT = "校址還沒定位"
 
 
 @dataclass(frozen=True)
@@ -705,3 +732,228 @@ async def load_deliveries(
         )
     deliveries.sort(key=lambda item: (item.expected, item.distance_m, item.name))
     return deliveries
+
+
+# ---- 組裝：三個來源、空位與停辦事件 ----
+
+
+def _num(value: float) -> str:
+    return f"{value:g}"
+
+
+def _percent(rate: float) -> str:
+    return f"{rate * 100:.1f}%"
+
+
+def _distance_text() -> str:
+    parts: list[str] = []
+    lower = 0
+    for upper, weight in DISTANCE_BANDS:
+        parts.append(f"{_num(lower / 1000)}–{_num(upper / 1000)} km {_num(weight)}")
+        lower = upper
+    return "、".join(parts) + f"、{_num(lower / 1000)} km 外不算"
+
+
+def _closure_assumptions(today: date, details: dict | None) -> list[dict]:
+    """來源一的「怎麼算」：參數與出處。details 只在算出數字時給，多列被略過與取中性係數的園所數。"""
+    years = _complete_years(today)
+    low_price, high_price = (_num(percent / 100) for percent in PRICE_SIMILAR_PERCENT)
+    window = (
+        f"學年窗口（10/1 到隔年 9/30）：{years[0]}–{years[-1]} 學年共 {len(years)} 年，進行中的不算"
+        if years
+        else "還沒有完整的學年窗口"
+    )
+    rows = [
+        ("承接率", f"中 {_percent(CATCH_RATE_MID)}、高 {_percent(CATCH_RATE_HIGH)}（童年綠地、愛爾蘭回測）"),
+        ("實收率", f"{OCCUPANCY_RATE}（全市 114 學年核定與幼生比）"),
+        ("畢業比例", f"{GRADUATING_SHARE}（大班不轉園）"),
+        ("距離係數", _distance_text()),
+        (
+            "價格係數",
+            f"本校 {PRICE_FEE_AGE} 歲一學期收費 ÷ 對方：{low_price}–{high_price} 倍 {_num(PRICE_FACTOR_SIMILAR)}、"
+            f"不到 {low_price} 倍 {_num(PRICE_FACTOR_THEY_ARE_PRICEY)}、"
+            f"{high_price}–{_num(PRICE_MODERATE_MAX_PERCENT / 100)} 倍 {_num(PRICE_FACTOR_MODERATE)}、"
+            f"超過 {_num(PRICE_MODERATE_MAX_PERCENT / 100)} 倍 {_num(PRICE_FACTOR_FAR_ABOVE)}；"
+            f"公幼、非營利、準公共 {_num(PRICE_FACTOR_PUBLIC)}；對方沒有收費資料取 {_num(PRICE_FACTOR_SIMILAR)}",
+        ),
+        ("統計窗口", window),
+        ("低、中、高", "低＝最低那年 × 承接率中值；中＝各年平均 × 承接率中值；高＝最高那年 × 承接率高值"),
+        ("排除", f"本校與五校校址 {area.OWN_CAMPUS_RADIUS_M} m 內的園所"),
+        ("沒有計入", "園所是否連鎖（類型係數）與老師帶班：公開資料看不出來，也無法預期"),
+    ]
+    if details is not None:
+        rows += [
+            ("核定名額沒填", f"{details['skipped']['no_capacity']} 所（算不出來，略過）"),
+            ("不在完整窗口", f"{details['skipped']['outside_windows']} 所（進行中的學年或更早，不算）"),
+            ("沒有收費資料", f"{details['price_unknown']} 所（價格係數取 {_num(PRICE_FACTOR_SIMILAR)}）"),
+        ]
+    return [{"label": label, "value": value} for label, value in rows]
+
+
+def _village_assumptions() -> list[dict]:
+    low, high = BOOTSTRAP_PERCENTILES
+    rows = [
+        (
+            "模型",
+            f"在籍 ~ Poisson(μ)，log μ = a + b × 距離（km）+ log(2–5 歲人數)；a、b 用本校 {_num(VILLAGE_FIT_RADIUS_M / 1000)} 公里內各里擬合（報告 B-03）",
+        ),
+        (
+            "缺口",
+            f"{_num(VILLAGE_GAP_RADIUS_M / 1000)} 公里內每個里 μ − θ × μ（招得比期望多的算 0），"
+            f"θ = (實際 + {VILLAGE_SHRINK}) ÷ (μ + {VILLAGE_SHRINK})，小里的缺口不被雜訊放大（報告 B-11）",
+        ),
+        ("每年新生", f"在籍缺口 ÷ {VILLAGE_COHORT_YEARS}（在籍約是每年新生的 {VILLAGE_COHORT_YEARS} 倍）"),
+        (
+            "低、高",
+            f"以里為單位重抽 {BOOTSTRAP_DRAWS} 次的 {low}、{high} 百分位（固定種子 {BOOTSTRAP_SEED}）；中是實際資料的缺口",
+        ),
+        ("資料門檻", f"有 2–5 歲孩子的里至少 {MIN_FIT_VILLAGES} 個、在籍至少 {MIN_FIT_ENROLLED} 位，不足不估"),
+        (
+            "距離帶",
+            f"只回 0–1、1–2、2–3 km 的彙總；有一帶有孩子的里不到 {BAND_MIN_VILLAGES} 個，三帶都不回在籍、期望與缺口",
+        ),
+    ]
+    return [{"label": label, "value": value} for label, value in rows]
+
+
+def _presale_assumptions(today: date) -> list[dict]:
+    low, mid, high = (f"{value:.1f}" for value in KIDS_PER_100_HOUSEHOLDS)
+    through = next_school_year_start(today) - timedelta(days=1)
+    rows = [
+        ("每百戶 2–5 歲孩子", f"低 {low}、中 {mid}、高 {high} 人（報告 B-06）"),
+        ("進本校的機率", "新搬來的孩子跟附近現有的孩子一樣：用來源二各距離帶（0–1、1–2、2–3 km）的占有率（在籍 ÷ 2–5 歲）"),
+        (
+            "算進哪些案",
+            f"{_num(DELIVERY_RADIUS_M / 1000)} km 內在建的預售建案，預計交屋在今天到 {through.isoformat()} 之間（含已過預計時間、還沒登記的）",
+        ),
+        ("預計交屋", "建照日加上依戶數估的月數，粗估，只到上下半年"),
+        ("距離", "有座標用座標，否則用里重心"),
+    ]
+    return [{"label": label, "value": value} for label, value in rows]
+
+
+def _assumptions(key: str, today: date, details: dict | None = None) -> list[dict]:
+    if key == "closures":
+        return _closure_assumptions(today, details)
+    return _village_assumptions() if key == "villages" else _presale_assumptions(today)
+
+
+def _empty_details(key: str) -> dict:
+    if key == "closures":
+        return {"years": [], "skipped": {"no_capacity": 0, "outside_windows": 0}, "price_unknown": 0, "events": []}
+    return {"bands": [], "model": None} if key == "villages" else {"deliveries": []}
+
+
+def _no_data(key: str, reason: str, today: date) -> dict:
+    return {
+        "key": key, "status": "no_data", "low": None, "mid": None, "high": None, "reason": reason,
+        "assumptions": _assumptions(key, today), "details": _empty_details(key),
+    }
+
+
+def _ok(key: str, result: Range, details: dict, today: date) -> dict:
+    return {
+        "key": key, "status": "ok", "low": result.low, "mid": result.mid, "high": result.high, "reason": None,
+        "assumptions": _assumptions(key, today, details if key == "closures" else None), "details": details,
+    }
+
+
+def _event_marks(events: list[ClosureEvent]) -> list[dict]:
+    """走勢圖的停辦標記：EVENT_LIST_RADIUS_M 內的停辦園所（核定名額沒填的也列），依日期排序。"""
+    return [
+        {
+            "occurred_on": event.occurred_on, "name": event.name, "approved_capacity": event.approved_capacity,
+            "distance_m": int(round(event.distance_m)), "school_year": school_year_window(event.occurred_on),
+        }
+        for event in events
+        if event.distance_m <= EVENT_LIST_RADIUS_M
+    ]
+
+
+async def _closures_source(db: AsyncSession, lat: float, lng: float, today: date) -> tuple[dict, list[dict]]:
+    """來源一與停辦標記。幼兒園資料集從沒同步過 → no_data（空事件不代表附近沒停辦，只是還沒有紀錄）。"""
+    status = await db.get(GeoDatasetStatus, CLOSURE_DATASET)
+    if status is None or status.synced_at is None:
+        return _no_data("closures", REASON_NO_CLOSURES, today), []
+    events = await load_closure_events(db, lat, lng, since=first_window_start(today), today=today)
+    result, details = closures_range(events, today=today)
+    if result is None:
+        return _no_data("closures", REASON_NO_CLOSURES, today), _event_marks(events)
+    return _ok("closures", result, details, today), _event_marks(events)
+
+
+def _villages_reason(obs: list[VillageObs]) -> str:
+    """villages_range 沒給數字的原因：和它的門檻同一套判斷，其餘就是模型擬合不出來。"""
+    if sum(item.kids > 0 for item in obs) < MIN_FIT_VILLAGES:
+        return REASON_FEW_VILLAGES
+    if sum(item.enrolled for item in obs) < MIN_FIT_ENROLLED:
+        return REASON_FEW_ENROLLED
+    return REASON_NO_MODEL
+
+
+async def _villages_source(
+    db: AsyncSession, campus_key: str, lat: float, lng: float, today: date
+) -> tuple[dict, dict[str, float] | None, bool]:
+    """來源二，加上給來源三的占有率（算不出來是 None）與距離帶是否被藏起來。"""
+    obs = await load_village_obs(db, campus_key, lat, lng)
+    if obs is None:
+        return _no_data("villages", REASON_NO_ROSTER, today), None, False
+    result, details = villages_range(obs)
+    if result is None:
+        return _no_data("villages", _villages_reason(obs), today), None, False
+    hidden = any(band["enrolled"] is None for band in details["bands"])
+    return _ok("villages", result, details, today), band_shares(obs), hidden
+
+
+async def _presale_source(
+    db: AsyncSession, lat: float, lng: float, today: date, villages: dict, shares: dict[str, float] | None, hidden: bool
+) -> dict:
+    """來源三。占有率來自來源二：來源二沒有數字就沒有占有率可用，原因照來源二。"""
+    if shares is None:
+        return _no_data("presale", villages["reason"], today)
+    deliveries = await load_deliveries(db, lat, lng, today=today)
+    if deliveries is None:
+        return _no_data("presale", REASON_NO_PRESALE, today)
+    result, details = presale_range(deliveries, shares, today=today, include_mid=not hidden)
+    return _ok("presale", result, details, today)
+
+
+async def _capacity(db: AsyncSession, campus_key: str, lat: float, lng: float) -> dict | None:
+    """本校核定名額、最近一次清冊的在籍人數與空位；任一邊沒有（或核定不是正數）回 None。"""
+    roster = await db.get(EnrolledRoster, campus_key)
+    if roster is None:
+        return None
+    school, _ = await fees.own_fee(db, lat, lng, age=PRICE_FEE_AGE, radius_m=area.OWN_CAMPUS_RADIUS_M)
+    approved = school.approved_capacity if school is not None else None
+    if approved is None or approved <= 0:
+        return None
+    return {"approved": approved, "enrolled": roster.total, "open": max(0, approved - roster.total)}
+
+
+def _total(sources: list[dict]) -> dict | None:
+    """只加 ok 的來源；沒有任何 ok 的來源就沒有總數。"""
+    counted = [source for source in sources if source["status"] == "ok"]
+    if not counted:
+        return None
+    total: dict = {name: round(sum(source[name] for source in counted), RANGE_DIGITS) for name in ("low", "mid", "high")}
+    total["included"] = [source["key"] for source in counted]
+    return total
+
+
+async def query_potential(db: AsyncSession, campus_key: str, *, today: date | None = None) -> dict:
+    """某校每年還能多招的人數：三個來源、總數、本校空位與 3 km 內的停辦事件（組裝規則見模組說明）。
+    status：ready，或 no_campus_point＝校址對不到座標（三個來源都 no_data）。today 不給就取台北今天。"""
+    today = today or today_local()
+    point = await matcher.campus_point(db, campus_key)
+    if point.locate_error is not None or point.lat is None or point.lng is None:
+        sources = [_no_data(key, REASON_NO_POINT, today) for key in SOURCE_KEYS]
+        return {"status": "no_campus_point", "sources": sources, "total": None, "capacity": None, "events": []}
+    lat, lng = point.lat, point.lng
+    closures, events = await _closures_source(db, lat, lng, today)
+    villages, shares, hidden = await _villages_source(db, campus_key, lat, lng, today)
+    presale = await _presale_source(db, lat, lng, today, villages, shares, hidden)
+    sources = [closures, villages, presale]
+    return {
+        "status": "ready", "sources": sources, "total": _total(sources),
+        "capacity": await _capacity(db, campus_key, lat, lng), "events": events,
+    }

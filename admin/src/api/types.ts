@@ -621,6 +621,25 @@ export type Potential = components['schemas']['PotentialOut']
 export type PotentialShareYear = components['schemas']['PotentialShareYearOut']
 export type PotentialElementaryCheck = components['schemas']['PotentialElementaryCheckOut']
 
+// 每年還能多招（2026-10-20 招生潛力第二、三波）：三個來源、總數、本校空位與 3 km 內的停辦事件。
+// no_data 的來源沒有數字（low／mid／high 是 null），reason 說明原因；sources 固定三筆、依 key 區分 details。
+export type PotentialEstimate = components['schemas']['PotentialEstimateOut']
+export type PotentialSource = PotentialEstimate['sources'][number]
+export type PotentialSourceKey = PotentialSource['key']
+export type PotentialClosureSource = components['schemas']['PotentialClosureSourceOut']
+export type PotentialVillageSource = components['schemas']['PotentialVillageSourceOut']
+export type PotentialPresaleSource = components['schemas']['PotentialPresaleSourceOut']
+export type PotentialAssumption = components['schemas']['PotentialAssumptionOut']
+export type PotentialTotal = components['schemas']['PotentialTotalOut']
+export type PotentialCapacity = components['schemas']['PotentialCapacityOut']
+/** 本校 3 km 內的一所停辦園所（走勢圖標記用）；school_year 是來源一的學年窗口（10 月到隔年 9 月）。 */
+export type PotentialEvent = components['schemas']['PotentialEventOut']
+export type ClosureDetails = components['schemas']['ClosureDetailsOut']
+export type VillageDetails = components['schemas']['VillageDetailsOut']
+export type VillageBand = components['schemas']['VillageBandOut']
+export type PresaleDetails = components['schemas']['PresaleDetailsOut']
+export type PresaleDelivery = components['schemas']['PresaleDeliveryOut']
+
 /** 後端 /area/boundaries 的里界 GeoJSON（高雄 893 里，只留三個屬性；契約是裸 JSON，OpenAPI 沒有型別）。 */
 export interface VillageProperties {
   TOWNNAME: string
