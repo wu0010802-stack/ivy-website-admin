@@ -276,6 +276,20 @@ describe('補登與重新預約：預計入學時間', () => {
     expect(values).toEqual(['asap', '110-2', ...OCT_15_VALUES.slice(1)])
     expect(startSelect(wrapper).props('modelValue')).toBe('110-2')
   })
+
+  it('延後載入的對話框掛上時已是打開的：照樣帶入舊案、讀到場次，不會在宣告前就呼叫讀取', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([SLOT] as never)
+    const wrapper = mount(ManualVisitDialog, {
+      props: { campusKeys: ['yihua'], modelValue: true, relatedFrom: visitCase({ expected_start: null }) as never },
+      global: { plugins: [ElementPlus] },
+      attachTo: document.body,
+    })
+    dialogs.push(wrapper)
+    await flushPromises()
+    expect(get.mock.calls.some(([path]) => String(path).startsWith('/admin/slots?campus_key=yihua'))).toBe(true)
+    const slotSelect = wrapper.findAllComponents({ name: 'ElSelect' }).find((s) => s.props('placeholder') === '選擇場次')!
+    expect(slotSelect.findAllComponents({ name: 'ElOption' }).map((option) => option.props('value'))).toEqual([SLOT.id])
+  })
 })
 
 describe('案件明細的家長資料表', () => {
