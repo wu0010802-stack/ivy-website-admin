@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 手機孩子的一天拍立得換手不再跳字距與紙色（main CI 部署，沒有 migration）
+
+- **提交**：使用者要求併入 main。PR #48（`feature/day-print-mobile-20261020`，1 個提交）在 GitHub 以 rebase 併入，`1f00cc2c..fa6759d6`。等 CI 期間 main 進了效能整理 7 個提交，分支先 rebase（`paperPrints.ts` 顏色改讀 token 與本次字距欄位衝突，保留兩邊）再重跑 CI 才併。只動 `web/app/utils/paperPrints.ts`（WebGL 紙照 CSS 字距畫字、平放時燈光等於貼圖原色）與測試、文件。
+- **回退**：切回上一版映像即可，沒有資料或 migration 相依。
+- **推送前閘門**（雲端 session，Node 22）：rebase 後 web `typecheck` 通過、全套 109 檔 1328 passed；dev server（fixture 模式）Playwright 390×844 觸控換手前後截圖，紙色 247,237,217 → 245,236,216、字距一致。PR 上 CI（`0fb5666`）Frontend web／admin、Backend 三組、E2E／Playwright 全部 success。
+- **CI**：main run 39448473980（`fa6759d6`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success（部署 15:51–15:55 UTC）。
+- **正式 `release.json`**：base commit `fa6759d6494675f566aacb6da8ff2b45df737864`，snapshot `7a3dc334…`，created `2026-10-20T15:51:02Z`。`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空。
+- **未驗證**：真機 iPhone／Android 上滑到孩子的一天停下時的換手畫面。
+
 ## 2026-10-20 招生潛力第二、三波：停辦釋出、現有的里、新建案（main CI 部署，沒有 migration）
 
 - **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`3358c0a0..8f5a7a0c`，fast-forward、沒有開 PR；第一次推送因另一個 session 剛推部署紀錄被拒，rebase 後重推）。分支 `feature/admissions-potential2-20261020` 33 個提交：停辦回補檔延伸到 2022-08（`kindergarten-closures-20261020.csv`，94 筆；移除 10-15 檔）、同步時補寫回補停辦事件、異動保留 24 → 72 個月、`backend/app/admissions/potential.py` 三個來源、`GET /admin/admissions/potential` 多 `potential`、後台卡片／來源表／停辦標記。規格 §11。沒有 migration、沒有新環境變數，沒有先備份（只新增停辦園所列與事件，不改寫既有資料）。
