@@ -25,10 +25,11 @@ export const bookingConfigKey = (campusKey: string | null) => `booking-config-${
 
 type NuxtAppLike = { isHydrating?: boolean; payload: { data: Record<string, unknown> } }
 
-/** 已讀過而且還新鮮的設定；沒有就回 undefined（hydration 時沿用 SSR payload，比照 Nuxt 預設）。 */
-export function cachedCampusBooking(nuxtApp: NuxtAppLike, key: string): BookingConfig | undefined {
+/** 已讀過而且還新鮮的設定；沒有就回 undefined。hydration 時原樣沿用 SSR payload（比照 Nuxt 預設）：
+ * 沒選校時 SSR 存的是 null，回 undefined 會讓瀏覽器重抓、首幀和伺服器不一致（hydration mismatch）。 */
+export function cachedCampusBooking(nuxtApp: NuxtAppLike, key: string): BookingConfig | null | undefined {
   const cached = nuxtApp.payload.data[key] as BookingConfig | null | undefined
-  if (nuxtApp.isHydrating) return cached ?? undefined
+  if (nuxtApp.isHydrating) return cached
   const at = cached ? fetchedAt.get(cached) : undefined
   return cached && at !== undefined && Date.now() - at < FRESH_MS ? cached : undefined
 }
