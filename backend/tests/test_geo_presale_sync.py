@@ -110,7 +110,7 @@ async def test_changed_file_replaces_the_cases_and_force_redownloads(app, db_ses
     await load_geo_samples(db_session)
     await _sync(app, _site()[0])
     lines = SAMPLE.read_bytes().decode("utf-8-sig").split("\r\n")
-    smaller = "﻿" + "\r\n".join(line for line in lines if "測試二號" not in line and "測試五號" not in line)
+    smaller = "\ufeff" + "\r\n".join(line for line in lines if "測試二號" not in line and "測試五號" not in line)
     assert await _sync(app, _site(smaller.encode("utf-8"))[0], force=True) == ("updated", 7)
     assert set(await _cases(app)) == {f"測試{n}號" for n in ("一", "三", "四", "六", "七", "八", "九")}
     # force 且內容沒變也重抓、重寫。
@@ -126,7 +126,7 @@ async def test_error_page_and_shrunken_file_keep_the_old_cases(app, db_session, 
     assert len(await _cases(app)) == 9
     monkeypatch.setattr(ps, "SHRINK_MIN_EXISTING", 5)
     lines = SAMPLE.read_bytes().decode("utf-8-sig").split("\r\n")
-    tiny = "﻿" + "\r\n".join([*lines[:2], lines[2], lines[3]])
+    tiny = "\ufeff" + "\r\n".join([*lines[:2], lines[2], lines[3]])
     # 還沒到期不會下載；把確認時間撥到 31 天前讓它到期（不是 force），縮水的檔不換。
     async with app.state.session_factory() as db:
         await db.execute(update(GeoDatasetStatus).where(GeoDatasetStatus.dataset == "presale_buildcases").values(checked_at=datetime.now(timezone.utc) - timedelta(days=31)))
@@ -267,7 +267,7 @@ async def test_bad_parcels_file_imports_nothing(app, tmp_path, row, message):
 
 
 def test_parcels_csv_round_trip_and_landno8():
-    rows = pp.parse_csv("﻿" + PARCELS_HEADER + "\n" + _yihua_parcel() + "\n三民區,澄清段,12-3,DA,0001,,,2026-10-20\n")
+    rows = pp.parse_csv("\ufeff" + PARCELS_HEADER + "\n" + _yihua_parcel() + "\n三民區,澄清段,12-3,DA,0001,,,2026-10-20\n")
     assert [row.landno for row in rows] == ["90", "12-3"] and rows[1].lon is None
     again = pp.parse_csv(pp.render_csv(rows))
     assert again == rows

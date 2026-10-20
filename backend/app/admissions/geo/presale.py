@@ -119,7 +119,7 @@ def decode(body: bytes) -> str | None:
         text = body.decode("utf-8")
     except UnicodeDecodeError:
         return None
-    return text if text.lstrip("﻿").startswith("鄉鎮市區") else None
+    return text if text.lstrip("\ufeff").startswith("鄉鎮市區") else None
 
 
 def roc_date(text: str) -> date | None:
@@ -157,7 +157,7 @@ def first_parcel(lands: str | None, district: str | None = None) -> tuple[str, s
 def _records(text: str) -> list[str]:
     """表頭之後的記錄：「<行政區>,」開頭的行是新記錄，其餘（銷售期間裡的換行）併進前一筆。"""
     records: list[str] = []
-    for line in re.split(r"\r\n|\n|\r", text.lstrip("﻿"))[1:]:
+    for line in re.split(r"\r\n|\n|\r", text.lstrip("\ufeff"))[1:]:
         if not line:
             continue
         if _NEW_RECORD.match(line):
@@ -202,7 +202,7 @@ def _row(fields: list[str]) -> PresaleRow | None:
 def parse_csv(text: str, *, minimum: int = 1) -> PresaleBatch:
     """容錯解析預售建案檔。表頭不對、壞行超過 5%、解析出的高雄案數少於 minimum 都丟 PresaleFormatError。
     同一個 (區, 案名) 再出現視為同案更新（P1）。"""
-    lines = re.split(r"\r\n|\n|\r", text.lstrip("﻿"), maxsplit=1)
+    lines = re.split(r"\r\n|\n|\r", text.lstrip("\ufeff"), maxsplit=1)
     if not lines[0].strip():
         raise PresaleFormatError("預售建案檔是空的")
     try:

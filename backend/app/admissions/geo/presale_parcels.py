@@ -64,7 +64,7 @@ def landno8(landno: str) -> str | None:
 def parse_csv(text: str) -> list[ParcelRow]:
     """解析地號座標檔。表頭不對、鍵不合法、座標只有一邊或不在高雄、日期錯、列數過多都丟 ParcelFormatError（整檔不匯入）。
     同一個鍵重複時後面的蓋過前面的。"""
-    reader = csv.reader(io.StringIO(text.lstrip("﻿")))
+    reader = csv.reader(io.StringIO(text.lstrip("\ufeff")))
     try:
         header = [cell.strip() for cell in next(reader)]
     except (StopIteration, csv.Error) as exc:
