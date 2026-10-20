@@ -602,8 +602,22 @@ def test_villages_range_needs_enough_successful_draws():
     assert details["model"] is not None  # 模型本身有估出來，只是區間抽樣的次數不夠
 
 
-def test_villages_range_survives_a_refit_that_overflows():
-    """重抽的里沒抽到某些距離時，重新擬合的斜率可能離譜，套回沒被抽到的里 exp 會溢位：這次抽樣當失敗略過，不丟例外。"""
+def test_villages_range_survives_a_refit_that_overflows(monkeypatch):
+    """重抽的里沒抽到某些距離時，重新擬合的斜率可能離譜，套回沒被抽到的里 exp 會溢位：這次抽樣當失敗略過，不丟例外。
+    這組只有 8 個里，低於資料量門檻，所以把門檻調低才走得到自助法。"""
+    monkeypatch.setattr(potential, "MIN_FIT_VILLAGES", 1)
+    monkeypatch.setattr(potential, "MIN_FIT_ENROLLED", 1)
+    overflows: list[bool] = []
+    real_gaps = potential.village_gaps
+
+    def counting(*args, **kwargs):
+        try:
+            return real_gaps(*args, **kwargs)
+        except OverflowError:
+            overflows.append(True)
+            raise
+
+    monkeypatch.setattr(potential, "village_gaps", counting)
     obs = [
         VillageObs("c0", 3122.6, 5000, 40), VillageObs("c1", 1911.3, 5000, 1), VillageObs("c2", 3460.4, 500, 40),
         VillageObs("c3", 3857.1, 0, 300), VillageObs("c4", 4886.4, 0, 2), VillageObs("c5", 3903.7, 5000, 0),
@@ -612,6 +626,7 @@ def test_villages_range_survives_a_refit_that_overflows():
 
     result, details = villages_range(obs, draws=60)
 
+    assert overflows  # 這組資料真的會讓重抽的缺口溢位
     assert result is None or result.low <= result.mid <= result.high
     assert set(details) == {"bands", "model"}
 
@@ -744,6 +759,46 @@ def test_model_degenerate():
         result, details = villages_range(obs)  # 不丟例外
         assert result is None
         assert details == {"bands": [], "model": None}
+
+
+def test_villages_range_with_enough_data_but_no_model_is_none():
+    """資料量過了門檻、模型卻擬合不出來（全在同一個距離、在籍全擠在最近的一個里）：一樣是 None，不丟例外。"""
+    same_distance = [VillageObs(f"v{i:02d}", 1000, 500, 3) for i in range(25)]
+    all_in_one_village = [VillageObs("v00", 100, 500, 60)] + [VillageObs(f"v{i:02d}", 100 + i * 100, 500, 0) for i in range(1, 25)]
+
+    for obs in (same_distance, all_in_one_village):
+        assert len(obs) >= potential.MIN_FIT_VILLAGES and sum(item.enrolled for item in obs) >= potential.MIN_FIT_ENROLLED
+        assert fit_distance_model(obs) is None
+        assert villages_range(obs) == (None, {"bands": [], "model": None})
+
+
+def test_villages_range_needs_enough_villages_with_children():
+    """有 2–5 歲孩子的里不到 20 個就不估（資料太少，重抽里的區間是外插）；沒有孩子的里不能湊數。"""
+    assert potential.MIN_FIT_VILLAGES == 20
+    enough = synthetic_obs(villages=20)
+    childless = [VillageObs(f"640x{i:07d}", 150 + i * 100, 0, 0) for i in range(10)]
+
+    assert villages_range(enough)[1]["model"] is not None
+    assert villages_range(enough[:19]) == (None, {"bands": [], "model": None})
+    assert villages_range(enough[:19] + childless) == (None, {"bands": [], "model": None})
+
+
+def test_villages_range_needs_enough_enrolled_students():
+    """在籍總和不到 30 位就不估；剛好 30 位可以。"""
+    assert potential.MIN_FIT_ENROLLED == 30
+
+    def with_total(total: int) -> list[VillageObs]:
+        """40 個里、各 1000 位孩子；在籍從最近的里開始每個里 2 位，餘數放下一個里。"""
+        left, obs = total, []
+        for index in range(40):
+            count = min(2, left)
+            left -= count
+            obs.append(VillageObs(f"640{index:08d}", 100 + index * 75, 1000, count))
+        return obs
+
+    assert villages_range(with_total(29)) == (None, {"bands": [], "model": None})
+    result, details = villages_range(with_total(30))
+    assert details["model"] is not None  # 過了門檻就會估（區間是否出得來看抽樣，這裡只看有沒有被門檻擋下）
 
 
 def test_band_shares():

@@ -21,6 +21,7 @@
     有孩子的里有放回地抽出同樣數量的里、重新擬合，再用這組 (a, b) 對原本 3 公里內的里算缺口 ÷ 3。低／高向中值靠攏，區間永遠包住中值。
   - 不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是「模型為真時光靠雜訊會量到的缺口」，
     不是缺口的不確定性；實測區間又窄又常包不住實際缺口。
+  - 資料太少不估：有孩子的里不到 20 個或在籍不到 30 位，來源二沒有數字（重抽里的區間在這種資料量下是外插）。
   - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；有一帶有孩子的里不到 3 個時，三帶都只回里數與孩子數。"""
 
 from __future__ import annotations
@@ -91,6 +92,9 @@ BOOTSTRAP_SEED = 20261020
 BOOTSTRAP_DRAWS = 200
 BOOTSTRAP_MIN_SUCCESS = 50
 BOOTSTRAP_PERCENTILES = (10, 90)
+# 資料太少不估：有 2–5 歲孩子的里至少幾個、在籍至少幾位（報告也以 30 筆為可判讀下限）。
+MIN_FIT_VILLAGES = 20
+MIN_FIT_ENROLLED = 30
 # 距離帶（上界 m，含上界；0 m 算第一帶）：畫面展開的彙總與給來源三的占有率（B-03）共用。
 VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
 # 有一帶「有 2–5 歲孩子的里」少於這個數字，彙總就等於逐里數字（報告 B-11：逐里小數能推回在籍人數），三帶都不回在籍、期望、缺口。
@@ -491,10 +495,16 @@ def villages_range(
     亂數是 random.Random(seed)；擬合失敗、缺口溢位或不是有限數的那一次略過，成功不到 50 次不給區間。重抽里反映「換一批里會估出怎樣的距離曲線、缺口跟著變多少」。
     不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是模型為真時光靠雜訊會量到的缺口，
     不是缺口的不確定性。低／高仍取 min(P10, 中)、max(P90, 中)，區間永遠包住中值。
+    資料太少不估：有 2–5 歲孩子的里不到 MIN_FIT_VILLAGES（20）個，或在籍總和不到 MIN_FIT_ENROLLED（30）位，
+    一律回 (None, {"bands": [], "model": None})。理由：里太少、在籍太少時，重抽里會常常抽不到某些距離，
+    擬合出的斜率不穩，自助法的區間是外插出來的數字（實測 8 個里會得到高值 7332 這種沒意義的區間），
+    而且報告也以 30 筆為可判讀下限。
     模型擬合不出來（沒有在籍、全在同一個距離、估計值跑到無限遠…），或實際資料的缺口算不出來（溢位），
-    回 (None, {"bands": [], "model": None})。
+    也回同樣的 (None, {"bands": [], "model": None})。
     details 只有 bands（0-1、1-2、2-3 km 三個距離帶；有一帶有孩子的里不到 3 個，三帶都只回里數與孩子數）
     與 model（a、b），沒有里代碼，也沒有逐里的數字。"""
+    if sum(item.kids > 0 for item in obs) < MIN_FIT_VILLAGES or sum(item.enrolled for item in obs) < MIN_FIT_ENROLLED:
+        return None, {"bands": [], "model": None}
     obs = sorted(obs, key=lambda item: item.code)  # 抽樣的順序不受資料列順序影響
     model = fit_distance_model(obs)
     if model is None:
