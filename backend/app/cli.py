@@ -1038,7 +1038,7 @@ def main() -> None:
             "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
             "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
             "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] "
-            "[--elementary-file <114_basec.csv> ...] [--bundle <ZIP>]|"
+            "[--september-file <JSON> ...] [--elementary-file <114_basec.csv> ...] [--bundle <ZIP>]|"
             "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>|"
             "enrollment-history-extract --file <xls> --campus <key> --out <JSON>|"
