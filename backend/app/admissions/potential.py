@@ -17,15 +17,17 @@
   - 模型（報告 B-03 的 M1）：在籍 ~ Poisson(μ)，log μ = a + b·距離（km）+ log(2–5 歲人數)，自己寫兩參數牛頓法，不加依賴。
   - 缺口（報告 B-11）：每個 3 公里內的里 max(0, μ − θ·μ)，θ = (實際 + 5.1) ÷ (μ + 5.1)，經驗貝氏收縮讓小里的缺口不被雜訊放大。
   - 每年新生＝在籍缺口 ÷ 3（在籍約是每年新生的三倍）。
-  - 低／高＝參數化自助法的 10／90 百分位：固定種子 20261020，200 次，每次依擬合出的 μ 重抽各里在籍、重新擬合、再算缺口 ÷ 3；
-    中＝實際資料的缺口 ÷ 3。抽樣的區間若沒包住中值（實際缺口遠大於只靠雜訊產生的缺口），低／高向中值靠攏，區間永遠包住中值。
-  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）。"""
+  - 中＝實際資料的缺口 ÷ 3；低／高＝以里為單位的非參數自助法的 10／90 百分位：固定種子 20261020，200 次，每次從 6 公里內
+    有孩子的里有放回地抽出同樣數量的里、重新擬合，再用這組 (a, b) 對原本 3 公里內的里算缺口 ÷ 3。低／高向中值靠攏，區間永遠包住中值。
+  - 不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是「模型為真時光靠雜訊會量到的缺口」，
+    不是缺口的不確定性；實測區間又窄又常包不住實際缺口。
+  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；某一帶不到 3 個里時，那一帶只回里數與孩子數。"""
 
 from __future__ import annotations
 
 import math
 import random
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import and_, func, select
@@ -84,16 +86,15 @@ MODEL_MAX_ITERATIONS = 50
 MODEL_TOLERANCE = 1e-8
 MODEL_MAX_HALVINGS = 30
 MODEL_DIGITS = 3  # details.model 的 a、b 四捨五入位數
-# 參數化自助法：固定種子、抽樣次數、成功次數至少要有幾次才給區間、低／高取的百分位。
+# 以里為單位的自助法：固定種子、抽樣次數、成功次數至少要有幾次才給區間、低／高取的百分位。
 BOOTSTRAP_SEED = 20261020
 BOOTSTRAP_DRAWS = 200
 BOOTSTRAP_MIN_SUCCESS = 50
 BOOTSTRAP_PERCENTILES = (10, 90)
-# Poisson 期望值超過這個數字改用常態近似（Knuth 演算法的 e^-μ 會下溢，連乘次數也隨 μ 增加）。
-POISSON_NORMAL_ABOVE = 30
-# 距離帶（上界 m，含上界；0 m 算第一帶）。畫面展開用四帶；給來源三的占有率（B-03）用 1 km 三帶。
-VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-0.5", 500), ("0.5-1", 1000), ("1-2", 2000), ("2-3", 3000))
-SHARE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
+# 距離帶（上界 m，含上界；0 m 算第一帶）：畫面展開的彙總與給來源三的占有率（B-03）共用。
+VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
+# 一帶的里少於這個數字，彙總就等於逐里數字（報告 B-11：逐里小數能推回在籍人數），那一帶不回在籍、期望、缺口。
+BAND_MIN_VILLAGES = 3
 
 
 @dataclass(frozen=True)
@@ -426,22 +427,6 @@ def village_gaps(
     return total
 
 
-def _poisson(rng: random.Random, mu: float) -> int:
-    """Poisson(mu) 抽樣：mu ≤ 30 用 Knuth 演算法（連乘均勻亂數到小於 e^-mu，連乘的次數就是抽到的值）；
-    mu 大時 e^-mu 會下溢、連乘也要很多次，改用常態近似 N(mu, mu) 取整、最小 0。"""
-    if mu <= 0:
-        return 0
-    if mu > POISSON_NORMAL_ABOVE:
-        return max(0, round(rng.gauss(mu, math.sqrt(mu))))
-    limit = math.exp(-mu)
-    count = 0
-    product = rng.random()
-    while product > limit:
-        count += 1
-        product *= rng.random()
-    return count
-
-
 def _percentile(ordered: list[float], percent: float) -> float:
     """已排序資料的線性內插百分位（同 numpy 預設）。"""
     position = (len(ordered) - 1) * percent / 100
@@ -458,7 +443,8 @@ def _band_of(distance_m: float, bands: tuple[tuple[str, int], ...]) -> str | Non
 
 
 def _village_bands(obs: list[VillageObs], a: float, b: float) -> list[dict]:
-    """畫面展開的距離帶彙總：里數、2–5 歲、在籍、期望、在籍缺口（還沒 ÷ 3）。只彙總，不留逐里的值。"""
+    """畫面展開的距離帶彙總：里數、2–5 歲、在籍、期望、在籍缺口（還沒 ÷ 3）。只彙總，不留逐里的值。
+    里數不到 BAND_MIN_VILLAGES 的帶，在籍、期望、缺口是 None（只剩里數與孩子數）。"""
     rows = {key: {"band": key, "villages": 0, "kids": 0, "enrolled": 0, "expected": 0.0, "gap": 0.0} for key, _ in VILLAGE_BANDS}
     for item in obs:
         key = _band_of(item.distance_m, VILLAGE_BANDS)
@@ -471,8 +457,11 @@ def _village_bands(obs: list[VillageObs], a: float, b: float) -> list[dict]:
         row["expected"] += _expected(item, a, b)
         row["gap"] += village_gaps([item], a, b, radius_m=VILLAGE_BANDS[-1][1])
     for row in rows.values():
-        row["expected"] = round(row["expected"], RANGE_DIGITS)
-        row["gap"] = round(row["gap"], RANGE_DIGITS)
+        if row["villages"] < BAND_MIN_VILLAGES:
+            row["enrolled"] = row["expected"] = row["gap"] = None
+        else:
+            row["expected"] = round(row["expected"], RANGE_DIGITS)
+            row["gap"] = round(row["gap"], RANGE_DIGITS)
     return list(rows.values())
 
 
@@ -481,12 +470,14 @@ def villages_range(
 ) -> tuple[Range | None, dict]:
     """來源二的低／中／高，以及畫面「怎麼算」要的距離帶彙總。
 
-    中＝實際資料擬合一次的缺口 ÷ 3。低／高＝參數化自助法的 10／90 百分位：依擬合出的 μ 重抽各里在籍
-    （y* ~ Poisson(μ)），重新擬合、算缺口 ÷ 3，共 draws 次，亂數是 random.Random(seed)；某次擬合失敗就略過，
-    成功不到 50 次不給區間。抽樣的缺口反映「模型為真時光靠雜訊會量到的缺口」，不一定包住實際缺口；
-    低／高因此取 min(P10, 中)、max(P90, 中)，區間永遠包住中值。
+    中＝實際資料擬合一次的缺口 ÷ 3。低／高＝以里為單位的非參數自助法的 10／90 百分位：每次從 obs 裡有孩子的里
+    有放回地抽出同樣數量的里，重新擬合（失敗就略過），再用這組 (a, b) 對原本的里算缺口 ÷ 3，共 draws 次，
+    亂數是 random.Random(seed)；成功不到 50 次不給區間。重抽里反映「換一批里會估出怎樣的距離曲線、缺口跟著變多少」。
+    不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是模型為真時光靠雜訊會量到的缺口，
+    不是缺口的不確定性。低／高仍取 min(P10, 中)、max(P90, 中)，區間永遠包住中值。
     模型擬合不出來（沒有在籍、全在同一個距離、估計值跑到無限遠…）回 (None, {"bands": [], "model": None})。
-    details 只有 bands（四個距離帶）與 model（a、b），沒有里代碼，也沒有逐里的數字。"""
+    details 只有 bands（0-1、1-2、2-3 km 三個距離帶，不到 3 個里的帶只回里數與孩子數）與 model（a、b），
+    沒有里代碼，也沒有逐里的數字。"""
     obs = sorted(obs, key=lambda item: item.code)  # 抽樣的順序不受資料列順序影響
     model = fit_distance_model(obs)
     if model is None:
@@ -498,13 +489,12 @@ def villages_range(
     }
     mid = village_gaps(obs, a, b) / VILLAGE_COHORT_YEARS
     rng = random.Random(seed)
-    expected = [_expected(item, a, b) for item in obs]
+    pool = [item for item in obs if item.kids > 0]
     gaps: list[float] = []
     for _ in range(draws):
-        drawn = [replace(item, enrolled=_poisson(rng, mu)) for item, mu in zip(obs, expected)]
-        refit = fit_distance_model(drawn)
+        refit = fit_distance_model(rng.choices(pool, k=len(pool)))
         if refit is not None:
-            gaps.append(village_gaps(drawn, *refit) / VILLAGE_COHORT_YEARS)
+            gaps.append(village_gaps(obs, *refit) / VILLAGE_COHORT_YEARS)
     if len(gaps) < BOOTSTRAP_MIN_SUCCESS:
         return None, details
     gaps.sort()
@@ -515,10 +505,10 @@ def villages_range(
 def band_shares(obs: list[VillageObs]) -> dict[str, float]:
     """0–1、1–2、2–3 km 三帶各自的占有率＝在籍 ÷ 2–5 歲（報告 B-03），給來源三用。
     帶界含上界；3 km 外不算；那一帶沒有孩子（或沒有里）是 0.0。"""
-    kids = {key: 0 for key, _ in SHARE_BANDS}
-    enrolled = {key: 0 for key, _ in SHARE_BANDS}
+    kids = {key: 0 for key, _ in VILLAGE_BANDS}
+    enrolled = {key: 0 for key, _ in VILLAGE_BANDS}
     for item in obs:
-        key = _band_of(item.distance_m, SHARE_BANDS)
+        key = _band_of(item.distance_m, VILLAGE_BANDS)
         if key is not None:
             kids[key] += item.kids
             enrolled[key] += item.enrolled

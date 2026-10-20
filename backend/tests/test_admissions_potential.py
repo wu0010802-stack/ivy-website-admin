@@ -10,7 +10,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from app.admissions import area
+from app.admissions import area, potential
 from app.admissions.enrolled.importer import load_payload, replace_roster
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo.models import GeoProviderEvent, GeoVillagePopulation
@@ -531,26 +531,67 @@ def test_villages_range_mid_is_the_observed_gap_over_three_years():
     assert result.mid == pytest.approx(village_gaps(obs, a, b) / 3, abs=0.05)
 
 
-def test_villages_range_never_excludes_the_observed_gap():
-    """近處（3 km 內）幾乎沒招到、遠處招得多：實際缺口遠大於抽樣只靠雜訊產生的缺口，區間仍包住中值。"""
-    obs = [
-        VillageObs(f"640{index:08d}", 100 + index * 100, 2000, 0 if index < 30 else 40)
-        for index in range(60)
-    ]
+@pytest.mark.parametrize(
+    "obs",
+    [
+        synthetic_obs(wobble=(0.5, 1.5, 1.0)),  # 各里高低不一
+        synthetic_obs(),  # 在籍剛好等於期望值
+        [VillageObs(f"640{index:08d}", 100 + index * 100, 2000, 0 if index < 30 else 40) for index in range(60)],  # 近處沒招、遠處招得多
+    ],
+    ids=["uneven", "exact", "near-empty"],
+)
+def test_villages_range_straddles_the_observed_gap(obs):
+    """重抽里的區間以實際缺口為中心往兩邊散開（不是只量雜訊的缺口），所以低、高不必靠 clamp 也包住中值。"""
     result, _ = villages_range(obs)
 
     assert result is not None
-    assert result.low < result.mid  # 抽樣的 90 百分位遠低於實際缺口，高值向中值靠攏
-    assert result.high == result.mid
+    assert result.low < result.mid < result.high
 
 
-def test_villages_range_never_goes_above_the_observed_gap_on_the_low_side():
-    """在籍剛好等於期望值（實際缺口幾乎是 0）時，光靠雜訊抽出來的缺口都比它大：低值向中值靠攏。"""
-    result, _ = villages_range(synthetic_obs())
+def test_villages_range_resamples_villages_and_scores_the_original_ones(monkeypatch):
+    """每次抽樣：從有孩子的里有放回地抽出同樣數量的里重新擬合（在籍數原封不動），再用新的 (a, b) 對原本的里算缺口。"""
+    obs = sorted(synthetic_obs(wobble=(0.5, 1.5, 1.0)) + [VillageObs("640ghost0001", 400, 0, 3)], key=lambda item: item.code)
+    pool = [item for item in obs if item.kids > 0]
+    fit_inputs: list[list[VillageObs]] = []
+    gap_inputs: list[list[VillageObs]] = []
+    real_fit, real_gaps = potential.fit_distance_model, potential.village_gaps
+
+    def spy_fit(sample):
+        fit_inputs.append(list(sample))
+        return real_fit(sample)
+
+    def spy_gaps(sample, *args, **kwargs):
+        gap_inputs.append(list(sample))
+        return real_gaps(sample, *args, **kwargs)
+
+    monkeypatch.setattr(potential, "fit_distance_model", spy_fit)
+    monkeypatch.setattr(potential, "village_gaps", spy_gaps)
+
+    result, _ = villages_range(obs, draws=60)
 
     assert result is not None
-    assert result.low == result.mid
-    assert result.high > result.mid
+    first, *drawn = fit_inputs
+    assert first == obs  # 第一次擬合是實際資料
+    assert len(drawn) == 60
+    assert all(len(sample) == len(pool) and all(item in pool for item in sample) for sample in drawn)
+    assert any(len({item.code for item in sample}) < len(pool) for sample in drawn)  # 有放回：會抽到重複的里
+    whole = [sample for sample in gap_inputs if len(sample) > 1]  # 逐帶彙總每次只傳一個里
+    assert whole and all(sample == obs for sample in whole)  # 缺口一律對原本的里算
+    assert len(whole) == 1 + 60
+
+
+def test_villages_range_keeps_the_range_around_the_point_estimate(monkeypatch):
+    """抽樣的百分位若沒包住中值，低／高向中值靠攏：區間永遠包住中值。"""
+    obs = synthetic_obs(wobble=(0.5, 1.5, 1.0))
+    mid, _ = villages_range(obs)
+
+    monkeypatch.setattr(potential, "_percentile", lambda ordered, percent: 1000.0 if percent == 10 else 2000.0)
+    above, _ = villages_range(obs)
+    monkeypatch.setattr(potential, "_percentile", lambda ordered, percent: 0.0 if percent == 10 else 0.5)
+    below, _ = villages_range(obs)
+
+    assert (above.low, above.mid, above.high) == (mid.mid, mid.mid, 2000.0)
+    assert (below.low, below.mid, below.high) == (0.0, mid.mid, mid.mid)
 
 
 def test_villages_range_needs_enough_successful_draws():
@@ -575,9 +616,9 @@ def test_details_bands_are_aggregates_of_the_villages_in_range():
     result, details = villages_range(obs)
 
     bands = details["bands"]
-    assert [band["band"] for band in bands] == ["0-0.5", "0.5-1", "1-2", "2-3"]
-    # 100 m 一個里；帶界含上界：500 m 在第一帶、3000 m 在最後一帶、3100 m 起不在任何一帶
-    assert [band["villages"] for band in bands] == [5, 5, 10, 10]
+    assert [band["band"] for band in bands] == ["0-1", "1-2", "2-3"]  # 和 band_shares 同鍵
+    # 100 m 一個里；帶界含上界：1000 m 在第一帶、3000 m 在最後一帶、3100 m 起不在任何一帶
+    assert [band["villages"] for band in bands] == [10, 10, 10]
     inside = [item for item in obs if item.distance_m <= 3000]
     assert sum(band["kids"] for band in bands) == sum(item.kids for item in inside)
     assert sum(band["enrolled"] for band in bands) == sum(item.enrolled for item in inside)
@@ -585,6 +626,31 @@ def test_details_bands_are_aggregates_of_the_villages_in_range():
     assert details["model"] == {"a": pytest.approx(a, abs=0.001), "b": pytest.approx(b, abs=0.001)}
     assert sum(band["gap"] for band in bands) == pytest.approx(result.mid * 3, abs=0.5)  # 各帶缺口加起來就是總缺口
     assert all(band["expected"] >= 0 and band["gap"] >= 0 for band in bands)
+
+
+def test_details_hide_the_numbers_of_a_band_with_fewer_than_three_villages():
+    """一帶只有 1–2 個里時，在籍、期望、缺口就等於逐里數字：只回里數與孩子數。滿 3 個里才回。"""
+    everything = synthetic_obs(villages=40, wobble=(0.5, 1.5, 1.0))
+    far = [item for item in everything if item.distance_m > 1000]
+    two = [item for item in everything if item.distance_m <= 200]  # 0–1 km 只有 2 個里
+    three = [item for item in everything if item.distance_m <= 300]  # 剛好 3 個
+
+    _, hidden = villages_range(far + two)
+    _, shown = villages_range(far + three)
+
+    near, middle, outer = hidden["bands"]
+    assert near == {
+        "band": "0-1", "villages": 2, "kids": sum(item.kids for item in two),
+        "enrolled": None, "expected": None, "gap": None,
+    }
+    assert all(middle[key] is not None and outer[key] is not None for key in ("enrolled", "expected", "gap"))
+    assert shown["bands"][0]["villages"] == 3
+    assert all(shown["bands"][0][key] is not None for key in ("enrolled", "expected", "gap"))
+    # 沒有里的帶也不回數字
+    _, empty = villages_range([item for item in everything if item.distance_m > 1000])
+    assert empty["bands"][0] == {
+        "band": "0-1", "villages": 0, "kids": 0, "enrolled": None, "expected": None, "gap": None,
+    }
 
 
 def test_model_degenerate():
