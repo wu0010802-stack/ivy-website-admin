@@ -516,6 +516,30 @@ async def test_calendar_and_visit_schedule_reject_control_characters_in_campus_k
     assert (await admin_client.delete(f"{base}/exceptions/{uuid.uuid4()}")).status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_booking_config_and_slots_reject_control_characters_in_campus_key(admin_client, minghua_client):
+    """預約設定與場次清單的校區代號含 %00 不能一路送到 PostgreSQL（拒收 NUL 會變 500）。
+    校區在路徑上的（設定、readiness、加開場次）和不存在的校區一樣回 404；場次清單的校區是 query，
+    比照接待月曆權限過了才回 422，範圍外的帳號拿 404。"""
+    config = f"{API}/admin/booking-config/yi%00hua"
+    assert (await admin_client.get(config)).status_code == 404
+    assert (await admin_client.get(f"{config}/readiness")).status_code == 404
+    patched = await admin_client.patch(config, json={"expected_version": 1, "mode": "slots"})
+    assert patched.status_code == 404, patched.text
+
+    today = today_local()
+    window = f"date_from={today}&date_to={today + timedelta(days=7)}"
+    listed = await admin_client.get(f"{API}/admin/slots?{window}&campus_key=yi%00hua")
+    assert listed.status_code == 422, listed.text
+    denied = await minghua_client.get(f"{API}/admin/slots?{window}&campus_key=yi%00hua")
+    assert denied.status_code == 404, denied.text
+    created = await admin_client.post(
+        f"{API}/admin/slots?campus_key=yi%00hua",
+        json={"slot_date": "2099-01-01", "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 2},
+    )
+    assert created.status_code == 404, created.text
+
+
 # ---------------------------------------------------------------- 登入與帳號管理
 
 from app.auth import service as auth_service  # noqa: E402

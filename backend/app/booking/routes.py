@@ -212,8 +212,7 @@ async def get_booking_readiness(
     """各預約方式還缺什麼（要讀資料才知道的條件）與切換前的影響範圍。
     後台在切換前顯示「不可啟用原因」與確認框用。"""
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
-    if await db.get(Campus, campus_key) is None:
-        raise ScopeDenied()
+    await _campus_or_404(db, campus_key)
     config = await service.get_or_create_config(db, campus_key)
     blockers = await readiness.data_blockers(db, campus_key, config)
     impact = await readiness.impact(db, campus_key, config)
@@ -333,8 +332,9 @@ def _trusted_client_ip_header(request: Request) -> str | None:
 
 async def _campus_or_404(db: AsyncSession, campus_key: str) -> None:
     """總管理者的 require_scope 對任何校區代號都放行；不存在的校區要回 404，不能
-    一路寫到外鍵才變 500。"""
-    if await db.get(Campus, campus_key) is None:
+    一路寫到外鍵才變 500。含控制字元（例如網址上的 %00）的 key 不可能是校區，
+    不擋的話 PostgreSQL 拒收 NUL，同樣變成 500，與不存在的校區一樣回 404。"""
+    if has_control_chars(campus_key) or await db.get(Campus, campus_key) is None:
         raise ScopeDenied()
 
 
@@ -600,6 +600,9 @@ async def list_admin_slots(
     db: AsyncSession = Depends(get_db_session),
 ) -> list[VisitSlotOut]:
     require_scope(current_user, "booking.read", campus_keys=[campus_key])
+    # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；權限過了才擋（同 visit-calendar），沒權限的人照舊拿 404。
+    if has_control_chars(campus_key):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
     try:
         slots = await slot_service.list_slots(db, campus_key, date_from, date_to)
     except slot_service.SlotQueryRangeTooWide as exc:
