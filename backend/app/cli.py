@@ -684,7 +684,7 @@ async def geo_sync_command(**options) -> None:
 
     from app.admissions.geo.bundle import SINGLE_KINDS, BundleError, open_bundle
     from app.admissions.geo.models import GeoDatasetStatus
-    from app.admissions.geo.sync import GeoSyncBusy, run_geo_sync
+    from app.admissions.geo.sync import GeoSyncBusy, check_september_files, run_geo_sync
 
     bundle = options.pop("bundle", None)
     settings = get_settings()
@@ -703,6 +703,9 @@ async def geo_sync_command(**options) -> None:
                     continue
                 key = f"{kind}_files"
                 options[key] = [*(options.get(key) or []), *files]
+        # 九月檔在 run_geo_sync 裡排在人口、出生之後才寫；壞檔要在任何寫入之前就擋下來，不留下一半的資料。
+        if options.get("september_files"):
+            await check_september_files(options["september_files"])
         try:
             result = await run_geo_sync(session_factory, settings, **options)
         except GeoSyncBusy:

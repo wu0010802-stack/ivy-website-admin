@@ -20,7 +20,13 @@ from app.admissions.geo import september as september_io
 from app.admissions.geo import sync
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.bundle import BundleFile, open_bundle, write_bundle
-from app.admissions.geo.models import GeoDatasetStatus, GeoVillageAges, GeoVillageAgesSeptember, GeoVillagePopulation
+from app.admissions.geo.models import (
+    GeoDatasetStatus,
+    GeoElementaryGrade1,
+    GeoVillageAges,
+    GeoVillageAgesSeptember,
+    GeoVillagePopulation,
+)
 from app.admissions.geo.september import (
     backfill_from_ages,
     current_code,
@@ -568,6 +574,25 @@ def test_cli_options_collect_every_september_file(tmp_path: Path):
         geo_sync_options(["--september-file"])
     with pytest.raises(SystemExit):
         geo_sync_options(["--september-file", str(tmp_path / "missing.json")])
+
+
+async def test_cli_checks_september_files_before_anything_is_written(app, few_villages, cli_on_test_app, tmp_path: Path):
+    """九月檔有一個是 11508：run_geo_sync 之前就 exit，同時給的人口檔（九月之前寫）、國小檔（九月之後寫）都不寫。"""
+    population = _sample_files(tmp_path, "11509")
+    elementary = tmp_path / "114_basec.csv"
+    elementary.write_bytes((FIXTURES / "moe-basec-114.csv").read_bytes())
+    args = [arg for path in population for arg in ("--population-file", str(path))]
+    args += ["--september-file", str(_bom_file(tmp_path, "10809")), "--september-file", str(_bom_file(tmp_path, "11508"))]
+    args += ["--elementary-file", str(elementary)]
+
+    with pytest.raises(SystemExit) as raised:
+        await geo_sync_command(**geo_sync_options(args))
+
+    assert "115-08" in str(raised.value)
+    assert await _september(app) == {}
+    assert await _count(app, GeoVillagePopulation) == 0
+    assert await _count(app, GeoVillageAges) == 0
+    assert await _count(app, GeoElementaryGrade1) == 0
 
 
 async def test_cli_geo_sync_bundle_with_september_files(app, few_villages, cli_on_test_app, tmp_path: Path, capsys):

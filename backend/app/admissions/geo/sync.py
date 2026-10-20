@@ -1258,10 +1258,10 @@ async def _write_age_history(session_factory: async_sessionmaker[AsyncSession], 
     return ages.label
 
 
-async def sync_september_files(session_factory: async_sessionmaker[AsyncSession], files: list[Path]) -> list[int]:
-    """--september-file（2026-10-20 規格 §3.2）：把每年九月底的 ODRP014 回應（一頁一檔）寫進九月底人口，回傳寫入的
-    民國年。只寫這一張表，不動使用中的人口與年齡歷史。檔案的統計月份只收九月，其他月份、查無資料、不是 JSON
-    都 SystemExit，而且全部檢查完才寫（不會只匯入一部分）。"""
+async def check_september_files(files: list[Path]) -> dict[str, population_io.PopulationBatch]:
+    """--september-file 的寫入前檢查（2026-10-20 規格 §3.2）：只收統計月份是九月的檔，查無資料、不是 JSON、
+    里數不夠都 SystemExit。回傳 統計月份 → 一批人口。CLI 在 run_geo_sync 之前先呼叫一次，
+    讓壞檔在任何同步寫入之前就擋下來（run_geo_sync 是依序寫的，九月檔排在人口、出生之後）。"""
     try:
         grouped = await asyncio.to_thread(_population_file_pages, files)
         if not grouped:
@@ -1269,9 +1269,16 @@ async def sync_september_files(session_factory: async_sessionmaker[AsyncSession]
         not_september = sorted(label for label in grouped if not september_io.is_september(label))
         if not_september:
             raise GeoSyncError(f"--september-file 只收九月底的人口，收到 {'、'.join(not_september)}")
-        batches = {label: population_io.collect(grouped[label], keep_unknown=True) for label in sorted(grouped)}
+        return {label: population_io.collect(grouped[label], keep_unknown=True) for label in sorted(grouped)}
     except (GeoSyncError, ValueError, OSError) as exc:
         raise SystemExit(f"九月底人口檔不匯入：{_error_text(exc)}") from exc
+
+
+async def sync_september_files(session_factory: async_sessionmaker[AsyncSession], files: list[Path]) -> list[int]:
+    """--september-file（2026-10-20 規格 §3.2）：把每年九月底的 ODRP014 回應（一頁一檔）寫進九月底人口，回傳寫入的
+    民國年。只寫這一張表，不動使用中的人口與年齡歷史。檔案的統計月份只收九月，其他月份、查無資料、不是 JSON
+    都 SystemExit（check_september_files），而且全部檢查完才寫（不會只匯入一部分）。"""
+    batches = await check_september_files(files)
     async with session_factory() as db:
         for label, batch in batches.items():
             written = await september_io.upsert_september(db, september_io.year_of(label), batch.rows)
