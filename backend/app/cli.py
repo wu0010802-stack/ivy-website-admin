@@ -893,6 +893,123 @@ async def enrolled_import_command(*, file: Path | None, clear: str | None) -> No
         )
 
 
+def _term_span(rows) -> str:
+    """'114上～115下'：最早與最新的學期。"""
+    terms = sorted({(row.school_year, row.semester) for row in rows})
+
+    def label(term: tuple[int, int]) -> str:
+        return f"{term[0]}{'上' if term[1] == 1 else '下'}"
+
+    return f"{label(terms[0])}～{label(terms[-1])}"
+
+
+def enrollment_history_extract_options(args: list[str]) -> dict:
+    """`enrollment-history-extract` 的參數（2026-10-20 招生潛力與市佔率規格 §3.1）。"""
+    from app.campuses.models import CAMPUS_KEYS
+
+    usage = (
+        "用法：python -m app.cli enrollment-history-extract --file <xls> --campus <校區> --out <JSON>"
+        "｜enrollment-history-extract --headers-only --file <xls>"
+    )
+    values: dict[str, str] = {}
+    headers_only = False
+    flags = {"--file": "file", "--campus": "campus", "--out": "out"}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--headers-only":
+            headers_only = True
+            index += 1
+        elif arg in flags and index + 1 < len(args) and not args[index + 1].startswith("--"):
+            values[flags[arg]] = args[index + 1]
+            index += 2
+        else:
+            raise SystemExit(usage)
+    if values.keys() != ({"file"} if headers_only else {"file", "campus", "out"}):
+        raise SystemExit(usage)
+    file = Path(values["file"])
+    if not file.is_file():
+        raise SystemExit(f"找不到檔案：{file}")
+    if headers_only:
+        return {"file": file, "campus_key": None, "out": None, "headers_only": True}
+    if values["campus"] not in CAMPUS_KEYS:
+        raise SystemExit(f"沒有這個校區：{values['campus']}")
+    return {"file": file, "campus_key": values["campus"], "out": Path(values["out"]), "headers_only": False}
+
+
+def enrollment_history_extract_command(*, file: Path, campus_key: str | None, out: Path | None, headers_only: bool) -> None:
+    """本機把園方「目標執行統計表」xls 轉成只有數字的 JSON。xlrd 只在 extract 群組，所以在函式內才 import。"""
+    from pydantic import ValidationError
+
+    from app.admissions.history.payload import build_payload, describe_error, load_payload
+
+    try:
+        from app.admissions.history.workbook import WorkbookError, parse_workbook, sheet_headers
+    except ModuleNotFoundError as error:
+        if error.name != "xlrd":
+            raise
+        raise SystemExit("要先在 backend 跑 uv sync --group extract") from None
+
+    if headers_only:
+        try:
+            sheets = sheet_headers(file)
+        except WorkbookError as error:
+            raise SystemExit(f"讀取失敗：{error}") from None
+        for name, row2, row3, labels in sheets:
+            print(name)
+            for caption, cells in (("第 2 列", row2), ("第 3 列", row3), ("第 0 欄", labels)):
+                print(f"  {caption}：{json.dumps(cells, ensure_ascii=False)}")
+        return
+    assert campus_key is not None and out is not None
+    try:
+        parsed = parse_workbook(file)
+    except WorkbookError as error:
+        raise SystemExit(f"讀取失敗：{error}") from None
+    text = json.dumps(build_payload(parsed, campus_key), ensure_ascii=False, indent=1) + "\n"
+    try:
+        payload = load_payload(text)  # 寫出去的檔案 import 一定要收得下，不然在這裡就停
+    except ValidationError as error:
+        raise SystemExit(f"輸出不符合匯入格式，沒有寫出：{describe_error(error)}") from None
+    out.write_text(text, encoding="utf-8")
+    print(f"已寫出 {out}：{len(payload.rows)} 列（{_term_span(payload.rows)}）")
+    for warning in payload.warnings:
+        print(f"注意：{warning}")
+
+
+def enrollment_history_import_options(args: list[str]) -> dict:
+    """`enrollment-history-import` 的參數（2026-10-20 招生潛力與市佔率規格 §3.1）。"""
+    if len(args) == 2 and args[0] == "--file":
+        path = Path(args[1])
+        if not path.is_file():
+            raise SystemExit(f"找不到檔案：{path}")
+        return {"file": path}
+    raise SystemExit("用法：python -m app.cli enrollment-history-import --file <JSON>")
+
+
+async def enrollment_history_import_command(*, file: Path) -> None:
+    """正式站跑：完全不碰 workbook／xlrd。同校整批取代，格式不對整份拒絕、舊資料不動。"""
+    from pydantic import ValidationError
+
+    from app.admissions.history.importer import replace_history
+    from app.admissions.history.payload import describe_error, load_payload
+
+    try:
+        payload = load_payload(file.read_text(encoding="utf-8"))
+    except ValidationError as error:
+        print(f"檔案格式不對，沒有匯入：{describe_error(error)}", file=sys.stderr)
+        raise SystemExit(1) from None
+    except UnicodeDecodeError:
+        print("檔案不是 UTF-8，沒有匯入", file=sys.stderr)
+        raise SystemExit(1) from None
+    factory = await _session_factory()
+    async with factory() as db:
+        count = await replace_history(db, payload)
+        await db.commit()
+    print(f"匯入 {payload.campus_key}：{count} 列（{_term_span(payload.rows)}）")
+    for warning in payload.warnings:
+        print(f"注意：{warning}")
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -909,7 +1026,9 @@ def main() -> None:
             "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
             "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] [--bundle <ZIP>]|"
             "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
-            "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>>",
+            "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>|"
+            "enrollment-history-extract --file <xls> --campus <key> --out <JSON>|"
+            "enrollment-history-extract --headers-only --file <xls>|enrollment-history-import --file <JSON>>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -982,6 +1101,10 @@ def main() -> None:
         asyncio.run(enrolled_match_command(**enrolled_match_options(sys.argv[2:])))
     elif command == "enrolled-import":
         asyncio.run(enrolled_import_command(**enrolled_import_options(sys.argv[2:])))
+    elif command == "enrollment-history-extract":
+        enrollment_history_extract_command(**enrollment_history_extract_options(sys.argv[2:]))
+    elif command == "enrollment-history-import":
+        asyncio.run(enrollment_history_import_command(**enrollment_history_import_options(sys.argv[2:])))
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

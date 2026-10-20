@@ -361,6 +361,16 @@ def test_unreadable_file_rejected(tmp_path: Path) -> None:
         parse_workbook(path)
 
 
+def test_corrupt_ole_file_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "ole.xls"
+    path.write_bytes(bytes.fromhex("D0CF11E0A1B11AE1") + bytes(600))  # OLE 檔頭加零位元組：xlrd 丟 CompDocError
+
+    with pytest.raises(WorkbookError, match="無法讀取活頁簿"):
+        parse_workbook(path)
+    with pytest.raises(WorkbookError, match="無法讀取活頁簿"):
+        sheet_headers(path)
+
+
 @pytest.mark.parametrize(
     ("text", "expected"),
     [

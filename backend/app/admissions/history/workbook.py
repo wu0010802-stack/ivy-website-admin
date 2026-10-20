@@ -112,8 +112,8 @@ def parse_as_of(text: str) -> date:
 def _open(path: Path) -> xlrd.Book:
     try:
         return xlrd.open_workbook(str(path), formatting_info=False)
-    except xlrd.XLRDError as exc:
-        # xlrd 的訊息會帶出檔頭位元組，只留例外種類。
+    except (xlrd.XLRDError, xlrd.compdoc.CompDocError) as exc:
+        # 損毀的 OLE 檔丟的是 CompDocError（不是 XLRDError）；xlrd 的訊息會帶出檔頭位元組，只留例外種類。
         raise WorkbookError(f"無法讀取活頁簿（{type(exc).__name__}）") from None
 
 

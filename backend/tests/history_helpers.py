@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -201,3 +202,29 @@ def modern_rows() -> dict[str, dict[str, Any]]:
                             new_target=30, new_visits=27, new_deposits=26, new_registered=24,
                             repeat_deposit=2, repeat_registered=1),
     }
+
+
+def term_row(school_year: int = 115, semester: int = 1, grade: str = "大班", **changes: Any) -> dict[str, Any]:
+    """匯入 JSON 的一列（全是假數字）；as_of 照園方慣例：上學期 9/15、下學期隔年 3/15。"""
+    as_of = f"{school_year + 1911}-09-15" if semester == 1 else f"{school_year + 1912}-03-15"
+    row: dict[str, Any] = {
+        "school_year": school_year, "semester": semester, "grade": grade, "as_of": as_of, "registered": 62,
+        "target": 70, "returning_enrolled": 43, "returning_deposit": 40, "returning_registered": 38,
+        "new_target": 30, "new_visits": 24, "new_deposits": 20, "new_registered": 18,
+        "repeat_deposit": 4, "repeat_registered": 6,
+    }
+    row.update(changes)
+    return row
+
+
+def history_payload(rows: list[dict[str, Any]] | None = None, **changes: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "format": "ivy-enrollment-history/1", "campus_key": "yihua",
+        "rows": rows if rows is not None else [term_row()], "warnings": [],
+    }
+    payload.update(changes)
+    return payload
+
+
+def history_text(payload: dict[str, Any]) -> str:
+    return json.dumps(payload, ensure_ascii=False)
