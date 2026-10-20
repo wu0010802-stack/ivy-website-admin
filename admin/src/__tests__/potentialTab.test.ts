@@ -1,10 +1,11 @@
 // 招生潛力與市佔率（2026-10-20 規格 §5）：大數字卡、走勢圖、各學年數字、國小對帳、來源說明，
-// 以及尚未匯入、校址沒定位、讀取失敗、換校區、不在這個子分頁時不讀、匯出。
+// 以及尚未匯入、校址沒定位、讀取失敗、換校區、不在這個子分頁時不讀、匯出；
+// 第二、三波：「每年還能多招」大數字卡、三個來源表、走勢圖的停辦標記。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import PotentialTab from '../components/admissions/potential/PotentialTab.vue'
 import ShareTrendChart from '../components/admissions/potential/ShareTrendChart.vue'
-import { cleanup, deferred, mockGet, mountWith, pathsTo, potentialData, queryOf, shareYear } from './admissionsTestKit'
+import { cleanup, deferred, mockGet, mountWith, noDataSources, pathsTo, potentialData, potentialEstimate, queryOf, shareYear } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { CSV_BOM, downloadCsv } from '../utils/csv'
@@ -263,5 +264,171 @@ describe('走勢圖', () => {
       expect(wrapper.get('svg.share-trend').attributes('viewBox')).toBe('0 0 520 160')
       expect(wrapper.get('svg.share-trend circle').attributes('r')).toBe('3.5')
     })
+  })
+})
+
+// 每年還能多招（第二、三波）：右邊那張大數字卡、來源表放的位置。
+describe('每年還能多招', () => {
+  const estimateCard = (wrapper: VueWrapper) => wrapper.get('.potential-estimate')
+  const withEstimate = (changes: Parameters<typeof potentialEstimate>[0]) => potentialData({ potential: potentialEstimate(changes) })
+
+  it('完整：標題、大字取整、區間（低取下限、高取上限）、目前空位；三個來源都算進去就不寫「只含」', async () => {
+    const { wrapper } = await mountPotential()
+    const card = estimateCard(wrapper)
+    expect(card.get('h3').text()).toBe('每年還能多招')
+    expect(card.get('.potential-estimate__value').text()).toBe('約 13 位')
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['5～24 位', '目前空位 18 位'])
+    expect(card.text()).not.toContain('只含')
+  })
+
+  it('兩張卡並排：左邊市佔率（原樣）、右邊每年還能多招', async () => {
+    const { wrapper } = await mountPotential()
+    const cards = wrapper.get('.potential-cards')
+    expect(cards.findAll(':scope > section').map((card) => card.get('h3').text())).toEqual(['115 學年市佔率（3 公里內 2–5 歲）', '每年還能多招'])
+    expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
+  })
+
+  it('只含部分來源：多一行「只含：…」', async () => {
+    const [, villages, presale] = noDataSources()
+    const sources = [potentialEstimate().sources[0]!, villages!, presale!]
+    const total = { low: 3.9, mid: 8.6, high: 14.8, included: ['closures' as const] }
+    const { wrapper } = await mountPotential(withEstimate({ sources, total }))
+    const card = estimateCard(wrapper)
+    expect(card.get('.potential-estimate__value').text()).toBe('約 9 位')
+    expect(card.findAll('.potential-estimate__line').map((line) => line.text())).toEqual(['3～15 位', '目前空位 18 位', '只含：附近園所停辦釋出'])
+  })
+
+  it('沒有本校核定或清冊（capacity 是 null）：不寫目前空位', async () => {
+    const { wrapper } = await mountPotential(withEstimate({ capacity: null }))
+    expect(estimateCard(wrapper).text()).not.toContain('目前空位')
+    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 13 位')
+  })
+
+  it('在籍超過核定：空位是 0', async () => {
+    const { wrapper } = await mountPotential(withEstimate({ capacity: { approved: 210, enrolled: 230, open: 0 } }))
+    expect(estimateCard(wrapper).text()).toContain('目前空位 0 位')
+  })
+
+  it('三個來源都沒有資料（total 是 null）：不寫大字與區間，寫原因；有空位還是照寫', async () => {
+    const { wrapper } = await mountPotential(withEstimate({ sources: noDataSources(), total: null }))
+    const card = estimateCard(wrapper)
+    expect(card.find('.potential-estimate__value').exists()).toBe(false)
+    expect(card.text()).toContain('三個來源都沒有資料，算不出每年還能多招幾位。')
+    expect(card.text()).toContain('目前空位 18 位')
+  })
+
+  it('沒有市佔率（各學年都沒有孩子數）時，右邊的卡還是在', async () => {
+    const years = [shareYear({ school_year: 115, registered: 189, children: null })]
+    const { wrapper } = await mountPotential(potentialData({ share: { years } }))
+    expect(wrapper.find('.potential-card').exists()).toBe(false)
+    expect(estimateCard(wrapper).get('.potential-estimate__value').text()).toBe('約 13 位')
+  })
+
+  it('來源表在走勢圖下方、各學年數字上方', async () => {
+    const { wrapper } = await mountPotential()
+    const order = wrapper.findAll('.potential-body > *').map((node) => node.classes().find((name) => /^(potential-cards|share-trend|potential-sources|potential-years)$/.test(name)))
+    expect(order.filter(Boolean)).toEqual(['potential-cards', 'share-trend', 'potential-sources', 'potential-years'])
+    expect(wrapper.findAll('.potential-sources tbody[data-source]')).toHaveLength(3)
+  })
+
+  it('尚未匯入歷年註冊：沒有任何卡與來源表', async () => {
+    const data = potentialData({ share: { status: 'not_imported', latest: null, best: null, years: [], elementary_check: null, notes: [] } })
+    const { wrapper } = await mountPotential(data)
+    expect(wrapper.find('.potential-estimate').exists()).toBe(false)
+    expect(wrapper.find('.potential-sources').exists()).toBe(false)
+  })
+
+  it('換校區：先清空再讀，不留別校的數字', async () => {
+    const renwu = withEstimate({ total: { low: 1, mid: 2, high: 3, included: ['closures', 'villages', 'presale'] }, capacity: null })
+    mockGet({ [PATH]: (path: string) => (queryOf(path).get('campus_key') === 'yihua' ? potentialData() : renwu) })
+    const { wrapper } = await mountWith(PotentialTab, { props: { campusKey: 'yihua', active: true } })
+    await flushPromises()
+    expect(wrapper.get('.potential-estimate__value').text()).toBe('約 13 位')
+    await wrapper.setProps({ campusKey: 'renwu' })
+    await flushPromises()
+    expect(wrapper.get('.potential-estimate__value').text()).toBe('約 2 位')
+    expect(wrapper.text()).not.toContain('目前空位')
+  })
+})
+
+// 走勢圖的停辦標記：event.school_year 是 10 月到隔年 9 月的窗口，標在下一個學年。
+describe('走勢圖的停辦標記', () => {
+  const marks = (wrapper: VueWrapper) => wrapper.findAll('svg.share-trend .share-trend__closure')
+  // 三角形的尖端（第三個點）在 x 軸正下方；回傳尖端的 x。
+  const apexX = (mark: ReturnType<typeof marks>[number]) => Number(mark.attributes('points')!.split(' ')[2]!.split(',')[0])
+  const dotX = (wrapper: VueWrapper, schoolYear: number) => Number(wrapper.findAll('svg.share-trend circle')[schoolYear - 107]!.attributes('cx'))
+
+  it('預設 4 所停辦、同學年 2 所合併：畫 3 個，標在 112／113／115', async () => {
+    const { wrapper } = await mountPotential()
+    const list = marks(wrapper)
+    expect(list.map((mark) => mark.attributes('data-year'))).toEqual(['112', '113', '115'])
+    expect(list.map((mark) => apexX(mark))).toEqual([dotX(wrapper, 112), dotX(wrapper, 113), dotX(wrapper, 115)])
+  })
+
+  it('提示：日期、園名、核定；同學年多所每所一行', async () => {
+    const { wrapper } = await mountPotential()
+    expect(marks(wrapper).map((mark) => mark.get('title').text())).toEqual([
+      '2023-07-31 高雄市私立甲幼兒園停辦（核定 60）',
+      '2024-08-10 高雄市私立乙幼兒園停辦（核定 90）\n2024-09-30 高雄市私立丙幼兒園停辦（核定 45）',
+      '2026-09-15 高雄市私立丁幼兒園停辦（核定 30）',
+    ])
+  })
+
+  it('在 x 軸下方（軸線與學年標籤之間），不蓋到圖內的點與線', async () => {
+    const { wrapper } = await mountPotential()
+    const axisY = Number(wrapper.get('svg.share-trend .share-trend__axis').attributes('y1'))
+    const labelY = Number(wrapper.get('svg.share-trend .share-trend__x').attributes('y'))
+    for (const mark of marks(wrapper)) {
+      const ys = mark.attributes('points')!.split(' ').map((point) => Number(point.split(',')[1]))
+      expect(Math.min(...ys)).toBeGreaterThan(axisY)
+      expect(Math.max(...ys)).toBeLessThan(labelY)
+    }
+  })
+
+  it('用圖例說明三角形', async () => {
+    const { wrapper } = await mountPotential()
+    expect(wrapper.get('svg.share-trend .share-trend__legend').text()).toBe('▲ 附近園所停辦')
+  })
+
+  it('落在圖上學年範圍以外的不畫（標在 116、106）；全都在範圍外就沒有圖例', async () => {
+    const outside = [
+      { occurred_on: '2026-10-05', name: '甲', approved_capacity: 60, distance_m: 900, school_year: 115 },
+      { occurred_on: '2021-11-05', name: '乙', approved_capacity: 60, distance_m: 900, school_year: 105 },
+    ]
+    const { wrapper } = await mountPotential(potentialData({ potential: potentialEstimate({ events: outside }) }))
+    expect(marks(wrapper)).toHaveLength(0)
+    expect(wrapper.find('.share-trend__legend').exists()).toBe(false)
+  })
+
+  it('剛好在範圍邊界（標在第一個與最後一個學年）都畫', async () => {
+    const edges = [
+      { occurred_on: '2021-12-05', name: '甲', approved_capacity: 60, distance_m: 900, school_year: 106 },
+      { occurred_on: '2026-09-05', name: '乙', approved_capacity: null, distance_m: 900, school_year: 114 },
+    ]
+    const { wrapper } = await mountPotential(potentialData({ potential: potentialEstimate({ events: edges }) }))
+    expect(marks(wrapper).map((mark) => mark.attributes('data-year'))).toEqual(['107', '115'])
+    expect(marks(wrapper)[1]!.get('title').text()).toBe('2026-09-05 乙停辦（核定名額未填）')
+  })
+
+  it('沒有事件：不畫標記也沒有圖例', async () => {
+    const { wrapper } = await mountPotential(potentialData({ potential: potentialEstimate({ events: [] }) }))
+    expect(marks(wrapper)).toHaveLength(0)
+    expect(wrapper.find('.share-trend__legend').exists()).toBe(false)
+  })
+
+  it('單獨用走勢圖、沒給 events：不畫標記', async () => {
+    const { wrapper } = await mountWith(ShareTrendChart, { props: { years: potentialData().share.years } })
+    expect(wrapper.findAll('.share-trend__closure')).toHaveLength(0)
+  })
+
+  it('窄螢幕：標記跟著窄版的位置，仍在 viewBox 內，沒有圖也不畫', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    const { wrapper } = await mountPotential()
+    expect(wrapper.get('svg.share-trend').attributes('viewBox')).toBe('0 0 340 170')
+    expect(marks(wrapper).map((mark) => apexX(mark))).toEqual([dotX(wrapper, 112), dotX(wrapper, 113), dotX(wrapper, 115)])
+    const xs = marks(wrapper).flatMap((mark) => mark.attributes('points')!.split(' ').map((point) => Number(point.split(',')[0])))
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(0)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(340)
+    vi.unstubAllGlobals()
   })
 })

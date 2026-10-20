@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, useId, watch } from 'vue'
+import PotentialSources from './PotentialSources.vue'
 import ShareTrendChart from './ShareTrendChart.vue'
 import {
-  NOT_IMPORTED_TEXT, NO_CAMPUS_POINT_TEXT, NO_CHILDREN_TEXT, POTENTIAL_SOURCE_NOTE, bestSentence, elementarySentence, formatShare,
-  shareCsv, shareSentence,
+  ESTIMATE_TITLE, NOT_IMPORTED_TEXT, NO_CAMPUS_POINT_TEXT, NO_CHILDREN_TEXT, NO_ESTIMATE_TEXT, POTENTIAL_SOURCE_NOTE, bestSentence,
+  elementarySentence, estimateHeadline, estimateRange, formatShare, includedNote, openSeatsText, shareCsv, shareSentence,
 } from './potentialFormat'
 import { getPotential } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
@@ -15,7 +16,8 @@ import { useRequestSequence } from '../../../composables/useRequestSequence'
 import { buildCsv, csvFilename, downloadCsv } from '../../../utils/csv'
 import { formatCount } from '../area/areaFormat'
 
-// 招生潛力與市佔率（2026-10-20 規格 §5，第一波只有市佔率）：本校半徑內各學年的市佔率走勢與國小一年級對帳。
+// 招生潛力與市佔率（2026-10-20 規格 §5）：本校半徑內各學年的市佔率走勢與國小一年級對帳；
+// 第二、三波加「每年還能多招」大數字卡、三個來源表（怎麼算）與走勢圖的停辦標記。
 // 讀自己的 API、看所有學年（不分入學學年學期，頁首兩個下拉停用）；校區跟頁首。
 // active：這是不是目前的子分頁。pane 看過之後一直掛著，不在這頁時換校區只記下要重讀，回來才讀（不在背景打 API）。
 const props = withDefaults(defineProps<{ campusKey: string; active?: boolean }>(), { active: true })
@@ -59,9 +61,11 @@ const radius = computed(() => share.value?.radius_km ?? 3)
 const latest = computed(() => share.value?.latest ?? null)
 const best = computed(() => share.value?.best ?? null)
 const years = computed(() => share.value?.years ?? [])
+const estimate = computed(() => data.value?.potential ?? null)
 const elementary = computed(() => (share.value?.elementary_check ? elementarySentence(share.value.elementary_check, radius.value) : ''))
 
 const titleId = useId()
+const estimateId = useId()
 const open = ref<string[]>([])
 
 function exportCsv() {
@@ -83,15 +87,29 @@ function exportCsv() {
     <p v-else-if="share.status === 'not_imported'" class="empty-note">{{ NOT_IMPORTED_TEXT }}</p>
     <p v-else-if="share.status === 'no_campus_point'" class="empty-note">{{ NO_CAMPUS_POINT_TEXT(radius) }}</p>
     <div v-else class="potential-body">
-      <section v-if="latest" class="potential-card" :aria-labelledby="titleId">
-        <h3 :id="titleId" class="potential-card__title">{{ latest.school_year }} 學年市佔率（{{ radius }} 公里內 2–5 歲）</h3>
-        <p class="potential-card__value num">{{ formatShare(latest.share) }}</p>
-        <p class="potential-card__line num">{{ shareSentence(latest) }}</p>
-        <p v-if="bestSentence(best, latest)" class="potential-card__line num">{{ bestSentence(best, latest) }}</p>
-      </section>
-      <p v-else class="empty-note potential-empty">{{ NO_CHILDREN_TEXT }}</p>
+      <div class="potential-cards">
+        <section v-if="latest" class="potential-card" :aria-labelledby="titleId">
+          <h3 :id="titleId" class="potential-card__title">{{ latest.school_year }} 學年市佔率（{{ radius }} 公里內 2–5 歲）</h3>
+          <p class="potential-card__value num">{{ formatShare(latest.share) }}</p>
+          <p class="potential-card__line num">{{ shareSentence(latest) }}</p>
+          <p v-if="bestSentence(best, latest)" class="potential-card__line num">{{ bestSentence(best, latest) }}</p>
+        </section>
+        <p v-else class="empty-note potential-empty">{{ NO_CHILDREN_TEXT }}</p>
 
-      <ShareTrendChart :years="years" />
+        <section v-if="estimate" class="potential-estimate" :aria-labelledby="estimateId">
+          <h3 :id="estimateId" class="potential-estimate__title">{{ ESTIMATE_TITLE }}</h3>
+          <template v-if="estimate.total">
+            <p class="potential-estimate__value num">{{ estimateHeadline(estimate.total) }}</p>
+            <p class="potential-estimate__line num">{{ estimateRange(estimate.total) }}</p>
+          </template>
+          <p v-else class="potential-estimate__line">{{ NO_ESTIMATE_TEXT }}</p>
+          <p v-if="estimate.capacity" class="potential-estimate__line num">{{ openSeatsText(estimate.capacity) }}</p>
+          <p v-if="estimate.total && includedNote(estimate.total)" class="potential-estimate__line">{{ includedNote(estimate.total) }}</p>
+        </section>
+      </div>
+
+      <ShareTrendChart :years="years" :events="estimate?.events" />
+      <PotentialSources v-if="estimate" :sources="estimate.sources" />
 
       <el-collapse v-model="open" class="potential-years">
         <el-collapse-item title="各學年數字" name="years">
@@ -139,24 +157,35 @@ function exportCsv() {
   min-width: 0;
 }
 
-.potential-card {
+/* 兩張大數字卡並排（市佔率在左、每年還能多招在右）；手機上下排。 */
+.potential-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1040px;
+}
+
+.potential-card,
+.potential-estimate {
   display: grid;
   gap: 4px;
-  max-width: 560px;
+  min-width: 0;
   padding: 16px 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
 
-.potential-card__title {
+.potential-card__title,
+.potential-estimate__title {
   margin: 0;
   color: var(--ink-2);
   font-size: var(--text-base);
   font-weight: 600;
 }
 
-.potential-card__value {
+.potential-card__value,
+.potential-estimate__value {
   margin: 0;
   color: var(--ink);
   font-size: var(--text-5xl);
@@ -164,7 +193,8 @@ function exportCsv() {
   line-height: 1.2;
 }
 
-.potential-card__line {
+.potential-card__line,
+.potential-estimate__line {
   margin: 0;
   color: var(--ink-2);
 }
@@ -232,7 +262,10 @@ function exportCsv() {
 
 /* 手機：卡片與圖滿版；各學年數字從表格改成一列一張小卡（2×2：欄名在上、數字在下），不必橫捲。 */
 @media (max-width: 720px) {
-  .potential-card,
+  .potential-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .potential-years {
     max-width: none;
   }

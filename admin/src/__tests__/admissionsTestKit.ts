@@ -10,7 +10,8 @@ import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
   AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
-  Potential, PotentialShareYear, UserOut, VillageBoundaries,
+  Potential, PotentialClosureSource, PotentialEstimate, PotentialPresaleSource, PotentialShareYear, PotentialVillageSource, UserOut,
+  VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
@@ -536,6 +537,81 @@ export const shareYear = (changes: Partial<PotentialShareYear> = {}): PotentialS
     share: children === null ? null : Math.round((registered / children) * 10000) / 10000, merged: false, ...changes,
   }
 }
+// 每年還能多招（2026-10-20 第二、三波）：預設三個來源都有數字。low／mid／high 逐項相加＝total（5.6／13.4／23.4），
+// 卡片「約 13 位」「5～24 位」才分得出取整（四捨五入）與區間（低取下限、高取上限）；核定 210、在籍 192，空位 18。
+// 事件：school_year 是來源一的學年窗口（10 月到隔年 9 月），走勢圖標在 school_year + 1。
+export const closureSource = (changes: Partial<PotentialClosureSource> = {}): PotentialClosureSource => ({
+  key: 'closures', status: 'ok', low: 3.9, mid: 8.6, high: 14.8, reason: null,
+  assumptions: [
+    { label: '承接率', value: '中 13.8%、高 17.3%（童年綠地、愛爾蘭回測）' },
+    { label: '實收率', value: '0.67（全市 114 學年核定與幼生比）' },
+    { label: '沒有計入', value: '園所是否連鎖（類型係數）與老師帶班：公開資料看不出來，也無法預期' },
+    { label: '核定名額沒填', value: '1 所（算不出來，略過）' },
+  ],
+  details: {
+    years: [{ school_year: 111, weighted: 7.4, events: 1 }, { school_year: 112, weighted: 9.8, events: 2 }],
+    skipped: { no_capacity: 1, outside_windows: 1 },
+    price_unknown: 2,
+    events: [
+      { occurred_on: '2023-07-31', name: '高雄市私立甲幼兒園', approved_capacity: 60, distance_m: 850, school_year: 111, weighted: 7.4 },
+      { occurred_on: '2024-08-10', name: '高雄市私立乙幼兒園', approved_capacity: 90, distance_m: 1500, school_year: 112, weighted: 6.1 },
+      { occurred_on: '2024-09-30', name: '高雄市私立丙幼兒園', approved_capacity: 45, distance_m: 2100, school_year: 112, weighted: 3.7 },
+    ],
+  },
+  ...changes,
+})
+export const villageSource = (changes: Partial<PotentialVillageSource> = {}): PotentialVillageSource => ({
+  key: 'villages', status: 'ok', low: 1.1, mid: 3.4, high: 6.1, reason: null,
+  assumptions: [
+    { label: '模型', value: '在籍 ~ Poisson(μ)，log μ = a + b × 距離（km）+ log(2–5 歲人數)' },
+    { label: '每年新生', value: '在籍缺口 ÷ 3（在籍約是每年新生的 3 倍）' },
+  ],
+  details: {
+    bands: [
+      { band: '0-1', villages: 6, kids: 1300, enrolled: 60, expected: 48.2, gap: 12.4 },
+      { band: '1-2', villages: 10, kids: 3500, enrolled: 80, expected: 90.5, gap: 3.1 },
+      { band: '2-3', villages: 12, kids: 5000, enrolled: 40, expected: 60, gap: 20 },
+    ],
+    model: { a: -2.613, b: -1.067 },
+  },
+  ...changes,
+})
+export const presaleSource = (changes: Partial<PotentialPresaleSource> = {}): PotentialPresaleSource => ({
+  key: 'presale', status: 'ok', low: 0.6, mid: 1.4, high: 2.5, reason: null,
+  assumptions: [
+    { label: '每百戶 2–5 歲孩子', value: '低 2.5、中 4.0、高 6.0 人（報告 B-06）' },
+    { label: '距離', value: '有座標用座標，否則用里重心' },
+  ],
+  details: {
+    deliveries: [
+      { name: '某某大院', households: 240, expected_year: 2026, expected_half: 1, distance_m: 600, mid: 0.9, overdue: true },
+      { name: '某某花園', households: 180, expected_year: 2027, expected_half: 2, distance_m: 1200, mid: 0.5, overdue: false },
+    ],
+  },
+  ...changes,
+})
+/** 三個來源都沒有資料時各自的原因（同後端 REASON_*）；參數說明照給（後端 no_data 也列 assumptions），details 是空形狀。 */
+export const noDataSources = (): PotentialEstimate['sources'] => [
+  closureSource({
+    status: 'no_data', low: null, mid: null, high: null, reason: '沒有停辦紀錄',
+    details: { years: [], skipped: { no_capacity: 0, outside_windows: 0 }, price_unknown: 0, events: [] },
+  }),
+  villageSource({ status: 'no_data', low: null, mid: null, high: null, reason: '沒有在籍清冊', details: { bands: [], model: null } }),
+  presaleSource({ status: 'no_data', low: null, mid: null, high: null, reason: '沒有預售資料', details: { deliveries: [] } }),
+]
+export const potentialEstimate = (changes: Partial<PotentialEstimate> = {}): PotentialEstimate => ({
+  status: 'ready',
+  sources: [closureSource(), villageSource(), presaleSource()],
+  total: { low: 5.6, mid: 13.4, high: 23.4, included: ['closures', 'villages', 'presale'] },
+  capacity: { approved: 210, enrolled: 192, open: 18 },
+  events: [
+    { occurred_on: '2023-07-31', name: '高雄市私立甲幼兒園', approved_capacity: 60, distance_m: 850, school_year: 111 },
+    { occurred_on: '2024-08-10', name: '高雄市私立乙幼兒園', approved_capacity: 90, distance_m: 1500, school_year: 112 },
+    { occurred_on: '2024-09-30', name: '高雄市私立丙幼兒園', approved_capacity: 45, distance_m: 2100, school_year: 112 },
+    { occurred_on: '2026-09-15', name: '高雄市私立丁幼兒園', approved_capacity: 30, distance_m: 2600, school_year: 114 },
+  ],
+  ...changes,
+})
 const buildPotential = (): Potential => ({
   campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
   generated_at: '2026-10-20T04:00:00Z',
@@ -556,21 +632,7 @@ const buildPotential = (): Potential => ({
     },
     notes: ['115 學年里界調整，三民區 1 里合併計入'],
   },
-  // 每年還能多招（第二、三波）：預設三個來源都沒有資料（畫面的卡片與來源表在下一個任務補夾具）。
-  potential: {
-    status: 'ready',
-    sources: [
-      {
-        key: 'closures', status: 'no_data', low: null, mid: null, high: null, reason: '沒有停辦紀錄', assumptions: [],
-        details: { years: [], skipped: { no_capacity: 0, outside_windows: 0 }, price_unknown: 0, events: [] },
-      },
-      { key: 'villages', status: 'no_data', low: null, mid: null, high: null, reason: '沒有在籍清冊', assumptions: [], details: { bands: [], model: null } },
-      { key: 'presale', status: 'no_data', low: null, mid: null, high: null, reason: '沒有在籍清冊', assumptions: [], details: { deliveries: [] } },
-    ],
-    total: null,
-    capacity: null,
-    events: [],
-  },
+  potential: potentialEstimate(),
 })
 /** 每次呼叫都是一份新的；latest、best 預設從 years 帶出（最新一個有市佔率的學年、市佔率最高且同分取較新的學年，同後端）。 */
 export function potentialData(changes: { share?: Partial<Potential['share']> } & Partial<Omit<Potential, 'share'>> = {}): Potential {

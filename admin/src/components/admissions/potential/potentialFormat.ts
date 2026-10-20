@@ -1,4 +1,6 @@
-import type { PotentialElementaryCheck, PotentialShareYear } from '../../../api/types'
+import type {
+  PotentialCapacity, PotentialElementaryCheck, PotentialEvent, PotentialShareYear, PotentialSource, PotentialSourceKey, PotentialTotal,
+} from '../../../api/types'
 import { NO_VALUE } from '../../../admissions/statsFormat'
 import type { CsvCell } from '../../../utils/csv'
 import { formatCount } from '../area/areaFormat'
@@ -65,4 +67,103 @@ export function shareCsv(years: readonly PotentialShareYear[], radiusKm: number)
       year.merged ? '是' : '',
     ]),
   }
+}
+
+// 每年還能多招（2026-10-20 第二、三波）：三個來源各估一個低／中／高，加起來是卡片上的數字。
+// 卡片與來源表的數字一律取整（API 是一位小數）；「怎麼算」裡逐年、逐案的小數另用 detailSeats，不然一案 0.4 位會寫成 0。
+
+export const ESTIMATE_TITLE = '每年還能多招'
+export const NO_ESTIMATE_TEXT = '三個來源都沒有資料，算不出每年還能多招幾位。'
+
+export const SOURCE_NAMES: Record<PotentialSourceKey, string> = {
+  closures: '附近園所停辦釋出',
+  villages: '現有的里還沒招到',
+  presale: '新建案搬進來',
+}
+export const sourceName = (key: PotentialSourceKey): string => SOURCE_NAMES[key]
+
+/** 來源表的整數：四捨五入加千分位；沒有值寫「—」。 */
+export const seats = (value: number | null): string => (value === null ? NO_VALUE : formatCount(Math.round(value)))
+
+/** 「怎麼算」裡逐年、逐案的數字：一位小數；有值卻不到 0.05 寫「不到 0.1」；0 寫 0；沒有值寫「—」。 */
+export function detailSeats(value: number | null): string {
+  if (value === null) return NO_VALUE
+  if (value === 0) return '0'
+  const text = value.toFixed(1)
+  return text === '0.0' ? '不到 0.1' : text
+}
+
+/** 大字：「約 13 位」。 */
+export const estimateHeadline = (total: Pick<PotentialTotal, 'mid'>): string => `約 ${formatCount(Math.round(total.mid))} 位`
+
+/** 區間：低取下限、高取上限，區間不會比實際窄：「5～24 位」。 */
+export const estimateRange = (total: Pick<PotentialTotal, 'low' | 'high'>): string =>
+  `${formatCount(Math.floor(total.low))}～${formatCount(Math.ceil(total.high))} 位`
+
+export const openSeatsText = (capacity: Pick<PotentialCapacity, 'open'>): string => `目前空位 ${formatCount(capacity.open)} 位`
+
+/** 有來源沒算進去（沒有資料）時，說明這個數字只含哪幾個；三個都算了回空字串。 */
+export const includedNote = (total: Pick<PotentialTotal, 'included'>): string =>
+  total.included.length >= 3 ? '' : `只含：${total.included.map(sourceName).join('、')}`
+
+/** 沒有資料的列：直接帶 API 給的原因。 */
+export const noDataText = (reason: string | null): string => (reason ? `沒有資料（${reason}）` : '沒有資料')
+
+/** 區間條的刻度上限：有數字的來源裡最大的 high；沒有任何數字是 0。 */
+export const rangeScale = (sources: readonly Pick<PotentialSource, 'status' | 'high'>[]): number =>
+  Math.max(0, ...sources.map((source) => (source.status === 'ok' && source.high !== null ? source.high : 0)))
+
+const percent = (value: number, scale: number): number => (scale <= 0 ? 0 : Math.min(100, Math.max(0, (value / scale) * 100)))
+
+/** 區間條：low–high 的起點與寬度、mid 的位置，都是占刻度的百分比（0–100）。 */
+export function rangeBar(source: Pick<PotentialSource, 'low' | 'mid' | 'high'>, scale: number): { left: number; width: number; mid: number } {
+  const low = percent(source.low ?? 0, scale)
+  const high = percent(source.high ?? 0, scale)
+  return { left: low, width: high - low, mid: percent(source.mid ?? 0, scale) }
+}
+
+/** 里程：「0.9 km」。先以 100 m 為單位進位再除（850 m 直接 toFixed 會因二進位誤差變 0.8）。 */
+export const distanceKm = (meters: number): string => `${(Math.round(meters / 100) / 10).toFixed(1)} km`
+
+/** 距離帶 "0-1" → 「0–1 km」。 */
+export const bandLabel = (band: string): string => `${band.replace('-', '–')} km`
+
+/** 停辦的統計窗口（學年口徑，10 月到隔年 9 月）：111 → 「2022 年 10 月～2023 年 9 月」。 */
+export const periodText = (schoolYear: number): string => `${schoolYear + 1911} 年 10 月～${schoolYear + 1912} 年 9 月`
+
+/** 預計交屋：「約 2027 下半年」；已過預計時間、還沒登記的另寫。 */
+export function deliveryText(delivery: { expected_year: number; expected_half: number; overdue: boolean }): string {
+  return delivery.overdue ? '已過預計時間（尚未登記）' : `約 ${delivery.expected_year} ${delivery.expected_half === 1 ? '上' : '下'}半年`
+}
+
+/** 走勢圖停辦標記的提示：「2026-09-15 某某幼兒園停辦（核定 30）」。 */
+export const closureEventTitle = (event: Pick<PotentialEvent, 'occurred_on' | 'name' | 'approved_capacity'>): string =>
+  `${event.occurred_on} ${event.name}停辦（${event.approved_capacity === null ? '核定名額未填' : `核定 ${event.approved_capacity}`}）`
+
+export interface ClosureMarker {
+  year: number
+  title: string
+}
+
+/**
+ * 走勢圖的停辦標記。event.school_year 是來源一的統計窗口（10 月到隔年 9 月），停辦影響的是下一個秋季註冊，
+ * 所以標在 school_year + 1（2026-09-15 停辦 → 窗口 114 → 標在 115）。同一學年多所合併成一個標記，提示每所一行（依日期）；
+ * 落在圖上學年範圍（first–last）以外的不畫；結果依學年排序。
+ */
+export function closureMarkers(events: readonly PotentialEvent[], firstYear: number, lastYear: number): ClosureMarker[] {
+  const byYear = new Map<number, PotentialEvent[]>()
+  for (const event of events) {
+    const year = event.school_year + 1
+    if (year < firstYear || year > lastYear) continue
+    byYear.set(year, [...(byYear.get(year) ?? []), event])
+  }
+  return [...byYear.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([year, list]) => ({
+      year,
+      title: list
+        .sort((a, b) => a.occurred_on.localeCompare(b.occurred_on))
+        .map(closureEventTitle)
+        .join('\n'),
+    }))
 }

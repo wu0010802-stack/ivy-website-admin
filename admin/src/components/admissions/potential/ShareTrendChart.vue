@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PotentialShareYear } from '../../../api/types'
+import type { PotentialEvent, PotentialShareYear } from '../../../api/types'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
-import { yearTitle } from './potentialFormat'
+import { closureMarkers, yearTitle } from './potentialFormat'
 
 // 市佔率走勢（2026-10-20）：admin 沒有圖表套件，手寫 SVG。縱軸從 0 起、頂端取 0.5% 的倍數；橫軸依學年排，缺的學年留空；
 // 那一年沒有市佔率（沒有九月底的孩子數）就不畫點，線在那裡斷開。橫軸只標第一、最高、最新三個學年，數字在每個點的提示與
 // 「各學年數字」表裡；兩個標籤貼太近時最高讓位。
 // 幾何分寬窄兩套：窄螢幕（≤720px）的 viewBox 縮成 340 寬，SVG 在 360–390px 的手機上縮放接近 1，軸線文字與圓點才讀得到
 // （寬版 520 擠進 358px 會縮到 0.69，字級剩約 9px）。
-const props = defineProps<{ years: readonly PotentialShareYear[] }>()
+// 停辦標記（2026-10-20 第二、三波）：本校 3 公里內停辦的園所在 x 軸下方畫小三角形，標在停辦影響到的秋季註冊學年
+// （event.school_year 的下一年），同一學年多所合併成一個標記，只畫落在圖上學年範圍內的；提示列出每所的日期、園名與核定。
+const props = withDefaults(defineProps<{ years: readonly PotentialShareYear[]; events?: readonly PotentialEvent[] }>(), { events: () => [] })
 
 const WIDE = { width: 520, height: 160, left: 44, right: 28, top: 14, bottom: 30, radius: 3.5 }
 const NARROW = { width: 340, height: 170, left: 42, right: 22, top: 14, bottom: 30, radius: 5 }
@@ -71,6 +73,16 @@ const labels = computed(() => {
   return kept.sort((a, b) => a.x - b.x)
 })
 
+// 三角形尖端貼著 x 軸、往下張開，在軸線與學年標籤之間（標籤的基線在 height - 8，字高約 10）。
+const markers = computed(() => {
+  const last = props.years.at(-1)?.school_year ?? 0
+  return closureMarkers(props.events, firstYear.value, last).map((marker) => {
+    const x = xOf(marker.year)
+    const y = baseline.value
+    return { ...marker, points: `${x - 4},${y + 10} ${x + 4},${y + 10} ${x},${y + 3}` }
+  })
+})
+
 const ariaLabel = computed(() => {
   const last = props.years.at(-1)?.school_year
   return firstYear.value === last ? `${last} 學年市佔率走勢` : `${firstYear.value} 至 ${last} 學年市佔率走勢`
@@ -87,6 +99,12 @@ const ariaLabel = computed(() => {
     <circle v-for="point in points" :key="point.year" class="share-trend__dot" :cx="point.x" :cy="point.y" :r="geo.radius">
       <title>{{ point.title }}</title>
     </circle>
+    <polygon v-for="marker in markers" :key="marker.year" class="share-trend__closure" :data-year="marker.year" :points="marker.points">
+      <title>{{ marker.title }}</title>
+    </polygon>
+    <text v-if="markers.length" class="share-trend__legend" :x="geo.width - geo.right" :y="geo.top - 4" text-anchor="end">
+      <tspan class="share-trend__legend-mark">▲</tspan> 附近園所停辦
+    </text>
     <text class="share-trend__axis-title" x="2" :y="geo.height - 8">學年</text>
     <text v-for="label in labels" :key="label.year" class="share-trend__x" :x="label.x" :y="geo.height - 8" text-anchor="middle">{{ label.year }}</text>
   </svg>
@@ -128,7 +146,14 @@ const ariaLabel = computed(() => {
 
 .share-trend__y,
 .share-trend__x,
-.share-trend__axis-title {
+.share-trend__axis-title,
+.share-trend__legend {
   fill: var(--ink-3);
+}
+
+/* 停辦標記與圖例的三角形用警示字色（--el-color-warning-dark-2 在白底 5.5:1，style.css 的註解），和主色的折線分得開。 */
+.share-trend__closure,
+.share-trend__legend-mark {
+  fill: var(--el-color-warning-dark-2);
 }
 </style>
