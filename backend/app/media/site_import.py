@@ -109,7 +109,8 @@ def _manifest_video(web_root: Path, manifest: dict, key: str, fallback: str) -> 
     src = manifest.get(key)
     if isinstance(src, str) and src.startswith("/"):
         return web_root / "public" / src.lstrip("/")
-    return web_root / "public" / fallback
+    # 沒有 manifest 時退回母帶；母帶 2026-10-20 起移出 public/，放在 web/media-src/。
+    return web_root / "media-src" / Path(fallback).name
 
 
 def plan_site_assets(web_root: Path = DEFAULT_WEB_ROOT) -> list[ImportEntry]:

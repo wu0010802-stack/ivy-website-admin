@@ -26,11 +26,26 @@ def boundary_etag() -> str:
 
 
 @lru_cache(maxsize=1)
+def _features() -> tuple[dict, ...]:
+    """解析一次、各個對照共用（2026-10-20）：原本里代碼、重心、外框三個快取各自 json.loads 同一份 605 KB 檔。
+    回傳的 dict 不可修改（各快取共用同一份座標串列）。"""
+    return tuple(json.loads(boundary_bytes())["features"])
+
+
+def warm() -> None:
+    """把界圖解析與各對照先算好（API 啟動時在執行緒裡跑，第一個招生請求不必等）。"""
+    _village_codes()
+    village_names()
+    village_centroids()
+    _village_shapes()
+
+
+@lru_cache(maxsize=1)
 def _village_codes() -> dict[tuple[str, str], str]:
     """(區, 里) → 里代碼。里名在不同區可以重複（例：中正里），所以鍵是兩個一起；同一個 (區, 里) 出現
     兩次是界圖檔案有問題，直接報錯，不靜默讓後面的蓋掉前面的。"""
     codes: dict[tuple[str, str], str] = {}
-    for feature in json.loads(boundary_bytes())["features"]:
+    for feature in _features():
         properties = feature["properties"]
         key = (properties["TOWNNAME"], properties["VILLNAME"])
         if key in codes:
@@ -73,7 +88,7 @@ def village_centroids() -> dict[str, tuple[float, float]]:
     """里代碼 → 面積重心 (緯度, 經度)（2026-10-13 招生機會規格 §5.3）：每個多邊形取外環重心，
     MultiPolygon 依各塊面積加權（洞不扣，里界幾乎沒有洞，影響可忽略）。"""
     centroids: dict[str, tuple[float, float]] = {}
-    for feature in json.loads(boundary_bytes())["features"]:
+    for feature in _features():
         geometry = feature["geometry"]
         polygons = [geometry["coordinates"]] if geometry["type"] == "Polygon" else geometry["coordinates"]
         total = lng = lat = 0.0
@@ -92,7 +107,7 @@ def village_centroids() -> dict[str, tuple[float, float]]:
 def _village_shapes() -> tuple[tuple[str, tuple[float, float, float, float], tuple], ...]:
     """每個里 (代碼, 外框 (最小經, 最小緯, 最大經, 最大緯), 多邊形們)；多邊形是 [外環, 洞, …]。"""
     shapes = []
-    for feature in json.loads(boundary_bytes())["features"]:
+    for feature in _features():
         geometry = feature["geometry"]
         polygons = [geometry["coordinates"]] if geometry["type"] == "Polygon" else geometry["coordinates"]
         points = [point for polygon in polygons for ring in polygon for point in ring]

@@ -34,7 +34,7 @@ from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
 from app.operations import audit_service, retention_service
 from app.operations.models import RetentionRunTrigger
-from app.workers.runner import process_outbox_batch
+from app.workers.runner import process_outbox_until_drained
 
 logger = logging.getLogger("app.maintenance")
 
@@ -160,16 +160,20 @@ async def _run_steps(
     # 到點的提醒寫進 outbox，這一輪就會一起送出。以 dedupe_key 去重，重跑不會重複寫。
     # 員工的即將參觀先排、先 commit；家長的參觀提醒另開 session，失敗只把「提醒」記成失敗步驟，
     # 不回滾已經寫好的員工提醒（員工計數照實）。
+    # 兩種提醒是同一個到點判斷（同一組條件、同一個時間點），一輪只查一次、結果共用（2026-10-20）；
+    # 查詢本身失敗時 due 留 None，家長提醒照舊自己再查一次。
+    due = None
     try:
         async with session_factory() as db:
-            result.reminders_enqueued = await reminders.enqueue_due_reminders(db)
+            due = await reminders.due_upcoming(db)
+            result.reminders_enqueued = await reminders.enqueue_due_reminders(db, due=due)
             await db.commit()
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：產生提醒失敗")
         result.failed_steps.append("reminders")
     try:
         async with session_factory() as db:
-            result.parent_reminders_enqueued = await reminders.enqueue_due_parent_reminders(db)
+            result.parent_reminders_enqueued = await reminders.enqueue_due_parent_reminders(db, due=due)
             await db.commit()
     except Exception:  # noqa: BLE001
         logger.exception("定期工作：產生家長參觀提醒失敗")
@@ -188,7 +192,7 @@ async def _run_steps(
         result.line_configured = True
     try:
         async with session_factory() as db:
-            outbox = await process_outbox_batch(
+            outbox = await process_outbox_until_drained(
                 db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin,
                 access_secret=settings.session_secret,
             )
