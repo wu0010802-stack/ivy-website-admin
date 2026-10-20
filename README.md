@@ -9,6 +9,15 @@
 - **驗證**（Node 22，分支從 main `252585e2`）：後端全套 4062 passed／1 skipped；admin 全套 181 檔 3002 passed、`typecheck` 通過、build 通過；web 全套 108 檔 1321 passed、`typecheck` 與 build 通過；契約重產後一致；`deploy/check_schema.py` 通過、`deploy/tests` 22 項 OK；stack e2e 155 passed。
 - **待決定**：既有衍生檔 `size_bytes` 要不要回填（目前已上線影片的衍生檔仍不計入配額）；背景轉檔超配額時上傳要不要直接回 409；招生聯絡紀錄 `POST /contact-notes` 也沒有 idempotency；清理只綁版本、沒綁筆數；合併組列的 2–5 歲含半徑外組員、參觀率分母只算半徑內；舊瀏覽器（iOS 15.0–15.3）整站支援要另訂 browserslist。**尚未 commit、尚未 push、尚未部署。**
 
+## 2026-10-20 招生統計新增「招生潛力與市佔率」第一波：歷年註冊與 3 公里市佔率（`feature/admissions-potential-20261020`）
+
+使用者看完整合判讀報告後，要後台自己算出「3 公里內的 2–5 歲孩子有幾成在義華」並看逐年走勢，不必每次重寫報告。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 是第一波實作紀錄），計畫 `docs/superpowers/plans/2026-10-20-admissions-potential-share-wave1.md`；分三波，這是第一波，**只有市佔率、沒有任何推估**。設計規則（口徑、只給總部、這次對「不做預測」的放寬只限本分頁）記在 DESIGN.md「招生統計：招生潛力與市佔率」。
+
+- 後端：新表 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1`（migration `76c4bf84b907`，接 `b8e2d6a4f931`，只新增表與放寬約束）；新 CLI `enrollment-history-extract`（本機用 xlrd 讀園方目標執行統計表 xls，只讀年級列，備註列不讀不存不印，輸出只有數字的 JSON）與 `enrollment-history-import`（正式站整批取代，多一個欄位整份拒絕）；`geo-sync` 多 `--september-file`（每年九月底各里人口，107 年起，舊三民／鳳山里代碼寫入時換成現行代碼）與 `--elementary-file`（教育部國小一年級人數，107 學年起，檔名 `NNN_basec.csv`），打包（種類 `september`、`elementary`）與自動同步都接上；`GET /admin/admissions/potential`（`admissions.stats`，只有總管理者）回傳歷年市佔率與國小對帳（`app/admissions/share.py`）。
+- 後台：招生統計新子分頁「招生潛力與市佔率」（`sub=potential`）：大數字卡、手寫 SVG 走勢折線、可收合的各學年數字（可匯出 CSV）、國小對帳一行；手機（≤720px）卡片滿版、表改 2×2 小卡。
+- **驗證**（Node 22）：真檔（本機，原始 xls 只由主 session 讀，不進 repo、不交給 subagent）33 張表表頭全部認得、132 列，104～115 學年秋季註冊和報告 I-9 §7 完全一致，3 條總人數警告；匯入 107～115 九月底人口後，115 學年分母 9,788（3 公里內 98 里，與報告一致），107～114 學年和報告分母差 −0.05%～−0.11%，市佔率到小數第二位與報告一致（只有 110 學年 1.32% 對 1.31%）；國小對帳 29 所、各學年比值 0.921～0.982、最新 0.937，未超過 0.05 不提醒。各任務的單項測試與逐任務審查都通過。（全套 pytest、admin 單元與 `typecheck`、`contract:check`、桌機 1440×900 與手機 390×844 截圖：待 Task 9 Step 4 補數字。）
+- **未驗證**：正式站、Railway 連不連得到 `stats.moe.gov.tw`（第一次匯入建議走打包）、真實後台登入畫面。**尚未部署、尚未 push。** 部署後的人工步驟（歷年註冊 extract／import、九月底人口與國小的打包匯入）在 `deploy/README.md`。
+
 ## 2026-10-20 附近幼兒園加近 3 年裁罰與最近一次評鑑（`feature/admissions-data-20261020`）
 
 使用者要把「附近同業比較」留下的 C 案做出來：附近幼兒園清單不只有「有裁罰紀錄」旗標，要看得到近 3 年裁罰件數、處分與違規內容、最近一次評鑑結果。規格 `docs/specs/2026-10-20-peer-penalties-evaluations-design.md`（§8 實作紀錄），部署與手動退路在 `deploy/README.md`「公開地理資料同步 → 幼兒園裁罰與評鑑」。

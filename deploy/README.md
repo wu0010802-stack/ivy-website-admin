@@ -1059,6 +1059,16 @@ Railway 上在 api 容器內跑（auto 模式會擋 `railway ssh`，自己在終
 - 人工放行殘缺門檻（`--force` 不會略過）：裁罰在資料庫 `delete from geo_kindergarten_penalties; delete from geo_dataset_status where dataset = 'kindergarten_penalties';` 下一輪當作從沒匯入、整批重抓；評鑑同理（表與 `kindergarten_evaluations`）。
 - 注意：表裡的同一件（同園所、裁處日、文號）在畫面算一件，件數是「近 3 年」（含三年前的同月同日）；3 年前的另外標「3 年前有裁罰」。裁罰對象為教保人員個人（行為人）時畫面寫「教保人員個人受罰」，不代表園方受罰。
 
+**每年九月底人口與國小一年級人數（2026-10-20，`feature/admissions-potential-20261020`，尚未部署）**：同一套同步再多兩種資料，給招生統計新分頁「招生潛力與市佔率」算市佔率的分母與國小對帳。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 是第一波實作紀錄），來源與檔案細節在 `backend/app/admissions/geo_data/README.md` 最後一節。
+
+- migration `76c4bf84b907`（接 `b8e2d6a4f931`）：新增 `campus_term_enrollment`（歷年註冊，見下方「歷年註冊匯入」）、`geo_village_ages_september`、`geo_elementary_grade1` 三張表，放寬 `ck_geo_dataset_status_dataset`（多收 `elementary`）。只新增表與放寬約束，不動既有資料，**不需要先備份**；上一版程式不讀新表也不寫 `elementary` 狀態列，先跑 migration 再換程式也相容。回退：先用新映像跑 `alembic downgrade b8e2d6a4f931`（先刪 `elementary` 狀態列、再還原約束、刪三張表；已匯入的歷年註冊與這兩種公開資料一併消失），再切舊映像。
+- 來源：九月底人口是內政部戶政司 ODRP014（和各里人口同一支 API，**107 年起**每年九月底一批，不刪舊年）；國小一年級人數是教育部統計處「國民小學校別學生數」`https://stats.moe.gov.tw/files/detail/<學年>/<學年>_basec.csv`（一學年一檔，107～114 學年；115 學年 2026-10-20 實測還沒公布）。唯一的新環境變數是選填的 `WEBSITE_GEO_ELEMENTARY_URL_TEMPLATE`（預設就是上面的網址，必須是含 `{year}` 的 `https://`）。
+- 自動（`WEBSITE_GEO_AUTO_SYNC` 開著）：人口同步寫到九月時直接寫進九月表，另外每次寫完年齡歷史會把年齡歷史裡有、九月表沒有的九月補進去（九月表的寫入用 SAVEPOINT 包住，失敗只記 WARNING「九月底人口 … 寫入失敗，不影響人口與年齡歷史」「九月底人口從年齡歷史補漏失敗，下一輪再補」，不會拖累人口更新）；國小每 30 天看一次，從表內最新學年＋1 抓到「目前學年 − 1」（空表從 107 抓起），404 視為還沒公布。**Railway 連不連得到 `stats.moe.gov.tw` 沒實測過**，而且九月底人口要一次補 107～115 共九個月，所以第一次匯入建議走下面的打包。
+- **第一次匯入（打包，建議）**：在台灣的電腦 `cd backend && uv run python scripts/fetch_geo_bundle.py --out geo-bundle-11510.zip`（不需要資料庫與環境變數；會連同其他資料一起抓。九月底人口抓 107 年起到人口最新月份以前最後一個九月，已抓過的月份不重抓，檔名 `september-<民國年月>-<頁>.json`、種類 `september`；國小抓 107 學年起到前一學年共 8 個檔，404 跳過、先驗證再打包，檔名 `<學年>_basec.csv`、種類 `elementary`）→ 上傳與匯入同上面「一次打包」：`! railway volume -p <project> -e <env> files -v api-volume upload geo-bundle-11510.zip /geo-bundle-11510.zip` → `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli geo-sync --bundle /data/geo-bundle-11510.zip` → 在自己的終端機刪掉 volume 上的 zip。輸出會多「九月底人口：updated（這次寫入 N 年）；國小一年級人數：…（最新 114 學年，這次寫入 N 學年）」，預期 N 分別是 9（107～115）與 8（107～114）。
+- **單檔手動**：`--september-file <JSON>`（可重複，一頁一檔；**只收統計月份是九月的檔**，收到其他月份整批不匯入、印原因、exit 1；只寫九月底人口表，不動使用中的人口月份與年齡歷史）、`--elementary-file <NNN_basec.csv>`（可重複，學年取檔名，檔名不是 `<三位數學年>_basec.csv` 整批不匯入；每學年整批取代）。指定任一個檔就完全不連外。下載：`curl -sSG "https://www.ris.gov.tw/rs-opendata/api/v1/datastore/ODRP014/10709" --data-urlencode "COUNTY=高雄市" --data-urlencode "page=1" -o september-10709-1.json`（`totalPage` 不是 1 時其餘頁各存一檔；10709、10809、10901 這幾個月的回應每列第一個鍵帶 BOM，程式會剝掉）、`curl -sSLo 114_basec.csv https://stats.moe.gov.tw/files/detail/114/114_basec.csv`。上傳到 api volume、`geo-sync` 帶檔案路徑（`/data/…`）、刪檔的做法同上面「手動退路」。
+- 看狀態：`select year, count(*), sum(age_2 + age_3 + age_4 + age_5) from geo_village_ages_september group by 1 order by 1;`（預期 107～115 九年；本機實測 107、108 年各 891 列、115 年 893 列，107、108 年的舊里代碼寫入時已換成現行代碼）、`select dataset, label, synced_at, checked_at, last_error from geo_dataset_status where dataset = 'elementary';`、`select school_year, count(*), sum(grade1) from geo_elementary_grade1 group by 1 order by 1;`（預期 107～114 學年，每學年高雄市約 246～249 所）。後台「系統狀態」頁的資料集清單多「國小一年級人數」，過期門檻是 400 天（一學年才更新一次），不是其他資料的 30 天。
+- 匯入後打開後台「招生統計 → 招生潛力與市佔率」：還沒匯入歷年註冊的校區只寫一句「尚未匯入歷年註冊。」，匯入後義華最新學年（115）應是 189 ÷ 9,788 位、1.93%。
+
 **國小學區（里的變化 D 段，2026-10-14）**：對照檔隨程式提交（`backend/app/admissions/geo_data/school-districts-115.csv` 等），沒有同步、沒有 migration、不需要環境變數；部署就生效。每學年（約 1 月）教育局公告新一覽表後要改程式重新部署，步驟在 `backend/app/admissions/geo_data/README.md`「換學年」。**尚未部署**（要在 A、C 段之後）。
 
 **托嬰名單與園所異動（2026-10-14）**：同一套同步再多一種資料，給「區域分析」的托嬰清單與「附近園所的變化」用。規格 `docs/specs/2026-10-14-provider-changes-design.md` §4。
@@ -1136,6 +1146,19 @@ update recruitment_visit_geo g
 4. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了；檔內有取整座標）。
 
 刪除整校（正式站）：`! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrolled-import --clear --campus <key>`。在本機跑只會清本機庫。migration `f2a7c1e9d4b3` 只新增兩張表，不需要備份。
+
+### 歷年註冊匯入（2026-10-20，尚未部署）
+
+園方「目標執行統計表」xls 只在本機讀，正式站只收只有數字的 JSON（格式名 `ivy-enrollment-history/1`；規格 `docs/specs/2026-10-20-admissions-potential-share-design.md` §3.1）。**原始 xls 的第 9 列以後是寫著幼生姓名的備註：不進 repo、不上傳、不交給 subagent。** extract 只讀第 0 欄是「大班／中班／小班／幼幼班／總人數」的年級列，備註列不讀、不存、不印。migration 見上面「每年九月底人口與國小一年級人數」（`76c4bf84b907`，要先跑）。
+
+1. 本機（一次）：`cd backend && uv sync --group extract`（xlrd 只在 `extract` 依賴群組，正式站映像不裝）。以下三條都在 `backend` 跑，是一般 shell 指令、不加 `!`、**不需要資料庫與環境變數**。
+2. 先確認表頭都認得：`uv run python -m app.cli enrollment-history-extract --headers-only --file <xls>`（每張工作表印第 2、3 列的表頭文字與第 0 欄，非年級列的文字一律遮成「…」；義華真檔預期 33 張表 `99上`～`115上` 全部列出）。
+3. 抽數字：`uv run python -m app.cli enrollment-history-extract --file <xls> --campus yihua --out <JSON>`（印「已寫出 <JSON>：132 列（99上～115上）」與每條「注意：…」警告。警告是表名加數字、照樣輸出，義華真檔有 3 條：`104下`、`105上`、`114下` 的「總人數」列既不等於年級加總、也不等於加上重讀保留生，不影響市佔率。輸出前先用匯入的驗證器驗過，所以寫得出來的檔一定收得下；`cat` 看一眼只有年級、數字與警告字串）。
+4. `! railway volume -p <project> -e <env> files -v api-volume upload <JSON> /enrollment-history-<key>-<日期>.json`
+5. `! railway ssh --project <project> --environment <env> --service api -- python -m app.cli enrollment-history-import --file /data/enrollment-history-<key>-<日期>.json`（輸出「匯入 yihua：132 列（99上～115上）」再逐條「注意：…」；同一校整批取代、別校不動；多一個欄位或任何值不合就整份拒絕、舊資料不動，印「檔案格式不對，沒有匯入：…」並 exit 1）。
+6. 在自己的終端機或 Railway 網頁刪掉 volume 上的 JSON（agent 刪不了）。
+
+每學期園方更新表（9/15、3/15 之後）重跑 2–6 即可整批取代。其他校區有同格式的表時改 `--campus`。公開資料（九月底人口、國小）要先匯入，後台才算得出市佔率；歷年註冊先匯入而人口還沒有時，各學年的市佔率寫「—」。
 
 ## 素材背景轉檔上線步驟（2026-10-04，10-05 已部署 main `11ccc8e`，`feature/media-jobs-20261003`）
 

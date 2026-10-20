@@ -1,8 +1,8 @@
 # 招生統計：招生潛力與市佔率（2026-10-20）設計
 
 日期：2026-10-20
-狀態：設計待使用者核可（已經過一輪審稿）。逐段與使用者確認過的標 ✔，其餘是我的預設值，標「預設」或「我的決定」，業主可改。
-基準：`origin/main` `817d516d`
+狀態：**第一波已實作**（分支 `feature/admissions-potential-20261020`，rebase 到 main `ba1030b5` 之上；commits `f523712e`（本規格與計畫）到 `1110c6bb`（最後一個程式 commit），其後只有文件紀錄 commit），**未部署、未 push**；波 2、3 設計待使用者核可。第一波的實作紀錄見 §10。逐段與使用者確認過的標 ✔，其餘是我的預設值，標「預設」或「我的決定」，業主可改。
+基準：`origin/main` `817d516d`（實作時為了接上另一案的 migration，rebase 到 `ba1030b5`）
 分支：`feature/admissions-potential-20261020`（worktree `~/Repositories/ivy-website-wt/admissions-potential-20261020`）
 上游：
 - 報告 `~/Downloads/義華校招生與經營整合判讀_v18.html`：整合 I-9 §7 歷年市佔、I-4／A-07 退場與承接、B-03／B-11 距離模型與各里可爭取、B-06 建案。
@@ -63,7 +63,7 @@ DESIGN.md 招生統計多處「不做：預測」、`docs/analysis/2026-09-30-en
 | 2 | 幼兒園名單歷史版回補到 2022-08、走勢標停辦事件、潛力來源「停辦釋出」與「現有的里」、潛力卡 | 波 1 |
 | 3 | 潛力來源「新建案」 | 波 2，以及另一案的預售建案已進 main |
 
-依 repo 規則，一次 session 只做一波，波與波之間由使用者確認。migration 要接在另一案「裁罰評鑑」那支之後（`ivy-website-admin-30` 10-20 回覆）。如果本案先上線，就接 main 當時的 head，並通知那一案。
+依 repo 規則，一次 session 只做一波，波與波之間由使用者確認。migration 原本要接在另一案「裁罰評鑑」那支之後（`ivy-website-admin-30` 10-20 回覆）。**已完成**：另一案 10-20 併入 main `a5ac4998`，第一波的 migration `76c4bf84b907` 已重接在它最後一支 `b8e2d6a4f931` 之後（rebase 到 `ba1030b5`，alembic 單一 head 已驗證）；波 2、3 的 migration 接 main 當時的 head。
 
 ## 3. 資料
 
@@ -169,7 +169,7 @@ DESIGN.md 招生統計多處「不做：預測」、`docs/analysis/2026-09-30-en
 ### 3.5 預售建案（另一案，波 3）
 
 - 讀 `geo_presale_buildcases`。「在建」與「預計交屋」**呼叫那一案提供的共用函式**，不另外抄一份規則。
-- 那一案 10-20 通知已定案（分支 `feature/admissions-data-20261020` head `915c863b`，**還沒進 main**；migration `a3d7f1c9b5e2`，下一支裁罰評鑑接在它後面，本案再接裁罰評鑑那支，ID 待通知）：
+- 那一案 10-20 通知已定案（分支 `feature/admissions-data-20261020` head `915c863b`；**10-20 已併入 main `a5ac4998`**，部署紀錄 `252585e2`；migration `a3d7f1c9b5e2`（預售建案）、`b8e2d6a4f931`（裁罰評鑑，目前的 head，第一波的 `76c4bf84b907` 接在它後面））：
   - 表 `geo_presale_buildcases`，主鍵 (district, name)；欄位以該分支 `backend/app/admissions/geo/models.py` 約 :382 為準（households、residential、permit_on、first_registered_on、village_code、match_level、lon、lat 等）。
   - 直接 import：`backend/app/admissions/geo/presale.py` 的 `status_of()`、`expected_delivery(permit_on, households)`、`delivery_months()`、`BUILDING_YEARS`；`backend/app/admissions/trends.py` 的 `building_cases(db, districts, today)`。不另寫一套規則。
   - 波 3 開工前，以 main 上的實際程式重新核對這些名稱。
@@ -264,3 +264,56 @@ DESIGN.md 招生統計多處「不做：預測」、`docs/analysis/2026-09-30-en
 - §5.3 統計套件的選擇，前提是不新增重型依賴；要新增就先問。backend 目前沒有 numpy、scipy、statsmodels，兩個參數的 Poisson 或負二項估計可以自己寫（牛頓法），百分位用自助抽樣。
 - 走勢圖：admin 沒有圖表套件，用手寫 SVG，比照區域分析既有的長條寫法。
 - 手機版排法：兩張卡上下排，表改卡片列表，比照 `NearbyKindergartens` 的寬窄切換。
+
+## 10. 第一波實作紀錄（2026-10-20）
+
+範圍：§3.1 歷年註冊、§3.2 每年九月底人口、§3.3 國小對帳、§4 市佔率畫面、§6 的 `share` 部分，加新分頁骨架。**沒有任何推估**；潛力三個來源與 §3.4、§5 在波 2、3。計畫 `docs/superpowers/plans/2026-10-20-admissions-potential-share-wave1.md`。
+
+### 10.1 做了什麼
+
+- **migration `76c4bf84b907`**（接 `b8e2d6a4f931`）：新增 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1` 三張表，放寬 `ck_geo_dataset_status_dataset` 多收 `elementary`。只新增表與放寬約束，不改既有資料，不需要先備份正式庫。降級先刪 `elementary` 狀態列再還原約束、刪三張表。
+- **歷年註冊**：`backend/app/admissions/history/`（`workbook.py` 用 xlrd 依表頭文字對欄、`payload.py` 輸出格式 `ivy-enrollment-history/1` 與驗證、`importer.py` 同校整批取代）；CLI `enrollment-history-extract`（本機）、`enrollment-history-import`（正式站）；xlrd 只在 `extract` 依賴群組，正式站映像不裝，`app.cli` 載入時不 import workbook（測試用子程序釘住）。
+- **九月底人口**：`geo/september.py`；`geo-sync --september-file`（可重複，只收統計月份是九月的檔，其他月份整批不匯入、exit 1）；打包 kind `september`、檔名 `september-<民國年月>-<頁>.json`，`fetch_geo_bundle.py` 抓 107 年起到人口最新月份以前最後一個九月；ODRP014 部分月份（10709、10809、10901）每列第一個鍵帶 BOM，人口、年齡歷史、九月三條路徑都先剝掉。
+- **國小一年級人數**：`geo/elementary.py`；`geo-sync --elementary-file`（可重複，檔名 `NNN_basec.csv`，學年取檔名）；打包 kind `elementary`；自動同步 30 天看一次，從表內最新學年＋1 抓到「目前學年 − 1」（空表從 107），404 視為還沒公布；系統狀態過期門檻 400 天。
+- **市佔率服務**：`backend/app/admissions/share.py` 的 `query_share`；端點 `GET /admin/admissions/potential?campus_key=`（`admissions.stats`）；OpenAPI 與 `contracts/generated/website-api.d.ts` 已重產。
+- **後台**：招生統計新子分頁 `sub=potential`，`admin/src/components/admissions/potential/`（`PotentialTab.vue`、`ShareTrendChart.vue`、`potentialFormat.ts`）。
+
+### 10.2 真資料驗證（本機；原始 xls 只由主 session 讀，沒交給 subagent、沒進 repo）
+
+1. **歷年註冊 extract**：33 張表（`99上`～`115上`）表頭全部認得，輸出 132 列（33 張 × 四個年級）；秋季（上學期）四個年級日期欄註冊人數加總，104～115 學年＝188、215、220、245、279、210、173、108、131、118、121、189，和報告 I-9 §7 **完全一致**。輸出 JSON 裡的中文字只有年級名稱與警告用字，沒有備註列內容。
+   - 警告 3 條，都是「總人數」列既不等於年級加總、也不等於加上重讀保留生（`104下`、`105上`、`114下`），照樣輸出、不影響市佔率（總人數列不存）。
+   - 第一次跑真檔被兩件事擋下，都已修（見 §10.3）：4 列新生目標是負數；22 條總人數警告，其實是兩種口徑並存。
+2. **分母**：本機驗證庫匯入 107～115 年九月檔後呼叫 `query_share`。3 公里內 98 里；**115 學年 9,788，和報告剛好一致**；107～114 學年和報告分母的差距在 −0.05%～−0.11%（遠低於 2% 門檻，原因未逐里追查）。
+3. **市佔率**：和報告到小數第二位一致，只有 110 學年不同（1.32%，報告 1.31%，分母少 8）。最新學年（115）1.93%，歷年最高 108 學年 1.94%。歷年都沒有用到里代碼合併組（`merged` 皆為 false、`notes` 為空）。
+4. **國小對帳**：3 公里內 98 里共對到 **29 所國小**（報告 I-8 寫約 12 所；學區對照下含自由學區與分校），各學年比值 0.921～0.982，最新 114 學年 0.937，之前各年平均 0.955，差 0.018，未超過 0.05，不提醒。報告的 0.80～0.85 是三校的比值，學校集合不同，不能直接比；本案分子分母用同一組學校，比值自洽，且歷年穩定。
+5. **107、108 年里代碼**：ODRP014 的 891 列裡只有 718 列對得到現行里界檔（三民、鳳山分成「三民一／三民二／鳳山一／鳳山二」，161 個里的代碼不同）；寫入時換碼，三民、鳳山的 161 個里接上現行代碼，三民區（義華所在）的分母才完整；115-07 廢止的 12 個里沒有現行代碼，照原代碼存（鼓山區龍水里等，離義華很遠）。
+6. 沒做：正式站（沒有匯入，本機庫只是驗證用）、Railway 連不連得到 `stats.moe.gov.tw`、真實後台登入畫面。
+
+### 10.3 裁定清單
+
+| 裁定 | 理由 | 代價 |
+|---|---|---|
+| 新生目標 `new_target` 允許 −999～999，其他欄位維持非負 | 園方表的新生目標＝目標−舊生在籍，真檔有負數；只是顯示用資料 | 無 |
+| 「總人數」列核對：既不等於年級加總、也不等於加上重讀保留生才警告 | 真檔兩種口徑並存（104 上含重讀、108 上不含） | 剛好符合其中一種口徑的真筆誤不會被標出；總人數列不進市佔率，影響低 |
+| `--headers-only` 另印第 0 欄前 10 列文字，非年級文字遮成「…」 | 規格 §3.1 要印第 0 欄；備註（有幼生姓名）不可印 | 無 |
+| 酬載 `school_year` 下限 99 | 園方表從 99 上開始；`constants.SCHOOL_YEAR_MIN`＝100 會擋掉 99 上、99 下 | 無 |
+| 九月表寫入前，107、108 年舊里代碼用「代碼前 7 碼＋里名」換成現行代碼（撞到同一代碼的加總，換不到的照原代碼存） | 三民是義華所在，不換就少算一大塊；寫入時換碼讓 `query_share` 保持簡單 | 對錯一個里會讓那一年分母偏移（已用 2% 檢查驗證）；115-07 廢止的 12 個里沒換，離義華很遠 |
+| 每次寫完年齡歷史，把年齡歷史裡有、九月表沒有的九月補進去 | 同步 30 天一輪，可能跳過九月；九月已是使用中月份時也不會再寫 | 無 |
+| 九月表的寫入與補漏各用 SAVEPOINT 包住，失敗只記 warning | 計畫寫「同一個交易」；SAVEPOINT 仍在同一交易內，又不會拖累五校人口與年齡歷史 | 失敗時九月表那一年空著，下一輪自動補 |
+| 國小對帳取半徑內各里的**所有**國小（29 所），回傳 `schools` 讓畫面寫「N 所國小」 | 分子分母同一組學校，比值才有意義 | 比值範圍和報告不同（已說明） |
+| 國小對帳不寫「分母可信」，只陳述比值與歷年範圍，偏離才接提醒句 | 避免畫面替資料背書 | 無 |
+| 「目前學年」沿用 `academic.current_term`（8 月起西元年−1911，否則−1912） | 專案已有學年判斷 | 差一年只會多試一次 404，無害 |
+| 國小檔案匯入只擋零筆，不套自動同步的 200 所下限 | 沿用 sync 模組「指定檔案不檢查筆數下限」 | 人工給壞檔不會被擋，由人負責 |
+| 潛力子分頁沿用 `StatsTab.load()`（仍讀 `/stats`，只是不等它） | 改 `load()` 會動到預約統計、預約全程兩個已上線的分頁 | 打開分頁多一個請求 |
+| 後台強調色用既有主色 token（藍），不是品牌綠 | admin 主題全由 token 驅動，沒有綠色 token | 無 |
+| 手機斷點 720px，不是 760 | 對齊 `useNarrowScreen` 與 `style.css` | 無 |
+| 子分頁列所有學年，頁首入學學年／學期下拉停用；搜尋關鍵字加「招生潛力」「市佔率」；所有學年都沒有孩子數時寫一句說明 | 市佔率本來就是逐年走勢；規格沒寫的邊界狀況 | 無 |
+
+### 10.4 已知限制與留給後續
+
+- 國小資料只有 107～114 學年，115 學年教育部尚未公布（2026-10-20 實測 404）。
+- 正式站是否連得到 `stats.moe.gov.tw` 沒驗證；沒連上時第一次匯入走打包（`fetch_geo_bundle.py`），步驟在 `deploy/README.md`「公開地理資料同步」。
+- 國小對帳沒有套用里代碼合併：義華 3 公里內不會觸發（廢止的 12 個里離得遠），其他校啟用時要再看。里代碼合併規則（計畫指定）只比區名字串、沒有地理範圍上限，其他校啟用前也要再看。
+- 國小自動同步：中間某學年當時 404、之後的學年都進來了，那一年不會再被補（`new_homes` 式的補洞較穩）；目前義華用不到。
+- 走勢圖在 480～720px 之間因窄版 viewBox 放大約 1.65 倍；換校區時前一個校區的請求還在飛，回到分頁時可能短暫閃過上一校資料（`JourneyTab` 有同樣寫法）；SVG `role="img"` 讀不到各點提示；手機版表格改 `display: block` 後在 Safari／VoiceOver 失去表格語意。
+- 部署後要做的人工步驟（歷年註冊 extract／import、九月底人口回補、國小）見 `deploy/README.md`。推 main＝部署，要使用者同意。
