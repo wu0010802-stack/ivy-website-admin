@@ -1275,6 +1275,15 @@ class AreaTrendsNewHomesSourceOut(BaseModel):
     note: str
 
 
+class AreaTrendsPresaleSourceOut(BaseModel):
+    """在建預售（2026-10-20 預售建案規格 P10）：使用中的版本（「115-10」，還沒匯入是 null）、本校半徑內有里的區裡在建案
+    沒對到里的案數（只到區、待比對；不進里表）；note 是畫面照引的來源（沒匯入是空字串）。"""
+
+    version: str | None
+    unplaced: int
+    note: str
+
+
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
@@ -1283,6 +1292,7 @@ class AreaTrendsSourcesOut(BaseModel):
     note: str
     income: AreaTrendsIncomeSourceOut
     new_homes: AreaTrendsNewHomesSourceOut
+    presale: AreaTrendsPresaleSourceOut
     school_districts: AreaTrendsSchoolDistrictSourceOut
 
 
@@ -1320,6 +1330,9 @@ class AreaTrendsBaselineOut(BaseModel):
     new_homes: int | None
     new_homes_latest: int | None
     new_homes_seasons: int
+    # 在建預售（P10）：半徑內各里（合併組整組）在建住宅建案的戶數與案數；沒匯入預售建案是 null。
+    presale_households: int | None
+    presale_cases: int | None
 
 
 class AreaTrendsVillageSchoolOut(BaseModel):
@@ -1361,6 +1374,10 @@ class AreaTrendsVillageOut(BaseModel):
     new_homes_latest: int | None
     # 各代碼自己的近 4 季筆數（只列有交屋的里；沒匯入是空的）。合併組的 new_homes 是整組的，地圖用這個替組內各里上色。
     new_homes_by_code: dict[str, int]
+    # 在建預售（P10）：該里在建住宅建案的戶數合計（不等於已售出或已入住）。匯入了預售建案，沒有的里是 0；還沒匯入是 null。
+    # 合併組整組相加；presale_by_code 是各代碼自己的戶數（只列有的），地圖用它替組內各里上色。
+    presale_households: int | None
+    presale_by_code: dict[str, int]
     # 國小學區（D 段）：整里在前、部分在後。
     schools: list[AreaTrendsVillageSchoolOut]
 
@@ -1399,6 +1416,54 @@ class AreaTrendsOut(BaseModel):
     villages: list[AreaTrendsVillageOut]
     # 依參觀人數由大到小；同值依 2–5 歲孩子、學校所在區、校名。本校沒座標時是空的。
     schools: list[AreaTrendsSchoolOut]
+
+
+# ---- 附近預售建案（2026-10-20 預售建案規格 P11、P12）----
+
+
+class AreaPresaleSourceOut(BaseModel):
+    """使用中的版本（「115-10」，還沒匯入是 null）、本校半徑內有里的區裡在建案沒對到里的案數（只到區、待比對；不列在清單）、
+    畫面照引的來源（沒匯入是空字串）。"""
+
+    version: str | None
+    unplaced: int
+    note: str
+
+
+class AreaPresaleSummaryOut(BaseModel):
+    cases: int
+    households: int
+
+
+class AreaPresaleItemOut(BaseModel):
+    """半徑內一個在建預售建案。expected_year／expected_half 是預計交屋（建照日加依戶數的月數，粗估，只到半年：1 上半年、
+    2 下半年）；overdue＝已過預計時間還沒登記。match_level：parcel 依地號座標、exact／nearby／street 依門牌街名；
+    lat／lon 只有 parcel、exact、nearby 才有（街名只到里的沒有座標，距離取里界面積重心）。"""
+
+    name: str
+    district: str
+    village: str
+    village_code: str
+    households: int
+    permit_on: date
+    expected_year: int
+    expected_half: Literal[1, 2]
+    overdue: bool
+    # 本校到建案（有座標）或里界面積重心的直線距離，取整到 100 m。
+    distance_m: int
+    match_level: Literal["parcel", "exact", "nearby", "street"]
+    lat: float | None
+    lon: float | None
+
+
+class AreaPresaleOut(BaseModel):
+    as_of: datetime
+    radius_km: int
+    campus: AreaCampusOut
+    source: AreaPresaleSourceOut
+    summary: AreaPresaleSummaryOut
+    # 依預計交屋由近到遠（已過預計時間的在最前），同值依距離、區、案名。
+    items: list[AreaPresaleItemOut]
 
 
 # ---- 預約全程漏斗（2026-10-15 預約全程規格 §3.2）----

@@ -174,6 +174,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/presale": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Presale
+         * @description 附近預售建案（2026-10-20 預售建案規格 P11、P12）：本校半徑內在建的預售建案，依預計交屋由近到遠。
+         *     公開資料，只讀，不寫稽核；回應沒有起造人。半徑規則同 /area/kindergartens。
+         */
+        get: operations["get_admissions_area_presale_api_website_v1_admin_admissions_area_presale_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/trends": {
         parameters: {
             query?: never;
@@ -4401,6 +4422,84 @@ export interface components {
             /** Version */
             version: string | null;
         };
+        /**
+         * AreaPresaleItemOut
+         * @description 半徑內一個在建預售建案。expected_year／expected_half 是預計交屋（建照日加依戶數的月數，粗估，只到半年：1 上半年、
+         *     2 下半年）；overdue＝已過預計時間還沒登記。match_level：parcel 依地號座標、exact／nearby／street 依門牌街名；
+         *     lat／lon 只有 parcel、exact、nearby 才有（街名只到里的沒有座標，距離取里界面積重心）。
+         */
+        AreaPresaleItemOut: {
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /**
+             * Expected Half
+             * @enum {integer}
+             */
+            expected_half: 1 | 2;
+            /** Expected Year */
+            expected_year: number;
+            /** Households */
+            households: number;
+            /** Lat */
+            lat: number | null;
+            /** Lon */
+            lon: number | null;
+            /**
+             * Match Level
+             * @enum {string}
+             */
+            match_level: "parcel" | "exact" | "nearby" | "street";
+            /** Name */
+            name: string;
+            /** Overdue */
+            overdue: boolean;
+            /**
+             * Permit On
+             * Format: date
+             */
+            permit_on: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+        };
+        /** AreaPresaleOut */
+        AreaPresaleOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            campus: components["schemas"]["AreaCampusOut"];
+            /** Items */
+            items: components["schemas"]["AreaPresaleItemOut"][];
+            /** Radius Km */
+            radius_km: number;
+            source: components["schemas"]["AreaPresaleSourceOut"];
+            summary: components["schemas"]["AreaPresaleSummaryOut"];
+        };
+        /**
+         * AreaPresaleSourceOut
+         * @description 使用中的版本（「115-10」，還沒匯入是 null）、本校半徑內有里的區裡在建案沒對到里的案數（只到區、待比對；不列在清單）、
+         *     畫面照引的來源（沒匯入是空字串）。
+         */
+        AreaPresaleSourceOut: {
+            /** Note */
+            note: string;
+            /** Unplaced */
+            unplaced: number;
+            /** Version */
+            version: string | null;
+        };
+        /** AreaPresaleSummaryOut */
+        AreaPresaleSummaryOut: {
+            /** Cases */
+            cases: number;
+            /** Households */
+            households: number;
+        };
         /** AreaReasonCountOut */
         AreaReasonCountOut: {
             /** Count */
@@ -4484,6 +4583,10 @@ export interface components {
             new_homes_latest: number | null;
             /** New Homes Seasons */
             new_homes_seasons: number;
+            /** Presale Cases */
+            presale_cases: number | null;
+            /** Presale Households */
+            presale_households: number | null;
             /** Villages */
             villages: number;
         };
@@ -4575,6 +4678,19 @@ export interface components {
             year_ago_month: string | null;
         };
         /**
+         * AreaTrendsPresaleSourceOut
+         * @description 在建預售（2026-10-20 預售建案規格 P10）：使用中的版本（「115-10」，還沒匯入是 null）、本校半徑內有里的區裡在建案
+         *     沒對到里的案數（只到區、待比對；不進里表）；note 是畫面照引的來源（沒匯入是空字串）。
+         */
+        AreaTrendsPresaleSourceOut: {
+            /** Note */
+            note: string;
+            /** Unplaced */
+            unplaced: number;
+            /** Version */
+            version: string | null;
+        };
+        /**
          * AreaTrendsSchoolDistrictSourceOut
          * @description 國小學區（D 段）：隨程式提交的對照檔的學年度（民國）與來源說明。
          */
@@ -4627,6 +4743,7 @@ export interface components {
             /** Note */
             note: string;
             population: components["schemas"]["AreaTrendsPopulationSourceOut"];
+            presale: components["schemas"]["AreaTrendsPresaleSourceOut"];
             school_districts: components["schemas"]["AreaTrendsSchoolDistrictSourceOut"];
         };
         /**
@@ -4673,6 +4790,12 @@ export interface components {
             };
             /** New Homes Latest */
             new_homes_latest: number | null;
+            /** Presale By Code */
+            presale_by_code: {
+                [key: string]: number;
+            };
+            /** Presale Households */
+            presale_households: number | null;
             /** Schools */
             schools: components["schemas"]["AreaTrendsVillageSchoolOut"][];
             /** Village */
@@ -8874,6 +8997,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaOpportunityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_presale_api_website_v1_admin_admissions_area_presale_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaPresaleOut"];
                 };
             };
             /** @description Validation Error */

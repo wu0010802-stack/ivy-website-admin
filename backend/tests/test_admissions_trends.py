@@ -16,9 +16,11 @@ from app.admissions import trends
 from app.admissions.geo import boundaries, matcher
 from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
+from app.admissions.geo import presale as presale_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
     GeoNewHomeSale,
+    GeoPresaleBuildcase,
     GeoVillageAges,
     GeoVillageBirths,
     GeoVillageIncome,
@@ -196,6 +198,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert "內政部戶政司" in body["sources"]["note"]
     assert body["sources"]["income"] == {"year": None, "note": ""}
     assert body["sources"]["new_homes"] == {"latest": None, "seasons": [], "unplaced": 0, "note": ""}
+    assert body["sources"]["presale"] == {"version": None, "unplaced": 0, "note": ""}
     rows = _by_key(body)
     assert rows[BENYANG] == {
         "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
@@ -203,6 +206,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
         "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
+        "presale_households": None, "presale_by_code": {},
         "schools": [_school("東光國小")],
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
@@ -213,6 +217,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
         "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
+        "presale_households": None, "presale_by_code": {},
         "schools": [_school("光武國小")],
     }
     # 排序：淨增由大到小，算不出來的在最後。
@@ -230,6 +235,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
         "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
+        "presale_households": None, "presale_by_code": {},
         "schools": [_school("東光國小")],
     }
 
@@ -262,6 +268,7 @@ async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin
         ],
         "migration_net_12m": 84, "migration_months": 12,
         "new_homes": None, "new_homes_latest": None, "new_homes_seasons": 0,
+        "presale_households": None, "presale_cases": None,
     }
 
 
@@ -479,6 +486,88 @@ async def test_new_homes_window_follows_the_latest_season(admin_client, db_sessi
     assert body["sources"]["new_homes"]["seasons"] == ["114S3", "115S1", "115S2"]
     row = _by_key(body)[BENYANG]
     assert (row["new_homes"], row["new_homes_latest"]) == (1 + 1 + 2, 2)
+
+
+TODAY = date(2026, 10, 20)
+
+
+@pytest.fixture
+def october(monkeypatch):
+    monkeypatch.setattr(trends, "today_local", lambda: TODAY)
+
+
+def presale_case(
+    name: str, level: str, village_code: str | None, *, households: int = 100, permit_on: date | None = date(2024, 1, 1),
+    registered: date | None = None, residential: bool = True, district: str = "三民區", lat: float | None = None,
+    lon: float | None = None,
+) -> GeoPresaleBuildcase:
+    village = boundaries.village_names()[village_code][1] if village_code else None
+    return GeoPresaleBuildcase(
+        district=district, name=name, street="義華路", households=households, main_use="住家用", residential=residential,
+        permit_on=permit_on, first_registered_on=registered, village_code=village_code, village=village,
+        match_level=level, lat=lat, lon=lon, source_version="115-10", updated_at=NOW,
+    )
+
+
+async def _seed_presale(db) -> None:
+    """本揚里在建兩案（120 戶 exact、36 戶 street）共 156 戶；本上里（合併組）一案 200 戶（parcel）；不算的：已登記、
+    非住宅、建照超過 6 年（不明）、岡山區（不在半徑內有里的區）；沒對到里的在建案：三民區只到區一案、待比對一案。"""
+    db.add_all(
+        [
+            presale_case("本揚一號", "exact", BENYANG, households=120, lat=YIHUA_LAT, lon=YIHUA_LNG),
+            presale_case("本揚二號", "street", BENYANG, households=36),
+            presale_case("本上一號", "parcel", BENSHANG, households=200),
+            presale_case("已登記", "exact", BENYANG, registered=date(2026, 1, 1)),
+            presale_case("廠房", "exact", BENYANG, residential=False),
+            presale_case("太舊", "exact", BENYANG, permit_on=date(2020, 10, 19)),
+            presale_case("只到區", "district", None),
+            presale_case("待比對", "pending", None),
+            presale_case("岡山案", "district", None, district="岡山區"),
+        ]
+    )
+    db.add(GeoDatasetStatus(dataset="presale_buildcases", active_version="a" * 64, label="115-10", synced_at=NOW))
+    await db.commit()
+
+
+async def test_presale_households_are_summed_per_village_for_building_cases_only(admin_client, db_session, located_campus, october):
+    await _seed(db_session)
+    await _seed_presale(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["presale"] == {"version": "115-10", "unplaced": 2, "note": presale_io.SOURCE_NOTE}
+    rows = _by_key(body)
+    assert rows[BENYANG]["presale_households"] == 120 + 36
+    assert rows[BENYANG]["presale_by_code"] == {BENYANG: 156}
+    # 合併組整組相加；匯入了預售建案，沒有的里是 0 不是 null。
+    group = rows[f"group:三民區:{BENSHANG}"]
+    assert (group["presale_households"], group["presale_by_code"]) == (200, {BENSHANG: 200})
+    assert (rows[BAOYE]["presale_households"], rows[BAOYE]["presale_by_code"]) == (0, {})
+    baseline = body["baseline"]
+    assert (baseline["presale_households"], baseline["presale_cases"]) == (356, 3)
+
+
+async def test_presale_cases_in_other_districts_are_not_unplaced(admin_client, db_session, located_campus, october):
+    await _seed(db_session)
+    await _seed_presale(db_session)
+    await db_session.execute(delete(GeoPresaleBuildcase).where(GeoPresaleBuildcase.district == "三民區", GeoPresaleBuildcase.village_code.is_(None)))
+    await db_session.commit()
+    assert (await _get(admin_client))["sources"]["presale"]["unplaced"] == 0
+
+
+async def test_presale_without_import_is_null_and_baseline_is_null(admin_client, db_session, located_campus, october):
+    await _seed(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["presale"] == {"version": None, "unplaced": 0, "note": ""}
+    assert all(row["presale_households"] is None for row in body["villages"])
+    assert (body["baseline"]["presale_households"], body["baseline"]["presale_cases"]) == (None, None)
+
+
+async def test_building_status_follows_the_six_year_boundary(admin_client, db_session, located_campus, monkeypatch):
+    await _seed(db_session)
+    await _seed_presale(db_session)
+    monkeypatch.setattr(trends, "today_local", lambda: date(2026, 10, 19))  # 太舊那案的建照日 2020-10-19 剛好滿 6 年
+    assert _by_key(await _get(admin_client))[BENYANG]["presale_households"] == 120 + 36 + 100
+    monkeypatch.setattr(trends, "today_local", lambda: date(2026, 10, 20))
+    assert _by_key(await _get(admin_client))[BENYANG]["presale_households"] == 120 + 36
 
 
 async def test_each_row_lists_its_elementary_schools(admin_client, db_session, located_campus):

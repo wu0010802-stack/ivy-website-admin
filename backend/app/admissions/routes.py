@@ -24,6 +24,7 @@ from app.admissions import area as area_service
 from app.admissions import journey as journey_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import peer_fees as peer_fees_service
+from app.admissions import presale_area as presale_area_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
 from app.admissions.enrolled import query as enrolled_query
@@ -41,6 +42,7 @@ from app.admissions.schemas import (
     AreaKindergartensOut,
     AreaOpportunityOut,
     AreaPeerFeesOut,
+    AreaPresaleOut,
     AreaTrendsOut,
     ContactLogCreate,
     ContactLogOut,
@@ -981,6 +983,26 @@ async def get_admissions_area_trends(
         db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
     )
     return AreaTrendsOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/presale",
+    response_model=AreaPresaleOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_presale(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaPresaleOut:
+    """附近預售建案（2026-10-20 預售建案規格 P11、P12）：本校半徑內在建的預售建案，依預計交屋由近到遠。
+    公開資料，只讀，不寫稽核；回應沒有起造人。半徑規則同 /area/kindergartens。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await presale_area_service.query_presale(db, campus_key, radius_km=radius_km)
+    return AreaPresaleOut.model_validate(result)
 
 
 JOURNEY_MAX_DAYS = 400

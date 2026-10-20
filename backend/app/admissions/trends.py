@@ -16,6 +16,9 @@
 - 新屋交屋（V7、V8，B2 段）：最新季往回 4 季、到里（exact、nearby、street）的筆數，另回最近一季。多數里是 0，
   匯入了新成屋 0 就是 0；只到區、待比對、里名對不到里界的不進里表，另回「範圍內的區沒對到里的筆數」。合併組整組相加，
   另回各代碼自己的筆數（新屋交屋是用當前門牌比對的流量，不需要合併就能比；地圖靠它替組內各里上色）。
+- 在建預售（2026-10-20 預售建案規格 P10）：住宅、沒有第 1 次登記日、建照日在往回 6 年內的預售建案，依比到的里加總戶數
+  （parcel、exact、nearby、street 才算到里；只到區、待比對的不進里表，另回半徑內有里的區裡沒對到里的案數）。沒匯入是 null，
+  匯入了沒有是 0；合併組整組相加，另回各代碼自己的戶數（地圖靠它替組內各里上色）。
 - 國小學區（V10、V11，D 段）：每列寫對到的國小（部分鄰、自由學區另標）。「依國小學區」只列學區碰到半徑內任一個里
   的國小，每所合計**整個學區**（含半徑外的里）的孩子、這一年淨增與參觀人數；部分里與自由學區的里同時算進每一所，
   各列不能相加。參觀人數的母體同 /area/opportunity（頁首校區＋入學學年學期，到里且未匿名化）。
@@ -26,7 +29,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
@@ -36,12 +39,15 @@ from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
 from app.admissions.geo import new_homes as new_homes_io
+from app.admissions.geo import presale as presale_io
 from app.admissions.geo import school_districts as sd
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.models import (
+    PRESALE_VILLAGE_LEVELS,
     VILLAGE_LEVELS,
     GeoDatasetStatus,
     GeoNewHomeSale,
+    GeoPresaleBuildcase,
     GeoVillageAges,
     GeoVillageBirths,
     GeoVillageIncome,
@@ -51,6 +57,7 @@ from app.admissions.geo.models import (
 from app.admissions.geo.projection import haversine_m
 from app.admissions.opportunity import visits_by_village
 from app.admissions.stats import pct
+from app.common.timezones import today_local
 
 # 本月 2–5 歲（幼兒園年紀，同招生機會）；一年前的同一批孩子是 1–4 歲。
 KIDS_BAND = (2, 5)
@@ -141,6 +148,37 @@ async def _new_homes(
         total, newest = counts.get(code, (0, 0))
         counts[code] = (total + count, newest + (count if season == latest else 0))
     return latest, seasons, counts, unplaced
+
+
+async def building_cases(db: AsyncSession, districts: set[str], today: date) -> list[GeoPresaleBuildcase]:
+    """在建的預售建案（P3：住宅、沒有第 1 次登記日、建照日在今天往回 6 年內）；只讀 districts 這些區。
+    與 presale.status_of 同一條規則，這裡用 SQL 條件先篩掉不要的列。"""
+    c = GeoPresaleBuildcase
+    rows = await db.execute(
+        select(c).where(
+            c.district.in_(districts), c.residential.is_(True), c.first_registered_on.is_(None),
+            c.permit_on.is_not(None), c.permit_on >= presale_io.years_before(today, presale_io.BUILDING_YEARS),
+        )
+    )
+    return list(rows.scalars())
+
+
+async def _presale(
+    db: AsyncSession, districts: set[str], today: date
+) -> tuple[str | None, dict[str, tuple[int, int]], int]:
+    """(使用中的版本, 里代碼 → (在建戶數, 在建案數), 沒對到里的案數)。沒匯入版本是 None。沒對到里＝只到區或待比對。"""
+    status = await db.get(GeoDatasetStatus, "presale_buildcases")
+    if status is None or status.active_version is None:
+        return None, {}, 0
+    by_code: dict[str, tuple[int, int]] = {}
+    unplaced = 0
+    for case in await building_cases(db, districts, today):
+        if case.match_level in PRESALE_VILLAGE_LEVELS and case.village_code:
+            households, cases = by_code.get(case.village_code, (0, 0))
+            by_code[case.village_code] = (households + case.households, cases + 1)
+        else:
+            unplaced += 1
+    return status.label, by_code, unplaced
 
 
 async def _adjusted_since(db: AsyncSession, districts: set[str], year: int, people: dict[str, int]) -> set[str]:
@@ -390,6 +428,7 @@ async def query_trends(
             "note": series_io.SOURCE_NOTE,
             "income": {"year": None, "note": ""},
             "new_homes": {"latest": None, "seasons": [], "unplaced": 0, "note": ""},
+            "presale": {"version": None, "unplaced": 0, "note": ""},
             "school_districts": {"school_year": sd.SCHOOL_DISTRICT_YEAR, "note": sd.SOURCE_NOTE},
         },
         "baseline": None,
@@ -431,6 +470,12 @@ async def query_trends(
     if homes_latest is not None:
         result["sources"]["new_homes"] = {
             "latest": homes_latest, "seasons": homes_seasons, "unplaced": homes_unplaced, "note": new_homes_io.SOURCE_NOTE,
+        }
+
+    presale_version, presale, presale_unplaced = await _presale(db, {names[code][0] for code in near}, today_local())
+    if presale_version is not None:
+        result["sources"]["presale"] = {
+            "version": presale_version, "unplaced": presale_unplaced, "note": presale_io.SOURCE_NOTE,
         }
 
     births_present = [month for month in births_window if month in data.births]
@@ -530,6 +575,11 @@ async def query_trends(
                 "new_homes_latest": sum(homes.get(code, (0, 0))[1] for code in codes) if homes_latest is not None else None,
                 # 各代碼自己的近 4 季筆數（只列有交屋的）：合併組的數字是整組的，地圖要靠它替組內各里上色。
                 "new_homes_by_code": {code: homes[code][0] for code in codes if code in homes},
+                # 在建預售（P10）：該里在建住宅建案的戶數合計；合併組整組相加，另回各代碼自己的戶數（只列有的）。
+                "presale_households": (
+                    sum(presale.get(code, (0, 0))[0] for code in codes) if presale_version is not None else None
+                ),
+                "presale_by_code": {code: presale[code][0] for code in codes if code in presale},
             }
         )
     villages.sort(
@@ -562,5 +612,12 @@ async def query_trends(
         "new_homes": sum(row["new_homes"] for row in villages) if homes_latest is not None else None,
         "new_homes_latest": sum(row["new_homes_latest"] for row in villages) if homes_latest is not None else None,
         "new_homes_seasons": len(homes_seasons),
+        "presale_households": (
+            sum(row["presale_households"] for row in villages) if presale_version is not None else None
+        ),
+        "presale_cases": (
+            sum(presale.get(code, (0, 0))[1] for row in villages for code in row["codes"])
+            if presale_version is not None else None
+        ),
     }
     return result
