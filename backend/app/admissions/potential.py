@@ -1,6 +1,6 @@
 """招生潛力：每年還能多招幾位新生的三個來源（2026-10-20 招生潛力第二、三波規格 §5，報告 A-07、B-03、B-06、B-11、I-4）。
 
-這個檔先放常數、Range、來源一「附近園所停辦釋出」與來源二「現有的里還沒招到」；來源三接在後面。所有參數都在
+這個檔放常數、Range、來源一「附近園所停辦釋出」、來源二「現有的里還沒招到」與來源三「新建案搬進來」。所有參數都在
 下面的常數，畫面「怎麼算」照列；這一版不開放後台修改。
 
 來源一：附近 8 公里內幼兒園停辦，家長轉來本校的孩子數。
@@ -22,7 +22,15 @@
   - 不用參數化自助法（依擬合出的 μ 重抽各里在籍）：它假設模型正確，量到的是「模型為真時光靠雜訊會量到的缺口」，
     不是缺口的不確定性；實測區間又窄又常包不住實際缺口。
   - 資料太少不估：有孩子的里不到 20 個或在籍不到 30 位，來源二沒有數字（重抽里的區間在這種資料量下是外插）。
-  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；有一帶有孩子的里不到 3 個時，三帶都只回里數與孩子數。"""
+  - 隱私：只回距離帶彙總，不回逐里數字（details 沒有里代碼與逐里的值）；有一帶有孩子的里不到 3 個時，三帶都只回里數與孩子數。
+
+來源三：本校 3 公里內「在建」的預售建案，預計交屋落在「今天到下一個 8/31」的，住進來的孩子數（報告 B-06）。
+  - 建案清單與預計交屋沿用預售建案那一案的規則（trends.building_cases 篩在建、presale.expected_delivery 估交屋日），
+    這裡不另寫；已過預計交屋時間但還沒登記的也算進來，因為很可能就在這一年內交屋（裁定 7）。
+  - 孩子數＝戶數 × 每百戶 2–5 歲孩子（低 2.5、中 4.0、高 6.0）÷ 100 × 該案所在距離帶的占有率；占有率用來源二的
+    band_shares（0–1、1–2、2–3 km：在籍 ÷ 2–5 歲），也就是新搬來的孩子跟附近現有的孩子一樣的機率進本校。
+  - 距離：有座標用座標，否則用里重心（同預售建案那一案）；只算 3 km 內。
+  - 隱私：details 每案只列案名、戶數、預計交屋年與半年、距離（取整 100 m）與中值貢獻，不放占有率原值。"""
 
 from __future__ import annotations
 
@@ -37,14 +45,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions import area
 from app.admissions.enrolled.models import EnrolledRoster, EnrolledStudentPoint
 from app.admissions.geo import boundaries, fees, matcher, providers
+from app.admissions.geo import presale as presale_io
 from app.admissions.geo.models import (
+    PRESALE_VILLAGE_LEVELS,
     VILLAGE_LEVELS,
     GeoKindergarten,
     GeoKindergartenFee,
+    GeoPresaleBuildcase,
     GeoProviderEvent,
     GeoVillagePopulation,
 )
 from app.admissions.geo.projection import haversine_m
+from app.admissions.presale_area import DISTANCE_ROUND_M
+from app.admissions.trends import building_cases
 
 # ---- 參數（報告 A-07、B-03、B-04、B-06、B-11、I-4）----
 
@@ -99,6 +112,14 @@ MIN_FIT_ENROLLED = 30
 VILLAGE_BANDS: tuple[tuple[str, int], ...] = (("0-1", 1000), ("1-2", 2000), ("2-3", 3000))
 # 有一帶「有 2–5 歲孩子的里」少於這個數字，彙總就等於逐里數字（報告 B-11：逐里小數能推回在籍人數），三帶都不回在籍、期望、缺口。
 BAND_MIN_VILLAGES = 3
+
+# ---- 來源三參數（報告 B-06）----
+
+# 每百戶 2–5 歲孩子（低、中、高）。
+KIDS_PER_100_HOUSEHOLDS = (2.5, 4.0, 6.0)
+DELIVERY_RADIUS_M = VILLAGE_BANDS[-1][1]  # 只算 3 km 內（占有率只有到 3 km 的三帶）
+INTAKE_START_MONTH = 9  # 新學年 9/1 開學：交屋在下一個 9/1 之前的案，這一年內有機會入學
+DELIVERY_DIGITS = 2  # details 每案中值貢獻的小數位數（單案常小於 0.1）
 
 
 @dataclass(frozen=True)
@@ -586,3 +607,94 @@ async def load_village_obs(
         obs.append(VillageObs(row.village_code, distance, kids, enrolled.get(row.village_code, 0)))
     obs.sort(key=lambda item: item.code)
     return obs
+
+
+# ---- 來源三：新建案搬進來 ----
+
+
+@dataclass(frozen=True)
+class Delivery:
+    """一個在建的預售建案：name 案名、households 戶數、distance_m 到本校的直線距離（有座標用座標，否則里重心；不四捨五入）、
+    expected 預計交屋日（建照日加依戶數的月數，粗估；已過預計時間還沒登記的也是這個日期，早於今天）。"""
+
+    name: str
+    households: int
+    distance_m: float
+    expected: date
+
+
+def next_school_year_start(today: date) -> date:
+    """下一個 9 月 1 日；今天是 9/1 時取明年（交屋早於這一天的案，這一學年內有機會搬進來）。"""
+    this_year = date(today.year, INTAKE_START_MONTH, 1)
+    return this_year if today < this_year else date(today.year + 1, INTAKE_START_MONTH, 1)
+
+
+def _round_distance(meters: float) -> int:
+    return int(round(meters / DISTANCE_ROUND_M) * DISTANCE_ROUND_M)
+
+
+def presale_range(deliveries: list[Delivery], shares: dict[str, float], *, today: date) -> tuple[Range, dict]:
+    """來源三的低／中／高，以及畫面「怎麼算」要的逐案明細。
+
+    只取預計交屋早於 next_school_year_start(today) 的案（含已過預計時間、還沒登記的）；距離超過 3 km 的案沒有占有率，不算。
+    每案的孩子數＝戶數 × 每百戶孩子數（低 2.5、中 4.0、高 6.0）÷ 100 × 該案距離帶的占有率（shares 的鍵 "0-1"、"1-2"、"2-3"，缺的帶當 0）。
+    沒有任何符合的案，數字就是 0（資料有沒有由呼叫端看 load_deliveries 是否為 None）。
+    details.deliveries 每案只有 name、households、expected_year、expected_half（1 上半年／2 下半年）、distance_m（取整 100）、
+    mid（中值貢獻，2 位小數）；不放占有率原值，依預計交屋、距離、案名排序。"""
+    cutoff = next_school_year_start(today)
+    totals = [0.0] * len(KIDS_PER_100_HOUSEHOLDS)
+    listed: list[dict] = []
+    for item in sorted(deliveries, key=lambda row: (row.expected, row.distance_m, row.name)):
+        band = _band_of(item.distance_m, VILLAGE_BANDS)
+        if item.expected >= cutoff or band is None:
+            continue
+        contributions = [
+            item.households * per_100 / 100 * shares.get(band, 0.0) for per_100 in KIDS_PER_100_HOUSEHOLDS
+        ]
+        totals = [total + value for total, value in zip(totals, contributions)]
+        year, half = presale_io.delivery_half(item.expected)
+        listed.append(
+            {
+                "name": item.name, "households": item.households, "expected_year": year, "expected_half": half,
+                "distance_m": _round_distance(item.distance_m), "mid": round(contributions[1], DELIVERY_DIGITS),
+            }
+        )
+    low, mid, high = totals
+    return Range(low=low, mid=mid, high=high), {"deliveries": listed}
+
+
+async def load_deliveries(
+    db: AsyncSession, lat: float, lng: float, *, today: date, radius_m: float = DELIVERY_RADIUS_M
+) -> list[Delivery] | None:
+    """(lat, lng) radius_m 內、在建的預售建案；預售建案表是空的（還沒匯入過）回 None，匯入了但半徑內沒有在建案回 []。
+
+    「在建」與預計交屋沿用預售建案那一案：trends.building_cases 篩住宅、沒登記、建照 6 年內的案（只讀半徑內有里的區），
+    presale.expected_delivery 估交屋日。有座標（parcel、exact、nearby）用座標到 (lat, lng) 的直線距離，只到里（street）用里界重心；
+    只到區、待比對的案沒有位置，不列。預計交屋不在這裡篩，presale_range 才依今天切一年。結果依預計交屋、距離、案名排序。"""
+    if (await db.execute(select(GeoPresaleBuildcase.name).limit(1))).first() is None:
+        return None
+    names = boundaries.village_names()
+    centroids = boundaries.village_centroids()
+    districts = {
+        names[code][0]
+        for code, point in centroids.items()
+        if code in names and haversine_m(lat, lng, *point) <= radius_m
+    }
+    deliveries: list[Delivery] = []
+    for case in await building_cases(db, districts, today):
+        if case.match_level not in PRESALE_VILLAGE_LEVELS or case.village_code not in names:
+            continue
+        if case.lat is not None and case.lon is not None:
+            distance = haversine_m(lat, lng, case.lat, case.lon)
+        else:
+            distance = haversine_m(lat, lng, *centroids[case.village_code])
+        if distance > radius_m:
+            continue
+        deliveries.append(
+            Delivery(
+                name=case.name, households=case.households, distance_m=distance,
+                expected=presale_io.expected_delivery(case.permit_on, case.households),
+            )
+        )
+    deliveries.sort(key=lambda item: (item.expected, item.distance_m, item.name))
+    return deliveries

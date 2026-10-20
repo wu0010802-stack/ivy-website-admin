@@ -14,13 +14,17 @@ import pytest
 from app.admissions import area, potential
 from app.admissions.enrolled.importer import load_payload, replace_roster
 from app.admissions.geo import boundaries, matcher
-from app.admissions.geo.models import GeoProviderEvent, GeoVillagePopulation
+from app.admissions.geo import presale as presale_io
+from app.admissions.geo.models import GeoPresaleBuildcase, GeoProviderEvent, GeoVillagePopulation
 from app.admissions.potential import (
     CATCH_RATE_HIGH,
     CATCH_RATE_MID,
+    DELIVERY_RADIUS_M,
     GRADUATING_SHARE,
+    KIDS_PER_100_HOUSEHOLDS,
     OCCUPANCY_RATE,
     ClosureEvent,
+    Delivery,
     Range,
     VillageObs,
     band_shares,
@@ -30,7 +34,10 @@ from app.admissions.potential import (
     first_window_start,
     fit_distance_model,
     load_closure_events,
+    load_deliveries,
     load_village_obs,
+    next_school_year_start,
+    presale_range,
     price_factor,
     school_year_window,
     village_gaps,
@@ -918,3 +925,220 @@ async def test_load_village_obs_feeds_the_model(db_session):
     assert obs is not None and sum(item.enrolled for item in obs) == 50
     assert fit_distance_model(obs) is not None
     assert band_shares(obs)["0-1"] > band_shares(obs)["1-2"]
+
+
+# ---- 來源三：新建案搬進來 ----
+
+# 0-1 km 的占有率照報告 B-03 的量級（義華 0.0373）；1-2、2-3 km 各取一個不同的值，才分得出算到哪一帶。
+SHARES = {"0-1": 0.0373, "1-2": 0.02, "2-3": 0.01}
+OCTOBER = date(2026, 10, 20)  # 下一個 9/1 是 2027-09-01
+DELIVERY_KEYS = {"name", "households", "expected_year", "expected_half", "distance_m", "mid"}
+
+
+def delivery(expected: date, households: int = 100, *, distance: float = 500.0, name: str = "測試建案") -> Delivery:
+    return Delivery(name=name, households=households, distance_m=distance, expected=expected)
+
+
+def test_presale_parameters():
+    assert KIDS_PER_100_HOUSEHOLDS == (2.5, 4.0, 6.0)  # 低、中、高：每百戶 2–5 歲孩子（報告 B-06）
+    assert DELIVERY_RADIUS_M == 3000
+
+
+@pytest.mark.parametrize(
+    ("today", "start"),
+    [
+        (date(2026, 1, 1), date(2026, 9, 1)),
+        (date(2026, 8, 31), date(2026, 9, 1)),
+        (date(2026, 9, 1), date(2027, 9, 1)),  # 9/1 當天取明年
+        (date(2026, 10, 20), date(2027, 9, 1)),
+        (date(2026, 12, 31), date(2027, 9, 1)),
+    ],
+)
+def test_next_school_year_start(today, start):
+    assert next_school_year_start(today) == start
+
+
+def test_only_next_year_deliveries():
+    """今天到下一個 8/31 交屋的才算；9/1 起交屋的是再下一年。"""
+    deliveries = [
+        delivery(date(2027, 8, 31), name="八月底"),
+        delivery(date(2027, 9, 1), name="九月初"),
+        delivery(date(2028, 3, 1), name="後年"),
+    ]
+
+    result, details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    assert [item["name"] for item in details["deliveries"]] == ["八月底"]
+    assert result.mid == round(100 * 0.04 * 0.0373, 1)
+    _, on_the_first = presale_range(deliveries, SHARES, today=date(2027, 9, 1))  # 9/1 當天：窗口換成 2028-09-01 以前
+    assert [item["name"] for item in on_the_first["deliveries"]] == ["八月底", "九月初", "後年"]
+
+
+def test_overdue_included():
+    """已過預計交屋時間但還沒登記的，很可能就在這一年內交屋，照算。"""
+    deliveries = [delivery(date(2025, 1, 1), name="過期很久"), delivery(date(2026, 10, 19), name="昨天")]
+
+    result, details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    assert [item["name"] for item in details["deliveries"]] == ["過期很久", "昨天"]
+    assert result.mid == round(2 * 100 * 0.04 * 0.0373, 1)
+
+
+def test_presale_math():
+    """100 戶、離本校 0.5 km、0–1 km 占有率 0.0373：中 100 × 4.0 / 100 × 0.0373 ≈ 0.15。"""
+    result, details = presale_range([delivery(date(2027, 3, 1), 100, distance=500)], SHARES, today=OCTOBER)
+
+    assert details["deliveries"][0]["mid"] == pytest.approx(0.15, abs=0.005)
+    assert result == Range(low=0.1, mid=0.1, high=0.2)  # 0.093 / 0.149 / 0.224，Range 四捨五入到 1 位
+    big, _ = presale_range([delivery(date(2027, 3, 1), 1000, distance=500)], SHARES, today=OCTOBER)
+    assert (big.low, big.mid, big.high) == (0.9, 1.5, 2.2)  # 1000 戶：0.9325 / 1.492 / 2.238
+
+
+def test_presale_uses_the_share_of_the_band_each_case_is_in():
+    deliveries = [
+        delivery(date(2027, 3, 1), 1000, distance=1000, name="含 1 km"),  # 0-1
+        delivery(date(2027, 3, 1), 1000, distance=1001, name="剛過 1 km"),  # 1-2
+        delivery(date(2027, 3, 1), 1000, distance=3000, name="含 3 km"),  # 2-3
+        delivery(date(2027, 3, 1), 1000, distance=3001, name="3 km 外"),  # 沒有占有率，不算
+    ]
+
+    result, details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    contributions = {item["name"]: item["mid"] for item in details["deliveries"]}
+    assert contributions == {"含 1 km": 1.49, "剛過 1 km": 0.8, "含 3 km": 0.4}
+    assert result.mid == round(1000 * 0.04 * (0.0373 + 0.02 + 0.01), 1)
+
+
+def test_a_band_without_a_share_contributes_zero():
+    result, details = presale_range([delivery(date(2027, 3, 1), 500, distance=2500)], {"0-1": 0.05}, today=OCTOBER)
+
+    assert result == Range(0, 0, 0)
+    assert details["deliveries"][0]["mid"] == 0.0  # 照樣列出，只是沒有貢獻
+
+
+def test_no_cases_is_zero():
+    assert presale_range([], SHARES, today=OCTOBER) == (Range(0, 0, 0), {"deliveries": []})
+    later = [delivery(date(2028, 1, 1)), delivery(date(2027, 9, 1))]
+    assert presale_range(later, SHARES, today=OCTOBER) == (Range(0, 0, 0), {"deliveries": []})
+
+
+def test_presale_details_list_only_what_the_screen_needs():
+    deliveries = [
+        delivery(date(2027, 7, 1), 80, distance=451, name="乙"),
+        delivery(date(2027, 6, 30), 120, distance=449.9, name="甲"),
+        delivery(date(2027, 6, 30), 60, distance=1649, name="丙"),
+    ]
+
+    _, details = presale_range(deliveries, SHARES, today=OCTOBER)
+
+    assert list(details) == ["deliveries"]
+    assert all(set(item) == DELIVERY_KEYS for item in details["deliveries"])
+    # 依預計交屋、距離、案名排序；距離取整 100；上半年是 1–6 月、下半年 7–12 月。
+    assert [(i["name"], i["households"], i["expected_year"], i["expected_half"], i["distance_m"]) for i in details["deliveries"]] == [
+        ("甲", 120, 2027, 1, 400),
+        ("丙", 60, 2027, 1, 1600),
+        ("乙", 80, 2027, 2, 500),
+    ]
+    assert all(isinstance(item["distance_m"], int) for item in details["deliveries"])
+
+
+def test_presale_details_do_not_carry_the_band_shares():
+    odd = {"0-1": 0.0373123, "1-2": 0.0211456, "2-3": 0.0098765}
+    deliveries = [delivery(date(2027, 3, 1), 100, distance=d) for d in (500, 1500, 2500)]
+
+    _, details = presale_range(deliveries, odd, today=OCTOBER)
+
+    text = json.dumps(details, default=str)
+    assert not any(str(value)[:6] in text for value in odd.values())
+    assert "share" not in text
+
+
+# ---- 來源三：載入 ----
+
+BENYANG = boundaries.village_code("三民區", "本揚里")  # 重心離義華 287 m
+DINGZHONG = boundaries.village_code("三民區", "鼎中里")  # 重心 3340 m
+YIHUA_LAT, YIHUA_LNG = YIHUA_POINT
+NORTH_M = 1 / 111_320.0  # 往北 1 m 的緯度差
+
+
+def buildcase(name: str, level: str, village_code: str | None, **kwargs) -> GeoPresaleBuildcase:
+    values = {
+        "district": "三民區", "street": "義華路", "households": 100, "main_use": "住家用", "residential": True,
+        "permit_on": date(2024, 1, 1), "first_registered_on": None, "match_level": level, "lat": None, "lon": None,
+        "source_version": "115-10", "updated_at": NOW,
+    }
+    values.update(kwargs)
+    village = boundaries.village_names()[village_code][1] if village_code else None
+    return GeoPresaleBuildcase(name=name, village_code=village_code, village=village, **values)
+
+
+async def test_presale_missing_table_none(db_session):
+    assert await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY) is None
+
+
+async def seed_buildcases(db) -> None:
+    db.add_all(
+        [
+            # 有座標：用座標距離（正北 500 m），不用里重心。120 戶：建照 2024-03 + 48 個月 = 2028-03-10。
+            buildcase("座標案", "exact", BENYANG, households=120, permit_on=date(2024, 3, 10), lat=YIHUA_LAT + 500 * NORTH_M, lon=YIHUA_LNG),
+            # 只到里：用里重心（本揚里 287 m）。36 戶：2023-06 + 36 個月 = 2026-06-01，已過預計時間。
+            buildcase("重心案", "street", BENYANG, households=36, permit_on=date(2023, 6, 1)),
+            # 地號座標在 2.2 km 外，雖然落在 287 m 的里：有座標就用座標。60 戶：2024-06 + 36 個月 = 2027-06-01。
+            buildcase("遠點案", "parcel", BENYANG, households=60, permit_on=date(2024, 6, 1), lat=YIHUA_LAT + 2200 * NORTH_M, lon=YIHUA_LNG),
+            # 3 km 外：座標 3.5 km、里重心 3340 m。
+            buildcase("太遠座標", "parcel", BENYANG, permit_on=date(2024, 6, 2), lat=YIHUA_LAT + 3500 * NORTH_M, lon=YIHUA_LNG),
+            buildcase("太遠重心", "street", DINGZHONG),
+            # 不算：已登記、非住宅、建照超過 6 年、只到區、待比對、別區。
+            buildcase("已登記", "exact", BENYANG, first_registered_on=date(2026, 1, 1)),
+            buildcase("廠房", "exact", BENYANG, residential=False),
+            buildcase("太舊", "exact", BENYANG, permit_on=date(2020, 10, 19)),
+            buildcase("只到區", "district", None),
+            buildcase("待比對", "pending", None),
+            buildcase("岡山案", "district", None, district="岡山區"),
+        ]
+    )
+    await db.commit()
+
+
+async def test_load_deliveries_reads_building_cases_within_the_radius(db_session):
+    await seed_buildcases(db_session)
+
+    deliveries = await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY)
+
+    assert [(item.name, item.households, item.expected) for item in deliveries] == [
+        ("重心案", 36, presale_io.expected_delivery(date(2023, 6, 1), 36)),
+        ("遠點案", 60, presale_io.expected_delivery(date(2024, 6, 1), 60)),
+        ("座標案", 120, presale_io.expected_delivery(date(2024, 3, 10), 120)),
+    ]
+    near, far, pin = deliveries
+    assert near.expected == date(2026, 6, 1) and pin.expected == date(2028, 3, 10)
+    assert near.distance_m == pytest.approx(287, abs=3)  # 里重心
+    assert far.distance_m == pytest.approx(2200, abs=3)  # 座標，不是 287 m
+    assert pin.distance_m == pytest.approx(500, abs=3)
+
+
+async def test_load_deliveries_radius_is_adjustable(db_session):
+    await seed_buildcases(db_session)
+
+    assert [item.name for item in await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY, radius_m=1000)] == ["重心案", "座標案"]
+    wide = await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY, radius_m=4000)
+    assert {item.name for item in wide} == {"太遠重心", "太遠座標", "座標案", "遠點案", "重心案"}
+
+
+async def test_load_deliveries_with_no_case_in_range_is_empty_not_none(db_session):
+    db_session.add(buildcase("岡山案", "street", BENYANG, first_registered_on=date(2026, 1, 1)))
+    await db_session.commit()
+
+    assert await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY) == []  # 有資料、只是半徑內沒有在建案
+
+
+async def test_load_deliveries_feeds_presale_range(db_session):
+    await seed_buildcases(db_session)
+
+    deliveries = await load_deliveries(db_session, *YIHUA_POINT, today=LOAD_TODAY)
+    result, details = presale_range(deliveries, SHARES, today=LOAD_TODAY)
+
+    # 座標案 2028-03 交屋不在這一年；重心案（已過預計）在 0-1 km、遠點案（2027-06）在 2-3 km。
+    assert [item["name"] for item in details["deliveries"]] == ["重心案", "遠點案"]
+    assert [item["distance_m"] for item in details["deliveries"]] == [300, 2200]
+    assert result.mid == round(36 * 0.04 * 0.0373 + 60 * 0.04 * 0.01, 1)
