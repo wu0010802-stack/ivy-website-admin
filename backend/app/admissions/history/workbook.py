@@ -15,6 +15,9 @@ import xlrd
 from app.admissions.history.models import HISTORY_GRADES
 
 TOTAL_LABEL = "總人數"
+GRADE_LABELS = frozenset((*HISTORY_GRADES, TOTAL_LABEL))
+LABEL_PREVIEW_ROWS = 10  # --headers-only 預覽第 0 欄的前幾列
+REDACTED = "…"  # 第 0 欄預覽裡不是年級標籤的格子（標題或備註）一律以此取代
 BLOCK_ROW = 2  # 區塊名（舊生、新生、大班重讀生）與日期欄的表頭
 SUBHEADER_ROW = 3  # 區塊內的子欄名
 FIRST_GRADE_ROW = 4  # 往下找年級列的起點（不寫死列號：114 下的總人數在第 9 列）
@@ -222,13 +225,12 @@ def _block_name(prefix: str) -> str:
 
 def _find_rows(sheet: xlrd.sheet.Sheet) -> dict[str, int]:
     """第 0 欄正規化後等於年級名或「總人數」的列（各取第一個），找齊就停，後面的備註列不碰。"""
-    wanted = {*HISTORY_GRADES, TOTAL_LABEL}
     found: dict[str, int] = {}
     for row in range(FIRST_GRADE_ROW, sheet.nrows):
         label = _text(sheet, row, 0)
-        if label in wanted and label not in found:
+        if label in GRADE_LABELS and label not in found:
             found[label] = row
-            if len(found) == len(wanted):
+            if len(found) == len(GRADE_LABELS):
                 break
     return found
 
@@ -262,9 +264,11 @@ def _parse_sheet(sheet: xlrd.sheet.Sheet, name: str, term: tuple[int, int]) -> t
     if total is None:
         warnings.append(f"{name}：「{TOTAL_LABEL}」列日期欄是空的，略過核對")
         return rows, warnings
-    summed = sum(r.registered + (r.repeat_registered or 0) for r in rows)
-    if total != summed:
-        warnings.append(f"{name}：總人數 {total}，四個年級加重讀 {summed}，差 {abs(total - summed)}")
+    # 園方有的學期「總人數」含重讀生、有的不含：等於其中一種算法就不警告。
+    grades_only = sum(r.registered for r in rows)
+    with_repeat = grades_only + sum(r.repeat_registered or 0 for r in rows)
+    if total not in (grades_only, with_repeat):
+        warnings.append(f"{name}：總人數 {total}，四個年級 {grades_only}、加重讀 {with_repeat}，都對不上")
     return rows, warnings
 
 
@@ -303,8 +307,10 @@ def _term_order(name: str) -> tuple[int, int, int]:
     return (0, year, semester)
 
 
-def sheet_headers(path: Path) -> list[tuple[str, list[str], list[str]]]:
-    """（表名、正規化後第 2 列、正規化後第 3 列），給 --headers-only 檢查真檔表頭用；不碰第 4 列以後。"""
+def sheet_headers(path: Path) -> list[tuple[str, list[str], list[str], list[str]]]:
+    """（表名、正規化後第 2 列、正規化後第 3 列、第 0 欄前 10 列），給 --headers-only 檢查真檔表頭用。
+
+    第 0 欄只輸出空字串或年級／總人數標籤，其他（標題、備註）一律以「…」取代；不碰其他欄的第 4 列以後。"""
     book = _open(path)
     try:
         result = []
@@ -314,7 +320,9 @@ def sheet_headers(path: Path) -> list[tuple[str, list[str], list[str]]]:
             while row2 and not row2[-1] and not row3[-1]:
                 row2.pop()
                 row3.pop()
-            result.append((_normalize(sheet.name), row2, row3))
+            labels = [_text(sheet, r, 0) for r in range(LABEL_PREVIEW_ROWS)]
+            labels = [text if not text or text in GRADE_LABELS else REDACTED for text in labels]
+            result.append((_normalize(sheet.name), row2, row3, labels))
         result.sort(key=lambda item: _term_order(item[0]))
         return result
     finally:

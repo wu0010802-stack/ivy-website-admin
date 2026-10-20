@@ -155,19 +155,59 @@ def test_missing_columns_become_none(tmp_path: Path) -> None:
     assert middle.repeat_registered == 0
 
 
-def test_total_mismatch_warns(tmp_path: Path) -> None:
+@pytest.mark.parametrize("total", [188, 193])
+def test_total_matching_either_rule_does_not_warn(tmp_path: Path, total: int) -> None:
+    # 園方有的學期總人數含重讀生（104 上：188＋5＝193），有的不含（108 上：只有四個年級加總）。
     rows = {
         "大班": grade_values(48, repeat_registered=5), "中班": grade_values(50),
-        "小班": grade_values(45), "幼幼班": grade_values(42),
+        "小班": grade_values(45), "幼幼班": grade_values(45),
+    }
+    path = write_workbook(tmp_path, {
+        "104上": SheetSpec(MODERN, as_of_text="104.09.15", rows=rows, total={"registered": total}),
+    })
+    parsed = parse_workbook(path)
+
+    assert parsed.warnings == ()
+    assert len(parsed.rows) == 4
+
+
+def test_total_equal_to_grades_only_with_repeat_does_not_warn(tmp_path: Path) -> None:
+    rows = {
+        "大班": grade_values(100, repeat_registered=2), "中班": grade_values(70),
+        "小班": grade_values(60), "幼幼班": grade_values(49),
+    }
+    path = write_workbook(tmp_path, {
+        "108上": SheetSpec(MODERN, as_of_text="1080915", rows=rows, total={"registered": 279}),
+    })
+
+    assert parse_workbook(path).warnings == ()
+
+
+def test_total_mismatch_warns(tmp_path: Path) -> None:
+    rows = {
+        "大班": grade_values(48), "中班": grade_values(50),
+        "小班": grade_values(45), "幼幼班": grade_values(47),
     }
     path = write_workbook(tmp_path, {
         "104上": SheetSpec(MODERN, as_of_text="104.09.15", rows=rows, total={"registered": 193}),
     })
     parsed = parse_workbook(path)
 
-    assert parsed.warnings == ("104上：總人數 193，四個年級加重讀 190，差 3",)
+    assert parsed.warnings == ("104上：總人數 193，四個年級 190、加重讀 190，都對不上",)
     assert len(parsed.rows) == 4
     assert by_grade(parsed, 104, 1)["大班"].registered == 48
+
+
+def test_total_mismatch_with_repeat_reports_both_sums(tmp_path: Path) -> None:
+    rows = {
+        "大班": grade_values(70, repeat_registered=2), "中班": grade_values(60),
+        "小班": grade_values(50), "幼幼班": grade_values(34),
+    }
+    path = write_workbook(tmp_path, {
+        "105上": SheetSpec(MODERN, as_of_text="1050915", rows=rows, total={"registered": 231}),
+    })
+
+    assert parse_workbook(path).warnings == ("105上：總人數 231，四個年級 214、加重讀 216，都對不上",)
 
 
 def test_missing_total_row_warns_but_still_parses(tmp_path: Path) -> None:
@@ -189,7 +229,7 @@ def test_sheets_sorted_by_term(tmp_path: Path) -> None:
     terms = [(r.school_year, r.semester) for r in parsed.rows]
     assert terms == sorted(terms)
     assert [t for i, t in enumerate(terms) if i % 4 == 0] == [(99, 2), (104, 1), (115, 1)]
-    assert [name for name, _, _ in sheet_headers(path)] == ["99下", "104上", "115上"]
+    assert [header[0] for header in sheet_headers(path)] == ["99下", "104上", "115上"]
 
 
 def test_notes_never_leak(tmp_path: Path) -> None:
@@ -206,7 +246,7 @@ def test_notes_never_leak(tmp_path: Path) -> None:
 
 def test_sheet_headers_are_normalized_rows_two_and_three(tmp_path: Path) -> None:
     path = write_workbook(tmp_path, {"115上": SheetSpec(MODERN, rows=modern_rows())})
-    [(name, row2, row3)] = sheet_headers(path)
+    [(name, row2, row3, _labels)] = sheet_headers(path)
 
     assert name == "115上"
     assert len(row2) == len(row3) == 17
@@ -215,6 +255,32 @@ def test_sheet_headers_are_normalized_rows_two_and_three(tmp_path: Path) -> None
     assert row2[4] == "舊生" and row2[8] == "新生" and row2[14].startswith("大班重讀生")
     assert row3[4] == "在籍人數"
     assert all(not any(ch.isspace() for ch in cell) for cell in row2 + row3)
+
+
+def test_sheet_headers_column_zero_shows_only_grade_labels(tmp_path: Path) -> None:
+    path = write_workbook(tmp_path, {
+        "115上": SheetSpec(MODERN, rows=modern_rows(), pad_labels=True),
+        "114下": SheetSpec(MODERN, rows=modern_rows(), gap_rows=("（待補）",), notes=()),
+    })
+    labels = {name: column for name, _, _, column in sheet_headers(path)}
+
+    # 標題、表頭字、備註一律以「…」取代；年級標籤（正規化後）與空白照出。
+    assert labels["115上"] == ["…", "…", "…", "", "大班", "中班", "小班", "幼幼班", "總人數", "…"]
+    assert labels["114下"] == ["…", "…", "…", "", "大班", "中班", "小班", "幼幼班", "…", "總人數"]
+
+
+def test_sheet_headers_column_zero_pads_short_sheets_and_hides_notes(tmp_path: Path) -> None:
+    path = write_workbook(tmp_path, {"115上": SheetSpec(MODERN, rows=modern_rows(), notes=())})
+    [(_, _, _, labels)] = sheet_headers(path)
+
+    assert len(labels) == 10
+    assert labels[-1] == ""
+
+    path = write_workbook(tmp_path, {"115上": SheetSpec(MODERN, rows=modern_rows())}, name="with-notes.xls")
+    [(_, _, _, labels)] = sheet_headers(path)
+
+    assert labels[9] == "…"
+    assert not any("王小明" in cell or "新生(3人)" in cell for cell in labels)
 
 
 def test_non_integer_count_rejected(tmp_path: Path) -> None:
