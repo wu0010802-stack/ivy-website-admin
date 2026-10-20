@@ -2,13 +2,15 @@
 各里人口見 docs/specs/2026-10-13-admissions-opportunity-design.md 第 3 節；各里出生、遷入遷出、
 年齡的月份歷史見 docs/specs/2026-10-14-admissions-village-trends-design.md 第 3.1 節，新成屋見第 3.2 節，各里所得見第 3.3 節；
 托嬰與園所異動見 docs/specs/2026-10-14-provider-changes-design.md 第 3 節；
-幼兒園收費見 docs/specs/2026-10-15-peer-comparison-design.md 第 3 節）。
+幼兒園收費見 docs/specs/2026-10-15-peer-comparison-design.md 第 3 節；
+預售建案見 docs/specs/2026-10-20-admissions-presale-design.md 第 5 節）。
 
 這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_babycare／geo_provider_events／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
-geo_village_income／geo_new_home_sales／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
+geo_village_income／geo_new_home_sales／geo_presale_buildcases／geo_parcel_points／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset、geo_kindergarten_fees 是 f2b8c4d1e7a9，geo_babycare、geo_provider_events 是 c6a9e3f15d27，geo_new_home_sales 的 match_level 是 e4f1a8c6b203，
+geo_dataset_status 的 dataset 是 a3d7f1c9b5e2（預售建案），geo_kindergarten_fees 是 f2b8c4d1e7a9，geo_babycare、geo_provider_events 是 c6a9e3f15d27，
+geo_new_home_sales 的 match_level 是 e4f1a8c6b203，geo_presale_buildcases 的 match_level 是 a3d7f1c9b5e2，
 其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
@@ -53,6 +55,7 @@ STREET_KINDS = ("road", "area")
 # new_homes：新成屋交屋（2026-10-14 里的變化 B 段），migration e4f1a8c6b203 加進約束。
 # babycare：托嬰名單（2026-10-14 托嬰與園所異動），migration c6a9e3f15d27 加進約束。
 # kindergarten_fees：幼兒園公告收費（2026-10-15 附近同業比較），migration f2b8c4d1e7a9 加進約束。
+# presale_buildcases：預售建案（2026-10-20 預售建案），migration a3d7f1c9b5e2 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -64,7 +67,13 @@ DATASETS = (
     "new_homes",
     "babycare",
     "kindergarten_fees",
+    "presale_buildcases",
 )
+# 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
+# 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
+PRESALE_MATCH_LEVELS = ("parcel", "exact", "nearby", "street", "district", "pending")
+# 有里的等級（parcel、exact、nearby 另有座標）。
+PRESALE_VILLAGE_LEVELS = ("parcel", "exact", "nearby", "street")
 BABYCARE_KINDS = ("center", "home")
 PROVIDERS = ("kindergarten", "babycare")
 PROVIDER_CHANGES = ("opened", "closed", "kind_changed")
@@ -362,6 +371,57 @@ class GeoNewHomeSale(Base):
     match_level: Mapped[str] = mapped_column(String(16), nullable=False)
     # 比對當時的門牌月份（「115-10」）；門牌還沒匯入（pending）是 null。
     doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+class GeoPresaleBuildcase(Base):
+    """預售建案（內政部實價登錄「預售屋建案備查」，2026-10-20 預售建案規格 §5、P1–P3）：一個 (鄉鎮市區, 建案名稱) 一列，
+    來源檔是自 110-07 起累計的備查案，每次換版以新檔為準（不在新檔裡的案刪掉）。只存規格 P2 列的欄位——不存起造人
+    （含負責人姓名、自然人）、使用分區、建材、銷售期間、建造執照字號、編號。比對結果：parcel 用地號座標點入里界，
+    其餘走門牌街名法；village_code／village 是比到的里，lon／lat 只有 parcel、exact、nearby 才有。"""
+
+    __tablename__ = "geo_presale_buildcases"
+    __table_args__ = (
+        CheckConstraint(_in("match_level", PRESALE_MATCH_LEVELS), name="ck_geo_presale_buildcases_match_level"),
+        Index("ix_geo_presale_buildcases_village", "village_code"),
+    )
+
+    district: Mapped[str] = mapped_column(String(8), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), primary_key=True)
+    street: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    households: Mapped[int] = mapped_column(Integer, nullable=False)
+    main_use: Mapped[str] = mapped_column(String(60), nullable=False, default="")
+    residential: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    declared_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    permit_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    first_registered_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # 坐落基地第一筆地號：段名與地號文字（「澄清段二小段」「120-1」），查地號座標表用。
+    parcel_section: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    parcel_no: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    village_code: Mapped[str | None] = mapped_column(String(11), nullable=True)
+    village: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    match_level: Mapped[str] = mapped_column(String(16), nullable=False)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 比對當時的門牌月份（「115-10」）；門牌還沒匯入是 null。
+    doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # 最後在檔中出現的版本（「115-10」）。
+    source_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoParcelPoint(Base):
+    """地號座標（國土測繪中心，2026-10-20 預售建案規格 P7）：本機腳本查好、隨公開資料打包匯入，正式站不連國土測繪中心。
+    (鄉鎮市區, 段名, 地號) 唯一；lon／lat 空白＝國土測繪中心查無（下次不重查，除非 --retry-missing）。匯入是 upsert、不刪舊列
+    ——地號不會因為建案下架就失效。"""
+
+    __tablename__ = "geo_parcel_points"
+
+    district: Mapped[str] = mapped_column(String(8), primary_key=True)
+    section_name: Mapped[str] = mapped_column(String(40), primary_key=True)
+    landno: Mapped[str] = mapped_column(String(16), primary_key=True)
+    lon: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    fetched_on: Mapped[date] = mapped_column(Date, nullable=False)
 
 
 class RecruitmentVisitGeo(Base):
