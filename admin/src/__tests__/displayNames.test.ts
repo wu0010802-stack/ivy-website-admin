@@ -16,7 +16,6 @@ import AdminSidebar from '../components/AdminSidebar.vue'
 import { api, ApiError } from '../api/client'
 import {
   auditActionLabel,
-  auditMetadataSummary,
   displayNameError,
   displayNameLength,
   staffEmail,
@@ -26,6 +25,7 @@ import {
   staffOf,
   staffWithEmail,
 } from '../api/labels'
+import { auditMetadataSummary } from '../api/auditLabels'
 import { visitEventActor } from '../api/visitHistory'
 import type { UserOut, VisitHistoryOut } from '../api/types'
 import { resetVisitStaff, useVisitStaff } from '../composables/useVisitStaff'

@@ -1,31 +1,29 @@
 <script setup lang="ts">
-import { computed, h, provide, ref, shallowRef, useId, useTemplateRef, watch, type VNode } from 'vue'
+import { computed, provide, ref, useId, useTemplateRef, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { usePermissions } from '../composables/usePermissions'
 import { formatDateTime, staffLabel, staffOf } from '../api/labels'
 import { contentPathFieldLabel } from '../api/contentFieldLabels'
 import type { ContentFieldError } from '../api/errors'
-import type { ContentEditorState, FieldChange, PublishJob } from '../composables/useContentItem'
+import type { ContentEditorState, FieldChange } from '../composables/useContentItem'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { draftSummary } from '../composables/draftSummary'
 import { revealContentPath } from '../composables/newsContent'
 import { campusSelectLabelKey } from './campusSelectLabel'
-import RevisionHistoryDrawer from './RevisionHistoryDrawer.vue'
 import { dirtySectionIds, MIN_NAV_SECTIONS, type EditorSection } from '../composables/editorSections'
 import EditorSectionNav from './EditorSectionNav.vue'
 import LivePreviewPane from './LivePreviewPane.vue'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
-import { useLivePreview } from '../composables/useLivePreview'
 import { usePreviewPaneFit } from '../composables/usePreviewPaneFit'
-import {
-  livePreviewOrigin,
-  previewFrameUrl,
-  previewTargetsFor,
-  readPreviewViewport,
-  rememberPreviewViewport,
-  type PreviewPage,
-  type PreviewViewport,
-} from '../composables/previewTargets'
+import { useEditorPreview } from '../composables/useEditorPreview'
+import { usePublishConfirm } from '../composables/usePublishConfirm'
+import EditorSchedules from './EditorSchedules.vue'
+import EditorScheduleDialog from './EditorScheduleDialog.vue'
+import { lazyComponent } from '../composables/lazyComponent'
+
+// 預設關著的對話框另切 chunk（2026-10-20）：頁面先畫出來，對話框的程式隨後在背景下載。
+// 元件照舊一直掛著（打開的那一刻才帶入資料，見各對話框 immediate 的 watch）。
+const RevisionHistoryDrawer = lazyComponent(() => import('./RevisionHistoryDrawer.vue'))
 
 // 十個內容編輯頁共用的外殼：狀態列、載入骨架、表單插槽、黏底動作列，
 // 以及「有未儲存修改就離開」的攔截。頁面只負責欄位本身。
@@ -48,7 +46,6 @@ const isDirty = computed(() => props.editor.isDirty.value)
 const neverPublished = computed(() => props.editor.neverPublished.value)
 const latestRevisionAt = computed(() => props.editor.latestRevisionAt.value)
 const latestRevisionId = computed(() => props.editor.latestRevisionId?.value ?? null)
-const liveVersion = computed(() => props.editor.liveVersion?.value ?? null)
 const busy = computed(() => saving.value || publishing.value)
 
 // 段落目錄：頁面傳進來的段落（標題元素的 id 與字）。至少兩段才顯示。
@@ -58,79 +55,17 @@ const hasNav = computed(() => navSections.value.length >= MIN_NAV_SECTIONS)
 // 右側官網預覽（2026-10-06 方向 D）：1280 以上、後台與官網同源、這種內容有對應預覽頁時才放。
 // 斷點用 not all and (min-width: 1280px)：和下面 CSS 的 min-width: 1280px 剛好互補，1279.5 這種小數寬不會兩邊都不成立。
 // 1280 以下維持原本版面，用狀態列的「存草稿並預覽」開新分頁。
-const previewTargets = computed(() => previewTargetsFor(props.editor.kind))
 const belowPreviewWidth = useNarrowScreen('not all and (min-width: 1280px)')
-const previewOrigin = livePreviewOrigin()
-const showPreviewPane = computed(() => Boolean(previewOrigin) && previewTargets.value.length > 0 && !belowPreviewWidth.value && !props.placeholder)
-const previewTargetId = ref('')
-watch(
-  previewTargets,
-  (targets) => {
-    if (!targets.some((t) => t.id === previewTargetId.value)) previewTargetId.value = targets[0]?.id ?? ''
-  },
-  { immediate: true },
-)
-const currentTarget = computed(() => previewTargets.value.find((t) => t.id === previewTargetId.value) ?? previewTargets.value[0] ?? null)
-const previewViewport = ref<PreviewViewport>(readPreviewViewport())
-watch(previewViewport, rememberPreviewViewport)
-// 即時預覽：把還沒存的表單送進 iframe（useLivePreview；預覽欄沒顯示時它什麼都不掛）。iframe 只在換校、
-// 重新載入時重建，換預覽分頁用訊息切、不重新載入。預覽頁沒接上（舊版官網、太慢、沒登入）時，
-// 切分頁照舊換網址，存成新的一版也重新載入，至少看得到剛存的草稿。
-// 校區以「表單是哪一校載入的」為準（loadedCampusKey），不是校區選單：有未存修改時換校會先問
-// 「放棄修改？」，這段時間選單已是下一校、表單還是上一校，預覽不能因此換 iframe 或把上一校標成下一校。
-// 沒給 loadedCampusKey 的 editor（舊的假物件）退回用校區選單的值。
-const previewCampusKey = computed(() => (props.editor.loadedCampusKey ? props.editor.loadedCampusKey.value : (props.editor.campusKey?.value ?? null)))
-const previewFrame = shallowRef<HTMLIFrameElement | null>(null)
-const livePreview = useLivePreview({
-  frame: previewFrame,
-  origin: previewOrigin ?? '',
-  kind: props.editor.kind ?? '',
-  campusKey: previewCampusKey,
-  form: props.editor.form ?? ref(null),
-  target: currentTarget,
-  enabled: showPreviewPane,
-})
-const previewState = livePreview.state
+// 預覽欄要不要放、分頁與寬度、iframe 網址與即時預覽：見 composables/useEditorPreview.ts。
+const {
+  previewTargets, showPreviewPane, previewTargetId, currentTarget, previewViewport, previewFrame,
+  previewState, previewNotice, previewNeverSaved, previewReload, previewFrameKey, previewSrc,
+} = useEditorPreview(props.editor, { belowPreviewWidth, placeholder: () => props.placeholder, loading, loadError, latestRevisionId })
 // 預覽欄的黏住位置與高度用量的（頂欄、動作列、版面位置），綁在根元素上給 LivePreviewPane 用；見 usePreviewPaneFit。
 const editorRoot = useTemplateRef<HTMLElement>('editorRoot')
 const editorLayout = useTemplateRef<HTMLElement>('editorLayout')
 const editorActions = useTemplateRef<HTMLElement>('editorActions')
 const previewPaneVars = usePreviewPaneFit({ active: showPreviewPane, root: editorRoot, layout: editorLayout, actions: editorActions })
-// 從沒存過任何版本：預覽看到的是官網目前的內容，說明不能寫「上次儲存的草稿」。
-const previewNeverSaved = computed(() => Boolean(props.editor.latestRevisionId) && latestRevisionId.value === null)
-const previewReload = ref(0)
-const previewFrameKey = computed(() => `${previewCampusKey.value ?? ''}|${previewReload.value}`)
-const previewSrc = ref('')
-// iframe 網址上載的是哪一頁。預覽接上（live）後切分頁只送訊息、網址不動，所以它可能和目前分頁不同。
-let framePage: PreviewPage | null = null
-function loadPreviewPage() {
-  framePage = currentTarget.value?.page ?? null
-  previewSrc.value = previewOrigin && framePage ? previewFrameUrl(previewOrigin, framePage, { live: true }) : ''
-}
-watch(previewFrameKey, loadPreviewPage, { immediate: true })
-// 預覽欄收起再出現（寬度跨 1280）會建新的 iframe：網址要換成目前分頁那一頁。
-watch(showPreviewPane, (shown) => {
-  if (shown) loadPreviewPage()
-})
-watch(currentTarget, () => {
-  if (previewState.value !== 'live') loadPreviewPage()
-})
-// 讀取中、讀取失敗時整個版面（含預覽欄）換成骨架／提示，讀好之後預覽欄重掛、建新的 iframe：同校區重新載入
-// （重新載入鈕、版本衝突「載入最新」）時 previewFrameKey 沒變，網址要自己重算成目前分頁那一頁；不然 live 時
-// 切過分頁的話，新的 iframe 載入的是切分頁之前的頁，沒接上的狀態（saved／denied）就一直看到舊分頁。
-watch(
-  () => !loadError.value && !loading.value,
-  (shown) => {
-    if (shown) loadPreviewPage()
-  },
-)
-// 離開 live（草稿太大退回 saved、預覽頁拒絕）之後，iframe 該顯示目前分頁那一頁：和網址上的不同就重新載入。
-watch(previewState, (now, before) => {
-  if (before === 'live' && (now === 'saved' || now === 'denied') && currentTarget.value && currentTarget.value.page !== framePage) previewReload.value += 1
-})
-watch(latestRevisionId, () => {
-  if (previewState.value === 'saved') previewReload.value += 1
-})
 // 別人先存或先發布了：表單照常可以看、可以複製，但儲存、送審、發布先停用，
 // 等使用者看過差異、載入最新內容再說（DESIGN：版本衝突保留編輯，不自動丟棄）。
 const conflict = computed(() => props.editor.conflict?.value ?? false)
@@ -154,7 +89,6 @@ const previewUrl = computed(() => props.editor.previewUrl?.value ?? '')
 const publicUrl = computed(() => props.editor.publicUrl?.value ?? '')
 // 同一個預覽頁用手機寬度開（預覽頁上也能再切換）。
 const mobilePreviewUrl = computed(() => (previewUrl.value ? `${previewUrl.value}${previewUrl.value.includes('?') ? '&' : '?'}viewport=mobile` : ''))
-const apiPath = computed(() => props.editor.apiPath?.value ?? '')
 // 確認框標題帶上是哪一項內容（分校內容含校名），例如「發布「各校消息與活動（明華）」
 // 到官網？」，避免在錯的校區按下發布。名稱本身已有引號（首頁「關於常春藤」）就不再加。
 const named = computed(() => {
@@ -172,243 +106,22 @@ const readOnly = computed(() => props.editor.readOnly?.value ?? false)
 const reviewStatus = computed(() => props.editor.reviewStatus?.value ?? 'draft')
 const reviewNote = computed(() => props.editor.reviewNote?.value ?? null)
 const pendingReview = computed(() => reviewStatus.value === 'pending_review' && !isDirty.value)
+// 已排定的排程：發布、核准的確認框要講到時會略過（排程列本身見 EditorSchedules.vue）。
 const scheduled = computed(() => (props.editor.schedules?.value ?? []).filter((j) => j.status === 'scheduled'))
-// 最近一次到期的排程（清單依排程時間新到舊）；沒有發布（檢查不過）或略過
-// （官網已是較新版本）時寫出原因。之後又成功排程發布、官網換過版本，或有人
-// 按了「知道了」（後端 resolved，和總覽的待辦同一個定義）就不再提。
-const lastUnpublished = computed(() => {
-  const finished = (props.editor.schedules?.value ?? []).find((j) => j.status === 'done' || j.status === 'failed' || j.status === 'skipped')
-  return finished && finished.status !== 'done' && !finished.resolved ? finished : null
-})
 
 // 分校內容頁的校區選單放在這個外殼的工具列：多校下拉也寫出「校區」。
 provide(campusSelectLabelKey, '校區')
 
-const acknowledging = ref(false)
-async function acknowledge(jobId: string) {
-  if (!props.editor.acknowledgeSchedule) return
-  acknowledging.value = true
-  try {
-    await props.editor.acknowledgeSchedule(jobId)
-  } finally {
-    acknowledging.value = false
-  }
-}
-// 排程清單跟著內容一起換：切校區、重新載入、存檔後都重讀一次。
-watch(
-  () => [apiPath.value, props.editor.loading.value] as const,
-  ([path, isLoading]) => {
-    if (path && !isLoading && !props.editor.loadError.value) void props.editor.loadSchedules?.()
-  },
-  { immediate: true },
-)
-
-// 排程列只講時間與「會發布哪一份」，不寫版本號或帳號。到期時官網已經是排定的
-// 那一版或更新的內容就會略過（後端 skip_reason），所以先看官網再講草稿：
-// 官網就是最新一版，或官網版本不比排定的舊，到時都會略過；排的是較早的草稿時
-// 講明不含之後存的修改，不知道官網是哪一版就不斷言一定會發布。
-function scheduleTarget(job: PublishJob): string {
-  const isLatest = !latestRevisionId.value || job.revision_id === latestRevisionId.value
-  const live = liveVersion.value
-  if (isLatest && isPublished.value) return '這份內容，但官網已經是這一版，到時會略過。'
-  if (live !== null && live === job.revision_version) return '較早儲存的草稿，但這份已經在官網上，到時會略過。'
-  if (isPublished.value || (live !== null && live > job.revision_version)) {
-    return '較早儲存的草稿，但官網已經是更新的內容，到時會略過。'
-  }
-  if (!isLatest) {
-    return live === null && !neverPublished.value
-      ? '較早儲存的草稿（不含之後存的修改）；到時官網若已經是更新的內容就會略過。'
-      : '較早儲存的草稿，不含之後存的修改。'
-  }
-  if (isDirty.value) return '上次儲存的草稿，不含還沒儲存的修改。'
-  return '這份草稿。'
-}
-
-const cancellingId = ref<string | null>(null)
-async function cancelSchedule(job: PublishJob) {
-  if (!props.editor.cancelSchedule || cancellingId.value) return
-  try {
-    await ElMessageBox.confirm(
-      `取消後 ${formatDateTime(job.publish_at)} 不會自動發布，草稿仍會保留。`,
-      named.value ? `取消${named.value}的排程？` : '取消這個排程？',
-      { confirmButtonText: '取消排程', cancelButtonText: '先不要', type: 'warning' },
-    )
-  } catch {
-    return
-  }
-  cancellingId.value = job.id
-  try {
-    await props.editor.cancelSchedule(job.id)
-  } finally {
-    cancellingId.value = null
-  }
-}
-
 const scheduleOpen = ref(false)
-const scheduleAt = ref<string | null>(null)
-// 「明天 09:00」是最常排的時間，一鍵帶入。
-const scheduleShortcuts = [
-  {
-    text: '明天 09:00',
-    value: () => {
-      const date = new Date()
-      date.setDate(date.getDate() + 1)
-      date.setHours(9, 0, 0, 0)
-      return date
-    },
-  },
-]
 
-function disablePastDay(date: Date): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return date.getTime() < today.getTime()
-}
-
-// 日期選單只擋得住過去的日子；今天已經過去的時間在送出前先擋，不要等存完草稿才被後端退回。
-// 「現在」在開對話框、改時間、按排程時各取一次：選好時間後停在對話框裡等到
-// 時間過了，按下去也會顯示提示，不會沒反應。
-const scheduleNow = ref(Date.now())
-watch([scheduleOpen, scheduleAt], () => {
-  scheduleNow.value = Date.now()
+// 發布、核准、退回的確認框：見 composables/usePublishConfirm.ts。
+const { preparing, approve, rejectWithNote, publishWithConfirm } = usePublishConfirm(props.editor, {
+  named, previewUrl, scheduled, changes, draftChangeList, baselineSource, isDirty, isPublished, neverPublished, latestRevisionAt,
 })
-const scheduleInPast = computed(() => Boolean(scheduleAt.value) && new Date(scheduleAt.value!).getTime() <= scheduleNow.value)
-
-async function submitSchedule() {
-  scheduleNow.value = Date.now()
-  if (!scheduleAt.value || !props.editor.schedule || scheduleInPast.value) return
-  if (await props.editor.schedule(scheduleAt.value)) scheduleOpen.value = false
-}
-
 // 開確認框前讀官網版比對，這段時間發布鈕顯示處理中，避免連按；表單和儲存也
 // 跟處理中一樣先鎖住（DESIGN：處理中鎖住表單及重複操作）。
-const preparing = ref(false)
 const locked = computed(() => busy.value || preparing.value)
 const actionsBlocked = computed(() => locked.value || conflict.value)
-
-interface ConfirmSummary {
-  intro: string
-  list: FieldChange[]
-}
-
-// 發布、核准是對外動作：按下去官網立刻換掉。確認框列出「官網現在 → 按下去之後」
-// 哪些欄位會變、變成什麼（DESIGN 第四輪：列差異而不是時間戳），已存的草稿、
-// 送審的版本和未儲存的修改都算進去。從沒發布過就說是第一次上線，不拿空白比。
-// 讀不到官網版時退回：有未儲存修改列和上次儲存相比的差異，否則講官網現在是哪一版。
-async function summarizeAgainstLive(verb: string): Promise<ConfirmSummary> {
-  const comparison = props.editor.compareWithLive ? await props.editor.compareWithLive() : null
-  if (comparison?.firstPublish) {
-    return { intro: `這是第一次上線：官網目前顯示預設文字，${verb}後家長就會看到這份內容。`, list: [] }
-  }
-  if (comparison) {
-    return comparison.changes.length
-      ? { intro: `和官網目前的內容相比，會更新 ${comparison.changes.length} 個欄位，${verb}後家長立刻看到：`, list: comparison.changes }
-      : { intro: `內容和官網目前的一樣，${verb}後家長看到的不會改變。`, list: [] }
-  }
-  if (changes.value.length) return { intro: `這次會更新 ${changes.value.length} 個欄位，${verb}後家長立刻看到：`, list: changes.value }
-  const current = isPublished.value
-    ? `官網目前顯示的是 ${formatDateTime(latestRevisionAt.value)} 的版本。`
-    : neverPublished.value
-      ? '官網目前顯示的是預設文字。'
-      : '官網目前顯示的是上一版。'
-  return { intro: `${current}${verb}後家長立刻看到這一版。`, list: [] }
-}
-
-async function prepareSummary(verb: string): Promise<ConfirmSummary> {
-  preparing.value = true
-  try {
-    return await summarizeAgainstLive(verb)
-  } finally {
-    preparing.value = false
-  }
-}
-
-// 排程到期時官網已經是同一版或更新的內容就會略過，所以現在發布或核准，
-// 已排好的排程到時都不會再發布。
-function scheduleSkipNote(): string {
-  if (!scheduled.value.length) return ''
-  const times = scheduled.value.map((job) => formatDateTime(job.publish_at)).join('、')
-  return `已排定 ${times} 自動發布；現在發布後，這個排程到時會略過。`
-}
-
-function confirmBody(summary: ConfirmSummary, notes: (string | VNode | null)[]) {
-  const list = summary.list
-  return h('div', { class: 'publish-diff' }, [
-    h('p', null, summary.intro),
-    list.length
-      ? h('ul', null, list.slice(0, 8).map((c) => h('li', { key: c.key }, [
-          h('strong', null, c.label),
-          h('span', { class: 'publish-diff__before' }, c.before),
-          h('span', { class: 'publish-diff__arrow', 'aria-hidden': 'true' }, '→'),
-          h('span', { class: 'publish-diff__after' }, c.after),
-          c.detail ? h('span', { class: 'publish-diff__detail' }, c.detail) : null,
-        ])))
-      : null,
-    list.length > 8 ? h('p', { class: 'hint' }, `還有 ${list.length - 8} 個欄位。`) : null,
-    ...notes.filter((note) => note).map((note) => h('p', { class: 'hint' }, [note!])),
-  ])
-}
-
-async function rejectWithNote() {
-  if (!props.editor.review) return
-  try {
-    const result = await ElMessageBox.prompt('寫下要修改的地方，內容編輯打開這一頁就看得到。', `退回${named.value}這次送審？`, {
-      confirmButtonText: '退回',
-      cancelButtonText: '先不要',
-      inputType: 'textarea',
-      inputValidator: (v: string) => Boolean((v ?? '').trim()) || '請寫下退回原因',
-    })
-    await props.editor.review('reject', (result as { value: string }).value.trim())
-  } catch {
-    /* 取消 */
-  }
-}
-
-// 核准者要看得到編輯改了什麼：列出送審的版本和官網的差異，另附草稿預覽。
-async function approve() {
-  if (!props.editor.review || preparing.value) return
-  const summary = await prepareSummary('核准')
-  const preview = previewUrl.value ? h('a', { href: previewUrl.value, target: '_blank', rel: 'noopener' }, '預覽送審的內容 ↗') : null
-  try {
-    await ElMessageBox.confirm(confirmBody(summary, [scheduleSkipNote(), preview]), `核准並發布${named.value}？`, {
-      confirmButtonText: '核准並發布',
-      cancelButtonText: '先不要',
-      type: 'warning',
-      customClass: summary.list.length ? 'publish-confirm' : undefined,
-    })
-  } catch {
-    return
-  }
-  await props.editor.review('approve')
-}
-
-// 2026-10-06 方向 D：動作列已經寫出和官網不同的欄位，發布確認框只寫欄位名，不再列改前→改後
-//（核准照舊列，核准的人不是改的人）。讀不到官網版（saved）時回 null，退回舊的差異框。
-function quickSummary(verb: string): ConfirmSummary | null {
-  if (baselineSource.value === 'first') return { intro: `這是第一次上線：官網目前顯示預設文字，${verb}後家長就會看到這份內容。`, list: [] }
-  if (baselineSource.value !== 'live') return null
-  const list = draftChangeList.value
-  return list.length
-    ? { intro: `和官網目前的內容相比，會更新 ${list.length} 個欄位：${list.map((c) => c.label).join('、')}。${verb}後家長立刻看到。`, list: [] }
-    : { intro: `內容和官網目前的一樣，${verb}後家長看到的不會改變。`, list: [] }
-}
-
-async function publishWithConfirm() {
-  if (preparing.value) return
-  const summary = quickSummary('發布') ?? (await prepareSummary('發布'))
-  const message = confirmBody(summary, [scheduleSkipNote(), '發布後若要改回，可以從「版本紀錄」還原上一版。'])
-  try {
-    await ElMessageBox.confirm(message, `發布${named.value}到官網？`, {
-      confirmButtonText: isDirty.value ? '儲存並發布' : '發布',
-      cancelButtonText: '先不要',
-      type: 'warning',
-      customClass: summary.list.length ? 'publish-confirm' : undefined,
-    })
-  } catch {
-    return
-  }
-  await props.editor.saveAndPublish()
-}
 
 // 放棄修改沒辦法復原，先問；和離頁框用同一個詞，不和版本紀錄的「還原」混在一起。
 async function discardEdits() {
@@ -707,34 +420,7 @@ defineExpose({ confirmLeave })
       </div>
       <!-- 按下發布、送審之後到結果出來前，報讀「正在處理」，不要一片安靜。 -->
       <p class="visually-hidden" role="status">{{ busy ? '正在處理，請稍候…' : status.label }}</p>
-      <div v-if="scheduled.length || lastUnpublished" class="editor__schedules">
-        <p v-for="job in scheduled" :key="job.id" class="editor__schedule">
-          <span>已排定 <strong class="num">{{ formatDateTime(job.publish_at) }}</strong> 自動發布{{ scheduleTarget(job) }}</span>
-          <el-button
-            v-if="canPublishRole && !readOnly && editor.cancelSchedule"
-            text
-            size="small"
-            :loading="cancellingId === job.id"
-            :disabled="cancellingId !== null"
-            @click="cancelSchedule(job)"
-          >
-            取消排程
-          </el-button>
-        </p>
-        <p v-if="lastUnpublished && !scheduled.length" :class="lastUnpublished.status === 'failed' ? 'is-failed' : 'is-skipped'">
-          {{ formatDateTime(lastUnpublished.publish_at) }} 的排程{{ lastUnpublished.status === 'failed' ? '沒有發布' : '已略過' }}：{{ lastUnpublished.error }}
-          <el-button
-            v-if="canPublishRole && !readOnly && editor.acknowledgeSchedule"
-            text
-            size="small"
-            :loading="acknowledging"
-            @click="acknowledge(lastUnpublished.id)"
-          >
-            知道了
-          </el-button>
-        </p>
-        <router-link to="/releases?tab=schedules" class="editor__schedules-all">查看全站排程</router-link>
-      </div>
+      <EditorSchedules :editor="editor" :named="named" :can-manage="canPublishRole && !readOnly" />
       <el-alert v-if="conflict" type="error" :closable="false" show-icon title="其他人已經更新這項內容" class="editor__alert editor__conflict">
         <p>你的修改還在畫面上、還沒存進去，儲存和發布先停用。可以先看對方改了什麼，再載入最新內容；載入後可以把你的修改套回。</p>
         <template v-if="otherChanges">
@@ -811,7 +497,7 @@ defineExpose({ confirmLeave })
           :targets="previewTargets"
           :src="previewSrc"
           :state="previewState"
-          :notice="livePreview.notice.value"
+          :notice="previewNotice"
           :never-saved="previewNeverSaved"
           :frame-key="previewFrameKey"
           @frame="previewFrame = $event"
@@ -870,38 +556,12 @@ defineExpose({ confirmLeave })
       </div>
     </template>
 
-    <el-dialog v-model="scheduleOpen" title="排程發布" width="400px" append-to-body>
-      <p class="hint">選一個時間，到時自動把{{ isDirty ? '儲存後的' : '目前最新的' }}這一版發布到官網。之後再改內容不會影響這次排程。</p>
-      <el-date-picker
-        v-model="scheduleAt"
-        type="datetime"
-        value-format="YYYY-MM-DDTHH:mm:ss+08:00"
-        format="YYYY/MM/DD HH:mm"
-        :disabled-date="disablePastDay"
-        :default-time="new Date(2000, 0, 1, 9, 0, 0)"
-        :shortcuts="scheduleShortcuts"
-        placeholder="發布時間（台灣時間）"
-        style="width: 100%"
-      />
-      <p v-if="scheduleInPast" class="editor__schedule-error" role="alert">這個時間已經過了，請選現在之後的時間。</p>
-      <template #footer>
-        <el-button @click="scheduleOpen = false">取消</el-button>
-        <el-button type="primary" :loading="publishing" :disabled="!scheduleAt || scheduleInPast" @click="submitSchedule">{{ isDirty ? '儲存並排程' : '排程' }}</el-button>
-      </template>
-    </el-dialog>
+    <EditorScheduleDialog v-model="scheduleOpen" :schedule="editor.schedule" :publishing="publishing" :is-dirty="isDirty" />
   </div>
 </template>
 
 <style scoped>
-.editor__schedules { margin: -12px 0 20px; font-size: var(--text-sm); color: var(--ink-2); }
 .editor__readonly { margin: -8px 0 16px; font-size: var(--text-sm); color: var(--ink-2); }
-.editor__schedules p { margin: 0; }
-.editor__schedules .is-failed { color: var(--el-color-danger); }
-.editor__schedules .is-skipped { color: var(--ink-2); }
-.editor__schedules-all { display: inline-flex; align-items: center; min-height: 28px; font-size: var(--text-sm); }
-.editor__schedule-error { margin: 8px 0 0; font-size: var(--text-sm); color: var(--el-color-danger); }
-/* 取消排程接在句子後面；按鈕在觸控裝置是 44px 高，不撐開句子的行距。 */
-.editor__schedules .editor__schedule { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 /* --editor-actions-h：黏底動作列佔的高度的估算值，只在還沒量到的時候當備用（LivePreviewPane 的高度）。
    動作列＝上框 1＋上下內距 16＋16＋按鈕（--control-h：滑鼠 38、觸控 44）；再加它和表單之間的 16 間距，
    預覽欄底端才不會貼著動作列。滑鼠 87、觸控 93。

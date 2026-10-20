@@ -15,11 +15,11 @@ import ManualVisitDialog from '../components/ManualVisitDialog.vue'
 import { api, ApiError } from '../api/client'
 import {
   AUDIT_REASON_LABELS,
-  auditChangeSummary,
   configChangeLines,
   consentRecordLabel,
   partySizeLabel,
 } from '../api/labels'
+import { auditChangeSummary } from '../api/auditLabels'
 import { fieldReasons, impactLines, modeReasons, reasonAction } from '../composables/bookingReadiness'
 import { PRIVACY_SAMPLE_MARKER, privacyHasSample, privacySampleSections } from '../composables/privacyNotice'
 import type { BookingReadinessOut } from '../api/types'

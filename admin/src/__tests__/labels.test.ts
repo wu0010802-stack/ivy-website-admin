@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   campusLabel,
   campusLabels,
   formatDate,
   formatDateTime,
   formatFileSize,
+  formatShortDateTime,
+  formatShortSlotWhen,
   formatSlotWhen,
   formatTime,
   roleLabel,
@@ -48,5 +50,28 @@ describe('labels', () => {
     expect(formatFileSize(20480)).toBe('20 KB')
     expect(formatFileSize(3 * 1024 * 1024)).toBe('3 MB')
     expect(formatFileSize(1.5 * 1024 * 1024)).toBe('1.5 MB')
+  })
+
+  describe('列表的短寫法：「今年」每次呼叫時才算（分頁開過跨年）', () => {
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('跨年前省略 2026、跨年後改省略 2027，2026 的場次改照寫年份', () => {
+      vi.useFakeTimers()
+      // 台灣時間 2026-12-31 23:59（UTC 15:59）
+      vi.setSystemTime(new Date('2026-12-31T15:59:00Z'))
+      const slot2026 = { slot_date: '2026-12-31', start_time: '10:00:00', end_time: '11:00:00' }
+      const slot2027 = { slot_date: '2027-01-02', start_time: '10:00:00', end_time: '11:00:00' }
+      expect(formatShortSlotWhen(slot2026)).toBe('12/31（週四）10:00–11:00')
+      expect(formatShortSlotWhen(slot2027)).toBe('2027/01/02（週六）10:00–11:00')
+      expect(formatShortDateTime('2026-12-31T01:00:00Z')).toBe('12/31 09:00')
+
+      // 同一個模組、不重新載入：台灣時間過了跨年夜（UTC 16:01 已是 2027-01-01 00:01）。
+      vi.setSystemTime(new Date('2026-12-31T16:01:00Z'))
+      expect(formatShortSlotWhen(slot2026)).toBe('2026/12/31（週四）10:00–11:00')
+      expect(formatShortSlotWhen(slot2027)).toBe('01/02（週六）10:00–11:00')
+      expect(formatShortDateTime('2026-12-31T01:00:00Z')).toBe('2026/12/31 09:00')
+    })
   })
 })

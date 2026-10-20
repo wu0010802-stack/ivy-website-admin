@@ -10,7 +10,7 @@ import VisitCalendarView from '../views/VisitCalendarView.vue'
 import ClosureDialog from '../components/sessions/ClosureDialog.vue'
 import HolidayImportDialog from '../components/sessions/HolidayImportDialog.vue'
 import { api, ApiError } from '../api/client'
-import { AUDIT_SEARCH_MAX_TERMS, auditSearchTerms } from '../api/labels'
+import { AUDIT_SEARCH_MAX_TERMS, auditSearchTerms } from '../api/auditLabels'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 

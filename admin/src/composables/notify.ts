@@ -7,7 +7,7 @@ type NotifyOptions = Omit<Partial<MessageOptions>, 'message' | 'type'> & { type?
 // 預設 3 秒、沒有關閉鈕的 toast 常常還沒讀完（或還沒抄下錯誤編號）就不見了。
 // 成功提示不走這裡，維持 3 秒；要使用者自己動手處理的錯誤（例如要重新整理）
 // 傳 { duration: 0 }，不自動消失。直接呼叫 ElMessage.error／warning 會被
-// crossUx20261002.test.ts 擋下。
+// adminUx.test.ts（跨頁提示與確認框）擋下。
 export function notifyError(message: string | VNode, options: NotifyOptions = {}) {
   const { type = 'error', ...rest } = options
   return ElMessage[type]({ message, duration: 8000, showClose: true, grouping: true, ...rest })

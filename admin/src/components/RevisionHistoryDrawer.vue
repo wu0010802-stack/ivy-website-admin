@@ -47,7 +47,8 @@ async function load() {
   }
 }
 
-watch(open, (value) => { if (value) void load() })
+// immediate：另切 chunk 的呼叫端（ContentEditor）在載入完成前就打開時，掛上當下也要讀。
+watch(open, (value) => { if (value) void load() }, { immediate: true })
 
 async function select(revision: RevisionSummary) {
   const request = ++previewRequest
