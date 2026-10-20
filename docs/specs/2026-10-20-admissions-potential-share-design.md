@@ -63,7 +63,7 @@ DESIGN.md 招生統計多處「不做：預測」、`docs/analysis/2026-09-30-en
 | 2 | 幼兒園名單歷史版回補到 2022-08、走勢標停辦事件、潛力來源「停辦釋出」與「現有的里」、潛力卡 | 波 1 |
 | 3 | 潛力來源「新建案」 | 波 2，以及另一案的預售建案已進 main |
 
-依 repo 規則，一次 session 只做一波，波與波之間由使用者確認。migration 原本要接在另一案「裁罰評鑑」那支之後（`ivy-website-admin-30` 10-20 回覆）。**已完成**：另一案 10-20 併入 main `a5ac4998`，第一波的 migration `76c4bf84b907` 已重接在它最後一支 `b8e2d6a4f931` 之後（rebase 到 `ba1030b5`，alembic 單一 head 已驗證）；波 2、3 的 migration 接 main 當時的 head。
+依 repo 規則，一次 session 只做一波，波與波之間由使用者確認。migration 原本要接在另一案「裁罰評鑑」那支之後（`ivy-website-admin-30` 10-20 回覆）。**已完成**：另一案 10-20 併入 main `a5ac4998`，第一波的 migration `76c4bf84b907` 已重接在它最後一支 `b8e2d6a4f931` 之後（rebase 到 `ba1030b5`，alembic 單一 head 已驗證）；同日稽核修正案併入 main 後，又重接在它新增的 `a6c2e9f4b8d1`（素材衍生檔大小欄）之後（rebase 到 `dfd0a195`，單一 head 已驗證）；波 2、3 的 migration 接 main 當時的 head。
 
 ## 3. 資料
 
@@ -271,7 +271,7 @@ DESIGN.md 招生統計多處「不做：預測」、`docs/analysis/2026-09-30-en
 
 ### 10.1 做了什麼
 
-- **migration `76c4bf84b907`**（接 `b8e2d6a4f931`）：新增 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1` 三張表，放寬 `ck_geo_dataset_status_dataset` 多收 `elementary`。只新增表與放寬約束，不改既有資料，不需要先備份正式庫。降級先刪 `elementary` 狀態列再還原約束、刪三張表。
+- **migration `76c4bf84b907`**（接 `a6c2e9f4b8d1`）：新增 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1` 三張表，放寬 `ck_geo_dataset_status_dataset` 多收 `elementary`。只新增表與放寬約束，不改既有資料，不需要先備份正式庫。降級先刪 `elementary` 狀態列再還原約束、刪三張表。
 - **歷年註冊**：`backend/app/admissions/history/`（`workbook.py` 用 xlrd 依表頭文字對欄、`payload.py` 輸出格式 `ivy-enrollment-history/1` 與驗證、`importer.py` 同校整批取代）；CLI `enrollment-history-extract`（本機）、`enrollment-history-import`（正式站）；xlrd 只在 `extract` 依賴群組，正式站映像不裝，`app.cli` 載入時不 import workbook（測試用子程序釘住）。
 - **九月底人口**：`geo/september.py`；`geo-sync --september-file`（可重複，只收統計月份是九月的檔，其他月份整批不匯入、exit 1）；打包 kind `september`、檔名 `september-<民國年月>-<頁>.json`，`fetch_geo_bundle.py` 抓 107 年起到人口最新月份以前最後一個九月；ODRP014 部分月份（10709、10809、10901）每列第一個鍵帶 BOM，人口、年齡歷史、九月三條路徑都先剝掉。
 - **國小一年級人數**：`geo/elementary.py`；`geo-sync --elementary-file`（可重複，檔名 `NNN_basec.csv`，學年取檔名）；打包 kind `elementary`；自動同步 30 天看一次，從表內最新學年＋1 抓到「目前學年 − 1」（空表從 107），404 視為還沒公布；系統狀態過期門檻 400 天。

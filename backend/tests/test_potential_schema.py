@@ -122,7 +122,7 @@ def test_migration_follows_previous_head_without_branching_and_only_adds():
     config = Config(str(BACKEND / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND / "migrations"))
     script = ScriptDirectory.from_config(config)
-    assert script.get_revision(REVISION).down_revision == "b8e2d6a4f931"
+    assert script.get_revision(REVISION).down_revision == "a6c2e9f4b8d1"
     # 之後還會有新 migration，head 不寫死，只斷言唯一。
     assert len(script.get_heads()) == 1
     upgrade = MIGRATION.read_text(encoding="utf-8").split("def upgrade()", 1)[1].split("def downgrade()", 1)[0]

@@ -10,7 +10,7 @@ ck_geo_dataset_status_dataset 放寬成多收 'elementary'。只新增表與放�
 降級先刪 elementary 狀態列（否則還原舊約束會失敗），再還原約束、刪三張表；已匯入的歷年註冊與公開資料一併消失。
 
 Revision ID: 76c4bf84b907
-Revises: b8e2d6a4f931
+Revises: a6c2e9f4b8d1
 Create Date: 2026-10-20
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "76c4bf84b907"
-down_revision = "b8e2d6a4f931"
+down_revision = "a6c2e9f4b8d1"
 branch_labels = None
 depends_on = None
 

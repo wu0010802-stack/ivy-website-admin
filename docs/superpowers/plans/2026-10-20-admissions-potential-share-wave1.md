@@ -22,7 +22,7 @@
 - **原始 xls（`~/Desktop/義華校資料/…`）不交給 subagent、不進 repo、不放測試**。測試一律用 xlwt 自製的假檔，假檔裡的備註列放假名。
 - extract 只讀年級列（第 0 欄是「大班／中班／小班／幼幼班／總人數」的列），備註列（第 9 列以後的其他列）不讀、不存、不印。
 - 新 migration 的 `down_revision`：開工時跑 `cd backend; uv run alembic heads`。目前 main 上是 `d4a8f2c6e913`。如果 `ivy-website-admin-30` 的預售／裁罰評鑑 migration 已進 main，就接在它最後一支之後；還沒進就接 `d4a8f2c6e913`，並在交回報告裡註明「上線前要和另一案重接」。
-  - **已完成（2026-10-20）**：開工時另一案還沒進 main，migration `76c4bf84b907` 先接 `d4a8f2c6e913`；另一案隨後併入 main `a5ac4998`，已 rebase 到 `ba1030b5` 並重接在它最後一支 `b8e2d6a4f931` 之後（alembic 單一 head 已驗證），「上線前要和另一案重接」不再適用。實作紀錄見規格 §10。
+  - **已完成（2026-10-20）**：開工時另一案還沒進 main，migration `76c4bf84b907` 先接 `d4a8f2c6e913`；另一案隨後併入 main `a5ac4998`，已 rebase 到 `ba1030b5` 並重接在它最後一支 `b8e2d6a4f931` 之後；稽核修正案隨後也併入 main（`dfd0a195`），再重接在它新增的 `a6c2e9f4b8d1` 之後（alembic 單一 head 已驗證），「上線前要和另一案重接」不再適用。實作紀錄見規格 §10。
 - 對外請求的 User-Agent 沿用 `sync.USER_AGENT`，不帶任何帳號或 email。
 - 文案：直白標題、不寫開發輔助字或載入字、不用眉標。數字欄用 `font-variant-numeric: tabular-nums`。
 - 市佔率口徑：分子＝上學期（`semester=1`）四個年級的「日期欄註冊人數」相加，不含重讀保留生；分母＝同學年 9 月底、校址 3 公里內（里界面積重心 ≤ 3,000 m）的 2–5 歲戶籍人數。
