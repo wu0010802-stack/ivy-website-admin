@@ -1532,6 +1532,9 @@ async def test_assumptions_list_the_parameters_each_source_used(db_session, loca
     assert closures["實收率"] == "0.67（全市 114 學年核定與幼生比）"
     assert "0.29" in closures["畢業比例"] and "13.8%" in closures["承接率"] and "17.3%" in closures["承接率"]
     assert "連鎖" in closures["沒有計入"] and "老師帶班" in closures["沒有計入"]
+    assert "只有童年綠地、愛爾蘭兩次停辦可校準" in closures["承接率"]
+    assert closures["停辦日期"] == "園所離開教育部名單的那天；名單消失日不等於實際停收日"
+    assert closures["怎麼看這個數字"] == "2022 年 10 月以來各學年的平均，不是預測下一所會停辦"
     assert closures["核定名額沒填"].startswith("1 所") and closures["不在完整窗口"].startswith("1 所")
     assert closures["沒有收費資料"].startswith("0 所")
     assert "111" in closures["統計窗口"] and "114" in closures["統計窗口"]
@@ -1553,4 +1556,9 @@ async def test_no_campus_point(db_session, monkeypatch):
     assert result["status"] == "no_campus_point"
     assert [(source["key"], source["status"]) for source in result["sources"]] == [(key, "no_data") for key in SOURCE_KEYS]
     assert all(source["reason"] for source in result["sources"])
+    # 沒有數字（no_data）的來源一也列出口徑說明：停辦日期怎麼來、這個數字該怎麼讀
+    closures = {item["label"]: item["value"] for item in result["sources"][0]["assumptions"]}
+    assert "名單消失日不等於實際停收日" in closures["停辦日期"]
+    assert "不是預測下一所會停辦" in closures["怎麼看這個數字"]
+    assert "只有童年綠地、愛爾蘭兩次停辦可校準" in closures["承接率"]
     assert result["total"] is None and result["capacity"] is None and result["events"] == []

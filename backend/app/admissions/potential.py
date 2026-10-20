@@ -764,7 +764,7 @@ def _closure_assumptions(today: date, details: dict | None) -> list[dict]:
         else "還沒有完整的學年窗口"
     )
     rows = [
-        ("承接率", f"中 {_percent(CATCH_RATE_MID)}、高 {_percent(CATCH_RATE_HIGH)}（童年綠地、愛爾蘭回測）"),
+        ("承接率", f"中 {_percent(CATCH_RATE_MID)}、高 {_percent(CATCH_RATE_HIGH)}（只有童年綠地、愛爾蘭兩次停辦可校準）"),
         ("實收率", f"{OCCUPANCY_RATE}（全市 114 學年核定與幼生比）"),
         ("畢業比例", f"{GRADUATING_SHARE}（大班不轉園）"),
         ("距離係數", _distance_text()),
@@ -777,6 +777,8 @@ def _closure_assumptions(today: date, details: dict | None) -> list[dict]:
             f"公幼、非營利、準公共 {_num(PRICE_FACTOR_PUBLIC)}；對方沒有收費資料取 {_num(PRICE_FACTOR_SIMILAR)}",
         ),
         ("統計窗口", window),
+        ("停辦日期", "園所離開教育部名單的那天；名單消失日不等於實際停收日"),
+        ("怎麼看這個數字", "2022 年 10 月以來各學年的平均，不是預測下一所會停辦"),
         ("低、中、高", "低＝最低那年 × 承接率中值；中＝各年平均 × 承接率中值；高＝最高那年 × 承接率高值"),
         ("排除", f"本校與五校校址 {area.OWN_CAMPUS_RADIUS_M} m 內的園所"),
         ("沒有計入", "園所是否連鎖（類型係數）與老師帶班：公開資料看不出來，也無法預期"),
