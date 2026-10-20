@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-20 首屏影片與封面調亮（main CI 部署，沒有 migration）
+
+- **提交**：使用者在本機推 `feature/hero-brighten-20261020` 到 main（`87ec0d95..1c0475eb`，fast-forward、沒有開 PR）。內容見 README 與 DESIGN.md 同日「首屏影片調亮」：從園方原片重做首屏影片，壓縮前加白色 soft-light 亮度曲線（強度 .6）＋色度 ×1.06；首屏封面與消息「一起跑向前」封面套同一條曲線。影片雜湊網址換成 `hero-desktop-a29a608cdd4d.mp4`（5,434,804 bytes）／`hero-mobile-01773132b829.mp4`（2,152,348 bytes），封面衍生圖換成 `-d4f9f61b23bf-*`，舊檔刪除。重製腳本與說明在 `design/hero-video-grade-20261020/`。沒有 migration、沒有新環境變數、依賴檔沒有變動、遮罩與版面沒改。
+- **回退**：直接切回上一版映像即可（純前端素材）。
+- **推送前閘門**（本機，Node 22，分支從 main `87ec0d95` 開）：web typecheck 0 錯、vitest 108 檔 1,321 passed；dev server（fixture）Chrome 1440／1280／1024／390 截圖版面與文字位置前後相同、桌機與手機都播到新檔；12 幀＋封面離線量白字對比最差 4.67（原 4.66）、新爆白 0%。只換素材，本機 stack e2e 沒跑。
+- **CI**：main run 39398513281（`1c0475eb`）09:08:38Z 開跑，Frontend web／admin、Backend 三組、E2E／Playwright 全部 success，Deploy Railway production 09:16:00Z–09:22:48Z success。
+- **正式 `release.json`**：base commit `1c0475ebdc0678c533d1ffad9e21757a6157efb1`，snapshot `d6e71916…`，created `2026-10-20T09:16:23Z`。
+- **線上唯讀檢查**（擋掉 POST 與遙測）：`/api/website/v1/health` 回 `status: ok`、`fixture_enabled: false`、`last_failed_steps` 為空；兩支新影片、封面（母檔與 1080w）、活動影片封面、分享圖都回 200 且大小與本機相同，舊 `hero-desktop-7dd03551eb53.mp4` 回 404；首頁 1440 播 `hero-desktop-a29a608cdd4d.mp4`、封面 `-d4f9f61b23bf-1080.webp`，390 播 `hero-mobile-01773132b829.mp4`、封面 `-800.webp`，沒有頁面錯誤與 hydration 警告。headless 要覆寫 `navigator.connection`（它估的頻寬 1.75 Mbps 會讓首屏只留封面）。
+- **未驗證**：Safari、Firefox、iOS 實機（只換素材，沒有新的瀏覽器特效）。
+
 ## 2026-10-20 招生統計新分頁「招生潛力與市佔率」第一波（main CI 部署，1 支 migration）
 
 - **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`dfd0a195..4c90ef58`，fast-forward、沒有開 PR）。分支 `feature/admissions-potential-20261020`，24 個提交：規格與計畫、三張新表、目標執行統計表解析與 extract／import 指令、每年九月底人口（舊里代碼換碼、九月補漏）、國小一年級人數同步、市佔率與國小對帳服務、`GET /admin/admissions/potential`、後台新子分頁與總審查修正。規格 `docs/specs/2026-10-20-admissions-potential-share-design.md`（§10 實作紀錄）。migration `76c4bf84b907`（接 `a6c2e9f4b8d1`）只新增 `campus_term_enrollment`、`geo_village_ages_september`、`geo_elementary_grade1` 三張表並讓 `ck_geo_dataset_status_dataset` 多收 `elementary`，沒有先備份。沒有新環境變數（`WEBSITE_GEO_ELEMENTARY_URL_TEMPLATE` 有預設值）。
