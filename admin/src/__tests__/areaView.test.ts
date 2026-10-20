@@ -47,14 +47,15 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
     expect({ ...DEFAULT_AREA_VIEW }).toEqual({ map: null, village: '', table: 'village' })
   })
 
-  it('isMapMode 只認七個模式值', () => {
+  it('isMapMode 只認八個模式值', () => {
     for (const mode of MAP_MODES) expect(isMapMode(mode.value)).toBe(true)
     for (const value of ['', 'heat', 'Peers', 'constructor', null, undefined, 1, ['peers']]) expect(isMapMode(value)).toBe(false)
   })
 
   it('模式順序與標籤（規格 §2.1、D2）', () => {
-    expect(MAP_MODES.map((m) => m.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'visits', 'opportunity', 'peers'])
-    expect(MAP_MODES.map((m) => m.label)).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '參觀', '招生機會', '同業'])
-    expect(AREA_TABLE_TABS).toEqual(['village', 'school', 'enrolled', 'fees', 'births', 'visits'])
+    expect(MAP_MODES.map((m) => m.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
+    expect(MAP_MODES.map((m) => m.label)).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
+    // 預售建案（2026-10-20）在各里之後、國小學區之前。
+    expect(AREA_TABLE_TABS).toEqual(['village', 'presale', 'school', 'enrolled', 'fees', 'births', 'visits'])
   })
 })

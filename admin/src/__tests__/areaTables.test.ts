@@ -1,4 +1,4 @@
-// 區域分析的「完整表格」六個分頁（2026-10-16 規格 §2.7、W9、W12、D13、D14）。AreaTables 單獨掛載，
+// 區域分析的「完整表格」七個分頁（2026-10-16 規格 §2.7、W9、W12、D13、D14）。AreaTables 單獨掛載，
 // 資料用 admissionsTestKit 的種子（接進 AreaTab 後的組裝見 areaTab.test.ts）。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
@@ -9,7 +9,7 @@ import { BIRTH_SERIES_NOTE } from '../components/admissions/area/birthSeriesForm
 import type { AdmissionsArea } from '../api/types'
 import { areaQuery } from '../admissions/areaFilter'
 import { AREA_TABLE_TABS, type AreaTableTab } from '../admissions/areaView'
-import { areaEnrolled, areaOpportunity, areaPeerFees, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
+import { areaEnrolled, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -29,7 +29,7 @@ function mountTables(changes: Record<string, unknown> = {}): VueWrapper {
       tab: 'village', area: areaStats() as unknown as AdmissionsArea,
       trends: areaTrends(), trendsFailed: false, opportunity: areaOpportunity(), opportunityFailed: false,
       enrolled: areaEnrolled(), enrolledFailed: false, gradeFilter: 'all',
-      peerFees: areaPeerFees(), peerFeesFailed: false, peerAge: 3,
+      peerFees: areaPeerFees(), peerFeesFailed: false, presale: areaPresale(), presaleFailed: false, peerAge: 3,
       csvName: (title: string) => `招生統計-${title}.csv`, emptyText: EMPTY_TEXT, boundaries: villageBoundaries(),
       ...changes,
     },
@@ -46,18 +46,18 @@ const bodyRows = (section: ReturnType<typeof block>) => section.findAll('tbody t
 const pricedSchools = () => areaPeerFees().schools.filter((school) => school.semester_total !== null).length
 
 describe('完整表格：分頁與數字', () => {
-  it('標題「完整表格」；六個頁籤依序，標籤後帶數字，預設各里', () => {
+  it('標題「完整表格」；七個頁籤依序，標籤後帶數字，預設各里', () => {
     const wrapper = mountTables()
     expect(wrapper.get('h2').text()).toBe('完整表格')
     expect(pricedSchools()).toBeGreaterThan(0)
-    expect(tabLabels(wrapper)).toEqual(['各里3', '國小學區3', '在籍學生5', `同業收費${pricedSchools()}`, '出生走勢', '參觀來源7'])
-    expect(wrapper.findAll('.el-tabs__item').map((item) => item.attributes('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false'])
-    expect(wrapper.findAll('.area-full-tables__count').map((count) => count.text())).toEqual(['3', '3', '5', String(pricedSchools()), '7'])
+    expect(tabLabels(wrapper)).toEqual(['各里3', '預售建案3', '國小學區3', '在籍學生5', `同業收費${pricedSchools()}`, '出生走勢', '參觀來源7'])
+    expect(wrapper.findAll('.el-tabs__item').map((item) => item.attributes('aria-selected'))).toEqual(['true', 'false', 'false', 'false', 'false', 'false', 'false'])
+    expect(wrapper.findAll('.area-full-tables__count').map((count) => count.text())).toEqual(['3', '3', '3', '5', String(pricedSchools()), '7'])
   })
 
-  it('資料還沒回來的頁籤不帶數字（各里、國小學區、在籍學生、同業收費）；參觀來源的數字來自 area', () => {
-    const wrapper = mountTables({ trends: null, opportunity: null, enrolled: null, peerFees: null })
-    expect(tabLabels(wrapper)).toEqual(['各里', '國小學區', '在籍學生', '同業收費', '出生走勢', '參觀來源7'])
+  it('資料還沒回來的頁籤不帶數字（各里、預售建案、國小學區、在籍學生、同業收費）；參觀來源的數字來自 area', () => {
+    const wrapper = mountTables({ trends: null, opportunity: null, enrolled: null, peerFees: null, presale: null })
+    expect(tabLabels(wrapper)).toEqual(['各里', '預售建案', '國小學區', '在籍學生', '同業收費', '出生走勢', '參觀來源7'])
   })
 
   it('各里的數字要等兩份資料都到（只有一份到時列數會在另一份到時跳動）；讀取失敗的那份不等', () => {
@@ -69,20 +69,20 @@ describe('完整表格：分頁與數字', () => {
 
   it('在籍名冊沒匯入時頁籤仍在，但沒有數字', () => {
     const wrapper = mountTables({ enrolled: areaEnrolled({ status: 'not_imported', total: 0 }) })
-    expect(tabLabels(wrapper)[2]).toBe('在籍學生')
+    expect(tabLabels(wrapper)[3]).toBe('在籍學生')
   })
 
   it('點頁籤 emit update:tab；認不得的值不 emit', async () => {
     const wrapper = mountTables()
-    await wrapper.findAll('.el-tabs__item')[1]!.trigger('click')
+    await wrapper.findAll('.el-tabs__item')[2]!.trigger('click')
     expect(wrapper.emitted('update:tab')).toEqual([['school']])
     wrapper.findComponent({ name: 'ElTabs' }).vm.$emit('update:modelValue', 'nope')
     expect(wrapper.emitted('update:tab')).toHaveLength(1)
   })
 
-  it('只畫目前那頁：換頁其他五頁的面板不在 DOM', async () => {
+  it('只畫目前那頁：換頁其他六頁的面板不在 DOM', async () => {
     const markers: Record<AreaTableTab, string> = {
-      village: '.village-table', school: '.school-districts', enrolled: '.enrolled-panel', fees: '.peer-fees',
+      village: '.village-table', presale: '.presale', school: '.school-districts', enrolled: '.enrolled-panel', fees: '.peer-fees',
       births: '.birth-series', visits: '.area-full-tables__visits',
     }
     const wrapper = mountTables()
@@ -307,7 +307,7 @@ describe('完整表格：參觀來源', () => {
     const wrapper = mountTables({ tab: 'visits', area })
     expect(wrapper.get('.empty-note').text()).toBe(EMPTY_TEXT)
     expect(wrapper.find('.stats-block').exists()).toBe(false)
-    expect(tabLabels(wrapper)[5]).toBe('參觀來源0')
+    expect(tabLabels(wrapper)[6]).toBe('參觀來源0')
   })
 })
 

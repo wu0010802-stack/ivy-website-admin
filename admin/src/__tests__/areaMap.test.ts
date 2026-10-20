@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import {
-  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, button, villageBoundaries,
+  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, button, presaleItem,
+  villageBoundaries,
 } from './admissionsTestKit'
 
 // any 只出現在 Leaflet 的 mock 物件上。
@@ -986,6 +987,119 @@ describe('新屋交屋著色（2026-10-14 里的變化 B2 段）', () => {
   })
 })
 
+describe('在建預售著色與建案點（2026-10-20 預售建案規格 P11）', () => {
+  const coded = (town: string, village: string, code: string) => ({ properties: { TOWNNAME: town, VILLNAME: village, VILLCODE: code } })
+  const DINGJIN = coded('三民區', '鼎金里', '64000050001')
+  const BENYANG = coded('三民區', '本揚里', '64000050015')
+  const BAOYE = coded('三民區', '寶業里', '64000050025')
+  const LONGZI = coded('鼓山區', '龍子里', '64000020015')
+  const OUTSIDE = coded('小港區', '青島里', '64000110001')
+  const latest = (): any => leaflet.created.geoJSON!.at(-1)
+  const classOf = (item: ReturnType<typeof coded>) => latest().options.style(item).className
+  const presaleGroup = (): any => leaflet.created.layerGroup![3]
+  const presaleMarkers = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => marker.options.className === 'area-presale')
+  const popupLines = (marker: any): string[] => Array.from((marker.bindPopup.mock.calls[0]![0]() as HTMLElement).childNodes).map((node) => node.textContent ?? '')
+
+  it('各里依在建預售戶數分 5 級（同新屋交屋的切法）；0 戶、半徑外不上色；圖例寫「戶」與建案位置；地圖名稱跟著換', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'presale' })
+    // 本揚里 156 戶、鼎金里 220 戶（最多）；寶業里、龍子里是同一個合併組，組內沒有在建案：不上色。
+    expect([BENYANG, DINGJIN, BAOYE, LONGZI, OUTSIDE].map(classOf)).toEqual([
+      'area-village area-village--l4', 'area-village area-village--l5',
+      'area-village area-village--l0', 'area-village area-village--l0', 'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--levels li').map((item) => item.text())).toEqual([
+      '1–44 戶', '45–88 戶', '89–132 戶', '133–176 戶', '177–220 戶', '0 戶或在半徑外', '建案位置（有地號座標或精確門牌）',
+    ])
+    expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依在建預售著色）；同樣的資料在右欄與完整表格的「預售建案」分頁')
+  })
+
+  it('里界調整合併的組：組內各里依自己的戶數上色，分級最大值取各里自己的最大值（不是整組）', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      villages: base.villages.map((row) =>
+        row.merged
+          ? { ...row, presale_households: 639, presale_by_code: { '64000050025': 500, '64000020015': 139 } }
+          : { ...row, presale_households: 24, presale_by_code: { [row.codes[0]!]: 24 } }),
+    })
+    await mountMap({ trends, mode: 'presale' })
+    expect([BAOYE, LONGZI, BENYANG].map(classOf)).toEqual([
+      'area-village area-village--l5', 'area-village area-village--l2', 'area-village area-village--l1',
+    ])
+  })
+
+  it('半徑內都沒有在建案：圖例換成一句話，不留空圖例', async () => {
+    const base = areaTrends()
+    const wrapper = await mountMap({
+      trends: areaTrends({ villages: base.villages.map((row) => ({ ...row, presale_households: 0, presale_by_code: {} })) }),
+      mode: 'presale',
+    })
+    expect(wrapper.find('.area-legend--levels').exists()).toBe(false)
+    expect(wrapper.get('.area-map__none').text()).toBe('半徑內沒有在建的預售建案。')
+  })
+
+  it('讀取中（換半徑，trends 變 null）：先不上色，資料回來再上色，不重建圖層', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'presale' })
+    await wrapper.setProps({ trends: null })
+    await flushPromises()
+    expect(classOf(BENYANG)).toBe('area-village area-village--l0')
+    await wrapper.setProps({ trends: areaTrends() })
+    await flushPromises()
+    expect(classOf(BENYANG)).toBe('area-village area-village--l4')
+    expect(leaflet.created.geoJSON).toHaveLength(1)
+  })
+
+  it('建案點只在「在建預售」模式加到地圖：有座標的各畫一個小點，街名只到里的沒有點；切走就收起', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), presale: areaPresale() })
+    one('map').addLayer.mockClear()
+    one('map').removeLayer.mockClear()
+    expect(presaleMarkers().map((marker) => [marker.latlng, marker.options.radius, marker.options.pane])).toEqual([
+      [[22.642456, 120.343713], 5, 'area-points'],
+      [[22.6495, 120.3437], 5, 'area-points'],
+    ])
+    expect(one('map').addLayer).not.toHaveBeenCalledWith(presaleGroup())
+    await wrapper.setProps({ mode: 'presale' })
+    await flushPromises()
+    expect(one('map').addLayer).toHaveBeenCalledWith(presaleGroup())
+    expect(presaleGroup().eachLayer).toHaveBeenCalled()
+    presaleMarkers().forEach((marker) => expect(marker.bringToFront).toHaveBeenCalled())
+    one('map').removeLayer.mockClear()
+    await wrapper.setProps({ mode: 'visits' })
+    await flushPromises()
+    expect(one('map').removeLayer).toHaveBeenCalledWith(presaleGroup())
+  })
+
+  it('彈出框：案名、區里與戶數、預計交屋（粗估）、建照日與定位方式；已過預計時間不再加「粗估」', async () => {
+    await mountMap({
+      trends: areaTrends(),
+      mode: 'presale',
+      presale: areaPresale({
+        items: [
+          presaleItem(),
+          presaleItem({ name: '逾期案', overdue: true, expected_year: 2026, match_level: 'parcel', permit_on: '2023-06-01' }),
+        ],
+      }),
+    })
+    const [exact, overdue] = presaleMarkers()
+    expect(popupLines(exact)).toEqual(['甲案', '三民區本揚里・120 戶', '預計交屋：約 2028 上半年（粗估）', '建照日 2024/03/10・依門牌'])
+    expect(popupLines(overdue)).toEqual(['逾期案', '三民區本揚里・120 戶', '預計交屋：已過預計時間（尚未登記）', '建照日 2023/06/01・依地號'])
+  })
+
+  it('清單換了（換半徑）就整組重畫；沒有座標的案不畫；案名只當文字，不被當成 HTML', async () => {
+    const wrapper = await mountMap({ trends: areaTrends(), mode: 'presale', presale: areaPresale() })
+    const cleared = presaleGroup().clearLayers.mock.calls.length
+    await wrapper.setProps({ presale: areaPresale({ items: [presaleItem({ name: '<img src=x onerror=alert(1)>' })] }) })
+    await flushPromises()
+    expect(presaleGroup().clearLayers.mock.calls.length).toBeGreaterThan(cleared)
+    const drawn = presaleMarkers().at(-1)
+    const root = drawn.bindPopup.mock.calls[0]![0]() as HTMLElement
+    expect(root.querySelector('img')).toBeNull()
+    expect(root.querySelector('strong')!.textContent).toBe('<img src=x onerror=alert(1)>')
+    await wrapper.setProps({ presale: null })
+    await flushPromises()
+    expect(presaleGroup().clearLayers).toHaveBeenCalled()
+  })
+})
+
 describe('在籍學生（2026-10-15 規格 §6）', () => {
   const enrolledGroup = (): any => leaflet.created.layerGroup![2]
   const enrolledMarkers = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => String(marker.options.className).startsWith('area-enrolled'))
@@ -1026,7 +1140,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
       await button(wrapper, '重試')!.trigger('click')
       await settle()
       expect(leaflet.created.map).toHaveLength(1)
-      expect(leaflet.created.layerGroup).toHaveLength(3)
+      expect(leaflet.created.layerGroup).toHaveLength(4) // 幼兒園、托嬰、在籍學生、在建預售
       expect(one('map').addLayer).toHaveBeenCalledWith(enrolledGroup())
       expect(enrolledMarkers()).toHaveLength(3)
     } finally {

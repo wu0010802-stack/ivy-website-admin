@@ -27,7 +27,7 @@ const values = (sections: RankingSection[]) => sections.map((section) => section
 const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, ...changes })
 const dataStatus = (changes: Record<string, unknown>) => ({ ...areaStats().data_status, ...changes })
 
-const ok: ModeNotes = { enrolled: '', opportunity: '', trend: '', homes: '', judged: true }
+const ok: ModeNotes = { enrolled: '', opportunity: '', trend: '', homes: '', presale: '', judged: true }
 
 describe('右欄：模式停用、預設與退回（規格 §2.1、D15）', () => {
   it('預設模式與退回（§2.1、D15）', () => {
@@ -42,10 +42,10 @@ describe('右欄：模式停用、預設與退回（規格 §2.1、D15）', () =
   })
 
   it('每個模式的停用原因各看各的 note；參觀與同業不停用', () => {
-    const notes: ModeNotes = { enrolled: 'E', opportunity: 'O', trend: 'T', homes: 'H', judged: true }
+    const notes: ModeNotes = { enrolled: 'E', opportunity: 'O', trend: 'T', homes: 'H', presale: 'P', judged: true }
     expect(
-      (['enrolled', 'children', 'trend', 'homes', 'visits', 'opportunity', 'peers'] as const).map((mode) => modeNote(mode, notes)),
-    ).toEqual(['E', 'O', 'T', 'H', '', 'O', ''])
+      (['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'] as const).map((mode) => modeNote(mode, notes)),
+    ).toEqual(['E', 'O', 'T', 'H', 'P', '', 'O', ''])
   })
 
   it('招生機會自己的 note 優先於「參觀不到門檻」；判讀為 true 且沒有 note 不停用', () => {
@@ -73,6 +73,7 @@ describe('右欄：排行（規格 §2.3）', () => {
     ])
     expect(trend[1]!.items.map((i) => i.value)).toEqual([`${MINUS}22`])
     expect(values(rankingFor('homes', data()))).toEqual([['106 筆', '24 筆']])
+    expect(values(rankingFor('presale', data()))).toEqual([['220 戶', '156 戶']])
     expect(rankingFor('visits', data())[0]!.items.map((i) => [i.name, i.value, i.detail, i.code])).toEqual([
       ['三民區本揚里', '3 位', '預繳 1', '64000050015'],
       ['三民區寶業里', '1 位', '預繳 1', '64000050025'],
@@ -83,7 +84,7 @@ describe('右欄：排行（規格 §2.3）', () => {
   })
 
   it('只有一段的模式 title 是空字串', () => {
-    for (const mode of ['children', 'homes', 'visits', 'opportunity', 'enrolled'] as const) {
+    for (const mode of ['children', 'homes', 'presale', 'visits', 'opportunity', 'enrolled'] as const) {
       expect(rankingFor(mode, data()).map((section) => section.title)).toEqual([''])
     }
   })
@@ -421,6 +422,28 @@ describe('右欄：標題區（規格 §2.3）', () => {
     const notImported = areaTrends()
     notImported.sources.new_homes.latest = null
     expect(paneHead('homes', data({ trends: notImported })).empty).toBe('新成屋資料尚未匯入。')
+  })
+
+  it('在建預售：戶數最多的里排前面（0 戶不列）；摘要句、只到區沒算進去的說明；沒有在建案或沒匯入寫原因（2026-10-20）', () => {
+    const trends = areaTrends()
+    trends.villages[2]!.presale_households = 0
+    expect(names(rankingFor('presale', data({ trends })))).toEqual([['三民區本揚里']])
+    expect(rankingFor('presale', data({ trends: null }))).toEqual([{ title: '', items: [] }])
+    expect(paneHead('presale', data())).toEqual({
+      title: '在建預售',
+      lines: ['半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。'],
+      note: '範圍內的區另有 2 案在建預售只到區、沒對到里，沒算進去。',
+      empty: '',
+    })
+    const none = areaTrends()
+    none.villages = none.villages.map((row) => ({ ...row, presale_households: 0, presale_by_code: {} }))
+    none.baseline!.presale_households = 0
+    none.baseline!.presale_cases = 0
+    expect(paneHead('presale', data({ trends: none })).empty).toBe('半徑內沒有在建的預售建案。')
+    const notImported = areaTrends()
+    notImported.sources.presale = { version: null, unplaced: 0, note: '' }
+    expect(paneHead('presale', data({ trends: notImported })).empty).toBe('預售建案資料尚未匯入。')
+    expect(paneHead('presale', data({ trends: null }))).toMatchObject({ lines: [], empty: '' })
   })
 
   it('參觀：參觀有地址那句；沒有訪視寫 emptyText（D14）；有訪視沒地址寫原因', () => {

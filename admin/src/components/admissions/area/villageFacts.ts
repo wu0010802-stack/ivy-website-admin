@@ -6,8 +6,8 @@ import type {
 } from '../../../api/types'
 import {
   KIDS_LEVEL_LABELS, campusUnlocatedNote, expectedText, formatCount, formatDistance, homesCount, incomeText,
-  kidsNetText, kindLabel, opportunityUnavailable, pointCount, shortName, signalText, signedCount, villageKey, villageSchoolsText,
-  type RadiusKm,
+  kidsNetText, kindLabel, opportunityUnavailable, pointCount, presaleCount, shortName, signalText, signedCount, villageKey,
+  villageSchoolsText, type RadiusKm,
 } from './areaFormat'
 
 // 區域分析工作台右欄「里卡片」（2026-10-16 規格 §2.4）的資料組合：把頁面已經載入的里界、參觀、招生機會、
@@ -178,6 +178,12 @@ function homesRow(group: AreaTrendsVillage | undefined, code: string): FactRow {
   return factRow('近 4 季新屋交屋', `${formatCount(homesCount(group, code))} 筆`, group.merged ? `整組 ${formatCount(group.new_homes)} 筆` : undefined)
 }
 
+/** 在建預售戶數（P10）：合併組寫這個里自己的戶數，小字補整組的戶數；預售建案還沒匯入寫「—」。 */
+function presaleRow(group: AreaTrendsVillage | undefined, code: string): FactRow {
+  if (!group || group.presale_households === null) return factRow('在建預售', NO_VALUE)
+  return factRow('在建預售', `${formatCount(presaleCount(group, code))} 戶`, group.merged ? `整組 ${formatCount(group.presale_households)} 戶` : undefined)
+}
+
 function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
   const children = group?.children ?? (group?.merged ? null : (oppRows[0]?.children ?? null))
   const infants = oppRows.length ? oppRows.reduce((sum, row) => sum + row.infants, 0) : null
@@ -194,6 +200,7 @@ function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
     factRow('近 12 個月出生', countText(group?.births_12m, '位')),
     factRow('近 12 個月淨遷入', moves === null ? NO_VALUE : `${signedCount(moves)} 人`, undefined, toneOf(moves)),
     homesRow(group, code),
+    presaleRow(group, code),
     factRow('所得中位數', group ? incomeText(group) : NO_VALUE),
   ]
   if (sources.opportunity?.baseline?.judged === true) {

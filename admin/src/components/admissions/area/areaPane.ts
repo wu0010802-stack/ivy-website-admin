@@ -3,9 +3,9 @@ import type {
   AdmissionsArea, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
 } from '../../../api/types'
 import {
-  NOT_JUDGED_NOTE, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, babycareStatusText, doorplateVersionLabel,
+  NOT_JUDGED_NOTE, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, NO_PRESALE_TEXT, babycareStatusText, doorplateVersionLabel,
   enrolledMapNote, enrolledVillageRows, expectedText, formatCount, formatDistance, homesMapNote, opportunitySummary,
-  opportunityUnavailable, populationVersionLabel, reasonLabel, signedCount, signedPercent, taipeiMonthDay, trendMapNote,
+  opportunityUnavailable, populationVersionLabel, presaleMapNote, reasonLabel, signedCount, signedPercent, taipeiMonthDay, trendMapNote,
   trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
 } from './areaFormat'
 import { feeLagNote, peerSummaryText } from './peerFeesFormat'
@@ -21,6 +21,7 @@ export interface ModeNotes {
   opportunity: string
   trend: string
   homes: string
+  presale: string
   /** 附近參觀滿門檻（opportunity.baseline.judged）；招生機會還沒回來是 null（讀取中不算停用）。 */
   judged: boolean | null
 }
@@ -36,6 +37,8 @@ export function modeNote(mode: MapMode, notes: ModeNotes): string {
       return notes.trend
     case 'homes':
       return notes.homes
+    case 'presale':
+      return notes.presale
     case 'opportunity':
       return notes.opportunity || (notes.judged === false ? NOT_JUDGED_NOTE : '')
     default:
@@ -186,6 +189,13 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
           .sort((a, b) => b.new_homes! - a.new_homes!)
           .map((row) => trendItem(data, row, `${formatCount(row.new_homes!)} 筆`, '')),
       )
+    case 'presale':
+      return one(
+        [...(data.trends?.villages ?? [])]
+          .filter((row) => (row.presale_households ?? 0) > 0)
+          .sort((a, b) => b.presale_households! - a.presale_households! || a.distance_m - b.distance_m)
+          .map((row) => trendItem(data, row, `${formatCount(row.presale_households!)} 戶`, '')),
+      )
     case 'visits': {
       const distances = distanceByCode(data)
       return one(
@@ -272,6 +282,19 @@ export function paneHead(mode: MapMode, data: PaneData): PaneHead {
         lines: summary?.homes ?? [],
         note: summary?.notes.homes ?? '',
         empty: unavailable || (noHomes ? NO_NEW_HOMES_TEXT : ''),
+      }
+    }
+    case 'presale': {
+      const trends = data.trends
+      if (!trends) return head
+      const summary = trendsSummary(trends)
+      const unavailable = presaleMapNote(trends)
+      const noPresale = !trends.villages.some((row) => (row.presale_households ?? 0) > 0)
+      return {
+        ...head,
+        lines: summary?.presale ?? [],
+        note: summary?.notes.presale ?? '',
+        empty: unavailable || (noPresale ? NO_PRESALE_TEXT : ''),
       }
     }
     case 'visits': {

@@ -601,6 +601,9 @@ export type AreaTrendsVillageSchool = components['schemas']['AreaTrendsVillageSc
 export type AreaTrendsSchool = components['schemas']['AreaTrendsSchoolOut']
 /** 本校半徑每 12 個月一期的出生數（2026-10-14 出生走勢規格）。 */
 export type AreaTrendsBirthPeriod = components['schemas']['AreaTrendsBirthPeriodOut']
+// 附近預售建案（2026-10-20 規格 P11、P12）：本校半徑內在建的預售建案，預計交屋是粗估（只到半年）。
+export type AreaPresale = components['schemas']['AreaPresaleOut']
+export type AreaPresaleItem = components['schemas']['AreaPresaleItemOut']
 
 // 在籍學生分布（2026-10-15 規格 §5）：每格（取整約 100 m）各班人數、沒有點的原因、距離帶與各里人數。
 export type AreaEnrolled = components['schemas']['AreaEnrolledOut']

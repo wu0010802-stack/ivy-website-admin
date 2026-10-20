@@ -6,11 +6,14 @@ import {
   homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
   pointCount, pointPopupText, providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
-  NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT,
+  NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, NO_PRESALE_TEXT, PRESALE_CAPTION, presaleCount, presaleDeliveryLine,
+  presaleDeliveryText, presaleListNote, presaleLocateText, presaleMapNote, presaleMax, presalePermitText, presaleSourceLine, presaleText,
+  presaleUnplacedNote,
 } from '../components/admissions/area/areaFormat'
 import type { VillageBoundaries, VillageFeature, VisitGeo } from '../api/types'
 import {
-  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, babycareItem, providerChange, villageBoundaries,
+  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, presaleItem, providerChange,
+  villageBoundaries,
 } from './admissionsTestKit'
 
 const OWN_CAMPUS_RADIUS_M = 50
@@ -452,8 +455,11 @@ describe('里的變化的文字（2026-10-14 規格 7）', () => {
       '近 12 個月出生 180 位（有 9 個月的資料）。',
       '近 12 個月全年齡淨遷入 1,234 人。',
       '近 4 季新屋交屋 130 筆，最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。',
+      '半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。',
     ])
-    expect(summary.note).toBe('範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。')
+    expect(summary.note).toBe(
+      '範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。範圍內的區另有 2 案在建預售只到區、沒對到里，沒算進去。',
+    )
     expect(trendsSummary(areaTrends({ baseline: null }))).toBeNull()
   })
 
@@ -508,8 +514,9 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect(homesMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 
-  it('地圖著色轉出 areaView 的七種模式：在籍學生排第一、參觀改叫「參觀」、多一個「同業」（2026-10-16 工作台）', () => {
-    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'visits', 'opportunity', 'peers'])
+  it('地圖著色轉出 areaView 的八種模式：在籍學生排第一、參觀改叫「參觀」、多一個「同業」（2026-10-16 工作台）、在建預售接在新屋交屋後面（2026-10-20）', () => {
+    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
+    expect(MAP_MODES.find((mode) => mode.value === 'presale')!.label).toBe('在建預售')
     expect(MAP_MODES[0]!.label).toBe('在籍學生')
     expect(MAP_MODES.find((mode) => mode.value === 'visits')!.label).toBe('參觀')
     expect(MAP_MODES.at(-1)!.label).toBe('同業')
@@ -523,15 +530,17 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
         sources: { ...base.sources, new_homes: { ...base.sources.new_homes, unplaced } },
       }))!
     const partial = withHomes({ new_homes_seasons: 3 })
-    expect(partial.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆（有 3 季的資料），最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。')
+    expect(partial.lines.find((line) => line.startsWith('近 4 季新屋交屋'))).toBe(
+      '近 4 季新屋交屋 130 筆（有 3 季的資料），最多的是三民區鼎金里（106 筆）、三民區本揚里（24 筆）。',
+    )
     const none = trendsSummary(areaTrends({
       baseline: { ...base.baseline!, new_homes: 0, new_homes_latest: 0 },
       villages: base.villages.map((row) => ({ ...row, new_homes: 0, new_homes_latest: 0 })),
     }))!
-    expect(none.lines.at(-1)).toBe('近 4 季新屋交屋 0 筆。')
-    expect(withHomes({}, 0).note).not.toContain('新屋交屋')
+    expect(none.lines.find((line) => line.startsWith('近 4 季新屋交屋'))).toBe('近 4 季新屋交屋 0 筆。')
+    expect(withHomes({}, 0).notes.homes).toBe('')
     expect(withHomes({ new_homes: null, new_homes_latest: null }, 9).lines.join('')).not.toContain('新屋交屋')
-    expect(withHomes({ new_homes_seasons: 0 }, 9).note).not.toContain('新屋交屋')
+    expect(withHomes({ new_homes_seasons: 0 }, 9).notes.homes).toBe('')
   })
 
   it('總結：同樣的句子依類別拆開（淨增、出生、新屋；note 的三段），lines 與 note 就是它們相接', () => {
@@ -543,13 +552,17 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
       merged: '三民區寶業里、龍子里的里界調整過，合併成一列計算。',
       kids: '一年前的各里人口還沒匯入，這一年淨增先不算。',
       homes: '範圍內的區另有 7 筆新屋交屋只到區、沒對到里，沒算進去。',
+      presale: '範圍內的區另有 2 案在建預售只到區、沒對到里，沒算進去。',
     })
+    expect(summary.presale).toEqual(['半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。'])
     expect(summary.lines).toEqual([
-      ...summary.kids, ...summary.births, '近 12 個月全年齡淨遷出 160 人。', ...summary.homes,
+      ...summary.kids, ...summary.births, '近 12 個月全年齡淨遷出 160 人。', ...summary.homes, ...summary.presale,
     ])
-    expect(summary.note).toBe(summary.notes.merged + summary.notes.kids + summary.notes.homes)
-    const bare = trendsSummary(areaTrends({ baseline: { ...areaTrends().baseline!, children: null, births_12m: null, new_homes_seasons: 0 } }))!
-    expect([bare.kids, bare.births, bare.homes, bare.notes.homes]).toEqual([[], [], [], ''])
+    expect(summary.note).toBe(summary.notes.merged + summary.notes.kids + summary.notes.homes + summary.notes.presale)
+    const bare = trendsSummary(areaTrends({
+      baseline: { ...areaTrends().baseline!, children: null, births_12m: null, new_homes_seasons: 0, presale_households: null, presale_cases: null },
+    }))!
+    expect([bare.kids, bare.births, bare.homes, bare.presale, bare.notes.homes, bare.notes.presale]).toEqual([[], [], [], [], '', ''])
   })
 
   it('總結：最多的里只列前 3 個，合併組寫里名不寫「里界調整，合併」', () => {
@@ -559,7 +572,91 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     const summary = trendsSummary(areaTrends({
       villages: [village('a', '甲里', 5), village('b', '乙、丙里', 90, true), village('c', '丁里', 30), village('d', '戊里', 12)],
     }))!
-    expect(summary.lines.at(-1)).toBe('近 4 季新屋交屋 130 筆，最多的是三民區乙、丙里（90 筆）、三民區丁里（30 筆）、三民區戊里（12 筆）。')
+    expect(summary.lines.find((line) => line.startsWith('近 4 季新屋交屋'))).toBe(
+      '近 4 季新屋交屋 130 筆，最多的是三民區乙、丙里（90 筆）、三民區丁里（30 筆）、三民區戊里（12 筆）。',
+    )
+  })
+})
+
+describe('在建預售的文字（2026-10-20 預售建案規格 P10–P13）', () => {
+  it('總結：最多的里只列前 3 個（同戶數近的在前）、合併組寫里名；0 案不寫「最多的是」；沒匯入不寫這一句', () => {
+    const base = areaTrends()
+    const village = (key: string, name: string, households: number, distance: number, merged = false) =>
+      ({ ...base.villages[0]!, key, district: '三民區', village: name, merged, distance_m: distance, presale_households: households })
+    const summary = trendsSummary(areaTrends({
+      baseline: { ...base.baseline!, presale_households: 280, presale_cases: 9 },
+      villages: [village('a', '甲里', 10, 100), village('b', '乙、丙里', 90, 300, true), village('c', '丁里', 90, 200), village('d', '戊里', 12, 100)],
+    }))!
+    // 乙、丙里與丁里同樣 90 戶：距離近的丁里在前。
+    expect(summary.presale).toEqual(['半徑內在建預售 9 案、280 戶，最多的是三民區丁里（90 戶）、三民區乙、丙里（90 戶）、三民區戊里（12 戶）。'])
+    const none = trendsSummary(areaTrends({
+      baseline: { ...base.baseline!, presale_households: 0, presale_cases: 0 },
+      villages: base.villages.map((row) => ({ ...row, presale_households: 0, presale_by_code: {} })),
+    }))!
+    expect(none.presale).toEqual(['半徑內在建預售 0 案、0 戶。'])
+    const missing = trendsSummary(areaTrends({ baseline: { ...base.baseline!, presale_households: null, presale_cases: null } }))!
+    expect(missing.presale).toEqual([])
+    expect(missing.notes.presale).toBe('')
+  })
+
+  it('沒對到里的案數是 0 就不寫那句小字', () => {
+    const base = areaTrends()
+    const summary = trendsSummary(areaTrends({ sources: { ...base.sources, presale: { ...base.sources.presale, unplaced: 0 } } }))!
+    expect(summary.notes.presale).toBe('')
+  })
+
+  it('地圖停用的原因：本校沒座標優先，其次是預售建案沒匯入；出生、新成屋沒匯入不影響', () => {
+    const base = areaTrends()
+    expect(presaleMapNote(base)).toBe('')
+    expect(presaleMapNote(areaTrends({ sources: { ...base.sources, presale: { version: null, unplaced: 0, note: '' } } }))).toBe('預售建案資料尚未匯入。')
+    expect(presaleMapNote(areaTrends({ sources: { ...base.sources, new_homes: { latest: null, seasons: [], unplaced: 0, note: '' } } }))).toBe('')
+    const unlocated = areaTrends({
+      campus: { ...base.campus, lat: null, lng: null, locate_error: 'no_address' },
+      sources: { ...base.sources, presale: { version: null, unplaced: 0, note: '' } },
+    })
+    expect(presaleMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
+  })
+
+  it('戶數文字、地圖上各里的戶數與分級最大值（合併組看組內各里，不看整組）', () => {
+    const base = areaTrends()
+    const [single, merged] = base.villages
+    expect(presaleText(single!)).toBe('156')
+    expect(presaleText({ presale_households: null })).toBe('—')
+    expect(presaleText({ presale_households: 0 })).toBe('0')
+    expect(presaleCount(single!, '64000050015')).toBe(156)
+    const group = { ...merged!, merged: true, presale_households: 90, presale_by_code: { '64000050025': 60, '64000020015': 30 } }
+    expect(presaleCount(group, '64000050025')).toBe(60)
+    expect(presaleCount(group, '64000059999')).toBe(0)
+    expect(presaleMax([single!, group])).toBe(156)
+    expect(presaleMax([group])).toBe(60)
+    expect(presaleMax([])).toBe(0)
+  })
+
+  it('預計交屋只寫到半年（粗估）；已過預計時間寫尚未登記；定位方式；建照日', () => {
+    expect(presaleDeliveryText(presaleItem())).toBe('約 2028 上半年')
+    expect(presaleDeliveryText(presaleItem({ expected_year: 2027, expected_half: 2 }))).toBe('約 2027 下半年')
+    expect(presaleDeliveryText(presaleItem({ overdue: true, expected_year: 2026 }))).toBe('已過預計時間（尚未登記）')
+    expect(presaleDeliveryLine(presaleItem())).toBe('約 2028 上半年（粗估）')
+    expect(presaleDeliveryLine(presaleItem({ overdue: true }))).toBe('已過預計時間（尚未登記）')
+    expect(presaleLocateText('parcel')).toBe('依地號')
+    expect([presaleLocateText('exact'), presaleLocateText('nearby'), presaleLocateText('street')]).toEqual(['依門牌', '依門牌', '依門牌'])
+    expect(presalePermitText(presaleItem())).toBe('2024/03/10')
+  })
+
+  it('清單用不了的原因、來源小字、沒對到里的小字；說明文字照規格', () => {
+    const data = areaPresale()
+    expect(presaleListNote(data)).toBe('')
+    expect(presaleListNote(areaPresale({ source: { version: null, unplaced: 0, note: '' } }))).toBe('預售建案資料尚未匯入。')
+    expect(presaleListNote(areaPresale({ campus: { ...data.campus, lat: null, lng: null, locate_error: 'no_doorplate' } })))
+      .toBe('本校位置未標示（本校地址比對不到門牌），算不出附近有哪些里。')
+    expect(presaleSourceLine(data)).toBe('資料來源：內政部實價登錄 預售屋建案備查；地號位置：國土測繪中心（115 年 10 月版）。')
+    expect(presaleSourceLine(areaPresale({ source: { version: null, unplaced: 0, note: '' } }))).toBe('')
+    expect(presaleUnplacedNote(data)).toBe('範圍內的區另有 2 案在建預售只到區、沒對到里，沒列出。')
+    expect(presaleUnplacedNote(areaPresale({ source: { ...data.source, unplaced: 0 } }))).toBe('')
+    expect(NO_PRESALE_TEXT).toBe('半徑內沒有在建的預售建案。')
+    expect(PRESALE_CAPTION).toBe(
+      '預售建案是內政部預售屋備查資料（110 年 7 月起）；戶數含店面以外的住宅單位、不等於已售出或已入住；預計交屋依建照日與規模粗估，誤差約半年到一年。',
+    )
   })
 })
 

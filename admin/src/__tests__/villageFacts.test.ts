@@ -65,7 +65,8 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     expect(f.kids.mergeNote).toBe('')
     expect(rows(f.kids)).toEqual([
       ['2–5 歲', '317 位'], ['0–1 歲', '90 位'], ['這一年淨增', '+36（+12.8%）', '增加多'],
-      ['近 12 個月出生', '36 位'], ['近 12 個月淨遷入', '−122 人'], ['近 4 季新屋交屋', '24 筆'], ['所得中位數', '45.8 萬'],
+      ['近 12 個月出生', '36 位'], ['近 12 個月淨遷入', '−122 人'], ['近 4 季新屋交屋', '24 筆'], ['在建預售', '156 戶'],
+      ['所得中位數', '45.8 萬'],
       ['招生機會', '參觀 6 位（2.0%）', '照附近應有約 6 位・差不多'],
     ])
     expect(find(f.kids, '這一年淨增')!.tone).toBe('up')
@@ -125,6 +126,23 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     for (const row of trends.villages) row.new_homes = null
     const notImported = villageFacts('64000020015', sources({ trends }))!
     expect(find(notImported.kids, '近 4 季新屋交屋')).toEqual({ label: '近 4 季新屋交屋', value: '—' })
+  })
+
+  it('在建預售戶數：一般的里不帶小字；合併組寫這個里自己的戶數、小字補整組；沒匯入寫「—」（2026-10-20 P10）', () => {
+    expect(detail(villageFacts('64000050015', sources())!.kids, '在建預售')).toBeUndefined()
+    const trends = areaTrends()
+    const group = trends.villages.find((row) => row.merged)!
+    group.presale_households = 90
+    group.presale_by_code = { '64000050025': 60, '64000020015': 30 }
+    const f = villageFacts('64000050025', sources({ trends }))!
+    expect(value(f.kids, '在建預售')).toBe('60 戶')
+    expect(detail(f.kids, '在建預售')).toBe('整組 90 戶')
+    expect(value(villageFacts('64000020015', sources({ trends }))!.kids, '在建預售')).toBe('30 戶')
+    // 共用 fixture 的合併組整組 0 戶；匯入了沒有在建案是 0 戶，不是「—」。
+    expect(value(villageFacts('64000020015', sources())!.kids, '在建預售')).toBe('0 戶')
+    const missing = areaTrends()
+    for (const row of missing.villages) row.presale_households = null
+    expect(find(villageFacts('64000050015', sources({ trends: missing }))!.kids, '在建預售')).toEqual({ label: '在建預售', value: '—' })
   })
 
   it('合併組照附近應有：組內有一個里沒有附近平均就不寫，兩個都有才加總', () => {

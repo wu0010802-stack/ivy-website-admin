@@ -2,7 +2,8 @@
 import { computed, useId } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
 import type {
-  AdmissionsArea, AreaDistrictRow, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaVillageRow, VillageBoundaries,
+  AdmissionsArea, AreaDistrictRow, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, AreaVillageRow,
+  VillageBoundaries,
 } from '../../../api/types'
 import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
@@ -11,14 +12,15 @@ import AreaVillageTable from './AreaVillageTable.vue'
 import BirthSeries from './BirthSeries.vue'
 import EnrolledPanel from './EnrolledPanel.vue'
 import PeerFeesPanel from './PeerFeesPanel.vue'
+import PresalePanel from './PresalePanel.vue'
 import SchoolDistrictPanel from './SchoolDistrictPanel.vue'
-import { bandLabel, campusNotLocatedReason, trendsUnavailable, type GradeFilter } from './areaFormat'
+import { bandLabel, campusNotLocatedReason, presaleListNote, trendsUnavailable, type GradeFilter } from './areaFormat'
 import { addressSummary } from './areaPane'
 import type { PeerAge } from './peerFeesFormat'
 import { villageTableRows } from './villageTable'
 
-// 地圖下方的「完整表格」（2026-10-16 區域分析工作台規格 §2.7）：六個分頁一次只畫一頁（v-if，換頁不重抓資料，
-// 資料都由 AreaTab 保管）。各里、國小學區、在籍學生、同業收費、出生走勢沿用現有面板；參觀來源是原本頁底的三張表
+// 地圖下方的「完整表格」（2026-10-16 區域分析工作台規格 §2.7）：七個分頁一次只畫一頁（v-if，換頁不重抓資料，
+// 資料都由 AreaTab 保管）。各里、預售建案（2026-10-20）、國小學區、在籍學生、同業收費、出生走勢沿用現有面板；參觀來源是原本頁底的三張表
 // （行政區排行、里排行、距離分布）。標籤後的數字資料還沒回來就不帶（不寫 0）。
 const props = defineProps<{
   tab: AreaTableTab
@@ -32,6 +34,8 @@ const props = defineProps<{
   gradeFilter: GradeFilter
   peerFees: AreaPeerFees | null
   peerFeesFailed: boolean
+  presale: AreaPresale | null
+  presaleFailed: boolean
   peerAge: PeerAge
   csvName: (title: string) => string
   /** 還沒有招生訪視時，參觀來源那一頁寫的句子（D14）。 */
@@ -44,7 +48,7 @@ const emit = defineEmits<{
   'update:peerAge': [age: PeerAge]
   'select-village': [code: string]
   'open-records': [filter: { area: string }]
-  retry: [source: 'trends' | 'opportunity' | 'enrolled' | 'peerFees']
+  retry: [source: 'trends' | 'opportunity' | 'enrolled' | 'peerFees' | 'presale']
 }>()
 
 const headingId = useId()
@@ -55,8 +59,11 @@ const villageRows = computed(() => villageTableRows(props.trends, props.opportun
 // 各里表兩份資料任何一份還在讀就是骨架（見 AreaVillageTable），數字也等兩份都到；讀取失敗的那份不等，兩份都失敗沒有列。
 const villageWaiting = computed(() => (!props.trends && !props.trendsFailed) || (!props.opportunity && !props.opportunityFailed))
 const villageCount = computed(() => (villageWaiting.value || (!props.trends && !props.opportunity) ? null : villageRows.value.length))
+// 預售建案沒匯入或本校沒座標時清單是空的，頁籤不帶數字（不寫 0，像是附近真的沒有）。
+const presaleUnavailable = computed(() => (props.presale ? presaleListNote(props.presale) !== '' : false))
 const tabs = computed<{ name: AreaTableTab; label: string; count: number | null }[]>(() => [
   { name: 'village', label: '各里', count: villageCount.value },
+  { name: 'presale', label: '預售建案', count: props.presale && !presaleUnavailable.value ? props.presale.summary.cases : null },
   { name: 'school', label: '國小學區', count: props.trends ? props.trends.schools.length : null },
   { name: 'enrolled', label: '在籍學生', count: props.enrolled?.status === 'ready' ? props.enrolled.total : null },
   {
@@ -160,6 +167,15 @@ function openVillage({ district, village }: AreaVillageRow) {
             @select-village="emit('select-village', $event)"
             @retry-trends="emit('retry', 'trends')"
             @retry-opportunity="emit('retry', 'opportunity')"
+          />
+
+          <PresalePanel
+            v-else-if="tab === 'presale'"
+            :data="presale"
+            :failed="presaleFailed"
+            :csv-name="csvName"
+            @retry="emit('retry', 'presale')"
+            @select-village="emit('select-village', $event)"
           />
 
           <!-- 國小學區與出生走勢共用「里的變化」那一份資料：讀取失敗的句子與重試在這裡寫一次（面板自己不重複）。 -->

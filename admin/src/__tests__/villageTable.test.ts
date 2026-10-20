@@ -207,10 +207,10 @@ describe('各里表的欄與說明', () => {
 
   it('畫面欄：里 sticky 在最前面，judged 才多參觀四欄', () => {
     expect(villageColumns(false, true).map((column) => column.label)).toEqual([
-      '里', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '近 4 季新屋', '所得中位數', '國小學區', '在籍',
+      '里', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '近 4 季新屋', '在建預售（戶）', '所得中位數', '國小學區', '在籍',
     ])
     expect(villageColumns(false, true)[0]).toMatchObject({ key: 'place', sticky: true })
-    expect(villageColumns(true, true)).toHaveLength(16)
+    expect(villageColumns(true, true)).toHaveLength(17)
   })
 
   it('說明：沒到門檻不解釋參觀率、照附近應有、少了約 N 位，里的變化那段照舊', () => {
@@ -238,11 +238,47 @@ describe('各里表的欄與說明', () => {
   })
 })
 
+describe('各里表：在建預售（2026-10-20 P10）', () => {
+  it('列上的戶數與文字：合併組是整組、沒匯入是 null 與「—」', () => {
+    const rows = villageTableRows(areaTrends(), areaOpportunity(), null)
+    expect(rows.map((row) => [row.presale_households, row.presale_text])).toEqual([[156, '156'], [0, '0'], [220, '220']])
+    const base = areaTrends()
+    const missing = villageTableRows(
+      areaTrends({ villages: base.villages.map((row) => ({ ...row, presale_households: null, presale_by_code: {} })) }), null, null,
+    )
+    expect(missing.map((row) => [row.presale_households, row.presale_text])).toEqual([[null, '—'], [null, '—'], [null, '—']])
+    // 里的變化讀不到、以招生機會為底：整欄「—」。
+    expect(villageTableRows(null, areaOpportunity(), null).every((row) => row.presale_text === '—')).toBe(true)
+  })
+
+  it('CSV 寫數字（0 寫 0，沒匯入寫空白）；欄在近 4 季新屋之後、所得之前', () => {
+    const [row] = villageTableRows(areaTrends(), areaOpportunity(), null)
+    const column = villageCsvColumns(true).find((item) => item.label === '在建預售（戶）')!
+    expect(villageCsvCell(row!, column)).toBe(156)
+    expect(villageCsvCell({ ...row!, presale_households: 0 }, column)).toBe(0)
+    expect(villageCsvCell({ ...row!, presale_households: null }, column)).toBe('')
+    const labels = villageColumns(false, true).map((item) => item.label)
+    expect(labels.indexOf('在建預售（戶）')).toBe(labels.indexOf('近 4 季新屋') + 1)
+    expect(labels.indexOf('所得中位數')).toBe(labels.indexOf('在建預售（戶）') + 1)
+  })
+
+  it('說明：匯入了寫在建預售的定義、來源與版本；沒匯入寫尚未匯入', () => {
+    const text = villageHowText(areaTrends(), null)
+    expect(text).toContain('在建預售是住宅、還沒登記、建照核發未滿 6 年的預售建案戶數。')
+    expect(text).toContain('預計交屋依建照日與規模粗估，誤差約半年到一年。')
+    expect(text).toContain('資料來源：內政部實價登錄 預售屋建案備查；地號位置：國土測繪中心（115 年 10 月版）。')
+    const base = areaTrends()
+    const none = villageHowText(areaTrends({ sources: { ...base.sources, presale: { version: null, unplaced: 0, note: '' } } }), null)
+    expect(none).toContain('預售建案資料尚未匯入。')
+    expect(none).not.toContain('在建預售是')
+  })
+})
+
 describe('各里表的 CSV', () => {
   const HEADER = [
     '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入',
-    '近 4 季新屋', '最近一季新屋', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班', '在籍小班',
-    '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
+    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班',
+    '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
   ]
 
   it('欄名聯集、同一欄只出現一次；參觀四欄不論 judged 都在', () => {
@@ -457,7 +493,7 @@ describe('AreaVillageTable', () => {
     expect(lines[0]).toBe(`${CSV_BOM}${HEADER_LINE}`)
     expect(lines).toHaveLength(5)
     expect(lines[3]).toBe(
-      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,30,0,0,,,,' +
+      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,30,0,0,0,,,,' +
         '光武國小（部分）；鼓山區龍華國小（部分）,1,1,0,0,0,0,11,1.9%,4,',
     )
     wrapper.unmount()
@@ -466,8 +502,8 @@ describe('AreaVillageTable', () => {
 
 const HEADER_LINE = [
   '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入',
-  '近 4 季新屋', '最近一季新屋', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班', '在籍小班',
-  '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
+  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班',
+  '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
 ].join(',')
 
 // 下面幾條原本在 areaTab.test.ts 測招生機會、里的變化兩個面板（2026-10-16 兩個面板併進各里表後搬過來）。

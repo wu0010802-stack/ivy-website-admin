@@ -1,9 +1,9 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaTrends, ContactLog, ContactLogCreate,
+  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
@@ -190,6 +190,11 @@ export function getAreaTrends(params: {
   campus_key: string; school_year: number | null; semester: number | null; radius_km: 1 | 3 | 6
 }): Promise<AreaTrends> {
   return api.get<AreaTrends>(`/admin/admissions/area/trends?${toQuery(params)}`)
+}
+
+/** 附近預售建案（2026-10-20 規格 P12）：本校半徑內在建的預售建案，半徑同 getAreaKindergartens（1、3、6 公里）。 */
+export function getAreaPresale(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaPresale> {
+  return api.get<AreaPresale>(`/admin/admissions/area/presale?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
 }
 
 /** 在籍學生分布（2026-10-15 規格 §5）：只看校區（清冊是某一天的快照）；沒匯入時 status 是 not_imported。 */

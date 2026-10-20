@@ -4,9 +4,9 @@ import type {
 } from '../../../api/types'
 import type { CsvCell } from '../../../utils/csv'
 import {
-  ENROLLED_GRADE_ORDER, KIDS_LEVEL_LABELS, expectedText, formatCount, formatDistance, homesText, incomeText, kidsNetText,
-  opportunityUnavailable, pointCount, populationVersionLabel, seasonRange, signalText, signedCount, trendsPlaceName, trendsUnavailable,
-  villageSchoolsText,
+  ENROLLED_GRADE_ORDER, KIDS_LEVEL_LABELS, PRESALE_CAPTION, expectedText, formatCount, formatDistance, homesText, incomeText, kidsNetText,
+  opportunityUnavailable, pointCount, populationVersionLabel, presaleText, seasonRange, signalText, signedCount, trendsPlaceName,
+  trendsUnavailable, villageSchoolsText,
 } from './areaFormat'
 import { findFeature } from './villageFacts'
 
@@ -45,6 +45,9 @@ export interface VillageTableRow extends Record<string, unknown> {
   new_homes: number | null
   new_homes_latest: number | null
   homes_text: string
+  /** 在建預售戶數（P10）；預售建案沒匯入是 null（不是 0）。 */
+  presale_households: number | null
+  presale_text: string
   income_median: number | null
   income_boundary_changed: boolean
   income_year: number | null
@@ -162,6 +165,8 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
     new_homes: t?.new_homes ?? null,
     new_homes_latest: t?.new_homes_latest ?? null,
     homes_text: t ? homesText(t) : NO_VALUE,
+    presale_households: t?.presale_households ?? null,
+    presale_text: t ? presaleText(t) : NO_VALUE,
     income_median: t?.income_median ?? null,
     income_boundary_changed: t?.income_boundary_changed ?? false,
     income_year: context.incomeYear,
@@ -279,6 +284,7 @@ export function villageColumns(judged: boolean, allChildren: boolean): StatsColu
     { key: 'births_text', label: '近 12 個月出生' },
     { key: 'migration_text', label: '近 12 個月淨遷入' },
     { key: 'homes_text', label: '近 4 季新屋' },
+    { key: 'presale_text', label: '在建預售（戶）' },
     { key: 'income_text', label: '所得中位數' },
     { key: 'schools_text', label: '國小學區' },
     { key: 'enrolled', label: '在籍' },
@@ -343,6 +349,8 @@ export function villageCsvCell(row: VillageTableRow, column: StatsColumn): CsvCe
       return row.new_homes ?? ''
     case 'homes_latest':
       return row.new_homes_latest ?? ''
+    case 'presale_text':
+      return row.presale_households ?? ''
     case 'income_text':
       return row.income_median ?? ''
     case 'income_year':
@@ -398,6 +406,9 @@ function trendsHow(data: AreaTrends | null): string {
     sources.new_homes.latest === null
       ? '新成屋資料尚未匯入。'
       : '新屋交屋是完工一年內的住宅過戶（含預售屋交屋），不等於已入住、也不等於有孩子。',
+    sources.presale.version === null
+      ? '預售建案資料尚未匯入。'
+      : `在建預售是住宅、還沒登記、建照核發未滿 6 年的預售建案戶數。${PRESALE_CAPTION}`,
     sources.income.year === null
       ? '各里所得資料尚未匯入。'
       : `所得是 ${sources.income.year} 年度綜合所得稅申報戶的中位數，只當背景；* 表示界線在所得年度之後調整過，` +
@@ -416,8 +427,9 @@ function trendsHow(data: AreaTrends | null): string {
     : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
   const homes = sources.new_homes.note ? `${sources.new_homes.note}。` : ''
+  const presale = sources.presale.note ? `資料來源：${sources.presale.note}（${populationVersionLabel(sources.presale.version!)}版）。` : ''
   const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${homes}${income}${schools}`
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${homes}${presale}${income}${schools}`
 }
 
 /** 「這些數字怎麼算」：招生機會與里的變化原本的兩段 caption 接起來，「附近」的定義只寫一次；兩邊都沒有說明時是空字串。 */

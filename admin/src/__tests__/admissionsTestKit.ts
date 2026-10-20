@@ -9,7 +9,7 @@ import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
-  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
   UserOut, VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -218,6 +218,7 @@ const buildAreaTrends = () => ({
     new_homes: {
       latest: '115S3', seasons: ['114S4', '115S1', '115S2', '115S3'], unplaced: 7, note: '資料來源：內政部不動產交易實價查詢服務網',
     },
+    presale: { version: '115-10', unplaced: 2, note: '內政部實價登錄 預售屋建案備查；地號位置：國土測繪中心' },
     school_districts: {
       school_year: 115,
       note: '學區依高雄市政府教育局「115 學年度國民小學學區劃分一覽表」；學校依教育部「國民小學名錄」（115 學年度）',
@@ -232,17 +233,21 @@ const buildAreaTrends = () => ({
       { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null },
     ],
     new_homes: 130, new_homes_latest: 41, new_homes_seasons: 4,
+    presale_households: 376, presale_cases: 5,
   },
   kids_unavailable: null,
   villages: [
     { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
+      presale_households: 156, presale_by_code: { '64000050015': 156 } as Record<string, number>,
       schools: [{ code: '593615', name: '東光國小', district: '三民區', partial: false, free_zone: false }] },
     { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
+      presale_households: 0, presale_by_code: {} as Record<string, number>,
       schools: [
         { code: '553608', name: '光武國小', district: '三民區', partial: true, free_zone: false },
         { code: '523606', name: '龍華國小', district: '鼓山區', partial: true, free_zone: false },
       ] },
     { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
+      presale_households: 220, presale_by_code: { '64000050001': 220 } as Record<string, number>,
       schools: [
         { code: '553604', name: '獅湖國小', district: '三民區', partial: false, free_zone: false },
         { code: '593603', name: '民族國小', district: '三民區', partial: true, free_zone: true },
@@ -256,6 +261,33 @@ const buildAreaTrends = () => ({
 } satisfies AreaTrends)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaTrends = (changes: Partial<AreaTrends> = {}): AreaTrends => ({ ...buildAreaTrends(), ...changes })
+
+// 附近預售建案（2026-10-20）：三案在半徑內——乙案已過預計時間（街名只到里、沒有座標）、甲案依門牌有座標、丙案依地號有座標；
+// 另有 2 案只到區沒列出。總共 156 戶＋220 戶中本揚里的兩案是 36＋120。
+export const presaleItem = (changes: Partial<AreaPresaleItem> = {}): AreaPresaleItem => ({
+  name: '甲案', district: '三民區', village: '本揚里', village_code: '64000050015', households: 120, permit_on: '2024-03-10',
+  expected_year: 2028, expected_half: 1, overdue: false, distance_m: 0, match_level: 'exact', lat: 22.642456, lon: 120.343713,
+  ...changes,
+})
+export const areaPresale = (changes: Partial<AreaPresale> = {}): AreaPresale => ({
+  as_of: '2026-10-20T04:00:00Z',
+  radius_km: 3,
+  campus: { key: 'yihua', name: '義華', lat: 22.642456, lng: 120.343713, locate_error: null, district: '三民區' },
+  source: { version: '115-10', unplaced: 2, note: '內政部實價登錄 預售屋建案備查；地號位置：國土測繪中心' },
+  summary: { cases: 3, households: 376 },
+  items: [
+    presaleItem({
+      name: '乙案', households: 36, permit_on: '2023-06-01', expected_year: 2026, expected_half: 1, overdue: true, distance_m: 300,
+      match_level: 'street', lat: null, lon: null,
+    }),
+    presaleItem(),
+    presaleItem({
+      name: '丙案', village: '鼎金里', village_code: '64000050001', households: 220, permit_on: '2025-01-01', expected_year: 2029,
+      distance_m: 800, match_level: 'parcel', lat: 22.6495, lon: 120.3437,
+    }),
+  ],
+  ...changes,
+})
 
 // 預約全程（2026-10-15）：後端 test_admissions_journey_calc 的 13 筆情境（情境 13 是退註冊、註冊日已被清掉的真實形狀，
 // 所以預繳到註冊只剩情境 1 的 11 天，另有 1 筆不納入）。

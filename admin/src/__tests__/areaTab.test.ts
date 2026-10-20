@@ -17,7 +17,8 @@ import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import { NOT_JUDGED_NOTE } from '../components/admissions/area/areaFormat'
 import { DEFAULT_AREA_VIEW, type AreaTableTab, type AreaView } from '../admissions/areaView'
 import {
-  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaStats, areaTrends, button, cleanup, deferred,
+  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
+  deferred,
   mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
@@ -31,7 +32,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
-        'babycare', 'trends', 'enrolled', 'gradeFilter',
+        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter',
       ],
       emits: ['select-village'],
       setup(_, { expose }) {
@@ -68,6 +69,7 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/changes': areaChanges(),
   '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area/trends': areaTrends(),
+  '/admin/admissions/area/presale': areaPresale(),
   '/admin/admissions/area/enrolled': enrolled,
   '/admin/admissions/area': area,
 })
@@ -135,11 +137,11 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.get('.area-footer__status').text()).toBe(STATUS)
   })
 
-  it('工具列：左「看什麼」七個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
+  it('工具列：左「看什麼」八個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
     const { wrapper } = await mountTab()
     const toolbar = wrapper.get('.area-toolbar')
     expect(toolbar.get('[aria-label="看什麼"]').attributes('role')).toBe('radiogroup')
-    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '參觀', '招生機會', '同業'])
+    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
     const range = toolbar.get('[aria-label="範圍"]')
     expect(range.attributes('role')).toBe('radiogroup')
     expect(range.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
@@ -153,7 +155,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(rangeRadios(wrapper).map((radio) => (radio.element as HTMLInputElement).checked)).toEqual([true, false, false])
   })
 
-  // 畫面上點不出這幾個值（選項只有 1／3／6、模式只有七個），這條直接呼叫元件的 handler 保底。
+  // 畫面上點不出這幾個值（選項只有 1／3／6、模式只有八個），這條直接呼叫元件的 handler 保底。
   it('範圍只接受 1／3／6、看什麼只接受認得且沒停用的模式；其他值不改也不重讀（handler 的保底）', async () => {
     const enrolled = areaEnrolled({ status: 'not_imported' })
     const get = mockGet(routes(areaStats(), areaOpportunity(), enrolled))
@@ -221,7 +223,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
       '/admin/admissions/area/trends': () => { throw new Error('boom') },
     })
     const { wrapper } = await mountReady()
-    expect(disabledModes(wrapper)).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '招生機會'])
+    expect(disabledModes(wrapper)).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '招生機會'])
     expect(modeNotes(wrapper)).toEqual(['招生機會讀取失敗。', '里的變化讀取失敗。', '尚未匯入在籍名冊。'])
     expect(checkedMode(wrapper)).toBe('參觀')
     expect(areaMap(wrapper).props('mode')).toBe('visits')
@@ -781,7 +783,7 @@ describe('區域分析：各份資料各自成敗', () => {
     await flushPromises()
     expect(wrapper.get('.area-map-error').text()).toContain('里界載入失敗，地圖無法顯示。')
     expect(wrapper.find('.area-workbench__placeholder .area-map-error').exists()).toBe(true)
-    expect(modeButtons(wrapper)).toHaveLength(7)
+    expect(modeButtons(wrapper)).toHaveLength(8)
     expect(paneTitle(wrapper)).toBe('在籍學生')
     expect(wrapper.find('.area-full-tables').exists()).toBe(true)
     fail = false
@@ -1173,11 +1175,23 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
     expect(modeNotes(wrapper)).toEqual(['新成屋資料尚未匯入。'])
   })
 
+  it('預售建案還沒匯入：只有在建預售停用，孩子增減與新屋交屋照用（2026-10-20）', async () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      sources: { ...base.sources, presale: { version: null, unplaced: 0, note: '' } },
+      baseline: { ...base.baseline!, presale_households: null, presale_cases: null },
+      villages: base.villages.map((row) => ({ ...row, presale_households: null, presale_by_code: {} })),
+    })
+    const { wrapper } = await mountTrends(trends)
+    expect(disabledModes(wrapper)).toEqual(['在建預售'])
+    expect(modeNotes(wrapper)).toEqual(['預售建案資料尚未匯入。'])
+  })
+
   it('本校沒座標：孩子增減與新屋交屋停用，原因只寫一次；什麼都沒匯入：孩子增減停用', async () => {
     const base = areaTrends()
     const unlocated = areaTrends({ campus: { ...base.campus, lat: null, lng: null, locate_error: 'pending' }, baseline: null, villages: [] })
     const first = await mountTrends(unlocated)
-    expect(disabledModes(first.wrapper)).toEqual(['孩子增減', '新屋交屋'])
+    expect(disabledModes(first.wrapper)).toEqual(['孩子增減', '新屋交屋', '在建預售'])
     expect(modeNotes(first.wrapper)).toEqual(['本校位置未標示（門牌資料尚未匯入），算不出附近有哪些里。'])
     cleanup()
     const empty = areaTrends({
@@ -1196,13 +1210,84 @@ describe('里的變化（2026-10-14 規格 7.2）', () => {
       return areaTrends()
     })
     expect(wrapper.find('.trends-error').exists()).toBe(true)
-    expect(disabledModes(wrapper)).toEqual(['孩子增減', '新屋交屋'])
+    expect(disabledModes(wrapper)).toEqual(['孩子增減', '新屋交屋', '在建預售'])
     expect(modeNotes(wrapper)).toEqual(['里的變化讀取失敗。'])
     fail = false
     await button(wrapper.get('.trends-error'), '重新載入')!.trigger('click')
     await flushPromises()
     expect(wrapper.find('.trends-error').exists()).toBe(false)
     expect(disabledModes(wrapper)).toEqual([])
+  })
+})
+
+describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
+  it('依頁首校區與半徑讀 /area/presale（不帶學年學期）；換半徑重讀；資料交給地圖與表格', async () => {
+    const { wrapper, get } = await mountTab()
+    expect(Object.fromEntries(queryOf(pathsTo(get, '/admin/admissions/area/presale')[0]!))).toEqual({ campus_key: 'yihua', radius_km: '3' })
+    expect(areaMap(wrapper).props('presale')).toMatchObject({ radius_km: 3, summary: { cases: 3 } })
+    expect(wrapper.findComponent(AreaTables).props('presale')).toMatchObject({ summary: { cases: 3 } })
+    expect(modeInput(wrapper, '在建預售').disabled).toBe(false)
+    await chooseRadius(wrapper, 6)
+    await flushPromises()
+    expect(queryOf(pathsTo(get, '/admin/admissions/area/presale').at(-1)!).get('radius_km')).toBe('6')
+  })
+
+  it('換校區：先清空再讀，只採用最後一次的回應', async () => {
+    const slow = deferred<unknown>()
+    let calls = 0
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/presale': () => {
+        calls += 1
+        return calls === 1 ? slow.promise : areaPresale({ summary: { cases: 1, households: 36 } })
+      },
+    })
+    const { wrapper } = await mountReady()
+    expect(areaMap(wrapper).props('presale')).toBeNull()
+    await chooseRadius(wrapper, 6) // 第二次請求先回來
+    await flushPromises()
+    expect(areaMap(wrapper).props('presale')).toMatchObject({ summary: { cases: 1 } })
+    slow.resolve(areaPresale({ summary: { cases: 99, households: 1 } })) // 第一次請求最後才回來：丟掉
+    await flushPromises()
+    expect(areaMap(wrapper).props('presale')).toMatchObject({ summary: { cases: 1 } })
+  })
+
+  it('在建預售模式：右欄是戶數排行與摘要，地圖拿到 presale；網址帶 map=presale', async () => {
+    const { wrapper } = await mountTab()
+    await chooseMode(wrapper, '在建預售')
+    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village' })
+    expect(paneTitle(wrapper)).toBe('在建預售')
+    expect(areaMap(wrapper).props('mode')).toBe('presale')
+    expect(side(wrapper).text()).toContain('半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。')
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區鼎金里', '三民區本揚里'])
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__figure').text())).toEqual(['220 戶', '156 戶'])
+  })
+
+  it('預售建案分頁：清單在各里之後；點案名＝選取所在的里（地圖移過去、右欄出現里卡片）', async () => {
+    const { wrapper } = await mountTab()
+    await openTable(wrapper, 'presale')
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale' })
+    expect(tableTitles(wrapper)).toEqual(['附近預售建案（本校 3 公里內）'])
+    expect(bodyRows(block(wrapper, '附近預售建案（本校 3 公里內）')).map((row) => row[1])).toEqual(['乙案', '甲案', '丙案'])
+    await wrapper.findAll('.area-full-tables .stats-table__name-link')[2]!.trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)).toMatchObject({ village: '64000050001' })
+    expect(mapStub.focusVillage).toHaveBeenCalledWith('64000050001')
+  })
+
+  it('清單讀取失敗：只影響預售建案分頁（寫原因與重試），地圖模式與其他分頁照常；重試成功', async () => {
+    let fail = true
+    mockGet({ ...routes(), '/admin/admissions/area/presale': () => { if (fail) throw new Error('boom'); return areaPresale() } })
+    const { wrapper } = await mountReady()
+    expect(disabledModes(wrapper)).toEqual([])
+    expect(areaMap(wrapper).props('presale')).toBeNull()
+    await openTable(wrapper, 'presale')
+    expect(wrapper.get('.area-full-tables .el-alert').text()).toContain('無法讀取附近預售建案，請重新載入。')
+    fail = false
+    await button(wrapper.get('.area-full-tables .el-alert'), '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.area-full-tables .el-alert').exists()).toBe(false)
+    expect(areaMap(wrapper).props('presale')).toMatchObject({ summary: { cases: 3 } })
   })
 })
 

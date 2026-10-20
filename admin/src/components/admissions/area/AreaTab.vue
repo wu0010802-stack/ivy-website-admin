@@ -6,18 +6,19 @@ import NearbyPanel from './NearbyPanel.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import {
   getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
-  getAreaTrends,
+  getAreaPresale, getAreaTrends,
 } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaTrends, VillageBoundaries,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends,
+  VillageBoundaries,
 } from '../../../api/types'
 import { areaQuery } from '../../../admissions/areaFilter'
 import { DEFAULT_AREA_VIEW, isMapMode, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
-  MAP_MODES, RADIUS_OPTIONS, enrolledMapNote, gradeOptions, homesMapNote, opportunityUnavailable, trendMapNote,
+  MAP_MODES, RADIUS_OPTIONS, enrolledMapNote, gradeOptions, homesMapNote, opportunityUnavailable, presaleMapNote, trendMapNote,
   type GradeFilter, type MapMode, type NearbyKind, type RadiusKm,
 } from './areaFormat'
 import {
@@ -244,6 +245,31 @@ const homesNote = computed(() => {
   return trends.value ? homesMapNote(trends.value) : ''
 })
 
+// 「在建預售」停用的原因：預售建案沒匯入、本校沒座標、里的變化讀取失敗；出生、遷入遷出、新成屋沒匯入不影響它。
+const presaleNote = computed(() => {
+  if (trendsFailed.value) return '里的變化讀取失敗。'
+  return trends.value ? presaleMapNote(trends.value) : ''
+})
+
+// 附近預售建案（2026-10-20 規格 P12）：地圖上的建案點與完整表格的清單；半徑同上，換校區或半徑都清空再讀、只採用最後一次的回應。
+// 清單失敗只影響預售建案分頁與地圖上的點，各里的在建戶數（里的變化）照常。
+const presale = ref<AreaPresale | null>(null)
+const presaleFailed = ref(false)
+const presaleRequests = useRequestSequence()
+async function loadPresale() {
+  const request = presaleRequests.begin()
+  presale.value = null
+  presaleFailed.value = false
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaPresale(props.campusKey, radiusKm.value)
+    if (presaleRequests.isCurrent(request)) presale.value = result
+  } catch {
+    if (presaleRequests.isCurrent(request)) presaleFailed.value = true
+  }
+}
+watch([() => props.campusKey, radiusKm], () => void loadPresale(), { immediate: true })
+
 // 在籍學生（2026-10-15 規格 §6）：只依校區讀（清冊是某一天的快照，和學年學期、半徑無關）。
 // 班別篩選放這裡：地圖、右欄排行與在籍學生分頁同步；換校區回到全部（新校不一定有同一班）。
 const gradeFilter = ref<GradeFilter>('all')
@@ -275,6 +301,7 @@ const notes = computed<ModeNotes>(() => ({
   opportunity: opportunityNote.value,
   trend: trendNote.value,
   homes: homesNote.value,
+  presale: presaleNote.value,
   judged: opportunity.value?.baseline?.judged ?? null,
 }))
 const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
@@ -283,7 +310,12 @@ const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disab
 // 原因那一行的 id：「看什麼」用 aria-describedby 指過去，讀屏聽到停用的選項時也聽得到為什麼（只有真的有原因才帶）。
 const reasonId = useId()
 const modeReasons = computed(() => [
-  ...new Set([notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.enrolled].filter(Boolean)),
+  ...new Set(
+    [
+      notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.presale,
+      notes.value.enrolled,
+    ].filter(Boolean),
+  ),
 ])
 // 選的模式和這個校區當下的預設一樣就不寫進網址（view.map 為 null）；停用的模式點不到，handler 再擋一次。
 function setMode(value: string | number | boolean | undefined) {
@@ -388,7 +420,9 @@ const head = computed(() => (paneData.value ? paneHead(mapMode.value, paneData.v
 const sections = computed(() => (paneData.value && mapMode.value !== 'peers' ? rankingFor(mapMode.value, paneData.value) : []))
 
 // 表格分頁的重試（AreaTables 的 retry 帶來源）。
-const loaders = { opportunity: loadOpportunity, trends: loadTrends, enrolled: loadEnrolled, peerFees: loadPeerFees }
+const loaders = {
+  opportunity: loadOpportunity, trends: loadTrends, enrolled: loadEnrolled, peerFees: loadPeerFees, presale: loadPresale,
+}
 
 // 各模式的排行靠哪一份資料：讀取中畫骨架、讀取失敗寫那份資料原本的失敗句與重試。參觀用的是頁面一開始就讀到的區域分析，
 // 同業的內容是清單（各自有狀態）。那份資料讀取失敗時模式本身會停用、退回預設，失敗句只是保底。
@@ -398,7 +432,8 @@ const paneSources = {
   trends: { data: trends, failed: trendsFailed, load: loadTrends, text: '無法讀取里的變化，請重新載入。' },
 }
 const PANE_SOURCE: Record<MapMode, keyof typeof paneSources | null> = {
-  enrolled: 'enrolled', children: 'opportunity', opportunity: 'opportunity', trend: 'trends', homes: 'trends', visits: null, peers: null,
+  enrolled: 'enrolled', children: 'opportunity', opportunity: 'opportunity', trend: 'trends', homes: 'trends', presale: 'trends', visits: null,
+  peers: null,
 }
 const paneSource = computed(() => {
   const source = PANE_SOURCE[mapMode.value]
@@ -506,6 +541,7 @@ const footer = computed(() =>
             :selected-code="view.village"
             :opportunity="opportunity"
             :trends="trends"
+            :presale="presale"
             :enrolled="enrolled"
             :grade-filter="gradeFilter"
             @select-village="selectFromMap"
@@ -575,6 +611,8 @@ const footer = computed(() =>
         :grade-filter="gradeFilter"
         :peer-fees="peerFees"
         :peer-fees-failed="peerFeesFailed"
+        :presale="presale"
+        :presale-failed="presaleFailed"
         :csv-name="csvName"
         :empty-text="emptyText"
         :boundaries="boundaries"

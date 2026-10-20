@@ -1,7 +1,7 @@
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AreaBabycare, AreaBabycareItem, AreaChange, AreaEnrolled, AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaTrackingSince,
-  AreaTrends, AreaTrendsSchool, AreaTrendsVillage, EnrolledGrade, KidsLevel,
+  AreaBabycare, AreaBabycareItem, AreaChange, AreaEnrolled, AreaOpportunity, AreaOpportunityMissing, AreaOpportunityRow, AreaPresale,
+  AreaPresaleItem, AreaTrackingSince, AreaTrends, AreaTrendsSchool, AreaTrendsVillage, EnrolledGrade, KidsLevel,
   OpportunitySignal, VillageBoundaries, VisitGeo,
 } from '../../../api/types'
 
@@ -166,6 +166,7 @@ export { MAP_MODES, type MapMode } from '../../../admissions/areaView'
 // 地圖與右欄在某個模式沒有東西可畫、可排時的一句（AreaMap 的圖例與右欄標題區共用，字不改）。
 export const NO_CHILDREN_DATA_TEXT = '半徑內的里沒有 2–5 歲孩子的資料。'
 export const NO_NEW_HOMES_TEXT = '半徑內近 4 季沒有新屋交屋。'
+export const NO_PRESALE_TEXT = '半徑內沒有在建的預售建案。'
 export const NO_LOCATED_VISITS_TEXT = '這個範圍還沒有定位到里的參觀。'
 
 /** 人口月份「115-09」→「115 年 9 月」，和門牌月份同一個寫法。 */
@@ -489,6 +490,63 @@ export function homesMapNote(data: AreaTrends): string {
   return campusUnlocatedText(data) ?? (data.sources.new_homes.latest === null ? '新成屋資料尚未匯入。' : '')
 }
 
+/** 地圖「在建預售」停用的原因：本校沒座標，或預售建案還沒匯入（和出生、遷入遷出、人口、新成屋有沒有匯入無關）；可以用回空字串。 */
+export function presaleMapNote(data: AreaTrends): string {
+  return campusUnlocatedText(data) ?? (data.sources.presale.version === null ? '預售建案資料尚未匯入。' : '')
+}
+
+/** 在建預售的戶數：「156」；預售建案還沒匯入寫「—」（匯入了沒有在建案是 0，不是「—」）。 */
+export const presaleText = (row: Pick<AreaTrendsVillage, 'presale_households'>): string =>
+  row.presale_households === null ? NO_VALUE : formatCount(row.presale_households)
+
+type PresaleRow = Pick<AreaTrendsVillage, 'merged' | 'presale_households' | 'presale_by_code'>
+
+/** 地圖上某個里的在建預售戶數：一般的里是那一列的數字；里界調整合併的組，組內各里用後端回的各代碼自己的戶數（同新屋交屋）。 */
+export function presaleCount(row: PresaleRow, code: string): number {
+  return row.merged ? (row.presale_by_code[code] ?? 0) : (row.presale_households ?? 0)
+}
+
+/** 在建預售的地圖分級用的最大值：每個里自己的戶數（合併組看組內各里，不看整組）。 */
+export function presaleMax(villages: readonly PresaleRow[]): number {
+  return Math.max(
+    0,
+    ...villages.flatMap((row) => (row.merged ? Object.values(row.presale_by_code) : [row.presale_households ?? 0])),
+  )
+}
+
+/** 預售建案的說明（資料定義，清單與各里表的說明共用）。 */
+export const PRESALE_CAPTION =
+  '預售建案是內政部預售屋備查資料（110 年 7 月起）；戶數含店面以外的住宅單位、不等於已售出或已入住；' +
+  '預計交屋依建照日與規模粗估，誤差約半年到一年。'
+
+/** 預計交屋（粗估，只寫到半年）：「約 2027 下半年」；已過預計時間還沒登記寫「已過預計時間（尚未登記）」。 */
+export const presaleDeliveryText = (item: Pick<AreaPresaleItem, 'overdue' | 'expected_year' | 'expected_half'>): string =>
+  item.overdue ? '已過預計時間（尚未登記）' : `約 ${item.expected_year} ${item.expected_half === 1 ? '上' : '下'}半年`
+
+/** 彈出框的預計交屋一行：「約 2028 上半年（粗估）」；已過預計時間的那句本身就說明了，不再加「粗估」。 */
+export const presaleDeliveryLine = (item: Pick<AreaPresaleItem, 'overdue' | 'expected_year' | 'expected_half'>): string =>
+  item.overdue ? presaleDeliveryText(item) : `${presaleDeliveryText(item)}（粗估）`
+
+/** 定位方式：地號座標寫「依地號」，門牌街名寫「依門牌」。 */
+export const presaleLocateText = (level: AreaPresaleItem['match_level']): string => (level === 'parcel' ? '依地號' : '依門牌')
+
+/** 建照日：「2024/03/10」。 */
+export const presalePermitText = (item: Pick<AreaPresaleItem, 'permit_on'>): string => item.permit_on.replaceAll('-', '/')
+
+/** 預售建案清單用不了的原因：本校沒座標，或預售建案還沒匯入；可以用回空字串。 */
+export function presaleListNote(data: AreaPresale): string {
+  if (data.campus.lat === null || data.campus.lng === null) return campusUnlocatedNote(data.campus.locate_error)
+  return data.source.version === null ? '預售建案資料尚未匯入。' : ''
+}
+
+/** 清單的來源與版本小字：「資料來源：內政部實價登錄 預售屋建案備查；地號位置：國土測繪中心（115 年 10 月版）」。 */
+export const presaleSourceLine = (data: AreaPresale): string =>
+  data.source.version ? `資料來源：${data.source.note}（${populationVersionLabel(data.source.version)}版）。` : ''
+
+/** 沒對到里的在建案（只到區、待比對）：清單沒有列出，寫一句小字；沒有就空字串。 */
+export const presaleUnplacedNote = (data: AreaPresale): string =>
+  data.source.unplaced ? `範圍內的區另有 ${formatCount(data.source.unplaced)} 案在建預售只到區、沒對到里，沒列出。` : ''
+
 /** 新屋交屋的筆數：「24」；新成屋還沒匯入寫「—」（匯入了沒有交屋是 0，不是「—」）。 */
 export const homesText = (row: Pick<AreaTrendsVillage, 'new_homes'>): string =>
   row.new_homes === null ? NO_VALUE : formatCount(row.new_homes)
@@ -529,8 +587,10 @@ export interface TrendsSummary {
   births: string[]
   /** 近 4 季新屋交屋那句；新成屋沒匯入或沒有任何一季時沒有。 */
   homes: string[]
-  /** note 的三段（依序直接相接就是 note）：里界調整合併、淨增算不出的原因、新屋只到區沒算進去。 */
-  notes: { merged: string; kids: string; homes: string }
+  /** 半徑內在建預售那句；預售建案沒匯入時沒有。 */
+  presale: string[]
+  /** note 的四段（依序直接相接就是 note）：里界調整合併、淨增算不出的原因、新屋只到區沒算進去、在建預售只到區沒算進去。 */
+  notes: { merged: string; kids: string; homes: string; presale: string }
 }
 
 /**
@@ -544,6 +604,7 @@ export function trendsSummary(data: AreaTrends): TrendsSummary | null {
   const births: string[] = []
   const migration: string[] = []
   const homesLines: string[] = []
+  const presaleLines: string[] = []
   if (baseline.children !== null) {
     let lead = `本校 ${radius} 公里內 ${formatCount(baseline.villages)} 個里，2–5 歲孩子 ${formatCount(baseline.children)} 位`
     if (baseline.kids_net !== null && baseline.kids_base) {
@@ -577,6 +638,17 @@ export function trendsSummary(data: AreaTrends): TrendsSummary | null {
       .map((row) => `${trendsPlaceName(row).replace('（里界調整，合併）', '')}（${formatCount(row.new_homes!)} 筆）`)
     homesLines.push(`近 4 季新屋交屋 ${formatCount(homes)} 筆${partial}${top.length ? `，最多的是${top.join('、')}` : ''}。`)
   }
+  if (baseline.presale_households !== null && baseline.presale_cases !== null) {
+    // 在建戶數最多的前 3 個里（同戶數近的在前）；合併組寫里名、不寫「里界調整，合併」。
+    const top = data.villages
+      .filter((row) => (row.presale_households ?? 0) > 0)
+      .sort((a, b) => b.presale_households! - a.presale_households! || a.distance_m - b.distance_m)
+      .slice(0, 3)
+      .map((row) => `${trendsPlaceName(row).replace('（里界調整，合併）', '')}（${formatCount(row.presale_households!)} 戶）`)
+    presaleLines.push(
+      `半徑內在建預售 ${formatCount(baseline.presale_cases)} 案、${formatCount(baseline.presale_households)} 戶${top.length ? `，最多的是${top.join('、')}` : ''}。`,
+    )
+  }
   const merged = data.villages.filter((row) => row.merged).map((row) => trendsPlaceName(row).replace('（里界調整，合併）', ''))
   const notes = {
     merged: merged.length ? `${merged.join('；')}的里界調整過，${merged.length > 1 ? '各自' : ''}合併成一列計算。` : '',
@@ -585,13 +657,18 @@ export function trendsSummary(data: AreaTrends): TrendsSummary | null {
       homes !== null && data.sources.new_homes.unplaced
         ? `範圍內的區另有 ${formatCount(data.sources.new_homes.unplaced)} 筆新屋交屋只到區、沒對到里，沒算進去。`
         : '',
+    presale:
+      presaleLines.length && data.sources.presale.unplaced
+        ? `範圍內的區另有 ${formatCount(data.sources.presale.unplaced)} 案在建預售只到區、沒對到里，沒算進去。`
+        : '',
   }
   return {
-    lines: [...kids, ...births, ...migration, ...homesLines],
-    note: notes.merged + notes.kids + notes.homes,
+    lines: [...kids, ...births, ...migration, ...homesLines, ...presaleLines],
+    note: notes.merged + notes.kids + notes.homes + notes.presale,
     kids,
     births,
     homes: homesLines,
+    presale: presaleLines,
     notes,
   }
 }
