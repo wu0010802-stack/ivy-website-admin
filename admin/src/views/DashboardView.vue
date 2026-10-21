@@ -12,6 +12,7 @@ import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { STALE_MS, useOpenRequestsStore } from '../stores/openRequests'
+import { VISIT_PHASE_LABELS } from '../utils/visitSchedule'
 
 interface TodayVisit {
   id: string
@@ -239,7 +240,7 @@ function visitPhase(visit: TodayVisit): VisitPhase {
   if (formatTime(visit.start_time) <= now) return 'ongoing'
   return ''
 }
-const VISIT_PHASE_LABELS: Record<Exclude<VisitPhase, ''>, string> = { done: '已到場', no_show: '未到場', ended: '還沒標記', ongoing: '進行中' }
+// 狀態用字（已到場、未到場、還沒標記、進行中）與案件列表共用 utils/visitSchedule.ts 的 VISIT_PHASE_LABELS，不在這裡另寫一份。
 // 還沒標記到場的，場次開始後才給「到了／沒來」（同案件列表）。
 const attendanceDue = (visit: TodayVisit) => visitPhase(visit) === 'ended' || visitPhase(visit) === 'ongoing'
 // 上午／下午分組：12:00 以前算上午。
