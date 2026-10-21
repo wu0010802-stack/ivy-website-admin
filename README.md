@@ -1,3 +1,17 @@
+## 2026-10-21 維護一批：web 依賴、預約小修、寄信規則、公開站 e2e 進 CI（`fix/maint-tests-20261021`）
+
+使用者盤點後要求「先做這些」：依賴、測試債、延後的小 bug。三條分支（後台、web＋後端、測試）各自從 main 開，最後併在這裡。
+
+- **web 依賴**：`overrides` 加 `@nuxt/devtools` 3.4.3（已不帶 `simple-git`）與 `@vitejs/devtools` ^0.7.1（devtools 的 optional peer；不釘住 npm 10 會在重新解析時 `edgesOut` 當掉），lockfile 用 npm 10.9.8 產生，連帶 vite 8.3.4、launch-editor 2.14.2。`npm audit --omit=dev` 16 項（2 critical）→ 11 項（0 critical）。剩下的 `braces`（連帶 micromatch、fast-glob、globby）與 `node-forge`（連帶 listhen、nitropack、`@nuxt/cli`、nuxt）上游沒有修正版。正式映像只複製 `web/.output`，`.output/server/node_modules` 沒有任何一個漏洞套件，全部只在開發與建置工具鏈。試過直接覆寫 `simple-git` ^4：`npm ci` 過，但 postinstall 的 `nuxt prepare` 報 `does not provide an export named 'default'`，會讓 Docker 建置失敗，沒採用。
+- **官網預約表單**：送出回 422 時焦點移到第一個 `aria-invalid` 欄位（等 fieldset 解除停用後才聚焦，找不到可聚焦欄位才退回頂端摘要），前端驗證與 422 共用 `focusFirstInvalidField`。Email 說明的 `aria-describedby`、複製修改連結失敗提示在 main 已有，沒動。
+- **後端寄信**：outbox 背景寄信在正式環境也只認 SMTP（原本沒設 SMTP、有 sink 資料夾時會把家長信寫成檔案並算已寄出）；`email_adapter.deployment_email_adapter` 成為 outbox、重設密碼、系統狀態測試信三處共用的規則，沒有管道時照舊走「未配置」，不是啟動驗證。分校停用（`campuses.active=false`）後取消信不附重新預約網址，改用信件既有的「歡迎來電洽詢」。更正 `booking/access_routes.py` 一段「沒設 SMTP 之後仍會寄出」的註解（實際會標 skipped、不補寄）。
+- **後台**：招生統計「五校比較」在 1280 寬框內橫捲 16–21px：只對這張表把欄內距 12→10px（1280／1366／1440 實測框內不捲）；比率是兩位數／兩位數時 1280 仍會捲約 40px，要根治得改欄位或讓分數換行，沒做。總覽今天的參觀狀態用字改用案件列表的 `VISIT_PHASE_LABELS`（畫面不變）。出生走勢拿掉沒有樣式的 `.birth-series__period`、補 CSV 匯出失敗測試，`villageTable.test.ts` 欄數改成具名推導；`_birth_total` 與 `query_trends` 的 `total` 合成 `_month_total`。接待月曆快速切月份的競態防護原本就在（`requests.isCurrent`），補一條測試。
+- **記錄過但現況已不存在**：預約全程手機 390 溢出（實測 390／360／320 都在框內橫捲）；authGuard 遇 `other-user` 自動換帳號（10-12、10-13 已修）；「預約正常」依參觀時間排序（「接下來」頁籤已送 `visit_asc`）；`admissions-follow-up` 台北 00–01 點必紅（`tests/stack/db.ts` 已把下限設成台北今天 00:00）。
+- **tests/e2e**：原本接在開發中的服務上跑、沒有任何 workflow 執行，發布與預覽兩支還會在本機開發庫建帳號。改成和 stack 同一套 `start-api.sh`／`start-web.sh`，用自己的庫名與埠號（`tests/e2e/e2e-env.ts`：`ivy_website_e2e_public_test`、8720／3720），只看伺服器行為的 6 支只在 1440 跑；CI 的 E2E job 在 stack 之後接著跑 `npm run test:e2e`（E2E 不擋部署，部署時間不變）。`release-freshness` 和「站內換頁不重抓已發布內容」並不矛盾：它是先整頁開 `/visit` 再點回首頁，標題與說明改成這個口徑。`public-site` 的 sitemap 斷言從 404 改成空 urlset（09-25 `c5e1b24d` 起的行為）。
+- **清理**：關掉 10-19 比稿留下的 8811、8813 http.server 與 3161 nuxt dev；移除已上線的 `about-crayon-20261019`、`visit-slot-usage-20261013` worktree（沒有其他 worktree 連著它們的 node_modules／.venv）；刪掉 153 個已併入 main 的本機分支。
+- **驗證**（Node 22.23.2、npm 10.9.8、本機 PostgreSQL）：本機 stack e2e **155 passed**（6.9 分鐘，含 `exports.spec` 的下載檔名，用 Google Chrome）；`npm run test:e2e` 34 passed、6 skipped（各視口不適用的項目）；`npm run e2e:build` 成功。web：乾淨 `npm ci`（npm 10）、`typecheck`、production `nuxt build`、`nuxt dev` 啟動到 DevTools v3.4.3，相關單元測試檔全過。admin：`typecheck`，相關的 7 個測試檔全過。後端：相關的 10 個測試檔全過。全套交給 `feature/maint-20261021` 的 CI。
+- **待決定**：五校比較在資料變大時仍會橫捲；`login?reason=other-user|session-changed` 重新整理後要不要一律不自動 restore；`CampusStatusCard`／`bookingReadiness` 的「已確認、還沒參觀」要不要改「預約正常」；BirthSeries 與 `.stats-bar` 要不要抽共用長條元件；vitest 4 主版升級（dev 依賴的 2 個 critical）。
+
 ## 2026-10-21 Pillow 13、certifi 解除 CI 依賴稽核（`fix/deps-audit-20261021`）
 
 10-20 的 11 項修正（#49，`2480f516`）推上 main 後，Backend 第 1 組的 `pip-audit` 擋下部署：`pillow` 12.3.0 有 8 個公告（修正版 13.0.0）、`certifi` 2026.7.22 有 1 個（修正版 2026.10.19），所以那 11 項還沒上正式站。`backend/pyproject.toml` 的 Pillow 約束從 `>=12.3,<13` 放寬成 `>=13.0,<14`，`uv lock --upgrade-package pillow --upgrade-package certifi` 只動這兩個套件。

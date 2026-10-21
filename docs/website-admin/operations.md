@@ -133,7 +133,7 @@ cd backend && env -i PATH="$PATH" HOME="$HOME" uv run pytest -q   # 106 passed
 cd web && npm run typecheck && npm run test:unit && npm run build
 cd admin && npm run typecheck && npm run build
 npm run contract:check
-npm run test:e2e   # Playwright，四視口設定見 playwright.config.ts
+npm run test:e2e   # 公開站四視口 Playwright（先 npm run e2e:build；自己起 API 與測試庫，見 tests/e2e/e2e-env.ts）
 ```
 
 `env -i PATH="$PATH" HOME="$HOME"` 是為了避免本機殼層已 `source` 過 `.env.example` 之類的環境變數污染測試（曾經因為 `WEBSITE_ENABLE_FIXTURE=true` 殘留在環境裡，導致 3 個無關測試假失敗）。

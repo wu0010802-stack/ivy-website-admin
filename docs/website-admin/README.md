@@ -65,7 +65,7 @@ npm run test:unit
 
 ```bash
 npm run test:website       # 轉呼叫 web 的 Vitest
-npm run test:e2e           # Playwright，四視口設定見 playwright.config.ts
+npm run test:e2e           # 公開站四視口 Playwright（先 npm run e2e:build；自己起 API 與測試庫，見 tests/e2e/e2e-env.ts）
 npm run contract:generate  # 匯出 backend OpenAPI → contracts/openapi.json，再產生 contracts/generated/website-api.d.ts
 npm run contract:check     # 檢查上述兩個產物是否與目前 API 一致（CI 用，非零表示 drift）
 ```
