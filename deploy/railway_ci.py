@@ -7,6 +7,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tarfile
 import time
 from datetime import datetime, timezone
@@ -25,12 +26,20 @@ ORIGIN = "https://web-production-04caa.up.railway.app"
 # content/ 已於 2026-10-12 刪除（內容 fixture 合一到 web/server/data/）；git archive 對沒有追蹤檔案的路徑會失敗。
 SOURCE_PATHS = ("web", "admin", "backend", "contracts", "deploy", ".dockerignore")
 EXCLUDED_PARTS = {"node_modules", ".nuxt", ".output", "dist", ".venv", "__pycache__", ".pytest_cache", "var"}
+# 影片母帶只給本機 `import-site-assets` 在沒有 manifest 時退回用，兩個映像都不複製；
+# 快照（約 145 MB）會整包經 `railway up` 上傳，2026-10-21 起 `railway up` 在上傳就失敗，先拿掉這 18 MB。
+EXCLUDED_PREFIXES = ("web/media-src/",)
 RELEASE_PATH = "web/public/release.json"
 
 
 def command(args: list[str], *, cwd: Path | None = None, timeout: int = 120) -> str:
     # 不使用 shell，不列印環境變數或任何 token。
-    return subprocess.run(args, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, timeout=timeout).stdout
+    try:
+        return subprocess.run(args, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, timeout=timeout).stdout
+    except subprocess.CalledProcessError as error:
+        # `--json` 時 Railway CLI 把錯誤寫在 stdout，不印出來 job 只剩一行 exit code（2026-10-21 上傳失敗就是這樣）。
+        print((error.stdout or "")[-2000:], file=sys.stderr, flush=True)
+        raise
 
 
 def snapshot_hash(root: Path) -> str:
@@ -57,7 +66,7 @@ def prepare(repo: Path, ref: str, destination: Path) -> dict:
             if path.is_absolute() or ".." in path.parts or not member.isfile():
                 raise RuntimeError(f"快照含不支援的路徑或連結：{path}")
             if (str(path) == RELEASE_PATH or any(p in EXCLUDED_PARTS or p.startswith(".env") for p in path.parts)
-                    or path.suffix == ".log"):
+                    or path.suffix == ".log" or str(path).startswith(EXCLUDED_PREFIXES)):
                 continue
             output = destination.joinpath(*path.parts)
             output.parent.mkdir(parents=True, exist_ok=True)

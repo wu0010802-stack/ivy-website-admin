@@ -34,6 +34,8 @@ class RailwayCITests(unittest.TestCase):
             (repo / "web/.env.production").write_text("synthetic-secret")
             (repo / "web/public").mkdir()
             (repo / "web/public/release.json").write_text('{"snapshot":"old"}')
+            (repo / "web/media-src").mkdir()
+            (repo / "web/media-src/master.mp4").write_text("video master")
             subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
             subprocess.run([
                 "git", "-C", str(repo), "-c", "user.name=CI Test",
@@ -45,8 +47,17 @@ class RailwayCITests(unittest.TestCase):
             self.assertEqual((snapshot / "web/tracked.txt").read_text(), "committed")
             self.assertFalse((snapshot / "web/.env.production").exists())
             self.assertFalse((snapshot / "web/untracked.txt").exists())
+            self.assertFalse((snapshot / "web/media-src").exists())
             self.assertEqual(release["snapshot"], self.ci.snapshot_hash(snapshot))
             self.assertEqual(json.loads((snapshot / "web/public/release.json").read_text()), release)
+
+    def test_failed_command_prints_cli_output(self):
+        failure = subprocess.CalledProcessError(1, ["railway", "up"], output='{"error":"synthetic failure"}')
+        with patch.object(self.ci.subprocess, "run", side_effect=failure), patch("sys.stderr") as stderr:
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.ci.command(["railway", "up"])
+        printed = "".join(call.args[0] for call in stderr.write.call_args_list)
+        self.assertIn("synthetic failure", printed)
 
     def test_wait_does_not_accept_an_older_success(self):
         with patch.object(self.ci, "railway_json", side_effect=[
