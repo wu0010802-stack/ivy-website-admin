@@ -17,6 +17,7 @@ from app.admissions.history.payload import load_payload as load_history_payload
 from app.main import create_app
 from app.operations.models import AuditLogEntry
 from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
+from tests.admissions_helpers import requests_queued_on_import_lock
 from tests.conftest import _logged_in_client, _test_settings
 from tests.enrolled_helpers import payload_text, points_payload, student
 from tests.geo_helpers import load_geo_samples, publish_campus_address
@@ -275,6 +276,20 @@ async def test_apply_replaces_roster_and_audits(admin_client, db_session):
     }
     text = json.dumps(entry.metadata_json, ensure_ascii=False)
     assert "義華路" not in text and "文德路" not in text
+
+
+async def test_concurrent_applies_for_one_campus_queue_on_the_lock(app, admin_client, db_session):
+    """同一校兩個確認匯入同時送到、都卡在同一把匯入鎖上（原本沒有資料）：依序整校取代，兩個都成功，最後只有一份清冊。"""
+    await _ready(db_session)
+    path = f"{IMPORTS}/enrolled/apply?campus_key=yihua"
+    body = points_payload([student()] * 3)
+    responses = await requests_queued_on_import_lock(
+        app, "enrolled_roster", "yihua", [admin_client.post(path, json=body) for _ in range(2)]
+    )
+    assert [response.status_code for response in responses] == [200, 200], [response.text for response in responses]
+    assert await _count(db_session, EnrolledRoster) == 1
+    assert await _count(db_session, EnrolledStudentPoint) == 3
+    assert len(await _audit(db_session, "enrolled_roster.import")) == 2
 
 
 async def test_apply_rejects_low_ratio(admin_client, db_session):

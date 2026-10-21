@@ -22,6 +22,7 @@ from app.admissions.schemas import HistorySheetIn
 from app.main import create_app
 from app.operations.models import AuditLogEntry
 from tests.admissions_helpers import readonly_yihua_client, reception_yihua_client  # noqa: F401
+from tests.admissions_helpers import requests_queued_on_import_lock
 from tests.conftest import _logged_in_client, _test_settings
 from tests.history_helpers import (
     FAKE_NOTES,
@@ -395,6 +396,18 @@ async def test_apply_twice_keeps_one_copy(admin_client, db_session, tmp_path):
         response = await admin_client.post(f"{IMPORTS}/history/apply?campus_key=yihua", json=preview["payload"])
         assert response.status_code == 200, response.text
     assert await _count(db_session) == 8
+    assert len(await _audit(db_session, "enrollment_history.import")) == 2
+
+
+async def test_concurrent_applies_for_one_campus_queue_on_the_lock(app, admin_client, db_session):
+    """同一校兩個確認匯入同時送到、都卡在同一把匯入鎖上（原本沒有資料）：依序整校取代，兩個都成功，只留一份。"""
+    path = f"{IMPORTS}/history/apply?campus_key=yihua"
+    body = history_payload(_four_grades(104, 1))
+    responses = await requests_queued_on_import_lock(
+        app, "enrollment_history", "yihua", [admin_client.post(path, json=body) for _ in range(2)]
+    )
+    assert [response.status_code for response in responses] == [200, 200], [response.text for response in responses]
+    assert await _count(db_session) == 4
     assert len(await _audit(db_session, "enrollment_history.import")) == 2
 
 

@@ -5,17 +5,22 @@
   `from tests.admissions_helpers import reception_yihua_client  # noqa: F401`
   匯入 fixture（pytest 認得模組裡匯入的 fixture）。
 - 同校同手機 10 分鐘內最多送 5 筆預約（SUBMIT_LIMIT_BY_PHONE），建預約一律用
-  unique_phone() 換號碼。"""
+  unique_phone() 換號碼。
+- 後台資料匯入的排隊：requests_queued_on_import_lock() 讓幾個請求一定同時卡在同一把匯入鎖上。"""
 
 from __future__ import annotations
 
+import asyncio
 import itertools
 import uuid
+from collections.abc import Coroutine
 from datetime import date, time, timedelta
+from typing import Any
 
 import pytest_asyncio
-from sqlalchemy import update
+from sqlalchemy import text, update
 
+from app.admissions import imports
 from app.auth.models import Role
 from app.booking.models import VisitSlot
 from app.common.timezones import today_local
@@ -146,3 +151,38 @@ async def started_booking(
 async def complete(client, visit_request_id):
     """預約既有的「標記已到場」。"""
     return await client.post(f"{API}/admin/visit-requests/{visit_request_id}/complete")
+
+
+async def requests_queued_on_import_lock(
+    app, kind: imports.ImportKind, campus_key: str, requests: list[Coroutine[Any, Any, Any]]
+) -> list:
+    """另一個交易先拿著這校這種匯入的 advisory lock，等 requests 全都卡在鎖上才放手，所以它們一定是同時在排隊；
+    回傳各請求的回應（照傳入順序）。輪詢 pg_stat_activity 每次開新連線（同一交易沿用第一次的快照），
+    放手要在 lock_timeout（WEBSITE_DB_LOCK_TIMEOUT_MS，10 秒）之前。"""
+    async with app.state.session_factory() as holder:
+        await imports.lock_campus_import(holder, kind, campus_key)
+        tasks = [asyncio.create_task(request) for request in requests]
+        try:
+            for _ in range(160):
+                finished = [task for task in tasks if task.done()]
+                if finished:
+                    outcome = finished[0].exception() or finished[0].result()
+                    raise AssertionError(f"請求沒有等匯入鎖就結束了：{outcome!r} {getattr(outcome, 'text', '')[:300]}")
+                async with app.state.engine.connect() as conn:
+                    waiting = await conn.scalar(
+                        text(
+                            "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                            "AND wait_event_type = 'Lock' AND wait_event = 'advisory'"
+                        )
+                    )
+                if waiting >= len(tasks):
+                    break
+                await asyncio.sleep(0.05)
+            else:
+                raise AssertionError("請求沒有都卡在匯入鎖上，交錯沒有發生")
+        except BaseException:
+            for task in tasks:
+                task.cancel()
+            raise
+        await holder.commit()
+    return list(await asyncio.wait_for(asyncio.gather(*tasks), 20))
