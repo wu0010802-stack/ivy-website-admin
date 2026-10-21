@@ -22,6 +22,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **正式 `release.json`**：base commit `fa6759d6494675f566aacb6da8ff2b45df737864`，snapshot `7a3dc334…`，created `2026-10-20T15:51:02Z`。`/api/website/v1/health` `status: ok`、`last_failed_steps` 為空。
 - **未驗證**：真機 iPhone／Android 上滑到孩子的一天停下時的換手畫面。
 
+## 2026-10-20 效能與維護整理（main CI 部署，migration `111d9d36cda7`）
+
+- **提交**：使用者要求併入 main。PR #47（`feature/optimization-20261020`，7 個提交）在 GitHub 以 rebase 併入，`95542b52..1f00cc2c`。內容見 README 同日「效能與維護整理」：雜湊素材一年 immutable、影片母帶移到 `web/media-src/`、three 具名匯入、品牌字 woff2、後台 Element Plus 按元件載樣式與標籤拆檔、outbox 清空式處理、API 映像預編 bytecode、CI ffmpeg 快取、`booking/routes.py` 與 `admissions/schemas.py` 拆檔（OpenAPI 不變）。沒有新環境變數；只新增索引，沒有先備份。
+- **Migration**：`111d9d36cda7` 新增 `ix_visit_request_events_request_type_created`（visit_request_id, event_type, created_at）、`ix_outbox_messages_due`（status, next_attempt_at），不改資料、舊的單欄索引保留。API 啟動時 `alembic upgrade head` 與 schema 檢查通過才會起來。
+- **回退**：切回上一版映像即可；新索引對舊程式無害，不必降級。要拿掉索引才跑 `alembic downgrade 76c4bf84b907`。
+- **推送前閘門**（雲端 session，Node 22）：web `typecheck`、1,323 passed；admin `typecheck`、3,103 passed／1 skipped、`build`；後端全套 4,532 passed；`contract:check`、`deploy/tests` 通過；本機 stack e2e 148 passed（抓到並修正 `/visit` hydration mismatch；`exports.spec.ts` 下載檔名在本機 Chromium 失敗、改版前 build 同樣失敗，CI 的 Chrome 通過）。PR CI 第一輪抓到後台補登對話框 TDZ（`slotRequests` 在 immediate watch 之後宣告），修正並加回歸測試後 `f4f2bff` 全部 success。
+- **CI**：main run 39444128996（`1f00cc2c`）第一次 Frontend (admin) 卡在 checkout 20 分鐘被取消（還沒跑到任何測試），部署被跳過；只重跑失敗的 job 一次後 Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success（部署 15:33–15:41 UTC，smoke：release、live API、CMS、首頁、後台入口）。新的 ffmpeg 快取步驟在後端三組與 e2e 都成功。
+- **線上唯讀檢查**：`/assets/anniversary/*` 回 `cache-control: public, max-age=31536000, immutable`；`noto-sans-tc-600-brand.woff2` 回 200、`font/woff2`；搬走的 `/assets/hero-campus.mp4` 回 404（頁面用 `optimized/` 雜湊檔）。
+- **未驗證**：Docker 映像本機建置（Docker Hub 429，Railway 建置成功）、Safari／iOS 實機。
+- **後續**：15:51 又部署了手機拍立得換手修正（上一段），已含本次變更。
+
 ## 2026-10-20 官網調亮第一層：孩子的一天、頁尾、膠囊、薄荷色帶（main CI 部署，沒有 migration）
 
 - **提交**：使用者要求部署，使用者自己執行 `git push origin HEAD:main`（`8f5a7a0c..7f5cba03`，fast-forward、沒有開 PR）。分支 `feature/brighten-20261020`（從 `87ec0d95` 開發、rebase 到 `8f5a7a0c`，README／DESIGN.md 頂部和首屏調亮、招生第二三波的段落並列）。內容見 README 與 DESIGN.md 同日「官網調亮第一層」：孩子的一天常駐紗減半、開場大標那一屏另疊一層並跟 `--word-fade` 淡掉、底部說明字帶加深；頁尾淡綠底＋深綠字；浮動膠囊米白毛玻璃；`--ivy-forest-mist` 提彩。只改 CSS 與 `DayExperience.vue` 一行（`--word-fade` 改寫在 section 上）。沒有 migration、沒有新環境變數、依賴檔沒有變動。
