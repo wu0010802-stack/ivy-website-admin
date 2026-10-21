@@ -6,6 +6,7 @@ ENV NUXT_WEBSITE_ENV=production NUXT_PUBLIC_CONTENT_MODE=live NUXT_PUBLIC_INDEXI
 COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci
 COPY admin/package.json admin/package-lock.json ./admin/
+COPY admin/vendor ./admin/vendor
 RUN cd admin && npm ci
 COPY contracts ./contracts
 COPY admin ./admin
