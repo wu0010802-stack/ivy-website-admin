@@ -7,6 +7,8 @@
 |---|---|
 | `ivy-schema.json` | 園務三張表的欄位（名稱、型別、長度、可否為空）與列舉值快照 |
 | `grade-cases.json` | 年級與學期換算的共用案例（官網後端、官網前台、後台都讀） |
+| `roster-grade-cases.json` | 在籍清冊學年班別的共用案例（`roster_grade`；官網後端 pytest 與後台 `rosterGrade` 都讀） |
+| `history-extract-cases.json` | 歷年註冊統計表的瀏覽器擷取共用案例（後端測試輔助 `browser_extract` 與後台擷取函式都讀；規定瀏覽器可送出哪些列與格） |
 
 對齊的園務版本：`ivy-backend` `dfd230c3`。規格：`docs/specs/2026-09-30-website-admissions-design.md` 第 5、12 節。
 

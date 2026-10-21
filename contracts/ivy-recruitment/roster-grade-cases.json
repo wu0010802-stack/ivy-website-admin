@@ -1,0 +1,17 @@
+{
+  "description": "在籍清冊的學年班別共用案例（2026-10-21 後台資料匯入）。後端 pytest（tests/test_enrolled_roster.py 的 roster_grade）與 admin vitest（admissions/academic.ts 的 rosterGrade）都讀這份。規則：依 grade_for_birthday（9/1 足歲）有值就用；沒有值時，9/1 足歲未滿 2 歲算幼幼班（學年中滿 2 歲才入園），其餘（滿 6 歲以上）算其他。school_year 是民國學年。",
+  "cases": [
+    {"name": "9/1 生日當天算足歲：115 學年小班", "birthday": "2023-09-01", "school_year": 115, "expected": "小班"},
+    {"name": "9/2 生日晚一天：115 學年幼幼班", "birthday": "2023-09-02", "school_year": 115, "expected": "幼幼班"},
+    {"name": "滿 2 歲（9/1 生日）：115 學年幼幼班", "birthday": "2024-09-01", "school_year": 115, "expected": "幼幼班"},
+    {"name": "9/1 還沒滿 2 歲：學年中滿 2 歲才入園，算幼幼班", "birthday": "2024-09-02", "school_year": 115, "expected": "幼幼班"},
+    {"name": "9/1 還沒滿 2 歲：隔年出生也算幼幼班", "birthday": "2025-03-01", "school_year": 115, "expected": "幼幼班"},
+    {"name": "中班（9/1 生日當天）", "birthday": "2022-09-01", "school_year": 115, "expected": "中班"},
+    {"name": "中班最小（9/2 生日）", "birthday": "2021-09-02", "school_year": 115, "expected": "中班"},
+    {"name": "大班最小（9/1 生日）", "birthday": "2021-09-01", "school_year": 115, "expected": "大班"},
+    {"name": "大班最大（9/2 生日）", "birthday": "2020-09-02", "school_year": 115, "expected": "大班"},
+    {"name": "9/1 已滿 6 歲：其他", "birthday": "2020-09-01", "school_year": 115, "expected": "其他"},
+    {"name": "年紀更大：其他", "birthday": "2019-05-05", "school_year": 115, "expected": "其他"},
+    {"name": "換學年重算：114 學年的 2023-09-01 才剛滿 2 歲，幼幼班", "birthday": "2023-09-01", "school_year": 114, "expected": "幼幼班"}
+  ]
+}

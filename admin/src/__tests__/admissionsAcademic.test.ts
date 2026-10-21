@@ -4,13 +4,19 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, schoolYearOptions, taipeiToday, termLabel } from '../admissions/academic'
+import { currentTerm, gradeForBirthday, outsideRocRange, rocDate, rocMonth, rosterGrade, schoolYearOptions, taipeiToday, termLabel } from '../admissions/academic'
 
 // 形狀由 A1 鎖定：年級一律用 expected_term 的學年換算。
 interface GradeCases {
   cases: { name: string; birthday: string; today: string; expected_term: [number, 1 | 2]; expected_grade: string | null }[]
 }
 const cases = JSON.parse(readFileSync(resolve(__dirname, '../../../contracts/ivy-recruitment/grade-cases.json'), 'utf8')) as GradeCases
+
+// 清冊班別（後端 pytest tests/test_enrolled_roster.py 讀同一份）。
+interface RosterGradeCases {
+  cases: { name: string; birthday: string; school_year: number; expected: string }[]
+}
+const rosterCases = JSON.parse(readFileSync(resolve(__dirname, '../../../contracts/ivy-recruitment/roster-grade-cases.json'), 'utf8')) as RosterGradeCases
 
 describe('年級與學期：與後端、官網讀同一份共用案例（規格 6.4、R12）', () => {
   it('生日換算適讀班級', () => {
@@ -54,6 +60,21 @@ describe('園務 gradeForBirthday 的規則', () => {
     expect(gradeForBirthday('2023/09/01', 115)).toBeNull()
     expect(gradeForBirthday(null, 115)).toBeNull()
     expect(gradeForBirthday('2023-09-01', null)).toBeNull()
+  })
+})
+
+describe('清冊班別 rosterGrade：與後端 roster_grade 讀同一份共用案例', () => {
+  it('案例檔不是空的', () => {
+    expect(rosterCases.cases.length).toBeGreaterThan(0)
+  })
+
+  it.each(rosterCases.cases)('rosterGrade $name', (c) => {
+    expect(rosterGrade(c.birthday, c.school_year)).toBe(c.expected)
+  })
+
+  it('格式錯誤的生日不硬帶班級：歸其他', () => {
+    expect(rosterGrade('2023/09/01', 115)).toBe('其他')
+    expect(rosterGrade('', 115)).toBe('其他')
   })
 })
 

@@ -37,9 +37,8 @@ export function termLabel(
 
 const AGE_GRADES: Record<number, Grade> = { 2: '幼幼班', 3: '小班', 4: '中班', 5: '大班' }
 
-// 園務 constants/recruitment.ts gradeForBirthday：學年 N 以西元 (N+1911)/9/1（含）為足歲
-// 基準；2 歲幼幼班、3 小班、4 中班、5 大班，範圍外回 null（不強帶）。
-export function gradeForBirthday(birthday: string | null | undefined, schoolYear: number | null | undefined): Grade | null {
+// 學年 N 以西元 (N+1911)/9/1（含）為足歲基準的年齡；缺值或格式錯誤回 null。
+function ageOnSeptember1(birthday: string | null | undefined, schoolYear: number | null | undefined): number | null {
   if (!birthday || !schoolYear) return null
   const match = ISO_DATE.exec(birthday)
   if (!match) return null
@@ -48,7 +47,25 @@ export function gradeForBirthday(birthday: string | null | undefined, schoolYear
   const day = Number(match[3])
   let age = schoolYear + 1911 - year
   if (month > 9 || (month === 9 && day > 1)) age -= 1
-  return AGE_GRADES[age] ?? null
+  return age
+}
+
+// 園務 constants/recruitment.ts gradeForBirthday：2 歲幼幼班、3 小班、4 中班、5 大班，
+// 範圍外回 null（不強帶）。
+export function gradeForBirthday(birthday: string | null | undefined, schoolYear: number | null | undefined): Grade | null {
+  const age = ageOnSeptember1(birthday, schoolYear)
+  return age === null ? null : (AGE_GRADES[age] ?? null)
+}
+
+export type RosterGrade = Grade | '其他'
+
+// 同後端 enrolled/roster.py roster_grade（共用案例 contracts/ivy-recruitment/roster-grade-cases.json）：
+// gradeForBirthday 有值就用；9/1 還沒滿 2 歲的是學年中滿 2 歲才入園，實際在幼幼班；
+// 滿 6 歲以上歸「其他」。生日格式錯誤也歸「其他」（不硬帶班級）。
+export function rosterGrade(birthday: string, schoolYear: number): RosterGrade {
+  const age = ageOnSeptember1(birthday, schoolYear)
+  if (age === null) return '其他'
+  return AGE_GRADES[age] ?? (age < 2 ? '幼幼班' : '其他')
 }
 
 /** 「2026-09-08」→「115.09」（園務 month 欄位格式）。 */

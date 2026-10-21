@@ -1,12 +1,20 @@
 """教保資訊網幼生清冊的讀取與班別換算（2026-10-15 規格 §2、E7、E8）。"""
 from __future__ import annotations
 
+import json
 from datetime import date
+from pathlib import Path
 
 import pytest
 
 from app.admissions.enrolled.roster import Roster, RosterError, RosterRow, parse_roster, roster_grade
 from tests.enrolled_helpers import roster_html
+
+CASES_FILE = Path(__file__).resolve().parents[2] / "contracts" / "ivy-recruitment" / "roster-grade-cases.json"
+
+
+def _grade_cases() -> list[dict]:
+    return json.loads(CASES_FILE.read_text(encoding="utf-8"))["cases"]
 
 
 def test_reads_birthday_and_address_by_header_text():
@@ -66,3 +74,9 @@ def test_empty_roster_is_an_error():
 )
 def test_grade_for_school_year_115(birthday, grade):
     assert roster_grade(birthday, 115) == grade
+
+
+@pytest.mark.parametrize("case", _grade_cases(), ids=lambda case: case["name"])
+def test_shared_roster_grade_cases(case):
+    """admin 的 rosterGrade（admissions/academic.ts）讀同一份案例。"""
+    assert roster_grade(date.fromisoformat(case["birthday"]), case["school_year"]) == case["expected"]
