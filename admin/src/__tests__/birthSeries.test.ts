@@ -7,8 +7,12 @@ import BirthSeries from '../components/admissions/area/BirthSeries.vue'
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
 vi.mock('../composables/notify', () => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
+import { notifyError } from '../composables/notify'
 
-afterEach(() => vi.mocked(downloadCsv).mockClear())
+afterEach(() => {
+  vi.mocked(downloadCsv).mockReset()
+  vi.mocked(notifyError).mockClear()
+})
 
 const periods = [
   { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 100, change_pct: -20 },
@@ -68,6 +72,22 @@ describe('BirthSeries', () => {
       '113 年 10 月,114 年 9 月,11,113 年 11 月,125,',
       '',
     ])
+    expect(notifyError).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('匯出 CSV 失敗（下載丟錯）：提示「匯出失敗，請再試一次。」，不讓錯誤往外丟，區塊照常顯示、可以再按一次', async () => {
+    vi.mocked(downloadCsv).mockImplementationOnce(() => { throw new Error('download blocked') })
+    const wrapper = mountIt()
+    await wrapper.get('[data-test="birth-series-csv"]').trigger('click')
+    expect(downloadCsv).toHaveBeenCalledTimes(1)
+    expect(notifyError).toHaveBeenCalledTimes(1)
+    expect(notifyError).toHaveBeenCalledWith('匯出失敗，請再試一次。')
+    expect(wrapper.find('.birth-series').exists()).toBe(true)
+
+    await wrapper.get('[data-test="birth-series-csv"]').trigger('click')
+    expect(downloadCsv).toHaveBeenCalledTimes(2)
+    expect(notifyError).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 })
