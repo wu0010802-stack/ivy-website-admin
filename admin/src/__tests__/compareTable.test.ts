@@ -111,6 +111,13 @@ describe('五校比較表（規格 9.3）', () => {
     ])
     expect(wrapper.text()).not.toContain('名額')
   })
+
+  // 1280 螢幕側欄之外只剩 962px，十一欄的自然寬度約 980px：表框內會多出 16–21px 的橫捲。收緊內距的樣式（CompareTable.vue 的 .compare-table :deep）
+  // 靠這個 class 掛上，jsdom 量不到版面，至少守住 class 沒被拿掉；實際寬度要在瀏覽器量（1280 寬、框內不出現橫向捲軸）。
+  it('根元素帶 compare-table，表格內距樣式才套得到', async () => {
+    const { wrapper } = await mountWith(CompareTable, { props: { rows: [YIHUA], schoolYear: 115, semester: 1 } })
+    expect(wrapper.get('.stats-block').classes()).toContain('compare-table')
+  })
 })
 
 describe('統計分頁的「五校比較」子分頁', () => {

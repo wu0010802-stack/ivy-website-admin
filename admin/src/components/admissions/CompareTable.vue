@@ -68,6 +68,7 @@ const title = computed(() => `五校比較（${termLabel(props.schoolYear, props
 
 <template>
   <StatsDimensionTable
+    class="compare-table"
     :title="title"
     :rows="tableRows"
     :columns="COLUMNS"
@@ -78,3 +79,12 @@ const title = computed(() => `五校比較（${termLabel(props.schoolYear, props
     caption="數字是招生案件數：同一個孩子在兩校各參觀一次算兩筆，不是跨校去重後的孩子數。比率括號內是分子／分母。"
   />
 </template>
+
+<style scoped>
+/* 十一欄的自然寬度約 980px（2026-10-21 實測 983），側欄之外 1280 螢幕只剩 962px，框內會橫捲 16–21px；
+   1366 以上放得下。左右內距從 12 收到 10（共省約 44px），欄位與長條不動；窄過這個寬度仍在框內橫捲。 */
+.compare-table :deep(.stats-table th),
+.compare-table :deep(.stats-table td) {
+  padding-inline: 10px;
+}
+</style>
