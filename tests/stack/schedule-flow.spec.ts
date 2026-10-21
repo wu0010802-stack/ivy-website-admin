@@ -13,6 +13,9 @@ test('參觀場次：套用常用場次並開放 → 官網看得到 → 停止�
   await page.getByRole('button', { name: '儲存並開放線上預約' }).click()
   await answerMessageBox(page, '儲存並開放線上預約？', '儲存並開放')
   await expect(page.getByText('上午場 10:00・每場 1 組・週一–週五')).toBeVisible()
+  // 場次存好摘要就會出現，「開放線上預約」是接著另送的請求（WeeklySessionsCard 的 openBooking）：
+  // 等它的提示出來再開官網，否則慢的機器上官網讀到的還是暫停。
+  await expect(page.getByText('已開放線上預約')).toBeVisible()
 
   const site = await page.context().newPage()
   await site.goto('/visit/chongde')
