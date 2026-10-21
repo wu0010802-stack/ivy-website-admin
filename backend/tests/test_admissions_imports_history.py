@@ -186,6 +186,22 @@ async def test_invalid_workbook_returns_masked_headers(admin_client, tmp_path, c
         assert name not in response.text and name not in caplog.text
 
 
+async def test_invalid_workbook_never_echoes_label_cells(admin_client, tmp_path, caplog):
+    """第 0 欄不是年級／總人數標籤的格子（備註、姓名）在 headers.labels 裡一律是「…」，整份回應與日誌都不含內容。"""
+    caplog.set_level(logging.DEBUG)
+    sheets = _sheets(tmp_path, {"工作表1": SheetSpec(rows=modern_rows())})
+    width = sheets[0]["width"]
+    sheets[0]["rows"]["5"] = ["測試小明"] + [None] * (width - 1)
+    response = await admin_client.post(f"{IMPORTS}/history/preview?campus_key=yihua", json={"sheets": sheets})
+    assert response.status_code == 422, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "HISTORY_WORKBOOK_INVALID"
+    labels = detail["headers"][0]["labels"]
+    assert labels[5] == "…"
+    assert labels[4] == "大班" and labels[0] == ""
+    assert "測試小明" not in response.text and "測試小明" not in caplog.text
+
+
 async def test_workbook_errors_only_name_sheets_and_columns(admin_client, tmp_path):
     """表頭缺「新生」區塊 → 訊息點名工作表與欄位，不帶任何格子內容。"""
     sheets = _sheets(tmp_path)
@@ -268,6 +284,46 @@ async def test_preview_validation_errors_list_positions_without_values(admin_cli
     assert response.status_code == 422 and detail["code"] == "INVALID_IMPORT_PAYLOAD"
     assert "sheets.0.（多餘欄位）：extra_forbidden" in detail["message"]
     assert "測試小明" not in response.text and "測試小華" not in response.text
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        pytest.param({"測試小明": [True]}, id="bool-value"),
+        pytest.param({"測試小明": [{"masked": False}]}, id="bad-masked-value"),
+        pytest.param({"測試小明": "x"}, id="not-a-list"),
+        pytest.param({"測試小明": [1, 2, 3, 4, 5]}, id="long-row"),
+        pytest.param({"Alice小明": [True], "2": [{"masked": False}], "測試小華": [[1]]}, id="several-keys"),
+    ],
+)
+async def test_preview_never_echoes_a_bad_row_key_in_value_errors(admin_client, rows):
+    """列號不是數字時，鍵本身和這個鍵底下的值的錯誤位置（pydantic 各自回報）都不能印出那個鍵。"""
+    response = await admin_client.post(
+        f"{IMPORTS}/history/preview?campus_key=yihua", json={"sheets": [_sheet(rows=rows)]}
+    )
+    detail = response.json()["detail"]
+    assert response.status_code == 422 and detail["code"] == "INVALID_IMPORT_PAYLOAD"
+    assert "（鍵）" in detail["message"]
+    for leaked in ("測試小明", "測試小華", "Alice"):
+        assert leaked not in response.text
+
+
+def test_describe_masks_bad_keys_only_where_the_key_failed():
+    """合法的鍵（數字）照常印出位置；驗不過的鍵遮住，包括它底下的錯誤與多餘欄位。"""
+    from app.admissions.import_routes import _describe
+
+    errors = [
+        {"loc": ("body", "sheets", 0, "rows", "測試小明", "[key]"), "type": "int_parsing"},
+        {"loc": ("body", "sheets", 0, "rows", "測試小明", 0, "constrained-int"), "type": "int_type"},
+        {"loc": ("body", "sheets", 0, "rows", 2, 1), "type": "int_type"},
+        {"loc": ("body", "sheets", 0, "rows", "測試小明", "測試小華"), "type": "extra_forbidden"},
+    ]
+    message = _describe(errors)
+    assert "測試小明" not in message and "測試小華" not in message
+    assert message == (
+        "上傳的資料格式不對（sheets.0.rows.（鍵）.[key]：int_parsing；sheets.0.rows.（鍵）.0.constrained-int：int_type；"
+        "sheets.0.rows.2.1：int_type；sheets.0.rows.（鍵）.（多餘欄位）：extra_forbidden）"
+    )
 
 
 async def test_preview_accepts_the_largest_shape_within_the_body_limit(admin_client):

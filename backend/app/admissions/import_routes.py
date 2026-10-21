@@ -47,24 +47,32 @@ from app.operations import audit_service
 MAX_REPORTED_ERRORS = 5
 
 
-def _position(item: dict) -> str:
+def _bad_key_prefixes(errors: list[dict]) -> set[tuple]:
+    """驗不過的字典鍵：loc 以「[key]」結尾，去掉它就是鍵本身的位置。pydantic 對鍵與值各自驗證，
+    同一個鍵在值的錯誤位置裡還會原樣出現，所以要先把這些前綴收齊。"""
+    return {tuple(item["loc"][:-1]) for item in errors if item["loc"] and item["loc"][-1] == "[key]"}
+
+
+def _position(item: dict, bad_keys: set[tuple] = frozenset()) -> str:
     """欄位位置；extra_forbidden 的最後一段是上傳資料裡多出來的鍵名（可能就是姓名），不印，改寫「（多餘欄位）」。
-    字典的鍵驗不過時（loc 裡「[key]」的前一段）也是上傳的字串，同樣不印，改寫「（鍵）」。
+    驗不過的字典鍵（bad_keys 的前綴）也是上傳的字串，不論出現在鍵或值的錯誤位置，一律改寫「（鍵）」。
     本文錯誤的位置開頭是 body，對操作的人沒有意義，拿掉。"""
-    loc = [str(part) for part in item["loc"]]
+    full = list(item["loc"])
+    for prefix in bad_keys:
+        if prefix and full[: len(prefix)] == list(prefix):
+            full[len(prefix) - 1] = "（鍵）"
+    loc = [str(part) for part in full]
     if loc and loc[0] == "body":
         loc = loc[1:]
     if item["type"] == "extra_forbidden" and loc:
         loc[-1] = "（多餘欄位）"
-    for index in range(1, len(loc)):
-        if loc[index] == "[key]":
-            loc[index - 1] = "（鍵）"
     return ".".join(loc) or "(整份)"
 
 
 def _describe(errors: list[dict]) -> str:
     """只列欄位位置與錯誤種類（前 5 個），不印輸入值：上傳的資料裡有地址。"""
-    parts = [f"{_position(item)}：{item['type']}" for item in errors[:MAX_REPORTED_ERRORS]]
+    bad_keys = _bad_key_prefixes(errors)
+    parts = [f"{_position(item, bad_keys)}：{item['type']}" for item in errors[:MAX_REPORTED_ERRORS]]
     more = len(errors) - len(parts)
     return "上傳的資料格式不對（" + "；".join(parts) + (f"；另有 {more} 個錯誤" if more > 0 else "") + "）"
 
