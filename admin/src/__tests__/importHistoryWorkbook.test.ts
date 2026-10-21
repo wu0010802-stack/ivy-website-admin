@@ -62,12 +62,22 @@ describe('extractSheet（共用案例）', () => {
 })
 
 describe('extractSheet（邊界）', () => {
-  it('每一列都不比 width 長，width 0 也一樣（標籤列也不例外）', () => {
+  it('每一列都不比原表的 width 長（width 0 時標籤列也不例外），送出的 width 至少 1、不比任何一列短', () => {
     const rows = [[], [], ['目標人數'], ['註冊'], ['大班', 1], ['總人數', 2]]
     for (const width of [0, 1, 2, 5]) {
       const grid = extractSheet('104上', rows, width)
-      for (const row of Object.values(grid.rows)) expect(row).toHaveLength(width)
+      const lengths = Object.values(grid.rows).map((row) => row.length)
+      expect(grid.width).toBe(Math.max(1, ...lengths))
+      for (const length of lengths) expect(length).toBeLessThanOrEqual(width)
     }
+  })
+
+  it('列尾的空白格不送，width 只算到送出的格子；列中間的空白照送 null', () => {
+    const rows = [[], [], ['目標人數', null, '1150915', '', null, '  '], [null, ' '], ['大班', null, 20, '　', null], ['總人數', 5]]
+
+    const grid = extractSheet('104上', rows, 70)
+
+    expect(grid).toEqual({ name: '104上', width: 3, rows: { '2': ['目標人數', null, '1150915'], '3': [], '4': ['大班', null, 20], '5': ['總人數', 5] } })
   })
 
   it('空白字元和後端 Python 的 \\s 同一組：U+0085、U+001F 算空白，U+FEFF 不算', () => {
@@ -78,7 +88,7 @@ describe('extractSheet（邊界）', () => {
 
     const grid = extractSheet('104上', rows, 2)
 
-    expect(grid.rows).toEqual({ '2': [null, null], '3': [null, null], '4': ['大班', 1], '5': ['中班', 2], '8': ['總人數', 5] })
+    expect(grid.rows).toEqual({ '2': [], '3': [], '4': ['大班', 1], '5': ['中班', 2], '8': ['總人數', 5] })
   })
 
   it('數字字串用 Unicode 十進位數字判斷；U+FEFF 夾在數字裡不算空白也不算數字', () => {
@@ -103,8 +113,8 @@ describe('extractSheet（邊界）', () => {
 
     const grid = extractSheet('104上', rows, 5)
 
-    expect(grid.rows['2']).toEqual([MASKED, MASKED, MASKED, null, null])
-    expect(grid.rows['4']).toEqual(['大班', MASKED, MASKED, MASKED, null])
+    expect(grid.rows['2']).toEqual([MASKED, MASKED, MASKED])
+    expect(grid.rows['4']).toEqual(['大班', MASKED, MASKED, MASKED])
   })
 
   it('不改動傳進來的列', () => {
@@ -125,7 +135,7 @@ describe('readHistoryWorkbook', () => {
     expect(grids.map((g) => g.width)).toEqual([4, 4])
     expect(grids[0]!.rows['4']).toEqual(['大班', 70, 62, 0.8857])
     expect(grids[1]!.rows['4']).toEqual(['大班', 70, 61, 0.8857])
-    expect(grids[0]!.rows['8']).toEqual(['總人數', null, 193, null])
+    expect(grids[0]!.rows['8']).toEqual(['總人數', null, 193])
     expect(grids[0]!.rows['2']).toEqual(['目標人數', null, '1150915     ', '1150915     目標\n達成率'])
     expect(Object.keys(grids[0]!.rows)).toEqual(['2', '3', '4', '5', '6', '7', '8'])
     expect(JSON.stringify(grids)).not.toContain('測試小明')
@@ -140,7 +150,7 @@ describe('readHistoryWorkbook', () => {
     for (const grid of grids) for (const row of Object.values(grid.rows)) expect(row.length).toBeLessThanOrEqual(grid.width)
   })
 
-  it('width 取工作表有資料的最右欄；比較短的列補空白', async () => {
+  it('width 取送出的列裡最右邊有內容的那一欄；比較短的列不補空白', async () => {
     const aoa = termRows(62)
     aoa[5] = ['中班', 60] // 這一列只有兩格
     aoa[7] = ['幼幼班', 40, 33, 0.825, null, null, 9] // 第 7 欄（G）有數字，width 要變成 7
@@ -148,9 +158,24 @@ describe('readHistoryWorkbook', () => {
     const [grid] = await readHistoryWorkbook(biff8({ '104上': aoa }))
 
     expect(grid!.width).toBe(7)
-    expect(grid!.rows['5']).toEqual(['中班', 60, null, null, null, null, null])
+    expect(grid!.rows['5']).toEqual(['中班', 60])
     expect(grid!.rows['7']).toEqual(['幼幼班', 40, 33, 0.825, null, null, 9])
-    expect(grid!.rows['2']).toEqual(['目標人數', null, '1150915     ', '1150915     目標\n達成率', null, null, null])
+    expect(grid!.rows['2']).toEqual(['目標人數', null, '1150915     ', '1150915     目標\n達成率'])
+  })
+
+  it('工作表範圍因格式化過的空白格比資料寬（超過伺服器的 64 欄）：width 只算到有內容的格子', async () => {
+    const book = XLSX.utils.book_new()
+    const sheet = XLSX.utils.aoa_to_sheet(termRows(62))
+    sheet['!ref'] = 'A1:CZ11' // 104 欄：像右邊遠處有一格只設了格式
+    XLSX.utils.book_append_sheet(book, sheet, '104上')
+    const data = XLSX.write(book, { bookType: 'biff8', type: 'array' }) as ArrayBuffer
+    expect(XLSX.read(data, { type: 'array' }).Sheets['104上']!['!ref']).toBe('A1:CZ11') // 檔案裡的範圍真的比較寬，下面的斷言才有意義
+
+    const [grid] = await readHistoryWorkbook(data)
+
+    expect(grid!.width).toBe(4)
+    expect(grid!.rows['4']).toEqual(['大班', 70, 62, 0.8857])
+    expect(grid!.rows['8']).toEqual(['總人數', null, 193])
   })
 
   it('布林與錯誤值的格子不能被當成數字送出', async () => {

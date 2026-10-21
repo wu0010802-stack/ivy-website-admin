@@ -58,14 +58,21 @@ function figureCell(raw: unknown): HistoryCell {
   return DIGITS.test(text) ? raw : masked()
 }
 
+function trimmed(cells: HistoryCell[]): HistoryCell[] {
+  let end = cells.length
+  while (end > 0 && cells[end - 1] === null) end--
+  return cells.slice(0, end)
+}
+
 /**
- * 一張工作表 → 要送給伺服器的格子表。rows 是試算表函式庫回傳的原始值（第 0 列起算，可以比 width 短或長），
- * 送出的每一列都剛好 width 格（短的補 null、長的截掉）。
+ * 一張工作表 → 要送給伺服器的格子表。rows 是試算表函式庫回傳的原始值（第 0 列起算，可以比 width 短或長）；
+ * 每一列取到 width 格（長的截掉），再去掉列尾的空白格。width 是工作表範圍算出的欄數，會算進遠在右邊、
+ * 格式化過的空白格，所以送出的 width 改成送出各列的最長長度（至少 1），才不會超過伺服器的欄數上限。
  */
 export function extractSheet(name: string, rows: readonly (readonly unknown[])[], width: number): HistorySheetGrid {
   const grid: Record<string, HistoryCell[]> = {}
   for (const row of [BLOCK_ROW, SUBHEADER_ROW]) {
-    if (row < rows.length) grid[row] = Array.from({ length: width }, (_, col) => headerCell(rows[row]?.[col]))
+    if (row < rows.length) grid[row] = trimmed(Array.from({ length: width }, (_, col) => headerCell(rows[row]?.[col])))
   }
   // 年級與總人數各取第一個，五個找齊就停；第 3 列以前的標籤不算。
   const found = new Set<string>()
@@ -74,9 +81,9 @@ export function extractSheet(name: string, rows: readonly (readonly unknown[])[]
     const label = typeof first === 'string' ? plain(first) : ''
     if (!GRADE_LABELS.has(label) || found.has(label)) continue
     found.add(label)
-    grid[row] = Array.from({ length: width }, (_, col) => (col === 0 ? label : figureCell(rows[row]?.[col])))
+    grid[row] = trimmed(Array.from({ length: width }, (_, col) => (col === 0 ? label : figureCell(rows[row]?.[col]))))
   }
-  return { name, width, rows: grid }
+  return { name, width: Math.max(1, ...Object.values(grid).map((cells) => cells.length)), rows: grid }
 }
 
 // SheetJS 不認得的格式會當成純文字、CSV 或 HTML 讀成一張只有一格的表，不會丟例外，

@@ -294,22 +294,30 @@ def _figure_cell(cell: GridCell) -> GridCell:
     return MASKED
 
 
+def _trimmed(cells: list[GridCell]) -> list[GridCell]:
+    while cells and cells[-1] == EMPTY:
+        cells.pop()
+    return cells
+
+
 def browser_extract(grid: SheetGrid) -> SheetGrid:
     """模擬瀏覽器端擷取：只留表頭兩列與五個標籤列（年級與總人數各取第一個），其餘列（備註、標題）不送。
-    每列都照 width 一格一格取，所以送出的列長一律等於 width（短的補 empty、長的截掉）。"""
+    每列照 width 一格一格取（長的截掉），再去掉列尾的 empty；送出的 width 是送出各列的最長長度（至少 1），
+    瀏覽器讀到的欄數含遠在右邊、格式化過的空白格時才不會超過伺服器的 64 欄上限。"""
     rows: dict[int, list[GridCell]] = {}
     for row in (BLOCK_ROW, SUBHEADER_ROW):
         if row < grid.nrows:
-            rows[row] = [_header_cell(grid.cell(row, c)) for c in range(grid.width)]
+            rows[row] = _trimmed([_header_cell(grid.cell(row, c)) for c in range(grid.width)])
     found: set[str] = set()
     for row in range(FIRST_GRADE_ROW, grid.nrows):
         label = _label(grid.cell(row, 0))
         if label in GRADE_LABELS and label not in found:
             found.add(label)
-            rows[row] = [GridCell("text", label)] + [_figure_cell(grid.cell(row, c)) for c in range(1, grid.width)]
+            cells = [GridCell("text", label)] + [_figure_cell(grid.cell(row, c)) for c in range(1, grid.width)]
+            rows[row] = _trimmed(cells[: grid.width])
             if len(found) == len(GRADE_LABELS):
                 break
-    return SheetGrid(name=grid.name, width=grid.width, rows=rows)
+    return SheetGrid(name=grid.name, width=max([1, *(len(cells) for cells in rows.values())]), rows=rows)
 
 
 def _cell_json(cell: GridCell) -> Any:

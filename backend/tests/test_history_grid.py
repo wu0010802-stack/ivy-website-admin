@@ -75,6 +75,15 @@ def test_shared_cases_never_carry_names(case: dict) -> None:
     assert "測試小明" not in text and "測試小華" not in text and "測試小美" not in text
 
 
+def test_browser_extract_rows_never_exceed_width() -> None:
+    """每一列都不比原表的 width 長（width 0 時標籤列也不例外），送出的 width 至少 1、不比任何一列短。"""
+    raw = [[], [], ["目標人數"], ["註冊"], ["大班", 1], ["總人數", 2]]
+    for width in (0, 1, 2, 5):
+        grid = browser_extract(grid_from_raw("104上", raw, width))
+        assert grid.width == max([1, *(len(cells) for cells in grid.rows.values())])
+        assert all(len(cells) <= width for cells in grid.rows.values()), width
+
+
 @pytest.mark.parametrize("layout", LAYOUTS, ids=list(LAYOUTS))
 def test_grids_parse_the_same_as_xlrd(tmp_path: Path, layout: str) -> None:
     first, second, make_rows = LAYOUT_SHEETS[layout]

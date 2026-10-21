@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,17 @@ async def test_preview_matches_the_cli(admin_client, tmp_path):
     assert body["payload"] == json.loads(json.dumps(build_payload(parse_workbook(path), "yihua")))
     assert (body["rows"], body["first"], body["last"]) == (8, {"school_year": 104, "semester": 1}, {"school_year": 104, "semester": 2})
     assert (body["removed_terms"], body["changed"], body["warnings"]) == ([], [], [])
+
+
+async def test_preview_accepts_sheets_widened_by_formatted_blank_cells(admin_client, tmp_path):
+    """瀏覽器讀到的欄數含格式化過的空白格（遠在右邊也算，xlrd 不算）：擷取時去掉列尾空白、width 只算到送出的格子，
+    不會超過 64 欄被整份擋下，預覽結果仍和 CLI 相同。"""
+    path = write_workbook(tmp_path, TERMS)
+    sheets = [grid_json(browser_extract(replace(grid, width=200))) for grid in read_grids(path)]
+    assert [sheet["width"] for sheet in sheets] == [grid.width for grid in read_grids(path)]
+    response = await admin_client.post(f"{IMPORTS}/history/preview?campus_key=yihua", json={"sheets": sheets})
+    assert response.status_code == 200, response.text
+    assert response.json()["payload"] == json.loads(json.dumps(build_payload(parse_workbook(path), "yihua")))
 
 
 async def test_preview_reports_the_warnings_of_the_cli(admin_client, tmp_path):
