@@ -676,3 +676,16 @@ export type HolidayApplyOut = components['schemas']['HolidayApplyOut']
 export type HolidayApplyCampusOut = components['schemas']['HolidayApplyCampusOut']
 export type VisitClosureOut = components['schemas']['VisitClosureOut']
 export type VisitClosureCampusOut = components['schemas']['VisitClosureCampusOut']
+
+// 資料匯入（2026-10-21 規格 §7）：招生統計「資料匯入」分頁上傳在籍清冊與歷年註冊統計表，預覽後整校取代。
+// 預覽回來的 payload 原樣送回確認匯入（在籍的點位沒有地址；歷年是解析後的數字）。
+export type ImportStatus = components['schemas']['ImportStatusOut']
+export type EnrolledPreviewRequest = components['schemas']['EnrolledPreviewIn']
+export type EnrolledPreview = components['schemas']['EnrolledPreviewOut']
+export type EnrolledImportPayload = components['schemas']['EnrolledRosterIn']
+export type EnrolledApplyResult = components['schemas']['EnrolledApplyOut']
+export type EnrolledClearResult = components['schemas']['EnrolledClearOut']
+export type HistoryPreviewRequest = components['schemas']['HistoryPreviewIn']
+export type HistoryPreview = components['schemas']['HistoryPreviewOut']
+export type EnrollmentHistoryPayload = components['schemas']['EnrollmentHistoryIn']
+export type HistoryApplyResult = components['schemas']['HistoryApplyOut']

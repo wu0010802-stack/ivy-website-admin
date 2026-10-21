@@ -10,7 +10,7 @@ import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
   AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
-  Potential, PotentialClosureSource, PotentialEstimate, PotentialPresaleSource, PotentialShareYear, PotentialVillageSource, UserOut,
+  EnrolledPreview, HistoryPreview, ImportStatus, Potential, PotentialClosureSource, PotentialEstimate, PotentialPresaleSource, PotentialShareYear, PotentialVillageSource, UserOut,
   VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
@@ -648,5 +648,61 @@ export function potentialData(changes: { share?: Partial<Potential['share']> } &
     ...base,
     ...rest,
     share: { ...base.share, latest: shared.at(-1) ?? null, best, ...shareChanges, years },
+  }
+}
+
+// 資料匯入（2026-10-21）：義華目前有 9/15 的清冊（190 位、有點 178 位，門牌 115-10）與 99上～114下 的歷年註冊（128 列）。
+export const importStatus = (changes: Partial<ImportStatus> = {}): ImportStatus => ({
+  active_doorplate_version: '115-10',
+  enrolled: { roster_date: '2026-09-15', school_year: 115, doorplate_version: '115-10', total: 190, placed: 178, imported_at: '2026-09-16T02:00:00Z' },
+  history: { rows: 128, first_school_year: 99, first_semester: 1, last_school_year: 114, last_semester: 2, imported_at: '2026-09-16T02:10:00Z' },
+  ...changes,
+})
+// 在籍預覽：10/15 的清冊 20 位、有點 18 位（剛好 90%，可以匯入）；沒有點的兩位一位只對到里、一位是外縣市。
+// payload 只放兩個點（畫面不讀，確認時原樣送回）。
+export const enrolledPreview = (changes: Partial<EnrolledPreview> = {}): EnrolledPreview => ({
+  roster_date: '2026-10-15', school_year: 115, doorplate_version: '115-10', total: 20, placed: 18, placed_ratio: 0.9, importable: true,
+  levels: { exact: 15, nearby: 3, street: 1, unlocated: 1 },
+  methods: { written: 4, village_unique: 10, village_nearest: 2, street_unique: 3, none: 1 },
+  inferred: 2,
+  grades: { 幼幼班: 4, 小班: 5, 中班: 5, 大班: 6 },
+  unplaced: [
+    { match_level: 'street', unlocated_reason: null, street: '義華路…' },
+    { match_level: 'unlocated', unlocated_reason: 'outside_kaohsiung', street: '' },
+  ],
+  payload: {
+    format: 'ivy-enrolled-points/1', campus_key: 'yihua', roster_date: '2026-10-15', school_year: 115, doorplate_version: '115-10',
+    students: [
+      { grade: '小班', district: '三民區', village: '本揚里', match_level: 'exact', unlocated_reason: null, lat: 22.642, lng: 120.344 },
+      { grade: '大班', district: null, village: null, match_level: 'unlocated', unlocated_reason: 'outside_kaohsiung', lat: null, lng: null },
+    ],
+  },
+  ...changes,
+})
+// 歷年預覽：114下、115上兩個學期 × 四個年級（8 列）；114下大班和目前資料不同（50 → 52），一則警告，沒有會被刪掉的學期。
+const HISTORY_REGISTERED: [number, 1 | 2, Record<'幼幼班' | '小班' | '中班' | '大班', number>][] = [
+  [114, 2, { 幼幼班: 30, 小班: 45, 中班: 48, 大班: 52 }],
+  [115, 1, { 幼幼班: 33, 小班: 48, 中班: 50, 大班: 58 }],
+]
+const historyRow = (schoolYear: number, semester: 1 | 2, grade: '幼幼班' | '小班' | '中班' | '大班', registered: number) => ({
+  school_year: schoolYear, semester, grade, as_of: semester === 1 ? `${schoolYear + 1911}-09-15` : `${schoolYear + 1912}-03-15`, registered,
+  target: null, new_target: null, new_visits: null, new_deposits: null, new_registered: null,
+  returning_enrolled: null, returning_deposit: null, returning_registered: null, repeat_deposit: null, repeat_registered: null,
+})
+export const historyPreview = (changes: Partial<HistoryPreview> = {}): HistoryPreview => {
+  const warnings = ['115上 大班：註冊人數比目標多']
+  return {
+    rows: 8,
+    first: { school_year: 114, semester: 2 },
+    last: { school_year: 115, semester: 1 },
+    removed_terms: [],
+    changed: [{ school_year: 114, semester: 2, grade: '大班', before: 50, after: 52 }],
+    warnings,
+    payload: {
+      format: 'ivy-enrollment-history/1', campus_key: 'yihua', warnings,
+      rows: HISTORY_REGISTERED.flatMap(([year, semester, counts]) =>
+        (['大班', '中班', '小班', '幼幼班'] as const).map((grade) => historyRow(year, semester, grade, counts[grade]))),
+    },
+    ...changes,
   }
 }

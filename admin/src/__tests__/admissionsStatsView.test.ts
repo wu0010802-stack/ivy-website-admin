@@ -246,7 +246,7 @@ describe('子分頁寫進網址（X2a 3A）', () => {
   })
 
   it('(g) 區域分析排在接待之後、未預繳之前；sub=area 跟其他子分頁一樣用 replace 寫進網址', async () => {
-    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential'])
+    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential', 'imports'])
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua') })
     const replace = vi.spyOn(router, 'replace')

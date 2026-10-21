@@ -1,10 +1,11 @@
 // 招生入學 API（/admin/admissions/*）。型別取自契約產生檔（api/types.ts 的別名）。
-// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）、招生潛力與市佔率 getPotential（2026-10-20）。「已到場／未到場」沿用預約既有的
+// 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）、招生潛力與市佔率 getPotential（2026-10-20）、資料匯入 getImportStatus 等（2026-10-21）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
 import type {
   AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
-  ContactLogResult, FollowUpUpdate, FunnelBoard, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
+  ContactLogResult, EnrolledApplyResult, EnrolledClearResult, EnrolledImportPayload, EnrolledPreview, EnrolledPreviewRequest, EnrollmentHistoryPayload,
+  FollowUpUpdate, FunnelBoard, HistoryApplyResult, HistoryPreview, HistoryPreviewRequest, ImportStatus, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
 } from './types'
 import type { Stage } from '../admissions/constants'
@@ -246,4 +247,36 @@ export function updateFollowUp(id: string, body: FollowUpUpdate): Promise<Recrui
 /** 預約全程漏斗與退出時點（2026-10-15 規格 §3.2）：預定參觀日在 from～to（台北日，含）的預約案件。 */
 export function getJourney(params: { campus_key: string; from: string; to: string; source: JourneySource }): Promise<AdmissionsJourney> {
   return api.get<AdmissionsJourney>(`/admin/admissions/journey?${toQuery(params)}`)
+}
+
+// ---- 資料匯入（docs/specs/2026-10-21-admin-data-import-design.md 第 7 節；只有總管理者）----
+
+/** 這校目前匯入的在籍清冊與歷年註冊（沒匯入過是 null），以及使用中的門牌月份（看清冊用的門牌換版了沒）。 */
+export function getImportStatus(campusKey: string): Promise<ImportStatus> {
+  return api.get<ImportStatus>(`/admin/admissions/imports/status?${toQuery({ campus_key: campusKey })}`)
+}
+
+/** 在籍清冊預覽：本文只有清冊日期與每位的班別、地址（admissions/imports/roster.ts 的 enrolledPreviewBody），伺服器比對完不保存地址。 */
+export function previewEnrolledImport(campusKey: string, body: EnrolledPreviewRequest): Promise<EnrolledPreview> {
+  return api.post<EnrolledPreview>(`/admin/admissions/imports/enrolled/preview?${toQuery({ campus_key: campusKey })}`, body)
+}
+
+/** 確認匯入在籍清冊：本文是預覽回來的 payload（去識別點位）原樣送回，整校取代。 */
+export function applyEnrolledImport(campusKey: string, payload: EnrolledImportPayload): Promise<EnrolledApplyResult> {
+  return api.post<EnrolledApplyResult>(`/admin/admissions/imports/enrolled/apply?${toQuery({ campus_key: campusKey })}`, payload)
+}
+
+/** 清除這校的在籍清冊與所有點；本來就沒有資料時 removed 是 false。 */
+export function clearEnrolledImport(campusKey: string): Promise<EnrolledClearResult> {
+  return api.delete<EnrolledClearResult>(`/admin/admissions/imports/enrolled?${toQuery({ campus_key: campusKey })}`)
+}
+
+/** 歷年註冊預覽：本文是瀏覽器擷取的表頭與年級列（admissions/imports/historyWorkbook.ts），回解析後的數字與和目前資料的差異。 */
+export function previewHistoryImport(campusKey: string, body: HistoryPreviewRequest): Promise<HistoryPreview> {
+  return api.post<HistoryPreview>(`/admin/admissions/imports/history/preview?${toQuery({ campus_key: campusKey })}`, body)
+}
+
+/** 確認匯入歷年註冊：本文是預覽回來的 payload 原樣送回，整校取代。 */
+export function applyHistoryImport(campusKey: string, payload: EnrollmentHistoryPayload): Promise<HistoryApplyResult> {
+  return api.post<HistoryApplyResult>(`/admin/admissions/imports/history/apply?${toQuery({ campus_key: campusKey })}`, payload)
 }

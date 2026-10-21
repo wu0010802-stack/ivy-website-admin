@@ -7,6 +7,7 @@ import StatsDimensionTable from './StatsDimensionTable.vue'
 import StatsOverview from './StatsOverview.vue'
 import JourneyTab from './JourneyTab.vue'
 import PotentialTab from './potential/PotentialTab.vue'
+import ImportsTab from './imports/ImportsTab.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import BookingStatsPane from '../analytics/BookingStatsPane.vue'
 import { getCompare, getStats } from '../../api/admissions'
@@ -32,6 +33,7 @@ import { csvFilename } from '../../utils/csv'
 // 重新載入）。上方的統計範圍與說明只屬於招生統計，在參觀預約不顯示。
 // 「預約全程」（2026-10-15，JourneyTab）同樣讀自己的 API，期間與來源由頁面放在網址（journey）。
 // 「招生潛力與市佔率」（2026-10-20，PotentialTab）也讀自己的 API，看所有學年，沒有要放網址的篩選。
+// 「資料匯入」（2026-10-21，ImportsTab）上傳在籍清冊與歷年註冊，同樣讀自己的 API、不分入學學年學期。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
 const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string; withdraw?: string }] }>()
 
@@ -50,8 +52,8 @@ const journey = defineModel<JourneyFilter>('journey', { default: () => ({ ...DEF
 // 區域分析的地圖模式、選取的里與表格分頁（2026-10-16），同樣由頁面放在網址。
 const areaView = defineModel<AreaView>('areaView', { default: () => ({ ...DEFAULT_AREA_VIEW }) })
 
-// 「參觀預約」「預約全程」與「招生潛力與市佔率」讀自己的 API、不用招生統計：三個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
-const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey' || sub.value === 'potential')
+// 「參觀預約」「預約全程」「招生潛力與市佔率」與「資料匯入」讀自己的 API、不用招生統計：這幾個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
+const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey' || sub.value === 'potential' || sub.value === 'imports')
 
 function setSubTab(name: string | number) {
   const value = String(name).replace(/^stats-/, '')
@@ -507,6 +509,10 @@ function openWithdrawRecords(row: { code: string }) {
 
       <el-tab-pane label="招生潛力與市佔率" name="stats-potential" lazy>
         <PotentialTab :campus-key="campusKey" :active="sub === 'potential'" />
+      </el-tab-pane>
+
+      <el-tab-pane label="資料匯入" name="stats-imports" lazy>
+        <ImportsTab :campus-key="campusKey" :active="sub === 'imports'" />
       </el-tab-pane>
     </el-tabs>
   </section>
