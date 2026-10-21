@@ -46,7 +46,7 @@ function exportCsv() {
         <span role="columnheader">和前一期</span>
       </div>
       <div v-for="row in rows" :key="row.key" class="birth-series__row" role="row">
-        <span role="rowheader" class="birth-series__period">
+        <span role="rowheader">
           <span class="birth-series__label"><span class="birth-series__part">{{ row.label_from }}～</span><span class="birth-series__part">{{ row.label_to }}</span></span>
           <small v-if="row.missing_text" class="birth-series__missing">{{ row.missing_text }}</small>
         </span>

@@ -210,7 +210,9 @@ describe('各里表的欄與說明', () => {
       '里', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月淨遷入', '近 4 季新屋', '在建預售（戶）', '所得中位數', '國小學區', '在籍',
     ])
     expect(villageColumns(false, true)[0]).toMatchObject({ key: 'place', sticky: true })
-    expect(villageColumns(true, true)).toHaveLength(17)
+    // judged 只是在畫面欄後面多接參觀四欄；不寫死欄數，之後加欄只要改上面那份具名清單。
+    const labels = (judged: boolean) => villageColumns(judged, true).map((column) => column.label)
+    expect(labels(true)).toEqual([...labels(false), '參觀人數', '參觀率', '照附近應有', '判讀'])
   })
 
   it('說明：沒到門檻不解釋參觀率、照附近應有、少了約 N 位，里的變化那段照舊', () => {
