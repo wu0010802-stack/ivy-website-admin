@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-21 前台掃描前五條修正（main CI 部署，沒有 migration）
+
+- **提交**：使用者要求 commit 並推上 main。`fix/web-audit-20261021` rebase 到 `d4fafb19` 後直接推，`f992103e`。內容見 README 同日「前台效能與畫面掃描：前五條修正」：three 不再 prefetch 到首頁以外的頁面、米白膠囊與加入行事曆選單的焦點框、/visit 首圖 `fetchpriority=high`、/anniversary 開場影片連線閘門。只動 web，沒有新環境變數。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck`、`test:website` 111 檔 1,344 passed；`e2e:build`＋公開站 `test:e2e` 34 passed／6 skipped。等上一個 main run 39535280922 success 後才推。
+- **CI**：main run 39536608493 全部 success（Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production，部署 2026-10-21T03:13:40Z–2026-10-21T03:17:21Z）。
+- **線上驗證**：`/release.json` base_commit 為 `f992103e`；/、/news、/visit、/about、/environment 的 HTML 都沒有 three chunk 的 prefetch，Playwright 開 /about、/visit 全程沒有下載它；/about 收合後 Tab 進膠囊，外框是深綠；/visit 第一張校區照 initialPriority 為 High；/anniversary 的開場閘門含 downlink 判斷。
+- **回退**：切回上一版映像即可。
+
 ## 2026-10-21 維護一批：web 依賴、預約小修、寄信只認 SMTP、公開站 e2e 進 CI（main CI 部署，沒有 migration）
 
 - **提交**：`fix/maint-tests-20261021`（併入後台、web＋後端兩條子分支，內容見 README 同日「維護一批」），`7d26bbd0..d4fafb19` 由使用者推上 main。沒有 migration、沒有新環境變數，沒有先備份。
