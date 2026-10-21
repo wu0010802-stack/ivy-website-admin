@@ -2,16 +2,31 @@
 
 結構照真檔：第 0–1 列標題、第 2–3 列表頭（區塊名與日期在第 2 列、子欄名在第 3 列，字中間夾空白與換行）、
 第 4–8 列年級與總人數、其後是備註（這裡寫的是假名）。數字一律寫成浮點數，和真檔一樣；
-各種「率」欄填非整數的小數，用來確認解析器不去讀它們。"""
+各種「率」欄填非整數的小數，用來確認解析器不去讀它們。
+
+另外模擬瀏覽器端的擷取（browser_extract）：規則與 contracts/ivy-recruitment/history-extract-cases.json 的 description
+相同，admin 的 TypeScript 實作讀同一份案例；grid_from_raw、grid_json 是案例檔與 SheetGrid 之間的轉換。"""
 from __future__ import annotations
 
 import io
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import xlwt
+
+from app.admissions.history.grid import (
+    BLOCK_ROW,
+    EMPTY,
+    FIRST_GRADE_ROW,
+    GRADE_LABELS,
+    MASKED,
+    SUBHEADER_ROW,
+    GridCell,
+    SheetGrid,
+)
 
 GRADES = ("大班", "中班", "小班", "幼幼班")
 FAKE_NOTES = ("*115上新生(3人)：王小明.李小華", "*115上重讀生(1人)：陳小美")
@@ -105,7 +120,9 @@ def _padded(label: str) -> str:
 def _write(sheet: Any, row: int, col: int, value: Any) -> None:
     if value is None:
         return
-    if isinstance(value, (int, float)):
+    if isinstance(value, bool):
+        sheet.write(row, col, value)  # 布林格（xlrd 讀成 BOOLEAN）：人數欄不收
+    elif isinstance(value, (int, float)):
         sheet.write(row, col, float(value))
     else:
         sheet.write(row, col, value)
@@ -228,3 +245,83 @@ def history_payload(rows: list[dict[str, Any]] | None = None, **changes: Any) ->
 
 def history_text(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
+
+
+def _raw_cell(value: Any) -> GridCell:
+    if value is None:
+        return EMPTY
+    if isinstance(value, bool):
+        return MASKED  # 布林等其他型別：格子表沒有對應的種類，和瀏覽器一樣只留位置
+    if isinstance(value, (int, float)):
+        return GridCell("number", float(value))
+    if isinstance(value, str):
+        return GridCell("text", value)
+    return MASKED
+
+
+def grid_from_raw(name: str, rows: list[list], width: int) -> SheetGrid:
+    """試算表函式庫回傳的原始值（None／數字／字串）→ 格子表；列長維持原樣（可以比 width 短或長）。"""
+    return SheetGrid(name=name, width=width, rows={i: [_raw_cell(v) for v in row] for i, row in enumerate(rows)})
+
+
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+def _label(cell: GridCell) -> str:
+    """第 0 欄去空白後的文字；數字轉成不帶小數的字串；其他（空白、遮住）是空字串。"""
+    if cell.kind == "number":
+        return str(int(cell.value)) if float(cell.value).is_integer() else repr(cell.value)
+    return _plain(cell.value) if cell.kind == "text" else ""
+
+
+def _header_cell(cell: GridCell) -> GridCell:
+    """表頭格：空白送 empty，數字與字串照原樣，其他遮住。"""
+    if cell.kind == "text" and not _plain(cell.value):
+        return EMPTY
+    return cell
+
+
+def _figure_cell(cell: GridCell) -> GridCell:
+    """年級列的非標籤格：數字照送、去空白後全是數字的字串照送原字串、空白送 empty、其他一律遮住。"""
+    if cell.kind in ("empty", "number"):
+        return cell
+    if cell.kind == "text":
+        plain = _plain(cell.value)
+        if not plain:
+            return EMPTY
+        return cell if re.fullmatch(r"\d+", plain) else MASKED
+    return MASKED
+
+
+def browser_extract(grid: SheetGrid) -> SheetGrid:
+    """模擬瀏覽器端擷取：只留表頭兩列與五個標籤列（年級與總人數各取第一個），其餘列（備註、標題）不送。
+    每列都照 width 一格一格取，所以送出的列長一律等於 width（短的補 empty、長的截掉）。"""
+    rows: dict[int, list[GridCell]] = {}
+    for row in (BLOCK_ROW, SUBHEADER_ROW):
+        if row < grid.nrows:
+            rows[row] = [_header_cell(grid.cell(row, c)) for c in range(grid.width)]
+    found: set[str] = set()
+    for row in range(FIRST_GRADE_ROW, grid.nrows):
+        label = _label(grid.cell(row, 0))
+        if label in GRADE_LABELS and label not in found:
+            found.add(label)
+            rows[row] = [GridCell("text", label)] + [_figure_cell(grid.cell(row, c)) for c in range(1, grid.width)]
+            if len(found) == len(GRADE_LABELS):
+                break
+    return SheetGrid(name=grid.name, width=grid.width, rows=rows)
+
+
+def _cell_json(cell: GridCell) -> Any:
+    if cell.kind == "empty":
+        return None
+    return {"masked": True} if cell.kind == "masked" else cell.value
+
+
+def grid_json(grid: SheetGrid) -> dict[str, Any]:
+    """格子表 → 送給伺服器的 JSON：列號是字串鍵，格子是 None／數字／字串／{"masked": True}。"""
+    return {
+        "name": grid.name,
+        "width": grid.width,
+        "rows": {str(row): [_cell_json(cell) for cell in grid.rows[row]] for row in sorted(grid.rows)},
+    }

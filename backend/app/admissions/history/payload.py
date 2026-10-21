@@ -15,7 +15,7 @@ from app.admissions import constants
 from app.campuses.models import CAMPUS_KEYS
 
 if TYPE_CHECKING:
-    from app.admissions.history.workbook import ParsedWorkbook
+    from app.admissions.history.grid import ParsedWorkbook
 
 FORMAT = "ivy-enrollment-history/1"
 FIRST_SCHOOL_YEAR = 99  # 園方的歷年註冊表從 99 上開始
