@@ -466,7 +466,18 @@ async def create_manual_visit_request(
 
     config = await get_or_create_config(db, campus_key)
     now = now_utc()
-    slot = await slot_service.lock_for_staff_booking(db, campus_key, slot_id, now)
+    try:
+        slot = await slot_service.lock_for_staff_booking(db, campus_key, slot_id, now)
+    except SlotFull:
+        # 同一張補登表單連點兩次：開頭查重播時前一個請求還沒 commit，等到時段鎖時它已經
+        # 建好案件、正好占走最後一個名額。拿到鎖後再查一次，回原結果而不是額滿
+        # （同 submit_visit_request 鎖後重查）。
+        existing = await find_replay(
+            db, campus_key=campus_key, idempotency_key=key, payload=payload, hash_key=hash_key
+        )
+        if existing is not None:
+            return existing, False
+        raise
     visit_request = VisitRequest(
         id=uuid.uuid4(),
         campus_key=campus_key,

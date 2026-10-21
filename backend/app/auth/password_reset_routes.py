@@ -186,7 +186,7 @@ async def complete_password_reset(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """用重設連結設定新密碼：連結標成已用、其他還有效的連結作廢、所有 session 登出、
-    解除密碼登入暫停。不自動登入，前端導回登入頁。
+    解除 LINE／Google 綁定、解除密碼登入暫停。不自動登入，前端導回登入頁。
 
     無效的 token 不跑 bcrypt；有效的先算好雜湊（約 250 ms）再上鎖，鎖住期間不做慢的事。
     鎖的順序跟寄連結一樣「帳號 → 連結」。等鎖期間連結可能被用掉或作廢，上鎖後再判斷一次。"""
@@ -228,13 +228,16 @@ async def complete_password_reset(
     token.used_at = now
     await password_reset.revoke_outstanding(db, user.id, now=now)
     revoked = await service.revoke_user_sessions(db, user.id)
+    # 重設密碼常是帳號被盜後的補救：只換密碼的話，攻擊者先前綁上的 LINE／Google 還能登入。
+    # 比照停權一併解除，本人要用再重新綁定（綁定前會重新驗證身分）。
+    unlinked = service.clear_external_logins(user)
     await audit_service.log_action(
         db,
         actor_user_id=user.id,
         action="user.password_reset_completed",
         target_type="user",
         target_id=str(user.id),
-        metadata={"revoked_sessions": revoked},
+        metadata={"revoked_sessions": revoked, **unlinked},
     )
     await db.commit()
     await service.clear_login_lock(ratelimit.limiter(request), user.email)

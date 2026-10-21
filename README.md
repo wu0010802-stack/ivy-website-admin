@@ -1,3 +1,18 @@
+## 2026-10-20 全專案 bug 與資安掃描：11 項修正（`feature/security-audit-fixes`）
+
+使用者要求「掃描專案的 bugs 以及資安」並全部處理。對 `95542b5` 分四路唯讀盤查（後端資安、後端正確性、web／admin、相依套件與部署）：沒有可直接利用的 Critical／High 漏洞，git 歷史（shallow，50 個 commit）沒有外洩密鑰，`pip-audit` 執行期套件 0 項。修正如下，每項都補了「修正前失敗、修正後通過」的回歸測試（切片測試只寫在後端與 web）。
+
+- **招生**：提早到場清掉未來場次、事後才補建的招生訪視，參觀日期改用最後一筆 `completed` 歷程的台北日期，不再是補建當天（`admissions/booking_link.py`）。`tour_guide_user_id` 只接受這個校區啟用中的帳號，別校或停用帳號一律回 `TOUR_GUIDE_INVALID`，不回對方的顯示名稱（`admissions/records.py`）。
+- **預約**：人工補登連點兩次、剛好搶最後一個名額時，拿到時段鎖後再查一次重播，回原收據而不是 `SLOT_FULL`（`booking/service.py`）。停課通知發連結前先鎖案件列重讀狀態，同時被家長取消的案件不再拿到新的修改連結（`booking/closure_service.py`）。
+- **排程發布**：一筆排程丟出非預期例外時回滾、標成 failed（`UNEXPECTED_ERROR`，照常通知排程的人），後面到期的排程照樣發布，不會每輪卡在第一筆（`content/publish_jobs.py`）。
+- **素材**：檔名超過 255 字截斷（保留副檔名），不再 500（`media/service.py`）。
+- **帳號**：CSRF token 改用 `hmac.compare_digest`。用重設連結設定新密碼時，比照停權一併解除 LINE／Google 綁定，稽核多記 `line_unlinked`／`google_unlinked`（後台自己改密碼不動綁定）。
+- **部署**：`deploy/api-start.py` 要求 `WEBSITE_ENVIRONMENT` 必須是 `production`（原本只檢查有沒有設，誤設 development 會少 Secure cookie、開 `/docs`）。
+- **web**：分校社群連結（FB／LINE／IG／YouTube）在 overlay 套 `safeWebUrl`，即時預覽的草稿不經後端驗證，`javascript:` 不會被綁進 href。
+- **相依套件**：web 以 `overrides` 拉高 `shell-quote` 1.12.0（Critical）、`source-map-js` 1.2.2、`serialize-javascript` 7.1.2；admin `npm audit fix` 後 0 項。內建 npm 10.9.4 的 `npm audit fix`／`npm update` 會在 peer set 當掉（`edgesOut`），npm 11 產生的 lockfile 又讓 npm 10 的 `npm ci` 報缺 `unplugin@3.4.0`，所以只用 npm 10 能處理的末端套件 overrides。**仍未修**：`simple-git`（Critical，`@nuxt/devtools` 3.4.2 帶進來，3.4.4 已拿掉，但升 devtools 會碰上同一個 npm 10 錯誤）、`braces`、`node-forge`（上游沒有修正版）；三者都只在 `nuxt dev`／建置時用，正式映像只複製 `.output`。
+- **沒做**：公開頁 CSP 沒有 `script-src`、後台與公開站同源（`web/server/utils/security-headers.ts` 註解已記）。要改成後台與 API 換獨立子網域，或公開站改用 nonce CSP，牽涉 Railway 網域與全站 inline script，另案處理。限流信任 `x-website-client-ip`，api 服務要維持沒有公開網域。
+- **驗證**（Node 22.22、npm 10.9.4、本機 PostgreSQL 16）：後端全套 **4530 passed**；新增的 7 個回歸測試在舊程式碼上都失敗。web `typecheck` 通過、`test:unit` 108 檔 1321 passed、`nuxt build` 成功；`deploy/tests` 22 passed；`contract:check` 一致（重設密碼的說明文字改了，契約重新產生）。admin `typecheck` 通過，`test:unit` 3098 passed，但 `admissionsView.test.ts` 的 (h) 偶爾超過 5 秒上限：新 lockfile 連跑三次有兩次逾時（5.09–5.2 秒）、一次全過，main 的 lockfile 跑一次全過。這項在迴圈裡掛載整個招生頁 7 次，本來就貼著上限，判斷是時間抖動、不是這次的改動；PR CI 的 admin job 是綠的。PR #49 CI 七項全綠（正式部署 skipped）。
+
 ## 2026-10-20 手機孩子的一天：拍立得換成 WebGL 紙那一刻不再跳（`feature/day-print-mobile-20261020`）
 
 使用者反映手機上「常春藤的一天」卡片渲染怪怪的。手機的 WebGL 紙要等停下滑動、卡片已經在畫面上才接手（桌機在卡片進畫面前就換好，所以只有手機看得到），換手那一刻有兩個跳動：

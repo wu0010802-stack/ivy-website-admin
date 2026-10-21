@@ -2,6 +2,7 @@
 （app/workers/maintenance.py；手動補跑用 `python -m app.cli process-notifications`）。"""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 
@@ -18,6 +19,8 @@ from app.content.notices import user_can_publish  # noqa: F401 - 路由與舊呼
 from app.content.registry import CONTENT_KIND_REGISTRY
 from app.media.models import MediaAsset, MediaStatus
 from app.operations import audit_service
+
+logger = logging.getLogger("app.maintenance")
 
 
 class NotPublishable(Exception):
@@ -94,10 +97,35 @@ async def run_due_jobs(db: AsyncSession, *, limit: int = 20) -> dict:
     job_ids = [row[0] for row in result.all()]
     counts = {"published": 0, "failed": 0, "skipped": 0}
     for job_id in job_ids:
-        outcome = await _run_one(db, job_id)
+        try:
+            outcome = await _run_one(db, job_id)
+        except Exception:
+            # 非預期的例外（資料或程式問題）不能往外丟：排程依 publish_at 排序，這筆每一輪都
+            # 排第一個、每一輪都失敗，後面到期的排程就永遠上不了線。回滾後標成 failed 再做下一筆。
+            logger.exception("定期工作：排程 %s 發布時發生非預期錯誤", job_id)
+            await db.rollback()
+            outcome = await _fail_unexpected(db, job_id)
         if outcome is not None:
             counts[outcome] += 1
     return counts
+
+
+async def _fail_unexpected(db: AsyncSession, job_id: uuid.UUID) -> str | None:
+    locked = await db.execute(
+        select(PublishJob).where(PublishJob.id == job_id).with_for_update(skip_locked=True)
+    )
+    job = locked.scalar_one_or_none()
+    if job is None or job.status != "scheduled":
+        await db.rollback()
+        return None
+    item = await db.get(ContentItem, job.content_item_id, populate_existing=True)
+    revision = await db.get(ContentRevision, job.revision_id, populate_existing=True)
+    await _finish_unpublished(
+        db, job, item, revision, status="failed",
+        message="發布時發生非預期錯誤，請稍後再排一次或聯絡維護人員（UNEXPECTED_ERROR）",
+        now=datetime.now(timezone.utc),
+    )
+    return "failed"
 
 
 # 到期了但沒有發布：failed＝檢查不過，skipped＝官網已經是同一版或較新的版本。

@@ -17,14 +17,14 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, constants, follow_up, funnel, records
 from app.admissions.models import RecruitmentVisit
 from app.booking import expected_start as start_rules
 from app.booking import history
-from app.booking.models import VisitRequest
+from app.booking.models import VisitRequest, VisitRequestEvent
 from app.common.timezones import today_local
 from app.operations import audit_service
 
@@ -78,7 +78,7 @@ def contact_fields(
 def fields_from_visit_request(visit_request, *, today: date, slot_date: date | None = None) -> dict:
     """規格 6.1 第 1 點的欄位對應（today 是確認到場當天的台北日期）：
 
-    - visit_date：場次日期；沒有場次（舊案）用 today。
+    - visit_date：場次日期（提早到場清掉場次的，呼叫端傳到場當天）；都沒有用 today。
     - child_name、birthday、grade、phone、contact_name：見 contact_fields。
     - source：勾選的「從哪裡知道我們」照後台文案以「、」串接，截到 50 字。
     - notes：「家長想了解：」＋想了解的事；沒填為 None。
@@ -105,6 +105,19 @@ def fields_from_visit_request(visit_request, *, today: date, slot_date: date | N
     }
 
 
+async def _completed_on(db: AsyncSession, visit_request_id: uuid.UUID) -> date | None:
+    """沒有場次時的參觀日期：最後一筆 completed 歷程的台北日期。提早到場會清掉未來的
+    場次（workflow_service.mark_completed），之後才補建招生訪視時不能拿補建當天當參觀日；
+    同一個交易內剛標記完成的，這筆歷程就是今天。找不到（理論上不會）回 None，退回 today。"""
+    completed_at = await db.scalar(
+        select(func.max(VisitRequestEvent.created_at)).where(
+            VisitRequestEvent.visit_request_id == visit_request_id,
+            VisitRequestEvent.event_type == "completed",
+        )
+    )
+    return today_local(completed_at) if completed_at is not None else None
+
+
 async def ensure_from_visit_request(
     db: AsyncSession, visit_request: VisitRequest, *, actor_user_id: uuid.UUID | None
 ) -> tuple[RecruitmentVisit, bool]:
@@ -121,7 +134,8 @@ async def ensure_from_visit_request(
         return existing, False
     slot = await history.load_slot(db, visit_request.slot_id)
     today = today_local()
-    fields = fields_from_visit_request(visit_request, today=today, slot_date=slot.slot_date if slot else None)
+    visit_date = slot.slot_date if slot else await _completed_on(db, visit_request.id)
+    fields = fields_from_visit_request(visit_request, today=today, slot_date=visit_date)
     tracking = await follow_up.initial_fields(
         db,
         campus_key=visit_request.campus_key,

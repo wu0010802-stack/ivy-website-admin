@@ -3,6 +3,7 @@
 #08 寄信當下已過的修改期限、#09 重新產生連結在鎖內重讀場次。"""
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -324,3 +325,68 @@ async def test_lookup_writes_stop_at_the_per_source_daily_cap(admin_client, publ
         response = await public_client.get(f"{API}/public/slots?campus_key=yihua&{_window()}&purpose=new_booking")
         assert response.status_code == 200 and len(response.json()) == 1
     assert await _lookups(db_session) == {("yihua", "days_4_7"): 1}
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-20 稽核：停課與家長取消同時發生，已取消的案件不能再拿到新的修改連結
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_closure_skips_a_case_cancelled_after_it_was_listed(
+    app, admin_client, public_client, db_session, monkeypatch
+):
+    from app.booking import closure_service
+    from app.booking.models import VisitRequestEvent, VisitRequestStatus
+
+    _enable_smtp(app)
+    booked = await book_slot(admin_client, public_client, days_ahead=3)
+    case_id = uuid.UUID(booked["receipt_id"])
+    original = closure_service._confirmed_visits
+
+    async def listed_then_cancelled(db, campus_key, day):
+        visits = await original(db, campus_key, day)
+        # 列出之後、發連結之前，家長的取消先提交了（這裡用同一個連線模擬）。
+        await db.execute(
+            update(VisitRequest)
+            .where(VisitRequest.id == case_id)
+            .values(status=VisitRequestStatus.CANCELLED.value)
+        )
+        return visits
+
+    monkeypatch.setattr(closure_service, "_confirmed_visits", listed_then_cancelled)
+    await _close_day(admin_client, booked["slot_date"])
+
+    events = (
+        await db_session.execute(
+            select(VisitRequestEvent.event_type).where(VisitRequestEvent.visit_request_id == case_id)
+        )
+    ).scalars().all()
+    assert closure_service.CLOSURE_NOTICE_EVENT not in events
+
+
+@pytest.mark.asyncio
+async def test_manual_double_submit_racing_for_the_last_seat_replays_the_receipt(admin_client, monkeypatch):
+    """2026-10-20 稽核：補登連點兩次，第二個請求開頭查重播時第一個還沒 commit；等到時段鎖時名額已被
+    第一個占走，要回原收據（200），不能回 SLOT_FULL。"""
+    from app.booking import service
+
+    slot = await create_slot_record(admin_client, capacity=1)
+    body = {"campus_key": "yihua", "source": "phone", "parent_name": "王媽媽", "phone": "0912345678",
+            "consent_given": True, "slot_id": slot["id"]}
+    first = await admin_client.post(f"{API}/admin/visit-requests", json=body, headers={"Idempotency-Key": "manual-race"})
+    assert first.status_code == 201, first.text
+
+    original = service.find_replay
+    calls = {"n": 0}
+
+    async def stale_first_lookup(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return None  # 開頭那次查詢時第一個請求還沒提交
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(service, "find_replay", stale_first_lookup)
+    second = await admin_client.post(f"{API}/admin/visit-requests", json=body, headers={"Idempotency-Key": "manual-race"})
+    assert second.status_code == 200, second.text
+    assert second.json()["id"] == first.json()["id"]

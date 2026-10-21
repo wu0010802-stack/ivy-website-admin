@@ -239,9 +239,31 @@ async def test_complete_sets_password_logs_out_everywhere_and_is_single_use(app,
     completed = await _audits(db_session, "user.password_reset_completed")
     assert len(completed) == 1
     assert completed[0].actor_user_id == target_id
-    assert completed[0].metadata_json == {"revoked_sessions": 1}
+    assert completed[0].metadata_json == {"revoked_sessions": 1, "line_unlinked": False, "google_unlinked": False}
     rejected = await _audits(db_session, "user.password_reset_link_rejected")
     assert [entry.metadata_json for entry in rejected] == [{"reason": "link_used"}]
+
+
+async def test_complete_unlinks_external_logins(app, admin_client, db_session, mailer):
+    """2026-10-20 稽核：重設密碼常是帳號被盜後的補救，攻擊者先前綁上的 LINE／Google 要一起解除。"""
+    target = await _create_user(db_session, STAFF, STAFF_PW, Role.EDITOR, ["yihua"])
+    target_id = target.id
+    await db_session.execute(
+        update(User).where(User.id == target_id).values(google_sub="google-attacker", line_sub="line-attacker")
+    )
+    await db_session.commit()
+    token = await _send(admin_client, target_id, mailer)
+    async with _anon(app) as anon:
+        done = await anon.post(COMPLETE, json={"token": token, "new_password": NEW_PW})
+    assert done.status_code == 204, done.text
+
+    user = (
+        await db_session.execute(select(User).where(User.id == target_id).execution_options(populate_existing=True))
+    ).scalar_one()
+    assert user.google_sub is None
+    assert user.line_sub is None
+    completed = await _audits(db_session, "user.password_reset_completed")
+    assert completed[0].metadata_json == {"revoked_sessions": 0, "line_unlinked": True, "google_unlinked": True}
 
 
 async def test_expired_link_is_rejected_and_audited(app, admin_client, db_session, mailer):

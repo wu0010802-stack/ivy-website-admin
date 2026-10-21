@@ -766,3 +766,14 @@ async def test_quota_lock_timeout_is_409_not_500(db_session, monkeypatch):
         await app.state.rate_limit_engine.dispose()
     assert response.status_code == 409, response.text
     assert response.json()["detail"]["code"] == "MEDIA_BUSY"
+
+
+def test_stored_filename_is_cut_to_the_column_length_keeping_the_extension():
+    """2026-10-20 稽核：瀏覽器送來超過 255 字的檔名，寫入 String(255) 會 500。"""
+    from app.media.service import FILENAME_MAX, stored_filename
+
+    assert stored_filename("photo.jpg") == "photo.jpg"
+    long = "照" * 300 + ".jpeg"
+    cut = stored_filename(long)
+    assert len(cut) == FILENAME_MAX and cut.endswith(".jpeg")
+    assert len(stored_filename("x" * 400)) == FILENAME_MAX
