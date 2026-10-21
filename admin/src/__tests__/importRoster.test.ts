@@ -190,6 +190,16 @@ describe('enrolledPreviewBody', () => {
     expect(enrolledPreviewBody(parseRosterHtml(reversedHtml), '2026-10-15')).toEqual(body)
   })
 
+  it('沒填通訊地址的學生照送，地址是空字串（伺服器列為沒有地址），也不帶姓名與生日', () => {
+    const body = enrolledPreviewBody(parseRosterHtml(rosterHtml([['2023/03/01', ''], ['2022/05/10', ' ']])), '2026-10-15')
+    expect(body.students).toEqual([
+      { grade: '小班', address: '' },
+      { grade: '中班', address: '' },
+    ])
+    const text = JSON.stringify(body)
+    for (const leaked of ['測試小明', '2023/03/01', '2023-03-01', '2022-05-10']) expect(text).not.toContain(leaked)
+  })
+
   it('依班別（幼幼班→小班→中班→大班→其他）再依地址排序，地址用字碼比較、不看語系', () => {
     const roster = parseRosterHtml(
       rosterHtml([

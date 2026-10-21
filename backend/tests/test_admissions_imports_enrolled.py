@@ -153,6 +153,15 @@ async def test_preview_reports_and_writes_nothing(admin_client, db_session):
     assert len(await _audit(db_session)) == audits_before
 
 
+async def test_preview_accepts_a_blank_address(admin_client, db_session):
+    """清冊上沒填地址的學生（瀏覽器送空字串）同 CLI：算進總數、列為 no_address，不讓整份預覽 422。"""
+    await _ready(db_session)
+    body = await _preview(admin_client, [*STUDENTS, {"grade": "小班", "address": ""}])
+    assert body["total"] == 5
+    assert body["levels"]["unlocated"] == 2
+    assert {"match_level": "unlocated", "unlocated_reason": "no_address", "street": ""} in body["unplaced"]
+
+
 async def test_preview_marks_a_good_roster_importable(admin_client, db_session):
     await _ready(db_session)
     body = await _preview(admin_client, NINE_OF_TEN)

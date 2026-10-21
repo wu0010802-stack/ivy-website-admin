@@ -24,7 +24,8 @@ class EnrolledUploadStudentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     grade: EnrolledGrade
-    address: str = Field(min_length=1, max_length=120)
+    # 清冊沒填地址的學生送空字串：同 CLI，比對時列為 no_address，算進總數但沒有點。
+    address: str = Field(max_length=120)
 
 
 class EnrolledPreviewIn(BaseModel):

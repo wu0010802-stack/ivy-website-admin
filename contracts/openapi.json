@@ -8136,7 +8136,6 @@
         "properties": {
           "address": {
             "maxLength": 120,
-            "minLength": 1,
             "title": "Address",
             "type": "string"
           },
