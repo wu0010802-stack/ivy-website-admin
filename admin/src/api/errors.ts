@@ -46,6 +46,13 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   RECRUITMENT_ENROLLED_TERM_LOCKED: '已註冊的訪視不能直接改入學學期，要改請先取消註冊',
   RECRUITMENT_SEAT_TERM_LOCKED: '已保留座位的訪視要改學期，請用保留座位調整',
   CONTENT_REVISION_REJECTED: '這一版已被退回，請修改後重新儲存',
+  // 後台資料匯入（2026-10-21）
+  INVALID_IMPORT_PAYLOAD: '上傳的資料格式不對',
+  ENROLLED_MATCH_FAILED: '在籍清冊比對失敗',
+  CAMPUS_MISMATCH: '資料的校區和選的校區不同，請重新預覽',
+  LOW_PLACED_RATIO: '有點的比例不到 90%，不能匯入',
+  DOORPLATE_CHANGED: '門牌已換版，請重新預覽',
+  SCHOOL_YEAR_MISMATCH: '清冊日期和學年對不上，請重新預覽',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 

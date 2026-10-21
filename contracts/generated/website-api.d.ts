@@ -318,6 +318,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/imports/enrolled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Clear Enrolled Import
+         * @description 清除該校的在籍資料（清冊與所有點）；本來就沒有資料時不寫稽核，回 removed=false。
+         */
+        delete: operations["clear_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/imports/enrolled/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Enrolled Import
+         * @description 確認匯入：本文就是預覽回來的去識別點位（沒有地址）。校區相符、有點比例達門檻、門牌版本沒換、學年對得上，
+         *     才整校取代並寫稽核。
+         */
+        post: operations["apply_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/imports/enrolled/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Enrolled Import
+         * @description 在籍清冊預覽：瀏覽器送來（班別, 地址），伺服器比對後回命中報告與去識別的點位，原樣送回 apply 即可匯入。
+         *     地址比對完就丟：不寫資料庫、不寫稽核、不進日誌與任何回應。
+         */
+        post: operations["preview_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/imports/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Import Status
+         * @description 該校目前匯入的在籍清冊與歷年註冊（清冊日期、人數、匯入時間），以及使用中的門牌資料月份。只讀，不寫稽核。
+         */
+        get: operations["get_import_status_api_website_v1_admin_admissions_imports_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/intake-plan": {
         parameters: {
             query?: never;
@@ -5602,6 +5684,190 @@ export interface components {
             /** Display Name */
             display_name: string | null;
         };
+        /** EnrolledApplyOut */
+        EnrolledApplyOut: {
+            /** Placed */
+            placed: number;
+            /** Students */
+            students: number;
+        };
+        /** EnrolledClearOut */
+        EnrolledClearOut: {
+            /** Removed */
+            removed: boolean;
+        };
+        /** EnrolledImportPayloadOut */
+        EnrolledImportPayloadOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Doorplate Version */
+            doorplate_version: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "ivy-enrolled-points/1";
+            /**
+             * Roster Date
+             * Format: date
+             */
+            roster_date: string;
+            /** School Year */
+            school_year: number;
+            /** Students */
+            students: components["schemas"]["EnrolledImportPointOut"][];
+        };
+        /** EnrolledImportPointOut */
+        EnrolledImportPointOut: {
+            /** District */
+            district: string | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班" | "其他";
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+            /** Match Level */
+            match_level: string;
+            /** Unlocated Reason */
+            unlocated_reason: string | null;
+            /** Village */
+            village: string | null;
+        };
+        /** EnrolledImportStatusOut */
+        EnrolledImportStatusOut: {
+            /** Doorplate Version */
+            doorplate_version: string;
+            /**
+             * Imported At
+             * Format: date-time
+             */
+            imported_at: string;
+            /** Placed */
+            placed: number;
+            /**
+             * Roster Date
+             * Format: date
+             */
+            roster_date: string;
+            /** School Year */
+            school_year: number;
+            /** Total */
+            total: number;
+        };
+        /** EnrolledImportUnplacedOut */
+        EnrolledImportUnplacedOut: {
+            /** Match Level */
+            match_level: string;
+            /** Street */
+            street: string;
+            /** Unlocated Reason */
+            unlocated_reason: string | null;
+        };
+        /** EnrolledPreviewIn */
+        EnrolledPreviewIn: {
+            /**
+             * Roster Date
+             * Format: date
+             */
+            roster_date: string;
+            /** Students */
+            students: components["schemas"]["EnrolledUploadStudentIn"][];
+        };
+        /** EnrolledPreviewOut */
+        EnrolledPreviewOut: {
+            /** Doorplate Version */
+            doorplate_version: string;
+            /** Grades */
+            grades: {
+                [key: string]: number;
+            };
+            /** Importable */
+            importable: boolean;
+            /** Inferred */
+            inferred: number;
+            /** Levels */
+            levels: {
+                [key: string]: number;
+            };
+            /** Methods */
+            methods: {
+                [key: string]: number;
+            };
+            payload: components["schemas"]["EnrolledImportPayloadOut"];
+            /** Placed */
+            placed: number;
+            /** Placed Ratio */
+            placed_ratio: number;
+            /**
+             * Roster Date
+             * Format: date
+             */
+            roster_date: string;
+            /** School Year */
+            school_year: number;
+            /** Total */
+            total: number;
+            /** Unplaced */
+            unplaced: components["schemas"]["EnrolledImportUnplacedOut"][];
+        };
+        /** EnrolledRosterIn */
+        EnrolledRosterIn: {
+            /** Campus Key */
+            campus_key: string;
+            /** Doorplate Version */
+            doorplate_version: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "ivy-enrolled-points/1";
+            /**
+             * Roster Date
+             * Format: date
+             */
+            roster_date: string;
+            /** School Year */
+            school_year: number;
+            /** Students */
+            students: components["schemas"]["EnrolledStudentIn"][];
+        };
+        /** EnrolledStudentIn */
+        EnrolledStudentIn: {
+            /** District */
+            district?: string | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班" | "其他";
+            /** Lat */
+            lat?: number | string | null;
+            /** Lng */
+            lng?: number | string | null;
+            /**
+             * Match Level
+             * @enum {string}
+             */
+            match_level: "exact" | "nearby" | "street" | "district" | "unlocated";
+            /** Unlocated Reason */
+            unlocated_reason?: ("no_address" | "outside_kaohsiung" | "no_doorplate" | "ambiguous_village") | null;
+            /** Village */
+            village?: string | null;
+        };
+        /** EnrolledUploadStudentIn */
+        EnrolledUploadStudentIn: {
+            /** Address */
+            address: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班" | "其他";
+        };
         /** EventTrendDayOut */
         EventTrendDayOut: {
             /** Clicks */
@@ -5865,6 +6131,24 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistoryImportStatusOut */
+        HistoryImportStatusOut: {
+            /** First School Year */
+            first_school_year: number;
+            /** First Semester */
+            first_semester: number;
+            /**
+             * Imported At
+             * Format: date-time
+             */
+            imported_at: string;
+            /** Last School Year */
+            last_school_year: number;
+            /** Last Semester */
+            last_semester: number;
+            /** Rows */
+            rows: number;
+        };
         /** HolidayApplyCampusOut */
         HolidayApplyCampusOut: {
             /** Affected Dates */
@@ -5944,6 +6228,13 @@ export interface components {
             name: string;
             /** Weekday */
             weekday: number;
+        };
+        /** ImportStatusOut */
+        ImportStatusOut: {
+            /** Active Doorplate Version */
+            active_doorplate_version: string | null;
+            enrolled: components["schemas"]["EnrolledImportStatusOut"] | null;
+            history: components["schemas"]["HistoryImportStatusOut"] | null;
         };
         /** IntakePlanOut */
         IntakePlanOut: {
@@ -9712,6 +10003,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clear_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_delete: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrolledClearOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_apply_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrolledRosterIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrolledApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_preview_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrolledPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrolledPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_import_status_api_website_v1_admin_admissions_imports_status_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportStatusOut"];
                 };
             };
             /** @description Validation Error */

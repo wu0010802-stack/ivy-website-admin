@@ -36,6 +36,9 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/retention/dry-run"): "只試算筆數，不改任何資料",
     ("POST", "/api/website/v1/admin/holiday-calendar/fetch"): "只下載並解析辦公日曆給後台預覽，不改任何資料；套用（apply）才寫稽核",
     ("POST", "/api/website/v1/admin/holiday-calendar/parse"): "只解析上傳的辦公日曆給後台預覽，不改任何資料；套用（apply）才寫稽核",
+    ("POST", "/api/website/v1/admin/admissions/imports/enrolled/preview"): (
+        "只比對並回預覽，不改任何資料（地址比對完就丟）；確認匯入（apply）與清除才寫稽核"
+    ),
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),

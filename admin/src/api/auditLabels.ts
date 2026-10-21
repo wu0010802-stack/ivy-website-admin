@@ -353,6 +353,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   reached: (v) => (v ? '聯絡到了' : '沒聯絡到'),
   parent_response_updated: (v) => (v ? '同時更新電訪回應' : null),
   owner_changed: (v) => (v ? '換了追蹤負責人' : null),
+  // 後台資料匯入（2026-10-21）：在籍清冊的人數、有點人數、清冊日期與比對用的門牌版本（不記地址）。
+  students: (v) => `共 ${countOf(v)} 位`,
+  placed_students: (v) => `有點 ${countOf(v)} 位`,
+  roster_date: (v) => `清冊日期：${auditWhen(v)}`,
+  doorplate_version: (v) => `門牌版本：${String(v)}`,
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。

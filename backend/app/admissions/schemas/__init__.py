@@ -191,6 +191,19 @@ from app.admissions.schemas.enrolled import (
     AreaEnrolledVillageOut,
     AreaEnrolledOut,
 )
+from app.admissions.schemas.imports import (
+    EnrolledUploadStudentIn,
+    EnrolledPreviewIn,
+    EnrolledImportPointOut,
+    EnrolledImportPayloadOut,
+    EnrolledImportUnplacedOut,
+    EnrolledPreviewOut,
+    EnrolledImportStatusOut,
+    HistoryImportStatusOut,
+    ImportStatusOut,
+    EnrolledApplyOut,
+    EnrolledClearOut,
+)
 from app.admissions.schemas.potential import (
     PotentialShareYearOut,
     PotentialElementaryYearOut,

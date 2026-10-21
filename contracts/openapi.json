@@ -7638,6 +7638,527 @@
         "title": "DisplayNameUpdateRequest",
         "type": "object"
       },
+      "EnrolledApplyOut": {
+        "properties": {
+          "placed": {
+            "title": "Placed",
+            "type": "integer"
+          },
+          "students": {
+            "title": "Students",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "students",
+          "placed"
+        ],
+        "title": "EnrolledApplyOut",
+        "type": "object"
+      },
+      "EnrolledClearOut": {
+        "properties": {
+          "removed": {
+            "title": "Removed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "title": "EnrolledClearOut",
+        "type": "object"
+      },
+      "EnrolledImportPayloadOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "doorplate_version": {
+            "title": "Doorplate Version",
+            "type": "string"
+          },
+          "format": {
+            "const": "ivy-enrolled-points/1",
+            "title": "Format",
+            "type": "string"
+          },
+          "roster_date": {
+            "format": "date",
+            "title": "Roster Date",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/EnrolledImportPointOut"
+            },
+            "title": "Students",
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "campus_key",
+          "roster_date",
+          "school_year",
+          "doorplate_version",
+          "students"
+        ],
+        "title": "EnrolledImportPayloadOut",
+        "type": "object"
+      },
+      "EnrolledImportPointOut": {
+        "properties": {
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班",
+              "其他"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "match_level": {
+            "title": "Match Level",
+            "type": "string"
+          },
+          "unlocated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlocated Reason"
+          },
+          "village": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village"
+          }
+        },
+        "required": [
+          "grade",
+          "district",
+          "village",
+          "match_level",
+          "unlocated_reason",
+          "lat",
+          "lng"
+        ],
+        "title": "EnrolledImportPointOut",
+        "type": "object"
+      },
+      "EnrolledImportStatusOut": {
+        "properties": {
+          "doorplate_version": {
+            "title": "Doorplate Version",
+            "type": "string"
+          },
+          "imported_at": {
+            "format": "date-time",
+            "title": "Imported At",
+            "type": "string"
+          },
+          "placed": {
+            "title": "Placed",
+            "type": "integer"
+          },
+          "roster_date": {
+            "format": "date",
+            "title": "Roster Date",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "roster_date",
+          "school_year",
+          "doorplate_version",
+          "total",
+          "placed",
+          "imported_at"
+        ],
+        "title": "EnrolledImportStatusOut",
+        "type": "object"
+      },
+      "EnrolledImportUnplacedOut": {
+        "properties": {
+          "match_level": {
+            "title": "Match Level",
+            "type": "string"
+          },
+          "street": {
+            "title": "Street",
+            "type": "string"
+          },
+          "unlocated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlocated Reason"
+          }
+        },
+        "required": [
+          "match_level",
+          "unlocated_reason",
+          "street"
+        ],
+        "title": "EnrolledImportUnplacedOut",
+        "type": "object"
+      },
+      "EnrolledPreviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "roster_date": {
+            "format": "date",
+            "title": "Roster Date",
+            "type": "string"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/EnrolledUploadStudentIn"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "title": "Students",
+            "type": "array"
+          }
+        },
+        "required": [
+          "roster_date",
+          "students"
+        ],
+        "title": "EnrolledPreviewIn",
+        "type": "object"
+      },
+      "EnrolledPreviewOut": {
+        "properties": {
+          "doorplate_version": {
+            "title": "Doorplate Version",
+            "type": "string"
+          },
+          "grades": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Grades",
+            "type": "object"
+          },
+          "importable": {
+            "title": "Importable",
+            "type": "boolean"
+          },
+          "inferred": {
+            "title": "Inferred",
+            "type": "integer"
+          },
+          "levels": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Levels",
+            "type": "object"
+          },
+          "methods": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Methods",
+            "type": "object"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/EnrolledImportPayloadOut"
+          },
+          "placed": {
+            "title": "Placed",
+            "type": "integer"
+          },
+          "placed_ratio": {
+            "title": "Placed Ratio",
+            "type": "number"
+          },
+          "roster_date": {
+            "format": "date",
+            "title": "Roster Date",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "unplaced": {
+            "items": {
+              "$ref": "#/components/schemas/EnrolledImportUnplacedOut"
+            },
+            "title": "Unplaced",
+            "type": "array"
+          }
+        },
+        "required": [
+          "roster_date",
+          "school_year",
+          "doorplate_version",
+          "total",
+          "placed",
+          "placed_ratio",
+          "importable",
+          "levels",
+          "methods",
+          "inferred",
+          "grades",
+          "unplaced",
+          "payload"
+        ],
+        "title": "EnrolledPreviewOut",
+        "type": "object"
+      },
+      "EnrolledRosterIn": {
+        "additionalProperties": false,
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "doorplate_version": {
+            "maxLength": 16,
+            "minLength": 1,
+            "title": "Doorplate Version",
+            "type": "string"
+          },
+          "format": {
+            "const": "ivy-enrolled-points/1",
+            "title": "Format",
+            "type": "string"
+          },
+          "roster_date": {
+            "format": "date",
+            "title": "Roster Date",
+            "type": "string"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/EnrolledStudentIn"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Students",
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "campus_key",
+          "roster_date",
+          "school_year",
+          "doorplate_version",
+          "students"
+        ],
+        "title": "EnrolledRosterIn",
+        "type": "object"
+      },
+      "EnrolledStudentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "district": {
+            "anyOf": [
+              {
+                "maxLength": 8,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班",
+              "其他"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,3}|(?=[\\d.]{1,7}0*$)\\d{0,3}\\.\\d{0,3}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,4}|(?=[\\d.]{1,8}0*$)\\d{0,4}\\.\\d{0,3}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "match_level": {
+            "enum": [
+              "exact",
+              "nearby",
+              "street",
+              "district",
+              "unlocated"
+            ],
+            "title": "Match Level",
+            "type": "string"
+          },
+          "unlocated_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_address",
+                  "outside_kaohsiung",
+                  "no_doorplate",
+                  "ambiguous_village"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlocated Reason"
+          },
+          "village": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village"
+          }
+        },
+        "required": [
+          "grade",
+          "match_level"
+        ],
+        "title": "EnrolledStudentIn",
+        "type": "object"
+      },
+      "EnrolledUploadStudentIn": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Address",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班",
+              "其他"
+            ],
+            "title": "Grade",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grade",
+          "address"
+        ],
+        "title": "EnrolledUploadStudentIn",
+        "type": "object"
+      },
       "EventTrendDayOut": {
         "properties": {
           "clicks": {
@@ -8386,6 +8907,45 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistoryImportStatusOut": {
+        "properties": {
+          "first_school_year": {
+            "title": "First School Year",
+            "type": "integer"
+          },
+          "first_semester": {
+            "title": "First Semester",
+            "type": "integer"
+          },
+          "imported_at": {
+            "format": "date-time",
+            "title": "Imported At",
+            "type": "string"
+          },
+          "last_school_year": {
+            "title": "Last School Year",
+            "type": "integer"
+          },
+          "last_semester": {
+            "title": "Last Semester",
+            "type": "integer"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows",
+          "first_school_year",
+          "first_semester",
+          "last_school_year",
+          "last_semester",
+          "imported_at"
+        ],
+        "title": "HistoryImportStatusOut",
+        "type": "object"
+      },
       "HolidayApplyCampusOut": {
         "properties": {
           "affected_dates": {
@@ -8584,6 +9144,48 @@
           "weekday"
         ],
         "title": "HolidayOut",
+        "type": "object"
+      },
+      "ImportStatusOut": {
+        "properties": {
+          "active_doorplate_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Doorplate Version"
+          },
+          "enrolled": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnrolledImportStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryImportStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "active_doorplate_version",
+          "enrolled",
+          "history"
+        ],
+        "title": "ImportStatusOut",
         "type": "object"
       },
       "IntakePlanOut": {
@@ -19828,6 +20430,326 @@
           }
         },
         "summary": "Create From Visit Request",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/enrolled": {
+      "delete": {
+        "description": "清除該校的在籍資料（清冊與所有點）；本來就沒有資料時不寫稽核，回 removed=false。",
+        "operationId": "clear_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolledClearOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Enrolled Import",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/enrolled/apply": {
+      "post": {
+        "description": "確認匯入：本文就是預覽回來的去識別點位（沒有地址）。校區相符、有點比例達門檻、門牌版本沒換、學年對得上，\n才整校取代並寫稽核。",
+        "operationId": "apply_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_apply_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolledRosterIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolledApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Enrolled Import",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/enrolled/preview": {
+      "post": {
+        "description": "在籍清冊預覽：瀏覽器送來（班別, 地址），伺服器比對後回命中報告與去識別的點位，原樣送回 apply 即可匯入。\n地址比對完就丟：不寫資料庫、不寫稽核、不進日誌與任何回應。",
+        "operationId": "preview_enrolled_import_api_website_v1_admin_admissions_imports_enrolled_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrolledPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrolledPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Enrolled Import",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/status": {
+      "get": {
+        "description": "該校目前匯入的在籍清冊與歷年註冊（清冊日期、人數、匯入時間），以及使用中的門牌資料月份。只讀，不寫稽核。",
+        "operationId": "get_import_status_api_website_v1_admin_admissions_imports_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Import Status",
         "tags": [
           "admissions"
         ]
