@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-21 維護一批：web 依賴、預約小修、寄信只認 SMTP、公開站 e2e 進 CI（main CI 部署，沒有 migration）
+
+- **提交**：`fix/maint-tests-20261021`（併入後台、web＋後端兩條子分支，內容見 README 同日「維護一批」），`7d26bbd0..d4fafb19` 由使用者推上 main。沒有 migration、沒有新環境變數，沒有先備份。
+- **行為變更**：正式站 outbox 背景寄信改走 `deployment_email_adapter`，沒設 SMTP 時不再落到 sink 資料夾（目前正式站沒設 SMTP，家長信照舊 skipped）；停用分校的取消信不附重新預約網址；web 只動開發／建置工具鏈依賴（`.output` 不含任何漏洞套件）。
+- **回退**：切回上一版映像即可，沒有資料相依。
+- **推送前閘門**：本機 stack e2e 155 passed、`npm run test:e2e` 34 passed／6 skipped；`feature/maint-20261021` 第一輪 CI 抓到一個 monkeypatch 舊名字（後端第 3 組）與 `schedule-flow` 既有競態（E2E），修正後 run 39534217609 全部 success。
+- **CI**：main run 39535280922（`d4fafb19`），Frontend web／admin、Backend 三組、E2E／Playwright（含新接的公開站四視口）、Deploy Railway production 全部 success（部署 02:59–03:05 UTC）。
+- **正式 `release.json`**：base commit `d4fafb19ee967164126cffb22bbfb5c8ff38f1ab`，snapshot `fb2b9b67…`，created `2026-10-21T02:59:46Z`。`/api/website/v1/health` `status: ok`、`background_jobs.last_failed_steps` 為空（03:04:54Z 部署後跑完一輪）；`/visit/yihua`、`/admin/`、`/sitemap.xml` 200。
+- **未驗證**：登入後台看五校比較與總覽；正式站預約表單送出 422 時的焦點（只有單元測試）；Safari／iOS 實機。
+
 ## 2026-10-21 全專案 bug 與資安 11 項修正＋Pillow 13（main CI 部署，沒有 migration）
 
 - **為什麼這次才上**：#49（`2480f516`，README 2026-10-20「全專案 bug 與資安掃描：11 項修正」）10-21 09:04 併入 main，run 39525121498 的 Backend 第 1 組在 `pip-audit` 擋下（`pillow` 12.3.0 8 個公告、`certifi` 2026.7.22 1 個），部署被跳過，正式站停在 `fa6759d6`。
