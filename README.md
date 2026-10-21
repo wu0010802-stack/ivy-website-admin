@@ -1,3 +1,9 @@
+## 2026-10-21 Pillow 13、certifi 解除 CI 依賴稽核（`fix/deps-audit-20261021`）
+
+10-20 的 11 項修正（#49，`2480f516`）推上 main 後，Backend 第 1 組的 `pip-audit` 擋下部署：`pillow` 12.3.0 有 8 個公告（修正版 13.0.0）、`certifi` 2026.7.22 有 1 個（修正版 2026.10.19），所以那 11 項還沒上正式站。`backend/pyproject.toml` 的 Pillow 約束從 `>=12.3,<13` 放寬成 `>=13.0,<14`，`uv lock --upgrade-package pillow --upgrade-package certifi` 只動這兩個套件。
+
+- **驗證**：本機用 CI 同版 `uvx pip-audit@2.10.1` 掃 `uv export --no-dev` 的清單，0 項。`backend/app/media/` 用到的 Pillow API（`Image.open(formats=…)`、`Image.Exif`、`ImageOps.exif_transpose`、`getexif`、`MAX_IMAGE_PIXELS`、`DecompressionBombError`）在 13.0.0 下照常運作：15 個素材相關測試檔加上 `-W error::DeprecationWarning:PIL`，202 passed、1 skipped（本機 ffmpeg 沒有 zscale 的 HDR 測試，原本就 skip）。後端全套交給 `feature/` 分支的 CI。
+
 ## 2026-10-20 全專案 bug 與資安掃描：11 項修正（`feature/security-audit-fixes`）
 
 使用者要求「掃描專案的 bugs 以及資安」並全部處理。對 `95542b5` 分四路唯讀盤查（後端資安、後端正確性、web／admin、相依套件與部署）：沒有可直接利用的 Critical／High 漏洞，git 歷史（shallow，50 個 commit）沒有外洩密鑰，`pip-audit` 執行期套件 0 項。修正如下，每項都補了「修正前失敗、修正後通過」的回歸測試（切片測試只寫在後端與 web）。
