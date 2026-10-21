@@ -74,7 +74,8 @@ onBeforeUnmount(() => {
   .hn-cal-menu { position: fixed; position-area: bottom span-right; position-try-fallbacks: flip-block; margin-top: 8px; }
 }
 .hn-cal-menu a { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; padding: 0 14px; border-radius: 9px; color: inherit; text-decoration: none; font-size: var(--fs-sm); }
-.hn-cal-menu a:hover, .hn-cal-menu a:focus-visible { background: var(--ivy-news-note); outline: none; }
+.hn-cal-menu a:hover, .hn-cal-menu a:focus-visible { background: var(--ivy-news-note); }
+.hn-cal-menu a:focus-visible { outline: 2px solid var(--ivy-news-green); outline-offset: -2px; }
 .hn-cal-menu small { color: var(--ivy-news-muted); font-size: var(--fs-xs); }
 @media (prefers-reduced-motion: no-preference) {
   .hn-cal-menu { opacity: 0; translate: 0 -6px; transition: opacity .2s ease-out, translate .2s ease-out, display .2s allow-discrete, overlay .2s allow-discrete; }
@@ -83,5 +84,6 @@ onBeforeUnmount(() => {
 }
 @media (forced-colors: active) {
   .hn-cal-menu { border: 1px solid CanvasText; }
+  .hn-cal-menu a:focus-visible { outline-color: Highlight; }
 }
 </style>

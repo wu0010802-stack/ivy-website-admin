@@ -1,3 +1,14 @@
+## 2026-10-21 前台效能與畫面掃描：前五條修正（`fix/web-audit-20261021`）
+
+對正式站 11 頁做效能（手機 Slow 4G＋CPU 4×、桌機不限速）與畫面巡檢，加上 origin/main 原始碼審查，每條發現再交給反駁者複核：成立 23 條、推翻 11 條。這次先修影響最大、工作量小的五條，其餘列在使用者手上的報告裡待挑。
+
+- **three 又被 prefetch 到每一頁（回歸）**：10-20 布幕引擎與日常紙張改從 `app/utils/three-lite.ts` 具名匯入後，共用 chunk 在 manifest 的 `src` 變成 `utils/three-lite.ts`，`build:manifest` 只比對 `node_modules/three/` 而漏掉，正式站首頁以外每頁都多 prefetch 108 KB（br）。規則補上 three-lite；本機 production build 實測 8 頁 SSR HTML 都不再有這支 prefetch，/news、/visit、/about 全程不抓，首頁仍在布幕／紙張需要時載入。
+- **米白膠囊的焦點框看不見**：`.header-pill :focus-visible` 原本是 `--paper`，10-20 膠囊改米白底後對比 1:1。改用膠囊字色 `--pill-fg`（深綠）；/about 桌機與手機收合後 Tab 進膠囊，外框實測 3px 深綠。
+- **加入行事曆選單只靠換底色表示焦點**（#eff1e6 對 #fffdf6 只有 1.12:1，高對比模式完全看不到）：補 2px 主綠內框，forced-colors 用 `Highlight`。
+- **/visit 的 LCP 圖（第一張校區照）以 Low 優先序排隊**：第一張加 `fetchpriority="high"`，網址帶校區（直接進第二步）時不給。CDP 實測 initialPriority 由 Low 變 High。
+- **/anniversary 開場影片沒有連線閘門**（手機 6 MB、桌機 12 MB）：首屏前的閘門比照 `heroMayAutoplay`，省流量、2G／3G、downlink 低於 `HERO_MIN_DOWNLINK_MBPS` 就不自動播，訪客仍可按「重看開場影片」。實測 downlink 1.6 與 saveData 時不播、不下載 mp4，downlink 10 照常播。
+- **驗證**（Node 22.23.2）：web `typecheck` 通過、`test:website` 110 檔 1339 passed；新增 `web/tests/web-audit-20261021.spec.ts`（10 條，manifest 規則改回舊版時會紅）。
+
 ## 2026-10-21 維護一批：web 依賴、預約小修、寄信規則、公開站 e2e 進 CI（`fix/maint-tests-20261021`）
 
 使用者盤點後要求「先做這些」：依賴、測試債、延後的小 bug。三條分支（後台、web＋後端、測試）各自從 main 開，最後併在這裡。

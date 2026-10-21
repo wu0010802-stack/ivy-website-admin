@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ANNI_MEDIA } from '~/utils/anniversary/media'
 import { ANNI_INTRO_SESSION_KEY } from '~/utils/anniversary/timeline'
+import { HERO_MIN_DOWNLINK_MBPS } from '~/utils/media-policy'
 
 // 30 週年分頁的開場：30 秒影片《手牽手，走到 30》。
 // 第一次進來自動靜音播放（可開聲音、可略過）；播到海報那一格（29.0 秒，之後影片淡出成黑）
@@ -27,11 +28,13 @@ const film = computed(() => (portrait.value ? ANNI_MEDIA.filmMobile : ANNI_MEDIA
 
 // 第一次繪製前就決定要不要播：要播就先蓋一層深色，避免頁面先閃一下再被影片蓋住。
 // 5 秒還沒開始播（JS 載不到、極慢的網路）就拿掉深色蓋層，不讓頁面一直黑著、鎖住捲動（2026-10-12）。
+// 連線閘門比照首屏影片（media-policy 的 heroMayAutoplay）：省流量、2G／3G、頻寬估計低於門檻就不自動播。
+// 開場影片手機 6 MB、桌機 12 MB，慢速 4G 播不順也會白白下載；這些訪客仍可按首屏「重看開場影片」自己播（2026-10-21）。
 useHead({
   script: [{
     key: 'anni-intro-gate',
     tagPosition: 'head',
-    innerHTML: `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`
+    innerHTML: `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;var c=navigator.connection;if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')||(c.downlink>0&&c.downlink<${HERO_MIN_DOWNLINK_MBPS})))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`
   }]
 })
 

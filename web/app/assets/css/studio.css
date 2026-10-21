@@ -857,7 +857,8 @@ body:has(:is(.studio-hero,.is-pill-nav)) a.menu-campus-social:hover {background:
 body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
 body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
 body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill :focus-visible {outline-color:var(--paper)}
+/* 膠囊 2026-10-20 改成米白底，焦點框跟著改用膠囊的字色（米白框對米白底是 1:1，看不見）。 */
+body:has(:is(.studio-hero,.is-pill-nav)) .header-pill :focus-visible {outline-color:var(--pill-fg)}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
 body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}

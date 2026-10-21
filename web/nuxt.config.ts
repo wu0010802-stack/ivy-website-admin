@@ -50,7 +50,9 @@ export default defineNuxtConfig({
         // 2026-09-30：three 本身（布幕引擎的靜態依賴、日常紙張的動態 import）也不進首屏 prefetch——父 chunk 關掉不會連帶
         // 排除依賴，略過布幕、減少動態、慢速連線照樣多下載 150 KB。布幕由 plugins/entrance-engine.client.ts 提早 import，
         // 紙張由 utils/paper-warm.ts 在整頁載完閒置或卡片接近時暖載。
-        if (/(?:^|\/)node_modules\/three\//.test(entry.src ?? key)) entry.prefetch = false
+        // 2026-10-20 兩邊改從 utils/three-lite.ts 具名匯入後，共用 chunk 的來源變成 three-lite，只比對 node_modules/three
+        // 就漏掉了，首頁以外每頁又 prefetch 了 three（2026-10-21 正式站掃描發現），兩個來源都要排除。
+        if (/(?:^|\/)(?:node_modules\/three\/|utils\/three-lite\.ts)/.test(entry.src ?? key)) entry.prefetch = false
       }
     }
   },
