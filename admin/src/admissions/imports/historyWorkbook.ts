@@ -3,6 +3,9 @@
 // （四個年級、總人數），其餘列（標題、寫著幼生姓名的備註）不離開瀏覽器；格子內容不明的
 // （率、姓名、布林）只留位置 { masked: true }。伺服器端會再驗一次形狀（見 history 預覽端點）。
 import { GRADES } from '../constants'
+import { isChunkLoadError } from '../../router/chunkReload'
+
+type SheetJs = typeof import('xlsx')
 
 export type HistoryCell = null | number | string | { masked: true }
 
@@ -16,6 +19,7 @@ export interface HistorySheetGrid {
 export class HistoryFileError extends Error {}
 
 const UNREADABLE = '無法讀取這個檔案，請確認是園方的目標執行統計表（.xls）'
+const OUTDATED = '系統已更新，請重新整理頁面後再選一次檔案'
 const BLOCK_ROW = 2 // 區塊名（舊生、新生、大班重讀生）與日期欄的表頭
 const SUBHEADER_ROW = 3 // 區塊內的子欄名
 const FIRST_GRADE_ROW = 4 // 往下找年級列的起點
@@ -116,12 +120,21 @@ function rejectOtherSheets(names: readonly string[]): void {
 }
 
 /**
- * 讀統計表檔案，每張工作表擷取成格子表。SheetJS 用動態 import（獨立 chunk，選了統計表才下載）；
+ * 讀統計表檔案，每張工作表擷取成格子表。SheetJS 用動態 import（獨立 chunk，選了統計表才下載；測試可以換掉 loadSheetJs）；
  * 備註與標題在這裡就丟掉，不進回傳值。讀不了（不是 Excel、檔案壞掉、沒有工作表、有不是學期的工作表）丟 HistoryFileError。
  */
-export async function readHistoryWorkbook(data: ArrayBuffer): Promise<HistorySheetGrid[]> {
+export async function readHistoryWorkbook(
+  data: ArrayBuffer,
+  loadSheetJs: () => Promise<SheetJs> = () => import('xlsx'),
+): Promise<HistorySheetGrid[]> {
   if (!isExcel(new Uint8Array(data))) throw new HistoryFileError(UNREADABLE)
-  const XLSX = await import('xlsx')
+  let XLSX: SheetJs
+  try {
+    XLSX = await loadSheetJs()
+  } catch (error) {
+    // 部署換掉 chunk 檔名後，一直開著的分頁載不到 SheetJS：不是檔案的問題，請使用者重新整理。
+    throw new HistoryFileError(isChunkLoadError(error) ? OUTDATED : UNREADABLE)
+  }
   try {
     const book = XLSX.read(data, { type: 'array', dense: true })
     if (book.SheetNames.length === 0) throw new HistoryFileError(UNREADABLE)

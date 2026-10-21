@@ -7,12 +7,17 @@ import { notifyError } from '../composables/notify'
 const CHUNK_LOAD_ERROR = /dynamically imported module|Importing a module script failed|Unable to preload CSS/i
 const CHUNK_RELOAD_KEY = 'ivy-admin-chunk-reload'
 
+/** 動態 import 的 chunk 載不到（多半是部署換了檔名）；頁面以外的動態 import（例如 SheetJS）也用它判斷。 */
+export function isChunkLoadError(error: unknown): boolean {
+  return error instanceof Error && CHUNK_LOAD_ERROR.test(error.message)
+}
+
 export function reloadAfterChunkError(
   error: unknown,
   href: string,
   navigate: (href: string) => void = url => window.location.assign(url),
 ): boolean {
-  if (!(error instanceof Error) || !CHUNK_LOAD_ERROR.test(error.message)) return false
+  if (!isChunkLoadError(error)) return false
   let reloadedJustNow: boolean
   try {
     const last = JSON.parse(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 'null') as { href?: string; at?: number } | null

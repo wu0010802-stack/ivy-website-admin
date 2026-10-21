@@ -248,4 +248,16 @@ describe('readHistoryWorkbook', () => {
     expect(error).toBeInstanceOf(HistoryFileError)
     expect((error as Error).message).toBe('無法讀取這個檔案，請確認是園方的目標執行統計表（.xls）')
   })
+
+  // 部署換掉 chunk 檔名後，一直開著的分頁載不到 SheetJS；三種瀏覽器的訊息（Chrome、Firefox、Safari）。
+  it.each([
+    'Failed to fetch dynamically imported module: https://example.test/admin/assets/xlsx-abc123.js',
+    'error loading dynamically imported module: https://example.test/admin/assets/xlsx-abc123.js',
+    'Importing a module script failed.',
+  ])('SheetJS 載不到時請使用者重新整理，不說是檔案的問題：%s', async (message) => {
+    const error = await readHistoryWorkbook(biff8({ '104上': termRows(62) }), () => Promise.reject(new TypeError(message))).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(HistoryFileError)
+    expect((error as Error).message).toBe('系統已更新，請重新整理頁面後再選一次檔案')
+  })
 })
