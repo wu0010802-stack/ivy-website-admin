@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.models import PasswordResetToken, User
 from app.common import ratelimit
 from app.common.timezones import OPERATING_TZ
-from app.notifications.email_adapter import EmailAdapter, get_email_adapter
+from app.notifications.email_adapter import EmailAdapter, deployment_email_adapter, email_channel_available
 
 RESET_LINK_TTL = timedelta(minutes=30)
 _TOKEN_BYTES = 32
@@ -49,16 +49,12 @@ def hash_token(raw: str) -> str:
 def email_enabled(settings) -> bool:
     """能不能寄重設連結：要有後台網址（信裡的連結）而且有寄信管道。正式環境只認
     SMTP；其他環境另外接受本機 sink（開發與 stack e2e 讀信用）。"""
-    if not settings.admin_origin:
-        return False
-    if settings.smtp_host:
-        return True
-    return settings.environment != "production" and bool(settings.notification_email_sink_dir)
+    return bool(settings.admin_origin) and email_channel_available(settings)
 
 
 def mail_adapter(settings) -> EmailAdapter:
     """寄信管道；測試用 monkeypatch 換成記錄用的 adapter。"""
-    return get_email_adapter(settings.notification_email_sink_dir, settings)
+    return deployment_email_adapter(settings)
 
 
 def reset_url(admin_origin: str, raw_token: str) -> str:

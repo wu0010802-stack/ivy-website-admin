@@ -4,7 +4,7 @@ import { resolveBookingAction, type BookingActionKind } from '~/utils/booking-ac
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { apiFieldErrors, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, focusFirstInvalidField, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
@@ -386,7 +386,7 @@ async function onSubmit() {
   else if (!selectedSlot.value || selectedSlot.value.slot_date !== selectedVisitDate.value) fieldErrors.value.slotId = '請選擇這一天的參觀場次。'
   if (Object.keys(fieldErrors.value).length) {
     await nextTick()
-    formRef.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+    focusFirstInvalidField(formRef.value)
     return
   }
   if (turnstileSiteKey.value && !turnstileToken.value) {
@@ -396,6 +396,8 @@ async function onSubmit() {
   }
 
   submitting.value = true
+  // 伺服器 422 指出欄位時，等送出中的 fieldset 解除 disabled 再把焦點交給第一個出錯的欄位（比照上面的前端驗證）。
+  let focusInvalidField = false
   try {
     const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null }>('/api/website/v1/public/visit-requests', {
       method: 'POST',
@@ -466,6 +468,7 @@ async function onSubmit() {
       if (Object.keys(fields).length) {
         fieldErrors.value = { ...fieldErrors.value, ...fields }
         submitError.value = '有幾個欄位需要修正，請看標示的地方。'
+        focusInvalidField = true
       } else {
         submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
       }
@@ -476,9 +479,13 @@ async function onSubmit() {
     // 失敗時完全不清空 form 的任何欄位——使用者不用重打一次。Turnstile
     // token 只能用一次（伺服器可能已經驗過），重置元件讓家長重新驗證。
     resetTurnstile()
-    if (!submitRetryHint.value) await focusError()
+    if (!submitRetryHint.value && !focusInvalidField) await focusError()
   } finally {
     submitting.value = false
+  }
+  if (focusInvalidField) {
+    await nextTick()
+    if (!focusFirstInvalidField(formRef.value)) await focusError()
   }
   // 原封不動再按一次就好的失敗：焦點留在送出鈕（鈕旁有提示，頂端 role=alert 照樣朗讀）。
   // 焦點跳到頂端錯誤會把手機畫面往上捲一千八百多 px，要再捲回來才按得到送出（2026-10-12）。

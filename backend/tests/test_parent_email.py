@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from app.booking.models import OutboxMessage
+from app.campuses.models import Campus
 from app.notifications.parent_email import ParentEmail, build_parent_email, session_label, visit_when
 from app.operations.models import AuditLogEntry
 from app.workers.runner import process_outbox_batch
@@ -138,6 +139,41 @@ async def test_parent_cancel_mail_says_the_parent_cancelled(
 
     assert response.status_code == 200, response.text
     assert "您已取消這次參觀預約" in _parent_mails(recording_mail_adapter)[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_mail_keeps_the_rebook_link_while_the_campus_is_open(
+    app, admin_client, public_client, db_session, recording_mail_adapter
+):
+    booked = await book_slot(admin_client, public_client)
+    await _run(db_session, recording_mail_adapter, app)
+    recording_mail_adapter.sent.clear()
+
+    await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/cancel", json={})
+    await _run(db_session, recording_mail_adapter, app)
+
+    assert f"想再預約參觀，請到：{ORIGIN}/visit/yihua" in _parent_mails(recording_mail_adapter)[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_cancel_mail_of_a_deactivated_campus_has_no_rebook_link(
+    app, admin_client, public_client, db_session, recording_mail_adapter
+):
+    """分校停用後 /visit/<校> 不再開放預約：取消信不附重新預約網址，改請家長來電。"""
+    booked = await book_slot(admin_client, public_client)
+    await _run(db_session, recording_mail_adapter, app)
+    recording_mail_adapter.sent.clear()
+
+    await admin_client.post(f"{API}/admin/visit-requests/{booked['receipt_id']}/cancel", json={})
+    campus = await db_session.get(Campus, "yihua")
+    campus.active = False
+    await db_session.commit()
+    await _run(db_session, recording_mail_adapter, app)
+
+    mails = _parent_mails(recording_mail_adapter)
+    assert len(mails) == 1 and "參觀預約已取消" in mails[0]["subject"]
+    assert "/visit/yihua" not in mails[0]["body"]
+    assert "想再預約參觀，歡迎來電洽詢。" in mails[0]["body"]
 
 
 @pytest.mark.asyncio

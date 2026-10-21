@@ -47,7 +47,7 @@ describe('預約第二步', () => {
     expect(visitForm).not.toContain("{{ index ? '・' : '' }}{{ part }}")
   })
   it('原封不動再按一次就好的失敗：不跳到頂端錯誤，焦點回到送出鈕，鈕旁提示帶電話', () => {
-    expect(visitForm).toContain('if (!submitRetryHint.value) await focusError()')
+    expect(visitForm).toContain('if (!submitRetryHint.value && !focusInvalidField) await focusError()')
     expect(visitForm).toMatch(/if \(submitRetryHint\.value && submitError\.value\) \{\n\s+await nextTick\(\)\n\s+submitButtonRef\.value\?\.focus\(\)/)
     expect(visitForm).toContain('<button ref="submitButtonRef" type="submit"')
     expect(visitForm).toContain("'送出沒有成功，可以直接再按一次。' }}{{ callFallback }}</p>")

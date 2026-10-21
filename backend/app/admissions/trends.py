@@ -28,6 +28,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
@@ -247,8 +248,14 @@ async def _load(
     return data
 
 
-def _birth_total(births: dict[str, dict[str, int]], months: list[str], codes: list[str]) -> int:
-    return sum(births[month][code] for month in months for code in codes if code in births.get(month, {}))
+def _month_total(
+    rows_by_month: dict[str, dict[str, Any]],
+    months: list[str],
+    codes: list[str],
+    value: Callable[[Any], int] = lambda count: count,
+) -> int:
+    """這些月份、這些代碼的 value(列) 加總；缺的月份與代碼略過，不估算。出生數的列本身就是整數（value 取原值）。"""
+    return sum(value(rows_by_month[month][code]) for month in months for code in codes if code in rows_by_month.get(month, {}))
 
 
 def births_change(births: dict[str, dict[str, int]], present: list[str], codes: list[str]) -> tuple[float | None, int]:
@@ -256,8 +263,8 @@ def births_change(births: dict[str, dict[str, int]], present: list[str], codes: 
     回傳 (增減百分比, 比較的月份數)；比較的月份不到 6 個、或前一年可比的出生不到 20 位（半徑太小，比例會亂跳）時
     百分比是 None。"""
     compared = [month for month in present if series_io.shift(month, -PERIOD_MONTHS) in births]
-    before = _birth_total(births, [series_io.shift(month, -PERIOD_MONTHS) for month in compared], codes)
-    now = _birth_total(births, compared, codes)
+    before = _month_total(births, [series_io.shift(month, -PERIOD_MONTHS) for month in compared], codes)
+    now = _month_total(births, compared, codes)
     if len(compared) < MIN_COMPARE_MONTHS or before < MIN_CHANGE_BASE:
         return None, len(compared)
     return round((now / before - 1) * 100, 1), len(compared)
@@ -278,7 +285,7 @@ def birth_series(births: dict[str, dict[str, int]], latest: str, codes: list[str
                 "ends": months[-1],
                 "months": len(present),
                 "missing": [month for month in months if month not in births],
-                "births": _birth_total(births, present, codes),
+                "births": _month_total(births, present, codes),
                 "change_pct": change,
             }
         )
@@ -521,9 +528,6 @@ async def query_trends(
         unit = units.setdefault(key, {"key": key, "district": district, "codes": codes, "distance_m": distance})
         unit["distance_m"] = min(unit["distance_m"], distance)
 
-    def total(rows_by_month: dict[str, dict[str, Any]], months: list[str], codes: list[str], value) -> int:
-        return sum(value(rows_by_month[month][code]) for month in months for code in codes if code in rows_by_month.get(month, {}))
-
     def has_rows(rows_by_month: dict[str, dict[str, Any]], months: list[str], codes: list[str]) -> bool:
         """這些代碼在這些月份裡至少有一列（沒有就是 null，不寫 0）。"""
         return any(code in rows_by_month.get(month, {}) for month in months for code in codes)
@@ -560,12 +564,12 @@ async def query_trends(
                 "kids_base": kids_base,
                 "kids_level": kids_level(kids_net, kids_base),
                 "births_12m": (
-                    total(data.births, births_present, codes, lambda births: births)
+                    _month_total(data.births, births_present, codes)
                     if has_rows(data.births, births_present, codes)
                     else None
                 ),
                 "migration_net_12m": (
-                    total(data.migration, migration_present, codes, net_moves)
+                    _month_total(data.migration, migration_present, codes, net_moves)
                     if has_rows(data.migration, migration_present, codes)
                     else None
                 ),
