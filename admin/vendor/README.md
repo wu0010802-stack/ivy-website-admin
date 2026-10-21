@@ -30,4 +30,5 @@ CVE-2023-30533（原型污染）、CVE-2024-22363（ReDoS）。修正版只放�
 2026-10-21 實測：`dist/xlsx.mini.min.js` 讀不了 XLS（`parse_xlscfb is not defined`），
 `dist/xlsx.core.min.js` 在 Node 載入就失敗，只有套件入口讀得到 xlwt／SheetJS 寫出的 BIFF8。
 實作在 `admin/src/admissions/imports/historyWorkbook.ts`，用動態 import，
-所以 SheetJS 在獨立的 chunk（約 490 kB、gzip 約 160 kB），只有進入匯入頁才會下載。
+所以 SheetJS 在獨立的 chunk（約 490 kB、gzip 約 160 kB），只有在「歷年註冊」區塊選了統計表檔才會下載；
+進入資料匯入頁、匯入在籍清冊都不會下載。

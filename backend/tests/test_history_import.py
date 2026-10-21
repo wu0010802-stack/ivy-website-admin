@@ -172,6 +172,7 @@ def test_production_modules_never_import_xlrd():
     code = (
         "import sys\n"
         "import app.cli, app.admissions.history.payload, app.admissions.history.importer, app.admissions.history.grid\n"
+        "import app.admissions.import_routes, app.admissions.imports\n"
         "loaded = [m for m in ('xlrd', 'app.admissions.history.workbook') if m in sys.modules]\n"
         "if loaded:\n"
         "    sys.exit(','.join(loaded))\n"

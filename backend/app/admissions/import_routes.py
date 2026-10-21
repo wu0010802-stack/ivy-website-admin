@@ -79,7 +79,7 @@ def _describe(errors: list[dict]) -> str:
 
 class NoEchoValidationRoute(APIRoute):
     """把 RequestValidationError 改成只有位置與種類的 422（INVALID_IMPORT_PAYLOAD），不帶輸入值。
-    用 `from None` 切掉原例外，上游的錯誤回報也撿不到 input。"""
+    `from None` 抑制例外鏈：印 traceback 時不會帶出原本的驗證錯誤（含 input），這裡也沒有記錄它。"""
 
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         handler = super().get_route_handler()
