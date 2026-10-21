@@ -181,6 +181,17 @@ export function apiFieldErrors(detail: unknown): VisitErrors {
 }
 
 /**
+ * 把焦點交給表單裡第一個標了 aria-invalid 的欄位（DOM 順序＝畫面由上往下）。
+ * 前端驗證不過與伺服器 422 指出欄位共用；沒有可聚焦的欄位回 false，呼叫端再退回頂端的錯誤摘要。
+ */
+export function focusFirstInvalidField(root: ParentNode | null | undefined): boolean {
+  const field = root?.querySelector<HTMLElement>('[aria-invalid="true"]')
+  if (!field) return false
+  field.focus()
+  return true
+}
+
+/**
  * 觸控裝置的文字欄位按 Enter（虛擬鍵盤的「下一項」）跳到下一欄，最後一欄收起鍵盤；不攔注音選字，
  * 桌機照舊 Enter 送出（2026-09-29 預約表單，2026-10-12 家長修改資料共用）。
  */
