@@ -8,7 +8,7 @@ import pytest
 
 from app import cli
 from app.admissions.enrolled import match as match_module
-from app.admissions.enrolled.match import MatchError, masked_address, match_roster, round_coord
+from app.admissions.enrolled.match import MatchError, masked_address, match_roster, match_students, report_lines, round_coord
 from app.admissions.enrolled.roster import parse_roster
 from app.cli import enrolled_match_command, enrolled_match_options
 from tests.enrolled_helpers import roster_html
@@ -84,6 +84,33 @@ async def test_report_prints_only_level_and_reason_without_a_plain_street(db_ses
     report = "\n".join(outcome.report)
     assert "某某" not in report and "5棟" not in report and "5樓" not in report and "12F" not in report
     assert "  unlocated／no_doorplate" in outcome.report  # 只有等級與原因，後面沒有街路欄
+
+
+async def test_match_students_takes_grades_as_given(db_session):
+    await _ready(db_session)
+    outcome = await match_students(
+        db_session, [("大班", "本揚里1鄰義華路68號"), ("其他", "臺北市內湖區文德路1號")],
+        campus_key="yihua", roster_date=date(2026, 10, 15),
+    )
+    assert [s["grade"] for s in outcome.payload["students"]] == ["大班", "其他"]
+    assert outcome.summary.grades == {"大班": 1, "其他": 1}
+    assert (outcome.summary.total, outcome.summary.placed) == (2, 1)
+    assert outcome.summary.school_year == 115
+
+
+async def test_report_is_built_from_the_summary(db_session):
+    await _ready(db_session)
+    outcome = await match_roster(db_session, parse_roster(roster_html(ROWS)), campus_key="yihua", roster_date=date(2026, 10, 15))
+    assert report_lines(outcome.summary) == outcome.report
+    assert all(u.street == "" or u.street.endswith("…") for u in outcome.summary.unplaced)
+
+
+async def test_unknown_grade_is_rejected(db_session):
+    await _ready(db_session)
+    with pytest.raises(MatchError) as caught:
+        await match_students(db_session, [("大大班", "本揚里1鄰義華路68號")], campus_key="yihua", roster_date=date(2026, 10, 15))
+    assert "第 1 位" in str(caught.value)
+    assert "義華路" not in str(caught.value)  # 錯誤訊息不帶地址
 
 
 async def test_row_order_cannot_be_traced_back_to_the_roster(db_session):

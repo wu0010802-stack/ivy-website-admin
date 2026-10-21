@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
@@ -32,10 +33,34 @@ class MatchError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class UnplacedStudent:
+    match_level: str
+    unlocated_reason: str | None
+    street: str  # masked_address() 的結果，切不出街路是 ""
+
+
+@dataclass(frozen=True)
+class MatchSummary:
+    """命中報告的結構化內容：只有計數與遮罩後的街路名，沒有姓名、生日或完整地址。"""
+
+    roster_date: date
+    school_year: int
+    doorplate_label: str
+    total: int
+    placed: int
+    levels: dict[str, int]  # ENROLLED_LEVELS 順序，只放 > 0
+    methods: dict[str, int]  # _METHOD_ORDER 順序，只放 > 0
+    inferred: int
+    grades: dict[str, int]  # ENROLLED_GRADES 順序，只放 > 0
+    unplaced: tuple[UnplacedStudent, ...]  # 依 (match_level, unlocated_reason or "", street) 排序
+
+
+@dataclass(frozen=True)
 class MatchOutcome:
     payload: dict[str, Any]
     report: list[str]
     placed_ratio: float
+    summary: MatchSummary
 
 
 def round_coord(value: float) -> float:
@@ -55,11 +80,36 @@ def masked_address(raw: str) -> str:
     return f"{parsed.street}…"
 
 
-def _joined(counter: Counter, order: tuple[str, ...]) -> str:
-    return "、".join(f"{key} {counter[key]}" for key in order if counter[key])
+def _ordered(counter: Counter, order: tuple[str, ...]) -> dict[str, int]:
+    return {key: counter[key] for key in order if counter[key]}
 
 
-async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, roster_date: date) -> MatchOutcome:
+def _joined(counts: dict[str, int]) -> str:
+    return "、".join(f"{key} {count}" for key, count in counts.items())
+
+
+def report_lines(summary: MatchSummary) -> list[str]:
+    ratio = summary.placed / summary.total
+    lines = [
+        f"清冊 {summary.roster_date.isoformat()}・{summary.school_year} 學年・門牌 {summary.doorplate_label}・共 {summary.total} 位",
+        f"有點 {summary.placed} 位（{ratio:.1%}）",
+        f"比對等級：{_joined(summary.levels)}",
+        f"補區方式：{_joined(summary.methods)}（推定 {summary.inferred} 位）",
+        f"班別：{_joined(summary.grades)}",
+    ]
+    if summary.unplaced:
+        unplaced_lines = [
+            f"  {item.match_level}／{item.unlocated_reason or '-'}" + (f"　{item.street}" if item.street else "")
+            for item in summary.unplaced
+        ]
+        lines += ["沒有點的學生（等級／原因　街路）：", *sorted(unplaced_lines)]
+    return lines
+
+
+async def match_students(
+    db: AsyncSession, students: Sequence[tuple[str, str]], *, campus_key: str, roster_date: date
+) -> MatchOutcome:
+    """`students` 是（班別, 地址）；班別由呼叫端算好（清冊用 roster_grade，網頁在瀏覽器算），不在 ENROLLED_GRADES 就拒絕。"""
     version = await matcher.active_doorplate_version(db)
     label = await matcher.doorplate_label(db)
     if version is None or label is None:
@@ -69,21 +119,22 @@ async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, ros
         raise MatchError(f"本校沒有座標（{campus.locate_error}），無法比對")
     school_year = academic.current_term(roster_date)[0]
 
-    students: list[dict[str, Any]] = []
+    points: list[dict[str, Any]] = []
     levels: Counter = Counter()
     methods: Counter = Counter()
     grades: Counter = Counter()
-    unplaced_lines: list[str] = []
-    for index, row in enumerate(roster.rows, start=1):
+    unplaced: list[UnplacedStudent] = []
+    for index, (grade, address) in enumerate(students, start=1):
+        if grade not in ENROLLED_GRADES:
+            raise MatchError(f"第 {index} 位的班別不對")
         try:
-            result = await locate_roster_address(db, row.address, version=version, campus=campus)
+            result = await locate_roster_address(db, address, version=version, campus=campus)
         except Exception as error:
             # 原錯誤的訊息可能帶著 SQL 參數（含地址），所以只留位置與例外種類，也不串接原例外。
             raise MatchError(f"第 {index} 位比對失敗（{type(error).__name__}）") from None
         match = result.match
-        grade = roster_grade(row.birthday, school_year)
         placed = match.match_level in POINT_LEVELS and match.lat is not None and match.lng is not None
-        students.append({
+        points.append({
             "grade": grade,
             "district": match.district,
             "village": match.village,
@@ -96,33 +147,39 @@ async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, ros
         methods[result.method] += 1
         grades[grade] += 1
         if not placed:
-            street = masked_address(row.address)
-            unplaced_lines.append(f"  {match.match_level}／{match.unlocated_reason or '-'}" + (f"　{street}" if street else ""))
+            unplaced.append(UnplacedStudent(match.match_level, match.unlocated_reason, masked_address(address)))
 
-    students.sort(key=lambda item: (
+    points.sort(key=lambda item: (
         ENROLLED_GRADES.index(item["grade"]), item["district"] or "", item["village"] or "",
         item["lat"] if item["lat"] is not None else 0.0, item["lng"] if item["lng"] is not None else 0.0,
         item["match_level"], item["unlocated_reason"] or "",
     ))
-    total = len(students)
-    placed_count = sum(1 for item in students if item["lat"] is not None)
-    ratio = placed_count / total
-    inferred = sum(methods[key] for key in _INFERRED)
-    report = [
-        f"清冊 {roster_date.isoformat()}・{school_year} 學年・門牌 {label}・共 {total} 位",
-        f"有點 {placed_count} 位（{ratio:.1%}）",
-        f"比對等級：{_joined(levels, ENROLLED_LEVELS)}",
-        f"補區方式：{_joined(methods, _METHOD_ORDER)}（推定 {inferred} 位）",
-        f"班別：{_joined(grades, ENROLLED_GRADES)}",
-    ]
-    if unplaced_lines:
-        report += ["沒有點的學生（等級／原因　街路）：", *sorted(unplaced_lines)]
+    total = len(points)
+    placed_count = sum(1 for item in points if item["lat"] is not None)
+    summary = MatchSummary(
+        roster_date=roster_date,
+        school_year=school_year,
+        doorplate_label=label,
+        total=total,
+        placed=placed_count,
+        levels=_ordered(levels, ENROLLED_LEVELS),
+        methods=_ordered(methods, _METHOD_ORDER),
+        inferred=sum(methods[key] for key in _INFERRED),
+        grades=_ordered(grades, ENROLLED_GRADES),
+        unplaced=tuple(sorted(unplaced, key=lambda item: (item.match_level, item.unlocated_reason or "", item.street))),
+    )
     payload = {
         "format": FORMAT,
         "campus_key": campus_key,
         "roster_date": roster_date.isoformat(),
         "school_year": school_year,
         "doorplate_version": label,
-        "students": students,
+        "students": points,
     }
-    return MatchOutcome(payload, report, ratio)
+    return MatchOutcome(payload, report_lines(summary), placed_count / total, summary)
+
+
+async def match_roster(db: AsyncSession, roster: Roster, *, campus_key: str, roster_date: date) -> MatchOutcome:
+    school_year = academic.current_term(roster_date)[0]
+    students = [(roster_grade(row.birthday, school_year), row.address) for row in roster.rows]
+    return await match_students(db, students, campus_key=campus_key, roster_date=roster_date)
