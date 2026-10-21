@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import { ElDatePicker, ElMessageBox } from 'element-plus'
+import * as XLSX from 'xlsx'
 import ImportsTab from '../components/admissions/imports/ImportsTab.vue'
 import EnrolledImportCard from '../components/admissions/imports/EnrolledImportCard.vue'
 import HistoryImportCard from '../components/admissions/imports/HistoryImportCard.vue'
@@ -378,6 +379,22 @@ describe('資料匯入：讀不了的檔', () => {
     vi.mocked(readHistoryWorkbook).mockRejectedValue(new HistoryFileError('無法讀取這個檔案，請確認是園方的目標執行統計表（.xls）'))
     await pick(wrapper, 'history-file', fileOf('不是 Excel', '統計表.xls'))
     expect(historyCard(wrapper).text()).toContain('無法讀取這個檔案，請確認是園方的目標執行統計表（.xls）')
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('歷年註冊選到別的 Excel 檔（像學生名單）：用真的擷取，不送任何請求，頁面寫出工作表名', async () => {
+    const actual = await vi.importActual<typeof import('../admissions/imports/historyWorkbook')>('../admissions/imports/historyWorkbook')
+    vi.mocked(readHistoryWorkbook).mockImplementation(actual.readHistoryWorkbook)
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['編號', '幼生姓名', '出生日期'], ['1', '測試小明', '2022/05/10'], ['2', '測試小華', '2023/03/01']]), '工作表1')
+    const data = XLSX.write(book, { bookType: 'biff8', type: 'array' }) as ArrayBuffer
+    const { wrapper } = await mountImports()
+    const post = mockPost()
+
+    await pick(wrapper, 'history-file', Object.assign(new File([data], '名單.xls'), { arrayBuffer: async () => data }))
+
+    await vi.waitFor(() => expect(historyCard(wrapper).text()).toContain('這個檔案有不是學期的工作表（工作表1），請確認是園方的目標執行統計表'))
+    expect(historyCard(wrapper).text()).not.toContain('測試小明')
     expect(post).not.toHaveBeenCalled()
   })
 })

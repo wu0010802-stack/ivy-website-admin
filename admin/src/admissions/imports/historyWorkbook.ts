@@ -23,6 +23,9 @@ const GRADE_LABELS: ReadonlySet<string> = new Set([...GRADES, '總人數'])
 // 和 Python re.sub(r"\s+", "", s) 同一組字元（逐一比對過全部碼位）：JS 內建的 \s 多了 U+FEFF、少了 U+001C–U+001F 與 U+0085。
 const WHITESPACE = /[\p{White_Space}\x1c-\x1f]+/gu
 const DIGITS = /^\p{Nd}+$/u // Unicode 十進位數字，同 Python \d（全形的「８」也算）
+// 表名去空白後要是「學年＋上／下」（104上），同後端 grid.parse_term_name。
+const TERM_SHEET = /^\p{Nd}{2,3}[上下]$/u
+const LISTED_SHEETS = 5
 
 function plain(text: string): string {
   return text.replace(WHITESPACE, '')
@@ -96,9 +99,18 @@ function rawCell(cell: { t: string; v?: unknown } | null | undefined): unknown {
   return cell.t === 'n' || cell.t === 's' ? cell.v : OTHER
 }
 
+// 別的 Excel 檔（例如學生名單）一樣有 Excel 檔頭，擷取規則又會照送它的第 2、3 列：有任何一張表名不是學期，
+// 整份就不擷取、不送出。表名只印在頁面上。
+function rejectOtherSheets(names: readonly string[]): void {
+  const others = names.filter((name) => !TERM_SHEET.test(plain(name)))
+  if (others.length === 0) return
+  const listed = others.slice(0, LISTED_SHEETS).join('、') + (others.length > LISTED_SHEETS ? ` 等 ${others.length} 張` : '')
+  throw new HistoryFileError(`這個檔案有不是學期的工作表（${listed}），請確認是園方的目標執行統計表`)
+}
+
 /**
- * 讀統計表檔案，每張工作表擷取成格子表。SheetJS 用動態 import（獨立 chunk，進匯入頁才下載）；
- * 備註與標題在這裡就丟掉，不進回傳值。讀不了（不是 Excel、檔案壞掉、沒有工作表）丟 HistoryFileError。
+ * 讀統計表檔案，每張工作表擷取成格子表。SheetJS 用動態 import（獨立 chunk，選了統計表才下載）；
+ * 備註與標題在這裡就丟掉，不進回傳值。讀不了（不是 Excel、檔案壞掉、沒有工作表、有不是學期的工作表）丟 HistoryFileError。
  */
 export async function readHistoryWorkbook(data: ArrayBuffer): Promise<HistorySheetGrid[]> {
   if (!isExcel(new Uint8Array(data))) throw new HistoryFileError(UNREADABLE)
@@ -106,6 +118,7 @@ export async function readHistoryWorkbook(data: ArrayBuffer): Promise<HistoryShe
   try {
     const book = XLSX.read(data, { type: 'array', dense: true })
     if (book.SheetNames.length === 0) throw new HistoryFileError(UNREADABLE)
+    rejectOtherSheets(book.SheetNames)
     return book.SheetNames.map((name) => {
       const sheet = book.Sheets[name]
       const ref = sheet?.['!ref']

@@ -177,16 +177,36 @@ describe('readHistoryWorkbook', () => {
     expect(grid!.rows['4']).toEqual(['大班', 70, 62, 0.8857])
   })
 
-  it('沒有資料的工作表也回傳（width 1、沒有列），讓伺服器依表名報錯', async () => {
-    const book = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(termRows(62)), '104上')
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([]), 'Sheet2')
-    const data = XLSX.write(book, { bookType: 'biff8', type: 'array' }) as ArrayBuffer
+  it('沒有資料的學期工作表也回傳（width 1、沒有列），讓伺服器依表名報錯', async () => {
+    const grids = await readHistoryWorkbook(biff8({ '104上': termRows(62), '104下': [] }))
 
-    const grids = await readHistoryWorkbook(data)
+    expect(grids.map((g) => g.name)).toEqual(['104上', '104下'])
+    expect(grids[1]).toEqual({ name: '104下', width: 1, rows: {} })
+  })
 
-    expect(grids.map((g) => g.name)).toEqual(['104上', 'Sheet2'])
-    expect(grids[1]).toEqual({ name: 'Sheet2', width: 1, rows: {} })
+  it('表名去空白後比對學期，全形數字也算（同後端 parse_term_name）', async () => {
+    const grids = await readHistoryWorkbook(biff8({ ' 104 上': termRows(62), '１０５下': termRows(61) }))
+
+    expect(grids.map((g) => g.name)).toEqual([' 104 上', '１０５下'])
+  })
+
+  it('別的 Excel 檔（像學生名單）：有不是學期的工作表就整份不收，訊息列出表名、不含格子內容', async () => {
+    const roster = [['編號', '幼生姓名', '出生日期'], ['1', '測試小明', '2022/05/10'], ['2', '測試小華', '2023/03/01']]
+
+    const error = await readHistoryWorkbook(biff8({ 工作表1: roster })).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(HistoryFileError)
+    expect((error as Error).message).toBe('這個檔案有不是學期的工作表（工作表1），請確認是園方的目標執行統計表')
+    for (const leaked of ['測試小明', '測試小華', '2022/05/10']) expect((error as Error).message).not.toContain(leaked)
+  })
+
+  it('學期工作表裡夾一張別的表也不收，只列出那幾張；太多張時只列前 5 張', async () => {
+    const mixed = await readHistoryWorkbook(biff8({ '104上': termRows(62), 備註: [['測試小明']], '104下': termRows(61), Sheet3: [] })).catch((e: unknown) => e)
+    expect((mixed as Error).message).toBe('這個檔案有不是學期的工作表（備註、Sheet3），請確認是園方的目標執行統計表')
+
+    const many = Object.fromEntries(Array.from({ length: 7 }, (_, n) => [`Sheet${n + 1}`, [] as unknown[][]]))
+    const error = await readHistoryWorkbook(biff8(many)).catch((e: unknown) => e)
+    expect((error as Error).message).toBe('這個檔案有不是學期的工作表（Sheet1、Sheet2、Sheet3、Sheet4、Sheet5 等 7 張），請確認是園方的目標執行統計表')
   })
 
   const notExcel: [string, () => ArrayBuffer][] = [
