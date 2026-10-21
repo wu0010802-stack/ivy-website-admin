@@ -138,6 +138,12 @@ async def _campus_name(db: AsyncSession, campus_key: str) -> str:
     return name or campus_key
 
 
+async def _campus_active(db: AsyncSession, campus_key: str) -> bool:
+    """分校是否仍開放公開預約；查不到校區列時維持原行為（當作開放）。"""
+    active = (await db.execute(select(Campus.active).where(Campus.key == campus_key))).scalar_one_or_none()
+    return active is not False
+
+
 def admin_visit_url(
     admin_origin: str | None, receipt_id: str | None, *, external_browser: bool = False
 ) -> str | None:
@@ -356,6 +362,8 @@ async def _dispatch_parent_email(
         path = await access_service.current_manage_path(db, visit_request.id, secret=access_secret)
         manage_url = f"{origin}{path}" if path else None
     profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
+    # 分校停用後 /visit/<校> 不再開放預約：取消信不附重新預約網址，信件模板會改請家長來電。
+    rebook_open = bool(origin) and await _campus_active(db, visit_request.campus_key)
     subject, body = build_parent_email(
         ParentEmail(
             kind=kind,
@@ -372,7 +380,7 @@ async def _dispatch_parent_email(
             change_window_passed=not change_open,
             day_closed=closed,
             cancel_reason=visit_request.cancel_reason,
-            rebook_url=f"{origin}/visit/{visit_request.campus_key}" if origin else None,
+            rebook_url=f"{origin}/visit/{visit_request.campus_key}" if rebook_open else None,
             closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
             day_word=_day_word(slot.slot_date) if kind == PARENT_VISIT_REMINDER and slot else None,
         )
