@@ -2,7 +2,7 @@
 // 以及招生統計的子分頁 sub=imports。只用合成資料（假姓名「測試小明」、假地址），不開任何真的清冊或統計表。
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
-import { ElDatePicker, ElMessageBox } from 'element-plus'
+import { ElDatePicker, ElMessage, ElMessageBox } from 'element-plus'
 import * as XLSX from 'xlsx'
 import ImportsTab from '../components/admissions/imports/ImportsTab.vue'
 import EnrolledImportCard from '../components/admissions/imports/EnrolledImportCard.vue'
@@ -83,6 +83,24 @@ const textOf = (node: unknown): string => {
   return ''
 }
 const confirmed = () => vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+// 全域提示（notifyError 走 ElMessage.error）收到的訊息。
+const errorToasts = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map(([options]) => String((options as { message: unknown }).message))
+
+// 選好檔、按確認匯入，對話框開著時頁首換到明華，再按下對話框的確認；回傳全域錯誤提示的 spy。
+async function confirmAfterCampusSwitch(card: 'enrolled' | 'history', pickFile: (wrapper: VueWrapper) => Promise<void>) {
+  const answer = deferred<unknown>()
+  vi.spyOn(ElMessageBox, 'confirm').mockReturnValue(answer.promise as never)
+  const toast = vi.spyOn(ElMessage, 'error')
+  const { wrapper } = await mountImports()
+  await pickFile(wrapper)
+  await confirmButton(wrapper, card)!.trigger('click')
+  await wrapper.setProps({ campusKey: 'minghua' })
+  await flushPromises()
+  expect(wrapper.text()).not.toContain('匯入到：義華')
+  answer.resolve('confirm')
+  await flushPromises()
+  return toast
+}
 
 const SHEETS: HistorySheetGrid[] = [
   { name: '115上', width: 3, rows: { '2': ['目標人數', null, '1150915'], '3': [null, null, '註冊人數'], '4': ['大班', 70, 58] } },
@@ -359,6 +377,27 @@ describe('資料匯入：在籍清冊', () => {
     expect(pathsTo(del, ENROLLED).map((path) => queryOf(path).get('campus_key'))).toEqual(['yihua'])
   })
 
+  it('確認對話框開著時換了校區：照對話框寫的校區送出，失敗時用全域提示寫出哪一校、什麼原因', async () => {
+    const post = mockPost({
+      [ENROLLED_PREVIEW]: enrolledPreview(),
+      [ENROLLED_APPLY]: () => { throw new ApiError(409, { code: 'DOORPLATE_CHANGED', message: '門牌已換版，請重新預覽' }) },
+    })
+    const toast = await confirmAfterCampusSwitch('enrolled', (wrapper) => pick(wrapper, 'enrolled-file', fileOf(rosterHtml(), '清冊.xls')))
+
+    expect(pathsTo(post, ENROLLED_APPLY).map((path) => queryOf(path).get('campus_key'))).toEqual(['yihua'])
+    expect(errorToasts(toast)).toEqual([expect.stringContaining('匯入到義華失敗：門牌已換版，請重新預覽')])
+  })
+
+  it('確認對話框開著時換了校區：成功時一樣寫出匯入到哪一校', async () => {
+    const success = vi.spyOn(ElMessage, 'success')
+    const post = mockPost({ [ENROLLED_PREVIEW]: enrolledPreview(), [ENROLLED_APPLY]: { students: 20, placed: 18 } })
+    const toast = await confirmAfterCampusSwitch('enrolled', (wrapper) => pick(wrapper, 'enrolled-file', fileOf(rosterHtml(), '清冊.xls')))
+
+    expect(pathsTo(post, ENROLLED_APPLY).map((path) => queryOf(path).get('campus_key'))).toEqual(['yihua'])
+    expect(success).toHaveBeenCalledWith('已匯入到義華：20 位，有點 18 位')
+    expect(toast).not.toHaveBeenCalled()
+  })
+
   it('清除的確認按取消就不刪', async () => {
     vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
     const { wrapper } = await mountImports()
@@ -459,6 +498,18 @@ describe('資料匯入：歷年註冊', () => {
     await flushPromises()
     expect(wrapper.find('[data-test="history-preview"]').exists()).toBe(false)
     expect(historyCard(wrapper).text()).toContain('資料的校區和選的校區不同，請重新預覽')
+  })
+
+  it('確認對話框開著時換了校區：照對話框寫的校區送出，失敗時用全域提示寫出哪一校、什麼原因', async () => {
+    vi.mocked(readHistoryWorkbook).mockResolvedValue(SHEETS)
+    const post = mockPost({
+      [HISTORY_PREVIEW]: historyPreview(),
+      [HISTORY_APPLY]: () => { throw new ApiError(422, { code: 'CAMPUS_MISMATCH', message: '資料的校區和選的校區不同，請重新預覽' }) },
+    })
+    const toast = await confirmAfterCampusSwitch('history', (wrapper) => pick(wrapper, 'history-file', fileOf('xls', '統計表.xls')))
+
+    expect(pathsTo(post, HISTORY_APPLY).map((path) => queryOf(path).get('campus_key'))).toEqual(['yihua'])
+    expect(errorToasts(toast)).toEqual([expect.stringContaining('匯入到義華失敗：資料的校區和選的校區不同，請重新預覽')])
   })
 
   it('統計表看不懂時列出遮罩表頭', async () => {

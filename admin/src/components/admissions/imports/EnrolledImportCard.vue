@@ -123,6 +123,11 @@ async function previewSelectedFile(file: File, chosenDate: string | null) {
 async function confirmImport() {
   const chosen = preview.value
   if (!chosen?.importable || applying.value || clearing.value || confirming) return
+  // 對話框寫的是哪一校就送哪一校：先記下校區。請求序號也從這裡起算，對話框開著時頁首換了校區，
+  // ImportsTab 會卸載這張卡片、序號跟著過期，結果就改用全域提示告知（畫面已經是別校）。
+  const campusKey = props.campusKey
+  const label = campusLabel(campusKey)
+  const request = previews.begin()
   confirming = true
   try {
     const lines = [
@@ -141,21 +146,23 @@ async function confirmImport() {
   } finally {
     confirming = false
   }
-  // 對話框開著時換了校區或重選了檔案：這份預覽已經不是畫面上那份，不送。
+  // 對話框開著時預覽被換掉或清掉（重選了檔案、這張卡片自己收到新校區）就不送。頁首換校區時卡片是直接被卸載，
+  // 預覽還在：照對話框寫的校區送出（伺服器也核對 payload 的校區）。
   if (preview.value !== chosen) return
-  const request = previews.begin()
-  const label = campusLabel(props.campusKey)
   applying.value = true
   try {
     // 預覽回來的 payload 原樣送回：契約上 match_level 是字串，伺服器收到時才驗是不是五種等級之一。
-    const result = await applyEnrolledImport(props.campusKey, chosen.payload as EnrolledImportPayload)
+    const result = await applyEnrolledImport(campusKey, chosen.payload as EnrolledImportPayload)
     ElMessage.success(`已匯入到${label}：${formatCount(result.students)} 位，有點 ${formatCount(result.placed)} 位`)
     if (!previews.isCurrent(request)) return
     reset()
     emit('imported')
   } catch (err) {
-    if (!previews.isCurrent(request)) return
     const message = apiErrorMessage(err, '匯入失敗，請再試一次。')
+    if (!previews.isCurrent(request)) {
+      notifyError(`匯入到${label}失敗：${message}`)
+      return
+    }
     if (isStalePreview(err)) reset()
     error.value = message
   } finally {
