@@ -37,13 +37,17 @@ test.describe('SEO：canonical／OG／robots meta', () => {
 })
 
 test.describe('robots.txt／sitemap.xml：依索引開關動態產生', () => {
-  test('索引未啟用時 robots.txt 擋全站、sitemap.xml 回 404', async ({ page }) => {
+  // 2026-09-25 起關掉索引時 sitemap 回空的 urlset（c5e1b24d，和後台收錄開關共用 crawlerIndexable），不再回 404。
+  test('索引未啟用時 robots.txt 擋全站、sitemap.xml 不列任何網址', async ({ page }) => {
     const robotsRes = await page.request.get('/robots.txt')
     expect(robotsRes.status()).toBe(200)
     const robotsBody = await robotsRes.text()
     expect(robotsBody).toContain('Disallow: /')
 
     const sitemapRes = await page.request.get('/sitemap.xml')
-    expect(sitemapRes.status()).toBe(404)
+    expect(sitemapRes.status()).toBe(200)
+    const sitemapBody = await sitemapRes.text()
+    expect(sitemapBody).toContain('<urlset')
+    expect(sitemapBody).not.toContain('<loc>')
   })
 })
