@@ -124,6 +124,44 @@ async def test_cycle_purges_expired_rate_limit_rows(app, db_session):
     assert (await db_session.execute(select(func.count()).select_from(RateLimitCounter))).scalar_one() == 0
 
 
+async def test_cycle_in_production_does_not_write_mail_to_the_sink_dir_without_smtp(
+    app, admin_client, public_client, db_session, tmp_path
+):
+    """正式環境沒設 SMTP 但留著 sink 資料夾：家長信不能寫成檔案並當成已寄出，要走「未配置」。"""
+    await _booking(admin_client, public_client)
+    settings = app.state.settings.model_copy(
+        update={"environment": "production", "smtp_host": None, "notification_email_sink_dir": str(tmp_path)}
+    )
+
+    result = await run_cycle(app.state.session_factory, settings, worker_id="test")
+
+    assert result.ran
+    assert not result.email_configured
+    assert list(tmp_path.iterdir()) == []
+    sent_parent_mail = (
+        await db_session.execute(
+            select(func.count())
+            .select_from(OutboxMessage)
+            .where(OutboxMessage.kind == "parent_visit_booked", OutboxMessage.status == OutboxStatus.SENT.value)
+        )
+    ).scalar_one()
+    assert sent_parent_mail == 0
+
+
+async def test_cycle_outside_production_still_writes_mail_to_the_sink_dir(
+    app, admin_client, public_client, tmp_path
+):
+    await _booking(admin_client, public_client)
+    settings = app.state.settings.model_copy(
+        update={"environment": "development", "smtp_host": None, "notification_email_sink_dir": str(tmp_path)}
+    )
+
+    result = await run_cycle(app.state.session_factory, settings, worker_id="test")
+
+    assert result.email_configured
+    assert list(tmp_path.iterdir()) != []
+
+
 async def test_a_failing_step_does_not_block_the_others(app, admin_client, public_client, db_session, monkeypatch):
     await _booking(admin_client, public_client)
 

@@ -30,7 +30,7 @@ from app.content.models import ContentItem, PublishJob
 from app.content.publish_jobs import unresolved_condition
 from app.media.models import MediaAsset, MediaJob, MediaStatus
 from app.notifications import outbox_admin
-from app.notifications.email_adapter import EmailAdapter, EmailNotConfigured, get_email_adapter
+from app.notifications.email_adapter import EmailAdapter, deployment_email_adapter
 from app.operations.models import RetentionPolicy
 
 Level = Literal["ok", "attention", "info", "off"]
@@ -303,10 +303,8 @@ def mail_adapter(settings: Settings) -> EmailAdapter:
     （比照 auth/password_reset.mail_adapter）。
 
     正式環境只認 SMTP：沒設 SMTP 時就算有 sink 資料夾也不寫檔，否則畫面會說「已寄出」，信卻只是
-    躺在伺服器的資料夾裡（比照 password_reset.email_enabled）。"""
-    if settings.environment == "production" and not settings.smtp_host:
-        raise EmailNotConfigured("正式環境沒有設定 SMTP")
-    return get_email_adapter(settings.notification_email_sink_dir, settings)
+    躺在伺服器的資料夾裡（規則在 email_adapter.deployment_email_adapter，三處共用）。"""
+    return deployment_email_adapter(settings)
 
 
 def build_test_email(settings: Settings, now: datetime) -> tuple[str, str]:

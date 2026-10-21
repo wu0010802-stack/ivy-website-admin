@@ -8,7 +8,10 @@ import uuid
 from email.message import EmailMessage
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from app.config import Settings
 
 
 class EmailNotConfigured(Exception):
@@ -100,3 +103,20 @@ def get_email_adapter(sink_dir: str | None, settings=None) -> EmailAdapter:
             security=settings.smtp_security,
         )
     return LocalSinkEmailAdapter(sink_dir)
+
+
+def email_channel_available(settings: Settings) -> bool:
+    """部署有沒有可用的寄信管道。正式環境只認 SMTP：沒設 SMTP 就算有 sink 資料夾也不算，
+    否則畫面或信件紀錄說「已寄出」，信卻只是躺在伺服器的資料夾裡。非正式環境另外接受
+    本機 sink（開發與 stack e2e 讀信用）。"""
+    if settings.smtp_host:
+        return True
+    return settings.environment != "production" and bool(settings.notification_email_sink_dir)
+
+
+def deployment_email_adapter(settings: Settings) -> EmailAdapter:
+    """依部署設定取寄信 adapter；沒有可用的管道時丟 EmailNotConfigured（呼叫端走「未配置」處理，
+    不要在啟動時驗證失敗）。outbox 背景工作、重設密碼連結與系統狀態測試信共用這一條規則。"""
+    if not email_channel_available(settings):
+        raise EmailNotConfigured("沒有可用的寄信管道（正式環境只認 SMTP）" if settings.environment == "production" else "未設定寄信管道")
+    return get_email_adapter(settings.notification_email_sink_dir, settings)

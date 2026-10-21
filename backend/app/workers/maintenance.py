@@ -29,7 +29,7 @@ from app.booking import schedule_service
 from app.common.ratelimit import purge_expired_counters
 from app.common.timezones import today_local
 from app.config import Settings
-from app.notifications.email_adapter import EmailNotConfigured, get_email_adapter
+from app.notifications.email_adapter import EmailNotConfigured, deployment_email_adapter
 from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
 from app.operations import audit_service, retention_service
@@ -181,7 +181,8 @@ async def _run_steps(
             result.failed_steps.append("reminders")
 
     try:
-        adapter = get_email_adapter(settings.notification_email_sink_dir, settings)
+        # 正式環境只認 SMTP：沒設 SMTP 就當未配置（家長信略過），不把信寫進 sink 資料夾還算成已寄出。
+        adapter = deployment_email_adapter(settings)
         result.email_configured = True
     except EmailNotConfigured:
         adapter = None
