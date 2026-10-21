@@ -3,7 +3,7 @@ import { API_ORIGIN, API_PORT, DB_NAME, STATE_DIR, USERS, WEB_ORIGIN, WEB_PORT }
 
 // 端到端測試（tests/stack）：真後端＋每次重建的隔離測試庫＋Nuxt production build
 // ＋後台 build。先 `npm run e2e:build`，再 `npm run test:e2e:stack`。
-// tests/e2e 是另一組：接在開發中的服務上跑（playwright.config.ts）。
+// tests/e2e 是另一組公開站四視口測試（playwright.config.ts）：同一份 build，另起自己的 API 與測試庫。
 //
 // 8GB RAM：只開一個 worker、一個瀏覽器；兩個 webServer 在測試結束時由 Playwright 關閉。
 // 截圖基準（visual.spec.ts）是在 macOS 系統字型下拍的；其他平台字型不同，

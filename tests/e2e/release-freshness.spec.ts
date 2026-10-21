@@ -1,49 +1,13 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import path from 'node:path'
+import { ADMIN, API_ORIGIN } from './e2e-env'
 
-const API_BASE = process.env.WEBSITE_API_BASE ?? 'http://127.0.0.1:8000'
-const BACKEND_DIR = process.env.WEBSITE_BACKEND_DIR ?? path.resolve(__dirname, '../../backend')
-const DB_URL =
-  process.env.WEBSITE_TEST_ADMIN_DB_URL ?? 'postgresql+asyncpg://yilunwu@localhost/ivy_website_dev'
+// 管理者帳號由 start-api.sh 在拋棄式測試庫建立（bootstrap-admin 只從 stdin 讀密碼），
+// 這裡只登入、不另建帳號；測試結束把首頁文案復原，不影響同一輪的其他 spec。
+const API_BASE = API_ORIGIN
+const ADMIN_EMAIL = ADMIN.email
+const ADMIN_PASSWORD = ADMIN.password
 
-const ADMIN_EMAIL = `e2e-freshness-${Date.now()}@ivy.example`
-const ADMIN_PASSWORD = 'e2e-freshness-password-123'
-
-/**
- * 用 CLI 的互動式 bootstrap-admin 建測試帳號，而不是直接寫 DB 或用測試
- * 專用的後門 API——密碼故意不接受命令列參數／不寫 log 是刻意的安全設計
- * （見 backend/app/cli.py bootstrap_admin 的註解），這裡照樣走 stdin。
- */
-function createAdminUser() {
-  execFileSync('uv', ['run', 'python', '-m', 'app.cli', 'bootstrap-admin'], {
-    cwd: BACKEND_DIR,
-    input: `${ADMIN_EMAIL}\n${ADMIN_PASSWORD}\n${ADMIN_PASSWORD}\n`,
-    env: {
-      ...process.env,
-      WEBSITE_ENVIRONMENT: 'development',
-      WEBSITE_DATABASE_URL: DB_URL,
-      WEBSITE_TEST_DATABASE_URL:
-        process.env.WEBSITE_TEST_DATABASE_URL ?? 'postgresql+asyncpg://yilunwu@localhost/ivy_website_test',
-      WEBSITE_MEDIA_ROOT: './var/media',
-      WEBSITE_SESSION_SECRET: 'dev-local-session-secret-32-bytes-min-xxxx'
-    }
-  })
-}
-
-function deleteAdminUser() {
-  execFileSync(
-    'psql',
-    [
-      DB_URL.replace('postgresql+asyncpg://', 'postgresql://'),
-      '-c',
-      `DELETE FROM users WHERE email = '${ADMIN_EMAIL}';`
-    ],
-    { stdio: 'ignore' }
-  )
-}
-
-test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新整理／站內換頁都讀到新內容', () => {
+test.describe('SSR 發布新鮮度：發布新 revision 後，新請求、重新整理與之後的站內換頁都讀到新內容', () => {
   // beforeAll／test／afterAll 各自的 `request` fixture是獨立的
   // APIRequestContext（各自的 cookie jar），登入拿到的 session cookie
   // 不會互通，所以整組測試改用自己建立、手動管理生命週期的一個
@@ -53,7 +17,6 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
   let originalHeroPayload: { eyebrow: string; copy_lines: string[]; cta_label: string }
 
   test.beforeAll(async () => {
-    createAdminUser()
     apiContext = await pwRequest.newContext({ baseURL: API_BASE })
     const loginRes = await apiContext.post('/api/website/v1/auth/login', {
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
@@ -82,7 +45,6 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
       data: { revision_id: revision.latest_revision.id }
     })
     await apiContext.dispose()
-    deleteAdminUser()
   })
 
   test('發布一版新的 hero 文案後，新的 HTTP 請求在快取 TTL（3 秒）內讀到新內容', async ({ page }) => {
@@ -125,8 +87,9 @@ test.describe('SSR 發布新鮮度：發布新 revision 後，新請求／重新
     await page.reload()
     await expect(page.locator('body')).toContainText(marker)
 
-    // 3) 站內換頁（先去預約頁，再點回首頁）也要讀到新內容，不是永久快取
-    //    同一個 useAsyncData key 而卡住舊資料。
+    // 3) 發布後才開的頁面，站內換頁回首頁沿用的是這次載入的新內容。站內 NuxtLink 換頁
+    //    刻意不重抓 /api/published-site（web/app/composables/usePublishedSite.ts，DESIGN
+    //    「效能第四輪」），所以發布前就開著的分頁要重新整理才看得到新版；這裡不測那種情況。
     await page.goto('/visit')
     await expect(page.locator('body')).not.toContainText(marker)
     await page.getByRole('link', { name: '首頁' }).first().click()

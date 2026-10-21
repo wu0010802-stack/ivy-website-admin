@@ -1,42 +1,11 @@
 import { test, expect, request as pwRequest, type APIRequestContext } from '@playwright/test'
-import { execFileSync } from 'node:child_process'
-import path from 'node:path'
+import { ADMIN, API_ORIGIN } from './e2e-env'
 
-const API_BASE = process.env.WEBSITE_API_BASE ?? 'http://127.0.0.1:8000'
-const BACKEND_DIR = process.env.WEBSITE_BACKEND_DIR ?? path.resolve(__dirname, '../../backend')
-const DB_URL =
-  process.env.WEBSITE_TEST_ADMIN_DB_URL ?? 'postgresql+asyncpg://yilunwu@localhost/ivy_website_dev'
-
-const ADMIN_EMAIL = `e2e-preview-${Date.now()}@ivy.example`
-const ADMIN_PASSWORD = 'e2e-preview-password-123'
-
-function createAdminUser() {
-  execFileSync('uv', ['run', 'python', '-m', 'app.cli', 'bootstrap-admin'], {
-    cwd: BACKEND_DIR,
-    input: `${ADMIN_EMAIL}\n${ADMIN_PASSWORD}\n${ADMIN_PASSWORD}\n`,
-    env: {
-      ...process.env,
-      WEBSITE_ENVIRONMENT: 'development',
-      WEBSITE_DATABASE_URL: DB_URL,
-      WEBSITE_TEST_DATABASE_URL:
-        process.env.WEBSITE_TEST_DATABASE_URL ?? 'postgresql+asyncpg://yilunwu@localhost/ivy_website_test',
-      WEBSITE_MEDIA_ROOT: './var/media',
-      WEBSITE_SESSION_SECRET: 'dev-local-session-secret-32-bytes-min-xxxx'
-    }
-  })
-}
-
-function deleteAdminUser() {
-  execFileSync(
-    'psql',
-    [
-      DB_URL.replace('postgresql+asyncpg://', 'postgresql://'),
-      '-c',
-      `DELETE FROM users WHERE email = '${ADMIN_EMAIL}';`
-    ],
-    { stdio: 'ignore' }
-  )
-}
+// 管理者帳號由 start-api.sh 在拋棄式測試庫建立（bootstrap-admin 只從 stdin 讀密碼），
+// 這裡只登入、不另建帳號；測試結束把關於區塊的草稿復原，不影響同一輪的其他 spec。
+const API_BASE = API_ORIGIN
+const ADMIN_EMAIL = ADMIN.email
+const ADMIN_PASSWORD = ADMIN.password
 
 test.describe('/preview：私有草稿殼', () => {
   test('未登入直接開 /preview：拒絕看到任何草稿內容', async ({ page }) => {
@@ -65,7 +34,6 @@ test.describe('/preview：已登入管理者可看未發布草稿', () => {
   const draftMarker = `E2E-PREVIEW-DRAFT-${Date.now()}`
 
   test.beforeAll(async () => {
-    createAdminUser()
     apiContext = await pwRequest.newContext({ baseURL: API_BASE })
     const loginRes = await apiContext.post('/api/website/v1/auth/login', {
       data: { email: ADMIN_EMAIL, password: ADMIN_PASSWORD }
@@ -105,7 +73,6 @@ test.describe('/preview：已登入管理者可看未發布草稿', () => {
       data: { expected_version: item.latest_version, payload: originalAboutPayload }
     })
     await apiContext.dispose()
-    deleteAdminUser()
   })
 
   test('公開首頁看不到未發布的草稿', async ({ page }) => {

@@ -252,6 +252,11 @@ jobs:
         run: npm run e2e:build
       - name: Run Playwright against the full stack
         run: npm run test:e2e:stack
+      # 公開站四視口（tests/e2e）：同一份 build，另起自己的 API 與測試庫（tests/e2e/e2e-env.ts）。
+      # stack 紅了也照跑，兩組結果都看得到。
+      - name: Run public-site Playwright (four viewports)
+        if: success() || failure()
+        run: npm run test:e2e
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -259,8 +264,11 @@ jobs:
           name: playwright-stack-report
           path: |
             playwright-report/stack
+            playwright-report/e2e
             test-results/stack
+            test-results/e2e
             output/e2e-stack/api-prepare.log
+            output/e2e-public/api-prepare.log
           retention-days: 7
 
   deploy:
