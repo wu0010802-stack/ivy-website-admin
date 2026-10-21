@@ -526,6 +526,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // 後台資料匯入（2026-10-21）
   'enrolled_roster.import': '匯入在籍清冊',
   'enrolled_roster.clear': '清除在籍資料',
+  'enrollment_history.import': '匯入歷年註冊',
 }
 
 // 參觀後聯絡的方式（後端 admissions/constants.py CONTACT_CHANNELS；admissionsFollowUp.test.ts 比對）。
@@ -693,6 +694,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   recruitment_visit: '招生訪視',
   grade_intake_target: '計畫名額',
   enrolled_roster: '在籍清冊',
+  enrollment_history: '歷年註冊',
 }
 
 // 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。

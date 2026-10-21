@@ -380,6 +380,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/imports/history/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply History Import
+         * @description 確認匯入：本文就是預覽回來的 payload。校區相符才整校取代（同校加 advisory lock）並寫稽核。
+         */
+        post: operations["apply_history_import_api_website_v1_admin_admissions_imports_history_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/imports/history/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview History Import
+         * @description 歷年註冊預覽：瀏覽器送來擷取後的格子表，伺服器用和 CLI 相同的規則解析，回數字摘要、和資料庫現有資料的差異，
+         *     以及原樣送回 apply 即可匯入的 payload。不寫資料庫、不寫稽核；表看不懂的錯誤只回工作表名、欄位名與表頭文字。
+         */
+        post: operations["preview_history_import_api_website_v1_admin_admissions_imports_history_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/imports/status": {
         parameters: {
             query?: never;
@@ -5868,6 +5909,79 @@ export interface components {
              */
             grade: "幼幼班" | "小班" | "中班" | "大班" | "其他";
         };
+        /** EnrollmentHistoryIn */
+        EnrollmentHistoryIn: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "ivy-enrollment-history/1";
+            /** Rows */
+            rows: components["schemas"]["TermRowIn"][];
+            /** Warnings */
+            warnings?: string[];
+        };
+        /** EnrollmentHistoryPayloadOut */
+        EnrollmentHistoryPayloadOut: {
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Format
+             * @constant
+             */
+            format: "ivy-enrollment-history/1";
+            /** Rows */
+            rows: components["schemas"]["EnrollmentHistoryRowOut"][];
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * EnrollmentHistoryRowOut
+         * @description 欄位同 history.payload.TermRowIn（原樣送回確認匯入）。
+         */
+        EnrollmentHistoryRowOut: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "大班" | "中班" | "小班" | "幼幼班";
+            /** New Deposits */
+            new_deposits: number | null;
+            /** New Registered */
+            new_registered: number | null;
+            /** New Target */
+            new_target: number | null;
+            /** New Visits */
+            new_visits: number | null;
+            /** Registered */
+            registered: number;
+            /** Repeat Deposit */
+            repeat_deposit: number | null;
+            /** Repeat Registered */
+            repeat_registered: number | null;
+            /** Returning Deposit */
+            returning_deposit: number | null;
+            /** Returning Enrolled */
+            returning_enrolled: number | null;
+            /** Returning Registered */
+            returning_registered: number | null;
+            /** School Year */
+            school_year: number;
+            /**
+             * Semester
+             * @enum {integer}
+             */
+            semester: 1 | 2;
+            /** Target */
+            target: number | null;
+        };
         /** EventTrendDayOut */
         EventTrendDayOut: {
             /** Clicks */
@@ -6131,6 +6245,27 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HistoryApplyOut */
+        HistoryApplyOut: {
+            /** Rows */
+            rows: number;
+        };
+        /**
+         * HistoryChangeOut
+         * @description 兩邊都有、註冊人數不同的（學期, 年級）。
+         */
+        HistoryChangeOut: {
+            /** After */
+            after: number;
+            /** Before */
+            before: number;
+            /** Grade */
+            grade: string;
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+        };
         /** HistoryImportStatusOut */
         HistoryImportStatusOut: {
             /** First School Year */
@@ -6148,6 +6283,57 @@ export interface components {
             last_semester: number;
             /** Rows */
             rows: number;
+        };
+        /**
+         * HistoryMaskedCellIn
+         * @description 有內容但不明的格子（率欄、備註、姓名）：只留位置，沒有值。
+         */
+        HistoryMaskedCellIn: {
+            /**
+             * Masked
+             * @constant
+             */
+            masked: true;
+        };
+        /** HistoryPreviewIn */
+        HistoryPreviewIn: {
+            /** Sheets */
+            sheets: components["schemas"]["HistorySheetIn"][];
+        };
+        /** HistoryPreviewOut */
+        HistoryPreviewOut: {
+            /** Changed */
+            changed: components["schemas"]["HistoryChangeOut"][];
+            first: components["schemas"]["HistoryTermOut"];
+            last: components["schemas"]["HistoryTermOut"];
+            payload: components["schemas"]["EnrollmentHistoryPayloadOut"];
+            /** Removed Terms */
+            removed_terms: components["schemas"]["HistoryTermOut"][];
+            /** Rows */
+            rows: number;
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * HistorySheetIn
+         * @description 一張工作表的擷取結果：表名、欄數，以及稀疏的列（列號 → 格子，每列長度不超過 width）。
+         */
+        HistorySheetIn: {
+            /** Name */
+            name: string;
+            /** Rows */
+            rows: {
+                [key: string]: (number | string | components["schemas"]["HistoryMaskedCellIn"] | null)[];
+            };
+            /** Width */
+            width: number;
+        };
+        /** HistoryTermOut */
+        HistoryTermOut: {
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
         };
         /** HolidayApplyCampusOut */
         HolidayApplyCampusOut: {
@@ -8500,6 +8686,48 @@ export interface components {
             /** Value */
             value?: number | null;
         };
+        /** TermRowIn */
+        TermRowIn: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "大班" | "中班" | "小班" | "幼幼班";
+            /** New Deposits */
+            new_deposits?: number | null;
+            /** New Registered */
+            new_registered?: number | null;
+            /** New Target */
+            new_target?: number | null;
+            /** New Visits */
+            new_visits?: number | null;
+            /** Registered */
+            registered: number;
+            /** Repeat Deposit */
+            repeat_deposit?: number | null;
+            /** Repeat Registered */
+            repeat_registered?: number | null;
+            /** Returning Deposit */
+            returning_deposit?: number | null;
+            /** Returning Enrolled */
+            returning_enrolled?: number | null;
+            /** Returning Registered */
+            returning_registered?: number | null;
+            /** School Year */
+            school_year: number;
+            /**
+             * Semester
+             * @enum {integer}
+             */
+            semester: 1 | 2;
+            /** Target */
+            target?: number | null;
+        };
         /** TokenExchangeRequest */
         TokenExchangeRequest: {
             /** Token */
@@ -10116,6 +10344,84 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EnrolledPreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_history_import_api_website_v1_admin_admissions_imports_history_apply_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentHistoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryApplyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_history_import_api_website_v1_admin_admissions_imports_history_preview_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryPreviewOut"];
                 };
             };
             /** @description Validation Error */

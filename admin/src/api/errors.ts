@@ -53,6 +53,8 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   LOW_PLACED_RATIO: '有點的比例不到 90%，不能匯入',
   DOORPLATE_CHANGED: '門牌已換版，請重新預覽',
   SCHOOL_YEAR_MISMATCH: '清冊日期和學年對不上，請重新預覽',
+  HISTORY_WORKBOOK_INVALID: '統計表格式看不懂',
+  HISTORY_PAYLOAD_INVALID: '統計表的數字不符合規定，請檢查後重新預覽',
   INTERNAL_ERROR: '系統發生未預期的錯誤，請稍後再試',
 }
 

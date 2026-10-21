@@ -358,6 +358,10 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   placed_students: (v) => `有點 ${countOf(v)} 位`,
   roster_date: (v) => `清冊日期：${auditWhen(v)}`,
   doorplate_version: (v) => `門牌版本：${String(v)}`,
+  // 歷年註冊匯入：列數與最早、最新的學期（「104上」）。
+  term_rows: (v) => `共 ${countOf(v)} 列`,
+  first_term: (v) => `從 ${String(v)}`,
+  last_term: (v) => `到 ${String(v)}`,
 }
 
 // 成對出現、要合在一起講的鍵（「狀態：已確認 → 未到場」）。

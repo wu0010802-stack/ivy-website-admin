@@ -8159,6 +8159,245 @@
         "title": "EnrolledUploadStudentIn",
         "type": "object"
       },
+      "EnrollmentHistoryIn": {
+        "additionalProperties": false,
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "format": {
+            "const": "ivy-enrollment-history/1",
+            "title": "Format",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TermRowIn"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "campus_key",
+          "rows"
+        ],
+        "title": "EnrollmentHistoryIn",
+        "type": "object"
+      },
+      "EnrollmentHistoryPayloadOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "format": {
+            "const": "ivy-enrollment-history/1",
+            "title": "Format",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/EnrollmentHistoryRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "format",
+          "campus_key",
+          "rows",
+          "warnings"
+        ],
+        "title": "EnrollmentHistoryPayloadOut",
+        "type": "object"
+      },
+      "EnrollmentHistoryRowOut": {
+        "description": "欄位同 history.payload.TermRowIn（原樣送回確認匯入）。",
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "大班",
+              "中班",
+              "小班",
+              "幼幼班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "new_deposits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Deposits"
+          },
+          "new_registered": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Registered"
+          },
+          "new_target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Target"
+          },
+          "new_visits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Visits"
+          },
+          "registered": {
+            "title": "Registered",
+            "type": "integer"
+          },
+          "repeat_deposit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Deposit"
+          },
+          "repeat_registered": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Registered"
+          },
+          "returning_deposit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Deposit"
+          },
+          "returning_enrolled": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Enrolled"
+          },
+          "returning_registered": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Registered"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Semester",
+            "type": "integer"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester",
+          "grade",
+          "as_of",
+          "registered",
+          "target",
+          "returning_enrolled",
+          "returning_deposit",
+          "returning_registered",
+          "new_target",
+          "new_visits",
+          "new_deposits",
+          "new_registered",
+          "repeat_deposit",
+          "repeat_registered"
+        ],
+        "title": "EnrollmentHistoryRowOut",
+        "type": "object"
+      },
       "EventTrendDayOut": {
         "properties": {
           "clicks": {
@@ -8907,6 +9146,53 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HistoryApplyOut": {
+        "properties": {
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "HistoryApplyOut",
+        "type": "object"
+      },
+      "HistoryChangeOut": {
+        "description": "兩邊都有、註冊人數不同的（學期, 年級）。",
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "integer"
+          },
+          "before": {
+            "title": "Before",
+            "type": "integer"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "title": "Semester",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester",
+          "grade",
+          "before",
+          "after"
+        ],
+        "title": "HistoryChangeOut",
+        "type": "object"
+      },
       "HistoryImportStatusOut": {
         "properties": {
           "first_school_year": {
@@ -8944,6 +9230,164 @@
           "imported_at"
         ],
         "title": "HistoryImportStatusOut",
+        "type": "object"
+      },
+      "HistoryMaskedCellIn": {
+        "additionalProperties": false,
+        "description": "有內容但不明的格子（率欄、備註、姓名）：只留位置，沒有值。",
+        "properties": {
+          "masked": {
+            "const": true,
+            "title": "Masked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "masked"
+        ],
+        "title": "HistoryMaskedCellIn",
+        "type": "object"
+      },
+      "HistoryPreviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "sheets": {
+            "items": {
+              "$ref": "#/components/schemas/HistorySheetIn"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Sheets",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sheets"
+        ],
+        "title": "HistoryPreviewIn",
+        "type": "object"
+      },
+      "HistoryPreviewOut": {
+        "properties": {
+          "changed": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryChangeOut"
+            },
+            "title": "Changed",
+            "type": "array"
+          },
+          "first": {
+            "$ref": "#/components/schemas/HistoryTermOut"
+          },
+          "last": {
+            "$ref": "#/components/schemas/HistoryTermOut"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/EnrollmentHistoryPayloadOut"
+          },
+          "removed_terms": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTermOut"
+            },
+            "title": "Removed Terms",
+            "type": "array"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows",
+          "first",
+          "last",
+          "removed_terms",
+          "changed",
+          "warnings",
+          "payload"
+        ],
+        "title": "HistoryPreviewOut",
+        "type": "object"
+      },
+      "HistorySheetIn": {
+        "additionalProperties": false,
+        "description": "一張工作表的擷取結果：表名、欄數，以及稀疏的列（列號 → 格子，每列長度不超過 width）。",
+        "properties": {
+          "name": {
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "maximum": 9007199254740992.0,
+                    "minimum": -9007199254740992.0,
+                    "type": "integer"
+                  },
+                  {
+                    "maximum": 9007199254740992.0,
+                    "minimum": -9007199254740992.0,
+                    "type": "number"
+                  },
+                  {
+                    "maxLength": 200,
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HistoryMaskedCellIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "object"
+          },
+          "width": {
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "width",
+          "rows"
+        ],
+        "title": "HistorySheetIn",
+        "type": "object"
+      },
+      "HistoryTermOut": {
+        "properties": {
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "title": "Semester",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester"
+        ],
+        "title": "HistoryTermOut",
         "type": "object"
       },
       "HolidayApplyCampusOut": {
@@ -16055,6 +16499,185 @@
         "title": "TelemetryIn",
         "type": "object"
       },
+      "TermRowIn": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "大班",
+              "中班",
+              "小班",
+              "幼幼班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "new_deposits": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Deposits"
+          },
+          "new_registered": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Registered"
+          },
+          "new_target": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": -999.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Target"
+          },
+          "new_visits": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Visits"
+          },
+          "registered": {
+            "maximum": 999.0,
+            "minimum": 0.0,
+            "title": "Registered",
+            "type": "integer"
+          },
+          "repeat_deposit": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Deposit"
+          },
+          "repeat_registered": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Registered"
+          },
+          "returning_deposit": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Deposit"
+          },
+          "returning_enrolled": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Enrolled"
+          },
+          "returning_registered": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning Registered"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 99.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "enum": [
+              1,
+              2
+            ],
+            "title": "Semester",
+            "type": "integer"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "maximum": 999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester",
+          "grade",
+          "as_of",
+          "registered"
+        ],
+        "title": "TermRowIn",
+        "type": "object"
+      },
       "TokenExchangeRequest": {
         "properties": {
           "token": {
@@ -20675,6 +21298,176 @@
           }
         },
         "summary": "Preview Enrolled Import",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/history/apply": {
+      "post": {
+        "description": "確認匯入：本文就是預覽回來的 payload。校區相符才整校取代（同校加 advisory lock）並寫稽核。",
+        "operationId": "apply_history_import_api_website_v1_admin_admissions_imports_history_apply_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentHistoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply History Import",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/imports/history/preview": {
+      "post": {
+        "description": "歷年註冊預覽：瀏覽器送來擷取後的格子表，伺服器用和 CLI 相同的規則解析，回數字摘要、和資料庫現有資料的差異，\n以及原樣送回 apply 即可匯入的 payload。不寫資料庫、不寫稽核；表看不懂的錯誤只回工作表名、欄位名與表頭文字。",
+        "operationId": "preview_history_import_api_website_v1_admin_admissions_imports_history_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPreviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview History Import",
         "tags": [
           "admissions"
         ]

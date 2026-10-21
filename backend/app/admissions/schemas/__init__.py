@@ -203,6 +203,15 @@ from app.admissions.schemas.imports import (
     ImportStatusOut,
     EnrolledApplyOut,
     EnrolledClearOut,
+    HistoryMaskedCellIn,
+    HistorySheetIn,
+    HistoryPreviewIn,
+    HistoryTermOut,
+    HistoryChangeOut,
+    EnrollmentHistoryRowOut,
+    EnrollmentHistoryPayloadOut,
+    HistoryPreviewOut,
+    HistoryApplyOut,
 )
 from app.admissions.schemas.potential import (
     PotentialShareYearOut,

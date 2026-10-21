@@ -39,6 +39,9 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/admissions/imports/enrolled/preview"): (
         "只比對並回預覽，不改任何資料（地址比對完就丟）；確認匯入（apply）與清除才寫稽核"
     ),
+    ("POST", "/api/website/v1/admin/admissions/imports/history/preview"): (
+        "只解析瀏覽器擷取的格子表並回預覽，不改任何資料；確認匯入（apply）才寫稽核"
+    ),
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),

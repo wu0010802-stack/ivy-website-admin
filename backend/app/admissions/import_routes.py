@@ -1,4 +1,4 @@
-"""後台資料匯入 API（2026-10-21 規格 §5、§8；/api/website/v1/admin/admissions/imports/*）。
+"""後台資料匯入 API（2026-10-21 規格 §5–§8；/api/website/v1/admin/admissions/imports/*）。
 
 和 routes.py 同一套規矩：先檢查權限（admissions.stats＝總管理者）、呼叫 service（只 flush）、寫稽核、commit。
 稽核的 action、target_type 與 metadata 一律寫字面值（admin labelCoverage 測試會掃），metadata 只放數字、日期與版本。
@@ -7,18 +7,23 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Coroutine
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, imports
 from app.admissions.enrolled.importer import EnrolledRosterIn, clear_roster, replace_roster
 from app.admissions.enrolled.match import MIN_PLACED_RATIO, MatchError, match_students
 from app.admissions.geo import matcher
+from app.admissions.history.grid import WorkbookError, masked_headers, parse_grids
+from app.admissions.history.importer import replace_history
+from app.admissions.history.payload import EnrollmentHistoryIn, build_payload, describe_error, load_payload
 from app.admissions.routes import _require_campus
 from app.admissions.schemas import (
     EnrolledApplyOut,
@@ -27,6 +32,12 @@ from app.admissions.schemas import (
     EnrolledImportUnplacedOut,
     EnrolledPreviewIn,
     EnrolledPreviewOut,
+    EnrollmentHistoryPayloadOut,
+    HistoryApplyOut,
+    HistoryChangeOut,
+    HistoryPreviewIn,
+    HistoryPreviewOut,
+    HistoryTermOut,
     ImportStatusOut,
 )
 from app.auth.deps import get_current_user, get_db_session
@@ -38,12 +49,16 @@ MAX_REPORTED_ERRORS = 5
 
 def _position(item: dict) -> str:
     """欄位位置；extra_forbidden 的最後一段是上傳資料裡多出來的鍵名（可能就是姓名），不印，改寫「（多餘欄位）」。
+    字典的鍵驗不過時（loc 裡「[key]」的前一段）也是上傳的字串，同樣不印，改寫「（鍵）」。
     本文錯誤的位置開頭是 body，對操作的人沒有意義，拿掉。"""
     loc = [str(part) for part in item["loc"]]
     if loc and loc[0] == "body":
         loc = loc[1:]
     if item["type"] == "extra_forbidden" and loc:
         loc[-1] = "（多餘欄位）"
+    for index in range(1, len(loc)):
+        if loc[index] == "[key]":
+            loc[index - 1] = "（鍵）"
     return ".".join(loc) or "(整份)"
 
 
@@ -191,3 +206,72 @@ async def clear_enrolled_import(
         )
     await db.commit()
     return EnrolledClearOut(removed=removed)
+
+
+@router.post("/admin/admissions/imports/history/preview", response_model=HistoryPreviewOut)
+async def preview_history_import(
+    campus_key: str,
+    payload: HistoryPreviewIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> HistoryPreviewOut:
+    """歷年註冊預覽：瀏覽器送來擷取後的格子表，伺服器用和 CLI 相同的規則解析，回數字摘要、和資料庫現有資料的差異，
+    以及原樣送回 apply 即可匯入的 payload。不寫資料庫、不寫稽核；表看不懂的錯誤只回工作表名、欄位名與表頭文字。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    grids = [sheet.to_grid() for sheet in payload.sheets]
+    try:
+        parsed = parse_grids(grids)
+    except WorkbookError as exc:
+        headers = [
+            {"name": name, "row2": row2, "row3": row3, "labels": labels} for name, row2, row3, labels in masked_headers(grids)
+        ]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "HISTORY_WORKBOOK_INVALID", "message": str(exc), "headers": headers},
+        ) from None
+    try:
+        history = load_payload(json.dumps(build_payload(parsed, campus_key)))
+    except ValidationError as exc:
+        raise _rejected("HISTORY_PAYLOAD_INVALID", describe_error(exc)) from None
+    removed, changed = await imports.history_diff(db, campus_key, history.rows)
+    terms = sorted({(row.school_year, row.semester) for row in history.rows})
+    return HistoryPreviewOut(
+        rows=len(history.rows),
+        first=HistoryTermOut(school_year=terms[0][0], semester=terms[0][1]),
+        last=HistoryTermOut(school_year=terms[-1][0], semester=terms[-1][1]),
+        removed_terms=[HistoryTermOut(school_year=year, semester=semester) for year, semester in removed],
+        changed=[HistoryChangeOut(**item) for item in changed],
+        warnings=history.warnings,
+        payload=EnrollmentHistoryPayloadOut.model_validate(history.model_dump()),
+    )
+
+
+@router.post("/admin/admissions/imports/history/apply", response_model=HistoryApplyOut)
+async def apply_history_import(
+    campus_key: str,
+    payload: EnrollmentHistoryIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> HistoryApplyOut:
+    """確認匯入：本文就是預覽回來的 payload。校區相符才整校取代（同校加 advisory lock）並寫稽核。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    if payload.campus_key != campus_key:
+        raise _rejected("CAMPUS_MISMATCH", "資料的校區和選的校區不同，請重新預覽")
+    await imports.lock_campus_import(db, "enrollment_history", campus_key)
+    count = await replace_history(db, payload)
+    terms = sorted({(row.school_year, row.semester) for row in payload.rows})
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="enrollment_history.import",
+        target_type="enrollment_history",
+        target_id=campus_key,
+        campus_key=campus_key,
+        metadata={
+            "term_rows": count,
+            "first_term": imports.term_label(*terms[0]),
+            "last_term": imports.term_label(*terms[-1]),
+        },
+    )
+    await db.commit()
+    return HistoryApplyOut(rows=count)
