@@ -473,7 +473,7 @@ async def test_maintenance_cycle_queues_the_parent_reminder_even_without_mail_se
 async def test_maintenance_cycle_mails_the_parent_reminder_and_the_staff_reminder(
     app, admin_client, public_client, db_session, recording_mail_adapter, monkeypatch
 ):
-    monkeypatch.setattr(maintenance, "get_email_adapter", lambda *_args: recording_mail_adapter)
+    monkeypatch.setattr(maintenance, "deployment_email_adapter", lambda *_args: recording_mail_adapter)
     await _visit_starting_in(admin_client, public_client, db_session, hours=23)
     result = await run_cycle(app.state.session_factory, app.state.settings, worker_id="test")
     assert result.failed_steps == []
