@@ -113,6 +113,12 @@ async def test_unknown_grade_is_rejected(db_session):
     assert "義華路" not in str(caught.value)  # 錯誤訊息不帶地址
 
 
+async def test_empty_student_list_is_rejected(db_session):
+    # 沒匯門牌也要先回「沒有學生」：空清單在查資料庫之前就擋掉，不會走到 placed / total。
+    with pytest.raises(MatchError, match="沒有學生資料"):
+        await match_students(db_session, [], campus_key="yihua", roster_date=date(2026, 10, 15))
+
+
 async def test_row_order_cannot_be_traced_back_to_the_roster(db_session):
     await _ready(db_session)
     # 班別、區、里、等級、座標都相同，只差 unlocated_reason：排序也要把它算進去，列序才不會留著清冊順序。

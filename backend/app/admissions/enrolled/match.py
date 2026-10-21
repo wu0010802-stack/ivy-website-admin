@@ -110,7 +110,9 @@ async def match_students(
     db: AsyncSession, students: Sequence[tuple[str, str]], *, campus_key: str, roster_date: date
 ) -> MatchOutcome:
     """`students` 是（班別, 地址）；班別由呼叫端算好（清冊用 roster_grade，網頁在瀏覽器算），不在 ENROLLED_GRADES 就拒絕。"""
-    version = await matcher.active_doorplate_version(db)
+    if not students:
+        raise MatchError("沒有學生資料")
+    version =await matcher.active_doorplate_version(db)
     label = await matcher.doorplate_label(db)
     if version is None or label is None:
         raise MatchError("門牌資料尚未匯入，先跑 geo-sync --doorplates-file")
