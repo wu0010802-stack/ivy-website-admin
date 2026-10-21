@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-21 全專案 bug 與資安 11 項修正＋Pillow 13（main CI 部署，沒有 migration）
+
+- **為什麼這次才上**：#49（`2480f516`，README 2026-10-20「全專案 bug 與資安掃描：11 項修正」）10-21 09:04 併入 main，run 39525121498 的 Backend 第 1 組在 `pip-audit` 擋下（`pillow` 12.3.0 8 個公告、`certifi` 2026.7.22 1 個），部署被跳過，正式站停在 `fa6759d6`。
+- **提交**：`fix/deps-audit-20261021` 只升 Pillow 13.0.0（約束 `>=13.0,<14`）與 certifi 2026.10.19，`4de29b3c..7d26bbd0` 由使用者推上 main（auto 模式擋 agent 推 main）。從 `fa6759d6` 到 `7d26bbd0` 沒有 migration，沒有先備份。
+- **回退**：切回上一版映像即可，沒有資料相依；但上一版映像的 Pillow 有已知漏洞，不建議長期停在那裡。
+- **推送前閘門**：本機 `uvx pip-audit@2.10.1` 0 項；素材相關 15 個測試檔加 `-W error::DeprecationWarning:PIL` 202 passed、1 skipped（HDR 需要 zscale）。`feature/deps-audit-20261021` 的 CI（run 39529341144）Frontend web／admin、Backend 三組、E2E／Playwright 全部 success。
+- **CI**：main run 39530507285（`7d26bbd0`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success（部署 02:10–02:15 UTC）。
+- **正式 `release.json`**：base commit `7d26bbd00b28514abea35ac45e158be83b9d86bb`，snapshot `2a16a985…`，created `2026-10-21T02:10:25Z`。`/api/website/v1/health` `status: ok`、`background_jobs.last_failed_steps` 為空。
+- **未驗證**：正式站實際上傳一張照片走 Pillow 13 的處理（只有測試覆蓋）；11 項修正的登入後畫面。
+
 ## 2026-10-20 手機孩子的一天拍立得換手不再跳字距與紙色（main CI 部署，沒有 migration）
 
 - **提交**：使用者要求併入 main。PR #48（`feature/day-print-mobile-20261020`，1 個提交）在 GitHub 以 rebase 併入，`1f00cc2c..fa6759d6`。等 CI 期間 main 進了效能整理 7 個提交，分支先 rebase（`paperPrints.ts` 顏色改讀 token 與本次字距欄位衝突，保留兩邊）再重跑 CI 才併。只動 `web/app/utils/paperPrints.ts`（WebGL 紙照 CSS 字距畫字、平放時燈光等於貼圖原色）與測試、文件。
