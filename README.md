@@ -9,7 +9,12 @@
 - **SheetJS 0.20.3 放進 repo**：npm 上的 0.18.5 有 CVE-2023-30533、CVE-2024-22363，修正版只在 SheetJS 自己的 CDN，所以官方 tarball 放在 `admin/vendor/xlsx-0.20.3.tgz`（來源與雜湊見 `admin/vendor/README.md`），`admin/package.json` 用 `file:` 指向它，`deploy/web.Dockerfile` 在 `npm ci` 前先 `COPY admin/vendor`。只能用套件入口 `xlsx.mjs`（實測 `dist/xlsx.mini.min.js` 讀不了 XLS、`dist/xlsx.core.min.js` 在 Node 載入失敗）；動態載入，只有在歷年註冊選了統計表檔時才下載，其他後台頁面的 bundle 不變。
 - **新端點**都在 `/api/website/v1/admin/admissions/imports/...`：`status`、`enrolled/preview`、`enrolled/apply`、`DELETE enrolled`、`history/preview`、`history/apply`；同招生統計的 `admissions.stats`＋校區檢查，招生開關關閉時不掛路由（404）；預覽不寫資料庫，這組路由的 422 不回傳輸入值（預設會帶 `input`，也就是地址）；操作紀錄 metadata 只放人數、日期與版本。沒有新 migration、新環境變數與後端依賴；`body_limit.py` 與 `web/shared/request-guard.ts` 的 1 MB 上限沒動。
 - **CLI 不變**：`enrolled-match`、`enrolled-import`、`enrollment-history-extract`、`enrollment-history-import` 的參數與輸出都沒變（`match_roster` 變成吃 `(班別, 地址)` 核心的薄包裝）；`deploy/README.md` 的「在籍學生匯入」「歷年註冊匯入」兩節改成後台上傳為主、CLI 列為「備用（本機指令）」。
-- **驗證**：（待主 session 填：後端全套、admin、web、契約、真檔核對）
+- **驗證**（Node 22.23.2；獨立測試庫 `ivy_website_test_import1021`；以下是最終審查修正後 `3d9a3477` 的結果）：
+  - 後端全套 pytest 4677 passed、1 skipped（12 分 31 秒）。
+  - admin `typecheck` 通過；vitest 第一次全套有 4 個失敗（沒記下名稱），之後連跑三次都是 167 檔 3210 passed、1 skipped。`build` 後 SheetJS 是獨立的 492 kB chunk（gzip 160 kB），主 chunk 111 kB。
+  - web `typecheck` 通過、`test:website` 111 檔 1344 passed；`contract:check` 一致；`deploy/tests` 通過。
+  - 真檔核對（只由主 session 在本機做，只印數字）：義華統計表經瀏覽器擷取再交伺服器解析，和 CLI 結果相同（132 列、3 則警告，送出約 36 KB）；義華清冊的瀏覽器解析和後端解析一致（192 位、列印日期、班別分布、地址集合都相同），送出的本文只有地址與班別（約 13 KB），清冊沒有空白地址。
+  - 沒驗證：正式站門牌下的真清冊預覽（部署後由業主上傳）、Docker 實際建置、真瀏覽器操作（畫面截圖用的是假 API 與合成檔）。
 
 ## 2026-10-21 前台效能與畫面掃描：前五條修正（`fix/web-audit-20261021`）
 
