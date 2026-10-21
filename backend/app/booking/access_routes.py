@@ -418,7 +418,9 @@ async def create_parent_access_link(
     )
     mail_parent = bool(visit_request.email)
     if mail_parent:
-        # 沒設 SMTP 也照排：之後設好，24 小時內仍會寄出。
+        # 沒設 SMTP 也照排，但下一輪背景工作會把這封標成略過（notifications/service._dispatch_parent_email：
+        # 沒有寄信管道就回 False），之後才設好 SMTP 也不會補寄；所以 emailed 在沒設 SMTP 時是 False，
+        # 園方要自行把連結交給家長。
         await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     emailed = mail_parent and parent_email_enabled(request)
     fragment = access_service.manage_path(raw_token)
