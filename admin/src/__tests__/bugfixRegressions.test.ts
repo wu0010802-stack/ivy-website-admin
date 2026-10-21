@@ -342,6 +342,36 @@ describe('2026-10-06 後台 bug 稽核：預約與總覽（第 1–8 條）', ()
       const holidayDays = wrapper.findAll('.calendar__day.is-holiday').map((cell) => cell.attributes('aria-label')?.slice(0, 10))
       expect(holidayDays).toEqual(['2026/09/26'])
     })
+
+    it('9 月的場次讀得慢、先按「下個月」：畫面只有 10 月那次請求的場次', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-09-24T09:00:00+08:00'))
+      const slow = deferred<unknown>()
+      const slotOf = (id: string, day: string, parent: string) => ({
+        id, campus_key: 'yihua', slot_date: day, start_time: '09:30:00', end_time: '10:30:00', capacity: 3, booked_count: 1, closed: false, version: 1,
+        visits: [{ id: `v-${id}`, status: 'confirmed', parent_name: parent, child_name: null, phone: '0912345678', source: 'web' }],
+      })
+      const calendar: string[] = []
+      vi.spyOn(api, 'get').mockImplementation(async (path: string) => {
+        if (path.startsWith('/admin/visit-calendar')) {
+          calendar.push(path)
+          // 9 月的格子從 8/31 起；10 月的格子從 9/28 起（兩次的 9/30 都在畫面上，才看得出誰蓋掉誰）。
+          return (path.includes('date_from=2026-08-31') ? slow.promise : [slotOf('oct', '2026-10-14', '十月家長')]) as never
+        }
+        if (path.startsWith('/admin/visit-schedule/')) return { exceptions: [], rules: [] } as never
+        if (path.startsWith('/admin/booking-config')) return {} as never
+        return [] as never
+      })
+      const { wrapper } = await mountRouted(VisitCalendarView, '/visit-calendar?campus=yihua')
+      await wrapper.get('button[aria-label="下個月"]').trigger('click')
+      await flushPromises()
+      expect(calendar).toHaveLength(2)
+      slow.resolve([slotOf('sep', '2026-09-30', '九月家長')])
+      await flushPromises()
+      const label = (day: string) => wrapper.findAll('.calendar__day').find((cell) => cell.attributes('aria-label')?.startsWith(day))?.attributes('aria-label')
+      expect(label('2026/10/14')).toContain('排入 1 組')
+      expect(label('2026/09/30')).toContain('沒有排入的家長')
+    })
   })
 
   // ------------------------------------------------------------------ 5
