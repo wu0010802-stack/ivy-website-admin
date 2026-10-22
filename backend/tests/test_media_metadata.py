@@ -134,3 +134,66 @@ async def test_uploaded_original_has_no_gps(admin_client, app):
     with Image.open(io.BytesIO(stored)) as img:
         assert 0x8825 not in img.getexif()
         assert img.getexif().get(0x0112) == 6
+
+
+def _mpo() -> bytes:
+    """相機／部分手機的 JPEG：帶 MPF 多圖索引與第二張附帶影像，Pillow 認成 MPO。"""
+    second = Image.new("RGB", (32, 16), (200, 40, 40))
+    buf = io.BytesIO()
+    _image().save(buf, format="MPO", save_all=True, append_images=[second], exif=_exif(None).tobytes(), quality=90)
+    data = buf.getvalue()
+    with Image.open(io.BytesIO(data)) as img:
+        assert img.format == "MPO" and img.n_frames == 2, "測試圖要真的是兩頁 MPO"
+    assert b"MPF\x00" in data
+    return data
+
+
+def test_mpo_is_accepted_as_jpeg(tmp_path):
+    """2026-10-22 稽核：MPO（多圖 JPEG）原本被當成不支援的格式拒收。"""
+    from app.media.models import MediaKind
+    from app.media.validation import sniff_and_validate
+
+    path = tmp_path / "camera.jpg"
+    path.write_bytes(_mpo())
+    assert sniff_and_validate(path, MediaKind.IMAGE) == ("image/jpeg", 64, 32)
+
+
+@pytest.mark.asyncio
+async def test_uploaded_mpo_is_stored_as_plain_jpeg_without_mpf(admin_client, app):
+    """上傳 MPO：存成 image/jpeg，原檔去掉 MPF 索引與附帶影像（EOI 之後的資料），衍生檔照常產生。"""
+    original = _mpo()
+    response = await admin_client.post(
+        MEDIA,
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("camera.jpg", original, "image/jpeg")},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["content_type"] == "image/jpeg"
+    assert (body["width"], body["height"]) == (64, 32)
+    assert [v["kind"] for v in body["variants"]] == ["thumbnail"]
+
+    from sqlalchemy import select
+
+    from app.media.models import MediaAsset, MediaVariant
+
+    async with app.state.session_factory() as db:
+        asset = (await db.execute(select(MediaAsset).where(MediaAsset.id == body["id"]))).scalar_one()
+        variants = (await db.execute(select(MediaVariant).where(MediaVariant.media_id == asset.id))).scalars().all()
+    storage = LocalMediaStorage(Path(app.state.settings.media_root))
+    stored = storage.path_for(asset.storage_key).read_bytes()
+    assert asset.content_type == "image/jpeg"
+    assert asset.size_bytes == len(stored) < len(original)
+    assert b"MPF\x00" not in stored and b"PhoneModel" not in stored
+    with Image.open(io.BytesIO(stored)) as img:
+        assert img.format == "JPEG"
+        assert getattr(img, "n_frames", 1) == 1
+        assert img.size == (64, 32)
+        with Image.open(io.BytesIO(original)) as before:
+            assert img.tobytes() == before.tobytes(), "主圖像素不能重新編碼"
+    assert variants
+    for variant in variants:
+        with Image.open(storage.path_for(variant.storage_key)) as derived:
+            derived.load()
+            assert derived.size[0] > 0

@@ -34,6 +34,12 @@ describe('/preview 即時預覽不外洩草稿', () => {
     expect(page).toMatch(/status\.value = 'denied'\s*\n\s*receiver\?\.denied\(\)/)
   })
 
+  it('讀草稿內容丟錯時改顯示 failed，不會停在「正在確認管理身分」（2026-10-22 稽核）', () => {
+    expect(page).toMatch(/try \{\s*result = await useDraftPreview\(\)\s*\} catch \{/)
+    expect(page).toContain("if (!unmounted) status.value = 'failed'")
+    expect(page).toContain("v-else-if=\"status === 'failed'\"")
+  })
+
   it('卸載時拿掉 message listener 與點擊攔截（行為由 preview-live-page.spec 驗）', () => {
     expect(page).toContain("window.removeEventListener('message'")
     expect(page).toContain("document.removeEventListener('click', stayOnPreview, true)")

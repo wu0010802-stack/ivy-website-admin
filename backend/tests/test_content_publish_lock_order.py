@@ -148,3 +148,89 @@ async def test_reject_and_due_schedule_concurrently_does_not_deadlock(
     assert counts == {"published": 0, "failed": 0, "skipped": 0}
     job_status = await db_session.scalar(select(PublishJob.status))
     assert job_status == "cancelled"
+
+
+async def _wait_until_blocked_on_lock(app, *tasks) -> None:
+    """等到資料庫裡有連線卡在列鎖上。每次輪詢開新連線（同一條連線的快照看不到後來的等待），
+    輪詢時也看請求是不是已經先結束了（那代表根本沒有卡住，印出回應方便判讀）。"""
+    for _ in range(200):
+        async with app.state.engine.connect() as conn:
+            waiting = await conn.scalar(text(
+                "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'"
+            ))
+        if waiting:
+            return
+        for task in tasks:
+            if task.done():
+                result = task.result()
+                raise AssertionError(f"請求沒有卡在鎖上就結束了：{getattr(result, 'status_code', result)} {getattr(result, 'text', '')}")
+        await asyncio.sleep(0.05)
+    raise AssertionError("等不到卡鎖的連線，測不到交錯")
+
+
+@pytest.mark.asyncio
+async def test_publish_during_reject_does_not_publish_rejected_revision(
+    app, admin_client, editor_client, db_session, monkeypatch, caplog
+):
+    """退回與直接發布同一版同時進行：發布不能用退回前讀到的待審狀態把它發上去（2026-10-22 稽核）。
+
+    舊的順序：發布先讀版本（還是 pending_review）、通過檢查，到 publish_revision 才拿站台鎖，
+    等退回 commit 後照樣發布被退回的版本（200，官網上線）。同步點讓退回拿到站台鎖後先停，
+    等發布請求在資料庫裡卡在鎖上才讓退回 commit。修正後發布先拿站台鎖再鎖住版本重讀，
+    讀到 rejected 回 409。"""
+    from app.content.models import ContentItem, ContentRevision
+
+    news = "/api/website/v1/admin/content-items/campus_news"
+    q = "?campus_key=yihua"
+    drafted = await editor_client.post(
+        f"{news}/revisions{q}",
+        json={"expected_version": 0, "payload": {
+            "events": [{"id": "event-1", "date": "2026-11-01", "title": "參觀要預約嗎？", "description": "請先來電。"}],
+        }},
+    )
+    assert drafted.status_code == 201, drafted.text
+    revision_id = drafted.json()["latest_revision"]["id"]
+    submitted = await editor_client.post(f"{news}/submit{q}", json={"revision_id": revision_id})
+    assert submitted.status_code == 200, submitted.text
+
+    reviewer_has_state = asyncio.Event()
+    publisher_waiting = asyncio.Event()
+    original_state = service._get_or_create_site_state
+    calls = 0
+
+    async def state_with_barrier(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        first = calls == 1
+        state = await original_state(*args, **kwargs)
+        if first:
+            reviewer_has_state.set()
+            await asyncio.wait_for(publisher_waiting.wait(), 15)
+        return state
+
+    monkeypatch.setattr(service, "_get_or_create_site_state", state_with_barrier)
+    review = asyncio.create_task(admin_client.post(
+        f"{news}/review{q}", json={"revision_id": revision_id, "decision": "reject", "note": "電話未確認"},
+    ))
+    publish = None
+    try:
+        await asyncio.wait_for(reviewer_has_state.wait(), 5)
+        publish = asyncio.create_task(admin_client.post(f"{news}/publish{q}", json={"revision_id": revision_id}))
+        await _wait_until_blocked_on_lock(app, publish)
+        publisher_waiting.set()
+        reviewed, published = await asyncio.wait_for(asyncio.gather(review, publish), 20)
+    finally:
+        for task in (review, publish):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(*(t for t in (review, publish) if t is not None), return_exceptions=True)
+    assert "deadlock detected" not in caplog.text.lower()
+    assert reviewed.status_code == 200, reviewed.text
+    assert published.status_code == 409, published.text
+    assert published.json()["detail"]["code"] == "CONTENT_REVISION_REJECTED"
+    status_ = await db_session.scalar(select(ContentRevision.review_status).where(ContentRevision.id == revision_id))
+    assert status_ == "rejected"
+    live = await db_session.scalar(
+        select(ContentItem.current_published_revision_id).where(ContentItem.kind == "campus_news", ContentItem.campus_key == "yihua")
+    )
+    assert live is None, "被退回的版本不能上官網"

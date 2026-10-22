@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils'
 import JourneyTab from '../components/admissions/JourneyTab.vue'
 import { DEFAULT_JOURNEY_FILTER } from '../admissions/journeyFormat'
-import { cleanup, journeyData, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
+import { cleanup, deferred, journeyData, mockGet, mountWith, pathsTo, queryOf } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -129,6 +129,39 @@ describe('預約全程', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('無法讀取預約全程，請重新載入')
     expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+  })
+
+  it('不在前景時換校區：舊校區晚到的回應作廢，切回來在新校區讀完前不顯示舊校區的數字（2026-10-22 稽核）', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(FROZEN))
+    const slow = { yihua: deferred<unknown>(), minghua: deferred<unknown>() }
+    const get = mockGet({
+      '/admin/admissions/journey': (path: string) => slow[queryOf(path).get('campus_key') as keyof typeof slow].promise,
+    })
+    const { wrapper } = await mountWith(JourneyTab, { props: { campusKey: 'yihua', filter: { ...DEFAULT_JOURNEY_FILTER }, active: true } })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+
+    // 義華還沒回來就離開這個子分頁，頁首換成明華（不在前景：不打 API）。
+    await wrapper.setProps({ active: false })
+    await wrapper.setProps({ campusKey: 'minghua' })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/journey')).toHaveLength(1)
+    slow.yihua.resolve(journeyData())
+    await flushPromises()
+
+    // 切回來：開始讀明華，讀完前不能拿義華的數字配上明華的校名。
+    await wrapper.setProps({ active: true })
+    await flushPromises()
+    const paths = pathsTo(get, '/admin/admissions/journey')
+    expect(paths).toHaveLength(2)
+    expect(queryOf(paths.at(-1)!).get('campus_key')).toBe('minghua')
+    expect(wrapper.find('.journey-summary').exists()).toBe(false)
+    expect(wrapper.findAll('.stats-block')).toHaveLength(0)
+
+    slow.minghua.resolve(journeyData())
+    await flushPromises()
+    expect(wrapper.get('.journey-summary').text()).toContain('明華預定參觀的預約 13 筆')
   })
 
   it('換來源重讀並把新篩選交給父層', async () => {

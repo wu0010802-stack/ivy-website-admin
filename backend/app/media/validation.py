@@ -67,7 +67,9 @@ def sniff_and_validate(path: Path, declared_kind: MediaKind) -> tuple[str, int |
                         f"圖片像素過多（{width}x{height}），上限為 {MAX_IMAGE_PIXELS:,} 像素",
                     )
                 img.load()
-                fmt = img.format
+                # 相機與部分手機的 JPEG 帶 MPF 多圖索引（預覽圖），Pillow 會認成
+                # MPO；主圖就是一般 JPEG，去除拍攝資訊時 MPF 與附帶影像都會拿掉。
+                fmt = "JPEG" if img.format == "MPO" else img.format
                 # 素材記轉正後的寬高：衍生檔依 EXIF 轉正，官網 srcset 裡原檔的
                 # 寬度描述與 <img width/height> 也要跟瀏覽器實際顯示的方向一致。
                 width, height = oriented_size(img)

@@ -94,6 +94,20 @@ async def close_day(
             )
         ) or 0
     else:
+        if notify:
+            # 下面逐筆通知會鎖預約列；改期是先鎖預約、再鎖場次。先依 id 鎖住當天的預約
+            # 再讓 add_exception 鎖場次，兩邊同一個順序，同時改約時才不會互鎖成死結。
+            await db.execute(
+                select(VisitRequest.id)
+                .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+                .where(
+                    VisitSlot.campus_key == campus_key,
+                    VisitSlot.slot_date == day,
+                    slot_service.awaiting_visit_condition(),
+                )
+                .order_by(VisitRequest.id)
+                .with_for_update(of=VisitRequest)
+            )
         _, out.closed_slots, _ = await schedule_service.add_exception(db, campus_key, day, reason, actor_id)
     visits = await _confirmed_visits(db, campus_key, day)
 

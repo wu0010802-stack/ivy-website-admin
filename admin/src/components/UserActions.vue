@@ -15,7 +15,7 @@ async function onMore(command: MoreCommand) {
   const [message, title, confirmButtonText] =
     command === 'deactivate'
       ? [`停用後 ${who} 就無法登入後台，已建立的內容不受影響。之後可以再恢復。`, '停用這個帳號？', '停用']
-      : [`解除 ${who} 的 Google／LINE 綁定，並登出對方所有裝置？LINE 要本人重新綁定；Google 用同一個 Email 登入時會自動重新綁定。`, '解除綁定並登出？', '解除並登出']
+      : [`解除 ${who} 的 Google／LINE 綁定，並登出對方所有裝置？之後 Google 與 LINE 都要本人先用密碼登入，再到「我的帳號」重新綁定；對方沒有密碼的話，請先幫他重設密碼。`, '解除綁定並登出？', '解除並登出']
   try {
     await ElMessageBox.confirm(message, title, {
       confirmButtonText,

@@ -42,7 +42,7 @@ const date = computed(() => previewDate(route.query, today))
 const frameSrc = computed(() => previewFrameSrc(route.query))
 const mobileFrame = computed(() => viewport.value === 'mobile' && !embedded.value)
 
-const status = ref<'checking' | 'denied' | 'ready'>('checking')
+const status = ref<'checking' | 'denied' | 'failed' | 'ready'>('checking')
 const render = shallowRef<((date: string, live?: LiveOverride | null) => DraftPreviewRender) | null>(null)
 let stopLive: (() => void) | null = null
 let unmounted = false
@@ -136,7 +136,15 @@ onErrorCaptured((error) => {
 })
 
 onMounted(async () => {
-  const result = await useDraftPreview()
+  let result: Awaited<ReturnType<typeof useDraftPreview>>
+  try {
+    result = await useDraftPreview()
+  } catch {
+    // 確認身分之後讀內容失敗（逾時、session 剛好過期、斷線）：不要停在「正在確認」。
+    // 即時模式不送 ready，後台等不到會照原本的路徑退回上次儲存的草稿。
+    if (!unmounted) status.value = 'failed'
+    return
+  }
   if (unmounted) return
   const receiver: LiveReceiver | null = live
     ? createLiveReceiver({ self: window, campusKeys: result.campusKeys, onDraft: (next) => void showLiveDraft(next, receiver!) })
@@ -178,6 +186,9 @@ onBeforeUnmount(() => {
     <div v-else-if="status === 'denied'" class="preview-notice">
       <p>這個頁面只給已登入的後台管理者看草稿內容。</p>
       <p>請先登入後台管理系統，再重新整理這一頁。</p>
+    </div>
+    <div v-else-if="status === 'failed'" class="preview-notice">
+      <p>草稿內容沒有讀到，請重新整理這一頁。</p>
     </div>
     <template v-else-if="draft">
       <div v-if="!embedded" class="preview-banner" role="note">

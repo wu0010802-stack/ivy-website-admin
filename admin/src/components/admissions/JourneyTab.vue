@@ -84,8 +84,14 @@ async function load() {
 
 // 換校區：先清空再讀（不留別校的數字）；換期間或來源：保留上一次的數字、淡一點，讀完換掉。
 function refresh() {
-  if (props.active) void load()
-  else pending = true
+  if (props.active) {
+    void load()
+    return
+  }
+  // 不在前景：進行中的舊請求作廢，免得舊校區晚到的回應寫回、切回來時套上新校名。
+  requests.begin()
+  loading.value = false
+  pending = true
 }
 watch(() => props.campusKey, () => { data.value = null; refresh() })
 watch(

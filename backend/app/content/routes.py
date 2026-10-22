@@ -508,12 +508,14 @@ async def publish_content_item(
 
     item = await service.get_or_create_content_item(db, kind, campus_key)
     _require_publish(current_user, item)
-    revision = await _revision_of(db, item, payload.revision_id)
+    # 先拿站台鎖再鎖住版本重讀（與審核 review_submission 同順序）：同時有人退回這一版時，
+    # 這裡會等退回 commit 後讀到 rejected 而擋下，不會拿鎖前讀到的待審狀態把它發上去。
+    # 站台鎖也要先於內容項：先鎖內容項的話，另一個已拿到站台鎖、正在寫 release entries
+    # （外鍵要 FOR KEY SHARE 這個內容項）的發布會和這裡互等成死結。
+    await service.lock_site_state(db)
+    revision = await _revision_of(db, item, payload.revision_id, for_update=True)
     if "expected_published_revision_id" in payload.model_fields_set:
-        # 鎖住內容項再比對，兩個同時按發布的人只有一個會通過。先拿站台鎖（與
-        # publish_revision 的其他呼叫端同順序）：先鎖內容項的話，另一個已拿到站台鎖、
-        # 正在寫 release entries（外鍵要 FOR KEY SHARE 這個內容項）的發布會和這裡互等成死結。
-        await service.lock_site_state(db)
+        # 鎖住內容項再比對，兩個同時按發布的人只有一個會通過。
         await db.refresh(item, with_for_update=True)
         if item.current_published_revision_id != payload.expected_published_revision_id:
             raise HTTPException(

@@ -577,7 +577,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   const followUpTracked = computed(() => !!detail.value && isFollowUpTracked(detail.value.status))
 
   // 追蹤時間已過、案件還沒結案：頁首用警示色提醒。
-  const followUpDue = computed(() => !!detail.value && isFollowUpDue(detail.value, Date.now()))
+  const followUpDue = computed(() => !!detail.value && isFollowUpDue(detail.value, clockNow.value))
 
   // 紀錄框旁預填的下次聯絡已經過了：不動就沿用（測試規範），但提醒送出後
   // 這筆仍會留在「到期待追蹤」。已確認的案件也可能是刻意設的提醒，只提示不擋；

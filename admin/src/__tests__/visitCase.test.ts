@@ -42,6 +42,26 @@ describe('useVisitCase（2026-10-06 從案件明細抽出）', () => {
     expect(vc().statusDisplay?.label).toBe('預約正常')
   })
 
+  it('頁首「已到預定聯絡時間」跟著 30 秒時鐘變，不必重讀案件（2026-10-22 稽核）', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date('2026-10-03T03:00:00Z'))
+    const get = mockGet(caseRoutes(visitCase({ follow_up_at: '2026-10-03T03:01:00Z' })))
+    const { vc } = await mountCase('case-a')
+    const reads = get.mock.calls.length
+    expect(vc().followUpTracked).toBe(true)
+    expect(vc().followUpDue).toBe(false)
+
+    vi.advanceTimersByTime(30_000)
+    await flushPromises()
+    expect(vc().followUpDue).toBe(false)
+
+    // 第二次時鐘跳動（載入後 60 秒）已到追蹤時間、第三次（90 秒）已超過。
+    vi.advanceTimersByTime(60_000)
+    await flushPromises()
+    expect(vc().followUpDue).toBe(true)
+    expect(get.mock.calls.length).toBe(reads)
+  })
+
   it('換案件時，上一筆較晚回來的回應不會蓋掉畫面', async () => {
     const slow = deferred<unknown>()
     mockGet({

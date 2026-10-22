@@ -286,3 +286,77 @@ async def test_manually_stopped_slot_on_a_day_off_needs_attention(admin_client, 
     assert booked["receipt_id"] in {row["id"] for row in attention.json()}
     db_session.expire_all()
     assert (await db_session.get(VisitSlot, booked["slot_id"])).closed_source == "manual"
+
+
+@pytest.mark.asyncio
+async def test_closure_with_notice_and_concurrent_reschedule_do_not_deadlock(
+    app, admin_client, public_client, db_session, monkeypatch, caplog
+):
+    """停課（要寄通知）與後台改期同一筆預約同時進行不能死結（2026-10-22 稽核）。
+
+    改期先鎖預約、再鎖新舊場次；舊的停課先由 add_exception 鎖當天場次，逐筆通知時才鎖預約
+    → 互等，Postgres 中止其中一筆（500）。同步點讓改期鎖住預約後、鎖場次前先停，等停課
+    在資料庫裡卡在鎖上才繼續。修正後停課先依 id 鎖當天預約再鎖場次，只會排在改期後面。"""
+    import asyncio
+
+    from sqlalchemy import text
+
+    from app.booking import slot_service
+    from app.booking.models import VisitRequest
+
+    _enable_smtp(app)
+    booked = await book_slot(admin_client, public_client, days_ahead=3)
+    other_slot = await create_slot(admin_client, days_ahead=4)
+
+    reschedule_has_visit = asyncio.Event()
+    closure_waiting = asyncio.Event()
+    original_get = slot_service.get_slot_for_update
+    calls = 0
+
+    async def get_with_barrier(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            reschedule_has_visit.set()
+            await asyncio.wait_for(closure_waiting.wait(), 15)
+        return await original_get(*args, **kwargs)
+
+    monkeypatch.setattr(slot_service, "get_slot_for_update", get_with_barrier)
+    reschedule = asyncio.create_task(admin_client.post(
+        f"{API}/admin/visit-requests/{booked['receipt_id']}/reschedule",
+        json={"new_slot_id": other_slot, "reason": "家長來電改期"},
+    ))
+    closure = None
+    try:
+        await asyncio.wait_for(reschedule_has_visit.wait(), 5)
+        closure = asyncio.create_task(_close(admin_client, booked["slot_date"]))
+        for _ in range(200):
+            # 每次輪詢開新連線：同一條連線在交易裡看到的 pg_stat_activity 是固定的快照。
+            async with app.state.engine.connect() as conn:
+                waiting = await conn.scalar(text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+                ))
+            if waiting:
+                break
+            if closure.done():
+                result = closure.result()
+                raise AssertionError(f"停課沒有卡在鎖上就結束了：{result.status_code} {result.text}")
+            await asyncio.sleep(0.05)
+        assert waiting, "停課沒有卡在鎖上，測不到取鎖順序"
+        closure_waiting.set()
+        results = await asyncio.wait_for(asyncio.gather(reschedule, closure, return_exceptions=True), 20)
+    finally:
+        for task in (reschedule, closure):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(*(t for t in (reschedule, closure) if t is not None), return_exceptions=True)
+    assert "deadlock detected" not in caplog.text.lower()
+    assert all(not isinstance(r, BaseException) for r in results), results
+    rescheduled, closed = results
+    assert rescheduled.status_code == 200, rescheduled.text
+    assert closed.status_code == 200, closed.text
+    # 改期先完成：案件已在別天，停課那天沒有要通知的預約。
+    assert closed.json()["campuses"][0]["confirmed_requests"] == 0
+    slot_id = await db_session.scalar(select(VisitRequest.slot_id).where(VisitRequest.id == booked["receipt_id"]))
+    assert str(slot_id) == other_slot

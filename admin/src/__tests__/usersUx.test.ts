@@ -76,6 +76,25 @@ describe('解除別人的 Google／LINE 綁定並登出（2026-09-29）', () => 
     expect(clearLoginItems(wrapper)).toHaveLength(0)
   })
 
+  it('確認框說明 Google 與 LINE 都要本人到「我的帳號」重新綁定，不再說會用 Email 自動綁回（2026-10-22 稽核）', async () => {
+    const me = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
+    const other = testUser('campus_admin', { id: 'other', email: 'other@ivy.example', campus_keys: ['yihua'], line_linked: true, google_linked: true })
+    vi.spyOn(api, 'get').mockResolvedValue([me, other])
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ ...other, line_linked: false, google_linked: false })
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm' as never)
+    const wrapper = await setup()
+    const actions = wrapper.findAllComponents(UserActions).find(item => item.props('user').id === 'other')!
+    actions.findComponent({ name: 'ElDropdown' }).vm.$emit('command', 'clearLogins')
+    await flushPromises()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    const [message, title] = confirm.mock.calls[0]!
+    expect(title).toBe('解除綁定並登出？')
+    expect(String(message)).not.toContain('自動重新綁定')
+    expect(String(message)).toContain('「我的帳號」')
+    expect(String(message)).toContain('Google 與 LINE 都要本人')
+    expect(post).toHaveBeenCalledWith('/admin/users/other/clear-external-logins')
+  })
+
   it('自己的列不提供（要到「我的帳號」操作）', async () => {
     const me = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid', line_linked: true, google_linked: true })
     vi.spyOn(api, 'get').mockResolvedValue([me])
