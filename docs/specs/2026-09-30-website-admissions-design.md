@@ -413,6 +413,7 @@
 - 官網現行保存政策（`operations/retention_service.py`）會在預約結案後一段時間匿名化預約本身；招生訪視是另一個用途的紀錄，**不隨預約匿名化**。
 - 保存政策新增「招生訪視」類別與天數設定（`retention_policies.admissions_days`，Integer，可空，NULL＝不自動清理，DB CHECK 限 30–3650；報表類別 `admissions`；符合條件 `anonymized_at IS NULL AND updated_at < now − admissions_days`；更新請求沒帶這個鍵就不動它），匿名化時清除：
   - 姓名、生日、電話、聯絡人、地址、備註、電訪回應、未預繳原因說明、退出原因。
+  - 家長介紹（2026-10-22 資安稽核補上：表單請人員填「哪位家長介紹來的」，是第三人的姓名；統計不用這欄）。之前已匿名化的列在下次清理時補清，篩選選項也不列已匿名化訪視的值。
   - 歷程裡的自由文字原因。
 
   保留統計欄位與 `anonymized_at`。**預設不自動執行**，天數由業主裁定。

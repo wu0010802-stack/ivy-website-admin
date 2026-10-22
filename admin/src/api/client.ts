@@ -129,7 +129,7 @@ async function upload<T>(path: string, method: string, formData: FormData): Prom
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, options: { headers?: Record<string, string> } = {}) => request<T>(path, { headers: options.headers }),
   post: <T>(path: string, body?: unknown, options: { headers?: Record<string, string> } = {}) =>
     request<T>(path, { method: 'POST', body, mutating: true, headers: options.headers }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body, mutating: true }),

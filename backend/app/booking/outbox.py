@@ -35,8 +35,19 @@ PARENT_VISIT_DAY_CLOSED = "parent_visit_day_closed"
 # 參觀前 24 小時提醒家長（2026-10-15 規格 docs/specs/2026-10-15-parent-visit-reminder-design.md）。
 # 只由 notifications/reminders.enqueue_due_parent_reminders 排（帶去重鍵與場次），不走 enqueue_parent_email。
 PARENT_VISIT_REMINDER = "parent_visit_reminder"
+# 家長自己把 Email 改掉時，寄到「舊」信箱的變更通知（2026-10-22 資安稽核）：外流的修改連結
+# 能把 Email 改成別人的，原家長要知道。不含連結與個資，只由 enqueue_email_changed_notice 排。
+# 這是唯一在 payload 放 Email 的家長信：寄出或略過就從 payload 拿掉，案件匿名化時也清。
+PARENT_EMAIL_CHANGED = "parent_email_changed"
 PARENT_KINDS = frozenset(
-    {PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, PARENT_VISIT_CANCELLED, PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER}
+    {
+        PARENT_VISIT_BOOKED,
+        PARENT_VISIT_CHANGED,
+        PARENT_VISIT_CANCELLED,
+        PARENT_VISIT_DAY_CLOSED,
+        PARENT_VISIT_REMINDER,
+        PARENT_EMAIL_CHANGED,
+    }
 )
 
 
@@ -46,7 +57,7 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
     已被認領（leased）的不算：worker 可能已經讀完案件、組好內容，這次的變更要另外寄。"""
-    if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER):
+    if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER, PARENT_EMAIL_CHANGED):
         raise ValueError(kind)
     if not visit_request.email:
         return
@@ -65,6 +76,22 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
     enqueue_outbox(
         db, visit_request.id, kind, {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)}
     )
+
+
+def enqueue_email_changed_notice(db: AsyncSession, visit_request, old_email: str) -> None:
+    """家長自己改了 Email：通知舊信箱（呼叫端已確認舊值有值、和新值不同）。舊信箱只能在排入
+    當下記下來，寄件當下案件上已經是新的。"""
+    enqueue_outbox(
+        db,
+        visit_request.id,
+        PARENT_EMAIL_CHANGED,
+        {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id), "old_email": old_email},
+    )
+
+
+def without_old_email(payload: dict) -> dict:
+    """變更通知寄出、略過或案件匿名化後，payload 不再留舊信箱。"""
+    return {key: value for key, value in payload.items() if key != "old_email"}
 
 
 def day_closed_dedupe_key(visit_request_id: uuid.UUID, day: date) -> str:

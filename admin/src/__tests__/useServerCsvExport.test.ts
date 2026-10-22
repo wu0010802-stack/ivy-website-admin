@@ -20,7 +20,7 @@ describe('useServerCsvExport', () => {
     const { exporting, exportCsv } = useServerCsvExport(() => ({ path: `/x/export?campus_key=${campus}`, filename: `名單-${campus}.csv` }))
     campus = 'minghua'
     await exportCsv()
-    expect(downloadServerCsv).toHaveBeenCalledWith('/x/export?campus_key=minghua', '名單-minghua.csv')
+    expect(downloadServerCsv).toHaveBeenCalledWith('/x/export?campus_key=minghua', '名單-minghua.csv', undefined)
     expect(exporting.value).toBe(false)
     expect(notifyError).not.toHaveBeenCalled()
   })

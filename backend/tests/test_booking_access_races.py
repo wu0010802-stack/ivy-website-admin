@@ -193,7 +193,10 @@ async def test_parent_correcting_the_email_cuts_off_the_old_recipient_but_not_th
     to_right = [mail for mail in recording_mail_adapter.sent if mail["to"] == "right@example.com"]
     assert to_right and all(f"{ORIGIN}{replacement}" in mail["body"] for mail in to_right)
     assert all(old_token not in mail["body"] for mail in to_right)
-    assert not [mail for mail in recording_mail_adapter.sent if mail["to"] == "typo@example.com"]
+    # 舊信箱只收到一封不含連結的變更通知（2026-10-22 資安稽核，見 test_security_audit_20261022.py）。
+    to_typo = [mail for mail in recording_mail_adapter.sent if mail["to"] == "typo@example.com"]
+    assert len(to_typo) == 1 and "Email 已變更" in to_typo[0]["subject"]
+    assert "token=" not in to_typo[0]["body"] and "right@example.com" not in to_typo[0]["body"]
 
 
 @pytest.mark.asyncio

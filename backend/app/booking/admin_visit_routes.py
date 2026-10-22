@@ -62,6 +62,7 @@ from app.booking.schemas import (
 )
 from app.campuses.models import Campus
 from app.booking.slot_routes import _slot_audit
+from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_fields
 
 
 router = APIRouter()
@@ -141,7 +142,10 @@ class VisitRequestFilters:
             pattern="^(hide|only)$",
             description="排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15）",
         ),
+        search: str | None = Header(default=None, alias=SEARCH_HEADER, description=SEARCH_HEADER_DESCRIPTION),
     ) -> None:
+        # 後台把搜尋字放 header（見 common/search_header.py）；查詢參數 q 照收。
+        q = search_fields(search, {"q": 100}).get("q", q)
         self.campus_key = campus_key
         self.status = status_filter
         self.q = q.strip() if q and q.strip() else None
@@ -230,7 +234,8 @@ async def list_visit_requests(
         pattern="^(newest|oldest|visit_asc|visit_desc)$",
         description="newest／oldest 依送出時間；visit_asc／visit_desc 依參觀日期（沒有日期的排最後）",
     ),
-    page: int = Query(default=1, ge=1),
+    # 上限只為了不讓 offset 超出 PostgreSQL 的 bigint（同素材列表）。
+    page: int = Query(default=1, ge=1, le=100_000),
     page_size: int = Query(default=20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),

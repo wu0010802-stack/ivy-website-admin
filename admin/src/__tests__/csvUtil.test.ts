@@ -122,7 +122,7 @@ it('downloadServerCsv 以 API 讀文字後存檔；API 錯誤原樣丟出，不�
   const { clicks } = stubDownload()
   const get = vi.spyOn(api, 'get').mockResolvedValueOnce('校區,月份\r\n' as never)
   await downloadServerCsv('/admin/admissions/records/export?campus_key=yihua', '招生訪視明細.csv')
-  expect(get).toHaveBeenCalledWith('/admin/admissions/records/export?campus_key=yihua')
+  expect(get).toHaveBeenCalledWith('/admin/admissions/records/export?campus_key=yihua', { headers: undefined })
   expect(clicks.map((c) => c.download)).toEqual(['招生訪視明細.csv'])
 
   get.mockRejectedValueOnce(new ApiError(403, { code: 'FORBIDDEN', message: '沒有權限' }))

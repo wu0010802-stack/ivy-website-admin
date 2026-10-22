@@ -4,6 +4,7 @@
 // 就是「全部」，舊的 ?status= 照狀態對到頁籤。寫回網址時只有「接下來＋沒有其他條件」省略 group。
 import type { LocationQuery } from 'vue-router'
 import { VISIT_SOURCE_LABELS, VISIT_VIEWS, VISIT_VIEW_LABELS, legacyStatusView, type VisitView } from './labels'
+import { searchHeaders } from './searchHeader'
 
 export type ListTab = VisitView | 'all'
 export const LIST_TABS: readonly ListTab[] = [...VISIT_VIEWS, 'all']
@@ -66,10 +67,17 @@ export function parseListQuery(query: LocationQuery, scope: { campusKeys: readon
   }
 }
 
+/** 和 listApiParams 一起送：搜尋字放 header。 */
+export function listApiHeaders(s: Pick<ListState, 'q'>): Record<string, string> {
+  return searchHeaders({ q: searchTerm(s.q) })
+}
+
+/** 寫進網址的條件。搜尋字不寫（記在瀏覽歷程的 state，見 api/searchHeader.ts）；舊網址帶的 ?q= 照樣讀得回來。
+ *  有搜尋時只寫不含內容的 search=1：網址才不會和側欄「參觀案件」一樣，點側欄是真的換頁、清掉搜尋。 */
 export function listStateQuery(s: ListState): Record<string, string> {
   const query: Record<string, string> = {}
+  if (s.q.trim()) query.search = '1'
   if (s.attendanceOnly) query.status = 'confirmed'
-  if (s.q.trim()) query.q = s.q.trim()
   if (s.campus) query.campus = s.campus
   if (s.open) query.open = '1'
   if (s.source) query.source = s.source
@@ -101,7 +109,8 @@ export function searchTerm(raw: string): string {
   return digits.length >= 4 ? digits : value
 }
 
-/** 清單、匯出與件數送同一組篩選：畫面上篩好什麼，匯出的就是那一批。counts：頁籤上的數字，不帶頁籤與狀態。 */
+/** 清單、匯出與件數送同一組篩選：畫面上篩好什麼，匯出的就是那一批。counts：頁籤上的數字，不帶頁籤與狀態。
+ * 搜尋字不在這裡，走 listApiHeaders（不進網址，2026-10-22 資安稽核）。 */
 export function listApiParams(s: ListState, options: { counts?: boolean } = {}): URLSearchParams {
   const params = new URLSearchParams()
   if (s.campus) params.set('campus_key', s.campus)
@@ -109,8 +118,6 @@ export function listApiParams(s: ListState, options: { counts?: boolean } = {}):
     if (s.tab !== 'all') params.set('view', s.tab)
     if (s.attendanceOnly) params.set('status', 'confirmed')
   }
-  const term = searchTerm(s.q)
-  if (term) params.set('q', term)
   if (s.due) params.set('follow_up_due', 'true')
   if (s.open) params.set('open', 'true')
   if (s.source) params.set('source', s.source)

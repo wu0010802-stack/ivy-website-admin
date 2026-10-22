@@ -24,7 +24,7 @@ DRY_RUN = f"{API}/admin/retention/dry-run"
 RUN = f"{API}/admin/retention/run"
 # 統計會用到、匿名化後必須原封不動的欄位。
 STAT_COLUMNS = (
-    "campus_key", "visit_request_id", "month", "seq_no", "visit_date", "grade", "source", "referrer",
+    "campus_key", "visit_request_id", "month", "seq_no", "visit_date", "grade", "source",
     "has_deposit", "enrolled", "enrolled_on", "transfer_term", "no_deposit_reason", "provisional_grade",
     "target_school_year", "target_semester", "withdrawn_at", "withdrawn_from", "withdraw_reason_category",
     "created_at", "updated_at",
@@ -33,6 +33,8 @@ STAT_COLUMNS = (
 CLEARED = (
     "birthday", "phone", "contact_name", "address", "notes", "parent_response", "no_deposit_reason_detail", "withdraw_reason",
     "english_name", "father_occupation", "mother_occupation",
+    # 家長介紹填的是介紹人（例如「王小美媽媽」），2026-10-22 資安稽核改成清除。
+    "referrer",
 )
 
 
@@ -212,3 +214,33 @@ async def test_eligibility_uses_updated_at_cutoff(admin_client, db_session):
     await db_session.commit()
     assert await retention.eligible_count(db_session, 30, now=now) == 0
     assert (await _reload(db_session, fresh["id"])).child_name == "還沒到期"
+
+
+
+@pytest.mark.asyncio
+async def test_referrer_left_on_earlier_anonymized_rows_is_hidden_and_cleared_by_migration(app, admin_client, db_session):
+    """2026-10-22 以前匿名化的訪視還留著家長介紹：篩選選項不列；migration c3f1a9d27b54 一次補清，
+    不看保存政策有沒有設天數。來源是保留的統計欄位，選項照列。"""
+    import importlib.util
+    from pathlib import Path
+
+    old = await create_record(admin_client, referrer="陳小美媽媽", source="舊傳單")
+    live = await create_record(admin_client, referrer="林老師")
+    await _set(db_session, old["id"], anonymized_at=_days_ago(30))
+    version_before = (await _reload(db_session, old["id"])).version
+
+    options = (await admin_client.get(f"{API}/admin/admissions/options", params={"campus_key": "yihua"})).json()
+    assert options["referrers"] == ["林老師"]
+    assert "舊傳單" in options["sources"]
+
+    path = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "c3f1a9d27b54_clear_anonymized_admissions_referrer.py"
+    spec = importlib.util.spec_from_file_location("clear_anonymized_referrer", path)
+    migration = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(migration)
+    async with app.state.engine.begin() as conn:
+        assert await conn.run_sync(migration._clear_referrers) == 1
+    after = await _reload(db_session, old["id"])
+    assert after.referrer is None and after.version == version_before + 1
+    assert after.source == "舊傳單"
+    assert (await _reload(db_session, live["id"])).referrer == "林老師"

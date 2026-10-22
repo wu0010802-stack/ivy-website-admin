@@ -28,7 +28,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import retention as admissions_retention
 from app.booking import status_groups
-from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
+from app.booking.models import OutboxMessage, VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
+from app.booking.outbox import PARENT_EMAIL_CHANGED, without_old_email
 from app.common.timezones import now_utc
 from app.operations.models import DEFAULT_RETENTION_DAYS, RetentionPolicy, RetentionRun, RetentionRunTrigger
 
@@ -199,9 +200,23 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> bool:
         .values(note=ANONYMIZED_NOTE)
     )
     await _clear_free_text_reasons(db, [visit_request.id])
+    await _clear_old_email_notices(db, visit_request.id)
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
     return True
+
+
+async def _clear_old_email_notices(db: AsyncSession, visit_request_id: uuid.UUID) -> None:
+    """Email 變更通知的 payload 留著舊信箱（寄出或略過就拿掉，但寄送失敗用完重試的會一直留著）；
+    案件匿名化時一起清（2026-10-22 資安稽核）。payload 是 JSON 不是 JSONB，在 Python 端改。"""
+    rows = await db.execute(
+        select(OutboxMessage).where(
+            OutboxMessage.visit_request_id == visit_request_id, OutboxMessage.kind == PARENT_EMAIL_CHANGED
+        )
+    )
+    for message in rows.scalars():
+        if "old_email" in (message.payload or {}):
+            message.payload = without_old_email(message.payload)
 
 
 async def _clear_free_text_reasons(db: AsyncSession, visit_request_ids) -> None:

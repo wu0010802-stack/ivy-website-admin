@@ -2,6 +2,7 @@
 // 統計：getStats（C3）、getNoDepositRecords（C3b）、getCompare（C4）、區域分析 getArea／getAreaKindergartens／getAreaBoundaries（2026-10-08）、招生機會 getAreaOpportunity（2026-10-13）、里的變化 getAreaTrends（2026-10-14）、托嬰 getAreaBabycare 與園所變化 getAreaChanges（2026-10-14）、預約全程 getJourney（2026-10-15）、在籍學生 getAreaEnrolled（2026-10-15）、附近同業收費 getAreaPeerFees（2026-10-15）、附近預售建案 getAreaPresale（2026-10-20）、附近幼兒園的裁罰與評鑑明細 getAreaKindergartenRecords（2026-10-20）、招生潛力與市佔率 getPotential（2026-10-20）、資料匯入 getImportStatus 等（2026-10-21）。「已到場／未到場」沿用預約既有的
 // /admin/visit-requests/{id}/complete、/no-show，不在這裡另包。
 import { api } from './client'
+import { searchHeaders } from './searchHeader'
 import type {
   AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, EnrolledApplyResult, EnrolledClearResult, EnrolledImportPayload, EnrolledPreview, EnrolledPreviewRequest, EnrollmentHistoryPayload,
@@ -49,13 +50,21 @@ function toQuery(params: Record<string, QueryValue>): string {
   return search.toString()
 }
 
+// 搜尋字、家長介紹與來源備註可能是人名或電話：放 X-Ivy-Search header，不進網址（2026-10-22 資安稽核）。
+function splitRecordFilters(params: RecordFilters & { page?: number; page_size?: number }): { query: string; headers: Record<string, string> } {
+  const { q, referrer, source, ...rest } = params
+  return { query: toQuery(rest), headers: searchHeaders({ q, referrer, source }) }
+}
+
 export function listRecords(params: RecordFilters & { page: number; page_size: number }): Promise<RecruitmentVisit[]> {
-  return api.get<RecruitmentVisit[]>(`/admin/admissions/records?${toQuery(params)}`)
+  const { query, headers } = splitRecordFilters(params)
+  return api.get<RecruitmentVisit[]>(`/admin/admissions/records?${query}`, { headers })
 }
 
 /** 訪視明細 CSV（2026-10-03）：條件同列表（含追蹤、負責人）、不分頁；要「匯出個資」授權。 */
-export function recordsExportPath(params: RecordFilters): string {
-  return `/admin/admissions/records/export?${toQuery(params)}`
+export function recordsExport(params: RecordFilters): { path: string; headers: Record<string, string> } {
+  const { query, headers } = splitRecordFilters(params)
+  return { path: `/admin/admissions/records/export?${query}`, headers }
 }
 
 /** idempotencyKey：同一張表單重送帶同一把，後端回原本那筆、不多建（2026-10-20 稽核）。 */

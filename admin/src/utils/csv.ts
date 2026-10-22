@@ -73,7 +73,7 @@ export function downloadCsv(filename: string, csv: string): void {
 
 /** 後端產生的 CSV（含個資的名單）：用 API 讀成文字再存檔，403／422 才能寫成中文提示，
  *  不會像 window.open 那樣在新分頁露出 JSON。錯誤原樣丟給呼叫端。 */
-export async function downloadServerCsv(path: string, filename: string): Promise<void> {
-  const text = await api.get<string>(path)
+export async function downloadServerCsv(path: string, filename: string, headers?: Record<string, string>): Promise<void> {
+  const text = await api.get<string>(path, { headers })
   downloadCsv(filename, typeof text === 'string' ? text : '')
 }

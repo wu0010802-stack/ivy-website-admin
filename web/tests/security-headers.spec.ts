@@ -27,6 +27,20 @@ describe('資安標頭', () => {
     expect(ADMIN_CSP).toContain("frame-ancestors 'self'")
   })
 
+  it('百分比編碼的後台路徑（/%61dmin/）照樣套後台 CSP：nitro 靜態處理器會先解碼再找檔', () => {
+    for (const path of ['/%61dmin/', '/%61dmin/index.html', '/a%64min', '/%61dmin/assets/index-abc.js?v=1']) {
+      const headers = securityHeadersFor(path, 'production')
+      expect(headers['Content-Security-Policy'], path).toBe(ADMIN_CSP)
+      expect(headers['X-Robots-Tag'], path).toBe('noindex, nofollow')
+    }
+    expect(securityHeadersFor('/%61dmin/', 'production')['Cache-Control']).toBe('private, no-store')
+    expect(securityHeadersFor('/%61dmin/index.html', 'production')['Cache-Control']).toBe('private, no-store')
+    // 不合法的編碼不會讓標頭計算丟例外。
+    expect(securityHeadersFor('/%E0%A4%A', 'production')['Content-Security-Policy']).not.toBe(ADMIN_CSP)
+    // %2F 不解（同 decodePath），/admin%2F 不是後台目錄。
+    expect(securityHeadersFor('/x%2F..%2Fadmin', 'production')['Content-Security-Policy']).not.toBe(ADMIN_CSP)
+  })
+
   it('後台可以用 iframe 嵌同源的 /preview（內容編輯右側預覽），/preview 只給同源嵌', () => {
     expect(ADMIN_CSP).toContain("frame-src 'self'")
     const preview = securityHeadersFor('/preview?embed=1&live=1', 'production')

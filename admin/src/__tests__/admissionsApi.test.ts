@@ -93,7 +93,20 @@ describe('招生 API 路徑（總覽 API 表）', () => {
     const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
     await admissions.listRecords({ campus_key: 'yihua', district: '三民區', village: '本揚里', geo: null, page: 1, page_size: 50 })
     expect(String(get.mock.calls[0]![0])).toBe('/admin/admissions/records?campus_key=yihua&district=%E4%B8%89%E6%B0%91%E5%8D%80&village=%E6%9C%AC%E6%8F%9A%E9%87%8C&page=1&page_size=50')
-    expect(admissions.recordsExportPath({ campus_key: 'yihua', geo: 'no_village' })).toBe('/admin/admissions/records/export?campus_key=yihua&geo=no_village')
+    expect(admissions.recordsExport({ campus_key: 'yihua', geo: 'no_village' })).toEqual({ path: '/admin/admissions/records/export?campus_key=yihua&geo=no_village', headers: {} })
+  })
+
+  it('搜尋字、家長介紹與來源備註放 X-Ivy-Search header，不進網址（2026-10-22 資安稽核）', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    const filters = { campus_key: 'yihua', q: '0912345678', referrer: '王小美媽媽', source: '哥哥在本園', grade: '小班', page: 1, page_size: 50 }
+    await admissions.listRecords(filters)
+    const [path, options] = get.mock.calls[0] as [string, { headers: Record<string, string> }]
+    expect(path).toBe('/admin/admissions/records?campus_key=yihua&grade=%E5%B0%8F%E7%8F%AD&page=1&page_size=50')
+    expect(path).not.toMatch(/0912345678|referrer|source|q=/)
+    expect(JSON.parse(decodeURIComponent(options.headers['X-Ivy-Search']!))).toEqual({ q: '0912345678', referrer: '王小美媽媽', source: '哥哥在本園' })
+    const exported = admissions.recordsExport(filters)
+    expect(exported.path).not.toMatch(/0912345678|referrer/)
+    expect(exported.headers).toEqual(options.headers)
   })
 })
 

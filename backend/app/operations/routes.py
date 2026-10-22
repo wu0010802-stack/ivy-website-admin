@@ -526,6 +526,11 @@ class AuditActorOut(BaseModel):
     last_at: datetime
 
 
+def _hidden_audit_actions(user: User) -> tuple[str, ...]:
+    """分校帳號用 booking.read 看自己校的紀錄時，排除只有招生統計權限才做得到的動作。"""
+    return () if has_capability(user, "admissions.stats") else audit_service.STATS_ONLY_ACTIONS
+
+
 @router.get("/admin/audit-log/actors", response_model=list[AuditActorOut])
 async def get_audit_log_actors(
     campus_key: str | None = None,
@@ -537,7 +542,7 @@ async def get_audit_log_actors(
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
-    rows = await audit_service.list_actors(db, campus_key)
+    rows = await audit_service.list_actors(db, campus_key, hide_actions=_hidden_audit_actions(current_user))
     return [
         AuditActorOut(actor_user_id=row.user_id, email=row.email, display_name=row.display_name, last_at=row.last_at)
         for row in rows
@@ -592,6 +597,7 @@ async def get_audit_log(
         actor_filter=actor_filter,
         terms=terms,
         search_ip=has_capability(current_user, "audit.read_all"),
+        hide_actions=_hidden_audit_actions(current_user),
     )
     show_ip = has_capability(current_user, "audit.read_all")
     return [

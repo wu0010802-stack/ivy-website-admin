@@ -153,7 +153,8 @@ async def get_admissions_options(
 @router.get("/admin/admissions/records", response_model=list[RecruitmentVisitOut])
 async def list_recruitment_visits(
     filters: records.RecruitmentVisitFilters = Depends(),
-    page: int = Query(default=1, ge=1),
+    # 上限只為了不讓 offset 超出 PostgreSQL 的 bigint（同素材列表）。
+    page: int = Query(default=1, ge=1, le=100_000),
     page_size: int = Query(default=50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -653,7 +654,8 @@ async def get_follow_ups(
     campus_key: str,
     scope: FollowUpKind = Query(default="due", description="due 已到期、upcoming 7 天內、unscheduled 未排定"),
     owner: str | None = Query(default=None, pattern=constants.OWNER_FILTER_PATTERN, description="me、none 或帳號 id"),
-    page: int = Query(default=1, ge=1),
+    # 上限只為了不讓 offset 超出 PostgreSQL 的 bigint（同素材列表）。
+    page: int = Query(default=1, ge=1, le=100_000),
     page_size: int = Query(default=50, ge=1, le=follow_up.FOLLOW_UP_LIST_PAGE_SIZE_MAX),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
@@ -1155,7 +1157,8 @@ async def get_admissions_no_deposit_records(
     priority: Literal["high", "medium", "low"] | None = Query(default=None),
     overdue_days: int | None = Query(default=None, ge=1, le=365),
     cold_only: bool | None = Query(default=None),
-    page: int = Query(default=1, ge=1),
+    # 上限只為了不讓 offset 超出 PostgreSQL 的 bigint（同素材列表）。
+    page: int = Query(default=1, ge=1, le=100_000),
     page_size: int = Query(default=100, ge=1, le=500),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),

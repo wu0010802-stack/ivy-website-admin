@@ -362,6 +362,8 @@ export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
   parent_visit_day_closed: '家長停課通知（請改約）',
   // 參觀前 24 小時提醒家長（2026-10-15）。
   parent_visit_reminder: '參觀提醒（家長）',
+  // 家長自己改 Email 時寄到舊信箱（2026-10-22 資安稽核）。
+  parent_email_changed: '家長 Email 變更通知（寄舊信箱）',
   // 家長改期申請功能已於 2026-10-08 刪除，保留給舊的站內通知列與寄送失敗重寄。
   visit_reschedule_requested: '家長申請改期（待園方核准）',
   // 定期工作產生的提醒（backend/app/notifications/reminders.py），門檻數字與後端常數一致。

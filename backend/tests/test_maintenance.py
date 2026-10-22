@@ -262,7 +262,9 @@ def test_interval_rejects_values_that_would_hammer_or_stall(value):
         _settings(background_jobs_interval_seconds=value)
 
 
-async def test_lifespan_starts_loop_and_health_reports_it(app):
+async def test_lifespan_starts_loop_but_public_health_does_not_report_it(app):
+    """背景工作的狀態只在總管理者的系統狀態頁看（test_system_status.py）；公開的 health
+    不帶失敗步驟與時間，外部不能輪詢得知哪個定期工作正在失敗（2026-10-22 資安稽核）。"""
     settings = app.state.settings.model_copy(update={"background_jobs_interval_seconds": 10})
     loop_app = create_app(settings)
     try:
@@ -270,25 +272,10 @@ async def test_lifespan_starts_loop_and_health_reports_it(app):
             assert loop_app.state.maintenance is not None
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=loop_app), base_url="http://test") as c:
                 body = (await c.get("/api/website/v1/health")).json()
-            assert body["background_jobs"] == {
-                "enabled": True,
-                "last_completed_at": None,
-                "last_clean_at": None,
-                "last_failed_steps": [],
-            }
+            assert set(body) == {"status", "environment", "fixture_enabled"}
         assert loop_app.state.maintenance._task.done()
     finally:
         await loop_app.state.engine.dispose()
-
-
-async def test_health_reports_disabled_when_loop_is_off(public_client):
-    body = (await public_client.get("/api/website/v1/health")).json()
-    assert body["background_jobs"] == {
-        "enabled": False,
-        "last_completed_at": None,
-        "last_clean_at": None,
-        "last_failed_steps": [],
-    }
 
 
 async def test_stale_backlog_writes_inbox_but_does_not_email(

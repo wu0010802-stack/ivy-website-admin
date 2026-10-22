@@ -80,8 +80,11 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
   })
 
   it('匯出送出畫面上全部的篩選（不含分頁），按鈕旁講清楚範圍', async () => {
-    vi.spyOn(api, 'get').mockResolvedValue([] as never)
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
+    URL.createObjectURL = vi.fn(() => 'blob:test') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn()
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const exportCalls = () => get.mock.calls.filter(call => String(call[0]).startsWith('/admin/visit-requests/export?'))
     const { wrapper } = await mountAt(VisitRequestsView, '/visit-requests?group=upcoming&attention=1')
     // 頁籤不算篩選，但匯出送 view=，說明要把頁籤寫進範圍（2026-10-06 預檢 P6）。
     expect(wrapper.get('#export-scope').text()).toContain('「接下來」頁籤')
@@ -90,12 +93,14 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('王')
     await flushPromises()
     await wrapper.findAll('button').find(button => button.text() === '匯出 CSV')!.trigger('click')
-    const url = String(open.mock.calls[0]![0])
-    expect(url.startsWith('/api/website/v1/admin/visit-requests/export?')).toBe(true)
-    const query = new URLSearchParams(url.split('?')[1])
+    await flushPromises()
+    // 用 API 下載（不再 window.open 匯出網址）：搜尋字放 header，不進網址（2026-10-22 資安稽核）。
+    const [path, options] = exportCalls()[0] as [string, { headers: Record<string, string> }]
+    const query = new URLSearchParams(path.split('?')[1])
     expect(Object.fromEntries(query)).toEqual({
-      view: 'upcoming', q: '王', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
+      view: 'upcoming', created_from: '2026-09-01', created_to: '2026-09-07', needs_attention: 'true',
     })
+    expect(JSON.parse(decodeURIComponent(options.headers['X-Ivy-Search']!))).toEqual({ q: '王' })
 
     await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
     await flushPromises()
@@ -106,7 +111,8 @@ describe('案件清單：待人工處理、送出日期與依篩選匯出', () =
     await flushPromises()
     expect(wrapper.get('#export-scope').text()).toContain('可見校區的全部案件')
     await wrapper.findAll('button').find(button => button.text() === '匯出 CSV')!.trigger('click')
-    expect(new URLSearchParams(String(open.mock.calls.at(-1)![0]).split('?')[1]).has('view')).toBe(false)
+    await flushPromises()
+    expect(new URLSearchParams(String(exportCalls().at(-1)![0]).split('?')[1]).has('view')).toBe(false)
   })
 })
 

@@ -81,7 +81,31 @@ def test_scripts_pass_tls_through_env_and_never_put_the_password_in_argv():
     restore_command, restore_env = _load("restore_website")._psql_command(url)
 
     assert dump_command == ["pg_dump", "--no-owner", "--no-privileges", "-h", "db.example.com", "-U", "owner", "website"]
-    assert restore_command == ["psql", "--quiet", "-h", "db.example.com", "-U", "owner", "-d", "website"]
+    assert restore_command == [
+        "psql", "--quiet", "-v", "ON_ERROR_STOP=1", "--single-transaction",
+        "-h", "db.example.com", "-U", "owner", "-d", "website",
+    ]
     for env in (dump_env, restore_env):
         assert env["PGSSLMODE"] == "verify-full" and env["PGSSLROOTCERT"] == "/ca.pem" and env["PGPASSWORD"] == "s3cret"
     assert "s3cret" not in " ".join(dump_command + restore_command)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Settings 的「DSN 含 test」檢查會放行這幾種：test 只出現在帳號、密碼、主機或參數。
+        "postgresql+asyncpg://website_test:pw@db.example.com/railway",
+        "postgresql+asyncpg://owner:latest1@db.example.com/railway",
+        "postgresql+asyncpg://owner@test-db.example.com/website",
+        "postgresql+asyncpg://owner@db.example.com/website?application_name=test",
+        # psql -d 會把含 = 的值展開成連線字串，實際連到 ivy_website_dev。
+        "postgresql+asyncpg://localhost/dbname%3Divy_website_dev%20application_name%3Dtest",
+        "postgresql+asyncpg://localhost/postgresql%3A%2F%2Fprod%2Frailway%3Ftest",
+    ],
+)
+def test_restore_refuses_when_only_the_dsn_mentions_test(url):
+    assert _load("restore_website")._refusal(url) is not None
+
+
+def test_restore_accepts_database_named_as_test():
+    assert _load("restore_website")._refusal("postgresql+asyncpg://localhost/ivy_website_test") is None

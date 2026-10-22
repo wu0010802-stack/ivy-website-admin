@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { adminApi } from './api'
 import { gotoAdmin } from './pages'
-import { API_ORIGIN, storageStatePath } from './stack-env'
+import { storageStatePath } from './stack-env'
 
 // 影片背景轉檔（start-api.sh 設 WEBSITE_MEDIA_VIDEO_PROCESSING=background，跟正式站同一條
 // 路徑）：上傳請求只排工作就回應，卡片先顯示處理中；API 程序內的背景迴圈（app/workers/
@@ -56,13 +56,14 @@ test('素材庫上傳影片：先顯示處理中，背景轉好後自己變成�
   const { items: assets } = await api.get<{ items: { original_filename: string; status: string; variants: { kind: string }[] }[] }>(
     `/admin/media?q=${encodeURIComponent(FILE_NAME)}`,
   )
+  // 系統狀態頁回報迴圈有開、最近一次轉好的時間（公開 health 不再帶，2026-10-22 資安稽核）。
+  const status = await api.get<{ background: { key: string; detail: Record<string, unknown> }[] }>('/admin/system-status')
   await api.dispose()
   const asset = assets.find((item) => item.original_filename === FILE_NAME)
   expect(asset?.status).toBe('ready')
   expect(asset?.variants.map((v) => v.kind).sort()).toEqual(['poster', 'video_desktop', 'video_mobile'])
 
-  // health 回報迴圈有開、最近一次轉好的時間。
-  const health = await (await page.request.get(`${API_ORIGIN}/api/website/v1/health`)).json()
-  expect(health.media_jobs.enabled).toBe(true)
-  expect(health.media_jobs.last_processed_at).toBeTruthy()
+  const mediaJobs = status.background.find((item) => item.key === 'media_jobs')
+  expect(mediaJobs?.detail.loop_running).toBe(true)
+  expect(mediaJobs?.detail.last_processed_at).toBeTruthy()
 })

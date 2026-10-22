@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LocationQuery } from 'vue-router'
-import { listApiOrder, listApiParams, listStateQuery, parseListQuery, searchTerm, tabFromQuery, type ListState } from '../api/visitListQuery'
+import { listApiOrder, listApiHeaders, listApiParams, listStateQuery, parseListQuery, searchTerm, tabFromQuery, type ListState } from '../api/visitListQuery'
 
 const scope = { campusKeys: ['yihua', 'minghua'], multiCampus: true }
 const query = (raw: string): LocationQuery => Object.fromEntries(new URLSearchParams(raw))
@@ -57,16 +57,21 @@ describe('舊連結落在哪個頁籤（2026-10-06 方向 B）', () => {
 describe('寫回網址', () => {
   it('只有「接下來＋沒有其他條件」省略 group', () => {
     expect(listStateQuery(state())).toEqual({})
-    expect(listStateQuery(state({ q: '陳' }))).toEqual({ group: 'upcoming', q: '陳' })
+    // 搜尋字不寫進網址（記在瀏覽歷程的 state，2026-10-22 資安稽核），只寫不含內容的 search=1。
+    expect(listStateQuery(state({ q: '陳' }))).toEqual({ group: 'upcoming', search: '1' })
     expect(listStateQuery(state({ tab: 'all', due: true }))).toEqual({ group: 'all', due: '1' })
     expect(listStateQuery(state({ tab: 'past', attendanceOnly: true, campus: 'yihua' }))).toEqual({ group: 'past', status: 'confirmed', campus: 'yihua' })
     expect(listStateQuery(state({ order: 'oldest', page: 2 }))).toEqual({ group: 'upcoming', order: 'oldest', page: '2' })
   })
 
   it('讀回自己寫的網址得到同一個狀態', () => {
-    for (const s of [state(), state({ q: '陳' }), state({ tab: 'all', due: true }), state({ tab: 'cancelled', page: 2 }), state({ tab: 'past', attendanceOnly: true })]) {
+    for (const s of [state(), state({ tab: 'all', due: true }), state({ tab: 'cancelled', page: 2 }), state({ tab: 'past', attendanceOnly: true })]) {
       expect(parseListQuery(listStateQuery(s), scope)).toEqual(s)
     }
+  })
+
+  it('舊網址帶的 ?q= 照樣讀得回來（側欄、書籤）', () => {
+    expect(parseListQuery({ q: '陳' }, scope).q).toBe('陳')
   })
 })
 
@@ -77,6 +82,13 @@ describe('API 參數', () => {
     const attendance = listApiParams(state({ tab: 'past', attendanceOnly: true, campus: 'yihua', due: true }))
     expect(attendance.toString()).toBe('campus_key=yihua&view=past&status=confirmed&follow_up_due=true')
     expect(listApiParams(state({ tab: 'past', attendanceOnly: true }), { counts: true }).toString()).toBe('')
+  })
+
+  it('搜尋字不進 API 網址，放 X-Ivy-Search header（電話照樣先整理）', () => {
+    const s = state({ q: '0912-345-678' })
+    expect(listApiParams(s).has('q')).toBe(false)
+    expect(JSON.parse(decodeURIComponent(listApiHeaders(s)['X-Ivy-Search']!))).toEqual({ q: '0912345678' })
+    expect(listApiHeaders(state())).toEqual({})
   })
 
   it('排序：接下來由近到遠、其他頁籤往回；選了送出時間就照送出時間', () => {

@@ -129,6 +129,13 @@ describe('2026-09-28 案件列表與參觀場次月曆（B1）', () => {
   type GetSpy = { mock: { calls: unknown[][] } }
   const listCalls = (get: GetSpy) => get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests?'))
   const lastListQuery = (get: GetSpy) => new URLSearchParams(listCalls(get).at(-1)!.split('?')[1])
+  // 搜尋字走 X-Ivy-Search header（2026-10-22 資安稽核）。
+  const lastListSearch = (get: GetSpy) => {
+    const call = get.mock.calls.filter(c => String(c[0]).startsWith('/admin/visit-requests?')).at(-1)!
+    const header = (call[1] as { headers?: Record<string, string> } | undefined)?.headers?.['X-Ivy-Search']
+    return header ? (JSON.parse(decodeURIComponent(header)) as { q?: string }).q : undefined
+  }
+  const savedSearch = (router: Router) => (router.options.history.state as { listSearch?: string } | null)?.listSearch
 
   const request = (changes: Record<string, unknown> = {}) => ({
     id: 'case-a', campus_key: 'yihua', status: 'new', parent_name: '王媽媽', phone: '0912345678', child_name: '小安',
@@ -137,15 +144,19 @@ describe('2026-09-28 案件列表與參觀場次月曆（B1）', () => {
   })
 
   describe('案件列表：篩選與頁數跟網址雙向同步', () => {
-    it('網址上的條件（含搜尋、來源、送出日期與頁數）掛載時全部讀回來', async () => {
+    it('網址上的條件（含舊網址的搜尋、來源、送出日期與頁數）掛載時全部讀回來；搜尋字改放 header、從網址拿掉', async () => {
       const get = vi.spyOn(api, 'get').mockResolvedValue([request()] as never)
-      const { wrapper } = await mountAt(VisitRequestsView,
+      const { wrapper, router } = await mountAt(VisitRequestsView,
         '/visit-requests?group=upcoming&q=%E7%8E%8B&source=phone&created_from=2026-09-01&created_to=2026-09-07&order=oldest&page=3&campus=renwu')
       expect(listCalls(get)).toHaveLength(1)
       expect(Object.fromEntries(lastListQuery(get))).toEqual({
-        view: 'upcoming', q: '王', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07',
+        view: 'upcoming', source: 'phone', created_from: '2026-09-01', created_to: '2026-09-07',
         campus_key: 'renwu', order: 'oldest', page: '3', page_size: '20',
       })
+      expect(lastListSearch(get)).toBe('王')
+      expect(router.currentRoute.value.query.q).toBeUndefined()
+      expect(router.currentRoute.value.query.search).toBe('1')
+      expect(savedSearch(router)).toBe('王')
       expect(wrapper.findAll('.status-tab').find(tab => tab.text().startsWith('接下來'))!.attributes('aria-pressed')).toBe('true')
       expect((wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').element as HTMLInputElement).value).toBe('王')
     })
@@ -175,21 +186,24 @@ describe('2026-09-28 案件列表與參觀場次月曆（B1）', () => {
       expect(replace).toHaveBeenCalledTimes(3)
     })
 
-    it('搜尋停下來才寫進網址；清除篩選後網址也清乾淨', async () => {
+    it('搜尋停下來才記下（瀏覽歷程的 state，不進網址）；清除篩選後網址也清乾淨', async () => {
       vi.spyOn(api, 'get').mockResolvedValue([] as never)
       const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests?due=1')
       await wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]').setValue('陳')
       await flushPromises()
       expect(router.currentRoute.value.query).toEqual({ group: 'all', due: '1' })
+      expect(savedSearch(router)).toBeFalsy()
       await new Promise(resolve => setTimeout(resolve, 350))
       await flushPromises()
-      expect(router.currentRoute.value.query).toEqual({ group: 'all', due: '1', q: '陳' })
+      expect(router.currentRoute.value.query).toEqual({ group: 'all', due: '1', search: '1' })
+      expect(savedSearch(router)).toBe('陳')
 
       await wrapper.findAll('button').find(button => button.text() === '清除篩選')!.trigger('click')
       await new Promise(resolve => setTimeout(resolve, 350))
       await flushPromises()
       // 頁籤不是篩選：清除篩選後仍留在「全部」，網址只剩 group。
       expect(router.currentRoute.value.query).toEqual({ group: 'all' })
+      expect(savedSearch(router)).toBe('')
     })
 
     it('網址記著的那一頁已經空了（處理完最後一件再返回）就回第一頁重查，不說「接下來沒有參觀」', async () => {
@@ -256,7 +270,7 @@ describe('2026-09-28 案件列表與參觀場次月曆（B1）', () => {
   })
 
   describe('案件列表：電話搜尋與欄位', () => {
-    it('搜尋字像電話時去掉空格、連字號與國碼再查，網址留使用者打的字', async () => {
+    it('搜尋字像電話時去掉空格、連字號與國碼再查，歷程 state 留使用者打的字', async () => {
       const get = vi.spyOn(api, 'get').mockResolvedValue([] as never)
       const { wrapper, router } = await mountAt(VisitRequestsView, '/visit-requests')
       const input = wrapper.get('input[aria-label="搜尋家長／孩子姓名、電話或 Email"]')
@@ -270,8 +284,9 @@ describe('2026-09-28 案件列表與參觀場次月曆（B1）', () => {
         await input.setValue(typed)
         await new Promise(resolve => setTimeout(resolve, 350))
         await flushPromises()
-        expect(lastListQuery(get).get('q')).toBe(sent)
-        expect(router.currentRoute.value.query.q).toBe(typed)
+        expect(lastListSearch(get)).toBe(sent)
+        expect(lastListQuery(get).has('q')).toBe(false)
+        expect(savedSearch(router)).toBe(typed.trim())
       }
     })
 

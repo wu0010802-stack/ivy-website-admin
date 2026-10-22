@@ -77,12 +77,14 @@ export async function pickVisitDay(page: Page, date: string): Promise<void> {
  * 太早點開右側預覽的話，稍後才套用的搜尋會把預覽選取清掉（換條件清選取是設計）。
  */
 export async function searchVisitList(page: Page, text: string): Promise<void> {
-  // 比對 q 的值就是這次的搜尋字：只看網址有沒有 q= 會撿到前一次搜尋（例如剛進頁面時殘留的）的回應。
-  // 用 searchParams 解碼比對（空格寫成 + 或 %20 都算），中文與 encodeURIComponent 的結果相同；電話形的搜尋字畫面會先正規化成純數字，要傳正規化後的。
-  const applied = page.waitForResponse((response) => {
+  // 比對搜尋字就是這次的：只看有沒有搜尋會撿到前一次搜尋（例如剛進頁面時殘留的）的回應。
+  // 搜尋字放在 X-Ivy-Search header（百分比編碼的 JSON，2026-10-22 資安稽核），不在網址；
+  // 電話形的搜尋字畫面會先正規化成純數字，要傳正規化後的。
+  const applied = page.waitForResponse(async (response) => {
     if (response.request().method() !== 'GET') return false
-    const url = new URL(response.url())
-    return url.pathname.endsWith('/admin/visit-requests') && url.searchParams.get('q') === text
+    if (!new URL(response.url()).pathname.endsWith('/admin/visit-requests')) return false
+    const header = await response.request().headerValue('x-ivy-search')
+    return header !== null && JSON.parse(decodeURIComponent(header)).q === text
   })
   await page.getByRole('textbox', { name: /搜尋家長/ }).fill(text)
   await applied

@@ -102,6 +102,7 @@ uv run python -m app.cli process-notifications
 ```bash
 # 備份 / 還原（詳見 operations.md）
 uv run python scripts/backup_website.py ./var/backups
+# 還原目標要是剛 createdb、名稱含 test 的空庫
 WEBSITE_ENVIRONMENT=test uv run python scripts/restore_website.py ./var/backups/website-db-*.sql
 ```
 

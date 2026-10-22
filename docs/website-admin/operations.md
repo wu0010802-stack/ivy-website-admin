@@ -9,13 +9,16 @@
 
 2026-09-24 起由 **API 程序自己定期執行**（`app/workers/maintenance.py`）：production
 預設每 60 秒一輪，本機與測試預設關閉。`WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`
-可覆寫（0＝關閉，否則 10–3600 秒）。部署後打 `/api/website/v1/health`，
-`background_jobs.enabled` 為 true、`last_completed_at` 持續更新就代表有在跑。
-`last_completed_at` 只代表「有跑完一輪」，步驟失敗也會更新；要判斷是否正常，看
-`last_failed_steps` 是否為空、`last_clean_at`（最近一次每一步都成功）是否持續更新
-（2026-09-29 起）。外部監控請以這兩個欄位判斷，失敗步驟也會在 log 記一行 WARNING。
+可覆寫（0＝關閉，否則 10–3600 秒）。
 
-總管理者也可以登入後台「系統 → 系統狀態」看同一批背景工作狀態，另外還有寄信與推播等設定是否已設、公開資料是否過期、寄送與排程發布失敗筆數，以及寄測試信給自己（2026-10-15）。`/health` 的內容不變，外部監控照舊看它。
+**2026-10-22 起公開的 `/api/website/v1/health` 只回 `status`、`environment`、`fixture_enabled`**
+（部署 smoke 用）：它沒有驗證、經官網同源代理對所有人公開，原本帶的 `background_jobs`、
+`media_jobs`（失敗步驟、最後成功時間）會讓外人輪詢得知哪個定期工作正在失敗（資安稽核）。
+背景工作狀態改在後台「系統 → 系統狀態」（總管理者，`GET /admin/system-status`）看：
+定期工作的 `running`、`last_completed_at`、`last_clean_at`（最近一次每一步都成功）、`failed_steps`、`stalled`，
+轉檔迴圈的 `loop_running`、`last_processed_at`；同頁另有寄信與推播等設定是否已設、公開資料是否過期、
+寄送與排程發布失敗筆數，以及寄測試信給自己（2026-10-15）。`last_completed_at` 只代表「有跑完一輪」，
+步驟失敗也會更新，要看 `failed_steps` 是否為空；失敗步驟也會在 log 記一行 WARNING。
 
 同一時間全域只會跑一輪（PostgreSQL advisory lock），多個 worker／副本或同時手動
 執行 CLI 都不會重複處理。手動補跑或本機測試：
@@ -72,9 +75,11 @@ python -m app.cli requeue-notifications [--campus <key>] [--dry-run]
 cd backend
 uv run python scripts/backup_website.py ./var/backups
 
-# 還原（只能在 WEBSITE_ENVIRONMENT=test 執行，且目標 DSN 必須通過
-# Settings 的隔離檢查）
-WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_test \
+# 還原（只能在 WEBSITE_ENVIRONMENT=test 執行，目標 DSN 必須通過 Settings 的隔離檢查，
+# 資料庫名稱本身要含 test，而且要是剛 createdb 的空庫——備份是 plain pg_dump，
+# 2026-10-22 起整批包在一個交易、出錯就停並回滾，灌進已有 schema 的庫會整批失敗）
+createdb ivy_website_test_restore
+WEBSITE_ENVIRONMENT=test WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/ivy_website_test_restore \
   uv run python scripts/restore_website.py ./var/backups/website-db-<timestamp>.sql
 ```
 
@@ -180,7 +185,7 @@ npm run test:e2e   # 公開站四視口 Playwright（先 npm run e2e:build；自
 ## 影片轉檔（2026-10-04）
 
 - 開關：`WEBSITE_MEDIA_VIDEO_PROCESSING=background|inline`（正式站預設 background；本機開發、測試與 `import-site-assets` 是 inline）、`WEBSITE_MEDIA_JOBS_POLL_SECONDS`（預設 5）。
-- 健康檢查 `/api/website/v1/health` 的 `media_jobs`：`enabled` 看背景迴圈是否還在跑（儲存體設定錯時迴圈會結束，變 `false`），`last_processed_at`／`last_failed_at` 看最近一次結果。
+- 後台「系統狀態」的轉檔項目（2026-10-22 起公開 health 不再帶）：`loop_running` 看背景迴圈是否還在跑（儲存體設定錯時迴圈會結束，變 `false`），`last_processed_at` 看最近一次結果、`failed_assets` 看處理失敗的素材數。
 - 卡住時：`media_jobs` 表看 `status='running'` 的 `leased_until`；程序重啟後最多 120 秒會被接手，中斷 3 次標失敗。
 - 轉檔限 2 執行緒（nice 10），一次只轉一支。影片上限 10 分鐘，超過的上傳當下就擋。已是可直接播的 H.264 且轉檔結果不小於原檔 90% 的，不寫衍生檔，官網照播原檔。
 - 停機：先把執行中的工作放回佇列，再中止 ffmpeg；抽 poster 的 ffmpeg／ffprobe 不可中止，最多約 30／15 秒。Railway 的 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` 若是 0，每次部署碰上轉檔都算一次嘗試（最多 3 次）。

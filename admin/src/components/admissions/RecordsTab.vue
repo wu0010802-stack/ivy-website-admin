@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
 import { ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
-import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExportPath } from '../../api/admissions'
+import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExport } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
@@ -131,7 +131,7 @@ async function load() {
 
 // CSV 由後端產生（含個資、寫稽核、有筆數上限）：失敗提示與防重按在 useServerCsvExport。
 const { exporting, exportCsv } = useServerCsvExport(() => ({
-  path: recordsExportPath(currentFilters()),
+  ...recordsExport(currentFilters()),
   filename: csvFilename('招生訪視明細', campusLabel(props.campusKey), taipeiToday()),
 }))
 

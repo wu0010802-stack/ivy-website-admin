@@ -468,3 +468,47 @@ async def test_audit_log_says_whether_case_still_exists(admin_client, db_session
     assert [e["target_exists"] for e in entries] == [True, False, None, None]
     # 只回在不在，不帶家長個資。
     assert "舊案家長" not in str(entries)
+
+
+@pytest.mark.asyncio
+async def test_campus_audit_log_hides_stats_only_actions_from_campus_staff(admin_client, minghua_client, db_session):
+    """在籍清冊、歷年註冊匯入與未預繳名單匯出只有總管理者做得到（admissions.stats），
+    紀錄帶校區、metadata 有在籍人數；分校管理者看自己校的操作紀錄時不能看到這些。"""
+    from app.operations.audit_service import STATS_ONLY_ACTIONS
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    now = datetime.now(timezone.utc)
+    actions = [*STATS_ONLY_ACTIONS, "visit_slot.update"]
+    for offset, action in enumerate(actions):
+        await _audit(db_session, action=action, created_at=now - timedelta(minutes=offset), campus_key="minghua")
+    await db_session.commit()
+
+    campus = await minghua_client.get("/api/website/v1/admin/audit-log?campus_key=minghua")
+    assert campus.status_code == 200, campus.text
+    assert [e["action"] for e in campus.json()] == ["visit_slot.update"]
+    searched = await minghua_client.get(
+        "/api/website/v1/admin/audit-log", params={"campus_key": "minghua", "q": "enrolled_roster"}
+    )
+    assert searched.json() == []
+
+    hq = (await admin_client.get("/api/website/v1/admin/audit-log?campus_key=minghua")).json()
+    assert [e["action"] for e in hq] == actions
+
+
+@pytest.mark.asyncio
+async def test_campus_audit_actors_skip_stats_only_actions(admin_client, minghua_client, db_session):
+    from app.operations.audit_service import STATS_ONLY_ACTIONS
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    await _audit(db_session, action=STATS_ONLY_ACTIONS[0], created_at=datetime.now(timezone.utc), campus_key="minghua")
+    await db_session.commit()
+
+    campus = await minghua_client.get("/api/website/v1/admin/audit-log/actors?campus_key=minghua")
+    assert campus.status_code == 200, campus.text
+    assert campus.json() == []
+    hq = (await admin_client.get("/api/website/v1/admin/audit-log/actors?campus_key=minghua")).json()
+    assert len(hq) == 1

@@ -17,7 +17,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Literal
 
-from fastapi import HTTPException, Query, status
+from fastapi import Header, HTTPException, Query, status
 from sqlalchemy import ColumnElement, and_, func, literal_column, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -26,6 +26,7 @@ from app.admissions import academic, constants
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.auth.models import User
 from app.auth.permissions import covers_campus
+from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_fields
 from app.common.timezones import today_local
 
 # 篩選選項（來源、家長介紹、帶參觀老師）各列幾個。
@@ -416,7 +417,15 @@ class RecruitmentVisitFilters:
             default=None,
             description="no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
         ),
+        search: str | None = Header(default=None, alias=SEARCH_HEADER, description=SEARCH_HEADER_DESCRIPTION),
     ) -> None:
+        # 後台把搜尋字、家長介紹與來源備註放 header（可能是人名，見 common/search_header.py）；查詢參數照收。
+        fields = search_fields(
+            search, {"q": 100, "referrer": constants.LEN_REFERRER, "source": constants.LEN_SOURCE}
+        )
+        q = fields.get("q", q)
+        referrer = fields.get("referrer", referrer)
+        source = fields.get("source", source)
         self.campus_key = campus_key
         self.month = month
         self.grade = grade
@@ -527,11 +536,15 @@ class RecruitmentVisitFilters:
         return stmt
 
 
-async def _top_values(db: AsyncSession, campus_key: str, column) -> list[str]:
-    """該校用過的值，次數多的在前，同次數依字排。"""
+async def _top_values(db: AsyncSession, campus_key: str, column, *, exclude_anonymized: bool = False) -> list[str]:
+    """該校用過的值，次數多的在前，同次數依字排。exclude_anonymized：家長介紹可能是人名，
+    已匿名化的訪視不列（來源是保留的統計欄位，照列，才篩得出那些舊訪視）。"""
+    conditions = [RecruitmentVisit.campus_key == campus_key, column.is_not(None)]
+    if exclude_anonymized:
+        conditions.append(RecruitmentVisit.anonymized_at.is_(None))
     result = await db.execute(
         select(column)
-        .where(RecruitmentVisit.campus_key == campus_key, column.is_not(None))
+        .where(*conditions)
         .group_by(column)
         .order_by(func.count().desc(), column)
         .limit(OPTION_LIMIT)
@@ -566,7 +579,7 @@ async def options(db: AsyncSession, campus_key: str) -> dict:
     return {
         "months": list(months.scalars()),
         "sources": await _top_values(db, campus_key, RecruitmentVisit.source),
-        "referrers": await _top_values(db, campus_key, RecruitmentVisit.referrer),
+        "referrers": await _top_values(db, campus_key, RecruitmentVisit.referrer, exclude_anonymized=True),
         "tour_guides": await _top_tour_guides(db, campus_key),
         "grades": list(constants.GRADES),
         "no_deposit_reasons": [

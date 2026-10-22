@@ -3,11 +3,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Download, Filter, Plus, Search } from '@element-plus/icons-vue'
-import { api, BASE_URL } from '../api/client'
+import { api } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import type { RecruitmentVisit, VisitRequestDetailOut } from '../api/types'
 import { campusLabel, VISIT_SOURCE_LABELS } from '../api/labels'
-import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, groupsByDay, listApiOrder, listApiParams, listStateQuery, parseListQuery, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
+import { DEFAULT_TAB, LIST_TABS, LIST_TAB_LABELS, groupsByDay, listApiHeaders, listApiOrder, listApiParams, listStateQuery, parseListQuery, searchTerm, type ListOrder, type ListState, type ListTab } from '../api/visitListQuery'
+import { LIST_SEARCH_STATE, historySearch } from '../api/searchHeader'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { usePermissions } from '../composables/usePermissions'
@@ -20,6 +21,8 @@ import {
 } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import { useDebouncedFn } from '../composables/useDebouncedFn'
+import { useServerCsvExport } from '../composables/useServerCsvExport'
+import { csvFilename } from '../utils/csv'
 import { groupVisitsByDay, nextInList, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -100,13 +103,16 @@ const dayGroups = computed<DayGroup<VisitRequestDetailOut>[]>(() =>
 // 所有條件與頁數都寫進網址（router.replace，不堆歷史）：點進案件再返回、重新整理，
 // 列表維持原來的頁籤、搜尋與頁數；側欄、總覽與各種提示（?attention=1&campus=…、
 // ?due=1、?status=…&order=oldest）改網址時再讀回來。兩邊都先比對，一樣就不動。
+// 搜尋字例外：常是家長電話或姓名，記在這一筆瀏覽歷程的 state、不進網址（2026-10-22 資安稽核）；
+// 舊網址帶的 ?q= 照樣讀回來，下一次寫網址時拿掉。
 const LIST_PATH = route.path
+const savedSearch = () => historySearch(router.options.history.state)
 
 function applyQuery(query: LocationQuery) {
   const next = parseListQuery(query, { campusKeys: visibleCampusKeys.value, multiCampus: multiCampus.value })
   activeTab.value = next.tab
   attendanceOnly.value = next.attendanceOnly
-  search.value = next.q
+  search.value = next.q || savedSearch()
   campusFilter.value = next.campus
   dueOnly.value = next.due
   openOnly.value = next.open
@@ -129,7 +135,7 @@ function queryKey(query: LocationQuery | Record<string, string>): string {
   return new URLSearchParams(entries.sort(([a], [b]) => a.localeCompare(b))).toString()
 }
 
-const matchesRoute = () => queryKey(route.query) === queryKey(stateQuery())
+const matchesRoute = () => queryKey(route.query) === queryKey(stateQuery()) && savedSearch() === listState.value.q.trim()
 // 自己寫出去、還在路上的網址；回來時不必再讀回畫面（否則慢一步的舊網址會蓋掉剛改的條件）。
 const writingQueries = new Set<string>()
 function syncUrl() {
@@ -137,7 +143,11 @@ function syncUrl() {
   const query = stateQuery()
   const key = queryKey(query)
   writingQueries.add(key)
-  void router.replace({ query }).catch(() => {}).finally(() => writingQueries.delete(key))
+  // force：只有搜尋字變了時網址一樣，不加的話 router 視為重複導覽、不更新 state。
+  void router
+    .replace({ query, state: { [LIST_SEARCH_STATE]: listState.value.q.trim() }, force: true })
+    .catch(() => {})
+    .finally(() => writingQueries.delete(key))
 }
 
 applyQuery(route.query)
@@ -195,10 +205,11 @@ const hasNext = computed(() => requests.value.length === pageSize)
 
 // 清單、匯出與件數送同一組篩選（api/visitListQuery.ts）：畫面上篩好什麼，匯出的就是那一批。
 const filterParams = (options: { counts?: boolean } = {}) => listApiParams(listState.value, options)
+const filterHeaders = () => listApiHeaders(listState.value)
 
 async function loadCounts(version: number) {
   try {
-    const counts = await api.get<{ upcoming: number; past_unmarked: number }>(`/admin/visit-requests/view-counts?${filterParams({ counts: true })}`)
+    const counts = await api.get<{ upcoming: number; past_unmarked: number }>(`/admin/visit-requests/view-counts?${filterParams({ counts: true })}`, { headers: filterHeaders() })
     if (version === loadVersion) viewCounts.value = counts
   } catch {
     if (version === loadVersion) viewCounts.value = {}
@@ -236,7 +247,7 @@ async function load(options: { quiet?: boolean } = {}) {
     params.set('page', String(page.value))
     params.set('page_size', String(pageSize))
     params.set('order', listApiOrder(listState.value))
-    const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`)
+    const result = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${params}`, { headers: filterHeaders() })
     if (version !== loadVersion) return
     // 網址記著頁數：處理完第 2 頁最後一件再返回、或切回分頁時案件已移走，那一頁會是空的，
     // 但前面幾頁還有案件。不能說「沒有待處理的案件」，回第一頁重查（頁數監聽會重抓並改網址）。
@@ -431,9 +442,12 @@ const exportScope = computed(() => {
   if (hasFilters.value) return `匯出範圍：${tab ? `${tab}頁籤、` : ''}目前篩選的全部結果（不只本頁）`
   return tab ? `匯出範圍：${tab}的全部結果` : '匯出範圍：可見校區的全部案件'
 })
-function exportCsv() {
-  window.open(`${BASE_URL}/admin/visit-requests/export?${filterParams()}`, '_blank')
-}
+// 用 fetch 下載（不開新視窗導到匯出網址）：搜尋字要放 header，不能出現在網址上。
+const { exporting, exportCsv } = useServerCsvExport(() => ({
+  path: `/admin/visit-requests/export?${filterParams()}`,
+  filename: csvFilename('參觀案件', listState.value.campus ? campusLabel(listState.value.campus) : '可見校區', taipeiDay(Date.now())),
+  headers: filterHeaders(),
+}))
 
 // 點進案件時把目前的條件與排序帶過去，案件頁的「下一筆」才會照這份清單往下。只有「全部」而且沒有
 // 到期、待人工處理時不帶（那份清單夾著已結案的案件，「下一筆」改用固定的處理優先序）。
@@ -447,7 +461,11 @@ function detailTo(id: string) {
     params.set('page', String(page.value))
     params.set('page_size', String(pageSize))
   }
-  return { path: `/visit-requests/${id}`, query: { list: params.toString() } }
+  // 搜尋字放瀏覽歷程的 state 帶過去（不進網址），案件頁的「下一筆」查清單時放 header。
+  // list 只多一個 searched=1：開新分頁時 state 帶不過去，案件頁看到它就不拿少了搜尋的清單當「下一筆」。
+  const term = searchTerm(state.q)
+  if (term) params.set('searched', '1')
+  return { path: `/visit-requests/${id}`, query: { list: params.toString() }, ...(term ? { state: { [LIST_SEARCH_STATE]: term } } : {}) }
 }
 
 // 1280 以上：點一列在右側預覽（2026-10-06 方向 B），⌘／Ctrl／中鍵照常開新分頁（VisitListRow）；較窄時點列照舊進明細。
@@ -564,7 +582,7 @@ onMounted(() => {
     <PageHeader lead="每一筆參觀預約；需要時改場次、標記到場或取消。" more="家長在官網選好場次送出，就是預約成功，不用再確認。電話、LINE 或現場約的，用「補登案件」記下來。">
       <template #actions>
         <el-button v-if="canHandle" type="primary" :icon="Plus" @click="manualOpen = true">補登案件</el-button>
-        <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" @click="exportCsv">匯出 CSV</el-button>
+        <el-button v-if="canExport" :icon="Download" aria-describedby="export-scope" :loading="exporting" @click="exportCsv">匯出 CSV</el-button>
         <span v-if="canExport" id="export-scope" class="export-scope hint">{{ exportScope }}</span>
       </template>
     </PageHeader>

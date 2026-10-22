@@ -85,6 +85,16 @@ def _uuid_or_none(value: str) -> uuid.UUID | None:
 # 鎖定不算在內，那是要留意的事。
 ROUTINE_LOGIN_ACTIONS = ("user.login_password", "user.login_google", "user.login_line", "user.logout")
 
+# 只有 admissions.stats（總管理者）做得到的動作。這些紀錄帶校區，metadata 有在籍人數、
+# 歷年註冊學期、未預繳名單筆數；分校帳號用 booking.read 看自己校的操作紀錄時要排除，
+# 否則繞過 2026-10-16「招生統計只給總管理者」的裁定。
+STATS_ONLY_ACTIONS = (
+    "enrolled_roster.import",
+    "enrolled_roster.clear",
+    "enrollment_history.import",
+    "recruitment_visit.export_no_deposit",
+)
+
 
 def _visit_exists(entry: AuditLogEntry, existing: set[uuid.UUID]) -> bool | None:
     # 匯出這類動作的 target_id 是校區代號或 "all"，不是哪一筆案件。
@@ -157,13 +167,15 @@ async def list_recent(
     actor_filter: uuid.UUID | Literal["system"] | None = None,
     terms: Sequence[str] = (),
     search_ip: bool = False,
+    hide_actions: Sequence[str] = (),
 ) -> list[AuditRow]:
     """新的在前，一次 limit 筆。before 是上一頁最後一筆的 (created_at, id)，
     傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。
     since（含）、until（不含）是 UTC，路由先把台北日期換好。
 
     actor_filter：某個帳號，或 SYSTEM_ACTOR（沒有操作者的紀錄）。terms：任一個詞符合就列
-    （比對範圍見 _search_condition）；search_ip 只給看得到 IP 的人（總部），其他人不能用搜尋猜 IP。"""
+    （比對範圍見 _search_condition）；search_ip 只給看得到 IP 的人（總部），其他人不能用搜尋猜 IP。
+    hide_actions：查詢者沒有權限看的動作（見 STATS_ONLY_ACTIONS）。"""
     actor = aliased(User)
     stmt = (
         select(AuditLogEntry, actor.email, actor.display_name)
@@ -183,6 +195,8 @@ async def list_recent(
         stmt = stmt.where(tuple_(AuditLogEntry.created_at, AuditLogEntry.id) < tuple_(*before))
     if exclude_login:
         stmt = stmt.where(AuditLogEntry.action.not_in(ROUTINE_LOGIN_ACTIONS))
+    if hide_actions:
+        stmt = stmt.where(AuditLogEntry.action.not_in(hide_actions))
     if since is not None:
         stmt = stmt.where(AuditLogEntry.created_at >= since)
     if until is not None:
@@ -237,12 +251,16 @@ class ActorOption:
 MAX_ACTOR_OPTIONS = 200
 
 
-async def list_actors(db: AsyncSession, campus_key: str | None) -> list[ActorOption]:
+async def list_actors(
+    db: AsyncSession, campus_key: str | None, *, hide_actions: Sequence[str] = ()
+) -> list[ActorOption]:
     """這個範圍內出現過的操作者（含系統），最近操作的在前。只列操作紀錄裡本來就看得到的人。"""
     last_at = func.max(AuditLogEntry.created_at).label("last_at")
     grouped = select(AuditLogEntry.actor_user_id, last_at).group_by(AuditLogEntry.actor_user_id)
     if campus_key:
         grouped = grouped.where(AuditLogEntry.campus_key == campus_key)
+    if hide_actions:
+        grouped = grouped.where(AuditLogEntry.action.not_in(hide_actions))
     sub = grouped.subquery()
     rows = await db.execute(
         select(sub.c.actor_user_id, User.email, User.display_name, sub.c.last_at)

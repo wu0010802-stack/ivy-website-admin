@@ -8,14 +8,14 @@ import { notifyError } from './notify'
  * 當下畫面上的篩選），下載途中不能重按；筆數太多回 422 中文訊息、沒權限回 403，都用提示講清楚，
  * 不產生檔案。訪視明細與未預繳名單共用。
  */
-export function useServerCsvExport(target: () => { path: string; filename: string }) {
+export function useServerCsvExport(target: () => { path: string; filename: string; headers?: Record<string, string> }) {
   const exporting = ref(false)
   async function exportCsv() {
     if (exporting.value) return
     exporting.value = true
     try {
-      const { path, filename } = target()
-      await downloadServerCsv(path, filename)
+      const { path, filename, headers } = target()
+      await downloadServerCsv(path, filename, headers)
     } catch (err) {
       notifyError(apiErrorMessage(err, '匯出失敗，請再試一次。'))
     } finally {

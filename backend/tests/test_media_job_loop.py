@@ -127,18 +127,12 @@ async def test_lifespan_starts_loop_only_in_background_mode():
     background = create_app(_test_settings().model_copy(update={"media_video_processing": "background"}))
     async with background.router.lifespan_context(background):
         assert isinstance(background.state.media_jobs, MediaJobLoop)
+        assert background.state.media_jobs.running
+        # 轉檔迴圈的狀態只在總管理者的系統狀態頁看；公開 health 不帶（2026-10-22 資安稽核）。
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=background), base_url="http://test") as client:
             body = (await client.get("/api/website/v1/health")).json()
-        assert body["media_jobs"] == {"enabled": True, "last_processed_at": None, "last_failed_at": None}
+        assert "media_jobs" not in body
     assert background.state.media_jobs._task.done()
-
-
-@pytest.mark.asyncio
-async def test_health_reports_media_jobs():
-    app = create_app(_test_settings())
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
-        body = (await client.get("/api/website/v1/health")).json()
-    assert body["media_jobs"] == {"enabled": False, "last_processed_at": None, "last_failed_at": None}
 
 
 @pytest.mark.asyncio
@@ -201,7 +195,7 @@ async def test_stop_catches_ffmpeg_started_right_after_the_first_terminate(app, 
 
 
 @pytest.mark.asyncio
-async def test_health_reports_loop_down_when_storage_fails(monkeypatch):
+async def test_loop_reports_down_when_storage_fails(monkeypatch):
     def _broken(settings):
         raise RuntimeError("S3 設定錯誤")
 
@@ -214,7 +208,5 @@ async def test_health_reports_loop_down_when_storage_fails(monkeypatch):
         loop = background.state.media_jobs
         await asyncio.wait({loop._task}, timeout=5)
         assert loop._task.done() and not loop.running
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=background), base_url="http://test") as client:
-            body = (await client.get("/api/website/v1/health")).json()
-        assert body["media_jobs"]["enabled"] is False
-        assert body["media_jobs"]["last_failed_at"] is not None
+        # 系統狀態頁（media_item）讀的就是這兩個值。
+        assert loop.last_failed_at is not None

@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from app.auth.permissions import covers_campus, roles_with
 from app.booking import access_service, exclusion
 from app.booking.models import OutboxMessage, OutboxStatus, VisitRequest, VisitRequestStatus, VisitSlot
 from app.booking.outbox import (
+    PARENT_EMAIL_CHANGED,
     PARENT_KINDS,
     PARENT_VISIT_BOOKED,
     PARENT_VISIT_CANCELLED,
@@ -23,6 +24,7 @@ from app.booking.outbox import (
     PARENT_VISIT_DAY_CLOSED,
     PARENT_VISIT_REMINDER,
     day_closed_dedupe_key,
+    without_old_email,
 )
 from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline, parent_change_open
 from app.campuses.models import Campus
@@ -31,7 +33,7 @@ from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import reminders
 from app.notifications.email_adapter import EmailAdapter
-from app.notifications.parent_email import ParentEmail, build_parent_email
+from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
 logger = logging.getLogger("app.notifications")
@@ -50,6 +52,8 @@ _KIND_LABELS = {
     "parent_visit_day_closed": "家長停課通知（請改約）",
     # 參觀前 24 小時提醒家長（2026-10-15）。
     "parent_visit_reminder": "參觀提醒（家長）",
+    # 家長自己改 Email 時寄到舊信箱（2026-10-22 資安稽核）。
+    "parent_email_changed": "家長 Email 變更通知（寄舊信箱）",
     # 舊流程（家長送出改期申請、等園方核准，2026-10-08 刪除）留下的通知，
     # 站內通知列與寄送失敗清單重寄時仍要有標題。
     "visit_reschedule_requested": "家長申請改期（待園方核准）",
@@ -394,6 +398,61 @@ async def _dispatch_parent_email(
     return True
 
 
+async def _forget_old_email(db: AsyncSession, outbox_message_id: uuid.UUID, payload: dict) -> None:
+    await db.execute(
+        update(OutboxMessage)
+        .where(OutboxMessage.id == outbox_message_id)
+        .values(payload=without_old_email(payload))
+        .execution_options(synchronize_session="fetch")
+    )
+
+
+async def _dispatch_email_changed_notice(
+    db: AsyncSession,
+    *,
+    outbox_message_id: uuid.UUID,
+    payload: dict,
+    adapter: EmailAdapter | None,
+    created_at: datetime | None,
+) -> bool:
+    """家長改了 Email，寄一封通知到舊信箱（2026-10-22 資安稽核）。不適用（沒設定寄信、太舊、
+    案件已匿名化或不在）回傳 False；寄出或略過都把舊信箱從 payload 拿掉，失敗重試才需要它。"""
+    recipient_key = f"parent_old_email:{outbox_message_id}"
+    # 先看寄過沒：寄出後 ack 前程序中斷、租約過期被重新認領時，payload 已經沒有舊信箱，
+    # 要回 True（標 sent），不能落到下面當成不適用標 skipped。
+    if await _already_delivered(db, outbox_message_id, "email", recipient_key):
+        await _forget_old_email(db, outbox_message_id, payload)
+        await db.commit()
+        return True
+    old_email = payload.get("old_email")
+    visit_request = await _load_visit_request(db, payload.get("receipt_id"))
+    stale = created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER
+    if (
+        adapter is None
+        or stale
+        or not isinstance(old_email, str)
+        or not old_email
+        or visit_request is None
+        or visit_request.anonymized_at is not None
+    ):
+        await _forget_old_email(db, outbox_message_id, payload)
+        return False
+    slot = visit_request.slot
+    profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
+    subject, body = build_email_changed_notice(
+        campus_name=await _campus_name(db, visit_request.campus_key),
+        slot_date=slot.slot_date if slot else None,
+        start_time=slot.start_time if slot else None,
+        campus_phone=str(profile.get("phone") or "").strip() or None,
+    )
+    await db.commit()
+    await asyncio.to_thread(adapter.send, to=_header_safe(old_email), subject=_header_safe(subject), body=body)
+    _record_delivery(db, outbox_message_id, "email", recipient_key)
+    await _forget_old_email(db, outbox_message_id, payload)
+    await db.commit()
+    return True
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -423,6 +482,10 @@ async def dispatch_outbox_message(
     `created_at` 是判斷「太舊不再推播寄信」的基準，人工重新排入的訊息由呼叫端
     傳重新排入的時間。定期工作產生的提醒在這裡先重新判斷是否仍然成立（改期、
     取消、已處理），不成立就什麼都不送並回傳 False，其他情況回傳 True。"""
+    if kind == PARENT_EMAIL_CHANGED:
+        return await _dispatch_email_changed_notice(
+            db, outbox_message_id=outbox_message_id, payload=payload, adapter=adapter, created_at=created_at
+        )
     if kind in PARENT_KINDS:
         return await _dispatch_parent_email(
             db,

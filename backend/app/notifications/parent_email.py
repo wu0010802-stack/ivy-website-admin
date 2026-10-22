@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 
 from app.booking.outbox import (
+    PARENT_EMAIL_CHANGED,
     PARENT_VISIT_BOOKED,
     PARENT_VISIT_CANCELLED,
     PARENT_VISIT_CHANGED,
@@ -22,6 +23,7 @@ _TITLES = {
     PARENT_VISIT_CANCELLED: "參觀預約已取消",
     PARENT_VISIT_DAY_CLOSED: "參觀日停課，請改約時間",
     PARENT_VISIT_REMINDER: "參觀提醒",
+    PARENT_EMAIL_CHANGED: "參觀預約的聯絡 Email 已變更",
 }
 
 
@@ -139,4 +141,26 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
         lines.append("要改時間或取消，請使用預約完成頁上的連結，或來電洽詢。")
 
     lines += ["", "這封信由系統自動寄出，請勿直接回覆。"]
+    return subject, "\n".join(lines)
+
+
+def build_email_changed_notice(
+    *, campus_name: str, slot_date: date | None, start_time: time | None, campus_phone: str | None
+) -> tuple[str, str]:
+    """寄到舊信箱的 Email 變更通知（2026-10-22 資安稽核）。收件人已經不是這筆預約的聯絡人：
+    不稱呼姓名（可能已被改掉）、不附修改連結、不寫新信箱，只說哪一校哪一場、不是本人就來電。"""
+    short_name = campus_name[:-1] if campus_name.endswith("校") else campus_name
+    when = visit_when(slot_date, start_time) if slot_date and start_time else None
+    subject = f"【常春藤{short_name}】{_TITLES[PARENT_EMAIL_CHANGED]}"
+    visit = f"常春藤{campus_name}{when}的參觀預約" if when else f"常春藤{campus_name}的參觀預約"
+    call = f"請盡快來電 {campus_phone} 告訴我們" if campus_phone else "請盡快來電告訴我們"
+    lines = [
+        "您好：",
+        "",
+        f"您在{visit}，聯絡 Email 剛剛改成了另一個信箱。之後的通知與修改連結都會寄到新的信箱，這個信箱不會再收到。",
+        "",
+        f"如果這不是您本人的操作，{call}。",
+        "",
+        "這封信由系統自動寄出，請勿直接回覆。",
+    ]
     return subject, "\n".join(lines)

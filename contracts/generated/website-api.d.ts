@@ -10781,6 +10781,8 @@ export interface operations {
                 geo?: "no_village" | null;
             };
             header?: {
+                /** @description 搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;
@@ -10886,6 +10888,8 @@ export interface operations {
                 geo?: "no_village" | null;
             };
             header?: {
+                /** @description 搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;
@@ -14529,6 +14533,8 @@ export interface operations {
                 excluded?: string | null;
             };
             header?: {
+                /** @description 搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;
@@ -14623,6 +14629,8 @@ export interface operations {
                 excluded?: string | null;
             };
             header?: {
+                /** @description 搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;
@@ -14679,6 +14687,8 @@ export interface operations {
                 excluded?: string | null;
             };
             header?: {
+                /** @description 搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;

@@ -159,7 +159,7 @@ describe('後台導覽與編輯操作', () => {
     expect(editor.save).toHaveBeenCalledOnce()
   })
 
-  it('搜尋停止輸入後才查詢，並把關鍵字帶進 q 參數', async () => {
+  it('搜尋停止輸入後才查詢，關鍵字放 X-Ivy-Search header、不進網址', async () => {
     const { global } = await setup('/visit-requests')
     const get = vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
       (path.startsWith('/admin/visit-requests/view-counts') ? { upcoming: 0, past_unmarked: 0 } : []) as never)
@@ -174,9 +174,11 @@ describe('後台導覽與編輯操作', () => {
 
     await new Promise(resolve => setTimeout(resolve, 350))
     await flushPromises()
-    const listCalls = get.mock.calls.map(call => String(call[0])).filter(path => path.startsWith('/admin/visit-requests?'))
+    const listCalls = get.mock.calls.filter(call => String(call[0]).startsWith('/admin/visit-requests?'))
     expect(listCalls).toHaveLength(1)
-    expect(listCalls[0]).toContain('q=%E9%99%B3')
+    expect(String(listCalls[0]![0])).not.toContain('q=')
+    const headers = (listCalls[0]![1] as { headers: Record<string, string> }).headers
+    expect(JSON.parse(decodeURIComponent(headers['X-Ivy-Search']!))).toEqual({ q: '陳' })
     expect(wrapper.text()).toContain('找不到符合「陳」的案件')
   })
 

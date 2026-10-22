@@ -73,10 +73,6 @@ def _error_response(request: Request, status_code: int, detail, headers: dict | 
     return JSONResponse(status_code=status_code, content=_error_body(detail, request_id), headers=merged)
 
 
-def _iso(value) -> str | None:
-    return value.isoformat() if value is not None else None
-
-
 def _error_code(detail) -> str | None:
     return detail.get("code") if isinstance(detail, dict) else None
 
@@ -218,28 +214,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/website/v1/health")
     async def health() -> dict:
-        maintenance: MaintenanceLoop | None = app.state.maintenance
-        media_jobs: MediaJobLoop | None = app.state.media_jobs
+        # 這支沒有驗證、經官網同源代理對所有人公開，只回部署檢查要的三項
+        # （deploy/railway_ci.py smoke）。背景工作與轉檔迴圈的狀態（失敗步驟、
+        # 最後成功時間）改在總管理者的系統狀態頁看（/admin/system-status），
+        # 不讓外部輪詢得知哪個定期工作正在失敗（2026-10-22 資安稽核）。
         return {
             "status": "ok",
             "environment": settings.environment,
             "fixture_enabled": settings.enable_fixture,
-            # 部署後用來確認定期工作真的有在跑（只有時間，不含任何資料）。
-            "background_jobs": {
-                "enabled": maintenance is not None,
-                "last_completed_at": _iso(maintenance.last_completed_at if maintenance else None),
-                # 最近一次每一步都成功的時間與最近一輪失敗的步驟：定期工作「有在跑
-                # 但一直失敗」時，last_completed_at 仍會更新，要看這兩個欄位。
-                "last_clean_at": _iso(maintenance.last_clean_at if maintenance else None),
-                "last_failed_steps": list(maintenance.last_failed_steps) if maintenance else [],
-            },
-            # 影片轉檔的背景迴圈：有沒有開、最近一次完成與失敗的時間。
-            "media_jobs": {
-                # 迴圈真的還活著才算開著（啟動時拿不到儲存體、異常結束都是 False）。
-                "enabled": media_jobs is not None and media_jobs.running,
-                "last_processed_at": _iso(media_jobs.last_processed_at if media_jobs else None),
-                "last_failed_at": _iso(media_jobs.last_failed_at if media_jobs else None),
-            },
         }
 
     app.include_router(auth_router)

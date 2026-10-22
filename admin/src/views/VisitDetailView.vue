@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { api } from '../api/client'
 import type { VisitRequestDetailOut } from '../api/types'
 import { campusLabel, VISIT_VIEW_LABELS, type VisitView } from '../api/labels'
+import { LIST_SEARCH_STATE, historySearch, searchHeaders } from '../api/searchHeader'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { provideVisitCase, useVisitCase } from '../composables/useVisitCase'
 import { detailOrigin } from '../admissions/family'
@@ -69,11 +70,15 @@ const byTime = (key: (r: VisitRequestDetailOut) => number) => (a: VisitRequestDe
 }
 
 // 列表帶進來的條件只收這些鍵，其餘忽略；分頁與每頁筆數由這裡自己決定。
-const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'q', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'excluded', 'order', 'page', 'page_size']
+// 搜尋字不在網址（舊連結帶的 q 也不轉送）：列表放在瀏覽歷程的 state，查清單時放 header（2026-10-22 資安稽核）。
+const LIST_KEYS = ['campus_key', 'group', 'view', 'status', 'open', 'follow_up_due', 'source', 'created_from', 'created_to', 'needs_attention', 'excluded', 'order', 'page', 'page_size']
+const listSearch = () => historySearch(router.options.history.state)
 function sourceListParams(): URLSearchParams | null {
   const raw = route.query.list
   if (typeof raw !== 'string' || !raw) return null
   const incoming = new URLSearchParams(raw)
+  // 列表有搜尋、但這個分頁拿不到搜尋字（⌘ 點開新分頁）：少了搜尋的清單不是剛才那份，改走預設佇列。
+  if (incoming.get('searched') === '1' && !listSearch()) return null
   const params = new URLSearchParams()
   for (const key of LIST_KEYS) {
     const value = incoming.get(key)
@@ -91,7 +96,9 @@ let queuePosition = 0
 
 // 從列表點進來：下一筆照那份列表的條件與順序走。
 async function loadListNext(source: URLSearchParams, gen: number) {
-  const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${source}`)
+  const list = await api.get<VisitRequestDetailOut[]>(`/admin/visit-requests?${source}`, {
+    headers: searchHeaders({ q: listSearch() }),
+  })
   if (gen !== nextGeneration) return
   const rows = Array.isArray(list) ? list : []
   const index = rows.findIndex((r) => r.id === id.value)
@@ -191,7 +198,12 @@ function goNext() {
   if (!nextQueue.value) return
   const path = `/visit-requests/${nextQueue.value.id}`
   const list = route.query.list
-  void router.replace(typeof list === 'string' && list ? { path, query: { list } } : path)
+  const term = listSearch()
+  void router.replace(
+    typeof list === 'string' && list
+      ? { path, query: { list }, ...(term ? { state: { [LIST_SEARCH_STATE]: term } } : {}) }
+      : path,
+  )
 }
 
 // 「下一筆」的請求序號：換案件就加一，舊案件較晚回來的清單不能蓋掉（案件本身的序號在 useVisitCase）。

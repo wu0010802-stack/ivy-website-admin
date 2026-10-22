@@ -17,6 +17,7 @@ from app.booking.models import VisitContactNote, VisitRequest, VisitRequestEvent
 from app.booking.outbox import (
     PARENT_VISIT_CANCELLED,
     PARENT_VISIT_CHANGED,
+    enqueue_email_changed_notice,
     enqueue_outbox,
     enqueue_parent_email,
 )
@@ -425,6 +426,11 @@ async def update_details_by_parent(
             reissue=True,
             keep_session_id=keep_session_id,
         )
+        # 舊信箱也要知道（2026-10-22 資安稽核）：外流的修改連結能把 Email 改成別人的，之後的信
+        # 和新連結都只寄到新信箱，原家長毫無線索。只改大小寫不算換人。後台改 Email 不通知舊信箱
+        # （見 update_details_by_staff），那是在更正打錯的信箱。
+        if old_email.casefold() != (visit_request.email or "").casefold():
+            enqueue_email_changed_notice(db, visit_request, old_email)
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     await db.flush()
     return changed

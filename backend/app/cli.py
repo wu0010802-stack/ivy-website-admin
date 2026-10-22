@@ -553,7 +553,7 @@ async def transcode_media_videos(*, apply: bool) -> None:
         job_ids = [job.id for job in queued]
 
     if settings.media_video_processing_mode == "background":
-        print(f"已排入 {len(job_ids)} 支，API 會一支一支轉；進度看素材庫或 /api/website/v1/health 的 media_jobs。")
+        print(f"已排入 {len(job_ids)} 支，API 會一支一支轉；進度看素材庫或後台系統狀態頁（/admin/system-status 的 media_jobs）。")
         return
     storage = media_service.get_storage(settings)
     failed = 0

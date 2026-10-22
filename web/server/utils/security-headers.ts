@@ -63,15 +63,27 @@ const ADMIN_PATH = /^\/admin(?:\/|$)/
 // 自己設 no-store。/admin/assets/* 有內容雜湊，照常快取。
 const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/
 
+// nitro 的靜態資源處理器先 decodePath 再找檔，/%61dmin/ 一樣拿到後台入口；
+// 判斷是不是後台要用解碼後的路徑，否則會只帶公開頁的寬鬆 CSP（2026-10-22 資安稽核）。
+// decodeURI 和 decodePath 一樣不解 %2F；解不開（不合法的 %）就用原字串。
+function decodedPathname(pathname: string): string {
+  try {
+    return decodeURI(pathname)
+  } catch {
+    return pathname
+  }
+}
+
 /** path 可含 query；websiteEnv 取執行期設定（NUXT_WEBSITE_ENV）。 */
 export function securityHeadersFor(path: string, websiteEnv: string): Record<string, string> {
   const pathname = path.split('?')[0] ?? '/'
+  const decoded = decodedPathname(pathname)
   const headers: Record<string, string> = { ...BASE_HEADERS }
   if (MIC_PAGE.test(pathname)) headers['Permissions-Policy'] = PERMISSIONS.replace('microphone=()', 'microphone=(self)')
-  if (ADMIN_PATH.test(pathname)) {
+  if (ADMIN_PATH.test(pathname) || ADMIN_PATH.test(decoded)) {
     headers['Content-Security-Policy'] = ADMIN_CSP
     headers['X-Robots-Tag'] = 'noindex, nofollow'
-    if (ADMIN_ENTRY.test(pathname)) headers['Cache-Control'] = 'private, no-store'
+    if (ADMIN_ENTRY.test(pathname) || ADMIN_ENTRY.test(decoded)) headers['Cache-Control'] = 'private, no-store'
   }
   // HSTS 只在正式環境送；本機是 http，瀏覽器本來就會忽略，但測試環境
   // 用自簽 https 時送了會讓 localhost 被鎖一年。不加 includeSubDomains：

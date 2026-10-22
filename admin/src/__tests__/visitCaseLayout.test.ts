@@ -220,6 +220,39 @@ describe('2026-09-29 第六輪 UX：案件頁與下一筆', () => {
       expect(router.currentRoute.value.query.list).toBe(list)
     })
 
+    it('列表的搜尋字從瀏覽歷程的 state 帶進來：查清單放 header、不進網址，換下一筆時跟著帶（2026-10-22 資安稽核）', async () => {
+      const list = 'status=contacting&order=oldest&campus_key=yihua'
+      const rows = [{ id: 'case-a', status: 'contacting' }, { id: 'c2', status: 'contacting' }, { id: 'c3', status: 'contacting' }]
+      const get = vi.spyOn(api, 'get').mockImplementation(async (p: string) => {
+        if (p.startsWith('/admin/visit-requests?')) return rows as never
+        if (p.endsWith('/contact-notes') || p.startsWith('/admin/slots')) return [] as never
+        return kase({ status: 'contacting' }) as never
+      })
+      const router = makeRouter()
+      // 舊連結夾帶的 q 不轉送。
+      await router.push({ path: '/visit-requests/case-a', query: { list: `${list}&searched=1&q=0912345678` }, state: { listSearch: '0912345678' } })
+      await router.isReady()
+      const wrapper = mount(VisitDetailView, { global: { plugins: [makePinia(), router, ElementPlus] }, attachTo: document.body })
+      wrappers.push(wrapper); await flushPromises()
+      const listCall = () => get.mock.calls.filter((c) => String(c[0]).startsWith('/admin/visit-requests?')).at(-1)!
+      expect(String(listCall()[0])).not.toContain('0912345678')
+      const headers = (listCall()[1] as { headers: Record<string, string> }).headers
+      expect(JSON.parse(decodeURIComponent(headers['X-Ivy-Search']!))).toEqual({ q: '0912345678' })
+
+      await wrapper.find('.detail__next').trigger('click')
+      await flushPromises()
+      expect(router.currentRoute.value.path).toBe('/visit-requests/c2')
+      expect((router.options.history.state as { listSearch?: string }).listSearch).toBe('0912345678')
+    })
+
+    it('列表有搜尋、新分頁拿不到搜尋字（searched=1 但沒有 state）：不拿少了搜尋的清單當下一筆，改走預設佇列', async () => {
+      const list = 'view=upcoming&order=visit_asc&campus_key=yihua&searched=1'
+      const { get } = await mountDetail(kase({ status: 'confirmed' }), {}, `/visit-requests/case-a?list=${encodeURIComponent(list)}`)
+      const calls = get.mock.calls.map((c) => String(c[0])).filter((p) => p.startsWith('/admin/visit-requests?'))
+      expect(calls.some((p) => p.includes('view=upcoming'))).toBe(false)
+      expect(calls.some((p) => p.includes('group=past'))).toBe(true)
+    })
+
     it('從列表第 2 頁點進來：照列表的頁碼與每頁筆數抓同一段，不改用 50 筆一頁', async () => {
       const list = 'status=new&order=oldest&page=2&page_size=20'
       const { get } = await mountDetail(kase(), { new: [{ id: 'case-a', status: 'new' }, { id: 'n2', status: 'new' }] }, `/visit-requests/case-a?list=${encodeURIComponent(list)}`)

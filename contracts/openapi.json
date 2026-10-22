@@ -20903,6 +20903,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -21990,6 +21991,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -22428,6 +22430,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -22801,6 +22804,24 @@
               ],
               "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
               "title": "Geo"
+            }
+          },
+          {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
             }
           },
           {
@@ -23330,6 +23351,24 @@
               ],
               "description": "no_village：未定位到里（有地址、但只到區、未定位、待比對或沒有比對結果；沒填地址與已匿名化的不算）",
               "title": "Geo"
+            }
+          },
+          {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
             }
           },
           {
@@ -31760,6 +31799,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 100000,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -31975,6 +32015,24 @@
               ],
               "description": "排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15）",
               "title": "Excluded"
+            }
+          },
+          {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
             }
           },
           {
@@ -32333,6 +32391,24 @@
             }
           },
           {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
+            }
+          },
+          {
             "in": "header",
             "name": "x-csrf-token",
             "required": false,
@@ -32596,6 +32672,24 @@
               ],
               "description": "排除標記：hide 隱藏已排除的測試／重複案件、only 只看已排除；不帶＝全部（2026-10-15）",
               "title": "Excluded"
+            }
+          },
+          {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
             }
           },
           {
