@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-23 三批一起上線：後台資料匯入、bug 稽核七條、資安稽核八條（main CI 部署，含 data migration）
+
+- **內容**：`131368ce`（10-21 後台資料匯入，Railway 故障時沒部署成功）、`6539e688`（10-22 bug 稽核七條，見 README 同日）、`46175a31`（10-22 資安稽核八條，另一個 session 推的，見 README 同日）。
+- **Railway 資安事件**：10-21 起 Railway 故障並發布資安通知，事件前建立的 API token 與 Project Token 全部作廢。run 39869276855（`6539e688`）與 39870429976（`46175a31`）的 Deploy 都在 `railway up` 回 `UNAUTHORIZED`。10-22 23:40Z 使用者新建 production Project Token、在自己的終端機用 `gh secret set` 互動貼上（之前用 `pbpaste` 存進去的是剪貼簿裡的指令文字，不是 token）。
+- **備份**：`c3f1a9d27b54` 會清掉已匿名化招生訪視的「家長介紹」（無法還原）。使用者 10-23 裁定這次不備份直接部署（被清的是本來就該刪的第三人姓名，統計沒用到）。
+- **CI**：run 39870429976 測試 job 第一次就全過；第 2 次只重跑 Deploy，success（快照 created 2026-10-22T23:54:32Z）。
+- **線上驗證**：`/release.json` base_commit `46175a31`；`/api/website/v1/health` 回 `status: ok`（資安稽核起只回 status／environment／fixture_enabled）；`/`、`/visit`、`/admin/`、`/preview` 200；後台 chunk 有新的解除綁定文案、已沒有「自動重新綁定」，/preview chunk 有「草稿內容沒有讀到」。
+- **沒驗證**：登入後台實際操作、真實相機 MPO 上傳、migration 實際清了幾列（health 不再顯示背景工作，要登入後台系統狀態頁看）。
+- **回退**：切回上一版映像即可；`c3f1a9d27b54` 的資料清除不可回退。
+
 ## 2026-10-21 前台掃描前五條修正（main CI 部署，沒有 migration）
 
 - **提交**：使用者要求 commit 並推上 main。`fix/web-audit-20261021` rebase 到 `d4fafb19` 後直接推，`f992103e`。內容見 README 同日「前台效能與畫面掃描：前五條修正」：three 不再 prefetch 到首頁以外的頁面、米白膠囊與加入行事曆選單的焦點框、/visit 首圖 `fetchpriority=high`、/anniversary 開場影片連線閘門。只動 web，沒有新環境變數。
