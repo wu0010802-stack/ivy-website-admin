@@ -28,7 +28,9 @@ describe('首屏文字', () => {
     expect(hero).toContain('<filter id="hero-brush"')
     expect(hero.match(/<path d="M2\d\d \d+L\d+ \d+L\d+ \d+L\d+ \d+Z" \/>/g)).toHaveLength(5)
     expect(hero).toContain('<span class="hero-key-text">{{ heroText.titleParts.growingWord }}</span>')
-    expect(css).toContain('.studio-hero .hero-swatch g {fill:var(--gold);opacity:.75}')
+    // 2026-10-24 改不透明：.75 壓在深色遮罩上變土黃、在手機米白上偏淡，都不是品牌金。
+    expect(css).toContain('.studio-hero .hero-swatch g {fill:var(--gold)}')
+    expect(css).not.toMatch(/\.hero-swatch[^{]*\{[^}]*opacity:\.\d/)
   })
 
   it('字與色塊一起歪 -2°，用 rotate 屬性（不和進場的 transform 互相覆蓋）', () => {

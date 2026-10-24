@@ -262,12 +262,13 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
   padding-top:92px;
   background:var(--deep);
   color:var(--white);
-  --hero-scrim:18 29 24;
+  --hero-scrim:var(--ivy-hero-scrim-rgb);
 }
 /* 2026-09-24 調亮：遮罩只墊在文字後面。頂部導覽帶收短，左側滿高直欄降到原本三成，
    文字塊後方另加橢圓光暈（中心對齊文字塊 24% 49%）；文字上下與左下角的照片因此亮回來。
    12 幀＋封面最差值：內文 4.79、導覽 4.66、大標 5.76。改數值要重量，見 DESIGN.md。
-   2026-10-20 影片本身調亮（design/hero-video-grade-20261020）後重量：內文 5.50、導覽 4.67、大標 4.86（1280 寬）。 */
+   2026-10-20 影片本身調亮（design/hero-video-grade-20261020）後重量：內文 5.50、導覽 4.67、大標 4.86（1280 寬）。
+   2026-10-24 遮罩色由墨綠改中性暖灰（--ivy-hero-scrim-rgb，亮度不變），數值不動；12 幀＋封面重量各項與改前相差 ≤.04。 */
 .studio-hero::before {
   content:"";
   position:absolute;
@@ -292,7 +293,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
   font-size:clamp(2.75rem,1.5rem + 3vw,3.75rem);
   line-height:1.32;
   letter-spacing:.015em;
-  text-shadow:0 2px 28px rgb(var(--ink) / .35),0 1px 2px rgb(var(--ink) / .35);
+  text-shadow:0 2px 28px rgb(var(--ivy-hero-scrim-rgb) / .35),0 1px 2px rgb(var(--ivy-hero-scrim-rgb) / .35);
 }
 /* Keep the headline within the left scrim on smaller desktop windows. */
 @media(min-width:1001px) and (max-width:1279px) {
@@ -304,12 +305,13 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 /* 2026-09-30 重點詞改金色乾刷色塊，取代黃色手繪底線（mock：design/hero-brush-mockup-20260930/watercolor.html）。
    - 字與色塊一起歪 -2°（以左下 70% 高為軸）。用獨立的 rotate 屬性，不和 hero-rise 的 transform 互相覆蓋。
    - LINE Seed 字身在行框偏上，行高 1.32 時色塊要 top -.22em、加高 .3em 才蓋住字頂（實測）。
-   - 刷痕是 SVG 路徑＋feTurbulence 位移，右端五條飛白；透明度 .75 加在整組（飛白和主體重疊，逐塊 fill-opacity 會疊出深色斑）。
+   - 刷痕是 SVG 路徑＋feTurbulence 位移，右端五條飛白；不透明（2026-10-24 拿掉整組 .75：壓在深色遮罩上變土黃、手機米白上又偏淡，
+     兩邊都不是品牌金）。要再加透明度只能加在整組 g，逐塊 fill-opacity 會在飛白和主體重疊處疊出深色斑。
    - 進場在標語落定後由左刷到右；基底狀態即完成狀態，減少動態時直接顯示。 */
 .studio-hero .hero-key {position:relative;display:inline-block;margin:0 .16em 0 .18em;padding:0 .1em;isolation:isolate;font-weight:800;color:var(--ivy-forest);text-shadow:none;rotate:-2deg;transform-origin:0 70%}
 .studio-hero .hero-key-text {position:relative}
 .studio-hero .hero-swatch {position:absolute;z-index:-1;left:-.14em;top:-.22em;width:calc(100% + .34em);height:calc(100% + .3em);overflow:visible;pointer-events:none;animation:hero-brush-in 1s cubic-bezier(.16,1,.3,1) .7s both}
-.studio-hero .hero-swatch g {fill:var(--gold);opacity:.75}
+.studio-hero .hero-swatch g {fill:var(--gold)}
 @keyframes hero-brush-in {from{clip-path:inset(-30% 100% -30% -8%)}to{clip-path:inset(-30% -8% -30% -8%)}}
 @media(prefers-reduced-motion:reduce) {
   .studio-hero-copy>*,.studio-hero .hero-swatch {animation:none!important;transform:none!important;opacity:1!important}
@@ -348,7 +350,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 
 /* Keep white text legible even on the brightest video frames. */
 body:has(.studio-hero) .header-top,
-.studio-hero-copy,.studio-media {text-shadow:0 1px 3px rgb(var(--ink) / .45)}
+.studio-hero-copy,.studio-media {text-shadow:0 1px 3px rgb(var(--ivy-hero-scrim-rgb) / .45)}
 .studio-hero-copy>p {max-width:28em;font-size:var(--fs-lg);font-weight:400;line-height:1.85;margin-top:28px;color:var(--white)}
 .hero-copy-line {display:block}
 /* 手機副文案照標點斷句，360／344 寬不會只剩「法。」孤行；沒有標點的長句靠 anywhere 保底不溢出。 */
