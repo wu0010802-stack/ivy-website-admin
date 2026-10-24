@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-24 後台 30 週年開關（main CI 部署，沒有 migration）
+
+- **內容**：`464f42a2`（PR #52，README 同日「後台 30 週年開關」）。後台「網站標題與電話」新增「30 週年」開關（`site_meta.anniversary_enabled`，預設開、發布後生效）；關閉時首頁不放進站布幕、`/anniversary` 回 404、主選單與頁尾拿掉 30 週年連結（選單只剩 30 週年時退回內建選單）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出與改動前相同，**上線後畫面不變**。
+- **提交**：使用者要求併入 main；合併 main 兩次解 README 頂部衝突，Codex 審查一條（選單只剩 30 週年時關閉後仍留連結）修正於 `172e2e3`，PR CI 全綠後 squash 合併。
+- **推送前閘門**（本機，Node 22.22.0）：web `typecheck` 0 錯、`test:website` 1358 passed；admin `typecheck`、`test:unit` 通過；後端內容相關 17 檔 394 passed（本機 PostgreSQL 16）；`contract:check` 一致；stack e2e `anniversary-toggle.spec.ts`、`a11y.spec.ts` 通過。
+- **CI**：main run 40092141075（`464f42a2`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **線上驗證**（未登入）：`/release.json` base_commit `464f42a2`、created `2026-10-24T12:07:25Z`；`/api/website/v1/health` `status: ok`；`/`、`/anniversary`、`/about`、`/news`、`/visit`、`/admin/` 200；首頁 HTML 仍有進站布幕 bootstrap、`href="/anniversary"` 3 處（開關為開）。
+- **沒驗證**：正式站後台開關畫面（需登入）、實際關閉後的正式站行為（只在 stack e2e 驗過；正式站沒有動開關）。
+- **回退**：切回上一版映像即可；`site_meta` 已存的 `anniversary_enabled` 欄位舊版會忽略。
+
 ## 2026-10-24 首屏調色：中性遮罩＋實心品牌金（main CI 部署，沒有 migration）
 
 - **內容**：`beef1df5`（PR #51，README 同日「首屏調色：中性遮罩＋實心品牌金」）。首屏影片上的文字遮罩由墨綠 `18 29 24` 改中性暖灰 `--ivy-hero-scrim-rgb: 28 26 24`（透明度不動），首屏白字陰影一起改；「新發現」色塊拿掉 `opacity:.75` 改不透明品牌金。只動 web 的 CSS，沒有新環境變數，影片與封面素材不變。
