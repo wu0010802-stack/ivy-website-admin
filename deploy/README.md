@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-24 質感審查修正：五校參觀入口、拿掉內建示意消息（main CI 部署，沒有 migration）
+
+- **內容**：`79a4237b`（README 同日「官網質感審查：五校參觀入口與示意消息」）。首頁五校卡依各校預約設定：義華維持「預約參觀義華校」，暫停線上預約的明華、崇德、國際、仁武改「致電Ｘ校預約參觀」（`tel:`）；後台沒發布全站消息時不再沿用 fixture 示意消息，首頁與 /news 改列各校 Facebook 粉專；/about 手機地圖授權署名改實色。只動 web，沒有新環境變數。同分支的比稿提交（`?entrance=`、`?day=`）沒有上線。
+- **提交**：使用者要求部署改好的部分。agent 推 main 被 workspace 守衛擋下，由使用者推 `3c004e92..79a4237b`。
+- **推送前閘門**（本機，Node 22.23.2）：只含 `79a4237b` 的乾淨樹 web `typecheck` 0 錯、web vitest 111 檔全過；dev server 讀正式站已發布內容（唯讀代理）以 Playwright 驗 1440／390 五校按鈕、消息空狀態、/news、橫向溢出。磁碟只剩約 900MB，本機公開站 e2e 沒跑，交給 CI。
+- **CI**：main run 40064401470（`79a4237b`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **線上驗證**：`/release.json` base_commit `79a4237b`、created `2026-10-24T05:08:02Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200；首頁 SSR 不含「示意內容／設計示意」；Playwright 1440／390：義華連 `/visit/yihua`、明華為 `tel:07-556-6796` 並顯示「線上預約即將開放，歡迎來電洽詢。」、消息區顯示粉專清單、沒有橫向溢出與 page error。
+- **行為變化**：四校按鈕改 `tel:` 後，成效統計首頁五校卡的 `booking_cta_clicked` 會變少，改記成聯絡點擊（電話）。
+- **沒驗證**：Safari／iOS 實機；點按 `tel:` 實際撥號。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-23 三批一起上線：後台資料匯入、bug 稽核七條、資安稽核八條（main CI 部署，含 data migration）
 
 - **內容**：`131368ce`（10-21 後台資料匯入，Railway 故障時沒部署成功）、`6539e688`（10-22 bug 稽核七條，見 README 同日）、`46175a31`（10-22 資安稽核八條，另一個 session 推的，見 README 同日）。
