@@ -114,7 +114,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
       { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', roles: ['super_admin'], shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
       { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },
-      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享'] },
+      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享', '30 週年', '週年', '布幕'] },
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。

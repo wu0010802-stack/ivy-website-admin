@@ -5,7 +5,8 @@ import { ANNI_MILESTONES, ANNI_YEARS, anniversaryYearIndex, campusCountAt, crayo
 import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
-import { anniversarySeo, llmsTxt, sitemapXml } from '../app/utils/seo'
+import { anniversaryEnabled, anniversarySeo, isAnniversaryHref, llmsTxt, sitemapXml } from '../app/utils/seo'
+import { applyContentOverlay } from '../app/utils/content-overlay'
 import siteFixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 
@@ -115,6 +116,36 @@ describe('30 週年分頁：開場影片與素材', () => {
     expect(site.siteMeta.primaryNav.at(-1)).toEqual({ label: '30 週年', labelEn: 'Anniversary', href: '/anniversary' })
     expect(site.footer.links.some((l) => l.href === '/anniversary')).toBe(true)
     expect(read('app/components/SiteHeader.vue')).toMatch(/PILL_PAGES = \[[^\]]*'\/anniversary'/)
+  })
+
+  it('後台「全站設定」關掉 30 週年：選單、頁尾、sitemap、llms.txt 拿掉，分頁 404、首頁不播布幕', () => {
+    const site = siteFixture as unknown as SiteContent
+    const meta = { title: 't', description: 'd', header_phone_number: '07', header_phone_note: 'n' }
+    // 舊版本沒有這個欄位＝開
+    const on = applyContentOverlay(site, { site_meta: meta })
+    expect(anniversaryEnabled(on.siteMeta)).toBe(true)
+    expect(on.siteMeta.primaryNav.some((l) => l.href === '/anniversary')).toBe(true)
+    expect(on.footer.links.some((l) => l.href === '/anniversary')).toBe(true)
+
+    const off = applyContentOverlay(site, {
+      site_meta: { ...meta, anniversary_enabled: false },
+      site_footer: { tagline: 't', copyright: 'c', bottom_note: 'b', campus_list_label: 'l', links: [{ label: '週年', href: '/anniversary#anni-cake' }, { label: '關於', href: '/about' }] }
+    })
+    expect(anniversaryEnabled(off.siteMeta)).toBe(false)
+    expect(off.siteMeta.primaryNav.length).toBe(site.siteMeta.primaryNav.length - 1)
+    expect(off.siteMeta.primaryNav.some((l) => isAnniversaryHref(l.href))).toBe(false)
+    expect(off.footer.links).toEqual([{ label: '關於', href: '/about' }])
+    expect(sitemapXml('https://ivy.example', undefined, { anniversary: false })).not.toContain('/anniversary')
+    expect(llmsTxt('https://ivy.example', off)).not.toContain('/anniversary')
+
+    expect(isAnniversaryHref('/anniversary/')).toBe(true)
+    expect(isAnniversaryHref('/anniversary?x=1')).toBe(true)
+    expect(isAnniversaryHref('/anniversary-old')).toBe(false)
+    expect(page).toMatch(/if \(!anniversaryEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw createError\(\{ statusCode: 404/)
+    const home = read('app/pages/index.vue')
+    expect(home).toContain('<EntranceCurtain v-if="curtain" />')
+    expect(home).toContain("script: () => (curtain.value ? [{ key: 'entrance-curtain'")
+    expect(read('server/routes/sitemap.xml.get.ts')).toContain('anniversary: anniversaryEnabled(published.content.siteMeta)')
   })
 
   it('瀏覽與預約按鈕的點擊會記在 30 週年頁', () => {

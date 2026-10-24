@@ -267,6 +267,9 @@ export interface SiteMetaContent {
   pageSeo?: Partial<Record<PageSeoKey, PageSeoEntry>>
   /** false 時一律 noindex（只能收緊，部署沒開索引時不會因此變成可索引） */
   allowIndexing?: boolean
+  /** 後台「全站設定」的 30 週年開關（2026-10-24）：false 時首頁不播進站布幕、/anniversary 回 404，
+   *  主選單與頁尾的 30 週年連結在 content-overlay 拿掉。沒有這個欄位＝開。 */
+  anniversaryEnabled?: boolean
 }
 
 export interface AdmissionStep { when: string; title: string; text: string }

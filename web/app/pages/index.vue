@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { entranceBootstrap, entranceCoverStyles } from '~/utils/entrance-policy'
+import { anniversaryEnabled } from '~/utils/seo'
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 usePageSeo(computed(() => data.value?.content))
+// 進站布幕（30 週年投影）跟著後台「全站設定」的 30 週年開關：關閉時連 bootstrap 都不放，
+// html 不會標 data-ivy-entrance，entrance-engine plugin 也就不下載引擎。
+const curtain = computed(() => anniversaryEnabled(data.value?.content.siteMeta))
 useHead({
   htmlAttrs: { 'data-seam': '2', class: 'relay-day' },
-  script: [{ key: 'entrance-curtain', tagPriority: 'critical', innerHTML: entranceBootstrap }],
-  style: [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }]
+  script: () => (curtain.value ? [{ key: 'entrance-curtain', tagPriority: 'critical' as const, innerHTML: entranceBootstrap }] : []),
+  style: () => (curtain.value ? [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }] : [])
 })
 const root = ref<HTMLElement | null>(null)
 const footer = ref<HTMLElement | null>(null)
@@ -42,7 +46,7 @@ useChapterAnchors(chapters)
       </HeroVideo>
     </main>
     <div ref="footer" class="home-footer"><SiteFooter :content="data.content" /></div>
-    <EntranceCurtain />
+    <EntranceCurtain v-if="curtain" />
   </div>
 </template>
 

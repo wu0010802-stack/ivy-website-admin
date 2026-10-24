@@ -116,6 +116,8 @@ export interface SiteMetaPayload {
   share_image: string
   share_image_alt: string
   allow_indexing: boolean
+  /** 30 週年開關：false＝官網首頁不播進站布幕、/anniversary 回 404、選單與頁尾拿掉 30 週年；舊版本沒有＝開 */
+  anniversary_enabled?: boolean
   /** null＝還沒設定過，官網沿用內建主選單 */
   primary_nav?: NavLinkPayload[] | null
   /**

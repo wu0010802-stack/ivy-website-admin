@@ -40,6 +40,7 @@ const editor = useContentItem<SiteMetaPayload>(
     share_image: '',
     share_image_alt: '',
     allow_indexing: true,
+    anniversary_enabled: true,
     primary_nav: defaultNav(),
     page_seo: normalizePageSeo(null),
     social_links: null,
@@ -58,6 +59,8 @@ const editor = useContentItem<SiteMetaPayload>(
       if (typeof legacyDescription === 'string' && legacyDescription.trim() && !pageSeo.admission.description.trim()) pageSeo.admission.description = legacyDescription
       return {
         ...rest,
+        // 2026-10-24 前的版本沒有這個欄位＝開。
+        anniversary_enabled: rest.anniversary_enabled ?? true,
         primary_nav: rest.primary_nav?.length
           ? rest.primary_nav.map((link) => ({ ...link, label_en: link.label_en ?? '' }))
           : defaultNav(),
@@ -87,6 +90,12 @@ const navSections = computed<EditorSection[]>(() => [
     label: '各頁搜尋與分享',
     note: customisedPages.value.length ? `${customisedPages.value.length} 頁已自訂` : undefined,
     fields: ['page_seo'],
+  },
+  {
+    id: 'section-meta-anniversary',
+    label: '30 週年',
+    note: editor.form.value.anniversary_enabled ? '開啟' : '關閉',
+    fields: ['anniversary_enabled'],
   },
   { id: 'section-meta-index', label: '搜尋引擎', fields: ['allow_indexing'] },
   { id: 'section-meta-nav', label: '主選單', fields: ['primary_nav'] },
@@ -125,7 +134,7 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor" :sections="navSections">
-    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、頁首右上角的聯絡電話與主選單，以及機構社群連結。</template>
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、頁首右上角的聯絡電話與主選單、機構社群連結，以及 30 週年內容的開關。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <h3 id="section-meta-basic" class="meta-section meta-section--first" data-section-anchor tabindex="-1">網站標題與頁首電話</h3>
@@ -234,6 +243,17 @@ onMounted(editor.load)
           </el-form-item>
         </el-tab-pane>
       </el-tabs>
+
+      <h3 id="section-meta-anniversary" class="meta-section" data-section-anchor tabindex="-1">30 週年</h3>
+      <el-form-item>
+        <el-switch
+          v-model="editor.form.value.anniversary_enabled"
+          data-field="anniversary_enabled"
+          active-text="在官網顯示 30 週年內容"
+          aria-label="在官網顯示 30 週年內容"
+        />
+        <span class="field-help">發布後生效。開啟時，首頁第一次進站會播 30 週年布幕，主選單與頁尾有「30 週年」分頁。關閉後，首頁不播布幕、直接看到首屏影片；30 週年分頁連同主選單、頁尾的連結一起拿掉，網址會顯示找不到頁面。</span>
+      </el-form-item>
 
       <h3 id="section-meta-index" class="meta-section" data-section-anchor tabindex="-1">搜尋引擎</h3>
       <el-form-item>

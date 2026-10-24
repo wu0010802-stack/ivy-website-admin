@@ -1,3 +1,11 @@
+## 2026-10-24 後台 30 週年開關（`feature/anniversary-toggle`）
+
+使用者要在後台用一個按鈕開關 30 週年內容（進站布幕與 30 週年分頁）。
+
+- **開關放在後台「網站標題與電話」（`/admin/content/site-meta`）的「30 週年」段落**，跟搜尋引擎收錄一樣**發布後生效**；側欄搜尋「30 週年」「週年」「布幕」都找得到。欄位是 `site_meta.anniversary_enabled`，預設開，舊版本沒有這個欄位＝開，不需要 migration。
+- **關閉時官網**：首頁不放進站布幕（連 bootstrap script 都不輸出，`entrance-engine` 不下載引擎，首屏影片直接播）、`/anniversary` 回 404、主選單與頁尾拿掉連到 `/anniversary` 的連結（`content-overlay.ts`，內建或後台設定的都算）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.anniversaryEnabled=false`）。
+- 測試：`web/tests/anniversary.spec.ts`、`backend/tests/test_content_rules.py`、`admin/src/__tests__/siteMetaSeo.test.ts`；端到端 `tests/stack/anniversary-toggle.spec.ts`（後台按開關發布 → 官網 404、沒布幕、沒連結 → 打開再發布回來，結束時一定打開）。
+
 ## 2026-10-24 官網質感審查：五校參觀入口與示意消息（`feature/trust-polish-20261024`）
 
 對正式站做兩路獨立評估（設計審查 Nielsen 26/40、impeccable 偵測器＋量測腳本），使用者選「先修可信度、已定案項目出比稿讓業主選、範圍全部」，並要求先部署改好的部分；開場布幕與孩子的一天的比稿另一個提交，留在分支等業主選。

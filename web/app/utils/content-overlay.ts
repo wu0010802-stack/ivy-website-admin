@@ -2,7 +2,7 @@ import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, 
 import { newsMonth, safeWebUrl } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
-import { PAGE_SEO_KEYS } from './seo'
+import { anniversaryEnabled, isAnniversaryHref, PAGE_SEO_KEYS } from './seo'
 import { httpsUrl, siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
 import {
@@ -60,6 +60,8 @@ export interface LiveSiteMeta {
   share_image_alt?: string
   // 2026-10-12 起沒有 admission_title／admission_description：後端公開輸出已把舊值補進 page_seo.admission 再剔除，官網不讀。
   allow_indexing?: boolean
+  /** 2026-10-24 新增；沒有＝開（舊版本照常有 30 週年） */
+  anniversary_enabled?: boolean
   /** 2026-09-25 新增；沒有（或 null）＝沿用內建主選單 */
   primary_nav?: LiveNavLink[] | null
   /** 2026-10-12 新增；沒有（或 null）＝七頁全部沿用內建標題、描述與全站分享圖 */
@@ -760,6 +762,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         pageSeo: livePageSeo(overlay.site_meta.page_seo),
         allowIndexing: overlay.site_meta.allow_indexing ?? true
       }
+      // 只在關閉時寫：開著（含舊版本沒有這個欄位）的輸出跟加開關之前逐欄相同。
+      if (overlay.site_meta.anniversary_enabled === false) next.siteMeta.anniversaryEnabled = false
       // 機構社群：後台設定過就整組取代內建（過濾後可能是空的＝不顯示）；null／沒有這個鍵＝沿用內建。
       if (Array.isArray(overlay.site_meta.social_links)) next.siteMeta.socialLinks = liveSocialLinks(overlay.site_meta.social_links)
       const nav = (overlay.site_meta.primary_nav ?? [])
@@ -988,6 +992,14 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       })
     }
   })
+
+  // 30 週年關閉時，主選單與頁尾不留連到 /anniversary 的連結（頁面本身回 404）。
+  // 放在所有 guard 之後：頁尾連結可能是內建的，也可能是後台設定的。
+  if (!anniversaryEnabled(next.siteMeta)) {
+    const navWithout = next.siteMeta.primaryNav.filter((item) => !isAnniversaryHref(item.href))
+    if (navWithout.length) next.siteMeta = { ...next.siteMeta, primaryNav: navWithout }
+    next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isAnniversaryHref(link.href)) }
+  }
 
   return next
 }

@@ -1,4 +1,4 @@
-import { crawlerIndexable, EMPTY_SITEMAP, normalizeSiteOrigin, sitemapXml } from '../../app/utils/seo'
+import { anniversaryEnabled, crawlerIndexable, EMPTY_SITEMAP, normalizeSiteOrigin, sitemapXml } from '../../app/utils/seo'
 import { loadPublishedSite } from '../utils/published-site'
 
 export default defineEventHandler(async (event) => {
@@ -10,5 +10,8 @@ export default defineEventHandler(async (event) => {
   if (!config.public.indexingEnabled || !origin) return EMPTY_SITEMAP
   const published = await loadPublishedSite(config)
   if (!crawlerIndexable(true, origin, published.content.siteMeta)) return EMPTY_SITEMAP
-  return sitemapXml(origin, published.content.news, { privacy: Boolean(published.content.privacyPolicy) })
+  return sitemapXml(origin, published.content.news, {
+    privacy: Boolean(published.content.privacyPolicy),
+    anniversary: anniversaryEnabled(published.content.siteMeta)
+  })
 })

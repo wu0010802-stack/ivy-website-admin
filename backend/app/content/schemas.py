@@ -360,6 +360,9 @@ class SiteMetaPayload(_ContentPayload):
     page_seo: dict[PageSeoKey, PageSeoPayload] | None = None
     # 機構社群連結（依清單順序）。None＝官網沿用內建清單；[]＝不顯示。
     social_links: list[SocialLinkPayload] | None = None
+    # 30 週年（2026-10-24）：關閉時官網首頁不播進站布幕、/anniversary 回 404，
+    # 主選單、頁尾、sitemap、llms.txt 都拿掉 30 週年。預設開，舊版本照常顯示。
+    anniversary_enabled: bool = True
 
     @model_validator(mode="before")
     @classmethod
