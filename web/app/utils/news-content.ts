@@ -1,4 +1,4 @@
-import type { NewsArticle, NewsContent, NewsEvent } from '../types/site-content'
+import type { Campus, NewsArticle, NewsContent, NewsEvent } from '../types/site-content'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -120,6 +120,14 @@ export function titleClauses(title: string): string[] {
 export function safeWebUrl(url: string | undefined | null): string {
   const value = (url ?? '').trim()
   return /^https?:\/\/\S+$/i.test(value) ? value : ''
+}
+
+/** 有 Facebook 粉專的校區（網址不是 http(s) 的略過）：沒有消息時的空狀態用，桌機列表、手機動態卡都讀這份。 */
+export function campusFacebookPages(campuses: readonly Campus[]) {
+  return campuses.flatMap((campus) => {
+    const href = safeWebUrl(campus.facebook)
+    return href ? [{ campus, key: campus.key, name: campus.name, district: campus.district, href }] : []
+  })
 }
 
 /** 消息依日期新到舊；同一天保留後台排列順序。 */

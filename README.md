@@ -6,6 +6,15 @@
 - **關閉時官網**：首頁不放進站布幕（連 bootstrap script 都不輸出，`entrance-engine` 不下載引擎，首屏影片直接播）、`/anniversary` 回 404、主選單與頁尾拿掉連到 `/anniversary` 的連結（`content-overlay.ts`，內建或後台設定的都算）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.anniversaryEnabled=false`）。
 - 測試：`web/tests/anniversary.spec.ts`、`backend/tests/test_content_rules.py`、`admin/src/__tests__/siteMetaSeo.test.ts`；端到端 `tests/stack/anniversary-toggle.spec.ts`（後台按開關發布 → 官網 404、沒布幕、沒連結 → 打開再發布回來，結束時一定打開）。
 
+## 2026-10-24 手機首頁最新消息沒有消息時改回限動樣式（`feature/news-stories-follow-20261024`）
+
+同日上線的「正式站不放內建示意消息」讓正式站手機版只剩一排活動影片卡、下面接五校粉專清單（校區圈與活動、消息卡因為沒有消息都不見了）。使用者要「改回類似限動那樣」，選擇不放回示意消息、把粉專也做成限動。
+
+- **校區圈回來**：「全部」（從第一支活動影片開始看）＋有 Facebook 粉專的校區；校區圈是連到該校粉專的外部連結（另開分頁，小字「粉專 ↗」）。
+- **直式卡**：活動影片後面接五校粉專卡（校舍照、「粉絲專頁」膠囊、Facebook 圖示、行政區與校名），同一列左右滑。拿掉下方的粉專清單。有消息時版面完全不變。
+- 篩選有粉專的校區抽成 `campusFacebookPages`（`utils/news-content.ts`），桌機與 /news 的 `NewsFollowCampuses` 共用。
+- **驗證**（Node 22.22.0）：web `typecheck` 通過、`test:website` 111 檔 1357 passed（新增 `campusFacebookPages` 一項）。dev server（fixture，暫時把消息與活動清空、驗完已還原）Playwright 390×844：校區圈 6 個、直式卡 5 影片＋5 粉專、連結與 aria-label 正確、沒有橫向捲動、點「全部」打開動態檢視、沒有 hydration 警告（console 只有沒起後端的 502）；還原 fixture 後有消息時校區圈與卡片照舊。沒驗證：iOS 實機、axe。
+
 ## 2026-10-24 官網質感審查：五校參觀入口與示意消息（`feature/trust-polish-20261024`）
 
 對正式站做兩路獨立評估（設計審查 Nielsen 26/40、impeccable 偵測器＋量測腳本），使用者選「先修可信度、已定案項目出比稿讓業主選、範圍全部」，並要求先部署改好的部分；開場布幕與孩子的一天的比稿另一個提交，留在分支等業主選。

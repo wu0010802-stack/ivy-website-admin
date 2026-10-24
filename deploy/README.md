@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-24 手機首頁最新消息沒有消息時改回限動樣式（main CI 部署，沒有 migration）
+
+- **內容**：`44481999`（PR #50，README 同日「手機首頁最新消息沒有消息時改回限動樣式」）。手機首頁沒有消息時恢復校區圈（「全部」＋五校粉專連結）、影片後接五校粉專直式卡，拿掉下方粉專清單。只動 web，沒有新環境變數。
+- **提交**：使用者要求合併上線，PR #50 CI 全綠後 rebase 合併進 main。
+- **推送前閘門**（本機，Node 22.22.0）：web `typecheck` 0 錯、`test:website` 111 檔 1357 passed；PR CI Frontend web／admin、Backend 三組、E2E／Playwright 全部 success。
+- **線上驗證**：`/release.json` base_commit `44481999`、created `2026-10-24T09:31:50Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200；Playwright 390×844：校區圈「全部」＋五校「粉專 ↗」、五張粉專卡連到各校 Facebook、點「全部」打開動態檢視、沒有橫向溢出、沒有 console／page error。
+- **沒驗證**：Safari／iOS 實機。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-24 質感審查修正：五校參觀入口、拿掉內建示意消息（main CI 部署，沒有 migration）
 
 - **內容**：`79a4237b`（README 同日「官網質感審查：五校參觀入口與示意消息」）。首頁五校卡依各校預約設定：義華維持「預約參觀義華校」，暫停線上預約的明華、崇德、國際、仁武改「致電Ｘ校預約參觀」（`tel:`）；後台沒發布全站消息時不再沿用 fixture 示意消息，首頁與 /news 改列各校 Facebook 粉專；/about 手機地圖授權署名改實色。只動 web，沒有新環境變數。同分支的比稿提交（`?entrance=`、`?day=`）沒有上線。

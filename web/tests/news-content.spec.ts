@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { NewsArticle, NewsEvent, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay } from '../app/utils/content-overlay'
-import { newsMonth, sortedArticles, taipeiToday, upcomingEvents, withoutSampleNews } from '../app/utils/news-content'
+import { campusFacebookPages, newsMonth, sortedArticles, taipeiToday, upcomingEvents, withoutSampleNews } from '../app/utils/news-content'
 import { publishedContent } from '../app/utils/published-content'
 
 const site = fixture as unknown as SiteContent
@@ -77,5 +77,12 @@ describe('正式站不沿用內建示意消息（2026-10-24）', () => {
     const before = site.news.articles.length
     withoutSampleNews(site.news)
     expect(site.news.articles).toHaveLength(before)
+  })
+
+  it('campusFacebookPages 只列有 http(s) 粉專網址的校區，順序照校區', () => {
+    const campuses = site.campuses.map((campus, i) => ({ ...campus, facebook: i === 1 ? '' : i === 2 ? 'javascript:alert(1)' : campus.facebook }))
+    const pages = campusFacebookPages(campuses)
+    expect(pages.map((page) => page.key)).toEqual(site.campuses.filter((_, i) => i !== 1 && i !== 2).map((c) => c.key))
+    expect(pages[0]).toMatchObject({ name: site.campuses[0]!.name, district: site.campuses[0]!.district, href: site.campuses[0]!.facebook })
   })
 })
