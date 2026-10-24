@@ -1,3 +1,11 @@
+## 2026-10-24 後台 30 週年開關（`feature/anniversary-toggle`）
+
+使用者要在後台用一個按鈕開關 30 週年內容（進站布幕與 30 週年分頁）。
+
+- **開關放在後台「網站標題與電話」（`/admin/content/site-meta`）的「30 週年」段落**，跟搜尋引擎收錄一樣**發布後生效**；側欄搜尋「30 週年」「週年」「布幕」都找得到。欄位是 `site_meta.anniversary_enabled`，預設開，舊版本沒有這個欄位＝開，不需要 migration。
+- **關閉時官網**：首頁不放進站布幕（連 bootstrap script 都不輸出，`entrance-engine` 不下載引擎，首屏影片直接播）、`/anniversary` 回 404、主選單與頁尾拿掉連到 `/anniversary` 的連結（`content-overlay.ts`，內建或後台設定的都算）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.anniversaryEnabled=false`）。
+- 測試：`web/tests/anniversary.spec.ts`、`backend/tests/test_content_rules.py`、`admin/src/__tests__/siteMetaSeo.test.ts`；端到端 `tests/stack/anniversary-toggle.spec.ts`（後台按開關發布 → 官網 404、沒布幕、沒連結 → 打開再發布回來，結束時一定打開）。
+
 ## 2026-10-24 首屏調色：中性遮罩＋實心品牌金（`feature/hero-color-20261024`）
 
 使用者要求首屏調色。比稿（直接疊在正式站上截圖）A 中性遮罩＋實心金／B 暖棕遮罩／C 暖棕＋象牙白字＋影片暖調，選 A。影片與封面不動。

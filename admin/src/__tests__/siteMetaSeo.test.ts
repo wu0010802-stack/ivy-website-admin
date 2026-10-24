@@ -640,7 +640,7 @@ describe('段落目錄', () => {
   it('每段有標題 id，涵蓋所有欄位', async () => {
     const wrapper = await mountMeta({ ...BASE })
     const sections = wrapper.findComponent(ContentEditor).props('sections') as EditorSection[]
-    expect(sections.map((s) => s.label)).toEqual(['網站標題與頁首電話', '社群分享圖', '各頁搜尋與分享', '搜尋引擎', '主選單', '機構社群', '品牌名稱與 Logo'])
+    expect(sections.map((s) => s.label)).toEqual(['網站標題與頁首電話', '社群分享圖', '各頁搜尋與分享', '30 週年', '搜尋引擎', '主選單', '機構社群', '品牌名稱與 Logo'])
     for (const section of sections) {
       const heading = document.getElementById(section.id)
       expect(heading, section.id).not.toBeNull()

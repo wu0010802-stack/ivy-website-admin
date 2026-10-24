@@ -70,6 +70,16 @@ export const ABOUT_PATH = '/about'
 export const PRIVACY_PATH = '/privacy'
 export const ANNIVERSARY_PATH = '/anniversary'
 
+/** 後台「全站設定」的 30 週年開關；沒有這個欄位（舊版本、內建內容）＝開。 */
+export function anniversaryEnabled(siteMeta: Pick<SiteMetaContent, 'anniversaryEnabled'> | undefined): boolean {
+  return siteMeta?.anniversaryEnabled !== false
+}
+
+/** 站內連到 30 週年頁的連結（/anniversary、/anniversary/、帶 # 或 ? 的都算）。 */
+export function isAnniversaryHref(href: string): boolean {
+  return /^\/anniversary\/?(?:[?#]|$)/.test(href.trim())
+}
+
 /** 入學資訊頁的 SEO：標題、描述、分享圖預設用內建（分享圖沿用首頁），後台「各頁搜尋與分享」可覆寫，麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
@@ -294,10 +304,10 @@ export function robotsTxt(origin: string, indexable: boolean): string {
 /** 不能收錄時回的 sitemap：合法但沒有任何網址。 */
 export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
-/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。 */
-export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean } = {}): string {
+/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。anniversary：false＝後台關掉 30 週年，不列 /anniversary。 */
+export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean; anniversary?: boolean } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ANNIVERSARY_PATH, NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...(options.anniversary === false ? [] : [ANNIVERSARY_PATH]), NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
     ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
@@ -318,7 +328,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'>): st
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
-  out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')
+  if (anniversaryEnabled(site.siteMeta)) out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')
   out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
   out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上選擇日期與場次，送出後即預約成功，可從連結改場次、修改資料或取消。`, '')
   return out.join('\n')

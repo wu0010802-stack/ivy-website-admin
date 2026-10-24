@@ -101,7 +101,17 @@ async def test_site_meta_old_payload_still_valid_and_defaults(admin_client):
     assert resp.status_code == 201, resp.text
     saved = resp.json()["latest_revision"]["payload"]
     assert saved["allow_indexing"] is True
+    assert saved["anniversary_enabled"] is True
     assert saved["share_image"] == ""
+
+
+@pytest.mark.asyncio
+async def test_site_meta_anniversary_toggle_saved(admin_client):
+    resp = await admin_client.post(
+        f"{META}/revisions", json={"expected_version": 0, "payload": _meta(anniversary_enabled=False)}
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["latest_revision"]["payload"]["anniversary_enabled"] is False
 
 
 @pytest.mark.asyncio

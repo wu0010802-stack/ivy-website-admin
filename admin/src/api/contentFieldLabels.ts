@@ -39,6 +39,7 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     page_seo: '各頁搜尋與分享',
     social_links: '機構社群',
     allow_indexing: '搜尋引擎收錄',
+    anniversary_enabled: '30 週年',
   },
   booking_content: {
     cta_label: '預約按鈕（中文）',
