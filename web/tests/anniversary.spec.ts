@@ -138,6 +138,12 @@ describe('30 週年分頁：開場影片與素材', () => {
     expect(sitemapXml('https://ivy.example', undefined, { anniversary: false })).not.toContain('/anniversary')
     expect(llmsTxt('https://ivy.example', off)).not.toContain('/anniversary')
 
+    // 後台選單只有 30 週年：關掉後退回內建選單（同樣沒有 30 週年），不留連到 404 的連結
+    const onlyAnni = applyContentOverlay(site, {
+      site_meta: { ...meta, anniversary_enabled: false, primary_nav: [{ label: '30 週年', label_en: '', href: '/anniversary' }] }
+    })
+    expect(onlyAnni.siteMeta.primaryNav).toEqual(site.siteMeta.primaryNav.filter((l) => l.href !== '/anniversary'))
+
     expect(isAnniversaryHref('/anniversary/')).toBe(true)
     expect(isAnniversaryHref('/anniversary?x=1')).toBe(true)
     expect(isAnniversaryHref('/anniversary-old')).toBe(false)

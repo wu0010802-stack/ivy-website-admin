@@ -996,8 +996,10 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   // 30 週年關閉時，主選單與頁尾不留連到 /anniversary 的連結（頁面本身回 404）。
   // 放在所有 guard 之後：頁尾連結可能是內建的，也可能是後台設定的。
   if (!anniversaryEnabled(next.siteMeta)) {
-    const navWithout = next.siteMeta.primaryNav.filter((item) => !isAnniversaryHref(item.href))
-    if (navWithout.length) next.siteMeta = { ...next.siteMeta, primaryNav: navWithout }
+    const withoutAnniversary = (nav: SiteContent['siteMeta']['primaryNav']) => nav.filter((item) => !isAnniversaryHref(item.href))
+    // 後台選單只有 30 週年時，拿掉後是空的：跟「選單至少要有一項」一樣退回內建選單（也拿掉 30 週年）。
+    const nav = withoutAnniversary(next.siteMeta.primaryNav)
+    next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : withoutAnniversary(content.siteMeta.primaryNav) }
     next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isAnniversaryHref(link.href)) }
   }
 
