@@ -6,6 +6,14 @@
 - **關閉時官網**：首頁不放進站布幕（連 bootstrap script 都不輸出，`entrance-engine` 不下載引擎，首屏影片直接播）、`/anniversary` 回 404、主選單與頁尾拿掉連到 `/anniversary` 的連結（`content-overlay.ts`，內建或後台設定的都算）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.anniversaryEnabled=false`）。
 - 測試：`web/tests/anniversary.spec.ts`、`backend/tests/test_content_rules.py`、`admin/src/__tests__/siteMetaSeo.test.ts`；端到端 `tests/stack/anniversary-toggle.spec.ts`（後台按開關發布 → 官網 404、沒布幕、沒連結 → 打開再發布回來，結束時一定打開）。
 
+## 2026-10-24 首屏調色：中性遮罩＋實心品牌金（`feature/hero-color-20261024`）
+
+使用者要求首屏調色。比稿（直接疊在正式站上截圖）A 中性遮罩＋實心金／B 暖棕遮罩／C 暖棕＋象牙白字＋影片暖調，選 A。影片與封面不動。
+
+- **遮罩**：首屏影片上的墨綠遮罩疊在封面粉紅上衣上會混成灰紫，改成中性暖灰 `--ivy-hero-scrim-rgb: 28 26 24`（新 token，`tokens.css` 第 9 節，亮度與舊色相同、三層透明度不動）；首屏白字陰影一起改用它。
+- **「新發現」色塊**：拿掉整組 `opacity:.75`，改不透明品牌金。原本桌機壓在遮罩上變土黃、手機在米白上偏淡。
+- **驗證**：12 幀＋封面在本機 fixture dev server 量 1440／1280／1024／390，白字對比與改前相差 ≤.04；「新發現」桌機 4.13→6.58、手機 7.52→6.58。web `typecheck` 通過、`test:website` 111 檔 1357 passed（合併 main 後；`hero-brush-20260930.spec.ts` 改鎖不透明）。沒驗證：Safari／iOS 實機。
+
 ## 2026-10-24 手機首頁最新消息沒有消息時改回限動樣式（`feature/news-stories-follow-20261024`）
 
 同日上線的「正式站不放內建示意消息」讓正式站手機版只剩一排活動影片卡、下面接五校粉專清單（校區圈與活動、消息卡因為沒有消息都不見了）。使用者要「改回類似限動那樣」，選擇不放回示意消息、把粉專也做成限動。

@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-24 首屏調色：中性遮罩＋實心品牌金（main CI 部署，沒有 migration）
+
+- **內容**：`beef1df5`（PR #51，README 同日「首屏調色：中性遮罩＋實心品牌金」）。首屏影片上的文字遮罩由墨綠 `18 29 24` 改中性暖灰 `--ivy-hero-scrim-rgb: 28 26 24`（透明度不動），首屏白字陰影一起改；「新發現」色塊拿掉 `opacity:.75` 改不透明品牌金。只動 web 的 CSS，沒有新環境變數，影片與封面素材不變。
+- **提交**：使用者看過比稿選 A、要求併入 main；PR #51 CI 全綠後 squash 合併。
+- **推送前閘門**（本機，Node 22.22.0，合併 main `44481999` 後）：web `typecheck` 0 錯、`test:website` 111 檔 1357 passed；fixture dev server 以 Playwright 量 12 幀＋封面在 1440／1280／1024／390 的白字對比，與改前相差 ≤.04。PR CI Frontend web／admin、Backend 三組、E2E／Playwright 全部 success。
+- **CI**：main run 40087129035（`beef1df5`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **線上驗證**：`/release.json` base_commit `beef1df5`、created `2026-10-24T10:55:01Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200；Playwright 1440／390：`.studio-hero` 的 `--hero-scrim` 為 `28 26 24`、`.hero-swatch g` opacity 1 且填品牌金、頁首白字陰影為 `rgba(28, 26, 24, .45)`，沒有橫向溢出、沒有 console／page error。
+- **沒驗證**：Safari／iOS 實機。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-24 手機首頁最新消息沒有消息時改回限動樣式（main CI 部署，沒有 migration）
 
 - **內容**：`44481999`（PR #50，README 同日「手機首頁最新消息沒有消息時改回限動樣式」）。手機首頁沒有消息時恢復校區圈（「全部」＋五校粉專連結）、影片後接五校粉專直式卡，拿掉下方粉專清單。只動 web，沒有新環境變數。
