@@ -4,7 +4,16 @@
 
 - **遮罩**：首屏影片上的墨綠遮罩疊在封面粉紅上衣上會混成灰紫，改成中性暖灰 `--ivy-hero-scrim-rgb: 28 26 24`（新 token，`tokens.css` 第 9 節，亮度與舊色相同、三層透明度不動）；首屏白字陰影一起改用它。
 - **「新發現」色塊**：拿掉整組 `opacity:.75`，改不透明品牌金。原本桌機壓在遮罩上變土黃、手機在米白上偏淡。
-- **驗證**：12 幀＋封面在本機 fixture dev server 量 1440／1280／1024／390，白字對比與改前相差 ≤.04；「新發現」桌機 4.13→6.58、手機 7.52→6.58。web `typecheck` 通過、`test:website` 111 檔 1356 passed（`hero-brush-20260930.spec.ts` 改鎖不透明）。沒驗證：Safari／iOS 實機。
+- **驗證**：12 幀＋封面在本機 fixture dev server 量 1440／1280／1024／390，白字對比與改前相差 ≤.04；「新發現」桌機 4.13→6.58、手機 7.52→6.58。web `typecheck` 通過、`test:website` 111 檔 1357 passed（合併 main 後；`hero-brush-20260930.spec.ts` 改鎖不透明）。沒驗證：Safari／iOS 實機。
+
+## 2026-10-24 手機首頁最新消息沒有消息時改回限動樣式（`feature/news-stories-follow-20261024`）
+
+同日上線的「正式站不放內建示意消息」讓正式站手機版只剩一排活動影片卡、下面接五校粉專清單（校區圈與活動、消息卡因為沒有消息都不見了）。使用者要「改回類似限動那樣」，選擇不放回示意消息、把粉專也做成限動。
+
+- **校區圈回來**：「全部」（從第一支活動影片開始看）＋有 Facebook 粉專的校區；校區圈是連到該校粉專的外部連結（另開分頁，小字「粉專 ↗」）。
+- **直式卡**：活動影片後面接五校粉專卡（校舍照、「粉絲專頁」膠囊、Facebook 圖示、行政區與校名），同一列左右滑。拿掉下方的粉專清單。有消息時版面完全不變。
+- 篩選有粉專的校區抽成 `campusFacebookPages`（`utils/news-content.ts`），桌機與 /news 的 `NewsFollowCampuses` 共用。
+- **驗證**（Node 22.22.0）：web `typecheck` 通過、`test:website` 111 檔 1357 passed（新增 `campusFacebookPages` 一項）。dev server（fixture，暫時把消息與活動清空、驗完已還原）Playwright 390×844：校區圈 6 個、直式卡 5 影片＋5 粉專、連結與 aria-label 正確、沒有橫向捲動、點「全部」打開動態檢視、沒有 hydration 警告（console 只有沒起後端的 502）；還原 fixture 後有消息時校區圈與卡片照舊。沒驗證：iOS 實機、axe。
 
 ## 2026-10-24 官網質感審查：五校參觀入口與示意消息（`feature/trust-polish-20261024`）
 
