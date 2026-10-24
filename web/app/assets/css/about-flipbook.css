@@ -126,7 +126,9 @@
 .afb.is-pinned .afb-vis-card{position:absolute;inset:0 0 auto;height:calc(100cqh - var(--map-h) + 26px);margin:0}
 .afb.is-pinned .afb-vis-card .afb-pop{position:absolute;left:clamp(34%,var(--cx),66%);bottom:0;margin:0;translate:-50% 0;width:min(68cqw,calc((100cqh - var(--map-h) - 30px) / .75 + 14px))}
 .afb.is-pinned .afb-map{position:absolute;left:50%;bottom:0;width:calc(var(--map-h) * 780 / 680);translate:-50% 0}
-.afb-map-source{position:absolute;right:8px;bottom:5px;font-size:9px;line-height:1.2;color:rgb(var(--ink)/.55)}
+/* 授權署名不用半透明（10-02「小字不疊 opacity」），2026-10-24 由 ink 55% 改實色 --muted。字級留 9px：放大到 12px 會壓到右下的「義華」，
+   要放大得先改 scripts/build-about-map.mjs 的標籤位置（待業主決定）。 */
+.afb-map-source{position:absolute;right:8px;bottom:5px;font-size:9px;line-height:1.2;color:var(--muted)}
 .afb-addr{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:var(--fs-sm);color:var(--muted)}
 .afb-addr svg{flex:none;width:16px;height:16px;fill:none;stroke:var(--leaf);stroke-width:2}
 

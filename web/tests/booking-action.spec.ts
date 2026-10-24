@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveBookingAction } from '../app/utils/booking-action'
+import { campusVisitCta, resolveBookingAction } from '../app/utils/booking-action'
 
 describe('分校預約入口', () => {
   it('未選校先選校', () => {
@@ -89,5 +89,41 @@ describe('分校預約入口', () => {
     const minghua = resolveBookingAction('minghua', { mode: 'paused', version: 1 })
     expect(yihua.href).toBe('https://lin.ee/yihua')
     expect(minghua.kind).toBe('paused')
+  })
+})
+
+describe('campusVisitCta（首頁五校卡的參觀入口）', () => {
+  const minghua = { key: 'minghua', name: '明華校', phone: '07-556-6796' }
+
+  it('還沒讀到設定或讀取失敗：維持「預約參觀Ｘ校」連到預約頁', () => {
+    expect(campusVisitCta(minghua, undefined)).toEqual({ kind: 'visit', href: '/visit/minghua', label: '預約參觀明華校', note: null })
+    expect(campusVisitCta(minghua, resolveBookingAction('minghua', null, true)).kind).toBe('visit')
+  })
+
+  it('開放線上選場次：連到預約頁', () => {
+    const cta = campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'slots', version: 1 }))
+    expect(cta.kind).toBe('visit')
+    expect(cta.href).toBe('/visit/minghua')
+  })
+
+  it('暫停線上預約：改成致電，附上園方的說明，不再寫「預約參觀」連到約不了的預約頁', () => {
+    const cta = campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'paused', version: 3, message: '線上預約即將開放，歡迎來電洽詢。' }))
+    expect(cta).toEqual({ kind: 'phone', href: 'tel:07-556-6796', label: '致電明華校預約參觀', note: '線上預約即將開放，歡迎來電洽詢。' })
+  })
+
+  it('來電模式：預約設定有號碼時用設定的號碼', () => {
+    const cta = campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'phone', version: 1, phone: '07-000-0000' }))
+    expect(cta.href).toBe('tel:07-000-0000')
+  })
+
+  it('LINE／外部網站：照設定的連結；設定缺連結時退回致電', () => {
+    expect(campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'line', version: 1, line_url: 'https://lin.ee/x' }))).toMatchObject({ kind: 'line', href: 'https://lin.ee/x', label: 'LINE 洽詢明華校' })
+    expect(campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'external', version: 1, external_url: 'https://booking.example.com' }))).toMatchObject({ kind: 'external', label: '前往明華校預約網站' })
+    expect(campusVisitCta(minghua, resolveBookingAction('minghua', { mode: 'line', version: 1 })).kind).toBe('phone')
+  })
+
+  it('暫停而且沒有任何電話：退回預約頁（那裡會顯示暫停說明）', () => {
+    const cta = campusVisitCta({ key: 'renwu', name: '仁武校', phone: '' }, resolveBookingAction('renwu', { mode: 'paused', version: 1 }))
+    expect(cta.kind).toBe('visit')
   })
 })

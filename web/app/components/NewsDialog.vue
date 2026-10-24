@@ -176,7 +176,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
               <span>{{ o.label }}<b>{{ o.count }}</b></span>
             </label>
           </fieldset>
-          <p v-if="!feed.lead" class="hn-empty">目前沒有新的消息。</p>
+          <NewsFollowCampuses v-if="!feed.lead" :campuses="campusList" />
           <div v-else class="hn-feed" :class="{ 'is-single': !feed.rest.length && !feed.others.length }" aria-live="polite">
             <article class="hn-story hn-feature">
               <figure :style="{ viewTransitionName: mediaName(feed.lead) }">
@@ -396,6 +396,11 @@ html:active-view-transition-type(news-filter)::view-transition-new(root) { anima
 @keyframes hn-media-out { to { opacity: 0; scale: .96; } }
 
 .home-news .hn-stories { display: none; }
+/* 沒有任何消息、只列各校粉專時（2026-10-24）：紙頁仍是一整屏高（轉場要蓋滿視窗），內容改垂直置中，
+   不在上方擠成一條、下面留半屏空白。手機是 HomeStories 的影片列加粉專，內容本來就接近一屏，不動。 */
+@media (min-width: 641px) {
+  .home-news:has(.hn-desk .nf) { display: flex; flex-direction: column; justify-content: center; }
+}
 @media (max-width: 1100px) {
   .home-news .hn-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; row-gap: 64px; }
   .home-news .hn-next, .home-news .hn-news { grid-row: auto; display: block; }

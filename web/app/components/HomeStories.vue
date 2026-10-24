@@ -19,6 +19,8 @@ const props = defineProps<{
 }>()
 
 const stories = computed(() => homeStories(props.events, props.articles, props.films))
+// 沒有任何消息與活動（只剩活動影片）時，「所有最新消息」連到的也是空頁：改在影片下面放各校粉專（2026-10-24）。
+const hasNews = computed(() => props.events.length > 0 || props.articles.length > 0)
 const rings = computed(() => storyRings(stories.value, props.campuses))
 const seen = ref(new Set<string>())
 const shelf = ref<HTMLElement | null>(null)
@@ -57,7 +59,7 @@ function markSeen(id: string) {
   <section class="hs" aria-labelledby="home-stories-heading">
     <div class="container hs-head">
       <h2 id="home-stories-heading">最新消息</h2>
-      <NuxtLink class="hn-more" :to="NEWS_PATH">所有最新消息</NuxtLink>
+      <NuxtLink v-if="hasNews" class="hn-more" :to="NEWS_PATH">所有最新消息</NuxtLink>
     </div>
     <ul v-if="rings.length > 1" class="hs-rings" aria-label="依校區看">
       <li v-for="ring in rings" :key="ring.key">
@@ -100,8 +102,9 @@ function markSeen(id: string) {
           <span class="hs-card-copy"><strong>{{ filmTitle(story.film) }}</strong></span>
         </button>
       </li>
-      <li><NuxtLink class="hs-card is-more" :to="NEWS_PATH"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>所有最新消息</NuxtLink></li>
+      <li v-if="hasNews"><NuxtLink class="hs-card is-more" :to="NEWS_PATH"><svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg>所有最新消息</NuxtLink></li>
     </ul>
+    <NewsFollowCampuses v-if="!hasNews" class="container hs-follow" :campuses="campuses" />
     <ClientOnly>
       <HomeStoryViewer ref="viewer" :campuses="campuses" :today="today" :sample-note="sampleNote" :card-for="cardFor" @seen="markSeen" />
     </ClientOnly>
@@ -113,6 +116,7 @@ function markSeen(id: string) {
 @media (max-width: 400px) { .hs { --hs-gutter: 16px; } }
 .hs-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
 .hs-head h2 { color: var(--ivy-news-green); font-size: var(--fs-3xl); line-height: 1.3; }
+.hs-follow { margin-top: 24px; }
 .home-news .hs-head .hn-more { font-size: var(--fs-sm); }
 .hs-rings { display: flex; gap: 16px; margin: 20px 0 22px; padding: 6px var(--hs-gutter, 20px); list-style: none; overflow-x: auto; scrollbar-width: none; }
 .hs-rings::-webkit-scrollbar { display: none; }

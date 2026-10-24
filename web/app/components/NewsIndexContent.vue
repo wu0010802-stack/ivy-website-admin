@@ -22,6 +22,8 @@ const campusKey = computed(() => {
   return props.campuses.some((c) => c.key === value) ? value : undefined
 })
 const campusName = computed(() => props.campuses.find((c) => c.key === campusKey.value)?.name)
+// 沒有消息時列各校粉專；只看一校時只列那一校（2026-10-24）。
+const followCampuses = computed(() => (campusKey.value ? props.campuses.filter((c) => c.key === campusKey.value) : props.campuses))
 const articles = computed(() => articlesForCampus(props.news.articles, campusKey.value, campusName.value))
 const today = computed(() => props.today ?? taipeiToday())
 const events = computed(() => upcomingEvents(props.news.events, today.value)
@@ -72,7 +74,7 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
 
       <section class="np-articles" aria-labelledby="np-articles-title">
         <h2 id="np-articles-title">{{ campusName ? `${campusName}的消息` : '所有消息' }}<span v-if="articlesSample === 'all'" class="hn-sample-tag">示意內容</span></h2>
-        <p v-if="!articles.length" class="np-empty">目前沒有新的消息。</p>
+        <NewsFollowCampuses v-if="!articles.length" class="np-empty" :campuses="followCampuses" />
         <ul v-else class="np-list">
           <li v-for="item in articles" :key="item.id" class="np-row">
             <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 30vw, 280px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">

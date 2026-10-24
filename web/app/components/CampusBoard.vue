@@ -6,6 +6,8 @@ import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
 import { developSketch, paintSketchStill, pickLineArt, preloadSketch, sketchRegistration, sketchScale, type DevelopHandle } from '~/utils/campusSketch'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
+import { loadCampusBooking } from '~/composables/useCampusBooking'
+import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
@@ -317,10 +319,28 @@ function developWhenUncovered() {
     stopUncovered = () => {}
   }
 }
+// 各校的參觀方式（2026-10-24）：只有開放線上選場次的校區寫「預約參觀Ｘ校」，暫停或來電的校區改成致電（campusVisitCta）。
+// 只在瀏覽器讀、區塊離視窗 800px 內才讀（跟淡彩速寫的預載同一個時機），讀到之前和讀不到的校照舊連預約頁；
+// 讀到的設定放進 useCampusBooking 同一個快取 key，點進預約頁不再重抓。
+const nuxtApp = useNuxtApp()
+const bookingActions = ref<Record<string, BookingAction>>({})
+let bookingActionsRequested = false
+async function loadBookingActions() {
+  if (bookingActionsRequested) return
+  bookingActionsRequested = true
+  const entries = await Promise.all(orderedCampuses.value.map(async campus => {
+    try {
+      return [campus.key, resolveBookingAction(campus.key, await loadCampusBooking(nuxtApp, campus.key))] as const
+    } catch {
+      return null
+    }
+  }))
+  bookingActions.value = Object.fromEntries(entries.filter((entry): entry is readonly [string, BookingAction] => Boolean(entry)))
+}
+const visitCta = computed(() => current.value ? campusVisitCta(current.value, bookingActions.value[current.value.key]) : null)
 // 「預約參觀Ｘ校」：照片接續到預約頁側欄（utils/campusPhotoMorph.ts）。不支援或減少動態時照常換頁。
 // 掛在 click.capture：RouterLink 自己的 click 會先導覽，要在它之前 preventDefault。
 // 前面的 handler 已經 preventDefault（例如後台即時預覽的 /preview 擋掉所有連結換頁）就不再自己導覽。
-const nuxtApp = useNuxtApp()
 function onBookingClick(event: MouseEvent) {
   if (event.defaultPrevented || !isPlainLeftClick(event) || !canMorphCampusPhoto()) return
   const card = root.value?.querySelector<HTMLElement>('.photo-card.is-current')
@@ -369,6 +389,7 @@ onMounted(() => {
   const preloadObserver = new IntersectionObserver(entries => {
     if (!entries.some(entry => entry.isIntersecting)) return
     preloadObserver.disconnect()
+    void loadBookingActions()
     preloadCampus(index.value)
     // 第一張與左右預覽卡一起畫好，捲到時先看到線稿
     lineArtStarted = true
@@ -539,7 +560,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         </div>
       </div>
       <div class="campus-actions">
-        <NuxtLink class="booking-link" :to="`/visit/${current.key}`" @click.capture="onBookingClick">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
+        <NuxtLink v-if="!visitCta || visitCta.kind === 'visit'" class="booking-link" :to="`/visit/${current.key}`" @click.capture="onBookingClick">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
+        <a v-else-if="visitCta.kind === 'phone'" class="booking-link" :href="visitCta.href">{{ visitCta.label }}<svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg></a>
+        <a v-else class="booking-link" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right" /></svg></a>
+        <p v-if="visitCta?.note" class="booking-note">{{ visitCta.note }}</p>
       </div>
     </div>
     <p class="campus-live" role="status" aria-live="polite">{{ announcement }}</p>
@@ -711,7 +735,9 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
    欄寬不到一排放得下的寬度時改成 2×2 對齊的兩欄。量的是聯絡欄本身（容器查詢），手機與平板兩欄版都適用；不支援 :has／容器查詢時照舊換行。 */
 .campus-contact{container-type:inline-size}
 @container (max-width:440px){.social-row:has(> :nth-child(4)){display:grid;grid-template-columns:repeat(2,minmax(0,max-content));column-gap:28px}}
-.campus-actions{display:flex;align-items:center;justify-content:flex-end}
+.campus-actions{display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:10px}
+/* 暫停線上預約時，致電鈕下面放園方的說明（預約設定的 message），2026-10-24。寬度跟著按鈕、不撐開 auto 欄。 */
+.booking-note{width:0;min-width:100%;max-width:none;color:var(--muted);font-size:var(--fs-sm);line-height:1.6;text-align:end}
 .booking-link{display:inline-flex;align-items:center;justify-content:space-between;gap:30px;min-height:54px;padding:14px 24px;border-radius:999px;background:var(--yellow);color:var(--deep);font-size:var(--fs-sm);font-weight:600;letter-spacing:.035em;transition:background .2s,color .2s;white-space:nowrap}
 /* 2026-09-27：底色從低彩度杏色（--ivy-campus-gold）改用頁首預約鈕同一個金色，首頁唯一帶校區的預約入口要像主要行動。 */
 .booking-link:hover{background:var(--green);color:var(--paper)}
@@ -726,7 +752,8 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .campus-details{grid-template-columns:minmax(200px,.85fr) minmax(0,1.15fr);gap:18px 32px;align-items:start}
   .campus-identity{grid-row:1/3;padding-top:8px}
   
-  .campus-actions{grid-column:2;justify-content:flex-start;padding-inline-start:24px}
+  .campus-actions{grid-column:2;align-items:flex-start;padding-inline-start:24px}
+  .booking-note{text-align:start}
   .campus-contact{padding-inline-start:24px}
 }
 @media(max-width:700px){
@@ -763,6 +790,7 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .social-row{font-size:var(--fs-sm);gap:8px 20px;margin-top:5px}
   .campus-actions{grid-column:auto;display:block;padding:0}
   .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm);white-space:normal}
+  .booking-note{width:auto;margin-top:10px;text-align:start}
 }
 @media(max-width:360px){
   .playback-controls{gap:4px}

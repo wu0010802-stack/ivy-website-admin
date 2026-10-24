@@ -1,4 +1,4 @@
-import type { NewsArticle, NewsEvent } from '../types/site-content'
+import type { NewsArticle, NewsContent, NewsEvent } from '../types/site-content'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -42,6 +42,20 @@ export function eventTimeDetail(event: Pick<NewsEvent, 'allDay' | 'startTime' | 
  */
 export function isSampleNews(item: Pick<NewsArticle, 'sample'>, sampleNote: string): boolean {
   return item.sample ?? Boolean(sampleNote)
+}
+
+/**
+ * 拿掉內建的示意消息與活動（2026-10-24 質感審查，使用者裁定）：後台還沒發布全站消息時，正式站原本沿用
+ * fixture 的示意內容並標「示意內容」，首頁就停在「設計示意｜…均為範例」這行接頁尾，家長會懷疑整個網站。
+ * 只留真實的（各校自己發布的消息一律不是示意）；全部拿掉時示意說明一併清空，首頁與 /news 改顯示各校粉專。
+ */
+export function withoutSampleNews(news: NewsContent): NewsContent {
+  return {
+    ...news,
+    sampleNote: '',
+    articles: news.articles.filter((item) => !isSampleNews(item, news.sampleNote)),
+    events: news.events.filter((item) => !isSampleNews(item, news.sampleNote))
+  }
 }
 
 /** 一份清單裡示意內容的多寡：all＝整區在標題標一次；some＝混著真實消息，逐則標。 */
