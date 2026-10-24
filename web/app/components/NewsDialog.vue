@@ -397,7 +397,7 @@ html:active-view-transition-type(news-filter)::view-transition-new(root) { anima
 
 .home-news .hn-stories { display: none; }
 /* 沒有任何消息、只列各校粉專時（2026-10-24）：紙頁仍是一整屏高（轉場要蓋滿視窗），內容改垂直置中，
-   不在上方擠成一條、下面留半屏空白。手機是 HomeStories 的影片列加粉專，內容本來就接近一屏，不動。 */
+   不在上方擠成一條、下面留半屏空白。手機是 HomeStories 的影片與粉專動態卡，不動。 */
 @media (min-width: 641px) {
   .home-news:has(.hn-desk .nf) { display: flex; flex-direction: column; justify-content: center; }
 }
