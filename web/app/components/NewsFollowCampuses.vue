@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { safeWebUrl } from '~/utils/news-content'
+import { campusFacebookPages } from '~/utils/news-content'
 import type { Campus } from '~/types/site-content'
 
 /**
  * 沒有消息時的空狀態（2026-10-24 質感審查）：正式站不再放內建示意消息，首頁與 /news 沒有真實消息時，
  * 改指向各校自己的粉絲專頁（園方平常發動態的地方），不是一行「目前沒有新的消息」。
+ * 手機首頁不用這份列表，粉專直接做成 HomeStories 的校區圈與直式卡（2026-10-24 同日改）。
  * 只列有 Facebook 的校區；一校都沒有時退回原本那一行。
  */
 const props = defineProps<{ campuses: Campus[] }>()
-const pages = computed(() => props.campuses.flatMap((campus) => {
-  const href = safeWebUrl(campus.facebook)
-  return href ? [{ key: campus.key, name: campus.name, district: campus.district, href }] : []
-}))
+const pages = computed(() => campusFacebookPages(props.campuses))
 </script>
 
 <template>
