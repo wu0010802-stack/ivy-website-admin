@@ -13,15 +13,18 @@ SOURCES = ROOT / 'web/media-src'
 OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
-# 2026-10-20 起採調亮版：同一套鏡頭與畫質處理，壓縮前多一道調色（見該目錄 build.py）。
-restoration = ROOT / 'design/hero-video-grade-20261020'
+# 2026-10-24 起採第二版調色（每鏡 LUT、BT.709 標記、去壓縮方塊），另多一份 AV1（見該目錄 build.py 與 README）。
+restoration = ROOT / 'design/hero-video-polish-20261024'
 restored = json.loads((restoration / 'manifest.json').read_text())
 approved = {item['file']: item for item in restored['variants']}
+MASTER = 'hero-desktop-h264.mp4'  # 同時是 web/media-src/hero-campus.mp4
 hero_deliveries = {
-    # 滿版桌機保留母帶細節；高密度手機裁切後也需要完整 1080px。
-    # 手機改用 CRF 26（2026-09-23 晚）：手機模型 VMAF 99.88，3.79 MB → 2.15 MB。
-    'hero-desktop': 'hero-grade-master.mp4',
-    'hero-mobile': 'hero-grade-mobile-crf26.mp4',
+    # 滿版桌機保留母帶細節（H.264 CRF 18）；高密度手機裁切後也需要完整 1080px（CRF 26）。
+    'hero-desktop': 'hero-desktop-h264.mp4',
+    'hero-mobile': 'hero-mobile-h264.mp4',
+    # AV1 10-bit：VMAF 同級、小 32–33%，瀏覽器回報能順播才用（media-policy.ts 的 preferAv1）。
+    'hero-desktop-av1': 'hero-desktop-av1.mp4',
+    'hero-mobile-av1': 'hero-mobile-av1.mp4',
 }
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片保留母檔解析度（進入視窗才載入）。
@@ -42,15 +45,16 @@ for name, source, width, crf in [
         print(f'{name}: 保留母檔 {target.stat().st_size:,} bytes', flush=True)
         continue
     # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
-    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved['hero-grade-master.mp4']['sha256']:
-        prepared = restoration / hero_deliveries[name]
-        digest = sha256(prepared.read_bytes()).hexdigest()
-        if digest != approved[prepared.name]['sha256']:
-            raise ValueError(f'修復影片與確認版雜湊不一致：{prepared.name}')
-        target = OUT / f'{name}-{digest[:12]}.mp4'
-        shutil.copyfile(prepared, target)
-        manifest[name] = f'/assets/optimized/{target.name}'
-        print(f'{name}: 採用已確認的修復版 {target.stat().st_size:,} bytes', flush=True)
+    if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved[MASTER]['sha256']:
+        for key in (name, f'{name}-av1'):
+            prepared = restoration / hero_deliveries[key]
+            digest = sha256(prepared.read_bytes()).hexdigest()
+            if digest != approved[prepared.name]['sha256']:
+                raise ValueError(f'修復影片與確認版雜湊不一致：{prepared.name}')
+            target = OUT / f'{key}-{digest[:12]}.mp4'
+            shutil.copyfile(prepared, target)
+            manifest[key] = f'/assets/optimized/{target.name}'
+            print(f'{key}: 採用已確認的調色版 {target.stat().st_size:,} bytes', flush=True)
         continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'
