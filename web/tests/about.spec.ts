@@ -14,8 +14,8 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.m
 const component = read('../app/components/AboutContent.vue')
 const template = component.slice(component.indexOf('<template>'))
 const shared = read('../app/utils/about-content.ts')
-const flipbook = read('../app/components/AboutFlipBook.vue')
-const flipCss = read('../app/assets/css/about-flipbook.css')
+const sheets = read('../app/components/AboutSheets.vue')
+const sheetsCss = read('../app/assets/css/about-sheets.css')
 
 describe('關於常春藤頁入口', () => {
   it('頁首選單第一項是關於常春藤，頁尾的「關於常春藤」改指向 /about', () => {
@@ -133,13 +133,13 @@ describe('立體書：紀念章跟著捲動翻面', () => {
     expect(medalPinTop(1080, 797, 50, 730, margin)).toBeCloseTo(141.5)
     expect(medalPinTop(800, 797, 50, 730, margin)).toBeCloseTo(1.5)
   })
-  it('拉紙條拿掉；章名旁一個紀念章（手機畫冊另一個夾在線圈上），外層軌道給釘住用；不寫「相隔十五年」', () => {
+  it('拉紙條拿掉；章名旁一個紀念章（手機卡紙疊另一個在第一張卡紙章名旁），外層軌道給釘住用；不寫「相隔十五年」', () => {
     expect(template).not.toMatch(/abk-pull|abk-tab|role="slider"|拉拉看/)
     expect(template).toContain('<div class="abk-track" data-medal-track>')
     expect(template).toContain('<AboutMedal class="is-title" :stops="medalStops" />')
     expect(template).not.toContain('is-seam')
-    expect(flipbook).toContain('<AboutMedal class="afb-medal" :stops="medalStops" />')
-    expect(`${template}\n${flipbook}`).not.toMatch(/相隔|十五年/)
+    expect(sheets).toContain('<AboutMedal class="ams-medal" :stops="medalStops" />')
+    expect(`${template}\n${sheets}`).not.toMatch(/相隔|十五年/)
   })
   it('紀念章純裝飾、對報讀器隱藏；沒有 JS 時停在校徽正面；強制色彩不顯示', () => {
     expect(medal).toContain('data-medal aria-hidden="true"')
@@ -155,10 +155,11 @@ describe('立體書：紀念章跟著捲動翻面', () => {
     expect(medal).toContain('<text class="is-name"')
     expect(`${medal}\n${popup}`).not.toMatch(/from 'three'|import\('three'\)/)
   })
-  it('桌機在章名旁；手機（上翻畫冊）夾在線圈右上角，第一章那幾頁才出現', () => {
+  it('桌機在章名旁；手機（卡紙疊）也在章名旁，疊起來時停在分頁列下方', () => {
     const css = read('../app/assets/css/about.css')
     expect(css).toMatch(/\.abk \.abk-medal\.is-title\{position:absolute;/)
-    expect(flipCss).toContain('.afb.is-pinned .afb-medal{position:absolute;top:18px;right:18px;z-index:250;display:block;--size:84px;rotate:6deg;opacity:var(--medal-o,0)')
+    expect(sheetsCss).toContain('.ams .ams-medal{position:absolute;right:-6px;top:-8px;--size:68px}')
+    expect(sheetsCss).toContain('.ams.is-stacked .ams-dock{position:sticky;top:calc(var(--ams-top) + 4px)}')
   })
 })
 
@@ -168,10 +169,10 @@ describe('立體書：沒有 JS 也看得到內容', () => {
     expect(css).toMatch(/\.abk-page\.is-right\{[^}]*transform:rotateY\(calc\(\(1 - var\(--open,1\)\) \* -178deg\)\)/)
     expect(css).toMatch(/\.abk-card\{[^}]*transform:rotateX\(calc\(\(1 - var\(--up,1\)\) \* 86deg\)\)/)
   })
-  it('900px 以下整本立體書隱藏、換成上翻畫冊；901px 以上反過來（2026-10-19）', () => {
+  it('900px 以下整本立體書隱藏、換成卡紙疊（2026-10-25；10-19 起原本是上翻畫冊）；901px 以上反過來', () => {
     const mobile = css.slice(css.indexOf('@media (max-width:900px)'))
     expect(mobile).toMatch(/^@media \(max-width:900px\)\{\s*\.abk\{display:none\}\s*\}/)
-    expect(flipCss).toContain('@media (min-width:901px){.afb{display:none}}')
+    expect(sheetsCss).toContain('@media (min-width:901px){.ams{display:none}}')
     // 立體書動畫只在寬螢幕建立；跨過斷點時建立或拆掉
     expect(component).toContain("matchMedia('(min-width: 901px)')")
   })
@@ -200,10 +201,10 @@ describe('立體書精修：章節與目次', () => {
     expect(template).toContain('id="campuses"')
   })
   it('首屏照片裡的長輩是創辦人（使用者確認，不寫姓名）', () => {
-    // 內建照片的說明是共用常數（桌機與手機畫冊同一句）、不開放編輯；後台換了照片才用後台的說明
+    // 內建照片的說明是共用常數（桌機與手機卡紙疊同一句）、不開放編輯；後台換了照片才用後台的說明
     expect(shared).toContain("export const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'")
     expect(template).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
-    expect(flipbook).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
+    expect(sheets).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
   })
   it('引言不用左側色條（側條），改用括號（2026-10-19 起是橘色蠟筆畫的「」，見 about-crayon.spec.ts）', () => {
     expect(css).not.toMatch(/\.abk-quote\{[^}]*border-left/)

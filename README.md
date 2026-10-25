@@ -1,3 +1,14 @@
+## 2026-10-25 關於頁手機版改成卡紙疊起來（`feature/about-mobile-sheets-20261025`）
+
+使用者看了手機三個新方向（比稿 `design/about-redesign-directions-20261025/`，Desktop 工作區）選 A「卡紙疊起來」並要求再優化，第二版拿掉加回的高雄地圖後實作。只改 900px 以下，桌機立體書不動。規則見 DESIGN.md 同名段落。
+
+- **新的手機版**：`AboutSheets.vue`＋`about-sheets.css`＋`utils/about-sheets.ts`。一章一張卡紙照一般網頁往下讀，讀到底下一張滑上來疊住它；封面底下露出整疊的分頁（目次），讀進去後頂端一排資料夾分頁、目前那一章凸出來；紀念章在章名旁、讀到哪一校翻到哪一年；六圈、蠟筆房子、家長影片、五條書籤沿用。減少動態、沒有 JS 都是上下排開。
+- **拿掉上翻畫冊**：`AboutFlipBook.vue`、`AboutFlipMap.vue`、`about-flipbook.css`、`utils/about-flipbook.ts`、`scripts/build-about-map.mjs`、`generated/about-map.ts`、`tests/about-flipbook.spec.ts`；`about-content.ts` 的 `FlipStop` 與地圖色一起拿掉。
+- **頁長**：390×844 由約 13.3 個畫面變約 7.2 個（375×667 約 8.5）。
+- **測試**：新增 `web/tests/about-sheets.spec.ts`（疊起來的計算、伺服器端輸出、分校停用、沒有影片、沒有 JS 的預設樣式、控制器）；`about.spec.ts`、`about-crayon.spec.ts`、`mobile-ux-20261002.spec.ts` 改成檢查卡紙疊；`scripts/page-copy-stress.cjs` 的手機規則改量卡紙疊。
+- **驗證**：web `typecheck`、`test:website` 112 檔 1365 passed、`nuxt build` 成功；fixture dev server 與正式建置在 390×844、375×667、820×1180、1440×900 都沒有 console 錯誤、沒有橫向捲動；錨點（`#voices`、`#whole-child`、`#campuses`）、目次與分頁跳章、減少動態、平板轉向跨過 900px；axe 無違規（只有 Nuxt 開發工具自己的標籤）；`page-copy-stress.cjs /about` 兩種動態五種寬度都通過。
+- **沒驗證**：iOS Safari／Android 實機（sticky＋clip-path＋svh 的組合）、stack e2e（`tests/stack`，推上 main 前要在本機跑）。
+
 ## 2026-10-25 孩子的一天影片補 sRGB 色彩標記（`feature/day-film-color-20261025`）
 
 接著首屏影片的發現：「孩子的一天」背景影片也沒有色彩標記，Mac 上的 Chrome／Safari 播放時中間調被抬高、開播時比封面亮一截。細節與重製指令在 `design/day-film-color-20261025/README.md`，對照頁是同目錄 `index.html`。

@@ -44,7 +44,7 @@ const strokes = computed(() => items.value.filter((item) => item.k !== 'cut'))
 /* 塗上去／畫出來：pathLength＝1，dashoffset 1→0；沒有 JS（沒有 is-live）時就是完成圖 */
 .abk-crayon .is-fill,.abk-crayon .is-grow{stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset var(--t,1s) cubic-bezier(.4,.1,.3,1) var(--l,0s)}
 .abk.is-live .abk-hope:not(.is-opened) .is-fill,.abk.is-live .abk-scene:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
-/* 手機上翻畫冊（AboutFlipBook）：蠟筆畫那一頁露出來才塗上（is-opened）、停好才長藤與煙（is-grown） */
-.afb.is-live .afb-hope:not(.is-opened) .is-fill,.afb.is-live .afb-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
+/* 手機卡紙疊（AboutSheets，2026-10-25）：蠟筆畫那張卡紙露出來才塗上（is-opened）、停好才長藤與煙（is-grown） */
+.ams.is-live .ams-hope:not(.is-opened) .is-fill,.ams.is-live .ams-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
 @media (prefers-reduced-motion:reduce){.abk-crayon path{transition:none}}
 </style>

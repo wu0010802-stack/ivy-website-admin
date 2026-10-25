@@ -125,7 +125,7 @@
 
 .abk-story .abk-face{display:flex;flex-direction:column}
 .abk-story .abk-stage{flex:1;min-height:440px;margin-bottom:24px}
-/* 紀念章（AboutMedal，2026-10-03 取代拉紙條）：在章名右邊、跟左頁內容右緣對齊（手機畫冊另有一個夾在線圈上，見 about-flipbook.css）。
+/* 紀念章（AboutMedal，2026-10-03 取代拉紙條）：在章名右邊、跟左頁內容右緣對齊（手機卡紙疊另有一個在第一張卡紙章名旁，見 about-sheets.css）。
    不設 z-index：右頁翻過來時要蓋住它（左頁內容都一樣）。 */
 .abk .abk-medal.is-title{position:absolute;top:calc(clamp(36px,4vw,60px) + 12px);right:var(--abk-pad-x);--size:clamp(84px,8.9vw,128px);rotate:6deg}
 /* 釘住（about-popup.ts 量過「紀念章頂端到沿革底」放得進視窗才加 is-pinned）：桌機整個跨頁貼在視窗裡，
@@ -165,7 +165,7 @@
 .abk-print>svg{position:absolute;left:0;width:100%;overflow:hidden}
 .abk-print>.is-top{top:0;height:calc(260 * var(--v))}
 .abk-print>.is-bottom{bottom:0;height:calc(300 * var(--v))}
-/* 蠟筆濾鏡放在 main 底下（桌機第三章與手機畫冊共用），不佔位置 */
+/* 蠟筆濾鏡放在 main 底下（桌機第三章與手機卡紙疊共用），不佔位置 */
 .abk-wax{position:absolute;width:0;height:0;overflow:hidden}
 /* 頁碼落在草地上：一圈紙色光暈，蠟筆線剛好壓在數字底下也看得清楚 */
 .abk-hope .abk-no{text-shadow:0 0 2px var(--abk-page),0 0 5px var(--abk-page)}
@@ -245,7 +245,7 @@
 /* 焦點框畫在緞帶內側：往外的框上緣會被書（z-index 較高）蓋住（2026-10-13） */
 .abk-ribbons a:focus-visible{--pull:12px;outline:3px solid var(--ivy-forest);outline-offset:-3px}
 
-/* ---------- 900px 以下：整本立體書隱藏，換成上翻畫冊（AboutFlipBook，about-flipbook.css；2026-10-19） ----------
+/* ---------- 900px 以下：整本立體書隱藏，換成卡紙疊起來（AboutSheets，about-sheets.css；2026-10-25 取代 10-19 的上翻畫冊） ----------
    原本手機把跨頁拆成上下兩頁、卡紙照樣站起來（2026-09-29～10-19），規則都拿掉了。 */
 @media (max-width:900px){
   .abk{display:none}

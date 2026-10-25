@@ -13,9 +13,9 @@ const component = read('../app/components/AboutContent.vue')
 const crayon = read('../app/components/AboutCrayon.vue')
 const popup = read('../app/utils/about-popup.ts')
 const shared = read('../app/utils/about-content.ts')
-const flipbook = read('../app/components/AboutFlipBook.vue')
-const flipCss = read('../app/assets/css/about-flipbook.css')
-const flipHouse = flipbook.slice(flipbook.indexOf('data-afb-page="hope-art"'), flipbook.indexOf('<!-- 第四章'))
+const sheets = read('../app/components/AboutSheets.vue')
+const sheetsCss = read('../app/assets/css/about-sheets.css')
+const sheetsHouse = sheets.slice(sheets.indexOf('data-hope'), sheets.indexOf('<!-- 家長怎麼說'))
 const hope = component.slice(component.indexOf('<section id="hope"'), component.indexOf('<!-- 第四章'))
 const chapterCss = css.slice(css.indexOf('/* ---------- 第三章'), css.indexOf('/* ---------- 第四章'))
 // 蠟筆線的顏色與動畫在 AboutCrayon 自己的 scoped 樣式（about.css 是 AboutContent 的 scoped 樣式，管不到子元件裡的 path）
@@ -56,18 +56,18 @@ describe('跨頁與手機', () => {
     expect(hope.match(/name="sky" view-box="0 0 1240 260" align="xMaxYMin slice"/g)).toHaveLength(1)
     expect(hope.match(/name="grass" view-box="0 0 1240 300" align="xMinYMax slice"/g)).toHaveLength(1)
     expect(hope.match(/name="grass" view-box="0 0 1240 300" align="xMaxYMax slice"/g)).toHaveLength(1)
-    // 濾鏡只有一份，放在 main 底下、桌機立體書與手機畫冊外面（display:none 裡的濾鏡有的瀏覽器不套）
+    // 濾鏡只有一份，放在 main 底下、桌機立體書與手機卡紙疊外面（display:none 裡的濾鏡有的瀏覽器不套）
     expect(shared.match(/id="abk-wax"/g)).toHaveLength(1)
     expect(component.match(/v-html="WAX_FILTER"/g)).toHaveLength(1)
     expect(component.indexOf('v-html="WAX_FILTER"')).toBeLessThan(component.indexOf('<div ref="root" class="abk"'))
-    expect(component.indexOf('v-html="WAX_FILTER"')).toBeLessThan(component.indexOf('<AboutFlipBook'))
+    expect(component.indexOf('v-html="WAX_FILTER"')).toBeLessThan(component.indexOf('<AboutSheets'))
   })
-  it('手機（上翻畫冊）蠟筆畫自成一頁：色帶與草地置中（xMid）鋪滿，頁面最多算到 480px 寬，同一組卡紙位置', () => {
-    expect(flipHouse.match(/name="sky" view-box="0 0 1240 260" align="xMidYMin slice"/g)).toHaveLength(1)
-    expect(flipHouse.match(/name="grass" view-box="0 0 1240 300" align="xMidYMax slice"/g)).toHaveLength(1)
-    expect(flipCss).toContain('.afb-print>*,.afb-scene>*{--v:calc(min(100cqw,480px) / 620)}')
-    for (const key of ['treeL', 'treeR', 'smoke', 'house']) expect(flipHouse).toContain(`sceneStyle(SCENE.${key}`)
-    expect(flipHouse.match(/class="afb-tape is-[lr]"/g)).toHaveLength(2)
+  it('手機（卡紙疊）蠟筆畫在期許那張卡紙底：色帶與草地置中（xMid）鋪滿，卡紙最多算到 480px 寬，同一組卡紙位置', () => {
+    expect(sheetsHouse.match(/name="sky" view-box="0 0 1240 260" align="xMidYMin slice"/g)).toHaveLength(1)
+    expect(sheetsHouse.match(/name="grass" view-box="0 0 1240 300" align="xMidYMax slice"/g)).toHaveLength(1)
+    expect(sheetsCss).toContain('.ams-art{--v:calc(min(var(--ams-col),480px) / 620);')
+    for (const key of ['treeL', 'treeR', 'smoke', 'house']) expect(sheetsHouse).toContain(`sceneStyle(SCENE.${key}`)
+    expect(sheetsHouse.match(/class="ams-tape is-[lr]"/g)).toHaveLength(2)
   })
   it('左頁印刷層在字之下、封面照樣蓋得住左頁（左頁 z-index 1 < 右頁 2）', () => {
     expect(chapterCss).toContain('.abk-hope .abk-page.is-left{z-index:1;')
@@ -76,9 +76,9 @@ describe('跨頁與手機', () => {
 })
 
 describe('動畫：沒有 JS 就是完成圖', () => {
-  it('只有 is-live 之後、還沒翻開／房子還沒站好時才把線藏起來（手機畫冊同理：那一頁露出來才塗、停好才長藤）', () => {
+  it('只有 is-live 之後、還沒翻開／房子還沒站好時才把線藏起來（手機卡紙疊同理：那張露出來才塗、停好才長藤）', () => {
     expect(crayonCss).toContain('.abk.is-live .abk-hope:not(.is-opened) .is-fill,.abk.is-live .abk-scene:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}')
-    expect(crayonCss).toContain('.afb.is-live .afb-hope:not(.is-opened) .is-fill,.afb.is-live .afb-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}')
+    expect(crayonCss).toContain('.ams.is-live .ams-hope:not(.is-opened) .is-fill,.ams.is-live .ams-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}')
     expect(crayonCss).toMatch(/\.abk-crayon \.is-fill,\.abk-crayon \.is-grow\{stroke-dasharray:1;stroke-dashoffset:0;/)
   })
   it('翻開時跨頁加 is-opened（色帶與草地塗上去），房子站好後 .abk-scene 加 is-grown（藤蔓與煙）', () => {

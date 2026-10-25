@@ -22,8 +22,8 @@
 // 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
 // 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。
 // （手機原本另有一個紀念章在右頁上緣接縫，2026-10-19 手機改成上翻畫冊後拿掉。）義華創校年份 1997（業主 2026-10-03 裁定）。
-// 2026-10-19 手機（900px 以下）改成上翻畫冊 AboutFlipBook（比稿 design/about-mobile-directions-20261019/，使用者選 A、第二版）：
-// 這裡的立體書包在 .abk 裡、只在 901px 以上出現（about-popup 也只在寬螢幕建立），手機整本換成畫冊；兩邊讀同一份後台內容。
+// 2026-10-19 手機（900px 以下）改成上翻畫冊；2026-10-25 再改成卡紙疊起來 AboutSheets（比稿 design/about-redesign-directions-20261025/，
+// 使用者選手機 A、第二版）：這裡的立體書包在 .abk 裡、只在 901px 以上出現（about-popup 也只在寬螢幕建立），手機換成一疊卡紙；兩邊讀同一份後台內容。
 // 共用的固定內容（照片說明、沿革卡紙色、核心素養、蠟筆畫位置與濾鏡）移到 utils/about-content.ts。
 // 2026-10-19 我們的期許改成孩子的蠟筆畫（比稿 design/about-hope-picturebook-directions-20261019/，使用者選 B）：
 // 書頁上印著孩子畫的天空色帶、太陽、草地（跨過書脊），房子和兩棵樹是剪下來的圖畫紙卡紙，照片用紙膠帶貼在窗戶上（AboutCrayon）。
@@ -42,7 +42,7 @@ const milestones = computed(() => props.page.milestones.map((item) => ({ ...item
 // 紀念章背面：校名／年份（沒有 JS 時第二面先印第一所）
 const medalStops = computed(() => milestones.value.map((item) => ({ name: item.campus?.name ?? '', year: item.year })))
 
-// 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色（MILESTONE_LOOKS，手機畫冊同色），
+// 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色（MILESTONE_LOOKS，手機卡紙疊同色），
 // 左頁沿革同一列用同色小方塊。五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
 const STAGE = [
   { x: 0, y: 46, w: 31, r: -1.5 },
@@ -156,7 +156,7 @@ function pickVoice(index: number) {
   else apply()
 }
 
-// 立體書只在 901px 以上（手機是 AboutFlipBook）：平板轉向跨過斷點時建立或拆掉
+// 立體書只在 901px 以上（手機是 AboutSheets）：平板轉向跨過斷點時建立或拆掉
 let wide: MediaQueryList | null = null
 let loading = false
 async function startPopup() {
@@ -186,10 +186,10 @@ onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onB
 
 <template>
   <main id="main" tabindex="-1" data-cta-entry="about">
-    <!-- 蠟筆濾鏡：桌機第三章與手機畫冊共用（放在兩邊外面：display:none 裡的濾鏡有的瀏覽器不套） -->
+    <!-- 蠟筆濾鏡：桌機第三章與手機卡紙疊共用（放在兩邊外面：display:none 裡的濾鏡有的瀏覽器不套） -->
     <svg class="abk-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
-    <!-- 手機（900px 以下）：上翻畫冊；桌機整本隱藏 -->
-    <AboutFlipBook :page="page" :milestones="milestones" :chapters="chapters" :voices="voices" :voice-title="voiceTitle" :voice-campuses="voiceCampuses" :poster-attrs="posterAttrs" />
+    <!-- 手機（900px 以下）：卡紙疊起來；桌機整疊隱藏 -->
+    <AboutSheets :page="page" :milestones="milestones" :chapters="chapters" :voices="voices" :voice-title="voiceTitle" :voice-campuses="voiceCampuses" :poster-attrs="posterAttrs" />
     <!-- 桌機（901px 以上）：立體書；手機整本隱藏 -->
     <div ref="root" class="abk" :style="{ '--last': chapters.length }">
     <!-- 首屏：一整張攤開的跨頁（不翻）。左頁標題＋目次，右頁兩張照片卡紙前後站 -->

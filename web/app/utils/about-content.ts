@@ -1,4 +1,4 @@
-// 關於常春藤頁桌機立體書（AboutContent）與手機上翻畫冊（AboutFlipBook，2026-10-19）共用的固定內容：
+// 關於常春藤頁桌機立體書（AboutContent）與手機卡紙疊（AboutSheets，2026-10-25）共用的固定內容：
 // 內建照片說明、沿革五站的卡紙色、核心素養、第三章蠟筆畫的卡紙位置與濾鏡。文字與照片在後台（about_page），不在這裡。
 
 // 內建照片的說明（不開放編輯；後台換了照片就用後台的說明，沒填用素材庫的說明）
@@ -7,23 +7,20 @@ export const HERO_BACK_ALT = '孩子在教室裡開心地指向自己的發現'
 export const HOPE_ALT = '孩子們笑著圍在戴眼鏡的長輩身邊，大家開心地擠在一起'
 
 // 沿革五站的卡紙底色（依成立順序輪流用品牌色）；tint＝沿革那一列上色的濃度（%）：淡色卡紙要混多一點才看得出來，
-// 各列對米白都約 1.1–1.2:1（2026-10-13）。map＝手機地圖上那一區浮起來的顏色（沒寫就用卡紙色；國際校的薄荷在米白地圖上太淡，混步道綠）
-export const MILESTONE_LOOKS: Array<{ color: string, tint: number, map?: string }> = [
+// 各列對米白都約 1.1–1.2:1（2026-10-13）。
+export const MILESTONE_LOOKS: Array<{ color: string, tint: number }> = [
   { color: 'var(--yellow)', tint: 30 },
   { color: 'var(--studio-blue)', tint: 36 },
   { color: 'var(--studio-sage)', tint: 85 },
-  { color: 'var(--mint)', tint: 45, map: 'color-mix(in oklab,var(--mint) 55%,var(--trail))' },
+  { color: 'var(--mint)', tint: 45 },
   { color: 'var(--studio-orange)', tint: 20 }
 ]
 export const milestoneLook = (i: number) => MILESTONE_LOOKS[i % MILESTONE_LOOKS.length]!
 
-/** 手機地圖上的一站：校名、所在區（沒有分校資料時是 null）、地圖座標（generated/about-map.ts）、卡紙色與浮起來的顏色。 */
-export interface FlipStop { key: string, name: string | null, district: string | null, at: [number, number] | null, color: string, map: string }
-
 export const LITERACIES = ['覺知辨識', '表達溝通', '關懷合作', '推理賞析', '想像創造', '自主管理']
 
 // 我們的期許：卡紙與煙的位置（虛擬座標：一頁寬 620、從頁底往上量，同 scripts/about-crayon/build.mjs；
-// 一個單位多寬是 about.css／about-flipbook.css 的 --v）。水平以頁面中線為準：桌機中線就是 310，手機頁面比 480px 寬時整組置中。
+// 一個單位多寬是 about.css／about-sheets.css 的 --v）。水平以頁面中線為準：桌機中線就是 310，手機卡紙比 480px 寬時整組置中。
 // 煙的框（120×180，煙囪頂在框裡的 (90, 172)）要對準房子卡紙上的煙囪頂（房子座標 (218, 46)）。
 export const SCENE = {
   treeL: { x: 30, y: 94, w: 140, h: 210 },
