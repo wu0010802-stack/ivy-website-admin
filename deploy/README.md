@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-25 關於頁手機版改成卡紙疊起來（main CI 部署，沒有 migration）
+
+- **內容**：`30f7230a`（README 同日「關於頁手機版改成卡紙疊起來」）。900px 以下的 /about 由上翻畫冊改成一章一張卡紙，讀到底下一張疊上來；封面底下露出整疊分頁（目次）、讀進去後頂端資料夾分頁；紀念章在章名旁、讀到哪一校翻到哪一年。上翻畫冊與高雄地圖產生器、資料一併刪除。桌機立體書不變。
+- **提交**：使用者看過比稿（`design/about-redesign-directions-20261025/`，Desktop 工作區）選手機 A 第二版、拿掉地圖後要求實作並部署。從 origin/main `59fc1b2d` 開 sparse worktree `about-mobile-sheets-20261025`，期間 main 沒前進，使用者以 `!` 快轉推上 main。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:website` 112 檔 1365 passed、`nuxt build`；stack e2e 156 passed（5.9 分，獨立測試庫已刪）；`page-copy-stress.cjs /about` 減少動態與一般動態五種寬度通過；axe（WCAG 2.1 AA）390／820／減少動態無違規。
+- **CI**：main run 40199936527（`30f7230a`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（14:07:05Z → 14:11:01Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `30f7230a`、created `2026-10-25T14:07:32Z`；`/api/website/v1/health` `status: ok`；`/`、`/about`、`/admin/` 200。Playwright（擋 `POST /api/telemetry`，不寫正式庫）390×844、375×667：`.ams is-live is-stacked`、5 張卡紙、沒有舊畫冊、頁長 7.2／8.5 個畫面、沒有橫向捲動，除了被擋的 telemetry 沒有 console 錯誤；1440×900 仍是立體書（卡紙疊隱藏）。
+- **沒驗證**：iOS Safari／Android 實機（sticky＋clip-path＋svh 的組合）。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-25 孩子的一天背景影片補 sRGB 色彩標記（main CI 部署，沒有 migration）
 
 - **內容**：`9e7aeb26`（PR #55，README 同日「孩子的一天影片補 sRGB 色彩標記」）。「孩子的一天」背景影片原本沒有色彩標記（Mac 的 Chrome／Safari 會抬亮中間調），改用 17³ 色票實測的顯示轉換（`design/day-film-color-20261025/screen-17.cube`）燒進像素再標 BT.709 原色／矩陣＋sRGB，螢幕上外觀不變；封面改取新中間檔第 0 格，開播不再跳色（封面略亮）。桌機 9,635,511、手機 7,302,624 bytes。只動素材與 `scripts/optimize-site-videos.py`，沒有新環境變數，`DayExperience.vue` 不變。
