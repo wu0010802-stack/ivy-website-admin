@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-25 前台優化複查：消息 landmark、台北日期、單則消息版面（main CI 部署，沒有 migration）
+
+- **內容**：`1ffc885d`（README「2026-10-25 前台優化複查」）。首頁手機 `HomeStories` 根節點改 div（axe landmark-unique）；`utils/taipei-date.ts` 固定 UTC+8 取代三處 Intl 時區格式器；消息檢視器「看完整消息」焦點框改米白；只有一則消息又沒有活動時不再被拆成兩欄、主圖 `sizes` 依版面；web `styles.css` 移除 1150 斷點。content-visibility 與首頁 lazy hydration 評估後不採用（DESIGN.md「主執行緒長任務」）。
+- **提交**：使用者要求部署。從 origin/main 開 sparse worktree `web-perf-20261025`，rebase 到 `099a17b8`（README 頂部衝突兩段都留）；先推 `feature/web-perf-20261025` 跑完整 CI（run 40190853784，Frontend、Backend 三組、E2E／Playwright 全 success，Deploy 依設計 skipped），再由使用者推 main（fast-forward）。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:unit` 112 檔 1363 passed；production build（fixture）上 axe 9 頁／尺寸 0 違規、6 頁無 hydration 警告、1150 斷點刪除前後 6 頁 × 7 寬度逐元素比 computed style 只差 1101–1150px 頁尾欄距。
+- **CI**：main run 40191805613（`1ffc885d`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（12:16:40Z → 12:20:38Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `1ffc885d`、created `2026-10-25T12:17:01Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admission`、`/curriculum`、`/environment`、`/admin/` 200。Playwright（只發 GET、擋 telemetry）：手機首頁「最新消息」landmark 只剩一個、axe 首頁 1440／390 0 違規；「看完整消息」焦點框 `oklch(0.99 …)`；桌機首頁現在只有一則消息，feed 單欄 560px、主圖 559px、`sizes="560px"`（部署前 251px）；入學頁顯示 115 學年度；7 頁 console 無錯誤。
+- **沒驗證**：iOS／Android 實機。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-25 首屏影片第二版調色、sRGB 色彩標記與 AV1（main CI 部署，沒有 migration）
 
 - **內容**：`319cb4ab`（PR #54，README「2026-10-24 首屏影片第二版調色、色彩標記與 AV1」）。首屏影片改用每鏡 3D LUT 調色（取代 10-20 soft-light，黑位回到原片深度、拿掉背景綠灰）、去掉原片壓縮方塊；交付檔標 BT.709 原色／矩陣＋sRGB 轉換函數（舊檔沒標記，Mac 的 Chrome／Safari 開播時比封面亮 10–13/255）；新增 AV1 10-bit（桌機 3,910,018、手機 1,528,428 bytes），瀏覽器回報能順播才用、失敗退 H.264（桌機 5,766,897、手機 2,222,998）；影片第一格開始播才淡入。首屏與「一起跑向前」封面一併換新。只動 web 素材與前端，沒有新環境變數。
