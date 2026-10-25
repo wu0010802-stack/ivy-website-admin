@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-25 孩子的一天背景影片補 sRGB 色彩標記（main CI 部署，沒有 migration）
+
+- **內容**：`9e7aeb26`（PR #55，README 同日「孩子的一天影片補 sRGB 色彩標記」）。「孩子的一天」背景影片原本沒有色彩標記（Mac 的 Chrome／Safari 會抬亮中間調），改用 17³ 色票實測的顯示轉換（`design/day-film-color-20261025/screen-17.cube`）燒進像素再標 BT.709 原色／矩陣＋sRGB，螢幕上外觀不變；封面改取新中間檔第 0 格，開播不再跳色（封面略亮）。桌機 9,635,511、手機 7,302,624 bytes。只動素材與 `scripts/optimize-site-videos.py`，沒有新環境變數，`DayExperience.vue` 不變。
+- **提交**：使用者看過本機對照頁後要求上線。PR CI（run 40190740290）全綠後 main 前進到 `1ffc885d`（前台優化複查），README 頂部衝突，合併 main（`932024b8`）兩段都保留；等 `1ffc885d` 的 main 部署（run 40191805613）完成、PR 重跑 CI（run 40191953322）全綠才 squash 合併。
+- **推送前閘門**（本機，Node 22.23.2，合併 main 後）：web `typecheck` 0 錯、`test:website` 112 檔 1363 passed；後端 `test_media_slots.py` 21 passed（合併前、獨立測試庫已刪）；新檔 12 格螢幕實測與正式站平均差 1.6–2.0/255、封面接第一格 11.2 → 2.1/255。
+- **CI**：main run 40193014512（`9e7aeb26`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（12:33:43Z → 12:37:58Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `9e7aeb26`、created `2026-10-25T12:34:08Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200。兩支影片線上檔與 repo 逐位元相同、ffprobe 為 `bt709／iec61966-2-1／bt709／tv`（手機檔第一次下載在傳輸中被截斷，重抓 `content-length` 與雜湊都對）；首頁 HTML 引用新封面 `2a6dbef88732` 四種寬度，舊檔 `day-desktop-8ab1f375be85.mp4` 404。Playwright（攔 `POST /api/telemetry`）：Chrome 1440 與 WebKit 1440 載入新桌機檔、Chrome 390 手機模擬載入新手機檔，都淡入、沒有 page error；同捲動位置同一格的 Chrome 桌機整頁截圖，上線前後平均差 0.40/255；頁面上封面接第一格（含疊層）平均差 Chrome 0.87、WebKit 0.94，沒有偏移。
+- **沒驗證**：iOS／Android 實機、Firefox、Windows。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-25 前台優化複查：消息 landmark、台北日期、單則消息版面（main CI 部署，沒有 migration）
 
 - **內容**：`1ffc885d`（README「2026-10-25 前台優化複查」）。首頁手機 `HomeStories` 根節點改 div（axe landmark-unique）；`utils/taipei-date.ts` 固定 UTC+8 取代三處 Intl 時區格式器；消息檢視器「看完整消息」焦點框改米白；只有一則消息又沒有活動時不再被拆成兩欄、主圖 `sizes` 依版面；web `styles.css` 移除 1150 斷點。content-visibility 與首頁 lazy hydration 評估後不採用（DESIGN.md「主執行緒長任務」）。
