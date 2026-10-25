@@ -39,6 +39,11 @@ const campusKey = ref('all')
 const selectedCampus = computed(() => campusList.value.find((c) => c.key === campusKey.value))
 const feed = computed(() => homeFeed(articles.value, selectedCampus.value))
 const allNewsLink = computed(() => (selectedCampus.value ? { path: NEWS_PATH, query: { campus: selectedCampus.value.key } } : NEWS_PATH))
+// 主圖 sizes 跟著版面（2026-10-25 實測）：只有一則時單欄最寬 560px；兩欄時 760px 以下滿版、1100px 以下約半版，
+// 再寬時沒有活動欄約 476–611px、有活動欄（消息只佔 11/16）估約 320–406px。640px 以下桌機版隱藏、lazy 不會下載。
+const leadSizes = computed(() => (!feed.value.rest.length && !feed.value.others.length
+  ? '560px'
+  : `(max-width: 760px) calc(100vw - 40px), (max-width: 1100px) calc(52vw - 50px), ${nextEvent.value ? 420 : 610}px`))
 // 篩選時照片沿著自己的位置縮放移動：每則照片一個固定的 view-transition-name（用首頁清單裡的序號，id 可能有冒號）。
 const mediaName = (item: NewsArticle) => `hn-m-${articles.value.indexOf(item)}`
 
@@ -180,7 +185,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
           <div v-else class="hn-feed" :class="{ 'is-single': !feed.rest.length && !feed.others.length }" aria-live="polite">
             <article class="hn-story hn-feature">
               <figure :style="{ viewTransitionName: mediaName(feed.lead) }">
-                <img v-bind="imageFor(feed.lead, '(max-width: 1100px) 50vw, 440px')" :style="imageStyle(feed.lead)" :alt="feed.lead.alt" loading="lazy">
+                <img v-bind="imageFor(feed.lead, leadSizes)" :style="imageStyle(feed.lead)" :alt="feed.lead.alt" loading="lazy">
               </figure>
               <p class="hn-meta"><b>{{ feed.lead.campus }}</b><span>{{ feed.lead.category }}</span><span v-if="tagged(feed.lead, articlesSample)" class="hn-sample-tag">示意</span><time :datetime="feed.lead.date">{{ monthDay(feed.lead.date) }}</time></p>
               <h3><NuxtLink :to="newsPath(feed.lead.id)"><span v-for="(part, k) in titleClauses(feed.lead.title)" :key="k" class="hn-clause">{{ part }}</span></NuxtLink></h3>
@@ -344,8 +349,9 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
 
 /* 消息：一則大圖＋三列 */
 .hn-feed { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: clamp(28px, 3vw, 44px); align-items: start; view-transition-name: hn-feed; }
-.hn-feed.is-single { grid-template-columns: minmax(0, 1fr); max-width: 560px; }
 .is-news-only .hn-feed { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 4vw, 64px); }
+/* 只有一則：單欄、最寬 560px。要排在 is-news-only 之後（同權重），不然會被拆成兩欄、主圖只剩一半寬（2026-10-25 正式站只有一則時就是這樣）。 */
+.hn-feed.is-single { grid-template-columns: minmax(0, 1fr); max-width: 560px; }
 .hn-story { position: relative; color: var(--ivy-news-green); }
 .hn-story figure { margin: 0; overflow: hidden; border-radius: 18px; aspect-ratio: 4 / 3; background: var(--ivy-news-note); view-transition-class: hn-media; }
 .is-news-only .hn-feature figure { aspect-ratio: 16 / 10; }

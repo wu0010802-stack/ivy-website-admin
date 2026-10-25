@@ -1,3 +1,5 @@
+import { taipeiIsoDate } from './taipei-date'
+
 /**
  * 分班對照（入學資訊頁）。規則沿用舊官網分班表：民國 Y/9/2 ～ Y+1/9/1 出生為同一屆，
  * Y+3 學年度讀幼幼班，之後每年升一班，Y+7 學年度上小一。學年度 8 月 1 日起算。
@@ -11,8 +13,7 @@ interface YMD { year: number; month: number; day: number }
 
 /** 台北時區的年月日。伺服器在 UTC，SSR 與瀏覽器要算出同一個學年度。 */
 export function taipeiYmd(now = new Date()): YMD {
-  const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' })
-    .format(now).split('-').map(Number)
+  const [year, month, day] = taipeiIsoDate(now).split('-').map(Number)
   return { year: year!, month: month!, day: day! }
 }
 

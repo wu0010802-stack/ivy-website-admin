@@ -1,3 +1,5 @@
+import { taipeiIsoDate } from './taipei-date'
+
 export interface VisitContact {
   parentName: string
   phone: string
@@ -77,7 +79,7 @@ export function contactTimeLabel(value: string): string {
 }
 
 export function taipeiDate(now = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  return taipeiIsoDate(now)
 }
 
 /** 讀公開場次查到幾天後：後台最遠開放可以設到一年（2026-10-20 稽核前寫死 60 天，61 天以後的場次

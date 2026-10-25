@@ -432,6 +432,8 @@ html:has(.hsv[open]) { overflow: hidden; }
 .hsv-caption p { margin: 0; font-size: var(--fs-sm); line-height: 1.8; }
 .hsv-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
 .hsv-btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--white); color: var(--ivy-news-green); font: 600 var(--fs-sm)/1 var(--font-information); text-decoration: none; }
+/* 字幕區在深色漸層上：全站的 leaf 焦點框畫在鈕外，對比只有約 2.6:1（2026-10-21 盤點 F13），改用米白。 */
+.hsv-caption :focus-visible { outline-color: var(--paper); }
 .hsv-ytplay { position: absolute; z-index: 3; left: 50%; top: 46%; translate: -50% -50%; display: grid; place-items: center; width: 76px; height: 76px; padding: 0; border: 0; border-radius: 50%; background: var(--white); color: var(--ivy-news-green); cursor: pointer; box-shadow: 0 10px 30px rgb(var(--ivy-news-backdrop-rgb) / .35); }
 .hsv-ytplay .icon { width: 28px; height: 28px; margin-left: 4px; }
 /* 活動頁：活動三色底、深綠字，上方列跟著換深色。 */
