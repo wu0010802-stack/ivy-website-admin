@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { HERO_MIN_DOWNLINK_MBPS, heroMayAutoplay, mayAutoplay, backgroundVideoSrc } from '../app/utils/media-policy'
+import { describe, expect, it, vi } from 'vitest'
+import { HERO_AV1_TYPE, HERO_MIN_DOWNLINK_MBPS, heroAv1Src, heroAv1Verdict, heroMayAutoplay, mayAutoplay, preferAv1, backgroundVideoSrc } from '../app/utils/media-policy'
 import { responsiveImage } from '../app/utils/responsive-image'
 
 describe('影音流量與響應式圖片', () => {
@@ -34,6 +34,38 @@ describe('影音流量與響應式圖片', () => {
     expect(backgroundVideoSrc('assets/day-film.mp4', false)).toContain('day-desktop')
     expect(backgroundVideoSrc('assets/hero-campus.mp4', false)).toContain('hero-desktop')
     expect(backgroundVideoSrc('assets/day-film-mobile.mp4', true)).toContain('day-mobile')
+  })
+  it('首屏影片的 AV1 版只給首屏素材，桌機／手機各一支；其他影片沒有 AV1', () => {
+    expect(heroAv1Src('assets/hero-campus.mp4', false)).toMatch(/hero-desktop-av1-[0-9a-f]{12}\.mp4$/)
+    expect(heroAv1Src('assets/hero-campus.mp4', true)).toMatch(/hero-mobile-av1-[0-9a-f]{12}\.mp4$/)
+    expect(heroAv1Src('assets/day-film.mp4', false)).toBeNull()
+    expect(heroAv1Src('assets/custom.mp4', true)).toBeNull()
+  })
+  it('AV1 要支援又能順播；觸控裝置還要硬體解碼，桌機軟體解碼可以', () => {
+    const hw = { supported: true, smooth: true, powerEfficient: true }
+    const sw = { supported: true, smooth: true, powerEfficient: false }
+    expect(preferAv1(hw, true)).toBe(true)
+    expect(preferAv1(sw, false)).toBe(true)
+    expect(preferAv1(sw, true)).toBe(false)
+    expect(preferAv1({ ...hw, smooth: false }, false)).toBe(false)
+    expect(preferAv1({ ...hw, supported: false }, false)).toBe(false)
+    expect(preferAv1(null, false)).toBe(false)
+  })
+  it('查詢 AV1 解碼能力：沒有 API、拋錯或逾時都回 null（改用 H.264），有結果照實回傳', async () => {
+    expect(await heroAv1Verdict(undefined, false)).toBeNull()
+    expect(await heroAv1Verdict(() => Promise.reject(new TypeError('unsupported')), false)).toBeNull()
+    vi.useFakeTimers()
+    const pending = heroAv1Verdict(() => new Promise(() => {}), true)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(await pending).toBeNull()
+    vi.useRealTimers()
+    const asked: unknown[] = []
+    const verdict = await heroAv1Verdict(async (config) => {
+      asked.push(config)
+      return { supported: true, smooth: true, powerEfficient: false }
+    }, true)
+    expect(verdict).toEqual({ supported: true, smooth: true, powerEfficient: false })
+    expect(asked).toEqual([{ type: 'file', video: expect.objectContaining({ contentType: HERO_AV1_TYPE, width: 1080, height: 800, framerate: 30 }) }])
   })
   it('每個圖片候選寬度真實、不放大，未知素材保留原網址', () => {
     const result = responsiveImage('hero-campus-still', '100vw')

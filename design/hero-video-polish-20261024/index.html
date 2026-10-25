@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>首屏影片對照</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #253e34;
+      --muted: #617267;
+      --paper: #fffdf5;
+      --line: #d9dfd3;
+      --white: #fff;
+      --green: #2d6e4e;
+      --focus: #be7532;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); }
+    main { max-width: 1200px; margin: auto; padding: 48px 16px 64px; }
+    h1 { font-size: clamp(24px, 3vw, 36px); font-weight: 600; margin: 0 0 12px; }
+    .intro { line-height: 1.9; margin: 0 0 28px; max-width: 46em; }
+    .stage { position: relative; aspect-ratio: 1080 / 800; background: #1c1a18; overflow: hidden; border-radius: 4px; }
+    .stage video, .stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .stage .new { clip-path: inset(0 0 0 var(--split, 50%)); }
+    .stage .poster { opacity: 0; transition: opacity .2s; }
+    .stage.show-poster .poster { opacity: 1; }
+    .divider { position: absolute; top: 0; bottom: 0; left: var(--split, 50%); width: 2px; margin-left: -1px; background: var(--white); pointer-events: none; }
+    .label { position: absolute; top: 12px; padding: 4px 10px; border-radius: 999px; background: rgb(28 26 24 / .6); color: var(--white); font-size: 14px; }
+    .label.left { left: 12px; }
+    .label.right { right: 12px; }
+    .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 16px; }
+    .controls input[type="range"] { flex: 1 1 240px; accent-color: var(--green); }
+    button { min-height: 44px; padding: 0 18px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); font: inherit; cursor: pointer; }
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    ul { line-height: 1.9; padding-left: 1.2em; margin: 28px 0 0; max-width: 52em; }
+    .note { color: var(--muted); font-size: 14px; line-height: 1.8; margin-top: 20px; max-width: 52em; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>首屏影片：正式站與新版</h1>
+    <p class="intro">左邊是正式站現在的影片（10-20 調亮版），右邊是新版。拖動滑桿比對同一格畫面；「從封面開始播」先停在封面，再開始播放，看封面接影片會不會跳色。</p>
+    <div class="stage" id="stage">
+      <video class="old" id="old" src="../hero-video-grade-20261020/hero-grade-master.mp4" muted loop playsinline preload="auto" aria-label="正式站首屏影片，無聲"></video>
+      <video class="new" id="new" src="hero-desktop-h264.mp4" muted loop playsinline preload="auto" aria-label="新版首屏影片，無聲"></video>
+      <img class="poster" src="live-poster-20261020.webp" alt="">
+      <img class="poster new" src="../../web/public/assets/hero-campus-restored-v1-still.webp" alt="">
+      <span class="divider" aria-hidden="true"></span>
+      <span class="label left">正式站</span>
+      <span class="label right">新版</span>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle">暫停</button>
+      <button type="button" id="from-poster">從封面開始播</button>
+      <label for="split">分界</label>
+      <input type="range" id="split" min="0" max="100" value="50">
+    </div>
+    <ul>
+      <li>黑位回到原片深度，頭髮與五官有層次；中間調與正式站螢幕上一樣亮。</li>
+      <li>背景偏綠的灰霧拿掉，七個鏡頭的白平衡對齊；螢光粉紅上衣收一點。</li>
+      <li>舊檔沒有色彩標記，Mac 上的 Chrome 與 Safari 播放時會比封面亮一截；新版標成 sRGB，跟封面相差不到 2/255。</li>
+    </ul>
+    <p class="note">這頁兩邊都播 H.264；官網在支援的瀏覽器會改播同畫質、小約三成的 AV1。Windows 的瀏覽器處理色彩標記的方式不同，舊檔的跳色不一定看得出來。</p>
+  </main>
+  <script>
+    const stage = document.getElementById('stage')
+    const oldVideo = document.getElementById('old')
+    const newVideo = document.getElementById('new')
+    const toggle = document.getElementById('toggle')
+    const split = document.getElementById('split')
+    const both = [oldVideo, newVideo]
+    let posterTimer = 0
+
+    split.addEventListener('input', () => stage.style.setProperty('--split', split.value + '%'))
+
+    function play() {
+      both.forEach(v => v.play().catch(() => {}))
+      toggle.textContent = '暫停'
+    }
+    function pause() {
+      both.forEach(v => v.pause())
+      toggle.textContent = '播放'
+    }
+    toggle.addEventListener('click', () => (newVideo.paused ? play() : pause()))
+
+    document.getElementById('from-poster').addEventListener('click', () => {
+      clearTimeout(posterTimer)
+      pause()
+      both.forEach(v => { v.currentTime = 0 })
+      stage.classList.add('show-poster')
+      posterTimer = setTimeout(() => {
+        stage.classList.remove('show-poster')
+        play()
+      }, 1500)
+    })
+
+    // 舊檔對齊新檔的時間，差超過一格就拉回來
+    function sync() {
+      if (!newVideo.paused && Math.abs(oldVideo.currentTime - newVideo.currentTime) > 0.04) oldVideo.currentTime = newVideo.currentTime
+      requestAnimationFrame(sync)
+    }
+    Promise.all(both.map(v => new Promise(r => (v.readyState >= 3 ? r() : v.addEventListener('canplay', r, { once: true }))))).then(() => {
+      play()
+      requestAnimationFrame(sync)
+    })
+  </script>
+</body>
+</html>

@@ -1,0 +1,241 @@
+{
+  "source_filename": "常春藤廣告+配音 (1).mp4",
+  "source_sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b",
+  "lossless_from": "design/hero-video-grade-20261020/build.py（未調色七鏡頭）",
+  "grade": {
+    "TONE": [
+      [
+        0,
+        0
+      ],
+      [
+        6,
+        5.8
+      ],
+      [
+        12,
+        14.6
+      ],
+      [
+        22,
+        31.5
+      ],
+      [
+        35,
+        50
+      ],
+      [
+        50,
+        66.5
+      ],
+      [
+        65,
+        78.6
+      ],
+      [
+        80,
+        87.6
+      ],
+      [
+        90,
+        92
+      ],
+      [
+        96,
+        95.6
+      ],
+      [
+        100,
+        100
+      ]
+    ],
+    "WB_TARGET": [
+      0.0,
+      0.01
+    ],
+    "WB_STRENGTH": [
+      0.7,
+      0.35
+    ],
+    "BLACK_FLOOR": 4.0,
+    "BLACK_STRENGTH": 0.6,
+    "VIBRANCE": 0.04,
+    "VIB_START": [
+      0.012,
+      0.04
+    ],
+    "VIB_FADE": 0.13,
+    "KNEE": 0.13,
+    "KNEE_ROOM": 0.07,
+    "SKIN_HUE": [
+      58.0,
+      24.0
+    ],
+    "SKIN_VIB": 0.0,
+    "SKIN_TURN": 3.0,
+    "LUT_SIZE": 65
+  },
+  "deband": "deband=1thr=0.01:2thr=0.01:3thr=0.01:range=16:blur=1",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range（解碼原片用 BT.601）",
+  "shots": [
+    {
+      "shot": 1,
+      "gains": [
+        1.05699,
+        0.98521,
+        0.98868
+      ],
+      "black_point": 5.69,
+      "black_lstar": 13.48,
+      "neutral_oklab": [
+        0.6238,
+        -0.0072,
+        0.0067
+      ]
+    },
+    {
+      "shot": 2,
+      "gains": [
+        1.00114,
+        1.00142,
+        0.98166
+      ],
+      "black_point": 2.259,
+      "black_lstar": 7.77,
+      "neutral_oklab": [
+        0.6606,
+        0.0008,
+        0.0049
+      ]
+    },
+    {
+      "shot": 3,
+      "gains": [
+        1.03665,
+        0.98878,
+        1.0075
+      ],
+      "black_point": 0.148,
+      "black_lstar": 4.25,
+      "neutral_oklab": [
+        0.7346,
+        -0.0065,
+        0.012
+      ]
+    },
+    {
+      "shot": 4,
+      "gains": [
+        1.03124,
+        0.98925,
+        1.01878
+      ],
+      "black_point": 2.628,
+      "black_lstar": 8.38,
+      "neutral_oklab": [
+        0.686,
+        -0.0059,
+        0.0149
+      ]
+    },
+    {
+      "shot": 5,
+      "gains": [
+        1.02386,
+        0.99291,
+        1.00077
+      ],
+      "black_point": 0.0,
+      "black_lstar": 3.68,
+      "neutral_oklab": [
+        0.7254,
+        -0.004,
+        0.0101
+      ]
+    },
+    {
+      "shot": 6,
+      "gains": [
+        1.03185,
+        0.98671,
+        1.04923
+      ],
+      "black_point": 0.0,
+      "black_lstar": 3.84,
+      "neutral_oklab": [
+        0.7565,
+        -0.0083,
+        0.0239
+      ]
+    },
+    {
+      "shot": 7,
+      "gains": [
+        1.01025,
+        1.00079,
+        0.96289
+      ],
+      "black_point": 0.41,
+      "black_lstar": 4.68,
+      "neutral_oklab": [
+        0.7548,
+        0.0006,
+        -0.0025
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "file": "hero-desktop-av1.mp4",
+      "codec": "av1",
+      "pix_fmt": "yuv420p10le",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 3910018,
+      "crf": 24,
+      "sha256": "b31d28752f58303157f5e353b6879c0cc35605155f9ee0578c80d4a485805267"
+    },
+    {
+      "file": "hero-desktop-h264.mp4",
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 5766897,
+      "crf": 18,
+      "sha256": "0dd0185c5b1585edae19658b39a8496040fbe6a4f22000e6af6956968e5057d6"
+    },
+    {
+      "file": "hero-mobile-av1.mp4",
+      "codec": "av1",
+      "pix_fmt": "yuv420p10le",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 1528428,
+      "crf": 38,
+      "sha256": "f51f10cde2dcb583ea2da4c4b5197b120d693ff106837383adf8dfeaa38e13ce"
+    },
+    {
+      "file": "hero-mobile-h264.mp4",
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "295",
+      "duration": "9.833333",
+      "bytes": 2222998,
+      "crf": 26,
+      "sha256": "36ab9cc625806d6abc923751800707b91c5e616c98e8de98d795727590fc041f"
+    }
+  ]
+}

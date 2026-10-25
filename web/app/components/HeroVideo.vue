@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { HOME_HERO_SIZES } from '~/utils/responsive-image'
-import { backgroundVideoSrc, heroMayAutoplay, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { backgroundVideoSrc, heroAv1Src, heroAv1Verdict, heroMayAutoplay, mayAutoplay, preferAv1, type ConnectionInfo } from '~/utils/media-policy'
 import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import { heroImageAttrs, mediaImageAttrs } from '~/utils/media-image'
 import type { HeroContent } from '~/types/site-content'
@@ -18,6 +18,9 @@ const actionsEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
 const showVideo = ref(false)
 const isPlaying = ref(false)
+// 第一格真的開始播才淡入（2026-10-24）：之前影片元素一掛上就蓋在封面上，部分瀏覽器在解出
+// 第一格前會閃一下黑框；iOS 低耗電模式擋自動播放時也維持封面，按播放才淡入。
+const videoReady = ref(false)
 const heroImgEl = ref<HTMLImageElement | null>(null)
 const videoSrc = ref('')
 const isMobileVideo = ref(false)
@@ -96,7 +99,18 @@ function togglePlay() {
   applyPlayback()
 }
 
+// AV1 載入或解碼失敗時退回的 H.264；已經是 H.264 就沒有下一步，照舊收起影片。
+let fallbackSrc = ''
+
 function onVideoError() {
+  if (fallbackSrc) {
+    videoSrc.value = fallbackSrc
+    fallbackSrc = ''
+    nextTick(() => {
+      if (!disposed) applyPlayback()
+    })
+    return
+  }
   wantsPlayback = false
   showVideo.value = false
   videoFailed.value = true
@@ -121,7 +135,7 @@ onMounted(() => {
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   if (!mayAutoplay(reduceQuery.matches, connection)) return
   wantsPlayback = true
-  const startVideo = () => {
+  const startVideo = async () => {
     if (disposed) return
     if (!entranceWaited && document.documentElement.dataset.ivyEntrance === 'pending') return waitForEntrance(startVideo)
     // 封面與首屏資源都到了才看頻寬（這時瀏覽器已依這次載入更新估計）：慢速 4G 也比照 3G 留靜態封面（門檻與實測見 media-policy.ts）
@@ -133,8 +147,17 @@ onMounted(() => {
     // 橫拿手機（高度 ≤500）也拿手機檔，不下載桌機母帶。
     const narrow = window.matchMedia('(max-width: 760px)').matches
     const compact = window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches
+    const source = narrow && props.hero.heroVideoSrcMobile ? props.hero.heroVideoSrcMobile : props.hero.heroVideoSrc
+    const h264 = backgroundVideoSrc(source, compact)
+    // 有 AV1 版而且瀏覽器回報能順播才用（條件見 media-policy.ts 的 preferAv1）。
+    const av1 = heroAv1Src(source, compact)
+    const capabilities = (navigator as Navigator & { mediaCapabilities?: MediaCapabilities }).mediaCapabilities
+    const verdict = av1 ? await heroAv1Verdict(capabilities?.decodingInfo.bind(capabilities), compact) : null
+    if (disposed) return
+    const useAv1 = !!av1 && preferAv1(verdict, window.matchMedia('(pointer: coarse)').matches)
+    fallbackSrc = useAv1 ? h264 : ''
     isMobileVideo.value = narrow
-    videoSrc.value = backgroundVideoSrc(narrow && props.hero.heroVideoSrcMobile ? props.hero.heroVideoSrcMobile : props.hero.heroVideoSrc, compact)
+    videoSrc.value = useAv1 && av1 ? av1 : h264
     showVideo.value = true
     nextTick(() => {
       if (disposed) return
@@ -253,13 +276,17 @@ onUnmounted(() => {
               v-if="showVideo"
               id="hero-video"
               ref="videoEl"
+              :class="{ 'is-ready': videoReady }"
               :src="videoSrc"
               :style="videoPosition ? { objectPosition: videoPosition } : undefined"
               muted
               loop
               playsinline
+              disablepictureinpicture
+              disableremoteplayback
               preload="none"
               aria-hidden="true"
+              @playing="videoReady = true"
               @error="onVideoError"
             />
           </figure>
