@@ -1,4 +1,5 @@
 import type { Campus, NewsArticle, NewsContent, NewsEvent } from '../types/site-content'
+import { taipeiIsoDate } from './taipei-date'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 
@@ -9,7 +10,7 @@ export function newsMonth(date: string): string {
 
 /** 台北時區的今天（YYYY-MM-DD）。伺服器在 UTC，不能直接用 toISOString。 */
 export function taipeiToday(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  return taipeiIsoDate(now)
 }
 
 /**

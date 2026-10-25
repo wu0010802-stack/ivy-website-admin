@@ -1,3 +1,14 @@
+## 2026-10-25 前台優化複查（`feature/web-perf-20261025`）
+
+使用者問「怎麼優化前台」，複查 10-21 盤點剩下的項目並重量正式站，照建議做 1–3、評估 4–5。
+
+- **首頁手機版 landmark 重複**：`HomeStories.vue` 根節點由 `section` 改 `div`，外層 `NewsDialog` 的 section 已經叫「最新消息」（axe `landmark-unique`，10-24 新退步）。
+- **台北日期不用 Intl 時區**：新增 `utils/taipei-date.ts`（固定 UTC+8，台灣沒有日光節約時間），`taipeiYmd`／`taipeiToday`／`taipeiDate` 改用它。新分頁第一次建 `Asia/Taipei` 格式器 31–56 ms（CPU 4×），首頁、入學頁、環境頁 hydration 都會呼叫；`visitDateLabel` 要中文星期，仍用 Intl。
+- **消息檢視器「看完整消息」焦點框**：字幕區在深色漸層上，改米白（原 leaf 約 2.6:1）。
+- **首頁最新消息只有一則時被拆成兩欄**：`.is-news-only .hn-feed`（兩欄）排在 `.hn-feed.is-single` 後面、同權重，單則主圖只剩約 235px（正式站現在就是這樣）；調換順序後單欄最寬 560px。主圖 `sizes` 改跟版面走（單則 560px；兩欄 760px 以下滿版、1100px 以下約半版、再寬 610px，有活動欄 420px）。
+- **`styles.css` 原型時期的 1150 斷點移除**：只剩頁尾欄距有作用，改到 1100（和 `.container` 同一個斷點）；6 頁 × 7 寬度逐元素比 computed style，只有 1101–1150px 的頁尾欄距 40→60px。
+- **評估後不採用**：首屏以下章節與頁尾 `content-visibility:auto`、首頁 `NewsDialog`／`CampusBoard` lazy hydration。理由與數字見 DESIGN.md「主執行緒長任務」。10-24 量到的手機長任務是本機負載 12–17 灌出來的：負載 3 時正式站首頁 TBT 約 155 ms、環境頁約 100 ms、入學頁約 70 ms（CPU 4×），首次繪製前沒有超過 50 ms 的任務。
+- 測試：`web/tests/taipei-date.spec.ts`（換日、換月、換年、閏日與一年內每小時都和 Intl 一致）。
 ## 2026-10-24 首屏影片第二版調色、色彩標記與 AV1（`feature/hero-video-polish-20261024`）
 
 使用者要求優化首屏影片的調色、畫質與其他呈現。細節、量測與重製指令在 `design/hero-video-polish-20261024/README.md`，前後對照頁是同目錄 `index.html`。

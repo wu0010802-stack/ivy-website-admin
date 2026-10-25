@@ -61,7 +61,8 @@ function markSeen(id: string) {
 </script>
 
 <template>
-  <section class="hs" aria-labelledby="home-stories-heading">
+  <!-- 不另成 landmark：外層 NewsDialog 的 section 已經用「最新消息」命名（axe landmark-unique）。 -->
+  <div class="hs">
     <div class="container hs-head">
       <h2 id="home-stories-heading">最新消息</h2>
       <NuxtLink v-if="hasNews" class="hn-more" :to="NEWS_PATH">所有最新消息</NuxtLink>
@@ -128,7 +129,7 @@ function markSeen(id: string) {
     <ClientOnly>
       <HomeStoryViewer ref="viewer" :campuses="campuses" :today="today" :sample-note="sampleNote" :card-for="cardFor" @seen="markSeen" />
     </ClientOnly>
-  </section>
+  </div>
 </template>
 
 <style>

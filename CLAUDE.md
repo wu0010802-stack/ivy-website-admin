@@ -12,7 +12,7 @@
 |---|---|---|
 | `index.html` `styles.css` `studio.css` `app.js` `assets/` | 已凍結的 vanilla 原型（`63a0c05`），零依賴 | 不再修改；只在追溯原始設計時讀 |
 | `app.js` | hash 路由（`#/頁面/子路徑`，`render()` 在檔尾）＋所有內容資料：`campuses`、`dayMoments`、`faq()`、`homepageNews` | 高度壓縮成單行函式、無分節註解；切片刪除前**先印出行號範圍再刪**（已兩次多刪共用宣告） |
-| `web/app/assets/css/studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔開頭的 `@media(max-width:1100px){.container{…}}` 為準（1100），不是同目錄 `styles.css` 的 1150 |
+| `web/app/assets/css/studio.css` | 工作室主題與頁首／膠囊／斷點 | container 斷點以此檔開頭的 `@media(max-width:1100px){.container{…}}` 為準（1100）；`styles.css` 原型時期的 1150 斷點 2026-10-25 已移除 |
 | `preview.html` | `package_preview.py` 打包出的原型單檔，**刻意進版控**、可離線開 | 改根目錄原型檔後必重打包，見下 |
 | `DESIGN.md` | 設計規則與每輪定案／否決紀錄 | 改版前先讀相關章節，否決過的方案不要再主動提 |
 | `README.md` | 當月起的日期 changelog（新的在最上面）＋檔尾的原型時期預覽／打包／限制說明 | 每次改版在頂部加一段日期紀錄；上個月以前的段落在 `docs/changelog/README-YYYY-MM.md` |
