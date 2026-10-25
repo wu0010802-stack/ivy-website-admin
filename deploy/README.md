@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-25 首屏影片第二版調色、sRGB 色彩標記與 AV1（main CI 部署，沒有 migration）
+
+- **內容**：`319cb4ab`（PR #54，README「2026-10-24 首屏影片第二版調色、色彩標記與 AV1」）。首屏影片改用每鏡 3D LUT 調色（取代 10-20 soft-light，黑位回到原片深度、拿掉背景綠灰）、去掉原片壓縮方塊；交付檔標 BT.709 原色／矩陣＋sRGB 轉換函數（舊檔沒標記，Mac 的 Chrome／Safari 開播時比封面亮 10–13/255）；新增 AV1 10-bit（桌機 3,910,018、手機 1,528,428 bytes），瀏覽器回報能順播才用、失敗退 H.264（桌機 5,766,897、手機 2,222,998）；影片第一格開始播才淡入。首屏與「一起跑向前」封面一併換新。只動 web 素材與前端，沒有新環境變數。
+- **提交**：使用者看過本機對照頁（`design/hero-video-polish-20261024/index.html`）後要求併入 main；Codex 審查沒有建議，PR CI（run 40145475642）全綠後 squash 合併。PR 的 push run 40145456650 被 pull_request run 取代而 cancelled，不是失敗。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:website` 111 檔 1361 passed；後端 `test_media_slots.py` 21 passed（獨立測試庫、已刪）；fixture dev server Playwright：Chrome 桌機播 AV1、Chrome 手機模擬與 WebKit 播 H.264、AV1 回 404 時換 H.264 續播。
+- **CI**：main run 40146318206（`319cb4ab`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（00:30:42Z → 00:34:56Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `319cb4ab`、created `2026-10-25T00:31:06Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200。四支影片線上檔與 repo 逐位元相同、ffprobe 為 `bt709／iec61966-2-1／bt709／tv`；首頁 HTML 引用新封面 `a8cdc5a3b16c` 三種寬度，舊檔 `hero-desktop-a29a608cdd4d.mp4` 404。Playwright（攔 `POST /api/telemetry`）：Chrome 1440 播 AV1、Chrome 390 手機模擬與 WebKit 1440／390 播 H.264，都淡入、沒有 page error；封面接第一格平均差 1.7–2.7/255（上線前 10–13）。
+- **沒驗證**：iOS／Android 實機（含低耗電模式與硬體 AV1 機種）、Firefox、Windows 的色彩處理。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-24 後台 30 週年開關（main CI 部署，沒有 migration）
 
 - **內容**：`464f42a2`（PR #52，README 同日「後台 30 週年開關」）。後台「網站標題與電話」新增「30 週年」開關（`site_meta.anniversary_enabled`，預設開、發布後生效）；關閉時首頁不放進站布幕、`/anniversary` 回 404、主選單與頁尾拿掉 30 週年連結（選單只剩 30 週年時退回內建選單）、sitemap 與 llms.txt 不列 30 週年。開著時官網輸出與改動前相同，**上線後畫面不變**。
