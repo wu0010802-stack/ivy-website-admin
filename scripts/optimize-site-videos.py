@@ -26,6 +26,8 @@ hero_deliveries = {
     'hero-desktop-av1': 'hero-desktop-av1.mp4',
     'hero-mobile-av1': 'hero-mobile-av1.mp4',
 }
+day_graded = ROOT / 'design/day-film-color-20261025'
+day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片保留母檔解析度（進入視窗才載入）。
 for name, source, width, crf in [
@@ -55,6 +57,18 @@ for name, source, width, crf in [
             shutil.copyfile(prepared, target)
             manifest[key] = f'/assets/optimized/{target.name}'
             print(f'{key}: 採用已確認的調色版 {target.stat().st_size:,} bytes', flush=True)
+        continue
+    # 孩子的一天 2026-10-25 起是補 sRGB 標記的版本（design/day-film-color-20261025）：母帶就是它的桌機檔，
+    # 手機檔已從同一份 10-bit 中間檔壓好，直接採用，不從母帶再壓一次。
+    if name == 'day-mobile' and sha256(original.read_bytes()).hexdigest() == day_approved['day-desktop.mp4']['sha256']:
+        prepared = day_graded / 'day-mobile.mp4'
+        digest = sha256(prepared.read_bytes()).hexdigest()
+        if digest != day_approved[prepared.name]['sha256']:
+            raise ValueError(f'孩子的一天影片與確認版雜湊不一致：{prepared.name}')
+        target = OUT / f'{name}-{digest[:12]}.mp4'
+        shutil.copyfile(prepared, target)
+        manifest[name] = f'/assets/optimized/{target.name}'
+        print(f'{name}: 採用已確認的標記版 {target.stat().st_size:,} bytes', flush=True)
         continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'

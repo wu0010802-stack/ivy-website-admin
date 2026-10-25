@@ -1,3 +1,13 @@
+## 2026-10-25 孩子的一天影片補 sRGB 色彩標記（`feature/day-film-color-20261025`，待使用者看對照決定上線）
+
+接著首屏影片的發現：「孩子的一天」背景影片也沒有色彩標記，Mac 上的 Chrome／Safari 播放時中間調被抬高、開播時比封面亮一截。細節與重製指令在 `design/day-film-color-20261025/README.md`，對照頁是同目錄 `index.html`。
+
+- **螢幕上的樣子不變**：用 17³ 色票測試片實測 Chrome 與 WebKit 怎麼顯示沒標記的影片（`screen-17.cube`），把這個轉換燒進像素再標 BT.709＋sRGB。新檔 12 格螢幕實測與正式站平均差 1.6–2.0/255（壓縮雜訊），L50 53.9 → 54.0。只補標記不轉換的話會整段暗約 5 L*。
+- **開播不再跳色**：封面改取新中間檔第 0 格，封面接第一格平均差 11.2 → 2.1/255；封面因此比舊的亮一點。
+- **檔案**：桌機 9.64 MB（舊檔就是母帶 9.33 MB，重壓一次 CRF 22）、手機 7.30 MB（CRF 25，舊 7.49 MB）。`optimize-site-videos.py` 認得新母帶時直接採用壓好的手機檔。只動素材與腳本，`DayExperience.vue` 與疊層 CSS 沒改。
+- **驗證**：web `typecheck`、`test:website` 1361 passed；後端 `test_media_slots.py` 21 passed。fixture dev server：Chrome 桌機、WebKit 桌機、Chrome 手機模擬都載入新檔、淡入、沒有 console 錯誤；同一格整頁截圖與正式站平均差 0.89/255（Chrome 桌機）。
+- **沒驗證**：iOS／Android 實機、Firefox、Windows。
+
 ## 2026-10-24 首屏影片第二版調色、色彩標記與 AV1（`feature/hero-video-polish-20261024`）
 
 使用者要求優化首屏影片的調色、畫質與其他呈現。細節、量測與重製指令在 `design/hero-video-polish-20261024/README.md`，前後對照頁是同目錄 `index.html`。

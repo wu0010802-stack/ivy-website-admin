@@ -1,0 +1,31 @@
+{
+  "source": "design/day-timeline-mockup/media/day-film.mp4",
+  "source_sha256": "8ab1f375be85da2487f4cf414cbb3b90f409704d40fbb7b06ee4ba5a34932ba0",
+  "lut": "screen-17.cube",
+  "decode": "BT.601 limited（瀏覽器對沒標記影片的解法）",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "variants": [
+    {
+      "file": "day-desktop.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "24/1",
+      "frames": "600",
+      "duration": "25.000000",
+      "bytes": 9635511,
+      "crf": 22,
+      "sha256": "ce1da5e82d755df4e7e53b510ea3948dd46a6938fc0cd282ef02da21c91c10bf"
+    },
+    {
+      "file": "day-mobile.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "24/1",
+      "frames": "600",
+      "duration": "25.000000",
+      "bytes": 7302624,
+      "crf": 25,
+      "sha256": "0d854657eeb869382213d936752c290438636a0e4ebee1afadedeac8080f0292"
+    }
+  ]
+}
