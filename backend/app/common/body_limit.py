@@ -8,6 +8,8 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.auth.deps import SESSION_COOKIE_NAME
+from app.auth.models import User
+from app.auth.permissions import has_capability
 from app.auth.service import get_session_by_token
 
 # 素材上傳以外，API 本文都是小 JSON。素材上傳的上限由部署設定推導
@@ -29,7 +31,10 @@ class BodySizeLimitMiddleware:
     路由裡的大小檢查，所以沒登入的人也能讓 API 先吃下任意大的本文。這裡：
     - Content-Length 超過上限直接 413，一個位元組都不讀；
     - 串流計數，實際讀到的超過上限就中止（對付沒有 Content-Length 的本文）；
-    - 素材上傳路徑先確認帶的是有效後台 session，沒有就 401，不讀本文。
+    - 素材上傳路徑先確認帶的是有效後台 session，沒有就 401，不讀本文；
+      帳號沒有 media.manage（唯讀、接待）就 403，同樣不讀本文（2026-10-27
+      資安稽核：原本只看 session，唯讀帳號也能讓 API 先收下約 155 MB 才被擋）。
+      校區範圍仍由路由檢查，這裡只先擋掉角色上就不可能上傳的人。
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -56,9 +61,14 @@ class BodySizeLimitMiddleware:
                 await JSONResponse({"detail": _too_large().detail}, status_code=413)(scope, receive, send)
                 return
 
-        if is_media_upload and not await self._has_valid_session(scope, headers):
-            await JSONResponse({"detail": "未登入"}, status_code=401)(scope, receive, send)
-            return
+        if is_media_upload:
+            uploader = await self._session_user(scope, headers)
+            if uploader is None:
+                await JSONResponse({"detail": "未登入"}, status_code=401)(scope, receive, send)
+                return
+            if not has_capability(uploader, "media.manage"):
+                await JSONResponse({"detail": "沒有權限"}, status_code=403)(scope, receive, send)
+                return
 
         received = 0
 
@@ -75,18 +85,25 @@ class BodySizeLimitMiddleware:
 
         await self.app(scope, limited_receive, send)
 
-    async def _has_valid_session(self, scope: Scope, headers: dict[bytes, bytes]) -> bool:
+    async def _session_user(self, scope: Scope, headers: dict[bytes, bytes]) -> User | None:
+        """有效 session 對應的啟用中帳號；沒有就 None。"""
         raw_cookie = headers.get(b"cookie")
         if not raw_cookie:
-            return False
+            return None
         cookie = SimpleCookie()
         try:
             cookie.load(raw_cookie.decode("latin-1"))
         except Exception:
-            return False
+            return None
         morsel = cookie.get(SESSION_COOKIE_NAME)
         if morsel is None or not morsel.value:
-            return False
+            return None
         app = scope["app"]
         async with app.state.session_factory() as db:
-            return await get_session_by_token(db, morsel.value) is not None
+            session = await get_session_by_token(db, morsel.value)
+            if session is None:
+                return None
+            user = await db.get(User, session.user_id)
+            if user is None or not user.is_active:
+                return None
+            return user

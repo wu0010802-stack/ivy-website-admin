@@ -30,7 +30,7 @@ import { visitEventActor } from '../api/visitHistory'
 import type { UserOut, VisitHistoryOut } from '../api/types'
 import { resetVisitStaff, useVisitStaff } from '../composables/useVisitStaff'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { auditSearchTermsOf, testUser } from './fixtures'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => {
@@ -439,7 +439,7 @@ describe('操作紀錄的「操作者」', () => {
     await wrapper.get('.filter-search input').setValue('阿芬')
     await new Promise((resolve) => setTimeout(resolve, 320))
     await flushPromises()
-    expect(new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')).toEqual(['阿芬'])
+    expect(auditSearchTermsOf(get.mock.calls.at(-1)!)).toEqual(['阿芬'])
   })
 })
 

@@ -2302,6 +2302,7 @@
           "campus_key": {
             "anyOf": [
               {
+                "maxLength": 32,
                 "type": "string"
               },
               {
@@ -25067,6 +25068,24 @@
               },
               "title": "Q",
               "type": "array"
+            }
+          },
+          {
+            "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+            "in": "header",
+            "name": "X-Ivy-Search",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "搜尋字（JSON 物件、百分比編碼），優先於同名的查詢參數；後台用它把個資移出網址",
+              "title": "X-Ivy-Search"
             }
           },
           {

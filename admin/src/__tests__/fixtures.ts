@@ -50,3 +50,11 @@ export function mediaPage(items: MediaAssetOut[], overrides: Partial<MediaAssetP
 export function mediaListParams(path: string): Record<string, string> {
   return Object.fromEntries(new URL(path, 'http://admin.test').searchParams)
 }
+
+/** 操作紀錄的 api.get 呼叫送出的搜尋詞：放在 X-Ivy-Search header（2026-10-27 資安稽核）。
+ *  網址上還帶 q 就丟錯，測試會直接紅。 */
+export function auditSearchTermsOf(call: readonly unknown[]): string[] {
+  if (new URL(String(call[0]), 'http://x').searchParams.has('q')) throw new Error(`搜尋詞不能放網址：${String(call[0])}`)
+  const raw = (call[1] as { headers?: Record<string, string> } | undefined)?.headers?.['X-Ivy-Search']
+  return raw ? (JSON.parse(decodeURIComponent(raw)) as { q: string[] }).q : []
+}

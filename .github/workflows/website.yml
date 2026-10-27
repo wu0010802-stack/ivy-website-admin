@@ -49,8 +49,12 @@ jobs:
           cache: npm
           cache-dependency-path: ${{ matrix.app }}/package-lock.json
       - run: npm ci
+      # 正式依賴有公告就擋下部署（2026-10-27 資安稽核，比照後端的 pip-audit）。開發用套件
+      # （vitest 等）不檢查。確定不影響、又還沒有修正版時，才在這裡註明原因並暫時放寬。
+      - name: Audit runtime npm dependencies
+        run: npm audit --omit=dev --audit-level=moderate
       - run: npm run typecheck
-      # admin 用 vitest 4（2026-09-29 升級，移除了 --minWorkers），web 仍是 vitest 3；只帶兩邊都認得的旗標。
+      # web 與 admin 都是 vitest 4（web 2026-10-27 升級，admin 2026-09-29），vitest 4 移除了 --minWorkers。
       - run: npm run test:unit -- --maxWorkers=2
       - run: npm run build
         env:

@@ -11,7 +11,7 @@ import AuditView from '../views/AuditView.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { describeUserAgent } from '../utils/userAgent'
-import { testUser } from './fixtures'
+import { auditSearchTermsOf, testUser } from './fixtures'
 
 const IPHONE_LINE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari Line/15.10.0'
 
@@ -92,7 +92,7 @@ describe('操作紀錄顯示 IP 與裝置', () => {
     await wrapper.get('.filter-search input').setValue('firefox')
     await new Promise(resolve => setTimeout(resolve, 320))
     await flushPromises()
-    expect(new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')).toEqual(['firefox'])
+    expect(auditSearchTermsOf(get.mock.calls.at(-1)!)).toEqual(['firefox'])
     expect(wrapper.get('.list-summary').text()).toContain('符合 1 筆')
     expect(wrapper.get('[data-test="audit-source"]').text()).toBe('Windows・Firefox・198.51.100.7')
   })

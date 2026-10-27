@@ -37,7 +37,8 @@ def search_fields(raw: str | None, allowed: dict[str, int]) -> dict[str, str]:
         return {}
     try:
         data = json.loads(unquote(raw, errors="strict"))
-    except (ValueError, UnicodeDecodeError):
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        # RecursionError：很深的巢狀陣列（約 1 萬層）會讓 json.loads 爆堆疊，原本是 500。
         raise _invalid() from None
     if not isinstance(data, dict) or not set(data) <= set(allowed):
         raise _invalid()
@@ -49,3 +50,26 @@ def search_fields(raw: str | None, allowed: dict[str, int]) -> dict[str, str]:
             raise _invalid()
         fields[key] = value
     return fields
+
+
+def search_term_list(raw: str | None, key: str, *, max_items: int, max_length: int) -> list[str] | None:
+    """X-Ivy-Search 裡值為字串陣列的鍵（操作紀錄一次送多個搜尋詞，2026-10-27 資安稽核）。
+    沒帶 header 或沒有這個鍵回 None（呼叫端退回查詢參數）；其他鍵、型別、個數或長度不對回 422。"""
+    if not raw:
+        return None
+    try:
+        data = json.loads(unquote(raw, errors="strict"))
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        # RecursionError：很深的巢狀陣列（約 1 萬層）會讓 json.loads 爆堆疊，原本是 500。
+        raise _invalid() from None
+    if not isinstance(data, dict) or not set(data) <= {key}:
+        raise _invalid()
+    values = data.get(key)
+    if values is None:
+        return None
+    if not isinstance(values, list) or len(values) > max_items:
+        raise _invalid()
+    for value in values:
+        if not isinstance(value, str) or len(value) > max_length or _CONTROL_CHARS_RE.search(value):
+            raise _invalid()
+    return values

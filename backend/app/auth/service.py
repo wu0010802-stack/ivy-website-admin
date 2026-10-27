@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -214,6 +216,12 @@ async def _finish_success(limiter: ratelimit.RateLimiter, key: str) -> None:
     await clear_login_attempts(limiter, key)
 
 
+# 密碼錯誤這一步（計數、鎖定、稽核寫入）至少花這麼久（秒）。只有對得到帳號的 email 會寫稽核並
+# commit，帳號不存在時少一趟 DB 寫入；補到同一個下限，回應時間就看不出 email 是不是真的帳號
+# （2026-10-27 資安稽核）。稽核寫入一般幾毫秒，下限要明顯大於它。
+PASSWORD_FAILURE_MIN_SECONDS = 0.05
+
+
 async def record_password_failure(
     db: AsyncSession,
     limiter: ratelimit.RateLimiter,
@@ -233,6 +241,7 @@ async def record_password_failure(
     email 灌爆稽核表。鎖定中或額度用完的嘗試在 bcrypt 之前就被擋掉、不會走到
     這裡，所以一個帳號每 20 分鐘最多 10 筆失敗稽核。會 commit 呼叫端的 db
     （登入失敗的請求本身不會 commit）。"""
+    started = time.monotonic()
     key = _rate_limit_key(email)
     over_limit = await limiter.is_limited(LOGIN_ACCOUNT_LIMIT, key)
     lock_started = over_limit and await limiter.consume_marker(LOGIN_LOCK, key)
@@ -255,6 +264,9 @@ async def record_password_failure(
                 metadata={"lock_minutes": LOGIN_LOCK_SECONDS // 60, "failed_attempts": LOGIN_MAX_ATTEMPTS},
             )
         await db.commit()
+    remaining = PASSWORD_FAILURE_MIN_SECONDS - (time.monotonic() - started)
+    if remaining > 0:
+        await asyncio.sleep(remaining)
     return over_limit
 
 

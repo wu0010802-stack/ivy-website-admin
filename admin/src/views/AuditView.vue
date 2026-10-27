@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { auditActionLabel, auditTargetLabel, campusLabel, contentEditorPath, formatDateTime, staffEmail, staffLabel } from '../api/labels'
 import { auditMetadataDetails, auditSearchTerms, type AuditDetails } from '../api/auditLabels'
 import { apiErrorMessage } from '../api/errors'
+import { searchHeaders } from '../api/searchHeader'
 import type { AuditActorOut, AuditLogEntryOut } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
 import { useCampusScope } from '../composables/useCampusScope'
@@ -116,7 +117,6 @@ function auditPath(filters: AuditFilters, before?: AuditEntry, limit?: number): 
   if (filters.campus) params.set('campus_key', filters.campus)
   if (filters.hideLogins) params.set('exclude_login', 'true')
   if (filters.actor) params.set('actor', filters.actor)
-  for (const term of auditSearchTerms(filters.search)) params.append('q', term)
   if (filters.period) {
     params.set('created_from', filters.period[0])
     params.set('created_to', filters.period[1])
@@ -130,6 +130,11 @@ function auditPath(filters: AuditFilters, before?: AuditEntry, limit?: number): 
   return `/admin/audit-log${query ? `?${query}` : ''}`
 }
 
+// 搜尋詞常是同仁 email 或 IP，放 X-Ivy-Search header、不進網址（2026-10-27 資安稽核）。
+function auditSearchOptions(filters: AuditFilters): { headers: Record<string, string> } {
+  return { headers: searchHeaders({ q: auditSearchTerms(filters.search) }) }
+}
+
 async function load() {
   const request = requests.begin()
   entries.value = []
@@ -140,7 +145,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const result = await api.get<AuditEntry[]>(auditPath(currentFilters()))
+    const result = await api.get<AuditEntry[]>(auditPath(currentFilters()), auditSearchOptions(currentFilters()))
     if (requests.isCurrent(request)) {
       entries.value = result
       hasMore.value = result.length >= AUDIT_LIMIT
@@ -160,7 +165,7 @@ async function loadMore() {
   loadingMore.value = true
   moreError.value = null
   try {
-    const result = await api.get<AuditEntry[]>(auditPath(currentFilters(), last))
+    const result = await api.get<AuditEntry[]>(auditPath(currentFilters(), last), auditSearchOptions(currentFilters()))
     if (requests.isCurrent(request)) {
       entries.value = [...entries.value, ...result]
       hasMore.value = result.length >= AUDIT_LIMIT
@@ -187,7 +192,7 @@ async function exportCsv() {
     const all: AuditEntry[] = []
     let before: AuditEntry | undefined
     for (;;) {
-      const page = await api.get<AuditEntry[]>(auditPath(filters, before, EXPORT_PAGE))
+      const page = await api.get<AuditEntry[]>(auditPath(filters, before, EXPORT_PAGE), auditSearchOptions(filters))
       all.push(...page)
       if (all.length > EXPORT_MAX) {
         notifyWarning(`符合的紀錄超過 ${EXPORT_MAX.toLocaleString('zh-TW')} 筆，請縮短期間或選定校區再匯出。`)

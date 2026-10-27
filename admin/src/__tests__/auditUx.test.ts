@@ -9,7 +9,7 @@ import ElementPlus from 'element-plus'
 import AuditView from '../views/AuditView.vue'
 import { api } from '../api/client'
 import { useAuthStore } from '../stores/auth'
-import { testUser } from './fixtures'
+import { auditSearchTermsOf, testUser } from './fixtures'
 import { auditMetadataDetails, auditMetadataSummary } from '../api/auditLabels'
 
 const wrappers: VueWrapper[] = []
@@ -244,7 +244,7 @@ describe('2026-09-28 操作紀錄 UX（H）', () => {
       await wrapper.get('.filter-search input').setValue('未到場')
       await new Promise(resolve => setTimeout(resolve, 320))
       await flushPromises()
-      const terms = new URL(String(get.mock.calls.at(-1)![0]), 'http://x').searchParams.getAll('q')
+      const terms = auditSearchTermsOf(get.mock.calls.at(-1)!)
       expect(terms[0]).toBe('未到場')
       // 狀態代碼（修改前後值）與動作代碼都帶上。
       expect(terms).toEqual(expect.arrayContaining(['no_show', 'visit_request.no_show']))

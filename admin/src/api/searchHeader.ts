@@ -3,9 +3,10 @@
 // header 只能放 Latin-1，所以 JSON 先百分比編碼。
 export const SEARCH_HEADER = 'X-Ivy-Search'
 
-/** 有值的欄位才送；全部沒值就不帶 header。 */
-export function searchHeaders(fields: Record<string, string | null | undefined>): Record<string, string> {
-  const picked = Object.fromEntries(Object.entries(fields).filter(([, value]) => typeof value === 'string' && value !== ''))
+/** 有值的欄位才送（空字串、空陣列當沒值）；全部沒值就不帶 header。陣列給操作紀錄的多個搜尋詞用。 */
+export function searchHeaders(fields: Record<string, string | string[] | null | undefined>): Record<string, string> {
+  const picked = Object.fromEntries(Object.entries(fields).filter(([, value]) =>
+    Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value !== ''))
   return Object.keys(picked).length ? { [SEARCH_HEADER]: encodeURIComponent(JSON.stringify(picked)) } : {}
 }
 

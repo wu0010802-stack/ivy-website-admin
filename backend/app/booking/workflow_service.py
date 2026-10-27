@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -308,6 +308,10 @@ async def add_contact_note(
     return record
 
 
+class ParentEditLimitReached(Exception):
+    """家長這一案近 24 小時改資料的次數已達上限。"""
+
+
 class VersionConflict(Exception):
     """案件的可編輯欄位（下次聯絡時間）已被別人改過。"""
 
@@ -412,6 +416,20 @@ async def update_details_by_parent(
     changed = [f for f in EDITABLE_BY_PARENT if f in changes and getattr(visit_request, f) != changes[f]]
     if not changed:
         return []
+    # 每案每日上限在案件列鎖內再數一次（2026-10-27 資安稽核）：路由的限流器是「先看、成功後才記」，
+    # 同時送出的修改都會先通過那一關；每次改 Email 都會寄信到舊信箱，比照改期在鎖內重數。
+    edits_today = await db.scalar(
+        select(func.count())
+        .select_from(VisitRequestEvent)
+        .where(
+            VisitRequestEvent.visit_request_id == visit_request.id,
+            VisitRequestEvent.event_type == "details_updated",
+            VisitRequestEvent.source == PARENT.source,
+            VisitRequestEvent.created_at > datetime.now(timezone.utc) - timedelta(days=1),
+        )
+    )
+    if (edits_today or 0) >= access_service.PARENT_EDITS_PER_DAY:
+        raise ParentEditLimitReached()
     old_email = visit_request.email
     for field in changed:
         setattr(visit_request, field, changes[field])

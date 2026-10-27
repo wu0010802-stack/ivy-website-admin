@@ -294,6 +294,8 @@ async def get_visit_request_for_session(db: AsyncSession, raw_session_token: str
 
 # 家長每案每日直接改期的上限（路由的限流器與案件列鎖內的計數共用）。
 PARENT_RESCHEDULES_PER_DAY = 5
+# 家長每案每日改資料的上限（同上，2026-10-27 資安稽核起鎖內也數）。
+PARENT_EDITS_PER_DAY = 10
 
 
 class RescheduleNotAllowed(Exception):

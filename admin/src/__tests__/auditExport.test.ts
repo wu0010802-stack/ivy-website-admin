@@ -11,7 +11,7 @@ import { api, ApiError } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 import { auditCsvHeader, auditCsvRow, auditCsvTime, auditSearchText, AUDIT_CSV_HEADER } from '../utils/auditFormat'
 import { auditMetadataDetails } from '../api/auditLabels'
-import { testUser } from './fixtures'
+import { auditSearchTermsOf, testUser } from './fixtures'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 vi.mock('../composables/notify', () => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
@@ -235,8 +235,8 @@ describe('操作紀錄匯出 CSV', () => {
     await afterSearchDebounce()
     await wrapper.get('[data-test="audit-export"]').trigger('click')
     await flushPromises()
-    const exportCall = get.mock.calls.map(call => call[0]).find(isExportCall)
-    expect(paramsOf(exportCall).getAll('q')).toEqual(expect.arrayContaining(['新增帳號', 'user.create']))
+    const exportCall = get.mock.calls.find(call => isExportCall(call[0]))!
+    expect(auditSearchTermsOf(exportCall)).toEqual(expect.arrayContaining(['新增帳號', 'user.create']))
     const csv = vi.mocked(downloadCsv).mock.calls.at(-1)![1]
     expect(csv).toContain('新增帳號')
   })
@@ -252,8 +252,8 @@ describe('操作紀錄匯出 CSV', () => {
     await afterSearchDebounce()
     await wrapper.get('[data-test="audit-export"]').trigger('click')
     await flushPromises()
-    const exportCall = get.mock.calls.map(call => call[0]).find(isExportCall)
-    expect(paramsOf(exportCall).getAll('q')).toEqual(['203.0.113'])
+    const exportCall = get.mock.calls.find(call => isExportCall(call[0]))!
+    expect(auditSearchTermsOf(exportCall)).toEqual(['203.0.113'])
     expect(vi.mocked(downloadCsv).mock.calls.at(-1)![1]).toContain('203.0.113.9')
   })
 
@@ -329,7 +329,7 @@ describe('操作紀錄的搜尋標籤與狀態區（T8a）', () => {
     // 還在打字：不重讀。
     expect(get.mock.calls.length).toBe(before)
     await afterSearchDebounce()
-    const terms = paramsOf(get.mock.calls.at(-1)![0]).getAll('q')
+    const terms = auditSearchTermsOf(get.mock.calls.at(-1)!)
     expect(terms[0]).toBe('匯出')
     expect(terms).toContain('visit_request.export')
     expect(more.get('.list-summary [role="status"]').text()).toBe('符合 100 筆（還有更早的，按「載入更早的紀錄」）')

@@ -1,5 +1,5 @@
 // 換頁捲動（2026-09-29 手機審查 cross-cutting-1、home-bottom-news-1）。
-// Nuxt 的 scrollBehavior 只能整支替換、沒有 hook 可掛，所以這裡照抄 Nuxt 4.5.2 的預設實作
+// Nuxt 的 scrollBehavior 只能整支替換、沒有 hook 可掛，所以這裡照抄 Nuxt 4.6.2 的預設實作
 // （node_modules/nuxt/dist/pages/runtime/router.options.js：同路徑 hash、scrollToTop meta、
 // 等 page:loading:end 與換頁過場再捲、hash 的 scroll-margin），只改兩處，都標了「差異」：
 //  (a) 初次載入／重新整理（Nuxt 會做第二次 force replace，from 被換成 START_LOCATION）：
@@ -60,12 +60,11 @@ export default <RouterConfig>{
   }
 }
 
-function _getHashElementScrollMarginTop(selector: string): number {
-  try {
-    const elem = document.querySelector(selector)
-    if (elem) return (Number.parseFloat(getComputedStyle(elem).scrollMarginTop) || 0) + (Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0)
-  } catch {}
-  return 0
+// Nuxt 4.6.2 起改用 getElementById（hash 不再當 CSS 選擇器解析），照著跟進。
+function _getHashElementScrollMarginTop(hash: string): number {
+  const elem = document.getElementById(hash.slice(1))
+  if (!elem) return 0
+  return (Number.parseFloat(getComputedStyle(elem).scrollMarginTop) || 0) + (Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0)
 }
 
 function _calculatePosition(to: RouteLocationNormalized, from: RouteLocationNormalized, savedPosition: SavedPosition, defaultHashScrollBehaviour: HashScrollBehavior): ScrollPosition {

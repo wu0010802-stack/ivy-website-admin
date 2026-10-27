@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,7 @@ from app.auth.permissions import (
 )
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
+from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_term_list
 from app.common.timezones import local_day_bounds_utc, now_utc, today_local
 from app.notifications.email_adapter import EmailNotConfigured
 from app.notifications.models import UserNotification
@@ -62,7 +63,9 @@ class AnalyticsEventCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_type: str
-    campus_key: str | None = None
+    # 2026-10-27 資安稽核：不限長、不擋控制字元時，NUL 會打到 DB 炸成 500 並寫一段
+    # traceback，而且這一步在限流之前。長度比照 Campus.key 的 String(32)。
+    campus_key: str | None = Field(default=None, max_length=32)
     event_id: uuid.UUID
     entry: CtaEntry | None = None
 
@@ -79,6 +82,9 @@ async def create_analytics_event(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     if payload.campus_key:
+        # 不是五校代碼就直接 404，不碰 DB（含控制字元的值也在這裡擋掉）。
+        if payload.campus_key not in CAMPUS_KEYS:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
         result = await db.execute(select(Campus).where(Campus.key == payload.campus_key))
         if result.scalar_one_or_none() is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
@@ -566,6 +572,7 @@ async def get_audit_log(
             "對象帳號、裝置與細節原文；IP 只有總部比對。後台會把中文名稱展開成對應的代碼一起送。"
         ),
     ),
+    search: str | None = Header(default=None, alias=SEARCH_HEADER, description=SEARCH_HEADER_DESCRIPTION),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[AuditLogEntryOut]:
@@ -575,7 +582,9 @@ async def get_audit_log(
     else:
         require_scope(current_user, "audit.read_all")
     actor_filter = _actor_filter(actor)
-    terms = _search_terms(q)
+    # 搜尋詞常是同仁 email 或 IP：後台改放 header（見 common/search_header.py），查詢參數 q 照收。
+    header_terms = search_term_list(search, "q", max_items=audit_service.MAX_SEARCH_TERMS, max_length=100)
+    terms = _search_terms(q if header_terms is None else header_terms)
     if (before is None) != (before_id is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

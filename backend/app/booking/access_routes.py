@@ -41,7 +41,9 @@ PARENT_REQUEST_LIMIT = ratelimit.Limit("parent_request", window_seconds=60, max_
 PARENT_RESCHEDULE_PER_CASE = ratelimit.Limit(
     "parent_reschedule_case", window_seconds=86400, max_per_window=access_service.PARENT_RESCHEDULES_PER_DAY
 )
-PARENT_EDIT_PER_CASE = ratelimit.Limit("parent_edit_case", window_seconds=86400, max_per_window=10)
+PARENT_EDIT_PER_CASE = ratelimit.Limit(
+    "parent_edit_case", window_seconds=86400, max_per_window=access_service.PARENT_EDITS_PER_DAY
+)
 
 
 async def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
@@ -347,6 +349,13 @@ async def parent_update_details(
             "VISIT_REQUEST_VERSION_CONFLICT",
             "這筆預約剛被修改過，請重新載入後再改",
             current_version=exc.current_version,
+        ) from exc
+    except workflow_service.ParentEditLimitReached as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": "RATE_LIMITED", "message": "這筆預約今天已經修改很多次了，請明天再試，或直接聯絡園所"},
+            headers={"Retry-After": str(PARENT_EDIT_PER_CASE.window_seconds)},
         ) from exc
     await db.commit()
     if changed:

@@ -1,3 +1,26 @@
+## 2026-10-27 資安稽核修正（`fix/security-audit-20261027`）
+
+對 origin/main `cba9f0a0` 做 8 面向資安稽核，每條由兩位複核者試著反駁。沒有高風險或中風險，確認的 4 條低風險、1 條複核意見分歧，連同前端依賴漏洞一起修。
+
+- **公開點擊事件**：`campus_key` 限 32 字，不是五校代碼就直接 404、不查 DB（`operations/routes.py`）。原本送 NUL 會讓 DB 拒收回 500 並寫一段 traceback，而且這一步在限流之前。
+- **素材上傳**：中介層放寬到約 155 MB 之前，除了 session 也檢查 `media.manage`，唯讀、接待帳號在讀本文前就回 403（`common/body_limit.py`）。
+- **操作紀錄搜尋**：搜尋詞改放 `X-Ivy-Search` header（JSON 陣列，最多 30 個、每個 100 字），網址不再帶 `q`。10-22 改參觀案件與招生時漏了這頁。後端新增 `search_term_list`，查詢參數照收；兩個解析函式都改接 `RecursionError`，很深的巢狀 JSON 改回 422（原本是 500）。
+- **家長改資料每案每日 10 次**：在案件列鎖內重數當天的 `details_updated`，比照改期（`workflow_service.update_details_by_parent`）。原本只在鎖外看一次，同時送出可以突破上限，每次改 Email 都會寄信到舊信箱。
+- **登入時序**：密碼錯誤這一步補到至少 50 ms（`PASSWORD_FAILURE_MIN_SECONDS`）。只有存在的帳號會寫稽核並 commit，原本可以從回應時間猜出哪些 email 是員工帳號。
+- **依賴**：
+  - web：`nuxt` 4.5.2 → 4.6.2（刻意不用當天發布的 4.6.3）、`vue` → 3.5.44、override `undici` ^8.12.2 與 `serialize-javascript` ^7.1.3、`vitest` 3 → 4.1.12、`happy-dom` 20 → 21.0.4。
+  - admin：`vite` → 8.3.5、`vitest` → 4.1.12。
+  - 兩邊 `npm audit` 都是 0。本機 npm 10.9 解析會撞 arborist `edgesOut` 錯誤，lock 改用 `npx npm@11.6.2 install` 產生，CI 的 npm 10 `npm ci` 已驗證可以安裝。
+- **web 的 vue 必須和 Nuxt 同版**：頂層 vue 停在 3.5.43 時，Nuxt 4.6.2 會另裝一份 3.5.44，Nitro 打包那一份時漏掉 `index.mjs`，正式建置的伺服器啟動就失敗。升 Nuxt 時要一起看 vue 有沒有變兩份。
+- **router.options.ts**：照 Nuxt 4.6.2 改用 `getElementById(hash.slice(1))`（hash 不再當 CSS 選擇器），絆線測試的雜湊同步更新。
+- **CI**：前端 job 加 `npm audit --omit=dev --audit-level=moderate`，比照後端 pip-audit，只檢查正式依賴。
+- **驗證**：
+  - 後端：全套 4731 passed、1 skipped。新測試 `test_security_audit_20261027.py` 在未修正的程式上 13 條紅。
+  - web：typecheck、1365 passed、正式建置。admin：typecheck、全套、build。`contract:check` 一致。
+  - stack e2e：整批 143 passed、13 failed，全在 load 18 的負載下逾時；失敗的 3 個 spec 單獨重跑 39 條全過。
+  - 另有三位審查者從正確性、資安、回歸三個角度看過 diff。
+- **沒驗證**：正式站部署後的實際行為（未推 main）。
+
 ## 2026-10-25 關於頁手機版改成卡紙疊起來（`feature/about-mobile-sheets-20261025`）
 
 使用者看了手機三個新方向（比稿 `design/about-redesign-directions-20261025/`，Desktop 工作區）選 A「卡紙疊起來」並要求再優化，第二版拿掉加回的高雄地圖後實作。只改 900px 以下，桌機立體書不動。規則見 DESIGN.md 同名段落。
