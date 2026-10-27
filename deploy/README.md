@@ -13,6 +13,31 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-27 資安稽核修正＋前端依賴升級（main CI 部署，沒有 migration）
+
+- **內容**：`34b3902f`（README 同日「資安稽核修正」）。修了這些：
+  - 公開點擊事件 `campus_key` 限長，不是五校代碼直接 404。
+  - 素材上傳在讀本文前檢查 `media.manage`。
+  - 操作紀錄搜尋詞改走 `X-Ivy-Search` header。
+  - 家長改資料每案每日上限在鎖內重數。
+  - 密碼錯誤路徑補到 50 ms 下限。
+  - web 升 nuxt 4.6.2、vue 3.5.44、vitest 4、happy-dom 21，undici／serialize-javascript 用 overrides。
+  - admin 升 vite 8.3.5、vitest 4.1.12。
+  - CI 前端 job 加 `npm audit --omit=dev`。
+- **提交**：使用者要求「都幫我處理」後要求部署。從 origin/main `cba9f0a0` 開 sparse worktree `security-fixes-20261027`，期間 main 沒前進，使用者以 `!` 推上 main。
+- **推送前閘門**（本機，Node 22.23.2）：
+  - 後端全套 4731 passed、1 skipped。
+  - web：typecheck、1365 passed、`nuxt build`。admin：typecheck、全套、build。`contract:check` 一致。
+  - stack e2e：143 passed、13 failed，都是 load 18 下的逾時；那 3 個 spec 單獨重跑 39 passed。兩個測試庫都已刪。
+- **CI**：main run 40470314070（`34b3902f`）。Frontend web／admin（含新加的 npm audit）、Backend 三組、E2E／Playwright、Deploy Railway production 全部 success。
+- **線上驗證**：
+  - `/release.json` 的 base_commit 是 `34b3902f`，created `2026-10-27T08:06:54Z`。
+  - `/api/website/v1/health` 回 `status: ok`；`/`、`/about`、`/visit`、`/admin/` 都是 200。
+  - 公開點擊事件送 NUL 校區回 404（不是 500）；未登入上傳素材回 401。
+  - 線上 `AuditView-*.js` 不再把 `q` append 進網址。
+- **沒驗證**：登入後台實際操作（唯讀帳號上傳得到 403、操作紀錄搜尋）。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-25 關於頁手機版改成卡紙疊起來（main CI 部署，沒有 migration）
 
 - **內容**：`30f7230a`（README 同日「關於頁手機版改成卡紙疊起來」）。900px 以下的 /about 由上翻畫冊改成一章一張卡紙，讀到底下一張疊上來；封面底下露出整疊分頁（目次）、讀進去後頂端資料夾分頁；紀念章在章名旁、讀到哪一校翻到哪一年。上翻畫冊與高雄地圖產生器、資料一併刪除。桌機立體書不變。
