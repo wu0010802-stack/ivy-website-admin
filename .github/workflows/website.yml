@@ -87,6 +87,9 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ci-only-password
           POSTGRES_DB: ivy_website_test
+          # 拋棄式的 CI 庫不驗密碼：image 預設 TCP 走 scram-sha-256，每條新連線多約 28 ms，
+          # 每個測試至少開 2 條（兩個 engine），全套累積數分鐘（2026-10-29 實測）。沒有測試依賴密碼驗證。
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d ivy_website_test"
@@ -190,6 +193,8 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: ci-only-password
           POSTGRES_DB: postgres
+          # 同後端：拋棄式的 CI 庫不驗密碼，省下每條新連線的 scram 驗證。
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres"

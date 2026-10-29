@@ -3,7 +3,6 @@
 里界重心與校址座標換成小字典（兩個近里），註冊與九月人口用假數字；市佔率要和 query_share 算出的一致。"""
 from __future__ import annotations
 
-import json
 import math
 from datetime import date, datetime, timezone
 
@@ -202,6 +201,17 @@ async def test_potential_failure_degrades_to_no_data_and_keeps_the_share(admin_c
     assert len(errors) == 1 and "推估壞了" in str(errors[0].exc_info[1])
 
 
+def _json_numbers(value):
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _json_numbers(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _json_numbers(item)
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        yield value
+
+
 async def test_potential_never_returns_the_band_shares(admin_client, db_session, monkeypatch):
     """三個來源都有數字：距離帶彙總與逐案貢獻都在，占有率（在籍 ÷ 2–5 歲）的原值不在回應裡。"""
     await _seed_potential(db_session)
@@ -239,9 +249,11 @@ async def test_potential_never_returns_the_band_shares(admin_client, db_session,
     assert estimate["total"]["included"] == ["closures", "villages", "presale"]
     shares = potential.band_shares(obs)
     assert min(shares.values()) > 0
-    blob = json.dumps(response.json(), ensure_ascii=False)
+    # 逐一比對回應裡的數值，不比對整段 JSON 文字：時間戳記的秒數小數會碰巧含有同一串數字，
+    # CI 曾因 '0.0112' 出現在「…20.011231Z」而失敗（run 40904623394，2026-10-29）。
+    numbers = [str(number) for number in _json_numbers(response.json())]
     for band, share in shares.items():
-        assert str(share)[:6] not in blob, band
+        assert not any(number.startswith(str(share)[:6]) for number in numbers), band
 
 
 async def test_elementary_check_is_serialized(admin_client, db_session, monkeypatch):
