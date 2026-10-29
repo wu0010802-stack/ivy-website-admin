@@ -1,0 +1,244 @@
+{
+  "sources": [
+    {
+      "role": "old",
+      "filename": "常春藤廣告+配音 (1).mp4",
+      "sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b"
+    },
+    {
+      "role": "new",
+      "filename": "明華寶貝的快樂城堡.mp4",
+      "sha256": "9e3d1c9dd2b11813e04a60f9d86cc321b86ad32b473bdd80a41064e68cc49a22",
+      "drive_id": "1thDNYT50SR212NMUjd_tUIW3PQCDdUA5"
+    }
+  ],
+  "grade": "design/hero-video-polish-20261024/grade.py（新舊片同一套參數）",
+  "deband": "deband=1thr=0.01:2thr=0.01:3thr=0.01:range=16:blur=1",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "shots": [
+    {
+      "shot": 1,
+      "source": "old",
+      "cut": [
+        1
+      ],
+      "gains": [
+        1.05699,
+        0.98521,
+        0.98868
+      ],
+      "black_point": 5.69,
+      "black_lstar": 13.48,
+      "neutral_oklab": [
+        0.6238,
+        -0.0072,
+        0.0067
+      ]
+    },
+    {
+      "shot": 2,
+      "source": "new",
+      "cut": [
+        2.85,
+        3.68,
+        461,
+        2160
+      ],
+      "gains": [
+        1.00163,
+        1.00573,
+        0.94234
+      ],
+      "black_point": 1.35,
+      "black_lstar": 6.25,
+      "neutral_oklab": [
+        0.5826,
+        0.0026,
+        -0.0053
+      ]
+    },
+    {
+      "shot": 3,
+      "source": "new",
+      "cut": [
+        13.25,
+        13.9,
+        461,
+        2160
+      ],
+      "gains": [
+        0.9716,
+        1.01139,
+        0.97747
+      ],
+      "black_point": 0.0,
+      "black_lstar": 3.57,
+      "neutral_oklab": [
+        0.7143,
+        0.0062,
+        0.0033
+      ]
+    },
+    {
+      "shot": 4,
+      "source": "new",
+      "cut": [
+        14.45,
+        15.55,
+        461,
+        2160
+      ],
+      "gains": [
+        1.02899,
+        0.99442,
+        0.9717
+      ],
+      "black_point": 0.0,
+      "black_lstar": 1.18,
+      "neutral_oklab": [
+        0.6831,
+        -0.0028,
+        0.0014
+      ]
+    },
+    {
+      "shot": 5,
+      "source": "new",
+      "cut": [
+        27.4,
+        28.9,
+        461,
+        2160
+      ],
+      "gains": [
+        1.04234,
+        0.98662,
+        1.01522
+      ],
+      "black_point": 1.779,
+      "black_lstar": 6.97,
+      "neutral_oklab": [
+        0.8783,
+        -0.0093,
+        0.0151
+      ]
+    },
+    {
+      "shot": 6,
+      "source": "new",
+      "cut": [
+        33.45,
+        34.65,
+        461,
+        2160
+      ],
+      "gains": [
+        1.06521,
+        0.98329,
+        0.98878
+      ],
+      "black_point": 0.273,
+      "black_lstar": 4.46,
+      "neutral_oklab": [
+        0.736,
+        -0.0097,
+        0.0061
+      ]
+    },
+    {
+      "shot": 7,
+      "source": "new",
+      "cut": [
+        34.75,
+        35.65,
+        400,
+        1740
+      ],
+      "gains": [
+        1.06049,
+        0.98933,
+        0.94643
+      ],
+      "black_point": 2.055,
+      "black_lstar": 7.43,
+      "neutral_oklab": [
+        0.6976,
+        -0.0058,
+        -0.0075
+      ]
+    },
+    {
+      "shot": 8,
+      "source": "old",
+      "cut": [
+        3
+      ],
+      "gains": [
+        1.03665,
+        0.98878,
+        1.0075
+      ],
+      "black_point": 0.148,
+      "black_lstar": 4.25,
+      "neutral_oklab": [
+        0.7346,
+        -0.0065,
+        0.012
+      ]
+    }
+  ],
+  "variants": [
+    {
+      "file": "hero-desktop-av1.mp4",
+      "codec": "av1",
+      "pix_fmt": "yuv420p10le",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "276",
+      "duration": "9.200000",
+      "bytes": 3802336,
+      "crf": 24,
+      "sha256": "2c41dd84226259446e1b7775ee7a7a9481edf706beb64f7308e2c4f3043a1a9d"
+    },
+    {
+      "file": "hero-desktop-h264.mp4",
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "276",
+      "duration": "9.200000",
+      "bytes": 5975099,
+      "crf": 18,
+      "sha256": "05049e3e5d8ff5722f53d8eb677b4fcc4f5e4e13ea820f27358f51e69b5b19e5"
+    },
+    {
+      "file": "hero-mobile-av1.mp4",
+      "codec": "av1",
+      "pix_fmt": "yuv420p10le",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "276",
+      "duration": "9.200000",
+      "bytes": 1432074,
+      "crf": 38,
+      "sha256": "261b0e76486574d9066272c8d5db285ba5f2a8b2b1a4b5557f9a203f0a7665d4"
+    },
+    {
+      "file": "hero-mobile-h264.mp4",
+      "codec": "h264",
+      "pix_fmt": "yuv420p",
+      "width": 1080,
+      "height": 800,
+      "fps": "30/1",
+      "frames": "276",
+      "duration": "9.200000",
+      "bytes": 2082404,
+      "crf": 26,
+      "sha256": "8c73e75a341ac2a4664656eb0006f8a6ecfa237e77689678fcf45fe2160a9aae"
+    }
+  ]
+}

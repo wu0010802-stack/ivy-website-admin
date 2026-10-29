@@ -14,7 +14,8 @@ OUT = ASSETS / 'optimized'
 OUT.mkdir(exist_ok=True)
 manifest = {}
 # 2026-10-24 起採第二版調色（每鏡 LUT、BT.709 標記、去壓縮方塊），另多一份 AV1（見該目錄 build.py 與 README）。
-restoration = ROOT / 'design/hero-video-polish-20261024'
+# 2026-10-29 首屏換成舊片＋明華〈快樂城堡〉混剪（同一套調色與標記，見該目錄 README）。
+restoration = ROOT / 'design/hero-mix-minghua-20261029'
 restored = json.loads((restoration / 'manifest.json').read_text())
 approved = {item['file']: item for item in restored['variants']}
 MASTER = 'hero-desktop-h264.mp4'  # 同時是 web/media-src/hero-campus.mp4
@@ -26,6 +27,18 @@ hero_deliveries = {
     'hero-desktop-av1': 'hero-desktop-av1.mp4',
     'hero-mobile-av1': 'hero-mobile-av1.mp4',
 }
+# 消息「一起跑向前」沿用 10-24 的舊首屏手機檔（七鏡戶外跑跳，封面 campus-film-run.webp 是它的第 12 格），
+# 不跟著首屏換片；直接複製確認版，不重壓。
+run_graded = ROOT / 'design/hero-video-polish-20261024'
+run_approved = {item['file']: item for item in json.loads((run_graded / 'manifest.json').read_text())['variants']}
+run_prepared = run_graded / 'hero-mobile-h264.mp4'
+run_digest = sha256(run_prepared.read_bytes()).hexdigest()
+if run_digest != run_approved[run_prepared.name]['sha256']:
+    raise ValueError(f'「一起跑向前」影片與確認版雜湊不一致：{run_prepared.name}')
+run_target = OUT / f'campus-run-{run_digest[:12]}.mp4'
+shutil.copyfile(run_prepared, run_target)
+manifest['campus-run'] = f'/assets/optimized/{run_target.name}'
+print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,} bytes', flush=True)
 day_graded = ROOT / 'design/day-film-color-20261025'
 day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），

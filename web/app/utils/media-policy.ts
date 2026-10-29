@@ -26,6 +26,8 @@ export function backgroundVideoSrc(source: string, mobile: boolean): string {
   if (source === 'assets/hero-campus.mp4') return mobile ? videos['hero-mobile'] : videos['hero-desktop']
   if (source === 'assets/day-film.mp4') return mobile ? videos['day-mobile'] : videos['day-desktop']
   if (source === 'assets/day-film-mobile.mp4') return videos['day-mobile']
+  // 2026-10-29 首屏換成混剪後，消息「一起跑向前」留在舊的七鏡戶外片（只有手機編碼一支）。
+  if (source === 'assets/campus-film-run.mp4') return videos['campus-run']
   return `/${source.replace(/^\//, '')}`
 }
 

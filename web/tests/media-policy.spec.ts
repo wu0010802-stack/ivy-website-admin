@@ -35,6 +35,10 @@ describe('影音流量與響應式圖片', () => {
     expect(backgroundVideoSrc('assets/hero-campus.mp4', false)).toContain('hero-desktop')
     expect(backgroundVideoSrc('assets/day-film-mobile.mp4', true)).toContain('day-mobile')
   })
+  it('消息「一起跑向前」用自己的舊首屏片，不跟著首屏換成混剪', () => {
+    expect(backgroundVideoSrc('assets/campus-film-run.mp4', true)).toMatch(/campus-run-[0-9a-f]{12}\.mp4$/)
+    expect(backgroundVideoSrc('assets/campus-film-run.mp4', true)).not.toBe(backgroundVideoSrc('assets/hero-campus.mp4', true))
+  })
   it('首屏影片的 AV1 版只給首屏素材，桌機／手機各一支；其他影片沒有 AV1', () => {
     expect(heroAv1Src('assets/hero-campus.mp4', false)).toMatch(/hero-desktop-av1-[0-9a-f]{12}\.mp4$/)
     expect(heroAv1Src('assets/hero-campus.mp4', true)).toMatch(/hero-mobile-av1-[0-9a-f]{12}\.mp4$/)

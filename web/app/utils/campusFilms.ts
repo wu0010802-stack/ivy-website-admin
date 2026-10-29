@@ -11,7 +11,7 @@ export type CampusFilm = HomeFilm
  * 第一支仍是檔案，保留靜音預覽。YouTube 用 youtube('<網址>', 標題, 海報)。
  */
 export const campusFilms: CampusFilm[] = [
-  { id: 'run', title: '一起跑向前', type: 'file', src: backgroundVideoSrc('assets/hero-campus.mp4', true), start: 0, end: 9.7, poster: '/assets/campus-film-run.webp' },
+  { id: 'run', title: '一起跑向前', type: 'file', src: backgroundVideoSrc('assets/campus-film-run.mp4', true), start: 0, end: 9.7, poster: '/assets/campus-film-run.webp' },
   youtube('https://www.youtube.com/watch?v=T3AZm_UiDhY', '義華校：歡喜迎財神', '/assets/campus-film-new-year.webp'),
   youtube('https://www.youtube.com/watch?v=FrKkmwJSoIk', '義華校：果嶺公園親子放風箏', '/assets/campus-film-kite.webp'),
   youtube('https://www.youtube.com/watch?v=uifhjoU60uA', '義華校：大班英語演講比賽', '/assets/campus-film-speech.webp'),
