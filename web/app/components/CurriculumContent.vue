@@ -6,25 +6,28 @@
 // 2026-09-28 改成水彩版（使用者選 C，mock：design/curriculum-watercolor-mockup-20260928）：
 // 不再共用 admission.css 的 adm-*；拿掉預約參觀（使用者要求）；新增 03 兒童美術館（機構站「常春藤兒童美術館」
 // 相簿）、螺旋式課程（機構站「關於常春藤」）、結尾的教學理念（義華站「關於常春藤」）。
-// 水彩層由 useWatercolor 在瀏覽器端畫（data-wash／data-blot／.cur-frame），伺服器端輸出的是乾淨的紙面與照片。
+// 水彩層由 useWatercolor 在瀏覽器端畫（data-wash／data-blot），伺服器端輸出的是乾淨的紙面與照片。
+// 2026-10-29 視覺方向 B：跟常春藤環境頁共用一盒孩子文具（assets/css/stationery.css）：同一種點格紙、照片是色紙框＋紙膠帶
+// （取代撕紙毛邊）、章節頭是顏料團編號＋中文（取代英文眉標）。水彩顏料照舊。
 // 2026-10 起文字與照片改讀後台「特色教學頁」（curriculum_page，預設＝fixture 的 curriculumPage，
-// 一字不差）。章節數量、英文小字、年段名稱與年齡、顏料、版面位置與內建照片仍寫在這裡，
+// 一字不差）。章節數量、年段名稱與年齡、顏料、版面位置與內建照片仍寫在這裡，
 // 清單照索引和後台的固定項目一一對應。
 import { curriculumHeroAttrs } from '~/utils/media-image'
 import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines, withPhotoStyle } from '~/utils/page-content'
 import type { CurriculumPageContent } from '~/types/site-content'
 import type { Pigment } from '~/utils/watercolor'
+import { kidTone } from '~/utils/stationery'
 
 const props = defineProps<{ page: CurriculumPageContent }>()
 
 // 班別與年齡同入學資訊頁：當年 9 月 1 日前滿幾歲（utils/admission-classes.ts）。
 // 顏料團一歲比一歲大（scale），數字也跟著長。標語與說明在後台。
 const YEARS = [
-  { age: 2, name: '幼幼班', en: 'BABY class', pigment: 'mint', scale: 0.6 },
-  { age: 3, name: '小班', en: 'K1 class', pigment: 'sky', scale: 0.72 },
-  { age: 4, name: '中班', en: 'K2 class', pigment: 'sun', scale: 0.86 },
-  { age: 5, name: '大班', en: 'K3 class', pigment: 'orange', scale: 1 }
-] satisfies { age: number, name: string, en: string, pigment: Pigment, scale: number }[]
+  { age: 2, name: '幼幼班', pigment: 'mint', scale: 0.6 },
+  { age: 3, name: '小班', pigment: 'sky', scale: 0.72 },
+  { age: 4, name: '中班', pigment: 'sun', scale: 0.86 },
+  { age: 5, name: '大班', pigment: 'orange', scale: 1 }
+] satisfies { age: number, name: string, pigment: Pigment, scale: number }[]
 
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
@@ -67,19 +70,20 @@ const DAILY = [
 // 教學理念五項各配一種顏料（文字在後台）。
 const BELIEF_PIGMENTS = ['orange', 'sky', 'sun', 'mint', 'leaf'] satisfies Pigment[]
 
-// 章節索引＝一排顏料盤，顏色跟各段主色一致；名稱與小字在後台。
+// 章節索引：顏料團編號（stationery.css .ivy-blob-no，色依序輪流，同環境頁）；名稱與小字在後台。
 const CHAPTERS = [
-  { id: 'years', no: '01', pigment: 'mint', tilt: -8 },
-  { id: 'directions', no: '02', pigment: 'sun', tilt: 10 },
-  { id: 'gallery', no: '03', pigment: 'orange', tilt: -4 },
-  { id: 'daily', no: '04', pigment: 'sky', tilt: 14 }
-] satisfies { id: string, no: string, pigment: Pigment, tilt: number }[]
+  { id: 'years', no: '01' },
+  { id: 'directions', no: '02' },
+  { id: 'gallery', no: '03' },
+  { id: 'daily', no: '04' }
+] satisfies { id: string, no: string }[]
 
 const HERO_ALT = '孩子閉上眼睛，雙手合十靜下心來'
 const YEARS_ALT = '老師張開雙手，和孩子們笑成一團'
 
 const heroLines = computed(() => pageMarkedLines(props.page.heroTitle, props.page.heroHighlight))
 const chapters = computed(() => CHAPTERS.map((look, i) => ({ ...look, ...props.page.chapters[i]! })))
+const chapterLabel = (id: string) => chapters.value.find((chapter) => chapter.id === id)?.label ?? ''
 const years = computed(() => YEARS.map((look, i) => ({ ...look, ...props.page.years[i]! })))
 const directions = computed(() => DIRECTIONS.map((look, i) => ({ ...look, ...props.page.directions[i]! })))
 const gallery = computed(() => GALLERY.map((look, i) => ({ ...look, ...props.page.gallery[i]! })))
@@ -90,7 +94,7 @@ useWatercolor(root)
 </script>
 
 <template>
-  <main id="main" ref="root" tabindex="-1" class="cur" data-cta-entry="curriculum">
+  <main id="main" ref="root" tabindex="-1" class="cur ivy-kid-paper" data-cta-entry="curriculum">
     <div class="cur-grain" aria-hidden="true" />
 
     <section class="cur-hero" aria-labelledby="curriculum-title">
@@ -98,18 +102,18 @@ useWatercolor(root)
       <div class="cur-wrap cur-hero-grid">
         <!-- 橙色小顏料 2026-10-13 從左下移到右上：原本墊在首屏提醒底下，提醒字對比只剩 3.2–4.3:1、金色圓點看不見 -->
         <div class="cur-hero-copy" data-wash="sun,.3,.44,.6,.5,.024,42|orange,.92,.06,.12,.1,.03,26">
-          <p class="cur-eyebrow">{{ page.heroEyebrow }}</p>
+          <p class="ivy-kicker cur-eyebrow">{{ page.heroEyebrow }}</p>
           <h1 id="curriculum-title"><template v-for="(line, i) in heroLines" :key="i"><br v-if="i">{{ line.before }}<span v-if="line.mark" class="cur-swash"><span class="cur-blot cur-swash-paint" data-blot="orange" aria-hidden="true" />{{ line.mark }}</span>{{ line.after }}</template></h1>
           <p class="cur-lede">{{ page.heroLede }}</p>
           <p v-if="page.heroNotice" class="cur-notice">{{ page.heroNotice }}</p>
         </div>
-        <figure class="cur-hero-photo cur-frame" data-wash="mint,.6,.58,.6,.54,.03,40|sky,.98,.04,.26,.2,.034,30">
+        <figure class="cur-hero-photo cur-frame ivy-kid-frame" data-tone="peach" style="--kid-tilt:1.6deg" data-wash="mint,.6,.58,.6,.54,.03,40|sky,.98,.04,.26,.2,.034,30">
           <img v-bind="withPhotoStyle(curriculumHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
         </figure>
       </div>
       <nav class="cur-wrap cur-index" aria-label="本頁章節">
-        <a v-for="chapter in chapters" :key="chapter.id" :href="`#${chapter.id}`" :style="{ '--tilt': `${chapter.tilt}deg` }">
-          <span class="cur-pan" aria-hidden="true"><span class="cur-blot" :data-blot="chapter.pigment" /><span class="cur-num" lang="en">{{ chapter.no }}</span></span>
+        <a v-for="(chapter, i) in chapters" :key="chapter.id" :href="`#${chapter.id}`">
+          <span class="ivy-blob-no" :data-tone="kidTone(i)" aria-hidden="true">{{ chapter.no }}</span>
           <span class="cur-index-copy"><b>{{ chapter.label }}</b><span>{{ chapter.hint }}</span></span>
         </a>
       </nav>
@@ -121,7 +125,7 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-years-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">01</span><span lang="en">Four years</span></p>
+            <p class="ivy-kicker cur-kicker"><span class="ivy-blob-no" :data-tone="kidTone(0)">01</span>{{ chapterLabel('years') }}</p>
             <h2 id="years-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.yearsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
             <p class="cur-text">{{ page.yearsText }}</p>
             <p class="cur-spiral"><span class="cur-blot" data-blot="sky" aria-hidden="true" /><b>{{ page.spiralLabel }}</b>{{ page.spiralText }}</p>
@@ -131,14 +135,14 @@ useWatercolor(root)
             </div>
           </div>
           <figure class="cur-years-photo">
-            <div class="cur-frame" data-wash="sky,.6,.58,.58,.56,.026,36"><img v-bind="withPhotoStyle(pagePhotoAttrs('cur-years', page.yearsPhoto, '(max-width: 900px) 100vw, 45vw'), page.yearsPhoto)" :alt="pagePhotoAlt(YEARS_ALT, page.yearsPhoto, page.yearsPhotoAlt)" loading="lazy"></div>
+            <div class="cur-frame ivy-kid-frame" data-tone="sky" style="--kid-tilt:-1.4deg" data-wash="sky,.6,.58,.58,.56,.026,36"><img v-bind="withPhotoStyle(pagePhotoAttrs('cur-years', page.yearsPhoto, '(max-width: 900px) 100vw, 45vw'), page.yearsPhoto)" :alt="pagePhotoAlt(YEARS_ALT, page.yearsPhoto, page.yearsPhotoAlt)" loading="lazy"></div>
             <figcaption v-if="page.yearsCaption">{{ page.yearsCaption }}</figcaption>
           </figure>
         </div>
         <ol class="cur-year-list" data-reveal>
           <li v-for="(year, i) in years" :key="year.name" class="cur-year" :style="{ '--i': i, '--s': year.scale }">
             <span class="cur-year-age" aria-hidden="true"><span class="cur-blot" :data-blot="year.pigment" /><b>{{ year.age }}</b><sup>歲</sup></span>
-            <p class="cur-year-name"><b>{{ year.name }}</b><span lang="en">{{ year.en }}</span></p>
+            <p class="cur-year-name"><b>{{ year.name }}</b></p>
             <h3>「{{ year.motto }}」</h3>
             <p>{{ year.text }}</p>
             <small>當年 9 月 1 日前滿 {{ year.age }} 歲</small>
@@ -152,14 +156,14 @@ useWatercolor(root)
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-dir-head" data-reveal>
-          <p class="cur-kicker"><span class="cur-num" lang="en">02</span><span lang="en">Curriculum</span></p>
+          <p class="ivy-kicker cur-kicker"><span class="ivy-blob-no" :data-tone="kidTone(1)">02</span>{{ chapterLabel('directions') }}</p>
           <h2 id="directions-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.directionsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p class="cur-text">{{ page.directionsText }}</p>
         </div>
         <ul class="cur-dir-grid" aria-label="七個課程方向" data-reveal-group data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
-          <li v-for="item in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
+          <li v-for="(item, i) in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
             <span v-if="!item.image" class="cur-blot" data-blot="orange" aria-hidden="true" />
-            <div v-if="item.image" class="cur-frame" :data-wash="item.wash">
+            <div v-if="item.image" class="cur-frame ivy-kid-frame" :data-tone="kidTone(i + 1)" :data-wash="item.wash">
               <img v-bind="pagePhotoAttrs(item.image, item.photo, item.sizes ?? DIRECTION_SIZES)" :alt="pagePhotoAlt(item.alt ?? '', item.photo, item.photoAlt)" :style="pagePhotoStyle(item.position, item.photo)" loading="lazy">
             </div>
             <div class="cur-dir-copy">
@@ -178,14 +182,14 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">03</span><span lang="en">Art gallery</span></p>
+            <p class="ivy-kicker cur-kicker"><span class="ivy-blob-no" :data-tone="kidTone(2)">03</span>{{ chapterLabel('gallery') }}</p>
             <h2 id="gallery-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.galleryTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           </div>
           <p class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
         </div>
         <ul class="cur-art-wall" aria-label="孩子的作品" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
-          <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
-            <div class="cur-frame" :data-wash="art.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy"></div>
+          <li v-for="(art, i) in gallery" :key="art.image" class="cur-art" data-reveal>
+            <div class="cur-frame ivy-kid-frame" :data-tone="kidTone(i + 2)" :data-wash="art.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy"></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
@@ -198,14 +202,14 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">04</span><span lang="en">Five things</span></p>
+            <p class="ivy-kicker cur-kicker"><span class="ivy-blob-no" :data-tone="kidTone(3)">04</span>{{ chapterLabel('daily') }}</p>
             <h2 id="daily-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.dailyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           </div>
           <p class="cur-text">{{ page.dailyText }}<small v-if="page.dailySource" class="cur-source">{{ page.dailySource }}</small></p>
         </div>
         <ol class="cur-daily-list" aria-label="五件事" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
           <li v-for="(item, i) in daily" :key="item.image" class="cur-thing" data-reveal>
-            <div class="cur-frame" :data-wash="item.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy"></div>
+            <div class="cur-frame ivy-kid-frame" :data-tone="kidTone(i + 1)" :data-wash="item.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy"></div>
             <p class="cur-thing-no" lang="en"><span class="cur-blot" :data-blot="item.pigment" aria-hidden="true" />{{ String(i + 1).padStart(2, '0') }}</p>
             <h3>{{ item.title }}</h3>
             <p>{{ item.text }}</p>
@@ -218,7 +222,7 @@ useWatercolor(root)
     <section id="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-belief-body" data-reveal data-wash="sun,.5,.34,.42,.4,.016,44|mint,.14,.66,.18,.3,.02,34|sky,.86,.24,.16,.26,.02,34">
-        <p class="cur-kicker"><span lang="en">Our belief</span></p>
+        <p class="ivy-kicker cur-kicker">教學理念</p>
         <h2 id="belief-title" class="cur-belief-title"><template v-for="(line, i) in pageTitleLines(page.beliefTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
         <ul class="cur-belief-list">
           <li v-for="(belief, i) in page.beliefs" :key="i"><span class="cur-blot" :data-blot="BELIEF_PIGMENTS[i]" aria-hidden="true" />{{ belief }}</li>

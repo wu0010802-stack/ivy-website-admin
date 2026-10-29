@@ -38,11 +38,9 @@
   --ivy-logo-chinese: oklch(41.466% .10216 153.575);
   --ivy-logo-english: oklch(31.943% .11932 279.102);
 
-  /* 3. 森林綠：首頁理念區、預約第一步、今日提示 ------------------------------ */
+  /* 3. 森林綠：標題深綠、首屏揭開前的象牙底（2026-10-29 視覺方向 B 拿掉薄荷色帶 --ivy-forest-mist 與淡字 --ivy-forest-ghost） */
   --ivy-forest: #203f32;
   --ivy-forest-rgb: 32 63 50;
-  --ivy-forest-mist: oklch(90% .04 152);  /* 薄荷色帶；2026-10-20 調亮（原 #c5ded0 偏灰；同日先試 92% .045 145，使用者覺得太亮，取中間） */
-  --ivy-forest-ghost: #e6f1e7;           /* 色帶上的巨大淡字 */
   --ivy-forest-soft: #42644e;
   --ivy-ivory: #fffdf5;                  /* 首屏揭開前的象牙底 */
   --ivy-gold-glow-rgb: 255 215 94;
@@ -97,8 +95,8 @@
   --ivy-news-swept-sage: #d3e5b5;
   --ivy-news-swept-mist: #bfdedb;
 
-  /* 6. 頁尾淡綠底＋品牌深綠字（2026-10-20 調亮，取代 09-24 的 A 深森林綠＋全白字） ---------- */
-  --ivy-footer-bg: oklch(92% .038 150);     /* 同日先試 95.5% .032 140，使用者覺得太亮，加深一階 */
+  /* 6. 頁尾奶油底＋品牌深綠字（2026-10-29 視覺方向 B：品牌頁一律米白／奶油，取代 10-20 的淡綠 oklch(92% .038 150)） ---------- */
+  --ivy-footer-bg: var(--cream);
   --ivy-footer-text: var(--green);          /* 所有文字同一個深綠，層次只靠字級與字重 */
   --ivy-footer-line: var(--line);           /* 版權列上方分隔線 */
 
@@ -146,6 +144,23 @@
   --ivy-curtain-border: #a38362;
   --ivy-curtain-focus: #f2dfb9;
 
+  /* 16. 文具（2026-10-29 視覺方向 B，規則在 DESIGN.md「視覺方向 B」；樣式在 stationery.css） -------------
+     品牌頁（首頁、關於、入學、預約、消息）只用米白紙、白框相片、「編號＋中文」章節頭；
+     孩子頁（特色教學、常春藤環境）共用同一盒孩子文具：點格紙、色紙框＋紙膠帶、顏料團編號。
+     圓角只有這三種，陰影只有這一種。孩子文具的色紙沿用環境頁 09-28 定案的色紙色。 */
+  --radius-paper: 3px;                   /* 紙角：相框、色紙 */
+  --radius-card: 12px;                   /* 卡片、提示塊、輸入框 */
+  --radius-pill: 999px;                  /* 膠囊、按鈕 */
+  --shadow-paper: 0 1px 2px rgb(var(--ink) / .08), 0 24px 40px -28px rgb(var(--ink) / .45);
+  --ivy-photo-mat: var(--ivy-white-pure); /* 白框相片的白邊 */
+  --ivy-kid-paper: var(--ivy-ivory);     /* 孩子頁的點格紙底 */
+  --ivy-kid-dot: var(--ivy-env-dot);
+  --ivy-kid-yellow: var(--ivy-env-yellow);
+  --ivy-kid-sky: var(--ivy-env-sky);
+  --ivy-kid-leaf: var(--ivy-env-leaf);
+  --ivy-kid-peach: var(--ivy-env-peach);
+  --ivy-kid-tape: var(--ivy-env-tape);
+
   /* 11. 外部品牌（只用在對應圖示，不可挪作他用） ------------------------------- */
   --ivy-line-brand: #06C755;
   --ivy-facebook-brand: #0866FF;
@@ -162,9 +177,7 @@
   --ivy-paint-orange-rgb: 236 150 90;
   --ivy-paint-leaf-rgb: 108 162 112;
 
-  /* 14. 入學資訊頁「入學護照」（2026-09-28 定案，比稿 design/admission-theme-directions-20260928/ B）。
-     另一種內頁紙沿用 --ivy-news-paper；防偽細紋、欄位框線、選中底色在 admission-passport.css 由這幾個與品牌色 color-mix 出來。 */
-  --ivy-passport-page: oklch(97.2% .01 104);       /* 內頁證件紙：米白混一點薄荷（paper 84%＋mint 16%） */
+  /* 14. 入學資訊頁的印泥（2026-09-28「入學護照」定案；2026-10-29 視覺方向 B 拿掉證件紙 --ivy-passport-page 與防偽細紋，印章保留）。 */
   --ivy-passport-red: oklch(51% .17 31);           /* 朱紅印泥：印章、答案裡的班別、條款編號；對兩種內頁紙 ≥ 5.7:1 */
 
   /* 15. 常春藤環境頁手繪版（/environment，2026-09-28 定案 mock C）：點格紙、紅筆、便利貼、紙膠帶、四色色紙與蠟筆。

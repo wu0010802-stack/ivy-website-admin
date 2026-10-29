@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted, type Ref } from 'vue'
-import { PIGMENTS, type Pigment, type Point, blotCanvas, bloomCanvas, deckleCanvas, grainCanvas, parseWash, seededRandom, tracePolygon, washEllipse, washPolygons } from '~/utils/watercolor'
+import { PIGMENTS, type Pigment, type Point, blotCanvas, grainCanvas, parseWash, seededRandom, tracePolygon, washEllipse, washPolygons } from '~/utils/watercolor'
 
 /**
  * 特色教學頁的水彩層（2026-09-28）。HTML 只標位置，這裡負責畫：
@@ -7,7 +7,7 @@ import { PIGMENTS, type Pigment, type Point, blotCanvas, bloomCanvas, deckleCanv
  *   以元素框為基準畫顏料；段落接近視窗才開始畫，一層一層疊，看得到染開。
  *   `data-wash-mobile` 是 760px 以下的替代；在橫滑清單裡的元素不對位（捲動後會錯開），改由清單本身鋪一片。
  * - `data-blot="顏料"`：依元素大小生成一團顏料當背景圖（年齡、章節編號、引言、理念）。
- * - `.cur-frame`：照片撕紙毛邊＋進場從中間暈開（兩層 mask，第二層 mask-size 從 0 放大）。
+ * - 照片（`.cur-frame`）2026-10-29 起是色紙框＋紙膠帶（stationery.css），不再畫撕紙毛邊與從中間暈開的遮罩。
  * - `data-reveal`：捲到才淡入；掛上時已經在視窗內的直接顯示，不閃。
  * - 首屏：滑鼠滑過滴下淡淡的顏料（最多 26 滴，只認滑鼠）。
  * - `data-reveal-group`（手機的橫滑清單）：真的能橫向捲動時才加 tabindex="0"，讓只用鍵盤的人也捲得動
@@ -45,9 +45,7 @@ function start(main: HTMLElement) {
   const rgb = Object.fromEntries(PIGMENTS.map((p) => [p, rootStyle.getPropertyValue(`--ivy-paint-${p}-rgb`).trim()])) as Record<Pigment, string>
   const cleanups: (() => void)[] = []
   const objectUrls: string[] = []
-  const timers = new Set<ReturnType<typeof setTimeout>>()
   let stopped = false
-  const later = (fn: () => void, ms: number) => { const t = setTimeout(() => { timers.delete(t); fn() }, ms); timers.add(t) }
 
   // ---------- 閒置時間的工作佇列：每塊不超過 8ms ----------
   const tasks: (() => void)[] = []
@@ -74,17 +72,13 @@ function start(main: HTMLElement) {
   })
   const inView = (el: Element) => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight }
 
-  // ---------- 紙紋與暈開遮罩：一張就好 ----------
+  // ---------- 紙紋：一張就好 ----------
   const grain = main.querySelector<HTMLElement>('.cur-grain')
   if (grain) enqueue(() => { void toUrl(grainCanvas()).then((url) => { if (!stopped) grain.style.backgroundImage = `url(${url})` }) })
-  let bloomUrl: Promise<string> | undefined
-  const bloom = () => (bloomUrl ??= toUrl(bloomCanvas()))
 
-  // ---------- 顏料團與照片遮罩：接近視窗才產生 ----------
-  const frames = [...main.querySelectorAll<HTMLElement>('.cur-frame')]
+  // ---------- 顏料團：接近視窗才產生 ----------
   const blots = [...main.querySelectorAll<HTMLElement>('[data-blot]')]
   const decorated = new Set<HTMLElement>()
-  const revealedWithin = (frame: HTMLElement) => { const reveal = frame.closest('[data-reveal]'); return !reveal || reveal.classList.contains('is-in') }
 
   const decorateBlot = (el: HTMLElement) => {
     const w = el.offsetWidth, h = el.offsetHeight, color = rgb[el.dataset.blot as Pigment]
@@ -96,39 +90,19 @@ function start(main: HTMLElement) {
       requestAnimationFrame(() => el.classList.add('is-painted'))
     })
   }
-  const decorateFrame = (frame: HTMLElement) => {
-    const w = frame.offsetWidth, h = frame.offsetHeight
-    if (!w || !h || frame.dataset.maskSize === `${w}x${h}`) return
-    frame.dataset.maskSize = `${w}x${h}`
-    void Promise.all([toUrl(deckleCanvas(w, h, 100 + frames.indexOf(frame))), bloom()]).then(([edge, center]) => {
-      if (stopped) return
-      const mask = `url(${edge}), url(${center})`
-      frame.style.setProperty('-webkit-mask-image', mask)
-      frame.style.maskImage = mask
-      // 已經看得到的照片直接換上毛邊，不先藏起來再暈開（會像閃了一下）；還沒捲到的等進場再暈開
-      if (reduce || frame.classList.contains('is-bloomed') || (revealedWithin(frame) && inView(frame))) frame.classList.add('is-bloomed')
-      else if (revealedWithin(frame)) later(() => frame.classList.add('is-bloomed'), 160)
-      frame.classList.add('has-mask')
-    })
-  }
-  const decorate = (el: HTMLElement) => { decorated.add(el); if (el.matches('.cur-frame')) decorateFrame(el); else decorateBlot(el) }
-  // 以段落為單位：段落離視窗 800px 內就把裡面的遮罩與顏料團排進佇列。
+  const decorate = (el: HTMLElement) => { decorated.add(el); decorateBlot(el) }
+  // 以段落為單位：段落離視窗 800px 內就把裡面的顏料團排進佇列。
   // 不逐一觀察元素：手機橫滑清單裡還沒滑到的卡片會被捲動容器裁掉，IntersectionObserver 等不到它們。
   const decorObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
     if (!entry.isIntersecting) return
     decorObserver.unobserve(entry.target)
-    entry.target.querySelectorAll<HTMLElement>('.cur-frame, [data-blot]').forEach((el) => enqueue(() => decorate(el)))
+    entry.target.querySelectorAll<HTMLElement>('[data-blot]').forEach((el) => enqueue(() => decorate(el)))
   }), { rootMargin: '800px 0px' })
   main.querySelectorAll('.cur-hero, .cur-sec').forEach((section) => decorObserver.observe(section))
   cleanups.push(() => decorObserver.disconnect())
 
   // ---------- 進場 ----------
-  const bloomWithin = (el: Element) => {
-    if (reduce) return
-    const inside = el.matches('.cur-frame') ? [el] : [...el.querySelectorAll('.cur-frame')]
-    inside.forEach((frame, i) => later(() => frame.classList.add('is-bloomed'), 120 + i * 140))
-  }
-  const reveal = (el: Element) => { el.classList.add('is-in'); bloomWithin(el) }
+  const reveal = (el: Element) => { el.classList.add('is-in') }
   const revealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
     if (!entry.isIntersecting) return
     revealObserver.unobserve(entry.target)
@@ -337,7 +311,6 @@ function start(main: HTMLElement) {
   return () => {
     stopped = true
     cleanups.forEach((fn) => fn())
-    timers.forEach(clearTimeout)
     objectUrls.forEach((url) => URL.revokeObjectURL(url))
   }
 }

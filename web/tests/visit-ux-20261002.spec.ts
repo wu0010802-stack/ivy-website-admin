@@ -56,7 +56,8 @@ describe('選校與迎賓區', () => {
 
   it('眉標用中文，不再是英文寬字距', () => {
     expect(form).not.toContain('VISIT IVY')
-    expect(css).toMatch(/\.visit-eyebrow \{[^}]*letter-spacing:\.06em/)
+    expect(form).toContain('<p v-if="isPicking" class="ivy-kicker visit-eyebrow">預約校園參觀</p>')
+    expect(css).not.toContain('.visit-eyebrow::before')
   })
 
   it('手機的「下一步」黏在畫面底部', () => {

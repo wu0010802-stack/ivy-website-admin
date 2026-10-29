@@ -1,7 +1,8 @@
 /* 最新消息列表與單篇頁（/news、/news/<id>，2026-09-26）
-   顏色沿用首頁消息區與消息對話框的 --ivy-news-* token；示意標籤用 studio.css 的全站 .hn-sample-tag。 */
+   顏色沿用首頁消息區與消息對話框的 --ivy-news-* token；示意標籤用 studio.css 的全站 .hn-sample-tag。
+   2026-10-29 視覺方向 B：底紙改全站米白、眉標是章節頭（.ivy-kicker）、縮圖與封面是白框相片（.ivy-photo）、活動卡奶油色。 */
 
-.np{background:var(--ivy-news-paper);color:var(--ivy-news-ink);padding:24px 0 120px}
+.np{background:var(--paper);color:var(--ivy-news-ink);padding:24px 0 120px}
 .np-wrap{width:min(1080px,calc(100% - 96px));margin-inline:auto}
 .np-narrow{width:min(760px,calc(100% - 96px))}
 .np-crumb{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:var(--fs-sm);color:var(--ivy-news-muted)}
@@ -11,8 +12,8 @@
 
 /* ---------- 列表頁 ---------- */
 .np-head{margin-top:40px}
-/* 眉標改中文「常春藤幼兒園・最新消息」（2026-10-13）：字級、字重、字距同入學資訊頁 .ap-eyebrow，不再用英文日期字型與大寫。 */
-.np-kicker{font-size:var(--fs-sm);font-weight:600;line-height:1.6;letter-spacing:.16em;color:var(--ivy-news-muted)}
+/* 眉標改中文「常春藤幼兒園・最新消息」（2026-10-13）；2026-10-29 起是全站章節頭 .ivy-kicker。 */
+.np-kicker{margin:0;color:var(--ivy-news-green)}
 .np-head h1{margin-top:12px;font-size:clamp(2.25rem,4vw,3.25rem);line-height:1.35;letter-spacing:.02em;color:var(--ivy-news-green)}
 .np-lede{margin-top:16px;font-size:var(--fs-lg);color:var(--ivy-news-muted)}
 
@@ -24,9 +25,7 @@
 .np h2{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:var(--fs-3xl);line-height:1.4;color:var(--ivy-news-green)}
 .np-events{margin-top:56px}
 .np-event-list{list-style:none;margin:24px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.np-event{display:flex;gap:18px;padding:22px;border-radius:12px;background:var(--ivy-news-event-1)}
-.np-event:nth-child(3n+2){background:var(--ivy-news-event-2)}
-.np-event:nth-child(3n){background:var(--ivy-news-event-3)}
+.np-event{display:flex;gap:18px;padding:22px;border-radius:var(--radius-card);background:var(--cream)}
 .np-event-date{flex:none;width:44px;text-align:center;line-height:1.2}
 .np-event-date b{display:block;font-family:var(--font-head);font-size:30px}
 .np-event-date span{font-size:10px;letter-spacing:.1em}
@@ -42,7 +41,7 @@
 .np-articles{margin-top:64px}
 .np-list{list-style:none;margin:16px 0 0;padding:0;border-top:1px solid var(--ivy-news-line)}
 .np-row{position:relative;display:grid;grid-template-columns:220px minmax(0,1fr);gap:32px;align-items:center;padding-block:28px;border-bottom:1px solid var(--ivy-news-line)}
-.np-row img{width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:10px}
+.np-row img{width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
 /* max-width:none：.np-meta 是 <p>，全域 p{max-width:65ch} 把單篇頁的日期擠在欄中間（1440 寬止於 x=832，內文到 1100，2026-10-13）。 */
 .np-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;max-width:none;font-size:var(--fs-xs);letter-spacing:.025em;color:var(--ivy-news-muted)}
 .np-meta > span:first-child{font-weight:600;color:var(--ivy-news-green)}
@@ -68,7 +67,7 @@
 .np-article{margin-top:32px}
 .np-article h1{margin-top:12px;font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.5;letter-spacing:.015em;color:var(--ivy-news-green)}
 .np-article .np-sample-note{margin-top:20px;max-width:none}
-.np-cover{display:block;width:100%;height:auto;max-height:480px;margin-top:28px;object-fit:cover;border-radius:12px}
+.np-cover{display:block;width:100%;height:auto;max-height:480px;margin-top:28px;object-fit:cover}
 .np-article-copy{margin-top:28px;font-size:var(--fs-md);line-height:2}
 .np-article :deep(.hn-body){margin-top:28px;font-size:var(--fs-md);line-height:2}
 .np-article-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-top:56px;padding-top:28px;border-top:1px solid var(--ivy-news-line)}
@@ -90,6 +89,7 @@
   .np-event-list{grid-template-columns:1fr}
   .np-articles{margin-top:48px}
   .np-row{grid-template-columns:96px minmax(0,1fr);gap:16px;align-items:start;padding-block:20px}
+  .np-row img{border-width:5px 5px 7px}
   .np-row h3{font-size:var(--fs-md)}
   .np-row-desc{display:none}
   .np-article-foot{flex-direction:column-reverse;align-items:stretch}

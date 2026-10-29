@@ -8,7 +8,7 @@ usePageSeo(computed(() => data.value?.content))
 // html 不會標 data-ivy-entrance，entrance-engine plugin 也就不下載引擎。
 const curtain = computed(() => anniversaryEnabled(data.value?.content.siteMeta))
 useHead({
-  htmlAttrs: { 'data-seam': '2', class: 'relay-day' },
+  htmlAttrs: { 'data-seam': '2' },
   script: () => (curtain.value ? [{ key: 'entrance-curtain', tagPriority: 'critical' as const, innerHTML: entranceBootstrap }] : []),
   style: () => (curtain.value ? [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }] : [])
 })

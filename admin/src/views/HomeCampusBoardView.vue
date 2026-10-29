@@ -52,9 +52,7 @@ onMounted(editor.load)
     <template #lead>首頁五校區塊的標題、五校的排列順序與一進首頁先顯示哪一校。各校的名稱、地址與電話在「五校介紹」修改。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
-      <el-form-item label="小標">
-        <el-input v-model="editor.form.value.eyebrow" placeholder="例如：CAMPUSES" />
-      </el-form-item>
+      <!-- 英文小標（eyebrow）2026-10-29 起官網不顯示（視覺方向 B：英文小字只留頁尾品牌名）：後台不列，舊值照原樣存回。 -->
       <el-form-item label="區塊標題">
         <el-input v-model="editor.form.value.section_title" placeholder="例如：分校資訊" />
         <LengthHint :value="editor.form.value.section_title" rule="boardTitle" />

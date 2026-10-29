@@ -459,7 +459,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
     @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"
   >
     <header class="gallery-heading content-width">
-      <div class="gallery-title"><span lang="en">{{ board.eyebrow }}</span><h2 id="campuses-heading">{{ board.sectionTitle }}</h2></div>
+      <div class="gallery-title"><h2 id="campuses-heading">{{ board.sectionTitle }}</h2></div>
       <div class="campus-tabs" role="tablist" aria-label="選擇分校">
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
@@ -543,7 +543,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-identity">
         <span class="campus-district">高雄 · {{ current.district }}</span>
         <h3>{{ current.name }}</h3>
-        <span lang="en">{{ current.key.toUpperCase() }} CAMPUS</span>
       </div>
       <div class="campus-contact">
         <div class="contact-row">
@@ -588,7 +587,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .gallery-heading{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;margin-bottom:36px}
 .gallery-title{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:24px;text-align:center}
 .gallery-title h2{margin:0;color:var(--heading-ink);font:500 clamp(40px,3.9vw,56px)/1.4 var(--font-head);letter-spacing:.1em;padding-inline-start:.1em;white-space:nowrap}
-.gallery-title>span{color:var(--heading-accent);font:italic clamp(var(--fs-lg),1.7vw,var(--fs-2xl))/1.3 Georgia,'Times New Roman',serif;letter-spacing:.015em}
 .campus-tabs{--tab-hover-line:var(--ivy-campus-tab-hover-line);display:flex;justify-content:center;width:min(100%,1040px);gap:12px}
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
 .campus-tabs button[aria-selected=true]{color:var(--heading-ink);font-weight:600}
@@ -721,7 +719,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .campus-identity{min-width:0}
 .campus-district{display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--muted)}
 .campus-identity h3{margin:9px 0 12px;color:var(--heading-ink);font:500 var(--fs-campus-name)/1.25 var(--font-head);letter-spacing:.065em}
-.campus-identity [lang=en]{display:block;font-family:var(--font-latin);font-size:var(--fs-xs);letter-spacing:.15em;color:var(--heading-accent)}
 .campus-contact{min-width:0;padding:4px 0 4px clamp(24px,3vw,44px);border-inline-start:1px solid var(--line)}
 .contact-row{display:flex;align-items:center;gap:13px;min-height:44px;font-size:var(--fs-md)}
 .contact-row .icon{width:18px;height:18px;color:var(--muted)}
@@ -761,7 +758,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .gallery-heading{gap:12px;margin-bottom:24px}
   .gallery-title{gap:2px;margin-top:14px}
   .gallery-title h2{font-size:var(--fs-5xl);letter-spacing:.06em;white-space:normal}
-  .gallery-title>span{font-size:var(--fs-lg)}
   .campus-tabs{gap:5px}
   .campus-tabs button{font-size:var(--fs-xs);min-height:92px;padding:6px 2px 9px;gap:2px;letter-spacing:.015em}
   .campus-tab-figure{width:60px;height:40px}
@@ -783,7 +779,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .campus-identity{grid-row:auto;padding:0}
   .campus-district{font-size:var(--fs-xs)}
   .campus-identity h3{margin:8px 0 11px}
-  .campus-identity [lang=en]{font-size:11px;letter-spacing:.13em}
   .campus-contact{padding:20px 0 0;border-inline-start:0;border-top:1px solid var(--line)}
   .contact-row{font-size:var(--fs-sm);gap:12px}
   .phone{font-size:var(--fs-2xl)}

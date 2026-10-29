@@ -468,30 +468,17 @@ body:has(.studio-hero) .header-top,
 
 .home-belief {
   --belief-header-height:92px;
-  /* Give the mint backdrop a longer entrance before the B2 content arrives. */
-  --belief-entry-space:clamp(180px,calc(32 * var(--motion-vh,1svh)),360px);
+  /* 首屏揭開後、內容進來前的一段紙。2026-10-29 視覺方向 B 拿掉薄荷底與浮水印，這段只剩空白，收短（原 clamp(180px,32svh,360px)）。 */
+  --belief-entry-space:clamp(96px,calc(14 * var(--motion-vh,1svh)),160px);
   display:grid;position:relative;z-index:1;isolation:isolate;
-  --belief-bg:var(--ivy-forest-mist);
+  --belief-bg:var(--paper);
   background:var(--belief-bg);color:var(--belief-ink);
   padding:0;
   scroll-margin-top:-112px;
 }
 .home-belief .container {width:min(1440px,calc(100% - 112px))}
-.belief-backdrop {
-  grid-area:1/1;position:sticky;top:var(--belief-header-height);align-self:start;
-  height:calc(100 * var(--motion-vh,1svh) - var(--belief-header-height));overflow:clip;
-  background:var(--ivy-forest-mist);pointer-events:none;user-select:none;
-}
-.belief-backdrop-inner {position:relative;height:100%}
-.belief-watermark {
-  position:absolute;left:-.05em;top:50%;transform:translateY(-50%);
-  font-family:var(--font-head);font-weight:700;
-  font-size:clamp(142px,14vw,208px);line-height:1.04;letter-spacing:-.075em;
-  color:var(--ivy-forest-ghost);opacity:.36;
-}
 .belief-content {
   grid-area:1/1;position:relative;z-index:1;min-width:0;
-  /* Hold the mint backdrop for the same stretch on the way out as on the way in. */
   padding-block:var(--belief-entry-space);
 }
 .belief-layout {
@@ -501,19 +488,15 @@ body:has(.studio-hero) .header-top,
   column-gap:clamp(48px,6vw,96px);row-gap:40px;
 }
 .belief-main {min-width:0}
-.belief-since {
-  display:flex;align-items:center;gap:16px;margin:0 0 24px;
-  font-size:11px;line-height:1.6;letter-spacing:.2em;font-weight:500;
-}
-.belief-since::before {content:"";width:34px;height:1px;background:rgb(var(--ivy-forest-rgb) / .333)}
+.belief-kicker {margin-bottom:24px}
 .belief-main h2 {
   font-size:clamp(48px,4.6vw,74px);line-height:1.35;letter-spacing:.015em;
   margin:0 0 30px;text-wrap:balance;
 }
 .belief-text {margin:0;max-width:34em;font-size:var(--fs-lg);line-height:2;text-wrap:pretty}
-/* 單張圓角照片（3:2、16px 圓角、無白邊）；2026-09-23 取代主照＋小照疊放。 */
+/* 單張照片（3:2）；2026-09-23 取代主照＋小照疊放。2026-10-29 起是白框相片（stationery.css .ivy-photo），取代 16px 圓角無白邊。 */
 .belief-photo {margin:0;min-width:0;align-self:start}
-.belief-photo img {width:100%;height:auto;aspect-ratio:3/2;object-fit:cover;border-radius:16px}
+.belief-photo img {width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}
 .belief-photo figcaption {
   margin-top:14px;text-align:right;
   font-size:var(--fs-xs);color:var(--ivy-forest-soft);letter-spacing:.06em;
@@ -551,24 +534,21 @@ body:has(.studio-hero) .header-top,
   }
 }
 @media(max-width:900px) {
-  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(260px,calc(28 * var(--motion-vh,1svh)),280px)}
+  .home-belief {--belief-header-height:80px;--belief-entry-space:clamp(120px,calc(16 * var(--motion-vh,1svh)),180px)}
   .home-belief .container {width:calc(100% - 64px)}
   .belief-layout {grid-template-columns:1fr;gap:32px;width:min(650px,100%);margin-inline:auto;padding-block:48px}
   .belief-main h2 {font-size:var(--fs-6xl)}
   .belief-text {max-width:none;line-height:1.95}
   .belief-photo {width:100%;max-width:570px;justify-self:center}
-  .belief-watermark {font-size:24vw}
 }
 @media(max-width:760px) {
   .home-belief {--belief-header-height:78px;--belief-entry-space:clamp(64px,calc(10 * var(--motion-vh,1svh)),96px);scroll-margin-top:-96px}
   .home-belief .container {width:calc(100% - 40px)}
   .belief-layout {padding-block:40px}
-  .belief-since {font-size:10px;margin-bottom:22px;gap:12px}
-  .belief-since::before {width:28px}
+  .belief-kicker {margin-bottom:20px}
   .belief-main h2 {font-size:clamp(34px,9.8vw,48px);line-height:1.38;margin-bottom:24px}
   .belief-text {font-size:var(--fs-md);line-height:1.95}
   .belief-photo figcaption {margin-top:12px;font-size:var(--fs-xs);letter-spacing:0}
-  .belief-watermark {left:0;font-size:30vw;opacity:.37}
 }
 @media(max-width:360px) {
   .home-belief .container {width:calc(100% - 32px)}
@@ -584,11 +564,6 @@ body:has(.studio-hero) .header-top,
   .home-reveal .studio-hero-copy,.home-reveal .studio-media {
     animation:none!important;transform:none!important;opacity:1!important;
   }
-  .belief-backdrop {position:relative;top:0}
-}
-@media(forced-colors:active) {
-  .belief-watermark {display:none}
-  .belief-since::before {background:CanvasText}
 }
 
 /* 離開首屏：整條頁首讓位，置頂居中的膠囊接手（提案 design/header-collapse-directions，2026-09-18）。
@@ -934,58 +909,43 @@ html.menu-locked {overflow:hidden}
   .header.is-booking :is(.header-book,.pill-book) {display:none}
 }
 
-/* 試作：?seam=2 —— 保留簾幕，但浮水印的「常春藤」對準大標「常春藤的一天」裡的「常春藤」，
-   關於區塊黏住被擦掉時，同一個位置的字從薄荷綠變成白色。eyebrow 移到大標下方。 */
-/* 字級同時看寬與高：兩行浮水印要塞進 header 到視窗中線之間，矮視窗就跟著縮。 */
+/* ?seam=2（2026-09-18 定案為預設）：關於區塊黏住後被擦掉，底下是孩子的一天；eyebrow 移到大標下方。
+   原本浮水印「關於／常春藤」的「常春藤」對準大標裡的「常春藤」接力，2026-10-29 視覺方向 B 拿掉浮水印，接力一併拿掉，
+   大標字級與簾幕距離照舊。字級同時看寬與高，矮視窗就跟著縮。 */
 [data-seam="2"],[data-seam="2"] .home-reveal {--display-size:clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px)}
-[data-seam="2"] .belief-watermark {
-  inset:0;transform:none;
-  font-size:var(--display-size);letter-spacing:0;line-height:1;opacity:.5;
-}
-[data-seam="2"] .belief-watermark br {display:none}
-[data-seam="2"] .belief-watermark span {position:absolute;white-space:nowrap;transform:translateY(-50%)}
-/* 大標置中在 100svh 的正中央；浮水印所在的 backdrop 從 header 高度開始，所以要扣掉。 */
-[data-seam="2"] .wm-b {left:calc(50% - 3em);top:calc(50 * var(--motion-vh,1svh) - var(--belief-header-height))}
-[data-seam="2"] .wm-a {left:-.05em;top:calc(50 * var(--motion-vh,1svh) - var(--belief-header-height) - 1.02em)}
 [data-seam="2"] .day-intro {padding-inline:0}
 [data-seam="2"] .day-title {font-size:var(--display-size);letter-spacing:0;line-height:1}
 [data-seam="2"] .day-intro .eyebrow {
   position:absolute;left:50%;top:calc(50% + var(--display-size) * .68);
   transform:translateX(-50%);margin:0;
 }
-/* 簾幕開始擦之前，日常區塊就要釘在視窗頂（多往上拉一個簾幕距離），大標才會停在浮水印的位置；卡片相對延後同樣距離。 */
+/* 簾幕開始擦之前，日常區塊就要釘在視窗頂（多往上拉一個簾幕距離），擦開時大標已經停在畫面中央；卡片相對延後同樣距離。 */
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-reveal {margin-top:calc(-1 * (var(--reveal-height,100svh) + var(--belief-distance)))}
 [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 28 * var(--motion-vh,1svh))}
 /* 簾幕長度（seam=2 專用，會蓋過上面 .belief-reveal 的 .72）：要調停留時間改這裡的倍數，不是第 431 行那個。 */
 [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .85)}
-/* 減少動態／無 JS 的尾留白：段落結尾落在「關於」下緣（2026-09-19 由 50svh + .9em 縮短）。動態版見下方 1.52em。 */
-[data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * .15)}
-/* 手機保留較短的擦除距離，單欄照片後方需留出完整兩行浮水印。 */
+/* 內容後的尾留白：原本要留出兩行浮水印（50svh 以上），2026-10-29 拿掉浮水印後只留一段喘息。 */
+[data-seam="2"] .belief-content {padding-bottom:clamp(64px,calc(10 * var(--motion-vh,1svh)),120px)}
+/* 手機保留較短的擦除距離。 */
 @media(max-width:760px) {
   [data-seam="2"],[data-seam="2"] .home-reveal {--display-size:min(clamp(56px,min(13vw,calc(19 * var(--motion-vh,1svh))),200px),calc((100vw - 40px) / 6))}
-  [data-seam="2"] .belief-watermark {opacity:.28}
   [data-seam="2"] .day-intro .eyebrow {width:max-content;max-width:calc(100% - 40px);flex-wrap:wrap;justify-content:center;white-space:nowrap}
   [data-seam="2"] .belief-reveal {--belief-distance:calc(var(--reveal-height,100svh) * .55)}
   [data-seam="2"] .belief-reveal[data-motion="on"] .day-prints {margin-top:calc(var(--belief-distance) - 32 * var(--motion-vh,1svh))}
-  [data-seam="2"] .belief-content {padding-bottom:calc(30 * var(--motion-vh,1svh) + var(--display-size) * .15)}
 }
-/* 動態版黏住的最後一屏：內文與照片整段離開兩行大字，才開始接力（≤900px 2026-09-23 上午、桌機同日下午跟上）。
-   「關於」上緣在半屏上方 1.52em（1.02em 行距 + 半個字高），layout 自己的下內距就是最後一行到大字的間隔。
+/* 動態版黏住的最後一屏：區塊要比一屏高，內文與照片才會先整段捲過、讀完，簾幕再從下緣擦上來。
+   原本留 50svh＋1.52em 讓整段離開兩行浮水印；2026-10-29 拿掉浮水印後收成 42svh：黏住時內文停在上半屏，
+   下半屏是一段紙，簾幕先擦過空白再蓋到內文。太短（例如 16svh）整段不到一屏高，首屏一揭開就開始擦，內文來不及讀。
    桌機拿掉滿屏 min-height：單張 3:2 照片比內文矮，置中會在段落下多墊一截，段落停的位置就隨內容長短漂移。 */
 @media(prefers-reduced-motion:no-preference) {
-  [data-ivy-motion][data-seam="2"] .belief-content {padding-bottom:calc(50 * var(--motion-vh,1svh) + var(--display-size) * 1.52)}
+  [data-ivy-motion][data-seam="2"] .belief-content {padding-bottom:calc(42 * var(--motion-vh,1svh))}
 }
 @media(min-width:901px) and (prefers-reduced-motion:no-preference) {
   [data-ivy-motion][data-seam="2"] .belief-layout {min-height:0}
 }
 
-/* ?seam=2 接力效果（app.js setupRelayStudy 面板開關；--relay 由 setupBeliefCurtain 即時計算） */
 .day-ghost {display:none}
 [data-seam="2"] .t-ivy,[data-seam="2"] .t-day {display:inline-block}
-[data-seam="2"].relay-day .t-day {
-  opacity:var(--relay-day,1);
-  transform:translateX(calc((1 - var(--relay-day,1)) * -.14em));
-}
 
 /* 2026-09-24 選單加「入學資訊」成五項：901–1000px 的間距 20→14px，否則 901–915px 預約鈕被推出視窗 11px。 */
 @media(min-width:901px) and (max-width:1000px){.nav-inner{gap:14px}}

@@ -45,7 +45,7 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
       <nav class="np-crumb" aria-label="麵包屑"><NuxtLink to="/">首頁</NuxtLink><span aria-hidden="true">/</span><span aria-current="page">最新消息</span></nav>
       <header class="np-head">
         <!-- 眉標用中文、寫「機構・頁名」（2026-10-13，同入學資訊頁；09-10「.eyebrow 一律中文短語」）。 -->
-        <p class="np-kicker">常春藤幼兒園・最新消息</p>
+        <p class="ivy-kicker np-kicker">常春藤幼兒園・最新消息</p>
         <h1>最新消息</h1>
         <p class="np-lede">五所校園的消息與近期活動。</p>
       </header>
@@ -77,7 +77,7 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
         <NewsFollowCampuses v-if="!articles.length" class="np-empty" :campuses="followCampuses" />
         <ul v-else class="np-list">
           <li v-for="item in articles" :key="item.id" class="np-row">
-            <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 30vw, 280px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
+            <img class="ivy-photo" v-bind="responsiveTourImage(item.image, '(max-width: 760px) 30vw, 280px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
             <div class="np-row-copy">
               <p class="np-meta"><span>{{ item.campus }}<span v-if="articlesSample === 'some' && isSample(item)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></p>
               <h3><NuxtLink :to="newsPath(item.id)"><span v-for="(part, i) in titleClauses(item.title)" :key="i" class="np-clause">{{ part }}</span></NuxtLink></h3>

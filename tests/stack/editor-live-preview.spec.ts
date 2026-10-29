@@ -591,7 +591,8 @@ test('sticky 的區塊（首屏、關於常春藤、孩子的一天）：預覽�
   const CASES: [path: string, heading: string, field: string, block: string][] = [
     ['/content/home-hero', '首頁大圖標語', '標語第 1 行', '.studio-hero'],
     ['/content/home-about', '關於常春藤', '標題', '.home-belief'],
-    ['/content/day-experience', '孩子的一天', '小標（中文）', '.day-experience'],
+    // 2026-10-29 英文小標不列，中文小標的欄位名改成「小標」
+    ['/content/day-experience', '孩子的一天', '小標', '.day-experience'],
   ]
   for (const viewport of ['mobile', 'desktop'] as const) {
     for (const [path, heading, field, block] of CASES) {

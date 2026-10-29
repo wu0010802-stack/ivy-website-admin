@@ -20,7 +20,7 @@ const formatDate = (date: string) => date.replaceAll('-', '.')
         <p class="np-meta"><span>{{ article.campus }} · {{ article.category }}<span v-if="sample" class="hn-sample-tag">示意</span></span><time :datetime="article.date">{{ formatDate(article.date) }}</time></p>
         <h1 id="np-article-title"><span v-for="(part, i) in titleClauses(article.title)" :key="i" class="np-clause">{{ part }}</span></h1>
         <p v-if="sample" class="np-sample-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
-        <img class="np-cover" v-bind="responsiveTourImage(article.image, '(max-width: 760px) 100vw, 760px', false, article.imageMedia)" :style="article.imageMedia?.position ? { objectPosition: article.imageMedia.position } : undefined" :alt="article.alt" fetchpriority="high">
+        <img class="np-cover ivy-photo" v-bind="responsiveTourImage(article.image, '(max-width: 760px) 100vw, 760px', false, article.imageMedia)" :style="article.imageMedia?.position ? { objectPosition: article.imageMedia.position } : undefined" :alt="article.alt" fetchpriority="high">
         <NewsBody v-if="article.body?.length" :summary="article.description" :blocks="article.body" />
         <p v-else class="np-article-copy">{{ article.description }}</p>
       </article>
