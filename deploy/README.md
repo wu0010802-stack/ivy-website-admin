@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-29 首屏影片換成舊片＋明華〈快樂城堡〉混剪、升 authlib／dnspython（main CI 部署，沒有 migration）
+
+- **內容**：`b4b87b46`（README「2026-10-29 首屏影片換成舊片＋明華〈快樂城堡〉混剪」）。首屏改成舊第 1、3 鏡＋明華六鏡（9.2 秒），同一套 grade.py 調色與 BT.709／sRGB 標記，AV1＋H.264（桌機 3,802,336／5,975,099、手機 1,432,074／2,082,404 bytes）；第一鏡逐格相同、封面不換。消息「一起跑向前」改讀 `campus-run`（10-24 舊首屏手機檔原樣複製）。`3fec1f9d`：backend `uv.lock` 升 authlib 1.8.0 → 1.9.1、dnspython 2.8.0 → 2.9.0。
+- **為什麼有第二個提交**：第一次 main run 40833464107 只有 Backend（1/3）的 Audit runtime Python dependencies 紅（10-29 新公告 authlib 六個、dnspython 一個 CVE），Deploy skipped，正式站停在 `34b3902f`。兩個修正版都發布兩週以上。
+- **提交**：使用者選比稿 B 後要求部署。從 origin/main 開 sparse worktree `hero-mix-minghua-20261029`；auto 模式擋 push main，兩次都由使用者 `!` 推（fast-forward）。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:unit` 112 檔 1366 passed；fixture dev server 實際播放停格量白字對比，1440／1280／1024 與 390 頁首都不低於正式站現行片；依賴修正後 Google／LINE OAuth 與登入測試 166 passed（獨立測試庫 `ivy_website_test_heromix`，已刪）、`pip-audit@2.10.1` 無已知漏洞。沒在本機跑 stack e2e。
+- **CI**：main run 40835154895（`3fec1f9d`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（07:33:29Z → 07:37:47Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `3fec1f9d`、created `2026-10-29T07:33:57Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200。新四支與 `campus-run-36ab9cc62580.mp4` 200、舊 `hero-desktop-0dd0185c5b15.mp4` 404；線上 AV1 與 repo 逐位元相同、標記 `tv／bt709／iec61966-2-1／bt709`；首頁 JS 引用 `campus-run`。Playwright（擋 telemetry）：Chrome 1440 播 AV1、390 手機模擬播 H.264，長度 9.2 秒、在播放。
+- **沒驗證**：iOS／Android 實機、WebKit；authlib 升版後真人 Google／LINE 登入往返（請使用者登入一次）。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-27 資安稽核修正＋前端依賴升級（main CI 部署，沒有 migration）
 
 - **內容**：`34b3902f`（README 同日「資安稽核修正」）。修了這些：
