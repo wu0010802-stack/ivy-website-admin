@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-29 改回視覺方向 B 之前的版本（main CI 部署，沒有 migration）
+
+- **內容**：`2bcce4c8`（README「2026-10-29 改回視覺方向 B 之前的版本」）revert `3c93176a`。web、admin、tests、backend 與 `256d5cc1`（＝已上線的 `6d7b01e3`）逐字相同；後台六個欄位恢復顯示。B 的程式留在 `3c93176a` 與分支 `feature/visual-b-20261029`。
+- **提交**：使用者看過上線的 B 後要求「先改回本來的版本」。從 origin/main `28fc62b3` 開 worktree `revert-visual-b-20261029`，`git revert 3c93176a`，由使用者 `!` 推 main（fast-forward）。推前沒重跑本機測試：程式樹與已通過 CI 的 `6d7b01e3` 相同。
+- **CI**：main run 40904623394。第一次 Backend（1/3）`test_admissions_potential_api.py::test_potential_never_returns_the_band_shares` 偶發失敗、Deploy skipped：測試檢查比例數字前 6 碼「0.0112」不在回應字串裡，剛好撞到時間戳記微秒「.011231」，與這次改動無關。`gh run rerun 40904623394 --failed` 第二次全綠，Deploy success。
+- **線上驗證**：
+  - `/release.json` base_commit `2bcce4c8`、created `2026-10-29T16:30:33Z`；`/api/website/v1/health` `status: ok`。
+  - 伺服器輸出 HTML：首頁 `belief-watermark`／`belief-since`、預約頁 `visit-ghost`、入學頁 `ap-passport`／`ap-cover-mark`／`ap-runhead`、課程頁英文眉標、環境頁 `renv-box`／`renv-trail-hint` 都回來；B 的 `ivy-kicker`／`ivy-photo`／`ivy-blob-no`／`ivy-kid-frame`／`ivy-kid-paper` 全部 0。
+  - Playwright（只發 GET，telemetry 與非 GET 全擋）截圖：預約頁薄荷帶與淡字、入學頁護照封面已恢復。
+
 ## 2026-10-29 視覺方向 B「兩個世界＋共用文具」（main CI 部署，沒有 migration）
 
 - **內容**：`3c93176a`（README「2026-10-29 視覺方向 B」、DESIGN.md 最上面一節）。
