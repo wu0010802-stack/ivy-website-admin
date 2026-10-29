@@ -13,6 +13,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-29 首屏影片第二版：色調以明華原片為準（main CI 部署，沒有 migration）
+
+- **內容**：`602a2b0d`（README「2026-10-29 首屏影片第二版：色調以明華原片為準」）。明華六鏡不再套 10-24 提亮調色，改燒原片在 Mac 螢幕上的樣子（`screen-17.cube`）再標 sRGB；舊開場、結尾兩鏡用 `match.py` 往明華拉。開場鏡頭重調色，封面 `hero-campus-restored-v1-still` 衍生圖 `a8cdc5a3b16c` → `dbbf70b7f134`、分享圖重做。交付檔：桌機 AV1 3,527,337／H.264 5,703,562、手機 AV1 1,369,502／H.264 2,037,000 bytes。只動 web 素材，沒有新環境變數。
+- **提交**：使用者要求「以明華那支影片的色調為準」，看過本機對照頁後由使用者 `!` 推 main（fast-forward，接在 `222f50ac` 後）。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:unit` 112 檔 1366 passed；四支交付檔解碼 0 錯誤、276 格、標記 `tv／bt709／iec61966-2-1／bt709`；Chrome 原尺寸播放對沒標記的原片（同裁切）平均差 H.264 1.51/255、AV1 2.14（第一版 20.13）；fixture dev server 白字對比 1440／1280／1024 導覽 4.94–4.95、手機頁首 5.04。
+- **CI**：main run 40883174308（`602a2b0d`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（13:44:01Z → 13:49:58Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `602a2b0d`、created `2026-10-29T13:44:33Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200。新四支影片、`campus-run-36ab9cc62580.mp4`、新封面衍生圖 200，第一版影片與舊衍生圖 404；首頁 HTML 引用 `dbbf70b7f134` 三種寬度。Playwright：Chrome 1440 播 AV1、390 手機模擬播 H.264，9.2 秒、在播放；正式站檔對原片平均差 H.264 1.51、AV1 2.14（同本機）。中止 telemetry 時有一筆 `ERR_FAILED`，改回 204 後 console 0 錯誤。
+- **沒驗證**：iOS／Android 實機、Safari／WebKit。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-29 首屏影片換成舊片＋明華〈快樂城堡〉混剪、升 authlib／dnspython（main CI 部署，沒有 migration）
 
 - **內容**：`b4b87b46`（README「2026-10-29 首屏影片換成舊片＋明華〈快樂城堡〉混剪」）。首屏改成舊第 1、3 鏡＋明華六鏡（9.2 秒），同一套 grade.py 調色與 BT.709／sRGB 標記，AV1＋H.264（桌機 3,802,336／5,975,099、手機 1,432,074／2,082,404 bytes）；第一鏡逐格相同、封面不換。消息「一起跑向前」改讀 `campus-run`（10-24 舊首屏手機檔原樣複製）。`3fec1f9d`：backend `uv.lock` 升 authlib 1.8.0 → 1.9.1、dnspython 2.8.0 → 2.9.0。
