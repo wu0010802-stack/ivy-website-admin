@@ -1,3 +1,14 @@
+## 2026-10-29 後端測試提速與不穩定測試修正（`feature/test-speed-fixes-20261029`）
+
+全 repo 效能盤點（前台、後台、後端、CI）後，先做會出錯或白花時間的三項；其餘建議（字型分片、首頁主執行緒、後台統計頁拆 chunk 等）待使用者挑。只動測試與 CI，正式站程式不變。
+
+- **預約 router 進路由快取**（`backend/tests/route_cache.py`）：快取只收 lifespan 是預設值的 router，但預約的 router 自己 include 了三個子 router，FastAPI 會把 lifespan 合併掉，型別檢查不過，27 條路由每次 `create_app` 都重建。快取命中時改照 `include_router` 收尾（併入啟動／關閉事件與 lifespan），不再看 lifespan 型別。本機 `create_app` 中位數 50.8 ms → 0.8 ms（各 30 次）。新增 `tests/test_route_cache.py`：第二個 app 除了 `create_app` 裡直接掛的 health，每條路由都要是快取來的。
+- **不穩定的占有率測試**（`test_admissions_potential_api.py`）：「占有率不得出現在回應」原本拿 `str(share)[:6]` 比對整段 JSON 文字，CI run 40904623394 因 `'0.0112'` 剛好出現在時間戳記 `…20.011231Z` 失敗、部署等重跑。改成逐一比對回應裡的數值，真的洩漏照樣會擋。
+- **CI 測試庫不驗密碼**（`.github/workflows/website.yml`）：後端三組與 E2E 的拋棄式 PostgreSQL 加 `POSTGRES_HOST_AUTH_METHOD: trust`。image 預設 TCP 走 scram-sha-256，每個測試至少開兩條新連線。本機改 pg_hba 對照被權限擋下，省多少以這個分支的 CI 對 main 前次（pytest 355.6／356／331 秒）為準。
+- **CLAUDE.md**：`tests/e2e` 自 10-21 起已在 CI 的 E2E job 跑，更正原本「沒有在 CI 跑」。
+- **驗證**：本機 PostgreSQL 16（TCP、密碼驗證）後端全套 **4735 passed**（16 分 9 秒）；`python3 -m unittest discover -s deploy/tests` 25 項 OK；workflow YAML 解析正常。
+- **沒做**：`.test_durations` 缺 1219 項，等 CI 新的每項時間穩定後再重產；`_clean_tables` 只在用到 app 的測試才清表、登入 fixture 改直接建 session 兩項提速另案。
+
 ## 2026-10-29 改回視覺方向 B 之前的版本（`revert/visual-b-20261029`）
 
 視覺方向 B「兩個世界＋共用文具」（`3c93176a`，部署紀錄 `28fc62b3`）同日上線後，使用者要求先改回原本的版本。這次 revert 整個 `3c93176a`：web、admin、測試與 README／DESIGN 都回到 B 之前（和 `256d5cc1` 的 web、admin、tests 完全相同，也就是 `6d7b01e3` 已上線並通過 CI 的那一版）。
