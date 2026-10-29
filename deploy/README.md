@@ -13,6 +13,25 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-29 視覺方向 B「兩個世界＋共用文具」（main CI 部署，沒有 migration）
+
+- **內容**：`3c93176a`（README「2026-10-29 視覺方向 B」、DESIGN.md 最上面一節）。
+  - 新增全站 `stationery.css`＋tokens 第 16 節（白框相片、「編號＋中文」章節頭、顏料團編號、色紙框＋紙膠帶、點格紙；圓角 3／12／999px、陰影一種）。
+  - 品牌頁（首頁、關於、入學、預約、消息）米白紙＋白框相片：拿掉首頁薄荷底、浮水印與「的一天」接力淡入，預約頁薄荷帶與淡字，入學頁護照封面、防偽細紋、頁眉頁碼；關於頁立體書保留只換白框與奶油桌面；頁尾奶油色。
+  - 孩子頁（特色教學、常春藤環境）共用點格紙與顏料團章節頭；特色教學照片改色紙框；環境頁標題回 LINE Seed，拿掉看完打勾與三句提示。
+  - 英文小字只留頁尾品牌名；後台不列六個官網不再顯示的欄位（資料保留、契約不變）。
+  - 只動 web、admin 與測試，沒有新環境變數。
+- **提交**：使用者看完比稿 A／B 選 B 後要求部署。從 origin/main `256d5cc1` 開 sparse worktree `visual-b-20261029`，由使用者 `!` 推 main（fast-forward `256d5cc1..3c93176a`）。
+- **推送前閘門**（本機，Node 22.23.2）：
+  - web `typecheck` 0 錯、`test:unit` 111 檔 1373 passed；admin `typecheck` 0 錯、vitest 167 檔 3218 passed。
+  - `bash tests/stack/build.sh` 成功；stack e2e 整套 156 項 155 過，1 項是孩子的一天後台欄位改名（「小標（中文）」→「小標」），修正測試後單獨重跑該支 14 passed；公開站 e2e 34 passed（6 skipped）。獨立測試庫。
+  - fixture dev server 上 Playwright 拍七頁桌機 1440／手機 390；首頁關於區逐 300px 捲動確認簾幕節奏（尾段留白 42svh）。
+- **CI**：main run 40900281892（`3c93176a`）。Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（15:28:39Z → 15:33:48Z）全部 success。
+- **線上驗證**：
+  - `/release.json` base_commit `3c93176a`、created `2026-10-29T15:29:05Z`；`/api/website/v1/health` `status: ok`。
+  - `/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/news`、`/visit`、`/visit/yihua`、`/admin/` 200。
+  - Playwright（只發 GET，telemetry 與非 GET 全擋）1440 與 390：stationery.css 已載入；浮水印、SINCE 1997、預約淡字、護照封面底色、防偽細紋、環境頁打勾方框與小腳印提示、五校英文校名都是 0；特色教學色紙框 21 個、顏料團編號 8 個，環境頁顏料團 8 個；h1–h3 全是 LINE Seed（五校校名照舊明體）；沒有橫向溢出、沒有頁面錯誤。
+
 ## 2026-10-29 前台評析修正：預約步驟進網址、來電校區卡片直接撥號（main CI 部署，沒有 migration）
 
 - **內容**：`6d7b01e3`（README「2026-10-29 前台 UI/UX 評析修正」）。
