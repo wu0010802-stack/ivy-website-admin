@@ -13,6 +13,35 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-29 前台評析修正：預約步驟進網址、來電校區卡片直接撥號（main CI 部署，沒有 migration）
+
+- **內容**：`6d7b01e3`（README「2026-10-29 前台 UI/UX 評析修正」）。
+  - 預約頁合成 `pages/visit/[[key]].vue`，下一步換到 `/visit/<校>`、更換校區回 `/visit`，填到一半的資料暫存在分頁。
+  - 暫停或來電的校區在選校卡直接給撥號膠囊。
+  - 選單五校連到 `/?campus=<校>#campuses`，首頁章節攔截遇到帶不同 query 的連結不攔。
+  - 選單不顯示「待提供」；孩子的一天、特色教學、環境頁的原型來源說明換成署名。
+  - 月曆錯誤只標一顆；手機選日期後把場次捲進畫面；關於頁手機分頁字級下限 12px；預約頁補描述、分享圖、canonical（照舊 noindex）。
+  - 只動 web，沒有新環境變數。
+- **提交**：使用者看完評析挑 8 條後要求部署。從 origin/main `3fec1f9d` 開 sparse worktree `web-ux-fixes-20261029`，提交後重接到 `602a2b0d`（README 頂部衝突，新段落放上面），由使用者 `!` 推 main（fast-forward）。
+- **推送前閘門**（本機，Node 22.23.2）：
+  - web `typecheck` 0 錯、`test:unit` 113 檔 1383 passed（重接後重跑）。
+  - `bash tests/stack/build.sh` 成功。
+  - stack e2e 預約相關 7 支 32 passed、公開站 e2e public-site＋legacy-routes 10 passed（獨立測試庫，已刪）。
+  - fixture dev server＋假 API 上 Playwright 驗 390／1440 的預約流程、選單、月曆、關於頁四種寬度。
+- **CI**：main run 40883612242（`6d7b01e3`），排在 602a2b0d 的 run 後面。Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（13:59:45Z → 14:04:21Z）全部 success。
+- **線上驗證**：
+  - `/release.json` base_commit `6d7b01e3`、created `2026-10-29T14:00:28Z`；`/api/website/v1/health` `status: ok`。
+  - `/`、`/visit`、`/visit/yihua`、`/about`、`/curriculum`、`/environment`、`/news`、`/admin/` 200，`/visit/nope` 404。
+  - `/visit/yihua` 標題「預約參觀義華校｜常春藤教育機構」、有描述與 canonical。
+  - Playwright（只發 GET，telemetry 與非 GET 全擋，沒送出預約），390 與 1440 都過：
+    - 選校卡四校給撥號、號碼取五校介紹的電話。
+    - 下一步換到 `/visit/yihua`，重新整理資料還在，上一頁回選校。
+    - 空送出月曆只標一顆。
+  - 選單五校是連結、點明華到首頁明華、沒有「待提供」；`/about` 390／360 分頁 13／12px；三頁來源說明已換成署名（正式站後台內容是原文，替換生效）。
+- **待園方**：後台「預約設定」四校說明仍是「線上預約即將開放，歡迎來電洽詢。」。
+- **沒驗證**：iOS／Android 實機、Safari／WebKit；真的送出預約（只在本機假 API 測過成功後清暫存、上一頁收起結果）。
+- **回退**：切回上一版映像即可，沒有資料相依。sessionStorage 暫存只在瀏覽器分頁內。
+
 ## 2026-10-29 首屏影片第二版：色調以明華原片為準（main CI 部署，沒有 migration）
 
 - **內容**：`602a2b0d`（README「2026-10-29 首屏影片第二版：色調以明華原片為準」）。明華六鏡不再套 10-24 提亮調色，改燒原片在 Mac 螢幕上的樣子（`screen-17.cube`）再標 sRGB；舊開場、結尾兩鏡用 `match.py` 往明華拉。開場鏡頭重調色，封面 `hero-campus-restored-v1-still` 衍生圖 `a8cdc5a3b16c` → `dbbf70b7f134`、分享圖重做。交付檔：桌機 AV1 3,527,337／H.264 5,703,562、手機 AV1 1,369,502／H.264 2,037,000 bytes。只動 web 素材，沒有新環境變數。
