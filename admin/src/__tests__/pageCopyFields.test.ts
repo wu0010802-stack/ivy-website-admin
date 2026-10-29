@@ -401,12 +401,11 @@ describe('2026-09-28 內容編輯頁 UX（E）', () => {
       expect(document.activeElement).toBe(items[2]!.get('input').element)
     })
 
-    it('關掉「自訂影片說明」再打開，還原剛才自訂的文字（英文說明 2026-10-29 起不列，存檔照樣帶舊值）', async () => {
+    it('關掉「自訂影片說明」再打開，還原剛才自訂的文字', async () => {
       mockDay({ film_caption_zh: '明華校 · 運動會', film_caption_en: 'SPORTS DAY' })
       const wrapper = await mountView(DayExperienceView)
       const toggle = () => wrapper.findAll('.el-switch').find((s) => s.text().includes('自訂（關閉時'))!
-      const zh = () => wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('影片說明'))
-      expect(wrapper.findAll('.el-form-item__label').map((label) => label.text())).not.toContain('英文說明')
+      const zh = () => wrapper.findAll('.el-form-item').find((item) => item.text().startsWith('中文說明'))
       expect((zh()!.get('input').element as HTMLInputElement).value).toBe('明華校 · 運動會')
       await toggle().trigger('click')
       expect(zh()).toBeUndefined()

@@ -20,7 +20,7 @@ const NS = 'http://www.w3.org/2000/svg'
 // 筆觸（mock C 的 medium 筆）
 const PEN = { rough: 1.7, bow: 1.3, line: 2, frame: 2.2, hand: 2.4 }
 // 會「一筆一筆畫出來」的種類；其餘（色紙、膠帶、按鈕、小路、太陽）直接出現
-const ANIMATED = new Set(['frame', 'circle', 'highlight', 'note', 'stop', 'clothesline'])
+const ANIMATED = new Set(['frame', 'heart', 'circle', 'highlight', 'note', 'stop', 'clothesline', 'check', 'bookarrow'])
 
 /** 餐點的太陽弧（桌機）：t＝0 早餐、1 點心；兩端低、中午最高。 */
 export function mealArcPoint(t: number, width: number): Point {
@@ -203,12 +203,29 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       const { svg, rc, w, h } = layer(el, 'btn', 12, true, s)
       svg.append(...sticker(rc, w, h, el.closest('.renv-meals') ? C.note : C.yellow, seed))
     }),
+    check: sized((el, seed, s) => {
+      const { svg, rc, w, h } = layer(el, 'check', 14, false, s)
+      svg.append(rc.rectangle(1, 1, w - 2, h - 2, { stroke: C.ink, strokeWidth: PEN.line, roughness: 1.3, fill: C.note, fillStyle: 'solid', seed }))
+      if (el.dataset.checked) {
+        const tick = rc.linearPath([[3, h * 0.5], [w * 0.4, h - 1], [w + 8, -9]], { stroke: C.pen, strokeWidth: PEN.hand + 1, roughness: 0.9, seed: seed + 5 })
+        tick.classList.add('renv-tick')
+        svg.append(tick)
+      }
+    }),
     circle: sized((el, seed, s) => {
       const big = el.matches('.renv-circle')
       const { svg, rc, w, h } = layer(el, 'circle', 22, true, s)
       // 蠟筆底跟照片底紙一樣避開所在章節的色紙（2026-10-13：01 天藍色紙上第 4 個圓原本也是天藍，看不出底色）
       if (!big) svg.append(rc.circle(w / 2, h / 2, Math.max(w, h) + 10, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 1.6, seed: seed + 3 }))
       svg.append(rc.ellipse(w / 2, h / 2 + (big ? 2 : 0), w + (big ? 26 : 16), h + (big ? 14 : 10), { stroke: C.pen, strokeWidth: big ? PEN.hand + 0.6 : PEN.hand * 0.8, roughness: big ? 2 : 1.3, seed }))
+    }),
+    heart: sized((el, seed, s) => {
+      const { svg, rc, w, h } = layer(el, 'heart', 8, false, s)
+      const P = (x: number, y: number) => `${((x * w) / 56).toFixed(1)} ${((y * h) / 52).toFixed(1)}`
+      const d = `M${P(28, 48)} C${P(10, 36)} ${P(2, 24)} ${P(6, 14)} C${P(10, 4)} ${P(24, 4)} ${P(28, 16)} C${P(32, 4)} ${P(46, 4)} ${P(50, 14)} C${P(54, 24)} ${P(46, 36)} ${P(28, 48)} Z`
+      // 同上避開色紙：愛心、同理心原本是天藍色畫在天藍色紙上，只剩紅框與墨線（2026-10-13）
+      svg.append(rc.path(d, { fill: paperColor(el, seed), fillStyle: 'solid', stroke: 'none', roughness: 1.4, seed: seed + 1 }))
+      svg.append(rc.path(d, { fill: C.ink, fillStyle: 'zigzag', hachureGap: 7, fillWeight: 0.7, hachureAngle: -50, stroke: C.pen, strokeWidth: PEN.hand * 0.8, roughness: 1.2, seed }))
     }),
     note: kind({
       measure: (el) => {
@@ -321,6 +338,26 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     scribble: sized((el, seed, s) => {
       const { svg, rc, w, h } = layer(el, 'scribble', 16, false, s)
       svg.append(rc.curve([[0, h + 2], [w * 0.35, h - 1], [w * 0.7, h + 3], [w, h]], { stroke: C.pen, strokeWidth: PEN.hand * 0.75, roughness: 0.8, seed }))
+    }),
+    bookarrow: kind({
+      measure: (el, vw) => {
+        const host = el.parentElement!
+        const cover = host.querySelector('.renv-book-cover')
+        return cover ? { host: size(host), n: rel(el, host), c: rel(cover, host), narrow: vw <= 900 } : null
+      },
+      paint(el, seed, m) {
+        if (!m) return
+        const { n, c, narrow } = m
+        const from: Point = narrow ? [n.x - 8, n.y + n.h * 0.4] : [n.x + n.w * 0.7, n.y - 8]
+        const to: Point = narrow ? [c.x + c.w + 10, c.y + c.h * 0.62] : [c.x + c.w * 0.08, c.y + c.h * 0.6]
+        const mid: Point = narrow ? [(from[0] + to[0]) / 2, from[1] + 30] : [from[0] + 6, to[1] + 6]
+        const a = Math.atan2(to[1] - mid[1], to[0] - mid[0])
+        const head = (s: number): Point => [to[0] - 15 * Math.cos(a + s), to[1] - 15 * Math.sin(a + s)]
+        const { svg, rc } = layer(el.parentElement!, 'bookarrow', 40, false, m.host)
+        const o: Options = { stroke: C.pen, strokeWidth: PEN.hand, roughness: 0.9, seed }
+        svg.append(rc.curve([from, mid, to], o), rc.linearPath([head(0.5), to, head(-0.5)], o))
+        svg.style.zIndex = '5'
+      }
     }),
     sunpath: kind({
       // 太陽軌跡：桌機是一道弧，窄螢幕是往下走的直線；太陽跟著捲動從早餐走到點心
@@ -439,6 +476,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
   function strokes(el: HTMLElement) {
     const svgs: (SVGSVGElement | null)[] = [...el.querySelectorAll<SVGSVGElement>(':scope > svg.rough')]
     if (el.dataset.rough === 'note') svgs.push(el.parentElement!.querySelector<SVGSVGElement>(`:scope > svg.rough[data-key="arrow-${el.dataset.seed}"]`))
+    if (el.dataset.rough === 'bookarrow') svgs.push(el.parentElement!.querySelector<SVGSVGElement>(':scope > svg.rough[data-key="bookarrow"]'))
     return svgs.filter((s): s is SVGSVGElement => !!s).flatMap((s) => [...s.querySelectorAll('path')])
   }
   /** 進場描線前先把線藏起來：一整批的路徑長度先量完再一起寫（getTotalLength 在寫過樣式後也會強制重排）。 */
@@ -499,6 +537,27 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
     }
   }
 
+  // 看完打個勾：章節上緣過了視窗 45% 的線，就把首屏目錄與章節小標的格子勾起來
+  // （用視窗線判斷：校園環境那段比兩個視窗還高，用比例門檻永遠勾不到）
+  const chapterIo = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue
+      for (const box of root.querySelectorAll<HTMLElement>(`[data-chapter="${e.target.id}"] .renv-box, [data-chapter-check="${e.target.id}"]`)) {
+        if (box.dataset.checked) continue
+        box.dataset.checked = '1'
+        render(box)
+        const tick = box.querySelector<SVGPathElement>('.renv-tick path')
+        if (tick && !reducedMotion) {
+          const len = tick.getTotalLength()
+          tick.style.strokeDasharray = `${len} ${len}`
+          tick.style.strokeDashoffset = String(len)
+          requestAnimationFrame(() => requestAnimationFrame(() => { tick.style.transition = 'stroke-dashoffset .6s cubic-bezier(.22,1,.36,1) .25s'; tick.style.strokeDashoffset = '0' }))
+        }
+      }
+      chapterIo.unobserve(e.target)
+    }
+  }, { rootMargin: '0px 0px -55% 0px' })
+  root.querySelectorAll('section[id]').forEach((section) => chapterIo.observe(section))
 
   // 太陽慢慢「沸騰」：看得到時每 0.32 秒換一次筆觸
   let sunVisible = false
@@ -601,6 +660,7 @@ export function createRoughSketch(root: HTMLElement, rough: RoughStatic, { reduc
       alive = false
       cleanups.forEach((fn) => fn())
       revealIo.disconnect()
+      chapterIo.disconnect()
       sunIo.disconnect()
       clearInterval(boilTimer)
       clearTimeout(resizeTimer)

@@ -110,7 +110,6 @@ const navSections = computed<EditorSection[]>(() => [
   {
     id: 'section-day-film',
     label: '背景影片',
-    // eyebrow_en、film_caption_en、source_note 後台不列（官網不顯示），照舊分在這段：段落目錄要涵蓋表單的每個欄位。
     fields: ['eyebrow', 'eyebrow_en', 'note', 'source_note', 'film_desktop', 'film_mobile', 'film_poster', 'film_caption_zh', 'film_caption_en'],
   },
   { id: 'section-day-moments', label: '時刻卡', note: `${editor.form.value.moments.length} 張`, fields: ['moments'] },
@@ -146,11 +145,14 @@ onMounted(editor.load)
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
-      <!-- 英文小標（eyebrow_en）與影片英文說明（film_caption_en）2026-10-29 起官網不顯示（視覺方向 B：英文小字只留頁尾品牌名）：
-           後台不列，舊值照原樣存回。 -->
-      <el-form-item label="小標">
-        <el-input v-model="editor.form.value.eyebrow" placeholder="例如：孩子的一天" />
-      </el-form-item>
+      <div class="field-row">
+        <el-form-item label="小標（中文）">
+          <el-input v-model="editor.form.value.eyebrow" placeholder="例如：孩子的一天" />
+        </el-form-item>
+        <el-form-item label="小標（英文）">
+          <el-input v-model="editor.form.value.eyebrow_en" placeholder="A DAY AT IVY" />
+        </el-form-item>
+      </div>
       <el-form-item label="說明文字">
         <el-input v-model="editor.form.value.note" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" />
       </el-form-item>
@@ -182,9 +184,14 @@ onMounted(editor.load)
           @update:model-value="toggleCaption(Boolean($event))"
         />
       </el-form-item>
-      <el-form-item v-if="editor.form.value.film_caption_zh != null" label="影片說明">
-        <el-input v-model="editor.form.value.film_caption_zh" maxlength="40" show-word-limit placeholder="例如：明華校 · 運動會" />
-      </el-form-item>
+      <div v-if="editor.form.value.film_caption_zh != null" class="field-row">
+        <el-form-item label="中文說明">
+          <el-input v-model="editor.form.value.film_caption_zh" maxlength="40" show-word-limit placeholder="例如：明華校 · 運動會" />
+        </el-form-item>
+        <el-form-item label="英文說明">
+          <el-input :model-value="editor.form.value.film_caption_en ?? ''" maxlength="60" show-word-limit placeholder="LITTLE MOMENTS, BIG GROWTH." @update:model-value="editor.form.value.film_caption_en = $event" />
+        </el-form-item>
+      </div>
 
       <div class="section__title" style="margin-top: 20px">
         <h2 id="section-day-moments" data-section-anchor tabindex="-1">時刻卡</h2>

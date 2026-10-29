@@ -17,8 +17,8 @@ describe('孩子的一天：固定圖說與暫停鈕全寬度讓位', () => {
     expect(styles).toContain('.day-stage{pointer-events:none}\n.day-stage :is(.print-card,.day-note){pointer-events:auto}')
     expect(styles).toMatch(/\.day-note\{[^}]*margin:0 auto 96px;/)
   })
-  it('影片上的小字不疊 opacity；英文圖說 2026-10-29 起不上站（英文只留頁尾品牌名）', () => {
-    expect(styles).not.toContain('.day-film-caption span[lang]')
+  it('影片上的小字不疊 opacity，英文圖說至少 11px', () => {
+    expect(styles).toContain('.day-film-caption span[lang]{font-size:.6875rem;')
     expect(styles).not.toContain('rgb(var(--on-dark) / .74)')
   })
 })

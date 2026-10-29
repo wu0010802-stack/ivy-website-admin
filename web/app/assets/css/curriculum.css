@@ -1,7 +1,5 @@
 /* 特色教學頁（/curriculum）水彩版（2026-09-28，使用者選 C；mock：design/curriculum-watercolor-mockup-20260928）
-   顏料（canvas）在各段染開、年齡用顏料團標示。2026-10-29 視覺方向 B：跟常春藤環境頁共用孩子文具（stationery.css）——
-   紙是同一種點格紙（.ivy-kid-paper）、照片是色紙框＋紙膠帶（.ivy-kid-frame，取代撕紙毛邊與暈開進場）、
-   章節頭是顏料團編號＋中文（.ivy-kicker .ivy-blob-no，取代英文眉標）。
+   整頁是一張冷壓水彩紙：顏料（canvas）在各段染開、照片撕紙毛邊從中間暈開、章節與年齡用顏料團標示。
    不再共用 admission.css；顏色一律走 tokens.css（顏料色 --ivy-paint-*），canvas 讀的是 -rgb 三元組。
    水彩層由 composables/useWatercolor.ts 畫；它掛上前（SSR、JS 失敗）畫面是乾淨的紙面與方形照片，內容全部看得到。 */
 
@@ -12,12 +10,14 @@
   --cur-accent: var(--ivy-campus-heading-accent);
   position: relative;
   isolation: isolate;
+  background: var(--paper);
   color: var(--text);
   overflow-x: clip;
 }
 /* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
 .cur :where(p, li, figcaption) { text-wrap: pretty; }
 .cur-wrap { width: min(1280px, calc(100% - 2 * var(--cur-gutter))); margin-inline: auto; }
+.cur-num { font-family: var(--font-date); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .08em; }
 
 /* ---------- 水彩層 ---------- */
 .cur-hero, .cur-sec { position: relative; overflow-x: clip; }
@@ -29,13 +29,17 @@
 /* 顏料團：背景圖由 useWatercolor 依元素大小生成，畫好才淡入 */
 .cur-blot { position: absolute; background: center / 100% 100% no-repeat; pointer-events: none; transition: opacity .8s, transform 1.4s var(--cur-ease); }
 .cur-blot:not(.is-painted) { opacity: 0; transform: scale(.5); }
-/* 照片：色紙框（stationery.css .ivy-kid-frame）；框裡的照片填滿。歪斜角度錯開，同一排不一樣。 */
+/* 照片：撕紙毛邊＋進場從中間暈開 */
+.cur-frame { position: relative; overflow: hidden; }
 .cur-frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.cur-dir:nth-child(even) .cur-frame { --kid-tilt: 1.2deg; }
-.cur-dir:nth-child(3n) .cur-frame { --kid-tilt: -.6deg; }
-.cur-art:nth-child(odd) .cur-frame { --kid-tilt: 1.4deg; }
-.cur-art:nth-child(3n) .cur-frame { --kid-tilt: -.8deg; }
-.cur-thing:nth-child(even) .cur-frame { --kid-tilt: 1deg; }
+.cur-frame.has-mask {
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%); mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%);
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+  transition: -webkit-mask-size 2.2s var(--cur-ease), mask-size 2.2s var(--cur-ease);
+}
+.cur-frame.is-bloomed { --bloom: 520%; }
 /* 進場：useWatercolor 掛上後（.is-live）才藏起還沒捲到的內容，掛上時已在視窗內的直接顯示 */
 .cur.is-live [data-reveal] { transition: opacity 1s var(--cur-ease), transform 1.2s var(--cur-ease); }
 .cur.is-live [data-reveal]:not(.is-in) { opacity: 0; transform: translateY(28px); }
@@ -43,7 +47,9 @@
 
 /* ---------- 共用 ---------- */
 .cur-sec { padding-block: clamp(72px, 8.5vw, 124px); }
-.cur-kicker { margin: 0 0 20px; }
+.cur-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .2em; text-transform: uppercase; color: var(--leaf); }
+.cur-kicker .cur-num { color: var(--cur-accent); }
+.cur-kicker .cur-num::after { content: ''; display: inline-block; width: 28px; height: 1px; margin-left: 12px; vertical-align: middle; background: currentColor; opacity: .6; }
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
@@ -62,7 +68,7 @@
 /* ---------- 首屏 ---------- */
 .cur-hero { padding: clamp(24px, 4vw, 56px) 0 clamp(48px, 6vw, 88px); }
 .cur-hero-grid { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 10fr); gap: clamp(32px, 5vw, 88px); align-items: center; }
-.cur-eyebrow { margin: 0; }
+.cur-eyebrow { margin: 0; font-size: var(--fs-sm); font-weight: 700; letter-spacing: .2em; color: var(--leaf); }
 .cur-hero h1 { margin: .45em 0 .5em; font: 700 clamp(2.25rem, 4.6vw, 4.25rem)/1.24 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; }
 /* 「動手做」底下刷一筆橙色顏料 */
 .cur-swash { position: relative; isolation: isolate; white-space: nowrap; }
@@ -76,12 +82,18 @@
 /* 章節索引＝一排顏料盤：每章一團自己的顏料（與該段主色一致），滑過時轉一下、暈大一點 */
 .cur-index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px clamp(16px, 2.4vw, 32px); margin-top: clamp(40px, 5vw, 64px); }
 .cur-index a { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 6px 0; color: inherit; text-decoration: none; }
+.cur-pan { position: relative; isolation: isolate; flex: none; display: grid; place-items: center; width: 78px; height: 78px; color: var(--deep); }
+.cur-pan .cur-blot { inset: -12%; z-index: -1; }
+.cur-pan .cur-blot.is-painted { transform: rotate(var(--tilt, 0deg)); }
+.cur-pan .cur-num { font-size: var(--fs-md); letter-spacing: .04em; }
 .cur-index-copy { display: grid; min-width: 0; }
 .cur-index b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 6px; transition: text-decoration-color .3s; }
 .cur-index-copy span { font-size: var(--fs-sm); color: var(--muted); }
 /* 觸控不留 hover（09-29）：點過的那格原本一直放大、帶底線，2026-10-12 就地包 hover:hover。 */
+.cur-index a:focus-visible .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
 .cur-index a:focus-visible b { text-decoration-color: currentColor; }
 @media (hover: hover) {
+  .cur-index a:hover .cur-blot.is-painted { transform: rotate(calc(var(--tilt, 0deg) + 14deg)) scale(1.14); }
   .cur-index a:hover b { text-decoration-color: currentColor; }
 }
 
@@ -105,6 +117,7 @@
 .cur-year-age sup { left: calc(50% + 12px + var(--i) * 4px); font: 700 var(--fs-sm)/1 var(--font-head); transform: translateY(calc(50% - .3em)); }
 .cur-year-name { display: flex; align-items: baseline; gap: 10px; margin: 0; }
 .cur-year-name b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); }
+.cur-year-name span { font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .cur-year h3 { margin: 8px 0; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--text); text-spacing-trim: trim-start; }
 .cur-year > p:not(.cur-year-name) { margin: 0; font-size: var(--fs-sm); line-height: 1.85; color: var(--muted); }
 .cur-year small { margin-top: auto; padding-top: 14px; font-size: var(--fs-xs); color: var(--muted); }
@@ -214,6 +227,8 @@
   .cur-hero h1 { font-size: clamp(1.875rem, 8.6vw, 2.5rem); }
   .cur-index { column-gap: 12px; }
   .cur-index a { gap: 10px; }
+  .cur-pan { width: 58px; height: 58px; }
+  .cur-pan .cur-num { font-size: var(--fs-sm); }
   .cur-index b { font-size: var(--fs-md); }
   .cur-index-copy span { font-size: var(--fs-xs); }
   .cur-sec { padding-block: 80px; }
@@ -257,9 +272,10 @@
 @media (prefers-reduced-motion: reduce) {
   .cur.is-live [data-reveal] { transition: opacity .3s linear; }
   .cur.is-live [data-reveal]:not(.is-in) { transform: none; }
-  .cur-blot, .cur-index b, .cur-link .icon { transition: none; }
+  .cur-blot, .cur-frame.has-mask, .cur-index b, .cur-link .icon { transition: none; }
 }
 @media (forced-colors: active) {
   .cur-wash, .cur-grain, .cur-blot { display: none; }
-  .cur-thing-no { border: 1px solid CanvasText; border-radius: 50%; }
+  .cur-frame.has-mask { -webkit-mask: none; mask: none; }
+  .cur-pan, .cur-thing-no { border: 1px solid CanvasText; border-radius: 50%; }
 }

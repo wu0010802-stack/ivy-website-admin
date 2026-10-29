@@ -27,10 +27,10 @@ describe('預約第一步：矮手機第一屏看得到選校卡', () => {
 
 describe('預約：橫拿手機', () => {
   const landscape = visitCss.slice(visitCss.lastIndexOf('@media(max-width:960px) and (max-height:500px) and (orientation:landscape)'))
-  it('選校卡改左圖右字、一列兩張，圖片 sizes 跟著改（2026-10-29 白框相片版）', () => {
+  it('選校卡改細條、一列兩張，圖片 sizes 跟著改半個視窗', () => {
     expect(landscape).toContain('.visit-campus-choice {flex:0 1 calc((100% - 16px) / 2)}')
-    expect(landscape).toContain('.visit-campus-card {flex-direction:row;align-items:center;gap:14px;height:auto;padding:8px 52px 8px 8px}')
-    expect(visitForm).toContain('(max-width: 960px) and (max-height: 500px) and (orientation: landscape) 25vw')
+    expect(landscape).toContain('.visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}')
+    expect(visitForm).toContain('(max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px)')
   })
   it('拿掉場次區的容器查詢：月曆與場次上下排，點下排日期後場次就在月曆下面', () => {
     expect(landscape).toContain('.visit-schedule-section {container-type:normal}')
@@ -160,8 +160,8 @@ describe('內容頁避免孤字、觸控不留 hover', () => {
   it('特色教學章節索引的 hover 包在 hover:hover 裡，focus-visible 留在外面', () => {
     const css = read('../app/assets/css/curriculum.css')
     expect(css).not.toContain('.cur-index a:is(:hover, :focus-visible)')
-    expect(css).toContain('.cur-index a:focus-visible b')
-    expect(css).toMatch(/@media \(hover: hover\) \{\n {2}\.cur-index a:hover b/)
+    expect(css).toContain('.cur-index a:focus-visible .cur-blot.is-painted')
+    expect(css).toMatch(/@media \(hover: hover\) \{\n {2}\.cur-index a:hover \.cur-blot\.is-painted/)
   })
 })
 

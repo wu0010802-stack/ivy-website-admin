@@ -1,11 +1,46 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, vi } from 'vitest'
+import { bandPaths, ROSETTES, rosettePaths, trochoid } from '../app/utils/guilloche'
 import { ovalLayout, roundLayout, splitStampText, squareLayout } from '../app/utils/passport-stamp'
 import { createAdmissionMotion } from '../app/utils/admission-motion'
 
-// 2026-09-28 入學資訊頁改成「入學護照」（比稿 design/admission-theme-directions-20260928/ B）；2026-10-29 視覺方向 B 拿掉防偽細紋與護照封面，印章保留。
+// 2026-09-28 入學資訊頁改成「入學護照」（比稿 design/admission-theme-directions-20260928/ B）。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
+const points = (d: string) => [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])] as const)
+
+describe('防偽細紋（utils/guilloche.ts）', () => {
+  it('hypotrochoid 走完 r / gcd(R, r) 圈會回到起點', () => {
+    const list = points(trochoid(100, 35, 58, 1, 0, 0))
+    expect(list.length).toBe(Math.round((35 / 5) * 180) + 1)
+    expect(list.at(-1)![0]).toBeCloseTo(list[0]![0], 0)
+    expect(list.at(-1)![1]).toBeCloseTo(list[0]![1], 0)
+  })
+
+  it.each(Object.keys(ROSETTES) as (keyof typeof ROSETTES)[])('%s 玫瑰紋每一條都畫在邊長 size 的正方形裡', (kind) => {
+    const size = 320
+    const paths = rosettePaths(kind, size)
+    expect(paths).toHaveLength(ROSETTES[kind].length)
+    for (const [x, y] of paths.flatMap(points)) {
+      expect(x).toBeGreaterThanOrEqual(0)
+      expect(x).toBeLessThanOrEqual(size)
+      expect(y).toBeGreaterThanOrEqual(0)
+      expect(y).toBeLessThanOrEqual(size)
+    }
+  })
+
+  it('波浪帶鋪滿整個寬度、上下不超出帶高，同樣寬度算出同樣的線', () => {
+    const paths = bandPaths(600)
+    expect(paths).toHaveLength(7)
+    for (const [x, y] of paths.flatMap(points)) {
+      expect(y).toBeGreaterThanOrEqual(0)
+      expect(y).toBeLessThanOrEqual(24)
+      expect(x).toBeLessThanOrEqual(603)
+    }
+    expect(Math.max(...points(paths[0]!).map(([x]) => x))).toBeGreaterThanOrEqual(600)
+    expect(bandPaths(600)).toEqual(paths)
+  })
+})
 
 describe('印章版面（utils/passport-stamp.ts）', () => {
   it('兩個字以下一行，三個字以上從中間拆兩行（前半多一個字）', () => {

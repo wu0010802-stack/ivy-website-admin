@@ -38,8 +38,9 @@ onMounted(editor.load)
         <LengthHint :value="editor.form.value.title" rule="aboutTitle" />
         <GlyphHint :value="editor.form.value.title" />
       </el-form-item>
-      <!-- 創校標籤（since_label）2026-10-29 起官網不顯示（視覺方向 B：英文小字只留頁尾品牌名，小標固定「關於常春藤」）：
-           後台不列，舊值照原樣存回。 -->
+      <el-form-item label="創校標籤">
+        <el-input v-model="editor.form.value.since_label" placeholder="例如：Since 1997" />
+      </el-form-item>
       <el-form-item label="內文">
         <el-input v-model="editor.form.value.body_text" type="textarea" :autosize="{ minRows: 6, maxRows: 16 }" />
         <LengthHint :value="editor.form.value.body_text" rule="aboutBody" />

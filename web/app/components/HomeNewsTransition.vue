@@ -78,8 +78,7 @@ useNewsTransition(root, previous, paper)
 <style scoped>
 .news-transition {
   --news-paper-base: var(--ivy-news-paper);
-  /* 消息紙捲到頁尾時染成頁尾的底色（2026-10-29 視覺方向 B 頁尾改奶油色，原本染成霧藍 --ivy-news-paper-blue）。 */
-  --news-paper-blue: var(--ivy-footer-bg);
+  --news-paper-blue: var(--ivy-news-paper-blue);
   --news-footer-fade: clamp(0, calc(var(--home-footer-progress, 0) * 1.65), 1);
   --news-paper-shadow: 0 -18px 70px rgb(var(--ink) / calc(.16 * (1 - var(--news-footer-fade))));
   --news-paper-radius: 88px;

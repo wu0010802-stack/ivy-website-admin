@@ -123,6 +123,33 @@ export function blotCanvas(seed: number, rgb: string, width: number, height: num
   return el
 }
 
+/** 照片的撕紙毛邊遮罩（黑＝看得見）。半解析度畫，邊緣本來就要軟。 */
+export function deckleCanvas(width: number, height: number, seed: number) {
+  const { el, ctx } = canvas(Math.max(8, width * 0.5), Math.max(8, height * 0.5))
+  const W = el.width, H = el.height, random = seededRandom(seed)
+  const inset = 4, step = 14, perimeter: Point[] = []
+  const edge = (x0: number, y0: number, x1: number, y1: number) => {
+    const n = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / step))
+    for (let i = 0; i < n; i++) perimeter.push([x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n])
+  }
+  edge(inset, inset, W - inset, inset); edge(W - inset, inset, W - inset, H - inset)
+  edge(W - inset, H - inset, inset, H - inset); edge(inset, H - inset, inset, inset)
+  // 往內縮的量隨機、再和鄰點平均兩次，像撕過的紙邊而不是鋸齒
+  let depth = perimeter.map(() => random() * 5)
+  for (let k = 0; k < 2; k++) depth = depth.map((v, i) => (v + depth[(i + 1) % depth.length]! + depth[(i - 1 + depth.length) % depth.length]!) / 3)
+  const at = (i: number, extra: number): Point => {
+    const [px, py] = perimeter[i]!, dx = W / 2 - px, dy = H / 2 - py, d = Math.hypot(dx, dy) || 1
+    const m = depth[i]! + extra
+    return [px + dx / d * m, py + dy / d * m]
+  }
+  ctx.fillStyle = 'rgb(0 0 0 / .16)'
+  for (let k = 0; k < 8; k++) { tracePolygon(ctx, perimeter.map((_, i) => at(i, gauss(random) * 1.6 + k * 0.5))); ctx.fill() }
+  ctx.fillStyle = 'rgb(0 0 0)'
+  tracePolygon(ctx, perimeter.map((_, i) => at(i, 5)))
+  ctx.fill()
+  return el
+}
+
 /** 照片進場「從中間暈開」用的第二層遮罩：一團邊緣柔軟的顏料，mask-size 從 0 放大。 */
 export function bloomCanvas() {
   const S = 128

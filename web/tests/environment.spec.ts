@@ -186,14 +186,11 @@ describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/
     expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools, geo); return }')
   })
 
-  it('操作提示不上站（2026-10-29 視覺方向 B）：小腳印、五所校園提示、看完打個勾、翻到這一頁都拿掉；資料欄位保留', () => {
-    const template = component.slice(component.indexOf('<template>'))
+  it('小路提示字跟著改成小腳印（2026-10-12 起提示字在 fixture 的 environmentPage，元件讀 page.trailHint）', () => {
     expect(site.environmentPage.trailHint).toBe('跟著小腳印，走一圈看看')
-    expect(template).not.toContain('page.trailHint')
-    expect(template).not.toContain('page.tourHint')
-    expect(template).not.toContain('看完打個勾')
-    expect(template).not.toContain('翻到這一頁')
-    expect(template).not.toContain('data-chapter-check')
+    expect(JSON.stringify(site.environmentPage)).not.toContain('跟著虛線')
+    expect(component).toContain('{{ page.trailHint }}')
+    expect(component).not.toContain('跟著虛線')
   })
 
   it('不在全站註冊通用名稱的 @property（--rot 別的元件也可能用）', () => {
@@ -207,8 +204,8 @@ describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/
     expect(sketch).toContain('motion?.busy?.(el)')
     expect(motion).toContain('gsap.isTweening(scene)')
     expect(sketch).toContain('fill: paperColor(el, base)')
-    // 01 天藍色紙上的曬衣繩編號圓（circle）；五顆心 2026-10-29 起是顏料團標籤（CSS），不再畫蠟筆愛心
-    expect(sketch.match(/fill: paperColor\(el, seed\)/g)).toHaveLength(1)
+    // 01 天藍色紙上的五顆心與曬衣繩編號圓（circle、heart）
+    expect(sketch.match(/fill: paperColor\(el, seed\)/g)).toHaveLength(2)
   })
 
   it('路線經過每一個點（Catmull-Rom 每一段的終點就是下一個點）', () => {

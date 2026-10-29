@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // 入學資訊頁主體：公開頁 pages/admission.vue 與草稿預覽 pages/preview.vue?page=admission 共用。
 // 2026-09-28 改成「入學護照」（使用者從 design/admission-theme-directions-20260928/ 三個方向選 B），
-// 每走一步蓋一個章。2026-10-29 視覺方向 B 拿掉護照封面、防偽細紋、頁眉與頁碼，版面回到全站米白紙＋白框相片＋章節頭，
-// 印章是這頁留下的驚喜物件。印章（components/PassportStamp.vue）是 aria-hidden 的裝飾，字都跟旁邊的內文重複，
-// 只在瀏覽器端出現，沒有 JS 時版面與文字照常。蓋章動作用 GSAP（utils/admission-motion.ts，只有這頁動態載入），減少動態時直接在紙上。
+// 跟其他分頁刻意不同：整頁是一本打開的護照，每走一步蓋一個章。防偽細紋（utils/guilloche.ts）只當紙張質感，
+// 印章（components/PassportStamp.vue）是 aria-hidden 的裝飾，字都跟旁邊的內文重複；兩者都只在瀏覽器端出現，
+// 沒有 JS 時版面與文字照常。蓋章動作用 GSAP（utils/admission-motion.ts，只有這頁動態載入），減少動態時直接在紙上。
 // 同日裁定延續：這頁不放預約參觀（預約入口只留頁首金色鈕）；分班是成長軌道邏輯（生日 → 一句話答案 →
 // 五格學年度欄位，寶貝那格蓋章 → 點格看出生區間），規則在 utils/admission-classes.ts；老師叮嚀不用翻面就看得到。
 // 內容（步驟、須知、金額、退費）由後台 admission_content 管理；區塊大標、印章上的固定字寫在這裡。
 import { admissionHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, CLASS_BY_OFFSET, classPlan, classRanges, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
+import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
 import { splitStampText } from '~/utils/passport-stamp'
 import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
@@ -20,7 +21,7 @@ const admission = computed(() => props.admission)
 const hero = admissionHeroImage()
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
-// ---------- 目錄 ----------
+// ---------- 目錄：章節＝護照內頁（第 2 頁起） ----------
 const hasNewcomerExtras = computed(() => {
   const a = admission.value
   return a.uniformWeek.length > 0 || a.pickupNotes.length > 0 || a.registrationNotes.length > 0
@@ -34,7 +35,7 @@ const chapters = computed(() => [
   { id: 'classes', label: '分班對照', hint: '輸入生日查班別' },
   ...(showNewcomer.value ? [{ id: 'newcomer', label: '新生準備', hint: '必備品與叮嚀' }] : []),
   { id: 'fees', label: '收退費辦法', hint: '補助與退費規定' }
-].map((chapter, i) => ({ ...chapter, no: pad2(i + 1) })))
+].map((chapter, i) => ({ ...chapter, no: pad2(i + 1), page: i + 2 })))
 const chapterOf = (id: string) => chapters.value.find((chapter) => chapter.id === id)
 
 // ---------- 02 分班對照：資料頁（成長軌道） ----------
@@ -109,13 +110,39 @@ function onLift(el: Element, done: () => void) {
   motion.lift(el, done)
 }
 
+// ---------- 防偽細紋：瀏覽器端依容器寬度算 ----------
+const bands = ref<Record<string, { width: number; paths: string[] }>>({})
+const rosettes = ref<Record<string, { size: number; paths: string[] }>>({})
+function drawGuilloche() {
+  if (!root.value) return
+  const nextBands: Record<string, { width: number; paths: string[] }> = {}
+  root.value.querySelectorAll<HTMLElement>('[data-band]').forEach((host) => {
+    const width = Math.ceil(host.clientWidth)
+    nextBands[host.dataset.band!] = { width, paths: bandPaths(width) }
+  })
+  const nextRosettes: Record<string, { size: number; paths: string[] }> = {}
+  root.value.querySelectorAll<HTMLElement>('[data-rosette]').forEach((host) => {
+    const size = Math.round(Math.min(Math.max(host.clientWidth, 200), 760))
+    nextRosettes[host.dataset.key!] = { size, paths: rosettePaths(host.dataset.rosette as RosetteKind, size) }
+  })
+  bands.value = nextBands
+  rosettes.value = nextRosettes
+}
+
 useHead({ link: ADMISSION_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: '' })) })
 
 let disposed = false
 let stopObserving: (() => void) | undefined
 let welcomeTimer: number | undefined
+let resizeTimer: number | undefined
+function onResize() {
+  window.clearTimeout(resizeTimer)
+  resizeTimer = window.setTimeout(drawGuilloche, 150)
+}
 onMounted(async () => {
   attachAdmissionFontStylesheet(document)
+  drawGuilloche()
+  window.addEventListener('resize', onResize)
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   // gsap 只在這頁動態載入；載入失敗就不做動作，印章直接出現
   const loaded = reducedMotion ? null : await import('gsap').then(({ gsap }) => createAdmissionMotion(gsap)).catch(() => null)
@@ -139,6 +166,8 @@ onBeforeUnmount(() => {
   disposed = true
   stopObserving?.()
   window.clearTimeout(welcomeTimer)
+  window.clearTimeout(resizeTimer)
+  window.removeEventListener('resize', onResize)
   motion?.destroy()
 })
 </script>
@@ -166,8 +195,9 @@ onBeforeUnmount(() => {
       <div class="ap-passport">
         <div class="ap-spread">
           <div class="ap-page ap-page-photo">
+            <div class="ap-runhead"><span>常春藤入學護照</span><span>第 1 頁</span></div>
             <figure class="ap-photo">
-              <div class="ap-photo-frame ivy-photo">
+              <div class="ap-photo-frame">
                 <img v-bind="hero" alt="孩子早上到校，和老師打招呼" loading="eager" fetchpriority="high">
               </div>
               <figcaption>早上到校，先跟老師說早安。</figcaption>
@@ -179,13 +209,18 @@ onBeforeUnmount(() => {
             </figure>
           </div>
           <div class="ap-page ap-page-title">
-            <p class="ivy-kicker ap-eyebrow">常春藤幼兒園・入學資訊</p>
+            <div class="ap-rosette-host" data-rosette="hero" data-key="hero" aria-hidden="true">
+              <svg v-if="rosettes.hero" class="ap-rosette" :viewBox="`0 0 ${rosettes.hero.size} ${rosettes.hero.size}`" focusable="false"><path v-for="(d, i) in rosettes.hero.paths" :key="i" :d="d" /></svg>
+            </div>
+            <div class="ap-runhead"><span>持照人：寶貝與爸爸媽媽</span><span>第 1 頁</span></div>
+            <p class="ap-eyebrow">常春藤幼兒園・入學資訊</p>
             <h1 id="admission-title">從參觀到開學，<br>一步一步來。</h1>
             <p v-if="admission.intro" class="ap-lede">{{ admission.intro }}</p>
             <a class="ap-action" href="#birthday-tool">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
             <p v-if="admission.notice" class="ap-notice">{{ admission.notice }}</p>
           </div>
         </div>
+        <p class="ap-cover-mark" aria-hidden="true">常春藤入學護照</p>
       </div>
 
       <nav class="ap-toc" aria-labelledby="ap-toc-title">
@@ -195,6 +230,8 @@ onBeforeUnmount(() => {
             <a :href="`#${chapter.id}`">
               <span class="ap-toc-head"><span class="ap-toc-no" lang="en">{{ chapter.no }}</span><b>{{ chapter.label }}</b></span>
               <span class="ap-toc-hint">{{ chapter.hint }}</span>
+              <span class="ap-leader" aria-hidden="true" />
+              <span class="ap-toc-page">第 {{ chapter.page }} 頁</span>
             </a>
           </li>
         </ol>
@@ -203,8 +240,11 @@ onBeforeUnmount(() => {
 
     <!-- 第 2 頁：簽證欄。每格捲進視窗時依序蓋一個章，每格只蓋一次。 -->
     <section id="process" class="ap-section ap-tint-page" aria-labelledby="process-title">
+      <div class="ap-band-host" data-band="process" aria-hidden="true">
+        <svg v-if="bands.process" class="ap-band" :viewBox="`0 0 ${bands.process.width} 24`" :width="bands.process.width" height="24" focusable="false"><path v-for="(d, i) in bands.process.paths" :key="i" :d="d" /></svg>
+      </div>
       <div class="ap-wrap">
-        <p class="ivy-kicker ap-kicker"><span class="ivy-kicker-no">{{ chapterOf('process')?.no }}</span>入學流程</p>
+        <div class="ap-runhead"><span>{{ chapterOf('process')?.no }}・入學流程</span><span>第 {{ chapterOf('process')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="process-title">每走一步，<br>就蓋一個章。</h2>
           <p>每一步都有老師陪著確認，不確定的地方，參觀時直接問我們。</p>
@@ -226,14 +266,20 @@ onBeforeUnmount(() => {
 
     <!-- 第 3 頁：資料頁。輸入生日，大章蓋下去；五格學年度欄位＝成長軌道。 -->
     <section id="classes" class="ap-section ap-tint-alt" aria-labelledby="classes-title">
+      <div class="ap-band-host" data-band="classes" aria-hidden="true">
+        <svg v-if="bands.classes" class="ap-band" :viewBox="`0 0 ${bands.classes.width} 24`" :width="bands.classes.width" height="24" focusable="false"><path v-for="(d, i) in bands.classes.paths" :key="i" :d="d" /></svg>
+      </div>
       <div class="ap-wrap">
-        <p class="ivy-kicker ap-kicker"><span class="ivy-kicker-no">{{ chapterOf('classes')?.no }}</span>分班對照</p>
+        <div class="ap-runhead"><span>{{ chapterOf('classes')?.no }}・分班對照</span><span>第 {{ chapterOf('classes')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="classes-title">寶貝何時入學？</h2>
           <p>輸入寶貝生日，直接看每一學年讀哪一班。9 月 2 日到隔年 9 月 1 日出生為同一屆。</p>
         </div>
         <!-- 首屏「查寶貝讀哪一班」直接落在生日欄（2026-10-12）：落在章節開頭時，手機選完生日答案在畫面外。 -->
         <div id="birthday-tool" class="ap-datapage">
+          <div class="ap-rosette-host" data-rosette="data" data-key="data" aria-hidden="true">
+            <svg v-if="rosettes.data" class="ap-rosette" :viewBox="`0 0 ${rosettes.data.size} ${rosettes.data.size}`" focusable="false"><path v-for="(d, i) in rosettes.data.paths" :key="i" :d="d" /></svg>
+          </div>
           <div class="ap-fields">
             <div class="ap-field">
               <label for="birthday">寶貝的生日</label>
@@ -327,8 +373,11 @@ onBeforeUnmount(() => {
 
     <!-- 第 4 頁：新生準備。勾必備品時在那一行蓋「已備」小章；叮嚀直接看得到。 -->
     <section v-if="showNewcomer" id="newcomer" class="ap-section ap-tint-page" aria-labelledby="newcomer-title">
+      <div class="ap-band-host" data-band="newcomer" aria-hidden="true">
+        <svg v-if="bands.newcomer" class="ap-band" :viewBox="`0 0 ${bands.newcomer.width} 24`" :width="bands.newcomer.width" height="24" focusable="false"><path v-for="(d, i) in bands.newcomer.paths" :key="i" :d="d" /></svg>
+      </div>
       <div class="ap-wrap">
-        <p class="ivy-kicker ap-kicker"><span class="ivy-kicker-no">{{ chapterOf('newcomer')?.no }}</span>新生準備</p>
+        <div class="ap-runhead"><span>{{ chapterOf('newcomer')?.no }}・新生準備</span><span>第 {{ chapterOf('newcomer')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="newcomer-title">新生入學二部曲</h2>
           <p>先適應、再註冊。勾一勾必備品，老師的叮嚀直接往下看。</p>
@@ -397,8 +446,11 @@ onBeforeUnmount(() => {
 
     <!-- 第 5 頁：收退費。補助做成有撕線的補助券；退費規定是編號條款。 -->
     <section id="fees" class="ap-section ap-tint-alt" aria-labelledby="fees-title">
+      <div class="ap-band-host" data-band="fees" aria-hidden="true">
+        <svg v-if="bands.fees" class="ap-band" :viewBox="`0 0 ${bands.fees.width} 24`" :width="bands.fees.width" height="24" focusable="false"><path v-for="(d, i) in bands.fees.paths" :key="i" :d="d" /></svg>
+      </div>
       <div class="ap-wrap">
-        <p class="ivy-kicker ap-kicker"><span class="ivy-kicker-no">{{ chapterOf('fees')?.no }}</span>收退費辦法</p>
+        <div class="ap-runhead"><span>{{ chapterOf('fees')?.no }}・收退費辦法</span><span>第 {{ chapterOf('fees')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="fees-title">補助與退費，<br>一次看清楚。</h2>
           <p v-if="admission.feeIntro">{{ admission.feeIntro }}</p>
@@ -408,6 +460,9 @@ onBeforeUnmount(() => {
           <ul class="ap-coupons">
             <li v-for="(subsidy, i) in admission.subsidies" :key="i" class="ap-coupon">
               <div class="ap-coupon-main">
+                <div class="ap-rosette-host ap-coupon-rosette" data-rosette="coupon" :data-key="`coupon-${i}`" aria-hidden="true">
+                  <svg v-if="rosettes[`coupon-${i}`]" class="ap-rosette" :viewBox="`0 0 ${rosettes[`coupon-${i}`]!.size} ${rosettes[`coupon-${i}`]!.size}`" focusable="false"><path v-for="(d, k) in rosettes[`coupon-${i}`]!.paths" :key="k" :d="d" /></svg>
+                </div>
                 <p class="ap-coupon-by">{{ subsidy.by }}</p>
                 <p class="ap-coupon-amt"><b>{{ subsidy.amount }}</b><span>{{ subsidy.unit }}</span></p>
                 <p class="ap-coupon-who">{{ subsidy.who }}</p>

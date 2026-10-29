@@ -238,33 +238,33 @@ describe('常春藤環境頁編輯器：即時檢查', () => {
 })
 
 describe('常春藤環境頁編輯器：缺字提示', () => {
-  // 2026-10-29 視覺方向 B：環境頁的大標（首屏 h1 與四章 h2）改回全站 LINE Seed，讀官網標題字型的字表 chars-bd.txt；
-  // 其餘欄位（內文、便條、圖說、菜名）仍讀 chars-environment-text.txt（手寫芫荽有的字）。
+  // 環境頁整頁是圓體與手寫字：字表是官網實際的 chars-environment*.txt。圓體 800 只補最常用的字，
+  // 所以 800 的大標（首屏 h1 與四章 h2）讀嚴格的 chars-environment.txt，其餘欄位讀 chars-environment-text.txt
   const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
-  const strict = readFileSync(resolve(fontsDir, TITLE_FONT_FILES.bd), 'utf8')
+  const strict = readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environment), 'utf8')
   const text = readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environmentText), 'utf8')
-  const TITLES_IN_LINE_SEED = ['首屏大標', '幼兒保育的標題', '校園環境的標題', '幼兒餐點的標題', '五所校園的標題']
+  const TITLES_IN_800 = ['首屏大標', '幼兒保育的標題', '校園環境的標題', '幼兒餐點的標題', '五所校園的標題']
   function serveCharsets(served: boolean) {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input)
-      if (served && url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.bd}`)) return new Response(strict) as never
+      if (served && url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.environment}`)) return new Response(strict) as never
       if (served && url.endsWith(`/assets/fonts/${TITLE_FONT_FILES.environmentText}`)) return new Response(text) as never
       return new Response('', { status: 404 }) as never
     })
   }
   const hints = (scope: ReturnType<typeof field>) => scope.findAll('.glyph-hint').map((hint) => hint.text())
 
-  it('除了「大標裡畫螢光的字」，每個文字欄位都檢查字型：五個大標查官網標題字型，其餘用環境頁內文字表', async () => {
+  it('除了「大標裡畫螢光的字」，每個文字欄位都檢查環境頁字型：800 的五個大標用嚴格字表，其餘用內文字表', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const fields = wrapper.findAllComponents(PageCopyField)
     expect(fields.length).toBeGreaterThan(30)
     for (const copy of fields) {
       const label = copy.props('label')
-      const expected = label === '大標裡畫螢光的字' ? undefined : TITLES_IN_LINE_SEED.includes(label) ? ['bd'] : ['environmentText']
+      const expected = label === '大標裡畫螢光的字' ? undefined : TITLES_IN_800.includes(label) ? ['environment'] : ['environmentText']
       expect(copy.props('fonts'), label).toEqual(expected)
     }
-    // 主打區的標題（h3）沿用內文字表
+    // 主打區的標題是 h3（700），不是 800
     expect(field(wrapper, '主打區的標題').find('textarea').exists()).toBe(true)
     expect(fields.find((copy) => copy.props('label') === '主打區的標題')!.props('fonts')).toEqual(['environmentText'])
   })
@@ -279,7 +279,7 @@ describe('常春藤環境頁編輯器：缺字提示', () => {
     await wrapper.find('[data-list="hearts"] [data-list-item="0"] input').setValue('愛𠮷')
     await field(meal(wrapper, 0), '小字').find('input').setValue('營養𠮷')
     await settle()
-    expect(hints(field(wrapper, '首屏大標'))).toEqual(['官網標題字型沒有「𠮷」，這幾個字會以系統字顯示。可以換個說法，或請工程補字。'])
+    expect(hints(field(wrapper, '首屏大標'))).toEqual(['環境頁字型沒有「𠮷」，這幾個字會用系統字顯示。可以換個說法，或請工程補字。'])
     expect(hints(field(wrapper, '首屏介紹'))[0]).toContain('環境頁字型沒有「𠮷𠮾」，這幾個字會用系統字顯示')
     expect(wrapper.find('[data-list="hearts"] [data-list-item="0"]').find('.glyph-hint').text()).toContain('「𠮷」')
     expect(hints(field(meal(wrapper, 0), '小字'))[0]).toContain('「𠮷」')
@@ -290,15 +290,17 @@ describe('常春藤環境頁編輯器：缺字提示', () => {
     expect(hints(field(wrapper, '首屏介紹'))).toEqual([])
   })
 
-  it('大標改用官網標題字型（完整字型）：圓體 800 當年沒補到的字（「敞」）不再提示', async () => {
+  it('圓體 800 沒補到的字：大標提示、內文不提示（內文的 400 字型有）', async () => {
     serveCharsets(true)
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     await field(wrapper, '校園環境的標題').find('textarea').setValue('寬敞的\n校園環境')
     await field(wrapper, '校園環境的說明').find('textarea').setValue('寬敞明亮的空間')
+    await field(wrapper, '主打區的標題').find('textarea').setValue('寬敞的\n遊戲區')
     await settle()
-    expect(hints(field(wrapper, '校園環境的標題'))).toEqual([])
+    expect(hints(field(wrapper, '校園環境的標題'))[0]).toContain('環境頁字型沒有「敞」，這幾個字會用系統字顯示')
     expect(hints(field(wrapper, '校園環境的說明'))).toEqual([])
+    expect(hints(field(wrapper, '主打區的標題'))).toEqual([])
   })
 
   it('內建內容的每個欄位都在字表內（一打開不會有缺字提示）', async () => {
@@ -376,12 +378,12 @@ describe('常春藤環境頁編輯器：存檔被擋（422）時定位到欄位'
     expect(document.activeElement).toBe(root.querySelector('[data-list="meals"] [data-list-item="0"] input'))
   })
 
-  it('頂層欄位：大標裡畫螢光的字、首屏照片下的一句話（五所校園的提示 2026-10-29 起不列）', async () => {
+  it('頂層欄位：大標裡畫螢光的字、首屏照片下的一句話', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const root = wrapper.element as HTMLElement
     const draft = environmentPageDraft()
-    for (const [key, value] of [['hero_highlight', draft.hero_highlight], ['hero_caption', draft.hero_caption]] as const) {
+    for (const [key, value] of [['hero_highlight', draft.hero_highlight], ['hero_caption', draft.hero_caption], ['tour_hint', draft.tour_hint]] as const) {
       expect(await revealContentPath(root, [key], contentPathFieldLabel('environment_page', [key]))).toBe(true)
       expect((document.activeElement as HTMLInputElement | null)?.value, key).toBe(value)
     }
@@ -412,16 +414,11 @@ describe('常春藤環境頁編輯器：原始碼的約定', () => {
       ['hero_title', '首屏大標'], ['hero_highlight', '大標裡畫螢光的字'], ['hero_lede', '首屏介紹'], ['hero_notice', '首屏提醒'], ['hero_photo', '首屏照片'],
       ['hero_caption', '首屏照片下的一句話'], ['care_title', '幼兒保育的標題'], ['care_lead', '幼兒保育的引言'], ['care_text', '幼兒保育的說明'],
       ['care_photo', '幼兒保育照片'], ['care_caption', '保育照片下的一句話'], ['care_photo_note', '保育照片上的便條'],
-      ['spaces_title', '校園環境的標題'], ['spaces_text', '校園環境的說明'], ['meals_title', '幼兒餐點的標題'],
-      ['meals_text', '幼兒餐點的說明'], ['meals_day_title', '一天吃什麼的標題'], ['tour_title', '五所校園的標題'], ['tour_text', '五所校園的說明'],
+      ['spaces_title', '校園環境的標題'], ['spaces_text', '校園環境的說明'], ['trail_hint', '小腳印提示'], ['meals_title', '幼兒餐點的標題'],
+      ['meals_text', '幼兒餐點的說明'], ['meals_day_title', '一天吃什麼的標題'], ['tour_title', '五所校園的標題'], ['tour_text', '五所校園的說明'], ['tour_hint', '五所校園的提示'],
     ]
     for (const [key, label] of pairs) {
       expect(source, label).toContain(`label="${label}"`)
-      expect(contentFieldLabelFor('environment_page', key), key).toBe(label)
-    }
-    // 2026-10-29 起不列的兩欄：表單上沒有，版本紀錄仍叫得出名字
-    for (const [key, label] of [['trail_hint', '小腳印提示'], ['tour_hint', '五所校園的提示']] as const) {
-      expect(source, label).not.toContain(`label="${label}"`)
       expect(contentFieldLabelFor('environment_page', key), key).toBe(label)
     }
   })

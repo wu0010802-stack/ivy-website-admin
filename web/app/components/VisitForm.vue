@@ -620,9 +620,10 @@ async function onSubmit() {
 <template>
   <section class="visit-page" data-cta-entry="visit_page" :data-campus-key="form.campus" :data-step="submitted ? 'result' : step">
     <header class="visit-welcome">
+      <div v-if="isPicking" class="visit-ghost" aria-hidden="true"><span>預約</span><span>參觀</span></div>
       <div class="container visit-welcome-inner">
         <div class="visit-welcome-copy">
-          <p v-if="isPicking" class="ivy-kicker visit-eyebrow">預約校園參觀</p>
+          <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
           <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
           <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
         </div>
@@ -631,7 +632,7 @@ async function onSubmit() {
                不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
           <picture>
             <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
-            <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" class="ivy-photo" alt="孩子們笑著指向前方" decoding="async">
+            <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
           </picture>
           <figcaption>在常春藤，遇見成長的下一站。</figcaption>
         </figure>
@@ -641,10 +642,11 @@ async function onSubmit() {
       <div class="visit-shell">
         <aside v-if="!isPicking && selectedCampus" ref="asideRef" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
-            <span class="visit-aside-photo ivy-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
+            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
+              <span class="visit-aside-en" lang="en">{{ selectedCampus.key.toUpperCase() }} CAMPUS</span>
             </span>
           </div>
           <div class="visit-aside-info">
@@ -670,16 +672,19 @@ async function onSubmit() {
               <p id="visit-campus-error" ref="campusErrorRef" class="visit-field-error" role="alert">{{ campusError }}</p>
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
                 <legend class="sr-only">想參觀的校區</legend>
-                <!-- 手機版卡片是左圖右字的一列，五張都在首屏附近、lazy 也擋不住。
-                     2026-10-29 視覺方向 B 改成白框相片：照片是 4:3、文字在照片下方（手機與橫拿手機是左圖右字的一列）。
-                     橫幅外觀照（約 1.9:1）cover 進 4:3 要畫的寬度是「框寬 × 1.43」：桌機框寬約 220px → 340px；
-                     761–960 一列三張、框寬約 30vw → 45vw；手機左側小圖約 (100vw − 40px) × .34 → × .5；橫拿一列兩張 → 25vw。
+                <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
+                     DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
+                     400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。
+                     橫拿手機也是細條、一列兩張（2026-10-12），寬度約半個視窗。
+                     761px 以上卡片是 3:4 直框、object-fit: cover，橫幅外觀照（約 1.9:1）要畫的寬度是「框高 × 1.92」
+                     ≈ 卡寬 × 2.56，不是卡寬（2026-10-13）：桌機卡寬最多約 237px → 620px；761–960 一列三張、卡寬約 30vw → 77vw。
+                     原本寫卡寬（260px／30vw），DPR2 桌機只拿到 800w、平板拿到 480w，照片發糊。
                      第一張是 LCP，給 high（其他頁的首圖都有）：預設 Low 時和其他四張同時排隊，手機慢速 4G 量到 3.8 s（2026-10-21）。
                      網址帶校區時直接進第二步、卡片不在首屏，就不搶。 -->
                 <label v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) calc((100vw - 40px) * .5), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) 25vw, (max-width: 960px) 45vw, 340px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <!-- 來電的校區把「來電洽詢」換成撥號連結：連結在 label 裡，點它只撥號、不會選到這張卡（HTML 規定 label
                          遇到裡面的互動元素不轉送點擊）。radio 的名稱已含「來電洽詢」，連結另外唸校名與號碼。 -->
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><span v-else class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>

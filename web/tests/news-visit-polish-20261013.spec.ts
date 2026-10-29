@@ -66,7 +66,7 @@ describe('消息頁版面', () => {
     expect(css).toContain('.np-article .np-sample-note{margin-top:20px;max-width:none}')
   })
   it('眉標是中文，不是寬字距英文大寫', () => {
-    expect(read('../app/components/NewsIndexContent.vue')).toContain('<p class="ivy-kicker np-kicker">常春藤幼兒園・最新消息</p>')
+    expect(read('../app/components/NewsIndexContent.vue')).toContain('<p class="np-kicker">常春藤幼兒園・最新消息</p>')
     expect(css).not.toMatch(/\.np-kicker\{[^}]*text-transform:uppercase/)
   })
 })
@@ -79,10 +79,9 @@ describe('預約頁', () => {
     expect(css).not.toMatch(/\.visit-content \{max-width/)
   })
 
-  it('選校卡是白框相片：文字在照片外、不壓字（2026-10-29 視覺方向 B 取代 10-13 的壓字底）', () => {
-    expect(css).toContain('.visit-campus-copy {position:relative;display:flex;flex-direction:column;gap:2px;padding:12px 4px 0;color:var(--text)}')
-    expect(css).not.toMatch(/\.visit-campus-copy \{[^}]*linear-gradient/)
-    expect(css).toMatch(/\.visit-campus-card \{[^}]*background:var\(--ivy-photo-mat\);box-shadow:var\(--shadow-paper\)/)
+  it('選校卡壓字底：文字範圍內至少 .7，桌機上方 88px、細條卡右側 72px 才淡出', () => {
+    expect(css).toContain('padding:88px 18px 18px;background:linear-gradient(to top,rgb(var(--ink) / .82),rgb(var(--ink) / .7) calc(100% - 88px)')
+    expect(css.match(/width:auto;min-width:72%;max-width:100%;padding:0 72px 0 18px;background:linear-gradient\(to right,rgb\(var\(--ink\) \/ \.82\),rgb\(var\(--ink\) \/ \.7\) calc\(100% - 72px\)/g)).toHaveLength(2)
   })
 
   it('讀不到參觀方式：標題不重複說明，致電是主要按鈕、重新載入改外框鈕排在後面', () => {
@@ -106,9 +105,8 @@ describe('預約頁', () => {
   })
 
   it('第二步頁名跟第一步眉標同一個樣子', () => {
-    // 2026-10-29 起兩者都是章節頭樣式：LINE Seed 600、字距 .04em、不畫短線
-    expect(css).toContain(".visit-page:not([data-step='1']) .visit-welcome h1 {font:600 var(--fs-sm)/1.6 var(--font-head);letter-spacing:.04em}")
-    expect(css).not.toContain('.visit-welcome h1::before')
+    expect(css).toMatch(/\.visit-page:not\(\[data-step='1'\]\) \.visit-welcome h1 \{display:flex;[^}]*letter-spacing:\.06em/)
+    expect(css).toMatch(/\.visit-page:not\(\[data-step='1'\]\) \.visit-welcome h1::before \{content:''/)
   })
 
   it('短的狀態句只在標點後換行；讀場次時有骨架、減少動態不閃', () => {

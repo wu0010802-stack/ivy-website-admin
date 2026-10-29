@@ -68,6 +68,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .day-film-ui{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);z-index:4;pointer-events:none}
 /* 圖說小字不疊 opacity、英文從 9px 提到 11px（2026-10-13，10-12「小字不疊 opacity」）：影片 12 幀最低 4.7。 */
 .day-film-caption{position:absolute;left:32px;bottom:26px;display:grid;gap:4px;font-size:var(--fs-xs);letter-spacing:.1em;color:rgb(var(--on-dark))}
+.day-film-caption span[lang]{font-size:.6875rem;letter-spacing:.14em}
 .day-film-toggle{position:absolute;right:32px;bottom:22px;pointer-events:auto;display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:8px 18px;border:1px solid rgb(var(--on-dark) / .4);border-radius:100px;background:rgb(var(--ink) / .72);color:var(--paper);font-size:var(--fs-xs);letter-spacing:.06em}
 .day-film-toggle:hover{background:rgb(var(--ink) / .9)}
 /* Phosphor 播放／暫停圖示；收成 44px 圓鈕時是唯一可見內容，固定 16px，不跟 12px 小字縮。 */
@@ -79,6 +80,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 金色眉標墊在跳舞的亮色衣服與氣球上，影片 12 幀的第 5 百分位只有 2.4（2026-10-13）：字後面墊一團淡墨綠光暈（同首屏「遮罩只墊在文字後面」），
    跟著大標一起淡出。量法同 09-24：字設透明取背景，1440／1280×720／1024／768／390／320 最低 4.57。 */
 .day-intro .eyebrow::before{content:'';position:absolute;z-index:-1;inset:-12px -40px;background:radial-gradient(closest-side,rgb(var(--ink) / .6) 70%,rgb(var(--ink) / 0));pointer-events:none}
+.day-intro .eyebrow span[lang]{font-size:.625rem;letter-spacing:.16em}
 .day-title{font-size:clamp(3.2rem,12.6vw,12.5rem);line-height:1.06;letter-spacing:0;white-space:nowrap;color:var(--paper);text-shadow:0 4px 40px rgb(var(--ink) / .25)}
 /* 滿版＋左右內距（內容寬仍是 min(1280px,100% - 96px)）：WebGL 紙的畫布比卡片寬，要在視窗邊緣裁掉、不讓手機能左右滑。 */
 .day-prints{position:relative;z-index:1;list-style:none;margin:calc(-28 * var(--motion-vh,1svh)) 0 0;padding:0 max(48px,calc((100% - 1280px) / 2)) 150px;overflow-x:clip;display:grid;grid-template-columns:minmax(0,1fr) 140px minmax(0,1fr)}
@@ -200,6 +202,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 圖說與暫停鍵的讓位規則跟布幕短版用同一個手機定義：橫拿手機（高度 ≤500）卡片比視窗高，底部控制列一定壓在卡片上，也要讓位。 */
 @media(max-width:760px),(max-height:500px){
  .day-film-caption{left:18px;bottom:18px}
+ .day-film-caption span[lang]{display:none}
  .day-film-toggle{right:16px;bottom:14px;padding:8px 14px}
 }
 /* 拍立得蓋上來以後（DayExperience 的 data-covered）：圖說退場、暫停鍵收成 44px 圓鈕，不再壓住卡片上的時間與內文。

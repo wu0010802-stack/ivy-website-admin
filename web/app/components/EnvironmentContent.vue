@@ -1,8 +1,6 @@
 <script setup lang="ts">
 // 常春藤環境頁主體（/environment）。2026-09-28 改成手繪版（使用者選定 mock C：
-// design/environment-rough-mockup-20260928/）：點格紙、蠟筆色紙、Rough.js 手繪線。2026-10-29 視覺方向 B：跟特色教學頁共用一盒孩子文具
-// （assets/css/stationery.css：點格紙、顏料團編號章節頭），標題改回全站 LINE Seed、內文系統字（圓體退場，芫荽手寫只給便條與圖說），
-// 拿掉「看完打個勾」與兩句操作提示、指向菜單的箭頭；五顆心改成顏料團標籤。
+// design/environment-rough-mockup-20260928/），跟其他分頁刻意不同：點格紙、蠟筆色紙、Rough.js 手繪線、圓體字。
 // 內容：幼兒保育、校園環境、幼兒餐點三章沿用 2026-09-25 從舊官網搬來的原文（只修錯字與標點）；
 // 2026-10-12 起前三章的文字與照片改讀後台「常春藤環境頁」（environment_page，預設＝fixture 的 environmentPage，
 // 一字不差），清單照索引對應下面的常數；便條位置與箭頭落點、太陽弧位置、結尾三張卡、營養餐點書連結與各章目次
@@ -21,8 +19,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines, withPhotoStyle } from '~/utils/page-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
-import { attachEnvironmentFontStylesheet } from '~/utils/environment-fonts'
-import { kidTone } from '~/utils/stationery'
+import { attachEnvironmentFontStylesheet, ENVIRONMENT_FONT_PRELOAD } from '~/utils/environment-fonts'
 import type { SketchHandle } from '~/utils/rough-sketch'
 import type { EnvironmentMotion } from '~/utils/environment-motion'
 import type { EnvironmentDoodles } from '~/utils/environment-doodles'
@@ -91,6 +88,7 @@ const chapters = computed(() => [
   ...(tours.value.length ? [{ id: 'campuses', label: props.page.chapterNames[3], hint: `${sceneCount.value} 個校園角落` }] : [])
 ].map((chapter, i) => ({ ...chapter, no: String(i + 1).padStart(2, '0') })))
 const chapterNo = (id: string) => chapters.value.find((chapter) => chapter.id === id)?.no
+const COUNT_WORDS = ['一', '二', '三', '四']
 
 // ---------- 分頁（WAI-ARIA tabs：左右鍵、Home、End） ----------
 const tabRefs = ref<HTMLButtonElement[]>([])
@@ -113,6 +111,7 @@ function onTabKey(event: KeyboardEvent, index: number) {
   void selectTab(tours.value[(target + count) % count]!.campus.key, true)
 }
 
+useHead({ link: ENVIRONMENT_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: '' })) })
 
 const root = ref<HTMLElement | null>(null)
 let sketch: SketchHandle | null = null
@@ -148,13 +147,13 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
 </script>
 
 <template>
-  <main id="main" ref="root" tabindex="-1" class="renv ivy-kid-paper" data-cta-entry="environment">
+  <main id="main" ref="root" tabindex="-1" class="renv" data-cta-entry="environment">
     <!-- 首屏：一頁攤開的聯絡簿 -->
     <section class="renv-hero" aria-labelledby="environment-title">
       <span class="renv-doodle is-sun" data-doodle="sun" aria-hidden="true" />
       <div class="renv-wrap renv-hero-grid">
         <div>
-          <p class="ivy-kicker renv-eyebrow">常春藤幼兒園 · 常春藤環境</p>
+          <p class="renv-eyebrow">常春藤幼兒園 · 常春藤環境</p>
           <h1 id="environment-title"><template v-for="(line, i) in heroLines" :key="i"><br v-if="i">{{ line.before }}<span v-if="line.mark" class="renv-mark" data-rough="highlight" data-seed="11">{{ line.mark }}</span>{{ line.after }}</template></h1>
           <p class="renv-lede">{{ page.heroLede }}</p>
           <p v-if="page.heroNotice" class="renv-notice">{{ page.heroNotice }}</p>
@@ -166,11 +165,13 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
           <figcaption class="renv-hand">{{ page.heroCaption }}</figcaption>
         </figure>
       </div>
-      <nav class="renv-wrap renv-index" aria-label="本頁章節">
+      <nav class="renv-wrap renv-index" aria-labelledby="renv-index-title">
+        <p id="renv-index-title" class="renv-hand renv-index-title">這一頁有{{ COUNT_WORDS[chapters.length - 1] }}件事，看完打個勾</p>
         <ol>
           <li v-for="(chapter, i) in chapters" :key="chapter.id">
             <a :href="`#${chapter.id}`" :data-chapter="chapter.id">
-              <span class="ivy-blob-no renv-num" :data-tone="kidTone(i)" aria-hidden="true">{{ chapter.no }}</span><b>{{ chapter.label }}</b><span class="renv-hint">{{ chapter.hint }}</span>
+              <span class="renv-box" data-rough="check" :data-seed="41 + i" aria-hidden="true" />
+              <span class="renv-num" lang="en">{{ chapter.no }}</span><b>{{ chapter.label }}</b><span class="renv-hint">{{ chapter.hint }}</span>
             </a>
           </li>
         </ol>
@@ -183,11 +184,11 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
       <div class="renv-wrap">
         <div class="renv-care-top">
           <div>
-            <p class="ivy-kicker renv-kicker"><span class="ivy-blob-no" data-tone="yellow">{{ chapterNo('care') }}</span>{{ page.chapterNames[0] }}</p>
+            <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="51" data-chapter-check="care" aria-hidden="true" /><span lang="en">{{ chapterNo('care') }}</span>{{ page.chapterNames[0] }}</p>
             <h2 id="care-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.careTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
             <p class="renv-text">{{ page.careLead }}</p>
             <ul class="renv-hearts">
-              <li v-for="(heart, i) in page.hearts" :key="i"><b>{{ heart }}</b></li>
+              <li v-for="(heart, i) in page.hearts" :key="i"><span class="renv-heart" data-rough="heart" :data-seed="61 + i" aria-hidden="true" /><b>{{ heart }}</b></li>
             </ul>
             <p class="renv-text">{{ page.careText }}</p>
           </div>
@@ -217,7 +218,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
     <section id="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
       <div class="renv-wrap">
         <div class="renv-split-head">
-          <p class="ivy-kicker renv-kicker"><span class="ivy-blob-no" data-tone="sky">{{ chapterNo('spaces') }}</span>{{ page.chapterNames[1] }}</p>
+          <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="101" data-chapter-check="spaces" aria-hidden="true" /><span lang="en">{{ chapterNo('spaces') }}</span>{{ page.chapterNames[1] }}</p>
           <h2 id="spaces-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.spacesTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p class="renv-text">{{ page.spacesText }}</p>
         </div>
@@ -235,6 +236,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
             <p>{{ page.feature.text }}</p>
           </div>
         </article>
+        <p class="renv-hand renv-trail-hint" aria-hidden="true">{{ page.trailHint }}</p>
         <ol class="renv-trail" data-rough="trail" data-seed="120">
           <li v-for="(space, i) in spaces" :key="space.image" class="renv-stop">
             <figure class="renv-stop-photo renv-snap" data-rough="frame" :data-seed="121 + i">
@@ -259,7 +261,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
       <div class="renv-wrap">
         <div class="renv-meals-top">
           <div>
-            <p class="ivy-kicker renv-kicker"><span class="ivy-blob-no" data-tone="peach">{{ chapterNo('meals') }}</span>{{ page.chapterNames[2] }}</p>
+            <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="201" data-chapter-check="meals" aria-hidden="true" /><span lang="en">{{ chapterNo('meals') }}</span>{{ page.chapterNames[2] }}</p>
             <h2 id="meals-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.mealsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
             <p class="renv-text">{{ page.mealsText }}</p>
             <a class="renv-btn" :href="meal.href" target="_blank" rel="noopener" data-rough="button" data-seed="202">{{ meal.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg><span class="sr-only">（另開新視窗）</span></a>
@@ -269,6 +271,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
               <img v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 220px, 300px')" alt="" loading="lazy">
               <span class="renv-tape is-top" data-rough="tape" data-seed="211" />
             </a>
+            <p class="renv-hand renv-book-note" aria-hidden="true" data-rough="bookarrow" data-seed="212"><span>{{ meal.month }} 月</span>的菜單，<br>翻到這一頁</p>
           </div>
         </div>
         <div class="renv-day" data-rough="sunpath" data-seed="220">
@@ -287,10 +290,11 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
     <section v-if="tours.length" id="campuses" class="renv-section renv-tour" aria-labelledby="tour-title">
       <div class="renv-wrap">
         <div class="renv-split-head">
-          <p class="ivy-kicker renv-kicker"><span class="ivy-blob-no" data-tone="leaf">{{ chapterNo('campuses') }}</span>{{ page.chapterNames[3] }}</p>
+          <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="401" data-chapter-check="campuses" aria-hidden="true" /><span lang="en">{{ chapterNo('campuses') }}</span>{{ page.chapterNames[3] }}</p>
           <h2 id="tour-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.tourTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p class="renv-text">{{ page.tourText }}</p>
         </div>
+        <p class="renv-hand renv-tour-hint" aria-hidden="true">{{ page.tourHint }}</p>
         <div class="renv-tour-tabs" role="tablist" aria-label="選一所校園">
           <button
             v-for="(tour, i) in tours"
@@ -345,7 +349,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
     <!-- 結尾：接下來可以看（不放預約） -->
     <section class="renv-section renv-next" aria-labelledby="next-title">
       <div class="renv-wrap">
-        <h2 id="next-title" class="renv-next-title">環境看完了，還可以看看這幾頁</h2>
+        <h2 id="next-title" class="renv-hand renv-next-title">環境看完了，還可以看看這幾頁</h2>
         <span class="renv-doodle is-hand" data-doodle="hand" aria-hidden="true" />
         <ul class="renv-next-list">
           <li v-for="(item, i) in NEXT" :key="item.href">

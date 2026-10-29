@@ -87,8 +87,7 @@ describe('水彩樣式只用色票', () => {
     const forced = css.slice(css.indexOf('@media (forced-colors: active)'))
     expect(forced).toMatch(/\.cur-wash[^{]*\{[^}]*display: none/)
     expect(forced).toContain('.cur-grain')
-    // 2026-10-29 起照片是色紙框（stationery.css），不再有撕紙遮罩
-    expect(css).not.toMatch(/has-mask|is-bloomed/)
+    expect(forced).toMatch(/mask: none/)
   })
 })
 

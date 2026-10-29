@@ -35,7 +35,6 @@ const navSections = computed<EditorSection[]>(() => [
     label: '01 幼兒保育',
     fields: ['care_title', 'care_lead', 'hearts', 'care_text', 'care_photo', 'care_photo_alt', 'care_caption', 'care_photo_note', 'care_items'],
   },
-  // trail_hint、tour_hint 後台不列（2026-10-29 起官網不顯示），照舊分在原本那段：段落目錄要涵蓋表單的每個欄位。
   { id: 'section-env-spaces', label: '02 校園環境', fields: ['spaces_title', 'spaces_text', 'feature', 'trail_hint', 'spaces'] },
   { id: 'section-env-meals', label: '03 幼兒餐點', fields: ['meals_title', 'meals_text', 'meals_day_title', 'meals'] },
   { id: 'section-env-tour', label: '04 五所校園', fields: ['tour_title', 'tour_text', 'tour_hint'] },
@@ -44,8 +43,7 @@ const navSections = computed<EditorSection[]>(() => [
 // 整頁都是圓體（標題 800、小標 700、內文 400）與手寫字芫荽：罕用字會退回系統字，欄位下方提示。
 // 圓體 800 只補最常用的字（字型目錄要在 15 MB 內），所以 800 的大標（首屏 h1 與四章 h2）用嚴格的字表，
 // 其餘欄位（小標、內文、便條）用 400／700／芫荽的字表。「大標裡畫螢光的字」是大標的一段，不另外檢查。
-// 2026-10-29 視覺方向 B：環境頁標題改回全站 LINE Seed（圓體退場），內文欄位仍查芫荽手寫字（便條、圖說、菜名）。
-const ENV_TITLE_FONTS: TitleFontSubset[] = ['bd']
+const ENV_TITLE_FONTS: TitleFontSubset[] = ['environment']
 const ENV_FONTS: TitleFontSubset[] = ['environmentText']
 
 const NOTE_HELP = '貼在照片上的便條，位置依格子固定；換照片後箭頭可能沒指準照片裡的東西，存草稿後請到官網預覽確認。'
@@ -177,7 +175,7 @@ onMounted(editor.load)
         />
       </div>
       <h4 class="sub-sub-title">小腳印走過的六個空間</h4>
-      <!-- 小腳印提示（trail_hint）與五所校園的提示（tour_hint）2026-10-29 起官網不顯示（操作提示不上站）：後台不列，舊值照原樣存回。 -->
+      <PageCopyField v-model="form.trail_hint" label="小腳印提示" hint="envTrailHint" :fonts="ENV_FONTS" help="小腳印路線上方的一句手寫字。" />
       <div data-list="spaces">
         <div v-for="(space, i) in form.spaces" :key="i" class="page-copy__item" :data-list-item="i">
           <p class="page-copy__item-title">第 {{ i + 1 }} 個空間</p>
@@ -223,6 +221,7 @@ onMounted(editor.load)
       <h3 id="section-env-tour" class="sub-title" data-section-anchor tabindex="-1">04 五所校園</h3>
       <PageCopyField v-model="form.tour_title" label="五所校園的標題" hint="envTourTitle" :fonts="ENV_TITLE_FONTS" title />
       <PageCopyField v-model="form.tour_text" label="五所校園的說明" hint="envTourText" :fonts="ENV_FONTS" multiline help="場景的照片與說明在「校園探索」，這裡只改這一章的標題與段落。" />
+      <PageCopyField v-model="form.tour_hint" label="五所校園的提示" hint="envTourHint" :fonts="ENV_FONTS" />
     </el-form>
   </ContentEditor>
 </template>

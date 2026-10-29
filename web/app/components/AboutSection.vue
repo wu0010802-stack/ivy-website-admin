@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { pickImage } from '~/utils/media-image'
 import type { AboutContent } from '~/types/site-content'
-import { useCurtain } from '~/composables/useCurtain'
+import { useCurtain, useRelayProgress } from '~/composables/useCurtain'
 
 const props = defineProps<{ about: AboutContent }>()
 const expanded = ref(false)
@@ -11,7 +11,7 @@ const copy = computed(() => {
   const end = text.search(/[。！？]/)
   return end < 0 ? { lead: text, rest: '' } : { lead: text.slice(0, end + 1), rest: text.slice(end + 1) }
 })
-// 2026-09-23 起只放一張照片（原本主照＋小照疊放）；資料仍是陣列，取第一張。2026-10-29 起是白框相片（視覺方向 B）。
+// 2026-09-23 起只放一張圓角照片（原本主照＋小照疊放）；資料仍是陣列，取第一張。
 const photo = computed(() => props.about.photos[0])
 
 // 收合時按鈕上方的長段落被移除，版面會整段往上縮（320 寬時按鈕與段落直接跑出畫面）；
@@ -33,18 +33,25 @@ const panelEl = ref<HTMLElement | null>(null)
 // div：這個區塊本身就有 isolation:isolate + position:sticky + z-index，
 // clip-path 要套在同一個元素上疊層判斷才會跟 vanilla 一致（套在外層
 // wrapper 上實測會讓下一段簾幕的內容蓋到這段上面）。
-// 2026-10-29 視覺方向 B 拿掉薄荷底與「關於／常春藤」浮水印，浮水印驅動的「的一天」接力淡入（useRelayProgress）一併拿掉。
-useCurtain(rootEl, trackEl, panelEl, 'belief')
+useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
 </script>
 
 <template>
   <div ref="rootEl" class="belief-reveal">
     <div ref="trackEl" class="belief-reveal-track">
       <section ref="panelEl" class="section studio-about home-belief" :id="about.anchorId" aria-labelledby="about-title">
+        <div class="belief-backdrop" aria-hidden="true">
+          <div class="container belief-backdrop-inner">
+            <div class="belief-watermark">
+              <span class="wm-a">{{ about.watermark.top }}</span><br>
+              <span class="wm-b">{{ about.watermark.bottom }}</span>
+            </div>
+          </div>
+        </div>
         <div class="container belief-content">
           <div class="belief-layout">
             <div class="belief-main">
-              <p class="ivy-kicker belief-kicker">關於常春藤</p>
+              <p class="belief-since" lang="en">{{ about.sinceLabel }}</p>
               <h2 id="about-title">{{ about.title }}</h2>
               <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
               <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="toggleCopy">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
@@ -53,7 +60,6 @@ useCurtain(rootEl, trackEl, panelEl, 'belief')
               <img
                 v-bind="pickImage(photo.image, photo.media, '(max-width: 900px) 90vw, 42vw')"
                 :alt="photo.alt"
-                class="ivy-photo"
                 :style="photo.media?.position ? { objectPosition: photo.media.position } : undefined"
                 loading="lazy"
                 fetchpriority="low"

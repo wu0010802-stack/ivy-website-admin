@@ -1,6 +1,5 @@
 /* 關於常春藤頁（/about）立體書版（2026-09-29，使用者選定 J：design/about-style-directions-20260929/j-popup.*）
-   整頁是一本攤在桌面上的立體繪本：每段一個跨頁，左頁文字、右頁照片卡紙。2026-10-29 視覺方向 B：桌面改奶油色、
-   照片卡紙改成全站同一種白框（--ivy-photo-mat），章節書籤與分頁的品牌色照舊。
+   整頁是一本攤在淡綠桌面上的立體繪本：每段一個跨頁，左頁文字、右頁照片卡紙；卡紙是品牌色。
    動態（翻頁 --open、背光 --shade、壓在左頁的影子 --cast、卡紙 --up、紀念章 --medal-*）由 utils/about-popup.ts 寫進 CSS 變數；
    沒有 JS 時預設 --open:1、--up:1，書是攤開的、卡紙是站好的、紀念章停在校徽正面。
    2026-10-02 精修（design/about-refine-mockup-20261002/）：紙改米白、書脊改窄折痕、頁緣厚度依跨頁位置（--n／--last）、
@@ -9,8 +8,7 @@
    顏色一律走站內 token；透明度用 RGB 三元組（--ink）。不再共用 admission.css。 */
 
 .abk{
-  /* 書桌：2026-10-29 視覺方向 B 由薄荷 --ivy-forest-mist 改奶油色（品牌頁一律米白／奶油）。 */
-  --abk-table:var(--cream);
+  --abk-table:var(--ivy-forest-mist);
   --abk-page:var(--paper);
   --abk-gutter:clamp(16px,4vw,48px);
   --abk-pad-x:clamp(32px,4.6vw,72px);
@@ -67,7 +65,7 @@
 /* ---------- 卡紙：--up 0 平躺 → 1 站好（彈簧會超過 1，往前晃一下） ---------- */
 .abk-stage{position:relative;height:100%;min-height:inherit;perspective:1100px}
 .abk-pop{position:absolute;left:var(--x);bottom:var(--y);z-index:var(--z,1);width:var(--w);margin:0;transform:rotate(var(--r,0deg))}
-.abk-card{position:relative;padding:8px 8px 10px;border-radius:var(--radius-paper);background:var(--ivy-photo-mat);transform-origin:50% 100%;transform:rotateX(calc((1 - var(--up,1)) * 86deg));box-shadow:inset 0 1px 0 rgb(var(--on-dark)/.45),0 1px 0 rgb(var(--ink)/.14)}
+.abk-card{position:relative;padding:8px 8px 10px;border-radius:3px;background:var(--c,var(--yellow));transform-origin:50% 100%;transform:rotateX(calc((1 - var(--up,1)) * 86deg));box-shadow:inset 0 1px 0 rgb(var(--on-dark)/.45),0 1px 0 rgb(var(--ink)/.14)}
 .abk-card img,.abk-blank{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:2px}
 .abk-card img{outline:1px solid rgb(var(--ink)/.08);outline-offset:-1px}
 /* 分校停用或下架：那一年仍在沿革裡，卡紙留白、不放照片 */
@@ -80,7 +78,7 @@
 /* 站起來的影子：光從左上來，影子落在右下 */
 .abk-pop::after{content:'';position:absolute;left:8%;right:-3%;bottom:-8px;z-index:-1;height:18px;border-radius:50%;background:radial-gradient(rgb(var(--ink)/.3),rgb(var(--ink)/0) 70%);opacity:calc(var(--up,1) * .9);transform:scaleY(calc(.35 + var(--up,1) * .65))}
 /* 卡紙底下那一截折進書頁的紙 */
-.abk-fold{position:absolute;left:16%;right:16%;bottom:-10px;height:10px;background:var(--ivy-photo-mat);filter:brightness(.86);transform-origin:50% 0;transform:rotateX(calc(var(--up,1) * 80deg))}
+.abk-fold{position:absolute;left:16%;right:16%;bottom:-10px;height:10px;background:var(--c,var(--yellow));filter:brightness(.86);transform-origin:50% 0;transform:rotateX(calc(var(--up,1) * 80deg))}
 
 /* ---------- 首屏：一整頁攤開（不翻），1440×900 一屏放得下整本書 ---------- */
 .abk-hero{grid-template-rows:1fr auto;grid-template-areas:"text art" "toc art";margin-top:0;min-height:clamp(600px,calc(100svh - var(--abk-head) - 2 * clamp(20px,2.6vw,32px) - 14px),780px);border-radius:8px;background:var(--abk-page);box-shadow:var(--abk-shadow)}
