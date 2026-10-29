@@ -1,3 +1,19 @@
+## 2026-10-29 前台 UI/UX 評析修正（`feature/web-ux-fixes-20261029`）
+
+對正式站做 impeccable critique（Nielsen 26/40，P1 都在預約與找校區路徑），使用者挑 8 條先做。Email 必填、選填題搬位置、入學頁收尾沒做。
+
+- **預約步驟進網址**：`pages/visit/index.vue`＋`[key].vue` 合成 `pages/visit/[[key]].vue`（`definePageMeta({ key: 'visit' })`，換網址不重掛）。下一步＝`/visit/<校>`、更換校區＝`/visit`，第幾步由網址決定（`VisitForm` 的 `routeCampus`）。上一頁回選校、重新整理留在第二步。頁內換步驟不讓路由捲到頁首，由 VisitForm 聚焦。送出成功後換網址會收起結果；同一校的「重新選擇場次」改成按鈕。
+- **填到一半的資料暫存在分頁**：sessionStorage `ivy-visit-draft`（孩子、家長欄位、同一校的日期場次），重新整理或手機切 App 回來被重載都還在；預約成功立刻清掉，關掉分頁就沒了。校區只看網址。
+- **來電校區卡片直接撥號**：暫停或來電的校區，選校卡的「來電洽詢」換成撥號膠囊（號碼取法同首頁五校卡 `campusVisitCta`）。連結在 label 裡，點它不會選到卡片。正式站四校是暫停，都會出現撥號。
+- **選單五校改連結**：滑過、聚焦照舊預覽參觀專線，點下去到 `/?campus=<校>#campuses`。首頁章節攔截（`chapterForHref`）原本只看路徑與 hash，會把這種連結當同頁錨點、丟掉 campus；連結帶了不同 query 就不攔，交給瀏覽器整頁載入。沒有的社群帳號與電話不出現（原本寫「待提供」「待園方提供」）。
+- **原型來源說明換成署名**：孩子的一天、特色教學（首屏、作品、五件事、理念）、環境頁首屏的「提案」「取自」說明，`publicCopy` 只換一字不差的原文，園方在後台改過的照園方的。
+- **月曆錯誤只標一顆**：沒選日期送出時，只有鍵盤會停的那顆帶 `aria-invalid`，紅框畫在整個月曆外圍（outline，不位移）。預約頁與家長管理頁共用。
+- **選好日期後把場次捲進畫面**：手機直拿點月曆下半的日子，第一個場次不在畫面內才捲（桌機兩欄不動，減少動態用瞬移）。
+- **關於頁手機分頁字級**：12–13px（原本 390 寬 11.5px、320 寬 8.8px），拿掉左右內距；352px 以下五字章名平均折兩行。
+- **預約頁 SEO**：維持 noindex（10-12 裁定），補描述、分享圖、canonical，標題尾巴改站名；`/visit/<校>` 標題帶校名、描述有地址電話（`visitSeo`）。
+- **待園方**：後台「預約設定」四校的說明「線上預約即將開放，歡迎來電洽詢。」要改成不承諾時間的句子。
+- **驗證**：`npm --prefix web run typecheck`；`npm run test:website`（113 檔、1383 passed）；`bash tests/stack/build.sh`；stack e2e 預約相關 7 支（booking-modes、booking-flow、keyboard、visit-expected-start、privacy-policy、admissions-flow、schedule-flow，32 passed）；公開站 e2e public-site、legacy-routes（1440，10 passed）；fixture dev server＋假 API 上用 Playwright 驗 390／1440 的流程（選校撥號、下一步網址、重新整理還原、上一頁／下一頁、更換校區、送出後上一頁、404、月曆、選單、關於頁 390／375／360／320）。
+
 ## 2026-10-29 首屏影片第二版：色調以明華原片為準（`feature/hero-minghua-tone-20261029`）
 
 使用者看過同日上線的混剪後要求「以明華那支影片的色調為準，用明華校的原片」。細節、量測與重製指令在 `design/hero-mix-minghua-20261029/README.md` 的「調色」一節。

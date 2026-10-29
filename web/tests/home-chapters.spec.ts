@@ -38,4 +38,16 @@ describe('chapterForHref', () => {
     expect(chapterForHref('https://other.example/#life', origin, chapters)).toBeNull()
     expect(chapterForHref('/', origin, chapters)).toBeNull()
   })
+
+  it('點連結時帶了不同的 query 不攔（選單五校 /?campus=<校>#campuses 要整頁載入才選得到那一校，2026-10-29）', () => {
+    const pinned = [...chapters, { id: 'campuses', after: '.day-reveal-track', pinned: true }]
+    expect(chapterForHref('/?campus=minghua#campuses', origin, pinned, '')).toBeNull()
+    expect(chapterForHref('/?campus=minghua#campuses', origin, pinned, '?campus=yihua')).toBeNull()
+    expect(chapterForHref('/?campus=minghua#campuses', origin, pinned, '?campus=minghua')?.id).toBe('campuses')
+    // 沒帶 query 的錨點照舊在原頁捲，不管目前網址有沒有 query。
+    expect(chapterForHref('#life', origin, pinned, '?campus=minghua')?.id).toBe('life')
+    expect(chapterForHref('/#life', origin, pinned, '?campus=minghua')?.id).toBe('life')
+    // 掛載時拿目前網址判斷（不傳 currentSearch）：帶 query 進站照樣接手補捲。
+    expect(chapterForHref(`${origin}/?campus=minghua#campuses`, origin, pinned)?.id).toBe('campuses')
+  })
 })

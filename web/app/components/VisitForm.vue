@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BookingContent, Campus } from '~/types/site-content'
-import { resolveBookingAction, type BookingActionKind } from '~/utils/booking-action'
+import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
@@ -16,13 +16,14 @@ import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnsti
 const props = defineProps<{
   booking: BookingContent
   campuses: Campus[]
-  initialCampus?: string
+  /** 網址上的校區（/visit/<校>）；有值就是第二步，空字串是 /visit 選校（2026-10-29 步驟跟著網址走） */
+  routeCampus?: string
   /** 隱私權政策已發布時由頁面傳 '/privacy'（沒發布傳 null） */
   policyPath?: string | null
 }>()
 
 const form = reactive({
-  campus: props.initialCampus || '',
+  campus: props.routeCampus || '',
   parentName: '',
   phone: '',
   childName: '',
@@ -32,7 +33,10 @@ const form = reactive({
   referralSources: [] as string[]
 })
 
-const step = ref<1 | 2>(props.initialCampus ? 2 : 1)
+// 第幾步由網址決定（2026-10-29）：原本「下一步」只在元件裡切換，網址停在 /visit，重新整理回到第一步、
+// 上一頁直接離開預約頁。現在下一步＝換到 /visit/<校>、更換校區＝回 /visit，頁面元件不重掛（pages/visit/[[key]].vue）。
+const step = computed<1 | 2>(() => props.routeCampus ? 2 : 1)
+const router = useRouter()
 const stageRef = ref<HTMLElement | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
 const asideRef = ref<HTMLElement | null>(null)
@@ -145,6 +149,55 @@ const selectedSlot = computed(() => availableSlots.value.find(slot => slot.id ==
 const slotTime = (slot: PublicVisitSlot) => slotRange(slot)
 let slotRequest = 0
 
+// 填到一半的資料暫存在這個分頁（sessionStorage，2026-10-29）：手機切去別的 App 回來被瀏覽器重新載入、
+// 或不小心重新整理，孩子與家長資料、選好的日期場次都還在。關掉分頁就沒了，預約成功立刻清掉。
+// 校區看網址，不從暫存還原；日期場次只在同一校、而且重新讀到的場次裡還有時才放回去。
+const DRAFT_KEY = 'ivy-visit-draft'
+type DraftFields = Omit<typeof form, 'campus'>
+interface VisitDraft extends DraftFields { campus: string; visitDate: string; slotId: string }
+let draftSlot: { campus: string; date: string; slotId: string } | null = null
+let draftReady = false
+function readDraft(): Partial<VisitDraft> | null {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null')
+    return value && typeof value === 'object' ? value : null
+  } catch { return null }
+}
+function saveDraft() {
+  if (!draftReady || submitted.value) return
+  const draft: VisitDraft = { ...form, referralSources: [...form.referralSources], visitDate: selectedVisitDate.value, slotId: selectedSlotId.value }
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
+}
+function clearDraft() {
+  try { sessionStorage.removeItem(DRAFT_KEY) } catch {}
+}
+function restoreDraft() {
+  const draft = readDraft()
+  if (draft) {
+    for (const key of ['childName', 'childBirthdate', 'expectedStart', 'parentName', 'phone', 'email'] as const) {
+      const value = draft[key]
+      if (typeof value === 'string' && !form[key]) form[key] = value
+    }
+    if (Array.isArray(draft.referralSources) && !form.referralSources.length) {
+      form.referralSources = draft.referralSources.filter((value): value is string => typeof value === 'string')
+    }
+    if (typeof draft.campus === 'string' && typeof draft.visitDate === 'string' && typeof draft.slotId === 'string' && draft.visitDate) {
+      draftSlot = { campus: draft.campus, date: draft.visitDate, slotId: draft.slotId }
+    }
+  }
+  draftReady = true
+}
+// 放回暫存的日期與場次：換日期會清掉場次（下面的 watch），所以先放日期、等 watch 跑完再放場次。
+async function restoreDraftSlot(campusKey: string) {
+  const saved = draftSlot
+  draftSlot = null
+  if (!saved || saved.campus !== campusKey || !slotDates.value.includes(saved.date)) return
+  selectedVisitDate.value = saved.date
+  await nextTick()
+  if (availableSlots.value.some(slot => slot.id === saved.slotId && slot.slot_date === saved.date)) selectedSlotId.value = saved.slotId
+}
+onMounted(restoreDraft)
+
 async function loadSlots() {
   const request = ++slotRequest
   const campusKey = form.campus
@@ -164,6 +217,7 @@ async function loadSlots() {
     availableSlots.value = slots.filter(slot => slot.remaining > 0).sort((a, b) => `${a.slot_date} ${a.start_time}`.localeCompare(`${b.slot_date} ${b.start_time}`))
     if (!slotDates.value.includes(selectedVisitDate.value)) selectedVisitDate.value = ''
     if (!availableSlots.value.some(slot => slot.id === selectedSlotId.value)) selectedSlotId.value = ''
+    if (draftSlot) await restoreDraftSlot(campusKey)
   } catch {
     if (request !== slotRequest) return
     availableSlots.value = []
@@ -237,7 +291,7 @@ const secondStepLabel = computed(() => selectedCampus.value && bookingConfig.val
 // 就該知道，不必點進第二步才發現要來電。只在瀏覽器讀（SSR 與 hydration 首幀都是空的），
 // 文字行先保留高度，讀到之後不推動版面；讀不到的校就不標。
 // 讀到的設定放進 useCampusBooking 同一個快取 key（2026-10-20）：選定校區後第二步不再重抓同一校。
-const campusModes = ref<Record<string, BookingActionKind>>({})
+const campusActions = ref<Record<string, BookingAction>>({})
 const nuxtApp = useNuxtApp()
 let campusModesRequested = false
 async function loadCampusModes() {
@@ -246,18 +300,18 @@ async function loadCampusModes() {
   const entries = await Promise.all(props.campuses.map(async (campus) => {
     try {
       const config = await loadCampusBooking(nuxtApp, campus.key)
-      return [campus.key, resolveBookingAction(campus.key, config).kind] as const
+      return [campus.key, resolveBookingAction(campus.key, config)] as const
     } catch {
       return [campus.key, null] as const
     }
   }))
-  campusModes.value = Object.fromEntries(entries.filter((entry): entry is readonly [string, BookingActionKind] => Boolean(entry[1])))
+  campusActions.value = Object.fromEntries(entries.filter((entry): entry is readonly [string, BookingAction] => Boolean(entry[1])))
 }
 onMounted(() => {
   watch(isPicking, (picking) => { if (picking) void loadCampusModes() }, { immediate: true })
 })
 function campusModeLabel(campus: Campus): string {
-  const kind = campusModes.value[campus.key]
+  const kind = campusActions.value[campus.key]?.kind
   if (kind === 'form') return '可線上預約'
   if (kind === 'line') return 'LINE 洽詢'
   if (kind === 'external') return '外部網站預約'
@@ -265,6 +319,15 @@ function campusModeLabel(campus: Campus): string {
   return ''
 }
 const campusChoiceLabel = (campus: Campus) => [campus.name, campus.address || campus.district, campusModeLabel(campus)].filter(Boolean).join('，')
+// 來電或暫停線上預約的校區，卡片上直接給撥號（2026-10-29）：原本要先選卡、按「下一步」才看到致電鈕，
+// 正式站五校只有義華開放線上選場次。號碼的取法同首頁五校卡（campusVisitCta：預約設定的號碼優先，
+// 沒有才用五校介紹的電話）。卡片本身照舊可以選、進第二步。LINE 與外部網站仍在第二步，說明文字放得下。
+function campusCall(campus: Campus): { href: string; number: string } | null {
+  const action = campusActions.value[campus.key]
+  if (action?.kind !== 'phone' && action?.kind !== 'paused') return null
+  const cta = campusVisitCta(campus, action)
+  return cta.kind === 'phone' ? { href: cta.href, number: cta.href.replace(/^tel:/, '') } : null
+}
 
 // 送出列直接寫出這次要預約的日期與場次，按下前最後確認一次。
 const bookingSummary = computed(() => selectedSlot.value
@@ -304,18 +367,72 @@ async function goNext() {
     stepTitle?.scrollIntoView({ block: 'start', behavior: 'instant' })
     return
   }
-  step.value = 2
-  await focusStage()
+  await openCampus(selectedCampus.value.key)
+}
+
+/** 進第二步＝換到 /visit/<校>；網址一變，下面的 watch 換校區、聚焦第二步。 */
+async function openCampus(key: string) {
+  if (submitting.value) return
+  await router.push(`/visit/${key}`)
 }
 
 async function changeCampus() {
   if (submitting.value) return
-  step.value = 1
+  await router.push('/visit')
+}
+
+async function focusPicker() {
   await focusStage()
   const checked = pickerRef.value?.querySelector<HTMLInputElement>('input:checked')
   checked?.focus({ preventScroll: true })
   // 矮螢幕（320x568）捲到 stage 頂端後，已選的卡（例如第三張）還在畫面下方：補捲到看得見為止。
   checked?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+}
+
+// 送出成功後又換了網址（上一頁回選校、下一頁、更換校區）：收起結果、重新讀場次，填過的資料留著，
+// 要再約另一校不必重打。暫存已在成功時清掉，這時再改欄位才會重新存。
+function resetResult() {
+  submitted.value = false
+  resultStatus.value = null
+  receiptId.value = ''
+  managePath.value = null
+  submittedSlot.value = null
+  linkCopied.value = false
+  linkCopyFailed.value = false
+  selectedVisitDate.value = ''
+  selectedSlotId.value = ''
+}
+
+watch(() => props.routeCampus, async (key) => {
+  if (submitted.value) {
+    resetResult()
+    void loadSlots()
+  }
+  if (key) {
+    form.campus = key
+    await focusStage()
+  } else {
+    await focusPicker()
+  }
+})
+
+// 結果不是「預約成功」（例如最後一個名額剛被約走）時，回到同一校的表單重選場次；網址本來就是 /visit/<校>。
+async function bookAgain() {
+  resetResult()
+  await loadSlots()
+  await focusStage()
+}
+
+// 手機直拿時月曆在上、場次在下：點了月曆下半的日子，場次常在畫面外（390×844 點第一列就在約 1028px）。
+// 選好日子後把第一個場次捲進畫面；已經看得到就不動（桌機兩欄並排，場次本來就在旁邊）。
+const slotListRef = ref<HTMLElement | null>(null)
+async function revealSlots() {
+  await nextTick()
+  const list = slotListRef.value
+  const first = list?.querySelector<HTMLElement>('.visit-slot-options label') ?? list
+  if (!list || !first || first.getBoundingClientRect().bottom <= window.innerHeight) return
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
+  list.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'instant' })
 }
 
 function clearFieldError(field: VisitField) {
@@ -372,6 +489,7 @@ watch(() => form.campus, () => {
   campusError.value = ''
   fieldErrors.value = {}
 })
+watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
@@ -425,6 +543,7 @@ async function onSubmit() {
     linkCopied.value = false
     linkCopyFailed.value = false
     submitted.value = true
+    clearDraft()
     idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
@@ -565,8 +684,10 @@ async function onSubmit() {
                 <label v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !initialCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
-                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-mode" :class="{ 'is-online': campusModes[campus.key] === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
+                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <!-- 來電的校區把「來電洽詢」換成撥號連結：連結在 label 裡，點它只撥號、不會選到這張卡（HTML 規定 label
+                         遇到裡面的互動元素不轉送點擊）。radio 的名稱已含「來電洽詢」，連結另外唸校名與號碼。 -->
+                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><span v-else class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
                 </label>
@@ -614,8 +735,8 @@ async function onSubmit() {
                       <div v-if="selectedCampus.phone || slotsError" class="visit-contact-actions"><a v-if="selectedCampus.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a><button v-if="slotsError" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="loadSlots">重新載入場次</button></div>
                     </div>
                     <div v-else class="visit-schedule-fields">
-                      <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>
-                      <fieldset class="visit-slot-list" aria-describedby="visit-slot-error"><legend>預約場次<small>必填</small></legend><p v-if="!selectedVisitDate" class="visit-field-hint">先在月曆選一天，再選當天的場次。</p><div v-else class="visit-slot-options"><label v-for="slot in daySlots" :key="slot.id"><input v-model="selectedSlotId" type="radio" name="slotId" :value="slot.id" required :aria-invalid="Boolean(fieldErrors.slotId)" @change="clearFieldError('slotId')"><span>{{ slotTime(slot) }}<small>尚可預約 {{ slot.remaining }} 組</small></span></label></div><p id="visit-slot-error" class="visit-field-error">{{ fieldErrors.slotId }}</p></fieldset>
+                      <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" @update:model-value="revealSlots" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>
+                      <fieldset ref="slotListRef" class="visit-slot-list" aria-describedby="visit-slot-error"><legend>預約場次<small>必填</small></legend><p v-if="!selectedVisitDate" class="visit-field-hint">先在月曆選一天，再選當天的場次。</p><div v-else class="visit-slot-options"><label v-for="slot in daySlots" :key="slot.id"><input v-model="selectedSlotId" type="radio" name="slotId" :value="slot.id" required :aria-invalid="Boolean(fieldErrors.slotId)" @change="clearFieldError('slotId')"><span>{{ slotTime(slot) }}<small>尚可預約 {{ slot.remaining }} 組</small></span></label></div><p id="visit-slot-error" class="visit-field-error">{{ fieldErrors.slotId }}</p></fieldset>
                     </div>
                   </section>
                   <p v-else class="visit-config-note">{{ selectedCampus.name }}將與你聯繫，另行確認參觀日期與場次。</p>
@@ -682,7 +803,7 @@ async function onSubmit() {
             <div v-else class="visit-result-next">
               <h3>需要協助？</h3>
               <p>請直接聯絡{{ selectedCampus?.name }}。</p>
-              <div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><NuxtLink v-if="selectedCampus" class="visit-inline-link" :to="`/visit/${selectedCampus.key}`">重新選擇場次</NuxtLink></div>
+              <div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><button v-if="selectedCampus" type="button" class="visit-inline-link" @click="bookAgain">重新選擇場次</button></div>
             </div>
             <!-- 填寫內容放在下一步之後：正式站不寄確認信時，修改連結是家長唯一的管理入口，手機上原本要捲近兩屏才看到（2026-10-12）。 -->
             <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.expectedStart"><dt>預計入學</dt><dd>{{ expectedStartChoices.find(option => option.value === form.expectedStart)?.label }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>

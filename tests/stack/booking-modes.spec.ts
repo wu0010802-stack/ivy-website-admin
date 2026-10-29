@@ -110,7 +110,7 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
     await expectCampusModeLabel(page, 'LINE 洽詢')
   })
 
-  test('電話：聯絡區的主鈕是 tel: 連結（同頁撥號、不外開），沒有表單；選校清單標「來電洽詢」', async ({ page }) => {
+  test('電話：聯絡區的主鈕是 tel: 連結（同頁撥號、不外開），沒有表單；選校卡直接給撥號連結', async ({ page }) => {
     const phone = '07-0000000'
     await setMode('phone', { phone, message: '歡迎來電，我們會幫你安排參觀時間（e2e 測試說明）。' })
 
@@ -126,7 +126,14 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
     await expect(contact.getByRole('link')).toHaveCount(1)
     await expectNoBookingForm(page)
 
-    await expectCampusModeLabel(page, '來電洽詢')
+    // 2026-10-29 起來電的校區在選校卡上直接給撥號（號碼用預約設定的），不必選卡、按下一步才看到。
+    // 連結在卡片的 label 裡：點它只撥號，不會選到這張卡。
+    await page.goto('/visit')
+    const card = page.getByRole('group', { name: '想參觀的校區' }).locator('label').filter({ hasText: CAMPUS_NAME })
+    const cardCall = card.getByRole('link', { name: `致電${CAMPUS_NAME}預約參觀 ${phone}`, exact: true })
+    await expect(cardCall).toBeVisible()
+    await expect(cardCall).toHaveAttribute('href', `tel:${phone}`)
+    await expect(card.getByText('來電洽詢', { exact: true })).toHaveCount(0)
   })
 
   test('外部網站：聯絡區只有外開的「前往預約網站」鈕，沒有表單；選校清單標「外部網站預約」', async ({ page }) => {

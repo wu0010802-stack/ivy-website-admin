@@ -247,6 +247,7 @@ const menuPhone = computed(() => contactCampus.value
   : headerPhone.value
 )
 const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
+const campusSocialLinks = computed(() => campusSocials.value.filter((social) => social.url))
 
 function onCampusPointerEnter(event: PointerEvent, key: string) {
   if (event.pointerType === 'mouse') menuCampusKey.value = key
@@ -381,41 +382,35 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
       </nav>
       <div class="menu-campuses">
         <p>找到你的校園</p>
+        <!-- 五校是連結（2026-10-29）：滑過、聚焦預覽下方的參觀專線與社群，點下去到首頁五校區塊的那一校。
+             用一般 <a>（同上面的選單卡）：首頁的章節補捲要整頁載入才跑得到。 -->
         <div id="menu-campuses">
-          <button type="button"
+          <a
             v-for="c in campuses"
             :key="c.key"
+            :href="`/?campus=${c.key}#campuses`"
             :class="{ 'is-active': contactCampus?.key === c.key }"
             @pointerenter="onCampusPointerEnter($event, c.key)"
             @focus="menuCampusKey = c.key"
-            @click="menuCampusKey = c.key"
           >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>
-          </button>
+          </a>
         </div>
       </div>
-      <div class="menu-foot">
+      <div v-if="menuPhone.number || (contactCampus && campusSocialLinks.length)" class="menu-foot">
+        <!-- 沒有號碼、沒有社群帳號的就不出現（2026-10-29）：原本寫「待園方提供」「待提供」，是上線前給審稿的字。 -->
         <a v-if="menuPhone.number" :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${menuPhone.number}`">
           <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
           <span><small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong></span>
           <svg class="icon menu-phone-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
         </a>
-        <div v-else :data-campus-key="contactCampus?.key" class="menu-phone">
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
-          <span><small>{{ menuPhone.note }}</small><strong>待園方提供</strong></span>
-        </div>
-        <nav v-if="contactCampus" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
-          <template v-for="social in campusSocials" :key="social.platform">
-            <a v-if="social.url" class="menu-campus-social" :href="social.url" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
+        <nav v-if="contactCampus && campusSocialLinks.length" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
+          <template v-for="social in campusSocialLinks" :key="social.platform">
+            <a class="menu-campus-social" :href="social.url!" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
               <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
               <span>{{ social.label }}</span>
             </a>
-            <span v-else class="menu-campus-social is-pending" :data-platform="social.platform">
-              <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
-              <span>{{ social.label }}</span>
-              <small>待提供</small>
-            </span>
           </template>
         </nav>
       </div>

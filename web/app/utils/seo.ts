@@ -177,6 +177,30 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
+export const VISIT_PATH = '/visit'
+
+/**
+ * 預約參觀頁（/visit 選校、/visit/<校> 參觀方式與表單，2026-10-29）：照 10-12 裁定維持 noindex、不進後台
+ * 「各頁搜尋與分享」，只補描述、分享圖與 canonical——LINE／Facebook 分享預覽要有描述與圖，廣告網址帶的
+ * utm 參數靠 canonical 收回同一頁。標題尾巴改用站名（原本寫死「常春藤幼兒園」，和其他頁不一致）。
+ * 描述不寫「線上預約」：只有開放場次的校區能線上選時段，其他校要來電。
+ */
+export function visitSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
+  const origin = normalizeSiteOrigin(siteOrigin)
+  const brand = site.siteMeta.brandName
+  const title = campus ? `預約參觀${campus.name}｜${brand}` : `預約校園參觀｜${brand}`
+  const names = site.campuses.map((c) => c.name.replace(/校$/, '')).join('、')
+  const description = campus
+    ? `預約參觀常春藤${campus.name}：${campus.address}${campus.phone ? `，電話 ${campus.phone}` : ''}。看參觀方式，帶孩子來校園走走。`
+    : `預約參觀常春藤幼兒園：${names}，選一所離生活圈近的校園，看參觀方式與可預約的時段。`
+  const canonical = origin ? `${origin}${campus ? `${VISIT_PATH}/${campus.key}` : VISIT_PATH}` : undefined
+  const share = campus
+    ? { path: campusShareImagePath(campus), alt: campus.imageMedia?.alt || `常春藤${campus.name}校舍` }
+    : siteShareImage(site)
+  const image = origin ? `${origin}${share.path}` : undefined
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt }
+}
+
 /**
  * 創校年份：關於常春藤頁沿革的第一站（義華；內建 1997，後台「關於常春藤頁」可改）。
  * /about 的標題描述與首頁機構節點的 foundingDate 跟著它；30 週年頁與 llms.txt 是活動主題，固定寫 1997。

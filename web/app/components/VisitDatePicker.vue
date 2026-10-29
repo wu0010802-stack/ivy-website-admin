@@ -26,6 +26,15 @@ const dayNumber = (date: string) => Number(date.slice(8))
 // 月曆只在瀏覽器讀到場次後才出現，用台北的今天。
 const today = taipeiDate()
 
+// 沒選日期就送出：只標一顆 aria-invalid（2026-10-29）。原本每一格都掛，邊框整片變紅，像月曆壞了。
+// 標在鍵盤會停的那顆（已選的那天；沒選就是這個月第一個開放日）：送出時 focusFirstInvalidField 聚焦它、
+// 讀螢幕在那顆唸「無效」。外觀改成整個月曆一個紅框（fieldset 的 is-invalid）。
+const invalidCell = computed(() => {
+  if (!props.invalid) return null
+  if (props.modelValue && monthOf(props.modelValue) === month.value) return props.modelValue
+  return cells.value.find((cell) => cell && props.counts[cell]) ?? null
+})
+
 // 重新讀場次後月份超出範圍（例如原本看的那個月已經沒有場次）就回到有場次的第一個月；
 // 已選的日子在別的月份時跟著翻過去。
 watch(openDates, () => {
@@ -35,7 +44,7 @@ watch(() => props.modelValue, (date) => { if (date && monthOf(date) !== month.va
 </script>
 
 <template>
-  <fieldset class="visit-date-picker" :aria-describedby="describedby">
+  <fieldset class="visit-date-picker" :class="{ 'is-invalid': invalid }" :aria-describedby="describedby">
     <legend>預約日期<small>必填</small></legend>
     <div class="visit-month-bar">
       <p class="visit-month-title" aria-live="polite">{{ monthTitle(month) }}</p>
@@ -49,7 +58,7 @@ watch(() => props.modelValue, (date) => { if (date && monthOf(date) !== month.va
         <label v-else-if="counts[cell]" class="visit-day is-open">
           <input
             type="radio" name="visitDate" :value="cell" :checked="modelValue === cell" required
-            :aria-label="`${visitDateLabel(cell)}，${counts[cell]} 場可預約`" :aria-invalid="invalid"
+            :aria-label="`${visitDateLabel(cell)}，${counts[cell]} 場可預約`" :aria-invalid="cell === invalidCell ? 'true' : undefined"
             @change="emit('update:modelValue', cell)"
           >
           <span class="visit-day-number" :class="{ 'is-today': cell === today }">{{ dayNumber(cell) }}</span>
@@ -86,7 +95,8 @@ watch(() => props.modelValue, (date) => { if (date && monthOf(date) !== month.va
 .visit-day.is-open:has(input:checked) {border-color:var(--visit-ink);background:var(--visit-ink);color:var(--visit-bg)}
 .visit-day.is-open:has(input:checked) small {color:inherit}
 .visit-day.is-open:has(input:focus-visible) {outline:3px solid var(--leaf);outline-offset:2px}
-.visit-day.is-open:has(input[aria-invalid=true]) {border-color:var(--error)}
+/* 紅框畫在整個月曆外圍（outline 不佔版面，出現時格子不位移）；同文字欄位的錯誤邊框色。 */
+.visit-date-picker.is-invalid .visit-month-grid {outline:1px solid var(--error);outline-offset:6px;border-radius:14px}
 fieldset:disabled .visit-day.is-open {cursor:default}
 @media(hover:hover) {
   .visit-day.is-open:hover:not(:has(input:checked)) {border-color:var(--visit-ink)}

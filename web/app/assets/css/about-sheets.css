@@ -22,7 +22,9 @@
 .ams h1,.ams h2,.ams h3{color:var(--ivy-forest)}
 
 /* ---------- 分頁（目次、頂端分頁列、每張卡紙自己的）：五章各佔一個位置 ---------- */
-.ams-tab{position:absolute;bottom:100%;left:calc(16px + var(--i) * var(--ams-slot));display:flex;align-items:center;justify-content:center;width:calc(var(--ams-slot) - 4px);height:32px;padding:0 4px;overflow:hidden;border-radius:10px 10px 0 0;background:var(--look);font:700 min(.8125rem,calc((var(--ams-slot) - 12px) / 5.2))/1 var(--font-head);white-space:nowrap;color:var(--ivy-forest);text-decoration:none}
+/* 章名字級 12–13px（2026-10-29）：原本 (位置寬 − 12px) ÷ 5.2，390 寬只剩 11.5px、360 寬 10.3px，低於中文說明字 12px 底線。
+   拿掉左右內距（字在 32px 高的中段，碰不到上緣圓角），五個字放得下 12px 到 352px 寬；更窄的見檔尾，五字章名折兩行。 */
+.ams-tab{position:absolute;bottom:100%;left:calc(16px + var(--i) * var(--ams-slot));display:flex;align-items:center;justify-content:center;width:calc(var(--ams-slot) - 4px);height:32px;padding:0;overflow:hidden;border-radius:10px 10px 0 0;background:var(--look);font:700 clamp(.75rem,calc((var(--ams-slot) - 6px) / 5),.8125rem)/1 var(--font-head);white-space:nowrap;color:var(--ivy-forest);text-decoration:none}
 /* 目次：整疊卡紙露出來的分頁，後面幾張一張高 5px，上緣整張卡紙寬；第一張卡紙（一路走來）蓋在最前面 */
 .ams-deck{position:relative;z-index:0;width:var(--ams-col);height:0;margin:0 auto}
 .ams-deck ol{list-style:none;margin:0;padding:0}
@@ -153,6 +155,12 @@
 .ams-ribbons b{font:700 var(--fs-sm)/1.2 var(--font-head);letter-spacing:.12em;writing-mode:vertical-rl}
 .ams-ribbons small{margin-top:6px;font-size:var(--fs-xs);font-weight:600;writing-mode:vertical-rl}
 .ams-ribbons a:focus-visible{outline:3px solid var(--ivy-forest);outline-offset:-5px}
+
+/* 352px 以下五個字放不下 12px：五字章名（我們的期許、家長怎麼說）平均折兩行（3＋2），四字照舊一行；
+   兩行 12px 約 25px，放得進 30–32px 高的分頁。 */
+@media (max-width:351px){
+  .ams-tab{white-space:normal;text-align:center;text-wrap:balance;line-height:1.05}
+}
 
 @media (prefers-reduced-motion:reduce){
   .ams *,.ams *::before,.ams *::after{transition:none!important}

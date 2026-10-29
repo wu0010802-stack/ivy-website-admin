@@ -16,7 +16,7 @@
    勾選框、單選、日期選擇器的強調色用品牌深綠（元件裡另外指定的照舊）。只引用既有色票，不新增顏色。 */
 ::selection{background:var(--yellow);color:var(--deep)}:root{accent-color:var(--green)}
 /* 全域 tap highlight 維持透明；只有主要行動元素（預約、選單、校區）按下時給一層淡色回饋，iOS 與 Android 都有效（2026-09-29）。 */
-:is(.header-book,.pill-book,.menu-toggle,.menu-links a,#menu-campuses button,.booking-link,summary){-webkit-tap-highlight-color:rgb(var(--ink) / .1)}
+:is(.header-book,.pill-book,.menu-toggle,.menu-links a,#menu-campuses a,.booking-link,summary){-webkit-tap-highlight-color:rgb(var(--ink) / .1)}
 @media(min-width:1600px){.hero{min-height:710px}}
 /* 原型時期的 1150 斷點（2026-10-25 移除）：其他規則不是被 studio.css 的 1100 斷點蓋掉，就是沒有元素用到；只剩頁尾欄距，改跟 container 同一個 1100 斷點。 */
 @media(max-width:1100px){.footer-main{gap:40px}}

@@ -51,7 +51,7 @@ export function useChapterAnchors(chapters: Ref<ChapterAnchor[]>) {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
     if (!anchor || (anchor as HTMLAnchorElement).target) return
-    const chapter = chapterForHref(anchor.getAttribute('href')!, location.origin, chapters.value)
+    const chapter = chapterForHref(anchor.getAttribute('href')!, location.origin, chapters.value, location.search)
     if (!chapter) return
     event.preventDefault()
     // 保留 vue-router 的 history.state，只換網址上的 hash（用 router 會再觸發一次捲到原錨點）。

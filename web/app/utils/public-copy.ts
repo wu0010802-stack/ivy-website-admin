@@ -50,9 +50,33 @@ export function withoutRetiredFields(site: SiteContent): SiteContent {
   })
 }
 
+// 原型時期寫給審稿看的來源說明（「提案」「取自官網」）：正式站改成一行署名（2026-10-29 前台評析）。
+// 特色教學、環境頁的這幾欄後台可以改，內建內容與後台預設都還是原文；只換一字不差的原文，園方改過的照園方的。
+const SOURCE_NOTES: Readonly<Record<string, string>> = {
+  '日常情境提案，以義華校素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景取自義華遊藝表演紀錄，與相片非同一天拍攝。':
+    '照片：義華校日常；背景影片：義華校遊藝表演。各校、各班作息略有不同，以園所安排為準。',
+  '照片取自各校日常，實際課程安排以各校說明為準。': '照片：各校日常。課程安排以各校說明為準。',
+  '作品照片取自機構網站「常春藤兒童美術館」。': '作品照片：常春藤兒童美術館。',
+  '照片與介紹取自義華校。': '照片與介紹：義華校。',
+  '取自義華校教學理念。': '出自義華校教學理念。',
+  '照片取自各校日常，空間配置各校略有不同。': '照片：各校日常。空間配置各校略有不同。'
+}
+const sourceNote = (text: string): string => SOURCE_NOTES[text] ?? text
+
+/** 孩子的一天、特色教學、環境頁的原型來源說明換成署名（不修改傳入的物件）。 */
+export function withSourceNotes(site: SiteContent): SiteContent {
+  const { dayExperience: day, curriculumPage: curriculum, environmentPage: environment } = site
+  return {
+    ...site,
+    dayExperience: day && { ...day, note: sourceNote(day.note) },
+    curriculumPage: curriculum && { ...curriculum, heroNotice: sourceNote(curriculum.heroNotice), gallerySource: sourceNote(curriculum.gallerySource), dailySource: sourceNote(curriculum.dailySource), beliefSource: sourceNote(curriculum.beliefSource) },
+    environmentPage: environment && { ...environment, heroNotice: sourceNote(environment.heroNotice) }
+  }
+}
+
 /** 僅替換已知原型原文，不蓋掉園方後來發布的自訂說明；順便拿掉官網已不顯示的舊欄位。 */
 export function publicCopy(source: SiteContent): SiteContent {
-  const site = withoutRetiredFields(source)
+  const site = withSourceNotes(withoutRetiredFields(source))
   return {
     ...site,
     siteMeta: { ...site.siteMeta, description: site.siteMeta.description === OLD_DESCRIPTION

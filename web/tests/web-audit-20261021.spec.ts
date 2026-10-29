@@ -80,6 +80,6 @@ describe('鍵盤焦點看得見', () => {
 describe('預約頁 LCP 圖', () => {
   it('第一張校區照 fetchpriority=high，網址帶校區時不給', () => {
     const form = read('../app/components/VisitForm.vue')
-    expect(form).toContain(':fetchpriority="i === 0 && !initialCampus ? \'high\' : undefined"')
+    expect(form).toContain(':fetchpriority="i === 0 && !routeCampus ? \'high\' : undefined"')
   })
 })
