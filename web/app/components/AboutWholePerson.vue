@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 2026-10-01 定案 A2：六張透色圓片靠近、交疊，最後由外圓包容。
-// 只負責全人教育的右頁；左頁的內容、排版與資料由 AboutContent 保留。
+// 只負責全人教育的六圈；清單、文字與排版由 AboutContent 放（2026-10-30 換版前是立體書的右頁）。
 // 2026-10-02：左頁滑過某個領域（focus＝第幾個），六圈播完後那一圈亮、其他圈與標籤淡掉；播放中不理會。
 const props = withDefaults(defineProps<{ focus?: number | null }>(), { focus: null })
 const domains = [

@@ -1,62 +1,35 @@
 <script setup lang="ts">
-// 關於常春藤頁主體（/about）。2026-09-26 從機構站 ivykidschool.com「關於常春藤 About」搬來：
-// - 01 一路走來：沿革原文「民國86年義華路成立……110年仁武校」，五校各一個節點。
-//   舊站寫「三十多個春夏秋冬」，1997 到今年未滿三十年，照首頁改成「近三十年」。
-//   崇德校同年成立的「ESL 美語部」先不寫（美語補習班要不要露出還沒定案）。
-// - 02 全人教育：舊站「全人教育理念」，六大領域與六大核心素養源自幼兒園教保活動課程大綱。
-// - 03 我們的期許：舊站首頁「Our Goals」與「幼兒園是孩童第一所學校也是孩童第二個家」。
-// 2026-10 起文字與照片改讀後台「關於常春藤頁」（about_page，預設＝fixture 的 aboutPage，一字不差）；六大領域、卡紙位置與顏色仍寫在這裡。
-// 不綁 30 週年（週年版尚未拍板）。沿革的校名、照片跟著後台發布的分校資料；沿革五站固定，年份與說明在後台可改。
-// 2026-09-29 改成「立體書」（使用者選定 J：design/about-style-directions-20260929/j-popup.*）：每段是一個跨頁，
-// 左頁文字、右頁照片卡紙；捲到時右頁翻開、卡紙站起來；一路走來的五校、全人教育六圈聚合、期許是折起來的紙房子。
-// 使用者要求不特別強調 2005 → 2020 相隔十五年：五站等距（紀念章每站捲動距離一樣）。頁面內容不放預約參觀（同常春藤環境、特色教學；
-// 頁首全站共用的預約鈕照舊）。立體書由 utils/about-popup.ts 管理，Motion 只在這頁動態載入。
-// 2026-10-01 只將右頁轉盤換成 AboutWholePerson 的 A2 六圈；沒有 JS 時書攤開、六圈顯示完成圖。
-// 2026-10-02 精修（design/about-refine-mockup-20261002/，使用者「先這樣實作」）：首屏放目次與第二張卡紙、章名改中文、
-// 右頁背面是章節封面、頁緣厚度跟著讀到哪裡變、紙條改成有站名的紙槽、紙房子加常春藤、結尾改成書底垂下的緞帶，
-// 並新增「家長怎麼說」，沒有影片時整章不出現。
-// 2026-10-12 起影片由各校「分校資料」（後台「五校介紹」）的「家長分享影片」段管理：testimonials 是 null＝沿用內建
-// （fixture 目前只有義華 4 支）、[]＝這校不放、陣列＝整組取代，每校最多 4 支。第四章改成五校輪流取最多 4 支：
-// 每校先取第 1 支，再輪第 2 支，一校影片再多也不會占滿（utils/testimonials.ts 的 pickVoices）。
-// 首屏照片裡的長輩是創辦人（使用者 2026-10-02 確認；姓名未提供，頁面不寫名字）。
-// 2026-10-03 一路走來拿掉拉紙條，改成章名旁的紀念章（AboutMedal，比稿 design/about-medal-directions-20261003/，
-// 使用者選「章名旁＋連續轉」）：跨頁釘住，往下捲紀念章一年一年翻、那一校的卡紙站起來。
-// （手機原本另有一個紀念章在右頁上緣接縫，2026-10-19 手機改成上翻畫冊後拿掉。）義華創校年份 1997（業主 2026-10-03 裁定）。
-// 2026-10-19 手機（900px 以下）改成上翻畫冊；2026-10-25 再改成卡紙疊起來 AboutSheets（比稿 design/about-redesign-directions-20261025/，
-// 使用者選手機 A、第二版）：這裡的立體書包在 .abk 裡、只在 901px 以上出現（about-popup 也只在寬螢幕建立），手機換成一疊卡紙；兩邊讀同一份後台內容。
-// 共用的固定內容（照片說明、沿革卡紙色、核心素養、蠟筆畫位置與濾鏡）移到 utils/about-content.ts。
-// 2026-10-19 我們的期許改成孩子的蠟筆畫（比稿 design/about-hope-picturebook-directions-20261019/，使用者選 B）：
-// 書頁上印著孩子畫的天空色帶、太陽、草地（跨過書脊），房子和兩棵樹是剪下來的圖畫紙卡紙，照片用紙膠帶貼在窗戶上（AboutCrayon）。
+// 關於常春藤頁主體（/about）。
+// 2026-10-30 換版（比稿 design/about-new-directions-20261030/h-blend.html「H 原版風格×四季結構」第三版；使用者選 H 後要求
+// 「盡量跟其他分頁類似」「五所校園拿掉」「家長章標題改成『孩子的進步，家長看得見。』」，再說「先這樣實作」）：
+// - 桌機與手機同一套排法，取代 09-29 起的桌機立體書（utils/about-popup.ts）與 10-25 的手機卡紙疊（AboutSheets），
+//   不翻頁、不釘住、不再載 motion。
+// - 跟其他分頁對齊：米白底、全人教育放薄荷色帶（同首頁關於區）；首屏左大標右卡紙照片，下面一排章節索引（同特色教學、
+//   環境、入學頁）；章節上方只標編號。
+// - 保留 about 自己的：章色書籤、卡紙相框、章名旁的紀念章（捲到時轉一圈）、沿革中軸線左右交錯且卡紙捲到時站起來
+//   （四季藝術「歷史與沿革」的排法）、六圈（AboutWholePerson）、孩子的蠟筆畫（AboutCrayon）、家長影片卡紙。
+// 文字與照片讀後台「關於常春藤頁」（about_page，預設＝fixture 的 aboutPage）、分校資料與各校家長影片；欄位不變。
+// 例外：家長章標題寫在這裡（使用者 10-30 指定，取自函函奶奶那支影片的話），不再取第一位家長的原話。
+// 沿革源自機構站「關於常春藤」：舊站「三十多個春夏秋冬」不對（1997 到今年未滿三十年），一律寫「近三十年」；
+// 崇德同年的 ESL 美語部不寫；義華創校年份 1997（業主 2026-10-03 裁定）。首屏照片裡的長輩是創辦人（姓名未提供，不寫名字）。
+// 分校停用或下架時，那一年仍留在沿革裡，只是卡紙留白、不放校名。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
 import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
 import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
 import { youtubeEmbed } from '~/utils/filmCarousel'
 import { pickVoices } from '~/utils/testimonials'
-import type { AboutPopup, AboutPopupDeps } from '~/utils/about-popup'
-import { HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, MILESTONE_LOOKS, SCENE, WAX_FILTER, sceneStyle } from '~/utils/about-content'
+import { HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, SCENE, WAX_FILTER, milestoneLook, sceneStyle } from '~/utils/about-content'
 
 const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
 
-// 沿革五站來自後台（年份可改，民國年＝西元 − 1911）；分校停用或下架時，那一年仍留在沿革裡，只是不放照片與連結。
-const milestones = computed(() => props.page.milestones.map((item) => ({ ...item, roc: rocYear(item.year), campus: props.campuses.find((c) => c.key === item.key) })))
-// 紀念章背面：校名／年份（沒有 JS 時第二面先印第一所）
-const medalStops = computed(() => milestones.value.map((item) => ({ name: item.campus?.name ?? '', year: item.year })))
+// 沿革五站來自後台（年份可改，民國年＝西元 − 1911）；卡紙底色依成立順序輪流用品牌色（milestoneLook），微斜角度固定
+const TILT = [-1.5, 1.2, -1, 1.6, -0.8]
+const milestones = computed(() => props.page.milestones.map((item, i) => ({
+  ...item, roc: rocYear(item.year), campus: props.campuses.find((c) => c.key === item.key), color: milestoneLook(i).color, tilt: TILT[i % TILT.length]!
+})))
+const CAMPUS_SIZES = '(max-width: 900px) 80vw, 300px'
 
-// 右頁卡紙的位置（相對右頁舞台，百分比）：後排三張、前排兩張；卡紙底色輪流用品牌色（MILESTONE_LOOKS，手機卡紙疊同色），
-// 左頁沿革同一列用同色小方塊。五張一樣大（2026-10-03 使用者要求；原本前排兩張 42% 比後排大），前排對齊後排的兩道縫
-const STAGE = [
-  { x: 0, y: 46, w: 31, r: -1.5 },
-  { x: 34.5, y: 52, w: 31, r: 0.8 },
-  { x: 69, y: 46, w: 31, r: 1.6 },
-  { x: 17.25, y: 4, w: 31, r: -1 },
-  { x: 51.75, y: 4, w: 31, r: 1.2 }
-].map((pos, i) => ({ ...pos, ...MILESTONE_LOOKS[i]! }))
-const cardStyle = (i: number) => {
-  const s = STAGE[i]!
-  return { '--x': `${s.x}%`, '--y': `${s.y}%`, '--w': `${s.w}%`, '--r': `${s.r}deg`, '--c': s.color, '--z': i >= 3 ? 3 : 1 }
-}
-
-// 六大領域的圓點與右頁六圈同色（順序同 AboutWholePerson）
+// 六大領域的圓點與六圈同色（順序同 AboutWholePerson）；滑過某個領域，六圈播完後那一圈亮
 const DOMAINS = [
   { name: '身體動作與健康', color: 'var(--ivy-whole-body)' },
   { name: '認知', color: 'var(--ivy-whole-cognition)' },
@@ -65,357 +38,234 @@ const DOMAINS = [
   { name: '情緒', color: 'var(--ivy-whole-emotion)' },
   { name: '美感', color: 'var(--ivy-whole-aesthetic)' }
 ]
+const focusDomain = ref<number | null>(null)
 
-// 結尾緞帶：顏色同卡紙色序，長短不一
-const RIBBONS = [
-  { color: 'var(--yellow)', length: 176 },
-  { color: 'var(--studio-blue)', length: 196 },
-  { color: 'var(--studio-sage)', length: 168 },
-  { color: 'var(--mint)', length: 188 },
-  { color: 'var(--studio-orange)', length: 172 }
-]
-
-// 家長怎麼說：各校的 testimonials（後台自訂，沒自訂的校用內建）五校輪流取，最多四位（右頁一張大卡紙＋後排三張）
+// 家長怎麼說：各校的 testimonials（後台自訂，沒自訂的校用內建）五校輪流取，最多四位；沒有影片時整章不出現
 const voices = computed(() => pickVoices(props.campuses))
+const voiceCampuses = computed(() => [...new Map(voices.value.map((v) => [v.campus.key, v.campus])).values()])
+const VOICES_TITLE = ['孩子的進步，', '家長看得見。']
 // 封面：後台選的素材用它的 srcset 與焦點；內建靜態圖與 YouTube 縮圖只有網址（卡紙裡 16:9 裁切）
-const POSTER_SIZES = '(min-width: 900px) 480px, 90vw'
+const POSTER_SIZES = '(min-width: 901px) 600px, 90vw'
 function posterAttrs(item: CampusTestimonial) {
   const image = item.posterMedia
   if (!image) return { src: item.poster, width: 800, height: 450 }
   return { ...mediaImageAttrs(image, POSTER_SIZES), width: 800, height: 450, ...(image.position ? { style: { objectPosition: image.position } } : {}) }
 }
-const voiceCampuses = computed(() => [...new Map(voices.value.map((v) => [v.campus.key, v.campus])).values()])
-// 標題用第一位家長的原話，在第一個逗號後換行
-const voiceTitle = computed(() => {
-  const quote = voices.value[0]?.quote ?? ''
-  const cut = quote.indexOf('，')
-  return cut > 0 && cut < quote.length - 1 ? [quote.slice(0, cut + 1), quote.slice(cut + 1)] : [quote]
+const shownVoice = ref(0)
+const playing = ref(false)
+const tv = ref<HTMLElement | null>(null)
+// 後台即時預覽（/preview）會在看著的時候刪影片、換順序：那個位置變成別支影片或超出範圍時回到第 1 支並停止播放；
+// 只是改了說詞、封面這類（同一個位置還是同一支影片）不重設。正式頁的 campuses 不會變。
+watch(voices, (list, before) => {
+  if (list[shownVoice.value] !== undefined && list[shownVoice.value]!.youtubeId === before[shownVoice.value]?.youtubeId) return
+  shownVoice.value = 0
+  playing.value = false
 })
+function pickVoice(index: number) {
+  if (index === shownVoice.value || !voices.value[index]) return
+  shownVoice.value = index
+  playing.value = false
+  // 手機：清單在影片下面，選了就把影片捲進畫面
+  const card = tv.value
+  if (!card) return
+  const rect = card.getBoundingClientRect()
+  if (rect.top < 0 || rect.bottom > innerHeight) card.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+}
 
-// 章節：目次、章名、頁碼、章色、頁緣厚度（--n 第幾個跨頁，首屏是 0）都從這裡算；章名在後台
-const NUMERALS = ['一', '二', '三', '四']
+// 章節：首屏索引、編號、章色都從這裡算；章名在後台。索引的小字由現有資料算（年份範圍、領域數、影片數）。
 const CHAPTER_LOOKS = [
   { id: 'story', color: 'var(--yellow)' },
   { id: 'whole-child', color: 'var(--studio-blue)' },
   { id: 'hope', color: 'var(--studio-orange)' },
   { id: 'voices', color: 'var(--trail)' }
 ]
-const chapters = computed(() => CHAPTER_LOOKS
-  .map((look, i) => ({ ...look, name: props.page.chapterNames[i]! }))
-  .filter((item) => item.id !== 'voices' || voices.value.length > 0)
-  .map((item, i) => ({ ...item, label: `第${NUMERALS[i]}章`, page: 3 + i * 2, style: { '--n': i + 1, '--chap': item.color } })))
+const chapters = computed(() => {
+  const years = milestones.value.map((item) => item.year)
+  const notes: Record<string, string> = {
+    story: years.length ? `${Math.min(...years)} 到 ${Math.max(...years)}` : '',
+    'whole-child': `${DOMAINS.length} 大領域`,
+    hope: '第二個家',
+    voices: `${voices.value.length} 位家長`
+  }
+  return CHAPTER_LOOKS
+    .map((look, i) => ({ ...look, name: props.page.chapterNames[i]!, note: notes[look.id]! }))
+    .filter((item) => item.id !== 'voices' || voices.value.length > 0)
+    .map((item, i) => ({ ...item, no: String(i + 1).padStart(2, '0'), style: { '--chap': item.color } }))
+})
 const chapterOf = (id: string) => chapters.value.find((item) => item.id === id)!
 
+// 動態：沿革卡紙站起來、紀念章轉一圈都是 about.css 的捲動驅動動畫（不支援的瀏覽器直接是完成狀態）。
+// 這裡只管兩件事：六圈（AboutWholePerson 等章節發 abk-open 才開始播，自己看得見才真的播），
+// 蠟筆畫（第三章捲進畫面才塗上 is-opened、1.4 秒後長藤與煙 is-grown）。沒有 JS、減少動態、強制色彩時都是完成圖。
 const root = ref<HTMLElement | null>(null)
-const focusDomain = ref<number | null>(null)
-const pickedVoice = ref(0) // 左頁清單馬上反應
-const shownVoice = ref(0) // 右頁大卡紙倒下、換片、站起來時才換
-const playing = ref(false)
-const tv = ref<HTMLElement | null>(null)
-const backVoices = computed(() => voices.value.map((item, index) => ({ item, index })).filter(({ index }) => index !== shownVoice.value).slice(0, 3))
-// 後台即時預覽（/preview）會在看著的時候刪影片、換順序：選中的位置超出範圍、或那個位置變成別支影片時，
-// 回到第 1 支並停止播放（不然 voices[shownVoice] 是 undefined，整頁預覽畫不出來）。
-// 只是改了說詞、封面這類（同一個位置還是同一支影片）不重設，免得每改一個字就跳回第 1 支。正式頁的 campuses 不會變。
-watch(voices, (list, before) => {
-  const kept = (i: number) => list[i] !== undefined && list[i]!.youtubeId === before[i]?.youtubeId
-  if (kept(pickedVoice.value) && kept(shownVoice.value)) return
-  pickedVoice.value = 0
-  shownVoice.value = 0
-  playing.value = false
-})
-const BACK = [
-  { x: 0, y: 58, r: -2.5, color: 'var(--studio-sage)' },
-  { x: 34.5, y: 63, r: 1, color: 'var(--cream)' },
-  { x: 69, y: 58, r: 2.5, color: 'var(--mint)' }
-]
-const backStyle = (k: number) => {
-  const s = BACK[k]!
-  return { '--x': `${s.x}%`, '--y': `${s.y}%`, '--w': '31%', '--r': `${s.r}deg`, '--c': s.color, '--z': 1 }
-}
-
-let popup: AboutPopup | null = null
-let disposed = false
-function pickVoice(index: number) {
-  if (index === pickedVoice.value) return
-  pickedVoice.value = index
-  const card = tv.value
-  const picked = voices.value[index]
-  // 換片動畫（約半秒）之後才真的換。這段時間裡即時預覽把影片刪掉或換了順序（上面的 watch 已經
-  // 回到第 1 支），就不再換到那個位置：可能已經超出範圍，voices[shownVoice] 是 undefined，整頁畫不出來（2026-10-13）。
-  const apply = () => {
-    if (voices.value[index]?.youtubeId !== picked?.youtubeId || pickedVoice.value !== index) return
-    shownVoice.value = index
-    playing.value = false
-  }
-  if (!card) { apply(); return }
-  // 手機：清單和影片上下分開，選了就把影片捲進畫面
-  const rect = card.getBoundingClientRect()
-  if (rect.top < 0 || rect.bottom > innerHeight) card.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
-  const pops = [card, ...card.parentElement!.querySelectorAll<HTMLElement>('[data-back]')]
-  if (popup) popup.swap(pops, apply)
-  else apply()
-}
-
-// 立體書只在 901px 以上（手機是 AboutSheets）：平板轉向跨過斷點時建立或拆掉
-let wide: MediaQueryList | null = null
-let loading = false
-async function startPopup() {
-  if (popup || loading || disposed || !wide?.matches || !root.value) return
-  if (matchMedia('(forced-colors: active)').matches) return
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-  loading = true
-  // motion 在 .then 裡直接解構：打包時才看得出只用這三個、其餘 tree-shake 掉（包在 Promise.all 裡解構會整包打進來）。
-  const loaded = await Promise.all([
-    // 回傳型別標成 AboutPopupDeps：讓 TS 推導整個 motion 的型別會拖垮型別檢查（別支檔案跟著 TS2321）。
-    import('motion').then(({ animate, scroll, inView }): AboutPopupDeps => ({ animate, scroll, inView })),
-    import('~/utils/about-popup'),
-  ]).catch(() => null)
-  loading = false
-  if (!loaded || disposed || popup || !wide.matches || !root.value) return
-  const [motion, { createAboutPopup }] = loaded
-  popup = createAboutPopup(root.value, motion, { reducedMotion })
-}
-const onBreakpoint = () => { if (wide?.matches) startPopup(); else { popup?.destroy(); popup = null } }
+const hope = ref<HTMLElement | null>(null)
+const live = ref(false)
+const hopeOpened = ref(false)
+const hopeGrown = ref(false)
+let observer: IntersectionObserver | null = null
+let growTimer = 0
 onMounted(() => {
-  wide = matchMedia('(min-width: 901px)')
-  wide.addEventListener('change', onBreakpoint)
-  startPopup()
+  root.value?.querySelector('#whole-child')?.dispatchEvent(new Event('abk-open'))
+  const quiet = matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(forced-colors: active)').matches
+  if (quiet || !('IntersectionObserver' in window) || !hope.value) return
+  live.value = true
+  observer = new IntersectionObserver(([entry]) => {
+    if (!entry?.isIntersecting) return
+    hopeOpened.value = true
+    growTimer = window.setTimeout(() => { hopeGrown.value = true }, 1400)
+    observer?.disconnect()
+  }, { rootMargin: '0px 0px -20% 0px' })
+  observer.observe(hope.value)
 })
-onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onBreakpoint); popup?.destroy() })
+onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
 </script>
 
 <template>
-  <main id="main" tabindex="-1" data-cta-entry="about">
-    <!-- 蠟筆濾鏡：桌機第三章與手機卡紙疊共用（放在兩邊外面：display:none 裡的濾鏡有的瀏覽器不套） -->
-    <svg class="abk-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
-    <!-- 手機（900px 以下）：卡紙疊起來；桌機整疊隱藏 -->
-    <AboutSheets :page="page" :milestones="milestones" :chapters="chapters" :voices="voices" :voice-title="voiceTitle" :voice-campuses="voiceCampuses" :poster-attrs="posterAttrs" />
-    <!-- 桌機（901px 以上）：立體書；手機整本隱藏 -->
-    <div ref="root" class="abk" :style="{ '--last': chapters.length }">
-    <!-- 首屏：一整張攤開的跨頁（不翻）。左頁標題＋目次，右頁兩張照片卡紙前後站 -->
-    <section class="abk-spread abk-hero" data-spread="static" style="--n:0" aria-labelledby="about-page-title">
-      <div class="abk-hero-text">
-        <span class="abk-ribbon" aria-hidden="true" />
-        <h1 id="about-page-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
-        <p class="abk-lede">{{ page.heroLede }}</p>
+  <main id="main" ref="root" tabindex="-1" data-cta-entry="about" class="abh" :class="{ 'is-live': live }">
+    <!-- 蠟筆濾鏡（第三章的蠟筆畫共用） -->
+    <svg class="abh-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
+
+    <!-- 首屏：左大標、右兩張卡紙照片；下面一排章節索引 -->
+    <section class="abh-wrap abh-hero" aria-labelledby="about-title">
+      <div class="abh-hero-text">
+        <h1 id="about-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
+        <p class="abh-lede">{{ page.heroLede }}</p>
       </div>
-      <div class="abk-hero-art">
-        <div class="abk-stage">
-          <figure class="abk-pop is-back" :style="{ '--x': '0%', '--y': '44%', '--w': '36%', '--c': 'var(--studio-blue)', '--r': '-4deg', '--z': 1 }">
-            <div class="abk-card"><img v-bind="withPhotoStyle(pagePhotoAttrs('about-curious', page.heroBackPhoto, '(max-width: 900px) 34vw, 200px'), page.heroBackPhoto)" :alt="pagePhotoAlt(HERO_BACK_ALT, page.heroBackPhoto, page.heroBackPhotoAlt)" loading="lazy"></div>
-            <span class="abk-fold" aria-hidden="true" />
-          </figure>
-          <figure class="abk-pop is-hero" :style="{ '--x': '20%', '--y': '12%', '--w': '80%', '--c': 'var(--yellow)', '--r': '1.2deg', '--z': 2 }">
-            <div class="abk-card">
-              <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
-              <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
-            </div>
-            <span class="abk-fold" aria-hidden="true" />
-          </figure>
-        </div>
+      <div class="abh-hero-art">
+        <figure class="abh-card is-back">
+          <img v-bind="withPhotoStyle(pagePhotoAttrs('about-curious', page.heroBackPhoto, '(max-width: 900px) 34vw, 220px'), page.heroBackPhoto)" :alt="pagePhotoAlt(HERO_BACK_ALT, page.heroBackPhoto, page.heroBackPhotoAlt)" loading="lazy">
+        </figure>
+        <figure class="abh-card is-main">
+          <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+          <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
+        </figure>
       </div>
-      <nav class="abk-toc" aria-labelledby="about-toc-title">
-        <h2 id="about-toc-title">目次</h2>
-        <ol>
-          <li v-for="item in chapters" :key="item.id"><a :href="`#${item.id}`" :style="{ '--c': item.color }"><span>{{ item.name }}</span><i aria-hidden="true" /><b lang="en">{{ item.page }}</b></a></li>
-          <li><a href="#campuses" style="--c:var(--leaf)"><span>{{ page.outroTitle }}</span><i aria-hidden="true" /><b>書籤</b></a></li>
-        </ol>
+      <nav class="abh-index" aria-label="這一頁的章節">
+        <a v-for="item in chapters" :key="item.id" :href="`#${item.id}`" :style="item.style">
+          <span class="abh-mk" lang="en">{{ item.no }}</span>
+          <span><b>{{ item.name }}</b><small v-if="item.note">{{ item.note }}</small></span>
+        </a>
       </nav>
-      <span class="abk-edge is-l" aria-hidden="true" /><span class="abk-edge is-r" aria-hidden="true" />
-      <span class="abk-no is-l" lang="en" aria-hidden="true">1</span><span class="abk-no is-r" lang="en" aria-hidden="true">2</span>
     </section>
 
-    <!-- 第一章 一路走來：左頁沿革，章名旁是紀念章；跨頁釘住時往下捲，紀念章一年一年翻、五校卡紙一校一校站起來。
-         外層軌道給釘住用（about-popup.ts 放得下才加 is-pinned，多一列撐出捲動距離）。 -->
-    <div class="abk-track" data-medal-track>
-    <section id="story" class="abk-spread abk-story" data-spread :style="chapterOf('story').style" aria-labelledby="story-title">
-      <div class="abk-page is-left">
-        <p class="abk-chap">{{ chapterOf('story').label }}<span>{{ chapterOf('story').name }}</span></p>
-        <h2 id="story-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.storyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-        <AboutMedal class="is-title" :stops="medalStops" />
-        <p class="abk-text">{{ page.storyText }}</p>
-        <ol class="abk-list">
-          <li v-for="(item, i) in milestones" :key="item.key" :style="{ '--c': STAGE[i]!.color, '--tint': `${STAGE[i]!.tint}%` }">
-            <p class="abk-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
+    <!-- 一路走來：章名旁紀念章；沿革中軸線左右交錯，一邊卡紙一邊字（由舊到新） -->
+    <section id="story" class="abh-wrap abh-sec" :style="chapterOf('story').style" aria-labelledby="story-title">
+      <p class="abh-no" lang="en">{{ chapterOf('story').no }}</p>
+      <div class="abh-title-row">
+        <h2 id="story-title"><template v-for="(line, i) in pageTitleLines(page.storyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+        <span class="abh-medal" aria-hidden="true" />
+      </div>
+      <p class="abh-text">{{ page.storyText }}</p>
+      <ol class="abh-tl">
+        <li v-for="item in milestones" :key="item.key" :style="{ '--c': item.color }">
+          <figure class="abh-card" :style="{ '--c': item.color, '--r': `${item.tilt}deg` }" aria-hidden="true">
+            <span class="abh-tag" lang="en">{{ item.year }}</span>
+            <img v-if="item.campus" v-bind="pickImage(item.campus.image, item.campus.imageMedia, CAMPUS_SIZES)" alt="" loading="lazy">
+            <span v-else class="abh-blank" />
+            <figcaption>{{ item.campus?.name ?? '&nbsp;' }}</figcaption>
+          </figure>
+          <div class="abh-tl-text">
+            <p class="abh-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
+            <h3 v-if="item.campus">{{ item.campus.name }}<span>{{ item.campus.district }}</span></h3>
+            <p>{{ item.text }}</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- 全人教育：薄荷色帶，左邊兩份清單、右邊六圈 -->
+    <section id="whole-child" class="abh-band" data-spread :style="chapterOf('whole-child').style" aria-labelledby="whole-title">
+      <div class="abh-wrap abh-split">
+        <div>
+          <p class="abh-no" lang="en">{{ chapterOf('whole-child').no }}</p>
+          <h2 id="whole-title"><template v-for="(line, i) in pageTitleLines(page.wholeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+          <p class="abh-text">{{ page.wholeText }}</p>
+          <div class="abh-lists">
             <div>
-              <span v-if="item.campus" class="abk-campus">{{ item.campus.name }}</span>
-              <p>{{ item.text }}</p>
+              <h3>六大領域</h3>
+              <ol class="abh-domains">
+                <li v-for="(item, i) in DOMAINS" :key="item.name" :style="{ '--c': item.color }" @pointerenter="focusDomain = i" @pointerleave="focusDomain = null">{{ item.name }}</li>
+              </ol>
             </div>
-          </li>
-        </ol>
-        <span class="abk-cast" aria-hidden="true" />
-        <span class="abk-edge" aria-hidden="true" />
-        <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('story').page }}</span>
-      </div>
-      <div class="abk-page is-right">
-        <div class="abk-face">
-          <div class="abk-stage" aria-hidden="true">
-            <div v-for="(item, i) in milestones" :key="item.key" class="abk-pop" :data-stop="item.campus?.name ?? ''" :data-year="item.year" :style="cardStyle(i)">
-              <div class="abk-card">
-                <b lang="en">{{ item.year }}</b>
-                <img v-if="item.campus" v-bind="pickImage(item.campus.image, item.campus.imageMedia, '(max-width: 900px) 42vw, 250px')" alt="" loading="lazy">
-                <span v-else class="abk-blank" />
-                <i>{{ item.campus?.name ?? '&nbsp;' }}</i>
-              </div>
-              <span class="abk-fold" />
+            <div>
+              <h3>六大核心素養</h3>
+              <ol class="abh-literacies"><li v-for="name in LITERACIES" :key="name">{{ name }}</li></ol>
             </div>
           </div>
-          <span class="abk-shade" aria-hidden="true" />
-          <span class="abk-edge" aria-hidden="true" />
-          <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('story').page + 1 }}</span>
+          <p class="abh-fine">{{ page.wholeFine }}<small v-if="page.wholeFineSource">{{ page.wholeFineSource }}</small></p>
+          <NuxtLink class="abh-link" to="/curriculum">看特色教學怎麼安排<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
         </div>
-        <div class="abk-cover" aria-hidden="true"><p>{{ chapterOf('story').label }}</p><b>{{ chapterOf('story').name }}</b><span class="abk-shade" /></div>
-      </div>
-    </section>
-    </div>
-
-    <!-- 第二章 全人教育：左頁兩份清單（領域圓點與右頁六圈同色），右頁 A2 透色六圈 -->
-    <section id="whole-child" class="abk-spread" data-spread :style="chapterOf('whole-child').style" aria-labelledby="whole-title">
-      <div class="abk-page is-left">
-        <p class="abk-chap">{{ chapterOf('whole-child').label }}<span>{{ chapterOf('whole-child').name }}</span></p>
-        <h2 id="whole-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.wholeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-        <p class="abk-text">{{ page.wholeText }}</p>
-        <div class="abk-lists">
-          <div>
-            <h3>學習的面向 · 六大領域</h3>
-            <ol class="abk-domains">
-              <li v-for="(item, i) in DOMAINS" :key="item.name" :style="{ '--c': item.color }" @pointerenter="focusDomain = i" @pointerleave="focusDomain = null">{{ item.name }}</li>
-            </ol>
-          </div>
-          <div>
-            <h3>帶得走的能力 · 六大核心素養</h3>
-            <ol class="abk-literacies"><li v-for="name in LITERACIES" :key="name">{{ name }}</li></ol>
-          </div>
-        </div>
-        <p class="abk-fine">{{ page.wholeFine }}<small v-if="page.wholeFineSource">{{ page.wholeFineSource }}</small></p>
-        <NuxtLink class="abk-link" to="/curriculum">看特色教學怎麼安排<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
-        <span class="abk-cast" aria-hidden="true" />
-        <span class="abk-edge" aria-hidden="true" />
-        <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('whole-child').page }}</span>
-      </div>
-      <div class="abk-page is-right">
-        <div class="abk-face">
-          <AboutWholePerson :focus="focusDomain" />
-          <span class="abk-shade" aria-hidden="true" />
-          <span class="abk-edge" aria-hidden="true" />
-          <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('whole-child').page + 1 }}</span>
-        </div>
-        <div class="abk-cover" aria-hidden="true"><p>{{ chapterOf('whole-child').label }}</p><b>{{ chapterOf('whole-child').name }}</b><span class="abk-shade" /></div>
+        <AboutWholePerson :focus="focusDomain" />
       </div>
     </section>
 
-    <!-- 第三章 我們的期許：孩子的蠟筆畫（2026-10-19）。上緣色帶與下緣草地是整個跨頁寬的同一張圖，左頁露左半、右頁露右半
-         （手機左頁不畫草地）；翻開時一筆筆塗上（is-opened）。房子和兩棵樹是剪下來的圖畫紙卡紙，站好後藤蔓和煙畫出來（is-grown）。 -->
-    <section id="hope" class="abk-spread abk-hope" data-spread :style="chapterOf('hope').style" aria-labelledby="hope-title">
-      <div class="abk-page is-left">
-        <div class="abk-print" aria-hidden="true">
-          <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMinYMin slice" />
-          <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMinYMax slice" />
+    <!-- 我們的期許：引言（蠟筆「」）＋孩子的蠟筆畫（照片貼在房子窗戶上） -->
+    <section id="hope" ref="hope" class="abh-wrap abh-sec abh-hope" :class="{ 'is-opened': hopeOpened, 'is-grown': hopeGrown }" :style="chapterOf('hope').style" aria-labelledby="hope-title">
+      <div class="abh-split">
+        <div>
+          <p class="abh-no" lang="en">{{ chapterOf('hope').no }}</p>
+          <h2 id="hope-title"><template v-for="(line, i) in pageTitleLines(page.hopeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+          <blockquote class="abh-quote">
+            <p v-for="(quote, i) in page.hopeQuotes" :key="i">{{ quote }}</p>
+          </blockquote>
         </div>
-        <p class="abk-chap">{{ chapterOf('hope').label }}<span>{{ chapterOf('hope').name }}</span></p>
-        <h2 id="hope-title" class="abk-title"><template v-for="(line, i) in pageTitleLines(page.hopeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-        <blockquote class="abk-quote">
-          <p v-for="(quote, i) in page.hopeQuotes" :key="i">{{ quote }}</p>
-        </blockquote>
-        <span class="abk-cast" aria-hidden="true" />
-        <span class="abk-edge" aria-hidden="true" />
-        <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('hope').page }}</span>
-      </div>
-      <div class="abk-page is-right">
-        <div class="abk-face">
-          <div class="abk-print" aria-hidden="true">
-            <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMaxYMin slice" />
-            <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMaxYMax slice" />
-          </div>
-          <div class="abk-stage abk-scene">
-            <div class="abk-pop abk-tree" data-pop aria-hidden="true" :style="sceneStyle(SCENE.treeL)"><div class="abk-card"><AboutCrayon name="treeL" view-box="0 0 140 210" /></div></div>
-            <div class="abk-pop abk-tree" data-pop aria-hidden="true" :style="sceneStyle(SCENE.treeR)"><div class="abk-card"><AboutCrayon name="treeR" view-box="0 0 116 220" /></div></div>
-            <AboutCrayon class="abk-smoke" name="smoke" view-box="0 0 120 180" :style="sceneStyle(SCENE.smoke)" />
-            <figure class="abk-pop abk-house" data-pop :style="sceneStyle(SCENE.house, 2)">
-              <div class="abk-card">
+        <div class="abh-art-box">
+          <div class="abh-art">
+            <div class="abh-print" aria-hidden="true">
+              <AboutCrayon class="is-top" name="sky" view-box="0 0 1240 260" align="xMidYMin slice" />
+              <AboutCrayon class="is-bottom" name="grass" view-box="0 0 1240 300" align="xMidYMax slice" />
+            </div>
+            <div class="abh-scene">
+              <div class="abh-cut" aria-hidden="true" :style="sceneStyle(SCENE.treeL)"><AboutCrayon name="treeL" view-box="0 0 140 210" /></div>
+              <div class="abh-cut" aria-hidden="true" :style="sceneStyle(SCENE.treeR)"><AboutCrayon name="treeR" view-box="0 0 116 220" /></div>
+              <AboutCrayon class="abh-smoke" name="smoke" view-box="0 0 120 180" :style="sceneStyle(SCENE.smoke)" />
+              <figure class="abh-cut" :style="sceneStyle(SCENE.house, 2)">
                 <AboutCrayon name="house" view-box="0 0 300 340" />
-                <!-- 洗出來的相片（白邊、歪一點），兩段紙膠帶貼在窗戶上；後台換照片照樣裁 4:3 -->
-                <span class="abk-window">
-                  <img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 200px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy">
-                  <i class="abk-tape is-l" aria-hidden="true" /><i class="abk-tape is-r" aria-hidden="true" />
+                <span class="abh-window">
+                  <img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 220px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy">
+                  <i class="abh-tape is-l" aria-hidden="true" /><i class="abh-tape is-r" aria-hidden="true" />
                 </span>
-                <AboutCrayon class="abk-vine" name="ivy" view-box="0 0 300 340" />
-              </div>
-            </figure>
-          </div>
-          <span class="abk-shade" aria-hidden="true" />
-          <span class="abk-edge" aria-hidden="true" />
-          <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('hope').page + 1 }}</span>
-        </div>
-        <div class="abk-cover" aria-hidden="true"><p>{{ chapterOf('hope').label }}</p><b>{{ chapterOf('hope').name }}</b><span class="abk-shade" /></div>
-      </div>
-    </section>
-
-    <!-- 第四章 家長怎麼說：左頁一句一位家長，點了右頁大卡紙倒下、換成那位家長再站起來；按播放才插 youtube-nocookie -->
-    <section v-if="voices.length" id="voices" class="abk-spread abk-voices" data-spread :style="chapterOf('voices').style" aria-labelledby="voices-title">
-      <div class="abk-page is-left">
-        <p class="abk-chap">{{ chapterOf('voices').label }}<span>{{ chapterOf('voices').name }}</span></p>
-        <h2 id="voices-title" class="abk-title"><template v-for="(line, i) in voiceTitle" :key="i"><br v-if="i">{{ line }}</template></h2>
-        <p class="abk-cite">{{ voices[0]!.campus.name }}　{{ voices[0]!.speaker }}</p>
-        <p class="abk-text">{{ voiceCampuses.map((c) => c.name).join('、') }}家長在學校 YouTube 頻道上的分享。</p>
-        <ol class="abk-voice-list">
-          <li v-for="(item, i) in voices" :key="`${item.campus.key}-${i}`">
-            <button type="button" :aria-pressed="i === pickedVoice" @click="pickVoice(i)"><q>{{ item.quote }}</q><small>{{ item.speaker }}<template v-if="voiceCampuses.length > 1"> · {{ item.campus.name }}</template></small></button>
-          </li>
-        </ol>
-        <!-- 「分享 ↗」不拆行：分與享之間 word joiner（&#8288;）、箭頭前不斷行空格（2026-10-13：320 寬箭頭自己掉到下一行） -->
-        <template v-for="campus in voiceCampuses" :key="campus.key">
-          <a v-if="campus.youtube" class="abk-link" :href="campus.youtube" target="_blank" rel="noopener noreferrer">到{{ campus.name }} YouTube 看更多分&#8288;享&nbsp;↗<span class="sr-only">（另開新視窗）</span></a>
-        </template>
-        <span class="abk-cast" aria-hidden="true" />
-        <span class="abk-edge" aria-hidden="true" />
-        <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('voices').page }}</span>
-      </div>
-      <div class="abk-page is-right">
-        <div class="abk-face">
-          <div class="abk-stage abk-theater">
-            <div v-for="(back, k) in backVoices" :key="k" class="abk-pop is-thumb" data-pop data-back aria-hidden="true" :style="backStyle(k)" @click="pickVoice(back.index)">
-              <div class="abk-card"><img v-bind="posterAttrs(back.item)" alt="" loading="lazy" decoding="async"><i>{{ back.item.speaker }}</i></div>
-              <span class="abk-fold" />
+                <AboutCrayon class="abh-vine" name="ivy" view-box="0 0 300 340" />
+              </figure>
             </div>
-            <figure ref="tv" class="abk-pop is-tv" data-pop :style="{ '--x': '5%', '--y': '4%', '--w': '90%', '--c': 'var(--trail)', '--r': '-.6deg', '--z': 3 }">
-              <div class="abk-card">
-                <div class="abk-video">
-                  <iframe
-                    v-if="playing" :src="youtubeEmbed(voices[shownVoice]!.youtubeId)" :title="`${voices[shownVoice]!.speaker}的分享影片`"
-                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin"
-                  />
-                  <a v-else class="abk-play" :href="`https://www.youtube.com/watch?v=${voices[shownVoice]!.youtubeId}`" target="_blank" rel="noopener noreferrer" :aria-label="`播放${voices[shownVoice]!.speaker}的分享影片（YouTube）`" @click.prevent="playing = true">
-                    <img v-bind="posterAttrs(voices[shownVoice]!)" :alt="voices[shownVoice]!.posterAlt ?? ''" loading="lazy" decoding="async">
-                    <span class="abk-play-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-play" /></svg></span>
-                  </a>
-                </div>
-                <figcaption aria-live="polite"><q>{{ voices[shownVoice]!.quote }}</q><small>{{ voices[shownVoice]!.speaker }} · {{ voices[shownVoice]!.campus.name }}家長</small></figcaption>
-              </div>
-              <span class="abk-fold" aria-hidden="true" />
-            </figure>
           </div>
-          <span class="abk-shade" aria-hidden="true" />
-          <span class="abk-edge" aria-hidden="true" />
-          <span class="abk-no" lang="en" aria-hidden="true">{{ chapterOf('voices').page + 1 }}</span>
         </div>
-        <div class="abk-cover" aria-hidden="true"><p>{{ chapterOf('voices').label }}</p><b>{{ chapterOf('voices').name }}</b><span class="abk-shade" /></div>
       </div>
     </section>
 
-    <!-- 結尾：五條緞帶書籤從書底垂下來，一條是一所校園 -->
-    <section id="campuses" class="abk-outro" aria-labelledby="about-campuses-title">
-      <div class="abk-outro-copy">
-        <h2 id="about-campuses-title">{{ page.outroTitle }}</h2>
-        <p v-if="page.outroText">{{ page.outroText }}</p>
+    <!-- 家長怎麼說：左邊一句一位家長，右邊大卡紙；按播放才插 youtube-nocookie，沒有 JS 時是連到 YouTube -->
+    <section v-if="voices.length" id="voices" class="abh-wrap abh-sec" :style="chapterOf('voices').style" aria-labelledby="voices-title">
+      <div class="abh-split is-voices">
+        <div class="abh-voices-text">
+          <p class="abh-no" lang="en">{{ chapterOf('voices').no }}</p>
+          <h2 id="voices-title"><template v-for="(line, i) in VOICES_TITLE" :key="i"><br v-if="i">{{ line }}</template></h2>
+          <p class="abh-text is-small">{{ voiceCampuses.map((c) => c.name).join('、') }}家長在學校 YouTube 頻道上的分享。</p>
+          <ol class="abh-picks">
+            <li v-for="(item, i) in voices" :key="`${item.campus.key}-${i}`">
+              <button type="button" :aria-pressed="i === shownVoice" @click="pickVoice(i)"><q>{{ item.quote }}</q><small>{{ item.speaker }}<template v-if="voiceCampuses.length > 1"> · {{ item.campus.name }}</template></small></button>
+            </li>
+          </ol>
+          <!-- 「分享 ↗」不拆行：分與享之間 word joiner（&#8288;）、箭頭前不斷行空格（2026-10-13：320 寬箭頭自己掉到下一行） -->
+          <template v-for="campus in voiceCampuses" :key="campus.key">
+            <a v-if="campus.youtube" class="abh-link is-yt" :href="campus.youtube" target="_blank" rel="noopener noreferrer">到{{ campus.name }} YouTube 看更多分&#8288;享&nbsp;↗<span class="sr-only">（另開新視窗）</span></a>
+          </template>
+        </div>
+        <figure ref="tv" class="abh-card abh-tv">
+          <div class="abh-video">
+            <iframe
+              v-if="playing" :src="youtubeEmbed(voices[shownVoice]!.youtubeId)" :title="`${voices[shownVoice]!.speaker}的分享影片`"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin"
+            />
+            <a v-else class="abh-play" :href="`https://www.youtube.com/watch?v=${voices[shownVoice]!.youtubeId}`" target="_blank" rel="noopener noreferrer" :aria-label="`播放${voices[shownVoice]!.speaker}的分享影片（YouTube）`" @click.prevent="playing = true">
+              <img v-bind="posterAttrs(voices[shownVoice]!)" :alt="voices[shownVoice]!.posterAlt ?? ''" loading="lazy" decoding="async">
+              <span class="abh-play-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-play" /></svg></span>
+            </a>
+          </div>
+          <figcaption aria-live="polite">{{ voices[shownVoice]!.speaker }} · {{ voices[shownVoice]!.campus.name }}家長</figcaption>
+        </figure>
       </div>
-      <ul class="abk-ribbons">
-        <template v-for="(item, i) in milestones" :key="item.key">
-          <li v-if="item.campus"><NuxtLink :to="{ path: '/', query: { campus: item.campus.key }, hash: '#campuses' }" :style="{ '--c': RIBBONS[i]!.color, '--len': `${RIBBONS[i]!.length}px` }"><b>{{ item.campus.name }}</b><small>{{ item.campus.district }}</small></NuxtLink></li>
-        </template>
-      </ul>
     </section>
-    </div>
+    <div class="abh-end" />
   </main>
 </template>
 

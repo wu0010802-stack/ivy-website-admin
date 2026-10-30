@@ -1,3 +1,36 @@
+## 2026-10-30 關於頁換版：H「原版風格×四季結構」（`feature/about-h-20261030`）
+
+使用者看過 A–H 比稿（`design/about-new-directions-20261030/`，Desktop 工作區，不進版控）後選 H 第三版：正式站的卡紙風格，加上四季藝術的章節結構，排法跟其他分頁對齊。這版取代桌機立體書與手機卡紙疊，規則見 DESIGN.md 最上面一節。
+
+- **版面**：
+  - 首屏：左大標、右兩張卡紙照片，下面一排四章索引。
+  - 01 一路走來：章名旁紀念章；中軸線左右交錯的沿革，卡紙捲到時站起來。
+  - 02 全人教育：薄荷色帶，兩份清單＋六圈。
+  - 03 我們的期許：蠟筆「」＋孩子的蠟筆畫。
+  - 04 家長怎麼說：標題「孩子的進步，家長看得見。」；左邊清單、右邊影片卡紙。
+  - 五所校園結尾拿掉。桌機手機同一套，900px 以下單欄。
+- **拿掉**：`AboutSheets.vue`、`AboutMedal.vue`、`utils/about-popup.ts`、`utils/about-sheets.ts`、`about-sheets.css`，以及 web 的 `motion` 依賴（`package-lock.json` 只刪不增）。
+- **一起改**：
+  - `AboutCrayon.vue` 的塗上／長出條件。
+  - `ABOUT_HERO_SIZES`（右欄照片變大，桌機 800px → 940px）。
+  - 後台 `aboutPageDraft.ts` 裁切比例的註解。
+  - `scripts/page-copy-stress.cjs` 的 /about 選擇器。
+  - 首頁五校 `?campus=` 的註解與測試改看頁首選單。
+- **測試**：
+  - 刪 `about-sheets.spec.ts`、`about-voices-swap.spec.ts`（換片動畫已拿掉）。
+  - 改寫 `about.spec.ts`、`about-crayon.spec.ts`、`about-render.spec.ts`、`about-voices*.spec.ts`，以及 `mobile-ux-*`、`web-ux-20261029`、`page-hero`、後台 `aboutPage.test.ts` 裡講舊版的斷言。
+- **驗證**：
+  - `npm --prefix web run typecheck` 通過。
+  - `npm run test:website` 111 檔 1349 項全過。
+  - 後台 `aboutPage.test.ts`＋`previewProtocol.test.ts` 54 項全過。
+  - fixture dev server 跑 Playwright，看了 1440×900、901×900、390×844 與減少動態：
+    - 沒有橫向捲動，沒有 console 錯誤或 hydration 警告。
+    - 卡紙站起來、紀念章、蠟筆畫、六圈都會播；減少動態時是完成圖。
+    - axe（WCAG 2.1 AA）只剩 Nuxt 開發工具自己的標籤。
+  - 截圖在本機 `output/about-h-20261030/`。
+  - stack（production build＋真後端）跑了會載 /about 的四支：a11y、hydration、editor-live-preview、media。第一次 a11y 抓到仁武橘色卡紙的校名對比 3.95:1，卡紙說明字改 `--ink` 後全過（a11y＋hydration 40 項）。
+  - 沒跑：其他 stack spec、`page-copy-stress.cjs`、iOS 實機。
+
 ## 2026-10-30 環境頁校園環境換四張有孩子的照片（`feature/env-photos3-20261030`）
 
 使用者要環境頁「找更好的照片素材」。從義華校 NAS 與園方雲端挑候選（對照板在本機 `output/environment-photo-candidates-20261030/`，不進版控），使用者選了下面四張；套房式衛廁選擇保留現況。檔名（代號）不變，正式站後台這幾個位置沒有換過照片，部署後直接生效。

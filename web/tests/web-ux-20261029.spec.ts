@@ -152,16 +152,3 @@ describe('預約頁 SEO', () => {
     expect(read('../app/pages/visit/[[key]].vue')).toContain("robots: 'noindex, nofollow'")
   })
 })
-
-describe('關於頁手機卡紙的分頁字級', () => {
-  const css = read('../app/assets/css/about-sheets.css')
-
-  it('字級 12–13px，不再隨寬度縮到 12px 以下', () => {
-    expect(css).toContain('font:700 clamp(.75rem,calc((var(--ams-slot) - 6px) / 5),.8125rem)/1 var(--font-head)')
-    expect(css).not.toContain('/ 5.2')
-  })
-
-  it('352px 以下五字章名折兩行', () => {
-    expect(css).toMatch(/@media \(max-width:351px\)\{\n\s*\.ams-tab\{white-space:normal;text-align:center;text-wrap:balance;line-height:1\.05\}/)
-  })
-})

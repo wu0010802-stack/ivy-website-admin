@@ -15,16 +15,6 @@ describe('首頁拍立得 WebGL 畫布不造成版面位移', () => {
   })
 })
 
-describe('關於頁 900px 以下：卡紙疊起來（2026-10-25 取代 10-19 的上翻畫冊）', () => {
-  const css = read('../app/assets/css/about-sheets.css')
-  it('卡紙最寬 560px 置中（平板直拿不會撐滿）；sticky 與用到 svh 的規則都在 .ams.is-stacked 底下（沒有 JS、減少動態上下排開）', () => {
-    expect(css).toContain('--ams-col:min(100vw,560px);')
-    const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').filter((rule) => /position:sticky|\d+svh/.test(rule))
-    expect(rules.length).toBeGreaterThan(1)
-    for (const rule of rules) expect(rule.trim()).toMatch(/^\.ams\.is-stacked /)
-  })
-})
-
 describe('小字對比與點擊範圍', () => {
   it('環境頁還沒到的餐點只淡化手寫大標，時間與小字不淡化', () => {
     const css = read('../app/assets/css/environment.css')

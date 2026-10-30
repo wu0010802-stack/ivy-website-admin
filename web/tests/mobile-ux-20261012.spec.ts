@@ -140,9 +140,10 @@ describe('入學頁生日工具', () => {
   })
 })
 
-describe('關於頁結尾的校名緞帶連到那所校園', () => {
-  it('緞帶帶 ?campus=，首頁五校從那所開始', () => {
-    expect(read('../app/components/AboutContent.vue')).toContain(":to=\"{ path: '/', query: { campus: item.campus.key }, hash: '#campuses' }\"")
+// 2026-10-30 關於頁換版拿掉結尾緞帶，?campus= 改由頁首五校選單帶（2026-10-29）
+describe('頁首五校選單連到那所校園', () => {
+  it('連結帶 ?campus=，首頁五校從那所開始', () => {
+    expect(read('../app/components/SiteHeader.vue')).toContain(':href="`/?campus=${c.key}#campuses`"')
     const board = read('../app/components/CampusBoard.vue')
     expect(board).toContain("const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''")
     expect(board).toContain('campus.key === startCampus')
@@ -151,7 +152,7 @@ describe('關於頁結尾的校名緞帶連到那所校園', () => {
 
 describe('內容頁避免孤字、觸控不留 hover', () => {
   it('關於、特色教學、環境頁的內文 text-wrap:pretty（:where 不加權重）', () => {
-    expect(read('../app/assets/css/about.css')).toContain('.abk :where(p,li,figcaption){text-wrap:pretty}')
+    expect(read('../app/assets/css/about.css')).toContain('.abh :where(p,li,figcaption){text-wrap:pretty}')
     expect(read('../app/assets/css/curriculum.css')).toContain('.cur :where(p, li, figcaption) { text-wrap: pretty; }')
     expect(read('../app/assets/css/environment.css')).toContain('.renv :where(p,li,figcaption){text-wrap:pretty}')
     expect(read('../app/assets/css/admission-passport.css')).toContain('.ap li { text-wrap: pretty; }')

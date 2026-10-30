@@ -92,14 +92,12 @@ describe('關於常春藤頁（about_page）', () => {
 
   it('照片焦點預覽的比例和官網 about.css 一致；紙房子窗戶也裁成 4:3', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
-    expect(css).toContain('.abk-card img,.abk-blank{display:block;width:100%;height:auto;aspect-ratio:4/3;')
-    expect(css).toContain('.abk-pop.is-back img{aspect-ratio:4/5;')
-    expect(css).toContain('.abk-window img{outline:none}')
-    // 窗戶 img 在 .abk-house 的 .abk-card 裡，吃 .abk-card img 的 4:3 裁切（.abk-window img 只取消 outline）
+    expect(css).toContain('.abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
+    expect(css).toMatch(/\.abh-hero-art \.is-back\{[^}]*--ar:4\/5/)
+    expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}')
     const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')
-    const house = component.slice(component.indexOf('abk-pop abk-house'))
-    expect(house.indexOf('class="abk-card"')).toBeGreaterThan(-1)
-    expect(house.indexOf('class="abk-card"')).toBeLessThan(house.indexOf('class="abk-window"'))
+    expect(component).toContain('<figure class="abh-card is-back">')
+    expect(component.slice(component.indexOf('<span class="abh-window">'))).toContain("pagePhotoAttrs('about-together', page.hopePhoto")
     expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['4 / 3'])
     expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 3'])
     expect(ABOUT_PHOTO_PREVIEWS.heroBack.map((p) => p.ratio)).toEqual(['4 / 5'])

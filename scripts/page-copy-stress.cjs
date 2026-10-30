@@ -1,6 +1,6 @@
 // 整頁內容的字數硬上限實測：把每個欄位換成「上限字數」的文字（標題換成上限行數 × 每行上限），
-// 檢查 390／820／901／1024／1440 寬（手機、760–900、900–1100、桌機四段版面，901 是立體書桌機版最窄的寬度；
-// 關於頁 900 以下是卡紙疊，390／820 量卡紙疊、901 以上量立體書）
+// 檢查 390／820／901／1024／1440 寬（手機、760–900、900–1100、桌機四段版面，901 是兩欄版面最窄的寬度；
+// 關於頁 2026-10-30 換版後桌機手機同一套，900 以下單欄）
 // 沒有橫向捲動、文字沒有超出所在卡片或被裁掉。改了 page_schemas.py 的上限就重跑。
 // 用法（fixture 模式 dev server，計畫 Task 1 Step 2）：node scripts/page-copy-stress.cjs /curriculum
 // 截圖存在 output/page-cms/stress/，失敗時結束碼 1。
@@ -9,8 +9,8 @@ const path = require('node:path')
 const { chromium } = require('playwright')
 
 const BASE = process.env.PAGE_CMS_BASE ?? 'http://127.0.0.1:3141'
-// curriculum.css 的斷點是 1100／900／760：390／820／1024／1440 各落在一段；about.css 的桌機版
-// （立體書左右頁、章名旁的紀念章）從 901 開始，901 是左頁最窄、標題最容易碰到紀念章的寬度
+// curriculum.css 的斷點是 1100／900／760：390／820／1024／1440 各落在一段；about.css 的兩欄版面
+// 從 901 開始，901 是欄最窄、一路走來的標題最容易碰到旁邊紀念章的寬度
 const VIEWPORTS = [
   ['390', { width: 390, height: 844 }],
   ['820', { width: 820, height: 1180 }],
@@ -64,40 +64,21 @@ const RULES = {
     { sel: '.cur-belief-close .cur-source', chars: 30 }
   ],
   '/about': [
-    { sel: '.abk-hero-text h1', lines: 3, perLine: 12 },
-    { sel: '.abk-lede', chars: 120 },
-    { sel: '.abk-pop.is-hero figcaption', chars: 20, box: '.abk-pop.is-hero' },
-    { sel: '.abk-toc li span', chars: 6, box: '.abk-toc li' },
-    { sel: '.abk-chap > span', chars: 6 },
-    { sel: '.abk-cover b', chars: 6, box: '.abk-cover' },
-    // 右上角是紀念章：逐行上限第一行 6、第二三行 7（page_schemas.py 的 STORY_TITLE_PER_LINE）
-    { sel: '#story-title', lines: 3, perLine: [6, 7, 7], box: '.abk-page', avoid: '.abk-medal.is-title' },
-    { sel: '#whole-title', lines: 3, perLine: 12, box: '.abk-page' },
-    { sel: '#hope-title', lines: 3, perLine: 14, box: '.abk-page' },
-    { sel: '#story .abk-text', chars: 120, box: '.abk-page' },
-    { sel: '.abk-list li div > p', chars: 30, box: '.abk-list li' },
-    { sel: '#whole-child .abk-text', chars: 100, box: '.abk-page' },
-    { sel: '.abk-fine', chars: 100, textNode: true, box: '.abk-page' },
-    { sel: '.abk-fine small', chars: 30, box: '.abk-page' },
-    { sel: '.abk-quote p', chars: 70, box: '.abk-page' },
-    { sel: '#about-campuses-title', chars: 6 },
-    { sel: '.abk-outro-copy p', chars: 80 },
-    // 手機卡紙疊（900px 以下，2026-10-25 取代上翻畫冊）：同一份後台欄位、同樣的上限。卡紙高跟著內容長，不會裁字；
-    // 分頁（目次）用章名，字多時分頁字級自己縮。備註「卡紙疊」記下有沒有疊起來（減少動態時上下排開）
-    { sel: '#about-m-title', lines: 3, perLine: 12, box: '.ams-cover' },
-    { sel: '.ams-lede', chars: 120, box: '.ams-cover' },
-    { sel: '.ams-photo.is-hero figcaption', chars: 20, box: '.ams-photo.is-hero' },
-    { sel: '.ams-deck .ams-tab', chars: 6 },
-    { sel: '#about-m-story-title', lines: 3, perLine: [6, 7, 7], box: '.ams-sheet', avoid: '.ams-medal' },
-    { sel: '#about-m-whole-title', lines: 3, perLine: 12, box: '.ams-sheet' },
-    { sel: '#about-m-hope-title', lines: 3, perLine: 14, box: '.ams-sheet' },
-    { sel: '.ams-story > .ams-text, [data-spread] > .ams-text', chars: 120, box: '.ams-sheet' },
-    { sel: '.ams-camp-text > p:not(.ams-year):not(.ams-addr)', chars: 30, box: '.ams-camp' },
-    { sel: '.ams-fine', chars: 100, textNode: true, box: '.ams-sheet' },
-    { sel: '.ams-fine small', chars: 30, box: '.ams-sheet' },
-    { sel: '.ams-quote p', chars: 70, box: '.ams-sheet' },
-    { sel: '#about-m-campuses-title', chars: 6, box: '.ams-sheet' },
-    { sel: '.ams-outro > .ams-text', chars: 80, box: '.ams-sheet' }
+    // 2026-10-30 換版：桌機手機同一套（取代立體書與手機卡紙疊），同一份後台欄位、同樣的上限
+    { sel: '#about-title', lines: 3, perLine: 12 },
+    { sel: '.abh-lede', chars: 120 },
+    { sel: '.abh-hero-art .is-main figcaption', chars: 20, box: '.abh-hero-art .is-main' },
+    { sel: '.abh-index b', chars: 6, box: '.abh-index a' },
+    // 章名旁是紀念章：逐行上限第一行 6、第二三行 7（page_schemas.py 的 STORY_TITLE_PER_LINE）
+    { sel: '#story-title', lines: 3, perLine: [6, 7, 7], avoid: '.abh-medal' },
+    { sel: '#whole-title', lines: 3, perLine: 12 },
+    { sel: '#hope-title', lines: 3, perLine: 14 },
+    { sel: '#story > .abh-text', chars: 120 },
+    { sel: '.abh-tl-text > p:not(.abh-year)', chars: 30, box: '.abh-tl li' },
+    { sel: '#whole-child .abh-text', chars: 100 },
+    { sel: '.abh-fine', chars: 100, textNode: true },
+    { sel: '.abh-fine small', chars: 30 },
+    { sel: '.abh-quote p', chars: 70 }
   ],
   // 常春藤環境頁（2026-10-12 開放前三章）：數字是 page_schemas.py 的 ENVIRONMENT_* 上限。
   // 便條（.renv-note）是貼在照片角上的手寫標籤，可以壓出照片邊，不量外框，只量有沒有被裁掉與溢出自己的框。
@@ -254,13 +235,10 @@ const RULES = {
             }
           }
         }
-        // 關於頁手機卡紙疊：記下有沒有疊起來（減少動態時上下排開）
-        const sheets = document.querySelector('.ams')
-        if (sheets && getComputedStyle(sheets).display !== 'none') notes.push(`卡紙疊 ${sheets.classList.contains('is-stacked') ? '疊起來' : '上下排開'}`)
         return { problems: [...new Set(out)], notes: [...new Set(notes)] }
       }, { rules, sample: SAMPLE })
       if (process.env.STRESS_MOTION) {
-        // 一般動態：逐段捲過整頁，讓釘住的立體書翻頁、紀念章啟動，再依捲動位置截圖
+        // 一般動態：逐段捲過整頁，讓捲動驅動的動畫（沿革卡紙、紀念章、蠟筆畫）跑到位，再依捲動位置截圖
         const h = await page.evaluate(() => document.documentElement.scrollHeight)
         const step = Math.round(viewport.height * 0.8)
         for (let y = 0, n = 0; y < h; y += step, n++) {

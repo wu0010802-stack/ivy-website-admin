@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // 關於頁第三章的一張蠟筆畫（2026-10-19，比稿 design/about-hope-picturebook-directions-20261019/ 選 B「孩子的蠟筆畫」）。
 // 路徑由 scripts/about-crayon/build.mjs 先算好（generated/about-crayon.ts）：伺服器端就畫好、沒有 JS 也是完成圖。
-// 剪刀剪的白邊（cut）不套濾鏡；蠟筆線套 AboutContent 第三章裡的 #abk-wax（紙紋雜訊＋手抖），顏色由 about.css 的 .is-<顏色> 給 token。
-// a:'fill' 的線在翻開時塗上去、a:'grow' 的線在房子站好後畫出來（about.css 用 stroke-dashoffset，pathLength 固定 1）。
+// 剪刀剪的白邊（cut）不套濾鏡；蠟筆線套 AboutContent 放在 main 底下的 #abk-wax（紙紋雜訊＋手抖），顏色在下面的 scoped 樣式（token）。
+// a:'fill' 的線在第三章捲進畫面時塗上去、a:'grow' 的線在 1.4 秒後畫出來（stroke-dashoffset，pathLength 固定 1）。
 import { ABOUT_CRAYON, type CrayonName } from '../generated/about-crayon'
 
 const props = defineProps<{ name: CrayonName, viewBox: string, align?: string }>()
@@ -43,8 +43,7 @@ const strokes = computed(() => items.value.filter((item) => item.k !== 'cut'))
 .abk-crayon .is-smoke{stroke:rgb(var(--ink)/.42)}
 /* 塗上去／畫出來：pathLength＝1，dashoffset 1→0；沒有 JS（沒有 is-live）時就是完成圖 */
 .abk-crayon .is-fill,.abk-crayon .is-grow{stroke-dasharray:1;stroke-dashoffset:0;transition:stroke-dashoffset var(--t,1s) cubic-bezier(.4,.1,.3,1) var(--l,0s)}
-.abk.is-live .abk-hope:not(.is-opened) .is-fill,.abk.is-live .abk-scene:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
-/* 手機卡紙疊（AboutSheets，2026-10-25）：蠟筆畫那張卡紙露出來才塗上（is-opened）、停好才長藤與煙（is-grown） */
-.ams.is-live .ams-hope:not(.is-opened) .is-fill,.ams.is-live .ams-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
+/* 2026-10-30 換版（AboutContent 單一版面）：第三章捲進畫面才塗上（is-opened）、1.4 秒後長藤與煙（is-grown） */
+.abh.is-live .abh-hope:not(.is-opened) .is-fill,.abh.is-live .abh-hope:not(.is-grown) .is-grow{stroke-dashoffset:1;transition:none}
 @media (prefers-reduced-motion:reduce){.abk-crayon path{transition:none}}
 </style>

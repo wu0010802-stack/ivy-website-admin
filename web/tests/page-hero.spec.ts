@@ -11,7 +11,7 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.m
 const images = manifest as Record<string, { width: number; height: number }>
 
 describe('內頁 hero 的 sizes', () => {
-  // 2026-09-29 立體書版：關於常春藤 hero 不再是滿版照片帶，改成首屏右頁的 4:3 卡紙（object-fit: cover）。
+  // 2026-09-29 立體書版起關於常春藤 hero 不是滿版照片帶，是首屏的 4:3 卡紙（object-fit: cover；10-30 換版後在右欄）。
   it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('aboutHeroAttrs(site.value.aboutPage)')
     expect(read('../app/components/AboutContent.vue')).toContain('aboutHeroAttrs(page)')

@@ -4,14 +4,12 @@ import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onM
 import fixture from '../server/data/site-fixture.json'
 import type { Campus, SiteContent } from '../app/types/site-content'
 import AboutContent from '../app/components/AboutContent.vue'
-import AboutMedal from '../app/components/AboutMedal.vue'
 
 // 2026-10-12 即時預覽補洞：關於頁第四章選了第 3 支家長影片後，後台把影片刪到只剩 1 支，
 // pickedVoice／shownVoice 還停在第 3 支，voices[shownVoice] 是 undefined，整頁預覽畫不出來。
 // 影片變少或換掉時要回到第 1 支、停止播放。Nuxt 的自動匯入在單元測試裡沒有，這裡補上（同 about-render.spec.ts）；
-// 立體書動畫不載入，沒有動畫時選片直接換：走元件本來就有的「強制色彩模式不載入動畫」那條路（onMounted 一開始就 return）。
-// 不用 vi.mock 換掉 about-popup：.vue 裡的動態 import('~/utils/about-popup') 攔不住，載入在等待的 20ms 內完成時
-// 會跑到真的動畫、選片被延後，第二項偶發失敗（2026-10-13 main CI 紅過一次，本機約三成）。
+// 強制色彩模式讓 onMounted 不掛蠟筆畫的 IntersectionObserver（這個測試只看第四章）。
+// 2026-10-30 換版後選片本來就是直接換（立體書的換片動畫 about-popup 已拿掉）；大卡紙的說明是「說話的人 · 校名家長」。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -45,30 +43,27 @@ async function mountAbout() {
   document.body.append(host)
   app = createApp({ render: () => h(AboutContent as Component, { campuses: state.campuses, page: site.aboutPage }) })
   app.component('NuxtLink', NuxtLink)
-  app.component('AboutMedal', AboutMedal as Component)
   app.component('AboutWholePerson', defineComponent({ render: () => null }))
   app.config.warnHandler = () => {}
   app.config.errorHandler = (error) => { errors.push(error) }
   app.mount(host)
   await nextTick()
-  // onMounted 裡動態載入幾支模組（失敗也不影響這個測試）：讓它跑完
-  await new Promise((resolve) => setTimeout(resolve, 20))
   return { state, errors }
 }
 
-const caption = () => document.querySelector('#voices figcaption q')?.textContent
-const pressed = () => [...document.querySelectorAll<HTMLElement>('#voices .abk-voice-list button')].map((b) => b.getAttribute('aria-pressed'))
+const caption = () => document.querySelector('#voices figcaption')?.textContent
+const pressed = () => [...document.querySelectorAll<HTMLElement>('#voices .abh-picks button')].map((b) => b.getAttribute('aria-pressed'))
 
 describe('關於頁第四章：即時預覽把家長影片刪到比選中的少', () => {
   it('選第 3 支後影片只剩 1 支：不丟錯、大卡紙回到第 1 支、清單也標在第 1 支、停止播放', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => t.quote)
+    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
     expect(caption()).toBe(quotes[0])
 
-    document.querySelectorAll<HTMLElement>('#voices .abk-voice-list button')[2]!.click()
+    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[2]!.click()
     await nextTick()
     expect(caption()).toBe(quotes[2])
-    document.querySelector<HTMLElement>('#voices .abk-play')!.click()
+    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
     await nextTick()
     expect(document.querySelector('#voices iframe')).not.toBeNull()
 
@@ -80,15 +75,15 @@ describe('關於頁第四章：即時預覽把家長影片刪到比選中的少'
     expect(caption()).toBe(quotes[0])
     expect(pressed()).toEqual(['true'])
     expect(document.querySelector('#voices iframe')).toBeNull()
-    expect(document.querySelector('#voices .abk-play')).not.toBeNull()
+    expect(document.querySelector('#voices .abh-play')).not.toBeNull()
   })
 
   it('影片還在原位時（改的是別的內容）：選中的那支與播放中的畫面不被重設', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => t.quote)
-    document.querySelectorAll<HTMLElement>('#voices .abk-voice-list button')[1]!.click()
+    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
+    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[1]!.click()
     await nextTick()
-    document.querySelector<HTMLElement>('#voices .abk-play')!.click()
+    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
     await nextTick()
 
     // 預覽每次更新都會換一份新的 campuses（影片同一批、只是第 1 支的說詞改了）
@@ -106,10 +101,10 @@ describe('關於頁第四章：即時預覽把家長影片刪到比選中的少'
 
   it('選中的那支被刪掉、後面的補上來（同一個位置變成別支影片）：回到第 1 支、停止播放', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => t.quote)
-    document.querySelectorAll<HTMLElement>('#voices .abk-voice-list button')[1]!.click()
+    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
+    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[1]!.click()
     await nextTick()
-    document.querySelector<HTMLElement>('#voices .abk-play')!.click()
+    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
     await nextTick()
 
     state.campuses = site.campuses.map((c) => c.key === 'yihua'

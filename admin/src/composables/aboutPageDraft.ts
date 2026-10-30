@@ -4,16 +4,15 @@
 // 改回內建時會寫回 null／''，初稿要先有這些鍵，快照才對得上，不會被當成「有未儲存的修改」。
 import type { AboutPagePayload } from '../api/types'
 
-// 沿革五站（同後端 content/page_schemas.py 的 ABOUT_MILESTONE_KEYS 與官網立體書的五站）。
+// 沿革五站（同後端 content/page_schemas.py 的 ABOUT_MILESTONE_KEYS 與官網沿革的五站）。
 export const ABOUT_MILESTONE_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 export const ABOUT_CHAPTER_HINTS = ['第一章', '第二章', '第三章', '第四章（沒有家長分享影片時整章不出現）'] as const
 
 // 官網內建照片的代號（web/public/assets/<代號>.webp，同 AboutContent.vue）。
 export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', heroBack: 'about-curious', hope: 'about-together' } as const
 
-// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏大卡與後排小卡都在卡紙裡
-// （.abk-card img 4:3；.abk-pop.is-back img 4:5 直式），各寬度一樣。紙房子窗戶（.abk-window）
-// 在 .abk-house 的 .abk-card 裡，同樣吃 .abk-card img 的 4:3 裁切。
+// 官網實際裁切的比例（web/app/assets/css/about.css，2026-10-30 換版）：首屏大卡與後排小卡都在卡紙裡
+// （.abh-card>img 預設 4:3；後排 .is-back 用 --ar 改 4:5 直式），各寬度一樣。紙房子窗戶（.abh-window img）也是 4:3。
 export const ABOUT_PHOTO_PREVIEWS = {
   hero: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
   heroBack: [{ label: '官網裁切（4:5 直式）', ratio: '4 / 5' }],

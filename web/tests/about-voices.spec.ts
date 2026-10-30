@@ -9,7 +9,6 @@ import { youtubeThumb } from '../app/utils/filmCarousel'
 import type { MediaInfoMap } from '../app/utils/media-image'
 import { pickVoices } from '../app/utils/testimonials'
 import AboutContent from '../app/components/AboutContent.vue'
-import AboutMedal from '../app/components/AboutMedal.vue'
 
 // 家長怎麼說（關於頁第四章）：選片是純函式，後台自訂的影片經 overlay 疊上來；最後用伺服器渲染
 // 看第四章真的畫出誰、什麼順序（Nuxt 的自動匯入在單元測試裡沒有，這裡補上，同 about-render.spec.ts）。
@@ -172,7 +171,6 @@ describe('第四章渲染', () => {
   async function render(campuses: Campus[]): Promise<string> {
     const app = createSSRApp({ render: () => h(AboutContent as Component, { campuses, page: site.aboutPage }) })
     app.component('NuxtLink', NuxtLink)
-    app.component('AboutMedal', AboutMedal as Component)
     app.component('AboutWholePerson', defineComponent({ render: () => null }))
     return renderToString(app)
   }
@@ -185,13 +183,13 @@ describe('第四章渲染', () => {
     expect(html).toContain('樂樂媽咪 · 義華校家長')
   })
 
-  it('五校輪流取：左頁清單順序是 義1、明1、義2、義3，第 4 支被擠出，並標出各自校名', async () => {
+  it('五校輪流取：清單順序是 義1、明1、義2、義3，第 4 支被擠出，並標出各自校名', async () => {
     const minghua = site.campuses.find((c) => c.key === 'minghua')!
     const campuses = site.campuses.map((c) => c.key === 'minghua'
       ? { ...minghua, testimonials: [{ ...voice('minghua', 1) }] }
       : c)
     const html = voices(await render(campuses))
-    const list = html.slice(html.indexOf('<ol class="abk-voice-list">'), html.indexOf('</ol>'))
+    const list = html.slice(html.indexOf('<ol class="abh-picks">'), html.indexOf('</ol>'))
     const [first, second, third] = yihua.testimonials!
     expect([...list.matchAll(/<q>(.*?)<\/q><small>(.*?)<\/small>/g)].map((m) => [m[1], m[2]])).toEqual([
       [first!.quote, `${first!.speaker} · ${yihua.name}`],

@@ -65,13 +65,13 @@ export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1
 export const ABOUT_HERO_IMAGE = 'about-hero'
 
 /**
- * 關於常春藤頁 hero 的 sizes（2026-09-29 立體書版）：照片不再滿版，是首屏右頁的一張卡紙（寬 88%、內距 8px），
- * 框是 4:3、object-fit: cover。2000×803 的橫幅被裁成 4:3，需要的寬度是「框高 × 2.49」≈ 框寬 × 1.87：
- * - 901px 以上：書最寬 1240px，右頁 620px、左右內距各 64px，卡紙約 433px → 需要約 780px → 800px。
- * - 900px 以下：跨頁改成上下疊，右頁寬 = 視窗 − 左右留白（16px × 2）− 內距（28px × 2），
- *   需要寬度約 1.65 × (100vw − 88px)（390 寬約 500px）。
+ * 關於常春藤頁 hero 的 sizes（2026-10-30 換版）：首屏右欄的一張 4:3 卡紙（object-fit: cover，內距 8px）。
+ * 2000×803 的橫幅被裁成 4:3，需要的寬度是「框高 × 2.49」≈ 框寬 × 1.87：
+ * - 901px 以上：版心最寬 1200px、右欄 6/11（約 607px）、左內距 14%＋右 2%，照片約 494px → 需要約 923px → 940px。
+ * - 900px 以下：單欄，照片寬 ≈ (視窗 − 左右留白 20px × 2) × 82% − 16px，
+ *   需要寬度約 1.53 × (100vw − 60px)（390 寬約 505px）。
  */
-export const ABOUT_HERO_SIZES = '(max-width: 900px) calc((100vw - 88px) * 1.65), 800px'
+export const ABOUT_HERO_SIZES = '(max-width: 900px) calc((100vw - 60px) * 1.53), 940px'
 
 export function responsiveImage(name: string, sizes = '100vw') {
   // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，
