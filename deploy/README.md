@@ -13,6 +13,24 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 關於頁細修＋joserfc 安全更新（main CI 部署，沒有 migration）
+
+- **內容**：
+  - `d625879c`（README「2026-10-30 關於頁再一輪細修」）：全人教育 900px 以下的多餘間距、手機沿革卡紙左緣不齊、沿革卡紙拿掉重複的年份貼紙與校名。
+  - `9be4b9f6`：`joserfc` 1.7.5 → 1.7.7（CVE-2026-119284，authlib 的依賴，Google／LINE 登入用），只改 `backend/uv.lock`。
+- **提交**：worktree `about-polish-20261030`（從 origin/main `8f64a667`，快轉到 `76979dc7`）。驗證：
+  - web typecheck 通過，單元測試 110 檔 1332 全過；後台 `aboutPage.test.ts` 20 項過。
+  - 本機 stack（`npm run e2e:build`＋a11y、hydration、editor-live-preview、media 四檔，測試庫 `ivy_website_e2e_aboutpolish_test`，跑完已刪）54 項全過。
+  - joserfc：本機 `pip-audit@2.10.1` 無漏洞；登入相關後端測試 8 檔 197 項全過（測試庫 `ivy_website_aboutpolish_test`，跑完已刪）。
+  - 使用者說「上線」後推 main（fast-forward，兩次）。
+- **CI**：
+  - 第一次推 `d625879c`：main run 41082107006 的 Backend 1/3 在「Audit runtime Python dependencies」被 pip-audit 擋下（`joserfc 1.7.5`，CVE-2026-119284，當天新公布），Deploy skipped，正式站維持 `8f64a667`。其他 job 全綠。
+  - 第二次推 `9be4b9f6`：main run 41084603476 全綠（含 E2E），Deploy success。
+- **線上驗證**（只發 GET，遙測攔下）：
+  - `/release.json` base_commit `9be4b9f6`、created_at `2026-10-30T15:58:49Z`；health 200。
+  - `/about` 沒有 `abh-tag`；Playwright 量 1440、1024、768、390、352：四章編號到標題都是 16px、標題到下一段 18–24px（手機第一章 17–19 是大標兩行的字距差）；700px 以下五張卡紙左緣都在 54px；頁高 390 寬 8.8、1440 寬 6.4 個畫面。
+- **未驗**：Safari／iOS 實機；正式站 Google／LINE 實際登入往返（測試已涵蓋 authlib 流程）。
+
 ## 2026-10-30 常春藤環境頁換成木頭積木版（main CI 部署，沒有 migration）
 
 - **內容**：`8f64a667`（README「2026-10-30 常春藤環境頁換成木頭積木版」、DESIGN.md 最上面一節）。比稿選 D2：照片裝在積木形狀裡、彩虹疊疊樂首屏、校園環境圓點小路、餐點水平時間軸；拿掉 Rough.js 手繪層、GSAP 小腳印、蠟筆塗鴉、照片圖說與便條；字型沿用圓體並重切分片（約 700 個字型檔換雜湊）；後台常春藤環境頁不列官網不顯示的七欄（資料保留）。正式站內容沒換過這頁照片，部署即生效。
