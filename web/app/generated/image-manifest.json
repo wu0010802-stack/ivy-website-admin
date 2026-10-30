@@ -1392,38 +1392,46 @@
     ]
   },
   "cur-daily-materials": {
-    "width": 1000,
-    "height": 625,
+    "width": 1600,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-480.webp",
+        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-800.webp",
+        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-daily-materials-9c07ba7c5b5b-1000.webp",
-        "width": 1000
+        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-1600.webp",
+        "width": 1600
       }
     ]
   },
   "cur-daily-art": {
-    "width": 1000,
-    "height": 625,
+    "width": 1600,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-480.webp",
+        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-800.webp",
+        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-daily-art-68645db5d4ff-1000.webp",
-        "width": 1000
+        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1600.webp",
+        "width": 1600
       }
     ]
   },
@@ -2136,6 +2144,58 @@
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-1600.webp",
         "width": 1600
+      }
+    ]
+  },
+  "cur-floor-painting": {
+    "width": 2000,
+    "height": 1125,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-1600.webp",
+        "width": 1600
+      },
+      {
+        "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-2000.webp",
+        "width": 2000
+      }
+    ]
+  },
+  "cur-kite": {
+    "width": 2000,
+    "height": 1125,
+    "candidates": [
+      {
+        "src": "/assets/responsive/cur-kite-e62bd741f841-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/cur-kite-e62bd741f841-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/cur-kite-e62bd741f841-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/cur-kite-e62bd741f841-1600.webp",
+        "width": 1600
+      },
+      {
+        "src": "/assets/responsive/cur-kite-e62bd741f841-2000.webp",
+        "width": 2000
       }
     ]
   }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 特色教學頁主體（/curriculum）。
 // 2026-09-26 從兩個舊官網搬來：01 四個年段、02 七個課程方向取自機構站 ivykidschool.com「教學特色 Course」；
-// 04 五件事取自義華校 ivykids.tw「課程特色」（照片是義華校的，2026-10-30 起大肌肉時間改用足球賽照片）。各項目是舊站原文，只修錯字與標點；
+// 04 五件事取自義華校 ivykids.tw「課程特色」（照片是義華校的，2026-10-30 起大肌肉時間改用足球賽照片；
+// 同日操作教具、美感創作換成義華校 NAS 素材庫的才藝課積木與剪紙，原本只有 1000px）。各項目是舊站原文，只修錯字與標點；
 // 未經園方確認的宣傳語（高雄獨家、大推）不搬。
 // 2026-09-28 改成水彩版（使用者選 C，mock：design/curriculum-watercolor-mockup-20260928）：
 // 不再共用 admission.css 的 adm-*；拿掉預約參觀（使用者要求）；新增 03 兒童美術館（機構站「常春藤兒童美術館」
@@ -60,11 +61,17 @@ const GALLERY = [
 // 照片後的顏料 2026-10-13 往上收（中心 .56–.6→.5、上下半徑 .6→.5，左右放寬 .64→.7）：原本往下暈到編號，01 天藍、03 橙的編號顏料團和底下同色顏料糊成一片。
 const DAILY = [
   { image: 'cur-daily-calm', alt: '孩子們閉上眼睛，雙手合十靜下心來', pigment: 'sky', wash: 'sky,.56,.5,.7,.5' },
-  { image: 'cur-daily-materials', alt: '女孩笑著把貓頭鷹積木一個個疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
-  { image: 'cur-daily-art', alt: '女孩專心把材料黏到作品上', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
+  { image: 'cur-daily-materials', alt: '女孩趴在桌邊，專心把積木一塊塊疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
+  { image: 'cur-daily-art', alt: '男孩拿著剪刀，專心沿著線剪紙', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
   { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
   { image: 'cur-daily-motor', alt: '兩個男孩穿著號碼背心，在草地足球場上搶著盤球', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
+
+// 03、04 各收一張寬幅照片（2026-10-30 從義華校 NAS 素材庫挑）：美術館接全校在廣場的地板畫空拍，
+// 五件事接果嶺公園親子放風箏。只是內建照片與圖說，後台沒有對應欄位。桌機 16:9 不裁，手機 4:3。
+const FLOOR = { image: 'cur-floor-painting', alt: '從空中往下拍，孩子們散坐在綠色廣場上，用粉筆畫滿彩色圖案', caption: '義華校全校在廣場一起畫地板畫', wash: 'sun,.5,.5,.7,.6,.024,40', position: '50% 50%' }
+const KITE = { image: 'cur-kite', alt: '綁著馬尾的女孩在草坡上笑著回頭，手上的彩虹風箏飄在身後', caption: '義華校親子到果嶺公園放風箏', wash: 'leaf,.4,.5,.7,.6,.024,40', position: '24% 50%' }
+const BAND_SIZES = '(max-width: 1100px) 100vw, 1000px'
 
 // 教學理念五項各配一種顏料（文字在後台）。
 const BELIEF_PIGMENTS = ['orange', 'sky', 'sun', 'mint', 'leaf'] satisfies Pigment[]
@@ -191,6 +198,10 @@ useWatercolor(root)
             <span>{{ art.label }}</span>
           </li>
         </ul>
+        <figure class="cur-band" data-reveal>
+          <div class="cur-frame" :data-wash="FLOOR.wash"><img v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy"></div>
+          <figcaption>{{ FLOOR.caption }}</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -213,6 +224,10 @@ useWatercolor(root)
             <p>{{ item.text }}</p>
           </li>
         </ol>
+        <figure class="cur-band" data-reveal>
+          <div class="cur-frame" :data-wash="KITE.wash"><img v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy"></div>
+          <figcaption>{{ KITE.caption }}</figcaption>
+        </figure>
       </div>
     </section>
 

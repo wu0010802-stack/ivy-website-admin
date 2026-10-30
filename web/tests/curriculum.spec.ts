@@ -95,7 +95,7 @@ describe('特色教學頁圖片', () => {
   const gallery = ['cur-gallery-canvas-yellow', 'cur-gallery-clay-ball', 'cur-gallery-tote', 'cur-gallery-plane-pink',
     'cur-gallery-tee', 'cur-gallery-canvas-blue', 'cur-gallery-tape', 'cur-gallery-plane-dots']
   const names = [CURRICULUM_HERO_IMAGE, 'cur-years', 'cur-cognitive', 'cur-integrated', 'cur-multicultural', 'cur-autonomy', 'cur-activities', 'cur-art',
-    'cur-daily-calm', 'cur-daily-materials', 'cur-daily-art', 'cur-daily-reading', 'cur-daily-motor', ...gallery]
+    'cur-daily-calm', 'cur-daily-materials', 'cur-daily-art', 'cur-daily-reading', 'cur-daily-motor', 'cur-floor-painting', 'cur-kite', ...gallery]
   it.each(names)('%s 已產生響應式候選檔', (name) => {
     expect(Object.hasOwn(manifest, name)).toBe(true)
     expect(responsiveImage(name).srcset).toBeTruthy()
