@@ -153,7 +153,7 @@ body:has(.renv){background:var(--ivy-ivory)}
 .renv-feature{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:clamp(40px,5vw,80px);align-items:center;margin-top:clamp(64px,7vw,96px)}
 .renv-feature-photo{transform:rotate(-1deg)}
 .renv-feature-photo>img{aspect-ratio:3/2;object-fit:cover}
-.renv-note.is-slide{left:-14px;bottom:-26px;--r:-5deg}
+.renv-note.is-slide{right:-14px;bottom:-26px;--r:5deg}
 .renv-feature-copy h3{margin-top:22px;font-weight:700;font-size:clamp(1.75rem,1.2rem + 1.6vw,2.5rem);line-height:1.4}
 .renv-feature-copy p{margin-top:18px;font-size:var(--fs-md);line-height:1.95;color:var(--renv-ink-soft)}
 .renv-tag{display:inline-block;isolation:isolate;padding:4px 14px;font-size:var(--fs-sm);font-weight:700;letter-spacing:.12em;color:var(--renv-ink)}
@@ -342,7 +342,7 @@ body:has(.renv){background:var(--ivy-ivory)}
   .renv-note{font-size:var(--fs-sm);padding:4px 10px}
   .renv-note.is-n1,.renv-note.is-n3,.renv-note.is-n4{right:-8px}
   .renv-note.is-n2,.renv-note.is-n5{left:-10px}
-  .renv-note.is-slide{left:-6px}
+  .renv-note.is-slide{right:-6px}
   .renv-book{padding-left:4%}
   .renv-book-note{font-size:var(--fs-md)}
   /* 照片底紙在手機縮小一圈（rough-sketch 的 frame：16→10px），照片左右再讓 4／10px：底紙原本往右多伸、加上傾斜，

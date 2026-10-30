@@ -1010,19 +1010,19 @@
     "height": 1067,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-playground-854f318c0746-480.webp",
+        "src": "/assets/responsive/env-space-playground-f1ad0279c934-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-space-playground-854f318c0746-800.webp",
+        "src": "/assets/responsive/env-space-playground-f1ad0279c934-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-space-playground-854f318c0746-1200.webp",
+        "src": "/assets/responsive/env-space-playground-f1ad0279c934-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/env-space-playground.webp",
+        "src": "/assets/responsive/env-space-playground-f1ad0279c934-1600.webp",
         "width": 1600
       }
     ]
@@ -1050,60 +1050,68 @@
     ]
   },
   "env-space-materials": {
-    "width": 928,
-    "height": 693,
+    "width": 1600,
+    "height": 1067,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-materials-7c442ca65f80-480.webp",
+        "src": "/assets/responsive/env-space-materials-3c141de42bd9-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-space-materials-7c442ca65f80-800.webp",
+        "src": "/assets/responsive/env-space-materials-3c141de42bd9-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-space-materials-7c442ca65f80-928.webp",
-        "width": 928
+        "src": "/assets/responsive/env-space-materials-3c141de42bd9-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-materials-3c141de42bd9-1600.webp",
+        "width": 1600
       }
     ]
   },
   "env-space-plaza": {
     "width": 1600,
-    "height": 1200,
+    "height": 1067,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-480.webp",
+        "src": "/assets/responsive/env-space-plaza-94c1e997533f-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-800.webp",
+        "src": "/assets/responsive/env-space-plaza-94c1e997533f-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-space-plaza-2bb2239cca89-1200.webp",
+        "src": "/assets/responsive/env-space-plaza-94c1e997533f-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/env-space-plaza.webp",
+        "src": "/assets/responsive/env-space-plaza-94c1e997533f-1600.webp",
         "width": 1600
       }
     ]
   },
   "env-space-corner": {
-    "width": 900,
-    "height": 675,
+    "width": 1600,
+    "height": 1067,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-corner-07b228bcdecd-480.webp",
+        "src": "/assets/responsive/env-space-corner-a242389be70b-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-space-corner-07b228bcdecd-800.webp",
+        "src": "/assets/responsive/env-space-corner-a242389be70b-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-space-corner-07b228bcdecd-900.webp",
-        "width": 900
+        "src": "/assets/responsive/env-space-corner-a242389be70b-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/env-space-corner-a242389be70b-1600.webp",
+        "width": 1600
       }
     ]
   },

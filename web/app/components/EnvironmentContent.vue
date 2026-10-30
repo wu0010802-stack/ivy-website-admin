@@ -30,7 +30,8 @@ const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>(
 // 後台沒填說明則用素材庫的說明）。文字（標題、說明、便條）讀 props.page，清單照索引對應。
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
 const CARE_PHOTO_ALT = '老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌'
-const FEATURE_ALT = '校園裡色彩繽紛的溜滑梯與遊戲設施'
+// 2026-10-30 遊樂區大圖換成義華校 NAS 開學日的照片（舊照是沒有人的遊樂設施），溜滑梯在畫面右側，便條改貼右下角。
+const FEATURE_ALT = '孩子們在遊戲區跑跳，有人從黃色溜滑梯滑下來'
 // 2026-10-30 均衡飲食、衣物保暖、情緒安撫換成義華校 NAS 素材庫的照片（舊照是疫情期間、戴口罩的 1961×934），
 // 母檔 1600×1200 與框同為 4:3，不必再靠 pos 對位；健康把關、定時消毒 NAS 沒有對應場景，沒換。
 const CARE = [
@@ -42,14 +43,16 @@ const CARE = [
 ]
 
 // 便條（note）只標照片 alt 已經寫到的細節；to 是箭頭指到照片寬高的比例位置（照片不裁切），noteAt 是便條的位置，
-// 兩個都依格子序號固定（後台換照片後箭頭可能沒指準）。只有戶外廣場確定是明華校的照片（舊站檔名「明華戶外廣場」），
-// 其餘校別不明，不標（後台 campusLabel）。doodle 是坐在那張照片上緣的蠟筆塗鴉（戶外廣場的風箏、洗手台的泡泡、
-// 可愛動物區抱紅蘿蔔的兔子），一樣依格子序號固定。
+// 兩個都依格子序號固定（後台換照片後箭頭可能沒指準）。只有戶外廣場標校別（後台 campusLabel「明華校」）：
+// 照片是明華校 2026-01-23 外師戶外課，背景有明華的噴水池；其餘不標。doodle 是坐在那張照片上緣的蠟筆塗鴉
+// （戶外廣場的風箏、洗手台的泡泡、可愛動物區抱紅蘿蔔的兔子），一樣依格子序號固定。
+// 2026-10-30 操作教具、戶外廣場、安全角落換成有孩子的照片（舊照是空景，教具 928px、角落 900px；
+// 廣場舊照與第四章明華校園探索同一張），母檔都是 1600×1067，箭頭跟著重新對位。
 const SPACES = [
   { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅', noteAt: 'is-n1', to: '0.42,0.74' },
-  { image: 'env-space-materials', alt: '教室矮櫃上擺滿各式操作教具', noteAt: 'is-n2', to: '0.36,0.52' },
-  { image: 'env-space-plaza', alt: '明華校寬敞的戶外廣場', noteAt: 'is-n3', to: '0.58,0.76', doodle: 'kite' },
-  { image: 'env-space-corner', alt: '教室角落貼著厚軟墊，地上鋪著巧拼', noteAt: 'is-n4', to: '0.62,0.58' },
+  { image: 'env-space-materials', alt: '女孩坐在桌前，專心組著各式彩色操作教具', noteAt: 'is-n2', to: '0.42,0.76' },
+  { image: 'env-space-plaza', alt: '明華校的戶外廣場上，女孩笑著往前跑，旁邊的孩子坐著看', noteAt: 'is-n3', to: '0.48,0.45', doodle: 'kite' },
+  { image: 'env-space-corner', alt: '幼兒坐在球池裡大笑，身後的牆貼著彩色厚軟墊', noteAt: 'is-n4', to: '0.72,0.28' },
   { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾', noteAt: 'is-n5', to: '0.52,0.44', doodle: 'bubbles' },
   { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子', noteAt: 'is-n6', to: '0.40,0.66', doodle: 'bunny' }
 ]
@@ -226,7 +229,7 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
             <img v-bind="withPhotoStyle(pagePhotoAttrs('env-space-playground', page.feature.photo, '(max-width: 900px) 92vw, 680px'), page.feature.photo)" :alt="pagePhotoAlt(FEATURE_ALT, page.feature.photo, page.feature.photoAlt)" loading="lazy">
             <span class="renv-tape is-tl" data-rough="tape" data-seed="111" />
             <span class="renv-tape is-tr" data-rough="tape" data-seed="112" />
-            <span class="renv-note is-slide" aria-hidden="true" data-rough="note" data-seed="113" data-to="0.12,0.66">{{ page.feature.note }}</span>
+            <span class="renv-note is-slide" aria-hidden="true" data-rough="note" data-seed="113" data-to="0.86,0.74">{{ page.feature.note }}</span>
           </figure>
           <div class="renv-feature-copy">
             <span class="renv-doodle is-rainbow" data-doodle="rainbow" aria-hidden="true" />
