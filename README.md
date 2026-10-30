@@ -4,8 +4,9 @@
 
 - **預約 router 進路由快取**（`backend/tests/route_cache.py`）：快取只收 lifespan 是預設值的 router，但預約的 router 自己 include 了三個子 router，FastAPI 會把 lifespan 合併掉，型別檢查不過，27 條路由每次 `create_app` 都重建。快取命中時改照 `include_router` 收尾（併入啟動／關閉事件與 lifespan），不再看 lifespan 型別。本機 `create_app` 中位數 50.8 ms → 0.8 ms（各 30 次）。新增 `tests/test_route_cache.py`：第二個 app 除了 `create_app` 裡直接掛的 health，每條路由都要是快取來的。
 - **不穩定的占有率測試**（`test_admissions_potential_api.py`）：「占有率不得出現在回應」原本拿 `str(share)[:6]` 比對整段 JSON 文字，CI run 40904623394 因 `'0.0112'` 剛好出現在時間戳記 `…20.011231Z` 失敗、部署等重跑。改成逐一比對回應裡的數值，真的洩漏照樣會擋。
-- **CI 測試庫不驗密碼**（`.github/workflows/website.yml`）：後端三組與 E2E 的拋棄式 PostgreSQL 加 `POSTGRES_HOST_AUTH_METHOD: trust`。image 預設 TCP 走 scram-sha-256，每個測試至少開兩條新連線。本機改 pg_hba 對照被權限擋下，省多少以這個分支的 CI 對 main 前次（pytest 355.6／356／331 秒）為準。
+- **CI 測試庫不驗密碼**（`.github/workflows/website.yml`）：後端三組與 E2E 的拋棄式 PostgreSQL 加 `POSTGRES_HOST_AUTH_METHOD: trust`。image 預設 TCP 走 scram-sha-256，每個測試至少開兩條新連線。本機改 pg_hba 對照被權限擋下，改看 CI。
 - **CLAUDE.md**：`tests/e2e` 自 10-21 起已在 CI 的 E2E job 跑，更正原本「沒有在 CI 跑」。
+- **CI 實測**（快取＋trust 合計，PR #56 run 40976101409）：後端三組 pytest 229／307／252 秒、最慢的 job 375 秒；main 前四次（40904623394、40900281892、40883612242、40883174308）每次最慢那組 pytest 440–524 秒、三組合計 1127–1369 秒、最慢的 job 515–578 秒，合計少約三到四成（只有一次樣本，runner 有快慢）。後端不再是部署前的關鍵路徑上唯一的長 job：Frontend (admin) 這次 383 秒，和後端最慢的一組差不多。
 - **驗證**：本機 PostgreSQL 16（TCP、密碼驗證）後端全套 **4735 passed**（16 分 9 秒）；`python3 -m unittest discover -s deploy/tests` 25 項 OK；workflow YAML 解析正常。
 - **沒做**：`.test_durations` 缺 1219 項，等 CI 新的每項時間穩定後再重產；`_clean_tables` 只在用到 app 的測試才清表、登入 fixture 改直接建 session 兩項提速另案。
 
