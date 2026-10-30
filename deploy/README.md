@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 環境頁照顧三張、義華校園探索兩張換成義華 NAS 照片（main CI 部署，沒有 migration）
+
+- **內容**：`bb32e879`（README「2026-10-30 環境頁照顧三張、義華校園探索兩張換成義華 NAS 照片」）。`env-care-meal`／`env-care-clothes`／`env-care-comfort` 換掉戴口罩的舊照（1600×1200）；義華校園探索 `campus`／`classroom` 換掉 960px 舊照（1600×1000），正式站後台場景代號不變，換檔即生效。
+- **提交**：worktree `yihua-nas-photos2-20261030`（從 origin/main `041eee82`），web typecheck＋單元 1385、後端 `test_media_slots.py`＋`test_content_rules.py` 34、本機 `test:e2e:stack` 156 全過；使用者要求後推 main（fast-forward）。
+- **CI**：main run 41002072076 全綠，Deploy success（04:24:06–04:28:14Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `bb32e879`、created_at `2026-10-30T04:24:35Z`；health `status: ok`、`fixture_enabled: false`。`/environment` 伺服器 HTML 有三段新替代文字與 `campus-ead876867cb6`、`classroom-82d5b983af61`；舊替代文字與舊 campus 雜湊 0；五張 800w 衍生檔皆 200。
+
 ## 2026-10-30 特色教學換義華 NAS 照片、加地板畫與放風箏寬幅照（main CI 部署，沒有 migration）
 
 - **內容**：`31c23345`（README「2026-10-30 特色教學換兩張、加兩張寬幅照片」）。`cur-daily-materials`、`cur-daily-art` 換成義華校 NAS 的積木課與剪紙（1600×1000）；03 美術館結尾加 `cur-floor-painting`、04 五件事結尾加 `cur-kite`。正式站沒有特色教學頁的後台內容，用內建照片。
