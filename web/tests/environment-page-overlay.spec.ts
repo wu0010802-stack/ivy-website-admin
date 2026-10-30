@@ -250,7 +250,7 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     expect(img(html, '素材庫的空間說明')).toContain('object-position:70% 20%')
     // 內建的第一張照顧卡被換掉了，第二張還是內建圖與 pos
     expect(html).not.toContain('老師幫戴著口罩的孩子確認身體狀況')
-    expect(img(html, '孩子們坐在桌邊用碗吃飯')).toContain('object-position:40% 50%')
+    expect(img(html, '男孩拿著湯匙，從紅色碗裡舀飯吃')).toContain('object-position:50% 50%')
     // 首屏換了照片：內建首屏圖不再出現
     expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_IMAGE}.webp`)
     expect(img(html, '素材庫的首屏說明')).toContain(`/media/${HERO}/file`)

@@ -27,9 +27,9 @@ describe('resolveTourImageSrc：campus_tour 場景圖片相容兩種來源', () 
 describe('巡覽圖片依展示尺寸選圖，保留媒體庫及放大檢視', () => {
   it('靜態場景提供尺寸候選與原始比例', () => {
     const image = responsiveTourImage('campus', '96px')
-    expect(image).toMatchObject({ src: '/assets/campus.webp', width: 960, height: 600, sizes: '96px' })
+    expect(image).toMatchObject({ src: '/assets/campus.webp', width: 1600, height: 1000, sizes: '96px' })
     expect(image.srcset).toContain('480w')
-    expect(image.srcset).toContain('/assets/campus.webp 960w')
+    expect(image.srcset).toContain('1600w')
   })
 
   it('媒體庫圖片保持 API 路徑，不產生不存在的靜態衍生檔', () => {
@@ -42,6 +42,6 @@ describe('巡覽圖片依展示尺寸選圖，保留媒體庫及放大檢視', (
     const image = responsiveTourImage('campus', '100vw', true)
     expect(image.src).toBe('/assets/campus.webp')
     expect(image.srcset).toBeUndefined()
-    expect(image.width).toBe(960)
+    expect(image.width).toBe(1600)
   })
 })

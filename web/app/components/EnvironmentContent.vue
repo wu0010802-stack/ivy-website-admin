@@ -31,11 +31,13 @@ const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>(
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
 const CARE_PHOTO_ALT = '老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌'
 const FEATURE_ALT = '校園裡色彩繽紛的溜滑梯與遊戲設施'
+// 2026-10-30 均衡飲食、衣物保暖、情緒安撫換成義華校 NAS 素材庫的照片（舊照是疫情期間、戴口罩的 1961×934），
+// 母檔 1600×1200 與框同為 4:3，不必再靠 pos 對位；健康把關、定時消毒 NAS 沒有對應場景，沒換。
 const CARE = [
   { image: 'env-care-health', pos: '32% 50%', alt: '老師幫戴著口罩的孩子確認身體狀況' },
-  { image: 'env-care-meal', pos: '40% 50%', alt: '孩子們坐在桌邊用碗吃飯' },
-  { image: 'env-care-clothes', pos: '56% 50%', alt: '老師幫孩子整理衣服' },
-  { image: 'env-care-comfort', pos: '66% 40%', alt: '老師蹲下來抱著笑開的孩子' },
+  { image: 'env-care-meal', pos: '50% 50%', alt: '男孩拿著湯匙，從紅色碗裡舀飯吃' },
+  { image: 'env-care-clothes', pos: '50% 50%', alt: '穿著淺藍色羽絨外套的女孩站在桌邊' },
+  { image: 'env-care-comfort', pos: '50% 50%', alt: '老師坐著把眼眶泛紅的男孩抱在懷裡' },
   { image: 'env-care-clean', pos: '62% 60%', alt: '老師擦拭消毒教室門把' }
 ]
 

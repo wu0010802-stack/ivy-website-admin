@@ -178,20 +178,24 @@
     ]
   },
   "campus": {
-    "width": 960,
-    "height": 600,
+    "width": 1600,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/campus-815b7df1f159-480.webp",
+        "src": "/assets/responsive/campus-ead876867cb6-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/campus-815b7df1f159-800.webp",
+        "src": "/assets/responsive/campus-ead876867cb6-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/campus.webp",
-        "width": 960
+        "src": "/assets/responsive/campus-ead876867cb6-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/campus-ead876867cb6-1600.webp",
+        "width": 1600
       }
     ]
   },
@@ -240,20 +244,24 @@
     ]
   },
   "classroom": {
-    "width": 960,
-    "height": 600,
+    "width": 1600,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/classroom-3c728c9505bc-480.webp",
+        "src": "/assets/responsive/classroom-82d5b983af61-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/classroom-3c728c9505bc-800.webp",
+        "src": "/assets/responsive/classroom-82d5b983af61-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/classroom-3c728c9505bc-960.webp",
-        "width": 960
+        "src": "/assets/responsive/classroom-82d5b983af61-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/classroom-82d5b983af61-1600.webp",
+        "width": 1600
       }
     ]
   },
@@ -906,80 +914,68 @@
     ]
   },
   "env-care-meal": {
-    "width": 1961,
-    "height": 934,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-480.webp",
+        "src": "/assets/responsive/env-care-meal-57c69dedfd63-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-800.webp",
+        "src": "/assets/responsive/env-care-meal-57c69dedfd63-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1200.webp",
+        "src": "/assets/responsive/env-care-meal-57c69dedfd63-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1600.webp",
+        "src": "/assets/responsive/env-care-meal-57c69dedfd63-1600.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/env-care-meal-bdd82f4949f4-1961.webp",
-        "width": 1961
       }
     ]
   },
   "env-care-clothes": {
-    "width": 1961,
-    "height": 934,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-480.webp",
+        "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-800.webp",
+        "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1200.webp",
+        "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1600.webp",
+        "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-1600.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/env-care-clothes-c3ed1ddc4622-1961.webp",
-        "width": 1961
       }
     ]
   },
   "env-care-comfort": {
-    "width": 1961,
-    "height": 934,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-480.webp",
+        "src": "/assets/responsive/env-care-comfort-03b343563d43-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-800.webp",
+        "src": "/assets/responsive/env-care-comfort-03b343563d43-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1200.webp",
+        "src": "/assets/responsive/env-care-comfort-03b343563d43-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1600.webp",
+        "src": "/assets/responsive/env-care-comfort-03b343563d43-1600.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/env-care-comfort-79b4ee778d5d-1961.webp",
-        "width": 1961
       }
     ]
   },

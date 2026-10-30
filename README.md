@@ -1,3 +1,17 @@
+## 2026-10-30 環境頁照顧三張、義華校園探索兩張換成義華 NAS 照片（`feature/yihua-nas-photos2-20261030`）
+
+接著上一段，同一個義華校 NAS 素材庫，換掉戴口罩的疫情期照片與 960px 的舊官網照片。檔名（代號）不變。
+
+- **環境頁・五件照顧的小事**（母檔 1961×934 → 1600×1200，與框同為 4:3，位置一律置中）：
+  - 均衡飲食 `env-care-meal`：男孩拿湯匙從紅色碗裡舀飯（2024-09-12）。
+  - 衣物保暖 `env-care-clothes`：穿淺藍羽絨外套的女孩（2025-12-10 穿衣服早會）。
+  - 情緒安撫 `env-care-comfort`：老師抱著眼眶泛紅的新生（2024-08-01 新生）。
+- **義華校園探索**（環境頁第四章，正式站後台的場景圖代號就是 `campus`／`classroom`，換檔即生效；960×600 → 1600×1000）：
+  - 戶外廣場 `campus`：孩子在廣場騎滑板車、三輪車（2025-09-09）。
+  - 共創教室 `classroom`：美術課，孩子圍著桌子捏黏土（2025-09-17）。
+- **沒換**：健康把關、定時消毒、照顧大圖（鈴鼓便條對位）、綠色園藝——NAS 沒有對應場景；五件事靜心——NAS 找不到更好的。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 1385 全過（`tour-image.spec.ts` 尺寸、`environment-page-overlay.spec.ts` 替代文字、環境頁兩份渲染快照跟著改，快照差異只有這五張的尺寸、雜湊與替代文字）；後端 `test_media_slots.py`＋`test_content_rules.py` 34 過；fixture dev server Playwright 截桌機 1440／手機 390。
+
 ## 2026-10-30 特色教學換兩張、加兩張寬幅照片：義華校 NAS 素材庫（`feature/yihua-nas-photos-20261030`）
 
 來源是義華校的 Synology NAS（`IVY Photos and Videos`，220 個資料夾、約 1.5 萬張，2024-01～2026-05），使用者開著讓我挑。
